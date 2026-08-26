@@ -249,7 +249,7 @@ if ($method === 'GET') {
             }
 
             $stmt = $pdo->prepare(
-                "SELECT ds.id, ds.season_id, ds.status, s.season_number, s.year
+                "SELECT ds.id, ds.season_id, ds.status, ds.total_rounds, s.season_number, s.year
                  FROM draft_sessions ds
                  INNER JOIN seasons s ON ds.season_id = s.id
                  WHERE ds.league = ? AND ds.status IN ('setup', 'in_progress')
@@ -287,21 +287,21 @@ if ($method === 'GET') {
             if ($forca) {
                 $doDraft = array_reverse($forca);
 
-                // Dono atual de cada pick de 1ª rodada desta temporada. A
-                // chave é o time de ORIGEM: é a pick "do" time, mesmo estando
-                // com outro.
-                $dono = [];
+                // Dono atual de cada pick desta temporada, por rodada. A chave
+                // é o time de ORIGEM: é a pick "do" time, mesmo estando com
+                // outro.
+                $dono = ['1' => [], '2' => []];
                 try {
                     $sp = $pdo->prepare(
-                        "SELECT p.original_team_id, p.team_id,
+                        "SELECT p.round, p.original_team_id, p.team_id,
                                 CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS dono_nome
                          FROM picks p
                          LEFT JOIN teams t ON t.id = p.team_id
-                         WHERE p.season_id = ? AND p.round = '1'"
+                         WHERE p.season_id = ? AND p.round IN ('1','2')"
                     );
                     $sp->execute([(int)$sessao['season_id']]);
                     foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                        $dono[(int)$r['original_team_id']] = [
+                        $dono[(string)$r['round']][(int)$r['original_team_id']] = [
                             'team_id' => (int)$r['team_id'],
                             'nome'    => trim((string)$r['dono_nome']),
                         ];
@@ -311,19 +311,27 @@ if ($method === 'GET') {
                     // time de origem, que ainda é a metade útil.
                 }
 
-                foreach ($doDraft as $i => $t) {
-                    $d = $dono[$t['team_id']] ?? null;
-                    $projecao[] = [
-                        'pick'          => $i + 1,
-                        'team_id'       => $t['team_id'],
-                        'team_name'     => $t['team_name'],
-                        'team_photo'    => $t['team_photo'],
-                        'owner_name'    => $t['owner_name'],
-                        'power_posicao' => $t['posicao'],
-                        'dono_team_id'  => $d['team_id'] ?? $t['team_id'],
-                        'dono_nome'     => $d['nome'] ?: $t['team_name'],
-                        'trocada'       => $d && $d['team_id'] !== $t['team_id'],
-                    ];
+                // As duas rodadas, na mesma ordem — a classe costuma ter mais
+                // calouros do que times, e com só a 1ª metade da lista ficava
+                // sem time nenhum ao lado.
+                $totalRodadas = max(1, min(2, (int)($sessao['total_rounds'] ?? 2)));
+                for ($rodada = 1; $rodada <= $totalRodadas; $rodada++) {
+                    foreach ($doDraft as $i => $t) {
+                        $d = $dono[(string)$rodada][$t['team_id']] ?? null;
+                        $projecao[] = [
+                            'pick'          => count($projecao) + 1,
+                            'rodada'        => $rodada,
+                            'pick_na_rodada'=> $i + 1,
+                            'team_id'       => $t['team_id'],
+                            'team_name'     => $t['team_name'],
+                            'team_photo'    => $t['team_photo'],
+                            'owner_name'    => $t['owner_name'],
+                            'power_posicao' => $t['posicao'],
+                            'dono_team_id'  => $d['team_id'] ?? $t['team_id'],
+                            'dono_nome'     => ($d['nome'] ?? '') !== '' ? $d['nome'] : $t['team_name'],
+                            'trocada'       => $d && $d['team_id'] !== $t['team_id'],
+                        ];
+                    }
                 }
             }
 

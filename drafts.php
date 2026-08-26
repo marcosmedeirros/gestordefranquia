@@ -523,6 +523,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       font-weight: 800; font-size: 13px; color: var(--amber);
       font-variant-numeric: tabular-nums;
     }
+    /* A rodada só aparece quando não é a 1ª — na 1ª o "R1" em toda linha
+       seria ruído, já que é o caso normal. */
+    .mock-pick-r {
+      display: block; font-size: 9px; font-weight: 700;
+      color: var(--text-3); letter-spacing: .5px;
+    }
     .mock-player-name { font-size: 13px; font-weight: 700; color: var(--text); }
     .mock-player-pos  { font-size: 11px; color: var(--text-3); margin-top: 1px; }
     .mock-team        { text-align: right; min-width: 0; }
@@ -1335,7 +1341,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     const linha = (j, p) => `
       <div class="mock-row">
-        <div class="mock-pick">${p ? '#' + p.pick : '—'}</div>
+        <div class="mock-pick">${p
+          ? (Number(p.rodada) > 1
+              ? `<span class="mock-pick-r">R${p.rodada}</span>#${p.pick_na_rodada}`
+              : '#' + p.pick_na_rodada)
+          : '—'}</div>
         <div class="mock-player">
           <div class="mock-player-name">${esc(j.name)}</div>
           <div class="mock-player-pos">${esc(j.position || '')}</div>
