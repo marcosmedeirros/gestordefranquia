@@ -270,6 +270,30 @@ if (($_GET['acao'] ?? '') === 'conquistadores') {
     exit;
 }
 
+// ── Quem mais terminou carreiras ──────────────────────────────────────
+//
+// Nem hall da fama (a melhor carreira) nem conquistadores (quem pegou mais
+// desafios): este conta simplesmente quantas carreiras cada um já fechou,
+// fácil ou difícil, boa ou ruim. É o retrato de quem mais voltou a jogar.
+if (($_GET['acao'] ?? '') === 'maiscarreiras') {
+    header('Content-Type: application/json; charset=utf-8');
+    $lista = [];
+    try {
+        coperoGarantirTabela($pdo);
+        $st = $pdo->query("SELECT u.nome, COUNT(*) AS total
+                             FROM copero_carreiras c
+                             JOIN games_usuarios u ON u.id = c.id_usuario
+                         GROUP BY c.id_usuario, u.nome
+                         ORDER BY total DESC, u.nome ASC
+                            LIMIT 5");
+        $lista = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[copero] maiscarreiras: ' . $e->getMessage());
+    }
+    echo json_encode(['ok' => true, 'top' => $lista], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ── Encerramento: grava a carreira e devolve as conquistas ────────────
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
@@ -2352,9 +2376,11 @@ function telaInicio(){
       </button>
       <div id="hall"></div>
       <div id="conquistadores"></div>
+      <div id="maiscarreiras"></div>
     </div>`;
   carregarHall();
   carregarConquistadores();
+  carregarMaisCarreiras();
 }
 
 /**
@@ -2391,6 +2417,36 @@ async function carregarConquistadores(){
                 <i class="conq-seta" id="conq-seta-${i}">▾</i></span>
             </div>
             <div class="conq-faltam" id="conq-faltam-${i}" hidden></div>`).join('')}
+        </div>
+      </div>`;
+  } catch (e) { /* sem rede, a tela inicial fica como estava */ }
+}
+
+/**
+ * Quem mais terminou carreiras — não a melhor, não a de mais desafios,
+ * só quem mais voltou a jogar até o fim.
+ *
+ * Fica logo abaixo de "mais desafios completos" de propósito: os três
+ * blocos juntos mostram três jeitos diferentes de ser bom no jogo.
+ */
+async function carregarMaisCarreiras(){
+  const alvo = document.getElementById('maiscarreiras');
+  if (!alvo) return;
+  try {
+    const r = await fetch(location.pathname + '?acao=maiscarreiras');
+    const d = await r.json();
+    const top = (d && d.top) || [];
+    if (!top.length) return;
+    alvo.innerHTML = `
+      <div class="hall" style="margin-top:12px">
+        <div class="hall-cab">Mais carreiras feitas</div>
+        <div class="hall-lista" style="border-top:0">
+          ${top.map((x, i) => `
+            <div class="hall-linha">
+              <span class="hall-pos">${i + 1}</span>
+              <span class="hall-quem">${esc(x.nome)}</span>
+              <span class="hall-det">${x.total}</span>
+            </div>`).join('')}
         </div>
       </div>`;
   } catch (e) { /* sem rede, a tela inicial fica como estava */ }
