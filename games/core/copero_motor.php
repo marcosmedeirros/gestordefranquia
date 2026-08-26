@@ -1369,7 +1369,11 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $c['paisesCampeao'] >= 3],
         'traidor'     => ['⚡', 'Do outro lado',     'Troque de clube pelo maior rival dele.',
                           'media', fn($c) => ($c['trocasRival'] ?? 0) >= 1],
-        'mercenario'  => ['🎭', 'Mercenário',        'Troque pelo rival duas vezes na mesma carreira.',
+        // "Duas vezes" não é a mesma rivalidade duas vezes: vale Barça→Real
+        // e, anos depois, Porto→Benfica. O código sempre contou assim — ele
+        // pergunta se o clube novo é rival do atual, seja qual for o par — e
+        // era só o texto que deixava dúvida.
+        'mercenario'  => ['🎭', 'Mercenário',        'Troque por um rival duas vezes, em rivalidades quaisquer.',
                           'dificil', fn($c) => ($c['trocasRival'] ?? 0) >= 2],
         'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 200 jogos sem sofrer gol.',
                           'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 200],

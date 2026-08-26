@@ -2101,6 +2101,43 @@ function torneioContinental(clube){
   return CONT2[l.cont] ? 'cont2' : 'cont';
 }
 
+/**
+ * O quanto a POSIÇÃO e o ANO pesam na Bola de Ouro.
+ *
+ * A regra não olhava nem uma coisa nem outra: bastava 88 de overall e dois
+ * títulos, e a chance na Europa era 35% pra qualquer um. O resultado
+ * apareceu numa carreira de LATERAL com três Bolas de Ouro — que não é como
+ * o prêmio funciona: lateral nunca ganhou, e zagueiro ganhou três vezes em
+ * setenta anos.
+ *
+ * São dois filtros. O primeiro é quem você é: atacante e meia-atacante
+ * disputam de verdade, meio-campo disputa às vezes, defensor quase nunca. O
+ * segundo é o que você fez: um ano sem números não ganha prêmio nenhum,
+ * mesmo num time campeão — e é isso que abre a porta pro zagueiro do ano
+ * excepcional em vez de fechá-la de vez.
+ */
+const PESO_BOLA_OURO = {
+  CA: 1.00, PE: 0.92, PD: 0.92, MEI: 0.88,
+  ME: 0.55, MD: 0.55, MC: 0.50,
+  VOL: 0.24, ZAG: 0.14, LE: 0.07, LD: 0.07,
+};
+
+function pesoBolaDeOuro(stats){
+  const base = PESO_BOLA_OURO[S.posicao] ?? 0.5;
+
+  // A participação em gols do ano, por jogo. Um centroavante de campanha
+  // grande passa de 1; um lateral fica perto de 0,2 — e é o que faz o ano
+  // dele contar menos, sem precisar de uma segunda tabela de números.
+  const jogos = Math.max(1, stats.jogos || 1);
+  const porJogo = ((stats.gols || 0) + (stats.ast || 0)) / jogos;
+
+  // Meio a meio: metade é quem você é, metade é o ano que você fez. Assim o
+  // defensor de temporada absurda ainda pode ganhar, e o atacante de ano
+  // fraco não ganha só por ser atacante.
+  const rendimento = Math.max(0, Math.min(1.15, porJogo / 0.85));
+  return Math.max(0, Math.min(1, base * 0.5 + base * rendimento * 0.5));
+}
+
 function titulosDaTemporada(clube, ovr, stats){
   const l = dadosLiga(clube.liga);
   if (!l) return [];
@@ -2179,6 +2216,11 @@ function titulosDaTemporada(clube, ovr, stats){
   // degrau. Artilheiro é ser o melhor do seu país; a Chuteira é um número
   // que se destaca em qualquer lugar; a Bola de Ouro exige as duas coisas
   // mais o time ganhando.
+  //
+  // A Bola de Ouro também depende da POSIÇÃO e do que ele fez no ano — ver
+  // pesoBolaDeOuro. Sem isso um lateral de 90 num time campeão levava o
+  // prêmio nos mesmos 35% de um centroavante, e apareceu uma carreira com
+  // três Bolas de Ouro de lateral.
   if (stats.gols >= 22 && Math.random() < 0.45) ganhos.push('artilheiro');
   if (stats.gols >= 30 && ovr >= 84 && Math.random() < 0.40) ganhos.push('chuteira');
   // A Luva é o prêmio de quem não marca gol: sem ela o goleiro passava a
@@ -2195,7 +2237,7 @@ function titulosDaTemporada(clube, ovr, stats){
     if (ovr >= 92 && ganhos.includes('luva_ouro') && ganhos.length >= 3 && Math.random() < 0.07) {
       ganhos.push('bola_ouro');
     }
-  } else if (ovr >= 88 && ganhos.length >= 2) {
+  } else if (ovr >= 88 && ganhos.length >= 2 && Math.random() < pesoBolaDeOuro(stats)) {
     // A BOLA DE OURO É, NA PRÁTICA, UM PRÊMIO DE QUEM JOGA NA EUROPA.
     //
     // A chance era a mesma em qualquer continente, e o resultado apareceu numa
@@ -2543,6 +2585,14 @@ function comecarCarreira(){
     talento: (70 + Math.floor(Math.random() * 55)) / 100,
     pico: 24 + Math.floor(Math.random() * 8),
     durabilidade: (75 + Math.floor(Math.random() * 60)) / 100,
+    // ATÉ ONDE ESSE JOGADOR DÁ. O quarto dado escondido, e o que faltava:
+    // sem teto, o crescimento era sempre positivo enquanto jovem e 99% das
+    // carreiras passavam de 80 de overall — 82% passavam de 90. Todo mundo
+    // virava craque, e "virar craque" deixava de significar alguma coisa.
+    //
+    // Sai de sortearPotencial(): sorteado uma vez, guardado na carreira e
+    // nunca mostrado, como os outros três.
+    potencial: 0,
     picoOvr: 50, picoValor: 0, maiorForcaClube: 0, comecouAbaixo: false,
     formador: null,        // o clube que te revelou, pra volta pra casa
     // O que as cartas deixam pendurado pro ano seguinte. Nasce zerado aqui,
@@ -2556,7 +2606,30 @@ function comecarCarreira(){
     lesaoPor: 0, semSelecao: 0, janela: null, motivoSaida: null, jaOperou: false,
     fase: 'oferta_base', evento: null, fim: false, resultado: null,
   };
+  S.potencial = sortearPotencial(S.talento);
   salvar(); render();
+}
+
+/**
+ * O TETO DE UM JOGADOR: até onde ele consegue chegar de overall.
+ *
+ * A carreira não tinha teto nenhum. Enquanto o jogador fosse jovem o ganho
+ * era sempre positivo, e o medido foi 99% das carreiras passando de 80 e 82%
+ * passando de 90 — todo mundo virava craque, e a promessa que não vinga
+ * simplesmente não existia no jogo.
+ *
+ * O talento manda, mas não decide sozinho: a faixa é larga e tem sorteio por
+ * cima, então talento alto costuma virar craque e às vezes não, e talento
+ * médio às vezes surpreende. É o que faz duas carreiras da mesma escolha
+ * terminarem diferentes.
+ *
+ * O piso de 66 existe pra carreira nenhuma virar injogável: mesmo o teto
+ * mais baixo dá um profissional de divisão pequena, que é uma história —
+ * diferente de um jogador que não consegue jogar.
+ */
+function sortearPotencial(talento){
+  const base = 72 + (Math.max(0.7, Math.min(1.25, talento)) - 0.7) * 40;
+  return Math.max(66, Math.min(97, Math.round(base + ri(-6, 6))));
 }
 
 /* ── O laço da carreira ─────────────────────────────── */
@@ -3314,6 +3387,19 @@ function temporada(){
      também vira goleador. */
   const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.6) * 2.3);
 
+  /* GOL ANDA MAIS DEVAGAR QUE ASSISTÊNCIA.
+     A mesma curva servia aos dois, e o resultado medido foi um centroavante
+     de 89 na Ligue 2 com MÉDIA de 99 gols por temporada — quatro em cada
+     cinco anos passando de 80. Assistência nunca teve esse problema: o
+     melhor armador fica na casa dos 40 por ano, que é um número que existe.
+
+     Então o coeficiente de gol desce (2,3 → 2,2) e o de assistência fica — o resto do
+     corte vem da folga de liga e da compressão no topo, que é onde estava o
+     exagero de verdade.
+     Separar os dois é o que permite conter a artilharia sem derrubar junto a
+     conquista das 400 assistências, que depende da outra ponta. */
+  const qGol = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.6) * 2.2);
+
   // CONTRA QUEM ele joga. Faltava isto: a liga não entrava na conta, e um 90
   // fazia os mesmos 52 gols na Premier e na Série C — o mesmo jogador, contra
   // zagueiros de 96 e de 54, com o mesmo número no fim do ano.
@@ -3322,16 +3408,40 @@ function temporada(){
   // acima (um 90 na Série C) encara defesa que não o acompanha e goleia; quem
   // está abaixo (um 90 na Premier) briga por cada espaço. O teto de 2,05 é o
   // que faz caber uma temporada de 100 e poucos gols sem virar rotina.
+  //
+  // O TETO CAIU DE 2,05 PRA 1,55, e o divisor subiu de 34 pra 44. Era aqui
+  // que morava o pior número do jogo: um 89 no Auxerre — Ligue 2, média 66 —
+  // ganhava 1,68 de bônus e terminava o ano com 100 gols. Estar muito acima
+  // da liga tem que render, mas não pode render o dobro.
   const mediaDaLiga = (dadosLiga(S.clube.liga) || {}).media || 72;
-  const folga = Math.max(0.55, Math.min(2.05, 1 + (S.ovr - mediaDaLiga) / 34));
+  const folga = Math.max(0.55, Math.min(1.55, 1 + (S.ovr - mediaDaLiga) / 44));
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
     emprestado: !!S.emprestadoDe,
     jogos,
-    gols: Math.max(0, Math.round(jogos * pesoGol * q * folga * (ri(75,130)/100))),
-    ast:  Math.max(0, Math.round(jogos * pesoAst * q * folga * (ri(70,135)/100))),
+    gols: Math.max(0, Math.round(jogos * pesoGol * qGol * folga * (ri(75,130)/100))),
+    ast:  Math.max(0, Math.round(jogos * pesoAst * q    * folga * (ri(70,135)/100))),
     valor: valorAtual(),
   };
+
+  /* QUEM PODE PASSAR DE 80 GOLS NUMA TEMPORADA.
+     Só centroavante e ponta, e só de 93 pra cima. Não é um número que se
+     tira de qualquer temporada boa: é a marca de quem é o melhor atacante do
+     mundo naquele ano, e o resto do elenco — meia, volante, lateral — não
+     chega lá nem num ano irreal.
+
+     São duas etapas, e a ordem importa. O CORTE SOZINHO amontoaria todo
+     mundo em exatamente 80, e uma lista de temporadas terminando em 80, 80,
+     80 lê-se como limite artificial — então o excesso acima de 70 é
+     comprimido primeiro, e sobra variado. A compressão vale pra todos,
+     inclusive pro craque: o que distingue o artilheiro de elite não é
+     produzir mais no topo, é ser o único que o teto não recolhe. É o que
+     deixa a temporada histórica existir sem virar rotina — medido, ele passa
+     de 80 em um ano a cada seis, e o resto do elenco nunca. */
+  const ehArtilheiro = S.posicao === 'CA' || S.posicao === 'PE' || S.posicao === 'PD';
+  const lendaDoGol   = ehArtilheiro && S.ovr >= 93;
+  if (t.gols > 70) t.gols = Math.round(70 + (t.gols - 70) * 0.42);
+  if (!lendaDoGol && t.gols > 80) t.gols = 80;
 
   // GOLEIRO tem outro boletim. Gol e assistência não dizem nada sobre ele —
   // a temporada de um goleiro se mede em gols sofridos e jogos sem sofrer.
@@ -3425,6 +3535,7 @@ function evoluir(){
   const dur  = S.durabilidade || 1;
 
   let d;
+  let estirao = false;
   if (S.idade < pico) {
     // Subindo, e mais rápido quanto mais longe do auge. Os números são
     // apertados de propósito: quem cresce até os 31 tem quinze temporadas
@@ -3432,7 +3543,7 @@ function evoluir(){
     d = (ri(-1,2) + Math.min(3, (pico - S.idade) * 0.45) + amb) * min * tal;
     // O ESTIRÃO: aquele ano em que o garoto encaixa tudo e some da divisão
     // de baixo. Raro, e mais provável em quem tem talento.
-    if (S.idade <= 23 && Math.random() < 0.11 * tal) d += ri(3,7);
+    if (S.idade <= 23 && Math.random() < 0.11 * tal) { d += ri(3,7); estirao = true; }
   } else if (S.idade <= pico + 2) {
     d = ri(-1,2) + amb * 0.4;               // o platô do auge
   } else {
@@ -3446,9 +3557,51 @@ function evoluir(){
   // é isso que faz uma promessa às vezes simplesmente não virar.
   if (t && t.lesao) d -= ri(2,5);
 
+  /* O TETO DO JOGADOR FREIA O CRESCIMENTO.
+     Chegar perto do próprio limite tem que custar: os últimos pontos são os
+     mais caros, e passar do teto não acontece. Sem este freio o ganho era
+     sempre positivo enquanto jovem, e 99% das carreiras terminavam acima de
+     80 de overall.
+
+     `|| sortearPotencial` cobre a carreira salva antes deste campo existir —
+     ela recebe um teto coerente com o talento que já tinha, em vez de
+     continuar sem nenhum. */
+  const pot = S.potencial || (S.potencial = sortearPotencial(tal));
+  if (d > 0) {
+    // Nos últimos oito pontos o ganho vai secando; no teto, para.
+    d *= Math.max(0, Math.min(1, (pot - S.ovr) / 8));
+  }
+
+  /* DEPOIS DOS 32 A CURVA VIRA PRA BAIXO — quase sempre.
+     A queda já existia, mas era amarrada ao `pico` sorteado: quem tirou pico
+     31 só começava a cair aos 34. Aos 33 o corpo cobra de todo mundo, e o
+     que varia é o tamanho da conta, não se ela chega. Fica um resto de sorte
+     de propósito: uma temporada em que ele segura o nível é o que faz o
+     veterano ter história. */
+  if (S.idade >= 33) {
+    // O ano em que ele segura o nível tem que EMPATAR, não virar a queda de
+    // sempre — com Math.min o sorteio não valia nada, porque a queda que já
+    // estava na conta era menor que zero e ganhava sempre.
+    d = (ri(0, 100) < 18)
+      ? Math.max(d, 0)
+      : Math.min(d, -(ri(1, 3) + (S.idade - 33) * 0.4) / dur);
+  }
+
   if (S.ovr >= 88) d = Math.min(d, ri(0,2));
   if (S.ovr >= 93) d = Math.min(d, ri(0,1));
   if (S.ovr >= 96) d = Math.min(d, 0);
+
+  /* QUANTO DÁ PRA SUBIR NUM ANO SÓ.
+     Os pedaços — a distância pro auge, o ambiente do clube, o talento e o
+     estirão — se somavam sem limite nenhum, e o medido foi um garoto de 18
+     num clube grande ganhando 7,5 de overall POR ANO, com um ano em cada dez
+     passando de 11 e picos de 16. Nesse ritmo a promessa vira craque em duas
+     temporadas e o resto da carreira não tem para onde crescer.
+
+     O teto é 5, e 8 no ano do estirão — que continua sendo o salto que se
+     nota, só que agora é o teto e não o começo da conta. */
+  d = Math.min(d, estirao ? 8 : 5);
+
   return Math.max(35, Math.min(99, S.ovr + Math.round(d)));
 }
 
