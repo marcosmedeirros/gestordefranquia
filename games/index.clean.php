@@ -24,8 +24,6 @@ try {
 $nowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
 $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 $yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');
-$hiddenRankingEmail = 'medeirros99@gmail.com';
-$hiddenRankingEmailLower = strtolower($hiddenRankingEmail);
 
 try {
     $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points FROM games_usuarios WHERE id = :id");
@@ -83,8 +81,7 @@ $ranking_leagues = ['GERAL' => 'Geral'];
 $ranking_points = ['GERAL' => []];
 
 try {
-    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.pontos, u.league, NULL AS team_name FROM games_usuarios u WHERE LOWER(u.email) <> :hidden_email ORDER BY pontos DESC LIMIT 5");
-    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
+    $stmt = $pdo->query("SELECT u.id, u.nome, u.pontos, u.league, NULL AS team_name FROM games_usuarios u ORDER BY pontos DESC LIMIT 5");
     $ranking_points['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $ranking_points['GERAL'] = []; }
 
@@ -92,14 +89,13 @@ $ranking_acertos = array_fill_keys(array_keys($ranking_leagues), []);
 $ranking_acertos_24h = array_fill_keys(array_keys($ranking_leagues), []);
 
 try {
-    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.league, NULL AS team_name, COALESCE(u.fba_points, 0) AS fba_points, COALESCE(u.acertos_eventos, 0) AS acertos, COALESCE(p.total_apostas, 0) AS total_apostas FROM games_usuarios u LEFT JOIN (SELECT id_usuario, COUNT(*) AS total_apostas FROM palpites GROUP BY id_usuario) p ON p.id_usuario = u.id WHERE LOWER(u.email) <> :hidden_email ORDER BY acertos DESC, total_apostas DESC, u.nome ASC LIMIT 5");
-    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
+    $stmt = $pdo->query("SELECT u.id, u.nome, u.league, NULL AS team_name, COALESCE(u.fba_points, 0) AS fba_points, COALESCE(u.acertos_eventos, 0) AS acertos, COALESCE(p.total_apostas, 0) AS total_apostas FROM games_usuarios u LEFT JOIN (SELECT id_usuario, COUNT(*) AS total_apostas FROM palpites GROUP BY id_usuario) p ON p.id_usuario = u.id ORDER BY acertos DESC, total_apostas DESC, u.nome ASC LIMIT 5");
     $ranking_acertos['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $ranking_acertos['GERAL'] = []; }
 
 try {
-    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.league, NULL AS team_name, COALESCE(u.fba_points, 0) AS fba_points, COUNT(*) AS acertos, COUNT(p.id) AS total_apostas FROM palpites p JOIN opcoes o ON p.opcao_id = o.id JOIN eventos e ON o.evento_id = e.id JOIN games_usuarios u ON p.id_usuario = u.id WHERE e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id AND e.data_limite >= :yesterday_brt AND LOWER(u.email) <> :hidden_email GROUP BY u.id, u.nome, u.league ORDER BY acertos DESC, total_apostas DESC, u.nome ASC LIMIT 5");
-    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr, ':hidden_email' => $hiddenRankingEmailLower]);
+    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.league, NULL AS team_name, COALESCE(u.fba_points, 0) AS fba_points, COUNT(*) AS acertos, COUNT(p.id) AS total_apostas FROM palpites p JOIN opcoes o ON p.opcao_id = o.id JOIN eventos e ON o.evento_id = e.id JOIN games_usuarios u ON p.id_usuario = u.id WHERE e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id AND e.data_limite >= :yesterday_brt GROUP BY u.id, u.nome, u.league ORDER BY acertos DESC, total_apostas DESC, u.nome ASC LIMIT 5");
+    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr]);
     $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $ranking_acertos_24h['GERAL'] = []; }
 

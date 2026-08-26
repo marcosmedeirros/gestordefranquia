@@ -11,7 +11,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
     $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
@@ -62,10 +61,8 @@ try {
 try {
     $sql = "SELECT u.id, u.nome, u.pontos, (u.pontos - 50) as lucro_liquido
             FROM games_usuarios u
-            WHERE LOWER(u.email) <> :hidden_email
             ORDER BY lucro_liquido DESC";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
+    $stmt = $pdo->query($sql);
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die("Erro ao carregar ranking: " . $e->getMessage());

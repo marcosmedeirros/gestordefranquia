@@ -6,7 +6,6 @@ require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
-$hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 
 /** Ritmo máximo que a física do jogo permite — usado pra rejeitar score inventado. */
@@ -130,8 +129,7 @@ try {
     $stmtRecorde->execute([':id' => $user_id]);
     $recorde = $stmtRecorde->fetchColumn() ?: 0;
 
-    $stmtRank = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN games_usuarios u ON h.id_usuario = u.id WHERE LOWER(u.email) <> :hidden_email GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
-    $stmtRank->execute([':hidden_email' => $hiddenRankingEmailLower]);
+    $stmtRank = $pdo->query("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN games_usuarios u ON h.id_usuario = u.id GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
     $ranking_flappy = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { die("Erro DB: " . $e->getMessage()); }
 

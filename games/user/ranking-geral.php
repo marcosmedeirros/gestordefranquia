@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
     $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
@@ -66,26 +65,22 @@ try {
                AND p.data_palpite BETWEEN :start_at AND :end_at
             LEFT JOIN opcoes o ON p.opcao_id = o.id
             LEFT JOIN eventos e ON o.evento_id = e.id
-            WHERE LOWER(u.email) <> :hidden_email
             GROUP BY u.id, u.nome, u.league
             ORDER BY u.pontos DESC, acertos DESC, u.nome ASC
         ");
         $stmt->execute([
             ':start_at' => $filterStartAt,
-            ':end_at' => $filterEndAt,
-            ':hidden_email' => $hiddenRankingEmailLower
+            ':end_at' => $filterEndAt
         ]);
         $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
-        $stmt = $pdo->prepare("
+        $stmt = $pdo->query("
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                COALESCE(u.acertos_eventos, 0) as acertos,
                COALESCE(u.numero_tapas, 0) as numero_tapas
             FROM games_usuarios u
-            WHERE LOWER(u.email) <> :hidden_email
             ORDER BY u.pontos DESC
         ");
-        $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
         $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 } catch (PDOException $e) {
@@ -114,7 +109,6 @@ try {
             LEFT JOIN opcoes o ON p.opcao_id = o.id
             LEFT JOIN eventos e ON o.evento_id = e.id
             WHERE u.league = :league
-              AND LOWER(u.email) <> :hidden_email
             GROUP BY u.id, u.nome, u.league
             ORDER BY u.pontos DESC, acertos DESC, u.nome ASC
         ");
@@ -122,8 +116,7 @@ try {
             $stmtLiga->execute([
                 ':league' => $liga,
                 ':start_at' => $filterStartAt,
-                ':end_at' => $filterEndAt,
-                ':hidden_email' => $hiddenRankingEmailLower
+                ':end_at' => $filterEndAt
             ]);
             $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
         }
@@ -134,11 +127,10 @@ try {
                COALESCE(u.numero_tapas, 0) as numero_tapas
             FROM games_usuarios u
             WHERE u.league = :league
-              AND LOWER(u.email) <> :hidden_email
             ORDER BY u.pontos DESC
         ");
         foreach (array_keys($ranking_por_liga) as $liga) {
-            $stmtLiga->execute([':league' => $liga, ':hidden_email' => $hiddenRankingEmailLower]);
+            $stmtLiga->execute([':league' => $liga]);
             $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
         }
     }

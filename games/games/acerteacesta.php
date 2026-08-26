@@ -243,25 +243,21 @@ function acRankingDados(PDO $pdo, int $userId): array
         $st->execute([$userId]);
         $recorde = (int)$st->fetchColumn();
 
-        $st = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) AS recorde
-                               FROM acerteacesta_historico h
-                               JOIN games_usuarios u ON u.id = h.id_usuario
-                              WHERE LOWER(u.email) <> ?
-                           GROUP BY h.id_usuario, u.nome
-                           ORDER BY recorde DESC, u.nome LIMIT 5");
-        $st->execute(['medeirros99@gmail.com']);
+        $st = $pdo->query("SELECT u.nome, MAX(h.pontuacao) AS recorde
+                             FROM acerteacesta_historico h
+                             JOIN games_usuarios u ON u.id = h.id_usuario
+                         GROUP BY h.id_usuario, u.nome
+                         ORDER BY recorde DESC, u.nome LIMIT 5");
         $ranking = $st->fetchAll(PDO::FETCH_ASSOC);
 
         // O segundo ranking é por SOMA, não por recorde: é ele que decide a corrida
         // dos marcos, e uma corrida em que ninguém vê a posição de ninguém não é
         // corrida. São dois jeitos de ser bom — a melhor partida e o total da vida.
-        $st = $pdo->prepare("SELECT u.nome, SUM(h.pontuacao) AS total
-                               FROM acerteacesta_historico h
-                               JOIN games_usuarios u ON u.id = h.id_usuario
-                              WHERE LOWER(u.email) <> ?
-                           GROUP BY h.id_usuario, u.nome
-                           ORDER BY total DESC, u.nome LIMIT 5");
-        $st->execute(['medeirros99@gmail.com']);
+        $st = $pdo->query("SELECT u.nome, SUM(h.pontuacao) AS total
+                             FROM acerteacesta_historico h
+                             JOIN games_usuarios u ON u.id = h.id_usuario
+                         GROUP BY h.id_usuario, u.nome
+                         ORDER BY total DESC, u.nome LIMIT 5");
         $rankingTotal = $st->fetchAll(PDO::FETCH_ASSOC);
 
         $st = $pdo->prepare('SELECT COALESCE(SUM(pontuacao),0) FROM acerteacesta_historico WHERE id_usuario = ?');

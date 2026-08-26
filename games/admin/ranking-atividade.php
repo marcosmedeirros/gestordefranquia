@@ -13,8 +13,6 @@ $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$u || empty($u['is_admin'])) { header("Location: /login.php"); exit; }
 
-$hiddenEmailLower = 'medeirros99@gmail.com';
-
 // Filtro opcional de ano (padrão: geral, todos os anos)
 $ano = isset($_GET['ano']) && $_GET['ano'] !== '' ? (int)$_GET['ano'] : null;
 
@@ -75,17 +73,16 @@ foreach ($fontes as [$tabela, $colUser, $colData]) {
     }
 }
 
-// Nomes dos usuários (exclui a conta oculta)
+// Nomes dos usuários
 $usuarios = $pdo->query("SELECT id, nome, email FROM games_usuarios")->fetchAll(PDO::FETCH_ASSOC);
 $nomes = [];
 foreach ($usuarios as $us) {
-    if (strtolower($us['email']) === $hiddenEmailLower) continue;
     $nomes[(int)$us['id']] = $us['nome'];
 }
 
 $ranking = [];
 foreach ($totais as $uid => $t) {
-    if (!isset($nomes[$uid])) continue; // usuário oculto ou removido
+    if (!isset($nomes[$uid])) continue; // usuário removido
     $t['total'] = $t['acessos'] + $t['jogos'] + $t['apostas'] + $t['tigrinho'];
     $ranking[] = ['uid'=>$uid, 'nome'=>$nomes[$uid]] + $t;
 }
