@@ -11,6 +11,7 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/atualizacoes.php';   // ranking de quem atualiza elenco alheio
+require_once __DIR__ . '/backend/apostas.php';       // a conta das porcentagens, igual no site e no bot
 requireAuth();
 
 $user = getUserSession();
@@ -120,26 +121,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['opcao_id'])) {
             ");
             $stR->execute([$apostaEvento]);
             $linhas = $stR->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            $total = 0;
-            foreach ($linhas as $l) $total += (int)$l['n'];
 
-            // Mesmo maior-resto do desenho inicial: se as duas contas não
+            // Mesmo maior-resto do desenho inicial — e agora literalmente a
+            // mesma função (backend/apostas.php). Se as duas contas não
             // fossem iguais, a soma daria 100 ao carregar e 101 depois de
             // clicar, que é o tipo de coisa que parece bug do clique.
-            $restos = []; $soma = 0;
+            $contagem = [];
+            foreach ($linhas as $l) $contagem[(int)$l['id']] = (int)$l['n'];
+            $total = array_sum($contagem);
+            $pct   = apostasPercentuais($contagem);
             foreach ($linhas as $i => $l) {
-                if ($total <= 0) { $opcoes[$i] = ['id' => (int)$l['id'], 'pct' => 0, 'n' => 0]; continue; }
-                $exato = (int)$l['n'] * 100 / $total;
-                $opcoes[$i] = ['id' => (int)$l['id'], 'pct' => (int)floor($exato), 'n' => (int)$l['n']];
-                $soma += $opcoes[$i]['pct'];
-                $restos[$i] = $exato - $opcoes[$i]['pct'];
-            }
-            if ($total > 0) {
-                arsort($restos);
-                foreach (array_keys($restos) as $i) {
-                    if ($soma >= 100) break;
-                    $opcoes[$i]['pct']++; $soma++;
-                }
+                $id = (int)$l['id'];
+                $opcoes[$i] = ['id' => $id, 'pct' => $pct[$id] ?? 0, 'n' => (int)$l['n']];
             }
         } catch (Throwable $e) {
             echo json_encode(['ok' => false, 'erro' => 'Não deu pra recontar os palpites.']);
@@ -223,40 +216,21 @@ try {
         foreach ($stQ->fetchAll(PDO::FETCH_ASSOC) ?: [] as $l) {
             $porOpcao[(int)$l['opcao_id']] = (int)$l['n'];
         }
-        $ev['total_palpites'] = array_sum($porOpcao);
 
-        // A SOMA TEM QUE FECHAR EM 100.
-        //
-        // Arredondar cada opção por conta própria não fecha: com 26 palpites
-        // divididos em 14/6/3/2/1/0 dá 54+23+12+8+4 = 101%, e ninguém lê isso
-        // como "arredondamento", lê como conta errada. O jeito certo é o do
-        // maior resto: dá a todo mundo a parte inteira e distribui o que
-        // sobrou pros que ficaram com a maior fração pendurada.
-        //
-        // Sem ninguém tendo palpitado, TUDO é zero — e não um por cento cada,
-        // que é o que a divisão por zero viraria se alguém "protegesse" o
-        // denominador com um max(1, ...).
-        $total = $ev['total_palpites'];
-        $restos = [];
-        $somaInteira = 0;
-        foreach ($ev['opcoes'] as $i => &$op) {
-            $n = $porOpcao[(int)$op['id']] ?? 0;
-            $op['palpites'] = $n;
-            if ($total <= 0) { $op['pct'] = 0; continue; }
-            $exato = $n * 100 / $total;
-            $op['pct'] = (int)floor($exato);
-            $somaInteira += $op['pct'];
-            $restos[$i] = $exato - $op['pct'];
+        // A soma tem que fechar em 100, e a conta que faz isso mora em
+        // backend/apostas.php — a mesma que o recontar do clique e o /apostas
+        // do bot usam. Ela estava escrita aqui e no bloco do clique, e as duas
+        // precisavam concordar pra soma não mudar de 100 pra 101 no meio.
+        $contagem = [];
+        foreach ($ev['opcoes'] as $op) $contagem[(int)$op['id']] = $porOpcao[(int)$op['id']] ?? 0;
+        $ev['total_palpites'] = array_sum($contagem);
+        $pct = apostasPercentuais($contagem);
+        foreach ($ev['opcoes'] as &$op) {
+            $id = (int)$op['id'];
+            $op['palpites'] = $contagem[$id];
+            $op['pct']      = $pct[$id] ?? 0;
         }
         unset($op);
-        if ($total > 0) {
-            arsort($restos);                       // maior fração pendurada primeiro
-            foreach (array_keys($restos) as $i) {
-                if ($somaInteira >= 100) break;
-                $ev['opcoes'][$i]['pct']++;
-                $somaInteira++;
-            }
-        }
 
         $stM = $pdo->prepare("
             SELECT p.opcao_id FROM palpites p JOIN opcoes o ON p.opcao_id = o.id

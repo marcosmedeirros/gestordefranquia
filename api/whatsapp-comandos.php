@@ -366,6 +366,8 @@ function wcAjuda(): string
         // liga inteira e qualquer time pode disputar, então é assunto de
         // quem lê esta lista.
         . "/jogosemana — o jogo da semana e o lance pra tomar a vaga\n"
+        . "/apostas — a parcial das apostas abertas\n"
+        . "/apostasresultado — as últimas 10 apostas pagas\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -389,90 +391,18 @@ function wcAjuda(): string
 }
 
 /**
- * /apostas — o que está aberto pra palpitar, e até quando.
+ * /apostas mora em backend/apostas.php (apostasTextoParcial).
  *
- * Não é por liga: as apostas da FBA são do site inteiro e o mesmo evento
- * vale pra ELITE, NEXT, RISE e ROOKIE. Por isso a função ignora o grupo de
- * onde veio, ao contrário de quase todo comando aqui.
+ * A versão que ficava aqui mostrava só a opção na frente, e o comentário
+ * dela defendia isso: a lista inteira "viraria uma parede de trinta linhas
+ * que ninguém lê". A liga pediu o contrário — quer a parcial completa, com
+ * a porcentagem de cada opção e a mais votada em negrito — então a decisão
+ * foi revista. O limite de eventos continua existindo pra parede não
+ * acontecer de verdade.
  *
- * O QUE ELE MOSTRA, E O QUE NÃO. Mostra o evento, o prazo e a opção que
- * está na frente — o suficiente pra alguém decidir se vale abrir o site.
- * Não mostra a lista inteira de opções com porcentagem: num grupo com
- * quatro eventos abertos isso viraria uma parede de trinta linhas que
- * ninguém lê, e a graça de palpitar é escolher, não ler o placar.
- *
- * E não dá pra palpitar por aqui de propósito: o palpite é por usuário, e o
- * bot fala com o GRUPO. Registrar pelo número exigiria casar telefone com
- * conta, que é justamente o tipo de amarração que quebra quando alguém
- * troca de chip.
+ * Foi pro backend porque a conta das porcentagens é a MESMA do site, e
+ * tê-la escrita aqui era a terceira cópia dela.
  */
-function wcApostas(PDO $pdo): string
-{
-    $agora = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
-
-    try {
-        $st = $pdo->prepare("
-            SELECT e.id, e.nome, e.data_limite
-              FROM eventos e
-             WHERE e.status = 'aberta' AND e.data_limite > ?
-             ORDER BY e.data_limite ASC
-             LIMIT 8
-        ");
-        $st->execute([$agora->format('Y-m-d H:i:s')]);
-        $eventos = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        return 'Não consegui ler as apostas agora.';
-    }
-
-    if (!$eventos) {
-        return "*Apostas da FBA*\n\nNenhum evento aberto agora. Quando a organização abrir um, ele aparece aqui e em fbabrasil.com.br/games.php?aba=apostas";
-    }
-
-    $linhas = ["*Apostas abertas*\n"];
-    foreach ($eventos as $ev) {
-        // O prazo em linguagem de gente, igual ao do site — "faltam 3h" diz
-        // o que uma data não diz: se dá pra deixar pra depois.
-        $limite = new DateTime($ev['data_limite'], new DateTimeZone('America/Sao_Paulo'));
-        $f = $agora->diff($limite);
-        // "faltam 1 dia" nao existe: o verbo concorda com o numero.
-        if ($f->days > 0)      $prazo = ($f->days === 1 ? 'falta 1 dia' : "faltam {$f->days} dias");
-        elseif ($f->h > 0)     $prazo = "faltam {$f->h}h";
-        elseif ($f->i > 0)     $prazo = "faltam {$f->i} min";
-        else                   $prazo = 'encerrando';
-
-        $linha = "🏳️ *{$ev['nome']}* — _{$prazo}_";
-
-        // Quem está na frente, e com quanto. É a informação que faz alguém
-        // querer entrar: ninguém abre o site pra saber que existe uma
-        // pergunta, abre pra discordar da maioria.
-        try {
-            $stF = $pdo->prepare("
-                SELECT o.descricao, COUNT(p.id) AS n
-                  FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id
-                 WHERE o.evento_id = ?
-                 GROUP BY o.id
-                 ORDER BY n DESC, o.id ASC
-            ");
-            $stF->execute([(int)$ev['id']]);
-            $ops = $stF->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            $total = 0;
-            foreach ($ops as $o) $total += (int)$o['n'];
-            if ($total > 0 && !empty($ops)) {
-                $pct = (int)round((int)$ops[0]['n'] * 100 / $total);
-                $linha .= "\n   {$ops[0]['descricao']} lidera com {$pct}% ({$total} "
-                        . ($total === 1 ? 'palpite' : 'palpites') . ')';
-            } else {
-                $linha .= "\n   _ninguém palpitou ainda_";
-            }
-        } catch (Throwable $e) {
-            // Sem o líder a linha continua útil: evento e prazo já bastam.
-        }
-        $linhas[] = $linha;
-    }
-
-    $linhas[] = "\nPalpite em fbabrasil.com.br/games.php?aba=apostas";
-    return implode("\n", $linhas);
-}
 
 function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
@@ -2717,7 +2647,8 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'apostas':
             case 'aposta':
             case 'palpites':
-                return wcApostas($pdo);
+                require_once __DIR__ . '/../backend/apostas.php';
+                return apostasTextoParcial($pdo);
 
             case 'jogador':
             case 'player':
@@ -2809,6 +2740,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 $lg = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
                 if (!$lg) $lg = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
                 return leilaoSemanaTexto($pdo, $lg);
+
+            case 'apostasresultado':
+            case 'apostasresultados':
+            case 'resultadoapostas':
+                require_once __DIR__ . '/../backend/apostas.php';
+                return apostasTextoResultados($pdo, 10);
 
             // A Copa do Mundo do Games. Sem argumento mostra a copa em
             // andamento; com um número, aquela copa — pra conferir uma
