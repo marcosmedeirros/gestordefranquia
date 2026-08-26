@@ -54,6 +54,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   <link rel="icon" type="image/png" href="/img/fba-logo.png?v=3" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <!-- O selo de condição de pick (protegida/swap): mesmo arquivo que o resto
+       do site usa, porque esta página tem CSS próprio e não carrega o styles.css. -->
+  <link rel="stylesheet" href="/css/pick-cond.css" />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
@@ -531,8 +534,19 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
     .mock-player-name { font-size: 13px; font-weight: 700; color: var(--text); }
     .mock-player-pos  { font-size: 11px; color: var(--text-3); margin-top: 1px; }
-    .mock-team        { text-align: right; min-width: 0; }
+    .mock-team {
+      min-width: 0;
+      display: flex; align-items: center; justify-content: flex-end; gap: 9px;
+    }
+    /* O escudo fica DEPOIS do nome no fim da linha — na leitura da direita
+       pra esquerda ele é a âncora visual, e antes do texto empurraria o nome
+       pro meio da linha. */
+    .mock-team-logo   { order: 2; width: 26px; height: 26px; object-fit: contain; flex: none; }
+    .mock-team-txt    { order: 1; min-width: 0; text-align: right; }
     .mock-team-name   { font-size: 13px; font-weight: 600; color: var(--text-2); }
+    .mock-selos       {
+      display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; margin-top: 3px;
+    }
     .mock-team-via    {
       font-size: 11px; color: var(--text-3); margin-top: 1px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -541,7 +555,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        colunas de 1fr o nome do time quebrava no meio. */
     @media (max-width: 560px) {
       .mock-row { grid-template-columns: 38px 1fr; row-gap: 4px; }
-      .mock-team { grid-column: 2; text-align: left; }
+      .mock-team { grid-column: 2; justify-content: flex-start; }
+      .mock-team-logo { order: 1; width: 22px; height: 22px; }
+      .mock-team-txt  { order: 2; text-align: left; }
+      .mock-selos     { justify-content: flex-start; }
     }
     .info-note.blue {
       background: rgba(59,130,246,.08);
@@ -1352,11 +1369,26 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         </div>
         <div class="mock-team">
           ${p ? `
-            <div class="mock-team-name">${esc(p.dono_nome)}</div>
-            ${p.trocada
-              ? `<div class="mock-team-via"><i class="bi bi-arrow-left-right"></i> pick do ${esc(p.team_name)}</div>`
-              : `<div class="mock-team-via">${esc(p.owner_name || '')}</div>`}
-          ` : `<div class="mock-team-via">sem pick projetada</div>`}
+            <img class="mock-team-logo" src="${esc(p.dono_logo || '/img/default-team.png')}"
+                 alt="" onerror="this.src='/img/default-team.png'">
+            <div class="mock-team-txt">
+              <div class="mock-team-name">${esc(p.dono_nome)}</div>
+              ${p.trocada
+                ? `<div class="mock-team-via"><i class="bi bi-arrow-left-right"></i> via ${esc(p.team_name)}</div>`
+                : `<div class="mock-team-via">${esc(p.owner_name || '')}</div>`}
+              ${(p.selos || []).length ? `
+                <div class="mock-selos">${p.selos.map(s => `
+                  <span class="pick-cond ${esc(s.classe)}" title="${esc(s.titulo)}">${esc(s.texto)}${
+                    // O parceiro do swap só entra quando acrescenta algo: ele
+                    // costuma ser o próprio dono ou o time de origem, e aí
+                    // "Anaheim Wyverns · Swap SB c/ Anaheim Wyverns" só repete
+                    // o que já está escrito duas linhas acima.
+                    s.classe === 'swap' && p.swap_com
+                      && p.swap_com !== p.dono_nome && p.swap_com !== p.team_name
+                      ? ' c/ ' + esc(p.swap_com) : ''
+                  }</span>`).join('')}</div>` : ''}
+            </div>
+          ` : `<div class="mock-team-txt"><div class="mock-team-via">sem pick projetada</div></div>`}
         </div>
       </div>`;
 
@@ -1364,8 +1396,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     body.innerHTML = `
       <div class="info-note" style="margin-bottom:14px">
         <strong>Projeção.</strong> A ordem dos times vem do power ranking — o mais fraco na
-        frente. A ordem de verdade só sai depois da loteria${proj.some(p => p.trocada)
-          ? ', e as picks já trocadas aparecem com o time de origem' : ''}.
+        frente. A ordem de verdade só sai depois da loteria. Quem aparece é o
+        <b>dono da pick hoje</b>${proj.some(p => p.trocada)
+          ? ', com o time de origem no "via"' : ''}${proj.some(p => (p.selos || []).length)
+          ? ', e as condições de swap e proteção estão marcadas' : ''}.
       </div>
       <div class="mock-list">
         ${pool.map((j, i) => linha(j, proj[i] || null)).join('')}

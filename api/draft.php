@@ -292,18 +292,32 @@ if ($method === 'GET') {
                 // outro.
                 $dono = ['1' => [], '2' => []];
                 try {
+                    // Swap e proteção vêm junto: uma pick trocada não diz a
+                    // mesma coisa que uma pick trocada COM swap, e quem olha o
+                    // mock precisa ver a condição antes de contar com ela.
+                    // Os selos saem de protecaoSelosLista, que é a mesma fonte
+                    // das trades e do WhatsApp — repetir a regra aqui era como
+                    // a proteção já sumiu de uma tela antes.
                     $sp = $pdo->prepare(
                         "SELECT p.round, p.original_team_id, p.team_id,
-                                CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS dono_nome
+                                p.swap_type, p.protection, p.protection_resultado,
+                                CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS dono_nome,
+                                t.photo_url AS dono_logo,
+                                CONCAT(COALESCE(sp2.city,''), ' ', COALESCE(sp2.name,'')) AS swap_com
                          FROM picks p
                          LEFT JOIN teams t ON t.id = p.team_id
+                         LEFT JOIN picks pp ON pp.id = p.swap_pair_pick_id
+                         LEFT JOIN teams sp2 ON sp2.id = pp.original_team_id
                          WHERE p.season_id = ? AND p.round IN ('1','2')"
                     );
                     $sp->execute([(int)$sessao['season_id']]);
                     foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $r) {
                         $dono[(string)$r['round']][(int)$r['original_team_id']] = [
-                            'team_id' => (int)$r['team_id'],
-                            'nome'    => trim((string)$r['dono_nome']),
+                            'team_id'  => (int)$r['team_id'],
+                            'nome'     => trim((string)$r['dono_nome']),
+                            'logo'     => $r['dono_logo'] ?? null,
+                            'swap_com' => trim((string)($r['swap_com'] ?? '')),
+                            'selos'    => protecaoSelosLista($r),
                         ];
                     }
                 } catch (Throwable $e) {
@@ -329,6 +343,11 @@ if ($method === 'GET') {
                             'power_posicao' => $t['posicao'],
                             'dono_team_id'  => $d['team_id'] ?? $t['team_id'],
                             'dono_nome'     => ($d['nome'] ?? '') !== '' ? $d['nome'] : $t['team_name'],
+                            // O escudo é o do DONO: é o time que vai escolher.
+                            'dono_logo'     => ($d && $d['team_id'] !== $t['team_id'])
+                                               ? ($d['logo'] ?? null) : $t['team_photo'],
+                            'swap_com'      => $d['swap_com'] ?? '',
+                            'selos'         => $d['selos'] ?? [],
                             'trocada'       => $d && $d['team_id'] !== $t['team_id'],
                         ];
                     }
