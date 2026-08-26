@@ -122,6 +122,22 @@ async function showGamesAdmin() {
 
     <div class="panel">
       <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-hammer" style="color:#f59e0b"></i> Leilão do jogo da semana</span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarLeilaoSemana()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Fechar confirma a compra: os FBA Points dos <b>dois primeiros</b> deixam de estar retidos e viram
+        gasto. Os lances são apagados e a liga recomeça do zero pra semana seguinte.
+      </div>
+      <div id="leilaoSemanaWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
         <span><i class="bi bi-pencil-square" style="color:#22c55e"></i> Elencos atualizados por terceiros</span>
         <button class="btn btn-sm btn-outline-orange" onclick="_carregarAtualizacoes()">
           <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
@@ -138,6 +154,73 @@ async function showGamesAdmin() {
 
   _carregarGamesUsers();
   _carregarAtualizacoes();
+  _carregarLeilaoSemana();
+}
+
+/* ── Leilão do jogo da semana ───────────────────────────────────────────
+   Um botão por liga, e o confronto ao lado dele. Fechar cobra FBA Points de
+   dois times de verdade: o painel mostra QUEM e QUANTO antes de qualquer
+   clique, e o botão nasce desligado onde ninguém deu lance. */
+let _leilaoSemana = [];
+
+async function _carregarLeilaoSemana() {
+  const alvo = document.getElementById('leilaoSemanaWrap');
+  if (!alvo) return;
+  try {
+    const d = await api('admin.php?action=leilao_semana_estado');
+    _leilaoSemana = d.ligas || [];
+    // O botão passa só a LIGA. Montar o confronto dentro do onclick exigia
+    // escapar aspas na mão, e um clube com aspas no nome quebraria o atributo
+    // — o texto da confirmação sai daqui, do estado que acabou de chegar.
+    const linhas = _leilaoSemana.map(l => {
+      const temJogo = !!l.time1;
+      const total = (l.valor1 || 0) + (l.valor2 || 0);
+      const confronto = temJogo
+        ? `${escapeHtml(l.time1)} × ${escapeHtml(l.time2 || 'vaga aberta')}`
+        : '<span class="text-secondary">ninguém deu lance</span>';
+      return `
+        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap py-2"
+             style="border-top:1px solid var(--border)">
+          <div style="min-width:0">
+            <div class="fw-bold">${l.liga}</div>
+            <div class="small">${confronto}${temJogo
+              ? ` · <b style="color:#f59e0b">${total.toLocaleString('pt-BR')}</b> FBA Points a cobrar`
+              : ''}${l.na_fila ? ` <span class="text-secondary">· ${l.na_fila} na fila</span>` : ''}</div>
+          </div>
+          <button class="btn btn-sm ${temJogo ? 'btn-outline-orange' : 'btn-outline-secondary'}"
+                  ${temJogo ? '' : 'disabled'} onclick="_fecharLeilaoSemana('${l.liga}')">
+            <i class="bi bi-check2-circle me-1"></i>Fechar ${l.liga}
+          </button>
+        </div>`;
+    }).join('');
+    alvo.className = '';
+    alvo.innerHTML = linhas || '<div class="small text-secondary py-2">Nenhuma liga.</div>';
+  } catch (e) {
+    alvo.className = '';
+    alvo.innerHTML = `<div class="small text-danger py-2">Não deu pra carregar o leilão: ${escapeHtml(e.error || e.message || 'erro')}</div>`;
+  }
+}
+
+async function _fecharLeilaoSemana(liga) {
+  const l = _leilaoSemana.find(x => x.liga === liga);
+  if (!l || !l.time1) { showAlert('warning', 'Essa liga não tem lance pra fechar.'); return; }
+  const total = (l.valor1 || 0) + (l.valor2 || 0);
+  const confronto = `${l.time1} × ${l.time2 || 'vaga aberta'}`;
+  const ok = await confirmarSite(
+    `Fechar o leilão da ${liga}?\n\n${confronto}\n\n` +
+    `Isso cobra ${total} FBA Points dos dois times e apaga os lances.`
+  );
+  if (!ok) return;
+  try {
+    const d = await api('admin.php?action=leilao_semana_fechar', {
+      method: 'POST',
+      body: JSON.stringify({ liga }),
+    });
+    showAlert('success', `Leilão da ${liga} fechado — ${(d.jogo || []).join(' × ') || 'sem confronto'}, ${d.pago} FBA Points cobrados.`);
+    _carregarLeilaoSemana();
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao fechar o leilão.');
+  }
 }
 
 /* ── Atualizações de elenco feitas por terceiros ────────────────────────

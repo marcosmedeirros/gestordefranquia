@@ -101,6 +101,40 @@ ensureTradeInGameColumn($pdo);
 if ($method === 'GET') {
     switch ($action) {
 
+        case 'leilao_semana_estado':
+            // O que está em disputa em cada liga, pro painel da aba Games
+            // mostrar o confronto ANTES do botão: fechar cobra FBA Points de
+            // dois times de verdade, e ninguém deve apertar sem ver o que
+            // está confirmando.
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $estadoLeilao = [];
+            foreach (['ELITE','NEXT','RISE','ROOKIE'] as $lgLeilao) {
+                try {
+                    $dLeilao = leilaoSemanaDaLiga($pdo, $lgLeilao, 0);
+                    $aLeilao = $dLeilao['podio'][0] ?? null;
+                    $bLeilao = $dLeilao['podio'][1] ?? null;
+                    $estadoLeilao[] = [
+                        'liga'      => $lgLeilao,
+                        'temporada' => (int)$dLeilao['temporada'],
+                        'time1'     => $aLeilao['time_nome'] ?? null,
+                        'valor1'    => (int)($aLeilao['valor'] ?? 0),
+                        'time2'     => $bLeilao['time_nome'] ?? null,
+                        'valor2'    => (int)($bLeilao['valor'] ?? 0),
+                        'na_fila'   => count($dLeilao['fila']),
+                    ];
+                } catch (Throwable $e) {
+                    $estadoLeilao[] = ['liga' => $lgLeilao, 'temporada' => 0, 'time1' => null,
+                                       'valor1' => 0, 'time2' => null, 'valor2' => 0, 'na_fila' => 0];
+                }
+            }
+            echo json_encode(['success' => true, 'ligas' => $estadoLeilao]);
+            exit;
+
         /**
          * Painel de conferência do cap: a tabela OVR→salário com quantos jogadores
          * ativos da liga estão em cada faixa, mais as lendas marcadas.
@@ -2615,6 +2649,31 @@ if ($method === 'POST') {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Erro ao salvar o convite.']);
             }
+            exit;
+
+        case 'leilao_semana_fechar':
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $ligaFechar = strtoupper(trim((string)($data['liga'] ?? '')));
+            if (!in_array($ligaFechar, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            $r = leilaoSemanaFechar($pdo, $ligaFechar, (int)$user['id']);
+            if (!$r['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $r['erro']]);
+                exit;
+            }
+            error_log(sprintf('[leilao_semana_fechar] %s fechado por user_id=%d (%d FBA Points)',
+                $ligaFechar, (int)$user['id'], (int)$r['pago']));
+            echo json_encode(['success' => true, 'jogo' => array_values(array_filter($r['jogo'])),
+                              'pago' => (int)$r['pago']]);
             exit;
 
         case 'games_zerar':
