@@ -856,7 +856,14 @@ if ($method === 'POST') {
         // Usa a classificação da temporada ELITE anterior à do draft_session informado.
         // Não escreve nada; o admin confirma chamando 'set_draft_order' com o resultado.
         case 'run_lottery':
-            if (!$isAdmin) {
+            /* A PRÉVIA É PÚBLICA, O SORTEIO NÃO.
+               Quem está na loteria quer ver a própria chance antes da
+               cerimônia, e essa informação é a mesma que o comunicado da liga
+               anuncia — esconder dos GMs só fazia com que a pergunta chegasse
+               por mensagem. Sortear, esse sim, continua sendo do admin: é o
+               ato que define o draft. */
+            $apenasPreview = !empty($data['preview']);
+            if (!$isAdmin && !$apenasPreview) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
@@ -882,8 +889,9 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'A loteria está disponível para ELITE, NEXT, RISE e ROOKIE']);
                 exit;
             }
-            // O GM só pode sortear a loteria da(s) liga(s) que administra.
-            if (!in_array($lotterySession['league'], $myLeagues, true)) {
+            // O GM só pode SORTEAR a loteria da(s) liga(s) que administra.
+            // Ver a prévia é outra coisa: basta ser da liga.
+            if (!$apenasPreview && !in_array($lotterySession['league'], $myLeagues, true)) {
                 echo json_encode(['success' => false, 'error' => 'Você não administra a liga desta sessão de draft']);
                 exit;
             }
@@ -1159,8 +1167,10 @@ if ($method === 'POST') {
                última — o admin veria um resultado que não vale.
 
                Na prévia a ordem exibida é a NATURAL (pior campanha primeiro),
-               que é a que existe antes de qualquer bolinha rolar. */
-            $apenasPreview = !empty($data['preview']);
+               que é a que existe antes de qualquer bolinha rolar.
+
+               $apenasPreview já foi decidido lá em cima, junto da permissão:
+               é ele que separa quem pode olhar de quem pode sortear. */
 
             // Sorteio ponderado SEM reposição para TODAS as posições da loteria (não só o top-4).
             $pool = $balls;

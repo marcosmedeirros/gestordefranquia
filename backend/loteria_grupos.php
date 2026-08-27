@@ -427,37 +427,96 @@ function loteriaMatriz(array $bolinhas, array $protegidos = [], int $pisoIdx = 1
         foreach ($ordem as $pos => $tid) $contagem[$tid][$pos]++;
     }
 
-    /* ARREDONDAMENTO QUE FECHA A LINHA.
-       A soma exata de cada linha é 100 por construção — em toda rodada o
-       time termina em exatamente uma pick. Arredondando cada célula por
-       conta própria, porém, a linha exibida sai 99,8 ou 100,2, e quem
-       confere a conta na tela encontra um erro que não existe no sorteio.
+    /* TIMES DE MESMA URNA TÊM A MESMA CHANCE — e precisam mostrar o mesmo
+       número. Dois times com as mesmas bolinhas e o mesmo status de proteção
+       são estatisticamente idênticos; o que os separava na tela era só o
+       ruído da simulação, e ver 7,6 num e 7,8 no outro parece favorecimento.
+       Somando as contagens dos iguais e dividindo pelo tamanho do bloco, o
+       número passa a ser um só — e de quebra fica mais preciso, porque cada
+       célula reúne a amostra de todos eles. */
+    $blocos = [];
+    foreach ($ids as $t) {
+        $chave = $bolinhas[$t] . '|' . (in_array($t, $protegidos, true) ? 'p' : '-');
+        $blocos[$chave][] = $t;
+    }
+    foreach ($blocos as $membros) {
+        if (count($membros) < 2) continue;
+        $soma = array_fill(0, $n, 0);
+        foreach ($membros as $t) foreach ($contagem[$t] as $p => $q) $soma[$p] += $q;
+        foreach ($membros as $t) foreach ($soma as $p => $q) $contagem[$t][$p] = $q / count($membros);
+    }
 
-       Então o arredondamento é feito com sobra: cada célula desce pro
-       décimo de baixo e os décimos que faltam pra fechar 100 vão pras
-       células de maior resto. O que aparece na tela soma exatamente o que
-       diz somar, e nenhuma célula se afasta 0,1 do valor real. */
-    $matriz = [];
+    /* ARREDONDAMENTO QUE FECHA OS DOIS SENTIDOS.
+       Nos valores exatos, linha e coluna somam 100 por construção: em toda
+       rodada o time termina em exatamente uma pick, e cada pick recebe
+       exatamente um time. É o arredondamento que estraga isso — e uma tabela
+       que mostra 99,8 dá razão a quem desconfia da conta.
+
+       Duas etapas. Primeiro cada linha é fechada com sobra: as células descem
+       pro centésimo de baixo e os centésimos que faltam vão pras de maior
+       resto. Depois as colunas são acertadas por troca DENTRO de cada linha —
+       tirar um centésimo de uma célula e dar a outra da mesma linha mantém a
+       linha fechada e move a diferença pra coluna que precisa. */
+    $casas = 2;
+    $escala = 10 ** $casas;          // centésimos
+    $alvo   = 100 * $escala;
+
+    $exatos = $celulas = [];
     foreach ($contagem as $tid => $porPos) {
-        $exatos = [];
-        foreach ($porPos as $pos => $qtd) $exatos[$pos + 1] = $qtd / $rodadas * 100;
-
-        $linha = $restos = [];
-        $decimos = 0;
-        foreach ($exatos as $pick => $valor) {
-            $piso = floor($valor * 10);
-            $linha[$pick] = $piso / 10;
-            $restos[$pick] = $valor * 10 - $piso;
-            $decimos += $piso;
+        $restos = [];
+        $acumulado = 0;
+        foreach ($porPos as $pos => $qtd) {
+            $valor = $qtd / $rodadas * 100 * $escala;   // em centésimos
+            $exatos[$tid][$pos + 1] = $valor;
+            $piso = (int)floor($valor);
+            $celulas[$tid][$pos + 1] = $piso;
+            $restos[$pos + 1] = $valor - $piso;
+            $acumulado += $piso;
         }
         arsort($restos);
         foreach (array_keys($restos) as $pick) {
-            if ($decimos >= 1000) break;   // 1000 décimos = 100,0%
-            $linha[$pick] = round($linha[$pick] + 0.1, 1);
-            $decimos++;
+            if ($acumulado >= $alvo) break;
+            $celulas[$tid][$pick]++;
+            $acumulado++;
         }
+    }
+
+    $picks = range(1, $n);
+    $tids  = array_keys($celulas);
+    for ($volta = 0; $volta < 200; $volta++) {
+        $somaCol = [];
+        foreach ($picks as $p) {
+            $s = 0;
+            foreach ($tids as $t) $s += $celulas[$t][$p];
+            $somaCol[$p] = $s;
+        }
+        $sobrando = array_keys(array_filter($somaCol, fn($s) => $s > $alvo));
+        $faltando = array_keys(array_filter($somaCol, fn($s) => $s < $alvo));
+        if (!$sobrando || !$faltando) break;
+
+        $de = reset($sobrando);
+        $para = reset($faltando);
+        /* Move o centésimo na linha que menos sofre com isso: aquela cuja
+           célula de origem está mais acima do valor real e a de destino mais
+           abaixo. Célula que vale zero de verdade nunca recebe — os 3 piores
+           precisam continuar vazios nas picks que o piso proíbe. */
+        $melhorTid = null;
+        $melhorGanho = -INF;
+        foreach ($tids as $t) {
+            if ($celulas[$t][$de] <= 0) continue;
+            if ($exatos[$t][$para] <= 0) continue;
+            $ganho = ($celulas[$t][$de] - $exatos[$t][$de]) + ($exatos[$t][$para] - $celulas[$t][$para]);
+            if ($ganho > $melhorGanho) { $melhorGanho = $ganho; $melhorTid = $t; }
+        }
+        if ($melhorTid === null) break;   // nada a trocar sem inventar número
+        $celulas[$melhorTid][$de]--;
+        $celulas[$melhorTid][$para]++;
+    }
+
+    $matriz = [];
+    foreach ($celulas as $tid => $linha) {
         ksort($linha);
-        $matriz[$tid] = $linha;
+        foreach ($linha as $pick => $centesimos) $matriz[$tid][$pick] = $centesimos / $escala;
     }
 
     loteriaMatrizCache($bolinhas, $protegidos, $pisoIdx, $rodadas, $matriz);

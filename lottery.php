@@ -16,8 +16,17 @@ $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams W
 $stmtMine->execute([$user['id']]);
 $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
 
-// A loteria só mostra as ligas que o GM logado administra (as demais, não).
+/* QUEM VÊ O QUÊ.
+   Quem administra vê as ligas que administra. Quem não administra vê a
+   própria — a prévia da loteria (quem entra, em que grupo, com que chance)
+   é a mesma informação que o comunicado anuncia, e escondê-la dos GMs só
+   fazia a pergunta chegar por mensagem. Editar e sortear seguem sendo do
+   admin: quem não é vê a tela inteira sem um único controle. */
 $lotteryLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE', 'ROOKIE'], $adminLeagues));
+if (!$lotteryLeagues) {
+    $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
+    if (in_array($minhaLiga, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) $lotteryLeagues = [$minhaLiga];
+}
 $setupSessions = [];
 if ($lotteryLeagues) {
     $ph = implode(',', array_fill(0, count($lotteryLeagues), '?'));
@@ -268,7 +277,7 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
 /* Dezessete colunas de números: tudo encolhe, e a coluna do time gruda na
    esquerda pra não sumir quando a tabela rola de lado. */
-.matriz-table{font-size:10px;min-width:640px}
+.matriz-table{font-size:10px;min-width:840px}
 .matriz-table th,.matriz-table td{padding:4px 5px;white-space:nowrap}
 .matriz-table .celula{text-align:right;font-family:'Oswald',sans-serif;font-variant-numeric:tabular-nums;color:var(--text-2)}
 .matriz-table .time-col{position:sticky;left:0;z-index:2;background:var(--panel);max-width:150px;overflow:hidden;text-overflow:ellipsis}
@@ -481,7 +490,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
   </div>
 
-  <?php if (!$canRunLottery): ?>
+  <?php /* A ordem já confirmada só interessa quando não há loteria em curso:
+           havendo sessão em configuração, o que a tela mostra abaixo é a
+           desta temporada, e repetir a do ano passado no topo confundiria. */ ?>
+  <?php if (!$canRunLottery && !$setupSessions): ?>
   <div class="section-title bc-off"><i class="bi bi-list-ol"></i> Ordem do draft<?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
   <div class="panel bc-off">
     <?php if (!$confirmedOrder): ?>
@@ -500,14 +512,15 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
   <?php endif; ?>
 
-  <?php if ($canRunLottery): ?>
-  <?php if (!$setupSessions): ?>
+  <?php if ($canRunLottery && !$setupSessions): ?>
   <div class="panel bc-off" style="text-align:center">
     <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
     <p style="margin-top:10px">Nenhuma sessão de draft (ELITE, NEXT, RISE ou ROOKIE) com status "setup" encontrada. Crie a sessão
     de draft da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
   </div>
-  <?php else: ?>
+  <?php endif; ?>
+
+  <?php if ($setupSessions): ?>
 
   <?php
     /* COM UM DRAFT SÓ, NÃO HÁ O QUE ESCOLHER.
@@ -535,7 +548,9 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           if ($draftUnico['year']): ?> <span style="color:var(--text-3);font-weight:600">(<?= htmlspecialchars($draftUnico['year']) ?>)</span><?php endif; ?>
       </div>
     </div>
+    <?php if ($canRunLottery): ?>
     <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
+    <?php endif; ?>
   </div>
   <select id="sessionSelect" style="display:none">
     <option value="<?= (int)$draftUnico['id'] ?>" selected></option>
@@ -553,7 +568,9 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           <?php endforeach; ?>
         </select>
       </div>
+      <?php if ($canRunLottery): ?>
       <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
+      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -568,7 +585,11 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <i class="bi bi-eye" style="color:var(--red)"></i>
       <b>Prévia</b> — estes são os times que entram na loteria, com o grupo e as chances de cada um.
       A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
-      Clique em <b>Sortear a loteria</b> quando estiver tudo certo.
+      <?php /* Quem não sorteia não deve ser mandado clicar num botão que a
+               tela dele não tem. */ ?>
+      <?= $canRunLottery
+        ? 'Clique em <b>Sortear a loteria</b> quando estiver tudo certo.'
+        : 'A cerimônia do sorteio é feita pela administração da liga.' ?>
     </div>
 
     <?php /* A BARRA DE SALVAR fica aqui em cima, grudada no topo, porque a
@@ -576,6 +597,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
              grupo é trocada nesta tabela e a ordem no quadro, lá embaixo.
              Enquanto ela morava só no quadro, dava pra editar as chances,
              sair da página e perder tudo sem nunca ver o aviso. */ ?>
+    <?php if ($canRunLottery): ?>
     <div id="ordemBar" class="ordem-bar" style="display:none">
       <span id="ordemBarTexto"></span>
       <span class="ordem-bar-acoes">
@@ -583,6 +605,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar</button>
       </span>
     </div>
+    <?php endif; ?>
 
     <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
     <div class="panel bc-off">
@@ -615,6 +638,11 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="balls-rodape" id="matrizRodape"></div>
     </div>
 
+    <?php /* A CERIMÔNIA É DO ADMIN. Revelar e confirmar são atos que
+             definem o draft; quem não administra vê as chances, a matriz e a
+             ordem, mas não o palco — um botão "Revelar" numa prévia mostraria
+             a ordem da campanha como se fosse resultado de sorteio. */ ?>
+    <?php if ($canRunLottery): ?>
     <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
     <div class="reveal-stage" id="revealStage">
       <div class="reveal-fx" id="revealFx" aria-hidden="true"></div>
@@ -643,6 +671,8 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="bowl" id="bowl"></div>
     </div>
 
+    <?php endif; ?>
+
     <div class="section-title bc-podium-title" id="podiumTitle" style="display:none"><i class="bi bi-trophy-fill"></i> Pódio da loteria</div>
     <div class="podium" id="podium"></div>
 
@@ -656,6 +686,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
 
+    <?php if ($canRunLottery): ?>
     <div class="panel" id="confirmPanel" style="display:none">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
@@ -663,6 +694,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <span style="font-size:11px;color:var(--text-3)">Aplica esta ordem nas duas rodadas do draft (a 2ª reaproveita a mesma ordem).</span>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- O que a ordem decidiu além das posições: proteção que passou ou não,
          e onde cada swap parou. Só aparece quando houve algum caso. -->
@@ -676,7 +708,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       </div>
     </div>
   </div>
-  <?php endif; ?>
 
   <div class="section-title bc-off"><i class="bi bi-journal-text"></i> Como funciona</div>
   <div class="panel rules-panel bc-off">
@@ -1011,9 +1042,9 @@ function renderMatriz(data){
       <td class="time-col" title="${esc(b.group_label || '')}">${esc(b.team_name)}</td>
       ${picks.map(p => {
         const v = linha[p] || 0;
-        return `<td class="celula ${faixa(v)}">${v ? v.toFixed(1) : '—'}</td>`;
+        return `<td class="celula ${faixa(v)}">${v ? v.toFixed(2) : '—'}</td>`;
       }).join('')}
-      <td class="celula total-col">${total.toFixed(1)}</td>
+      <td class="celula total-col">${total.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
@@ -1021,14 +1052,13 @@ function renderMatriz(data){
     <td class="time-col">Soma da escolha</td>
     ${picks.map(p => {
       const s = data.balls.reduce((a, b) => a + ((m[b.team_id] || {})[p] || 0), 0);
-      return `<td class="celula">${s.toFixed(1)}</td>`;
+      return `<td class="celula">${s.toFixed(2)}</td>`;
     }).join('')}
     <td class="celula total-col">—</td>
   </tr>`;
 
-  $('matrizRodape').innerHTML = 'Cada <b>linha</b> fecha exatamente 100%: o time termina em alguma escolha. '
-    + 'Cada <b>coluna</b> também vale 100% — a escolha vai pra alguém —, mas pode aparecer 99,9 ou 100,1: '
-    + 'com uma casa decimal não dá pra fechar os dois sentidos ao mesmo tempo, e a linha é a leitura que importa. '
+  $('matrizRodape').innerHTML = 'Cada <b>linha</b> fecha 100%: o time termina em alguma escolha. '
+    + 'Cada <b>coluna</b> também: a escolha vai pra alguém. '
     + 'Os 3 piores ficam vazios da 13ª em diante porque o piso não deixa eles caírem além da 12ª — '
     + 'é daí que vem a coluna 12 tão alta deles.';
 }

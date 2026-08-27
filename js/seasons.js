@@ -510,7 +510,15 @@ function _regPtsSaveCache() {
     const form = document.getElementById('formRegistroPontuacao');
     const formState = {};
     if (form) {
-        form.querySelectorAll('[name]').forEach(el => { formState[el.name] = el.value; });
+        /* Caixa marcada guarda o estado, não o `value`. Num checkbox o
+           `.value` é "on" esteja ele marcado ou não, então guardá-lo direto
+           fazia o rascunho voltar com TODAS as caixas marcadas — bastava
+           marcar duas pro formulário reabrir com dezesseis. */
+        form.querySelectorAll('[name]').forEach(el => {
+            formState[el.name] = (el.type === 'checkbox' || el.type === 'radio')
+                ? (el.checked ? '1' : '')
+                : el.value;
+        });
     }
     localStorage.setItem(_regPtsCacheKey, JSON.stringify({ form: formState }));
     _regPtsAutosaveServidor();
@@ -556,7 +564,12 @@ function _regPtsAutosaveServidor() {
 function _regPtsRascunhoAtual() {
     const form = document.getElementById('formRegistroPontuacao');
     const formState = {};
-    if (form) form.querySelectorAll('[name]').forEach(el => { formState[el.name] = el.value; });
+    // Mesma regra do rascunho local: checkbox guarda estado, não `value`.
+    if (form) form.querySelectorAll('[name]').forEach(el => {
+        formState[el.name] = (el.type === 'checkbox' || el.type === 'radio')
+            ? (el.checked ? '1' : '')
+            : el.value;
+    });
     return { form: formState, bracket: _bracket || null };
 }
 
@@ -1426,6 +1439,9 @@ async function showRegistroPontuacao(league) {
                 const el = form.querySelector(`[name="${name}"]`);
                 if (!el || value === undefined || value === null) return;
                 if (el.tagName === 'SELECT' && ehSelectDeJogador(name)) return;
+                // Caixa marcada se restaura pelo estado; atribuir `value`
+                // numa checkbox não marca nem desmarca coisa nenhuma.
+                if (el.type === 'checkbox' || el.type === 'radio') { el.checked = !!value; return; }
                 el.value = value;
             });
             // Posição já preenchida some das outras vagas, como no preenchimento normal.
