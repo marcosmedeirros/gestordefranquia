@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/backend/helpers.php'; // congelarRankingDaSpri
 require_once dirname(__DIR__) . '/backend/checklist_temporada.php';
 require_once dirname(__DIR__) . '/backend/playoff_series.php';   // salvarPlayoffSeries()
 require_once dirname(__DIR__) . '/backend/pontuacao_ranking.php'; // a régua de pontos do ranking
+require_once dirname(__DIR__) . '/backend/loteria_grupos.php';    // colunas e grupos da loteria
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -2118,6 +2119,18 @@ try {
             $stJa->execute([$seasonId]);
             $ehCorrecao = (int)$stJa->fetchColumn() > 0;
 
+            /* O QUE A LOTERIA AJUSTOU SOBREVIVE AO SALVAMENTO.
+               Este bloco apaga a classificação inteira e reinsere, então tudo
+               que mora nessas linhas e não vem deste formulário seria perdido
+               junto: a ordem de escolha do playoff e os grupos marcados na
+               tela da loteria. Guardado aqui, reaplicado depois dos inserts —
+               e o que o formulário traz sobrescreve na sequência. */
+            loteriaGarantirColunas($pdo);
+            $stmtGuarda = $pdo->prepare("SELECT team_id, overall_position, draft_tail_position, lottery_group
+                                           FROM season_standings WHERE season_id = ?");
+            $stmtGuarda->execute([$seasonId]);
+            $ajustesLoteria = $stmtGuarda->fetchAll(PDO::FETCH_ASSOC);
+
             $pdo->beginTransaction();
             try {
                 $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
@@ -2140,6 +2153,20 @@ try {
                 };
                 $gravaConf($stdLeste, 'LESTE');
                 $gravaConf($stdOeste, 'OESTE');
+
+                // Devolve os ajustes da loteria às linhas recém-criadas.
+                if ($ajustesLoteria) {
+                    $stmtVolta = $pdo->prepare("UPDATE season_standings
+                                                   SET overall_position = ?, draft_tail_position = ?, lottery_group = ?
+                                                 WHERE season_id = ? AND team_id = ?");
+                    foreach ($ajustesLoteria as $ant) {
+                        if ($ant['overall_position'] === null && $ant['draft_tail_position'] === null && $ant['lottery_group'] === null) continue;
+                        $stmtVolta->execute([
+                            $ant['overall_position'], $ant['draft_tail_position'], $ant['lottery_group'],
+                            $seasonId, (int)$ant['team_id'],
+                        ]);
+                    }
+                }
 
                 /* A ORDEM GERAL DOS NÃO CLASSIFICADOS.
                    A posição por conferência não separa quem terminou no mesmo
@@ -2174,25 +2201,37 @@ try {
                     }
                 }
 
-                /* O GRUPO DA LOTERIA declarado ao lado de cada posição.
-                   Quem caiu no play-in e quem perdeu o 7x8 não se deduz da
-                   tabela: são resultados de jogo. Enquanto a loteria tentava
-                   adivinhar isso pela colocação, times que sequer foram ao
-                   play-in apareciam como derrotados nele, com a menor chance
-                   da urna. O que não for marcado fica NULL e a loteria
-                   continua deduzindo o que dá pra deduzir. */
-                $gruposLoteria = is_array($input['grupos_loteria'] ?? null) ? $input['grupos_loteria'] : [];
-                if ($gruposLoteria) {
+                /* QUEM PERDEU O 7x8.
+                   É o único grupo da loteria que não se deduz de posição
+                   nenhuma — ter perdido aquele jogo é resultado. Enquanto a
+                   loteria adivinhava, pegando "os 2 menos ruins que
+                   sobraram", times que sequer foram ao play-in apareciam
+                   como derrotados nele, com a menor chance da urna.
+
+                   Só o grupo 4 é escrito aqui. Os outros podem ter sido
+                   marcados na tela da loteria, e um salvamento de campanha
+                   não pode apagar o que foi ajustado lá. */
+                if (array_key_exists('perdedores_7x8', $input)) {
                     if (!$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'lottery_group'")->fetch()) {
                         $pdo->exec("ALTER TABLE season_standings ADD COLUMN lottery_group INT NULL AFTER overall_position");
                     }
-                    $stmtGrupo = $pdo->prepare("UPDATE season_standings SET lottery_group = ?
-                                                 WHERE season_id = ? AND team_id = ?");
-                    foreach ($gruposLoteria as $tid => $g) {
-                        $tid = (int)$tid;
-                        $g   = (int)$g;
-                        if ($tid <= 0) continue;
-                        $stmtGrupo->execute([($g >= 1 && $g <= 4) ? $g : null, $seasonId, $tid]);
+                    $perdedores = array_values(array_unique(array_map('intval',
+                        is_array($input['perdedores_7x8']) ? $input['perdedores_7x8'] : [])));
+                    $perdedores = array_values(array_filter($perdedores, fn($t) => $t > 0));
+
+                    // Desmarcar é tão importante quanto marcar: quem saiu da
+                    // lista precisa perder o rótulo, e só quem tinha o 4.
+                    if ($perdedores) {
+                        $ph = implode(',', array_fill(0, count($perdedores), '?'));
+                        $pdo->prepare("UPDATE season_standings SET lottery_group = NULL
+                                        WHERE season_id = ? AND lottery_group = 4 AND team_id NOT IN ($ph)")
+                            ->execute(array_merge([$seasonId], $perdedores));
+                        $stmt7x8 = $pdo->prepare("UPDATE season_standings SET lottery_group = 4
+                                                   WHERE season_id = ? AND team_id = ?");
+                        foreach ($perdedores as $tid) $stmt7x8->execute([$seasonId, $tid]);
+                    } else {
+                        $pdo->prepare("UPDATE season_standings SET lottery_group = NULL
+                                        WHERE season_id = ? AND lottery_group = 4")->execute([$seasonId]);
                     }
                 }
 

@@ -1443,15 +1443,15 @@ async function showRegistroPontuacao(league) {
                 .sort((a, b) => parseInt(a.split('geral_rank_')[1], 10) - parseInt(b.split('geral_rank_')[1], 10))
                 .map(n => cached.form[n])
                 .filter(Boolean);
-            /* Os grupos voltam indexados pelo TIME, não pela linha: o
-               rascunho guarda geral_grupo_N ao lado de geral_rank_N, e é o
-               time daquela linha que carrega a marcação. */
+            /* As marcações voltam indexadas pelo TIME, não pela linha: o
+               rascunho guarda geral_7x8_N ao lado de geral_rank_N, e é o time
+               daquela linha que carrega a marcação. */
             window._gruposLoteriaSalvos = {};
             Object.keys(cached.form)
-                .filter(n => n.startsWith('geral_grupo_'))
+                .filter(n => n.startsWith('geral_7x8_'))
                 .forEach(n => {
-                    const time = cached.form['geral_rank_' + n.split('geral_grupo_')[1]];
-                    if (time && cached.form[n]) window._gruposLoteriaSalvos[String(time)] = cached.form[n];
+                    const time = cached.form['geral_rank_' + n.split('geral_7x8_')[1]];
+                    if (time && cached.form[n]) window._gruposLoteriaSalvos[String(time)] = '4';
                 });
             montarOrdemGeral();
 
@@ -1592,9 +1592,9 @@ async function salvarTemporadaRegular(seasonId, league) {
                 // 15º de um lado e o 15º do outro ficam empatados e o
                 // desempate acaba saindo da ordem de uma consulta.
                 ordem_geral: getRankList('geral'),
-                // O que o admin marcou como "caiu no play-in" / "perdeu o
-                // 7x8". Vem só o que foi marcado; o resto a loteria deduz.
-                grupos_loteria: _coletarGruposLoteria(),
+                // Os dois times que perderam o 7x8. É o único grupo que não
+                // se deduz de posição nenhuma; o resto a loteria monta.
+                perdedores_7x8: _coletarPerdedores7x8(),
                 // Só os estendidos DESTA etapa — o Finals MVP é da etapa 2 e
                 // não pode ser apagado por um salvamento de campanha.
                 extended_awards: league === 'ELITE' ? _regPtsCollectExtended('regular') : [],
@@ -2038,33 +2038,25 @@ function renderHistoryForm(seasonId, league) {
  * engano um time que se classificou.
  */
 /**
- * O grupo declarado de cada time, lido das duas colunas lado a lado.
+ * Os times marcados como derrotados no 7x8.
  *
- * A chave é o TIME, não a linha: a posição é só onde o par foi preenchido, e
- * mover um time de linha não pode mudar o que aconteceu com ele no play-in.
- * Vai completo — inclusive os times sem marca, como "" — porque uma lista só
- * dos marcados não teria como dizer "este aqui eu desmarquei".
+ * Devolve IDS, não um mapa de grupo por time: este card só sabe sobre o 7x8,
+ * e mandar um mapa completo faria ele apagar sem querer uma marcação de
+ * "caiu no play-in" feita na tela da loteria.
+ *
+ * A chave é o TIME e não a linha — mover um time de posição não muda o que
+ * aconteceu com ele naquele jogo.
  */
-function _coletarGruposLoteria() {
-    const grupos = {};
+function _coletarPerdedores7x8() {
+    const ids = [];
     document.querySelectorAll('select[name^="geral_rank_"]').forEach(sel => {
         if (!sel.value) return;
         const n = sel.name.split('geral_rank_')[1];
-        const g = document.querySelector(`select[name="geral_grupo_${n}"]`);
-        grupos[sel.value] = g && g.value ? parseInt(g.value, 10) : 0;
+        const chk = document.querySelector(`input[name="geral_7x8_${n}"]`);
+        if (chk && chk.checked) ids.push(parseInt(sel.value, 10));
     });
-    return grupos;
+    return ids;
 }
-
-/* Os grupos que a loteria entende. Os rótulos são os da tela da loteria,
-   encurtados — aqui eles dividem a linha com o nome do time. */
-const LOTERIA_GRUPOS_UI = [
-    ['',  'Automático'],
-    ['1', '3 piores'],
-    ['2', 'Fora do play-in'],
-    ['3', 'Caiu no play-in'],
-    ['4', 'Perdeu o 7x8'],
-];
 
 function montarOrdemGeral() {
     const wrap  = document.getElementById('ordemGeralWrap');
@@ -2106,31 +2098,32 @@ function montarOrdemGeral() {
         return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
     }).join('');
 
-    /* O GRUPO DA LOTERIA, ao lado da posição.
-       Quem caiu no play-in e quem perdeu o 7x8 é resultado de jogo: nenhuma
-       ordenação desta lista revela isso — o 12º pode não ter jogado o play-in
-       e o 9º pode ter jogado. Enquanto a loteria deduzia pela posição, dois
-       times que sequer foram ao play-in levavam o rótulo de derrotados nele,
-       e com ele a menor chance da urna.
+    /* QUEM PERDEU O 7x8, marcado à mão.
+       É o único grupo que não se deduz de jeito nenhum: quem caiu no play-in
+       ainda dá pra chutar pela colocação (9º e 10º), mas ter perdido aquele
+       jogo é resultado, não posição. Enquanto a loteria adivinhava — pegando
+       "os 2 menos ruins que sobraram" — dois times que sequer foram ao
+       play-in levavam esse rótulo, e com ele a menor chance da urna.
 
-       Fica vazio por padrão: só o que o admin marcar vira declaração. */
+       Só o que for marcado aqui vira declaração; o resto a loteria continua
+       montando sozinha a partir da ordem. */
     const guardadoGrupo = window._gruposLoteriaSalvos || {};
-    const optsGrupo = (sel) => LOTERIA_GRUPOS_UI
-        .map(([v, rotulo]) => `<option value="${v}"${String(v) === String(sel) ? ' selected' : ''}>${rotulo}</option>`)
-        .join('');
 
     slots.innerHTML = fora.map((_, i) => {
         const timeDaLinha = guardada[i] || '';
+        const marcado = String(guardadoGrupo[String(timeDaLinha)] || '') === '4';
         return `
         <div class="d-flex align-items-center gap-2 mb-2">
             <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
             <select class="form-select form-select-sm bg-dark text-white border-orange"
                     name="geral_rank_${primeiro + i}" style="border-radius:10px;flex:1 1 auto;min-width:0"
                     onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary"
-                    name="geral_grupo_${primeiro + i}" style="border-radius:10px;flex:0 0 150px"
-                    title="Marque só quem caiu no play-in ou perdeu o 7x8 — o resto sai da ordem"
-                    onchange="_regPtsSaveCache();">${optsGrupo(guardadoGrupo[String(timeDaLinha)] || '')}</select>
+            <label class="d-flex align-items-center gap-1 mb-0 text-nowrap" style="flex:0 0 auto;cursor:pointer;font-size:12px;color:var(--text-3)"
+                   title="Marque os dois times que perderam o jogo 7x8 — eles entram na loteria com 1 bolinha, a menor chance">
+                <input type="checkbox" class="form-check-input mt-0" name="geral_7x8_${primeiro + i}"
+                       ${marcado ? 'checked' : ''} onchange="_regPtsSaveCache();">
+                Perdeu o 7x8
+            </label>
         </div>`;
     }).join('');
     _updateStandingsUnique('geral');

@@ -221,9 +221,18 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .board-move button:hover:not(:disabled){color:var(--text-1);border-color:var(--red)}
 .board-move button:disabled{opacity:.25;cursor:default}
 .board-slot.movido{border-color:var(--red);box-shadow:0 0 0 1px var(--red-soft)}
+/* Sticky: a tabela de chances tem dezesseis linhas e o quadro trinta e duas.
+   Um aviso que rola pra fora da tela é um aviso que ninguém lê — e o preço
+   de não lê-lo é perder a edição inteira ao trocar de página. */
 .ordem-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  position:sticky;top:8px;z-index:30;
   margin-bottom:10px;padding:9px 12px;border-radius:10px;font-size:12px;
-  background:var(--red-soft);border:1px solid var(--border-red);color:var(--text-1)}
+  /* Duas camadas: o tom de alerta é translúcido de propósito, então precisa
+     de um fundo opaco atrás — grudada no topo, ela passa por cima da tabela,
+     e o texto das linhas atravessando o aviso o torna ilegível. */
+  background:linear-gradient(var(--red-soft),var(--red-soft)),var(--panel-2);
+  border:1px solid var(--border-red);color:var(--text-1);
+  box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .ordem-bar-acoes{display:flex;gap:8px;flex-shrink:0}
 @media(max-width:640px){
   .ordem-bar{font-size:11px}.ordem-bar-acoes{width:100%}.ordem-bar-acoes button{flex:1}
@@ -545,6 +554,19 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       Clique em <b>Sortear a loteria</b> quando estiver tudo certo.
     </div>
 
+    <?php /* A BARRA DE SALVAR fica aqui em cima, grudada no topo, porque a
+             edição acontece em dois lugares distantes um do outro: a tag do
+             grupo é trocada nesta tabela e a ordem no quadro, lá embaixo.
+             Enquanto ela morava só no quadro, dava pra editar as chances,
+             sair da página e perder tudo sem nunca ver o aviso. */ ?>
+    <div id="ordemBar" class="ordem-bar" style="display:none">
+      <span id="ordemBarTexto"></span>
+      <span class="ordem-bar-acoes">
+        <button class="btn-ghost2" id="btnOrdemDesfazer" type="button"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
+        <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar</button>
+      </span>
+    </div>
+
     <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
     <div class="panel bc-off">
       <div style="overflow-x:auto">
@@ -589,15 +611,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
 
     <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio dá pra corrigir a ordem com as setas. Em cima estão os times de loteria, na ordem da campanha — é dela que saem os grupos de bolinhas. Embaixo, os times de playoff na ordem em que escolhem: quem foi menos longe pica antes, e o campeão por último."></i></div>
     <div class="panel bc-board">
-      <?php /* Só aparece antes do sorteio: depois de sortear, mexer aqui não
-               teria efeito nenhum nas chances — elas já rolaram. */ ?>
-      <div id="ordemBar" class="ordem-bar" style="display:none">
-        <span id="ordemBarTexto"></span>
-        <span class="ordem-bar-acoes">
-          <button class="btn-ghost2" id="btnOrdemDesfazer" type="button"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
-          <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar ordem</button>
-        </span>
-      </div>
       <div class="board" id="board"></div>
     </div>
 
@@ -854,8 +867,8 @@ function atualizarBarraOrdem(){
   bar.style.display = ordemPendente ? '' : 'none';
   const txt = $('ordemBarTexto');
   if (txt) txt.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> '
-    + '<b>Ordem alterada.</b> As chances acima já refletem a mudança, mas ela ainda não foi gravada — '
-    + 'salve antes de sortear.';
+    + '<b>Alterações não salvas.</b> As chances abaixo já refletem a mudança, mas ela ainda não foi gravada — '
+    + 'sair da página agora perde a edição.';
   const btnSortear = $('btnPrepare');
   if (btnSortear) {
     btnSortear.disabled = ordemPendente;
@@ -1366,6 +1379,13 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
 if ($('sessionSelect')) $('sessionSelect').addEventListener('change', () => { ordemPendente = false; carregarPrevia(); });
 $('btnOrdemSalvar')?.addEventListener('click', salvarOrdem);
 $('btnOrdemDesfazer')?.addEventListener('click', desfazerOrdem);
+/* Última barreira antes de perder o trabalho. A barra já avisa na tela, mas
+   quem trocou uma tag e foi conferir outra coisa sai sem olhar pra cima. */
+window.addEventListener('beforeunload', (e) => {
+  if (!ordemPendente) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 carregarPrevia();
 </script>
 </body>
