@@ -395,6 +395,7 @@ function wcAjuda(): string
         // liga inteira e qualquer time pode disputar, então é assunto de
         // quem lê esta lista.
         . "/jogosemana — o jogo da semana e o lance pra tomar a vaga\n"
+        . "/loteria — quem entra na loteria do draft e a chance de cada grupo\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
@@ -3153,6 +3154,16 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             // O leilão do jogo da semana. Cada grupo tem a sua liga, então
             // sem argumento responde a liga DAQUELE grupo — quem pergunta no
             // Chat Off da NEXT quer o jogo da NEXT, não o da ELITE.
+            // A loteria do draft: quem entra e com que chance, ou a ordem já
+            // sorteada. Como o jogo da semana, sem argumento responde a liga
+            // DAQUELE grupo.
+            case 'loteria':
+            case 'lottery':
+                require_once __DIR__ . '/../backend/loteria_grupos.php';
+                $lg = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
+                if (!$lg) $lg = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+                return loteriaTexto($pdo, $lg);
+
             case 'jogosemana':
             case 'jogodasemana':
                 require_once __DIR__ . '/../backend/leilao_semana.php';
