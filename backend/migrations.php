@@ -1387,6 +1387,14 @@ function runMigrations() {
         if (!isset($cols['snapshot_json'])) {
             $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_json TEXT NULL");
         }
+        // O segundo retrato: a tática como estava no FIM DA TEMPORADA REGULAR,
+        // tirado quando o admin salva a classificação. Enquanto os playoffs
+        // rolam, é contra ele que a tela do admin compara — e o que difere é,
+        // por definição, a tática de playoff. O snapshot_json continua sendo o
+        // da virada de temporada, que responde outra pergunta.
+        if (!isset($cols['snapshot_offs_json'])) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_offs_json TEXT NULL");
+        }
     } catch (PDOException $e) {
         $errors[] = "ajuste_team_tactics_admin: " . $e->getMessage();
     }

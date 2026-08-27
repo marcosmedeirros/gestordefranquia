@@ -337,6 +337,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
         }
 
+        // ── FASE DE PLAYOFFS ────────────────────────────────────────────
+        //
+        // A liga está nos playoffs quando a temporada aberta já tem
+        // classificação registrada: é o primeiro salvamento do card de
+        // Pontuação que grava season_standings. Ao avançar a temporada nasce
+        // uma temporada nova, sem classificação, e a tela volta sozinha ao
+        // normal — não há nada pra ligar ou desligar na mão.
+        $noOffs = [];        // team_id => seed dentro da conferência
+        $faseOffs = false;
+        try {
+            $stTemp = $pdo->prepare("SELECT id FROM seasons
+                                      WHERE league = ? AND (status IS NULL OR status <> 'completed')
+                                   ORDER BY id DESC LIMIT 1");
+            $stTemp->execute([$league]);
+            $tempAberta = (int)($stTemp->fetchColumn() ?: 0);
+            if ($tempAberta) {
+                $stCls = $pdo->prepare("SELECT ss.team_id, ss.position,
+                                               COALESCE(ss.conference, t.conference) AS conf
+                                          FROM season_standings ss
+                                          JOIN teams t ON t.id = ss.team_id
+                                         WHERE ss.season_id = ?
+                                      ORDER BY ss.position ASC");
+                $stCls->execute([$tempAberta]);
+                $classificacao = $stCls->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                if ($classificacao) {
+                    $faseOffs = true;
+                    // Top 8 de CADA conferência, a mesma régua da loteria.
+                    $porConf = [];
+                    foreach ($classificacao as $r) {
+                        $porConf[$r['conf'] ?: 'UNICA'][] = $r;
+                    }
+                    foreach ($porConf as $lista) {
+                        usort($lista, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
+                        foreach (array_slice($lista, 0, 8) as $i => $r) {
+                            $noOffs[(int)$r['team_id']] = $i + 1;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // Sem classificação legível a tela é a de sempre — nada quebra.
+            error_log('[tactics] fase de offs: ' . $e->getMessage());
+        }
+
         $overview = [];
         foreach ($teams as $t) {
             $stmtA = $pdo->prepare("
@@ -373,12 +417,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
             $tatica = null;
             if ($ativa) {
-                // O snapshot é a tática como estava na virada da temporada.
-                // Comparando com a atual sai o que o time mexeu desde então —
-                // é isso que a tela pinta de vermelho.
+                // Contra QUAL retrato comparar depende da fase.
+                //
+                // Fora dos playoffs: o da virada de temporada — o vermelho diz
+                // "mexeu desde que a temporada começou".
+                //
+                // Nos playoffs: o do fim da regular, tirado quando o admin
+                // salvou a classificação. Aí o vermelho passa a dizer "mudou a
+                // tática PRA os playoffs", que é a pergunta que interessa com a
+                // série prestes a começar. Sem isso as duas táticas se
+                // misturavam num diff só.
+                //
+                // Na fase de playoffs NÃO há queda pro snapshot antigo: se o
+                // retrato do fim da regular não existe (time que só criou a
+                // tática depois), não dá pra dizer o que mudou pros offs, e
+                // comparar com a virada de temporada acenderia vermelho por
+                // uma diferença de outro assunto.
                 $antes = [];
-                if (!empty($ativa['snapshot_json'])) {
-                    $decodificado = json_decode((string)$ativa['snapshot_json'], true);
+                $bruto = $faseOffs
+                    ? ($ativa['snapshot_offs_json'] ?? null)
+                    : ($ativa['snapshot_json'] ?? null);
+                if (!empty($bruto)) {
+                    $decodificado = json_decode((string)$bruto, true);
                     if (is_array($decodificado)) $antes = $decodificado;
                 }
 
@@ -433,6 +493,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $overview[] = [
                 'team' => ['id' => (int)$t['id'], 'name' => trim($t['city'] . ' ' . $t['name'])],
                 'active_tactic' => $tatica,
+                // Fora da fase de playoffs os dois saem nulos, e a tela trata
+                // todo mundo igual — que é como era antes.
+                'nos_offs' => $faseOffs ? isset($noOffs[(int)$t['id']]) : null,
+                'seed'     => $noOffs[(int)$t['id']] ?? null,
             ];
         }
 
@@ -466,7 +530,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'Ç'=>'c','Ñ'=>'n',
         ]));
 
+        // E, na fase de playoffs, quem ESTÁ nos playoffs vem antes de tudo.
+        // Com a série pra começar, a tática dos 16 eliminados é ruído: eles
+        // vão pro fim da lista e a tela os deixa em cinza. Fora dessa fase a
+        // regra some sozinha, porque nos_offs vem nulo pra todo mundo.
         usort($overview, function ($a, $b) use ($ordenavel) {
+            if ($a['nos_offs'] !== null && $a['nos_offs'] !== $b['nos_offs']) {
+                return $a['nos_offs'] ? -1 : 1;
+            }
             $fa = !empty($a['active_tactic']['feito_no_jogo']);
             $fb = !empty($b['active_tactic']['feito_no_jogo']);
             if ($fa !== $fb) return $fa ? 1 : -1;
@@ -475,7 +546,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             return strnatcmp($ordenavel($a['team']['name']), $ordenavel($b['team']['name']));
         });
 
-        echo json_encode(['success' => true, 'league' => $league, 'teams' => $overview, 'modelos' => $modelos]);
+        echo json_encode([
+            'success'   => true,
+            'league'    => $league,
+            'fase_offs' => $faseOffs,
+            'teams'     => $overview,
+            'modelos'   => $modelos,
+        ]);
         exit;
     }
 

@@ -6170,7 +6170,8 @@ async function showTaticaAdmin() {
       api(`tactics.php?action=admin_window&league=${encodeURIComponent(league)}`),
       api(`tactics.php?action=admin_overview&league=${encodeURIComponent(league)}`),
     ]);
-    renderTaticaAdmin(league, winRes.window, overviewRes.teams || [], overviewRes.modelos || null);
+    renderTaticaAdmin(league, winRes.window, overviewRes.teams || [], overviewRes.modelos || null,
+                      !!overviewRes.fase_offs);
   } catch (e) {
     container.innerHTML = `<div class="alert alert-danger">Erro ao carregar tática: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
   }
@@ -6244,21 +6245,30 @@ function _taticaPainelModelos(modelos) {
     </style>`;
 }
 
-function renderTaticaAdmin(league, win, teams, modelos) {
+function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
   const container = document.getElementById('mainContainer');
 
   // Acordeão: um time por linha, abre e mostra a tática exata dele. O que o
-  // time mexeu desde a virada da temporada sai em vermelho — por isso o
-  // snapshot existe.
+  // time mexeu sai em vermelho — por isso o snapshot existe. Na fase de
+  // playoffs a comparação é contra o fim da regular, então o vermelho passa a
+  // significar "mudou a tática PRA a série".
   const rows = teams.map(t => {
     const at = t.active_tactic;
     const tid = t.team.id;
+    // Eliminado: some do caminho. Fica no fim da lista (a API já ordena) e em
+    // cinza, porque com a série pra começar a tática dele não é trabalho.
+    const fora = faseOffs && t.nos_offs === false;
+    const clsFora = fora ? ' tac-fora' : '';
+    const selo = (faseOffs && t.nos_offs)
+      ? `<span class="tac-seed" title="Entrou nos playoffs como ${t.seed}º da conferência">${t.seed}º</span>`
+      : '';
 
     if (!at) {
       return `
-        <div class="tac-item">
+        <div class="tac-item${clsFora}">
           <div class="tac-head" style="cursor:default">
             <i class="bi bi-dash-circle" style="color:var(--text-3)"></i>
+            ${selo}
             <span class="tac-nome">${escapeHtml(t.team.name)}</span>
             <span class="tac-vazio">Nenhuma tática ativa</span>
           </div>
@@ -6271,6 +6281,10 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       ...(at.config || []).filter(x => x.mudou),
     ].length;
 
+    // O nome em vermelho é o aviso de "este mexeu na tática pros playoffs".
+    // Só vale pra quem está nos offs: eliminado mexendo na tática não muda
+    // nada, e pintar o nome dele só tiraria a atenção de quem importa.
+    const mudouNoOffs = faseOffs && t.nos_offs && mudancas > 0;
 
 
     const camposConfig = (at.config || []).filter(c => c.valor !== null);
@@ -6285,10 +6299,11 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       <div class="tac-obs ${observacao.mudou ? 'mudou' : ''}">${escapeHtml(String(observacao.valor))}</div>` : '';
 
     return `
-      <div class="tac-item">
+      <div class="tac-item${clsFora}">
         <div class="tac-head" onclick="_tacToggle(${tid})">
           <i class="bi bi-chevron-right tac-seta" id="tac-seta-${tid}"></i>
-          <span class="tac-nome">${escapeHtml(t.team.name)}</span>
+          ${selo}
+          <span class="tac-nome${mudouNoOffs ? ' mudou-offs' : ''}">${escapeHtml(t.team.name)}</span>
           <span class="pun-badge" style="background:#14b8a620;color:#14b8a6;border-color:#14b8a640">${escapeHtml(at.slot_label)}</span>
           ${mudancas > 0 ? `<span class="tac-mudou-badge">${mudancas} ${mudancas === 1 ? 'mudança' : 'mudanças'}</span>` : ''}
           <span class="tac-data">${at.updated_at ? formatDirectiveTimestampAdmin(at.updated_at) : '—'}</span>
@@ -6301,7 +6316,9 @@ function renderTaticaAdmin(league, win, teams, modelos) {
           ${!at.tem_snapshot ? `
           <div class="tac-aviso">
             <i class="bi bi-info-circle"></i>
-            Ainda não houve virada de temporada com esta tática — nada a comparar, então nada aparece em vermelho.
+            ${faseOffs
+              ? 'Esta tática não existia quando a temporada regular fechou — não há com o que comparar, então nada aparece em vermelho.'
+              : 'Ainda não houve virada de temporada com esta tática — nada a comparar, então nada aparece em vermelho.'}
           </div>` : ''}
           ${(at.gleague || []).length ? `
             <div class="tac-secao">G-League</div>
@@ -6323,10 +6340,21 @@ function renderTaticaAdmin(league, win, teams, modelos) {
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>
+        ${faseOffs ? `<span class="tac-fase"><i class="bi bi-trophy-fill"></i> Playoffs</span>` : ''}
       </div>
+      ${faseOffs ? `
+      <div class="tac-aviso-offs">
+        <i class="bi bi-trophy-fill"></i>
+        <span>A classificação já foi salva, então a liga está nos <b>playoffs</b>: os
+        <b>${teams.filter(t => t.nos_offs).length} classificados</b> vêm primeiro, com a seed ao lado do nome, e os
+        eliminados ficam no fim, em cinza. O <b style="color:#ef4444">nome em vermelho</b> é quem mudou a tática
+        <b>depois</b> do fim da temporada regular — ou seja, montou tática pros playoffs.
+        Ao avançar a temporada, tudo volta a ficar igual.</span>
+      </div>` : ''}
       <div style="font-size:11.5px;color:var(--text-3);margin-bottom:12px">
         Abra um time pra ver a tática exata dele. Em <span style="color:#ef4444;font-weight:700">vermelho</span>,
-        o que o time mexeu desde a virada da temporada. O "Feito no jogo" zera sozinho a cada temporada nova.
+        o que o time mexeu desde ${faseOffs ? 'o fim da temporada regular' : 'a virada da temporada'}.
+        O "Feito no jogo" zera sozinho a cada temporada nova.
       </div>
       <div class="tac-lista">${rows || '<div class="tac-vazio">Nenhum time nesta liga.</div>'}</div>
     </div>
@@ -6341,6 +6369,22 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       .tac-seta { color:var(--text-3); font-size:12px; transition:transform .18s; flex-shrink:0; }
       .tac-seta.aberto { transform:rotate(90deg); }
       .tac-nome { font-size:13.5px; font-weight:700; flex:1; min-width:140px; }
+      /* Mexeu na tática depois do fim da regular: montou pros playoffs. */
+      .tac-nome.mudou-offs { color:#ef4444; }
+      .tac-seed { flex:none; min-width:26px; text-align:center; font-size:10.5px; font-weight:800;
+        padding:2px 6px; border-radius:6px; font-variant-numeric:tabular-nums;
+        background:rgba(245,158,11,.14); color:#f59e0b; border:1px solid rgba(245,158,11,.3); }
+      /* Eliminado: continua clicável, mas sai da frente de quem ainda joga. */
+      .tac-item.tac-fora { opacity:.45; }
+      .tac-item.tac-fora .tac-nome { color:var(--text-3); font-weight:600; }
+      .tac-item.tac-fora:hover { opacity:.75; }
+      .tac-fase { font-size:10.5px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+        padding:3px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:5px;
+        background:rgba(245,158,11,.14); color:#f59e0b; border:1px solid rgba(245,158,11,.3); }
+      .tac-aviso-offs { display:flex; gap:8px; align-items:flex-start; margin-bottom:12px;
+        padding:9px 12px; border-radius:8px; font-size:12px; line-height:1.55; color:var(--text-2);
+        background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.22); }
+      .tac-aviso-offs i { color:#f59e0b; margin-top:2px; }
       .tac-data { font-size:11px; color:var(--text-3); }
       .tac-mudou-badge { font-size:10px; font-weight:700; padding:1px 8px; border-radius:999px;
         background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.3); }

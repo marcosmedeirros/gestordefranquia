@@ -223,6 +223,64 @@ function calculateSeasonYear(int $startYear, int $seasonNumber): int
  */
 function snapshotTaticasDaLiga(PDO $pdo, string $league): void
 {
+    $linhas = taticasAtivasDaLiga($pdo, $league);
+    if (!$linhas) return;
+
+    // O retrato do fim da regular sai de cena junto: a temporada virou, os
+    // playoffs acabaram, e comparar com ele passaria a pintar de vermelho uma
+    // diferença que não interessa mais a ninguém. A coluna pode não existir
+    // ainda em instalação que nunca rodou as migrations — sem ela o resto do
+    // snapshot continua funcionando, que é o que não pode faltar.
+    $temOffs = columnExists($pdo, 'team_tactics', 'snapshot_offs_json');
+    $upd = $pdo->prepare($temOffs
+        ? "UPDATE team_tactics SET snapshot_json = ?, snapshot_offs_json = NULL, feito_no_jogo = 0
+            WHERE team_id = ? AND slot = ?"
+        : "UPDATE team_tactics SET snapshot_json = ?, feito_no_jogo = 0
+            WHERE team_id = ? AND slot = ?");
+    foreach ($linhas as $l) {
+        $upd->execute([json_encode(taticaCampos($l), JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
+    }
+}
+
+/**
+ * Congela a tática de cada time no FIM DA TEMPORADA REGULAR.
+ *
+ * Sai quando o admin salva a classificação, e é o que permite separar as duas
+ * táticas: a partir daqui, o que o time mexer é tática de playoff, e a tela do
+ * admin passa a comparar contra este retrato em vez do da virada de temporada.
+ * Antes disso as duas se misturavam — o card mostrava os 32 times iguais, sem
+ * dizer quem tinha mexido pra decidir a série que ia começar.
+ *
+ * `feito_no_jogo` NÃO é zerado aqui de propósito: quem já foi aplicado no jogo
+ * continua aplicado, e o que muda pros playoffs a tela avisa em vermelho.
+ */
+function snapshotTaticasOffs(PDO $pdo, string $league): void
+{
+    if (!columnExists($pdo, 'team_tactics', 'snapshot_offs_json')) return;
+    $linhas = taticasAtivasDaLiga($pdo, $league);
+    if (!$linhas) return;
+
+    $upd = $pdo->prepare("UPDATE team_tactics SET snapshot_offs_json = ? WHERE team_id = ? AND slot = ?");
+    foreach ($linhas as $l) {
+        $upd->execute([json_encode(taticaCampos($l), JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
+    }
+}
+
+/** As táticas ativas da liga, cruas — a base dos dois retratos acima. */
+function taticasAtivasDaLiga(PDO $pdo, string $league): array
+{
+    $stmt = $pdo->prepare("
+        SELECT tt.* FROM team_tactics tt
+        JOIN teams t ON t.id = tt.team_id
+        WHERE t.league = ? AND tt.is_active = 1
+    ");
+    $stmt->execute([$league]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Os campos que entram num retrato de tática. A lista mora só aqui. */
+function taticaCampos(array $linha): array
+{
     $campos = [
         'starter_1_id', 'starter_2_id', 'starter_3_id', 'starter_4_id', 'starter_5_id',
         'bench_1_id', 'bench_2_id', 'bench_3_id', 'gleague_1_id', 'gleague_2_id',
@@ -230,27 +288,9 @@ function snapshotTaticasDaLiga(PDO $pdo, string $league): void
         'defensive_rebound', 'rotation_style', 'game_style', 'offense_style',
         'rotation_players', 'veteran_focus', 'technical_model', 'playbook', 'notes',
     ];
-
-    $stmt = $pdo->prepare("
-        SELECT tt.* FROM team_tactics tt
-        JOIN teams t ON t.id = tt.team_id
-        WHERE t.league = ? AND tt.is_active = 1
-    ");
-    $stmt->execute([$league]);
-    $linhas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (!$linhas) return;
-
-    $upd = $pdo->prepare("
-        UPDATE team_tactics SET snapshot_json = ?, feito_no_jogo = 0
-        WHERE team_id = ? AND slot = ?
-    ");
-    foreach ($linhas as $l) {
-        $snap = [];
-        foreach ($campos as $c) {
-            $snap[$c] = $l[$c] ?? null;
-        }
-        $upd->execute([json_encode($snap, JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
-    }
+    $snap = [];
+    foreach ($campos as $c) $snap[$c] = $linha[$c] ?? null;
+    return $snap;
 }
 
 function getPickWindowYears(int $startYear, int $seasonNumber, int $maxSeasons, int $horizon = 5): array
@@ -2014,6 +2054,11 @@ try {
             if (!columnExists($pdo, 'season_standings', 'conference')) {
                 $pdo->exec("ALTER TABLE season_standings ADD COLUMN conference VARCHAR(20) NULL AFTER position");
             }
+            // O retrato da tática no fim da regular precisa da coluna existindo
+            // antes da transação abrir — ALTER comita sozinho no MySQL.
+            if (!columnExists($pdo, 'team_tactics', 'snapshot_offs_json')) {
+                $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_offs_json TEXT NULL");
+            }
             ensureRegistroRascunhoTable($pdo);
 
             $extTypes = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
@@ -2057,6 +2102,11 @@ try {
                         $insExt->execute([$seasonId, $tid, $tp, $pn]);
                     }
                 }
+
+                // A regular acabou: congela a tática de cada time como ela
+                // está agora. Daqui pra frente, o que o time mexer é tática de
+                // playoff, e é isso que o card de Táticas passa a mostrar.
+                snapshotTaticasOffs($pdo, $leagueR);
 
                 salvarRegistroRascunho($pdo, $seasonId, $leagueR, 'playoffs', $input['dados'] ?? null);
                 $pdo->commit();
