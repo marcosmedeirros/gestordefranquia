@@ -248,6 +248,22 @@ table.stats thead th.col-nome{z-index:4;background:var(--panel-2)}
 table.stats td.num,table.stats th.num{text-align:right;font-variant-numeric:tabular-nums}
 table.stats td.col-time{color:var(--text-2);max-width:190px;overflow:hidden;text-overflow:ellipsis}
 
+/* ── Copiar os dados da linha ──
+   Largura fixa e apertada: é uma ação, não um dado, e não pode disputar
+   espaço com as colunas de número numa tabela que já rola de lado. */
+table.stats td.col-copia,table.stats th.col-copia{width:34px;padding-left:2px;padding-right:6px;text-align:center}
+.bt-copia{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;
+  justify-content:center;cursor:pointer;font-size:12px;line-height:1;
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text-3);
+  transition:color .15s,border-color .15s}
+.bt-copia:hover{color:var(--red);border-color:color-mix(in srgb, var(--red) 35%, transparent)}
+.bt-copia.ok{color:#22c55e;border-color:color-mix(in srgb, #22c55e 40%, transparent)}
+/* No celular a linha inteira já está espremida; o botão encolhe junto. */
+@media(max-width:640px){
+  table.stats td.col-copia,table.stats th.col-copia{width:28px;padding-right:3px}
+  .bt-copia{width:22px;height:22px;font-size:11px}
+}
+
 /* ── MODO COMPACTO ──
    O sticky da coluna do nome ja existia, mas nao bastava: com 180px de nome
    mais 151 de time, sobravam 16px dos 347 visiveis num celular de 375 — as
@@ -550,7 +566,9 @@ function renderCabecalho() {
       + (curto ? ' title="' + esc(col.rot) + '"' : '') + '>'
       + '<span class="seta">' + (on ? (ordAsc ? '▲' : '▼') : '▼') + '</span>'
       + esc(curto || col.rot) + '</th>';
-  }).join('');
+  }).join('') + '<th class="col-copia"></th>';
+  // O cabeçalho da coluna de copiar fica VAZIO de propósito: um rótulo ali
+  // seria clicável como os outros e não ordenaria nada.
 }
 
 function render() {
@@ -597,7 +615,12 @@ function render() {
       }
       return '<td class="num' + on + '">' + fmt(v, col.dec) + '</td>';
     }).join('');
-    return '<tr class="' + (meu ? 'meu' : '') + (vazioNaAba(p) ? ' sem-stat' : '') + '">' + tds + '</tr>';
+    // A coluna de copiar não entra em colunas(): não é dado, não ordena e
+    // não muda com a aba. Fica no fim, onde o olho já terminou de ler a linha.
+    const copiar = '<td class="col-copia">'
+      + '<button type="button" class="bt-copia" data-id="' + p.id + '" title="Copiar os dados deste jogador">'
+      + '<i class="bi bi-clipboard"></i></button></td>';
+    return '<tr class="' + (meu ? 'meu' : '') + (vazioNaAba(p) ? ' sem-stat' : '') + '">' + tds + copiar + '</tr>';
   }).join('');
 
   const semLanc = linhas.filter(vazioNaAba).length;
@@ -605,6 +628,90 @@ function render() {
     linhas.length + ' jogador' + (linhas.length === 1 ? '' : 'es')
     + (time && semLanc ? ' · ' + semLanc + ' sem lançamento' : '');
 }
+
+/* ══ COPIAR OS DADOS DE UM JOGADOR ════════════════════════════════════
+   Uma linha da tabela é a resposta pronta pra uma pergunta que se faz no
+   grupo o tempo todo ("como está o fulano?"), e até agora só dava pra
+   responder tirando print ou digitando de novo.
+
+   O texto sai da ABA ATUAL: em Números vêm as médias, em Atributos vêm as
+   notas — copiar as duas sempre daria um bloco que ninguém lê inteiro. O
+   link do jogador vai junto porque quem recebe costuma querer o resto. */
+function textoDoJogador(p) {
+  const linhas = [];
+  linhas.push(p.nome + (p.time ? ' · ' + p.time : ''));
+
+  const ficha = [];
+  if (p.pos)   ficha.push(p.pos);
+  if (p.ovr !== null && p.ovr !== undefined) ficha.push(p.ovr + ' OVR');
+  if (p.idade !== null && p.idade !== undefined) ficha.push(p.idade + ' anos');
+  if (ficha.length) linhas.push(ficha.join(' · '));
+
+  if (aba === 'stats') {
+    if (p.jogos === null) {
+      linhas.push('Sem estatística lançada.');
+    } else {
+      // Jogos primeiro, e com a mesma régua do resto do sistema: média sem
+      // saber em quantos jogos não diz nada.
+      linhas.push(
+        [p.jogos + ' J', fmt(p.min, 1) + ' MIN', fmt(p.pts, 1) + ' PTS',
+         fmt(p.reb, 1) + ' REB', fmt(p.ast, 1) + ' AST',
+         fmt(p.rou, 1) + ' ROU', fmt(p.toc, 1) + ' TOC'].join(' · ')
+      );
+    }
+  } else {
+    const notas = COLS.skills
+      .map(function (col) {
+        const v = valor(p, col.c);
+        return v === null ? null : col.rot + ' ' + v;
+      })
+      .filter(Boolean);
+    linhas.push(notas.length ? notas.join(' · ') : 'Sem atributo preenchido.');
+  }
+
+  linhas.push(location.origin + '/player.php?id=' + p.id);
+  return linhas.join('\n');
+}
+
+async function copiarJogador(bt) {
+  const id = Number(bt.dataset.id);
+  const p  = DADOS.find(function (x) { return x.id === id; });
+  if (!p) return;
+
+  const txt = textoDoJogador(p);
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(txt);
+    ok = true;
+  } catch (e) {
+    // clipboard só existe em contexto seguro; o site é aberto por http de
+    // vez em quando, e aí o caminho velho ainda funciona.
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      ta.remove();
+    } catch (e2) { ok = false; }
+  }
+
+  bt.innerHTML = ok ? '<i class="bi bi-check2"></i>' : '<i class="bi bi-x"></i>';
+  bt.classList.toggle('ok', ok);
+  setTimeout(function () {
+    bt.innerHTML = '<i class="bi bi-clipboard"></i>';
+    bt.classList.remove('ok');
+  }, 1500);
+}
+
+// Delegado no corpo da tabela: as linhas são redesenhadas a cada filtro e
+// a cada ordenação, e ouvinte preso em cada botão morreria junto.
+document.getElementById('corpo').addEventListener('click', function (e) {
+  const bt = e.target.closest('.bt-copia');
+  if (bt) copiarJogador(bt);
+});
 
 document.getElementById('cabecalho').addEventListener('click', function (e) {
   const th = e.target.closest('th');
