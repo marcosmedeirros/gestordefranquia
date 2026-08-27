@@ -1,18 +1,21 @@
 <?php
 /**
- * Importação em massa de estatísticas e atributos — só admin.
+ * Importação em massa de estatísticas e atributos.
  *
  * A tela de stats mostra quem está sem lançamento na temporada, mas até aqui
- * o único jeito de preencher era o GM abrir o próprio elenco. Quando metade
- * da liga não lança, o admin não tinha por onde. Estas duas actions dão a
- * lista de pendentes e aceitam um CSV de volta.
+ * o único jeito de preencher era o GM abrir o próprio elenco, um por um.
+ * Quando metade da liga não lança, ninguém tinha por onde. Estas duas actions
+ * dão a lista de pendentes e aceitam um CSV de volta.
  *
  *   GET  ?action=pendentes&tipo=stats|skills   → quem falta, com id e time
  *   POST  {action:'importar', tipo, csv}       → grava o que veio no CSV
  *
- * A liga é a do admin logado, e nenhum jogador de fora dela entra — o id que
- * não estiver na liga é ignorado e volta na resposta, para o admin ver o que
- * não passou em vez de achar que gravou.
+ * QUEM PODE: qualquer GM logado, e sobre a liga INTEIRA — não só o próprio
+ * elenco. É decisão da liga: o gargalo era justamente depender de uma pessoa
+ * só pra lançar o que todo mundo já tem na mão, e aqui quem tiver a planilha
+ * resolve. A porta que continua fechada é a de fora: a liga é sempre a do
+ * usuário logado, e id de jogador de outra liga é recusado com o motivo na
+ * resposta, em vez de passar batido como se tivesse gravado.
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
@@ -23,12 +26,6 @@ header('Content-Type: application/json; charset=utf-8');
 
 $pdo  = db();
 $user = getUserSession();
-
-if (!hasAdminAccess($pdo, (int)$user['id'])) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Apenas administradores.']);
-    exit;
-}
 
 $liga = ligaAtualDoUsuario($pdo, $user) ?: ($user['league'] ?? 'ELITE');
 
@@ -170,7 +167,7 @@ foreach ($stmtLiga->fetchAll(PDO::FETCH_ASSOC) as $p) {
 }
 
 $gravados = 0;
-$recusados = [];   // [linha, motivo] — o admin precisa saber o que ficou de fora
+$recusados = [];   // [linha, motivo] — quem importou precisa saber o que ficou de fora
 
 if ($tipo === 'stats') {
     $temp = temporadaDaLiga($pdo, $liga);

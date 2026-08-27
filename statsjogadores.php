@@ -116,10 +116,6 @@ $dados = array_map(function ($r) use ($SKILLS) {
     ];
 }, $linhas);
 
-// A importação em massa é do admin: o GM já preenche o próprio elenco em
-// atualizar-elenco.php, e ninguém deve poder lançar número no time alheio.
-$ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
-
 $comStats  = count(array_filter($dados, fn($d) => $d['jogos'] !== null));
 $comSkills = count(array_filter($dados, fn($d) => count(array_filter($d['sk'], fn($v) => $v !== null)) > 0));
 ?>
@@ -191,10 +187,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0}
 .f-contador{margin-left:auto;font-size:12px;color:var(--text-3);white-space:nowrap;
   font-variant-numeric:tabular-nums}
 
-/* ── barra do admin ─────────────────────────────── */
+/* ── barra dos botões de importar ───────────────── */
 .admin-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-4px 0 14px}
-.admin-tag{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
-  color:var(--red);display:inline-flex;align-items:center;gap:5px}
 .admin-barra .f-chip{display:inline-flex;align-items:center;gap:6px}
 
 /* ── importação em massa ────────────────────────── */
@@ -355,17 +349,17 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
       <span class="f-contador" id="contador"></span>
     </div>
 
-    <?php if ($ehAdmin): ?>
+    <?php /* A importação era só do admin. Virou de todo mundo: o gargalo era
+             depender de uma pessoa só pra lançar o que a liga inteira já tem
+             na mão, e quem tiver a planilha resolve. Vale pra liga toda, não
+             só pro próprio elenco. */ ?>
     <div class="admin-barra">
-      <span class="admin-tag"><i class="bi bi-shield-lock-fill"></i> Admin</span>
       <button type="button" class="f-chip" onclick="abrirImport('stats')">
         <i class="bi bi-clipboard-data"></i> Importar estatísticas</button>
       <button type="button" class="f-chip" onclick="abrirImport('skills')">
         <i class="bi bi-sliders"></i> Importar atributos</button>
     </div>
-    <?php endif; ?>
 
-    <?php if ($ehAdmin): ?>
     <div class="imp-fundo" id="impFundo" onclick="if(event.target===this)fecharImport()">
       <div class="imp-cx" role="dialog" aria-modal="true" aria-labelledby="impTitulo">
         <div class="imp-cab">
@@ -376,7 +370,6 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
         <div class="imp-corpo" id="impCorpo"></div>
       </div>
     </div>
-    <?php endif; ?>
 
     <div class="tabela-caixa">
       <table class="stats">
@@ -676,11 +669,11 @@ if (chip) {
 
 render();
 
-<?php if ($ehAdmin): ?>
-/* ══ IMPORTAÇÃO EM MASSA (admin) ══════════════════════════════════════
-   A tela já mostra quem está sem lançamento; aqui o admin vê a lista dos
-   pendentes, baixa um CSV com eles já preenchidos nas duas primeiras colunas
-   (id e nome, pra não errar de jogador) e devolve o arquivo preenchido. */
+/* ══ IMPORTAÇÃO EM MASSA ══════════════════════════════════════════════
+   A tela já mostra quem está sem lançamento; aqui dá pra ver a lista dos
+   pendentes, baixar um CSV com eles já preenchidos nas duas primeiras colunas
+   (id e nome, pra não errar de jogador) e devolver o arquivo preenchido.
+   Aberto pra qualquer GM, e vale pra liga inteira. */
 
 const IMP_COLS = {
   stats:  ['jogos', 'min', 'pts', 'reb', 'ast', 'rou', 'toc'],
@@ -817,7 +810,6 @@ async function enviarImport(botao) {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') fecharImport();
 });
-<?php endif; ?>
 
 // Menu lateral no celular — mesmo comportamento das outras telas.
 const sidebar = document.getElementById('sidebar');
