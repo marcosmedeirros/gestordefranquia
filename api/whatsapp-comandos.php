@@ -2146,14 +2146,23 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         $mesmaTemp = $ea && $eb && (int)$ea['season_number'] === (int)$eb['season_number'];
         $txt .= "\n📊 *" . ($mesmaTemp ? 'Temporada ' . (int)$ea['season_number'] : 'Última temporada de cada um') . "*\n";
 
-        foreach ([['pts_pg','Pontos'], ['reb_pg','Rebotes'], ['ast_pg','Assist.'],
+        // JOGOS abre a lista: 28 pontos em 4 jogos e 28 em 60 são carreiras
+        // diferentes, e sem essa linha as médias abaixo pareciam comparáveis
+        // de cara. Vem primeiro porque é o que qualifica todo o resto.
+        foreach ([['games','Jogos'],
+                  ['pts_pg','Pontos'], ['reb_pg','Rebotes'], ['ast_pg','Assist.'],
                   ['stl_pg','Roubos'], ['blk_pg','Tocos'], ['min_pg','Minutos']] as [$campo, $rot]) {
             $va = $ea ? (float)$ea[$campo] : null;
             $vb = $eb ? (float)$eb[$campo] : null;
             if ($va === null && $vb === null) continue;
+            // Jogos é contagem, não média: sai inteiro. wcNum daria "60.0
+            // jogos", que se lê como se meio jogo existisse.
+            $fmt = $campo === 'games'
+                ? fn($v) => (string)(int)$v
+                : fn($v) => wcNum($v);
             $txt .= $linha($rot,
-                $va !== null ? wcNum($va) : '—',
-                $vb !== null ? wcNum($vb) : '—',
+                $va !== null ? $fmt($va) : '—',
+                $vb !== null ? $fmt($vb) : '—',
                 ($va !== null && $vb !== null) ? $m($va, $vb) : '',
                 ($va !== null && $vb !== null) ? $m($vb, $va) : '');
         }

@@ -653,6 +653,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<?php endif; ?>
 							<th>Idade</th>
 							<th>Posicao</th>
+							<?php /* GP vem ANTES das médias, e não depois: uma média de 30
+							         pontos em 2 jogos e outra em 60 são coisas diferentes, e
+							         quem lê a linha precisa saber disso antes de olhar o
+							         número. É a mesma ordem do "12J" do cartão do celular e
+							         da tela de estatísticas. */ ?>
+							<th class="col-stat" title="Jogos disputados na temporada">GP</th>
 							<th class="col-stat" title="Pontos por jogo na temporada">PTS</th>
 							<th class="col-stat" title="Rebotes por jogo na temporada">REB</th>
 							<th class="col-stat" title="Assistências por jogo na temporada">AST</th>
@@ -1252,6 +1258,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								${LIGA_TEM_CAP ? `<td>${capSalarioHtml(p)}</td>` : ''}
 								<td>${p.age ?? '-'}</td>
 								<td>${p.position ?? '-'}</td>
+								<td class="col-stat">${temStats(p) ? p.games : '-'}</td>
 								<td class="col-stat"><b>${pg(p.pts_pg)}</b></td>
 								<td class="col-stat">${pg(p.reb_pg)}</td>
 								<td class="col-stat">${pg(p.ast_pg)}</td>
