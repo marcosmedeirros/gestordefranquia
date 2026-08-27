@@ -16,15 +16,31 @@ require_once __DIR__ . '/../backend/loteria_grupos.php';
 
 header('Content-Type: application/json');
 
-try {
-    requireAuth();
-} catch (Exception $e) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'Não autorizado']);
-    exit;
+/* A SIMULAÇÃO DA LOTERIA É A ÚNICA COISA AQUI QUE DISPENSA LOGIN.
+   Ela não escreve nada e não lê nada de ninguém: monta um sorteio a partir
+   da classificação da temporada e devolve o resultado pra tela de ensaio,
+   que existe pra explicar o modelo a quem ainda vai entrar na liga. O que
+   ela mostra é o mesmo que a liga anuncia no comunicado.
+
+   Qualquer outra ação continua exigindo sessão — inclusive sortear e
+   aplicar a ordem ao draft de verdade. */
+$corpoBruto = file_get_contents('php://input');
+$dadosPrevios = $corpoBruto ? json_decode($corpoBruto, true) : null;
+$ehSimulacaoLoteria = is_array($dadosPrevios)
+    && ($dadosPrevios['action'] ?? '') === 'run_lottery'
+    && !empty($dadosPrevios['simulacao']);
+
+if (!$ehSimulacaoLoteria) {
+    try {
+        requireAuth();
+    } catch (Exception $e) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Não autorizado']);
+        exit;
+    }
 }
 
-$user = getUserSession();
+$user = getUserSession() ?: ['id' => 0, 'user_type' => 'visitante'];
 $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
@@ -56,7 +72,7 @@ $team = $stmtTeam->fetch();
 
 // Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
 // usado em drafts.php (a página) e em api/leilao.php e api/market.php.
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
+$isAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
 
 // Função utilitária: compacta posições (1..N) em todas as rodadas, mantendo ordem atual
 function recalculateOrderPositions(PDO $pdo, int $draftSessionId): void {
@@ -683,7 +699,9 @@ if ($method === 'GET') {
 
 // ========== POST ==========
 if ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // O corpo ja foi lido no topo (pra decidir a autenticacao); reler o
+    // stream depois de consumido nao e garantido em todo servidor.
+    $data = $dadosPrevios;
     $action = $data['action'] ?? '';
 
     switch ($action) {

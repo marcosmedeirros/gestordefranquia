@@ -2,26 +2,37 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
-requireAuth();
-$user = getUserSession();
-$pdo  = db();
 
 /* MODO ENSAIO. Ligado pelo lottery-teste.php, que só existe pra dar um
    endereço limpo a isto. Aqui a cerimônia roda inteira e não conta: o
    sorteio nunca escreveu no banco, e o "Confirmar" — a ação que aplica a
    ordem ao draft — não é montado. Por isso qualquer um pode sortear e
-   mexer na ordem: não há o que estragar. */
+   mexer na ordem: não há o que estragar.
+
+   E por isso o ensaio também dispensa login. A página serve pra explicar o
+   modelo pra quem ainda vai entrar na liga, e um link que pede senha antes
+   de mostrar qualquer coisa não explica nada a ninguém. O que ela expõe —
+   nomes de times e porcentagens — é o mesmo que a liga anuncia no
+   comunicado. */
 $modoTeste = !empty($MODO_TESTE_LOTERIA);
 
-$isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
-$adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
+if (!$modoTeste) requireAuth();
+$user = getUserSession() ?: ['id' => 0, 'user_type' => 'visitante', 'name' => 'Visitante', 'league' => ''];
+$pdo  = db();
+$ehVisitante = empty($user['id']);
+
+$isGlobalAdmin = !$ehVisitante && ($user['user_type'] ?? 'jogador') === 'admin';
+$adminLeagues  = $ehVisitante ? [] : getAdminLeagues($pdo, (int)$user['id']);
 // Qualquer jogador pode ver a loteria (regras + ordem já sorteada); só quem
 // administra ELITE/NEXT/RISE/ROOKIE consegue de fato rodar a cerimônia e confirmar.
 $canRunLottery = $isGlobalAdmin || !empty($adminLeagues);
 
-$stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
-$stmtMine->execute([$user['id']]);
-$team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
+$team = null;
+if (!$ehVisitante) {
+    $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtMine->execute([$user['id']]);
+    $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
+}
 
 /* QUEM VÊ O QUÊ.
    Quem administra vê as ligas que administra. Quem não administra vê a
@@ -31,19 +42,47 @@ $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
    admin: quem não é vê a tela inteira sem um único controle. */
 $LIGAS_LOTERIA = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
-$buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
+/* A loteria oficial é sempre a do draft em CONFIGURAÇÃO — é a única que
+   ainda não aconteceu. O ensaio não pode ter essa exigência: fora da janela
+   entre uma temporada e outra não existe draft em configuração em liga
+   nenhuma, e a página de aprender ficaria em branco justamente nos meses em
+   que alguém procuraria por ela. Lá, vale o draft mais recente de cada liga,
+   qualquer que seja o estado dele — o que se ensaia é o sorteio, e ele roda
+   igual sobre qualquer temporada com classificação lançada. */
+$buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) {
     $ligas = array_values(array_intersect($LIGAS_LOTERIA, $ligas));
     if (!$ligas) return [];
     $ph = implode(',', array_fill(0, count($ligas), '?'));
+
+    if (!$modoTeste) {
+        $st = $pdo->prepare("
+            SELECT ds.id, ds.status, ds.league, s.season_number, s.year
+            FROM draft_sessions ds
+            JOIN seasons s ON s.id = ds.season_id
+            WHERE ds.league IN ($ph) AND ds.status = 'setup'
+            ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC
+        ");
+        $st->execute($ligas);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Ensaio: a mais recente de cada liga, prendendo a de configuração
+    // quando ela existir — é a que a liga tem em mente.
     $st = $pdo->prepare("
         SELECT ds.id, ds.status, ds.league, s.season_number, s.year
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
-        WHERE ds.league IN ($ph) AND ds.status = 'setup'
-        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC
+        WHERE ds.league IN ($ph)
+        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'),
+                 (ds.status = 'setup') DESC, s.season_number DESC, ds.id DESC
     ");
     $st->execute($ligas);
-    return $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $porLiga = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
+        if (!isset($porLiga[$s['league']])) $porLiga[$s['league']] = $s;
+    }
+    return array_values($porLiga);
 };
 
 /* A PÁGINA É DE UMA LIGA POR VEZ, E DÁ PRA TROCAR.
@@ -420,6 +459,10 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 250; }
 .sb-overlay.show { display: block; }
 .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
+/* Sem menu lateral (visitante do ensaio), a coluna reservada a ele viraria
+   uma faixa vazia à esquerda de tudo. */
+body.sem-menu .main { margin-left: 0; width: 100%; }
+body.sem-menu .menu-btn { display: none; }
 @media (max-width: 992px) {
   :root { --sidebar-w: 0px; }
   .sidebar { transform: translateX(-260px); }
@@ -528,10 +571,13 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>
-<body>
+<body<?= $ehVisitante ? ' class="sem-menu"' : '' ?>>
 <div class="app">
 
-<?php include __DIR__ . '/includes/sidebar.php'; ?>
+<?php /* O menu lateral é o painel de quem tem conta. Um visitante que chegou
+         pelo link do ensaio não tem o que navegar ali — e cada item levaria
+         a uma tela que o manda fazer login. */ ?>
+<?php if (!$ehVisitante) include __DIR__ . '/includes/sidebar.php'; ?>
 <div class="sb-overlay" id="sbOverlay"></div>
 
 <header class="topbar">
@@ -1605,6 +1651,9 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
   if (!sel || !sel.value) return;
   try {
     const corpo = { action: 'run_lottery', draft_session_id: parseInt(sel.value, 10), preview: true };
+    // No ensaio até a prévia vai marcada: é o que permite a página funcionar
+    // pra quem chegou pelo link sem ter conta.
+    if (MODO_TESTE) corpo.simulacao = true;
     // Ordem ainda não gravada: o servidor recalcula os grupos com ela e
     // devolve as chances de verdade, em vez de a tela adivinhar a regra.
     if (Array.isArray(ordemProvisoria)) corpo.ordem = ordemProvisoria;
@@ -1616,7 +1665,18 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
       body: JSON.stringify(corpo)
     });
     const data = await res.json();
-    if (!data.success) return;         // sem classificação lançada ainda, por exemplo
+    if (!data.success) {
+      /* No ensaio a pessoa escolheu a liga clicando numa aba e merece saber
+         por que não veio nada — calar aqui deixaria a tela em branco sem
+         explicação, que foi como esta página nasceu quebrada. */
+      const aviso = $('previaAviso');
+      if (MODO_TESTE && aviso) {
+        aviso.style.display = '';
+        aviso.innerHTML = '<i class="bi bi-info-circle" style="color:var(--amber)"></i> '
+          + esc(data.error || 'Esta liga ainda não tem uma loteria pra ensaiar.');
+      }
+      return;
+    }
     result = data;
     setupBoardAndOdds(data);
     $('resultSection').style.display = 'block';
