@@ -45,17 +45,18 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
    loteria da ELITE encontrava a mensagem de "nenhuma sessão encontrada",
    como se nada existisse em lugar nenhum.
 
-   Agora a liga entra na URL. As ligas oferecidas são as que a pessoa pode
-   olhar: quem administra alguma escolhe entre todas — a loteria é evento
-   público da liga —, e quem não administra fica na própria, que é a única
-   que lhe diz respeito. */
+   Agora a liga entra na URL e vira aba. As abas são as ligas que a pessoa
+   conduz: o admin geral vê as quatro, o admin de uma liga vê a dela, e quem
+   não administra fica na própria — que é a única que lhe diz respeito, e
+   por isso nem aba tem. */
 $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
-$ligasVisiveis = $canRunLottery
-    ? $LIGAS_LOTERIA
-    : array_values(array_intersect($LIGAS_LOTERIA, [$minhaLiga]));
-// Sem franquia em nenhuma das quatro — um convidado. Não há "a liga dele"
-// pra restringir, e a alternativa seria uma página em branco.
-if (!$ligasVisiveis) $ligasVisiveis = $LIGAS_LOTERIA;
+if ($isGlobalAdmin) {
+    $ligasVisiveis = $LIGAS_LOTERIA;                                        // vê todas
+} elseif ($adminLeagues) {
+    $ligasVisiveis = array_values(array_intersect($LIGAS_LOTERIA, $adminLeagues)); // as que administra
+} else {
+    $ligasVisiveis = array_values(array_intersect($LIGAS_LOTERIA, [$minhaLiga])); // a própria
+}
 
 $ligaPedida = strtoupper((string)($_GET['liga'] ?? ''));
 if (in_array($ligaPedida, $ligasVisiveis, true)) {
@@ -558,7 +559,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="empty"><i class="bi bi-hourglass-split" style="font-size:22px;display:block;margin-bottom:8px"></i>
       <?= $ligaAtual
         ? 'A ' . htmlspecialchars($ligaAtual) . ' ainda não sorteou a ordem do draft desta temporada.'
-        : 'Nenhuma liga pra mostrar.' ?>
+        : 'A loteria é de cada liga, e você ainda não tem franquia em nenhuma. Assim que estiver numa, ela aparece aqui.' ?>
       <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo. */ ?>
       <?php if ($podeConduzirEstaLiga): ?>
       <div style="font-size:11px;color:var(--text-3);margin-top:8px">
