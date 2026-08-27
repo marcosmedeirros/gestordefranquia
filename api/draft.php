@@ -1080,10 +1080,21 @@ if ($method === 'POST') {
             }
             $totalBalls = array_sum($balls);
 
+            /* MODO PRÉVIA: monta tudo e NÃO sorteia.
+               A tela da loteria precisa mostrar quem entra, em que grupo e
+               com quantas bolinhas, ANTES de alguém apertar o botão. Chamar o
+               sorteio pra isso seria pior que inútil: cada vez que a página
+               abrisse sairia uma ordem diferente, e a de verdade seria só a
+               última — o admin veria um resultado que não vale.
+
+               Na prévia a ordem exibida é a NATURAL (pior campanha primeiro),
+               que é a que existe antes de qualquer bolinha rolar. */
+            $apenasPreview = !empty($data['preview']);
+
             // Sorteio ponderado SEM reposição para TODAS as posições da loteria (não só o top-4).
             $pool = $balls;
             $drawOrder = [];
-            while (!empty($pool)) {
+            while (!$apenasPreview && !empty($pool)) {
                 $sum = array_sum($pool);
                 $rand = mt_rand(1, max(1, $sum));
                 $cum = 0;
@@ -1113,6 +1124,14 @@ if ($method === 'POST') {
                         }
                     }
                 }
+            }
+
+            // Na prévia, o que aparece é a ordem natural — pior campanha
+            // primeiro. É o retrato de antes do sorteio, e é o que faz o
+            // "subiu/caiu" ter contra o que ser medido depois.
+            if ($apenasPreview) {
+                $drawOrder = $eligibleIds;
+                usort($drawOrder, $badness);
             }
 
             $lotteryPortion = $drawOrder;
@@ -1259,6 +1278,10 @@ if ($method === 'POST') {
                 'order' => $orderOut,
                 'adjustments' => $adjustments,
                 'group_meta' => $GROUP_META,
+                // A tela precisa saber que este resultado NAO e um sorteio:
+                // mostrar "ordem definida" numa previa faria a pessoa achar
+                // que ja aconteceu.
+                'preview' => $apenasPreview,
             ]);
             break;
 

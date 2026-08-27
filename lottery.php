@@ -465,6 +465,16 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
 
   <div id="resultSection" style="display:none">
 
+    <?php /* Sai da tela no instante em que o sorteio de verdade acontece —
+             ver setupBoardAndOdds. Enquanto está aqui, o que se vê embaixo é
+             a ordem da campanha, não um resultado. */ ?>
+    <div id="previaAviso" class="panel bc-off" style="display:none;border-color:var(--border-red)">
+      <i class="bi bi-eye" style="color:var(--red)"></i>
+      <b>Prévia</b> — estes são os times que entram na loteria, com o grupo e as chances de cada um.
+      A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
+      Clique em <b>Preparar Loteria</b> para sortear.
+    </div>
+
     <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
     <div class="panel bc-off">
       <div style="overflow-x:auto">
@@ -726,6 +736,9 @@ function setupBoardAndOdds(data){
   revealed = new Set();
   busy = false;
   photoById = {};
+  // Sorteou de verdade: o aviso de prévia sai e o Confirmar volta.
+  const avisoPrevia = $('previaAviso');
+  if (avisoPrevia) avisoPrevia.style.display = data.preview ? '' : 'none';
   data.order.forEach(o => { photoById[o.team_id] = o.photo_url; });
 
   // Chances (antes de revelar) — agrupadas pelos 4 grupos do modelo 3-2-1
@@ -1038,6 +1051,38 @@ if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare());
 if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
 if ($('btnConfirm')) $('btnConfirm').addEventListener('click', confirmOrder);
 if ($('btnRedo')) $('btnRedo').addEventListener('click', () => prepare());
+
+/* A PRÉVIA CARREGA SOZINHA.
+   Quem abre esta tela quer ver quem entra na loteria, em que grupo e com
+   quantas bolinhas — e até agora isso só aparecia depois de apertar o botão,
+   que já é o sorteio. Então o quadro vem montado de saída, com a ordem
+   natural (pior campanha primeiro) e as chances de cada um.
+
+   É PRÉVIA, não sorteio: pedir o sorteio pra preencher a tela faria sair uma
+   ordem nova a cada vez que a página abrisse, e a que vale seria a última —
+   o admin veria um resultado que não é o resultado. */
+async function carregarPrevia(){
+  const sel = $('sessionSelect');
+  if (!sel || !sel.value) return;
+  try {
+    const res = await fetch('/api/draft.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'run_lottery', draft_session_id: parseInt(sel.value, 10), preview: true })
+    });
+    const data = await res.json();
+    if (!data.success) return;         // sem classificação lançada ainda, por exemplo
+    result = data;
+    setupBoardAndOdds(data);
+    $('resultSection').style.display = 'block';
+    // Confirmar só existe depois de sortear de verdade.
+    if ($('btnConfirm')) $('btnConfirm').style.display = 'none';
+    const aviso = $('previaAviso');
+    if (aviso) aviso.style.display = '';
+  } catch (e) { /* a tela continua servindo pelo botão */ }
+}
+if ($('sessionSelect')) $('sessionSelect').addEventListener('change', carregarPrevia);
+carregarPrevia();
 </script>
 </body>
 </html>

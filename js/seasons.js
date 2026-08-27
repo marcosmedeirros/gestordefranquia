@@ -2013,14 +2013,16 @@ function renderHistoryForm(seasonId, league) {
 /**
  * A ORDEM GERAL dos que ficaram fora dos playoffs — o 17º em diante.
  *
- * Nasce das conferências, do PIOR pro melhor: os dois últimos ocupam as duas
- * últimas vagas (32 e 31 numa liga de 32), depois os penúltimos, e assim por
- * diante. É um chute educado — dentro do mesmo degrau ninguém sabe qual dos
- * dois foi pior — e é justamente por isso que a lista é editável: o admin
- * corrige o que a régua não tem como saber.
+ * NASCE VAZIA, de propósito. A primeira versão vinha preenchida pelas
+ * conferências, mas o palpite não tem como acertar o que importa: dentro do
+ * mesmo degrau — o 15º de um lado e o 15º do outro — não existe informação
+ * pra dizer quem foi pior. Uma lista já montada convida a aceitar sem olhar,
+ * e é justamente essa ordem que decide os grupos de bolinhas da loteria.
+ * Vazia, cada posição é uma escolha de quem viu a temporada acontecer.
  *
- * Só aparece quando as conferências já têm gente abaixo da linha do playoff;
- * antes disso seria uma lista de vazios.
+ * As opções são só quem ficou FORA: os times da liga que não ocupam as oito
+ * primeiras vagas de nenhuma conferência. Assim não dá pra colocar por
+ * engano um time que se classificou.
  */
 function montarOrdemGeral() {
     const wrap  = document.getElementById('ordemGeralWrap');
@@ -2028,48 +2030,46 @@ function montarOrdemGeral() {
     if (!wrap || !slots) return;
 
     const tById = seasonsState.teamsById || {};
-    const daConf = (conf) => Array.from(
-        document.querySelectorAll(`select[name^="${conf}_rank_"]`))
-        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
-        .map((s, i) => ({ id: s.value, rank: i + 1 }))
-        .filter(x => x.id && x.rank > 8);
+    const todos = Object.keys(tById);
+    if (todos.length < 4) { wrap.style.display = 'none'; slots.innerHTML = ''; return; }
 
-    const leste = daConf('leste'), oeste = daConf('oeste');
-    const fora = [];
-    // Do pior pro melhor, alternando os dois lados no mesmo degrau.
-    const maxRank = Math.max(leste.length ? leste[leste.length - 1].rank : 0,
-                             oeste.length ? oeste[oeste.length - 1].rank : 0);
-    for (let r = maxRank; r > 8; r--) {
-        [leste, oeste].forEach(lista => {
-            const achou = lista.find(x => x.rank === r);
-            if (achou) fora.push(achou.id);
-        });
+    // Quem está entre os 8 primeiros de alguma conferência já se classificou.
+    const classificados = new Set();
+    ['leste', 'oeste'].forEach(conf => {
+        Array.from(document.querySelectorAll(`select[name^="${conf}_rank_"]`))
+            .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+            .forEach((s, i) => { if (i < 8 && s.value) classificados.add(String(s.value)); });
+    });
+
+    const fora = todos.filter(id => !classificados.has(String(id)));
+    // Enquanto as oito vagas não estiverem preenchidas nos dois lados, "quem
+    // ficou de fora" ainda é a liga inteira — mostrar a lista aí seria pedir
+    // uma ordem que ninguém tem como dar.
+    if (classificados.size < 16 || fora.length < 2) {
+        wrap.style.display = 'none';
+        slots.innerHTML = '';
+        return;
     }
-
-    if (fora.length < 2) { wrap.style.display = 'none'; slots.innerHTML = ''; return; }
     wrap.style.display = '';
 
     // A numeração continua de onde os classificados param.
-    const total = Object.keys(tById).length || (leste.length + oeste.length + 16);
-    const primeiro = total - fora.length + 1;
+    const primeiro = classificados.size + 1;
 
-    // A ordem guardada antes (de um salvamento ou do rascunho) tem prioridade
-    // sobre o chute: reabrir a tela não pode desfazer o ajuste de quem já
-    // arrumou a lista na mão.
-    const guardada = (window._ordemGeralSalva || []).filter(id => fora.includes(String(id)));
-    const inicial = guardada.length === fora.length ? guardada.map(String) : fora.slice().reverse();
+    // O que já foi preenchido (salvamento ou rascunho) volta como estava —
+    // reabrir a tela não pode apagar o trabalho de quem já ordenou.
+    const guardada = (window._ordemGeralSalva || []).map(String).filter(id => fora.includes(id));
 
     const opts = (sel) => '<option value="">—</option>' + fora.map(id => {
         const t = tById[String(id)] || {};
         return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
     }).join('');
 
-    slots.innerHTML = inicial.map((id, i) => `
+    slots.innerHTML = fora.map((_, i) => `
         <div class="d-flex align-items-center gap-2 mb-2">
             <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
             <select class="form-select form-select-sm bg-dark text-white border-orange"
                     name="geral_rank_${primeiro + i}" style="border-radius:10px"
-                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(id)}</select>
+                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(guardada[i] || '')}</select>
         </div>`).join('');
     _updateStandingsUnique('geral');
 }
@@ -2336,8 +2336,8 @@ async function loadTeamsForStandings(league) {
                 <div class="small text-secondary mb-2">
                     É daqui que a <b>loteria</b> monta os grupos de bolinhas. A colocação de
                     conferência não separa quem terminou no mesmo degrau nos dois lados —
-                    esta lista separa. Vem preenchida pelas conferências, do pior pro melhor;
-                    <b>ajuste se a ordem real foi outra</b>.
+                    esta lista separa. Preencha do <b>melhor pro pior</b>: o primeiro é quem
+                    chegou mais perto do playoff, e o último é o pior da liga.
                 </div>
                 <div id="ordemGeralSlots"></div>
             </div>`;
