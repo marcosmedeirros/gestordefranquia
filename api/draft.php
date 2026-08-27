@@ -1261,8 +1261,25 @@ if ($method === 'POST') {
                $apenasPreview já foi decidido lá em cima, junto da permissão:
                é ele que separa quem pode olhar de quem pode sortear. */
 
+            /* ESCOLHAS QUE JÁ SAÍRAM.
+               Quando parte da cerimônia já aconteceu — e o registro dela veio
+               do ajuste manual, porque um sorteio se perdeu antes de existir
+               transmissão —, esses times não voltam pra urna. O sorteio cobre
+               só as posições que sobraram, entre quem sobrou.
+
+               Chega como {posição: team_id}; posição 1 é a primeira escolha. */
+            $jaSaiu = [];
+            if (!empty($data['ja_saiu']) && is_array($data['ja_saiu'])) {
+                foreach ($data['ja_saiu'] as $posFixa => $tidFixo) {
+                    $posFixa = (int)$posFixa;
+                    $tidFixo = (int)$tidFixo;
+                    if ($posFixa >= 1 && isset($balls[$tidFixo])) $jaSaiu[$posFixa] = $tidFixo;
+                }
+            }
+
             // Sorteio ponderado SEM reposição para TODAS as posições da loteria (não só o top-4).
             $pool = $balls;
+            foreach ($jaSaiu as $tidFixo) unset($pool[$tidFixo]);   // fora da urna
             $drawOrder = [];
             while (!$apenasPreview && !empty($pool)) {
                 $sum = array_sum($pool);
@@ -1307,6 +1324,20 @@ if ($method === 'POST') {
                         }
                     }
                 }
+            }
+
+            /* Os que já saíram voltam pras posições onde saíram, e o que foi
+               sorteado agora preenche o que sobrou, na ordem em que saiu da
+               urna. Feito depois do piso: quem já estava numa posição não é
+               protegido de novo — aquela escolha já aconteceu. */
+            if ($jaSaiu && !$apenasPreview) {
+                $sorteados = $drawOrder;
+                $drawOrder = [];
+                $total = count($eligibleIds);
+                for ($p = 1; $p <= $total; $p++) {
+                    $drawOrder[] = $jaSaiu[$p] ?? array_shift($sorteados);
+                }
+                $drawOrder = array_values(array_filter($drawOrder, fn($t) => $t !== null));
             }
 
             // Na prévia, o que aparece é a ordem natural — pior campanha
