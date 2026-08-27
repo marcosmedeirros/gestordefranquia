@@ -894,19 +894,42 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Temporada do draft não encontrada']);
                 exit;
             }
-            $standingsSeasonNumber = (int)$upcomingSeasonNumber - 1;
-            if ($standingsSeasonNumber < 1) {
-                echo json_encode(['success' => false, 'error' => 'Não há temporada anterior para basear a loteria']);
-                exit;
-            }
+            /* A CLASSIFICAÇÃO QUE MANDA É A ÚLTIMA LANÇADA — não "a temporada
+               anterior à do draft".
 
-            $stmtStandingsSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND season_number = ? ORDER BY created_at DESC LIMIT 1");
-            $stmtStandingsSeason->execute([$lotterySession['league'], $standingsSeasonNumber]);
-            $standingsSeasonId = $stmtStandingsSeason->fetchColumn();
-            if (!$standingsSeasonId) {
-                echo json_encode(['success' => false, 'error' => 'Temporada anterior (nº ' . $standingsSeasonNumber . ') da liga ' . $lotterySession['league'] . ' não encontrada']);
+               Antes a conta era season_number - 1, e isso amarrava a loteria
+               ao AVANÇO da temporada: enquanto a liga não avançasse, a sessão
+               de draft ainda era da temporada corrente e a busca caía na
+               classificação de dois anos atrás, ou em nenhuma. Na prática só
+               dava pra sortear depois de avançar, que é um passo que acontece
+               dias depois de a campanha terminar.
+
+               Agora vale a temporada mais recente da liga QUE TENHA posição
+               registrada, com o número menor ou igual ao do draft. Os dois
+               fluxos passam a funcionar:
+                 · avançou     → a sessão é da N+1 e a última lançada é a N;
+                 · não avançou → a sessão é da N   e a última lançada é a N.
+
+               O teto (<=) existe pra uma loteria antiga, reaberta, não
+               enxergar a campanha de uma temporada que veio depois dela. */
+            $stmtStandingsSeason = $pdo->prepare("
+                SELECT s.id, s.season_number
+                  FROM seasons s
+                 WHERE s.league = ?
+                   AND s.season_number <= ?
+                   AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
+              ORDER BY s.season_number DESC, s.id DESC
+                 LIMIT 1");
+            $stmtStandingsSeason->execute([$lotterySession['league'], (int)$upcomingSeasonNumber]);
+            $standingsRow = $stmtStandingsSeason->fetch(PDO::FETCH_ASSOC);
+            if (!$standingsRow) {
+                echo json_encode(['success' => false,
+                    'error' => 'A ' . $lotterySession['league'] . ' ainda não tem posições registradas. '
+                             . 'Lance a classificação no registro de pontuação da temporada.']);
                 exit;
             }
+            $standingsSeasonId     = (int)$standingsRow['id'];
+            $standingsSeasonNumber = (int)$standingsRow['season_number'];
 
             // Posição é por conferência (1..16 em cada). COALESCE cobre standings legados
             // sem conferência, caindo na conferência atual do time.
@@ -922,7 +945,10 @@ if ($method === 'POST') {
             $stmtST->execute([(int)$standingsSeasonId]);
             $allStandings = $stmtST->fetchAll(PDO::FETCH_ASSOC);
             if (!$allStandings) {
-                echo json_encode(['success' => false, 'error' => 'Não há "Posições" registradas para a temporada anterior (nº ' . $standingsSeasonNumber . ')']);
+                // Não fala mais em "temporada anterior": a classificação usada
+                // é a última lançada, que pode ser a da própria temporada do
+                // draft quando a liga ainda não avançou.
+                echo json_encode(['success' => false, 'error' => 'Não há "Posições" registradas na temporada nº ' . $standingsSeasonNumber . '.']);
                 exit;
             }
 
