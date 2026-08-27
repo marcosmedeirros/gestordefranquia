@@ -1502,7 +1502,7 @@ async function salvarTemporadaRegular(seasonId, league) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
 
     try {
-        await api('seasons.php?action=save_temporada_regular', {
+        const r = await api('seasons.php?action=save_temporada_regular', {
             method: 'POST',
             body: JSON.stringify({
                 season_id: seasonId,
@@ -1528,9 +1528,15 @@ async function salvarTemporadaRegular(seasonId, league) {
         // que é um clique consciente.
         const jaTemBracket = !!_bracket;
         if (!jaTemBracket) generateBracket(league);
-        showAlert('success', jaTemBracket
-            ? 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação. O chaveamento preenchido foi mantido — use "Regerar chaveamento" se as posições mudaram.'
-            : 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação, e o chaveamento está montado abaixo.');
+        // "Atualizada" e não "salva de novo": o segundo clique reescreve a
+        // mesma classificação, não cria uma segunda. Quem lê precisa saber
+        // que não ficou nada duplicado atrás.
+        showAlert('success', r?.correcao
+            ? 'Classificação atualizada — ela foi reescrita no lugar, não duplicada. A Tabela e a loteria já leem os novos números.'
+              + (jaTemBracket ? ' O chaveamento preenchido foi mantido; use "Regerar chaveamento" se as posições mudaram.' : '')
+            : (jaTemBracket
+                ? 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação, e o chaveamento preenchido foi mantido.'
+                : 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação, e o chaveamento está montado abaixo.'));
 
         // Reabre a tela pra a etapa 2 destravar (o botão final e o painel
         // saem do estado bloqueado). O rascunho acabou de ir pro servidor,

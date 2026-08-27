@@ -2101,6 +2101,13 @@ try {
             }
             ensureRegistroRascunhoTable($pdo);
 
+            // Já havia classificação salva? Então este salvamento é uma
+            // CORREÇÃO, não o fim da temporada regular. A diferença importa
+            // pro retrato das táticas logo abaixo — ver o comentário lá.
+            $stJa = $pdo->prepare("SELECT COUNT(*) FROM season_standings WHERE season_id = ?");
+            $stJa->execute([$seasonId]);
+            $ehCorrecao = (int)$stJa->fetchColumn() > 0;
+
             $pdo->beginTransaction();
             try {
                 $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
@@ -2143,7 +2150,15 @@ try {
                 // A regular acabou: congela a tática de cada time como ela
                 // está agora. Daqui pra frente, o que o time mexer é tática de
                 // playoff, e é isso que o card de Táticas passa a mostrar.
-                snapshotTaticasOffs($pdo, $leagueR);
+                //
+                // SÓ NA PRIMEIRA VEZ. Num salvamento de correção — voltar dias
+                // depois pra arrumar uma posição — as equipes já montaram
+                // tática de playoff, e refazer o retrato congelaria essas
+                // táticas como se fossem as da temporada regular. O card
+                // zeraria o vermelho de todo mundo e a informação de quem
+                // mexeu pros playoffs se perderia sem aviso. Retrato é
+                // registro de um instante: tirado uma vez, vale como está.
+                if (!$ehCorrecao) snapshotTaticasOffs($pdo, $leagueR);
 
                 salvarRegistroRascunho($pdo, $seasonId, $leagueR, 'playoffs', $input['dados'] ?? null);
                 $pdo->commit();
@@ -2157,8 +2172,11 @@ try {
             // loteria e o chaveamento já possam andar enquanto os playoffs
             // ainda estão sendo jogados.
             echo json_encode([
-                'success' => true,
-                'message' => 'Temporada regular salva. A tabela e a loteria já enxergam esta classificação.',
+                'success'   => true,
+                'correcao'  => $ehCorrecao,
+                'message'   => $ehCorrecao
+                    ? 'Classificação atualizada. A Tabela e a loteria já leem os novos números.'
+                    : 'Temporada regular salva. A tabela e a loteria já enxergam esta classificação.',
             ]);
             break;
         }
