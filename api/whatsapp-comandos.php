@@ -244,17 +244,45 @@ function wcResolverTime(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): a
 }
 
 /** Temporada ativa da liga (a que está rolando), pra classificação. */
+/**
+ * A temporada corrente da liga — a da SPRINT ATIVA.
+ *
+ * Ordenava por season_number, e isso quebrava toda vez que uma sprint nova
+ * começava: a sprint anterior tinha ido até a temporada 20, a nova começa na
+ * 1, e "maior número" devolvia a 20 — uma temporada de um ciclo encerrado. O
+ * bot então respondia "a ELITE ainda não tem jogos na temporada 20" enquanto
+ * a liga jogava a temporada 1.
+ *
+ * A ordem certa é por `id`: temporada criada depois tem id maior, sempre, e
+ * é assim que o admin resolve a mesma pergunta (case 'current_season'). O
+ * status entra só pra preferir uma temporada em aberto quando ela existe.
+ */
 function wcTemporadaAtiva(PDO $pdo, string $league): ?array
 {
-    $st = $pdo->prepare("SELECT id, season_number, status FROM seasons
-                         WHERE league = ? AND status IN ('regular','playoffs')
-                         ORDER BY season_number DESC LIMIT 1");
+    // 1) Em aberto, dentro da sprint ativa. É a resposta certa quase sempre.
+    $st = $pdo->prepare("SELECT s.id, s.season_number, s.status, sp.sprint_number
+                           FROM seasons s
+                           JOIN sprints sp ON sp.id = s.sprint_id
+                          WHERE s.league = ? AND sp.status = 'active'
+                            AND (s.status IS NULL OR s.status <> 'completed')
+                       ORDER BY s.id DESC LIMIT 1");
     $st->execute([$league]);
-    $s = $st->fetch(PDO::FETCH_ASSOC);
-    if ($s) return $s;
+    if ($s = $st->fetch(PDO::FETCH_ASSOC)) return $s;
 
+    // 2) A última da sprint ativa, mesmo já encerrada — entre o fim de uma
+    //    temporada e a criação da seguinte não há nenhuma "em aberto".
+    $st = $pdo->prepare("SELECT s.id, s.season_number, s.status, sp.sprint_number
+                           FROM seasons s
+                           JOIN sprints sp ON sp.id = s.sprint_id
+                          WHERE s.league = ? AND sp.status = 'active'
+                       ORDER BY s.id DESC LIMIT 1");
+    $st->execute([$league]);
+    if ($s = $st->fetch(PDO::FETCH_ASSOC)) return $s;
+
+    // 3) Sem sprint ativa (liga recém-criada, ou sprint fechada e a próxima
+    //    ainda não aberta): a última temporada que existe, por id.
     $st = $pdo->prepare("SELECT id, season_number, status FROM seasons
-                         WHERE league = ? ORDER BY season_number DESC LIMIT 1");
+                          WHERE league = ? ORDER BY id DESC LIMIT 1");
     $st->execute([$league]);
     return $st->fetch(PDO::FETCH_ASSOC) ?: null;
 }
@@ -784,26 +812,136 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
     $temp = wcTemporadaAtiva($pdo, $liga);
     if (!$temp) return "A {$liga} ainda não tem temporada cadastrada.";
 
+    // Ordena por POSIÇÃO, não por vitórias. As colunas wins/losses existem em
+    // season_standings mas ninguém as preenche: o admin lança a classificação
+    // final arrastando os times na ordem, e é a posição que fica gravada. Com
+    // ORDER BY wins todo mundo empatava em 0 e a tabela saía embaralhada.
+    //
+    // A posição é DENTRO DA CONFERÊNCIA — existe um 1º no Leste e um 1º no
+    // Oeste —, então a lista sai separada. Sem conferência gravada (liga que
+    // não usa, ou lançamento antigo) cai numa lista só.
     $st = $pdo->prepare("
-        SELECT s.wins, s.losses, s.position, s.conference, t.city, t.mascot, t.name
+        SELECT s.wins, s.losses, s.position, COALESCE(s.conference, t.conference) AS conf,
+               t.city, t.mascot, t.name
         FROM season_standings s JOIN teams t ON t.id = s.team_id
         WHERE s.season_id = ?
-        ORDER BY s.wins DESC, s.losses ASC
-        LIMIT 30
+        ORDER BY s.position ASC, t.city ASC
     ");
     $st->execute([(int)$temp['id']]);
     $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
 
-    if (!$linhas) return "A {$liga} ainda não tem jogos registrados na temporada {$temp['season_number']}.";
+    if (!$linhas) {
+        return "A {$liga} ainda não tem classificação lançada na temporada {$temp['season_number']}.";
+    }
 
-    $txt = "*Classificação {$liga}* — temporada {$temp['season_number']}\n\n";
-    $i = 1;
+    // A campanha só aparece se alguém a tiver lançado. "0-0" em toda linha diz
+    // menos que nada — dá a impressão de que a temporada não começou.
+    $temCampanha = false;
     foreach ($linhas as $l) {
-        $txt .= str_pad((string)$i, 2, ' ', STR_PAD_LEFT) . '. '
-             . wcNomeDoTime($l) . " — {$l['wins']}-{$l['losses']}\n";
-        $i++;
+        if ((int)$l['wins'] > 0 || (int)$l['losses'] > 0) { $temCampanha = true; break; }
+    }
+
+    $porConf = [];
+    foreach ($linhas as $l) {
+        $c = strtoupper(trim((string)($l['conf'] ?? '')));
+        $porConf[$c !== '' ? $c : 'UNICA'][] = $l;
+    }
+
+    $bloco = function (array $lista) use ($temCampanha) {
+        $t = '';
+        foreach ($lista as $n => $l) {
+            $pos = (int)($l['position'] ?? 0) ?: ($n + 1);
+            $t .= str_pad((string)$pos, 2, ' ', STR_PAD_LEFT) . '. ' . wcNomeDoTime($l);
+            if ($temCampanha) $t .= " — {$l['wins']}-{$l['losses']}";
+            $t .= "\n";
+        }
+        return $t;
+    };
+
+    $txt = "*Classificação {$liga}* — temporada {$temp['season_number']}\n";
+    if (count($porConf) === 1 && isset($porConf['UNICA'])) {
+        $txt .= "\n" . $bloco($porConf['UNICA']);
+    } else {
+        foreach (['LESTE' => '🔵 Leste', 'OESTE' => '🔴 Oeste'] as $chave => $rotulo) {
+            if (empty($porConf[$chave])) continue;
+            $txt .= "\n*{$rotulo}*\n" . $bloco($porConf[$chave]);
+        }
+        // Conferência com nome fora do par Leste/Oeste não pode sumir da lista.
+        foreach ($porConf as $chave => $lista) {
+            if (in_array($chave, ['LESTE', 'OESTE'], true)) continue;
+            $rotulo = $chave === 'UNICA' ? 'Sem conferência' : ucfirst(strtolower($chave));
+            $txt .= "\n*{$rotulo}*\n" . $bloco($lista);
+        }
     }
     return rtrim($txt);
+}
+
+/**
+ * O chaveamento remontado a partir das séries JÁ REGISTRADAS.
+ *
+ * Depois do registro final o rascunho some, mas playoff_series guarda cada
+ * série com os dois times, quem passou e em quantos jogos — dá pra reconstruir
+ * a chave inteira de lá. Sem isto o /playoffs dizia "não tem playoffs ativo"
+ * exatamente depois de a liga registrar os playoffs.
+ *
+ * As seeds saem de season_standings, que é a mesma fonte que decidiu os
+ * confrontos. Devolve null quando não há série nenhuma gravada.
+ */
+function wcChaveDasSeries(PDO $pdo, int $seasonId): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT fase, conferencia, team_a_id, team_b_id, winner_team_id, jogos
+                               FROM playoff_series WHERE season_id = ? ORDER BY id");
+        $st->execute([$seasonId]);
+        $series = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!$series) return null;
+
+    $seed = [];
+    try {
+        $stS = $pdo->prepare("SELECT team_id, position FROM season_standings WHERE season_id = ?");
+        $stS->execute([$seasonId]);
+        foreach ($stS->fetchAll(PDO::FETCH_ASSOC) as $r) $seed[(int)$r['team_id']] = (int)$r['position'];
+    } catch (Throwable $e) { /* sem seed a linha sai sem o número, e tudo bem */ }
+
+    $vazia = fn() => ['r1' => [], 'r2' => [], 'cf' => null];
+    $chave = ['leste' => $vazia(), 'oeste' => $vazia(), 'final' => null];
+
+    foreach ($series as $s) {
+        $a = (int)$s['team_a_id'];
+        $b = (int)$s['team_b_id'];
+        $m = [
+            't1' => ['id' => $a],
+            't2' => ['id' => $b],
+            'w'  => (string)(int)$s['winner_team_id'],
+            'g'  => (int)$s['jogos'],
+        ];
+        if (isset($seed[$a])) $m['s1'] = $seed[$a];
+        if (isset($seed[$b])) $m['s2'] = $seed[$b];
+
+        if ($s['fase'] === 'final') { $chave['final'] = $m; continue; }
+        $conf = strtoupper((string)$s['conferencia']) === 'OESTE' ? 'oeste' : 'leste';
+        if ($s['fase'] === 'cf')      $chave[$conf]['cf'] = $m;
+        elseif ($s['fase'] === 'r2')  $chave[$conf]['r2'][] = $m;
+        else                          $chave[$conf]['r1'][] = $m;
+    }
+
+    // A 1ª rodada sai na ORDEM DO CHAVEAMENTO — 1x8, 4x5, 2x7, 3x6 —, que é a
+    // ordem em que os vencedores se encontram na rodada seguinte. Não é a
+    // ordem de gravação nem a das seeds: é a mesma que o rascunho preserva,
+    // e as duas fontes precisam ler igual pra ninguém achar que mudou.
+    $ordemChave = [1 => 0, 4 => 1, 2 => 2, 3 => 3];
+    foreach (['leste', 'oeste'] as $c) {
+        usort($chave[$c]['r1'], function ($x, $y) use ($ordemChave) {
+            // Seed fora do padrão cai depois, ordenada por ela mesma.
+            $px = $ordemChave[$x['s1'] ?? 0] ?? (90 + ($x['s1'] ?? 9));
+            $py = $ordemChave[$y['s1'] ?? 0] ?? (90 + ($y['s1'] ?? 9));
+            return $px <=> $py;
+        });
+    }
+    return $chave;
 }
 
 /**
@@ -825,31 +963,37 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
-    // O rascunho é buscado pela LIGA, não pela temporada resolvida aqui: quem
-    // o gravou foi o admin, com a própria noção de "temporada aberta", e duas
-    // formas de achar a mesma temporada é uma a mais do que precisa existir.
-    // O número da temporada vem junto, do rascunho pro cabeçalho.
+    $temp = wcTemporadaAtiva($pdo, $liga);
+    if (!$temp) return "A {$liga} ainda não tem temporada cadastrada.";
+    $seasonId   = (int)$temp['id'];
+    $numeroTemp = $temp['season_number'] ?? null;
+
+    // O chaveamento vem de dois lugares, nesta ordem:
+    //
+    //   1. O RASCUNHO do registro de pontuação, que é onde ele mora enquanto
+    //      o admin preenche as séries — playoffs em andamento.
+    //   2. playoff_series, que é onde ele fica DEPOIS do registro final. O
+    //      rascunho é apagado nessa hora, e sem esta segunda fonte o comando
+    //      respondia "não tem playoffs ativo" logo depois de a liga registrar
+    //      os playoffs — que é justamente quando todo mundo quer ver.
     $chave = null;
-    $numeroTemp = null;
+    $encerrado = false;
     try {
-        $st = $pdo->prepare("SELECT r.etapa, r.dados, s.season_number
-                               FROM season_registro_rascunho r
-                               JOIN seasons s ON s.id = r.season_id
-                              WHERE r.league = ?
-                           ORDER BY r.updated_at DESC LIMIT 1");
-        $st->execute([$liga]);
+        $st = $pdo->prepare("SELECT etapa, dados FROM season_registro_rascunho WHERE season_id = ?");
+        $st->execute([$seasonId]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if ($r && ($r['etapa'] ?? '') === 'playoffs' && !empty($r['dados'])) {
             $d = json_decode((string)$r['dados'], true);
-            if (is_array($d) && !empty($d['bracket'])) {
-                $chave = $d['bracket'];
-                $numeroTemp = $r['season_number'] ?? null;
-            }
+            if (is_array($d) && !empty($d['bracket'])) $chave = $d['bracket'];
         }
     } catch (Throwable $e) {
-        // Tabela ainda não existe nesta instalação: é o mesmo que não haver
-        // playoffs — nunca ninguém montou um chaveamento aqui.
+        // Tabela ainda não existe nesta instalação: só não há rascunho.
         $chave = null;
+    }
+
+    if (!$chave) {
+        $chave = wcChaveDasSeries($pdo, $seasonId);
+        $encerrado = (bool)$chave;
     }
 
     if (!$chave) {
@@ -932,6 +1076,10 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         $campeao = ((string)$final['w'] === (string)($final['t1']['id'] ?? ''))
             ? $nomeDe($final['t1']) : $nomeDe($final['t2']);
         $txt .= "\n🏅 *Campeão: {$campeao}*";
+    } elseif ($encerrado) {
+        // Veio das séries registradas mas sem final: o registro está lá, só
+        // não fechou a Grande Final. Dizer "em andamento" seria mentira.
+        $txt .= "\n_Playoffs registrados._";
     } else {
         $txt .= "\n_Playoffs em andamento._";
     }
