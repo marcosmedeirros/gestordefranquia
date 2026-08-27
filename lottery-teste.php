@@ -13,6 +13,26 @@
  * e sorteia é api/loteria-simulador.php, que não escreve nada.
  */
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/auth.php';
+
+/* CADA LIGA TEM A SUA, e o ensaio abre na que interessa a quem chegou:
+   a da URL quando vem da tela da loteria, senão a de quem está logado,
+   senão a ELITE. A temporada não é escolhida — é sempre a que está
+   valendo na sprint em andamento, então a página acompanha a liga sozinha
+   quando a temporada vira. */
+const LIGAS_ENSAIO = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+$ligaEnsaio = strtoupper(trim((string)($_GET['liga'] ?? '')));
+if (!in_array($ligaEnsaio, LIGAS_ENSAIO, true)) {
+    $u = getUserSession();
+    $ligaEnsaio = '';
+    if ($u && !empty($u['id'])) {
+        $st = db()->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+        $st->execute([(int)$u['id']]);
+        $ligaEnsaio = strtoupper((string)($st->fetchColumn() ?: ($u['league'] ?? '')));
+    }
+    if (!in_array($ligaEnsaio, LIGAS_ENSAIO, true)) $ligaEnsaio = 'ELITE';
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

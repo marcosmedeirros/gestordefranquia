@@ -70,6 +70,25 @@ $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
+/**
+ * Onde mora a cerimônia enquanto ela acontece.
+ *
+ * Uma linha por sessão de draft: a ordem que saiu do sorteio e as escolhas
+ * já reveladas. Some do caminho do draft de propósito — aplicar a ordem
+ * continua sendo o "Confirmar". Isto aqui é só o que está no ar.
+ */
+function garantirTabelaTransmissao(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS lottery_broadcast (
+        draft_session_id INT NOT NULL PRIMARY KEY,
+        league VARCHAR(20) NOT NULL,
+        ordem LONGTEXT NOT NULL,
+        ajustes LONGTEXT NULL,
+        reveladas VARCHAR(255) NOT NULL DEFAULT '',
+        atualizado_em DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 // Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
 // usado em drafts.php (a página) e em api/leilao.php e api/market.php.
 $isAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
@@ -203,6 +222,33 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'active_draft';
 
     switch ($action) {
+        /* O QUE ESTÁ NO AR AGORA. Consultado de poucos em poucos segundos
+           por quem está assistindo, então devolve o mínimo: a ordem, o que
+           já foi revelado e a hora da última mudança — é por ela que a tela
+           decide se tem algo novo antes de redesenhar qualquer coisa.
+
+           Aberto a qualquer um da plataforma: assistir à cerimônia é o
+           ponto. Publicar e revelar é que são do admin. */
+        case 'lottery_transmissao': {
+            $sid = (int)($_GET['draft_session_id'] ?? 0);
+            if (!$sid) { echo json_encode(['success' => true, 'no_ar' => false]); exit; }
+            garantirTabelaTransmissao($pdo);
+            $st = $pdo->prepare('SELECT ordem, ajustes, reveladas, atualizado_em
+                                   FROM lottery_broadcast WHERE draft_session_id = ?');
+            $st->execute([$sid]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$row) { echo json_encode(['success' => true, 'no_ar' => false]); exit; }
+            echo json_encode([
+                'success'   => true,
+                'no_ar'     => true,
+                'ordem'     => json_decode($row['ordem'], true) ?: [],
+                'ajustes'   => json_decode((string)$row['ajustes'], true) ?: [],
+                'reveladas' => array_values(array_filter(array_map('intval', explode(',', (string)$row['reveladas'])))),
+                'em'        => $row['atualizado_em'],
+            ]);
+            break;
+        }
+
         // Buscar draft ativo da liga
         case 'active_draft':
             $league = $_GET['league'] ?? ($team['league'] ?? null);
@@ -1438,6 +1484,86 @@ if ($method === 'POST') {
            aqui ela é editada de dentro da cerimônia, onde o erro aparece:
            o admin vê o time no grupo errado no quadro e corrige ali.
            Grava só os elegíveis; quem foi pro playoff não é reordenado. */
+        /* ── A CERIMÔNIA AO VIVO ────────────────────────────────────────
+           O sorteio não escrevia nada: a ordem saía do servidor e vivia no
+           navegador de quem apertou o botão. Funciona pra quem conduz e não
+           existe pra mais ninguém — a liga inteira ficava olhando uma tela
+           parada enquanto o admin revelava.
+
+           Aqui a ordem passa a existir fora daquele navegador, junto do que
+           já foi revelado. Não é o draft: aplicar a ordem continua sendo o
+           "Confirmar", que é outra ação. Isto é só o retrato do que está
+           acontecendo, pra quem está assistindo poder ver. */
+        case 'lottery_transmitir': {
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $sid   = (int)($data['draft_session_id'] ?? 0);
+            $ordem = $data['ordem'] ?? null;
+            if (!$sid || !is_array($ordem) || !$ordem) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+            $stLiga = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
+            $stLiga->execute([$sid]);
+            $ligaSessao = $stLiga->fetchColumn();
+            if (!$ligaSessao) {
+                echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']);
+                exit;
+            }
+            $ehAdminGeral = ($user['user_type'] ?? '') === 'admin';
+            if (!$ehAdminGeral && !in_array($ligaSessao, getAdminLeagues($pdo, (int)$user['id']), true)) {
+                echo json_encode(['success' => false, 'error' => 'Você não administra esta liga']);
+                exit;
+            }
+
+            garantirTabelaTransmissao($pdo);
+            // Sortear de novo substitui o que estava no ar, e zera o que já
+            // tinha sido revelado: é outra cerimônia.
+            $pdo->prepare(
+                'INSERT INTO lottery_broadcast (draft_session_id, league, ordem, ajustes, reveladas, atualizado_em)
+                 VALUES (?, ?, ?, ?, "", NOW())
+                 ON DUPLICATE KEY UPDATE ordem = VALUES(ordem), ajustes = VALUES(ajustes),
+                                         reveladas = "", atualizado_em = NOW()'
+            )->execute([
+                $sid, $ligaSessao,
+                json_encode($ordem, JSON_UNESCAPED_UNICODE),
+                json_encode($data['ajustes'] ?? [], JSON_UNESCAPED_UNICODE),
+            ]);
+            echo json_encode(['success' => true]);
+            break;
+        }
+
+        case 'lottery_revelar': {
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $sid = (int)($data['draft_session_id'] ?? 0);
+            $pos = (int)($data['position'] ?? 0);
+            if (!$sid || $pos < 1) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+            garantirTabelaTransmissao($pdo);
+            $st = $pdo->prepare('SELECT reveladas FROM lottery_broadcast WHERE draft_session_id = ?');
+            $st->execute([$sid]);
+            $atual = $st->fetchColumn();
+            if ($atual === false) {
+                echo json_encode(['success' => false, 'error' => 'Não há cerimônia no ar para esta sessão']);
+                exit;
+            }
+            $lista = array_filter(array_map('intval', explode(',', (string)$atual)));
+            if (!in_array($pos, $lista, true)) $lista[] = $pos;
+            $pdo->prepare('UPDATE lottery_broadcast SET reveladas = ?, atualizado_em = NOW() WHERE draft_session_id = ?')
+                ->execute([implode(',', $lista), $sid]);
+            echo json_encode(['success' => true, 'reveladas' => array_values($lista)]);
+            break;
+        }
+
         case 'save_lottery_order':
             if (!$isAdmin) {
                 http_response_code(403);

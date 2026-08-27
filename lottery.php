@@ -403,7 +403,7 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
   background:repeating-linear-gradient(135deg,rgba(245,158,11,.10) 0 12px,rgba(245,158,11,.05) 12px 24px);
   border:1px solid rgba(245,158,11,.42)}
 .faixa-ensaio > i{color:var(--amber);font-size:18px;line-height:1.2;flex-shrink:0}
-.btn-teste{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:8px 16px;border-radius:999px;
+.btn-teste{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;padding:9px 18px;border-radius:999px;
   border:1px solid rgba(245,158,11,.42);background:rgba(245,158,11,.08);color:var(--amber);
   font-size:12px;font-weight:700;text-decoration:none;transition:all var(--t) var(--ease)}
 .btn-teste:hover{background:rgba(245,158,11,.16);border-color:var(--amber)}
@@ -652,11 +652,16 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="page-hero-eyebrow">Liga · Loteria</div>
       <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red);margin-right:8px"></i>Loteria do Draft</h1>
       <p class="page-hero-sub">Modelo 3-2-1 anti-tanking: os 16 times fora do playoff disputam as primeiras picks em 4 grupos com chances diferentes.</p>
-      <?php /* A loteria acontece uma vez por ano e decide o draft inteiro.
-               Quem só a vê nesse dia aprende a regra durante o resultado —
-               o link leva pra uma cópia onde dá pra sortear à vontade antes. */ ?>
-      <a href="/lottery-teste.php" class="btn-teste"><i class="bi bi-dice-5"></i> Teste a loteria</a>
     </div>
+    <?php /* No canto, e não embaixo do texto: a loteria acontece uma vez por
+             ano e decide o draft inteiro, mas quem abre esta tela vem ver a
+             cerimônia — o ensaio é uma saída, não o assunto.
+
+             Leva pra MESMA liga que está aberta aqui: ensaiar a loteria de
+             outra liga não ensina nada sobre a sua. */ ?>
+    <a href="/lottery-teste.php?liga=<?= urlencode($ligaAtual) ?>" class="btn-teste">
+      <i class="bi bi-dice-5"></i> Teste a loteria
+    </a>
   </div>
 
   <?php if ($modoTeste): ?>
@@ -847,11 +852,12 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="balls-rodape" id="matrizRodape"></div>
     </div>
 
-    <?php /* A CERIMÔNIA É DO ADMIN. Revelar e confirmar são atos que
-             definem o draft; quem não administra vê as chances, a matriz e a
-             ordem, mas não o palco — um botão "Revelar" numa prévia mostraria
-             a ordem da campanha como se fosse resultado de sorteio. */ ?>
-    <?php if ($podeConduzirEstaLiga): ?>
+    <?php /* O PALCO É DE TODOS; OS BOTÕES, NÃO.
+             A cerimônia acontece uma vez por ano e a liga inteira quer ver.
+             Enquanto o palco existia só pra quem conduz, o resto olhava uma
+             tela parada enquanto as picks saíam. Agora ele aparece pra todo
+             mundo e acompanha o que o admin revela; só os botões de revelar
+             e confirmar seguem sendo de quem conduz. */ ?>
     <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
     <div class="reveal-stage" id="revealStage">
       <div class="reveal-fx" id="revealFx" aria-hidden="true"></div>
@@ -869,7 +875,9 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <div class="reveal-passed" id="revealPassed"></div>
       </div>
       <div class="reveal-actions">
+        <?php if ($podeConduzirEstaLiga): ?>
         <button class="btn-red" id="btnReveal"><i class="bi bi-caret-right-fill"></i> Revelar próxima escolha</button>
+        <?php endif; ?>
         <button class="btn-ghost2" id="btnBroadcast" onclick="toggleBroadcast()"><i class="bi bi-fullscreen"></i> Modo transmissão</button>
       </div>
       <div class="reveal-hint" id="revealHint">A revelação começa pela última pick e sobe até a #1.</div>
@@ -879,8 +887,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="panel bc-urna">
       <div class="bowl" id="bowl"></div>
     </div>
-
-    <?php endif; ?>
 
     <div class="section-title bc-podium-title" id="podiumTitle" style="display:none"><i class="bi bi-trophy-fill"></i> Pódio da loteria</div>
     <div class="podium" id="podium"></div>
@@ -1094,6 +1100,9 @@ async function prepare(){
     if (!data.success) { alert(data.error || 'Erro ao sortear a loteria.'); return; }
     result = data;
     setupBoardAndOdds(data);
+    // Coloca a cerimônia no ar antes de revelar a primeira: quem estiver
+    // com a página aberta passa a ver o quadro desta ordem.
+    transmitirSorteio(data);
     // No ensaio o botão de aplicar ao draft não existe.
     if ($('btnConfirm')) $('btnConfirm').style.display = '';
     $('resultSection').style.display = 'block';
@@ -1463,7 +1472,8 @@ function setupBoardAndOdds(data){
 
   // Estado do palco
   if (!temPalco) return;
-  $('confirmPanel').style.display = 'none';
+  // O painel de aplicar ao draft não existe pra quem só assiste.
+  if ($('confirmPanel')) $('confirmPanel').style.display = 'none';
   $('revealStage').classList.remove('armed');
   $('ballMachine')?.classList.remove('on');
   $('revealLogo').style.display = '';
@@ -1502,9 +1512,11 @@ function updateRevealButton(){
   }
   document.body.classList.remove('bc-complete');
   const nextPos = revealQueue[0];
-  btn.style.display = 'inline-flex';
-  btn.disabled = false;
-  btn.innerHTML = `<i class="bi bi-caret-right-fill"></i> Revelar pick #${nextPos}`;
+  if (btn) {
+    btn.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-caret-right-fill"></i> Revelar pick #${nextPos}`;
+  }
   $('revealPickLabel').textContent = revealQueue.length === 1 ? 'A escolha nº 1 — grande final' : `Faltam ${revealQueue.length} escolhas`;
 }
 
@@ -1547,13 +1559,106 @@ function spinBalls(pool, entry, onDone){
   }, giro);
 }
 
+/* ─── A CERIMÔNIA AO VIVO ──────────────────────────────────────────────
+   O sorteio vivia no navegador de quem apertou o botão: quem conduzia via
+   as picks saírem e a liga inteira olhava uma tela parada. Agora quem
+   conduz publica a ordem ao sortear e avisa a cada revelação; quem assiste
+   pergunta de poucos em poucos segundos e vê a mesma bolinha girar.
+
+   Nada disso aplica a ordem ao draft — quem faz isso é o Confirmar. */
+const SESSAO_ID = () => parseInt(($('sessionSelect') || {}).value || 0, 10);
+
+async function transmitirSorteio(data){
+  if (!PODE_EDITAR_ORDEM || MODO_TESTE || !data || data.preview !== false) return;
+  try {
+    await fetch('/api/draft.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'lottery_transmitir',
+        draft_session_id: SESSAO_ID(),
+        ordem: data.order,
+        ajustes: data.adjustments || [],
+      })
+    });
+  } catch (e) { /* a cerimônia continua na tela de quem conduz */ }
+}
+
+function transmitirRevelada(pos){
+  if (!PODE_EDITAR_ORDEM || MODO_TESTE) return;
+  fetch('/api/draft.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'lottery_revelar', draft_session_id: SESSAO_ID(), position: pos })
+  }).catch(() => {});
+}
+
+let acompanhandoEm = null;   // carimbo da última mudança já aplicada
+let acompanhandoFila = [];
+
+/* Quem assiste. Só entra aqui quem não conduz: pra quem conduz, o servidor
+   é o eco do que ele mesmo acabou de fazer. */
+async function acompanharCerimonia(){
+  if (PODE_EDITAR_ORDEM || MODO_TESTE) return;
+  const sid = SESSAO_ID();
+  if (!sid) return;
+  try {
+    const res = await fetch(`/api/draft.php?action=lottery_transmissao&draft_session_id=${sid}`);
+    const d = await res.json();
+    if (!d.success || !d.no_ar) return;
+    if (d.em === acompanhandoEm) return;      // nada mudou desde a última olhada
+    const primeiraVez = acompanhandoEm === null;
+    acompanhandoEm = d.em;
+
+    // A ordem sorteada substitui a prévia: daqui pra frente o quadro é
+    // resultado, não retrato da campanha.
+    result = Object.assign({}, result, { order: d.ordem, adjustments: d.ajustes, preview: false });
+    const jaVistas = new Set(revealed);
+    setupBoardAndOdds(result);
+    revealQueue = d.ordem.filter(o => o.source !== 'playoff')
+                         .map(o => o.position).sort((a, b) => b - a);
+
+    /* Quem chega no meio recebe tudo de uma vez, sem encenação: a bolinha
+       girando dezesseis vezes seguidas não é cerimônia, é espera. O que
+       chega DEPOIS que a pessoa já está olhando, aí sim, é revelado. */
+    d.reveladas.forEach(pos => {
+      const novaAgora = !primeiraVez && !jaVistas.has(pos);
+      revealQueue = revealQueue.filter(p => p !== pos);
+      if (novaAgora) acompanhandoFila.push(pos);
+      else aplicarRevelacao(pos, false);
+    });
+    escoarFilaDeQuemAssiste();
+  } catch (e) { /* próxima olhada tenta de novo */ }
+}
+
+function escoarFilaDeQuemAssiste(){
+  if (busy || !acompanhandoFila.length) return;
+  const pos = acompanhandoFila.shift();
+  aplicarRevelacao(pos, true);
+}
+
 function revealNext(){
   if (busy || !revealQueue.length) return;
+  const pos = revealQueue[0];
+  // Quem conduz avisa o servidor ANTES da animação: quem assiste tem os
+  // mesmos segundos de bolinha girando, não o resultado já pronto.
+  transmitirRevelada(pos);
+  aplicarRevelacao(pos, true);
+}
+
+/**
+ * REVELA UMA ESCOLHA — a mesma função pra quem conduz e pra quem assiste.
+ *
+ * Com encenação, é a bolinha girando. Sem, o quadro simplesmente aparece
+ * preenchido: é o caso de quem abre a página no meio da cerimônia, que não
+ * ganharia nada assistindo a dezesseis giros seguidos de uma vez.
+ */
+function aplicarRevelacao(pos, comEncenacao){
+  if (revealed.has(pos)) return;
+  const entry = (result.order || []).find(o => o.position === pos);
+  if (!entry) return;
   busy = true;
-  const pos = revealQueue.shift();
-  const entry = result.order.find(o => o.position === pos);
+  revealQueue = revealQueue.filter(p => p !== pos);
   const btn = $('btnReveal');
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   $('revealStage').classList.add('armed');
 
   // decoys = times de loteria ainda não revelados (as outras bolinhas do globo)
@@ -1578,7 +1683,8 @@ function revealNext(){
   logoEl.style.display = 'none';
 
   // Todas as bolinhas que ainda estão na urna, com a sorteada entre elas.
-  spinBalls([entry].concat(decoys), entry, land);
+  if (comEncenacao) spinBalls([entry].concat(decoys), entry, land);
+  else land();
 
   function land(){
     logoEl.style.display = '';
@@ -1644,6 +1750,8 @@ function revealNext(){
     revealed.add(pos);
     busy = false;
     updateRevealButton();
+    // Quem assiste pode ter recebido mais de uma escolha enquanto esta rodava.
+    if (typeof escoarFilaDeQuemAssiste === 'function') escoarFilaDeQuemAssiste();
   }
 }
 
@@ -1783,7 +1891,16 @@ window.addEventListener('beforeunload', (e) => {
   e.preventDefault();
   e.returnValue = '';
 });
-carregarPrevia();
+carregarPrevia().then(() => {
+  /* Quem assiste fica de olho no que está no ar. Três segundos: rápido o
+     bastante pra parecer ao vivo, espaçado o bastante pra dezenas de GMs com
+     a página aberta não virarem carga. A resposta é minúscula, e a tela só é
+     redesenhada quando o carimbo de hora muda. */
+  if (!PODE_EDITAR_ORDEM && !MODO_TESTE) {
+    acompanharCerimonia();
+    setInterval(acompanharCerimonia, 3000);
+  }
+});
 </script>
 </body>
 </html>
