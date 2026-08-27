@@ -1099,9 +1099,18 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     // Uma série numa linha. O placar não é digitado pelo admin: numa melhor
     // de 7 o vencedor sempre faz 4, então o número de jogos já diz 4-2.
     $linha = function ($m) use ($nomeDe) {
-        if (!$m || empty($m['t1']) || empty($m['t2'])) return "   _a definir_\n";
-        $n1 = $nomeDe($m['t1']);
-        $n2 = $nomeDe($m['t2']);
+        // Confronto sem nenhum dos dois lados não vira linha — quem chama já
+        // filtrou, e a fase inteira some quando não sobra nada.
+        if (!is_array($m) || (empty($m['t1']) && empty($m['t2']))) return '';
+        // Com um lado só (o outro ainda saindo da rodada anterior), mostra o
+        // que já se sabe em vez de esconder a série inteira.
+        $n1 = !empty($m['t1']) ? $nomeDe($m['t1']) : '_a definir_';
+        $n2 = !empty($m['t2']) ? $nomeDe($m['t2']) : '_a definir_';
+        if (empty($m['t1']) || empty($m['t2'])) {
+            $s1p = isset($m['s1']) ? '(' . $m['s1'] . ') ' : '';
+            $s2p = isset($m['s2']) ? '(' . $m['s2'] . ') ' : '';
+            return "   {$s1p}{$n1}  x  {$s2p}{$n2}\n";
+        }
         $s1 = isset($m['s1']) ? '(' . $m['s1'] . ') ' : '';
         $s2 = isset($m['s2']) ? '(' . $m['s2'] . ') ' : '';
         $w  = isset($m['w']) ? (string)$m['w'] : '';
@@ -1128,29 +1137,39 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         return "   ✅ {$s1}{$a}{$meio}{$s2}{$b}\n";
     };
 
-    // Rodada sem confronto nenhum ainda mostra "a definir": um título sozinho,
-    // sem nada embaixo, parece erro de renderização e não fase por vir.
-    $rodada = function ($rotulo, $jogos) use ($linha) {
+    // FASE SÓ APARECE SE TIVER CONFRONTO.
+    //
+    // Antes cada fase vinha com o título e um "a definir" embaixo, e a
+    // mensagem gastava metade da altura repetindo que a semi, a final de
+    // conferência e a grande final ainda não existem — coisa que se sabe pelo
+    // fato de a 1ª rodada estar em aberto. Fase sem nada é fase que não
+    // aparece; ela entra sozinha quando o primeiro time chegar nela.
+    $temTime = fn($m) => is_array($m) && (!empty($m['t1']) || !empty($m['t2']));
+
+    $rodada = function ($rotulo, $jogos) use ($linha, $temTime) {
+        $jogos = array_filter(is_array($jogos) ? $jogos : [], $temTime);
+        if (!$jogos) return '';
         $t = "_{$rotulo}_\n";
-        $jogos = is_array($jogos) ? $jogos : [];
-        if (!$jogos) return $t . $linha(null);
         foreach ($jogos as $m) $t .= $linha($m);
         return $t;
     };
 
+    // Conferência inteira vazia também some — é o caso de uma classificação
+    // lançada só de um lado.
     $conf = function ($c, $rotulo) use ($rodada) {
-        return "\n*{$rotulo}*\n"
-             . $rodada('1ª rodada', $c['r1'] ?? [])
-             . $rodada('Semifinal', $c['r2'] ?? [])
-             . $rodada('Final de conferência', [$c['cf'] ?? null]);
+        $corpo = $rodada('1ª rodada', $c['r1'] ?? [])
+               . $rodada('Semifinal', $c['r2'] ?? [])
+               . $rodada('Final de conferência', [$c['cf'] ?? null]);
+        return $corpo === '' ? '' : "\n*{$rotulo}*\n" . $corpo;
     };
 
     $txt  = "🏆 *Playoffs {$liga}*" . ($numeroTemp ? " — temporada {$numeroTemp}" : '') . "\n";
     $txt .= $conf($chave['leste'] ?? [], '🔵 Leste');
     $txt .= $conf($chave['oeste'] ?? [], '🔴 Oeste');
-    $txt .= "\n*🏆 Grande final*\n" . $linha($chave['final'] ?? null);
-
+    // A grande final segue a mesma regra: só entra quando tiver time nela.
     $final = $chave['final'] ?? null;
+    if ($temTime($final)) $txt .= "\n*🏆 Grande final*\n" . $linha($final);
+
     if ($final && !empty($final['w'])) {
         $campeao = ((string)$final['w'] === (string)($final['t1']['id'] ?? ''))
             ? $nomeDe($final['t1']) : $nomeDe($final['t2']);
