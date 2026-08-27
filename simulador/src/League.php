@@ -680,7 +680,9 @@ class League
         Database::setMeta('playoff_round', '1');
         foreach (['E', 'W'] as $conf) {
             $seeds = self::finalSeeds($conf); // índices 0..7 = seeds 1..8
-            // 1x8, 2x7, 3x6, 4x5
+            // 1x8, 4x5, 3x6, 2x7 — o comentário dizia outra ordem, mas os
+            // pares abaixo sempre foram estes. O 2x7 no fim é o que põe o 1º
+            // e o 2º em pontas opostas da conferência.
             $pairs = [[0, 7], [3, 4], [2, 5], [1, 6]];
             foreach ($pairs as $pair) {
                 self::createSeries(1, $conf, $seeds[$pair[0]], $seeds[$pair[1]]);

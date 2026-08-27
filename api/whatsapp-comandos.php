@@ -873,7 +873,7 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
  * A 1ª rodada montada a partir da CLASSIFICAÇÃO — a fonte que nunca falta.
  *
  * Os confrontos de abertura não dependem de ninguém preencher nada: são as
- * seeds cruzadas, 1x8, 4x5, 2x7 e 3x6 em cada conferência. Assim que o admin
+ * seeds cruzadas, 1x8, 4x5, 3x6 e 2x7 em cada conferência. Assim que o admin
  * salva a classificação, eles existem.
  *
  * Isto é a rede de segurança do /playoffs. As outras duas fontes — o rascunho
@@ -913,7 +913,7 @@ function wcChaveDaClassificacao(PDO $pdo, int $seasonId): ?array
     $chave = ['leste' => $vazia(), 'oeste' => $vazia(), 'final' => null];
     // A ordem dos pares é a do chaveamento, não a das seeds: é ela que faz os
     // vencedores se encontrarem certo na rodada seguinte.
-    $pares = [[1, 8], [4, 5], [2, 7], [3, 6]];
+    $pares = [[1, 8], [4, 5], [3, 6], [2, 7]];
     $achou = false;
 
     foreach (['LESTE' => 'leste', 'OESTE' => 'oeste'] as $conf => $lado) {
@@ -981,11 +981,11 @@ function wcChaveDasSeries(PDO $pdo, int $seasonId): ?array
         else                          $chave[$conf]['r1'][] = $m;
     }
 
-    // A 1ª rodada sai na ORDEM DO CHAVEAMENTO — 1x8, 4x5, 2x7, 3x6 —, que é a
+    // A 1ª rodada sai na ORDEM DO CHAVEAMENTO — 1x8, 4x5, 3x6, 2x7 —, que é a
     // ordem em que os vencedores se encontram na rodada seguinte. Não é a
     // ordem de gravação nem a das seeds: é a mesma que o rascunho preserva,
     // e as duas fontes precisam ler igual pra ninguém achar que mudou.
-    $ordemChave = [1 => 0, 4 => 1, 2 => 2, 3 => 3];
+    $ordemChave = [1 => 0, 4 => 1, 3 => 2, 2 => 3];
     foreach (['leste', 'oeste'] as $c) {
         usort($chave[$c]['r1'], function ($x, $y) use ($ordemChave) {
             // Seed fora do padrão cai depois, ordenada por ela mesma.

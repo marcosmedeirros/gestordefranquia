@@ -192,13 +192,25 @@ function generateBracket(league) {
             showAlert('warning', `Selecione os 8 times de cada conferência. (${parts.join(' · ')})`);
             return;
         }
-        // 1v8 e 4v5 → R2 topo; 2v7 e 3v6 → R2 baixo
+        // A ORDEM DA CHAVE, de cima pra baixo: 1x8, 4x5, 3x6, 2x7.
+        //
+        // O 2x7 é o ÚLTIMO, não o penúltimo. É o que põe o 1º e o 2º nas duas
+        // pontas da conferência — eles só se encontram na final dela, que é o
+        // sentido de premiar a campanha. Com o 2x7 no meio, os dois melhores
+        // caíam do mesmo lado do quadro.
+        //
+        // As semis continuam sendo topo (1x8 e 4x5) contra baixo (3x6 e 2x7),
+        // porque _rebuildConf pareia r1[0]×r1[1] e r1[2]×r1[3] — trocar a
+        // ordem aqui só muda quem é mostrado primeiro dentro do mesmo par.
+        //
+        // api/playoffs.php já montava assim; o chaveamento do admin era o
+        // único fora de passo.
         const initConf = (s) => ({
             r1: [
                 {t1: s[0], t2: s[7], w: null, s1: 1, s2: 8},
                 {t1: s[3], t2: s[4], w: null, s1: 4, s2: 5},
-                {t1: s[1], t2: s[6], w: null, s1: 2, s2: 7},
                 {t1: s[2], t2: s[5], w: null, s1: 3, s2: 6},
+                {t1: s[1], t2: s[6], w: null, s1: 2, s2: 7},
             ],
             r2: [null, null], cf: null, winner: null,
         });
