@@ -204,25 +204,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .topbar { display: flex; }
   .content { padding-left: 16px; padding-right: 16px; }
 }
-
-/* ── Jogos da semana do clube ────────────────────────────────────────
-   Uma linha por jogo: resultado, adversário e o que custou. O V/D fica
-   na frente porque é o que se procura ao correr o olho pela lista. */
-.jds-lista{display:flex;flex-direction:column;gap:6px}
-.jds-item{display:flex;align-items:center;gap:10px;padding:8px 10px;
-  background:var(--panel-2);border:1px solid var(--border);border-radius:10px;font-size:13px}
-.jds-res{flex:none;width:22px;height:22px;border-radius:6px;display:flex;
-  align-items:center;justify-content:center;font-size:11px;font-weight:800}
-.jds-v{color:var(--green,#22c55e);background:color-mix(in srgb, var(--green,#22c55e) 14%, transparent)}
-.jds-d{color:var(--red);background:var(--red-soft)}
-.jds-x{color:var(--text-3);background:color-mix(in srgb, var(--text-3) 10%, transparent)}
-.jds-adv{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-weight:600;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jds-adv img{width:20px;height:20px;object-fit:contain;flex:none}
-.jds-adv i{color:var(--text-3);font-weight:400}
-.jds-meta{flex:none;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
-.jds-nota{margin-top:8px;font-size:11px;color:var(--text-3)}
-@media(max-width:480px){ .jds-meta{display:none} }
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -371,53 +352,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="section-title"><i class="bi bi-award-fill"></i> Prêmios Individuais</div>
     <div id="awards-content"><div class="skeleton" style="height:50px"></div></div>
   </div>
-
-  <?php
-    /* OS JOGOS DA SEMANA DO CLUBE.
-       O time pagou FBA Points pra ter o jogo dele transmitido — isso é
-       história do clube tanto quanto um título, e até agora sumia depois que
-       a semana passava. O painel só aparece pra quem tem algum: numa liga
-       que nunca leiloou, um quadro vazio em toda página de time seria ruído. */
-    require_once __DIR__ . '/backend/leilao_semana.php';
-    $jogosDaSemana = leilaoSemanaDoTime($pdo, $teamId);
-    if ($jogosDaSemana):
-      $ganhou = count(array_filter($jogosDaSemana, fn($j) => $j['venceu'] === true));
-      $perdeu = count(array_filter($jogosDaSemana, fn($j) => $j['venceu'] === false));
-  ?>
-  <div class="panel" data-th-tab="historico">
-    <div class="section-title">
-      <i class="bi bi-broadcast" style="color:var(--red)"></i> Jogos da Semana
-      <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">
-        (<?= count($jogosDaSemana) ?> comprado<?= count($jogosDaSemana) === 1 ? '' : 's' ?><?php
-          if ($ganhou || $perdeu): ?> · <?= $ganhou ?>V-<?= $perdeu ?>D<?php endif; ?>)
-      </span>
-    </div>
-    <div class="jds-lista">
-      <?php foreach ($jogosDaSemana as $j): ?>
-      <div class="jds-item">
-        <span class="jds-res jds-<?= $j['venceu'] === true ? 'v' : ($j['venceu'] === false ? 'd' : 'x') ?>">
-          <?= $j['venceu'] === true ? 'V' : ($j['venceu'] === false ? 'D' : '—') ?>
-        </span>
-        <span class="jds-adv">
-          <?php if ($j['sem_adv']): ?>
-            <i>sem adversário</i>
-          <?php else: ?>
-            <img src="<?= htmlspecialchars(getTeamPhoto($j['adv_logo'])) ?>" alt=""
-                 onerror="this.src='/img/default-team.png'">
-            <?= htmlspecialchars($j['adv_nome']) ?>
-          <?php endif; ?>
-        </span>
-        <span class="jds-meta">
-          T<?= (int)$j['temporada'] ?> · <?= number_format($j['pagou'], 0, ',', '.') ?> FBA
-        </span>
-      </div>
-      <?php endforeach; ?>
-    </div>
-    <?php if ($ganhou + $perdeu < count($jogosDaSemana)): ?>
-    <div class="jds-nota">— - resultado ainda não informado pela organização.</div>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
 
   <div class="panel" id="champ-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-stars"></i> Elenco Campeão — <span id="champ-year"></span></div>

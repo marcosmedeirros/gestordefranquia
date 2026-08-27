@@ -2758,36 +2758,6 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
               . ' pro ' . ($vitA > $vitB ? $nomeA : $nomeB) . "._\n";
     }
 
-    /* ── Jogo da semana entre os dois ────────────────────────────────────
-       Os dois pagaram FBA Points pra aquele jogo ser transmitido, e isso
-       vira retrospecto: quem comprou o duelo mais vezes, e quem ganhou.
-
-       Entra ANTES do playoff de propósito. O playoff é raro — muitos pares
-       nunca se cruzaram numa série — e o jogo da semana acontece toda
-       semana; entre dois times quaisquer, é o histórico que costuma
-       existir. */
-    require_once __DIR__ . '/../backend/leilao_semana.php';
-    $jds = leilaoSemanaEntre($pdo, (int)$a['id'], (int)$b['id']);
-    if ($jds['jogos']) {
-        $n = count($jds['jogos']);
-        $txt .= "\n📺 *Jogo da semana*\n"
-              . $n . ($n === 1 ? ' vez' : ' vezes') . " na tela\n";
-
-        if ($jds['vitorias_a'] || $jds['vitorias_b']) {
-            $va = $jds['vitorias_a']; $vb = $jds['vitorias_b'];
-            $txt .= $va === $vb
-                ? "Empatados: {$va} a {$vb}\n"
-                : '*' . ($va > $vb ? $nomeA : $nomeB) . '* leva: '
-                  . max($va, $vb) . ' a ' . min($va, $vb) . "\n";
-        }
-        // Jogo sem resultado informado não é jogo empatado: dizer quantos
-        // são evita ler o placar acima como se fosse a conta toda.
-        if ($jds['sem_resultado']) {
-            $s = $jds['sem_resultado'];
-            $txt .= '_' . $s . ($s === 1 ? ' sem resultado informado' : ' sem resultado informado') . "._\n";
-        }
-    }
-
     // ── Confronto de verdade: séries de playoff entre os dois ────────────
     $duelo = playoffSeriesEntre($pdo, (int)$a['id'], (int)$b['id']);
     if ($duelo['series']) {
