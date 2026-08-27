@@ -1095,6 +1095,7 @@ async function showRegistroPontuacao(league) {
     // Estado da visita anterior não vale nesta: os elencos podem ter mudado
     // (trade, dispensa) e a restauração antiga já terminou faz tempo.
     _regPtsElencos = {};
+    _extBuscaCache = {};
     _regPtsRestaurando = null;
 
     let histRegistered = false;
@@ -1163,29 +1164,62 @@ async function showRegistroPontuacao(league) {
             </select>
         </div>`;
 
-    // Prêmios estendidos: escolhe o time, e o jogador vem do elenco dele.
-    // O nome era digitado à mão, e nome digitado à mão vira "Lebron",
-    // "LeBron" e "Lebron James" como três pessoas diferentes no histórico.
-    // min-width + wrap: no celular os dois lado a lado ficavam estreitos
-    // demais e os DOIS liam "— time —", porque o texto do select de jogador
-    // era cortado no meio. Sem espaço, agora cada um cai numa linha.
-    const extPlayerStyle = 'flex:1 1 180px;min-width:150px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;opacity:.6';
-    const extTeamOpts = '<option value="">— time —</option>' +
-        allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
+    // Prêmios estendidos: UM campo por vaga.
+    //
+    // Eram dois selects — primeiro o time, depois o elenco dele. Só que quem
+    // preenche um All-NBA sabe o nome do jogador e não necessariamente onde
+    // ele joga; obrigar a achar o time antes é pedir a informação na ordem
+    // errada, 26 vezes. Agora digita o nome, escolhe na lista, e o time vem
+    // junto — é ele que o cap precisa, e sai de graça da escolha.
+    //
+    // Os dois campos escondidos guardam exatamente o que a API já esperava
+    // (_team e _player), então salvar, rascunho e restauração seguem iguais.
     const mkExtBloco = ({ tipo, titulo, vagas, bonus }) => `
         <div style="margin-bottom:14px">
             <div style="font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:7px">
                 ${titulo} <span style="color:var(--text-3);font-weight:400;font-size:11px">(${bonus})</span>
             </div>
             ${Array.from({ length: vagas }, (_, i) => `
-            <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-                <select name="ext_${tipo}_${i}_team" style="${selStyle};flex:1 1 180px;min-width:150px;max-width:230px"
-                        onchange="_loadExtPlayers('ext_${tipo}_${i}_player', this.value); _regPtsSaveCache();">${extTeamOpts}</select>
-                <select name="ext_${tipo}_${i}_player" style="${extPlayerStyle}" onchange="_regPtsSaveCache();">
-                    <option value="">— escolha o time —</option>
-                </select>
+            <div class="ext-vaga" id="ext-vaga-${tipo}-${i}">
+                <input name="ext_${tipo}_${i}_busca" class="ext-busca" autocomplete="off"
+                       placeholder="Digite o nome do jogador…"
+                       oninput="_extBuscar('${tipo}',${i})"
+                       onfocus="_extBuscar('${tipo}',${i})"
+                       onkeydown="_extTecla(event,'${tipo}',${i})">
+                <input type="hidden" name="ext_${tipo}_${i}_team">
+                <input type="hidden" name="ext_${tipo}_${i}_player">
+                <div class="ext-time" id="ext-time-${tipo}-${i}"></div>
+                <div class="ext-sug" id="ext-sug-${tipo}-${i}" hidden
+                     onmousedown="event.preventDefault()"></div>
             </div>`).join('')}
         </div>`;
+
+    // O visual das vagas. Vai num <style> só porque são 26 caixas iguais —
+    // repetir style="" em cada uma seria o mesmo CSS 26 vezes no HTML.
+    // A borda verde e o nome do time embaixo são a confirmação de que a
+    // escolha pegou: sem eles, um campo com nome digitado e sem jogador
+    // selecionado parece preenchido e não é.
+    const extEstilos = `
+        <style>
+          .ext-vaga{position:relative;margin-bottom:6px}
+          .ext-busca{width:100%;background:var(--panel-3);border:1px solid var(--border);
+            border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px}
+          .ext-busca:focus{outline:none;border-color:var(--red)}
+          .ext-vaga.ok .ext-busca{border-color:rgba(34,197,94,.45)}
+          .ext-time{font-size:11px;color:#22c55e;margin:3px 0 0 2px;display:none}
+          .ext-vaga.ok .ext-time{display:block}
+          .ext-sug{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 3px);
+            background:var(--panel);border:1px solid var(--border-md);border-radius:10px;
+            max-height:230px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,.45)}
+          .ext-sug[hidden]{display:none}
+          .ext-op{padding:8px 11px;font-size:12.5px;cursor:pointer;display:flex;
+            align-items:baseline;gap:7px;border-bottom:1px solid var(--border)}
+          .ext-op:last-child{border-bottom:0}
+          .ext-op:hover,.ext-op.sel{background:var(--panel-3)}
+          .ext-op b{font-weight:600;color:var(--text)}
+          .ext-op span{font-size:11px;color:var(--text-3);margin-left:auto;white-space:nowrap}
+          .ext-sug-vazio{padding:9px 11px;font-size:12px;color:var(--text-3)}
+        </style>`;
 
     const extendedHtml = isElite ? `
             <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
@@ -1194,7 +1228,9 @@ async function showRegistroPontuacao(league) {
                     All-NBA e All-Defensive. Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap.
                     Não valem ponto de ranking — quem pontua são os prêmios individuais acima.
                     O <b>Finals MVP</b> fica na etapa 2: só dá pra saber depois da Grande Final.
+                    <br>Digite o nome do jogador e escolha na lista — o time vem junto.
                 </div>
+                ${extEstilos}
                 ${REG_PTS_EXTENDED.filter(x => x.fase === 'regular').map(mkExtBloco).join('')}
             </div>` : '';
 
@@ -1205,11 +1241,15 @@ async function showRegistroPontuacao(league) {
     // Só aparece depois que a campanha foi salva, junto com o resto da etapa
     // 2: antes disso a Grande Final nem foi jogada, e um campo em branco
     // esperando resposta é convite pra alguém tentar adivinhar.
+    //
+    // Não repete `extEstilos`: quando este bloco existe, o da etapa 1 também
+    // existe (os dois são só da ELITE) e já trouxe o <style>.
     const finalsMvpHtml = (isElite && naEtapaPlayoffs) ? `
                 <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
                     <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-star-half" style="color:#eab308"></i> Finals MVP <span style="font-size:11px;color:var(--text-3);font-weight:400">— só ELITE</span></div>
                     <div style="font-size:12px;color:var(--text-3);margin:4px 0 12px">
                         Prêmio estendido, como o All-NBA: vale <b>+3M no cap da temporada seguinte</b> e não dá ponto de ranking.
+                        Digite o nome do jogador e escolha na lista — o time vem junto.
                     </div>
                     ${REG_PTS_EXTENDED.filter(x => x.fase === 'playoffs').map(mkExtBloco).join('')}
                 </div>` : '';
@@ -1374,16 +1414,24 @@ async function showRegistroPontuacao(league) {
             // Posição já preenchida some das outras vagas, como no preenchimento normal.
             ['leste', 'oeste'].forEach(_updateStandingsUnique);
 
-            // Prêmios estendidos: cada vaga com time escolhido carrega o
-            // elenco e volta a marcar o jogador. Times repetidos entre vagas
-            // dividem a mesma requisição — ver _regPtsElenco().
+            // Prêmios estendidos: os campos escondidos já voltaram na passada
+            // acima (são <input>), então aqui só falta redesenhar o visual da
+            // escolha — o nome do time embaixo e a borda verde. Nada de rede:
+            // o time saiu do id que já estava guardado.
             const pendentes = [];
             REG_PTS_EXTENDED.forEach(({ tipo, vagas }) => {
                 for (let i = 0; i < vagas; i++) {
                     const timeId = form.querySelector(`[name="ext_${tipo}_${i}_team"]`)?.value;
-                    if (!timeId) continue;
-                    pendentes.push(_loadExtPlayers(`ext_${tipo}_${i}_player`, timeId,
-                                                   cached.form[`ext_${tipo}_${i}_player`]));
+                    const nome   = form.querySelector(`[name="ext_${tipo}_${i}_player"]`)?.value;
+                    if (!timeId || !nome) continue;
+                    const t = (seasonsState.teamsById || {})[String(timeId)];
+                    const rotulo = document.getElementById(`ext-time-${tipo}-${i}`);
+                    const caixa  = document.getElementById(`ext-vaga-${tipo}-${i}`);
+                    if (rotulo) {
+                        rotulo.innerHTML = `<i class="bi bi-check-circle-fill"></i> ` +
+                            escapeHtml(t ? `${t.city} ${t.name}` : `Time #${timeId}`);
+                    }
+                    if (caixa) caixa.classList.add('ok');
                 }
             });
 
@@ -1934,6 +1982,154 @@ function _regPtsElenco(teamId) {
     return _regPtsElencos[k];
 }
 
+// ─── Busca de jogador nos prêmios estendidos ────────────────────────────────
+//
+// Um campo por vaga: digita o nome, escolhe na lista, e o time vem junto.
+// A busca é do servidor (api admin.php?action=search_players) porque ela já
+// existe, já é por liga e já usa o índice — o cache aqui é só pra não repetir
+// a mesma pergunta enquanto a pessoa corrige uma letra.
+let _extBuscaTimer = null;
+let _extBuscaCache = {};
+let _extSelIdx = {};   // 'tipo:i' => índice destacado na lista, pras setas
+
+/** A vaga inteira, pelos ids que mkExtBloco montou. */
+function _extVaga(tipo, i) {
+    const form = document.getElementById('formRegistroPontuacao');
+    if (!form) return null;
+    return {
+        caixa:  document.getElementById(`ext-vaga-${tipo}-${i}`),
+        sug:    document.getElementById(`ext-sug-${tipo}-${i}`),
+        rotulo: document.getElementById(`ext-time-${tipo}-${i}`),
+        busca:  form.querySelector(`[name="ext_${tipo}_${i}_busca"]`),
+        time:   form.querySelector(`[name="ext_${tipo}_${i}_team"]`),
+        jog:    form.querySelector(`[name="ext_${tipo}_${i}_player"]`),
+    };
+}
+
+async function _extBuscar(tipo, i) {
+    const v = _extVaga(tipo, i);
+    if (!v || !v.busca) return;
+    const termo = v.busca.value.trim();
+
+    // Mexeu no texto depois de escolher: a escolha não vale mais. Sem isto o
+    // campo mostraria um nome e gravaria outro, que é o pior dos dois mundos.
+    if (v.jog.value && termo !== v.jog.value) _extLimpar(tipo, i, false);
+
+    if (termo.length < 2) { _extFecha(tipo, i); return; }
+
+    clearTimeout(_extBuscaTimer);
+    _extBuscaTimer = setTimeout(async () => {
+        const chave = `${_regPtsLeague}|${termo.toLowerCase()}`;
+        try {
+            if (!_extBuscaCache[chave]) {
+                _extBuscaCache[chave] = api(
+                    `admin.php?action=search_players&league=${encodeURIComponent(_regPtsLeague)}&query=${encodeURIComponent(termo)}`
+                ).then(d => d.players || []).catch(e => { delete _extBuscaCache[chave]; throw e; });
+            }
+            const jogadores = await _extBuscaCache[chave];
+            // A pessoa continuou digitando enquanto isto voltava: a resposta
+            // é de outra pergunta e não pode sobrescrever a lista atual.
+            if (v.busca.value.trim() !== termo) return;
+            _extDesenhaSugestoes(tipo, i, jogadores);
+        } catch (e) {
+            _extDesenhaSugestoes(tipo, i, null);
+        }
+    }, 250);
+}
+
+function _extDesenhaSugestoes(tipo, i, jogadores) {
+    const v = _extVaga(tipo, i);
+    if (!v || !v.sug) return;
+    _extSelIdx[`${tipo}:${i}`] = -1;
+
+    if (jogadores === null) {
+        v.sug.innerHTML = '<div class="ext-sug-vazio">Não deu pra buscar agora.</div>';
+        v.sug.hidden = false;
+        return;
+    }
+    if (!jogadores.length) {
+        v.sug.innerHTML = '<div class="ext-sug-vazio">Nenhum jogador com esse nome nesta liga.</div>';
+        v.sug.hidden = false;
+        return;
+    }
+
+    v.sug.innerHTML = jogadores.map((p, n) => {
+        const time = [p.team_city, p.team_name].filter(Boolean).join(' ');
+        // O apóstrofo no nome quebraria o onclick — daí o JSON no atributo.
+        const arg = escapeHtml(JSON.stringify([tipo, i, p.name || '', String(p.team_id || ''), time]));
+        return `<div class="ext-op" data-n="${n}" onclick='_extEscolher(...JSON.parse(this.dataset.arg))' data-arg="${arg}">
+                  <b>${escapeHtml(p.name || '')}</b>
+                  <span>${escapeHtml(time)} · ${p.position || ''} ${p.ovr || '—'}</span>
+                </div>`;
+    }).join('');
+    v.sug.hidden = false;
+}
+
+// Clique fora fecha a lista aberta. Um só pra tela inteira — 26 escutas
+// fazendo a mesma coisa seria só peso. O `mousedown` da própria lista
+// segura o foco, então clicar numa opção não passa por aqui.
+document.addEventListener('mousedown', (ev) => {
+    document.querySelectorAll('.ext-sug:not([hidden])').forEach(s => {
+        if (!s.closest('.ext-vaga')?.contains(ev.target)) { s.hidden = true; s.innerHTML = ''; }
+    });
+});
+
+/** Fixa a escolha: nome no campo, time e nome nos escondidos, lista fechada. */
+function _extEscolher(tipo, i, nome, timeId, timeNome) {
+    const v = _extVaga(tipo, i);
+    if (!v) return;
+    v.busca.value = nome;
+    v.jog.value = nome;
+    v.time.value = timeId;
+    if (v.rotulo) v.rotulo.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${escapeHtml(timeNome || '')}`;
+    if (v.caixa) v.caixa.classList.add('ok');
+    _extFecha(tipo, i);
+    _regPtsSaveCache();
+}
+
+/** Desfaz a escolha. `limparTexto` só quando o campo inteiro é zerado. */
+function _extLimpar(tipo, i, limparTexto) {
+    const v = _extVaga(tipo, i);
+    if (!v) return;
+    v.jog.value = '';
+    v.time.value = '';
+    if (limparTexto) v.busca.value = '';
+    if (v.rotulo) v.rotulo.innerHTML = '';
+    if (v.caixa) v.caixa.classList.remove('ok');
+    _regPtsSaveCache();
+}
+
+function _extFecha(tipo, i) {
+    const v = _extVaga(tipo, i);
+    if (v && v.sug) { v.sug.hidden = true; v.sug.innerHTML = ''; }
+}
+
+/** Setas pra andar na lista, Enter pra escolher, Esc pra fechar. */
+function _extTecla(ev, tipo, i) {
+    const v = _extVaga(tipo, i);
+    if (!v || !v.sug || v.sug.hidden) return;
+    const ops = Array.from(v.sug.querySelectorAll('.ext-op'));
+    if (!ops.length) return;
+    const k = `${tipo}:${i}`;
+    let idx = _extSelIdx[k] ?? -1;
+
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        idx = ev.key === 'ArrowDown'
+            ? Math.min(idx + 1, ops.length - 1)
+            : Math.max(idx - 1, 0);
+        _extSelIdx[k] = idx;
+        ops.forEach((o, n) => o.classList.toggle('sel', n === idx));
+        ops[idx].scrollIntoView({ block: 'nearest' });
+    } else if (ev.key === 'Enter') {
+        // Só intercepta se houver uma opção destacada — senão o Enter volta a
+        // ser o do formulário, e o registro não pode ser enviado sem querer.
+        if (idx >= 0) { ev.preventDefault(); ops[idx].click(); }
+    } else if (ev.key === 'Escape') {
+        _extFecha(tipo, i);
+    }
+}
+
 /** As <option> de jogador de um elenco, com posição e OVR pra desempatar homônimo. */
 function _regPtsOpcoesJogador(players) {
     return players.map(p =>
@@ -1957,36 +2153,6 @@ async function _loadAwardPlayers(playerSelectName, teamId) {
         sel.style.opacity = '1';
     } catch(e) {
         sel.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
-    }
-}
-
-/**
- * O mesmo, pras vagas de prêmio estendido.
- *
- * O nome era campo livre e digitado na mão — o que quer dizer "Lebron",
- * "LeBron" e "Lebron James" virando três jogadores diferentes no histórico.
- * Escolher do elenco fecha essa porta: o nome sai do banco, já certo.
- *
- * `valor` existe pra restaurar rascunho: a opção só pode ser marcada depois
- * que a lista chegou.
- */
-async function _loadExtPlayers(playerSelectName, teamId, valor) {
-    const sel = document.querySelector(`[name="${playerSelectName}"]`);
-    if (!sel) return;
-    if (!teamId) {
-        sel.innerHTML = '<option value="">— escolha o time —</option>';
-        sel.style.opacity = '.6';
-        return;
-    }
-    sel.innerHTML = '<option value="">Carregando...</option>';
-    sel.style.opacity = '.6';
-    try {
-        const players = await _regPtsElenco(teamId);
-        sel.innerHTML = '<option value="">— jogador —</option>' + _regPtsOpcoesJogador(players);
-        sel.style.opacity = '1';
-        if (valor) sel.value = valor;
-    } catch(e) {
-        sel.innerHTML = '<option value="">Erro ao carregar</option>';
     }
 }
 

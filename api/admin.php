@@ -1147,8 +1147,11 @@ if ($method === 'GET') {
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $ovrCol = playerOvrColumn($pdo);
+            // team_id vai junto porque quem busca por NOME costuma precisar do
+            // time: nos prêmios estendidos, escolher o jogador já é escolher o
+            // time dele, e sem o id a tela teria que adivinhar por nome.
             $stmt = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} as ovr,
-                t.city as team_city, t.name as team_name
+                p.team_id, t.city as team_city, t.name as team_name
                 FROM players p
                 JOIN teams t ON p.team_id = t.id
                 WHERE t.league = ? AND p.name LIKE ?
