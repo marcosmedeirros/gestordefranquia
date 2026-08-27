@@ -427,12 +427,26 @@ function _collectBracketPayload() {
 }
 
 function _saveBracketCache(league, seasonId) {
-    if (league && seasonId) localStorage.setItem(`bk_${league}_${seasonId}`, JSON.stringify(_bracket));
+    if (!league || !seasonId) return;
+    localStorage.setItem(`bk_${league}_${seasonId}`, JSON.stringify(_bracket));
+    // O chaveamento também é rascunho: marcar meia chave e fechar a aba não
+    // pode custar o preenchimento. Só sobe quando a temporada em tela é a
+    // mesma do registro — a tela de avançar temporada usa este mesmo cache.
+    if (Number(seasonId) === Number(_regPtsSeasonId)) _regPtsAutosaveServidor();
 }
 function _restoreBracketCache(league, seasonId) {
     if (!league || !seasonId) return false;
     const raw = localStorage.getItem(`bk_${league}_${seasonId}`);
-    try { _bracket = JSON.parse(raw); return !!_bracket; } catch (_) { return false; }
+    // Sem cópia local não se mexe no que já está em memória: o chaveamento
+    // pode ter vindo do rascunho do servidor, e sobrescrever com null aqui
+    // apagava justamente o que veio de outro aparelho.
+    if (!raw) return false;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!parsed) return false;
+        _bracket = parsed;
+        return true;
+    } catch (_) { return false; }
 }
 function _clearBracketCache(league, seasonId) {
     if (league && seasonId) localStorage.removeItem(`bk_${league}_${seasonId}`);
@@ -446,6 +460,27 @@ let _regPtsSeasonId = null;
 let _regPtsPendingPayload = null;
 let _regPtsForceEdit = false;
 let _regPtsIsCorrection = false;
+// Em qual das duas etapas o registro está: 'regular' enquanto a campanha não
+// foi salva, 'playoffs' depois. Vem do rascunho no servidor.
+let _regPtsEtapa = 'regular';
+let _regPtsAutosaveTimer = null;
+
+/**
+ * As vagas dos prêmios estendidos — exclusivos da ELITE.
+ *
+ * Eram um card separado no admin (showExtendedAwards). Continuam existindo
+ * lá pra corrigir temporada antiga, mas no registro do ano corrente entram
+ * junto com o resto: preencher o MVP numa tela e o All-NBA noutra era o
+ * tipo de ida e volta que faz alguém esquecer metade.
+ */
+const REG_PTS_EXTENDED = [
+    { tipo: 'finals_mvp', titulo: '🏆 Finals MVP',                vagas: 1, bonus: '+3M' },
+    { tipo: 'all_nba_1',  titulo: 'All-NBA — 1º Time',            vagas: 5, bonus: '+3M' },
+    { tipo: 'all_nba_2',  titulo: 'All-NBA — 2º Time',            vagas: 5, bonus: '+2M' },
+    { tipo: 'all_nba_3',  titulo: 'All-NBA — 3º Time',            vagas: 5, bonus: '+1M' },
+    { tipo: 'all_def_1',  titulo: 'All-Defensive — 1º Time',      vagas: 5, bonus: '+2M' },
+    { tipo: 'all_def_2',  titulo: 'All-Defensive — 2º Time',      vagas: 5, bonus: '+1M' },
+];
 
 function _regPtsSaveCache() {
     if (!_regPtsCacheKey) return;
@@ -455,12 +490,61 @@ function _regPtsSaveCache() {
         form.querySelectorAll('[name]').forEach(el => { formState[el.name] = el.value; });
     }
     localStorage.setItem(_regPtsCacheKey, JSON.stringify({ form: formState }));
+    _regPtsAutosaveServidor();
 }
 
 function _regPtsLoadCache() {
     if (!_regPtsCacheKey) return null;
     const raw = localStorage.getItem(_regPtsCacheKey);
     try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; }
+}
+
+/**
+ * Manda o rascunho pro servidor, com folga entre uma tecla e outra.
+ *
+ * O localStorage já guarda na hora, mas morre com o navegador — e o
+ * preenchimento acontece em dois dias, às vezes em máquinas diferentes.
+ * A folga existe pra que digitar um nome não vire uma requisição por letra.
+ */
+function _regPtsAutosaveServidor() {
+    if (!_regPtsSeasonId) return;
+    clearTimeout(_regPtsAutosaveTimer);
+    const seasonAlvo = _regPtsSeasonId;
+    _regPtsAutosaveTimer = setTimeout(() => {
+        // A tela pode ter sido trocada nesse meio tempo — enquanto ela
+        // re-renderiza o formulário some do DOM por um instante, e mandar
+        // esse instante pro servidor gravaria um rascunho VAZIO por cima do
+        // que estava preenchido. Sem formulário na tela, não se grava nada.
+        if (!document.getElementById('formRegistroPontuacao')) return;
+        if (Number(seasonAlvo) !== Number(_regPtsSeasonId)) return;
+        api('seasons.php?action=salvar_rascunho', {
+            method: 'POST',
+            body: JSON.stringify({ season_id: seasonAlvo, dados: _regPtsRascunhoAtual() })
+        }).catch(() => { /* o rascunho local continua valendo */ });
+    }, 1500);
+}
+
+/** Tudo que está digitado agora: o formulário inteiro mais o chaveamento. */
+function _regPtsRascunhoAtual() {
+    const form = document.getElementById('formRegistroPontuacao');
+    const formState = {};
+    if (form) form.querySelectorAll('[name]').forEach(el => { formState[el.name] = el.value; });
+    return { form: formState, bracket: _bracket || null };
+}
+
+/** As vagas de prêmio estendido preenchidas, prontas pra API. */
+function _regPtsCollectExtended() {
+    const form = document.getElementById('formRegistroPontuacao');
+    if (!form) return [];
+    const out = [];
+    REG_PTS_EXTENDED.forEach(({ tipo, vagas }) => {
+        for (let i = 0; i < vagas; i++) {
+            const team = form.querySelector(`[name="ext_${tipo}_${i}_team"]`)?.value || '';
+            const player = (form.querySelector(`[name="ext_${tipo}_${i}_player"]`)?.value || '').trim();
+            if (team && player) out.push({ award_type: tipo, team_id: team, player_name: player });
+        }
+    });
+    return out;
 }
 
 // ─── Auto-cálculo de pontos ───────────────────────────────────────────────────
@@ -622,6 +706,16 @@ async function _saveReviewedPoints(seasonId, league) {
             method: 'POST',
             body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
         });
+
+        // Agora sim: gravou, então o rascunho pode sair. O do servidor é
+        // apagado pelo próprio register_pontuacao — e o autosave armado
+        // precisa morrer junto, senão ele o ressuscitaria logo depois.
+        clearTimeout(_regPtsAutosaveTimer);
+        if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
+        _clearFormCache(league, seasonId);
+        _clearBracketCache(league, seasonId);
+        _bracket = null;
+        _regPtsEtapa = 'regular';
 
         showAlert('success', 'Pontuação salva com sucesso!');
         setTimeout(() => showHome(), 1200);
@@ -997,13 +1091,36 @@ async function showRegistroPontuacao(league) {
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
     const backFn = 'showHome()';
 
-    const cached = _regPtsLoadCache();
+    // O rascunho do servidor é o que atravessa a troca de aparelho; o
+    // localStorage é a cópia local e ganha quando existe, porque foi ele que
+    // recebeu a última tecla nesta máquina. Como o autosave empurra um pro
+    // outro o tempo todo, os dois convergem.
+    let rascunhoServidor = null;
+    try {
+        rascunhoServidor = await api(`seasons.php?action=registro_rascunho&season_id=${season.id}`);
+    } catch (_) {}
+    _regPtsEtapa = rascunhoServidor?.etapa || 'regular';
+
+    const cacheLocal = _regPtsLoadCache();
+    const cached = cacheLocal?.form ? cacheLocal
+                 : (rascunhoServidor?.dados?.form ? { form: rascunhoServidor.dados.form } : null);
+    // Chaveamento também vem do rascunho quando esta máquina não tem cópia.
+    // Sem nenhuma das duas, zera: _bracket é global, e o que sobrou da
+    // temporada aberta antes apareceria como se fosse desta.
+    if (!_restoreBracketCache(league, season.id)) {
+        _bracket = rascunhoServidor?.dados?.bracket || null;
+    }
+
+    const naEtapaPlayoffs = _regPtsEtapa === 'playoffs';
+    const isElite = league === 'ELITE';
 
     const lockedBadge = histRegistered
         ? `<span style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px">
                <i class="bi bi-lock-fill me-1"></i>Já registrado
            </span>`
-        : '';
+        : `<span style="background:${naEtapaPlayoffs ? 'rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3)' : 'rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.3)'};border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px">
+               <i class="bi bi-${naEtapaPlayoffs ? 'check-lg' : 'pencil'} me-1"></i>${naEtapaPlayoffs ? 'Etapa 2 · Playoffs' : 'Etapa 1 · Temporada regular'}
+           </span>`;
 
     const selStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
     const lblStyle = 'font-size:12px;color:var(--text-2);margin-bottom:6px;display:block';
@@ -1021,6 +1138,46 @@ async function showRegistroPontuacao(league) {
                 <option value="">— Selecione o time primeiro —</option>
             </select>
         </div>`;
+
+    // Prêmios estendidos: time + nome digitado. O nome é campo livre e não
+    // uma lista, porque All-NBA pega jogador de qualquer elenco e carregar
+    // trinta elencos pra preencher vinte e seis vagas seria pior que digitar.
+    const inpStyle = 'flex:1;min-width:0;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12.5px';
+    const extTeamOpts = '<option value="">— time —</option>' +
+        allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
+    const mkExtBloco = ({ tipo, titulo, vagas, bonus }) => `
+        <div style="margin-bottom:14px">
+            <div style="font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:7px">
+                ${titulo} <span style="color:var(--text-3);font-weight:400;font-size:11px">(${bonus})</span>
+            </div>
+            ${Array.from({ length: vagas }, (_, i) => `
+            <div style="display:flex;gap:8px;margin-bottom:6px">
+                <select name="ext_${tipo}_${i}_team" style="${selStyle};max-width:230px" onchange="_regPtsSaveCache();">${extTeamOpts}</select>
+                <input name="ext_${tipo}_${i}_player" placeholder="Nome do jogador" style="${inpStyle}" oninput="_regPtsSaveCache();">
+            </div>`).join('')}
+        </div>`;
+
+    const extendedHtml = isElite ? `
+            <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-star-half" style="color:#eab308"></i> 3. Prêmios estendidos <span style="font-size:11px;color:var(--text-3);font-weight:400">— só ELITE</span></div>
+                <div style="font-size:12px;color:var(--text-3);margin:4px 0 12px">
+                    Finals MVP, All-NBA e All-Defensive. Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap.
+                    Não valem ponto de ranking — quem pontua são os prêmios individuais acima.
+                </div>
+                ${REG_PTS_EXTENDED.map(mkExtBloco).join('')}
+            </div>` : '';
+
+    const nbaCupHtml = isElite ? `
+            <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-trophy" style="color:#f59e0b"></i> 2. NBA Cup <span style="font-size:11px;color:var(--text-3);font-weight:400">— só ELITE</span></div>
+                <div style="font-size:12px;color:var(--text-3);margin:4px 0 10px">O campeão da NBA Cup leva 2 pontos.</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label style="${lblStyle}">Campeão da NBA Cup</label>
+                        <select name="nba_cup_team_id" style="${selStyle}" onchange="_regPtsSaveCache();">${awardTeamOpts}</select>
+                    </div>
+                </div>
+            </div>` : '';
 
     container.innerHTML = `
         <div class="mb-3">
@@ -1053,67 +1210,118 @@ async function showRegistroPontuacao(league) {
                 registrados anteriormente serão <b>sobrescritos</b> pelos novos dados preenchidos abaixo.
             </p>
         </div>` : ''}
+        <div class="panel mb-3" style="border-color:rgba(59,130,246,.3)">
+            <p style="color:var(--text-2);margin:0;font-size:12.5px;line-height:1.6"><i class="bi bi-info-circle me-2" style="color:#3b82f6"></i>
+                O registro tem <b>dois salvamentos</b>, pra acompanhar como a temporada acontece de verdade.
+                Na <b>etapa 1</b> entram os prêmios${isElite ? ', a NBA Cup, os prêmios estendidos' : ''} e a classificação —
+                salvar aqui já <b>atualiza a Tabela</b>, <b>libera a loteria</b> e <b>monta o chaveamento</b>.
+                Na <b>etapa 2</b>, com os playoffs decididos, o chaveamento é preenchido e o segundo salvamento
+                soma tudo (seeds + prêmios + playoffs) e registra a pontuação.
+                Tudo que for digitado fica guardado como rascunho, mesmo fechando a página.
+            </p>
+        </div>
+
         <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
 
-            <!-- 1. Premiações -->
+            <!-- ETAPA 1 — temporada regular -->
             <div class="panel mb-3">
-                <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 1. Premiações</div>
-                <div style="font-size:12px;color:var(--text-3);margin-top:4px">MVP, DPOY, MIP, 6º Homem e ROY valem 1 ponto cada.${league === 'ELITE' ? ' NBA Cup vale 2 pontos.' : ''}</div>
-                <div class="row g-3" style="margin-top:8px">
-                    ${mkAwardRow('MVP',      'mvp_team_id',       'mvp_player_name')}
-                    ${mkAwardRow('DPOY',     'dpoy_team_id',      'dpoy_player_name')}
-                    ${mkAwardRow('MIP',      'mip_team_id',       'mip_player_name')}
-                    ${mkAwardRow('6º Homem', 'sixth_man_team_id', 'sixth_man_player_name')}
-                    ${mkAwardRow('ROY',      'roy_team_id',       'roy_player_name')}
-                    ${league === 'ELITE' ? `
-                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Campeão)</label>
-                        <select name="nba_cup_team_id" style="${selStyle}" onchange="_regPtsSaveCache();">${awardTeamOpts}</select>
+                <div class="panel-header" style="margin-bottom:6px">
+                    <div>
+                        <div class="panel-title"><i class="bi bi-1-circle-fill" style="color:#f59e0b"></i> Etapa 1 — Temporada regular</div>
+                        <div class="panel-sub">Prêmios${isElite ? ', NBA Cup, prêmios estendidos' : ''} e classificação final.</div>
                     </div>
-                    <div class="col-md-6"></div>` : ''}
+                    ${naEtapaPlayoffs ? `<span style="background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3);border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px"><i class="bi bi-check-lg me-1"></i>Salva</span>` : ''}
                 </div>
-            </div>
 
-            <!-- 2. Posições -->
-            <div class="panel mb-3">
-                <div class="panel-title"><i class="bi bi-list-ol"></i> 2. Posições</div>
-                <div style="font-size:12px;color:var(--text-3);margin-top:4px">Preencha a posição final de <b>todos</b> os times de cada conferência. Os 8 primeiros valem pontos de seed; os demais ficam registrados para o histórico de posições por temporada.</div>
-                <div id="standingsContainer" style="margin-top:12px">
-                    <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">
-                        <i class="bi bi-download me-1"></i> Carregar Times
+                <div style="margin-top:14px">
+                    <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 1. Prêmios individuais</div>
+                    <div style="font-size:12px;color:var(--text-3);margin:4px 0 10px">MVP, DPOY, MIP, 6º Homem e ROY valem 1 ponto cada.</div>
+                    <div class="row g-3">
+                        ${mkAwardRow('MVP',      'mvp_team_id',       'mvp_player_name')}
+                        ${mkAwardRow('DPOY',     'dpoy_team_id',      'dpoy_player_name')}
+                        ${mkAwardRow('MIP',      'mip_team_id',       'mip_player_name')}
+                        ${mkAwardRow('6º Homem', 'sixth_man_team_id', 'sixth_man_player_name')}
+                        ${mkAwardRow('ROY',      'roy_team_id',       'roy_player_name')}
+                    </div>
+                </div>
+
+                ${nbaCupHtml}
+                ${extendedHtml}
+
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+                    <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-list-ol"></i> ${isElite ? '4' : '2'}. Posições</div>
+                    <div style="font-size:12px;color:var(--text-3);margin:4px 0 10px">Preencha a posição final de <b>todos</b> os times de cada conferência. Os 8 primeiros valem pontos de seed e formam o chaveamento; os demais ficam registrados no histórico de posições.</div>
+                    <div id="standingsContainer">
+                        <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">
+                            <i class="bi bi-download me-1"></i> Carregar Times
+                        </button>
+                    </div>
+                </div>
+
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                    <button type="button" id="btnSalvarRegular" class="btn btn-orange" style="border-radius:15px"
+                            onclick="salvarTemporadaRegular(${season.id}, '${league}')">
+                        <i class="bi bi-save me-1"></i> ${naEtapaPlayoffs ? 'Salvar de novo a temporada regular' : 'Salvar temporada regular'}
                     </button>
+                    <span style="font-size:11.5px;color:var(--text-3)">Atualiza a Tabela, libera a loteria e monta o chaveamento.</span>
                 </div>
             </div>
 
-            <!-- 3. Playoffs -->
-            <div class="panel mb-3">
-                <div class="panel-title"><i class="bi bi-diagram-3"></i> 3. Playoffs</div>
+            <!-- ETAPA 2 — playoffs -->
+            <div class="panel mb-3"${naEtapaPlayoffs ? '' : ' style="opacity:.55"'}>
+                <div class="panel-header" style="margin-bottom:6px">
+                    <div>
+                        <div class="panel-title"><i class="bi bi-2-circle-fill" style="color:#f59e0b"></i> Etapa 2 — Playoffs</div>
+                        <div class="panel-sub">Preencha o chaveamento conforme as séries forem decididas.</div>
+                    </div>
+                </div>
                 <div id="playoffBracketContainer" style="margin-top:12px">
-                    <p style="font-size:13px;color:var(--text-3);margin-bottom:10px">Carregue os times e preencha a classificação primeiro, depois gere o chaveamento.</p>
+                    ${naEtapaPlayoffs ? `
+                    <p style="font-size:13px;color:var(--text-3);margin-bottom:10px">Chaveamento ainda não montado. Gere a partir da classificação salva.</p>
                     <button type="button" class="btn-ghost" onclick="generateBracket('${league}')">
                         <i class="bi bi-diagram-3 me-1"></i> Gerar Chaveamento
-                    </button>
+                    </button>` : `
+                    <p style="font-size:13px;color:var(--text-3);margin:0"><i class="bi bi-lock-fill me-2"></i>
+                        Salve a etapa 1 primeiro — o chaveamento nasce da classificação.
+                    </p>`}
                 </div>
             </div>
 
             <!-- Submit -->
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <button type="submit" class="btn btn-orange" style="border-radius:15px">
-                    <i class="bi bi-eye me-1"></i> Revisar Pontuação
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <button type="submit" class="btn btn-orange" style="border-radius:15px"${naEtapaPlayoffs ? '' : ' disabled'}>
+                    <i class="bi bi-check2-circle me-1"></i> Registrar pontuação final
                 </button>
                 <button type="button" class="btn-ghost" onclick="${backFn}">Cancelar</button>
+                ${naEtapaPlayoffs
+                    ? `<span style="font-size:11.5px;color:var(--text-3)">Soma seeds + prêmios + playoffs e fecha a temporada.</span>`
+                    : `<span style="font-size:11.5px;color:var(--text-3)">Disponível depois de salvar a etapa 1.</span>`}
             </div>
         </form>`}
     `;
+
+    // A classificação precisa dos times na tela ANTES do rascunho voltar —
+    // restaurar uma posição num <select> que ainda não tem opção não guarda
+    // nada. Por isso os times carregam sozinhos aqui, e o restante do
+    // rascunho só entra depois.
+    if (document.getElementById('standingsContainer')) {
+        await loadTeamsForStandings(league);
+    }
 
     // Restore award/player-name fields from form cache
     if (cached?.form) {
         const form = document.getElementById('formRegistroPontuacao');
         if (form) {
-            // Restaura campos simples (team_ids, etc)
+            // Restaura campos simples: selects de time e os nomes digitados
+            // dos prêmios estendidos (esses são <input>, não <select>).
             Object.entries(cached.form).forEach(([name, value]) => {
                 const el = form.querySelector(`[name="${name}"]`);
-                if (el && el.tagName === 'SELECT' && !name.endsWith('_player_name')) el.value = value;
+                if (!el || value === undefined || value === null) return;
+                if (el.tagName === 'INPUT') { el.value = value; return; }
+                if (el.tagName === 'SELECT' && !name.endsWith('_player_name')) el.value = value;
             });
+            // Posição já preenchida some das outras vagas, como no preenchimento normal.
+            ['leste', 'oeste'].forEach(_updateStandingsUnique);
             // Para cada prêmio com time selecionado, carrega jogadores e restaura o nome
             const awardNames = ['mvp','dpoy','mip','sixth_man','roy'];
             const restorePromises = awardNames.map(async a => {
@@ -1132,9 +1340,79 @@ async function showRegistroPontuacao(league) {
     document.getElementById('formRegistroPontuacao')
         ?.addEventListener('change', _regPtsSaveCache);
 
-    // Restore bracket cache if available
-    if (_restoreBracketCache(league, season.id)) {
-        _renderBracket(league);
+    // O chaveamento já foi recuperado lá em cima (cache local ou rascunho do
+    // servidor); aqui é só desenhar o que houver.
+    if (_bracket) _renderBracket(league);
+}
+
+/**
+ * ETAPA 1 — salva a campanha e o que a acompanha.
+ *
+ * É o salvamento do "dia da temporada regular": grava a classificação, que é
+ * de onde saem a página Tabela e a loteria do draft, guarda os prêmios
+ * estendidos da ELITE e monta o chaveamento pro dia dos playoffs. Os pontos
+ * de playoff e de prêmio individual NÃO entram aqui — eles só valem no
+ * registro final, senão uma temporada salva pela metade já mexeria no ranking.
+ */
+async function salvarTemporadaRegular(seasonId, league) {
+    const form = document.getElementById('formRegistroPontuacao');
+    if (!form) return;
+
+    const getRankList = (conf) => Array.from(form.querySelectorAll(`[name^="${conf}_rank_"]`))
+        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+        .map(s => s.value || null)
+        .filter(Boolean);
+
+    const leste = getRankList('leste'), oeste = getRankList('oeste');
+    if (leste.length < 8 || oeste.length < 8) {
+        showAlert('warning', `Preencha ao menos os 8 primeiros de cada conferência — é deles que sai o chaveamento. (Leste: ${leste.length}/8 · Oeste: ${oeste.length}/8)`);
+        return;
+    }
+
+    // O autosave pendente não tem mais o que fazer: o rascunho vai inteiro
+    // junto deste salvamento, e deixá-lo armado só criaria uma gravação
+    // atrasada em cima do que acabou de ser gravado.
+    clearTimeout(_regPtsAutosaveTimer);
+
+    const btn = document.getElementById('btnSalvarRegular');
+    const htmlOriginal = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
+
+    try {
+        await api('seasons.php?action=save_temporada_regular', {
+            method: 'POST',
+            body: JSON.stringify({
+                season_id: seasonId,
+                standings_leste: leste,
+                standings_oeste: oeste,
+                extended_awards: league === 'ELITE' ? _regPtsCollectExtended() : [],
+                dados: _regPtsRascunhoAtual(),
+            })
+        });
+
+        _regPtsEtapa = 'playoffs';
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i> Salvar de novo a temporada regular'; }
+
+        // O chaveamento nasce junto: era mais um clique separado, e ficar
+        // esperando por ele é o que fazia a etapa 2 parecer travada.
+        //
+        // Só que ele NÃO é refeito se já existir: salvar a campanha de novo
+        // (pra corrigir uma posição, por exemplo) não pode apagar séries de
+        // playoff já preenchidas. Pra isso existe o "Regerar chaveamento",
+        // que é um clique consciente.
+        const jaTemBracket = !!_bracket;
+        if (!jaTemBracket) generateBracket(league);
+        showAlert('success', jaTemBracket
+            ? 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação. O chaveamento preenchido foi mantido — use "Regerar chaveamento" se as posições mudaram.'
+            : 'Temporada regular salva. A Tabela e a loteria já enxergam esta classificação, e o chaveamento está montado abaixo.');
+
+        // Reabre a tela pra a etapa 2 destravar (o botão final e o painel
+        // saem do estado bloqueado). O rascunho acabou de ir pro servidor,
+        // então nada do que estava digitado se perde no caminho.
+        setTimeout(() => showRegistroPontuacao(league), 900);
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = htmlOriginal; }
+        showAlert('danger', 'Erro ao salvar a temporada regular: ' + (e?.error || e?.message || 'Desconhecido'));
     }
 }
 
@@ -1175,16 +1453,18 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         sixth_man_team_id: fv('sixth_man_team_id'),
         roy: fv('roy_player_name'),
         roy_team_id: fv('roy_team_id'),
-        nba_cup_team_id: fv('nba_cup_team_id')
+        nba_cup_team_id: fv('nba_cup_team_id'),
+        // Os estendidos já foram gravados na etapa 1, mas vão junto de novo:
+        // se alguém corrigiu um All-NBA aqui e não voltou a salvar a etapa 1,
+        // a correção iria pro lixo em silêncio.
+        extended_awards: league === 'ELITE' ? _regPtsCollectExtended() : []
     };
 
-    // Guardar payload para ser enviado ao confirmar na revisão
+    // Guardar payload para ser enviado ao confirmar na revisão.
+    // Os rascunhos NÃO são limpos aqui: a revisão ainda pode ser cancelada, e
+    // apagar antes de gravar custava o preenchimento inteiro de quem voltou.
+    // Quem limpa é _saveReviewedPoints(), depois do salvamento dar certo.
     _regPtsPendingPayload = payload;
-    // Limpar caches locais (ainda não salva na API)
-    if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
-    _clearFormCache(league, seasonId);
-    _clearBracketCache(league, seasonId);
-    // Mostrar painel de revisão com pontos auto-calculados
     _showReviewPanel(seasonId, league, payload);
 }
 

@@ -3276,7 +3276,11 @@ async function showLeague(league) {
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
       { icon: 'bi-clipboard-data-fill',     label: 'Pontuação',               fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
-      { icon: 'bi-star-half',               label: 'Prêmios<br>Estendidos',      fn: `showExtendedAwards('${league}')`,      color: '#eab308', bg: 'rgba(234,179,8,.12)'   },
+      // Prêmios Estendidos saiu daqui: eles agora são preenchidos dentro do
+      // card de Pontuação, na etapa 1, junto do resto da temporada — era um
+      // card só pra atravessar de uma tela pra outra no meio do registro. A
+      // função (showExtendedAwards) continua existindo pra corrigir
+      // temporada antiga, só não tem mais atalho.
       // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
       // existindo (showScheduler), só não têm mais atalho no card.
       { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },

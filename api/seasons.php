@@ -392,7 +392,8 @@ $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'finalize_sprint',
-                 'resync_season_points', 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw'];
+                 'resync_season_points', 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw',
+                 'save_temporada_regular', 'registro_rascunho', 'salvar_rascunho'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -490,6 +491,126 @@ function recalcTeamsRankingPoints(PDO $pdo, string $league): void {
         ), 0)
         WHERE t.league = ?
     ")->execute([$league]);
+}
+
+/**
+ * Deixa team_ranking_points com UMA linha por time/temporada.
+ *
+ * A tabela nasceu sem chave única em (team_id, season_id), mas metade do
+ * código grava nela com `ON DUPLICATE KEY UPDATE` — que, sem a chave, nunca
+ * dispara. Cada gravação virava uma linha NOVA, e como o total é a SOMA das
+ * linhas da temporada, registrar a mesma temporada duas vezes dobrava os
+ * pontos de todo mundo. Passava despercebido porque o caminho normal era
+ * registrar uma vez só.
+ *
+ * Com o registro em duas etapas isso deixa de ser exceção: salvar a campanha,
+ * corrigir uma posição e salvar de novo é o uso esperado. Então aqui as
+ * duplicatas existentes são fundidas numa linha só (somando, pra não mudar
+ * nenhum total já publicado) e a chave entra pra que o upsert passe a
+ * funcionar como o código sempre supôs.
+ *
+ * Idempotente e barata depois da primeira vez: se a chave já existe, sai logo.
+ */
+function ensureRankingPointsSchema(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    // DDL comita sozinho no MySQL — nunca de dentro de uma transação.
+    if ($pdo->inTransaction()) return;
+    $ok = true;
+
+    try {
+        // A coluna de posição só existe no script de instalação; em banco
+        // antigo ela nunca foi criada, e é por isso que set_standings
+        // estourava com "Unknown column" em vez de gravar.
+        if (!columnExists($pdo, 'team_ranking_points', 'regular_season_position')) {
+            $pdo->exec("ALTER TABLE team_ranking_points ADD COLUMN regular_season_position INT NULL AFTER league");
+        }
+
+        $temChave = $pdo->query("SHOW INDEX FROM team_ranking_points WHERE Key_name = 'uq_trp_team_season'")->fetch();
+        if ($temChave) return;
+
+        // Funde as duplicatas antes da chave — com elas no lugar o ALTER falha.
+        $dups = $pdo->query("SELECT team_id, season_id FROM team_ranking_points
+                          GROUP BY team_id, season_id HAVING COUNT(*) > 1")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($dups as $d) {
+            $st = $pdo->prepare("SELECT MIN(id) AS keeper,
+                                        SUM(COALESCE(regular_season_points,0)) AS reg,
+                                        MAX(COALESCE(playoff_champion,0)) AS pc,
+                                        MAX(COALESCE(playoff_runner_up,0)) AS pr,
+                                        MAX(COALESCE(playoff_conference_finals,0)) AS pcf,
+                                        MAX(COALESCE(playoff_second_round,0)) AS psr,
+                                        MAX(COALESCE(playoff_first_round,0)) AS pfr,
+                                        SUM(COALESCE(playoff_points,0)) AS pp,
+                                        SUM(COALESCE(awards_count,0)) AS ac,
+                                        SUM(COALESCE(awards_points,0)) AS ap
+                                   FROM team_ranking_points WHERE team_id = ? AND season_id = ?");
+            $st->execute([$d['team_id'], $d['season_id']]);
+            $m = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$m) continue;
+            $pdo->prepare("UPDATE team_ranking_points
+                              SET regular_season_points = ?, playoff_champion = ?, playoff_runner_up = ?,
+                                  playoff_conference_finals = ?, playoff_second_round = ?, playoff_first_round = ?,
+                                  playoff_points = ?, awards_count = ?, awards_points = ?
+                            WHERE id = ?")
+                ->execute([$m['reg'], $m['pc'], $m['pr'], $m['pcf'], $m['psr'], $m['pfr'],
+                           $m['pp'], $m['ac'], $m['ap'], $m['keeper']]);
+            $pdo->prepare("DELETE FROM team_ranking_points WHERE team_id = ? AND season_id = ? AND id <> ?")
+                ->execute([$d['team_id'], $d['season_id'], $m['keeper']]);
+        }
+
+        $pdo->exec("ALTER TABLE team_ranking_points ADD UNIQUE KEY uq_trp_team_season (team_id, season_id)");
+    } catch (Throwable $e) {
+        // Sem a chave o comportamento volta a ser o de antes — errado, mas
+        // não pior. Registrar pontuação não pode falhar por causa disto.
+        error_log('[seasons] ensureRankingPointsSchema: ' . $e->getMessage());
+    }
+}
+
+/**
+ * O rascunho do registro de pontuação.
+ *
+ * O registro deixou de ser um formulário de uma sentada só: a temporada
+ * regular é preenchida num dia e os playoffs no outro, e no meio disso a
+ * pessoa fecha a aba. O localStorage já guardava algo, mas morre com o
+ * navegador — trocar de máquina ou limpar o histórico custava o
+ * preenchimento inteiro. Aqui o rascunho fica no banco, então ele
+ * atravessa a troca de aparelho.
+ *
+ * `etapa` é o que a tela usa pra saber onde parou: 'regular' enquanto a
+ * campanha ainda não foi salva, 'playoffs' depois que foi.
+ */
+function ensureRegistroRascunhoTable(PDO $pdo): void
+{
+    // DDL faz commit implícito no MySQL — nunca de dentro de transação.
+    if ($pdo->inTransaction()) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS season_registro_rascunho (
+        season_id  INT NOT NULL PRIMARY KEY,
+        league     VARCHAR(20) NOT NULL,
+        etapa      VARCHAR(20) NOT NULL DEFAULT 'regular',
+        dados      LONGTEXT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** Grava (ou atualiza) o rascunho de uma temporada. */
+function salvarRegistroRascunho(PDO $pdo, int $seasonId, string $league, ?string $etapa, $dados): void
+{
+    ensureRegistroRascunhoTable($pdo);
+    $json = is_string($dados) ? $dados : json_encode($dados, JSON_UNESCAPED_UNICODE);
+    // Sem etapa informada, a que já está gravada continua valendo: o autosave
+    // do formulário não pode empurrar quem já salvou a campanha de volta.
+    if ($etapa === null) {
+        $pdo->prepare("INSERT INTO season_registro_rascunho (season_id, league, etapa, dados)
+                       VALUES (?, ?, 'regular', ?)
+                       ON DUPLICATE KEY UPDATE league = VALUES(league), dados = VALUES(dados)")
+            ->execute([$seasonId, $league, $json]);
+        return;
+    }
+    $pdo->prepare("INSERT INTO season_registro_rascunho (season_id, league, etapa, dados)
+                   VALUES (?, ?, ?, ?)
+                   ON DUPLICATE KEY UPDATE league = VALUES(league), etapa = VALUES(etapa), dados = VALUES(dados)")
+        ->execute([$seasonId, $league, $etapa, $json]);
 }
 
 const PLAYER_SKILL_COLS = ['skill_in','skill_mid','skill_3pt','skill_post_d','skill_per_d',
@@ -1812,6 +1933,149 @@ try {
             break;
 
         // ========== VERIFICAR SE HISTÓRICO FOI REGISTRADO ==========
+        // ========== RASCUNHO DO REGISTRO (autosave do formulário) ==========
+        // Só leitura/escrita do que está digitado. Nada aqui pontua nem
+        // registra nada — é o que permite fechar a aba no meio e voltar.
+        case 'registro_rascunho': {
+            $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            ensureRegistroRascunhoTable($pdo);
+            $stmtR = $pdo->prepare("SELECT etapa, dados, updated_at FROM season_registro_rascunho WHERE season_id = ?");
+            $stmtR->execute([$seasonId]);
+            $row = $stmtR->fetch(PDO::FETCH_ASSOC);
+            echo json_encode([
+                'success' => true,
+                'etapa'   => $row['etapa'] ?? 'regular',
+                'dados'   => $row && $row['dados'] ? json_decode($row['dados'], true) : null,
+                'updated_at' => $row['updated_at'] ?? null,
+            ]);
+            break;
+        }
+
+        case 'salvar_rascunho': {
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true) ?: [];
+            $seasonId = (int)($input['season_id'] ?? 0);
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            $stmtL = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtL->execute([$seasonId]);
+            $lgRasc = $stmtL->fetchColumn();
+            if (!$lgRasc) throw new Exception('Temporada não encontrada');
+            // A etapa NÃO vem do autosave: quem a muda é o salvamento da
+            // campanha. Assim um autosave atrasado não desfaz o avanço.
+            salvarRegistroRascunho($pdo, $seasonId, (string)$lgRasc, null, $input['dados'] ?? null);
+            echo json_encode(['success' => true]);
+            break;
+        }
+
+        // ========== ETAPA 1: TEMPORADA REGULAR ==========
+        //
+        // A campanha e os prêmios são preenchidos num dia; os playoffs, no
+        // outro. Este é o primeiro dos dois salvamentos: grava a
+        // classificação (que é de onde saem a tabela e a loteria) e os
+        // prêmios estendidos, e deixa o resto guardado no rascunho até o
+        // bracket fechar. Nenhum ponto de playoff ou de prêmio individual é
+        // lançado aqui — esses só entram no registro final.
+        case 'save_temporada_regular': {
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true) ?: [];
+            $seasonId = (int)($input['season_id'] ?? 0);
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+
+            $stmtSR = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtSR->execute([$seasonId]);
+            $leagueR = $stmtSR->fetchColumn();
+            if (!$leagueR) throw new Exception('Temporada não encontrada');
+            $leagueR = (string)$leagueR;
+
+            $stdLeste = (isset($input['standings_leste']) && is_array($input['standings_leste'])) ? $input['standings_leste'] : [];
+            $stdOeste = (isset($input['standings_oeste']) && is_array($input['standings_oeste'])) ? $input['standings_oeste'] : [];
+            if (count($stdLeste) < 8 || count($stdOeste) < 8) {
+                throw new Exception('Preencha ao menos os 8 primeiros de cada conferência — é deles que sai o chaveamento.');
+            }
+            // Time repetido viraria duas posições pra um só e uma posição
+            // vazia pra outro, e a loteria sairia da campanha errada.
+            $todosStd = array_map('intval', array_merge($stdLeste, $stdOeste));
+            if (count(array_unique($todosStd)) !== count($todosStd)) {
+                throw new Exception('Um time aparece em mais de uma posição. Revise a classificação.');
+            }
+
+            // DDL fora da transação: no MySQL um CREATE/ALTER comita sozinho.
+            $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT NOT NULL,
+                position INT NOT NULL,
+                conference VARCHAR(20) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_season_team (season_id, team_id),
+                INDEX idx_season_pos (season_id, position)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            if (!columnExists($pdo, 'season_standings', 'conference')) {
+                $pdo->exec("ALTER TABLE season_standings ADD COLUMN conference VARCHAR(20) NULL AFTER position");
+            }
+            ensureRegistroRascunhoTable($pdo);
+
+            $extTypes = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
+                $stmtStd = $pdo->prepare("INSERT INTO season_standings (season_id, team_id, position, conference) VALUES (?,?,?,?)
+                                          ON DUPLICATE KEY UPDATE position = VALUES(position), conference = VALUES(conference)");
+                // Só a POSIÇÃO é gravada aqui, não os pontos dela. Quem lança
+                // pontuação é o segundo salvamento, que soma seeds, prêmios e
+                // playoffs de uma vez — assim uma temporada preenchida pela
+                // metade nunca aparece no ranking com pontuação parcial.
+                $vistos = [];
+                $gravaConf = function (array $lista, string $conf) use ($stmtStd, $seasonId, &$vistos) {
+                    $pos = 1;
+                    foreach ($lista as $tid) {
+                        $tid = (int)$tid;
+                        if ($tid <= 0 || isset($vistos[$tid])) continue;
+                        $vistos[$tid] = true;
+                        $stmtStd->execute([$seasonId, $tid, $pos, $conf]);
+                        $pos++;
+                    }
+                };
+                $gravaConf($stdLeste, 'LESTE');
+                $gravaConf($stdOeste, 'OESTE');
+
+                // Prêmios estendidos: exclusivos da ELITE, porque é lá que o
+                // bônus de cap existe. Nas outras ligas o campo nem aparece na
+                // tela, e aqui a checagem fecha a porta pelo outro lado.
+                if ($leagueR === 'ELITE' && !empty($input['extended_awards']) && is_array($input['extended_awards'])) {
+                    $phExt = implode(',', array_fill(0, count($extTypes), '?'));
+                    $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ($phExt)")
+                        ->execute(array_merge([$seasonId], $extTypes));
+                    $insExt = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?,?,?,?)");
+                    foreach ($input['extended_awards'] as $ex) {
+                        $tp = (string)($ex['award_type'] ?? '');
+                        $tid = (int)($ex['team_id'] ?? 0);
+                        $pn = trim((string)($ex['player_name'] ?? ''));
+                        if (!in_array($tp, $extTypes, true) || $tid <= 0 || $pn === '') continue;
+                        $insExt->execute([$seasonId, $tid, $tp, $pn]);
+                    }
+                }
+
+                salvarRegistroRascunho($pdo, $seasonId, $leagueR, 'playoffs', $input['dados'] ?? null);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+
+            // Nenhum sync de pontuação aqui, de propósito: esta etapa não
+            // lança ponto nenhum no ranking. Ela existe pra que a Tabela, a
+            // loteria e o chaveamento já possam andar enquanto os playoffs
+            // ainda estão sendo jogados.
+            echo json_encode([
+                'success' => true,
+                'message' => 'Temporada regular salva. A tabela e a loteria já enxergam esta classificação.',
+            ]);
+            break;
+        }
+
         case 'check_season_history':
             $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
             if (!$seasonId) throw new Exception('season_id é obrigatório');
@@ -1840,6 +2104,9 @@ try {
             if (in_array($champion, $allEliminated) || in_array($runnerUp, $allEliminated)) throw new Exception('Não inclua campeão ou vice nas fases de eliminados');
 
             ensurePlayerSeasonLogTable($pdo);
+            // Uma linha por time/temporada. Sem a chave, corrigir um registro
+            // inseria uma segunda linha e o total dobrava — ver a função.
+            ensureRankingPointsSchema($pdo);
             if (!columnExists($pdo, 'teams', 'ranking_titles')) $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
             $stmtShCheck = $pdo->query("SHOW TABLES LIKE 'season_history'");
             if (!$stmtShCheck->fetch()) {
@@ -2000,9 +2267,35 @@ try {
                 $insertStandings($standingsOeste, 'OESTE');
             }
 
+            // Prêmios estendidos (só ELITE) — normalmente já vieram na etapa 1,
+            // mas chegam de novo aqui pra que uma correção feita na tela de
+            // playoffs não se perca. Só entram quando a lista vem preenchida:
+            // um payload sem eles não pode apagar o que já está gravado.
+            $extTypesReg = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
+            if ($league2 === 'ELITE' && !empty($input['extended_awards']) && is_array($input['extended_awards'])) {
+                $phExtReg = implode(',', array_fill(0, count($extTypesReg), '?'));
+                $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ($phExtReg)")
+                    ->execute(array_merge([$seasonId], $extTypesReg));
+                $insExtReg = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?,?,?,?)");
+                foreach ($input['extended_awards'] as $ex) {
+                    $tp = (string)($ex['award_type'] ?? '');
+                    $tid = (int)($ex['team_id'] ?? 0);
+                    $pn = trim((string)($ex['player_name'] ?? ''));
+                    if (!in_array($tp, $extTypesReg, true) || $tid <= 0 || $pn === '') continue;
+                    $insExtReg->execute([$seasonId, $tid, $tp, $pn]);
+                }
+            }
+
             $pdo->commit();
             snapshotPlayersForSeason($pdo, $seasonId, $league2);
             syncTeamSeasonPoints($pdo, $seasonId, $league2, $sprintNumber2, $seasonNumber2);
+            // O registro fechou: o rascunho cumpriu o papel dele e sai de
+            // cena, senão reabrir a tela mostraria o formulário meio cheio
+            // de uma temporada que já está lançada.
+            try {
+                ensureRegistroRascunhoTable($pdo);
+                $pdo->prepare("DELETE FROM season_registro_rascunho WHERE season_id = ?")->execute([$seasonId]);
+            } catch (Throwable $ignored) {}
             echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
             break;
 

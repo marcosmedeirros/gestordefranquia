@@ -275,9 +275,7 @@ html{scroll-behavior:smooth}
       <div class="card-a"><div class="ico" style="background:rgba(6,182,212,.12);color:#06b6d4"><i class="bi bi-bar-chart-steps"></i></div>
         <div class="txt"><div class="nome">Pontuação por Time</div><div class="desc">Ajusta a pontuação time a time.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(16,185,129,.12);color:#10b981"><i class="bi bi-clipboard-data-fill"></i></div>
-        <div class="txt"><div class="nome">Pontuação</div><div class="desc">O lançamento oficial da temporada — é o que alimenta a Tabela que os GMs veem.</div></div></div>
-      <div class="card-a"><div class="ico" style="background:rgba(234,179,8,.12);color:#eab308"><i class="bi bi-star-half"></i></div>
-        <div class="txt"><div class="nome">Prêmios Estendidos</div><div class="desc">As premiações além das principais.</div></div></div>
+        <div class="txt"><div class="nome">Pontuação</div><div class="desc">O lançamento oficial da temporada, em <b>dois salvamentos</b>: primeiro os prêmios e a classificação — que já atualizam a Tabela, liberam a loteria e montam o chaveamento —, e depois os playoffs, que fecham a pontuação. Na ELITE, a NBA Cup e os prêmios estendidos são preenchidos aí mesmo, na primeira parte. O que estiver digitado fica salvo como rascunho até o registro fechar.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(59,130,246,.12);color:#3b82f6"><i class="bi bi-alarm"></i></div>
         <div class="txt"><div class="nome">Agendador de Fases</div><div class="desc">Programa as fases da temporada com data e hora, em vez de abrir e fechar tudo na mão.</div></div></div>
     </div>
