@@ -60,6 +60,11 @@ h1{font-family:'Oswald',sans-serif;font-weight:700;font-size:clamp(26px,5vw,38px
 h1 i{color:var(--red);margin-right:8px}
 .sub{color:var(--text-2);margin:0;max-width:66ch}
 
+.abas{display:flex;gap:6px;flex-wrap:wrap}
+.aba{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);
+  color:var(--text-2);font-size:12px;font-weight:700;letter-spacing:.4px;text-decoration:none;transition:all .18s var(--ease)}
+.aba:hover{border-color:var(--border-md);color:var(--text)}
+.aba.ativa{background:rgba(252,0,37,.1);border-color:var(--red);color:var(--red)}
 .ensaio{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:12px;font-size:13px;
   background:repeating-linear-gradient(135deg,rgba(245,158,11,.10) 0 12px,rgba(245,158,11,.05) 12px 24px);
   border:1px solid rgba(245,158,11,.42)}
@@ -168,11 +173,20 @@ th.n,td.n{text-align:right;font-family:'Oswald',sans-serif;font-weight:600;font-
 <div class="wrap">
 
   <header>
-    <p class="eyebrow">FBA ELITE · Loteria do Draft</p>
+    <p class="eyebrow">FBA <?= htmlspecialchars($ligaEnsaio) ?> · Loteria do Draft</p>
     <h1><i class="bi bi-shuffle"></i>Loteria de ensaio</h1>
     <p class="sub">Modelo 3-2-1: os times fora do playoff entram em quatro grupos, cada um com um número de bolinhas.
       Quanto mais bolinhas, mais chance de pegar as primeiras escolhas.</p>
   </header>
+
+  <?php /* Aqui as abas fazem sentido, diferente da tela oficial: o ensaio é
+           aberto e serve pra entender o modelo. Ver como a loteria fica numa
+           liga de outro tamanho é parte de aprender. */ ?>
+  <div class="abas">
+    <?php foreach (LIGAS_ENSAIO as $lg): ?>
+    <a href="?liga=<?= urlencode($lg) ?>" class="aba<?= $lg === $ligaEnsaio ? ' ativa' : '' ?>"><?= htmlspecialchars($lg) ?></a>
+    <?php endforeach; ?>
+  </div>
 
   <div class="ensaio">
     <i class="bi bi-cone-striped"></i>
@@ -237,6 +251,11 @@ th.n,td.n{text-align:right;font-family:'Oswald',sans-serif;font-weight:600;font-
 </div>
 
 <script>
+/* A liga vem do PHP, que já decidiu qual é: a da URL quando se chega pela
+   tela da loteria, senão a de quem está logado. A temporada não se escolhe
+   — é sempre a que vale na sprint em andamento, então a página acompanha
+   sozinha quando a liga vira de temporada. */
+const LIGA = <?= json_encode($ligaEnsaio) ?>;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const CLASSE_GRUPO = {1:'g1', 2:'g2', 3:'g3', 4:'g4'};
@@ -430,11 +449,21 @@ async function carregar(sortear){
   btn.disabled = true;
   if (sortear) btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Sorteando…';
   try {
-    const res = await fetch('/api/loteria-simulador.php?liga=ELITE' + (sortear ? '&sortear=1' : ''));
+    const res = await fetch(`/api/loteria-simulador.php?liga=${encodeURIComponent(LIGA)}` + (sortear ? '&sortear=1' : ''));
     const d = await res.json();
     if (!d.success) {
-      $('tabela').innerHTML = `<tr><td colspan="6" class="carregando">${esc(d.error || 'Não foi possível montar a loteria.')}</td></tr>`;
-      $('cabecalho').textContent = 'Loteria indisponível';
+      /* Nem toda liga tem uma campanha lançada o ano inteiro. Dizer o motivo
+         e apontar as abas vale mais que "indisponível" — quem chegou aqui
+         veio aprender, e há outra liga ao lado pra isso. */
+      $('tabela').innerHTML = `<tr><td colspan="6" class="carregando">
+        ${esc(d.error || 'Não foi possível montar a loteria.')}<br>
+        <span style="font-size:12px">Escolha outra liga nas abas acima para ver como funciona.</span>
+      </td></tr>`;
+      $('cabecalho').textContent = LIGA;
+      $('subcabecalho').textContent = 'sem loteria para ensaiar agora';
+      $('btnSortear').disabled = true;   // não há o que sortear
+      $('secaoResultado').style.display = 'none';
+      $('rodape').innerHTML = '';
       return;
     }
     dados = d;
@@ -456,7 +485,9 @@ async function carregar(sortear){
   } catch (e) {
     $('cabecalho').textContent = 'Falha ao carregar';
   } finally {
-    btn.disabled = false;
+    // Sem loteria pra esta liga o botão fica desligado — reativá-lo aqui
+    // desfaria isso e daria um botão que não tem o que fazer.
+    if (dados) btn.disabled = false;
     btn.innerHTML = dados && dados.sorteado
       ? '<i class="bi bi-arrow-repeat"></i> Sortear de novo'
       : '<i class="bi bi-dice-5-fill"></i> Sortear a loteria';
