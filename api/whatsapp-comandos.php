@@ -1025,7 +1025,8 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     // completa pra mais garantida:
     //
     //   1. O RASCUNHO do registro de pontuação: é onde ele mora enquanto o
-    //      admin preenche as séries, com vencedores e placares.
+    //      admin preenche as séries, com vencedores e placares. Vale mesmo
+    //      antes de qualquer salvamento — é o que está na tela dele.
     //   2. playoff_series, onde ele fica DEPOIS do registro final — o rascunho
     //      é apagado nessa hora.
     //   3. A CLASSIFICAÇÃO, que dá os confrontos de abertura pelas seeds.
@@ -1038,11 +1039,15 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     $chave = null;
     $encerrado = false;
     try {
-        $st = $pdo->prepare("SELECT etapa, dados FROM season_registro_rascunho WHERE season_id = ?");
+        $st = $pdo->prepare("SELECT dados FROM season_registro_rascunho WHERE season_id = ?");
         $st->execute([$seasonId]);
-        $r = $st->fetch(PDO::FETCH_ASSOC);
-        if ($r && ($r['etapa'] ?? '') === 'playoffs' && !empty($r['dados'])) {
-            $d = json_decode((string)$r['dados'], true);
+        $bruto = $st->fetchColumn();
+        // Basta o chaveamento estar lá. A `etapa` não é consultada de
+        // propósito: ela é controle interno da tela do admin, e exigir que
+        // estivesse em 'playoffs' só criava mais um jeito de o comando
+        // recusar um chaveamento que existe e está certo.
+        if ($bruto) {
+            $d = json_decode((string)$bruto, true);
             if (is_array($d) && !empty($d['bracket'])) $chave = $d['bracket'];
         }
     } catch (Throwable $e) {
