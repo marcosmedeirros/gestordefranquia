@@ -2113,11 +2113,20 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     };
     $sa = $salario($a); $sb = $salario($b);
 
-    // Marca quem leva em cada quesito — é o que a pessoa quer ver de relance.
-    $m = fn($x, $y, bool $maiorGanha = true) => $x === $y ? '' : (($maiorGanha ? $x > $y : $x < $y) ? ' ✅' : '');
+    /* Marca quem leva em cada quesito — é o que a pessoa quer ver de relance.
+       O ✅ virou NEGRITO no próprio valor: com dez linhas de skills mais sete
+       de números, a coluna de check tomava a mensagem inteira e o olho parava
+       nos emojis em vez de parar nos números. Em negrito, quem ganhou salta
+       sem que nada seja acrescentado à linha.
+
+       $m devolve um marcador vazio ou não-vazio; quem transforma em negrito é
+       o $linha, que é por onde TODAS as linhas passam — assim números e
+       skills marcam do mesmo jeito. */
+    $m = fn($x, $y, bool $maiorGanha = true) => $x === $y ? '' : (($maiorGanha ? $x > $y : $x < $y) ? '*' : '');
 
     $linha = function (string $rotulo, $va, $vb, string $sufA = '', string $sufB = '') {
-        return "{$rotulo}: {$va}{$sufA}  |  {$vb}{$sufB}\n";
+        $destaque = fn($v, $marca) => $marca !== '' ? '*' . $v . '*' : (string)$v;
+        return "{$rotulo}: {$destaque($va, $sufA)}  |  {$destaque($vb, $sufB)}\n";
     };
 
     $txt = '*' . $a['name'] . '*' . (!empty($a['is_lenda']) ? ' 👑' : '')
