@@ -39,27 +39,54 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
     return $st->fetchAll(PDO::FETCH_ASSOC);
 };
 
-/* Quem administra vê as ligas que administra — a loteria dele é a que ele
-   vai conduzir. Quem não administra vê a própria liga; e se não houver
-   loteria aberta nela, vê as que estiverem abertas em vez de uma página
-   vazia. Alguém sem franquia cai direto nesse último caso.
+/* A PÁGINA É DE UMA LIGA POR VEZ, E DÁ PRA TROCAR.
+   Antes a liga era imposta: o admin via só as que administra e o GM só a
+   própria, sem escolha nenhuma. Quem administra a NEXT e queria conferir a
+   loteria da ELITE encontrava a mensagem de "nenhuma sessão encontrada",
+   como se nada existisse em lugar nenhum.
 
-   Ver é o que se libera aqui. Editar e sortear continuam sendo do admin, e
-   a tela não entrega esses controles a mais ninguém. */
-if ($canRunLottery && $adminLeagues) {
-    $setupSessions = $buscarSessoes($adminLeagues);
+   Agora a liga entra na URL. As ligas oferecidas são as que a pessoa pode
+   olhar: quem administra alguma escolhe entre todas — a loteria é evento
+   público da liga —, e quem não administra fica na própria, que é a única
+   que lhe diz respeito. */
+$minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
+$ligasVisiveis = $canRunLottery
+    ? $LIGAS_LOTERIA
+    : array_values(array_intersect($LIGAS_LOTERIA, [$minhaLiga]));
+// Sem franquia em nenhuma das quatro — um convidado. Não há "a liga dele"
+// pra restringir, e a alternativa seria uma página em branco.
+if (!$ligasVisiveis) $ligasVisiveis = $LIGAS_LOTERIA;
+
+$ligaPedida = strtoupper((string)($_GET['liga'] ?? ''));
+if (in_array($ligaPedida, $ligasVisiveis, true)) {
+    $ligaAtual = $ligaPedida;
 } else {
-    $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
-    $setupSessions = $buscarSessoes([$minhaLiga]);
-    if (!$setupSessions) $setupSessions = $buscarSessoes($LIGAS_LOTERIA);
+    /* Sem escolha na URL, abre onde há loteria acontecendo — e a própria
+       liga tem preferência quando também está com uma aberta. Abrir na liga
+       do admin só porque é a dele, estando ela parada, mostrava uma tela de
+       "nada por aqui" com a cerimônia rolando na aba ao lado. */
+    $comLoteria = [];
+    foreach ($buscarSessoes($ligasVisiveis) as $s) $comLoteria[$s['league']] = true;
+
+    if (isset($comLoteria[$minhaLiga]))            $ligaAtual = $minhaLiga;
+    elseif ($comLoteria)                           $ligaAtual = array_key_first($comLoteria);
+    elseif (in_array($minhaLiga, $ligasVisiveis, true)) $ligaAtual = $minhaLiga;
+    else                                           $ligaAtual = $ligasVisiveis[0] ?? '';
 }
 
-// Ordem já confirmada (via "Confirmar e aplicar ao draft") da liga do jogador
-// logado — visível pra todo mundo, mesmo quem não administra a loteria.
-$myViewLeague = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
+// Conduzir a cerimônia é outra coisa: continua valendo só pra liga que a
+// pessoa administra de fato (o admin global administra todas).
+$podeConduzirEstaLiga = $ligaAtual !== ''
+    && ($isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
+
+$setupSessions = $ligaAtual ? $buscarSessoes([$ligaAtual]) : [];
+
+// Ordem já confirmada (via "Confirmar e aplicar ao draft") da liga aberta na
+// tela — é o que se mostra quando não há loteria em curso.
+$myViewLeague = $ligaAtual;
 $confirmedOrder = [];
 $confirmedSessionInfo = null;
-if (in_array($myViewLeague, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+if (in_array($myViewLeague, $LIGAS_LOTERIA, true)) {
     $stmtLastSession = $pdo->prepare("
         SELECT ds.id, s.season_number, s.year
         FROM draft_sessions ds
@@ -288,6 +315,12 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-table tr:last-child td{border-bottom:none}
 .balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700;font-variant-numeric:tabular-nums}
 .balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
+.liga-abas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.liga-aba{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);
+  color:var(--text-2);font-size:12px;font-weight:700;letter-spacing:.4px;text-decoration:none;
+  transition:all var(--t) var(--ease)}
+.liga-aba:hover{border-color:var(--border-md);color:var(--text)}
+.liga-aba.ativa{background:var(--red-soft);border-color:var(--red);color:var(--red)}
 /* Dezessete colunas de números: tudo encolhe, e a coluna do time gruda na
    esquerda pra não sumir quando a tabela rola de lado. */
 .matriz-table{font-size:10px;min-width:840px}
@@ -503,14 +536,36 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
   </div>
 
+  <?php /* AS LIGAS, quando há mais de uma pra olhar. A loteria é evento
+           público, então quem administra alguma consegue acompanhar todas —
+           e não encontra mais uma tela de "nada por aqui" só porque a
+           sessão aberta é de outra liga. */ ?>
+  <?php if (count($ligasVisiveis) > 1): ?>
+  <div class="liga-abas">
+    <?php foreach ($ligasVisiveis as $lg): ?>
+    <a href="?liga=<?= urlencode($lg) ?>" class="liga-aba<?= $lg === $ligaAtual ? ' ativa' : '' ?>"><?= htmlspecialchars($lg) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
   <?php /* A ordem já confirmada só interessa quando não há loteria em curso:
            havendo sessão em configuração, o que a tela mostra abaixo é a
            desta temporada, e repetir a do ano passado no topo confundiria. */ ?>
-  <?php if (!$canRunLottery && !$setupSessions): ?>
-  <div class="section-title bc-off"><i class="bi bi-list-ol"></i> Ordem do draft<?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
+  <?php if (!$setupSessions): ?>
+  <div class="section-title bc-off"><i class="bi bi-list-ol"></i> Ordem do draft<?= $ligaAtual ? ' · ' . htmlspecialchars($ligaAtual) : '' ?><?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
   <div class="panel bc-off">
     <?php if (!$confirmedOrder): ?>
-    <div class="empty"><i class="bi bi-hourglass-split" style="font-size:22px;display:block;margin-bottom:8px"></i>A ordem do draft desta temporada ainda não foi sorteada. Volte mais tarde.</div>
+    <div class="empty"><i class="bi bi-hourglass-split" style="font-size:22px;display:block;margin-bottom:8px"></i>
+      <?= $ligaAtual
+        ? 'A ' . htmlspecialchars($ligaAtual) . ' ainda não sorteou a ordem do draft desta temporada.'
+        : 'Nenhuma liga pra mostrar.' ?>
+      <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo. */ ?>
+      <?php if ($podeConduzirEstaLiga): ?>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px">
+        A loteria aparece aqui quando existir uma sessão de draft em configuração — ela é criada na tela de Draft.
+      </div>
+      <?php endif; ?>
+    </div>
     <?php else: ?>
     <div class="board">
       <?php foreach ($confirmedOrder as $o): ?>
@@ -522,14 +577,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($canRunLottery && !$setupSessions): ?>
-  <div class="panel bc-off" style="text-align:center">
-    <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
-    <p style="margin-top:10px">Nenhuma sessão de draft (ELITE, NEXT, RISE ou ROOKIE) com status "setup" encontrada. Crie a sessão
-    de draft da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
   </div>
   <?php endif; ?>
 
@@ -561,7 +608,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           if ($draftUnico['year']): ?> <span style="color:var(--text-3);font-weight:600">(<?= htmlspecialchars($draftUnico['year']) ?>)</span><?php endif; ?>
       </div>
     </div>
-    <?php if ($canRunLottery): ?>
+    <?php if ($podeConduzirEstaLiga): ?>
     <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
     <?php endif; ?>
   </div>
@@ -581,7 +628,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           <?php endforeach; ?>
         </select>
       </div>
-      <?php if ($canRunLottery): ?>
+      <?php if ($podeConduzirEstaLiga): ?>
       <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
       <?php endif; ?>
     </div>
@@ -600,7 +647,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
       <?php /* Quem não sorteia não deve ser mandado clicar num botão que a
                tela dele não tem. */ ?>
-      <?= $canRunLottery
+      <?= $podeConduzirEstaLiga
         ? 'Clique em <b>Sortear a loteria</b> quando estiver tudo certo.'
         : 'A cerimônia do sorteio é feita pela administração da liga.' ?>
     </div>
@@ -610,7 +657,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
              grupo é trocada nesta tabela e a ordem no quadro, lá embaixo.
              Enquanto ela morava só no quadro, dava pra editar as chances,
              sair da página e perder tudo sem nunca ver o aviso. */ ?>
-    <?php if ($canRunLottery): ?>
+    <?php if ($podeConduzirEstaLiga): ?>
     <div id="ordemBar" class="ordem-bar" style="display:none">
       <span id="ordemBarTexto"></span>
       <span class="ordem-bar-acoes">
@@ -655,7 +702,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
              definem o draft; quem não administra vê as chances, a matriz e a
              ordem, mas não o palco — um botão "Revelar" numa prévia mostraria
              a ordem da campanha como se fosse resultado de sorteio. */ ?>
-    <?php if ($canRunLottery): ?>
+    <?php if ($podeConduzirEstaLiga): ?>
     <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
     <div class="reveal-stage" id="revealStage">
       <div class="reveal-fx" id="revealFx" aria-hidden="true"></div>
@@ -699,7 +746,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
 
-    <?php if ($canRunLottery): ?>
+    <?php if ($podeConduzirEstaLiga): ?>
     <div class="panel" id="confirmPanel" style="display:none">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
@@ -921,7 +968,7 @@ function logo(url, cls){
    grupos e as chances recalculados, sem gravar nada. Quem grava é o botão
    Salvar. Enquanto houver mudança pendente o sorteio fica bloqueado, porque
    ele sortearia pela ordem gravada, não pela que está na tela. */
-const PODE_EDITAR_ORDEM = <?= $canRunLottery ? 'true' : 'false' ?>;
+const PODE_EDITAR_ORDEM = <?= $podeConduzirEstaLiga ? 'true' : 'false' ?>;
 let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
 let ordemSalvaRef = [];   // como estava na última vez que gravou
 /* A cauda de playoff também se edita, por um motivo diferente: quem foi
