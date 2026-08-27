@@ -671,6 +671,16 @@ function ensureRegistroRascunhoTable(PDO $pdo): void
         dados      LONGTEXT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* A ORDEM GERAL dos que ficaram fora dos playoffs (17º em diante).
+       A posição por conferência não distingue o 15º de um lado do 15º do
+       outro, e a loteria precisa dessa ordem pra montar os grupos de
+       bolinhas. Fica numa coluna própria: `position` continua sendo a
+       colocação na conferência, que é o que o chaveamento e a pontuação de
+       seed usam. Nulo pra quem se classificou e pras temporadas antigas. */
+    if (!$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'overall_position'")->fetch()) {
+        $pdo->exec("ALTER TABLE season_standings ADD COLUMN overall_position INT NULL AFTER position");
+    }
 }
 
 /** Grava (ou atualiza) o rascunho de uma temporada. */
@@ -2130,6 +2140,39 @@ try {
                 };
                 $gravaConf($stdLeste, 'LESTE');
                 $gravaConf($stdOeste, 'OESTE');
+
+                /* A ORDEM GERAL DOS NÃO CLASSIFICADOS.
+                   A posição por conferência não separa quem terminou no mesmo
+                   degrau nos dois lados: o 15º do Leste e o 15º do Oeste são
+                   iguais na tabela, e a loteria precisa saber qual dos dois
+                   teve a campanha pior pra montar os grupos de bolinhas. Como
+                   vitórias deixaram de ser cadastradas, essa informação não
+                   existia em lugar nenhum — e o desempate acabava saindo da
+                   ordem interna de uma consulta.
+
+                   Então ela passa a ser DECLARADA: o admin ordena os que
+                   ficaram de fora, do melhor pro pior, e isso vira
+                   overall_position (17 em diante). É gravado por cima da
+                   classificação de conferência, que continua valendo pro
+                   chaveamento e pra pontuação de seed. */
+                $ordemGeral = is_array($input['ordem_geral'] ?? null) ? $input['ordem_geral'] : [];
+                if ($ordemGeral) {
+                    // O primeiro de fora vem logo depois dos classificados:
+                    // com 32 times e 16 na lista, começa no 17.
+                    $primeiroDeFora = count($vistos) - count($ordemGeral) + 1;
+
+                    $stmtGeral = $pdo->prepare("UPDATE season_standings SET overall_position = ?
+                                                 WHERE season_id = ? AND team_id = ?");
+                    $numero = $primeiroDeFora;
+                    $vistosGeral = [];
+                    foreach ($ordemGeral as $tid) {
+                        $tid = (int)$tid;
+                        if ($tid <= 0 || isset($vistosGeral[$tid])) continue;
+                        $vistosGeral[$tid] = true;
+                        $stmtGeral->execute([$numero, $seasonId, $tid]);
+                        $numero++;
+                    }
+                }
 
                 // Prêmios estendidos: exclusivos da ELITE, porque é lá que o
                 // bônus de cap existe. Nas outras ligas o campo nem aparece na

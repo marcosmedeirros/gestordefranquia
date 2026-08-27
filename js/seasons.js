@@ -1431,6 +1431,20 @@ async function showRegistroPontuacao(league) {
             // Posição já preenchida some das outras vagas, como no preenchimento normal.
             ['leste', 'oeste'].forEach(_updateStandingsUnique);
 
+            /* A ORDEM GERAL vem DEPOIS das conferências, e é por isso que ela
+               é remontada aqui: quando loadTeamsForStandings roda, os selects
+               de conferência ainda estão vazios, e a lista nasceria vazia.
+
+               O que o admin já tinha ajustado é lido do próprio rascunho
+               (geral_rank_*) e tem prioridade sobre o palpite automático —
+               reabrir a tela não pode desfazer uma ordem corrigida na mão. */
+            window._ordemGeralSalva = Object.keys(cached.form)
+                .filter(n => n.startsWith('geral_rank_'))
+                .sort((a, b) => parseInt(a.split('geral_rank_')[1], 10) - parseInt(b.split('geral_rank_')[1], 10))
+                .map(n => cached.form[n])
+                .filter(Boolean);
+            montarOrdemGeral();
+
             // Prêmios estendidos: os campos escondidos já voltaram na passada
             // acima (são <input>), então aqui só falta redesenhar o visual da
             // escolha — o nome do time embaixo e a borda verde. Nada de rede:
@@ -1563,6 +1577,11 @@ async function salvarTemporadaRegular(seasonId, league) {
                 season_id: seasonId,
                 standings_leste: leste,
                 standings_oeste: oeste,
+                // A ordem geral dos que ficaram fora (17º em diante). É o que
+                // a loteria usa pra montar os grupos de bolinhas — sem ela, o
+                // 15º de um lado e o 15º do outro ficam empatados e o
+                // desempate acaba saindo da ordem de uma consulta.
+                ordem_geral: getRankList('geral'),
                 // Só os estendidos DESTA etapa — o Finals MVP é da etapa 2 e
                 // não pode ser apagado por um salvamento de campanha.
                 extended_awards: league === 'ELITE' ? _regPtsCollectExtended('regular') : [],
@@ -1991,6 +2010,70 @@ function renderHistoryForm(seasonId, league) {
     `;
 }
 
+/**
+ * A ORDEM GERAL dos que ficaram fora dos playoffs — o 17º em diante.
+ *
+ * Nasce das conferências, do PIOR pro melhor: os dois últimos ocupam as duas
+ * últimas vagas (32 e 31 numa liga de 32), depois os penúltimos, e assim por
+ * diante. É um chute educado — dentro do mesmo degrau ninguém sabe qual dos
+ * dois foi pior — e é justamente por isso que a lista é editável: o admin
+ * corrige o que a régua não tem como saber.
+ *
+ * Só aparece quando as conferências já têm gente abaixo da linha do playoff;
+ * antes disso seria uma lista de vazios.
+ */
+function montarOrdemGeral() {
+    const wrap  = document.getElementById('ordemGeralWrap');
+    const slots = document.getElementById('ordemGeralSlots');
+    if (!wrap || !slots) return;
+
+    const tById = seasonsState.teamsById || {};
+    const daConf = (conf) => Array.from(
+        document.querySelectorAll(`select[name^="${conf}_rank_"]`))
+        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+        .map((s, i) => ({ id: s.value, rank: i + 1 }))
+        .filter(x => x.id && x.rank > 8);
+
+    const leste = daConf('leste'), oeste = daConf('oeste');
+    const fora = [];
+    // Do pior pro melhor, alternando os dois lados no mesmo degrau.
+    const maxRank = Math.max(leste.length ? leste[leste.length - 1].rank : 0,
+                             oeste.length ? oeste[oeste.length - 1].rank : 0);
+    for (let r = maxRank; r > 8; r--) {
+        [leste, oeste].forEach(lista => {
+            const achou = lista.find(x => x.rank === r);
+            if (achou) fora.push(achou.id);
+        });
+    }
+
+    if (fora.length < 2) { wrap.style.display = 'none'; slots.innerHTML = ''; return; }
+    wrap.style.display = '';
+
+    // A numeração continua de onde os classificados param.
+    const total = Object.keys(tById).length || (leste.length + oeste.length + 16);
+    const primeiro = total - fora.length + 1;
+
+    // A ordem guardada antes (de um salvamento ou do rascunho) tem prioridade
+    // sobre o chute: reabrir a tela não pode desfazer o ajuste de quem já
+    // arrumou a lista na mão.
+    const guardada = (window._ordemGeralSalva || []).filter(id => fora.includes(String(id)));
+    const inicial = guardada.length === fora.length ? guardada.map(String) : fora.slice().reverse();
+
+    const opts = (sel) => '<option value="">—</option>' + fora.map(id => {
+        const t = tById[String(id)] || {};
+        return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
+    }).join('');
+
+    slots.innerHTML = inicial.map((id, i) => `
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
+            <select class="form-select form-select-sm bg-dark text-white border-orange"
+                    name="geral_rank_${primeiro + i}" style="border-radius:10px"
+                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(id)}</select>
+        </div>`).join('');
+    _updateStandingsUnique('geral');
+}
+
 function _updateStandingsUnique(conf) {
     const slots = Array.from(document.querySelectorAll(`select[name^="${conf}_rank_"]`));
     const selected = new Set(slots.map(s => s.value).filter(v => v));
@@ -2230,7 +2313,7 @@ async function loadTeamsForStandings(league) {
                     <span class="fw-bold" style="width:28px;text-align:right;color:${outOfPlayoffs ? 'var(--text-3)' : 'var(--text-2)'}">${rank}°</span>
                     <select class="form-select form-select-sm bg-dark text-white border-orange"
                             name="${conf}_rank_${rank}" style="border-radius:10px;${outOfPlayoffs ? 'opacity:.85' : ''}"
-                            onchange="_updateStandingsUnique('${conf}'); _regPtsSaveCache();">${opts}</select>
+                            onchange="_updateStandingsUnique('${conf}'); montarOrdemGeral(); _regPtsSaveCache();">${opts}</select>
                 </div>
                 ${isSeedCut ? `<div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;padding-left:36px"><div style="flex:1;height:1px;background:var(--border-red)"></div><span style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--red)">Linha do Playoff</span><div style="flex:1;height:1px;background:var(--border)"></div></div>` : ''}`;
             }).join('');
@@ -2247,7 +2330,18 @@ async function loadTeamsForStandings(league) {
                     <h6 class="text-orange mb-2"><i class="bi bi-geo-alt me-1"></i>Conferência Oeste</h6>
                     ${makeSlots('oeste', oeste)}
                 </div>
+            </div>
+            <div id="ordemGeralWrap" class="mt-4" style="display:none">
+                <h6 class="text-orange mb-1"><i class="bi bi-list-ol me-1"></i>Ordem geral de quem ficou fora</h6>
+                <div class="small text-secondary mb-2">
+                    É daqui que a <b>loteria</b> monta os grupos de bolinhas. A colocação de
+                    conferência não separa quem terminou no mesmo degrau nos dois lados —
+                    esta lista separa. Vem preenchida pelas conferências, do pior pro melhor;
+                    <b>ajuste se a ordem real foi outra</b>.
+                </div>
+                <div id="ordemGeralSlots"></div>
             </div>`;
+        montarOrdemGeral();
 
         // Popular selects de premiações
         const selects = document.querySelectorAll('select[name$="_team_id"]');

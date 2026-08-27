@@ -935,7 +935,7 @@ if ($method === 'POST') {
             // sem conferência, caindo na conferência atual do time.
             $stmtST = $pdo->prepare('
                 SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
-                       ss.wins, ss.points_for, ss.points_against,
+                       ss.wins, ss.points_for, ss.points_against, ss.overall_position,
                        CONCAT(t.city," ",t.name) AS team_name, t.photo_url
                 FROM season_standings ss
                 JOIN teams t ON t.id = ss.team_id
@@ -968,7 +968,8 @@ if ($method === 'POST') {
             $teamConf = [];
             $teamPhoto = [];
             $teamPos = [];    // posição dentro da conferência (1 = melhor)
-            $teamWins = [];   // vitórias — base do ranking geral de "pior campanha"
+            $teamWins = [];   // vitórias — base antiga do ranking de "pior campanha"
+            $teamOverall = []; // ordem geral declarada (17º em diante); null quando não existe
             $teamPdiff = [];  // saldo de pontos, desempate
             $eligible = [];
             $playoffRows = [];
@@ -981,6 +982,8 @@ if ($method === 'POST') {
                     $teamPhoto[$tid] = (!empty($row['photo_url']) && trim($row['photo_url']) !== '') ? $row['photo_url'] : '/img/default-team.png';
                     $teamPos[$tid] = (int)$row['position'];
                     $teamWins[$tid] = isset($row['wins']) ? (int)$row['wins'] : 0;
+                    $teamOverall[$tid] = isset($row['overall_position']) && $row['overall_position'] !== null
+                        ? (int)$row['overall_position'] : null;
                     $teamPdiff[$tid] = (int)($row['points_for'] ?? 0) - (int)($row['points_against'] ?? 0);
                     if ($idx < $cut) {
                         $playoffRows[] = $row;
@@ -1029,8 +1032,25 @@ if ($method === 'POST') {
                 4 => ['label' => 'Derrotados no 7x8',             'top3' => 8,  'top5' => 15, 'balls' => 1],
             ];
 
-            // "Pior campanha" da liga = menos vitórias; desempata por pior saldo, depois pior posição.
-            $badness = function ($aTid, $bTid) use ($teamWins, $teamPdiff, $teamPos) {
+            /* "PIOR CAMPANHA" DA LIGA.
+               A ordem geral declarada no registro da temporada manda: ela é
+               uma lista única do 17º em diante, então diz sem ambiguidade
+               quem terminou atrás de quem — inclusive entre times de
+               conferências diferentes. Número MAIOR = pior campanha.
+
+               Só quando ela não existe (temporada antiga, ou classificação
+               lançada antes deste campo) é que vale o critério velho:
+               vitórias, saldo e posição de conferência. E ele é frágil de
+               propósito conhecido — desde que vitórias saíram do cadastro,
+               ficam todas em zero e o desempate cai na posição, que empata
+               o 15º de um lado com o 15º do outro. Foi exatamente isso que
+               colocou dois times de mesma colocação em grupos de bolinhas
+               diferentes. */
+            $badness = function ($aTid, $bTid) use ($teamWins, $teamPdiff, $teamPos, $teamOverall) {
+                $oa = $teamOverall[$aTid] ?? null;
+                $ob = $teamOverall[$bTid] ?? null;
+                if ($oa !== null && $ob !== null && $oa !== $ob) return $ob <=> $oa;
+
                 if ($teamWins[$aTid] !== $teamWins[$bTid]) return $teamWins[$aTid] <=> $teamWins[$bTid];
                 if ($teamPdiff[$aTid] !== $teamPdiff[$bTid]) return $teamPdiff[$aTid] <=> $teamPdiff[$bTid];
                 return $teamPos[$bTid] <=> $teamPos[$aTid]; // posição maior = pior
