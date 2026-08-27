@@ -359,6 +359,7 @@ function wcAjuda(): string
         . "/minhastrades — suas 3 últimas trocas\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a tabela da liga\n"
+        . "/playoffs — o chaveamento, como está agora\n"
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
@@ -803,6 +804,138 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         $i++;
     }
     return rtrim($txt);
+}
+
+/**
+ * O chaveamento dos playoffs, como está agora.
+ *
+ * A fonte é o RASCUNHO do registro de pontuação (season_registro_rascunho):
+ * é lá que o admin monta o chaveamento, jogo a jogo, enquanto as séries são
+ * decididas. Ele nasce quando a classificação é salva e some quando a
+ * pontuação é registrada — o que dá, de graça, a resposta certa nas duas
+ * pontas: antes do fim da temporada regular não há playoffs, e depois do
+ * registro eles acabaram.
+ *
+ * Não lê playoff_results nem playoff_series de propósito: essas tabelas só
+ * são preenchidas no registro final, ou seja, quando já não há nada "atual"
+ * pra mostrar.
+ */
+function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    // O rascunho é buscado pela LIGA, não pela temporada resolvida aqui: quem
+    // o gravou foi o admin, com a própria noção de "temporada aberta", e duas
+    // formas de achar a mesma temporada é uma a mais do que precisa existir.
+    // O número da temporada vem junto, do rascunho pro cabeçalho.
+    $chave = null;
+    $numeroTemp = null;
+    try {
+        $st = $pdo->prepare("SELECT r.etapa, r.dados, s.season_number
+                               FROM season_registro_rascunho r
+                               JOIN seasons s ON s.id = r.season_id
+                              WHERE r.league = ?
+                           ORDER BY r.updated_at DESC LIMIT 1");
+        $st->execute([$liga]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if ($r && ($r['etapa'] ?? '') === 'playoffs' && !empty($r['dados'])) {
+            $d = json_decode((string)$r['dados'], true);
+            if (is_array($d) && !empty($d['bracket'])) {
+                $chave = $d['bracket'];
+                $numeroTemp = $r['season_number'] ?? null;
+            }
+        }
+    } catch (Throwable $e) {
+        // Tabela ainda não existe nesta instalação: é o mesmo que não haver
+        // playoffs — nunca ninguém montou um chaveamento aqui.
+        $chave = null;
+    }
+
+    if (!$chave) {
+        return "*Playoffs {$liga}*\n\nNão tem playoffs ativo agora."
+             . "\nO chaveamento aparece aqui quando o admin salva a classificação da temporada regular.";
+    }
+
+    // Os nomes vêm do banco, não do JSON: o rascunho guarda o nome como
+    // estava quando o chaveamento foi montado, e time que mudou de nome no
+    // meio dos playoffs apareceria com o antigo.
+    $nomes = [];
+    $stT = $pdo->prepare("SELECT id, city, name, mascot FROM teams WHERE league = ?");
+    $stT->execute([$liga]);
+    foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) $nomes[(int)$t['id']] = wcNomeDoTime($t);
+    $nomeDe = function ($time) use ($nomes) {
+        $id = (int)($time['id'] ?? 0);
+        if (isset($nomes[$id])) return $nomes[$id];
+        // Time que saiu da liga depois do chaveamento montado: o nome do
+        // rascunho ainda serve, e é melhor que um "?" no meio da chave.
+        $doRascunho = trim((string)($time['city'] ?? '') . ' ' . (string)($time['name'] ?? ''));
+        return $doRascunho !== '' ? $doRascunho : '?';
+    };
+
+    // Uma série numa linha. O placar não é digitado pelo admin: numa melhor
+    // de 7 o vencedor sempre faz 4, então o número de jogos já diz 4-2.
+    $linha = function ($m) use ($nomeDe) {
+        if (!$m || empty($m['t1']) || empty($m['t2'])) return "   _a definir_\n";
+        $n1 = $nomeDe($m['t1']);
+        $n2 = $nomeDe($m['t2']);
+        $s1 = isset($m['s1']) ? '(' . $m['s1'] . ') ' : '';
+        $s2 = isset($m['s2']) ? '(' . $m['s2'] . ') ' : '';
+        $w  = isset($m['w']) ? (string)$m['w'] : '';
+        if ($w === '') return "   {$s1}{$n1}  x  {$s2}{$n2}\n";
+
+        $venceuT1 = $w === (string)($m['t1']['id'] ?? '');
+        $jogos = isset($m['g']) ? (int)$m['g'] : 0;
+
+        // Sem o número de jogos marcado não há placar pra mostrar, e manter a
+        // ordem t1 x t2 faria "Boston venceu *Miami*" quando quem passou foi
+        // o Miami. Aí o vencedor vem primeiro, e a frase não tem como enganar.
+        if ($jogos < 4 || $jogos > 7) {
+            $venc  = $venceuT1 ? "{$s1}{$n1}" : "{$s2}{$n2}";
+            $perd  = $venceuT1 ? "{$s2}{$n2}" : "{$s1}{$n1}";
+            return "   ✅ *{$venc}* passou por {$perd}\n";
+        }
+
+        // Com o placar, a ordem do chaveamento é mantida e o 4 fica do lado
+        // de quem venceu. Numa melhor de 7 o vencedor sempre faz 4, e o
+        // número de jogos dá o resto — 6 jogos é 4-2.
+        $a = $venceuT1 ? "*{$n1}*" : $n1;
+        $b = $venceuT1 ? $n2 : "*{$n2}*";
+        $meio = $venceuT1 ? ' 4-' . ($jogos - 4) . ' ' : ' ' . ($jogos - 4) . '-4 ';
+        return "   ✅ {$s1}{$a}{$meio}{$s2}{$b}\n";
+    };
+
+    // Rodada sem confronto nenhum ainda mostra "a definir": um título sozinho,
+    // sem nada embaixo, parece erro de renderização e não fase por vir.
+    $rodada = function ($rotulo, $jogos) use ($linha) {
+        $t = "_{$rotulo}_\n";
+        $jogos = is_array($jogos) ? $jogos : [];
+        if (!$jogos) return $t . $linha(null);
+        foreach ($jogos as $m) $t .= $linha($m);
+        return $t;
+    };
+
+    $conf = function ($c, $rotulo) use ($rodada) {
+        return "\n*{$rotulo}*\n"
+             . $rodada('1ª rodada', $c['r1'] ?? [])
+             . $rodada('Semifinal', $c['r2'] ?? [])
+             . $rodada('Final de conferência', [$c['cf'] ?? null]);
+    };
+
+    $txt  = "🏆 *Playoffs {$liga}*" . ($numeroTemp ? " — temporada {$numeroTemp}" : '') . "\n";
+    $txt .= $conf($chave['leste'] ?? [], '🔵 Leste');
+    $txt .= $conf($chave['oeste'] ?? [], '🔴 Oeste');
+    $txt .= "\n*🏆 Grande final*\n" . $linha($chave['final'] ?? null);
+
+    $final = $chave['final'] ?? null;
+    if ($final && !empty($final['w'])) {
+        $campeao = ((string)$final['w'] === (string)($final['t1']['id'] ?? ''))
+            ? $nomeDe($final['t1']) : $nomeDe($final['t2']);
+        $txt .= "\n🏅 *Campeão: {$campeao}*";
+    } else {
+        $txt .= "\n_Playoffs em andamento._";
+    }
+    return $txt;
 }
 
 /**
@@ -2701,6 +2834,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'classificação':
             case 'tabela':
                 return wcClassificacao($pdo, $arg, $ligaDoGrupo);
+
+            case 'playoffs':
+            case 'playoff':
+            case 'offs':
+            case 'chaveamento':
+                return wcPlayoffs($pdo, $arg, $ligaDoGrupo);
 
             case 'power':
             case 'powerranking':
