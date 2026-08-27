@@ -22,23 +22,36 @@ $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
    é a mesma informação que o comunicado anuncia, e escondê-la dos GMs só
    fazia a pergunta chegar por mensagem. Editar e sortear seguem sendo do
    admin: quem não é vê a tela inteira sem um único controle. */
-$lotteryLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE', 'ROOKIE'], $adminLeagues));
-if (!$lotteryLeagues) {
-    $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
-    if (in_array($minhaLiga, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) $lotteryLeagues = [$minhaLiga];
-}
-$setupSessions = [];
-if ($lotteryLeagues) {
-    $ph = implode(',', array_fill(0, count($lotteryLeagues), '?'));
-    $stmtSessions = $pdo->prepare("
+$LIGAS_LOTERIA = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+$buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
+    $ligas = array_values(array_intersect($LIGAS_LOTERIA, $ligas));
+    if (!$ligas) return [];
+    $ph = implode(',', array_fill(0, count($ligas), '?'));
+    $st = $pdo->prepare("
         SELECT ds.id, ds.status, ds.league, s.season_number, s.year
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
         WHERE ds.league IN ($ph) AND ds.status = 'setup'
         ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC
     ");
-    $stmtSessions->execute($lotteryLeagues);
-    $setupSessions = $stmtSessions->fetchAll(PDO::FETCH_ASSOC);
+    $st->execute($ligas);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+};
+
+/* Quem administra vê as ligas que administra — a loteria dele é a que ele
+   vai conduzir. Quem não administra vê a própria liga; e se não houver
+   loteria aberta nela, vê as que estiverem abertas em vez de uma página
+   vazia. Alguém sem franquia cai direto nesse último caso.
+
+   Ver é o que se libera aqui. Editar e sortear continuam sendo do admin, e
+   a tela não entrega esses controles a mais ninguém. */
+if ($canRunLottery && $adminLeagues) {
+    $setupSessions = $buscarSessoes($adminLeagues);
+} else {
+    $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
+    $setupSessions = $buscarSessoes([$minhaLiga]);
+    if (!$setupSessions) $setupSessions = $buscarSessoes($LIGAS_LOTERIA);
 }
 
 // Ordem já confirmada (via "Confirmar e aplicar ao draft") da liga do jogador
@@ -1137,8 +1150,16 @@ function setupBoardAndOdds(data){
     adjSection.style.display = 'none';
   }
 
+  /* A URNA E O PALCO SÓ EXISTEM PRA QUEM CONDUZ.
+     Quem não administra recebe a página sem esses elementos, e o resto
+     desta função continua valendo pra ele — as chances, a matriz e o
+     quadro. Sem esta guarda, o primeiro innerHTML num elemento que não
+     existe interrompia a montagem no meio e o quadro ficava vazio. */
+  const temPalco = !!$('revealStage');
+
   // Urna: times de loteria ainda concorrendo (esvazia a cada revelação)
   const lotteryTeams = data.balls.slice(); // já vem do pior pro "menos pior"
+  if (temPalco) {
   $('bowl').innerHTML = lotteryTeams.map(b => `
     <div class="bowl-tile" id="bowl-${b.team_id}">
       ${logo(b.photo_url,'bowl-logo')}
@@ -1148,6 +1169,7 @@ function setupBoardAndOdds(data){
     </div>
   `).join('');
   updateBowlCount(lotteryTeams.length);
+  }
 
   /* QUADRO. Antes do sorteio ele mostra a ordem da CAMPANHA e deixa o admin
      corrigi-la, porque é dela que saem os grupos de bolinhas: um time no
@@ -1215,6 +1237,7 @@ function setupBoardAndOdds(data){
     .map(o => o.position);
 
   // Estado do palco
+  if (!temPalco) return;
   $('confirmPanel').style.display = 'none';
   $('revealStage').classList.remove('armed');
   $('ballMachine')?.classList.remove('on');

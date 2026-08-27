@@ -36,9 +36,13 @@ $__sbIsElite = (($__sbLigaObs ?? $team['league'] ?? $user['league'] ?? '') === '
 // - Da liga do usuário: aparece abaixo de "Draft".
 // - De outras ligas (só admin): aparece abaixo do menu "Admin".
 $__sbLeague = $__sbLigaObs ?? $team['league'] ?? $user['league'] ?? '';
-// Loteria: qualquer jogador de ELITE/NEXT/RISE/ROOKIE pode ver a ordem já sorteada;
-// quem administra alguma dessas ligas também vê (mesmo com time em outra liga).
-$__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true) || $__sbIsAdmin;
+/* Loteria: item de menu pra todo mundo.
+   A tela mostra quem entra no sorteio, com que chance e em que ordem — a
+   mesma informação que a liga anuncia no comunicado. Prendê-la a quem tem
+   time numa das quatro ligas deixava de fora justamente quem chega de
+   fora pra acompanhar. Editar e sortear continuam sendo do admin, e a
+   própria tela não entrega esses controles a mais ninguém. */
+$__sbLotteryVisible = true;
 $__sbMyInitDraft = null;
 $__sbOtherInitDrafts = [];
 try {
