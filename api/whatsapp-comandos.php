@@ -1106,15 +1106,26 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         // que já se sabe em vez de esconder a série inteira.
         $n1 = !empty($m['t1']) ? $nomeDe($m['t1']) : '_a definir_';
         $n2 = !empty($m['t2']) ? $nomeDe($m['t2']) : '_a definir_';
+
+        // AS SEEDS VÃO PRAS PONTAS: a do primeiro antes do nome, a do segundo
+        // DEPOIS. Assim "(1) Coyotes 4-2 Mooses (8)" deixa o miolo da linha só
+        // pro resultado da série. Com as duas na frente, o placar ficava
+        // espremido entre um nome e um parêntese e custava pra achar.
+        //
+        // A regra é POSICIONAL, não do time: quem aparece primeiro leva o
+        // prefixo. Importa na linha de quem passou sem placar, que inverte a
+        // ordem pra pôr o vencedor na frente.
+        $pre = fn($s) => $s !== null ? "({$s}) " : '';
+        $suf = fn($s) => $s !== null ? " ({$s})" : '';
+        $sd1 = $m['s1'] ?? null;
+        $sd2 = $m['s2'] ?? null;
+
         if (empty($m['t1']) || empty($m['t2'])) {
-            $s1p = isset($m['s1']) ? '(' . $m['s1'] . ') ' : '';
-            $s2p = isset($m['s2']) ? '(' . $m['s2'] . ') ' : '';
-            return "   {$s1p}{$n1}  x  {$s2p}{$n2}\n";
+            return "   {$pre($sd1)}{$n1}  x  {$n2}{$suf($sd2)}\n";
         }
-        $s1 = isset($m['s1']) ? '(' . $m['s1'] . ') ' : '';
-        $s2 = isset($m['s2']) ? '(' . $m['s2'] . ') ' : '';
-        $w  = isset($m['w']) ? (string)$m['w'] : '';
-        if ($w === '') return "   {$s1}{$n1}  x  {$s2}{$n2}\n";
+
+        $w = isset($m['w']) ? (string)$m['w'] : '';
+        if ($w === '') return "   {$pre($sd1)}{$n1}  x  {$n2}{$suf($sd2)}\n";
 
         $venceuT1 = $w === (string)($m['t1']['id'] ?? '');
         $jogos = isset($m['g']) ? (int)$m['g'] : 0;
@@ -1123,8 +1134,8 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         // ordem t1 x t2 faria "Boston venceu *Miami*" quando quem passou foi
         // o Miami. Aí o vencedor vem primeiro, e a frase não tem como enganar.
         if ($jogos < 4 || $jogos > 7) {
-            $venc  = $venceuT1 ? "{$s1}{$n1}" : "{$s2}{$n2}";
-            $perd  = $venceuT1 ? "{$s2}{$n2}" : "{$s1}{$n1}";
+            $venc = $venceuT1 ? $pre($sd1) . $n1 : $pre($sd2) . $n2;
+            $perd = $venceuT1 ? $n2 . $suf($sd2) : $n1 . $suf($sd1);
             return "   ✅ *{$venc}* passou por {$perd}\n";
         }
 
@@ -1134,7 +1145,7 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         $a = $venceuT1 ? "*{$n1}*" : $n1;
         $b = $venceuT1 ? $n2 : "*{$n2}*";
         $meio = $venceuT1 ? ' 4-' . ($jogos - 4) . ' ' : ' ' . ($jogos - 4) . '-4 ';
-        return "   ✅ {$s1}{$a}{$meio}{$s2}{$b}\n";
+        return "   ✅ {$pre($sd1)}{$a}{$meio}{$b}{$suf($sd2)}\n";
     };
 
     // FASE SÓ APARECE SE TIVER CONFRONTO.
