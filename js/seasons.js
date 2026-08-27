@@ -464,6 +464,9 @@ let _regPtsIsCorrection = false;
 // foi salva, 'playoffs' depois. Vem do rascunho no servidor.
 let _regPtsEtapa = 'regular';
 let _regPtsAutosaveTimer = null;
+// A restauração do rascunho em andamento. Salvar antes dela terminar leria
+// selects de jogador ainda vazios — ver onde ela é preenchida.
+let _regPtsRestaurando = null;
 
 /**
  * As vagas dos prêmios estendidos — exclusivos da ELITE.
@@ -1072,6 +1075,10 @@ async function showRegistroPontuacao(league) {
     seasonsState.currentSeasonId = season.id;
     _regPtsSeasonId = season.id;
     _regPtsCacheKey = `reg_pts_v2_${league}_${season.id}`;
+    // Estado da visita anterior não vale nesta: os elencos podem ter mudado
+    // (trade, dispensa) e a restauração antiga já terminou faz tempo.
+    _regPtsElencos = {};
+    _regPtsRestaurando = null;
 
     let histRegistered = false;
     try {
@@ -1139,10 +1146,10 @@ async function showRegistroPontuacao(league) {
             </select>
         </div>`;
 
-    // Prêmios estendidos: time + nome digitado. O nome é campo livre e não
-    // uma lista, porque All-NBA pega jogador de qualquer elenco e carregar
-    // trinta elencos pra preencher vinte e seis vagas seria pior que digitar.
-    const inpStyle = 'flex:1;min-width:0;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12.5px';
+    // Prêmios estendidos: escolhe o time, e o jogador vem do elenco dele.
+    // O nome era digitado à mão, e nome digitado à mão vira "Lebron",
+    // "LeBron" e "Lebron James" como três pessoas diferentes no histórico.
+    const extPlayerStyle = 'flex:1;min-width:0;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;opacity:.6';
     const extTeamOpts = '<option value="">— time —</option>' +
         allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
     const mkExtBloco = ({ tipo, titulo, vagas, bonus }) => `
@@ -1152,8 +1159,11 @@ async function showRegistroPontuacao(league) {
             </div>
             ${Array.from({ length: vagas }, (_, i) => `
             <div style="display:flex;gap:8px;margin-bottom:6px">
-                <select name="ext_${tipo}_${i}_team" style="${selStyle};max-width:230px" onchange="_regPtsSaveCache();">${extTeamOpts}</select>
-                <input name="ext_${tipo}_${i}_player" placeholder="Nome do jogador" style="${inpStyle}" oninput="_regPtsSaveCache();">
+                <select name="ext_${tipo}_${i}_team" style="${selStyle};max-width:230px"
+                        onchange="_loadExtPlayers('ext_${tipo}_${i}_player', this.value); _regPtsSaveCache();">${extTeamOpts}</select>
+                <select name="ext_${tipo}_${i}_player" style="${extPlayerStyle}" onchange="_regPtsSaveCache();">
+                    <option value="">— time primeiro —</option>
+                </select>
             </div>`).join('')}
         </div>`;
 
@@ -1312,27 +1322,50 @@ async function showRegistroPontuacao(league) {
     if (cached?.form) {
         const form = document.getElementById('formRegistroPontuacao');
         if (form) {
-            // Restaura campos simples: selects de time e os nomes digitados
-            // dos prêmios estendidos (esses são <input>, não <select>).
+            // Primeiro os campos que já têm as opções na tela: times e
+            // posições. Os selects de JOGADOR ficam de fora desta passada —
+            // eles nascem vazios e só podem receber valor depois que o
+            // elenco do time chegar, o que acontece logo abaixo.
+            const ehSelectDeJogador = n => n.endsWith('_player_name') || n.endsWith('_player');
             Object.entries(cached.form).forEach(([name, value]) => {
                 const el = form.querySelector(`[name="${name}"]`);
                 if (!el || value === undefined || value === null) return;
-                if (el.tagName === 'INPUT') { el.value = value; return; }
-                if (el.tagName === 'SELECT' && !name.endsWith('_player_name')) el.value = value;
+                if (el.tagName === 'SELECT' && ehSelectDeJogador(name)) return;
+                el.value = value;
             });
             // Posição já preenchida some das outras vagas, como no preenchimento normal.
             ['leste', 'oeste'].forEach(_updateStandingsUnique);
+
+            // Prêmios estendidos: cada vaga com time escolhido carrega o
+            // elenco e volta a marcar o jogador. Times repetidos entre vagas
+            // dividem a mesma requisição — ver _regPtsElenco().
+            const pendentes = [];
+            REG_PTS_EXTENDED.forEach(({ tipo, vagas }) => {
+                for (let i = 0; i < vagas; i++) {
+                    const timeId = form.querySelector(`[name="ext_${tipo}_${i}_team"]`)?.value;
+                    if (!timeId) continue;
+                    pendentes.push(_loadExtPlayers(`ext_${tipo}_${i}_player`, timeId,
+                                                   cached.form[`ext_${tipo}_${i}_player`]));
+                }
+            });
+
             // Para cada prêmio com time selecionado, carrega jogadores e restaura o nome
             const awardNames = ['mvp','dpoy','mip','sixth_man','roy'];
-            const restorePromises = awardNames.map(async a => {
+            awardNames.forEach(a => {
                 const teamSel = form.querySelector(`[name="${a}_team_id"]`);
                 if (!teamSel?.value) return;
-                await _loadAwardPlayers(`${a}_player_name`, teamSel.value);
-                const playerSel = form.querySelector(`[name="${a}_player_name"]`);
-                const cachedPlayer = cached.form[`${a}_player_name`];
-                if (playerSel && cachedPlayer) playerSel.value = cachedPlayer;
+                pendentes.push((async () => {
+                    await _loadAwardPlayers(`${a}_player_name`, teamSel.value);
+                    const playerSel = form.querySelector(`[name="${a}_player_name"]`);
+                    const cachedPlayer = cached.form[`${a}_player_name`];
+                    if (playerSel && cachedPlayer) playerSel.value = cachedPlayer;
+                })());
             });
-            Promise.all(restorePromises).catch(() => {});
+
+            // Guardado pra que salvar não corra na frente da restauração:
+            // um select de jogador ainda vazio seria lido como vaga em branco,
+            // e o prêmio sumiria sem ninguém notar.
+            _regPtsRestaurando = Promise.all(pendentes).catch(() => {});
         }
     }
 
@@ -1357,6 +1390,10 @@ async function showRegistroPontuacao(league) {
 async function salvarTemporadaRegular(seasonId, league) {
     const form = document.getElementById('formRegistroPontuacao');
     if (!form) return;
+
+    // Se o rascunho ainda está voltando pra tela, espera: ler agora pegaria
+    // os selects de jogador antes de eles terem sido remarcados.
+    if (_regPtsRestaurando) await _regPtsRestaurando;
 
     const getRankList = (conf) => Array.from(form.querySelectorAll(`[name^="${conf}_rank_"]`))
         .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
@@ -1419,6 +1456,10 @@ async function salvarTemporadaRegular(seasonId, league) {
 async function saveRegistroPontuacao(event, seasonId, league) {
     event.preventDefault();
     const form = event.target;
+
+    // Mesmo motivo do salvamento da etapa 1: não ler o formulário no meio
+    // da restauração do rascunho.
+    if (_regPtsRestaurando) await _regPtsRestaurando;
 
     const playoff = _collectBracketPayload();
     if (!playoff) {
@@ -1830,6 +1871,35 @@ function _updateStandingsUnique(conf) {
     });
 }
 
+/**
+ * O elenco de um time, buscado uma vez só.
+ *
+ * Os prêmios estendidos são 26 vagas, e várias caem no mesmo time — o
+ * All-NBA de um campeão costuma levar dois ou três da mesma casa. Sem o
+ * cache, restaurar um rascunho cheio viraria 26 idas ao servidor pra
+ * buscar meia dúzia de elencos repetidos.
+ *
+ * Guarda a promessa, não o resultado: dois selects pedindo o mesmo time no
+ * mesmo instante compartilham a mesma requisição em vez de disparar duas.
+ */
+let _regPtsElencos = {};
+function _regPtsElenco(teamId) {
+    const k = String(teamId);
+    if (!_regPtsElencos[k]) {
+        _regPtsElencos[k] = api(`admin.php?action=team_details&team_id=${k}`)
+            .then(data => ((data.team || data).players || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0)))
+            .catch(e => { delete _regPtsElencos[k]; throw e; });
+    }
+    return _regPtsElencos[k];
+}
+
+/** As <option> de jogador de um elenco, com posição e OVR pra desempatar homônimo. */
+function _regPtsOpcoesJogador(players) {
+    return players.map(p =>
+        `<option value="${escapeHtml(p.name || '')}">${escapeHtml(p.name || '')} · ${p.position || ''} · ${p.ovr || '—'} OVR</option>`
+    ).join('');
+}
+
 async function _loadAwardPlayers(playerSelectName, teamId) {
     const sel = document.querySelector(`[name="${playerSelectName}"]`);
     if (!sel) return;
@@ -1841,13 +1911,41 @@ async function _loadAwardPlayers(playerSelectName, teamId) {
     sel.innerHTML = '<option value="">Carregando...</option>';
     sel.style.opacity = '.6';
     try {
-        const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
-        const players = ((data.team || data).players || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
-        sel.innerHTML = '<option value="">— Selecione o jogador —</option>' +
-            players.map(p => `<option value="${escapeHtml(p.name || '')}">${escapeHtml(p.name || '')} · ${p.position || ''} · ${p.ovr || '—'} OVR</option>`).join('');
+        const players = await _regPtsElenco(teamId);
+        sel.innerHTML = '<option value="">— Selecione o jogador —</option>' + _regPtsOpcoesJogador(players);
         sel.style.opacity = '1';
     } catch(e) {
         sel.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
+    }
+}
+
+/**
+ * O mesmo, pras vagas de prêmio estendido.
+ *
+ * O nome era campo livre e digitado na mão — o que quer dizer "Lebron",
+ * "LeBron" e "Lebron James" virando três jogadores diferentes no histórico.
+ * Escolher do elenco fecha essa porta: o nome sai do banco, já certo.
+ *
+ * `valor` existe pra restaurar rascunho: a opção só pode ser marcada depois
+ * que a lista chegou.
+ */
+async function _loadExtPlayers(playerSelectName, teamId, valor) {
+    const sel = document.querySelector(`[name="${playerSelectName}"]`);
+    if (!sel) return;
+    if (!teamId) {
+        sel.innerHTML = '<option value="">— time primeiro —</option>';
+        sel.style.opacity = '.6';
+        return;
+    }
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    sel.style.opacity = '.6';
+    try {
+        const players = await _regPtsElenco(teamId);
+        sel.innerHTML = '<option value="">— jogador —</option>' + _regPtsOpcoesJogador(players);
+        sel.style.opacity = '1';
+        if (valor) sel.value = valor;
+    } catch(e) {
+        sel.innerHTML = '<option value="">Erro ao carregar</option>';
     }
 }
 
