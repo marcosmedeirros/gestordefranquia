@@ -95,7 +95,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tname a{color:inherit;text-decoration:none}
 .tname a:hover{color:var(--red)}
 .tflag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-3);flex-shrink:0}
-.twl{font-size:11px;font-weight:600;color:var(--text-2);flex-shrink:0}
 .corte{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--green)}
 .corte::before,.corte::after{content:'';flex:1;height:1px;background:color-mix(in srgb, var(--green) 28%, transparent)}
 
@@ -195,6 +194,14 @@ const FASES = {
   first_round:     { t: 'Primeira Rodada',    cls: '' },
 };
 
+/**
+ * Uma linha da tabela: posição, escudo e nome.
+ *
+ * Sem vitórias e derrotas. A administração lança a ORDEM final da
+ * conferência e nada mais — esse número não é cadastrado em lugar nenhum, e
+ * vinha "0-0" em todas as linhas, o que só fazia a temporada parecer que
+ * nem tinha começado.
+ */
 function linhaTime(t, i) {
   const po = t.position <= 8;           // zona de playoffs
   const meu = Number(t.team_id) === MEU_TIME;
@@ -204,7 +211,6 @@ function linhaTime(t, i) {
       <span class="tpos">${t.position}º</span>
       <img class="tlogo" src="${esc(t.photo_url || LOGO)}" alt="" onerror="this.src='${LOGO}'">
       <span class="tname"><a href="/team-history.php?team_id=${t.team_id}">${esc(t.name)}</a></span>
-      ${t.informado ? `<span class="twl">${t.wins}-${t.losses}</span>` : ''}
       ${t.informado ? '' : '<span class="tflag" title="Posição não lançada pela administração">não confirmada</span>'}
     </div>`;
 }

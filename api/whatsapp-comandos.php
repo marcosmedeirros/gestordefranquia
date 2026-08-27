@@ -371,7 +371,7 @@ function wcAjuda(): string
         // /comparartime continua funcionando, mas fica FORA da lista: e de
         // nicho, e cada linha a mais aqui custa atencao de quem so quer o basico.
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
-        . "/time _nome_ — quinteto, banco, folha e campanha\n"
+        . "/time _nome_ — quinteto, banco, folha e posição\n"
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem
 "
@@ -619,16 +619,17 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
         $txt .= wcLinhaCapOvr(wcCapPorOvr($pdo, $t));
     }
 
-    // Campanha da temporada corrente, se já houver jogo registrado.
+    // A posição na temporada corrente. Não sai campanha de vitórias e derrotas
+    // porque ela não é cadastrada em lugar nenhum: o que o admin lança é a
+    // ORDEM final, e "0-0" ao lado de todo time só dava a impressão errada de
+    // que a temporada não tinha começado.
     $temp = wcTemporadaAtiva($pdo, (string)$t['league']);
     if ($temp) {
-        $st = $pdo->prepare("SELECT wins, losses, position FROM season_standings
+        $st = $pdo->prepare("SELECT position FROM season_standings
                              WHERE season_id = ? AND team_id = ?");
         $st->execute([(int)$temp['id'], (int)$t['id']]);
-        if ($c = $st->fetch(PDO::FETCH_ASSOC)) {
-            $txt .= "Campanha: {$c['wins']}-{$c['losses']}"
-                 . ($c['position'] ? " ({$c['position']}º)" : '') . "\n";
-        }
+        $pos = $st->fetchColumn();
+        if ($pos) $txt .= "Classificação: {$pos}º\n";
     }
 
     if ($elenco) {
@@ -812,16 +813,17 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
     $temp = wcTemporadaAtiva($pdo, $liga);
     if (!$temp) return "A {$liga} ainda não tem temporada cadastrada.";
 
-    // Ordena por POSIÇÃO, não por vitórias. As colunas wins/losses existem em
-    // season_standings mas ninguém as preenche: o admin lança a classificação
-    // final arrastando os times na ordem, e é a posição que fica gravada. Com
-    // ORDER BY wins todo mundo empatava em 0 e a tabela saía embaralhada.
+    // A classificação da FBA é uma ORDEM, não uma campanha: o admin lança os
+    // times na posição final e é só isso que fica gravado. Vitórias e derrotas
+    // não são cadastradas em lugar nenhum — por isso nem são lidas aqui, e a
+    // ordenação é pela posição. (Com ORDER BY wins todo mundo empatava em 0 e
+    // a tabela saía embaralhada, com "0-0" em cada linha.)
     //
     // A posição é DENTRO DA CONFERÊNCIA — existe um 1º no Leste e um 1º no
     // Oeste —, então a lista sai separada. Sem conferência gravada (liga que
     // não usa, ou lançamento antigo) cai numa lista só.
     $st = $pdo->prepare("
-        SELECT s.wins, s.losses, s.position, COALESCE(s.conference, t.conference) AS conf,
+        SELECT s.position, COALESCE(s.conference, t.conference) AS conf,
                t.city, t.mascot, t.name
         FROM season_standings s JOIN teams t ON t.id = s.team_id
         WHERE s.season_id = ?
@@ -834,26 +836,17 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         return "A {$liga} ainda não tem classificação lançada na temporada {$temp['season_number']}.";
     }
 
-    // A campanha só aparece se alguém a tiver lançado. "0-0" em toda linha diz
-    // menos que nada — dá a impressão de que a temporada não começou.
-    $temCampanha = false;
-    foreach ($linhas as $l) {
-        if ((int)$l['wins'] > 0 || (int)$l['losses'] > 0) { $temCampanha = true; break; }
-    }
-
     $porConf = [];
     foreach ($linhas as $l) {
         $c = strtoupper(trim((string)($l['conf'] ?? '')));
         $porConf[$c !== '' ? $c : 'UNICA'][] = $l;
     }
 
-    $bloco = function (array $lista) use ($temCampanha) {
+    $bloco = function (array $lista) {
         $t = '';
         foreach ($lista as $n => $l) {
             $pos = (int)($l['position'] ?? 0) ?: ($n + 1);
-            $t .= str_pad((string)$pos, 2, ' ', STR_PAD_LEFT) . '. ' . wcNomeDoTime($l);
-            if ($temCampanha) $t .= " — {$l['wins']}-{$l['losses']}";
-            $t .= "\n";
+            $t .= str_pad((string)$pos, 2, ' ', STR_PAD_LEFT) . '. ' . wcNomeDoTime($l) . "\n";
         }
         return $t;
     };
@@ -1114,13 +1107,13 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     $porTime = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $porTime[(int)$p['team_id']][] = $p;
 
-    // Campanha e posto na tabela, quando a temporada já existe.
-    $campanha = $posto = [];
+    // O posto na tabela, quando a temporada já existe. Vitórias e derrotas
+    // saíram: elas não são cadastradas, então vinham 0-0 pra liga inteira.
+    $posto = [];
     if ($temp = wcTemporadaAtiva($pdo, $liga)) {
-        $st = $pdo->prepare("SELECT team_id, wins, losses, position FROM season_standings WHERE season_id = ?");
+        $st = $pdo->prepare("SELECT team_id, position FROM season_standings WHERE season_id = ?");
         $st->execute([(int)$temp['id']]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
-            $campanha[(int)$l['team_id']] = (int)$l['wins'] . '-' . (int)$l['losses'];
             if ($l['position'] !== null) $posto[(int)$l['team_id']] = (int)$l['position'];
         }
     }
@@ -1132,7 +1125,6 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
         $fichas[] = [
             'nome'       => wcNomeDoTime($t),
             'forca'      => $forca,
-            'campanha'   => $campanha[(int)$t['id']] ?? null,
             'posto'      => $posto[(int)$t['id']] ?? null,
             'conferencia'=> $t['conference'] ?: null,
         ];
@@ -1143,16 +1135,14 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     return $fichas;
 }
 
-/** A linha de um time no power ranking: medalha, nome, campanha e posto. */
+/** A linha de um time no power ranking: medalha, nome e posto na tabela. */
 function wcLinhaDePower(array $f, int $posicao): string
 {
     $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
-    $cauda = [];
-    if ($f['campanha']) $cauda[] = $f['campanha'];
     // O posto da tabela ao lado da força é o ponto do comando: dá pra ver de
     // um relance quem está rendendo acima e quem está devendo.
-    if ($f['posto']) $cauda[] = $f['posto'] . 'º na tabela';
-    return "{$medalha} *{$f['nome']}*" . ($cauda ? ' (' . implode(' · ', $cauda) . ')' : '') . "\n";
+    $cauda = $f['posto'] ? " ({$f['posto']}º na tabela)" : '';
+    return "{$medalha} *{$f['nome']}*{$cauda}\n";
 }
 
 /**
@@ -2254,12 +2244,15 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         $sprint = wcSprintAtual($pdo, (string)$t['league']);
         $m['playoffs'] = wcPlayoffsNaEdicao($pdo, (int)$t['id'], $sprint ? (int)$sprint['id'] : null);
 
+        // A posição na tabela, e não a campanha: vitórias e derrotas não são
+        // cadastradas, então a linha vinha "0-0 x 0-0" pra qualquer dupla.
         $temp = wcTemporadaAtiva($pdo, (string)$t['league']);
-        $m['campanha'] = null;
+        $m['posto'] = null;
         if ($temp) {
-            $st = $pdo->prepare("SELECT wins, losses FROM season_standings WHERE season_id = ? AND team_id = ?");
+            $st = $pdo->prepare("SELECT position FROM season_standings WHERE season_id = ? AND team_id = ?");
             $st->execute([(int)$temp['id'], (int)$t['id']]);
-            if ($c = $st->fetch(PDO::FETCH_ASSOC)) $m['campanha'] = $c['wins'] . '-' . $c['losses'];
+            $p = $st->fetchColumn();
+            if ($p) $m['posto'] = (int)$p;
         }
         return $m;
     };
@@ -2308,8 +2301,13 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
                        $marca($ma['espaco'], $mb['espaco']), $marca($mb['espaco'], $ma['espaco']));
     }
 
-    if ($ma['campanha'] || $mb['campanha']) {
-        $txt .= $linha('Campanha', $ma['campanha'] ?: '—', $mb['campanha'] ?: '—');
+    if ($ma['posto'] || $mb['posto']) {
+        // Posição menor é melhor — daí o `false` no comparador.
+        $txt .= $linha('Posição na tabela',
+                       $ma['posto'] ? $ma['posto'] . 'º' : '—',
+                       $mb['posto'] ? $mb['posto'] . 'º' : '—',
+                       $marca($ma['posto'] ?: 99, $mb['posto'] ?: 99, false),
+                       $marca($mb['posto'] ?: 99, $ma['posto'] ?: 99, false));
     }
 
     // ── Playoffs da edição ───────────────────────────────────────────────
@@ -2340,11 +2338,11 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
 /**
  * O histórico que existe SÓ entre dois times.
  *
- * Não há placar jogo a jogo no banco — o app guarda campanha (vitórias e
- * derrotas da temporada) e resultado de playoff, não o resultado de cada
- * partida. Então "confronto direto" aqui é o que os dois construíram um contra
- * o outro fora de quadra: trocas, quem ficou com pick de quem, e quais
- * jogadores mudaram de lado.
+ * Não há placar jogo a jogo no banco — o app guarda a classificação final da
+ * temporada e o resultado de playoff, não o resultado de cada partida. Então
+ * "confronto direto" aqui é o que os dois construíram um contra o outro fora
+ * de quadra: trocas, quem ficou com pick de quem, e quais jogadores mudaram
+ * de lado.
  */
 function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
 {

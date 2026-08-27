@@ -78,9 +78,14 @@ if (!$season) {
 }
 $league = $season['league'];
 
-// Posições lançadas
+// Posições lançadas.
+//
+// Sem wins/losses: a administração lança a ORDEM final da conferência, e
+// vitórias/derrotas não são cadastradas em lugar nenhum. As colunas existem
+// na tabela, mas vinham sempre 0 — e "0-0" em toda linha fazia a temporada
+// parecer que nem tinha começado.
 $stPos = $pdo->prepare("
-    SELECT ss.team_id, ss.position, ss.wins, ss.losses,
+    SELECT ss.team_id, ss.position,
            COALESCE(ss.conference, t.conference) AS conference,
            CONCAT(t.city,' ',t.name) AS name, t.photo_url, t.user_id
     FROM season_standings ss
@@ -130,7 +135,7 @@ foreach (['LESTE', 'OESTE'] as $conf) {
         if ((int)$r['position'] <= 0) continue;
         $comPos[] = [
             'team_id' => $id, 'name' => $r['name'], 'photo_url' => $r['photo_url'],
-            'position' => (int)$r['position'], 'wins' => (int)$r['wins'], 'losses' => (int)$r['losses'],
+            'position' => (int)$r['position'],
             'informado' => true, 'user_id' => $r['user_id'],
         ];
     }
@@ -151,7 +156,7 @@ foreach (['LESTE', 'OESTE'] as $conf) {
         while (in_array($proxima, $ocupadas, true)) $proxima++;
         $comPos[] = [
             'team_id' => (int)$t['id'], 'name' => $t['name'], 'photo_url' => $t['photo_url'],
-            'position' => $proxima, 'wins' => 0, 'losses' => 0,
+            'position' => $proxima,
             'informado' => false, 'user_id' => $t['user_id'],
         ];
         $ocupadas[] = $proxima;
