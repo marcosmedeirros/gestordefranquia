@@ -210,7 +210,9 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 /* Slot editável (só na prévia): opaco, porque aqui o time já é conhecido —
    o "aguardando" tracejado é pra depois do sorteio, antes de revelar. */
 .board-slot.editavel{opacity:1;border-style:solid}
-.board-slot.editavel .board-team{color:var(--text-1)}
+/* Com as setas ocupando a direita, o nome é quem tem que ceder — sem o
+   min-width:0 ele se recusa a encolher e empurra o slot para fora da tela. */
+.board-slot.editavel .board-team{color:var(--text-1);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .board-move{display:flex;flex-direction:column;gap:2px;margin-left:auto}
 .board-move button{width:22px;height:16px;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--border);border-radius:4px;color:var(--text-3);cursor:pointer;font-size:9px;padding:0;line-height:1}
 .board-move button:hover:not(:disabled){color:var(--text-1);border-color:var(--red)}
@@ -224,6 +226,9 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
   .ordem-bar{font-size:11px}.ordem-bar-acoes{width:100%}.ordem-bar-acoes button{flex:1}
   /* No dedo, 16px de altura é alvo de errar: as setas crescem. */
   .board-move button{width:34px;height:24px;font-size:11px}
+  /* No celular o selo não cabe junto das setas, e a posição 17 em diante já
+     diz que dali pra baixo é playoff. */
+  .board-slot.editavel .board-tag.playoff{display:none}
 }
 .board-slot.locked{opacity:.62}
 .board-slot.just{border-color:var(--red);box-shadow:0 0 0 1px var(--red-soft);animation:slotIn .45s var(--ease)}
@@ -568,7 +573,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="section-title bc-podium-title" id="podiumTitle" style="display:none"><i class="bi bi-trophy-fill"></i> Pódio da loteria</div>
     <div class="podium" id="podium"></div>
 
-    <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio, esta é a ordem da campanha — e é ela que define os grupos de bolinhas. Use as setas pra corrigir quem terminou atrás de quem."></i></div>
+    <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio dá pra corrigir a ordem com as setas. Em cima estão os times de loteria, na ordem da campanha — é dela que saem os grupos de bolinhas. Embaixo, os times de playoff na ordem em que escolhem: quem foi menos longe pica antes, e o campeão por último."></i></div>
     <div class="panel bc-board">
       <?php /* Só aparece antes do sorteio: depois de sortear, mexer aqui não
                teria efeito nenhum nas chances — elas já rolaram. */ ?>
@@ -811,6 +816,11 @@ function logo(url, cls){
 const PODE_EDITAR_ORDEM = <?= $canRunLottery ? 'true' : 'false' ?>;
 let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
 let ordemSalvaRef = [];   // como estava na última vez que gravou
+/* A cauda de playoff também se edita, por um motivo diferente: quem foi
+   eliminado na mesma fase empata em playoff_results, e esse empate é
+   exatamente a diferença entre a pick 31 e a 32. */
+let ordemPlayoff = [];
+let ordemPlayoffSalvaRef = [];
 let ordemPendente = false;
 
 function atualizarBarraOrdem(){
@@ -828,13 +838,19 @@ function atualizarBarraOrdem(){
   }
 }
 
-function moverOrdem(i, dir){
+function moverOrdem(bloco, i, dir){
+  const lista = bloco === 'playoff' ? ordemPlayoff : ordemLoteria;
   const j = i + dir;
-  if (i < 0 || j < 0 || j >= ordemLoteria.length) return;
-  const nova = ordemLoteria.slice();
+  if (i < 0 || j < 0 || j >= lista.length) return;
+  const nova = lista.slice();
   [nova[i], nova[j]] = [nova[j], nova[i]];
   ordemPendente = true;
-  carregarPrevia(nova);
+  // O outro bloco vai junto: sem ele, o servidor releria do banco e desfaria
+  // uma edição anterior que ainda não foi salva.
+  carregarPrevia(
+    bloco === 'playoff' ? ordemLoteria : nova,
+    bloco === 'playoff' ? nova : ordemPlayoff
+  );
 }
 
 function desfazerOrdem(){
@@ -855,7 +871,8 @@ async function salvarOrdem(){
       body: JSON.stringify({
         action: 'save_lottery_order',
         season_id: result.standings_season_id,
-        ordem: ordemLoteria
+        ordem: ordemLoteria,
+        ordem_playoff: ordemPlayoff
       })
     });
     const data = await res.json();
@@ -932,7 +949,11 @@ function setupBoardAndOdds(data){
   const editandoOrdem = !!data.preview && PODE_EDITAR_ORDEM;
   if (data.preview) {
     ordemLoteria = data.order.filter(o => o.source !== 'playoff').map(o => o.origin_team_id);
-    if (!ordemPendente) ordemSalvaRef = ordemLoteria.slice();
+    ordemPlayoff = data.order.filter(o => o.source === 'playoff').map(o => o.origin_team_id);
+    if (!ordemPendente) {
+      ordemSalvaRef = ordemLoteria.slice();
+      ordemPlayoffSalvaRef = ordemPlayoff.slice();
+    }
   } else {
     // Sorteado: a ordem virou resultado e não se edita mais.
     ordemPendente = false;
@@ -942,16 +963,25 @@ function setupBoardAndOdds(data){
   $('board').innerHTML = data.order.map(o => {
     const isPlayoff = o.source === 'playoff';
     const top4 = o.position <= 4 ? ' top4' : '';
-    if (!isPlayoff && editandoOrdem) {
-      const i = ordemLoteria.indexOf(o.origin_team_id);
-      const mudou = ordemSalvaRef[i] !== undefined && ordemSalvaRef[i] !== o.origin_team_id;
+    /* Os dois blocos se reordenam por dentro, nunca entre si: um time do
+       playoff não vira time de loteria por causa de uma seta. */
+    if (editandoOrdem) {
+      const lista = isPlayoff ? ordemPlayoff : ordemLoteria;
+      const ref   = isPlayoff ? ordemPlayoffSalvaRef : ordemSalvaRef;
+      const bloco = isPlayoff ? 'playoff' : 'loteria';
+      const i = lista.indexOf(o.origin_team_id);
+      const mudou = ref[i] !== undefined && ref[i] !== o.origin_team_id;
+      const titulos = isPlayoff
+        ? ['Subir (escolhe antes)', 'Descer (escolhe depois)']
+        : ['Subir (campanha pior)', 'Descer (campanha melhor)'];
       return `<div class="board-slot editavel${top4}${mudou ? ' movido' : ''}" id="board-slot-${o.position}">
         <span class="board-pos">${o.position}</span>
         ${logo(o.photo_url,'board-logo')}
         <span class="board-team">${esc(o.team_name)}${o.is_swap ? ' ' + viaTag(o) : ''}</span>
+        ${isPlayoff ? '<span class="board-tag playoff"><i class="bi bi-lock-fill"></i> Playoff</span>' : ''}
         <span class="board-move">
-          <button type="button" title="Subir (campanha pior)" onclick="moverOrdem(${i},-1)"${i === 0 ? ' disabled' : ''}><i class="bi bi-caret-up-fill"></i></button>
-          <button type="button" title="Descer (campanha melhor)" onclick="moverOrdem(${i},1)"${i === ordemLoteria.length - 1 ? ' disabled' : ''}><i class="bi bi-caret-down-fill"></i></button>
+          <button type="button" title="${titulos[0]}" onclick="moverOrdem('${bloco}',${i},-1)"${i === 0 ? ' disabled' : ''}><i class="bi bi-caret-up-fill"></i></button>
+          <button type="button" title="${titulos[1]}" onclick="moverOrdem('${bloco}',${i},1)"${i === lista.length - 1 ? ' disabled' : ''}><i class="bi bi-caret-down-fill"></i></button>
         </span>
       </div>`;
     }
@@ -1247,7 +1277,7 @@ if ($('btnRedo')) $('btnRedo').addEventListener('click', () => {
    É PRÉVIA, não sorteio: pedir o sorteio pra preencher a tela faria sair uma
    ordem nova a cada vez que a página abrisse, e a que vale seria a última —
    o admin veria um resultado que não é o resultado. */
-async function carregarPrevia(ordemProvisoria){
+async function carregarPrevia(ordemProvisoria, caudaProvisoria){
   const sel = $('sessionSelect');
   if (!sel || !sel.value) return;
   try {
@@ -1255,6 +1285,7 @@ async function carregarPrevia(ordemProvisoria){
     // Ordem ainda não gravada: o servidor recalcula os grupos com ela e
     // devolve as chances de verdade, em vez de a tela adivinhar a regra.
     if (Array.isArray(ordemProvisoria)) corpo.ordem = ordemProvisoria;
+    if (Array.isArray(caudaProvisoria)) corpo.ordem_playoff = caudaProvisoria;
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

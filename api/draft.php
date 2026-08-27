@@ -931,11 +931,17 @@ if ($method === 'POST') {
             $standingsSeasonId     = (int)$standingsRow['id'];
             $standingsSeasonNumber = (int)$standingsRow['season_number'];
 
+            /* A coluna da cauda nasceu depois da tabela e CREATE TABLE IF NOT
+               EXISTS não mexe em tabela existente — bancos antigos chegam
+               aqui sem ela, e o SELECT abaixo quebraria. */
+            try { $pdo->exec('ALTER TABLE season_standings ADD COLUMN draft_tail_position INT NULL'); } catch (Throwable $e) { /* já existe */ }
+
             // Posição é por conferência (1..16 em cada). COALESCE cobre standings legados
             // sem conferência, caindo na conferência atual do time.
             $stmtST = $pdo->prepare('
                 SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
                        ss.wins, ss.points_for, ss.points_against, ss.overall_position,
+                       ss.draft_tail_position,
                        CONCAT(t.city," ",t.name) AS team_name, t.photo_url
                 FROM season_standings ss
                 JOIN teams t ON t.id = ss.team_id
@@ -970,6 +976,7 @@ if ($method === 'POST') {
             $teamPos = [];    // posição dentro da conferência (1 = melhor)
             $teamWins = [];   // vitórias — base antiga do ranking de "pior campanha"
             $teamOverall = []; // ordem geral declarada (17º em diante); null quando não existe
+            $teamTail = [];   // ordem de escolha entre os classificados (1 = pica primeiro); null quando não existe
             $teamPdiff = [];  // saldo de pontos, desempate
             $eligible = [];
             $playoffRows = [];
@@ -984,6 +991,8 @@ if ($method === 'POST') {
                     $teamWins[$tid] = isset($row['wins']) ? (int)$row['wins'] : 0;
                     $teamOverall[$tid] = isset($row['overall_position']) && $row['overall_position'] !== null
                         ? (int)$row['overall_position'] : null;
+                    $teamTail[$tid] = isset($row['draft_tail_position']) && $row['draft_tail_position'] !== null
+                        ? (int)$row['draft_tail_position'] : null;
                     $teamPdiff[$tid] = (int)($row['points_for'] ?? 0) - (int)($row['points_against'] ?? 0);
                     if ($idx < $cut) {
                         $playoffRows[] = $row;
@@ -1038,7 +1047,33 @@ if ($method === 'POST') {
             foreach ($stmtPO->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $poRank[(int)$r['team_id']] = $poScore[$r['position']] ?? 0;
             }
-            usort($playoffRows, function ($a, $b) use ($poRank) {
+            /* ORDEM PROVISÓRIA DA CAUDA (só prévia), mesma ideia da loteria.
+               Aqui o motivo é outro: entre dois times que caíram na mesma
+               fase, playoff_results não distingue quem foi mais longe, e a
+               diferença entre a pick 31 e a 32 vira um empate resolvido por
+               posição de conferência. O admin desempata na mão. */
+            if (!empty($data['preview']) && !empty($data['ordem_playoff']) && is_array($data['ordem_playoff'])) {
+                $idsPlayoff = array_flip($playoffTeamIds);
+                $caudaProv = [];
+                foreach ($data['ordem_playoff'] as $tidCauda) {
+                    $tidCauda = (int)$tidCauda;
+                    if (isset($idsPlayoff[$tidCauda]) && !in_array($tidCauda, $caudaProv, true)) {
+                        $caudaProv[] = $tidCauda;
+                    }
+                }
+                if (count($caudaProv) === count($playoffRows)) {
+                    foreach ($caudaProv as $iCauda => $tidCauda) $teamTail[$tidCauda] = $iCauda + 1;
+                }
+            }
+
+            /* A ordem declarada manda quando existe: ela é a única que separa
+               dois times que playoff_results empata. Sem ela, vale o critério
+               de sempre — quem foi menos longe pica antes, campeão por último. */
+            usort($playoffRows, function ($a, $b) use ($poRank, $teamTail) {
+                $ta = $teamTail[(int)$a['team_id']] ?? null;
+                $tb = $teamTail[(int)$b['team_id']] ?? null;
+                if ($ta !== null && $tb !== null && $ta !== $tb) return $ta <=> $tb;
+
                 $ra = $poRank[(int)$a['team_id']] ?? 0;
                 $rb = $poRank[(int)$b['team_id']] ?? 0;
                 if ($ra !== $rb) return $ra <=> $rb;
@@ -1329,8 +1364,9 @@ if ($method === 'POST') {
                 exit;
             }
             $seasonIdOrdem = (int)($data['season_id'] ?? 0);
-            $ordemTimes    = $data['ordem'] ?? [];
-            if (!$seasonIdOrdem || !is_array($ordemTimes) || count($ordemTimes) < 2) {
+            $ordemTimes    = is_array($data['ordem'] ?? null) ? $data['ordem'] : [];
+            $ordemCauda    = is_array($data['ordem_playoff'] ?? null) ? $data['ordem_playoff'] : [];
+            if (!$seasonIdOrdem || (count($ordemTimes) < 2 && count($ordemCauda) < 2)) {
                 echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
                 exit;
             }
@@ -1351,32 +1387,57 @@ if ($method === 'POST') {
             $stmtVal = $pdo->prepare('SELECT team_id FROM season_standings WHERE season_id = ?');
             $stmtVal->execute([$seasonIdOrdem]);
             $idsValidos = array_flip(array_map('intval', $stmtVal->fetchAll(PDO::FETCH_COLUMN)));
-            $ordemLimpa = [];
-            foreach ($ordemTimes as $tidOrdem) {
-                $tidOrdem = (int)$tidOrdem;
-                if (isset($idsValidos[$tidOrdem]) && !in_array($tidOrdem, $ordemLimpa, true)) {
-                    $ordemLimpa[] = $tidOrdem;
+            $limpar = function (array $lista) use ($idsValidos) {
+                $saida = [];
+                foreach ($lista as $tidOrdem) {
+                    $tidOrdem = (int)$tidOrdem;
+                    if (isset($idsValidos[$tidOrdem]) && !in_array($tidOrdem, $saida, true)) {
+                        $saida[] = $tidOrdem;
+                    }
                 }
-            }
-            if (count($ordemLimpa) !== count($ordemTimes)) {
+                return $saida;
+            };
+            $ordemLimpa = $limpar($ordemTimes);
+            $caudaLimpa = $limpar($ordemCauda);
+            if (count($ordemLimpa) !== count($ordemTimes) || count($caudaLimpa) !== count($ordemCauda)) {
                 echo json_encode(['success' => false, 'error' => 'A ordem tem times repetidos ou que não estão na classificação desta temporada.']);
                 exit;
             }
+            // Um time não pode estar nos dois lados: ou entrou na loteria, ou foi pro playoff.
+            if (array_intersect($ordemLimpa, $caudaLimpa)) {
+                echo json_encode(['success' => false, 'error' => 'Um mesmo time apareceu na loteria e no playoff.']);
+                exit;
+            }
 
-            /* A coluna nasceu depois da tabela, e CREATE TABLE IF NOT EXISTS
-               não mexe em tabela existente — bancos antigos chegam aqui sem
-               ela. O ALTER é tentado e o erro de "já existe" é o caso normal. */
+            /* As colunas nasceram depois da tabela, e CREATE TABLE IF NOT
+               EXISTS não mexe em tabela existente — bancos antigos chegam
+               aqui sem elas. O erro de "já existe" é o caso normal. */
             try { $pdo->exec('ALTER TABLE season_standings ADD COLUMN overall_position INT NULL'); } catch (Throwable $e) { /* já existe */ }
+            try { $pdo->exec('ALTER TABLE season_standings ADD COLUMN draft_tail_position INT NULL'); } catch (Throwable $e) { /* já existe */ }
 
-            /* Convenção do card Pontuação: os 16 classificados ficam de 1 a
-               16, e quem ficou de fora ocupa de 17 em diante. A lista chega
-               do pior pro melhor, então o primeiro leva o número mais alto. */
+            /* Duas listas, dois significados — e é por isso que não moram na
+               mesma coluna.
+
+               `overall_position` é CAMPANHA: convenção do card Pontuação, os
+               16 classificados de 1 a 16 e quem ficou de fora de 17 em
+               diante. A lista chega do pior pro melhor, então o primeiro
+               leva o número mais alto.
+
+               `draft_tail_position` é ORDEM DE ESCOLHA entre os
+               classificados, que não é campanha nenhuma: sai de quão longe o
+               time foi nos playoffs, e o campeão pica por último mesmo tendo
+               sido o melhor. Gravar isso como colocação geral faria o
+               campeão virar o 1º da liga na loteria do ano seguinte. */
             $topoSalvar = 16 + count($ordemLimpa);
             try {
                 $pdo->beginTransaction();
                 $stmtUpd = $pdo->prepare('UPDATE season_standings SET overall_position = ? WHERE season_id = ? AND team_id = ?');
                 foreach ($ordemLimpa as $iSalvar => $tidOrdem) {
                     $stmtUpd->execute([$topoSalvar - $iSalvar, $seasonIdOrdem, $tidOrdem]);
+                }
+                $stmtCauda = $pdo->prepare('UPDATE season_standings SET draft_tail_position = ? WHERE season_id = ? AND team_id = ?');
+                foreach ($caudaLimpa as $iSalvar => $tidOrdem) {
+                    $stmtCauda->execute([$iSalvar + 1, $seasonIdOrdem, $tidOrdem]);
                 }
                 $pdo->commit();
             } catch (Throwable $e) {
@@ -1385,7 +1446,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            echo json_encode(['success' => true, 'total' => count($ordemLimpa)]);
+            echo json_encode(['success' => true, 'total' => count($ordemLimpa) + count($caudaLimpa)]);
             break;
 
         // ADMIN: Definir ordem completa (sem "via", permite repetição, sem snake)
