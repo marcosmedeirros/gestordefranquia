@@ -266,6 +266,46 @@ function snapshotTaticasOffs(PDO $pdo, string $league): void
     }
 }
 
+/** Os tipos de prêmio estendido. Bônus de cap na temporada seguinte, zero ponto. */
+const PREMIOS_ESTENDIDOS = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
+
+/**
+ * Substitui os prêmios estendidos de uma temporada.
+ *
+ * `$tipos` é o escopo: só esses são apagados antes de gravar os novos. Existe
+ * porque o preenchimento acontece em duas etapas — All-NBA e All-Defensive na
+ * temporada regular, Finals MVP depois da Grande Final. Apagar os seis tipos a
+ * cada salvamento faria a etapa 1 varrer o Finals MVP toda vez que alguém
+ * voltasse pra corrigir uma posição.
+ *
+ * Escopo vazio = os seis, que é o que um salvamento com o formulário inteiro
+ * na tela quer dizer.
+ */
+function substituirPremiosEstendidos(PDO $pdo, int $seasonId, $premios, $tipos): void
+{
+    $escopo = array_values(array_intersect(
+        is_array($tipos) && $tipos ? array_map('strval', $tipos) : PREMIOS_ESTENDIDOS,
+        PREMIOS_ESTENDIDOS
+    ));
+    if (!$escopo) return;
+
+    $ph = implode(',', array_fill(0, count($escopo), '?'));
+    $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ($ph)")
+        ->execute(array_merge([$seasonId], $escopo));
+
+    if (!is_array($premios) || !$premios) return;
+    $ins = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?,?,?,?)");
+    foreach ($premios as $ex) {
+        $tp  = (string)($ex['award_type'] ?? '');
+        $tid = (int)($ex['team_id'] ?? 0);
+        $pn  = trim((string)($ex['player_name'] ?? ''));
+        // Fora do escopo não entra: gravar um tipo que não foi apagado antes
+        // criaria duplicata na próxima passada.
+        if (!in_array($tp, $escopo, true) || $tid <= 0 || $pn === '') continue;
+        $ins->execute([$seasonId, $tid, $tp, $pn]);
+    }
+}
+
 /** As táticas ativas da liga, cruas — a base dos dois retratos acima. */
 function taticasAtivasDaLiga(PDO $pdo, string $league): array
 {
@@ -2061,8 +2101,6 @@ try {
             }
             ensureRegistroRascunhoTable($pdo);
 
-            $extTypes = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
-
             $pdo->beginTransaction();
             try {
                 $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
@@ -2089,18 +2127,17 @@ try {
                 // Prêmios estendidos: exclusivos da ELITE, porque é lá que o
                 // bônus de cap existe. Nas outras ligas o campo nem aparece na
                 // tela, e aqui a checagem fecha a porta pelo outro lado.
-                if ($leagueR === 'ELITE' && !empty($input['extended_awards']) && is_array($input['extended_awards'])) {
-                    $phExt = implode(',', array_fill(0, count($extTypes), '?'));
-                    $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ($phExt)")
-                        ->execute(array_merge([$seasonId], $extTypes));
-                    $insExt = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?,?,?,?)");
-                    foreach ($input['extended_awards'] as $ex) {
-                        $tp = (string)($ex['award_type'] ?? '');
-                        $tid = (int)($ex['team_id'] ?? 0);
-                        $pn = trim((string)($ex['player_name'] ?? ''));
-                        if (!in_array($tp, $extTypes, true) || $tid <= 0 || $pn === '') continue;
-                        $insExt->execute([$seasonId, $tid, $tp, $pn]);
-                    }
+                //
+                // `extended_tipos` diz QUAIS tipos esta etapa substitui. Sem
+                // ele a etapa 1 apagaria o Finals MVP, que é preenchido só na
+                // etapa 2 — o DELETE varria os seis tipos e o INSERT só
+                // devolvia cinco.
+                if ($leagueR === 'ELITE') {
+                    substituirPremiosEstendidos(
+                        $pdo, $seasonId,
+                        $input['extended_awards'] ?? [],
+                        $input['extended_tipos'] ?? []
+                    );
                 }
 
                 // A regular acabou: congela a tática de cada time como ela
@@ -2317,23 +2354,13 @@ try {
                 $insertStandings($standingsOeste, 'OESTE');
             }
 
-            // Prêmios estendidos (só ELITE) — normalmente já vieram na etapa 1,
-            // mas chegam de novo aqui pra que uma correção feita na tela de
-            // playoffs não se perca. Só entram quando a lista vem preenchida:
-            // um payload sem eles não pode apagar o que já está gravado.
-            $extTypesReg = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
+            // Prêmios estendidos (só ELITE). Aqui vêm os SEIS tipos: o Finals
+            // MVP, que é desta etapa, mais os da etapa 1 — o formulário
+            // inteiro está na tela, então uma correção feita aqui num All-NBA
+            // também precisa valer. Sem escopo informado a função entende
+            // "todos", que é exatamente o caso.
             if ($league2 === 'ELITE' && !empty($input['extended_awards']) && is_array($input['extended_awards'])) {
-                $phExtReg = implode(',', array_fill(0, count($extTypesReg), '?'));
-                $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ($phExtReg)")
-                    ->execute(array_merge([$seasonId], $extTypesReg));
-                $insExtReg = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?,?,?,?)");
-                foreach ($input['extended_awards'] as $ex) {
-                    $tp = (string)($ex['award_type'] ?? '');
-                    $tid = (int)($ex['team_id'] ?? 0);
-                    $pn = trim((string)($ex['player_name'] ?? ''));
-                    if (!in_array($tp, $extTypesReg, true) || $tid <= 0 || $pn === '') continue;
-                    $insExtReg->execute([$seasonId, $tid, $tp, $pn]);
-                }
+                substituirPremiosEstendidos($pdo, (int)$seasonId, $input['extended_awards'], []);
             }
 
             $pdo->commit();

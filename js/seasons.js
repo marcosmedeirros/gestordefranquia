@@ -475,15 +475,23 @@ let _regPtsRestaurando = null;
  * lá pra corrigir temporada antiga, mas no registro do ano corrente entram
  * junto com o resto: preencher o MVP numa tela e o All-NBA noutra era o
  * tipo de ida e volta que faz alguém esquecer metade.
+ *
+ * `fase` diz em qual etapa a vaga aparece, e não é detalhe: o Finals MVP só
+ * existe depois da Grande Final. Pedir ele junto da temporada regular era
+ * pedir uma resposta que ninguém tem — por isso ele vai pra etapa 2, ao lado
+ * do chaveamento que acabou de decidir quem foi.
  */
 const REG_PTS_EXTENDED = [
-    { tipo: 'finals_mvp', titulo: '🏆 Finals MVP',                vagas: 1, bonus: '+3M' },
-    { tipo: 'all_nba_1',  titulo: 'All-NBA — 1º Time',            vagas: 5, bonus: '+3M' },
-    { tipo: 'all_nba_2',  titulo: 'All-NBA — 2º Time',            vagas: 5, bonus: '+2M' },
-    { tipo: 'all_nba_3',  titulo: 'All-NBA — 3º Time',            vagas: 5, bonus: '+1M' },
-    { tipo: 'all_def_1',  titulo: 'All-Defensive — 1º Time',      vagas: 5, bonus: '+2M' },
-    { tipo: 'all_def_2',  titulo: 'All-Defensive — 2º Time',      vagas: 5, bonus: '+1M' },
+    { tipo: 'finals_mvp', titulo: '🏆 Finals MVP',           vagas: 1, bonus: '+3M', fase: 'playoffs' },
+    { tipo: 'all_nba_1',  titulo: 'All-NBA — 1º Time',       vagas: 5, bonus: '+3M', fase: 'regular'  },
+    { tipo: 'all_nba_2',  titulo: 'All-NBA — 2º Time',       vagas: 5, bonus: '+2M', fase: 'regular'  },
+    { tipo: 'all_nba_3',  titulo: 'All-NBA — 3º Time',       vagas: 5, bonus: '+1M', fase: 'regular'  },
+    { tipo: 'all_def_1',  titulo: 'All-Defensive — 1º Time', vagas: 5, bonus: '+2M', fase: 'regular'  },
+    { tipo: 'all_def_2',  titulo: 'All-Defensive — 2º Time', vagas: 5, bonus: '+1M', fase: 'regular'  },
 ];
+
+/** Os tipos de prêmio estendido preenchidos em cada etapa. */
+const REG_PTS_EXT_TIPOS = fase => REG_PTS_EXTENDED.filter(x => x.fase === fase).map(x => x.tipo);
 
 function _regPtsSaveCache() {
     if (!_regPtsCacheKey) return;
@@ -535,18 +543,27 @@ function _regPtsRascunhoAtual() {
     return { form: formState, bracket: _bracket || null };
 }
 
-/** As vagas de prêmio estendido preenchidas, prontas pra API. */
-function _regPtsCollectExtended() {
+/**
+ * As vagas de prêmio estendido preenchidas, prontas pra API.
+ *
+ * `fase` limita ao que aquela etapa preenche. A etapa 1 manda só os seus:
+ * se mandasse a lista inteira, um Finals MVP já gravado na etapa 2 sumiria
+ * na primeira vez que alguém voltasse pra corrigir uma posição — a API
+ * substitui os tipos que recebe.
+ */
+function _regPtsCollectExtended(fase) {
     const form = document.getElementById('formRegistroPontuacao');
     if (!form) return [];
     const out = [];
-    REG_PTS_EXTENDED.forEach(({ tipo, vagas }) => {
-        for (let i = 0; i < vagas; i++) {
-            const team = form.querySelector(`[name="ext_${tipo}_${i}_team"]`)?.value || '';
-            const player = (form.querySelector(`[name="ext_${tipo}_${i}_player"]`)?.value || '').trim();
-            if (team && player) out.push({ award_type: tipo, team_id: team, player_name: player });
-        }
-    });
+    REG_PTS_EXTENDED
+        .filter(x => !fase || x.fase === fase)
+        .forEach(({ tipo, vagas }) => {
+            for (let i = 0; i < vagas; i++) {
+                const team = form.querySelector(`[name="ext_${tipo}_${i}_team"]`)?.value || '';
+                const player = (form.querySelector(`[name="ext_${tipo}_${i}_player"]`)?.value || '').trim();
+                if (team && player) out.push({ award_type: tipo, team_id: team, player_name: player });
+            }
+        });
     return out;
 }
 
@@ -1149,7 +1166,10 @@ async function showRegistroPontuacao(league) {
     // Prêmios estendidos: escolhe o time, e o jogador vem do elenco dele.
     // O nome era digitado à mão, e nome digitado à mão vira "Lebron",
     // "LeBron" e "Lebron James" como três pessoas diferentes no histórico.
-    const extPlayerStyle = 'flex:1;min-width:0;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;opacity:.6';
+    // min-width + wrap: no celular os dois lado a lado ficavam estreitos
+    // demais e os DOIS liam "— time —", porque o texto do select de jogador
+    // era cortado no meio. Sem espaço, agora cada um cai numa linha.
+    const extPlayerStyle = 'flex:1 1 180px;min-width:150px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;opacity:.6';
     const extTeamOpts = '<option value="">— time —</option>' +
         allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
     const mkExtBloco = ({ tipo, titulo, vagas, bonus }) => `
@@ -1158,11 +1178,11 @@ async function showRegistroPontuacao(league) {
                 ${titulo} <span style="color:var(--text-3);font-weight:400;font-size:11px">(${bonus})</span>
             </div>
             ${Array.from({ length: vagas }, (_, i) => `
-            <div style="display:flex;gap:8px;margin-bottom:6px">
-                <select name="ext_${tipo}_${i}_team" style="${selStyle};max-width:230px"
+            <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                <select name="ext_${tipo}_${i}_team" style="${selStyle};flex:1 1 180px;min-width:150px;max-width:230px"
                         onchange="_loadExtPlayers('ext_${tipo}_${i}_player', this.value); _regPtsSaveCache();">${extTeamOpts}</select>
                 <select name="ext_${tipo}_${i}_player" style="${extPlayerStyle}" onchange="_regPtsSaveCache();">
-                    <option value="">— time primeiro —</option>
+                    <option value="">— escolha o time —</option>
                 </select>
             </div>`).join('')}
         </div>`;
@@ -1171,11 +1191,28 @@ async function showRegistroPontuacao(league) {
             <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
                 <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-star-half" style="color:#eab308"></i> 3. Prêmios estendidos <span style="font-size:11px;color:var(--text-3);font-weight:400">— só ELITE</span></div>
                 <div style="font-size:12px;color:var(--text-3);margin:4px 0 12px">
-                    Finals MVP, All-NBA e All-Defensive. Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap.
+                    All-NBA e All-Defensive. Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap.
                     Não valem ponto de ranking — quem pontua são os prêmios individuais acima.
+                    O <b>Finals MVP</b> fica na etapa 2: só dá pra saber depois da Grande Final.
                 </div>
-                ${REG_PTS_EXTENDED.map(mkExtBloco).join('')}
+                ${REG_PTS_EXTENDED.filter(x => x.fase === 'regular').map(mkExtBloco).join('')}
             </div>` : '';
+
+    // O Finals MVP mora na etapa 2, ao lado do chaveamento que acabou de
+    // decidir quem foi. É o mesmo tipo de prêmio estendido dos outros —
+    // muda só a hora em que a resposta existe.
+    //
+    // Só aparece depois que a campanha foi salva, junto com o resto da etapa
+    // 2: antes disso a Grande Final nem foi jogada, e um campo em branco
+    // esperando resposta é convite pra alguém tentar adivinhar.
+    const finalsMvpHtml = (isElite && naEtapaPlayoffs) ? `
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+                    <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-star-half" style="color:#eab308"></i> Finals MVP <span style="font-size:11px;color:var(--text-3);font-weight:400">— só ELITE</span></div>
+                    <div style="font-size:12px;color:var(--text-3);margin:4px 0 12px">
+                        Prêmio estendido, como o All-NBA: vale <b>+3M no cap da temporada seguinte</b> e não dá ponto de ranking.
+                    </div>
+                    ${REG_PTS_EXTENDED.filter(x => x.fase === 'playoffs').map(mkExtBloco).join('')}
+                </div>` : '';
 
     const nbaCupHtml = isElite ? `
             <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
@@ -1295,6 +1332,7 @@ async function showRegistroPontuacao(league) {
                         Salve a etapa 1 primeiro — o chaveamento nasce da classificação.
                     </p>`}
                 </div>
+                ${finalsMvpHtml}
             </div>
 
             <!-- Submit -->
@@ -1422,7 +1460,10 @@ async function salvarTemporadaRegular(seasonId, league) {
                 season_id: seasonId,
                 standings_leste: leste,
                 standings_oeste: oeste,
-                extended_awards: league === 'ELITE' ? _regPtsCollectExtended() : [],
+                // Só os estendidos DESTA etapa — o Finals MVP é da etapa 2 e
+                // não pode ser apagado por um salvamento de campanha.
+                extended_awards: league === 'ELITE' ? _regPtsCollectExtended('regular') : [],
+                extended_tipos:  league === 'ELITE' ? REG_PTS_EXT_TIPOS('regular') : [],
                 dados: _regPtsRascunhoAtual(),
             })
         });
@@ -1495,9 +1536,9 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         roy: fv('roy_player_name'),
         roy_team_id: fv('roy_team_id'),
         nba_cup_team_id: fv('nba_cup_team_id'),
-        // Os estendidos já foram gravados na etapa 1, mas vão junto de novo:
-        // se alguém corrigiu um All-NBA aqui e não voltou a salvar a etapa 1,
-        // a correção iria pro lixo em silêncio.
+        // Aqui vão TODOS os estendidos: o Finals MVP, que é desta etapa, mais
+        // os da etapa 1 — se alguém corrigiu um All-NBA aqui e não voltou a
+        // salvar a campanha, a correção iria pro lixo em silêncio.
         extended_awards: league === 'ELITE' ? _regPtsCollectExtended() : []
     };
 
@@ -1933,7 +1974,7 @@ async function _loadExtPlayers(playerSelectName, teamId, valor) {
     const sel = document.querySelector(`[name="${playerSelectName}"]`);
     if (!sel) return;
     if (!teamId) {
-        sel.innerHTML = '<option value="">— time primeiro —</option>';
+        sel.innerHTML = '<option value="">— escolha o time —</option>';
         sel.style.opacity = '.6';
         return;
     }
