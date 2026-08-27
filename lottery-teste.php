@@ -79,11 +79,19 @@ h1 i{color:var(--red);margin-right:8px}
 .acao-info{font-size:12px;color:var(--text-3)}
 .acao-info b{color:var(--text);font-size:15px;font-family:'Oswald',sans-serif}
 button{font-family:inherit;cursor:pointer;border-radius:10px;transition:all .18s var(--ease)}
+/* nowrap: apertados entre o texto da esquerda e a borda, os botões
+   quebravam o próprio rótulo em três linhas. Preferem descer inteiros pra
+   linha de baixo — é o que o flex-wrap do container faz. */
 .btn{background:var(--red);color:#fff;border:none;padding:12px 26px;font-size:14px;font-weight:700;
-  display:inline-flex;align-items:center;gap:9px}
+  display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
+.btn-2{white-space:nowrap}
 .btn:hover:not(:disabled){filter:brightness(1.12)}
 .btn:disabled{opacity:.55;cursor:default}
-.btn-2{background:transparent;color:var(--text-2);border:1px solid var(--border-md);padding:11px 18px;font-size:13px;font-weight:600}
+/* O <a> precisa das mesmas medidas do <button> pra não ficar uma cabeça
+   fora de linha ao lado dele. */
+.btn-2{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--text-2);
+  border:1px solid var(--border-md);padding:11px 18px;font-size:13px;font-weight:600;
+  text-decoration:none;line-height:1.2}
 .btn-2:hover{color:var(--text);border-color:var(--red)}
 
 .rolar{overflow-x:auto}
@@ -199,9 +207,17 @@ th.n,td.n{text-align:right;font-family:'Oswald',sans-serif;font-weight:600;font-
       <b id="cabecalho">Carregando…</b>
       <div id="subcabecalho"></div>
     </div>
-    <div style="display:flex;gap:9px;flex-wrap:wrap">
+    <?php /* align-items:center senão o flex estica os itens pra altura do
+             mais alto e o botão de voltar fica com o dobro do tamanho. */ ?>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
       <button class="btn" id="btnSortear" disabled><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
       <button class="btn-2" id="btnLimpar" style="display:none"><i class="bi bi-arrow-counterclockwise"></i> Voltar às chances</button>
+      <?php /* Só pra quem tem conta: um visitante que chegou pelo link não
+               tem loteria pra voltar, e o botão o levaria a uma tela de
+               login que não pediu. */ ?>
+      <?php if (getUserSession()): ?>
+      <a class="btn-2" href="/lottery.php?liga=<?= urlencode($ligaEnsaio) ?>"><i class="bi bi-arrow-left"></i> Voltar à loteria</a>
+      <?php endif; ?>
     </div>
   </div>
 
