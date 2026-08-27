@@ -114,34 +114,33 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
    não administra fica na própria — que é a única que lhe diz respeito, e
    por isso nem aba tem. */
 $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
-if ($modoTeste || $isGlobalAdmin) {
-    $ligasVisiveis = $LIGAS_LOTERIA;                                        // vê todas
-} elseif ($adminLeagues) {
-    $ligasVisiveis = array_values(array_intersect($LIGAS_LOTERIA, $adminLeagues)); // as que administra
-} else {
-    $ligasVisiveis = array_values(array_intersect($LIGAS_LOTERIA, [$minhaLiga])); // a própria
-}
+/* ESTA TELA É A LOTERIA DE QUEM ESTÁ OLHANDO — a da liga onde a pessoa
+   joga. Sem seletor, sem abas: um GM abre aqui pra acompanhar a cerimônia
+   da própria liga, e não pra escolher qual quer ver.
 
+   Quem administra uma liga onde não joga chega por outro caminho: o card
+   Loteria dentro daquela liga, no painel de admin, que manda a liga na URL.
+   Conduzir o sorteio é ato de administração de uma liga específica, e o
+   lugar disso é o painel dela — não uma tela que todos os GMs abrem. */
 $ligaPedida = strtoupper((string)($_GET['liga'] ?? ''));
-if (in_array($ligaPedida, $ligasVisiveis, true)) {
-    $ligaAtual = $ligaPedida;
-} else {
-    /* Sem escolha na URL, abre onde há loteria acontecendo — e a própria
-       liga tem preferência quando também está com uma aberta. Abrir na liga
-       do admin só porque é a dele, estando ela parada, mostrava uma tela de
-       "nada por aqui" com a cerimônia rolando na aba ao lado. */
-    $comLoteria = [];
-    foreach ($buscarSessoes($ligasVisiveis) as $s) $comLoteria[$s['league']] = true;
+$podeConduzirPedida = in_array($ligaPedida, $LIGAS_LOTERIA, true)
+    && ($isGlobalAdmin || in_array($ligaPedida, $adminLeagues, true));
 
-    if (isset($comLoteria[$minhaLiga]))            $ligaAtual = $minhaLiga;
-    elseif ($comLoteria)                           $ligaAtual = array_key_first($comLoteria);
-    elseif (in_array($minhaLiga, $ligasVisiveis, true)) $ligaAtual = $minhaLiga;
-    else                                           $ligaAtual = $ligasVisiveis[0] ?? '';
+if ($modoTeste) {
+    $ligaAtual = in_array($ligaPedida, $LIGAS_LOTERIA, true) ? $ligaPedida : 'ELITE';
+} elseif ($podeConduzirPedida) {
+    $ligaAtual = $ligaPedida;                                  // veio do painel de admin
+} elseif (in_array($minhaLiga, $LIGAS_LOTERIA, true)) {
+    $ligaAtual = $minhaLiga;                                   // a liga onde a pessoa joga
+} else {
+    // Sem franquia: cai na primeira que administra, se administrar alguma.
+    $porAdmin  = array_values(array_intersect($LIGAS_LOTERIA, $adminLeagues));
+    $ligaAtual = $isGlobalAdmin ? 'ELITE' : ($porAdmin[0] ?? '');
 }
 
-// Conduzir a cerimônia é outra coisa: continua valendo só pra liga que a
-// pessoa administra de fato (o admin global administra todas). No ensaio,
-// conduzir não tem consequência — então é de todos.
+/* Conduzir continua sendo de quem administra a liga aberta. Como a tela abre
+   na liga de quem olha, na prática só aparece pra quem administra a própria
+   liga; nos outros casos, quem chega pelo painel de admin. */
 $podeConduzirEstaLiga = $ligaAtual !== ''
     && ($modoTeste || $isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
 
@@ -388,12 +387,15 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
   background:repeating-linear-gradient(135deg,rgba(245,158,11,.10) 0 12px,rgba(245,158,11,.05) 12px 24px);
   border:1px solid rgba(245,158,11,.42)}
 .faixa-ensaio > i{color:var(--amber);font-size:18px;line-height:1.2;flex-shrink:0}
-.liga-abas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.liga-aba{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);
-  color:var(--text-2);font-size:12px;font-weight:700;letter-spacing:.4px;text-decoration:none;
-  transition:all var(--t) var(--ease)}
-.liga-aba:hover{border-color:var(--border-md);color:var(--text)}
-.liga-aba.ativa{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.btn-teste{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:8px 16px;border-radius:999px;
+  border:1px solid rgba(245,158,11,.42);background:rgba(245,158,11,.08);color:var(--amber);
+  font-size:12px;font-weight:700;text-decoration:none;transition:all var(--t) var(--ease)}
+.btn-teste:hover{background:rgba(245,158,11,.16);border-color:var(--amber)}
+.liga-vinda{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;
+  border-radius:10px;font-size:12.5px;background:var(--panel);border:1px solid var(--border-md);color:var(--text-2)}
+.liga-vinda i{color:var(--red)}
+.liga-vinda b{color:var(--text)}
+.liga-vinda a{margin-left:auto;color:var(--text-3);font-size:12px}
 /* Dezessete colunas de números: tudo encolhe, e a coluna do time gruda na
    esquerda pra não sumir quando a tabela rola de lado. */
 .matriz-table{font-size:10px;min-width:840px}
@@ -634,6 +636,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="page-hero-eyebrow">Liga · Loteria</div>
       <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red);margin-right:8px"></i>Loteria do Draft</h1>
       <p class="page-hero-sub">Modelo 3-2-1 anti-tanking: os 16 times fora do playoff disputam as primeiras picks em 4 grupos com chances diferentes.</p>
+      <?php /* A loteria acontece uma vez por ano e decide o draft inteiro.
+               Quem só a vê nesse dia aprende a regra durante o resultado —
+               o link leva pra uma cópia onde dá pra sortear à vontade antes. */ ?>
+      <a href="/lottery-teste.php" class="btn-teste"><i class="bi bi-dice-5"></i> Teste a loteria</a>
     </div>
   </div>
 
@@ -648,15 +654,14 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
   <?php endif; ?>
 
-  <?php /* AS LIGAS, quando há mais de uma pra olhar. A loteria é evento
-           público, então quem administra alguma consegue acompanhar todas —
-           e não encontra mais uma tela de "nada por aqui" só porque a
-           sessão aberta é de outra liga. */ ?>
-  <?php if (count($ligasVisiveis) > 1): ?>
-  <div class="liga-abas">
-    <?php foreach ($ligasVisiveis as $lg): ?>
-    <a href="?liga=<?= urlencode($lg) ?>" class="liga-aba<?= $lg === $ligaAtual ? ' ativa' : '' ?>"><?= htmlspecialchars($lg) ?></a>
-    <?php endforeach; ?>
+  <?php /* Quem chegou pelo painel de admin está numa liga que não é a dele.
+           Sem isso, nada na tela diria de qual liga é a loteria que ele está
+           prestes a sortear. */ ?>
+  <?php if ($podeConduzirPedida && $ligaAtual !== $minhaLiga): ?>
+  <div class="liga-vinda">
+    <i class="bi bi-shield-lock"></i>
+    <span>Você está na loteria da <b><?= htmlspecialchars($ligaAtual) ?></b>, que administra.</span>
+    <a href="/admin.php">Voltar ao painel</a>
   </div>
   <?php endif; ?>
 

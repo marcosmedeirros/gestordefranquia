@@ -3237,6 +3237,12 @@ async function showLeague(league) {
       // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
       // existindo (showScheduler), só não têm mais atalho no card.
       { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      /* A LOTERIA ENTRA AQUI, e não na tela da loteria.
+         Conduzir a cerimônia é ato de administração de UMA liga, e quem
+         administra nem sempre joga nela. Na tela da loteria isso virava um
+         seletor de liga que todo mundo via; aqui o card já sabe de qual liga
+         se trata, porque está dentro dela. */
+      { icon: 'bi-dice-5-fill',             label: 'Loteria<br>do Draft',        fn: `abrirLoteria('${league}')`,            color: '#fc0025', bg: 'rgba(252,0,37,.12)'    },
       // A tabela de cap existia dentro de Configurações, embaixo dos campos de
       // edição da liga. Quem só queria conferir passava por uma tela de mexer
       // pra chegar numa de olhar.
@@ -8243,6 +8249,13 @@ async function panelToggleTatica(abrir) {
 /** Abre o controle de drafts já na aba da liga de onde saiu o clique. */
 function abrirControleDrafts(league) {
   window.location.href = '/controledrafts.php?league=' + encodeURIComponent(league);
+}
+
+/* A cerimônia da loteria daquela liga, com os controles.
+   A liga vai na URL porque é por ela que a tela decide se mostra o botão de
+   sortear: fora daqui, lottery.php é a loteria de quem está olhando. */
+function abrirLoteria(league) {
+  window.location.href = '/lottery.php?liga=' + encodeURIComponent(league);
 }
 
 // AGENDADOR DE FASES (fechar/abrir trades, fechar FA)
