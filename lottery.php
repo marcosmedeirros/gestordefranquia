@@ -473,7 +473,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           if ($draftUnico['year']): ?> <span style="color:var(--text-3);font-weight:600">(<?= htmlspecialchars($draftUnico['year']) ?>)</span><?php endif; ?>
       </div>
     </div>
-    <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
+    <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
   </div>
   <select id="sessionSelect" style="display:none">
     <option value="<?= (int)$draftUnico['id'] ?>" selected></option>
@@ -491,7 +491,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
           <?php endforeach; ?>
         </select>
       </div>
-      <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
+      <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
     </div>
   </div>
   <?php endif; ?>
@@ -506,7 +506,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <i class="bi bi-eye" style="color:var(--red)"></i>
       <b>Prévia</b> — estes são os times que entram na loteria, com o grupo e as chances de cada um.
       A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
-      Clique em <b>Preparar Loteria</b> para sortear.
+      Clique em <b>Sortear a loteria</b> quando estiver tudo certo.
     </div>
 
     <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
@@ -732,12 +732,12 @@ async function prepare(){
   const sel = $('sessionSelect');
   const sessionId = sel ? sel.value : '';
   const btn = $('btnPrepare');
-  const label = '<i class="bi bi-dice-5-fill"></i> Preparar Loteria';
+  const label = '<i class="bi bi-dice-5-fill"></i> Sortear a loteria';
 
   if (!sessionId) { alert('Escolha uma sessão de draft.'); return; }
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparando...';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sorteando...';
   try {
     const payload = { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
     const res = await fetch('/api/draft.php', {
@@ -746,16 +746,21 @@ async function prepare(){
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (!data.success) { alert(data.error || 'Erro ao preparar a loteria.'); return; }
+    if (!data.success) { alert(data.error || 'Erro ao sortear a loteria.'); return; }
     result = data;
     setupBoardAndOdds(data);
     $('btnConfirm').style.display = '';
     $('resultSection').style.display = 'block';
   } catch (e) {
-    alert('Erro ao preparar a loteria.');
+    alert('Erro ao sortear a loteria.');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = label;
+    // O rótulo depende de já ter sorteado ou não — e o setupBoardAndOdds já
+    // decidiu isso. Restaurar o texto fixo aqui desfazia a troca dele.
+    const jaSorteou = result && result.preview === false;
+    btn.innerHTML = jaSorteou
+      ? '<i class="bi bi-arrow-repeat"></i> Sortear de novo'
+      : label;
   }
 }
 
@@ -770,9 +775,20 @@ function setupBoardAndOdds(data){
   revealed = new Set();
   busy = false;
   photoById = {};
-  // Sorteou de verdade: o aviso de prévia sai e o Confirmar volta.
+  /* Sorteou de verdade: o aviso de prévia sai e o botão do topo muda de
+     nome. Ele NÃO some: o "Sortear de novo" só aparece quando a revelação
+     termina, e esconder os dois deixaria sem saída quem sorteou a sessão
+     errada e quer refazer no ato. Some do botão só a inocência — a partir
+     daqui ele pergunta antes, porque jogar fora um sorteio que a liga já
+     está vendo revelar não pode acontecer por um clique distraído. */
   const avisoPrevia = $('previaAviso');
   if (avisoPrevia) avisoPrevia.style.display = data.preview ? '' : 'none';
+  const btnSortear = $('btnPrepare');
+  if (btnSortear) {
+    btnSortear.innerHTML = data.preview
+      ? '<i class="bi bi-dice-5-fill"></i> Sortear a loteria'
+      : '<i class="bi bi-arrow-repeat"></i> Sortear de novo';
+  }
   data.order.forEach(o => { photoById[o.team_id] = o.photo_url; });
 
   // Chances (antes de revelar) — agrupadas pelos 4 grupos do modelo 3-2-1
@@ -1081,10 +1097,20 @@ function mostrarEventos(eventos) {
 
 // Quem não administra loteria nenhuma não tem esses controles na página
 // (só vê a ordem já confirmada), então todos os binds ficam guardados.
-if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare());
+// A partir do segundo sorteio o clique descarta um resultado que já existe —
+// e que pode estar sendo revelado na frente da liga. Pergunta antes.
+if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => {
+  const jaSorteou = result && result.preview === false;
+  if (jaSorteou && !confirm('Sortear de novo? A ordem que está na tela é descartada e uma nova é sorteada do zero.')) return;
+  prepare();
+});
 if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
 if ($('btnConfirm')) $('btnConfirm').addEventListener('click', confirmOrder);
-if ($('btnRedo')) $('btnRedo').addEventListener('click', () => prepare());
+// Refazer joga fora um sorteio que já aconteceu — e que a liga pode já ter
+// visto sendo revelado. Pergunta antes.
+if ($('btnRedo')) $('btnRedo').addEventListener('click', () => {
+  if (confirm('Sortear de novo? A ordem que está na tela é descartada e uma nova é sorteada do zero.')) prepare();
+});
 
 /* A PRÉVIA CARREGA SOZINHA.
    Quem abre esta tela quer ver quem entra na loteria, em que grupo e com
