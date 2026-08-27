@@ -1596,8 +1596,17 @@ let acompanhandoFila = [];
 
 /* Quem assiste. Só entra aqui quem não conduz: pra quem conduz, o servidor
    é o eco do que ele mesmo acabou de fazer. */
+/**
+ * Pega o que está no ar e coloca na tela.
+ *
+ * Vale pra quem assiste, de três em três segundos, E pra quem conduz, uma
+ * vez ao abrir a página: a ordem sorteada não mora mais no navegador de
+ * ninguém, então recarregar deixava o próprio admin diante de uma tela
+ * dizendo que nada foi sorteado — com a cerimônia no ar e metade da liga
+ * olhando as picks saírem.
+ */
 async function acompanharCerimonia(){
-  if (PODE_EDITAR_ORDEM || MODO_TESTE) return;
+  if (MODO_TESTE) return;
   const sid = SESSAO_ID();
   if (!sid) return;
   try {
@@ -1605,6 +1614,10 @@ async function acompanharCerimonia(){
     const d = await res.json();
     if (!d.success || !d.no_ar) return;
     if (d.em === acompanhandoEm) return;      // nada mudou desde a última olhada
+    /* Nunca no meio de uma bolinha girando. Redesenhar o quadro agora
+       cortaria a revelação em curso pela metade — e a próxima olhada, três
+       segundos depois, encontra a mesma novidade esperando. */
+    if (busy) return;
     const primeiraVez = acompanhandoEm === null;
     acompanhandoEm = d.em;
 
@@ -1626,6 +1639,15 @@ async function acompanharCerimonia(){
       else aplicarRevelacao(pos, false);
     });
     escoarFilaDeQuemAssiste();
+
+    /* A tela sai do estado de prévia: o que está embaixo é resultado.
+       Sem isso, quem conduz recarregava a página e encontrava o aviso de
+       "nada foi sorteado ainda" por cima da própria cerimônia. */
+    const aviso = $('previaAviso');
+    if (aviso) aviso.style.display = 'none';
+    $('resultSection').style.display = 'block';
+    const btnSortear = $('btnPrepare');
+    if (btnSortear) btnSortear.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sortear de novo';
   } catch (e) { /* próxima olhada tenta de novo */ }
 }
 
@@ -1892,14 +1914,18 @@ window.addEventListener('beforeunload', (e) => {
   e.returnValue = '';
 });
 carregarPrevia().then(() => {
-  /* Quem assiste fica de olho no que está no ar. Três segundos: rápido o
-     bastante pra parecer ao vivo, espaçado o bastante pra dezenas de GMs com
-     a página aberta não virarem carga. A resposta é minúscula, e a tela só é
-     redesenhada quando o carimbo de hora muda. */
-  if (!PODE_EDITAR_ORDEM && !MODO_TESTE) {
-    acompanharCerimonia();
-    setInterval(acompanharCerimonia, 3000);
-  }
+  if (MODO_TESTE) return;
+  /* TODOS na mesma cerimônia, o tempo todo.
+     Ao abrir, a tela retoma o que está no ar — inclusive a de quem conduz,
+     que senão recarrega e encontra a própria cerimônia sumida. E todos
+     continuam perguntando: quando a liga tem mais de um admin, quem não
+     está sorteando acompanha igual a qualquer GM.
+
+     Três segundos é rápido o bastante pra parecer ao vivo e espaçado o
+     bastante pra dezenas de páginas abertas não virarem carga. A resposta é
+     minúscula, e a tela só é redesenhada quando o carimbo de hora muda. */
+  acompanharCerimonia();
+  setInterval(acompanharCerimonia, 3000);
 });
 </script>
 </body>
