@@ -1069,19 +1069,30 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
              . "\nO chaveamento aparece aqui quando o admin salva a classificação da temporada regular.";
     }
 
+    // SÓ A ALCUNHA, sem a cidade: "Alley Dogs" e não "Bed-Stuy Alley Dogs".
+    // Numa chave são dezesseis nomes em confrontos de dois, e com a cidade
+    // cada linha quebrava em duas na tela do celular — a lista dobrava de
+    // altura pra dizer a mesma coisa. Dentro de uma liga a alcunha já
+    // identifica o time sozinha.
+    //
     // Os nomes vêm do banco, não do JSON: o rascunho guarda o nome como
     // estava quando o chaveamento foi montado, e time que mudou de nome no
     // meio dos playoffs apareceria com o antigo.
     $nomes = [];
     $stT = $pdo->prepare("SELECT id, city, name, mascot FROM teams WHERE league = ?");
     $stT->execute([$liga]);
-    foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) $nomes[(int)$t['id']] = wcNomeDoTime($t);
+    foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $curto = trim((string)($t['name'] ?? ''));
+        if ($curto === '') $curto = trim((string)($t['mascot'] ?? ''));
+        if ($curto === '') $curto = wcNomeDoTime($t);   // último recurso
+        $nomes[(int)$t['id']] = $curto;
+    }
     $nomeDe = function ($time) use ($nomes) {
         $id = (int)($time['id'] ?? 0);
         if (isset($nomes[$id])) return $nomes[$id];
         // Time que saiu da liga depois do chaveamento montado: o nome do
         // rascunho ainda serve, e é melhor que um "?" no meio da chave.
-        $doRascunho = trim((string)($time['city'] ?? '') . ' ' . (string)($time['name'] ?? ''));
+        $doRascunho = trim((string)($time['name'] ?? ''));
         return $doRascunho !== '' ? $doRascunho : '?';
     };
 
