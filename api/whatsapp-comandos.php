@@ -870,6 +870,66 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
 }
 
 /**
+ * A 1ª rodada montada a partir da CLASSIFICAÇÃO — a fonte que nunca falta.
+ *
+ * Os confrontos de abertura não dependem de ninguém preencher nada: são as
+ * seeds cruzadas, 1x8, 4x5, 2x7 e 3x6 em cada conferência. Assim que o admin
+ * salva a classificação, eles existem.
+ *
+ * Isto é a rede de segurança do /playoffs. As outras duas fontes — o rascunho
+ * e as séries registradas — dependem de uma gravação ter dado certo em outro
+ * lugar; esta depende só da classificação, que é o próprio pré-requisito dos
+ * playoffs. Sem ela o comando dizia "não tem playoffs ativo" com o
+ * chaveamento montado na tela do admin, porque o rascunho tinha subido sem
+ * ele. Aqui não há o que sincronizar.
+ *
+ * Vem sem vencedor e sem placar, que é a verdade: as séries ainda não foram
+ * jogadas. Devolve null quando a temporada não tem classificação lançada.
+ */
+function wcChaveDaClassificacao(PDO $pdo, int $seasonId): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT ss.team_id, ss.position,
+                                    COALESCE(ss.conference, t.conference) AS conf
+                               FROM season_standings ss
+                               JOIN teams t ON t.id = ss.team_id
+                              WHERE ss.season_id = ?
+                           ORDER BY ss.position ASC");
+        $st->execute([$seasonId]);
+        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!$linhas) return null;
+
+    $porConf = ['LESTE' => [], 'OESTE' => []];
+    foreach ($linhas as $r) {
+        $c = strtoupper((string)($r['conf'] ?? ''));
+        if (!isset($porConf[$c])) continue;      // conferência fora do par: sem chave
+        $porConf[$c][(int)$r['position']] = (int)$r['team_id'];
+    }
+
+    $vazia = fn() => ['r1' => [], 'r2' => [], 'cf' => null];
+    $chave = ['leste' => $vazia(), 'oeste' => $vazia(), 'final' => null];
+    // A ordem dos pares é a do chaveamento, não a das seeds: é ela que faz os
+    // vencedores se encontrarem certo na rodada seguinte.
+    $pares = [[1, 8], [4, 5], [2, 7], [3, 6]];
+    $achou = false;
+
+    foreach (['LESTE' => 'leste', 'OESTE' => 'oeste'] as $conf => $lado) {
+        foreach ($pares as [$a, $b]) {
+            if (empty($porConf[$conf][$a]) || empty($porConf[$conf][$b])) continue;
+            $chave[$lado]['r1'][] = [
+                't1' => ['id' => $porConf[$conf][$a]], 's1' => $a,
+                't2' => ['id' => $porConf[$conf][$b]], 's2' => $b,
+            ];
+            $achou = true;
+        }
+    }
+    return $achou ? $chave : null;
+}
+
+/**
  * O chaveamento remontado a partir das séries JÁ REGISTRADAS.
  *
  * Depois do registro final o rascunho some, mas playoff_series guarda cada
@@ -961,14 +1021,20 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     $seasonId   = (int)$temp['id'];
     $numeroTemp = $temp['season_number'] ?? null;
 
-    // O chaveamento vem de dois lugares, nesta ordem:
+    // O chaveamento vem de TRÊS lugares, nesta ordem — da informação mais
+    // completa pra mais garantida:
     //
-    //   1. O RASCUNHO do registro de pontuação, que é onde ele mora enquanto
-    //      o admin preenche as séries — playoffs em andamento.
-    //   2. playoff_series, que é onde ele fica DEPOIS do registro final. O
-    //      rascunho é apagado nessa hora, e sem esta segunda fonte o comando
-    //      respondia "não tem playoffs ativo" logo depois de a liga registrar
-    //      os playoffs — que é justamente quando todo mundo quer ver.
+    //   1. O RASCUNHO do registro de pontuação: é onde ele mora enquanto o
+    //      admin preenche as séries, com vencedores e placares.
+    //   2. playoff_series, onde ele fica DEPOIS do registro final — o rascunho
+    //      é apagado nessa hora.
+    //   3. A CLASSIFICAÇÃO, que dá os confrontos de abertura pelas seeds.
+    //
+    // A terceira existe porque as duas primeiras dependem de uma gravação ter
+    // dado certo em outro lugar, e uma delas falhou calada: o rascunho subia
+    // sem o chaveamento e o comando respondia "não tem playoffs ativo" com a
+    // chave montada na tela do admin. A classificação é o próprio
+    // pré-requisito dos playoffs — se ela existe, os confrontos existem.
     $chave = null;
     $encerrado = false;
     try {
@@ -987,6 +1053,10 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     if (!$chave) {
         $chave = wcChaveDasSeries($pdo, $seasonId);
         $encerrado = (bool)$chave;
+    }
+
+    if (!$chave) {
+        $chave = wcChaveDaClassificacao($pdo, $seasonId);
     }
 
     if (!$chave) {
