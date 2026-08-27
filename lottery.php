@@ -55,26 +55,44 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
     $ph = implode(',', array_fill(0, count($ligas), '?'));
 
     if (!$modoTeste) {
+        /* Uma loteria por liga: a da temporada mais alta em configuração.
+           Sem esse corte, uma sessão antiga esquecida nesse estado — e elas
+           existem — disputa com a atual e pode vencer, colocando a liga
+           diante da loteria de uma temporada que já passou. */
         $st = $pdo->prepare("
             SELECT ds.id, ds.status, ds.league, s.season_number, s.year
             FROM draft_sessions ds
             JOIN seasons s ON s.id = ds.season_id
             WHERE ds.league IN ($ph) AND ds.status = 'setup'
-            ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC
+            ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC, ds.id DESC
         ");
         $st->execute($ligas);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
+        $umaPorLiga = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
+            if (!isset($umaPorLiga[$s['league']])) $umaPorLiga[$s['league']] = $s;
+        }
+        return array_values($umaPorLiga);
     }
 
-    // Ensaio: a mais recente de cada liga, prendendo a de configuração
-    // quando ela existir — é a que a liga tem em mente.
+    /* Ensaio: a temporada MAIS RECENTE de cada liga, e só isso.
+       Preferir a sessão em configuração parecia melhor — é a loteria que a
+       liga tem em mente — mas sobra por aí sessão antiga esquecida nesse
+       estado, e uma delas venceu a disputa: a página abria na Temporada 1 de
+       2025, sem classificação pra sortear, e não mostrava nada. A temporada
+       mais alta é a única escolha que não depende de arrumação de status. */
     $st = $pdo->prepare("
         SELECT ds.id, ds.status, ds.league, s.season_number, s.year
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
         WHERE ds.league IN ($ph)
+          AND EXISTS (
+                SELECT 1 FROM season_standings ss
+                  JOIN seasons s2 ON s2.id = ss.season_id
+                 WHERE s2.league = s.league
+                   AND s2.season_number <= s.season_number
+              )
         ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'),
-                 (ds.status = 'setup') DESC, s.season_number DESC, ds.id DESC
+                 s.season_number DESC, ds.id DESC
     ");
     $st->execute($ligas);
 
@@ -632,10 +650,15 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <?= $ligaAtual
         ? 'A ' . htmlspecialchars($ligaAtual) . ' ainda não sorteou a ordem do draft desta temporada.'
         : 'A loteria é de cada liga, e você ainda não tem franquia em nenhuma. Assim que estiver numa, ela aparece aqui.' ?>
-      <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo. */ ?>
-      <?php if ($podeConduzirEstaLiga): ?>
+      <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo —
+               e no ensaio ninguém está aqui pra destravar nada. */ ?>
+      <?php if ($podeConduzirEstaLiga && !$modoTeste): ?>
       <div style="font-size:11px;color:var(--text-3);margin-top:8px">
         A loteria aparece aqui quando existir uma sessão de draft em configuração — ela é criada na tela de Draft.
+      </div>
+      <?php elseif ($modoTeste): ?>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px">
+        Escolha outra liga nas abas acima para ensaiar o sorteio dela.
       </div>
       <?php endif; ?>
     </div>
@@ -708,6 +731,15 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
   <?php endif; ?>
   <?php endif; ?>
+
+  <?php /* Este aviso mora FORA do bloco de resultado. O de dentro nunca era
+           lido quando mais importava: se a prévia não vem, o bloco inteiro
+           fica oculto e leva o aviso junto — a pessoa via a página muda e
+           não tinha como saber por quê. */ ?>
+  <div id="semLoteria" class="panel bc-off" style="display:none;border-color:rgba(245,158,11,.42)">
+    <i class="bi bi-info-circle" style="color:var(--amber)"></i>
+    <span id="semLoteriaTexto"></span>
+  </div>
 
   <div id="resultSection" style="display:none">
 
@@ -1666,17 +1698,17 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
     });
     const data = await res.json();
     if (!data.success) {
-      /* No ensaio a pessoa escolheu a liga clicando numa aba e merece saber
-         por que não veio nada — calar aqui deixaria a tela em branco sem
-         explicação, que foi como esta página nasceu quebrada. */
-      const aviso = $('previaAviso');
-      if (MODO_TESTE && aviso) {
-        aviso.style.display = '';
-        aviso.innerHTML = '<i class="bi bi-info-circle" style="color:var(--amber)"></i> '
-          + esc(data.error || 'Esta liga ainda não tem uma loteria pra ensaiar.');
+      /* A pessoa escolheu a liga clicando numa aba e merece saber por que
+         não veio nada — calar aqui deixa a tela em branco sem explicação. */
+      const box = $('semLoteria'), txt = $('semLoteriaTexto');
+      if (box && txt) {
+        txt.textContent = data.error || 'Esta liga não tem uma loteria pra mostrar agora.';
+        box.style.display = '';
       }
+      $('resultSection').style.display = 'none';
       return;
     }
+    if ($('semLoteria')) $('semLoteria').style.display = 'none';
     result = data;
     setupBoardAndOdds(data);
     $('resultSection').style.display = 'block';
