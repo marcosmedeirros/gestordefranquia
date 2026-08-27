@@ -6,6 +6,13 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
+/* MODO ENSAIO. Ligado pelo lottery-teste.php, que só existe pra dar um
+   endereço limpo a isto. Aqui a cerimônia roda inteira e não conta: o
+   sorteio nunca escreveu no banco, e o "Confirmar" — a ação que aplica a
+   ordem ao draft — não é montado. Por isso qualquer um pode sortear e
+   mexer na ordem: não há o que estragar. */
+$modoTeste = !empty($MODO_TESTE_LOTERIA);
+
 $isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 $adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
 // Qualquer jogador pode ver a loteria (regras + ordem já sorteada); só quem
@@ -50,7 +57,7 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
    não administra fica na própria — que é a única que lhe diz respeito, e
    por isso nem aba tem. */
 $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
-if ($isGlobalAdmin) {
+if ($modoTeste || $isGlobalAdmin) {
     $ligasVisiveis = $LIGAS_LOTERIA;                                        // vê todas
 } elseif ($adminLeagues) {
     $ligasVisiveis = array_values(array_intersect($LIGAS_LOTERIA, $adminLeagues)); // as que administra
@@ -76,9 +83,10 @@ if (in_array($ligaPedida, $ligasVisiveis, true)) {
 }
 
 // Conduzir a cerimônia é outra coisa: continua valendo só pra liga que a
-// pessoa administra de fato (o admin global administra todas).
+// pessoa administra de fato (o admin global administra todas). No ensaio,
+// conduzir não tem consequência — então é de todos.
 $podeConduzirEstaLiga = $ligaAtual !== ''
-    && ($isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
+    && ($modoTeste || $isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
 
 $setupSessions = $ligaAtual ? $buscarSessoes([$ligaAtual]) : [];
 
@@ -316,6 +324,13 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-table tr:last-child td{border-bottom:none}
 .balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700;font-variant-numeric:tabular-nums}
 .balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
+/* A faixa do ensaio usa listra de obra, não o vermelho da liga: quem chega
+   por link precisa saber em dois segundos que não está na loteria oficial. */
+.faixa-ensaio{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;padding:13px 16px;border-radius:12px;
+  font-size:13px;line-height:1.55;color:var(--text);
+  background:repeating-linear-gradient(135deg,rgba(245,158,11,.10) 0 12px,rgba(245,158,11,.05) 12px 24px);
+  border:1px solid rgba(245,158,11,.42)}
+.faixa-ensaio > i{color:var(--amber);font-size:18px;line-height:1.2;flex-shrink:0}
 .liga-abas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .liga-aba{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:var(--panel);
   color:var(--text-2);font-size:12px;font-weight:700;letter-spacing:.4px;text-decoration:none;
@@ -537,6 +552,17 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
   </div>
 
+  <?php if ($modoTeste): ?>
+  <div class="faixa-ensaio">
+    <i class="bi bi-cone-striped"></i>
+    <div>
+      <b>Modo de ensaio.</b> Esta é a loteria de verdade, sorteando de verdade — e nada do que acontecer aqui
+      é gravado. Sorteie quantas vezes quiser, mude a ordem e os grupos à vontade: some tudo ao fechar a página,
+      e a loteria oficial continua exatamente como está.
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php /* AS LIGAS, quando há mais de uma pra olhar. A loteria é evento
            público, então quem administra alguma consegue acompanhar todas —
            e não encontra mais uma tela de "nada por aqui" só porque a
@@ -663,7 +689,9 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <span id="ordemBarTexto"></span>
       <span class="ordem-bar-acoes">
         <button class="btn-ghost2" id="btnOrdemDesfazer" type="button"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
+        <?php if (!$modoTeste): ?>
         <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar</button>
+        <?php endif; ?>
       </span>
     </div>
     <?php endif; ?>
@@ -747,7 +775,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
 
-    <?php if ($podeConduzirEstaLiga): ?>
+    <?php if ($podeConduzirEstaLiga && !$modoTeste): ?>
     <div class="panel" id="confirmPanel" style="display:none">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
@@ -928,6 +956,15 @@ async function prepare(){
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sorteando...';
   try {
     const payload = { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
+    if (MODO_TESTE) {
+      payload.simulacao = true;
+      // No ensaio nada foi gravado, então o que está na tela é o que vale:
+      // a ordem e os grupos vão junto pra que o sorteio use exatamente o
+      // cenário que a pessoa montou.
+      payload.ordem = ordemLoteria;
+      payload.ordem_playoff = ordemPlayoff;
+      payload.grupos = Object.fromEntries(ordemLoteria.map(t => [t, gruposEditados[t] || 0]));
+    }
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -937,7 +974,8 @@ async function prepare(){
     if (!data.success) { alert(data.error || 'Erro ao sortear a loteria.'); return; }
     result = data;
     setupBoardAndOdds(data);
-    $('btnConfirm').style.display = '';
+    // No ensaio o botão de aplicar ao draft não existe.
+    if ($('btnConfirm')) $('btnConfirm').style.display = '';
     $('resultSection').style.display = 'block';
   } catch (e) {
     alert('Erro ao sortear a loteria.');
@@ -970,6 +1008,9 @@ function logo(url, cls){
    Salvar. Enquanto houver mudança pendente o sorteio fica bloqueado, porque
    ele sortearia pela ordem gravada, não pela que está na tela. */
 const PODE_EDITAR_ORDEM = <?= $podeConduzirEstaLiga ? 'true' : 'false' ?>;
+/* No ensaio o sorteio vai marcado, e o servidor devolve a ordem sem gravar
+   nada — nem aqui nem na loteria oficial, que é a mesma chamada. */
+const MODO_TESTE = <?= $modoTeste ? 'true' : 'false' ?>;
 let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
 let ordemSalvaRef = [];   // como estava na última vez que gravou
 /* A cauda de playoff também se edita, por um motivo diferente: quem foi
@@ -995,13 +1036,17 @@ function atualizarBarraOrdem(){
   if (!bar) return;
   bar.style.display = ordemPendente ? '' : 'none';
   const txt = $('ordemBarTexto');
-  if (txt) txt.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> '
-    + '<b>Alterações não salvas.</b> As chances abaixo já refletem a mudança, mas ela ainda não foi gravada — '
-    + 'sair da página agora perde a edição.';
+  if (txt) txt.innerHTML = MODO_TESTE
+    ? '<i class="bi bi-cone-striped"></i> <b>Cenário alterado.</b> O sorteio abaixo vai usar esta ordem. '
+      + 'Nada disso é gravado — o Desfazer devolve o cenário oficial.'
+    : '<i class="bi bi-exclamation-triangle-fill"></i> '
+      + '<b>Alterações não salvas.</b> As chances abaixo já refletem a mudança, mas ela ainda não foi gravada — '
+      + 'sair da página agora perde a edição.';
   const btnSortear = $('btnPrepare');
   if (btnSortear) {
-    btnSortear.disabled = ordemPendente;
-    btnSortear.title = ordemPendente ? 'Salve a ordem antes de sortear' : '';
+    // No ensaio não há o que salvar, então nada trava o sorteio.
+    btnSortear.disabled = ordemPendente && !MODO_TESTE;
+    btnSortear.title = (ordemPendente && !MODO_TESTE) ? 'Salve a ordem antes de sortear' : '';
   }
 }
 
@@ -1588,7 +1633,7 @@ $('btnOrdemDesfazer')?.addEventListener('click', desfazerOrdem);
 /* Última barreira antes de perder o trabalho. A barra já avisa na tela, mas
    quem trocou uma tag e foi conferir outra coisa sai sem olhar pra cima. */
 window.addEventListener('beforeunload', (e) => {
-  if (!ordemPendente) return;
+  if (!ordemPendente || MODO_TESTE) return;   // no ensaio não há nada a perder
   e.preventDefault();
   e.returnValue = '';
 });

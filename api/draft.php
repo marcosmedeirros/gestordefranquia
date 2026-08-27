@@ -863,11 +863,25 @@ if ($method === 'POST') {
                por mensagem. Sortear, esse sim, continua sendo do admin: é o
                ato que define o draft. */
             $apenasPreview = !empty($data['preview']);
-            if (!$isAdmin && !$apenasPreview) {
+
+            /* SIMULAÇÃO: sortear sem que o sorteio conte.
+               A cerimônia inteira roda dentro do navegador de quem pediu, e
+               este endpoint não escreve uma linha sequer no banco — quem
+               aplica a ordem ao draft é o "Confirmar", que é outra ação e
+               continua sendo do admin. Por isso a simulação pode ficar
+               aberta: ela não tem como mudar nada pra ninguém.
+
+               Serve pra ensaiar a cerimônia antes do dia e pra qualquer GM
+               entender o modelo mexendo nele, em vez de ler a regra. */
+            $simulacao = !empty($data['simulacao']);
+            if (!$isAdmin && !$apenasPreview && !$simulacao) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
+            // Ordem e grupos provisórios valem na prévia e na simulação —
+            // no sorteio que vale, manda o que está gravado.
+            $aceitaProvisorio = $apenasPreview || $simulacao;
 
             // Ligas que o GM logado administra (a loteria é por liga do GM).
             $myLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE', 'ROOKIE'], getAdminLeagues($pdo, (int)$user['id'])));
@@ -891,7 +905,7 @@ if ($method === 'POST') {
             }
             // O GM só pode SORTEAR a loteria da(s) liga(s) que administra.
             // Ver a prévia é outra coisa: basta ser da liga.
-            if (!$apenasPreview && !in_array($lotterySession['league'], $myLeagues, true)) {
+            if (!$apenasPreview && !$simulacao && !in_array($lotterySession['league'], $myLeagues, true)) {
                 echo json_encode(['success' => false, 'error' => 'Você não administra a liga desta sessão de draft']);
                 exit;
             }
@@ -1028,7 +1042,7 @@ if ($method === 'POST') {
                Vale SÓ na prévia. No sorteio de verdade manda o que está
                gravado: senão uma aba esquecida aberta sortearia por uma
                ordem que ninguém confirmou. */
-            if (!empty($data['preview']) && !empty($data['ordem']) && is_array($data['ordem'])) {
+            if ($aceitaProvisorio && !empty($data['ordem']) && is_array($data['ordem'])) {
                 $idsElegiveis = array_flip(array_map(fn($r) => (int)$r['team_id'], $eligible));
                 $ordemProv = [];
                 foreach ($data['ordem'] as $tidProv) {
@@ -1062,7 +1076,7 @@ if ($method === 'POST') {
                fase, playoff_results não distingue quem foi mais longe, e a
                diferença entre a pick 31 e a 32 vira um empate resolvido por
                posição de conferência. O admin desempata na mão. */
-            if (!empty($data['preview']) && !empty($data['ordem_playoff']) && is_array($data['ordem_playoff'])) {
+            if ($aceitaProvisorio && !empty($data['ordem_playoff']) && is_array($data['ordem_playoff'])) {
                 $idsPlayoff = array_flip($playoffTeamIds);
                 $caudaProv = [];
                 foreach ($data['ordem_playoff'] as $tidCauda) {
@@ -1134,7 +1148,7 @@ if ($method === 'POST') {
                bolinhas e portanto a chance de TODO MUNDO — então o card
                precisa ser recalculado no mesmo instante, e não depois de
                gravar. */
-            if (!empty($data['preview']) && isset($data['grupos']) && is_array($data['grupos'])) {
+            if ($aceitaProvisorio && isset($data['grupos']) && is_array($data['grupos'])) {
                 $idsElegiveisG = array_flip($eligibleIds);
                 foreach ($data['grupos'] as $tidG => $gG) {
                     $tidG = (int)$tidG;
