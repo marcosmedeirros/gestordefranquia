@@ -76,8 +76,52 @@ th.n,td.n{text-align:right;font-family:'Oswald',sans-serif;font-weight:600;font-
 .bolinhas{display:inline-flex;gap:3px;vertical-align:middle}
 .bolinha{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 5px rgba(252,0,37,.55)}
 
+/* ── a urna ──
+   As bolinhas giram de verdade: cada uma numa órbita e numa velocidade
+   diferente, senão o conjunto vira carrossel em vez de urna. */
+.palco{background:linear-gradient(160deg,var(--panel-2),var(--panel));border:1px solid var(--border-md);
+  border-radius:18px;padding:26px 20px;text-align:center}
+.palco.armado{border-color:rgba(252,0,37,.3);box-shadow:0 0 0 1px rgba(252,0,37,.12),0 20px 60px -22px rgba(252,0,37,.35)}
+.maquina{position:relative;width:min(200px,58vw);height:min(200px,58vw);margin:0 auto;display:none}
+.maquina.on{display:block}
+.globo{position:absolute;inset:0;border-radius:50%;border:3px solid var(--border-md);overflow:hidden;
+  background:radial-gradient(circle at 32% 26%,rgba(255,255,255,.10),transparent 58%),var(--panel-3);
+  box-shadow:inset 0 0 42px rgba(0,0,0,.55)}
+.bola{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
+  background:var(--panel);border:2px solid var(--border-md);display:flex;align-items:center;justify-content:center;
+  overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.45);transition:opacity .45s var(--ease);
+  animation-name:gira;animation-timing-function:linear;animation-iteration-count:infinite}
+.bola img{width:28px;height:28px;object-fit:contain}
+@keyframes gira{from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)}
+                to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}}
+.globo.freando .bola{opacity:.2;animation-duration:3.6s!important}
+.bola.sorteada{z-index:5;opacity:1!important;border-color:var(--red);
+  box-shadow:0 0 0 4px rgba(252,0,37,.18),0 0 34px rgba(252,0,37,.5);
+  animation:saiu .78s cubic-bezier(.2,1.25,.4,1) forwards!important}
+@keyframes saiu{0%{transform:scale(.65);opacity:.35}55%{transform:scale(2.1)}100%{transform:scale(1.9);opacity:1}}
+
+.palco-rotulo{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:700}
+.palco-carta{min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:14px 0 4px}
+.palco-logo{width:96px;height:96px;border-radius:18px;object-fit:cover;animation:pula .5s var(--ease)}
+@keyframes pula{0%{transform:scale(.7);opacity:.3}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+.palco-num{font-family:'Oswald',sans-serif;font-size:38px;font-weight:800;line-height:1;color:var(--red)}
+.palco-time{font-family:'Oswald',sans-serif;font-size:clamp(22px,5vw,32px);font-weight:800;line-height:1.1;min-height:34px}
+.palco-mov{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700}
+.palco-dica{font-size:12px;color:var(--text-3);margin-top:10px}
+
+.urna{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:9px}
+.urna-item{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:9px;text-align:center;
+  transition:all .45s var(--ease)}
+.urna-item.saiu{opacity:.16;filter:grayscale(1)}
+.urna-item img{width:30px;height:30px;border-radius:7px;object-fit:cover}
+.urna-nome{font-size:11px;font-weight:600;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.urna-odd{font-family:'Oswald',sans-serif;font-size:12px;color:var(--red);font-weight:700}
+
 /* resultado */
 .picks{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.pick.vazio{opacity:.4;border-style:dashed}
+.pick.novo{border-color:var(--red);box-shadow:0 0 0 1px rgba(252,0,37,.25)}
+@media(prefers-reduced-motion:reduce){.bola{animation:none!important}.bola.sorteada{animation:none!important;transform:scale(1.85)}}
 .pick{display:flex;align-items:center;gap:11px;background:var(--panel-2);border:1px solid var(--border);
   border-radius:10px;padding:9px 13px;min-width:0;animation:entra .34s var(--ease) both}
 .pick.top{border-color:rgba(245,158,11,.5);background:linear-gradient(180deg,rgba(245,158,11,.10),transparent)}
@@ -128,7 +172,28 @@ th.n,td.n{text-align:right;font-family:'Oswald',sans-serif;font-weight:600;font-
   </div>
 
   <div id="secaoResultado" style="display:none">
-    <div class="titulo"><i class="bi bi-trophy-fill"></i> Ordem do draft sorteada</div>
+    <?php /* A REVELAÇÃO É O PONTO DA CERIMÔNIA. Sair da urna com a ordem
+             pronta responde à pergunta certa e mata a graça — o que prende é
+             a bolinha girando antes de cada nome. Começa pela última escolha
+             e sobe até a nº 1, que é o que se guarda para o fim. */ ?>
+    <div class="titulo"><i class="bi bi-stars"></i> Revelação</div>
+    <div class="palco" id="palco">
+      <div class="palco-rotulo" id="palcoRotulo">Pronto para começar</div>
+      <div class="maquina" id="maquina"><div class="globo" id="globo"></div></div>
+      <div class="palco-carta">
+        <img class="palco-logo" id="palcoLogo" src="/img/default-team.png" alt="" style="display:none" onerror="this.src='/img/default-team.png'">
+        <div class="palco-num" id="palcoNum">#?</div>
+        <div class="palco-time" id="palcoTime">—</div>
+        <div class="palco-mov" id="palcoMov"></div>
+      </div>
+      <button class="btn" id="btnRevelar"><i class="bi bi-caret-right-fill"></i> Revelar</button>
+      <div class="palco-dica" id="palcoDica">A revelação começa pela última escolha e sobe até a nº 1.</div>
+    </div>
+
+    <div class="titulo"><i class="bi bi-collection-fill"></i> Ainda na urna <span id="urnaConta" style="color:var(--text-3);font-weight:400"></span></div>
+    <div class="painel"><div class="urna" id="urna"></div></div>
+
+    <div class="titulo"><i class="bi bi-list-ol"></i> Ordem do draft</div>
     <div class="painel">
       <div class="picks" id="picks"></div>
       <div id="ajustes"></div>
@@ -185,21 +250,159 @@ function pintarTabela(d){
     + `Os 3 piores recordes não podem cair além da 12ª escolha — é o piso de proteção.`;
 }
 
-function pintarPicks(d){
-  $('picks').innerHTML = d.times.map((t, i) => {
-    const seta = t.delta > 0 ? `<span class="delta sobe">▲ ${t.delta}</span>`
-               : t.delta < 0 ? `<span class="delta desce">▼ ${-t.delta}</span>`
-               : `<span class="delta igual">—</span>`;
-    return `<div class="pick${t.pick <= 3 ? ' top' : ''}" style="animation-delay:${i * 35}ms">
+function marcador(delta){
+  return delta > 0 ? `<span class="delta sobe">▲ ${delta}</span>`
+       : delta < 0 ? `<span class="delta desce">▼ ${-delta}</span>`
+       : `<span class="delta igual">—</span>`;
+}
+
+/* O quadro nasce vazio e vai sendo preenchido pela revelação. Mostrar tudo
+   de cara transformaria a cerimônia numa conferência de resultado. */
+function pintarPicks(d, reveladas){
+  $('picks').innerHTML = d.times.map(t => {
+    const visivel = !reveladas || reveladas.has(t.pick);
+    if (!visivel) {
+      return `<div class="pick vazio" id="pk-${t.pick}">
+        <span class="pick-n">${t.pick}</span>
+        <span class="pick-nome" style="color:var(--text-3)">Aguardando…</span>
+      </div>`;
+    }
+    return `<div class="pick${t.pick <= 3 ? ' top' : ''}" id="pk-${t.pick}">
       <span class="pick-n">${t.pick}</span>
       <img class="logo" src="${esc(t.photo_url)}" alt="" onerror="this.src='/img/default-team.png'">
       <span class="pick-nome">${esc(t.team_name)}</span>
-      ${seta}
+      ${marcador(t.delta)}
     </div>`;
   }).join('');
 
   $('ajustes').innerHTML = (d.ajustes || []).map(a =>
     `<div class="aviso"><i class="bi bi-shield-fill-check"></i><span>${esc(a)}</span></div>`).join('');
+}
+
+function pintarUrna(d, reveladas){
+  $('urna').innerHTML = d.times
+    .slice()
+    .sort((a, b) => b.bolinhas - a.bolinhas || a.posicao - b.posicao)
+    .map(t => `<div class="urna-item${reveladas.has(t.pick) ? ' saiu' : ''}" id="ur-${t.team_id}">
+        <img src="${esc(t.photo_url)}" alt="" onerror="this.src='/img/default-team.png'">
+        <div class="urna-nome">${esc(t.team_name)}</div>
+        <div class="urna-odd">${t.bolinhas} ${t.bolinhas === 1 ? 'bolinha' : 'bolinhas'}</div>
+      </div>`).join('');
+  const faltam = d.times.length - reveladas.size;
+  $('urnaConta').textContent = faltam ? `· ${faltam} concorrendo` : '· urna vazia';
+}
+
+/* A URNA GIRANDO. Cada bolinha ganha órbita, velocidade e sentido próprios —
+   com os mesmos valores o conjunto giraria em bloco, que não é urna. */
+function girarUrna(candidatas, sorteada, aoTerminarBruto){
+  /* A conclusão roda UMA vez, e roda de qualquer jeito.
+     Navegador estrangula timer de aba escondida: quem clica em revelar e
+     troca de aba volta e encontra a bolinha parada no meio do giro, com o
+     botão travado. O relógio de segurança destrava sozinho. */
+  let terminou = false;
+  const aoTerminar = () => { if (terminou) return; terminou = true; clearTimeout(seguro); aoTerminarBruto(); };
+  const seguro = setTimeout(aoTerminar, 6000);
+
+  const maquina = $('maquina'), globo = $('globo');
+  globo.classList.remove('freando');
+  globo.innerHTML = '';
+  maquina.classList.add('on');   // precisa estar visível pra medir o raio
+
+  const raio = Math.max(Math.min(maquina.clientWidth, maquina.clientHeight) / 2 - 25, 18);
+  globo.innerHTML = candidatas.map(t => {
+    const r = Math.round(10 + Math.random() * raio);
+    const dur = (1.0 + Math.random() * 0.9).toFixed(2);
+    const atraso = (-Math.random() * 2).toFixed(2);
+    const sentido = Math.random() < 0.5 ? 'normal' : 'reverse';
+    return `<div class="bola" id="bl-${t.team_id}" style="--r:${r}px;animation-duration:${dur}s;animation-delay:${atraso}s;animation-direction:${sentido}">
+      <img src="${esc(t.photo_url)}" alt="" onerror="this.src='/img/default-team.png'">
+    </div>`;
+  }).join('');
+
+  setTimeout(() => {
+    globo.classList.add('freando');
+    const bola = document.getElementById('bl-' + sorteada.team_id);
+    if (bola) bola.classList.add('sorteada');
+    setTimeout(() => { maquina.classList.remove('on'); aoTerminar(); }, bola ? 820 : 200);
+  }, 1500 + Math.random() * 700);
+}
+
+let fila = [], reveladas = new Set(), revelando = false;
+
+function prepararRevelacao(d){
+  // Da última escolha até a nº 1 — o melhor fica para o fim.
+  fila = d.times.map(t => t.pick).sort((a, b) => b - a);
+  reveladas = new Set();
+  revelando = false;
+  pintarPicks(d, reveladas);
+  pintarUrna(d, reveladas);
+  $('palcoRotulo').textContent = 'Pronto para começar';
+  $('palcoNum').textContent = '#?';
+  $('palcoTime').textContent = '—';
+  $('palcoMov').textContent = '';
+  $('palcoLogo').style.display = 'none';
+  $('palco').classList.remove('armado');
+  // A dica volta ao começo: ela terminou a rodada anterior dizendo "ordem
+  // revelada", e ficaria mentindo em cima de um sorteio novo.
+  $('palcoDica').textContent = 'A revelação começa pela última escolha e sobe até a nº 1.';
+  atualizarBotaoRevelar();
+}
+
+function atualizarBotaoRevelar(){
+  const btn = $('btnRevelar');
+  if (!fila.length) {
+    btn.style.display = 'none';
+    $('palcoRotulo').textContent = 'Sorteio completo';
+    $('palcoDica').textContent = 'Ordem revelada. Sorteie de novo quantas vezes quiser.';
+    return;
+  }
+  btn.style.display = '';
+  btn.disabled = revelando;
+  btn.innerHTML = `<i class="bi bi-caret-right-fill"></i> Revelar a ${fila[0]}ª escolha`;
+  $('palcoRotulo').textContent = fila.length === 1 ? 'A escolha nº 1' : `Faltam ${fila.length} escolhas`;
+}
+
+function revelarProxima(){
+  if (revelando || !fila.length || !dados) return;
+  revelando = true;
+  const pick = fila.shift();
+  const time = dados.times.find(t => t.pick === pick);
+  atualizarBotaoRevelar();
+  $('palco').classList.add('armado');
+  $('palcoNum').textContent = '#' + pick;
+  $('palcoTime').textContent = '…';
+  $('palcoMov').textContent = '';
+  $('palcoLogo').style.display = 'none';
+
+  // No globo: quem ainda não saiu. Sem isso a bolinha certa seria a única a
+  // girar, e a revelação perderia a dúvida.
+  const candidatas = dados.times.filter(t => !reveladas.has(t.pick));
+
+  girarUrna(candidatas, time, () => {
+    reveladas.add(pick);
+    $('palcoLogo').src = time.photo_url || '/img/default-team.png';
+    $('palcoLogo').style.display = '';
+    $('palcoTime').textContent = time.team_name;
+    $('palcoMov').innerHTML = time.delta > 0
+      ? `<span class="sobe">▲ subiu ${time.delta} ${time.delta === 1 ? 'posição' : 'posições'}</span>`
+      : time.delta < 0
+        ? `<span class="desce">▼ caiu ${-time.delta} ${time.delta === -1 ? 'posição' : 'posições'}</span>`
+        : `<span class="igual">ficou onde a campanha deixou</span>`;
+
+    const slot = document.getElementById('pk-' + pick);
+    if (slot) {
+      slot.className = 'pick novo' + (pick <= 3 ? ' top' : '');
+      slot.innerHTML = `<span class="pick-n">${pick}</span>
+        <img class="logo" src="${esc(time.photo_url)}" alt="" onerror="this.src='/img/default-team.png'">
+        <span class="pick-nome">${esc(time.team_name)}</span>${marcador(time.delta)}`;
+    }
+    document.getElementById('ur-' + time.team_id)?.classList.add('saiu');
+    const faltam = dados.times.length - reveladas.size;
+    $('urnaConta').textContent = faltam ? `· ${faltam} concorrendo` : '· urna vazia';
+
+    revelando = false;
+    atualizarBotaoRevelar();
+  });
 }
 
 async function carregar(sortear){
@@ -222,7 +425,7 @@ async function carregar(sortear){
       : `${d.times.length} times na loteria, ${d.bolinhas} bolinhas`;
 
     if (d.sorteado) {
-      pintarPicks(d);
+      prepararRevelacao(d);
       $('secaoResultado').style.display = '';
       $('btnLimpar').style.display = '';
       $('secaoResultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -242,6 +445,14 @@ async function carregar(sortear){
 
 $('btnSortear').addEventListener('click', () => carregar(true));
 $('btnLimpar').addEventListener('click', () => carregar(false));
+$('btnRevelar').addEventListener('click', revelarProxima);
+// Espaço revela a próxima: numa transmissão, o dedo fica nele.
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && $('secaoResultado').style.display !== 'none' && fila.length) {
+    e.preventDefault();
+    revelarProxima();
+  }
+});
 carregar(false);
 </script>
 </body>
