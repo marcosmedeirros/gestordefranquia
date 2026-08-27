@@ -535,7 +535,14 @@ function loteriaMatrizCache(array $bolinhas, array $protegidos, int $pisoIdx, in
 {
     ksort($bolinhas);
     sort($protegidos);
-    $chave = md5(json_encode([$bolinhas, $protegidos, $pisoIdx, $rodadas]));
+    /* A VERSÃO ENTRA NA CHAVE.
+       Sem ela, mudar a forma de calcular não invalidava nada: a urna era a
+       mesma, a chave era a mesma, e o servidor seguia entregando a matriz
+       feita pelo cálculo antigo. Foi assim que uma tela recém-publicada com
+       duas casas continuou mostrando números de uma casa só, com as colunas
+       fora de 100. Toda mudança no cálculo mexe neste número. */
+    $versaoDoCalculo = 3;
+    $chave = md5(json_encode([$versaoDoCalculo, $bolinhas, $protegidos, $pisoIdx, $rodadas]));
     $arquivo = sys_get_temp_dir() . '/fba_loteria_matriz_' . $chave . '.json';
 
     if ($gravar === null) {
