@@ -216,9 +216,10 @@ if ($method === 'GET') {
                  FROM draft_sessions ds
                  INNER JOIN seasons s ON ds.season_id = s.id
                  WHERE ds.league = ? AND ds.status IN ('setup', 'in_progress')
-                 ORDER BY ds.created_at DESC LIMIT 1"
+                   AND s.sprint_id = ?
+                 ORDER BY s.season_number DESC, ds.created_at DESC LIMIT 1"
             );
-            $stmt->execute([$league]);
+            $stmt->execute([$league, loteriaSprintAtiva($pdo, $league) ?? 0]);
             $draft = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($draft && !empty($draft['current_pick_started_at'])) {
                 $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
@@ -270,9 +271,10 @@ if ($method === 'GET') {
                  FROM draft_sessions ds
                  INNER JOIN seasons s ON ds.season_id = s.id
                  WHERE ds.league = ? AND ds.status IN ('setup', 'in_progress')
-                 ORDER BY ds.created_at DESC LIMIT 1"
+                   AND s.sprint_id = ?
+                 ORDER BY s.season_number DESC, ds.created_at DESC LIMIT 1"
             );
-            $stmt->execute([$league]);
+            $stmt->execute([$league, loteriaSprintAtiva($pdo, $league) ?? 0]);
             $sessao = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$sessao) {
                 echo json_encode(['success' => true, 'pool' => [], 'projecao' => [], 'session' => null]);
@@ -953,15 +955,24 @@ if ($method === 'POST') {
 
                O teto (<=) existe pra uma loteria antiga, reaberta, não
                enxergar a campanha de uma temporada que veio depois dela. */
+            /* A classificação vem da SPRINT ATUAL. A liga recomeça a cada
+               sprint com outros times e outra numeração — buscar só pelo
+               número da temporada alcançava a campanha de uma sprint
+               encerrada e montava a loteria em cima dela. */
             $stmtStandingsSeason = $pdo->prepare("
                 SELECT s.id, s.season_number
                   FROM seasons s
                  WHERE s.league = ?
+                   AND s.sprint_id = ?
                    AND s.season_number <= ?
                    AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
               ORDER BY s.season_number DESC, s.id DESC
                  LIMIT 1");
-            $stmtStandingsSeason->execute([$lotterySession['league'], (int)$upcomingSeasonNumber]);
+            $stmtStandingsSeason->execute([
+                $lotterySession['league'],
+                loteriaSprintAtiva($pdo, $lotterySession['league']) ?? 0,
+                (int)$upcomingSeasonNumber,
+            ]);
             $standingsRow = $stmtStandingsSeason->fetch(PDO::FETCH_ASSOC);
             if (!$standingsRow) {
                 echo json_encode(['success' => false,

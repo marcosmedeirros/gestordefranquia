@@ -97,6 +97,29 @@ function loteriaGarantirColunas(PDO $pdo): void
 }
 
 /**
+ * A SPRINT QUE ESTÁ RODANDO NA LIGA.
+ *
+ * A liga é reiniciada a cada sprint, e as temporadas anteriores continuam no
+ * banco com a numeração que tinham. Sem este filtro, uma temporada de sprint
+ * passada — e a sessão de draft dela — reaparece disputando com a atual, e a
+ * tela mostra a loteria de uma liga que não existe mais.
+ *
+ * Com mais de uma sprint marcada como ativa, vale a de número maior: é a que
+ * começou depois.
+ *
+ * @return int|null id da sprint, ou null quando a liga não tem nenhuma
+ */
+function loteriaSprintAtiva(PDO $pdo, string $liga): ?int
+{
+    $st = $pdo->prepare("SELECT id FROM sprints
+                          WHERE league = ? AND status = 'active'
+                       ORDER BY sprint_number DESC, id DESC LIMIT 1");
+    $st->execute([$liga]);
+    $id = $st->fetchColumn();
+    return $id === false ? null : (int)$id;
+}
+
+/**
  * A LOTERIA DE UMA LIGA EM TEXTO, pro grupo do WhatsApp.
  *
  * Mostra a ordem já confirmada quando ela existe — depois do sorteio é isso
@@ -111,13 +134,18 @@ function loteriaTexto(PDO $pdo, string $liga): string
         return 'Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.';
     }
 
+    // Tudo daqui pra baixo é da sprint em andamento: a liga recomeça a cada
+    // uma, e a temporada 20 de uma sprint encerrada não é a de ninguém hoje.
+    $sprintAtiva = loteriaSprintAtiva($pdo, $liga);
+    if ($sprintAtiva === null) return "A *{$liga}* não tem uma sprint em andamento.";
+
     // A sessão de draft mais recente da liga.
     $st = $pdo->prepare("SELECT ds.id, ds.status, s.season_number
                            FROM draft_sessions ds
                            JOIN seasons s ON s.id = ds.season_id
-                          WHERE ds.league = ?
-                       ORDER BY ds.id DESC LIMIT 1");
-    $st->execute([$liga]);
+                          WHERE ds.league = ? AND s.sprint_id = ?
+                       ORDER BY s.season_number DESC, ds.id DESC LIMIT 1");
+    $st->execute([$liga, $sprintAtiva]);
     $sessao = $st->fetch(PDO::FETCH_ASSOC);
     if (!$sessao) return "A *{$liga}* ainda não tem draft montado.";
 
@@ -139,10 +167,10 @@ function loteriaTexto(PDO $pdo, string $liga): string
 
     // Ainda não sorteou: mostra quem entra e com que chance.
     $st = $pdo->prepare("SELECT s.id, s.season_number FROM seasons s
-                          WHERE s.league = ?
+                          WHERE s.league = ? AND s.sprint_id = ?
                             AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
                        ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
-    $st->execute([$liga]);
+    $st->execute([$liga, $sprintAtiva]);
     $temp = $st->fetch(PDO::FETCH_ASSOC);
     if (!$temp) return "A *{$liga}* ainda não tem classificação lançada — sem ela não dá pra montar a loteria.";
 

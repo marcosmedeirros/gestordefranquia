@@ -28,12 +28,19 @@ try {
     if (!in_array($liga, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) $liga = 'ELITE';
     $sortear = !empty($_GET['sortear']);
 
-    // A última temporada da liga com classificação lançada.
+    /* A última temporada da liga com classificação lançada, DENTRO DA SPRINT
+       ATUAL. A liga recomeça a cada sprint, e ensaiar sobre a campanha de uma
+       sprint encerrada seria ensaiar com times e posições que não valem mais. */
+    $sprint = loteriaSprintAtiva($pdo, $liga);
+    if ($sprint === null) {
+        echo json_encode(['success' => false, 'error' => "A {$liga} não tem uma sprint em andamento."]);
+        exit;
+    }
     $st = $pdo->prepare("SELECT s.id, s.season_number FROM seasons s
-                          WHERE s.league = ?
+                          WHERE s.league = ? AND s.sprint_id = ?
                             AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
                        ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
-    $st->execute([$liga]);
+    $st->execute([$liga, $sprint]);
     $temporada = $st->fetch(PDO::FETCH_ASSOC);
     if (!$temporada) {
         echo json_encode(['success' => false, 'error' => "A {$liga} ainda não tem classificação lançada."]);

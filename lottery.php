@@ -2,6 +2,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/loteria_grupos.php';   // sprint ativa e regras da loteria
 
 /* MODO ENSAIO. Ligado pelo lottery-teste.php, que só existe pra dar um
    endereço limpo a isto. Aqui a cerimônia roda inteira e não conta: o
@@ -54,6 +55,17 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
     if (!$ligas) return [];
     $ph = implode(',', array_fill(0, count($ligas), '?'));
 
+    /* SÓ A SPRINT ATUAL. A liga recomeça a cada sprint e as temporadas
+       antigas ficam no banco com a numeração que tinham — sem este corte,
+       a Temporada 20 de uma sprint encerrada volta a disputar com a atual. */
+    $sprints = [];
+    foreach ($ligas as $lg) {
+        $sp = loteriaSprintAtiva($pdo, $lg);
+        if ($sp !== null) $sprints[] = $sp;
+    }
+    if (!$sprints) return [];
+    $phSprint = implode(',', array_fill(0, count($sprints), '?'));
+
     if (!$modoTeste) {
         /* Uma loteria por liga: a da temporada mais alta em configuração.
            Sem esse corte, uma sessão antiga esquecida nesse estado — e elas
@@ -64,9 +76,10 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
             FROM draft_sessions ds
             JOIN seasons s ON s.id = ds.season_id
             WHERE ds.league IN ($ph) AND ds.status = 'setup'
+              AND s.sprint_id IN ($phSprint)
             ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC, ds.id DESC
         ");
-        $st->execute($ligas);
+        $st->execute(array_merge($ligas, $sprints));
         $umaPorLiga = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
             if (!isset($umaPorLiga[$s['league']])) $umaPorLiga[$s['league']] = $s;
@@ -85,6 +98,7 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
         WHERE ds.league IN ($ph)
+          AND s.sprint_id IN ($phSprint)
           AND EXISTS (
                 SELECT 1 FROM season_standings ss
                   JOIN seasons s2 ON s2.id = ss.season_id
@@ -94,7 +108,7 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
         ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'),
                  s.season_number DESC, ds.id DESC
     ");
-    $st->execute($ligas);
+    $st->execute(array_merge($ligas, $sprints));
 
     $porLiga = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
@@ -152,15 +166,17 @@ $myViewLeague = $ligaAtual;
 $confirmedOrder = [];
 $confirmedSessionInfo = null;
 if (in_array($myViewLeague, $LIGAS_LOTERIA, true)) {
+    // Também só da sprint atual: a ordem de um draft de sprint encerrada não
+    // é "a ordem desta temporada" pra ninguém que esteja jogando hoje.
     $stmtLastSession = $pdo->prepare("
         SELECT ds.id, s.season_number, s.year
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
-        WHERE ds.league = ?
-        ORDER BY ds.id DESC
+        WHERE ds.league = ? AND s.sprint_id = ?
+        ORDER BY s.season_number DESC, ds.id DESC
         LIMIT 1
     ");
-    $stmtLastSession->execute([$myViewLeague]);
+    $stmtLastSession->execute([$myViewLeague, loteriaSprintAtiva($pdo, $myViewLeague) ?? 0]);
     $lastSession = $stmtLastSession->fetch(PDO::FETCH_ASSOC);
     if ($lastSession) {
         $stmtOrder = $pdo->prepare("
