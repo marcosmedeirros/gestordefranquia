@@ -411,6 +411,27 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .matriz-table .q3{background:rgba(16,185,129,.24);color:var(--text-1)}
 .matriz-table .q4{background:rgba(16,185,129,.38);color:#fff}
 .matriz-table .zero{color:var(--text-3);opacity:.35}
+/* UMA COR POR GRUPO. São quatro grupos com quatro chances diferentes, e a
+   tabela inteira em cinza obriga a ler o rótulo linha a linha pra saber
+   quem está com quem. A cor identifica o grupo, não a qualidade dele. */
+.cor-g1{--g:#a5b4fc}   /* 3 piores */
+.cor-g2{--g:#6ee7b7}   /* fora do play-in */
+.cor-g3{--g:#fcd34d}   /* eliminados no play-in */
+.cor-g4{--g:#fca5a5}   /* derrotados no 7x8 */
+/* Os mesmos quatro tons, escurecidos pro tema claro: os de cima são feitos
+   pra brilhar sobre fundo escuro e somem sobre branco. */
+:root[data-theme="light"] .cor-g1{--g:#4338ca}
+:root[data-theme="light"] .cor-g2{--g:#047857}
+:root[data-theme="light"] .cor-g3{--g:#a16207}
+:root[data-theme="light"] .cor-g4{--g:#b91c1c}
+.conf-chip.cor-g1,.conf-chip.cor-g2,.conf-chip.cor-g3,.conf-chip.cor-g4{
+  color:var(--g);border-color:color-mix(in srgb, var(--g) 34%, transparent);
+  background:color-mix(in srgb, var(--g) 11%, transparent)}
+.bolinhas{display:inline-flex;gap:3px;vertical-align:middle}
+.bolinha{width:9px;height:9px;border-radius:50%;background:var(--g,var(--red));
+  box-shadow:0 0 5px color-mix(in srgb, var(--g,var(--red)) 55%, transparent)}
+.grupo-sel.cor-g1,.grupo-sel.cor-g2,.grupo-sel.cor-g3,.grupo-sel.cor-g4{
+  color:var(--g);border-color:color-mix(in srgb, var(--g) 30%, transparent)}
 .grupo-sel{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text-2);
   font-size:11px;font-family:inherit;padding:4px 6px;max-width:230px;cursor:pointer}
 .grupo-sel:hover{border-color:var(--red)}
@@ -778,7 +799,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="panel bc-off">
       <div style="overflow-x:auto">
         <table class="balls-table" id="ballsTable">
-          <thead><tr><th>Time</th><th>Grupo</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
+          <thead><tr><th>Time</th><th>Grupo</th><th>Bolinhas</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
           <tbody id="ballsBody"></tbody>
         </table>
       </div>
@@ -1190,6 +1211,16 @@ async function salvarOrdem(){
  * ou 100,1 é o arredondamento das casas mostradas, e escondê-lo com um 100,0
  * fixo seria mentir sobre a conta que está na tela.
  */
+/* AS BOLINHAS DESENHADAS.
+   O número diz a mesma coisa, mas é vendo três bolinhas contra uma que se
+   entende o modelo sem ler a regra — e a loteria existe pra ser entendida
+   por quem está nela, não só conferida. */
+function bolinhasDe(n, grupo){
+  return '<span class="bolinhas">'
+    + `<span class="bolinha cor-g${grupo}"></span>`.repeat(Math.max(0, n))
+    + '</span>';
+}
+
 function renderMatriz(data){
   const titulo = $('matrizTitulo'), painel = $('matrizPainel');
   if (!titulo || !painel) return;
@@ -1291,12 +1322,13 @@ function setupBoardAndOdds(data){
     <tr>
       <td><span style="display:inline-flex;align-items:center;gap:8px">${logo(b.photo_url,'board-logo')}${esc(b.team_name)}${b.conference ? `<span class="conf-chip">${esc(b.conference)}</span>` : ''}</span></td>
       <td>${editandoOrdem
-        ? `<select class="grupo-sel${b.group_declarado ? ' marcado' : ''}" title="${b.balls} bolinha(s)" onchange="mudarGrupo(${b.team_id}, this.value)">
+        ? `<select class="grupo-sel cor-g${b.group}${b.group_declarado ? ' marcado' : ''}" title="${b.balls} bolinha(s)" onchange="mudarGrupo(${b.team_id}, this.value)">
              <option value="0"${b.group_declarado ? '' : ' selected'}>Automático — ${esc(b.group_label || '')}</option>
              ${GRUPOS_OPCOES.map(([g, rotulo, bolas]) =>
                `<option value="${g}"${b.group_declarado && b.group === g ? ' selected' : ''}>${esc(rotulo)} (${bolas})</option>`).join('')}
            </select>`
-        : `<span class="conf-chip" title="${b.balls} bolinha(s)">${esc(b.group_label || '')}</span>`}</td>
+        : `<span class="conf-chip cor-g${b.group}" title="${b.balls} bolinha(s)">${esc(b.group_label || '')}</span>`}</td>
+      <td>${bolinhasDe(b.balls, b.group)} <span style="color:var(--text-3);font-size:10px">${b.balls}</span></td>
       <td class="num">${b.position_anterior}º</td>
       <td class="num">${b.top1_pct}%</td>
       <td class="num">${b.top3_pct}%</td>
@@ -1336,6 +1368,7 @@ function setupBoardAndOdds(data){
       ${logo(b.photo_url,'bowl-logo')}
       <div class="bowl-name">${esc(b.team_name)}</div>
       <div class="bowl-odds" title="Chance de Top 5: ${b.top5_pct}%">${b.top3_pct}% <span style="font-size:9px;color:var(--text-3);font-weight:600">Top 3</span></div>
+      <div title="${b.balls} bolinha(s) na urna" style="margin-top:3px">${bolinhasDe(b.balls, b.group)}</div>
       <div class="bowl-pos">${b.position_anterior}º ${esc(b.conference || '')}</div>
     </div>
   `).join('');
