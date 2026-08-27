@@ -1365,7 +1365,7 @@ async function showRegistroPontuacao(league) {
                 <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
                     <button type="button" id="btnSalvarRegular" class="btn btn-orange" style="border-radius:15px"
                             onclick="salvarTemporadaRegular(${season.id}, '${league}')">
-                        <i class="bi bi-save me-1"></i> ${naEtapaPlayoffs ? 'Salvar de novo a temporada regular' : 'Salvar temporada regular'}
+                        <i class="bi bi-save me-1"></i> ${naEtapaPlayoffs ? 'Atualizar a temporada regular' : 'Salvar temporada regular'}
                     </button>
                     <span style="font-size:11.5px;color:var(--text-3)">Atualiza a Tabela, libera a loteria e monta o chaveamento.</span>
                 </div>
@@ -1591,7 +1591,7 @@ async function salvarTemporadaRegular(seasonId, league) {
         });
 
         _regPtsEtapa = 'playoffs';
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i> Salvar de novo a temporada regular'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i> Atualizar a temporada regular'; }
 
         // "Atualizada" e não "salva de novo": o segundo clique reescreve a
         // mesma classificação, não cria uma segunda. Quem lê precisa saber
