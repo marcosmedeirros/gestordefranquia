@@ -207,6 +207,24 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .board{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .board-slot{display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;transition:all .3s var(--ease)}
 .board-slot.pending{opacity:.5;border-style:dashed}
+/* Slot editável (só na prévia): opaco, porque aqui o time já é conhecido —
+   o "aguardando" tracejado é pra depois do sorteio, antes de revelar. */
+.board-slot.editavel{opacity:1;border-style:solid}
+.board-slot.editavel .board-team{color:var(--text-1)}
+.board-move{display:flex;flex-direction:column;gap:2px;margin-left:auto}
+.board-move button{width:22px;height:16px;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--border);border-radius:4px;color:var(--text-3);cursor:pointer;font-size:9px;padding:0;line-height:1}
+.board-move button:hover:not(:disabled){color:var(--text-1);border-color:var(--red)}
+.board-move button:disabled{opacity:.25;cursor:default}
+.board-slot.movido{border-color:var(--red);box-shadow:0 0 0 1px var(--red-soft)}
+.ordem-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-bottom:10px;padding:9px 12px;border-radius:10px;font-size:12px;
+  background:var(--red-soft);border:1px solid var(--border-red);color:var(--text-1)}
+.ordem-bar-acoes{display:flex;gap:8px;flex-shrink:0}
+@media(max-width:640px){
+  .ordem-bar{font-size:11px}.ordem-bar-acoes{width:100%}.ordem-bar-acoes button{flex:1}
+  /* No dedo, 16px de altura é alvo de errar: as setas crescem. */
+  .board-move button{width:34px;height:24px;font-size:11px}
+}
 .board-slot.locked{opacity:.62}
 .board-slot.just{border-color:var(--red);box-shadow:0 0 0 1px var(--red-soft);animation:slotIn .45s var(--ease)}
 @keyframes slotIn{0%{transform:translateY(6px);opacity:.3}100%{transform:translateY(0);opacity:1}}
@@ -550,8 +568,17 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="section-title bc-podium-title" id="podiumTitle" style="display:none"><i class="bi bi-trophy-fill"></i> Pódio da loteria</div>
     <div class="podium" id="podium"></div>
 
-    <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft</div>
+    <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio, esta é a ordem da campanha — e é ela que define os grupos de bolinhas. Use as setas pra corrigir quem terminou atrás de quem."></i></div>
     <div class="panel bc-board">
+      <?php /* Só aparece antes do sorteio: depois de sortear, mexer aqui não
+               teria efeito nenhum nas chances — elas já rolaram. */ ?>
+      <div id="ordemBar" class="ordem-bar" style="display:none">
+        <span id="ordemBarTexto"></span>
+        <span class="ordem-bar-acoes">
+          <button class="btn-ghost2" id="btnOrdemDesfazer" type="button"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
+          <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar ordem</button>
+        </span>
+      </div>
       <div class="board" id="board"></div>
     </div>
 
@@ -771,6 +798,78 @@ function logo(url, cls){
   return `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" onerror="this.src='${LOGO_FALLBACK}'">`;
 }
 
+/* ─── ORDEM DA CAMPANHA, EDITÁVEL NO QUADRO ───────────────────────────────
+   Os grupos de bolinhas saem de quem terminou atrás de quem. Quando essa
+   lista chega errada do registro da temporada, o time aparece no grupo
+   errado — e antes disso só dava pra corrigir voltando ao card Pontuação,
+   longe da tela onde o erro é visto.
+
+   Cada movimento vai ao servidor como ordem PROVISÓRIA: ele devolve os
+   grupos e as chances recalculados, sem gravar nada. Quem grava é o botão
+   Salvar. Enquanto houver mudança pendente o sorteio fica bloqueado, porque
+   ele sortearia pela ordem gravada, não pela que está na tela. */
+const PODE_EDITAR_ORDEM = <?= $canRunLottery ? 'true' : 'false' ?>;
+let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
+let ordemSalvaRef = [];   // como estava na última vez que gravou
+let ordemPendente = false;
+
+function atualizarBarraOrdem(){
+  const bar = $('ordemBar');
+  if (!bar) return;
+  bar.style.display = ordemPendente ? '' : 'none';
+  const txt = $('ordemBarTexto');
+  if (txt) txt.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> '
+    + '<b>Ordem alterada.</b> As chances acima já refletem a mudança, mas ela ainda não foi gravada — '
+    + 'salve antes de sortear.';
+  const btnSortear = $('btnPrepare');
+  if (btnSortear) {
+    btnSortear.disabled = ordemPendente;
+    btnSortear.title = ordemPendente ? 'Salve a ordem antes de sortear' : '';
+  }
+}
+
+function moverOrdem(i, dir){
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ordemLoteria.length) return;
+  const nova = ordemLoteria.slice();
+  [nova[i], nova[j]] = [nova[j], nova[i]];
+  ordemPendente = true;
+  carregarPrevia(nova);
+}
+
+function desfazerOrdem(){
+  ordemPendente = false;
+  carregarPrevia();   // sem ordem provisória: volta ao que está gravado
+}
+
+async function salvarOrdem(){
+  if (!result || !result.standings_season_id) return;
+  const btn = $('btnOrdemSalvar');
+  const rotulo = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Salvando...';
+  try {
+    const res = await fetch('/api/draft.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save_lottery_order',
+        season_id: result.standings_season_id,
+        ordem: ordemLoteria
+      })
+    });
+    const data = await res.json();
+    if (!data.success) { alert(data.error || 'Não foi possível gravar a ordem.'); return; }
+    ordemPendente = false;
+    await carregarPrevia();   // relê do banco: o que a tela mostra é o que está gravado
+  } catch (e) {
+    alert('Não foi possível gravar a ordem.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = rotulo;
+  }
+}
+
 function setupBoardAndOdds(data){
   revealed = new Set();
   busy = false;
@@ -825,10 +924,37 @@ function setupBoardAndOdds(data){
   `).join('');
   updateBowlCount(lotteryTeams.length);
 
-  // Quadro: loteria pendente (?) no topo, playoff já travado embaixo
+  /* QUADRO. Antes do sorteio ele mostra a ordem da CAMPANHA e deixa o admin
+     corrigi-la, porque é dela que saem os grupos de bolinhas: um time no
+     lugar errado aqui recebe a chance errada lá em cima. Depois do sorteio a
+     ordem é resultado, e volta a ser o quadro de sempre — loteria oculta até
+     a revelação, playoff travado embaixo. */
+  const editandoOrdem = !!data.preview && PODE_EDITAR_ORDEM;
+  if (data.preview) {
+    ordemLoteria = data.order.filter(o => o.source !== 'playoff').map(o => o.origin_team_id);
+    if (!ordemPendente) ordemSalvaRef = ordemLoteria.slice();
+  } else {
+    // Sorteado: a ordem virou resultado e não se edita mais.
+    ordemPendente = false;
+  }
+  atualizarBarraOrdem();
+
   $('board').innerHTML = data.order.map(o => {
     const isPlayoff = o.source === 'playoff';
     const top4 = o.position <= 4 ? ' top4' : '';
+    if (!isPlayoff && editandoOrdem) {
+      const i = ordemLoteria.indexOf(o.origin_team_id);
+      const mudou = ordemSalvaRef[i] !== undefined && ordemSalvaRef[i] !== o.origin_team_id;
+      return `<div class="board-slot editavel${top4}${mudou ? ' movido' : ''}" id="board-slot-${o.position}">
+        <span class="board-pos">${o.position}</span>
+        ${logo(o.photo_url,'board-logo')}
+        <span class="board-team">${esc(o.team_name)}${o.is_swap ? ' ' + viaTag(o) : ''}</span>
+        <span class="board-move">
+          <button type="button" title="Subir (campanha pior)" onclick="moverOrdem(${i},-1)"${i === 0 ? ' disabled' : ''}><i class="bi bi-caret-up-fill"></i></button>
+          <button type="button" title="Descer (campanha melhor)" onclick="moverOrdem(${i},1)"${i === ordemLoteria.length - 1 ? ' disabled' : ''}><i class="bi bi-caret-down-fill"></i></button>
+        </span>
+      </div>`;
+    }
     if (isPlayoff) {
       return `<div class="board-slot locked${top4}" id="board-slot-${o.position}">
         <span class="board-pos">${o.position}</span>
@@ -1121,14 +1247,18 @@ if ($('btnRedo')) $('btnRedo').addEventListener('click', () => {
    É PRÉVIA, não sorteio: pedir o sorteio pra preencher a tela faria sair uma
    ordem nova a cada vez que a página abrisse, e a que vale seria a última —
    o admin veria um resultado que não é o resultado. */
-async function carregarPrevia(){
+async function carregarPrevia(ordemProvisoria){
   const sel = $('sessionSelect');
   if (!sel || !sel.value) return;
   try {
+    const corpo = { action: 'run_lottery', draft_session_id: parseInt(sel.value, 10), preview: true };
+    // Ordem ainda não gravada: o servidor recalcula os grupos com ela e
+    // devolve as chances de verdade, em vez de a tela adivinhar a regra.
+    if (Array.isArray(ordemProvisoria)) corpo.ordem = ordemProvisoria;
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'run_lottery', draft_session_id: parseInt(sel.value, 10), preview: true })
+      body: JSON.stringify(corpo)
     });
     const data = await res.json();
     if (!data.success) return;         // sem classificação lançada ainda, por exemplo
@@ -1141,7 +1271,10 @@ async function carregarPrevia(){
     if (aviso) aviso.style.display = '';
   } catch (e) { /* a tela continua servindo pelo botão */ }
 }
-if ($('sessionSelect')) $('sessionSelect').addEventListener('change', carregarPrevia);
+// Trocar de sessão zera a edição pendente: a ordem é de outra temporada.
+if ($('sessionSelect')) $('sessionSelect').addEventListener('change', () => { ordemPendente = false; carregarPrevia(); });
+$('btnOrdemSalvar')?.addEventListener('click', salvarOrdem);
+$('btnOrdemDesfazer')?.addEventListener('click', desfazerOrdem);
 carregarPrevia();
 </script>
 </body>

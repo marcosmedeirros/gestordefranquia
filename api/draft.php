@@ -994,6 +994,38 @@ if ($method === 'POST') {
             }
             $playoffTeamIds = array_map(fn($r) => (int)$r['team_id'], $playoffRows);
 
+            /* ORDEM PROVISÓRIA DA PRÉVIA.
+               O admin reordena o quadro na tela da loteria e precisa ver o
+               efeito nos grupos antes de gravar — mover um time do 4º pro 2º
+               pior o tira do grupo de 3 bolinhas e põe no de 2, e isso tem
+               que aparecer na hora.
+
+               A lista chega na ordem do quadro (pior campanha primeiro) e
+               vira uma ordem geral em memória, seguindo a convenção do
+               registro da temporada: número MAIOR = campanha pior. Só os
+               elegíveis entram, e só se vierem todos — uma lista pela metade
+               montaria grupos a partir de um retrato incompleto.
+
+               Vale SÓ na prévia. No sorteio de verdade manda o que está
+               gravado: senão uma aba esquecida aberta sortearia por uma
+               ordem que ninguém confirmou. */
+            if (!empty($data['preview']) && !empty($data['ordem']) && is_array($data['ordem'])) {
+                $idsElegiveis = array_flip(array_map(fn($r) => (int)$r['team_id'], $eligible));
+                $ordemProv = [];
+                foreach ($data['ordem'] as $tidProv) {
+                    $tidProv = (int)$tidProv;
+                    if (isset($idsElegiveis[$tidProv]) && !in_array($tidProv, $ordemProv, true)) {
+                        $ordemProv[] = $tidProv;
+                    }
+                }
+                if (count($ordemProv) === count($eligible)) {
+                    $topoProv = count($ordemProv);
+                    foreach ($ordemProv as $iProv => $tidProv) {
+                        $teamOverall[$tidProv] = $topoProv - $iProv;
+                    }
+                }
+            }
+
             // Pool de loteria: pior pro melhor (posição maior = pior), interleaviando conferências.
             usort($eligible, fn($a, $b) => (int)$b['position'] <=> (int)$a['position']);
 
@@ -1283,6 +1315,77 @@ if ($method === 'POST') {
                 // que ja aconteceu.
                 'preview' => $apenasPreview,
             ]);
+            break;
+
+        /* ADMIN: grava a ordem de campanha dos times de loteria.
+           É a mesma lista que o card Pontuação preenche (17º em diante) —
+           aqui ela é editada de dentro da cerimônia, onde o erro aparece:
+           o admin vê o time no grupo errado no quadro e corrige ali.
+           Grava só os elegíveis; quem foi pro playoff não é reordenado. */
+        case 'save_lottery_order':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $seasonIdOrdem = (int)($data['season_id'] ?? 0);
+            $ordemTimes    = $data['ordem'] ?? [];
+            if (!$seasonIdOrdem || !is_array($ordemTimes) || count($ordemTimes) < 2) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $stmtLiga = $pdo->prepare('SELECT league FROM seasons WHERE id = ?');
+            $stmtLiga->execute([$seasonIdOrdem]);
+            $ligaOrdem = $stmtLiga->fetchColumn();
+            if (!$ligaOrdem) {
+                echo json_encode(['success' => false, 'error' => 'Temporada não encontrada']);
+                exit;
+            }
+            if (!in_array($ligaOrdem, getAdminLeagues($pdo, (int)$user['id']), true)) {
+                echo json_encode(['success' => false, 'error' => 'Você não administra a ' . $ligaOrdem]);
+                exit;
+            }
+
+            // Só entram times que estão mesmo na classificação desta temporada.
+            $stmtVal = $pdo->prepare('SELECT team_id FROM season_standings WHERE season_id = ?');
+            $stmtVal->execute([$seasonIdOrdem]);
+            $idsValidos = array_flip(array_map('intval', $stmtVal->fetchAll(PDO::FETCH_COLUMN)));
+            $ordemLimpa = [];
+            foreach ($ordemTimes as $tidOrdem) {
+                $tidOrdem = (int)$tidOrdem;
+                if (isset($idsValidos[$tidOrdem]) && !in_array($tidOrdem, $ordemLimpa, true)) {
+                    $ordemLimpa[] = $tidOrdem;
+                }
+            }
+            if (count($ordemLimpa) !== count($ordemTimes)) {
+                echo json_encode(['success' => false, 'error' => 'A ordem tem times repetidos ou que não estão na classificação desta temporada.']);
+                exit;
+            }
+
+            /* A coluna nasceu depois da tabela, e CREATE TABLE IF NOT EXISTS
+               não mexe em tabela existente — bancos antigos chegam aqui sem
+               ela. O ALTER é tentado e o erro de "já existe" é o caso normal. */
+            try { $pdo->exec('ALTER TABLE season_standings ADD COLUMN overall_position INT NULL'); } catch (Throwable $e) { /* já existe */ }
+
+            /* Convenção do card Pontuação: os 16 classificados ficam de 1 a
+               16, e quem ficou de fora ocupa de 17 em diante. A lista chega
+               do pior pro melhor, então o primeiro leva o número mais alto. */
+            $topoSalvar = 16 + count($ordemLimpa);
+            try {
+                $pdo->beginTransaction();
+                $stmtUpd = $pdo->prepare('UPDATE season_standings SET overall_position = ? WHERE season_id = ? AND team_id = ?');
+                foreach ($ordemLimpa as $iSalvar => $tidOrdem) {
+                    $stmtUpd->execute([$topoSalvar - $iSalvar, $seasonIdOrdem, $tidOrdem]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Não foi possível gravar a ordem.']);
+                exit;
+            }
+
+            echo json_encode(['success' => true, 'total' => count($ordemLimpa)]);
             break;
 
         // ADMIN: Definir ordem completa (sem "via", permite repetição, sem snake)
