@@ -447,11 +447,44 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
   <?php else: ?>
 
+  <?php
+    /* COM UM DRAFT SÓ, NÃO HÁ O QUE ESCOLHER.
+       A loteria é sempre do draft que está em configuração. Quando existe um
+       só — que é o caso normal, e sempre o caso de quem administra uma liga —
+       o passo "escolha a sessão" era uma pergunta de resposta única: o admin
+       tinha que confirmar no seletor aquilo que a tela já sabia.
+
+       O seletor continua existindo (escondido) porque o resto da página lê o
+       id dele. E ele volta a aparecer quando há mais de um draft aberto, que
+       é quando a pergunta passa a ser de verdade — o admin de várias ligas
+       precisa dizer de qual delas é a loteria. */
+    $umDraftSo = count($setupSessions) === 1;
+    $draftUnico = $umDraftSo ? $setupSessions[0] : null;
+  ?>
+
+  <?php if ($umDraftSo): ?>
+  <div class="panel bc-off" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">
+        Draft em configuração
+      </div>
+      <div style="font-size:16px;font-weight:800;margin-top:2px">
+        <?= htmlspecialchars($draftUnico['league']) ?> · Temporada <?= (int)$draftUnico['season_number'] ?><?php
+          if ($draftUnico['year']): ?> <span style="color:var(--text-3);font-weight:600">(<?= htmlspecialchars($draftUnico['year']) ?>)</span><?php endif; ?>
+      </div>
+    </div>
+    <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
+  </div>
+  <select id="sessionSelect" style="display:none">
+    <option value="<?= (int)$draftUnico['id'] ?>" selected></option>
+  </select>
+
+  <?php else: ?>
   <div class="section-title bc-off"><i class="bi bi-calendar2-check"></i> 1. Escolha a sessão de draft</div>
   <div class="panel bc-off">
     <div class="form-row">
       <div class="form-field">
-        <label>Sessão de draft (ELITE)</label>
+        <label>Sessão de draft</label>
         <select id="sessionSelect">
           <?php foreach ($setupSessions as $s): ?>
           <option value="<?= (int)$s['id'] ?>">[<?= htmlspecialchars($s['league']) ?>] Temporada <?= (int)$s['season_number'] ?><?= $s['year'] ? ' (' . htmlspecialchars($s['year']) . ')' : '' ?> — sessão #<?= (int)$s['id'] ?></option>
@@ -461,6 +494,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
     </div>
   </div>
+  <?php endif; ?>
   <?php endif; ?>
 
   <div id="resultSection" style="display:none">
