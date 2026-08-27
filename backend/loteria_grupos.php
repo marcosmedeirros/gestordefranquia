@@ -93,22 +93,27 @@ function loteriaTexto(PDO $pdo, string $liga): string
     $g = loteriaMontarGrupos($standings);
     if (!$g['elegiveis']) return "Ninguém ficou fora do playoff na *{$liga}*.";
 
-    $l = ["🎲 *LOTERIA — {$liga}*",
-          '_Campanha da temporada ' . (int)$temp['season_number'] . ' · ainda não sorteada_', ''];
+    /* UMA LINHA POR TIME, com uma porcentagem só.
+       A primeira versão separava por grupo e mostrava Top 3 e Top 5 — era
+       fiel ao modelo e ilegível no celular. Quem pergunta quer achar o
+       próprio time e ver um número.
 
-    foreach (LOTERIA_GRUPOS_META as $num => $meta) {
-        $doGrupo = array_values(array_filter($g['elegiveis'], fn($t) => ($g['grupo_de'][$t] ?? 0) === $num));
-        if (!$doGrupo) continue;
-        $l[] = '*' . $meta['label'] . '*  _(' . $meta['balls'] . ' bolinha'
-             . ($meta['balls'] === 1 ? '' : 's') . ')_';
-        $l[] = 'Top 3: *' . $meta['top3'] . '%*  ·  Top 5: *' . $meta['top5'] . '%*';
-        foreach ($doGrupo as $t) $l[] = '· ' . ($g['nomes'][$t] ?? ('#' . $t));
-        $l[] = '';
+       O número é o Top 3: é a faixa que decide a loteria, e o Top 5 conta a
+       mesma história um degrau abaixo.
+
+       A ordem é a da CAMPANHA, pior primeiro. Ordenar por porcentagem
+       esconderia o que mais surpreende quem lê: neste desenho os três piores
+       têm MENOS chance que o miolo, porque levam 2 bolinhas contra 3. */
+    $ordenados = $g['elegiveis'];
+    usort($ordenados, $g['pior_primeiro']);
+
+    $l = ["🎲 *LOTERIA — {$liga}*", ''];
+    foreach ($ordenados as $t) {
+        $meta = LOTERIA_GRUPOS_META[$g['grupo_de'][$t] ?? 2];
+        $l[] = ($g['nomes'][$t] ?? ('#' . $t)) . ' — *' . $meta['top3'] . '%*';
     }
-
-    // A dúvida que sempre aparece: por que dois números.
-    $l[] = '_Top 3 é a chance de ficar entre as três primeiras escolhas; Top 5, entre as cinco. '
-         . 'É a mesma bolinha medida em duas faixas — quem cai no Top 3 já está no Top 5._';
+    $l[] = '';
+    $l[] = '_Chance de pegar uma das 3 primeiras escolhas._';
     return implode("\n", $l);
 }
 
