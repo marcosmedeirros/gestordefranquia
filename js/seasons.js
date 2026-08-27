@@ -519,18 +519,23 @@ function _regPtsLoadCache() {
  */
 function _regPtsAutosaveServidor() {
     if (!_regPtsSeasonId) return;
+    if (!document.getElementById('formRegistroPontuacao')) return;
     clearTimeout(_regPtsAutosaveTimer);
+
+    // O QUE VAI é fotografado AGORA, não quando o temporizador disparar.
+    //
+    // Antes a leitura era lá na frente, e a tela pode ter sido re-renderizada
+    // nesse meio tempo: sem formulário no DOM, a gravação era abandonada e o
+    // que estava preenchido nunca chegava ao servidor. Foi assim que o
+    // chaveamento sumia do rascunho. Lendo aqui, o adiamento só junta teclas
+    // — nunca decide se grava ou não.
     const seasonAlvo = _regPtsSeasonId;
+    const dados = _regPtsRascunhoAtual();
     _regPtsAutosaveTimer = setTimeout(() => {
-        // A tela pode ter sido trocada nesse meio tempo — enquanto ela
-        // re-renderiza o formulário some do DOM por um instante, e mandar
-        // esse instante pro servidor gravaria um rascunho VAZIO por cima do
-        // que estava preenchido. Sem formulário na tela, não se grava nada.
-        if (!document.getElementById('formRegistroPontuacao')) return;
         if (Number(seasonAlvo) !== Number(_regPtsSeasonId)) return;
         api('seasons.php?action=salvar_rascunho', {
             method: 'POST',
-            body: JSON.stringify({ season_id: seasonAlvo, dados: _regPtsRascunhoAtual() })
+            body: JSON.stringify({ season_id: seasonAlvo, dados })
         }).catch(() => { /* o rascunho local continua valendo */ });
     }, 1500);
 }
@@ -1462,6 +1467,14 @@ async function showRegistroPontuacao(league) {
     // O chaveamento já foi recuperado lá em cima (cache local ou rascunho do
     // servidor); aqui é só desenhar o que houver.
     if (_bracket) _renderBracket(league);
+
+    // Se esta máquina tem chaveamento e o servidor não, manda pra lá.
+    //
+    // É o conserto de quem já passou pelo defeito antigo: o rascunho subiu
+    // sem chaveamento e ficou assim, o que deixava o /playoffs do bot cego.
+    // Abrir a tela uma vez basta pra alinhar os dois — ninguém precisa
+    // refazer o preenchimento.
+    if (_bracket && !rascunhoServidor?.dados?.bracket) _regPtsAutosaveServidor();
 }
 
 /**
@@ -1487,14 +1500,44 @@ async function salvarTemporadaRegular(seasonId, league) {
         .filter(Boolean);
 
     const leste = getRankList('leste'), oeste = getRankList('oeste');
-    if (leste.length < 8 || oeste.length < 8) {
-        showAlert('warning', `Preencha ao menos os 8 primeiros de cada conferência — é deles que sai o chaveamento. (Leste: ${leste.length}/8 · Oeste: ${oeste.length}/8)`);
+
+    // A checagem é sobre as OITO PRIMEIRAS VAGAS, não sobre "oito preenchidas
+    // em qualquer lugar". É delas que o chaveamento é montado, slot a slot.
+    // Contando só o total, quem deixasse a 8ª em branco e preenchesse a 9ª
+    // passava por aqui e travava no generateBracket — que reclamava e devolvia
+    // o chaveamento vazio, enquanto o salvamento seguia adiante.
+    const oitoPrimeiras = (conf) => {
+        let n = 0;
+        for (let i = 1; i <= 8; i++) {
+            if (form.querySelector(`[name="${conf}_rank_${i}"]`)?.value) n++;
+        }
+        return n;
+    };
+    const nL = oitoPrimeiras('leste'), nO = oitoPrimeiras('oeste');
+    if (nL < 8 || nO < 8) {
+        showAlert('warning', `Preencha as 8 primeiras posições de cada conferência — é delas que sai o chaveamento. (Leste: ${nL}/8 · Oeste: ${nO}/8)`);
         return;
     }
 
-    // O autosave pendente não tem mais o que fazer: o rascunho vai inteiro
-    // junto deste salvamento, e deixá-lo armado só criaria uma gravação
-    // atrasada em cima do que acabou de ser gravado.
+    // O CHAVEAMENTO NASCE ANTES DO ENVIO, e isto não é detalhe de ordem.
+    //
+    // Ele era gerado depois da resposta da API, então o rascunho subia com
+    // `bracket: null` na primeira vez. O autosave que consertaria isso é
+    // adiado 1,5s e cai bem no meio do re-render da tela — sem formulário no
+    // DOM, ele desiste. Resultado: o servidor ficava com o rascunho SEM
+    // chaveamento pra sempre, e o /playoffs do bot, que lê justamente de lá,
+    // respondia "não tem playoffs ativo" mesmo com a campanha salva.
+    //
+    // Gerando antes, o chaveamento viaja junto do próprio salvamento e não
+    // depende de nenhuma gravação posterior dar certo. Um que já exista é
+    // mantido: refazer apagaria séries de playoff já preenchidas.
+    const jaTemBracket = !!_bracket;
+    if (!jaTemBracket) generateBracket(league);
+
+    // Só agora o autosave pendente é desarmado — e vem DEPOIS do
+    // generateBracket de propósito, porque ele próprio agenda um. O rascunho
+    // inteiro vai junto do salvamento abaixo; deixar o temporizador armado
+    // só custaria uma segunda gravação, atrasada, do mesmo conteúdo.
     clearTimeout(_regPtsAutosaveTimer);
 
     const btn = document.getElementById('btnSalvarRegular');
@@ -1519,15 +1562,6 @@ async function salvarTemporadaRegular(seasonId, league) {
         _regPtsEtapa = 'playoffs';
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i> Salvar de novo a temporada regular'; }
 
-        // O chaveamento nasce junto: era mais um clique separado, e ficar
-        // esperando por ele é o que fazia a etapa 2 parecer travada.
-        //
-        // Só que ele NÃO é refeito se já existir: salvar a campanha de novo
-        // (pra corrigir uma posição, por exemplo) não pode apagar séries de
-        // playoff já preenchidas. Pra isso existe o "Regerar chaveamento",
-        // que é um clique consciente.
-        const jaTemBracket = !!_bracket;
-        if (!jaTemBracket) generateBracket(league);
         // "Atualizada" e não "salva de novo": o segundo clique reescreve a
         // mesma classificação, não cria uma segunda. Quem lê precisa saber
         // que não ficou nada duplicado atrás.
