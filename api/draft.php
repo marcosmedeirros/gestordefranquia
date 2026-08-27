@@ -12,6 +12,7 @@ require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/draft_swaps.php';
 // Proteção de pick: quem caiu na faixa protegida não passa (só ELITE).
 require_once __DIR__ . '/../backend/pick_protection.php';
+require_once __DIR__ . '/../backend/loteria_grupos.php';
 
 header('Content-Type: application/json');
 
@@ -931,17 +932,14 @@ if ($method === 'POST') {
             $standingsSeasonId     = (int)$standingsRow['id'];
             $standingsSeasonNumber = (int)$standingsRow['season_number'];
 
-            /* A coluna da cauda nasceu depois da tabela e CREATE TABLE IF NOT
-               EXISTS não mexe em tabela existente — bancos antigos chegam
-               aqui sem ela, e o SELECT abaixo quebraria. */
-            try { $pdo->exec('ALTER TABLE season_standings ADD COLUMN draft_tail_position INT NULL'); } catch (Throwable $e) { /* já existe */ }
+            loteriaGarantirColunas($pdo);
 
             // Posição é por conferência (1..16 em cada). COALESCE cobre standings legados
             // sem conferência, caindo na conferência atual do time.
             $stmtST = $pdo->prepare('
                 SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
                        ss.wins, ss.points_for, ss.points_against, ss.overall_position,
-                       ss.draft_tail_position,
+                       ss.draft_tail_position, ss.lottery_group,
                        CONCAT(t.city," ",t.name) AS team_name, t.photo_url
                 FROM season_standings ss
                 JOIN teams t ON t.id = ss.team_id
@@ -977,6 +975,7 @@ if ($method === 'POST') {
             $teamWins = [];   // vitórias — base antiga do ranking de "pior campanha"
             $teamOverall = []; // ordem geral declarada (17º em diante); null quando não existe
             $teamTail = [];   // ordem de escolha entre os classificados (1 = pica primeiro); null quando não existe
+            $teamGrupo = [];  // grupo de loteria declarado pelo admin (1..4); ausente quando não declarado
             $teamPdiff = [];  // saldo de pontos, desempate
             $eligible = [];
             $playoffRows = [];
@@ -993,6 +992,9 @@ if ($method === 'POST') {
                         ? (int)$row['overall_position'] : null;
                     $teamTail[$tid] = isset($row['draft_tail_position']) && $row['draft_tail_position'] !== null
                         ? (int)$row['draft_tail_position'] : null;
+                    if (isset($row['lottery_group']) && $row['lottery_group'] !== null) {
+                        $teamGrupo[$tid] = (int)$row['lottery_group'];
+                    }
                     $teamPdiff[$tid] = (int)($row['points_for'] ?? 0) - (int)($row['points_against'] ?? 0);
                     if ($idx < $cut) {
                         $playoffRows[] = $row;
@@ -1085,19 +1087,13 @@ if ($method === 'POST') {
             $adjustments = [];
             $balls = [];
 
-            // ── Loteria 3-2-1 ──
-            // Os times fora do playoff (posições 9+ de cada conferência) entram no sorteio.
-            // 4 grupos, com pesos de bolinhas 2/3/2/1 — as odds Top 3/Top 5 do comunicado saem daí:
-            //   G1  3 piores recordes da liga ............. 2 bolinhas (16% Top3 / 28% Top5)
-            //   G2  4º-10º piores (fora do play-in) ....... 3 bolinhas (24% / 39%)  — MAIOR chance
-            //   G3  eliminados no play-in (9º/10º da conf)  2 bolinhas (16% / 28%)
-            //   G4  derrotados no 7x8 (2 menos ruins) ..... 1 bolinha  (8% / 15%)   — MENOR chance
-            $GROUP_META = [
-                1 => ['label' => '3 piores recordes',             'top3' => 16, 'top5' => 28, 'balls' => 2],
-                2 => ['label' => 'Fora do play-in (4º–10º)',      'top3' => 24, 'top5' => 39, 'balls' => 3],
-                3 => ['label' => 'Eliminados no play-in (9º/10º)', 'top3' => 16, 'top5' => 28, 'balls' => 2],
-                4 => ['label' => 'Derrotados no 7x8',             'top3' => 8,  'top5' => 15, 'balls' => 1],
-            ];
+            /* ── Loteria 3-2-1 ──
+               Quem ficou fora do playoff entra no sorteio, dividido em quatro
+               grupos com 2, 3, 2 e 1 bolinhas. Quem monta os grupos e quem
+               calcula as chances é backend/loteria_grupos.php — a mesma regra
+               que o /loteria do WhatsApp responde, pra não existir uma chance
+               no site e outra no grupo. */
+            $GROUP_META = LOTERIA_GRUPOS_META;
 
             /* "PIOR CAMPANHA" DA LIGA.
                A ordem geral declarada no registro da temporada manda: ela é
@@ -1125,27 +1121,35 @@ if ($method === 'POST') {
 
             $eligibleIds = array_map(fn($r) => (int)$r['team_id'], $eligible);
 
-            // Grupo 3: posições 9 e 10 de cada conferência (os "eliminados do play-in").
-            $group3 = array_values(array_filter($eligibleIds, fn($t) => $teamPos[$t] === 9 || $teamPos[$t] === 10));
-            // Restante ranqueado pela pior campanha da liga → define G1 (3 piores), G4 (2 menos ruins) e G2 (miolo).
-            $rest = array_values(array_filter($eligibleIds, fn($t) => !in_array($t, $group3, true)));
-            usort($rest, $badness);
-            $restN = count($rest);
-            $group1 = array_slice($rest, 0, min(3, $restN));                     // 3 piores
-            $group4 = $restN > 3 ? array_slice($rest, -min(2, $restN - 3)) : []; // 2 menos ruins
-            $group2 = array_slice($rest, count($group1), $restN - count($group1) - count($group4)); // o meio
+            /* GRUPO DECLARADO PROVISÓRIO (só prévia), como a ordem.
+               Trocar a tag de um time muda o tamanho do grupo, o total de
+               bolinhas e portanto a chance de TODO MUNDO — então o card
+               precisa ser recalculado no mesmo instante, e não depois de
+               gravar. */
+            if (!empty($data['preview']) && isset($data['grupos']) && is_array($data['grupos'])) {
+                $idsElegiveisG = array_flip($eligibleIds);
+                foreach ($data['grupos'] as $tidG => $gG) {
+                    $tidG = (int)$tidG;
+                    $gG   = (int)$gG;
+                    if (!isset($idsElegiveisG[$tidG])) continue;
+                    if ($gG >= 1 && $gG <= 4) $teamGrupo[$tidG] = $gG;
+                    else unset($teamGrupo[$tidG]);   // 0 = volta pro automático
+                }
+            }
 
-            $groupOf = [];
-            foreach ($group1 as $t) $groupOf[$t] = 1;
-            foreach ($group2 as $t) $groupOf[$t] = 2;
-            foreach ($group3 as $t) $groupOf[$t] = 3;
-            foreach ($group4 as $t) $groupOf[$t] = 4;
+            $declarados = array_intersect_key($teamGrupo, array_flip($eligibleIds));
+            $groupOf = loteriaDistribuirGrupos($eligibleIds, $teamPos, $declarados, $badness);
+
+            // Os 3 piores, que o piso de proteção usa mais abaixo.
+            $group1 = array_values(array_filter($eligibleIds, fn($t) => ($groupOf[$t] ?? 2) === 1));
 
             foreach ($eligibleIds as $tid) {
                 $g = $groupOf[$tid] ?? 2;
                 $balls[$tid] = $GROUP_META[$g]['balls'];
             }
             $totalBalls = array_sum($balls);
+            // As chances saem da urna que existe, não de números fixos por grupo.
+            $odds = loteriaOdds($balls);
 
             /* MODO PRÉVIA: monta tudo e NÃO sorteia.
                A tela da loteria precisa mostrar quem entra, em que grupo e
@@ -1323,9 +1327,14 @@ if ($method === 'POST') {
                     'group' => $g,
                     'group_label' => $meta['label'],
                     'balls' => $b,
-                    'top3_pct' => $meta['top3'],
-                    'top5_pct' => $meta['top5'],
+                    // A chance da pick nº 1 é a única faixa que soma 100% entre
+                    // os times — é a que o comunicado da liga anuncia.
+                    'top1_pct' => $odds['top1'][$tid] ?? 0,
+                    'top3_pct' => $odds['top3'][$tid] ?? 0,
+                    'top5_pct' => $odds['top5'][$tid] ?? 0,
                     'odds_pct' => $totalBalls > 0 ? round(($b / $totalBalls) * 100, 2) : 0,
+                    // Marcado pelo admin (fato de jogo) ou deduzido da ordem.
+                    'group_declarado' => isset($declarados[$tid]),
                 ];
             }
             // Ordena por grupo e, dentro do grupo, da pior pra melhor campanha.
@@ -1342,6 +1351,7 @@ if ($method === 'POST') {
                 'eligible_count' => $eligibleCount,
                 'playoff_count' => count($playoffTail),
                 'balls' => $ballsOut,
+                'total_balls' => $totalBalls,
                 'order' => $orderOut,
                 'adjustments' => $adjustments,
                 'group_meta' => $GROUP_META,
@@ -1366,7 +1376,8 @@ if ($method === 'POST') {
             $seasonIdOrdem = (int)($data['season_id'] ?? 0);
             $ordemTimes    = is_array($data['ordem'] ?? null) ? $data['ordem'] : [];
             $ordemCauda    = is_array($data['ordem_playoff'] ?? null) ? $data['ordem_playoff'] : [];
-            if (!$seasonIdOrdem || (count($ordemTimes) < 2 && count($ordemCauda) < 2)) {
+            $gruposMarcados = is_array($data['grupos'] ?? null) ? $data['grupos'] : [];
+            if (!$seasonIdOrdem || (count($ordemTimes) < 2 && count($ordemCauda) < 2 && !$gruposMarcados)) {
                 echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
                 exit;
             }
@@ -1438,6 +1449,19 @@ if ($method === 'POST') {
                 $stmtCauda = $pdo->prepare('UPDATE season_standings SET draft_tail_position = ? WHERE season_id = ? AND team_id = ?');
                 foreach ($caudaLimpa as $iSalvar => $tidOrdem) {
                     $stmtCauda->execute([$iSalvar + 1, $seasonIdOrdem, $tidOrdem]);
+                }
+
+                /* O GRUPO DECLARADO. Vem sempre completo — inclusive os times
+                   que voltaram pro automático, como NULL —, porque a lista
+                   parcial não tem como dizer "este aqui eu desmarquei". */
+                if ($gruposMarcados) {
+                    $stmtGrupo = $pdo->prepare('UPDATE season_standings SET lottery_group = ? WHERE season_id = ? AND team_id = ?');
+                    foreach ($gruposMarcados as $tidGrupo => $gGrupo) {
+                        $tidGrupo = (int)$tidGrupo;
+                        if (!isset($idsValidos[$tidGrupo])) continue;
+                        $gGrupo = (int)$gGrupo;
+                        $stmtGrupo->execute([($gGrupo >= 1 && $gGrupo <= 4) ? $gGrupo : null, $seasonIdOrdem, $tidGrupo]);
+                    }
                 }
                 $pdo->commit();
             } catch (Throwable $e) {

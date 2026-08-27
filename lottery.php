@@ -205,7 +205,10 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 
 /* Quadro da ordem */
 .board{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.board-slot{display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;transition:all .3s var(--ease)}
+/* min-width:0 porque o slot é item de grid: sem ele o grid respeita a
+   largura mínima do conteúdo e o nome de um time comprido estufa a coluna
+   pra fora da tela em vez de truncar. */
+.board-slot{display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;transition:all .3s var(--ease);min-width:0}
 .board-slot.pending{opacity:.5;border-style:dashed}
 /* Slot editável (só na prévia): opaco, porque aqui o time já é conhecido —
    o "aguardando" tracejado é pra depois do sorteio, antes de revelar. */
@@ -229,6 +232,9 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
   /* No celular o selo não cabe junto das setas, e a posição 17 em diante já
      diz que dali pra baixo é playoff. */
   .board-slot.editavel .board-tag.playoff{display:none}
+  /* A tabela de chances rola dentro do próprio painel; um seletor de 230px
+     empurra as colunas de porcentagem pra longe demais desse scroll. */
+  .balls-table .grupo-sel{max-width:132px}
 }
 .board-slot.locked{opacity:.62}
 .board-slot.just{border-color:var(--red);box-shadow:0 0 0 1px var(--red-soft);animation:slotIn .45s var(--ease)}
@@ -249,7 +255,14 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-table th{padding:7px 8px;text-align:left;color:var(--text-3);font-weight:600;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
 .balls-table td{padding:7px 8px;border-bottom:1px solid var(--border)}
 .balls-table tr:last-child td{border-bottom:none}
-.balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700}
+.balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700;font-variant-numeric:tabular-nums}
+.balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
+.grupo-sel{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text-2);
+  font-size:11px;font-family:inherit;padding:4px 6px;max-width:230px;cursor:pointer}
+.grupo-sel:hover{border-color:var(--red)}
+/* Marcado pelo admin (fato de jogo) x deduzido da ordem — a diferença
+   precisa se ver, senão ninguém sabe o que já foi conferido. */
+.grupo-sel.marcado{border-color:var(--border-red);color:var(--text-1);background:var(--red-soft)}
 .conf-chip{font-size:9px;font-weight:800;padding:1px 6px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border-md);color:var(--text-3);margin-left:6px}
 .adjustments{display:flex;flex-direction:column;gap:8px}
 /* Acordos resolvidos pela ordem: proteção e swap. Verde quando a pick passou
@@ -536,10 +549,11 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <div class="panel bc-off">
       <div style="overflow-x:auto">
         <table class="balls-table" id="ballsTable">
-          <thead><tr><th>Time</th><th>Grupo</th><th class="num">Pos</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
+          <thead><tr><th>Time</th><th>Grupo</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
           <tbody id="ballsBody"></tbody>
         </table>
       </div>
+      <div id="ballsRodape" class="balls-rodape"></div>
     </div>
 
     <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
@@ -823,6 +837,17 @@ let ordemPlayoff = [];
 let ordemPlayoffSalvaRef = [];
 let ordemPendente = false;
 
+/* GRUPO DECLARADO. Os rótulos ficam aqui e as bolinhas vêm do servidor em
+   group_meta, pra tela não ter a própria cópia dos pesos. */
+let GRUPOS_OPCOES = [];
+let gruposEditados = {};   // {team_id: 1..4}, ou 0 pra voltar ao automático
+
+function mudarGrupo(teamId, valor){
+  gruposEditados[teamId] = parseInt(valor, 10) || 0;
+  ordemPendente = true;
+  carregarPrevia(ordemLoteria, ordemPlayoff, gruposEditados);
+}
+
 function atualizarBarraOrdem(){
   const bar = $('ordemBar');
   if (!bar) return;
@@ -849,7 +874,8 @@ function moverOrdem(bloco, i, dir){
   // uma edição anterior que ainda não foi salva.
   carregarPrevia(
     bloco === 'playoff' ? ordemLoteria : nova,
-    bloco === 'playoff' ? nova : ordemPlayoff
+    bloco === 'playoff' ? nova : ordemPlayoff,
+    gruposEditados
   );
 }
 
@@ -872,7 +898,10 @@ async function salvarOrdem(){
         action: 'save_lottery_order',
         season_id: result.standings_season_id,
         ordem: ordemLoteria,
-        ordem_playoff: ordemPlayoff
+        ordem_playoff: ordemPlayoff,
+        // Vai completo, com 0 pra quem voltou ao automático: uma lista só dos
+        // marcados não teria como dizer "este aqui eu desmarquei".
+        grupos: Object.fromEntries(ordemLoteria.map(t => [t, gruposEditados[t] || 0]))
       })
     });
     const data = await res.json();
@@ -891,6 +920,18 @@ function setupBoardAndOdds(data){
   revealed = new Set();
   busy = false;
   photoById = {};
+  // Vale pra tabela de chances e pro quadro, e a tabela vem primeiro.
+  const editandoOrdem = !!data.preview && PODE_EDITAR_ORDEM;
+  if (data.group_meta) {
+    GRUPOS_OPCOES = Object.entries(data.group_meta)
+      .map(([g, m]) => [parseInt(g, 10), m.label, m.balls + (m.balls === 1 ? ' bolinha' : ' bolinhas')]);
+  }
+  // O que o servidor devolve é a verdade: os marcados são os que vieram
+  // marcados de lá, não o que a tela lembra de ter clicado.
+  if (data.preview && !ordemPendente) {
+    gruposEditados = {};
+    data.balls.forEach(b => { if (b.group_declarado) gruposEditados[b.team_id] = b.group; });
+  }
   /* Sorteou de verdade: o aviso de prévia sai e o botão do topo muda de
      nome. Ele NÃO some: o "Sortear de novo" só aparece quando a revelação
      termina, e esconder os dois deixaria sem saída quem sorteou a sessão
@@ -907,16 +948,35 @@ function setupBoardAndOdds(data){
   }
   data.order.forEach(o => { photoById[o.team_id] = o.photo_url; });
 
-  // Chances (antes de revelar) — agrupadas pelos 4 grupos do modelo 3-2-1
+  /* Chances. O grupo vira um seletor enquanto a loteria é prévia: quem caiu
+     no play-in e quem perdeu o 7x8 é resultado de jogo, e nenhuma ordenação
+     da tabela revela isso — antes o sistema deduzia pela posição e acabava
+     pendurando "derrotado no 7x8" em times que nem jogaram o play-in.
+
+     Trocar uma tag muda o tamanho do grupo, o total de bolinhas e portanto a
+     chance de todo mundo, então quem recalcula é o servidor. */
+  const totalBolas = data.total_balls || 0;
   $('ballsBody').innerHTML = data.balls.map(b => `
     <tr>
       <td><span style="display:inline-flex;align-items:center;gap:8px">${logo(b.photo_url,'board-logo')}${esc(b.team_name)}${b.conference ? `<span class="conf-chip">${esc(b.conference)}</span>` : ''}</span></td>
-      <td><span class="conf-chip" title="${b.balls} bolinha(s)">${esc(b.group_label || '')}</span></td>
+      <td>${editandoOrdem
+        ? `<select class="grupo-sel${b.group_declarado ? ' marcado' : ''}" title="${b.balls} bolinha(s)" onchange="mudarGrupo(${b.team_id}, this.value)">
+             <option value="0"${b.group_declarado ? '' : ' selected'}>Automático — ${esc(b.group_label || '')}</option>
+             ${GRUPOS_OPCOES.map(([g, rotulo, bolas]) =>
+               `<option value="${g}"${b.group_declarado && b.group === g ? ' selected' : ''}>${esc(rotulo)} (${bolas})</option>`).join('')}
+           </select>`
+        : `<span class="conf-chip" title="${b.balls} bolinha(s)">${esc(b.group_label || '')}</span>`}</td>
       <td class="num">${b.position_anterior}º</td>
+      <td class="num">${b.top1_pct}%</td>
       <td class="num">${b.top3_pct}%</td>
       <td class="num">${b.top5_pct}%</td>
     </tr>
   `).join('');
+  const rodape = $('ballsRodape');
+  if (rodape) rodape.innerHTML = totalBolas
+    ? `<b>${totalBolas} bolinhas</b> na urna. A coluna <b>Nº 1</b> é a única que soma 100% entre os times — `
+      + `Top 3 soma 300% e Top 5 soma 500%, porque são três e cinco escolhas sendo distribuídas.`
+    : '';
 
   // Ajustes anti-tanking
   const adjSection = $('adjustmentsSection');
@@ -946,7 +1006,6 @@ function setupBoardAndOdds(data){
      lugar errado aqui recebe a chance errada lá em cima. Depois do sorteio a
      ordem é resultado, e volta a ser o quadro de sempre — loteria oculta até
      a revelação, playoff travado embaixo. */
-  const editandoOrdem = !!data.preview && PODE_EDITAR_ORDEM;
   if (data.preview) {
     ordemLoteria = data.order.filter(o => o.source !== 'playoff').map(o => o.origin_team_id);
     ordemPlayoff = data.order.filter(o => o.source === 'playoff').map(o => o.origin_team_id);
@@ -1277,7 +1336,7 @@ if ($('btnRedo')) $('btnRedo').addEventListener('click', () => {
    É PRÉVIA, não sorteio: pedir o sorteio pra preencher a tela faria sair uma
    ordem nova a cada vez que a página abrisse, e a que vale seria a última —
    o admin veria um resultado que não é o resultado. */
-async function carregarPrevia(ordemProvisoria, caudaProvisoria){
+async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorios){
   const sel = $('sessionSelect');
   if (!sel || !sel.value) return;
   try {
@@ -1286,6 +1345,7 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria){
     // devolve as chances de verdade, em vez de a tela adivinhar a regra.
     if (Array.isArray(ordemProvisoria)) corpo.ordem = ordemProvisoria;
     if (Array.isArray(caudaProvisoria)) corpo.ordem_playoff = caudaProvisoria;
+    if (gruposProvisorios) corpo.grupos = gruposProvisorios;
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

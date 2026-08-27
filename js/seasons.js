@@ -1443,6 +1443,16 @@ async function showRegistroPontuacao(league) {
                 .sort((a, b) => parseInt(a.split('geral_rank_')[1], 10) - parseInt(b.split('geral_rank_')[1], 10))
                 .map(n => cached.form[n])
                 .filter(Boolean);
+            /* Os grupos voltam indexados pelo TIME, não pela linha: o
+               rascunho guarda geral_grupo_N ao lado de geral_rank_N, e é o
+               time daquela linha que carrega a marcação. */
+            window._gruposLoteriaSalvos = {};
+            Object.keys(cached.form)
+                .filter(n => n.startsWith('geral_grupo_'))
+                .forEach(n => {
+                    const time = cached.form['geral_rank_' + n.split('geral_grupo_')[1]];
+                    if (time && cached.form[n]) window._gruposLoteriaSalvos[String(time)] = cached.form[n];
+                });
             montarOrdemGeral();
 
             // Prêmios estendidos: os campos escondidos já voltaram na passada
@@ -1582,6 +1592,9 @@ async function salvarTemporadaRegular(seasonId, league) {
                 // 15º de um lado e o 15º do outro ficam empatados e o
                 // desempate acaba saindo da ordem de uma consulta.
                 ordem_geral: getRankList('geral'),
+                // O que o admin marcou como "caiu no play-in" / "perdeu o
+                // 7x8". Vem só o que foi marcado; o resto a loteria deduz.
+                grupos_loteria: _coletarGruposLoteria(),
                 // Só os estendidos DESTA etapa — o Finals MVP é da etapa 2 e
                 // não pode ser apagado por um salvamento de campanha.
                 extended_awards: league === 'ELITE' ? _regPtsCollectExtended('regular') : [],
@@ -2024,6 +2037,35 @@ function renderHistoryForm(seasonId, league) {
  * primeiras vagas de nenhuma conferência. Assim não dá pra colocar por
  * engano um time que se classificou.
  */
+/**
+ * O grupo declarado de cada time, lido das duas colunas lado a lado.
+ *
+ * A chave é o TIME, não a linha: a posição é só onde o par foi preenchido, e
+ * mover um time de linha não pode mudar o que aconteceu com ele no play-in.
+ * Vai completo — inclusive os times sem marca, como "" — porque uma lista só
+ * dos marcados não teria como dizer "este aqui eu desmarquei".
+ */
+function _coletarGruposLoteria() {
+    const grupos = {};
+    document.querySelectorAll('select[name^="geral_rank_"]').forEach(sel => {
+        if (!sel.value) return;
+        const n = sel.name.split('geral_rank_')[1];
+        const g = document.querySelector(`select[name="geral_grupo_${n}"]`);
+        grupos[sel.value] = g && g.value ? parseInt(g.value, 10) : 0;
+    });
+    return grupos;
+}
+
+/* Os grupos que a loteria entende. Os rótulos são os da tela da loteria,
+   encurtados — aqui eles dividem a linha com o nome do time. */
+const LOTERIA_GRUPOS_UI = [
+    ['',  'Automático'],
+    ['1', '3 piores'],
+    ['2', 'Fora do play-in'],
+    ['3', 'Caiu no play-in'],
+    ['4', 'Perdeu o 7x8'],
+];
+
 function montarOrdemGeral() {
     const wrap  = document.getElementById('ordemGeralWrap');
     const slots = document.getElementById('ordemGeralSlots');
@@ -2064,13 +2106,33 @@ function montarOrdemGeral() {
         return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
     }).join('');
 
-    slots.innerHTML = fora.map((_, i) => `
+    /* O GRUPO DA LOTERIA, ao lado da posição.
+       Quem caiu no play-in e quem perdeu o 7x8 é resultado de jogo: nenhuma
+       ordenação desta lista revela isso — o 12º pode não ter jogado o play-in
+       e o 9º pode ter jogado. Enquanto a loteria deduzia pela posição, dois
+       times que sequer foram ao play-in levavam o rótulo de derrotados nele,
+       e com ele a menor chance da urna.
+
+       Fica vazio por padrão: só o que o admin marcar vira declaração. */
+    const guardadoGrupo = window._gruposLoteriaSalvos || {};
+    const optsGrupo = (sel) => LOTERIA_GRUPOS_UI
+        .map(([v, rotulo]) => `<option value="${v}"${String(v) === String(sel) ? ' selected' : ''}>${rotulo}</option>`)
+        .join('');
+
+    slots.innerHTML = fora.map((_, i) => {
+        const timeDaLinha = guardada[i] || '';
+        return `
         <div class="d-flex align-items-center gap-2 mb-2">
             <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
             <select class="form-select form-select-sm bg-dark text-white border-orange"
-                    name="geral_rank_${primeiro + i}" style="border-radius:10px"
-                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(guardada[i] || '')}</select>
-        </div>`).join('');
+                    name="geral_rank_${primeiro + i}" style="border-radius:10px;flex:1 1 auto;min-width:0"
+                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                    name="geral_grupo_${primeiro + i}" style="border-radius:10px;flex:0 0 150px"
+                    title="Marque só quem caiu no play-in ou perdeu o 7x8 — o resto sai da ordem"
+                    onchange="_regPtsSaveCache();">${optsGrupo(guardadoGrupo[String(timeDaLinha)] || '')}</select>
+        </div>`;
+    }).join('');
     _updateStandingsUnique('geral');
 }
 

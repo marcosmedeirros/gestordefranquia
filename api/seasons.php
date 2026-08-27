@@ -2174,6 +2174,28 @@ try {
                     }
                 }
 
+                /* O GRUPO DA LOTERIA declarado ao lado de cada posição.
+                   Quem caiu no play-in e quem perdeu o 7x8 não se deduz da
+                   tabela: são resultados de jogo. Enquanto a loteria tentava
+                   adivinhar isso pela colocação, times que sequer foram ao
+                   play-in apareciam como derrotados nele, com a menor chance
+                   da urna. O que não for marcado fica NULL e a loteria
+                   continua deduzindo o que dá pra deduzir. */
+                $gruposLoteria = is_array($input['grupos_loteria'] ?? null) ? $input['grupos_loteria'] : [];
+                if ($gruposLoteria) {
+                    if (!$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'lottery_group'")->fetch()) {
+                        $pdo->exec("ALTER TABLE season_standings ADD COLUMN lottery_group INT NULL AFTER overall_position");
+                    }
+                    $stmtGrupo = $pdo->prepare("UPDATE season_standings SET lottery_group = ?
+                                                 WHERE season_id = ? AND team_id = ?");
+                    foreach ($gruposLoteria as $tid => $g) {
+                        $tid = (int)$tid;
+                        $g   = (int)$g;
+                        if ($tid <= 0) continue;
+                        $stmtGrupo->execute([($g >= 1 && $g <= 4) ? $g : null, $seasonId, $tid]);
+                    }
+                }
+
                 // Prêmios estendidos: exclusivos da ELITE, porque é lá que o
                 // bônus de cap existe. Nas outras ligas o campo nem aparece na
                 // tela, e aqui a checagem fecha a porta pelo outro lado.
