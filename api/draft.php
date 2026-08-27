@@ -1182,7 +1182,20 @@ if ($method === 'POST') {
             // Piso de proteção: os 3 piores (G1) não podem cair além da pick 12.
             // Se algum caiu, troca com a vaga mais funda dentro do top-12 que não seja de outro G1.
             $FLOOR_CAP = 11; // índice 0-based da pick 12
-            foreach ($group1 as $tid) {
+
+            /* A ORDEM DE ATENDIMENTO É SORTEADA, e não é detalhe.
+               Quem é atendido primeiro fica com a vaga mais funda do top-12,
+               porque a busca começa na 12 e sobe. Percorrendo $group1 na
+               ordem em que ele vem — pior campanha primeiro —, o pior time
+               da liga terminava na pick 12 em 32% dos sorteios contra 20% do
+               terceiro pior, com exatamente as mesmas bolinhas. A proteção
+               punia mais quem ela existe pra proteger.
+
+               Sorteando a ordem, os três dividem as vagas 10, 11 e 12 em pé
+               de igualdade. */
+            $ordemProtecao = $group1;
+            shuffle($ordemProtecao);
+            foreach ($ordemProtecao as $tid) {
                 $idx = array_search($tid, $drawOrder, true);
                 if ($idx !== false && $idx > $FLOOR_CAP) {
                     for ($j = $FLOOR_CAP; $j >= 0; $j--) {
@@ -1352,6 +1365,11 @@ if ($method === 'POST') {
                 'playoff_count' => count($playoffTail),
                 'balls' => $ballsOut,
                 'total_balls' => $totalBalls,
+                /* A chance de cada time em CADA pick. É o que fecha 100% nos
+                   dois sentidos — por time e por escolha —, e é simulada
+                   porque inclui o piso de proteção, que remaneja a ordem
+                   depois do sorteio. Cacheada por urna. */
+                'matriz' => loteriaMatriz($balls, $group1, $FLOOR_CAP),
                 'order' => $orderOut,
                 'adjustments' => $adjustments,
                 'group_meta' => $GROUP_META,

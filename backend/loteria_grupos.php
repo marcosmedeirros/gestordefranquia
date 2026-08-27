@@ -348,3 +348,143 @@ function loteriaOdds(array $bolinhas): array
     }
     return ['top1' => $top1, 'top3' => $top3, 'top5' => $top5];
 }
+
+/**
+ * A MATRIZ COMPLETA: a chance de cada time terminar em CADA pick.
+ *
+ * As faixas Top 3 e Top 5 respondem "com que chance eu pego uma escolha
+ * boa", mas somam 300% e 500% entre os times — três e cinco escolhas sendo
+ * distribuídas —, e quem lê a tabela procurando um total de 100% não acha.
+ * Aqui cada linha soma 100% (o time termina em alguma pick) e cada coluna
+ * também (a pick vai pra alguém).
+ *
+ * É SIMULADA, e não calculada, por causa do piso de proteção: os 3 piores
+ * não podem cair além da pick 12, e quando isso acontece eles trocam de
+ * lugar com quem estiver na vaga mais funda do top-12. Essa troca depende da
+ * ordem inteira que saiu, não da posição de um time só — não há fórmula
+ * fechada pra ela como há pro sorteio puro.
+ *
+ * A semente é FIXA de propósito. Uma matriz que muda de casa decimal a cada
+ * F5 destrói a confiança em toda a tela, e a liga não teria como saber se o
+ * número mudou porque a urna mudou ou porque o acaso mudou. Mesma urna,
+ * mesma matriz, sempre.
+ *
+ * @param array $bolinhas [team_id => bolinhas]
+ * @param array $protegidos ids que não podem cair além de $pisoIdx (0-based)
+ * @return array [team_id => [pick_1_based => pct]]
+ */
+function loteriaMatriz(array $bolinhas, array $protegidos = [], int $pisoIdx = 11, int $rodadas = 200000): array
+{
+    if (!$bolinhas) return [];
+
+    $cache = loteriaMatrizCache($bolinhas, $protegidos, $pisoIdx, $rodadas);
+    if ($cache !== null) return $cache;
+
+    $ids = array_keys($bolinhas);
+    $n = count($ids);
+    $contagem = [];
+    foreach ($ids as $t) $contagem[$t] = array_fill(0, $n, 0);
+
+    mt_srand(20260827);
+    for ($r = 0; $r < $rodadas; $r++) {
+        // Sorteio ponderado sem reposição, sem renormalizar quem sobra —
+        // o mesmo do api/draft.php.
+        $pool = $bolinhas;
+        $ordem = [];
+        $total = array_sum($pool);
+        while ($pool) {
+            $sorteado = mt_rand(1, $total);
+            $acumulado = 0;
+            foreach ($pool as $tid => $peso) {
+                $acumulado += $peso;
+                if ($sorteado <= $acumulado) {
+                    $ordem[] = $tid;
+                    $total -= $peso;
+                    unset($pool[$tid]);
+                    break;
+                }
+            }
+        }
+
+        /* Ordem de atendimento sorteada, igual ao api/draft.php: quem é
+           atendido primeiro fica com a vaga mais funda do top-12, e uma ordem
+           fixa daria a três times de bolinhas iguais chances diferentes. */
+        $ordemProtecao = $protegidos;
+        shuffle($ordemProtecao);
+        foreach ($ordemProtecao as $tid) {
+            $idx = array_search($tid, $ordem, true);
+            if ($idx === false || $idx <= $pisoIdx) continue;
+            for ($j = $pisoIdx; $j >= 0; $j--) {
+                if (!in_array($ordem[$j], $protegidos, true)) {
+                    $troca = $ordem[$j];
+                    $ordem[$j] = $tid;
+                    $ordem[$idx] = $troca;
+                    break;
+                }
+            }
+        }
+
+        foreach ($ordem as $pos => $tid) $contagem[$tid][$pos]++;
+    }
+
+    /* ARREDONDAMENTO QUE FECHA A LINHA.
+       A soma exata de cada linha é 100 por construção — em toda rodada o
+       time termina em exatamente uma pick. Arredondando cada célula por
+       conta própria, porém, a linha exibida sai 99,8 ou 100,2, e quem
+       confere a conta na tela encontra um erro que não existe no sorteio.
+
+       Então o arredondamento é feito com sobra: cada célula desce pro
+       décimo de baixo e os décimos que faltam pra fechar 100 vão pras
+       células de maior resto. O que aparece na tela soma exatamente o que
+       diz somar, e nenhuma célula se afasta 0,1 do valor real. */
+    $matriz = [];
+    foreach ($contagem as $tid => $porPos) {
+        $exatos = [];
+        foreach ($porPos as $pos => $qtd) $exatos[$pos + 1] = $qtd / $rodadas * 100;
+
+        $linha = $restos = [];
+        $decimos = 0;
+        foreach ($exatos as $pick => $valor) {
+            $piso = floor($valor * 10);
+            $linha[$pick] = $piso / 10;
+            $restos[$pick] = $valor * 10 - $piso;
+            $decimos += $piso;
+        }
+        arsort($restos);
+        foreach (array_keys($restos) as $pick) {
+            if ($decimos >= 1000) break;   // 1000 décimos = 100,0%
+            $linha[$pick] = round($linha[$pick] + 0.1, 1);
+            $decimos++;
+        }
+        ksort($linha);
+        $matriz[$tid] = $linha;
+    }
+
+    loteriaMatrizCache($bolinhas, $protegidos, $pisoIdx, $rodadas, $matriz);
+    return $matriz;
+}
+
+/**
+ * Guarda a matriz em disco, chaveada pela urna que a gerou.
+ *
+ * A simulação leva mais de um segundo, e a prévia é recarregada a cada seta
+ * clicada — sem isso, ajustar a ordem viraria uma espera. A chave inclui
+ * tudo que muda o resultado, então uma urna diferente nunca lê a matriz de
+ * outra. Falha de escrita é ignorada: sem cache a conta apenas refaz.
+ */
+function loteriaMatrizCache(array $bolinhas, array $protegidos, int $pisoIdx, int $rodadas, ?array $gravar = null): ?array
+{
+    ksort($bolinhas);
+    sort($protegidos);
+    $chave = md5(json_encode([$bolinhas, $protegidos, $pisoIdx, $rodadas]));
+    $arquivo = sys_get_temp_dir() . '/fba_loteria_matriz_' . $chave . '.json';
+
+    if ($gravar === null) {
+        if (!is_readable($arquivo)) return null;
+        $conteudo = json_decode((string)file_get_contents($arquivo), true);
+        return is_array($conteudo) ? $conteudo : null;
+    }
+
+    @file_put_contents($arquivo, json_encode($gravar));
+    return null;
+}

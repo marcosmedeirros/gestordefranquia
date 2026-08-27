@@ -266,6 +266,23 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-table tr:last-child td{border-bottom:none}
 .balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700;font-variant-numeric:tabular-nums}
 .balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
+/* Dezessete colunas de números: tudo encolhe, e a coluna do time gruda na
+   esquerda pra não sumir quando a tabela rola de lado. */
+.matriz-table{font-size:10px;min-width:640px}
+.matriz-table th,.matriz-table td{padding:4px 5px;white-space:nowrap}
+.matriz-table .celula{text-align:right;font-family:'Oswald',sans-serif;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.matriz-table .time-col{position:sticky;left:0;z-index:2;background:var(--panel);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.matriz-table thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+.matriz-table thead th.time-col{z-index:3}
+.matriz-table .total-col{border-left:1px solid var(--border);color:var(--text-1);font-weight:700}
+.matriz-table tfoot td{border-top:1px solid var(--border);color:var(--text-1);font-weight:700;font-size:10px}
+/* Quanto mais escura a célula, maior a chance — a matriz inteira é número,
+   e sem isso o olho não acha onde cada grupo se concentra. */
+.matriz-table .q1{background:rgba(16,185,129,.06)}
+.matriz-table .q2{background:rgba(16,185,129,.14)}
+.matriz-table .q3{background:rgba(16,185,129,.24);color:var(--text-1)}
+.matriz-table .q4{background:rgba(16,185,129,.38);color:#fff}
+.matriz-table .zero{color:var(--text-3);opacity:.35}
 .grupo-sel{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text-2);
   font-size:11px;font-family:inherit;padding:4px 6px;max-width:230px;cursor:pointer}
 .grupo-sel:hover{border-color:var(--red)}
@@ -576,6 +593,26 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         </table>
       </div>
       <div id="ballsRodape" class="balls-rodape"></div>
+    </div>
+
+    <?php /* A MATRIZ. Top 3 e Top 5 respondem "com que chance eu pego uma
+             escolha boa", mas somam 300% e 500% entre os times — três e cinco
+             escolhas sendo distribuídas. Quem procura um total de 100% não
+             acha, e conclui que a conta está errada. Aqui cada linha soma
+             100% (o time termina em alguma pick) e cada coluna também (a pick
+             vai pra alguém). */ ?>
+    <div class="section-title bc-off" id="matrizTitulo" style="display:none">
+      <i class="bi bi-grid-3x3"></i> Chance de cair em cada escolha<i class="bi bi-question-circle info-hint" title="Cada linha é um time e soma 100%: ele termina em alguma das escolhas. Cada coluna é uma escolha e também soma 100%: ela vai pra alguém. As diferenças de 0,1 são arredondamento."></i>
+    </div>
+    <div class="panel bc-off" id="matrizPainel" style="display:none">
+      <div style="overflow-x:auto">
+        <table class="balls-table matriz-table" id="matrizTable">
+          <thead id="matrizHead"></thead>
+          <tbody id="matrizBody"></tbody>
+          <tfoot id="matrizFoot"></tfoot>
+        </table>
+      </div>
+      <div class="balls-rodape" id="matrizRodape"></div>
     </div>
 
     <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
@@ -929,6 +966,73 @@ async function salvarOrdem(){
   }
 }
 
+/**
+ * A MATRIZ: cada time contra cada escolha.
+ *
+ * Sai da simulação do sorteio, com o piso de proteção incluído — por isso os
+ * 3 piores aparecem zerados nas quatro últimas colunas e acumulados na 12ª.
+ * Os totais são somados dos valores EXIBIDOS, não recalculados: se der 99,9
+ * ou 100,1 é o arredondamento das casas mostradas, e escondê-lo com um 100,0
+ * fixo seria mentir sobre a conta que está na tela.
+ */
+function renderMatriz(data){
+  const titulo = $('matrizTitulo'), painel = $('matrizPainel');
+  if (!titulo || !painel) return;
+  const m = data.matriz;
+  if (!m || !data.balls || !data.balls.length) {
+    titulo.style.display = 'none'; painel.style.display = 'none';
+    return;
+  }
+  titulo.style.display = ''; painel.style.display = '';
+
+  const nPicks = data.balls.length;
+  const picks = Array.from({length: nPicks}, (_, i) => i + 1);
+
+  $('matrizHead').innerHTML = `<tr>
+    <th class="time-col">Time</th>
+    ${picks.map(p => `<th class="num">${p}</th>`).join('')}
+    <th class="num total-col">Total</th>
+  </tr>`;
+
+  // Faixas pela maior célula da tabela — uma escala fixa deixaria a matriz
+  // toda clara quando as chances são baixas e espalhadas.
+  let maior = 0;
+  data.balls.forEach(b => picks.forEach(p => { const v = (m[b.team_id] || {})[p] || 0; if (v > maior) maior = v; }));
+  const faixa = (v) => {
+    if (!v) return 'zero';
+    const r = v / (maior || 1);
+    return r > .55 ? 'q4' : r > .3 ? 'q3' : r > .12 ? 'q2' : 'q1';
+  };
+
+  $('matrizBody').innerHTML = data.balls.map(b => {
+    const linha = m[b.team_id] || {};
+    const total = picks.reduce((a, p) => a + (linha[p] || 0), 0);
+    return `<tr>
+      <td class="time-col" title="${esc(b.group_label || '')}">${esc(b.team_name)}</td>
+      ${picks.map(p => {
+        const v = linha[p] || 0;
+        return `<td class="celula ${faixa(v)}">${v ? v.toFixed(1) : '—'}</td>`;
+      }).join('')}
+      <td class="celula total-col">${total.toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+
+  $('matrizFoot').innerHTML = `<tr>
+    <td class="time-col">Soma da escolha</td>
+    ${picks.map(p => {
+      const s = data.balls.reduce((a, b) => a + ((m[b.team_id] || {})[p] || 0), 0);
+      return `<td class="celula">${s.toFixed(1)}</td>`;
+    }).join('')}
+    <td class="celula total-col">—</td>
+  </tr>`;
+
+  $('matrizRodape').innerHTML = 'Cada <b>linha</b> fecha exatamente 100%: o time termina em alguma escolha. '
+    + 'Cada <b>coluna</b> também vale 100% — a escolha vai pra alguém —, mas pode aparecer 99,9 ou 100,1: '
+    + 'com uma casa decimal não dá pra fechar os dois sentidos ao mesmo tempo, e a linha é a leitura que importa. '
+    + 'Os 3 piores ficam vazios da 13ª em diante porque o piso não deixa eles caírem além da 12ª — '
+    + 'é daí que vem a coluna 12 tão alta deles.';
+}
+
 function setupBoardAndOdds(data){
   revealed = new Set();
   busy = false;
@@ -985,6 +1089,7 @@ function setupBoardAndOdds(data){
       <td class="num">${b.top5_pct}%</td>
     </tr>
   `).join('');
+  renderMatriz(data);
   const rodape = $('ballsRodape');
   if (rodape) rodape.innerHTML = totalBolas
     ? `<b>${totalBolas} bolinhas</b> na urna. A coluna <b>Nº 1</b> é a única que soma 100% entre os times — `
