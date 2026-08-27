@@ -255,6 +255,7 @@ function loteriaMontarGrupos(array $standings): array
         'playoff'      => array_map(fn($r) => (int)$r['team_id'], $playoff),
         'grupo_de'     => $grupoDe,
         'bolinhas'     => $bolinhas,
+        'top1'         => $odds['top1'],
         'top3'         => $odds['top3'],
         'top5'         => $odds['top5'],
         'declarado'    => $declaradoElegiveis,
