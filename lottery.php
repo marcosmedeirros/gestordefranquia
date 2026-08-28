@@ -1818,7 +1818,13 @@ async function aplicarAoDraft(comBotao){
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aplicando...';
   }
   try {
-    const teamOrder = result.order.map(o => o.team_id);
+    /* VAI O TIME DE ORIGEM, NÃO QUEM ESCOLHE.
+       O slot pertence a quem fez a campanha; quem escolhe pode ser outro,
+       se a pick foi trocada. O servidor grava a ordem pelas origens e só
+       então resolve dono atual, swap e proteção — mandando o dono já
+       resolvido, ele resolvia de novo sobre o resultado, e a pick comprada
+       voltava pro time de origem. */
+    const teamOrder = result.order.map(o => o.origin_team_id ?? o.team_id);
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
