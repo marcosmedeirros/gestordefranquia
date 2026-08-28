@@ -334,10 +334,23 @@ function taticaCampos(array $linha): array
     return $snap;
 }
 
+/**
+ * Os anos de pick que existem enquanto a liga está numa temporada.
+ *
+ * A janela começa no ANO CORRENTE. Começava no seguinte, e o efeito
+ * aparecia toda virada de temporada: a pick do ano que acabava de começar
+ * saía da janela e era apagada pela sincronização — justamente a pick do
+ * draft que ainda ia acontecer. A liga entrava no draft sem ter o que
+ * trocar por ele.
+ *
+ * O ano corrente ENTRA, e os $horizon anos futuros continuam os mesmos: a
+ * janela ganha um ano em vez de deslizar. Fazê-la deslizar cortaria o ano
+ * mais distante, e picks futuras já negociadas seriam apagadas.
+ */
 function getPickWindowYears(int $startYear, int $seasonNumber, int $maxSeasons, int $horizon = 5): array
 {
-    $windowStart = $startYear + $seasonNumber;
-    $windowEnd = $windowStart + $horizon - 1;
+    $windowStart = $startYear + $seasonNumber - 1;    // o ano desta temporada
+    $windowEnd = $windowStart + $horizon;             // + os anos futuros de sempre
 
     if ($maxSeasons > 0) {
         $endYear = $startYear + $maxSeasons - 1;

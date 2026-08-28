@@ -65,16 +65,41 @@ if ($action === 'roster') {
         // A coluna pode não existir ainda neste banco — garante antes de
         // pedir por ela, senão a consulta inteira morre.
         ensurePickProtectionSchema($pdo);
+        /* A POSIÇÃO NA ORDEM entra junto, quando já existe.
+           A ordem é gravada por time de ORIGEM e rodada — é assim que a pick
+           se liga à vaga. Só de draft aberto: ordem de draft encerrado é
+           história, e mostrar "Escolha 4" pra uma pick de anos atrás só
+           confunde quem está negociando. */
+        /* Subconsulta, e não JOIN: uma liga pode ter mais de um draft aberto
+           ao mesmo tempo (o que está rolando e o da próxima temporada), e o
+           JOIN multiplicava cada pick por sessão — a mesma pick aparecia
+           duas vezes na lista, uma com número e outra sem. */
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round, pk.team_id, pk.original_team_id,
                    pk.protection,
-                   ot.city AS orig_city, ot.name AS orig_name
+                   ot.city AS orig_city, ot.name AS orig_name,
+                   (SELECT dor.pick_position
+                      FROM draft_order dor
+                      JOIN draft_sessions ds ON ds.id = dor.draft_session_id
+                      JOIN seasons se ON se.id = ds.season_id
+                      LEFT JOIN sprints spr ON spr.id = se.sprint_id
+                     WHERE ds.league = ?
+                       AND ds.status IN ("setup","in_progress")
+                       AND dor.original_team_id = pk.original_team_id
+                       AND dor.round = pk.round
+                       AND CAST(pk.season_year AS UNSIGNED)
+                           = COALESCE(spr.start_year + se.season_number - 1, se.year)
+                     LIMIT 1) AS pick_position
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
             ORDER BY pk.round ASC, pk.season_year ASC
         ');
-        $stmtPk->execute([$tid, $currentYear]);
+        // A liga do TIME listado, não a de quem olha: o modal mostra picks
+        // de vários times, e a ordem do draft é por liga.
+        $ligaDoTime = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $ligaDoTime->execute([$tid]);
+        $stmtPk->execute([(string)($ligaDoTime->fetchColumn() ?: $league), $tid, $currentYear]);
         $picks = protecaoAnotarPicks($pdo, $stmtPk->fetchAll(PDO::FETCH_ASSOC), (string)$league);
     } catch (Exception $e) {}
 
@@ -1714,7 +1739,17 @@ function setSimSwapRole(toKey, itemId, role) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function pickLabel(p) { return `${p.season_year ?? '?'} · ${p.round == 1 ? '1ª Round' : '2ª Round'}`; }
+/* O NÚMERO DA ESCOLHA, quando ele já existe.
+   Enquanto a ordem não saiu, "2035 · 1ª Round" é tudo que dá pra dizer.
+   Depois do sorteio a pick tem número, e é por ele que a liga negocia —
+   trocar a 4ª é outra conversa que trocar a 26ª, e as duas apareciam com o
+   mesmo rótulo. */
+function pickLabel(p) {
+  const rodada = p.round == 1 ? '1ª Round' : '2ª Round';
+  return p.pick_position
+    ? `Escolha ${p.pick_position} · ${p.season_year ?? '?'}`
+    : `${p.season_year ?? '?'} · ${rodada}`;
+}
 function escH(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escA(s) { return String(s ?? '').replace(/"/g,'&quot;'); }
 
