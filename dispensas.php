@@ -123,6 +123,30 @@ a{color:inherit;text-decoration:none}
 .actbtn:hover{background:var(--red-2)}
 .actbtn.on{background:transparent;color:var(--red)}
 .actbtn.dis{background:var(--panel-2);border-color:var(--border);color:var(--text-3);cursor:default}
+/* Caixa do lance: o valor é escolhido, e o espaço no cap é só o teto. */
+.bidbox{display:flex;flex-direction:column;gap:6px}
+.bidbox label{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3)}
+.bidrow{display:flex;align-items:stretch;gap:8px}
+.bidinput{flex:1;min-width:0;padding:10px 11px;border-radius:11px;border:1px solid var(--border);
+  background:var(--panel-2);color:var(--text);font-family:var(--font);font-weight:800;font-size:15px;
+  font-variant-numeric:tabular-nums}
+.bidinput:focus{outline:none;border-color:var(--red)}
+/* O spinner do number rouba largura num campo estreito e não ajuda em nada. */
+.bidinput::-webkit-outer-spin-button,.bidinput::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bidinput{-moz-appearance:textfield}
+.bidun{align-self:center;font-weight:800;font-size:13px;color:var(--text-3);margin-left:-4px}
+.actbtn.slim{width:auto;flex:0 0 auto;padding:10px 14px;font-size:12.5px;white-space:nowrap}
+.bidhint{font-size:11px;line-height:1.4;color:var(--text-3)}
+.bidhint b{color:var(--text-2)}
+.linkbtn{align-self:flex-start;background:none;border:none;padding:2px 0;color:var(--text-3);
+  font-family:var(--font);font-size:11.5px;font-weight:700;cursor:pointer}
+.linkbtn:hover{color:var(--red)}
+/* No celular a linha do lance não cabe lado a lado sem espremer o campo. */
+@media (max-width:420px){
+  .bidrow{flex-wrap:wrap}
+  .bidinput{flex:1 1 100px}
+  .actbtn.slim{flex:1 1 100%}
+}
 .empty{padding:24px 16px;text-align:center;color:var(--text-3);background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
 .empty i{font-size:28px;display:block;margin-bottom:8px}
 .empty p{font-size:12px}
@@ -232,14 +256,41 @@ function render(){
       let btn;
       if(own) btn = `<button class="actbtn dis" disabled>Você dispensou este jogador</button>`;
       else if(!canClaim) btn = `<button class="actbtn dis" disabled>Somente times da ELITE</button>`;
-      else if(mine) btn = `<button class="actbtn on" onclick="claim(${w.id},false)"><i class="bi bi-x-circle"></i> Cancelar meu lance (${w.my_bid}M)</button>`;
       // Sem espaço pro salário dele, o lance nem chega a ser oferecido — o
       // botão diz por quê, em vez de deixar o time descobrir no erro.
+      if(own) { /* já resolvido acima */ }
+      else if(!canClaim) { /* idem */ }
       else if(w.cap_cabe === false) btn = `<button class="actbtn dis" disabled><i class="bi bi-slash-circle"></i> Não cabe no seu cap (custa ${fmtCap(w.cap_custo, w.cap_unidade)})</button>`;
-      else btn = `<button class="actbtn" onclick="claim(${w.id},true)"><i class="bi bi-cash-coin"></i> Dar lance · ${DATA.my_cap_space!=null?DATA.my_cap_space+'M de espaço':'meu espaço'}</button>`;
+      else {
+        /* O VALOR É ESCOLHIDO, o espaço no cap é só o teto. Antes o botão
+           apostava o espaço inteiro sempre, e não havia decisão nenhuma a
+           tomar — quem tinha mais cap ganhava tudo. */
+        const teto = DATA.my_cap_space!=null ? Number(DATA.my_cap_space) : null;
+        const valor = mine ? w.my_bid : (teto!=null ? Math.min(teto, w.cap_custo || teto) : '');
+        btn = `<div class="bidbox">
+          <label for="bid${w.id}">Seu lance</label>
+          <div class="bidrow">
+            <input id="bid${w.id}" class="bidinput" type="number" inputmode="numeric"
+                   min="1" ${teto!=null?`max="${teto}"`:''} step="1" value="${valor}"
+                   onkeydown="if(event.key==='Enter')claim(${w.id},true)">
+            <span class="bidun">M</span>
+            <button class="actbtn slim" onclick="claim(${w.id},true)">
+              <i class="bi bi-cash-coin"></i> ${mine?'Atualizar':'Dar lance'}
+            </button>
+          </div>
+          <div class="bidhint">${teto!=null?`até ${teto}M — o seu espaço no cap`:'até o seu espaço no cap'}${
+            mine?' · <b>mudar o valor tira a sua prioridade de horário</b>':''}</div>
+          ${mine?`<button class="linkbtn" onclick="claim(${w.id},false)"><i class="bi bi-x-circle"></i> Cancelar meu lance</button>`:''}
+        </div>`;
+      }
       const pos = [w.position, w.secondary_position].filter(Boolean).join('/');
       const crit = sec < 3600 ? 'crit' : (sec < 3*3600 ? 'warn' : '');
-      const topBid = (w.top_bid!=null) ? `${w.top_bid}M de espaço` : 'sem lances';
+      // Quem está ganhando é público: é o time que levaria o jogador se a
+      // janela fechasse agora, na mesma ordem que a resolução usa.
+      const lidera = w.top_team_id!=null && Number(w.top_team_id)===Number(DATA.my_team_id);
+      const topBid = (w.top_bid!=null)
+        ? `${w.top_bid}M · <b style="color:${lidera?'var(--green,#22c55e)':'var(--text)'}">${esc(w.top_team_name||'?')}</b>${lidera?' (você)':''}`
+        : 'sem lances';
       return `<div class="card ${sec<3600?'soon':''}">
         <div class="pl">
           <div class="av">${esc((w.position||'?').slice(0,2))}</div>
@@ -252,7 +303,7 @@ function render(){
         <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
         ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${fmtCap(w.cap_custo, w.cap_unidade)}</b> no seu cap</div>`:''}
         <div class="bid">
-          <i class="bi bi-trophy-fill" style="color:var(--amber)"></i> Maior lance: <span class="lead-bid">${topBid}</span>
+          <i class="bi bi-trophy-fill" style="color:var(--amber)"></i> Ganhando: <span class="lead-bid">${topBid}</span>
           ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${w.my_bid}M</span>`:''}
         </div>
         <div class="timer ${crit}">
@@ -281,8 +332,16 @@ function render(){
 }
 
 async function claim(id, want){
+  const campo = document.getElementById('bid'+id);
+  const bid = (want && campo) ? Number(campo.value) : null;
+  if(want && campo){
+    if(!bid || bid <= 0){ alert('Escreva o valor do lance.'); campo.focus(); return; }
+    const teto = campo.max ? Number(campo.max) : null;
+    if(teto != null && bid > teto){ alert(`O lance passa do seu espaço no cap (${teto}M).`); campo.focus(); return; }
+  }
   try{
-    const r = await fetch('/api/waivers.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:want?'claim':'unclaim', id})});
+    const r = await fetch('/api/waivers.php',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:want?'claim':'unclaim', id, bid})});
     const d = await r.json();
     if(!d.success){ alert(d.error||'Erro'); return; }
     load();

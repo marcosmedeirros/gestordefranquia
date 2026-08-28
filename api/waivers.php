@@ -57,7 +57,19 @@ try {
         // Quanto cada dispensado custaria e se cabe — a tela desabilita o
         // botão de quem não cabe em vez de deixar o time descobrir na hora
         // do erro, ou pior, ganhar o lance e estourar o cap.
-        $mxStmt = $pdo->prepare("SELECT MAX(bid_space) FROM waiver_claims WHERE retention_id = ?");
+        /*
+         * QUEM ESTÁ GANHANDO É PÚBLICO.
+         *
+         * Mesma ordenação da resolução (maior lance, desempate por quem
+         * chegou primeiro) — o líder mostrado na tela é o que levaria o
+         * jogador se a janela fechasse agora, e não uma aproximação.
+         */
+        $mxStmt = $pdo->prepare("SELECT wc.bid_space, wc.team_id, CONCAT(t.city,' ',t.name) AS nome, t.photo_url
+                                   FROM waiver_claims wc
+                                   JOIN teams t ON t.id = wc.team_id
+                                  WHERE wc.retention_id = ?
+                                  ORDER BY wc.bid_space DESC, wc.claimed_at ASC, wc.id ASC
+                                  LIMIT 1");
         $mbStmt = $pdo->prepare("SELECT bid_space FROM waiver_claims WHERE retention_id = ? AND team_id = ?");
         foreach ($open as &$w) {
             $rid = (int)$w['id'];
@@ -67,8 +79,11 @@ try {
             $w['cap_unidade'] = $fit['unidade'] ?? 'M';
             try {
                 $mxStmt->execute([$rid]);
-                $tv = $mxStmt->fetchColumn();
-                $w['top_bid'] = ($tv !== null && $tv !== false) ? (int)$tv : null;
+                $lider = $mxStmt->fetch(PDO::FETCH_ASSOC);
+                $w['top_bid']         = $lider ? (int)$lider['bid_space'] : null;
+                $w['top_team_id']     = $lider ? (int)$lider['team_id'] : null;
+                $w['top_team_name']   = $lider['nome'] ?? null;
+                $w['top_team_photo']  = $lider['photo_url'] ?? null;
                 $mbStmt->execute([$rid, $myTeamId]);
                 $mv = $mbStmt->fetchColumn();
                 $w['my_bid'] = ($mv !== null && $mv !== false) ? (int)$mv : null;
@@ -77,6 +92,9 @@ try {
                 // antiga) derrubar a listagem inteira — só esse card fica sem lance.
                 error_log('waivers.php bid lookup #' . $rid . ': ' . $e->getMessage());
                 $w['top_bid'] = null;
+                $w['top_team_id'] = null;
+                $w['top_team_name'] = null;
+                $w['top_team_photo'] = null;
                 $w['my_bid'] = null;
             }
         }
@@ -138,12 +156,63 @@ try {
                              . '. Libere espaço antes de dar o lance.']);
                 exit;
             }
-            // O lance é o espaço no cap do time neste momento.
-            $bidSpace = null;
-            try { $bidSpace = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}
-            $pdo->prepare("INSERT INTO waiver_claims (retention_id, team_id, bid_space) VALUES (?, ?, ?)
-                           ON DUPLICATE KEY UPDATE bid_space = VALUES(bid_space)")->execute([$wid, $myTeamId, $bidSpace]);
-            echo json_encode(['success' => true, 'claimed' => true, 'bid_space' => $bidSpace]);
+            /*
+             * O LANCE É ESCOLHIDO PELO TIME, com o espaço no cap como TETO.
+             *
+             * Antes o lance era sempre o espaço inteiro: quem tinha 18M
+             * apostava 18M em tudo, sempre, e o leilão virava uma tabela de
+             * quem tem mais cap — sem decisão nenhuma pra tomar. Agora o time
+             * diz quanto quer gastar, e o teto continua sendo o espaço dele.
+             */
+            $espaco = null;
+            try { $espaco = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}
+
+            $bid = $data['bid'] ?? null;
+            // Sem valor informado, vale o espaço inteiro — é o que os clientes
+            // antigos mandavam, e recusar quebraria quem não atualizou a tela.
+            $bid = ($bid === null || $bid === '') ? $espaco : (int)$bid;
+
+            if ($bid === null) {
+                echo json_encode(['success' => false, 'error' => 'Não consegui calcular o seu espaço no cap agora. Tente de novo.']);
+                exit;
+            }
+            if ($bid <= 0) {
+                echo json_encode(['success' => false, 'error' => 'O lance precisa ser maior que zero.']);
+                exit;
+            }
+            if ($espaco !== null && $bid > $espaco) {
+                echo json_encode(['success' => false,
+                    'error' => 'O lance de ' . $bid . 'M passa do seu espaço no cap (' . $espaco . 'M).']);
+                exit;
+            }
+
+            /*
+             * EDITAR O LANCE CUSTA A PRIORIDADE.
+             *
+             * O desempate é por quem chegou primeiro (claimed_at). Sem mexer
+             * nesse carimbo, dava pra entrar cedo com 1M só pra guardar lugar
+             * na fila e subir pro valor de verdade no fim — ficando à frente
+             * de quem apostou o mesmo valor horas antes. Editar é um lance
+             * novo, e a hora passa a ser a da edição.
+             */
+            $st = $pdo->prepare("SELECT bid_space FROM waiver_claims WHERE retention_id = ? AND team_id = ?");
+            $st->execute([$wid, $myTeamId]);
+            $anterior = $st->fetchColumn();
+            $jaTinha = ($anterior !== false);
+            $mudou = $jaTinha && (int)$anterior !== $bid;
+
+            if (!$jaTinha) {
+                $pdo->prepare("INSERT INTO waiver_claims (retention_id, team_id, bid_space) VALUES (?, ?, ?)")
+                    ->execute([$wid, $myTeamId, $bid]);
+            } elseif ($mudou) {
+                $pdo->prepare("UPDATE waiver_claims SET bid_space = ?, claimed_at = NOW()
+                                WHERE retention_id = ? AND team_id = ?")->execute([$bid, $wid, $myTeamId]);
+            }
+            // Reenviar o MESMO valor não mexe em nada — não faria sentido
+            // perder a prioridade sem ter mudado o lance.
+
+            echo json_encode(['success' => true, 'claimed' => true, 'bid_space' => $bid,
+                              'editado' => $mudou, 'espaco' => $espaco]);
             exit;
         }
 
