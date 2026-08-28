@@ -37,6 +37,57 @@ function draftAnoDaTemporada(PDO $pdo, int $seasonId): int
 }
 
 /**
+ * QUAL CLASSE DE PICKS este draft consome.
+ *
+ * Não é a mesma pergunta que draftAnoDaTemporada(). Aquela responde "que ano
+ * esta temporada representa no jogo"; esta responde "quais linhas da tabela
+ * `picks` são as que este draft está distribuindo". O sistema inteiro sempre
+ * supôs que as duas dão o mesmo número, e é essa suposição que quebra.
+ *
+ * Ela quebra quando a sessão de draft foi criada numa temporada e as picks
+ * daquele ano já não existem — o caso típico é a sessão ter nascido antes do
+ * avanço da temporada, ficando presa no ano anterior enquanto as picks em
+ * jogo são as do ano seguinte. Aí NADA liga a pick à vaga:
+ *
+ *   - a escolha aparece sem número na Trade Machine e na página de Picks;
+ *   - trocar uma pick não move ninguém na ordem do draft, porque
+ *     draftSincronizarOrdem procura picks de um ano que não tem nenhuma.
+ *
+ * Os dois sintomas, uma causa só.
+ *
+ * A regra: vale o ano da temporada quando existem picks dele. Não existindo
+ * nenhuma, vale a classe de picks mais próxima DAQUELE ANO PRA FRENTE — é a
+ * que o draft tem pra distribuir. Nunca anda pra trás: classe de ano passado
+ * já foi sorteada.
+ *
+ * Só muda o resultado no caso quebrado. Onde a suposição valia, devolve
+ * exatamente o mesmo número de antes.
+ */
+function draftAnoDasPicks(PDO $pdo, int $seasonId): int
+{
+    static $cache = [];
+    if (isset($cache[$seasonId])) return $cache[$seasonId];
+
+    $ano = draftAnoDaTemporada($pdo, $seasonId);
+    if ($ano <= 0) return $cache[$seasonId] = 0;
+
+    try {
+        $st = $pdo->prepare('SELECT 1 FROM picks WHERE CAST(season_year AS UNSIGNED) = ? LIMIT 1');
+        $st->execute([$ano]);
+        if ($st->fetchColumn()) return $cache[$seasonId] = $ano;
+
+        $st = $pdo->prepare('SELECT MIN(CAST(season_year AS UNSIGNED)) FROM picks
+                              WHERE CAST(season_year AS UNSIGNED) > ?');
+        $st->execute([$ano]);
+        $proximo = (int)($st->fetchColumn() ?: 0);
+        if ($proximo > 0) return $cache[$seasonId] = $proximo;
+    } catch (Throwable $e) {
+        error_log('[draftAnoDasPicks] ' . $e->getMessage());
+    }
+    return $cache[$seasonId] = $ano;
+}
+
+/**
  * O draft que está rolando numa liga: a sessão e o ano que ela sorteia.
  *
  * Existe pra que ninguém mais precise refazer a conta do ano dentro de um
@@ -65,7 +116,7 @@ function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
         $st->execute([$liga]);
         $melhor = null;
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
-            $ano = draftAnoDaTemporada($pdo, (int)$s['season_id']);
+            $ano = draftAnoDasPicks($pdo, (int)$s['season_id']);
             if ($ano <= 0) continue;
             if ($melhor === null || $ano < $melhor['ano']) {
                 $melhor = ['id' => (int)$s['id'], 'ano' => $ano];
@@ -99,7 +150,7 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
     $sessao = $st->fetch(PDO::FETCH_ASSOC);
     if (!$sessao) return ['donos' => 0, 'swaps' => 0];
 
-    $ano = draftAnoDaTemporada($pdo, (int)$sessao['season_id']);
+    $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
     if ($ano <= 0) return ['donos' => 0, 'swaps' => 0];
 
     // As picks daquele ano, indexadas por [rodada][time de origem].
@@ -245,7 +296,7 @@ function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
     $sessao = $st->fetch(PDO::FETCH_ASSOC);
     if (!$sessao) return $vazio;
 
-    $ano = draftAnoDaTemporada($pdo, (int)$sessao['season_id']);
+    $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
     if ($ano <= 0) return $vazio;
 
     $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,

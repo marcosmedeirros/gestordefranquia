@@ -420,7 +420,11 @@ function protecaoResolverNoDraft(PDO $pdo, int $draftSessionId): array
         if (!$sessao || !protecaoLigaUsa($sessao['league'] ?? null)) return [];
 
         require_once __DIR__ . '/draft_swaps.php';
-        $ano = draftAnoDaTemporada($pdo, (int)$sessao['season_id']);
+        // A classe de picks que ESTE draft distribui, e não o ano da
+        // temporada: são a mesma coisa quase sempre, mas quando a sessão fica
+        // presa num ano sem picks, resolver a proteção pelo ano da temporada
+        // procuraria picks que não existem e nenhuma protegida seria decidida.
+        $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
         if ($ano <= 0) return [];
 
         // Onde caiu a vaga de cada time de origem na 1ª rodada. É a posição

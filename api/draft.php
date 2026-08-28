@@ -1994,6 +1994,46 @@ if ($method === 'POST') {
             }
             break;
 
+        /* ADMIN: AJUSTAR AS PICKS DE UM DRAFT JÁ ABERTO.
+           A sincronização roda sozinha em três momentos — ao aplicar a ordem
+           da loteria, ao abrir o draft e ao aceitar qualquer troca. Faltava o
+           quarto: um draft que JÁ está rolando e ficou com a ordem errada.
+           Isso acontece com troca aceita antes de a correção existir, ou com
+           a ordem aplicada antes da troca. Sem esta ação, a única saída era
+           reaplicar a ordem da loteria — o que reembaralha um draft em
+           andamento e é remédio pior que a doença.
+           É a mesma conta do "Revisar picks", só que gravando. */
+        case 'ajustar_picks': {
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $sid = (int)($data['draft_session_id'] ?? 0);
+            if (!$sid) { echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']); exit; }
+
+            $st = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
+            $st->execute([$sid]);
+            $ligaSessao = (string)($st->fetchColumn() ?: '');
+            if ($ligaSessao === '') { echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']); exit; }
+
+            $minhas = array_values(array_intersect(['ELITE','NEXT','RISE','ROOKIE'], getAdminLeagues($pdo, (int)$user['id'])));
+            if (!in_array($ligaSessao, $minhas, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Você não administra a liga deste draft']);
+                exit;
+            }
+
+            $r = draftSincronizarOrdem($pdo, $sid);
+            $mexeu = (int)$r['donos'] + (int)$r['swaps'];
+            $msg = $mexeu === 0
+                ? 'Nada a ajustar: cada escolha já está com o dono certo.'
+                : trim(($r['donos'] ? $r['donos'] . ' escolha(s) ajustada(s) por troca de pick. ' : '')
+                     . ($r['swaps'] ? $r['swaps'] . ' escolha(s) trocada(s) por swap.' : ''));
+            echo json_encode(['success' => true, 'ajustadas' => $mexeu, 'message' => $msg]);
+            break;
+        }
+
         // ADMIN: Finalizar draft manualmente
         case 'finalize_draft':
             if (!$isAdmin) {

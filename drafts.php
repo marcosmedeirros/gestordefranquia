@@ -784,9 +784,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="finalize-title"><i class="bi bi-clipboard-check"></i> Revisar picks</div>
           <div class="finalize-sub">Confere se cada escolha está com o dono certo — trocas, swaps e proteções. Não altera nada.</div>
         </div>
-        <button class="btn-ghost" id="btnRevisarPicks" onclick="revisarPicks()">
-          <i class="bi bi-search"></i> Revisar picks
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-ghost" id="btnRevisarPicks" onclick="revisarPicks()">
+            <i class="bi bi-search"></i> Revisar picks
+          </button>
+          <?php /* O par do botão de cima: um só compara, o outro grava. Sem
+                   ele, a saída pra um draft já aberto com a ordem errada era
+                   reaplicar a ordem da loteria — que reembaralha tudo. */ ?>
+          <button class="btn-ghost" id="btnAjustarPicks" onclick="ajustarPicks()"
+                  title="Põe cada escolha com o dono atual da pick, resolvendo trocas e swaps">
+            <i class="bi bi-wrench-adjustable"></i> Ajustar picks
+          </button>
+        </div>
       </div>
       <div id="revisaoPicks" style="display:none;margin-top:12px"></div>
 
@@ -1830,6 +1839,48 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       box.innerHTML = `<div style="padding:14px;color:#fca5a5;font-size:13px">Erro: ${e.error || 'não deu pra conferir'}</div>`;
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  /**
+   * Corrige a ordem: cada escolha vai pro dono atual da pick.
+   *
+   * É a mesma conta do "Revisar picks", só que gravando. Depois de ajustar,
+   * a revisão roda sozinha — quem clicou precisa VER que ficou certo, e não
+   * só ler que mexeu em três vagas.
+   */
+  async function ajustarPicks() {
+    const btn = document.getElementById('btnAjustarPicks');
+    if (!currentDraftSession || !currentDraftSession.id) {
+      const box = document.getElementById('revisaoPicks');
+      box.style.display = 'block';
+      box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--text-3)">'
+        + 'Não há draft montado nesta liga agora — nada a ajustar.</div>';
+      return;
+    }
+    btn.disabled = true;
+    const antes = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Ajustando…';
+    try {
+      const r = await api('draft.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ajustar_picks', draft_session_id: currentDraftSession.id })
+      });
+      btn.disabled = false;
+      btn.innerHTML = antes;
+      // A ordem na tela precisa refletir o que acabou de mudar.
+      if (r.ajustadas > 0) loadDraft();
+      await revisarPicks();
+      const box = document.getElementById('revisaoPicks');
+      if (box) {
+        box.insertAdjacentHTML('afterbegin',
+          `<div style="border:1px solid #22c55e40;background:#22c55e14;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12.5px;color:var(--text-2)">
+             <b style="color:#22c55e">${esc(r.message || 'Ajustado.')}</b></div>`);
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.innerHTML = antes;
+      alert('Erro: ' + (e.error || 'não deu pra ajustar'));
     }
   }
 
