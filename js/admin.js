@@ -3259,8 +3259,13 @@ async function showLeague(league) {
       ] : []),
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
-      // Tapas escondido na fusão — a tela e a função continuam existindo.
-      // { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
+      /* BADGES. O card estava escondido desde a fusão, e a tela seguia
+         existindo sem caminho até ela. Voltou porque agora tem fila de
+         verdade: o GM compra a badge na loja e pede em Meu Elenco, e alguém
+         precisa aprovar. O nome é Badges e não Tapas porque é assim que a
+         liga chama hoje — a tela mostra os dois tipos, que dividem a mesma
+         fila. */
+      { icon: 'bi-patch-check-fill',        label: 'Badges',                    fn: `showTapas('${league}')`,    color: '#f59e0b', bg: 'rgba(245,197,66,.12)'  },
       { icon: 'bi-clipboard2-pulse',        label: 'Tática',                    fn: 'showTaticaAdmin()',         color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
@@ -7050,9 +7055,14 @@ ${logs.length === 0 ? '<div style="text-align:center;padding:32px;color:var(--te
 // ========== TAPAS ==========
 let tapasLeague = 'ELITE';
 
-async function showTapas() {
+// A tela e de BADGES. O nome das funcoes segue tapas* porque a tabela e os
+// endpoints sao os mesmos — renomear tudo era um commit de ruido, e a fila e
+// literalmente a mesma. O que a liga ve, e o que esta tela mostra, e badge.
+async function showTapas(league) {
   const _wasInTapas = appState.view === 'tapas';
-  if (appState.currentLeague && !_wasInTapas) tapasLeague = appState.currentLeague;
+  // A liga vem do card que chamou; sem ela, a que estiver aberta.
+  if (league) tapasLeague = league;
+  else if (appState.currentLeague && !_wasInTapas) tapasLeague = appState.currentLeague;
   appState.view = 'tapas';
   updateBreadcrumb();
 
@@ -7062,7 +7072,7 @@ async function showTapas() {
   container.innerHTML = `
     <div class="mb-4" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
       <button class="btn btn-back" onclick="${_tapasBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray" style="font-size:14px;font-weight:600">Tapas — ${tapasLeague}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Badges — ${tapasLeague}</span>
     </div>
 
     <div id="tapasContainer">

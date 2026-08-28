@@ -310,11 +310,32 @@ if ($method === 'POST' && $action === 'admin_approve') {
             $pdo->prepare("UPDATE players SET badge_name = ? WHERE id = ?")
                 ->execute([$badgeName, $req['player_id']]);
         }
-        // deduct 1 tapa from games DB for both tapa and badge
-        decrementGamesTapas($pdoGames, $gamesUserId);
-
-        $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
-            ->execute([$req['team_id']]);
+        /*
+         * É AQUI QUE A BADGE É CONSUMIDA — na aplicação, não no pedido.
+         *
+         * Enquanto o pedido espera, ela continua no inventário do GM: se for
+         * recusado, ele não perde nada. O que impede pedir duas com uma badge
+         * só é a checagem no request_badge (pendentes < compradas).
+         *
+         * O saldo antigo de tapas só é debitado em pedido do tipo 'tapa'. Para
+         * badge, a moeda é o item da loja — descontar dos dois seria cobrar
+         * duas vezes pela mesma coisa.
+         */
+        if ($actionType === 'badge') {
+            $donoId = 0;
+            try {
+                $stDono = $pdo->prepare("SELECT user_id FROM teams WHERE id = ? LIMIT 1");
+                $stDono->execute([$req['team_id']]);
+                $donoId = (int)$stDono->fetchColumn();
+            } catch (Throwable $e) { /* segue: a badge é aplicada de todo jeito */ }
+            // Não impede a aprovação se não achar item comprado: pode ser um
+            // pedido antigo, ou uma badge combinada por fora. O admin decidiu.
+            if ($donoId > 0) badgeConsumir($pdo, $donoId);
+        } else {
+            decrementGamesTapas($pdoGames, $gamesUserId);
+            $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
+                ->execute([$req['team_id']]);
+        }
 
         $pdo->commit();
         out(['success' => true, 'message' => 'Solicitação aprovada']);
@@ -350,21 +371,10 @@ if ($method === 'POST' && $action === 'admin_reject') {
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
 
-    // Antes de rejeitar, guarda de quem era: badge recusada VOLTA pro dono.
-    // Ele pagou 3.500 pontos; ficar sem a badge e sem os pontos porque o
-    // pedido não passou seria confisco.
-    $stmtR = $pdo->prepare("SELECT r.action_type, t.user_id
-                              FROM tapas_requests r JOIN teams t ON t.id = r.team_id
-                             WHERE r.id = ? AND r.status = 'pending'");
-    $stmtR->execute([$requestId]);
-    $req = $stmtR->fetch(PDO::FETCH_ASSOC);
-
+    // Nada a devolver: a badge só sai do inventário quando o admin APLICA.
+    // Recusado, o GM continua com ela e pode pedir de novo em outro jogador.
     $pdo->prepare("UPDATE tapas_requests SET status='rejected', processed_at=NOW() WHERE id = ? AND status='pending'")
         ->execute([$requestId]);
-
-    if ($req && ($req['action_type'] ?? '') === 'badge') {
-        badgeDevolverAoInventario($pdo, (int)$req['user_id']);
-    }
 
     out(['success' => true, 'message' => 'Solicitação rejeitada']);
 }
@@ -380,8 +390,14 @@ if ($method === 'POST' && $action === 'admin_reject') {
  * Não existe contador paralelo pra desencontrar do que foi comprado.
  */
 
-/** Quantas badges o GM tem guardadas, prontas pra pedir. */
-function badgesDisponiveis(PDO $pdo, int $userId): int
+/**
+ * Quantas badges o GM comprou e ainda não foram aplicadas.
+ *
+ * A BADGE SÓ É CONSUMIDA QUANDO O ADMIN APLICA, e não no pedido. Enquanto
+ * espera, ela continua guardada — se o pedido for recusado não há nada a
+ * devolver, porque nada saiu.
+ */
+function badgesCompradas(PDO $pdo, int $userId): int
 {
     try {
         $st = $pdo->prepare("SELECT COUNT(*) FROM loja_inventario
@@ -393,16 +409,47 @@ function badgesDisponiveis(PDO $pdo, int $userId): int
     }
 }
 
-/** Devolve uma badge recusada: a mais recentemente usada volta pro inventário. */
-function badgeDevolverAoInventario(PDO $pdo, int $userId): void
+/**
+ * Quantos pedidos de badge estão esperando o admin.
+ *
+ * Entra na conta do que ainda dá pra pedir: quem tem UMA badge e já pediu uma
+ * não pode pedir outra, senão dois pedidos aprovados gastariam uma badge só.
+ */
+function badgesPendentes(PDO $pdo, int $teamId): int
 {
     try {
-        $pdo->prepare("UPDATE loja_inventario SET usado_em = NULL
-                        WHERE id_usuario = ? AND item_key = 'badge'
-                          AND usado_em IS NOT NULL AND atendido_em IS NULL
-                        ORDER BY usado_em DESC LIMIT 1")->execute([$userId]);
+        $st = $pdo->prepare("SELECT COUNT(*) FROM tapas_requests
+                              WHERE team_id = ? AND action_type = 'badge' AND status = 'pending'");
+        $st->execute([$teamId]);
+        return (int)$st->fetchColumn();
     } catch (Throwable $e) {
-        error_log('[tapas/devolver badge] ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/** O que sobra pra pedir agora: comprado menos o que já está na fila. */
+function badgesDisponiveis(PDO $pdo, int $userId, int $teamId): int
+{
+    return max(0, badgesCompradas($pdo, $userId) - badgesPendentes($pdo, $teamId));
+}
+
+/**
+ * Consome uma badge — chamado quando o admin APLICA, não quando o GM pede.
+ *
+ * @return bool false se não havia badge comprada (pedido antigo, ou badge dada
+ *              por fora); o chamador decide se isso impede a aprovação.
+ */
+function badgeConsumir(PDO $pdo, int $userId): bool
+{
+    try {
+        $st = $pdo->prepare("UPDATE loja_inventario SET usado_em = NOW(), atendido_em = NOW()
+                              WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL
+                              ORDER BY comprado_em ASC LIMIT 1");
+        $st->execute([$userId]);
+        return $st->rowCount() > 0;
+    } catch (Throwable $e) {
+        error_log('[tapas/consumir badge] ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -419,7 +466,9 @@ if ($method === 'GET' && $action === 'badges_status') {
     $st->execute([$teamId]);
 
     out(['success' => true,
-         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id']),
+         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'], $teamId),
+         'compradas'   => badgesCompradas($pdo, (int)$user['id']),
+         'pendentes'   => badgesPendentes($pdo, $teamId),
          'pedidos' => $st->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
@@ -443,35 +492,32 @@ if ($method === 'POST' && $action === 'request_badge') {
     $player = $stmtP->fetch(PDO::FETCH_ASSOC);
     if (!$player) err('Jogador não encontrado no seu elenco');
 
-    $pdo->beginTransaction();
-    try {
-        /* Consome a badge PRIMEIRO, e com o WHERE carregando o dono e o "não
-         * usada". É esse UPDATE que decide a corrida: dois cliques rápidos, o
-         * segundo afeta zero linhas e não vira pedido. Um SELECT antes
-         * deixaria a janela aberta pros dois passarem. */
-        $con = $pdo->prepare("UPDATE loja_inventario SET usado_em = NOW()
-                               WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL
-                               ORDER BY comprado_em ASC LIMIT 1");
-        $con->execute([$user['id']]);
-        if ($con->rowCount() === 0) {
-            $pdo->rollBack();
-            err('Você não tem badge disponível. Compre uma na loja dos Games.');
-        }
-
-        $pdo->prepare("INSERT INTO tapas_requests
-                        (team_id, player_id, player_name, league, status, action_type, badge_name)
-                        VALUES (?, ?, ?, ?, 'pending', 'badge', ?)")
-            ->execute([$team['id'], $playerId, $player['name'], $team['league'], $badgeName]);
-
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        err('Não deu pra enviar a solicitação.');
+    /*
+     * Um pedido por badge comprada.
+     *
+     * A badge só sai do inventário quando o admin aplica, então o que limita o
+     * pedido é: comprei 1 e já pedi 1 → não posso pedir outra. Sem isto, dois
+     * pedidos aprovados gastariam uma badge só.
+     */
+    $compradas = badgesCompradas($pdo, (int)$user['id']);
+    $pendentes = badgesPendentes($pdo, (int)$team['id']);
+    if ($compradas <= 0) {
+        err('Você não tem badge. Compre uma na loja dos Games.');
     }
+    if ($pendentes >= $compradas) {
+        err($pendentes === 1
+            ? 'Você já tem um pedido de badge esperando. Aguarde a organização responder.'
+            : "Você tem $pendentes pedidos esperando e $compradas badge(s) — aguarde a organização responder.");
+    }
+
+    $pdo->prepare("INSERT INTO tapas_requests
+                    (team_id, player_id, player_name, league, status, action_type, badge_name)
+                    VALUES (?, ?, ?, ?, 'pending', 'badge', ?)")
+        ->execute([$team['id'], $playerId, $player['name'], $team['league'], $badgeName]);
 
     out(['success' => true,
          'message' => 'Pedido enviado. A organização vai avaliar.',
-         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'])]);
+         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'], (int)$team['id'])]);
 }
 
 err('Ação inválida');

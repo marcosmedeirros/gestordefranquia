@@ -467,6 +467,9 @@ if ($teamId) {
            não tinha nenhum destaque — dava trabalho descobrir quem era o
            armador. */
         .badge-saldo{background:#f59e0b;color:#111;font-weight:800;font-size:10px;border-radius:999px;padding:1px 6px;margin-left:5px}
+        /* Sem badge guardada o contador fica apagado: o botao continua la, mas
+           nao finge que ha algo pra usar. */
+        .badge-saldo.vazio{background:rgba(255,255,255,.08);color:var(--text-3)}
         .q5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .q5-card {
             position: relative; background: var(--panel-2); border: 1px solid var(--border);
@@ -853,12 +856,14 @@ if ($teamId) {
                     <a href="/tatica.php" class="btn-ghost" title="Quinteto, minutos e sistema de jogo">
                         <i class="bi bi-clipboard2-pulse"></i> Tática
                     </a>
-                    <?php /* Só aparece pra quem tem badge comprada guardada — um
-                             botão que só sabe dizer "você não tem" é ruído na
-                             barra. Quem revela é o JS, depois de perguntar. */ ?>
-                    <button id="btn-pedir-badge" class="btn-ghost" type="button" style="display:none"
-                            title="Usar uma badge comprada na loja">
-                        <i class="bi bi-patch-check-fill"></i> Solicitar badge
+                    <?php /* SEMPRE VISÍVEL. Eu tinha escondido sem saldo, achando
+                             que um botão que só diz "você não tem" era ruído — mas
+                             aí ninguém descobre que dá pra pedir badge, e a compra
+                             na loja fica sem destino. Sem saldo ele abre o mesmo
+                             popup, que explica e leva pra loja. */ ?>
+                    <button id="btn-pedir-badge" class="btn-ghost" type="button"
+                            title="Pedir uma badge para um jogador do seu elenco">
+                        <i class="bi bi-patch-check-fill"></i> Badges
                         <span id="badge-saldo" class="badge-saldo">0</span>
                     </button>
                     <!-- IA -->
@@ -1079,7 +1084,7 @@ if ($teamId) {
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-patch-check-fill me-2" style="color:#f59e0b"></i>Solicitar badge</h5>
+                <h5 class="modal-title"><i class="bi bi-patch-check-fill me-2" style="color:#f59e0b"></i>Badges</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -1094,8 +1099,8 @@ if ($teamId) {
                            placeholder="Ex.: Clamps, Deadeye, Bulldozer" autocomplete="off">
                 </div>
                 <p style="font-size:12px;color:var(--text-3);margin:0">
-                    Você tem <b id="badge-saldo-modal">0</b> badge(s) guardada(s). O pedido consome uma;
-                    se a organização recusar, ela volta pra você.
+                    Você pode pedir <b id="badge-saldo-modal">0</b> badge(s) agora. Ela só é gasta quando a
+                    organização aplica — se o pedido for recusado, continua sua.
                 </p>
                 <div id="badge-pedidos" style="margin-top:14px"></div>
             </div>

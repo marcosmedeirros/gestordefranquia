@@ -1685,16 +1685,21 @@ document.addEventListener('DOMContentLoaded', () => {
      A badge vem da loja e fica guardada; aqui o GM diz em quem e com que nome.
      O botão só existe quando há saldo — um botão que só sabe dizer "você não
      tem" é ruído na barra de ações. */
-  let badgeSaldo = 0;
+  let badgeSaldo = 0, badgeCompradas = 0, badgePendentes = 0;
 
   async function carregarBadges() {
     try {
       const d = await api('tapas.php?action=badges_status');
       badgeSaldo = Number(d.disponiveis || 0);
-      const bt = document.getElementById('btn-pedir-badge');
-      if (bt) bt.style.display = badgeSaldo > 0 ? '' : 'none';
+      badgeCompradas = Number(d.compradas || 0);
+      badgePendentes = Number(d.pendentes || 0);
+      // O botão fica sempre; só o contador muda. Escondê-lo sem saldo fazia a
+      // funcionalidade não existir pra quem nunca comprou uma badge.
       const sel = document.getElementById('badge-saldo');
-      if (sel) sel.textContent = badgeSaldo;
+      if (sel) {
+        sel.textContent = badgeSaldo;
+        sel.classList.toggle('vazio', badgeSaldo === 0);
+      }
       const selM = document.getElementById('badge-saldo-modal');
       if (selM) selM.textContent = badgeSaldo;
 
@@ -1716,7 +1721,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { /* sem badge, sem botão — silêncio é o certo aqui */ }
   }
 
-  document.getElementById('btn-pedir-badge')?.addEventListener('click', () => {
+  document.getElementById('btn-pedir-badge')?.addEventListener('click', async () => {
+    // Relê o saldo ao abrir: ele pode ter comprado uma badge na loja depois
+    // desta página ter carregado, e mandar recarregar seria pedir demais.
+    await carregarBadges();
+
     const sel = document.getElementById('badge-jogador');
     if (sel) {
       // Só o elenco do próprio time, que é o que o servidor aceita.
@@ -1726,8 +1735,34 @@ document.addEventListener('DOMContentLoaded', () => {
         .map(p => `<option value="${p.id}">${p.name} — ${p.position || '?'} ${p.ovr}</option>`)
         .join('');
     }
-    document.getElementById('badge-msg').innerHTML = '';
     document.getElementById('badge-nome').value = '';
+
+    /* Dois motivos diferentes pra não poder pedir, e a mensagem tem que
+       distinguir: não ter badge nenhuma manda pra loja; ter badge mas já ter
+       pedido manda esperar. Dizer "compre uma" pra quem já comprou seria
+       empurrar uma segunda compra sem necessidade. */
+    const semSaldo = badgeSaldo === 0;
+    const box = document.getElementById('badge-msg');
+    if (!semSaldo) {
+      box.innerHTML = '';
+    } else if (badgeCompradas > 0) {
+      box.innerHTML = `<div class="alert alert-warning py-2" style="font-size:13px">
+           Você tem ${badgePendentes} pedido(s) esperando e ${badgeCompradas} badge(s).
+           Aguarde a organização responder — a badge só é gasta quando ela é aplicada.
+         </div>`;
+    } else {
+      box.innerHTML = `<div class="alert alert-warning py-2" style="font-size:13px">
+           Você não tem badge. Ela é comprada na loja dos
+           <a href="/games.php" style="font-weight:700">Games</a>, com FBA Points —
+           depois volte aqui pra escolher o jogador.
+         </div>`;
+    }
+    const envio = document.getElementById('btn-badge-enviar');
+    if (envio) envio.disabled = semSaldo;
+    const campos = document.getElementById('badge-jogador');
+    if (campos) campos.disabled = semSaldo;
+    document.getElementById('badge-nome').disabled = semSaldo;
+
     new bootstrap.Modal(document.getElementById('badgeModal')).show();
   });
 
