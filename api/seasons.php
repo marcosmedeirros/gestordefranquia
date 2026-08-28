@@ -2922,19 +2922,21 @@ try {
             $stmtHistCheck->execute([$seasonId]);
             if (!$stmtHistCheck->fetch()) throw new Exception('Registre a pontuação antes de avançar a temporada');
 
-            // O checklist da temporada é a regra de fechamento: enquanto tiver
-            // item obrigatório pendente (times, loteria, draft, free agency,
-            // pontuação, playoffs) a temporada não avança. Antes ele era só um
-            // painel informativo e o avanço passava por cima de tudo.
+            /* O CHECKLIST VOLTA A SER PAINEL, NÃO PORTEIRO.
+               Ele bloqueava o avanço enquanto houvesse item obrigatório em
+               aberto, e a lista nem sempre reflete o que a liga de fato
+               fez: um draft encerrado por fora, uma etapa pulada de comum
+               acordo, e a temporada ficava presa sem que houvesse nada
+               errado. Quem administra sabe quando a temporada acabou.
+
+               A pontuação continua sendo exigida logo acima: sem ela a
+               temporada avança sem ter pontuado ninguém, e isso não se
+               desfaz sozinho. */
             $itensAdv = checklistDaTemporada($pdo, $advSeason['league'], $advSeason);
             $pendentes = array_values(array_filter(
                 $itensAdv,
                 fn($i) => !empty($i['obrigatorio']) && ($i['feito'] ?? null) !== true
             ));
-            if ($pendentes) {
-                $lista = implode(', ', array_map(fn($i) => mb_strtolower($i['titulo']), $pendentes));
-                throw new Exception('Ainda falta fechar: ' . $lista . '. Complete o checklist antes de avançar a temporada.');
-            }
 
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
             snapshotPlayersForSeason($pdo, $seasonId, $advSeason['league']);
@@ -2952,7 +2954,14 @@ try {
             } catch (Throwable $e) {
                 error_log('[advance_season] reset queridometro: ' . $e->getMessage());
             }
-            echo json_encode(['success' => true, 'message' => 'Temporada marcada como concluída']);
+            /* O que ficou em aberto vai junto na resposta. A temporada
+               avança de qualquer jeito, mas quem clicou merece saber o que
+               o checklist ainda apontava — pode ter sido esquecimento. */
+            echo json_encode([
+                'success'   => true,
+                'message'   => 'Temporada marcada como concluída',
+                'pendentes' => array_map(fn($i) => $i['titulo'], $pendentes),
+            ]);
             break;
 
         // ========== FINALIZAR SPRINT (fecha o ciclo, congela o histórico, abre um novo) ==========

@@ -925,10 +925,16 @@ async function _confirmAdvanceSeason(seasonId, league) {
     if (!await confirmarSite(`Criar Temporada ${String(nextNum).padStart(2,'0')} para a liga ${league} (ano ${nextYear})?`)) return;
 
     try {
-        await api('seasons.php?action=advance_season', {
+        const avanco = await api('seasons.php?action=advance_season', {
             method: 'POST',
             body: JSON.stringify({ season_id: seasonId })
         });
+        /* O checklist não impede mais o avanço, mas o que ficou aberto é
+           dito em voz alta: a temporada some da lista logo em seguida, e
+           descobrir depois que faltou algo é pior do que ser avisado. */
+        if (avanco && Array.isArray(avanco.pendentes) && avanco.pendentes.length) {
+            showAlert('warning', 'Temporada avançada com pendências no checklist: ' + avanco.pendentes.join(', ') + '.');
+        }
         const data = await api('seasons.php?action=create_season', {
             method: 'POST',
             body: JSON.stringify({ league, season_year: nextYear, start_year: startYear })
