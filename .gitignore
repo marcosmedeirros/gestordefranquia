@@ -38,3 +38,8 @@ entrar-teste.php
 # produção quando alguém publica. O .htaccess da pasta continua versionado.
 /uploads/pathetic/*
 !/uploads/pathetic/.htaccess
+
+# Dumps do banco: 24MB de dados reais dos usuarios (e-mail, hash de senha).
+# O .htaccess ja nega .sql pela web, mas isso nao tem por que viajar no repo.
+# Como obter: LOCAL_SETUP.md.
+bancos_local_test/*.sql
