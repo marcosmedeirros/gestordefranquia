@@ -33,12 +33,13 @@ const LOJA_MOEDAS_POR_PONTO = 10;   // 1000 moedas viram 100 FBA Points
 function lojaCatalogo(): array
 {
     return [
+        // Aplicado na hora da compra — ver lojaAplicarAutomatico().
         'slot_leilao' => [
             'nome'  => 'Slot de leilão',
             'preco' => 500,
             'icone' => 'bi-hammer',
             'cor'   => '#3b82f6',
-            'desc'  => 'Um slot a mais pra colocar jogador no leilão.',
+            'desc'  => 'Um slot a mais pra colocar jogador no leilão. Liberado na hora, sem esperar aprovação.',
         ],
         // Aplicado na hora da compra — ver lojaAplicarAutomatico().
         'slot_waiver' => [
@@ -458,7 +459,25 @@ if (!function_exists('lojaAplicarAutomatico')) {
      */
     function lojaAplicarAutomatico(PDO $pdo, int $userId, string $itemKey, int $inventarioId): bool
     {
-        if (!in_array($itemKey, ['slot_waiver', 'slot_gleague'], true)) return false;
+        if (!in_array($itemKey, ['slot_waiver', 'slot_gleague', 'slot_leilao'], true)) return false;
+
+        /*
+         * O SLOT DE LEILÃO NÃO SOMA EM LUGAR NENHUM — de propósito.
+         *
+         * Não existe teto de leilão no sistema: cadastrarLeilao() não conta
+         * nada, e não há coluna de limite em `teams`. Somar +1 num contador
+         * que ninguém lê seria código morto fingindo que faz algo.
+         *
+         * Aqui ele só deixa de passar pela fila do admin: fica registrado
+         * como comprado e atendido na hora. Quem quiser leiloar, leiloa —
+         * é o que já acontece hoje.
+         */
+        if ($itemKey === 'slot_leilao') {
+            $pdo->prepare("UPDATE loja_inventario
+                              SET usado_em = NOW(), atendido_em = NOW()
+                            WHERE id = ? AND id_usuario = ?")->execute([$inventarioId, $userId]);
+            return true;
+        }
 
         $st = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
         $st->execute([$userId]);
