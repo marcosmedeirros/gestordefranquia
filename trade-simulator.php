@@ -128,7 +128,12 @@ if ($action === 'roster') {
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
-            ORDER BY pk.round ASC, pk.season_year ASC
+            /* ANO PRIMEIRO, rodada depois — a mesma ordem da página de Picks.
+               Ordenando por rodada, TODAS as de 1ª vinham antes, de 2026 a
+               2035, e a de 2ª rodada do draft que está rolando ficava lá
+               embaixo, depois de picks de dez anos à frente. Quem procurava a
+               "Escolha 54" concluía que ela não estava na lista. */
+            ORDER BY CAST(pk.season_year AS UNSIGNED) ASC, pk.round ASC
         ');
         // Sem draft aberto, a subconsulta não casa com nada e toda pick sai
         // sem número — que é justamente o certo nesse caso.
