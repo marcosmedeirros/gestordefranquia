@@ -3895,8 +3895,26 @@ if ($method === 'PUT') {
             if ((int)$trade['to_team_id'] !== (int)$trade['from_team_id']) {
                 $stmtIncTrades->execute([(int)$trade['to_team_id']]);
             }
+
+            /* A ORDEM DO DRAFT ACOMPANHA QUALQUER TROCA DE PICK.
+               Isto rodava só quando a troca tinha swap. Uma troca simples —
+               te dou a escolha 2, me dá a 3 — mudava o dono na tabela de
+               picks e deixava a ordem do draft como estava: a pick aparecia
+               trocada no perfil do time e com o nome antigo no quadro do
+               draft, até alguém reaplicar a ordem.
+
+               Aqui, no fim de tudo, os donos já são os definitivos. */
+            try {
+                $ligaDaTroca = $tradeLeague ?? null;
+                if ($ligaDaTroca) {
+                    $dsOrdem = findActiveDraftSession($pdo, $ligaDaTroca, null, null);
+                    if ($dsOrdem) draftSincronizarOrdem($pdo, (int)$dsOrdem['id']);
+                }
+            } catch (Throwable $e) {
+                error_log('[trades/ordem_apos_troca] ' . $e->getMessage());
+            }
         }
-        
+
         $pdo->commit();
         try {
             $event = $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled');

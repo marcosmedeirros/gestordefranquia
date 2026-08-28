@@ -3243,6 +3243,9 @@ async function showLeague(league) {
          seletor de liga que todo mundo via; aqui o card já sabe de qual liga
          se trata, porque está dentro dela. */
       { icon: 'bi-dice-5-fill',             label: 'Loteria<br>do Draft',        fn: `abrirLoteria('${league}')`,            color: '#fc0025', bg: 'rgba(252,0,37,.12)'    },
+      /* Recriar as picks que faltam na janela de anos. Existia só como
+         endpoint, chamado por fora — quem administra não tinha como pedir. */
+      { icon: 'bi-calendar2-plus',          label: 'Ajustar<br>Picks',           fn: `ajustarPicksDaLiga('${league}')`,      color: '#38bdf8', bg: 'rgba(56,189,248,.12)'  },
       // A tabela de cap existia dentro de Configurações, embaixo dos campos de
       // edição da liga. Quem só queria conferir passava por uma tela de mexer
       // pra chegar numa de olhar.
@@ -8286,6 +8289,33 @@ function abrirControleDrafts(league) {
    sortear: fora daqui, lottery.php é a loteria de quem está olhando. */
 function abrirLoteria(league) {
   window.location.href = '/lottery.php?liga=' + encodeURIComponent(league);
+}
+
+/**
+ * Recria as picks que faltam na janela de anos da liga.
+ *
+ * A janela vai do ano corrente aos cinco seguintes. Quem some dela é
+ * apagado; quem falta nela é criado. Serve pra devolver a pick do ano
+ * corrente, que ficava de fora da janela antiga e era removida na virada da
+ * temporada.
+ */
+async function ajustarPicksDaLiga(league) {
+  if (!confirm(`Ajustar as picks da ${league}?\n\n`
+             + 'Cria as picks que faltam na janela de anos da liga (o ano atual e os cinco seguintes). '
+             + 'Picks já negociadas não são tocadas.')) return;
+  try {
+    const d = await api('seasons.php?action=run_picks', {
+      method: 'POST',
+      body: JSON.stringify({ league })
+    });
+    const s = d.stats || {};
+    alert(`${d.message || 'Picks ajustadas.'}\n\n`
+        + `Anos: ${(d.target_years || []).join(', ')}\n`
+        + `Criadas: ${s.created || 0} · Realocadas: ${s.renamed || 0} · `
+        + `Removidas: ${s.deleted || 0} · Mantidas: ${s.kept || 0}`);
+  } catch (e) {
+    alert('Não deu pra ajustar as picks: ' + (e.error || 'erro desconhecido'));
+  }
 }
 
 // AGENDADOR DE FASES (fechar/abrir trades, fechar FA)
