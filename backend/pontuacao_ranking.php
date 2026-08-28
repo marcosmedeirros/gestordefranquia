@@ -36,15 +36,21 @@ function pontosPorPosicao(int $pos): int
  * aqui já é o total de quem chegou até ali.
  *
  *   passou da 1ª rodada  +1  → 1
- *   passou do 2º turno   +2  → 3   (chegou às finais de conferência)
- *   chegou à final       +1  → 4   (vice)
- *   ganhou a final       +4  → 7   (campeão, sem o ponto de vice)
+ *   passou do 2º turno   +2  → 3   (chegou à final de conferência)
+ *   ganhou a de conf.    +4  → 7   (vice)
+ *   ganhou a final       +3  → 10  (campeão)
+ *
+ * QUEM CHEGA NA FINAL LEVA A FINAL DE CONFERÊNCIA JUNTO. Antes o campeão
+ * valia 7 e o vice 4 — os dois passavam pela final de conferência e nenhum
+ * dos dois recebia por ela, o que fazia o campeão empatar com o próprio
+ * valor de "vice + o que o vice não ganhou". Decisão da liga em 27/08/2026:
+ * a etapa conta pra quem passou por ela, então vice = 4+3 e campeão = 7+3.
  *
  * Entrar nos playoffs e cair na 1ª rodada não pontua.
  */
 const PONTOS_PLAYOFF = [
-    'champion'         => 7,
-    'runner_up'        => 4,
+    'champion'         => 10,
+    'runner_up'        => 7,
     'conference_final' => 3,
     'second_round'     => 1,
     'first_round'      => 0,
@@ -81,11 +87,13 @@ function reguaDePontos(bool $comNbaCup = false): array
             ['7º e 8º',   2],
             ['9º e 10º',  1],
         ],
+        // Sai da própria régua: repetir os números aqui é como eles se
+        // soltam do cálculo e a tela passa a prometer o que não paga.
         'Playoffs' => [
-            ['Avançou pro 2º turno',        1],
-            ['Avançou pra final de conf.',  3],
-            ['Vice-campeão',                4],
-            ['Campeão',                     7],
+            ['Avançou pro 2º turno',        PONTOS_PLAYOFF['second_round']],
+            ['Avançou pra final de conf.',  PONTOS_PLAYOFF['conference_final']],
+            ['Vice-campeão',                PONTOS_PLAYOFF['runner_up']],
+            ['Campeão',                     PONTOS_PLAYOFF['champion']],
         ],
         'Prêmios individuais' => [
             ['MVP, DPOY, MIP, 6º Homem, ROY', 1],

@@ -7841,8 +7841,10 @@ function calcPtsPreview(seasonId) {
  * quiser: reescreve pela colocação, não soma.
  */
 async function recalcularPontosCampanha(league) {
-  if (!confirm(`Recalcular os pontos da temporada regular de todas as temporadas da sprint atual da ${league}?\n\n`
-             + 'Usa a classificação já salva e reescreve os pontos de posição. Playoffs e prêmios não são tocados.')) return;
+  if (!confirm(`Recalcular a pontuação de todas as temporadas da sprint atual da ${league}?\n\n`
+             + 'Refaz os três blocos — classificação, playoffs e prêmios — a partir do que ficou registrado, '
+             + 'usando a régua de pontos atual.\n\n'
+             + 'Ajuste manual feito no painel de revisão se perde.')) return;
   try {
     const d = await api('seasons.php?action=recalcular_pontos_campanha', {
       method: 'POST',
@@ -7874,8 +7876,8 @@ async function showPointsManagement(league) {
         <i class="bi bi-snow"></i> Congelar classificação
       </button>
       <button class="btn btn-sm btn-outline-info float-end me-2" onclick="recalcularPontosCampanha('${league}')"
-              title="Aplica de novo os pontos de posição (5/4/3/2/1) sobre a classificação já salva de cada temporada desta sprint">
-        <i class="bi bi-arrow-repeat"></i> Recalcular pontos da campanha
+              title="Refaz a pontuação de cada temporada desta sprint a partir do que ficou registrado — classificação, onde o time parou no playoff e prêmios — usando a régua atual. Ajuste manual feito na revisão se perde.">
+        <i class="bi bi-arrow-repeat"></i> Recalcular pontuação
       </button>
     </div>
     <div id="ptsSnapshots" class="mb-3"></div>

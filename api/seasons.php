@@ -2630,13 +2630,41 @@ try {
             $stmtTemps->execute([$league, (int)$sprintAtual['id']]);
             $temporadas = $stmtTemps->fetchAll(PDO::FETCH_ASSOC);
 
+            /* RECALCULA OS TRÊS BLOCOS, não só a campanha.
+               Recalcular só a classificação bastava enquanto a régua de
+               playoff não mudava. Mudou (o campeão passou a levar a final de
+               conferência junto), e temporada já registrada guarda o número
+               velho — o campeão continuaria valendo 7 pra sempre. Aqui a
+               pontuação inteira é refeita a partir do que ficou REGISTRADO:
+               a classificação, onde cada time parou no playoff e os prêmios.
+               Ajuste manual feito no painel de revisão se perde nisto — é o
+               que "recalcular" quer dizer. */
             $stmtStd = $pdo->prepare("SELECT ss.team_id, ss.position FROM season_standings ss WHERE ss.season_id = ?");
+            $stmtPO  = $pdo->prepare("SELECT team_id, position FROM playoff_results WHERE season_id = ?");
+            $stmtAw  = $pdo->prepare("SELECT team_id, COUNT(*) AS n FROM season_awards
+                                       WHERE season_id = ? AND award_type IN ('mvp','dpoy','mip','6th_man','roy')
+                                    GROUP BY team_id");
+            $stmtCup = $pdo->prepare("SELECT nba_cup_team_id FROM season_history WHERE season_id = ?");
+
+            $colunaDaFase = [
+                'champion'         => 'playoff_champion',
+                'runner_up'        => 'playoff_runner_up',
+                'conference_final' => 'playoff_conference_finals',
+                'second_round'     => 'playoff_second_round',
+                'first_round'      => 'playoff_first_round',
+            ];
             $stmtAtualiza = $pdo->prepare("UPDATE team_ranking_points
-                                              SET league = ?, regular_season_position = ?, regular_season_points = ?
+                                              SET league = ?, regular_season_position = ?, regular_season_points = ?,
+                                                  playoff_champion = ?, playoff_runner_up = ?, playoff_conference_finals = ?,
+                                                  playoff_second_round = ?, playoff_first_round = ?, playoff_points = ?,
+                                                  awards_count = ?, awards_points = ?
                                             WHERE team_id = ? AND season_id = ?");
             $stmtCria = $pdo->prepare("INSERT INTO team_ranking_points
-                                         (team_id, season_id, league, regular_season_position, regular_season_points)
-                                       VALUES (?, ?, ?, ?, ?)");
+                                         (team_id, season_id, league, regular_season_position, regular_season_points,
+                                          playoff_champion, playoff_runner_up, playoff_conference_finals,
+                                          playoff_second_round, playoff_first_round, playoff_points,
+                                          awards_count, awards_points)
+                                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
             $stmtTem = $pdo->prepare("SELECT COUNT(*) FROM team_ranking_points WHERE team_id = ? AND season_id = ?");
 
             $relatorio = [];
@@ -2644,17 +2672,49 @@ try {
                 $sid = (int)$t['id'];
                 $stmtStd->execute([$sid]);
                 $linhas = $stmtStd->fetchAll(PDO::FETCH_ASSOC);
-                $somaAntes = (int)$pdo->query("SELECT COALESCE(SUM(regular_season_points),0) FROM team_ranking_points WHERE season_id = {$sid}")->fetchColumn();
+                $somaAntes = (int)$pdo->query("SELECT COALESCE(SUM(COALESCE(regular_season_points,0) + COALESCE(playoff_points,0) + COALESCE(awards_points,0)),0) FROM team_ranking_points WHERE season_id = {$sid}")->fetchColumn();
+
+                // Onde cada time parou no playoff.
+                $stmtPO->execute([$sid]);
+                $fase = [];
+                foreach ($stmtPO->fetchAll(PDO::FETCH_ASSOC) as $r) $fase[(int)$r['team_id']] = (string)$r['position'];
+
+                // Prêmios individuais, mais a NBA Cup (só a ELITE tem).
+                $stmtAw->execute([$sid]);
+                $premios = [];
+                foreach ($stmtAw->fetchAll(PDO::FETCH_ASSOC) as $r) $premios[(int)$r['team_id']] = (int)$r['n'];
+                $stmtCup->execute([$sid]);
+                $cupTeam = (int)($stmtCup->fetchColumn() ?: 0);
 
                 $soma = 0;
                 foreach ($linhas as $l) {
                     $tid = (int)$l['team_id'];
                     $pos = (int)$l['position'];
-                    $pts = pontosPorPosicao($pos);
-                    $soma += $pts;
+                    $ptsReg = pontosPorPosicao($pos);
+
+                    $etapa = $fase[$tid] ?? null;
+                    $ptsPO = $etapa ? pontosDePlayoff($etapa) : 0;
+                    $flags = ['playoff_champion' => 0, 'playoff_runner_up' => 0, 'playoff_conference_finals' => 0,
+                              'playoff_second_round' => 0, 'playoff_first_round' => 0];
+                    if ($etapa && isset($colunaDaFase[$etapa])) $flags[$colunaDaFase[$etapa]] = 1;
+
+                    $nPremios = $premios[$tid] ?? 0;
+                    $ptsAw = $nPremios * PONTOS_POR_PREMIO;
+                    if ($cupTeam && $cupTeam === $tid) { $nPremios++; $ptsAw += PONTOS_NBA_CUP; }
+
+                    $soma += $ptsReg + $ptsPO + $ptsAw;
                     $stmtTem->execute([$tid, $sid]);
-                    if ((int)$stmtTem->fetchColumn() > 0) $stmtAtualiza->execute([$league, $pos, $pts, $tid, $sid]);
-                    else                                  $stmtCria->execute([$tid, $sid, $league, $pos, $pts]);
+                    if ((int)$stmtTem->fetchColumn() > 0) {
+                        $stmtAtualiza->execute([$league, $pos, $ptsReg,
+                            $flags['playoff_champion'], $flags['playoff_runner_up'], $flags['playoff_conference_finals'],
+                            $flags['playoff_second_round'], $flags['playoff_first_round'], $ptsPO,
+                            $nPremios, $ptsAw, $tid, $sid]);
+                    } else {
+                        $stmtCria->execute([$tid, $sid, $league, $pos, $ptsReg,
+                            $flags['playoff_champion'], $flags['playoff_runner_up'], $flags['playoff_conference_finals'],
+                            $flags['playoff_second_round'], $flags['playoff_first_round'], $ptsPO,
+                            $nPremios, $ptsAw]);
+                    }
                 }
 
                 syncTeamSeasonPoints($pdo, $sid, $league, (int)$sprintAtual['sprint_number'], (int)$t['season_number']);

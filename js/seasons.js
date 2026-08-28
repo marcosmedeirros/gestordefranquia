@@ -607,14 +607,15 @@ function _calcAutoPoints(payload, allTeams, league) {
     (payload.standings_leste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
     (payload.standings_oeste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
 
-    // Totais acumulados por onde o time parou: +1 passar da 1ª rodada,
-    // +2 passar do 2º turno, +1 chegar à final, +4 ganhá-la. Cair na 1ª
-    // rodada não pontua.
-    if (payload.champion)  { const k = String(payload.champion);  if (pts[k] !== undefined) pts[k].playoff = 7; }
-    if (payload.runner_up) { const k = String(payload.runner_up); if (pts[k] !== undefined) pts[k].playoff = 4; }
-    (payload.conference_final_losses || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 3; });
-    (payload.second_round_losses     || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 1; });
-    (payload.first_round_losses      || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 0; });
+    // Totais acumulados por onde o time parou. Quem chega à final leva a
+    // final de conferência junto: vice 4+3 = 7, campeão 7+3 = 10. Cair na
+    // 1ª rodada não pontua. Mesma tabela de PONTOS_PLAYOFF no PHP.
+    const PLAYOFF = { champion: 10, runner_up: 7, conference_final: 3, second_round: 1, first_round: 0 };
+    if (payload.champion)  { const k = String(payload.champion);  if (pts[k] !== undefined) pts[k].playoff = PLAYOFF.champion; }
+    if (payload.runner_up) { const k = String(payload.runner_up); if (pts[k] !== undefined) pts[k].playoff = PLAYOFF.runner_up; }
+    (payload.conference_final_losses || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = PLAYOFF.conference_final; });
+    (payload.second_round_losses     || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = PLAYOFF.second_round; });
+    (payload.first_round_losses      || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = PLAYOFF.first_round; });
 
     ['mvp_team_id','dpoy_team_id','mip_team_id','sixth_man_team_id','roy_team_id'].forEach(key => {
         const k = String(payload[key] || '');
@@ -684,8 +685,8 @@ function _showReviewPanel(seasonId, league, payload) {
                     <thead>
                         <tr style="border-bottom:2px solid var(--border)">
                             <th style="padding:8px 12px;text-align:left;color:var(--text-2);font-weight:600">Time</th>
-                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="1°=4pts, 2°-4°=3pts, 5°-8°=2pts">Classificação</th>
-                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="Campeão=11, Vice=8, Conf.Final=6, Semis=3, 1ªFase=1">Playoffs</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="1º e 2º=5 · 3º e 4º=4 · 5º e 6º=3 · 7º e 8º=2 · 9º e 10º=1">Classificação</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="Campeão=10 · Vice=7 · Final de conf.=3 · 2º turno=1 · 1ª rodada=0">Playoffs</th>
                             <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="MVP/DPOY/MIP/6°Homem/ROY=1pt${league === 'ELITE' ? ', NBA Cup=2pts' : ''}">Prêmios</th>
                             <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600">Total</th>
                         </tr>
@@ -696,7 +697,7 @@ function _showReviewPanel(seasonId, league, payload) {
                 </table>
             </div>
             <div style="font-size:11px;color:var(--text-3);margin-top:10px">
-                Classificação: 1°=4pts, 2°–4°=3pts, 5°–8°=2pts &nbsp;|&nbsp; Playoffs: Campeão=11, Vice=8, Final de Conf.=6, Semis=3, 1ª Fase=1 &nbsp;|&nbsp; Prêmios: 1pt cada${league === 'ELITE' ? ' &nbsp;|&nbsp; NBA Cup: 2pts' : ''}
+                Classificação: 1º e 2º=5 · 3º e 4º=4 · 5º e 6º=3 · 7º e 8º=2 · 9º e 10º=1 &nbsp;|&nbsp; Playoffs: Campeão=10 · Vice=7 · Final de conf.=3 · 2º turno=1 &nbsp;|&nbsp; Prêmios: 1pt cada${league === 'ELITE' ? ' &nbsp;|&nbsp; NBA Cup: 2pts' : ''}
             </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
