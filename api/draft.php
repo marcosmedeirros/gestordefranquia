@@ -904,6 +904,11 @@ if ($method === 'GET') {
                     ] : null,
                     // A lista de preferência inteira, só pro dono e pro admin.
                     'preferencias' => $canSeeMock ? ($prefsPorPick[(int)$r['draft_order_id']] ?? []) : [],
+                    /* QUANTAS, esse todo mundo vê. Saber que a vaga já tem
+                       escolha não entrega nada — o segredo é QUEM foi
+                       escolhido. E sem isso a grade dizia "Sem escolha" nas
+                       vagas dos outros mesmo com as três preenchidas. */
+                    'prefs_count' => count($prefsPorPick[(int)$r['draft_order_id']] ?? []),
                 ];
             }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 

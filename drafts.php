@@ -1320,7 +1320,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="round-head">
         <div class="round-badge">2</div>
         <span class="round-title">2ª Rodada</span>
-        <span class="round-count">${round2History.length} registradas</span>
+        <span class="round-count" id="round2Count">${round2History.length} registradas</span>
       </div>
       <div class="panel-body">
     `;
@@ -1337,8 +1337,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             você desce para a 2ª, e depois para a 3ª.
             <b>Quem não escolher ninguém perde a pick.</b>
           </p>
-          <div id="round2Countdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
-          <div id="round2Board"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
+          <div id="round2Countdown" style="font-size:13px;font-weight:700"></div>
         </div>
       `;
     }
@@ -1353,8 +1352,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        O número é o CORRIDO — a 11ª da 2ª rodada é a "escolha 43". */
     if (round2Picks.length > 0) {
       const vagasPorRodada = round1Picks.length;
+      // Guardado pra grade poder ser remontada sozinha quando o quadro da 2ª
+      // chegar: ela é desenhada antes da resposta do round2_board.
+      round2GridCtx = { picks: round2Picks, session, vagasPorRodada };
       html += `
-        <div class="pick-grid">
+        <div class="pick-grid" id="round2Grid">
           ${round2Picks.map(p => renderPickCard(p, session, vagasPorRodada + Number(p.pick_position))).join('')}
         </div>
       `;
@@ -1526,6 +1528,24 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     // Permite voltar/adiantar o ponteiro do draft para uma escolha ainda aberta
     const canAdminSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
 
+    /* NA 2a RODADA ABERTA O CARD E O QUADRO.
+       Antes eram duas listas: esta grade, que so sabia dizer "Aguardando", e
+       um quadro de linhas em cima com o botao. Quem tinha pick olhava a grade
+       e nao achava onde escolher. Agora e um lugar so: o card diz quantas
+       preferencias a vaga tem e traz o botao pra quem pode mexer.
+       "Aguardando" nao serve aqui — nao ha vez de ninguem, todos escolhem
+       ao mesmo tempo. */
+    const round2Aberta = Number(pick.round) === 2 && session.status === 'in_progress'
+                         && Number(session.current_round) === 2 && !isCompleted;
+    const vagaR2 = round2Aberta
+      ? (round2BoardPicks || []).find(b => Number(b.draft_order_id) === Number(pick.id))
+      : null;
+    const prefs = (vagaR2 && vagaR2.preferencias) ? vagaR2.preferencias : [];
+    // A contagem vem do servidor: nas vagas dos outros a lista chega vazia
+    // de propósito, e só o número é público.
+    const nPrefs = vagaR2 ? Number(vagaR2.prefs_count || prefs.length) : 0;
+    const podeEscolherR2 = round2Aberta && (isAdmin || isMyPick);
+
     let cls = 'pick-card';
     if (isCurrent)   cls += ' current';
     if (isCompleted) cls += ' completed';
@@ -1548,6 +1568,15 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name)}</div>
             <div class="pick-result-meta">${esc(pick.player_position)}</div>
+          </div>
+        ` : round2Aberta ? `
+          <div class="pick-waiting" style="flex-direction:column;gap:6px">
+            <span style="${nPrefs ? 'color:#22c55e;font-weight:700' : ''}">${
+              nPrefs ? `${nPrefs} ${nPrefs === 1 ? 'escolha' : 'escolhas'}` : 'Sem escolha'
+            }</span>
+            ${podeEscolherR2 ? `<button class="btn-red" style="padding:5px 12px;font-size:11px;width:100%"
+                 onclick="openRound2MockPicker(${pick.id}, ${numero})">
+                 <i class="bi bi-hand-index-thumb"></i> ${nPrefs ? 'Mudar' : 'Escolher'}</button>` : ''}
           </div>
         ` : `
           <div class="pick-waiting">
@@ -1705,45 +1734,44 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   /* O ultimo quadro carregado: o modal le dele as preferencias ja salvas. */
   let round2BoardPicks = [];
+  /* O que a grade da 2ª precisa pra se redesenhar sem recarregar a página. */
+  let round2GridCtx = null;
 
   async function loadRound2Board() {
     if (!currentDraftSession) return;
-    const box = document.getElementById('round2Board');
-    if (!box) return;
     try {
       const data = await api(`draft.php?action=round2_board&draft_session_id=${currentDraftSession.id}`);
       // Guardado pra o modal reabrir com a lista de preferência que já existe.
       round2BoardPicks = data.picks || [];
-      renderRound2Board(round2BoardPicks);
+      redesenharGradeR2();
       startRound2Countdown(data.round2_mock_deadline);
     } catch (e) {
-      box.innerHTML = `<div class="state-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+      console.error('round2_board', e);
     }
   }
 
-  function renderRound2Board(picks) {
-    const box = document.getElementById('round2Board');
-    if (!box) return;
-    if (!picks.length) { box.innerHTML = '<div class="state-empty"><i class="bi bi-clock"></i><p>Nenhuma pick de 2ª rodada.</p></div>'; return; }
-    box.innerHTML = picks.map(p => {
-      // Escolhida é escolhida: não há mais mock pra trocar nem cancelar.
-      // Quem ainda não escolheu vê o botão; os outros veem que está aberta.
-      const resolved = !!p.picked_player_id;
-      let right;
-      if (resolved) {
-        right = `<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Escolhida</span>`;
-      } else if (p.is_own) {
-        right = `<button class="btn-red" style="padding:6px 14px;font-size:12px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_overall || p.pick_position})"><i class="bi bi-hand-index-thumb"></i> Escolher</button>`;
-      } else {
-        right = `<span style="font-size:11px;color:var(--text-3)">Em aberto</span>`;
-      }
-      return `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:8px;background:var(--panel-2);margin-bottom:6px;${resolved ? 'opacity:.6' : ''}">
-          <div style="font-size:13px;color:var(--text)">#${p.pick_overall || p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}${p.via ? ` <span style="color:var(--text-3);font-size:11px">via ${esc(p.via)}</span>` : ''}</div>
-          <div style="display:flex;align-items:center;gap:6px">${right}</div>
-        </div>`;
-    }).join('');
+  /* A grade sai do ar antes do quadro chegar, então ela é remontada aqui —
+     é o mesmo renderPickCard, agora com as preferências em mãos. */
+  function redesenharGradeR2() {
+    const grid = document.getElementById('round2Grid');
+    if (!grid || !round2GridCtx) return;
+    const { picks, session, vagasPorRodada } = round2GridCtx;
+    grid.innerHTML = picks
+      .map(p => renderPickCard(p, session, vagasPorRodada + Number(p.pick_position)))
+      .join('');
+    initTooltips();
+
+    /* O contador contava VAGAS PREENCHIDAS. Com a regra nova nada é
+       preenchido antes do prazo, então ele marcava "0 registradas" com a
+       liga inteira já tendo escolhido. Agora conta quantas vagas têm
+       escolha — que é o que a gente quer saber enquanto o prazo corre. */
+    const el = document.getElementById('round2Count');
+    if (el && round2BoardPicks.length) {
+      const comEscolha = round2BoardPicks.filter(b => Number(b.prefs_count || 0) > 0).length;
+      el.textContent = `${comEscolha} de ${round2BoardPicks.length} já escolheram`;
+    }
   }
+
 
   function startRound2Countdown(deadlineIso) {
     clearInterval(round2CountdownInterval);
