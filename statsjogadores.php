@@ -374,6 +374,15 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
         <i class="bi bi-clipboard-data"></i> Importar estatísticas</button>
       <button type="button" class="f-chip" onclick="abrirImport('skills')">
         <i class="bi bi-sliders"></i> Importar atributos</button>
+      <?php /* Ao lado da importação porque é o movimento contrário: leva a
+               tabela inteira de uma vez. Sai separado por TAB, que é o que
+               cola direto em planilha — o botão de cada linha continua
+               existindo pro caso de um jogador só, e esse é em texto corrido
+               porque vai pro grupo. */ ?>
+      <button type="button" class="f-chip" id="btCopiaStats" onclick="copiarTudo('stats', this)">
+        <i class="bi bi-clipboard-data"></i> Copiar estatísticas</button>
+      <button type="button" class="f-chip" id="btCopiaSkills" onclick="copiarTudo('skills', this)">
+        <i class="bi bi-sliders"></i> Copiar atributos</button>
     </div>
 
     <div class="imp-fundo" id="impFundo" onclick="if(event.target===this)fecharImport()">
@@ -488,8 +497,12 @@ function corSkill(v) {
 }
 
 /** A linha tem algum dado na aba atual? É o que decide sumir em "Todos". */
-function vazioNaAba(p) {
-  return aba === 'stats'
+/* A categoria é parâmetro, e não a aba aberta: "Copiar atributos" estando na
+   aba Estatísticas tem que olhar atributo, senão devolve o recorte errado —
+   os jogadores com estatística, que é outra pergunta. Sem argumento vale a
+   aba, que é o que a tabela quer. */
+function vazioNaAba(p, qual) {
+  return (qual || aba) === 'stats'
     ? p.jogos === null
     : COLS.skills.every(function (col) { return valor(p, col.c) === null; });
 }
@@ -518,7 +531,7 @@ function colunas() {
   return fixas.concat(COLS[aba]);
 }
 
-function filtrar() {
+function filtrar(qual) {
   const termo = (document.getElementById('fBusca').value || '').trim().toLowerCase();
   const time  = document.getElementById('fTime').value;
   const pos   = document.getElementById('fPos').value;
@@ -530,7 +543,7 @@ function filtrar() {
     // Sem time escolhido, quem não tem dado NA ABA ATUAL fica de fora: a liga
     // inteira não pode virar uma parede de traços. Com um time escolhido,
     // aparecem todos — é assim que o GM vê o que falta preencher.
-    if (!time && vazioNaAba(p)) return false;
+    if (!time && vazioNaAba(p, qual)) return false;
     return true;
   });
 }
@@ -673,19 +686,13 @@ function textoDoJogador(p) {
   return linhas.join('\n');
 }
 
-async function copiarJogador(bt) {
-  const id = Number(bt.dataset.id);
-  const p  = DADOS.find(function (x) { return x.id === id; });
-  if (!p) return;
-
-  const txt = textoDoJogador(p);
-  let ok = false;
+/* Copiar em si. O navigator.clipboard só existe em contexto seguro, e o site
+   é aberto por http de vez em quando — aí o caminho velho ainda funciona. */
+async function paraAreaDeTransferencia(txt) {
   try {
     await navigator.clipboard.writeText(txt);
-    ok = true;
+    return true;
   } catch (e) {
-    // clipboard só existe em contexto seguro; o site é aberto por http de
-    // vez em quando, e aí o caminho velho ainda funciona.
     try {
       const ta = document.createElement('textarea');
       ta.value = txt;
@@ -693,17 +700,71 @@ async function copiarJogador(bt) {
       ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
-      ok = document.execCommand('copy');
+      const ok = document.execCommand('copy');
       ta.remove();
-    } catch (e2) { ok = false; }
+      return ok;
+    } catch (e2) { return false; }
   }
+}
 
+async function copiarJogador(bt) {
+  const id = Number(bt.dataset.id);
+  const p  = DADOS.find(function (x) { return x.id === id; });
+  if (!p) return;
+
+  const ok = await paraAreaDeTransferencia(textoDoJogador(p));
   bt.innerHTML = ok ? '<i class="bi bi-check2"></i>' : '<i class="bi bi-x"></i>';
   bt.classList.toggle('ok', ok);
   setTimeout(function () {
     bt.innerHTML = '<i class="bi bi-clipboard"></i>';
     bt.classList.remove('ok');
   }, 1500);
+}
+
+/* ══ COPIAR A TABELA INTEIRA ══════════════════════════════════════════
+   Separado por TAB e com cabeçalho: cola direto em planilha, cada valor na
+   sua célula. O botão de linha é outro caso — ali é uma resposta pra mandar
+   no grupo, e vai em texto corrido.
+
+   Leva os jogadores que ESTÃO NA TELA, na ordem da tela: quem filtrou por
+   time ou posição quer aquele recorte, e ignorar o filtro devolveria a liga
+   inteira sem aviso. Sem filtro nenhum, é a tabela toda mesmo.
+
+   Cada botão copia a SUA categoria, não a aba aberta — foi assim que o
+   pedido veio ("copiar stats e copiar skills"), e evita a pessoa copiar
+   atributo achando que levou estatística. */
+async function copiarTudo(qual, bt) {
+  const linhas = ordenar(filtrar(qual));
+  const rotulo = bt.innerHTML;
+
+  const avisar = function (txt, classe) {
+    bt.innerHTML = txt;
+    bt.classList.toggle('ok', classe === 'ok');
+    setTimeout(function () { bt.innerHTML = rotulo; bt.classList.remove('ok'); }, 2200);
+  };
+
+  if (!linhas.length) { avisar('<i class="bi bi-x"></i> Nada na tela', 'erro'); return; }
+
+  const cols = COLS[qual];
+  const cab  = ['Jogador', 'Time', 'Pos', 'OVR', 'Idade']
+                 .concat(cols.map(function (c) { return c.rot; }));
+
+  const corpo = linhas.map(function (p) {
+    const base = [p.nome, p.time || '', p.pos || '',
+                  p.ovr   === null || p.ovr   === undefined ? '' : p.ovr,
+                  p.idade === null || p.idade === undefined ? '' : p.idade];
+    return base.concat(cols.map(function (c) {
+      const v = valor(p, c.c);
+      // Célula vazia, e não "-": num campo numérico de planilha o traço vira
+      // texto e estraga a soma da coluna inteira.
+      if (v === null || v === undefined) return '';
+      return c.dec ? fmt(v, c.dec) : v;
+    })).join('\t');
+  });
+
+  const ok = await paraAreaDeTransferencia([cab.join('\t')].concat(corpo).join('\n'));
+  avisar(ok ? '<i class="bi bi-check2"></i> ' + linhas.length + ' copiados'
+            : '<i class="bi bi-x"></i> Não deu', ok ? 'ok' : 'erro');
 }
 
 // Delegado no corpo da tabela: as linhas são redesenhadas a cada filtro e
