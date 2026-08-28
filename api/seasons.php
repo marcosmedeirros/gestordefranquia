@@ -2126,6 +2126,14 @@ try {
                tela da loteria. Guardado aqui, reaplicado depois dos inserts —
                e o que o formulário traz sobrescreve na sequência. */
             loteriaGarantirColunas($pdo);
+
+            /* ALTER fora da transação, de propósito: no MySQL ele provoca um
+               commit implícito, e rodando lá dentro derruba a transação sem
+               aviso — o gravar termina, o commit falha e o admin recebe um
+               erro genérico com metade do trabalho salvo. */
+            if (!columnExists($pdo, 'team_ranking_points', 'regular_season_position')) {
+                try { $pdo->exec("ALTER TABLE team_ranking_points ADD COLUMN regular_season_position INT NULL AFTER league"); } catch (Throwable $e) { /* já existe */ }
+            }
             $stmtGuarda = $pdo->prepare("SELECT team_id, overall_position, draft_tail_position, lottery_group
                                            FROM season_standings WHERE season_id = ?");
             $stmtGuarda->execute([$seasonId]);
@@ -2153,6 +2161,55 @@ try {
                 };
                 $gravaConf($stdLeste, 'LESTE');
                 $gravaConf($stdOeste, 'OESTE');
+
+                /* OS PONTOS DA CAMPANHA, que ninguém estava gravando.
+                   Este bloco salvava só a colocação. Os pontos de posição —
+                   5 pro 1º e 2º, 4 pro 3º e 4º, e assim por diante — só eram
+                   escritos por outro caminho, que o card não usa. Resultado:
+                   o admin lançava a temporada inteira e o total saía sem a
+                   parte da temporada regular, somando apenas playoffs e
+                   prêmios.
+
+                   A régua é a de backend/pontuacao_ranking.php, a mesma que
+                   a tela desenha. O UPDATE preserva playoff e prêmios: são
+                   da etapa 2 e podem já estar gravados. */
+                $stmtTemporada = $pdo->prepare("SELECT s.league, s.season_number, sp.sprint_number
+                                                  FROM seasons s
+                                             LEFT JOIN sprints sp ON sp.id = s.sprint_id
+                                                 WHERE s.id = ?");
+                $stmtTemporada->execute([$seasonId]);
+                $dadosTemporada = $stmtTemporada->fetch(PDO::FETCH_ASSOC) ?: [];
+                $ligaDaTemporada = (string)($dadosTemporada['league'] ?? '');
+
+                /* A tabela não tem chave única em (time, temporada) — um
+                   INSERT com ON DUPLICATE KEY não atualizaria nada, criaria
+                   uma linha nova a cada salvamento e o time apareceria com
+                   os pontos contados duas vezes. Por isso: UPDATE primeiro,
+                   INSERT só se não houver linha. */
+                $stmtAtualizaPts = $pdo->prepare("UPDATE team_ranking_points
+                                                     SET league = ?, regular_season_position = ?, regular_season_points = ?
+                                                   WHERE team_id = ? AND season_id = ?");
+                $stmtCriaPts = $pdo->prepare("INSERT INTO team_ranking_points
+                                                (team_id, season_id, league, regular_season_position, regular_season_points)
+                                              VALUES (?, ?, ?, ?, ?)");
+                $stmtTemPts = $pdo->prepare("SELECT COUNT(*) FROM team_ranking_points WHERE team_id = ? AND season_id = ?");
+
+                foreach ([$stdLeste, $stdOeste] as $lista) {
+                    $posicao = 1;
+                    foreach ($lista as $tid) {
+                        $tid = (int)$tid;
+                        if ($tid > 0 && $ligaDaTemporada !== '') {
+                            $pontos = pontosPorPosicao($posicao);
+                            $stmtTemPts->execute([$tid, $seasonId]);
+                            if ((int)$stmtTemPts->fetchColumn() > 0) {
+                                $stmtAtualizaPts->execute([$ligaDaTemporada, $posicao, $pontos, $tid, $seasonId]);
+                            } else {
+                                $stmtCriaPts->execute([$tid, $seasonId, $ligaDaTemporada, $posicao, $pontos]);
+                            }
+                        }
+                        $posicao++;
+                    }
+                }
 
                 // Devolve os ajustes da loteria às linhas recém-criadas.
                 if ($ajustesLoteria) {
@@ -2271,10 +2328,15 @@ try {
                 throw $e;
             }
 
-            // Nenhum sync de pontuação aqui, de propósito: esta etapa não
-            // lança ponto nenhum no ranking. Ela existe pra que a Tabela, a
-            // loteria e o chaveamento já possam andar enquanto os playoffs
-            // ainda estão sendo jogados.
+            /* Os pontos da campanha ficam gravados, mas o ranking só é
+               recalculado na etapa 2. A temporada ainda está em curso: somar
+               agora colocaria no ranking uma pontuação pela metade, sem
+               playoffs nem prêmios. Quando a etapa 2 fecha, o sync soma tudo
+               de uma vez.
+
+               O que esta etapa NÃO fazia era gravar os pontos de posição —
+               e como ninguém mais os gravava, o total da temporada saía sem
+               eles, com playoffs e prêmios apenas. */
             echo json_encode([
                 'success'   => true,
                 'correcao'  => $ehCorrecao,

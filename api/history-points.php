@@ -831,15 +831,29 @@ try {
             $league = $_REQUEST['league'] ?? null;
             if (!$league) { echo json_encode(['success'=>false,'error'=>'league required']); break; }
 
+            /* SÓ A SPRINT EM ANDAMENTO.
+               A liga recomeça a cada sprint e as temporadas anteriores ficam
+               no banco com a numeração que tinham. Sem este corte, o card
+               listava a Temporada 1 de duas sprints diferentes lado a lado —
+               e quem fosse corrigir a pontuação de uma podia mexer na outra.
+
+               Com mais de uma sprint marcada como ativa vale a de número
+               maior, que é a que começou depois. */
+            $stmtSprint = $pdo->prepare("SELECT id FROM sprints
+                                          WHERE league = ? AND status = 'active'
+                                       ORDER BY sprint_number DESC, id DESC LIMIT 1");
+            $stmtSprint->execute([$league]);
+            $sprintAtiva = $stmtSprint->fetchColumn();
+
             $stmtS = $pdo->prepare("
                 SELECT s.id AS season_id, s.season_number, s.year, s.status,
                        sp.sprint_number, sp.start_year
                 FROM seasons s
                 LEFT JOIN sprints sp ON s.sprint_id = sp.id
-                WHERE s.league = ?
+                WHERE s.league = ? AND s.sprint_id = ?
                 ORDER BY s.id ASC
             ");
-            $stmtS->execute([$league]);
+            $stmtS->execute([$league, $sprintAtiva === false ? 0 : (int)$sprintAtiva]);
             $allSeasons = $stmtS->fetchAll(PDO::FETCH_ASSOC);
 
             $stmtReg = $pdo->prepare("SELECT DISTINCT season_id FROM team_season_points WHERE league = ?");
