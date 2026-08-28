@@ -159,7 +159,20 @@ function ensureMaintenanceModeTable(PDO $pdo): void {
             enabled_at DATETIME NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        $pdo->exec("INSERT IGNORE INTO maintenance_mode (id, enabled) VALUES (1, 0)");
+        /*
+         * INSERT IGNORE só ignora porque a chave primária recusa o id
+         * repetido — sem PK ele INSERE, e como isto roda a cada requisição, a
+         * tabela ganharia uma linha por acesso. Vi acontecer ao restaurar um
+         * dump do phpMyAdmin, que cria a tabela e só adiciona as chaves no
+         * fim: durante a importação a tabela existe sem PK.
+         *
+         * Com várias linhas, o SELECT ... LIMIT 1 lá embaixo pega uma
+         * qualquer — e o modo manutenção passa a ligar e desligar sozinho.
+         * Perguntar antes não depende de a chave existir.
+         */
+        if (!$pdo->query("SELECT 1 FROM maintenance_mode LIMIT 1")->fetchColumn()) {
+            $pdo->exec("INSERT INTO maintenance_mode (id, enabled) VALUES (1, 0)");
+        }
     } catch (Throwable $e) { /* nunca deixa essa checagem derrubar o site */ }
 }
 
