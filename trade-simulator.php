@@ -1101,7 +1101,7 @@ function itemHtml(item, toKey) {
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
       ${pickValorBadge(item, 'sim-item-valor')}
-      ${SALARY_MODE ? `<div class="sim-item-valor" title="Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.">${pickSalary(item.round)}M</div>` : ''}
+      ${SALARY_MODE ? `<div class="sim-item-valor" title="Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.">${pickSalary(item.round, item.pick_position)}M</div>` : ''}
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
@@ -1201,7 +1201,7 @@ function renderPickerList() {
               <div class="picker-meta">${(p.orig_city ?? '') + ' ' + (p.orig_name ?? '')}</div>
             </div>
             ${pickValorBadge(p, 'picker-valor')}
-            ${SALARY_MODE ? `<div class="picker-valor" title="Peso desta pick no casamento salarial da troca">${pickSalary(p.round)}M</div>` : ''}
+            ${SALARY_MODE ? `<div class="picker-valor" title="Peso desta pick no casamento salarial da troca">${pickSalary(p.round, p.pick_position)}M</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
@@ -1372,7 +1372,26 @@ const TRADE_MATCH_PCT = 120;
 // Peso da pick no casamento salarial, vindo de CAP_PICK_TRADE_VALUE (regra da
 // liga). A pick nao entra na folha do elenco (nao e jogador), so no envia/recebe.
 const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
-function pickSalary(round) { return Number(PICK_TRADE_VALUES[Number(round)] || 0); }
+/**
+ * Peso da pick no casamento salarial — espelha capValorDaPickNaTroca().
+ *
+ * Com a posição conhecida vale a rookie scale da escolha (o salário que o
+ * calouro vai assinar); sem posição, a pick ainda é aposta e vale o número
+ * plano da rodada. Antes a Escolha 1 e a Escolha 30 pesavam os mesmos 5M.
+ */
+function pickSalary(round, pos) {
+  const p = Number(pos) || 0;
+  if (p > 0) {
+    if (Number(round) >= 2) return 2;   // 2ª rodada é plana
+    if (p <= 3)  return 18;
+    if (p <= 8)  return 14;
+    if (p <= 12) return 12;
+    if (p <= 16) return 8;
+    if (p <= 22) return 5;
+    return 3;                            // 23 em diante
+  }
+  return Number(PICK_TRADE_VALUES[Number(round)] || 0);
+}
 
 function matching120(key) {
   const t = teams[key];
@@ -1389,7 +1408,7 @@ function matching120(key) {
                          .reduce((s, p) => s + (+(p.salary || 0)), 0);
   activeSlots.forEach(s => {
     (receives[s] || []).forEach(i => {
-      if (i.type === 'pick' && i.fromKey === key) enviado += pickSalary(i.round);
+      if (i.type === 'pick' && i.fromKey === key) enviado += pickSalary(i.round, i.pick_position);
     });
   });
 
@@ -1397,7 +1416,7 @@ function matching120(key) {
   // a pick conta nos dois lados. Mesma regra de api/trades.php e js/trades.js.
   let recebido = 0;
   (receives[key] || []).forEach(i => {
-    recebido += i.type === 'pick' ? pickSalary(i.round) : (+(i.salary || 0));
+    recebido += i.type === "pick" ? pickSalary(i.round, i.pick_position) : (+(i.salary || 0));
   });
   if (enviado === 0 && recebido === 0) return null;
 

@@ -221,8 +221,27 @@ const somaSalarios = (lista = []) => lista.reduce((s, p) => s + (Number(p.salary
 // CAP_PICK_TRADE_VALUE); o objeto abaixo é só o fallback de quando a resposta
 // vem velha. A pick não entra na folha do elenco, só no envia/recebe da troca.
 let pickTradeValues = { 1: 5, 2: 2 };
-const pickSalary = (round) => Number(pickTradeValues[Number(round)] || 0);
-const somaPicks = (lista = []) => lista.reduce((s, p) => s + pickSalary(p.round), 0);
+
+/**
+ * Com a POSIÇÃO conhecida (depois da loteria) vale a rookie scale da escolha,
+ * que é o salário que o calouro vai assinar. Sem posição a pick ainda é uma
+ * aposta e vale o número plano da rodada. Espelha capValorDaPickNaTroca() e a
+ * pickSalary() do trade-simulator — os três precisam dizer o mesmo número.
+ */
+const pickSalary = (round, pos) => {
+  const p = Number(pos) || 0;
+  if (p > 0) {
+    if (Number(round) >= 2) return 2;   // 2ª rodada é plana
+    if (p <= 3)  return 18;
+    if (p <= 8)  return 14;
+    if (p <= 12) return 12;
+    if (p <= 16) return 8;
+    if (p <= 22) return 5;
+    return 3;                            // 23 em diante
+  }
+  return Number(pickTradeValues[Number(round)] || 0);
+};
+const somaPicks = (lista = []) => lista.reduce((s, p) => s + pickSalary(p.round, p.pick_position), 0);
 
 function checarMatch120() {
   if (!capSalaryMode) return [];

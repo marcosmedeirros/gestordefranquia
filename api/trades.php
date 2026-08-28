@@ -2908,15 +2908,48 @@ if ($method === 'POST') {
             }
             return $total;
         };
+        /*
+         * A escolha do draft aberto pesa a rookie scale da POSIÇÃO dela, e não
+         * o número plano da rodada — é o salário que o calouro vai assinar.
+         * A posição vem de draft_order, ligada pela mesma tripla (origem,
+         * rodada, ano) que o resto do sistema usa; pick de ano futuro não
+         * casa com vaga nenhuma e cai no valor plano, que é o certo pra ela.
+         */
         $salarioDasPicks = function (array $picks) use ($pdo): int {
             $ids = array_values(array_filter(array_map(fn($x) => (int)($x['id'] ?? 0), $picks)));
             if (!$ids) return 0;
             $ph = implode(',', array_fill(0, count($ids), '?'));
-            $st = $pdo->prepare("SELECT round FROM picks WHERE id IN ($ph)");
+            $st = $pdo->prepare("SELECT p.id, p.round, p.original_team_id, p.season_year, p.team_id
+                                   FROM picks p WHERE p.id IN ($ph)");
             $st->execute($ids);
+            $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+            // Uma consulta de posição por liga, não por pick.
+            $posDe = [];
+            foreach ($linhas as $l) {
+                $liga = $pdo->prepare("SELECT league FROM teams WHERE id = ?");
+                $liga->execute([(int)$l['original_team_id']]);
+                $lg = (string)$liga->fetchColumn();
+                if ($lg === '') continue;
+                if (!array_key_exists($lg, $posDe)) {
+                    $aberto = draftAbertoDaLiga($pdo, $lg);
+                    $posDe[$lg] = $aberto ?: null;
+                }
+            }
+
             $total = 0;
-            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $round) {
-                $total += capValorDaPickNaTroca((int)$round);
+            foreach ($linhas as $l) {
+                $pos = null;
+                foreach ($posDe as $aberto) {
+                    if (!$aberto || (int)$aberto['ano'] !== (int)$l['season_year']) continue;
+                    $q = $pdo->prepare("SELECT pick_position FROM draft_order
+                                         WHERE draft_session_id = ? AND original_team_id = ? AND round = ?
+                                         LIMIT 1");
+                    $q->execute([(int)$aberto['id'], (int)$l['original_team_id'], (int)$l['round']]);
+                    $v = $q->fetchColumn();
+                    if ($v !== false) { $pos = (int)$v; break; }
+                }
+                $total += capValorDaPickNaTroca((int)$l['round'], $pos);
             }
             return $total;
         };

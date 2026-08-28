@@ -40,8 +40,26 @@ const CAP_TRADE_MATCH_PCT = 120;
 // numero em lugar nenhum.
 const CAP_PICK_TRADE_VALUE = [1 => 5, 2 => 2];
 
-function capValorDaPickNaTroca(int $round): int
+/**
+ * Peso da pick no casamento salarial.
+ *
+ * Com a POSIÇÃO conhecida — depois da loteria, na classe de picks que o draft
+ * aberto distribui — vale a rookie scale daquela escolha, que é o salário que
+ * o calouro vai mesmo assinar: 18M da 1ª à 3ª, 14M até a 8ª, e por aí. Sem
+ * posição a pick ainda é uma aposta, e aí continua valendo o número plano de
+ * CAP_PICK_TRADE_VALUE.
+ *
+ * Antes toda pick de 1ª rodada pesava 5M, tivesse ela saído Escolha 1 ou
+ * Escolha 30 — a primeira escolha do draft entrava numa troca pesando menos
+ * de um terço do que o time ia pagar por ela.
+ */
+function capValorDaPickNaTroca(int $round, ?int $pickPosition = null): int
 {
+    if ($pickPosition !== null && $pickPosition > 0) {
+        // A posição gravada é a de DENTRO da rodada; a rookie scale de 2ª
+        // rodada é plana, então só a 1ª precisa do número.
+        return capRookieScaleValue($round, $pickPosition);
+    }
     return CAP_PICK_TRADE_VALUE[$round] ?? 0;
 }
 
