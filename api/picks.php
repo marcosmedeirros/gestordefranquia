@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 // Proteção de pick: a trava do ano seguinte e quem pode proteger (só ELITE).
 require_once dirname(__DIR__) . '/backend/pick_protection.php';
+require_once dirname(__DIR__) . '/backend/draft_swaps.php';  // findActiveDraftSession()
 
 // Verificar autenticação
 $user = getUserSession();
@@ -17,33 +18,6 @@ if (!$user) {
 }
 
 $pdo = db();
-
-function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int $seasonYear): ?array
-{
-    try {
-        if ($seasonId) {
-            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds WHERE ds.season_id = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1");
-            $stmt->execute([$seasonId]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) return $row;
-        }
-        if ($league && $seasonYear) {
-            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.year = ? OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL AND (sp.start_year + s.season_number - 1) = ?)) AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1");
-            $stmt->execute([$league, $seasonYear, $seasonYear]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) return $row;
-        }
-        if ($league) {
-            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds WHERE ds.league = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1");
-            $stmt->execute([$league]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) return $row;
-        }
-    } catch (Exception $e) {
-        return null;
-    }
-    return null;
-}
 
 function buildDraftOrderMap(PDO $pdo, int $draftSessionId): array
 {

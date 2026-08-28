@@ -1802,6 +1802,31 @@ if ($method === 'POST') {
                 exit;
             }
 
+            /*
+             * UM TIME, UMA VAGA POR RODADA.
+             *
+             * A vaga pertence ao time de ORIGEM, e é por (origem, rodada, ano)
+             * que a pick se liga a ela. Com o mesmo time repetido na ordem, N
+             * vagas apontam pra uma pick só e a ligação deixa de existir: quem
+             * escolhe para de bater com o dono, e o número da escolha some da
+             * Trade Machine. Não dá erro em lugar nenhum — a ordem fica
+             * gravada e o estrago só aparece nas telas.
+             *
+             * Encontrado na auditoria: uma sessão com o mesmo time como origem
+             * de seis vagas da 1ª rodada, e 52 vagas divergentes por causa
+             * disso. save_lottery_order já recusava repetido; aqui não.
+             */
+            $ordemInteira = array_map('intval', array_values($teamOrder));
+            $repetidos = array_values(array_unique(array_diff_assoc($ordemInteira, array_unique($ordemInteira))));
+            if ($repetidos) {
+                $nomes = draftNomesDosTimes($pdo, $repetidos);
+                echo json_encode(['success' => false, 'error' =>
+                    'A ordem tem time repetido: ' . implode(', ', array_map(
+                        fn($id) => $nomes[$id] ?? ('Time ' . $id), $repetidos))
+                    . '. Cada time ocupa uma vaga por rodada — repetir quebra a ligação entre a pick e a vaga.']);
+                exit;
+            }
+
             $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "setup"');
             $stmtSession->execute([$draftSessionId]);
             $session = $stmtSession->fetch();

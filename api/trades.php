@@ -1576,58 +1576,6 @@ function normalizeSwapPairsMulti(PDO $pdo, array $items, array $swapPairs): arra
     return $swapMap;
 }
 
-function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int $seasonYear): ?array
-{
-    try {
-        if ($seasonId) {
-            $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds WHERE ds.season_id = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
-            );
-            $stmt->execute([$seasonId]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                return $row;
-            }
-        }
-
-        if ($league && $seasonYear) {
-            $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.year = ? OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL AND (sp.start_year + s.season_number - 1) = ?)) AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
-            );
-            $stmt->execute([$league, $seasonYear, $seasonYear]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                return $row;
-            }
-        }
-
-        if ($league) {
-            $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds WHERE ds.league = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
-            );
-            $stmt->execute([$league]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                return $row;
-            }
-        }
-
-        if ($seasonYear) {
-            $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE (s.year = ? OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL AND (sp.start_year + s.season_number - 1) = ?)) AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
-            );
-            $stmt->execute([$seasonYear, $seasonYear]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                return $row;
-            }
-        }
-    } catch (Exception $e) {
-        return null;
-    }
-
-    return null;
-}
 
 function buildDraftOrderMap(PDO $pdo, int $draftSessionId): array
 {

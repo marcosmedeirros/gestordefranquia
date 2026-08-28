@@ -423,3 +423,75 @@ function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
         'protecoes'       => $protecoes,
     ];
 }
+
+/**
+ * A sessão de draft aberta que atende a esta busca — por temporada, por ano,
+ * ou a da liga.
+ *
+ * Vivia copiada em api/picks.php e api/trades.php, e o ramo "só a liga"
+ * escolhia por `created_at DESC`: numa liga com duas sessões abertas ele
+ * devolvia a criada por último, enquanto draftAbertoDaLiga() devolve a do
+ * MENOR ano de picks — a que está rolando. Com ELITE #34 (2034) e #40 (2035)
+ * abertas, picks e trades falavam de um draft e o resto do sistema de outro.
+ *
+ * Agora esse ramo delega pra draftAbertoDaLiga(), que é a regra da casa.
+ */
+function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int $seasonYear): ?array
+{
+    try {
+        if ($seasonId) {
+            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds
+                                    WHERE ds.season_id = ? AND ds.status IN ('setup','in_progress')
+                                    ORDER BY ds.created_at DESC LIMIT 1");
+            $stmt->execute([$seasonId]);
+            if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) return $row;
+        }
+
+        if ($league && $seasonYear) {
+            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds
+                                     INNER JOIN seasons s ON ds.season_id = s.id
+                                     LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                                    WHERE s.league = ?
+                                      AND (s.year = ?
+                                           OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL
+                                               AND (sp.start_year + s.season_number - 1) = ?))
+                                      AND ds.status IN ('setup','in_progress')
+                                    ORDER BY ds.created_at DESC LIMIT 1");
+            $stmt->execute([$league, $seasonYear, $seasonYear]);
+            if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) return $row;
+        }
+
+        if ($league) {
+            $aberto = draftAbertoDaLiga($pdo, $league);
+            if ($aberto) {
+                $stmt = $pdo->prepare("SELECT * FROM draft_sessions WHERE id = ?");
+                $stmt->execute([(int)$aberto['id']]);
+                if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) return $row;
+            }
+        }
+
+        /*
+         * Último recurso, e só quando NENHUMA liga foi informada: acha pelo
+         * ano. Vinha da cópia de api/trades.php e é mantido pra não mudar o
+         * que já roda, mas é um ramo largo — duas ligas podem estar draftando
+         * o mesmo ano, e aqui a primeira que aparecer ganha. Quem chama deve
+         * passar a liga sempre que souber; hoje todas passam.
+         */
+        if ($seasonYear) {
+            $stmt = $pdo->prepare("SELECT ds.* FROM draft_sessions ds
+                                     INNER JOIN seasons s ON ds.season_id = s.id
+                                     LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                                    WHERE (s.year = ?
+                                           OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL
+                                               AND (sp.start_year + s.season_number - 1) = ?))
+                                      AND ds.status IN ('setup','in_progress')
+                                    ORDER BY ds.created_at DESC LIMIT 1");
+            $stmt->execute([$seasonYear, $seasonYear]);
+            if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) return $row;
+        }
+    } catch (Throwable $e) {
+        error_log('[findActiveDraftSession] ' . $e->getMessage());
+        return null;
+    }
+    return null;
+}
