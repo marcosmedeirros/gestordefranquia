@@ -1684,18 +1684,25 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
 }
 
 /**
- * O ano que uma temporada representa no jogo.
+ * A classe de picks que o draft desta temporada distribui.
  *
- * Passa reto pra draftAnoDaTemporada(), que é onde essa conta mora. Aqui
- * havia uma terceira versão dela, com `isset($row['start_year'], ...)` —
- * e isset é verdadeiro pra ZERO. Numa base com start_year = 0 esta função
- * devolvia `season_number - 1` (um "ano" 1) enquanto o resto do sistema
- * devolvia s.year. O ano é a chave que liga a pick à vaga do draft: quando
- * ele sai diferente, a escolha perde o número no card da troca.
+ * Os três usos desta função neste arquivo são a MESMA pergunta — ligar uma
+ * pick à vaga do draft: o número da escolha no card da troca, a guarda do
+ * syncDraftOrderPickOwner e a checagem do ano logo abaixo. Por isso ela
+ * delega pra draftAnoDasPicks(), a mesma resposta que a Trade Machine, a
+ * página de Picks e a sincronização da ordem usam.
+ *
+ * Aqui havia uma terceira escrita da conta do ano, com
+ * `isset($row['start_year'], ...)` — e isset é verdadeiro pra ZERO, então
+ * numa base com start_year = 0 ela devolvia "ano 1". Quando esse número sai
+ * diferente do resto do sistema, a escolha perde o número no card e a
+ * transferência da vaga no draft não acontece.
+ *
+ * O nome ficou por causa dos chamadores; o que ela responde é o ano do draft.
  */
 function getSeasonDisplayYearById(PDO $pdo, int $seasonId): ?int
 {
-    $ano = draftAnoDaTemporada($pdo, $seasonId);
+    $ano = draftAnoDasPicks($pdo, $seasonId);
     return $ano > 0 ? $ano : null;
 }
 
