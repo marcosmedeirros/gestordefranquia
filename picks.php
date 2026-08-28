@@ -3,6 +3,7 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 // Selo de proteção/swap/lastro nas picks (só ELITE tem proteção).
 require_once __DIR__ . '/backend/pick_protection.php';
+require_once __DIR__ . '/backend/draft_swaps.php';   // draftAbertoDaLiga()
 requireAuth();
 
 $user = getUserSession();
@@ -68,20 +69,25 @@ function pickTradeLink(int $pickId, bool $salaryCapMode): string
  * Posição da escolha no draft em andamento, quando a loteria já saiu.
  * Subconsulta, não JOIN: uma liga pode ter mais de uma sessão aberta, e o
  * JOIN duplicaria a pick. É o que dá o "Escolha 18" e o valor de troca certo.
+ *
+ * A sessão e o ano vêm de draftAbertoDaLiga() — antes o ano era recalculado
+ * aqui dentro com um COALESCE que não seguia a mesma regra do PHP, e onde as
+ * duas contas discordavam a pick não achava a vaga e ficava sem número.
+ * Os dois `?` são, nesta ordem: id da sessão e ano do draft.
  */
 const PICKS_SQL_POSICAO = '
            (SELECT dor.pick_position
               FROM draft_order dor
-              JOIN draft_sessions ds ON ds.id = dor.draft_session_id
-              JOIN seasons se ON se.id = ds.season_id
-              LEFT JOIN sprints spr ON spr.id = se.sprint_id
-             WHERE ds.league = ?
-               AND ds.status IN ("setup","in_progress")
+             WHERE dor.draft_session_id = ?
                AND dor.original_team_id = p.original_team_id
                AND dor.round = p.round
-               AND CAST(p.season_year AS UNSIGNED)
-                   = COALESCE(spr.start_year + se.season_number - 1, se.year)
+               AND CAST(p.season_year AS UNSIGNED) = ?
              LIMIT 1) AS pick_position';
+
+$__draftAberto = draftAbertoDaLiga($pdo, (string)($team['league'] ?? ''));
+// Sem draft aberto nada casa, e toda pick sai sem número — o certo aqui.
+$__draftSid = $__draftAberto['id'] ?? 0;
+$__draftAno = $__draftAberto['ano'] ?? 0;
 
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
@@ -97,7 +103,7 @@ $stmtPicks = $pdo->prepare('
     WHERE p.team_id = ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
-$stmtPicks->execute([(string)($team['league'] ?? ''), $team['id'], $currentSeasonYear]);
+$stmtPicks->execute([$__draftSid, $__draftAno, $team['id'], $currentSeasonYear]);
 $picks = $stmtPicks->fetchAll();
 
 $stmtPicksAway = $pdo->prepare('
@@ -111,7 +117,7 @@ $stmtPicksAway = $pdo->prepare('
     WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
-$stmtPicksAway->execute([(string)($team['league'] ?? ''), $team['id'], $team['id'], $currentSeasonYear]);
+$stmtPicksAway->execute([$__draftSid, $__draftAno, $team['id'], $team['id'], $currentSeasonYear]);
 $picksAway = $stmtPicksAway->fetchAll();
 
 // Marca quais picks estão penduradas por servirem de lastro a uma protegida.

@@ -1683,25 +1683,20 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
     return $pick;
 }
 
+/**
+ * O ano que uma temporada representa no jogo.
+ *
+ * Passa reto pra draftAnoDaTemporada(), que é onde essa conta mora. Aqui
+ * havia uma terceira versão dela, com `isset($row['start_year'], ...)` —
+ * e isset é verdadeiro pra ZERO. Numa base com start_year = 0 esta função
+ * devolvia `season_number - 1` (um "ano" 1) enquanto o resto do sistema
+ * devolvia s.year. O ano é a chave que liga a pick à vaga do draft: quando
+ * ele sai diferente, a escolha perde o número no card da troca.
+ */
 function getSeasonDisplayYearById(PDO $pdo, int $seasonId): ?int
 {
-    try {
-        $stmt = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?');
-        $stmt->execute([$seasonId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
-            return null;
-        }
-        if (isset($row['start_year'], $row['season_number'])) {
-            return (int)$row['start_year'] + (int)$row['season_number'] - 1;
-        }
-        if (!empty($row['year'])) {
-            return (int)$row['year'];
-        }
-    } catch (Exception $e) {
-        return null;
-    }
-    return null;
+    $ano = draftAnoDaTemporada($pdo, $seasonId);
+    return $ano > 0 ? $ano : null;
 }
 
 /**

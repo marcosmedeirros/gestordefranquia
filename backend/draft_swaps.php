@@ -37,6 +37,48 @@ function draftAnoDaTemporada(PDO $pdo, int $seasonId): int
 }
 
 /**
+ * O draft que está rolando numa liga: a sessão e o ano que ela sorteia.
+ *
+ * Existe pra que ninguém mais precise refazer a conta do ano dentro de um
+ * SQL. Duas telas faziam isso — a de Picks e a Trade Machine — com
+ * `COALESCE(sp.start_year + s.season_number - 1, s.year)`, que NÃO é a mesma
+ * regra de draftAnoDaTemporada(): o COALESCE só troca de braço quando
+ * start_year é NULL, e com start_year = 0 ele devolve `season_number - 1`
+ * (um "ano" 1) enquanto o PHP devolve s.year. Quando as duas contas
+ * divergem, a pick não encontra a vaga e a escolha aparece sem número — a
+ * tela fica dizendo "2026 · 1ª Round" no lugar de "Escolha 21".
+ *
+ * Com o ano vindo daqui, a subconsulta só compara dois números.
+ *
+ * Havendo mais de um draft aberto (o que rola agora e o da temporada
+ * seguinte), vale o de MENOR ano: é o que está acontecendo.
+ *
+ * @return array{id:int, ano:int}|null
+ */
+function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
+{
+    $liga = trim($liga);
+    if ($liga === '') return null;
+    try {
+        $st = $pdo->prepare('SELECT id, season_id FROM draft_sessions
+                              WHERE league = ? AND status IN ("setup","in_progress")');
+        $st->execute([$liga]);
+        $melhor = null;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
+            $ano = draftAnoDaTemporada($pdo, (int)$s['season_id']);
+            if ($ano <= 0) continue;
+            if ($melhor === null || $ano < $melhor['ano']) {
+                $melhor = ['id' => (int)$s['id'], 'ano' => $ano];
+            }
+        }
+        return $melhor;
+    } catch (Throwable $e) {
+        error_log('[draftAbertoDaLiga] ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Reescreve quem escolhe em cada vaga: primeiro pelo dono da pick, depois
  * aplicando os swaps.
  *

@@ -5,6 +5,7 @@ require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 // Proteção de pick (só ELITE): trava do ano seguinte e quem pode proteger.
 require_once __DIR__ . '/backend/pick_protection.php';
+require_once __DIR__ . '/backend/draft_swaps.php';   // draftAbertoDaLiga()
 requireAuth();
 
 $user = getUserSession();
@@ -86,37 +87,44 @@ if ($action === 'roster') {
            A ordem é gravada por time de ORIGEM e rodada — é assim que a pick
            se liga à vaga. Só de draft aberto: ordem de draft encerrado é
            história, e mostrar "Escolha 4" pra uma pick de anos atrás só
-           confunde quem está negociando. */
-        /* Subconsulta, e não JOIN: uma liga pode ter mais de um draft aberto
-           ao mesmo tempo (o que está rolando e o da próxima temporada), e o
-           JOIN multiplicava cada pick por sessão — a mesma pick aparecia
-           duas vezes na lista, uma com número e outra sem. */
+           confunde quem está negociando.
+
+           A SESSÃO E O ANO VÊM PRONTOS de draftAbertoDaLiga(), em vez de a
+           subconsulta refazer a conta do ano. Ela refazia com um COALESCE que
+           não é a mesma regra do PHP, e nas bases em que as duas discordam a
+           pick nunca achava a vaga — a escolha saía sem número. Agora são
+           dois parâmetros e uma comparação. */
+        // A liga do TIME listado, não a de quem olha: o modal mostra picks
+        // de vários times, e a ordem do draft é por liga.
+        $ligaDoTime = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $ligaDoTime->execute([$tid]);
+        $ligaPk = (string)($ligaDoTime->fetchColumn() ?: $league);
+        $draftAberto = draftAbertoDaLiga($pdo, $ligaPk);
+
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round, pk.team_id, pk.original_team_id,
                    pk.protection,
                    ot.city AS orig_city, ot.name AS orig_name,
                    (SELECT dor.pick_position
                       FROM draft_order dor
-                      JOIN draft_sessions ds ON ds.id = dor.draft_session_id
-                      JOIN seasons se ON se.id = ds.season_id
-                      LEFT JOIN sprints spr ON spr.id = se.sprint_id
-                     WHERE ds.league = ?
-                       AND ds.status IN ("setup","in_progress")
+                     WHERE dor.draft_session_id = ?
                        AND dor.original_team_id = pk.original_team_id
                        AND dor.round = pk.round
-                       AND CAST(pk.season_year AS UNSIGNED)
-                           = COALESCE(spr.start_year + se.season_number - 1, se.year)
+                       AND CAST(pk.season_year AS UNSIGNED) = ?
                      LIMIT 1) AS pick_position
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
             ORDER BY pk.round ASC, pk.season_year ASC
         ');
-        // A liga do TIME listado, não a de quem olha: o modal mostra picks
-        // de vários times, e a ordem do draft é por liga.
-        $ligaDoTime = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
-        $ligaDoTime->execute([$tid]);
-        $stmtPk->execute([(string)($ligaDoTime->fetchColumn() ?: $league), $tid, $currentYear]);
+        // Sem draft aberto, a subconsulta não casa com nada e toda pick sai
+        // sem número — que é justamente o certo nesse caso.
+        $stmtPk->execute([
+            $draftAberto['id'] ?? 0,
+            $draftAberto['ano'] ?? 0,
+            $tid,
+            $currentYear,
+        ]);
         $picks = protecaoAnotarPicks($pdo, $stmtPk->fetchAll(PDO::FETCH_ASSOC), (string)$league);
     } catch (Exception $e) {}
 
