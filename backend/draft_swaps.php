@@ -104,7 +104,12 @@ function draftAnoDasPicks(PDO $pdo, int $seasonId): int
  * Havendo mais de um draft aberto (o que rola agora e o da temporada
  * seguinte), vale o de MENOR ano: é o que está acontecendo.
  *
- * @return array{id:int, ano:int}|null
+ * `vagas_por_rodada` é quantas escolhas tem cada rodada — o número de times.
+ * Serve pra converter a posição DENTRO DA RODADA, que é o que fica gravado,
+ * na numeração CORRIDA que as pessoas usam pra falar de pick: a 11ª da 2ª
+ * rodada numa liga de 32 times é a "escolha 43".
+ *
+ * @return array{id:int, ano:int, vagas_por_rodada:int}|null
  */
 function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
 {
@@ -122,6 +127,12 @@ function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
                 $melhor = ['id' => (int)$s['id'], 'ano' => $ano];
             }
         }
+        if (!$melhor) return null;
+
+        $st = $pdo->prepare('SELECT COUNT(*) FROM draft_order
+                              WHERE draft_session_id = ? AND round = 1');
+        $st->execute([$melhor['id']]);
+        $melhor['vagas_por_rodada'] = (int)$st->fetchColumn();
         return $melhor;
     } catch (Throwable $e) {
         error_log('[draftAbertoDaLiga] ' . $e->getMessage());

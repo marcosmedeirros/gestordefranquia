@@ -111,7 +111,20 @@ if ($action === 'roster') {
                        AND dor.original_team_id = pk.original_team_id
                        AND dor.round = pk.round
                        AND CAST(pk.season_year AS UNSIGNED) = ?
-                     LIMIT 1) AS pick_position
+                     LIMIT 1) AS pick_position,
+                   /* DOIS NÚMEROS, e cada um serve a uma coisa.
+                      `pick_position` é a posição DENTRO DA RODADA, que é o
+                      que fica gravado e o que a régua de valor precisa: a 5ª
+                      da 2ª rodada vale como 5ª, não como 37ª.
+                      `pick_overall` é a numeração corrida, que é como as
+                      pessoas falam — "escolha 43". Só rótulo. */
+                   (SELECT (pk.round - 1) * ? + dor.pick_position
+                      FROM draft_order dor
+                     WHERE dor.draft_session_id = ?
+                       AND dor.original_team_id = pk.original_team_id
+                       AND dor.round = pk.round
+                       AND CAST(pk.season_year AS UNSIGNED) = ?
+                     LIMIT 1) AS pick_overall
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
@@ -120,6 +133,9 @@ if ($action === 'roster') {
         // Sem draft aberto, a subconsulta não casa com nada e toda pick sai
         // sem número — que é justamente o certo nesse caso.
         $stmtPk->execute([
+            $draftAberto['id'] ?? 0,
+            $draftAberto['ano'] ?? 0,
+            $draftAberto['vagas_por_rodada'] ?? 0,
             $draftAberto['id'] ?? 0,
             $draftAberto['ano'] ?? 0,
             $tid,
@@ -820,7 +836,7 @@ async function preencherDaTroca(tradeId, inverter) {
     if (!pk) return;
     receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
       orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-      season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
+      season_year: pk.season_year, pick_position: pk.pick_position ?? null, pick_overall: pk.pick_overall ?? null, swapRole: null,
       podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
       protecaoOriginal: pk.protection || null });
   };
@@ -942,7 +958,7 @@ function aplicarPreselecoes(key) {
     if (pk) {
       receives[kB].push({ id: pk.id, type: 'pick', fromKey: kA, label: pickLabel(pk),
         orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-        season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
+        season_year: pk.season_year, pick_position: pk.pick_position ?? null, pick_overall: pk.pick_overall ?? null, swapRole: null,
         podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
         protecaoOriginal: pk.protection || null });
       PRESELECT_OFFER_PICK_APLICADO = true;
@@ -1244,7 +1260,7 @@ function confirmPicker() {
     } else {
       const pk = src.picks.find(pk => pk.id === id);
       if (!pk) return;
-      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
+      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, pick_position: pk.pick_position ?? null, pick_overall: pk.pick_overall ?? null, swapRole: null,
         podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
         // A que a pick JÁ trazia. Sem separar as duas, uma pick protegida
         // por OUTRO time era reenviada como pedido novo de proteção, e a
@@ -1802,7 +1818,10 @@ function setSimSwapRole(toKey, itemId, role) {
  */
 function pickValorBadge(p, cls) {
   if (!window.TradeValue) return '';
-  const dados = { round: p.round, season_year: p.season_year, pick_position: p.pick_position ?? null };
+  // pick_position manda no valor; pick_overall só aparece no texto do tooltip.
+  const dados = { round: p.round, season_year: p.season_year,
+                  pick_position: p.pick_position ?? null,
+                  pick_overall: p.pick_overall ?? null };
   const v = Math.round(TradeValue.itemValue(dados));
   const por = TradeValue.explain(dados);
   return `<div class="${cls} sim-item-troca" title="Valor estimado de troca — ${escH(por)}. Mesma escala usada para jogadores.">${v}</div>`;
@@ -1810,9 +1829,11 @@ function pickValorBadge(p, cls) {
 
 function pickLabel(p) {
   const rodada = p.round == 1 ? '1ª Round' : '2ª Round';
-  return p.pick_position
-    ? `Escolha ${p.pick_position} · ${p.season_year ?? '?'}`
-    : `${p.season_year ?? '?'} · ${rodada}`;
+  // O rótulo usa a numeração CORRIDA (pick_overall): é assim que se fala de
+  // pick — "escolha 43", e não "5ª da segunda". O pick_position, que é a
+  // posição dentro da rodada, fica pro cálculo de valor.
+  const n = p.pick_overall || p.pick_position;
+  return n ? `Escolha ${n} · ${p.season_year ?? '?'}` : `${p.season_year ?? '?'} · ${rodada}`;
 }
 function escH(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escA(s) { return String(s ?? '').replace(/"/g,'&quot;'); }

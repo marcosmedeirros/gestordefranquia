@@ -1303,26 +1303,23 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       `;
     }
 
-    if (round2History.length > 0) {
+    /* AS VAGAS DA 2ª RODADA APARECEM DESDE SEMPRE.
+       Antes esta parte só mostrava o que já tinha sido escolhido — durante a
+       1ª rodada inteira ela dizia "nenhuma pick registrada", e não havia
+       onde ver quem é dono de qual escolha da 2ª. Só que elas existem desde
+       a loteria, são trocáveis, e é justamente na 1ª rodada que se negocia.
+       Agora é a lista completa: quem escolhe em cada vaga, com o botão de
+       trocar, e o jogador no lugar da espera assim que a escolha sai.
+       O número é o CORRIDO — a 11ª da 2ª rodada é a "escolha 43". */
+    if (round2Picks.length > 0) {
+      const vagasPorRodada = round1Picks.length;
       html += `
-        <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
-          <span style="font-size:13px;font-weight:700">Histórico da 2ª rodada</span>
-          <span style="font-size:11px;color:var(--text-2)">(${round2History.length})</span>
-        </div>
         <div class="pick-grid">
-          ${round2History.map(pick => `
-            <div class="pick-card completed">
-              <div class="pick-num"><span class="pick-badge done"><i class="bi bi-check2"></i> R2</span></div>
-              <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
-              <div class="pick-result">
-                <div class="pick-result-name">${esc(pick.player_name)}</div>
-              </div>
-            </div>
-          `).join('')}
+          ${round2Picks.map(p => renderPickCard(p, session, vagasPorRodada + Number(p.pick_position))).join('')}
         </div>
       `;
     } else {
-      html += `<div class="state-empty"><i class="bi bi-clock"></i><p>Nenhuma pick registrada na 2ª rodada.</p></div>`;
+      html += `<div class="state-empty"><i class="bi bi-clock"></i><p>A ordem da 2ª rodada aparece aqui depois da loteria.</p></div>`;
     }
 
     html += `</div></div>`;
@@ -1467,7 +1464,16 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     round1CountdownInterval = setInterval(tick, 1000);
   }
 
-  function renderPickCard(pick, session) {
+  /**
+   * Um card de escolha.
+   *
+   * `numeroExibido` existe porque a posição gravada RECOMEÇA a cada rodada:
+   * a 11ª da 2ª rodada fica como 11 no banco, mas a liga a chama de "escolha
+   * 43". O número do banco continua mandando na lógica (é ele que casa com a
+   * vaga); aqui só muda o que aparece escrito.
+   */
+  function renderPickCard(pick, session, numeroExibido) {
+    const numero = numeroExibido || pick.pick_position;
     const isCurrent  = session.status === 'in_progress' &&
                        pick.round == session.current_round &&
                        pick.pick_position == session.current_pick &&
@@ -1488,7 +1494,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     return `
       <div class="${cls}">
         <div class="pick-num">
-          <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${pick.pick_position}</span>
+          <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${numero}</span>
           <div style="display:flex;gap:3px">
             ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
             ${canAdminPick   ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
@@ -1692,7 +1698,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       }
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:8px;background:var(--panel-2);margin-bottom:6px;${resolved ? 'opacity:.6' : ''}">
-          <div style="font-size:13px;color:var(--text)">#${p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}</div>
+          <div style="font-size:13px;color:var(--text)">#${p.pick_overall || p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}</div>
           <div style="display:flex;align-items:center;gap:6px">${right}</div>
         </div>`;
     }).join('');

@@ -757,8 +757,15 @@ if ($method === 'GET') {
                  ORDER BY o.pick_position ASC"
             );
             $stmt->execute([(int)$draftSessionId]);
+            // Quantas vagas tem a 1ª rodada: é o quanto somar pra converter a
+            // posição da 2ª (que recomeça do 1) na numeração corrida, que é
+            // como a liga fala — "escolha 43", não "11ª da segunda".
+            $stmtVagas = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = 1');
+            $stmtVagas->execute([(int)$draftSessionId]);
+            $vagasR1 = (int)$stmtVagas->fetchColumn();
+
             $myTeamId = $team['id'] ?? null;
-            $picks = array_map(function ($r) use ($isAdmin, $myTeamId) {
+            $picks = array_map(function ($r) use ($isAdmin, $myTeamId, $vagasR1) {
                 $isOwn = $myTeamId && (int)$r['team_id'] === (int)$myTeamId;
                 $canSeeMock = $isAdmin || $isOwn;
                 return [
@@ -766,6 +773,7 @@ if ($method === 'GET') {
                     'team_id' => (int)$r['team_id'],
                     'team_name' => trim($r['team_city'] . ' ' . $r['team_name']),
                     'pick_position' => (int)$r['pick_position'],
+                    'pick_overall' => $vagasR1 + (int)$r['pick_position'],
                     'picked_player_id' => $r['picked_player_id'] !== null ? (int)$r['picked_player_id'] : null,
                     'is_own' => (bool)$isOwn,
                     'has_mock' => $r['mock_player_id'] !== null,

@@ -81,11 +81,16 @@
   function slotMultiplier(pos, round) {
     var p = +pos || 0;
     if (!p) return 1;
-    // A posição vem contínua no draft (31..60 é a 2ª rodada); interessa o
-    // lugar dentro da própria rodada.
-    var dentro = +round === 2 && p > 30 ? p - 30 : p;
-    if (dentro < 1) return 1;
-    return 2.7 / (1 + (dentro - 1) * 0.17);
+    // `pick_position` JÁ é a posição dentro da rodada — é assim que ela fica
+    // gravada em draft_order, que recomeça do 1 a cada rodada.
+    //
+    // Aqui havia um `p > 30 ? p - 30 : p` supondo numeração corrida com 30
+    // times. Numa liga de 32, a escolha 31 da 2ª rodada virava "1ª da
+    // rodada" e era avaliada como a melhor pick do turno — o erro mais caro
+    // possível, e justo nas duas piores picks da liga. A numeração corrida
+    // existe, mas separada, em `pick_overall`, e é só rótulo.
+    if (p < 1) return 1;
+    return 2.7 / (1 + (p - 1) * 0.17);
   }
 
   /** Valor de uma pick como ativo de troca. */
@@ -106,12 +111,15 @@
   function explain(item) {
     if (!isPlayer(item)) {
       var r = +(item.round || item.pick_round || 2);
+      // A FAIXA sai da posição dentro da rodada (é ela que diz se é loteria
+      // ou fim de rodada); o NÚMERO mostrado é o corrido, que é como se fala
+      // da pick. Quando não houver o corrido, o outro serve de rótulo.
       var pos = +(item.pick_position || item.slot || 0);
+      var mostrar = +(item.pick_overall || 0) || pos;
       if (pos) {
-        var dentro = r === 2 && pos > 30 ? pos - 30 : pos;
-        var faixa = dentro <= 3 ? 'top 3' : dentro <= 5 ? 'top 5'
-                  : dentro <= 14 ? 'loteria' : dentro <= 20 ? 'meio de rodada' : 'fim de rodada';
-        return 'Escolha ' + pos + ' · ' + faixa;
+        var faixa = pos <= 3 ? 'top 3' : pos <= 5 ? 'top 5'
+                  : pos <= 14 ? 'loteria' : pos <= 20 ? 'meio de rodada' : 'fim de rodada';
+        return 'Escolha ' + mostrar + ' · ' + faixa;
       }
       return r === 1 ? 'Pick de 1ª rodada' : 'Pick de 2ª rodada';
     }
