@@ -7829,6 +7829,32 @@ function calcPtsPreview(seasonId) {
   });
 }
 
+/**
+ * Reaplica os pontos de posição sobre a classificação já salva.
+ *
+ * As temporadas fechadas enquanto o card não gravava esses pontos ficaram
+ * com o total sem a parte da campanha. A classificação continua no banco —
+ * o que falta é passar a régua nela outra vez. Pode rodar quantas vezes
+ * quiser: reescreve pela colocação, não soma.
+ */
+async function recalcularPontosCampanha(league) {
+  if (!confirm(`Recalcular os pontos da temporada regular de todas as temporadas da sprint atual da ${league}?\n\n`
+             + 'Usa a classificação já salva e reescreve os pontos de posição. Playoffs e prêmios não são tocados.')) return;
+  try {
+    const d = await api('seasons.php?action=recalcular_pontos_campanha', {
+      method: 'POST',
+      body: JSON.stringify({ league })
+    });
+    const linhas = (d.temporadas || [])
+      .map(t => `Temporada ${t.temporada}: ${t.antes} → ${t.depois} pontos (${t.times} times)`)
+      .join('\n');
+    alert(`${d.message}\n\n${linhas || 'Nenhuma temporada com classificação lançada.'}`);
+    showPointsManagement(league);
+  } catch (e) {
+    alert('Não deu pra recalcular: ' + (e.error || 'erro desconhecido'));
+  }
+}
+
 async function showPointsManagement(league) {
   league = league || appState.currentLeague || 'ELITE';
   appState.view = 'pontuacao';
@@ -7843,6 +7869,10 @@ async function showPointsManagement(league) {
       <button class="btn btn-sm btn-outline-warning float-end" onclick="congelarRanking('${league}')"
               title="Salva a classificação atual no histórico, para não se perder quando a pontuação for zerada">
         <i class="bi bi-snow"></i> Congelar classificação
+      </button>
+      <button class="btn btn-sm btn-outline-info float-end me-2" onclick="recalcularPontosCampanha('${league}')"
+              title="Aplica de novo os pontos de posição (5/4/3/2/1) sobre a classificação já salva de cada temporada desta sprint">
+        <i class="bi bi-arrow-repeat"></i> Recalcular pontos da campanha
       </button>
     </div>
     <div id="ptsSnapshots" class="mb-3"></div>

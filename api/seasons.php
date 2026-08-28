@@ -474,7 +474,8 @@ $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'finalize_sprint',
                  'resync_season_points', 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw',
-                 'save_temporada_regular', 'registro_rascunho', 'salvar_rascunho'];
+                 'save_temporada_regular', 'registro_rascunho', 'salvar_rascunho',
+                 'recalcular_pontos_campanha'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -544,6 +545,23 @@ function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $spri
             $tid, $row['team_name'] ?? 'Time Desconhecido', $league, $seasonId, $sprintNumber, $seasonNumber,
             $pts, (int)$row['regular_points'], (int)$row['playoff_points_sum'], (int)$row['awards_points_sum'],
         ]);
+    }
+
+    /* QUEM PERDEU OS PONTOS TAMBÉM PRECISA SER ESCRITO.
+       A consulta acima descarta quem ficou com zero, então um time que caiu
+       do 9º pro 11º entre um registro e outro simplesmente não aparecia aqui
+       — e continuava exibindo os pontos do registro anterior, com o
+       detalhamento zerado e o total antigo. O acumulado já era corrigido
+       pelo delta logo abaixo; faltava a linha da temporada. */
+    if ($newPoints || $oldPoints) {
+        $zerar = array_diff(array_keys($oldPoints), array_keys($newPoints));
+        if ($zerar) {
+            $ph = implode(',', array_fill(0, count($zerar), '?'));
+            $pdo->prepare("UPDATE team_season_points
+                              SET points = 0, points_regular = 0, points_playoffs = 0, points_prizes = 0, updated_at = NOW()
+                            WHERE season_id = ? AND team_id IN ($ph)")
+                ->execute(array_merge([$seasonId], array_values($zerar)));
+        }
     }
 
     // Incrementa teams.ranking_points pelo delta (novo - antigo desta temporada).
@@ -2564,6 +2582,86 @@ try {
         // Reaproveita os dados ja corretos em team_ranking_points para preencher/corrigir
         // o detalhamento (points_regular/points_playoffs/points_prizes) em team_season_points,
         // sem precisar re-registrar campeao/vice/premiacoes.
+        /* CONSERTO DAS TEMPORADAS JÁ REGISTRADAS.
+           Enquanto o card não gravava os pontos de posição, cada temporada
+           fechou com o total sem a parte da campanha. A classificação está
+           salva — o que falta é aplicar a régua sobre ela.
+
+           Só a sprint em andamento: as anteriores estão encerradas e mexer
+           no que já virou história é outro assunto. Roda quantas vezes
+           quiser, porque reescreve pela colocação em vez de somar. */
+        case 'recalcular_pontos_campanha':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true);
+            $league = strtoupper(trim((string)($input['league'] ?? '')));
+            if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+                throw new Exception('Informe a liga (ELITE, NEXT, RISE ou ROOKIE).');
+            }
+
+            if (!columnExists($pdo, 'team_ranking_points', 'regular_season_position')) {
+                try { $pdo->exec("ALTER TABLE team_ranking_points ADD COLUMN regular_season_position INT NULL AFTER league"); } catch (Throwable $e) { /* já existe */ }
+            }
+
+            $stmtSprintAtiva = $pdo->prepare("SELECT id, sprint_number FROM sprints
+                                               WHERE league = ? AND status = 'active'
+                                            ORDER BY sprint_number DESC, id DESC LIMIT 1");
+            $stmtSprintAtiva->execute([$league]);
+            $sprintAtual = $stmtSprintAtiva->fetch(PDO::FETCH_ASSOC);
+            if (!$sprintAtual) throw new Exception("A {$league} não tem uma sprint em andamento.");
+
+            // Só temporadas com classificação lançada: sem ela não há de onde tirar a colocação.
+            $stmtTemps = $pdo->prepare("SELECT s.id, s.season_number FROM seasons s
+                                         WHERE s.league = ? AND s.sprint_id = ?
+                                           AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
+                                      ORDER BY s.season_number ASC");
+            $stmtTemps->execute([$league, (int)$sprintAtual['id']]);
+            $temporadas = $stmtTemps->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtStd = $pdo->prepare("SELECT ss.team_id, ss.position FROM season_standings ss WHERE ss.season_id = ?");
+            $stmtAtualiza = $pdo->prepare("UPDATE team_ranking_points
+                                              SET league = ?, regular_season_position = ?, regular_season_points = ?
+                                            WHERE team_id = ? AND season_id = ?");
+            $stmtCria = $pdo->prepare("INSERT INTO team_ranking_points
+                                         (team_id, season_id, league, regular_season_position, regular_season_points)
+                                       VALUES (?, ?, ?, ?, ?)");
+            $stmtTem = $pdo->prepare("SELECT COUNT(*) FROM team_ranking_points WHERE team_id = ? AND season_id = ?");
+
+            $relatorio = [];
+            foreach ($temporadas as $t) {
+                $sid = (int)$t['id'];
+                $stmtStd->execute([$sid]);
+                $linhas = $stmtStd->fetchAll(PDO::FETCH_ASSOC);
+                $somaAntes = (int)$pdo->query("SELECT COALESCE(SUM(regular_season_points),0) FROM team_ranking_points WHERE season_id = {$sid}")->fetchColumn();
+
+                $soma = 0;
+                foreach ($linhas as $l) {
+                    $tid = (int)$l['team_id'];
+                    $pos = (int)$l['position'];
+                    $pts = pontosPorPosicao($pos);
+                    $soma += $pts;
+                    $stmtTem->execute([$tid, $sid]);
+                    if ((int)$stmtTem->fetchColumn() > 0) $stmtAtualiza->execute([$league, $pos, $pts, $tid, $sid]);
+                    else                                  $stmtCria->execute([$tid, $sid, $league, $pos, $pts]);
+                }
+
+                syncTeamSeasonPoints($pdo, $sid, $league, (int)$sprintAtual['sprint_number'], (int)$t['season_number']);
+                $relatorio[] = [
+                    'temporada' => (int)$t['season_number'],
+                    'times'     => count($linhas),
+                    'antes'     => $somaAntes,
+                    'depois'    => $soma,
+                ];
+            }
+
+            echo json_encode([
+                'success'    => true,
+                'liga'       => $league,
+                'sprint'     => (int)$sprintAtual['sprint_number'],
+                'temporadas' => $relatorio,
+                'message'    => count($relatorio) . ' temporada(s) recalculada(s).',
+            ]);
+            break;
+
         case 'resync_season_points':
             if ($method !== 'POST') throw new Exception('Método inválido');
             $input = json_decode(file_get_contents('php://input'), true);
