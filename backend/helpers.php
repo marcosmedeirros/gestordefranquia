@@ -1858,14 +1858,20 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
 
     $anos = [];
     try {
-        // O draft aberto mais ANTIGO: se dois estão abertos, quem manda é o
-        // que ainda não terminou, não o que foi criado por último.
+        /* SÓ A SPRINT EM ANDAMENTO.
+           O corte é o MENOR ano entre os drafts abertos, e sobra por aí
+           sessão de sprint encerrada esquecida nesse estado. Uma delas
+           puxava o corte anos para trás — a lista de picks então enchia de
+           anos que já passaram, e a do draft atual sumia no meio. */
         $st = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
             FROM draft_sessions ds
             JOIN seasons s ON ds.season_id = s.id
             LEFT JOIN sprints sp ON s.sprint_id = sp.id
-            WHERE ds.league = ? AND ds.status IN ("setup","in_progress")');
-        $st->execute([$liga]);
+            WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
+              AND s.sprint_id = (SELECT id FROM sprints
+                                  WHERE league = ? AND status = "active"
+                               ORDER BY sprint_number DESC, id DESC LIMIT 1)');
+        $st->execute([$liga, $liga]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $y = $ano($r);
             if ($y > 0) $anos[] = $y;
@@ -1874,8 +1880,11 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
         $st2 = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
             FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
             WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed"))
+              AND s.sprint_id = (SELECT id FROM sprints
+                                  WHERE league = ? AND status = "active"
+                               ORDER BY sprint_number DESC, id DESC LIMIT 1)
             ORDER BY s.created_at DESC LIMIT 1');
-        $st2->execute([$liga]);
+        $st2->execute([$liga, $liga]);
         $y = $ano($st2->fetch(PDO::FETCH_ASSOC));
         if ($y > 0) $anos[] = $y;
     } catch (Throwable $e) {
