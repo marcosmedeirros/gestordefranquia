@@ -1350,7 +1350,7 @@ try {
             $pdo->prepare("UPDATE teams SET moedas = 0 WHERE league = ?")->execute([$league]);
             // Zera dispensas e contratações a cada temporada
             try {
-                $pdo->prepare("UPDATE teams SET waivers_used = 0, fa_signings_used = 0 WHERE league = ?")->execute([$league]);
+                $pdo->prepare("UPDATE teams SET waivers_used = 0, waivers_extra = 0, fa_signings_used = 0 WHERE league = ?")->execute([$league]);
             } catch (Exception $e) {
                 // Colunas podem não existir em instalações antigas; ignorar silenciosamente
             }
@@ -3202,7 +3202,7 @@ try {
                 // proteção (prova de que sempre existe) — as demais variam entre
                 // instalações, então checa antes de incluir no UPDATE.
                 $teamUpdates = ['moedas = 0'];
-                foreach (['waivers_used', 'fa_signings_used', 'tapas', 'ranking_points', 'ranking_titles', 'current_cycle', 'trades_cycle', 'trades_used'] as $col) {
+                foreach (['waivers_used', 'waivers_extra', 'fa_signings_used', 'tapas', 'ranking_points', 'ranking_titles', 'current_cycle', 'trades_cycle', 'trades_used'] as $col) {
                     if (columnExists($pdo, 'teams', $col)) $teamUpdates[] = "{$col} = 0";
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
@@ -3401,7 +3401,7 @@ try {
             $pdo->exec("DELETE FROM free_agents WHERE league = '$league'");
             
             // 12. Resetar contadores de waivers/signings dos times
-            $pdo->exec("UPDATE teams SET waivers_used = 0, fa_signings_used = 0 WHERE league = '$league'");
+            $pdo->exec("UPDATE teams SET waivers_used = 0, waivers_extra = 0, fa_signings_used = 0 WHERE league = '$league'");
             
             // IMPORTANTE: NÃO deletar team_ranking_points - os pontos são mantidos!
             

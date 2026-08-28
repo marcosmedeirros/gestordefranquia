@@ -7,6 +7,7 @@ require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/loja.php';   // waiverGarantirColunaExtra()
 require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/salary_cap.php'; // capCabeNoTime()
 
@@ -124,6 +125,7 @@ function ensureNewFaTables(PDO $pdo): void
 }
 
 $pdo = db();
+waiverGarantirColunaExtra($pdo);   // waivers_extra nasce aqui em bases antigas
 ensureTeamFreeAgencyColumns($pdo);
 ensureNewFaTables($pdo);
 ensureOfferCanceledStatus($pdo);
@@ -136,7 +138,7 @@ $team_id = $_SESSION['team_id'] ?? null;
 
 $team = null;
 if ($team_id) {
-    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, fa_signings_used FROM teams WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, COALESCE(waivers_extra, 0) AS waivers_extra, fa_signings_used FROM teams WHERE id = ?');
     $stmt->execute([$team_id]);
     $team = $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -146,7 +148,7 @@ $team_coins = (int)($team['moedas'] ?? 0);
 $valid_leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 if (!$team && $user_id) {
-    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, fa_signings_used FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, COALESCE(waivers_extra, 0) AS waivers_extra, fa_signings_used FROM teams WHERE user_id = ? LIMIT 1');
     $stmt->execute([$user_id]);
     $team = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($team) {
@@ -281,6 +283,8 @@ function syncFaSeasonCounters(PDO $pdo, int $teamId, string $league): void
         $params = [];
         if ((int)($row['waivers_reset_year'] ?? 0) !== (int)$season['year']) {
             $updates[] = 'waivers_used = 0';
+            // O slot comprado vale por UMA temporada, como diz a loja.
+            $updates[] = 'waivers_extra = 0';
             $updates[] = 'waivers_reset_year = ?';
             $params[] = (int)$season['year'];
         }
@@ -1070,13 +1074,22 @@ function listWaivers(PDO $pdo, string $league): void
     jsonSuccess(['league' => $league, 'waivers' => $waivers]);
 }
 
+/** As dispensas que todo time tem por temporada, antes de comprar slot. */
+const WAIVERS_BASE = 3;
+
 function freeAgencyLimits(?array $team): void
 {
     $waiversUsed = isset($team['waivers_used']) ? (int)$team['waivers_used'] : 0;
     $signingsUsed = isset($team['fa_signings_used']) ? (int)$team['fa_signings_used'] : 0;
+    // O slot comprado na loja entra aqui: o teto do time é a base mais o que
+    // ele comprou nesta temporada. Somar no teto, e não descontar do usado,
+    // mantém o "usei 3 de 4" legível — descontando, o número de usadas viraria
+    // mentira e o admin que mexesse nele apagaria a compra sem perceber.
+    $extra = isset($team['waivers_extra']) ? (int)$team['waivers_extra'] : 0;
     jsonSuccess([
         'waivers_used' => $waiversUsed,
-        'waivers_max' => 3,
+        'waivers_max' => WAIVERS_BASE + $extra,
+        'waivers_extra' => $extra,
         'signings_used' => $signingsUsed,
         'signings_max' => 3
     ]);

@@ -153,8 +153,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
     $acao = (string)$_POST['loja_acao'];
     if ($acao === 'comprar') {
         $r = lojaComprar($pdo, $userId, (string)($_POST['item'] ?? ''));
-        if ($r['ok']) { $lojaMsg = 'Comprado! O item está em Meus itens.'; }
-        else          { $lojaErro = $r['erro']; }
+        // O que o sistema aplica sozinho não vai pra "Meus itens": dizer que
+        // está lá mandaria o GM procurar uma coisa que já valeu.
+        if ($r['ok']) {
+            $lojaMsg = !empty($r['aplicado'])
+                ? 'Comprado e já aplicado no seu time — não precisa resgatar nem esperar aprovação.'
+                : 'Comprado! O item está em Meus itens.';
+        } else { $lojaErro = $r['erro']; }
     } elseif ($acao === 'usar') {
         $r = lojaUsar($pdo, $userId, (int)($_POST['inventario_id'] ?? 0));
         if ($r['ok']) { $lojaMsg = 'Resgatado. A organização foi avisada e vai aplicar.'; }

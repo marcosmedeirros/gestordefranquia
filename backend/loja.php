@@ -40,12 +40,13 @@ function lojaCatalogo(): array
             'cor'   => '#3b82f6',
             'desc'  => 'Um slot a mais pra colocar jogador no leilão.',
         ],
+        // Aplicado na hora da compra — ver lojaAplicarAutomatico().
         'slot_waiver' => [
             'nome'  => 'Slot extra de waiver',
             'preco' => 1500,
             'icone' => 'bi-arrow-repeat',
             'cor'   => '#22c55e',
-            'desc'  => 'Uma reivindicação a mais no waiver. Vale por uma temporada.',
+            'desc'  => 'Uma dispensa a mais nesta temporada. Cai no seu time na hora, sem esperar aprovação.',
         ],
         'badge' => [
             'nome'  => 'Badge',
@@ -313,13 +314,27 @@ if (!function_exists('lojaComprar')) {
 
             $pdo->prepare("INSERT INTO loja_inventario (id_usuario, item_key, preco_pago)
                            VALUES (?, ?, ?)")->execute([$userId, $itemKey, $item['preco']]);
+            $inventarioId = (int)$pdo->lastInsertId();
+
+            /*
+             * ITEM QUE O SISTEMA SABE APLICAR NÃO PASSA PELO ADMIN.
+             *
+             * O ciclo comprado→usado→atendido existe pro que precisa de mão
+             * humana (dar uma badge a um jogador, montar uma City Edition). O
+             * slot de waiver não precisa: é somar 1 num contador. Fazer o GM
+             * resgatar e depois esperar alguém aprovar era fila pra nada.
+             *
+             * Aplicado aqui dentro da transação: se o slot não subir, a compra
+             * inteira volta atrás e o GM não fica sem os pontos e sem o slot.
+             */
+            $aplicado = lojaAplicarAutomatico($pdo, $userId, $itemKey, $inventarioId);
 
             $st = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = ?");
             $st->execute([$userId]);
             $saldo = (int)$st->fetchColumn();
 
             $pdo->commit();
-            return ['ok' => true, 'erro' => null, 'saldo' => $saldo];
+            return ['ok' => true, 'erro' => null, 'saldo' => $saldo, 'aplicado' => $aplicado];
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             return ['ok' => false, 'erro' => 'Não deu pra concluir a compra.', 'saldo' => null];
@@ -424,5 +439,68 @@ if (!function_exists('lojaAtender')) {
                               WHERE id = ? AND usado_em IS NOT NULL AND atendido_em IS NULL");
         $up->execute([$adminId, $inventarioId]);
         return $up->rowCount() > 0;
+    }
+}
+
+if (!function_exists('lojaAplicarAutomatico')) {
+    /**
+     * Aplica na hora o que o sistema sabe aplicar sozinho.
+     *
+     * Hoje só o slot extra de waiver: ele é um número no time, e somar 1 não
+     * depende de ninguém. Marca o item como usado E atendido no mesmo passo —
+     * ele nunca chega a existir no inventário nem na fila do admin, porque
+     * mostrar "esperando aprovação" pra algo que já valeu seria mentira.
+     *
+     * Itens que precisam de mão humana (badge num jogador, City Edition)
+     * continuam no caminho normal: entram no inventário e esperam o resgate.
+     *
+     * @return bool se aplicou (o chamador usa pra avisar na tela)
+     */
+    function lojaAplicarAutomatico(PDO $pdo, int $userId, string $itemKey, int $inventarioId): bool
+    {
+        if ($itemKey !== 'slot_waiver') return false;
+
+        $st = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+        $st->execute([$userId]);
+        $teamId = (int)$st->fetchColumn();
+        // Sem time não dá pra aplicar. O item fica no inventário e segue o
+        // caminho antigo — melhor esperar o admin do que perder a compra.
+        if ($teamId <= 0) return false;
+
+        waiverGarantirColunaExtra($pdo);
+        $pdo->prepare('UPDATE teams SET waivers_extra = COALESCE(waivers_extra, 0) + 1 WHERE id = ?')
+            ->execute([$teamId]);
+
+        $pdo->prepare("UPDATE loja_inventario
+                          SET usado_em = NOW(), atendido_em = NOW()
+                        WHERE id = ? AND id_usuario = ?")->execute([$inventarioId, $userId]);
+        return true;
+    }
+}
+
+if (!function_exists('waiverGarantirColunaExtra')) {
+    /**
+     * `waivers_extra`: quantas dispensas a MAIS o time comprou nesta temporada.
+     *
+     * Coluna separada de `waivers_used` de propósito. Dava pra "dar" o slot
+     * descontando 1 do usado, mas aí o número perde o significado — ninguém
+     * mais saberia quantas o time realmente gastou, e o admin que mexesse no
+     * usado apagaria a compra sem perceber.
+     *
+     * Zera junto com waivers_used na virada da temporada: o item vale por uma
+     * temporada, como está escrito na loja.
+     */
+    function waiverGarantirColunaExtra(PDO $pdo): void
+    {
+        static $ok = false;
+        if ($ok) return;
+        try {
+            if (!$pdo->query("SHOW COLUMNS FROM teams LIKE 'waivers_extra'")->fetch()) {
+                $pdo->exec('ALTER TABLE teams ADD COLUMN waivers_extra INT NOT NULL DEFAULT 0');
+            }
+            $ok = true;
+        } catch (Throwable $e) {
+            error_log('[loja/waivers_extra] ' . $e->getMessage());
+        }
     }
 }
