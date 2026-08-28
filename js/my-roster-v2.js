@@ -1620,6 +1620,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const grades = normalizeSkillGrades(player);
       const gradesHtml = buildSkillGradesHtml(grades);
+
+      /* AS MÉDIAS DA TEMPORADA.
+         O modal só tinha as letras, e "como ele está jogando" obrigava a sair
+         daqui pra tela de Stats. Jogos vem primeiro e junto: média sem saber
+         em quantos jogos não diz nada — 30 pontos em 2 jogos é outra conversa.
+         Sem lançamento, a seção não é desenhada; uma fileira de zeros que
+         ninguém lançou seria pior que a ausência. */
+      const st = data.season_stats || null;
+      const num = (v) => (v === null || v === undefined) ? '-' : Number(v).toFixed(1);
+      const statsHtml = !st ? '' : `
+        <div style="padding:14px 22px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">
+            Médias na temporada${st.season_number ? ' ' + st.season_number : ''}
+            <span style="text-transform:none;letter-spacing:0;color:var(--text-2);font-weight:600">· ${st.games} jogo${st.games === 1 ? '' : 's'}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
+            ${[['PTS', st.pts], ['REB', st.reb], ['AST', st.ast],
+               ['ROU', st.stl], ['TOC', st.blk], ['MIN', st.min]]
+              .map(([r, v]) => `<div style="background:var(--panel-2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:10px;padding:9px 4px;text-align:center">
+                   <div style="font-size:16px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums">${num(v)}</div>
+                   <div style="font-size:9.5px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-top:2px">${r}</div>
+                 </div>`).join('')}
+          </div>
+        </div>`;
       const photoUrl = getPlayerPhotoUrl(player);
       if (content) content.innerHTML = `
         <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
@@ -1639,6 +1663,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
             .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
         </div>
+        ${statsHtml}
         <div style="padding:14px 22px;border-bottom:1px solid var(--border)">
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas por Skill</div>
           ${gradesHtml}

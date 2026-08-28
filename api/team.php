@@ -648,7 +648,49 @@ if ($method === 'GET') {
             }
         } catch (Exception $e) {}
 
+        /*
+         * As médias da temporada corrente. O modal de detalhes mostrava só as
+         * notas por skill (as letras), e a pergunta "como ele está jogando"
+         * ficava sem resposta ali — obrigava a sair pra tela de Stats.
+         *
+         * Mesma fonte da statsjogadores.php: player_season_stats da temporada
+         * do SPRINT ATIVO. Sem lançamento, volta null e a tela não desenha a
+         * seção, em vez de mostrar uma fileira de zeros que ninguém lançou.
+         */
+        $stats = null;
+        try {
+            $stmtStats = $pdo->prepare("
+                SELECT ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg,
+                       s.season_number
+                  FROM player_season_stats ps
+                  JOIN seasons s ON s.id = ps.season_id
+                  LEFT JOIN sprints spr ON spr.id = s.sprint_id
+                 WHERE ps.player_id = ?
+                   AND (spr.id IS NULL OR spr.status = 'active')
+                 ORDER BY s.season_number DESC, ps.season_id DESC
+                 LIMIT 1
+            ");
+            $stmtStats->execute([$playerId]);
+            $linhaStats = $stmtStats->fetch(PDO::FETCH_ASSOC);
+            if ($linhaStats && $linhaStats['games'] !== null) {
+                $num = fn($v) => $v === null ? null : (float)$v;
+                $stats = [
+                    'season_number' => $linhaStats['season_number'] !== null ? (int)$linhaStats['season_number'] : null,
+                    'games' => (int)$linhaStats['games'],
+                    'min'   => $num($linhaStats['min_pg']),
+                    'pts'   => $num($linhaStats['pts_pg']),
+                    'reb'   => $num($linhaStats['reb_pg']),
+                    'ast'   => $num($linhaStats['ast_pg']),
+                    'stl'   => $num($linhaStats['stl_pg']),
+                    'blk'   => $num($linhaStats['blk_pg']),
+                ];
+            }
+        } catch (Exception $e) {
+            error_log('[team/player_details/stats] ' . $e->getMessage());
+        }
+
         jsonResponse(200, [
+            'season_stats' => $stats,
             'player' => [
                 'id' => (int)$player['id'],
                 'name' => $player['name'],
