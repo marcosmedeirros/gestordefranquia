@@ -9180,7 +9180,22 @@ async function showAdminDraft(league) {
       ${round2BoardPanel}
       ${sessionPanel}
       ${orderPanel}
-      ${playersPanel}`;
+      ${playersPanel}
+      <!-- No fim do card de Draft. Deixou de ser rotina desde que o ano do
+           draft parou de sair da janela de picks; fica como a saída manual
+           pra quando faltar pick com o draft já rolando. -->
+      <div class="panel" style="margin-top:24px">
+        <div style="padding:16px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px">
+          <button class="btn-ghost" style="color:#38bdf8;border-color:rgba(56,189,248,.35)"
+                  onclick="ajustarPicksDaLiga('${league}')">
+            <i class="bi bi-calendar2-plus me-1"></i>Ajustar Picks
+          </button>
+          <span style="font-size:12.5px;line-height:1.45;color:var(--text-3);max-width:52ch">
+            Devolve as escolhas que faltam — as do draft em andamento e as dos anos futuros.
+            Picks já negociadas não são tocadas.
+          </span>
+        </div>
+      </div>`;
 
     // Carrega banco de classes no select da pool (só se há sessão de draft)
     if (draft) {
