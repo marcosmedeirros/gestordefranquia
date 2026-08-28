@@ -40,7 +40,9 @@ try {
             SELECT wr.id, wr.name, wr.age, wr.position, wr.secondary_position, wr.ovr, wr.team_id,
                    wr.expires_at, TIMESTAMPDIFF(SECOND, NOW(), wr.expires_at) AS seconds_left,
                    CONCAT(t.city,' ',t.name) AS waived_by_name, t.photo_url AS waived_by_photo,
-                   (SELECT COUNT(*) FROM waiver_claims wc WHERE wc.retention_id = wr.id) AS claim_count,
+                   /* Nem a CONTAGEM de lances sai: saber que já tem gente
+                      disputando (ou que não tem ninguém) muda o valor que o
+                      time escolhe, e o lance é cego. */
                    (SELECT COUNT(*) FROM waiver_claims wc WHERE wc.retention_id = wr.id AND wc.team_id = ?) AS mine
             FROM waiver_retention wr
             JOIN teams t ON t.id = wr.team_id
@@ -58,18 +60,20 @@ try {
         // botão de quem não cabe em vez de deixar o time descobrir na hora
         // do erro, ou pior, ganhar o lance e estourar o cap.
         /*
-         * QUEM ESTÁ GANHANDO É PÚBLICO.
+         * O LANCE É CEGO.
          *
-         * Mesma ordenação da resolução (maior lance, desempate por quem
-         * chegou primeiro) — o líder mostrado na tela é o que levaria o
-         * jogador se a janela fechasse agora, e não uma aproximação.
+         * A resposta não diz quem está ganhando, com quanto, nem quantos
+         * lances existem — nada disso sai do servidor, e não só some da tela:
+         * qualquer um abriria o DevTools e leria o JSON.
+         *
+         * A regra da liga é essa: cada time decide o valor sem saber o que os
+         * outros fizeram. Entregar o líder transformaria a janela de 12h numa
+         * corrida de dar o último lance no último minuto, e quem estivesse
+         * online na hora certa ganharia sempre.
+         *
+         * O próprio lance continua vindo: é o que a pessoa precisa ver pra
+         * saber que apostou e pra poder mudar.
          */
-        $mxStmt = $pdo->prepare("SELECT wc.bid_space, wc.team_id, CONCAT(t.city,' ',t.name) AS nome, t.photo_url
-                                   FROM waiver_claims wc
-                                   JOIN teams t ON t.id = wc.team_id
-                                  WHERE wc.retention_id = ?
-                                  ORDER BY wc.bid_space DESC, wc.claimed_at ASC, wc.id ASC
-                                  LIMIT 1");
         $mbStmt = $pdo->prepare("SELECT bid_space FROM waiver_claims WHERE retention_id = ? AND team_id = ?");
         foreach ($open as &$w) {
             $rid = (int)$w['id'];
@@ -78,12 +82,6 @@ try {
             $w['cap_cabe']  = $fit['cabe']    ?? true;
             $w['cap_unidade'] = $fit['unidade'] ?? 'M';
             try {
-                $mxStmt->execute([$rid]);
-                $lider = $mxStmt->fetch(PDO::FETCH_ASSOC);
-                $w['top_bid']         = $lider ? (int)$lider['bid_space'] : null;
-                $w['top_team_id']     = $lider ? (int)$lider['team_id'] : null;
-                $w['top_team_name']   = $lider['nome'] ?? null;
-                $w['top_team_photo']  = $lider['photo_url'] ?? null;
                 $mbStmt->execute([$rid, $myTeamId]);
                 $mv = $mbStmt->fetchColumn();
                 $w['my_bid'] = ($mv !== null && $mv !== false) ? (int)$mv : null;
@@ -91,10 +89,6 @@ try {
                 // Não deixa um erro pontual (ex.: coluna bid_space faltando numa base
                 // antiga) derrubar a listagem inteira — só esse card fica sem lance.
                 error_log('waivers.php bid lookup #' . $rid . ': ' . $e->getMessage());
-                $w['top_bid'] = null;
-                $w['top_team_id'] = null;
-                $w['top_team_name'] = null;
-                $w['top_team_photo'] = null;
                 $w['my_bid'] = null;
             }
         }

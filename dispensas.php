@@ -188,7 +188,7 @@ a{color:inherit;text-decoration:none}
     <div>
       <div class="page-hero-eyebrow">FBA Elite · <span id="waiverHoursKicker">12h</span> de janela</div>
       <h1 class="page-hero-title"><i class="bi bi-hourglass-split" style="color:var(--red);margin-right:8px"></i>Dispensas</h1>
-      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Só dá pra dar lance em quem <b>cabe no seu cap</b>. Sem lances, cai no free agency.</p>
+      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período cada time dá <b>um lance fechado</b>: você escolhe o valor até o limite do seu espaço no salary cap, e <b>ninguém vê os lances dos outros</b> — nem quantos existem. Ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu primeiro; editar o valor refaz a sua hora) e o salário dele entra no cap do vencedor. Só dá pra dar lance em quem <b>cabe no seu cap</b>. Sem lances, cai no free agency.</p>
     </div>
     <div class="page-hero-actions" style="flex-direction:column;align-items:flex-end">
       <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
@@ -285,12 +285,9 @@ function render(){
       }
       const pos = [w.position, w.secondary_position].filter(Boolean).join('/');
       const crit = sec < 3600 ? 'crit' : (sec < 3*3600 ? 'warn' : '');
-      // Quem está ganhando é público: é o time que levaria o jogador se a
-      // janela fechasse agora, na mesma ordem que a resolução usa.
-      const lidera = w.top_team_id!=null && Number(w.top_team_id)===Number(DATA.my_team_id);
-      const topBid = (w.top_bid!=null)
-        ? `${w.top_bid}M · <b style="color:${lidera?'var(--green,#22c55e)':'var(--text)'}">${esc(w.top_team_name||'?')}</b>${lidera?' (você)':''}`
-        : 'sem lances';
+      // O lance é cego: nem quem está ganhando, nem com quanto, nem quantos
+      // lances existem. A pessoa vê só o que ela mesma apostou.
+      const meuLance = mine ? `${w.my_bid}M` : 'você ainda não deu lance';
       return `<div class="card ${sec<3600?'soon':''}">
         <div class="pl">
           <div class="av">${esc((w.position||'?').slice(0,2))}</div>
@@ -303,13 +300,14 @@ function render(){
         <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
         ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${fmtCap(w.cap_custo, w.cap_unidade)}</b> no seu cap</div>`:''}
         <div class="bid">
-          <i class="bi bi-trophy-fill" style="color:var(--amber)"></i> Ganhando: <span class="lead-bid">${topBid}</span>
-          ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${w.my_bid}M</span>`:''}
+          <i class="bi bi-eye-slash-fill" style="color:var(--text-3)"></i>
+          <span class="lead-bid" style="color:var(--text-3);font-weight:600">Lance fechado — ninguém vê os lances dos outros</span>
+          ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${esc(meuLance)}</span>`:''}
         </div>
         <div class="timer ${crit}">
           <i class="bi bi-alarm" style="color:var(--text-3)"></i>
           <div><div class="clock" data-sec="${sec}">${fmt(sec)}</div><div class="cl">até resolver</div></div>
-          <div class="claims"><i class="bi bi-people-fill"></i> ${w.claim_count} lance${Number(w.claim_count)===1?'':'s'}</div>
+          <div class="claims">${mine?'<i class="bi bi-check-circle-fill" style="color:var(--green,#22c55e)"></i> seu lance está de pé':'<i class="bi bi-dash-circle"></i> sem lance seu'}</div>
         </div>
         ${btn}
       </div>`;
