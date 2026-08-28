@@ -74,6 +74,44 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .stat-value.red{color:var(--red)}.stat-value.amber{color:var(--amber)}.stat-value.green{color:var(--green)}
 .stat-sub{font-size:11px;color:var(--text-2)}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+
+/* ── Escalação: o mesmo quinteto do Meu Elenco ─────────────────────────────
+   CSS repetido de propósito. Esta página tem tokens próprios (--panel-2,
+   --pos-c) e nenhuma folha compartilhada com o my-roster; importar de lá
+   traria o resto da tela junto. */
+.q5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.q5-card{position:relative;background:var(--panel-2);border:1px solid var(--border);
+  border-top:3px solid var(--pos-c,var(--red));border-radius:var(--radius-sm,10px);
+  padding:16px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:9px}
+.q5-pos{position:absolute;top:-1px;left:50%;transform:translate(-50%,-50%);
+  background:var(--pos-c,var(--red));color:#fff;font-size:10px;font-weight:800;
+  letter-spacing:.08em;padding:2px 10px;border-radius:999px;line-height:1.5}
+.q5-foto{width:76px;height:76px;border-radius:50%;object-fit:cover;
+  border:2px solid var(--pos-c,var(--red));background:var(--panel-3,var(--panel-2))}
+.q5-nome{font-size:13px;font-weight:700;color:var(--text);text-align:center;line-height:1.25;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
+.q5-nome a{color:inherit;text-decoration:none}
+.q5-nome a:hover{color:var(--red)}
+.q5-ovr{font-family:'Oswald',sans-serif;font-size:30px;font-weight:700;line-height:1}
+.q5-meta{font-size:11px;color:var(--text-3);text-align:center}
+/* Abaixo de 5 colunas os cartões ficam com 60px e o nome some. Duas linhas de
+   tamanho decente lê melhor que cinco espremidas. */
+@media (max-width:900px){.q5{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:560px){.q5{grid-template-columns:repeat(2,1fr);gap:8px}}
+
+/* Banco: lista, não cartão. São dez ou mais, e cartão de foto viraria uma
+   parede maior que o quinteto que ela deveria destacar. */
+.banco-tit{font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--text-3);margin:18px 0 8px}
+.banco{display:flex;flex-direction:column;gap:1px}
+.banco-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+  background:var(--panel-2);font-size:13px}
+.banco-item .bi-pos{font-size:10px;font-weight:800;color:#fff;background:var(--pos-c,var(--red));
+  border-radius:5px;padding:2px 6px;min-width:34px;text-align:center;letter-spacing:.04em}
+.banco-item .bi-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.banco-item .bi-nome a{color:var(--text);text-decoration:none}
+.banco-item .bi-nome a:hover{color:var(--red)}
+.banco-item .bi-ovr{font-family:'Oswald',sans-serif;font-weight:700;font-size:16px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
 .row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
 .row:last-child{border-bottom:none}
@@ -282,6 +320,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
+  <?php /* A escalação vem ANTES da tabela de números: quem abre a página de
+           outro time quer primeiro saber quem joga, e só depois como vai
+           indo. É o mesmo quinteto do Meu Elenco, com o mesmo CSS. */ ?>
+  <div class="panel" id="escalacao-panel" style="display:none" data-th-tab="elenco">
+    <div class="section-title"><i class="bi bi-person-badge"></i> Escalação</div>
+    <div id="escalacao-content"></div>
+  </div>
+
   <div class="panel" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-clipboard-data"></i> Elenco atual
       <span id="roster-season" style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0"></span>
@@ -416,7 +462,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 })();
 
 const TEAM_ID = <?= $teamId ?>;
-const AWARD_LABELS = { mvp:'MVP', dpoy:'DPOY', mip:'MIP', '6th_man':'6º Homem', roy:'ROY' };
+/* Os prêmios estendidos faltavam aqui, e o `|| a.award_type` do fallback
+   deixava passar o nome cru do banco: a página mostrava "all_nba_1" e
+   "all_def_2". Cada time do All-NBA e do All-Defensive é um prêmio à parte,
+   então cada um tem seu rótulo. */
+const AWARD_LABELS = {
+  mvp:'MVP', dpoy:'DPOY', mip:'MIP', '6th_man':'6º Homem', roy:'ROY',
+  finals_mvp:'MVP das Finais',
+  all_nba_1:'All NBA 1º Time', all_nba_2:'All NBA 2º Time', all_nba_3:'All NBA 3º Time',
+  all_def_1:'All Defense 1º Time', all_def_2:'All Defense 2º Time',
+};
 const POS_LABELS   = { PG:'Armador', SG:'Ala-Armador', SF:'Ala', PF:'Ala-Pivô', C:'Pivô' };
 const TEAM_TAG_META = {
   Contending: { label: '🏆 Contending', color: '#10b981', bg: 'rgba(16,185,129,.12)' },
@@ -705,13 +760,18 @@ async function load(){
   }
 
   // ── Trades por ciclo ──
-  if (tradesByCycle.length) {
+  // Trade sem ciclo é registro velho, de antes de o ciclo existir: a barra
+  // "Sem ciclo" não diz nada sobre a história do time e costumava ser a maior
+  // de todas, achatando as que importam. Sai da lista e da contagem — deixar
+  // no total faria a soma não bater com as barras mostradas.
+  const ciclos = tradesByCycle.filter(c => c.cycle);
+  if (ciclos.length) {
     document.getElementById('cycle-acc-item').style.display = 'block';
-    document.getElementById('cycle-count-badge').textContent = tradesByCycle.reduce((acc, c) => acc + (c.total || 0), 0);
-    const maxC = Math.max(...tradesByCycle.map(c => c.total), 1);
-    document.getElementById('cycle-content').innerHTML = tradesByCycle.map(c => `
+    document.getElementById('cycle-count-badge').textContent = ciclos.reduce((acc, c) => acc + (c.total || 0), 0);
+    const maxC = Math.max(...ciclos.map(c => c.total), 1);
+    document.getElementById('cycle-content').innerHTML = ciclos.map(c => `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
-        <span style="font-size:12px;color:var(--text-2);width:64px;flex-shrink:0">${c.cycle ? 'Ciclo ' + c.cycle : 'Sem ciclo'}</span>
+        <span style="font-size:12px;color:var(--text-2);width:64px;flex-shrink:0">Ciclo ${c.cycle}</span>
         <div style="flex:1;height:8px;background:var(--panel-3);border-radius:999px;overflow:hidden">
           <div style="height:100%;width:${Math.round((c.total / maxC) * 100)}%;background:var(--red);border-radius:999px"></div>
         </div>
@@ -815,6 +875,79 @@ async function load(){
 
 load();
 
+/* ── Escalação ────────────────────────────────────────────────────────────
+   O quinteto do Meu Elenco, mas para o time que se está olhando. Quem abre a
+   página de outro time quer primeiro saber QUEM JOGA; a tabela de números
+   responde outra pergunta e fica logo abaixo.
+
+   Sai da mesma fonte da tabela (team_roster_stats), então não custa uma
+   requisição a mais. */
+const POS_CORES = { PG:'#3b82f6', SG:'#06b6d4', SF:'#22c55e', PF:'#f59e0b', C:'#ef4444' };
+const POS_ORDEM = { PG:0, SG:1, SF:2, PF:3, C:4 };
+
+/* "titular", "Titular", "TITULAR" — o campo é texto livre e chega de tudo. */
+const ehTitular = p => String(p.role || '').trim().toLowerCase() === 'titular';
+
+function fotoDoJogador(p) {
+  const custom = String(p.foto_adicional || '').trim().replace(/\\/g, '/');
+  if (custom) {
+    return /^(data:image\/|https?:\/\/)/i.test(custom) ? custom : '/' + custom.replace(/^\/+/, '');
+  }
+  // 260x190 e não o tamanho cheio: aqui a foto aparece com 76px, e o headshot
+  // grande pesa 209 KB cada — dez deles derrubam o celular.
+  return p.nba_player_id
+    ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_player_id}.png`
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+}
+
+function desenharEscalacao(jogadores) {
+  const painel = document.getElementById('escalacao-panel');
+  const alvo = document.getElementById('escalacao-content');
+  if (!painel || !alvo || !Array.isArray(jogadores) || !jogadores.length) return;
+
+  // A ordem é a da quadra (PG→C), não a de OVR: quem lê uma escalação espera
+  // o armador primeiro. Empate na posição desempata pelo overall.
+  const titulares = jogadores.filter(ehTitular).sort((a, b) => {
+    const pa = POS_ORDEM[a.position] ?? 999, pb = POS_ORDEM[b.position] ?? 999;
+    return pa !== pb ? pa - pb : Number(b.ovr) - Number(a.ovr);
+  }).slice(0, 5);
+
+  const banco = jogadores.filter(p => !ehTitular(p)).sort((a, b) => Number(b.ovr) - Number(a.ovr));
+
+  // Sem ninguém marcado como titular não há escalação pra mostrar, e um
+  // quinteto vazio no topo da página seria pior que não ter a seção.
+  if (!titulares.length) return;
+
+  const cartao = p => {
+    const cor = POS_CORES[p.position] || 'var(--red)';
+    const pos = esc(p.position || '?') + (p.secondary_position ? '/' + esc(p.secondary_position) : '');
+    return `<div class="q5-card" style="--pos-c:${cor}">
+      <span class="q5-pos">${pos}</span>
+      <img class="q5-foto" src="${esc(fotoDoJogador(p))}" alt="${esc(p.name)}" loading="lazy"
+           onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+      <div class="q5-nome"><a href="/player.php?id=${p.id}">${esc(p.name)}</a></div>
+      <div class="q5-ovr" style="color:${cor}">${p.ovr ?? '-'}</div>
+      <div class="q5-meta">${p.age ? p.age + ' anos' : ''}</div>
+    </div>`;
+  };
+
+  const linhaBanco = p => {
+    const cor = POS_CORES[p.position] || 'var(--red)';
+    return `<div class="banco-item" style="--pos-c:${cor}">
+      <span class="bi-pos">${esc(p.position || '?')}</span>
+      <span class="bi-nome"><a href="/player.php?id=${p.id}">${esc(p.name)}</a></span>
+      <span class="bi-ovr" style="color:${cor}">${p.ovr ?? '-'}</span>
+    </div>`;
+  };
+
+  alvo.innerHTML = `<div class="q5">${titulares.map(cartao).join('')}</div>`
+    + (banco.length
+        ? `<div class="banco-tit">Banco · ${banco.length} jogador${banco.length === 1 ? '' : 'es'}</div>
+           <div class="banco">${banco.map(linhaBanco).join('')}</div>`
+        : '');
+  painel.style.display = '';
+}
+
 /* Elenco atual com as estatisticas da temporada */
 (async function carregarElencoAtual() {
   const box = document.getElementById('roster-stats');
@@ -828,6 +961,8 @@ load();
     }
     const lbl = document.getElementById('roster-season');
     if (lbl && d.season_number) lbl.textContent = `— temporada ${d.season_number}`;
+
+    desenharEscalacao(d.players);
 
     // Sem estatistica registrada, mostra o traco em vez de zero: zero seria
     // "jogou e nao pontuou", que e diferente de "ninguem preencheu ainda".

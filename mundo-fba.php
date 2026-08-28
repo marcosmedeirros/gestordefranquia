@@ -35,6 +35,12 @@ $awardLabels = [
     'all_nba_3'         => 'All-NBA 3ª Equipe',
     'all_defense_1'     => 'All-Defense 1ª',
     'all_defense_2'     => 'All-Defense 2ª',
+    // As chaves que season_awards usa de verdade. As duas de cima são de um
+    // nome mais antigo; sem estas, o dado real caía no fallback e virava
+    // "All Def 1". Mesma coisa pro MVP das finais, gravado como finals_mvp.
+    'all_def_1'         => 'All-Defense 1ª',
+    'all_def_2'         => 'All-Defense 2ª',
+    'finals_mvp'        => 'MVP das Finais',
     'all_star_1'        => 'All-Star 1ª Equipe',
     'all_star_2'        => 'All-Star 2ª Equipe',
     'all_star_3'        => 'All-Star 3ª Equipe',

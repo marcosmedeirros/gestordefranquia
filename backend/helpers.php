@@ -2114,3 +2114,32 @@ function densidadeDoEstado(int $n, int $maior): int
     if ($p >= 0.25) return 2;
     return 1;
 }
+
+/**
+ * O nome do prêmio como se fala, a partir do `award_type` do banco.
+ *
+ * Existe porque o nome cru já vazou pra tela duas vezes — "all_nba_2" no feed
+ * da página do time, "all_def_1" na lista de prêmios. Cada time do All-NBA e
+ * do All-Defensive é um prêmio à parte, então cada um tem seu rótulo.
+ *
+ * Tipo desconhecido volta como chegou: é melhor a tela mostrar um nome feio de
+ * um prêmio novo do que engolir o prêmio.
+ */
+function nomeDoPremio(?string $awardType): string
+{
+    static $rotulos = [
+        'mvp'         => 'MVP',
+        'dpoy'        => 'DPOY',
+        'mip'         => 'MIP',
+        'roy'         => 'ROY',
+        '6th_man'     => '6º Homem',
+        'finals_mvp'  => 'MVP das Finais',
+        'all_nba_1'   => 'All NBA 1º Time',
+        'all_nba_2'   => 'All NBA 2º Time',
+        'all_nba_3'   => 'All NBA 3º Time',
+        'all_def_1'   => 'All Defense 1º Time',
+        'all_def_2'   => 'All Defense 2º Time',
+    ];
+    $k = strtolower(trim((string)$awardType));
+    return $rotulos[$k] ?? (string)$awardType;
+}

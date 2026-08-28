@@ -94,6 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'team_ro
 
     $st = $pdo->prepare("
         SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, p.role,
+               -- A foto: mesma dupla que o Meu Elenco usa. Sem elas o quinteto
+               -- da página do time cairia todo no avatar de iniciais.
+               p.nba_player_id, p.foto_adicional,
                p.team_id, COALESCE(p.was_traded,0) AS was_traded, COALESCE(p.player_tag_color,NULL) AS player_tag_color,
                ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
         FROM players p

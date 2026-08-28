@@ -214,7 +214,7 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $eventos[] = ['tipo' => 'premio', 'icone' => '🏆', 'texto' => $r['player_name'] . ' ganhou ' . $r['award_type'], 'data' => $r['created_at'], 'team_id' => (int)$r['team_id']];
+        $eventos[] = ['tipo' => 'premio', 'icone' => '🏆', 'texto' => $r['player_name'] . ' ganhou ' . nomeDoPremio($r['award_type']), 'data' => $r['created_at'], 'team_id' => (int)$r['team_id']];
     }
 
     // Playoffs (título/vice/eliminação) — não usar hall_of_fame aqui, que é só
