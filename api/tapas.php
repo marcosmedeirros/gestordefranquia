@@ -350,10 +350,128 @@ if ($method === 'POST' && $action === 'admin_reject') {
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
 
+    // Antes de rejeitar, guarda de quem era: badge recusada VOLTA pro dono.
+    // Ele pagou 3.500 pontos; ficar sem a badge e sem os pontos porque o
+    // pedido não passou seria confisco.
+    $stmtR = $pdo->prepare("SELECT r.action_type, t.user_id
+                              FROM tapas_requests r JOIN teams t ON t.id = r.team_id
+                             WHERE r.id = ? AND r.status = 'pending'");
+    $stmtR->execute([$requestId]);
+    $req = $stmtR->fetch(PDO::FETCH_ASSOC);
+
     $pdo->prepare("UPDATE tapas_requests SET status='rejected', processed_at=NOW() WHERE id = ? AND status='pending'")
         ->execute([$requestId]);
 
+    if ($req && ($req['action_type'] ?? '') === 'badge') {
+        badgeDevolverAoInventario($pdo, (int)$req['user_id']);
+    }
+
     out(['success' => true, 'message' => 'Solicitação rejeitada']);
+}
+
+/* ── BADGE COMPRADA NA LOJA ───────────────────────────────────────────────────
+ *
+ * A badge do catálogo fica guardada no inventário até o GM dizer em qual
+ * jogador quer, e com que nome. Aí sim vira pedido pro admin — este é um dos
+ * casos em que a aprovação existe por um motivo: o sistema sabe aplicar, mas
+ * não sabe se "Clamps" cabe num pivô de 60 de defesa.
+ *
+ * O saldo é o próprio inventário: itens `badge` que ainda não foram usados.
+ * Não existe contador paralelo pra desencontrar do que foi comprado.
+ */
+
+/** Quantas badges o GM tem guardadas, prontas pra pedir. */
+function badgesDisponiveis(PDO $pdo, int $userId): int
+{
+    try {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM loja_inventario
+                              WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL");
+        $st->execute([$userId]);
+        return (int)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+/** Devolve uma badge recusada: a mais recentemente usada volta pro inventário. */
+function badgeDevolverAoInventario(PDO $pdo, int $userId): void
+{
+    try {
+        $pdo->prepare("UPDATE loja_inventario SET usado_em = NULL
+                        WHERE id_usuario = ? AND item_key = 'badge'
+                          AND usado_em IS NOT NULL AND atendido_em IS NULL
+                        ORDER BY usado_em DESC LIMIT 1")->execute([$userId]);
+    } catch (Throwable $e) {
+        error_log('[tapas/devolver badge] ' . $e->getMessage());
+    }
+}
+
+if ($method === 'GET' && $action === 'badges_status') {
+    $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+    $stmt->execute([$user['id']]);
+    $teamId = (int)$stmt->fetchColumn();
+    if (!$teamId) out(['success' => true, 'disponiveis' => 0, 'pedidos' => []]);
+
+    $st = $pdo->prepare("SELECT id, player_name, badge_name, status, created_at
+                           FROM tapas_requests
+                          WHERE team_id = ? AND action_type = 'badge'
+                          ORDER BY created_at DESC LIMIT 20");
+    $st->execute([$teamId]);
+
+    out(['success' => true,
+         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id']),
+         'pedidos' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
+if ($method === 'POST' && $action === 'request_badge') {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $playerId  = (int)($body['player_id'] ?? 0);
+    $badgeName = trim((string)($body['badge_name'] ?? ''));
+    if (!$playerId)        err('Escolha o jogador.');
+    if ($badgeName === '') err('Escreva o nome da badge.');
+    if (mb_strlen($badgeName) > 60) err('Nome da badge muito longo.');
+
+    $stmtT = $pdo->prepare("SELECT id, league FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtT->execute([$user['id']]);
+    $team = $stmtT->fetch(PDO::FETCH_ASSOC);
+    if (!$team) err('Time não encontrado');
+
+    // O jogador tem que ser DO ELENCO — senão dava pra dar badge no time dos
+    // outros mandando um id qualquer.
+    $stmtP = $pdo->prepare("SELECT id, name FROM players WHERE id = ? AND team_id = ?");
+    $stmtP->execute([$playerId, $team['id']]);
+    $player = $stmtP->fetch(PDO::FETCH_ASSOC);
+    if (!$player) err('Jogador não encontrado no seu elenco');
+
+    $pdo->beginTransaction();
+    try {
+        /* Consome a badge PRIMEIRO, e com o WHERE carregando o dono e o "não
+         * usada". É esse UPDATE que decide a corrida: dois cliques rápidos, o
+         * segundo afeta zero linhas e não vira pedido. Um SELECT antes
+         * deixaria a janela aberta pros dois passarem. */
+        $con = $pdo->prepare("UPDATE loja_inventario SET usado_em = NOW()
+                               WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL
+                               ORDER BY comprado_em ASC LIMIT 1");
+        $con->execute([$user['id']]);
+        if ($con->rowCount() === 0) {
+            $pdo->rollBack();
+            err('Você não tem badge disponível. Compre uma na loja dos Games.');
+        }
+
+        $pdo->prepare("INSERT INTO tapas_requests
+                        (team_id, player_id, player_name, league, status, action_type, badge_name)
+                        VALUES (?, ?, ?, ?, 'pending', 'badge', ?)")
+            ->execute([$team['id'], $playerId, $player['name'], $team['league'], $badgeName]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        err('Não deu pra enviar a solicitação.');
+    }
+
+    out(['success' => true,
+         'message' => 'Pedido enviado. A organização vai avaliar.',
+         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'])]);
 }
 
 err('Ação inválida');

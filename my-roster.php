@@ -466,6 +466,7 @@ if ($teamId) {
            aos do banco: o quinteto é a informação mais consultada da página e
            não tinha nenhum destaque — dava trabalho descobrir quem era o
            armador. */
+        .badge-saldo{background:#f59e0b;color:#111;font-weight:800;font-size:10px;border-radius:999px;padding:1px 6px;margin-left:5px}
         .q5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .q5-card {
             position: relative; background: var(--panel-2); border: 1px solid var(--border);
@@ -852,6 +853,14 @@ if ($teamId) {
                     <a href="/tatica.php" class="btn-ghost" title="Quinteto, minutos e sistema de jogo">
                         <i class="bi bi-clipboard2-pulse"></i> Tática
                     </a>
+                    <?php /* Só aparece pra quem tem badge comprada guardada — um
+                             botão que só sabe dizer "você não tem" é ruído na
+                             barra. Quem revela é o JS, depois de perguntar. */ ?>
+                    <button id="btn-pedir-badge" class="btn-ghost" type="button" style="display:none"
+                            title="Usar uma badge comprada na loja">
+                        <i class="bi bi-patch-check-fill"></i> Solicitar badge
+                        <span id="badge-saldo" class="badge-saldo">0</span>
+                    </button>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost" type="button">
                         <i class="bi bi-robot"></i> Análise IA
@@ -1056,6 +1065,43 @@ if ($teamId) {
             <div class="modal-footer" style="gap:10px;">
                 <button class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
                 <button class="btn-red" id="btn-save-edit"><i class="bi bi-save2"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Solicitar Badge -->
+<?php /* A badge é comprada na loja e fica guardada até o GM dizer EM QUEM e
+         COM QUE NOME. Só então vira pedido pra organização — este é um caso em
+         que a aprovação existe por um motivo: o sistema sabe aplicar a badge,
+         mas não sabe se ela cabe naquele jogador. */ ?>
+<div class="modal fade" id="badgeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-patch-check-fill me-2" style="color:#f59e0b"></i>Solicitar badge</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="badge-msg"></div>
+                <div class="mb-3">
+                    <label class="form-label" for="badge-jogador">Jogador</label>
+                    <select id="badge-jogador" class="form-select"></select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="badge-nome">Badge</label>
+                    <input id="badge-nome" class="form-control" type="text" maxlength="60"
+                           placeholder="Ex.: Clamps, Deadeye, Bulldozer" autocomplete="off">
+                </div>
+                <p style="font-size:12px;color:var(--text-3);margin:0">
+                    Você tem <b id="badge-saldo-modal">0</b> badge(s) guardada(s). O pedido consome uma;
+                    se a organização recusar, ela volta pra você.
+                </p>
+                <div id="badge-pedidos" style="margin-top:14px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-badge-enviar">Enviar pedido</button>
             </div>
         </div>
     </div>

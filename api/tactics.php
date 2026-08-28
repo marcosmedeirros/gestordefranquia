@@ -576,7 +576,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Duas vagas, sempre. Antes o número saía do tamanho do elenco (15+ dava
     // duas, 14 dava uma, menos que isso nenhuma) — a regra caiu e agora é
     // padrão da liga: quem tem elenco pode mandar dois.
-    $gleagueSlots = ($team['league'] === 'ELITE') ? GLEAGUE_VAGAS : 0;
+    // O slot comprado na loja soma aqui: quem pagou leva a vaga a mais.
+    $gleagueExtra = 0;
+    try {
+        $stGl = $pdo->prepare("SELECT COALESCE(gleague_extra, 0) FROM teams WHERE id = ?");
+        $stGl->execute([$teamId]);
+        $gleagueExtra = (int)$stGl->fetchColumn();
+    } catch (Throwable $e) { /* coluna nova; sem ela vale o padrao */ }
+    $gleagueSlots = ($team['league'] === 'ELITE') ? GLEAGUE_VAGAS + $gleagueExtra : 0;
 
     $stmtT = $pdo->prepare('SELECT * FROM team_tactics WHERE team_id = ?');
     $stmtT->execute([$teamId]);

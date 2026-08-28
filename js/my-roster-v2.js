@@ -1681,6 +1681,85 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  /* ── SOLICITAR BADGE ──────────────────────────────────────────────────────
+     A badge vem da loja e fica guardada; aqui o GM diz em quem e com que nome.
+     O botão só existe quando há saldo — um botão que só sabe dizer "você não
+     tem" é ruído na barra de ações. */
+  let badgeSaldo = 0;
+
+  async function carregarBadges() {
+    try {
+      const d = await api('tapas.php?action=badges_status');
+      badgeSaldo = Number(d.disponiveis || 0);
+      const bt = document.getElementById('btn-pedir-badge');
+      if (bt) bt.style.display = badgeSaldo > 0 ? '' : 'none';
+      const sel = document.getElementById('badge-saldo');
+      if (sel) sel.textContent = badgeSaldo;
+      const selM = document.getElementById('badge-saldo-modal');
+      if (selM) selM.textContent = badgeSaldo;
+
+      // Os pedidos já feitos ficam à vista: sem isso, quem pediu ontem não
+      // sabe se está esperando ou se foi recusado, e pede de novo.
+      const box = document.getElementById('badge-pedidos');
+      const ped = d.pedidos || [];
+      if (box) {
+        const rot = { pending: 'aguardando', approved: 'aprovada', rejected: 'recusada' };
+        const cor = { pending: 'var(--amber,#f59e0b)', approved: 'var(--green,#22c55e)', rejected: 'var(--red)' };
+        box.innerHTML = ped.length
+          ? '<div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Seus pedidos</div>'
+            + ped.slice(0, 5).map(p => `<div style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 0">
+                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.badge_name || '—'} · ${p.player_name}</span>
+                 <span style="color:${cor[p.status] || 'var(--text-3)'};font-weight:700;font-size:11px">${rot[p.status] || p.status}</span>
+               </div>`).join('')
+          : '';
+      }
+    } catch (e) { /* sem badge, sem botão — silêncio é o certo aqui */ }
+  }
+
+  document.getElementById('btn-pedir-badge')?.addEventListener('click', () => {
+    const sel = document.getElementById('badge-jogador');
+    if (sel) {
+      // Só o elenco do próprio time, que é o que o servidor aceita.
+      sel.innerHTML = (allPlayers || [])
+        .slice()
+        .sort((a, b) => Number(b.ovr) - Number(a.ovr))
+        .map(p => `<option value="${p.id}">${p.name} — ${p.position || '?'} ${p.ovr}</option>`)
+        .join('');
+    }
+    document.getElementById('badge-msg').innerHTML = '';
+    document.getElementById('badge-nome').value = '';
+    new bootstrap.Modal(document.getElementById('badgeModal')).show();
+  });
+
+  document.getElementById('btn-badge-enviar')?.addEventListener('click', async (ev) => {
+    const bt = ev.currentTarget;
+    const playerId = Number(document.getElementById('badge-jogador')?.value || 0);
+    const nome = (document.getElementById('badge-nome')?.value || '').trim();
+    const msg = document.getElementById('badge-msg');
+    if (!playerId) { msg.innerHTML = '<div class="alert alert-danger py-2">Escolha o jogador.</div>'; return; }
+    if (!nome)     { msg.innerHTML = '<div class="alert alert-danger py-2">Escreva o nome da badge.</div>'; return; }
+
+    bt.disabled = true;
+    try {
+      const d = await api('tapas.php?action=request_badge', {
+        method: 'POST',
+        body: JSON.stringify({ player_id: playerId, badge_name: nome })
+      });
+      msg.innerHTML = `<div class="alert alert-success py-2">${d.message || 'Pedido enviado.'}</div>`;
+      document.getElementById('badge-nome').value = '';
+      await carregarBadges();
+      if (badgeSaldo === 0) {
+        setTimeout(() => bootstrap.Modal.getInstance(document.getElementById('badgeModal'))?.hide(), 1200);
+      }
+    } catch (err) {
+      msg.innerHTML = `<div class="alert alert-danger py-2">${err.error || err.message || 'Não deu pra enviar.'}</div>`;
+    } finally {
+      bt.disabled = false;
+    }
+  });
+
+  carregarBadges();
+
   document.getElementById('btn-confirm-waive')?.addEventListener('click', async () => {
     const modalEl = document.getElementById('waivePlayerModal');
     const playerId = pendingWaivePlayerId;

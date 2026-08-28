@@ -446,8 +446,8 @@ if (!function_exists('lojaAplicarAutomatico')) {
     /**
      * Aplica na hora o que o sistema sabe aplicar sozinho.
      *
-     * Hoje só o slot extra de waiver: ele é um número no time, e somar 1 não
-     * depende de ninguém. Marca o item como usado E atendido no mesmo passo —
+     * Hoje os dois slots — waiver e G-League. Cada um é um número no time, e
+     * somar 1 não depende de ninguém. Marca o item como usado E atendido no mesmo passo —
      * ele nunca chega a existir no inventário nem na fila do admin, porque
      * mostrar "esperando aprovação" pra algo que já valeu seria mentira.
      *
@@ -458,7 +458,7 @@ if (!function_exists('lojaAplicarAutomatico')) {
      */
     function lojaAplicarAutomatico(PDO $pdo, int $userId, string $itemKey, int $inventarioId): bool
     {
-        if ($itemKey !== 'slot_waiver') return false;
+        if (!in_array($itemKey, ['slot_waiver', 'slot_gleague'], true)) return false;
 
         $st = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
         $st->execute([$userId]);
@@ -467,9 +467,15 @@ if (!function_exists('lojaAplicarAutomatico')) {
         // caminho antigo — melhor esperar o admin do que perder a compra.
         if ($teamId <= 0) return false;
 
-        waiverGarantirColunaExtra($pdo);
-        $pdo->prepare('UPDATE teams SET waivers_extra = COALESCE(waivers_extra, 0) + 1 WHERE id = ?')
-            ->execute([$teamId]);
+        if ($itemKey === 'slot_waiver') {
+            waiverGarantirColunaExtra($pdo);
+            $pdo->prepare('UPDATE teams SET waivers_extra = COALESCE(waivers_extra, 0) + 1 WHERE id = ?')
+                ->execute([$teamId]);
+        } else {
+            gleagueGarantirColunaExtra($pdo);
+            $pdo->prepare('UPDATE teams SET gleague_extra = COALESCE(gleague_extra, 0) + 1 WHERE id = ?')
+                ->execute([$teamId]);
+        }
 
         $pdo->prepare("UPDATE loja_inventario
                           SET usado_em = NOW(), atendido_em = NOW()
@@ -501,6 +507,29 @@ if (!function_exists('waiverGarantirColunaExtra')) {
             $ok = true;
         } catch (Throwable $e) {
             error_log('[loja/waivers_extra] ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('gleagueGarantirColunaExtra')) {
+    /**
+     * `gleague_extra`: vagas de G-League a mais que o time comprou.
+     *
+     * Diferente do slot de waiver, este NÃO zera na virada da temporada: a
+     * loja marca o item como compra única e não diz "vale por uma temporada".
+     * Quem pagou 15.000 leva a vaga pra sempre.
+     */
+    function gleagueGarantirColunaExtra(PDO $pdo): void
+    {
+        static $ok = false;
+        if ($ok) return;
+        try {
+            if (!$pdo->query("SHOW COLUMNS FROM teams LIKE 'gleague_extra'")->fetch()) {
+                $pdo->exec('ALTER TABLE teams ADD COLUMN gleague_extra INT NOT NULL DEFAULT 0');
+            }
+            $ok = true;
+        } catch (Throwable $e) {
+            error_log('[loja/gleague_extra] ' . $e->getMessage());
         }
     }
 }
