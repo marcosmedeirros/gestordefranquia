@@ -124,14 +124,26 @@ function devLinhaUnicaRepetida(PDO $pdo): array
     return $saida;
 }
 
-/** Mais de uma temporada com o mesmo número na mesma liga sem estar fechada. */
-function devTemporadasAbertas(PDO $pdo): array
+/**
+ * Temporada de sprint ENCERRADO que não ficou como 'completed'.
+ *
+ * Número de temporada repetido na liga é normal: cada sprint recomeça do #1.
+ * O que não é normal é uma temporada de sprint fechado seguir "em aberto" —
+ * aí toda consulta que procura "a temporada corrente" pode pescar ela.
+ * Foi o caso da #1 da RISE (id 105), do sprint 1, parada em 'planejamento'
+ * enquanto as outras 15 do mesmo sprint estavam completed.
+ */
+function devTemporadasPresas(PDO $pdo): array
 {
-    return $pdo->query("SELECT league, season_number, COUNT(*) AS n,
-                               GROUP_CONCAT(CONCAT(id,':',COALESCE(status,'NULL')) ORDER BY id) AS quais
-                          FROM seasons
-                         WHERE status IS NULL OR status <> 'completed'
-                         GROUP BY league, season_number HAVING n > 1")->fetchAll(PDO::FETCH_ASSOC);
+    return $pdo->query("SELECT s.id, s.league, s.season_number, s.year, s.status,
+                               spr.sprint_number,
+                               (SELECT COUNT(*) FROM seasons x
+                                 WHERE x.sprint_id = s.sprint_id AND x.status = 'completed') AS irmas_fechadas
+                          FROM seasons s
+                          JOIN sprints spr ON spr.id = s.sprint_id
+                         WHERE spr.status <> 'active'
+                           AND (s.status IS NULL OR s.status <> 'completed')
+                         ORDER BY s.league, s.season_number")->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,6 +170,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = draftSincronizarOrdem($pdo, (int)$d['id']);
             $aviso = ['ok', "Ordem da $liga sincronizada: {$r['donos']} dono(s) e {$r['swaps']} swap(s) ajustados."];
 
+        } elseif ($acao === 'fechar_temporada') {
+            $id = (int)($_POST['id'] ?? 0);
+            $ok = false;
+            foreach (devTemporadasPresas($pdo) as $t) if ((int)$t['id'] === $id) $ok = true;
+            if (!$ok) throw new RuntimeException("A temporada id $id não está mais na lista — recarregue.");
+            // Só o status muda. O histórico dela (playoffs, pontuação, campeão)
+            // fica onde está: ela é uma temporada de verdade, só ficou aberta.
+            $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$id]);
+            $aviso = ['ok', "Temporada id $id marcada como completed. Nenhum dado dela foi tocado."];
+
         } elseif ($acao === 'dedup_linha_unica') {
             $tabela = (string)($_POST['tabela'] ?? '');
             if ($tabela !== 'maintenance_mode') throw new RuntimeException('Tabela não prevista.');
@@ -180,7 +202,7 @@ $repetidas  = devOrigemRepetida($pdo, $LIGAS);
 $ordemFora  = devOrdemFora($pdo, $LIGAS);
 $anosVazios = devAnosVazios($pdo, $LIGAS);
 $linhaUnica = devLinhaUnicaRepetida($pdo);
-$tempDup    = devTemporadasAbertas($pdo);
+$tempDup    = devTemporadasPresas($pdo);
 
 $totalProblemas = count($zumbis) + count($repetidas) + count($ordemFora)
                 + count($anosVazios) + count($linhaUnica) + count($tempDup);
@@ -371,20 +393,27 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
   <!-- 6 ─────────────────────────────────────────────────────────────────── -->
   <div class="bloco">
-    <h2><i class="bi bi-signpost-split" style="color:var(--amber)"></i> Temporadas abertas com o mesmo número</h2>
-    <p class="por">Duas temporadas com o mesmo número na mesma liga, nenhuma fechada. Toda consulta que
-       casa por <code>season_number</code> passa a escolher uma delas no escuro.</p>
+    <h2><i class="bi bi-signpost-split" style="color:var(--amber)"></i> Temporada de sprint encerrado ainda em aberto</h2>
+    <p class="por">Número de temporada repetido na liga é normal — cada sprint recomeça do #1. O que não é
+       normal é uma temporada de sprint já fechado seguir sem <code>completed</code>: aí as consultas que
+       procuram "a temporada corrente" podem pescar ela. Fechar mexe só no status; playoffs, pontuação e
+       campeão dela ficam onde estão.</p>
     <?php if (!$tempDup): ?>
       <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
     <?php else: foreach ($tempDup as $t): ?>
       <div class="achado">
         <span class="tag"><?= h($t['league']) ?></span>
-        <span class="txt">Temporada <b>#<?= h($t['season_number']) ?></b> aparece <b><?= (int)$t['n'] ?></b>
-          vezes: <code><?= h($t['quais']) ?></code> (id:status)</span>
+        <span class="txt">Temporada <b>#<?= h($t['season_number']) ?></b> (id <?= (int)$t['id'] ?>,
+          ano <?= h($t['year']) ?>) está <b><?= h($t['status'] ?? 'NULL') ?></b> — sprint
+          <?= h($t['sprint_number']) ?> já encerrou, e <?= (int)$t['irmas_fechadas'] ?> temporada(s) dele
+          estão completed.</span>
+        <form method="post" onsubmit="return confirm('Marcar a temporada id <?= (int)$t['id'] ?> como completed?')">
+          <input type="hidden" name="acao" value="fechar_temporada">
+          <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
+          <button type="submit">Marcar como completed</button>
+        </form>
       </div>
-    <?php endforeach; ?>
-      <p class="nota">Sem botão: fechar a temporada errada muda o histórico da liga. Decida qual vale e me diga.</p>
-    <?php endif; ?>
+    <?php endforeach; endif; ?>
   </div>
 </div>
 </body>
