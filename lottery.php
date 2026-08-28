@@ -1140,6 +1140,7 @@ const PODE_EDITAR_ORDEM = <?= $podeConduzirEstaLiga ? 'true' : 'false' ?>;
 /* No ensaio o sorteio vai marcado, e o servidor devolve a ordem sem gravar
    nada — nem aqui nem na loteria oficial, que é a mesma chamada. */
 const MODO_TESTE = <?= $modoTeste ? 'true' : 'false' ?>;
+const LIGA_ATUAL = <?= json_encode($ligaAtual) ?>;
 let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
 let ordemSalvaRef = [];   // como estava na última vez que gravou
 /* A cauda de playoff também se edita, por um motivo diferente: quem foi
@@ -1498,18 +1499,34 @@ function updateBowlCount(n){
   $('bowlCount').textContent = n > 0 ? `${n} ${n === 1 ? 'time concorrendo' : 'times concorrendo'}` : 'urna vazia';
 }
 
+let jaAplicouAoDraft = false;
+
 function updateRevealButton(){
+  // Quem assiste tem o palco, mas não o botão: aqui ele pode não existir.
   const btn = $('btnReveal');
   if (!revealQueue.length) {
-    btn.style.display = 'none';
+    if (btn) btn.style.display = 'none';
     $('revealPickLabel').textContent = 'Sorteio completo';
-    $('revealHint').textContent = 'Todas as picks de loteria reveladas. Confira a ordem e confirme abaixo.';
-    $('confirmPanel').style.display = 'block';
+    $('revealHint').textContent = PODE_EDITAR_ORDEM
+      ? 'Todas as picks reveladas. A ordem já foi para o draft.'
+      : 'Todas as picks reveladas.';
+    if ($('confirmPanel')) $('confirmPanel').style.display = 'block';
     $('revealStage').classList.remove('armed');
     document.body.classList.add('bc-complete'); // esconde revelação/urna na transmissão
     renderPodium();                             // mostra o pódio do top-3
+
+    /* A última pick saiu: a ordem do draft é esta, e não há mais nada a
+       decidir. Vai sozinha, uma vez só — a revelação passa por aqui várias
+       vezes até a tela assentar. */
+    if (PODE_EDITAR_ORDEM && !MODO_TESTE && !jaAplicouAoDraft && result && result.preview === false) {
+      jaAplicouAoDraft = true;
+      aplicarAoDraft(false);
+    }
     return;
   }
+  // Sorteou de novo: há o que aplicar outra vez, e o painel volta ao começo.
+  if (jaAplicouAoDraft) restaurarConfirmPanel();
+  jaAplicouAoDraft = false;
   document.body.classList.remove('bc-complete');
   const nextPos = revealQueue[0];
   if (btn) {
@@ -1780,9 +1797,26 @@ function aplicarRevelacao(pos, comEncenacao){
 async function confirmOrder(){
   if (!result) return;
   if (!await confirmarSite('Confirmar essa ordem e aplicar ao draft? Isso substitui qualquer ordem já definida para as duas rodadas dessa sessão.')) return;
-  const btn = $('btnConfirm');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aplicando...';
+  aplicarAoDraft(true);
+}
+
+/**
+ * GRAVA A ORDEM NO DRAFT.
+ *
+ * Quando a última pick sai, a loteria já disse tudo que tinha a dizer: a
+ * ordem do draft é aquela. Pedir mais um clique depois disso era só um
+ * passo a mais entre a cerimônia e o draft aberto — e um jeito de a liga
+ * ficar com a ordem revelada na tela e nenhuma ordem gravada.
+ *
+ * Sortear de novo depois substitui o que foi gravado, então nada fica preso.
+ */
+async function aplicarAoDraft(comBotao){
+  if (!result || !PODE_EDITAR_ORDEM || MODO_TESTE) return;
+  const btn = comBotao ? $('btnConfirm') : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aplicando...';
+  }
   try {
     const teamOrder = result.order.map(o => o.team_id);
     const res = await fetch('/api/draft.php', {
@@ -1791,14 +1825,60 @@ async function confirmOrder(){
       body: JSON.stringify({ action: 'set_draft_order', draft_session_id: result.draft_session_id, team_order: teamOrder })
     });
     const data = await res.json();
-    if (!data.success) { alert(data.error || 'Erro ao aplicar a ordem.'); return; }
+    if (!data.success) {
+      if (comBotao) alert(data.error || 'Erro ao aplicar a ordem.');
+      else avisarAplicada(false, data.error);
+      return;
+    }
     mostrarEventos(data.eventos || []);
+    if (!comBotao) avisarAplicada(true);
   } catch (e) {
-    alert('Erro ao aplicar a ordem.');
+    if (comBotao) alert('Erro ao aplicar a ordem.');
+    else avisarAplicada(false);
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft';
+    }
   }
+}
+
+/* O aviso fica onde estava o botão de confirmar: é a resposta à pergunta
+   "e agora?" que a pessoa faz quando a última pick sai. O conteúdo original
+   é guardado antes de ser trocado — sortear de novo devolve o painel ao
+   começo, senão a tela continua dizendo "ordem aplicada" sobre a cerimônia
+   nova, que ainda não terminou. */
+let confirmPanelOriginal = null;
+function restaurarConfirmPanel(){
+  const painel = $('confirmPanel');
+  if (!painel || confirmPanelOriginal === null) return;
+  painel.innerHTML = confirmPanelOriginal;
+  const btn = $('btnConfirm');
+  if (btn) btn.addEventListener('click', confirmOrder);
+}
+
+function avisarAplicada(ok, erro){
+  const painel = $('confirmPanel');
+  if (!painel) return;
+  if (confirmPanelOriginal === null) confirmPanelOriginal = painel.innerHTML;
+  painel.style.display = 'block';
+  painel.innerHTML = ok
+    ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+         <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:20px"></i>
+         <div style="flex:1;min-width:200px">
+           <b>Ordem aplicada ao draft.</b>
+           <div style="font-size:11px;color:var(--text-3)">Vale para as duas rodadas. Sortear de novo substitui.</div>
+         </div>
+         <a class="btn-ghost2" href="/controledrafts.php?league=${encodeURIComponent(LIGA_ATUAL)}"><i class="bi bi-box-arrow-up-right"></i> Ir para o Controle de Drafts</a>
+       </div>`
+    : `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+         <i class="bi bi-exclamation-triangle-fill" style="color:var(--amber);font-size:20px"></i>
+         <div style="flex:1;min-width:200px">
+           <b>A ordem não foi gravada no draft.</b>
+           <div style="font-size:11px;color:var(--text-3)">${esc(erro || 'Tente pelo botão abaixo.')}</div>
+         </div>
+         <button class="btn-red" onclick="aplicarAoDraft(true)"><i class="bi bi-check-lg"></i> Aplicar ao draft</button>
+       </div>`;
 }
 
 /**
