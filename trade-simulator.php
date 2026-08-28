@@ -28,6 +28,23 @@ try {
 $__capPreview = previewActive('cap') && strtoupper((string)($user['league'] ?? '')) === 'ELITE';
 if ($__capPreview) $__salaryMode = true;
 
+/*
+ * A liga já tem ordem de draft sorteada? Separa "esta liga ainda não fez a
+ * loteria" de "este time só tem picks de anos futuros": sem a distinção, o
+ * aviso da tela acusaria a loteria à toa num time que só tem picks de 2038.
+ */
+$__temOrdemDeDraft = false;
+try {
+    $stOrd = $pdo->prepare("SELECT 1 FROM draft_order o
+                              JOIN draft_sessions ds ON ds.id = o.draft_session_id
+                             WHERE ds.league = ? AND ds.status IN ('setup','in_progress')
+                             LIMIT 1");
+    $stOrd->execute([$user['league'] ?? '']);
+    $__temOrdemDeDraft = (bool)$stOrd->fetchColumn();
+} catch (Throwable $e) {
+    error_log('[trade-simulator/ordem] ' . $e->getMessage());
+}
+
 // ── API inline ────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
 
@@ -362,6 +379,11 @@ body{overflow-x:hidden}
 .picker-valor{padding-right:10px}
 /* Valor de troca: verde, pra não se confundir com o peso salarial (azul). */
 .sim-item-troca{color:#22c55e}
+/* Explica a ausência do "Escolha N" em vez de deixar a lista muda. */
+.picker-aviso{margin:10px 2px 0;padding:9px 11px;border-radius:8px;font-size:11.5px;line-height:1.45;
+  color:var(--text-2);background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22)}
+.picker-aviso i{margin-right:5px;color:var(--blue)}
+.picker-aviso b{color:var(--text-1);font-weight:700}
 .sim-item-valor{padding-left:6px}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
@@ -604,6 +626,11 @@ body{overflow-x:hidden}
         </div>
         <input type="text" class="form-control mb-2" id="pickerSearch" placeholder="Buscar..." oninput="filterPicker()" style="font-size:13px">
         <div class="picker-list" id="pickerList"></div>
+        <div id="pickerAvisoOrdem" class="picker-aviso" style="display:none">
+          <i class="bi bi-info-circle"></i>
+          As escolhas desta liga ainda não têm número porque a loteria do draft não foi sorteada.
+          Depois do sorteio elas aparecem como <b>Escolha 1</b>, <b>Escolha 18</b>… e o valor de troca passa a considerar a posição.
+        </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between">
         <span id="pickerHint" style="font-size:11px;color:var(--text-3)"></span>
@@ -633,6 +660,7 @@ const PROTECOES = <?= json_encode(protecaoLigaUsa($user['league'] ?? '') ? PICK_
 // Liga de folha em dinheiro (ELITE hoje). Só nela faz sentido mostrar quanto
 // cada jogador pesa: nas outras o CAP é soma de OVR, e o OVR já está na tela.
 const SALARY_MODE = <?= $__salaryMode ? 'true' : 'false' ?>;
+const TEM_ORDEM_DRAFT = <?= $__temOrdemDeDraft ? 'true' : 'false' ?>;
 
 /** Salário em M, ou '' quando a liga não usa dinheiro. */
 function salarioDe(p) {
@@ -1149,6 +1177,16 @@ function renderPickerList() {
           </div>`;
         }).join('')
       : `<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">${motivoSemPicks(src, currentYear)}</div>`;
+
+    // Sem uma escolha numerada na lista, a tela ficava muda sobre o porquê —
+    // e quem procurava a "Escolha 18" achava que era defeito. Não é: a
+    // posição só existe depois que a loteria define a ordem do draft.
+    // Só quando a liga de fato não tem ordem sorteada. Um time que só tem
+    // picks de anos futuros numa liga com loteria feita não é o mesmo caso.
+    const avisoOrdem = document.getElementById('pickerAvisoOrdem');
+    if (avisoOrdem) {
+      avisoOrdem.style.display = (!TEM_ORDEM_DRAFT && visiblePicks.length) ? '' : 'none';
+    }
   }
 }
 
