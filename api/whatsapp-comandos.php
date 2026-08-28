@@ -498,7 +498,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         // em andamento — ela só ganha estatística quando termina. Quem lia
         // "Temporada 2" no meio do ano 3 achava que era o desempenho de agora.
         // O número fica, porque diz DE QUANDO é o dado.
-        $txt .= "\n📊 *Última temporada · Temp {$s['season_number']}*\n"
+        $txt .= "\n📊 *Última temporada*\n"
               . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
               . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
               . ' em ' . (int)$s['games'] . " jogos\n";
@@ -2242,9 +2242,10 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         // senão a comparação parece do mesmo ano e não é.
         $mesmaTemp = $ea && $eb && (int)$ea['season_number'] === (int)$eb['season_number'];
         // Mesmo motivo do /jogador: é sempre a última temporada COM lançamento,
-        // não a que está rolando. Quando os dois batem, o número entra.
+        // não a que está rolando. Quando cada um parou num ano diferente, aí
+        // sim vale dizer — senão a comparação parece do mesmo ano e não é.
         $txt .= "\n📊 *" . ($mesmaTemp
-                    ? 'Última temporada · Temp ' . (int)$ea['season_number']
+                    ? 'Última temporada'
                     : 'Última temporada de cada um') . "*\n";
 
         // JOGOS abre a lista: 28 pontos em 4 jogos e 28 em 60 são carreiras
