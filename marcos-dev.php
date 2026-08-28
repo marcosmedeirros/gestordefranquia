@@ -1,15 +1,32 @@
 <?php
 /**
- * Página de correções — só do dono da liga.
+ * CENTRAL DE CORREÇÕES — só do dono da liga.
  *
- * Cada bloco é um DIAGNÓSTICO que roda de verdade contra o banco, e quando
- * existe conserto seguro, o botão que o aplica. Nada aqui adivinha: se a
- * correção depende de uma decisão humana (refazer uma loteria, por exemplo),
- * o bloco explica e não oferece botão.
+ * O lugar onde todo defeito encontrado em qualquer tela do app vira um
+ * diagnóstico com botão. Cada bloco RODA DE VERDADE contra o banco: nada aqui
+ * é status guardado, é a pergunta sendo feita no momento em que a página abre.
  *
- * Por que existe: os defeitos que apareceram na liga foram quase todos da
- * mesma família — sobra de sprint encerrado poluindo consulta que não filtra
- * sprint. Achar isso pelo log é lento; aqui é uma tela.
+ * Por que existe: os defeitos da liga se repetem em família — sobra de sprint
+ * encerrado poluindo consulta que não filtra sprint, dado clonado de uma
+ * temporada pra outra, cache de dono desatualizado. Achar isso pelo log é
+ * lento; numa tela é imediato, e dá pra consertar sem me chamar.
+ *
+ * ── COMO ACRESCENTAR UM DIAGNÓSTICO ─────────────────────────────────────────
+ *
+ *   1. Uma função `devAlgumaCoisa(PDO): array` que SÓ LÊ e devolve as linhas
+ *      problemáticas. Vazio = está tudo certo.
+ *   2. Um `elseif` no switch do POST, se existir conserto seguro. A ação
+ *      RECONFERE o diagnóstico antes de gravar — o POST pode chegar depois de
+ *      a situação ter mudado, e agir no escuro é como se estraga o que estava
+ *      bom.
+ *   3. Um bloco no HTML, dentro da área que faz sentido, explicando o que é o
+ *      problema e por que ele importa — quem lê daqui a seis meses não vai
+ *      lembrar do dia em que apareceu.
+ *   4. A contagem entra em $totalProblemas e no $porArea do resumo.
+ *
+ * QUANDO NÃO OFERECER BOTÃO: se o conserto depende de uma decisão que o código
+ * não pode tomar (refazer uma loteria, escolher qual de duas temporadas vale),
+ * o bloco explica e para por aí. Adivinhar ali muda histórico de liga.
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
@@ -296,6 +313,16 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
   code{background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--amber)}
   a.voltar{color:var(--text-3);font-size:13px;text-decoration:none}
   a.voltar:hover{color:var(--text)}
+  /* Cabeçalho de área. A página cresce a cada bug que aparece, e uma pilha de
+     blocos iguais deixa de ser legível — agrupar por assunto mantém o
+     "onde está o problema" respondível de relance. */
+  .area{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:1.4px;color:var(--text-3);
+        margin:26px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+  .area:first-of-type{margin-top:8px}
+  .resumo{display:flex;flex-wrap:wrap;gap:8px;margin:-12px 0 22px}
+  .resumo-item{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+               padding:5px 11px;font-size:12.5px;color:var(--text-2)}
+  .resumo-item b{color:var(--red);font-family:'Oswald',sans-serif;font-size:14px;margin-right:3px}
   @media(max-width:520px){ .achado{flex-direction:column;align-items:stretch} button{width:100%} }
 </style>
 </head>
@@ -309,11 +336,29 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <div class="aviso <?= h($aviso[0]) ?>"><?= h($aviso[1]) ?></div>
   <?php endif; ?>
 
+  <?php
+  /* O resumo diz ONDE está o problema, não só quantos são. Com a página
+     crescendo a cada bug corrigido, "3 pontos para olhar" obriga a rolar tudo
+     pra descobrir se é do draft ou da base. */
+  $porArea = [
+      'Draft e picks'      => count($zumbis) + count($repetidas) + count($ordemFora) + count($anosVazios),
+      'Estatísticas'       => count($clonadas),
+      'Temporadas e base'  => count($linhaUnica) + count($tempDup),
+  ];
+  ?>
   <div class="placar <?= $totalProblemas ? 'sujo' : 'limpo' ?>">
     <i class="bi bi-<?= $totalProblemas ? 'exclamation-triangle-fill' : 'check-circle-fill' ?>"></i>
     <?= $totalProblemas ? $totalProblemas . ' ponto(s) para olhar' : 'Nada pendente' ?>
   </div>
+  <?php if ($totalProblemas): ?>
+    <div class="resumo">
+      <?php foreach ($porArea as $nome => $qtd): if (!$qtd) continue; ?>
+        <span class="resumo-item"><b><?= (int)$qtd ?></b> <?= h($nome) ?></span>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
 
+  <div class="area" id="area-draft">DRAFT E PICKS</div>
   <!-- 1 ─────────────────────────────────────────────────────────────────── -->
   <div class="bloco">
     <h2><i class="bi bi-hourglass-bottom" style="color:var(--red)"></i> Draft aberto em sprint encerrado</h2>
@@ -407,7 +452,7 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <?php endif; ?>
   </div>
 
-  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <div class="area" id="area-stats">ESTATÍSTICAS</div>
   <div class="bloco">
     <h2><i class="bi bi-files" style="color:var(--red)"></i> Estatística copiada de temporada não disputada</h2>
     <p class="por">O avanço de temporada copiava <code>player_season_stats</code> da anterior como ponto de
@@ -430,6 +475,7 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <?php endforeach; endif; ?>
   </div>
 
+  <div class="area" id="area-base">TEMPORADAS E BASE</div>
   <!-- 5 ─────────────────────────────────────────────────────────────────── -->
   <div class="bloco">
     <h2><i class="bi bi-layers" style="color:var(--amber)"></i> Tabela de linha única com linha repetida</h2>
