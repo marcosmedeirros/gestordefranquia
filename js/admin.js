@@ -7880,12 +7880,14 @@ async function showPointsManagement(league) {
         <i class="bi bi-arrow-repeat"></i> Recalcular pontuação
       </button>
     </div>
-    <div id="ptsSnapshots" class="mb-3"></div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
 
-  carregarSnapshots(league);
+  /* A lista de classificações congeladas saiu desta tela. Quem abre
+     "Pontuação por Time" vem mexer em pontuação, e o histórico de
+     congelamentos não ajudava nisso — só empurrava a tabela pra baixo.
+     Congelar continua no botão do topo; o que sumiu é a listagem. */
 
   let data;
   try {
@@ -10614,7 +10616,6 @@ async function congelarRanking(league) {
     const d = await api(`history-points.php?action=save_ranking_snapshot&league=${encodeURIComponent(league)}&label=${encodeURIComponent(rotulo)}`);
     if (d.success) {
       showAlert('success', `Classificação congelada: ${d.saved} times salvos.`);
-      carregarSnapshots(league);
     } else {
       showAlert('danger', d.error || 'Não foi possível congelar.');
     }
@@ -10623,27 +10624,6 @@ async function congelarRanking(league) {
   }
 }
 
-/** Lista os congelamentos já feitos, para o admin não repetir sem querer. */
-async function carregarSnapshots(league) {
-  const box = document.getElementById('ptsSnapshots');
-  if (!box) return;
-  try {
-    const d = await api(`history-points.php?action=list_ranking_snapshots&league=${encodeURIComponent(league)}`);
-    const lista = d.snapshots || [];
-    if (!lista.length) { box.innerHTML = ''; return; }
-    box.innerHTML = `
-      <div class="card bg-dark border-secondary">
-        <div class="card-body py-2 px-3">
-          <div class="text-light-gray" style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">
-            <i class="bi bi-snow me-1"></i>Classificações congeladas
-          </div>
-          ${lista.map(s => `
-            <div style="font-size:12px;color:var(--text-2, #868690)">
-              ${escapeHtml(s.label || ('Sprint ' + (s.sprint_number ?? '?')))}
-              — ${s.times} times
-              <span style="opacity:.7">· ${new Date(s.created_at.replace(' ', 'T')).toLocaleDateString('pt-BR')}</span>
-            </div>`).join('')}
-        </div>
-      </div>`;
-  } catch (e) { box.innerHTML = ''; }
-}
+/* carregarSnapshots() saiu junto com a lista que ela desenhava — era a
+   única chamadora, e função sem quem chame é peso morto. O endpoint
+   list_ranking_snapshots continua no servidor, se um dia a lista voltar. */
