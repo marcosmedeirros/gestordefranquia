@@ -2210,7 +2210,20 @@ if ($method === 'POST') {
                 exit;
             }
 
-            draftEncerrarSessao($pdo, (int)$draftSessionId);
+            /*
+             * NA 2a RODADA, FINALIZAR TEM QUE RESOLVER AS PREFERENCIAS ANTES.
+             *
+             * Este botao chamava draftEncerrarSessao direto. Com o draft ao
+             * vivo, alguem clicou nele faltando 12 minutos do prazo: a sessao
+             * fechou, as 29 preferencias de 11 times foram ignoradas, e os 29
+             * calouros cairam na free agency sem ninguem ter sido escolhido.
+             * O force=true resolve na hora e ja encerra por dentro.
+             */
+            if ((int)$session['current_round'] === 2 && $session['status'] === 'in_progress') {
+                resolveRound2MocksIfDue($pdo, (int)$draftSessionId, true);
+            } else {
+                draftEncerrarSessao($pdo, (int)$draftSessionId);
+            }
 
             echo json_encode(['success' => true, 'message' => 'Draft finalizado!']);
             break;
