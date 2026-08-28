@@ -65,6 +65,28 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (player_id) REFERENCES draft_pool(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+/*
+ * ATÉ TRÊS ESCOLHAS POR VAGA, em ordem de preferência.
+ *
+ * A resolução é por ordem de pick: quem tem a 31 leva antes de quem tem a 34.
+ * Com uma escolha só, perder o jogador pra uma pick anterior significava
+ * ficar sem ninguém — a pick simplesmente evaporava. Com três, o sistema
+ * desce pra segunda e a terceira.
+ *
+ * A chave única sai de (vaga) e vira (vaga, preferência): a mesma vaga passa a
+ * ter três linhas. Em base que já tinha a chave antiga, ela precisa cair
+ * primeiro, senão a segunda preferência bate nela.
+ */
+const ROUND2_PREFERENCIAS = 3;
+try {
+    $temPref = $pdo->query("SHOW COLUMNS FROM draft_round2_mocks LIKE 'preferencia'")->fetch();
+    if (!$temPref) {
+        $pdo->exec("ALTER TABLE draft_round2_mocks ADD COLUMN preferencia TINYINT NOT NULL DEFAULT 1");
+        try { $pdo->exec("ALTER TABLE draft_round2_mocks DROP INDEX uniq_r2mock_pick"); } catch (Exception $e) {}
+        $pdo->exec("ALTER TABLE draft_round2_mocks ADD UNIQUE KEY uniq_r2mock_pref (draft_order_id, preferencia)");
+    }
+} catch (Exception $e) { error_log('[draft/r2 preferencia] ' . $e->getMessage()); }
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Buscar time do usuário
@@ -170,22 +192,41 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
     $stmtPicks->execute([$draftSessionId]);
     $picks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtMocks = $pdo->prepare('SELECT draft_order_id, player_id FROM draft_round2_mocks WHERE draft_order_id IN (SELECT id FROM draft_order WHERE draft_session_id = ? AND round = 2 AND picked_player_id IS NULL)');
+    // As preferências de cada vaga, na ordem em que o GM as colocou.
+    $stmtMocks = $pdo->prepare('SELECT draft_order_id, player_id, preferencia
+                                  FROM draft_round2_mocks
+                                 WHERE draft_order_id IN (SELECT id FROM draft_order
+                                                           WHERE draft_session_id = ? AND round = 2
+                                                             AND picked_player_id IS NULL)
+                              ORDER BY draft_order_id, preferencia ASC');
     $stmtMocks->execute([$draftSessionId]);
     $mockByPick = [];
-    foreach ($stmtMocks->fetchAll(PDO::FETCH_ASSOC) as $m) { $mockByPick[(int)$m['draft_order_id']] = (int)$m['player_id']; }
+    foreach ($stmtMocks->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $mockByPick[(int)$m['draft_order_id']][] = (int)$m['player_id'];
+    }
 
     $pdo->beginTransaction();
     try {
         $claimed = [];
         foreach ($picks as $pick) {
-            $playerId = $mockByPick[(int)$pick['id']] ?? null;
-            if (!$playerId || isset($claimed[$playerId])) continue;
-
-            $stmtPlayer = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ? AND draft_status = "available"');
-            $stmtPlayer->execute([$playerId]);
-            $player = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
-            if (!$player) continue;
+            /*
+             * DESCE A LISTA até achar quem ainda está livre.
+             *
+             * A pick 34 que pediu o LeBron não fica sem ninguém porque a 31 o
+             * levou: vai pra segunda opção, e depois pra terceira. Antes era
+             * uma escolha só, e perder o jogador significava a vaga evaporar.
+             */
+            $playerId = null;
+            $player = null;
+            foreach (($mockByPick[(int)$pick['id']] ?? []) as $candidato) {
+                if (isset($claimed[$candidato])) continue;   // levado nesta mesma passada
+                $stmtPlayer = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ? AND draft_status = "available"');
+                $stmtPlayer->execute([$candidato]);
+                $achado = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
+                if ($achado) { $playerId = $candidato; $player = $achado; break; }
+            }
+            // Sem nenhuma das três livre, a vaga fica em aberto pro admin.
+            if (!$playerId) continue;
 
             $targetTeamId = (int)$pick['team_id'];
             $pickNumber = (($pick['round'] - 1) * $roundSize) + $pick['pick_position'];
@@ -784,7 +825,10 @@ if ($method === 'GET') {
                  FROM draft_order o
                  INNER JOIN teams t ON o.team_id = t.id
                  LEFT JOIN teams ot ON ot.id = o.original_team_id
-                 LEFT JOIN draft_round2_mocks m ON m.draft_order_id = o.id
+                 /* So a 1a preferencia no JOIN: com as tres, cada vaga viraria
+                    tres linhas e a lista de picks triplicaria. As outras vem
+                    numa consulta a parte, logo abaixo. */
+                 LEFT JOIN draft_round2_mocks m ON m.draft_order_id = o.id AND m.preferencia = 1
                  LEFT JOIN draft_pool dp ON dp.id = m.player_id
                  WHERE o.draft_session_id = ? AND o.round = 2
                  ORDER BY o.pick_position ASC"
@@ -797,8 +841,30 @@ if ($method === 'GET') {
             $stmtVagas->execute([(int)$draftSessionId]);
             $vagasR1 = (int)$stmtVagas->fetchColumn();
 
+            /* As três preferências de cada vaga, numa consulta só. Só quem é
+               dono da pick (ou o admin) enxerga — a lista de preferência é
+               justamente o que ninguém pode ver antes do fechamento. */
+            $prefsPorPick = [];
+            $stPref = $pdo->prepare('SELECT m.draft_order_id, m.preferencia, m.player_id,
+                                            dp.name, dp.position, dp.ovr
+                                       FROM draft_round2_mocks m
+                                       JOIN draft_pool dp ON dp.id = m.player_id
+                                      WHERE m.draft_order_id IN (SELECT id FROM draft_order
+                                                                  WHERE draft_session_id = ? AND round = 2)
+                                   ORDER BY m.draft_order_id, m.preferencia ASC');
+            $stPref->execute([(int)$draftSessionId]);
+            foreach ($stPref->fetchAll(PDO::FETCH_ASSOC) as $p) {
+                $prefsPorPick[(int)$p['draft_order_id']][] = [
+                    'preferencia' => (int)$p['preferencia'],
+                    'player_id'   => (int)$p['player_id'],
+                    'name'        => $p['name'],
+                    'position'    => $p['position'],
+                    'ovr'         => (int)$p['ovr'],
+                ];
+            }
+
             $myTeamId = $team['id'] ?? null;
-            $picks = array_map(function ($r) use ($isAdmin, $myTeamId, $vagasR1) {
+            $picks = array_map(function ($r) use ($isAdmin, $myTeamId, $vagasR1, $prefsPorPick) {
                 $isOwn = $myTeamId && (int)$r['team_id'] === (int)$myTeamId;
                 $canSeeMock = $isAdmin || $isOwn;
                 return [
@@ -820,6 +886,8 @@ if ($method === 'GET') {
                         'position' => $r['mock_player_position'],
                         'ovr' => (int)$r['mock_player_ovr'],
                     ] : null,
+                    // A lista de preferência inteira, só pro dono e pro admin.
+                    'preferencias' => $canSeeMock ? ($prefsPorPick[(int)$r['draft_order_id']] ?? []) : [],
                 ];
             }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
@@ -2534,11 +2602,34 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Jogador não disponível']);
                 exit;
             }
+            /*
+             * A ordem da preferência importa: 1 é quem ele quer, 2 e 3 são o
+             * plano B e C se alguém com pick melhor levar o primeiro.
+             * Sem `preferencia` no corpo, vale 1 — é o que o cliente antigo
+             * manda, e continua significando "minha escolha".
+             */
+            $pref = (int)($data['preferencia'] ?? 1);
+            if ($pref < 1 || $pref > ROUND2_PREFERENCIAS) {
+                echo json_encode(['success' => false, 'error' => 'Preferência inválida']);
+                exit;
+            }
+
+            // O mesmo jogador não pode ocupar duas preferências da MESMA vaga:
+            // seria gastar o plano B com quem já é o plano A.
+            $stmtDup = $pdo->prepare('SELECT preferencia FROM draft_round2_mocks
+                                       WHERE draft_order_id = ? AND player_id = ? AND preferencia <> ?');
+            $stmtDup->execute([(int)$draftOrderId, (int)$playerId, $pref]);
+            if ($outra = $stmtDup->fetchColumn()) {
+                echo json_encode(['success' => false,
+                    'error' => 'Esse jogador já é a sua ' . (int)$outra . 'ª opção nesta pick.']);
+                exit;
+            }
+
             $pdo->prepare(
-                'INSERT INTO draft_round2_mocks (draft_order_id, team_id, player_id) VALUES (?, ?, ?)
+                'INSERT INTO draft_round2_mocks (draft_order_id, team_id, player_id, preferencia) VALUES (?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE player_id = VALUES(player_id), created_at = NOW()'
-            )->execute([(int)$draftOrderId, (int)$pick['team_id'], (int)$playerId]);
-            echo json_encode(['success' => true, 'message' => 'Mock salvo!']);
+            )->execute([(int)$draftOrderId, (int)$pick['team_id'], (int)$playerId, $pref]);
+            echo json_encode(['success' => true, 'message' => $pref . 'ª opção salva!']);
             break;
 
         // 2ª rodada: dono da pick (ou admin) remove o mock dela
@@ -2559,8 +2650,18 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Essa pick não é sua']);
                 exit;
             }
-            $pdo->prepare('DELETE FROM draft_round2_mocks WHERE draft_order_id = ?')->execute([(int)$draftOrderId]);
-            echo json_encode(['success' => true, 'message' => 'Mock removido']);
+            /* Com `preferencia`, tira só aquela opção; sem, limpa a lista
+               inteira da vaga — que é o que o botão antigo fazia e continua
+               sendo o caminho de "desisti dessa pick". */
+            $prefApagar = isset($data['preferencia']) ? (int)$data['preferencia'] : 0;
+            if ($prefApagar >= 1 && $prefApagar <= ROUND2_PREFERENCIAS) {
+                $pdo->prepare('DELETE FROM draft_round2_mocks WHERE draft_order_id = ? AND preferencia = ?')
+                    ->execute([(int)$draftOrderId, $prefApagar]);
+                echo json_encode(['success' => true, 'message' => $prefApagar . 'ª opção removida']);
+            } else {
+                $pdo->prepare('DELETE FROM draft_round2_mocks WHERE draft_order_id = ?')->execute([(int)$draftOrderId]);
+                echo json_encode(['success' => true, 'message' => 'Escolhas removidas']);
+            }
             break;
 
         // ADMIN: força a resolução da rodada 2 agora, sem esperar os 20min do relógio
