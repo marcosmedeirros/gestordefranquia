@@ -8298,14 +8298,15 @@ function abrirLoteria(league) {
 /**
  * Recria as picks que faltam na janela de anos da liga.
  *
- * A janela vai do ano corrente aos cinco seguintes. Quem some dela é
- * apagado; quem falta nela é criado. Serve pra devolver a pick do ano
- * corrente, que ficava de fora da janela antiga e era removida na virada da
- * temporada.
+ * A janela vai do ano corrente aos cinco seguintes, MAIS o ano que o draft
+ * aberto está distribuindo. Esse ano é o motivo de o botão existir: a
+ * temporada vira antes de o draft acontecer, e o ano dele caía fora da
+ * janela — cada time perdia a PRÓPRIA escolha do draft em andamento e ficava
+ * só com as que tinha comprado, que escapam por não serem auto-geradas.
  */
 async function ajustarPicksDaLiga(league) {
   if (!confirm(`Ajustar as picks da ${league}?\n\n`
-             + 'Cria as picks que faltam na janela de anos da liga (o ano atual e os cinco seguintes). '
+             + 'Devolve as escolhas que faltam: as do draft em andamento e as da janela de anos futuros. '
              + 'Picks já negociadas não são tocadas.')) return;
   try {
     const d = await api('seasons.php?action=run_picks', {
