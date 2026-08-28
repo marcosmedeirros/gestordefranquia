@@ -258,11 +258,149 @@ $clonadas   = devStatsClonadas($pdo);
 $linhaUnica = devLinhaUnicaRepetida($pdo);
 $tempDup    = devTemporadasPresas($pdo);
 
-$totalProblemas = count($zumbis) + count($repetidas) + count($ordemFora)
-                + count($anosVazios) + count($linhaUnica) + count($tempDup)
-                + count($clonadas);
-
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
+/**
+ * Um achado pronto pro card: o texto do que está errado e, quando existe
+ * conserto seguro, o formulário que o aplica.
+ */
+function achado(string $texto, ?array $acao = null, string $nota = ''): array
+{
+    return ['texto' => $texto, 'acao' => $acao, 'nota' => $nota];
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * O MAPA: uma entrada por PÁGINA DO MENU.
+ *
+ * A página é a unidade porque é assim que o problema chega ("o draft está
+ * errado", "as picks sumiram") — e é assim que dá pra ver, de relance, qual
+ * tela está sã e qual não está.
+ *
+ * O mesmo defeito pode aparecer em mais de um card quando afeta mais de uma
+ * tela: quem escolhe fora do dono da pick estraga o quadro do Draft E o número
+ * da escolha na Trade Machine.
+ *
+ * `verificacoes` diz o que este card SABE olhar. Card sem verificação nenhuma
+ * aparece como "sem verificação" — é honesto, e mostra onde falta cobertura em
+ * vez de fingir que está tudo bem.
+ * ─────────────────────────────────────────────────────────────────────────── */
+$P = [];   // achados por página
+
+foreach ($zumbis as $z) {
+    $a = achado(
+        "Sessão #{$z['id']} ({$z['status']}) na temporada #{$z['season_number']}, ano {$z['year']} — o sprint {$z['sprint_number']} já encerrou. {$z['vagas']} vaga(s).",
+        ['acao' => 'fechar_sessao', 'id' => (int)$z['id'], 'rotulo' => 'Encerrar sessão', 'perigo' => true,
+         'confirma' => "Encerrar a sessão #{$z['id']}?"],
+        'Ela vence as consultas que procuram "o draft da liga", e as picks passam a se ligar a um draft que não existe mais.'
+    );
+    $P['drafts.php'][] = ['liga' => $z['league']] + $a;
+    $P['lottery.php'][] = ['liga' => $z['league']] + $a;
+}
+
+foreach ($repetidas as $r) {
+    $ex = $r['casos'][0] ?? null;
+    $P['drafts.php'][] = ['liga' => $r['liga']] + achado(
+        "Sessão #{$r['sessao']} (ano {$r['ano']}): " . count($r['casos']) . " time(s) com mais de uma vaga na mesma rodada"
+        . ($ex ? ", um deles com " . count($ex['picks']) . " vagas" : '') . ". {$r['divergencias']} vaga(s) divergente(s).",
+        null,
+        'Sem botão: não dá pra adivinhar de quem era cada vaga repetida. Esta ordem precisa ser refeita pela loteria.'
+    );
+}
+
+foreach ($ordemFora as $o) {
+    $a = achado(
+        "Sessão #{$o['sessao']} (ano {$o['ano']}, {$o['vagas']} vagas): {$o['divergencias']} vaga(s) com quem escolhe diferente do dono da pick, {$o['sem_pick']} sem pick por trás.",
+        ['acao' => 'sincronizar_ordem', 'liga' => $o['liga'], 'rotulo' => 'Sincronizar ordem'],
+        'Vaga sem pick não se resolve aqui: use "Ajustar Picks" no card de Draft do admin.'
+    );
+    $P['drafts.php'][] = ['liga' => $o['liga']] + $a;
+    $P['trades.php'][] = ['liga' => $o['liga']] + $a;
+    $P['picks.php'][]  = ['liga' => $o['liga']] + $a;
+}
+
+foreach ($anosVazios as $v) {
+    $lista = [];
+    foreach (array_slice($v['falhas'], 0, 6) as $f) $lista[] = "{$f['ano']}: {$f['tem']}/{$f['esperado']}";
+    $a = achado(
+        'Anos com pick faltando — ' . implode(' · ', $lista)
+        . (count($v['falhas']) > 6 ? ' e mais ' . (count($v['falhas']) - 6) : ''),
+        null,
+        'Conserto: "Ajustar Picks" no card de Draft do admin. Ele cria o que falta e não toca em pick negociada.'
+    );
+    $P['picks.php'][]  = ['liga' => $v['liga']] + $a;
+    $P['trades.php'][] = ['liga' => $v['liga']] + $a;
+}
+
+foreach ($clonadas as $c) {
+    $a = achado(
+        "Temporada #{$c['season_number']} ({$c['status']}): {$c['linhas']} linha(s) de estatística copiadas da temporada anterior.",
+        ['acao' => 'limpar_stats_clonadas', 'season_id' => (int)$c['season_id'], 'rotulo' => 'Apagar as copiadas', 'perigo' => true,
+         'confirma' => "Apagar as {$c['linhas']} linhas copiadas?"],
+        'Apaga só o que tem source=clonado; lançamento feito à mão na mesma temporada fica.'
+    );
+    $P['statsjogadores.php'][] = ['liga' => $c['league']] + $a;
+    $P['my-roster.php'][]      = ['liga' => $c['league']] + $a;
+    $P['players.php'][]        = ['liga' => $c['league']] + $a;
+}
+
+foreach ($tempDup as $t) {
+    $P['admin.php'][] = ['liga' => $t['league']] + achado(
+        "Temporada #{$t['season_number']} (id {$t['id']}, ano {$t['year']}) está \"{$t['status']}\" — o sprint {$t['sprint_number']} já encerrou, e {$t['irmas_fechadas']} temporada(s) dele estão completed.",
+        ['acao' => 'fechar_temporada', 'id' => (int)$t['id'], 'rotulo' => 'Marcar como completed',
+         'confirma' => "Marcar a temporada id {$t['id']} como completed?"],
+        'Mexe só no status: playoffs, pontuação e campeão dela ficam onde estão.'
+    );
+}
+
+foreach ($linhaUnica as $l) {
+    $P['admin.php'][] = achado(
+        "A tabela {$l['tabela']} tem {$l['linhas']} linhas com a mesma chave ({$l['chave']}).",
+        ['acao' => 'dedup_linha_unica', 'tabela' => $l['tabela'], 'rotulo' => 'Deixar só a mais recente', 'perigo' => true,
+         'confirma' => "Deixar só a linha mais recente de {$l['tabela']}?"],
+        'Limpar resolve o sintoma; a causa é o código que grava.'
+    );
+}
+
+/* As páginas do menu, na ordem do menu. `ver` é o que este card sabe olhar. */
+$PAGINAS = [
+    ['Draft e picks', [
+        ['drafts.php', 'Draft', 'bi-trophy', ['sessão de sprint encerrado', 'ordem com time repetido', 'quem escolhe x dono da pick']],
+        ['lottery.php', 'Loteria', 'bi-shuffle', ['sessão de sprint encerrado']],
+        ['picks.php', 'Picks', 'bi-calendar-check-fill', ['ano com pick faltando', 'quem escolhe x dono da pick']],
+        ['trades.php', 'Trades', 'bi-arrow-left-right', ['ano com pick faltando', 'quem escolhe x dono da pick']],
+    ]],
+    ['Elenco e números', [
+        ['my-roster.php', 'Meu Elenco', 'bi-person-fill', ['estatística copiada de temporada não disputada']],
+        ['statsjogadores.php', 'Stats', 'bi-bar-chart-line-fill', ['estatística copiada de temporada não disputada']],
+        ['players.php', 'Jogadores', 'bi-person-lines-fill', ['estatística copiada de temporada não disputada']],
+        ['teams.php', 'Times', 'bi-people-fill', []],
+        ['tatica.php', 'Tática', 'bi-clipboard2-pulse', []],
+        ['cap.php', 'Salário Cap', 'bi-cash-stack', []],
+    ]],
+    ['Mercado', [
+        ['free-agency.php', 'Free Agency', 'bi-coin', []],
+        ['dispensas.php', 'Dispensas', 'bi-hourglass-split', []],
+        ['leilao.php', 'Leilão', 'bi-hammer', []],
+        ['mercado.php', 'Mercado', 'bi-shop', []],
+    ]],
+    ['Liga', [
+        ['admin.php', 'Admin', 'bi-shield-lock-fill', ['temporada de sprint encerrado em aberto', 'tabela de linha única duplicada']],
+        ['rankings.php', 'Rankings', 'bi-bar-chart-fill', []],
+        ['tabela.php', 'Tabela', 'bi-table', []],
+        ['history.php', 'Prêmios', 'bi-trophy-fill', []],
+        ['calendario.php', 'Calendário', 'bi-calendar3', []],
+        ['hall-da-fama.php', 'Hall da Fama', 'bi-award-fill', []],
+        ['mundo-fba.php', 'Mundo FBA', 'bi-globe2', []],
+        ['estatisticas.php', 'Estatísticas', 'bi-bar-chart-line-fill', []],
+        ['timeline.php', 'Timeline', 'bi-collection-play-fill', []],
+        ['ouvidoria.php', 'Ouvidoria', 'bi-chat-dots', []],
+        ['thepathetic.php', 'The Pathetic', 'bi-newspaper', []],
+        ['games.php', 'Games', 'bi-controller', []],
+    ]],
+];
+
+$totalProblemas = 0;
+foreach ($P as $lista) $totalProblemas += count($lista);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -282,7 +420,31 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
        font-size:14px;line-height:1.5;padding:24px 16px 64px}
-  .wrap{max-width:940px;margin:0 auto}
+  /* Tela cheia: sao dezenas de cards, e uma coluna de 940px no meio deixava
+     dois terços do monitor vazios enquanto a lista descia sem fim. */
+  .wrap{max-width:1680px;margin:0 auto}
+  /* Os cards se acomodam sozinhos: 3 ou 4 num monitor, 1 no celular. */
+  .grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;margin-bottom:8px}
+  .pg{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+      padding:15px 16px;display:flex;flex-direction:column;gap:10px}
+  .pg.ok{opacity:.62}
+  .pg.sujo{border-color:rgba(252,0,37,.35)}
+  .pg-cab{display:flex;align-items:center;gap:9px}
+  .pg-cab i{font-size:16px;color:var(--text-3)}
+  .pg.sujo .pg-cab i{color:var(--red)}
+  .pg-nome{font-weight:700;font-size:14px;flex:1;min-width:0}
+  .pg-nome a{color:var(--text);text-decoration:none}
+  .pg-nome a:hover{color:var(--red)}
+  .pg-sel{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.5px;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .pg-sel.ok{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.28)}
+  .pg-sel.sujo{background:rgba(252,0,37,.1);color:var(--red);border:1px solid rgba(252,0,37,.3)}
+  .pg-sel.nada{background:var(--panel-2);color:var(--text-3);border:1px solid var(--border)}
+  .pg-ver{font-size:11px;color:var(--text-3);line-height:1.5}
+  .pg-ver b{color:var(--text-2);font-weight:600}
+  .item{background:var(--panel-2);border-left:3px solid var(--red);border-radius:8px;padding:10px 11px;font-size:12.5px;line-height:1.5}
+  .item .liga{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:.6px;color:var(--amber);display:block;margin-bottom:3px}
+  .item .nota{display:block;margin-top:6px;color:var(--text-3);font-size:11.5px}
+  .item form{margin-top:9px}
   h1{font-family:'Oswald',sans-serif;font-size:26px;margin:0 0 4px;letter-spacing:.5px}
   .sub{color:var(--text-3);font-size:13px;margin-bottom:22px}
   .placar{display:inline-flex;align-items:center;gap:9px;padding:9px 15px;border-radius:11px;
@@ -321,7 +483,8 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
   .area:first-of-type{margin-top:8px}
   .resumo{display:flex;flex-wrap:wrap;gap:8px;margin:-12px 0 22px}
   .resumo-item{background:var(--panel);border:1px solid var(--border);border-radius:8px;
-               padding:5px 11px;font-size:12.5px;color:var(--text-2)}
+               padding:5px 11px;font-size:12.5px;color:var(--text-2);text-decoration:none}
+  .resumo-item:hover{border-color:var(--red);color:var(--text)}
   .resumo-item b{color:var(--red);font-family:'Oswald',sans-serif;font-size:14px;margin-right:3px}
   @media(max-width:520px){ .achado{flex-direction:column;align-items:stretch} button{width:100%} }
 </style>
@@ -329,199 +492,76 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 <body>
 <div class="wrap">
   <a class="voltar" href="/admin.php"><i class="bi bi-arrow-left"></i> Admin</a>
-  <h1>Correções</h1>
-  <p class="sub">Diagnósticos rodando contra o banco agora. Onde o conserto é seguro, tem botão.</p>
+  <h1>Central de correções</h1>
+  <p class="sub">Um card por tela do app. Cada um roda os diagnósticos que sabe fazer, agora, contra o banco.</p>
 
   <?php if ($aviso): ?>
     <div class="aviso <?= h($aviso[0]) ?>"><?= h($aviso[1]) ?></div>
   <?php endif; ?>
 
-  <?php
-  /* O resumo diz ONDE está o problema, não só quantos são. Com a página
-     crescendo a cada bug corrigido, "3 pontos para olhar" obriga a rolar tudo
-     pra descobrir se é do draft ou da base. */
-  $porArea = [
-      'Draft e picks'      => count($zumbis) + count($repetidas) + count($ordemFora) + count($anosVazios),
-      'Estatísticas'       => count($clonadas),
-      'Temporadas e base'  => count($linhaUnica) + count($tempDup),
-  ];
-  ?>
   <div class="placar <?= $totalProblemas ? 'sujo' : 'limpo' ?>">
     <i class="bi bi-<?= $totalProblemas ? 'exclamation-triangle-fill' : 'check-circle-fill' ?>"></i>
-    <?= $totalProblemas ? $totalProblemas . ' ponto(s) para olhar' : 'Nada pendente' ?>
+    <?= $totalProblemas ? $totalProblemas . ' ponto(s) para olhar' : 'Nada pendente em nenhuma tela' ?>
   </div>
+
   <?php if ($totalProblemas): ?>
+    <?php /* Atalho pros cards com problema: com dezenas de telas, procurar o
+             vermelho no meio do verde é rolar a página inteira. */ ?>
     <div class="resumo">
-      <?php foreach ($porArea as $nome => $qtd): if (!$qtd) continue; ?>
-        <span class="resumo-item"><b><?= (int)$qtd ?></b> <?= h($nome) ?></span>
+      <?php foreach ($P as $slug => $itens): if (!$itens) continue; ?>
+        <a class="resumo-item" href="#pg-<?= h($slug) ?>"><b><?= count($itens) ?></b> <?= h($slug) ?></a>
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
 
-  <div class="area" id="area-draft">DRAFT E PICKS</div>
-  <!-- 1 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-hourglass-bottom" style="color:var(--red)"></i> Draft aberto em sprint encerrado</h2>
-    <p class="por">Sessão que ficou <code>setup</code>/<code>in_progress</code> numa temporada de sprint
-       fechado. Ela vence as consultas que procuram "o draft da liga", e aí as picks se ligam a um draft
-       que não existe mais — foi assim que a NEXT passou a apontar para um draft de 2044.</p>
-    <?php if (!$zumbis): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
-    <?php else: foreach ($zumbis as $z): ?>
-      <div class="achado">
-        <span class="tag"><?= h($z['league']) ?></span>
-        <span class="txt">Sessão <b>#<?= (int)$z['id'] ?></b> (<?= h($z['status']) ?>) na temporada
-          <b>#<?= h($z['season_number']) ?></b>, ano <?= h($z['year']) ?> — sprint <?= h($z['sprint_number']) ?>
-          está <b><?= h($z['sprint_status']) ?></b>. <?= (int)$z['vagas'] ?> vaga(s).</span>
-        <form method="post" onsubmit="return confirm('Encerrar a sessão #<?= (int)$z['id'] ?>?')">
-          <input type="hidden" name="acao" value="fechar_sessao">
-          <input type="hidden" name="id" value="<?= (int)$z['id'] ?>">
-          <button class="perigo" type="submit">Encerrar sessão</button>
-        </form>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
+  <?php foreach ($PAGINAS as [$area, $telas]): ?>
+    <div class="area"><?= h($area) ?></div>
+    <div class="grade">
+      <?php foreach ($telas as [$slug, $nome, $icone, $ver]):
+        $itens = $P[$slug] ?? [];
+        $temProblema = (bool)$itens;
+        // Três estados, e não dois: "sem verificação" não é "está tudo bem".
+        // Fingir verde numa tela que ninguém olha é pior que admitir o buraco.
+        $classe = $temProblema ? 'sujo' : 'ok';
+        ?>
+        <div class="pg <?= $classe ?>" id="pg-<?= h($slug) ?>">
+          <div class="pg-cab">
+            <i class="bi <?= h($icone) ?>"></i>
+            <span class="pg-nome"><a href="/<?= h($slug) ?>" target="_blank"><?= h($nome) ?></a></span>
+            <?php if ($temProblema): ?>
+              <span class="pg-sel sujo"><?= count($itens) ?> <?= count($itens) === 1 ? 'ACHADO' : 'ACHADOS' ?></span>
+            <?php elseif ($ver): ?>
+              <span class="pg-sel ok">OK</span>
+            <?php else: ?>
+              <span class="pg-sel nada">SEM VERIFICAÇÃO</span>
+            <?php endif; ?>
+          </div>
 
-  <!-- 2 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-files" style="color:var(--red)"></i> Ordem do draft com time repetido</h2>
-    <p class="por">A vaga pertence ao time de ORIGEM, e é por (origem, rodada, ano) que a pick se liga a
-       ela. Com o mesmo time em duas vagas da mesma rodada, N vagas apontam para uma pick só e a ligação
-       morre: quem escolhe para de bater com o dono e o número da escolha some da Trade Machine.</p>
-    <?php if (!$repetidas): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
-    <?php else: foreach ($repetidas as $r): ?>
-      <div class="achado">
-        <span class="tag"><?= h($r['liga']) ?></span>
-        <span class="txt">Sessão <b>#<?= (int)$r['sessao'] ?></b> (ano <?= h($r['ano']) ?>):
-          <b><?= count($r['casos']) ?></b> time(s) repetido(s), <?= (int)$r['divergencias'] ?> vaga(s) divergente(s).
-          <?php $ex = $r['casos'][0] ?? null; if ($ex): ?>
-            Ex.: um time com <?= count($ex['picks']) ?> vagas na rodada <?= h($ex['rodada']) ?>.
-          <?php endif; ?></span>
-      </div>
-    <?php endforeach; ?>
-      <p class="nota">Sem botão de propósito: não dá para adivinhar de quem era cada vaga repetida.
-         Essa ordem precisa ser refeita pela loteria.</p>
-    <?php endif; ?>
-  </div>
-
-  <!-- 3 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-people" style="color:var(--amber)"></i> Quem escolhe fora do dono da pick</h2>
-    <p class="por">O <code>team_id</code> da ordem é um cache de quem é dono da pick. Sincronizar reescreve
-       esse cache a partir das picks, resolvendo compra, swap e proteção. É idempotente.</p>
-    <?php if (!$ordemFora): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Tudo batendo.</p>
-    <?php else: foreach ($ordemFora as $o): ?>
-      <div class="achado">
-        <span class="tag"><?= h($o['liga']) ?></span>
-        <span class="txt">Sessão <b>#<?= (int)$o['sessao'] ?></b> (ano <?= h($o['ano']) ?>,
-          <?= (int)$o['vagas'] ?> vagas): <b><?= (int)$o['divergencias'] ?></b> divergente(s),
-          <b><?= (int)$o['sem_pick'] ?></b> sem pick por trás.</span>
-        <form method="post">
-          <input type="hidden" name="acao" value="sincronizar_ordem">
-          <input type="hidden" name="liga" value="<?= h($o['liga']) ?>">
-          <button type="submit">Sincronizar ordem</button>
-        </form>
-      </div>
-    <?php endforeach; ?>
-      <p class="nota">Vaga sem pick não se resolve aqui: use <b>Ajustar Picks</b> no card de Draft da liga.</p>
-    <?php endif; ?>
-  </div>
-
-  <!-- 4 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-calendar-x" style="color:var(--amber)"></i> Ano com picks faltando</h2>
-    <p class="por">Cada time deveria ter uma pick de 1ª e uma de 2ª em cada ano da faixa. Ano com menos que
-       isso é buraco — normalmente de pick realocada para outro ano.</p>
-    <?php if (!$anosVazios): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Todos os anos completos.</p>
-    <?php else: foreach ($anosVazios as $a): ?>
-      <div class="achado">
-        <span class="tag"><?= h($a['liga']) ?></span>
-        <span class="txt">
-          <?php foreach (array_slice($a['falhas'], 0, 8) as $f): ?>
-            <?= (int)$f['ano'] ?>: <b><?= (int)$f['tem'] ?></b>/<?= (int)$f['esperado'] ?> &nbsp;
+          <?php foreach ($itens as $it): ?>
+            <div class="item">
+              <?php if (!empty($it['liga'])): ?><span class="liga"><?= h($it['liga']) ?></span><?php endif; ?>
+              <?= h($it['texto']) ?>
+              <?php if ($it['nota']): ?><span class="nota"><?= h($it['nota']) ?></span><?php endif; ?>
+              <?php if ($it['acao']): $a = $it['acao']; ?>
+                <form method="post"<?= isset($a['confirma']) ? ' onsubmit="return confirm(' . htmlspecialchars(json_encode($a['confirma']), ENT_QUOTES) . ')"' : '' ?>>
+                  <?php foreach ($a as $k => $v): if (in_array($k, ['rotulo', 'perigo', 'confirma'], true)) continue; ?>
+                    <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
+                  <?php endforeach; ?>
+                  <button type="submit"<?= !empty($a['perigo']) ? ' class="perigo"' : '' ?>><?= h($a['rotulo']) ?></button>
+                </form>
+              <?php endif; ?>
+            </div>
           <?php endforeach; ?>
-          <?php if (count($a['falhas']) > 8): ?> … <?= count($a['falhas']) - 8 ?> ano(s) a mais<?php endif; ?>
-        </span>
-      </div>
-    <?php endforeach; ?>
-      <p class="nota">Conserto: <b>Ajustar Picks</b> no card de Draft da liga — ele cria o que falta e não
-         toca em pick negociada.</p>
-    <?php endif; ?>
-  </div>
 
-  <div class="area" id="area-stats">ESTATÍSTICAS</div>
-  <div class="bloco">
-    <h2><i class="bi bi-files" style="color:var(--red)"></i> Estatística copiada de temporada não disputada</h2>
-    <p class="por">O avanço de temporada copiava <code>player_season_stats</code> da anterior como ponto de
-       partida, e o card do jogador passava a mostrar os números do ano passado como se fossem do novo.
-       A cópia não acontece mais; o que já foi copiado segue no banco. Apagar mexe só no que tem
-       <code>source = 'clonado'</code> — lançamento feito à mão na mesma temporada fica.</p>
-    <?php if (!$clonadas): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
-    <?php else: foreach ($clonadas as $c): ?>
-      <div class="achado">
-        <span class="tag"><?= h($c['league']) ?></span>
-        <span class="txt">Temporada <b>#<?= h($c['season_number']) ?></b> (<?= h($c['status']) ?>):
-          <b><?= (int)$c['linhas'] ?></b> linha(s) copiada(s).</span>
-        <form method="post" onsubmit="return confirm('Apagar as <?= (int)$c['linhas'] ?> linhas copiadas da temporada #<?= h($c['season_number']) ?>?')">
-          <input type="hidden" name="acao" value="limpar_stats_clonadas">
-          <input type="hidden" name="season_id" value="<?= (int)$c['season_id'] ?>">
-          <button class="perigo" type="submit">Apagar as copiadas</button>
-        </form>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
-
-  <div class="area" id="area-base">TEMPORADAS E BASE</div>
-  <!-- 5 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-layers" style="color:var(--amber)"></i> Tabela de linha única com linha repetida</h2>
-    <p class="por">Tabela que deveria ter uma linha só e foi ganhando cópias — sinal de código que insere
-       onde devia atualizar. Cresce para sempre e impede a chave primária.</p>
-    <?php if (!$linhaUnica): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
-    <?php else: foreach ($linhaUnica as $l): ?>
-      <div class="achado">
-        <span class="txt"><code><?= h($l['tabela']) ?></code> tem <b><?= (int)$l['linhas'] ?></b> linhas
-          com a mesma chave <code><?= h($l['chave']) ?></code>.</span>
-        <form method="post" onsubmit="return confirm('Deixar só a linha mais recente de <?= h($l['tabela']) ?>?')">
-          <input type="hidden" name="acao" value="dedup_linha_unica">
-          <input type="hidden" name="tabela" value="<?= h($l['tabela']) ?>">
-          <button class="perigo" type="submit">Deixar só a mais recente</button>
-        </form>
-      </div>
-    <?php endforeach; ?>
-      <p class="nota">Limpar resolve o sintoma. A causa é o código que grava — vale achar quem insere.</p>
-    <?php endif; ?>
-  </div>
-
-  <!-- 6 ─────────────────────────────────────────────────────────────────── -->
-  <div class="bloco">
-    <h2><i class="bi bi-signpost-split" style="color:var(--amber)"></i> Temporada de sprint encerrado ainda em aberto</h2>
-    <p class="por">Número de temporada repetido na liga é normal — cada sprint recomeça do #1. O que não é
-       normal é uma temporada de sprint já fechado seguir sem <code>completed</code>: aí as consultas que
-       procuram "a temporada corrente" podem pescar ela. Fechar mexe só no status; playoffs, pontuação e
-       campeão dela ficam onde estão.</p>
-    <?php if (!$tempDup): ?>
-      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
-    <?php else: foreach ($tempDup as $t): ?>
-      <div class="achado">
-        <span class="tag"><?= h($t['league']) ?></span>
-        <span class="txt">Temporada <b>#<?= h($t['season_number']) ?></b> (id <?= (int)$t['id'] ?>,
-          ano <?= h($t['year']) ?>) está <b><?= h($t['status'] ?? 'NULL') ?></b> — sprint
-          <?= h($t['sprint_number']) ?> já encerrou, e <?= (int)$t['irmas_fechadas'] ?> temporada(s) dele
-          estão completed.</span>
-        <form method="post" onsubmit="return confirm('Marcar a temporada id <?= (int)$t['id'] ?> como completed?')">
-          <input type="hidden" name="acao" value="fechar_temporada">
-          <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
-          <button type="submit">Marcar como completed</button>
-        </form>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
+          <?php if ($ver): ?>
+            <div class="pg-ver"><b>Verifica:</b> <?= h(implode(' · ', $ver)) ?></div>
+          <?php else: ?>
+            <div class="pg-ver">Nenhum diagnóstico escrito para esta tela ainda.</div>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  <?php endforeach; ?>
 </div>
 </body>
 </html>
