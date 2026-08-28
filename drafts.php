@@ -861,7 +861,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title"><i class="bi bi-send-check"></i> Mock — <span id="round2MockPickLabel"></span></span>
+        <span class="modal-title"><i class="bi bi-hand-index-thumb"></i> Escolher — <span id="round2MockPickLabel"></span></span>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -1291,11 +1291,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (showRound2Team) {
       html += `
         <div class="r2-panel" style="margin-bottom:14px">
-          <div class="r2-panel-title"><i class="bi bi-send-check"></i> Mock da 2ª rodada</div>
+          <div class="r2-panel-title"><i class="bi bi-hand-index-thumb"></i> 2ª rodada aberta</div>
           <p style="font-size:12px;color:var(--text-2);margin-bottom:6px">
-            20 minutos depois da última pick da 1ª rodada, o sistema resolve sozinho: cada pick com
-            mock leva o jogador escolhido, se ele ainda estiver disponível. É opcional — quem não
-            enviar mock fica em aberto pro admin preencher depois.
+            Não há ordem de vez: todas as escolhas estão abertas ao mesmo tempo por 20 minutos.
+            Clique na sua, escolha entre quem sobrou, e o jogador é seu na hora —
+            <b>quem pegar primeiro, pegou</b>. Vaga não preenchida até o fim do prazo
+            fica pro admin completar depois.
           </p>
           <div id="round2Countdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
           <div id="round2Board"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
@@ -1681,20 +1682,16 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (!box) return;
     if (!picks.length) { box.innerHTML = '<div class="state-empty"><i class="bi bi-clock"></i><p>Nenhuma pick de 2ª rodada.</p></div>'; return; }
     box.innerHTML = picks.map(p => {
+      // Escolhida é escolhida: não há mais mock pra trocar nem cancelar.
+      // Quem ainda não escolheu vê o botão; os outros veem que está aberta.
       const resolved = !!p.picked_player_id;
       let right;
       if (resolved) {
-        right = `<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Resolvida</span>`;
+        right = `<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Escolhida</span>`;
       } else if (p.is_own) {
-        right = p.mock_player
-          ? `<span style="font-size:12px;color:var(--text)">${esc(p.mock_player.name)}</span>
-             <button class="btn-ghost" style="padding:3px 9px;font-size:11px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_position})">Trocar</button>
-             <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#ef4444" onclick="cancelRound2Mock(${p.draft_order_id})"><i class="bi bi-x"></i></button>`
-          : `<button class="btn-red" style="padding:6px 14px;font-size:12px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_position})"><i class="bi bi-send"></i> Deixar mock</button>`;
+        right = `<button class="btn-red" style="padding:6px 14px;font-size:12px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_overall || p.pick_position})"><i class="bi bi-hand-index-thumb"></i> Escolher</button>`;
       } else {
-        right = p.has_mock
-          ? `<span style="font-size:11px;color:var(--text-3)"><i class="bi bi-check-circle"></i> Mock enviado</span>`
-          : `<span style="font-size:11px;color:var(--text-3)">Sem mock</span>`;
+        right = `<span style="font-size:11px;color:var(--text-3)">Em aberto</span>`;
       }
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:8px;background:var(--panel-2);margin-bottom:6px;${resolved ? 'opacity:.6' : ''}">
@@ -1764,21 +1761,29 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     `).join('');
   }
 
+  /**
+   * Escolhe pra valer, na hora.
+   *
+   * Não é mais um mock guardado pra resolver no fim do prazo: clicou,
+   * levou. Se outro time clicar no mesmo jogador um instante antes, o
+   * servidor recusa e a lista é recarregada — quem pegou primeiro pegou.
+   */
   async function chooseRound2Mock(playerId) {
     if (!round2MockDraftOrderId) return;
     try {
-      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'submit_round2_mock', draft_order_id: round2MockDraftOrderId, player_id: playerId }) });
+      const r = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'pick_round2', draft_order_id: round2MockDraftOrderId, player_id: playerId }) });
       bootstrap.Modal.getInstance(document.getElementById('round2MockModal'))?.hide();
+      // A escolha muda o quadro E o resto da página (o card da vaga, o
+      // jogador que sai do pool), então recarrega os dois.
       await loadRound2Board();
-    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
-  }
-
-  async function cancelRound2Mock(draftOrderId) {
-    if (!await confirmarSite('Remover o mock dessa pick?')) return;
-    try {
-      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'cancel_round2_mock', draft_order_id: draftOrderId }) });
+      loadDraft();
+      if (r && r.message) alert(r.message);
+    } catch (e) {
+      // O caso comum aqui não é erro de sistema: é ter perdido a corrida.
+      // Recarregar mostra o jogador já indisponível, sem deixar dúvida.
+      alert(e.error || e.message || 'Não deu pra registrar a escolha.');
       await loadRound2Board();
-    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
+    }
   }
 
   /**

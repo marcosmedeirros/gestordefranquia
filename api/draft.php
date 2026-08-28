@@ -2318,6 +2318,138 @@ if ($method === 'POST') {
 
         // 2ª rodada: dono da pick (ou admin, pra qualquer pick) deixa/troca o mock dela —
         // upsert, só pode setar em pick ainda não resolvida.
+        /* 2ª RODADA: ESCOLHA IMEDIATA, QUEM PEGAR PRIMEIRO PEGOU.
+           Quando a 1ª rodada acaba, todas as vagas da 2ª abrem de uma vez e
+           não há ordem de vez: cada dono clica na SUA vaga e leva o jogador
+           na hora. Por 20 minutos.
+
+           Isto substitui o mock, que guardava a intenção e só resolvia no
+           fim do prazo — e resolvia pela ORDEM DA PICK, não por quem chegou
+           antes. Eram duas regras diferentes com o mesmo nome.
+
+           A disputa é decidida pelo BANCO, não por quem o PHP atende
+           primeiro: o jogador é tomado com um UPDATE condicionado a ainda
+           estar disponível, e quem não afetar nenhuma linha perdeu a
+           corrida. Um SELECT antes do UPDATE deixaria a janela aberta pros
+           dois cliques passarem. */
+        case 'pick_round2': {
+            $draftOrderId = (int)($data['draft_order_id'] ?? 0);
+            $playerId     = (int)($data['player_id'] ?? 0);
+            if (!$draftOrderId || !$playerId) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $st = $pdo->prepare('SELECT o.*, s.season_id, s.current_round, s.status AS sessao_status,
+                                        s.round2_mock_deadline
+                                   FROM draft_order o
+                                   JOIN draft_sessions s ON s.id = o.draft_session_id
+                                  WHERE o.id = ?');
+            $st->execute([$draftOrderId]);
+            $vaga = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$vaga || (int)$vaga['round'] !== 2) {
+                echo json_encode(['success' => false, 'error' => 'Escolha de 2ª rodada não encontrada']);
+                exit;
+            }
+            if ($vaga['sessao_status'] !== 'in_progress' || (int)$vaga['current_round'] !== 2) {
+                echo json_encode(['success' => false, 'error' => 'A 2ª rodada ainda não está aberta']);
+                exit;
+            }
+            if (!$isAdmin && !empty($vaga['round2_mock_deadline'])
+                && strtotime($vaga['round2_mock_deadline']) <= time()) {
+                echo json_encode(['success' => false, 'error' => 'O prazo da 2ª rodada acabou']);
+                exit;
+            }
+            if (!$isAdmin && (int)$vaga['team_id'] !== (int)($team['id'] ?? 0)) {
+                echo json_encode(['success' => false, 'error' => 'Esta escolha não é do seu time']);
+                exit;
+            }
+            if ($vaga['picked_player_id'] !== null) {
+                echo json_encode(['success' => false, 'error' => 'Esta escolha já foi feita']);
+                exit;
+            }
+
+            $stSeason = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+            $stSeason->execute([(int)$vaga['season_id']]);
+            $draftSeasonNumber = (int)($stSeason->fetchColumn() ?: 1);
+
+            $stTam = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = 1');
+            $stTam->execute([(int)$vaga['draft_session_id']]);
+            $vagasR1 = (int)$stTam->fetchColumn();
+            $numeroCorrido = $vagasR1 + (int)$vaga['pick_position'];
+            $timeId = (int)$vaga['team_id'];
+
+            $pdo->beginTransaction();
+            try {
+                // A CORRIDA SE DECIDE AQUI. Só afeta linha se o jogador ainda
+                // estiver livre; zero linhas quer dizer que outro time clicou
+                // primeiro, e nada mais acontece.
+                $tomou = $pdo->prepare('UPDATE draft_pool
+                                           SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ?
+                                         WHERE id = ? AND draft_status = "available"');
+                $tomou->execute([$timeId, $numeroCorrido, $playerId]);
+                if ($tomou->rowCount() === 0) {
+                    $pdo->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Alguém pegou esse jogador primeiro.']);
+                    exit;
+                }
+
+                // E a vaga também só é preenchida se ainda estiver vazia —
+                // dois cliques no mesmo card não viram duas escolhas.
+                $ocupa = $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW()
+                                         WHERE id = ? AND picked_player_id IS NULL');
+                $ocupa->execute([$playerId, $draftOrderId]);
+                if ($ocupa->rowCount() === 0) {
+                    $pdo->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Esta escolha já foi feita']);
+                    exit;
+                }
+
+                $stPl = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ?');
+                $stPl->execute([$playerId]);
+                $player = $stPl->fetch(PDO::FETCH_ASSOC) ?: [];
+                $nome = trim((string)($player['name'] ?? ''));
+
+                $stJa = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
+                $stJa->execute([$timeId, $nome]);
+                $duplicado = (bool)$stJa->fetchColumn();
+                if (!$duplicado) {
+                    try {
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, 2, ?, ?, ?, ?, ?, "Banco", 0)')
+                            ->execute([$timeId, $timeId, $draftSeasonNumber, (int)$vaga['pick_position'],
+                                       $nome, $player['position'] ?? null, (int)($player['age'] ?? 0), (int)($player['ovr'] ?? 0)]);
+                    } catch (Exception $e) {
+                        if (!str_contains($e->getMessage(), 'unique_player_per_team')) throw $e;
+                        $duplicado = true;
+                    }
+                }
+
+                // Preencheu a última vaga: o draft acabou. A 2ª é sempre a
+                // última rodada, então não há pra onde avançar o ponteiro.
+                $stFalta = $pdo->prepare('SELECT COUNT(*) FROM draft_order
+                                           WHERE draft_session_id = ? AND picked_player_id IS NULL');
+                $stFalta->execute([(int)$vaga['draft_session_id']]);
+                if ((int)$stFalta->fetchColumn() === 0) {
+                    $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
+                        ->execute([(int)$vaga['draft_session_id']]);
+                }
+
+                $pdo->commit();
+                echo json_encode([
+                    'success' => true,
+                    'message' => $duplicado
+                        ? 'Escolha feita! O jogador já existia no elenco e não foi duplicado.'
+                        : 'Escolha feita: ' . $nome . '.',
+                    'player'  => $player,
+                ]);
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[draft/pick_round2] ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Erro ao registrar a escolha']);
+            }
+            break;
+        }
+
         case 'submit_round2_mock':
             $draftOrderId = $data['draft_order_id'] ?? null;
             $playerId = $data['player_id'] ?? null;
