@@ -386,7 +386,8 @@ function wcAjuda(): string
 "
         . "/minhastrades — suas 3 últimas trocas\n\n"
         . "*Liga*\n"
-        . "/ranking _liga_ — a tabela da liga\n"
+        . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
+        . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
@@ -803,6 +804,63 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $l
     return rtrim($txt);
 }
 
+/**
+ * O RANKING da liga — a pontuação acumulada, com títulos.
+ *
+ * É outra pergunta que a classificação, e as duas moravam no mesmo comando:
+ * /ranking e /tabela caíam na mesma função e respondiam a tabela da
+ * temporada. Só que ranking é a corrida do ciclo (seeds + playoffs + prêmios
+ * somados), e classificação é a ordem de UMA temporada. Quem pede o ranking
+ * no dia seguinte à virada não quer ouvir que a temporada nova ainda não tem
+ * classificação.
+ *
+ * A fonte é teams.ranking_points, a mesma da página de Rankings — os dois
+ * lugares precisam dizer o mesmo número.
+ */
+function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    try {
+        $temTitulos = (bool)$pdo->query("SHOW COLUMNS FROM teams LIKE 'ranking_titles'")->fetch();
+        $colTitulos = $temTitulos ? 'COALESCE(t.ranking_titles,0)' : '0';
+        $st = $pdo->prepare("SELECT t.city, t.name, t.mascot,
+                                    COALESCE(t.ranking_points,0) AS pontos,
+                                    {$colTitulos} AS titulos
+                               FROM teams t
+                              WHERE t.league = ?
+                           ORDER BY pontos DESC, titulos DESC, t.city, t.name");
+        $st->execute([$liga]);
+        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[wcRankingPontos] ' . $e->getMessage());
+        return "Não deu pra ler o ranking da {$liga} agora.";
+    }
+
+    if (!$linhas) return "A {$liga} não tem times cadastrados.";
+    // Ninguém pontuou ainda: dizer "1º com 0" pra liga inteira seria um
+    // ranking que não ranqueia nada.
+    if (!array_filter($linhas, fn($l) => (int)$l['pontos'] > 0)) {
+        return "*Ranking {$liga}*\n\nNinguém pontuou ainda neste ciclo."
+             . "\nA pontuação entra quando a temporada é registrada.";
+    }
+
+    $txt = "🏆 *Ranking {$liga}*\n\n";
+    $pos = 0; $anterior = null; $mostrado = 0;
+    foreach ($linhas as $l) {
+        $mostrado++;
+        // Empate divide a mesma posição: dois times com 14 são os dois 3º.
+        if ((int)$l['pontos'] !== $anterior) { $pos = $mostrado; $anterior = (int)$l['pontos']; }
+        $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$pos] ?? ($pos . '.');
+        $txt .= "{$medalha} *" . wcNomeDoTime($l) . "* — {$l['pontos']} pts";
+        if ((int)$l['titulos'] > 0) $txt .= ' · ' . $l['titulos'] . '🏆';
+        $txt .= "\n";
+    }
+    $txt .= "\n_Pontos do ciclo. Use /tabela pra ver a classificação da temporada._";
+    return rtrim($txt);
+}
+
 function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     // Sem argumento, vale a liga do grupo: quem digita /classificacao no Chat
@@ -811,8 +869,25 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
-    $temp = wcTemporadaAtiva($pdo, $liga);
-    if (!$temp) return "A {$liga} ainda não tem temporada cadastrada.";
+    /* A ÚLTIMA CLASSIFICAÇÃO LANÇADA, e não a da temporada corrente.
+       Uma temporada nova nasce sem classificação — ela só é lançada quando a
+       regular termina. Perguntando pela corrente, o comando respondia "a
+       ELITE ainda não tem classificação lançada na temporada 2" no dia
+       seguinte à virada, escondendo a tabela da 1 que todo mundo queria ver.
+       Quem pergunta a tabela quer a última que existe. */
+    $temp = null;
+    try {
+        $st = $pdo->prepare("SELECT s.id, s.season_number
+                               FROM seasons s
+                              WHERE s.league = ?
+                                AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
+                           ORDER BY s.id DESC LIMIT 1");
+        $st->execute([$liga]);
+        $temp = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        error_log('[wcClassificacao] ' . $e->getMessage());
+    }
+    if (!$temp) return "A {$liga} ainda não teve nenhuma classificação lançada.";
 
     // A classificação da FBA é uma ORDEM, não uma campanha: o admin lança os
     // times na posição final e é só isso que fica gravado. Vitórias e derrotas
@@ -3080,7 +3155,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'pick':
                 return wcPicks($pdo, $arg, null, $ligaDoGrupo);
 
+            // Duas perguntas diferentes, dois comandos: /ranking é a corrida
+            // do ciclo em pontos; /tabela é a classificação da temporada.
             case 'ranking':
+            case 'pontos':
+                return wcRankingPontos($pdo, $arg, $ligaDoGrupo);
+
             case 'classificacao':
             case 'classificação':
             case 'tabela':
