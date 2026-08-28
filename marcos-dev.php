@@ -1,588 +1,391 @@
 <?php
+/**
+ * Página de correções — só do dono da liga.
+ *
+ * Cada bloco é um DIAGNÓSTICO que roda de verdade contra o banco, e quando
+ * existe conserto seguro, o botão que o aplica. Nada aqui adivinha: se a
+ * correção depende de uma decisão humana (refazer uma loteria, por exemplo),
+ * o bloco explica e não oferece botão.
+ *
+ * Por que existe: os defeitos que apareceram na liga foram quase todos da
+ * mesma família — sobra de sprint encerrado poluindo consulta que não filtra
+ * sprint. Achar isso pelo log é lento; aqui é uma tela.
+ */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/draft_swaps.php';
 requireAuth();
 
+const DONO_DEV = 'medeirros99@gmail.com';
+
 $user = getUserSession();
-$allowedDevEmails = ['medeirros15@gmail.com', 'medeirros99@gmail.com'];
-if (!in_array($user['email'] ?? '', $allowedDevEmails, true)) {
+if (strtolower(trim((string)($user['email'] ?? ''))) !== DONO_DEV) {
     http_response_code(403);
-    die('Acesso restrito.');
+    exit('Sem acesso.');
 }
+
 $pdo = db();
+$LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
-// ── Times em destaque ─────────────────────────────────────────────────────────
-function isVipTeam(string $name): bool {
-    $n = strtolower($name);
-    return str_contains($n, 'wyvern') || str_contains($n, 'dog') || str_contains($n, 'voidmaker');
+// ─────────────────────────────────────────────────────────────────────────────
+// DIAGNÓSTICOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sessão de draft aberta numa temporada de sprint já encerrado. */
+function devSessoesZumbi(PDO $pdo): array
+{
+    $sql = "SELECT ds.id, ds.league, ds.status, se.season_number, se.year,
+                   spr.sprint_number, spr.status AS sprint_status,
+                   (SELECT COUNT(*) FROM draft_order o WHERE o.draft_session_id = ds.id) AS vagas
+              FROM draft_sessions ds
+              JOIN seasons se ON se.id = ds.season_id
+              JOIN sprints spr ON spr.id = se.sprint_id
+             WHERE ds.status IN ('setup','in_progress') AND spr.status <> 'active'
+             ORDER BY ds.league, ds.id";
+    return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function teamHtml(string $cityName, string $extraClass = 'team'): string {
-    $safe = htmlspecialchars($cityName);
-    if (isVipTeam($cityName)) {
-        return '<span class="' . $extraClass . ' team-vip">' . $safe . ' ★</span>';
+/** Ordem do draft com o mesmo time de origem em mais de uma vaga da rodada. */
+function devOrigemRepetida(PDO $pdo, array $ligas): array
+{
+    $saida = [];
+    foreach ($ligas as $liga) {
+        $d = draftAbertoDaLiga($pdo, $liga);
+        if (!$d) continue;
+        $r = draftConferirOrdem($pdo, (int)$d['id']);
+        if (!empty($r['origem_repetida'])) {
+            $saida[] = ['liga' => $liga, 'sessao' => $d['id'], 'ano' => $r['ano'],
+                        'casos' => $r['origem_repetida'], 'divergencias' => count($r['divergencias'])];
+        }
     }
-    return '<span class="' . $extraClass . '">' . $safe . '</span>';
+    return $saida;
 }
 
-// ── Helper: label de pick ─────────────────────────────────────────────────────
-function pickLabel(PDO $pdo, int $pickId): string {
+/** Vaga do draft sem a pick correspondente, e quem escolhe fora do dono. */
+function devOrdemFora(PDO $pdo, array $ligas): array
+{
+    $saida = [];
+    foreach ($ligas as $liga) {
+        $d = draftAbertoDaLiga($pdo, $liga);
+        if (!$d) continue;
+        $r = draftConferirOrdem($pdo, (int)$d['id']);
+        $semPick = count($r['sem_pick']);
+        $div = count($r['divergencias']);
+        if ($semPick || $div) {
+            $saida[] = ['liga' => $liga, 'sessao' => $d['id'], 'ano' => $r['ano'],
+                        'vagas' => $r['vagas'], 'sem_pick' => $semPick, 'divergencias' => $div];
+        }
+    }
+    return $saida;
+}
+
+/**
+ * Ano sem pick nenhuma dentro da faixa que a liga deveria ter.
+ * É o rastro da pick que foi realocada e deixou o ano de origem vazio.
+ */
+function devAnosVazios(PDO $pdo, array $ligas): array
+{
+    $saida = [];
+    foreach ($ligas as $liga) {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM teams WHERE league = " . $pdo->quote($liga))->fetchColumn();
+        if (!$n) continue;
+        $esperado = $n * 2;   // uma de 1ª e uma de 2ª por time
+
+        $st = $pdo->prepare("SELECT p.season_year, COUNT(*) AS n
+                               FROM picks p JOIN teams t ON t.id = p.original_team_id
+                              WHERE t.league = ? GROUP BY p.season_year ORDER BY p.season_year");
+        $st->execute([$liga]);
+        $porAno = [];
+        foreach ($st as $r) $porAno[(int)$r['season_year']] = (int)$r['n'];
+        if (!$porAno) continue;
+
+        $anos = array_keys($porAno);
+        $falhas = [];
+        for ($a = min($anos); $a <= max($anos); $a++) {
+            $tem = $porAno[$a] ?? 0;
+            if ($tem < $esperado) $falhas[] = ['ano' => $a, 'tem' => $tem, 'esperado' => $esperado];
+        }
+        if ($falhas) $saida[] = ['liga' => $liga, 'falhas' => $falhas];
+    }
+    return $saida;
+}
+
+/** Tabelas de linha única que ganharam linha repetida. */
+function devLinhaUnicaRepetida(PDO $pdo): array
+{
+    $saida = [];
+    foreach ([['maintenance_mode', 'id']] as [$tabela, $chave]) {
+        try {
+            $st = $pdo->query("SELECT `$chave` AS k, COUNT(*) AS n FROM `$tabela` GROUP BY `$chave` HAVING n > 1");
+            foreach ($st as $r) $saida[] = ['tabela' => $tabela, 'chave' => $r['k'], 'linhas' => (int)$r['n']];
+        } catch (Throwable $e) { /* tabela pode não existir */ }
+    }
+    return $saida;
+}
+
+/** Mais de uma temporada com o mesmo número na mesma liga sem estar fechada. */
+function devTemporadasAbertas(PDO $pdo): array
+{
+    return $pdo->query("SELECT league, season_number, COUNT(*) AS n,
+                               GROUP_CONCAT(CONCAT(id,':',COALESCE(status,'NULL')) ORDER BY id) AS quais
+                          FROM seasons
+                         WHERE status IS NULL OR status <> 'completed'
+                         GROUP BY league, season_number HAVING n > 1")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORREÇÕES
+// ─────────────────────────────────────────────────────────────────────────────
+$aviso = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $acao = (string)($_POST['acao'] ?? '');
     try {
-        $s = $pdo->prepare('SELECT p.season_year, p.round, t.city, t.name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id = ?');
-        $s->execute([$pickId]);
-        $r = $s->fetch(PDO::FETCH_ASSOC);
-        if (!$r) return htmlspecialchars("Pick #$pickId");
-        return htmlspecialchars($r['season_year'] . ' R' . $r['round'] . ' (' . $r['city'] . ' ' . $r['name'] . ')');
-    } catch (Exception) { return htmlspecialchars("Pick #$pickId"); }
-}
+        if ($acao === 'fechar_sessao') {
+            $id = (int)($_POST['id'] ?? 0);
+            // Confere de novo antes de mexer: o POST pode chegar depois de a
+            // situação ter mudado, e fechar uma sessão viva seria estrago.
+            $ok = false;
+            foreach (devSessoesZumbi($pdo) as $z) if ((int)$z['id'] === $id) $ok = true;
+            if (!$ok) throw new RuntimeException("A sessão #$id não está mais na lista — recarregue a página.");
+            $pdo->prepare("UPDATE draft_sessions SET status = 'completed' WHERE id = ?")->execute([$id]);
+            $aviso = ['ok', "Sessão #$id encerrada. Ela era de um sprint já fechado."];
 
-// ── Helper: label de player (retorna HTML seguro, destaca OVR 90+) ────────────
-function playerLabel(PDO $pdo, int $playerId): string {
-    try {
-        $ovrCol = 'ovr';
-        try { if ($pdo->query("SHOW COLUMNS FROM players LIKE 'overall'")->fetch()) $ovrCol = 'overall'; } catch(Exception) {}
-        $s = $pdo->prepare("SELECT name, position, $ovrCol AS ovr FROM players WHERE id = ?");
-        $s->execute([$playerId]);
-        $r = $s->fetch(PDO::FETCH_ASSOC);
-        if (!$r) return htmlspecialchars("Player #$playerId");
-        $ovr  = (int)$r['ovr'];
-        $text = htmlspecialchars($r['name']) . ' (' . htmlspecialchars($r['position'] ?? '?') . ', OVR ' . $ovr . ')';
-        if ($ovr >= 90) return '<span class="player-star">' . $text . ' ★</span>';
-        return $text;
-    } catch (Exception) { return htmlspecialchars("Player #$playerId"); }
-}
+        } elseif ($acao === 'sincronizar_ordem') {
+            $liga = (string)($_POST['liga'] ?? '');
+            $d = draftAbertoDaLiga($pdo, $liga);
+            if (!$d) throw new RuntimeException("A $liga não tem draft aberto.");
+            $r = draftSincronizarOrdem($pdo, (int)$d['id']);
+            $aviso = ['ok', "Ordem da $liga sincronizada: {$r['donos']} dono(s) e {$r['swaps']} swap(s) ajustados."];
 
-// ── Helper: itens de uma trade regular ────────────────────────────────────────
-function regularItems(PDO $pdo, int $tradeId): array {
-    $s = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
-    $s->execute([$tradeId]);
-    $rows = $s->fetchAll(PDO::FETCH_ASSOC);
-    $fromItems = []; $toItems = [];
-    foreach ($rows as $it) {
-        $label = $it['player_id'] ? playerLabel($pdo, (int)$it['player_id'])
-                                  : ($it['pick_id'] ? pickLabel($pdo, (int)$it['pick_id']) : '?');
-        if ((int)$it['from_team'] === 1) $fromItems[] = $label;
-        else                              $toItems[]   = $label;
-    }
-    return ['from' => $fromItems, 'to' => $toItems];
-}
+        } elseif ($acao === 'dedup_linha_unica') {
+            $tabela = (string)($_POST['tabela'] ?? '');
+            if ($tabela !== 'maintenance_mode') throw new RuntimeException('Tabela não prevista.');
+            $pdo->exec("CREATE TABLE _dev_tmp AS SELECT * FROM `$tabela` ORDER BY updated_at DESC LIMIT 1");
+            $pdo->exec("DELETE FROM `$tabela`");
+            $pdo->exec("INSERT INTO `$tabela` SELECT * FROM _dev_tmp");
+            $pdo->exec("DROP TABLE _dev_tmp");
+            $aviso = ['ok', "$tabela ficou com uma linha só (a mais recente)."];
 
-// ── Helper: itens de uma multi-trade por time ─────────────────────────────────
-function multiItems(PDO $pdo, int $tradeId): array {
-    $s = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
-    $s->execute([$tradeId]);
-    $rows = $s->fetchAll(PDO::FETCH_ASSOC);
-    // Agrupa: "Time X → Time Y: item"
-    $lines = [];
-    foreach ($rows as $it) {
-        $label = '';
-        if (!empty($it['player_name'])) {
-            $ovr   = (int)($it['player_ovr'] ?? 0);
-            $label = htmlspecialchars($it['player_name']) . ' (' . htmlspecialchars($it['player_position'] ?? '?') . ', OVR ' . $ovr . ')';
-            if ($ovr >= 90) $label = '<span class="player-star">' . $label . ' ★</span>';
-        } elseif ($it['player_id']) {
-            $label = playerLabel($pdo, (int)$it['player_id']);
-        } elseif ($it['pick_id']) {
-            $label = pickLabel($pdo, (int)$it['pick_id']);
-        } else {
-            $label = '?';
+        } elseif ($acao !== '') {
+            throw new RuntimeException('Ação desconhecida.');
         }
-        $key = (int)$it['from_team_id'] . '→' . (int)$it['to_team_id'];
-        $lines[$key][] = $label;
+    } catch (Throwable $e) {
+        $aviso = ['erro', $e->getMessage()];
     }
-    return $lines;
 }
 
-// ── Helper: tempo relativo ────────────────────────────────────────────────────
-function timeAgo(string $dt): string {
-    $diff = time() - strtotime($dt);
-    if ($diff < 60)     return 'agora mesmo';
-    if ($diff < 3600)   return floor($diff/60) . 'min atrás';
-    if ($diff < 86400)  return floor($diff/3600) . 'h atrás';
-    return floor($diff/86400) . 'd atrás';
-}
+$zumbis     = devSessoesZumbi($pdo);
+$repetidas  = devOrigemRepetida($pdo, $LIGAS);
+$ordemFora  = devOrdemFora($pdo, $LIGAS);
+$anosVazios = devAnosVazios($pdo, $LIGAS);
+$linhaUnica = devLinhaUnicaRepetida($pdo);
+$tempDup    = devTemporadasAbertas($pdo);
 
-// ── Busca trades regulares NEXT pendentes ─────────────────────────────────────
-$regularTrades = [];
-try {
-    $s = $pdo->prepare("
-        SELECT t.*,
-               tf.city AS from_city, tf.name AS from_name,
-               tt.city AS to_city,   tt.name AS to_name
-        FROM trades t
-        JOIN teams tf ON tf.id = t.from_team_id
-        JOIN teams tt ON tt.id = t.to_team_id
-        WHERE t.league = 'NEXT' AND t.status = 'pending'
-        ORDER BY t.created_at DESC
-    ");
-    $s->execute();
-    $regularTrades = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (Exception $e) {}
+$totalProblemas = count($zumbis) + count($repetidas) + count($ordemFora)
+                + count($anosVazios) + count($linhaUnica) + count($tempDup);
 
-// ── Busca multi-trades NEXT pendentes ─────────────────────────────────────────
-$multiTrades = [];
-try {
-    $s = $pdo->prepare("
-        SELECT mt.*
-        FROM multi_trades mt
-        WHERE mt.league = 'NEXT' AND mt.status = 'pending'
-        ORDER BY mt.created_at DESC
-    ");
-    $s->execute();
-    $rows = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($rows as $mt) {
-        $tid = (int)$mt['id'];
-        // Times e status de aceitação
-        $st = $pdo->prepare('
-            SELECT t.id, t.city, t.name, mtt.accepted_at
-            FROM multi_trade_teams mtt
-            JOIN teams t ON t.id = mtt.team_id
-            WHERE mtt.trade_id = ?
-            ORDER BY mtt.id ASC
-        ');
-        $st->execute([$tid]);
-        $mt['teams'] = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $mt['items'] = multiItems($pdo, $tid);
-        $multiTrades[] = $mt;
-    }
-} catch (Exception $e) {}
-
-$total = count($regularTrades) + count($multiTrades);
-
-// ── Diagnóstico: time Alchimists ──────────────────────────────────────────────
-$diagTeam = null;
-$diagUser = null;
-$diagLeagueSettings = null;
-$diagTrades = [];
-$diagWarnings = [];
-try {
-    $s = $pdo->query("SELECT t.*, u.id AS u_id, u.name AS u_name, u.email AS u_email
-                       FROM teams t
-                       LEFT JOIN users u ON u.id = t.user_id
-                       WHERE t.name LIKE '%lchimist%' OR t.city LIKE '%lchimist%'
-                       LIMIT 5");
-    $diagTeams = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    foreach ($diagTeams as $dt) {
-        $tid = (int)$dt['id'];
-
-        // Sem user associado?
-        if (!$dt['user_id']) $diagWarnings[$tid][] = '❌ Sem user_id — time não está vinculado a nenhum usuário';
-
-        // Usuário tem mais de um time na mesma liga?
-        if ($dt['user_id']) {
-            $sx = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE user_id = ?');
-            $sx->execute([$dt['user_id']]);
-            $cnt = (int)$sx->fetchColumn();
-            if ($cnt > 1) $diagWarnings[$tid][] = "⚠️ Usuário tem {$cnt} times — LIMIT 1 pode pegar o errado";
-        }
-
-        // Trades habilitadas na liga?
-        $sl = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
-        $sl->execute([$dt['league']]);
-        $ls = $sl->fetch(PDO::FETCH_ASSOC);
-        if ($ls && !(int)($ls['trades_enabled'] ?? 1)) $diagWarnings[$tid][] = '❌ Trades desativadas na liga ' . $dt['league'];
-
-        // Ban de trades?
-        $sb = $pdo->prepare('SELECT ban_trades_until_cycle, trades_used, current_cycle FROM teams WHERE id = ?');
-        $sb->execute([$tid]);
-        $tb = $sb->fetch(PDO::FETCH_ASSOC);
-        if ($tb && (int)($tb['ban_trades_until_cycle'] ?? 0) > 0) {
-            $banUntil = (int)$tb['ban_trades_until_cycle'];
-            $cur = (int)($tb['current_cycle'] ?? 0);
-            if ($cur <= $banUntil) $diagWarnings[$tid][] = "❌ Trades banidas até ciclo {$banUntil} (ciclo atual: {$cur})";
-        }
-
-        // Limite atingido?
-        $maxT = (int)($ls['max_trades'] ?? 10);
-        $used = (int)($tb['trades_used'] ?? 0);
-        if ($used >= $maxT) $diagWarnings[$tid][] = "❌ Limite de trades atingido: {$used}/{$maxT}";
-
-        if (empty($diagWarnings[$tid])) $diagWarnings[$tid][] = '✅ Nenhum problema encontrado';
-
-        $diagTeams[$tid] = $dt + ['ls' => $ls, 'tb' => $tb];
-    }
-    $diagTeams = array_combine(array_column($diagTeams, 'id'), $diagTeams);
-} catch (Exception $e) { $diagTeams = []; }
-
-// ── Trades aceitas NEXT ───────────────────────────────────────────────────────
-$acceptedRegular = [];
-try {
-    $s = $pdo->prepare("
-        SELECT t.*,
-               tf.city AS from_city, tf.name AS from_name,
-               tt.city AS to_city,   tt.name AS to_name
-        FROM trades t
-        JOIN teams tf ON tf.id = t.from_team_id
-        JOIN teams tt ON tt.id = t.to_team_id
-        WHERE t.league = 'NEXT' AND t.status = 'accepted'
-          AND t.updated_at >= NOW() - INTERVAL 3 DAY
-        ORDER BY t.updated_at DESC
-    ");
-    $s->execute();
-    $acceptedRegular = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (Exception $e) {}
-
-$acceptedMulti = [];
-try {
-    $s = $pdo->prepare("
-        SELECT mt.*
-        FROM multi_trades mt
-        WHERE mt.league = 'NEXT' AND mt.status = 'accepted'
-          AND mt.updated_at >= NOW() - INTERVAL 3 DAY
-        ORDER BY mt.updated_at DESC
-    ");
-    $s->execute();
-    $rows = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($rows as $mt) {
-        $tid = (int)$mt['id'];
-        $st = $pdo->prepare('
-            SELECT t.id, t.city, t.name, mtt.accepted_at
-            FROM multi_trade_teams mtt
-            JOIN teams t ON t.id = mtt.team_id
-            WHERE mtt.trade_id = ?
-            ORDER BY mtt.id ASC
-        ');
-        $st->execute([$tid]);
-        $mt['teams'] = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $mt['items'] = multiItems($pdo, $tid);
-        $acceptedMulti[] = $mt;
-    }
-} catch (Exception $e) {}
-
-// Mescla e ordena por data desc
-$allAccepted = array_merge(
-    array_map(fn($t) => $t + ['_type' => 'regular'], $acceptedRegular),
-    array_map(fn($t) => $t + ['_type' => 'multi'],   $acceptedMulti)
-);
-usort($allAccepted, fn($a, $b) => strtotime($b['updated_at'] ?? $b['created_at']) <=> strtotime($a['updated_at'] ?? $a['created_at']));
+function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dev — Trades Pendentes NEXT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correções · FBA</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d0d10;color:#e5e5e5;font-family:'Inter',system-ui,sans-serif;font-size:14px;padding:24px}
-h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#fff}
-.sub{color:#888;font-size:13px;margin-bottom:28px}
-.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #222}
-.card{background:#161618;border:1px solid #2a2a2e;border-radius:10px;padding:16px;margin-bottom:12px}
-.card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
-.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
-.badge-pending{background:rgba(251,191,36,.12);color:#fbbf24}
-.badge-multi{background:rgba(139,92,246,.12);color:#a78bfa}
-.time{font-size:11px;color:#666}
-.teams-row{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;flex-wrap:wrap}
-.team{background:#1e1e22;border:1px solid #2a2a2e;border-radius:6px;padding:4px 10px}
-.arrow{color:#555;font-size:13px}
-.items-block{margin-top:10px}
-.items-label{font-size:11px;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
-.items-list{display:flex;flex-direction:column;gap:3px}
-.item{font-size:13px;color:#ccc;padding:4px 8px;background:#1a1a1d;border-radius:5px}
-.item-arrow{color:#555;font-size:11px}
-.accept-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.accept-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600}
-.accepted{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#4ade80}
-.pending-chip{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:#fbbf24}
-.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.dot-ok{background:#4ade80}
-.dot-wait{background:#fbbf24}
-.empty{text-align:center;padding:48px;color:#555;font-size:14px}
-.notes{font-size:12px;color:#888;margin-top:8px;font-style:italic;padding:6px 8px;background:#111;border-radius:5px;border-left:2px solid #2a2a2e}
-.multi-items-section{margin-top:10px;border-top:1px solid #222;padding-top:10px}
-.multi-move{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #1a1a1d}
-.multi-move:last-child{border-bottom:none}
-.tag{font-size:11px;color:#888;white-space:nowrap}
-.refresh{position:fixed;top:16px;right:16px;background:#1e1e22;border:1px solid #2a2a2e;color:#888;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none}
-.refresh:hover{color:#fff;border-color:#444}
-section+section{margin-top:32px}
-/* ── Destaques ── */
-.player-star{color:#fcd34d;font-weight:700}
-.team-vip{border-color:#f59e0b !important;color:#fbbf24 !important;text-shadow:0 0 6px rgba(251,191,36,.25)}
+  :root{
+    --bg:#0b0d10; --panel:#14181d; --panel-2:#1b2027; --border:#262d36;
+    --text:#e8ecf1; --text-2:#a8b3c0; --text-3:#6d7a8a;
+    --red:#fc0025; --amber:#f5c542; --green:#22c55e; --blue:#38bdf8;
+    --radius:14px; --font:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+       font-size:14px;line-height:1.5;padding:24px 16px 64px}
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-family:'Oswald',sans-serif;font-size:26px;margin:0 0 4px;letter-spacing:.5px}
+  .sub{color:var(--text-3);font-size:13px;margin-bottom:22px}
+  .placar{display:inline-flex;align-items:center;gap:9px;padding:9px 15px;border-radius:11px;
+          font-weight:700;font-size:13.5px;margin-bottom:24px}
+  .placar.limpo{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+  .placar.sujo{background:rgba(252,0,37,.09);border:1px solid rgba(252,0,37,.3);color:var(--red)}
+  .bloco{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+         padding:18px;margin-bottom:16px}
+  .bloco h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .bloco .por{color:var(--text-3);font-size:12.5px;margin:0 0 14px;max-width:74ch}
+  .ok{color:var(--green)}
+  .achado{background:var(--panel-2);border:1px solid var(--border);border-left:3px solid var(--red);
+          border-radius:9px;padding:11px 13px;margin-bottom:9px;
+          display:flex;flex-wrap:wrap;align-items:center;gap:11px}
+  .achado .txt{flex:1;min-width:220px;font-size:13px}
+  .achado b{color:var(--text)}
+  .tag{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.6px;padding:3px 8px;
+       border-radius:6px;background:rgba(245,197,66,.12);color:var(--amber);white-space:nowrap}
+  button{font-family:var(--font);font-weight:700;font-size:12.5px;padding:8px 13px;border-radius:9px;
+         border:1px solid var(--blue);background:transparent;color:var(--blue);cursor:pointer;white-space:nowrap}
+  button:hover{background:rgba(56,189,248,.12)}
+  button.perigo{border-color:var(--red);color:var(--red)}
+  button.perigo:hover{background:rgba(252,0,37,.1)}
+  .nota{font-size:12px;color:var(--text-3);margin-top:9px;padding-left:2px}
+  .aviso{padding:11px 14px;border-radius:11px;margin-bottom:20px;font-size:13.5px;font-weight:600}
+  .aviso.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+  .aviso.erro{background:rgba(252,0,37,.1);border:1px solid rgba(252,0,37,.3);color:var(--red)}
+  code{background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--amber)}
+  a.voltar{color:var(--text-3);font-size:13px;text-decoration:none}
+  a.voltar:hover{color:var(--text)}
+  @media(max-width:520px){ .achado{flex-direction:column;align-items:stretch} button{width:100%} }
 </style>
 </head>
 <body>
+<div class="wrap">
+  <a class="voltar" href="/admin.php"><i class="bi bi-arrow-left"></i> Admin</a>
+  <h1>Correções</h1>
+  <p class="sub">Diagnósticos rodando contra o banco agora. Onde o conserto é seguro, tem botão.</p>
 
-<a class="refresh" href="marcos-dev.php">↻ Atualizar</a>
+  <?php if ($aviso): ?>
+    <div class="aviso <?= h($aviso[0]) ?>"><?= h($aviso[1]) ?></div>
+  <?php endif; ?>
 
-<h1>Trades Pendentes — NEXT</h1>
-<p class="sub"><?= $total ?> trade<?= $total !== 1 ? 's' : '' ?> aguardando · atualizado <?= date('H:i:s') ?></p>
+  <div class="placar <?= $totalProblemas ? 'sujo' : 'limpo' ?>">
+    <i class="bi bi-<?= $totalProblemas ? 'exclamation-triangle-fill' : 'check-circle-fill' ?>"></i>
+    <?= $totalProblemas ? $totalProblemas . ' ponto(s) para olhar' : 'Nada pendente' ?>
+  </div>
 
-<!-- ── Diagnóstico Alchimists ── -->
-<?php if ($diagTeams): foreach ($diagTeams as $dt): $tid = (int)$dt['id']; $warnings = $diagWarnings[$tid] ?? []; ?>
-<div class="card" style="margin-bottom:20px;border-color:#333">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:10px">🔍 Diagnóstico — <?= htmlspecialchars($dt['city'] . ' ' . $dt['name']) ?></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px;font-size:12px">
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Time ID</div>
-            <div style="color:#ccc">#<?= $tid ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Liga</div>
-            <div style="color:#ccc"><?= htmlspecialchars($dt['league'] ?? '—') ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Usuário vinculado</div>
-            <div style="color:#ccc"><?= $dt['u_id'] ? '#' . $dt['u_id'] . ' ' . htmlspecialchars($dt['u_name'] ?? '') : '<span style="color:#f87171">Nenhum</span>' ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Email</div>
-            <div style="color:#ccc"><?= htmlspecialchars($dt['u_email'] ?? '—') ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Trades usadas / máx</div>
-            <div style="color:#ccc"><?= (int)($dt['tb']['trades_used'] ?? 0) ?> / <?= (int)(($dt['ls']['max_trades'] ?? 10)) ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Trades habilitadas</div>
-            <div style="color:#ccc"><?= (int)($dt['ls']['trades_enabled'] ?? 1) ? '✅ Sim' : '❌ Não' ?></div>
-        </div>
-        <div style="background:#111;padding:8px;border-radius:6px">
-            <div style="color:#666;margin-bottom:2px">Ban até ciclo</div>
-            <div style="color:#ccc"><?= (int)($dt['tb']['ban_trades_until_cycle'] ?? 0) ?: '—' ?> (atual: <?= (int)($dt['tb']['current_cycle'] ?? 0) ?>)</div>
-        </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:5px">
-        <?php foreach ($warnings as $w): ?>
-        <div style="font-size:12px;padding:5px 8px;background:#111;border-radius:5px"><?= htmlspecialchars($w) ?></div>
-        <?php endforeach; ?>
-    </div>
+  <!-- 1 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-hourglass-bottom" style="color:var(--red)"></i> Draft aberto em sprint encerrado</h2>
+    <p class="por">Sessão que ficou <code>setup</code>/<code>in_progress</code> numa temporada de sprint
+       fechado. Ela vence as consultas que procuram "o draft da liga", e aí as picks se ligam a um draft
+       que não existe mais — foi assim que a NEXT passou a apontar para um draft de 2044.</p>
+    <?php if (!$zumbis): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
+    <?php else: foreach ($zumbis as $z): ?>
+      <div class="achado">
+        <span class="tag"><?= h($z['league']) ?></span>
+        <span class="txt">Sessão <b>#<?= (int)$z['id'] ?></b> (<?= h($z['status']) ?>) na temporada
+          <b>#<?= h($z['season_number']) ?></b>, ano <?= h($z['year']) ?> — sprint <?= h($z['sprint_number']) ?>
+          está <b><?= h($z['sprint_status']) ?></b>. <?= (int)$z['vagas'] ?> vaga(s).</span>
+        <form method="post" onsubmit="return confirm('Encerrar a sessão #<?= (int)$z['id'] ?>?')">
+          <input type="hidden" name="acao" value="fechar_sessao">
+          <input type="hidden" name="id" value="<?= (int)$z['id'] ?>">
+          <button class="perigo" type="submit">Encerrar sessão</button>
+        </form>
+      </div>
+    <?php endforeach; endif; ?>
+  </div>
+
+  <!-- 2 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-files" style="color:var(--red)"></i> Ordem do draft com time repetido</h2>
+    <p class="por">A vaga pertence ao time de ORIGEM, e é por (origem, rodada, ano) que a pick se liga a
+       ela. Com o mesmo time em duas vagas da mesma rodada, N vagas apontam para uma pick só e a ligação
+       morre: quem escolhe para de bater com o dono e o número da escolha some da Trade Machine.</p>
+    <?php if (!$repetidas): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
+    <?php else: foreach ($repetidas as $r): ?>
+      <div class="achado">
+        <span class="tag"><?= h($r['liga']) ?></span>
+        <span class="txt">Sessão <b>#<?= (int)$r['sessao'] ?></b> (ano <?= h($r['ano']) ?>):
+          <b><?= count($r['casos']) ?></b> time(s) repetido(s), <?= (int)$r['divergencias'] ?> vaga(s) divergente(s).
+          <?php $ex = $r['casos'][0] ?? null; if ($ex): ?>
+            Ex.: um time com <?= count($ex['picks']) ?> vagas na rodada <?= h($ex['rodada']) ?>.
+          <?php endif; ?></span>
+      </div>
+    <?php endforeach; ?>
+      <p class="nota">Sem botão de propósito: não dá para adivinhar de quem era cada vaga repetida.
+         Essa ordem precisa ser refeita pela loteria.</p>
+    <?php endif; ?>
+  </div>
+
+  <!-- 3 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-people" style="color:var(--amber)"></i> Quem escolhe fora do dono da pick</h2>
+    <p class="por">O <code>team_id</code> da ordem é um cache de quem é dono da pick. Sincronizar reescreve
+       esse cache a partir das picks, resolvendo compra, swap e proteção. É idempotente.</p>
+    <?php if (!$ordemFora): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Tudo batendo.</p>
+    <?php else: foreach ($ordemFora as $o): ?>
+      <div class="achado">
+        <span class="tag"><?= h($o['liga']) ?></span>
+        <span class="txt">Sessão <b>#<?= (int)$o['sessao'] ?></b> (ano <?= h($o['ano']) ?>,
+          <?= (int)$o['vagas'] ?> vagas): <b><?= (int)$o['divergencias'] ?></b> divergente(s),
+          <b><?= (int)$o['sem_pick'] ?></b> sem pick por trás.</span>
+        <form method="post">
+          <input type="hidden" name="acao" value="sincronizar_ordem">
+          <input type="hidden" name="liga" value="<?= h($o['liga']) ?>">
+          <button type="submit">Sincronizar ordem</button>
+        </form>
+      </div>
+    <?php endforeach; ?>
+      <p class="nota">Vaga sem pick não se resolve aqui: use <b>Ajustar Picks</b> no card de Draft da liga.</p>
+    <?php endif; ?>
+  </div>
+
+  <!-- 4 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-calendar-x" style="color:var(--amber)"></i> Ano com picks faltando</h2>
+    <p class="por">Cada time deveria ter uma pick de 1ª e uma de 2ª em cada ano da faixa. Ano com menos que
+       isso é buraco — normalmente de pick realocada para outro ano.</p>
+    <?php if (!$anosVazios): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Todos os anos completos.</p>
+    <?php else: foreach ($anosVazios as $a): ?>
+      <div class="achado">
+        <span class="tag"><?= h($a['liga']) ?></span>
+        <span class="txt">
+          <?php foreach (array_slice($a['falhas'], 0, 8) as $f): ?>
+            <?= (int)$f['ano'] ?>: <b><?= (int)$f['tem'] ?></b>/<?= (int)$f['esperado'] ?> &nbsp;
+          <?php endforeach; ?>
+          <?php if (count($a['falhas']) > 8): ?> … <?= count($a['falhas']) - 8 ?> ano(s) a mais<?php endif; ?>
+        </span>
+      </div>
+    <?php endforeach; ?>
+      <p class="nota">Conserto: <b>Ajustar Picks</b> no card de Draft da liga — ele cria o que falta e não
+         toca em pick negociada.</p>
+    <?php endif; ?>
+  </div>
+
+  <!-- 5 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-layers" style="color:var(--amber)"></i> Tabela de linha única com linha repetida</h2>
+    <p class="por">Tabela que deveria ter uma linha só e foi ganhando cópias — sinal de código que insere
+       onde devia atualizar. Cresce para sempre e impede a chave primária.</p>
+    <?php if (!$linhaUnica): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
+    <?php else: foreach ($linhaUnica as $l): ?>
+      <div class="achado">
+        <span class="txt"><code><?= h($l['tabela']) ?></code> tem <b><?= (int)$l['linhas'] ?></b> linhas
+          com a mesma chave <code><?= h($l['chave']) ?></code>.</span>
+        <form method="post" onsubmit="return confirm('Deixar só a linha mais recente de <?= h($l['tabela']) ?>?')">
+          <input type="hidden" name="acao" value="dedup_linha_unica">
+          <input type="hidden" name="tabela" value="<?= h($l['tabela']) ?>">
+          <button class="perigo" type="submit">Deixar só a mais recente</button>
+        </form>
+      </div>
+    <?php endforeach; ?>
+      <p class="nota">Limpar resolve o sintoma. A causa é o código que grava — vale achar quem insere.</p>
+    <?php endif; ?>
+  </div>
+
+  <!-- 6 ─────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-signpost-split" style="color:var(--amber)"></i> Temporadas abertas com o mesmo número</h2>
+    <p class="por">Duas temporadas com o mesmo número na mesma liga, nenhuma fechada. Toda consulta que
+       casa por <code>season_number</code> passa a escolher uma delas no escuro.</p>
+    <?php if (!$tempDup): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
+    <?php else: foreach ($tempDup as $t): ?>
+      <div class="achado">
+        <span class="tag"><?= h($t['league']) ?></span>
+        <span class="txt">Temporada <b>#<?= h($t['season_number']) ?></b> aparece <b><?= (int)$t['n'] ?></b>
+          vezes: <code><?= h($t['quais']) ?></code> (id:status)</span>
+      </div>
+    <?php endforeach; ?>
+      <p class="nota">Sem botão: fechar a temporada errada muda o histórico da liga. Decida qual vale e me diga.</p>
+    <?php endif; ?>
+  </div>
 </div>
-<?php endforeach; endif; ?>
-
-<?php if ($total === 0): ?>
-<div class="empty">Nenhuma trade pendente na NEXT no momento.</div>
-<?php endif; ?>
-
-<?php if ($regularTrades): ?>
-<section>
-<div class="section-title">Trades 2 times (<?= count($regularTrades) ?>)</div>
-<?php foreach ($regularTrades as $t):
-    $items = regularItems($pdo, (int)$t['id']);
-?>
-<div class="card">
-    <div class="card-header">
-        <div>
-            <span class="badge badge-pending">● Pendente</span>
-            <span class="time" style="margin-left:8px"><?= timeAgo($t['created_at']) ?> · ID #<?= (int)$t['id'] ?></span>
-        </div>
-    </div>
-    <div class="teams-row">
-        <?= teamHtml($t['from_city'] . ' ' . $t['from_name']) ?>
-        <span class="arrow">⇄</span>
-        <?= teamHtml($t['to_city'] . ' ' . $t['to_name']) ?>
-    </div>
-    <div class="items-block" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
-        <?php if ($items['from']): ?>
-        <div style="flex:1;min-width:160px">
-            <div class="items-label">Enviado por <?= htmlspecialchars($t['from_city'] . ' ' . $t['from_name']) ?></div>
-            <div class="items-list">
-                <?php foreach ($items['from'] as $it): ?>
-                <div class="item"><?= $it ?></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-        <?php if ($items['to']): ?>
-        <div style="flex:1;min-width:160px">
-            <div class="items-label">Enviado por <?= htmlspecialchars($t['to_city'] . ' ' . $t['to_name']) ?></div>
-            <div class="items-list">
-                <?php foreach ($items['to'] as $it): ?>
-                <div class="item"><?= $it ?></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-    <?php if (!empty($t['notes'])): ?>
-    <div class="notes"><?= htmlspecialchars($t['notes']) ?></div>
-    <?php endif; ?>
-    <?php
-        $fromFull = $t['from_city'] . ' ' . $t['from_name'];
-        $toFull   = $t['to_city']   . ' ' . $t['to_name'];
-    ?>
-    <div class="accept-grid" style="margin-top:12px">
-        <div class="accept-chip accepted<?= isVipTeam($fromFull) ? ' team-vip' : '' ?>"><div class="dot dot-ok"></div><?= htmlspecialchars($fromFull) ?><?= isVipTeam($fromFull) ? ' ★' : '' ?> (propôs)</div>
-        <div class="accept-chip pending-chip<?= isVipTeam($toFull) ? ' team-vip' : '' ?>"><div class="dot dot-wait"></div><?= htmlspecialchars($toFull) ?><?= isVipTeam($toFull) ? ' ★' : '' ?> (aguardando)</div>
-    </div>
-</div>
-<?php endforeach; ?>
-</section>
-<?php endif; ?>
-
-<?php if ($multiTrades): ?>
-<section>
-<div class="section-title">Multi-trades (<?= count($multiTrades) ?>)</div>
-<?php foreach ($multiTrades as $mt):
-    $pending  = array_filter($mt['teams'], fn($tm) => empty($tm['accepted_at']));
-    $accepted = array_filter($mt['teams'], fn($tm) => !empty($tm['accepted_at']));
-    $teamMap  = [];
-    foreach ($mt['teams'] as $tm) $teamMap[(int)$tm['id']] = $tm['city'] . ' ' . $tm['name'];
-?>
-<div class="card">
-    <div class="card-header">
-        <div>
-            <span class="badge badge-multi">⬡ Multi-trade</span>
-            <span class="badge badge-pending" style="margin-left:6px">● Pendente</span>
-            <span class="time" style="margin-left:8px"><?= timeAgo($mt['created_at']) ?> · ID #<?= (int)$mt['id'] ?></span>
-        </div>
-        <div style="font-size:12px;color:#888"><?= count($accepted) ?>/<?= count($mt['teams']) ?> aceitaram</div>
-    </div>
-
-    <!-- Times envolvidos + quem aceitou -->
-    <div class="accept-grid">
-        <?php foreach ($mt['teams'] as $tm):
-            $ok      = !empty($tm['accepted_at']);
-            $tmFull  = $tm['city'] . ' ' . $tm['name'];
-            $isVip   = isVipTeam($tmFull);
-        ?>
-        <div class="accept-chip <?= $ok ? 'accepted' : 'pending-chip' ?><?= $isVip ? ' team-vip' : '' ?>">
-            <div class="dot <?= $ok ? 'dot-ok' : 'dot-wait' ?>"></div>
-            <?= htmlspecialchars($tmFull) ?><?= $isVip ? ' ★' : '' ?>
-            <?php if ($ok): ?><span style="font-weight:400;opacity:.7">✓</span><?php else: ?><span style="font-weight:400;opacity:.7">aguardando</span><?php endif; ?>
-        </div>
-        <?php endforeach; ?>
-    </div>
-
-    <!-- Movimentações -->
-    <?php if ($mt['items']): ?>
-    <div class="multi-items-section">
-        <div class="items-label" style="margin-bottom:8px">Movimentações</div>
-        <?php foreach ($mt['items'] as $key => $labels):
-            [$fromId, $toId] = explode('→', $key);
-            $fromName = $teamMap[(int)$fromId] ?? "Time #$fromId";
-            $toName   = $teamMap[(int)$toId]   ?? "Time #$toId";
-        ?>
-        <div class="multi-move">
-            <div style="min-width:0;flex:1">
-                <div class="tag" style="margin-bottom:4px"><?= htmlspecialchars($fromName) ?> → <?= htmlspecialchars($toName) ?></div>
-                <div class="items-list">
-                    <?php foreach ($labels as $lbl): ?>
-                    <div class="item"><?= $lbl ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!empty($mt['notes'])): ?>
-    <div class="notes"><?= htmlspecialchars($mt['notes']) ?></div>
-    <?php endif; ?>
-
-    <?php if (count($pending) > 0): ?>
-    <div style="margin-top:10px;font-size:12px;color:#fbbf24">
-        ⏳ Falta aceitar: <?= implode(', ', array_map(fn($t) => htmlspecialchars($t['city'] . ' ' . $t['name']), $pending)) ?>
-    </div>
-    <?php endif; ?>
-</div>
-<?php endforeach; ?>
-</section>
-<?php endif; ?>
-
-
-<?php if ($allAccepted): ?>
-<section style="margin-top:40px">
-<div class="section-title" style="color:#4ade80;border-color:#1a3a2a">
-    Trades Aceitas — NEXT (<?= count($allAccepted) ?>)
-</div>
-<?php foreach ($allAccepted as $tr):
-    $isMulti = $tr['_type'] === 'multi';
-?>
-<div class="card" style="opacity:.85">
-    <div class="card-header">
-        <div>
-            <?php if ($isMulti): ?>
-            <span class="badge badge-multi">⬡ Multi-trade</span>
-            <?php endif; ?>
-            <span class="badge" style="background:rgba(34,197,94,.10);color:#4ade80;margin-left:<?= $isMulti ? 6 : 0 ?>px">✓ Aceita</span>
-            <span class="time" style="margin-left:8px"><?= timeAgo($tr['updated_at'] ?? $tr['created_at']) ?> · ID #<?= (int)$tr['id'] ?></span>
-        </div>
-    </div>
-
-    <?php if (!$isMulti): ?>
-    <div class="teams-row">
-        <?= teamHtml($tr['from_city'] . ' ' . $tr['from_name']) ?>
-        <span class="arrow">⇄</span>
-        <?= teamHtml($tr['to_city'] . ' ' . $tr['to_name']) ?>
-    </div>
-    <?php
-        $items = regularItems($pdo, (int)$tr['id']);
-    ?>
-    <div class="items-block" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
-        <?php if ($items['from']): ?>
-        <div style="flex:1;min-width:160px">
-            <div class="items-label">Enviado por <?= htmlspecialchars($tr['from_city'] . ' ' . $tr['from_name']) ?></div>
-            <div class="items-list">
-                <?php foreach ($items['from'] as $it): ?>
-                <div class="item"><?= $it ?></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-        <?php if ($items['to']): ?>
-        <div style="flex:1;min-width:160px">
-            <div class="items-label">Enviado por <?= htmlspecialchars($tr['to_city'] . ' ' . $tr['to_name']) ?></div>
-            <div class="items-list">
-                <?php foreach ($items['to'] as $it): ?>
-                <div class="item"><?= $it ?></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-
-    <?php else: /* multi-trade */ ?>
-    <?php
-        $teamMap = [];
-        foreach ($tr['teams'] as $tm) $teamMap[(int)$tm['id']] = $tm['city'] . ' ' . $tm['name'];
-    ?>
-    <div class="accept-grid">
-        <?php foreach ($tr['teams'] as $tm):
-            $tmFull = $tm['city'] . ' ' . $tm['name'];
-            $isVip  = isVipTeam($tmFull);
-        ?>
-        <div class="accept-chip accepted<?= $isVip ? ' team-vip' : '' ?>">
-            <div class="dot dot-ok"></div>
-            <?= htmlspecialchars($tmFull) ?><?= $isVip ? ' ★' : '' ?> ✓
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <?php if ($tr['items']): ?>
-    <div class="multi-items-section">
-        <div class="items-label" style="margin-bottom:8px">Movimentações</div>
-        <?php foreach ($tr['items'] as $key => $labels):
-            [$fromId, $toId] = explode('→', $key);
-            $fromName = $teamMap[(int)$fromId] ?? "Time #$fromId";
-            $toName   = $teamMap[(int)$toId]   ?? "Time #$toId";
-        ?>
-        <div class="multi-move">
-            <div style="min-width:0;flex:1">
-                <div class="tag" style="margin-bottom:4px"><?= htmlspecialchars($fromName) ?> → <?= htmlspecialchars($toName) ?></div>
-                <div class="items-list">
-                    <?php foreach ($labels as $lbl): ?>
-                    <div class="item"><?= $lbl ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
-
-    <?php if (!empty($tr['notes'])): ?>
-    <div class="notes"><?= htmlspecialchars($tr['notes']) ?></div>
-    <?php endif; ?>
-</div>
-<?php endforeach; ?>
-</section>
-<?php endif; ?>
-
 </body>
 </html>

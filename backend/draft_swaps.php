@@ -116,8 +116,25 @@ function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
     $liga = trim($liga);
     if ($liga === '') return null;
     try {
-        $st = $pdo->prepare('SELECT id, season_id FROM draft_sessions
-                              WHERE league = ? AND status IN ("setup","in_progress")');
+        /*
+         * SÓ O SPRINT ATIVO.
+         *
+         * A NEXT tinha a sessão #73 `in_progress` na temporada #20 de um
+         * sprint encerrado — ano 2044, três vagas. Ela ganhava de todas as
+         * outras aqui, e com isso a liga inteira ligava suas picks a um draft
+         * que não existe mais: nenhuma escolha com número na Trade Machine, e
+         * o "Ajustar Picks" prestes a criar picks de 2044 pra todo mundo.
+         *
+         * Sessão de sprint encerrado é história. Se o sprint não tem status
+         * (base antiga), a sessão continua valendo — a checagem não pode
+         * esconder draft de liga que nunca usou sprint.
+         */
+        $st = $pdo->prepare('SELECT ds.id, ds.season_id
+                               FROM draft_sessions ds
+                               JOIN seasons se ON se.id = ds.season_id
+                          LEFT JOIN sprints spr ON spr.id = se.sprint_id
+                              WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
+                                AND (spr.id IS NULL OR spr.status IS NULL OR spr.status = "active")');
         $st->execute([$liga]);
         $melhor = null;
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
