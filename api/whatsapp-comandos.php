@@ -846,6 +846,14 @@ function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
              . "\nA pontuação entra quando a temporada é registrada.";
     }
 
+    // Só a alcunha, sem a cidade: dentro de uma liga ela já identifica o time
+    // sozinha, e a lista inteira cabe na largura do celular sem quebrar linha.
+    $curto = function (array $l): string {
+        $n = trim((string)($l['name'] ?? ''));
+        if ($n === '') $n = trim((string)($l['mascot'] ?? ''));
+        return $n !== '' ? $n : wcNomeDoTime($l);
+    };
+
     $txt = "🏆 *Ranking {$liga}*\n\n";
     $pos = 0; $anterior = null; $mostrado = 0;
     foreach ($linhas as $l) {
@@ -853,11 +861,10 @@ function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         // Empate divide a mesma posição: dois times com 14 são os dois 3º.
         if ((int)$l['pontos'] !== $anterior) { $pos = $mostrado; $anterior = (int)$l['pontos']; }
         $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$pos] ?? ($pos . '.');
-        $txt .= "{$medalha} *" . wcNomeDoTime($l) . "* — {$l['pontos']} pts";
+        $txt .= "{$medalha} *" . $curto($l) . "* — {$l['pontos']} pts";
         if ((int)$l['titulos'] > 0) $txt .= ' · ' . $l['titulos'] . '🏆';
         $txt .= "\n";
     }
-    $txt .= "\n_Pontos do ciclo. Use /tabela pra ver a classificação da temporada._";
     return rtrim($txt);
 }
 
