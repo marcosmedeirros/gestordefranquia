@@ -59,8 +59,10 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
     draft_order_id INT NOT NULL,
     team_id INT NOT NULL,
     player_id INT NOT NULL,
+    preferencia TINYINT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_r2mock_pick (draft_order_id),
+    -- (vaga, preferência), e não só (vaga): são até três escolhas por pick.
+    UNIQUE KEY uniq_r2mock_pref (draft_order_id, preferencia),
     FOREIGN KEY (draft_order_id) REFERENCES draft_order(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (player_id) REFERENCES draft_pool(id) ON DELETE CASCADE
@@ -80,10 +82,24 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
  */
 const ROUND2_PREFERENCIAS = 3;
 try {
-    $temPref = $pdo->query("SHOW COLUMNS FROM draft_round2_mocks LIKE 'preferencia'")->fetch();
-    if (!$temPref) {
+    if (!$pdo->query("SHOW COLUMNS FROM draft_round2_mocks LIKE 'preferencia'")->fetch()) {
         $pdo->exec("ALTER TABLE draft_round2_mocks ADD COLUMN preferencia TINYINT NOT NULL DEFAULT 1");
-        try { $pdo->exec("ALTER TABLE draft_round2_mocks DROP INDEX uniq_r2mock_pick"); } catch (Exception $e) {}
+    }
+    /*
+     * A CHAVE ANTIGA TEM QUE CAIR, e a checagem é dela — não da coluna.
+     *
+     * Eu tinha posto o DROP dentro do `if (!coluna)`, junto do ALTER que a
+     * cria. Numa base onde a coluna nasceu com o CREATE TABLE, ou onde o
+     * primeiro DROP falhou, o `uniq_r2mock_pick (draft_order_id)` sobrevivia —
+     * e aí as três preferências colidiam nele: os INSERTs viravam UPDATE da
+     * mesma linha e só a última ficava. Foi o que aconteceu no teste: escolhi
+     * três e o banco guardou uma.
+     */
+    $temAntiga = $pdo->query("SHOW INDEX FROM draft_round2_mocks WHERE Key_name = 'uniq_r2mock_pick'")->fetch();
+    if ($temAntiga) $pdo->exec("ALTER TABLE draft_round2_mocks DROP INDEX uniq_r2mock_pick");
+
+    $temNova = $pdo->query("SHOW INDEX FROM draft_round2_mocks WHERE Key_name = 'uniq_r2mock_pref'")->fetch();
+    if (!$temNova) {
         $pdo->exec("ALTER TABLE draft_round2_mocks ADD UNIQUE KEY uniq_r2mock_pref (draft_order_id, preferencia)");
     }
 } catch (Exception $e) { error_log('[draft/r2 preferencia] ' . $e->getMessage()); }

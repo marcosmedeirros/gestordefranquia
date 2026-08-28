@@ -590,6 +590,30 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       transition: all var(--t) var(--ease);
     }
     .player-chip:hover { border-color: var(--border-red); transform: translateY(-2px); background: var(--panel-3); }
+    /* Já está na lista: some do alcance do clique em vez de deixar escolher
+       duas vezes o mesmo e receber um erro do servidor. */
+    .player-chip.escolhido { opacity: .38; border-style: dashed; }
+    .player-chip.escolhido:hover { transform: none; border-color: var(--border); background: var(--panel-2); }
+
+    /* ── A lista de preferência da 2ª rodada ── */
+    .r2-regra { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--red);
+                border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
+                color: var(--text-2); margin-bottom: 12px; }
+    .r2-regra i { color: var(--red); margin-right: 5px; }
+    .r2-regra b { color: var(--text); }
+    .r2-prefs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .pref-linha { display: flex; align-items: center; gap: 10px; background: var(--panel-2);
+                  border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; font-size: 13px; }
+    .pref-linha.vazia { border-style: dashed; color: var(--text-3); }
+    .pref-num { font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--red);
+                min-width: 22px; font-size: 14px; }
+    .pref-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pref-nome small { color: var(--text-3); margin-left: 5px; }
+    /* 32px de lado: no celular isso aqui e alvo de dedo, nao de mouse. */
+    .pref-x { background: none; border: none; color: var(--text-3); font-size: 19px; line-height: 1;
+              cursor: pointer; padding: 0 4px; min-width: 32px; min-height: 32px;
+              display: inline-flex; align-items: center; justify-content: center; }
+    .pref-x:hover { color: var(--red); }
     .player-chip-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
     .player-chip-pos { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); margin-right: 4px; }
     .player-chip-ovr { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(34,197,94,.1); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
@@ -861,16 +885,29 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title"><i class="bi bi-hand-index-thumb"></i> Escolher — <span id="round2MockPickLabel"></span></span>
+        <span class="modal-title"><i class="bi bi-list-ol"></i> Suas escolhas — <span id="round2MockPickLabel"></span></span>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <?php /* A regra na frente, e não no rodapé: quem abre isto está
+                 decidindo, e precisa saber que não é "clicou levou" antes de
+                 clicar. */ ?>
+        <div class="r2-regra">
+          <i class="bi bi-info-circle"></i>
+          Escolha até <b>três</b>, na ordem que preferir. Ninguém leva nada agora: quando o prazo
+          fechar, as picks são resolvidas <b>na ordem</b> — se alguém com pick melhor levar a sua
+          1ª, você fica com a 2ª, e assim por diante.
+        </div>
+        <div id="round2Prefs" class="r2-prefs"></div>
         <input type="text" id="round2MockSearch" class="field-input mb-3" placeholder="Buscar jogador por nome ou posição…">
         <div id="round2MockPlayers" class="pick-grid">
           <div class="state-empty" style="grid-column:1/-1">
             <i class="bi bi-hourglass-split"></i><p>Carregando…</p>
           </div>
         </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="fecharRound2Picker()">Pronto</button>
       </div>
     </div>
   </div>
@@ -1664,13 +1701,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   let round2MockDraftOrderId = null;
   let round2MockPlayersList = [];
 
+  /* O ultimo quadro carregado: o modal le dele as preferencias ja salvas. */
+  let round2BoardPicks = [];
+
   async function loadRound2Board() {
     if (!currentDraftSession) return;
     const box = document.getElementById('round2Board');
     if (!box) return;
     try {
       const data = await api(`draft.php?action=round2_board&draft_session_id=${currentDraftSession.id}`);
-      renderRound2Board(data.picks || []);
+      // Guardado pra o modal reabrir com a lista de preferência que já existe.
+      round2BoardPicks = data.picks || [];
+      renderRound2Board(round2BoardPicks);
       startRound2Countdown(data.round2_mock_deadline);
     } catch (e) {
       box.innerHTML = `<div class="state-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
@@ -1729,6 +1771,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     round2MockDraftOrderId = draftOrderId;
     const label = document.getElementById('round2MockPickLabel');
     if (label) label.textContent = `Pick #${pickPosition}`;
+
+    // O que já foi escolhido nesta vaga. Vem do quadro, que o servidor só
+    // preenche pro dono da pick — reabrir o modal tem que mostrar a lista de
+    // antes, não uma tela em branco.
+    const vaga = (round2BoardPicks || []).find(p => Number(p.draft_order_id) === Number(draftOrderId));
+    round2Prefs = (vaga && Array.isArray(vaga.preferencias)) ? vaga.preferencias.slice() : [];
+    renderRound2Prefs();
+
     new bootstrap.Modal(document.getElementById('round2MockModal')).show();
 
     const container = document.getElementById('round2MockPlayers');
@@ -1749,12 +1799,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     });
   }
 
+  /* As três escolhas da vaga aberta no modal, na ordem de preferência. */
+  let round2Prefs = [];
+
   function renderRound2MockPlayers(players) {
     const container = document.getElementById('round2MockPlayers');
     if (!container) return;
     if (!players.length) { container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>'; return; }
+    const jaEscolhido = id => round2Prefs.some(p => Number(p.player_id) === Number(id));
     container.innerHTML = players.map(p => `
-      <div class="player-chip" style="cursor:pointer" onclick="chooseRound2Mock(${p.id})">
+      <div class="player-chip${jaEscolhido(p.id) ? ' escolhido' : ''}"
+           style="cursor:${jaEscolhido(p.id) ? 'default' : 'pointer'}"
+           ${jaEscolhido(p.id) ? '' : `onclick="addRound2Pref(${p.id})"`}>
         <div class="player-chip-name">${esc(p.name)}</div>
         <div><span class="player-chip-pos">${esc(p.position)}</span></div>
       </div>
@@ -1762,28 +1818,67 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   /**
-   * Escolhe pra valer, na hora.
+   * A LISTA DE PREFERÊNCIA da vaga.
    *
-   * Não é mais um mock guardado pra resolver no fim do prazo: clicou,
-   * levou. Se outro time clicar no mesmo jogador um instante antes, o
-   * servidor recusa e a lista é recarregada — quem pegou primeiro pegou.
+   * A 2ª rodada não é mais corrida: todo mundo escolhe durante os 20 minutos e
+   * o sistema resolve no fim, pela ordem das picks. Quem tem a 31 leva antes
+   * de quem tem a 34 — por isso a lista tem até três nomes, e não um: se o
+   * primeiro for levado por uma pick melhor, desce pro segundo.
    */
-  async function chooseRound2Mock(playerId) {
+  function renderRound2Prefs() {
+    const box = document.getElementById('round2Prefs');
+    if (!box) return;
+    const linhas = [];
+    for (let i = 1; i <= 3; i++) {
+      const p = round2Prefs.find(x => Number(x.preferencia) === i);
+      linhas.push(`<div class="pref-linha${p ? '' : ' vazia'}">
+        <span class="pref-num">${i}ª</span>
+        <span class="pref-nome">${p ? esc(p.name) + ' <small>' + esc(p.position || '') + '</small>' : 'em branco'}</span>
+        ${p ? `<button type="button" class="pref-x" onclick="delRound2Pref(${i})" title="Tirar">&times;</button>` : ''}
+      </div>`);
+    }
+    box.innerHTML = linhas.join('');
+  }
+
+  async function addRound2Pref(playerId) {
+    if (!round2MockDraftOrderId) return;
+    if (round2Prefs.length >= 3) { alert('Você já escolheu três. Tire uma antes de trocar.'); return; }
+    // A próxima posição vaga da lista — não necessariamente o fim, porque o
+    // GM pode ter apagado a 2ª e deixado a 3ª.
+    let pref = 1;
+    while (round2Prefs.some(p => Number(p.preferencia) === pref)) pref++;
+    try {
+      await api('draft.php', { method: 'POST', body: JSON.stringify({
+        action: 'submit_round2_mock', draft_order_id: round2MockDraftOrderId,
+        player_id: playerId, preferencia: pref }) });
+      const jog = round2MockPlayersList.find(p => Number(p.id) === Number(playerId)) || {};
+      round2Prefs.push({ preferencia: pref, player_id: playerId, name: jog.name, position: jog.position });
+      round2Prefs.sort((a, b) => a.preferencia - b.preferencia);
+      renderRound2Prefs();
+      renderRound2MockPlayers(round2MockPlayersList);
+    } catch (e) {
+      alert(e.error || e.message || 'Não deu pra salvar a escolha.');
+    }
+  }
+
+  async function delRound2Pref(pref) {
     if (!round2MockDraftOrderId) return;
     try {
-      const r = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'pick_round2', draft_order_id: round2MockDraftOrderId, player_id: playerId }) });
-      bootstrap.Modal.getInstance(document.getElementById('round2MockModal'))?.hide();
-      // A escolha muda o quadro E o resto da página (o card da vaga, o
-      // jogador que sai do pool), então recarrega os dois.
-      await loadRound2Board();
-      loadDraft();
-      if (r && r.message) alert(r.message);
+      await api('draft.php', { method: 'POST', body: JSON.stringify({
+        action: 'cancel_round2_mock', draft_order_id: round2MockDraftOrderId, preferencia: pref }) });
+      round2Prefs = round2Prefs.filter(p => Number(p.preferencia) !== Number(pref));
+      renderRound2Prefs();
+      renderRound2MockPlayers(round2MockPlayersList);
     } catch (e) {
-      // O caso comum aqui não é erro de sistema: é ter perdido a corrida.
-      // Recarregar mostra o jogador já indisponível, sem deixar dúvida.
-      alert(e.error || e.message || 'Não deu pra registrar a escolha.');
-      await loadRound2Board();
+      alert(e.error || e.message || 'Não deu pra remover.');
     }
+  }
+
+  /* Fechar o modal é o fim: não há "confirmar", cada escolha já foi salva
+     quando foi clicada. Só o quadro precisa recarregar. */
+  function fecharRound2Picker() {
+    bootstrap.Modal.getInstance(document.getElementById('round2MockModal'))?.hide();
+    loadRound2Board();
   }
 
   /**
