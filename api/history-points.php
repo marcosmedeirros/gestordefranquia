@@ -1282,26 +1282,39 @@ try {
             ensureRankingPointsColumn($pdo);
             ensureRankingTitlesColumn($pdo);
 
+            /* QUEM É DA LIGA SE PERGUNTA ANTES, e não pelo rowCount do UPDATE.
+               rowCount() conta linhas ALTERADAS, não encontradas: um time que
+               já estava com aquela pontuação devolve 0 igualzinho a um time
+               que não existe. Como o admin abre a tela com todos os times e
+               mexe em dois ou três, quase a liga inteira caía na lista de
+               "não encontrado", a exceção subia e o rollback desfazia até o
+               que tinha mudado — nada era salvo. */
+            $stmtDaLiga = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
+            $stmtDaLiga->execute([$league]);
+            $daLiga = array_flip(array_map('intval', $stmtDaLiga->fetchAll(PDO::FETCH_COLUMN)));
+
+            $notFound = [];
+            foreach ($teamPoints as $tp) {
+                $teamId = (int)($tp['team_id'] ?? 0);
+                if ($teamId > 0 && !isset($daLiga[$teamId])) $notFound[] = $teamId;
+            }
+            if (!empty($notFound)) {
+                throw new Exception('Time(s) não encontrado(s) na liga informada (id: ' . implode(', ', $notFound) . ')');
+            }
+
             $pdo->beginTransaction();
             try {
                 $stmtPoints = $pdo->prepare("UPDATE teams SET ranking_points = ? WHERE id = ? AND league = ?");
                 $stmtPointsTitles = $pdo->prepare("UPDATE teams SET ranking_points = ?, ranking_titles = ? WHERE id = ? AND league = ?");
-                $notFound = [];
                 foreach ($teamPoints as $tp) {
                     $teamId = (int)($tp['team_id'] ?? 0);
                     $points = (int)($tp['points'] ?? 0);
                     if ($teamId <= 0) continue;
                     if (array_key_exists('titles', $tp)) {
-                        $titles = (int)($tp['titles'] ?? 0);
-                        $stmtPointsTitles->execute([$points, $titles, $teamId, $league]);
-                        if ($stmtPointsTitles->rowCount() === 0) $notFound[] = $teamId;
+                        $stmtPointsTitles->execute([$points, (int)($tp['titles'] ?? 0), $teamId, $league]);
                     } else {
                         $stmtPoints->execute([$points, $teamId, $league]);
-                        if ($stmtPoints->rowCount() === 0) $notFound[] = $teamId;
                     }
-                }
-                if (!empty($notFound)) {
-                    throw new Exception('Time(s) não encontrado(s) na liga informada (id: ' . implode(', ', $notFound) . ')');
                 }
                 $pdo->commit();
             } catch (Exception $e) {
