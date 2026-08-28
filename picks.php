@@ -64,11 +64,31 @@ function pickTradeLink(int $pickId, bool $salaryCapMode): string
         : '/trades.php?offer_pick=' . $pickId;
 }
 
+/*
+ * Posição da escolha no draft em andamento, quando a loteria já saiu.
+ * Subconsulta, não JOIN: uma liga pode ter mais de uma sessão aberta, e o
+ * JOIN duplicaria a pick. É o que dá o "Escolha 18" e o valor de troca certo.
+ */
+const PICKS_SQL_POSICAO = '
+           (SELECT dor.pick_position
+              FROM draft_order dor
+              JOIN draft_sessions ds ON ds.id = dor.draft_session_id
+              JOIN seasons se ON se.id = ds.season_id
+              LEFT JOIN sprints spr ON spr.id = se.sprint_id
+             WHERE ds.league = ?
+               AND ds.status IN ("setup","in_progress")
+               AND dor.original_team_id = p.original_team_id
+               AND dor.round = p.round
+               AND CAST(p.season_year AS UNSIGNED)
+                   = COALESCE(spr.start_year + se.season_number - 1, se.year)
+             LIMIT 1) AS pick_position';
+
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
            last_owner.city AS last_owner_city, last_owner.name AS last_owner_name,
            swap_team.id AS swap_partner_team_id,
-           swap_team.city AS swap_partner_city, swap_team.name AS swap_partner_name
+           swap_team.city AS swap_partner_city, swap_team.name AS swap_partner_name,'
+    . PICKS_SQL_POSICAO . '
     FROM picks p
     LEFT JOIN teams orig ON p.original_team_id = orig.id
     LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
@@ -77,12 +97,13 @@ $stmtPicks = $pdo->prepare('
     WHERE p.team_id = ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
-$stmtPicks->execute([$team['id'], $currentSeasonYear]);
+$stmtPicks->execute([(string)($team['league'] ?? ''), $team['id'], $currentSeasonYear]);
 $picks = $stmtPicks->fetchAll();
 
 $stmtPicksAway = $pdo->prepare('
     SELECT p.*, current_owner.city AS current_city, current_owner.name AS current_name,
-           swap_team.city AS swap_partner_city, swap_team.name AS swap_partner_name
+           swap_team.city AS swap_partner_city, swap_team.name AS swap_partner_name,'
+    . PICKS_SQL_POSICAO . '
     FROM picks p
     LEFT JOIN teams current_owner ON p.team_id = current_owner.id
     LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
@@ -90,7 +111,7 @@ $stmtPicksAway = $pdo->prepare('
     WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
-$stmtPicksAway->execute([$team['id'], $team['id'], $currentSeasonYear]);
+$stmtPicksAway->execute([(string)($team['league'] ?? ''), $team['id'], $team['id'], $currentSeasonYear]);
 $picksAway = $stmtPicksAway->fetchAll();
 
 // Marca quais picks estão penduradas por servirem de lastro a uma protegida.
@@ -538,7 +559,7 @@ $tradedAway   = count($picksAway);
                                 <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
+                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>" data-pos="<?= (int)($pick['pick_position'] ?? 0) ?>"><b>—</b><em>troca</em></span>
                         <?php if ($salaryCapMode): ?>
                         <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(1)) ?>"><b><?= pickCapLabel(1) ?></b><em>cap</em></span>
                         <?php endif; ?>
@@ -595,7 +616,7 @@ $tradedAway   = count($picksAway);
                                 <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
+                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>" data-pos="<?= (int)($pick['pick_position'] ?? 0) ?>"><b>—</b><em>troca</em></span>
                         <?php if ($salaryCapMode): ?>
                         <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(2)) ?>"><b><?= pickCapLabel(2) ?></b><em>cap</em></span>
                         <?php endif; ?>
@@ -699,7 +720,8 @@ $tradedAway   = count($picksAway);
     // Valor estimado de troca (mesmo modelo de trades.php/trade-simulator.php)
     if (window.TradeValue) {
         document.querySelectorAll('.pick-value').forEach(el => {
-            const item = { round: Number(el.dataset.round), season_year: Number(el.dataset.year) };
+            const item = { round: Number(el.dataset.round), season_year: Number(el.dataset.year),
+                           pick_position: Number(el.dataset.pos) || null };
             // Só o número: o <em> com o rótulo "troca" tem que sobreviver.
             const num = el.querySelector('b');
             if (num) num.textContent = Math.round(TradeValue.itemValue(item));

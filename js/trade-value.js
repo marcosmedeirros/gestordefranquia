@@ -68,10 +68,31 @@
     return b * youth;
   }
 
+  /**
+   * Multiplicador pela posição da escolha, quando ela já é conhecida.
+   *
+   * Enquanto a loteria não saiu, uma pick de 1ª rodada é uma aposta: vale a
+   * média da rodada (multiplicador 1). Depois do sorteio ela deixa de ser
+   * aposta — a Escolha 1 e a Escolha 30 são ativos completamente diferentes,
+   * e a troca precisa refletir isso. A curva é decrescente e achatada no fim
+   * (do 20 pro 30 muda pouco; do 1 pro 5 muda muito), normalizada pra que a
+   * média da rodada continue valendo o mesmo de antes.
+   */
+  function slotMultiplier(pos, round) {
+    var p = +pos || 0;
+    if (!p) return 1;
+    // A posição vem contínua no draft (31..60 é a 2ª rodada); interessa o
+    // lugar dentro da própria rodada.
+    var dentro = +round === 2 && p > 30 ? p - 30 : p;
+    if (dentro < 1) return 1;
+    return 2.7 / (1 + (dentro - 1) * 0.17);
+  }
+
   /** Valor de uma pick como ativo de troca. */
   function pickValue(item) {
     var round = +(item.round || item.pick_round || 2);
     var base = round === 1 ? 30 : 7;
+    base *= slotMultiplier(item.pick_position || item.slot, round);
     var year = +(item.season_year || item.pick_year || 0);
     var current = +(global.__CURRENT_SEASON_YEAR__ || 0);
     if (year && current && year > current) {
@@ -85,6 +106,13 @@
   function explain(item) {
     if (!isPlayer(item)) {
       var r = +(item.round || item.pick_round || 2);
+      var pos = +(item.pick_position || item.slot || 0);
+      if (pos) {
+        var dentro = r === 2 && pos > 30 ? pos - 30 : pos;
+        var faixa = dentro <= 3 ? 'top 3' : dentro <= 5 ? 'top 5'
+                  : dentro <= 14 ? 'loteria' : dentro <= 20 ? 'meio de rodada' : 'fim de rodada';
+        return 'Escolha ' + pos + ' · ' + faixa;
+      }
       return r === 1 ? 'Pick de 1ª rodada' : 'Pick de 2ª rodada';
     }
     var age = +item.age || 25;
@@ -159,7 +187,8 @@
       ageMultiplier: ageMultiplier,
       veteranDecay: veteranDecay,
       pedigreeBonus: pedigreeBonus,
-      pickValue: pickValue
+      pickValue: pickValue,
+      slotMultiplier: slotMultiplier
     }
   };
 })(typeof window !== 'undefined' ? window : this);

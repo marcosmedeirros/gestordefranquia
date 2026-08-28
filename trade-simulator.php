@@ -360,6 +360,8 @@ body{overflow-x:hidden}
    não é dinheiro — misturar a cor faria parecer a mesma unidade. */
 .picker-valor,.sim-item-valor{margin-left:auto;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
 .picker-valor{padding-right:10px}
+/* Valor de troca: verde, pra não se confundir com o peso salarial (azul). */
+.sim-item-troca{color:#22c55e}
 .sim-item-valor{padding-left:6px}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
@@ -615,6 +617,7 @@ body{overflow-x:hidden}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= assetUrl('/js/trade-value.js') ?>"></script>
 <script>
 const IS_PROPOSE = <?= $propose ? 'true' : 'false' ?>;
 const CAP_MIN    = <?= $capMin ?>;
@@ -781,7 +784,7 @@ async function preencherDaTroca(tradeId, inverter) {
     if (!pk) return;
     receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
       orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-      season_year: pk.season_year, swapRole: null,
+      season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
       podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
       protecaoOriginal: pk.protection || null });
   };
@@ -903,7 +906,7 @@ function aplicarPreselecoes(key) {
     if (pk) {
       receives[kB].push({ id: pk.id, type: 'pick', fromKey: kA, label: pickLabel(pk),
         orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-        season_year: pk.season_year, swapRole: null,
+        season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
         podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
         protecaoOriginal: pk.protection || null });
       PRESELECT_OFFER_PICK_APLICADO = true;
@@ -1040,6 +1043,7 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
+      ${pickValorBadge(item, 'sim-item-valor')}
       ${SALARY_MODE ? `<div class="sim-item-valor" title="Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.">${pickSalary(item.round)}M</div>` : ''}
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
@@ -1139,6 +1143,7 @@ function renderPickerList() {
               <div class="picker-name">${escH(label)}</div>
               <div class="picker-meta">${(p.orig_city ?? '') + ' ' + (p.orig_name ?? '')}</div>
             </div>
+            ${pickValorBadge(p, 'picker-valor')}
             ${SALARY_MODE ? `<div class="picker-valor" title="Peso desta pick no casamento salarial da troca">${pickSalary(p.round)}M</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
@@ -1193,7 +1198,7 @@ function confirmPicker() {
     } else {
       const pk = src.picks.find(pk => pk.id === id);
       if (!pk) return;
-      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, swapRole: null,
+      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, pick_position: pk.pick_position ?? null, swapRole: null,
         podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
         // A que a pick JÁ trazia. Sem separar as duas, uma pick protegida
         // por OUTRO time era reenviada como pedido novo de proteção, e a
@@ -1744,6 +1749,19 @@ function setSimSwapRole(toKey, itemId, role) {
    Depois do sorteio a pick tem número, e é por ele que a liga negocia —
    trocar a 4ª é outra conversa que trocar a 26ª, e as duas apareciam com o
    mesmo rótulo. */
+/**
+ * Valor de troca de uma escolha, na mesma escala de picks.php e trades.php.
+ * Depois da loteria a posição é conhecida, e a Escolha 1 não vale o mesmo que
+ * a Escolha 30 — o número aqui precisa refletir isso.
+ */
+function pickValorBadge(p, cls) {
+  if (!window.TradeValue) return '';
+  const dados = { round: p.round, season_year: p.season_year, pick_position: p.pick_position ?? null };
+  const v = Math.round(TradeValue.itemValue(dados));
+  const por = TradeValue.explain(dados);
+  return `<div class="${cls} sim-item-troca" title="Valor estimado de troca — ${escH(por)}. Mesma escala usada para jogadores.">${v}</div>`;
+}
+
 function pickLabel(p) {
   const rodada = p.round == 1 ? '1ª Round' : '2ª Round';
   return p.pick_position
