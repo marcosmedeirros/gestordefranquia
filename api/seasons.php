@@ -910,65 +910,6 @@ function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void
     }
 }
 
-/**
- * Clona player_season_stats da última temporada com dados pra liga, pra
- * player_season_stats da temporada nova — só pra quem já tem linha.
- *
- * Estatística de jogo (PTS/REB/AST...) não "continua" de uma pra outra como
- * skill continua — é só um ponto de partida melhor que a tela em branco.
- * Marcadas como source='clonado' pra a tela de atualizar elenco poder avisar
- * "isso não foi confirmado ainda nesta temporada".
- *
- * Usa o TIME ATUAL do jogador (não o time da temporada antiga), porque uma
- * troca entre temporadas não deve levar o clone pro time errado.
- */
-function clonePlayerSeasonStats(PDO $pdo, int $newSeasonId, string $league): int {
-    $stmtPrev = $pdo->prepare("
-        SELECT id FROM seasons
-        WHERE league = ? AND id <> ?
-          AND id IN (SELECT DISTINCT season_id FROM player_season_stats WHERE league = ?)
-        ORDER BY id DESC LIMIT 1
-    ");
-    $stmtPrev->execute([$league, $newSeasonId, $league]);
-    $prevSeasonId = $stmtPrev->fetchColumn();
-    if (!$prevSeasonId) return 0;
-
-    $stmtNewSeason = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
-    $stmtNewSeason->execute([$newSeasonId]);
-    $newSeasonNumber = (int)($stmtNewSeason->fetchColumn() ?: 0);
-
-    $stmtPrevStats = $pdo->prepare('
-        SELECT ps.player_id, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg,
-               p.team_id AS current_team_id
-        FROM player_season_stats ps
-        INNER JOIN players p ON p.id = ps.player_id
-        WHERE ps.season_id = ?
-    ');
-    $stmtPrevStats->execute([(int)$prevSeasonId]);
-    $linhas = $stmtPrevStats->fetchAll(PDO::FETCH_ASSOC);
-    if (!$linhas) return 0;
-
-    $ins = $pdo->prepare("
-        INSERT INTO player_season_stats
-            (player_id, season_id, season_number, league, team_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'clonado')
-        ON DUPLICATE KEY UPDATE player_id = player_id
-    ");
-    // ON DUPLICATE KEY UPDATE vira um no-op de propósito: se já existir uma
-    // linha nesta temporada (alguém rodou isto duas vezes, ou o GM já
-    // salvou algo antes disto rodar), o clone NÃO PODE sobrescrever dado
-    // real com uma cópia velha.
-    $clonados = 0;
-    foreach ($linhas as $l) {
-        $ok = $ins->execute([
-            (int)$l['player_id'], $newSeasonId, $newSeasonNumber, $league, (int)$l['current_team_id'],
-            (int)$l['games'], $l['min_pg'], $l['pts_pg'], $l['reb_pg'], $l['ast_pg'], $l['stl_pg'], $l['blk_pg'],
-        ]);
-        if ($ok && $ins->rowCount() > 0) $clonados++;
-    }
-    return $clonados;
-}
-
 try {
     switch ($action) {
         // ========== ASSINATURA DE ESTADO (para auto-refresh de telas ao vivo) ==========
@@ -1369,17 +1310,26 @@ try {
             $stmtSeason->execute([$sprintId, $league, $seasonNumber, $year]);
             $seasonId = $pdo->lastInsertId();
 
-            // Semeia a temporada nova com o que já existe: skill/OVR/idade não têm
-            // reset (o snapshot só registra o que já está valendo), e as estatísticas
-            // de jogo vêm clonadas da temporada anterior como ponto de partida — o GM
-            // que não mexer em nada não fica com a tela de atualizar elenco em branco,
-            // e quem não mudou nada não tem retrabalho nenhum.
+            /*
+             * O snapshot de skill/OVR/idade fica: ele registra o que JÁ está
+             * valendo, e continua valendo na temporada nova.
+             *
+             * A ESTATÍSTICA DE JOGO NÃO É CLONADA. Ela era, "como ponto de
+             * partida" pra tela de atualizar elenco não abrir em branco — mas
+             * o efeito era o card do jogador mostrar os números da temporada
+             * passada como se fossem da nova, que sequer foi disputada. Na
+             * ELITE isso deu 444 linhas na temporada 2, todas clonadas,
+             * nenhuma jogada.
+             *
+             * Estatística de partida que não aconteceu não existe. A tabela
+             * fica vazia até alguém lançar, e as telas já sabem lidar com isso
+             * ("Sem estatística lançada", traço em vez de zero).
+             */
+            $statsClonadas = 0;
             try {
                 snapshotPlayersForSeason($pdo, (int)$seasonId, $league);
-                $statsClonadas = clonePlayerSeasonStats($pdo, (int)$seasonId, $league);
             } catch (Throwable $e) {
-                $statsClonadas = 0;
-                error_log('[create_season] snapshot/clone de temporada: ' . $e->getMessage());
+                error_log('[create_season] snapshot de temporada: ' . $e->getMessage());
             }
 
             $teams = fetchLeagueTeams($pdo, $league);

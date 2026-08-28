@@ -111,6 +111,30 @@ function devAnosVazios(PDO $pdo, array $ligas): array
     return $saida;
 }
 
+/**
+ * Estatística CLONADA de uma temporada que ainda não foi disputada.
+ *
+ * O avanço de temporada copiava player_season_stats da anterior "como ponto
+ * de partida". O card do jogador passava a mostrar os números do ano passado
+ * como se fossem do novo. A cópia parou de acontecer; o que já foi copiado
+ * continua no banco.
+ */
+function devStatsClonadas(PDO $pdo): array
+{
+    try {
+        return $pdo->query("
+            SELECT ps.season_id, s.league, s.season_number, s.status, COUNT(*) AS linhas,
+                   SUM(ps.source <> 'clonado' OR ps.source IS NULL) AS lancadas
+              FROM player_season_stats ps
+              JOIN seasons s ON s.id = ps.season_id
+             WHERE ps.source = 'clonado'
+             GROUP BY ps.season_id
+             ORDER BY s.league, s.season_number")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 /** Tabelas de linha única que ganharam linha repetida. */
 function devLinhaUnicaRepetida(PDO $pdo): array
 {
@@ -180,6 +204,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$id]);
             $aviso = ['ok', "Temporada id $id marcada como completed. Nenhum dado dela foi tocado."];
 
+        } elseif ($acao === 'limpar_stats_clonadas') {
+            $sid = (int)($_POST['season_id'] ?? 0);
+            $ok = false;
+            foreach (devStatsClonadas($pdo) as $c) if ((int)$c['season_id'] === $sid) $ok = true;
+            if (!$ok) throw new RuntimeException("A temporada $sid não está mais na lista — recarregue.");
+            // Só o que foi CLONADO. O que alguém lançou de verdade nessa mesma
+            // temporada fica: são linhas diferentes, e apagar as duas seria
+            // perder lançamento real por causa de uma cópia automática.
+            $st = $pdo->prepare("DELETE FROM player_season_stats WHERE season_id = ? AND source = 'clonado'");
+            $st->execute([$sid]);
+            $aviso = ['ok', $st->rowCount() . " linha(s) clonada(s) apagada(s). O que foi lançado à mão ficou."];
+
         } elseif ($acao === 'dedup_linha_unica') {
             $tabela = (string)($_POST['tabela'] ?? '');
             if ($tabela !== 'maintenance_mode') throw new RuntimeException('Tabela não prevista.');
@@ -201,11 +237,13 @@ $zumbis     = devSessoesZumbi($pdo);
 $repetidas  = devOrigemRepetida($pdo, $LIGAS);
 $ordemFora  = devOrdemFora($pdo, $LIGAS);
 $anosVazios = devAnosVazios($pdo, $LIGAS);
+$clonadas   = devStatsClonadas($pdo);
 $linhaUnica = devLinhaUnicaRepetida($pdo);
 $tempDup    = devTemporadasPresas($pdo);
 
 $totalProblemas = count($zumbis) + count($repetidas) + count($ordemFora)
-                + count($anosVazios) + count($linhaUnica) + count($tempDup);
+                + count($anosVazios) + count($linhaUnica) + count($tempDup)
+                + count($clonadas);
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -367,6 +405,29 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
       <p class="nota">Conserto: <b>Ajustar Picks</b> no card de Draft da liga — ele cria o que falta e não
          toca em pick negociada.</p>
     <?php endif; ?>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <div class="bloco">
+    <h2><i class="bi bi-files" style="color:var(--red)"></i> Estatística copiada de temporada não disputada</h2>
+    <p class="por">O avanço de temporada copiava <code>player_season_stats</code> da anterior como ponto de
+       partida, e o card do jogador passava a mostrar os números do ano passado como se fossem do novo.
+       A cópia não acontece mais; o que já foi copiado segue no banco. Apagar mexe só no que tem
+       <code>source = 'clonado'</code> — lançamento feito à mão na mesma temporada fica.</p>
+    <?php if (!$clonadas): ?>
+      <p class="ok"><i class="bi bi-check2"></i> Nenhuma.</p>
+    <?php else: foreach ($clonadas as $c): ?>
+      <div class="achado">
+        <span class="tag"><?= h($c['league']) ?></span>
+        <span class="txt">Temporada <b>#<?= h($c['season_number']) ?></b> (<?= h($c['status']) ?>):
+          <b><?= (int)$c['linhas'] ?></b> linha(s) copiada(s).</span>
+        <form method="post" onsubmit="return confirm('Apagar as <?= (int)$c['linhas'] ?> linhas copiadas da temporada #<?= h($c['season_number']) ?>?')">
+          <input type="hidden" name="acao" value="limpar_stats_clonadas">
+          <input type="hidden" name="season_id" value="<?= (int)$c['season_id'] ?>">
+          <button class="perigo" type="submit">Apagar as copiadas</button>
+        </form>
+      </div>
+    <?php endforeach; endif; ?>
   </div>
 
   <!-- 5 ─────────────────────────────────────────────────────────────────── -->
