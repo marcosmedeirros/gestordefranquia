@@ -287,7 +287,9 @@ function render(){
       const crit = sec < 3600 ? 'crit' : (sec < 3*3600 ? 'warn' : '');
       // O lance é cego: nem quem está ganhando, nem com quanto, nem quantos
       // lances existem. A pessoa vê só o que ela mesma apostou.
-      const meuLance = mine ? `${w.my_bid}M` : 'você ainda não deu lance';
+      // Só aparece quando existe: o card não diz nada sobre a disputa,
+      // nem "você ainda não deu lance" — quem não deu vê o campo em branco.
+      const meuLance = mine ? `${w.my_bid}M` : '';
       return `<div class="card ${sec<3600?'soon':''}">
         <div class="pl">
           <div class="av">${esc((w.position||'?').slice(0,2))}</div>
@@ -299,15 +301,13 @@ function render(){
         </div>
         <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
         ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${fmtCap(w.cap_custo, w.cap_unidade)}</b> no seu cap</div>`:''}
-        <div class="bid">
-          <i class="bi bi-eye-slash-fill" style="color:var(--text-3)"></i>
-          <span class="lead-bid" style="color:var(--text-3);font-weight:600">Lance fechado — ninguém vê os lances dos outros</span>
-          ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${esc(meuLance)}</span>`:''}
-        </div>
+        ${mine?`<div class="bid">
+          <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
+          <span class="lead-bid">Seu lance: ${esc(meuLance)}</span>
+        </div>`:''}
         <div class="timer ${crit}">
           <i class="bi bi-alarm" style="color:var(--text-3)"></i>
           <div><div class="clock" data-sec="${sec}">${fmt(sec)}</div><div class="cl">até resolver</div></div>
-          <div class="claims">${mine?'<i class="bi bi-check-circle-fill" style="color:var(--green,#22c55e)"></i> seu lance está de pé':'<i class="bi bi-dash-circle"></i> sem lance seu'}</div>
         </div>
         ${btn}
       </div>`;
