@@ -745,12 +745,20 @@ if ($method === 'GET') {
             $deadline = $stmtDeadline->fetchColumn();
 
             $stmt = $pdo->prepare(
-                "SELECT o.id AS draft_order_id, o.team_id, o.pick_position, o.picked_player_id,
+                /* Os DOIS times: `t` é quem escolhe (o dono atual da pick) e
+                   `ot` é de quem era a vaga. A tela precisa dos dois — a
+                   escolha do Coyotes que está com o Wyverns é escolhida pelo
+                   Wyverns, mas continua sendo a vaga do Coyotes, e sem dizer
+                   isso a lista parece fora de ordem. */
+                "SELECT o.id AS draft_order_id, o.team_id, o.original_team_id,
+                        o.pick_position, o.picked_player_id,
                         t.city AS team_city, t.name AS team_name,
+                        ot.city AS origem_city, ot.name AS origem_name,
                         m.player_id AS mock_player_id, dp.name AS mock_player_name,
                         dp.position AS mock_player_position, dp.ovr AS mock_player_ovr
                  FROM draft_order o
                  INNER JOIN teams t ON o.team_id = t.id
+                 LEFT JOIN teams ot ON ot.id = o.original_team_id
                  LEFT JOIN draft_round2_mocks m ON m.draft_order_id = o.id
                  LEFT JOIN draft_pool dp ON dp.id = m.player_id
                  WHERE o.draft_session_id = ? AND o.round = 2
@@ -772,6 +780,10 @@ if ($method === 'GET') {
                     'draft_order_id' => (int)$r['draft_order_id'],
                     'team_id' => (int)$r['team_id'],
                     'team_name' => trim($r['team_city'] . ' ' . $r['team_name']),
+                    // Só quando a vaga não é de quem escolhe: numa pick que
+                    // nunca foi trocada, repetir o nome não informa nada.
+                    'via' => ((int)$r['original_team_id'] !== (int)$r['team_id'])
+                        ? trim(($r['origem_city'] ?? '') . ' ' . ($r['origem_name'] ?? '')) : null,
                     'pick_position' => (int)$r['pick_position'],
                     'pick_overall' => $vagasR1 + (int)$r['pick_position'],
                     'picked_player_id' => $r['picked_player_id'] !== null ? (int)$r['picked_player_id'] : null,

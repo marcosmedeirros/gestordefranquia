@@ -1102,12 +1102,16 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   function renderDraft(session, picks) {
     const round1Picks = picks.filter(p => p.round == 1);
     const round2Raw   = picks.filter(p => p.round == 2);
-    const round1OrderMap = new Map(round1Picks.map(p => [String(p.team_id), Number(p.pick_position)]));
-    const round2Picks = [...round2Raw].sort((a, b) => {
-      const aOrder = round1OrderMap.get(String(a.team_id)) ?? a.pick_position;
-      const bOrder = round1OrderMap.get(String(b.team_id)) ?? b.pick_position;
-      return aOrder - bOrder;
-    });
+    /* A ORDEM DA 2ª RODADA É A DA VAGA, e a vaga é do time de ORIGEM.
+       Ordenava pela posição de 1ª rodada de quem ESTÁ com a pick, o que
+       errava exatamente o caso que a 2ª rodada tem de sobra: pick comprada.
+       A escolha do Coyotes que está com o Wyverns pertence à vaga do
+       Coyotes — quem escolhe nela é o Wyverns, mas ela continua no lugar
+       do Coyotes. Pelo mapa antigo ela pulava pro lugar do Wyverns, e um
+       time com duas picks da 2ª empatava as duas na mesma chave.
+       pick_position já é essa ordem: a loteria criou as vagas da 2ª na
+       mesma sequência da 1ª, marcando a origem em cada uma. */
+    const round2Picks = [...round2Raw].sort((a, b) => Number(a.pick_position) - Number(b.pick_position));
 
     let currentPickInfo = null;
     if (session.status === 'in_progress') {
@@ -1125,11 +1129,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       : null;
     const round2History = round2Raw
       .filter(p => p.picked_player_id)
-      .sort((a, b) => {
-        const aPos = round1OrderMap.get(String(a.team_id)) ?? a.pick_position;
-        const bPos = round1OrderMap.get(String(b.team_id)) ?? b.pick_position;
-        return aPos - bPos;
-      });
+      .sort((a, b) => Number(a.pick_position) - Number(b.pick_position));
 
     // Status grid
     let currentPickLabel = '—';
@@ -1695,7 +1695,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       }
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:8px;background:var(--panel-2);margin-bottom:6px;${resolved ? 'opacity:.6' : ''}">
-          <div style="font-size:13px;color:var(--text)">#${p.pick_overall || p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}</div>
+          <div style="font-size:13px;color:var(--text)">#${p.pick_overall || p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}${p.via ? ` <span style="color:var(--text-3);font-size:11px">via ${esc(p.via)}</span>` : ''}</div>
           <div style="display:flex;align-items:center;gap:6px">${right}</div>
         </div>`;
     }).join('');
