@@ -1388,9 +1388,22 @@ function coperoConquistas(): array
         'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão das cinco grandes ligas europeias: '
                                                    . 'Premier, LaLiga, Serie A, Bundesliga e Ligue 1.',
                           'impossivel', fn($c) => $c['grandesEuropeias'] >= 5],
+        // "PASSE 15 TEMPORADAS NUM SÓ CLUBE" é o que está escrito, e é uma
+        // passagem longa — não uma carreira inteira sem nunca sair.
+        //
+        // A regra exigia `clubes === 1`: quem tivesse jogado em qualquer outro
+        // clube, ainda que 36 jogos no começo, estava fora para sempre. Como a
+        // carreira média passa por 9,6 clubes e quase ninguém estreia no clube
+        // grande, isso tornava a conquista inalcançável por um motivo que o
+        // texto não dizia. Dois jogadores reclamaram no mesmo dia: um com 15+
+        // temporadas no Flamengo, outro com 20 no City e uma passagem pelo
+        // Bolton. Os dois fizeram o que a descrição pede.
+        //
+        // `maiorSequencia` é a maior passagem SEGUIDA num mesmo clube, que já
+        // era calculada. É ela que responde à pergunta escrita.
         'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe 15 temporadas ou mais num só clube e ganhe liga, copa, '
                                                    . 'continental e Mundial de Clubes.',
-                          'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
+                          'impossivel', fn($c) => ($c['maiorSequencia'] ?? 0) >= 15
                                                   && $t($c,'liga') >= 1 && $t($c,'copa') >= 1
                                                   && $t($c,'cont') >= 1 && $t($c,'mundial') >= 1],
         'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 35 títulos coletivos.',
