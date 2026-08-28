@@ -139,7 +139,7 @@ const formatTradePickDisplay = (pick) => {
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
   const hasYearRound = year !== '?' && round !== '?';
-  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
+  const isCurrentDraft = Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
 
   const originalTeam = (pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
@@ -174,7 +174,7 @@ const formatTradePickPlain = (pick) => {
   const year = pick.season_year || '?';
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
-  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
+  const isCurrentDraft = Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
   const originalTeam = (pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || null);
@@ -747,7 +747,7 @@ const buildPickSummary = (pick) => {
   const year = pick.season_year || '?';
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
-  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
+  const isCurrentDraft = Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
   const origin = (pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || '');
@@ -891,11 +891,19 @@ const buildSwapPairsPayload = () => {
   return { pairs, invalid };
 };
 
+/*
+ * A pick é do draft que está rolando?
+ *
+ * Quem responde isso é o SERVIDOR: ele só preenche draft_pick_number quando a
+ * pick casa com uma vaga do draft aberto. Aqui havia mais uma condição,
+ * `year === currentSeasonYear`, e ela derrubava o caso normal — a temporada
+ * corrente da ELITE é 2025 e o draft distribui picks de 2026, então a
+ * comparação dava falso e o número nunca aparecia. Os dois não são a mesma
+ * pergunta, e a de dentro já foi respondida antes de chegar aqui.
+ */
 const isCurrentDraftPick = (pick) => {
   if (!pick) return false;
-  const year = Number(pick.season_year || 0);
-  const pickNumber = Number(pick.draft_pick_number || 0);
-  return year === currentSeasonYear && pickNumber > 0 && Number(pick.draft_session_id || 0) > 0;
+  return Number(pick.draft_pick_number || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
 };
 
 function setupPickSelectorHandlers() {

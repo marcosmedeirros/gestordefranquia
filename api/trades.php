@@ -1608,10 +1608,23 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
     if (!$draftSession) {
         return $pick;
     }
-    if ($sessionSeasonId && !empty($pick['season_id']) && (int)$pick['season_id'] !== $sessionSeasonId) {
-        return $pick;
-    }
-    if ($sessionYear && empty($pick['season_id']) && !empty($pick['season_year']) && (int)$pick['season_year'] !== $sessionYear) {
+    /*
+     * QUEM LIGA A PICK À VAGA É O ANO, não o season_id.
+     *
+     * Havia aqui uma comparação por season_id: se a pick tinha um e ele fosse
+     * diferente do da sessão de draft, a anotação parava e o card mostrava
+     * "Pick 2026 R1" em vez de "Escolha 18".
+     *
+     * Mas o season_id da pick é o da temporada em que ela foi GERADA ou
+     * realocada pelo reciclador — não diz nada sobre qual draft vai
+     * distribuí-la. Medido na ELITE: das 64 picks de 2026, 41 tinham
+     * season_id 170 contra o 166 da sessão. Essas 41 nunca mostravam o
+     * número; as outras 23 mostravam. Daí o comportamento parecer aleatório.
+     *
+     * O ano é a mesma chave que a Trade Machine, a página de Picks e a
+     * sincronização da ordem usam. Agora vale sempre, com ou sem season_id.
+     */
+    if ($sessionYear && !empty($pick['season_year']) && (int)$pick['season_year'] !== $sessionYear) {
         return $pick;
     }
     $round = isset($pick['round']) ? (int)$pick['round'] : 0;
