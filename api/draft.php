@@ -249,6 +249,48 @@ if ($method === 'GET') {
             break;
         }
 
+        /* CONFERIR AS PICKS DA ORDEM — só leitura.
+           Responde "as picks que comprei estão comigo?" sem que perguntar
+           mude nada: compara, vaga por vaga, quem está escolhendo com quem
+           deveria pela tabela de picks, já com o swap resolvido. */
+        case 'conferir_picks': {
+            $sid = (int)($_GET['draft_session_id'] ?? 0);
+            if (!$sid) { echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']); exit; }
+
+            $conf = draftConferirOrdem($pdo, $sid);
+
+            // Ids viram nomes: quem lê é uma pessoa.
+            $ids = [];
+            foreach ($conf['divergencias'] as $d) { $ids[] = $d['origem']; $ids[] = $d['esta_com']; $ids[] = $d['deveria']; }
+            foreach ($conf['swaps'] as $s) { $ids[] = $s['melhor_dono']; $ids[] = $s['melhor_de']; $ids[] = $s['pior_dono']; $ids[] = $s['pior_de']; }
+            foreach ($conf['sem_pick'] as $s) $ids[] = $s['origem'];
+            foreach ($conf['origem_repetida'] as $o) $ids[] = $o['time'];
+            foreach ($conf['protecoes'] as $p) { $ids[] = $p['origem']; $ids[] = $p['dono']; }
+            $nomes = draftNomesDosTimes($pdo, $ids);
+            $nome = fn($id) => $nomes[(int)$id] ?? ('Time ' . (int)$id);
+
+            $conf['divergencias'] = array_map(fn($d) => $d + [
+                'origem_nome'   => $nome($d['origem']),
+                'esta_com_nome' => $nome($d['esta_com']),
+                'deveria_nome'  => $nome($d['deveria']),
+            ], $conf['divergencias']);
+            $conf['swaps'] = array_map(fn($s) => $s + [
+                'melhor_dono_nome' => $nome($s['melhor_dono']),
+                'melhor_de_nome'   => $nome($s['melhor_de']),
+                'pior_dono_nome'   => $nome($s['pior_dono']),
+                'pior_de_nome'     => $nome($s['pior_de']),
+            ], $conf['swaps']);
+            $conf['sem_pick']        = array_map(fn($s) => $s + ['origem_nome' => $nome($s['origem'])], $conf['sem_pick']);
+            $conf['origem_repetida'] = array_map(fn($o) => $o + ['time_nome' => $nome($o['time'])], $conf['origem_repetida']);
+            $conf['protecoes'] = array_map(fn($p) => $p + [
+                'origem_nome' => $nome($p['origem']),
+                'dono_nome'   => $nome($p['dono']),
+            ], $conf['protecoes']);
+
+            echo json_encode(['success' => true] + $conf);
+            break;
+        }
+
         // Buscar draft ativo da liga
         case 'active_draft':
             $league = $_GET['league'] ?? ($team['league'] ?? null);

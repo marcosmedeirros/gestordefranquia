@@ -183,3 +183,139 @@ function draftNomesDosTimes(PDO $pdo, array $ids): array
     foreach ($st as $r) $mapa[(int)$r['id']] = $r['nome'];
     return $mapa;
 }
+
+/**
+ * CONFERÊNCIA DA ORDEM — só olha, não toca em nada.
+ *
+ * Diz, vaga por vaga, se quem está escolhendo é quem deveria: o dono atual
+ * da pick, com o swap resolvido. É a mesma conta de draftSincronizarOrdem,
+ * mas sem gravar — serve pra responder "as picks que comprei estão comigo?"
+ * sem que perguntar mude alguma coisa.
+ *
+ * @return array{ano:int, vagas:int, divergencias:array, swaps:array, sem_pick:array, protecoes:array}
+ */
+function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
+{
+    $vazio = ['ano' => 0, 'vagas' => 0, 'divergencias' => [], 'origem_repetida' => [], 'swaps' => [], 'sem_pick' => [], 'protecoes' => []];
+
+    $st = $pdo->prepare('SELECT id, season_id, league FROM draft_sessions WHERE id = ?');
+    $st->execute([$draftSessionId]);
+    $sessao = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$sessao) return $vazio;
+
+    $ano = draftAnoDaTemporada($pdo, (int)$sessao['season_id']);
+    if ($ano <= 0) return $vazio;
+
+    $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,
+                                protection, protection_resultado
+                         FROM picks WHERE season_year = ?');
+    $st->execute([$ano]);
+    $porOrigem = $porId = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $porOrigem[(int)$p['round']][(int)$p['original_team_id']] = $p;
+        $porId[(int)$p['id']] = $p;
+    }
+
+    $st = $pdo->prepare('SELECT id, team_id, original_team_id, pick_position, round
+                         FROM draft_order WHERE draft_session_id = ? ORDER BY round, pick_position');
+    $st->execute([$draftSessionId]);
+    $vagas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$vagas) return array_merge($vazio, ['ano' => $ano]);
+
+    // Quem deveria escolher em cada vaga, pela mesma regra da sincronização.
+    $esperado = $veioDeSwap = [];
+    foreach ($vagas as $v) {
+        $pick = $porOrigem[(int)$v['round']][(int)$v['original_team_id']] ?? null;
+        $esperado[(int)$v['id']] = $pick && (int)$pick['team_id'] > 0
+            ? (int)$pick['team_id'] : (int)$v['team_id'];
+    }
+
+    $vagaDaOrigem = [];
+    foreach ($vagas as $v) if ((int)$v['round'] === 1) $vagaDaOrigem[(int)$v['original_team_id']] = $v;
+
+    $swaps = [];
+    foreach ($porOrigem[1] ?? [] as $origemId => $pick) {
+        if (strtoupper(trim((string)($pick['swap_type'] ?? ''))) !== 'SB') continue;
+        $par = $porId[(int)($pick['swap_pair_pick_id'] ?? 0)] ?? null;
+        if (!$par || (int)$par['round'] !== 1
+            || strtoupper(trim((string)($par['swap_type'] ?? ''))) !== 'SW'
+            || (int)($par['swap_pair_pick_id'] ?? 0) !== (int)$pick['id']) continue;
+
+        $vagaSB = $vagaDaOrigem[$origemId] ?? null;
+        $vagaSW = $vagaDaOrigem[(int)$par['original_team_id']] ?? null;
+        if (!$vagaSB || !$vagaSW) continue;
+
+        $melhor = ((int)$vagaSB['pick_position'] <= (int)$vagaSW['pick_position']) ? $vagaSB : $vagaSW;
+        $pior   = ($melhor === $vagaSB) ? $vagaSW : $vagaSB;
+        $esperado[(int)$melhor['id']] = (int)$pick['team_id'];
+        $esperado[(int)$pior['id']]   = (int)$par['team_id'];
+        $veioDeSwap[(int)$melhor['id']] = $veioDeSwap[(int)$pior['id']] = true;
+
+        $swaps[] = [
+            'melhor_pick'  => (int)$melhor['pick_position'],
+            'melhor_dono'  => (int)$pick['team_id'],
+            'melhor_de'    => (int)$melhor['original_team_id'],
+            'pior_pick'    => (int)$pior['pick_position'],
+            'pior_dono'    => (int)$par['team_id'],
+            'pior_de'      => (int)$pior['original_team_id'],
+        ];
+    }
+
+    $divergencias = $semPick = $protecoes = [];
+    foreach ($vagas as $v) {
+        $id  = (int)$v['id'];
+        $deveria = $esperado[$id] ?? (int)$v['team_id'];
+        if ($deveria !== (int)$v['team_id']) {
+            $divergencias[] = [
+                'rodada'   => (int)$v['round'],
+                'pick'     => (int)$v['pick_position'],
+                'origem'   => (int)$v['original_team_id'],
+                'esta_com' => (int)$v['team_id'],
+                'deveria'  => $deveria,
+                'swap'     => !empty($veioDeSwap[$id]),
+            ];
+        }
+        $pick = $porOrigem[(int)$v['round']][(int)$v['original_team_id']] ?? null;
+        if (!$pick) {
+            $semPick[] = ['rodada' => (int)$v['round'], 'pick' => (int)$v['pick_position'], 'origem' => (int)$v['original_team_id']];
+        } elseif (!empty($pick['protection']) && empty($pick['protection_resultado'])) {
+            $protecoes[] = [
+                'rodada'    => (int)$v['round'],
+                'pick'      => (int)$v['pick_position'],
+                'origem'    => (int)$v['original_team_id'],
+                'dono'      => (int)$pick['team_id'],
+                'protecao'  => (string)$pick['protection'],
+            ];
+        }
+    }
+
+    /* CADA TIME É DONO DE UMA VAGA POR RODADA — a dele.
+       Esta checagem existe porque a de cima não bastaria: ela compara pelo
+       time de origem gravado na vaga, e se ELE estiver errado a conta fecha
+       com o dado errado. Foi o que aconteceu quando a ordem era aplicada
+       com o dono já resolvido no lugar da origem: um time aparecia como
+       origem de três vagas e outros dois, de nenhuma. Contar as origens
+       pega isso, porque a soma não muda de lugar. */
+    $origensPorRodada = [];
+    foreach ($vagas as $v) {
+        $origensPorRodada[(int)$v['round']][(int)$v['original_team_id']][] = (int)$v['pick_position'];
+    }
+    $origens = [];
+    foreach ($origensPorRodada as $rodada => $porTime) {
+        foreach ($porTime as $tid => $posicoes) {
+            if (count($posicoes) > 1) {
+                $origens[] = ['rodada' => $rodada, 'time' => $tid, 'picks' => $posicoes];
+            }
+        }
+    }
+
+    return [
+        'ano'             => $ano,
+        'vagas'           => count($vagas),
+        'divergencias'    => $divergencias,
+        'origem_repetida' => $origens,
+        'swaps'           => $swaps,
+        'sem_pick'        => $semPick,
+        'protecoes'       => $protecoes,
+    ];
+}
