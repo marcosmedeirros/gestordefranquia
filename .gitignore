@@ -43,3 +43,6 @@ entrar-teste.php
 # O .htaccess ja nega .sql pela web, mas isso nao tem por que viajar no repo.
 # Como obter: LOCAL_SETUP.md.
 bancos_local_test/*.sql
+
+# Dump comprimido vindo de producao (mesmo motivo dos .sql)
+bancos_local_test/*.sql.gz
