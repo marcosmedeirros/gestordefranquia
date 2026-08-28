@@ -12,6 +12,8 @@ require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/draft_swaps.php';
 // Proteção de pick: quem caiu na faixa protegida não passa (só ELITE).
 require_once __DIR__ . '/../backend/pick_protection.php';
+// O pool que sobra no fim do draft vai pra Free Agency.
+require_once __DIR__ . '/../backend/draft_fa.php';
 require_once __DIR__ . '/../backend/loteria_grupos.php';
 
 header('Content-Type: application/json');
@@ -208,8 +210,7 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
             $claimed[$playerId] = true;
         }
 
-        $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-            ->execute([$draftSessionId]);
+        draftEncerrarSessao($pdo, (int)$draftSessionId);
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -2125,8 +2126,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-                ->execute([(int)$draftSessionId]);
+            draftEncerrarSessao($pdo, (int)$draftSessionId);
 
             echo json_encode(['success' => true, 'message' => 'Draft finalizado!']);
             break;
@@ -2358,7 +2358,7 @@ if ($method === 'POST') {
                     $stmtNextTeam->execute([(int)$draftSessionId, (int)$next['round'], (int)$next['pick_position']]);
                     $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
                 } else {
-                    $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
+                    draftEncerrarSessao($pdo, (int)$draftSessionId);
                 }
 
                 $pdo->commit();
@@ -2491,8 +2491,7 @@ if ($method === 'POST') {
                                            WHERE draft_session_id = ? AND picked_player_id IS NULL');
                 $stFalta->execute([(int)$vaga['draft_session_id']]);
                 if ((int)$stFalta->fetchColumn() === 0) {
-                    $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-                        ->execute([(int)$vaga['draft_session_id']]);
+                    draftEncerrarSessao($pdo, (int)$vaga['draft_session_id']);
                 }
 
                 $pdo->commit();
@@ -2663,7 +2662,7 @@ if ($method === 'POST') {
                         $nextRound++;
                         $nextPick = 1;
                         if ($nextRound > (int)$session['total_rounds']) {
-                            $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
+                            draftEncerrarSessao($pdo, (int)$draftSessionId);
                         } else {
                             $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                                 ->execute([(int)$nextRound, (int)$nextPick, (int)$draftSessionId]);
