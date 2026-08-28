@@ -473,6 +473,30 @@ if ($method === 'GET') {
                 exit;
             }
 
+            /* A ORDEM SE ACERTA SOZINHA AO SER LIDA.
+               draft_order.team_id é um CACHE de quem é dono da pick, e cache
+               desatualizado aqui é a tela do draft mostrando um time e a
+               Trade Machine mostrando outro pra mesma escolha. Era o que
+               acontecia: a pick do Houston comprada pelo San Antonio
+               aparecia certa na troca e, no quadro, a vaga do Houston ainda
+               com o Houston.
+               Sincronizar só nos três momentos de escrita (aplicar a ordem,
+               abrir o draft, aceitar troca) deixava buracos — bastava uma
+               troca aceita antes de a correção existir. Aqui a leitura passa
+               a ser a garantia, e não sobra passo pra alguém esquecer.
+               É barato: a função calcula em memória e só grava a diferença,
+               então no caso normal são leituras e nenhuma escrita. */
+            try {
+                $stStatus = $pdo->prepare('SELECT status FROM draft_sessions WHERE id = ?');
+                $stStatus->execute([(int)$draftSessionId]);
+                if (in_array((string)$stStatus->fetchColumn(), ['setup', 'in_progress'], true)) {
+                    draftSincronizarOrdem($pdo, (int)$draftSessionId);
+                }
+            } catch (Throwable $e) {
+                // Ordem desatualizada é melhor que tela em branco.
+                error_log('[draft_order/sync] ' . $e->getMessage());
+            }
+
             $stmt = $pdo->prepare(
                 "SELECT do.*, 
                         t.city as team_city, t.name as team_name, t.photo_url as team_photo,
