@@ -411,36 +411,61 @@ function capAwardBonusTable(): array
  * olhamos só os prêmios da temporada imediatamente anterior à ativa.
  * Retorna um mapa "nome do jogador em minúsculas" => soma de bônus (milhões).
  */
-function getAwardBonusesByPlayerName(PDO $pdo, int $teamId, string $league): array
+function getAwardBonusesByPlayerName(PDO $pdo, string $league): array
 {
     $bonuses = [];
     try {
+        /*
+         * A temporada corrente é a do SPRINT ATIVO. Sem esse recorte, uma
+         * temporada velha de sprint anterior que ficou sem status 'completed'
+         * ganhava o ORDER BY e o motor lia os prêmios da liga errada no tempo.
+         * Cada sprint recomeça a numeração, então season_number sozinho se
+         * repete e não identifica temporada nenhuma.
+         */
         $stmtCurrent = $pdo->prepare("
-            SELECT s.season_number
+            SELECT s.season_number, s.sprint_id
             FROM seasons s
+            LEFT JOIN sprints sp ON sp.id = s.sprint_id
             WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed'))
-            ORDER BY s.created_at DESC LIMIT 1
+            ORDER BY COALESCE(sp.sprint_number, 0) DESC, s.season_number DESC, s.created_at DESC
+            LIMIT 1
         ");
         $stmtCurrent->execute([$league]);
-        $currentSeasonNumber = $stmtCurrent->fetchColumn();
-        if ($currentSeasonNumber === false) {
+        $atual = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
+        if (!$atual) {
             return $bonuses;
         }
-        $priorSeasonNumber = (int)$currentSeasonNumber - 1;
+        $priorSeasonNumber = (int)$atual['season_number'] - 1;
         if ($priorSeasonNumber < 1) {
             return $bonuses;
         }
 
-        $stmtPriorSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND season_number = ? ORDER BY created_at DESC LIMIT 1");
-        $stmtPriorSeason->execute([$league, $priorSeasonNumber]);
+        // <=> compara com NULL sem tropeçar: liga sem sprint continua achando
+        // a anterior dela, em vez de nunca casar.
+        $stmtPriorSeason = $pdo->prepare("SELECT id FROM seasons
+                                           WHERE league = ? AND season_number = ? AND sprint_id <=> ?
+                                           ORDER BY created_at DESC LIMIT 1");
+        $stmtPriorSeason->execute([$league, $priorSeasonNumber, $atual['sprint_id']]);
         $priorSeasonId = $stmtPriorSeason->fetchColumn();
         if (!$priorSeasonId) {
             return $bonuses;
         }
 
+        /*
+         * O PRÊMIO É DO JOGADOR, NÃO DO TIME.
+         *
+         * Aqui havia um AND team_id = ?, o time onde ele ganhou. Trocar um
+         * All-NBA depois da premiação fazia o bônus sumir: o time novo não
+         * achava o prêmio (registrado com o time antigo) e o jogador passava a
+         * custar o salário-base. Era uma brecha de cap — bastava trocar o
+         * premiado pro custo evaporar.
+         *
+         * O mapa é por nome e só é aplicado aos jogadores DO time consultado,
+         * então ler os prêmios da liga inteira não vaza bônus pra ninguém.
+         */
         $bonusTable = capAwardBonusTable();
-        $stmtAwards = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ? AND team_id = ?");
-        $stmtAwards->execute([(int)$priorSeasonId, $teamId]);
+        $stmtAwards = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ?");
+        $stmtAwards->execute([(int)$priorSeasonId]);
         foreach ($stmtAwards->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $bonus = $bonusTable[$row['award_type']] ?? 0;
             if ($bonus <= 0) continue;
@@ -465,7 +490,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
     $league = $team['league'] ?? 'ELITE';
 
-    $awardBonuses = getAwardBonusesByPlayerName($pdo, $teamId, $league);
+    $awardBonuses = getAwardBonusesByPlayerName($pdo, $league);
 
     // Temporada ativa da liga: define quem é calouro (rookie scale) e se o Cap
     // Flex já vale (ver capFlexLiberado).

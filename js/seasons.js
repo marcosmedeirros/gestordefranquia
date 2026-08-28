@@ -1919,6 +1919,22 @@ async function showDraftManagement(seasonId, league) {
                 </div>
             </div>
         </div>
+
+        <!-- No fim, e não entre os atalhos da liga: deixou de ser rotina desde
+             que o ano do draft aberto parou de sair da janela de picks. Fica
+             como a saída manual pra quando alguma pick desandar com o draft já
+             rolando — reaplicar a ordem da loteria reembaralharia tudo. -->
+        <div class="mt-5 pt-4 border-top border-secondary">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <button class="btn btn-outline-info" onclick="ajustarPicksDaLiga('${league}')" style="border-radius: 12px;">
+                    <i class="bi bi-calendar2-plus me-1"></i>Ajustar Picks
+                </button>
+                <small class="text-light-gray mb-0" style="max-width: 46ch;">
+                    Devolve as escolhas que faltam — as do draft em andamento e as dos anos futuros.
+                    Picks já negociadas não são tocadas.
+                </small>
+            </div>
+        </div>
     `;
 
     loadDraftPlayers(season.id);

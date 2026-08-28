@@ -3243,9 +3243,6 @@ async function showLeague(league) {
          seletor de liga que todo mundo via; aqui o card já sabe de qual liga
          se trata, porque está dentro dela. */
       { icon: 'bi-dice-5-fill',             label: 'Loteria<br>do Draft',        fn: `abrirLoteria('${league}')`,            color: '#fc0025', bg: 'rgba(252,0,37,.12)'    },
-      /* Recriar as picks que faltam na janela de anos. Existia só como
-         endpoint, chamado por fora — quem administra não tinha como pedir. */
-      { icon: 'bi-calendar2-plus',          label: 'Ajustar<br>Picks',           fn: `ajustarPicksDaLiga('${league}')`,      color: '#38bdf8', bg: 'rgba(56,189,248,.12)'  },
       // A tabela de cap existia dentro de Configurações, embaixo dos campos de
       // edição da liga. Quem só queria conferir passava por uma tela de mexer
       // pra chegar numa de olhar.
