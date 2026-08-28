@@ -75,6 +75,18 @@ function modeloTecnicoUltimo(PDO $pdo, int $teamId): ?string
 function modeloTecnicoPlacar(PDO $pdo, int $teamId): array
 {
     modeloTecnicoGarantirTabela($pdo);
+
+    // O limite é da LIGA: a NEXT tem 6 (5 trocas), as outras seguem o padrão.
+    // Sai do time e não de quem chama, pra nenhuma tela poder passar o número
+    // errado sem querer.
+    $liga = '';
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $st->execute([$teamId]);
+        $liga = (string)$st->fetchColumn();
+    } catch (Throwable $e) { /* fica no padrão */ }
+    $limite = modeloTecnicoLimiteDaLiga($liga);
+
     $usados = 0;
     $historico = [];
     try {
@@ -87,8 +99,8 @@ function modeloTecnicoPlacar(PDO $pdo, int $teamId): array
 
     return [
         'usados'    => $usados,
-        'limite'    => MODELO_TECNICO_LIMITE,
-        'restam'    => max(0, MODELO_TECNICO_LIMITE - $usados),
+        'limite'    => $limite,
+        'restam'    => max(0, $limite - $usados),
         'trocas'    => max(0, $usados - 1),   // o primeiro não é troca
         'historico' => $historico,
     ];

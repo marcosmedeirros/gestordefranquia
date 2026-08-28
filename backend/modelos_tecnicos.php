@@ -11,8 +11,66 @@
  * 'nome' e deixe a chave em paz.
  */
 
-/** Quantos modelos o time usa numa edição: o primeiro mais as trocas. */
+/**
+ * Quantos modelos o time usa numa edição: o primeiro mais as trocas.
+ * Continua sendo o padrão de quem não tem regra própria.
+ */
 const MODELO_TECNICO_LIMITE = 8;
+
+/**
+ * O limite de cada liga, quando difere do padrão.
+ *
+ * A NEXT tem 5 TROCAS, e o número aqui conta o modelo inicial junto — é assim
+ * que o resto do sistema mede ("usados" conta registros, não trocas), e é o
+ * que a tela mostra em "São N modelos na edição". Cinco trocas mais o inicial
+ * dão seis.
+ */
+function modeloTecnicoLimiteDaLiga(?string $league): int
+{
+    $porLiga = ['NEXT' => 6];   // 1 inicial + 5 trocas
+    return $porLiga[strtoupper(trim((string)$league))] ?? MODELO_TECNICO_LIMITE;
+}
+
+/**
+ * Os modelos que cada liga oferece.
+ *
+ * A NEXT usa um recorte de sete; as demais usam o catálogo inteiro. Liga que
+ * não estiver aqui continua com todos, então acrescentar uma liga nova não
+ * exige mexer nesta lista.
+ *
+ * As chaves são as do catálogo abaixo — é por elas que team_tactics grava.
+ */
+function modelosTecnicosPorLiga(): array
+{
+    return [
+        'NEXT' => [
+            'Butch Carter', 'Gregg Popovich', 'Nick Nurse', 'Pofexo',
+            'The Special One', 'Joe Mazzulla', 'Ted Lasso',
+        ],
+    ];
+}
+
+/**
+ * O catálogo que a liga enxerga.
+ *
+ * Quem já tem um modelo fora da lista NÃO é apagado do banco — a escolha dele
+ * continua gravada e aparece na tela. Some só da lista de opções; forçar uma
+ * troca por causa de uma regra nova seria mexer no time dos outros.
+ */
+function modelosTecnicosDaLiga(?string $league): array
+{
+    $todos = modelosTecnicos();
+    $recorte = modelosTecnicosPorLiga()[strtoupper(trim((string)$league))] ?? null;
+    if (!$recorte) return $todos;
+
+    $out = [];
+    foreach ($recorte as $chave) {
+        if (isset($todos[$chave])) $out[$chave] = $todos[$chave];
+    }
+    // Recorte que não casa com nada é erro de digitação numa chave; devolver
+    // lista vazia deixaria a liga sem escolher técnico nenhum.
+    return $out ?: $todos;
+}
 
 /**
  * [chave => [nome, arquivo da foto, atributos, sistema]]
@@ -81,10 +139,15 @@ function modeloTecnico(?string $chave): ?array
             'attrs' => $attrs, 'sistema' => $sistema];
 }
 
-/** Todos, prontos pro front — é o que alimenta o modal. */
-function modelosTecnicosParaJson(): array
+/**
+ * Prontos pro front — é o que alimenta o modal de escolha.
+ *
+ * Com a liga, devolve só o que ela oferece; sem, devolve tudo (o admin e as
+ * telas que mostram o catálogo inteiro continuam vendo todos).
+ */
+function modelosTecnicosParaJson(?string $league = null): array
 {
     $out = [];
-    foreach (array_keys(modelosTecnicos()) as $chave) $out[] = modeloTecnico($chave);
+    foreach (array_keys(modelosTecnicosDaLiga($league)) as $chave) $out[] = modeloTecnico($chave);
     return $out;
 }

@@ -316,7 +316,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (in_array(strtoupper($league), ['ELITE', 'NEXT'], true)) {
             require_once __DIR__ . '/../backend/modelo_tecnico_trocas.php';
             require_once __DIR__ . '/../backend/modelos_tecnicos.php';
-            $modelos = ['limite' => MODELO_TECNICO_LIMITE, 'times' => []];
+            // O limite e da liga que esta na tela, nao a constante global.
+            $modelos = ['limite' => modeloTecnicoLimiteDaLiga($league), 'times' => []];
             foreach ($teams as $t) {
                 $st = $pdo->prepare("SELECT technical_model FROM team_tactics
                                      WHERE team_id = ? AND is_active = 1 LIMIT 1");
@@ -787,6 +788,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $valores[$campo] = ($v === null || $v === '') ? null : max(0, min(99, (int)$v));
             } else {
                 $valores[$campo] = ($v === null || $v === '') ? null : mb_substr((string)$v, 0, 5000);
+            }
+        }
+
+        /*
+         * O MODELO TEM QUE SER UM DOS QUE A LIGA OFERECE.
+         *
+         * Sem isto a lista curta da NEXT seria só enfeite: o campo chega como
+         * texto no corpo do POST, e qualquer chave do catálogo (ou qualquer
+         * string) passava direto pro banco. Quem quisesse o Phil Jackson na
+         * NEXT conseguiria com uma requisição.
+         *
+         * Recusa em silêncio, gravando null: o valor não veio da tela, veio
+         * de fora dela. Vazio continua sendo vazio — tirar o técnico é uma
+         * escolha legítima.
+         */
+        if (!empty($valores['technical_model'])) {
+            require_once __DIR__ . '/../backend/modelos_tecnicos.php';
+            $stLiga = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stLiga->execute([$teamId]);
+            $permitidos = modelosTecnicosDaLiga((string)$stLiga->fetchColumn());
+            if (!isset($permitidos[$valores['technical_model']])) {
+                $valores['technical_model'] = null;
             }
         }
 

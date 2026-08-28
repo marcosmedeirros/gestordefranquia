@@ -23,10 +23,11 @@ $isElite = strtoupper((string)$team['league']) === 'ELITE';
 // existem — mostrar os campos lá seria pedir uma escolha que não vale nada.
 require_once __DIR__ . '/backend/modelos_tecnicos.php';
 $temModeloTecnico = in_array(strtoupper((string)$team['league']), ['ELITE', 'NEXT'], true);
-$MODELOS = $temModeloTecnico ? modelosTecnicosParaJson() : [];
+// Com a liga: a NEXT so oferece sete dos catorze.
+$MODELOS = $temModeloTecnico ? modelosTecnicosParaJson((string)$team['league']) : [];
 $SIGLAS  = modeloTecnicoAtributos();
 
-// Quantos dos oito o time já gastou. A conta é do fechamento da janela
+// Quantos dos N o time já gastou (o limite é da liga). A conta é do fechamento da janela
 // (ver backend/modelo_tecnico_trocas.php) — aqui só se lê o placar.
 require_once __DIR__ . '/backend/modelo_tecnico_trocas.php';
 $PLACAR = $temModeloTecnico
@@ -356,8 +357,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             <label for="f_technical_model">Quem comanda o time</label>
             <select id="f_technical_model" data-f="technical_model">
               <option value="">—</option>
-              <?php foreach ($OPCOES['technical_model'] as $v => $lbl): ?>
-                <option value="<?= htmlspecialchars($v) ?>"><?= htmlspecialchars($lbl) ?></option>
+              <?php /* Da LIGA, não do catálogo inteiro: $OPCOES['technical_model']
+                       traz os catorze, e a NEXT oferece sete. */ ?>
+              <?php foreach (modelosTecnicosDaLiga((string)$team['league']) as $v => $m): ?>
+                <option value="<?= htmlspecialchars($v) ?>"><?= htmlspecialchars($m[0]) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -439,7 +442,7 @@ const IS_ELITE = <?= $isElite ? 'true' : 'false' ?>;
 const MODELOS = <?= json_encode($MODELOS, JSON_UNESCAPED_UNICODE) ?>;
 const SIGLAS  = <?= json_encode($SIGLAS, JSON_UNESCAPED_UNICODE) ?>;
 const TEM_MODELO = <?= $temModeloTecnico ? 'true' : 'false' ?>;
-const MODELO_LIMITE = <?= MODELO_TECNICO_LIMITE ?>;
+const MODELO_LIMITE = <?= (int)($PLACAR['limite'] ?? MODELO_TECNICO_LIMITE) ?>;
 const MODELO_PLACAR = <?= json_encode($PLACAR, JSON_UNESCAPED_UNICODE) ?>;
 
 const acharModelo = (chave) => MODELOS.find(m => m.chave === chave) || null;
