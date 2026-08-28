@@ -1331,9 +1331,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="r2-panel-title"><i class="bi bi-hand-index-thumb"></i> 2ª rodada aberta</div>
           <p style="font-size:12px;color:var(--text-2);margin-bottom:6px">
             Não há ordem de vez: todas as escolhas estão abertas ao mesmo tempo por 20 minutos.
-            Clique na sua, escolha entre quem sobrou, e o jogador é seu na hora —
-            <b>quem pegar primeiro, pegou</b>. Vaga não preenchida até o fim do prazo
-            fica pro admin completar depois.
+            Clique na sua e escolha <b>até 3 jogadores, na ordem que preferir</b>.
+            <b>Ninguém leva nada agora</b> — quando o prazo fechar, o sistema resolve
+            da pick mais alta para a mais baixa: se alguém à sua frente levar a sua 1ª,
+            você desce para a 2ª, e depois para a 3ª.
+            <b>Quem não escolher ninguém perde a pick.</b>
           </p>
           <div id="round2Countdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
           <div id="round2Board"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
