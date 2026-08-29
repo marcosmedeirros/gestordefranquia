@@ -1857,6 +1857,7 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
     };
 
     $anos = [];
+    $anosDraftAberto = [];
     try {
         /* SÓ A SPRINT EM ANDAMENTO.
            O corte é o MENOR ano entre os drafts abertos, e sobra por aí
@@ -1874,7 +1875,9 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
         $st->execute([$liga, $liga]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $y = $ano($r);
-            if ($y > 0) $anos[] = $y;
+            // Guardado à parte: é ele que decide se o corte pode subir por
+            // causa de um draft já concluído, lá embaixo.
+            if ($y > 0) { $anos[] = $y; $anosDraftAberto[] = $y; }
         }
 
         $st2 = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
@@ -1891,7 +1894,49 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
         error_log('[anoDeCorteDasPicks] ' . $e->getMessage());
     }
 
-    return $anos ? min($anos) : (int)date('Y');
+    $corte = $anos ? min($anos) : (int)date('Y');
+
+    /*
+     * DRAFT QUE JÁ ACONTECEU LEVA AS PICKS DELE EMBORA.
+     *
+     * Sem isto, a escolha continuava na lista depois de usada: na ELITE, o
+     * draft de 2026 fechou e as 64 picks de 2026 seguiam aparecendo na Trade
+     * Machine, negociáveis, valendo nada. A regra é a que a liga usa quando
+     * fala: durante o draft, as escolhas dele estão em jogo; terminado o
+     * draft, sobram as futuras.
+     *
+     * Só sobe o corte quando NÃO há draft aberto — enquanto um está rolando,
+     * quem manda é ele, e as picks daquele ano são justamente as que estão
+     * sendo disputadas.
+     */
+    if (empty($anosDraftAberto)) {
+        try {
+            /* O ANO DAS PICKS, NÃO O DA TEMPORADA — e a diferença é de um
+               ano inteiro. O draft que a ELITE fechou hoje mora na temporada
+               de 2025 e consumiu as 64 picks de 2026: são as duas pontas do
+               mesmo evento. Cortar pelo ano da temporada deixaria justamente
+               as picks recém-usadas na lista, que é o bug que se está
+               consertando. draftAnoDasPicks() é quem sabe casar os dois. */
+            require_once __DIR__ . '/draft_swaps.php';
+            $st3 = $pdo->prepare('SELECT ds.season_id
+                FROM draft_sessions ds
+                JOIN seasons s ON ds.season_id = s.id
+                WHERE ds.league = ? AND ds.status = "completed"
+                  AND s.sprint_id = (SELECT id FROM sprints
+                                      WHERE league = ? AND status = "active"
+                                   ORDER BY sprint_number DESC, id DESC LIMIT 1)');
+            $st3->execute([$liga, $liga]);
+            foreach ($st3->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+                $y = draftAnoDasPicks($pdo, (int)$sid);
+                // +1: o ano do draft feito sai; o seguinte é o primeiro que fica.
+                if ($y > 0 && $y + 1 > $corte) $corte = $y + 1;
+            }
+        } catch (Throwable $e) {
+            error_log('[anoDeCorteDasPicks/concluidos] ' . $e->getMessage());
+        }
+    }
+
+    return $corte;
 }
 
 /* ────────────────────────────────────────────────────────────────────────
