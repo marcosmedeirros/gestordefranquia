@@ -328,6 +328,57 @@ html{scroll-behavior:smooth}
     <h2><span class="parte">Parte 5</span>O draft, passo a passo</h2>
     <p class="sub">As duas rodadas funcionam de maneiras <strong>diferentes</strong>. A 1ª é pick a pick, na vez de cada um. A 2ª abre tudo de uma vez e resolve no fim do prazo. Confundir as duas é a fonte mais comum de confusão na liga.</p>
 
+    <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-diagram-3"></i></span> Como loteria, classe e draft se encaixam</h3>
+    <p>São <strong>três peças separadas</strong>, e é normal confundir. Cada uma responde a uma pergunta diferente:</p>
+
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Peça</th><th>Responde</th><th>Onde fica</th></tr></thead>
+        <tbody>
+          <tr><td>Loteria</td><td><strong>Quem escolhe, e em que ordem</strong></td><td>Card <b>Loteria do Draft</b></td></tr>
+          <tr><td>Classe</td><td><strong>Quem está disponível</strong> para ser escolhido</td><td>Card <b>Banco de Classes</b></td></tr>
+          <tr><td>Sessão de draft</td><td>Junta as duas e <strong>conduz o evento</strong></td><td>Card <b>Draft</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>A ordem importa: <strong>a loteria vem primeiro</strong> (precisa da classificação), a classe pode ser preparada a qualquer momento, e a sessão de draft só faz sentido com as duas prontas. Uma classe sem loteria não tem para quem distribuir; uma loteria sem classe não tem quem distribuir.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-archive-fill"></i></span> Banco de Classes: preparar os calouros</h3>
+    <p>O banco guarda as classes prontas para reusar — cada uma é um nome e uma lista de jogadores. Elas <strong>não pertencem a uma temporada</strong>: ficam salvas até você usar.</p>
+
+    <figure>
+      <img src="/img/guia/classes-banco.png" alt="Banco de Classes de Draft, com as classes salvas por ano, número de jogadores e os botões Editar e Excluir." loading="lazy">
+      <figcaption><b>Banco de Classes de Draft</b>. Cada linha traz o nome, <b>quantos jogadores</b> tem e quando foi criada. O botão <b>Nova Classe</b> fica no canto superior direito.</figcaption>
+    </figure>
+
+    <div class="nota amber">
+      <p>Repare na contagem de jogadores: uma classe com <strong>0 jogadores</strong> existe mas está vazia, e importar ela no draft não traz ninguém. Confira esse número antes de usar.</p>
+    </div>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Criar uma classe por CSV</h4>
+    <ol class="passos">
+      <li><b>Abra o Banco de Classes</b> pelo card da aba da liga e clique em <b>Nova Classe</b>.</li>
+      <li><b>Baixe o modelo CSV</b> pelo botão da própria tela — assim você não erra o cabeçalho.</li>
+      <li><b>Preencha as colunas obrigatórias:</b> <code>name</code>, <code>position</code>, <code>ovr</code> e <code>age</code>. Há uma quinta, opcional: <code>ordem</code>, que fixa a posição do jogador no board de disponíveis.</li>
+      <li><b>Arraste o arquivo</b> na área de importação (ou clique para escolher).</li>
+      <li><b>Confira a contagem</b> na lista do banco. Se veio 0, o arquivo não foi lido — quase sempre é o cabeçalho.</li>
+    </ol>
+    <p>Dá para montar sem CSV também, adicionando jogador por jogador — vale para classe pequena ou para corrigir uma que já existe, pelo <b>Editar</b>.</p>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Levar a classe para o draft</h4>
+    <ol class="passos">
+      <li><b>Crie a sessão de draft</b> no card <b>Draft</b> da liga.</li>
+      <li><b>Abra a importação de jogadores</b> dentro da sessão.</li>
+      <li><b>Escolha a classe no seletor "Usar classe do banco"</b> e clique em <b>Usar esta</b>. O pool da sessão é preenchido com ela.</li>
+      <li>Se preferir, <b>importe um CSV direto</b> ali mesmo, sem passar pelo banco — serve para uma classe que você não vai reaproveitar.</li>
+    </ol>
+
+    <div class="nota">
+      <p>Usar a classe <strong>copia</strong> os jogadores para a sessão. Mexer na classe do banco depois disso não altera um draft já montado, e o contrário também vale: escolher jogadores no draft não gasta a classe do banco.</p>
+    </div>
+
+    <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-play-fill"></i></span> Conduzir o draft</h3>
     <figure>
       <img src="/img/guia/draft-admin.png" alt="Card Draft da liga ELITE no painel admin, com os controles da sessão." loading="lazy">
       <figcaption><b>Card Draft</b> na aba da liga: cria a sessão, acompanha de quem é a vez e traz os controles do admin.</figcaption>
@@ -335,7 +386,7 @@ html{scroll-behavior:smooth}
 
     <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-1-circle-fill"></i></span> 1ª rodada — pick a pick</h3>
     <ol class="passos">
-      <li><b>Crie a sessão de draft</b> pelo card <b>Draft</b> da liga, depois da loteria feita.</li>
+      <li><b>Confira que a loteria está feita e a classe importada.</b> Sem ordem não há de quem seja a vez; sem classe não há quem escolher.</li>
       <li><b>O relógio corre por pick.</b> Se o GM não escolhe a tempo, o melhor disponível pela ordem é escolhido por ele.</li>
       <li><b>Acompanhe pela aba</b>, que mostra de quem é a vez e o cronômetro.</li>
       <li>Se precisar, use <b>Preencher pick passada</b> para completar uma vaga que ficou em aberto.</li>
@@ -518,7 +569,7 @@ html{scroll-behavior:smooth}
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="bi bi-trophy-fill"></i></div>
         <div class="txt"><div class="nome">Draft</div><div class="desc">Conduz o draft da temporada. Com um draft em andamento, a aba mostra de quem é a vez e o cronômetro da pick. As duas rodadas funcionam de formas diferentes — veja a <a href="#draft">Parte 5</a>.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.08);color:#a855f7"><i class="bi bi-archive-fill"></i></div>
-        <div class="txt"><div class="nome">Banco de Classes</div><div class="desc">O acervo de classes de draft — de onde saem os calouros de cada temporada.</div></div></div>
+        <div class="txt"><div class="nome">Banco de Classes</div><div class="desc">O acervo de classes de draft — de onde saem os calouros de cada temporada. Como criar por CSV e levar para o draft: <a href="#draft">Parte 5</a>.</div></div></div>
     </div>
 
     <h3><span class="h3-ico" style="background:rgba(16,185,129,.14);color:#10b981"><i class="bi bi-graph-up-arrow"></i></span> Temporada e pontuação</h3>

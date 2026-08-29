@@ -15,6 +15,10 @@ require_once __DIR__ . '/push.php';
 
 const WAIVER_HOURS = 12;
 
+/** OVR mínimo pra dispensa virar push pra liga. Abaixo disso entra no waiver
+ *  em silêncio — quem quiser continua vendo na tela de Dispensas. */
+const WAIVER_OVR_MIN_PUSH = 75;
+
 function ensureWaiverTables(PDO $pdo): void
 {
     // Todo DDL — inclusive CREATE TABLE IF NOT EXISTS numa tabela que já existe
@@ -106,6 +110,16 @@ function enterWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): in
 function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): void
 {
     try {
+        /*
+         * SÓ AVISA A LIGA DE DISPENSA QUE INTERESSA.
+         *
+         * Antes toda dispensa virava push pra liga inteira. Corte de reserva
+         * acontece toda semana, e o aviso que chega sempre é o aviso que
+         * ninguém lê mais. O corte do grupo de WhatsApp é mais alto (82+,
+         * WHATSAPP_OVR_MIN_ANUNCIO) porque lá o barulho incomoda mais gente.
+         */
+        if ((int)($p['ovr'] ?? 0) < WAIVER_OVR_MIN_PUSH) return;
+
         $horas = ($horas !== null && $horas > 0) ? $horas : WAIVER_HOURS;
         // Calouro não escolhido não vem de time nenhum (team_id 0): não há
         // dono antigo pra tirar da notificação, e a liga inteira é avisada.
@@ -291,8 +305,18 @@ function resolveExpiredWaivers(PDO $pdo): array
     foreach ($rows as $w) {
         $wid = (int)$w['id'];
         try {
-            // Vencedor = maior lance (espaço no cap no momento do lance); empate = quem deu o lance primeiro.
-            $cs = $pdo->prepare("SELECT team_id, bid_space, claimed_at FROM waiver_claims WHERE retention_id = ? ORDER BY bid_space DESC, claimed_at ASC, id ASC");
+            /*
+             * A REGRA, E ELA NÃO MUDA: MAIOR LANCE LEVA. Empate, o primeiro.
+             *
+             * O COALESCE existe porque `bid_space` é NULL em lance de base
+             * antiga, e em MySQL o NULL vem ANTES de tudo num DESC — um lance
+             * sem valor passava na frente de quem apostou de verdade. Hoje não
+             * há nenhum NULL em produção, mas a ordenação não pode depender
+             * disso: NULL vale zero, que é o que ele significa.
+             */
+            $cs = $pdo->prepare("SELECT team_id, bid_space, claimed_at FROM waiver_claims
+                                  WHERE retention_id = ?
+                               ORDER BY COALESCE(bid_space, 0) DESC, claimed_at ASC, id ASC");
             $cs->execute([$wid]);
             $claims = $cs->fetchAll(PDO::FETCH_ASSOC);
 

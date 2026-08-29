@@ -23,6 +23,7 @@ $secoes = [
     ['id' => 'elenco',   'titulo' => 'Como montar o elenco'],
     ['id' => 'cap',      'titulo' => 'O CAP: o limite do seu elenco'],
     ['id' => 'liga',     'titulo' => 'Acompanhar a liga'],
+    ['id' => 'moedas',   'titulo' => 'Moedas, Loja e Badges'],
     ['id' => 'glossario','titulo' => 'Glossário'],
 ];
 ?>
@@ -177,6 +178,14 @@ dt{font-weight:800;font-size:14.5px;margin-top:14px;color:var(--text)}
 dt:first-child{margin-top:0}
 dd{margin:3px 0 0;color:var(--text-2);font-size:14.5px}
 
+/* PRINT DE TELA. A borda e a legenda separam a captura do texto — sem elas
+   o print de um painel escuro encosta no fundo da página e some. */
+figure{margin:16px 0 20px}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--border-md);border-radius:12px;
+  background:var(--panel-2)}
+figcaption{margin-top:8px;font-size:12.5px;color:var(--text-3);line-height:1.5}
+figcaption b{color:var(--text-2)}
+
 .rodape{margin-top:60px;padding-top:22px;border-top:1px solid var(--border);
   font-size:13px;color:var(--text-3);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .rodape a{color:var(--text-2);text-decoration:none}
@@ -275,12 +284,21 @@ html{scroll-behavior:smooth}
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-house-door-fill"></i></span><span class="aba-nome">Dashboard</span><span class="selo selo-todas">Todas as ligas</span></div>
       <p>A tela inicial. Mostra o que precisa da sua atenção, o resumo do seu time (jogadores, CAP, picks, trocas usadas), sua posição na liga e o que está acontecendo na FBA. <strong>Comece sempre por aqui.</strong></p>
+      <figure>
+        <img src="/img/guia/gm-dashboard.png" alt="Dashboard do GM, com o resumo do time, avisos e a movimentação da liga." loading="lazy">
+        <figcaption><b>Dashboard.</b> O resumo do seu time e o que precisa da sua atenção.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-person-fill"></i></span><span class="aba-nome">Meu Elenco</span><span class="selo selo-todas">Todas as ligas</span></div>
       <p>Seu plantel completo. Aqui você define a <strong>função</strong> de cada jogador (Titular, Banco, G-League), marca quem está disponível pra troca, edita dados e dispensa quem não serve mais.</p>
       <p>Na ELITE, cada jogador mostra também <strong>quanto ele ocupa do seu salary cap</strong>.</p>
+      <p>É também daqui que sai o <strong>pedido de badge</strong>: o botão abre um popup, você escolhe o jogador e a badge, e o pedido vai para o admin aprovar. Veja a <a href="#moedas">Parte 7</a>.</p>
+      <figure>
+        <img src="/img/guia/gm-elenco.png" alt="Tela Meu Elenco, com os jogadores do time e suas funções." loading="lazy">
+        <figcaption><b>Meu Elenco.</b> Função de cada jogador, disponibilidade para troca e — na ELITE — o peso no cap.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
@@ -296,6 +314,10 @@ html{scroll-behavior:smooth}
         <li><strong>CAP</strong> — quanto o calouro vai custar no seu cap no primeiro ano <span class="selo selo-elite">Elite</span>. A 2ª rodada custa 2M sempre; a 1ª depende de onde a pick cair, por isso aparece uma faixa.</li>
       </ul>
       <p>Picks futuras valem menos que as próximas: quanto mais distante o ano, maior a incerteza sobre quem vai estar escolhendo.</p>
+      <figure>
+        <img src="/img/guia/gm-picks.png" alt="Tela Minhas Picks, com as escolhas de draft por ano e rodada." loading="lazy">
+        <figcaption><b>Picks.</b> Suas escolhas ano a ano, com o valor de troca e o custo no cap.</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -316,11 +338,20 @@ html{scroll-behavior:smooth}
       <div class="nota amber">
         <p><strong>Proposta parada dá aviso.</strong> Trades pendentes há mais de 24 horas sem resposta geram um registro contra o time que não respondeu. Se não quer, recuse — não deixe parado.</p>
       </div>
+      <figure>
+        <img src="/img/guia/gm-simulador.png" alt="Trade Machine, o simulador de trocas, com jogadores e picks dos dois lados." loading="lazy">
+        <figcaption><b>Trade Machine.</b> Monte a troca e veja o peso dos dois lados antes de propor. Ele calcula e descarta — nada muda de verdade.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-currency-dollar"></i></span><span class="aba-nome">Free Agency</span><span class="selo selo-todas">Todas as ligas</span></div>
       <p>Jogadores sem time, livres pra contratar. É o caminho mais direto pra completar um elenco abaixo do mínimo. Há limites de quantas contratações você pode fazer — a própria tela mostra quantas restam.</p>
+      <p>É aqui que chegam os dispensados que ninguém reivindicou no waiver e os calouros não escolhidos no draft.</p>
+      <figure>
+        <img src="/img/guia/gm-fa.png" alt="Tela Free Agency, com a lista de jogadores sem time." loading="lazy">
+        <figcaption><b>Free Agency.</b> Os jogadores sem time e quantas contratações ainda restam a você.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
@@ -335,21 +366,69 @@ html{scroll-behavior:smooth}
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-hand-thumbs-down"></i></span><span class="aba-nome">Dispensas</span><span class="selo selo-todas">Todas as ligas</span></div>
-      <p>Cortar um jogador do elenco. Tem um número limitado de dispensas por período, então não é uma saída pra usar à toa. Antes de confirmar, a tela mostra como fica o seu CAP depois do corte.</p>
+      <p>Cortar um jogador do elenco. Tem um número limitado de dispensas por temporada, então não é uma saída pra usar à toa — e o contador <strong>zera na virada do ano</strong>. Antes de confirmar, a tela mostra como fica o seu CAP depois do corte.</p>
+      <p><strong>Dispensar não faz o jogador sumir.</strong> Ele fica <strong>12 horas no waiver</strong>, onde qualquer time da liga pode dar lance. Passado o prazo:</p>
+      <ul>
+        <li><strong>Teve lance:</strong> vai para o time com <strong>maior espaço no cap</strong> no momento do lance. Empate fica com quem deu o lance primeiro.</li>
+        <li><strong>Não teve lance:</strong> vira agente livre e aparece na Free Agency.</li>
+      </ul>
+      <p>Os lances ficam <strong>fechados</strong> — você não vê quem deu, nem quanto, antes do prazo vencer. É a mesma tela onde caem os calouros não escolhidos no draft, que ficam 24 horas em vez de 12.</p>
+      <div class="nota green">
+        <p>Precisa de mais uma dispensa? A loja vende <strong>slot extra de waiver</strong>, e ele cai no seu time <strong>na hora</strong>, sem esperar aprovação de ninguém.</p>
+      </div>
     </div>
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-diagram-3-fill"></i></span><span class="aba-nome">Draft e Draft Inicial</span><span class="selo selo-todas">Todas as ligas</span></div>
       <p>O <strong>Draft</strong> é o recrutamento de calouros a cada temporada, na ordem definida pela loteria. O <strong>Draft Inicial</strong> só acontece quando uma liga está sendo formada — é quando todos montam o elenco do zero.</p>
-      <p>Nos dois, você pode montar um <strong>mock</strong>: uma lista de preferências em ordem. Se chegar a sua vez e você não estiver online, com o mock ativo o sistema escolhe sozinho o primeiro nome da sua lista que ainda estiver disponível e passa pro próximo. Sem mock ativo e com o prazo estourado, entra o melhor OVR disponível.</p>
+
+      <p><strong>As duas rodadas funcionam de formas diferentes.</strong> Vale entender a diferença antes do dia do draft:</p>
+
+      <h4 style="font-size:14px;font-weight:800;margin:18px 0 8px;color:var(--text)">1ª rodada — na sua vez</h4>
+      <p>Corre pick a pick, com relógio. Quando chega a sua vez, você escolhe. Aqui vale o <strong>mock</strong>: uma lista de preferências em ordem, montada antes. Se você não estiver online, o sistema pega o primeiro nome da sua lista que ainda estiver disponível. Sem mock e com o prazo estourado, entra o melhor OVR disponível.</p>
       <div class="nota green">
         <p><strong>Monte o mock.</strong> É a diferença entre escolher quem você quer e receber quem sobrou.</p>
       </div>
+
+      <h4 style="font-size:14px;font-weight:800;margin:18px 0 8px;color:var(--text)">2ª rodada — todo mundo ao mesmo tempo</h4>
+      <p>Assim que a 1ª rodada acaba, <strong>todas as picks da 2ª abrem juntas</strong> e começa um cronômetro de <strong>20 minutos</strong>. Não existe vez de ninguém.</p>
+      <ul>
+        <li>Você entra na sua pick e escolhe <strong>até 3 jogadores, na ordem que preferir</strong>. Dá para trocar à vontade enquanto o tempo corre.</li>
+        <li><strong>Ninguém leva ninguém na hora.</strong> Escolher é registrar uma intenção, não pegar o jogador.</li>
+        <li>Quando o prazo fecha, o sistema resolve tudo de uma vez, <strong>da pick mais alta para a mais baixa</strong>. Se alguém à sua frente pediu o mesmo jogador, ele leva e você desce para a sua 2ª opção — e depois para a 3ª.</li>
+        <li><strong>Quem não escolher ninguém perde a pick.</strong> Não há prorrogação.</li>
+      </ul>
+      <p><em>Exemplo:</em> você tem a <strong>34</strong> e pede o LeBron. Alguém na <strong>31</strong> também pediu. A 31 leva, e você fica com a sua 2ª opção.</p>
+      <div class="nota amber">
+        <p><strong>Use as três.</strong> Colocar só uma é apostar que ninguém à sua frente quer o mesmo nome. Se for atrás de alguém disputado, ponha ele em 1º e garanta duas alternativas realistas embaixo.</p>
+      </div>
+      <p>Quem não é escolhido por ninguém no draft não some: vai para as <strong>Dispensas</strong>, onde a liga pode dar lance por 24 horas, e depois cai na Free Agency.</p>
+      <figure>
+        <img src="/img/guia/gm-draft.png" alt="Tela do Draft, com a ordem de escolha e as picks de cada rodada." loading="lazy">
+        <figcaption><b>Draft.</b> Na 2ª rodada aberta, cada card mostra quantas escolhas a vaga já tem, e a sua traz o botão de escolher.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-shuffle"></i></span><span class="aba-nome">Loteria</span><span class="selo selo-todas">Todas as ligas</span></div>
-      <p>O sorteio que define a ordem de escolha do draft. Times com campanha pior têm mais chance de pegar as primeiras picks.</p>
+      <p>O sorteio que define a ordem de escolha do draft. Entram os <strong>16 times fora do playoff</strong>, que disputam as 16 primeiras picks. Quem foi ao playoff pega as últimas, em ordem inversa de quão longe chegou — <strong>o campeão escolhe por último</strong>.</p>
+      <p>A FBA usa o modelo <strong>3-2-1 anti-tanking</strong>, e ele tem uma consequência que surpreende quem vem da NBA: <strong>ser o pior time não te dá a maior chance</strong>. Os 16 times entram em quatro grupos:</p>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Grupo</th><th>Top 3</th><th>Top 5</th></tr></thead>
+          <tbody>
+            <tr><td>3 piores recordes</td><td>16%</td><td>28%</td></tr>
+            <tr><td><strong>4º ao 10º pior</strong> (fora do play-in)</td><td><strong>24%</strong></td><td><strong>39%</strong></td></tr>
+            <tr><td>Eliminados no play-in</td><td>16%</td><td>28%</td></tr>
+            <tr><td>Derrotados no 7x8</td><td>8%</td><td>15%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Há um <strong>piso de proteção</strong>: os 3 piores não caem além da Pick 12, e os demais times de loteria não caem além da Pick 16.</p>
+      <div class="nota amber">
+        <p><strong>Afundar de propósito não compensa.</strong> A maior chance é de quem brigou e ficou perto do play-in, não de quem terminou em último. Foi exatamente para isso que o modelo foi escolhido.</p>
+      </div>
+      <p>A tela mostra as chances de todo mundo <strong>antes</strong> de revelar o resultado, e a revelação é pick a pick.</p>
     </div>
   </section>
 
@@ -357,6 +436,11 @@ html{scroll-behavior:smooth}
   <section id="cap">
     <h2><span class="parte">Parte 5</span>O CAP: o limite do seu elenco</h2>
     <p class="sub">Todo time tem um teto — e um piso. É o que impede alguém de juntar todas as estrelas num elenco só. O jeito de calcular muda conforme a liga.</p>
+
+    <figure>
+      <img src="/img/guia/gm-cap.png" alt="Tela do Salary Cap, com o teto, o piso e o peso de cada jogador." loading="lazy">
+      <figcaption><b>Salário Cap.</b> Onde você confere se o elenco cabe, e simula trocas sem mexer em nada.</figcaption>
+    </figure>
 
     <h3>Nas ligas NEXT, RISE e ROOKIE <span class="selo selo-todas">Soma de OVR</span></h3>
     <p>Aqui o CAP é simples: soma-se o <strong>OVR dos seus 10 melhores jogadores</strong>. Esse número precisa ficar entre um mínimo e um máximo definidos pela liga — os dois valores aparecem na sua tela.</p>
@@ -383,7 +467,7 @@ html{scroll-behavior:smooth}
     <p>Os valores exatos aparecem na aba <strong>Salário Cap</strong>, que também traz o detalhamento jogador a jogador e um simulador de trocas.</p>
 
     <h3>Rookie Scale <span class="selo selo-elite">Elite</span></h3>
-    <p>Calouro não paga pela tabela de OVR na temporada de estreia — paga pela posição em que foi draftado. Quanto mais cedo a escolha, mais caro:</p>
+    <p>Calouro não paga pela tabela de OVR na <strong>temporada de estreia</strong> — paga pela posição em que foi draftado. Quanto mais cedo a escolha, mais caro:</p>
     <div class="tabela-wrap">
       <table>
         <thead><tr><th>Posição no draft</th><th class="num">Custo no cap</th></tr></thead>
@@ -417,6 +501,10 @@ html{scroll-behavior:smooth}
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-table"></i></span><span class="aba-nome">Tabela</span></div>
       <p>Classificação e playoffs por temporada, nas quatro ligas. É aqui que você vê quem está na zona de acesso e quem está na de descenso.</p>
+      <figure>
+        <img src="/img/guia/gm-tabela.png" alt="Tabela de classificação da liga por conferência." loading="lazy">
+        <figcaption><b>Tabela.</b> A classificação que decide acesso, descenso e — depois — os grupos da loteria.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
@@ -441,7 +529,11 @@ html{scroll-behavior:smooth}
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-controller"></i></span><span class="aba-nome">Games</span></div>
-      <p>Os joguinhos da FBA. Jogando você acumula moedas e <strong>FBA Points</strong>, que são trocados por itens dentro dos jogos.</p>
+      <p>Os joguinhos da FBA. Jogando você acumula <strong>moedas</strong>, que valem coisa de verdade para o seu time — veja a <a href="#moedas">Parte 7</a>.</p>
+      <figure>
+        <img src="/img/guia/gm-games.png" alt="Tela Games, com os minigames diários e a troca de moedas." loading="lazy">
+        <figcaption><b>Games.</b> Minigames diários e as apostas dos eventos da FBA. É de onde vem a moeda.</figcaption>
+      </figure>
     </div>
 
     <div class="aba">
@@ -473,8 +565,41 @@ html{scroll-behavior:smooth}
   </section>
 
   <!-- ═══════════════ 7. GLOSSÁRIO ═══════════════ -->
+  <!-- ═══════════════ 7. MOEDAS E LOJA ═══════════════ -->
+  <section id="moedas">
+    <h2><span class="parte">Parte 7</span>Moedas, Loja e Badges</h2>
+    <p class="sub">As moedas que você ganha nos Games não ficam presas lá dentro: elas compram vantagens de verdade para o seu time.</p>
+
+    <p>Você acumula moedas jogando os <strong>minigames diários</strong> e nas apostas dos eventos da FBA. Com elas, dá para comprar na loja.</p>
+
+    <h3 style="font-size:16px;font-weight:800;margin:26px 0 8px">O que cai na hora</h3>
+    <p>Estes itens são aplicados <strong>no instante da compra</strong>. Não passam por aprovação, não entram em fila — comprou, valeu:</p>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td>Slot extra de waiver</td><td><strong>+1 dispensa</strong> nesta temporada. Zera na virada do ano.</td></tr>
+          <tr><td>Slot extra de G-League</td><td><strong>+1 vaga</strong> na sua G-League.</td></tr>
+          <tr><td>Slot de leilão</td><td>Liberado na hora.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:800;margin:26px 0 8px">O que passa pelo admin</h3>
+    <p>O que mexe num jogador específico precisa de aprovação:</p>
+    <ul>
+      <li><strong>Badge</strong> — depois de comprar, peça pelo <strong>Meu Elenco</strong>: um popup abre, você escolhe o jogador e a badge, e o pedido vai para o admin.</li>
+      <li><strong>City Edition</strong> — o uniforme alternativo da sua franquia, que precisa ser produzido.</li>
+    </ul>
+
+    <div class="nota green">
+      <p><strong>A badge só é gasta quando o admin aplica.</strong> Se o pedido for recusado, ela volta para você — não perde nada. Com uma badge comprada, você pode ter <strong>um pedido esperando por vez</strong>: para pedir a segunda, compre a segunda.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 8. GLOSSÁRIO ═══════════════ -->
   <section id="glossario">
-    <h2><span class="parte">Parte 7</span>Glossário</h2>
+    <h2><span class="parte">Parte 8</span>Glossário</h2>
     <p class="sub">Os termos que aparecem o tempo todo.</p>
     <dl>
       <dt>GM</dt><dd>General Manager. Você. O dono da franquia, responsável por elenco, trocas e draft.</dd>

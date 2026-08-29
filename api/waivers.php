@@ -164,7 +164,14 @@ try {
             $bid = $data['bid'] ?? null;
             // Sem valor informado, vale o espaço inteiro — é o que os clientes
             // antigos mandavam, e recusar quebraria quem não atualizou a tela.
-            $bid = ($bid === null || $bid === '') ? $espaco : (int)$bid;
+            /*
+             * ARREDONDA, não trunca. (int)"3.9" dá 3: quem digitasse 3.9M
+             * apostava 3M sem ser avisado, e podia perder pra um 3M que
+             * chegou antes achando que tinha dado mais. O lance é sempre em
+             * milhões inteiros, e 3.9 vira 4 — o valor que a pessoa quis
+             * dizer. O teto do cap é checado depois disso.
+             */
+            $bid = ($bid === null || $bid === '') ? $espaco : (int)round((float)$bid);
 
             if ($bid === null) {
                 echo json_encode(['success' => false, 'error' => 'Não consegui calcular o seu espaço no cap agora. Tente de novo.']);
