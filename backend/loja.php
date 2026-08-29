@@ -356,6 +356,24 @@ if (!function_exists('lojaUsar')) {
     function lojaUsar(PDO $pdo, int $userId, int $inventarioId): array
     {
         lojaGarantirTabela($pdo);
+
+        /*
+         * A BADGE NÃO SE RESGATA POR AQUI.
+         *
+         * Ela tem resgate próprio: o botão Badges em Meu Elenco, onde o GM
+         * diz EM QUEM. Resgatar pelo botão genérico marcava `usado_em` e
+         * zerava o saldo sem escolher jogador — o pedido chegava no admin sem
+         * dizer em quem aplicar, e o GM ficava sem poder pedir, porque
+         * badgesCompradas() só conta o que tem `usado_em` nulo. Foi o que
+         * aconteceu com a primeira badge vendida: comprada e "usada" onze
+         * segundos depois, sem jogador nenhum.
+         */
+        $tipo = $pdo->prepare("SELECT item_key FROM loja_inventario WHERE id = ? AND id_usuario = ?");
+        $tipo->execute([$inventarioId, $userId]);
+        if ($tipo->fetchColumn() === 'badge') {
+            return ['ok' => false, 'erro' => 'A badge é pedida em Meu Elenco, no botão Badges — é lá que você escolhe o jogador.'];
+        }
+
         $up = $pdo->prepare("UPDATE loja_inventario SET usado_em = NOW()
                               WHERE id = ? AND id_usuario = ? AND usado_em IS NULL");
         $up->execute([$inventarioId, $userId]);
