@@ -34,7 +34,14 @@ $papel = $isGlobalAdmin
 $secoes = [
     ['id' => 'permissoes', 'titulo' => 'Quem enxerga o quê'],
     ['id' => 'navegacao',  'titulo' => 'Como o painel é organizado'],
-    ['id' => 'liga',       'titulo' => 'A aba de uma liga'],
+    ['id' => 'ciclo',      'titulo' => 'O ciclo de uma temporada'],
+    ['id' => 'loteria',    'titulo' => 'Loteria do draft, passo a passo'],
+    ['id' => 'draft',      'titulo' => 'O draft, passo a passo'],
+    ['id' => 'pontuacao',  'titulo' => 'Pontuação, passo a passo'],
+    ['id' => 'avancar',    'titulo' => 'Avançar a temporada'],
+    ['id' => 'mercado',    'titulo' => 'Dispensas, Free Agency e Leilão'],
+    ['id' => 'moedas',     'titulo' => 'Moedas e a Loja'],
+    ['id' => 'liga',       'titulo' => 'A aba de uma liga, card por card'],
     ['id' => 'time',       'titulo' => 'Dentro de um time'],
     ['id' => 'gestao',     'titulo' => 'A aba Gestão'],
     ['id' => 'cap',        'titulo' => 'Controle de Cap (ELITE)'],
@@ -143,6 +150,23 @@ th{text-align:left;padding:10px 14px;font-size:10px;font-weight:800;letter-spaci
 td{padding:10px 14px;border-top:1px solid var(--border);color:var(--text-2);vertical-align:top}
 td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
 
+/* PRINT DE TELA. A borda e a legenda separam a captura do texto — sem elas
+   o print de um painel escuro encosta no fundo da página e some. */
+figure{margin:16px 0 20px}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--border-md);border-radius:12px;
+  background:var(--panel-2)}
+figcaption{margin-top:8px;font-size:12.5px;color:var(--text-3);line-height:1.5}
+figcaption b{color:var(--text-2)}
+
+/* PASSO A PASSO. Numeração à esquerda, contínua dentro de cada bloco. */
+.passos{list-style:none;counter-reset:passo;margin:16px 0 18px;padding:0;display:grid;gap:12px}
+.passos li{counter-increment:passo;position:relative;padding-left:42px;margin:0;color:var(--text-2)}
+.passos li::before{content:counter(passo);position:absolute;left:0;top:-1px;width:28px;height:28px;
+  border-radius:9px;display:grid;place-items:center;font-size:12.5px;font-weight:800;
+  background:var(--red-soft);color:var(--red-ink);border:1px solid color-mix(in srgb,var(--red) 30%,transparent);
+  font-variant-numeric:tabular-nums}
+.passos li b{color:var(--text)}
+
 .rodape{margin-top:58px;padding-top:22px;border-top:1px solid var(--border);font-size:13px;color:var(--text-3);
   display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .rodape a{color:var(--text-2);text-decoration:none}
@@ -173,8 +197,8 @@ html{scroll-behavior:smooth}
 
   <div class="hero">
     <div class="kicker">Guia do Admin</div>
-    <h1>O painel de administração, card por card</h1>
-    <p>O que cada aba e cada botão do <strong>/admin.php</strong> faz, e o que muda conforme o seu nível de acesso. Para o guia voltado ao GM — regras da liga, CAP, draft — veja o <a href="/guia.php">Guia do GM</a>.</p>
+    <h1>Como tocar a liga, do sorteio ao fim da temporada</h1>
+    <p>As <strong>Partes 3 a 9</strong> ensinam a fazer: o ciclo da temporada, a loteria, o draft, a pontuação, o mercado e a loja — com print de cada tela. Da <strong>Parte 10</strong> em diante é referência: cada aba e cada card do <strong>/admin.php</strong>, e o que muda conforme o seu acesso. Para o guia do GM — regras da liga, CAP, draft —, veja o <a href="/guia.php">Guia do GM</a>.</p>
     <div class="voce"><i class="bi bi-person-badge-fill" style="color:var(--red-ink)"></i> Seu acesso: <b><?= htmlspecialchars($papel) ?></b></div>
   </div>
 
@@ -230,11 +254,238 @@ html{scroll-behavior:smooth}
       <li><strong>Games</strong> — a área dos joguinhos.</li>
     </ul>
     <p>Dentro de uma liga, clicar num time abre a tela dele. O caminho fica visível no <strong>breadcrumb</strong> do topo, e o botão <strong>Voltar</strong> sobe um nível.</p>
+
+    <figure>
+      <img src="/img/guia/admin-liga.png" alt="A aba ELITE do painel: cabeçalho da liga, checklist da temporada e a grade de cards de ação." loading="lazy">
+      <figcaption><b>A aba de uma liga.</b> No topo, os números da liga e o botão <b>Avançar Temporada</b>. No meio, o <b>Checklist da Temporada</b>. Embaixo, os cards de ação.</figcaption>
+    </figure>
   </section>
 
-  <!-- ═══ 3. ABA DA LIGA ═══ -->
+  <!-- ═══ 3. O CICLO DA TEMPORADA ═══ -->
+  <section id="ciclo">
+    <h2><span class="parte">Parte 3</span>O ciclo de uma temporada</h2>
+    <p class="sub">Antes de qualquer card isolado, é isto que importa: a ordem em que as coisas acontecem. O painel já traz esse roteiro pronto no <strong>Checklist da Temporada</strong>, no topo da aba de cada liga.</p>
+
+    <p>O checklist não é enfeite — ele é a fonte da verdade sobre o que falta. Cada item fica <strong>verde</strong> quando está pronto e <strong>pendente</strong> quando não está, com a contagem quando faz sentido ("28 de 32 times atualizados"). Antes dele, o admin descobria o que faltava só na hora em que o <b>Avançar Temporada</b> travava.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(16,185,129,.14);color:#10b981"><i class="bi bi-list-check"></i></span> A ordem das coisas</h3>
+    <ol class="passos">
+      <li><b>Times atualizados</b> — os GMs atualizam os elencos. Enquanto faltar time, o resto anda mas o número fica aparecendo.</li>
+      <li><b>Pontuação registrada — etapa 1</b> — prêmios individuais, NBA Cup, prêmios estendidos e a classificação final. <b>É isto que libera a loteria</b> e monta o chaveamento dos playoffs.</li>
+      <li><b>Playoffs registrados</b> — o chaveamento é preenchido e a etapa 2 da pontuação fecha a conta.</li>
+      <li><b>Loteria feita</b> — sorteia a ordem do draft. Só roda depois que a classificação existe, porque é dela que saem os grupos.</li>
+      <li><b>Draft finalizado</b> — 1ª rodada pick a pick, 2ª rodada por preferências. Quem sobra vai para as Dispensas.</li>
+      <li><b>Prêmios lançados</b> e <b>Sem trocas pendentes</b> — os dois são <span class="selo selo-elite">opcional</span>: avisam, mas não travam o avanço.</li>
+      <li><b>Avançar Temporada</b> — fecha a temporada e abre a seguinte.</li>
+    </ol>
+
+    <div class="nota amber">
+      <p><strong>A pontuação é o gargalo.</strong> Sem ela registrada, o avanço fica bloqueado e a loteria não tem de onde tirar os grupos. Quando algo parecer travado sem explicação, comece olhando este item.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 4. LOTERIA ═══ -->
+  <section id="loteria">
+    <h2><span class="parte">Parte 4</span>Loteria do draft, passo a passo</h2>
+    <p class="sub">A loteria define a ordem de escolha do draft. Vale para as quatro ligas, no modelo <strong>3-2-1 anti-tanking</strong>: o pior time deixa de ser o favorito à Pick 1.</p>
+
+    <figure>
+      <img src="/img/guia/lottery.png" alt="Tela da Loteria do Draft, com a ordem já sorteada listada de 1 a 28 e o botão Teste a loteria no canto superior direito." loading="lazy">
+      <figcaption><b>Loteria do Draft</b> (menu lateral → <b>Loteria</b>, ou o card <b>Loteria do Draft</b> na aba da liga). Aqui já sorteada: a ordem aparece pick a pick.</figcaption>
+    </figure>
+
+    <h3><span class="h3-ico" style="background:rgba(245,158,11,.14);color:var(--amber)"><i class="bi bi-play-circle"></i></span> Como conduzir</h3>
+    <ol class="passos">
+      <li><b>Confira que a pontuação da etapa 1 está registrada.</b> É a classificação que separa quem entra na loteria de quem vai para o fim da fila. Sem ela, não sorteie.</li>
+      <li><b>Abra a Loteria do Draft</b> pela aba da liga. A tela mostra a <b>Prévia</b>: quem entra, em que grupo e com que chance.</li>
+      <li><b>Mostre as chances antes de revelar.</b> A tabela de probabilidades fica visível de propósito — todo mundo vê as chances antes de saber o resultado.</li>
+      <li><b>Use "Teste a loteria" à vontade.</b> O botão no canto superior direito simula sem gravar nada. É o lugar de tirar dúvida.</li>
+      <li><b>Sorteie.</b> A ordem inteira é decidida de uma vez no servidor — e só então você <b>revela pick por pick, no clique</b>. Dá para transmitir a revelação sem que ninguém (nem você) saiba o resultado antes.</li>
+    </ol>
+
+    <h3><span class="h3-ico" style="background:rgba(245,158,11,.14);color:var(--amber)"><i class="bi bi-percent"></i></span> As regras que você vai ter que explicar</h3>
+    <p>Estas perguntas voltam toda temporada, então valem decoradas:</p>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Grupo</th><th>Bolinhas</th><th>Top 3 / Top 5</th></tr></thead>
+        <tbody>
+          <tr><td>3 piores recordes</td><td>2</td><td>16% / 28%</td></tr>
+          <tr><td>4º ao 10º pior (fora do play-in)</td><td>3</td><td><strong>24% / 39%</strong> — a maior chance</td></tr>
+          <tr><td>Eliminados no play-in</td><td>2</td><td>16% / 28%</td></tr>
+          <tr><td>Derrotados no 7x8</td><td>1</td><td>8% / 15% — a menor chance</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li><strong>Quem entra:</strong> os 16 times fora do playoff disputam as 16 primeiras picks. Os 16 do playoff pegam as últimas, em ordem inversa de quão longe foram — <strong>o campeão escolhe por último</strong>.</li>
+      <li><strong>Piso de proteção:</strong> os 3 piores não caem além da Pick 12; os demais da loteria podem cair até a Pick 16. Se o sorteio esbarrar na trava, o ajuste é aplicado e <strong>aparece listado</strong> — não é silencioso.</li>
+      <li><strong>Por que o pior time não é o favorito:</strong> é o ponto do modelo. Quem tentou competir até o fim é mais premiado que quem afundou de propósito.</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 5. DRAFT ═══ -->
+  <section id="draft">
+    <h2><span class="parte">Parte 5</span>O draft, passo a passo</h2>
+    <p class="sub">As duas rodadas funcionam de maneiras <strong>diferentes</strong>. A 1ª é pick a pick, na vez de cada um. A 2ª abre tudo de uma vez e resolve no fim do prazo. Confundir as duas é a fonte mais comum de confusão na liga.</p>
+
+    <figure>
+      <img src="/img/guia/draft-admin.png" alt="Card Draft da liga ELITE no painel admin, com os controles da sessão." loading="lazy">
+      <figcaption><b>Card Draft</b> na aba da liga: cria a sessão, acompanha de quem é a vez e traz os controles do admin.</figcaption>
+    </figure>
+
+    <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-1-circle-fill"></i></span> 1ª rodada — pick a pick</h3>
+    <ol class="passos">
+      <li><b>Crie a sessão de draft</b> pelo card <b>Draft</b> da liga, depois da loteria feita.</li>
+      <li><b>O relógio corre por pick.</b> Se o GM não escolhe a tempo, o melhor disponível pela ordem é escolhido por ele.</li>
+      <li><b>Acompanhe pela aba</b>, que mostra de quem é a vez e o cronômetro.</li>
+      <li>Se precisar, use <b>Preencher pick passada</b> para completar uma vaga que ficou em aberto.</li>
+    </ol>
+
+    <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-2-circle-fill"></i></span> 2ª rodada — todos ao mesmo tempo, por preferências</h3>
+    <p>Quando a 1ª rodada acaba, <strong>todas as vagas da 2ª abrem juntas</strong> e começa um cronômetro de <strong>20 minutos</strong>. Não há vez de ninguém.</p>
+    <ol class="passos">
+      <li><b>Cada GM escolhe até 3 jogadores, na ordem que preferir</b> (1ª, 2ª e 3ª opção). Pode trocar à vontade enquanto o prazo corre.</li>
+      <li><b>Ninguém leva nada na hora.</b> Escolher é registrar uma intenção, não pegar o jogador.</li>
+      <li><b>No fim do prazo o sistema resolve tudo</b>, da pick mais alta para a mais baixa: se alguém à frente levou a 1ª opção, o GM desce para a 2ª, e depois para a 3ª.</li>
+      <li><b>Quem não escolheu ninguém perde a pick.</b> Não há prorrogação.</li>
+      <li><b>Quem sobra vai para as Dispensas</b> por 24 horas, e só depois para a Free Agency.</li>
+    </ol>
+
+    <figure>
+      <img src="/img/guia/drafts.png" alt="Tela do draft vista pelo GM, com as vagas da 2ª rodada em grade." loading="lazy">
+      <figcaption><b>A tela que o GM vê.</b> Na 2ª rodada aberta, cada card mostra quantas escolhas a vaga tem e traz o botão <b>Escolher</b> para o dono — e para o admin, em qualquer vaga.</figcaption>
+    </figure>
+
+    <div class="nota amber">
+      <p><strong>Sobre "Finalizar draft" na 2ª rodada:</strong> ele <strong>resolve as preferências antes</strong> de encerrar — pode clicar com segurança para fechar antes dos 20 minutos. O que ele não faz é devolver tempo: quem ainda não escolheu perde a pick na hora.</p>
+    </div>
+
+    <div class="nota">
+      <p><strong>Não existe cron neste projeto.</strong> A resolução do prazo dispara quando <strong>alguém abre a tela do draft</strong> depois de vencido. Na prática sempre tem gente olhando, mas se quiser garantir, abra a página você mesmo quando o relógio zerar.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 6. PONTUAÇÃO ═══ -->
+  <section id="pontuacao">
+    <h2><span class="parte">Parte 6</span>Pontuação, passo a passo</h2>
+    <p class="sub">O lançamento oficial da temporada, e o item que trava o avanço. São <strong>dois salvamentos</strong>, não um — de propósito, para acompanhar a temporada como ela acontece de verdade.</p>
+
+    <figure>
+      <img src="/img/guia/pontuacao.png" alt="Tela Registro de Pontuação da ELITE, mostrando a etapa 1 com os campos de prêmios individuais." loading="lazy">
+      <figcaption><b>Registro de Pontuação</b> (card <b>Pontuação</b> na aba da liga). O selo no canto diz em que etapa você está.</figcaption>
+    </figure>
+
+    <h3><span class="h3-ico" style="background:rgba(16,185,129,.14);color:#10b981"><i class="bi bi-1-circle-fill"></i></span> Etapa 1 — temporada regular</h3>
+    <p>Prêmios individuais (MVP, DPOY, MIP, 6º Homem e ROY — <strong>1 ponto cada</strong>), NBA Cup, prêmios estendidos e a classificação final.</p>
+    <p><strong>Salvar aqui já faz três coisas:</strong> atualiza a Tabela, <strong>libera a loteria</strong> e monta o chaveamento dos playoffs. É por isso que esta etapa vem antes da loteria no ciclo.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(16,185,129,.14);color:#10b981"><i class="bi bi-2-circle-fill"></i></span> Etapa 2 — playoffs</h3>
+    <p>Com os playoffs decididos, o chaveamento é preenchido e o segundo salvamento <strong>soma tudo</strong> (seeds + prêmios + playoffs) e registra a pontuação da temporada.</p>
+
+    <div class="nota green">
+      <p>Tudo que você digitar fica guardado como <strong>rascunho</strong>, mesmo fechando a página. Dá para preencher aos poucos, conferir com calma e só então salvar.</p>
+    </div>
+
+    <p>Os <strong>prêmios estendidos</strong> (All-NBA, All-Defense, FMVP) são gravados no card de Pontuação e valem <strong>só na ELITE</strong> — eles ajustam o CAP do jogador no ano seguinte.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(6,182,212,.14);color:var(--cyan)"><i class="bi bi-bar-chart-steps"></i></span> Pontuação por Time</h3>
+    <p>Card separado, para <strong>corrigir</strong> a pontuação de um time específico depois do fato. Não substitui o registro oficial — é conserto pontual.</p>
+    <figure>
+      <img src="/img/guia/pontos-time.png" alt="Tela Pontuação por Temporada, com a pontuação de cada time da liga." loading="lazy">
+      <figcaption><b>Pontuação por Time</b>: ajuste fino, time a time.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ═══ 7. AVANÇAR TEMPORADA ═══ -->
+  <section id="avancar">
+    <h2><span class="parte">Parte 7</span>Avançar a temporada</h2>
+    <p class="sub">O botão que fecha um ano e abre o próximo. Fica no topo da aba da liga, e é a ação mais pesada do painel.</p>
+
+    <figure>
+      <img src="/img/guia/avancar-temp.png" alt="Modal de avanço de temporada, com o resumo do que será feito." loading="lazy">
+      <figcaption><b>Avançar Temporada</b>: confira o resumo antes de confirmar.</figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>A pontuação precisa estar registrada.</strong> Sem isso o avanço é bloqueado — e é o motivo mais comum de o botão recusar.</li>
+      <li>O checklist mostra o que ainda falta <strong>antes</strong> de você clicar. Use-o.</li>
+      <li>Ao virar o ano, a temporada antiga é marcada como concluída. Isso tem efeitos em cadeia: os <strong>contadores de dispensa zeram</strong> e os calouros <strong>deixam de valer a rookie scale</strong>, voltando à tabela por OVR.</li>
+    </ul>
+
+    <div class="nota amber">
+      <p>Avançar não tem botão de desfazer. Confira o checklist inteiro antes — principalmente pontuação e playoffs.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 8. MERCADO ═══ -->
+  <section id="mercado">
+    <h2><span class="parte">Parte 8</span>Dispensas, Free Agency e Leilão</h2>
+    <p class="sub">Os três mercados da liga, e como um alimenta o outro.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(239,68,68,.14);color:#ef4444"><i class="bi bi-hourglass-split"></i></span> Dispensas (waiver)</h3>
+    <p>Quando um time dispensa alguém, o jogador fica <strong>12 horas</strong> aceitando lance. Vence quem tiver <strong>maior espaço no cap</strong> no momento do lance; empate vai para quem deu o lance primeiro. Se ninguém der lance, ele vira <strong>free agent</strong> automaticamente.</p>
+
+    <figure>
+      <img src="/img/guia/dispensas.png" alt="Tela de Dispensas, com os jogadores no waiver e o tempo restante." loading="lazy">
+      <figcaption><b>Dispensas</b>: quem está no waiver e quanto tempo falta. Os lances ficam fechados até o prazo vencer.</figcaption>
+    </figure>
+
+    <div class="nota">
+      <p><strong>A sobra do draft também passa por aqui.</strong> Quem não é escolhido no draft entra nas Dispensas por <strong>24 horas</strong> — não vai direto para a Free Agency. É a mesma esteira: recebeu lance, vai para o time; não recebeu, vira free agent.</p>
+    </div>
+
+    <h3><span class="h3-ico" style="background:rgba(34,197,94,.14);color:var(--green)"><i class="bi bi-people-fill"></i></span> Free Agency</h3>
+    <p>O mercado de agentes livres, em moedas. É o destino final de quem passou pelo waiver sem receber proposta e dos calouros não escolhidos. Pode ser <strong>ligado e desligado para a liga inteira</strong> nas configurações da aba.</p>
+    <figure>
+      <img src="/img/guia/free-agency.png" alt="Tela da Free Agency com a lista de agentes livres." loading="lazy">
+      <figcaption><b>Free Agency</b>: a lista de agentes livres e os lances.</figcaption>
+    </figure>
+
+    <h3><span class="h3-ico" style="background:rgba(239,68,68,.14);color:#ef4444"><i class="bi bi-hammer"></i></span> Leilão</h3>
+    <p>O time coloca um jogador em leilão e a liga dá lances. <strong>Não há limite</strong> de quantos jogadores um time pode leiloar — o <em>Slot de leilão</em> vendido na loja é liberado na hora da compra e não desconta de contador nenhum, porque não existe teto para descontar.</p>
+  </section>
+
+  <!-- ═══ 9. MOEDAS E LOJA ═══ -->
+  <section id="moedas">
+    <h2><span class="parte">Parte 9</span>Moedas e a Loja</h2>
+    <p class="sub">Os GMs ganham moedas nos minigames e gastam na loja. Parte das compras se aplica sozinha; outra parte espera você.</p>
+
+    <figure>
+      <img src="/img/guia/games-moedas.png" alt="Tela Games, com os minigames diários e a troca de moedas." loading="lazy">
+      <figcaption><b>Games</b>: é onde a moeda nasce — minigames diários e apostas dos eventos.</figcaption>
+    </figure>
+
+    <h3><span class="h3-ico" style="background:rgba(34,197,94,.14);color:var(--green)"><i class="bi bi-lightning-charge-fill"></i></span> O que é automático</h3>
+    <p>Estas compras <strong>não passam por você</strong>: são aplicadas no instante da compra e nem aparecem na fila.</p>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>O que acontece</th></tr></thead>
+        <tbody>
+          <tr><td>Slot extra de waiver</td><td>Soma <strong>+1 dispensa</strong> ao time nesta temporada. Zera na virada do ano, como está escrito na loja.</td></tr>
+          <tr><td>Slot extra de G-League</td><td>Soma <strong>+1 vaga</strong> na G-League do time.</td></tr>
+          <tr><td>Slot de leilão</td><td>Fica registrado e liberado na hora. <strong>Não soma em contador nenhum</strong> — não existe limite de leilão no sistema.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3><span class="h3-ico" style="background:rgba(245,158,11,.14);color:var(--amber)"><i class="bi bi-hourglass-split"></i></span> O que espera você</h3>
+    <p>O que mexe num jogador específico continua passando por gente. Fica em <strong>Pedidos da Loja</strong>, na Gestão:</p>
+    <ul>
+      <li><strong>Badge</strong> — o GM pede pelo <em>Meu Elenco</em>, escolhendo o jogador e a badge. Cai na fila para você aprovar. <strong>A badge só é gasta quando você aplica</strong>: se recusar, ela volta para o GM. E com uma badge comprada, ele só pode ter <strong>um pedido esperando</strong> por vez.</li>
+      <li><strong>City Edition</strong> — o uniforme, que precisa ser produzido.</li>
+    </ul>
+
+    <figure>
+      <img src="/img/guia/loja-pedidos.png" alt="Tela Pedidos da Loja, com a fila de resgates aguardando o admin." loading="lazy">
+      <figcaption><b>Pedidos da Loja</b> (Gestão): a fila do que precisa da sua mão.</figcaption>
+    </figure>
+
+    <p>O card <strong>Moedas</strong>, na aba da liga, mostra o saldo de cada usuário — é onde se confere uma reclamação de saldo.</p>
+  </section>
+
+  <!-- ═══ 10. ABA DA LIGA ═══ -->
   <section id="liga">
-    <h2><span class="parte">Parte 3</span>A aba de uma liga</h2>
+    <h2><span class="parte">Parte 10</span>A aba de uma liga, card por card</h2>
     <p class="sub">A tela mais usada no dia a dia. De cima para baixo: configurações, busca rápida, cards de ação e a lista de times.</p>
 
     <h3><span class="h3-ico" style="background:rgba(148,163,184,.14);color:#94a3b8"><i class="bi bi-sliders"></i></span> Configurações</h3>
@@ -259,13 +510,13 @@ html{scroll-behavior:smooth}
       <div class="card-a"><div class="ico" style="background:rgba(239,68,68,.12);color:#ef4444"><i class="bi bi-hammer"></i></div>
         <div class="txt"><div class="nome">Leilão</div><div class="desc">Cria e conduz os leilões de jogadores.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(239,68,68,.12);color:#ef4444"><i class="bi bi-person-dash-fill"></i></div>
-        <div class="txt"><div class="nome">Dispensas</div><div class="desc">Os cortes de elenco da liga e os limites de cada time.</div></div></div>
+        <div class="txt"><div class="nome">Dispensas</div><div class="desc">Os cortes de elenco da liga e os limites de cada time. Detalhes na <a href="#mercado">Parte 8</a>.</div></div></div>
     </div>
 
     <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-trophy-fill"></i></span> Draft</h3>
     <div class="cards">
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="bi bi-trophy-fill"></i></div>
-        <div class="txt"><div class="nome">Draft</div><div class="desc">Conduz o draft da temporada. Com um draft em andamento, a aba mostra de quem é a vez e o cronômetro da pick.</div></div></div>
+        <div class="txt"><div class="nome">Draft</div><div class="desc">Conduz o draft da temporada. Com um draft em andamento, a aba mostra de quem é a vez e o cronômetro da pick. As duas rodadas funcionam de formas diferentes — veja a <a href="#draft">Parte 5</a>.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.08);color:#a855f7"><i class="bi bi-archive-fill"></i></div>
         <div class="txt"><div class="nome">Banco de Classes</div><div class="desc">O acervo de classes de draft — de onde saem os calouros de cada temporada.</div></div></div>
     </div>
@@ -287,13 +538,17 @@ html{scroll-behavior:smooth}
       <div class="card-a"><div class="ico" style="background:rgba(244,63,94,.12);color:#f43f5e"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <div class="txt"><div class="nome">Punições</div><div class="desc">Aplica e acompanha punições de time, com efeito e alcance definidos por temporada.</div></div></div>
     </div>
+    <figure>
+      <img src="/img/guia/punicoes.png" alt="Tela de Punições, com as punições aplicadas na liga." loading="lazy">
+      <figcaption><b>Punições</b>: cada uma com efeito, alcance e a temporada em que vale.</figcaption>
+    </figure>
 
     <h3><span class="h3-ico" style="background:rgba(20,184,166,.14);color:#14b8a6"><i class="bi bi-three-dots"></i></span> Outros</h3>
     <div class="cards">
       <div class="card-a"><div class="ico" style="background:rgba(20,184,166,.12);color:#14b8a6"><i class="bi bi-clipboard2-pulse"></i></div>
         <div class="txt"><div class="nome">Tática</div><div class="desc">A janela de edição de táticas e o que cada time escolheu.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(245,158,11,.12);color:#f59e0b"><i class="bi bi-coin"></i></div>
-        <div class="txt"><div class="nome">Moedas</div><div class="desc">Saldo de moedas dos usuários.</div></div></div>
+        <div class="txt"><div class="nome">Moedas</div><div class="desc">Saldo de moedas dos usuários — onde se confere reclamação de saldo. O que a loja faz com elas está na <a href="#moedas">Parte 9</a>.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="bi bi-clipboard-plus"></i></div>
         <div class="txt"><div class="nome">Inscrição ROOKIE <span class="selo selo-rookie">Só na ROOKIE</span></div>
         <div class="desc">O link único de cadastro. Um link só serve para várias pessoas, então dá pra jogar no grupo. Para chamar alguém específico, use <b>Interessados</b> na Gestão.</div></div></div>
@@ -308,7 +563,7 @@ html{scroll-behavior:smooth}
 
   <!-- ═══ 4. DENTRO DE UM TIME ═══ -->
   <section id="time">
-    <h2><span class="parte">Parte 4</span>Dentro de um time</h2>
+    <h2><span class="parte">Parte 11</span>Dentro de um time</h2>
     <p class="sub">É aqui que se corrige o que está errado num elenco. Tudo o que muda dados de verdade passa por esta tela.</p>
 
     <ul>
@@ -325,8 +580,13 @@ html{scroll-behavior:smooth}
 
   <!-- ═══ 5. GESTÃO ═══ -->
   <section id="gestao">
-    <h2><span class="parte">Parte 5</span>A aba Gestão</h2>
+    <h2><span class="parte">Parte 12</span>A aba Gestão</h2>
     <p class="sub">O que não pertence a uma liga só: pessoas, acessos e ferramentas gerais.</p>
+
+    <figure>
+      <img src="/img/guia/admin-gestao.png" alt="Aba Gestão do painel, com a tabela de usuários e os cards de ferramentas." loading="lazy">
+      <figcaption><b>Gestão</b>: a tabela de usuários em cima, os cards de ferramenta embaixo.</figcaption>
+    </figure>
 
     <h3><span class="h3-ico" style="background:rgba(148,163,184,.14);color:#94a3b8"><i class="bi bi-table"></i></span> A tabela de usuários</h3>
     <p>Filtrada pela liga selecionada nos botões do topo, com o total de times de cada uma. Cada linha traz <strong>Usuário</strong>, <strong>Time</strong>, <strong>Ligas Admin</strong> e <strong>Admin Geral</strong> — ou seja, é aqui que se concede e se tira acesso de administração.</p>
@@ -347,7 +607,7 @@ html{scroll-behavior:smooth}
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.08);color:#a855f7"><i class="bi bi-shuffle"></i></div>
         <div class="txt"><div class="nome">Drafts Aleatórios</div><div class="desc">Drafts por sorteio, fora do fluxo da temporada. É o que se usa para montar uma liga nova ou distribuir marcas NBA.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(245,158,11,.12);color:#f59e0b"><i class="bi bi-dice-3-fill"></i></div>
-        <div class="txt"><div class="nome">Loterias</div><div class="desc">As loterias que definem a ordem de escolha.</div></div></div>
+        <div class="txt"><div class="nome">Loterias</div><div class="desc">Loterias avulsas, para sortear qualquer coisa fora do fluxo da temporada. <b>Não confunda com a Loteria do Draft</b> (<a href="#loteria">Parte 4</a>), que é a da ordem de escolha.</div></div></div>
       <div class="card-a"><div class="ico" style="background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)"><i class="bi bi-newspaper"></i></div>
         <div class="txt"><div class="nome">The Pathetic</div><div class="desc">Edita o jornal da liga.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(6,182,212,.12);color:#06b6d4"><i class="bi bi-person-bounding-box"></i></div>
@@ -365,15 +625,24 @@ html{scroll-behavior:smooth}
 
   <!-- ═══ 6. CAP ELITE ═══ -->
   <section id="cap">
-    <h2><span class="parte">Parte 6</span>Controle de Cap <span class="selo selo-elite">Elite</span></h2>
+    <h2><span class="parte">Parte 13</span>Controle de Cap <span class="selo selo-elite">Elite</span></h2>
     <p class="sub">Um card que existe só na aba ELITE, porque só ela usa salary cap em milhões.</p>
     <p>Traz a <strong>tabela de referência de OVR para salário</strong> e, ao lado, <strong>quantos jogadores ativos da ELITE existem em cada OVR</strong>. Serve para enxergar o efeito real de mexer na tabela antes de mexer: subir a faixa dos 88 é uma coisa quando há dois jogadores ali, e outra bem diferente quando há vinte.</p>
     <p>Lista também as <strong>lendas marcadas</strong> na liga. As regras de LENDA, rookie scale e bônus de lealdade estão explicadas no <a href="/guia.php#cap">Guia do GM</a> — aqui é só o painel de leitura.</p>
+
+    <figure>
+      <img src="/img/guia/cap.png" alt="Tela do Salary Cap, com a tabela de OVR para salário e a distribuição de jogadores." loading="lazy">
+      <figcaption><b>Salary Cap</b>: a tabela de referência e quantos jogadores existem em cada OVR.</figcaption>
+    </figure>
+
+    <div class="nota amber">
+      <p><strong>A rookie scale vale só na primeira temporada profissional do calouro.</strong> O draft roda no fim de uma temporada e o calouro estreia na seguinte — então o carimbo dele é do ano do draft, e o salário de pick vale durante o ano seguinte. Na virada, ele volta para a tabela por OVR.</p>
+    </div>
   </section>
 
   <!-- ═══ 7. CUIDADO ═══ -->
   <section id="cuidado">
-    <h2><span class="parte">Parte 7</span>O que exige cuidado</h2>
+    <h2><span class="parte">Parte 14</span>O que exige cuidado</h2>
     <p class="sub">As ações sem desfazer, reunidas num lugar só.</p>
 
     <div class="tabela-wrap">
@@ -386,6 +655,9 @@ html{scroll-behavior:smooth}
           <tr><td>Editar jogador ou pick pela tela do time</td><td>Muda o dado sem gerar histórico de negociação — depois não dá pra reconstituir o que aconteceu.</td></tr>
           <tr><td>Mexer no CAP da liga</td><td>Vale para todos os times de uma vez. Pode deixar meia liga fora do cap de uma tacada.</td></tr>
           <tr><td>Bloquear Trades ou Free Agency</td><td>Afeta a liga inteira na hora. Avise antes.</td></tr>
+          <tr><td>Avançar Temporada</td><td>Fecha o ano e não tem desfazer. Zera os contadores de dispensa e tira a rookie scale dos calouros. Confira o checklist inteiro antes.</td></tr>
+          <tr><td>Finalizar draft na 2ª rodada</td><td>Resolve as preferências e encerra na hora. Quem ainda não escolheu <strong>perde a pick</strong> — não há como devolver o tempo.</td></tr>
+          <tr><td>Sortear a loteria</td><td>A ordem é gravada de uma vez. Para tirar dúvida, use o <strong>Teste a loteria</strong>, que simula sem gravar.</td></tr>
         </tbody>
       </table>
     </div>
