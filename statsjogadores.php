@@ -22,6 +22,43 @@ $user = getUserSession();
 $pdo  = db();
 $liga = $user['league'] ?? 'ELITE';
 
+/*
+ * AS TEMPORADAS QUE DÁ PRA OLHAR.
+ *
+ * A página mostrava só a corrente, e não havia como ver o que o jogador fez
+ * antes — a estatística existia no banco e não tinha porta. Agora a lista
+ * inteira do SPRINT ATIVO vira um seletor.
+ *
+ * Só as que TÊM lançamento: temporada sem nenhuma linha em
+ * player_season_stats abriria a tela inteira vazia, e escolher "Temporada 4"
+ * pra não ver nada não é opção, é armadilha.
+ *
+ * O sprint filtra porque `season_number` se repete a cada sprint: sem isso a
+ * lista traria três "Temporada 1" de eras diferentes, indistinguíveis.
+ */
+$temporadas = [];
+try {
+    $st = $pdo->prepare('
+        SELECT s.id, s.season_number, s.year, s.status, sp.start_year
+        FROM seasons s
+        LEFT JOIN sprints sp ON s.sprint_id = sp.id
+        WHERE s.league = ?
+          AND (sp.id IS NULL OR sp.status IS NULL OR sp.status = "active")
+          AND EXISTS (SELECT 1 FROM player_season_stats ps WHERE ps.season_id = s.id)
+        ORDER BY s.season_number DESC');
+    $st->execute([$liga]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
+        $ano = isset($s['start_year'], $s['season_number'])
+            ? (int)$s['start_year'] + (int)$s['season_number'] - 1
+            : (int)($s['year'] ?? 0);
+        $temporadas[] = [
+            'id'     => (int)$s['id'],
+            'numero' => (int)$s['season_number'],
+            'label'  => 'Temporada ' . (int)$s['season_number'] . ($ano ? ' · ' . $ano : ''),
+        ];
+    }
+} catch (Exception $e) { /* sem temporadas: a página ainda lista o elenco */ }
+
 // ── Temporada corrente da liga ──────────────────────────────────────────
 $seasonId = null; $seasonNumber = null; $seasonLabel = '';
 try {
@@ -41,6 +78,28 @@ try {
         $seasonLabel = 'Temporada ' . $seasonNumber . ($ano ? ' · ' . $ano : '');
     }
 } catch (Exception $e) { /* sem temporada: a página ainda lista o elenco */ }
+
+/*
+ * A ESCOLHIDA. `?temporada=` manda, e ela precisa estar na lista — id de
+ * outra liga ou de sprint velho viraria estatística de gente que não é
+ * daqui. Sem parâmetro, abre na corrente; se a corrente ainda não tem
+ * lançamento nenhum, abre na mais recente que tem.
+ */
+// Guardada ANTES de $seasonId virar a escolhida: a importação de CSV grava
+// sempre na corrente, e a tela precisa dizer isso quando você está olhando
+// outra — senão o lançamento parece ir pra temporada que está na tela.
+$seasonCorrenteId = $seasonId;
+
+$idsValidos = array_column($temporadas, 'id');
+$pedida = isset($_GET['temporada']) ? (int)$_GET['temporada'] : 0;
+if ($pedida > 0 && in_array($pedida, $idsValidos, true)) {
+    $seasonId = $pedida;
+} elseif ($seasonId === null || !in_array($seasonId, $idsValidos, true)) {
+    if ($temporadas) $seasonId = (int)$temporadas[0]['id'];
+}
+foreach ($temporadas as $t) {
+    if ($t['id'] === $seasonId) { $seasonNumber = $t['numero']; $seasonLabel = $t['label']; break; }
+}
 
 // ── Time do usuário ─────────────────────────────────────────────────────
 $st = $pdo->prepare('SELECT id, city, name FROM teams WHERE user_id = ? LIMIT 1');
@@ -189,6 +248,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0}
 
 /* ── barra dos botões de importar ───────────────── */
 .admin-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-4px 0 14px}
+.aviso-temp{display:flex;gap:8px;align-items:flex-start;margin:0 0 14px;padding:10px 13px;
+  border-radius:10px;font-size:13px;line-height:1.5;
+  background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.28);color:var(--text-2)}
+.aviso-temp b{color:var(--text)}
+.aviso-temp i{color:#f59e0b;margin-top:2px;flex-shrink:0}
 .admin-barra .f-chip{display:inline-flex;align-items:center;gap:6px}
 
 /* ── importação em massa ────────────────────────── */
@@ -338,6 +402,19 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
 
     <div class="filtros">
       <input type="search" id="fBusca" class="f-campo f-busca" placeholder="Buscar jogador…" autocomplete="off">
+      <?php /* Recarrega a página: a estatística vem do servidor, e trazer
+               todas as temporadas de uma vez pra filtrar no cliente seria
+               carregar a liga inteira vezes o número de temporadas. */ ?>
+      <?php if (count($temporadas) > 1): ?>
+      <select id="fTemporada" class="f-campo" aria-label="Temporada"
+              onchange="location.search = '?temporada=' + this.value">
+        <?php foreach ($temporadas as $t): ?>
+          <option value="<?= (int)$t['id'] ?>"<?= $t['id'] === $seasonId ? ' selected' : '' ?>>
+            <?= htmlspecialchars($t['label']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <?php endif; ?>
       <select id="fTime" class="f-campo">
         <option value="">Todos os times</option>
         <?php if ($meuTime): ?>
@@ -384,6 +461,17 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
       <button type="button" class="f-chip" id="btCopiaSkills" onclick="copiarTudo('skills', this)">
         <i class="bi bi-sliders"></i> Copiar atributos</button>
     </div>
+
+    <?php /* Olhando temporada passada, o aviso é obrigatório: a importação
+             grava na CORRENTE, e sem dizer isso o lançamento parece ir pra
+             temporada que está na tela. */ ?>
+    <?php if ($seasonCorrenteId && $seasonId !== $seasonCorrenteId): ?>
+    <div class="aviso-temp">
+      <i class="bi bi-clock-history"></i>
+      Você está vendo uma <b>temporada passada</b>. Importar estatísticas ou
+      atributos grava sempre na <b>temporada atual</b>, não nesta.
+    </div>
+    <?php endif; ?>
 
     <div class="imp-fundo" id="impFundo" onclick="if(event.target===this)fecharImport()">
       <div class="imp-cx" role="dialog" aria-modal="true" aria-labelledby="impTitulo">
