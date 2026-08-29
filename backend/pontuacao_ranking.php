@@ -104,3 +104,53 @@ function reguaDePontos(bool $comNbaCup = false): array
     }
     return $regua;
 }
+
+/**
+ * A régua em texto, pro /pontuacao do WhatsApp.
+ *
+ * Mora aqui junto da régua, e não no arquivo de comandos, pelo mesmo motivo
+ * que ela existe: quem quiser mudar um valor mexe num lugar só e a mensagem
+ * do bot acompanha. Escrever os números no comando seria recriar a sexta
+ * cópia — a que causou o problema que este arquivo veio resolver.
+ *
+ * A NBA Cup só entra na ELITE porque só a ELITE a disputa. Mostrá-la nas
+ * outras seria prometer 2 pontos por um torneio que elas não jogam.
+ */
+function pontuacaoTextoBot(string $liga): string
+{
+    $liga = strtoupper(trim($liga));
+    if (!in_array($liga, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+        return 'Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.';
+    }
+
+    $ehElite = $liga === 'ELITE';
+    $txt = "🏆 *Pontuação · {$liga}*\n_Quanto vale cada conquista na temporada._\n";
+
+    $icone = [
+        'Temporada regular'   => '📊',
+        'Playoffs'            => '🥊',
+        'Prêmios individuais' => '⭐',
+        'NBA Cup'            => '🏅',
+    ];
+
+    foreach (reguaDePontos($ehElite) as $bloco => $linhas) {
+        $txt .= "\n" . ($icone[$bloco] ?? '•') . " *{$bloco}*\n";
+        foreach ($linhas as [$rotulo, $pontos]) {
+            $txt .= '· ' . $rotulo . ' — *' . $pontos . '* pt' . ($pontos === 1 ? '' : 's') . "\n";
+        }
+    }
+
+    /* O acumulado precisa estar escrito: lendo a lista solta, "Campeão 10"
+       parece somar com "Vice 7" e o campeão viraria 17. */
+    $txt .= "\n_Os pontos de playoff são acumulados: o número já é o total de"
+          . " quem chegou até ali. Do 11º em diante a temporada regular não pontua._";
+
+    if (!$ehElite) $txt .= "\n_A NBA Cup vale só na ELITE._";
+
+    /* O /ranking já existia e responde a outra pergunta: quem está na
+       frente. Como os dois falam de ponto, sem esta linha eles viram o
+       mesmo comando na cabeça de quem lê. */
+    $txt .= "\n\n_Pra ver quem está na frente, use */ranking " . $liga . "*._";
+
+    return $txt;
+}

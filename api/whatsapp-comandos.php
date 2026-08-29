@@ -400,6 +400,7 @@ function wcAjuda(): string
         // Ao lado da loteria porque é a pergunta seguinte: sorteada a ordem,
         // o que se quer saber é de quem é a vez e quem já saiu.
         . "/draft — a ordem do draft e as escolhas (use */draft 2* pra 2ª rodada)\n"
+        . "/pontuacao — quanto vale cada conquista na temporada\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
@@ -3223,6 +3224,18 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 }
                 if (!$lgD) $lgD = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
                 return draftBotTexto($pdo, $lgD, $rdD);
+
+            /* Quanto vale cada conquista. Sem liga, vale a do grupo — e a
+               liga importa: só a ELITE tem NBA Cup. */
+            case 'pontuacao':
+            case 'pontuação':
+                require_once __DIR__ . '/../backend/pontuacao_ranking.php';
+                $lgP = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
+                if (!$lgP && trim($arg) !== '') {
+                    return 'Não conheço a liga *' . trim($arg) . "*. Use ELITE, NEXT, RISE ou ROOKIE — ou só */pontuacao* pra ver a do grupo.";
+                }
+                if (!$lgP) $lgP = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+                return pontuacaoTextoBot($lgP);
 
             case 'jogosemana':
             case 'jogodasemana':
