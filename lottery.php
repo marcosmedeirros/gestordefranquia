@@ -313,9 +313,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .lottery-ball.drawn{z-index:5;opacity:1!important;border-color:var(--red);
   box-shadow:0 0 0 4px var(--red-soft),0 0 34px var(--red-glow);
   animation:ballDrawn .78s cubic-bezier(.2,1.25,.4,1) forwards!important}
-body.broadcast .ball-machine{width:min(280px,52vw);height:min(280px,52vw)}
-body.broadcast .lottery-ball{width:52px;height:52px;margin:-26px 0 0 -26px}
-body.broadcast .lottery-ball img{width:38px;height:38px}
 @media(prefers-reduced-motion:reduce){
   .lottery-ball{animation:none!important}
   .lottery-ball.drawn{animation:none!important;transform:scale(1.9)}
@@ -533,7 +530,6 @@ body.sem-menu .menu-btn { display: none; }
 .via-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:999px;background:rgba(168,85,247,.14);border:1px solid rgba(168,85,247,.38);color:#a855f7;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
 .reveal-via{margin-top:6px}
 .reveal-via .via-badge{font-size:12px;padding:4px 12px}
-body.broadcast .reveal-via .via-badge{font-size:14px;padding:5px 14px}
 .podium-via{margin-top:6px}
 
 /* ── Pódio do top-3 (aparece quando o sorteio termina) ── */
@@ -561,13 +557,6 @@ body.bc-complete .podium{display:grid}
 .podium-item.silver .podium-pos{color:#cbd5e1}
 .podium-item.bronze{border-color:rgba(217,119,6,.45)}
 .podium-item.bronze .podium-pos{color:#d97706}
-body.broadcast .podium{gap:20px;margin-bottom:20px}
-body.broadcast .podium-logo{width:118px;height:118px}
-body.broadcast .podium-item.gold .podium-logo{width:150px;height:150px}
-body.broadcast .podium-name{font-size:24px}
-body.broadcast .podium-item.gold .podium-name{font-size:30px}
-body.broadcast .podium-pos{font-size:42px}
-body.broadcast .podium-item.gold .podium-pos{font-size:54px}
 @media(max-width:700px){.podium{grid-template-columns:1fr;align-items:stretch}}
 
 /* Destaque do top-4 (vale sempre; brilha mais na transmissão) */
@@ -575,56 +564,6 @@ body.broadcast .podium-item.gold .podium-pos{font-size:54px}
 .board-slot.top4 .board-pos{color:var(--amber)}
 .board-slot.top4::after{content:'★';position:absolute;top:-7px;right:-6px;font-size:12px;color:var(--amber);text-shadow:0 0 6px rgba(245,158,11,.6)}
 
-/* ── Modo transmissão (tela cheia p/ YouTube) ── */
-body.broadcast{overflow-y:auto}
-body.broadcast .sidebar,body.broadcast .topbar,body.broadcast .sb-overlay{display:none!important}
-body.broadcast .main{margin-left:0!important;width:100%!important;padding-top:0!important}
-body.broadcast .content{max-width:1680px;padding:16px 30px 30px!important}
-body.broadcast .bc-off{display:none!important}
-body.broadcast .info-hint{display:none!important}
-body.broadcast .section-title{font-size:16px;letter-spacing:1px;margin:16px 0 10px}
-/* layout: revelação (col 1) e urna (col 2) lado a lado; ordem full width embaixo */
-body.broadcast #resultSection{display:grid!important;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:6px 20px;align-items:start}
-body.broadcast .bc-reveal-title{display:none}
-body.broadcast #revealStage{grid-column:1;grid-row:1 / span 2;align-self:stretch;display:flex;flex-direction:column;justify-content:center}
-body.broadcast .bc-urna-title{grid-column:2;grid-row:1;margin:0 0 8px}
-body.broadcast .bc-urna{grid-column:2;grid-row:2;align-self:start;max-height:52vh;overflow-y:auto}
-body.broadcast .bc-board-title{grid-column:1 / -1;grid-row:3}
-body.broadcast .bc-board{grid-column:1 / -1;grid-row:4}
-body.broadcast #adjustmentsSection{grid-column:1 / -1;grid-row:5}
-body.broadcast #confirmPanel{grid-column:1 / -1;grid-row:6}
-/* sorteio completo: revelação e urna não são mais necessárias */
-body.broadcast.bc-complete .bc-reveal-title,
-body.broadcast.bc-complete #revealStage,
-body.broadcast.bc-complete .bc-urna-title,
-body.broadcast.bc-complete .bc-urna{display:none!important}
-body.broadcast.bc-complete .bc-board-title{grid-row:1}
-body.broadcast.bc-complete .bc-board{grid-row:2}
-body.broadcast.bc-complete .board{grid-template-columns:repeat(4,1fr)}
-/* reveal maior e imponente */
-body.broadcast .reveal-stage{padding:36px 26px}
-body.broadcast .reveal-card{min-height:230px}
-body.broadcast .reveal-logo{width:150px;height:150px;border-radius:24px}
-body.broadcast .reveal-number{font-size:52px}
-body.broadcast .reveal-team{font-size:46px}
-body.broadcast .reveal-pick{font-size:16px}
-body.broadcast .reveal-move{font-size:16px;padding:8px 20px}
-/* urna: logos maiores */
-body.broadcast .bowl{grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
-body.broadcast .bowl-logo{width:60px;height:60px}
-body.broadcast .bowl-name{font-size:12px}
-body.broadcast .bowl-odds{font-size:17px}
-/* ordem em 4 colunas pra caber na tela */
-body.broadcast .board{grid-template-columns:repeat(4,1fr);gap:9px}
-body.broadcast .board-slot.top4::after{font-size:15px;top:-9px}
-.btn-broadcast-exit{display:none}
-body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;right:16px;z-index:9999;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2);border-radius:10px;padding:8px 14px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer}
-.btn-broadcast-exit:hover{border-color:var(--border-red);color:var(--red)}
-@media(max-width:820px){
-  body.broadcast .board{grid-template-columns:repeat(2,1fr)}
-  body.broadcast .reveal-team{font-size:32px}
-  body.broadcast .reveal-logo{width:110px;height:110px}
-}
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>
@@ -643,11 +582,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   <a href="admin.php" class="icon-btn"><i class="bi bi-arrow-left"></i></a>
 </header>
 
-<button class="btn-broadcast-exit" onclick="toggleBroadcast()"><i class="bi bi-fullscreen-exit"></i> Sair da transmissão</button>
 <main class="main">
  <div class="content">
 
-  <div class="page-hero bc-off">
+  <div class="page-hero">
     <div>
       <div class="page-hero-eyebrow">Liga · Loteria</div>
       <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red);margin-right:8px"></i>Loteria do Draft</h1>
@@ -690,8 +628,8 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
            havendo sessão em configuração, o que a tela mostra abaixo é a
            desta temporada, e repetir a do ano passado no topo confundiria. */ ?>
   <?php if (!$setupSessions): ?>
-  <div class="section-title bc-off"><i class="bi bi-list-ol"></i> Ordem do draft<?= $ligaAtual ? ' · ' . htmlspecialchars($ligaAtual) : '' ?><?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
-  <div class="panel bc-off">
+  <div class="section-title"><i class="bi bi-list-ol"></i> Ordem do draft<?= $ligaAtual ? ' · ' . htmlspecialchars($ligaAtual) : '' ?><?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
+  <div class="panel">
     <?php if (!$confirmedOrder): ?>
     <div class="empty"><i class="bi bi-hourglass-split" style="font-size:22px;display:block;margin-bottom:8px"></i>
       <?= $ligaAtual
@@ -741,7 +679,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   ?>
 
   <?php if ($umDraftSo): ?>
-  <div class="panel bc-off" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+  <div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">
         Draft em configuração
@@ -760,8 +698,8 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </select>
 
   <?php else: ?>
-  <div class="section-title bc-off"><i class="bi bi-calendar2-check"></i> 1. Escolha a sessão de draft</div>
-  <div class="panel bc-off">
+  <div class="section-title"><i class="bi bi-calendar2-check"></i> 1. Escolha a sessão de draft</div>
+  <div class="panel">
     <div class="form-row">
       <div class="form-field">
         <label>Sessão de draft</label>
@@ -783,7 +721,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
            lido quando mais importava: se a prévia não vem, o bloco inteiro
            fica oculto e leva o aviso junto — a pessoa via a página muda e
            não tinha como saber por quê. */ ?>
-  <div id="semLoteria" class="panel bc-off" style="display:none;border-color:rgba(245,158,11,.42)">
+  <div id="semLoteria" class="panel" style="display:none;border-color:rgba(245,158,11,.42)">
     <i class="bi bi-info-circle" style="color:var(--amber)"></i>
     <span id="semLoteriaTexto"></span>
   </div>
@@ -793,7 +731,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     <?php /* Sai da tela no instante em que o sorteio de verdade acontece —
              ver setupBoardAndOdds. Enquanto está aqui, o que se vê embaixo é
              a ordem da campanha, não um resultado. */ ?>
-    <div id="previaAviso" class="panel bc-off" style="display:none;border-color:var(--border-red)">
+    <div id="previaAviso" class="panel" style="display:none;border-color:var(--border-red)">
       <i class="bi bi-eye" style="color:var(--red)"></i>
       <b>Prévia</b> — estes são os times que entram na loteria, com o grupo e as chances de cada um.
       A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
@@ -821,8 +759,8 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
     <?php endif; ?>
 
-    <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
-    <div class="panel bc-off">
+    <div class="section-title"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
+    <div class="panel">
       <div style="overflow-x:auto">
         <table class="balls-table" id="ballsTable">
           <thead><tr><th>Time</th><th>Grupo</th><th>Bolinhas</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
@@ -838,10 +776,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
              acha, e conclui que a conta está errada. Aqui cada linha soma
              100% (o time termina em alguma pick) e cada coluna também (a pick
              vai pra alguém). */ ?>
-    <div class="section-title bc-off" id="matrizTitulo" style="display:none">
+    <div class="section-title" id="matrizTitulo" style="display:none">
       <i class="bi bi-grid-3x3"></i> Chance de cair em cada escolha<i class="bi bi-question-circle info-hint" title="Cada linha é um time e soma 100%: ele termina em alguma das escolhas. Cada coluna é uma escolha e também soma 100%: ela vai pra alguém. As diferenças de 0,1 são arredondamento."></i>
     </div>
-    <div class="panel bc-off" id="matrizPainel" style="display:none">
+    <div class="panel" id="matrizPainel" style="display:none">
       <div style="overflow-x:auto">
         <table class="balls-table matriz-table" id="matrizTable">
           <thead id="matrizHead"></thead>
@@ -858,7 +796,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
              tela parada enquanto as picks saíam. Agora ele aparece pra todo
              mundo e acompanha o que o admin revela; só os botões de revelar
              e confirmar seguem sendo de quem conduz. */ ?>
-    <div class="section-title bc-reveal-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
+    <div class="section-title"><i class="bi bi-stars"></i> 2. Revelação<i class="bi bi-question-circle info-hint" title="Clique em 'Revelar próxima' para revelar uma pick de cada vez, da última até a #1. O badge mostra se o time subiu ou caiu em relação à posição que teria só pela campanha."></i></div>
     <div class="reveal-stage" id="revealStage">
       <div class="reveal-fx" id="revealFx" aria-hidden="true"></div>
       <div class="reveal-pick" id="revealPickLabel">Pronto para começar</div>
@@ -878,21 +816,20 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <?php if ($podeConduzirEstaLiga): ?>
         <button class="btn-red" id="btnReveal"><i class="bi bi-caret-right-fill"></i> Revelar próxima escolha</button>
         <?php endif; ?>
-        <button class="btn-ghost2" id="btnBroadcast" onclick="toggleBroadcast()"><i class="bi bi-fullscreen"></i> Modo transmissão</button>
       </div>
       <div class="reveal-hint" id="revealHint">A revelação começa pela última pick e sobe até a #1.</div>
     </div>
 
-    <div class="section-title bc-urna-title"><i class="bi bi-collection-fill"></i> Ainda na urna <span class="bowl-count" id="bowlCount"></span><i class="bi bi-question-circle info-hint" title="Times que ainda não foram revelados — qualquer um deles ainda pode pegar as melhores picks. A urna esvazia a cada revelação."></i></div>
-    <div class="panel bc-urna">
+    <div class="section-title"><i class="bi bi-collection-fill"></i> Ainda na urna <span class="bowl-count" id="bowlCount"></span><i class="bi bi-question-circle info-hint" title="Times que ainda não foram revelados — qualquer um deles ainda pode pegar as melhores picks. A urna esvazia a cada revelação."></i></div>
+    <div class="panel">
       <div class="bowl" id="bowl"></div>
     </div>
 
     <div class="section-title bc-podium-title" id="podiumTitle" style="display:none"><i class="bi bi-trophy-fill"></i> Pódio da loteria</div>
     <div class="podium" id="podium"></div>
 
-    <div class="section-title bc-board-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio dá pra corrigir a ordem com as setas. Em cima estão os times de loteria, na ordem da campanha — é dela que saem os grupos de bolinhas. Embaixo, os times de playoff na ordem em que escolhem: quem foi menos longe pica antes, e o campeão por último."></i></div>
-    <div class="panel bc-board">
+    <div class="section-title"><i class="bi bi-list-ol"></i> Ordem do draft<i class="bi bi-question-circle info-hint" id="boardHint" title="Antes do sorteio dá pra corrigir a ordem com as setas. Em cima estão os times de loteria, na ordem da campanha — é dela que saem os grupos de bolinhas. Embaixo, os times de playoff na ordem em que escolhem: quem foi menos longe pica antes, e o campeão por último."></i></div>
+    <div class="panel">
       <div class="board" id="board"></div>
     </div>
 
@@ -924,8 +861,8 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
   </div>
 
-  <div class="section-title bc-off"><i class="bi bi-journal-text"></i> Como funciona</div>
-  <div class="panel rules-panel bc-off">
+  <div class="section-title"><i class="bi bi-journal-text"></i> Como funciona</div>
+  <div class="panel rules-panel">
     <details>
       <summary><i class="bi bi-diagram-2"></i> Quem entra na loteria</summary>
       <div class="rules-body">Playoff = os 8 melhores de cada conferência (16 no total). Todos os outros — os 16 times
@@ -1041,27 +978,6 @@ function spawnParticles(symbol, color, count){
     setTimeout(() => p.remove(), 1600);
   }
 }
-
-/* ── Modo transmissão (tela cheia) ── */
-function toggleBroadcast(){
-  const on = document.body.classList.toggle('broadcast');
-  const btn = document.getElementById('btnBroadcast');
-  if (on) {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
-    if (btn) btn.innerHTML = '<i class="bi bi-fullscreen-exit"></i> Sair da transmissão';
-  } else {
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-    if (btn) btn.innerHTML = '<i class="bi bi-fullscreen"></i> Modo transmissão';
-  }
-}
-document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement && document.body.classList.contains('broadcast')) {
-    document.body.classList.remove('broadcast');
-    const btn = document.getElementById('btnBroadcast');
-    if (btn) btn.innerHTML = '<i class="bi bi-fullscreen"></i> Modo transmissão';
-  }
-});
 
 let result = null;       // resposta do run_lottery
 let revealQueue = [];    // posições de loteria a revelar (da última pra #1)

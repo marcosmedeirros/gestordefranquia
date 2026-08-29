@@ -1276,6 +1276,36 @@ if ($method === 'POST') {
                     }
                 }
             }
+            /*
+             * TEMPORADA QUE NINGUÉM JOGOU: LOTERIA LIMPA.
+             *
+             * O modelo 3-2-1 pressupõe uma campanha disputada — é dela que
+             * saem "os 3 piores", "o 4º ao 10º" e quem foi pro playoff. Numa
+             * liga que está começando, todo mundo tem 0-0 e nada disso
+             * existe. O que sobrava pra ordenar era `position`, que nessa
+             * altura é ordem de cadastro: o código mandava 16 times pro fim
+             * da fila por terem sido cadastrados antes, e distribuía as
+             * primeiras picks pelos outros 14. Parecia sorteio e era lista.
+             *
+             * Foi o que aconteceu na ROOKIE: ninguém subiu nem caiu porque
+             * não havia o que sortear.
+             *
+             * Sem campanha, então: TODO MUNDO entra na loteria com a MESMA
+             * chance. É o único sorteio honesto quando não há o que premiar
+             * nem o que punir.
+             */
+            $semCampanha = true;
+            foreach (array_merge($eligible, $playoffRows) as $rowSc) {
+                $tidSc = (int)$rowSc['team_id'];
+                if (($teamWins[$tidSc] ?? 0) > 0
+                    || ($teamOverall[$tidSc] ?? null) !== null
+                    || ($teamTail[$tidSc] ?? null) !== null) { $semCampanha = false; break; }
+            }
+            if ($semCampanha && $playoffRows) {
+                $eligible = array_merge($eligible, $playoffRows);
+                $playoffRows = [];
+            }
+
             $playoffTeamIds = array_map(fn($r) => (int)$r['team_id'], $playoffRows);
 
             /* ORDEM PROVISÓRIA DA PRÉVIA.
@@ -1413,12 +1443,19 @@ if ($method === 'POST') {
             $declarados = array_intersect_key($teamGrupo, array_flip($eligibleIds));
             $groupOf = loteriaDistribuirGrupos($eligibleIds, $teamPos, $declarados, $badness);
 
-            // Os 3 piores, que o piso de proteção usa mais abaixo.
-            $group1 = array_values(array_filter($eligibleIds, fn($t) => ($groupOf[$t] ?? 2) === 1));
+            // Os 3 piores, que o piso de proteção usa mais abaixo. Sem
+            // campanha não existem "3 piores": a proteção não tem de quem
+            // proteger, e travar picks pelos primeiros da lista seria
+            // premiar a ordem de cadastro de novo.
+            $group1 = $semCampanha
+                ? []
+                : array_values(array_filter($eligibleIds, fn($t) => ($groupOf[$t] ?? 2) === 1));
 
             foreach ($eligibleIds as $tid) {
+                // Mesma urna pra todo mundo quando ninguém jogou: um grupo
+                // com mais bolinhas só faz sentido se alguém fez por merecer.
                 $g = $groupOf[$tid] ?? 2;
-                $balls[$tid] = $GROUP_META[$g]['balls'];
+                $balls[$tid] = $semCampanha ? 1 : $GROUP_META[$g]['balls'];
             }
             $totalBalls = array_sum($balls);
             // As chances saem da urna que existe, não de números fixos por grupo.
@@ -1683,6 +1720,11 @@ if ($method === 'POST') {
                 // mostrar "ordem definida" numa previa faria a pessoa achar
                 // que ja aconteceu.
                 'preview' => $apenasPreview,
+                /* Liga que ainda não jogou: a tela mostra a tabela do 3-2-1
+                   e os quatro grupos, que aqui não valem — todo mundo tem a
+                   mesma chance. Sem este aviso a pessoa lê "24% / 39%" numa
+                   loteria em que ninguém tem 24% de nada. */
+                'sem_campanha' => $semCampanha,
             ]);
             break;
 
