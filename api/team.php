@@ -381,8 +381,10 @@ if ($method === 'GET') {
         // nas outras ligas o campo nem vai — a coluna some da tela por isso.
         // A temporada é resolvida uma vez, fora do laço: define quem é calouro.
         if ($capLigaTemSalario) {
-            $temporadaCap = temporadaAtivaDaLiga($pdo, $league);
-            $numTemporadaCap = $temporadaCap ? (int)$temporadaCap['season_number'] : null;
+            // A mesma lista que o card de cap usa: quem carimba o calouro é a
+            // sessão de draft, e ela nem sempre está na temporada "ativa".
+            // Sem isso o elenco mostraria 48M e o cap 18M pro mesmo calouro.
+            $numTemporadaCap = capTemporadasDeCalouro($pdo, (string)$league);
             // Marca de que rodada do Draft Inicial cada um veio — é o que
             // habilita o piso dentro do getPlayerBaseSalary. Sem esta linha o
             // elenco mostraria um salário e a tela de cap outro.

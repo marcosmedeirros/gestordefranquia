@@ -338,12 +338,68 @@ function capMarcarDraftInicial(PDO $pdo, array &$players, string $league): void
  * geral do regulamento ("O salário de todo jogador é definido exclusivamente
  * pelo overall").
  */
-function capEhCalouroNaTemporadaAtual(array $player, ?int $temporadaAtual): bool
+function capEhCalouroNaTemporadaAtual(array $player, int|array|null $temporadaAtual): bool
 {
     if (($player['draft_round'] ?? null) === null) return false;
     $draftadoEm = $player['drafted_season_number'] ?? null;
     if ($draftadoEm === null || $temporadaAtual === null) return false;  // Draft Inicial cai aqui
-    return (int)$draftadoEm === (int)$temporadaAtual;
+    // Aceita uma lista porque quem carimba e quem pergunta não resolvem a
+    // temporada do mesmo jeito — ver capTemporadasDeCalouro().
+    $validas = is_array($temporadaAtual) ? $temporadaAtual : [$temporadaAtual];
+    return in_array((int)$draftadoEm, array_map('intval', $validas), true);
+}
+
+/**
+ * As temporadas que contam como "temporada de estreia" numa liga.
+ *
+ * São DUAS RESOLUÇÕES que precisavam bater e não batiam sozinhas:
+ *
+ *   quem CARIMBA   api/draft.php grava drafted_season_number com o
+ *                  season_number da SESSÃO DE DRAFT, na hora da escolha.
+ *   quem PERGUNTA  o cap usa temporadaAtivaDaLiga() — a última temporada
+ *                  não concluída da liga.
+ *
+ * Enquanto as duas dão o mesmo número tudo funciona. Quando a sessão de
+ * draft está numa temporada e a "ativa" é outra, o número não bate, o
+ * calouro deixa de ser calouro e cai na tabela de OVR: a escolha 1 aparece
+ * com 48M em vez dos 18M da rookie scale. A pick já pesava certo na troca —
+ * quem não pegava era o jogador escolhido com ela.
+ *
+ * Aqui as duas entram na conta. A do draft ABERTO é a que carimbou quem
+ * acabou de ser escolhido; a ativa cobre o resto do ano. Draft de sprint
+ * encerrado ou de temporada já concluída fica de fora — senão um calouro
+ * antigo continuaria barato pra sempre.
+ *
+ * Ao avançar a temporada, a antiga vira 'completed' e o draft dela sai
+ * desta lista: o carimbo velho deixa de bater e o jogador volta pro OVR,
+ * que é a regra ("vale só no ano 1").
+ */
+function capTemporadasDeCalouro(PDO $pdo, string $liga): array
+{
+    static $cache = [];
+    $liga = strtoupper(trim($liga));
+    if (isset($cache[$liga])) return $cache[$liga];
+
+    $nums = [];
+    $temp = temporadaAtivaDaLiga($pdo, $liga);
+    if ($temp) $nums[] = (int)$temp['season_number'];
+
+    try {
+        $st = $pdo->prepare("SELECT DISTINCT se.season_number
+                               FROM draft_sessions ds
+                               JOIN seasons se ON se.id = ds.season_id
+                          LEFT JOIN sprints spr ON spr.id = se.sprint_id
+                              WHERE ds.league = ?
+                                AND ds.status IN ('setup','in_progress')
+                                AND (se.status IS NULL OR se.status <> 'completed')
+                                AND (spr.id IS NULL OR spr.status IS NULL OR spr.status = 'active')");
+        $st->execute([$liga]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $n) $nums[] = (int)$n;
+    } catch (Throwable $e) {
+        error_log('[capTemporadasDeCalouro] ' . $e->getMessage());
+    }
+
+    return $cache[$liga] = array_values(array_unique(array_filter($nums)));
 }
 
 /**
@@ -353,7 +409,7 @@ function capEhCalouroNaTemporadaAtual(array $player, ?int $temporadaAtual): bool
 /** Piso do contrato de lenda. Vale mais que a tabela por OVR até o 94 (que dá exatamente 40M). */
 const CAP_LENDA_MINIMO_MILLIONS = 40;
 
-function getPlayerBaseSalary(array $player, ?int $temporadaAtual = null): int
+function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = null): int
 {
     $ovr = (int)($player['ovr'] ?? 0);
 
@@ -515,6 +571,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $temporada = temporadaAtivaDaLiga($pdo, $league);
     $numTemporada = $temporada ? (int)$temporada['season_number'] : null;
     $flexLiberado = capFlexLiberado($pdo, $league, $numTemporada);
+    $temporadasCalouro = capTemporadasDeCalouro($pdo, (string)$league);
 
     $stmtPlayers = $pdo->prepare("
         SELECT id, name, team_id, ovr, age, seasons_in_league, drafted_by_team_id, drafted_season_number,
@@ -531,8 +588,12 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $payroll = 0;
     $roster = [];
     foreach ($players as $p) {
-        $baseSalary = getPlayerBaseSalary($p, $numTemporada);
-        $isRookieScale = capEhCalouroNaTemporadaAtual($p, $numTemporada);
+        // A rookie scale usa a LISTA de temporadas de estreia, não só a
+        // ativa: o carimbo do calouro vem da sessão de draft, que nem sempre
+        // é a mesma temporada. O $numTemporada segue valendo pro Cap Flex,
+        // que é outra pergunta.
+        $baseSalary = getPlayerBaseSalary($p, $temporadasCalouro);
+        $isRookieScale = capEhCalouroNaTemporadaAtual($p, $temporadasCalouro);
         $bonus = $awardBonuses[mb_strtolower(trim((string)$p['name']))] ?? 0;
         $flex = $flexLiberado ? getPlayerCapFlex($p) : 0;
 
