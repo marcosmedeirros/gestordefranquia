@@ -187,6 +187,30 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     }
     unset($team);
 
+    /*
+     * SÓ O SPRINT ATIVO.
+     *
+     * A liga recomeça a cada sprint, e pedido de badge de sprint encerrado é
+     * de outra era: o time pode nem existir mais, e o jogador quase nunca
+     * está no mesmo elenco. Sem este corte o card abria com pendências de
+     * meses atrás misturadas com as de hoje.
+     *
+     * O corte é por DATA porque `tapas_requests` não guarda sprint — o que
+     * existe é a data em que o sprint começou. Sem sprint ativo, não filtra:
+     * melhor mostrar tudo do que esconder o que está valendo.
+     */
+    $desdeSprint = null;
+    try {
+        $stSp = $pdo->prepare("SELECT start_date FROM sprints
+                                WHERE league = ? AND status = 'active'
+                             ORDER BY id DESC LIMIT 1");
+        $stSp->execute([$league]);
+        $desdeSprint = $stSp->fetchColumn() ?: null;
+    } catch (Throwable $e) { error_log('[tapas/sprint] ' . $e->getMessage()); }
+
+    $filtroSprint = $desdeSprint ? ' AND r.created_at >= ?' : '';
+    $paramsSprint = $desdeSprint ? [$desdeSprint] : [];
+
     $stmtReq = $pdo->prepare("
         SELECT r.*, t.city AS team_city, t.name AS team_name,
                u.name AS owner_name,
@@ -195,10 +219,10 @@ if ($method === 'GET' && $action === 'admin_get_all') {
         INNER JOIN teams t ON t.id = r.team_id
         LEFT JOIN users u ON u.id = t.user_id
         INNER JOIN players p ON p.id = r.player_id
-        WHERE r.league = ? AND r.status = 'pending'
+        WHERE r.league = ? AND r.status = 'pending'{$filtroSprint}
         ORDER BY r.created_at ASC
     ");
-    $stmtReq->execute([$league]);
+    $stmtReq->execute(array_merge([$league], $paramsSprint));
     $requests = $stmtReq->fetchAll(PDO::FETCH_ASSOC);
 
     $stmtTapped = $pdo->prepare("
@@ -206,10 +230,10 @@ if ($method === 'GET' && $action === 'admin_get_all') {
                p.position, p.ovr
         FROM tapas_requests r
         LEFT JOIN players p ON p.id = r.player_id
-        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'tapa'
+        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'tapa'{$filtroSprint}
         ORDER BY r.team_id, r.processed_at DESC
     ");
-    $stmtTapped->execute([$league]);
+    $stmtTapped->execute(array_merge([$league], $paramsSprint));
     $tappedByTeam = [];
     foreach ($stmtTapped->fetchAll(PDO::FETCH_ASSOC) as $tp) {
         $tappedByTeam[(int)$tp['team_id']][] = $tp;
@@ -226,10 +250,10 @@ if ($method === 'GET' && $action === 'admin_get_all') {
         FROM tapas_requests r
         INNER JOIN teams t ON t.id = r.team_id
         LEFT JOIN players p ON p.id = r.player_id
-        WHERE r.league = ? AND r.status = 'approved'
+        WHERE r.league = ? AND r.status = 'approved'{$filtroSprint}
         ORDER BY r.processed_at DESC
     ");
-    $stmtHistory->execute([$league]);
+    $stmtHistory->execute(array_merge([$league], $paramsSprint));
     $history = $stmtHistory->fetchAll(PDO::FETCH_ASSOC);
 
     out(['success' => true, 'teams' => $teams, 'requests' => $requests, 'history' => $history]);
