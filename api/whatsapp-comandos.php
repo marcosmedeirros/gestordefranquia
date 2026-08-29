@@ -2636,14 +2636,6 @@ function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
     return $out;
 }
 
-/** Sigla de três letras pro time. Sai do mascote, que é a parte curta. */
-function wcSigla(array $t): string
-{
-    $base = trim((string)($t['mascot'] ?? '')) ?: trim((string)($t['name'] ?? ''));
-    $letras = preg_replace('/[^A-Za-zÀ-ÿ]/u', '', $base);
-    return mb_strtoupper(mb_substr($letras, 0, 3)) ?: '???';
-}
-
 /** "LeBron James" vira "L. James". Nome de uma palavra só fica inteiro. */
 function wcNomeCurto(string $nome): string
 {
@@ -2652,20 +2644,6 @@ function wcNomeCurto(string $nome): string
     return mb_strtoupper(mb_substr($p[0], 0, 1)) . '. ' . end($p);
 }
 
-/**
- * O placar que o palpite arrisca.
- *
- * A diferença de força vira diferença de pontos, e o resto é uma partida de
- * basquete comum. Sem sorteio: o mesmo confronto tem que dar sempre o mesmo
- * placar, senão a mesma pergunta feita duas vezes no grupo se contradiz.
- */
-function wcPlacarPrevisto(float $distancia, bool $aFavorito): array
-{
-    $margem = max(1, min(26, (int)round($distancia * 0.45)));
-    $maior = 110 + intdiv($margem + 1, 2);
-    $menor = 110 - intdiv($margem, 2);
-    return $aFavorito ? [$maior, $menor] : [$menor, $maior];
-}
 /**
  * Força do time pela mesma conta do power ranking do Mundo FBA: média e teto
  * de OVR do quinteto, com bônus de juventude e castigo de idade.
@@ -2742,12 +2720,6 @@ function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $du
         || ($fA === $fB && (int)$duelo['a'] >= (int)$duelo['b']);
 
     $favorito = $aFavorito ? $nomeA : $nomeB;
-    $azarao   = $aFavorito ? $nomeB : $nomeA;
-
-    // Retrospecto do ponto de vista do favorito.
-    $vitFav = $aFavorito ? (int)$duelo['a'] : (int)$duelo['b'];
-    $vitAza = $aFavorito ? (int)$duelo['b'] : (int)$duelo['a'];
-    $temHistorico = ($vitFav + $vitAza) > 0;
 
     if ($margem < 2.5) {
         $veredito = "Dá pra jogar cara ou coroa, mas eu fico com o *{$favorito}*";
@@ -2759,31 +2731,18 @@ function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $du
         $veredito = "*{$favorito}* ganha sem sustos";
     }
 
-    // Placar sempre na ordem A x B, igual ao cabeçalho da mensagem: com
-    // "moeda no ar" não existe favorito nomeado, e favorito-primeiro deixaria
-    // o leitor sem saber de quem é cada número.
-    [$ptsA, $ptsB] = wcPlacarPrevisto($margem, $aFavorito);
-    $linhas = [$veredito . " _({$ptsA} x {$ptsB})_."];
-
-    if (!$temHistorico) {
-        // Sem retrospecto sobra o que passou entre eles fora de quadra —
-        // melhor que encerrar com "não sei".
-        $linhas[] = $h['trocas']
-            ? 'Nunca se cruzaram no mata-mata, mas já negociaram: tem conhecido dos dois lados.'
-            : 'Nunca se cruzaram no mata-mata nem trocaram nada. Papel em branco.';
-    } elseif ($vitAza > $vitFav) {
-        $linhas[] = $margem < 6
-            ? "E o retrospecto é do *{$azarao}*: {$vitAza}-{$vitFav} em séries. Num jogo desses, a memória vale ponto."
-            : "Só que quem passa é o *{$azarao}*: {$vitAza}-{$vitFav} em séries. Favoritismo no papel nunca ganhou série.";
-    } elseif ($vitFav > $vitAza) {
-        $linhas[] = ($vitAza === 0 && $vitFav >= 2)
-            ? "E tem paternidade: {$vitFav}-0 em séries. Isso pesa antes da bola subir."
-            : "E o retrospecto ajuda: {$vitFav}-{$vitAza} em séries.";
-    } else {
-        $linhas[] = "Retrospecto empatado em {$vitFav}-{$vitAza}. Não ajuda ninguém.";
-    }
-
-    return "\n🔮 *Palpite*\n" . implode("\n", $linhas);
+    /*
+     * SÓ O PALPITE.
+     *
+     * Saíram daqui o placar previsto e o parágrafo de retrospecto. O placar
+     * dava ares de previsão ao que é chute, e o retrospecto já está na
+     * mensagem, em "Já se enfrentaram no playoff" — repetir em prosa era
+     * dizer duas vezes a mesma coisa, uma delas mais comprida.
+     *
+     * O veredito continua carregando a margem: "sem sustos" e "cara ou
+     * coroa" dizem o quanto é apertado sem precisar de número.
+     */
+    return "\n🔮 *Palpite*\n" . $veredito . '.';
 }
 
 function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
@@ -2818,7 +2777,16 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     $txt .= "\n🏆 *Na edição atual*\n"
           . $linha('Títulos', $tA['titulos'], $tB['titulos'], $marca($tA['titulos'], $tB['titulos']), $marca($tB['titulos'], $tA['titulos']))
           . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
-          . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi');
+          . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi')
+          /*
+           * SÓ O TOTAL DE NEGOCIAÇÕES.
+           *
+           * Antes havia um bloco inteiro pra isso, com a data da última troca
+           * e três nomes de cada lado. Num grupo de WhatsApp aquilo era meia
+           * tela pra dizer o que cabe num número — e a última troca não é o
+           * que se pergunta: o que se pergunta é se os dois se falam.
+           */
+          . 'Negociações entre eles: ' . count($h['trocas']) . "\n";
 
     // ── Mano a mano: vaga por vaga do quinteto ──────────────────────────
     //
@@ -2884,38 +2852,9 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
         if (count($duelo['series']) > 6) $txt .= '_+' . (count($duelo['series']) - 6) . " séries antigas_\n";
     }
 
-    // ── O núcleo: o que houve entre os dois ──────────────────────────────
-    $txt .= "\n🔁 *Negócios entre eles*\n";
-    if (!$h['trocas']) {
-        $txt .= "_Nunca trocaram nada._\n";
-    } else {
-        $n = count($h['trocas']);
-        $txt .= $n . ' troca' . ($n === 1 ? '' : 's') . " fechada" . ($n === 1 ? '' : 's');
-        if (!empty($h['trocas'][0]['updated_at'])) {
-            $txt .= ' · última em ' . date('d/m/Y', strtotime((string)$h['trocas'][0]['updated_at']));
-        }
-        $txt .= "\n";
-
-        // Três nomes por lado. Quem foi trocado em peso já está no topo da
-        // lista, e mais que isso vira parede de texto no grupo.
-        $lado = function (array $jogadores, int $picks): string {
-            $partes = [];
-            foreach (array_slice($jogadores, 0, 3) as $j) {
-                $partes[] = wcNomeCurto($j['nome'])
-                          . ($j['ovr'] ? ' ' . $j['ovr'] : '')
-                          . ($j['idade'] ? '|' . $j['idade'] . 'y' : '');
-            }
-            $resto = count($jogadores) - min(3, count($jogadores));
-            // "mais 2" e nao "+2": as partes ja sao unidas por " + ",
-            // e o resultado saia "+ +2".
-            if ($resto > 0) $partes[] = "mais {$resto}";
-            if ($picks > 0)  $partes[] = $picks . ' pick' . ($picks === 1 ? '' : 's');
-            return $partes ? implode(' + ', $partes) : 'nada';
-        };
-
-        $txt .= wcSigla($a) . ' -> ' . $lado($h['foram'], (int)$h['picks_foram'])
-              . '  |  ' . wcSigla($b) . ' -> ' . $lado($h['vieram'], (int)$h['picks_vieram']) . "\n";
-    }
+    /* O bloco "Negócios entre eles" virou UMA LINHA lá em cima, em "Na
+       edição atual". A contagem responde a pergunta; a lista de quem foi e
+       quem veio era detalhe de outra conversa. */
 
     if ($h['picks_a_com_b'] || $h['picks_b_com_a']) {
         $txt .= "\n🎯 *Picks na mão do outro*\n";
