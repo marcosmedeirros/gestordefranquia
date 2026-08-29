@@ -9,16 +9,25 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch();
+/*
+ * O TIME DA TELA, não o time do usuário.
+ *
+ * Buscar por `user_id` direto ignorava o modo observador: quem observava a
+ * NEXT abria o draft e via o da própria liga — ou tela vazia, quando o
+ * observador nem tem time naquela liga. timeDaTela() é quem sabe disso, e
+ * devolve o time do próprio usuário quando o modo está desligado.
+ */
+require_once __DIR__ . '/backend/observador.php';
+$team = timeDaTela($pdo, (int)$user['id']);
 
 if (!$team) {
     header('Location: /onboarding.php');
     exit;
 }
 
-$userLeague = $team['league'];
+// A liga também sai da tela, não do cadastro — senão o draft carregado seria
+// o da liga do usuário mesmo com o observador apontando pra outra.
+$userLeague = ligaAtualDoUsuario($pdo, $user) ?: $team['league'];
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $currentSeason = null;
