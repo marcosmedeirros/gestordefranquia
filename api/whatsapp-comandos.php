@@ -397,6 +397,9 @@ function wcAjuda(): string
         // quem lê esta lista.
         . "/jogosemana — o jogo da semana e o lance pra tomar a vaga\n"
         . "/loteria — quem entra na loteria do draft e a chance de cada grupo\n"
+        // Ao lado da loteria porque é a pergunta seguinte: sorteada a ordem,
+        // o que se quer saber é de quem é a vez e quem já saiu.
+        . "/draft — a ordem do draft e as escolhas (use */draft 2* pra 2ª rodada)\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
@@ -3199,6 +3202,27 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 $lg = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
                 if (!$lg) $lg = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
                 return loteriaTexto($pdo, $lg);
+
+            /* A ordem do draft e o que já saiu. Aceita liga e rodada em
+               qualquer ordem — "/draft elite 2" e "/draft 2 elite" são a
+               mesma pergunta, e no grupo ninguém lembra da sintaxe. Sem
+               liga, vale a do grupo. */
+            case 'draft':
+                require_once __DIR__ . '/../backend/draft_bot.php';
+                $lgD = null; $rdD = null; $sobrouD = [];
+                foreach (preg_split('/\s+/u', trim($arg), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $pedaco) {
+                    if (ctype_digit($pedaco)) { $rdD = (int)$pedaco; continue; }
+                    if ($n = wcNormalizarLiga($pedaco)) { $lgD = $n; continue; }
+                    $sobrouD[] = $pedaco;   // não é liga nem rodada
+                }
+                /* Palavra que não é liga vira aviso, e não a liga do grupo:
+                   "/draft rize" respondendo a ELITE em silêncio faz a pessoa
+                   ler a tabela errada achando que leu a certa. */
+                if (!$lgD && $sobrouD) {
+                    return 'Não conheço a liga *' . $sobrouD[0] . "*. Use ELITE, NEXT, RISE ou ROOKIE — ou só */draft* pra ver a do grupo.";
+                }
+                if (!$lgD) $lgD = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+                return draftBotTexto($pdo, $lgD, $rdD);
 
             case 'jogosemana':
             case 'jogodasemana':
