@@ -77,30 +77,40 @@ function waiverColExists(PDO $pdo, string $table, string $col): bool
 }
 
 /** Coloca o jogador dispensado no waiver por 12h. $p = linha completa de players. Retorna o id. */
-function enterWaiver(PDO $pdo, array $p, string $league): int
+/**
+ * @param int|null $horas Janela de lances. O padrão é WAIVER_HOURS (dispensa
+ *                        normal); a sobra do draft entra com 24 — ver
+ *                        draftSobrasParaWaiver() em backend/draft_fa.php.
+ */
+function enterWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): int
 {
     ensureWaiverTables($pdo);
+    $horas = ($horas !== null && $horas > 0) ? $horas : WAIVER_HOURS;
     $stmt = $pdo->prepare("INSERT INTO waiver_retention
         (player_id, team_id, league, name, age, position, secondary_position, ovr, seasons_in_league,
          drafted_by_team_id, draft_round, draft_pick_position, role, expires_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL " . WAIVER_HOURS . " HOUR))");
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR))");
     $stmt->execute([
         $p['id'] ?? null, (int)$p['team_id'], $league, $p['name'], $p['age'] ?? null,
         $p['position'] ?? null, $p['secondary_position'] ?? null, (int)($p['ovr'] ?? 0),
         (int)($p['seasons_in_league'] ?? 0), $p['drafted_by_team_id'] ?? null,
         $p['draft_round'] ?? null, $p['draft_pick_position'] ?? null, $p['role'] ?? 'Titular',
+        $horas,
     ]);
     $id = (int)$pdo->lastInsertId();
-    notificarEntradaNoWaiver($pdo, $p, $league);
+    notificarEntradaNoWaiver($pdo, $p, $league, $horas);
     return $id;
 }
 
 /** Avisa a liga que abriu um waiver — menos o time que dispensou. */
-function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league): void
+function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): void
 {
     try {
+        $horas = ($horas !== null && $horas > 0) ? $horas : WAIVER_HOURS;
+        // Calouro não escolhido não vem de time nenhum (team_id 0): não há
+        // dono antigo pra tirar da notificação, e a liga inteira é avisada.
         $st = $pdo->prepare("SELECT user_id FROM teams WHERE id = ? LIMIT 1");
-        $st->execute([(int)$p['team_id']]);
+        $st->execute([(int)($p['team_id'] ?? 0)]);
         $donoAntigo = (int)($st->fetchColumn() ?: 0);
 
         $ovr  = (int)($p['ovr'] ?? 0);
@@ -109,11 +119,11 @@ function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league): void
 
         sendPushToLeague($pdo, $league, [
             'title' => '⏳ Jogador no Waiver',
-            'body'  => trim($p['name'] . ($ficha !== '' ? " ({$ficha})" : '')) . ' está disponível por ' . WAIVER_HOURS . 'h. Dê seu lance!',
+            'body'  => trim($p['name'] . ($ficha !== '' ? " ({$ficha})" : '')) . ' está disponível por ' . $horas . 'h. Dê seu lance!',
             'url'   => '/free-agency.php',
         ], 'waiver', $donoAntigo ? [$donoAntigo] : []);
 
-        anunciarWaiverNoGrupo($pdo, $p, $league, $ficha);
+        anunciarWaiverNoGrupo($pdo, $p, $league, $ficha, $horas);
     } catch (Throwable $e) {
         error_log('notificarEntradaNoWaiver: ' . $e->getMessage());
     }
@@ -131,7 +141,7 @@ function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league): void
  * Falha em silêncio de propósito: aviso no grupo é conforto, e uma exceção
  * aqui não pode desfazer a dispensa, que já aconteceu.
  */
-function anunciarWaiverNoGrupo(PDO $pdo, array $p, string $league, string $ficha = ''): void
+function anunciarWaiverNoGrupo(PDO $pdo, array $p, string $league, string $ficha = '', ?int $horas = null): void
 {
     try {
         require_once __DIR__ . '/whatsapp.php';
@@ -148,10 +158,14 @@ function anunciarWaiverNoGrupo(PDO $pdo, array $p, string $league, string $ficha
         $st->execute([(int)($p['team_id'] ?? 0)]);
         $time = trim((string)($st->fetchColumn() ?: ''));
 
+        $horas = ($horas !== null && $horas > 0) ? $horas : WAIVER_HOURS;
         $ate = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))
-                 ->modify('+' . WAIVER_HOURS . ' hours');
+                 ->modify('+' . $horas . ' hours');
 
-        $txt = whatsappTagDaLiga($league) . " 📤 *DISPENSADO*\n\n"
+        // Sem time de origem é calouro que sobrou do draft, não dispensa.
+        $ehCalouro = (int)($p['team_id'] ?? 0) <= 0;
+
+        $txt = whatsappTagDaLiga($league) . ($ehCalouro ? " 🎓 *NÃO ESCOLHIDO NO DRAFT*\n\n" : " 📤 *DISPENSADO*\n\n")
              . '*' . trim((string)$p['name']) . '*' . ($ficha !== '' ? " ({$ficha})" : '') . "\n"
              . ($time !== '' ? "Dispensado pelo {$time}\n" : '')
              . "\nNo waiver até " . $ate->format('d/m H:i') . ' — depois disso vai pro free agency.';

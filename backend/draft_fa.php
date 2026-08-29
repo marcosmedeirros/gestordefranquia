@@ -7,9 +7,13 @@
  * fecha. Sessenta jogadores por classe desapareciam da liga sem nunca terem
  * chance de assinar com alguém.
  *
- * Agora eles caem na Free Agency — a de moedas, onde qualquer time pode dar
- * lance —, que é o mesmo destino de quem passa pelo waiver sem receber
- * proposta.
+ * Agora eles seguem o mesmo caminho de quem é dispensado: 24 horas nas
+ * DISPENSAS aceitando lance e, se ninguém quiser, free agency. Não é um
+ * destino novo — é a mesma esteira, entrando pela porta de cima.
+ *
+ * draftSobrasParaFreeAgency() continua aqui porque manda direto pra free
+ * agency, sem passar pelo waiver: é o que o admin usa pra reenviar sobra de
+ * draft antigo, quando a janela de lance já não faz sentido.
  */
 
 /** A coluna de overall muda de nome entre bases; descobre qual existe. */
@@ -147,9 +151,82 @@ function draftSobrasParaFreeAgency(PDO $pdo, int $draftSessionId): array
  * última vaga preenchida, botão do admin, e os dois automáticos) não precisem
  * lembrar da segunda metade. Antes cada um só fazia o UPDATE.
  */
+/** Quanto tempo a sobra do draft fica aceitando lance antes de virar free agent. */
+const DRAFT_SOBRA_WAIVER_HORAS = 24;
+
+/**
+ * A sobra do draft passa pelas DISPENSAS antes da free agency.
+ *
+ * Antes ela caía direto na free agency. O caminho certo é o mesmo do jogador
+ * dispensado: 24 horas no waiver, onde a liga dá lance e o maior espaço de
+ * cap leva; quem ninguém quiser, aí sim vira free agent — e isso já acontece
+ * sozinho, porque resolveExpiredWaivers() manda pra free agency todo waiver
+ * que vence sem lance. Não precisou de rota nova: só entrar pela porta certa.
+ *
+ * `team_id = 0` porque calouro não vem de time nenhum. É o mesmo que a free
+ * agency já fazia com `original_team_*` nulo, e é por ele que a tela sabe não
+ * escrever "dispensado por".
+ *
+ * Idempotente pela marca `draft_pool.waiver_id`, igual a `fa_id` fazia: rodar
+ * duas vezes não duplica ninguém.
+ */
+function draftSobrasParaWaiver(PDO $pdo, int $draftSessionId): array
+{
+    $saida = ['enviados' => 0, 'ja_estavam' => 0, 'liga' => ''];
+
+    try {
+        require_once __DIR__ . '/waivers.php';
+
+        $st = $pdo->prepare('SELECT league, season_id FROM draft_sessions WHERE id = ?');
+        $st->execute([$draftSessionId]);
+        $sessao = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sessao) return $saida;
+
+        $liga = (string)$sessao['league'];
+        $seasonId = (int)$sessao['season_id'];
+        $saida['liga'] = $liga;
+        if ($liga === '' || $seasonId <= 0) return $saida;
+
+        if (!draftFaTemColuna($pdo, 'draft_pool', 'waiver_id')) {
+            try { $pdo->exec('ALTER TABLE draft_pool ADD COLUMN waiver_id INT NULL'); } catch (Throwable $e) { /* corrida */ }
+        }
+
+        $st = $pdo->prepare("SELECT id, name, age, position, secondary_position, ovr
+                               FROM draft_pool
+                              WHERE season_id = ? AND draft_status = 'available'
+                                AND (waiver_id IS NULL)");
+        $st->execute([$seasonId]);
+        $sobras = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$sobras) return $saida;
+
+        $marcar = $pdo->prepare('UPDATE draft_pool SET waiver_id = ? WHERE id = ?');
+        foreach ($sobras as $j) {
+            $wid = enterWaiver($pdo, [
+                'id'                 => null,   // não existe em `players`: nunca teve time
+                'team_id'            => 0,
+                'name'               => (string)$j['name'],
+                'age'                => (int)$j['age'],
+                'position'           => (string)$j['position'],
+                'secondary_position' => $j['secondary_position'] ?: null,
+                'ovr'                => (int)$j['ovr'],
+                'seasons_in_league'  => 0,
+                'role'               => 'Banco',
+            ], $liga, DRAFT_SOBRA_WAIVER_HORAS);
+            $marcar->execute([$wid, (int)$j['id']]);
+            $saida['enviados']++;
+        }
+    } catch (Throwable $e) {
+        // Nunca derruba o encerramento do draft — a sobra pode ser reenviada
+        // depois, que a função é idempotente.
+        error_log('[draftSobrasParaWaiver] ' . $e->getMessage());
+    }
+
+    return $saida;
+}
+
 function draftEncerrarSessao(PDO $pdo, int $draftSessionId): array
 {
     $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
         ->execute([$draftSessionId]);
-    return draftSobrasParaFreeAgency($pdo, $draftSessionId);
+    return draftSobrasParaWaiver($pdo, $draftSessionId);
 }
