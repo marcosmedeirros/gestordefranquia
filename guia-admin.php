@@ -437,7 +437,20 @@ html{scroll-behavior:smooth}
       <p>Tudo que você digitar fica guardado como <strong>rascunho</strong>, mesmo fechando a página. Dá para preencher aos poucos, conferir com calma e só então salvar.</p>
     </div>
 
-    <p>Os <strong>prêmios estendidos</strong> (All-NBA, All-Defense, FMVP) são gravados no card de Pontuação e valem <strong>só na ELITE</strong> — eles ajustam o CAP do jogador no ano seguinte.</p>
+    <h3><span class="h3-ico" style="background:rgba(245,158,11,.14);color:var(--amber)"><i class="bi bi-star-fill"></i></span> Prêmios estendidos <span class="selo selo-elite">Elite</span></h3>
+    <p>All-NBA e All-Defensive são da temporada regular e entram <strong>na etapa 1</strong>. O <strong>Finals MVP é de playoffs</strong> e por isso só aparece <strong>na etapa 2</strong> — se você o procurar na primeira, não vai achar. Nenhum deles é enfeite: todos <strong>somam no cap do jogador</strong> no ano seguinte.</p>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Prêmio</th><th>Vagas</th><th>Bônus no cap</th></tr></thead>
+        <tbody>
+          <tr><td>Finals MVP</td><td>1</td><td>+3M</td></tr>
+          <tr><td>All-NBA — 1º Time</td><td>5</td><td>+3M</td></tr>
+          <tr><td>All-NBA — 2º Time</td><td>5</td><td>+2M</td></tr>
+          <tr><td>All-NBA — 3º Time</td><td>5</td><td>+1M</td></tr>
+          <tr><td>All-Defensive — 1º Time</td><td>5</td><td>+2M</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     <h3><span class="h3-ico" style="background:rgba(6,182,212,.14);color:var(--cyan)"><i class="bi bi-bar-chart-steps"></i></span> Pontuação por Time</h3>
     <p>Card separado, para <strong>corrigir</strong> a pontuação de um time específico depois do fato. Não substitui o registro oficial — é conserto pontual.</p>
@@ -564,6 +577,23 @@ html{scroll-behavior:smooth}
         <div class="txt"><div class="nome">Dispensas</div><div class="desc">Os cortes de elenco da liga e os limites de cada time. Detalhes na <a href="#mercado">Parte 8</a>.</div></div></div>
     </div>
 
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como forçar uma troca</h4>
+    <p>Force Trade executa a troca sem passar pelo aceite dos dois lados. É atalho de correção — combine antes com os GMs.</p>
+    <ol class="passos">
+      <li><b>Abra o card Force Trade</b> (só admin geral).</li>
+      <li><b>Escolha os times participantes.</b> São dois ou mais.</li>
+      <li><b>Monte os itens da troca</b> pelo botão de adicionar: jogadores e picks, de cada lado.</li>
+      <li><b>Escreva a observação</b> dizendo por que a troca foi forçada. Ela fica no registro, e é o que explica o caso daqui a três meses.</li>
+      <li><b>Confirme.</b> A troca é executada na hora e gera histórico, diferente de editar elenco pela tela do time.</li>
+    </ol>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como abrir ou fechar o mercado</h4>
+    <ol class="passos">
+      <li><b>Vá nas configurações no topo da aba da liga</b> — elas ficam à vista de propósito, não escondidas atrás de um card.</li>
+      <li><b>Use os botões de Trades</b> (Ativas / Bloqueadas) e <b>Free Agency</b> (Ativa / Bloqueada).</li>
+      <li><b>Clique em Salvar.</b> Vale para a liga inteira <b>na hora</b> — avise antes de fechar.</li>
+    </ol>
+
     <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-trophy-fill"></i></span> Draft</h3>
     <div class="cards">
       <div class="card-a"><div class="ico" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="bi bi-trophy-fill"></i></div>
@@ -594,6 +624,32 @@ html{scroll-behavior:smooth}
       <figcaption><b>Punições</b>: cada uma com efeito, alcance e a temporada em que vale.</figcaption>
     </figure>
 
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como aplicar uma punição</h4>
+    <ol class="passos">
+      <li><b>Abra o card Punições</b> da liga.</li>
+      <li><b>Preencha os três campos:</b> <b>Motivo</b> (o que aconteceu, em texto), <b>Time</b> e <b>Consequência</b>.</li>
+      <li><b>Escolha a consequência</b> na lista. Cada uma tem efeito próprio no sistema:</li>
+    </ol>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Consequência</th><th>O que o sistema faz</th></tr></thead>
+        <tbody>
+          <tr><td>Aviso formal</td><td>Só registra. Não bloqueia nada.</td></tr>
+          <tr><td>Perda da pick 1ª rodada</td><td>Tira a escolha de 1ª rodada do time.</td></tr>
+          <tr><td>Perda de pick específica</td><td>Você aponta <strong>qual</strong> pick — a tela pede isso.</td></tr>
+          <tr><td>Trades bloqueadas por uma temporada</td><td>O time não negocia. Pede <strong>alcance</strong> (por quanto tempo).</td></tr>
+          <tr><td>Trades sem picks</td><td>Pode trocar jogadores, mas não picks. Pede alcance.</td></tr>
+          <tr><td>Sem poder usar FA na temporada</td><td>Bloqueia a Free Agency para o time. Pede alcance.</td></tr>
+          <tr><td>Rotação automática</td><td>A escalação passa a ser definida pelo sistema. Pede alcance.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Precisa de uma consequência que não está na lista? Dá para <strong>cadastrar uma nova</strong> pelo campo da própria tela. Se o nome não bater com nenhum efeito conhecido, ela entra como <strong>aviso formal</strong> — registra, mas não bloqueia nada. Escreva o nome exatamente como na tabela acima quando quiser o efeito real.</p>
+
+    <div class="nota">
+      <p>O <strong>FBA SERASA</strong> não precisa de você: avisos por trade parada há mais de 24 h são gerados <strong>sozinhos</strong>. Não lance na mão.</p>
+    </div>
+
     <h3><span class="h3-ico" style="background:rgba(20,184,166,.14);color:#14b8a6"><i class="bi bi-three-dots"></i></span> Outros</h3>
     <div class="cards">
       <div class="card-a"><div class="ico" style="background:rgba(20,184,166,.12);color:#14b8a6"><i class="bi bi-clipboard2-pulse"></i></div>
@@ -617,12 +673,33 @@ html{scroll-behavior:smooth}
     <h2><span class="parte">Parte 11</span>Dentro de um time</h2>
     <p class="sub">É aqui que se corrige o que está errado num elenco. Tudo o que muda dados de verdade passa por esta tela.</p>
 
+    <p>Para chegar aqui: <strong>aba da liga → clique no time</strong> na lista do fim da página. O breadcrumb do topo mostra onde você está, e <strong>Voltar</strong> sobe um nível.</p>
+
+    <h3><span class="h3-ico" style="background:rgba(148,163,184,.14);color:#94a3b8"><i class="bi bi-person-gear"></i></span> O que dá para fazer</h3>
     <ul>
       <li><strong>Editar o time</strong> — nome, cidade e dados da franquia.</li>
       <li><strong>Contador de trocas</strong> — corrige o número de trades usadas quando ele sai do lugar.</li>
-      <li><strong>Jogadores</strong> — adicionar, editar e remover. É por aqui que o admin marca a <a href="/guia.php#cap">LENDA</a> de qualquer time.</li>
-      <li><strong>Picks</strong> — adicionar, editar, remover e <strong>mover</strong> uma pick de um time para outro.</li>
+      <li><strong>Jogadores</strong> — adicionar, editar e remover.</li>
+      <li><strong>Picks</strong> — adicionar, editar, remover e <strong>mover</strong> de um time para outro.</li>
     </ul>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como corrigir um jogador</h4>
+    <ol class="passos">
+      <li><b>Abra o time</b> pela lista da aba da liga.</li>
+      <li><b>Ache o jogador</b> na lista do elenco e use <b>editar</b>.</li>
+      <li><b>Ajuste o que precisa</b> — OVR, posição, idade, função.</li>
+      <li>Para marcar a <b>LENDA</b> da franquia, é aqui também. Cada time tem <b>uma</b>, e ela passa a valer no mínimo 40M no cap (<a href="/guia.php#cap">regra no Guia do GM</a>).</li>
+    </ol>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como mover uma pick de time</h4>
+    <ol class="passos">
+      <li><b>Abra o time que tem a pick.</b></li>
+      <li><b>Na lista de picks, use mover</b> e escolha o time de destino.</li>
+      <li><b>Confira no Trade Machine</b> depois: a pick tem que aparecer no time novo, com o número certo.</li>
+    </ol>
+    <div class="nota amber">
+      <p>Mover pick por aqui <strong>não gera trade</strong>. Se a pick mudou de dono por causa de uma negociação de verdade, faça pelo <strong>Force Trade</strong> — ele deixa histórico, e é o histórico que responde "por que essa pick está com esse time?" seis meses depois.</p>
+    </div>
 
     <div class="nota amber">
       <p>Editar por aqui <strong>não gera trade nem registro de negociação</strong> — o dado simplesmente muda. Para uma troca de verdade entre dois times, use Trades (ou Force Trade), que deixa histórico.</p>
@@ -642,6 +719,41 @@ html{scroll-behavior:smooth}
     <h3><span class="h3-ico" style="background:rgba(148,163,184,.14);color:#94a3b8"><i class="bi bi-table"></i></span> A tabela de usuários</h3>
     <p>Filtrada pela liga selecionada nos botões do topo, com o total de times de cada uma. Cada linha traz <strong>Usuário</strong>, <strong>Time</strong>, <strong>Ligas Admin</strong> e <strong>Admin Geral</strong> — ou seja, é aqui que se concede e se tira acesso de administração.</p>
     <p>Nas ações de cada linha dá pra <strong>editar</strong> (nome e cidade do time, liga do usuário), <strong>remover o time</strong> ou <strong>remover o usuário</strong>.</p>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como dar ou tirar acesso de admin</h4>
+    <ol class="passos">
+      <li><b>Filtre pela liga</b> nos botões do topo e ache a pessoa na tabela.</li>
+      <li><b>Use as colunas Ligas Admin e Admin Geral</b> — é ali que o acesso é concedido e retirado.</li>
+      <li><b>Admin de liga</b> vale só para as ligas marcadas. <b>Admin geral</b> abre tudo, inclusive Force Trade e Site Admin.</li>
+    </ol>
+    <div class="nota">
+      <p>Quem vira <strong>admin geral</strong> sem nenhuma liga cadastrada recebe as quatro automaticamente no primeiro acesso. Não precisa marcar uma a uma.</p>
+    </div>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como entrar com um GM novo</h4>
+    <p>Há três caminhos, e cada um serve a uma situação:</p>
+    <ol class="passos">
+      <li><b>Adicionar GM</b> — cria a pessoa e o time direto, sem convite. Use quando já está tudo combinado.</li>
+      <li><b>Interessados</b> — a lista de quem pediu para entrar. O contador no card mostra quantos aguardam; daqui sai o convite para <b>alguém específico</b>.</li>
+      <li><b>Inscrição ROOKIE</b> — um link único que serve para várias pessoas. É o que se joga no grupo quando você quer abrir para quem chegar.</li>
+    </ol>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como atender um pedido da loja</h4>
+    <ol class="passos">
+      <li><b>Abra Pedidos da Loja.</b> Só aparece aqui o que precisa de gente — slot de waiver, G-League e leilão já foram aplicados sozinhos.</li>
+      <li><b>Badge:</b> o pedido diz o jogador e a badge. <b>Aprovar consome</b> a badge do GM; <b>recusar não tira nada</b> e ele pode pedir de novo.</li>
+      <li><b>City Edition:</b> o uniforme precisa ser produzido antes de marcar como atendido.</li>
+    </ol>
+
+    <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como mexer no Hall da Fama</h4>
+    <ol class="passos">
+      <li><b>Abra o card Hall da Fama.</b></li>
+      <li><b>Filtre por liga</b> ou <b>busque por GM ou time</b>.</li>
+      <li><b>Adicione o GM</b> (ativo ou inativo) e ajuste os títulos.</li>
+    </ol>
+    <div class="nota">
+      <p>Um mesmo GM pode ter <strong>linhas em ligas diferentes</strong>. Filtrando por liga você vê só a linha daquela liga — se parecer que sumiu, quase sempre é o filtro.</p>
+    </div>
 
     <h3><span class="h3-ico" style="background:rgba(148,163,184,.14);color:#94a3b8"><i class="bi bi-grid-1x2-fill"></i></span> Os cards</h3>
     <div class="cards">
