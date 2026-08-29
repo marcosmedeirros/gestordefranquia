@@ -382,21 +382,44 @@ function capTemporadasDeCalouro(PDO $pdo, string $liga): array
 
     $nums = [];
     $temp = temporadaAtivaDaLiga($pdo, $liga);
-    if ($temp) $nums[] = (int)$temp['season_number'];
+    $ativa = $temp ? (int)$temp['season_number'] : null;
+    if ($ativa) $nums[] = $ativa;
 
-    try {
-        $st = $pdo->prepare("SELECT DISTINCT se.season_number
-                               FROM draft_sessions ds
-                               JOIN seasons se ON se.id = ds.season_id
-                          LEFT JOIN sprints spr ON spr.id = se.sprint_id
-                              WHERE ds.league = ?
-                                AND ds.status IN ('setup','in_progress')
-                                AND (se.status IS NULL OR se.status <> 'completed')
-                                AND (spr.id IS NULL OR spr.status IS NULL OR spr.status = 'active')");
-        $st->execute([$liga]);
-        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $n) $nums[] = (int)$n;
-    } catch (Throwable $e) {
-        error_log('[capTemporadasDeCalouro] ' . $e->getMessage());
+    /*
+     * O DRAFT ACONTECE NO FIM DA TEMPORADA, E O CALOURO ESTREIA NA SEGUINTE.
+     *
+     * A sessão 74 da ELITE é da temporada 1 e carimbou 44 calouros com
+     * `drafted_season_number = 1` — mas quando ela fechou a liga já estava na
+     * temporada 2. A regra é "vale na PRIMEIRA temporada profissional dele",
+     * e essa é a 2, não a 1.
+     *
+     * Por isso o carimbo válido é o da temporada ativa OU o da anterior: um
+     * é a liga que draftou e jogou no mesmo ano, o outro é o draft de fim de
+     * ano que alimenta o ano seguinte. Os dois casos existem na base.
+     *
+     * A versão anterior exigia sessão 'setup'/'in_progress' e temporada não
+     * concluída. Só que os dois viram falso no instante em que o draft
+     * termina: os 44 calouros perdiam a rookie scale no mesmo minuto em que
+     * eram escolhidos — a escolha 10 caía de 12M pro salário por OVR.
+     *
+     * O sprint continua filtrando, e é ele que impede o zumbi: `season_number`
+     * se repete a cada sprint, então sem esse filtro um "1" de sprint antigo
+     * daria rookie scale a jogador de outra era.
+     */
+    if ($ativa) {
+        try {
+            $st = $pdo->prepare("SELECT DISTINCT se.season_number
+                                   FROM draft_sessions ds
+                                   JOIN seasons se ON se.id = ds.season_id
+                              LEFT JOIN sprints spr ON spr.id = se.sprint_id
+                                  WHERE ds.league = ?
+                                    AND se.season_number IN (?, ?)
+                                    AND (spr.id IS NULL OR spr.status IS NULL OR spr.status = 'active')");
+            $st->execute([$liga, $ativa, $ativa - 1]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $n) $nums[] = (int)$n;
+        } catch (Throwable $e) {
+            error_log('[capTemporadasDeCalouro] ' . $e->getMessage());
+        }
     }
 
     return $cache[$liga] = array_values(array_unique(array_filter($nums)));
