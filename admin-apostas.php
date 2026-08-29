@@ -679,8 +679,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             </div>
           </div>
           <div class="evt-actions">
+            <?php /* O JSON VAI ESCAPADO PRA HTML.
+                     Com json_encode cru, um apóstrofo no dado fechava o
+                     atributo onclick='...' no meio do objeto: o botão virava
+                     HTML quebrado e clicar nele não fazia nada. Aconteceu de
+                     verdade com uma opção chamada "Shaquile O'neal", que
+                     matou o Editar de três apostas de uma vez.
+                     JSON_HEX_APOS e companhia transformam ' " < > em \uXXXX,
+                     que o JS lê de volta igual e o HTML não interpreta. */ ?>
             <button class="btn-sm-icon edit" title="Editar"
-                    onclick='editarAposta(<?= json_encode($evt) ?>)'>
+                    onclick='editarAposta(<?= json_encode($evt, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>)'>
               <i class="bi bi-pencil-square"></i>
             </button>
             <div class="bets-pill">
