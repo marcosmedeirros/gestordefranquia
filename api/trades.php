@@ -280,9 +280,18 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
             // com troca de reserva.
             try {
                 require_once dirname(__DIR__) . '/backend/whatsapp.php';
+                // As picks passam pelo mesmo enrich dos cards antes de virar
+                // texto: sem isso elas chegam sem `draft_pick_number` e o
+                // rótulo cai no "R1 2026" mesmo com a ordem já sorteada.
+                $ligaTrade = (string)$trade['league'];
                 whatsappParaGrupoPrincipal(
                     $pdo,
-                    montarTextoTradeWhats($payload, $fromPlayers, $toPlayers, $fromPicks, $toPicks, (string)$trade['league']),
+                    montarTextoTradeWhats(
+                        $payload, $fromPlayers, $toPlayers,
+                        enrichPickListWithDraftContext($pdo, $fromPicks, $ligaTrade),
+                        enrichPickListWithDraftContext($pdo, $toPicks, $ligaTrade),
+                        $ligaTrade
+                    ),
                     'trade'
                 );
             } catch (\Throwable $e) {
@@ -359,7 +368,21 @@ function rotuloPickTradeWhats(array $pk, int $donoId = 0): string
 {
     $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
     $round = $pk['round'] ?? '?';
-    $rot   = 'R' . $round . ' ' . $ano;
+
+    /*
+     * PICK DO DRAFT QUE ESTÁ ROLANDO TEM NOME PRÓPRIO: "Escolha 18".
+     *
+     * "R1 2026" é como a pick se chama enquanto é uma aposta — ninguém sabe
+     * onde vai cair. Depois da loteria ela tem número, e é por ele que a liga
+     * fala dela. O grupo recebia "R1 2026" e tinha que abrir o site pra saber
+     * se aquilo era a escolha 1 ou a 30, que é a diferença entre a troca ser
+     * um assalto ou não.
+     *
+     * O número vem de applyDraftContextToPick(), o mesmo que os cards e a
+     * Trade Machine usam — a mensagem não recalcula nada por conta própria.
+     */
+    $numero = (int)($pk['draft_pick_number'] ?? 0);
+    $rot = $numero > 0 ? 'Escolha ' . $numero : 'R' . $round . ' ' . $ano;
 
     $origemId = (int)($pk['original_team_id'] ?? 0);
     $apelido  = trim((string)($pk['original_apelido'] ?? ''));
@@ -409,6 +432,30 @@ function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlay
         listaItensTradeWhats($toPlayers, $toPicks, '', $idTo),
         $rodape !== '' ? ['', $rodape] : []
     ));
+}
+
+/**
+ * Anota o número da escolha nas picks de uma multi-trade.
+ *
+ * O enrich trabalha sobre uma LISTA de picks, e aqui elas estão espalhadas
+ * uma por item. Então extrai, anota de uma vez — uma consulta, não uma por
+ * pick — e devolve pro lugar de onde saiu.
+ */
+function multiTradeItensComContextoDeDraft(PDO $pdo, array $itens, ?string $league): array
+{
+    $picks = [];
+    foreach ($itens as $i => $it) {
+        if (!empty($it['pick'])) $picks[$i] = $it['pick'];
+    }
+    if (!$picks) return $itens;
+
+    // array_values porque o enrich devolve na ordem que recebeu; as chaves
+    // originais voltam pelo array_combine logo abaixo.
+    $anotadas = enrichPickListWithDraftContext($pdo, array_values($picks), $league);
+    foreach (array_combine(array_keys($picks), $anotadas) as $i => $pk) {
+        $itens[$i]['pick'] = $pk;
+    }
+    return $itens;
 }
 
 /** Mesma coisa pra multi-trade: um bloco "envia" por time envolvido. */
@@ -713,7 +760,13 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 require_once dirname(__DIR__) . '/backend/whatsapp.php';
                 whatsappParaGrupoPrincipal(
                     $pdo,
-                    montarTextoMultiTradeWhats($payloadTeams, $payloadItems, (string)$trade['league']),
+                    // Mesmo enrich da trade de dois times: a pick precisa do
+                    // número da escolha antes de virar texto.
+                    montarTextoMultiTradeWhats(
+                        $payloadTeams,
+                        multiTradeItensComContextoDeDraft($pdo, $payloadItems, (string)$trade['league']),
+                        (string)$trade['league']
+                    ),
                     'trade'
                 );
             } catch (\Throwable $e) {
