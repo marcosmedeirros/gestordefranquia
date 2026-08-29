@@ -157,8 +157,18 @@ if ($action === 'roster') {
         try {
             $summary = getTeamCapSummary($pdo, $tid);
             $salById = [];
-            foreach ($summary['roster'] as $rp) { $salById[(int)$rp['id']] = (int)$rp['total_salary']; }
-            foreach ($players as &$pp) { $pp['salary'] = $salById[(int)$pp['id']] ?? 0; }
+            $rookieById = [];
+            foreach ($summary['roster'] as $rp) {
+                $salById[(int)$rp['id']] = (int)$rp['total_salary'];
+                $rookieById[(int)$rp['id']] = !empty($rp['is_rookie_scale']);
+            }
+            foreach ($players as &$pp) {
+                $pp['salary'] = $salById[(int)$pp['id']] ?? 0;
+                // Calouro na temporada do draft: o salário dele é da rookie
+                // scale e vale SÓ este ano. Quem está negociando precisa saber
+                // — recebe um contrato de 18M que vira 48M na virada.
+                $pp['rookie_scale'] = $rookieById[(int)$pp['id']] ?? false;
+            }
             unset($pp);
             $salaryMode   = true;
             $cap          = (int)$summary['payroll'];
@@ -1169,9 +1179,9 @@ function renderPickerList() {
             <div class="picker-ovr">${p.ovr}</div>
             <div>
               <div class="picker-name">${escH(p.name)}</div>
-              <div class="picker-meta">${p.position} · ${p.age} anos · OVR ${p.ovr}</div>
+              <div class="picker-meta">${p.position} · ${p.age} anos · OVR ${p.ovr}${p.rookie_scale ? ' · <span style="color:var(--amber);font-weight:700">calouro</span>' : ''}</div>
             </div>
-            ${sal ? `<div class="picker-sal" title="Peso deste jogador na folha">${sal}</div>` : ''}
+            ${sal ? `<div class="picker-sal" title="${p.rookie_scale ? 'Rookie scale: vale só nesta temporada. Na próxima ele passa a custar pela tabela de OVR.' : 'Peso deste jogador na folha'}">${sal}</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`; }).join('')
       : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores disponíveis</div>';
