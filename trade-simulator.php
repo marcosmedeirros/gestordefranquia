@@ -713,6 +713,9 @@ const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 let CONTRA_TRADE = null;
 // A troca que esta proposta MODIFICA, quando vier do botão Modificar.
 let MODIFICAR = null;
+// A troca do histórico que está sendo REFEITA. Só marca a origem: a proposta
+// sai como nova, porque a antiga já foi recusada ou cancelada.
+let REFAZER = null;
 
 // Pré-seleção vinda de fora (o modal de trades não existe mais na ELITE):
 // "Propor trade por este jogador" (players.php/mercado.php) manda team_id+
@@ -785,18 +788,27 @@ async function boot() {
   const par = new URLSearchParams(window.location.search);
   CONTRA_TRADE = parseInt(par.get('contraproposta') || '0', 10) || null;
   MODIFICAR    = parseInt(par.get('modificar')      || '0', 10) || null;
+  /*
+   * REFAZER vem do histórico: uma proposta recusada ou cancelada volta pra
+   * mesa do jeito que estava. Diferente de MODIFICAR, não há nada pra
+   * cancelar ao enviar — a original já morreu. Por isso é uma variável
+   * própria e não um MODIFICAR disfarçado.
+   */
+  REFAZER = parseInt(par.get('refazer') || '0', 10) || null;
 
-  if (CONTRA_TRADE || MODIFICAR) {
-    const id = CONTRA_TRADE || MODIFICAR;
+  if (CONTRA_TRADE || MODIFICAR || REFAZER) {
+    const id = CONTRA_TRADE || MODIFICAR || REFAZER;
     const aviso = document.createElement('div');
     aviso.className = 'contra-aviso';
     aviso.innerHTML = CONTRA_TRADE
       ? `<i class="bi bi-arrow-left-right"></i> Contraproposta à troca <b>#${id}</b> — ao enviar, a original é cancelada.`
-      : `<i class="bi bi-pencil-square"></i> Modificando a troca <b>#${id}</b> — ao enviar, a anterior é cancelada.`;
+      : MODIFICAR
+      ? `<i class="bi bi-pencil-square"></i> Modificando a troca <b>#${id}</b> — ao enviar, a anterior é cancelada.`
+      : `<i class="bi bi-arrow-clockwise"></i> Refazendo a troca <b>#${id}</b>, que não foi adiante. Ajuste o que quiser antes de enviar.`;
     const bar = document.getElementById('capBar');
     if (bar && bar.parentNode) bar.parentNode.insertBefore(aviso, bar);
-    // Contraproposta INVERTE os lados (é resposta); modificar NÃO (a proposta
-    // é sua, você só está mexendo nela).
+    // Contraproposta INVERTE os lados (é resposta); modificar e refazer NÃO
+    // (a proposta é sua, você só está mexendo nela).
     await preencherDaTroca(id, !!CONTRA_TRADE);
   }
 }
@@ -824,7 +836,11 @@ async function preencherDaTroca(tradeId, inverter) {
     // pra caso o mesmo botão seja reaproveitado noutra tela.
     // Contraproposta responde algo RECEBIDO; modificar mexe em algo
     // ENVIADO. Procurar nos dois cobre os dois casos.
-    for (const tipo of (inverter ? ['received', 'sent'] : ['sent', 'received'])) {
+    // 'history' entra na busca por causa do Refazer: proposta recusada ou
+    // cancelada não está mais em sent/received, que só listam pendentes.
+    const ondeProcurar = inverter ? ['received', 'sent', 'history']
+                                  : ['sent', 'received', 'history'];
+    for (const tipo of ondeProcurar) {
       const r = await fetch(`/api/trades.php?type=${tipo}`);
       const d = await r.json();
       orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));

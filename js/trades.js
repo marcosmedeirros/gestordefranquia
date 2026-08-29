@@ -2216,9 +2216,39 @@ function createTradeCard(trade, type) {
         </button>
       </div>
     ` : ''}
+
+    ${/* REFAZER: só no histórico, e só no que morreu sem acontecer.
+          Quando alguma peça já mudou de time o botão fica apagado com o
+          motivo — some-lo deixaria a pergunta "por que essa não tem?" sem
+          resposta, e a resposta é justamente o que a pessoa precisa saber. */
+      type === 'history' && trade.status !== 'accepted' ? `
+      <div class="tc-actions">
+        ${trade.pode_refazer
+          ? `<button class="btn-r secondary sm" onclick="refazerTrade(${trade.id}, ${Number(trade.from_team_id) === Number(myTeamId) ? Number(trade.to_team_id) : Number(trade.from_team_id)})">
+               <i class="bi bi-arrow-clockwise"></i>Refazer
+             </button>`
+          : `<button class="btn-r secondary sm" disabled
+                     title="${esc(trade.refazer_motivo || 'O elenco mudou desde esta proposta.')}"
+                     style="opacity:.45;cursor:not-allowed">
+               <i class="bi bi-arrow-clockwise"></i>Refazer
+             </button>
+             <span style="font-size:11.5px;color:var(--text-3);align-self:center">
+               ${esc(trade.refazer_motivo || 'O elenco mudou desde esta proposta.')}
+             </span>`}
+      </div>
+    ` : ''}
   `;
 
   return card;
+}
+
+/* Leva a proposta morta pro Trade Machine, montada do jeito que estava.
+   O outro time vai junto na URL: o simulador precisa dele carregado no
+   segundo slot antes de conseguir remontar os itens. */
+function refazerTrade(tradeId, outroTimeId) {
+  const q = new URLSearchParams({ refazer: Number(tradeId) });
+  if (outroTimeId) q.set('team_id', Number(outroTimeId));
+  window.location.href = '/trade-simulator.php?' + q.toString();
 }
 
 async function respondTrade(tradeId, action) {

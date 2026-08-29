@@ -1685,6 +1685,65 @@ function getSeasonDisplayYearById(PDO $pdo, int $seasonId): ?int
  *
  * Devolve quantas foram canceladas.
  */
+/**
+ * Esta troca do histórico ainda pode ser remontada no Trade Machine?
+ *
+ * "Refazer" só faz sentido enquanto as peças estiverem onde estavam. Se um
+ * jogador da proposta já mudou de time, a troca não é mais aquela troca —
+ * remontar traria uma versão pela metade, sem ninguém avisar, porque o
+ * simulador simplesmente ignora item que não acha no elenco.
+ *
+ * A regra vale pros DOIS lados e pras picks também: pick negociada depois
+ * some do lado de quem a oferecia igual a um jogador.
+ *
+ * @return array{0:bool,1:?string} [pode, motivo de não poder]
+ */
+function tradePodeSerRefeita(PDO $pdo, array $trade): array
+{
+    // Troca aceita não se refaz: ela já aconteceu. O botão é pra recusada,
+    // cancelada e contraproposta — o que morreu sem acontecer.
+    if (($trade['status'] ?? '') === 'accepted') return [false, 'Esta troca foi aceita.'];
+
+    $de   = (int)$trade['from_team_id'];
+    $para = (int)$trade['to_team_id'];
+
+    try {
+        $stJog  = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
+        $stPick = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
+
+        // Cada lado tem que continuar dono do que oferecia.
+        $lados = [
+            ['offer_players',  'offer_picks',   $de],
+            ['request_players','request_picks', $para],
+        ];
+        foreach ($lados as [$chaveJog, $chavePick, $dono]) {
+            foreach (($trade[$chaveJog] ?? []) as $j) {
+                $id = (int)($j['id'] ?? 0);
+                if ($id <= 0) return [false, 'Um dos jogadores não existe mais.'];
+                $stJog->execute([$id]);
+                $atual = $stJog->fetch(PDO::FETCH_ASSOC);
+                if (!$atual) return [false, trim((string)($j['name'] ?? 'Um jogador')) . ' não está mais na liga.'];
+                if ((int)$atual['team_id'] !== $dono) {
+                    return [false, trim((string)$atual['name']) . ' mudou de time desde então.'];
+                }
+            }
+            foreach (($trade[$chavePick] ?? []) as $pk) {
+                $id = (int)($pk['id'] ?? 0);
+                if ($id <= 0) continue;
+                $stPick->execute([$id]);
+                $t = $stPick->fetchColumn();
+                if ($t === false) return [false, 'Uma das picks não existe mais.'];
+                if ((int)$t !== $dono) return [false, 'Uma das picks mudou de time desde então.'];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[tradePodeSerRefeita] ' . $e->getMessage());
+        return [false, null];
+    }
+
+    return [true, null];
+}
+
 function cancelarTrocasImpossiveis(PDO $pdo, ?int $tradeIdIgnorar = null): int
 {
     try {
@@ -2122,8 +2181,14 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         } catch (PDOException $e) {
             error_log('Erro ao buscar picks pedidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
         }
+
+        // Dá pra remontar esta troca no Trade Machine? Só faz sentido no
+        // histórico, onde existe o botão de refazer.
+        if ($type === 'history') {
+            [$trade['pode_refazer'], $trade['refazer_motivo']] = tradePodeSerRefeita($pdo, $trade);
+        }
     }
-    
+
     echo json_encode(['success' => true, 'trades' => $trades]);
     exit;
 }
