@@ -426,16 +426,11 @@ if ($method === 'GET') {
                         if (isset($vistos[(int)$r['id']])) continue;
                         $vistos[(int)$r['id']] = true;
 
-                        // O que ele custa DE VERDADE: a tabela por OVR ou o
-                        // piso do draft inicial, o que for maior. Mostrar só a
-                        // tabela aqui faria esta lista discordar da folha do
-                        // time logo acima, na mesma tela.
+                        // O piso do Draft Inicial acabou (30/08/2026): estes
+                        // jogadores custam o que a tabela por OVR diz, como
+                        // todo mundo. `piso` fica 0 pra tela não marcar
+                        // ninguém como estando num piso que não existe mais.
                         $peloOvr = capOvrSalary((int)$r['ovr']);
-                        $pisoDele = capPisoDraftInicial([
-                            'initdraft_round' => (int)$r['round'],
-                            'ovr'             => (int)$r['ovr'],
-                            'age'             => $idade,
-                        ]);
 
                         $jovens[] = [
                             'name'      => $r['name'],
@@ -444,10 +439,8 @@ if ($method === 'GET') {
                             'pick'      => (int)$r['pick_position'],
                             'idade'     => (int)$r['idade'],
                             'ovr'       => (int)$r['ovr'],
-                            'salario'   => max($peloOvr, $pisoDele),
-                            // Pra tela poder dizer QUEM está no piso: sem isso,
-                            // um 76 aparecendo com 10M parece erro de tabela.
-                            'piso'      => $pisoDele > $peloOvr ? $pisoDele : 0,
+                            'salario'   => $peloOvr,
+                            'piso'      => 0,
                         ];
                     }
                 } catch (Throwable $e) {

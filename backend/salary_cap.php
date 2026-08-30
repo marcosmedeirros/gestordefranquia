@@ -206,114 +206,6 @@ function capRookieScaleValue(int $draftRound, ?int $draftPickPosition): int
 }
 
 /**
- * Piso de salário do jovem vindo do Draft Inicial.
- *
- * O draft inicial não tem rookie scale — ele distribuiu elencos, não calouros,
- * e por isso esses jogadores sempre pagaram pela tabela de OVR. Só que a
- * tabela cobra pouco de quem ainda está subindo: um 80 de 21 anos custa 5M, e
- * o time fica com um ativo valioso ocupando quase nada do teto.
- *
- * Este piso corrige isso pelas primeiras rodadas — quanto mais cedo o time
- * escolheu, mais o jovem pesa. É PISO, não preço: quem já custa mais que ele
- * pela tabela continua no valor da tabela. Um 88 de 22 anos vale 20M e segue
- * valendo 20M.
- *
- * A 2ª rodada tem degrau: 78–85 leva 16M, 76 e 77 levam 10M.
- *
- * O teto de 85 na primeira faixa não muda conta nenhuma — de 86 pra cima a
- * tabela por OVR já paga 16M ou mais, então o piso nunca ia pegar ali. Está
- * escrito assim porque foi assim que a regra foi definida, e um limite
- * explícito é melhor que um que existe por coincidência da tabela.
- *
- * A 4ª rodada é a única que vai até os 24 anos. Nas outras o corte é 23.
- */
-const CAP_PISO_DRAFT_INICIAL = [
-    ['rodadas' => [1, 2], 'ovr_min' => 78, 'ovr_max' => 85, 'idade_max' => 23, 'valor' => 16],
-    ['rodadas' => [2],    'ovr_min' => 76, 'ovr_max' => 77, 'idade_max' => 23, 'valor' => 10],
-    ['rodadas' => [3],    'ovr_min' => 76, 'ovr_max' => 99, 'idade_max' => 23, 'valor' => 10],
-    ['rodadas' => [4],    'ovr_min' => 76, 'ovr_max' => 99, 'idade_max' => 24, 'valor' => 6],
-];
-
-/**
- * Quanto o piso cobra deste jogador, ou 0 se ele não se encaixa em faixa
- * nenhuma.
- *
- * Depende de `initdraft_round`, que NÃO existe na tabela players — a migração
- * que tirou esses jogadores da rookie scale apagou as colunas de draft deles.
- * Quem preenche é capMarcarDraftInicial(), chamada em lote antes do cálculo.
- * Sem a marca, devolve 0: o pior caso é o comportamento de antes, não um
- * salário errado.
- */
-function capPisoDraftInicial(array $player): int
-{
-    $round = $player['initdraft_round'] ?? null;
-    $idade = $player['age'] ?? null;
-    if ($round === null || $idade === null) return 0;
-
-    $round = (int)$round;
-    $idade = (int)$idade;
-    $ovr   = (int)($player['ovr'] ?? 0);
-
-    $piso = 0;
-    foreach (CAP_PISO_DRAFT_INICIAL as $faixa) {
-        if (!in_array($round, $faixa['rodadas'], true)) continue;
-        if ($ovr < $faixa['ovr_min'] || $ovr > $faixa['ovr_max']) continue;
-        if ($idade > $faixa['idade_max']) continue;
-        $piso = max($piso, $faixa['valor']);
-    }
-    return $piso;
-}
-
-/**
- * Marca, em lote, de que rodada do Draft Inicial cada jogador veio.
- *
- * Em lote e não um a um porque isto roda pra elenco inteiro em toda tela de
- * cap — uma consulta por jogador seria quinze por time.
- *
- * O casamento é por NOME dentro da liga: é o que sobrou depois que a migração
- * limpou draft_round/draft_pick_position desses jogadores. Jogador renomeado
- * depois do draft escapa, e aí ele simplesmente não recebe o piso.
- */
-function capMarcarDraftInicial(PDO $pdo, array &$players, string $league): void
-{
-    foreach ($players as &$p) $p['initdraft_round'] = null;
-    unset($p);
-    if (!$players) return;
-
-    // Só ELITE. O salary cap inteiro é dela — nas outras ligas o teto é soma
-    // de OVR, e um piso em milhões ali não significaria nada. Sem esta linha,
-    // marcar a rodada numa liga de OVR seria trabalho jogado fora no melhor
-    // caso, e número errado se algum dia alguém ligasse o modo salary lá.
-    if (strtoupper(trim($league)) !== 'ELITE') return;
-
-    try {
-        $st = $pdo->prepare("
-            SELECT ip.name, MIN(io.round) AS round
-            FROM initdraft_order io
-            JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
-            JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
-            WHERE s.league = ? AND io.picked_player_id IS NOT NULL
-            GROUP BY ip.name
-        ");
-        $st->execute([strtoupper(trim($league))]);
-        $porNome = [];
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $porNome[mb_strtolower(trim((string)$r['name']))] = (int)$r['round'];
-        }
-        if (!$porNome) return;
-
-        foreach ($players as &$p) {
-            $chave = mb_strtolower(trim((string)($p['name'] ?? '')));
-            if (isset($porNome[$chave])) $p['initdraft_round'] = $porNome[$chave];
-        }
-        unset($p);
-    } catch (Throwable $e) {
-        // Liga sem draft inicial não tem as tabelas. Segue sem piso.
-        error_log('[cap] marcar draft inicial: ' . $e->getMessage());
-    }
-}
-
-/**
  * O jogador é calouro NESTA temporada? Só nesse caso vale a rookie scale
  * ("VALE SÓ NO ANO 1" no regulamento).
  *
@@ -456,9 +348,17 @@ function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = nul
         return capRookieScaleValue((int)$player['draft_round'], $pick);
     }
 
-    // O piso do Draft Inicial entra por último, como max(): ele levanta quem a
-    // tabela cobraria pouco e não encosta em quem já custa mais.
-    return max(capOvrSalary($ovr), capPisoDraftInicial($player));
+    /*
+     * O PISO DO DRAFT INICIAL SAIU. Valia só o primeiro ano.
+     *
+     * Era um piso de cap pra quem veio do Draft Inicial com 78- e até 23
+     * anos: 16M, 10M ou 6M conforme a rodada, mesmo que a tabela por OVR
+     * cobrasse menos. Foi decisão da liga em 30/08/2026 encerrar a regra —
+     * esses jogadores passam a custar o que o OVR deles diz, como todo mundo.
+     *
+     * Na ELITE eram 34 jogadores, e a folha da liga cai 178M com a mudança.
+     */
+    return capOvrSalary($ovr);
 }
 
 /**
@@ -606,7 +506,8 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $stmtPlayers->execute([$teamId]);
     $players = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
     markLoyaltyEligibility($pdo, $players); // preenche is_loyal / cap_bonus_eligible
-    capMarcarDraftInicial($pdo, $players, (string)$league); // preenche initdraft_round
+    // capMarcarDraftInicial saiu junto com o piso do Draft Inicial: nada mais
+    // lê `initdraft_round` no cálculo.
 
     $payroll = 0;
     $roster = [];

@@ -385,10 +385,8 @@ if ($method === 'GET') {
             // sessão de draft, e ela nem sempre está na temporada "ativa".
             // Sem isso o elenco mostraria 48M e o cap 18M pro mesmo calouro.
             $numTemporadaCap = capTemporadasDeCalouro($pdo, (string)$league);
-            // Marca de que rodada do Draft Inicial cada um veio — é o que
-            // habilita o piso dentro do getPlayerBaseSalary. Sem esta linha o
-            // elenco mostraria um salário e a tela de cap outro.
-            capMarcarDraftInicial($pdo, $players, $league);
+            // A marca do Draft Inicial saiu junto com o piso que ela
+            // habilitava: nada mais no cálculo depende dela.
             foreach ($players as &$player) {
                 $player['cap_salario'] = getPlayerBaseSalary($player, $numTemporadaCap);
                 $player['cap_rookie']  = capEhCalouroNaTemporadaAtual($player, $numTemporadaCap);
