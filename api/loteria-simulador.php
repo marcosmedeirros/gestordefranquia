@@ -47,8 +47,12 @@ try {
         exit;
     }
 
+    // draft_tail_position entra porque é um dos três sinais que a oficial usa
+    // pra decidir se a temporada foi jogada. Sem trazer a coluna, o ensaio
+    // decidiria por dois critérios e a oficial por três.
     $st = $pdo->prepare("SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
-                                ss.wins, ss.points_for, ss.points_against, ss.overall_position, ss.lottery_group,
+                                ss.wins, ss.points_for, ss.points_against, ss.overall_position,
+                                ss.draft_tail_position, ss.lottery_group,
                                 CONCAT(t.city,' ',t.name) AS team_name, t.photo_url
                            FROM season_standings ss
                            JOIN teams t ON t.id = ss.team_id
@@ -77,7 +81,11 @@ try {
     $natural = $g['elegiveis'];
     usort($natural, $g['pior_primeiro']);
 
-    $protegidos = array_values(array_filter($natural, fn($t) => ($g['grupo_de'][$t] ?? 2) === 1));
+    // Sem campanha não há "3 piores" pra proteger — mesma regra da oficial,
+    // que zera o $group1 no mesmo caso.
+    $protegidos = !empty($g['sem_campanha'])
+        ? []
+        : array_values(array_filter($natural, fn($t) => ($g['grupo_de'][$t] ?? 2) === 1));
 
     $ordem = $natural;
     $ajustes = [];

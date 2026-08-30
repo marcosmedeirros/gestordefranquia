@@ -17,7 +17,7 @@ const WAIVER_HOURS = 12;
 
 /** OVR mínimo pra dispensa virar push pra liga. Abaixo disso entra no waiver
  *  em silêncio — quem quiser continua vendo na tela de Dispensas. */
-const WAIVER_OVR_MIN_PUSH = 75;
+const WAIVER_OVR_MIN_PUSH = 78;
 
 function ensureWaiverTables(PDO $pdo): void
 {
@@ -253,14 +253,18 @@ function notificarResultadoDoWaiver(PDO $pdo, array $w, array $claims, int $winn
     try {
         $nome = (string)$w['name'];
 
-        if (!$claims) {
-            sendPushToLeague($pdo, (string)$w['league'], [
-                'title' => '🆓 Waiver encerrado',
-                'body'  => "Ninguém reivindicou {$nome} — ele caiu no Free Agency.",
-                'url'   => '/free-agency.php',
-            ], 'waiver');
-            return;
-        }
+        /*
+         * WAIVER QUE NINGUÉM QUIS NÃO VIRA AVISO.
+         *
+         * Isto mandava push pra LIGA INTEIRA dizer que ninguém reivindicou o
+         * jogador — a notificação com menos motivo pra existir do sistema:
+         * ela avisa que nada aconteceu, e vai pra todo mundo, inclusive pros
+         * que nem sabiam do waiver. Quem se interessar acha ele na Free
+         * Agency, que é onde ele foi parar.
+         *
+         * Quem deu lance continua sendo avisado, sempre: ali houve resultado.
+         */
+        if (!$claims) return;
 
         sendPushToTeam($pdo, $winner, [
             'title' => '✅ Waiver vencido!',

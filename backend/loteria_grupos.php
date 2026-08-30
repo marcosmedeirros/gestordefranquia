@@ -250,6 +250,30 @@ function loteriaMontarGrupos(array $standings): array
         }
     }
 
+    /*
+     * A MESMA REGRA DA LOTERIA OFICIAL — ver api/draft.php, $semCampanha.
+     *
+     * Temporada que ninguém jogou não tem "3 piores" nem playoff: todo mundo
+     * entra na urna com a mesma chance. A tela oficial já fazia isso; aqui
+     * não fazia, e o "Teste a loteria" prometia 24%/39% enquanto a de
+     * verdade dava chance igual — duas respostas pra mesma pergunta, e o
+     * ensaio existe justamente pra ensaiar o que vai acontecer.
+     *
+     * Os critérios são os mesmos da oficial, na mesma ordem: nenhuma
+     * vitória, nenhuma ordem geral declarada, nenhuma cauda de playoff.
+     */
+    $semCampanha = true;
+    foreach (array_merge($elegiveis, $playoff) as $row) {
+        $tid = (int)$row['team_id'];
+        if (($wins[$tid] ?? 0) > 0
+            || ($overall[$tid] ?? null) !== null
+            || (($row['draft_tail_position'] ?? null) !== null)) { $semCampanha = false; break; }
+    }
+    if ($semCampanha && $playoff) {
+        $elegiveis = array_merge($elegiveis, $playoff);
+        $playoff = [];
+    }
+
     $ids = array_map(fn($r) => (int)$r['team_id'], $elegiveis);
 
     /* "Pior campanha": a ordem geral declarada no registro da temporada
@@ -273,12 +297,14 @@ function loteriaMontarGrupos(array $standings): array
 
     $bolinhas = [];
     foreach ($ids as $t) {
+        // Urna igual pra todos sem campanha, como na oficial.
         $g = $grupoDe[$t] ?? 2;
-        $bolinhas[$t] = LOTERIA_GRUPOS_META[$g]['balls'];
+        $bolinhas[$t] = $semCampanha ? 1 : LOTERIA_GRUPOS_META[$g]['balls'];
     }
     $odds = loteriaOdds($bolinhas);
 
     return [
+        'sem_campanha' => $semCampanha,
         'elegiveis'    => $ids,
         'playoff'      => array_map(fn($r) => (int)$r['team_id'], $playoff),
         'grupo_de'     => $grupoDe,
