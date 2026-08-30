@@ -1691,9 +1691,19 @@ async function submitSingleTrade(notes) {
     notes,
     // Sem isto a original ficaria pendente ao lado da resposta.
     ...(CONTRA_TRADE ? { counter_to_trade_id: CONTRA_TRADE } : {}),
-    // Modificar cancela a anterior pelo mesmo caminho: a API já sabe
-    // desfazer a original quando recebe este campo.
-    ...(MODIFICAR ? { counter_to_trade_id: MODIFICAR } : {}),
+    /*
+     * MODIFICAR TEM CAMPO PRÓPRIO, e não é detalhe de nomenclatura.
+     *
+     * Isto mandava `counter_to_trade_id` — o campo da contraproposta. A API
+     * então validava como contraproposta, que exige que VOCÊ seja quem
+     * RECEBEU a proposta; mas quem modifica é quem ENVIOU. Resultado: toda
+     * modificação morria em "Você não pode fazer contraproposta para esta
+     * trade", falando de uma coisa que ninguém tinha pedido.
+     *
+     * `modify_trade_id` já existia do outro lado, esperando — e ele cancela
+     * a original igual, que era o motivo de terem reaproveitado o campo.
+     */
+    ...(MODIFICAR ? { modify_trade_id: MODIFICAR } : {}),
   };
 
   const r = await fetch('/api/trades.php', {
