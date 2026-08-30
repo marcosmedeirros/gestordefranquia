@@ -64,7 +64,9 @@ try {
         exit;
     }
 
-    $g = loteriaMontarGrupos($standings);
+    // O flag vem daqui porque a consulta ao playoff mora no banco, e
+    // loteriaMontarGrupos() só recebe as linhas da classificação.
+    $g = loteriaMontarGrupos($standings, !loteriaTemporadaFoiJogada($pdo, (int)$temporada['id']));
     if (!$g['elegiveis']) {
         echo json_encode(['success' => false, 'error' => "Ninguém ficou fora do playoff na {$liga}."]);
         exit;

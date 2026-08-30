@@ -1281,25 +1281,35 @@ if ($method === 'POST') {
              *
              * O modelo 3-2-1 pressupõe uma campanha disputada — é dela que
              * saem "os 3 piores", "o 4º ao 10º" e quem foi pro playoff. Numa
-             * liga que está começando, todo mundo tem 0-0 e nada disso
-             * existe. O que sobrava pra ordenar era `position`, que nessa
-             * altura é ordem de cadastro: o código mandava 16 times pro fim
-             * da fila por terem sido cadastrados antes, e distribuía as
-             * primeiras picks pelos outros 14. Parecia sorteio e era lista.
+             * temporada que ainda não rolou não há nada disso, e o que sobra
+             * pra ordenar não diz nada sobre mérito.
              *
-             * Foi o que aconteceu na ROOKIE: ninguém subiu nem caiu porque
-             * não havia o que sortear.
+             * O SINAL É O PLAYOFF REGISTRADO, e não as vitórias.
              *
-             * Sem campanha, então: TODO MUNDO entra na loteria com a MESMA
-             * chance. É o único sorteio honesto quando não há o que premiar
-             * nem o que punir.
+             * A primeira versão olhava `wins`, `overall_position` e
+             * `draft_tail_position`. Nenhum dos três serve: vitória não é
+             * cadastrada na FBA (fica zerada em toda liga, sempre), e os
+             * outros dois só aparecem quando o admin ajusta a ordem na mão.
+             * Com esse critério, a ELITE T1 — jogada, com campeão, MVP e
+             * NBA Cup — era classificada como "ninguém jogou", e a próxima
+             * loteria dela ia sortear ignorando a campanha.
+             *
+             * `playoff_results` é o que separa de verdade: ele nasce quando a
+             * pontuação da temporada é registrada até o fim. A ordem que o
+             * admin define no card Pontuação continua mandando — ela vive em
+             * `position`, e é por ela que o desempate cai quando não há
+             * vitória cadastrada.
              */
             $semCampanha = true;
-            foreach (array_merge($eligible, $playoffRows) as $rowSc) {
-                $tidSc = (int)$rowSc['team_id'];
-                if (($teamWins[$tidSc] ?? 0) > 0
-                    || ($teamOverall[$tidSc] ?? null) !== null
-                    || ($teamTail[$tidSc] ?? null) !== null) { $semCampanha = false; break; }
+            try {
+                $stJogada = $pdo->prepare('SELECT COUNT(*) FROM playoff_results WHERE season_id = ?');
+                $stJogada->execute([(int)$standingsSeasonId]);
+                if ((int)$stJogada->fetchColumn() > 0) $semCampanha = false;
+            } catch (Throwable $e) {
+                // Sem conseguir ler, o mais seguro é assumir que jogou: manter
+                // o 3-2-1 erra menos que zerar as chances de todo mundo.
+                error_log('[loteria/semCampanha] ' . $e->getMessage());
+                $semCampanha = false;
             }
             if ($semCampanha && $playoffRows) {
                 $eligible = array_merge($eligible, $playoffRows);

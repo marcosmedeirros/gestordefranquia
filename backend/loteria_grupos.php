@@ -185,7 +185,9 @@ function loteriaTexto(PDO $pdo, string $liga): string
     $standings = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$standings) return "A *{$liga}* não tem posições registradas.";
 
-    $g = loteriaMontarGrupos($standings);
+    // O /loteria do grupo responde a mesma coisa que a tela: se a temporada
+    // ainda não foi jogada, a chance é igual pra todo mundo lá também.
+    $g = loteriaMontarGrupos($standings, !loteriaTemporadaFoiJogada($pdo, (int)$temp['id']));
     if (!$g['elegiveis']) return "Ninguém ficou fora do playoff na *{$liga}*.";
 
     /* UMA LINHA POR TIME, com uma porcentagem só.
@@ -220,7 +222,36 @@ function loteriaTexto(PDO $pdo, string $liga): string
  *        overall_position e team_name
  * @return array{elegiveis:array, playoff:array, grupo_de:array, bolinhas:array}
  */
-function loteriaMontarGrupos(array $standings): array
+/**
+ * Esta temporada já foi disputada?
+ *
+ * O sinal é `playoff_results`: ele nasce quando a pontuação é registrada até
+ * o fim, e é a única marca confiável de que a temporada aconteceu. Vitória
+ * NÃO serve — a FBA nunca cadastra vitória, e o campo fica zerado em toda
+ * liga, sempre. `overall_position` e `draft_tail_position` também não: só
+ * aparecem quando o admin ajusta a ordem da loteria na mão.
+ *
+ * Na dúvida (erro de leitura), responde que jogou: manter o 3-2-1 erra menos
+ * que zerar as chances de todo mundo.
+ */
+function loteriaTemporadaFoiJogada(PDO $pdo, int $seasonId): bool
+{
+    if ($seasonId <= 0) return false;
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM playoff_results WHERE season_id = ?');
+        $st->execute([$seasonId]);
+        return (int)$st->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        error_log('[loteriaTemporadaFoiJogada] ' . $e->getMessage());
+        return true;
+    }
+}
+
+/**
+ * @param bool $semCampanhaForcado A temporada ainda não foi disputada. Quem
+ *        sabe disso é quem consulta o banco; ver loteriaTemporadaFoiJogada().
+ */
+function loteriaMontarGrupos(array $standings, bool $semCampanhaForcado = false): array
 {
     $byConf = [];
     foreach ($standings as $row) {
@@ -254,21 +285,14 @@ function loteriaMontarGrupos(array $standings): array
      * A MESMA REGRA DA LOTERIA OFICIAL — ver api/draft.php, $semCampanha.
      *
      * Temporada que ninguém jogou não tem "3 piores" nem playoff: todo mundo
-     * entra na urna com a mesma chance. A tela oficial já fazia isso; aqui
-     * não fazia, e o "Teste a loteria" prometia 24%/39% enquanto a de
-     * verdade dava chance igual — duas respostas pra mesma pergunta, e o
-     * ensaio existe justamente pra ensaiar o que vai acontecer.
+     * entra na urna com a mesma chance. O sinal é o PLAYOFF REGISTRADO, que
+     * nasce quando a pontuação é lançada até o fim — vitória não é
+     * cadastrada na FBA e fica zerada em toda liga, sempre.
      *
-     * Os critérios são os mesmos da oficial, na mesma ordem: nenhuma
-     * vitória, nenhuma ordem geral declarada, nenhuma cauda de playoff.
+     * Quem passa o flag é quem chamou, porque a consulta ao playoff mora no
+     * banco e esta função só recebe as linhas da classificação.
      */
-    $semCampanha = true;
-    foreach (array_merge($elegiveis, $playoff) as $row) {
-        $tid = (int)$row['team_id'];
-        if (($wins[$tid] ?? 0) > 0
-            || ($overall[$tid] ?? null) !== null
-            || (($row['draft_tail_position'] ?? null) !== null)) { $semCampanha = false; break; }
-    }
+    $semCampanha = $semCampanhaForcado;
     if ($semCampanha && $playoff) {
         $elegiveis = array_merge($elegiveis, $playoff);
         $playoff = [];
@@ -276,15 +300,23 @@ function loteriaMontarGrupos(array $standings): array
 
     $ids = array_map(fn($r) => (int)$r['team_id'], $elegiveis);
 
-    /* "Pior campanha": a ordem geral declarada no registro da temporada
-       manda, porque é uma lista única e não empata os dois lados. Sem ela,
-       vale o critério antigo — vitórias, saldo, posição —, que hoje é frágil:
-       vitórias não são mais cadastradas e ficam todas em zero. */
-    $piorPrimeiro = function ($a, $b) use ($wins, $pdiff, $pos, $overall) {
+    /*
+     * "PIOR CAMPANHA" É A ORDEM QUE O ADMIN DEFINIU. Nada de vitórias.
+     *
+     * A FBA não cadastra vitória — nunca cadastrou. O campo existe na tabela
+     * e fica zerado em toda liga, então compará-lo era um passo que sempre
+     * empatava e só servia pra fazer o desempate parecer mais fundamentado
+     * do que é.
+     *
+     * Manda a ordem geral declarada (`overall_position`), que é lista única e
+     * não empata os dois lados. Sem ela, vale `position` — a classificação
+     * que sai do card Pontuação, que é justamente onde a ordem é definida.
+     * Saldo de pontos fica no meio como desempate de quem tiver.
+     */
+    $piorPrimeiro = function ($a, $b) use ($pdiff, $pos, $overall) {
         $oa = $overall[$a] ?? null;
         $ob = $overall[$b] ?? null;
         if ($oa !== null && $ob !== null && $oa !== $ob) return $ob <=> $oa;
-        if ($wins[$a] !== $wins[$b])   return $wins[$a] <=> $wins[$b];
         if ($pdiff[$a] !== $pdiff[$b]) return $pdiff[$a] <=> $pdiff[$b];
         return $pos[$b] <=> $pos[$a];
     };
