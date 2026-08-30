@@ -1355,6 +1355,20 @@ try {
                 // Colunas podem não existir em instalações antigas; ignorar silenciosamente
             }
 
+            /* CONTRATO DE LEILÃO VALE UMA TEMPORADA.
+               O lance que o time deu no waiver/FA vira o salário dele naquele
+               ano; virando o ano, ele volta pra tabela por OVR como todo
+               mundo. Sem zerar aqui, um 71 arrematado por 65M carregaria
+               esses 65M pra sempre. */
+            try {
+                $pdo->prepare("UPDATE players p JOIN teams t ON t.id = p.team_id
+                                  SET p.contract_salary = NULL
+                                WHERE t.league = ? AND p.contract_salary IS NOT NULL")
+                    ->execute([$league]);
+            } catch (Exception $e) {
+                error_log('[avancar/contratos] ' . $e->getMessage());
+            }
+
             // Zerar (resetar) o ciclo de trades a cada 2 temporadas
             // Definimos current_cycle = ceil(season_number / 2) para todos os times da liga
             // Assim, temporadas 1-2 usam ciclo 1, 3-4 ciclo 2, etc.
@@ -3402,6 +3416,13 @@ try {
             
             // 12. Resetar contadores de waivers/signings dos times
             $pdo->exec("UPDATE teams SET waivers_used = 0, waivers_extra = 0, fa_signings_used = 0 WHERE league = '$league'");
+
+            // Os contratos de leilão (waiver/FA) valem uma temporada só.
+            try {
+                $pdo->exec("UPDATE players p JOIN teams t ON t.id = p.team_id
+                               SET p.contract_salary = NULL
+                             WHERE t.league = '$league' AND p.contract_salary IS NOT NULL");
+            } catch (Throwable $e) { error_log('[reset/contratos] ' . $e->getMessage()); }
             
             // IMPORTANTE: NÃO deletar team_ranking_points - os pontos são mantidos!
             

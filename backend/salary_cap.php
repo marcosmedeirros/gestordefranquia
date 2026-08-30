@@ -16,6 +16,31 @@
 
 require_once __DIR__ . '/helpers.php'; // markLoyaltyEligibility (Bônus de Lealdade)
 
+/**
+ * `players.contract_salary`: o que o time se comprometeu a pagar por ele.
+ *
+ * Nasce do lance vencedor no waiver e na Free Agency da ELITE. Vale 0 (ou
+ * NULL) pra quem nunca foi arrematado — e aí o salário sai da tabela por OVR,
+ * como sempre foi.
+ *
+ * A coluna nasce aqui e não numa migração porque toda tela de cap passa por
+ * este arquivo: sem ela, o cálculo quebraria em base que ainda não migrou.
+ * Roda uma vez por request.
+ */
+function capGarantirColunaContrato(PDO $pdo): void
+{
+    static $pronto = false;
+    if ($pronto || $pdo->inTransaction()) return;
+    $pronto = true;
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM players LIKE 'contract_salary'")->fetch()) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN contract_salary INT NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('[cap] coluna contract_salary: ' . $e->getMessage());
+    }
+}
+
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 170;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
@@ -328,6 +353,24 @@ function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = nul
 {
     $ovr = (int)($player['ovr'] ?? 0);
 
+    /*
+     * CONTRATO ASSINADO MANDA — foi o que o time apostou por ele.
+     *
+     * Waiver e Free Agency da ELITE são leilão de salário: quem dá 65M num
+     * jogador está comprometendo 65M do próprio teto, e é isso que ele passa
+     * a custar. Antes o lance decidia só quem levava, e o jogador entrava no
+     * cap pelo OVR — um 71 arrematado por 65M ocupava 2M, e o lance não
+     * custava nada a quem venceu.
+     *
+     * Vale ATÉ A VIRADA DA TEMPORADA (decisão da liga, 30/08/2026): o campo é
+     * zerado no avanço, e daí em diante ele volta pra tabela por OVR.
+     *
+     * Fica acima da lenda e da rookie scale de propósito: as duas são réguas
+     * automáticas, e o contrato é um número que alguém escolheu pagar.
+     */
+    $contrato = isset($player['contract_salary']) ? (int)$player['contract_salary'] : 0;
+    if ($contrato > 0) return $contrato;
+
     // Lenda da franquia: contrato de no mínimo 40M, acima de qualquer outra
     // régua — inclusive da rookie scale. Passando de 94 de OVR a tabela normal
     // já paga mais que isso e volta a valer sozinha (95 = 44M), então um max()
@@ -496,11 +539,13 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $flexLiberado = capFlexLiberado($pdo, $league, $numTemporada);
     $temporadasCalouro = capTemporadasDeCalouro($pdo, (string)$league);
 
+    capGarantirColunaContrato($pdo);
     $stmtPlayers = $pdo->prepare("
         SELECT id, name, team_id, ovr, age, seasons_in_league, drafted_by_team_id, drafted_season_number,
                draft_round, draft_pick_position,
                COALESCE(is_lenda, 0) as is_lenda,
-               COALESCE(was_traded, 0) as was_traded
+               COALESCE(was_traded, 0) as was_traded,
+               COALESCE(contract_salary, 0) AS contract_salary
         FROM players WHERE team_id = ? ORDER BY ovr DESC
     ");
     $stmtPlayers->execute([$teamId]);
