@@ -2147,6 +2147,32 @@ if ($method === 'POST') {
                 $pdo->beginTransaction();
                 $pdo->prepare('UPDATE draft_order SET team_id = ?, traded_from_team_id = ? WHERE id = ?')
                     ->execute([(int)$toTeamId, (int)$fromTeamId, (int)$pickId]);
+
+                /*
+                 * A VAGA NÃO É A FONTE DA VERDADE — A PICK É.
+                 *
+                 * Mudar só `draft_order` não durava: draftSincronizarOrdem()
+                 * reescreve o dono de cada vaga a partir de `picks`, e ela
+                 * roda toda vez que a ordem é carregada. Ou seja, a troca era
+                 * desfeita no primeiro F5 — o admin transferia a pick 4 pro
+                 * Indiana e ela voltava pro Golden State sozinha, sem erro
+                 * nenhum na tela.
+                 *
+                 * A pick é achada por (original_team_id, round, ANO), a mesma
+                 * chave que a sincronização usa. Nunca por season_id: ele
+                 * guarda onde a pick foi GERADA, não qual draft a distribui.
+                 */
+                $anoDaPick = draftAnoDasPicks($pdo, (int)$session['season_id']);
+                if ($anoDaPick > 0) {
+                    $pdo->prepare('UPDATE picks
+                                      SET team_id = ?, last_owner_team_id = ?
+                                    WHERE original_team_id = ? AND round = ?
+                                      AND CAST(season_year AS UNSIGNED) = ?')
+                        ->execute([
+                            (int)$toTeamId, (int)$fromTeamId,
+                            (int)$pick['original_team_id'], (int)$pick['round'], $anoDaPick,
+                        ]);
+                }
                 $isCurrentPick = ($session['status'] ?? '') === 'in_progress'
                     && (int)$pick['round'] === (int)$session['current_round']
                     && (int)$pick['pick_position'] === (int)$session['current_pick'];
