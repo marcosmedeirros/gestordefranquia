@@ -393,9 +393,9 @@ html{scroll-behavior:smooth}
       <h4 style="font-size:14px;font-weight:800;margin:18px 0 8px;color:var(--text)">2ª rodada — todo mundo ao mesmo tempo</h4>
       <p>Assim que a 1ª rodada acaba, <strong>todas as picks da 2ª abrem juntas</strong> e começa um cronômetro de <strong>20 minutos</strong>. Não existe vez de ninguém.</p>
       <ul>
-        <li>Você entra na sua pick e escolhe <strong>até 3 jogadores, na ordem que preferir</strong>. Dá para trocar à vontade enquanto o tempo corre.</li>
+        <li>Você entra na sua pick e escolhe <strong>até 5 jogadores, na ordem que preferir</strong>. Dá para trocar à vontade enquanto o tempo corre.</li>
         <li><strong>Ninguém leva ninguém na hora.</strong> Escolher é registrar uma intenção, não pegar o jogador.</li>
-        <li>Quando o prazo fecha, o sistema resolve tudo de uma vez, <strong>da pick mais alta para a mais baixa</strong>. Se alguém à sua frente pediu o mesmo jogador, ele leva e você desce para a sua 2ª opção — e depois para a 3ª.</li>
+        <li>Quando o prazo fecha, o sistema resolve tudo de uma vez, <strong>da pick mais alta para a mais baixa</strong>. Se alguém à sua frente pediu o mesmo jogador, ele leva e você desce para a sua 2ª opção — e assim por diante, até a 5ª.</li>
         <li><strong>Quem não escolher ninguém perde a pick.</strong> Não há prorrogação.</li>
       </ul>
       <p><em>Exemplo:</em> você tem a <strong>34</strong> e pede o LeBron. Alguém na <strong>31</strong> também pediu. A 31 leva, e você fica com a sua 2ª opção.</p>

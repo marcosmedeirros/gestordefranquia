@@ -903,7 +903,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                  clicar. */ ?>
         <div class="r2-regra">
           <i class="bi bi-info-circle"></i>
-          Escolha até <b>três</b>, na ordem que preferir. Ninguém leva nada agora: quando o prazo
+          Escolha até <b>cinco</b>, na ordem que preferir. Ninguém leva nada agora: quando o prazo
           fechar, as picks são resolvidas <b>na ordem</b> — se alguém com pick melhor levar a sua
           1ª, você fica com a 2ª, e assim por diante.
         </div>
@@ -1340,7 +1340,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="r2-panel-title"><i class="bi bi-hand-index-thumb"></i> 2ª rodada aberta</div>
           <p style="font-size:12px;color:var(--text-2);margin-bottom:6px">
             Não há ordem de vez: todas as escolhas estão abertas ao mesmo tempo por 20 minutos.
-            Clique na sua e escolha <b>até 3 jogadores, na ordem que preferir</b>.
+            Clique na sua e escolha <b>até 5 jogadores, na ordem que preferir</b>.
             <b>Ninguém leva nada agora</b> — quando o prazo fechar, o sistema resolve
             da pick mais alta para a mais baixa: se alguém à sua frente levar a sua 1ª,
             você desce para a 2ª, e depois para a 3ª.
@@ -1752,6 +1752,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const data = await api(`draft.php?action=round2_board&draft_session_id=${currentDraftSession.id}`);
       // Guardado pra o modal reabrir com a lista de preferência que já existe.
       round2BoardPicks = data.picks || [];
+      if (Number(data.max_preferencias) > 0) round2MaxPrefs = Number(data.max_preferencias);
       redesenharGradeR2();
       startRound2Countdown(data.round2_mock_deadline);
     } catch (e) {
@@ -1838,8 +1839,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     });
   }
 
-  /* As três escolhas da vaga aberta no modal, na ordem de preferência. */
+  /* As escolhas da vaga aberta no modal, na ordem de preferência. */
   let round2Prefs = [];
+  /* Quantas escolhas cabem por vaga. O servidor manda no round2_board; o 5
+     aqui é só o valor até a primeira resposta chegar. */
+  let round2MaxPrefs = 5;
 
   function renderRound2MockPlayers(players) {
     const container = document.getElementById('round2MockPlayers');
@@ -1861,14 +1865,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
    *
    * A 2ª rodada não é mais corrida: todo mundo escolhe durante os 20 minutos e
    * o sistema resolve no fim, pela ordem das picks. Quem tem a 31 leva antes
-   * de quem tem a 34 — por isso a lista tem até três nomes, e não um: se o
+   * de quem tem a 34 — por isso a lista tem vários nomes, e não um: se o
    * primeiro for levado por uma pick melhor, desce pro segundo.
    */
   function renderRound2Prefs() {
     const box = document.getElementById('round2Prefs');
     if (!box) return;
     const linhas = [];
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= round2MaxPrefs; i++) {
       const p = round2Prefs.find(x => Number(x.preferencia) === i);
       linhas.push(`<div class="pref-linha${p ? '' : ' vazia'}">
         <span class="pref-num">${i}ª</span>
@@ -1881,7 +1885,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function addRound2Pref(playerId) {
     if (!round2MockDraftOrderId) return;
-    if (round2Prefs.length >= 3) { alert('Você já escolheu três. Tire uma antes de trocar.'); return; }
+    if (round2Prefs.length >= round2MaxPrefs) {
+      alert('Você já escolheu ' + round2MaxPrefs + '. Tire uma antes de trocar.');
+      return;
+    }
     // A próxima posição vaga da lista — não necessariamente o fim, porque o
     // GM pode ter apagado a 2ª e deixado a 3ª.
     let pref = 1;

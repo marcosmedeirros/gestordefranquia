@@ -395,9 +395,9 @@ html{scroll-behavior:smooth}
     <h3><span class="h3-ico" style="background:rgba(168,85,247,.14);color:var(--purple)"><i class="bi bi-2-circle-fill"></i></span> 2ª rodada — todos ao mesmo tempo, por preferências</h3>
     <p>Quando a 1ª rodada acaba, <strong>todas as vagas da 2ª abrem juntas</strong> e começa um cronômetro de <strong>20 minutos</strong>. Não há vez de ninguém.</p>
     <ol class="passos">
-      <li><b>Cada GM escolhe até 3 jogadores, na ordem que preferir</b> (1ª, 2ª e 3ª opção). Pode trocar à vontade enquanto o prazo corre.</li>
+      <li><b>Cada GM escolhe até 5 jogadores, na ordem que preferir</b> (da 1ª à 5ª opção). Pode trocar à vontade enquanto o prazo corre.</li>
       <li><b>Ninguém leva nada na hora.</b> Escolher é registrar uma intenção, não pegar o jogador.</li>
-      <li><b>No fim do prazo o sistema resolve tudo</b>, da pick mais alta para a mais baixa: se alguém à frente levou a 1ª opção, o GM desce para a 2ª, e depois para a 3ª.</li>
+      <li><b>No fim do prazo o sistema resolve tudo</b>, da pick mais alta para a mais baixa: se alguém à frente levou a 1ª opção, o GM desce para a 2ª, e assim por diante até a 5ª.</li>
       <li><b>Quem não escolheu ninguém perde a pick.</b> Não há prorrogação.</li>
       <li><b>Quem sobra vai para as Dispensas</b> por 24 horas, e só depois para a Free Agency.</li>
     </ol>

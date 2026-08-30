@@ -61,7 +61,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
     player_id INT NOT NULL,
     preferencia TINYINT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- (vaga, preferência), e não só (vaga): são até três escolhas por pick.
+    -- (vaga, preferência), e não só (vaga): são várias escolhas por pick.
     UNIQUE KEY uniq_r2mock_pref (draft_order_id, preferencia),
     FOREIGN KEY (draft_order_id) REFERENCES draft_order(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
@@ -80,7 +80,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
  * ter três linhas. Em base que já tinha a chave antiga, ela precisa cair
  * primeiro, senão a segunda preferência bate nela.
  */
-const ROUND2_PREFERENCIAS = 3;
+const ROUND2_PREFERENCIAS = 5;
 try {
     if (!$pdo->query("SHOW COLUMNS FROM draft_round2_mocks LIKE 'preferencia'")->fetch()) {
         $pdo->exec("ALTER TABLE draft_round2_mocks ADD COLUMN preferencia TINYINT NOT NULL DEFAULT 1");
@@ -912,7 +912,12 @@ if ($method === 'GET') {
                 ];
             }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-            echo json_encode(['success' => true, 'picks' => $picks, 'round2_mock_deadline' => $deadline]);
+            // Quantas preferências cabem por vaga. Vai pra tela em vez de o JS
+            // ter o próprio número: com o valor escrito nos dois lados, mudar
+            // aqui deixava a tela recusando a 4ª escolha que o servidor aceita.
+            echo json_encode(['success' => true, 'picks' => $picks,
+                              'round2_mock_deadline' => $deadline,
+                              'max_preferencias' => ROUND2_PREFERENCIAS]);
             break;
 
         default:
