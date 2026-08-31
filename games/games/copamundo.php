@@ -337,11 +337,10 @@ if ($copa && $userId) {
                    background:var(--verde);z-index:2}
   button.lado{cursor:pointer}
   button.lado:hover{background:var(--panel-3)}
-  /* O confronto em que já votei: fica marcado e não convida mais ao clique.
-     Como o voto não muda, o duelo perde a borda de "ativo" — senão ele
-     continuaria pedindo uma ação que já foi feita. */
+  /* O confronto em que já votei fica em verde, e não mais em âmbar: a ação
+     já foi feita. Mas o clique continua valendo — dá pra trocar de lado
+     enquanto a rodada não fecha. */
   .duelo.votado{border-color:rgba(34,197,94,.32)}
-  .duelo.votado .lado{cursor:default}
   .bye{padding:9px 11px;font-size:11px;font-weight:800;color:var(--text-3);
        text-transform:uppercase;letter-spacing:.6px;border-top:1px solid var(--border)}
   .duelo-pe{padding:5px 11px;font-size:9.5px;font-weight:800;color:var(--text-3);
@@ -561,9 +560,15 @@ if ($copa && $userId) {
   <div class="estado">
     <span class="selo rodada"><?= $esc(copaNomeRodada($rodAtual, $rodadas)) ?></span>
     <?php if (!$encerrada): ?>
-      <span class="selo <?= $votando ? 'aberta' : 'fechada' ?>">
+      <span class="selo <?= $votando ? 'aberta' : 'fechada' ?>"
+            <?= $votando ? 'title="Dá pra trocar o voto até a rodada ser apurada"' : '' ?>>
         <?= $votando ? 'Votação aberta' : 'Votação fechada' ?>
       </span>
+      <?php if ($votando): ?>
+        <span class="selo neutro" style="font-weight:600">
+          <i class="bi bi-arrow-repeat"></i> dá pra mudar o voto
+        </span>
+      <?php endif; ?>
     <?php else: ?>
       <span class="selo neutro">Encerrada</span>
     <?php endif; ?>
@@ -638,11 +643,12 @@ if ($copa && $userId) {
           $bId  = (int)$c['b_id'];
           $venc = (int)$c['vencedor_id'];
           $bye  = !$bId;
-          // Já votei aqui? Então nem botão aparece. Deixar clicável pra
-          // depois recusar no servidor seria oferecer uma ação que não
-          // existe — e a pessoa tentaria de novo achando que não pegou.
+          // Quem já votou continua com os botões: o voto agora troca de lado
+          // enquanto a rodada está aberta. Antes o markup virava div depois
+          // do primeiro clique, e quem errou o botão ficava preso — o que só
+          // fazia sentido quando o placar aparecia e trocar era vantagem.
           $jaVotei   = !empty($c['meu_voto']);
-          $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId && !$jaVotei;
+          $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId;
           $total = (int)$c['votos_a'] + (int)$c['votos_b'];
           // A barra mostra a fatia de cada um. Sem voto nenhum ela fica em
           // zero — 50/50 numa disputa vazia parece empate técnico, e não é.
@@ -693,7 +699,10 @@ if ($copa && $userId) {
               <?php
           };
           ?>
-          <div class="duelo <?= $podeVotar ? 'ativo' : ($jaVotei ? 'votado' : '') ?>">
+          <?php /* Votado manda no visual: quem já escolheu vê verde, e o
+                   âmbar de "ativo" fica pros que ainda faltam — que é o que
+                   a pessoa procura ao descer a chave. */ ?>
+          <div class="duelo <?= $jaVotei ? 'votado' : ($podeVotar ? 'ativo' : '') ?>">
             <?php $lado($aId, $c['votos_a'], $fa); ?>
             <?php if ($bye): ?>
               <div class="bye"><i class="bi bi-fast-forward-fill"></i> passou sem confronto</div>

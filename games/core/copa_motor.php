@@ -468,16 +468,27 @@ function copaVotar(PDO $pdo, int $torneioId, int $confrontoId, int $escolhaId, i
     }
 
     try {
-        // INSERT IGNORE e conferência do rowCount: a chave única (confronto,
-        // pessoa) é quem garante o voto único, e não uma leitura antes do
-        // insert — entre ler e gravar cabe um segundo clique.
-        $st = $pdo->prepare("INSERT IGNORE INTO copa_votos (confronto_id, user_id, escolha_id)
-                             VALUES (?,?,?)");
+        /*
+         * DÁ PRA MUDAR O VOTO ENQUANTO A RODADA ESTÁ ABERTA.
+         *
+         * O voto era imutável porque a tela mostrava o placar: quem votasse
+         * depois via quem estava ganhando e podia pular pro lado vencedor —
+         * e aí a votação vira uma bola de neve, não uma opinião.
+         *
+         * A tela não mostra mais o parcial. Sem essa informação, trocar de
+         * ideia é só trocar de ideia, e travar o primeiro clique só punia
+         * quem errou o botão. A chave única (confronto, pessoa) continua
+         * garantindo UM voto por pessoa — o que muda é para quem ele aponta.
+         *
+         * Continua valendo até a apuração: as checagens acima já barram
+         * rodada encerrada, confronto decidido e votação fechada.
+         */
+        $st = $pdo->prepare("INSERT INTO copa_votos (confronto_id, user_id, escolha_id)
+                             VALUES (?,?,?)
+                             ON DUPLICATE KEY UPDATE escolha_id = VALUES(escolha_id)");
         $st->execute([$confrontoId, $userId, $escolhaId]);
-        if ($st->rowCount() === 0) {
-            return ['ok' => false, 'erro' => 'Você já votou neste confronto — o voto não muda.'];
-        }
-        return ['ok' => true, 'erro' => null];
+        // rowCount: 1 = voto novo, 2 = trocou, 0 = clicou no mesmo de novo.
+        return ['ok' => true, 'erro' => null, 'trocou' => $st->rowCount() === 2];
     } catch (Throwable $e) {
         error_log('[copa] votar: ' . $e->getMessage());
         return ['ok' => false, 'erro' => 'Não deu pra registrar o voto.'];
