@@ -2896,7 +2896,8 @@ function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 
     $txt = '👑 *Lendas' . ($liga ? " — {$liga}" : '') . '* (' . count($lendas) . ")\n\n";
     foreach ($lendas as $l) {
-        $txt .= "• *{$l['name']}* — {$l['ovr']} OVR, {$l['age']} anos — " . wcNomeDoTime($l)
+        // Só o apelido do time, sem cidade: "Los Angeles Lakers" vira "Lakers".
+        $txt .= "• *{$l['name']}* {$l['ovr']}/{$l['age']}y - {$l['team_name']}"
               . ($liga ? '' : ' _' . $l['league'] . '_') . "\n";
     }
     return rtrim($txt);
