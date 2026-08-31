@@ -562,6 +562,133 @@ foreach ($P as $lista) $totalProblemas += count($lista);
       <?php endforeach; ?>
     </div>
   <?php endforeach; ?>
+
+<?php
+/*
+ * CONFERÊNCIA DE PICKS — veio da página do Draft.
+ *
+ * Ela morava lá embaixo em drafts.php, visível pra qualquer GM que abrisse a
+ * tela: dois botões de manutenção no meio de uma página que é do jogo. Um
+ * deles GRAVA (reatribui as vagas), e não é decisão de GM.
+ *
+ * Aqui é o lugar: os cards acima já dizem que uma liga está com a ordem fora
+ * do dono da pick, e este bloco é o detalhe — qual vaga, de quem era, com
+ * quem está — mais o botão que arruma.
+ *
+ * Chama a mesma API de antes (conferir_picks / ajustar_picks): a conta não
+ * mudou de lugar, só quem consegue pedir por ela.
+ */
+$ligasComDraft = [];
+foreach ($LIGAS as $lg) {
+    try { if (draftAbertoDaLiga($pdo, $lg)) $ligasComDraft[] = $lg; }
+    catch (Throwable $e) { error_log('[dev/picks] ' . $e->getMessage()); }
+}
+?>
+<div class="pagina" style="margin-top:26px">
+  <div class="pg-nome"><i class="bi bi-clipboard-check"></i> Conferência de picks do draft</div>
+  <div class="pg-ver" style="margin-bottom:12px">
+    Confere se cada escolha está com o dono certo — trocas, swaps e proteções.
+    <b>Revisar</b> só compara e não altera nada; <b>Ajustar</b> grava, pondo cada
+    escolha com o dono atual da pick.
+  </div>
+
+  <?php if (!$ligasComDraft): ?>
+    <div class="item">Nenhuma liga com draft aberto agora — nada a conferir.</div>
+  <?php else: ?>
+    <div class="item" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="devPickLiga" style="padding:7px 10px;border-radius:8px">
+        <?php foreach ($ligasComDraft as $lg): ?>
+          <option value="<?= h($lg) ?>"><?= h($lg) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <button type="button" onclick="devRevisarPicks()">Revisar picks</button>
+      <button type="button" onclick="devAjustarPicks()"
+              title="Põe cada escolha com o dono atual da pick, resolvendo trocas e swaps">Ajustar picks</button>
+    </div>
+    <div id="devRevisao" style="margin-top:12px"></div>
+  <?php endif; ?>
+</div>
+
+<script>
+const devEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/** A sessão de draft aberta da liga escolhida. */
+async function devSessao(liga) {
+  const r = await fetch('/api/draft.php?action=active_draft&league=' + encodeURIComponent(liga));
+  const d = await r.json();
+  return d?.draft?.id || d?.draft_session?.id || null;
+}
+
+async function devRevisarPicks() {
+  const box = document.getElementById('devRevisao');
+  const liga = document.getElementById('devPickLiga').value;
+  box.innerHTML = '<div class="pg-ver">Conferindo…</div>';
+  try {
+    const id = await devSessao(liga);
+    if (!id) { box.innerHTML = '<div class="pg-ver">A ' + devEsc(liga) + ' não tem draft montado agora.</div>'; return; }
+    const r = await fetch('/api/draft.php?action=conferir_picks&draft_session_id=' + id);
+    const d = await r.json();
+    if (d.success === false) throw new Error(d.error || 'falhou');
+
+    const bloco = (titulo, cor, linhas) => linhas.length ? `
+      <div style="border:1px solid ${cor}55;background:${cor}18;border-radius:10px;padding:11px 13px;margin-bottom:9px">
+        <div style="font-weight:700;font-size:12.5px;color:${cor};margin-bottom:6px">${titulo} (${linhas.length})</div>
+        <div style="font-size:12px;line-height:1.7;opacity:.85">${linhas.join('<br>')}</div>
+      </div>` : '';
+
+    const partes = [
+      bloco('Escolhas com o dono errado', '#fc0025',
+        (d.divergencias || []).map(x => `<b>${x.rodada}ª rodada, pick ${x.pick}</b> (de ${devEsc(x.origem_nome)}): `
+          + `está com <b>${devEsc(x.esta_com_nome)}</b>, deveria ser <b>${devEsc(x.deveria_nome)}</b>`
+          + (x.swap ? ' — por swap' : ''))),
+      bloco('Time dono de mais de uma vaga na mesma rodada', '#fc0025',
+        (d.origem_repetida || []).map(x => `<b>${devEsc(x.time_nome)}</b> aparece como dono das picks `
+          + `${x.picks.join(', ')} na ${x.rodada}ª rodada`)),
+      bloco('Proteções ainda não resolvidas', '#f59e0b',
+        (d.protecoes || []).map(x => `<b>Pick ${x.pick}</b> (de ${devEsc(x.origem_nome)}, com ${devEsc(x.dono_nome)}) — proteção ${devEsc(x.protecao)}`)),
+      bloco('Sem pick cadastrada — a vaga fica com o time de origem', '#f59e0b',
+        (d.sem_pick || []).map(x => `<b>${x.rodada}ª rodada, pick ${x.pick}</b> — ${devEsc(x.origem_nome)} não tem pick deste ano na tabela`)),
+      bloco('Swaps resolvidos', '#22c55e',
+        (d.swaps || []).map(x => `<b>${devEsc(x.melhor_dono_nome)}</b> ficou com a pick ${x.melhor_pick} (de ${devEsc(x.melhor_de_nome)}) e `
+          + `<b>${devEsc(x.pior_dono_nome)}</b> com a ${x.pior_pick} (de ${devEsc(x.pior_de_nome)})`)),
+    ];
+
+    const problema = (d.divergencias || []).length || (d.sem_pick || []).length || (d.protecoes || []).length;
+    box.innerHTML = `<div class="pg-ver">Draft de <b>${d.ano}</b> · ${d.vagas} escolhas conferidas</div>`
+      + (problema ? partes.join('')
+         : `<div style="border:1px solid #22c55e55;background:#22c55e18;border-radius:10px;padding:11px 13px;margin-bottom:9px">
+              <b style="color:#22c55e;font-size:12.5px">Está tudo certo</b>
+              <div style="font-size:12px;opacity:.85;margin-top:3px">Cada escolha está com o dono da pick.</div>
+            </div>` + partes.join(''));
+  } catch (e) {
+    box.innerHTML = '<div class="pg-ver" style="color:#fca5a5">Erro: ' + devEsc(e.message || 'não deu pra conferir') + '</div>';
+  }
+}
+
+async function devAjustarPicks() {
+  const liga = document.getElementById('devPickLiga').value;
+  if (!confirm('Ajustar as picks da ' + liga + '? Cada escolha vai pro dono atual da pick.')) return;
+  const box = document.getElementById('devRevisao');
+  try {
+    const id = await devSessao(liga);
+    if (!id) { box.innerHTML = '<div class="pg-ver">A ' + devEsc(liga) + ' não tem draft montado agora.</div>'; return; }
+    const r = await fetch('/api/draft.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ajustar_picks', draft_session_id: id })
+    });
+    const d = await r.json();
+    if (d.success === false) throw new Error(d.error || 'falhou');
+    // A revisão roda logo depois: quem clicou precisa VER que ficou certo,
+    // e não só ler que mexeu em três vagas.
+    await devRevisarPicks();
+    box.insertAdjacentHTML('afterbegin',
+      `<div style="border:1px solid #22c55e55;background:#22c55e18;border-radius:10px;padding:10px 13px;margin-bottom:9px;font-size:12.5px">
+         <b style="color:#22c55e">${devEsc(d.message || 'Ajustado.')}</b></div>`);
+  } catch (e) {
+    alert('Erro: ' + (e.message || 'não deu pra ajustar'));
+  }
+}
+</script>
 </div>
 </body>
 </html>

@@ -807,30 +807,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       </div>
       <?php endif; ?>
 
-      <?php /* CONFERÊNCIA DAS PICKS, no fim da página.
-               Uma pick comprada que não chega ao dono só aparece na hora de
-               escolher, quando já é tarde. Aqui dá pra perguntar antes — e
-               perguntar não muda nada: o botão só compara a ordem com a
-               tabela de picks e conta o que achou. */ ?>
-      <div class="finalize-bar" style="margin-top:18px">
-        <div>
-          <div class="finalize-title"><i class="bi bi-clipboard-check"></i> Revisar picks</div>
-          <div class="finalize-sub">Confere se cada escolha está com o dono certo — trocas, swaps e proteções. Não altera nada.</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-ghost" id="btnRevisarPicks" onclick="revisarPicks()">
-            <i class="bi bi-search"></i> Revisar picks
-          </button>
-          <?php /* O par do botão de cima: um só compara, o outro grava. Sem
-                   ele, a saída pra um draft já aberto com a ordem errada era
-                   reaplicar a ordem da loteria — que reembaralha tudo. */ ?>
-          <button class="btn-ghost" id="btnAjustarPicks" onclick="ajustarPicks()"
-                  title="Põe cada escolha com o dono atual da pick, resolvendo trocas e swaps">
-            <i class="bi bi-wrench-adjustable"></i> Ajustar picks
-          </button>
-        </div>
-      </div>
-      <div id="revisaoPicks" style="display:none;margin-top:12px"></div>
 
     </div><!-- .content -->
   </main>
@@ -1934,108 +1910,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
    * significar que a ordem foi aplicada antes de uma troca — e nesse caso
    * reaplicar a ordem da loteria resolve.
    */
-  async function revisarPicks() {
-    const box = document.getElementById('revisaoPicks');
-    const btn = document.getElementById('btnRevisarPicks');
-    box.style.display = 'block';
-    // Sem draft montado não há ordem pra conferir — e "erro" seria a
-    // resposta errada pra uma pergunta que ainda não faz sentido.
-    if (!currentDraftSession || !currentDraftSession.id) {
-      box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--text-3)">'
-        + 'Não há draft montado nesta liga agora — nada a conferir.</div>';
-      return;
-    }
-    box.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:13px">Conferindo…</div>';
-    btn.disabled = true;
-    try {
-      const d = await api(`draft.php?action=conferir_picks&draft_session_id=${currentDraftSession.id}`);
-      const bloco = (titulo, cor, linhas) => linhas.length ? `
-        <div style="border:1px solid ${cor}40;background:${cor}14;border-radius:12px;padding:13px 15px;margin-bottom:10px">
-          <div style="font-weight:700;font-size:13px;color:${cor};margin-bottom:7px">${titulo} (${linhas.length})</div>
-          <div style="font-size:12.5px;line-height:1.75;color:var(--text-2)">${linhas.join('<br>')}</div>
-        </div>` : '';
-
-      const partes = [];
-
-      partes.push(bloco('Escolhas com o dono errado', '#fc0025',
-        d.divergencias.map(x => `<b>${x.rodada}ª rodada, pick ${x.pick}</b> (de ${esc(x.origem_nome)}): `
-          + `está com <b>${esc(x.esta_com_nome)}</b>, deveria ser <b>${esc(x.deveria_nome)}</b>`
-          + (x.swap ? ' — por swap' : ''))));
-
-      partes.push(bloco('Time dono de mais de uma vaga na mesma rodada', '#fc0025',
-        (d.origem_repetida || []).map(x => `<b>${esc(x.time_nome)}</b> aparece como dono das picks `
-          + `${x.picks.join(', ')} na ${x.rodada}ª rodada — cada time é dono de uma só`)));
-
-      partes.push(bloco('Proteções ainda não resolvidas', '#f59e0b',
-        d.protecoes.map(x => `<b>Pick ${x.pick}</b> (de ${esc(x.origem_nome)}, com ${esc(x.dono_nome)}) — proteção ${esc(x.protecao)}`)));
-
-      partes.push(bloco('Sem pick cadastrada — a vaga fica com o time de origem', '#f59e0b',
-        d.sem_pick.map(x => `<b>${x.rodada}ª rodada, pick ${x.pick}</b> — ${esc(x.origem_nome)} não tem pick deste ano na tabela`)));
-
-      partes.push(bloco('Swaps resolvidos', '#22c55e',
-        d.swaps.map(x => `<b>${esc(x.melhor_dono_nome)}</b> ficou com a pick ${x.melhor_pick} (de ${esc(x.melhor_de_nome)}) e `
-          + `<b>${esc(x.pior_dono_nome)}</b> com a ${x.pior_pick} (de ${esc(x.pior_de_nome)})`)));
-
-      const temProblema = d.divergencias.length || d.sem_pick.length || d.protecoes.length;
-      const resumo = `<div style="font-size:12px;color:var(--text-3);margin-bottom:10px">
-          Draft de <b>${d.ano}</b> · ${d.vagas} escolhas conferidas</div>`;
-
-      box.innerHTML = resumo + (temProblema
-        ? partes.join('')
-        : `<div style="border:1px solid #22c55e40;background:#22c55e14;border-radius:12px;padding:14px 16px">
-             <div style="font-weight:700;font-size:13px;color:#22c55e">Está tudo certo</div>
-             <div style="font-size:12.5px;color:var(--text-2);margin-top:4px">
-               Cada escolha está com o dono da pick. Trocas e swaps conferidos.</div>
-           </div>` + partes.join(''));
-    } catch (e) {
-      box.innerHTML = `<div style="padding:14px;color:#fca5a5;font-size:13px">Erro: ${e.error || 'não deu pra conferir'}</div>`;
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  /**
-   * Corrige a ordem: cada escolha vai pro dono atual da pick.
-   *
-   * É a mesma conta do "Revisar picks", só que gravando. Depois de ajustar,
-   * a revisão roda sozinha — quem clicou precisa VER que ficou certo, e não
-   * só ler que mexeu em três vagas.
-   */
-  async function ajustarPicks() {
-    const btn = document.getElementById('btnAjustarPicks');
-    if (!currentDraftSession || !currentDraftSession.id) {
-      const box = document.getElementById('revisaoPicks');
-      box.style.display = 'block';
-      box.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--text-3)">'
-        + 'Não há draft montado nesta liga agora — nada a ajustar.</div>';
-      return;
-    }
-    btn.disabled = true;
-    const antes = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Ajustando…';
-    try {
-      const r = await api('draft.php', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'ajustar_picks', draft_session_id: currentDraftSession.id })
-      });
-      btn.disabled = false;
-      btn.innerHTML = antes;
-      // A ordem na tela precisa refletir o que acabou de mudar.
-      if (r.ajustadas > 0) loadDraft();
-      await revisarPicks();
-      const box = document.getElementById('revisaoPicks');
-      if (box) {
-        box.insertAdjacentHTML('afterbegin',
-          `<div style="border:1px solid #22c55e40;background:#22c55e14;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12.5px;color:var(--text-2)">
-             <b style="color:#22c55e">${esc(r.message || 'Ajustado.')}</b></div>`);
-      }
-    } catch (e) {
-      btn.disabled = false;
-      btn.innerHTML = antes;
-      alert('Erro: ' + (e.error || 'não deu pra ajustar'));
-    }
-  }
-
   async function finalizeDraft() {
     if (!currentDraftSession) return;
     if (!await confirmarSite('Finalizar o draft agora?')) return;
