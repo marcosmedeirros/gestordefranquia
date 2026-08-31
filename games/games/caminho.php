@@ -294,7 +294,7 @@ function caminhoTestarDesafio(string $id, array $e, bool $fim): bool
         case 'de_pe':       return !empty($e['voltouComPremio']);
         case 'estreia':     return $n >= 1 && ((float)($jogadas[0]['pts'] ?? 0)) >= 20;
         case 'trinta_no_ano':
-            foreach ($jogadas as $x) if (((float)($x['pts'] ?? 0)) >= 27) return true;
+            foreach ($jogadas as $x) if (((float)($x['pts'] ?? 0)) >= 30) return true;
             return false;
         case 'duplo_completo':
             return $tot['pts'] >= 18000 && $tot['reb'] >= 8000 && $tot['ast'] >= 4000;
@@ -4620,7 +4620,7 @@ const DESAFIOS = [
   {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue vinte temporadas."},
   {id:"de_pe",       i:"🩹", n:"De pé",              d:"Perca uma temporada inteira e volte a ganhar prêmio."},
   {id:"estreia",     i:"🚀", n:"Chegou chegando",    d:"Média de 20 pontos na temporada de estreia."},
-  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 27 pontos numa temporada."},
+  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 30 pontos numa temporada."},
   {id:"ano_perfeito",i:"✨", n:"O ano perfeito",     d:"Seja MVP e campeão na mesma temporada."},
   {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
   {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 120 de legado ou mais."},
@@ -4719,7 +4719,7 @@ function testarDesafio(id, fim){
     // O 20/8/8 numa temporada não existia neste motor: o teto medido de
     // assistências por ano é 9,3, e só pra armador. Virou o que o jogo de
     // fato permite e ainda é raro — média de 30 pontos num ano (1,3%).
-    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 27);
+    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 30);
     case "duplo_completo":return tot.pts >= 18000 && tot.reb >= 8000 && tot.ast >= 4000;
     case "ano_perfeito":  return jogadas.some(x => x.campeao &&
                             (x.premios||[]).some(q => String(q && q.t ? q.t : q) === "MVP"));
