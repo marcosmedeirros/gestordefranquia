@@ -2882,12 +2882,16 @@ function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
     $ovr = wcColunaOvr($pdo);
     $filtro = $liga ? ' AND t.league = ?' : '';
+    /* O limite era 25 e cortava em silêncio: a NEXT tem 30 lendas e todas
+       empatam em 82 OVR, então cinco times sumiam sem explicação. 33 cobre
+       a maior liga; quando o corte acontece, ele fica dito no rodapé. */
+    $limite = 'LIMIT 33';
 
     $st = $pdo->prepare("
         SELECT p.name, p.age, p.position, p.{$ovr} AS ovr, t.city, t.name AS team_name, t.league
         FROM players p JOIN teams t ON t.id = p.team_id
         WHERE COALESCE(p.is_lenda,0) = 1 {$filtro}
-        ORDER BY p.{$ovr} DESC LIMIT 25
+        ORDER BY p.{$ovr} DESC, p.name {$limite}
     ");
     $st->execute($liga ? [$liga] : []);
     $lendas = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -2899,6 +2903,9 @@ function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
         // Só o apelido do time, sem cidade: "Los Angeles Lakers" vira "Lakers".
         $txt .= "• *{$l['name']}* {$l['ovr']}/{$l['age']}y - {$l['team_name']}"
               . ($liga ? '' : ' _' . $l['league'] . '_') . "\n";
+    }
+    if (count($lendas) >= 33) {
+        $txt .= "\n_Mostrando as 33 primeiras. Peça de uma liga só: /lendas ELITE_";
     }
     return rtrim($txt);
 }
