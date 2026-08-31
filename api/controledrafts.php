@@ -177,7 +177,7 @@ function cdGarantirSchema(PDO $pdo): void {
         sorteado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         escolhida TINYINT(1) NOT NULL DEFAULT 0,
         pool_aplicado_em DATETIME NULL,
-        UNIQUE KEY uk_dcs_template (template_id),
+        UNIQUE KEY uk_dcs_template (league, template_id),
         INDEX idx_dcs_liga (league),
         CONSTRAINT fk_dcs_tpl_cd FOREIGN KEY (template_id)
             REFERENCES draft_class_templates(id) ON DELETE CASCADE
@@ -187,6 +187,22 @@ function cdGarantirSchema(PDO $pdo): void {
     if (!$pdo->query("SHOW COLUMNS FROM draft_class_sorteios LIKE 'escolhida'")->fetch()) {
         $pdo->exec("ALTER TABLE draft_class_sorteios ADD COLUMN escolhida TINYINT(1) NOT NULL DEFAULT 0");
     }
+    /* A única era só (template_id): sortear 2020 na ELITE marcava a classe
+       como usada na NEXT também, e a NEXT nem conseguia sorteá-la. Desde que
+       a classe passou a servir a mais de uma liga, o sorteio é por liga. */
+    try {
+        $antiga = $pdo->query("SHOW INDEX FROM draft_class_sorteios WHERE Key_name = 'uk_dcs_template'")->fetchAll();
+        if (count($antiga) === 1) {
+            /* A foreign key de template_id se apoia nesta única. Trocá-la direto
+               é recusado ("needed in a foreign key constraint"), então o índice
+               simples entra primeiro pra segurar a FK. */
+            if (!$pdo->query("SHOW INDEX FROM draft_class_sorteios WHERE Key_name = 'idx_dcs_tpl'")->fetch()) {
+                $pdo->exec("ALTER TABLE draft_class_sorteios ADD INDEX idx_dcs_tpl (template_id)");
+            }
+            $pdo->exec("ALTER TABLE draft_class_sorteios DROP INDEX uk_dcs_template,
+                        ADD UNIQUE KEY uk_dcs_template (league, template_id)");
+        }
+    } catch (Throwable $e) { error_log('[cd/uk sorteios] ' . $e->getMessage()); }
 }
 
 /**
@@ -302,18 +318,17 @@ function cdEstado(PDO $pdo, string $liga): array {
                                 (SELECT COUNT(*) FROM draft_class_template_players p WHERE p.template_id = t.id) AS jogadores,
                                 s.id AS sorteio_id, s.season_year AS usada_em, s.sorteado_em
                          FROM draft_class_templates t
-                         LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                         LEFT JOIN draft_class_sorteios s ON s.template_id = t.id AND s.league = ?
                          WHERE EXISTS (SELECT 1 FROM draft_class_template_leagues l
                                         WHERE l.template_id = t.id AND l.league = ?)
                          ORDER BY t.name");
-    $st->execute([$liga]);
+    $st->execute([$liga, $liga]);
     $disponiveis = []; $usadas = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
         $c['jogadores'] = (int)$c['jogadores'];
-        // Classe sem jogador não entra na roleta (ver o HAVING do sorteio).
-        // Contá-la como "no bolo" faria a tela prometer um número de classes
-        // maior do que o sorteio consegue entregar.
-        $c['sorteavel'] = $c['jogadores'] > 0;
+        // Classe vazia também entra na roleta: as classes das lendas nascem
+        // sem ninguém e os jogadores são cadastrados depois do sorteio.
+        $c['sorteavel'] = true;
         if ($c['sorteio_id']) $usadas[] = $c; else $disponiveis[] = $c;
     }
     $sorteaveis = array_values(array_filter($disponiveis, fn($c) => $c['sorteavel']));
@@ -378,9 +393,7 @@ function cdEstado(PDO $pdo, string $liga): array {
                 : count($sorteaveis) . ' classe(s) no bolo',
             'bloqueio' => $temp
                 ? (count($sorteaveis) === 0 && !$sorteioAtual
-                    ? (count($disponiveis) > 0
-                        ? 'As classes desta liga estão sem jogadores cadastrados.'
-                        : 'Nenhuma classe disponível nesta liga. Cadastre uma abaixo.')
+                    ? 'Nenhuma classe disponível nesta liga. Cadastre uma abaixo.'
                     : null)
                 : 'A liga não tem temporada em aberto.',
         ],
@@ -544,9 +557,9 @@ try {
 
         $st = $pdo->prepare("SELECT t.league, s.id AS sorteio_id
                              FROM draft_class_templates t
-                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id AND s.league = ?
                              WHERE t.id = ?");
-        $st->execute([$tplId]);
+        $st->execute([$liga, $tplId]);
         $classe = $st->fetch(PDO::FETCH_ASSOC);
         if (!$classe) cdErro(404, 'Classe não encontrada.');
         if (!cdClasseEhDaLiga($pdo, $tplId, $liga)) cdErro(403, "Essa classe não é da " . $liga . ".");
@@ -594,9 +607,9 @@ try {
 
         $st = $pdo->prepare("SELECT t.league, s.id AS sorteio_id
                              FROM draft_class_templates t
-                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id AND s.league = ?
                              WHERE t.id = ?");
-        $st->execute([$tplId]);
+        $st->execute([$liga, $tplId]);
         $classe = $st->fetch(PDO::FETCH_ASSOC);
         if (!$classe) cdErro(404, 'Classe não encontrada.');
         if (!cdClasseEhDaLiga($pdo, $tplId, $liga)) cdErro(403, "Essa classe não é da " . $liga . ".");
@@ -662,17 +675,16 @@ try {
             $st = $pdo->prepare("SELECT t.id, t.name,
                                         (SELECT COUNT(*) FROM draft_class_template_players p WHERE p.template_id = t.id) AS jogadores
                                  FROM draft_class_templates t
-                                 LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                                 LEFT JOIN draft_class_sorteios s ON s.template_id = t.id AND s.league = ?
                                  WHERE EXISTS (SELECT 1 FROM draft_class_template_leagues l
                                                 WHERE l.template_id = t.id AND l.league = ?)
                                    AND s.id IS NULL
-                                 HAVING jogadores > 0
                                  ORDER BY t.id");
-            $st->execute([$liga]);
+            $st->execute([$liga, $liga]);
             $candidatas = $st->fetchAll(PDO::FETCH_ASSOC);
             if (!$candidatas) {
                 $pdo->rollBack();
-                cdErro(409, 'Não há classe disponível com jogadores cadastrados na ' . $liga . '.');
+                cdErro(409, 'Não há classe disponível na ' . $liga . '.');
             }
 
             if ($escolhendo) {
@@ -683,7 +695,7 @@ try {
                 foreach ($candidatas as $c) if ((int)$c['id'] === $alvo) { $escolhida = $c; break; }
                 if (!$escolhida) {
                     $pdo->rollBack();
-                    cdErro(422, 'Essa classe não está disponível pra ' . $liga . ' — pode já ter sido usada ou estar sem jogadores.');
+                    cdErro(422, 'Essa classe não está disponível pra ' . $liga . ' — pode já ter sido usada.');
                 }
             } else {
                 $escolhida = $candidatas[random_int(0, count($candidatas) - 1)];
