@@ -413,6 +413,7 @@ function wcAjuda(): string
         // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
         // do /ajuda pra quem não tem proposta nenhuma esperando.
         . "/lendas — os marcados como LENDA\n"
+        . "/emtela — as vagas de tela da próxima live\n"
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
         . "/estatisticas — recordes e curiosidades da liga
@@ -2877,6 +2878,53 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     return $txt;
 }
 
+/**
+ * As vagas de tela da próxima live.
+ *
+ * A venda dura uma hora e é quem chega primeiro: quem está no grupo precisa
+ * saber quantas sobraram AGORA, e não depois de abrir o site. Por isso o
+ * comando responde as duas coisas que decidem — se está aberta e quantas
+ * restam — antes de listar quem já garantiu.
+ */
+function wcSlotsTela(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    require_once dirname(__DIR__) . '/backend/slots_tela.php';
+
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
+    if (!$liga) return 'De qual liga? Ex.: /slots ELITE';
+
+    $e = slotsTelaEstado($pdo, $liga);
+    if (!$e['live']) return "Nenhuma live da temporada regular marcada na {$liga} pras próximas semanas.";
+
+    $hora = slotsTelaHora($e['live']['inicio']);
+    $txt  = "📺 *Vagas de tela — {$liga}*\n_Live de {$hora}_\n\n";
+
+    if ($e['motivo'] === 'cedo') {
+        $abre = substr((string)$e['abre_em'], 11, 5);
+        $txt .= "A venda abre às *{$abre}*, uma hora antes da live.\n";
+        $txt .= "São {$e['total']} vagas, {$e['preco']} moedas cada — quem chegar primeiro leva.";
+        return $txt;
+    }
+    if ($e['motivo'] === 'comecou') {
+        $txt .= "A live já começou — a venda fechou com *{$e['vendidos']}* das {$e['total']} vagas.\n";
+    } elseif ($e['restam'] === 0) {
+        $txt .= "*ESGOTADO* — as {$e['total']} vagas acabaram.\n";
+    } else {
+        $txt .= "*ABERTA* — restam *{$e['restam']}* de {$e['total']} vagas, a {$e['preco']} moedas.\n";
+    }
+
+    if ($e['lista']) {
+        $txt .= "\n*Na tela:*\n";
+        foreach ($e['lista'] as $i => $s) {
+            $txt .= ($i + 1) . '. ' . trim((string)($s['time_nome'] ?? '')) . "\n";
+        }
+    }
+    if ($e['restam'] > 0 && $e['motivo'] !== 'comecou') {
+        $txt .= "\n_Pra garantir a sua, é na loja do site._";
+    }
+    return rtrim($txt);
+}
+
 function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
@@ -3306,6 +3354,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'lendas':
             case 'lenda':
                 return wcLendas($pdo, $arg, $ligaDoGrupo);
+
+            case 'emtela':
+            case 'slots':
+            case 'slot':
+            case 'vagas':
+                return wcSlotsTela($pdo, $arg, $ligaDoGrupo);
 
             case 'hall':
             case 'halldafama':
