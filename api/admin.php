@@ -1469,28 +1469,30 @@ if ($method === 'GET') {
             if ($method === 'GET') {
                 $subAction = $_GET['sub'] ?? 'list';
                 if ($subAction === 'list') {
-                    // O banco é por liga: classe cadastrada na ELITE é da
-                    // ELITE. Sem o filtro, a aba de cada liga mostrava o bolo
-                    // de todo mundo — e a roleta de uma liga podia oferecer
-                    // classe que outra já tinha reservado.
-                    //
-                    // As que ainda não têm liga (existiam antes disso) entram
-                    // junto, marcadas, pra alguém atribuir sem precisar caçá-las.
+                    /*
+                     * O BANCO É UNIVERSAL — a classe aparece em todas as ligas.
+                     *
+                     * Era filtrado por liga: classe cadastrada na ELITE só
+                     * aparecia na ELITE. Na prática isso obrigava a cadastrar
+                     * a mesma classe quatro vezes, uma por liga, e uma classe
+                     * de draft não tem nada de específico de liga — é uma
+                     * lista de calouros.
+                     *
+                     * Decisão da liga em 31/08/2026. A coluna `league`
+                     * continua sendo gravada porque diz de onde a classe
+                     * veio, mas não filtra mais nada.
+                     *
+                     * A liga segue na query só pra checagem de escopo: quem é
+                     * admin de uma liga só continua precisando de acesso a
+                     * ela pra abrir a tela.
+                     */
                     $ligaClasses = strtoupper(trim((string)($_GET['league'] ?? '')));
                     if ($ligaClasses !== '' && in_array($ligaClasses, $validLeagues, true)) {
                         requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaClasses);
-                        $stmtCls = $pdo->prepare("SELECT id, name, league, created_at,
-                            (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
-                            FROM draft_class_templates dct
-                            WHERE dct.league = ? OR dct.league IS NULL
-                            ORDER BY dct.league IS NULL, created_at DESC");
-                        $stmtCls->execute([$ligaClasses]);
-                        $rows = $stmtCls->fetchAll(PDO::FETCH_ASSOC);
-                    } else {
-                        $rows = $pdo->query("SELECT id, name, league, created_at,
-                            (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
-                            FROM draft_class_templates dct ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
                     }
+                    $rows = $pdo->query("SELECT id, name, league, created_at,
+                        (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
+                        FROM draft_class_templates dct ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
                     echo json_encode(['success' => true, 'templates' => $rows]);
                 } elseif ($subAction === 'players') {
                     $tplId = (int)($_GET['template_id'] ?? 0);
