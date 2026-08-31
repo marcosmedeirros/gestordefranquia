@@ -245,6 +245,65 @@ if ($method === 'GET') {
             ]);
             break;
 
+        /* Lendas por time. O painel de cap já listava as lendas da ELITE, mas
+           só dela e misturado com a tabela de OVR. Aqui a pergunta é outra —
+           "quem cada time marcou" — e vale nas três ligas que têm lenda. */
+        case 'lendas_liga': {
+            $ligaLen = strtoupper(trim($_GET['league'] ?? 'ELITE'));
+            if (!in_array($ligaLen, ['ELITE', 'NEXT', 'RISE'], true)) {
+                echo json_encode(['success' => false, 'error' => 'A ROOKIE não tem lendas.']); break;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaLen);
+
+            $st = $pdo->prepare("SELECT t.id AS team_id,
+                                        TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time_nome,
+                                        t.photo_url,
+                                        p.id AS player_id, p.name AS player_nome, p.ovr, p.age, p.position
+                                 FROM teams t
+                                 LEFT JOIN players p ON p.team_id = t.id AND COALESCE(p.is_lenda, 0) = 1
+                                 WHERE t.league = ?
+                                 ORDER BY time_nome, p.ovr DESC");
+            $st->execute([$ligaLen]);
+
+            $times = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $tid = (int)$r['team_id'];
+                if (!isset($times[$tid])) {
+                    $times[$tid] = [
+                        'team_id' => $tid,
+                        'time'    => $r['time_nome'],
+                        'logo'    => $r['photo_url'] ?: null,
+                        'lendas'  => [],
+                    ];
+                }
+                if ($r['player_id'] === null) continue;
+                $times[$tid]['lendas'][] = [
+                    'id'       => (int)$r['player_id'],
+                    'name'     => $r['player_nome'],
+                    'ovr'      => (int)$r['ovr'],
+                    'age'      => $r['age'] !== null ? (int)$r['age'] : null,
+                    'position' => $r['position'],
+                    // O piso de 40M só aparece quando a tabela por OVR dá menos:
+                    // dizer "40M" pra um 96 seria mentira.
+                    'salario'  => getPlayerBaseSalary(['ovr' => (int)$r['ovr'], 'is_lenda' => 1]),
+                    'no_piso'  => capOvrSalary((int)$r['ovr']) <= CAP_LENDA_MINIMO_MILLIONS,
+                ];
+            }
+            $times = array_values($times);
+            $comLenda = 0;
+            foreach ($times as $t) if ($t['lendas']) $comLenda++;
+
+            echo json_encode([
+                'success'    => true,
+                'league'     => $ligaLen,
+                'times'      => $times,
+                'com_lenda'  => $comLenda,
+                'sem_lenda'  => count($times) - $comLenda,
+                'piso'       => CAP_LENDA_MINIMO_MILLIONS,
+            ]);
+            break;
+        }
+
         case 'cap_tabela':
             define('JOVENS_IDADE_MIN', 19);
             define('JOVENS_IDADE_MAX', 23);

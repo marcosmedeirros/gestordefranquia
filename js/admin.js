@@ -3293,6 +3293,10 @@ async function showLeague(league) {
          fila. */
       { icon: 'bi-patch-check-fill',        label: 'Badges',                    fn: `showTapas('${league}')`,    color: '#f59e0b', bg: 'rgba(245,197,66,.12)'  },
       { icon: 'bi-clipboard2-pulse',        label: 'Tática',                    fn: 'showTaticaAdmin()',         color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
+      // A ROOKIE não tem lenda — o card não aparece lá.
+      ...(['ELITE', 'NEXT', 'RISE'].includes(league) ? [
+        { icon: 'bi-star-fill',             label: 'Lendas',                    fn: `showLendas('${league}')`,   color: '#f5c542', bg: 'rgba(245,197,66,.12)'  },
+      ] : []),
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-hammer',                  label: 'Leilão',                    fn: `showLeilaoAdmin('${league}')`, color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
@@ -5055,6 +5059,96 @@ window.carregarCapTabela = carregarCapTabela;
  * time junto: a pergunta que traz alguém até aqui quase nunca para na
  * distribuição por OVR, é "quem está estourando".
  */
+/**
+ * Lendas da liga, time a time. Uma lenda custa no mínimo 40M de cap e cada
+ * time marca a sua, então a pergunta prática do admin é "quem já usou a tag e
+ * quanto ela está pesando" — e não dava pra responder sem abrir time por time.
+ */
+async function showLendas(league) {
+  appState.view = 'lendas';
+  const c = document.getElementById('mainContainer');
+  c.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:#f5c542"></div></div>';
+
+  let d;
+  try {
+    d = await api(`admin.php?action=lendas_liga&league=${encodeURIComponent(league)}`);
+  } catch (e) {
+    c.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+      <div class="panel" style="padding:18px;color:#ef4444">Não deu pra carregar as lendas: ${escapeHtml(e.message || 'erro')}</div>`;
+    return;
+  }
+
+  const times = d.times || [];
+  const comLenda = times.filter(t => t.lendas.length);
+  const semLenda = times.filter(t => !t.lendas.length);
+  const folha = comLenda.reduce((a, t) => a + t.lendas.reduce((s, l) => s + l.salario, 0), 0);
+
+  const cardDoTime = (t) => {
+    const l = t.lendas[0];
+    return `
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="panel" style="padding:14px;height:100%;${l ? 'border-color:rgba(245,197,66,.35)' : ''}">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:${l ? '10px' : '0'}">
+          ${t.logo ? `<img src="${escapeHtml(t.logo)}" alt="" style="width:26px;height:26px;object-fit:contain;flex:none">` : ''}
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${escapeHtml(t.time)}</div>
+          ${l ? '' : '<span style="margin-left:auto;font-size:11px;color:var(--text-3)">sem lenda</span>'}
+        </div>
+        ${t.lendas.map(l => `
+          <div style="display:flex;align-items:center;gap:10px;padding-top:9px;border-top:1px solid var(--border)">
+            <i class="bi bi-star-fill" style="color:#f5c542;font-size:15px"></i>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.name)}</div>
+              <div style="font-size:11px;color:var(--text-3)">
+                ${escapeHtml(l.position || '')} · ${l.ovr} OVR${l.age !== null ? ' · ' + l.age + ' anos' : ''}
+              </div>
+            </div>
+            <div style="text-align:right;flex:none">
+              <div style="font-size:15px;font-weight:800;color:#f5c542;font-variant-numeric:tabular-nums">${l.salario}M</div>
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)">${l.no_piso ? 'piso da lenda' : 'tabela OVR'}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  };
+
+  c.innerHTML = `
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+  <h5 class="mb-0" style="color:#f5c542"><i class="bi bi-star-fill me-2"></i>Lendas — ${escapeHtml(league)}</h5>
+  <button class="btn-ghost ms-auto" onclick="showLendas('${league}')"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+</div>
+
+<div class="row g-2 mb-3">
+  ${[
+    ['Times com lenda', comLenda.length, '#f5c542'],
+    ['Sem lenda', semLenda.length, semLenda.length ? 'var(--text)' : 'var(--text-3)'],
+    ['Cap somado', folha + 'M', '#f5c542'],
+    ['Piso da lenda', (d.piso || 40) + 'M', 'var(--text-3)'],
+  ].map(([rot, val, cr]) => `
+    <div class="col-6 col-md-3">
+      <div class="panel" style="padding:12px 14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:${cr};font-variant-numeric:tabular-nums">${val}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-top:3px">${rot}</div>
+      </div>
+    </div>`).join('')}
+</div>
+
+${comLenda.length ? `<div class="row g-2 mb-3">${comLenda.map(cardDoTime).join('')}</div>` : `
+  <div class="panel" style="padding:18px;font-size:13px;color:var(--text-3)">
+    Nenhum time da ${escapeHtml(league)} marcou lenda ainda.
+  </div>`}
+
+${semLenda.length ? `
+  <div class="panel mb-3">
+    <div class="panel-header">
+      <div class="panel-title"><i class="bi bi-dash-circle" style="color:#94a3b8"></i> Sem lenda (${semLenda.length})</div>
+    </div>
+    <div style="padding:12px 14px;display:flex;flex-wrap:wrap;gap:6px">
+      ${semLenda.map(t => `<span class="pun-badge" style="background:var(--bg-3);color:var(--text-3)">${escapeHtml(t.time)}</span>`).join('')}
+    </div>
+  </div>` : ''}`;
+}
+
 async function showControleCap(league) {
   const c = document.getElementById('mainContainer');
   c.innerHTML = `<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>`;
