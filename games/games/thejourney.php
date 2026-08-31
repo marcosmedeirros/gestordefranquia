@@ -3108,8 +3108,22 @@ function ligaAindaQuer(){
  * sentido às outras duas.
  */
 function gerarOfertas(){
-  const todas = gerarOfertasBrutas();
-  if (!Array.isArray(todas) || todas.length <= 3) return todas || [];
+  const brutas = gerarOfertasBrutas();
+  if (!Array.isArray(brutas)) return [];
+
+  /* O MESMO CLUBE NÃO APARECE DUAS VEZES.
+     Os sorteios são independentes e podem cair no mesmo time — e aí a
+     janela oferece a mesma porta duas vezes, com valores diferentes. Fica a
+     primeira, que é a que tem a nota escrita pro caso dela. */
+  const vistos = new Set();
+  const todas = brutas.filter(o => {
+    const k = String(o && o.time || '');
+    if (!k || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+
+  if (todas.length <= 3) return todas;
   const ficar = todas.filter(o => o.time === S.time).slice(0, 1);
   const sair  = todas.filter(o => o.time !== S.time);
   return [...ficar, ...sair.slice(0, 3 - ficar.length)];
@@ -3169,11 +3183,18 @@ function gerarOfertasBrutas(){
     ofertas.push({tipo:"renovar", time:S.time, liga:S.liga, salario:Math.max(1,Math.round(v*0.9)),
                   forca:S.forcaBase, papel:S.papel || "titular",
                   nota:"Ficar onde você já é titular."});
-    const c = pick(S.perto ? G_LEAGUE : clubesDoPais(S.nac));
-    ofertas.push({tipo:"exterior", time:c[0], liga:c[1],
-                  salario:Math.max(2, Math.round(Math.max(v,3) * 1.3)),
-                  forca:ri(50,84), papel:"estrela",
-                  nota:`${c[1]}. Outro clube, mais dinheiro, mesma distância da liga.`});
+    /* O clube de fora não pode ser o clube em que ele JÁ ESTÁ: o sorteio
+       pegava a lista inteira do país, e quando caía no próprio time a janela
+       abria com "Ficar no Franca" duas vezes — a mesma porta oferecida como
+       se fossem duas. */
+    const opcoesFora = (S.perto ? G_LEAGUE : clubesDoPais(S.nac)).filter(x => x[0] !== S.time);
+    if (opcoesFora.length){
+      const c = pick(opcoesFora);
+      ofertas.push({tipo:"exterior", time:c[0], liga:c[1],
+                    salario:Math.max(2, Math.round(Math.max(v,3) * 1.3)),
+                    forca:ri(50,84), papel:"estrela",
+                    nota:`${c[1]}. Outro clube, mais dinheiro, mesma distância da liga.`});
+    }
     if (v >= 9){
       const t = timeAleatorio();
       ofertas.push({tipo:"chamado", time:t, liga:S.modo === "fba" ? "RISE" : "NBA",
@@ -5610,15 +5631,28 @@ function mercadoHTML(){
   // aparece aos 39 anos. É aqui que a pessoa decide se insiste — e insistir
   // custa: a G League paga mal e o exterior tira você do radar.
   const podeParar = S.dispensado || S.cortado || S.foraDaLiga || S.idade >= 30 || !ofertas.length;
+
+  /* "A liga não ligou" só vale se ela realmente não ligou.
+     O flag `dispensado` só era limpo pra quem está DENTRO da liga, então
+     quem caiu pra fora carregava ele pra sempre — e a tela dizia "nenhum
+     time da NBA fez proposta" logo acima de uma proposta dos Knicks. Quem
+     manda aqui é o que está na mesa, não o flag. */
+  const temDaLiga = ofertas.some(o => o.tipo === "chamado" || o.liga === "NBA" || o.liga === "RISE");
+  const semLiga = S.dispensado && !temDaLiga;
+
   return `
     <h1 class="dec-tit">${!ofertas.length ? "Acabou"
       : S.cortado ? "Você foi cortado"
-      : S.dispensado ? "A liga não ligou" : "Janela de transferências"}</h1>
+      : temDaLiga && S.foraDaLiga ? "A liga te chamou"
+      : semLiga ? "A liga não ligou" : "Janela de transferências"}</h1>
     <p class="lead dec-sub">${!ofertas.length
       ? "Nenhuma proposta, de lugar nenhum."
       : S.cortado
       ? "O clube rasgou seu contrato no meio da temporada. O que existe agora é o que está aqui."
-      : S.dispensado
+      : temDaLiga && S.foraDaLiga
+      ? `Você jogou o bastante lá fora pra ${esc(S.modo === "fba" ? "FBA" : "NBA")} olhar de novo.
+         A proposta dela está aqui, junto das outras.`
+      : semLiga
       ? `Seu contrato acabou e nenhum time da ${esc(S.modo === "fba" ? "FBA" : "NBA")} fez proposta.
          O que existe é o que está aqui — ou parar por aqui.`
       : ofertas.length === 1
