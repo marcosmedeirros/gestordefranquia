@@ -40,6 +40,7 @@ function gamesComDobro(): array
         'flappy'       => ['label' => 'Flappy Bird',    'desc' => 'Livre · pontuação da partida',  'icon' => 'bi-airplane'],
         'pinguim'      => ['label' => 'Pinguim Run',    'desc' => 'Livre · pontuação da partida',  'icon' => 'bi-snow'],
         'acerteacesta' => ['label' => 'Lance Livre',    'desc' => 'Livre · cestas da partida',     'icon' => 'bi-basket2-fill'],
+        'buildplayer'  => ['label' => 'Build Player',   'desc' => 'Livre · top 10 da história',    'icon' => 'bi-person-gear'],
     ];
 }
 

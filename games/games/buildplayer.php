@@ -396,6 +396,11 @@ if (($_POST['acao'] ?? '') !== '') {
                 // Jogadas são ilimitadas e todo build fechado paga pelo ranking
                 // histórico — não tem mais trava de "só o primeiro do dia".
                 $moedas = buildMoedasDaPosicaoHistorica($hist);
+                // Dobro do controle de jogos, igual aos outros: o Build lia a
+                // tabela de posição e pagava direto, então ligar o dobro dele
+                // no admin não mudava nada. O valor dobrado é o que fica
+                // gravado na partida, porque foi o que o jogador recebeu.
+                $moedas *= max(1, (int)getGamePointsMultiplier($pdo, 'buildplayer'));
 
                 $pdo->prepare("UPDATE build_partidas SET posicao_rank=?, moedas=?, temporada=? WHERE id=?")
                     ->execute([$hist['no_top'] ? $hist['posicao'] : 0, $moedas, json_encode($season), (int)$partida['id']]);
