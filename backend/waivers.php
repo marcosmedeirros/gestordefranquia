@@ -302,6 +302,41 @@ function notificarResultadoDoWaiver(PDO $pdo, array $w, array $claims, int $winn
  * Chamado pelo agendador (cron), pelo admin e, como rede de segurança, ao abrir a aba.
  * Retorna ['resolved'=>, 'claimed'=>, 'cleared'=>].
  */
+/**
+ * Tira da fila quem não tem mais espaço pro salário do jogador.
+ *
+ * Vale só onde o cap existe (ELITE): fora dela não há folha pra estourar, e
+ * filtrar recusaria lance legítimo. A ordem dos que sobram é preservada — o
+ * maior lance continua na frente.
+ */
+function waiverFiltrarPorEspaco(PDO $pdo, array $claims, int $ovr): array
+{
+    if (count($claims) < 1) return $claims;
+
+    $custo = getPlayerBaseSalary(['ovr' => $ovr]);
+    if ($custo <= 0) return $claims;
+
+    $sobram = [];
+    foreach ($claims as $c) {
+        $teamId = (int)$c['team_id'];
+        try {
+            $liga = $pdo->query("SELECT league FROM teams WHERE id = " . $teamId)->fetchColumn();
+            if (strtoupper(trim((string)$liga)) !== 'ELITE') { $sobram[] = $c; continue; }
+
+            $r = getTeamCapSummary($pdo, $teamId);
+            $espaco = (int)$r['cap_max'] - (int)$r['payroll'];
+            if ($espaco >= $custo) $sobram[] = $c;
+            else error_log("[waiver] time {$teamId} sem espaço ({$espaco}M) pro salário de {$custo}M — perdeu a vez");
+        } catch (Throwable $e) {
+            // Falha de cálculo não pode tirar alguém da disputa: na dúvida,
+            // o lance continua valendo — era o comportamento de antes.
+            error_log('[waiver] espaco: ' . $e->getMessage());
+            $sobram[] = $c;
+        }
+    }
+    return $sobram;
+}
+
 function resolveExpiredWaivers(PDO $pdo): array
 {
     $out = ['resolved' => 0, 'claimed' => 0, 'cleared' => 0];
@@ -334,6 +369,23 @@ function resolveExpiredWaivers(PDO $pdo): array
                                ORDER BY COALESCE(bid_space, 0) DESC, claimed_at ASC, id ASC");
             $cs->execute([$wid]);
             $claims = $cs->fetchAll(PDO::FETCH_ASSOC);
+
+            /*
+             * O SALÁRIO DELE AINDA CABE?
+             *
+             * O lance é conferido contra o cap na hora em que é dado, mas os
+             * lances não se somam: um time com 10M de espaço podia apostar
+             * 10M em três dispensados de 8M e, ganhando os três, terminar com
+             * 24M de folha e 10M de espaço. O anúncio da liga é explícito —
+             * o lance vale "desde que tenha espaço suficiente para realizar a
+             * movimentação", e ninguém deve ficar ferrado de cap pelo sistema.
+             *
+             * Quem não tem mais espaço perde a vez pro lance seguinte, que é
+             * o que aconteceria se ele nem tivesse apostado. O lance continua
+             * sem virar salário: o custo aqui é o salário do jogador, o mesmo
+             * que já está no app.
+             */
+            $claims = waiverFiltrarPorEspaco($pdo, $claims, (int)$w['ovr']);
 
             $pdo->beginTransaction();
             $winner = 0;
