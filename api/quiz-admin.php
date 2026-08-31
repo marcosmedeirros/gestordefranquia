@@ -287,37 +287,6 @@ try {
         exit;
     }
 
-    /**
-     * Enquete nativa direto no grupo, sem passar pela fila nem pelo banco de
-     * perguntas. É pra pergunta de momento — "quem joga a live hoje?" — que
-     * hoje o admin manda do celular.
-     */
-    if ($acao === 'enviar_enquete') {
-        require_once dirname(__DIR__) . '/backend/whatsapp.php';
-        $c = qaCorpo();
-        $pergunta = trim((string)($c['pergunta'] ?? ''));
-        $opcoes   = is_array($c['opcoes'] ?? null) ? $c['opcoes'] : [];
-        $escolhas = (int)($c['escolhas'] ?? 1);
-        $jid      = trim((string)($c['jid'] ?? '')) ?: quizGrupoDoQuiz($pdo);
-
-        if ($pergunta === '') qaErro(400, 'Escreva a pergunta da enquete.');
-        $opcoes = array_values(array_filter(array_map(fn($o) => trim((string)$o), $opcoes), fn($o) => $o !== ''));
-        if (count($opcoes) < 2)  qaErro(400, 'A enquete precisa de pelo menos 2 opções.');
-        if (count($opcoes) > 12) qaErro(400, 'O WhatsApp aceita no máximo 12 opções.');
-        if ($jid === '') qaErro(400, 'Nenhum grupo definido pro quiz — escolha um no seletor acima.');
-
-        $cfg = whatsappConfig($pdo);
-        if (!$cfg) qaErro(503, 'O bot não está configurado.');
-
-        [$ok, $erro] = whatsappPostarEnquete($cfg, $jid, $pergunta, $opcoes, $escolhas);
-        if (!$ok) qaErro(502, 'A Evolution recusou: ' . $erro);
-
-        $nome = whatsappGruposDeComando($pdo)[$jid]['nome'] ?? $jid;
-        echo json_encode(['success' => true,
-            'message' => 'Enquete enviada em ' . $nome . ' com ' . count($opcoes) . ' opções.']);
-        exit;
-    }
-
     if ($acao === 'grupos_remover') {
         $jid = trim((string)(qaCorpo()['jid'] ?? ''));
         if ($jid === '') qaErro(400, 'jid obrigatório');

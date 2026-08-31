@@ -135,6 +135,80 @@ function slotsTelaDaLive(PDO $pdo, string $liga, string $dataLive): array
  * @return array{live:?array,aberta:bool,motivo:string,abre_em:?string,vendidos:int,
  *               restam:int,lista:array,meu:bool,preco:int,total:int}
  */
+/**
+ * A ABERTURA NA MÃO.
+ *
+ * A regra continua sendo uma hora antes da live. Só que a live às vezes muda
+ * de hora em cima da hora, ou a liga quer soltar as vagas antes por outro
+ * motivo — e sem isto a única saída era esperar o relógio.
+ *
+ * Guarda o instante em que o admin abriu. O estado usa esse instante no lugar
+ * da antecedência padrão, e nunca o contrário: abrir antes é decisão de quem
+ * administra, mas a live começar continua fechando a venda.
+ */
+function slotsTelaGarantirAbertura(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS slots_tela_abertura (
+        league     VARCHAR(10) NOT NULL,
+        data_live  DATE NOT NULL,
+        aberto_em  DATETIME NOT NULL,
+        aberto_por INT NULL,
+        criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (league, data_live)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $ok = true;
+}
+
+/** O instante em que a venda desta live foi aberta na mão, se foi. */
+function slotsTelaAberturaManual(PDO $pdo, string $liga, string $dataLive): ?string
+{
+    slotsTelaGarantirAbertura($pdo);
+    try {
+        $st = $pdo->prepare("SELECT aberto_em FROM slots_tela_abertura WHERE league = ? AND data_live = ?");
+        $st->execute([strtoupper(trim($liga)), $dataLive]);
+        return $st->fetchColumn() ?: null;
+    } catch (Throwable $e) {
+        error_log('[slots/abertura] ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** Abre a venda da próxima live agora. Retorna [ok, mensagem]. */
+function slotsTelaAbrirAgora(PDO $pdo, string $liga, int $adminId): array
+{
+    slotsTelaGarantirAbertura($pdo);
+    $liga = strtoupper(trim($liga));
+    $live = slotsTelaProximaRegular($pdo, $liga);
+    if (!$live) return ['ok' => false, 'erro' => 'A ' . $liga . ' não tem live da temporada regular marcada.'];
+
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $agora = new DateTimeImmutable('now', $tz);
+    if ($agora >= new DateTimeImmutable($live['inicio'], $tz)) {
+        return ['ok' => false, 'erro' => 'Essa live já começou — a venda fecha quando a live abre.'];
+    }
+
+    $pdo->prepare("INSERT INTO slots_tela_abertura (league, data_live, aberto_em, aberto_por)
+                   VALUES (?,?,?,?)
+                   ON DUPLICATE KEY UPDATE aberto_em = VALUES(aberto_em), aberto_por = VALUES(aberto_por)")
+        ->execute([$liga, $live['data'], $agora->format('Y-m-d H:i:s'), $adminId ?: null]);
+
+    return ['ok' => true, 'live' => $live];
+}
+
+/** Desfaz a abertura na mão: a venda volta a seguir o relógio. */
+function slotsTelaCancelarAbertura(PDO $pdo, string $liga): array
+{
+    slotsTelaGarantirAbertura($pdo);
+    $liga = strtoupper(trim($liga));
+    $live = slotsTelaProximaRegular($pdo, $liga);
+    if (!$live) return ['ok' => false, 'erro' => 'Nenhuma live à frente nesta liga.'];
+    $pdo->prepare("DELETE FROM slots_tela_abertura WHERE league = ? AND data_live = ?")
+        ->execute([$liga, $live['data']]);
+    return ['ok' => true, 'live' => $live];
+}
+
 function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora = null): array
 {
     $tz  = new DateTimeZone('America/Sao_Paulo');

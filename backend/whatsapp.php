@@ -711,51 +711,6 @@ function whatsappPostar(array $cfg, string $destino, string $texto): array
 }
 
 /**
- * Manda uma enquete nativa do WhatsApp.
- *
- * Não passa pela fila: enquete é coisa de momento — quem clica "enviar" no
- * painel está com o grupo aberto e quer ver a votação começar. A fila existe
- * pra não estourar limite com mensagem automática, que é outro caso.
- *
- * @param string[] $opcoes de 2 a 12, como o WhatsApp aceita
- * @return array{0:bool,1:?string}
- */
-function whatsappPostarEnquete(array $cfg, string $destino, string $pergunta, array $opcoes, int $escolhas = 1): array
-{
-    $opcoes = array_values(array_filter(array_map(fn($o) => trim((string)$o), $opcoes), fn($o) => $o !== ''));
-    if (count($opcoes) < 2)  return [false, 'a enquete precisa de pelo menos 2 opções'];
-    if (count($opcoes) > 12) return [false, 'o WhatsApp aceita no máximo 12 opções'];
-    $escolhas = max(1, min($escolhas, count($opcoes)));
-
-    $url = $cfg['base_url'] . '/message/sendPoll/' . rawurlencode($cfg['instancia']);
-    $body = json_encode([
-        'number'          => $destino,
-        'name'            => mb_substr(trim($pergunta), 0, 255),
-        'selectableCount' => $escolhas,
-        'values'          => $opcoes,
-    ], JSON_UNESCAPED_UNICODE);
-
-    $ch = curl_init($url);
-    if ($ch === false) return [false, 'curl_init falhou'];
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $body,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'apikey: ' . $cfg['api_key']],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 4,
-        CURLOPT_TIMEOUT        => 12,
-    ]);
-    $resp = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($resp === false) return [false, 'curl: ' . $err];
-    if ($code >= 400)    return [false, 'http ' . $code . ': ' . mb_substr((string)$resp, 0, 200)];
-    return [true, null];
-}
-
-/**
  * Envia o que está pendente na fila.
  *
  * $limite segura o custo quando roda no fim de um request (o caminho normal);
