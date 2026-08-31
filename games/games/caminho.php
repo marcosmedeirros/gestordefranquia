@@ -164,8 +164,16 @@ function caminhoLegado(array $estado): int
     // que impede um estado forjado de valer 20 MVPs em 3 anos.
     $n = fn(string $k) => max(0, min($temporadas, (int)($t[$k] ?? 0)));
 
+    // O pódio internacional inteiro, e não só o ouro: prata, bronze e as
+    // medalhas de Copa contam igual ao legadoBruto() do JS. Faltavam aqui, e
+    // o servidor calculava um legado menor que o da tela — quem terminava
+    // com 160 na tela via "Lenda viva" cair e não recebia, porque o servidor
+    // tinha contado 153.
+    $selecao = $n('ouro')*5 + $n('prata')*3 + $n('bronze')*2
+             + $n('ouroCopa')*4 + $n('prataCopa')*2 + $n('bronzeCopa')*1;
+
     $bruto = $n('mvp')*22 + $n('titulo')*16 + $n('fmvp')*10 + $n('dpoy')*8
-           + $n('euro')*7 + $n('cesta')*6 + $n('allstar')*4 + $n('ouro')*5
+           + $n('euro')*7 + $n('cesta')*6 + $n('allstar')*4 + $selecao
            + $n('roy')*3 + (int)round($temporadas * 0.8);
 
     // 2.3 e nao 1.8: com 1.8, a carreira do Jordan (6 titulos, 6 MVPs das
@@ -331,6 +339,82 @@ function caminhoTestarDesafio(string $id, array $e, bool $fim): bool
     return false;
 }
 
+/**
+ * Grava e paga o que o estado sustenta e ainda não foi pago.
+ *
+ * O teto de 12 por hora do auditor é um FREIO, e freio atrasa — não apaga.
+ * Só que a conta terminava aqui: uma carreira lendária dispara umas trinta
+ * conquistas em quinze minutos, o servidor pagava as doze da hora e as
+ * outras dezoito não eram gravadas em lugar nenhum. Como a carreira acabava
+ * logo depois, ninguém voltava pra cobrar — a pessoa via trinta na tela e
+ * recebia por doze, sem erro em canto nenhum.
+ *
+ * Por isso esta função também roda ao ABRIR o jogo: o que ficou de fora pelo
+ * freio é pago na volta, e o freio volta a ser o que dizia ser.
+ *
+ * @return array{gravados:int,moedas:int,fba:int,pendentes:int}
+ */
+function caminhoPagarPendentes(PDO $pdo, int $idUsuario, array $estado, bool $ehFim): array
+{
+    $vazio = ['gravados' => 0, 'moedas' => 0, 'fba' => 0, 'pendentes' => 0];
+
+    $merecidos = caminhoDesafiosDoEstado($estado, $ehFim);
+    if (!$merecidos) return $vazio;
+
+    // O que já está gravado não volta pra fila: sem isto o freio seria gasto
+    // reprocessando conquista antiga a cada abertura do jogo.
+    $ja = [];
+    try {
+        $st = $pdo->prepare("SELECT desafio FROM caminho_desafios WHERE id_usuario = ?");
+        $st->execute([$idUsuario]);
+        $ja = array_flip($st->fetchAll(PDO::FETCH_COLUMN));
+    } catch (Throwable $e) { error_log('[caminho] lista feita: ' . $e->getMessage()); }
+
+    $faltam = array_values(array_filter($merecidos, fn($id) => !isset($ja[$id])));
+    if (!$faltam) return $vazio;
+
+    $cabe = auditarQuantoCabe($pdo, $idUsuario, 'caminho');
+    // array_merge, e não `+`: o operador mantém a chave da esquerda, então
+    // `$vazio + ['pendentes' => 16]` devolvia pendentes = 0.
+    if ($cabe <= 0) return array_merge($vazio, ['pendentes' => count($faltam)]);
+
+    $ids = array_slice($faltam, 0, min($cabe, CAMINHO_MAX_DESAFIOS_POR_VEZ));
+
+    $st = $pdo->prepare("INSERT IGNORE INTO caminho_desafios (id_usuario, desafio, conquistado_em) VALUES (?,?,NOW())");
+    $gravados = 0; $moedas = 0; $fba = 0;
+    foreach ($ids as $id) {
+        $st->execute([$idUsuario, $id]);
+        if ($st->rowCount() > 0) {
+            $gravados++;
+            $nivel   = CAMINHO_DESAFIOS[$id];
+            $moedas += CAMINHO_NIVEIS[$nivel] ?? 0;
+            $fba    += CAMINHO_FBA[$nivel]    ?? 0;
+        }
+    }
+
+    if ($moedas > 0 || $fba > 0) {
+        try {
+            // A conta do FBA Games nasce quando a pessoa abre o /games.php.
+            // Quem entrou direto na URL do jogo não tem linha, e o UPDATE
+            // acertaria zero: o desafio ficava gravado e a moeda não caía.
+            $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                           SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?")
+                ->execute([$idUsuario]);
+            $pdo->prepare("UPDATE games_usuarios
+                           SET pontos = COALESCE(pontos,0) + ?, fba_points = COALESCE(fba_points,0) + ?
+                           WHERE id = ?")
+                ->execute([$moedas, $fba, $idUsuario]);
+        } catch (Throwable $e) {
+            error_log('[caminho] pagar desafios: ' . $e->getMessage());
+            $moedas = 0; $fba = 0;
+        }
+    }
+    if ($gravados > 0) auditarAnotar($pdo, $idUsuario, 'caminho', $gravados);
+
+    return ['gravados' => $gravados, 'moedas' => $moedas, 'fba' => $fba,
+            'pendentes' => max(0, count($faltam) - $gravados)];
+}
+
 /** Tudo que o estado sustenta agora. O `fim` liga os de encerramento. */
 function caminhoDesafiosDoEstado(array $estado, bool $fim): array
 {
@@ -392,52 +476,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // O freio de ritmo: uma carreira leva minutos, um script leva
-        // segundos. Ele não impede a fraude, atrasa — e atrasar o suficiente
-        // é o que faz não valer o trabalho.
-        $cabe = auditarQuantoCabe($pdo, $idUsuario, 'caminho');
-        if ($cabe <= 0) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0, 'ritmo' => true]); exit; }
-
-        $ids = array_slice(caminhoDesafiosDoEstado($estado, (bool)$ehFim), 0, min($cabe, CAMINHO_MAX_DESAFIOS_POR_VEZ));
-        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0]); exit; }
-
-        // O prêmio sai do rowCount, não da lista: só paga a linha que ENTROU
-        // agora. Reenviar a mesma conquista dez vezes grava zero e paga zero.
-        $st = $pdo->prepare("INSERT IGNORE INTO caminho_desafios (id_usuario, desafio, conquistado_em) VALUES (?,?,NOW())");
-        $gravados = 0; $moedas = 0; $fba = 0;
-        foreach ($ids as $id) {
-            $st->execute([$idUsuario, $id]);
-            if ($st->rowCount() > 0) {
-                $gravados++;
-                $nivel   = CAMINHO_DESAFIOS[$id];
-                $moedas += CAMINHO_NIVEIS[$nivel] ?? 0;
-                $fba    += CAMINHO_FBA[$nivel]    ?? 0;
-            }
-        }
-        // As duas moedas num UPDATE só: se o pagamento falhar, falha
-        // inteiro, e nao sobra conquista paga pela metade.
-        if ($moedas > 0 || $fba > 0) {
-            try {
-                // A conta do FBA Games nasce quando a pessoa abre o /games.php.
-                // Quem entrou direto na URL do jogo nao tem linha, e o UPDATE
-                // acertaria zero: o desafio ficava gravado e a moeda nao caia,
-                // sem erro nenhum no log. O Copero ja fazia isso; aqui faltava.
-                $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
-                               SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?")
-                    ->execute([$idUsuario]);
-                // COALESCE no pontos: a coluna aceita NULL, e NULL + 100 e
-                // NULL — o saldo inteiro sumiria em vez de crescer.
-                $pdo->prepare("UPDATE games_usuarios
-                               SET pontos = COALESCE(pontos,0) + ?, fba_points = COALESCE(fba_points,0) + ?
-                               WHERE id = ?")
-                    ->execute([$moedas, $fba, $idUsuario]);
-            } catch (Throwable $e) {
-                error_log('[caminho] pagar desafios: ' . $e->getMessage());
-                $moedas = 0; $fba = 0;
-            }
-        }
-        if ($gravados > 0) auditarAnotar($pdo, $idUsuario, 'caminho', $gravados);
-        echo json_encode(['ok' => true, 'gravados' => $gravados, 'moedas' => $moedas, 'fba' => $fba]);
+        // O freio de ritmo (12 por hora) e o pagamento vivem na função: ela é
+        // a mesma que roda ao abrir o jogo, e é isso que garante que o que
+        // não coube agora seja pago depois em vez de sumir.
+        $r = caminhoPagarPendentes($pdo, $idUsuario, $estado, (bool)$ehFim);
+        echo json_encode(['ok' => true, 'gravados' => $r['gravados'], 'moedas' => $r['moedas'],
+                          'fba' => $r['fba'], 'pendentes' => $r['pendentes'],
+                          'ritmo' => $r['pendentes'] > 0 && $r['gravados'] === 0]);
         exit;
     }
 
@@ -446,7 +491,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $nome = mb_substr(trim((string)($estado['nome'] ?? '')), 0, 40);
     $pos  = mb_substr((string)($estado['pos'] ?? ''), 0, 4);
-    $temporadas = count(array_filter($estado['temporadas'] ?? [], fn($x) => empty($x['formacao'])));
+    // Ano perdido por lesão também sai da conta, como no legado e no desafio
+    // "Ferro": este número vai pro ranking, e contar um ano que não teve jogo
+    // como temporada dava "21 temporadas" pra quem jogou 19.
+    $temporadas = count(array_filter($estado['temporadas'] ?? [],
+        fn($x) => empty($x['formacao']) && empty($x['perdida'])));
     $legado = caminhoLegado($estado);
     $json = json_encode($estado, JSON_UNESCAPED_UNICODE);
 
@@ -508,6 +557,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Página ─────────────────────────────────────────────────────────────
 $ativa = caminhoCarreiraAtiva($pdo, $idUsuario);
 $estadoInicial = $ativa ? $ativa['estado'] : 'null';
+
+/*
+ * A COBRANÇA DA VOLTA.
+ *
+ * Abrir o jogo acerta o que ficou pendente na última sessão: conquista que
+ * não coube no freio de 12 por hora, ou que se perdeu porque o POST não
+ * chegou. Sem isto o freio virava perda — e a pessoa não tinha como saber.
+ *
+ * Vale pra última carreira, encerrada ou não: a conquista é do jogador, não
+ * da carreira, e a encerrada é justamente a que não tem mais quem cobre.
+ */
+try {
+    $stUlt = $pdo->prepare("SELECT estado, encerrada FROM caminho_carreiras
+                            WHERE id_usuario = ? ORDER BY id DESC LIMIT 1");
+    $stUlt->execute([$idUsuario]);
+    if ($ult = $stUlt->fetch(PDO::FETCH_ASSOC)) {
+        $eUlt = json_decode((string)$ult['estado'], true);
+        if (is_array($eUlt) && auditarCaminho($eUlt)['ok']) {
+            caminhoPagarPendentes($pdo, $idUsuario, $eUlt, (bool)$ult['encerrada']);
+        }
+    }
+} catch (Throwable $e) {
+    error_log('[caminho] pendentes na abertura: ' . $e->getMessage());
+}
 
 // Último nome usado por esta conta, pra já vir preenchido na criação.
 $stNome = $pdo->prepare("SELECT nome FROM caminho_carreiras
@@ -4629,7 +4702,12 @@ function testarDesafio(id, fim){
     case "pts30k":      return tot.pts >= 22000;
     case "duplo20k":    return tot.pts >= 15000 && tot.reb >= 7000;
     case "quarenta_mil":return tot.pts >= 30000;
-    case "ovr99":       return ovr(S.A, S.pos) >= 97;
+    // O PICO, não o overall de agora. "Chegue a 97" é sobre ter chegado:
+    // quem foi 98 aos 28 e se aposentou com 74 chegou. Com o overall atual,
+    // o desafio caía na temporada do auge e SUMIA da tela no ano seguinte —
+    // e o servidor, que sempre olhou o pico, pagava um desafio que a pessoa
+    // não via mais. É a mesma régua do pico_e_anel, logo abaixo.
+    case "ovr99":       return (S.picoOvr || 0) >= 97;
     case "porta_fundos":return (S.pickDraft||0) > 60 && (t.titulo||0) >= 1;
     case "chamado":     return !!S.jaFoiChamado;
     case "nomade":      return clubes.size >= 6;
@@ -4725,8 +4803,24 @@ function checarDesafios(fim){
   const corpo = new URLSearchParams();
   corpo.set("acao", "desafios");
   corpo.set("ids", JSON.stringify(novos.map(d => d.id)));
+  // O `fim` ia implícito: o servidor deduzia o encerramento vendo um dos
+  // quatro desafios de fim na lista. Funcionava enquanto um deles caísse —
+  // quem terminasse com título (sem "ringless") e legado baixo (sem
+  // "imortal") mandava um pedido que o servidor lia como meio de carreira.
+  if (fim) corpo.set("fim", "1");
+
   fetch(location.pathname, {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:corpo})
-    .catch(() => {});
+    .then(r => r.json())
+    .then(r => {
+      // A marca local entra antes da resposta pra tela não piscar. Se o
+      // servidor não gravou — freio de ritmo, auditor, carreira ainda não
+      // salva — desmarcar é o que faz a próxima temporada tentar de novo.
+      // Sem isto a conquista ficava "feita" na tela e nunca era paga.
+      if (!r || r.ok === false || (r.gravados || 0) < novos.length) {
+        novos.forEach(d => { delete feitos[d.id]; });
+      }
+    })
+    .catch(() => { novos.forEach(d => { delete feitos[d.id]; }); });
   return novos;
 }
 
