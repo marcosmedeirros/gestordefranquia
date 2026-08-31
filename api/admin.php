@@ -2861,6 +2861,21 @@ if ($method === 'POST') {
                     $s = $pdo->prepare("INSERT INTO draft_class_templates (name, league, created_by) VALUES (?, ?, ?)");
                     $s->execute([$tplName, $ligaNova !== '' ? $ligaNova : null, (int)$user['id']]);
                     $tplId = (int)$pdo->lastInsertId();
+                    // A liga da classe mora na tabela de ligas (uma classe pode servir a
+                    // várias). A coluna acima fica só como reserva pra base antiga.
+                    if ($ligaNova !== '') {
+                        try {
+                            $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_leagues (
+                                template_id INT NOT NULL,
+                                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                PRIMARY KEY (template_id, league),
+                                KEY idx_dctl_liga (league)
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                            $pdo->prepare("INSERT IGNORE INTO draft_class_template_leagues (template_id, league) VALUES (?, ?)")
+                                ->execute([$tplId, $ligaNova]);
+                        } catch (Throwable $e) { error_log('[admin/classe liga] ' . $e->getMessage()); }
+                    }
                     $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
                     foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }
                     $pdo->commit();

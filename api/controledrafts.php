@@ -94,6 +94,35 @@ function cdGarantirSchema(PDO $pdo): void {
     if (!$pdo->query("SHOW COLUMNS FROM draft_class_templates LIKE 'league'")->fetch()) {
         $pdo->exec("ALTER TABLE draft_class_templates ADD COLUMN league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL AFTER name");
     }
+    /*
+     * UMA CLASSE PODE SER DE VÁRIAS LIGAS.
+     *
+     * A coluna `league` guarda uma só, e é isso que ela sempre fez. Só que a
+     * mesma classe de calouros serve pra mais de uma liga ao mesmo tempo —
+     * atribuir a ELITE não deveria tirá-la da NEXT. Com uma coluna, a única
+     * saída era duplicar a classe, e aí as duas cópias desandavam sozinhas.
+     *
+     * A tabela manda a partir de agora. A coluna fica: ela ainda é escrita
+     * (com a primeira liga atribuída) porque outras telas a leem, e apagá-la
+     * daqui quebraria o que não faz parte deste ajuste.
+     */
+    $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_leagues (
+        template_id INT NOT NULL,
+        league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (template_id, league),
+        KEY idx_dctl_liga (league),
+        CONSTRAINT fk_dctl_tpl FOREIGN KEY (template_id)
+            REFERENCES draft_class_templates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* O que já estava na coluna entra na tabela: sem isto as classes
+       existentes sumiriam do bolo da liga delas no primeiro carregamento. */
+    try {
+        $pdo->exec("INSERT IGNORE INTO draft_class_template_leagues (template_id, league)
+                    SELECT id, league FROM draft_class_templates WHERE league IS NOT NULL");
+    } catch (Throwable $e) { error_log('[cd/migra ligas] ' . $e->getMessage()); }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (
         id INT AUTO_INCREMENT PRIMARY KEY,
         template_id INT NOT NULL,
@@ -134,6 +163,26 @@ function cdGarantirSchema(PDO $pdo): void {
     if (!$pdo->query("SHOW COLUMNS FROM draft_class_sorteios LIKE 'escolhida'")->fetch()) {
         $pdo->exec("ALTER TABLE draft_class_sorteios ADD COLUMN escolhida TINYINT(1) NOT NULL DEFAULT 0");
     }
+}
+
+/**
+ * A classe pertence a esta liga?
+ *
+ * Agora é pergunta de lista, não de coluna: a mesma classe pode ser de várias
+ * ligas ao mesmo tempo. A coluna `league` entra como reserva pra base que
+ * ainda não passou pela migração da tabela.
+ */
+function cdClasseEhDaLiga(PDO $pdo, int $tplId, string $liga): bool
+{
+    try {
+        $st = $pdo->prepare("SELECT 1 FROM draft_class_template_leagues WHERE template_id = ? AND league = ?");
+        $st->execute([$tplId, $liga]);
+        if ($st->fetchColumn()) return true;
+    } catch (Throwable $e) { error_log('[cdClasseEhDaLiga] ' . $e->getMessage()); }
+
+    $st = $pdo->prepare("SELECT league FROM draft_class_templates WHERE id = ?");
+    $st->execute([$tplId]);
+    return ($st->fetchColumn() ?: null) === $liga;
 }
 
 /** A temporada corrente da liga e o ano dela. */
@@ -223,7 +272,8 @@ function cdEstado(PDO $pdo, string $liga): array {
                                 s.id AS sorteio_id, s.season_year AS usada_em, s.sorteado_em
                          FROM draft_class_templates t
                          LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
-                         WHERE t.league = ?
+                         WHERE EXISTS (SELECT 1 FROM draft_class_template_leagues l
+                                        WHERE l.template_id = t.id AND l.league = ?)
                          ORDER BY t.name");
     $st->execute([$liga]);
     $disponiveis = []; $usadas = [];
@@ -239,10 +289,19 @@ function cdEstado(PDO $pdo, string $liga): array {
 
     // Classes ainda sem liga: existiam antes desta tela e precisam ser
     // atribuídas por alguém — o app não adivinha de qual liga é "1994".
-    $semLiga = $pdo->query("SELECT t.id, t.name,
-                                   (SELECT COUNT(*) FROM draft_class_template_players p WHERE p.template_id = t.id) AS jogadores
-                            FROM draft_class_templates t WHERE t.league IS NULL ORDER BY t.name")
-                   ->fetchAll(PDO::FETCH_ASSOC);
+    /* "Sem liga" agora é "sem NENHUMA liga na tabela" — uma classe que já é
+       da NEXT continua aparecendo aqui pra ELITE, que é o ponto: dar pra
+       atribuir a mesma classe a mais de uma liga. */
+    $st = $pdo->prepare("SELECT t.id, t.name,
+                                (SELECT COUNT(*) FROM draft_class_template_players p WHERE p.template_id = t.id) AS jogadores,
+                                (SELECT GROUP_CONCAT(o.league ORDER BY o.league SEPARATOR ', ')
+                                   FROM draft_class_template_leagues o WHERE o.template_id = t.id) AS ligas
+                         FROM draft_class_templates t
+                        WHERE NOT EXISTS (SELECT 1 FROM draft_class_template_leagues l
+                                           WHERE l.template_id = t.id AND l.league = ?)
+                        ORDER BY t.name");
+    $st->execute([$liga]);
+    $semLiga = $st->fetchAll(PDO::FETCH_ASSOC);
 
     // O sorteio desta temporada, se houve.
     $sorteioAtual = null;
@@ -368,12 +427,37 @@ try {
         $st->execute([$tplId]);
         $atual = $st->fetch(PDO::FETCH_ASSOC);
         if (!$atual) cdErro(404, 'Classe não encontrada.');
-        // Só classe sem dono. Mover classe de uma liga pra outra depois que ela
-        // já está no bolo de alguém é como mexer no baralho no meio do jogo.
-        if (!empty($atual['league'])) cdErro(409, 'Essa classe já pertence à ' . $atual['league'] . '.');
 
-        $pdo->prepare("UPDATE draft_class_templates SET league = ? WHERE id = ?")->execute([$liga, $tplId]);
-        echo json_encode(['success' => true, 'message' => 'Classe atribuída à ' . $liga . '.']);
+        /*
+         * ATRIBUIR SOMA, NÃO SUBSTITUI.
+         *
+         * Antes isto recusava classe que já tinha dono: "essa classe já
+         * pertence à ELITE". A mesma classe de calouros serve pra mais de uma
+         * liga, e a única saída era duplicá-la — duas cópias que desandam
+         * sozinhas na primeira edição.
+         *
+         * Agora a liga entra na lista. Já estar lá não é erro: o admin clicou
+         * duas vezes, e o resultado que ele quer já é o que está no banco.
+         */
+        $ja = $pdo->prepare("SELECT 1 FROM draft_class_template_leagues WHERE template_id = ? AND league = ?");
+        $ja->execute([$tplId, $liga]);
+        if ($ja->fetchColumn()) {
+            echo json_encode(['success' => true, 'message' => 'Essa classe já era da ' . $liga . '.']);
+            exit;
+        }
+
+        $pdo->prepare("INSERT IGNORE INTO draft_class_template_leagues (template_id, league) VALUES (?, ?)")
+            ->execute([$tplId, $liga]);
+        // A coluna guarda a PRIMEIRA liga, pras telas que ainda a leem.
+        if (empty($atual['league'])) {
+            $pdo->prepare("UPDATE draft_class_templates SET league = ? WHERE id = ?")->execute([$liga, $tplId]);
+        }
+
+        $n = $pdo->prepare("SELECT COUNT(*) FROM draft_class_template_leagues WHERE template_id = ?");
+        $n->execute([$tplId]);
+        $total = (int)$n->fetchColumn();
+        echo json_encode(['success' => true,
+            'message' => 'Classe atribuída à ' . $liga . '.' . ($total > 1 ? " Agora ela é de {$total} ligas." : '')]);
         exit;
     }
 
@@ -387,9 +471,16 @@ try {
     if ($acao === 'atribuir_liga_todas') {
         cdGarantirSchema($pdo);
         $liga = cdLiga($minhasLigas);
-        $st = $pdo->prepare("UPDATE draft_class_templates SET league = ? WHERE league IS NULL");
-        $st->execute([$liga]);
+        // Todas as que ainda NÃO são desta liga — inclusive as que já são de
+        // outra, que agora podem ser das duas.
+        $st = $pdo->prepare("INSERT IGNORE INTO draft_class_template_leagues (template_id, league)
+                             SELECT t.id, ? FROM draft_class_templates t
+                              WHERE NOT EXISTS (SELECT 1 FROM draft_class_template_leagues l
+                                                 WHERE l.template_id = t.id AND l.league = ?)");
+        $st->execute([$liga, $liga]);
         $n = $st->rowCount();
+        // A coluna acompanha só quem não tinha nenhuma.
+        $pdo->prepare("UPDATE draft_class_templates SET league = ? WHERE league IS NULL")->execute([$liga]);
         echo json_encode(['success' => true, 'movidas' => $n,
             'message' => $n > 0 ? $n . ' classe(s) agora são da ' . $liga . '.' : 'Não havia classe sem liga.']);
         exit;
@@ -427,7 +518,7 @@ try {
         $st->execute([$tplId]);
         $classe = $st->fetch(PDO::FETCH_ASSOC);
         if (!$classe) cdErro(404, 'Classe não encontrada.');
-        if (($classe['league'] ?? null) !== $liga) cdErro(403, 'Essa classe não é da ' . $liga . '.');
+        if (!cdClasseEhDaLiga($pdo, $tplId, $liga)) cdErro(403, "Essa classe não é da " . $liga . ".");
         // Classe já sorteada é história. Trocar os jogadores dela agora faria a
         // lista não bater mais com o draft que saiu dela.
         if (!empty($classe['sorteio_id'])) cdErro(409, 'Essa classe já foi sorteada — a lista dela não muda mais.');
@@ -477,7 +568,7 @@ try {
         $st->execute([$tplId]);
         $classe = $st->fetch(PDO::FETCH_ASSOC);
         if (!$classe) cdErro(404, 'Classe não encontrada.');
-        if (($classe['league'] ?? null) !== $liga) cdErro(403, 'Essa classe não é da ' . $liga . '.');
+        if (!cdClasseEhDaLiga($pdo, $tplId, $liga)) cdErro(403, "Essa classe não é da " . $liga . ".");
         if (!empty($classe['sorteio_id'])) cdErro(409, 'Classe já sorteada não pode ser apagada — é o registro do que aconteceu.');
 
         $pdo->prepare("DELETE FROM draft_class_templates WHERE id = ?")->execute([$tplId]);
@@ -541,7 +632,9 @@ try {
                                         (SELECT COUNT(*) FROM draft_class_template_players p WHERE p.template_id = t.id) AS jogadores
                                  FROM draft_class_templates t
                                  LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
-                                 WHERE t.league = ? AND s.id IS NULL
+                                 WHERE EXISTS (SELECT 1 FROM draft_class_template_leagues l
+                                                WHERE l.template_id = t.id AND l.league = ?)
+                                   AND s.id IS NULL
                                  HAVING jogadores > 0
                                  ORDER BY t.id");
             $st->execute([$liga]);

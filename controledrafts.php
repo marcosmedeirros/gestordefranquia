@@ -348,7 +348,7 @@ function renderRoleta(passos) {
 
   const avisoOrfas = (!noBolo.length && e.classes_sem_liga.length)
     ? `<div class="fora"><i class="bi bi-exclamation-triangle-fill"></i>
-         Há <b>${e.classes_sem_liga.length}</b> classe(s) sem liga lá embaixo. Enquanto não forem
+         Há <b>${e.classes_sem_liga.length}</b> classe(s) fora do bolo lá embaixo. Enquanto não forem
          trazidas pra ${esc(e.league)}, elas não concorrem nesta roleta.</div>`
     : '';
 
@@ -426,7 +426,8 @@ function renderClasses() {
       <td class="num">${c.jogadores}</td>
       <td>${
         tipo === 'usada' ? `<span class="pill usada">usada${c.usada_em ? ' em ' + c.usada_em : ''}</span>`
-      : tipo === 'orfa'  ? `<span class="pill orfa">sem liga</span>`
+      : tipo === 'orfa'  ? (c.ligas ? `<span class="pill orfa">já é da ${esc(c.ligas)}</span>`
+                                    : `<span class="pill orfa">sem liga</span>`)
       // Sem jogador ela não entra na roleta — dizer "no bolo" seria mentira.
       : c.jogadores === 0 ? `<span class="pill orfa">sem jogadores</span>`
       : `<span class="pill livre">no bolo</span>`}</td>
@@ -474,14 +475,14 @@ function renderClasses() {
 
     ${e.classes_sem_liga.length ? `
       <div class="card">
-        <div class="card-tit"><i class="bi bi-question-circle-fill"></i>Classes sem liga (${e.classes_sem_liga.length})</div>
+        <div class="card-tit"><i class="bi bi-question-circle-fill"></i>Classes fora do bolo da ${e.league} (${e.classes_sem_liga.length})</div>
         <div class="sub" style="margin-bottom:12px">
-          Classes que ficaram sem dono — ou porque foram criadas antes de as classes terem
-          liga, ou porque saíram por um caminho do admin que não mandava a liga junto.
-          Elas não entram na roleta de ninguém até serem atribuídas, e depois não saem mais.
+          Classes que ainda não foram atribuídas a esta liga — as que não têm liga nenhuma e
+          também as que já são de outra. Uma mesma classe pode servir a várias ligas: trazer
+          pra ${e.league} não tira ela de onde já está.
         </div>
         <div class="acoes" style="margin:0 0 12px">
-          <button class="btn" onclick="acao('atribuir_liga_todas',{},'Trazer TODAS as ${e.classes_sem_liga.length} classes sem liga pro bolo da ${e.league}?\\n\\nDepois disso elas não mudam mais de liga.')">
+          <button class="btn" onclick="acao('atribuir_liga_todas',{},'Trazer TODAS as ${e.classes_sem_liga.length} classes pro bolo da ${e.league}?\\n\\nElas continuam valendo nas ligas em que já estão.')">
             <i class="bi bi-box-arrow-in-down"></i>Trazer todas pra ${e.league}
           </button>
         </div>
