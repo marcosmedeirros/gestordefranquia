@@ -224,6 +224,14 @@ function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora
     $inicio = new DateTimeImmutable($live['inicio'], $tz);
     $abre   = $inicio->modify('-' . SLOTS_TELA_ANTECEDENCIA . ' minutes');
 
+    // Aberto na mão vale se for ANTES do horário normal: o admin adianta a
+    // venda, nunca atrasa. Se ele abriu depois da hora, a hora já valia.
+    $naMao = slotsTelaAberturaManual($pdo, $liga, $live['data']);
+    if ($naMao) {
+        $qAbriu = new DateTimeImmutable($naMao, $tz);
+        if ($qAbriu < $abre) $abre = $qAbriu;
+    }
+
     $lista    = slotsTelaDaLive($pdo, $liga, $live['data']);
     $vendidos = count($lista);
     $meu      = $teamId > 0 && in_array($teamId, array_map(fn($x) => (int)$x['team_id'], $lista), true);
@@ -239,6 +247,7 @@ function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora
         'aberta'   => $motivo === 'ok',
         'motivo'   => $motivo,
         'abre_em'  => $abre->format('Y-m-d H:i:s'),
+        'na_mao'   => $naMao,
         'vendidos' => $vendidos,
         'restam'   => max(0, SLOTS_TELA_TOTAL - $vendidos),
         'lista'    => $lista,

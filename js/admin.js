@@ -132,6 +132,24 @@ async function showGamesAdmin() {
 
       <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
 
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="fw-semibold" style="font-size:14px">
+          <i class="bi bi-tv-fill me-1" style="color:#0ea5e9"></i>Vagas de tela da live
+        </span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarSlotsLive()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        As oito vagas abrem sozinhas <b>uma hora antes</b> de cada live. A chave só adianta —
+        o fechamento continua sendo o começo da transmissão ou o fim das vagas.
+      </div>
+      <div id="slotsLiveWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+
+      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
+
       <div class="fw-semibold mb-1" style="font-size:14px">
         <i class="bi bi-exclamation-triangle me-1" style="color:#ef4444"></i>Zerar
       </div>
@@ -189,6 +207,72 @@ async function showGamesAdmin() {
   _carregarAtualizacoes();
   _carregarGamesDobro();
   _carregarLeilaoSemana();
+  _carregarSlotsLive();
+}
+
+/* ── Vagas de tela da live ──────────────────────────────────────────────
+ * As oito vagas abrem sozinhas uma hora antes da live. A chave aqui só
+ * adianta isso — pro dia em que a live muda de horário e ninguém quer
+ * esperar o relógio. Nunca atrasa, e não mexe no fechamento.
+ * ─────────────────────────────────────────────────────────────────────── */
+async function _carregarSlotsLive() {
+  const alvo = document.getElementById('slotsLiveWrap');
+  if (!alvo) return;
+  try {
+    const d = await api('slots-admin.php?action=estado');
+    const linhas = (d.ligas || []).map(l => {
+      // Cada situação pede uma frase e um botão diferentes: "cedo" tem o que
+      // fazer, "a live começou" não tem.
+      let nota, chave;
+      if (!l.live) {
+        nota = 'Sem live marcada nas próximas duas semanas.'; chave = null;
+      } else if (l.motivo === 'comecou') {
+        nota = 'A live já começou — a venda fechou.'; chave = null;
+      } else if (l.motivo === 'esgotado') {
+        nota = `As ${l.total} vagas acabaram.`; chave = null;
+      } else if (l.aberta || l.motivo === 'ja_tenho') {
+        nota = l.na_mao ? 'Aberta na mão, antes da hora.' : 'Aberta — já está na hora.';
+        chave = l.na_mao ? 'cancelar' : null;
+      } else {
+        nota = `Abre sozinha às ${escapeHtml((l.abre_em || '').slice(11, 16))}.`; chave = 'abrir';
+      }
+      const aberta = l.aberta || l.motivo === 'ja_tenho';
+      return `
+      <div class="d-flex align-items-center justify-content-between gap-3 py-2"
+           style="border-top:1px solid var(--border)">
+        <div style="min-width:0;text-align:left">
+          <div class="fw-bold">${escapeHtml(l.liga)}
+            <span class="small text-secondary">${l.live ? '· live ' + escapeHtml(l.live.hora) : ''}</span>
+          </div>
+          <div class="small text-secondary">${nota} ${l.live ? `<b>${l.vendidos}/${l.total}</b> vendidas` : ''}</div>
+        </div>
+        ${chave ? `
+          <button class="btn btn-sm ${aberta ? 'btn-warning' : 'btn-outline-secondary'}"
+                  onclick="_alternarSlotsLive('${escapeHtml(l.liga)}','${chave}',this)" style="min-width:92px">
+            ${chave === 'abrir' ? 'abrir agora' : 'aberta'}
+          </button>`
+        : `<span class="small text-secondary" style="min-width:92px;text-align:right">${aberta ? 'vendendo' : '—'}</span>`}
+      </div>`;
+    }).join('');
+    alvo.className = '';
+    alvo.innerHTML = linhas || '<div class="small text-secondary py-2">Nenhuma liga.</div>';
+  } catch (e) {
+    alvo.className = '';
+    alvo.innerHTML = `<div class="small text-danger py-2">Não deu pra carregar: ${escapeHtml(e.error || e.message || 'erro')}</div>`;
+  }
+}
+
+async function _alternarSlotsLive(liga, acao, bt) {
+  bt.disabled = true;
+  try {
+    const r = await api('slots-admin.php', { method: 'POST', body: JSON.stringify({ action: acao, liga }) });
+    showAlert('success', r.message);
+  } catch (e) {
+    showAlert('danger', e.error || 'Não deu pra mudar.');
+  }
+  // Recarrega dos dois jeitos: o estado real pode não ser o que o clique
+  // pediu (a live pode ter começado no meio do caminho).
+  _carregarSlotsLive();
 }
 
 /* ── Dobro de moedas por jogo ───────────────────────────────────────────
@@ -774,7 +858,7 @@ function _quizRender(e, perguntas) {
 <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
   <button class="btn btn-back" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
   <h5 class="mb-0" style="color:#a855f7"><i class="bi bi-patch-question-fill me-2"></i>Quiz do grupo</h5>
-  <button class="btn-ghost ms-auto" style="color:#25d366;border-color:rgba(37,211,102,.35)" onclick="_quizEditar(null)"
+  <button class="btn-ghost ms-auto" style="color:#25d366;border-color:rgba(37,211,102,.35)" onclick="_quizEditar(null, true)"
           title="Monta a enquete com prêmio e critério e manda no grupo na hora">
     <i class="bi bi-bar-chart-fill me-1"></i>Enquete no grupo
   </button>
@@ -1091,7 +1175,7 @@ async function _quizAcao(acao, confirmar, corpo) {
   }
 }
 
-function _quizEditar(id) {
+function _quizEditar(id, soEnviar) {
   const p = id ? (window._quizCache || []).find(x => Number(x.id) === Number(id)) : null;
   const tipo = p?.tipo || 'certa';
   document.getElementById('_quizModal')?.remove();
@@ -1102,7 +1186,7 @@ function _quizEditar(id) {
   modal.innerHTML = `
     <div class="panel" style="width:100%;max-width:640px;padding:0;margin-top:20px">
       <div class="panel-header" style="padding:16px 18px 0">
-        <div class="panel-title"><i class="bi bi-patch-question-fill" style="color:#a855f7"></i> ${p ? 'Editar' : 'Nova'} pergunta</div>
+        <div class="panel-title"><i class="bi bi-patch-question-fill" style="color:#a855f7"></i> ${p ? 'Editar' : (soEnviar ? 'Enquete no grupo' : 'Nova')} ${soEnviar && !p ? '' : 'pergunta'}</div>
         <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_quizModal').remove()"><i class="bi bi-x-lg"></i></button>
       </div>
       <div style="padding:16px 18px">
@@ -1168,7 +1252,7 @@ function _quizEditar(id) {
         <button class="btn-ghost" style="color:#25d366" onclick="_quizSalvar(true)"
                 title="Posta no grupo agora, sem esperar o horário do sorteio">
           <i class="bi bi-send-fill me-1"></i>Salvar e enviar agora</button>
-        <button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar na fila</button>
+        ${soEnviar ? "" : `<button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar na fila</button>`}
       </div>
     </div>`;
   document.body.appendChild(modal);
