@@ -176,9 +176,10 @@ function draftBotTexto(PDO $pdo, string $liga, ?int $round = null): string
         }
 
         if ($v['picked_player_id'] !== null && $v['jogador']) {
-            $linha .= ' → ' . draftBotNomeCurto((string)$v['jogador'])
-                   . ($v['pos'] ? ' ' . $v['pos'] : '')
-                   . ($v['ovr'] ? ' ' . (int)$v['ovr'] : '');
+            // Posição na frente do nome, e sem OVR: todo calouro entra com 60,
+            // então o número não separava ninguém — só ocupava a linha.
+            $linha .= ' → ' . ($v['pos'] ? $v['pos'] . ' ' : '')
+                   . draftBotNomeCurto((string)$v['jogador']);
         } elseif ($statusSessao === 'in_progress'
                   && $rodada === (int)$sessao['current_round']
                   && (int)$v['pick_position'] === (int)$sessao['current_pick']) {
