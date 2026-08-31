@@ -63,6 +63,75 @@ require_once __DIR__ . '/../backend/agendamento_fechamento.php';
 ensurePlayerRestrictionColumns($pdo);
 
 // Helpers para colunas e OVR
+/**
+ * O registro de quem sentou em cada cadeira.
+ *
+ * Sem isto, "quem era o GM do Empire antes?" só se responde perguntando pra
+ * quem lembra — e a cadeira troca de dono justamente nos momentos em que
+ * ninguém está prestando atenção no histórico.
+ */
+function cadeirasGarantirHistorico(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS team_gm_historico (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_id INT NOT NULL,
+        league VARCHAR(10) NULL,
+        user_id_anterior INT NULL,
+        user_id_novo INT NULL,
+        motivo VARCHAR(120) NULL,
+        admin_id INT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_tgh_time (team_id),
+        KEY idx_tgh_data (criado_em)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /*
+     * O TIME PODE FICAR SEM DONO.
+     *
+     * `teams.user_id` nasceu NOT NULL: no modelo antigo todo time tinha GM
+     * porque o GM e o time eram criados juntos. Quando alguém desiste, existe
+     * um intervalo real — de minutos ou de dias — em que o time existe e não
+     * tem dono, e não havia como dizer isso. A saída era deixar o time com o
+     * e-mail de quem saiu, que continuava conseguindo entrar e mexer nele.
+     */
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM teams LIKE 'user_id'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && strtoupper((string)($col['Null'] ?? '')) === 'NO') {
+            $pdo->exec("ALTER TABLE teams MODIFY user_id INT NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('[cadeiras] user_id nullable: ' . $e->getMessage());
+    }
+    $ok = true;
+}
+
+/**
+ * A liga da conta do FBA Games acompanha a do app.
+ *
+ * São duas tabelas com o mesmo id: `users` manda no app, `games_usuarios` nos
+ * jogos. Quem sobe de liga e não é atualizado aqui continua aparecendo na
+ * liga antiga nos rankings dos games — e some do da liga nova.
+ */
+function cadeirasSincronizarGames(PDO $pdo, int $userId, string $liga): void
+{
+    if ($userId <= 0 || $liga === '') return;
+    try {
+        // A conta de games nasce quando a pessoa abre o /games.php: quem nunca
+        // entrou não tem linha, e um UPDATE sozinho acertaria zero.
+        $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                       SELECT id, name, email, ? FROM users WHERE id = ?")
+            ->execute([$liga, $userId]);
+        $pdo->prepare("UPDATE games_usuarios SET league = ? WHERE id = ?")
+            ->execute([$liga, $userId]);
+    } catch (Throwable $e) {
+        // Não derruba a promoção: o vínculo no app é o que vale, e a liga dos
+        // games se corrige sozinha na próxima sincronização.
+        error_log('[cadeiras] games: ' . $e->getMessage());
+    }
+}
+
 function columnExists(PDO $pdo, string $table, string $column): bool {
     try {
         $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
@@ -100,6 +169,59 @@ ensureTradeInGameColumn($pdo);
 // GET - Listar dados do admin
 if ($method === 'GET') {
     switch ($action) {
+
+        case 'cadeiras_estado': {
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            cadeirasGarantirHistorico($pdo);
+
+            $ordem = ['ELITE' => 1, 'NEXT' => 2, 'RISE' => 3, 'ROOKIE' => 4];
+
+            // Times sem dono: as cadeiras abertas.
+            $vagas = $pdo->query("SELECT t.id, t.league, t.city, t.name, t.photo_url,
+                                         (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id) AS jogadores
+                                  FROM teams t WHERE t.user_id IS NULL
+                                  ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.name")
+                          ->fetchAll(PDO::FETCH_ASSOC);
+
+            // Quem pode subir pra cada vaga: GM com time nas ligas abaixo dela.
+            $gms = $pdo->query("SELECT u.id AS user_id, u.name AS gm, u.email, t.id AS team_id,
+                                       t.league, t.city, t.name AS time_nome
+                                FROM users u JOIN teams t ON t.user_id = u.id
+                                WHERE t.league IN ('ELITE','NEXT','RISE','ROOKIE')
+                                ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), u.name")
+                       ->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($vagas as &$v) {
+                $nivel = $ordem[$v['league']] ?? 9;
+                $v['jogadores'] = (int)$v['jogadores'];
+                // Só quem está ABAIXO sobe. Movimento lateral e rebaixamento
+                // não são promoção e não entram aqui.
+                $v['candidatos'] = array_values(array_filter($gms,
+                    fn($g) => ($ordem[$g['league']] ?? 0) > $nivel));
+                // A liga já rodando é um aviso, não um bloqueio: às vezes a
+                // desistência acontece com a temporada em andamento mesmo.
+                $st = $pdo->prepare("SELECT season_number FROM seasons
+                                      WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+                $st->execute([$v['league']]);
+                $v['temporada_rodando'] = $st->fetchColumn() ?: null;
+            }
+            unset($v);
+
+            $hist = $pdo->query("SELECT h.*, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time_nome,
+                                        un.name AS gm_novo, ua.name AS gm_antigo
+                                 FROM team_gm_historico h
+                                 LEFT JOIN teams t ON t.id = h.team_id
+                                 LEFT JOIN users un ON un.id = h.user_id_novo
+                                 LEFT JOIN users ua ON ua.id = h.user_id_anterior
+                                 ORDER BY h.id DESC LIMIT 15")->fetchAll(PDO::FETCH_ASSOC);
+
+            // A lista completa de quem tem cadeira vai junto: é dela que sai o
+            // seletor de "alguém saiu", que precisa existir mesmo quando não
+            // há vaga aberta nenhuma.
+            echo json_encode(['success' => true, 'vagas' => $vagas, 'times_com_gm' => $gms, 'historico' => $hist],
+                             JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         case 'games_dobro_estado':
             // A lista de jogos que aceitam dobro e o que está ligado agora.
@@ -3689,6 +3811,187 @@ if ($method === 'POST') {
             $pdo->prepare("UPDATE users SET user_type = ? WHERE id = ?")->execute([$enable ? 'admin' : 'jogador', $targetId]);
             echo json_encode(['success' => true, 'user_type' => $enable ? 'admin' : 'jogador']);
             break;
+
+        /*
+         * ═══════════════════════════════════════════════════════════════════
+         * CADEIRAS: QUEM DESISTE ABRE VAGA, E A FILA SOBE.
+         *
+         * Um GM da NEXT sai. O time dele não é refeito: ele fica com o elenco,
+         * as picks e a folha exatamente onde estavam, e quem sobe da RISE
+         * assume aquilo. A cadeira da RISE que vagou é preenchida por alguém
+         * da ROOKIE, e a da ROOKIE por um GM novo.
+         *
+         * O que a promoção move é a PESSOA — `teams.user_id` e a liga dela.
+         * Nada do time muda de lugar: o histórico, as punições e os contadores
+         * da temporada continuam sendo do time, e o novo dono assume como
+         * está. Foi a decisão da liga: o time é o time.
+         *
+         * Um degrau por vez, de propósito: cada promoção deixa uma vaga nova
+         * visível na tela, e dá pra parar no meio se a pessoa de baixo
+         * desistir de subir.
+         * ═══════════════════════════════════════════════════════════════════
+         */
+        /* O GM saiu: a cadeira fica vaga e o time espera o próximo. */
+        case 'liberar_cadeira': {
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            cadeirasGarantirHistorico($pdo);
+            $teamId = (int)($data['team_id'] ?? 0);
+            $motivo = mb_substr(trim((string)($data['motivo'] ?? 'desistiu')), 0, 120);
+            if (!$teamId) { echo json_encode(['success' => false, 'error' => 'Time não informado']); exit; }
+
+            $st = $pdo->prepare("SELECT t.id, t.user_id, t.league, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS nome,
+                                        u.name AS gm
+                                 FROM teams t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?");
+            $st->execute([$teamId]);
+            $time = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$time) { echo json_encode(['success' => false, 'error' => 'Time não encontrado']); exit; }
+            if (!$time['user_id']) { echo json_encode(['success' => false, 'error' => 'Esse time já está sem GM.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("UPDATE teams SET user_id = NULL WHERE id = ?")->execute([$teamId]);
+                $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
+                               VALUES (?,?,?,NULL,?,?)")
+                    ->execute([$teamId, $time['league'], (int)$time['user_id'], $motivo, (int)$user['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                error_log('[cadeiras] liberar: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Erro ao liberar a cadeira']); exit;
+            }
+            echo json_encode(['success' => true,
+                'message' => $time['nome'] . ' está sem GM. ' . ($time['gm'] ?: 'O antigo dono') . ' saiu da ' . $time['league'] . '.'],
+                JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        /* Um GM de liga inferior assume a cadeira vaga. O time dele vira a próxima vaga. */
+        case 'promover_gm': {
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            cadeirasGarantirHistorico($pdo);
+            $teamId = (int)($data['team_id'] ?? 0);      // a cadeira vaga
+            $userId = (int)($data['user_id'] ?? 0);      // quem sobe
+            $novoNome   = trim((string)($data['novo_nome'] ?? ''));
+            $novaCidade = trim((string)($data['nova_cidade'] ?? ''));
+            $novoEscudo = trim((string)($data['novo_escudo'] ?? ''));
+            if (!$teamId || !$userId) { echo json_encode(['success' => false, 'error' => 'Dados incompletos']); exit; }
+
+            $ordem = ['ELITE' => 1, 'NEXT' => 2, 'RISE' => 3, 'ROOKIE' => 4];
+
+            $st = $pdo->prepare("SELECT id, league, user_id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome FROM teams WHERE id = ?");
+            $st->execute([$teamId]);
+            $destino = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$destino) { echo json_encode(['success' => false, 'error' => 'Time não encontrado']); exit; }
+            if ($destino['user_id']) { echo json_encode(['success' => false, 'error' => 'Essa cadeira já tem GM — recarregue a tela.']); exit; }
+
+            $st = $pdo->prepare("SELECT u.id, u.name, t.id AS team_id, t.league,
+                                        TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS nome
+                                 FROM users u LEFT JOIN teams t ON t.user_id = u.id WHERE u.id = ?");
+            $st->execute([$userId]);
+            $quemSobe = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$quemSobe) { echo json_encode(['success' => false, 'error' => 'GM não encontrado']); exit; }
+
+            // Promoção é pra CIMA. Sem isso, um clique errado rebaixaria alguém
+            // sem que a tela tivesse dito isso em lugar nenhum.
+            if ($quemSobe['league'] && ($ordem[$quemSobe['league']] ?? 0) <= ($ordem[$destino['league']] ?? 9)) {
+                echo json_encode(['success' => false,
+                    'error' => $quemSobe['name'] . ' já está na ' . $quemSobe['league'] . ' — isso não seria uma promoção.']); exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                // 1. a cadeira que ele deixa vira a próxima vaga
+                if (!empty($quemSobe['team_id'])) {
+                    $pdo->prepare("UPDATE teams SET user_id = NULL WHERE id = ?")->execute([(int)$quemSobe['team_id']]);
+                    $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
+                                   VALUES (?,?,?,NULL,?,?)")
+                        ->execute([(int)$quemSobe['team_id'], $quemSobe['league'], $userId,
+                                   'subiu pra ' . $destino['league'], (int)$user['id']]);
+                }
+
+                // 2. ele assume a cadeira vaga, e a liga dele acompanha
+                $pdo->prepare("UPDATE teams SET user_id = ? WHERE id = ?")->execute([$userId, $teamId]);
+                $pdo->prepare("UPDATE users SET league = ? WHERE id = ?")->execute([$destino['league'], $userId]);
+                // O FBA Games guarda a liga por conta — e é a mesma pessoa, com
+                // o mesmo id. Sem isto ele subia no app e continuava listado na
+                // liga antiga nos rankings e nas disputas dos jogos.
+                cadeirasSincronizarGames($pdo, $userId, (string)$destino['league']);
+
+                // 3. identidade: só o que ele pediu pra mudar
+                $troca = [];
+                $vals  = [];
+                if ($novoNome !== '')   { $troca[] = 'name = ?';      $vals[] = mb_substr($novoNome, 0, 60); }
+                if ($novaCidade !== '') { $troca[] = 'city = ?';      $vals[] = mb_substr($novaCidade, 0, 60); }
+                if ($novoEscudo !== '') { $troca[] = 'photo_url = ?'; $vals[] = mb_substr($novoEscudo, 0, 255); }
+                if ($troca) {
+                    $vals[] = $teamId;
+                    $pdo->prepare("UPDATE teams SET " . implode(', ', $troca) . " WHERE id = ?")->execute($vals);
+                }
+
+                $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
+                               VALUES (?,?,NULL,?,?,?)")
+                    ->execute([$teamId, $destino['league'], $userId,
+                               'promovido da ' . ($quemSobe['league'] ?: '—'), (int)$user['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                error_log('[cadeiras] promover: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Erro ao promover']); exit;
+            }
+
+            echo json_encode(['success' => true,
+                'message' => $quemSobe['name'] . ' assumiu ' . $destino['nome'] . ' na ' . $destino['league'] . '.'
+                           . (!empty($quemSobe['nome']) ? ' A cadeira de ' . $quemSobe['nome'] . ' (' . $quemSobe['league'] . ') está aberta.' : ''),
+                'nova_vaga' => !empty($quemSobe['team_id']) ? (int)$quemSobe['team_id'] : null],
+                JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        /* A ponta da fila: um GM novo entra no time que ficou vago. */
+        case 'novo_gm_na_cadeira': {
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            cadeirasGarantirHistorico($pdo);
+            $teamId = (int)($data['team_id'] ?? 0);
+            $nome   = trim((string)($data['name'] ?? ''));
+            $email  = strtolower(trim((string)($data['email'] ?? '')));
+            if (!$teamId || $nome === '' || $email === '') { echo json_encode(['success' => false, 'error' => 'Nome, e-mail e time são obrigatórios']); exit; }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { echo json_encode(['success' => false, 'error' => 'E-mail inválido']); exit; }
+
+            $st = $pdo->prepare("SELECT id, league, user_id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome FROM teams WHERE id = ?");
+            $st->execute([$teamId]);
+            $destino = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$destino) { echo json_encode(['success' => false, 'error' => 'Time não encontrado']); exit; }
+            if ($destino['user_id']) { echo json_encode(['success' => false, 'error' => 'Essa cadeira já tem GM — recarregue a tela.']); exit; }
+
+            $st = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $st->execute([$email]);
+            if ($st->fetchColumn()) { echo json_encode(['success' => false, 'error' => 'Já existe conta com esse e-mail. Use "Promover" se ele já é GM.']); exit; }
+
+            // Mesma senha inicial do "Adicionar GM": quem entra troca no primeiro acesso.
+            $senha = 'fba' . random_int(1000, 9999);
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("INSERT INTO users (name, email, password_hash, user_type, league, approved, email_verified)
+                               VALUES (?,?,?,'jogador',?,1,1)")
+                    ->execute([$nome, $email, password_hash($senha, PASSWORD_DEFAULT), $destino['league']]);
+                $novoId = (int)$pdo->lastInsertId();
+                $pdo->prepare("UPDATE teams SET user_id = ? WHERE id = ?")->execute([$novoId, $teamId]);
+                cadeirasSincronizarGames($pdo, $novoId, (string)$destino['league']);
+                $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
+                               VALUES (?,?,NULL,?,'GM novo',?)")
+                    ->execute([$teamId, $destino['league'], $novoId, (int)$user['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                error_log('[cadeiras] novo GM: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Erro ao criar o GM']); exit;
+            }
+
+            echo json_encode(['success' => true,
+                'message' => $nome . ' entrou na ' . $destino['league'] . ' com ' . $destino['nome'] . '.',
+                'senha' => $senha], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         case 'create_gm':
             // Cria um GM novo direto pela liga: usuário + time, com senha padrão,

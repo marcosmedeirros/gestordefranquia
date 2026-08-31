@@ -692,6 +692,9 @@ async function showGestao(league) {
   // lista crescia. `url` vira <a>; `fn` vira <button>.
   const gestaoAcoes = [
     { icon: 'bi-person-plus-fill',      label: 'Adicionar<br>GM',           fn: 'openCreateGmModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
+    // Quem desiste abre vaga e a fila sobe: é outro fluxo do "Adicionar GM",
+    // que cria time novo. Aqui ninguém cria time — a pessoa muda de cadeira.
+    { icon: 'bi-arrow-up-square-fill',  label: 'Cadeiras e<br>Promoções',   fn: 'showCadeiras()',        color: '#0ea5e9', bg: 'rgba(14,165,233,.12)' },
     { icon: 'bi-chat-left-dots-fill',   label: 'Ouvidoria',                 fn: 'showOuvidoriaModal()',  color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
     { icon: 'bi-award-fill',            label: 'Hall da<br>Fama',           fn: 'showHallOfFame()',      color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
     { icon: 'bi-record-circle',         label: 'Roletas',                   url: '/roleta.php',          color: '#ec4899', bg: 'rgba(236,72,153,.12)' },
@@ -5235,6 +5238,199 @@ ${semLenda.length ? `
       ${semLenda.map(t => `<span class="pun-badge" style="background:var(--bg-3);color:var(--text-3)">${escapeHtml(t.time)}</span>`).join('')}
     </div>
   </div>` : ''}`;
+}
+
+/**
+ * CADEIRAS E PROMOÇÕES.
+ *
+ * Um GM sai e a fila sobe: quem está na liga de baixo assume o time como ele
+ * está — elenco, picks e folha no lugar — e a cadeira que ele deixou vira a
+ * próxima vaga, até a ROOKIE, onde entra alguém novo.
+ *
+ * Um degrau por vez: cada promoção aplicada faz a vaga seguinte aparecer aqui
+ * mesmo, e dá pra parar no meio se o de baixo não quiser subir.
+ */
+async function showCadeiras() {
+  appState.view = 'cadeiras';
+  const c = document.getElementById('mainContainer');
+  c.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:#0ea5e9"></div></div>';
+
+  const back = `<button class="btn btn-back" onclick="showGestao()"><i class="bi bi-arrow-left"></i> Voltar</button>`;
+  let d;
+  try {
+    d = await api('admin.php?action=cadeiras_estado');
+  } catch (e) {
+    c.innerHTML = `<div class="mb-4">${back}</div>
+      <div class="panel" style="padding:18px;color:#ef4444">Não deu pra carregar: ${escapeHtml(e.error || 'erro')}</div>`;
+    return;
+  }
+  window._cadeiras = d;
+
+  const vagas = d.vagas || [];
+  const hist = d.historico || [];
+
+  c.innerHTML = `
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  ${back}
+  <h5 class="mb-0" style="color:#0ea5e9"><i class="bi bi-arrow-up-square-fill me-2"></i>Cadeiras e promoções</h5>
+  <button class="btn-ghost ms-auto" onclick="showCadeiras()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+</div>
+
+<div class="panel mb-3" style="padding:14px 18px;font-size:12.5px;color:var(--text-3)">
+  O time não é refeito: quem sobe assume o elenco, as picks e a folha como estão —
+  e as punições também, se houver. Muda só quem senta na cadeira.
+  Comece liberando o time de quem saiu; a vaga aparece aqui embaixo.
+</div>
+
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-box-arrow-right" style="color:#ef4444"></i> Alguém saiu</div>
+  </div>
+  <div style="padding:14px 18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="cadSaiuTime" class="form-select form-select-sm" style="max-width:340px">
+      <option value="">Escolha o time de quem desistiu…</option>
+    </select>
+    <button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.35)" onclick="_cadeiraLiberar()">
+      <i class="bi bi-box-arrow-right me-1"></i>Liberar a cadeira
+    </button>
+  </div>
+</div>
+
+${vagas.length ? vagas.map(v => _cadeiraCard(v)).join('') : `
+  <div class="panel" style="padding:18px;font-size:13px;color:var(--text-3)">
+    Nenhuma cadeira aberta agora — todos os times têm GM.
+  </div>`}
+
+${hist.length ? `
+<div class="panel mb-3">
+  <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:#94a3b8"></i> Últimas trocas</div></div>
+  <div style="padding:10px 18px 16px">
+    ${hist.map(h => `
+      <div style="font-size:12.5px;color:var(--text-2);padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-3)">${escapeHtml((h.criado_em || '').slice(0, 16))}</span> ·
+        <b>${escapeHtml(h.time_nome || '—')}</b> (${escapeHtml(h.league || '')}) —
+        ${h.gm_novo ? `entrou <b>${escapeHtml(h.gm_novo)}</b>` : `saiu <b>${escapeHtml(h.gm_antigo || '—')}</b>`}
+        ${h.motivo ? `<span style="color:var(--text-3)"> · ${escapeHtml(h.motivo)}</span>` : ''}
+      </div>`).join('')}
+  </div>
+</div>` : ''}`;
+
+  // O seletor de quem saiu lista todo time COM dono — a lista de candidatos
+  // das vagas já traz esses times, e é dela que ela sai.
+  const sel = document.getElementById('cadSaiuTime');
+  (d.times_com_gm || [])
+    .sort((a, b) => (a.league || '').localeCompare(b.league || '') || (a.gm || '').localeCompare(b.gm || ''))
+    .forEach(g => {
+      const o = document.createElement('option');
+      o.value = g.team_id;
+      o.textContent = `${g.league} · ${g.city || ''} ${g.time_nome} — ${g.gm}`;
+      sel.appendChild(o);
+    });
+}
+
+/** O cartão de uma cadeira aberta, com quem pode assumi-la. */
+function _cadeiraCard(v) {
+  const porLiga = {};
+  (v.candidatos || []).forEach(g => (porLiga[g.league] = porLiga[g.league] || []).push(g));
+
+  return `
+  <div class="panel mb-3" style="border-color:rgba(14,165,233,.35)">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">
+          <i class="bi bi-person-slash" style="color:#0ea5e9"></i>
+          ${escapeHtml(v.city || '')} ${escapeHtml(v.name)} <span style="color:var(--text-3)">· ${escapeHtml(v.league)}</span>
+        </div>
+        <div class="panel-sub">${v.jogadores} jogadores no elenco · sem GM
+          ${v.temporada_rodando ? ` · <span style="color:#f59e0b">temporada ${v.temporada_rodando} em andamento</span>` : ''}</div>
+      </div>
+    </div>
+    <div style="padding:14px 18px">
+      ${v.candidatos && v.candidatos.length ? `
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">Quem sobe para esta cadeira:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <select class="form-select form-select-sm" id="cadGm_${v.id}" style="max-width:360px">
+            ${Object.keys(porLiga).map(lg => `
+              <optgroup label="${escapeHtml(lg)}">
+                ${porLiga[lg].map(g => `<option value="${g.user_id}">${escapeHtml(g.gm)} — ${escapeHtml(g.city || '')} ${escapeHtml(g.time_nome)}</option>`).join('')}
+              </optgroup>`).join('')}
+          </select>
+          <button class="btn-ghost" style="color:#22c55e;border-color:rgba(34,197,94,.35)" onclick="_cadeiraPromover(${v.id})">
+            <i class="bi bi-arrow-up-circle me-1"></i>Promover
+          </button>
+        </div>
+        <!-- O time continua o mesmo; só a identidade pode mudar, se o novo
+             dono quiser. Em branco = fica como está. -->
+        <div class="row g-2" style="max-width:640px">
+          <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadCidade_${v.id}" placeholder="Nova cidade (opcional)"></div>
+          <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadNome_${v.id}" placeholder="Novo nome (opcional)"></div>
+          <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadEscudo_${v.id}" placeholder="URL do escudo (opcional)"></div>
+        </div>
+      ` : `<div style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">
+             Nenhum GM em liga abaixo desta — a cadeira só pode receber alguém novo.
+           </div>`}
+
+      <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">Ou põe um GM novo direto nesta cadeira:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="form-control form-control-sm" id="cadNovoNome_${v.id}" placeholder="Nome" style="max-width:200px">
+          <input class="form-control form-control-sm" id="cadNovoEmail_${v.id}" placeholder="E-mail" style="max-width:240px">
+          <button class="btn-ghost" onclick="_cadeiraNovoGm(${v.id})">
+            <i class="bi bi-person-plus me-1"></i>Entrar como GM novo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function _cadeiraLiberar() {
+  const sel = document.getElementById('cadSaiuTime');
+  const id = Number(sel?.value || 0);
+  if (!id) { showAlert('warning', 'Escolha o time de quem saiu.'); return; }
+  const txt = sel.options[sel.selectedIndex].textContent;
+  if (!confirm(`Liberar a cadeira de ${txt}?\n\nO time fica sem GM e o elenco não é tocado.`)) return;
+  try {
+    const r = await api('admin.php?action=liberar_cadeira', { method: 'POST', body: JSON.stringify({ team_id: id }) });
+    showAlert('success', r.message);
+    showCadeiras();
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _cadeiraPromover(teamId) {
+  const userId = Number(document.getElementById(`cadGm_${teamId}`)?.value || 0);
+  if (!userId) { showAlert('warning', 'Escolha quem sobe.'); return; }
+  const sel = document.getElementById(`cadGm_${teamId}`);
+  if (!confirm(`Promover ${sel.options[sel.selectedIndex].textContent}?\n\nEle assume o time como está, e a cadeira dele fica aberta.`)) return;
+  try {
+    const r = await api('admin.php?action=promover_gm', {
+      method: 'POST',
+      body: JSON.stringify({
+        team_id: teamId, user_id: userId,
+        nova_cidade: document.getElementById(`cadCidade_${teamId}`)?.value || '',
+        novo_nome:   document.getElementById(`cadNome_${teamId}`)?.value || '',
+        novo_escudo: document.getElementById(`cadEscudo_${teamId}`)?.value || '',
+      }),
+    });
+    showAlert('success', r.message);
+    showCadeiras();   // a vaga que ele deixou já aparece na volta
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _cadeiraNovoGm(teamId) {
+  const nome  = document.getElementById(`cadNovoNome_${teamId}`)?.value.trim();
+  const email = document.getElementById(`cadNovoEmail_${teamId}`)?.value.trim();
+  if (!nome || !email) { showAlert('warning', 'Nome e e-mail são obrigatórios.'); return; }
+  try {
+    const r = await api('admin.php?action=novo_gm_na_cadeira', {
+      method: 'POST', body: JSON.stringify({ team_id: teamId, name: nome, email }),
+    });
+    // A senha só existe aqui: some no refresh, e é o que a pessoa precisa
+    // pra entrar da primeira vez.
+    showAlert('success', r.message + (r.senha ? ` Senha inicial: ${r.senha}` : ''));
+    if (r.senha) alert(`${r.message}\n\nSenha inicial: ${r.senha}\n\nAnote agora — ela não aparece de novo.`);
+    showCadeiras();
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
 }
 
 async function showControleCap(league) {
