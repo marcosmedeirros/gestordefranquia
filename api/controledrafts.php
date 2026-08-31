@@ -123,6 +123,30 @@ function cdGarantirSchema(PDO $pdo): void {
                     SELECT id, league FROM draft_class_templates WHERE league IS NOT NULL");
     } catch (Throwable $e) { error_log('[cd/migra ligas] ' . $e->getMessage()); }
 
+    /*
+     * LENDA JÁ ESCOLHIDA NÃO VOLTA PRO DRAFT — MAS SÓ NA LIGA DELA.
+     *
+     * Quem foi levado no Draft das Lendas some do pool daquela liga. A mesma
+     * pessoa pode seguir sorteável na outra, onde ninguém a tem: Dirk é lenda
+     * na NEXT e não é na ELITE.
+     *
+     * Fica em tabela própria, e não como remoção na classe, porque a classe é
+     * compartilhada entre as ligas — apagar o jogador dela tiraria dos dois
+     * lados. O corte acontece em cdAplicarPool(), quando a classe vira pool.
+     *
+     * O nome é o que liga as duas pontas. Na NEXT as lendas estão cadastradas
+     * com nome de paródia ("Dirk NoVicTzki"), então não dá pra derivar isso de
+     * players.is_lenda: a lista é mantida à mão.
+     */
+    $pdo->exec("CREATE TABLE IF NOT EXISTS draft_lendas_bloqueadas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+        player_name VARCHAR(120) NOT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_dlb (league, player_name),
+        KEY idx_dlb_liga (league)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (
         id INT AUTO_INCREMENT PRIMARY KEY,
         template_id INT NOT NULL,
@@ -212,11 +236,18 @@ function cdTemporada(PDO $pdo, string $liga): ?array {
  *
  * @return int quantos entraram
  */
-function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId): int {
+function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId, string $liga = ''): int {
+    /* Lenda já escolhida não volta pro draft — mas só na liga dela. Dirk é
+       lenda na NEXT e não é na ELITE, então some do pool de uma e continua
+       no da outra. Por isso o corte é aqui, na hora de virar pool, e não na
+       classe: a classe é a mesma para todo mundo. */
     $st = $pdo->prepare("SELECT name, position, pick_hint
-                         FROM draft_class_template_players WHERE template_id = ?
+                         FROM draft_class_template_players
+                         WHERE template_id = ?
+                           AND (? = '' OR name NOT IN (
+                                 SELECT player_name FROM draft_lendas_bloqueadas WHERE league = ?))
                          ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
-    $st->execute([$templateId]);
+    $st->execute([$templateId, $liga, $liga]);
     $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$jogadores) return 0;
 
@@ -674,7 +705,7 @@ try {
             $st = $pdo->prepare("SELECT COUNT(*) FROM draft_pool WHERE season_id = ?");
             $st->execute([(int)$temp['id']]);
             if ((int)$st->fetchColumn() === 0) {
-                $noPool = cdAplicarPool($pdo, (int)$escolhida['id'], (int)$temp['id']);
+                $noPool = cdAplicarPool($pdo, (int)$escolhida["id"], (int)$temp["id"], $liga);
                 if ($noPool > 0) {
                     $pdo->prepare("UPDATE draft_class_sorteios SET pool_aplicado_em = NOW()
                                    WHERE league = ? AND season_id = ?")
@@ -726,7 +757,7 @@ try {
 
         $pdo->beginTransaction();
         try {
-            $inseridos = cdAplicarPool($pdo, (int)$sorteio['template_id'], (int)$temp['id']);
+            $inseridos = cdAplicarPool($pdo, (int)$sorteio["template_id"], (int)$temp["id"], $liga);
             if ($inseridos === 0) {
                 $pdo->rollBack();
                 cdErro(409, 'A classe sorteada não tem jogadores cadastrados.');
