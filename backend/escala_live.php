@@ -93,7 +93,30 @@ function escalaSemanaAtualDaLiga(PDO $pdo, string $liga, ?string $agora = null):
     // existe pra uma grade estranha não virar laço infinito.
     for ($i = 0; $i < 2; $i++) {
         $lives = escalaLivesDaSemana($pdo, [$liga], $semana);
-        if (!$lives) break;
+
+        /*
+         * SEMANA SEM LIVE NENHUMA: PULA PRA DA PRÓXIMA.
+         *
+         * Antes isto parava aqui, pra "não pular uma semana em que ninguém
+         * jogou". Só que a semana vigente é o que carimba as respostas de
+         * quem topa — e assim elas iam parar numa semana morta.
+         *
+         * Foi o que aconteceu com a NEXT: ela joga segunda, a série dela
+         * começa em 31/08, e na semana de 23/08 não havia live nenhuma. A
+         * galera respondeu, ficou gravado como semana 23/08, e no domingo a
+         * tela passou a olhar a semana 30/08 — onde a live realmente está.
+         * As respostas não sumiram: elas nasceram na semana errada.
+         *
+         * Pulando, a resposta é carimbada na semana em que a liga joga de
+         * verdade, e sobrevive ao domingo. Se não houver live em nenhuma das
+         * semanas olhadas, o laço acaba e vale a do calendário, como antes.
+         */
+        if (!$lives) {
+            $proxima = (new DateTimeImmutable($semana, $tz))->modify('+7 days')->format('Y-m-d');
+            if (!escalaLivesDaSemana($pdo, [$liga], $proxima)) break;
+            $semana = $proxima;
+            continue;
+        }
 
         $ultimoFim = null;
         foreach ($lives as $lv) {
@@ -105,6 +128,41 @@ function escalaSemanaAtualDaLiga(PDO $pdo, string $liga, ?string $agora = null):
         if ($ultimoFim === null || $ag <= $ultimoFim) break;
 
         $semana = (new DateTimeImmutable($semana, $tz))->modify('+7 days')->format('Y-m-d');
+    }
+
+    /*
+     * E TAMBÉM SEGURA — o domingo não pode arrastar quem ainda não jogou.
+     *
+     * O laço acima só sabia AVANÇAR, e a semana de onde ele parte vem do
+     * calendário, que vira no domingo. Então toda liga era empurrada pra
+     * semana nova no domingo, tivesse ela jogado ou não: a RISE, que joga
+     * sexta, perdia a escala montada no domingo de manhã — dois dias antes
+     * de alguém entrar ao vivo. Foi o que reclamaram.
+     *
+     * Aqui a semana ANTERIOR é olhada: se a última live dela ainda não
+     * terminou, é ela que está valendo, e a semana volta. Cada liga vira no
+     * próprio ciclo, que era a intenção desde o começo — faltava a metade
+     * que segura.
+     *
+     * Dois passos pra trás bastam: mais que isso seria liga parada há
+     * semanas, e aí não há escala pra preservar.
+     */
+    for ($i = 0; $i < 2; $i++) {
+        $anterior = (new DateTimeImmutable($semana, $tz))->modify('-7 days')->format('Y-m-d');
+        $lives = escalaLivesDaSemana($pdo, [$liga], $anterior);
+        if (!$lives) break;
+
+        $ultimoFim = null;
+        foreach ($lives as $lv) {
+            $fim = !empty($lv['fim'])
+                ? new DateTimeImmutable((string)$lv['fim'], $tz)
+                : (new DateTimeImmutable((string)$lv['inicio'], $tz))->modify('+4 hours');
+            if ($ultimoFim === null || $fim > $ultimoFim) $ultimoFim = $fim;
+        }
+        // Já terminou? Então a semana anterior acabou mesmo, e a atual vale.
+        if ($ultimoFim === null || $ag > $ultimoFim) break;
+
+        $semana = $anterior;
     }
 
     return $cache[$chave] = $semana;
