@@ -18,6 +18,16 @@
  * getGamePointsMultiplier() — ou seja, de quem o multiplicador afeta de fato.
  * Jogo novo que passe a ler o multiplicador entra aqui, e aparece nas telas
  * sozinho.
+ *
+ * DUAS CONDIÇÕES, e as duas precisam valer:
+ *
+ *   1. o jogo tem card em /games. Conexões, Grade, HoopGrid e Box NBA saíram
+ *      daqui por isto: as páginas existem, mas nenhuma delas está no catálogo,
+ *      então a chave ligava o dobro de um jogo que ninguém alcança.
+ *   2. o prêmio sai da casa. Blackjack, Roleta e Starting5x5 pagam com moeda
+ *      apostada — do próprio jogador ou do adversário. Dobrar ali não é
+ *      promoção, é imprimir moeda em cima de uma aposta, e por isso eles não
+ *      entram mesmo tendo card.
  */
 
 /**
@@ -31,10 +41,7 @@ function gamesComDobro(): array
         'memoria'      => ['label' => 'Memória',        'desc' => 'Diário · acerto vale moedas',   'icon' => 'bi-grid-3x3-gap-fill'],
         'quemsoueu'    => ['label' => 'Quem Sou Eu?',   'desc' => 'Diário · acerto vale moedas',   'icon' => 'bi-question-circle'],
         'bomba'        => ['label' => 'Bomba',          'desc' => 'Diário · diamantes achados',    'icon' => 'bi-gem'],
-        'conexoes'     => ['label' => 'Conexões',       'desc' => 'Diário · grupos certos',        'icon' => 'bi-diagram-3'],
-        'grade'        => ['label' => 'Grade',          'desc' => 'Diário · acertos na grade',     'icon' => 'bi-grid-3x3'],
-        'hoopgrid'     => ['label' => 'HoopGrid',       'desc' => 'Diário · acertos na grade',     'icon' => 'bi-basket'],
-        'boxnba'       => ['label' => 'Box NBA',        'desc' => 'Diário · placar adivinhado',    'icon' => 'bi-clipboard-data'],
+        'quizdodia'    => ['label' => 'Quiz do Dia',    'desc' => 'Diário · votou com a maioria',  'icon' => 'bi-chat-square-quote'],
 
         // Livres: joga quantas vezes quiser, e o prêmio sai da partida.
         'flappy'       => ['label' => 'Flappy Bird',    'desc' => 'Livre · pontuação da partida',  'icon' => 'bi-airplane'],

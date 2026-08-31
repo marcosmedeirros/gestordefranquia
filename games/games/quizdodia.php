@@ -117,12 +117,18 @@ function quizResolver(PDO $pdo, int $perguntaId): void
             ->execute([json_encode($vencedoras), $total, $perguntaId]);
 
         if ($vencedoras) {
+            // O dobro do painel vale aqui como nos outros jogos: o prêmio é
+            // fixo e sai da casa, então dobrar não tira de ninguém. Lido na
+            // hora de pagar, e não na do voto, porque é isto que a pessoa vê
+            // creditado — e é o mesmo instante em que a chave é consultada.
+            $premio = QUIZ_PREMIO * (function_exists('getGamePointsMultiplier')
+                ? getGamePointsMultiplier($pdo, 'quizdodia') : 1);
             $in = implode(',', array_fill(0, count($vencedoras), '?'));
             $pdo->prepare("UPDATE games_usuarios g
                            JOIN quiz_votos v ON v.id_usuario = g.id
                            SET g.pontos = g.pontos + ?, v.pago = 1
                            WHERE v.pergunta_id = ? AND v.opcao IN ($in) AND v.pago = 0")
-                ->execute(array_merge([QUIZ_PREMIO, $perguntaId], $vencedoras));
+                ->execute(array_merge([$premio, $perguntaId], $vencedoras));
         }
         $pdo->commit();
     } catch (Throwable $e) {
