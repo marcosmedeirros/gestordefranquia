@@ -774,6 +774,33 @@ function _quizRender(e, perguntas) {
 <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
   <button class="btn btn-back" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
   <h5 class="mb-0" style="color:#a855f7"><i class="bi bi-patch-question-fill me-2"></i>Quiz do grupo</h5>
+  <button class="btn-ghost ms-auto" style="color:#25d366;border-color:rgba(37,211,102,.35)" onclick="_enqueteAbrir()">
+    <i class="bi bi-bar-chart-fill me-1"></i>Enquete no grupo
+  </button>
+</div>
+
+<!-- Enquete avulsa: não entra no banco de perguntas nem espera o horário do
+     quiz — é a pergunta de agora, mandada direto no grupo. -->
+<div class="panel mb-3" id="enquetePanel" style="display:none;border-color:rgba(37,211,102,.35)">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-bar-chart-fill" style="color:#25d366"></i> Nova enquete</div>
+    <button class="btn-ghost" style="padding:4px 9px;font-size:12px" onclick="_enqueteFechar()"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div style="padding:14px 18px">
+    <input type="text" id="enqPergunta" class="form-control form-control-sm mb-2" maxlength="255"
+           placeholder="Pergunta — ex: Quem joga a live de quinta?">
+    <textarea id="enqOpcoes" class="form-control form-control-sm" rows="4"
+              placeholder="Uma opção por linha (de 2 a 12)"></textarea>
+    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+      <label style="font-size:12px;color:var(--text-3)">
+        <input type="checkbox" id="enqMulti"> permitir marcar mais de uma
+      </label>
+      <span id="enqAviso" style="font-size:12px;color:var(--text-3);margin-left:auto"></span>
+      <button class="btn-ghost" style="color:#25d366;border-color:rgba(37,211,102,.35)" onclick="_enqueteEnviar(this)">
+        <i class="bi bi-send-fill me-1"></i>Enviar agora
+      </button>
+    </div>
+  </div>
 </div>
 
 <div class="panel mb-3">
@@ -930,6 +957,56 @@ ${(e.ultimas || []).length ? `
  * o servidor cadastra na hora. Exigir cadastrar antes era o que fazia o
  * seletor abrir com uma opção só e o quiz continuar saindo no lugar errado.
  */
+/* Enquete avulsa no grupo do quiz — não passa pelo banco de perguntas. */
+function _enqueteAbrir() {
+  const p = document.getElementById('enquetePanel');
+  if (!p) return;
+  p.style.display = '';
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('enqPergunta')?.focus();
+}
+
+function _enqueteFechar() {
+  const p = document.getElementById('enquetePanel');
+  if (p) p.style.display = 'none';
+}
+
+async function _enqueteEnviar(btn) {
+  const pergunta = (document.getElementById('enqPergunta')?.value || '').trim();
+  const opcoes = (document.getElementById('enqOpcoes')?.value || '')
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  const aviso = document.getElementById('enqAviso');
+
+  // Checa aqui o que o WhatsApp recusaria: erro depois do envio já gastou
+  // uma chamada e não diz o que fazer.
+  if (!pergunta)        { if (aviso) aviso.textContent = 'Falta a pergunta.'; return; }
+  if (opcoes.length < 2) { if (aviso) aviso.textContent = 'Precisa de pelo menos 2 opções.'; return; }
+  if (opcoes.length > 12) { if (aviso) aviso.textContent = 'No máximo 12 opções.'; return; }
+  if (aviso) aviso.textContent = '';
+
+  const antes = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Enviando…';
+  try {
+    const r = await api('quiz-admin.php?action=enviar_enquete', {
+      method: 'POST',
+      body: JSON.stringify({
+        pergunta, opcoes,
+        escolhas: document.getElementById('enqMulti')?.checked ? opcoes.length : 1,
+      }),
+    });
+    showAlert('success', r.message);
+    document.getElementById('enqPergunta').value = '';
+    document.getElementById('enqOpcoes').value = '';
+    _enqueteFechar();
+  } catch (e) {
+    showAlert('danger', e.error || 'Não deu pra enviar a enquete.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = antes;
+  }
+}
+
 async function _quizGrupoDoQuiz(sel) {
   const jid = sel.value;
   // Da lista de ouvidos vem a pista ("Victor: e aí"), não um nome de grupo —
