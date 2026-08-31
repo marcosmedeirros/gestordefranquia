@@ -2,7 +2,7 @@
 /**
  * O motor do Copero: identidade, progressão e eventos.
  *
- * Mora no servidor e não no JavaScript pelo mesmo motivo do caminho.php: é
+ * Mora no servidor e não no JavaScript pelo mesmo motivo do thejourney.php: é
  * aqui que a carreira vira registro e prêmio, e número que o cliente manda é
  * número que o cliente escolhe. O JS recebe estas tabelas prontas só pra
  * desenhar.

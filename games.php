@@ -559,9 +559,9 @@ $jogosDiarios = [
 // não passa pelo carregador index.php?game=. O laço lá embaixo aceita os
 // dois, e é isso que permite os dois tipos morarem na mesma grade.
 //
-// O Caminho não está aqui: ele ainda está sendo ajustado e não entra no
-// lançamento. A página continua de pé em /games/games/caminho.php pra quem
-// tem o link.
+// The Journey não está aqui: ele ainda está sendo ajustado e não entra no
+// lançamento. A página continua de pé em /games/games/thejourney.php pra quem
+// tem o link (o /caminho.php antigo redireciona pra lá).
 $jogosLivres = [
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],

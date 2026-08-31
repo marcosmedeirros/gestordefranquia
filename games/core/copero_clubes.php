@@ -10,7 +10,7 @@
  *
  * Nome de clube é referência factual e fica aqui. Escudo é marca dos clubes:
  * o projeto NÃO hospeda a imagem — o campo `escudo` guarda uma URL pública
- * (thesportsdb), igual ao LOGOS_CLUBE do caminho.php faz com os times de
+ * (thesportsdb), igual ao LOGOS_CLUBE do thejourney.php faz com os times de
  * basquete. Clube sem URL cai no monograma das iniciais, então o jogo
  * funciona inteiro mesmo com o campo vazio, e a tela nunca fica com buraco.
  *
