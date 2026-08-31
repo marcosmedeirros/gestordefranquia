@@ -1125,11 +1125,13 @@ tr.tit td{color:var(--red)}
 /* A camisa: o nome e o número aparecem nela enquanto se digita. */
 .camisa{position:relative;width:172px;margin:0 auto 16px;aspect-ratio:1/1.06}
 .camisa svg{width:100%;height:100%;display:block;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+/* A cor do nome e do número vem do tecido (--cam-txt): branco sumia no
+   amarelo do Brasil e da Lituânia. */
 .camisa-nome{position:absolute;top:30%;left:0;right:0;text-align:center;font-size:13px;
-  font-weight:800;letter-spacing:1px;color:#fff;text-transform:uppercase;
+  font-weight:800;letter-spacing:1px;color:var(--cam-txt,#fff);text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 34px}
 .camisa-num{position:absolute;top:39%;left:0;right:0;text-align:center;font-family:var(--num);
-  font-size:52px;font-weight:900;line-height:1;color:#fff;letter-spacing:-2px}
+  font-size:52px;font-weight:900;line-height:1;color:var(--cam-txt,#fff);letter-spacing:-2px}
 .id-campos{display:grid;grid-template-columns:1fr 84px;gap:9px}
 .id-campo label{display:block;font-size:9.5px;font-weight:800;letter-spacing:.8px;
   text-transform:uppercase;color:var(--text2);margin-bottom:5px;text-align:center}
@@ -1954,6 +1956,50 @@ const LIGAS_FORA = [
 ];
 
 const NACOES = [["BRA","Brasil"],["USA","Estados Unidos"],["CAN","Canadá"],["ESP","Espanha"],["FRA","França"],["SRB","Sérvia"],["ARG","Argentina"],["GER","Alemanha"],["AUS","Austrália"],["NGR","Nigéria"],["LTU","Lituânia"],["GRE","Grécia"]];
+
+/**
+ * A CAMISA DA SELEÇÃO, por país: [tecido, detalhe, contorno].
+ *
+ * A camisa da criação era vermelha pra todo mundo — a mesma cor do jogo, não
+ * a do jogador. Escolher a nacionalidade não mudava nada na tela, e ela é a
+ * primeira coisa que a pessoa decide sobre quem está criando.
+ *
+ * São as cores da SELEÇÃO DE BASQUETE, que nem sempre são as da bandeira: o
+ * Brasil joga de amarelo, os EUA de azul-marinho, a Austrália de verde-e-ouro.
+ * A tabela do Copero não serve aqui — é de futebol, e não tem Canadá, Sérvia
+ * nem Lituânia.
+ */
+const UNIFORMES = {
+  BRA: ["#ffdf00", "#009b3a", "#00713a"],
+  USA: ["#0c2340", "#ffffff", "#c8102e"],
+  CAN: ["#d52b1e", "#ffffff", "#a01b12"],
+  ESP: ["#c60b1e", "#ffc400", "#7a0812"],
+  FRA: ["#21316f", "#ffffff", "#ed2939"],
+  SRB: ["#c6363c", "#ffffff", "#0c4076"],
+  ARG: ["#75aadb", "#ffffff", "#0f2f66"],
+  GER: ["#1a1a1a", "#ffffff", "#dd0000"],
+  AUS: ["#00843d", "#ffcd00", "#005f2c"],
+  NGR: ["#008751", "#ffffff", "#005c37"],
+  LTU: ["#fdb913", "#006a44", "#c1272d"],
+  GRE: ["#0d5eaf", "#ffffff", "#08407a"],
+};
+const UNIFORME_PADRAO = ["#c8102e", "#ffffff", "#8a0b1f"];
+
+function uniformeDoPais(nac){ return UNIFORMES[nac] || UNIFORME_PADRAO; }
+
+/**
+ * Preto ou branco em cima do tecido, pelo que se lê melhor.
+ *
+ * Sem isto o número branco sumia no amarelo do Brasil e da Lituânia — que
+ * são justamente duas das doze.
+ */
+function corSobreTecido(hex){
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return "#ffffff";
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  // Luminância relativa: o verde pesa mais porque o olho enxerga mais verde.
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#141418" : "#ffffff";
+}
 
 const POSICOES = {
   PG:{n:"Armador",    d:"Comanda o jogo. Passe e drible acima de tudo.", w:{tres:.18,fin:.08,pas:.28,dri:.20,def:.10,fis:.04,iq:.06,cl:.06}},
@@ -3924,13 +3970,20 @@ function telaCriar(reinicio){
 
       <div class="id-col">
         <div class="id-col-tit">Identidade</div>
-        <div class="camisa">
+        <?php /* A camisa veste a seleção escolhida: trocar o país repinta o
+                 tecido, a gola e o número, porque telaCriar() redesenha. */ ?>
+        <div class="camisa" style="--cam-txt:${corSobreTecido(uniformeDoPais(rascunho.nac)[0])}">
           <svg viewBox="0 0 100 106" aria-hidden="true">
             <path d="M32 6 L20 12 L8 26 L18 38 L26 32 L26 100 L74 100 L74 32 L82 38 L92 26 L80 12 L68 6
                      C64 14 56 17 50 17 C44 17 36 14 32 6 Z"
-                  fill="var(--red)" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/>
+                  fill="${uniformeDoPais(rascunho.nac)[0]}"
+                  stroke="${uniformeDoPais(rascunho.nac)[2]}" stroke-width="2"/>
+            <!-- As duas faixas laterais na cor de detalhe: é o que faz o
+                 uniforme parecer de seleção e não uma camisa lisa. -->
+            <path d="M26 34 L26 100 M74 34 L74 100" fill="none"
+                  stroke="${uniformeDoPais(rascunho.nac)[1]}" stroke-width="3" opacity=".9"/>
             <path d="M32 6 C36 14 44 17 50 17 C56 17 64 14 68 6"
-                  fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                  fill="none" stroke="${uniformeDoPais(rascunho.nac)[1]}" stroke-width="3"/>
           </svg>
           <div class="camisa-nome">${esc(sobrenome)}</div>
           <div class="camisa-num">${esc((rascunho.numero || "0").slice(0, 2))}</div>
