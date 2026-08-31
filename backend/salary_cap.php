@@ -41,6 +41,43 @@ function capGarantirColunaContrato(PDO $pdo): void
     }
 }
 
+/**
+ * O TETO DO LANCE NA FREE AGENCY: a média salarial da liga.
+ *
+ * Regra da liga (30/08/2026): o lance máximo é a folha somada dividida pelo
+ * número de jogadores. Com 450 jogadores e 3.436M, dá 7,64 — teto de 7M.
+ *
+ * Arredonda pra BAIXO porque é um teto: 7,64 vira 7, e ninguém oferece mais
+ * do que a média. O número acompanha a liga sozinho, sem ninguém ter que
+ * recalcular quando a folha muda.
+ *
+ * Cacheado por request: esta conta percorre o elenco de todos os times, e a
+ * tela da Free Agency a consulta uma vez por jogador da lista.
+ */
+function capMediaSalarialDaLiga(PDO $pdo, string $league): int
+{
+    static $cache = [];
+    $league = strtoupper(trim($league));
+    if (isset($cache[$league])) return $cache[$league];
+
+    $soma = 0; $jogadores = 0;
+    try {
+        $st = $pdo->prepare('SELECT id FROM teams WHERE league = ?');
+        $st->execute([$league]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $tid) {
+            $resumo = getTeamCapSummary($pdo, (int)$tid);
+            $soma      += (int)$resumo['payroll'];
+            $jogadores += count($resumo['roster']);
+        }
+    } catch (Throwable $e) {
+        error_log('[capMediaSalarialDaLiga] ' . $e->getMessage());
+        return $cache[$league] = 0;
+    }
+    if ($jogadores <= 0) return $cache[$league] = 0;
+
+    return $cache[$league] = max(1, (int)floor($soma / $jogadores));
+}
+
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 170;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.

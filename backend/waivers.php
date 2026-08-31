@@ -233,33 +233,25 @@ function waiverToFreeAgency(PDO $pdo, array $w): void
  * sem ter pedido, e sem aviso nenhum. É a mesma regra da trade, do draft e
  * da free agency, que já entregam no banco.
  */
-function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId, int $lanceVencedor = 0): void
+function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
 {
     /*
-     * O LANCE VIRA O SALÁRIO DELE.
+     * O LANCE DO WAIVER NÃO É SALÁRIO — regra da liga, 30/08/2026.
      *
-     * O waiver é leilão de cap: quem deu 65M comprometeu 65M do próprio teto.
-     * Antes o lance só decidia quem levava e o jogador entrava pelo OVR — um
-     * 71 arrematado por 65M ocupava 2M, e apostar alto não custava nada.
+     * O jogador continua recebendo o que está no app, pela tabela de OVR.
+     * Antawn Jamison recebe 5M; um lance de 150M ganha o waiver e ele segue
+     * recebendo 5M. O lance existe pra decidir QUEM leva e pra comprometer o
+     * espaço durante a disputa, não pra virar contrato.
      *
-     * Só na ELITE: nas outras o cap é soma de OVR e não existe salário pra
-     * gravar. E só quando o lance é maior que zero, pra não zerar contrato de
-     * quem foi reivindicado sem valor (base antiga).
+     * Contrato de leilão existe só na Free Agency (`contract_salary`), e lá
+     * vale um ano.
      */
-    require_once __DIR__ . '/salary_cap.php';
-    $contrato = null;
-    if (strtoupper(trim((string)($w['league'] ?? ''))) === 'ELITE' && $lanceVencedor > 0) {
-        capGarantirColunaContrato($pdo);
-        $contrato = $lanceVencedor;
-    }
-
     $pdo->prepare("INSERT INTO players
         (team_id, name, age, position, secondary_position, ovr, seasons_in_league,
-         drafted_by_team_id, draft_round, draft_pick_position, role, contract_salary)
-        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco',?)")->execute([
+         drafted_by_team_id, draft_round, draft_pick_position, role)
+        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco')")->execute([
         $teamId, $w['name'], $w['age'], $w['position'], $w['secondary_position'], (int)$w['ovr'],
         (int)$w['seasons_in_league'], $w['drafted_by_team_id'], $w['draft_round'], $w['draft_pick_position'],
-        $contrato,
     ]);
 }
 
@@ -347,9 +339,7 @@ function resolveExpiredWaivers(PDO $pdo): array
             $winner = 0;
             if ($claims) {
                 $winner = (int)$claims[0]['team_id'];
-                // O lance vencedor vira o contrato — é o valor que ele
-                // apostou, e é o que passa a ocupar no teto dele.
-                waiverRecreatePlayer($pdo, $w, $winner, (int)($claims[0]['bid_space'] ?? 0));
+                waiverRecreatePlayer($pdo, $w, $winner);
                 $pdo->prepare("UPDATE waiver_retention SET status='claimed', claimed_by_team_id=?, resolved_at=NOW() WHERE id=?")->execute([$winner, $wid]);
                 $out['claimed']++;
             } else {

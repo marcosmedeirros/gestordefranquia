@@ -66,6 +66,96 @@ function faCap(PDO $pdo, ?int $teamId, int $ovr): array
     return capCabeNoTime($pdo, (int)$teamId, $ovr);
 }
 
+/**
+ * Quanto sobra no teto do time, em milhões. NULL fora da ELITE.
+ *
+ * O lance da Free Agency é comparado com isto, e não com o salário por OVR
+ * do jogador: na ELITE quem paga é o lance.
+ */
+/**
+ * A ORDEM DE DESEMPATE DA FREE AGENCY — regra da liga, 30/08/2026.
+ *
+ * Empatou no valor? Leva quem tem MAIOR ESPAÇO na folha. Empatou nisso
+ * também? Leva o time de PIOR CAMPANHA — em igualdade, a prioridade é de
+ * quem está pior posicionado.
+ *
+ * Vale só na ELITE: nas outras não há folha pra comparar, e lá o desempate
+ * segue sendo a prioridade declarada e a hora do lance.
+ *
+ * Devolve [espaço, ruindade] pra quem for ordenar: os dois já vêm no sentido
+ * "maior primeiro", então basta comparar em ordem.
+ */
+function faCriterioDesempate(PDO $pdo, int $teamId, string $league): array
+{
+    static $cache = [];
+    if (isset($cache[$teamId])) return $cache[$teamId];
+
+    $espaco = (int)(faEspacoNoCap($pdo, $teamId) ?? 0);
+
+    /* "Pior campanha": quanto MAIOR o número, pior o time — é a mesma
+       convenção do registro de pontuação, onde o 17º em diante é quem ficou
+       de fora. Sem classificação lançada todos empatam em 0, e o critério
+       simplesmente não desempata nada. */
+    $ruindade = 0;
+    try {
+        $st = $pdo->prepare("SELECT COALESCE(ss.overall_position, ss.position, 0)
+                               FROM season_standings ss
+                               JOIN seasons s ON s.id = ss.season_id
+                              WHERE ss.team_id = ? AND s.league = ?
+                           ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
+        $st->execute([$teamId, $league]);
+        $ruindade = (int)($st->fetchColumn() ?: 0);
+    } catch (Throwable $e) {
+        error_log('[faCriterioDesempate] ' . $e->getMessage());
+    }
+
+    return $cache[$teamId] = ['espaco' => $espaco, 'ruindade' => $ruindade];
+}
+
+/**
+ * Ordena as propostas de um jogador pelo critério da liga.
+ *
+ * Cada item precisa de `amount` e `team_id`; o resto passa intacto.
+ */
+function faOrdenarPropostas(PDO $pdo, array $propostas, string $league): array
+{
+    if (count($propostas) < 2) return $propostas;
+
+    $naElite = strtoupper(trim($league)) === 'ELITE';
+    usort($propostas, function ($a, $b) use ($pdo, $league, $naElite) {
+        // 1) o maior valor sempre manda
+        $va = (int)($a['amount'] ?? 0); $vb = (int)($b['amount'] ?? 0);
+        if ($va !== $vb) return $vb <=> $va;
+
+        if ($naElite) {
+            $ca = faCriterioDesempate($pdo, (int)$a['team_id'], $league);
+            $cb = faCriterioDesempate($pdo, (int)$b['team_id'], $league);
+            // 2) maior espaço na folha
+            if ($ca['espaco'] !== $cb['espaco']) return $cb['espaco'] <=> $ca['espaco'];
+            // 3) pior campanha
+            if ($ca['ruindade'] !== $cb['ruindade']) return $cb['ruindade'] <=> $ca['ruindade'];
+        }
+
+        // Fora da ELITE (e como último recurso): prioridade e hora do lance.
+        $pa = (int)($a['priority'] ?? 9); $pb = (int)($b['priority'] ?? 9);
+        if ($pa !== $pb) return $pa <=> $pb;
+        return strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? ''));
+    });
+    return $propostas;
+}
+
+function faEspacoNoCap(PDO $pdo, ?int $teamId): ?int
+{
+    if (!faCapAplica($pdo, $teamId)) return null;
+    try {
+        $s = getTeamCapSummary($pdo, (int)$teamId);
+        return max(0, (int)$s['cap_max'] - (int)$s['payroll']);
+    } catch (Throwable $e) {
+        error_log('[faEspacoNoCap] ' . $e->getMessage());
+        return null;
+    }
+}
+
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -1206,6 +1296,13 @@ function listAdminFaRequests(PDO $pdo, string $league): void
         ];
     }
 
+    /* A ordem vem do SQL só até o valor; o desempate da liga (espaço na
+       folha, depois pior campanha) precisa de conta que o banco não faz
+       sozinho. Reordenado aqui, o primeiro da lista é o vencedor. */
+    foreach ($grouped as $rid => $g) {
+        $grouped[$rid]['offers'] = faOrdenarPropostas($pdo, $g['offers'], $league);
+    }
+
     jsonSuccess(['requests' => array_values($grouped)]);
 }
 
@@ -1523,12 +1620,27 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
             $values[] = 0;
         }
 
+        /* NA ELITE O LANCE VIRA O SALÁRIO DO PRIMEIRO ANO.
+           Depois dele o jogador passa a receber pela tabela de OVR, como
+           todo mundo — a coluna é zerada na virada da temporada. */
+        $ehElite = faCapAplica($pdo, (int)$offer['team_id']);
+        if ($ehElite && (int)$offer['amount'] > 0) {
+            capGarantirColunaContrato($pdo);
+            $columns[] = 'contract_salary';
+            $values[]  = (int)$offer['amount'];
+        }
+
         $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
         $stmtInsert->execute($values);
 
-        $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
-        $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+        /* "Acabaram as moedinhas na ELITE": lá o lance é folha salarial, e
+           descontar moeda cobraria duas vezes pela mesma contratação. Nas
+           outras três a moeda continua sendo o preço. */
+        if (!$ehElite) {
+            $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
+            $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+        }
 
         if (columnExists($pdo, 'teams', 'fa_signings_used')) {
             $stmtSign = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');
@@ -1967,17 +2079,28 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
         }
     }
 
-    if ($teamCoins < $amount) {
-        jsonError('Moedas insuficientes');
-    }
+    /*
+     * NA ELITE O LANCE É SALÁRIO, NÃO MOEDA — regra da liga, 30/08/2026.
+     *
+     * "Acabaram as moedinhas na ELITE": o time oferece milhões, o teto é a
+     * média salarial da liga, e o que ele ofereceu vira o salário do jogador
+     * no primeiro ano. Nas outras três nada muda — lá o lance continua em
+     * moedas, que é a régua que elas têm.
+     */
+    if (faCapAplica($pdo, (int)$teamId)) {
+        $teto = capMediaSalarialDaLiga($pdo, (string)$teamLeague);
+        if ($teto > 0 && $amount > $teto) {
+            jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');
+        }
 
-    // Mesma régua do fluxo novo: na ELITE o salário tem que caber no cap; nas
-    // outras três não há cap na Free Agency.
-    $ovrDoAlvo = (int)($player[freeAgentOvrColumn($pdo)] ?? 0);
-    $fit = faCap($pdo, (int)$teamId, $ovrDoAlvo);
-    if (!$fit['cabe']) {
-        jsonError($player['name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
-                . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
+        // O que pesa no cap é o LANCE, não a tabela por OVR: é ele que vira o
+        // salário. Sem isto o time daria 7M num jogador com 2M de espaço.
+        $espaco = faEspacoNoCap($pdo, (int)$teamId);
+        if ($espaco !== null && $amount > $espaco) {
+            jsonError('Você tem ' . $espaco . 'M de espaço no cap, e o lance é de ' . $amount . 'M.');
+        }
+    } elseif ($teamCoins < $amount) {
+        jsonError('Moedas insuficientes');
     }
 
     $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ?');
@@ -2088,12 +2211,27 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $values[] = 0;
         }
 
+        /* NA ELITE O LANCE VIRA O SALÁRIO DO PRIMEIRO ANO.
+           Depois dele o jogador passa a receber pela tabela de OVR, como
+           todo mundo — a coluna é zerada na virada da temporada. */
+        $ehElite = faCapAplica($pdo, (int)$offer['team_id']);
+        if ($ehElite && (int)$offer['amount'] > 0) {
+            capGarantirColunaContrato($pdo);
+            $columns[] = 'contract_salary';
+            $values[]  = (int)$offer['amount'];
+        }
+
         $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
         $stmtInsert->execute($values);
 
-        $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
-        $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+        /* "Acabaram as moedinhas na ELITE": lá o lance é folha salarial, e
+           descontar moeda cobraria duas vezes pela mesma contratação. Nas
+           outras três a moeda continua sendo o preço. */
+        if (!$ehElite) {
+            $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
+            $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+        }
 
         if (columnExists($pdo, 'teams', 'fa_signings_used')) {
             $stmtSign = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');

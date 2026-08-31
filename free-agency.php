@@ -53,6 +53,31 @@ $team_name         = $team ? ($team['name']    ?? '')         : '';
 $team_moedas       = $team ? (int)($team['moedas'] ?? 0)      : 0;
 $team_roster_count = $team ? (int)($team['player_count'] ?? 0): 0;
 
+/*
+ * NA ELITE A FREE AGENCY É EM SALÁRIO, NÃO EM MOEDA (regra de 30/08/2026).
+ *
+ * A tela inteira falava em moeda: rótulo do campo, saldo, texto de ajuda. Na
+ * ELITE isso virou mentira — o GM digitaria 500 achando que são moedas e
+ * estaria oferecendo 500M de folha. Aqui a página decide, uma vez, em que
+ * unidade ela fala; o resto do arquivo só lê estas três variáveis.
+ */
+require_once __DIR__ . '/backend/salary_cap.php';
+$fa_liga     = strtoupper(trim((string)($team['league'] ?? '')));
+$fa_salario  = $fa_liga === 'ELITE';
+$fa_teto     = 0;
+$fa_espaco   = 0;
+if ($fa_salario && $team_id) {
+    try {
+        $fa_teto = capMediaSalarialDaLiga($pdo, $fa_liga);
+        $resumoCap = getTeamCapSummary($pdo, $team_id);
+        $fa_espaco = max(0, (int)$resumoCap['cap_max'] - (int)$resumoCap['payroll']);
+    } catch (Throwable $e) {
+        error_log('[fa/teto] ' . $e->getMessage());
+    }
+}
+/** O quanto o time pode oferecer: o teto da liga, limitado pelo espaço dele. */
+$fa_maximo = $fa_salario ? max(0, min($fa_teto ?: 0, $fa_espaco)) : 0;
+
 // Propostas pendentes
 $team_pending_offers = 0;
 if ($team_id) {
@@ -592,10 +617,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         <!-- Stats -->
         <div class="stats-strip">
             <div class="stat-pill">
-                <div class="stat-pill-icon"><i class="bi bi-coin"></i></div>
+                <div class="stat-pill-icon"><i class="bi bi-<?= $fa_salario ? 'cash-coin' : 'coin' ?>"></i></div>
                 <div>
-                    <div class="stat-pill-val"><?= number_format($team_moedas, 0, ',', '.') ?></div>
-                    <div class="stat-pill-label">Moedas disponíveis</div>
+                    <?php if ($fa_salario): ?>
+                        <div class="stat-pill-val"><?= (int)$fa_maximo ?>M</div>
+                        <div class="stat-pill-label">Lance máximo</div>
+                    <?php else: ?>
+                        <div class="stat-pill-val"><?= number_format($team_moedas, 0, ',', '.') ?></div>
+                        <div class="stat-pill-label">Moedas disponíveis</div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="stat-pill">
@@ -979,8 +1009,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     <strong style="color:var(--text);">Jogador:</strong> <span id="freeAgentNomeOffer"></span>
                 </p>
                 <div class="field">
-                    <label for="offerAmount">Moedas do lance</label>
-                    <input type="number" id="offerAmount" min="0" value="0">
+                    <label for="offerAmount"><?= $fa_salario ? 'Salário do lance (M)' : 'Moedas do lance' ?></label>
+                    <input type="number" id="offerAmount" min="0" value="0"<?= $fa_salario && $fa_maximo > 0 ? ' max="' . (int)$fa_maximo . '"' : '' ?>>
                 </div>
                 <div class="field" style="margin-top:14px;">
                     <label for="offerPriority">Prioridade</label>
@@ -991,7 +1021,16 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </select>
                 </div>
                 <div class="hint-box" style="margin-top:16px;">
-                    <p>Moedas disponíveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong></p>
+                    <?php if ($fa_salario): ?>
+                        <p>Lance máximo: <strong id="moedasDisponiveis"><?= (int)$fa_maximo ?>M</strong>
+                           <span style="color:var(--text-3)">— teto da liga <?= (int)$fa_teto ?>M · seu espaço <?= (int)$fa_espaco ?>M</span></p>
+                        <p style="margin-top:4px;color:var(--text-3);font-size:12px;">
+                            O teto é a <b>média salarial da liga</b>. O valor do lance vira o salário
+                            dele no <b>primeiro ano</b>; depois ele passa a receber pela tabela de OVR.
+                        </p>
+                    <?php else: ?>
+                        <p>Moedas disponíveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong></p>
+                    <?php endif; ?>
                     <p style="margin-top:4px;">Vagas no elenco: <strong><?= 15 - $team_roster_count ?></strong>/15</p>
                     <p style="margin-top:6px;color:var(--text-3);font-size:12px;">Você pode enviar várias propostas, mas só pode ganhar de acordo com suas vagas e moedas disponíveis. Informe 0 para cancelar.</p>
                 </div>
@@ -1121,6 +1160,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     const userTeamId       = <?= $team_id ?? 'null' ?>;
     const userTeamName     = '<?= addslashes($team_name) ?>';
     const userMoedas       = <?= $team_moedas ?>;
+    /* Na ELITE o lance é em milhões de folha, não em moeda. O servidor
+       valida de novo — isto é só pra tela avisar antes de mandar. */
+    const faEmSalario      = <?= $fa_salario ? 'true' : 'false' ?>;
+    const faLanceMaximo    = <?= (int)$fa_maximo ?>;
+    const faTetoLiga       = <?= (int)$fa_teto ?>;
     const userRosterCount  = <?= (int)$team_roster_count ?>;
     let   userPendingOffers= <?= (int)$team_pending_offers ?>;
     const rosterLimit      = 15;
