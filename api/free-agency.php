@@ -50,6 +50,22 @@ function faCapAplica(PDO $pdo, ?int $teamId): bool
     return $cache[$teamId] = ($liga === 'ELITE');
 }
 
+/** A liga do time, pra quem só tem o id em mãos. '' se não achar. */
+function faLigaDoTime(PDO $pdo, ?int $teamId): string
+{
+    static $cache = [];
+    if (!$teamId) return '';
+    if (array_key_exists($teamId, $cache)) return $cache[$teamId];
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $st->execute([$teamId]);
+        return $cache[$teamId] = strtoupper(trim((string)($st->fetchColumn() ?: '')));
+    } catch (Throwable $e) {
+        error_log('[fa] faLigaDoTime: ' . $e->getMessage());
+        return $cache[$teamId] = '';
+    }
+}
+
 /**
  * capCabeNoTime() com o portão da liga na frente.
  *
@@ -1396,7 +1412,11 @@ function adminFaRevert(PDO $pdo, array $body, int $adminId): void
         $pdo->prepare('DELETE FROM players WHERE team_id = ? AND name = ? LIMIT 1')
             ->execute([(int)$req['winner_team_id'], $req['player_name']]);
 
-        if ($amount > 0) {
+        /* Na ELITE não houve desconto — o lance ali é folha salarial, não
+           moeda. Devolver aqui criaria moeda do nada, e o valor é em milhões:
+           reverter um lance de 7M creditava 7 moedas que ninguém pagou. */
+        $eliteRev = faCapAplica($pdo, (int)$req['winner_team_id']);
+        if ($amount > 0 && !$eliteRev) {
             $pdo->prepare('UPDATE teams SET moedas = moedas + ? WHERE id = ?')
                 ->execute([$amount, (int)$req['winner_team_id']]);
         }
@@ -1406,7 +1426,7 @@ function adminFaRevert(PDO $pdo, array $body, int $adminId): void
                 ->execute([(int)$req['winner_team_id']]);
         }
 
-        if ($amount > 0 && tableExists($pdo, 'team_coins_log')) {
+        if ($amount > 0 && !$eliteRev && tableExists($pdo, 'team_coins_log')) {
             $pdo->prepare('INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at) VALUES (?,?,?,?,NOW())')
                 ->execute([(int)$req['winner_team_id'], $amount, 'Reversão FA: ' . $req['player_name'], $adminId]);
         }
@@ -1493,7 +1513,19 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
     if ($amount < 0) {
         jsonError('Valor da proposta invalido');
     }
-    if ($teamCoins < $amount) {
+    /* Mesma regra do lance na FA normal: na ELITE o valor é salário, e quem
+       limita é o teto da média salarial e o espaço no cap — não a moedinha,
+       que lá não existe mais. */
+    if (faCapAplica($pdo, (int)$teamId)) {
+        $teto = capMediaSalarialDaLiga($pdo, (string)$teamLeague);
+        if ($teto > 0 && $amount > $teto) {
+            jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');
+        }
+        $espaco = faEspacoNoCap($pdo, (int)$teamId);
+        if ($espaco !== null && $amount > $espaco) {
+            jsonError('Você tem ' . $espaco . 'M de espaço no cap, e o lance é de ' . $amount . 'M.');
+        }
+    } elseif ($teamCoins < $amount) {
         jsonError('Moedas insuficientes');
     }
 
@@ -1575,7 +1607,11 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
     if (!$offer || $offer['status'] !== 'pending' || $offer['request_status'] !== 'open') {
         jsonError('Proposta nao encontrada');
     }
-    if ((int)$offer['moedas'] < (int)$offer['amount']) {
+    /* Na ELITE o lance é salário em milhões, não moeda: comparar os dois
+       recusava proposta legítima — um lance de 7M num time com 3 moedas era
+       barrado como "sem saldo". Quem manda lá é o cap, conferido logo abaixo. */
+    if (!faCapAplica($pdo, (int)$offer['team_id'])
+        && (int)$offer['moedas'] < (int)$offer['amount']) {
         jsonError('Time nao tem moedas suficientes');
     }
 
@@ -1896,7 +1932,19 @@ function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): 
     if ($amount <= 0) {
         jsonError('Valor invalido');
     }
-    if ($teamCoins < $amount) {
+    // Editar a proposta passa pela mesma régua de criá-la: na ELITE, teto da
+    // média salarial e espaço no cap; nas outras, moeda.
+    if (faCapAplica($pdo, (int)$teamId)) {
+        $ligaDoTime = faLigaDoTime($pdo, (int)$teamId);
+        $teto = capMediaSalarialDaLiga($pdo, $ligaDoTime);
+        if ($teto > 0 && $amount > $teto) {
+            jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');
+        }
+        $espaco = faEspacoNoCap($pdo, (int)$teamId);
+        if ($espaco !== null && $amount > $espaco) {
+            jsonError('Você tem ' . $espaco . 'M de espaço no cap, e o lance é de ' . $amount . 'M.');
+        }
+    } elseif ($teamCoins < $amount) {
         jsonError('Moedas insuficientes');
     }
 
@@ -2168,7 +2216,11 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         jsonError('Proposta nao encontrada');
     }
 
-    if ((int)$offer['moedas'] < (int)$offer['amount']) {
+    /* Na ELITE o lance é salário em milhões, não moeda: comparar os dois
+       recusava proposta legítima — um lance de 7M num time com 3 moedas era
+       barrado como "sem saldo". Quem manda lá é o cap, conferido logo abaixo. */
+    if (!faCapAplica($pdo, (int)$offer['team_id'])
+        && (int)$offer['moedas'] < (int)$offer['amount']) {
         jsonError('Time nao tem moedas suficientes');
     }
 

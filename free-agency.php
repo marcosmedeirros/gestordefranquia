@@ -739,8 +739,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <input type="number" id="faNewOvr" value="70" min="40" max="99">
                             </div>
                             <div class="field" style="grid-column: span 1;">
-                                <label for="faNewOffer">Moedas</label>
-                                <input type="number" id="faNewOffer" value="1" min="1">
+                                <label for="faNewOffer"><?= $fa_salario ? "Salário do lance (M)" : "Moedas" ?></label>
+                                <input type="number" id="faNewOffer" value="1" min="1"<?= $fa_salario && $fa_maximo ? " max=\"" . (int)$fa_maximo . "\"" : "" ?>>
                             </div>
                             <div class="field" style="grid-column: span 3;">
                                 <label for="faNewPriority">Prioridade</label>
@@ -971,8 +971,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div class="modal-body">
                 <div id="dispModalFicha" style="font-size:14px;margin-bottom:16px;"></div>
                 <div class="field">
-                    <label for="dispModalMoedas">Moedas</label>
-                    <input type="number" id="dispModalMoedas" min="0" value="1">
+                    <label for="dispModalMoedas"><?= $fa_salario ? 'Salário do lance (M)' : 'Moedas' ?></label>
+                    <input type="number" id="dispModalMoedas" min="0" value="1"<?= $fa_salario && $fa_maximo ? ' max="' . (int)$fa_maximo . '"' : '' ?>>
                 </div>
                 <div class="field" style="margin-top:14px;">
                     <label for="dispModalPrioridade">Prioridade</label>
@@ -1032,7 +1032,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         <p>Moedas disponíveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong></p>
                     <?php endif; ?>
                     <p style="margin-top:4px;">Vagas no elenco: <strong><?= 15 - $team_roster_count ?></strong>/15</p>
-                    <p style="margin-top:6px;color:var(--text-3);font-size:12px;">Você pode enviar várias propostas, mas só pode ganhar de acordo com suas vagas e moedas disponíveis. Informe 0 para cancelar.</p>
+                    <p style="margin-top:6px;color:var(--text-3);font-size:12px;">Você pode enviar várias propostas, mas só pode ganhar de acordo com suas vagas e <?= $fa_salario ? 'o espaço no seu cap' : 'moedas disponíveis' ?>. Informe 0 para cancelar.</p>
                 </div>
             </div>
             <div class="modal-footer" style="gap:10px;">
@@ -1109,8 +1109,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
                 <input type="hidden" id="editOfferModalId">
                 <div class="field">
-                    <label for="editOfferAmount">Moedas</label>
-                    <input type="number" id="editOfferAmount" min="1">
+                    <label for="editOfferAmount"><?= $fa_salario ? "Salário do lance (M)" : "Moedas" ?></label>
+                    <input type="number" id="editOfferAmount" min="1"<?= $fa_salario && $fa_maximo ? " max=\"" . (int)$fa_maximo . "\"" : "" ?>>
                 </div>
                 <div class="field">
                     <label for="editOfferPriority">Prioridade</label>
