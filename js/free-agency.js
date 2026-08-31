@@ -168,16 +168,25 @@ function renderDispensadosDaTemporada() {
             : j.cap_custo === 0 ? '<span>não mexe no seu cap</span>'
             : `<span class="${naoCabe ? 'custo-nao-cabe' : ''}">${fmtCap(j.cap_custo, u)} no cap</span>`;
         const origem = j.original_team_name ? ' · ex-' + escHtml(j.original_team_name) : '';
+        // O pedido tem outro caminho de lance (fa_request_offers), então o
+        // botão abre o formulário de pedido já preenchido em vez do modal
+        // do dispensado — que postaria no endpoint errado.
+        const attr = j.pedido ? 'data-pedido' : 'data-disp';
         const botao = naoCabe
             ? '<button class="disp-btn" disabled title="Não cabe no seu cap">Não cabe</button>'
             : j.minha_proposta != null
-                ? `<button class="disp-btn tem-proposta" data-disp="${j.id}">Sua: ${j.minha_proposta}</button>`
-                : `<button class="disp-btn" data-disp="${j.id}">Propor</button>`;
+                ? `<button class="disp-btn tem-proposta" ${attr}="${j.id}">Sua: ${j.minha_proposta}</button>`
+                : `<button class="disp-btn" ${attr}="${j.id}">Propor</button>`;
+        // "pedido por" no lugar de "ex-": ele não foi dispensado por ninguém,
+        // alguém pediu que ele entrasse na fila.
+        const marca = j.pedido
+            ? ` · <span style="color:var(--amber)">pedido${j.original_team_name ? ' por ' + escHtml(j.original_team_name) : ''}</span>`
+            : origem;
         return `<div class="disp-card ${naoCabe ? 'nao-cabe' : ''}">
             <div class="disp-pos">${escHtml(posTxt || '?')}</div>
             <div class="disp-meio">
                 <div class="disp-nome" title="${escHtml(j.name)}">${escHtml(j.name)}</div>
-                <div class="disp-sub">${j.age} anos${origem ? '' : ''}${custo ? ' · ' + custo : ''}${origem}</div>
+                <div class="disp-sub">${j.age} anos${custo ? ' · ' + custo : ''}${marca}</div>
             </div>
             <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>
             ${botao}
@@ -187,6 +196,85 @@ function renderDispensadosDaTemporada() {
     alvo.querySelectorAll('[data-disp]').forEach(b => {
         b.addEventListener('click', () => abrirModalDispensado(Number(b.dataset.disp)));
     });
+    alvo.querySelectorAll('[data-pedido]').forEach(b => {
+        b.addEventListener('click', () => abrirPedido(
+            dispTemporada.find(x => x.pedido && Number(x.id) === Number(b.dataset.pedido))));
+    });
+}
+
+/**
+ * O formulário de "jogador não está", em modal.
+ *
+ * Com um jogador, vem preenchido e serve pra entrar na disputa de um pedido
+ * que já existe — o servidor agrupa pelo nome. Sem, é o pedido novo.
+ */
+function abrirPedido(j) {
+    const el = id => document.getElementById(id);
+    const modal = el('modalJogadorNaoEsta');
+    if (!modal) return;
+
+    if (j) {
+        el('faNewPlayerName').value = j.name || '';
+        el('faNewPosition').value   = j.position || 'PG';
+        el('faNewSecondary').value  = j.secondary_position || '';
+        el('faNewAge').value        = j.age || 24;
+        el('faNewOvr').value        = j.ovr || 70;
+        // Os dados vêm do pedido de quem cadastrou: mexer neles aqui mudaria
+        // o jogador na fila dos outros.
+        ['faNewPlayerName','faNewPosition','faNewSecondary','faNewAge','faNewOvr']
+            .forEach(x => el(x).readOnly = el(x).disabled = true);
+    } else {
+        ['faNewPlayerName','faNewPosition','faNewSecondary','faNewAge','faNewOvr']
+            .forEach(x => { el(x).readOnly = false; el(x).disabled = false; });
+        el('faNewPlayerName').value = '';
+        el('faNewSecondary').value  = '';
+        el('faNewAge').value        = 24;
+        el('faNewOvr').value        = 70;
+    }
+    const aviso = el('faNomeAviso');
+    if (aviso) { aviso.hidden = true; aviso.innerHTML = ''; }
+    if (typeof atualizarAvisoDeCap === 'function') atualizarAvisoDeCap();
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+/**
+ * Enquanto o nome é digitado, mostra quem já está na lista.
+ *
+ * Quem abre este formulário acha que o jogador não existe — às vezes só
+ * escreveu diferente. Cadastrar de novo criaria duas filas pro mesmo nome.
+ */
+function sugerirDaLista() {
+    const campo = document.getElementById('faNewPlayerName');
+    const caixa = document.getElementById('faNomeAviso');
+    if (!campo || !caixa) return;
+
+    const q = campo.value.trim().toLowerCase();
+    if (q.length < 3 || campo.readOnly) { caixa.hidden = true; caixa.innerHTML = ''; return; }
+
+    const achados = (dispTemporada || [])
+        .filter(j => (j.name || '').toLowerCase().includes(q))
+        .slice(0, 4);
+
+    if (!achados.length) { caixa.hidden = true; caixa.innerHTML = ''; return; }
+
+    caixa.hidden = false;
+    caixa.innerHTML =
+        '<div style="font-size:12px;color:var(--amber);margin-bottom:4px">'
+        + '<i class="bi bi-info-circle"></i> Já está na lista — clique pra dar lance nele:</div>'
+        + achados.map(j => `<button type="button" class="fa-sugestao" data-sug="${j.id}" data-ped="${j.pedido ? 1 : 0}">
+             <b>${escHtml(j.name)}</b>
+             <span style="color:var(--text-3)">${escHtml([j.position, j.secondary_position].filter(Boolean).join('/'))} · ${j.age} anos</span>
+             <small>${j.ovr} OVR</small>
+           </button>`).join('');
+
+    caixa.querySelectorAll('[data-sug]').forEach(b => b.addEventListener('click', () => {
+        const j = dispTemporada.find(x => Number(x.id) === Number(b.dataset.sug)
+                                       && (b.dataset.ped === '1') === !!x.pedido);
+        if (!j) return;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalJogadorNaoEsta')).hide();
+        if (j.pedido) setTimeout(() => abrirPedido(j), 250);
+        else setTimeout(() => abrirModalDispensado(j.id), 250);
+    }));
 }
 
 function abrirModalDispensado(id) {
@@ -322,6 +410,10 @@ function initNewFreeAgency() {
     }
 
     document.getElementById('faNewOvr')?.addEventListener('input', atualizarAvisoDeCap);
+    // O pedido virou modal: o botão fica junto da busca que a pessoa acabou
+    // de usar sem achar o jogador.
+    document.getElementById('btnJogadorNaoEsta')?.addEventListener('click', () => abrirPedido(null));
+    document.getElementById('faNewPlayerName')?.addEventListener('input', sugerirDaLista);
     carregarCapDoMeuTime();
 
     ['dispBusca', 'dispPos', 'dispSoCabe'].forEach(id => {
@@ -618,8 +710,19 @@ async function submitNewFaRequest() {
         }
 
         alert('Proposta enviada!');
+        // Fecha o modal e devolve os campos travados (o pedido de um jogador
+        // que já está na fila os bloqueia) — senão o próximo pedido abre com
+        // tudo readonly.
+        const m = document.getElementById('modalJogadorNaoEsta');
+        if (m) bootstrap.Modal.getOrCreateInstance(m).hide();
+        ['faNewPlayerName','faNewPosition','faNewSecondary','faNewAge','faNewOvr'].forEach(x => {
+            const el = document.getElementById(x);
+            if (el) { el.readOnly = false; el.disabled = false; }
+        });
         document.getElementById('faNewRequestForm')?.reset();
         document.getElementById('faNewOffer').value = '1';
+        const aviso = document.getElementById('faNomeAviso');
+        if (aviso) { aviso.hidden = true; aviso.innerHTML = ''; }
         atualizarAvisoDeCap();
         carregarDispensadosDaTemporada();
         carregarMinhasPropostasNovaFA();

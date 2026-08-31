@@ -1840,6 +1840,44 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
     $st->execute([$league, $temporada['id']]);
     $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
 
+    /*
+     * OS PEDIDOS ABERTOS ENTRAM NA MESMA LISTA.
+     *
+     * Quem pede um jogador que não está na lista cria uma linha em
+     * `fa_requests` — e ela não aparecia em lugar nenhum pros outros GMs. Na
+     * prática o jogador existia só pra quem pediu: ninguém mais sabia que
+     * dava pra disputar, e a "disputa" era um lance só.
+     *
+     * Eles vêm marcados com `pedido = 1` porque o lance segue por outro
+     * caminho (fa_request_offers, não free_agent_offers) — a tela precisa
+     * saber qual dos dois usar.
+     */
+    try {
+        $stR = $pdo->prepare("
+            SELECT r.id, r.player_name AS name, r.age, r.position, r.secondary_position, r.ovr,
+                   TRIM(CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,''))) AS original_team_name,
+                   r.created_at AS waived_at,
+                   (SELECT COUNT(*) FROM fa_request_offers o
+                     WHERE o.request_id = r.id AND o.status = 'pending') AS propostas
+            FROM fa_requests r
+            LEFT JOIN teams t ON t.id = r.created_by_team_id
+            WHERE r.league = ? AND r.status = 'open'
+            ORDER BY r.ovr DESC, r.player_name ASC");
+        $stR->execute([$league]);
+        $jaNaLista = array_map(fn($j) => normalizeFaPlayerName($j['name']), $jogadores);
+        foreach ($stR->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            // Se o mesmo nome já está entre os dispensados, o pedido é o
+            // duplicado — mostrar os dois seria oferecer duas filas pro mesmo
+            // jogador.
+            if (in_array(normalizeFaPlayerName($r['name']), $jaNaLista, true)) continue;
+            $r['pedido'] = 1;
+            $r['propostas'] = (int)$r['propostas'];
+            $jogadores[] = $r;
+        }
+    } catch (Throwable $e) {
+        error_log('[fa/dispensados] pedidos: ' . $e->getMessage());
+    }
+
     // Proposta que o time já fez, casada pelo nome normalizado — é assim que
     // o fluxo de pedido agrupa, então é assim que ele reconhece o que é seu.
     $jaPedi = [];
@@ -1854,9 +1892,14 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
         } catch (Throwable $e) {}
     }
 
+    // Depois de juntar as duas origens, a ordem tem que valer pra lista toda.
+    usort($jogadores, fn($a, $b) => ((int)$b['ovr'] <=> (int)$a['ovr'])
+        ?: strcasecmp((string)$a['name'], (string)$b['name']));
+
     foreach ($jogadores as &$j) {
         $j['ovr'] = (int)$j['ovr'];
         $j['age'] = (int)$j['age'];
+        $j['pedido'] = !empty($j['pedido']) ? 1 : 0;
         $fit = $teamId ? faCap($pdo, $teamId, $j['ovr']) : null;
         $j['cap_custo']   = $fit['custo'] ?? null;
         $j['cap_cabe']    = $fit['cabe'] ?? true;

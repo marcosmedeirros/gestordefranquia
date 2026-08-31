@@ -390,6 +390,25 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .field select option { background: var(--panel-2); }
         .field textarea { resize: vertical; }
 
+        /* O lance é o número que decide a disputa: vinha do tamanho de um
+           campo de idade, num canto, e a pessoa digitava sem enxergar. */
+        .field input.input-lance {
+            font-size: 24px; font-weight: 800; padding: 14px 16px;
+            letter-spacing: .02em; font-variant-numeric: tabular-nums;
+        }
+        /* Sugestão de quem já está na lista, enquanto o nome é digitado. */
+        .fa-sugestao {
+            display: flex; align-items: center; gap: 10px; width: 100%;
+            background: var(--panel-3); border: 1px solid var(--border-md);
+            border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 6px;
+            color: var(--text); font-family: var(--font); font-size: 13px;
+            text-align: left; cursor: pointer;
+            transition: border-color var(--t) var(--ease);
+        }
+        .fa-sugestao:hover { border-color: var(--border-red); }
+        .fa-sugestao b { font-weight: 700; }
+        .fa-sugestao small { color: var(--text-3); margin-left: auto; white-space: nowrap; }
+
         /* ── Form grid ─────────────────────────────────── */
         .fgrid { display: grid; gap: 14px; grid-template-columns: repeat(12, minmax(0,1fr)); }
 
@@ -696,77 +715,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);cursor:pointer">
                                 <input type="checkbox" id="dispSoCabe" style="width:auto"> Só os que cabem
                             </label>
+                            <!-- O formulário de pedir jogador de fora era um painel inteiro
+                                 embaixo da lista, aberto o tempo todo. Ele é a exceção — o
+                                 caminho normal é dar lance em quem já está aí — então virou
+                                 botão, ao lado da busca que a pessoa acabou de usar sem achar. -->
+                            <button type="button" class="btn-red" id="btnJogadorNaoEsta"
+                                    style="padding:8px 14px;font-size:12.5px;white-space:nowrap">
+                                <i class="bi bi-person-plus"></i> Jogador não está
+                            </button>
                         </div>
                     </div>
                     <div id="dispLista"><p class="empty-state">Carregando...</p></div>
-                </div>
-
-                <!-- Nova proposta -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <div class="panel-title">Nova Proposta</div>
-                            <div class="panel-sub">Preencha os dados e envie seu lance</div>
-                        </div>
-                    </div>
-
-                    <form id="faNewRequestForm">
-                        <div class="fgrid">
-                            <div class="field" style="grid-column: span 5;">
-                                <label for="faNewPlayerName">Nome do jogador</label>
-                                <input type="text" id="faNewPlayerName" placeholder="Ex: LeBron James" required>
-                            </div>
-                            <div class="field" style="grid-column: span 2;">
-                                <label for="faNewPosition">Posição</label>
-                                <select id="faNewPosition">
-                                    <option value="PG">PG</option>
-                                    <option value="SG">SG</option>
-                                    <option value="SF">SF</option>
-                                    <option value="PF">PF</option>
-                                    <option value="C">C</option>
-                                </select>
-                            </div>
-                            <div class="field" style="grid-column: span 2;">
-                                <label for="faNewSecondary">Pos. Secundária</label>
-                                <input type="text" id="faNewSecondary" placeholder="Opcional">
-                            </div>
-                            <div class="field" style="grid-column: span 1;">
-                                <label for="faNewAge">Idade</label>
-                                <input type="number" id="faNewAge" value="24" min="18" max="45">
-                            </div>
-                            <div class="field" style="grid-column: span 1;">
-                                <label for="faNewOvr">OVR</label>
-                                <input type="number" id="faNewOvr" value="70" min="40" max="99">
-                            </div>
-                            <div class="field" style="grid-column: span 1;">
-                                <label for="faNewOffer"><?= $fa_salario ? "Salário do lance (M)" : "Moedas" ?></label>
-                                <input type="number" id="faNewOffer" value="1" min="1"<?= $fa_salario && $fa_maximo ? " max=\"" . (int)$fa_maximo . "\"" : "" ?>>
-                            </div>
-                            <div class="field" style="grid-column: span 3;">
-                                <label for="faNewPriority">Prioridade</label>
-                                <select id="faNewPriority">
-                                    <option value="1">🟢 Alta</option>
-                                    <option value="2" selected>🟡 Média</option>
-                                    <option value="3">⚪ Baixa</option>
-                                </select>
-                            </div>
-                            <div style="grid-column: span 6;" id="faCapAviso" hidden>
-                                <div class="hint-box" id="faCapBox">
-                                    <p id="faCapTexto"></p>
-                                </div>
-                            </div>
-                            <div style="grid-column: span 6;">
-                                <div class="hint-box">
-                                    <p><strong>Atenção:</strong> Informe o nome exatamente como aparece no vídeo (ex: LeBron James, não L. James). Se o jogador já existir na FA, sua proposta será agrupada com as demais.</p>
-                                </div>
-                            </div>
-                            <div style="grid-column: span 3; align-self: center;">
-                                <button type="submit" class="btn-red" id="faNewSubmitBtn" style="width:100%;justify-content:center;padding:12px 20px;">
-                                    <i class="bi bi-send"></i> Enviar proposta
-                                </button>
-                            </div>
-                        </div>
-                    </form>
                 </div>
 
                 <!-- Minhas propostas -->
@@ -959,6 +918,95 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 <!-- ══════════════════════════════════════
      MODALS (legacy hidden)
 ══════════════════════════════════════ -->
+
+<!-- Modal: pedir um jogador que não está na lista -->
+<div class="modal fade" id="modalJogadorNaoEsta" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i> Jogador não está na lista</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="faNewRequestForm">
+                <div class="modal-body">
+                    <div class="fgrid">
+                        <div class="field" style="grid-column: span 6;">
+                            <label for="faNewPlayerName">Nome do jogador</label>
+                            <input type="text" id="faNewPlayerName" placeholder="Ex: LeBron James" required
+                                   autocomplete="off" spellcheck="false">
+                            <!-- Quem chega aqui já procurou e não achou. Se o nome bate com
+                                 alguém que ESTÁ na lista, dizer isso na hora evita um pedido
+                                 duplicado e um jogador cadastrado duas vezes. -->
+                            <div id="faNomeAviso" hidden style="margin-top:8px"></div>
+                        </div>
+                        <div class="field" style="grid-column: span 2;">
+                            <label for="faNewPosition">Posição</label>
+                            <select id="faNewPosition">
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF">SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="field" style="grid-column: span 2;">
+                            <label for="faNewSecondary">Pos. Secundária</label>
+                            <input type="text" id="faNewSecondary" placeholder="Opcional">
+                        </div>
+                        <div class="field" style="grid-column: span 1;">
+                            <label for="faNewAge">Idade</label>
+                            <input type="number" id="faNewAge" value="24" min="18" max="45">
+                        </div>
+                        <div class="field" style="grid-column: span 1;">
+                            <label for="faNewOvr">OVR</label>
+                            <input type="number" id="faNewOvr" value="70" min="40" max="99">
+                        </div>
+
+                        <!-- O lance é o campo que decide a disputa e vinha do tamanho de um
+                             campo de idade, com o rótulo quebrando em duas linhas. -->
+                        <div class="field" style="grid-column: span 3;">
+                            <label for="faNewOffer"><?= $fa_salario ? 'Salário do lance (M)' : 'Moedas do lance' ?></label>
+                            <input type="number" id="faNewOffer" value="1" min="1"<?= $fa_salario && $fa_maximo ? ' max="' . (int)$fa_maximo . '"' : '' ?>
+                                   class="input-lance" inputmode="numeric">
+                            <?php if ($fa_salario): ?>
+                                <div style="margin-top:6px;font-size:12px;color:var(--text-3)">
+                                    Máximo: <strong style="color:var(--text-2)"><?= (int)$fa_maximo ?>M</strong>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="field" style="grid-column: span 3;">
+                            <label for="faNewPriority">Prioridade</label>
+                            <select id="faNewPriority">
+                                <option value="1">🟢 Alta</option>
+                                <option value="2" selected>🟡 Média</option>
+                                <option value="3">⚪ Baixa</option>
+                            </select>
+                        </div>
+
+                        <div style="grid-column: span 6;" id="faCapAviso" hidden>
+                            <div class="hint-box" id="faCapBox">
+                                <p id="faCapTexto"></p>
+                            </div>
+                        </div>
+                        <div style="grid-column: span 6;">
+                            <div class="hint-box">
+                                <p><strong>Atenção:</strong> Informe o nome exatamente como aparece no vídeo
+                                (ex: LeBron James, não L. James). Se o jogador já existir na FA, sua proposta
+                                será agrupada com as demais.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="gap:10px">
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn-red" id="faNewSubmitBtn" style="padding:12px 22px">
+                        <i class="bi bi-send"></i> Enviar proposta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Modal: proposta por um dispensado (o formulário de cima, já preenchido) -->
 <div class="modal fade" id="modalDispensado" tabindex="-1">
