@@ -2982,7 +2982,8 @@ function ofertasSemDraft(){
                 forca:ri(55, 85), papel:"titular",
                 nota:"Paga o dobro e você joga alto nível. Longe de todo mundo que te conhece."});
 
-  return ofertas;
+  // Três é o teto da grade, aqui como no mercado.
+  return ofertas.slice(0, 3);
 }
 
 /** Assina a primeira casa de quem não foi draftado e começa a carreira. */
@@ -3094,7 +3095,27 @@ function ligaAindaQuer(){
   return true;
 }
 
+/**
+ * NUNCA MAIS QUE TRÊS PROPOSTAS.
+ *
+ * O corte pra três existia só no fim do caminho principal, e os dois caminhos
+ * que devolvem antes — quem foi dispensado e quem já está fora da liga —
+ * passavam por fora dele. De vez em quando a janela abria com quatro cartões,
+ * e a grade, que é de três colunas, dobrava o último pra linha de baixo.
+ *
+ * Aqui o limite vale pra todos os caminhos, inclusive pros que forem escritos
+ * depois. Ficar no clube tem prioridade quando existe: é a comparação que dá
+ * sentido às outras duas.
+ */
 function gerarOfertas(){
+  const todas = gerarOfertasBrutas();
+  if (!Array.isArray(todas) || todas.length <= 3) return todas || [];
+  const ficar = todas.filter(o => o.time === S.time).slice(0, 1);
+  const sair  = todas.filter(o => o.time !== S.time);
+  return [...ficar, ...sair.slice(0, 3 - ficar.length)];
+}
+
+function gerarOfertasBrutas(){
   const v = valorDeMercado();
   const lista = timesDaLiga().filter(t => t !== S.time);
   const ofertas = [];
@@ -4401,30 +4422,37 @@ function fecharDraft(){
  * A janela de quem ficou de fora: três clubes, um cartão cada, sem hierarquia
  * visual entre eles — a escolha é de verdade e nenhuma opção é "a certa".
  */
+/**
+ * Não foi draftado: escolhe onde jogar, na mesma cara das outras decisões.
+ *
+ * Isto era uma tela à parte, com cartões grandes empilhados num layout que
+ * não aparecia em nenhum outro momento do jogo — a primeira escolha da
+ * carreira era também a única com aquele desenho. Agora ela usa a grade de
+ * três que a decisão do ano e a janela de transferências já usam: mesmo
+ * título, mesmo subtítulo, mesmas três portas lado a lado.
+ *
+ * São sempre três de propósito (ver ofertasSemDraft): G League, um clube do
+ * seu país e um do exterior.
+ */
 function telaSemDraft(){
   if (!S.semDraft) { S.semDraft = ofertasSemDraft(); salvar(); }
   const ofertas = S.semDraft;
   app().innerHTML = topo() + `
-    <h1>Ninguém chamou seu nome.</h1>
-    <p class="lead">As 60 escolhas passaram e você continuou sentado. A liga não te quis agora —
-    isso não quer dizer que não vá querer. Escolha onde jogar até ela olhar de novo.</p>
-    <div class="bpcard">
-      <div class="bpcard-title">Janela de transferências</div>
-      <p class="dec-txt" style="margin:0 0 4px">Chegaram propostas de fora da liga. Você aceita uma delas.</p>
-    </div>
-    <div class="ofertas-grade">
-      ${ofertas.map((of,i)=>`
-        <button class="oferta-card" onclick="assinarSemDraft(${i})">
-          <span class="oferta-topo">Assinar com</span>
-          <span class="oferta-time">${esc(of.time)}</span>
-          <span class="oferta-marca">${marca(of.time, 54)}</span>
-          <span class="oferta-liga">${esc(of.liga)}</span>
-          <span class="oferta-num">$${of.salario}M<small>por ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</small></span>
-          <span class="oferta-nota">${esc(of.nota)}</span>
-        </button>`).join("")}
-    </div>
-    <p class="nota-txt">Jogando bem lá fora, a liga chama. Da G League o caminho é mais curto —
-    e o salário, menor.</p>`;
+    <div class="dec-caixa">
+      <h1 class="dec-tit">Ninguém chamou seu nome</h1>
+      <p class="lead dec-sub">As 60 escolhas passaram e você continuou sentado. A liga não te quis
+      agora — isso não quer dizer que não vá querer. Escolha onde jogar até ela olhar de novo.</p>
+      ${gradeDeOpcoes(ofertas.map((of,i)=>`
+        <button class="oferta-linha" onclick="assinarSemDraft(${i})">
+          <span class="ol-marca">${marca(of.time, 34)}</span>
+          <span class="ol-txt">
+            <b>${esc(of.time)}</b>
+            <small>${esc(of.liga)} · $${of.salario}M por ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</small>
+          </span>
+        </button>`).join(""), "", ofertas.length)}
+      <p class="nota-txt" style="margin-top:10px">Jogando bem lá fora, a liga chama. Da G League o
+      caminho é mais curto — e o salário, menor.</p>
+    </div>`;
 }
 
 function barra(){
