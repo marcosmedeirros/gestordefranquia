@@ -617,6 +617,85 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         /* Borders */
         .border-orange    { border-color: var(--border-red) !important; }
 
+        /* ── Pontos e Moedas (aba Games): cartao no celular, grade no desktop ──
+           Uma marcacao so pros dois tamanhos. No celular cada GM e um cartao
+           com os campos rotulados; a partir de 992px os rotulos somem, o
+           cabecalho aparece e as mesmas divs viram colunas alinhadas. */
+        .gu-list { display: flex; flex-direction: column; gap: 10px; }
+        .gu-head { display: none; }
+
+        .gu-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 12px;
+            padding: 14px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .gu-gm {
+            grid-column: 1 / -1;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; min-width: 0;
+        }
+        .gu-nome { font-weight: 700; line-height: 1.25; word-break: break-word; }
+        .gu-mail {
+            font-size: 12px; color: var(--text-2);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .gu-liga {
+            flex: none; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+            padding: 4px 9px; border-radius: 999px;
+            background: var(--panel-3); border: 1px solid var(--border-md); color: var(--text-2);
+        }
+
+        .gu-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; }
+        .gu-lab {
+            font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+            color: var(--text-3); font-weight: 700;
+        }
+        /* O input precisa caber o numero inteiro — era o que cortava "50" em "5C". */
+        .gu-input {
+            width: 100%; min-width: 0;
+            background: var(--panel); border: 1px solid var(--border-md);
+            color: var(--text); border-radius: var(--radius-xs);
+            padding: 9px 10px; font-size: 15px; font-variant-numeric: tabular-nums;
+        }
+        .gu-input:focus {
+            outline: none; border-color: var(--border-red);
+            box-shadow: 0 0 0 3px var(--red-soft);
+        }
+        .gu-mini { justify-content: flex-start; }
+        .gu-num { font-size: 15px; color: var(--text); }
+        .gu-acao { grid-column: 1 / -1; }
+
+        @media (min-width: 992px) {
+            .gu-list { gap: 0; }
+            .gu-head, .gu-row {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 118px 118px 78px 104px 108px;
+                gap: 14px; align-items: center;
+            }
+            .gu-head {
+                padding: 10px 14px;
+                background: var(--panel-2);
+                border: 1px solid var(--border); border-bottom: none;
+                border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+                font-family: 'Oswald', var(--font);
+                font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+                color: var(--text-3);
+            }
+            .gu-row {
+                background: transparent;
+                border: 1px solid var(--border); border-top: none; border-radius: 0;
+                padding: 10px 14px;
+            }
+            .gu-row:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+            .gu-row:hover { background: var(--panel-3); }
+            .gu-gm, .gu-acao { grid-column: auto; }
+            .gu-lab { display: none; }   /* quem rotula agora e o cabecalho */
+        }
+
         /* Bootstrap table-dark */
         .table-dark {
             --bs-table-bg: transparent;

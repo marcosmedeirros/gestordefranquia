@@ -455,6 +455,20 @@ function _filtrarGamesUsers(termo) {
     (u.name || '').toLowerCase().includes(t) || (u.email || '').toLowerCase().includes(t)));
 }
 
+/**
+ * A lista de GMs com moedas e FBA Points.
+ *
+ * Era uma tabela de sete colunas dentro de .table-responsive. No celular ela
+ * não cabia: o campo de moedas ficava espremido a ponto de cortar o número
+ * (um "50" virava "5C"), e FBA Points, acertos, o switch de admin e o botão
+ * de salvar ficavam fora da tela — pra editar o saldo de alguém era preciso
+ * rolar de lado e perder de vista de quem era a linha.
+ *
+ * Agora é uma marcação só com dois layouts. No celular cada GM é um cartão
+ * com os campos rotulados; no desktop o mesmo HTML vira grade alinhada com
+ * cabeçalho, que é o que a tabela dava de bom. Sem markup duplicado: os
+ * rótulos somem no CSS quando o cabeçalho aparece.
+ */
 function _renderGamesUsers(users) {
   const wrap = document.getElementById('gamesUsersWrap');
   if (!wrap) return;
@@ -467,48 +481,58 @@ function _renderGamesUsers(users) {
     const ehAdminGeral = u.user_type === 'admin';
     const marcado = Number(u.games_admin) === 1 || ehAdminGeral;
     return `
-      <tr>
-        <td>
-          <div class="fw-semibold">${escapeHtml(u.name || '—')}</div>
-          <div class="small text-secondary">${escapeHtml(u.email || '')}</div>
-        </td>
-        <td><span class="badge bg-secondary">${escapeHtml(u.league || '—')}</span></td>
-        <td style="width:130px">
-          <input type="number" min="0" class="form-control form-control-sm" value="${Number(u.pontos) || 0}"
-                 id="gu-pontos-${u.id}">
-        </td>
-        <td style="width:130px">
-          <input type="number" min="0" class="form-control form-control-sm" value="${Number(u.fba_points) || 0}"
-                 id="gu-fba-${u.id}">
-        </td>
-        <td class="text-center">${Number(u.acertos_eventos) || 0}</td>
-        <td class="text-center">
+      <div class="gu-row">
+        <div class="gu-gm">
+          <div style="min-width:0">
+            <div class="gu-nome">${escapeHtml(u.name || '—')}</div>
+            <div class="gu-mail">${escapeHtml(u.email || '')}</div>
+          </div>
+          <span class="gu-liga">${escapeHtml(u.league || '—')}</span>
+        </div>
+
+        <label class="gu-campo">
+          <span class="gu-lab">Moedas</span>
+          <input type="number" min="0" inputmode="numeric" class="gu-input"
+                 value="${Number(u.pontos) || 0}" id="gu-pontos-${u.id}">
+        </label>
+
+        <label class="gu-campo">
+          <span class="gu-lab">FBA Points</span>
+          <input type="number" min="0" inputmode="numeric" class="gu-input"
+                 value="${Number(u.fba_points) || 0}" id="gu-fba-${u.id}">
+        </label>
+
+        <div class="gu-campo gu-mini">
+          <span class="gu-lab">Acertos</span>
+          <b class="gu-num">${Number(u.acertos_eventos) || 0}</b>
+        </div>
+
+        <div class="gu-campo gu-mini">
+          <span class="gu-lab">Admin Games</span>
           ${window.IS_GLOBAL_ADMIN ? `
-            <div class="form-check form-switch d-inline-block" title="${ehAdminGeral ? 'Admin geral já tem acesso' : 'Ver a aba Games no Admin'}">
+            <div class="form-check form-switch m-0" title="${ehAdminGeral ? 'Admin geral já tem acesso' : 'Ver a aba Games no Admin'}">
               <input class="form-check-input" type="checkbox" ${marcado ? 'checked' : ''} ${ehAdminGeral ? 'disabled' : ''}
                      onchange="_toggleGamesAdmin(${u.id}, this.checked, this)">
-            </div>` : (marcado ? '<i class="bi bi-check-lg text-success"></i>' : '—')}
-        </td>
-        <td class="text-end">
-          <button class="btn btn-sm btn-orange" onclick="_salvarGamesSaldo(${u.id}, this)">
-            <i class="bi bi-check-lg"></i>
+            </div>` : (marcado ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="gu-num">—</span>')}
+        </div>
+
+        <div class="gu-acao">
+          <button class="btn btn-sm btn-orange w-100" onclick="_salvarGamesSaldo(${u.id}, this)">
+            <i class="bi bi-check-lg me-1"></i>Salvar
           </button>
-        </td>
-      </tr>`;
+        </div>
+      </div>`;
   }).join('');
 
   wrap.innerHTML = `
-    <div class="table-responsive">
-      <table class="table table-dark table-hover align-middle mb-0">
-        <thead><tr>
-          <th>GM</th><th>Liga</th><th>Moedas</th><th>FBA Points</th>
-          <th class="text-center">Acertos</th><th class="text-center">Admin Games</th><th></th>
-        </tr></thead>
-        <tbody>${linhas}</tbody>
-      </table>
+    <div class="gu-list">
+      <div class="gu-head">
+        <span>GM</span><span>Moedas</span><span>FBA Points</span>
+        <span>Acertos</span><span>Admin Games</span><span></span>
+      </div>
+      ${linhas}
     </div>`;
 }
-
 async function _salvarGamesSaldo(userId, btn) {
   const pontos = parseInt(document.getElementById(`gu-pontos-${userId}`)?.value, 10);
   const fba    = parseInt(document.getElementById(`gu-fba-${userId}`)?.value, 10);
@@ -526,7 +550,9 @@ async function _salvarGamesSaldo(userId, btn) {
     });
     const cached = _gamesUsersCache.find(u => Number(u.id) === Number(userId));
     if (cached) { cached.pontos = pontos; cached.fba_points = fba; }
-    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    // Volta com rótulo: o botão agora é largo e escrito, e trocar por um
+    // ícone solto deixava a linha com cara de quebrada depois de salvar.
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Salvo';
     showAlert('success', 'Saldo atualizado.');
   } catch (e) {
     showAlert('danger', e.message);
