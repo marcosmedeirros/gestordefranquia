@@ -1767,8 +1767,15 @@ tr.tit td{color:var(--red)}
   .ol-txt b{font-size:12px}
   .ol-txt small{font-size:9px;margin-top:2px}
 }
-.op-parar{margin-top:10px;border-style:dashed;color:var(--text2)}
-.op-parar:hover{border-color:var(--red);color:var(--text)}
+/* Pendurar as chuteiras é um BOTÃO, e vermelho.
+   Ele era tracejado e cinza, no meio das ofertas de contrato: lia como
+   rodapé, não como a última decisão da carreira. */
+.op-parar{margin-top:10px;border-style:solid;border-color:var(--red);
+  background:color-mix(in srgb, var(--red) 16%, transparent);
+  color:var(--text);font-weight:900}
+.op-parar small{color:var(--text2)}
+.op-parar:hover{background:color-mix(in srgb, var(--red) 26%, transparent);
+  border-color:var(--red);color:var(--text)}
 
 /* ── CONVITES (pra onde ir) ──────────────────────────────────────────── */
 .conv-lista{display:flex;flex-direction:column;gap:8px}
@@ -5399,8 +5406,14 @@ function fecharAno(campeao, vit, o, st){
   S.efeitoDecisao = 0;
   S.desfecho = null;       // o desfecho pertence ao ano que passou
   S.anosNoClube = (S.anosNoClube || 0) + 1;
-  const estouro = evoluir();
-  S.mensagem = estouro ? "Você estourou. De uma temporada pra outra, virou outro jogador." : null;
+  /* O estouro não vira faixa de texto.
+     Ele já está dito duas vezes na mesma tela: o "+7" ao lado do OVR e o
+     "+3 OVR" no card da decisão do verão. Uma terceira linha dizendo a mesma
+     coisa só empurrava a janela de transferências — que é onde a pessoa
+     precisa clicar — pra fora da tela.
+     O evoluir() continua sendo chamado: é ele que faz o jogador crescer. */
+  evoluir();
+  S.mensagem = null;   // limpa a do ano passado; as de baixo ainda podem escrever
 
   // Quem está fora da liga tenta o chamado; quem já está dentro tenta subir
   // de divisão. Nunca os dois no mesmo ano — são o mesmo degrau, um antes do
@@ -5601,9 +5614,14 @@ function mercadoHTML(){
     `;
 }
 
-/** Encerrar de dentro do mercado, com confirmação — não tem volta. */
+/**
+ * Encerrar de dentro do mercado.
+ *
+ * Sem confirmação, por decisão da liga: o botão fica no meio das ofertas de
+ * contrato e quem clica nele está escolhendo parar, não passando por cima
+ * dele. O aviso do que acontece está no próprio botão.
+ */
 function pendurar(){
-  if (!confirm("Encerrar a carreira agora? Não tem volta.")) return;
   S.mercado = null; S.ofertaEscolhida = null;
   salvar(); encerrar();
 }

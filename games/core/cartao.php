@@ -101,6 +101,15 @@ function cartaoScript(): string
     if (m) return '/api/foto-proxy.php?f=espn&p=' + encodeURIComponent(m[1]);
     m = u.match(/^https?:\/\/cdn\.nba\.com\/headshots\/nba\/latest\/\d+x\d+\/(\d+)\.png$/);
     if (m) return '/api/foto-proxy.php?id=' + m[1];
+    /* O ESCUDO do time da NBA — não confundir com o headshot acima.
+       O proxy já servia esta fonte ('nbat'), mas faltava a regra aqui: o
+       logo saía direto do cdn.nba.com, o canvas recusava a imagem de outro
+       domínio e o cartão desenhava o brasão da liga no lugar. Era por isso
+       que Mavericks e Knicks viravam "FBA 2K League" na foto, enquanto
+       Flamengo e Fenerbahçe (que vêm do thesportsdb, já com proxy) apareciam
+       certos. */
+    m = u.match(/^https?:\/\/cdn\.nba\.com\/logos\/nba\/(\d{4,12}\/global\/L\/logo\.svg)$/);
+    if (m) return '/api/foto-proxy.php?f=nbat&p=' + encodeURIComponent(m[1]);
     // Os três troféus do Copero que o thesportsdb não tem.
     m = u.match(/^https?:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(.+)$/);
     if (m) return '/api/foto-proxy.php?f=wiki&p=' + encodeURIComponent(m[1]);
