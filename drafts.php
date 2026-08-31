@@ -1322,6 +1322,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             você desce para a 2ª, e depois para a 3ª.
             <b>Quem não escolher ninguém perde a pick.</b>
           </p>
+          <p style="font-size:12px;color:var(--text-2);margin-bottom:6px">
+            <i class="bi bi-arrow-down-circle" style="color:var(--amber)"></i>
+            Se você deixou o <b>mock ligado na 1ª rodada</b>, quem sobrou da sua fila já veio
+            preenchido aqui, na mesma ordem — confira e mude o que quiser.
+          </p>
           <div id="round2Countdown" style="font-size:13px;font-weight:700"></div>
         </div>
       `;

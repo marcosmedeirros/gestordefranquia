@@ -177,6 +177,100 @@ function ensureRound2DeadlineSet(PDO $pdo, int $draftSessionId): void {
     if ($session && (int)$session['current_round'] === 2 && empty($session['round2_mock_deadline'])) {
         $pdo->prepare('UPDATE draft_sessions SET round2_mock_deadline = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE id = ?')
             ->execute([$draftSessionId]);
+        // O deadline nasce uma vez só, e é exatamente quando a rodada 2 abre:
+        // é aqui que a fila da rodada 1 se transforma nas preferências dela.
+        herdarFilaDaRodada1($pdo, $draftSessionId);
+    }
+}
+
+/**
+ * A FILA DA RODADA 1 VIRA O MOCK DA RODADA 2.
+ *
+ * Quem deixou o mock ligado listou os jogadores que queria, na ordem. Quase
+ * sempre sobra gente dessa lista quando a primeira rodada acaba — o alvo saiu
+ * antes, ou a pick veio tarde. Essa fila morria ali, e o GM tinha que
+ * remontar tudo dentro dos 20 minutos da rodada 2: quem não estava na frente
+ * do celular perdia a vaga.
+ *
+ * Agora, no instante em que a rodada 2 abre, quem ainda está livre na fila
+ * entra como preferência das vagas daquele time, na mesma ordem que ele deu.
+ *
+ * Três cuidados:
+ *  - só entra quem tem o mock ATIVO (draft_mock_settings.is_active);
+ *  - não sobrescreve nada: se o GM já tinha deixado preferência pra vaga, a
+ *    dele manda, e a fila preenche só o que sobrou até o limite;
+ *  - o mesmo jogador não é repetido em duas vagas do mesmo time — seria
+ *    gastar duas escolhas com uma pessoa só.
+ */
+function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId): void
+{
+    try {
+        // As vagas de rodada 2 ainda em aberto, por time, na ordem em que
+        // escolhem.
+        $st = $pdo->prepare('SELECT id, team_id FROM draft_order
+                              WHERE draft_session_id = ? AND round = 2 AND picked_player_id IS NULL
+                           ORDER BY pick_position ASC');
+        $st->execute([$draftSessionId]);
+        $vagasPorTime = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $v) {
+            $vagasPorTime[(int)$v['team_id']][] = (int)$v['id'];
+        }
+        if (!$vagasPorTime) return;
+
+        // A fila de quem deixou o mock ligado, só com quem ainda está no pool.
+        $stF = $pdo->prepare('SELECT f.team_id, f.player_id
+                                FROM draft_mock_queue f
+                                JOIN draft_mock_settings s
+                                  ON s.team_id = f.team_id AND s.draft_session_id = f.draft_session_id
+                                JOIN draft_pool p ON p.id = f.player_id
+                               WHERE f.draft_session_id = ?
+                                 AND s.is_active = 1
+                                 AND p.draft_status = "available"
+                            ORDER BY f.team_id, f.priority ASC, f.id ASC');
+        $stF->execute([$draftSessionId]);
+        $fila = [];
+        foreach ($stF->fetchAll(PDO::FETCH_ASSOC) as $f) {
+            $fila[(int)$f['team_id']][] = (int)$f['player_id'];
+        }
+        if (!$fila) return;
+
+        $stExistentes = $pdo->prepare('SELECT draft_order_id, player_id, preferencia
+                                         FROM draft_round2_mocks WHERE draft_order_id = ?');
+        // team_id é NOT NULL na tabela: sem ele o INSERT falha inteiro.
+        $insere = $pdo->prepare('INSERT IGNORE INTO draft_round2_mocks (draft_order_id, team_id, player_id, preferencia)
+                                 VALUES (?, ?, ?, ?)');
+        $herdadas = 0;
+
+        foreach ($vagasPorTime as $teamId => $vagas) {
+            $daFila = $fila[$teamId] ?? [];
+            if (!$daFila) continue;
+            $jaUsados = [];   // no time inteiro, pra não repetir entre vagas
+
+            foreach ($vagas as $vagaId) {
+                $stExistentes->execute([$vagaId]);
+                $atuais = $stExistentes->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($atuais as $a) $jaUsados[(int)$a['player_id']] = true;
+
+                $ocupadas = array_map(fn($a) => (int)$a['preferencia'], $atuais);
+                for ($pref = 1; $pref <= ROUND2_PREFERENCIAS; $pref++) {
+                    if (in_array($pref, $ocupadas, true)) continue;   // o GM já pôs alguém aqui
+                    $candidato = null;
+                    foreach ($daFila as $p) {
+                        if (!isset($jaUsados[$p])) { $candidato = $p; break; }
+                    }
+                    if ($candidato === null) break;                    // a fila acabou
+                    $insere->execute([$vagaId, (int)$teamId, $candidato, $pref]);
+                    if ($insere->rowCount() > 0) { $herdadas++; $jaUsados[$candidato] = true; }
+                }
+            }
+        }
+        if ($herdadas > 0) {
+            error_log("[draft/r2] sessão {$draftSessionId}: {$herdadas} preferência(s) herdadas da fila da rodada 1");
+        }
+    } catch (Throwable $e) {
+        // Herdar é conveniência: se falhar, a rodada 2 abre do mesmo jeito e
+        // o GM monta o mock à mão, como antes.
+        error_log('[draft/r2] herdar fila: ' . $e->getMessage());
     }
 }
 
@@ -221,6 +315,11 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
         $mockByPick[(int)$m['draft_order_id']][] = (int)$m['player_id'];
     }
 
+    /* A fila da rodada 1 não é consultada aqui: ela já virou preferência
+       desta vaga quando a rodada 2 abriu (herdarFilaDaRodada1). Ler de novo
+       faria a lista voltar pra quem tivesse apagado uma preferência herdada
+       de propósito. */
+
     $pdo->beginTransaction();
     try {
         $claimed = [];
@@ -241,7 +340,7 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
                 $achado = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
                 if ($achado) { $playerId = $candidato; $player = $achado; break; }
             }
-            // Sem nenhuma das três livre, a vaga fica em aberto pro admin.
+            // Sem nenhuma das preferências livre, a vaga fica em aberto pro admin.
             if (!$playerId) continue;
 
             $targetTeamId = (int)$pick['team_id'];
