@@ -1197,6 +1197,201 @@ function coperoEventos(): array
                 ]],
             ],
         ],
+        // ── A RODADA NOVA ───────────────────────────────────────────
+        //
+        // Doze cartas que não existiam. O catálogo tinha dezoito e já estava
+        // repetido pra quem joga há tempo: nenhuma das antigas saiu, estas
+        // entraram por cima cobrindo o que faltava — o contrato acabando, a
+        // vaga que abre por acidente, o garoto que vem te empurrar, o gancho,
+        // a turnê, o corpo pedindo pra recuar, o pênalti da final, a mudança
+        // de país, a briga no vestiário, o dono novo, a imprensa em cima e o
+        // ano de Copa.
+        //
+        // Todas com peso 14, acima do miolo do catálogo antigo (6 a 10): a
+        // ideia é justamente que a rodada nova apareça mais que a velha por
+        // um tempo. As dramáticas de sempre continuam mais pesadas — cirurgia
+        // 22, estreia 16, braçadeira 14 — então nada foi abafado.
+        [
+            'id' => 'renovacao', 'peso' => 14,
+            'titulo' => 'A renovação',
+            'texto'  => 'Seu contrato termina no fim da temporada. A diretoria põe uma renovação na mesa antes de o mercado abrir.',
+            'cartas' => [
+                ['rotulo' => 'Assinar agora', 'efeitos' => [
+                    ['chance' => 60, 'ovr' => +2, 'jogos' => +6, 'texto' => 'O clube te põe no centro do projeto'],
+                    ['chance' => 40, 'jogos' => -8, 'texto' => 'Assina e perde espaço mesmo assim'],
+                ]],
+                ['rotulo' => 'Deixar o contrato correr', 'efeitos' => [
+                    ['chance' => 45, 'mercado' => 1, 'texto' => 'O mercado vem atrás'],
+                    ['chance' => 35, 'queima' => 1, 'jogos' => -10, 'texto' => 'A diretoria te tira do time'],
+                    ['chance' => 20, 'ovr' => +1, 'texto' => 'Você joga solto, sem amarras'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'pre_temporada', 'peso' => 14,
+            'titulo' => 'A turnê de pré-temporada',
+            'texto'  => 'O clube vendeu uma turnê de amistosos do outro lado do mundo: três semanas de avião, hotel e patrocinador.',
+            'cartas' => [
+                ['rotulo' => 'Fazer a turnê inteira', 'efeitos' => [
+                    ['chance' => 52, 'jogos' => +6, 'texto' => 'O treinador passa a contar com você'],
+                    ['chance' => 48, 'ovr' => -1, 'dur' => -0.15, 'texto' => 'Começa o ano já cansado'],
+                ]],
+                ['rotulo' => 'Ficar treinando no clube', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +3, 'texto' => 'Pré-temporada cheia'],
+                    ['chance' => 45, 'jogos' => -8, 'texto' => 'A diretoria não perdoa a ausência'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'lesao_do_titular', 'peso' => 14,
+            'titulo' => 'A vaga que abriu',
+            'texto'  => 'O titular da sua posição se machucou na terceira rodada. O treinador olha pro banco e o clube não vai buscar ninguém.',
+            'cartas' => [
+                ['rotulo' => 'Assumir a vaga', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +4, 'jogos' => +10, 'texto' => 'Você não devolve a camisa'],
+                    ['chance' => 45, 'ovr' => -2, 'jogos' => -6, 'texto' => 'A pressão pesa cedo demais'],
+                ]],
+                ['rotulo' => 'Ir entrando aos poucos', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => +1, 'jogos' => +4, 'texto' => 'Ganha minutos sem queimar etapa'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'cria_da_base', 'peso' => 14,
+            'titulo' => 'O garoto da base',
+            'texto'  => 'Subiu um moleque da base pra sua posição. O clube inteiro fala dele, e o treinador quer os dois no mesmo treino.',
+            'cartas' => [
+                ['rotulo' => 'Ajudar o garoto', 'efeitos' => [
+                    ['chance' => 58, 'ovr' => +2, 'texto' => 'O vestiário passa a ser seu'],
+                    ['chance' => 42, 'jogos' => -10, 'texto' => 'Ele te tira o lugar'],
+                ]],
+                ['rotulo' => 'Disputar cada bola com ele', 'efeitos' => [
+                    ['chance' => 52, 'ovr' => +1, 'jogos' => +8, 'texto' => 'Você segura a posição'],
+                    ['chance' => 48, 'ovr' => -2, 'queima' => 1, 'texto' => 'O clube escolhe o futuro'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'expulsao', 'peso' => 14,
+            'titulo' => 'O vermelho na decisão',
+            'texto'  => 'Você foi expulso na decisão, e a súmula descreve a entrada de um jeito que pode virar gancho longo.',
+            'cartas' => [
+                ['rotulo' => 'Recorrer no tribunal', 'efeitos' => [
+                    ['chance' => 48, 'jogos' => +4, 'texto' => 'Pena reduzida a um jogo'],
+                    ['chance' => 52, 'ovr' => -1, 'jogos' => -10, 'texto' => 'O tribunal aumenta o gancho'],
+                ]],
+                ['rotulo' => 'Cumprir calado', 'efeitos' => [
+                    ['chance' => 100, 'jogos' => -6, 'texto' => 'Três jogos de fora'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'mudar_posicao', 'peso' => 14,
+            'titulo' => 'Recuar no campo',
+            'texto'  => 'O treinador acha que suas pernas não seguram mais a função de sempre, e propõe te recuar alguns metros.',
+            'cartas' => [
+                ['rotulo' => 'Aceitar a nova função', 'efeitos' => [
+                    ['chance' => 56, 'pico' => +2, 'dur' => +0.15, 'jogos' => +6, 'texto' => 'Reinventado mais atrás'],
+                    ['chance' => 44, 'ovr' => -3, 'texto' => 'Nunca se acha na posição'],
+                ]],
+                ['rotulo' => 'Seguir onde sempre joguei', 'efeitos' => [
+                    ['chance' => 50, 'ovr' => +1, 'texto' => 'Ainda dá conta'],
+                    ['chance' => 50, 'jogos' => -10, 'texto' => 'Perde espaço pro mais novo'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'penalti_decisivo', 'peso' => 14,
+            'titulo' => 'O pênalti da decisão',
+            'texto'  => 'Empate no último minuto da final e o juiz marca pênalti. O batedor oficial saiu no intervalo e o estádio inteiro procura alguém pra pegar a bola.',
+            'cartas' => [
+                ['rotulo' => 'Pegar a bola e bater', 'efeitos' => [
+                    ['chance' => 52, 'ovr' => +5, 'jogos' => +4, 'texto' => 'Vira ídolo em noventa segundos'],
+                    ['chance' => 48, 'ovr' => -3, 'jogos' => -6, 'texto' => 'Perde, e a cidade não esquece'],
+                ]],
+                ['rotulo' => 'Deixar pro capitão', 'efeitos' => [
+                    ['chance' => 60, 'ovr' => +1, 'texto' => 'Ele converte e ninguém comenta'],
+                    ['chance' => 40, 'ovr' => -1, 'jogos' => -4, 'texto' => 'Ele perde, e sobra pra quem recuou'],
+                ]],
+            ],
+        ],
+        [
+            // Só cai no primeiro ano fora do país: é a carta da adaptação, e
+            // adaptação que dura cinco anos não é adaptação, é vida.
+            'id' => 'mudanca_de_pais', 'peso' => 14,
+            'titulo' => 'A mudança de país',
+            'texto'  => 'Primeiro ano longe de casa. Idioma novo, comida diferente, e o telefone tocando da família toda noite.',
+            'cartas' => [
+                ['rotulo' => 'Trazer a família e mergulhar', 'efeitos' => [
+                    ['chance' => 62, 'ovr' => +3, 'jogos' => +6, 'texto' => 'Se acha rápido no lugar novo'],
+                    ['chance' => 38, 'ovr' => -2, 'texto' => 'A casa demora a virar casa'],
+                ]],
+                ['rotulo' => 'Morar sozinho e só treinar', 'efeitos' => [
+                    ['chance' => 50, 'ovr' => +2, 'texto' => 'Cabeça só no futebol'],
+                    ['chance' => 50, 'ovr' => -3, 'dur' => -0.1, 'texto' => 'A solidão cobra dentro de campo'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'briga_vestiario', 'peso' => 14,
+            'titulo' => 'A briga no vestiário',
+            'texto'  => 'Discussão feia com o camisa 10 do time depois de uma derrota. Foi na frente de todo mundo e alguém contou pra imprensa.',
+            'cartas' => [
+                ['rotulo' => 'Bater de frente', 'efeitos' => [
+                    ['chance' => 42, 'ovr' => +2, 'texto' => 'O elenco fica do seu lado'],
+                    ['chance' => 33, 'jogos' => -12, 'queima' => 1, 'texto' => 'Você vira o problema do grupo'],
+                    ['chance' => 25, 'saida' => 1, 'motivo' => 'ruptura', 'texto' => 'Um dos dois tinha que sair'],
+                ]],
+                ['rotulo' => 'Resolver por dentro', 'efeitos' => [
+                    ['chance' => 65, 'ovr' => +1, 'jogos' => +4, 'texto' => 'Apertam a mão e o assunto morre'],
+                    ['chance' => 35, 'jogos' => -6, 'texto' => 'Fica um clima que não passa'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'clube_vendido', 'peso' => 14,
+            'titulo' => 'O clube tem dono novo',
+            'texto'  => 'Um grupo estrangeiro compra o clube. Promete dinheiro, reforços e um projeto novo — e quer reavaliar cada contrato do elenco.',
+            'cartas' => [
+                ['rotulo' => 'Abraçar o projeto novo', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +3, 'jogos' => +6, 'texto' => 'Vira nome do projeto'],
+                    ['chance' => 45, 'jogos' => -12, 'texto' => 'Os reforços chegam por cima de você'],
+                ]],
+                ['rotulo' => 'Pedir pra sair antes da reformulação', 'efeitos' => [
+                    ['chance' => 100, 'saida' => 1, 'motivo' => 'pedido', 'texto' => 'Sai antes de virar peça velha'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'imprensa_hostil', 'peso' => 14,
+            'titulo' => 'A campanha da imprensa',
+            'texto'  => 'Um comentarista pegou no seu pé e não larga: toda semana é um programa inteiro sobre por que você não deveria ser titular.',
+            'cartas' => [
+                ['rotulo' => 'Responder ao vivo', 'efeitos' => [
+                    ['chance' => 45, 'ovr' => +2, 'texto' => 'Cala a boca de todo mundo'],
+                    ['chance' => 55, 'ovr' => -2, 'jogos' => -8, 'texto' => 'A pressão triplica'],
+                ]],
+                ['rotulo' => 'Calar e jogar', 'efeitos' => [
+                    ['chance' => 58, 'ovr' => +2, 'jogos' => +4, 'texto' => 'A resposta vem em campo'],
+                    ['chance' => 42, 'ovr' => -1, 'texto' => 'O barulho entra na cabeça'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'ano_de_copa', 'peso' => 14,
+            'titulo' => 'O ano de Copa',
+            'texto'  => 'Ano de Copa, e você está na pré-lista. O clube avisa que a temporada dele não vai parar pra você se preparar.',
+            'cartas' => [
+                ['rotulo' => 'Se entregar pela seleção', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +4, 'texto' => 'A Copa te coloca no mapa'],
+                    ['chance' => 45, 'jogos' => -10, 'dur' => -0.15, 'texto' => 'Chega na Copa vazio'],
+                ]],
+                ['rotulo' => 'Priorizar o clube', 'efeitos' => [
+                    ['chance' => 60, 'jogos' => +8, 'ovr' => +1, 'semSel' => 1, 'texto' => 'Temporada cheia, Copa de fora'],
+                    ['chance' => 40, 'semSel' => 2, 'texto' => 'O técnico da seleção não perdoa'],
+                ]],
+            ],
+        ],
     ];
 }
 
