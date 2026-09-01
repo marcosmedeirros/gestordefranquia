@@ -39,6 +39,9 @@ if (!in_array($ligaEnsaio, LIGAS_ENSAIO, true)) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<?php /* O tema vem ANTES do CSS, como no resto do app: aplicado depois, a
+         página pisca escura antes de virar clara. */ ?>
+<script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
 <title>Loteria do Draft · Ensaio · FBA</title>
 <link rel="icon" type="image/png" href="/games/fbagames.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -50,6 +53,15 @@ if (!in_array($ligaEnsaio, LIGAS_ENSAIO, true)) {
   --border:rgba(255,255,255,.07); --border-md:rgba(255,255,255,.13);
   --text:#f0f0f3; --text-2:#9a9aa4; --text-3:#71717a;
   --ease:cubic-bezier(.2,.8,.2,1);
+}
+/* O ensaio seguia sempre escuro enquanto o resto do app trocava de tema:
+   quem usa claro abria esta página e ela destoava de todas as outras. Os
+   mesmos valores da loteria oficial (lottery.php), pra as duas telas da
+   mesma coisa não terem palheta diferente. */
+:root[data-theme="light"]{
+  --bg:#f6f7fb; --panel:#ffffff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
+  --border:#e3e6ee; --border-md:#d7dbe6;
+  --text:#111217; --text-2:#5b6270; --text-3:#657080;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:'Montserrat',system-ui,sans-serif;font-size:14px;line-height:1.55}

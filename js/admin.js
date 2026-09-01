@@ -5927,6 +5927,12 @@ function editTeam(teamId) {
 }
 
 async function saveTeamEdit(teamId) {
+  /* O MODAL A FECHAR É O DESTE FORMULÁRIO, não o primeiro da página.
+     `querySelector('.modal')` pegava o ouvidoriaModal, que fica no HTML
+     desde o começo e não tem instância do Bootstrap: o .hide() de null
+     estourava DEPOIS do salvamento e caía no catch, então a tela dizia
+     "Erro" com a mudança já gravada. */
+  const modal = document.getElementById('editTeamConference')?.closest('.modal');
   try {
     await api('admin.php?action=team', {
       method: 'PUT',
@@ -5937,10 +5943,14 @@ async function saveTeamEdit(teamId) {
         conference: document.getElementById('editTeamConference').value
       })
     });
-    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    if (modal) bootstrap.Modal.getOrCreateInstance(modal).hide();
     await showTeam(teamId);
     alert('Atualizado!');
-  } catch (e) { alert('Erro'); }
+  } catch (e) {
+    // O erro de verdade em vez de "Erro": sem ele, um problema de permissão
+    // e um de conexão dão exatamente a mesma tela.
+    alert('Não deu pra salvar: ' + (e.error || e.message || 'erro desconhecido'));
+  }
 }
 
 function editPlayer(playerId) {
