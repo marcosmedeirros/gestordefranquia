@@ -105,6 +105,8 @@ try {
             'limites' => ['odd_min' => ENQ_ODD_MIN, 'odd_max' => ENQ_ODD_MAX,
                           'aposta_min' => ENQ_APOSTA_MIN, 'dias_max' => ENQ_DIAS_MAX,
                           'taxa' => ENQ_TAXA_CASA, 'alt_max' => ENQ_ALT_MAX],
+            // A lista vem do motor pra tela não ter a própria cópia dela.
+            'categorias' => ENQ_CATEGORIAS,
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }

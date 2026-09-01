@@ -9,6 +9,9 @@
  * existem no games.php com outro desenho. O prefixo entra no CSS e dentro
  * de class="" — nunca no código, senão `d.saldo` viraria `d.eq-saldo`.
  */
+// Só pelas constantes (ENQ_CATEGORIAS no formulário). O motor não roda nada
+// ao ser incluído, e o require_once cuida de já estar carregado pela página.
+require_once __DIR__ . '/enquetes_motor.php';
 ?>
 <style>
 /*
@@ -92,10 +95,23 @@
 .eq-col-m{position:relative;font-size:9px;font-weight:700;color:var(--azul)}
 .eq-col-barra{position:absolute;left:0;bottom:0;height:2px;background:rgba(34,197,94,.5)}
 
-.eq-mesa-dono{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:10px 14px;border-top:1px dashed var(--borda);font-size:11.5px;color:var(--text3)}
-#pane-banca .eq-mesa-dono select{width:auto;max-width:200px;font-size:12px;padding:7px 9px}
+/* A odd com a caixa aberta fica marcada: sem isso, com uma caixa por vez na
+   página inteira, some a pista de qual delas foi clicada. */
+.eq-col.eq-on{border-color:var(--verde);background:rgba(34,197,94,.12)}
+
+/* Meus bichos: uma linha por aposta que eu banco. */
+.eq-meus{display:flex;flex-direction:column;gap:1px;
+  border:1px solid var(--borda);border-radius:12px;overflow:hidden}
+.eq-meu{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--panel);border-bottom:1px solid var(--borda);padding:11px 14px}
+.eq-meu:last-child{border-bottom:0}
+.eq-meu-t{flex:1;min-width:200px}
+.eq-meu-t b{display:block;font-size:13px;font-weight:800}
+.eq-meu-t small{font-size:11px;color:var(--text3)}
+.eq-meu-acoes{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+#pane-banca .eq-meu-acoes select{width:auto;max-width:230px;font-size:12px;padding:8px 10px}
 .eq-retido{color:var(--amber);font-weight:800}
+@media(max-width:560px){ .eq-meu-acoes{width:100%} #pane-banca .eq-meu-acoes select{max-width:none;flex:1} }
 .eq-box-alvo{font-size:11px;font-weight:800;color:var(--text2);margin-bottom:7px}
 
 @media(max-width:700px){
@@ -229,6 +245,17 @@
   </div>
   <div id="lista" class="eq-grade"><p class="eq-vazio">Carregando…</p></div>
 
+  <?php /* O que eu banco fica aqui embaixo, e não dentro de cada mesa lá em
+           cima: declarar e cancelar são coisa de uma pessoa só, e repetidos
+           em toda mesa do dono poluíam a lista que é de todo mundo. */ ?>
+  <div class="eq-fim" id="blocoMeus" hidden>
+    <div class="eq-fim-topo">
+      <h2>Meus bichos</h2>
+      <span class="eq-cont" id="contMeus"></span>
+    </div>
+    <div id="listaMeus" class="eq-meus"></div>
+  </div>
+
   <?php /* As encerradas (pagas ou canceladas) não competem com as abertas por
            atenção: descem pro fim e ganham uma busca, porque com o tempo elas
            passam a ser muitas e o que se quer ali é achar uma específica. */ ?>
@@ -256,15 +283,14 @@
     <label for="cDesc">Detalhe (opcional)</label>
     <input id="cDesc" maxlength="400" placeholder="Como o resultado vai ser decidido">
 
-    <?php /* Categoria com sugestões, mas escrita livre: a lista fechada
-             envelhece a cada assunto novo da liga, e o datalist dá o atalho
-             sem virar camisa de força. */ ?>
+    <?php /* As opções vêm do motor (ENQ_CATEGORIAS), não escritas de novo
+             aqui: duas listas separadas saem do lugar na primeira mudança. */ ?>
     <label for="cCat">Categoria</label>
-    <input id="cCat" maxlength="40" list="eqCats" placeholder="Ex: ELITE, Draft, Prêmios">
-    <datalist id="eqCats">
-      <option value="ELITE"><option value="NEXT"><option value="RISE"><option value="ROOKIE">
-      <option value="Draft"><option value="Free Agency"><option value="Prêmios"><option value="Copa">
-    </datalist>
+    <select id="cCat">
+      <?php foreach (ENQ_CATEGORIAS as $c): ?>
+        <option value="<?= htmlspecialchars($c, ENT_QUOTES) ?>"><?= htmlspecialchars($c) ?></option>
+      <?php endforeach; ?>
+    </select>
 
     <label>Alternativas e odds</label>
     <div id="cAlts"></div>
@@ -322,6 +348,7 @@ async function carregar() {
   ABERTAS    = lista.filter(e => e.status === 'aberta');
   ENCERRADAS = lista.filter(e => e.status !== 'aberta');
   pintarAbertas();
+  pintarMeus();
   pintarEncerradas();
 }
 
@@ -356,14 +383,17 @@ function pintarAbertas() {
  * última: é o balde do que ninguém classificou, não um assunto.
  */
 function porCategoria(lista) {
+  // "Outros" com S no fim é o nome que o motor grava (ENQ_CATEGORIAS); as
+  // apostas criadas antes da categoria existir não têm nenhuma e caem aqui.
+  const BALDE = 'Outros';
   const grupos = new Map();
   for (const e of lista) {
-    const cat = (e.categoria || '').trim() || 'Outras';
+    const cat = (e.categoria || '').trim() || BALDE;
     if (!grupos.has(cat)) grupos.set(cat, []);
     grupos.get(cat).push(e);
   }
-  const nomes = [...grupos.keys()].filter(c => c !== 'Outras');
-  if (grupos.has('Outras')) nomes.push('Outras');
+  const nomes = [...grupos.keys()].filter(c => c !== BALDE);
+  if (grupos.has(BALDE)) nomes.push(BALDE);
 
   return nomes.map(cat => `
     <section class="eq-grupo">
@@ -387,7 +417,7 @@ function mesa(e) {
   const podeApostar = !e.sou_dono;
 
   const colunas = e.alternativas.map(a => `
-    <button class="eq-col ${a.meu ? 'eq-tem' : ''}"
+    <button class="eq-col ${a.meu ? 'eq-tem' : ''}" data-alvo="${e.id}_${a.id}"
             ${podeApostar ? `onclick="abrirAposta(${e.id},${a.id})"` : 'disabled'}
             title="${esc(a.texto)}">
       <span class="eq-col-t">${esc(a.texto)}</span>
@@ -424,18 +454,44 @@ function mesa(e) {
       <div class="eq-cols">${colunas}</div>
     </div>
     ${caixas}
-    ${e.sou_dono ? `
-      <div class="eq-mesa-dono">
-        <span>Você banca esta aposta — quem aposta são os outros.</span>
+  </div>`;
+}
+
+/**
+ * "Meus bichos": o que EU banco, com o que só eu posso fazer.
+ *
+ * Declarar e cancelar moravam dentro de cada mesa lá em cima, e com isso a
+ * lista de apostas — que é de todo mundo — carregava um bloco de controles
+ * que só o dono usa, em toda mesa dele. Aqui embaixo eles ficam juntos, e a
+ * listagem volta a ser só odds.
+ */
+function pintarMeus() {
+  const bloco = document.getElementById('blocoMeus');
+  if (!bloco) return;
+  const meus = ABERTAS.filter(e => e.sou_dono);
+  bloco.hidden = !meus.length;
+  if (!meus.length) return;
+
+  document.getElementById('contMeus').textContent =
+    `${meus.length} aberta${meus.length > 1 ? 's' : ''}`;
+
+  document.getElementById('listaMeus').innerHTML = meus.map(e => `
+    <div class="eq-meu">
+      <div class="eq-meu-t">
+        <b>${esc(e.titulo)}</b>
+        <small>${esc(e.categoria || 'Outros')} · ${n(e.apostado)} de ${n(e.max_total)} apostados${
+          e.retido ? ` · <b class="eq-retido">${n(e.retido)} retido do seu saldo</b>` : ''}</small>
+      </div>
+      <div class="eq-meu-acoes">
         <select id="res_${e.id}">
           <option value="">Declarar o resultado…</option>
-          ${e.alternativas.map(a => `<option value="${a.id}">${esc(a.texto)}</option>`).join('')}
+          ${e.alternativas.map(a => `<option value="${a.id}">${esc(a.texto)} · ${
+            n(a.apostado)} apostado</option>`).join('')}
         </select>
         <button class="eq-btn" onclick="fecharEnquete(${e.id})">Pagar</button>
         <button class="eq-btn eq-mal" onclick="cancelar(${e.id})">Cancelar e devolver</button>
-        ${e.retido ? `<span class="eq-retido">${n(e.retido)} retido do seu saldo</span>` : ''}
-      </div>` : ''}
-  </div>`;
+      </div>
+    </div>`).join('');
 }
 
 /** O histórico do fim da página, filtrado pelo que a pessoa digitou. */
@@ -621,11 +677,22 @@ async function criar() {
  *
  * Um por vez: com dois abertos, dá pra digitar num e confirmar no outro.
  */
+/**
+ * Clicar na odd abre o campo de valor; clicar de novo na mesma fecha.
+ *
+ * Sem o segundo clique, quem abriu por engano ficava com a caixa aberta até
+ * achar o "Cancelar" — e o caminho de volta tem que ser o mesmo da ida.
+ */
 function abrirAposta(enqId, altId) {
-  document.querySelectorAll('.eq-box').forEach(b => b.hidden = true);
   const box = document.getElementById(`box_${enqId}_${altId}`);
   if (!box) return;
+  const jaEstavaAberta = !box.hidden;
+  document.querySelectorAll('.eq-box').forEach(b => b.hidden = true);
+  document.querySelectorAll('.eq-col.eq-on').forEach(c => c.classList.remove('eq-on'));
+  if (jaEstavaAberta) return;
+
   box.hidden = false;
+  document.querySelector(`.eq-col[data-alvo="${enqId}_${altId}"]`)?.classList.add('eq-on');
   previa(enqId, altId);
   box.querySelector('input')?.focus();
 }
@@ -633,6 +700,7 @@ function abrirAposta(enqId, altId) {
 function fecharBox(enqId, altId) {
   const box = document.getElementById(`box_${enqId}_${altId}`);
   if (box) box.hidden = true;
+  document.querySelector(`.eq-col[data-alvo="${enqId}_${altId}"]`)?.classList.remove('eq-on');
 }
 
 /** O que a pessoa recebe se acertar — e o motivo, quando não dá pra apostar. */

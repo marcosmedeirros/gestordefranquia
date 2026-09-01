@@ -77,6 +77,25 @@ const ENQ_SENSIBILIDADE  = 0.45;
  * total/(total+lastro): dez moedas quase não mexem, mil mexem de verdade.
  */
 const ENQ_LASTRO         = 600;
+/**
+ * As categorias, fechadas de propósito.
+ *
+ * Escrita livre criava "basquete", "Basquete" e "BASQUETE" como três grupos
+ * diferentes na mesma tela. Quatro caixas largas cobrem o que a liga aposta,
+ * e o que não couber cai em Outros — que é o último da lista porque é o
+ * balde, não um assunto.
+ */
+const ENQ_CATEGORIAS = ['Basquete', 'Futebol', 'Cinema', 'Outros'];
+
+/** Devolve a categoria só se ela existir; qualquer outra coisa vira Outros. */
+function enqCategoria(?string $bruta): string
+{
+    $c = trim((string)$bruta);
+    foreach (ENQ_CATEGORIAS as $valida) {
+        if (mb_strtolower($c) === mb_strtolower($valida)) return $valida;
+    }
+    return 'Outros';
+}
 
 function enqTabelas(PDO $pdo): void
 {
@@ -337,7 +356,7 @@ function enqCriar(PDO $pdo, int $uid, array $dados): array
                         (criador_id, titulo, descricao, categoria, max_por_pessoa, max_total, fecha_em)
                        VALUES (?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? DAY))")
             ->execute([$uid, $titulo, mb_substr(trim((string)($dados['descricao'] ?? '')), 0, 400) ?: null,
-                       mb_substr(trim((string)($dados['categoria'] ?? '')), 0, 40) ?: null,
+                       enqCategoria($dados['categoria'] ?? null),
                        $maxPessoa, $maxTotal, $dias]);
         $id = (int)$pdo->lastInsertId();
 
