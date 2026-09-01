@@ -3,7 +3,7 @@
  * Recálculo automático do CAP de liga (soma dos CAP_TOP_N maiores OVR, ou folha salarial
  * pra ligas em modo 'salary' como a ELITE hoje).
  *
- * Regra: a cada 2 temporadas (temporadas 1, 3, 5, ...), assim que o último
+ * Regra: a cada 2 temporadas (temporadas 3, 5, 7, ...), assim que o último
  * time da liga registra o elenco da temporada (player_season_log), o sistema
  * soma o CAP de todos os times, tira a média, e define:
  *   cap_max = média + margem
@@ -191,14 +191,23 @@ function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
 
 /**
  * Ponto de entrada chamado depois de qualquer "salvar elenco da temporada".
- * Só recalcula quando: a temporada é ímpar (1, 3, 5... — o "a cada 2
- * temporadas"), ainda não recalculou pra essa temporada, e TODOS os times da
- * liga já registraram o elenco. Nunca lança exceção pro chamador.
+ *
+ * Só recalcula quando: a temporada é 3, 5, 7… (o "a cada 2 temporadas"),
+ * ainda não recalculou pra essa temporada, e TODOS os times da liga já
+ * registraram o elenco. Nunca lança exceção pro chamador.
+ *
+ * A TEMPORADA 1 FICA DE FORA. A regra era "ímpares", e 1 é ímpar — foi assim
+ * que o cap da ROOKIE se mexeu logo na estreia da liga, antes de existirem
+ * duas temporadas pra comparar. O ajuste é a cada duas: a primeira vez que
+ * ele cabe é entrando na 3ª.
  */
+const LEAGUE_CAP_PRIMEIRA_TEMPORADA = 3;
+
 function maybeAutoRecalcularCapDaLiga(PDO $pdo, string $league, int $seasonId, int $seasonNumber): ?array
 {
     try {
-        if ($seasonNumber < 1 || $seasonNumber % 2 === 0) return null; // só em temporadas ímpares
+        if ($seasonNumber < LEAGUE_CAP_PRIMEIRA_TEMPORADA) return null;
+        if ($seasonNumber % 2 === 0) return null;   // 3, 5, 7…
 
         ensureLeagueCapAutoTables($pdo);
         $stmt = $pdo->prepare("SELECT cap_auto_last_season FROM league_settings WHERE league = ?");
