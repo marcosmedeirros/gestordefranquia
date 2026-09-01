@@ -18,9 +18,23 @@ if (!$user) {
 }
 
 $pdo = db();
-enqTabelas($pdo);
 $uid     = (int)$user['id'];
 $ehAdmin = ($user['user_type'] ?? '') === 'admin';
+
+/*
+ * A MESMA TRAVA DA PÁGINA, aqui também.
+ *
+ * Esconder o card e barrar a tela não protege nada se a API atender quem
+ * chamar direto — e aqui se aposta e se paga moeda. Enquanto as enquetes
+ * forem só de admin geral, é este `if` que vale.
+ */
+if (!$ehAdmin) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'erro' => 'As enquetes ainda estão restritas ao admin geral.']);
+    exit;
+}
+
+enqTabelas($pdo);
 $corpo   = json_decode(file_get_contents('php://input'), true) ?: [];
 $acao    = $_GET['acao'] ?? $corpo['acao'] ?? 'listar';
 

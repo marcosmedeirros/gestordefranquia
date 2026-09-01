@@ -569,10 +569,14 @@ $jogosLivres = [
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
      'sub'  => 'Vote e decida o campeão', 'icone' => 'bi-diagram-3-fill', 'cor' => '#f59e0b'],
-    // Enquetes: quem entra pode criar a própria aposta e bancá-la. Fica junto
-    // dos livres porque não tem partida — é apostar e esperar o resultado.
-    ['href' => '/games/games/enquetes.php', 'nome' => 'Enquetes',
-     'sub'  => 'Crie a aposta e banque', 'icone' => 'bi-graph-up-arrow', 'cor' => '#22c55e'],
+    // Enquetes: SÓ ADMIN GERAL por enquanto. Quem cria banca com o próprio
+    // saldo, e o resultado é declarado por quem criou — enquanto isso vale,
+    // a aba fica com quem responde pela liga. A página confere de novo: sem
+    // esse par, o link direto entraria por fora do card.
+    ...((($user['user_type'] ?? '') === 'admin') ? [
+      ['href' => '/games/games/enquetes.php', 'nome' => 'Enquetes',
+       'sub'  => 'Crie a aposta e banque', 'icone' => 'bi-graph-up-arrow', 'cor' => '#22c55e'],
+    ] : []),
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],

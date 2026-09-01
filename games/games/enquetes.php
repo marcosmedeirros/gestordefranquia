@@ -7,6 +7,19 @@ require __DIR__ . '/../core/conexao.php';
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 if ($idUsuario <= 0) { header('Location: /login.php'); exit; }
+
+/*
+ * SÓ ADMIN GERAL, POR ENQUANTO.
+ *
+ * Enquanto quem cria declara o próprio resultado, a aba fica com quem
+ * responde pela liga. Esconder o card no /games não basta: o endereço é
+ * adivinhável e a API responde a quem chamar, então a trava mora aqui e
+ * também em api/enquetes.php.
+ */
+if (($_SESSION['user_type'] ?? '') !== 'admin') {
+    header('Location: /games.php');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
