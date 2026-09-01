@@ -1785,11 +1785,25 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     </div>
                     <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
                     <div class="lj-desc">comprado em <?= date('d/m/Y', strtotime($inv['comprado_em'])) ?></div>
+                    <?php if ($inv['item_key'] === 'badge'): ?>
+                        <?php /* A BADGE NÃO TEM BOTÃO "USAR" AQUI.
+                                 Ela é pedida em Meu Elenco, onde o GM diz EM QUEM — e a API
+                                 já recusava o botão genérico. Só que o botão continuava na
+                                 tela, e um GM clicou nele achando que era assim que se
+                                 pedia: a badge saiu do inventário sem virar pedido nenhum,
+                                 e ele ficou sem as 3.500 moedas e sem a badge. Botão que
+                                 sempre recusa é armadilha, não proteção. */ ?>
+                        <a href="/my-roster.php" class="lj-btn usar" style="text-decoration:none">
+                            <i class="bi bi-person-badge"></i> Pedir em Meu Elenco
+                        </a>
+                        <div class="lj-desc" style="margin-top:6px">É lá que você escolhe o jogador.</div>
+                    <?php else: ?>
                     <form method="POST" data-confirmar="Usar seu <?= htmlspecialchars($it['nome']) ?>? Ele sai do inventário e a organização é avisada pra aplicar.">
                         <input type="hidden" name="loja_acao" value="usar">
                         <input type="hidden" name="inventario_id" value="<?= (int)$inv['id'] ?>">
                         <button type="submit" class="lj-btn usar"><i class="bi bi-box-arrow-up"></i> Usar</button>
                     </form>
+                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
             </div>
