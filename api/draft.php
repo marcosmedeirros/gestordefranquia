@@ -556,6 +556,23 @@ if ($method === 'GET') {
                 // outro.
                 $dono = ['1' => [], '2' => []];
                 try {
+                    /*
+                     * A PICK É ACHADA PELO ANO, NUNCA PELO season_id.
+                     *
+                     * season_id diz onde a pick foi GERADA, não qual draft a
+                     * distribui: as cinco temporadas futuras de cada time
+                     * nascem juntas, com o mesmo season_id. Filtrando só por
+                     * ele vinham as 5 linhas de cada time e o foreach ficava
+                     * com a última — o Texas tinha a própria pick de 1ª e o
+                     * mock mostrava "Honolulu via Texas", que é a pick dele de
+                     * quatro anos à frente.
+                     *
+                     * draftAnoDasPicks é a mesma função que a troca de picks e
+                     * a loteria usam; ela resolve o ano da temporada e cai no
+                     * ano seguinte disponível quando não há picks do ano exato.
+                     */
+                    $anoDasPicks = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
+
                     // Swap e proteção vêm junto: uma pick trocada não diz a
                     // mesma coisa que uma pick trocada COM swap, e quem olha o
                     // mock precisa ver a condição antes de contar com ela.
@@ -569,12 +586,15 @@ if ($method === 'GET') {
                                 t.photo_url AS dono_logo,
                                 CONCAT(COALESCE(sp2.city,''), ' ', COALESCE(sp2.name,'')) AS swap_com
                          FROM picks p
+                         JOIN teams orig ON orig.id = p.original_team_id
                          LEFT JOIN teams t ON t.id = p.team_id
                          LEFT JOIN picks pp ON pp.id = p.swap_pair_pick_id
                          LEFT JOIN teams sp2 ON sp2.id = pp.original_team_id
-                         WHERE p.season_id = ? AND p.round IN ('1','2')"
+                         WHERE CAST(p.season_year AS UNSIGNED) = ?
+                           AND orig.league = ?
+                           AND p.round IN ('1','2')"
                     );
-                    $sp->execute([(int)$sessao['season_id']]);
+                    $sp->execute([$anoDasPicks, $league]);
                     foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $r) {
                         $dono[(string)$r['round']][(int)$r['original_team_id']] = [
                             'team_id'  => (int)$r['team_id'],
