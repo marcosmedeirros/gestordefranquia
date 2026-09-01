@@ -6654,10 +6654,13 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
     }
 
     const marcado = at.feito_no_jogo;
-    const mudancas = [
-      ...(at.titulares || []).filter(x => x.mudou),
-      ...(at.config || []).filter(x => x.mudou),
-    ].length;
+    /* SÓ CONTA O QUE O CARD MOSTRA.
+       O badge somava também os titulares alterados, e o card nunca desenhou
+       titular nenhum: o Coyotes aparecia com "2 mudanças" e um único campo
+       aceso, e não havia onde procurar a outra. Agora o número bate com os
+       campos em vermelho logo abaixo — ainda mais depois que o quinteto saiu
+       da tela do GM e deixou de ser uma escolha de alguém. */
+    const mudancas = (at.config || []).filter(x => x.mudou).length;
 
     // O nome em vermelho é o aviso de "este mexeu na tática pros playoffs".
     // Só vale pra quem está nos offs: eliminado mexendo na tática não muda

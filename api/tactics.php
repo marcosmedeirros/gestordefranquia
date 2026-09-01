@@ -111,6 +111,16 @@ function sugerirQuinteto(array $jogadores): array {
  * recebe minuto nenhum.
  */
 function sugerirMinutos(array $jogadores, array $quinteto, int $rotationPlayers = 10, array $gleagueIds = []): array {
+    /* O QUINTETO NÃO PESA MAIS.
+     *
+     * Ele valia multiplicador 2.0, o dobro de um Titular. Como a escolha saiu
+     * da tela, quem tinha quinteto salvo de antes continuaria distribuindo
+     * minutos por um critério que ninguém mais pode usar — dois times iguais
+     * com rotações diferentes, e o segundo sem como alcançar o primeiro.
+     *
+     * O parâmetro fica na assinatura porque as chamadas ainda o passam e
+     * porque o desempate do arredondamento, lá embaixo, é inofensivo: ele só
+     * escolhe quem leva o minuto que sobra. */
     $elegiveis = array_values(array_filter($jogadores, fn($p) =>
         ($p['role'] ?? '') !== 'G-League' && !in_array((int)$p['id'], $gleagueIds, true)
     ));
@@ -120,8 +130,7 @@ function sugerirMinutos(array $jogadores, array $quinteto, int $rotationPlayers 
     foreach ($elegiveis as $p) {
         $id  = (int)$p['id'];
         $ovr = max(40, (int)$p['ovr']);
-        $mult = in_array($id, $quinteto, true) ? 2.0
-              : (($p['role'] ?? '') === 'Titular' ? 1.4
+        $mult = (($p['role'] ?? '') === 'Titular' ? 1.4
               : (($p['role'] ?? '') === 'Banco' ? 1.0 : 0.55));
         $pesos[$id] = pow($ovr / 50, 2) * $mult;
     }
@@ -801,8 +810,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save') {
         $slot = tacticaSlot($body['slot'] ?? 'regular');
         $valores = ['team_id' => $teamId, 'slot' => $slot];
-        foreach (TATICA_CAMPOS as $campo) {
-            $v = $body[$campo] ?? null;
+
+        /* CAMPO QUE NÃO VEIO NÃO É CAMPO APAGADO.
+         *
+         * O laço abaixo lia `$body[$campo] ?? null` e gravava o resultado: um
+         * campo ausente do payload virava null no banco. Enquanto a tela
+         * mandava todos, ninguém notava — quando o quinteto saiu dela, o
+         * primeiro save de cada time apagou os cinco titulares junto.
+         *
+         * Agora ausente é "não mexeu" e só o que veio é gravado. Limpar um
+         * campo continua funcionando: a tela manda a chave com null, e
+         * array_key_exists enxerga a diferença que o `??` não enxergava. */
+        $atualizaveis = array_values(array_filter(
+            TATICA_CAMPOS,
+            fn($c) => array_key_exists($c, $body)
+        ));
+
+        foreach ($atualizaveis as $campo) {
+            $v = $body[$campo];
             if (substr($campo, -3) === '_id') {
                 $v = (int)$v;
                 $valores[$campo] = ($v > 0 && in_array($v, $doElenco, true)) ? $v : null;
