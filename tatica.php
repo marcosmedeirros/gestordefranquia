@@ -273,18 +273,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
     <div class="tactic-status" id="tacticStatus"></div>
 
-    <!-- Quinteto -->
-    <div class="panel">
-      <div class="section-title"><i class="bi bi-people-fill"></i> Quinteto titular
-        <span class="hint">Sugerido pelo elenco: melhor de cada posição, priorizando quem está marcado como Titular.</span>
-      </div>
-      <div class="court" id="court"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        <button class="btn ghost sm" id="btnSugQuinteto"><i class="bi bi-magic"></i> Sugerir quinteto</button>
-        <button class="btn ghost sm" id="btnLimparQuinteto"><i class="bi bi-eraser"></i> Limpar</button>
-      </div>
-      <div id="avisoQuinteto"></div>
-    </div>
+    <?php /* SEM QUINTETO E SEM ESCOLHER QUEM JOGA.
+             O 2K no automático não aceita essa instrução: ele monta o time
+             sozinho a partir do elenco. Deixar a escolha aqui prometia um
+             controle que não chegava ao jogo — e virava discussão sempre que
+             o titular escolhido não era o que entrava em quadra.
+             O que o técnico define é o tamanho da rotação, o foco em
+             veteranos e o sistema; o resto sai do OVR e da função de cada um
+             no elenco (Titular / Banco / G-League). */ ?>
 
     <?php if ($isElite): ?>
     <!-- G-League -->
@@ -299,12 +295,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <!-- Rotação -->
     <div class="panel">
       <div class="section-title"><i class="bi bi-stopwatch"></i> Rotação
-        <span class="hint">Você define quantos jogadores entram na rotação — o sistema distribui os minutos automaticamente.</span>
+        <span class="hint">Você diz de quantos jogadores é o giro; quem entra e quantos minutos cada um joga sai do OVR e da função no elenco.</span>
       </div>
       <div class="fgrid" style="margin-bottom:14px">
         <div class="field">
           <label for="f_rotation_players">Jogadores na rotação</label>
-          <input type="number" id="f_rotation_players" data-f="rotation_players" min="5" max="15" placeholder="ex.: 9">
+          <input type="number" id="f_rotation_players" data-f="rotation_players" min="8" max="15" placeholder="ex.: 9">
         </div>
         <div class="field">
           <label for="f_veteran_focus">Foco em veteranos (0–100)</label>
@@ -433,7 +429,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   btn?.addEventListener('click', () => aplica(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
 })();
 
-const POSICOES = ['PG','SG','SF','PF','C'];
+
 const SLOT_LABELS = <?= json_encode($SLOT_LABELS, JSON_UNESCAPED_UNICODE) ?>;
 const TIME_NOME   = <?= json_encode(trim($team['city'] . ' ' . $team['name']), JSON_UNESCAPED_UNICODE) ?>;
 const IS_ELITE = <?= $isElite ? 'true' : 'false' ?>;
@@ -547,54 +543,7 @@ function aplicarBloqueioEdicao() {
   const bloqueado = !EDIT_WINDOW.open;
   document.querySelectorAll('#conteudo select, #conteudo input, #conteudo textarea').forEach(el => { el.disabled = bloqueado; });
   // btnCopiar fica de fora: copiar nao altera nada, entao vale com a janela fechada.
-  ['btnSugQuinteto','btnLimparQuinteto','btnSalvar','btnAtivar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
-}
-
-/* ── Quinteto ── */
-function montarQuinteto() {
-  $('court').innerHTML = POSICOES.map((pos, i) => `
-    <div class="slot" data-i="${i}">
-      <div class="slot-pos">${pos}</div>
-      <div>
-        <select data-f="starter_${i+1}_id">
-          <option value="">—</option>
-          ${ELENCO.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
-        </select>
-        <div class="slot-info"></div>
-      </div>
-    </div>`).join('');
-  $('court').addEventListener('change', e => {
-    if (e.target.tagName === 'SELECT') { atualizarQuinteto(); atualizarPreviewMinutos(); }
-  });
-}
-
-function atualizarQuinteto() {
-  const escolhidos = [];
-  document.querySelectorAll('#court .slot').forEach(slot => {
-    const sel = slot.querySelector('select');
-    const id = parseInt(sel.value, 10);
-    const p = ELENCO.find(x => Number(x.id) === id);
-    const info = slot.querySelector('.slot-info');
-    info.textContent = p ? `${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} · OVR ${p.ovr} · ${p.age}a` : '';
-    if (id) escolhidos.push(id);
-  });
-  // Mesmo jogador em duas posicoes e o erro mais comum: marca os dois lados.
-  const dup = escolhidos.filter((v, i) => escolhidos.indexOf(v) !== i);
-  document.querySelectorAll('#court .slot').forEach(slot => {
-    const id = parseInt(slot.querySelector('select').value, 10);
-    const rep = id && dup.includes(id);
-    slot.classList.toggle('dup', !!rep);
-    if (rep) slot.querySelector('.slot-info').textContent = 'Repetido em outra posição';
-  });
-  const box = $('avisoQuinteto');
-  if (dup.length) box.innerHTML = '<div class="aviso err" style="margin:12px 0 0"><i class="bi bi-x-octagon-fill"></i><div>O mesmo jogador está em mais de uma posição.</div></div>';
-  else if (escolhidos.length < 5) box.innerHTML = `<div class="aviso warn" style="margin:12px 0 0"><i class="bi bi-exclamation-triangle-fill"></i><div>Faltam ${5 - escolhidos.length} titular(es).</div></div>`;
-  else box.innerHTML = '';
-  return { escolhidos, dup };
-}
-
-function quintetoIds() {
-  return [...document.querySelectorAll('#court select')].map(s => parseInt(s.value, 10)).filter(Boolean);
+  ['btnSalvar','btnAtivar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
 }
 
 function gleagueIds() {
@@ -626,6 +575,19 @@ function montarGleague() {
   box.querySelectorAll('select').forEach(s => s.addEventListener('change', atualizarPreviewMinutos));
 }
 
+/* O tamanho da rotação também refaz a prévia.
+   Quem disparava o recálculo eram os selects do quinteto e da G-League; o
+   campo de rotação nunca teve gatilho, e com o quinteto fora ele passou a ser
+   a principal coisa que a pessoa mexe aqui — mudar de 8 pra 12 e a lista não
+   se mover parece tela travada. */
+function ligarGatilhoRotacao() {
+  const el = $('f_rotation_players');
+  if (!el || el.dataset.ligado) return;
+  el.dataset.ligado = '1';
+  el.addEventListener('input', atualizarPreviewMinutos);
+  el.addEventListener('change', atualizarPreviewMinutos);
+}
+
 /* ── Minutos previstos (somente leitura) ── */
 function atualizarPreviewMinutos() {
   // Pedimos ao backend pra recalcular com o quinteto/rotação atuais da tela,
@@ -633,9 +595,14 @@ function atualizarPreviewMinutos() {
   clearTimeout(atualizarPreviewMinutos._t);
   atualizarPreviewMinutos._t = setTimeout(async () => {
     try {
+      /* A AÇÃO VAI NO CORPO, não só na URL.
+         No POST a API lê $body['action'], e montarPayload() sempre escreve
+         'save' ali — então esta chamada, apesar da URL dizer outra coisa,
+         caía no salvar: a resposta vinha sem preview_minutes e a lista de
+         minutos zerava a cada tecla no campo de rotação. */
       const r = await fetch('/api/tactics.php?action=preview_minutes', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(montarPayload())
+        body: JSON.stringify({ ...montarPayload(), action: 'preview_minutes' })
       });
       const d = await r.json();
       if (d.success) renderPreviewMinutos(d.preview_minutes || {});
@@ -644,15 +611,20 @@ function atualizarPreviewMinutos() {
 }
 
 function renderPreviewMinutos(mapa) {
-  const q = quintetoIds();
   const ids = Object.keys(mapa).map(Number);
-  if (!ids.length) { $('minPreview').innerHTML = '<span style="color:var(--text-3);font-size:12px">Defina o quinteto para ver a prévia.</span>'; return; }
+  if (!ids.length) {
+    $('minPreview').innerHTML = '<span style="color:var(--text-3);font-size:12px">'
+      + 'Defina o tamanho da rotação para ver a prévia.</span>';
+    return;
+  }
   const ordenado = ids.sort((a, b) => (mapa[b] || 0) - (mapa[a] || 0));
+  /* O selo saía do quinteto escolhido. Sem ele, a função vem do ELENCO — que
+     é o que o jogo lê de verdade, e é onde a pessoa muda se quiser mexer. */
   $('minPreview').innerHTML = ordenado.map(id => {
     const p = ELENCO.find(x => Number(x.id) === id);
     if (!p) return '';
-    const titular = q.includes(id);
-    return `<div class="min-chip"><span class="tag ${titular ? 'tit' : ''}">${titular ? 'Tit' : 'Banco'}</span>
+    const tit = (p.role || '') === 'Titular';
+    return `<div class="min-chip"><span class="tag ${tit ? 'tit' : ''}">${esc(p.role || 'Banco')}</span>
       <span>${esc(p.name)}</span><span class="mn">${mapa[id]}min</span></div>`;
   }).join('');
 }
@@ -678,8 +650,8 @@ async function carregar() {
   if (!ELENCO.length) { $('carregando').textContent = 'Seu elenco está vazio.'; return; }
 
   renderJanela();
-  montarQuinteto();
   montarGleague();
+  ligarGatilhoRotacao();
   mostrarSlot(SLOT);
 
   $('carregando').style.display = 'none';
@@ -697,17 +669,10 @@ function mostrarSlot(slot) {
   });
 
   const t = TATICAS[slot]?.data || {};
-  POSICOES.forEach((_, i) => {
-    const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
-    if (s) s.value = t[`starter_${i+1}_id`] || '';
-  });
   document.querySelectorAll('[data-f]').forEach(el => {
-    const f = el.dataset.f;
-    if (f.startsWith('starter_')) return;
-    el.value = (t[f] !== null && t[f] !== undefined) ? t[f] : '';
+    el.value = (t[el.dataset.f] !== null && t[el.dataset.f] !== undefined) ? t[el.dataset.f] : '';
   });
 
-  atualizarQuinteto();
   renderPreviewMinutos(TATICAS[slot]?.preview_minutes || {});
 
   const statusBox = $('tacticStatus');
@@ -720,28 +685,6 @@ function mostrarSlot(slot) {
   sujo = false;
 }
 
-function aplicarSugestao() {
-  (window.SUGERIDO_STARTERS || []).forEach((id, i) => {
-    const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
-    if (s) s.value = id || '';
-  });
-  atualizarQuinteto();
-  atualizarPreviewMinutos();
-}
-
-$('btnSugQuinteto').addEventListener('click', async () => {
-  try {
-    const r = await fetch('/api/tactics.php?action=get');
-    const d = await r.json();
-    window.SUGERIDO_STARTERS = d.suggested_starters || [];
-    aplicarSugestao();
-    msg('info', 'Quinteto sugerido pelo elenco.');
-  } catch (e) { /* mantém quinteto atual se a sugestão falhar */ }
-});
-$('btnLimparQuinteto').addEventListener('click', () => {
-  document.querySelectorAll('#court select').forEach(s => { s.value = ''; });
-  atualizarQuinteto(); atualizarPreviewMinutos();
-});
 /* ── Copiar a tática como texto ──
  * Copia o que está na tela num formato que se cola direto no WhatsApp: sem
  * markdown, sem tabela, só rótulo e valor. O botão antes copiava DE outra
@@ -763,19 +706,8 @@ function montarTextoDaTatica() {
   const timeNome = TIME_NOME;
   linhas.push(`*${timeNome || 'Tática'}* — ${SLOT_LABELS[SLOT] || 'Tática'}`);
 
-  // Quinteto na ordem em que está na quadra (PG → C).
-  const titulares = [];
-  for (let i = 1; i <= 5; i++) {
-    const s = document.querySelector(`#court select[data-f="starter_${i}_id"]`);
-    const nome = s && s.value ? nomeDoJogador(s.value) : null;
-    if (nome) titulares.push(nome);
-  }
-  if (titulares.length) {
-    linhas.push('');
-    linhas.push('*Quinteto*');
-    titulares.forEach((n, i) => linhas.push(`${i + 1}. ${n}`));
-  }
-
+  // Sem quinteto: quem entra em quadra é decisão do jogo, e o texto copiado
+  // é o que se manda pro grupo — anunciar um quinteto que não vale confunde.
   const gl = [];
   ['gleague_1_id', 'gleague_2_id'].forEach(f => {
     const el = document.querySelector(`[data-f="${f}"]`);
@@ -857,7 +789,6 @@ function statusSalvamento(estado, texto) {
 
 async function gravar({ silencioso = false } = {}) {
   if (!EDIT_WINDOW.open) return false;
-  atualizarQuinteto();
   statusSalvamento('salvando', 'Salvando…');
   try {
     const r = await fetch('/api/tactics.php', {

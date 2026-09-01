@@ -42,6 +42,15 @@ function tacticaSlot($v): string {
     return isset(TATICA_SLOTS[$v]) ? $v : 'regular';
 }
 
+/* O tamanho do giro. Num lugar só, porque o mesmo par vale na validação do
+   save e na prévia — e num deles ele já esteve diferente do outro. */
+const ROTACAO_MIN = 8;
+const ROTACAO_MAX = 15;
+
+/* Os starter_* continuam na lista de propósito: a tela não os manda mais
+   (quem entra em quadra é decisão do jogo no automático), mas as táticas já
+   salvas têm quinteto gravado, e tirar o campo daqui apagaria esse histórico
+   no primeiro save de quem nem mexeu nisso. */
 const TATICA_CAMPOS = [
     'starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id',
     'bench_1_id','bench_2_id','bench_3_id','gleague_1_id','gleague_2_id',
@@ -119,7 +128,9 @@ function sugerirMinutos(array $jogadores, array $quinteto, int $rotationPlayers 
 
     // Mantém só os N de maior peso — titulares quase sempre entram por peso,
     // mas garantimos a entrada deles mesmo em elencos muito desequilibrados.
-    $rotationPlayers = max(5, min(count($pesos), $rotationPlayers));
+    // O piso é o da liga, mas nunca acima do elenco disponível: um time com
+    // 7 aptos joga com 7, e não fica sem minutos por causa do mínimo.
+    $rotationPlayers = min(count($pesos), max(ROTACAO_MIN, $rotationPlayers));
     arsort($pesos);
     $ranked = array_keys($pesos);
     $titularesNoRanking = array_values(array_intersect($quinteto, $ranked));
@@ -225,9 +236,13 @@ function mirrorActiveTactic(PDO $pdo, int $teamId, string $league): void {
             (int)($ativa['starter_5_id'] ?? 0) ?: null,
         ]));
         $gleagueIds = array_values(array_filter([(int)($ativa['gleague_1_id'] ?? 0) ?: null, (int)($ativa['gleague_2_id'] ?? 0) ?: null]));
-        $minutos = (count($starters) === 5)
-            ? sugerirMinutos($jogadores, $starters, (int)($ativa['rotation_players'] ?? 10), $gleagueIds)
-            : [];
+        /* Antes só calculava com os 5 titulares escolhidos. Como a tela não
+           pede mais quinteto, essa condição zerava os minutos de todo mundo:
+           agora o cálculo roda sempre, e a distribuição sai do OVR e da
+           função no elenco. $starters segue entrando por causa das táticas
+           antigas, que ainda têm quinteto salvo. */
+        $minutos = sugerirMinutos($jogadores, $starters,
+            (int)($ativa['rotation_players'] ?? 10), $gleagueIds);
 
         $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?')->execute([$directiveId]);
         if ($minutos) {
@@ -616,9 +631,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             (int)($row['starter_5_id'] ?? 0) ?: null,
         ])) : [];
         $gleagueIds = $row ? array_values(array_filter([(int)($row['gleague_1_id'] ?? 0) ?: null, (int)($row['gleague_2_id'] ?? 0) ?: null])) : [];
-        $preview = (count($starters) === 5)
-            ? sugerirMinutos($jogadores, $starters, (int)($row['rotation_players'] ?? 10), $gleagueIds)
-            : [];
+        // Sem a trava dos 5: a prévia vale mesmo sem quinteto escolhido.
+        $preview = sugerirMinutos($jogadores, $starters,
+            (int)($row['rotation_players'] ?? 10), $gleagueIds);
 
         $tactics[$slotKey] = [
             'label' => TATICA_SLOTS[$slotKey],
@@ -770,8 +785,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (int)($body['starter_5_id'] ?? 0) ?: null,
         ]));
         $gleagueIds = array_values(array_filter([(int)($body['gleague_1_id'] ?? 0) ?: null, (int)($body['gleague_2_id'] ?? 0) ?: null]));
-        $rotationPlayers = max(5, min(15, (int)($body['rotation_players'] ?? 10) ?: 10));
-        $preview = (count($starters) === 5) ? sugerirMinutos($jogadoresElenco, $starters, $rotationPlayers, $gleagueIds) : [];
+        $rotationPlayers = max(ROTACAO_MIN, min(ROTACAO_MAX, (int)($body['rotation_players'] ?? 10) ?: 10));
+        $preview = sugerirMinutos($jogadoresElenco, $starters, $rotationPlayers, $gleagueIds);
         echo json_encode(['success' => true, 'preview_minutes' => $preview]);
         exit;
     }
@@ -791,7 +806,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (substr($campo, -3) === '_id') {
                 $v = (int)$v;
                 $valores[$campo] = ($v > 0 && in_array($v, $doElenco, true)) ? $v : null;
-            } elseif (in_array($campo, ['rotation_players', 'veteran_focus'], true)) {
+            } elseif ($campo === 'rotation_players') {
+                // O giro tem chão e teto: menos de 8 não é rotação, é elenco
+                // curto, e acima de 15 sobra gente sem minuto. O 0–99 de antes
+                // aceitava valores que a simulação não sabia usar.
+                $valores[$campo] = ($v === null || $v === '')
+                    ? null : max(ROTACAO_MIN, min(ROTACAO_MAX, (int)$v));
+            } elseif ($campo === 'veteran_focus') {
                 $valores[$campo] = ($v === null || $v === '') ? null : max(0, min(99, (int)$v));
             } else {
                 $valores[$campo] = ($v === null || $v === '') ? null : mb_substr((string)$v, 0, 5000);
