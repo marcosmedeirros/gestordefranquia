@@ -13,9 +13,10 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-$stmtTeam = $pdo->prepare('SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
+/* timeDaTela em vez de buscar por user_id: no observador, o time do admin é
+   de outra liga e esta tela mostrava a tabela errada. */
+require_once __DIR__ . '/backend/observador.php';
+$team = timeDaTela($pdo, (int)$user['id']);
 
 $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? 'ELITE'));
 $meuTimeId = $team ? (int)$team['id'] : 0;

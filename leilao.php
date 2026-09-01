@@ -15,6 +15,16 @@ $is_admin = hasAdminAccess($pdo, (int)$user_id);
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
+/* NO OBSERVADOR, O TIME DA SESSÃO NÃO SERVE.
+   $_SESSION['team_id'] é o time real do admin e não muda com o óculos, então
+   a tela abria o leilão da liga dele mesmo observando outra. Zerando as duas
+   variáveis aqui, o bloco abaixo resolve tudo por timeDaTela. */
+require_once __DIR__ . '/backend/observador.php';
+if (observadorAtivo()) {
+    $team_id = null;
+    $league_id = null;
+}
+
 if (!$team_id) {
     $select = ['id', 'league', 'name'];
     try {
@@ -27,9 +37,11 @@ if (!$team_id) {
         // ignore
     }
 
-    $stmt = $pdo->prepare('SELECT ' . implode(', ', $select) . ' FROM teams WHERE user_id = ? LIMIT 1');
-    $stmt->execute([$user_id]);
-    $teamRow = $stmt->fetch();
+    /* timeDaTela em vez de user_id: no observador, o leilão tem que ser o da
+       liga que está no óculos, não o da liga real do admin. Ela traz a linha
+       inteira, então as colunas de $select vêm junto. */
+    require_once __DIR__ . '/backend/observador.php';
+    $teamRow = timeDaTela($pdo, (int)$user_id);
     if ($teamRow) {
         $team_id = (int)$teamRow['id'];
         if (!$league_id && !empty($teamRow['league_id'])) {
@@ -67,6 +79,9 @@ $stmt = $pdo->prepare("SELECT id, name, photo_url, league, user_type, accent_col
 $stmt->execute([$user_id]);
 $user = $stmt->fetch() ?: [];
 $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador');
+/* A liga sai da TABELA, que não sabe do observador: o cabeçalho continuava
+   escrito "Liga · ELITE" com o óculos na NEXT. A liga observada manda. */
+if ($obsLiga = observadorLiga()) $user['league'] = $obsLiga;
 
 // Liga do proprio usuario ja vem escolhida no formulario de criar leilao —
 // deixar em "Selecione..." obrigava um passo extra e fazia a busca de jogador

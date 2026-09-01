@@ -4,12 +4,9 @@ require_once __DIR__ . '/backend/db.php';
 requireAuth();
 $pdo = db();
 $user = getUserSession();
-$team = null;
-if ($user && isset($user['id'])) {
-    $stmtTeam = $pdo->prepare('SELECT id, city, name, photo_url, league FROM teams WHERE user_id = ? LIMIT 1');
-    $stmtTeam->execute([$user['id']]);
-    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
-}
+/* timeDaTela: no observador, as dispensas são as da liga observada. */
+require_once __DIR__ . '/backend/observador.php';
+$team = ($user && isset($user['id'])) ? timeDaTela($pdo, (int)$user['id']) : null;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

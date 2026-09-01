@@ -12,9 +12,11 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-$stmtTeam = $pdo->prepare('SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+/* No modo observador o time do admin é de outra liga, e buscar por user_id
+   traria a liga errada. timeDaTela devolve o time da liga que está no óculos
+   e, fora do modo, o time de sempre. */
+require_once __DIR__ . '/backend/observador.php';
+$team = timeDaTela($pdo, (int)$user['id']);
 if (!$team) { header('Location: my-roster.php'); exit; }
 
 $isElite = strtoupper((string)$team['league']) === 'ELITE';

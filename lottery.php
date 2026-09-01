@@ -28,12 +28,13 @@ $adminLeagues  = $ehVisitante ? [] : getAdminLeagues($pdo, (int)$user['id']);
 // administra ELITE/NEXT/RISE/ROOKIE consegue de fato rodar a cerimônia e confirmar.
 $canRunLottery = $isGlobalAdmin || !empty($adminLeagues);
 
-$team = null;
-if (!$ehVisitante) {
-    $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
-    $stmtMine->execute([$user['id']]);
-    $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
-}
+/* O TIME VEM DE timeDaTela, NÃO DE user_id.
+   No modo observador, o admin continua sendo dono do time dele — que é de
+   outra liga. Buscando por user_id, esta tela via a liga real e ignorava o
+   óculos: quem observava a RISE caía na loteria da ELITE. timeDaTela é a
+   mesma função que o drafts.php usa e devolve o time da liga observada. */
+require_once __DIR__ . '/backend/observador.php';
+$team = $ehVisitante ? null : timeDaTela($pdo, (int)$user['id']);
 
 /* QUEM VÊ O QUÊ.
    Quem administra vê as ligas que administra. Quem não administra vê a

@@ -1718,25 +1718,35 @@ if ($method === 'POST') {
             // ── Dono atual das picks de 1ª rodada do ano do draft (swaps/trocas) ──
             // O slot é definido pela campanha do time de origem, mas quem escolhe é
             // o dono atual da pick. Convenção NBA: "Dono (via ORI)".
-            $stmtY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
-                                    FROM seasons s LEFT JOIN sprints sp ON sp.id = s.sprint_id
-                                    WHERE s.id = ?');
-            $stmtY->execute([(int)$lotterySession['season_id']]);
-            $yrow = $stmtY->fetch(PDO::FETCH_ASSOC);
-            $draftYear = 0;
-            if ($yrow) {
-                $draftYear = (!empty($yrow['start_year']) && isset($yrow['season_number']))
-                    ? (int)$yrow['start_year'] + (int)$yrow['season_number'] - 1
-                    : (int)($yrow['year'] ?? 0);
-            }
+            /*
+             * O ANO SAI DE draftAnoDasPicks, e não de uma conta local.
+             *
+             * A conta que morava aqui (start_year + season_number − 1) dá o ano
+             * da TEMPORADA, que nem sempre é o ano das PICKS: na NEXT ela dava
+             * 2016 e as picks começam em 2017; no ROOKIE dava 2025 e elas estão
+             * em 2026. Sem picks no ano, $pickOwner ficava vazio e a loteria
+             * mostrava todo mundo como dono da própria — 12 picks trocadas na
+             * NEXT e 14 no ROOKIE apareciam sem o "via", justamente o contrário
+             * do que a tela existe pra mostrar.
+             *
+             * draftAnoDasPicks já é a fonte da troca de picks e do mock: ela
+             * cai no ano seguinte disponível quando o exato não tem picks.
+             */
+            $draftYear = draftAnoDasPicks($pdo, (int)$lotterySession['season_id']);
             $pickOwner = [];
             if ($draftYear > 0) {
+                // O filtro por liga entra junto: com o ano sozinho, picks de
+                // outras ligas do mesmo ano caíam no mesmo balde.
                 $stmtPk = $pdo->prepare('SELECT p.original_team_id, p.team_id AS owner_id,
                                                 CONCAT(t.city," ",t.name) AS owner_name,
                                                 t.photo_url AS owner_photo, t.conference AS owner_conf
-                                         FROM picks p JOIN teams t ON t.id = p.team_id
-                                         WHERE p.season_year = ? AND p.round = 1');
-                $stmtPk->execute([$draftYear]);
+                                         FROM picks p
+                                         JOIN teams t ON t.id = p.team_id
+                                         JOIN teams orig ON orig.id = p.original_team_id
+                                         WHERE CAST(p.season_year AS UNSIGNED) = ?
+                                           AND orig.league = ?
+                                           AND p.round = 1');
+                $stmtPk->execute([$draftYear, $lotterySession['league']]);
                 foreach ($stmtPk->fetchAll(PDO::FETCH_ASSOC) as $pk) {
                     $pickOwner[(int)$pk['original_team_id']] = $pk;
                 }

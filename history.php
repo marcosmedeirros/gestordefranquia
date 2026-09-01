@@ -7,9 +7,9 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch();
+/* timeDaTela: no observador, o histórico é o da liga observada. */
+require_once __DIR__ . '/backend/observador.php';
+$team = timeDaTela($pdo, (int)$user['id']);
 
 if (!$team) {
     header('Location: /onboarding.php');

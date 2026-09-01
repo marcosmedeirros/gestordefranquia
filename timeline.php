@@ -7,6 +7,10 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
+/* Aqui o time continua sendo o DO ADMIN, de propósito: a timeline é de todas
+   as ligas (tem filtro próprio na tela) e este $team_id é de quem posta. No
+   observador, trocá-lo faria o post sair no nome do time observado — e o modo
+   é um óculos, não um login como outra pessoa. */
 $team_id = $_SESSION['team_id'] ?? null;
 $team = [];
 if ($team_id) {

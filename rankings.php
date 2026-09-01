@@ -8,10 +8,10 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-// Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch();
+/* O time da tela — que no modo observador é o da liga observada, e não o do
+   próprio admin. Sem isso os rankings saíam sempre da liga real dele. */
+require_once __DIR__ . '/backend/observador.php';
+$team = timeDaTela($pdo, (int)$user['id']);
 
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 $userLeague = strtoupper($team['league'] ?? $user['league'] ?? 'ELITE');
