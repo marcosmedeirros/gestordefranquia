@@ -251,10 +251,10 @@ require_once __DIR__ . '/enquetes_motor.php';
     <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
              onde se veio está logo acima. */ ?>
     <h1>Eventos</h1>
-    <?php /* Criar é só do admin; o botão nasce escondido e a listagem o
-             revela pra quem pode (DADOS.admin). A API barra de qualquer
-             jeito — o botão é só pra não oferecer o que vai ser negado. */ ?>
-    <button class="eq-btn eq-pri" id="btnCriar" hidden style="margin-left:auto" onclick="abrirCriar()">
+    <?php /* Criar é de todo mundo, e por isso o botão já nasce visível: ele
+             ficava escondido esperando a listagem dizer se a pessoa era
+             admin, e piscava na tela de quem tinha permissão. */ ?>
+    <button class="eq-btn eq-pri" id="btnCriar" style="margin-left:auto" onclick="abrirCriar()">
       <i class="bi bi-plus-lg"></i> Criar evento
     </button>
   </div>
@@ -421,8 +421,10 @@ async function carregar() {
   if (!d.ok) { document.getElementById('lista').innerHTML = '<p class="eq-vazio">Não deu pra carregar.</p>'; return; }
   DADOS = d;
 
+  // Criar é de todo mundo: a retenção impede abrir um evento que o saldo não
+  // cobre, e a organização confere depois pelo painel de Eventos.
   const btn = document.getElementById('btnCriar');
-  if (btn) btn.hidden = !d.admin;
+  if (btn) btn.hidden = false;
 
   /* SÓ O RETIDO.
      "Suas moedas" e "livres pra bancar" repetiam o contador de moedas que já

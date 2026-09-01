@@ -22,28 +22,24 @@ $uid     = (int)$user['id'];
 $ehAdmin = ($user['user_type'] ?? '') === 'admin';
 
 /*
- * CRIAR É SÓ DO ADMIN; APOSTAR É DE TODO MUNDO.
+ * QUALQUER UM CRIA. A ORGANIZAÇÃO FISCALIZA.
  *
- * A trava começou valendo pra tudo, e aí o sistema não funcionava: só admin
- * entrava, só ele criava, e quem cria não pode apostar na própria enquete —
- * então não havia ninguém pra apostar em nada.
+ * Por um tempo criar foi só do admin, pelo medo de alguém montar um evento e
+ * declarar o resultado que lhe convém. Só que a trava resolvia esse medo
+ * matando o produto: com um criador só, sobrava um punhado de eventos e a
+ * liga inteira esperando.
  *
- * O motivo da trava era o criador declarar o próprio resultado. Isso se
- * resolve limitando quem CRIA, não quem aposta: com as enquetes saindo de
- * quem responde pela liga, a liga inteira pode participar delas.
+ * O que segura a fraude não é a trava, são três coisas que já existem:
+ *  - a retenção, que impede abrir um evento maior do que o próprio saldo;
+ *  - o extrato, que registra quem declarou o quê e quando;
+ *  - o painel de Eventos do admin, que reverte um pagamento e devolve tudo.
+ *
+ * Ou seja: fiscalização depois do fato, e não permissão antes dele. Só as
+ * ações admin_* continuam sendo do admin geral — elas são a fiscalização.
  */
 enqTabelas($pdo);
 $corpo   = json_decode(file_get_contents('php://input'), true) ?: [];
 $acao    = $_GET['acao'] ?? $corpo['acao'] ?? 'listar';
-
-// A ação precisa estar lida ANTES da trava — senão ela testa um $acao vazio
-// e nunca barra ninguém.
-$soAdmin = ['criar'];
-if (in_array($acao, $soAdmin, true) && !$ehAdmin) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'erro' => 'Por enquanto, só o admin geral cria enquetes.']);
-    exit;
-}
 
 /** Uma enquete pronta pra tela, com as odds de agora. */
 function enqMontar(PDO $pdo, array $e, int $uid): array
