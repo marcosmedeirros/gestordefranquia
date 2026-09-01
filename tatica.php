@@ -673,6 +673,13 @@ function mostrarSlot(slot) {
     el.value = (t[el.dataset.f] !== null && t[el.dataset.f] !== undefined) ? t[el.dataset.f] : '';
   });
 
+  /* A FOTO DO TÉCNICO PRECISA SER REPINTADA AQUI.
+     Quem a desenha é o `change` do select, e atribuir `el.value` por código
+     não dispara evento nenhum — então a tática carregava com o modelo
+     escolhido no campo e o quadro do lado vazio, como se não houvesse
+     técnico. Vale ao abrir a página e a cada troca de tática. */
+  if (typeof pintarModeloEscolhido === 'function') pintarModeloEscolhido();
+
   renderPreviewMinutos(TATICAS[slot]?.preview_minutes || {});
 
   const statusBox = $('tacticStatus');

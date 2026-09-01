@@ -63,22 +63,30 @@ async function showGamesAdmin() {
   appState.view = 'games';
   updateBreadcrumb();
 
+  /* Um card com `fn` abre uma tela DENTRO do admin; com `url`, vai pra fora.
+     Eventos entrou como card e não como painel na página porque a lista pode
+     ter dezenas de linhas — inline ela empurrava o resto da aba pra baixo,
+     todo dia, por causa de algo que se usa de vez em quando. */
   const atalhos = [
+    { fn: 'showEventosAdmin()',               icone: 'bi-calendar-event-fill', titulo: 'Eventos',      desc: 'As apostas que os GMs criam: declarar resultado, cancelar e devolver' },
     { url: '/admin-apostas.php',              icone: 'bi-graph-up-arrow', titulo: 'Apostas',           desc: 'Criar eventos, acompanhar palpites e encerrar pagando os acertos' },
     { url: '/games/admin/dadosjogadores.php', icone: 'bi-database-fill',  titulo: 'Base de Jogadores', desc: 'Banco de jogadores que alimenta os jogos' },
     { url: '/admin-games-controle.php',       icone: 'bi-toggles',        titulo: 'Controle de Jogos', desc: 'Ligar pontuação em dobro por jogo' },
   ];
 
-  const cards = atalhos.map(a => `
+  const cards = atalhos.map(a => {
+    const abre = a.fn ? `href="#" onclick="${a.fn}; return false"` : `href="${a.url}"`;
+    return `
     <div class="col-12 col-md-6 col-xl-4">
-      <a href="${a.url}" class="action-tile w-100 h-100 text-start" style="text-decoration:none">
+      <a ${abre} class="action-tile w-100 h-100 text-start" style="text-decoration:none">
         <i class="bi ${a.icone}"></i>
         <div>
           <div class="fw-bold">${a.titulo}</div>
           <div class="small text-secondary">${a.desc}</div>
         </div>
       </a>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   document.getElementById('mainContainer').innerHTML = `
     <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -91,31 +99,6 @@ async function showGamesAdmin() {
       </a>
     </div>
     <div class="row g-3 mb-4">${cards}</div>
-
-    <!-- Card próprio, e não uma seção dentro de "Configuração dos games":
-         ali embaixo do dobro de moedas ele passava despercebido, e este é o
-         lugar de resolver aposta travada — precisa estar à vista. -->
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title" style="margin-bottom:0">
-            <i class="bi bi-calendar-event-fill" style="color:#22c55e"></i> Eventos
-          </div>
-          <div class="panel-sub">As apostas que os GMs criam na aba Eventos do /games</div>
-        </div>
-        <button class="btn btn-sm btn-outline-orange" onclick="_carregarEventos()">
-          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
-        </button>
-      </div>
-      <div class="small text-secondary mb-2">
-        Quem cria declara o resultado na página dele. Aqui é a saída pra quando isso
-        não acontece: dono sumido, resultado declarado errado ou evento que não vai
-        mais ter resposta. Declarar paga na hora; cancelar devolve tudo a quem apostou.
-      </div>
-      <div id="eventosWrap" class="text-center py-3">
-        <div class="spinner-border text-orange"></div>
-      </div>
-    </div>
 
     <div class="panel">
       <div class="panel-title">
@@ -232,18 +215,59 @@ async function showGamesAdmin() {
   _carregarGamesUsers();
   _carregarAtualizacoes();
   _carregarGamesDobro();
-  _carregarEventos();
   _carregarLeilaoSemana();
   _carregarSlotsLive();
 }
 
 /* ── Eventos: as apostas que os GMs criam em /games ─────────────────────
  *
- * O card existe pro caso que a tela do GM não cobre. Lá quem declara o
- * resultado é só o dono, de propósito — quem banca é quem paga. Mas dono
- * some, declara errado, ou cria um evento que nunca vai ter resposta, e sem
- * uma saída a moeda de todo mundo fica retida sem prazo.
+ * A tela existe pro caso que a do GM não cobre. Lá quem declara o resultado é
+ * só o dono, de propósito — quem banca é quem paga. Mas dono some, declara
+ * errado, ou cria um evento que nunca vai ter resposta, e sem uma saída a
+ * moeda de todo mundo fica retida sem prazo.
  */
+function showEventosAdmin() {
+  appState.view = 'eventos';
+  updateBreadcrumb();
+  document.getElementById('mainContainer').innerHTML = `
+    <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <button class="btn btn-back" onclick="showGamesAdmin()">
+        <i class="bi bi-arrow-left"></i> Voltar
+      </button>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <select id="evFiltro" class="form-select form-select-sm" style="width:auto" onchange="_pintarEventos()">
+          <option value="">Todos os estados</option>
+          <option value="aberta">Abertos</option>
+          <option value="paga">Pagos</option>
+          <option value="cancelada">Cancelados</option>
+        </select>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarEventos()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title" style="margin-bottom:0">
+            <i class="bi bi-calendar-event-fill" style="color:#22c55e"></i> Eventos
+          </div>
+          <div class="panel-sub">As apostas que os GMs criam na aba Eventos do /games</div>
+        </div>
+      </div>
+      <div class="small text-secondary mb-3">
+        Quem cria declara o resultado na página dele. Aqui é a saída pra quando isso
+        não acontece: dono sumido, resultado declarado errado ou evento que não vai
+        mais ter resposta. Declarar paga na hora; cancelar devolve tudo a quem apostou.
+      </div>
+      <div id="eventosWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+    </div>`;
+  _carregarEventos();
+}
+
 async function _carregarEventos() {
   const wrap = document.getElementById('eventosWrap');
   if (!wrap) return;
@@ -266,10 +290,14 @@ function _pintarEventos() {
   if (!wrap) return;
   if (!_EVENTOS.length) { wrap.innerHTML = '<p class="empty-state">Nenhum evento criado ainda.</p>'; return; }
 
+  const filtro = document.getElementById('evFiltro')?.value || '';
+  const lista = filtro ? _EVENTOS.filter(e => e.status === filtro) : _EVENTOS;
+  if (!lista.length) { wrap.innerHTML = '<p class="empty-state">Nenhum evento nesse estado.</p>'; return; }
+
   const cor = {aberta: '#22c55e', paga: '#71717a', cancelada: '#ef4444', fechada: '#f59e0b'};
   const dinheiro = v => Number(v || 0).toLocaleString('pt-BR');
 
-  wrap.innerHTML = `<div class="d-flex flex-column gap-2 text-start">` + _EVENTOS.map(e => {
+  wrap.innerHTML = `<div class="d-flex flex-column gap-2 text-start">` + lista.map(e => {
     const aberta = e.status === 'aberta';
     const venceu = e.alternativas.find(a => a.id === e.vencedora);
     // As alternativas com o que cada uma recebeu: é o que o admin precisa ver
@@ -2256,6 +2284,7 @@ const _viewRestore = {
   config:       ()   => showConfig(),
   ranking:      ()   => showSerasaAdmin(),
   faadmin:      ()   => showFAAdmin(),
+  eventos:      ()   => showEventosAdmin(),
   punicoes:     ()   => showPunicoes(),
   coins:        (lg) => showCoins(lg),
   tapas:        ()   => showTapas(),
@@ -2335,6 +2364,7 @@ function updateBreadcrumb() {
       seasons:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Temporadas</li>'; return 'Gerenciar Temporadas'; },
       ranking:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>'; return 'Rankings Globais'; },
       faadmin:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>'; return 'Free Agency'; },
+      eventos:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Eventos</li>'; return 'Eventos'; },
       punicoes:     () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Punições</li>'; return 'Punições'; },
       coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
       tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>'; return 'Gerenciar Tapas'; },
