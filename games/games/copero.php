@@ -3416,6 +3416,26 @@ function eventoDaVez(){
     // Recuar de posição é decisão de quem sente as pernas — e só vale a pena
     // pra quem ainda tem carreira pela frente pra esticar.
     mudar_posicao:    () => S.idade >= 29 && S.ovr >= 70,
+
+    // Pênalti de final: precisa ser alguém que o estádio olharia.
+    penalti_decisivo: () => S.idade >= 19 && S.ovr >= 68,
+    // Só no PRIMEIRO ano fora do país. Adaptação que dura cinco anos não é
+    // adaptação, é vida — por isso o corte em anosNoClube() <= 1, e por isso
+    // ela compara o país da liga com o país de origem da pessoa.
+    mudanca_de_pais:  () => {
+      if (!S.clube || anosNoClube() > 1) return false;
+      const l = dadosLiga(S.clube.liga);
+      return !!l && l.pais !== S.pais;
+    },
+    briga_vestiario:  () => S.idade >= 20,
+    // Dono novo mexe com quem já está lá dentro: sem raiz no clube, a
+    // reformulação não é sobre você.
+    clube_vendido:    () => S.idade >= 20 && anosNoClube() >= 2,
+    // A imprensa só persegue quem tem nome pra render programa.
+    imprensa_hostil:  () => S.idade >= 21 && S.ovr >= 72,
+    // Ano de Copa só existe pra quem está no radar da seleção, e não cai em
+    // quem já está cumprindo castigo — semSelecao já o deixa de fora.
+    ano_de_copa:      () => S.idade >= 22 && !(S.semSelecao > 0) && convocado(S.ovr, S.pais),
   };
   const possiveis = EVENTOS.filter(e => (cabe[e.id] || (()=>true))());
   if (!possiveis.length) return null;
