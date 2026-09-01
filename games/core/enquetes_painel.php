@@ -105,6 +105,25 @@
 #pane-banca .eq-busca{max-width:260px;margin-left:auto;font-size:13px}
 .eq-cont{font-size:11.5px;color:var(--text3);font-weight:700}
 
+/* As encerradas são histórico: viram linha, não card. Uma clicada abre o
+   card inteiro embaixo, pra quem quiser conferir o que pagou o quê. */
+.eq-linhas{display:flex;flex-direction:column;gap:1px;
+  border:1px solid var(--borda);border-radius:12px;overflow:hidden}
+.eq-li{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--panel);border:0;border-bottom:1px solid var(--borda);
+  padding:10px 13px;color:var(--texto);font-family:var(--font);cursor:pointer}
+.eq-li:last-of-type{border-bottom:0}
+.eq-li:hover{background:var(--panel2)}
+.eq-li-t{flex:1;min-width:0;font-size:13px;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-li-t small{display:block;font-size:10.5px;font-weight:600;color:var(--text3);
+  margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-li-v{font-size:11.5px;font-weight:700;color:var(--text2);white-space:nowrap}
+.eq-li-seta{color:var(--text3);font-size:11px}
+.eq-li-aberto{padding:11px 13px;background:var(--panel2);border-bottom:1px solid var(--borda)}
+.eq-li-aberto .eq-card{border:0;background:none;padding:0}
+@media(max-width:560px){ .eq-li-v{display:none} }
+
 .eq-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
   align-items:center;justify-content:center;padding:16px;z-index:50}
 .eq-modal.eq-on{display:flex}
@@ -148,6 +167,13 @@
   </p>
 
   <div class="eq-saldos" id="saldos"></div>
+
+  <div class="eq-fim-topo" id="topoAbertas" hidden>
+    <h2>Apostas abertas</h2>
+    <span class="eq-cont" id="contAbertas"></span>
+    <input class="eq-busca" id="buscaAbertas" type="search" placeholder="Buscar por pergunta ou banca…"
+           oninput="pintarAbertas()">
+  </div>
   <div id="lista" class="eq-grade"><p class="eq-vazio">Carregando…</p></div>
 
   <?php /* As encerradas (pagas ou canceladas) não competem com as abertas por
@@ -160,7 +186,7 @@
       <input class="eq-busca" id="buscaFim" type="search" placeholder="Buscar por pergunta ou banca…"
              oninput="pintarEncerradas()">
     </div>
-    <div id="listaFim" class="eq-grade"></div>
+    <div id="listaFim" class="eq-linhas"></div>
   </div>
 </div>
 
@@ -202,7 +228,7 @@
 <script>
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const n = v => Number(v || 0).toLocaleString('pt-BR');
-let DADOS = null, alvo = null, ENCERRADAS = [];
+let DADOS = null, alvo = null, ABERTAS = [], ENCERRADAS = [];
 
 async function api(acao, corpo, metodo) {
   const r = await fetch('/api/enquetes.php?acao=' + acao, {
@@ -230,13 +256,31 @@ async function carregar() {
 
   // Em cima o que ainda aceita aposta; embaixo, o histórico.
   const lista = d.enquetes || [];
-  const vivas = lista.filter(e => e.status === 'aberta');
+  ABERTAS    = lista.filter(e => e.status === 'aberta');
   ENCERRADAS = lista.filter(e => e.status !== 'aberta');
-
-  document.getElementById('lista').innerHTML = vivas.length
-    ? vivas.map(card).join('')
-    : `<p class="eq-vazio">${lista.length ? 'Nenhuma aposta aberta agora.' : 'Nenhuma aposta ainda.'}</p>`;
+  pintarAbertas();
   pintarEncerradas();
+}
+
+/** O que a pessoa digitou, contra pergunta, detalhe e nome de quem banca. */
+const combina = (e, q) =>
+  !q || `${e.titulo} ${e.descricao || ''} ${e.criador}`.toLowerCase().includes(q);
+
+function pintarAbertas() {
+  // A busca só aparece quando há o bastante pra procurar dentro.
+  const topo = document.getElementById('topoAbertas');
+  if (topo) topo.hidden = ABERTAS.length < 2;
+
+  const q = (document.getElementById('buscaAbertas')?.value || '').trim().toLowerCase();
+  const achadas = ABERTAS.filter(e => combina(e, q));
+  const cont = document.getElementById('contAbertas');
+  if (cont) cont.textContent = q ? `${achadas.length} de ${ABERTAS.length}` : `${ABERTAS.length} no total`;
+
+  document.getElementById('lista').innerHTML = achadas.length
+    ? achadas.map(card).join('')
+    : `<p class="eq-vazio">${
+        q ? 'Nenhuma aposta aberta com esse termo.'
+          : (ENCERRADAS.length ? 'Nenhuma aposta aberta agora.' : 'Nenhuma aposta ainda.')}</p>`;
 }
 
 /** O histórico do fim da página, filtrado pelo que a pessoa digitou. */
@@ -247,15 +291,41 @@ function pintarEncerradas() {
   if (!ENCERRADAS.length) return;
 
   const q = (document.getElementById('buscaFim')?.value || '').trim().toLowerCase();
-  const achadas = q
-    ? ENCERRADAS.filter(e => `${e.titulo} ${e.descricao || ''} ${e.criador}`.toLowerCase().includes(q))
-    : ENCERRADAS;
+  const achadas = ENCERRADAS.filter(e => combina(e, q));
 
   document.getElementById('contFim').textContent =
     q ? `${achadas.length} de ${ENCERRADAS.length}` : `${ENCERRADAS.length} no total`;
   document.getElementById('listaFim').innerHTML = achadas.length
-    ? achadas.map(card).join('')
+    ? achadas.map(linha).join('')
     : '<p class="eq-vazio">Nenhuma aposta encerrada com esse termo.</p>';
+}
+
+/** Uma encerrada em uma linha só; o card inteiro fica atrás da clicada. */
+function linha(e) {
+  const venceu = e.alternativas.find(a => a.id === e.vencedora);
+  const meu = e.meu_total
+    ? (e.vencedora && e.alternativas.some(a => a.id === e.vencedora && a.meu) ? 'você acertou' : 'você apostou')
+    : '';
+  return `
+  <button class="eq-li" onclick="alternarLinha(${e.id})" aria-expanded="false" id="li_${e.id}">
+    <span class="eq-li-t">${esc(e.titulo)}
+      <small>${esc(e.criador)}${venceu ? ` · deu ${esc(venceu.texto)}` : ' · cancelada'}${meu ? ` · ${meu}` : ''}</small>
+    </span>
+    <span class="eq-li-v">${n(e.apostado)} apostado</span>
+    <span class="eq-selo eq-${e.status}">${e.status}</span>
+    <i class="bi bi-chevron-down eq-li-seta"></i>
+  </button>
+  <div class="eq-li-aberto" id="det_${e.id}" hidden>${card(e)}</div>`;
+}
+
+function alternarLinha(id) {
+  const det = document.getElementById(`det_${id}`);
+  const bt  = document.getElementById(`li_${id}`);
+  if (!det) return;
+  det.hidden = !det.hidden;
+  bt?.setAttribute('aria-expanded', String(!det.hidden));
+  const seta = bt?.querySelector('.eq-li-seta');
+  if (seta) seta.className = `bi bi-chevron-${det.hidden ? 'down' : 'up'} eq-li-seta`;
 }
 
 function card(e) {

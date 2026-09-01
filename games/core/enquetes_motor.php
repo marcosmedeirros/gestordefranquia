@@ -62,11 +62,12 @@ const ENQ_DIAS_MAX       = 30;     // enquete não segura moeda retida pra sempr
 /**
  * O quanto o fluxo mexe na odd (0 = odd fixa, 1 = mexe muito).
  *
- * 0.55 foi escolhido testando: move o bastante pra desestimular o lado
- * carregado sem transformar a odd em outra coisa entre uma aposta e a
- * seguinte, que confunde quem está decidindo.
+ * 0.45 veio de medir 400 sessões de aposta em cada tamanho de mesa, do fluxo
+ * espalhado ao "todo mundo numa opção só". Com ele a odd muda no máximo uns
+ * 18% de uma aposta pra outra: dá pra ver o mercado se mexendo sem que a
+ * odd vire outra coisa enquanto a pessoa decide.
  */
-const ENQ_SENSIBILIDADE  = 0.55;
+const ENQ_SENSIBILIDADE  = 0.45;
 /**
  * O lastro: a partir de quantas moedas o fluxo merece ser levado a sério.
  *
@@ -75,7 +76,7 @@ const ENQ_SENSIBILIDADE  = 0.55;
  * aposta só a proporção é 100%. Com o lastro, o fluxo pesa
  * total/(total+lastro): dez moedas quase não mexem, mil mexem de verdade.
  */
-const ENQ_LASTRO         = 400;
+const ENQ_LASTRO         = 600;
 
 function enqTabelas(PDO $pdo): void
 {
@@ -231,6 +232,17 @@ function enqOddsAtuais(array $alternativas, array $somas): array
     }
     $somaIni = array_sum($probIni) ?: 1;
 
+    /*
+     * MESA GRANDE CHACOALHA MAIS — então a sensibilidade encolhe junto.
+     *
+     * Com a mesma sensibilidade, o salto da odd entre duas apostas era 31%
+     * numa mesa de 2 opções e 43% numa de 4: quanto mais alternativas, menos
+     * dinheiro cada uma segura e mais o mercado balança. Dividindo por
+     * nAlt/2, as três mesas passam a se mover igual (17,6% / 16,7% / 18,2%).
+     */
+    $nAlt = max(2, count($alternativas));
+    $sens = ENQ_SENSIBILIDADE * (2 / $nAlt);
+
     $total = $somas['total'];
     $out = [];
     foreach ($alternativas as $a) {
@@ -242,7 +254,7 @@ function enqOddsAtuais(array $alternativas, array $somas): array
         $fluxo = ($somas['porAlt'][$id] ?? 0) / $total;      // 0..1
         // Quanto vale a opinião desse fluxo: pouco dinheiro, pouco peso.
         $peso  = $total / ($total + ENQ_LASTRO);
-        $nova  = $base + ENQ_SENSIBILIDADE * $peso * ($fluxo - $base);
+        $nova  = $base + $sens * $peso * ($fluxo - $base);
         $nova  = max(0.02, min(0.95, $nova));
         // De volta pra odd, mantendo a margem que o criador embutiu.
         $odd = (1 / $nova) * (1 / $somaIni);
