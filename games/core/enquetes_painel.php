@@ -11,18 +11,26 @@
  */
 ?>
 <style>
-:root{--bg:#0a0a0c;--panel:#141418;--panel2:#1b1b21;--panel3:#232329;
+/*
+ * AS VARIÁVEIS FICAM NO PAINEL, não no :root.
+ *
+ * Quando isto era página inteira, `:root` era dele. Como aba, `:root` é do
+ * /games — e --bg, --panel e --texto existem lá com outros valores. Declarar
+ * de novo ali repintava a página inteira, incluindo as outras quatro abas.
+ * Presas ao #pane-banca, valem só aqui dentro (os modais também estão dentro
+ * dele, então herdam).
+ */
+#pane-banca{--bg:#0a0a0c;--panel:#141418;--panel2:#1b1b21;--panel3:#232329;
   --borda:rgba(255,255,255,.07);--texto:#f4f4f5;--text2:#a1a1aa;--text3:#71717a;
   --verde:#22c55e;--vermelho:#ef4444;--amber:#f59e0b;--azul:#3b82f6;
-  --font:'Inter',system-ui,sans-serif;--num:'Inter',sans-serif}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--texto);font-family:var(--font);
-  padding:18px 14px 60px;-webkit-font-smoothing:antialiased}
-.eq-wrap{max-width:940px;margin:0 auto}
+  --font:'Inter',system-ui,sans-serif;--num:'Inter',sans-serif;
+  color:var(--texto);font-family:var(--font)}
+#pane-banca *{box-sizing:border-box}
+/* Sem regra de `body`: a de antes trocava o fundo e o padding do /games
+   inteiro só por esta aba existir na página. */
+.eq-wrap{max-width:none;margin:0}
 .eq-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
-.eq-volta{color:var(--text3);text-decoration:none;font-size:13px;font-weight:700}
-.eq-volta:hover{color:var(--texto)}
+#pane-banca h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
 .eq-lead{color:var(--text2);font-size:13.5px;line-height:1.6;margin-bottom:16px;max-width:70ch}
 
 .eq-saldos{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px}
@@ -44,7 +52,7 @@ h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
 .eq-card.eq-minha{border-color:rgba(59,130,246,.35)}
 .eq-card.eq-paga{opacity:.72}
 .eq-ch{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:4px}
-.eq-ch h2{font-size:15.5px;font-weight:800;letter-spacing:-.2px;flex:1;min-width:200px}
+#pane-banca .eq-ch h2{font-size:15.5px;font-weight:800;letter-spacing:-.2px;flex:1;min-width:200px}
 .eq-selo{font-size:9.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;
   padding:4px 8px;border-radius:99px;white-space:nowrap}
 .eq-selo.eq-aberta{background:rgba(34,197,94,.16);color:var(--verde)}
@@ -80,28 +88,29 @@ h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
 .eq-modal.eq-on{display:flex}
 .eq-mbox{background:var(--panel);border:1px solid var(--borda);border-radius:16px;
   padding:20px;width:100%;max-width:520px;max-height:88vh;overflow:auto}
-.eq-mbox h3{font-size:17px;font-weight:900;margin-bottom:4px}
+#pane-banca .eq-mbox h3{font-size:17px;font-weight:900;margin-bottom:4px}
 .eq-mbox p.eq-aj{font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.55}
-label{display:block;font-size:10px;font-weight:800;letter-spacing:.6px;
+#pane-banca label{display:block;font-size:10px;font-weight:800;letter-spacing:.6px;
   text-transform:uppercase;color:var(--text3);margin:11px 0 5px}
-input,textarea,select{width:100%;background:var(--panel2);border:1px solid var(--borda);
+#pane-banca input,#pane-banca textarea,#pane-banca select{width:100%;background:var(--panel2);border:1px solid var(--borda);
   border-radius:9px;padding:10px 12px;color:var(--texto);font-family:var(--font);
   font-size:14px;font-weight:600;outline:none}
-input:focus,textarea:focus{border-color:rgba(255,255,255,.24)}
+#pane-banca input:focus,#pane-banca textarea:focus{border-color:rgba(255,255,255,.24)}
 .eq-alt-linha{display:grid;grid-template-columns:1fr 92px;gap:7px;margin-bottom:7px}
 .eq-duo{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .eq-aviso{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);
   border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);
   line-height:1.55;margin-top:12px}
 .eq-mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
-@media(max-width:560px){ .eq-duo{grid-template-columns:1fr} h1{font-size:20px} }
+@media(max-width:560px){ .eq-duo{grid-template-columns:1fr} #pane-banca h1{font-size:20px} }
 </style>
-</head>
-<body>
+<?php /* Sem <head>/<body> aqui: isto é um pedaço da página, não uma página.
+         Eles sobraram da conversão e ficavam soltos no meio do /games. */ ?>
 <div class="eq-wrap">
   <div class="eq-topo">
+    <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
+             onde se veio está logo acima. */ ?>
     <h1>Enquetes</h1>
-    <a class="eq-volta" href="/games.php"><i class="bi bi-arrow-left"></i> voltar aos games</a>
     <button class="eq-btn eq-pri" style="margin-left:auto" onclick="abrirCriar()">
       <i class="bi bi-plus-lg"></i> Criar enquete
     </button>
