@@ -1404,11 +1404,16 @@ if ($method === 'POST') {
              * `position`, e é por ela que o desempate cai quando não há
              * vitória cadastrada.
              */
+            /* A conta é UMA SÓ, e mora em loteriaTemporadaFoiJogada().
+               Estava duplicada aqui: o teste da loteria já aceitava a
+               classificação lançada como prova de que a temporada aconteceu,
+               e o sorteio de verdade continuava exigindo playoff registrado.
+               Duas respostas pra mesma pergunta é a receita de a simulação
+               dizer uma coisa e o sorteio fazer outra. */
             $semCampanha = true;
             try {
-                $stJogada = $pdo->prepare('SELECT COUNT(*) FROM playoff_results WHERE season_id = ?');
-                $stJogada->execute([(int)$standingsSeasonId]);
-                if ((int)$stJogada->fetchColumn() > 0) $semCampanha = false;
+                require_once dirname(__DIR__) . '/backend/loteria_grupos.php';
+                if (loteriaTemporadaFoiJogada($pdo, (int)$standingsSeasonId)) $semCampanha = false;
             } catch (Throwable $e) {
                 // Sem conseguir ler, o mais seguro é assumir que jogou: manter
                 // o 3-2-1 erra menos que zerar as chances de todo mundo.

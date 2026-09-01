@@ -238,7 +238,28 @@ function loteriaTemporadaFoiJogada(PDO $pdo, int $seasonId): bool
 {
     if ($seasonId <= 0) return false;
     try {
+        // O playoff registrado é o sinal mais forte: ele só existe depois de a
+        // temporada ter sido jogada até o fim.
         $st = $pdo->prepare('SELECT COUNT(*) FROM playoff_results WHERE season_id = ?');
+        $st->execute([$seasonId]);
+        if ((int)$st->fetchColumn() > 0) return true;
+
+        /*
+         * MAS A CLASSIFICAÇÃO LANÇADA TAMBÉM CONTA.
+         *
+         * Nem toda temporada chega aqui com playoff registrado: a NEXT lançou
+         * a classificação inteira pelo card Pontuação — 30 times com posição,
+         * e a ordem geral de quem ficou de fora — sem que o playoff virasse
+         * linha em `playoff_results`. Olhando só pro playoff, a loteria dizia
+         * "ninguém jogou" e punha os 30 times na urna com a mesma chance,
+         * campeão junto com lanterna.
+         *
+         * A classificação só existe porque alguém a cadastrou. Se ela está
+         * lá, a temporada aconteceu — e é dela que sai a ordem que a loteria
+         * usa pra montar os grupos.
+         */
+        $st = $pdo->prepare('SELECT COUNT(*) FROM season_standings
+                              WHERE season_id = ? AND COALESCE(position, 0) > 0');
         $st->execute([$seasonId]);
         return (int)$st->fetchColumn() > 0;
     } catch (Throwable $e) {
