@@ -920,16 +920,21 @@ function coperoEventos(): array
 
         // ── O CORPO: o que você faz com ele cobra ───────────────────
         [
+            // Era a carta mais vazia do baralho: uma aposta de 65/35 contra
+            // um "Sem mudanças" que não fazia nada. Escolha em que um lado é
+            // literalmente não jogar não é escolha — agora os dois lados
+            // custam e pagam alguma coisa, e o rótulo diz o que está em jogo.
             'id' => 'concentracao', 'peso' => 7,
-            'titulo' => 'Concentração extra',
-            'texto'  => 'Uma preparação especial pode melhorar seu jogo, mas o esforço extra pode cobrar seu preço.',
+            'titulo' => 'A semana de decisão',
+            'texto'  => 'O clube vai concentrar o elenco num hotel a semana inteira antes da decisão. Ninguém dorme em casa.',
             'cartas' => [
-                ['rotulo' => 'Fazer', 'efeitos' => [
-                    ['chance' => 65, 'ovr' => +4, 'texto' => '+4 OVR'],
-                    ['chance' => 35, 'ovr' => -3, 'texto' => '-3 OVR'],
+                ['rotulo' => 'Encarar a concentração', 'efeitos' => [
+                    ['chance' => 60, 'ovr' => +3, 'jogos' => +4, 'texto' => 'Chega ligado na decisão'],
+                    ['chance' => 40, 'ovr' => -2, 'texto' => 'A cabeça não desliga a semana toda'],
                 ]],
-                ['rotulo' => 'Preparação habitual', 'efeitos' => [
-                    ['chance' => 100, 'ovr' => 0, 'texto' => 'Sem mudanças'],
+                ['rotulo' => 'Pedir para dormir em casa', 'efeitos' => [
+                    ['chance' => 50, 'ovr' => +1, 'texto' => 'Chega leve e inteiro'],
+                    ['chance' => 50, 'jogos' => -6, 'texto' => 'O treinador anota o pedido'],
                 ]],
             ],
         ],
@@ -1194,6 +1199,101 @@ function coperoEventos(): array
                 ['rotulo' => 'Se antecipar e negociar', 'efeitos' => [
                     ['chance' => 60, 'ovr' => 0, 'texto' => 'Resolvido em silêncio'],
                     ['chance' => 40, 'ovr' => -5, 'texto' => 'O caso vaza'],
+                ]],
+            ],
+        ],
+        // ── A RODADA NOVA ───────────────────────────────────────────
+        //
+        // Seis cartas que não existiam. O catálogo tinha dezoito e já estava
+        // repetido pra quem joga há tempo: estas cobrem o que faltava — o
+        // contrato acabando, a vaga que abre por acidente, o garoto que vem
+        // te empurrar, o gancho, a turnê e o corpo que pede pra recuar.
+        [
+            'id' => 'renovacao', 'peso' => 9,
+            'titulo' => 'A renovação',
+            'texto'  => 'Seu contrato termina no fim da temporada. A diretoria põe uma renovação na mesa antes de o mercado abrir.',
+            'cartas' => [
+                ['rotulo' => 'Assinar agora', 'efeitos' => [
+                    ['chance' => 60, 'ovr' => +2, 'jogos' => +6, 'texto' => 'O clube te põe no centro do projeto'],
+                    ['chance' => 40, 'jogos' => -8, 'texto' => 'Assina e perde espaço mesmo assim'],
+                ]],
+                ['rotulo' => 'Deixar o contrato correr', 'efeitos' => [
+                    ['chance' => 45, 'mercado' => 1, 'texto' => 'O mercado vem atrás'],
+                    ['chance' => 35, 'queima' => 1, 'jogos' => -10, 'texto' => 'A diretoria te tira do time'],
+                    ['chance' => 20, 'ovr' => +1, 'texto' => 'Você joga solto, sem amarras'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'pre_temporada', 'peso' => 7,
+            'titulo' => 'A turnê de pré-temporada',
+            'texto'  => 'O clube vendeu uma turnê de amistosos do outro lado do mundo: três semanas de avião, hotel e patrocinador.',
+            'cartas' => [
+                ['rotulo' => 'Fazer a turnê inteira', 'efeitos' => [
+                    ['chance' => 52, 'jogos' => +6, 'texto' => 'O treinador passa a contar com você'],
+                    ['chance' => 48, 'ovr' => -1, 'dur' => -0.15, 'texto' => 'Começa o ano já cansado'],
+                ]],
+                ['rotulo' => 'Ficar treinando no clube', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +3, 'texto' => 'Pré-temporada cheia'],
+                    ['chance' => 45, 'jogos' => -8, 'texto' => 'A diretoria não perdoa a ausência'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'lesao_do_titular', 'peso' => 11,
+            'titulo' => 'A vaga que abriu',
+            'texto'  => 'O titular da sua posição se machucou na terceira rodada. O treinador olha pro banco e o clube não vai buscar ninguém.',
+            'cartas' => [
+                ['rotulo' => 'Assumir a vaga', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +4, 'jogos' => +10, 'texto' => 'Você não devolve a camisa'],
+                    ['chance' => 45, 'ovr' => -2, 'jogos' => -6, 'texto' => 'A pressão pesa cedo demais'],
+                ]],
+                ['rotulo' => 'Ir entrando aos poucos', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => +1, 'jogos' => +4, 'texto' => 'Ganha minutos sem queimar etapa'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'cria_da_base', 'peso' => 8,
+            'titulo' => 'O garoto da base',
+            'texto'  => 'Subiu um moleque da base pra sua posição. O clube inteiro fala dele, e o treinador quer os dois no mesmo treino.',
+            'cartas' => [
+                ['rotulo' => 'Ajudar o garoto', 'efeitos' => [
+                    ['chance' => 58, 'ovr' => +2, 'texto' => 'O vestiário passa a ser seu'],
+                    ['chance' => 42, 'jogos' => -10, 'texto' => 'Ele te tira o lugar'],
+                ]],
+                ['rotulo' => 'Disputar cada bola com ele', 'efeitos' => [
+                    ['chance' => 52, 'ovr' => +1, 'jogos' => +8, 'texto' => 'Você segura a posição'],
+                    ['chance' => 48, 'ovr' => -2, 'queima' => 1, 'texto' => 'O clube escolhe o futuro'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'expulsao', 'peso' => 7,
+            'titulo' => 'O vermelho na decisão',
+            'texto'  => 'Você foi expulso na decisão, e a súmula descreve a entrada de um jeito que pode virar gancho longo.',
+            'cartas' => [
+                ['rotulo' => 'Recorrer no tribunal', 'efeitos' => [
+                    ['chance' => 48, 'jogos' => +4, 'texto' => 'Pena reduzida a um jogo'],
+                    ['chance' => 52, 'ovr' => -1, 'jogos' => -10, 'texto' => 'O tribunal aumenta o gancho'],
+                ]],
+                ['rotulo' => 'Cumprir calado', 'efeitos' => [
+                    ['chance' => 100, 'jogos' => -6, 'texto' => 'Três jogos de fora'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'mudar_posicao', 'peso' => 9,
+            'titulo' => 'Recuar no campo',
+            'texto'  => 'O treinador acha que suas pernas não seguram mais a função de sempre, e propõe te recuar alguns metros.',
+            'cartas' => [
+                ['rotulo' => 'Aceitar a nova função', 'efeitos' => [
+                    ['chance' => 56, 'pico' => +2, 'dur' => +0.15, 'jogos' => +6, 'texto' => 'Reinventado mais atrás'],
+                    ['chance' => 44, 'ovr' => -3, 'texto' => 'Nunca se acha na posição'],
+                ]],
+                ['rotulo' => 'Seguir onde sempre joguei', 'efeitos' => [
+                    ['chance' => 50, 'ovr' => +1, 'texto' => 'Ainda dá conta'],
+                    ['chance' => 50, 'jogos' => -10, 'texto' => 'Perde espaço pro mais novo'],
                 ]],
             ],
         ],

@@ -2991,10 +2991,32 @@ function ofertas(quantos, exceto, soDeCasa){
   const pisoLiga = (veterano || declinio) ? pres - 26 : pres - 8;
   const podeSair = !atual || atual.nivel === 1 || S.ovr >= 76;
 
+  // AOS 90, O MUNDO INTEIRO É PEQUENO — MENOS UMA DÚZIA DE CLUBES.
+  //
+  // Quem é 90+ está entre os melhores do planeta, e clube médio não sonha com
+  // ele: nessa faixa quem liga é Real, City, Bayern, Liverpool — não o meio da
+  // Eredivisie. A régua de força já apertava sozinha (aos 90 o piso é 86), só
+  // que ela mede o CLUBE e não o palco: sobrava time de 88 numa liga pequena
+  // mandando proposta pro melhor jogador do mundo, e a janela de mercado do
+  // auge virava uma lista de nomes que ninguém nessa altura consideraria.
+  //
+  // O corte é força 88 E Europa: são 24 clubes, o bastante pra proposta não
+  // repetir sempre os mesmos quatro. Não vale em declínio nem dos 35 em
+  // diante, porque aí os finais de carreira que o futebol tem de verdade —
+  // liga tardia, volta pra casa, aposentadoria — precisam abrir, e gigante já
+  // não vem por regra própria (ver o corte de `c.forca >= 86` abaixo).
+  const soGigantes = S.ovr >= 90 && S.idade < 35 && !declinio;
+  const gigante = (c) => {
+    const l = dadosLiga(c.liga);
+    return !!l && l.cont === 'EUR' && c.forca >= 88;
+  };
+
   const cabe = (c) => {
     if (fora.has(c.nome) || c.forca > teto || c.forca < piso) return false;
     const l = dadosLiga(c.liga);
     if (!l) return false;
+
+    if (soGigantes && !gigante(c)) return false;
 
     if (LIGAS_TARDIAS.has(c.liga) && l.pais !== S.pais && !veterano && !declinio) return false;
     if (l.media > tetoLiga || l.media < pisoLiga) return false;
@@ -3159,7 +3181,8 @@ function ofertas(quantos, exceto, soDeCasa){
       && Math.random() < 0.30 * (S.talento || 1)) {
     const gigantes = CLUBES.filter(c => {
       const l = dadosLiga(c.liga);
-      return l && l.nivel === 1 && c.forca >= 86 && !fora.has(c.nome);
+      return l && l.nivel === 1 && c.forca >= 86 && !fora.has(c.nome)
+             && (!soGigantes || gigante(c));
     });
     if (gigantes.length) {
       saida[0] = Object.assign({}, gigantes[Math.floor(Math.random() * gigantes.length)],
@@ -3178,8 +3201,14 @@ function ofertas(quantos, exceto, soDeCasa){
   // O berço vem pelo NOME e é procurado no catálogo agora: ele pode ter
   // subido ou caído de divisão desde que você saiu, e voltar pra um clube
   // que mudou de vida é justamente a graça da coisa.
+  //
+  // Não vale enquanto `soGigantes` estiver ligado: aos 31 a volta já pode
+  // cair, e ela entrava POR CIMA da última oferta, trocando um gigante por um
+  // clube da terra — que é o "time menor" chegando pela porta dos fundos,
+  // depois de o filtro ter feito o trabalho dele. Quem ainda é 90 no auge não
+  // está no fim de nada; quando cair de nível ou passar dos 35, a porta abre.
   let voltou = false;
-  if (atual && saida.length && (S.idade >= 31 || declinio) && Math.random() < 0.30) {
+  if (atual && !soGigantes && saida.length && (S.idade >= 31 || declinio) && Math.random() < 0.30) {
     const berco = S.formador && S.formador !== S.clube.nome && !fora.has(S.formador)
       ? CLUBES.find(c => c.nome === S.formador) : null;
     let volta = berco;
@@ -3209,7 +3238,7 @@ function ofertas(quantos, exceto, soDeCasa){
   // aparece de vez em quando. Aceitar custa caro — quase sempre é trocar a
   // Europa por uma liga menor — e é isso que faz dos cinco continentes a
   // coisa mais rara do jogo.
-  if (atual && !voltou && S.ovr >= 78 && Math.random() < 0.16) {
+  if (atual && !voltou && !soGigantes && S.ovr >= 78 && Math.random() < 0.16) {
     const visitados = new Set((S.temporadas || []).map(x => {
       const d = dadosLiga(x.liga); return d && d.cont;
     }));
@@ -3372,6 +3401,21 @@ function eventoDaVez(){
     selecao_briga:   () => S.idade >= 22 && !(S.semSelecao > 0) && convocado(S.ovr, S.pais),
     investigacao:    () => S.idade >= 21 && (S.clube || {}).forca <= 78,
     fiscal:          () => S.idade >= 25 && valorAtual() >= 8000000,
+
+    // ── As cartas novas ──────────────────────────────────────────────
+    // Renovação pede contrato pra vencer: só faz sentido com raiz no clube.
+    renovacao:        () => S.idade >= 21 && anosNoClube() >= 2,
+    // Turnê é coisa de clube que vende camisa fora do país.
+    pre_temporada:    () => S.idade >= 19 && (S.clube || {}).forca >= 74,
+    // A vaga que abre é carta de quem ainda está atrás na fila: jovem, e num
+    // clube maior do que ele. Pra quem já é titular não existe vaga abrindo.
+    lesao_do_titular: () => S.idade <= 24 && !!S.clube && S.ovr < S.clube.forca,
+    // O garoto da base é o outro lado da mesma moeda, dez anos depois.
+    cria_da_base:     () => S.idade >= 28 && S.ovr >= 72,
+    expulsao:         () => S.idade >= 19,
+    // Recuar de posição é decisão de quem sente as pernas — e só vale a pena
+    // pra quem ainda tem carreira pela frente pra esticar.
+    mudar_posicao:    () => S.idade >= 29 && S.ovr >= 70,
   };
   const possiveis = EVENTOS.filter(e => (cabe[e.id] || (()=>true))());
   if (!possiveis.length) return null;
