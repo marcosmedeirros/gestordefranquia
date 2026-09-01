@@ -403,6 +403,9 @@ function wcAjuda(): string
         . "/pontuacao — quanto vale cada conquista na temporada\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
+        // Ao lado das apostas da organização porque é a mesma pergunta vista
+        // do outro lado: ali a liga é a casa, aqui é um GM qualquer.
+        . "/eventos — os eventos abertos e as odds (aceita a _categoria_)\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -3316,6 +3319,13 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'resultadoapostas':
                 require_once __DIR__ . '/../backend/apostas.php';
                 return apostasTextoResultados($pdo, 10);
+
+            // Os eventos abertos, com as odds de agora. Sem argumento vem
+            // tudo; com um, filtra a categoria (/eventos futebol).
+            case 'eventos':
+            case 'evento':
+                require_once __DIR__ . '/../games/core/enquetes_motor.php';
+                return enqTextoBot($pdo, trim($arg));
 
             // A Copa do Mundo do Games. Sem argumento mostra a copa em
             // andamento; com um número, aquela copa — pra conferir uma

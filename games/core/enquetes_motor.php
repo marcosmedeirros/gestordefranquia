@@ -88,6 +88,15 @@ const ENQ_LASTRO         = 600;
 const ENQ_CATEGORIAS = ['Basquete', 'Futebol', 'Cinema', 'Outros'];
 
 /**
+ * O link da aba, pras mensagens do bot.
+ *
+ * Domínio fixo porque a mensagem sai do WhatsApp, onde não há requisição de
+ * onde tirar o host. `?aba=eventos` é o slug de hoje; `banca` ainda abre,
+ * mas mandar o antigo pro grupo seria fixar o nome errado.
+ */
+const ENQ_LINK = 'https://fbabrasil.com.br/games.php?aba=eventos';
+
+/**
  * Lê o prazo que veio da tela.
  *
  * O <input type="datetime-local"> manda "2026-09-05T18:30", sem segundos e
@@ -654,4 +663,94 @@ function enqCancelar(PDO $pdo, int $uid, int $enqId, bool $ehAdmin = false): arr
         error_log('[enquetes] cancelar: ' . $e->getMessage());
         return $erro('Não deu pra cancelar.');
     }
+}
+
+/**
+ * OS EVENTOS ABERTOS, pro grupo do WhatsApp (/eventos).
+ *
+ * Só os que ainda aceitam aposta: o histórico está no site, e uma lista de
+ * coisas já resolvidas no meio da conversa é rolagem sem uso. Agrupa por
+ * categoria como a tela, porque a mesma pergunta ("tem alguma de futebol?")
+ * é a que traz a pessoa aqui.
+ *
+ * Sem argumento sai tudo; com um, filtra pela categoria — /eventos futebol.
+ *
+ * @param string $filtro categoria pedida, ou vazio
+ */
+function enqTextoBot(PDO $pdo, string $filtro = ''): string
+{
+    enqTabelas($pdo);
+
+    $cat = trim($filtro) !== '' ? enqCategoria($filtro) : '';
+    // enqCategoria devolve "Outros" pra qualquer coisa que não conheça, e
+    // isso faria "/eventos xpto" listar os sem categoria como se fosse o que
+    // a pessoa pediu. Só filtra quando o termo bate mesmo com uma delas.
+    if ($cat !== '' && mb_strtolower($cat) !== mb_strtolower(trim($filtro))) {
+        return 'Não conheço a categoria *' . trim($filtro) . '*. As que existem: '
+             . implode(', ', ENQ_CATEGORIAS) . '.';
+    }
+
+    $sql = "SELECT e.*, g.nome AS criador_nome
+            FROM enquetes e LEFT JOIN games_usuarios g ON g.id = e.criador_id
+            WHERE e.status = 'aberta'";
+    $par = [];
+    if ($cat !== '') { $sql .= " AND e.categoria = ?"; $par[] = $cat; }
+    $sql .= " ORDER BY e.categoria IS NULL, e.categoria, e.id DESC LIMIT 30";
+
+    $st = $pdo->prepare($sql);
+    $st->execute($par);
+    $lista = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$lista) {
+        return $cat !== ''
+            ? "Nenhum evento aberto em *{$cat}* agora."
+            : "Nenhum evento aberto agora.\nQualquer um pode criar o seu: "
+              . ENQ_LINK;
+    }
+
+    $l = ['🎲 *EVENTOS ABERTOS*' . ($cat !== '' ? " · {$cat}" : ''), ''];
+    $grupo = null;
+
+    foreach ($lista as $e) {
+        // Com filtro, a categoria já está no título — repetir em cada seção
+        // era dizer "Futebol" duas vezes numa lista só de futebol.
+        $c = $e['categoria'] ?: 'Outros';
+        if ($cat === '' && $c !== $grupo) { $grupo = $c; $l[] = '*' . mb_strtoupper($c) . '*'; }
+
+        $sa = $pdo->prepare("SELECT * FROM enquete_alternativas WHERE enquete_id = ? ORDER BY ordem, id");
+        $sa->execute([(int)$e['id']]);
+        $alts  = $sa->fetchAll(PDO::FETCH_ASSOC);
+        $somas = enqSomas($pdo, (int)$e['id']);
+        $odds  = enqOddsAtuais($alts, $somas);
+
+        $l[] = '▪️ ' . $e['titulo'];
+        // As odds em uma linha só: com quatro opções, uma por linha faria
+        // trinta eventos virarem uma parede de texto.
+        $l[] = '   ' . implode('  ·  ', array_map(
+            fn($a) => $a['texto'] . ' *' . number_format($odds[(int)$a['id']] ?? (float)$a['odd_inicial'], 2) . '*',
+            $alts));
+
+        $rodape = 'banca: ' . ($e['criador_nome'] ?: '?');
+        if ($somas['total'] > 0) $rodape .= ' · ' . $somas['total'] . ' apostados';
+        if (!empty($e['fecha_em'])) {
+            $falta = strtotime($e['fecha_em']) - time();
+            $rodape .= ' · fecha ' . ($falta > 0 ? enqDaquiA($falta) : 'já');
+        }
+        $l[] = '   _' . $rodape . '_';
+        $l[] = '';
+    }
+
+    $l[] = '_A odd trava no clique: é a que você recebe, mesmo que ela mude depois._';
+    $l[] = '';
+    $l[] = '👉 ' . ENQ_LINK;
+    return implode("\n", $l);
+}
+
+/** "em 2h", "em 3 dias" — o quanto falta, sem data por extenso. */
+function enqDaquiA(int $segundos): string
+{
+    if ($segundos < 3600)   return 'em ' . max(1, (int)round($segundos / 60)) . 'min';
+    if ($segundos < 86400)  return 'em ' . (int)round($segundos / 3600) . 'h';
+    $dias = (int)round($segundos / 86400);
+    return 'em ' . $dias . ($dias === 1 ? ' dia' : ' dias');
 }
