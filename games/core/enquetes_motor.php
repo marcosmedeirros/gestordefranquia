@@ -49,7 +49,14 @@ const ENQ_TAXA_CASA      = 5;      // % sobre o LUCRO do criador, só quando ele
 const ENQ_ODD_MIN        = 1.10;   // abaixo disso é tomar dinheiro de quem aposta
 const ENQ_ODD_MAX        = 10.00;  // acima disso uma aposta pequena quebra o criador
 const ENQ_ALT_MIN        = 2;
-const ENQ_ALT_MAX        = 6;
+/**
+ * Quatro, não seis.
+ *
+ * Com 5 ou mais alternativas iguais, a PRIMEIRA aposta já joga todas as
+ * outras em 10.00 — colam no teto e param de responder ao dinheiro que
+ * entra depois. Com 4, o pior caso chega a 8.89 e a mesa continua viva.
+ */
+const ENQ_ALT_MAX        = 4;
 const ENQ_APOSTA_MIN     = 10;
 const ENQ_DIAS_MAX       = 30;     // enquete não segura moeda retida pra sempre
 /**
@@ -60,6 +67,15 @@ const ENQ_DIAS_MAX       = 30;     // enquete não segura moeda retida pra sempr
  * seguinte, que confunde quem está decidindo.
  */
 const ENQ_SENSIBILIDADE  = 0.55;
+/**
+ * O lastro: a partir de quantas moedas o fluxo merece ser levado a sério.
+ *
+ * Sem isso o motor lê só PROPORÇÃO, e a primeira aposta da enquete — de
+ * dez moedas ou de dez mil — leva a odd direto pro extremo, porque com uma
+ * aposta só a proporção é 100%. Com o lastro, o fluxo pesa
+ * total/(total+lastro): dez moedas quase não mexem, mil mexem de verdade.
+ */
+const ENQ_LASTRO         = 400;
 
 function enqTabelas(PDO $pdo): void
 {
@@ -224,7 +240,9 @@ function enqOddsAtuais(array $alternativas, array $somas): array
         if ($total <= 0) { $out[$id] = round(1 / ($base * $somaIni), 2); continue; }
 
         $fluxo = ($somas['porAlt'][$id] ?? 0) / $total;      // 0..1
-        $nova  = $base + ENQ_SENSIBILIDADE * ($fluxo - $base);
+        // Quanto vale a opinião desse fluxo: pouco dinheiro, pouco peso.
+        $peso  = $total / ($total + ENQ_LASTRO);
+        $nova  = $base + ENQ_SENSIBILIDADE * $peso * ($fluxo - $base);
         $nova  = max(0.02, min(0.95, $nova));
         // De volta pra odd, mantendo a margem que o criador embutiu.
         $odd = (1 / $nova) * (1 / $somaIni);

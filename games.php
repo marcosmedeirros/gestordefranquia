@@ -670,7 +670,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .saldo-lbl { font-size:10.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-3); margin-top:2px; }
 
     /* abas */
-    .g-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:26px; }
+    /* Com seis abas elas não cabem num celular. Rolam dentro da própria fita
+       em vez de empurrar a página inteira pro lado. */
+    .g-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:26px;
+              overflow-x:auto; scrollbar-width:none; }
+    .g-tabs::-webkit-scrollbar { display:none; }
+    .g-tabs .g-tab { flex:0 0 auto; }
     .g-tab { display:flex; align-items:center; gap:8px; padding:12px 24px; font-size:13px; font-weight:600;
              color:var(--text-2); cursor:pointer; border:none; background:none; position:relative;
              font-family:var(--font); transition:color var(--t) var(--ease); }
@@ -1157,7 +1162,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
             <button class="g-tab <?= $abaInicial === 'banca' ? 'active' : '' ?>" data-aba="banca" onclick="trocarAba('banca')">
-                <i class="bi bi-cash-stack"></i> Banca
+                <i class="bi bi-cash-stack"></i> Bicho
             </button>
         </div>
 

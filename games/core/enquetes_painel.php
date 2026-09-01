@@ -47,8 +47,13 @@
 .eq-btn.eq-mal{color:var(--vermelho);border-color:rgba(239,68,68,.4)}
 .eq-btn:disabled{opacity:.45;cursor:not-allowed}
 
+/* Cada aposta é um card na grade; no celular a grade vira uma coluna só.
+   `align-items:start` impede que um card alto estique os vizinhos. */
+.eq-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
+  gap:13px;align-items:start}
+@media(max-width:700px){ .eq-grade{grid-template-columns:1fr} }
 .eq-card{background:var(--panel);border:1px solid var(--borda);border-radius:15px;
-  padding:16px 17px;margin-bottom:13px}
+  padding:16px 17px}
 .eq-card.eq-minha{border-color:rgba(59,130,246,.35)}
 .eq-card.eq-paga{opacity:.72}
 .eq-ch{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:4px}
@@ -92,6 +97,13 @@
 .eq-linha-dono{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;
   padding-top:12px;border-top:1px solid var(--borda)}
 .eq-vazio{color:var(--text3);font-size:13px;padding:26px 0;text-align:center}
+/* O encerrado fica no fim, atrás de uma busca: o que importa na chegada é
+   o que ainda dá pra apostar. */
+.eq-fim{margin-top:30px;padding-top:22px;border-top:1px solid var(--borda)}
+.eq-fim-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+#pane-banca .eq-fim-topo h2{font-size:14px;font-weight:800;letter-spacing:-.2px}
+#pane-banca .eq-busca{max-width:260px;margin-left:auto;font-size:13px}
+.eq-cont{font-size:11.5px;color:var(--text3);font-weight:700}
 
 .eq-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
   align-items:center;justify-content:center;padding:16px;z-index:50}
@@ -120,29 +132,42 @@
   <div class="eq-topo">
     <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
              onde se veio está logo acima. */ ?>
-    <h1>Enquetes</h1>
+    <h1>Bicho</h1>
     <?php /* Criar é só do admin; o botão nasce escondido e a listagem o
              revela pra quem pode (DADOS.admin). A API barra de qualquer
              jeito — o botão é só pra não oferecer o que vai ser negado. */ ?>
     <button class="eq-btn eq-pri" id="btnCriar" hidden style="margin-left:auto" onclick="abrirCriar()">
-      <i class="bi bi-plus-lg"></i> Criar enquete
+      <i class="bi bi-plus-lg"></i> Criar aposta
     </button>
   </div>
   <p class="eq-lead">
     Quem cria banca: define as alternativas e as odds, e responde com o próprio saldo.
     Acertou quem apostou, o criador paga; errou, o dinheiro é dele.
-    Enquanto a enquete está aberta, o pior resultado possível fica <b>retido</b> no saldo de quem criou —
+    Enquanto a aposta está aberta, o pior resultado possível fica <b>retido</b> no saldo de quem criou —
     é isso que garante que ninguém fique devendo.
   </p>
 
   <div class="eq-saldos" id="saldos"></div>
-  <div id="lista"><p class="eq-vazio">Carregando…</p></div>
+  <div id="lista" class="eq-grade"><p class="eq-vazio">Carregando…</p></div>
+
+  <?php /* As encerradas (pagas ou canceladas) não competem com as abertas por
+           atenção: descem pro fim e ganham uma busca, porque com o tempo elas
+           passam a ser muitas e o que se quer ali é achar uma específica. */ ?>
+  <div class="eq-fim" id="blocoFim" hidden>
+    <div class="eq-fim-topo">
+      <h2>Apostas encerradas</h2>
+      <span class="eq-cont" id="contFim"></span>
+      <input class="eq-busca" id="buscaFim" type="search" placeholder="Buscar por pergunta ou banca…"
+             oninput="pintarEncerradas()">
+    </div>
+    <div id="listaFim" class="eq-grade"></div>
+  </div>
 </div>
 
 <!-- Criar -->
 <div class="eq-modal" id="mCriar">
   <div class="eq-mbox">
-    <h3>Nova enquete</h3>
+    <h3>Nova aposta</h3>
     <p class="eq-aj">Você vira a casa desta aposta. Escolha odds que consiga pagar:
       quanto maior a odd, mais fica retido do seu saldo.</p>
 
@@ -177,7 +202,7 @@
 <script>
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const n = v => Number(v || 0).toLocaleString('pt-BR');
-let DADOS = null, alvo = null;
+let DADOS = null, alvo = null, ENCERRADAS = [];
 
 async function api(acao, corpo, metodo) {
   const r = await fetch('/api/enquetes.php?acao=' + acao, {
@@ -201,12 +226,36 @@ async function carregar() {
   document.getElementById('saldos').innerHTML = `
     <div class="eq-saldo"><b>${n(d.saldo)}</b><span>suas moedas</span></div>
     <div class="eq-saldo"><b>${n(d.livre)}</b><span>livres pra bancar</span></div>
-    ${d.retido ? `<div class="eq-saldo"><b style="color:var(--amber)">${n(d.retido)}</b><span>retido em enquetes</span></div>` : ''}`;
+    ${d.retido ? `<div class="eq-saldo"><b style="color:var(--amber)">${n(d.retido)}</b><span>retido em apostas</span></div>` : ''}`;
 
+  // Em cima o que ainda aceita aposta; embaixo, o histórico.
   const lista = d.enquetes || [];
-  document.getElementById('lista').innerHTML = lista.length
-    ? lista.map(card).join('')
-    : '<p class="eq-vazio">Nenhuma enquete ainda. Crie a primeira.</p>';
+  const vivas = lista.filter(e => e.status === 'aberta');
+  ENCERRADAS = lista.filter(e => e.status !== 'aberta');
+
+  document.getElementById('lista').innerHTML = vivas.length
+    ? vivas.map(card).join('')
+    : `<p class="eq-vazio">${lista.length ? 'Nenhuma aposta aberta agora.' : 'Nenhuma aposta ainda.'}</p>`;
+  pintarEncerradas();
+}
+
+/** O histórico do fim da página, filtrado pelo que a pessoa digitou. */
+function pintarEncerradas() {
+  const bloco = document.getElementById('blocoFim');
+  if (!bloco) return;
+  bloco.hidden = !ENCERRADAS.length;
+  if (!ENCERRADAS.length) return;
+
+  const q = (document.getElementById('buscaFim')?.value || '').trim().toLowerCase();
+  const achadas = q
+    ? ENCERRADAS.filter(e => `${e.titulo} ${e.descricao || ''} ${e.criador}`.toLowerCase().includes(q))
+    : ENCERRADAS;
+
+  document.getElementById('contFim').textContent =
+    q ? `${achadas.length} de ${ENCERRADAS.length}` : `${ENCERRADAS.length} no total`;
+  document.getElementById('listaFim').innerHTML = achadas.length
+    ? achadas.map(card).join('')
+    : '<p class="eq-vazio">Nenhuma aposta encerrada com esse termo.</p>';
 }
 
 function card(e) {
@@ -253,7 +302,7 @@ function card(e) {
     </div>
     ${aberta && e.sou_dono ? `
       <div class="eq-nota-dono">
-        Você banca esta enquete — quem aposta são os outros. O resultado você declara aqui embaixo.
+        Você banca esta aposta — quem aposta são os outros. O resultado você declara aqui embaixo.
       </div>` : ''}
     ${(e.sou_dono || DADOS.admin) && e.status === 'aberta' ? `
       <div class="eq-linha-dono">
@@ -274,7 +323,7 @@ function card(e) {
 /* ── Criar ─────────────────────────────────────────────────────────── */
 function addAlt(texto, odd) {
   const box = document.getElementById('cAlts');
-  if (box.children.length >= (DADOS?.limites?.alt_max || 6)) return;
+  if (box.children.length >= (DADOS?.limites?.alt_max || 4)) return;
   const d = document.createElement('div');
   d.className = 'eq-alt-linha';
   d.innerHTML = `<input class="cAltTxt" maxlength="120" placeholder="Alternativa" value="${esc(texto || '')}">
