@@ -65,6 +65,7 @@ function enqMontar(PDO $pdo, array $e, int $uid): array
         'id'         => (int)$e['id'],
         'titulo'     => $e['titulo'],
         'descricao'  => $e['descricao'],
+        'categoria'  => $e['categoria'] ?: '',
         'status'     => $e['status'],
         'criador'    => $e['criador_nome'] ?? '',
         'criador_id' => (int)$e['criador_id'],

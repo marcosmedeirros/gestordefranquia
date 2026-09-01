@@ -101,6 +101,12 @@ function enqTabelas(PDO $pdo): void
         KEY idx_enq_criador (criador_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    /* A categoria entrou depois. Aposta antiga fica sem, e cai no grupo
+       "Outras" — que é exatamente onde ela estava antes de haver grupos. */
+    try {
+        $pdo->exec("ALTER TABLE enquetes ADD COLUMN categoria VARCHAR(40) NULL AFTER descricao");
+    } catch (Throwable $e) { /* já existe */ }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS enquete_alternativas (
         id          INT AUTO_INCREMENT PRIMARY KEY,
         enquete_id  INT NOT NULL,
@@ -327,9 +333,11 @@ function enqCriar(PDO $pdo, int $uid, array $dados): array
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare("INSERT INTO enquetes (criador_id, titulo, descricao, max_por_pessoa, max_total, fecha_em)
-                       VALUES (?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? DAY))")
+        $pdo->prepare("INSERT INTO enquetes
+                        (criador_id, titulo, descricao, categoria, max_por_pessoa, max_total, fecha_em)
+                       VALUES (?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? DAY))")
             ->execute([$uid, $titulo, mb_substr(trim((string)($dados['descricao'] ?? '')), 0, 400) ?: null,
+                       mb_substr(trim((string)($dados['categoria'] ?? '')), 0, 40) ?: null,
                        $maxPessoa, $maxTotal, $dias]);
         $id = (int)$pdo->lastInsertId();
 
@@ -454,8 +462,17 @@ function enqFechar(PDO $pdo, int $uid, int $enqId, int $altVencedora, bool $ehAd
     if (!$enq)                       return $erro('Enquete não encontrada.');
     if ($enq['status'] === 'paga')   return $erro('Esta enquete já foi paga.');
     if ($enq['status'] === 'cancelada') return $erro('Esta enquete foi cancelada.');
-    if ((int)$enq['criador_id'] !== $uid && !$ehAdmin) {
-        return $erro('Só quem banca a enquete pode declarar o resultado.');
+    /*
+     * DECLARAR O RESULTADO É SÓ DO DONO — o admin geral também não pode.
+     *
+     * Quem banca responde pelo resultado com o próprio saldo; um terceiro
+     * declarando decide o destino de moeda alheia, e o dono descobre depois.
+     * O $ehAdmin fica no parâmetro porque enqCancelar ainda precisa dele: o
+     * "reverter pagamento" do admin passa por lá, e é conserto de erro, não
+     * decisão sobre quem ganhou.
+     */
+    if ((int)$enq['criador_id'] !== $uid) {
+        return $erro('Só quem banca a aposta declara o resultado.');
     }
 
     $sa = $pdo->prepare("SELECT * FROM enquete_alternativas WHERE enquete_id = ? ORDER BY ordem, id");

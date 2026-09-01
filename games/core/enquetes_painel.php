@@ -47,11 +47,64 @@
 .eq-btn.eq-mal{color:var(--vermelho);border-color:rgba(239,68,68,.4)}
 .eq-btn:disabled{opacity:.45;cursor:not-allowed}
 
-/* Cada aposta é um card na grade; no celular a grade vira uma coluna só.
-   `align-items:start` impede que um card alto estique os vizinhos. */
-.eq-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
-  gap:13px;align-items:start}
-@media(max-width:700px){ .eq-grade{grid-template-columns:1fr} }
+/* ── A MESA: uma aposta por linha, odds em coluna ─────────────────────
+ *
+ * O formato de casa de aposta, que só cabe aqui porque o teto de 4
+ * alternativas dá às colunas uma largura previsível. A grade de cards
+ * ficou pro que não é linha (o detalhe de uma encerrada, por exemplo).
+ */
+.eq-grade{display:flex;flex-direction:column;gap:18px}
+
+.eq-grupo{border:1px solid var(--borda);border-radius:13px;overflow:hidden}
+.eq-grupo-h{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:rgba(34,197,94,.13);border-bottom:1px solid var(--borda);
+  padding:9px 14px;font-size:12px;font-weight:900;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--verde)}
+.eq-grupo-n{font-size:10.5px;font-weight:800;color:var(--text3);
+  background:var(--panel);border-radius:99px;padding:2px 8px}
+
+.eq-mesa{border-bottom:1px solid var(--borda);background:var(--panel)}
+.eq-mesa:last-child{border-bottom:0}
+.eq-mesa.eq-minha{background:rgba(59,130,246,.05)}
+.eq-mesa-linha{display:flex;align-items:stretch;gap:12px;padding:11px 14px}
+.eq-mesa-t{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.eq-mesa-t b{font-size:13.5px;font-weight:800;letter-spacing:-.1px}
+.eq-mesa-t small{font-size:11px;color:var(--text3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Uma coluna por alternativa, todas do mesmo tamanho: é o alinhamento entre
+   linhas vizinhas que faz a odd ser comparável de bater o olho. */
+.eq-cols{display:grid;gap:6px;flex:0 0 auto;
+  grid-template-columns:repeat(var(--n,2),96px)}
+.eq-mesa[data-alts="3"] .eq-cols{--n:3}
+.eq-mesa[data-alts="4"] .eq-cols{--n:4}
+.eq-col{position:relative;overflow:hidden;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;
+  background:var(--panel2);border:1px solid var(--borda);border-radius:9px;
+  padding:8px 6px;color:var(--texto);font-family:var(--font);cursor:pointer;
+  transition:border-color .15s,background .15s}
+.eq-col:hover:not([disabled]){border-color:rgba(34,197,94,.5);background:var(--panel3)}
+.eq-col[disabled]{cursor:default;opacity:.75}
+.eq-col.eq-tem{border-color:rgba(59,130,246,.5)}
+.eq-col-t{position:relative;font-size:10.5px;font-weight:700;color:var(--text2);
+  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-col-o{position:relative;font-family:var(--num);font-size:16px;font-weight:900;color:var(--amber)}
+.eq-col-m{position:relative;font-size:9px;font-weight:700;color:var(--azul)}
+.eq-col-barra{position:absolute;left:0;bottom:0;height:2px;background:rgba(34,197,94,.5)}
+
+.eq-mesa-dono{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 14px;border-top:1px dashed var(--borda);font-size:11.5px;color:var(--text3)}
+#pane-banca .eq-mesa-dono select{width:auto;max-width:200px;font-size:12px;padding:7px 9px}
+.eq-retido{color:var(--amber);font-weight:800}
+.eq-box-alvo{font-size:11px;font-weight:800;color:var(--text2);margin-bottom:7px}
+
+@media(max-width:700px){
+  /* No celular a linha vira duas: o texto em cima, as odds embaixo, ocupando
+     a largura toda — 96px fixos por coluna não cabem em 390. */
+  .eq-mesa-linha{flex-direction:column;gap:9px}
+  .eq-cols{grid-template-columns:repeat(var(--n,2),1fr);width:100%}
+  .eq-mesa-t small{white-space:normal}
+}
 .eq-card{background:var(--panel);border:1px solid var(--borda);border-radius:15px;
   padding:16px 17px}
 .eq-card.eq-minha{border-color:rgba(59,130,246,.35)}
@@ -84,9 +137,9 @@
 .eq-odd small{display:block;font-size:8.5px;font-weight:800;color:var(--text3);
   letter-spacing:.5px;text-transform:uppercase;text-align:right}
 
-/* O formulário de aposta, embaixo da alternativa escolhida. */
-.eq-box{background:var(--panel3);border:1px solid rgba(34,197,94,.35);
-  border-radius:11px;padding:11px 12px;margin:-2px 0 3px}
+/* O formulário de aposta, embaixo da linha da aposta escolhida. */
+.eq-box{background:var(--panel3);border-top:1px solid rgba(34,197,94,.35);
+  padding:11px 14px}
 .eq-box-linha{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 #pane-banca .eq-box-linha input{width:110px;font-size:17px;font-weight:900;
   font-family:var(--num);text-align:center;padding:8px 10px}
@@ -203,6 +256,16 @@
     <label for="cDesc">Detalhe (opcional)</label>
     <input id="cDesc" maxlength="400" placeholder="Como o resultado vai ser decidido">
 
+    <?php /* Categoria com sugestões, mas escrita livre: a lista fechada
+             envelhece a cada assunto novo da liga, e o datalist dá o atalho
+             sem virar camisa de força. */ ?>
+    <label for="cCat">Categoria</label>
+    <input id="cCat" maxlength="40" list="eqCats" placeholder="Ex: ELITE, Draft, Prêmios">
+    <datalist id="eqCats">
+      <option value="ELITE"><option value="NEXT"><option value="RISE"><option value="ROOKIE">
+      <option value="Draft"><option value="Free Agency"><option value="Prêmios"><option value="Copa">
+    </datalist>
+
     <label>Alternativas e odds</label>
     <div id="cAlts"></div>
     <button class="eq-btn" style="padding:7px 11px;font-size:12px" onclick="addAlt()">
@@ -262,9 +325,10 @@ async function carregar() {
   pintarEncerradas();
 }
 
-/** O que a pessoa digitou, contra pergunta, detalhe e nome de quem banca. */
+/** O que a pessoa digitou, contra pergunta, detalhe, categoria e quem banca. */
 const combina = (e, q) =>
-  !q || `${e.titulo} ${e.descricao || ''} ${e.criador}`.toLowerCase().includes(q);
+  !q || `${e.titulo} ${e.descricao || ''} ${e.categoria || ''} ${e.criador}`
+        .toLowerCase().includes(q);
 
 function pintarAbertas() {
   // A busca só aparece quando há o bastante pra procurar dentro.
@@ -277,10 +341,101 @@ function pintarAbertas() {
   if (cont) cont.textContent = q ? `${achadas.length} de ${ABERTAS.length}` : `${ABERTAS.length} no total`;
 
   document.getElementById('lista').innerHTML = achadas.length
-    ? achadas.map(card).join('')
+    ? porCategoria(achadas)
     : `<p class="eq-vazio">${
         q ? 'Nenhuma aposta aberta com esse termo.'
           : (ENCERRADAS.length ? 'Nenhuma aposta aberta agora.' : 'Nenhuma aposta ainda.')}</p>`;
+}
+
+/**
+ * As apostas agrupadas, cada grupo com sua faixa de título.
+ *
+ * Os grupos saem na ordem em que a lista já vem — a aposta mais recente
+ * primeiro — e não em ordem alfabética: o assunto que acabou de ganhar
+ * aposta nova sobe, que é o que a pessoa veio ver. "Outras" é sempre a
+ * última: é o balde do que ninguém classificou, não um assunto.
+ */
+function porCategoria(lista) {
+  const grupos = new Map();
+  for (const e of lista) {
+    const cat = (e.categoria || '').trim() || 'Outras';
+    if (!grupos.has(cat)) grupos.set(cat, []);
+    grupos.get(cat).push(e);
+  }
+  const nomes = [...grupos.keys()].filter(c => c !== 'Outras');
+  if (grupos.has('Outras')) nomes.push('Outras');
+
+  return nomes.map(cat => `
+    <section class="eq-grupo">
+      <header class="eq-grupo-h">
+        <span>${esc(cat)}</span>
+        <span class="eq-grupo-n">${grupos.get(cat).length}</span>
+      </header>
+      ${grupos.get(cat).map(mesa).join('')}
+    </section>`).join('');
+}
+
+/**
+ * Uma aposta em uma linha: a pergunta à esquerda, as odds em colunas.
+ *
+ * É o formato de casa de aposta, e ele cabe aqui porque toda aposta tem de 2
+ * a 4 alternativas — o teto de 4 é o que permite as colunas terem largura
+ * fixa. Clicar numa odd abre o campo de valor embaixo da própria linha.
+ */
+function mesa(e) {
+  const total = e.apostado || 1;
+  const podeApostar = !e.sou_dono;
+
+  const colunas = e.alternativas.map(a => `
+    <button class="eq-col ${a.meu ? 'eq-tem' : ''}"
+            ${podeApostar ? `onclick="abrirAposta(${e.id},${a.id})"` : 'disabled'}
+            title="${esc(a.texto)}">
+      <span class="eq-col-t">${esc(a.texto)}</span>
+      <span class="eq-col-o">${Number(a.odd).toFixed(2)}</span>
+      ${a.meu ? `<span class="eq-col-m">você: ${n(a.meu)}</span>` : ''}
+      <span class="eq-col-barra" style="width:${Math.round((a.apostado / total) * 100)}%"></span>
+    </button>`).join('');
+
+  // Os campos de valor ficam FORA da grade de colunas: dentro, abrir um
+  // empurraria as odds vizinhas pro lado no meio da leitura.
+  const caixas = e.alternativas.map(a => `
+    <div class="eq-box" id="box_${e.id}_${a.id}" hidden>
+      <div class="eq-box-alvo">${esc(a.texto)} · odd ${Number(a.odd).toFixed(2)}</div>
+      <div class="eq-box-linha">
+        <input type="number" id="val_${e.id}_${a.id}" min="${DADOS.limites.aposta_min}"
+               max="${e.max_pessoa - e.meu_total}"
+               value="${Math.min(50, Math.max(DADOS.limites.aposta_min, e.max_pessoa - e.meu_total))}"
+               oninput="previa(${e.id},${a.id})">
+        <button class="eq-btn eq-pri" onclick="apostar(${e.id},${a.id})">Apostar</button>
+        <button class="eq-btn" onclick="fecharBox(${e.id},${a.id})">Cancelar</button>
+      </div>
+      <div class="eq-box-previa" id="prev_${e.id}_${a.id}"></div>
+    </div>`).join('');
+
+  return `
+  <div class="eq-mesa ${e.sou_dono ? 'eq-minha' : ''}" data-alts="${e.alternativas.length}">
+    <div class="eq-mesa-linha">
+      <div class="eq-mesa-t">
+        <b>${esc(e.titulo)}</b>
+        <small>${esc(e.criador)}${e.sou_dono ? ' (você)' : ''} · ${n(e.apostado)} de ${n(e.max_total)}
+          ${e.meu_total ? ` · você apostou ${n(e.meu_total)}` : ''}</small>
+        ${e.descricao ? `<small>${esc(e.descricao)}</small>` : ''}
+      </div>
+      <div class="eq-cols">${colunas}</div>
+    </div>
+    ${caixas}
+    ${e.sou_dono ? `
+      <div class="eq-mesa-dono">
+        <span>Você banca esta aposta — quem aposta são os outros.</span>
+        <select id="res_${e.id}">
+          <option value="">Declarar o resultado…</option>
+          ${e.alternativas.map(a => `<option value="${a.id}">${esc(a.texto)}</option>`).join('')}
+        </select>
+        <button class="eq-btn" onclick="fecharEnquete(${e.id})">Pagar</button>
+        <button class="eq-btn eq-mal" onclick="cancelar(${e.id})">Cancelar e devolver</button>
+        ${e.retido ? `<span class="eq-retido">${n(e.retido)} retido do seu saldo</span>` : ''}
+      </div>` : ''}
+  </div>`;
 }
 
 /** O histórico do fim da página, filtrado pelo que a pessoa digitou. */
@@ -309,7 +464,8 @@ function linha(e) {
   return `
   <button class="eq-li" onclick="alternarLinha(${e.id})" aria-expanded="false" id="li_${e.id}">
     <span class="eq-li-t">${esc(e.titulo)}
-      <small>${esc(e.criador)}${venceu ? ` · deu ${esc(venceu.texto)}` : ' · cancelada'}${meu ? ` · ${meu}` : ''}</small>
+      <small>${e.categoria ? `${esc(e.categoria)} · ` : ''}${esc(e.criador)}${
+        venceu ? ` · deu ${esc(venceu.texto)}` : ' · cancelada'}${meu ? ` · ${meu}` : ''}</small>
     </span>
     <span class="eq-li-v">${n(e.apostado)} apostado</span>
     <span class="eq-selo eq-${e.status}">${e.status}</span>
@@ -374,7 +530,12 @@ function card(e) {
       <div class="eq-nota-dono">
         Você banca esta aposta — quem aposta são os outros. O resultado você declara aqui embaixo.
       </div>` : ''}
-    ${(e.sou_dono || DADOS.admin) && e.status === 'aberta' ? `
+    <?php /* SÓ O DONO declara e cancela — nem o admin geral.
+             Quem banca é quem responde pelo resultado com o próprio saldo;
+             um terceiro declarando decide o destino de moeda alheia. O admin
+             continua com o "reverter pagamento" logo abaixo, que é conserto
+             de erro, não decisão sobre a aposta. */ ?>
+    ${e.sou_dono && e.status === 'aberta' ? `
       <div class="eq-linha-dono">
         <select id="res_${e.id}" style="max-width:230px">
           <option value="">Declarar o resultado…</option>
@@ -443,6 +604,7 @@ async function criar() {
   const r = await api('criar', {
     titulo: document.getElementById('cTitulo').value.trim(),
     descricao: document.getElementById('cDesc').value.trim(),
+    categoria: document.getElementById('cCat').value.trim(),
     alternativas: alts,
     max_por_pessoa: Number(document.getElementById('cPessoa').value),
     max_total: Number(document.getElementById('cTotal').value),
