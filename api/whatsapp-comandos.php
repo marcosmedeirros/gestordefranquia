@@ -2389,45 +2389,6 @@ function wcPlayoffsNaEdicao(PDO $pdo, int $teamId, ?int $sprintId): array
     return $out;
 }
 
-/**
- * OS DUELOS DIRETOS: quantas séries um ganhou do outro nesta edição.
- *
- * `playoff_results` diz onde cada time parou, mas não contra quem — pra saber
- * quem passou por quem é preciso `playoff_matches`, que guarda os dois lados e
- * o vencedor de cada série.
- *
- * Só a edição atual, como o resto do bloco: um 3 a 1 de quatro sprints atrás
- * não é o que se pergunta quando os dois vão se enfrentar agora.
- *
- * @return array{a:int,b:int,total:int}
- */
-function wcDuelosEntre(PDO $pdo, int $aId, int $bId, ?int $sprintId): array
-{
-    $out = ['a' => 0, 'b' => 0, 'total' => 0];
-    if (!$sprintId) return $out;
-
-    try {
-        $st = $pdo->prepare("
-            SELECT pm.winner_id
-            FROM playoff_matches pm
-            JOIN seasons s ON s.id = pm.season_id
-            WHERE s.sprint_id = ?
-              AND pm.winner_id IS NOT NULL
-              AND ((pm.team1_id = ? AND pm.team2_id = ?)
-                OR (pm.team1_id = ? AND pm.team2_id = ?))
-        ");
-        $st->execute([$sprintId, $aId, $bId, $bId, $aId]);
-        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $venc) {
-            if ((int)$venc === $aId) $out['a']++;
-            elseif ((int)$venc === $bId) $out['b']++;
-        }
-        $out['total'] = $out['a'] + $out['b'];
-    } catch (Throwable $e) {
-        error_log('[whatsapp-cmd] duelos: ' . $e->getMessage());
-    }
-    return $out;
-}
-
 /** Sprint (edição) atual da liga. */
 function wcSprintAtual(PDO $pdo, string $league): ?array
 {
@@ -2823,21 +2784,15 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     $pA = wcPlayoffsNaEdicao($pdo, (int)$a['id'], $spA ? (int)$spA['id'] : null);
     $pB = wcPlayoffsNaEdicao($pdo, (int)$b['id'], $spB ? (int)$spB['id'] : null);
 
-    /* QUANTAS SÉRIES UM GANHOU DO OUTRO NESTA EDIÇÃO.
-     *
-     * Da sprint em curso, somando TODAS as temporadas dela — é o recorte do
-     * bloco inteiro, e a sprint é justamente o que agrupa as temporadas de
-     * uma mesma era da liga. Enquanto a edição não tiver playoff, sai "nunca
-     * se enfrentaram", que é a resposta correta. */
-    $duelos = wcDuelosEntre($pdo, (int)$a['id'], (int)$b['id'],
-                            $spA ? (int)$spA['id'] : null);
-
+    /* Sem linha de "Confrontos" aqui: o bloco "Já se enfrentaram no playoff",
+       mais abaixo, já dá o placar em séries E a lista de cada uma, com
+       temporada, fase e resultado. Duas contagens da mesma coisa na mesma
+       mensagem, uma delas mais pobre, só criava a chance de se contradizerem
+       — e se contradiziam, porque esta recortava pela edição atual e aquela
+       olha o histórico inteiro. */
     $txt .= "\n🏆 *Na edição atual*\n"
           . $linha('Títulos', $forte($tA['titulos'], $tB['titulos']), $forte($tB['titulos'], $tA['titulos']))
           . $linha('Séries de playoff', $forte($pA['series'], $pB['series']), $forte($pB['series'], $pA['series']))
-          . ($duelos['total'] === 0
-              ? "Confrontos: nunca se enfrentaram\n"
-              : $linha('Confrontos', $forte($duelos['a'], $duelos['b']), $forte($duelos['b'], $duelos['a'])))
           . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi')
           /*
            * SÓ O TOTAL DE NEGOCIAÇÕES.
