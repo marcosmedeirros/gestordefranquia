@@ -1358,7 +1358,19 @@ function adminFaHistory(PDO $pdo): void
     $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
     $leagueFilter = isset($_GET['league']) ? trim($_GET['league']) : null;
 
-    $where = 'r.status = "assigned"';
+    /*
+     * SÓ A SPRINT EM ANDAMENTO.
+     *
+     * Sem este recorte o card somava as 746 contratações de todas as sprints
+     * já jogadas. Não dá pra separar por season_year: o ano se repete a cada
+     * sprint, então 2026 da sprint 1 e 2026 da sprint 2 caem no mesmo balde.
+     * O vínculo confiável é season_id -> seasons.sprint_id, e a subconsulta
+     * se amarra em r.league pra funcionar com o filtro em "todas as ligas".
+     */
+    $where = 'r.status = "assigned"'
+           . ' AND r.season_id IN (SELECT id FROM seasons WHERE sprint_id ='
+           . ' (SELECT id FROM sprints WHERE league = r.league AND status = "active"'
+           . '  ORDER BY id DESC LIMIT 1))';
     $params = [];
     if ($seasonFilter) {
         $where .= ' AND r.season_year = ?';
@@ -1382,7 +1394,15 @@ function adminFaHistory(PDO $pdo): void
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtS = $pdo->query('SELECT DISTINCT season_year FROM fa_requests WHERE status = "assigned" AND season_year IS NOT NULL ORDER BY season_year DESC');
+    // O seletor de temporada só oferece as que existem na sprint atual —
+    // senão ele lista anos que o filtro acima nunca vai devolver.
+    $stmtS = $pdo->query('
+        SELECT DISTINCT r.season_year FROM fa_requests r
+        WHERE r.status = "assigned" AND r.season_year IS NOT NULL
+          AND r.season_id IN (SELECT id FROM seasons WHERE sprint_id =
+              (SELECT id FROM sprints WHERE league = r.league AND status = "active"
+               ORDER BY id DESC LIMIT 1))
+        ORDER BY r.season_year DESC');
     $seasons = $stmtS->fetchAll(PDO::FETCH_COLUMN);
 
     jsonSuccess(['rows' => $rows, 'seasons' => $seasons]);
@@ -1952,7 +1972,15 @@ function getTeamFaWins(PDO $pdo, int $teamId): int
     }
 
     try {
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM fa_requests WHERE winner_team_id = ? AND status = "assigned"');
+        /* Só as desta sprint. Sem o recorte, este plano B contava a vida
+           inteira do time — 37 contratações num caso — e o limite de 3 da
+           FA barraria todo mundo pra sempre. */
+        $stmt = $pdo->prepare('
+            SELECT COUNT(*) FROM fa_requests r
+            WHERE r.winner_team_id = ? AND r.status = "assigned"
+              AND r.season_id IN (SELECT id FROM seasons WHERE sprint_id =
+                  (SELECT id FROM sprints WHERE league = r.league AND status = "active"
+                   ORDER BY id DESC LIMIT 1))');
         $stmt->execute([$teamId]);
         return (int)$stmt->fetchColumn();
     } catch (Exception $e) {
