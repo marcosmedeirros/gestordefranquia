@@ -79,6 +79,16 @@
 .eq-odd small{display:block;font-size:8.5px;font-weight:800;color:var(--text3);
   letter-spacing:.5px;text-transform:uppercase;text-align:right}
 
+/* O formulário de aposta, embaixo da alternativa escolhida. */
+.eq-box{background:var(--panel3);border:1px solid rgba(34,197,94,.35);
+  border-radius:11px;padding:11px 12px;margin:-2px 0 3px}
+.eq-box-linha{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+#pane-banca .eq-box-linha input{width:110px;font-size:17px;font-weight:900;
+  font-family:var(--num);text-align:center;padding:8px 10px}
+.eq-box-previa{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
+.eq-nota-dono{font-size:12px;color:var(--text3);margin-top:10px;
+  background:var(--panel2);border:1px solid var(--borda);border-radius:9px;padding:9px 11px}
+
 .eq-linha-dono{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;
   padding-top:12px;border-top:1px solid var(--borda)}
 .eq-vazio{color:var(--text3);font-size:13px;padding:26px 0;text-align:center}
@@ -111,7 +121,10 @@
     <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
              onde se veio está logo acima. */ ?>
     <h1>Enquetes</h1>
-    <button class="eq-btn eq-pri" style="margin-left:auto" onclick="abrirCriar()">
+    <?php /* Criar é só do admin; o botão nasce escondido e a listagem o
+             revela pra quem pode (DADOS.admin). A API barra de qualquer
+             jeito — o botão é só pra não oferecer o que vai ser negado. */ ?>
+    <button class="eq-btn eq-pri" id="btnCriar" hidden style="margin-left:auto" onclick="abrirCriar()">
       <i class="bi bi-plus-lg"></i> Criar enquete
     </button>
   </div>
@@ -161,21 +174,6 @@
   </div>
 </div>
 
-<!-- Apostar -->
-<div class="eq-modal" id="mAposta">
-  <div class="eq-mbox">
-    <h3 id="aTitulo">Apostar</h3>
-    <p class="eq-aj" id="aSub"></p>
-    <label for="aValor">Quanto você aposta</label>
-    <input id="aValor" type="number" min="10" value="50" oninput="previa()">
-    <div class="eq-aviso" id="aPrevia"></div>
-    <div class="eq-mfoot">
-      <button class="eq-btn" onclick="fechar('mAposta')">Cancelar</button>
-      <button class="eq-btn eq-pri" id="aEnviar" onclick="apostar()">Confirmar aposta</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const n = v => Number(v || 0).toLocaleString('pt-BR');
@@ -197,6 +195,9 @@ async function carregar() {
   if (!d.ok) { document.getElementById('lista').innerHTML = '<p class="eq-vazio">Não deu pra carregar.</p>'; return; }
   DADOS = d;
 
+  const btn = document.getElementById('btnCriar');
+  if (btn) btn.hidden = !d.admin;
+
   document.getElementById('saldos').innerHTML = `
     <div class="eq-saldo"><b>${n(d.saldo)}</b><span>suas moedas</span></div>
     <div class="eq-saldo"><b>${n(d.livre)}</b><span>livres pra bancar</span></div>
@@ -212,10 +213,10 @@ function card(e) {
   const aberta = e.status === 'aberta';
   const total = e.apostado || 1;
   return `
-  <div class="eq-card ${e.sou_dono ? 'minha' : ''} ${e.status === 'paga' ? 'paga' : ''}">
+  <div class="eq-card ${e.sou_dono ? 'eq-minha' : ''} ${e.status === 'paga' ? 'eq-paga' : ''}">
     <div class="eq-ch">
       <h2>${esc(e.titulo)}</h2>
-      <span class="eq-selo ${e.status}">${e.status === 'aberta' ? 'aberta' : e.status === 'paga' ? 'paga' : e.status}</span>
+      <span class="eq-selo eq-${e.status}">${e.status === 'aberta' ? 'aberta' : e.status === 'paga' ? 'paga' : e.status}</span>
     </div>
     <div class="eq-sub">
       banca: <b>${esc(e.criador)}${e.sou_dono ? ' (você)' : ''}</b> ·
@@ -227,15 +228,33 @@ function card(e) {
     </div>
     <div class="eq-alts">
       ${e.alternativas.map(a => `
-        <button class="eq-alt ${e.vencedora === a.id ? 'ganhou' : ''} ${a.meu ? 'tem' : ''}"
+        <button class="eq-alt ${e.vencedora === a.id ? 'eq-ganhou' : ''} ${a.meu ? 'eq-tem' : ''}"
                 ${aberta && !e.sou_dono ? `onclick="abrirAposta(${e.id},${a.id})"` : 'disabled'}>
           <span class="eq-barra" style="width:${Math.round((a.apostado / total) * 100)}%"></span>
           <span class="eq-alt-txt">${esc(a.texto)}
             <span class="eq-alt-min">${n(a.apostado)} apostado${a.meu ? ` · você: ${n(a.meu)}` : ''}${e.vencedora === a.id ? ' · venceu' : ''}</span>
           </span>
           <span class="eq-odd">${Number(a.odd).toFixed(2)}<small>odd</small></span>
-        </button>`).join('')}
+        </button>
+        <?php /* O formulário nasce FECHADO embaixo de cada alternativa e abre
+                 no clique: apostar é escolher a opção e dizer quanto, e um
+                 modal por cima tirava da vista justamente a odd que a pessoa
+                 está avaliando. */ ?>
+        <div class="eq-box" id="box_${e.id}_${a.id}" hidden>
+          <div class="eq-box-linha">
+            <input type="number" id="val_${e.id}_${a.id}" min="${DADOS.limites.aposta_min}"
+                   max="${e.max_pessoa - e.meu_total}" value="${Math.min(50, Math.max(DADOS.limites.aposta_min, e.max_pessoa - e.meu_total))}"
+                   oninput="previa(${e.id},${a.id})">
+            <button class="eq-btn eq-pri" onclick="apostar(${e.id},${a.id})">Apostar</button>
+            <button class="eq-btn" onclick="fecharBox(${e.id},${a.id})">Cancelar</button>
+          </div>
+          <div class="eq-box-previa" id="prev_${e.id}_${a.id}"></div>
+        </div>`).join('')}
     </div>
+    ${aberta && e.sou_dono ? `
+      <div class="eq-nota-dono">
+        Você banca esta enquete — quem aposta são os outros. O resultado você declara aqui embaixo.
+      </div>` : ''}
     ${(e.sou_dono || DADOS.admin) && e.status === 'aberta' ? `
       <div class="eq-linha-dono">
         <select id="res_${e.id}" style="max-width:230px">
@@ -316,40 +335,58 @@ async function criar() {
 }
 
 /* ── Apostar ───────────────────────────────────────────────────────── */
+/**
+ * Abre o formulário embaixo da alternativa escolhida.
+ *
+ * Um por vez: com dois abertos, dá pra digitar num e confirmar no outro.
+ */
 function abrirAposta(enqId, altId) {
+  document.querySelectorAll('.eq-box').forEach(b => b.hidden = true);
+  const box = document.getElementById(`box_${enqId}_${altId}`);
+  if (!box) return;
+  box.hidden = false;
+  previa(enqId, altId);
+  box.querySelector('input')?.focus();
+}
+
+function fecharBox(enqId, altId) {
+  const box = document.getElementById(`box_${enqId}_${altId}`);
+  if (box) box.hidden = true;
+}
+
+/** O que a pessoa recebe se acertar — e o motivo, quando não dá pra apostar. */
+function previa(enqId, altId) {
   const e = DADOS.enquetes.find(x => x.id === enqId);
-  const a = e.alternativas.find(x => x.id === altId);
-  alvo = {e, a};
-  document.getElementById('aTitulo').textContent = a.texto;
-  document.getElementById('aSub').innerHTML =
-    `${esc(e.titulo)}<br>Odd agora: <b>${Number(a.odd).toFixed(2)}</b> ·
-     você já apostou ${n(e.meu_total)} de ${n(e.max_pessoa)} nesta enquete`;
-  document.getElementById('aValor').value = Math.min(50, e.max_pessoa - e.meu_total) || 10;
-  previa();
-  document.getElementById('mAposta').classList.add('eq-on');
+  const a = e?.alternativas.find(x => x.id === altId);
+  const campo = document.getElementById(`val_${enqId}_${altId}`);
+  const alvo  = document.getElementById(`prev_${enqId}_${altId}`);
+  if (!e || !a || !campo || !alvo) return;
+
+  const v = Number(campo.value) || 0;
+  const retorno = Math.round(v * a.odd);
+  const podeMax = e.max_pessoa - e.meu_total;
+  const min = DADOS.limites.aposta_min;
+  // O motivo em vez de um botão apagado sem explicação.
+  const problema = v < min ? `A aposta mínima é ${n(min)}.`
+    : v > podeMax ? `O limite por pessoa aqui é ${n(e.max_pessoa)} — você já apostou ${n(e.meu_total)}.`
+    : v > DADOS.saldo ? `Você tem ${n(DADOS.saldo)} moedas.`
+    : null;
+
+  alvo.innerHTML = problema
+    ? `<b style="color:var(--vermelho)">${problema}</b>`
+    : `Na odd <b>${Number(a.odd).toFixed(2)}</b>, acertando você recebe <b>${n(retorno)}</b> —
+       lucro de <b>${n(retorno - v)}</b>.
+       <br><span style="color:var(--text3)">A odd trava agora: é a que você recebe, mesmo que ela mude depois.</span>`;
+  const bt = alvo.parentElement.querySelector('.eq-pri');
+  if (bt) bt.disabled = !!problema;
 }
 
-function previa() {
-  if (!alvo) return;
-  const v = Number(document.getElementById('aValor').value) || 0;
-  const retorno = Math.round(v * alvo.a.odd);
-  const podeMax = alvo.e.max_pessoa - alvo.e.meu_total;
-  const ok = v >= (DADOS?.limites?.aposta_min ?? 10) && v <= podeMax && v <= DADOS.saldo;
-  document.getElementById('aPrevia').innerHTML =
-    `Acertando, você recebe <b>${n(retorno)}</b> moedas — lucro de <b>${n(retorno - v)}</b>.
-     <br><span style="color:var(--text3)">A odd trava agora: o que você vê é o que recebe, mesmo que ela mude depois.</span>
-     ${v > podeMax ? `<br><b style="color:var(--vermelho)">O limite por pessoa aqui é ${n(alvo.e.max_pessoa)}.</b>` : ''}
-     ${v > DADOS.saldo ? `<br><b style="color:var(--vermelho)">Você tem ${n(DADOS.saldo)} moedas.</b>` : ''}`;
-  document.getElementById('aEnviar').disabled = !ok;
-}
-
-async function apostar() {
+async function apostar(enqId, altId) {
+  const campo = document.getElementById(`val_${enqId}_${altId}`);
   const r = await api('apostar', {
-    enquete_id: alvo.e.id, alternativa_id: alvo.a.id,
-    valor: Number(document.getElementById('aValor').value),
+    enquete_id: enqId, alternativa_id: altId, valor: Number(campo?.value || 0),
   });
   if (!r.ok) { alert(r.erro); return; }
-  fechar('mAposta');
   carregar();
 }
 

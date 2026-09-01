@@ -22,21 +22,28 @@ $uid     = (int)$user['id'];
 $ehAdmin = ($user['user_type'] ?? '') === 'admin';
 
 /*
- * A MESMA TRAVA DA PÁGINA, aqui também.
+ * CRIAR É SÓ DO ADMIN; APOSTAR É DE TODO MUNDO.
  *
- * Esconder o card e barrar a tela não protege nada se a API atender quem
- * chamar direto — e aqui se aposta e se paga moeda. Enquanto as enquetes
- * forem só de admin geral, é este `if` que vale.
+ * A trava começou valendo pra tudo, e aí o sistema não funcionava: só admin
+ * entrava, só ele criava, e quem cria não pode apostar na própria enquete —
+ * então não havia ninguém pra apostar em nada.
+ *
+ * O motivo da trava era o criador declarar o próprio resultado. Isso se
+ * resolve limitando quem CRIA, não quem aposta: com as enquetes saindo de
+ * quem responde pela liga, a liga inteira pode participar delas.
  */
-if (!$ehAdmin) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'erro' => 'As enquetes ainda estão restritas ao admin geral.']);
-    exit;
-}
-
 enqTabelas($pdo);
 $corpo   = json_decode(file_get_contents('php://input'), true) ?: [];
 $acao    = $_GET['acao'] ?? $corpo['acao'] ?? 'listar';
+
+// A ação precisa estar lida ANTES da trava — senão ela testa um $acao vazio
+// e nunca barra ninguém.
+$soAdmin = ['criar'];
+if (in_array($acao, $soAdmin, true) && !$ehAdmin) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'erro' => 'Por enquanto, só o admin geral cria enquetes.']);
+    exit;
+}
 
 /** Uma enquete pronta pra tela, com as odds de agora. */
 function enqMontar(PDO $pdo, array $e, int $uid): array

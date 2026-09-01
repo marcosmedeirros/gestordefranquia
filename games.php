@@ -578,10 +578,11 @@ $jogosLivres = [
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
-// A aba Banca só existe pra admin geral por enquanto — e por isso ela não
-// entra na lista de abas válidas de quem não é: ?aba=banca cairia no default.
+// A aba Banca é de todos: quem CRIA enquete é só o admin geral (a API barra),
+// mas apostar é da liga inteira — sem isso as enquetes ficavam sem apostador,
+// porque quem cria não pode apostar na própria.
 $ehAdminGeral = ($user['user_type'] ?? '') === 'admin';
-$abasValidas = array_merge(['games', 'apostas', 'loja', 'ranking'], $ehAdminGeral ? ['banca'] : []);
+$abasValidas = ['games', 'apostas', 'loja', 'ranking', 'banca'];
 $abaInicial = 'games';
 if (isset($_GET['aba']) && in_array($_GET['aba'], $abasValidas, true)) $abaInicial = $_GET['aba'];
 if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
@@ -1155,11 +1156,9 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
-            <?php if ($ehAdminGeral): ?>
             <button class="g-tab <?= $abaInicial === 'banca' ? 'active' : '' ?>" data-aba="banca" onclick="trocarAba('banca')">
                 <i class="bi bi-cash-stack"></i> Banca
             </button>
-            <?php endif; ?>
         </div>
 
         <!-- ── Aba Games ─────────────────────────────────────────────── -->
@@ -1969,14 +1968,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <?php endif; ?>
         </div>
 
-        <?php if ($ehAdminGeral): ?>
         <!-- ── Aba Banca (enquetes) ──────────────────────────────────────
              O painel inteiro mora em core/enquetes_painel.php, com as classes
              prefixadas em `eq-` pra não brigar com o CSS desta página. -->
         <div class="g-pane <?= $abaInicial === 'banca' ? 'active' : '' ?>" id="pane-banca">
             <?php include __DIR__ . '/games/core/enquetes_painel.php'; ?>
         </div>
-        <?php endif; ?>
 
     </div>
 </main>
