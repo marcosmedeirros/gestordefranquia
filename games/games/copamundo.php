@@ -58,6 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['copa_flash'] = ['erro', $r['erro']];
             $_SESSION['copa_form'] = ['titulo' => $_POST['titulo'] ?? '', 'nomes' => $_POST['nomes'] ?? ''];
 
+        } elseif ($acao === 'minutos' && $isAdmin) {
+            $min = max(0, (int)($_POST['minutos'] ?? 30));
+            copaDefinirMinutos($pdo, $tid, $min);
+            $_SESSION['copa_flash'] = ['ok', $min > 0
+                ? "Cada rodada passa a durar {$min} min — vira sozinha e já abre a seguinte."
+                : 'Tempo desligado: a rodada só vira quando você apurar.'];
+
         } elseif ($acao === 'votacao' && $isAdmin) {
             copaVotacao($pdo, $tid, !empty($_POST['abrir']));
             $_SESSION['copa_flash'] = ['ok', !empty($_POST['abrir'])
@@ -568,6 +575,16 @@ if ($copa && $userId) {
         <span class="selo neutro" style="font-weight:600">
           <i class="bi bi-arrow-repeat"></i> dá pra mudar o voto
         </span>
+        <?php /* O relógio da rodada. O servidor manda o instante do fim e o
+                 navegador conta sozinho: contar no PHP daria um número parado
+                 que envelhece na tela aberta. */ ?>
+        <?php if (!empty($copa['fecha_em'])): ?>
+          <span class="selo aberta" id="relogio"
+                data-fim="<?= $esc(str_replace(' ', 'T', (string)$copa['fecha_em'])) ?>"
+                title="Quando o tempo acabar, a rodada é apurada e a próxima abre sozinha">
+            <i class="bi bi-clock"></i> <span id="relogioTxt">…</span>
+          </span>
+        <?php endif; ?>
       <?php endif; ?>
     <?php else: ?>
       <span class="selo neutro">Encerrada</span>
@@ -603,8 +620,27 @@ if ($copa && $userId) {
         </button>
       </form>
 
+      <?php /* Quanto tempo cada rodada dura. Zero devolve a copa ao modo
+               antigo, em que ela só anda quando alguém aperta o botão. */ ?>
+      <form method="post" style="display:flex;gap:6px;align-items:center">
+        <input type="hidden" name="acao" value="minutos">
+        <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
+        <label style="font-size:12px;color:var(--text3)" for="minutosRodada">rodada de</label>
+        <input id="minutosRodada" type="number" name="minutos" min="0" max="10080"
+               value="<?= (int)($copa['minutos_rodada'] ?? 30) ?>"
+               style="width:74px;text-align:center">
+        <span style="font-size:12px;color:var(--text3)">min</span>
+        <button class="bt"><i class="bi bi-check2"></i> salvar</button>
+      </form>
+
       <span class="dica" style="margin:0">
         <?= copaQuantosVotaram($pdo, (int)$copa['id'], $rodAtual) ?> pessoa(s) votaram nesta rodada.
+        <?php if ((int)($copa['minutos_rodada'] ?? 0) === 0): ?>
+          <br>Com 0 minuto, a rodada só vira quando você apurar aqui.
+        <?php else: ?>
+          <br>Ao abrir a votação, a rodada vira sozinha depois de
+          <?= (int)$copa['minutos_rodada'] ?> min e a próxima já começa.
+        <?php endif; ?>
       </span>
 
       <form method="post" style="margin-left:auto"
@@ -1037,6 +1073,44 @@ if ($copa && $userId) {
   bts.forEach(function (b) {
     b.addEventListener('click', function () { aplicar(b.dataset.tam, true); });
   });
+})();
+</script>
+
+<script>
+/* ── O relógio da rodada ─────────────────────────────────────────────
+ *
+ * O servidor manda o instante em que a rodada vira; a contagem é feita
+ * aqui porque um número calculado no PHP nasce velho e envelhece mais a
+ * cada minuto que a aba fica aberta.
+ *
+ * Zerou, a página recarrega uma vez: o cron já virou a rodada do lado de
+ * lá, e insistir num chaveamento vencido é pior que um recarregamento.
+ */
+(function () {
+  var el = document.getElementById('relogio');
+  var txt = document.getElementById('relogioTxt');
+  if (!el || !txt) return;
+
+  var fim = new Date(el.dataset.fim).getTime();
+  if (!fim) { el.hidden = true; return; }
+
+  var recarregou = false;
+  function tique() {
+    var falta = Math.floor((fim - Date.now()) / 1000);
+    if (falta <= 0) {
+      txt.textContent = 'apurando…';
+      // Um respiro pro cron fechar antes de recarregar, e uma vez só.
+      if (!recarregou) { recarregou = true; setTimeout(function () { location.reload(); }, 8000); }
+      return;
+    }
+    var m = Math.floor(falta / 60), s = falta % 60;
+    txt.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    // Abaixo de dois minutos o selo avisa que está no fim.
+    el.classList.toggle('fechada', falta <= 120);
+    el.classList.toggle('aberta', falta > 120);
+  }
+  tique();
+  setInterval(tique, 1000);
 })();
 </script>
 

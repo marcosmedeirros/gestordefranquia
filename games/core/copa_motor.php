@@ -82,6 +82,24 @@ function copaTabelas(PDO $pdo): void
         // Já existe. Caminho normal em toda execução menos a primeira.
     }
 
+    /*
+     * O RELÓGIO DA RODADA.
+     *
+     * `minutos_rodada` fica no torneio e não numa constante porque copa
+     * relâmpago e copa de fim de semana convivem. `fecha_em` é o instante em
+     * que a rodada vira — nulo quando a votação está fechada, que é o mesmo
+     * que dizer "sem relógio correndo".
+     *
+     * Zero em minutos_rodada desliga o automático: a copa volta a depender de
+     * alguém apertar o botão, que é como ela sempre funcionou.
+     */
+    foreach ([
+        "ALTER TABLE copa_torneios ADD COLUMN minutos_rodada INT NOT NULL DEFAULT 30 AFTER votacao",
+        "ALTER TABLE copa_torneios ADD COLUMN fecha_em DATETIME NULL AFTER minutos_rodada",
+    ] as $sql) {
+        try { $pdo->exec($sql); } catch (Throwable $e) { /* já existe */ }
+    }
+
     // b_id NULL é o bye: passou sem jogar. Vira uma linha de confronto assim
     // mesmo pra rodada 1 ter sempre P/2 linhas — o desenho do chaveamento
     // conta com isso, e um bye que não existisse abriria um buraco na coluna.
@@ -496,11 +514,52 @@ function copaVotar(PDO $pdo, int $torneioId, int $confrontoId, int $escolhaId, i
 }
 
 /** Abre ou fecha a votação da rodada em curso. */
+/**
+ * Abre ou fecha a votação — e é aqui que o relógio começa a correr.
+ *
+ * Abrir com minutos_rodada > 0 marca a hora de virar; fechar apaga a marca,
+ * senão o cron acharia uma rodada vencida numa copa que a organização
+ * pausou de propósito.
+ */
 function copaVotacao(PDO $pdo, int $torneioId, bool $aberta): void
 {
     copaTabelas($pdo);
-    $pdo->prepare("UPDATE copa_torneios SET votacao=? WHERE id=?")
-        ->execute([$aberta ? 1 : 0, $torneioId]);
+    if (!$aberta) {
+        $pdo->prepare("UPDATE copa_torneios SET votacao=0, fecha_em=NULL WHERE id=?")
+            ->execute([$torneioId]);
+        return;
+    }
+    $st = $pdo->prepare("SELECT minutos_rodada FROM copa_torneios WHERE id=?");
+    $st->execute([$torneioId]);
+    $min = (int)($st->fetchColumn() ?: 0);
+    $pdo->prepare("UPDATE copa_torneios SET votacao=1, fecha_em=? WHERE id=?")
+        ->execute([copaPrazo($min), $torneioId]);
+}
+
+/**
+ * O instante em que a rodada vira — pelo relógio do PHP, não do banco.
+ *
+ * NOW() do MySQL parece o caminho óbvio, e é onde mora uma armadilha: se o
+ * banco estiver num fuso diferente do PHP, o prazo nasce deslocado e o
+ * contador da tela mostra três horas e meia onde deveria mostrar trinta
+ * minutos. Um relógio só pros dois lados não tem esse problema.
+ */
+function copaPrazo(int $minutos): ?string
+{
+    return $minutos > 0 ? date('Y-m-d H:i:s', time() + $minutos * 60) : null;
+}
+
+/** Quantos minutos cada rodada dura; 0 desliga a virada automática. */
+function copaDefinirMinutos(PDO $pdo, int $torneioId, int $minutos): void
+{
+    copaTabelas($pdo);
+    $minutos = max(0, min(60 * 24 * 7, $minutos));
+    $pdo->prepare("UPDATE copa_torneios SET minutos_rodada=? WHERE id=?")
+        ->execute([$minutos, $torneioId]);
+    // Se o relógio já estava correndo, ele se ajusta ao novo tempo na hora —
+    // mudar de 30 pra 60 no meio da rodada tem que valer pra rodada de agora.
+    $pdo->prepare("UPDATE copa_torneios SET fecha_em = ? WHERE id = ? AND votacao = 1")
+        ->execute([copaPrazo($minutos), $torneioId]);
 }
 
 /**
@@ -611,6 +670,68 @@ function copaFecharRodada(PDO $pdo, int $torneioId): array
         error_log('[copa] fechar: ' . $e->getMessage());
         return ['erro' => 'Não deu pra fechar: ' . $e->getMessage()] + $vazio;
     }
+}
+
+/**
+ * O QUE O CRON CHAMA: vira toda rodada cujo tempo acabou.
+ *
+ * Apura, paga, abre a próxima e devolve o que precisa ser dito no grupo —
+ * o resultado do que fechou e os confrontos do que abriu. Quem envia é o
+ * cron, não daqui: uma fila cheia ou um bot desligado não pode desfazer uma
+ * apuração que já mexeu em FBA Points.
+ *
+ * Trata uma copa por chamada de laço, mas todas as vencidas de uma vez —
+ * duas copas rodando ao mesmo tempo não se atrapalham.
+ *
+ * @return array lista de ['torneio_id','titulo','resultado','proxima','campeao','erro']
+ */
+function copaVirarRodadasVencidas(PDO $pdo): array
+{
+    copaTabelas($pdo);
+    $st = $pdo->prepare("SELECT id, titulo FROM copa_torneios
+                          WHERE status = 'ativo' AND votacao = 1
+                            AND fecha_em IS NOT NULL AND fecha_em <= ?
+                          ORDER BY id");
+    $st->execute([date('Y-m-d H:i:s')]);   // o mesmo relógio que gravou o prazo
+    $vencidas = $st->fetchAll(PDO::FETCH_ASSOC);
+    $saida = [];
+    foreach ($vencidas as $t) {
+        $tid = (int)$t['id'];
+        // A rodada que ESTÁ sendo apurada: depois de fechar, o torneio já
+        // aponta pra seguinte e o número muda debaixo dos pés.
+        $rodApurada = (int)(copaTorneio($pdo, $tid)['rodada_atual'] ?? 1);
+
+        $r = copaFecharRodada($pdo, $tid);
+        if (empty($r['ok'])) {
+            // Solta o relógio pra não ficar tentando a mesma coisa a cada
+            // minuto e enchendo o log — a organização resolve na mão.
+            $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
+            $saida[] = ['torneio_id' => $tid, 'titulo' => $t['titulo'],
+                        'erro' => (string)($r['erro'] ?? 'erro desconhecido')];
+            continue;
+        }
+
+        /* A ORDEM IMPORTA: abrir a votação ANTES de escrever os textos.
+         *
+         * copaTextoResultado termina dizendo se a próxima já aceita voto, e
+         * lê isso do banco. Escrito antes da abertura, o resultado saía com
+         * "aguardando a votação abrir" na mesma leva da mensagem que anuncia
+         * a votação aberta — as duas se contradizendo. */
+        if ($r['campeao']) {
+            // Campeão fecha a copa: não há próxima rodada, e o prazo da última
+            // tem que sair do banco — senão fica um relógio parado no passado
+            // dentro de uma copa que já acabou.
+            $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
+        } else {
+            copaVotacao($pdo, $tid, true);
+        }
+
+        $saida[] = ['torneio_id' => $tid, 'titulo' => $t['titulo'], 'erro' => null,
+                    'campeao' => $r['campeao'] ?: null,
+                    'resultado' => copaTextoResultado($pdo, $tid, $rodApurada),
+                    'proxima' => $r['campeao'] ? '' : copaTextoAgora($pdo, $tid)];
+    }
+    return $saida;
 }
 
 /**
