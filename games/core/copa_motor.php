@@ -588,7 +588,9 @@ function copaTextoEstreia(PDO $pdo, int $torneioId): string
 
     $l[] = '';
     $l[] = '_Cada palpite certo vale FBA Points, e quem acerta a maioria da rodada';
-    $l[] = 'sobe a sequência: o próximo acerto passa a valer mais. Vote no site!_';
+    $l[] = 'sobe a sequência: o próximo acerto passa a valer mais._';
+    $l[] = '';
+    $l[] = '👉 ' . copaLink($torneioId);
     return implode("\n", $l);
 }
 
@@ -749,45 +751,83 @@ function copaVirarRodadasVencidas(PDO $pdo): array
                             AND fecha_em IS NOT NULL AND fecha_em <= ?
                           ORDER BY id");
     $st->execute([date('Y-m-d H:i:s')]);   // o mesmo relógio que gravou o prazo
-    $vencidas = $st->fetchAll(PDO::FETCH_ASSOC);
     $saida = [];
-    foreach ($vencidas as $t) {
-        $tid = (int)$t['id'];
-        // A rodada que ESTÁ sendo apurada: depois de fechar, o torneio já
-        // aponta pra seguinte e o número muda debaixo dos pés.
-        $rodApurada = (int)(copaTorneio($pdo, $tid)['rodada_atual'] ?? 1);
-
-        $r = copaFecharRodada($pdo, $tid);
-        if (empty($r['ok'])) {
-            // Solta o relógio pra não ficar tentando a mesma coisa a cada
-            // minuto e enchendo o log — a organização resolve na mão.
-            $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
-            $saida[] = ['torneio_id' => $tid, 'titulo' => $t['titulo'],
-                        'erro' => (string)($r['erro'] ?? 'erro desconhecido')];
-            continue;
-        }
-
-        /* A ORDEM IMPORTA: abrir a votação ANTES de escrever os textos.
-         *
-         * copaTextoResultado termina dizendo se a próxima já aceita voto, e
-         * lê isso do banco. Escrito antes da abertura, o resultado saía com
-         * "aguardando a votação abrir" na mesma leva da mensagem que anuncia
-         * a votação aberta — as duas se contradizendo. */
-        if ($r['campeao']) {
-            // Campeão fecha a copa: não há próxima rodada, e o prazo da última
-            // tem que sair do banco — senão fica um relógio parado no passado
-            // dentro de uma copa que já acabou.
-            $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
-        } else {
-            copaVotacao($pdo, $tid, true);
-        }
-
-        $saida[] = ['torneio_id' => $tid, 'titulo' => $t['titulo'], 'erro' => null,
-                    'campeao' => $r['campeao'] ?: null,
-                    'resultado' => copaTextoResultado($pdo, $tid, $rodApurada),
-                    'proxima' => $r['campeao'] ? '' : copaTextoAgora($pdo, $tid)];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $saida[] = copaVirarUma($pdo, (int)$t['id'], true);
     }
     return $saida;
+}
+
+/**
+ * VIRA UMA RODADA — o que o cron e o botão "apurar" fazem, no mesmo lugar.
+ *
+ * Apura, paga, abre a seguinte e devolve os dois textos: o resultado do que
+ * fechou e os confrontos do que abriu. Antes o botão do admin só mandava o
+ * resultado, e o grupo ficava sem saber que a fase nova já estava valendo —
+ * a virada pelo tempo mandava as duas coisas e a virada na mão, uma só.
+ *
+ * @param bool $soltarRelogioNoErro o cron pede isso pra não repetir a mesma
+ *        tentativa a cada minuto; no clique do admin o erro é mostrado na
+ *        hora, e o prazo continua de pé.
+ * @return array ['torneio_id','titulo','erro','campeao','resultado','proxima','info']
+ */
+function copaVirarUma(PDO $pdo, int $tid, bool $soltarRelogioNoErro = false): array
+{
+    copaTabelas($pdo);
+    $t = copaTorneio($pdo, $tid);
+    $titulo = (string)($t['titulo'] ?? '');
+    // A rodada que ESTÁ sendo apurada: depois de fechar, o torneio já aponta
+    // pra seguinte e o número muda debaixo dos pés.
+    $rodApurada = (int)($t['rodada_atual'] ?? 1);
+
+    $r = copaFecharRodada($pdo, $tid);
+    if (empty($r['ok'])) {
+        if ($soltarRelogioNoErro) {
+            $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
+        }
+        return ['torneio_id' => $tid, 'titulo' => $titulo,
+                'erro' => (string)($r['erro'] ?? 'erro desconhecido'),
+                'campeao' => null, 'resultado' => '', 'proxima' => '', 'info' => ''];
+    }
+
+    /* A ORDEM IMPORTA: abrir a votação ANTES de escrever os textos.
+     *
+     * copaTextoResultado termina dizendo se a próxima já aceita voto, e lê
+     * isso do banco. Escrito antes da abertura, o resultado saía com
+     * "aguardando a votação abrir" na mesma leva da mensagem que anuncia a
+     * votação aberta — as duas se contradizendo. */
+    if ($r['campeao']) {
+        // Campeão fecha a copa: não há próxima rodada, e o prazo da última tem
+        // que sair do banco — senão fica um relógio parado no passado dentro
+        // de uma copa que já acabou.
+        $pdo->prepare("UPDATE copa_torneios SET fecha_em=NULL WHERE id=?")->execute([$tid]);
+    } else {
+        copaVotacao($pdo, $tid, true);
+    }
+
+    // O resumo pra tela do admin, com os números da apuração.
+    $info = 'Rodada apurada: ' . $r['decididos'] . ' no voto';
+    if ($r['sorteados']) $info .= ', ' . $r['sorteados'] . ' no sorteio (empate)';
+    $info .= '. ' . $r['pagos'] . ' pessoa(s) receberam FBA Points.';
+    if ($r['campeao']) $info = '🏆 CAMPEÃO: ' . $r['campeao'] . '! ' . $info;
+
+    return ['torneio_id' => $tid, 'titulo' => $titulo, 'erro' => null,
+            'campeao' => $r['campeao'] ?: null, 'info' => $info,
+            'resultado' => copaTextoResultado($pdo, $tid, $rodApurada),
+            'proxima' => $r['campeao'] ? '' : copaTextoAgora($pdo, $tid)];
+}
+
+/**
+ * O link da copa, pra mensagem do grupo.
+ *
+ * Sem ele, quem lê no celular tem que achar o site, entrar em Games e
+ * procurar a copa — passos suficientes pra pessoa desistir de votar antes de
+ * chegar. O domínio é fixo porque a mensagem sai do cron, onde não há
+ * requisição de onde tirar o host.
+ */
+function copaLink(int $torneioId): string
+{
+    return 'https://fbabrasil.com.br/games/games/copamundo.php?copa=' . $torneioId;
 }
 
 /**
@@ -996,9 +1036,12 @@ function copaTextoAgora(PDO $pdo, ?int $torneioId = null): string
     $l[] = '';
     if ($abertos) {
         $l[] = !empty($t['votacao'])
-            ? "_{$abertos} confronto(s) em aberto. Vote no site!_"
+            ? "_{$abertos} confronto(s) em aberto._"
             : '_Aguardando o próximo passo da organização._';
         $l[] = '_Os votos aparecem quando a rodada for apurada._';
+        // O link só quando dá pra votar: mandar pra tela de uma votação
+        // fechada é levar a pessoa até uma porta trancada.
+        if (!empty($t['votacao'])) { $l[] = ''; $l[] = '👉 ' . copaLink($tid); }
     } else {
         $l[] = '_Aguardando o próximo passo da organização._';
     }

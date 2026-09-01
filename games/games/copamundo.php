@@ -125,15 +125,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['copa_flash'] = ['ok', $msg];
 
         } elseif ($acao === 'fechar' && $isAdmin) {
-            // A rodada que ACABA de ser apurada — depois de fechar, o torneio
-            // já aponta pra seguinte, e é o resultado desta que vai pro grupo.
-            $rodApurada = (int)(copaTorneio($pdo, $tid)['rodada_atual'] ?? 1);
-            $r = copaFecharRodada($pdo, $tid);
-            if ($r['ok']) {
-                $t = 'Rodada apurada: ' . $r['decididos'] . ' no voto';
-                if ($r['sorteados']) $t .= ', ' . $r['sorteados'] . ' no sorteio (empate)';
-                $t .= '. ' . $r['pagos'] . ' pessoa(s) receberam FBA Points.';
-                if ($r['campeao']) $t = '🏆 CAMPEÃO: ' . $r['campeao'] . '! ' . $t;
+            /* O MESMO CAMINHO DO CRON.
+               Apurar na mão fazia menos que deixar o tempo acabar: só mandava
+               o resultado, e o grupo não ficava sabendo que a fase seguinte já
+               estava aberta. copaVirarUma faz as duas coisas nos dois casos. */
+            $v = copaVirarUma($pdo, $tid);
+            if (!$v['erro']) {
+                $t = $v['info'];
 
                 // Avisa o grupo. Fora da transação e num try próprio: bot
                 // desligado, grupo não configurado ou fila cheia não podem
@@ -142,11 +140,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     require_once __DIR__ . '/../../backend/whatsapp.php';
                     $grupo = trim((string)($pdo->query(
                         "SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
-                    $texto = copaTextoResultado($pdo, $tid, $rodApurada);
-                    if ($grupo !== '' && $texto !== '' && function_exists('whatsappEnfileirar')) {
-                        if (whatsappEnfileirar($pdo, $grupo, $texto, true, 'copa')) {
-                            $t .= ' Resultado enviado pro grupo.';
+                    // Duas mensagens: o fim de uma fase e o começo da outra.
+                    // Num bloco só, a segunda metade se perde na rolagem.
+                    $mensagens = array_filter([$v['resultado'], $v['proxima']],
+                        fn($x) => trim((string)$x) !== '');
+                    $enviadas = 0;
+                    if ($grupo !== '' && function_exists('whatsappEnfileirar')) {
+                        foreach ($mensagens as $texto) {
+                            if (whatsappEnfileirar($pdo, $grupo, $texto, true, 'copa')) $enviadas++;
                         }
+                    }
+                    if ($enviadas) {
+                        $t .= $enviadas > 1
+                            ? ' Resultado e próxima fase enviados pro grupo.'
+                            : ' Resultado enviado pro grupo.';
                     }
                 } catch (Throwable $e) {
                     error_log('[copa] aviso no grupo: ' . $e->getMessage());
@@ -154,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $_SESSION['copa_flash'] = ['ok', $t];
             } else {
-                $_SESSION['copa_flash'] = ['erro', (string)$r['erro']];
+                $_SESSION['copa_flash'] = ['erro', (string)$v['erro']];
             }
 
         } elseif ($acao === 'apagar' && $isAdmin) {
@@ -280,6 +287,24 @@ if ($copa && $userId) {
   .selo.rodada{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:var(--ouro-2)}
   .selo.neutro{background:var(--panel-2);border-color:var(--border-md);color:var(--text-2)}
 
+  /* O RELÓGIO NÃO É UM SELO A MAIS.
+     Ele nasceu do mesmo tamanho dos outros e sumia no meio deles — sendo que
+     é a única coisa ali que está andando, e a que decide se dá tempo de
+     votar. Fonte tabular pra não dançar a cada segundo. */
+  .relogio{display:inline-flex;align-items:center;gap:8px;
+    background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);
+    border-radius:12px;padding:7px 14px;color:#4ade80}
+  .relogio i{font-size:16px}
+  .relogio .rot{font-size:9.5px;font-weight:800;letter-spacing:.8px;
+    text-transform:uppercase;color:var(--text-3);display:block;line-height:1.1}
+  .relogio .num{font-size:21px;font-weight:900;letter-spacing:-.5px;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  /* Nos dois minutos finais ele vira alerta e pulsa devagar. */
+  .relogio.acabando{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.45);color:#f87171;
+    animation:pulsa 1.6s ease-in-out infinite}
+  @keyframes pulsa{0%,100%{opacity:1}50%{opacity:.62}}
+  @media (prefers-reduced-motion:reduce){ .relogio.acabando{animation:none} }
+
   .bt{font-family:inherit;font-size:12.5px;font-weight:800;border-radius:10px;padding:9px 15px;
       cursor:pointer;border:1px solid var(--border-md);background:var(--panel-2);color:var(--text);
       display:inline-flex;align-items:center;gap:7px}
@@ -343,8 +368,26 @@ if ($copa && $userId) {
   .coluna{display:flex;flex-direction:column;justify-content:space-around;gap:8px;
           min-width:var(--col);flex:none}
   .col-tit{font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;
-           color:var(--text-3);text-align:center;padding-bottom:6px;position:sticky;top:0}
+           color:var(--text-3);text-align:center;padding-bottom:6px;position:sticky;top:0;
+           font-family:inherit;background:none;border:0;width:100%}
   .col-tit.agora{color:var(--ouro)}
+  .col-tit:not([disabled]){cursor:pointer}
+  .col-tit:not([disabled]):hover{color:var(--text-2)}
+  .col-tit .seta{font-size:9px;margin-left:3px;transition:transform .2s ease}
+  .col-tit .col-resumo{display:none;font-size:9px;font-weight:700;letter-spacing:0;
+    text-transform:none;color:var(--text-3)}
+
+  /* A COLUNA RECOLHIDA.
+     Vira uma faixa estreita com o nome da fase de pé: some o conteúdo, mas
+     fica a pista de que ela existe e de que dá pra abrir. A largura mínima
+     é zerada aqui porque --col é o que segurava a coluna aberta. */
+  .coluna.recolhida{min-width:34px;width:34px;justify-content:flex-start}
+  .coluna.recolhida .col-corpo{display:none}
+  .coluna.recolhida .col-tit{writing-mode:vertical-rl;transform:rotate(180deg);
+    padding:8px 0;display:flex;align-items:center;gap:7px;justify-content:flex-start}
+  .coluna.recolhida .col-tit .seta{transform:rotate(-90deg)}
+  .coluna.recolhida .col-tit .col-resumo{display:inline}
+  .col-corpo{display:flex;flex-direction:column;justify-content:space-around;gap:8px;flex:1}
 
   .duelo{background:var(--panel-2);border:1px solid var(--border);border-radius:11px;
          overflow:hidden;display:flex;flex-direction:column}
@@ -632,10 +675,14 @@ if ($copa && $userId) {
                  navegador conta sozinho: contar no PHP daria um número parado
                  que envelhece na tela aberta. */ ?>
         <?php if (!empty($copa['fecha_em'])): ?>
-          <span class="selo aberta" id="relogio"
+          <span class="relogio" id="relogio"
                 data-fim="<?= $esc(str_replace(' ', 'T', (string)$copa['fecha_em'])) ?>"
                 title="Quando o tempo acabar, a rodada é apurada e a próxima abre sozinha">
-            <i class="bi bi-clock"></i> <span id="relogioTxt">…</span>
+            <i class="bi bi-stopwatch-fill"></i>
+            <span>
+              <span class="rot">Fecha em</span>
+              <span class="num" id="relogioTxt">…</span>
+            </span>
           </span>
         <?php endif; ?>
       <?php endif; ?>
@@ -811,16 +858,37 @@ if ($copa && $userId) {
           <?php
       };
 
-      /** Uma coluna: o nome da rodada e os confrontos que forem passados. */
+      /**
+       * Uma coluna: o nome da rodada e os confrontos que forem passados.
+       *
+       * RODADA JÁ DECIDIDA NASCE RECOLHIDA. Numa copa de 64, os 32 avos
+       * ocupam sozinhos uma coluna de 32 confrontos, e depois de decididos ela
+       * empurra tudo o que interessa — a fase de agora — pra fora da tela.
+       * Recolhida, ela vira uma faixa fina que diz o nome da fase e quantos
+       * passaram; clicar abre de volta. A rodada de agora e as que ainda vêm
+       * nunca são recolhidas.
+       */
       $desenhaColuna = function ($r, $lista) use ($desenhaDuelo, $esc, $rodadas, $rodAtual, $encerrada) {
+          $decidida = $lista && $r < $rodAtual;
+          // Numa copa encerrada tudo já passou: recolher tudo esconderia o
+          // caminho do campeão, que é o que se quer ver ali.
+          $recolher = $decidida && !$encerrada;
           ?>
-          <div class="coluna">
-            <div class="col-tit <?= (!$encerrada && $r === $rodAtual) ? 'agora' : '' ?>">
+          <div class="coluna <?= $recolher ? 'recolhida' : '' ?>" data-rodada="<?= (int)$r ?>">
+            <button type="button" class="col-tit <?= (!$encerrada && $r === $rodAtual) ? 'agora' : '' ?>"
+                    <?= $decidida ? 'onclick="alternarColuna(this)"' : 'disabled' ?>
+                    <?= $decidida ? 'title="Mostrar ou esconder esta fase"' : '' ?>>
               <?= $esc(copaNomeRodada($r, $rodadas)) ?>
+              <?php if ($decidida): ?>
+                <i class="bi bi-chevron-down seta"></i>
+                <span class="col-resumo"><?= count($lista) ?> jogos</span>
+              <?php endif; ?>
+            </button>
+            <div class="col-corpo">
+              <?php if (!$lista): ?>
+                <div class="duelo"><div class="vazio-duelo">aguardando</div></div>
+              <?php else: foreach ($lista as $c) $desenhaDuelo($c, $r); endif; ?>
             </div>
-            <?php if (!$lista): ?>
-              <div class="duelo"><div class="vazio-duelo">aguardando</div></div>
-            <?php else: foreach ($lista as $c) $desenhaDuelo($c, $r); endif; ?>
           </div>
           <?php
       };
@@ -1130,6 +1198,16 @@ if ($copa && $userId) {
 </script>
 
 <script>
+/* Abre ou fecha uma fase já decidida do chaveamento. */
+function alternarColuna(bt) {
+  const col = bt.closest('.coluna');
+  if (!col) return;
+  col.classList.toggle('recolhida');
+  bt.setAttribute('aria-expanded', String(!col.classList.contains('recolhida')));
+}
+</script>
+
+<script>
 /* ── O relógio da rodada ─────────────────────────────────────────────
  *
  * O servidor manda o instante em que a rodada vira; a contagem é feita
@@ -1158,9 +1236,8 @@ if ($copa && $userId) {
     }
     var m = Math.floor(falta / 60), s = falta % 60;
     txt.textContent = m + ':' + (s < 10 ? '0' : '') + s;
-    // Abaixo de dois minutos o selo avisa que está no fim.
-    el.classList.toggle('fechada', falta <= 120);
-    el.classList.toggle('aberta', falta > 120);
+    // Abaixo de dois minutos ele vira alerta e pulsa.
+    el.classList.toggle('acabando', falta <= 120);
   }
   tique();
   setInterval(tique, 1000);
