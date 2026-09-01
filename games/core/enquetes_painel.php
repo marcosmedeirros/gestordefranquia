@@ -128,7 +128,7 @@ require_once __DIR__ . '/enquetes_motor.php';
    página inteira, some a pista de qual delas foi clicada. */
 .eq-col.eq-on{border-color:var(--verde);background:rgba(34,197,94,.12)}
 
-/* Meus bichos: uma linha por aposta que eu banco. */
+/* Meus eventos: uma linha por aposta que eu banco. */
 .eq-meus{display:flex;flex-direction:column;gap:1px;
   border:1px solid var(--borda);border-radius:12px;overflow:hidden}
 .eq-meu{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
@@ -249,12 +249,12 @@ require_once __DIR__ . '/enquetes_motor.php';
   <div class="eq-topo">
     <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
              onde se veio está logo acima. */ ?>
-    <h1>Bicho</h1>
+    <h1>Eventos</h1>
     <?php /* Criar é só do admin; o botão nasce escondido e a listagem o
              revela pra quem pode (DADOS.admin). A API barra de qualquer
              jeito — o botão é só pra não oferecer o que vai ser negado. */ ?>
     <button class="eq-btn eq-pri" id="btnCriar" hidden style="margin-left:auto" onclick="abrirCriar()">
-      <i class="bi bi-plus-lg"></i> Criar aposta
+      <i class="bi bi-plus-lg"></i> Criar evento
     </button>
   </div>
   <?php /* Em passos, e não num parágrafo corrido: quem chega aqui pela
@@ -267,6 +267,11 @@ require_once __DIR__ . '/enquetes_motor.php';
   <details class="eq-como">
     <summary class="eq-como-t"><i class="bi bi-info-circle-fill"></i> Como funciona</summary>
     <ol class="eq-passos">
+      <li><b>Aposta é sobre o que vai acontecer.</b> "O Vasco cai em 2026?",
+        "quem ganha a ELITE?", "o Fulano troca antes do draft?" — coisas que
+        um dia acontecem e todo mundo consegue conferir. Gosto pessoal não
+        serve: quem declara o resultado é quem paga, e numa pergunta de
+        opinião ele declararia o que lhe convém.</li>
       <li><b>Quem cria vira a banca.</b> Você escreve a pergunta, as opções e a
         odd de cada uma. A partir daí é <b>contra você</b> que os outros apostam.</li>
       <li><b>Quem paga é você, com as suas moedas.</b> Se alguém apostar 100 numa
@@ -277,7 +282,7 @@ require_once __DIR__ . '/enquetes_motor.php';
       <li><b>Nada fica devendo.</b> Enquanto a aposta está aberta, o pior
         resultado possível fica <b>retido</b> do seu saldo. Você só consegue abrir
         uma aposta que consiga pagar, e a retenção volta quando ela é encerrada.</li>
-      <li><b>Você declara o resultado</b> em "Meus bichos", aqui embaixo. O
+      <li><b>Você declara o resultado</b> em "Meus eventos", aqui embaixo. O
         pagamento sai na hora, e a casa fica com <?= ENQ_TAXA_CASA ?>% do que
         você lucrar (nada, se você perder).</li>
     </ol>
@@ -291,7 +296,7 @@ require_once __DIR__ . '/enquetes_motor.php';
   <div class="eq-saldos" id="saldos"></div>
 
   <div class="eq-fim-topo" id="topoAbertas" hidden>
-    <h2>Apostas abertas</h2>
+    <h2>Eventos abertos</h2>
     <span class="eq-cont" id="contAbertas"></span>
     <input class="eq-busca" id="buscaAbertas" type="search" placeholder="Buscar por pergunta ou banca…"
            oninput="pintarAbertas()">
@@ -303,7 +308,7 @@ require_once __DIR__ . '/enquetes_motor.php';
            em toda mesa do dono poluíam a lista que é de todo mundo. */ ?>
   <div class="eq-fim" id="blocoMeus" hidden>
     <div class="eq-fim-topo">
-      <h2>Meus bichos</h2>
+      <h2>Meus eventos</h2>
       <span class="eq-cont" id="contMeus"></span>
     </div>
     <div id="listaMeus" class="eq-meus"></div>
@@ -314,7 +319,7 @@ require_once __DIR__ . '/enquetes_motor.php';
            passam a ser muitas e o que se quer ali é achar uma específica. */ ?>
   <div class="eq-fim" id="blocoFim" hidden>
     <div class="eq-fim-topo">
-      <h2>Apostas encerradas</h2>
+      <h2>Eventos encerrados</h2>
       <span class="eq-cont" id="contFim"></span>
       <input class="eq-busca" id="buscaFim" type="search" placeholder="Buscar por pergunta ou banca…"
              oninput="pintarEncerradas()">
@@ -326,15 +331,24 @@ require_once __DIR__ . '/enquetes_motor.php';
 <!-- Criar -->
 <div class="eq-modal" id="mCriar">
   <div class="eq-mbox">
-    <h3>Nova aposta</h3>
+    <h3>Novo evento</h3>
     <p class="eq-aj">Você vira a casa desta aposta. Escolha odds que consiga pagar:
       quanto maior a odd, mais fica retido do seu saldo.</p>
 
-    <label for="cTitulo">Pergunta</label>
-    <input id="cTitulo" maxlength="160" placeholder="Ex: Quem ganha a final da ELITE?">
+    <?php /* O aviso fica ANTES do campo, não depois: escrito embaixo, chega
+             quando a pergunta já foi digitada e ninguém reescreve. */ ?>
+    <div class="eq-aviso" style="margin:0 0 6px">
+      <b>Pergunte sobre um acontecimento</b>, não sobre gosto. Você é quem
+      declara o resultado — numa pergunta de opinião ("melhor filme", "melhor
+      jogador de todos os tempos") não há como a liga conferir se a resposta
+      foi honesta.
+    </div>
 
-    <label for="cDesc">Detalhe (opcional)</label>
-    <input id="cDesc" maxlength="400" placeholder="Como o resultado vai ser decidido">
+    <label for="cTitulo">Pergunta</label>
+    <input id="cTitulo" maxlength="160" placeholder="Ex: O Vasco vai cair em 2026?">
+
+    <label for="cDesc">Como o resultado vai ser conferido (opcional)</label>
+    <input id="cDesc" maxlength="400" placeholder="Ex: pela tabela final do Brasileirão">
 
     <?php /* As opções vêm do motor (ENQ_CATEGORIAS), não escritas de novo
              aqui: duas listas separadas saem do lugar na primeira mudança. */ ?>
@@ -423,8 +437,8 @@ function pintarAbertas() {
   document.getElementById('lista').innerHTML = achadas.length
     ? porCategoria(achadas)
     : `<p class="eq-vazio">${
-        q ? 'Nenhuma aposta aberta com esse termo.'
-          : (ENCERRADAS.length ? 'Nenhuma aposta aberta agora.' : 'Nenhuma aposta ainda.')}</p>`;
+        q ? 'Nenhum evento aberto com esse termo.'
+          : (ENCERRADAS.length ? 'Nenhum evento aberto agora.' : 'Nenhum evento ainda.')}</p>`;
 }
 
 /**
@@ -511,7 +525,7 @@ function mesa(e) {
 }
 
 /**
- * "Meus bichos": o que EU banco, com o que só eu posso fazer.
+ * "Meus eventos": o que EU banco, com o que só eu posso fazer.
  *
  * Declarar e cancelar moravam dentro de cada mesa lá em cima, e com isso a
  * lista de apostas — que é de todo mundo — carregava um bloco de controles
@@ -561,7 +575,7 @@ function pintarEncerradas() {
     q ? `${achadas.length} de ${ENCERRADAS.length}` : `${ENCERRADAS.length} no total`;
   document.getElementById('listaFim').innerHTML = achadas.length
     ? achadas.map(linha).join('')
-    : '<p class="eq-vazio">Nenhuma aposta encerrada com esse termo.</p>';
+    : '<p class="eq-vazio">Nenhum evento encerrado com esse termo.</p>';
 }
 
 /** Uma encerrada em uma linha só; o card inteiro fica atrás da clicada. */

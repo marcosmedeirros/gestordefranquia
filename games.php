@@ -1162,7 +1162,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
             <button class="g-tab <?= $abaInicial === 'banca' ? 'active' : '' ?>" data-aba="banca" onclick="trocarAba('banca')">
-                <i class="bi bi-cash-stack"></i> Bicho
+                <i class="bi bi-calendar-event-fill"></i> Eventos
             </button>
         </div>
 
