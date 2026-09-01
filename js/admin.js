@@ -116,6 +116,25 @@ async function showGamesAdmin() {
 
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
         <span class="fw-semibold" style="font-size:14px">
+          <i class="bi bi-calendar-event-fill me-1" style="color:#22c55e"></i>Eventos (as apostas dos GMs)
+        </span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarEventos()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Quem cria declara o resultado na página dele. Aqui é a saída pra quando isso
+        não acontece: dono sumido, resultado declarado errado ou evento que não vai
+        mais ter resposta. Declarar paga na hora; cancelar devolve tudo a quem apostou.
+      </div>
+      <div id="eventosWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+
+      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
+
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="fw-semibold" style="font-size:14px">
           <i class="bi bi-hammer me-1" style="color:#f59e0b"></i>Leilão do jogo da semana
         </span>
         <button class="btn btn-sm btn-outline-orange" onclick="_carregarLeilaoSemana()">
@@ -206,8 +225,130 @@ async function showGamesAdmin() {
   _carregarGamesUsers();
   _carregarAtualizacoes();
   _carregarGamesDobro();
+  _carregarEventos();
   _carregarLeilaoSemana();
   _carregarSlotsLive();
+}
+
+/* ── Eventos: as apostas que os GMs criam em /games ─────────────────────
+ *
+ * O card existe pro caso que a tela do GM não cobre. Lá quem declara o
+ * resultado é só o dono, de propósito — quem banca é quem paga. Mas dono
+ * some, declara errado, ou cria um evento que nunca vai ter resposta, e sem
+ * uma saída a moeda de todo mundo fica retida sem prazo.
+ */
+async function _carregarEventos() {
+  const wrap = document.getElementById('eventosWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="spinner-border text-orange"></div>';
+  try {
+    const r = await fetch('/api/enquetes.php?acao=admin_listar');
+    const d = await r.json();
+    if (!d.ok) { wrap.innerHTML = `<p class="empty-state">${escapeHtml(d.erro || 'Erro ao carregar.')}</p>`; return; }
+    _EVENTOS = d.enquetes || [];
+    _pintarEventos();
+  } catch (e) {
+    wrap.innerHTML = '<p class="empty-state">Não deu pra carregar os eventos.</p>';
+  }
+}
+
+let _EVENTOS = [];
+
+function _pintarEventos() {
+  const wrap = document.getElementById('eventosWrap');
+  if (!wrap) return;
+  if (!_EVENTOS.length) { wrap.innerHTML = '<p class="empty-state">Nenhum evento criado ainda.</p>'; return; }
+
+  const cor = {aberta: '#22c55e', paga: '#71717a', cancelada: '#ef4444', fechada: '#f59e0b'};
+  const dinheiro = v => Number(v || 0).toLocaleString('pt-BR');
+
+  wrap.innerHTML = `<div class="d-flex flex-column gap-2 text-start">` + _EVENTOS.map(e => {
+    const aberta = e.status === 'aberta';
+    const venceu = e.alternativas.find(a => a.id === e.vencedora);
+    // As alternativas com o que cada uma recebeu: é o que o admin precisa ver
+    // antes de declarar, porque declarar paga na hora e não desfaz sozinho.
+    const alts = e.alternativas.map(a =>
+      `<span class="pun-badge" style="background:#1e1e24;border-color:var(--border)">
+         ${escapeHtml(a.texto)} · ${Number(a.odd).toFixed(2)} · ${dinheiro(a.apostado)}
+       </span>`).join(' ');
+
+    return `
+    <div class="panel" style="padding:12px 14px;margin:0">
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+        <span class="fw-bold" style="font-size:13.5px">${escapeHtml(e.titulo)}</span>
+        <span class="pun-badge" style="background:${cor[e.status]}20;color:${cor[e.status]};border-color:${cor[e.status]}55">
+          ${escapeHtml(e.status)}
+        </span>
+        <span class="small text-secondary">
+          ${escapeHtml(e.categoria || 'Outros')} · banca: ${escapeHtml(e.criador)} ·
+          ${dinheiro(e.apostado)} de ${dinheiro(e.max_total)} apostados
+          ${e.retido ? ` · ${dinheiro(e.retido)} retido` : ''}
+          ${e.fecha_em ? ` · fecha ${_dataCurta(e.fecha_em)}` : ''}
+        </span>
+      </div>
+      <div class="d-flex align-items-center gap-1 flex-wrap mb-2">${alts}</div>
+      ${venceu ? `<div class="small mb-2" style="color:#22c55e">
+                    <i class="bi bi-trophy-fill me-1"></i>Deu <b>${escapeHtml(venceu.texto)}</b></div>` : ''}
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        ${aberta ? `
+          <select class="form-select form-select-sm" id="evRes${e.id}" style="width:auto;max-width:230px">
+            <option value="">Declarar o resultado…</option>
+            ${e.alternativas.map(a => `<option value="${a.id}">${escapeHtml(a.texto)}</option>`).join('')}
+          </select>
+          <button class="btn btn-sm btn-success" onclick="_eventoFechar(${e.id})">
+            <i class="bi bi-check2 me-1"></i>Pagar
+          </button>` : ''}
+        ${e.status !== 'cancelada' ? `
+          <button class="btn btn-sm btn-outline-danger" onclick="_eventoCancelar(${e.id}, '${e.status}')">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>${
+              e.status === 'paga' ? 'Reverter e devolver' : 'Cancelar e devolver'}
+          </button>` : '<span class="small text-secondary">Já cancelado — as moedas voltaram.</span>'}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+/** "05/09 18:30" — o ano só quando não é este. */
+function _dataCurta(iso) {
+  const d = new Date(String(iso).replace(' ', 'T'));
+  if (isNaN(d)) return escapeHtml(String(iso));
+  const hoje = new Date();
+  const fmt = {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'};
+  if (d.getFullYear() !== hoje.getFullYear()) fmt.year = 'numeric';
+  return d.toLocaleString('pt-BR', fmt);
+}
+
+async function _eventoFechar(id) {
+  const alt = Number(document.getElementById('evRes' + id)?.value || 0);
+  if (!alt) { showAlert('warning', 'Escolha qual alternativa venceu.'); return; }
+  if (!confirm('Declarar esse resultado e pagar quem acertou?\n\nO pagamento sai na hora.')) return;
+  try {
+    const r = await fetch('/api/enquetes.php?acao=admin_fechar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enquete_id: id, alternativa_id: alt}),
+    });
+    const d = await r.json();
+    if (!d.ok) { showAlert('danger', d.erro || 'Não deu pra declarar.'); return; }
+    showAlert('success', 'Resultado declarado e pagamentos feitos.');
+    _carregarEventos();
+  } catch (e) { showAlert('danger', 'Erro ao declarar o resultado.'); }
+}
+
+async function _eventoCancelar(id, status) {
+  const msg = status === 'paga'
+    ? 'REVERTER este pagamento? As moedas voltam pra quem apostou e o criador recebe o dele de volta.'
+    : 'Cancelar e devolver tudo a quem apostou?';
+  if (!confirm(msg)) return;
+  try {
+    const r = await fetch('/api/enquetes.php?acao=admin_cancelar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enquete_id: id}),
+    });
+    const d = await r.json();
+    if (!d.ok) { showAlert('danger', d.erro || 'Não deu pra cancelar.'); return; }
+    showAlert('success', status === 'paga' ? 'Pagamento revertido.' : 'Evento cancelado e moedas devolvidas.');
+    _carregarEventos();
+  } catch (e) { showAlert('danger', 'Erro ao cancelar.'); }
 }
 
 /* ── Vagas de tela da live ──────────────────────────────────────────────

@@ -124,6 +124,72 @@ try {
         exit;
     }
 
+    /*
+     * AS AÇÕES DO PAINEL DE ADMIN.
+     *
+     * Declarar o resultado é do dono, e a API barra o admin no caminho normal
+     * (enqFechar recusa quem não criou). Aqui é outro caminho, de outra tela:
+     * o admin geral precisa poder resolver uma aposta cujo dono sumiu, ou
+     * consertar um resultado declarado errado. Fica separado justamente pra
+     * essa diferença ser explícita — e não um `if ($ehAdmin)` escondido no
+     * meio do fluxo que todo GM usa.
+     */
+    if (str_starts_with($acao, 'admin_')) {
+        if (!$ehAdmin) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'erro' => 'Só o admin geral.']);
+            exit;
+        }
+
+        if ($acao === 'admin_listar') {
+            $st = $pdo->prepare("SELECT e.*, g.nome AS criador_nome
+                                 FROM enquetes e LEFT JOIN games_usuarios g ON g.id = e.criador_id
+                                 ORDER BY FIELD(e.status,'aberta','fechada','paga','cancelada'), e.id DESC
+                                 LIMIT 200");
+            $st->execute();
+            // Monta com o uid do CRIADOR, não o do admin: 'sou_dono' e 'meu'
+            // são do ponto de vista de quem olha, e no painel quem olha é a
+            // administração — o que interessa ali é o estado da aposta.
+            $lista = array_map(fn($e) => enqMontar($pdo, $e, (int)$e['criador_id']), $st->fetchAll(PDO::FETCH_ASSOC));
+            echo json_encode(['ok' => true, 'enquetes' => $lista,
+                              'categorias' => ENQ_CATEGORIAS], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($acao === 'admin_fechar') {
+            // Passa o criador como autor: o pagamento é dele pra quem apostou,
+            // e enqFechar cobra que quem declara seja o dono.
+            $enqId = (int)($corpo['enquete_id'] ?? 0);
+            $st = $pdo->prepare("SELECT criador_id FROM enquetes WHERE id = ?");
+            $st->execute([$enqId]);
+            $dono = (int)($st->fetchColumn() ?: 0);
+            if (!$dono) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'erro' => 'Aposta não encontrada.']);
+                exit;
+            }
+            $r = enqFechar($pdo, $dono, $enqId, (int)($corpo['alternativa_id'] ?? 0), true);
+            // Quem declarou de verdade fica registrado: o extrato é o que
+            // permite conferir depois, e dizer que foi o dono seria mentira.
+            if (!empty($r['ok'])) {
+                $pdo->prepare("UPDATE enquetes SET resultado_por = ? WHERE id = ?")
+                    ->execute([$uid, $enqId]);
+            }
+            echo json_encode($r, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($acao === 'admin_cancelar') {
+            $r = enqCancelar($pdo, $uid, (int)($corpo['enquete_id'] ?? 0), true);
+            echo json_encode($r, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'erro' => 'Ação de admin desconhecida.']);
+        exit;
+    }
+
     if ($acao === 'fechar') {
         $r = enqFechar($pdo, $uid, (int)($corpo['enquete_id'] ?? 0),
                        (int)($corpo['alternativa_id'] ?? 0), $ehAdmin);

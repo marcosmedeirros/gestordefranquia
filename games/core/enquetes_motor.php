@@ -87,6 +87,29 @@ const ENQ_LASTRO         = 600;
  */
 const ENQ_CATEGORIAS = ['Basquete', 'Futebol', 'Cinema', 'Outros'];
 
+/**
+ * Lê o prazo que veio da tela.
+ *
+ * O <input type="datetime-local"> manda "2026-09-05T18:30", sem segundos e
+ * com T no meio — e é o relógio de quem digitou, não o do banco.
+ *
+ * @return string|null|false a data pronta; null quando não veio nada
+ *         (o chamador cai nos dias); false quando veio e não serve.
+ */
+function enqPrazo(?string $bruto)
+{
+    $b = trim((string)$bruto);
+    if ($b === '') return null;
+
+    $t = strtotime(str_replace('T', ' ', $b));
+    if ($t === false) return false;
+    // Passado não fecha nada, e um prazo longo demais segura a moeda do
+    // criador presa por tempo que ninguém combinou.
+    if ($t <= time() + 60) return false;
+    if ($t > time() + ENQ_DIAS_MAX * 86400) return false;
+    return date('Y-m-d H:i:s', $t);
+}
+
 /** Devolve a categoria só se ela existir; qualquer outra coisa vira Outros. */
 function enqCategoria(?string $bruta): string
 {
@@ -331,7 +354,24 @@ function enqCriar(PDO $pdo, int $uid, array $dados): array
 
     $maxPessoa = max(ENQ_APOSTA_MIN, (int)($dados['max_por_pessoa'] ?? 0));
     $maxTotal  = max($maxPessoa, (int)($dados['max_total'] ?? 0));
-    $dias      = max(1, min(ENQ_DIAS_MAX, (int)($dados['dias'] ?? 7)));
+
+    /*
+     * O PRAZO: dia e hora, ou uma contagem de dias.
+     *
+     * "Aberta por 7 dias" resolve o caso preguiçoso, mas não o caso em que o
+     * evento tem hora marcada — apostar em quem ganha o jogo até depois de a
+     * bola subir é o tipo de brecha que a liga descobre uma vez só. Quando
+     * vem `fecha_em`, ele manda; senão, os dias.
+     */
+    $fechaEm = enqPrazo($dados['fecha_em'] ?? null);
+    if ($fechaEm === false) {
+        return $erro('A data de fechamento tem que ser no futuro e dentro de '
+                   . ENQ_DIAS_MAX . ' dias.');
+    }
+    if ($fechaEm === null) {
+        $dias    = max(1, min(ENQ_DIAS_MAX, (int)($dados['dias'] ?? 7)));
+        $fechaEm = date('Y-m-d H:i:s', time() + $dias * 86400);
+    }
 
     /*
      * A GARANTIA DE CRIAR.
@@ -354,10 +394,10 @@ function enqCriar(PDO $pdo, int $uid, array $dados): array
     try {
         $pdo->prepare("INSERT INTO enquetes
                         (criador_id, titulo, descricao, categoria, max_por_pessoa, max_total, fecha_em)
-                       VALUES (?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? DAY))")
+                       VALUES (?,?,?,?,?,?,?)")
             ->execute([$uid, $titulo, mb_substr(trim((string)($dados['descricao'] ?? '')), 0, 400) ?: null,
                        enqCategoria($dados['categoria'] ?? null),
-                       $maxPessoa, $maxTotal, $dias]);
+                       $maxPessoa, $maxTotal, $fechaEm]);
         $id = (int)$pdo->lastInsertId();
 
         $ins = $pdo->prepare("INSERT INTO enquete_alternativas (enquete_id, texto, odd_inicial, ordem) VALUES (?,?,?,?)");

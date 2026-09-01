@@ -237,6 +237,7 @@ require_once __DIR__ . '/enquetes_motor.php';
 #pane-banca input:focus,#pane-banca textarea:focus{border-color:rgba(255,255,255,.24)}
 .eq-alt-linha{display:grid;grid-template-columns:1fr 92px;gap:7px;margin-bottom:7px}
 .eq-duo{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.eq-dica{display:block;font-size:10.5px;color:var(--text3);margin-top:4px}
 .eq-aviso{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);
   border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);
   line-height:1.55;margin-top:12px}
@@ -369,9 +370,27 @@ require_once __DIR__ . '/enquetes_motor.php';
       <div><label for="cPessoa">Máximo por pessoa</label><input id="cPessoa" type="number" value="200" min="10"></div>
       <div><label for="cTotal">Máximo total</label><input id="cTotal" type="number" value="1000" min="10"></div>
     </div>
-    <div class="eq-duo">
-      <div><label for="cDias">Aberta por (dias)</label><input id="cDias" type="number" value="7" min="1"></div>
-    </div>
+    <?php
+      /* DIA E HORA, não uma contagem de dias.
+         "Aberta por 7 dias" nunca casa com o evento: o jogo tem hora marcada,
+         e aceitar aposta em quem ganha depois de a bola subir é a brecha que
+         a liga acha uma vez só.
+
+         O valor inicial sai do relógio do SERVIDOR, não do navegador: assim
+         "agora" é sempre o horário de Brasília, mesmo pra quem estiver com o
+         computador em outro fuso. Nasce preenchido com o instante atual, pra
+         quem for marcar uma hora de hoje só precisar mexer na hora. */
+      $tzBR = new DateTimeZone('America/Sao_Paulo');
+      $agora = new DateTime('now', $tzBR);
+      $limite = (clone $agora)->modify('+' . ENQ_DIAS_MAX . ' days');
+    ?>
+    <label for="cQuando">Fecha em (horário de Brasília)</label>
+    <input id="cQuando" type="datetime-local"
+           value="<?= $agora->format('Y-m-d\TH:i') ?>"
+           min="<?= $agora->format('Y-m-d\TH:i') ?>"
+           max="<?= $limite->format('Y-m-d\TH:i') ?>">
+    <small class="eq-dica">Depois desta hora ninguém mais aposta.
+      No máximo <?= ENQ_DIAS_MAX ?> dias à frente.</small>
 
     <div class="eq-aviso" id="cAviso"></div>
     <div class="eq-mfoot">
@@ -725,13 +744,14 @@ async function criar() {
     odd: Number(l.querySelector('.cAltOdd').value),
   })).filter(a => a.texto);
   const r = await api('criar', {
+    // Só a data: os dias saíram da tela, e o motor cai no padrão se ela faltar.
+    fecha_em: document.getElementById('cQuando').value || null,
     titulo: document.getElementById('cTitulo').value.trim(),
     descricao: document.getElementById('cDesc').value.trim(),
     categoria: document.getElementById('cCat').value.trim(),
     alternativas: alts,
     max_por_pessoa: Number(document.getElementById('cPessoa').value),
     max_total: Number(document.getElementById('cTotal').value),
-    dias: Number(document.getElementById('cDias').value),
   });
   if (!r.ok) { alert(r.erro); return; }
   fechar('mCriar');
