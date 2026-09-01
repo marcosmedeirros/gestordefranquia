@@ -65,11 +65,16 @@ require_once __DIR__ . '/enquetes_motor.php';
   margin-top:13px;padding-top:12px;border-top:1px solid var(--borda)}
 .eq-como-p b{color:var(--text2)}
 
-.eq-saldos{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px}
-.eq-saldo{background:var(--panel);border:1px solid var(--borda);border-radius:12px;
-  padding:11px 15px;min-width:126px}
-.eq-saldo b{display:block;font-family:var(--num);font-size:20px;font-weight:900;letter-spacing:-.5px}
-.eq-saldo span{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--text3)}
+/* O retido, agora colado no título.
+   Era um card empilhado com outros dois; sozinho e na mesma linha do "Eventos"
+   ele vira uma pastilha — o bloco alto de antes desalinhava o cabeçalho. */
+.eq-saldos{display:flex;gap:9px;flex-wrap:wrap}
+.eq-saldo{display:flex;align-items:baseline;gap:6px;
+  background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);
+  border-radius:999px;padding:5px 12px}
+.eq-saldo b{font-family:var(--num);font-size:14px;font-weight:900;letter-spacing:-.3px}
+.eq-saldo span{font-size:10px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--text3)}
 
 .eq-btn{background:var(--panel3);border:1px solid var(--borda);color:var(--texto);
   border-radius:10px;padding:10px 15px;font-family:var(--font);font-size:13px;
@@ -251,6 +256,10 @@ require_once __DIR__ . '/enquetes_motor.php';
     <?php /* Nada de "voltar aos games": já estamos dentro deles, e a aba de
              onde se veio está logo acima. */ ?>
     <h1>Eventos</h1>
+    <?php /* O retido fica AQUI, colado no título, e não lá embaixo perdido
+             entre a explicação e a lista: é moeda sua que está presa agora,
+             e a pessoa precisa ver isso ao chegar, não ao rolar. */ ?>
+    <div class="eq-saldos" id="saldos" hidden></div>
     <?php /* Criar é de todo mundo, e por isso o botão já nasce visível: ele
              ficava escondido esperando a listagem dizer se a pessoa era
              admin, e piscava na tela de quem tinha permissão. */ ?>
@@ -294,7 +303,6 @@ require_once __DIR__ . '/enquetes_motor.php';
     </p>
   </details>
 
-  <div class="eq-saldos" id="saldos"></div>
 
   <div class="eq-fim-topo" id="topoAbertas" hidden>
     <h2>Eventos abertos</h2>
@@ -509,6 +517,21 @@ function porCategoria(lista) {
  * a 4 alternativas — o teto de 4 é o que permite as colunas terem largura
  * fixa. Clicar numa odd abre o campo de valor embaixo da própria linha.
  */
+/**
+ * O máximo que EU posso apostar neste evento, agora.
+ *
+ * São três tetos ao mesmo tempo, e vale o menor: o que sobra do meu limite
+ * por pessoa, o que sobra do total do evento e o que eu tenho livre no
+ * bolso. Antes o campo abria com 50 fixo — um número que não era o mínimo
+ * nem o máximo, e que todo mundo apagava pra digitar outro.
+ */
+function tetoDaAposta(e) {
+  const porPessoa = (e.max_pessoa || 0) - (e.meu_total || 0);
+  const doEvento  = (e.max_total  || 0) - (e.apostado  || 0);
+  const noBolso   = DADOS?.livre ?? 0;
+  return Math.max(0, Math.min(porPessoa, doEvento, noBolso));
+}
+
 function mesa(e) {
   const total = e.apostado || 1;
   const podeApostar = !e.sou_dono;
@@ -530,8 +553,7 @@ function mesa(e) {
       <div class="eq-box-alvo">${esc(a.texto)} · odd ${Number(a.odd).toFixed(2)}</div>
       <div class="eq-box-linha">
         <input type="number" id="val_${e.id}_${a.id}" min="${DADOS.limites.aposta_min}"
-               max="${e.max_pessoa - e.meu_total}"
-               value="${Math.min(50, Math.max(DADOS.limites.aposta_min, e.max_pessoa - e.meu_total))}"
+               max="${tetoDaAposta(e)}" value="${tetoDaAposta(e)}"
                oninput="previa(${e.id},${a.id})">
         <button class="eq-btn eq-pri" onclick="apostar(${e.id},${a.id})">Apostar</button>
         <button class="eq-btn" onclick="fecharBox(${e.id},${a.id})">Cancelar</button>
@@ -671,7 +693,7 @@ function card(e) {
         <div class="eq-box" id="box_${e.id}_${a.id}" hidden>
           <div class="eq-box-linha">
             <input type="number" id="val_${e.id}_${a.id}" min="${DADOS.limites.aposta_min}"
-                   max="${e.max_pessoa - e.meu_total}" value="${Math.min(50, Math.max(DADOS.limites.aposta_min, e.max_pessoa - e.meu_total))}"
+                   max="${tetoDaAposta(e)}" value="${tetoDaAposta(e)}"
                    oninput="previa(${e.id},${a.id})">
             <button class="eq-btn eq-pri" onclick="apostar(${e.id},${a.id})">Apostar</button>
             <button class="eq-btn" onclick="fecharBox(${e.id},${a.id})">Cancelar</button>
@@ -809,14 +831,25 @@ function previa(enqId, altId) {
   const alvo  = document.getElementById(`prev_${enqId}_${altId}`);
   if (!e || !a || !campo || !alvo) return;
 
-  const v = Number(campo.value) || 0;
+  /* O CAMPO NÃO DEIXA PASSAR DO TETO.
+     O atributo `max` do input só vale no submit de um <form>, e aqui não há
+     form nenhum — dava pra digitar 5.000 num evento de 900 e só descobrir no
+     erro. Agora o número volta pro teto na hora, e a mensagem explica qual
+     dos três limites pegou. */
+  const teto = tetoDaAposta(e);
+  const min  = DADOS.limites.aposta_min;
+  let v = Number(campo.value) || 0;
+  if (v > teto) { v = teto; campo.value = String(teto); }
+
   const retorno = Math.round(v * a.odd);
-  const podeMax = e.max_pessoa - e.meu_total;
-  const min = DADOS.limites.aposta_min;
+  const porPessoa = (e.max_pessoa || 0) - (e.meu_total || 0);
+  const doEvento  = (e.max_total  || 0) - (e.apostado  || 0);
   // O motivo em vez de um botão apagado sem explicação.
-  const problema = v < min ? `A aposta mínima é ${n(min)}.`
-    : v > podeMax ? `O limite por pessoa aqui é ${n(e.max_pessoa)} — você já apostou ${n(e.meu_total)}.`
-    : v > DADOS.saldo ? `Você tem ${n(DADOS.saldo)} moedas.`
+  const problema = teto < min
+      ? (porPessoa < min ? `Você já apostou o limite deste evento (${n(e.max_pessoa)}).`
+      : doEvento  < min ? 'Este evento já bateu o teto total.'
+      : `Você tem ${n(DADOS.livre)} moedas livres.`)
+    : v < min ? `A aposta mínima é ${n(min)}.`
     : null;
 
   alvo.innerHTML = problema
