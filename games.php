@@ -569,14 +569,6 @@ $jogosLivres = [
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
      'sub'  => 'Vote e decida o campeão', 'icone' => 'bi-diagram-3-fill', 'cor' => '#f59e0b'],
-    // Enquetes: SÓ ADMIN GERAL por enquanto. Quem cria banca com o próprio
-    // saldo, e o resultado é declarado por quem criou — enquanto isso vale,
-    // a aba fica com quem responde pela liga. A página confere de novo: sem
-    // esse par, o link direto entraria por fora do card.
-    ...((($user['user_type'] ?? '') === 'admin') ? [
-      ['href' => '/games/games/enquetes.php', 'nome' => 'Enquetes',
-       'sub'  => 'Crie a aposta e banque', 'icone' => 'bi-graph-up-arrow', 'cor' => '#22c55e'],
-    ] : []),
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
@@ -586,7 +578,10 @@ $jogosLivres = [
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
-$abasValidas = ['games', 'apostas', 'loja', 'ranking'];
+// A aba Banca só existe pra admin geral por enquanto — e por isso ela não
+// entra na lista de abas válidas de quem não é: ?aba=banca cairia no default.
+$ehAdminGeral = ($user['user_type'] ?? '') === 'admin';
+$abasValidas = array_merge(['games', 'apostas', 'loja', 'ranking'], $ehAdminGeral ? ['banca'] : []);
 $abaInicial = 'games';
 if (isset($_GET['aba']) && in_array($_GET['aba'], $abasValidas, true)) $abaInicial = $_GET['aba'];
 if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
@@ -1160,6 +1155,11 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
+            <?php if ($ehAdminGeral): ?>
+            <button class="g-tab <?= $abaInicial === 'banca' ? 'active' : '' ?>" data-aba="banca" onclick="trocarAba('banca')">
+                <i class="bi bi-cash-stack"></i> Banca
+            </button>
+            <?php endif; ?>
         </div>
 
         <!-- ── Aba Games ─────────────────────────────────────────────── -->
@@ -1968,6 +1968,15 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($ehAdminGeral): ?>
+        <!-- ── Aba Banca (enquetes) ──────────────────────────────────────
+             O painel inteiro mora em core/enquetes_painel.php, com as classes
+             prefixadas em `eq-` pra não brigar com o CSS desta página. -->
+        <div class="g-pane <?= $abaInicial === 'banca' ? 'active' : '' ?>" id="pane-banca">
+            <?php include __DIR__ . '/games/core/enquetes_painel.php'; ?>
+        </div>
+        <?php endif; ?>
 
     </div>
 </main>
