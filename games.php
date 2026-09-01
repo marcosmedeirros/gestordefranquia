@@ -578,13 +578,18 @@ $jogosLivres = [
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
-// A aba Banca é de todos: quem CRIA enquete é só o admin geral (a API barra),
-// mas apostar é da liga inteira — sem isso as enquetes ficavam sem apostador,
-// porque quem cria não pode apostar na própria.
+// A aba Eventos é de todos: quem CRIA é só o admin geral (a API barra), mas
+// apostar é da liga inteira — sem isso os eventos ficavam sem apostador,
+// porque quem cria não pode apostar no próprio.
 $ehAdminGeral = ($user['user_type'] ?? '') === 'admin';
-$abasValidas = ['games', 'apostas', 'loja', 'ranking', 'banca'];
+$abasValidas = ['games', 'apostas', 'loja', 'ranking', 'eventos'];
 $abaInicial = 'games';
-if (isset($_GET['aba']) && in_array($_GET['aba'], $abasValidas, true)) $abaInicial = $_GET['aba'];
+if (isset($_GET['aba'])) {
+    // `banca` era o nome antigo da aba. Continua abrindo, porque link já
+    // mandado no grupo não deve virar uma página em branco.
+    $pedida = $_GET['aba'] === 'banca' ? 'eventos' : $_GET['aba'];
+    if (in_array($pedida, $abasValidas, true)) $abaInicial = $pedida;
+}
 if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
 // Depois de comprar ou usar, a pagina volta na LOJA e nao na aba de
 // origem — senao a compra some da vista e parece que nao aconteceu.
@@ -1161,7 +1166,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
-            <button class="g-tab <?= $abaInicial === 'banca' ? 'active' : '' ?>" data-aba="banca" onclick="trocarAba('banca')">
+            <button class="g-tab <?= $abaInicial === 'eventos' ? 'active' : '' ?>" data-aba="eventos" onclick="trocarAba('eventos')">
                 <i class="bi bi-calendar-event-fill"></i> Eventos
             </button>
         </div>
@@ -1976,7 +1981,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         <!-- ── Aba Banca (enquetes) ──────────────────────────────────────
              O painel inteiro mora em core/enquetes_painel.php, com as classes
              prefixadas em `eq-` pra não brigar com o CSS desta página. -->
-        <div class="g-pane <?= $abaInicial === 'banca' ? 'active' : '' ?>" id="pane-banca">
+        <div class="g-pane <?= $abaInicial === 'eventos' ? 'active' : '' ?>" id="pane-eventos">
             <?php include __DIR__ . '/games/core/enquetes_painel.php'; ?>
         </div>
 

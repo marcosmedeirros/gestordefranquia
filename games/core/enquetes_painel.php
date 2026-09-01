@@ -20,20 +20,20 @@ require_once __DIR__ . '/enquetes_motor.php';
  * Quando isto era página inteira, `:root` era dele. Como aba, `:root` é do
  * /games — e --bg, --panel e --texto existem lá com outros valores. Declarar
  * de novo ali repintava a página inteira, incluindo as outras quatro abas.
- * Presas ao #pane-banca, valem só aqui dentro (os modais também estão dentro
+ * Presas ao #pane-eventos, valem só aqui dentro (os modais também estão dentro
  * dele, então herdam).
  */
-#pane-banca{--bg:#0a0a0c;--panel:#141418;--panel2:#1b1b21;--panel3:#232329;
+#pane-eventos{--bg:#0a0a0c;--panel:#141418;--panel2:#1b1b21;--panel3:#232329;
   --borda:rgba(255,255,255,.07);--texto:#f4f4f5;--text2:#a1a1aa;--text3:#71717a;
   --verde:#22c55e;--vermelho:#ef4444;--amber:#f59e0b;--azul:#3b82f6;
   --font:'Inter',system-ui,sans-serif;--num:'Inter',sans-serif;
   color:var(--texto);font-family:var(--font)}
-#pane-banca *{box-sizing:border-box}
+#pane-eventos *{box-sizing:border-box}
 /* Sem regra de `body`: a de antes trocava o fundo e o padding do /games
    inteiro só por esta aba existir na página. */
 .eq-wrap{max-width:none;margin:0}
 .eq-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-#pane-banca h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
+#pane-eventos h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
 .eq-lead{color:var(--text2);font-size:13.5px;line-height:1.6;margin-bottom:16px;max-width:70ch}
 
 /* A explicação ganhou espaço e virou um bloco próprio: era um parágrafo
@@ -138,9 +138,9 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-meu-t b{display:block;font-size:13px;font-weight:800}
 .eq-meu-t small{font-size:11px;color:var(--text3)}
 .eq-meu-acoes{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-#pane-banca .eq-meu-acoes select{width:auto;max-width:230px;font-size:12px;padding:8px 10px}
+#pane-eventos .eq-meu-acoes select{width:auto;max-width:230px;font-size:12px;padding:8px 10px}
 .eq-retido{color:var(--amber);font-weight:800}
-@media(max-width:560px){ .eq-meu-acoes{width:100%} #pane-banca .eq-meu-acoes select{max-width:none;flex:1} }
+@media(max-width:560px){ .eq-meu-acoes{width:100%} #pane-eventos .eq-meu-acoes select{max-width:none;flex:1} }
 .eq-box-alvo{font-size:11px;font-weight:800;color:var(--text2);margin-bottom:7px}
 
 @media(max-width:700px){
@@ -155,7 +155,7 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-card.eq-minha{border-color:rgba(59,130,246,.35)}
 .eq-card.eq-paga{opacity:.72}
 .eq-ch{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:4px}
-#pane-banca .eq-ch h2{font-size:15.5px;font-weight:800;letter-spacing:-.2px;flex:1;min-width:200px}
+#pane-eventos .eq-ch h2{font-size:15.5px;font-weight:800;letter-spacing:-.2px;flex:1;min-width:200px}
 .eq-selo{font-size:9.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;
   padding:4px 8px;border-radius:99px;white-space:nowrap}
 .eq-selo.eq-aberta{background:rgba(34,197,94,.16);color:var(--verde)}
@@ -186,7 +186,7 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-box{background:var(--panel3);border-top:1px solid rgba(34,197,94,.35);
   padding:11px 14px}
 .eq-box-linha{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-#pane-banca .eq-box-linha input{width:110px;font-size:17px;font-weight:900;
+#pane-eventos .eq-box-linha input{width:110px;font-size:17px;font-weight:900;
   font-family:var(--num);text-align:center;padding:8px 10px}
 .eq-box-previa{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
 .eq-nota-dono{font-size:12px;color:var(--text3);margin-top:10px;
@@ -199,8 +199,8 @@ require_once __DIR__ . '/enquetes_motor.php';
    o que ainda dá pra apostar. */
 .eq-fim{margin-top:30px;padding-top:22px;border-top:1px solid var(--borda)}
 .eq-fim-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-#pane-banca .eq-fim-topo h2{font-size:14px;font-weight:800;letter-spacing:-.2px}
-#pane-banca .eq-busca{max-width:260px;margin-left:auto;font-size:13px}
+#pane-eventos .eq-fim-topo h2{font-size:14px;font-weight:800;letter-spacing:-.2px}
+#pane-eventos .eq-busca{max-width:260px;margin-left:auto;font-size:13px}
 .eq-cont{font-size:11.5px;color:var(--text3);font-weight:700}
 
 /* As encerradas são histórico: viram linha, não card. Uma clicada abre o
@@ -227,14 +227,14 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-modal.eq-on{display:flex}
 .eq-mbox{background:var(--panel);border:1px solid var(--borda);border-radius:16px;
   padding:20px;width:100%;max-width:520px;max-height:88vh;overflow:auto}
-#pane-banca .eq-mbox h3{font-size:17px;font-weight:900;margin-bottom:4px}
+#pane-eventos .eq-mbox h3{font-size:17px;font-weight:900;margin-bottom:4px}
 .eq-mbox p.eq-aj{font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.55}
-#pane-banca label{display:block;font-size:10px;font-weight:800;letter-spacing:.6px;
+#pane-eventos label{display:block;font-size:10px;font-weight:800;letter-spacing:.6px;
   text-transform:uppercase;color:var(--text3);margin:11px 0 5px}
-#pane-banca input,#pane-banca textarea,#pane-banca select{width:100%;background:var(--panel2);border:1px solid var(--borda);
+#pane-eventos input,#pane-eventos textarea,#pane-eventos select{width:100%;background:var(--panel2);border:1px solid var(--borda);
   border-radius:9px;padding:10px 12px;color:var(--texto);font-family:var(--font);
   font-size:14px;font-weight:600;outline:none}
-#pane-banca input:focus,#pane-banca textarea:focus{border-color:rgba(255,255,255,.24)}
+#pane-eventos input:focus,#pane-eventos textarea:focus{border-color:rgba(255,255,255,.24)}
 .eq-alt-linha{display:grid;grid-template-columns:1fr 92px;gap:7px;margin-bottom:7px}
 .eq-duo{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .eq-dica{display:block;font-size:10.5px;color:var(--text3);margin-top:4px}
@@ -242,7 +242,7 @@ require_once __DIR__ . '/enquetes_motor.php';
   border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);
   line-height:1.55;margin-top:12px}
 .eq-mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
-@media(max-width:560px){ .eq-duo{grid-template-columns:1fr} #pane-banca h1{font-size:20px} }
+@media(max-width:560px){ .eq-duo{grid-template-columns:1fr} #pane-eventos h1{font-size:20px} }
 </style>
 <?php /* Sem <head>/<body> aqui: isto é um pedaço da página, não uma página.
          Eles sobraram da conversão e ficavam soltos no meio do /games. */ ?>
@@ -424,10 +424,19 @@ async function carregar() {
   const btn = document.getElementById('btnCriar');
   if (btn) btn.hidden = !d.admin;
 
-  document.getElementById('saldos').innerHTML = `
-    <div class="eq-saldo"><b>${n(d.saldo)}</b><span>suas moedas</span></div>
-    <div class="eq-saldo"><b>${n(d.livre)}</b><span>livres pra bancar</span></div>
-    ${d.retido ? `<div class="eq-saldo"><b style="color:var(--amber)">${n(d.retido)}</b><span>retido em apostas</span></div>` : ''}`;
+  /* SÓ O RETIDO.
+     "Suas moedas" e "livres pra bancar" repetiam o contador de moedas que já
+     está no topo da página — três números iguais na mesma tela, e dois deles
+     redundantes. O retido fica porque é o único que o topo não mostra: é
+     moeda que existe no saldo mas não dá pra gastar enquanto o evento corre. */
+  const cx = document.getElementById('saldos');
+  if (cx) {
+    cx.innerHTML = d.retido
+      ? `<div class="eq-saldo"><b style="color:var(--amber)">${n(d.retido)}</b>
+           <span>retido nos seus eventos</span></div>`
+      : '';
+    cx.hidden = !d.retido;
+  }
 
   // Em cima o que ainda aceita aposta; embaixo, o histórico.
   const lista = d.enquetes || [];

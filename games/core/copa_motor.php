@@ -42,6 +42,15 @@ const COPA_TAMANHOS = [4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64];
 /** Teto de competidores. Acima disso o chaveamento não cabe em tela nenhuma. */
 const COPA_MAX = 64;
 
+/**
+ * Quanto dura uma rodada, por padrão.
+ *
+ * Começou em 30 e desceu pra 15: meia hora por rodada faz uma copa de 64
+ * levar seis horas pra sair do lugar, e a graça é a coisa andar enquanto a
+ * galera está no grupo. Quem quiser mais tempo muda no controle da copa.
+ */
+const COPA_MINUTOS_PADRAO = 15;
+
 function copaTabelas(PDO $pdo): void
 {
     static $feito = false;
@@ -94,7 +103,12 @@ function copaTabelas(PDO $pdo): void
      * alguém apertar o botão, que é como ela sempre funcionou.
      */
     foreach ([
-        "ALTER TABLE copa_torneios ADD COLUMN minutos_rodada INT NOT NULL DEFAULT 30 AFTER votacao",
+        "ALTER TABLE copa_torneios ADD COLUMN minutos_rodada INT NOT NULL DEFAULT "
+            . COPA_MINUTOS_PADRAO . " AFTER votacao",
+        // O padrão mudou de 30 pra 15 depois que a coluna já existia; o ADD
+        // acima não roda mais, então é o MODIFY que atualiza o default.
+        "ALTER TABLE copa_torneios MODIFY minutos_rodada INT NOT NULL DEFAULT "
+            . COPA_MINUTOS_PADRAO,
         "ALTER TABLE copa_torneios ADD COLUMN fecha_em DATETIME NULL AFTER minutos_rodada",
         // Quando a estreia foi anunciada no grupo. Serve pra anunciar UMA vez:
         // fechar e reabrir a votação da primeira rodada não é uma copa nova.

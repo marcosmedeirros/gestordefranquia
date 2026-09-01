@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['copa_form'] = ['titulo' => $_POST['titulo'] ?? '', 'nomes' => $_POST['nomes'] ?? ''];
 
         } elseif ($acao === 'minutos' && $isAdmin) {
-            $min = max(0, (int)($_POST['minutos'] ?? 30));
+            $min = max(0, (int)($_POST['minutos'] ?? COPA_MINUTOS_PADRAO));
             copaDefinirMinutos($pdo, $tid, $min);
             $_SESSION['copa_flash'] = ['ok', $min > 0
                 ? "Cada rodada passa a durar {$min} min — vira sozinha e já abre a seguinte."
@@ -727,7 +727,7 @@ if ($copa && $userId) {
         <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
         <label style="font-size:12px;color:var(--text3)" for="minutosRodada">rodada de</label>
         <input id="minutosRodada" type="number" name="minutos" min="0" max="10080"
-               value="<?= (int)($copa['minutos_rodada'] ?? 30) ?>"
+               value="<?= (int)($copa['minutos_rodada'] ?? COPA_MINUTOS_PADRAO) ?>"
                style="width:74px;text-align:center">
         <span style="font-size:12px;color:var(--text3)">min</span>
         <button class="bt"><i class="bi bi-check2"></i> salvar</button>

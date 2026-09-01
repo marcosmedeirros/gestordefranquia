@@ -92,6 +92,31 @@ async function showGamesAdmin() {
     </div>
     <div class="row g-3 mb-4">${cards}</div>
 
+    <!-- Card próprio, e não uma seção dentro de "Configuração dos games":
+         ali embaixo do dobro de moedas ele passava despercebido, e este é o
+         lugar de resolver aposta travada — precisa estar à vista. -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title" style="margin-bottom:0">
+            <i class="bi bi-calendar-event-fill" style="color:#22c55e"></i> Eventos
+          </div>
+          <div class="panel-sub">As apostas que os GMs criam na aba Eventos do /games</div>
+        </div>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarEventos()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Quem cria declara o resultado na página dele. Aqui é a saída pra quando isso
+        não acontece: dono sumido, resultado declarado errado ou evento que não vai
+        mais ter resposta. Declarar paga na hora; cancelar devolve tudo a quem apostou.
+      </div>
+      <div id="eventosWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-title">
         <i class="bi bi-sliders" style="color:#38bdf8"></i> Configuração dos games
@@ -112,24 +137,6 @@ async function showGamesAdmin() {
         <div class="spinner-border text-orange"></div>
       </div>
 
-      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
-
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-        <span class="fw-semibold" style="font-size:14px">
-          <i class="bi bi-calendar-event-fill me-1" style="color:#22c55e"></i>Eventos (as apostas dos GMs)
-        </span>
-        <button class="btn btn-sm btn-outline-orange" onclick="_carregarEventos()">
-          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
-        </button>
-      </div>
-      <div class="small text-secondary mb-2">
-        Quem cria declara o resultado na página dele. Aqui é a saída pra quando isso
-        não acontece: dono sumido, resultado declarado errado ou evento que não vai
-        mais ter resposta. Declarar paga na hora; cancelar devolve tudo a quem apostou.
-      </div>
-      <div id="eventosWrap" class="text-center py-3">
-        <div class="spinner-border text-orange"></div>
-      </div>
 
       <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
 
