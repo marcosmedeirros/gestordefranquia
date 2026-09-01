@@ -40,9 +40,18 @@ require_once __DIR__ . '/enquetes_motor.php';
    corrido onde a parte que mais importa — quem paga e quem embolsa —
    passava batido no meio da frase. */
 .eq-como{background:var(--panel);border:1px solid var(--borda);border-radius:13px;
-  padding:15px 18px;margin-bottom:18px}
+  padding:13px 18px;margin-bottom:18px}
+.eq-como[open]{padding-bottom:15px}
 .eq-como-t{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:900;
-  letter-spacing:.5px;text-transform:uppercase;color:var(--verde);margin-bottom:11px}
+  letter-spacing:.5px;text-transform:uppercase;color:var(--verde);cursor:pointer;
+  list-style:none;user-select:none}
+.eq-como-t::-webkit-details-marker{display:none}
+/* A seta é do próprio bloco, não do navegador: o marcador padrão fica de
+   fora do alinhamento e muda de desenho conforme o browser. */
+.eq-como-t::after{content:'\F282';font-family:'bootstrap-icons';margin-left:auto;
+  font-size:12px;color:var(--text3);transition:transform .2s ease}
+.eq-como[open] .eq-como-t{margin-bottom:11px}
+.eq-como[open] .eq-como-t::after{transform:rotate(180deg)}
 .eq-passos{list-style:none;counter-reset:eqp;display:grid;gap:9px;
   grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .eq-passos li{counter-increment:eqp;position:relative;padding-left:29px;
@@ -252,8 +261,11 @@ require_once __DIR__ . '/enquetes_motor.php';
            primeira vez precisa entender que o criador é a CASA — bota o
            dinheiro dele e fica com o dos outros quando eles erram. Escondido
            no meio de uma frase, isso passava batido. */ ?>
-  <div class="eq-como">
-    <div class="eq-como-t"><i class="bi bi-info-circle-fill"></i> Como funciona</div>
+  <?php /* Fechado por padrão: quem já entendeu passa por ele todo dia, e o
+           bloco aberto empurrava as apostas — o motivo da visita — pra baixo
+           da dobra. <details> guarda o estado de aberto sem uma linha de JS. */ ?>
+  <details class="eq-como">
+    <summary class="eq-como-t"><i class="bi bi-info-circle-fill"></i> Como funciona</summary>
     <ol class="eq-passos">
       <li><b>Quem cria vira a banca.</b> Você escreve a pergunta, as opções e a
         odd de cada uma. A partir daí é <b>contra você</b> que os outros apostam.</li>
@@ -274,7 +286,7 @@ require_once __DIR__ . '/enquetes_motor.php';
       que ela mude depois. E ela muda — quanto mais dinheiro entra numa opção,
       menos ela paga, e mais pagam as outras.
     </p>
-  </div>
+  </details>
 
   <div class="eq-saldos" id="saldos"></div>
 

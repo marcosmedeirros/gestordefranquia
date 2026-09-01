@@ -2389,6 +2389,45 @@ function wcPlayoffsNaEdicao(PDO $pdo, int $teamId, ?int $sprintId): array
     return $out;
 }
 
+/**
+ * OS DUELOS DIRETOS: quantas séries um ganhou do outro nesta edição.
+ *
+ * `playoff_results` diz onde cada time parou, mas não contra quem — pra saber
+ * quem passou por quem é preciso `playoff_matches`, que guarda os dois lados e
+ * o vencedor de cada série.
+ *
+ * Só a edição atual, como o resto do bloco: um 3 a 1 de quatro sprints atrás
+ * não é o que se pergunta quando os dois vão se enfrentar agora.
+ *
+ * @return array{a:int,b:int,total:int}
+ */
+function wcDuelosEntre(PDO $pdo, int $aId, int $bId, ?int $sprintId): array
+{
+    $out = ['a' => 0, 'b' => 0, 'total' => 0];
+    if (!$sprintId) return $out;
+
+    try {
+        $st = $pdo->prepare("
+            SELECT pm.winner_id
+            FROM playoff_matches pm
+            JOIN seasons s ON s.id = pm.season_id
+            WHERE s.sprint_id = ?
+              AND pm.winner_id IS NOT NULL
+              AND ((pm.team1_id = ? AND pm.team2_id = ?)
+                OR (pm.team1_id = ? AND pm.team2_id = ?))
+        ");
+        $st->execute([$sprintId, $aId, $bId, $bId, $aId]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $venc) {
+            if ((int)$venc === $aId) $out['a']++;
+            elseif ((int)$venc === $bId) $out['b']++;
+        }
+        $out['total'] = $out['a'] + $out['b'];
+    } catch (Throwable $e) {
+        error_log('[whatsapp-cmd] duelos: ' . $e->getMessage());
+    }
+    return $out;
+}
+
 /** Sprint (edição) atual da liga. */
 function wcSprintAtual(PDO $pdo, string $league): ?array
 {
@@ -2768,9 +2807,14 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
 
     $txt = "⚔️ *{$nomeA}*\n_contra_\n*{$nomeB}*\n";
 
-    // ── Campanha e playoffs, lado a lado ─────────────────────────────────
-    $marca = fn($x, $y) => $x === $y ? '' : ($x > $y ? ' ✅' : '');
-    $linha = fn(string $r, $va, $vb, string $sa = '', string $sb = '') => "{$r}: {$va}{$sa}  |  {$vb}{$sb}\n";
+    /* ── Campanha e playoffs, lado a lado ─────────────────────────────────
+     *
+     * Quem está na frente sai em NEGRITO, e não com um ✅. O certinho lia
+     * como "conferido" numa lista onde nada precisa ser conferido, e com uma
+     * linha embaixo da outra virava uma coluna de símbolos. O negrito é o
+     * mesmo destaque que o resto da mensagem já usa. */
+    $forte = fn($x, $y) => $x > $y ? '*' . $x . '*' : (string)$x;
+    $linha = fn(string $r, $va, $vb) => "{$r}: {$va}  |  {$vb}\n";
 
     $tA = wcTitulosNaEdicao($pdo, (int)$a['id'], (string)$a['league']);
     $tB = wcTitulosNaEdicao($pdo, (int)$b['id'], (string)$b['league']);
@@ -2779,9 +2823,21 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     $pA = wcPlayoffsNaEdicao($pdo, (int)$a['id'], $spA ? (int)$spA['id'] : null);
     $pB = wcPlayoffsNaEdicao($pdo, (int)$b['id'], $spB ? (int)$spB['id'] : null);
 
+    /* QUANTAS SÉRIES UM GANHOU DO OUTRO NESTA EDIÇÃO.
+     *
+     * Da sprint em curso, somando TODAS as temporadas dela — é o recorte do
+     * bloco inteiro, e a sprint é justamente o que agrupa as temporadas de
+     * uma mesma era da liga. Enquanto a edição não tiver playoff, sai "nunca
+     * se enfrentaram", que é a resposta correta. */
+    $duelos = wcDuelosEntre($pdo, (int)$a['id'], (int)$b['id'],
+                            $spA ? (int)$spA['id'] : null);
+
     $txt .= "\n🏆 *Na edição atual*\n"
-          . $linha('Títulos', $tA['titulos'], $tB['titulos'], $marca($tA['titulos'], $tB['titulos']), $marca($tB['titulos'], $tA['titulos']))
-          . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
+          . $linha('Títulos', $forte($tA['titulos'], $tB['titulos']), $forte($tB['titulos'], $tA['titulos']))
+          . $linha('Séries de playoff', $forte($pA['series'], $pB['series']), $forte($pB['series'], $pA['series']))
+          . ($duelos['total'] === 0
+              ? "Confrontos: nunca se enfrentaram\n"
+              : $linha('Confrontos', $forte($duelos['a'], $duelos['b']), $forte($duelos['b'], $duelos['a'])))
           . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi')
           /*
            * SÓ O TOTAL DE NEGOCIAÇÕES.
