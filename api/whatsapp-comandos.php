@@ -1527,8 +1527,9 @@ function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
              ? $digitos . '@s.whatsapp.net' : null;
 
     /** Responde no PV, se der pra saber quem é. */
-    $avisar = function (string $txt) use ($pdo, $privado) {
-        if ($privado) whatsappEnfileirar($pdo, $privado, $txt, false, 'comando');
+    $avisar = function (string $txt) use ($pdo, $privado, $deQuem) {
+        if ($privado) whatsappEnfileirar($pdo, $privado, $txt, false, 'comando',
+                                         null, null, $deQuem, 'quizaqui');
         return '';
     };
 
@@ -3121,6 +3122,21 @@ function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
  * $ligaDoGrupo é a liga do grupo de onde veio a mensagem, quando ele é de uma
  * liga só. Serve pros comandos que dá pra responder sem argumento.
  */
+/**
+ * Só o nome do comando: "/cap lakers" vira "cap".
+ *
+ * Existe pra que o webhook possa GRAVAR qual comando foi pedido sem repetir a
+ * regra de separação — ela já esteve escrita em dois lugares neste projeto, e
+ * regra repetida é regra que diverge no dia em que uma das duas muda.
+ */
+function wcNomeDoComando(string $texto): string
+{
+    $texto = trim($texto);
+    if ($texto === '' || $texto[0] !== '/') return '';
+    $partes = preg_split('/\s+/', substr($texto, 1), 2);
+    return mb_strtolower($partes[0] ?? '');
+}
+
 function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
                             string $deQuem = '', string $grupoJid = ''): ?string
 {

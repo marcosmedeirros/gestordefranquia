@@ -663,9 +663,41 @@ function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): 
     }
 }
 
-function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null): bool
+/**
+ * Garante as colunas de AUTORIA da fila.
+ *
+ * A fila sempre guardou o que o bot RESPONDEU, nunca quem pediu nem o quê:
+ * o relatório de uso só conseguia contar mensagens por grupo, e adivinhar o
+ * comando pelo formato do texto da resposta — com uns 10% que não davam pra
+ * identificar. Estas duas colunas resolvem os dois de uma vez.
+ *
+ * Best-effort e idempotente, como o resto do schema deste arquivo.
+ */
+function whatsappGarantirColunasDeAutoria(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    $ok = true;
+    foreach ([
+        "ALTER TABLE whatsapp_fila ADD COLUMN pedido_por VARCHAR(80) NULL AFTER user_id",
+        "ALTER TABLE whatsapp_fila ADD COLUMN comando VARCHAR(40) NULL AFTER pedido_por",
+        "ALTER TABLE whatsapp_fila ADD KEY idx_fila_comando (comando)",
+    ] as $sql) {
+        try { $pdo->exec($sql); } catch (Throwable $e) { /* já existe */ }
+    }
+}
+
+/**
+ * @param string|null $pedidoPor jid/telefone de quem digitou (só comandos)
+ * @param string|null $comando   o comando, sem a barra e sem argumento
+ */
+function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null, ?string $pedidoPor = null, ?string $comando = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;
+    // As colunas antes do "está ligado?": com o bot desligado nada é
+    // enfileirado, e sem isto elas só nasceriam na primeira mensagem depois de
+    // religar — qualquer consulta ao relatório até lá quebraria.
+    whatsappGarantirColunasDeAutoria($pdo);
     // Só "ligada": quem envia é o worker local, o site apenas enfileira.
     if (!whatsappAtivo($pdo)) return false;
 
@@ -675,8 +707,12 @@ function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGr
     $json = $mencoes ? json_encode(array_values(array_filter($mencoes))) : null;
 
     try {
-        $pdo->prepare("INSERT INTO whatsapp_fila (destino, eh_grupo, texto, tipo, user_id, mencoes) VALUES (?,?,?,?,?,?)")
-            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId, $json]);
+        $pdo->prepare("INSERT INTO whatsapp_fila
+                        (destino, eh_grupo, texto, tipo, user_id, mencoes, pedido_por, comando)
+                       VALUES (?,?,?,?,?,?,?,?)")
+            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId, $json,
+                       $pedidoPor ? mb_substr($pedidoPor, 0, 80) : null,
+                       $comando ? mb_substr($comando, 0, 40) : null]);
         return true;
     } catch (Throwable $e) {
         error_log('[whatsapp] enfileirar: ' . $e->getMessage());

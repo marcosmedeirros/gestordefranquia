@@ -224,7 +224,13 @@ foreach ($mensagens as $m) {
     if ($resposta === null) continue;   // comando desconhecido: silêncio
     if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
 
-    whatsappEnfileirar($pdo, $de, $resposta, true, 'comando');
+    /* QUEM PEDIU E O QUÊ ficam gravados junto da resposta.
+       Sem isso a fila só dizia em que grupo o bot falou: não dava pra montar
+       um ranking de quem mais usa, e o comando tinha que ser adivinhado pelo
+       formato do texto da resposta. $deQuem já estava aqui, calculado pros
+       comandos "meus" — só não era guardado. */
+    whatsappEnfileirar($pdo, $de, $resposta, true, 'comando', null, null,
+                       $deQuem, wcNomeDoComando($texto));
     $respondidas++;
 }
 
