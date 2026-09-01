@@ -96,6 +96,9 @@ function copaTabelas(PDO $pdo): void
     foreach ([
         "ALTER TABLE copa_torneios ADD COLUMN minutos_rodada INT NOT NULL DEFAULT 30 AFTER votacao",
         "ALTER TABLE copa_torneios ADD COLUMN fecha_em DATETIME NULL AFTER minutos_rodada",
+        // Quando a estreia foi anunciada no grupo. Serve pra anunciar UMA vez:
+        // fechar e reabrir a votação da primeira rodada não é uma copa nova.
+        "ALTER TABLE copa_torneios ADD COLUMN anuncio_em DATETIME NULL AFTER fecha_em",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { /* já existe */ }
     }
@@ -534,6 +537,59 @@ function copaVotacao(PDO $pdo, int $torneioId, bool $aberta): void
     $min = (int)($st->fetchColumn() ?: 0);
     $pdo->prepare("UPDATE copa_torneios SET votacao=1, fecha_em=? WHERE id=?")
         ->execute([copaPrazo($min), $torneioId]);
+}
+
+/**
+ * O anúncio de estreia — a copa acabou de abrir pra votar.
+ *
+ * Devolve o texto UMA vez por copa e marca que já anunciou; nas chamadas
+ * seguintes devolve ''. Assim o admin pode fechar e reabrir a votação da
+ * primeira rodada sem o grupo receber duas estreias.
+ *
+ * Quem envia é quem chamou — aqui não se fala com o WhatsApp, pelo mesmo
+ * motivo de sempre: fila cheia ou bot desligado não podem atrapalhar o que
+ * já aconteceu no banco.
+ *
+ * @return string vazio quando não há o que anunciar
+ */
+function copaTextoEstreia(PDO $pdo, int $torneioId): string
+{
+    copaTabelas($pdo);
+    $t = copaTorneio($pdo, $torneioId);
+    if (!$t) return '';
+    if (!empty($t['anuncio_em']))     return '';   // já anunciada
+    if ($t['status'] !== 'ativo')     return '';
+    if ((int)$t['rodada_atual'] !== 1) return '';  // estreia é a rodada 1
+    if (empty($t['votacao']))         return '';   // só quando dá pra votar
+
+    $pdo->prepare("UPDATE copa_torneios SET anuncio_em = ? WHERE id = ? AND anuncio_em IS NULL")
+        ->execute([date('Y-m-d H:i:s'), $torneioId]);
+
+    $comps = copaCompetidores($pdo, $torneioId);
+    $chave = copaChave($pdo, $torneioId);
+    $min   = (int)($t['minutos_rodada'] ?? 0);
+
+    $l = ['🏆 *COMEÇOU: ' . mb_strtoupper($t['titulo']) . '*', ''];
+    $l[] = count($comps) . ' competidores · '
+         . copaNomeRodada(1, (int)$t['rodadas']) . ' aberta pra votar';
+    $l[] = $min > 0
+        ? "⏱️ Cada rodada dura *{$min} min*. Acabou o tempo, o resultado sai e a próxima abre sozinha."
+        : '_A organização apura cada rodada e abre a seguinte._';
+    $l[] = '';
+
+    // Os confrontos da primeira rodada. O bye entra como bye: escondê-lo
+    // faria parecer que faltou jogo na lista.
+    foreach ($chave[1] ?? [] as $c) {
+        $na = $comps[(int)$c['a_id']]['nome'] ?? '—';
+        if (empty($c['b_id'])) { $l[] = "▪️ {$na} _(passou direto)_"; continue; }
+        $nb = $comps[(int)$c['b_id']]['nome'] ?? '—';
+        $l[] = "▪️ {$na} x {$nb}";
+    }
+
+    $l[] = '';
+    $l[] = '_Cada palpite certo vale FBA Points, e quem acerta a maioria da rodada';
+    $l[] = 'sobe a sequência: o próximo acerto passa a valer mais. Vote no site!_';
+    return implode("\n", $l);
 }
 
 /**

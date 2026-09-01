@@ -50,7 +50,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$comFoto) $bruto = str_replace(',', "\n", $bruto);
             $r = copaCriar($pdo, (string)($_POST['titulo'] ?? ''), explode("\n", $bruto), $userId);
             if ($r['ok']) {
-                $_SESSION['copa_flash'] = ['ok', 'Copa criada e chaveamento sorteado!'];
+                /* CRIOU, COMEÇOU.
+                   A copa nascia com a votação fechada e o relógio parado,
+                   esperando alguém apertar "Abrir a votação" — um passo que
+                   só existia por hábito, e que deixava a copa parada se
+                   ninguém voltasse à página. Agora ela já sai valendo, com o
+                   relógio da primeira rodada correndo. Fechar a votação
+                   continua a um clique, pra quem quiser segurar. */
+                copaVotacao($pdo, (int)$r['id'], true);
+                $msg = 'Copa criada, chaveamento sorteado e votação aberta!';
+
+                $t = copaTorneio($pdo, (int)$r['id']);
+                $min = (int)($t['minutos_rodada'] ?? 0);
+                if ($min > 0) $msg .= " A primeira rodada vira em {$min} min.";
+
+                // E o grupo fica sabendo, com os confrontos da primeira rodada.
+                try {
+                    require_once __DIR__ . '/../../backend/whatsapp.php';
+                    $texto = copaTextoEstreia($pdo, (int)$r['id']);
+                    if ($texto !== '' && function_exists('whatsappEnfileirar')) {
+                        $grupo = trim((string)($pdo->query(
+                            "SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
+                        if ($grupo !== '' && whatsappEnfileirar($pdo, $grupo, $texto, true, 'copa')) {
+                            $msg .= ' Estreia anunciada no grupo.';
+                        }
+                    }
+                } catch (Throwable $e) {
+                    error_log('[copa] estreia no grupo: ' . $e->getMessage());
+                }
+
+                $_SESSION['copa_flash'] = ['ok', $msg];
                 $_SESSION['copa_sorteio'] = $r['id'];
                 header('Location: ?copa=' . $r['id']);
                 exit;
@@ -66,10 +95,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : 'Tempo desligado: a rodada só vira quando você apurar.'];
 
         } elseif ($acao === 'votacao' && $isAdmin) {
-            copaVotacao($pdo, $tid, !empty($_POST['abrir']));
-            $_SESSION['copa_flash'] = ['ok', !empty($_POST['abrir'])
+            $abrindo = !empty($_POST['abrir']);
+            copaVotacao($pdo, $tid, $abrindo);
+            $msg = $abrindo
                 ? 'Votação ABERTA — a galera já pode votar.'
-                : 'Votação fechada. Ninguém vota até você abrir de novo.'];
+                : 'Votação fechada. Ninguém vota até você abrir de novo.';
+
+            /* A ESTREIA VAI PRO GRUPO.
+               Abrir a votação da primeira rodada é o momento em que a copa
+               começa de verdade — antes disso ela existe só pra quem montou.
+               copaTextoEstreia só devolve texto uma vez, então fechar e
+               reabrir não manda de novo. Num try próprio: bot desligado não
+               pode desfazer uma votação que já abriu. */
+            if ($abrindo) {
+                try {
+                    require_once __DIR__ . '/../../backend/whatsapp.php';
+                    $texto = copaTextoEstreia($pdo, $tid);
+                    if ($texto !== '' && function_exists('whatsappEnfileirar')) {
+                        $grupo = trim((string)($pdo->query(
+                            "SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
+                        if ($grupo !== '' && whatsappEnfileirar($pdo, $grupo, $texto, true, 'copa')) {
+                            $msg .= ' Estreia anunciada no grupo.';
+                        }
+                    }
+                } catch (Throwable $e) {
+                    error_log('[copa] estreia no grupo: ' . $e->getMessage());
+                }
+            }
+            $_SESSION['copa_flash'] = ['ok', $msg];
 
         } elseif ($acao === 'fechar' && $isAdmin) {
             // A rodada que ACABA de ser apurada — depois de fechar, o torneio
