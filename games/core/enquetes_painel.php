@@ -852,10 +852,20 @@ function previa(enqId, altId) {
     : v < min ? `A aposta mínima é ${n(min)}.`
     : null;
 
+  /* O "Máx" ao lado do lucro.
+     Sem ele, um evento onde o criador pôs 10 por pessoa abre o campo com 10 e
+     parece que a tela travou no mínimo — os dois números são o mesmo, e nada
+     na tela dizia qual dos dois. Diz também DE ONDE veio o limite, que é a
+     pergunta seguinte: do evento, do meu bolso ou do quanto eu já apostei. */
+  const porQue = teto === porPessoa ? (e.meu_total ? 'o que sobra do seu limite aqui' : 'o limite por pessoa deste evento')
+               : teto === doEvento  ? 'o que falta pro evento lotar'
+               : 'as suas moedas livres';
+
   alvo.innerHTML = problema
     ? `<b style="color:var(--vermelho)">${problema}</b>`
     : `Na odd <b>${Number(a.odd).toFixed(2)}</b>, acertando você recebe <b>${n(retorno)}</b> —
-       lucro de <b>${n(retorno - v)}</b>.
+       lucro de <b>${n(retorno - v)}</b>. · Máx <b>${n(teto)}</b>
+       <span style="color:var(--text3)">(${porQue})</span>
        <br><span style="color:var(--text3)">A odd trava agora: é a que você recebe, mesmo que ela mude depois.</span>`;
   const bt = alvo.parentElement.querySelector('.eq-pri');
   if (bt) bt.disabled = !!problema;
