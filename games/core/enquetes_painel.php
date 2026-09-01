@@ -36,6 +36,26 @@ require_once __DIR__ . '/enquetes_motor.php';
 #pane-banca h1{font-size:23px;font-weight:900;letter-spacing:-.5px}
 .eq-lead{color:var(--text2);font-size:13.5px;line-height:1.6;margin-bottom:16px;max-width:70ch}
 
+/* A explicação ganhou espaço e virou um bloco próprio: era um parágrafo
+   corrido onde a parte que mais importa — quem paga e quem embolsa —
+   passava batido no meio da frase. */
+.eq-como{background:var(--panel);border:1px solid var(--borda);border-radius:13px;
+  padding:15px 18px;margin-bottom:18px}
+.eq-como-t{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:900;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--verde);margin-bottom:11px}
+.eq-passos{list-style:none;counter-reset:eqp;display:grid;gap:9px;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.eq-passos li{counter-increment:eqp;position:relative;padding-left:29px;
+  font-size:13px;line-height:1.55;color:var(--text2)}
+.eq-passos li::before{content:counter(eqp);position:absolute;left:0;top:1px;
+  width:20px;height:20px;border-radius:50%;background:var(--panel3);
+  border:1px solid var(--borda);color:var(--verde);
+  font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center}
+.eq-passos b{color:var(--texto)}
+.eq-como-p{font-size:12.5px;line-height:1.6;color:var(--text3);
+  margin-top:13px;padding-top:12px;border-top:1px solid var(--borda)}
+.eq-como-p b{color:var(--text2)}
+
 .eq-saldos{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px}
 .eq-saldo{background:var(--panel);border:1px solid var(--borda);border-radius:12px;
   padding:11px 15px;min-width:126px}
@@ -228,12 +248,33 @@ require_once __DIR__ . '/enquetes_motor.php';
       <i class="bi bi-plus-lg"></i> Criar aposta
     </button>
   </div>
-  <p class="eq-lead">
-    Quem cria banca: define as alternativas e as odds, e responde com o próprio saldo.
-    Acertou quem apostou, o criador paga; errou, o dinheiro é dele.
-    Enquanto a aposta está aberta, o pior resultado possível fica <b>retido</b> no saldo de quem criou —
-    é isso que garante que ninguém fique devendo.
-  </p>
+  <?php /* Em passos, e não num parágrafo corrido: quem chega aqui pela
+           primeira vez precisa entender que o criador é a CASA — bota o
+           dinheiro dele e fica com o dos outros quando eles erram. Escondido
+           no meio de uma frase, isso passava batido. */ ?>
+  <div class="eq-como">
+    <div class="eq-como-t"><i class="bi bi-info-circle-fill"></i> Como funciona</div>
+    <ol class="eq-passos">
+      <li><b>Quem cria vira a banca.</b> Você escreve a pergunta, as opções e a
+        odd de cada uma. A partir daí é <b>contra você</b> que os outros apostam.</li>
+      <li><b>Quem paga é você, com as suas moedas.</b> Se alguém apostar 100 numa
+        odd de 2.00 e acertar, saem 200 do seu saldo: as 100 dele de volta mais
+        100 de lucro.</li>
+      <li><b>Se eles erram, o dinheiro é seu.</b> Todas as moedas apostadas nas
+        opções que não venceram ficam com você — é assim que bancar dá lucro.</li>
+      <li><b>Nada fica devendo.</b> Enquanto a aposta está aberta, o pior
+        resultado possível fica <b>retido</b> do seu saldo. Você só consegue abrir
+        uma aposta que consiga pagar, e a retenção volta quando ela é encerrada.</li>
+      <li><b>Você declara o resultado</b> em "Meus bichos", aqui embaixo. O
+        pagamento sai na hora, e a casa fica com <?= ENQ_TAXA_CASA ?>% do que
+        você lucrar (nada, se você perder).</li>
+    </ol>
+    <p class="eq-como-p">
+      Na hora de apostar, a odd <b>trava no clique</b>: é a que você recebe, mesmo
+      que ela mude depois. E ela muda — quanto mais dinheiro entra numa opção,
+      menos ela paga, e mais pagam as outras.
+    </p>
+  </div>
 
   <div class="eq-saldos" id="saldos"></div>
 
