@@ -1513,8 +1513,23 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const isCompleted = pick.picked_player_id !== null;
     const isMyPick    = parseInt(pick.team_id) === userTeamId;
     const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
-    const canAdminPick   = isAdmin && session.status === 'in_progress' && !isCompleted;
-    const canAdminRevert = isAdmin && session.status === 'in_progress' && isCompleted;
+
+    /* AS DUAS FERRAMENTAS DE CORREÇÃO VALEM COM O DRAFT JÁ ENCERRADO.
+       Elas exigiam 'in_progress', e é exatamente quando NÃO se pode mais usá-las
+       que a correção é necessária: um draft que terminou com a escolha errada
+       ficava sem conserto pela tela, embora as duas ações do servidor
+       (fill_past_pick e revert_pick) nunca tenham pedido o draft aberto —
+       pedem apenas admin.
+
+       O caso que trouxe isto: a 1ª rodada de um draft encerrado ficou com um
+       jogador no time errado, e arrumar exigia desfazer a escolha e refazê-la.
+       Sem os botões, só no banco.
+
+       `canAdminSetCurrent` fica de fora: mover o ponteiro da vez num draft
+       encerrado não corrige nada e reabriria o relógio por acidente. */
+    const draftEditavel  = session.status === 'in_progress' || session.status === 'completed';
+    const canAdminPick   = isAdmin && draftEditavel && !isCompleted;
+    const canAdminRevert = isAdmin && draftEditavel && isCompleted;
     // Permite voltar/adiantar o ponteiro do draft para uma escolha ainda aberta
     const canAdminSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
 
