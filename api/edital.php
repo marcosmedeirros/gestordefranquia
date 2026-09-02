@@ -125,8 +125,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_edital') {
     try {
         $stmt = $pdo->prepare('UPDATE league_settings SET edital_file = ? WHERE league = ?');
         $stmt->execute([$fileName, $league]);
-        
-        echo json_encode(['success' => true, 'file_name' => $fileName]);
+
+        /* O TEXTO SAI DO PDF AGORA, e não na primeira pergunta do grupo.
+           É o mesmo trabalho, mas aqui ele é do admin que está esperando o
+           upload terminar — e não do GM que perguntou algo no WhatsApp e ficou
+           dois segundos sem resposta. Também é o único momento em que dá pra
+           avisar que o PDF não é legível: um edital escaneado como imagem
+           passa pelo upload e só quebraria no bot.
+
+           Falhar aqui NÃO derruba o upload: o PDF já está no ar pra download,
+           que é o que o edital sempre fez. Só a consulta pelo bot fica de fora,
+           e a resposta diz isso. */
+        $extraiu = ['ok' => false, 'chars' => 0];
+        try {
+            require_once __DIR__ . '/../backend/edital_texto.php';
+            $pdo->prepare('UPDATE league_settings SET edital = NULL WHERE league = ?')->execute([$league]);
+            $extraiu = editalSincronizar($pdo, $league);
+        } catch (Throwable $e) {
+            error_log('[edital] extrair no upload ' . $league . ': ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success'   => true,
+            'file_name' => $fileName,
+            'texto_ok'  => (bool)$extraiu['ok'],
+            'texto_chars' => (int)$extraiu['chars'],
+            'aviso'     => $extraiu['ok'] ? null
+                : 'O PDF foi salvo, mas não consegui ler o texto dele — o bot não vai poder responder dúvidas deste edital.',
+        ]);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);

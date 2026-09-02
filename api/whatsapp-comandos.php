@@ -362,6 +362,82 @@ function wcNormalizarLiga(string $termo): ?string
 // Comandos
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * O EDITAL, RESPONDENDO DÚVIDA.
+ *
+ * Sem argumento devolve o índice: os capítulos do edital daquela liga, lidos
+ * do próprio PDF, mais exemplos do que dá pra perguntar. Com argumento, manda
+ * a dúvida pro modelo com o edital inteiro no contexto.
+ *
+ * A LIGA É A DO GRUPO. Ninguém precisa dizer de qual edital está falando: o
+ * grupo da ROOKIE pergunta do edital da ROOKIE. Dá pra forçar outra liga com
+ * "/edital rise ..." — mas só quando a primeira palavra é o nome de uma liga E
+ * sobra pergunta depois, senão "/edital rise" perguntaria sobre a palavra
+ * "rise" na liga do grupo.
+ */
+function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/edital_texto.php';
+
+    $liga = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+    $arg  = trim($arg);
+
+    $partes = preg_split('/\s+/', $arg, 2);
+    if (count($partes) === 2 && ($forcada = wcNormalizarLiga($partes[0])) !== null) {
+        $liga = $forcada;
+        $arg  = trim($partes[1]);
+    }
+
+    $texto = editalTexto($pdo, $liga);
+    if ($texto === null) {
+        return "📕 A *{$liga}* ainda não tem edital cadastrado no site.";
+    }
+
+    // Sem pergunta: o índice. É o "quais comandos existem" do edital.
+    if ($arg === '') {
+        $caps = editalCapitulos($texto);
+        $arts = editalArtigos($texto);
+        $linhas = ["📕 *EDITAL DA {$liga}* — " . count($arts) . " artigos", ''];
+        foreach ($caps as $c) {
+            // O título vem em caixa alta do PDF; em caixa alta inteira no
+            // WhatsApp parece grito.
+            $linhas[] = '• ' . editalTituloLegivel($c['titulo']);
+        }
+        $linhas[] = '';
+        $linhas[] = '*Pergunta o que quiser:*';
+        $linhas[] = '/edital como funciona o cap';
+        $linhas[] = '/edital o que acontece se eu passar do cap';
+        $linhas[] = '/edital como funciona o leilão';
+        $linhas[] = '/edital quais são as punições';
+        $linhas[] = '';
+        $linhas[] = '_Respondo com base no edital e digo o artigo._';
+        return implode("\n", $linhas);
+    }
+
+    // Número puro é pedido de artigo, e não precisa de modelo nenhum.
+    if (preg_match('/^art\.?\s*(\d{1,3})$|^(\d{1,3})$/iu', $arg, $m)) {
+        $num = (int)($m[1] ?: $m[2]);
+        foreach (editalArtigos($texto) as $a) {
+            if ($a['num'] !== $num) continue;
+            $corpo = mb_substr($a['texto'], 0, 1200);
+            return "📕 *EDITAL DA {$liga}*\n" . editalTituloLegivel($a['capitulo'])
+                 . "\n\n" . $corpo . (mb_strlen($a['texto']) > 1200 ? "\n\n_(cortado)_" : '');
+        }
+        return "Não achei o Art. {$num} no edital da {$liga}.";
+    }
+
+    require_once __DIR__ . '/../backend/edital_ia.php';
+    if (!editalIaLigada()) {
+        return "📕 Ainda não dá pra perguntar em texto livre por aqui.\n"
+             . "Use */edital* pra ver os capítulos, ou */edital 41* pra ler um artigo.";
+    }
+
+    $r = editalIaPerguntar($pdo, $liga, $arg);
+    if (!$r['ok']) return '📕 ' . $r['erro'];
+
+    return "📕 *EDITAL DA {$liga}*\n\n" . $r['resposta'];
+}
+
 function wcAjuda(): string
 {
     return "*Comandos da FBA*\n\n"
@@ -401,6 +477,9 @@ function wcAjuda(): string
         // o que se quer saber é de quem é a vez e quem já saiu.
         . "/draft — a ordem do draft e as escolhas (use */draft 2* pra 2ª rodada)\n"
         . "/pontuacao — quanto vale cada conquista na temporada\n"
+        // Entra na lista porque é a dúvida que mais volta no grupo, e a única
+        // que hoje só se tira abrindo o PDF no celular.
+        . "/edital _sua dúvida_ — a resposta pelo edital da liga, com o artigo\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // Ao lado das apostas da organização porque é a mesma pergunta vista
@@ -3342,6 +3421,13 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'evento':
                 require_once __DIR__ . '/../games/core/enquetes_motor.php';
                 return enqTextoBot($pdo, trim($arg));
+
+            // O edital da liga DO GRUPO. Sem argumento mostra o que dá pra
+            // perguntar; com uma dúvida, responde lendo o edital.
+            case 'edital':
+            case 'regras':
+            case 'regulamento':
+                return wcEdital($pdo, $arg, $ligaDoGrupo);
 
             // A Copa do Mundo do Games. Sem argumento mostra a copa em
             // andamento; com um número, aquela copa — pra conferir uma
