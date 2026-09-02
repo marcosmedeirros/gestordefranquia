@@ -157,162 +157,24 @@ switch ($action) {
             exit;
         }
 
-        $stmtSess = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
-        $stmtSess->execute([$draftSessionId]);
-        $session = $stmtSess->fetch(PDO::FETCH_ASSOC);
-        if (!$session) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'not_in_progress']);
-            exit;
-        }
+        /* A REGRA MORA EM backend/draft_autopick.php.
 
-        // current_pick_started_at é gravado com NOW() sempre que a vez de um time começa
-        // (start_draft, make_pick, trade_pick, fill_past_pick, set_current_pick, e o próprio
-        // auto-pick ao avançar pra próxima escolha). Se vier NULL (sessão antiga nunca avançada
-        // por esses fluxos), tratamos com segurança como "ainda não decorreu tempo suficiente".
-        if (empty($session['current_pick_started_at'])) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'pick_not_started']);
-            exit;
-        }
+           Este bloco tinha a própria cópia dela, e a cópia checava o RELÓGIO
+           ANTES de olhar a fila do time: quem tinha mock ativo e lista pronta
+           esperava 5 ou 30 minutos por uma escolha que já estava decidida.
+           Agora fila ativa escolhe na hora, e segue encadeando enquanto os
+           próximos também tiverem lista. */
+        require_once __DIR__ . '/../backend/draft_autopick.php';
+        $feitas = draftAutopickSessao($pdo, $draftSessionId);
 
-        // Relógio da 1ª rodada (admin agenda uma data/hora, ver set_round1_clock em
-        // api/draft.php): antes dele (ou se nunca definido), prazo de sempre — 30min baseados
-        // só na fila pessoal do time. Depois que a hora marcada chega, o prazo cai pra 5min, e
-        // o fallback pela "ordem" geral entra em jogo se a fila não resolver. Usamos o maior
-        // entre o início da pick e o horário do relógio como referência, pra uma pick que já
-        // estava aberta há muito tempo ganhar 5min "frescos" a partir da hora marcada, em vez
-        // de estourar na hora.
-        $now = time();
-        $pickStartedTs = strtotime($session['current_pick_started_at']);
-        $clockStartTs = !empty($session['round1_clock_start_at']) ? strtotime($session['round1_clock_start_at']) : null;
-        $clockArmed = $clockStartTs !== null && $now >= $clockStartTs;
-
-        if ($clockArmed) {
-            $thresholdSeconds = 5 * 60;
-            $referenceTs = max($pickStartedTs, $clockStartTs);
-        } else {
-            $thresholdSeconds = 30 * 60;
-            $referenceTs = $pickStartedTs;
-        }
-        if (($now - $referenceTs) < $thresholdSeconds) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => $clockArmed ? 'wait_5min' : 'wait_30min', 'seconds_elapsed' => $now - $referenceTs]);
-            exit;
-        }
-
-        // Pick atual
-        $stmtPick = $pdo->prepare('
-            SELECT * FROM draft_order
-            WHERE draft_session_id = ? AND round = ? AND pick_position = ? AND picked_player_id IS NULL
-        ');
-        $stmtPick->execute([$draftSessionId, (int)$session['current_round'], (int)$session['current_pick']]);
-        $currentPick = $stmtPick->fetch();
-        if (!$currentPick) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'no_pending_pick']);
-            exit;
-        }
-
-        $currentTeamId = (int)$currentPick['team_id'];
-
-        // Fila pessoal tem prioridade (se ativa e com jogador disponível); só cai pro
-        // fallback da ordem geral se o relógio novo já estiver armado.
-        $playerToPick = null;
-        $stmtSettings = $pdo->prepare("SELECT is_active FROM draft_mock_settings WHERE team_id = ? AND draft_session_id = ?");
-        $stmtSettings->execute([$currentTeamId, $draftSessionId]);
-        $settings = $stmtSettings->fetch();
-        if (!empty($settings['is_active'])) {
-            $stmtQueue = $pdo->prepare("
-                SELECT mq.player_id, dp.name, dp.position, dp.age, dp.ovr
-                FROM draft_mock_queue mq
-                JOIN draft_pool dp ON mq.player_id = dp.id
-                WHERE mq.team_id = ? AND mq.draft_session_id = ?
-                  AND dp.draft_status = 'available'
-                ORDER BY mq.priority ASC
-                LIMIT 1
-            ");
-            $stmtQueue->execute([$currentTeamId, $draftSessionId]);
-            $playerToPick = $stmtQueue->fetch();
-        }
-
-        if (!$playerToPick && $clockArmed) {
-            $stmtBest = $pdo->prepare("
-                SELECT id AS player_id, name, position, age, ovr
-                FROM draft_pool
-                WHERE season_id = ? AND draft_status = 'available'
-                ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC, name ASC
-                LIMIT 1
-            ");
-            $stmtBest->execute([(int)$session['season_id']]);
-            $playerToPick = $stmtBest->fetch();
-        }
-
-        if (!$playerToPick) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'no_available_player']);
-            exit;
-        }
-
-        $pdo->beginTransaction();
-        try {
-            $playerId = (int)$playerToPick['player_id'];
-
-            // Atualiza pick na ordem
-            $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW(), team_id = ? WHERE id = ?')
-                ->execute([$playerId, $currentTeamId, (int)$currentPick['id']]);
-
-            // Calcula número da pick
-            $stmtTotalRound = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?');
-            $stmtTotalRound->execute([$draftSessionId, (int)$currentPick['round']]);
-            $roundSize = (int)$stmtTotalRound->fetchColumn();
-            $pickNumber = (((int)$currentPick['round'] - 1) * $roundSize) + (int)$currentPick['pick_position'];
-
-            // Marca jogador como selecionado
-            $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
-                ->execute([$currentTeamId, $pickNumber, $playerId]);
-
-            // Insere no elenco
-            $stmtChk = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
-            $stmtChk->execute([$currentTeamId, $playerToPick['name']]);
-            if (!$stmtChk->fetchColumn()) {
-                $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([$currentTeamId, $currentTeamId, (int)$currentPick['round'], (int)$currentPick['pick_position'], $playerToPick['name'], $playerToPick['position'], (int)$playerToPick['age'], (int)$playerToPick['ovr']]);
-            }
-
-            // Avança para próxima pick
-            $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
-            $stmtNext->execute([$draftSessionId]);
-            $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
-
-            $nextTeamId = null;
-            if ($next) {
-                $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
-                    ->execute([(int)$next['round'], (int)$next['pick_position'], $draftSessionId]);
-                $stmtNextTeam = $pdo->prepare('SELECT team_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? LIMIT 1');
-                $stmtNextTeam->execute([$draftSessionId, (int)$next['round'], (int)$next['pick_position']]);
-                $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
-            } else {
-                $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-                    ->execute([$draftSessionId]);
-            }
-
-            $pdo->commit();
-
-            if ($nextTeamId && $next) {
-                $stmtUser = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ? LIMIT 1');
-                $stmtUser->execute([$nextTeamId]);
-                $nextUserId = (int)($stmtUser->fetchColumn() ?: 0);
-                if ($nextUserId) {
-                    sendPushToUser($pdo, $nextUserId, [
-                        'title'      => '🏀 É a sua vez no Draft!',
-                        'body'       => "Rodada {$next['round']} · Pick #{$next['pick_position']} — É a sua vez!",
-                        'url'        => '/drafts.php',
-                        'primaryKey' => 'draft_pick_' . $nextTeamId . '_' . $next['round'] . '_' . $next['pick_position'],
-                    ], 'draft');
-                }
-            }
-
-            echo json_encode(['success' => true, 'autopicked' => true, 'player_name' => $playerToPick['name']]);
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
-        }
+        echo json_encode([
+            'success'     => true,
+            'autopicked'  => count($feitas) > 0,
+            'picks'       => $feitas,
+            // A tela lê player_name pra anunciar quem saiu; com a cascata,
+            // manda o último — é o que está na vez agora.
+            'player_name' => $feitas ? end($feitas)['player'] : null,
+        ]);
         break;
 
     // ── GET: todos os mocks do draft (admin) ─────────
