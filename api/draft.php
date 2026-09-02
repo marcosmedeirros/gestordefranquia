@@ -174,12 +174,28 @@ function ensureRound2DeadlineSet(PDO $pdo, int $draftSessionId): void {
     $stmt = $pdo->prepare('SELECT current_round, round2_mock_deadline FROM draft_sessions WHERE id = ? AND status = "in_progress"');
     $stmt->execute([$draftSessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($session && (int)$session['current_round'] === 2 && empty($session['round2_mock_deadline'])) {
+    if (!$session || (int)$session['current_round'] !== 2) return;
+
+    if (empty($session['round2_mock_deadline'])) {
         $pdo->prepare('UPDATE draft_sessions SET round2_mock_deadline = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE id = ?')
             ->execute([$draftSessionId]);
         // O deadline nasce uma vez só, e é exatamente quando a rodada 2 abre:
         // é aqui que a fila da rodada 1 se transforma nas preferências dela.
         herdarFilaDaRodada1($pdo, $draftSessionId);
+        return;
+    }
+
+    /* E CONTINUA HERDANDO ENQUANTO O PRAZO CORRE.
+       A herança acontecia uma vez só, no instante em que a rodada 2 abria.
+       Quem montasse ou mexesse na fila da rodada 1 depois disso — que é o que
+       a maioria faz, porque é a lista que já estava na tela — não levava nada
+       pra rodada 2: a vaga ficava vazia e a pick evaporava.
+
+       Agora roda de novo a cada toque nas ações da rodada 2, e só preenche
+       vaga que ainda está SEM NENHUMA preferência. Assim quem montou depois é
+       atendido, e quem apagou uma preferência de propósito não a vê voltar. */
+    if (strtotime((string)$session['round2_mock_deadline']) > time()) {
+        herdarFilaDaRodada1($pdo, $draftSessionId, true);
     }
 }
 
@@ -202,7 +218,7 @@ function ensureRound2DeadlineSet(PDO $pdo, int $draftSessionId): void {
  *  - o mesmo jogador não é repetido em duas vagas do mesmo time — seria
  *    gastar duas escolhas com uma pessoa só.
  */
-function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId): void
+function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId, bool $soVagasVazias = false): void
 {
     try {
         // As vagas de rodada 2 ainda em aberto, por time, na ordem em que
@@ -250,6 +266,13 @@ function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId): void
                 $stExistentes->execute([$vagaId]);
                 $atuais = $stExistentes->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($atuais as $a) $jaUsados[(int)$a['player_id']] = true;
+
+                /* No modo oportunista, vaga que JA TEM preferencia nao e
+                   tocada. E o que separa "o GM montou a fila depois e a vaga
+                   continua vazia" de "o GM apagou uma preferencia herdada de
+                   proposito": no segundo caso sobrou alguma, e trazer a
+                   apagada de volta seria desfazer a decisao dele. */
+                if ($soVagasVazias && $atuais) continue;
 
                 $ocupadas = array_map(fn($a) => (int)$a['preferencia'], $atuais);
                 for ($pref = 1; $pref <= ROUND2_PREFERENCIAS; $pref++) {
