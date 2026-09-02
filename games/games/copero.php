@@ -775,16 +775,12 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 /* A carta do rival tem que gritar: é a única escolha do mercado que custa. */
 .carta.rival{border-color:#7f1d3a}
 .av-rival{font-style:normal;color:#f472b6;font-weight:800}
-/* A volta pra casa é verde de camisa velha; o gigante é dourado, porque é o
-   convite que a carreira inteira persegue. */
-.carta.casa{border-color:#2f6b46}
-.av-casa{font-style:normal;color:#4ade80;font-weight:800}
+/* O gigante é dourado, porque é o convite que a carreira inteira persegue —
+   e é o único selo que sobrou. As cores da volta pra casa e do continente
+   novo saíram junto com as etiquetas delas: sem o texto, uma borda verde ou
+   azul sem explicação é enfeite que o leitor não tem como decifrar. */
 .carta.gigante{border-color:#8a6d1f}
 .av-gigante{font-style:normal;color:#fbbf24;font-weight:800}
-/* O convite de outro continente é azul: não é casa nem é o topo do mundo,
-   é a estrada. */
-.carta.mundo{border-color:#1e5a7a}
-.av-mundo{font-style:normal;color:#38bdf8;font-weight:800}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* A foto da taça entra no espaço do desenho: contain porque as fotos da base
    vêm em proporções diferentes umas das outras, e recortar taça é decapitar
@@ -2974,7 +2970,11 @@ function ofertas(quantos, exceto, soDeCasa){
   //
   // O corte é o mesmo que evoluir() usa pra saber quando a curva vira: dois
   // anos depois do auge. Antes disso, estar abaixo do pico é um tropeço.
-  const declinio = S.idade > (S.pico || 27) + 2 && S.ovr < (S.picoOvr || S.ovr) - 3;
+  // Usa a MESMA regua de evoluir(): quem ainda esta no auge nao esta em
+  // declinio. Com o auge indo ate 32 (e ate 35 pros muito bons), manter aqui
+  // o `pico + 2` antigo faria o jogo abrir as portas de baixo — liga fraca,
+  // outro continente — pra um cara que ainda esta no melhor momento dele.
+  const declinio = S.idade > fimDoAuge() && S.ovr < (S.picoOvr || S.ovr) - 3;
 
   // A faixa de força. O termo extra é o que abre o topo do mundo pra quem
   // chegou lá: em 84 o teto encosta em 99, e o Real passa a ser possível.
@@ -3147,15 +3147,35 @@ function ofertas(quantos, exceto, soDeCasa){
 
   // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
   const ordem = elegiveis.slice().sort((a, b) => b.forca - a.forca);
-  const n = ordem.length, saida = [];
+
+  /* OS DEGRAUS COMEÇAM NO SEU NÍVEL, e não no fundo da lista.
+     Os blocos eram fatiados sobre TODOS os elegíveis, então a carta do último
+     bloco vinha, por construção, da parte mais fraca da lista — com duas
+     ofertas na tela, uma era garantidamente de um clube abaixo do seu. Medido
+     em 3.000 carreiras: em 59% das janelas de mercado nenhuma das propostas
+     era melhor que o clube onde o cara já estava, nem em força nem em palco.
+     Dava muita tela de decisão e pouca troca de clube.
+
+     Quem está subindo passa a receber propostas do próprio patamar pra cima —
+     continua tendo degrau e variedade, só que dentro da faixa que interessa.
+     Em declínio a lista inteira volta a valer: aí a proposta de um clube menor
+     é o que o futebol realmente oferece, e a decisão é essa mesmo. */
+  let universo = ordem;
+  if (atual && !declinio && S.clube) {
+    const naFaixa = ordem.filter(c =>
+      c.forca >= S.clube.forca || (dadosLiga(c.liga) || { media: 0 }).media > pres);
+    if (naFaixa.length >= quantos) universo = naFaixa;
+  }
+
+  const n = universo.length, saida = [];
   for (let i = 0; i < quantos && saida.length < n; i++) {
     const ini = Math.floor(n * i / quantos);
     const fim = Math.max(ini + 1, Math.floor(n * (i + 1) / quantos));
-    const bloco = ordem.slice(ini, fim).filter(c => !saida.includes(c));
+    const bloco = universo.slice(ini, fim).filter(c => !saida.includes(c));
     if (bloco.length) saida.push(bloco[Math.floor(Math.random() * bloco.length)]);
   }
   while (saida.length < quantos && saida.length < n) {
-    const c = ordem[Math.floor(Math.random() * n)];
+    const c = universo[Math.floor(Math.random() * n)];
     if (!saida.includes(c)) saida.push(c);
   }
 
@@ -3806,6 +3826,27 @@ function numerosDaSelecao(t){
  *     duas carreiras iguais terminarem diferente: sem ele, 100% dos jogadores
  *     passavam de 75 de overall e chegar a um gigante não valia nada.
  */
+/**
+ * ATÉ QUE IDADE O AUGE SEGURA.
+ *
+ * Todo mundo tem auge até os 32 — abaixo disso ninguém cai, mesmo quem
+ * sorteou pico baixo. Daí em diante é privilégio de quem é muito bom E tem
+ * corpo pra isso: os dois juntos, porque craque com durabilidade ruim é
+ * exatamente o jogador que acaba cedo.
+ *
+ * O teto é 35. Depois disso a queda vale pra todo mundo, e é o que faz o fim
+ * de carreira existir como decisão — a liga tardia, a volta pra casa, a
+ * aposentadoria.
+ */
+function fimDoAuge(){
+  const dur = S.durabilidade || 1;
+  let fim = Math.max((S.pico || 27) + 2, 32);
+  if (S.ovr >= 86)                 fim += 1;
+  if (S.ovr >= 90 && dur >= 1.05)  fim += 1;
+  if (S.ovr >= 94 && dur >= 1.20)  fim += 1;
+  return Math.min(35, fim);
+}
+
 function evoluir(){
   const t   = S.temporadas[S.temporadas.length - 1];
   const min = t ? Math.max(0.45, Math.min(1.1, t.jogos / 28)) : 1;
@@ -3813,6 +3854,7 @@ function evoluir(){
   const tal = S.talento || 1;
   const pico = S.pico || 27;
   const dur  = S.durabilidade || 1;
+  const fimAuge = fimDoAuge();
 
   let d;
   let estirao = false;
@@ -3824,13 +3866,25 @@ function evoluir(){
     // O ESTIRÃO: aquele ano em que o garoto encaixa tudo e some da divisão
     // de baixo. Raro, e mais provável em quem tem talento.
     if (S.idade <= 23 && Math.random() < 0.11 * tal) { d += ri(3,7); estirao = true; }
-  } else if (S.idade <= pico + 2) {
-    d = ri(-1,2) + amb * 0.4;               // o platô do auge
+  } else if (S.idade <= fimAuge) {
+    /* O PLATÔ DO AUGE, que agora vai até os 32 — e até os 35 pra quem é
+       muito bom (ver fimDoAuge). O medido antes: o pico de overall caía em
+       média aos 25,5 e só 1% das carreiras chegavam ao melhor momento depois
+       dos 30, porque o platô acabava em `pico + 2` e o pico sorteado ia no
+       máximo a 31.
+
+       Os anos ESTENDIDOS — os que passam de `pico + 2` — são de manter, não
+       de crescer: sem isso, esticar o auge viraria mais tempo ganhando
+       overall e todo mundo terminaria craque de novo, que é justamente o que
+       o teto de potencial existe pra impedir. */
+    d = (S.idade > pico + 2)
+      ? ri(-1,1) + amb * 0.2
+      : ri(-1,2) + amb * 0.4;
   } else {
     // Caindo. A durabilidade decide se é ladeira ou tobogã — é o que separa
     // quem joga bem até os 38 de quem acaba aos 32. Suave: com a queda
     // acelerada de antes, todo jogador terminava a carreira no piso.
-    d = -(ri(0,2) * 0.6 + (S.idade - pico - 2) * 0.3) / dur;
+    d = -(ri(0,2) * 0.6 + (S.idade - fimAuge) * 0.3) / dur;
   }
 
   // A lesão da temporada cobra o preço aqui. Quem se machuca perde ritmo, e
@@ -3858,13 +3912,17 @@ function evoluir(){
      que varia é o tamanho da conta, não se ela chega. Fica um resto de sorte
      de propósito: uma temporada em que ele segura o nível é o que faz o
      veterano ter história. */
-  if (S.idade >= 33) {
+  if (S.idade > fimAuge) {
     // O ano em que ele segura o nível tem que EMPATAR, não virar a queda de
     // sempre — com Math.min o sorteio não valia nada, porque a queda que já
     // estava na conta era menor que zero e ganhava sempre.
+    //
+    // O corte era `>= 33` fixo, e era ele que anulava o auge longo: mesmo
+    // quem tinha o corpo pra segurar até os 35 levava a queda forçada aos 33
+    // do mesmo jeito.
     d = (ri(0, 100) < 18)
       ? Math.max(d, 0)
-      : Math.min(d, -(ri(1, 3) + (S.idade - 33) * 0.4) / dur);
+      : Math.min(d, -(ri(1, 3) + (S.idade - fimAuge - 1) * 0.4) / dur);
   }
 
   if (S.ovr >= 88) d = Math.min(d, ri(0,2));
@@ -3902,6 +3960,29 @@ function anosNoClube(){
  * nenhum pra construir história em lugar nenhum.
  */
 function ehIdolo(){ return anosNoClube() >= 5; }
+
+/**
+ * A JANELA DE MERCADO.
+ *
+ * Antes o mercado abria com duas cartas fatiadas da lista inteira de
+ * elegíveis, e uma delas vinha por construção da parte de baixo: medido em
+ * 3.000 carreiras, 59% das janelas não traziam NADA melhor que o clube atual,
+ * nem em força nem em palco. Era decisão no nome só — o jogador lia duas
+ * cartas piores e clicava em "ficar". Muita tela, pouca troca.
+ *
+ * O conserto está em ofertas(), que passou a sortear os degraus a partir do
+ * seu próprio nível; aqui só sobrou pedir três cartas em vez de duas.
+ *
+ * NÃO desvia pra evento quando as propostas são fracas. Tentei, e o efeito
+ * medido foi trocar tela de mercado por carta: os eventos saltaram de 34% pra
+ * 55% das telas, que é justamente a decisão que já estava sobrando. Janela
+ * fraca continua abrindo, e ficar no clube é uma resposta legítima.
+ */
+function abrirMercado(){
+  S.fase = 'mercado';
+  S.ultimoMercado = S.idade;
+  S.opcoes = ofertas(3, S.clube ? [S.clube.nome] : []);
+}
 
 function proximaFase(){
   // Cada janela nova traz uma chance nova de pedir outras opções.
@@ -3956,22 +4037,21 @@ function proximaFase(){
   // Depois dos 33 o clube pode não renovar — é o que traz a aposentadoria
   // como decisão, e não como parede de idade. Ídolo da casa não é dispensado:
   // o clube segura quem virou história ali.
-  if (S.idade >= 33 && !ehIdolo() && Math.random() < 0.45) {
+  // Clube nao renova com quem ja passou do auge. Era `>= 33` fixo, e passou a
+  // seguir fimDoAuge(): o veterano que AINDA segura o nivel nao e mandado
+  // embora aos 33 so por causa da data de nascimento.
+  if (S.idade > fimDoAuge() && !ehIdolo() && Math.random() < 0.45) {
     S.fase = 'fim_ciclo';
     S.opcoes = ofertas(2, [S.clube.nome]);
   } else if (S.idade - (S.ultimoMercado || 0) >= 2 && Math.random() < 0.62) {
-    S.fase = 'mercado';
-    S.ultimoMercado = S.idade;
-    S.opcoes = ofertas(2, [S.clube.nome]);
+    abrirMercado();
   } else if (Math.random() < 0.55) {
     S.fase = 'evento';
     S.evento = eventoDaVez();
     S.resultado = null;
-    if (!S.evento) { S.fase = 'mercado'; S.opcoes = ofertas(2, [S.clube.nome]); }
+    if (!S.evento) { S.fase = 'mercado'; S.opcoes = ofertas(3, [S.clube.nome]); }
   } else {
-    S.fase = 'mercado';
-    S.ultimoMercado = S.idade;
-    S.opcoes = ofertas(2, [S.clube.nome]);
+    abrirMercado();
   }
   salvar(); render();
 }
@@ -4427,21 +4507,19 @@ function cartasDeClube(lista, comFicar, comAposentar){
     // O aviso de clássico é o que transforma a oferta em decisão. Escondê-lo
     // seria pegadinha: quem vai pro rival tem que saber que está indo.
     const rival = S.clube && ehRival(S.clube.nome, c.nome);
-    // O SELO DIZ POR QUE ESTA CARTA ESTÁ AQUI. Uma oferta do clube que te
-    // revelou e uma oferta qualquer de mesmo tamanho são a mesma linha na
-    // planilha e coisas completamente diferentes na carreira — sem o selo a
-    // pessoa passaria batido pela única que tem história.
-    const selo = c._marca === 'berco'   ? '<i class="av-casa">onde tudo começou</i>'
-               : c._marca === 'casa'    ? '<i class="av-casa">de volta pra casa</i>'
-               : c._marca === 'gigante' ? '<i class="av-gigante">vieram te buscar</i>'
-               : c._marca === 'mundo'   ? '<i class="av-mundo">um continente novo</i>' : '';
+    /* O SELO SÓ FICA ONDE ELE AVISA DE ALGUMA COISA.
+       "de volta pra casa", "onde tudo começou" e "um continente novo" saíram:
+       eram legenda do sorteio, não informação — a carta já mostra o clube e a
+       liga, e quem está lendo vê sozinho que o time é do país dele ou de outro
+       continente. Etiqueta em toda carta vira ruído e some justamente quando
+       precisaria aparecer.
+       Ficam os dois que mudam a decisão: o rival (ir pra lá tem preço, e a
+       porta fecha atrás) e o gigante que atravessou a escada pra te buscar. */
+    const selo = c._marca === 'gigante' ? '<i class="av-gigante">vieram te buscar</i>' : '';
     return cartaClube({
       acao: `assinarOpcao(${i})`,
-      cls: rival ? 'rival'
-         : c._marca === 'gigante' ? 'gigante'
-         : c._marca === 'mundo'   ? 'mundo'
-         : c._marca ? 'casa' : '',
-      rotulo: c._marca === 'berco' ? 'Voltar pro' : 'Assinar com',
+      cls: rival ? 'rival' : c._marca === 'gigante' ? 'gigante' : '',
+      rotulo: 'Assinar com',
       nome: c.nome, escudo: escudo(c, 36),
       pe: rival ? `<i class="av-rival">rival do ${esc(S.clube.nome)}</i>`
                 : (l ? esc(l.nome) : '') + (selo ? '<br>' + selo : ''),
