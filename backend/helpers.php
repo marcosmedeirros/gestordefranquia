@@ -2188,3 +2188,113 @@ function nomeDoPremio(?string $awardType): string
     $k = strtolower(trim((string)$awardType));
     return $rotulos[$k] ?? (string)$awardType;
 }
+
+/**
+ * Distribui as moedas de Free Agency pela classificação geral da liga.
+ *
+ * A régua é `ranking_points`/`ranking_titles`, na mesma ordem de
+ * congelarRankingDaSprint() — ou seja, a ordem que o GM vê no ranking. NÃO usa
+ * season_standings: a linha da sprint corrente nasce zerada e a `position` de
+ * lá é a posição dentro da conferência (1 a 15 repetindo num grupo de 30), que
+ * nunca produziria a escada de 1º ao último.
+ *
+ * Por padrão o pior colocado recebe mais (catch-up): base 2, passo 2 dá 1º=2,
+ * 2º=4 … e num grupo de 30 o último fica com 60.
+ *
+ * Liga inteira zerada devolve `aplicado = false` sem gravar nada: sem
+ * classificação, a ordem sairia por nome, e premiar por ordem alfabética é
+ * pior que não premiar, porque parece intencional.
+ *
+ * @param bool $somar true soma ao saldo atual (botão do admin); false grava o
+ *                    valor puro, que é o certo logo depois de zerar.
+ * @return array{aplicado:bool,motivo:?string,times:int,zerados:int,distribuicao:array}
+ */
+function distribuirMoedasPorClassificacao(
+    PDO $pdo,
+    string $league,
+    int $base = 2,
+    int $step = 2,
+    string $direction = 'worst_most',
+    string $reason = 'Moedas por classificação',
+    ?int $adminId = null,
+    bool $aplicar = true,
+    bool $somar = true
+): array {
+    $league = strtoupper(trim($league));
+    $vazio = ['aplicado' => false, 'motivo' => null, 'times' => 0, 'zerados' => 0, 'distribuicao' => []];
+
+    $st = $pdo->prepare("SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
+                                COALESCE(t.moedas,0) AS moedas,
+                                COALESCE(t.ranking_points,0) AS pts,
+                                COALESCE(t.ranking_titles,0) AS tit
+                           FROM teams t WHERE t.league = ?
+                          ORDER BY pts DESC, tit DESC, t.city, t.name");
+    $st->execute([$league]);
+    $ranked = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$ranked) return array_merge($vazio, ['motivo' => 'Nenhum time nesta liga.']);
+
+    $comPontos = 0;
+    foreach ($ranked as $r) if ((int)$r['pts'] > 0) $comPontos++;
+    $zerados = count($ranked) - $comPontos;
+    if ($comPontos === 0) {
+        return array_merge($vazio, [
+            'times'   => count($ranked),
+            'zerados' => $zerados,
+            'motivo'  => 'Todos os times desta liga estão com 0 ponto no ranking geral — não há classificação para distribuir ainda.',
+        ]);
+    }
+
+    $n = count($ranked);
+    $dist = [];
+    foreach ($ranked as $i => $r) {
+        $passos = ($direction === 'best_most') ? ($n - 1 - $i) : $i;
+        $amount = $base + $passos * $step;
+        $saldo  = $somar ? (int)$r['moedas'] + $amount : $amount;
+        $dist[] = [
+            'rank' => $i + 1, 'team_id' => (int)$r['team_id'], 'team_name' => $r['team_name'],
+            'points' => (int)$r['pts'], 'current' => (int)$r['moedas'],
+            'amount' => $amount, 'new_balance' => $saldo,
+        ];
+    }
+
+    if (!$aplicar) {
+        return ['aplicado' => false, 'motivo' => null, 'times' => $n,
+                'zerados' => $zerados, 'distribuicao' => $dist];
+    }
+
+    /* Chamado de dentro do create_season, que já abriu a sua transação: abrir
+       outra aqui derrubaria a de fora no commit. */
+    $minhaTransacao = !$pdo->inTransaction();
+
+    /* O ALTER só pode rodar FORA de transação. DDL no MySQL dá commit
+       implícito: rodando aqui dentro do create_season, ele fecharia a
+       transação da criação da temporada no meio, e o que viesse depois
+       perderia o rollback. Quando já estamos dentro de uma, as colunas ou
+       existem — e existem, o log de moedas é usado desde sempre — ou o INSERT
+       abaixo falha e o erro sobe, que é melhor que comitar por acidente. */
+    if ($minhaTransacao) {
+        try {
+            $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS balance_after INT NOT NULL DEFAULT 0");
+            $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) NULL");
+        } catch (Throwable $ignored) {}
+        $pdo->beginTransaction();
+    }
+    try {
+        $up  = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
+        $log = $pdo->prepare('INSERT INTO team_coins_log (team_id, amount, balance_after, reason, admin_id, type)
+                              VALUES (?, ?, ?, ?, ?, ?)');
+        $aplicados = 0;
+        foreach ($dist as $d) {
+            if ($d['amount'] === 0 && $somar) continue;
+            $up->execute([$d['new_balance'], $d['team_id']]);
+            $log->execute([$d['team_id'], $d['amount'], $d['new_balance'], $reason, $adminId, 'standings']);
+            $aplicados++;
+        }
+        if ($minhaTransacao) $pdo->commit();
+        return ['aplicado' => true, 'motivo' => null, 'times' => $aplicados,
+                'zerados' => $zerados, 'distribuicao' => $dist];
+    } catch (Throwable $e) {
+        if ($minhaTransacao && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}

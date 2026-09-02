@@ -1348,6 +1348,38 @@ try {
 
             // Resetar moedas e contadores de FA (dispensas/contratações) da liga ao avançar temporada
             $pdo->prepare("UPDATE teams SET moedas = 0 WHERE league = ?")->execute([$league]);
+
+            /* E JÁ REPÕE PELA CLASSIFICAÇÃO, no mesmo passo em que zerou.
+               Aqui é o único momento em que as duas coisas que a distribuição
+               precisa estão prontas ao mesmo tempo: a pontuação da temporada
+               que acabou já entrou em ranking_points (advance_season exige o
+               registro antes de deixar avançar) e as moedas acabaram de ir a
+               zero. Zerar e repor viraram um passo só justamente pra não
+               existir o intervalo em que a liga fica sem moeda nenhuma
+               esperando alguém lembrar do botão.
+
+               Como o saldo é zero aqui, grava o valor puro ($somar = false):
+               somar a zero daria o mesmo número, mas deixaria o log dizendo
+               "somei" quando na verdade definiu.
+
+               A ELITE não usa moedas de Free Agency, então fica de fora. E
+               primeira temporada da sprint tem a liga inteira zerada — a
+               função devolve aplicado=false e nada é gravado, que é o certo:
+               sem classificação, a ordem sairia por nome. */
+            if ($league !== 'ELITE') {
+                try {
+                    $r = distribuirMoedasPorClassificacao(
+                        $pdo, $league, 2, 2, 'worst_most',
+                        'Moedas por classificação (temporada ' . $seasonNumber . ')',
+                        (int)($user['id'] ?? 0) ?: null, true, false
+                    );
+                    error_log('[create_season] moedas por classificação ' . $league . ': '
+                        . ($r['aplicado'] ? $r['times'] . ' times' : 'nao aplicado - ' . $r['motivo']));
+                } catch (Throwable $e) {
+                    // Distribuir é acessório: não pode derrubar a criação da temporada.
+                    error_log('[create_season] moedas por classificação: ' . $e->getMessage());
+                }
+            }
             // Zera dispensas e contratações a cada temporada
             try {
                 $pdo->prepare("UPDATE teams SET waivers_used = 0, waivers_extra = 0, fa_signings_used = 0 WHERE league = ?")->execute([$league]);

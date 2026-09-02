@@ -3570,7 +3570,13 @@ async function showLeague(league) {
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-hammer',                  label: 'Leilão',                    fn: `showLeilaoAdmin('${league}')`, color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
-      { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
+      /* Moeda de Free Agency é das ligas de baixo. A ELITE contrata por
+         salário, então o card levava a uma tela de saldos que não valem nada
+         lá — e a distribuição por classificação, que é o motivo do card
+         existir, também não se aplica. */
+      ...(league !== 'ELITE' ? [
+        { icon: 'bi-coin',                  label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
+      ] : []),
       ...(league === 'ROOKIE' ? [
         // Cadastro de GM novo na ROOKIE é sempre via link de convite (o mesmo
         // Link único da ROOKIE: um só link serve pra várias pessoas, dá pra

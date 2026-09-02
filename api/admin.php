@@ -3605,91 +3605,34 @@ if ($method === 'POST') {
                 exit;
             }
 
-            /* A régua é a CLASSIFICAÇÃO GERAL da sprint, e não a tabela de uma
-               temporada.
-               Isto já leu `season_standings`, e o resultado era errado por dois
-               motivos ao mesmo tempo: a linha da sprint corrente nasce zerada
-               (todo mundo 0-0, então a ordem saía por desempate arbitrário), e
-               a coluna `position` de lá é a posição DENTRO DA CONFERÊNCIA — ia
-               de 1 a 15 e repetia cada valor duas vezes num grupo de 30, o que
-               nunca poderia produzir a escada de 1º a 30º.
-               `ranking_points`/`ranking_titles` é o que o site mostra como
-               classificação geral; a ordem abaixo é a mesma de
-               congelarRankingDaSprint(), pra distribuir na ordem que o GM vê. */
-            $stmtRank = $pdo->prepare("
-                SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
-                       COALESCE(t.moedas,0) AS moedas,
-                       COALESCE(t.ranking_points,0) AS pts,
-                       COALESCE(t.ranking_titles,0) AS tit
-                FROM teams t
-                WHERE t.league = ?
-                ORDER BY pts DESC, tit DESC, t.city, t.name");
-            $stmtRank->execute([$league]);
-            $ranked = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
-            if (!$ranked) {
-                echo json_encode(['success' => false, 'error' => 'Nenhum time nesta liga.']);
+            /* A régua e a mesma do avanco de temporada: a funcao vive em
+               backend/helpers.php e e chamada tambem pelo create_season, pra o
+               botao manual e o automatico nunca divergirem na ordem nem na
+               formula. Aqui SOMA ao saldo (o admin pode estar complementando
+               no meio da temporada); no avanco ela grava o valor puro, porque
+               la o saldo acabou de ir a zero. */
+            try {
+                $r = distribuirMoedasPorClassificacao(
+                    $pdo, $league, $base, $step, $direction, $reason,
+                    (int)($user['id'] ?? 0) ?: null, $apply, true
+                );
+            } catch (Throwable $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas por classificacao']);
                 exit;
             }
-
-            /* Uma liga inteira zerada não tem classificação — tem empate geral.
-               Distribuir ali premiaria por ordem alfabética, que é pior que não
-               distribuir, porque parece intencional. */
-            $comPontos = 0;
-            foreach ($ranked as $r) if ((int)$r['pts'] > 0) $comPontos++;
-            if ($comPontos === 0) {
-                echo json_encode(['success' => false,
-                    'error' => 'Todos os times desta liga estão com 0 ponto no ranking geral — não há classificação para distribuir ainda.']);
+            if (!$r['aplicado'] && $r['motivo'] !== null) {
+                echo json_encode(['success' => false, 'error' => $r['motivo']]);
                 exit;
             }
-
-            $n = count($ranked);
-            $dist = [];
-            foreach ($ranked as $i => $r) {
-                // rank 1 = melhor. worst_most: pior recebe mais; best_most: melhor recebe mais.
-                $stepsFromBase = ($direction === 'best_most') ? ($n - 1 - $i) : $i;
-                $amount = $base + $stepsFromBase * $step;
-                $dist[] = [
-                    'rank'        => $i + 1,
-                    'team_id'     => (int)$r['team_id'],
-                    'team_name'   => $r['team_name'],
-                    'points'      => (int)$r['pts'],
-                    'current'     => (int)$r['moedas'],
-                    'amount'      => $amount,
-                    'new_balance' => (int)$r['moedas'] + $amount,
-                ];
-            }
-
             if (!$apply) {
                 echo json_encode(['success' => true, 'preview' => true,
-                                  'zerados' => $n - $comPontos, 'distribution' => $dist]);
+                                  'zerados' => $r['zerados'], 'distribution' => $r['distribuicao']]);
                 exit;
             }
-
-            try {
-                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS balance_after INT NOT NULL DEFAULT 0");
-                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) NULL");
-            } catch (Exception $ignored) {}
-
-            try {
-                $pdo->beginTransaction();
-                $stmtUp  = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
-                $stmtLog = $pdo->prepare('INSERT INTO team_coins_log (team_id, amount, balance_after, reason, admin_id, type)
-                                          VALUES (?, ?, ?, ?, ?, ?)');
-                $adminId = (int)($user['id'] ?? 0) ?: null;
-                $count = 0;
-                foreach ($dist as $d) {
-                    if ($d['amount'] === 0) continue;
-                    $stmtUp->execute([$d['new_balance'], $d['team_id']]);
-                    $stmtLog->execute([$d['team_id'], $d['amount'], $d['new_balance'], $reason, $adminId, 'standings']);
-                    $count++;
-                }
-                $pdo->commit();
-                echo json_encode(['success' => true, 'message' => sprintf('Distribuídas moedas por classificação para %d times da %s.', $count, $league), 'distribution' => $dist]);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas por classificação']);
-            }
+            echo json_encode(['success' => true,
+                'message' => sprintf('Distribuidas moedas por classificacao para %d times da %s.', $r['times'], $league),
+                'distribution' => $r['distribuicao']]);
             break;
 
         case 'update_user':
