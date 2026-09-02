@@ -3559,8 +3559,49 @@ async function jogarAnos(){
           liga: nova,
           forca: Math.max(45, Math.min(99, S.clube.forca + ajuste)),
           movidoAos: S.idade,
+          // Marca o clube que SUBIU com você. É o que autoriza o crescimento
+          // abaixo, e só ele: um clube que você encontrou já na elite não
+          // vira projeto por você ter chegado.
+          subiuComigo: mov === 'sobe' ? true : S.clube.subiuComigo,
         });
       }
+    }
+
+    /*
+     * O CLUBE QUE SOBE CRESCE JUNTO COM VOCÊ.
+     *
+     * O +4 da promoção não cobre o degrau entre divisões: no catálogo a Série
+     * C vale 54, a B 68 e a A 86 — saltos de catorze e dezoito pontos. Um
+     * clube de 56 que subisse duas vezes chegava à Série A com 64 e encarava
+     * times de 72 a 92: 0,3% de chance de ganhar, e queda quase certa no ano
+     * seguinte. Era o que tornava "Do fundo ao topo" inalcançável na prática
+     * — 0,05% mesmo passando a carreira inteira no mesmo clube — e o que
+     * fazia o promovido virar ioiô entre duas divisões.
+     *
+     * Agora ele encosta na média da divisão em que passou a jogar, devagar: o
+     * time se estrutura no patamar novo. E mais rápido quando você é muito
+     * melhor que ele, que é o craque puxando o time pra cima — exatamente a
+     * história que a conquista conta.
+     *
+     * SÓ VALE PRO CLUBE QUE SUBIU COM VOCÊ. Sem esse recorte a regra pegava
+     * qualquer clube abaixo da média da própria liga, que são 62% do
+     * catálogo: quem passasse treze temporadas no Sevilla o veria sair de 85
+     * para 94, virando um dos maiores da Espanha. O crescimento é a história
+     * de um projeto que começou na divisão de baixo, não um bônus por ficar.
+     *
+     * 0,7 saiu de medir 20.000 carreiras por clube de terceira divisão, e
+     * confirmado no código da página: a conquista vai de 0,05% para 0,85% de
+     * quem passa a carreira toda no mesmo clube — e bem menos na prática,
+     * porque as propostas puxam a pessoa pra fora. Com 1,5 ela saltava pra
+     * 14%, o que não é o que "impossível" quer dizer.
+     */
+    const RITMO_CRESCIMENTO_CLUBE = 0.7;
+    const ligaDoClube = dadosLiga(S.clube.liga);
+    if (S.clube.subiuComigo && ligaDoClube && S.clube.forca < ligaDoClube.media) {
+      const puxao = 1 + Math.max(0, S.ovr - S.clube.forca) / 25;
+      S.clube = Object.assign({}, S.clube, {
+        forca: Math.min(ligaDoClube.media, S.clube.forca + RITMO_CRESCIMENTO_CLUBE * puxao),
+      });
     }
     // A taça vem ANTES do OVR: primeiro o que aconteceu no ano, depois o
     // que isso fez com você.
