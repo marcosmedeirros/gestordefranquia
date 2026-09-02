@@ -1,0 +1,234 @@
+<?php
+/**
+ * O GUIA ÚNICO: os três editais organizados por ASSUNTO, e não por liga.
+ *
+ * Hoje cada liga tem o seu PDF, e a mesma regra vive escrita três vezes. Quem
+ * quer saber como funciona o leilão abre o edital da própria liga, acha o
+ * artigo 43, e não tem como saber se na liga do lado é igual. Pior: quando as
+ * três dizem coisas diferentes, ninguém percebe — não há onde comparar.
+ *
+ * Aqui a pergunta vira o eixo. Cada assunto reúne o que as três dizem, lado a
+ * lado, e a divergência aparece sozinha.
+ *
+ * O TEXTO DOS ARTIGOS NÃO É COPIADO PRA CÁ. Ele é lido dos PDFs a cada carga,
+ * pelo mesmo edital_texto.php que o bot usa. Transcrever criaria uma quarta
+ * versão da regra, que envelheceria calada no dia em que um PDF fosse trocado
+ * — que é exatamente o problema que esta página existe pra resolver.
+ */
+
+require_once __DIR__ . '/edital_texto.php';
+
+const EDITAL_LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+/**
+ * Os assuntos do guia.
+ *
+ * `busca` é o que encontra os artigos daquele assunto nos editais. `resumo` é
+ * a explicação em português de gente — escrita a partir do que os editais e o
+ * código dizem, e é a única parte desta página redigida à mão.
+ *
+ * Onde os editais são OMISSOS o resumo diz isso, em vez de preencher com o que
+ * costuma ser praticado. Guia de liga que inventa regra vira discussão no
+ * grupo, e a pessoa age achando que estava amparada.
+ */
+function editalAssuntos(): array
+{
+    return [
+        'cap' => [
+            'titulo' => 'Salary cap',
+            'icone'  => 'bi-graph-up',
+            'busca'  => '/salary cap|teto salarial|folha salarial|espaço salarial/iu',
+            'resumo' => 'O teto de folha da franquia. Toda contratação — trade, free agency ou leilão — '
+                      . 'é conferida contra ele antes de valer. O cap muda de liga pra liga e é reajustado '
+                      . 'a cada duas temporadas na ROOKIE.',
+        ],
+        'elenco' => [
+            'titulo' => 'Elenco e roster',
+            'icone'  => 'bi-people-fill',
+            'busca'  => '/\b1[35] atletas\b|mínimo estatutário|composição do elenco|roster/iu',
+            'resumo' => 'Quantos atletas o time precisa ter e quantos pode ter. O piso existe pra ninguém '
+                      . 'entrar na temporada com meio time, e o teto pra ninguém estocar jogador.',
+        ],
+        'trades' => [
+            'titulo' => 'Trocas',
+            'icone'  => 'bi-arrow-left-right',
+            'busca'  => '/permuta|troca de atletas|trade\b/iu',
+            'resumo' => 'Como propor, o que pode entrar na negociação e o que trava uma troca. '
+                      . 'Toda trade passa pelo administrativo antes de valer.',
+        ],
+        'free-agency' => [
+            'titulo' => 'Free agency e waivers',
+            'icone'  => 'bi-person-plus-fill',
+            'busca'  => '/free agency|agente livre|waiver|dispensa/iu',
+            'resumo' => 'A janela de contratar quem está sem time e de dispensar quem está no seu. '
+                      . 'Tem limite de movimentações por temporada.',
+        ],
+        'leilao' => [
+            'titulo' => 'Leilão',
+            'icone'  => 'bi-hammer',
+            'busca'  => '/leilão|lance|arremat|adjudicad/iu',
+            'resumo' => 'O jogador vai a lance e fica com quem oferecer mais. A oferta é vinculante: '
+                      . 'feita, não volta atrás, e o valor sai do saldo se você arrematar.',
+        ],
+        'moedas' => [
+            'titulo' => 'Moedas',
+            'icone'  => 'bi-coin',
+            'busca'  => '/moedas? virtuais|aporte de moedas|distribuição de moedas/iu',
+            'resumo' => 'A pecúnia que banca o leilão e a free agency. É distribuída pela classificação — '
+                      . 'quem terminou pior recebe mais — e zera a cada temporada, sem acumular.',
+        ],
+        'draft' => [
+            'titulo' => 'Draft e picks',
+            'icone'  => 'bi-trophy-fill',
+            'busca'  => '/\bdraft\b|escolha de primeira rodada|loteria/iu',
+            'resumo' => 'O recrutamento de novatos, a loteria que define a ordem e as picks como ativo '
+                      . 'de troca.',
+        ],
+        'gleague' => [
+            'titulo' => 'G-League',
+            'icone'  => 'bi-arrow-down-up',
+            'busca'  => '/g-?league/iu',
+            'resumo' => 'Onde encostar jovem que não vai jogar. Quantas vagas você tem depende do '
+                      . 'tamanho do seu elenco.',
+        ],
+        'progressao' => [
+            'titulo' => 'Progressão e regressão',
+            'icone'  => 'bi-bar-chart-line-fill',
+            'busca'  => '/progression|progressão|regressão|declínio técnico|evolução técnica/iu',
+            'resumo' => 'Como os atletas evoluem e decaem entre temporadas. É o 2K que processa, '
+                      . 'com índices fixados no edital.',
+        ],
+        'punicoes' => [
+            'titulo' => 'Punições',
+            'icone'  => 'bi-exclamation-triangle-fill',
+            'busca'  => '/punição|advertência|suspensão|exclusão sumária|sanção|sanções|penalidade/iu',
+            'resumo' => 'O que acontece quando alguém descumpre o edital. A escala é progressiva: '
+                      . 'advertência, suspensão temporária e exclusão.',
+        ],
+        'ranking' => [
+            'titulo' => 'Ranking e pontuação',
+            'icone'  => 'bi-list-ol',
+            'busca'  => '/ranking geral|pontuação acumulativa|desempate|standings/iu',
+            'resumo' => 'Como se soma ponto ao longo da edição e quem leva o título no fim.',
+        ],
+        'pagamento' => [
+            'titulo' => 'Pagamento e reembolso',
+            'icone'  => 'bi-cash-coin',
+            'busca'  => '/reembolso|aporte financeiro|taxa de inscrição|premiação em/iu',
+            'resumo' => 'O que se paga pra participar, o que dá direito a devolução e o que não dá.',
+        ],
+    ];
+}
+
+/**
+ * Os artigos de um assunto, em todas as ligas que têm edital.
+ *
+ * @return array<string, list<array{num:int,capitulo:string,texto:string}>>
+ */
+function editalPorAssunto(PDO $pdo, string $chave): array
+{
+    $assuntos = editalAssuntos();
+    if (!isset($assuntos[$chave])) return [];
+    $re = $assuntos[$chave]['busca'];
+
+    $out = [];
+    foreach (EDITAL_LIGAS as $liga) {
+        $txt = editalTexto($pdo, $liga);
+        if ($txt === null) continue;
+        $achados = [];
+        foreach (editalArtigos($txt) as $a) {
+            if (preg_match($re, $a['texto'])) $achados[] = $a;
+        }
+        if ($achados) $out[$liga] = $achados;
+    }
+    return $out;
+}
+
+/** Quais ligas têm edital lido e quantos artigos cada uma tem. */
+function editalCobertura(PDO $pdo): array
+{
+    $out = [];
+    foreach (EDITAL_LIGAS as $liga) {
+        $txt = editalTexto($pdo, $liga);
+        $out[$liga] = $txt === null
+            ? ['ok' => false, 'artigos' => 0, 'chars' => 0]
+            : ['ok' => true, 'artigos' => count(editalArtigos($txt)), 'chars' => mb_strlen($txt)];
+    }
+    return $out;
+}
+
+/**
+ * As divergências que a leitura dos três editais revelou.
+ *
+ * Cada item aqui foi MEDIDO no texto, não suposto. É a lista de coisas que
+ * precisam de decisão sua antes de este guia poder virar documento oficial —
+ * enquanto uma delas estiver aberta, publicar como regra seria oficializar
+ * uma contradição.
+ */
+function editalDivergencias(PDO $pdo): array
+{
+    $itens = [];
+
+    // 1. RISE sem edital nenhum.
+    $cob = editalCobertura($pdo);
+    if (empty($cob['RISE']['ok'])) {
+        $itens[] = [
+            'grave' => true,
+            'titulo' => 'A RISE não tem edital',
+            'texto'  => 'ELITE, NEXT e ROOKIE têm PDF cadastrado; a RISE não tem nenhum. '
+                      . 'Os GMs da RISE hoje não têm documento de regra pra consultar, e o bot '
+                      . 'não consegue responder dúvida daquela liga.',
+        ];
+    }
+
+    // 2. Numeração repetida dentro do mesmo edital.
+    foreach (EDITAL_LIGAS as $liga) {
+        $txt = editalTexto($pdo, $liga);
+        if ($txt === null) continue;
+
+        $nums = array_column(editalArtigos($txt), 'num');
+        $rep  = array_keys(array_filter(array_count_values($nums), fn($n) => $n > 1));
+        if ($rep) {
+            sort($rep);
+            $itens[] = [
+                'grave' => true,
+                'titulo' => "Artigos repetidos no edital da {$liga}",
+                'texto'  => 'Os números ' . implode(', ', $rep) . ' aparecem mais de uma vez, '
+                          . 'com conteúdos diferentes. Citar "Art. ' . $rep[0] . ' do edital da '
+                          . $liga . '" hoje é ambíguo — existem dois.',
+            ];
+        }
+
+        $caps = array_column(editalCapitulos($txt), 'titulo');
+        if (count($caps) !== count(array_unique($caps))) {
+            $itens[] = [
+                'grave' => false,
+                'titulo' => "Capítulos repetidos no edital da {$liga}",
+                'texto'  => 'Há mais de um capítulo com o mesmo número romano.',
+            ];
+        }
+    }
+
+    // 3. Tabela de moedas menor que a liga.
+    foreach (EDITAL_LIGAS as $liga) {
+        $txt = editalTexto($pdo, $liga);
+        if ($txt === null) continue;
+        if (!preg_match('/(\d{1,2})º colocado recebe/u', $txt, $m)) continue;
+
+        $maiorPosicao = (int)$m[1];
+        $st = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
+        $st->execute([$liga]);
+        $times = (int)$st->fetchColumn();
+
+        if ($times > $maiorPosicao) {
+            $itens[] = [
+                'grave' => true,
+                'titulo' => "A tabela de moedas da {$liga} não cobre a liga inteira",
+                'texto'  => "O edital lista até o {$maiorPosicao}º colocado, mas a {$liga} tem {$times} times. "
+                          . 'Os últimos colocados ficam sem valor definido.',
+            ];
+        }
+    }
+
+    return $itens;
+}
