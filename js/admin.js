@@ -2742,6 +2742,17 @@ async function showLeilaoAdmin(league) {
         <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
       </div>
       ${_leilaoAdminFormCriar(league)}
+      <!-- Os slots comprados na loja: quem pediu leilão e ainda não foi
+           atendido. Fica logo abaixo do formulário porque é essa a ordem do
+           trabalho — ver quem pediu, criar o leilão, marcar como usado. -->
+      <div class="panel mb-3" id="slotsLeilaoPanel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-ticket-perforated" style="color:#3b82f6"></i> Slots de leilão comprados</div>
+        </div>
+        <div class="panel-body" id="slotsLeilaoBox">
+          <div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:var(--red)"></div></div>
+        </div>
+      </div>
       <div class="panel mb-3">
         <div class="panel-header"><div class="panel-title"><i class="bi bi-hourglass-split" style="color:#ef4444"></i> Precisam de resolução (${precisamResolucao.length})</div></div>
         <div class="panel-body">${precisamResolucao.length ? precisamResolucao.map(l => renderCard(l, true)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão expirado aguardando resolução.</p>'}</div>
@@ -2771,6 +2782,9 @@ async function showLeilaoAdmin(league) {
         <div class="panel-body">${finalizados.length ? finalizados.map(l => _leilaoAdminLinhaFinalizado(l, league)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão finalizado ainda.</p>'}</div>
       </div>`;
     _leilaoAdminLigarFormCriar(league);
+    // Depois do innerHTML: a caixa dos slots só existe a partir daqui, e ela
+    // se recarrega sozinha a cada ação sem redesenhar o card inteiro.
+    _carregarSlotsLeilao(league);
   } catch (e) {
     container.innerHTML = `<div class="mb-3">${back}</div><div class="alert alert-danger">Erro ao carregar leilões: ${escapeHtml(e.error || e.message || '')}</div>`;
   }
@@ -2823,6 +2837,79 @@ async function _leilaoAdminCopiarTroca(leilaoId, botao) {
     setTimeout(() => { botao.innerHTML = antes; }, 1400);
   } catch (e) {
     alert(texto);   // sem clipboard (http, permissão negada): mostra pra copiar na mão
+  }
+}
+
+/**
+ * Os slots de leilão da liga, no card do Leilão.
+ *
+ * Só aparece quem já comprou algum: listar a liga inteira com zero em todo
+ * mundo faria a fila real — que hoje são três GMs — sumir no meio de trinta
+ * linhas vazias.
+ */
+async function _carregarSlotsLeilao(league) {
+  const box = document.getElementById('slotsLeilaoBox');
+  if (!box) return;
+  try {
+    const data = await api(`leilao.php?action=slots_leilao&league=${encodeURIComponent(league)}`);
+    const slots = data.slots || [];
+    const emAberto = slots.filter(s => s.pendentes > 0);
+    if (!slots.length) {
+      box.innerHTML = '<p style="color:var(--text-3);font-size:13px;margin:0">Ninguém desta liga comprou slot de leilão ainda.</p>';
+      return;
+    }
+    const linha = s => `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 4px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:600;font-size:13.5px;color:var(--text)">${escapeHtml(s.gm || '—')}</div>
+          <div style="font-size:12px;color:var(--text-3)">${escapeHtml(s.time || 'Sem time')} · ${s.total} comprado${s.total > 1 ? 's' : ''} no total</div>
+        </div>
+        <span class="pun-badge" title="Slots em aberto" style="${s.pendentes
+            ? 'background:rgba(59,130,246,.15);color:#3b82f6;border:1px solid rgba(59,130,246,.4)'
+            : 'background:var(--panel-2);color:var(--text-3);border:1px solid var(--border)'}">
+          ${s.pendentes} em aberto
+        </span>
+        <!-- margin-left:auto mantém os botões na direita mesmo quando o nome
+             do time empurra a linha pra baixo no celular. -->
+        <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+          <button class="btn-ghost" style="padding:4px 10px;font-size:13px" title="Tirar um slot"
+            onclick="_slotLeilao(${s.user_id}, 'tirar', '${league}')" ${s.pendentes ? '' : 'disabled'}>−</button>
+          <button class="btn-ghost" style="padding:4px 10px;font-size:13px" title="Dar um slot"
+            onclick="_slotLeilao(${s.user_id}, 'dar', '${league}')">+</button>
+          <button class="btn-orange" style="padding:4px 12px;font-size:12.5px"
+            onclick="_slotLeilao(${s.user_id}, 'usar', '${league}')" ${s.pendentes ? '' : 'disabled'}>
+            <i class="bi bi-check2 me-1"></i>Feito
+          </button>
+        </div>
+      </div>`;
+    box.innerHTML = `
+      <p style="color:var(--text-3);font-size:12.5px;margin-bottom:8px">
+        Slot comprado é pedido de leilão em aberto. Crie o leilão do jogador acima e clique em <b>Feito</b> pra baixar o pedido.
+      </p>
+      ${emAberto.length ? emAberto.map(linha).join('')
+        : '<p style="color:var(--text-3);font-size:13px;margin:0 0 10px">Nenhum slot em aberto.</p>'}
+      ${slots.length > emAberto.length ? `
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;color:var(--text-3);font-size:12.5px">
+            Já atendidos (${slots.length - emAberto.length})
+          </summary>
+          ${slots.filter(s => !s.pendentes).map(linha).join('')}
+        </details>` : ''}`;
+  } catch (e) {
+    box.innerHTML = `<p style="color:#ef4444;font-size:13px;margin:0">Erro ao carregar: ${escapeHtml(e.error || 'desconhecido')}</p>`;
+  }
+}
+
+/** Dar, tirar ou baixar um slot. Só o "tirar" pergunta: é o único que apaga pedido pago. */
+async function _slotLeilao(userId, op, league) {
+  if (op === 'tirar' && !await confirmarSite('Tirar um slot em aberto deste GM? Ele pagou 500 moedas por esse pedido.')) return;
+  try {
+    const r = await api('leilao.php', { method: 'POST',
+      body: JSON.stringify({ action: 'slot_leilao_mexer', user_id: userId, op }) });
+    showAlert('success', r.message || 'Pronto!');
+    _carregarSlotsLeilao(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao mexer no slot');
   }
 }
 

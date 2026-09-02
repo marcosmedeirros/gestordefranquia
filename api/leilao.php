@@ -296,6 +296,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listarLeiloesAdmin($pdo, $filterLeagueId);
             break;
+        case 'slots_leilao':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            slotsDeLeilao($pdo, strtoupper(trim((string)($_GET['league'] ?? ''))));
+            break;
         case 'listar_temp':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -385,6 +392,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $body['action'] ?? '';
     
     switch ($action) {
+        case 'slot_leilao_mexer':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            mexerSlotDeLeilao($pdo, (int)($body['user_id'] ?? 0),
+                              (string)($body['op'] ?? ''), (int)$user_id);
+            exit;
         case 'cadastrar':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -540,6 +555,112 @@ function listarLeiloesAtivos($pdo, $league_id, $team_id = null) {
 
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
+}
+
+/**
+ * OS SLOTS DE LEILÃO COMPRADOS NA LOJA, POR GM DA LIGA.
+ *
+ * O slot é vendido a 500 moedas e não some em contador nenhum: não existe teto
+ * de leilão no sistema, então "ter um slot" sempre significou, na prática, o
+ * GM ter comprado o direito de pedir um leilão e o admin precisar abrir esse
+ * leilão pra ele. Isso vivia só na tabela da loja, sem tela — o admin não
+ * tinha como saber quem comprou nem marcar que já atendeu.
+ *
+ * A PENDÊNCIA É A LINHA SEM `atendido_em`. Aqui um slot pendente é um pedido
+ * em aberto; marcado como usado, sai da lista e vira histórico.
+ *
+ * Devolve os GMs da liga que já compraram algum slot, com o saldo em aberto e
+ * o total histórico — quem nunca comprou não aparece, senão a lista viraria a
+ * liga inteira com zero em todo mundo.
+ */
+function slotsDeLeilao(PDO $pdo, string $league): void
+{
+    $validas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+    if (!in_array($league, $validas, true)) {
+        echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+        return;
+    }
+    require_once __DIR__ . '/../backend/loja.php';
+    lojaGarantirTabela($pdo);
+
+    $st = $pdo->prepare("
+        SELECT u.id AS user_id, u.name AS gm,
+               t.id AS team_id, CONCAT(t.city,' ',t.name) AS time,
+               COUNT(*) AS total,
+               SUM(i.atendido_em IS NULL) AS pendentes,
+               MAX(i.comprado_em) AS ultima_compra
+          FROM loja_inventario i
+          JOIN users u ON u.id = i.id_usuario
+          JOIN teams t ON t.user_id = u.id
+         WHERE i.item_key = 'slot_leilao' AND t.league = ?
+      GROUP BY u.id, u.name, t.id, time
+      ORDER BY pendentes DESC, ultima_compra DESC");
+    $st->execute([$league]);
+    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($linhas as &$l) {
+        $l['user_id']   = (int)$l['user_id'];
+        $l['team_id']   = (int)$l['team_id'];
+        $l['total']     = (int)$l['total'];
+        $l['pendentes'] = (int)$l['pendentes'];
+    }
+    unset($l);
+
+    echo json_encode(['success' => true, 'slots' => $linhas]);
+}
+
+/**
+ * Mexe no saldo de slots de um GM: marcar um como usado, dar um, tirar um.
+ *
+ * Nada é apagado. "usar" e "tirar" preenchem `atendido_em` — a diferença fica
+ * na `obs`, que é o que permite saber depois se o slot foi atendido de verdade
+ * ou cancelado pelo admin. Um slot pago que somisse da tabela seria uma compra
+ * de 500 moedas sem rastro nenhum.
+ */
+function mexerSlotDeLeilao(PDO $pdo, int $userId, string $op, int $adminId): void
+{
+    require_once __DIR__ . '/../backend/loja.php';
+    lojaGarantirTabela($pdo);
+
+    if ($userId <= 0) {
+        echo json_encode(['success' => false, 'error' => 'GM inválido']);
+        return;
+    }
+
+    if ($op === 'dar') {
+        // Slot de cortesia: preço zero é o que o distingue de uma compra no
+        // extrato, e `usado_em` já vem preenchido porque ele nasce valendo.
+        $pdo->prepare("INSERT INTO loja_inventario
+                          (id_usuario, item_key, preco_pago, usado_em, obs)
+                       VALUES (?, 'slot_leilao', 0, NOW(), 'Concedido pelo admin')")
+            ->execute([$userId]);
+        echo json_encode(['success' => true, 'message' => 'Slot concedido.']);
+        return;
+    }
+
+    if ($op !== 'usar' && $op !== 'tirar') {
+        echo json_encode(['success' => false, 'error' => 'Operação inválida']);
+        return;
+    }
+
+    // O mais ANTIGO em aberto: quem comprou primeiro é atendido primeiro.
+    $st = $pdo->prepare("SELECT id FROM loja_inventario
+                          WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL
+                       ORDER BY comprado_em ASC, id ASC LIMIT 1");
+    $st->execute([$userId]);
+    $id = (int)($st->fetchColumn() ?: 0);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'Esse GM não tem slot em aberto.']);
+        return;
+    }
+
+    $obs = $op === 'usar' ? 'Leilão aberto pelo admin' : 'Removido pelo admin';
+    $pdo->prepare("UPDATE loja_inventario
+                      SET atendido_em = NOW(), atendido_por = ?, obs = ?
+                    WHERE id = ?")->execute([$adminId ?: null, $obs, $id]);
+
+    echo json_encode(['success' => true,
+        'message' => $op === 'usar' ? 'Slot marcado como usado.' : 'Slot removido.']);
 }
 
 function listarLeiloesAdmin($pdo, ?int $league_id = null) {
