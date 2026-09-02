@@ -10099,7 +10099,9 @@ async function _moverJogador(pickId, playerId, nome) {
   if (!_draftAberto) return;
   if (!await confirmarSite(`Pôr ${nome} nesta escolha?\n\nSe ele estiver em outra pick, sai de lá e aquela fica em aberto.`)) return;
   try {
-    const r = await api('admin.php', { method: 'POST', body: JSON.stringify({
+    /* A acao vai na URL, e nao so no corpo: admin.php le  de \n       inclusive no POST, entao mandar apenas no JSON cai no default e volta
+       "Acao invalida". */
+    const r = await api('admin.php?action=draft_mover_jogador', { method: 'POST', body: JSON.stringify({
       action: 'draft_mover_jogador', league: _draftAberto.league,
       session_id: _draftAberto.sessionId, pick_id: pickId, player_id: playerId })});
     bootstrap.Modal.getInstance(document.getElementById('_modalEscolhaDraft'))?.hide();

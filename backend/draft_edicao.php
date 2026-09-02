@@ -67,34 +67,49 @@ function draftMoverJogadorParaPick(PDO $pdo, int $destinoId, int $playerId, int 
     try {
         $seasonNumber = (int)$destino['season_number'];
 
-        /* Tira do elenco pelo NOME e pelo time — é como fill_past_pick e o
-           auto-pick gravam, sem guardar o id do jogador criado. Limitar a UM
-           é o que impede de apagar um homônimo que o time tenha por outra
-           via. */
-        $tirarDoElenco = function (int $teamId, string $nome) use ($pdo) {
-            $st = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? ORDER BY id DESC LIMIT 1');
+        /* O JOGADOR MUDA DE TIME DE VERDADE, e não só no quadro do draft.
+           Sai do elenco de quem tinha e entra no de quem passou a ter, com as
+           marcas do draft junto — `draft_round`, `draft_pick_position` e
+           `drafted_season_number`. Esses três não são enfeite: é por eles que
+           o resto do sistema sabe que aquele jogador é um novato daquela
+           escolha, e é como make_pick, fill_past_pick e o auto-pick gravam.
+           Sem eles o jogador entrava no time como se tivesse vindo de outro
+           lugar qualquer. */
+        $tirarDoElenco = function (int $teamId, string $nome, int $round, int $pos) use ($pdo, $seasonNumber) {
+            // Pela marca do draft primeiro: é o que distingue esta linha de um
+            // homônimo que o time tenha por trade ou free agency.
+            $st = $pdo->prepare('DELETE FROM players
+                                  WHERE team_id = ? AND draft_round = ? AND draft_pick_position = ?
+                                    AND (drafted_season_number = ? OR drafted_season_number IS NULL)
+                                  LIMIT 1');
+            $st->execute([$teamId, $round, $pos, $seasonNumber]);
+            if ($st->rowCount() > 0) return true;
+
+            // Elenco antigo, gravado antes de essas colunas existirem: casa
+            // pelo nome, como o revert_pick também faz.
+            $st = $pdo->prepare('DELETE FROM players WHERE team_id = ? AND name = ? LIMIT 1');
             $st->execute([$teamId, $nome]);
-            $id = (int)($st->fetchColumn() ?: 0);
-            if ($id > 0) $pdo->prepare('DELETE FROM players WHERE id = ?')->execute([$id]);
-            return $id > 0;
+            return $st->rowCount() > 0;
         };
 
-        $porNoElenco = function (int $teamId, array $j) use ($pdo) {
+        $porNoElenco = function (int $teamId, array $j, int $round, int $pos) use ($pdo, $seasonNumber) {
             $st = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
             $st->execute([$teamId, $j['name']]);
             if ($st->fetchColumn()) return;   // já está lá
             $pdo->prepare('INSERT INTO players
-                (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade)
-                VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                ->execute([$teamId, $teamId, $j['name'], $j['position'],
-                           (int)$j['age'], (int)$j['ovr']]);
+                (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position,
+                 name, position, age, ovr, role, available_for_trade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                ->execute([$teamId, $teamId, $seasonNumber, $round, $pos,
+                           $j['name'], $j['position'], (int)$j['age'], (int)$j['ovr']]);
         };
 
         // 1. Esvazia a pick de origem, se havia uma.
         if ($origem) {
             $pdo->prepare('UPDATE draft_order SET picked_player_id = NULL, picked_at = NULL WHERE id = ?')
                 ->execute([(int)$origem['id']]);
-            $tirarDoElenco((int)$origem['team_id'], (string)$jogador['name']);
+            $tirarDoElenco((int)$origem['team_id'], (string)$jogador['name'],
+                          (int)$origem['round'], (int)$origem['pick_position']);
         }
 
         // 2. Devolve o ocupante do destino ao pool.
@@ -102,7 +117,8 @@ function draftMoverJogadorParaPick(PDO $pdo, int $destinoId, int $playerId, int 
             $pdo->prepare('UPDATE draft_pool
                               SET draft_status = "available", drafted_by_team_id = NULL, draft_order = NULL
                             WHERE id = ?')->execute([(int)$ocupante['id']]);
-            $tirarDoElenco((int)$destino['team_id'], (string)$ocupante['name']);
+            $tirarDoElenco((int)$destino['team_id'], (string)$ocupante['name'],
+                          (int)$destino['round'], (int)$destino['pick_position']);
         }
 
         // 3. Põe o jogador no destino.
@@ -117,7 +133,8 @@ function draftMoverJogadorParaPick(PDO $pdo, int $destinoId, int $playerId, int 
                           SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ?
                         WHERE id = ?')
             ->execute([(int)$destino['team_id'], $numeroPick, $playerId]);
-        $porNoElenco((int)$destino['team_id'], $jogador);
+        $porNoElenco((int)$destino['team_id'], $jogador,
+                     (int)$destino['round'], (int)$destino['pick_position']);
 
         $pdo->commit();
 
@@ -143,13 +160,34 @@ function draftMoverJogadorParaPick(PDO $pdo, int $destinoId, int $playerId, int 
 }
 
 /**
- * Os drafts de uma liga, do mais recente pro mais antigo.
+ * Os drafts da SPRINT ATIVA de uma liga, do mais recente pro mais antigo.
  *
- * Só da liga pedida: o admin trabalha dentro da aba de uma, e listar as
- * quatro juntas é como se edita o draft da liga errada.
+ * Duas restrições, e as duas evitam editar o draft errado:
+ *
+ *  - só da liga pedida — o admin trabalha dentro da aba de uma;
+ *  - só da sprint ativa — sprint encerrada é história, e os drafts dela ainda
+ *    existem no banco. Listar tudo trazia dezenove drafts na NEXT, quase todos
+ *    de ciclos que acabaram, e o de agora se perdia no meio deles.
  */
 function draftListaDaLiga(PDO $pdo, string $league, int $limite = 40): array
 {
+    $league = strtoupper($league);
+
+    /* A sprint ativa. Se nenhuma estiver marcada como tal — instalação antiga,
+       ou a sprint recém-criada ainda sem status — vale a mais recente, que é o
+       que o resto do sistema também assume. */
+    $st = $pdo->prepare("SELECT id FROM sprints
+                          WHERE league = ? AND status = 'active'
+                       ORDER BY sprint_number DESC, id DESC LIMIT 1");
+    $st->execute([$league]);
+    $sprintId = (int)($st->fetchColumn() ?: 0);
+    if ($sprintId <= 0) {
+        $st = $pdo->prepare('SELECT id FROM sprints WHERE league = ? ORDER BY sprint_number DESC, id DESC LIMIT 1');
+        $st->execute([$league]);
+        $sprintId = (int)($st->fetchColumn() ?: 0);
+    }
+    if ($sprintId <= 0) return [];
+
     $st = $pdo->prepare('SELECT ds.id, ds.status, ds.season_id, ds.completed_at,
                                 s.season_number, s.year, s.sprint_id,
                                 sp.sprint_number,
@@ -159,10 +197,10 @@ function draftListaDaLiga(PDO $pdo, string $league, int $limite = 40): array
                            FROM draft_sessions ds
                            JOIN seasons s ON s.id = ds.season_id
                       LEFT JOIN sprints sp ON sp.id = s.sprint_id
-                          WHERE s.league = ?
+                          WHERE s.league = ? AND s.sprint_id = ?
                        ORDER BY ds.id DESC
                           LIMIT ' . (int)$limite);
-    $st->execute([strtoupper($league)]);
+    $st->execute([$league, $sprintId]);
     $out = $st->fetchAll(PDO::FETCH_ASSOC);
     foreach ($out as &$d) {
         $d['id']      = (int)$d['id'];
