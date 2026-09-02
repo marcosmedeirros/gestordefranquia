@@ -7385,7 +7385,7 @@ async function showCoins(league) {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Moedas = <b>base + (posição-1) × passo</b>, pela classificação da última temporada registrada. Ex.: base 2, passo 2 → 1º=2, 2º=4, 3º=6…</p>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Moedas = <b>base + (posição-1) × passo</b>, pela <b>classificação geral</b> da liga (a mesma ordem do ranking). Ex.: base 2, passo 2 → 1º=2, 2º=4, 3º=6… e num grupo de 30 o último fica com 60.</p>
         <div class="row g-2 mb-2">
           <div class="col-4"><label class="pun-field-label">Base</label><input type="number" class="form-control" id="distBase" min="0" value="2"></div>
           <div class="col-4"><label class="pun-field-label">Passo</label><input type="number" class="form-control" id="distStep" min="0" value="2"></div>
@@ -7437,13 +7437,22 @@ async function previewDistStandings() {
     const data = await api('admin.php?action=coins_by_standings', { method: 'POST', body: JSON.stringify(_distParams(false)) });
     const dist = data.distribution || [];
     if (!dist.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:13px">Nada a distribuir.</div>'; return; }
-    box.innerHTML = `
+    /* Times empatados em 0 ponto ficam ordenados por nome, e não por mérito.
+       Vale distribuir assim, mas o admin precisa ver isso ANTES de aplicar. */
+    const zerados = data.zerados || 0;
+    const aviso = zerados > 0
+      ? `<div style="font-size:12px;color:#f59e0b;margin-bottom:8px">
+           <i class="bi bi-exclamation-triangle me-1"></i>${zerados} time${zerados > 1 ? 's' : ''} com 0 ponto no ranking —
+           entre eles a ordem sai por nome, não por classificação.
+         </div>` : '';
+    box.innerHTML = aviso + `
       <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">
         <table class="table table-dark table-sm mb-0" style="font-size:12.5px">
-          <thead><tr><th>#</th><th>Time</th><th class="text-end">Moedas</th><th class="text-end">Novo saldo</th></tr></thead>
+          <thead><tr><th>#</th><th>Time</th><th class="text-end">Pts</th><th class="text-end">Moedas</th><th class="text-end">Novo saldo</th></tr></thead>
           <tbody>${dist.map(d => `<tr>
             <td>${d.rank}º</td>
             <td>${escapeHtml(d.team_name)}</td>
+            <td class="text-end" style="color:${d.points ? 'var(--text-2)' : '#f59e0b'}">${d.points ?? '-'}</td>
             <td class="text-end" style="color:#f59e0b;font-weight:700">+${d.amount}</td>
             <td class="text-end">${d.new_balance}</td>
           </tr>`).join('')}</tbody>

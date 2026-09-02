@@ -3605,33 +3605,40 @@ if ($method === 'POST') {
                 exit;
             }
 
-            // Temporada com classificação mais recente da liga (ou a informada).
-            $seasonId = (int)($data['season_id'] ?? 0);
-            if ($seasonId <= 0) {
-                $stmtS = $pdo->prepare('SELECT ss.season_id
-                    FROM season_standings ss JOIN teams t ON t.id = ss.team_id
-                    WHERE t.league = ? ORDER BY ss.season_id DESC LIMIT 1');
-                $stmtS->execute([$league]);
-                $seasonId = (int)($stmtS->fetchColumn() ?: 0);
-            }
-            if ($seasonId <= 0) {
-                echo json_encode(['success' => false, 'error' => 'Nenhuma classificação registrada para esta liga ainda.']);
-                exit;
-            }
-
-            // Ranking da liga: melhor -> pior (vitórias, saldo, e posição como desempate).
+            /* A régua é a CLASSIFICAÇÃO GERAL da sprint, e não a tabela de uma
+               temporada.
+               Isto já leu `season_standings`, e o resultado era errado por dois
+               motivos ao mesmo tempo: a linha da sprint corrente nasce zerada
+               (todo mundo 0-0, então a ordem saía por desempate arbitrário), e
+               a coluna `position` de lá é a posição DENTRO DA CONFERÊNCIA — ia
+               de 1 a 15 e repetia cada valor duas vezes num grupo de 30, o que
+               nunca poderia produzir a escada de 1º a 30º.
+               `ranking_points`/`ranking_titles` é o que o site mostra como
+               classificação geral; a ordem abaixo é a mesma de
+               congelarRankingDaSprint(), pra distribuir na ordem que o GM vê. */
             $stmtRank = $pdo->prepare("
                 SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
                        COALESCE(t.moedas,0) AS moedas,
-                       ss.wins, (ss.points_for - ss.points_against) AS pdiff, ss.position
-                FROM season_standings ss
-                JOIN teams t ON t.id = ss.team_id
-                WHERE ss.season_id = ? AND t.league = ?
-                ORDER BY ss.wins DESC, pdiff DESC, ss.position ASC");
-            $stmtRank->execute([$seasonId, $league]);
+                       COALESCE(t.ranking_points,0) AS pts,
+                       COALESCE(t.ranking_titles,0) AS tit
+                FROM teams t
+                WHERE t.league = ?
+                ORDER BY pts DESC, tit DESC, t.city, t.name");
+            $stmtRank->execute([$league]);
             $ranked = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
             if (!$ranked) {
-                echo json_encode(['success' => false, 'error' => 'Sem times classificados nesta temporada para a liga.']);
+                echo json_encode(['success' => false, 'error' => 'Nenhum time nesta liga.']);
+                exit;
+            }
+
+            /* Uma liga inteira zerada não tem classificação — tem empate geral.
+               Distribuir ali premiaria por ordem alfabética, que é pior que não
+               distribuir, porque parece intencional. */
+            $comPontos = 0;
+            foreach ($ranked as $r) if ((int)$r['pts'] > 0) $comPontos++;
+            if ($comPontos === 0) {
+                echo json_encode(['success' => false,
+                    'error' => 'Todos os times desta liga estão com 0 ponto no ranking geral — não há classificação para distribuir ainda.']);
                 exit;
             }
 
@@ -3645,6 +3652,7 @@ if ($method === 'POST') {
                     'rank'        => $i + 1,
                     'team_id'     => (int)$r['team_id'],
                     'team_name'   => $r['team_name'],
+                    'points'      => (int)$r['pts'],
                     'current'     => (int)$r['moedas'],
                     'amount'      => $amount,
                     'new_balance' => (int)$r['moedas'] + $amount,
@@ -3652,7 +3660,8 @@ if ($method === 'POST') {
             }
 
             if (!$apply) {
-                echo json_encode(['success' => true, 'preview' => true, 'season_id' => $seasonId, 'distribution' => $dist]);
+                echo json_encode(['success' => true, 'preview' => true,
+                                  'zerados' => $n - $comPontos, 'distribution' => $dist]);
                 exit;
             }
 
