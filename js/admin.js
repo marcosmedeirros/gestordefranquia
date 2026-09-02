@@ -9934,10 +9934,179 @@ async function showAdminDraft(league) {
       }, 10000);
     }
 
+    // Os drafts que já aconteceram, no fim do card. Anexado depois do render
+    // em vez de dentro do template: o painel busca a própria lista e se
+    // redesenha a cada edição, sem refazer o card inteiro.
+    container.insertAdjacentHTML('beforeend', `
+      <div class="panel mt-3" id="draftsPassadosPanel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="margin-bottom:0">
+              <i class="bi bi-clock-history" style="color:#a855f7"></i> Drafts da ${escapeHtml(league)}
+            </div>
+            <div class="panel-sub">Abrir um draft anterior e corrigir as escolhas</div>
+          </div>
+        </div>
+        <div class="panel-body" id="draftsPassadosBox">
+          <div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:var(--red)"></div></div>
+        </div>
+      </div>`);
+    _carregarDraftsPassados(league);
+
   } catch(e) {
     container.innerHTML = `
       <div class="mb-4">${back}</div>
       <div class="alert alert-danger">Erro ao carregar draft: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
+  }
+}
+
+/* ── Drafts anteriores da liga: listar, abrir e corrigir ────────────────── */
+
+/** Guarda o draft aberto pra que a lista de jogadores saiba a qual pertence. */
+let _draftAberto = null;
+
+async function _carregarDraftsPassados(league) {
+  const box = document.getElementById('draftsPassadosBox');
+  if (!box) return;
+  try {
+    const d = await api(`admin.php?action=drafts_da_liga&league=${encodeURIComponent(league)}`);
+    const drafts = d.drafts || [];
+    if (!drafts.length) {
+      box.innerHTML = '<p style="color:var(--text-3);font-size:13px;margin:0">Nenhum draft registrado nesta liga.</p>';
+      return;
+    }
+    const cor = { in_progress: '#22c55e', completed: 'var(--text-3)', setup: '#f59e0b' };
+    box.innerHTML = drafts.map(x => `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 4px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text)">
+            Temporada ${escapeHtml(String(x.season_number))}${x.year ? ' · ' + escapeHtml(String(x.year)) : ''}
+            ${x.sprint_number ? `<span style="color:var(--text-3);font-weight:500"> · sprint ${escapeHtml(String(x.sprint_number))}</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text-3)">
+            ${x.feitas} de ${x.vagas} escolhas feitas
+            ${x.abertas > 0 ? `<span style="color:#f59e0b"> · ${x.abertas} em aberto</span>` : ''}
+          </div>
+        </div>
+        <span class="pun-badge" style="background:${cor[x.status] || 'var(--panel-2)'}22;color:${cor[x.status] || 'var(--text-3)'};border:1px solid ${cor[x.status] || 'var(--border)'}55">
+          ${x.status === 'in_progress' ? 'em andamento' : x.status === 'setup' ? 'montando' : 'concluído'}
+        </span>
+        <button class="btn-ghost" style="padding:4px 12px;font-size:12.5px"
+          onclick="_abrirDraftPassado(${x.id}, '${league}')">
+          <i class="bi bi-pencil-square me-1"></i>Abrir
+        </button>
+      </div>`).join('');
+  } catch (e) {
+    box.innerHTML = `<p style="color:#ef4444;font-size:13px;margin:0">Erro: ${escapeHtml(e.error || 'desconhecido')}</p>`;
+  }
+}
+
+/** Abre a ordem de um draft com cada escolha clicável. */
+async function _abrirDraftPassado(sessionId, league) {
+  const box = document.getElementById('draftsPassadosBox');
+  if (!box) return;
+  box.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:var(--red)"></div></div>';
+  try {
+    const d = await api(`admin.php?action=draft_ordem&league=${encodeURIComponent(league)}&session_id=${sessionId}`);
+    _draftAberto = { sessionId, league, pool: d.pool || [] };
+    const ordem = d.ordem || [];
+
+    const porRodada = {};
+    ordem.forEach(o => { (porRodada[o.round] = porRodada[o.round] || []).push(o); });
+
+    const card = o => `
+      <button class="btn-ghost" style="text-align:left;padding:8px 10px;font-size:12.5px;width:100%;
+              border-color:${o.jogador ? 'var(--border)' : 'rgba(245,158,11,.4)'}"
+              onclick="_escolherJogadorParaPick(${o.id}, '${escapeHtml(String(o.time || '')).replace(/'/g, "\\'")}', ${o.pick_position}, ${o.round})">
+        <div style="color:var(--text-3);font-size:11px">#${o.pick_position} · ${escapeHtml(o.time || '—')}</div>
+        <div style="color:${o.jogador ? 'var(--text)' : '#f59e0b'};font-weight:600">
+          ${o.jogador ? escapeHtml(o.jogador) : 'em aberto'}
+        </div>
+      </button>`;
+
+    box.innerHTML = `
+      <div class="mb-2">
+        <button class="btn-ghost" style="padding:4px 12px;font-size:12.5px" onclick="_carregarDraftsPassados('${league}')">
+          <i class="bi bi-arrow-left me-1"></i>Voltar à lista
+        </button>
+      </div>
+      <p style="color:var(--text-3);font-size:12.5px;margin-bottom:10px">
+        Clique numa escolha pra trocar o jogador. Se o jogador escolhido estiver em outra pick,
+        ele sai de lá — e aquela pick fica em aberto.
+      </p>
+      ${Object.keys(porRodada).sort().map(r => `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">
+            ${r}ª RODADA
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:6px">
+            ${porRodada[r].map(card).join('')}
+          </div>
+        </div>`).join('')}`;
+  } catch (e) {
+    box.innerHTML = `<p style="color:#ef4444;font-size:13px">Erro: ${escapeHtml(e.error || 'desconhecido')}</p>`;
+  }
+}
+
+/** O seletor de jogador: os livres primeiro, depois os que estão em outro time. */
+function _escolherJogadorParaPick(pickId, timeNome, pickPos, round) {
+  if (!_draftAberto) return;
+  document.getElementById('_modalEscolhaDraft')?.remove();
+
+  const livres = _draftAberto.pool.filter(p => p.draft_status !== 'drafted');
+  const presos = _draftAberto.pool.filter(p => p.draft_status === 'drafted');
+  const linha = p => `
+    <button class="btn-ghost" style="text-align:left;width:100%;padding:7px 10px;font-size:12.5px;margin-bottom:4px"
+            onclick="_moverJogador(${pickId}, ${p.id}, '${escapeHtml(String(p.name)).replace(/'/g, "\\'")}')">
+      <span style="color:var(--text);font-weight:600">${escapeHtml(p.name)}</span>
+      <span style="color:var(--text-3)"> · ${escapeHtml(p.position || '?')} · OVR ${p.ovr ?? '?'}</span>
+      ${p.time_atual ? `<div style="color:#f59e0b;font-size:11px">hoje no ${escapeHtml(p.time_atual)}</div>` : ''}
+    </button>`;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal fade" id="_modalEscolhaDraft" tabindex="-1">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">#${pickPos} · ${round}ª rodada — ${escapeHtml(timeNome)}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="text" class="form-control mb-2" id="_buscaJogadorDraft" placeholder="Buscar jogador…" autocomplete="off">
+            <div id="_listaJogadorDraft">
+              <div style="font-size:11.5px;font-weight:800;color:var(--text-3);margin:6px 0">DISPONÍVEIS (${livres.length})</div>
+              ${livres.map(linha).join('') || '<p style="color:var(--text-3);font-size:12.5px">Nenhum livre.</p>'}
+              <div style="font-size:11.5px;font-weight:800;color:var(--text-3);margin:12px 0 6px">JÁ ESCOLHIDOS (${presos.length})</div>
+              ${presos.map(linha).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+
+  const modal = new bootstrap.Modal(document.getElementById('_modalEscolhaDraft'));
+  modal.show();
+  document.getElementById('_buscaJogadorDraft').addEventListener('input', e => {
+    const t = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#_listaJogadorDraft button').forEach(b => {
+      b.style.display = !t || b.innerText.toLowerCase().includes(t) ? '' : 'none';
+    });
+  });
+}
+
+/** Executa a troca e volta pra ordem já atualizada. */
+async function _moverJogador(pickId, playerId, nome) {
+  if (!_draftAberto) return;
+  if (!await confirmarSite(`Pôr ${nome} nesta escolha?\n\nSe ele estiver em outra pick, sai de lá e aquela fica em aberto.`)) return;
+  try {
+    const r = await api('admin.php', { method: 'POST', body: JSON.stringify({
+      action: 'draft_mover_jogador', league: _draftAberto.league,
+      session_id: _draftAberto.sessionId, pick_id: pickId, player_id: playerId })});
+    bootstrap.Modal.getInstance(document.getElementById('_modalEscolhaDraft'))?.hide();
+    showAlert('success', r.message || 'Escolha atualizada.');
+    _abrirDraftPassado(_draftAberto.sessionId, _draftAberto.league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao mover o jogador');
   }
 }
 

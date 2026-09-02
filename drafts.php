@@ -1039,6 +1039,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   let refreshInterval = null;
   let currentView = 'active'; // 'active' ou 'history'
   let currentPickForFill = null;
+  // Quem esta nesta pick agora — null se ela estiver vazia. E o que faz o
+  // seletor virar TROCA em vez de preenchimento.
+  let jogadorAtualDaPick = null;
   let currentDraftSessionForFill = null;
   let currentSeasonIdView = null;
   let currentDraftStatusView = null;
@@ -2149,14 +2152,22 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   function renderHistoricalPickCard(pick, draftStatus, draftSessionId) {
     const isCompleted = pick.picked_player_id !== null;
-    const canEdit = isAdmin && !isCompleted;
+    /* PICK JÁ FEITA TAMBÉM SE CORRIGE.
+       Antes só a vazia era clicável, e um draft que terminou com o jogador no
+       time errado não tinha conserto pela tela — era o caso de um GM levar
+       quem outro tinha pedido. Agora a feita abre o mesmo seletor, trocando:
+       o jogador que estava ali volta pro pool e fica disponível pra outra
+       pick. */
+    const canEdit = isAdmin;
     const teamFullName = esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+    const nomeAtual = esc(String(pick.player_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 
     return `
       <div class="pick-card${isCompleted ? ' completed' : ''}${canEdit ? ' clickable' : ''}"
-           ${canEdit ? `onclick="openFillPastPickModal(${pick.id}, '${teamFullName}', ${draftSessionId})"` : ''}>
+           ${canEdit ? `onclick="openFillPastPickModal(${pick.id}, '${teamFullName}', ${draftSessionId}, '${nomeAtual}')"` : ''}>
         <div class="pick-num">
           <span class="pick-badge ${isCompleted ? 'done' : 'pending'}">#${pick.pick_position}</span>
+          ${canEdit && isCompleted ? '<i class="bi bi-pencil-square" style="color:var(--amber);font-size:12px" title="Trocar o jogador desta escolha"></i>' : ''}
         </div>
         <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
@@ -2175,9 +2186,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     `;
   }
 
-  async function openFillPastPickModal(pickId, teamName, draftSessionId) {
+  async function openFillPastPickModal(pickId, teamName, draftSessionId, jogadorAtual) {
     currentPickForFill = pickId;
     currentDraftSessionForFill = draftSessionId;
+    jogadorAtualDaPick = jogadorAtual || null;
     document.getElementById('fillPickTeamName').textContent = teamName;
     new bootstrap.Modal(document.getElementById('fillPastPickModal')).show();
 
@@ -2214,8 +2226,25 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   async function fillPastPick(playerId, playerName) {
-    if (!await confirmarSite(`Confirma preencher esta pick com ${playerName}?`)) return;
+    /* TROCAR E DESFAZER + PREENCHER, nesta ordem.
+       A pick ja ocupada precisa devolver o jogador anterior ao pool antes de
+       receber o novo, senao o servidor recusa a escolha por a vaga nao estar
+       livre. Se o segundo passo falhar, a pick fica VAZIA — visivel na tela e
+       so preencher de novo; e o pior caso, e ele e recuperavel. */
+    const trocando = !!jogadorAtualDaPick;
+    const pergunta = trocando
+      ? `Trocar ${jogadorAtualDaPick} por ${playerName} nesta escolha?
+
+${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
+      : `Confirma preencher esta pick com ${playerName}?`;
+    if (!await confirmarSite(pergunta)) return;
     try {
+      if (trocando) {
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'revert_pick', pick_id: currentPickForFill })
+        });
+      }
       const result = await api('draft.php', {
         method: 'POST',
         body: JSON.stringify({ action: 'fill_past_pick', pick_id: currentPickForFill, player_id: playerId, draft_session_id: currentDraftSessionForFill })

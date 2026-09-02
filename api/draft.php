@@ -3073,6 +3073,44 @@ if ($method === 'POST') {
             }
             break;
 
+        /* MOVER UM JOGADOR DE UMA ESCOLHA PRA OUTRA.
+           Existe porque corrigir um draft errado não é preencher vaga vazia: é
+           tirar o jogador de quem levou por engano e pôr em quem devia ter
+           levado. Fazer isso com as ações soltas (reverter aqui, preencher
+           ali) exigia acertar a ordem, e errá-la deixava o mesmo jogador em
+           duas picks ou dois jogadores na mesma.
+
+           Aqui é uma transação só, e ela cobre os três casos de uma vez:
+             - o jogador estava em OUTRA pick   -> aquela pick fica vazia;
+             - a pick de destino tinha alguém   -> esse alguém volta pro pool;
+             - o jogador estava livre no pool   -> só entra.
+
+           O que o servidor NÃO decide: quem preenche a vaga que ficou aberta.
+           Isso é escolha de liga, e some pra tela como um buraco visível — que
+           é melhor do que o código escolher por conta. */
+        case 'move_player_to_pick':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $destinoId = (int)($data['pick_id'] ?? 0);
+            $playerId  = (int)($data['player_id'] ?? 0);
+            if (!$destinoId || !$playerId) {
+                echo json_encode(['success' => false, 'error' => 'pick_id e player_id são obrigatórios']);
+                exit;
+            }
+            try {
+                require_once __DIR__ . '/../backend/draft_edicao.php';
+                $r = draftMoverJogadorParaPick($pdo, $destinoId, $playerId, (int)($user['id'] ?? 0));
+                echo json_encode($r);
+            } catch (Throwable $e) {
+                error_log('[move_player_to_pick] ' . $e->getMessage());
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao mover o jogador.']);
+            }
+            break;
+
         case 'revert_pick':
             if (!$isAdmin) {
                 http_response_code(403);

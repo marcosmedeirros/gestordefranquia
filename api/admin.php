@@ -169,6 +169,45 @@ ensureTradeInGameColumn($pdo);
 // GET - Listar dados do admin
 if ($method === 'GET') {
     switch ($action) {
+        /* OS DRAFTS DA LIGA DA ABA, e só dela.
+           requireLeagueScope é o que impede um admin de liga de abrir o draft
+           de outra trocando o parâmetro; draftOrdemCompleta confere de novo,
+           contra a liga da própria sessão, porque o id do draft também vem da
+           tela. */
+        case 'drafts_da_liga': {
+            $league = strtoupper((string)($_GET['league'] ?? $data['league'] ?? ''));
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            require_once dirname(__DIR__) . '/backend/draft_edicao.php';
+            echo json_encode(['success' => true, 'drafts' => draftListaDaLiga($pdo, $league)]);
+            break;
+        }
+
+        case 'draft_ordem': {
+            $league    = strtoupper((string)($_GET['league'] ?? $data['league'] ?? ''));
+            $sessionId = (int)($_GET['session_id'] ?? $data['session_id'] ?? 0);
+            if (!in_array($league, $validLeagues, true) || $sessionId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Parâmetros inválidos']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            require_once dirname(__DIR__) . '/backend/draft_edicao.php';
+
+            $ordem = draftOrdemCompleta($pdo, $sessionId, $league);
+            if (!$ordem) {
+                echo json_encode(['success' => false, 'error' => 'Draft não encontrado nesta liga.']);
+                exit;
+            }
+            echo json_encode(['success' => true, 'ordem' => $ordem,
+                              'pool' => draftPoolCompleto($pdo, $sessionId)]);
+            break;
+        }
+
 
         case 'cadeiras_estado': {
             if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
@@ -3580,6 +3619,32 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas']);
             }
             break;
+
+        case 'draft_mover_jogador': {
+            $league    = strtoupper((string)($data['league'] ?? ''));
+            $sessionId = (int)($data['session_id'] ?? 0);
+            $pickId    = (int)($data['pick_id'] ?? 0);
+            $playerId  = (int)($data['player_id'] ?? 0);
+            if (!in_array($league, $validLeagues, true) || !$sessionId || !$pickId || !$playerId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Parâmetros inválidos']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            require_once dirname(__DIR__) . '/backend/draft_edicao.php';
+
+            // A pick precisa ser DESTE draft E desta liga: sem isto, um pick_id
+            // de outra liga passaria pelo escopo, que só olhou a liga do corpo.
+            $daLiga = draftOrdemCompleta($pdo, $sessionId, $league);
+            if (!$daLiga || !in_array($pickId, array_map(fn($o) => (int)$o['id'], $daLiga), true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Essa escolha não é deste draft.']);
+                exit;
+            }
+
+            echo json_encode(draftMoverJogadorParaPick($pdo, $pickId, $playerId, (int)($user['id'] ?? 0)));
+            break;
+        }
 
         case 'coins_by_standings':
             // Distribui moedas automaticamente pela classificação da temporada.
