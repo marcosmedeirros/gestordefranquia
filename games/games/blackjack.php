@@ -486,6 +486,18 @@ function retornarEstado($game) {
         .chip-15 { background: #fbc02d; color: black; border-style: solid; border-color: #fff; }
         /* A interface oferece a ficha de 50, mas só existia CSS até .chip-15 — ela ficava sem cor. */
         .chip-50 { background: #fbc02d; color: black; border-style: solid; border-color: #fff; }
+        .chip-25 { background: #388e3c; }
+        .chip-100 { background: #6a1b9a; }
+        /* O valor acumulado precisa ser a coisa mais legível da área: é ele que
+           explica por que o botão de apostar está ligado ou desligado. */
+        .mesa-aposta { display:inline-flex; align-items:baseline; gap:8px; margin-bottom:12px;
+                       background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.15);
+                       border-radius:999px; padding:6px 18px; }
+        .mesa-rotulo { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.55); }
+        #mesa-valor { font-size:22px; font-weight:800; color:#fbc02d; font-variant-numeric:tabular-nums; }
+        /* Ficha que estouraria o teto ou o saldo não some: apaga, pra pessoa
+           entender que o limite chegou em vez de achar que a tela travou. */
+        .chip-btn.sem-saldo { opacity:.28; pointer-events:none; }
 
         #msg-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -526,12 +538,28 @@ function retornarEstado($game) {
 
     <!-- CONTROLES -->
     <div class="controls-area" id="bet-controls">
-        <h5 class="text-white-50 mb-3">FAÇA SUA APOSTA (MÁX 250)</h5>
-        <div class="d-flex justify-content-center">
-            <div class="chip-btn chip-1" onclick="apostar(1)">1</div>
-            <div class="chip-btn chip-5" onclick="apostar(5)">5</div>
-            <div class="chip-btn chip-10" onclick="apostar(10)">10</div>
-            <div class="chip-btn chip-50" onclick="apostar(50)">50</div>
+        <h5 class="text-white-50 mb-2">FAÇA SUA APOSTA (MÁX 250)</h5>
+        <!-- As fichas SOMAM na mesa e a rodada só começa no APOSTAR. Antes cada
+             ficha disparava a rodada sozinha, e como a maior valia 50 o teto de
+             250 anunciado no título era inalcançável. -->
+        <div class="mesa-aposta">
+            <span class="mesa-rotulo">Na mesa</span>
+            <b id="mesa-valor">0</b>
+        </div>
+        <div class="d-flex justify-content-center flex-wrap">
+            <div class="chip-btn chip-1"   data-ficha="1"   onclick="porFicha(1)">1</div>
+            <div class="chip-btn chip-5"   data-ficha="5"   onclick="porFicha(5)">5</div>
+            <div class="chip-btn chip-10"  data-ficha="10"  onclick="porFicha(10)">10</div>
+            <div class="chip-btn chip-25"  data-ficha="25"  onclick="porFicha(25)">25</div>
+            <div class="chip-btn chip-50"  data-ficha="50"  onclick="porFicha(50)">50</div>
+            <div class="chip-btn chip-100" data-ficha="100" onclick="porFicha(100)">100</div>
+        </div>
+        <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
+            <button class="btn btn-outline-light rounded-pill px-3" onclick="limparAposta()">LIMPAR</button>
+            <button class="btn btn-outline-warning rounded-pill px-3" onclick="tudoNaMesa()">MÁXIMO</button>
+            <button id="btn-apostar" class="btn btn-success fw-bold rounded-pill px-4 shadow" onclick="apostar()" disabled>
+                <i class="bi bi-check-lg"></i> APOSTAR
+            </button>
         </div>
     </div>
 
@@ -560,16 +588,45 @@ function retornarEstado($game) {
     const dealerScoreEl = document.getElementById('dealer-score');
     const msgOverlay = document.getElementById('msg-overlay');
 
-    function apostar(valor) {
+    /* O teto vem do servidor (blackjack.php confere 250 de novo antes de
+       debitar); aqui ele existe só pra tela não deixar montar o impossível. */
+    const APOSTA_MAX = 250;
+    let saldo = <?= (int)$meu_perfil['pontos'] ?>;
+    let naMesa = 0;
+
+    /** Empilha uma ficha, até onde o saldo e o teto deixam. */
+    function porFicha(v) {
+        naMesa = Math.min(naMesa + v, APOSTA_MAX, saldo);
+        pintarMesa();
+    }
+    function limparAposta() { naMesa = 0; pintarMesa(); }
+    function tudoNaMesa()   { naMesa = Math.min(APOSTA_MAX, saldo); pintarMesa(); }
+
+    /** O valor, o botão e as fichas que ainda cabem. */
+    function pintarMesa() {
+        document.getElementById('mesa-valor').innerText = naMesa.toLocaleString('pt-BR');
+        document.getElementById('btn-apostar').disabled = naMesa < 1;
+        const teto = Math.min(APOSTA_MAX, saldo);
+        document.querySelectorAll('.chip-btn[data-ficha]').forEach(c => {
+            c.classList.toggle('sem-saldo', naMesa + Number(c.dataset.ficha) > teto);
+        });
+    }
+    pintarMesa();
+
+    function apostar() {
+        if (naMesa < 1) return;
+        const btn = document.getElementById('btn-apostar');
+        btn.disabled = true;                       // trava o clique duplo
         const fd = new FormData();
         fd.append('acao', 'apostar');
-        fd.append('valor', valor);
+        fd.append('valor', naMesa);
 
         fetch('blackjack.php', { method: 'POST', body: fd })
         .then(res => res.json())
         .then(data => {
-            if(data.erro) { alert(data.erro); } 
+            if(data.erro) { alert(data.erro); btn.disabled = false; }
             else {
+                saldo = data.novo_saldo;
                 document.getElementById('saldoDisplay').innerText = data.novo_saldo.toLocaleString('pt-BR') + " pts";
                 iniciarMesa(data);
             }
