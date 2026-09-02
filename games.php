@@ -691,6 +691,25 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .g-pane { display:none; }
     .g-pane.active { display:block; }
 
+    /* AS CINCO ABAS CABEM NO CELULAR, sem arrastar pro lado.
+       Com ícone e texto lado a lado elas somavam mais que a largura da tela e
+       a fita virava um carrossel: as últimas — Ranking e Eventos — ficavam
+       fora do campo de visão, e quem não soubesse que elas existiam não ia
+       arrastar pra descobrir. Empilhando o ícone sobre o texto cada aba passa
+       a caber em um quinto da tela, e nenhuma fica escondida. */
+    @media (max-width:560px) {
+      .g-tabs { overflow-x:visible; }
+      .g-tabs .g-tab { flex:1 1 0; min-width:0; }
+      .g-tab { flex-direction:column; gap:3px; padding:9px 2px; font-size:10.5px;
+               line-height:1.2; text-align:center; }
+      .g-tab i { font-size:15px; }
+      /* O selo sai do fluxo pra não empurrar o texto e desalinhar essa aba
+         em relação às outras quatro. */
+      .g-tab { position:relative; }
+      .g-tab-selo { position:absolute; top:4px; right:calc(50% - 20px); margin-left:0;
+                    font-size:9px; padding:0 4px; }
+    }
+
     /* catálogo */
     .sec-label { font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase;
                  width:100%;
