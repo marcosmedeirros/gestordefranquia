@@ -62,6 +62,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .hero-logo{width:72px;height:72px;border-radius:16px;background:var(--panel-2);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden}
 .hero-logo img{width:100%;height:100%;object-fit:contain;border-radius:14px}
 .hero-name{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;color:var(--text)}
+/* O WhatsApp do GM, colado no nome dele. Verde da marca porque é o que faz o
+   ícone ser reconhecido sem legenda; o alvo tem 28px pra ser clicável no
+   celular sem virar um botão grande ao lado de uma linha de 12px. */
+.zap-gm{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+        margin-left:6px;vertical-align:-8px;border-radius:8px;text-decoration:none;
+        color:#25d366;background:rgba(37,211,102,.12);
+        border:1px solid rgba(37,211,102,.28);font-size:14px;transition:background .15s,transform .15s}
+.zap-gm:hover{background:rgba(37,211,102,.22);transform:translateY(-1px);color:#25d366}
+.zap-gm:focus-visible{outline:2px solid #25d366;outline-offset:2px}
 .league-badge{display:inline-block;background:var(--red-soft);border:1px solid color-mix(in srgb, var(--red) 25%, transparent);color:var(--red);border-radius:999px;font-size:10px;font-weight:700;padding:4px 10px;letter-spacing:.5px;margin-top:6px}
 .section-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-2);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .section-title i{color:var(--red)}
@@ -462,6 +471,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 })();
 
 const TEAM_ID = <?= $teamId ?>;
+/* Esta página é a do meu próprio time? Decidido no servidor, contra a sessão —
+   é o que esconde o botão de WhatsApp de quem abriria uma conversa consigo. */
+const EH_MEU_TIME = <?= ($team && (int)$team['id'] === $teamId) ? 'true' : 'false' ?>;
 /* Os prêmios estendidos faltavam aqui, e o `|| a.award_type` do fallback
    deixava passar o nome cru do banco: a página mostrava "all_nba_1" e
    "all_def_2". Cada time do All-NBA e do All-Defensive é um prêmio à parte,
@@ -526,7 +538,17 @@ async function load(){
     });
   });
 
-  document.getElementById('hero-owner').textContent = team.owner_name ? `GM: ${team.owner_name}` : '';
+  /* O BOTÃO DO WHATSAPP FICA COLADO NO NOME DO GM, e não no do time: o número
+     é dele, e é com ele que se fala pra propor uma trade.
+     Não aparece na própria página — mandar mensagem pra si mesmo não é ação —
+     nem quando o GM não tem telefone no cadastro (hoje 5 dos 122). */
+  const owner = document.getElementById('hero-owner');
+  const zap = team.owner_whatsapp && !EH_MEU_TIME
+    ? `<a class="zap-gm" href="${esc(team.owner_whatsapp)}" target="_blank" rel="noopener"
+          title="Falar com ${esc(team.owner_name || 'o GM')} no WhatsApp"
+          aria-label="Falar com ${esc(team.owner_name || 'o GM')} no WhatsApp"><i class="bi bi-whatsapp"></i></a>`
+    : '';
+  owner.innerHTML = team.owner_name ? `GM: ${esc(team.owner_name)}${zap}` : '';
 
   // ── Hero: conferência, status da franquia, ranking e moedas ──
   if (team.conference) {

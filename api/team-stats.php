@@ -21,10 +21,27 @@ $TEMPORADAS_DA_SPRINT = "(SELECT id FROM seasons WHERE sprint_id IN (SELECT id F
 $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
 if (!$teamId) { echo json_encode(['error' => 'team_id obrigatório']); exit; }
 
-$stmtTeam = $pdo->prepare("SELECT t.*, CONCAT(t.city,' ',t.name) AS full_name, u.name AS owner_name FROM teams t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?");
+$stmtTeam = $pdo->prepare("SELECT t.*, CONCAT(t.city,' ',t.name) AS full_name,
+                                  u.name AS owner_name, u.id AS owner_id, u.phone AS owner_phone
+                             FROM teams t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?");
 $stmtTeam->execute([$teamId]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 if (!$team) { echo json_encode(['error' => 'Time não encontrado']); exit; }
+
+/* O TELEFONE SÓ SAI DAQUI COMO "DÁ PRA CHAMAR" OU "NÃO DÁ".
+   O número em si é dado de cadastro, e a página só precisa saber se o botão
+   do WhatsApp aparece e pra onde ele leva — quem quiser o número clica e o vê
+   no próprio WhatsApp, como aconteceria se tivesse pedido no grupo. Mandar a
+   coluna crua junto do resto da resposta espalharia a agenda inteira da liga
+   por qualquer tela que consumisse esta API.
+
+   O formato guardado já é E.164 sem o "+" (normalizeBrazilianPhone), que é
+   exatamente o que o wa.me espera. Os cinco GMs de fora do Brasil ficam com o
+   DDI deles, e é por isso que o link é montado do valor guardado e não com um
+   "55" grudado aqui. */
+$fone = preg_replace('/\D+/', '', (string)($team['owner_phone'] ?? ''));
+unset($team['owner_phone']);
+$team['owner_whatsapp'] = preg_match('/^\d{10,15}$/', $fone) ? 'https://wa.me/' . $fone : null;
 
 // ── 1. Pontos por temporada ───────────────────────────────────────
 $stmtPts = $pdo->prepare("SELECT COUNT(*) AS seasons_played, SUM(points) AS total_points, MAX(points) AS best_season_pts FROM team_season_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
