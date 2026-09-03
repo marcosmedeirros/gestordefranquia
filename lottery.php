@@ -946,9 +946,11 @@ function viaTag(o){
      fica com ela depende de qual saiu melhor. Depois de resolvido, o "via"
      ou apontava o próprio time ("Miami via MIA") ou dizia que a pick veio de
      alguém de quem ela não veio. O selo diz o que a vaga é. */
-  const tipo = (o && o.swap_tipo || '').toUpperCase();
+  const tipo = (o && (o.swap_lado || o.swap_tipo) || '').toUpperCase();
   if (tipo === 'SB' || tipo === 'SW') {
-    return `<span class="via-badge" title="Swap: quem tem o SB fica com a melhor das duas vagas, quem tem o SW com a pior">🔁 SWAP</span>`;
+    const outro = o.swap_par_nome || o.swap_com;
+    const par = outro ? ' · ' + esc(outro) : '';
+    return `<span class="via-badge" title="SWAP ${esc(tipo)}${par}">🔁 SWAP ${esc(tipo)}${par}</span>`;
   }
   return (o && o.is_swap && o.origin_abbr)
     ? `<span class="via-badge" title="Pick originalmente do ${esc(o.origin_name || '')}">via ${esc(o.origin_abbr)}</span>`
@@ -1278,16 +1280,29 @@ function resolverSwapsNaOrdem(order){
 
     const melhor = (o.position <= par.position) ? o : par;
     const pior   = (melhor === o) ? par : o;
+
+    /* O LADO É DA VAGA, não da pick da origem.
+       `swap_tipo` diz se a PICK daquela origem é SB ou SW — e depois de
+       resolvido isso não é o que a linha mostra. A vaga melhor foi pro SB e a
+       pior pro SW, ponto: é esse o selo. */
+    melhor.swap_lado = 'SB';
+    pior.swap_lado   = 'SW';
     // O dono da pick SB é o mesmo nos dois lados do par (`sb_id`), então a
     // pergunta é só se ele já está na vaga melhor.
     const sbId = o.sb_id || par.sb_id;
-    if (!sbId || melhor.team_id === sbId) return;
+    if (sbId && melhor.team_id !== sbId) {
+      // Troca só a identidade de quem escolhe. A vaga, a origem e o histórico
+      // de cada posição continuam sendo os dela.
+      ['team_id', 'team_name', 'photo_url'].forEach(c => {
+        const t = melhor[c]; melhor[c] = pior[c]; pior[c] = t;
+      });
+    }
 
-    // Troca só a identidade de quem escolhe. A vaga, a origem e o histórico
-    // de cada posição continuam sendo os dela.
-    ['team_id', 'team_name', 'photo_url'].forEach(c => {
-      const t = melhor[c]; melhor[c] = pior[c]; pior[c] = t;
-    });
+    /* Com quem é o swap: o time do OUTRO lado, já resolvido. É o que a linha
+       precisa dizer — "SWAP SB · Buffalo Blues" responde as duas perguntas de
+       quem olha, e sem a aula sobre a regra por cima dos cards vizinhos. */
+    melhor.swap_par_nome = pior.team_name;
+    pior.swap_par_nome   = melhor.team_name;
   });
   return order;
 }
@@ -1396,9 +1411,14 @@ function setupBoardAndOdds(data){
     const nome  = ehSwap ? (b.sb_nome || b.team_name) : (b.escolhe_nome || b.team_name);
     const foto  = ehSwap ? (b.sb_photo || b.photo_url) : (b.escolhe_photo || b.photo_url);
     const rodape = ehSwap
-      ? `<div class="bowl-swap" title="Swap: quem tem o SB fica com a melhor das duas vagas, quem tem o SW com a pior${
-            b.swap_com ? ' · par: ' + esc(b.swap_com) : ''}">
-           🔁 SWAP · a melhor das duas
+      /* O selo diz o lado e com quem: é o que se pergunta olhando a bolinha.
+         A explicação da regra sai daqui — quem acompanha a loteria já sabe o
+         que é um swap, e o texto longo cobria os cards vizinhos. */
+      /* O card da urna é estreito: o nome do par não cabe junto e sairia
+         cortado no meio, que é pior do que não estar. Fica no tooltip; a
+         linha da ordem, essa sim larga, mostra os dois. */
+      ? `<div class="bowl-swap" title="SWAP ${esc(b.swap_tipo || '')}${b.swap_com ? ' · ' + esc(b.swap_com) : ''}">
+           🔁 SWAP ${esc(b.swap_tipo || '')}
          </div>`
       : (b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : '');
     return `
