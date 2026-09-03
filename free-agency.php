@@ -349,6 +349,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .disp-ovr { flex: none; text-align: center; min-width: 30px; }
         .disp-ovr b { display: block; font-size: 16px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
         .disp-ovr span { font-size: 9px; color: var(--text-3); letter-spacing: .08em; }
+        /* Discreto de propósito: corrigir ficha é exceção, e um botão forte ao
+           lado do "Propor" competiria com a ação que o GM veio fazer. */
+        .disp-lapis { flex: none; background: none; border: none; padding: 4px 6px; cursor: pointer;
+                      color: var(--text-3); font-size: 12px; line-height: 1; border-radius: 6px; }
+        .disp-lapis:hover { color: var(--text); background: rgba(255,255,255,.06); }
         .disp-btn {
             flex: none; border: 1px solid var(--border-md, rgba(255,255,255,.12));
             background: transparent; color: var(--text); border-radius: 8px;

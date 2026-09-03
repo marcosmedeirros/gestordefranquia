@@ -743,6 +743,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'request_player':
             requestNewFaPlayer($pdo, $body, $team_id, $team_league, $team_coins);
             break;
+        case 'corrigir_ficha':
+            corrigirFichaFreeAgent($pdo, $body, (int)$user_id, $team_league);
+            break;
         case 'set_fa_status':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
@@ -2502,4 +2505,90 @@ function closeWithoutWinner(PDO $pdo, array $body): void
         $pdo->rollBack();
         jsonError('Erro ao encerrar sem vencedor.', 500);
     }
+}
+
+/**
+ * CORRIGIR O OVR E A IDADE DE UM FREE AGENT.
+ *
+ * O app e o jogo saem do lugar: o atleta é cadastrado uma vez e continua
+ * evoluindo dentro do 2K, então o card mostra 46 OVR / 19 anos enquanto o
+ * vídeo do GM mostra 71 / 21. Antes, o jeito de resolver era o GM cadastrar um
+ * SEGUNDO jogador com o mesmo nome — e aí a liga ficava com dois Xue Yuyang,
+ * um deles fantasma, e ninguém sabia em qual dar lance.
+ *
+ * Por isso a correção é aberta a qualquer GM, e não só ao admin: quem está
+ * assistindo ao vídeo é quem vê a diferença, e esperar o admin é o que fazia
+ * todo mundo duplicar.
+ *
+ * O que protege de mão pesada:
+ * - só enquanto o jogador está DISPONÍVEL — assinado ou fechado, o número já
+ *   valeu pra decisão de alguém e mexer nele reescreveria a disputa;
+ * - só na liga do próprio GM;
+ * - toda mudança fica registrada com quem fez e o valor anterior.
+ */
+function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $minhaLiga): void
+{
+    $id  = (int)($body['free_agent_id'] ?? 0);
+    $ovr = isset($body['ovr']) ? (int)$body['ovr'] : null;
+    $age = isset($body['age']) ? (int)$body['age'] : null;
+
+    if (!$id)                       jsonError('Jogador não informado');
+    if ($ovr === null && $age === null) jsonError('Informe o OVR, a idade, ou os dois');
+    if ($ovr !== null && ($ovr < 40 || $ovr > 99)) jsonError('OVR precisa ficar entre 40 e 99');
+    if ($age !== null && ($age < 18 || $age > 45)) jsonError('Idade precisa ficar entre 18 e 45');
+
+    $st = $pdo->prepare('SELECT id, name, overall, age, league, status FROM free_agents WHERE id = ?');
+    $st->execute([$id]);
+    $fa = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$fa) jsonError('Jogador não encontrado');
+
+    if ($minhaLiga && strtoupper((string)$fa['league']) !== strtoupper($minhaLiga)) {
+        jsonError('Esse jogador é de outra liga', 403);
+    }
+    $status = strtolower((string)($fa['status'] ?? 'available'));
+    if ($status !== '' && $status !== 'available') {
+        jsonError('Esse jogador já saiu da fila — a ficha dele não muda mais');
+    }
+
+    $novoOvr = $ovr ?? (int)$fa['overall'];
+    $novaAge = $age ?? (int)$fa['age'];
+    if ($novoOvr === (int)$fa['overall'] && $novaAge === (int)$fa['age']) {
+        jsonSuccess(['mudou' => false, 'ovr' => $novoOvr, 'age' => $novaAge]);
+    }
+
+    /* O registro nasce junto com a primeira correção: a tabela é pequena e
+       criar aqui evita mais uma migração pra uma coisa que só este caminho
+       usa. */
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS free_agent_correcoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            free_agent_id INT NOT NULL,
+            user_id INT NOT NULL,
+            ovr_antes INT NULL, ovr_depois INT NULL,
+            age_antes INT NULL, age_depois INT NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_fa (free_agent_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    } catch (Throwable $e) {
+        error_log('[fa] tabela de correcoes: ' . $e->getMessage());
+    }
+
+    $pdo->prepare('UPDATE free_agents SET overall = ?, age = ? WHERE id = ?')
+        ->execute([$novoOvr, $novaAge, $id]);
+
+    try {
+        $pdo->prepare('INSERT INTO free_agent_correcoes
+                       (free_agent_id, user_id, ovr_antes, ovr_depois, age_antes, age_depois)
+                       VALUES (?,?,?,?,?,?)')
+            ->execute([$id, $userId, (int)$fa['overall'], $novoOvr, (int)$fa['age'], $novaAge]);
+    } catch (Throwable $e) {
+        error_log('[fa] registrar correcao: ' . $e->getMessage());
+    }
+
+    jsonSuccess([
+        'mudou' => true,
+        'ovr'   => $novoOvr,
+        'age'   => $novaAge,
+        'nome'  => $fa['name'],
+    ]);
 }

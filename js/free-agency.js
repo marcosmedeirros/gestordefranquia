@@ -189,10 +189,18 @@ function renderDispensadosDaTemporada() {
                 <div class="disp-sub">${j.age} anos${custo ? ' · ' + custo : ''}${marca}</div>
             </div>
             <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>
+            <button class="disp-lapis" data-corrigir="${j.id}" data-ovr="${j.ovr}" data-age="${j.age}"
+                    data-nome="${escHtml(j.name)}"
+                    title="O vídeo mostra outro OVR ou idade? Corrija aqui">
+              <i class="bi bi-pencil"></i>
+            </button>
             ${botao}
         </div>`;
     }).join('') + '</div>';
 
+    alvo.querySelectorAll('[data-corrigir]').forEach(b => {
+        b.addEventListener('click', () => corrigirFicha(b.dataset));
+    });
     alvo.querySelectorAll('[data-disp]').forEach(b => {
         b.addEventListener('click', () => abrirModalDispensado(Number(b.dataset.disp)));
     });
@@ -1193,3 +1201,51 @@ function renderWaiversList(waivers) {
     _applyFaTableLabels(container);
 }
 
+
+/**
+ * CORRIGIR OVR E IDADE DE UM FREE AGENT.
+ *
+ * O cadastro do jogador é de quando ele entrou na fila; dentro do 2K ele
+ * continuou evoluindo. Sem um jeito de acertar isso, o GM cadastrava um
+ * SEGUNDO jogador com o mesmo nome — e a liga ficava com dois iguais, um
+ * fantasma, e ninguém sabia em qual dar lance.
+ *
+ * Vem preenchido com o que está no app: quase sempre só um dos dois campos
+ * muda, e redigitar o outro é convite pra errar.
+ */
+async function corrigirFicha(dados) {
+    const id = Number(dados.corrigir);
+    const ovrAtual = Number(dados.ovr);
+    const ageAtual = Number(dados.age);
+
+    const ovrTxt = prompt(`${dados.nome}\n\nOVR que aparece no jogo:`, ovrAtual);
+    if (ovrTxt === null) return;
+    const ageTxt = prompt(`${dados.nome}\n\nIdade que aparece no jogo:`, ageAtual);
+    if (ageTxt === null) return;
+
+    const ovr = parseInt(ovrTxt, 10);
+    const age = parseInt(ageTxt, 10);
+    if (!Number.isFinite(ovr) || !Number.isFinite(age)) {
+        alert('OVR e idade precisam ser números.');
+        return;
+    }
+    if (ovr === ovrAtual && age === ageAtual) return;   // nada mudou
+
+    try {
+        const r = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: id, ovr, age })
+        });
+        const d = await r.json();
+        if (!d.success) {
+            alert(d.error || 'Não deu pra corrigir.');
+            return;
+        }
+        // Recarrega a lista: o custo no cap é calculado a partir do OVR, então
+        // mudar o número muda quem cabe no time — e o card precisa refletir isso.
+        if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+    } catch (e) {
+        alert('Não deu pra corrigir agora.');
+    }
+}
