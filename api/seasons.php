@@ -910,6 +910,63 @@ function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void
     }
 }
 
+/**
+ * QUANTAS TEMPORADAS CADA JOGADOR JÁ DISPUTOU.
+ *
+ * `players.seasons_in_league` existia, era mostrada no perfil e no /jogadores,
+ * e NUNCA era atualizada por ninguém: nascia 0 no draft e na free agency e
+ * ficava 0 pra sempre. Os 1.773 jogadores das quatro ligas estavam todos
+ * zerados, com três delas já tendo temporada concluída.
+ *
+ * A conta sai do `player_season_log`, que é o registro do que cada jogador
+ * era em cada temporada — quem aparece no log de N temporadas CONCLUÍDAS
+ * disputou N. Temporada em andamento não conta: ela ainda não foi disputada.
+ *
+ * RECALCULA em vez de incrementar, de propósito: incremento erra pra sempre
+ * se rodar duas vezes ou deixar de rodar uma. Assim, rodar de novo não muda
+ * nada, e uma correção no log se reflete sozinha na próxima virada.
+ *
+ * @param ?string $league Só uma liga, ou null pra todas.
+ * @return int Quantos jogadores mudaram de número.
+ */
+function recalcularTemporadasNaLiga(PDO $pdo, ?string $league = null): int
+{
+    try {
+        /* SHOW COLUMNS na mão: `columnExists()` mora em admin.php, free-agency.php
+           e punicoes.php, mas NÃO neste arquivo — chamá-la aqui lançava
+           "undefined function", o catch engolia e a função devolvia 0 como se
+           não houvesse nada a corrigir. */
+        if (!$pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'")->fetch()) return 0;
+
+        $sql = "UPDATE players p
+                   SET p.seasons_in_league = (
+                       SELECT COUNT(DISTINCT l.season_id)
+                         FROM player_season_log l
+                         JOIN seasons se ON se.id = l.season_id
+                        WHERE l.player_id = p.id AND se.status = 'completed')
+                 WHERE p.seasons_in_league <> (
+                       SELECT COUNT(DISTINCT l.season_id)
+                         FROM player_season_log l
+                         JOIN seasons se ON se.id = l.season_id
+                        WHERE l.player_id = p.id AND se.status = 'completed')";
+
+        // Filtrar por liga é pelo time: jogador sem time não pertence a liga
+        // nenhuma, e o número dele fica como está.
+        $params = [];
+        if ($league !== null) {
+            $sql .= " AND p.team_id IN (SELECT id FROM teams WHERE league = ?)";
+            $params[] = strtoupper($league);
+        }
+
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        return $st->rowCount();
+    } catch (Throwable $e) {
+        error_log('[seasons] recalcularTemporadasNaLiga: ' . $e->getMessage());
+        return 0;
+    }
+}
+
 try {
     switch ($action) {
         // ========== ASSINATURA DE ESTADO (para auto-refresh de telas ao vivo) ==========
@@ -1328,6 +1385,8 @@ try {
             $statsClonadas = 0;
             try {
                 snapshotPlayersForSeason($pdo, (int)$seasonId, $league);
+                // O log desta temporada acabou de ser gravado: agora a conta fecha.
+                recalcularTemporadasNaLiga($pdo, $league);
             } catch (Throwable $e) {
                 error_log('[create_season] snapshot de temporada: ' . $e->getMessage());
             }
@@ -2117,6 +2176,8 @@ try {
 
             // Fora da transação: snapshot usa CREATE TABLE IF NOT EXISTS (DDL = commit implícito)
             snapshotPlayersForSeason($pdo, $seasonId, $league);
+            // O log desta temporada acabou de ser gravado: agora a conta fecha.
+            recalcularTemporadasNaLiga($pdo, $league);
 
             // Sincronizar team_season_points com total acumulado (regular + playoff + prêmios)
             syncTeamSeasonPoints($pdo, $seasonId, $league, $sprintNumber, $seasonNumber);
@@ -2650,6 +2711,8 @@ try {
 
             $pdo->commit();
             snapshotPlayersForSeason($pdo, $seasonId, $league2);
+            // O log desta temporada acabou de ser gravado: agora a conta fecha.
+            recalcularTemporadasNaLiga($pdo, $league2);
             syncTeamSeasonPoints($pdo, $seasonId, $league2, $sprintNumber2, $seasonNumber2);
             // O registro fechou: o rascunho cumpriu o papel dele e sai de
             // cena, senão reabrir a tela mostraria o formulário meio cheio
@@ -3083,6 +3146,8 @@ try {
 
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
             snapshotPlayersForSeason($pdo, $seasonId, $advSeason['league']);
+            // O log desta temporada acabou de ser gravado: agora a conta fecha.
+            recalcularTemporadasNaLiga($pdo, $advSeason["league"]);
             // Tática reabre automaticamente pra todos ao virar a temporada — remove
             // qualquer fechamento manual anterior do admin, volta pro corte diário padrão.
             try {
@@ -3205,6 +3270,8 @@ try {
             // do DELETE FROM players — porque snapshotam o estado atual (elenco/ranking) que a
             // transação abaixo vai apagar/zerar.
             snapshotPlayersForSeason($pdo, $seasonId, $league);
+            // O log desta temporada acabou de ser gravado: agora a conta fecha.
+            recalcularTemporadasNaLiga($pdo, $league);
             congelarRankingDaSprint($pdo, $league, 'Fim da sprint');
 
             $pdo->beginTransaction();
