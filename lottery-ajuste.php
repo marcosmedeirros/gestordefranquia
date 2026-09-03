@@ -225,6 +225,10 @@ async function marcarOQueJaEsta(){
       const sel = document.querySelector(`select[data-pos="${pos}"]`);
       if (!sel || !bolinha) return;
       sel.value = String(bolinha);
+      // Se o time no ar não está na lista de elegíveis, o select fica sem
+      // seleção nenhuma e a linha aparece em branco — nem time, nem o
+      // "ainda não saiu". Volta pro estado vazio de verdade.
+      if (sel.selectedIndex < 0) { sel.value = ''; return; }
       if (sel.value) {
         aoEscolher(sel);
         const tag = document.querySelector(`[data-ar="${pos}"]`);
