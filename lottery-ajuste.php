@@ -21,12 +21,19 @@ require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/loteria_grupos.php';
 requireAuth();
 
-const DONO_DO_AJUSTE = 'medeirros99@gmail.com';
+/* Quem pode registrar escolhas já sorteadas.
+   É por e-mail, e não por perfil de admin, de propósito: mexer no que a
+   loteria já decidiu não é atribuição de quem administra uma liga — é reparo
+   pontual, e cada nome aqui entrou por decisão explícita. */
+const DONOS_DO_AJUSTE = [
+    'medeirros99@gmail.com',
+    'lennonherman1997@gmail.com',
+];
 
 $user = getUserSession();
 $pdo  = db();
 
-if (strtolower(trim((string)($user['email'] ?? ''))) !== DONO_DO_AJUSTE) {
+if (!in_array(strtolower(trim((string)($user['email'] ?? ''))), DONOS_DO_AJUSTE, true)) {
     http_response_code(403);
     exit('Sem acesso.');
 }
