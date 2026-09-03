@@ -965,7 +965,7 @@ async function abrirImport(tipo) {
 function desenharImport(d) {
   const cols = IMP_COLS[impTipo];
   const oQue = impTipo === 'stats'
-    ? 'sem estatística lançada na temporada' + (d.season_number ? ' ' + d.season_number : '')
+    ? 'sem estatística lançada (ou com tudo zerado) na temporada' + (d.season_number ? ' ' + d.season_number : '')
     : 'sem nenhum atributo preenchido';
 
   const lista = impPendentes.length

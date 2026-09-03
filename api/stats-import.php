@@ -76,11 +76,25 @@ function pendentes(PDO $pdo, string $liga, string $tipo, ?int $seasonId): array
 
     // Sem temporada aberta não há o que cobrar de estatística.
     if (!$seasonId) return [];
+
+    /* LINHA ZERADA É LANÇAMENTO QUE FALTA, e não lançamento feito.
+       Só `ps.id IS NULL` deixava de fora quem tinha a linha criada com tudo em
+       zero — 293 jogadores só na ROOKIE. Eles sumiam do modelo de CSV, e sem
+       aparecer no modelo não havia como corrigi-los em massa: o GM via "0" na
+       tela e não tinha por onde atualizar.
+
+       A importação sempre soube gravar por cima (ON DUPLICATE KEY UPDATE); era
+       a LISTA que os escondia. */
     $sql = "SELECT p.id, p.name, p.position, p.ovr, CONCAT(t.city,' ',t.name) AS time
             FROM players p
             JOIN teams t ON t.id = p.team_id
             LEFT JOIN player_season_stats ps ON ps.player_id = p.id AND ps.season_id = ?
-            WHERE t.league = ? AND ps.id IS NULL
+            WHERE t.league = ?
+              AND (ps.id IS NULL
+                   OR (COALESCE(ps.games,0) = 0 AND COALESCE(ps.min_pg,0) = 0
+                       AND COALESCE(ps.pts_pg,0) = 0 AND COALESCE(ps.reb_pg,0) = 0
+                       AND COALESCE(ps.ast_pg,0) = 0 AND COALESCE(ps.stl_pg,0) = 0
+                       AND COALESCE(ps.blk_pg,0) = 0))
             ORDER BY t.city, t.name, p.ovr DESC, p.name";
     $st = $pdo->prepare($sql);
     $st->execute([$seasonId, $liga]);
