@@ -1855,6 +1855,22 @@ if ($method === 'POST') {
                     'group' => $g,
                     'group_label' => $meta['label'],
                     'balls' => $b,
+                    /* QUEM VAI ESCOLHER COM ESTA BOLA.
+                       A urna é montada pela CAMPANHA — é dela que saem as
+                       bolinhas —, mas a pick pode ter sido trocada, e aí quem
+                       escolhe é outro. O quadro mostrava o dono da campanha
+                       como se fosse escolher, e o GM que comprou a pick não se
+                       via em lugar nenhum.
+
+                       `$pickOwner` já foi montado acima pra ordem final, com a
+                       classe de picks desta sessão e filtrado pela liga. Nulo
+                       quando a pick continua com o dono original — a tela não
+                       precisa dizer "via ele mesmo". */
+                    'escolhe_id'    => isset($pickOwner[$tid]) ? (int)$pickOwner[$tid]['owner_id'] : $tid,
+                    'escolhe_nome'  => $pickOwner[$tid]['owner_name'] ?? ($teamNames[$tid] ?? "Time #$tid"),
+                    'escolhe_photo' => $pickOwner[$tid]['owner_photo'] ?? ($teamPhoto[$tid] ?? null),
+                    'via_nome'      => (isset($pickOwner[$tid]) && (int)$pickOwner[$tid]['owner_id'] !== $tid)
+                                       ? ($teamNames[$tid] ?? '') : null,
                     // A chance da pick nº 1 é a única faixa que soma 100% entre
                     // os times — é a que o comunicado da liga anuncia.
                     'top1_pct' => $odds['top1'][$tid] ?? 0,

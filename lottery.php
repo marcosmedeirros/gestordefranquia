@@ -329,6 +329,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .bowl-name{font-size:11px;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bowl-odds{font-family:'Oswald',sans-serif;font-size:15px;font-weight:800;color:var(--red)}
 .bowl-pos{font-size:9px;color:var(--text-3);font-weight:700}
+/* De quem era a pick. Menor e apagado que o nome de quem escolhe: é contexto,
+   não o dado principal do bloco. */
+.bowl-via{font-size:9px;color:var(--amber);font-weight:600;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bowl-empty{color:var(--text-3);font-size:13px;text-align:center;padding:10px}
 
 /* Quadro da ordem */
@@ -1314,10 +1318,15 @@ function setupBoardAndOdds(data){
   // Urna: times de loteria ainda concorrendo (esvazia a cada revelação)
   const lotteryTeams = data.balls.slice(); // já vem do pior pro "menos pior"
   if (temPalco) {
+  /* O NOME É DE QUEM VAI ESCOLHER, e não de quem fez a campanha.
+     A bolinha nasce da campanha, mas a pick pode ter sido trocada — e quem
+     abre a urna quer saber quem leva a escolha. O time da campanha vira o
+     "(via ...)" logo abaixo, que é como a troca aparece no resto do site. */
   $('bowl').innerHTML = lotteryTeams.map(b => `
     <div class="bowl-tile" id="bowl-${b.team_id}">
-      ${logo(b.photo_url,'bowl-logo')}
-      <div class="bowl-name">${esc(b.team_name)}</div>
+      ${logo(b.escolhe_photo || b.photo_url,'bowl-logo')}
+      <div class="bowl-name">${esc(b.escolhe_nome || b.team_name)}</div>
+      ${b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : ''}
       <div class="bowl-odds" title="Chance de Top 5: ${b.top5_pct}%">${b.top3_pct}% <span style="font-size:9px;color:var(--text-3);font-weight:600">Top 3</span></div>
       <div title="${b.balls} bolinha(s) na urna" style="margin-top:3px">${bolinhasDe(b.balls, b.group)}</div>
       <div class="bowl-pos">${b.position_anterior}º ${esc(b.conference || '')}</div>
