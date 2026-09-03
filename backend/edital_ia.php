@@ -232,11 +232,16 @@ function editalIaFatosDoApp(PDO $pdo, string $league): string
         $l[] = "- Times na liga: {$c['times']}";
         $l[] = "- Temporadas por sprint: {$c['max_seasons']}";
 
-        // O cap muda de natureza entre as ligas, e confundir os dois é o erro
-        // mais comum de quem vem de outra liga.
+        /* O cap muda de natureza entre as ligas, e confundir os dois é o erro
+           mais comum de quem vem de outra liga. Fora da ELITE ele soma os
+           CAP_TOP_N melhores, e não o elenco inteiro — quem acha que conta
+           todo mundo calcula errado quanto tem de espaço. O número sai da
+           constante que o app usa de verdade pra somar. */
+        require_once __DIR__ . '/helpers.php';
         $l[] = ($c['cap_mode'] ?? '') === 'salary'
-            ? "- Cap: por SALÁRIO, de {$c['cap_min']} a {$c['cap_max']}"
-            : "- Cap: por SOMA DE OVR do elenco, de {$c['cap_min']} a {$c['cap_max']}";
+            ? "- Cap: por SALÁRIO (folha do elenco), de {$c['cap_min']} a {$c['cap_max']}"
+            : "- Cap: soma do OVR dos " . CAP_TOP_N . " MELHORES do elenco (não é o elenco todo), "
+              . "de {$c['cap_min']} a {$c['cap_max']}";
 
         $l[] = "- Trocas por temporada: {$c['max_trades']}";
         $l[] = '- Trocas agora: ' . (!empty($c['trades_enabled']) ? 'ABERTAS' : 'FECHADAS');
