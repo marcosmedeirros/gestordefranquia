@@ -941,6 +941,15 @@ function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replac
 
 /* selo "via XXX" quando a pick veio de outro time (swap/troca) */
 function viaTag(o){
+  /* NO SWAP NÃO EXISTE "VIA".
+     A vaga não veio de uma troca de dono: ela é uma das duas do par, e quem
+     fica com ela depende de qual saiu melhor. Depois de resolvido, o "via"
+     ou apontava o próprio time ("Miami via MIA") ou dizia que a pick veio de
+     alguém de quem ela não veio. O selo diz o que a vaga é. */
+  const tipo = (o && o.swap_tipo || '').toUpperCase();
+  if (tipo === 'SB' || tipo === 'SW') {
+    return `<span class="via-badge" title="Swap: quem tem o SB fica com a melhor das duas vagas, quem tem o SW com a pior">🔁 SWAP</span>`;
+  }
   return (o && o.is_swap && o.origin_abbr)
     ? `<span class="via-badge" title="Pick originalmente do ${esc(o.origin_name || '')}">via ${esc(o.origin_abbr)}</span>`
     : '';
@@ -1237,7 +1246,54 @@ function renderMatriz(data){
     + 'é daí que vem a coluna 12 tão alta deles.';
 }
 
+/**
+ * O SWAP RESOLVIDO NA ORDEM.
+ *
+ * Um swap junta duas vagas: quem tem o SB fica com a MELHOR das duas, quem
+ * tem o SW com a pior. Só que o `team_id` de cada vaga é o dono REGISTRADO da
+ * pick daquela origem, e isso não sabe nada de qual das duas saiu melhor —
+ * então o quadro mostrava os dois lados trocados: o SW na vaga boa e o SB na
+ * ruim, exatamente o contrário do que o draft vai gravar.
+ *
+ * Aqui as duas vagas do par são postas no lugar certo, com a mesma regra que
+ * o servidor aplica ao confirmar a ordem (draftSincronizarOrdem): a vaga de
+ * número menor fica com o dono da pick SB.
+ *
+ * Só mexe em quem aparece; nada some e nada é inventado. E é idempotente:
+ * rodar de novo na ordem já resolvida não muda nada.
+ */
+function resolverSwapsNaOrdem(order){
+  if (!Array.isArray(order)) return order;
+  const porOrigem = {};
+  order.forEach(o => { if (o && o.origin_team_id) porOrigem[o.origin_team_id] = o; });
+
+  const feitos = new Set();
+  order.forEach(o => {
+    const tipo = (o.swap_tipo || '').toUpperCase();
+    if (tipo !== 'SB' && tipo !== 'SW') return;
+    const par = porOrigem[o.swap_com_id];
+    // Meio-swap (um lado sem par, ou o par fora deste draft) não vira troca.
+    if (!par || par === o || feitos.has(o) || feitos.has(par)) return;
+    feitos.add(o); feitos.add(par);
+
+    const melhor = (o.position <= par.position) ? o : par;
+    const pior   = (melhor === o) ? par : o;
+    // O dono da pick SB é o mesmo nos dois lados do par (`sb_id`), então a
+    // pergunta é só se ele já está na vaga melhor.
+    const sbId = o.sb_id || par.sb_id;
+    if (!sbId || melhor.team_id === sbId) return;
+
+    // Troca só a identidade de quem escolhe. A vaga, a origem e o histórico
+    // de cada posição continuam sendo os dela.
+    ['team_id', 'team_name', 'photo_url'].forEach(c => {
+      const t = melhor[c]; melhor[c] = pior[c]; pior[c] = t;
+    });
+  });
+  return order;
+}
+
 function setupBoardAndOdds(data){
+  if (data && data.order) data.order = resolverSwapsNaOrdem(data.order);
   revealed = new Set();
   busy = false;
   photoById = {};

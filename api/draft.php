@@ -1778,6 +1778,7 @@ if ($method === 'POST') {
                                                 t.photo_url AS owner_photo, t.conference AS owner_conf,
                                                 p.swap_type,
                                                 CONCAT(par_orig.city," ",par_orig.name) AS swap_com,
+                                                par.original_team_id AS swap_com_id,
                                                 CASE WHEN p.swap_type = "SB" THEN p.team_id ELSE par.team_id END AS sb_id,
                                                 CASE WHEN p.swap_type = "SB" THEN CONCAT(t.city," ",t.name)
                                                      ELSE CONCAT(par_dono.city," ",par_dono.name) END AS sb_nome,
@@ -1844,6 +1845,9 @@ if ($method === 'POST') {
                     'is_swap' => (bool)$isSwap,
                     'swap_tipo' => $own['swap_type'] ?? null,
                     'swap_com'  => $own['swap_com'] ?? null,
+                    // Quem e a vaga do outro lado, por id: e assim que a tela acha o par.
+                    'swap_com_id' => isset($own['swap_com_id']) ? (int)$own['swap_com_id'] : null,
+                    'sb_id'     => isset($own['sb_id']) ? (int)$own['sb_id'] : null,
                     // O lado SB vai junto: e o nome que a urna e o bot mostram.
                     'sb_nome'   => $own['sb_nome'] ?? null,
                     'origin_team_id' => $tid,
@@ -1906,6 +1910,7 @@ if ($method === 'POST') {
                        swap, pra ninguém ler como dono definido. */
                     'swap_tipo'     => $pickOwner[$tid]['swap_type'] ?? null,
                     'swap_com'      => $pickOwner[$tid]['swap_com'] ?? null,
+                    'swap_com_id'   => isset($pickOwner[$tid]['swap_com_id']) ? (int)$pickOwner[$tid]['swap_com_id'] : null,
                     'sb_id'         => isset($pickOwner[$tid]['sb_id']) ? (int)$pickOwner[$tid]['sb_id'] : null,
                     'sb_nome'       => $pickOwner[$tid]['sb_nome'] ?? null,
                     'sb_photo'      => $pickOwner[$tid]['sb_photo'] ?? null,

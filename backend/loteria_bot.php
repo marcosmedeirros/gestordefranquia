@@ -96,12 +96,45 @@ function loteriaBotDadosDaPosicao(PDO $pdo, array $ordem, int $posicao): array
         $com = trim((string)($item['swap_com'] ?? ''));
         $swap = ['tipo' => $swapTipo, 'com' => $com !== '' ? $com : null];
 
-        /* O NOME ANUNCIADO É O DO LADO SB. Ele fica com a melhor das duas
-           vagas, então é ele quem leva esta escolha se ela for a melhor —
-           e é o nome que a urna também mostra. O "via" sai de cena: no swap
-           a pergunta não é de quem a pick veio, é qual das duas vagas ela é. */
+        /* QUAL DAS DUAS VAGAS É ESTA.
+           O SB fica com a MELHOR das duas e o SW com a pior — então o nome
+           depende de onde a outra vaga do par caiu. Achando o par na ordem,
+           dá pra dizer: menor número é a melhor, e vai pro SB.
+
+           Anunciar o SB nas duas vagas, como era antes, dizia o nome errado
+           metade das vezes — e discordava do quadro, que resolve o par pela
+           mesma regra do draft. */
         $sb = trim((string)($item['sb_nome'] ?? ''));
-        if ($sb !== '') $nome = $sb;
+        $par = null;
+        $parId = (int)($item['swap_com_id'] ?? 0);
+        if ($parId > 0) {
+            foreach ($ordem as $cand) {
+                if (is_array($cand) && (int)($cand['origin_team_id'] ?? 0) === $parId) { $par = $cand; break; }
+            }
+        }
+
+        if ($par !== null) {
+            $estaPos = (int)($item['position'] ?? $posicao);
+            $parPos  = (int)($par['position'] ?? 0);
+            $ehMelhor = $parPos <= 0 || $estaPos <= $parPos;
+            $swap['lado'] = $ehMelhor ? 'melhor' : 'pior';
+
+            if ($ehMelhor) {
+                if ($sb !== '') $nome = $sb;
+            } else {
+                // A pior fica com o SW: o lado do par cujo swap_type é SW.
+                $sw = $swapTipo === 'SW'
+                    ? trim((string)($item['team_name'] ?? ''))
+                    : trim((string)($par['team_name'] ?? ''));
+                if ($sw !== '') $nome = $sw;
+            }
+        } elseif ($sb !== '') {
+            // Sem o par na ordem (meio-swap, ou ordem antiga sem o id do par),
+            // segue como antes: o SB é o nome mais provável.
+            $nome = $sb;
+        }
+        // O "via" sai de cena: no swap a pergunta não é de quem a pick veio,
+        // é qual das duas vagas ela é.
         $via = null;
     }
 
@@ -185,7 +218,12 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
                PIOR das duas", logo abaixo de quem tinha acabado de levar a
                primeira escolha. Quem lê não quer saber de que ponta a bolinha
                veio; quer saber que aquela vaga é a melhor das duas do swap. */
-            $via = "\n_🔁 SWAP — leva a melhor das duas vagas_";
+            /* Agora dá pra dizer QUAL das duas vagas é esta: o nome já veio
+               resolvido pelo par, e dizer "leva a melhor" na vaga pior
+               contradizia o próprio nome logo acima. */
+            $via = (($d['swap']['lado'] ?? 'melhor') === 'pior')
+                ? "\n_🔁 SWAP — fica com a pior das duas vagas_"
+                : "\n_🔁 SWAP — leva a melhor das duas vagas_";
         } else {
             $via = $d['via'] ? "\n_via {$d['via']}_" : '';
         }
@@ -239,7 +277,7 @@ function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
         // No push o "via" entra entre parênteses, na mesma linha: não há espaço
         // pra segunda linha numa notificação de celular.
         $via = !empty($d['swap'])
-            ? ' (swap — a melhor das duas)'
+            ? ((($d['swap']['lado'] ?? 'melhor') === 'pior') ? ' (swap — a pior das duas)' : ' (swap — a melhor das duas)')
             : ($d['via'] ? " (via {$d['via']})" : '');
 
         $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];
