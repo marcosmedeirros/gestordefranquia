@@ -182,13 +182,28 @@ function renderDispensadosDaTemporada() {
         const marca = j.pedido
             ? ` · <span style="color:var(--amber)">pedido${j.original_team_name ? ' por ' + escHtml(j.original_team_name) : ''}</span>`
             : origem;
+        /* Quantos já deram lance nele. Fica junto do nome porque é o que diz se
+           vale a pena disputar — e é o mesmo número que decide se ainda dá pra
+           apagar o card. */
+        const nOfertas = Number(j.propostas || 0);
+        const selo = nOfertas > 0
+            ? `<span class="disp-ofertas" title="${nOfertas} ${nOfertas === 1 ? 'proposta' : 'propostas'} neste jogador">${nOfertas}</span>`
+            : '';
+        // A lixeira some assim que alguém dá lance: a partir daí, apagar o
+        // jogador apagaria a disputa de outro GM junto.
+        const lixeira = nOfertas === 0
+            ? `<button class="disp-lixo" data-apagar="${j.id}" data-nome="${escHtml(j.name)}"
+                       data-pedido="${j.pedido ? 1 : 0}" title="Tirar da lista (ninguém deu lance ainda)">
+                 <i class="bi bi-trash"></i></button>`
+            : '';
         return `<div class="disp-card ${naoCabe ? 'nao-cabe' : ''}">
             <div class="disp-pos">${escHtml(posTxt || '?')}</div>
             <div class="disp-meio">
-                <div class="disp-nome" title="${escHtml(j.name)}">${escHtml(j.name)}</div>
+                <div class="disp-nome" title="${escHtml(j.name)}">${escHtml(j.name)}${selo}</div>
                 <div class="disp-sub">${j.age} anos${custo ? ' · ' + custo : ''}${marca}</div>
             </div>
             <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>
+            ${lixeira}
             <button class="disp-lapis" data-corrigir="${j.id}" data-ovr="${j.ovr}" data-age="${j.age}"
                     data-nome="${escHtml(j.name)}"
                     title="O vídeo mostra outro OVR ou idade? Corrija aqui">
@@ -200,6 +215,9 @@ function renderDispensadosDaTemporada() {
 
     alvo.querySelectorAll('[data-corrigir]').forEach(b => {
         b.addEventListener('click', () => corrigirFicha(b.dataset));
+    });
+    alvo.querySelectorAll('[data-apagar]').forEach(b => {
+        b.addEventListener('click', () => apagarDaLista(b.dataset));
     });
     alvo.querySelectorAll('[data-disp]').forEach(b => {
         b.addEventListener('click', () => abrirModalDispensado(Number(b.dataset.disp)));
@@ -1328,3 +1346,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.hidden) faConferirMudancas();
     });
 });
+
+/**
+ * TIRAR UM JOGADOR DA LISTA.
+ *
+ * O botão só existe quando ninguém deu lance — a partir do primeiro, apagar
+ * levaria a disputa de outro GM junto, e aí é caso pro admin.
+ *
+ * Pede confirmação porque é a única ação da tela que não dá pra desfazer
+ * olhando: o card some pra liga inteira.
+ */
+async function apagarDaLista(dados) {
+    const id = Number(dados.apagar);
+    const nome = dados.nome || 'esse jogador';
+    const ehPedido = dados.pedido === '1';
+
+    const ok = typeof confirmarSite === 'function'
+        ? await confirmarSite(`Tirar ${nome} da lista? Some pra liga inteira.`)
+        : confirm(`Tirar ${nome} da lista? Some pra liga inteira.`);
+    if (!ok) return;
+
+    try {
+        const r = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'apagar_da_fa', free_agent_id: id, pedido: ehPedido ? 1 : 0 })
+        });
+        const d = await r.json();
+        if (!d.success) {
+            alert(d.error || 'Não deu pra tirar da lista.');
+        }
+        // Deu certo ou não, a lista pode ter mudado: alguém pode ter dado lance
+        // entre abrir a confirmação e clicar em sim.
+        if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+    } catch (e) {
+        alert('Não deu pra tirar da lista agora.');
+    }
+}

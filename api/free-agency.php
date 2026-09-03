@@ -749,6 +749,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'corrigir_ficha':
             corrigirFichaFreeAgent($pdo, $body, (int)$user_id, $team_league);
             break;
+        case 'apagar_da_fa':
+            apagarDaFreeAgency($pdo, $body, (int)$user_id, $team_league);
+            break;
         case 'set_fa_status':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
@@ -1857,7 +1860,12 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
 
     $st = $pdo->prepare("
         SELECT fa.id, fa.name, fa.age, fa.position, {$sec} AS secondary_position,
-               fa.{$ovrCol} AS ovr, fa.original_team_name, fa.waived_at
+               fa.{$ovrCol} AS ovr, fa.original_team_name, fa.waived_at,
+               -- Quantos lances o jogador ja recebeu. E o que decide se ele
+               -- ainda pode ser apagado: com proposta na mesa, apagar apagaria
+               -- a disputa de outro GM junto.
+               (SELECT COUNT(*) FROM free_agent_offers o
+                 WHERE o.free_agent_id = fa.id AND o.status = 'pending') AS propostas
         FROM free_agents fa
         WHERE fa.league = ?
           AND fa.season_id = ?
@@ -1926,6 +1934,7 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
         $j['ovr'] = (int)$j['ovr'];
         $j['age'] = (int)$j['age'];
         $j['pedido'] = !empty($j['pedido']) ? 1 : 0;
+        $j['propostas'] = (int)($j['propostas'] ?? 0);
         $fit = $teamId ? faCap($pdo, $teamId, $j['ovr']) : null;
         $j['cap_custo']   = $fit['custo'] ?? null;
         $j['cap_cabe']    = $fit['cabe'] ?? true;
@@ -2652,4 +2661,79 @@ function versaoDaListaDeDispensados(PDO $pdo, ?string $league): void
         error_log('[fa] versao da lista: ' . $e->getMessage());
         jsonSuccess(['v' => '']);
     }
+}
+
+/**
+ * TIRAR UM JOGADOR DA FILA DA FREE AGENCY.
+ *
+ * Serve pro cadastro errado: nome duplicado, jogador que nem devia estar ali.
+ * Sem isso, o jeito de "resolver" era deixar o card fantasma na lista pra
+ * sempre, e alguém acabava dando lance nele.
+ *
+ * SÓ ENQUANTO NINGUÉM DEU LANCE. Proposta na mesa é decisão de outro GM, e
+ * apagar o jogador apagaria a disputa dele junto — sem aviso, do lado de fora
+ * da tela dele. Havendo qualquer proposta, o caminho é o admin resolver.
+ *
+ * Quem apagou fica registrado: é a única ação aqui que não dá pra desfazer
+ * olhando a tela.
+ */
+function apagarDaFreeAgency(PDO $pdo, array $body, int $userId, ?string $minhaLiga): void
+{
+    $id     = (int)($body['free_agent_id'] ?? 0);
+    $ehPedido = !empty($body['pedido']);
+    if (!$id) jsonError('Jogador não informado');
+
+    if ($ehPedido) {
+        $st = $pdo->prepare('SELECT id, player_name AS name, league, status FROM fa_requests WHERE id = ?');
+        $st->execute([$id]);
+        $reg = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$reg) jsonError('Esse pedido já saiu da lista.');
+        if (strtolower((string)$reg['status']) !== 'open') jsonError('Esse pedido já foi resolvido.');
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM fa_request_offers WHERE request_id = ? AND status = 'pending'");
+        $st->execute([$id]);
+        $propostas = (int)$st->fetchColumn();
+    } else {
+        $st = $pdo->prepare('SELECT id, name, league, status FROM free_agents WHERE id = ?');
+        $st->execute([$id]);
+        $reg = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$reg) jsonError('Esse jogador já saiu da lista.');
+        $status = strtolower((string)($reg['status'] ?? 'available'));
+        if ($status !== '' && $status !== 'available') jsonError('Esse jogador já saiu da fila.');
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM free_agent_offers WHERE free_agent_id = ? AND status = 'pending'");
+        $st->execute([$id]);
+        $propostas = (int)$st->fetchColumn();
+    }
+
+    if ($minhaLiga && strtoupper((string)$reg['league']) !== strtoupper($minhaLiga)) {
+        jsonError('Esse jogador é de outra liga', 403);
+    }
+    if ($propostas > 0) {
+        jsonError($propostas === 1
+            ? 'Já tem 1 proposta nele — só o admin pode tirar agora.'
+            : "Já tem {$propostas} propostas nele — só o admin pode tirar agora.");
+    }
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS free_agent_remocoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            origem ENUM('dispensado','pedido') NOT NULL,
+            registro_id INT NOT NULL,
+            nome VARCHAR(120) NULL,
+            league VARCHAR(20) NULL,
+            user_id INT NOT NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        $pdo->prepare('INSERT INTO free_agent_remocoes (origem, registro_id, nome, league, user_id)
+                       VALUES (?,?,?,?,?)')
+            ->execute([$ehPedido ? 'pedido' : 'dispensado', $id, $reg['name'], $reg['league'], $userId]);
+    } catch (Throwable $e) {
+        error_log('[fa] registrar remocao: ' . $e->getMessage());
+    }
+
+    if ($ehPedido) $pdo->prepare('DELETE FROM fa_requests WHERE id = ?')->execute([$id]);
+    else           $pdo->prepare('DELETE FROM free_agents WHERE id = ?')->execute([$id]);
+
+    jsonSuccess(['removido' => true, 'nome' => $reg['name']]);
 }

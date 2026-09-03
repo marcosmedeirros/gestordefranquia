@@ -326,7 +326,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         /* Grade em vez de tabela: a linha tem seis informações de tamanhos
            muito diferentes, e no celular precisa empilhar sem virar scroll
            lateral. */
-        .disp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 10px; }
+        /* 320 e não 280: o card ganhou o lápis e a lixeira, e no mínimo antigo
+           o nome quebrava em quatro linhas pra caber tudo lado a lado. */
+        .disp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 10px; }
         .disp-card {
             display: flex; align-items: center; gap: 10px;
             background: var(--panel-2); border: 1px solid var(--border);
@@ -354,6 +356,18 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .disp-lapis { flex: none; background: none; border: none; padding: 4px 6px; cursor: pointer;
                       color: var(--text-3); font-size: 12px; line-height: 1; border-radius: 6px; }
         .disp-lapis:hover { color: var(--text); background: rgba(255,255,255,.06); }
+        /* O número de lances fica colado no nome e com a cor do app: é o que
+           diz, de relance, quem já virou disputa. */
+        .disp-ofertas { display: inline-flex; align-items: center; justify-content: center;
+                        min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+                        border-radius: 999px; background: var(--red); color: #fff;
+                        font-size: 10.5px; font-weight: 800; line-height: 1;
+                        font-variant-numeric: tabular-nums; vertical-align: middle; }
+        /* Some assim que o primeiro lance entra, então quando aparece é porque
+           ainda dá pra tirar sem atropelar ninguém. */
+        .disp-lixo { flex: none; background: none; border: none; padding: 4px 6px; cursor: pointer;
+                     color: var(--text-3); font-size: 12px; line-height: 1; border-radius: 6px; }
+        .disp-lixo:hover { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
         .disp-btn {
             flex: none; border: 1px solid var(--border-md, rgba(255,255,255,.12));
             background: transparent; color: var(--text); border-radius: 8px;
