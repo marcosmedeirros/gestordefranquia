@@ -1766,16 +1766,29 @@ if ($method === 'POST') {
                    se decide quando as duas saírem da urna. Mostrar o dono
                    registrado ali seria afirmar um resultado que o sorteio
                    ainda não deu. */
+                /* NO SWAP, QUEM APARECE É O LADO SB.
+                   O SB fica com a MELHOR das duas vagas, então é ele que leva a
+                   bolinha se ela sair bem — e é o nome que faz sentido ver na
+                   urna. O SW só se define no fim, com a vaga que sobrar.
+
+                   `sb_*` sai do par: numa pick SW, o dono do SB está na pick
+                   emparelhada; numa pick SB, é o dono dela mesma. */
                 $stmtPk = $pdo->prepare('SELECT p.original_team_id, p.team_id AS owner_id,
                                                 CONCAT(t.city," ",t.name) AS owner_name,
                                                 t.photo_url AS owner_photo, t.conference AS owner_conf,
                                                 p.swap_type,
-                                                CONCAT(par_orig.city," ",par_orig.name) AS swap_com
+                                                CONCAT(par_orig.city," ",par_orig.name) AS swap_com,
+                                                CASE WHEN p.swap_type = "SB" THEN p.team_id ELSE par.team_id END AS sb_id,
+                                                CASE WHEN p.swap_type = "SB" THEN CONCAT(t.city," ",t.name)
+                                                     ELSE CONCAT(par_dono.city," ",par_dono.name) END AS sb_nome,
+                                                CASE WHEN p.swap_type = "SB" THEN t.photo_url
+                                                     ELSE par_dono.photo_url END AS sb_photo
                                          FROM picks p
                                          JOIN teams t ON t.id = p.team_id
                                          JOIN teams orig ON orig.id = p.original_team_id
                                     LEFT JOIN picks par ON par.id = p.swap_pair_pick_id
                                     LEFT JOIN teams par_orig ON par_orig.id = par.original_team_id
+                                    LEFT JOIN teams par_dono ON par_dono.id = par.team_id
                                          WHERE CAST(p.season_year AS UNSIGNED) = ?
                                            AND orig.league = ?
                                            AND p.round = 1');
@@ -1831,6 +1844,8 @@ if ($method === 'POST') {
                     'is_swap' => (bool)$isSwap,
                     'swap_tipo' => $own['swap_type'] ?? null,
                     'swap_com'  => $own['swap_com'] ?? null,
+                    // O lado SB vai junto: e o nome que a urna e o bot mostram.
+                    'sb_nome'   => $own['sb_nome'] ?? null,
                     'origin_team_id' => $tid,
                     'origin_name' => $teamNames[$tid] ?? '',
                     'origin_abbr' => $originAbbr,
@@ -1886,10 +1901,14 @@ if ($method === 'POST') {
                     'escolhe_photo' => $pickOwner[$tid]['owner_photo'] ?? ($teamPhoto[$tid] ?? null),
                     'via_nome'      => (isset($pickOwner[$tid]) && (int)$pickOwner[$tid]['owner_id'] !== $tid)
                                        ? ($teamNames[$tid] ?? '') : null,
-                    /* Pick em swap: quem escolhe depende de onde as DUAS
-                       caírem, então a tela mostra o par e não um dono. */
+                    /* Pick em swap: o lado SB fica com a melhor das duas vagas,
+                       então é ele que a tela mostra — com o selo dizendo que é
+                       swap, pra ninguém ler como dono definido. */
                     'swap_tipo'     => $pickOwner[$tid]['swap_type'] ?? null,
                     'swap_com'      => $pickOwner[$tid]['swap_com'] ?? null,
+                    'sb_id'         => isset($pickOwner[$tid]['sb_id']) ? (int)$pickOwner[$tid]['sb_id'] : null,
+                    'sb_nome'       => $pickOwner[$tid]['sb_nome'] ?? null,
+                    'sb_photo'      => $pickOwner[$tid]['sb_photo'] ?? null,
                     // A chance da pick nº 1 é a única faixa que soma 100% entre
                     // os times — é a que o comunicado da liga anuncia.
                     'top1_pct' => $odds['top1'][$tid] ?? 0,

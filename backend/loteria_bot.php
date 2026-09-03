@@ -95,6 +95,14 @@ function loteriaBotDadosDaPosicao(PDO $pdo, array $ordem, int $posicao): array
     if ($swapTipo === 'SB' || $swapTipo === 'SW') {
         $com = trim((string)($item['swap_com'] ?? ''));
         $swap = ['tipo' => $swapTipo, 'com' => $com !== '' ? $com : null];
+
+        /* O NOME ANUNCIADO É O DO LADO SB. Ele fica com a melhor das duas
+           vagas, então é ele quem leva esta escolha se ela for a melhor —
+           e é o nome que a urna também mostra. O "via" sai de cena: no swap
+           a pergunta não é de quem a pick veio, é qual das duas vagas ela é. */
+        $sb = trim((string)($item['sb_nome'] ?? ''));
+        if ($sb !== '') $nome = $sb;
+        $via = null;
     }
 
     return ['nome' => $nome, 'via' => $via, 'swap' => $swap];
@@ -146,11 +154,13 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
            "via X" seria afirmar dono — e no swap o dono só existe depois que as
            duas picks saírem: o lado SB fica com a melhor vaga, o SW com a pior. */
         if (!empty($d['swap'])) {
-            $qual = $d['swap']['tipo'] === 'SB'
-                ? 'fica com a MELHOR das duas'
-                : 'fica com a PIOR das duas';
-            $com  = $d['swap']['com'] ? " com {$d['swap']['com']}" : '';
-            $via  = "\n_🔁 SWAP {$d['swap']['tipo']}{$com} — {$qual}_";
+            /* O rodapé descreve o TIME ANUNCIADO, que é sempre o lado SB.
+               Cheguei a imprimir o lado da bolinha (SB ou SW) e saiu
+               contraditório: "é do Honolulu!" seguido de "SWAP SW — fica com a
+               PIOR das duas", logo abaixo de quem tinha acabado de levar a
+               primeira escolha. Quem lê não quer saber de que ponta a bolinha
+               veio; quer saber que aquela vaga é a melhor das duas do swap. */
+            $via = "\n_🔁 SWAP — leva a melhor das duas vagas_";
         } else {
             $via = $d['via'] ? "\n_via {$d['via']}_" : '';
         }
@@ -204,7 +214,7 @@ function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
         // No push o "via" entra entre parênteses, na mesma linha: não há espaço
         // pra segunda linha numa notificação de celular.
         $via = !empty($d['swap'])
-            ? ' (SWAP ' . $d['swap']['tipo'] . ($d['swap']['com'] ? ' com ' . $d['swap']['com'] : '') . ')'
+            ? ' (swap — a melhor das duas)'
             : ($d['via'] ? " (via {$d['via']})" : '');
 
         $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];

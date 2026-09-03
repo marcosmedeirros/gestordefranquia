@@ -1334,13 +1334,15 @@ function setupBoardAndOdds(data){
        coisa que a liga cobra depois. Então o card mostra a bolinha pelo dono da
        CAMPANHA, com o selo do swap e o par ao lado. */
     const ehSwap = b.swap_tipo === 'SB' || b.swap_tipo === 'SW';
-    const nome  = ehSwap ? b.team_name : (b.escolhe_nome || b.team_name);
-    const foto  = ehSwap ? b.photo_url : (b.escolhe_photo || b.photo_url);
+    /* No swap, quem aparece é o lado SB: é ele que fica com a MELHOR das duas
+       vagas, então é o nome que faz sentido ver numa bolinha que ainda pode
+       sair no topo. O SW só se resolve no fim, com a vaga que sobrar. */
+    const nome  = ehSwap ? (b.sb_nome || b.team_name) : (b.escolhe_nome || b.team_name);
+    const foto  = ehSwap ? (b.sb_photo || b.photo_url) : (b.escolhe_photo || b.photo_url);
     const rodape = ehSwap
-      ? `<div class="bowl-swap" title="${b.swap_tipo === 'SB'
-            ? 'Fica com a MELHOR das duas vagas' : 'Fica com a PIOR das duas vagas'}${
-            b.swap_com ? ' · swap com ' + esc(b.swap_com) : ''}">
-           SWAP ${b.swap_tipo}${b.swap_com ? ` · ${esc(b.swap_com)}` : ''}
+      ? `<div class="bowl-swap" title="Swap: quem tem o SB fica com a melhor das duas vagas, quem tem o SW com a pior${
+            b.swap_com ? ' · par: ' + esc(b.swap_com) : ''}">
+           🔁 SWAP · a melhor das duas
          </div>`
       : (b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : '');
     return `
