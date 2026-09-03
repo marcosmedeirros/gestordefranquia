@@ -14,7 +14,7 @@
 require_once __DIR__ . '/../backend/salary_cap.php';
 require_once __DIR__ . '/../backend/helpers.php';   // CAP_TOP_N
 require_once __DIR__ . '/../backend/pick_protection.php';   // condicao da pick
-require_once __DIR__ . '/../backend/draft_swaps.php';       // picksAnoDeCorte()
+require_once __DIR__ . '/../backend/draft_swaps.php';       // draftAnoDasPicks()
 require_once __DIR__ . '/../backend/playoff_series.php';
 
 /**
@@ -864,7 +864,7 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $l
        classe foi sorteada e a pick virou jogador.
        Corte 0 significa que o sistema não sabe onde a liga está (sem sessão de
        draft na sprint ativa); aí mostra tudo, que é melhor que esconder. */
-    $corte = picksAnoDeCorte($pdo, (string)($t['league'] ?? ''));
+    $corte = anoDeCorteDasPicks($pdo, (string)($t['league'] ?? ''));
     if ($corte > 0) {
         $picks = array_values(array_filter($picks, fn($p) => (int)$p['season_year'] >= $corte));
         if (!$picks) {

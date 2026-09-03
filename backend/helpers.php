@@ -1864,32 +1864,51 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
            sessão de sprint encerrada esquecida nesse estado. Uma delas
            puxava o corte anos para trás — a lista de picks então enchia de
            anos que já passaram, e a do draft atual sumia no meio. */
-        $st = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+        /* O ano do DRAFT ABERTO sai de draftAnoDasPicks, e não da temporada.
+           A conta `start_year + season_number - 1` devolve o ano em que a
+           temporada é jogada; o draft dela distribui a classe do ano SEGUINTE.
+           Na ELITE, temporada 2 = 2026 e o draft em andamento sorteia as picks
+           de 2027 — cortar por 2026 deixava na lista as 64 picks de 2026, que
+           o draft anterior já consumiu. O bloco dos drafts concluídos, mais
+           abaixo, já usava a função certa; o do draft aberto não. */
+        require_once __DIR__ . '/draft_swaps.php';
+        $st = $pdo->prepare('SELECT ds.season_id
             FROM draft_sessions ds
             JOIN seasons s ON ds.season_id = s.id
-            LEFT JOIN sprints sp ON s.sprint_id = sp.id
             WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
               AND s.sprint_id = (SELECT id FROM sprints
                                   WHERE league = ? AND status = "active"
                                ORDER BY sprint_number DESC, id DESC LIMIT 1)');
         $st->execute([$liga, $liga]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $y = $ano($r);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            $y = draftAnoDasPicks($pdo, (int)$sid);
             // Guardado à parte: é ele que decide se o corte pode subir por
             // causa de um draft já concluído, lá embaixo.
             if ($y > 0) { $anos[] = $y; $anosDraftAberto[] = $y; }
         }
 
-        $st2 = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
-            FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
-            WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed"))
-              AND s.sprint_id = (SELECT id FROM sprints
-                                  WHERE league = ? AND status = "active"
-                               ORDER BY sprint_number DESC, id DESC LIMIT 1)
-            ORDER BY s.created_at DESC LIMIT 1');
-        $st2->execute([$liga, $liga]);
-        $y = $ano($st2->fetch(PDO::FETCH_ASSOC));
-        if ($y > 0) $anos[] = $y;
+        /* A TEMPORADA SÓ ENTRA QUANDO NÃO HÁ DRAFT ABERTO.
+           Ela dá o ano em que a temporada é JOGADA, um a menos que a classe de
+           picks — e como o corte é o `min()` da lista, ela puxava o resultado
+           pra trás mesmo com o draft já dizendo o ano certo: na ELITE, o draft
+           aberto respondia 2027 e a temporada 2026, o mínimo dava 2026, e as 64
+           picks de 2026 (já consumidas) voltavam pra lista.
+
+           Havendo draft aberto, é ele quem sabe a resposta. A temporada fica
+           como último recurso, pra liga que ainda não montou draft nenhum. */
+        if (!$anosDraftAberto) {
+            $st2 = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+                FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed"))
+                  AND s.sprint_id = (SELECT id FROM sprints
+                                      WHERE league = ? AND status = "active"
+                                   ORDER BY sprint_number DESC, id DESC LIMIT 1)
+                ORDER BY s.created_at DESC LIMIT 1');
+            $st2->execute([$liga, $liga]);
+            // +1 pelo mesmo motivo: o draft da temporada de 2026 é o de 2027.
+            $y = $ano($st2->fetch(PDO::FETCH_ASSOC));
+            if ($y > 0) $anos[] = $y + 1;
+        }
     } catch (Throwable $e) {
         error_log('[anoDeCorteDasPicks] ' . $e->getMessage());
     }

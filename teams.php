@@ -60,6 +60,17 @@ try {
 }
 $currentSeasonYear  = $currentSeasonYear ?: (int)date('Y');
 $seasonDisplayYear  = (string)$currentSeasonYear;
+
+/* A PARTIR DE QUE ANO AS PICKS AINDA VALEM — que não é o ano da temporada.
+   A tela filtrava por `$currentSeasonYear`, e com isso mostrava a classe que o
+   draft desta temporada já consumiu: na ELITE, temporada 2 = 2026, quando as
+   picks em jogo são as de 2027.
+
+   É a MESMA função que a página de Picks usa (anoDeCorteDasPicks), e de
+   propósito: a pergunta "quais picks ainda valem" precisa ter uma resposta só
+   no site inteiro. Duas contas parecidas em telas diferentes é como elas
+   divergem — foi assim que esta aqui ficou um ano atrás. */
+$picksAnoBase = anoDeCorteDasPicks($pdo, (string)$user['league']) ?: $currentSeasonYear;
 $seasonCreatedAt    = $currentSeason['season_created_at'] ?? null;
 
 $stmtTeam = $pdo->prepare('
@@ -1697,6 +1708,9 @@ function getSerasaScore(int $avisos): array {
     const leagueCapMax    = <?= (int)$capMax ?>;
     const leagueMaxTrades = <?= (int)$maxTrades ?>;
     const currentSeasonYear = <?= $currentSeasonYear ? (int)$currentSeasonYear : 'null' ?>;
+    // O primeiro ano de pick que ainda vale — a classe do draft corrente. Nao e
+    // o ano da temporada: o draft de 2026 distribui as picks de 2027.
+    const picksAnoBase = <?= (int)$picksAnoBase ?>;
     // Peso da pick no casamento salarial, direto de CAP_PICK_TRADE_VALUE.
     const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
 
@@ -1828,7 +1842,7 @@ function getSerasaScore(int $avisos): array {
             const data = await fetch(`/api/picks.php?team_id=${teamId}&include_away=1`).then(r => r.json());
             if (data.error) throw new Error(data.error);
 
-            const baseYear = Number(currentSeasonYear) || 0;
+            const baseYear = Number(picksAnoBase) || Number(currentSeasonYear) || 0;
             let picks = (data.picks || []).filter(pk => Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
