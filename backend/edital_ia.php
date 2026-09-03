@@ -378,6 +378,17 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
         // deixar o GM esperando um minuto e meio cada.
         $timeout = $i === 0 ? EDITAL_IA_TIMEOUT : EDITAL_IA_TIMEOUT_FALLBACK;
 
+        /* CONTA ANTES DE GASTAR, e não depois.
+           A chamada pode levar dezenas de segundos, e nesse tempo a conexão
+           com o MySQL cai — medido: depois de um pedido de 40s, tanto gravar
+           quanto ler o contador falhavam calados e ele voltava a zero. Contar
+           antes também é o que faz a trava valer: a cota é reservada, não
+           registrada no fim.
+
+           Conta a CHAMADA, e não o sucesso: pedido que falhou no meio do
+           caminho consumiu cota do outro lado do mesmo jeito. */
+        editalIaRegistrarUso($pdo);
+
         $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/'
                       . rawurlencode($modelo) . ':generateContent');
         curl_setopt_array($ch, [
@@ -396,10 +407,6 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $falha  = curl_error($ch);
         curl_close($ch);
-
-        // Conta a chamada tenha ela dado certo ou não: cota do outro lado foi
-        // consumida do mesmo jeito.
-        editalIaRegistrarUso($pdo);
 
         if ($corpo === false || $falha !== '') {
             error_log("[edital_ia/gemini] {$modelo} curl: " . $falha);
