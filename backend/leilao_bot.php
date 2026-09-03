@@ -201,11 +201,34 @@ function leilaoBotGrupoDaLiga(PDO $pdo, string $liga): ?string
         if ($jid !== '') return $jid;
     } catch (Throwable $e) {}
 
-    // "CHAT OFF | Geral" é o da ELITE — o nome não repete a liga.
+    /* OS GRUPOS DE COMANDO JÁ SABEM DE QUE LIGA SÃO.
+       whatsapp_grupos_comando guarda a liga de cada grupo, preenchida por quem
+       liberou o bot ali — é informação declarada, não adivinhada, e por isso
+       vem antes de qualquer busca por nome.
+
+       Cada liga costuma ter dois grupos ativos (o Chat Off e o Trade Block).
+       O `LIKE '%chat%'` no ORDER BY é o que escolhe o Chat Off entre eles: o
+       anúncio é pra liga inteira acompanhar, e o Trade Block é outro assunto. */
+    try {
+        $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
+                              WHERE ativo = 1 AND UPPER(liga) = ?
+                           ORDER BY (LOWER(nome) LIKE '%chat%') DESC, id ASC
+                              LIMIT 1");
+        $st->execute([$liga]);
+        $jid = trim((string)($st->fetchColumn() ?: ''));
+        if ($jid !== '') return $jid;
+    } catch (Throwable $e) {}
+
+    /* Última tentativa: achar pelo nome entre os grupos que o bot já viu.
+       O separador varia — "Chat Off | FBA NEXT" na NEXT e na Rise, mas
+       "Chat-Off | Geral" na ELITE e "Chat-Off | FBA Rookie" na ROOKIE. Era
+       por isso que a busca antiga, que exigia "chat off" com espaço, só
+       encontrava duas das quatro ligas: as outras duas ficavam sem anúncio
+       nenhum, em silêncio. O `chat_off` cobre os dois separadores. */
     $apelido = $liga === 'ELITE' ? 'geral' : mb_strtolower($liga);
     try {
         $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_vistos
-                             WHERE LOWER(nome) LIKE '%chat off%'
+                             WHERE REPLACE(LOWER(nome), '-', ' ') LIKE '%chat off%'
                                AND LOWER(nome) LIKE ?
                              ORDER BY visto_em DESC LIMIT 1");
         $st->execute(['%' . $apelido . '%']);

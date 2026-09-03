@@ -1994,6 +1994,7 @@ if ($method === 'POST') {
                 // Vale igual pra cerimônia ao vivo e pro ajuste manual: os dois
                 // caminham por aqui, e pra quem lê no grupo é o mesmo fato.
                 loteriaBotAnunciarEscolha($pdo, $sid, $pos);
+                loteriaPushEscolha($pdo, $sid, $pos);
             }
 
             echo json_encode(['success' => true, 'reveladas' => array_values($lista)]);

@@ -13,6 +13,7 @@
  */
 
 require_once __DIR__ . '/whatsapp.php';
+require_once __DIR__ . '/push.php';       // sendPushToLeague()
 require_once __DIR__ . '/leilao_bot.php';   // leilaoBotGrupoDaLiga()
 
 /**
@@ -110,5 +111,45 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
     } catch (Throwable $e) {
         // Avisar é acessório: a loteria vale com ou sem mensagem no grupo.
         error_log('[loteria_bot] anunciar: ' . $e->getMessage());
+    }
+}
+
+/**
+ * O mesmo aviso, por push, pra quem tem time na liga.
+ *
+ * Separado do WhatsApp de propósito: são canais com falhas independentes — o
+ * bot pode estar desligado e o push funcionando, ou o contrário. Um try/catch
+ * só faria a falha de um levar o outro junto.
+ *
+ * O texto é mais curto que o do grupo: push é notificação de celular, lida de
+ * relance na tela bloqueada, e não tem onde caber parágrafo.
+ */
+function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
+{
+    try {
+        $t = loteriaBotTransmissao($pdo, $sessionId);
+        if (!$t) return;
+
+        $time = loteriaBotTimeDaPosicao($pdo, $t['ordem'], $posicao);
+        if ($time === null) return;
+
+        $total = count($t['ordem']);
+        $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];
+        $corpo  = $posicao === 1
+            ? "{$time} escolhe primeiro no draft."
+            : ($posicao === $total
+                ? "Escolha #{$posicao} — {$time}. A loteria acabou."
+                : "Escolha #{$posicao} de {$total} — {$time}");
+
+        sendPushToLeague($pdo, $t['liga'], [
+            'title'      => $titulo,
+            'body'       => $corpo,
+            'url'        => '/lottery.php?liga=' . urlencode($t['liga']),
+            // Uma chave por escolha: sem isso o celular junta os avisos e
+            // sobrescreve o anterior, e a liga só veria a última pick.
+            'primaryKey' => 'loteria_' . $sessionId . '_' . $posicao,
+        ], 'loteria');
+    } catch (Throwable $e) {
+        error_log('[loteria_bot] push: ' . $e->getMessage());
     }
 }
