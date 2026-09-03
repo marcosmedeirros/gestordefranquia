@@ -1978,9 +1978,24 @@ if ($method === 'POST') {
                 exit;
             }
             $lista = array_filter(array_map('intval', explode(',', (string)$atual)));
-            if (!in_array($pos, $lista, true)) $lista[] = $pos;
+
+            /* Só avisa o grupo quando a escolha é revelada PELA PRIMEIRA VEZ.
+               A tela chama o revelar de novo em alguns caminhos (recarregar a
+               cerimônia, reenviar), e sem isso a mesma pick seria anunciada
+               duas ou três vezes no WhatsApp. */
+            $novidade = !in_array($pos, $lista, true);
+            if ($novidade) $lista[] = $pos;
+
             $pdo->prepare('UPDATE lottery_broadcast SET reveladas = ?, atualizado_em = NOW() WHERE draft_session_id = ?')
                 ->execute([implode(',', $lista), $sid]);
+
+            if ($novidade) {
+                require_once __DIR__ . '/../backend/loteria_bot.php';
+                // Vale igual pra cerimônia ao vivo e pro ajuste manual: os dois
+                // caminham por aqui, e pra quem lê no grupo é o mesmo fato.
+                loteriaBotAnunciarEscolha($pdo, $sid, $pos);
+            }
+
             echo json_encode(['success' => true, 'reveladas' => array_values($lista)]);
             break;
         }
