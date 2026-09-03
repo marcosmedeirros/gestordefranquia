@@ -20,9 +20,10 @@ if (!$sessionUser || !isset($sessionUser['id'])) {
 }
 $userId = (int)$sessionUser['id'];
 
-$stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$userId]);
-$myTeam = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+/* timeDaTela() respeita o modo observador: sem isto o admin que troca a liga
+   na barra continuava vendo a votação da liga do próprio time. */
+require_once __DIR__ . '/../backend/observador.php';
+$myTeam = timeDaTela($pdo, $userId);
 if (!$myTeam) {
     http_response_code(404);
     echo json_encode(['success' => false, 'error' => 'Você precisa ter um time pra participar do Queridômetro.']);

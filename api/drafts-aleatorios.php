@@ -36,6 +36,10 @@ $minhasLigasAdmin = $is_admin ? array_map('strtoupper', getAdminLeagues($pdo, $u
 function ligasDoUsuarioDraft(PDO $pdo, int $userId): array
 {
     $ligas = [];
+    /* No modo observador, a liga da barra vem primeiro: sem isto o admin
+       trocava de liga e continuava vendo os drafts da liga do time dele. */
+    require_once __DIR__ . '/../backend/observador.php';
+    if (($obs = observadorLiga()) !== null) $ligas[] = $obs;
     try {
         $stmt = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
         $stmt->execute([$userId]);

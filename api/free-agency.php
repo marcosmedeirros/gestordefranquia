@@ -264,6 +264,36 @@ if (!$team && $user_id) {
     }
 }
 
+/* MODO OBSERVADOR: quem manda é a liga da barra, não a do time do admin.
+   O observador reescreve `user_league`, e é assim que as páginas obedecem sem
+   saber que ele existe. Só que aqui a liga saía do TIME — e o admin da ELITE
+   pedindo pra ver a RISE continuava recebendo a fila da ELITE.
+
+   O time também troca: com um time escolhido na barra, o cap e as propostas
+   são calculados por ele; sem escolha, o admin fica só olhando. Calcular o
+   cap do time da ELITE contra um free agent da RISE responderia "cabe" ou
+   "não cabe" sobre uma contratação que não pode existir. */
+require_once __DIR__ . '/../backend/observador.php';
+if (($__obsLiga = observadorLiga()) !== null) {
+    $team_league = $__obsLiga;
+    $__obsTime = observadorTimeId();
+    if ($__obsTime) {
+        $st = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used,
+                                    COALESCE(waivers_extra, 0) AS waivers_extra, fa_signings_used
+                               FROM teams WHERE id = ? AND league = ?');
+        $st->execute([$__obsTime, $__obsLiga]);
+        if ($t = $st->fetch(PDO::FETCH_ASSOC)) {
+            $team = $t;
+            $team_id = (int)$t['id'];
+            $team_coins = (int)$t['moedas'];
+        }
+    } elseif (($team['league'] ?? null) !== $__obsLiga) {
+        $team = null;
+        $team_id = null;
+        $team_coins = 0;
+    }
+}
+
 if ($team_id && $team_league) {
     syncFaSeasonCounters($pdo, $team_id, $team_league);
 }

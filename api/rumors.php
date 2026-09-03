@@ -23,9 +23,11 @@ function jsonErr($msg, $code = 400) {
 }
 
 function getUserTeam(PDO $pdo, int $userId) {
-    $stmt = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
-    $stmt->execute([$userId]);
-    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    /* timeDaTela() e não a consulta crua: no modo observador o admin está
+       vendo OUTRA liga, e buscar pelo user_id devolvia o time dele — os
+       rumores continuavam saindo da liga do time, não da liga da barra. */
+    require_once __DIR__ . '/../backend/observador.php';
+    return timeDaTela($pdo, $userId);
 }
 
 if ($method === 'GET') {

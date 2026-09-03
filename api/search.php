@@ -20,11 +20,13 @@ if (mb_strlen($q) < 2) {
     exit;
 }
 
-// A liga do TIME manda: o cadastro do usuário pode estar desatualizado em
-// relação à franquia que ele controla hoje.
-$stmtLg = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
-$stmtLg->execute([(int)$user['id']]);
-$userLeague = $stmtLg->fetchColumn() ?: ($user['league'] ?? '');
+/* A liga do TIME manda: o cadastro do usuário pode estar desatualizado em
+   relação à franquia que ele controla hoje.
+   Menos no modo observador — aí manda a liga da barra, senão o admin que
+   trocou pra RISE buscava e só achava gente da liga do próprio time. */
+require_once __DIR__ . '/../backend/observador.php';
+$timeDaBusca = timeDaTela($pdo, (int)$user['id']);
+$userLeague = $timeDaBusca['league'] ?? ($user['league'] ?? '');
 
 $like   = '%' . $q . '%';
 $starts = $q . '%';
