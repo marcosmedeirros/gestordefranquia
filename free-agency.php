@@ -925,6 +925,49 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 ══════════════════════════════════════ -->
 
 <!-- Modal: pedir um jogador que não está na lista -->
+<!-- CORRIGIR A FICHA DE UM DISPENSADO.
+     O cadastro é de quando ele entrou na fila; dentro do 2K ele continuou
+     evoluindo. Sem isto o GM cadastrava um segundo jogador com o mesmo nome, e
+     a liga ficava com dois — que é o que se vê na lista quando acontece. -->
+<div class="modal fade" id="modalCorrigirFicha" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Corrigir ficha</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formCorrigirFicha">
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--text-3);margin:0 0 16px">
+                        Ajuste para o que aparece no jogo. Vale para todo mundo da liga —
+                        o custo no cap é recalculado a partir do OVR.
+                    </p>
+                    <div class="fgrid">
+                        <div class="field" style="grid-column: span 6;">
+                            <label for="corrigirNome">Nome</label>
+                            <input type="text" id="corrigirNome" autocomplete="off" spellcheck="false" required>
+                        </div>
+                        <div class="field" style="grid-column: span 3;">
+                            <label for="corrigirIdade">Idade</label>
+                            <input type="number" id="corrigirIdade" min="18" max="45" required>
+                        </div>
+                        <div class="field" style="grid-column: span 3;">
+                            <label for="corrigirOvr">OVR</label>
+                            <input type="number" id="corrigirOvr" min="40" max="99" required>
+                        </div>
+                    </div>
+                    <div id="corrigirErro" hidden
+                         style="margin-top:14px;font-size:13px;color:var(--red)"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="corrigirSalvar">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalJogadorNaoEsta" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">

@@ -2528,12 +2528,17 @@ function closeWithoutWinner(PDO $pdo, array $body): void
  */
 function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $minhaLiga): void
 {
-    $id  = (int)($body['free_agent_id'] ?? 0);
-    $ovr = isset($body['ovr']) ? (int)$body['ovr'] : null;
-    $age = isset($body['age']) ? (int)$body['age'] : null;
+    $id   = (int)($body['free_agent_id'] ?? 0);
+    $ovr  = isset($body['ovr']) ? (int)$body['ovr'] : null;
+    $age  = isset($body['age']) ? (int)$body['age'] : null;
+    $nome = isset($body['nome']) ? trim((string)$body['nome']) : null;
 
-    if (!$id)                       jsonError('Jogador não informado');
-    if ($ovr === null && $age === null) jsonError('Informe o OVR, a idade, ou os dois');
+    if (!$id) jsonError('Jogador não informado');
+    if ($ovr === null && $age === null && $nome === null) jsonError('Informe o que mudou');
+    /* O nome e o que identifica o atleta na lista: apagar deixaria um card sem
+       dono, e um nome de uma letra e erro de digitacao, nao correcao. */
+    if ($nome !== null && mb_strlen($nome) < 2) jsonError('O nome não pode ficar vazio');
+    if ($nome !== null && mb_strlen($nome) > 120) jsonError('Nome longo demais');
     if ($ovr !== null && ($ovr < 40 || $ovr > 99)) jsonError('OVR precisa ficar entre 40 e 99');
     if ($age !== null && ($age < 18 || $age > 45)) jsonError('Idade precisa ficar entre 18 e 45');
 
@@ -2550,10 +2555,12 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
         jsonError('Esse jogador já saiu da fila — a ficha dele não muda mais');
     }
 
-    $novoOvr = $ovr ?? (int)$fa['overall'];
-    $novaAge = $age ?? (int)$fa['age'];
-    if ($novoOvr === (int)$fa['overall'] && $novaAge === (int)$fa['age']) {
-        jsonSuccess(['mudou' => false, 'ovr' => $novoOvr, 'age' => $novaAge]);
+    $novoOvr  = $ovr  ?? (int)$fa['overall'];
+    $novaAge  = $age  ?? (int)$fa['age'];
+    $novoNome = $nome ?? (string)$fa['name'];
+    if ($novoOvr === (int)$fa['overall'] && $novaAge === (int)$fa['age']
+        && $novoNome === (string)$fa['name']) {
+        jsonSuccess(['mudou' => false, 'ovr' => $novoOvr, 'age' => $novaAge, 'nome' => $novoNome]);
     }
 
     /* O registro nasce junto com a primeira correção: a tabela é pequena e
@@ -2566,21 +2573,30 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
             user_id INT NOT NULL,
             ovr_antes INT NULL, ovr_depois INT NULL,
             age_antes INT NULL, age_depois INT NULL,
+            nome_antes VARCHAR(120) NULL, nome_depois VARCHAR(120) NULL,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             KEY idx_fa (free_agent_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        // A tabela pode ter nascido antes de o nome ser editável, e o CREATE
+        // acima não mexe em tabela que já existe.
+        if (!$pdo->query("SHOW COLUMNS FROM free_agent_correcoes LIKE 'nome_antes'")->fetch()) {
+            $pdo->exec("ALTER TABLE free_agent_correcoes
+                        ADD COLUMN nome_antes VARCHAR(120) NULL,
+                        ADD COLUMN nome_depois VARCHAR(120) NULL");
+        }
     } catch (Throwable $e) {
         error_log('[fa] tabela de correcoes: ' . $e->getMessage());
     }
 
-    $pdo->prepare('UPDATE free_agents SET overall = ?, age = ? WHERE id = ?')
-        ->execute([$novoOvr, $novaAge, $id]);
+    $pdo->prepare('UPDATE free_agents SET overall = ?, age = ?, name = ? WHERE id = ?')
+        ->execute([$novoOvr, $novaAge, $novoNome, $id]);
 
     try {
         $pdo->prepare('INSERT INTO free_agent_correcoes
-                       (free_agent_id, user_id, ovr_antes, ovr_depois, age_antes, age_depois)
-                       VALUES (?,?,?,?,?,?)')
-            ->execute([$id, $userId, (int)$fa['overall'], $novoOvr, (int)$fa['age'], $novaAge]);
+                       (free_agent_id, user_id, ovr_antes, ovr_depois, age_antes, age_depois, nome_antes, nome_depois)
+                       VALUES (?,?,?,?,?,?,?,?)')
+            ->execute([$id, $userId, (int)$fa['overall'], $novoOvr, (int)$fa['age'], $novaAge,
+                       (string)$fa['name'], $novoNome]);
     } catch (Throwable $e) {
         error_log('[fa] registrar correcao: ' . $e->getMessage());
     }
@@ -2589,6 +2605,6 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
         'mudou' => true,
         'ovr'   => $novoOvr,
         'age'   => $novaAge,
-        'nome'  => $fa['name'],
+        'nome'  => $novoNome,
     ]);
 }

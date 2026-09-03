@@ -1201,51 +1201,69 @@ function renderWaiversList(waivers) {
     _applyFaTableLabels(container);
 }
 
+/* ── CORRIGIR A FICHA DE UM DISPENSADO ────────────────────────────────
+   O cadastro é de quando o atleta entrou na fila; dentro do 2K ele continuou
+   evoluindo. Sem um jeito de acertar, o GM cadastrava um SEGUNDO jogador com
+   o mesmo nome — e a liga ficava com dois iguais, um fantasma, e ninguém
+   sabia em qual dar lance. */
 
-/**
- * CORRIGIR OVR E IDADE DE UM FREE AGENT.
- *
- * O cadastro do jogador é de quando ele entrou na fila; dentro do 2K ele
- * continuou evoluindo. Sem um jeito de acertar isso, o GM cadastrava um
- * SEGUNDO jogador com o mesmo nome — e a liga ficava com dois iguais, um
- * fantasma, e ninguém sabia em qual dar lance.
- *
- * Vem preenchido com o que está no app: quase sempre só um dos dois campos
- * muda, e redigitar o outro é convite pra errar.
- */
-async function corrigirFicha(dados) {
-    const id = Number(dados.corrigir);
-    const ovrAtual = Number(dados.ovr);
-    const ageAtual = Number(dados.age);
+let corrigirId = null;
 
-    const ovrTxt = prompt(`${dados.nome}\n\nOVR que aparece no jogo:`, ovrAtual);
-    if (ovrTxt === null) return;
-    const ageTxt = prompt(`${dados.nome}\n\nIdade que aparece no jogo:`, ageAtual);
-    if (ageTxt === null) return;
-
-    const ovr = parseInt(ovrTxt, 10);
-    const age = parseInt(ageTxt, 10);
-    if (!Number.isFinite(ovr) || !Number.isFinite(age)) {
-        alert('OVR e idade precisam ser números.');
-        return;
-    }
-    if (ovr === ovrAtual && age === ageAtual) return;   // nada mudou
-
-    try {
-        const r = await fetch('api/free-agency.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: id, ovr, age })
-        });
-        const d = await r.json();
-        if (!d.success) {
-            alert(d.error || 'Não deu pra corrigir.');
-            return;
-        }
-        // Recarrega a lista: o custo no cap é calculado a partir do OVR, então
-        // mudar o número muda quem cabe no time — e o card precisa refletir isso.
-        if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
-    } catch (e) {
-        alert('Não deu pra corrigir agora.');
-    }
+function corrigirFicha(dados) {
+    corrigirId = Number(dados.corrigir);
+    // Vem preenchido com o que está no app: quase sempre só um campo muda, e
+    // redigitar o resto é convite pra errar.
+    document.getElementById('corrigirNome').value  = dados.nome || '';
+    document.getElementById('corrigirIdade').value = dados.age || '';
+    document.getElementById('corrigirOvr').value   = dados.ovr || '';
+    const erro = document.getElementById('corrigirErro');
+    erro.hidden = true;
+    erro.textContent = '';
+    new bootstrap.Modal(document.getElementById('modalCorrigirFicha')).show();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('formCorrigirFicha');
+    if (!form) return;
+
+    form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        if (!corrigirId) return;
+
+        const erro = document.getElementById('corrigirErro');
+        const botao = document.getElementById('corrigirSalvar');
+        const mostrarErro = (msg) => { erro.textContent = msg; erro.hidden = false; };
+        erro.hidden = true;
+
+        const nome = document.getElementById('corrigirNome').value.trim();
+        const age  = parseInt(document.getElementById('corrigirIdade').value, 10);
+        const ovr  = parseInt(document.getElementById('corrigirOvr').value, 10);
+        if (!nome)                mostrarErro('O nome não pode ficar vazio.');
+        else if (!Number.isFinite(age) || age < 18 || age > 45) mostrarErro('Idade entre 18 e 45.');
+        else if (!Number.isFinite(ovr) || ovr < 40 || ovr > 99) mostrarErro('OVR entre 40 e 99.');
+        if (!erro.hidden) return;
+
+        botao.disabled = true;
+        const rotulo = botao.textContent;
+        botao.textContent = 'Salvando…';
+        try {
+            const r = await fetch('api/free-agency.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: corrigirId, nome, ovr, age })
+            });
+            const d = await r.json();
+            if (!d.success) { mostrarErro(d.error || 'Não deu pra corrigir.'); return; }
+
+            bootstrap.Modal.getInstance(document.getElementById('modalCorrigirFicha'))?.hide();
+            // Recarrega: o custo no cap sai do OVR, então mudar o número muda
+            // quem cabe no elenco — e o card precisa refletir isso.
+            if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+        } catch (e) {
+            mostrarErro('Não deu pra corrigir agora.');
+        } finally {
+            botao.disabled = false;
+            botao.textContent = rotulo;
+        }
+    });
+});
