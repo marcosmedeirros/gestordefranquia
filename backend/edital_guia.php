@@ -253,9 +253,16 @@ function editalCobertura(PDO $pdo): array
     $out = [];
     foreach (EDITAL_LIGAS as $liga) {
         $txt = editalTexto($pdo, $liga);
+        // Liga que lê o edital de outra não pode aparecer como se tivesse o
+        // seu: o número de artigos é o mesmo, e sem dizer de quem é o texto a
+        // tela afirmaria um documento que não existe.
+        $herda = (editalTextoProprio($pdo, $liga) === null && $txt !== null)
+            ? (EDITAL_HERDA_DE[$liga] ?? null) : null;
+
         $out[$liga] = $txt === null
-            ? ['ok' => false, 'artigos' => 0, 'chars' => 0]
-            : ['ok' => true, 'artigos' => count(editalArtigos($txt)), 'chars' => mb_strlen($txt)];
+            ? ['ok' => false, 'artigos' => 0, 'chars' => 0, 'herda' => null]
+            : ['ok' => true, 'artigos' => count(editalArtigos($txt)),
+               'chars' => mb_strlen($txt), 'herda' => $herda];
     }
     return $out;
 }
@@ -272,16 +279,30 @@ function editalDivergencias(PDO $pdo): array
 {
     $itens = [];
 
-    // 1. RISE sem edital nenhum.
+    // 1. Liga sem edital, ou lendo o de outra.
     $cob = editalCobertura($pdo);
-    if (empty($cob['RISE']['ok'])) {
-        $itens[] = [
-            'grave' => true,
-            'titulo' => 'A RISE não tem edital',
-            'texto'  => 'ELITE, NEXT e ROOKIE têm PDF cadastrado; a RISE não tem nenhum. '
-                      . 'Os GMs da RISE hoje não têm documento de regra pra consultar, e o bot '
-                      . 'não consegue responder dúvida daquela liga.',
-        ];
+    foreach (EDITAL_LIGAS as $liga) {
+        if (empty($cob[$liga]['ok'])) {
+            $itens[] = [
+                'grave' => true,
+                'titulo' => "A {$liga} não tem edital",
+                'texto'  => "Nenhum PDF cadastrado e nenhuma liga de onde herdar. Os GMs da "
+                          . "{$liga} não têm documento de regra pra consultar, e o bot não "
+                          . 'consegue responder dúvida daquela liga.',
+            ];
+            continue;
+        }
+        if (!empty($cob[$liga]['herda'])) {
+            $itens[] = [
+                'grave' => false,
+                'titulo' => "A {$liga} se rege pelo edital da {$cob[$liga]['herda']}",
+                'texto'  => "A {$liga} não tem documento próprio: tela e bot respondem com o "
+                          . "edital da {$cob[$liga]['herda']}, e dizem de quem é o texto. "
+                          . 'Onde ele cita o nome da outra liga, a regra vale para as duas. '
+                          . "No dia em que a {$liga} tiver o seu, basta subir o PDF — o "
+                          . 'próprio passa a valer na hora.',
+            ];
+        }
     }
 
     // 2. Numeração repetida dentro do mesmo edital.
@@ -293,16 +314,24 @@ function editalDivergencias(PDO $pdo): array
         $rep  = array_keys(array_filter(array_count_values($nums), fn($n) => $n > 1));
         if ($rep) {
             sort($rep);
+            /* Deixou de ser bloqueio: os dois artigos são regra de verdade, em
+               capítulos diferentes, e apagar um perderia a regra. O guia e o
+               bot passaram a mostrar TODAS as ocorrências, com o capítulo de
+               cada uma — o que sobra é a citação por número ser ambígua, e
+               isso só o PDF reeditado resolve. */
             $itens[] = [
-                'grave' => true,
+                'grave' => false,
                 'titulo' => count($rep) === 1
-                    ? "Artigo repetido no edital da {$liga}"
-                    : "Artigos repetidos no edital da {$liga}",
+                    ? "Número de artigo repetido no edital da {$liga}"
+                    : "Números de artigo repetidos no edital da {$liga}",
                 'texto'  => (count($rep) === 1
                               ? 'O número ' . $rep[0] . ' aparece'
                               : 'Os números ' . implode(', ', $rep) . ' aparecem')
-                          . ' mais de uma vez, com conteúdos diferentes. Citar "Art. ' . $rep[0]
-                          . ' do edital da ' . $liga . '" hoje é ambíguo — existem dois.',
+                          . ' duas vezes, em capítulos diferentes e com conteúdos diferentes — '
+                          . 'as duas regras valem. Aqui e no bot as duas aparecem, cada uma com '
+                          . 'o seu capítulo. O que continua ambíguo é citar de viva voz: '
+                          . '"Art. ' . $rep[0] . ' da ' . $liga . '" pode ser qualquer uma das '
+                          . 'duas, e só a renumeração do PDF resolve.',
             ];
         }
 

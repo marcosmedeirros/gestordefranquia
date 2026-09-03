@@ -394,6 +394,16 @@ function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
         return "📕 A *{$liga}* ainda não tem edital cadastrado no site.";
     }
 
+    /* Quando a liga lê o edital de outra, isso é dito na resposta. Responder
+       calado seria apresentar o documento da ROOKIE como se fosse o da RISE, e
+       o texto cita o nome da outra liga aqui e ali — quem lê ia estranhar sem
+       entender por quê. */
+    $emprestado = (editalTextoProprio($pdo, $liga) === null)
+        ? (EDITAL_HERDA_DE[$liga] ?? null) : null;
+    $rodapeEmprestado = $emprestado
+        ? "\n\n_A {$liga} não tem edital próprio: isto é o edital da {$emprestado}, que responde por ela._"
+        : '';
+
     // Sem pergunta: o índice. É o "quais comandos existem" do edital.
     if ($arg === '') {
         $caps = editalCapitulos($texto);
@@ -412,19 +422,40 @@ function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
         $linhas[] = '/edital quais são as punições';
         $linhas[] = '';
         $linhas[] = '_Respondo com base no edital e digo o artigo._';
-        return implode("\n", $linhas);
+        return implode("\n", $linhas) . $rodapeEmprestado;
     }
 
     // Número puro é pedido de artigo, e não precisa de modelo nenhum.
     if (preg_match('/^art\.?\s*(\d{1,3})$|^(\d{1,3})$/iu', $arg, $m)) {
         $num = (int)($m[1] ?: $m[2]);
+
+        /* TODAS as ocorrências, não a primeira.
+           O edital da ELITE usa o mesmo número duas vezes em oito artigos: o
+           71, por exemplo, é uma regra de janela de mercado num capítulo e uma
+           regra de punição em outro. Parando na primeira, a segunda regra não
+           existia pra quem pergunta pelo bot — e é a que fala de perder pick. */
+        $achados = [];
         foreach (editalArtigos($texto) as $a) {
-            if ($a['num'] !== $num) continue;
-            $corpo = mb_substr($a['texto'], 0, 1200);
-            return "📕 *EDITAL DA {$liga}*\n" . editalTituloLegivel($a['capitulo'])
-                 . "\n\n" . $corpo . (mb_strlen($a['texto']) > 1200 ? "\n\n_(cortado)_" : '');
+            if ($a['num'] === $num) $achados[] = $a;
         }
-        return "Não achei o Art. {$num} no edital da {$liga}.";
+        if (!$achados) return "Não achei o Art. {$num} no edital da {$liga}.";
+
+        // Com mais de um, cada um fica menor pra mensagem não virar um muro.
+        $limite = count($achados) > 1 ? 900 : 1200;
+        $partes = [];
+        foreach ($achados as $i => $a) {
+            $corpo = mb_substr($a['texto'], 0, $limite);
+            $cab = editalTituloLegivel($a['capitulo']);
+            if (count($achados) > 1) $cab = '*' . ($i + 1) . ' de ' . count($achados) . '* · ' . $cab;
+            $partes[] = $cab . "\n\n" . $corpo . (mb_strlen($a['texto']) > $limite ? "\n_(cortado)_" : '');
+        }
+
+        $aviso = count($achados) > 1
+            ? "\n_O edital da {$liga} tem " . count($achados) . " artigos com o número {$num}, "
+              . "em capítulos diferentes. Os dois valem._"
+            : '';
+
+        return "📕 *EDITAL DA {$liga}*{$aviso}\n\n" . implode("\n\n———\n\n", $partes) . $rodapeEmprestado;
     }
 
     require_once __DIR__ . '/../backend/edital_ia.php';
@@ -436,7 +467,7 @@ function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
     $r = editalIaPerguntar($pdo, $liga, $arg);
     if (!$r['ok']) return '📕 ' . $r['erro'];
 
-    return "📕 *EDITAL DA {$liga}*\n\n" . $r['resposta'];
+    return "📕 *EDITAL DA {$liga}*\n\n" . $r['resposta'] . $rodapeEmprestado;
 }
 
 function wcAjuda(): string

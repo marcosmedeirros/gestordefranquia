@@ -251,7 +251,33 @@ function editalGarantirColuna(PDO $pdo): void
  * A extração sob demanda acontece uma vez por edital: da segunda chamada em
  * diante sai direto do banco.
  */
+/**
+ * Ligas que se regem pelo edital de outra.
+ *
+ * A RISE nunca teve documento próprio, e hoje quem responde por ela é o edital
+ * da ROOKIE. Registrar isso aqui é diferente de copiar o PDF pra ela: a liga
+ * continua sem edital PRÓPRIO — o que aparece na tela e no bot é o da ROOKIE,
+ * dito com todas as letras.
+ *
+ * Some daqui no dia em que a RISE tiver o seu.
+ */
+const EDITAL_HERDA_DE = ['RISE' => 'ROOKIE'];
+
 function editalTexto(PDO $pdo, string $league): ?string
+{
+    $league = strtoupper(trim($league));
+
+    // O próprio primeiro: subir o PDF da liga passa a valer na hora, sem que
+    // ninguém precise lembrar de desfazer a herança.
+    $proprio = editalTextoProprio($pdo, $league);
+    if ($proprio !== null) return $proprio;
+
+    $herda = EDITAL_HERDA_DE[$league] ?? null;
+    return $herda !== null ? editalTextoProprio($pdo, $herda) : null;
+}
+
+/** O edital cadastrado PARA esta liga, sem herança nenhuma. */
+function editalTextoProprio(PDO $pdo, string $league): ?string
 {
     $league = strtoupper(trim($league));
 

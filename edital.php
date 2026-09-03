@@ -38,7 +38,11 @@ $divergencias = editalDivergencias($pdo);
 $porAssunto = [];
 foreach (array_keys($assuntos) as $k) $porAssunto[$k] = editalAssuntoAgrupado($pdo, $k);
 
-$totalArtigos = array_sum(array_column($cobertura, 'artigos'));
+/* Só os editais que existem: a liga que lê o de outra não acrescenta artigo
+   nenhum ao acervo, e somá-la contava os mesmos 78 duas vezes. */
+$totalArtigos = array_sum(array_column(
+    array_filter($cobertura, fn($c) => empty($c['herda'])), 'artigos'
+));
 $corDaLiga = ['ELITE' => '#ef4444', 'NEXT' => '#3b82f6', 'RISE' => '#22c55e', 'ROOKIE' => '#a855f7'];
 $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 ?>
@@ -159,7 +163,12 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     <?php foreach ($cobertura as $liga => $c): ?>
       <span class="lg <?= $c['ok'] ? '' : 'sem' ?>">
         <span class="tag" style="background:<?= $corDaLiga[$liga] ?>22;color:<?= $corDaLiga[$liga] ?>"><?= $esc($liga) ?></span>
-        <?php if ($c['ok']): ?>
+        <?php if ($c['ok'] && !empty($c['herda'])): ?>
+          <!-- Não pode parecer que a liga tem documento próprio: o número de
+               artigos é o mesmo, e só o rótulo separa uma coisa da outra. -->
+          <b><?= (int)$c['artigos'] ?></b> artigos
+          <span style="color:var(--txt-3)">· do edital da <?= $esc($c['herda']) ?></span>
+        <?php elseif ($c['ok']): ?>
           <b><?= (int)$c['artigos'] ?></b> artigos
         <?php else: ?>
           <span style="color:var(--txt-3)">sem edital</span>
