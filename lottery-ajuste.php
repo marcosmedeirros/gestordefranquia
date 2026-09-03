@@ -79,6 +79,8 @@ select{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--borde
   color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px}
 select:focus{outline:none;border-color:var(--red)}
 select.preenchido{border-color:var(--green);color:#fff}
+.tag-ar{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--green);
+  border:1px solid var(--green);border-radius:6px;padding:2px 7px;flex-shrink:0;opacity:.85}
 button{font-family:inherit;cursor:pointer;border-radius:10px;border:none;transition:filter .15s}
 .btn{background:var(--red);color:#fff;padding:12px 24px;font-size:14px;font-weight:700;display:inline-flex;align-items:center;gap:8px}
 .btn:hover:not(:disabled){filter:brightness(1.12)}
@@ -127,7 +129,8 @@ button{font-family:inherit;cursor:pointer;border-radius:10px;border:none;transit
 
   <div class="rodape">
     A revelação vai da última escolha para a primeira, então normalmente as que já saíram são as de número mais alto.
-    Publicar de novo substitui o que estiver no ar.
+    As que já estão no ar voltam preenchidas e marcadas: publicar de novo <b>acrescenta</b> à cerimônia,
+    sem mexer nelas e sem reanunciá-las no grupo.
   </div>
 
   <?php endif; ?>
@@ -139,6 +142,7 @@ const SESSAO = <?= (int)$sessao['id'] ?>;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let elegiveis = [];
+const jaNoAr = new Set();   // posições que a liga já viu — não reanunciar
 
 function mostrar(texto, tipo){
   const m = $('msg');
@@ -158,6 +162,7 @@ function montar(){
         <option value="">— ainda não saiu —</option>
         ${elegiveis.map(t => `<option value="${t.team_id}">${esc(t.rotulo || t.team_name)}</option>`).join('')}
       </select>
+      <span class="tag-ar" data-ar="${pos}" hidden>no ar</span>
     </div>`;
   }).join('');
 }
@@ -197,6 +202,41 @@ async function carregar(){
     rotulo: dono[t.team_id] ? `${t.team_name} — a pick é do ${dono[t.team_id]}` : t.team_name
   }));
   montar();
+  await marcarOQueJaEsta();
+}
+
+/* O QUE JÁ ESTÁ NO AR VOLTA PREENCHIDO.
+   Publicar sorteia de novo a partir do que os selects dizem — então uma tela
+   que nasce vazia diz "nada saiu ainda" e as escolhas anteriores somem, mesmo
+   as que a liga já viu. Quem chega aqui pra registrar a 13ª quer ACRESCENTAR
+   uma, não recomeçar a cerimônia: as anteriores voltam marcadas e seguem
+   junto no próximo publicar. */
+async function marcarOQueJaEsta(){
+  try {
+    const res = await fetch('/api/draft.php?action=lottery_transmissao&draft_session_id=' + SESSAO);
+    const d = await res.json();
+    if (!d.success || !d.no_ar || !(d.reveladas || []).length) return;
+
+    d.reveladas.forEach(pos => {
+      const item = (d.ordem || [])[pos - 1];
+      if (!item) return;
+      // A lista é dos donos da bolinha; numa pick trocada quem escolhe é outro.
+      const bolinha = item.origin_team_id || item.team_id;
+      const sel = document.querySelector(`select[data-pos="${pos}"]`);
+      if (!sel || !bolinha) return;
+      sel.value = String(bolinha);
+      if (sel.value) {
+        aoEscolher(sel);
+        const tag = document.querySelector(`[data-ar="${pos}"]`);
+        if (tag) tag.hidden = false;
+        jaNoAr.add(pos);
+      }
+    });
+  } catch (e) {
+    // Não travar o registro por causa disso: no pior caso a tela volta vazia,
+    // que é como era antes.
+    console.warn('não deu pra ler o que está no ar', e);
+  }
 }
 
 async function publicar(){
@@ -229,11 +269,15 @@ async function publicar(){
     const t = await r2.json();
     if (!t.success) throw new Error(t.error || 'falha ao publicar');
 
+    /* As que já estavam no ar vão silenciosas: a liga já as viu, e o
+       re-sorteio acima apagou o registro que impediria o reanúncio. */
     for (const pos of Object.keys(jaSaiu)) {
       await fetch('/api/draft.php', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'lottery_revelar', draft_session_id: SESSAO, position: parseInt(pos, 10) })
+        body: JSON.stringify({ action:'lottery_revelar', draft_session_id: SESSAO,
+                               position: parseInt(pos, 10), silencioso: jaNoAr.has(parseInt(pos, 10)) })
       });
+      jaNoAr.add(parseInt(pos, 10));
     }
 
     const n = Object.keys(jaSaiu).length;

@@ -2037,8 +2037,15 @@ if ($method === 'POST') {
                A tela chama o revelar de novo em alguns caminhos (recarregar a
                cerimônia, reenviar), e sem isso a mesma pick seria anunciada
                duas ou três vezes no WhatsApp. */
-            $novidade = !in_array($pos, $lista, true);
-            if ($novidade) $lista[] = $pos;
+            $inedita  = !in_array($pos, $lista, true);
+            if ($inedita) $lista[] = $pos;
+            $novidade = $inedita;
+
+            /* O painel de ajuste republica: sortear de novo zera as reveladas,
+               e as escolhas que já estavam no ar voltam parecendo inéditas.
+               Sem isto, registrar a 13ª reanunciaria 14, 15 e 16 no grupo.
+               Quem chama diz quais dessas já são conhecidas da liga. */
+            if (!empty($data['silencioso'])) $novidade = false;
 
             $pdo->prepare('UPDATE lottery_broadcast SET reveladas = ?, atualizado_em = NOW() WHERE draft_session_id = ?')
                 ->execute([implode(',', $lista), $sid]);
@@ -2052,8 +2059,12 @@ if ($method === 'POST') {
 
                Grava só o que JÁ FOI REVELADO. As posições que ainda estão na
                urna continuam fora do banco — publicá-las adiantaria o resultado
-               pra quem consultasse a API no meio da cerimônia. */
-            if ($novidade) {
+               pra quem consultasse a API no meio da cerimônia.
+
+               Grava mesmo quando o anúncio é silenciado: calar o grupo é
+               sobre não repetir a notícia, não sobre deixar a pick de fora
+               do draft. */
+            {
                 try {
                     $tr = $pdo->prepare('SELECT ordem FROM lottery_broadcast WHERE draft_session_id = ?');
                     $tr->execute([$sid]);
@@ -2086,7 +2097,9 @@ if ($method === 'POST') {
                     // a revelação já está gravada em `reveladas` acima.
                     error_log('[lottery_revelar] gravar vaga: ' . $e->getMessage());
                 }
+            }
 
+            if ($novidade) {
                 require_once __DIR__ . '/../backend/loteria_bot.php';
                 // Vale igual pra cerimônia ao vivo e pro ajuste manual: os dois
                 // caminham por aqui, e pra quem lê no grupo é o mesmo fato.
