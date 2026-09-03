@@ -295,12 +295,12 @@ function editalIaPerguntarGemini(string $league, string $edital, string $pergunt
        "tenta de novo em um minuto" mandaria a pessoa insistir à toa até o dia
        seguinte. */
     if ($status === 429) {
-        error_log('[edital_ia/gemini] 429: ' . mb_substr((string)$corpo, 0, 300));
+        error_log('[edital_ia/gemini] 429: ' . editalIaSemSegredo((string)$corpo));
         return $erro('O limite de consultas de hoje acabou. Tenta mais tarde, '
                    . 'ou pergunta pra organização.');
     }
     if ($status !== 200 || !is_array($j)) {
-        error_log('[edital_ia/gemini] http ' . $status . ': ' . mb_substr((string)$corpo, 0, 400));
+        error_log('[edital_ia/gemini] http ' . $status . ': ' . editalIaSemSegredo((string)$corpo));
         return $erro('Não consegui consultar o edital agora. Tenta de novo em um minuto.');
     }
 
@@ -325,4 +325,19 @@ function editalIaPerguntarGemini(string $league, string $edital, string $pergunt
     }
 
     return ['ok' => true, 'resposta' => $texto, 'erro' => null, 'uso' => $j['usageMetadata'] ?? null];
+}
+
+/**
+ * O corpo do erro sem a chave dentro.
+ *
+ * O Google DEVOLVE a chave na mensagem de erro ("Consumer 'api_key:AQ...' has
+ * been suspended"), e o log de erro do site nao e lugar de segredo: quem tem
+ * acesso ao log passa a ter a chave. Some tambem o que parecer chave em
+ * qualquer outro formato.
+ */
+function editalIaSemSegredo(string $texto, int $limite = 400): string
+{
+    $texto = preg_replace("/(api_key:)\s*\S+/i", "$1[oculta]", $texto);
+    $texto = preg_replace("/\b(AIza|AQ\.)[A-Za-z0-9._\-]{10,}/", "[chave oculta]", $texto);
+    return mb_substr($texto, 0, $limite);
 }
