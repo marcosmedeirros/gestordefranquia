@@ -948,7 +948,12 @@ function viaTag(o){
      alguém de quem ela não veio. O selo diz o que a vaga é. */
   const tipo = (o && (o.swap_lado || o.swap_tipo) || '').toUpperCase();
   if (tipo === 'SB' || tipo === 'SW') {
-    const outro = o.swap_par_nome || o.swap_com;
+    /* Numa ordem antiga (transmitida antes de existir `swap_com_id`) o par não
+       é resolvido e sobra o `swap_com`, que é a ORIGEM da pick do outro lado —
+       e nessa vaga costuma ser o próprio time da linha. "Calgary Mooses · SWAP
+       SW · Calgary Mooses" não diz nada: melhor só o lado. */
+    let outro = o.swap_par_nome || o.swap_com;
+    if (outro && o.team_name && outro.trim() === String(o.team_name).trim()) outro = null;
     const par = outro ? ' · ' + esc(outro) : '';
     return `<span class="via-badge" title="SWAP ${esc(tipo)}${par}">🔁 SWAP ${esc(tipo)}${par}</span>`;
   }
