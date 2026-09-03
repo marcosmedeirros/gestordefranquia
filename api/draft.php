@@ -2043,7 +2043,50 @@ if ($method === 'POST') {
             $pdo->prepare('UPDATE lottery_broadcast SET reveladas = ?, atualizado_em = NOW() WHERE draft_session_id = ?')
                 ->execute([implode(',', $lista), $sid]);
 
+            /* A ESCOLHA REVELADA VIRA VAGA NO DRAFT NA HORA.
+               Antes ela vivia só em `lottery_broadcast.reveladas`, que é
+               exibição — a ordem de verdade só nascia no "Confirmar e aplicar",
+               lá no fim. Enquanto isso, qualquer re-sorteio zerava as reveladas
+               e o que já tinha saído sumia: era preciso relançar tudo no painel
+               de ajuste, e sumia de novo.
+
+               Grava só o que JÁ FOI REVELADO. As posições que ainda estão na
+               urna continuam fora do banco — publicá-las adiantaria o resultado
+               pra quem consultasse a API no meio da cerimônia. */
             if ($novidade) {
+                try {
+                    $tr = $pdo->prepare('SELECT ordem FROM lottery_broadcast WHERE draft_session_id = ?');
+                    $tr->execute([$sid]);
+                    $ordemAr = json_decode((string)$tr->fetchColumn(), true);
+                    $item = is_array($ordemAr) ? ($ordemAr[$pos - 1] ?? null) : null;
+
+                    // `team_id` é quem escolhe; `origin_team_id` é de quem é a
+                    // vaga — a distinção que a pick usa pra se ligar a ela.
+                    $quemEscolhe = is_array($item) ? (int)($item['team_id'] ?? 0) : (int)$item;
+                    $daVaga = is_array($item) ? (int)($item['origin_team_id'] ?? $quemEscolhe) : $quemEscolhe;
+
+                    if ($quemEscolhe > 0) {
+                        $ex = $pdo->prepare('SELECT id FROM draft_order
+                                              WHERE draft_session_id = ? AND round = 1 AND pick_position = ?');
+                        $ex->execute([$sid, $pos]);
+                        $vagaId = (int)($ex->fetchColumn() ?: 0);
+
+                        if ($vagaId > 0) {
+                            $pdo->prepare('UPDATE draft_order SET team_id = ?, original_team_id = ? WHERE id = ?')
+                                ->execute([$quemEscolhe, $daVaga ?: $quemEscolhe, $vagaId]);
+                        } else {
+                            $pdo->prepare('INSERT INTO draft_order
+                                (draft_session_id, round, pick_position, team_id, original_team_id)
+                                VALUES (?, 1, ?, ?, ?)')
+                                ->execute([$sid, $pos, $quemEscolhe, $daVaga ?: $quemEscolhe]);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    // Persistir é o objetivo, mas não pode derrubar a cerimônia:
+                    // a revelação já está gravada em `reveladas` acima.
+                    error_log('[lottery_revelar] gravar vaga: ' . $e->getMessage());
+                }
+
                 require_once __DIR__ . '/../backend/loteria_bot.php';
                 // Vale igual pra cerimônia ao vivo e pro ajuste manual: os dois
                 // caminham por aqui, e pra quem lê no grupo é o mesmo fato.
