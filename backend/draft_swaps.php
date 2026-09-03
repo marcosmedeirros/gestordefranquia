@@ -68,16 +68,39 @@ function draftAnoDasPicks(PDO $pdo, int $seasonId): int
     static $cache = [];
     if (isset($cache[$seasonId])) return $cache[$seasonId];
 
-    $ano = draftAnoDaTemporada($pdo, $seasonId);
-    if ($ano <= 0) return $cache[$seasonId] = 0;
+    $anoDaTemporada = draftAnoDaTemporada($pdo, $seasonId);
+    if ($anoDaTemporada <= 0) return $cache[$seasonId] = 0;
+
+    /* O DRAFT DE UMA TEMPORADA DISTRIBUI A CLASSE DO ANO SEGUINTE.
+       A temporada jogada em 2026 termina com o draft de 2027 — é assim no
+       basquete e é assim que as picks foram criadas aqui. Medido nas quatro
+       ligas: a menor classe de picks é sempre `start_year + 1` da sprint
+       (ELITE 2025→2026, NEXT 2016→2017, RISE e ROOKIE 2025→2026).
+
+       Isto lia o ano da temporada e conferia se existiam picks DAQUELE ano.
+       Funcionava por acidente enquanto a classe do ano corrente não existia
+       mais — como na NEXT, cuja temporada 1 é 2016 e não há picks de 2016, e
+       o fallback caía em 2017, que era o certo.
+
+       Quebrou quando a ELITE virou pra temporada 2, ano 2026: as picks de
+       2026 CONTINUAM na tabela, porque pick usada não é apagada. O segundo
+       draft casava com a mesma classe do primeiro, e a loteria mostrava o GM
+       dono de picks que ele já tinha gastado na temporada anterior — foi como
+       o Lennon apareceu com as picks do Mooses e do Souks, de 2026, em vez da
+       do Puddles, de 2027. */
+    $ano = $anoDaTemporada + 1;
 
     try {
         $st = $pdo->prepare('SELECT 1 FROM picks WHERE CAST(season_year AS UNSIGNED) = ? LIMIT 1');
         $st->execute([$ano]);
         if ($st->fetchColumn()) return $cache[$seasonId] = $ano;
 
+        /* A classe não existe: vale a mais próxima DAQUI PRA FRENTE. É o caso
+           do fim da janela de picks, quando os anos futuros ainda não foram
+           gerados. Nunca anda pra trás — classe de ano passado já foi
+           sorteada. */
         $st = $pdo->prepare('SELECT MIN(CAST(season_year AS UNSIGNED)) FROM picks
-                              WHERE CAST(season_year AS UNSIGNED) > ?');
+                              WHERE CAST(season_year AS UNSIGNED) >= ?');
         $st->execute([$ano]);
         $proximo = (int)($st->fetchColumn() ?: 0);
         if ($proximo > 0) return $cache[$seasonId] = $proximo;
