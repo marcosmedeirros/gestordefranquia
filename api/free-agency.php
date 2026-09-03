@@ -2545,7 +2545,10 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
     $st = $pdo->prepare('SELECT id, name, overall, age, league, status FROM free_agents WHERE id = ?');
     $st->execute([$id]);
     $fa = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$fa) jsonError('Jogador não encontrado');
+    /* Sumir da lista quase sempre significa que OUTRO GM acabou de resolver o
+       caso — removeu a duplicata, ou o jogador foi assinado. Dizer so "nao
+       encontrado" faz a pessoa achar que o proprio clique falhou. */
+    if (!$fa) jsonError('Esse jogador saiu da lista — alguém mexeu nele agora há pouco. A lista foi atualizada.');
 
     if ($minhaLiga && strtoupper((string)$fa['league']) !== strtoupper($minhaLiga)) {
         jsonError('Esse jogador é de outra liga', 403);

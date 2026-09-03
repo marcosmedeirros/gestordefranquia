@@ -1253,7 +1253,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: corrigirId, nome, ovr, age })
             });
             const d = await r.json();
-            if (!d.success) { mostrarErro(d.error || 'Não deu pra corrigir.'); return; }
+            if (!d.success) {
+                mostrarErro(d.error || 'Não deu pra corrigir.');
+                /* O card ficou velho: outro GM mexeu no jogador enquanto este
+                   modal estava aberto. Recarregar aqui evita a pessoa tentar de
+                   novo no mesmo card fantasma. */
+                if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+                return;
+            }
 
             bootstrap.Modal.getInstance(document.getElementById('modalCorrigirFicha'))?.hide();
             // Recarrega: o custo no cap sai do OVR, então mudar o número muda
@@ -1265,5 +1272,42 @@ document.addEventListener('DOMContentLoaded', () => {
             botao.disabled = false;
             botao.textContent = rotulo;
         }
+    });
+});
+
+/* ── A LISTA SE MANTÉM ATUALIZADA SOZINHA ─────────────────────────────
+   A ficha é compartilhada: quando um GM corrige o nome ou o OVR, vale pra
+   liga inteira na hora. Só que a página de quem já estava com ela aberta
+   continuava mostrando o cadastro velho — e foi o que aconteceu no grupo: uns
+   viam "Xue Yuyang", outros "Yu Yang Xue", e quem clicou num card que outro
+   tinha acabado de remover levou "jogador não encontrado".
+
+   Recarregar de tempos em tempos resolve os dois. Só com a aba à vista, pra
+   não bater no servidor com a página esquecida aberta, e nunca com o modal
+   aberto — puxar a lista debaixo de quem está digitando apagaria o que a
+   pessoa escreveu. */
+
+const FA_ATUALIZA_A_CADA = 30000;
+
+function faListaEstaVisivel() {
+    const painel = document.getElementById('dispPanel');
+    return painel && painel.offsetParent !== null;
+}
+
+function faModalAberto() {
+    return !!document.querySelector('.modal.show');
+}
+
+function faAtualizarSePuder() {
+    if (document.hidden || faModalAberto() || !faListaEstaVisivel()) return;
+    if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setInterval(faAtualizarSePuder, FA_ATUALIZA_A_CADA);
+    // Voltar pra aba é quando a defasagem mais incomoda: a pessoa saiu, mexeram
+    // na lista, e ela volta pra agir sobre o que está na tela.
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) faAtualizarSePuder();
     });
 });
