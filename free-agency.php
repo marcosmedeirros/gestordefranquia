@@ -480,6 +480,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .modal-footer  { border-top:    1px solid var(--border); padding: 14px 20px; }
         .modal-title   { font-size: 16px; font-weight: 600; font-family: var(--font); }
         .modal-body    { padding: 20px; }
+        /* Segue a cor que o GM escolheu: --red é sobrescrita por
+           includes/accent-color.php, e todo o resto do app deriva dela. */
+        .btn-accent    { background: var(--red); border: 1px solid var(--red); color: #fff; font-weight: 600; }
+        .btn-accent:hover:not(:disabled) { filter: brightness(1.12); color: #fff; }
+        .btn-accent:disabled { opacity: .6; }
 
         /* ── Compat: classes usadas pelo JS gerado dinamicamente ── */
         .text-orange     { color: var(--red) !important; }
@@ -961,7 +966,10 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="corrigirSalvar">Salvar</button>
+                    <!-- btn-primary é o azul do Bootstrap e ignora o tema: o app
+                         inteiro segue a cor que o GM escolheu, que mora em
+                         --red, e só este botão destoava. -->
+                    <button type="submit" class="btn btn-accent" id="corrigirSalvar">Salvar</button>
                 </div>
             </form>
         </div>
