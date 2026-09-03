@@ -201,7 +201,7 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
         $time = $d['nome'];
         if ($time === null) return;
 
-        $grupo = leilaoBotGrupoDaLiga($pdo, $t['liga']);
+        $grupo = botGrupoDaCerimonia($pdo, $t["liga"]);
         if (!$grupo) return;
 
         $total = count($t['ordem']);

@@ -180,6 +180,42 @@ function leilaoBotAoCriarProposta(PDO $pdo, int $leilao_id, int $proposta_id): v
 }
 
 /**
+ * ONDE A CERIMÔNIA É ANUNCIADA — loteria e draft, não o leilão.
+ *
+ * O leilão é conversa de mercado e vive no Chat Off. Loteria e draft são
+ * evento: na ELITE eles acontecem no Gameplay, que é onde a liga assiste, e
+ * anunciar no Chat Off era falar num lugar e o pessoal estar no outro.
+ *
+ * A liga que não estiver na lista segue no Chat Off, como sempre.
+ *
+ * Procura pelo NOME dentro dos grupos que o admin já declarou daquela liga —
+ * assim o grupo pode trocar de JID sem quebrar. Não achando, cai no Chat Off:
+ * anúncio no grupo errado é ruim, nenhum anúncio é pior.
+ */
+function botGrupoDaCerimonia(PDO $pdo, string $liga): ?string
+{
+    $liga = strtoupper(trim($liga));
+
+    // liga => pedaço do nome do grupo onde a cerimônia é acompanhada.
+    $preferido = ['ELITE' => '%gameplay%'];
+    if (isset($preferido[$liga])) {
+        try {
+            $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
+                                  WHERE ativo = 1 AND UPPER(liga) = ? AND LOWER(nome) LIKE ?
+                               ORDER BY criado_em ASC, jid ASC LIMIT 1");
+            $st->execute([$liga, $preferido[$liga]]);
+            $jid = trim((string)($st->fetchColumn() ?: ''));
+            if ($jid !== '') return $jid;
+            error_log("[bot] grupo de cerimônia da {$liga} não encontrado; usando o Chat Off");
+        } catch (Throwable $e) {
+            error_log('[bot] grupo de cerimônia: ' . $e->getMessage());
+        }
+    }
+
+    return leilaoBotGrupoDaLiga($pdo, $liga);
+}
+
+/**
  * O JID do Chat Off de uma liga.
  *
  * Primeiro o que o admin configurou em league_settings — é a fonte oficial.
@@ -212,7 +248,7 @@ function leilaoBotGrupoDaLiga(PDO $pdo, string $liga): ?string
     try {
         $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
                               WHERE ativo = 1 AND UPPER(liga) = ?
-                           ORDER BY (LOWER(nome) LIKE '%chat%') DESC, id ASC
+                           ORDER BY (LOWER(nome) LIKE '%chat%') DESC, criado_em ASC, jid ASC
                               LIMIT 1");
         $st->execute([$liga]);
         $jid = trim((string)($st->fetchColumn() ?: ''));

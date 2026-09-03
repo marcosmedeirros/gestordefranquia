@@ -243,7 +243,7 @@ function draftBotAnunciarEscolha(PDO $pdo, int $sessionId, int $round, int $pick
         $e = $st->fetch(PDO::FETCH_ASSOC);
         if (!$e) return;
 
-        $grupo = leilaoBotGrupoDaLiga($pdo, (string)$e['league']);
+        $grupo = botGrupoDaCerimonia($pdo, (string)$e["league"]);
         if (!$grupo) return;
 
         // "01" e não "1": numa sequência de dez, a largura fixa alinha a
