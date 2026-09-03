@@ -79,6 +79,12 @@ select{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--borde
   color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px}
 select:focus{outline:none;border-color:var(--red)}
 select.preenchido{border-color:var(--green);color:#fff}
+.calar{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border-radius:11px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--border)}
+.calar:has(input:checked){border-color:var(--amber);background:rgba(245,158,11,.07)}
+.calar input{width:17px;height:17px;margin:1px 0 0;accent-color:var(--amber);flex-shrink:0;cursor:pointer}
+.calar b{display:block;font-size:13px}
+.calar em{display:block;font-style:normal;font-size:12px;color:var(--text-2);margin-top:2px;line-height:1.5}
 .tag-ar{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--green);
   border:1px solid var(--green);border-radius:6px;padding:2px 7px;flex-shrink:0;opacity:.85}
 button{font-family:inherit;cursor:pointer;border-radius:10px;border:none;transition:filter .15s}
@@ -121,6 +127,17 @@ button{font-family:inherit;cursor:pointer;border-radius:10px;border:none;transit
   <div class="painel">
     <div id="lista"><div style="color:var(--text-3);padding:14px 0">Carregando os times da loteria…</div></div>
   </div>
+
+  <!-- CORRIGIR NÃO É SORTEAR. Quando o que se está fazendo aqui é acertar uma
+       posição que saiu errada, a liga não precisa de um anúncio novo: ela já
+       viu a escolha. Sem isto, todo conserto vira barulho no grupo. -->
+  <label class="calar" for="calar">
+    <input type="checkbox" id="calar">
+    <span>
+      <b>Ajustar em silêncio</b>
+      <em>Grava e mostra na tela da loteria, sem anunciar no grupo nem mandar notificação. Use quando estiver corrigindo.</em>
+    </span>
+  </label>
 
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     <button class="btn" id="btnPublicar" disabled><i class="bi bi-broadcast"></i> Publicar o que já saiu</button>
@@ -250,6 +267,7 @@ async function publicar(){
   });
   if (!Object.keys(jaSaiu).length) return;
 
+  const calado = $('calar').checked;
   const btn = $('btnPublicar');
   btn.disabled = true;
   btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Publicando…';
@@ -279,13 +297,14 @@ async function publicar(){
       await fetch('/api/draft.php', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ action:'lottery_revelar', draft_session_id: SESSAO,
-                               position: parseInt(pos, 10), silencioso: jaNoAr.has(parseInt(pos, 10)) })
+                               position: parseInt(pos, 10),
+                               silencioso: calado || jaNoAr.has(parseInt(pos, 10)) })
       });
       jaNoAr.add(parseInt(pos, 10));
     }
 
     const n = Object.keys(jaSaiu).length;
-    mostrar(`${n} ${n === 1 ? 'escolha registrada' : 'escolhas registradas'}. A liga já vê na tela da loteria, e esses times saíram da urna.`, 'ok');
+    mostrar(`${n} ${n === 1 ? 'escolha registrada' : 'escolhas registradas'}. A liga já vê na tela da loteria, e esses times saíram da urna.` + (calado ? ' Nada foi anunciado no grupo.' : ''), 'ok');
   } catch (e) {
     mostrar('Não deu pra publicar: ' + e.message, 'erro');
   } finally {
