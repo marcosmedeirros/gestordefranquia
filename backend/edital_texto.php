@@ -82,16 +82,29 @@ function editalExtrairTexto(string $pdfPath): ?string
 /**
  * O quanto este texto está inteiro, de 0 a 100.
  *
- * Mede as duas formas de picar que os PDFs daqui produzem: número partido
- * ("Art. 1 2") e letra solta no meio da palavra ("p elo m ódulo"). Contadas
- * por mil caracteres, pra comparar extrações de tamanhos diferentes.
+ * Mede as três formas de estragar que os PDFs daqui produzem: número partido
+ * ("Art. 1 2"), letra solta no meio da palavra ("p elo m ódulo") e PALAVRA
+ * COLADA na seguinte ("AoperacionalidadedaFBAé"). Contadas por mil caracteres,
+ * pra comparar extrações de tamanhos diferentes.
+ *
+ * A colagem entrou depois, e faltando ela a conta escolhia errado: nos editais
+ * da ELITE e da NEXT o `-layout` colava 200 palavras e mesmo assim tirava 96,
+ * enquanto o `-raw`, que sai sem nenhuma, tirava 80 por causa das letras
+ * soltas. O guia então exibia parágrafos ilegíveis.
+ *
+ * Colar pesa como número partido — mais que letra solta — porque não é só
+ * feio: quebra a busca por palavra e a comparação entre editais, que é o que
+ * o guia inteiro faz.
  */
 function editalNota(string $txt): int
 {
     $mil = max(1, mb_strlen($txt) / 1000);
     $numerosPartidos = preg_match_all('/\d \d/u', $txt);
     $letrasSoltas    = preg_match_all('/(?<=\s)\p{L}\s\p{L}{1,2}(?=\s)/u', $txt);
-    $sujeira = ($numerosPartidos * 3 + $letrasSoltas) / $mil;
+    // Minúscula seguida de maiúscula sem espaço: em português é onde uma
+    // palavra terminou e a próxima começou sem o espaço.
+    $coladas         = preg_match_all('/\p{Ll}\p{Lu}/u', $txt);
+    $sujeira = ($numerosPartidos * 3 + $letrasSoltas + $coladas * 3) / $mil;
     return (int)max(0, min(100, round(100 - $sujeira * 6)));
 }
 
@@ -360,6 +373,16 @@ function editalArtigos(string $texto): array
         $fim = isset($marcos[$k + 1]) ? $marcos[$k + 1]['inicio'] - 1 : count($linhas) - 1;
         $corpo = trim(implode("\n", array_slice($linhas, $a['inicio'], $fim - $a['inicio'] + 1)));
         if ($corpo === '') continue;
+
+        /* ARTIGO FANTASMA: o texto CITA um artigo ("... na forma do Art. 41.")
+           e a citação cai no começo de uma linha, então vira um marco igual ao
+           de verdade — só que sem corpo nenhum além do próprio "Art. 41.".
+           Isso criava um segundo artigo 41 na ELITE e na NEXT, e o guia
+           anunciava numeração repetida que não existe no documento.
+
+           Sobrar nada depois do marcador é o que separa a citação do artigo:
+           artigo tem texto, citação não. */
+        if (trim(preg_replace('/^\s*Art\.\s*\d[\d\s]{0,3}?\s*[º°]?\s*\.\s*/u', '', $corpo)) === '') continue;
         $out[] = [
             'num'      => $a['num'],
             'capitulo' => $capDaLinha($a['inicio']),

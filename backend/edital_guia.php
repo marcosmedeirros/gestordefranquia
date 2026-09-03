@@ -21,6 +21,20 @@ require_once __DIR__ . '/edital_texto.php';
 const EDITAL_LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 /**
+ * Ligas que NÃO usam moedas.
+ *
+ * A ELITE deixou de ter moedas — o card de moedas dela saiu do admin pelo
+ * mesmo motivo. Mas o edital dela ainda traz os artigos antigos, com direito a
+ * tabela de distribuição, e o guia os exibia como regra em vigor.
+ *
+ * Enquanto o PDF não for reeditado, a lista é o que separa o que vale do que
+ * é texto encalhado.
+ *
+ * @see EDITAL_ASSUNTOS_POR_LIGA — onde ela é aplicada.
+ */
+const EDITAL_LIGAS_SEM_MOEDA = ['ELITE'];
+
+/**
  * Os assuntos do guia.
  *
  * `busca` é o que encontra os artigos daquele assunto nos editais. `resumo` é
@@ -74,8 +88,13 @@ function editalAssuntos(): array
             'titulo' => 'Moedas',
             'icone'  => 'bi-coin',
             'busca'  => '/moedas? virtuais|aporte de moedas|distribuição de moedas/iu',
-            'resumo' => 'A pecúnia que banca o leilão e a free agency. É distribuída pela classificação — '
-                      . 'quem terminou pior recebe mais — e zera a cada temporada, sem acumular.',
+            'resumo' => 'A pecúnia que banca o leilão e a free agency na NEXT, RISE e ROOKIE. '
+                      . 'É distribuída pela classificação — quem terminou pior recebe mais, do 2º ao '
+                      . 'último — e zera a cada temporada, sem acumular. '
+                      . 'A ELITE não usa moedas: lá a contratação é por salário, dentro do cap. '
+                      . 'O edital da ELITE ainda traz os artigos antigos de moeda, com tabela de '
+                      . 'distribuição e tudo: eles não aparecem abaixo porque não valem mais, e '
+                      . 'o PDF é que precisa ser reeditado.',
         ],
         'draft' => [
             'titulo' => 'Draft e picks',
@@ -133,6 +152,10 @@ function editalPorAssunto(PDO $pdo, string $chave): array
 
     $out = [];
     foreach (EDITAL_LIGAS as $liga) {
+        // Artigo de moeda de liga que não usa moeda é texto encalhado no PDF:
+        // mostrar seria dizer que vale.
+        if ($chave === 'moedas' && in_array($liga, EDITAL_LIGAS_SEM_MOEDA, true)) continue;
+
         $txt = editalTexto($pdo, $liga);
         if ($txt === null) continue;
         $achados = [];
@@ -142,6 +165,86 @@ function editalPorAssunto(PDO $pdo, string $chave): array
         if ($achados) $out[$liga] = $achados;
     }
     return $out;
+}
+
+/** A chave de comparação de um artigo: sem acento, sem pontuação, sem liga. */
+function editalChaveDoArtigo(string $texto): string
+{
+    $s = mb_strtolower($texto, 'UTF-8');
+    // O nome da liga sai: "a FBA Elite exige" e "a FBA Next exige" são a mesma
+    // regra, e mantê-los faria toda regra comum parecer exclusiva.
+    $s = preg_replace('/\b(elite|next|rise|rookie)\b/u', '', $s);
+    $s = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    $s = preg_replace('/[^a-z0-9 ]/', ' ', $s);
+    return trim(preg_replace('/\s+/', ' ', $s));
+}
+
+/**
+ * OS ARTIGOS DE UM ASSUNTO, AGRUPADOS POR REGRA — não por liga.
+ *
+ * Medido: os editais são 85% o mesmo documento entre ELITE e NEXT, ~70% contra
+ * a ROOKIE. Mostrar cada artigo três vezes, uma por liga, triplicava a página
+ * com texto repetido e escondia o que interessa: as poucas linhas em que as
+ * ligas discordam.
+ *
+ * Aqui cada regra aparece UMA vez, com as ligas que a compartilham. Quem tem
+ * texto diferente vira grupo próprio, e é isso que salta aos olhos.
+ *
+ * @return list<array{ligas:list<string>,artigos:array<string,array>,texto:string,capitulo:string}>
+ */
+function editalAssuntoAgrupado(PDO $pdo, string $chave): array
+{
+    $porLiga = editalPorAssunto($pdo, $chave);
+    if (!$porLiga) return [];
+
+    $grupos = [];
+    foreach ($porLiga as $liga => $artigos) {
+        foreach ($artigos as $a) {
+            $chaveArt = editalChaveDoArtigo($a['texto']);
+
+            /* Procura um grupo já formado com texto praticamente igual. O corte
+               de 90 é mais rígido que o da comparação geral (70) porque aqui o
+               texto vai ser EXIBIDO como se valesse pras duas ligas: com um
+               corte frouxo, uma diferença de valor — "13 atletas" contra "15" —
+               ficaria escondida atrás da etiqueta da outra liga.
+
+               O PRÉ-FILTRO É PELO TAMANHO, e não pelo começo do texto.
+               similar_text é quadrático, e comparar cada artigo com todos os
+               grupos já formados levava a página a 8,5 segundos. A tentação é
+               exigir que os dois comecem igual — mas artigos 90% idênticos
+               divergem justo no começo o tempo todo ("na FBA Elite..." contra
+               "as equipes da..."), e esse filtro derrubou os blocos comuns de
+               68 para 13: quase tudo virou exceção de uma liga só.
+
+               O tamanho, ao contrário, é um limite EXATO. similar_text devolve
+               2·iguais/(a+b), e iguais nunca passa do menor dos dois — então
+               90% exige que o maior texto não passe de 1,22× o menor. Fora
+               dessa faixa a conta cara não pode dar 90%, e pular é seguro. */
+            $trecho = mb_substr($chaveArt, 0, 600);
+            $tam = mb_strlen($trecho);
+            $achou = null;
+            foreach ($grupos as $i => $g) {
+                $tamG = $g['tam'];
+                if ($tam > $tamG * 1.23 || $tamG > $tam * 1.23) continue;
+                similar_text($trecho, $g['trecho'], $p);
+                if ($p >= 90) { $achou = $i; break; }
+            }
+
+            if ($achou === null) {
+                $grupos[] = ['chave' => $chaveArt, 'trecho' => $trecho, 'tam' => $tam, 'ligas' => [$liga],
+                             'artigos' => [$liga => $a], 'texto' => $a['texto'],
+                             'capitulo' => $a['capitulo']];
+            } else {
+                $grupos[$achou]['ligas'][] = $liga;
+                $grupos[$achou]['artigos'][$liga] = $a;
+            }
+        }
+    }
+
+    // Regra de todo mundo primeiro; a exceção de uma liga só fica no fim, que
+    // é onde se procura o que difere.
+    usort($grupos, fn($a, $b) => count($b['ligas']) <=> count($a['ligas']));
+    return $grupos;
 }
 
 /** Quais ligas têm edital lido e quantos artigos cada uma tem. */
@@ -192,10 +295,14 @@ function editalDivergencias(PDO $pdo): array
             sort($rep);
             $itens[] = [
                 'grave' => true,
-                'titulo' => "Artigos repetidos no edital da {$liga}",
-                'texto'  => 'Os números ' . implode(', ', $rep) . ' aparecem mais de uma vez, '
-                          . 'com conteúdos diferentes. Citar "Art. ' . $rep[0] . ' do edital da '
-                          . $liga . '" hoje é ambíguo — existem dois.',
+                'titulo' => count($rep) === 1
+                    ? "Artigo repetido no edital da {$liga}"
+                    : "Artigos repetidos no edital da {$liga}",
+                'texto'  => (count($rep) === 1
+                              ? 'O número ' . $rep[0] . ' aparece'
+                              : 'Os números ' . implode(', ', $rep) . ' aparecem')
+                          . ' mais de uma vez, com conteúdos diferentes. Citar "Art. ' . $rep[0]
+                          . ' do edital da ' . $liga . '" hoje é ambíguo — existem dois.',
             ];
         }
 
@@ -211,6 +318,10 @@ function editalDivergencias(PDO $pdo): array
 
     // 3. Tabela de moedas menor que a liga.
     foreach (EDITAL_LIGAS as $liga) {
+        // Liga sem moeda não tem tabela pra cobrir ninguém: a da ELITE parar
+        // no 30º não e problema a resolver, é artigo que deixou de valer.
+        if (in_array($liga, EDITAL_LIGAS_SEM_MOEDA, true)) continue;
+
         $txt = editalTexto($pdo, $liga);
         if ($txt === null) continue;
         if (!preg_match('/(\d{1,2})º colocado recebe/u', $txt, $m)) continue;
@@ -301,4 +412,79 @@ function editalPaginas(): array
              'Ver outra liga por dentro, sem poder mexer em nada.'],
         ],
     ];
+}
+
+/**
+ * O QUE É REGRA COMUM E O QUE É DE UMA LIGA SÓ.
+ *
+ * Medido comparando artigo a artigo, ignorando o nome da liga no texto: os
+ * editais são quase o mesmo documento — 85% entre ELITE e NEXT, ~70% contra a
+ * ROOKIE. O que sobra é pouco e quase todo do mesmo tipo: o rol de GMs, as
+ * classes de draft da edição, e um punhado de regras próprias.
+ *
+ * É esta conta que diz o tamanho do documento único: quase tudo entra uma vez
+ * só, e as poucas exceções viram "na ELITE, ...".
+ *
+ * CUSTA CARO. É O(n²) sobre 259 artigos, alguns segundos — por isso a página
+ * só chama quando pedida, e não a cada carga.
+ *
+ * @return array{ligas:array<string,array{total:int,exclusivos:list<array>}>,semelhanca:array}
+ */
+function editalComparacao(PDO $pdo): array
+{
+    $normalizar = function (string $s): string {
+        $s = mb_strtolower($s, 'UTF-8');
+        // O nome da liga sai: "a FBA Elite exige" e "a FBA Next exige" são a
+        // mesma regra, e mantê-los faria todo artigo parecer exclusivo.
+        $s = preg_replace('/\b(elite|next|rise|rookie)\b/u', '', $s);
+        $s = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+        $s = preg_replace('/[^a-z0-9 ]/', ' ', $s);
+        return trim(preg_replace('/\s+/', ' ', $s));
+    };
+
+    $arts = [];
+    foreach (EDITAL_LIGAS as $L) {
+        $t = editalTexto($pdo, $L);
+        if ($t === null) continue;
+        foreach (editalArtigos($t) as $a) {
+            $arts[$L][] = ['num' => $a['num'], 'capitulo' => $a['capitulo'],
+                           'texto' => $a['texto'], 'chave' => $normalizar($a['texto'])];
+        }
+    }
+
+    // Corta em 600 caracteres: similar_text é quadrático no tamanho do texto,
+    // e o começo do artigo já separa um do outro.
+    $maisParecido = function (string $x, array $lista): float {
+        $melhor = 0.0;
+        foreach ($lista as $y) {
+            similar_text(mb_substr($x, 0, 600), mb_substr($y['chave'], 0, 600), $p);
+            if ($p > $melhor) $melhor = $p;
+            if ($melhor >= 99) break;
+        }
+        return $melhor;
+    };
+
+    $out = ['ligas' => [], 'semelhanca' => []];
+    foreach ($arts as $L => $lista) {
+        $outras = [];
+        foreach ($arts as $O => $l2) if ($O !== $L) $outras = array_merge($outras, $l2);
+
+        $exclusivos = [];
+        foreach ($lista as $a) {
+            // 70 é onde "mesma regra escrita diferente" ainda casa e "regra
+            // diferente" já não casa — conferido nos três editais.
+            if ($maisParecido($a['chave'], $outras) < 70) $exclusivos[] = $a;
+        }
+        $out['ligas'][$L] = ['total' => count($lista), 'exclusivos' => $exclusivos];
+    }
+
+    foreach ($arts as $A => $la) {
+        foreach ($arts as $B => $lb) {
+            if ($A === $B) continue;
+            $iguais = 0;
+            foreach ($la as $a) if ($maisParecido($a['chave'], $lb) >= 95) $iguais++;
+            $out['semelhanca'][$A][$B] = $la ? (int)round($iguais / count($la) * 100) : 0;
+        }
+    }
+    return $out;
 }

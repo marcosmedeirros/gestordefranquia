@@ -36,7 +36,7 @@ $divergencias = editalDivergencias($pdo);
 /* O conteúdo é montado uma vez e reaproveitado pelas duas leituras da tela
    (o resumo do topo e as seções), pra não reprocessar os PDFs duas vezes. */
 $porAssunto = [];
-foreach (array_keys($assuntos) as $k) $porAssunto[$k] = editalPorAssunto($pdo, $k);
+foreach (array_keys($assuntos) as $k) $porAssunto[$k] = editalAssuntoAgrupado($pdo, $k);
 
 $totalArtigos = array_sum(array_column($cobertura, 'artigos'));
 $corDaLiga = ['ELITE' => '#ef4444', 'NEXT' => '#3b82f6', 'RISE' => '#22c55e', 'ROOKIE' => '#a855f7'];
@@ -86,9 +86,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
   .busca i{position:absolute;left:14px;top:13px;color:var(--txt-3)}
 
   .indice{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-bottom:34px}
+  /* min-width:0 porque item de grid não encolhe abaixo do próprio conteúdo:
+     sem isto, "Pagamento e reembolso" numa coluna estreita forçava o grid a
+     552px e a página inteira ganhava rolagem lateral no celular. */
   .indice a{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--txt-2);
             background:var(--panel);border:1px solid var(--border);border-radius:10px;
-            padding:11px 13px;font-size:13.5px;transition:.15s}
+            padding:11px 13px;font-size:13.5px;transition:.15s;min-width:0}
+  .indice a span{min-width:0;overflow-wrap:anywhere}
   .indice a:hover{color:var(--txt);border-color:var(--txt-3);transform:translateY(-1px)}
   .indice i{color:var(--amber);font-size:15px}
 
@@ -113,7 +117,9 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
   .art:first-child{border-top:none}
   .art-num{font-size:11px;font-weight:800;color:var(--amber);letter-spacing:.05em}
   .art-cap{font-size:11px;color:var(--txt-3);margin-left:8px}
-  .art-txt{white-space:pre-wrap;font-size:13.5px;color:var(--txt-2);margin-top:5px}
+  /* pre-wrap preserva as quebras do edital; overflow-wrap impede que uma
+     palavra emendada pelo PDF empurre a página inteira pro lado. */
+  .art-txt{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13.5px;color:var(--txt-2);margin-top:5px}
 
   mark{background:rgba(245,158,11,.28);color:var(--txt);border-radius:3px;padding:0 2px}
   .some{display:none}
@@ -168,36 +174,49 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
            autocomplete="off">
   </div>
 
+  <!-- O índice de fato: um atalho por assunto. Ele estava aberto e vazio, com
+       as seções do guia caindo dentro dele — que é um GRID. As seções viravam
+       colunas de 272px e a página inteira ganhava rolagem lateral. -->
   <div class="indice" id="indice">
     <?php foreach ($assuntos as $k => $a): ?>
-      <a href="#<?= $esc($k) ?>"><i class="bi <?= $esc($a['icone']) ?>"></i> <?= $esc($a['titulo']) ?></a>
+      <a href="#<?= $esc($k) ?>"><i class="bi <?= $esc($a['icone']) ?>"></i><span><?= $esc($a['titulo']) ?></span></a>
     <?php endforeach; ?>
-    <a href="#telas"><i class="bi bi-window-stack"></i> Como usar o site</a>
+    <a href="#telas"><i class="bi bi-window-stack"></i><span>Como usar cada página</span></a>
   </div>
 
   <?php foreach ($assuntos as $k => $a):
-    $achados = $porAssunto[$k] ?? [];
-    $total   = array_sum(array_map('count', $achados)); ?>
+    $grupos = $porAssunto[$k] ?? []; ?>
     <section class="assunto" id="<?= $esc($k) ?>" data-busca="<?= $esc(mb_strtolower($a['titulo'] . ' ' . $a['resumo'])) ?>">
       <h2><i class="bi <?= $esc($a['icone']) ?>"></i> <?= $esc($a['titulo']) ?></h2>
       <p class="resumo"><?= $esc($a['resumo']) ?></p>
 
-      <?php if (!$total): ?>
+      <?php if (!$grupos): ?>
         <p class="vazio">Nenhum artigo dos editais fala disso. Assunto a definir.</p>
-      <?php else: foreach ($achados as $liga => $arts): ?>
-        <details class="liga">
+      <?php else: foreach ($grupos as $g):
+        /* Uma regra por bloco, com as ligas que a compartilham. Regra de todas
+           as ligas vem primeiro; a exceção de uma só cai no fim, que é onde se
+           procura o que difere — e é ela que vira "na ELITE, ..." no documento
+           único. */
+        $deTodas = count($g['ligas']) >= count(array_filter($cobertura, fn($c) => $c['ok'])); ?>
+        <details class="liga"<?= count($g['ligas']) === 1 ? ' open' : '' ?>>
           <summary>
-            <span class="tag" style="background:<?= $corDaLiga[$liga] ?>22;color:<?= $corDaLiga[$liga] ?>"><?= $esc($liga) ?></span>
-            <span class="qtd"><?= count($arts) ?> artigo<?= count($arts) > 1 ? 's' : '' ?></span>
+            <?php foreach ($g['ligas'] as $lg): ?>
+              <span class="tag" style="background:<?= $corDaLiga[$lg] ?>22;color:<?= $corDaLiga[$lg] ?>"><?= $esc($lg) ?></span>
+            <?php endforeach; ?>
+            <span class="qtd">
+              <?php if ($deTodas): ?>regra comum
+              <?php elseif (count($g['ligas']) === 1): ?>só na <?= $esc($g['ligas'][0]) ?>
+              <?php else: ?><?= count($g['ligas']) ?> ligas<?php endif; ?>
+              ·
+              <?php $ns = []; foreach ($g['artigos'] as $lg => $art) $ns[] = $lg . ' art. ' . (int)$art['num'];
+                    echo $esc(implode(' · ', $ns)); ?>
+            </span>
           </summary>
           <div class="arts">
-            <?php foreach ($arts as $art): ?>
-              <div class="art">
-                <span class="art-num">ART. <?= (int)$art['num'] ?></span>
-                <span class="art-cap"><?= $esc($art['capitulo']) ?></span>
-                <div class="art-txt"><?= $esc($art['texto']) ?></div>
-              </div>
-            <?php endforeach; ?>
+            <div class="art">
+              <span class="art-cap"><?= $esc($g['capitulo']) ?></span>
+              <div class="art-txt"><?= $esc($g['texto']) ?></div>
+            </div>
           </div>
         </details>
       <?php endforeach; endif; ?>
