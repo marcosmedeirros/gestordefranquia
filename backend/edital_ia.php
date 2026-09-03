@@ -265,6 +265,29 @@ function editalIaFatosDoApp(PDO $pdo, string $league): string
     return implode("\n", $l);
 }
 
+/**
+ * OS DETALHES DE OPERAÇÃO QUE NÃO ESTÃO EM LUGAR NENHUM.
+ *
+ * Nem no edital (que fala da regra, não da tela) nem no banco (que guarda o
+ * estado, não o macete). É o que o GM veterano sabe e o novato descobre
+ * perguntando no grupo — que é exatamente o que este bot existe pra evitar.
+ *
+ * Lista pra crescer: cada dúvida que aparecer duas vezes no grupo vira linha
+ * aqui. Só entra o que foi conferido no código, e não o que se supõe.
+ */
+function editalIaDetalhesDoApp(): string
+{
+    return implode("\n", [
+        'DETALHES DE COMO O APP FUNCIONA NA PRÁTICA',
+        '(não está no edital; é o funcionamento real das telas)',
+        '',
+        '- Aposentar jogador: a opção só aparece pra quem tem MAIS DE 35 anos, ou seja,',
+        '  36 em diante. Não aparecendo, é porque o atleta está com menos que isso',
+        '  cadastrado — corrija a idade dele em Meu Elenco (editar jogador) e a opção surge.',
+        '  O sistema recusa aposentadoria de quem tem 35 ou menos, então não adianta insistir.',
+    ]);
+}
+
 /** As telas do site, pro bot saber ONDE se faz cada coisa. */
 function editalIaComoUsarOApp(): string
 {
@@ -452,6 +475,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
 
     $telas = editalIaComoUsarOApp();
     if ($telas !== '') $partes[] = ['text' => $telas];
+
+    $partes[] = ['text' => editalIaDetalhesDoApp()];
 
     $partes[] = ['text' => editalIaInstrucoes($league)];
 
