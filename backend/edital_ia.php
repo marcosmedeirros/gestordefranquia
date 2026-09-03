@@ -19,20 +19,84 @@
 
 require_once __DIR__ . '/edital_texto.php';
 
-/** O modelo e o teto de resposta. Resposta de grupo de WhatsApp é curta. */
-const EDITAL_IA_MODELO     = 'claude-opus-5';
+/**
+ * DOIS PROVEDORES, E O GEMINI VEM PRIMEIRO.
+ *
+ * A liga não vai pagar por isso. O free tier do Gemini responde de graça e com
+ * folga pro tamanho da FBA: no `gemini-2.5-flash` são 250 perguntas por dia e
+ * 10 por minuto, e o edital inteiro (~20 mil tokens) cabe tranquilo na janela.
+ * Batendo no teto, `gemini-2.5-flash-lite` sobe pra 1.000 por dia — é só trocar
+ * a variável de ambiente, sem mexer em código.
+ *
+ * O caminho da Anthropic continua aqui e é usado se a chave dela estiver
+ * configurada e a do Gemini não. Quem escolhe é qual chave existe no ambiente,
+ * não uma opção em tela: é decisão de quem administra o servidor.
+ */
+const EDITAL_IA_MODELO_GEMINI    = 'gemini-2.5-flash';
+const EDITAL_IA_MODELO_ANTHROPIC = 'claude-opus-5';
+
+/* Teto de resposta. Resposta de grupo de WhatsApp é curta — mas no Gemini o
+   raciocínio do modelo sai DESTE mesmo orçamento, e o 2.5-flash não deixa
+   desligar (o mínimo é "low"). Apertado demais, a resposta volta vazia com
+   finishReason MAX_TOKENS: o modelo gastou tudo pensando. Por isso a folga. */
 const EDITAL_IA_MAX_TOKENS = 1200;
+const EDITAL_IA_MAX_TOKENS_GEMINI = 2400;
 const EDITAL_IA_TIMEOUT    = 90;
 
-/** A chave vive só no ambiente — nunca no config versionado. */
+/**
+ * Uma chave, de onde ela estiver: variável de ambiente ou `config.php`.
+ *
+ * O ambiente vem primeiro, que é o certo. Mas na Hostinger definir variável de
+ * ambiente pra PHP é passo de painel que se perde na próxima migração, e o
+ * `backend/config.php` já existe lá, já guarda senha de banco e NÃO é
+ * versionado (está no .gitignore) — é onde o resto do projeto guarda segredo.
+ *
+ * Nunca no config.sample nem no config.local: esses vão pro git.
+ */
+function editalIaSegredo(string $nome): string
+{
+    $doAmbiente = trim((string)(getenv($nome) ?: ''));
+    if ($doAmbiente !== '') return $doAmbiente;
+
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $cfg = loadConfig();
+        $ia = $cfg['ia'] ?? [];
+        return trim((string)($ia[$nome] ?? ''));
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+function editalIaChaveGemini(): string
+{
+    return editalIaSegredo('GEMINI_API_KEY');
+}
+
 function editalIaChave(): string
 {
-    return trim((string)(getenv('ANTHROPIC_API_KEY') ?: ''));
+    return editalIaSegredo('ANTHROPIC_API_KEY');
+}
+
+/** Qual provedor atende agora: 'gemini', 'anthropic' ou null. */
+function editalIaProvedor(): ?string
+{
+    if (editalIaChaveGemini() !== '') return 'gemini';
+    if (editalIaChave() !== '')       return 'anthropic';
+    return null;
+}
+
+/** O modelo em uso, com a variável de ambiente podendo trocar sem deploy. */
+function editalIaModelo(string $provedor): string
+{
+    $env = trim((string)(getenv('EDITAL_IA_MODELO') ?: ''));
+    if ($env !== '') return $env;
+    return $provedor === 'gemini' ? EDITAL_IA_MODELO_GEMINI : EDITAL_IA_MODELO_ANTHROPIC;
 }
 
 function editalIaLigada(): bool
 {
-    return editalIaChave() !== '';
+    return editalIaProvedor() !== null;
 }
 
 /**
@@ -71,8 +135,8 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
 {
     $erro = fn(string $m) => ['ok' => false, 'resposta' => null, 'erro' => $m, 'uso' => null];
 
-    $chave = editalIaChave();
-    if ($chave === '') return $erro('A consulta ao edital ainda não foi ligada aqui.');
+    $provedor = editalIaProvedor();
+    if ($provedor === null) return $erro('A consulta ao edital ainda não foi ligada aqui.');
 
     $pergunta = trim($pergunta);
     if (mb_strlen($pergunta) < 5)  return $erro('Escreve a dúvida junto do comando. Ex.: /edital posso trocar jogador emprestado?');
@@ -81,13 +145,19 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
     $edital = editalTexto($pdo, $league);
     if ($edital === null) return $erro("Não achei o edital da {$league} pra consultar.");
 
+    if ($provedor === 'gemini') {
+        return editalIaPerguntarGemini($league, $edital, $pergunta, $erro);
+    }
+
+    $chave = editalIaChave();
+
     /* O EDITAL VAI EM BLOCO PRÓPRIO E CACHEADO.
        Ele é o mesmo texto em toda pergunta e responde por quase todo o custo
        do pedido; sem o cache, cada dúvida no grupo paga o edital inteiro de
        novo. O bloco das instruções vem DEPOIS, e é o último ponto de cache:
        tudo que varia (a pergunta) fica fora do prefixo cacheado. */
     $payload = [
-        'model'      => EDITAL_IA_MODELO,
+        'model'      => editalIaModelo('anthropic'),
         'max_tokens' => EDITAL_IA_MAX_TOKENS,
         // Dúvida de regulamento não pede raciocínio longo, e o bot responde no
         // meio de uma conversa: esforço baixo é resposta boa e rápida.
@@ -152,4 +222,107 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
     if ($texto === '') return $erro('Vieram só linhas vazias. Tenta reformular a pergunta.');
 
     return ['ok' => true, 'resposta' => $texto, 'erro' => null, 'uso' => $j['usage'] ?? null];
+}
+
+/**
+ * A mesma pergunta, pelo Gemini.
+ *
+ * O formato é outro: o system vai em `system_instruction`, a pergunta em
+ * `contents`, e o teto de saída em `generationConfig.maxOutputTokens`.
+ *
+ * `thinking_level: low` é o mínimo que o 2.5-flash aceita — ele não desliga o
+ * raciocínio, e o que ele pensa sai do MESMO orçamento da resposta. Sem baixar
+ * pro mínimo e sem a folga no teto, a resposta chega vazia com
+ * `finishReason: MAX_TOKENS`: o modelo gastou tudo pensando e não sobrou texto.
+ *
+ * Não há cache do edital como na Anthropic: no free tier o cache é implícito,
+ * e não há custo por token pra economizar.
+ *
+ * @param callable $erro Fábrica do retorno de erro, do chamador.
+ */
+function editalIaPerguntarGemini(string $league, string $edital, string $pergunta, callable $erro): array
+{
+    $modelo = editalIaModelo('gemini');
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/'
+         . rawurlencode($modelo) . ':generateContent';
+
+    $payload = [
+        'system_instruction' => ['parts' => [
+            ['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n\n" . $edital],
+            ['text' => editalIaInstrucoes($league)],
+        ]],
+        'contents' => [
+            ['role' => 'user', 'parts' => [['text' => $pergunta]]],
+        ],
+        'generationConfig' => [
+            'maxOutputTokens' => EDITAL_IA_MAX_TOKENS_GEMINI,
+            // Regulamento é leitura, não criação: o modelo deve repetir o que
+            // está escrito, e não achar uma forma nova de dizer.
+            'temperature'     => 0.2,
+            // O v1beta não conhece `thinking_level` (a API rejeita com
+            // "Cannot find field"): quem controla o raciocínio aqui é o
+            // thinkingBudget, em tokens.
+            'thinkingConfig'  => ['thinkingBudget' => 0],
+        ],
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => EDITAL_IA_TIMEOUT,
+        // A chave vai no cabeçalho, e não na query: URL vaza em log de acesso,
+        // de proxy e de erro.
+        CURLOPT_HTTPHEADER     => [
+            'content-type: application/json',
+            'x-goog-api-key: ' . editalIaChaveGemini(),
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
+    $corpo  = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $falha  = curl_error($ch);
+    curl_close($ch);
+
+    if ($corpo === false || $falha !== '') {
+        error_log('[edital_ia/gemini] curl: ' . $falha);
+        return $erro('Não consegui consultar o edital agora. Tenta de novo em um minuto.');
+    }
+
+    $j = json_decode((string)$corpo, true);
+
+    /* O teto diário é o erro esperado do free tier, e merece resposta própria:
+       "tenta de novo em um minuto" mandaria a pessoa insistir à toa até o dia
+       seguinte. */
+    if ($status === 429) {
+        error_log('[edital_ia/gemini] 429: ' . mb_substr((string)$corpo, 0, 300));
+        return $erro('O limite de consultas de hoje acabou. Tenta mais tarde, '
+                   . 'ou pergunta pra organização.');
+    }
+    if ($status !== 200 || !is_array($j)) {
+        error_log('[edital_ia/gemini] http ' . $status . ': ' . mb_substr((string)$corpo, 0, 400));
+        return $erro('Não consegui consultar o edital agora. Tenta de novo em um minuto.');
+    }
+
+    // Bloqueio por filtro de conteúdo vem com 200 e sem candidato nenhum.
+    if (!empty($j['promptFeedback']['blockReason'])) {
+        return $erro('Não consegui responder essa. Fala com a organização.');
+    }
+
+    $cand = $j['candidates'][0] ?? null;
+    $texto = '';
+    foreach (($cand['content']['parts'] ?? []) as $parte) {
+        if (isset($parte['text'])) $texto .= $parte['text'];
+    }
+    $texto = trim($texto);
+
+    if ($texto === '') {
+        $motivo = (string)($cand['finishReason'] ?? '');
+        error_log('[edital_ia/gemini] resposta vazia, finishReason=' . $motivo);
+        return $erro($motivo === 'MAX_TOKENS'
+            ? 'A resposta ficou longa demais e foi cortada. Tenta uma pergunta mais específica.'
+            : 'Vieram só linhas vazias. Tenta reformular a pergunta.');
+    }
+
+    return ['ok' => true, 'resposta' => $texto, 'erro' => null, 'uso' => $j['usageMetadata'] ?? null];
 }
