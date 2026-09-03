@@ -172,6 +172,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     <?php foreach ($assuntos as $k => $a): ?>
       <a href="#<?= $esc($k) ?>"><i class="bi <?= $esc($a['icone']) ?>"></i> <?= $esc($a['titulo']) ?></a>
     <?php endforeach; ?>
+    <a href="#telas"><i class="bi bi-window-stack"></i> Como usar o site</a>
   </div>
 
   <?php foreach ($assuntos as $k => $a):
@@ -202,6 +203,33 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
       <?php endforeach; endif; ?>
     </section>
   <?php endforeach; ?>
+
+  <!-- COMO SE USA O SITE. Não sai dos editais: eles dizem que existe teto
+       salarial, não em que tela se confere o espaço que sobrou. Essa metade
+       das dúvidas do grupo não tinha onde ser respondida. -->
+  <section class="assunto" id="telas">
+    <h2><i class="bi bi-window-stack"></i> Como usar cada página</h2>
+    <p class="resumo">
+      O que cada tela do site faz. A regra por trás está nos assuntos acima; aqui é a operação.
+    </p>
+    <?php foreach (editalPaginas() as $grupo => $telas): ?>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;color:var(--txt-3);margin-bottom:7px">
+          <?= $esc(mb_strtoupper($grupo, 'UTF-8')) ?>
+        </div>
+        <?php foreach ($telas as [$url, $nome, $desc]): ?>
+          <div style="border:1px solid var(--border);border-radius:10px;background:var(--panel);
+                      padding:11px 14px;margin-bottom:6px">
+            <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+              <b style="font-size:14px"><?= $esc($nome) ?></b>
+              <code style="font-size:11.5px;color:var(--txt-3)"><?= $esc($url) ?></code>
+            </div>
+            <div style="font-size:13.5px;color:var(--txt-2);margin-top:3px"><?= $esc($desc) ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endforeach; ?>
+  </section>
 
   <?php if ($divergencias): ?>
     <section class="assunto" id="divergencias">

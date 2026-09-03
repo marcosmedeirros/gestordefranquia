@@ -232,3 +232,73 @@ function editalDivergencias(PDO $pdo): array
 
     return $itens;
 }
+
+/**
+ * COMO SE USA CADA TELA DO SITE.
+ *
+ * A única parte deste guia que não vem dos editais — porque não está lá. O
+ * edital diz que a franquia tem um teto salarial; não diz em que página se
+ * confere o espaço que sobrou, nem que o número muda quando a proposta é
+ * aceita. Isso hoje só existe na cabeça de quem administra, e é metade das
+ * perguntas que chegam no grupo.
+ *
+ * Escrito a partir do que as telas fazem de fato. Onde a regra por trás é do
+ * edital, o assunto correspondente do guia responde — aqui é a operação.
+ */
+function editalPaginas(): array
+{
+    return [
+        'O seu time' => [
+            ['/my-roster.php', 'Meu elenco',
+             'Os seus jogadores, com overall, idade, salário e skills. É onde se pede badge e se '
+             . 'acompanha o que a organização já atendeu.'],
+            ['/cap.php', 'Cap',
+             'A folha do time e quanto sobra até o teto. O número já conta o que está pendente de '
+             . 'aprovação — não é só o que já foi assinado.'],
+            ['/tatica.php', 'Tática',
+             'Estilo de jogo, playbook e rotação. O time guarda três táticas e você escolhe qual '
+             . 'está valendo; a rotação vai de 8 a 15 jogadores.'],
+            ['/picks.php', 'Picks',
+             'As escolhas de draft que o time tem, por ano, com as condições (proteção e swap) que '
+             . 'vierem junto.'],
+        ],
+        'Movimentação' => [
+            ['/mercado.php', 'Mercado',
+             'Onde a troca é montada e proposta. O cálculo do cap dos dois lados aparece antes de '
+             . 'enviar, e a organização aprova depois.'],
+            ['/free-agency.php', 'Free agency',
+             'Contratar quem está sem time, pagando em moedas. A proposta vale como lance: aceita, '
+             . 'o valor sai do saldo.'],
+            ['/leilao.php', 'Leilão',
+             'O jogador vai a lance e fica com quem oferecer mais. A oferta é vinculante.'],
+            ['/dispensas.php', 'Dispensas',
+             'Mandar jogador embora, dentro do limite da temporada.'],
+        ],
+        'A liga' => [
+            ['/tabela.php', 'Tabela',
+             'A classificação por conferência, temporada a temporada.'],
+            ['/rankings.php', 'Ranking',
+             'A pontuação acumulada do ciclo — é ela que decide o campeão da edição e, também, '
+             . 'quantas moedas cada time recebe na virada.'],
+            ['/drafts.php', 'Draft',
+             'A ordem das escolhas e o mock. Deixe a sua lista montada: se a sua vez chegar e você '
+             . 'tiver lista, o sistema escolhe na hora por você.'],
+            ['/lottery.php', 'Loteria',
+             'O sorteio da ordem do draft e as chances de cada time.'],
+            ['/history.php', 'História',
+             'Campeões, prêmios e o que já aconteceu nas temporadas anteriores.'],
+        ],
+        'Fora de quadra' => [
+            ['/games.php', 'Games',
+             'Os jogos da FBA, a loja, o ranking dos jogos e os eventos. As moedas dos games são '
+             . 'outras, separadas das moedas de free agency.'],
+            ['/games.php?aba=eventos', 'Eventos',
+             'Qualquer um cria um evento e banca as apostas dele. Quem cria declara o resultado; a '
+             . 'organização só entra se houver problema.'],
+            ['/ouvidoria.php', 'Ouvidoria',
+             'O canal formal pra reclamação e pedido de revisão.'],
+            ['/observador.php', 'Observador',
+             'Ver outra liga por dentro, sem poder mexer em nada.'],
+        ],
+    ];
+}
