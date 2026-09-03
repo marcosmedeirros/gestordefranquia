@@ -1720,8 +1720,12 @@ function aplicarRevelacao(pos, comEncenacao){
       passedEl.className = 'reveal-passed show';
     }
 
-    // tira o time da urna (esvazia)
-    const tile = $('bowl-' + entry.team_id);
+    /* Tira o time da urna (esvazia).
+       PELO DONO DA BOLINHA, não por quem escolhe. O card nasce com o id da
+       bolinha, e numa pick trocada quem sai na revelação é outro time — aí a
+       busca não achava nada e a bolinha sorteada continuava na urna, com a
+       lista mostrando mais times do que o contador. */
+    const tile = $('bowl-' + (entry.origin_team_id || entry.team_id));
     if (tile) { tile.classList.add('leaving'); setTimeout(() => tile.remove(), 360); }
     updateBowlCount(revealQueue.length); // quantos ainda faltam revelar = ainda na urna
 
