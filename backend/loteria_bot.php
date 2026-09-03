@@ -62,14 +62,14 @@ function loteriaBotTimeDaPosicao(PDO $pdo, array $ordem, int $posicao): ?string
  */
 function loteriaBotDadosDaPosicao(PDO $pdo, array $ordem, int $posicao): array
 {
-    $vazio = ['nome' => null, 'via' => null];
+    $vazio = ['nome' => null, 'via' => null, 'swap' => null];
     $item = $ordem[$posicao - 1] ?? null;
     if ($item === null) return $vazio;
 
     // Formato antigo: a ordem era só uma lista de ids.
     if (!is_array($item)) {
         $nome = loteriaBotNomeDoTime($pdo, (int)$item);
-        return ['nome' => $nome, 'via' => null];
+        return ['nome' => $nome, 'via' => null, 'swap' => null];
     }
 
     $teamId = (int)($item['team_id'] ?? $item['id'] ?? 0);
@@ -84,7 +84,20 @@ function loteriaBotDadosDaPosicao(PDO $pdo, array $ordem, int $posicao): array
         }
         if ($via === '') $via = null;
     }
-    return ['nome' => $nome, 'via' => $via];
+
+    /* SWAP É OUTRA COISA, e não pode sair como "via".
+       No swap o dono depende de onde as DUAS picks caírem — o lado SB fica com
+       a melhor vaga e o SW com a pior. Anunciar um nome antes disso é afirmar
+       um resultado que o sorteio ainda não deu, e é o tipo de coisa que a liga
+       cobra depois. */
+    $swapTipo = strtoupper(trim((string)($item['swap_tipo'] ?? '')));
+    $swap = null;
+    if ($swapTipo === 'SB' || $swapTipo === 'SW') {
+        $com = trim((string)($item['swap_com'] ?? ''));
+        $swap = ['tipo' => $swapTipo, 'com' => $com !== '' ? $com : null];
+    }
+
+    return ['nome' => $nome, 'via' => $via, 'swap' => $swap];
 }
 
 /** O nome completo de um time, ou null. */
@@ -126,9 +139,21 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
         if (!$grupo) return;
 
         $total = count($t['ordem']);
-        // Pick trocada: quem le precisa saber de onde ela veio, senao o nome
-        // aparece numa posicao que a campanha dele nao explica.
-        $via = $d['via'] ? "\n_via {$d['via']}_" : '';
+
+        /* O RODAPÉ DA MENSAGEM: swap manda, "via" é o caso comum.
+           Pick trocada precisa dizer de onde veio, senão o nome aparece numa
+           posição que a campanha dele não explica. Mas quando é SWAP, dizer
+           "via X" seria afirmar dono — e no swap o dono só existe depois que as
+           duas picks saírem: o lado SB fica com a melhor vaga, o SW com a pior. */
+        if (!empty($d['swap'])) {
+            $qual = $d['swap']['tipo'] === 'SB'
+                ? 'fica com a MELHOR das duas'
+                : 'fica com a PIOR das duas';
+            $com  = $d['swap']['com'] ? " com {$d['swap']['com']}" : '';
+            $via  = "\n_🔁 SWAP {$d['swap']['tipo']}{$com} — {$qual}_";
+        } else {
+            $via = $d['via'] ? "\n_via {$d['via']}_" : '';
+        }
 
         /* A ÚLTIMA ESCOLHA MERECE OUTRO TEXTO. Anunciar "escolha 30 de 30"
            igual às outras deixaria o fim da cerimônia passar batido, e é o
@@ -178,7 +203,9 @@ function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
         $total = count($t['ordem']);
         // No push o "via" entra entre parênteses, na mesma linha: não há espaço
         // pra segunda linha numa notificação de celular.
-        $via = $d['via'] ? " (via {$d['via']})" : '';
+        $via = !empty($d['swap'])
+            ? ' (SWAP ' . $d['swap']['tipo'] . ($d['swap']['com'] ? ' com ' . $d['swap']['com'] : '') . ')'
+            : ($d['via'] ? " (via {$d['via']})" : '');
 
         $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];
         $corpo  = $posicao === 1

@@ -1760,12 +1760,22 @@ if ($method === 'POST') {
             if ($draftYear > 0) {
                 // O filtro por liga entra junto: com o ano sozinho, picks de
                 // outras ligas do mesmo ano caíam no mesmo balde.
+                /* O SWAP VEM JUNTO, e o par com ele.
+                   Numa pick de swap ainda não se sabe quem escolhe: o lado SB
+                   fica com a vaga melhor das duas e o SW com a pior, e isso só
+                   se decide quando as duas saírem da urna. Mostrar o dono
+                   registrado ali seria afirmar um resultado que o sorteio
+                   ainda não deu. */
                 $stmtPk = $pdo->prepare('SELECT p.original_team_id, p.team_id AS owner_id,
                                                 CONCAT(t.city," ",t.name) AS owner_name,
-                                                t.photo_url AS owner_photo, t.conference AS owner_conf
+                                                t.photo_url AS owner_photo, t.conference AS owner_conf,
+                                                p.swap_type,
+                                                CONCAT(par_orig.city," ",par_orig.name) AS swap_com
                                          FROM picks p
                                          JOIN teams t ON t.id = p.team_id
                                          JOIN teams orig ON orig.id = p.original_team_id
+                                    LEFT JOIN picks par ON par.id = p.swap_pair_pick_id
+                                    LEFT JOIN teams par_orig ON par_orig.id = par.original_team_id
                                          WHERE CAST(p.season_year AS UNSIGNED) = ?
                                            AND orig.league = ?
                                            AND p.round = 1');
@@ -1815,7 +1825,12 @@ if ($method === 'POST') {
                     'expected_slot' => $expected,
                     'delta' => $isPlayoff ? 0 : ($expected - $actual), // >0 subiu, <0 caiu
                     // swap: o slot veio da campanha do time de origem
+                    // `is_swap` aqui significa "a pick mudou de dono", que não é
+                    // a mesma coisa que o SWAP de posição do edital — este vem
+                    // em `swap_tipo`, e é o que ainda não tem resultado.
                     'is_swap' => (bool)$isSwap,
+                    'swap_tipo' => $own['swap_type'] ?? null,
+                    'swap_com'  => $own['swap_com'] ?? null,
                     'origin_team_id' => $tid,
                     'origin_name' => $teamNames[$tid] ?? '',
                     'origin_abbr' => $originAbbr,
@@ -1871,6 +1886,10 @@ if ($method === 'POST') {
                     'escolhe_photo' => $pickOwner[$tid]['owner_photo'] ?? ($teamPhoto[$tid] ?? null),
                     'via_nome'      => (isset($pickOwner[$tid]) && (int)$pickOwner[$tid]['owner_id'] !== $tid)
                                        ? ($teamNames[$tid] ?? '') : null,
+                    /* Pick em swap: quem escolhe depende de onde as DUAS
+                       caírem, então a tela mostra o par e não um dono. */
+                    'swap_tipo'     => $pickOwner[$tid]['swap_type'] ?? null,
+                    'swap_com'      => $pickOwner[$tid]['swap_com'] ?? null,
                     // A chance da pick nº 1 é a única faixa que soma 100% entre
                     // os times — é a que o comunicado da liga anuncia.
                     'top1_pct' => $odds['top1'][$tid] ?? 0,

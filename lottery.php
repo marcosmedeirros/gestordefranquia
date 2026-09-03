@@ -333,6 +333,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
    não o dado principal do bloco. */
 .bowl-via{font-size:9px;color:var(--amber);font-weight:600;line-height:1.2;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* Swap tem cor própria, e não a do "via": as duas coisas se parecem na tela e
+   significam o oposto — "via" é dono definido, swap é dono a definir. */
+.bowl-swap{font-size:8.5px;color:#a855f7;font-weight:800;letter-spacing:.03em;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bowl-empty{color:var(--text-3);font-size:13px;text-align:center;padding:10px}
 
 /* Quadro da ordem */
@@ -1322,16 +1326,34 @@ function setupBoardAndOdds(data){
      A bolinha nasce da campanha, mas a pick pode ter sido trocada — e quem
      abre a urna quer saber quem leva a escolha. O time da campanha vira o
      "(via ...)" logo abaixo, que é como a troca aparece no resto do site. */
-  $('bowl').innerHTML = lotteryTeams.map(b => `
+  $('bowl').innerHTML = lotteryTeams.map(b => {
+    /* SWAP NÃO TEM DONO ATÉ AS DUAS SAÍREM.
+       O lado SB fica com a melhor das duas vagas e o SW com a pior — e isso só
+       se sabe quando as duas forem reveladas. Mostrar o dono registrado aqui
+       seria afirmar um resultado que o sorteio ainda não deu, e é o tipo de
+       coisa que a liga cobra depois. Então o card mostra a bolinha pelo dono da
+       CAMPANHA, com o selo do swap e o par ao lado. */
+    const ehSwap = b.swap_tipo === 'SB' || b.swap_tipo === 'SW';
+    const nome  = ehSwap ? b.team_name : (b.escolhe_nome || b.team_name);
+    const foto  = ehSwap ? b.photo_url : (b.escolhe_photo || b.photo_url);
+    const rodape = ehSwap
+      ? `<div class="bowl-swap" title="${b.swap_tipo === 'SB'
+            ? 'Fica com a MELHOR das duas vagas' : 'Fica com a PIOR das duas vagas'}${
+            b.swap_com ? ' · swap com ' + esc(b.swap_com) : ''}">
+           SWAP ${b.swap_tipo}${b.swap_com ? ` · ${esc(b.swap_com)}` : ''}
+         </div>`
+      : (b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : '');
+    return `
     <div class="bowl-tile" id="bowl-${b.team_id}">
-      ${logo(b.escolhe_photo || b.photo_url,'bowl-logo')}
-      <div class="bowl-name">${esc(b.escolhe_nome || b.team_name)}</div>
-      ${b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : ''}
+      ${logo(foto,'bowl-logo')}
+      <div class="bowl-name">${esc(nome)}</div>
+      ${rodape}
       <div class="bowl-odds" title="Chance de Top 5: ${b.top5_pct}%">${b.top3_pct}% <span style="font-size:9px;color:var(--text-3);font-weight:600">Top 3</span></div>
       <div title="${b.balls} bolinha(s) na urna" style="margin-top:3px">${bolinhasDe(b.balls, b.group)}</div>
       <div class="bowl-pos">${b.position_anterior}º ${esc(b.conference || '')}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   updateBowlCount(lotteryTeams.length);
   }
 
