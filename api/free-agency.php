@@ -684,6 +684,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'dispensados':
             listDispensadosDaTemporada($pdo, getLeagueFromRequest($valid_leagues, $team_league), $team_id);
             break;
+        case 'dispensados_versao':
+            versaoDaListaDeDispensados($pdo, getLeagueFromRequest($valid_leagues, $team_league));
+            break;
         case 'fa_signings_count':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -2610,4 +2613,43 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
         'age'   => $novaAge,
         'nome'  => $novoNome,
     ]);
+}
+
+/**
+ * O CARIMBO DA LISTA DE DISPENSADOS.
+ *
+ * Só um hash do que está na tela: id, nome, OVR, idade e status de cada um.
+ * Mudou qualquer coisa, o hash muda; não mudou nada, ele é o mesmo.
+ *
+ * Existe pra que a tela possa perguntar "mudou?" de poucos em poucos segundos
+ * sem baixar a lista inteira toda vez. Sem isso, atualizar de verdade em
+ * segundos custaria dezenas de linhas com cap calculado por GM, o tempo todo,
+ * pra quase sempre devolver exatamente o que a tela já tinha.
+ */
+function versaoDaListaDeDispensados(PDO $pdo, ?string $league): void
+{
+    if (!$league) jsonSuccess(['v' => '']);
+
+    $temporada = resolveCurrentSeason($pdo, $league);
+    if (!$temporada['id']) jsonSuccess(['v' => '']);
+    if (!columnExists($pdo, 'free_agents', 'season_id')) jsonSuccess(['v' => '']);
+
+    $ovrCol = freeAgentOvrColumn($pdo);
+    try {
+        /* GROUP_CONCAT ordenado: a mesma lista tem que dar sempre o mesmo hash,
+           e sem o ORDER BY interno a ordem das linhas pode variar. */
+        $st = $pdo->prepare("
+            SELECT MD5(GROUP_CONCAT(CONCAT_WS('|', fa.id, fa.name, fa.{$ovrCol}, fa.age,
+                                              COALESCE(fa.status, 'available'))
+                        ORDER BY fa.id SEPARATOR ';')) AS v
+            FROM free_agents fa
+            WHERE fa.league = ? AND fa.season_id = ?");
+        $st->execute([$league, $temporada['id']]);
+        jsonSuccess(['v' => (string)($st->fetchColumn() ?: '')]);
+    } catch (Throwable $e) {
+        // Falhando, a tela cai no recarregamento por tempo — que é o que ela
+        // fazia antes disto existir.
+        error_log('[fa] versao da lista: ' . $e->getMessage());
+        jsonSuccess(['v' => '']);
+    }
 }

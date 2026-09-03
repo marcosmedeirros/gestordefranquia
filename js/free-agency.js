@@ -1275,39 +1275,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/* ── A LISTA SE MANTÉM ATUALIZADA SOZINHA ─────────────────────────────
-   A ficha é compartilhada: quando um GM corrige o nome ou o OVR, vale pra
-   liga inteira na hora. Só que a página de quem já estava com ela aberta
-   continuava mostrando o cadastro velho — e foi o que aconteceu no grupo: uns
-   viam "Xue Yuyang", outros "Yu Yang Xue", e quem clicou num card que outro
-   tinha acabado de remover levou "jogador não encontrado".
+/* ── A LISTA SE ATUALIZA SOZINHA, SEM F5 ──────────────────────────────
+   A ficha é compartilhada: quando um GM corrige o nome ou o OVR, vale pra liga
+   inteira na hora. Só que a página de quem já estava com ela aberta continuava
+   mostrando o cadastro velho — e foi o que aconteceu no grupo: uns viam "Xue
+   Yuyang", outros "Yu Yang Xue", e quem clicou num card que outro tinha
+   acabado de remover levou "jogador não encontrado".
 
-   Recarregar de tempos em tempos resolve os dois. Só com a aba à vista, pra
-   não bater no servidor com a página esquecida aberta, e nunca com o modal
-   aberto — puxar a lista debaixo de quem está digitando apagaria o que a
-   pessoa escreveu. */
+   A cada 5 segundos a tela pergunta ao servidor só um HASH da lista, e recarrega
+   de verdade quando ele muda. Perguntar "mudou?" é barato; baixar dezenas de
+   jogadores com o cap recalculado pra cada GM, a cada 5 segundos, não seria. */
 
-const FA_ATUALIZA_A_CADA = 30000;
+const FA_CONFERE_A_CADA = 5000;
+let faVersaoConhecida = null;
 
 function faListaEstaVisivel() {
     const painel = document.getElementById('dispPanel');
     return painel && painel.offsetParent !== null;
 }
 
-function faModalAberto() {
-    return !!document.querySelector('.modal.show');
+/* Nunca com o modal aberto: puxar a lista debaixo de quem está digitando
+   apagaria o que a pessoa escreveu. A mudança entra assim que ela fechar. */
+function faPodeAtualizar() {
+    return !document.hidden && !document.querySelector('.modal.show') && faListaEstaVisivel();
 }
 
-function faAtualizarSePuder() {
-    if (document.hidden || faModalAberto() || !faListaEstaVisivel()) return;
-    if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
+async function faConferirMudancas() {
+    if (!faPodeAtualizar()) return;
+    try {
+        const r = await fetch('api/free-agency.php?action=dispensados_versao');
+        const d = await r.json();
+        const v = d?.v ?? '';
+        if (!v) return;                       // servidor não soube dizer: fica quieto
+        if (faVersaoConhecida === null) { faVersaoConhecida = v; return; }
+        if (v === faVersaoConhecida) return;  // ninguém mexeu
+
+        faVersaoConhecida = v;
+        // Conferir de novo aqui: o modal pode ter aberto enquanto isto voltava.
+        if (faPodeAtualizar() && typeof carregarDispensadosDaTemporada === 'function') {
+            carregarDispensadosDaTemporada();
+        }
+    } catch (e) {
+        // Rede oscilando não precisa virar aviso: a próxima passada tenta.
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    setInterval(faAtualizarSePuder, FA_ATUALIZA_A_CADA);
-    // Voltar pra aba é quando a defasagem mais incomoda: a pessoa saiu, mexeram
-    // na lista, e ela volta pra agir sobre o que está na tela.
+    setInterval(faConferirMudancas, FA_CONFERE_A_CADA);
+    // Voltar pra aba é quando a defasagem mais incomoda: a pessoa saiu,
+    // mexeram na lista, e ela volta pra agir sobre o que está na tela.
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) faAtualizarSePuder();
+        if (!document.hidden) faConferirMudancas();
     });
 });
