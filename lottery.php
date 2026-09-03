@@ -686,8 +686,11 @@ body.bc-complete .podium{display:grid}
         Draft em configuração
       </div>
       <div style="font-size:16px;font-weight:800;margin-top:2px">
-        <?= htmlspecialchars($draftUnico['league']) ?> · Temporada <?= (int)$draftUnico['season_number'] ?><?php
-          if ($draftUnico['year']): ?> <span style="color:var(--text-3);font-weight:600">(<?= htmlspecialchars($draftUnico['year']) ?>)</span><?php endif; ?>
+        <?php /* Sem o ano entre parênteses: o ano do jogo é de outra contagem
+                 que a do calendário e, ao lado do número da temporada, confunde
+                 mais do que informa. O que identifica o draft aqui é a liga e a
+                 temporada. */ ?>
+        <?= htmlspecialchars($draftUnico['league']) ?> · Temporada <?= (int)$draftUnico['season_number'] ?>
       </div>
     </div>
     <?php if ($podeConduzirEstaLiga): ?>
