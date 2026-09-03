@@ -2725,8 +2725,18 @@ if ($method === 'POST') {
                     ? 'Pick realizada! Jogador já existia no elenco e não foi duplicado.'
                     : 'Pick realizada!';
                 echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
+                if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+
+                /* Depois da resposta: o GM não espera o WhatsApp pra ver a
+                   pick dele confirmada na tela. A função sai sozinha quando
+                   não é 1ª rodada ou passou da 10ª. */
+                try {
+                    require_once __DIR__ . '/../backend/draft_bot.php';
+                    draftBotAnunciarEscolha($pdo, (int)$draftSessionId,
+                        (int)$currentPick['round'], (int)$currentPick['pick_position']);
+                } catch (Throwable $e) {}
+
                 if ($nextTeamId && isset($next)) {
-                    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
                     try { notifyNextPick($pdo, $nextTeamId, (int)$next['round'], (int)$next['pick_position']); } catch (Exception $e) {}
                 }
             } catch (Exception $e) {
@@ -3075,8 +3085,17 @@ if ($method === 'POST') {
                     ? 'Pick preenchida! Jogador já existia no elenco e não foi duplicado.'
                     : 'Pick preenchida!';
                 echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
+                if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+
+                // O admin preenchendo pelo time conta como escolha: pra quem
+                // lê o grupo, o que importa é que a pick saiu.
+                try {
+                    require_once __DIR__ . '/../backend/draft_bot.php';
+                    draftBotAnunciarEscolha($pdo, (int)$draftSessionId,
+                        (int)$pick['round'], (int)$pick['pick_position']);
+                } catch (Throwable $e) {}
+
                 if ($nextTeamId) {
-                    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
                     try { notifyNextPick($pdo, $nextTeamId, (int)$nextRound, (int)$nextPick); } catch (Exception $e) {}
                 }
             } catch (Exception $e) {

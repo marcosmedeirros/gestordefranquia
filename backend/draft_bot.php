@@ -202,3 +202,63 @@ function draftBotTexto(PDO $pdo, string $liga, ?int $round = null): string
 
     return $txt;
 }
+
+/**
+ * ATÉ QUE ESCOLHA O DRAFT VIRA NOTÍCIA NO GRUPO.
+ *
+ * As primeiras picks são o que a liga inteira acompanha; da décima em diante o
+ * interesse cai e o grupo vira mural de log. Dez é o corte pedido, e é o
+ * bastante pra cobrir a loteria inteira do topo.
+ */
+const DRAFT_BOT_ANUNCIA_ATE = 10;
+
+/**
+ * Anuncia no Chat Off da liga que uma escolha foi feita.
+ *
+ * Só a 1ª rodada e só até a décima escolha. A mensagem é curta de propósito:
+ * numa sequência de dez, cada uma precisa ser lida de relance.
+ *
+ * Nunca lança e nunca bloqueia: o draft não pode parar porque o bot está
+ * desligado ou o grupo não foi configurado.
+ */
+function draftBotAnunciarEscolha(PDO $pdo, int $sessionId, int $round, int $pickPosition): void
+{
+    if ($round !== 1 || $pickPosition < 1 || $pickPosition > DRAFT_BOT_ANUNCIA_ATE) return;
+
+    try {
+        require_once __DIR__ . '/whatsapp.php';
+        require_once __DIR__ . '/leilao_bot.php';   // leilaoBotGrupoDaLiga()
+
+        /* Lê a escolha do banco em vez de receber os nomes por parâmetro: quem
+           chama já gravou, e assim a mensagem sai do mesmo lugar que a tela
+           mostra — se divergirem, é a mensagem que está errada. */
+        $st = $pdo->prepare('SELECT CONCAT(t.city, " ", t.name) AS time, t.league,
+                                    dp.name AS jogador, dp.position AS pos, dp.ovr
+                               FROM draft_order o
+                               JOIN teams t ON t.id = o.team_id
+                               JOIN draft_pool dp ON dp.id = o.picked_player_id
+                              WHERE o.draft_session_id = ? AND o.round = ? AND o.pick_position = ?
+                              LIMIT 1');
+        $st->execute([$sessionId, $round, $pickPosition]);
+        $e = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$e) return;
+
+        $grupo = leilaoBotGrupoDaLiga($pdo, (string)$e['league']);
+        if (!$grupo) return;
+
+        // "01" e não "1": numa sequência de dez, a largura fixa alinha a
+        // leitura e deixa claro que é o número da escolha, não uma contagem.
+        $num = str_pad((string)$pickPosition, 2, '0', STR_PAD_LEFT);
+
+        $ficha = trim((string)($e['pos'] ?? ''));
+        if (!empty($e['ovr'])) $ficha = ($ficha !== '' ? $ficha . ' · ' : '') . 'OVR ' . (int)$e['ovr'];
+
+        $txt = "🏀 *DRAFT · {$e['league']}*\n\n"
+             . "*{$e['time']}* escolheu *{$e['jogador']}* na *{$num}*"
+             . ($ficha !== '' ? "\n_{$ficha}_" : '');
+
+        whatsappEnfileirar($pdo, $grupo, $txt, true, 'draft');
+    } catch (Throwable $ex) {
+        error_log('[draft_bot] anunciar escolha: ' . $ex->getMessage());
+    }
+}

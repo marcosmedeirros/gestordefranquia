@@ -257,6 +257,17 @@ function draftAutopickSessao(PDO $pdo, int $sessionId): array
             'motivo'  => (string)$jogador['motivo'],
         ];
 
+        /* A escolha automática também vira notícia no grupo. Pra quem lê, ela
+           é uma pick como outra qualquer — quem escolheu foi o time, mesmo que
+           pela lista que ele deixou. A função sai sozinha fora da 1ª rodada e
+           depois da 10ª escolha. */
+        try {
+            require_once __DIR__ . '/draft_bot.php';
+            draftBotAnunciarEscolha($pdo, $sessionId, (int)$pick['round'], (int)$pick['pick_position']);
+        } catch (Throwable $e) {
+            error_log('[autopick] anunciar: ' . $e->getMessage());
+        }
+
         if ($r['proxima'] && $r['proximo_time']) {
             draftAutopickAvisar($pdo, (int)$r['proximo_time'],
                 (int)$r['proxima']['round'], (int)$r['proxima']['pick_position']);
