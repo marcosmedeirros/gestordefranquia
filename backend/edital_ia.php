@@ -50,8 +50,10 @@ const EDITAL_IA_MODELO_ANTHROPIC = 'claude-opus-5';
  * outros entram só quando ele não está disponível.
  */
 const EDITAL_IA_MODELOS_GEMINI = [
-    'gemini-3.1-flash-lite',   // responde em ~3s
-    'gemini-3.7-flash',        // plano B; mais lento, mas atende
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
 ];
 
 /**
@@ -72,11 +74,13 @@ const EDITAL_IA_LIMITE_DIA = 150;
    finishReason MAX_TOKENS: o modelo gastou tudo pensando. Por isso a folga. */
 const EDITAL_IA_MAX_TOKENS = 1200;
 const EDITAL_IA_MAX_TOKENS_GEMINI = 4000;
-/* 45s no primeiro modelo e 25s nos seguintes: somados, o pior caso ainda
-   responde antes de o GM desistir. O 90s de antes virava um minuto e meio de
-   silencio quando o modelo estava congestionado. */
-const EDITAL_IA_TIMEOUT    = 45;
-const EDITAL_IA_TIMEOUT_FALLBACK = 25;
+/* Desistir rapido e tentar outro vale mais que esperar.
+   Medido: um modelo saudavel responde em 1 a 5 segundos; passando disso ele
+   esta congestionado e vai estourar o timeout de qualquer jeito. Entao as
+   primeiras tentativas sao curtas e so a ULTIMA ganha folga, que e quando nao
+   ha mais pra quem recorrer. */
+const EDITAL_IA_TIMEOUT          = 15;
+const EDITAL_IA_TIMEOUT_ULTIMA   = 35;
 
 /**
  * Uma chave, de onde ela estiver: variável de ambiente ou `config.php`.
@@ -194,23 +198,112 @@ function editalIaRegistrarUso(PDO $pdo, int $entrada = 0, int $saida = 0): void
 }
 
 /**
- * O que o modelo pode e não pode fazer com o edital.
+ * COMO A LIGA ESTÁ CONFIGURADA HOJE, lido do banco.
+ *
+ * O edital é um PDF: ele congela no dia em que foi escrito, e a liga continua
+ * andando. A ROOKIE é o exemplo — o edital dela fala em 10 temporadas por
+ * sprint, e no app são 15. Sem estes números o bot repetia o PDF com toda a
+ * confiança do mundo e mandava o GM planejar a franquia errado.
+ *
+ * Aqui vai o que o SISTEMA diz, que é o que de fato acontece quando o GM
+ * clica. Onde os dois discordam, manda este bloco.
+ */
+function editalIaFatosDoApp(PDO $pdo, string $league): string
+{
+    // EDITAL_LIGAS_SEM_MOEDA mora no guia, que não é carregado por este
+    // arquivo — sem isto a função morria no meio e o bloco saía vazio.
+    require_once __DIR__ . '/edital_guia.php';
+
+    $l = [];
+    try {
+        $st = $pdo->prepare('SELECT c.max_seasons, s.cap_min, s.cap_max, s.cap_mode,
+                                    s.max_trades, s.trades_enabled, s.fa_enabled,
+                                    (SELECT COUNT(*) FROM teams t WHERE t.league = c.league) AS times
+                               FROM league_sprint_config c
+                          LEFT JOIN league_settings s ON s.league = c.league
+                              WHERE c.league = ?');
+        $st->execute([$league]);
+        $c = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$c) return '';
+
+        $l[] = "COMO A {$league} ESTÁ CONFIGURADA NO APP HOJE";
+        $l[] = '(dados lidos do sistema agora; onde isto discordar do edital, VALE ISTO)';
+        $l[] = '';
+        $l[] = "- Times na liga: {$c['times']}";
+        $l[] = "- Temporadas por sprint: {$c['max_seasons']}";
+
+        // O cap muda de natureza entre as ligas, e confundir os dois é o erro
+        // mais comum de quem vem de outra liga.
+        $l[] = ($c['cap_mode'] ?? '') === 'salary'
+            ? "- Cap: por SALÁRIO, de {$c['cap_min']} a {$c['cap_max']}"
+            : "- Cap: por SOMA DE OVR do elenco, de {$c['cap_min']} a {$c['cap_max']}";
+
+        $l[] = "- Trocas por temporada: {$c['max_trades']}";
+        $l[] = '- Trocas agora: ' . (!empty($c['trades_enabled']) ? 'ABERTAS' : 'FECHADAS');
+        $l[] = '- Free agency agora: ' . (!empty($c['fa_enabled']) ? 'ABERTA' : 'FECHADA');
+        $l[] = '- Moedas: ' . (in_array($league, EDITAL_LIGAS_SEM_MOEDA, true)
+            ? 'a liga NÃO usa moedas (o edital ainda fala delas; não valem mais)'
+            : 'a liga usa moedas na free agency e no leilão');
+
+        $st = $pdo->prepare("SELECT sp.sprint_number, MAX(se.season_number) AS temp
+                               FROM sprints sp LEFT JOIN seasons se ON se.sprint_id = sp.id
+                              WHERE sp.league = ? AND sp.status = 'active'
+                           GROUP BY sp.sprint_number LIMIT 1");
+        $st->execute([$league]);
+        if ($s = $st->fetch(PDO::FETCH_ASSOC)) {
+            $l[] = "- Momento: sprint {$s['sprint_number']}, temporada {$s['temp']} de {$c['max_seasons']}";
+        }
+    } catch (Throwable $e) {
+        error_log('[edital_ia] fatos do app: ' . $e->getMessage());
+        return '';
+    }
+    return implode("\n", $l);
+}
+
+/** As telas do site, pro bot saber ONDE se faz cada coisa. */
+function editalIaComoUsarOApp(): string
+{
+    try {
+        require_once __DIR__ . '/edital_guia.php';
+        $l = ['ONDE SE FAZ CADA COISA NO SITE (fbabrasil.com.br)', ''];
+        foreach (editalPaginas() as $grupo => $telas) {
+            foreach ($telas as [$url, $nome, $desc]) $l[] = "- {$nome} ({$url}): {$desc}";
+        }
+        return implode("\n", $l);
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+/**
+ * O que o modelo pode e não pode fazer.
  *
  * Escrito curto de propósito: cada regra aqui é uma coisa que dá errado no
  * grupo se faltar. O tom é o de um GM veterano respondendo no grupo, porque é
- * onde a resposta vai cair.
+ * onde a resposta vai cair — e não o de quem lê regulamento em voz alta.
  */
 function editalIaInstrucoes(string $league): string
 {
     return implode("\n", [
-        "Você responde dúvidas sobre o edital da liga {$league} da FBA Brasil, uma liga de fantasy de basquete.",
-        "Quem pergunta é um GM, no grupo de WhatsApp da liga.",
+        "Você é o assistente da FBA Brasil, uma liga de fantasy de basquete no NBA 2K.",
+        "Quem pergunta é um GM da liga {$league}, no grupo de WhatsApp. Você ajuda ele a",
+        "entender as regras E a usar o site — as duas coisas, porque metade das dúvidas",
+        "é 'onde eu faço isso?' e não 'o que diz a regra?'.",
         '',
-        'REGRAS:',
-        '- Responda SOMENTE com o que está no edital acima. Ele é a única fonte.',
-        '- Cite o artigo entre parênteses no fim da frase que veio dele: (Art. 41).',
-        '- Se a resposta não estiver no edital, diga exatamente isso e sugira falar com a organização. Não deduza, não complete com o que costuma ser praticado em outras ligas.',
-        '- Se o edital for ambíguo no ponto perguntado, diga que é ambíguo e mostre o que ele diz.',
+        'O QUE VALE, EM ORDEM:',
+        '1. Os dados do app (bloco "COMO A LIGA ESTÁ CONFIGURADA"). São o que acontece de verdade.',
+        '2. O edital, pro que os dados não cobrem — que é a maior parte.',
+        '- O edital é um PDF antigo e tem ponto desatualizado. Quando ele discordar dos dados do',
+        '  app, vale o app: responda o número certo e avise que o edital ainda está com o antigo.',
+        '- Fora isso, não invente. Não sabendo, diga que não sabe e mande falar com a organização.',
+        '  Chutar regra de liga é pior que não responder: a pessoa age achando que está amparada.',
+        '',
+        'COMO FALAR:',
+        '- Como um GM veterano explicando pro novato, não como advogado lendo o regulamento.',
+        '- Traduza o juridiquês. "Sanção pecuniária progressiva" vira "a multa aumenta a cada vez".',
+        '- Diga onde se faz a coisa quando fizer sentido: "isso é na aba Trades".',
+        '- Cite o artigo entre parênteses só quando for regra que gera punição ou dúvida: (Art. 41).',
+        '  Não precisa citar artigo pra explicar como usar uma tela.',
         '',
         'FORMATO:',
         '- Português do Brasil, direto, no máximo 6 linhas.',
@@ -344,11 +437,21 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
  */
 function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro): array
 {
+    /* Três blocos, nesta ordem: o edital (o grosso), o que o app diz hoje, e
+       as instruções por último. O que manda vem depois do que é consultado —
+       assim a regra de precedência é lida com os dois já na mão. */
+    $partes = [['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n\n" . $edital]];
+
+    $fatos = editalIaFatosDoApp($pdo, $league);
+    if ($fatos !== '') $partes[] = ['text' => $fatos];
+
+    $telas = editalIaComoUsarOApp();
+    if ($telas !== '') $partes[] = ['text' => $telas];
+
+    $partes[] = ['text' => editalIaInstrucoes($league)];
+
     $payload = [
-        'system_instruction' => ['parts' => [
-            ['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n\n" . $edital],
-            ['text' => editalIaInstrucoes($league)],
-        ]],
+        'system_instruction' => ['parts' => $partes],
         'contents' => [
             ['role' => 'user', 'parts' => [['text' => $pergunta]]],
         ],
@@ -376,7 +479,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     foreach ($fila as $i => $modelo) {
         // O primeiro tem o tempo todo; os seguintes são plano B e não podem
         // deixar o GM esperando um minuto e meio cada.
-        $timeout = $i === 0 ? EDITAL_IA_TIMEOUT : EDITAL_IA_TIMEOUT_FALLBACK;
+        $ultima  = ($i === count($fila) - 1);
+        $timeout = $ultima ? EDITAL_IA_TIMEOUT_ULTIMA : EDITAL_IA_TIMEOUT;
 
         /* CONTA ANTES DE GASTAR, e não depois.
            A chamada pode levar dezenas de segundos, e nesse tempo a conexão
