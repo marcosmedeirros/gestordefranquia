@@ -139,6 +139,31 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
         $t = loteriaBotTransmissao($pdo, $sessionId);
         if (!$t) return;
 
+        /* NÃO ANUNCIA A MESMA POSIÇÃO DUAS VEZES.
+           O guard de `reveladas` não bastava: quando o admin sorteia de novo,
+           `lottery_transmitir` ZERA a lista de reveladas, e a cerimônia inteira
+           volta a poder ser anunciada — com a ordem nova. Foi o que aconteceu
+           na ELITE: o #16 saiu duas vezes e o México City Catrinas apareceu na
+           #15 (ordem velha) e depois na #14 (ordem nova), no mesmo grupo.
+
+           Aqui a memória é a própria fila, que o re-sorteio não apaga: se já
+           existe mensagem desta liga com este número de escolha, não manda de
+           novo. O texto é a chave porque é o que o grupo já leu — e é
+           exatamente o que não pode se repetir. */
+        // A #1 tem texto próprio ("A primeira escolha do draft"), sem o "#1".
+        $marca = $posicao === 1 ? 'primeira escolha' : "Escolha *#{$posicao}*";
+
+        /* Só as últimas 12 horas: uma cerimônia dura minutos, e a loteria da
+           temporada seguinte tem que poder anunciar as mesmas posições sem
+           esbarrar no que foi dito meses atrás. */
+        $jaSaiu = $pdo->prepare("SELECT 1 FROM whatsapp_fila
+                                  WHERE tipo = 'loteria'
+                                    AND texto LIKE ? AND texto LIKE ?
+                                    AND created_at >= DATE_SUB(NOW(), INTERVAL 12 HOUR)
+                                  LIMIT 1");
+        $jaSaiu->execute(['%LOTERIA · ' . $t['liga'] . '%', '%' . $marca . '%']);
+        if ($jaSaiu->fetchColumn()) return;
+
         $d = loteriaBotDadosDaPosicao($pdo, $t['ordem'], $posicao);
         $time = $d['nome'];
         if ($time === null) return;
