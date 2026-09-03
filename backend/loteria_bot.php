@@ -46,14 +46,51 @@ function loteriaBotTransmissao(PDO $pdo, int $sessionId): ?array
  */
 function loteriaBotTimeDaPosicao(PDO $pdo, array $ordem, int $posicao): ?string
 {
+    $d = loteriaBotDadosDaPosicao($pdo, $ordem, $posicao);
+    return $d['nome'] ?? null;
+}
+
+/**
+ * Quem escolhe naquela posição e, se a pick foi trocada, de quem ela veio.
+ *
+ * A ordem transmitida já vem resolvida: `team_id` é QUEM ESCOLHE, e o campo
+ * `origin_name` guarda o time da campanha quando os dois diferem. É a mesma
+ * informação que a urna e o quadro da revelação mostram — sem ela, o grupo
+ * leria o nome de quem leva a pick sem entender por que ele apareceu ali.
+ *
+ * @return array{nome:?string,via:?string}
+ */
+function loteriaBotDadosDaPosicao(PDO $pdo, array $ordem, int $posicao): array
+{
+    $vazio = ['nome' => null, 'via' => null];
     $item = $ordem[$posicao - 1] ?? null;
-    if ($item === null) return null;
+    if ($item === null) return $vazio;
 
-    $teamId = is_array($item)
-        ? (int)($item['team_id'] ?? $item['id'] ?? 0)
-        : (int)$item;
+    // Formato antigo: a ordem era só uma lista de ids.
+    if (!is_array($item)) {
+        $nome = loteriaBotNomeDoTime($pdo, (int)$item);
+        return ['nome' => $nome, 'via' => null];
+    }
+
+    $teamId = (int)($item['team_id'] ?? $item['id'] ?? 0);
+    $nome = trim((string)($item['team_name'] ?? '')) ?: loteriaBotNomeDoTime($pdo, $teamId);
+    if ($nome === null || $nome === '') return $vazio;
+
+    $via = null;
+    if (!empty($item['is_swap'])) {
+        $via = trim((string)($item['origin_name'] ?? ''));
+        if ($via === '' && !empty($item['origin_team_id'])) {
+            $via = loteriaBotNomeDoTime($pdo, (int)$item['origin_team_id']);
+        }
+        if ($via === '') $via = null;
+    }
+    return ['nome' => $nome, 'via' => $via];
+}
+
+/** O nome completo de um time, ou null. */
+function loteriaBotNomeDoTime(PDO $pdo, int $teamId): ?string
+{
     if ($teamId <= 0) return null;
-
     try {
         $st = $pdo->prepare('SELECT CONCAT(city, " ", name) FROM teams WHERE id = ?');
         $st->execute([$teamId]);
@@ -81,13 +118,17 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
         $t = loteriaBotTransmissao($pdo, $sessionId);
         if (!$t) return;
 
-        $time = loteriaBotTimeDaPosicao($pdo, $t['ordem'], $posicao);
+        $d = loteriaBotDadosDaPosicao($pdo, $t['ordem'], $posicao);
+        $time = $d['nome'];
         if ($time === null) return;
 
         $grupo = leilaoBotGrupoDaLiga($pdo, $t['liga']);
         if (!$grupo) return;
 
         $total = count($t['ordem']);
+        // Pick trocada: quem le precisa saber de onde ela veio, senao o nome
+        // aparece numa posicao que a campanha dele nao explica.
+        $via = $d['via'] ? "\n_via {$d['via']}_" : '';
 
         /* A ÚLTIMA ESCOLHA MERECE OUTRO TEXTO. Anunciar "escolha 30 de 30"
            igual às outras deixaria o fim da cerimônia passar batido, e é o
@@ -97,14 +138,14 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
 
         if ($ehPrimeira) {
             $txt = "🎲 *LOTERIA · {$t['liga']}*\n\n"
-                 . "🥇 A *primeira escolha* do draft é do *{$time}*!";
+                 . "🥇 A *primeira escolha* do draft é do *{$time}*!" . $via;
         } elseif ($ehUltima) {
             $txt = "🎲 *LOTERIA · {$t['liga']}*\n\n"
-                 . "Escolha *#{$posicao}* — *{$time}*\n\n"
+                 . "Escolha *#{$posicao}* — *{$time}*{$via}\n\n"
                  . '_Ordem completa. A loteria acabou._';
         } else {
             $txt = "🎲 *LOTERIA · {$t['liga']}*\n\n"
-                 . "Escolha *#{$posicao}* de {$total} — *{$time}*";
+                 . "Escolha *#{$posicao}* de {$total} — *{$time}*" . $via;
         }
 
         whatsappEnfileirar($pdo, $grupo, $txt, true, 'loteria');
@@ -130,16 +171,21 @@ function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
         $t = loteriaBotTransmissao($pdo, $sessionId);
         if (!$t) return;
 
-        $time = loteriaBotTimeDaPosicao($pdo, $t['ordem'], $posicao);
+        $d = loteriaBotDadosDaPosicao($pdo, $t['ordem'], $posicao);
+        $time = $d['nome'];
         if ($time === null) return;
 
         $total = count($t['ordem']);
+        // No push o "via" entra entre parênteses, na mesma linha: não há espaço
+        // pra segunda linha numa notificação de celular.
+        $via = $d['via'] ? " (via {$d['via']})" : '';
+
         $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];
         $corpo  = $posicao === 1
-            ? "{$time} escolhe primeiro no draft."
+            ? "{$time} escolhe primeiro no draft{$via}."
             : ($posicao === $total
-                ? "Escolha #{$posicao} — {$time}. A loteria acabou."
-                : "Escolha #{$posicao} de {$total} — {$time}");
+                ? "Escolha #{$posicao} — {$time}{$via}. A loteria acabou."
+                : "Escolha #{$posicao} de {$total} — {$time}{$via}");
 
         sendPushToLeague($pdo, $t['liga'], [
             'title'      => $titulo,
