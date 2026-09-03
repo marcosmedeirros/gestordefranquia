@@ -2069,7 +2069,17 @@ if ($method === 'POST') {
                     $tr = $pdo->prepare('SELECT ordem FROM lottery_broadcast WHERE draft_session_id = ?');
                     $tr->execute([$sid]);
                     $ordemAr = json_decode((string)$tr->fetchColumn(), true);
-                    $item = is_array($ordemAr) ? ($ordemAr[$pos - 1] ?? null) : null;
+                    /* Cada item carrega a própria `position`, e ela é a
+                       verdade — o índice no array é só onde ele calhou de
+                       estar. Já vi os dois divergirem, e aí gravar pelo
+                       índice põe o time errado na vaga. */
+                    $item = null;
+                    if (is_array($ordemAr)) {
+                        foreach ($ordemAr as $cand) {
+                            if (is_array($cand) && (int)($cand['position'] ?? 0) === $pos) { $item = $cand; break; }
+                        }
+                        if ($item === null) $item = $ordemAr[$pos - 1] ?? null;
+                    }
 
                     // `team_id` é quem escolhe; `origin_team_id` é de quem é a
                     // vaga — a distinção que a pick usa pra se ligar a ela.
