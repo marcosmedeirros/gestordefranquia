@@ -830,6 +830,27 @@ if ($method === 'DELETE') {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
+    /* DISPENSA FECHADA NA LIGA.
+       Vale só pra dispensa: aposentadoria continua liberada porque é obrigação
+       do edital dar baixa em quem pendurou as chuteiras, e travar isso deixaria
+       o elenco fora do save — punição pra quem quis fazer certo.
+
+       A checagem é aqui, e não só no botão: esconder o botão não impede um
+       POST direto, e fechar janela é justamente o momento em que alguém tenta. */
+    if (!$isRetirement) {
+        try {
+            $stW = $pdo->prepare('SELECT waivers_enabled FROM league_settings WHERE league = ?');
+            $stW->execute([$row['league']]);
+            $lin = $stW->fetch(PDO::FETCH_ASSOC);
+            // Coluna ausente ou liga sem linha = aberto, como sempre foi.
+            if ($lin !== false && array_key_exists('waivers_enabled', $lin) && (int)$lin['waivers_enabled'] === 0) {
+                jsonResponse(403, ['error' => 'As dispensas estão fechadas nesta liga no momento.']);
+            }
+        } catch (Throwable $e) {
+            error_log('[players] checar waivers_enabled: ' . $e->getMessage());
+        }
+    }
+
     // Se for aposentadoria, verificar idade mínima (maior que 35)
     if ($isRetirement) {
         if ((int)$row['age'] <= 35) {

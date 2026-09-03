@@ -5324,6 +5324,30 @@ async function showConfig() {
         </button>
       </div>
     </div>
+    <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:32px;height:32px;border-radius:9px;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-person-dash" style="color:#f59e0b;font-size:14px"></i>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Dispensas</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.waivers_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${(lg.waivers_enabled ?? 1) == 1 ? 'Abertas' : 'Fechadas'}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn ${(lg.waivers_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleWaivers('${lg.league}', 1)" id="waiversOnBtn_${lg.league}">
+          Abertas
+        </button>
+        <button class="btn ${(lg.waivers_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleWaivers('${lg.league}', 0)" id="waiversOffBtn_${lg.league}">
+          Fechadas
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px">
+        Fechado, ninguém dispensa. Aposentadoria continua liberada — é obrigação do edital.
+      </div>
+    </div>
   </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Edital da Liga</div>
@@ -5975,6 +5999,7 @@ async function _loadLeagueConfigInline(league) {
     section.style.display = '';
     const tradesOn = (lg.trades_enabled ?? 1) == 1;
     const faOn = (lg.fa_enabled ?? 1) == 1;
+    const waiversOn = (lg.waivers_enabled ?? 1) == 1;
     const badgeStyle = (on) => on
       ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
       : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)';
@@ -6027,6 +6052,16 @@ async function _loadLeagueConfigInline(league) {
               idSelo: `faBadge_${lg.league}`, idOn: `faOnBtn_${lg.league}`,
               idOff: `faOffBtn_${lg.league}`, acao: 'toggleFA',
               campo: 'fechar_fa_em', valor: lg.fechar_fa_em, alvo: 'a free agency',
+            })}
+            <!-- Dispensa sem fechamento agendado: ela é decisão de janela, não
+                 de prazo, e um horário aqui sugeriria um automatismo que não
+                 existe. Aposentadoria não passa por esta chave. -->
+            ${janelaLinha({
+              liga: lg.league, icone: 'bi-person-dash', cor: '#f59e0b', nome: 'Dispensas',
+              aberta: waiversOn, rotuloOn: 'Abertas', rotuloOff: 'Fechadas',
+              idSelo: `waiversBadge_${lg.league}`, idOn: `waiversOnBtn_${lg.league}`,
+              idOff: `waiversOffBtn_${lg.league}`, acao: 'toggleWaivers',
+              campo: null, valor: null, alvo: 'as dispensas',
             })}
             <!-- A tática vem de outra API (admin-control), então os botões dela
                  chegam depois. A linha e o campo de horário já nascem aqui pra
@@ -6104,7 +6139,7 @@ function janelaLinha(o) {
         <button class="btn btn-sm ${!o.aberta ? 'btn-danger' : 'btn-outline-danger'}"
                 onclick="${o.acao}('${o.liga}', 0)" id="${o.idOff}">${o.rotuloOff}</button>
       </div>
-      ${agendaCampo(o.liga, o.campo, o.valor, o.alvo)}
+      ${o.campo ? agendaCampo(o.liga, o.campo, o.valor, o.alvo) : ''}
     </div>`;
 }
 
@@ -8163,6 +8198,29 @@ async function toggleTatica(league, abrir) {
   }
 }
 
+
+async function toggleWaivers(league, enabled) {
+  try {
+    await api('admin.php?action=league_settings', {
+      method: 'PUT',
+      body: JSON.stringify({ league, waivers_enabled: enabled })
+    });
+    const onBtn  = document.getElementById(`waiversOnBtn_${league}`);
+    const offBtn = document.getElementById(`waiversOffBtn_${league}`);
+    const badge  = document.getElementById(`waiversBadge_${league}`);
+    const on = enabled == 1;
+    if (onBtn)  onBtn.className  = `btn btn-sm ${on ? 'btn-success' : 'btn-outline-success'}`;
+    if (offBtn) offBtn.className = `btn btn-sm ${!on ? 'btn-danger' : 'btn-outline-danger'}`;
+    if (badge) {
+      badge.textContent = on ? 'Abertas' : 'Fechadas';
+      badge.className = 'lgcfg-selo ' + (on ? 'on' : 'off');
+      badge.removeAttribute('style');
+    }
+    showAlert('success', `Dispensas ${on ? 'abertas' : 'fechadas'} para a liga ${league}!`);
+  } catch (e) {
+    showAlert('danger', 'Erro ao atualizar as dispensas');
+  }
+}
 
 async function toggleFA(league, enabled) {
   try {

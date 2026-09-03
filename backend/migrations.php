@@ -1744,6 +1744,19 @@ function runMigrations() {
         $errors[] = "ajuste_multi_trades_cycle: " . $e->getMessage();
     }
 
+    /* Dispensa passa a abrir e fechar por liga, como trade e free agency ja
+       faziam. Nasce ABERTA (1) pra que ligar a chave nao mude o que estava
+       valendo: quem dispensava ontem continua dispensando hoje. */
+    try {
+        $hasWaivers = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'waivers_enabled'")->fetch();
+        if (!$hasWaivers) {
+            $pdo->exec("ALTER TABLE league_settings
+                        ADD COLUMN waivers_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER fa_enabled");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_league_settings_waivers_enabled: " . $e->getMessage();
+    }
+
     // Tatica vira 3 taticas nomeadas com uma marcada como ativa (reforma do
     // fluxo de diretrizes: sem envio, o que esta ativo e o oficial).
     try {

@@ -1225,9 +1225,9 @@ if ($method === 'GET') {
                 if (!columnExists($pdo, 'league_settings', 'cap_flex_a_partir_da_temporada')) {
                     try { $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL"); } catch (Exception $e) {}
                 }
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, cap_mode, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url, cap_auto_last_season, cap_auto_margin, cap_auto_margin_pct, cap_flex_a_partir_da_temporada FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, cap_mode, max_trades, edital, trades_enabled, fa_enabled, waivers_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url, cap_auto_last_season, cap_auto_margin, cap_auto_margin_pct, cap_flex_a_partir_da_temporada FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'cap_mode' => 'ovr_sum', 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => '', 'cap_auto_last_season' => null, 'cap_auto_margin' => LEAGUE_CAP_DEFAULT_OVR_MARGIN, 'cap_auto_margin_pct' => LEAGUE_CAP_DEFAULT_SALARY_MARGIN];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'cap_mode' => 'ovr_sum', 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'waivers_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => '', 'cap_auto_last_season' => null, 'cap_auto_margin' => LEAGUE_CAP_DEFAULT_OVR_MARGIN, 'cap_auto_margin_pct' => LEAGUE_CAP_DEFAULT_SALARY_MARGIN];
 
                 $stmtSprintCfg = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
                 $stmtSprintCfg->execute([$league]);
@@ -1246,6 +1246,7 @@ if ($method === 'GET') {
                     'edital' => $cfg['edital'],
                     'edital_file' => $cfg['edital'],
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
+                    'waivers_enabled' => (int)($cfg['waivers_enabled'] ?? 1),
                     'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
                     'n8n_webhook_url' => $cfg['n8n_webhook_url'] ?? '',
                     'progression_video_url' => $cfg['progression_video_url'] ?? '',
@@ -1909,6 +1910,7 @@ if ($method === 'PUT') {
             $edital = $data['edital'] ?? null;
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
+            $waivers_enabled = isset($data['waivers_enabled']) ? (int)$data['waivers_enabled'] : null;
 
             // FECHAMENTO AGENDADO. Só entram os campos que vieram no corpo:
             // a tela de config salva tudo de uma vez, e um campo ausente tem
@@ -1928,13 +1930,14 @@ if ($method === 'PUT') {
             // Estado ANTES de gravar: sem isto não dá pra saber se o toggle
             // realmente virou, e o admin salvando outra coisa qualquer da
             // tela dispararia notificação sem nada ter mudado.
-            $antesToggles = ['trades_enabled' => null, 'fa_enabled' => null];
-            if ($trades_enabled !== null || $fa_enabled !== null) {
-                $stAntes = $pdo->prepare('SELECT trades_enabled, fa_enabled FROM league_settings WHERE league = ?');
+            $antesToggles = ['trades_enabled' => null, 'fa_enabled' => null, 'waivers_enabled' => null];
+            if ($trades_enabled !== null || $fa_enabled !== null || $waivers_enabled !== null) {
+                $stAntes = $pdo->prepare('SELECT trades_enabled, fa_enabled, waivers_enabled FROM league_settings WHERE league = ?');
                 $stAntes->execute([$league]);
                 $linhaAntes = $stAntes->fetch(PDO::FETCH_ASSOC) ?: [];
                 $antesToggles['trades_enabled'] = isset($linhaAntes['trades_enabled']) ? (int)$linhaAntes['trades_enabled'] : null;
                 $antesToggles['fa_enabled']     = isset($linhaAntes['fa_enabled'])     ? (int)$linhaAntes['fa_enabled']     : null;
+                $antesToggles['waivers_enabled'] = isset($linhaAntes['waivers_enabled']) ? (int)$linhaAntes['waivers_enabled'] : null;
             }
             $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
             $progression_video_url = array_key_exists('progression_video_url', $data) ? trim((string)$data['progression_video_url']) : null;
@@ -2008,6 +2011,10 @@ if ($method === 'PUT') {
             if ($fa_enabled !== null) {
                 $updates[] = 'fa_enabled = ?';
                 $params[] = $fa_enabled;
+            }
+            if ($waivers_enabled !== null) {
+                $updates[] = 'waivers_enabled = ?';
+                $params[] = $waivers_enabled;
             }
             if ($n8n_webhook_url !== null) {
                 $updates[] = 'n8n_webhook_url = ?';
