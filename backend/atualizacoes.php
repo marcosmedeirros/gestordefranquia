@@ -222,12 +222,14 @@ function atualizacaoValidarSkills(array $linha): array
         }
         $vals[$col] = $v;
     }
-    foreach (['ovr' => [40, 99], 'age' => [15, 50]] as $campo => [$min, $max]) {
-        if (!isset($linha[$campo]) || $linha[$campo] === '' || $linha[$campo] === null) continue;
-        $n = (int)$linha[$campo];
-        if ($n < $min || $n > $max) return [false, [], "{$campo} fora da faixa ({$min}–{$max}): {$n}"];
-        $vals[$campo] = $n;
-    }
+    /* OVR e idade NÃO entram, mesmo quando vêm no CSV.
+       O CSV é baixado num momento e enviado em outro: no meio, o dono do time
+       sobe o OVR dos titulares na mão. Quando o envio gravava esses campos, o
+       número velho do arquivo voltava por cima do novo e o GM via os bonecos
+       "voltando pro over anterior" sem ter mexido em nada. Coluna que vem no
+       arquivo é ignorada em silêncio — recusar a linha inteira faria o CSV
+       antigo de todo mundo parar de funcionar. Quem muda OVR e idade é o dono
+       do elenco, pela edição do jogador. */
     return [true, $vals, ''];
 }
 

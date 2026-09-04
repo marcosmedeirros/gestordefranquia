@@ -205,14 +205,14 @@ if ($acao === 'salvar') {
         if ($okSkills) {
             $sets = [];
             foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $sets[] = "{$c} = :{$c}";
-            $sets[] = 'ovr = :ovr'; $sets[] = 'age = :age';
+            // OVR e idade ficam de fora: o CSV é baixado num momento e enviado
+            // em outro, e gravá-los aqui devolvia o número velho do arquivo por
+            // cima do que o dono já tinha corrigido. Só as notas são atualizadas.
             $up = $pdo->prepare("UPDATE players SET " . implode(', ', $sets) . " WHERE id = :id AND team_id = :tid");
             foreach ($okSkills as $pid => $vals) {
                 $atual = null;
                 foreach ($foto['skills'] as $f) if ((int)$f['id'] === $pid) { $atual = $f; break; }
-                $p = ['id' => $pid, 'tid' => $teamId,
-                      'ovr' => $vals['ovr'] ?? (int)($atual['ovr'] ?? 0),
-                      'age' => $vals['age'] ?? (int)($atual['age'] ?? 0)];
+                $p = ['id' => $pid, 'tid' => $teamId];
                 foreach (array_keys(ATUALIZACAO_SKILLS) as $c) {
                     $p[$c] = $vals[$c] ?? ($atual[$c] ?? null);
                 }
@@ -331,10 +331,13 @@ if ($acao === 'reverter') {
         if ($reg['tipo'] === 'skills' && !empty($foto['skills'])) {
             $sets = [];
             foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $sets[] = "{$c} = :{$c}";
-            $sets[] = 'ovr = :ovr'; $sets[] = 'age = :age';
+            // Também sem OVR e idade: o envio não mexe mais neles, então
+            // devolver os da foto seria justamente o rollback que a gente
+            // acabou de tirar do caminho — o valor da foto pode ser mais
+            // velho que o que o dono ajustou depois.
             $up = $pdo->prepare("UPDATE players SET " . implode(', ', $sets) . " WHERE id = :id");
             foreach ($foto['skills'] as $f) {
-                $p = ['id' => (int)$f['id'], 'ovr' => (int)$f['ovr'], 'age' => (int)$f['age']];
+                $p = ['id' => (int)$f['id']];
                 foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $p[$c] = $f[$c] ?? null;
                 $up->execute($p);
             }

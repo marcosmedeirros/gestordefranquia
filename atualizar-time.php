@@ -335,7 +335,9 @@ function importar(file){
 
     if (ehSkills){
       csvBruto.skills = texto;
-      const iOvr = cab.indexOf('ovr'), iIdade = cab.indexOf('idade');
+      // OVR e idade do arquivo são ignorados de propósito: o CSV pode ter sido
+      // baixado antes de o dono corrigir esses números, e mandá-los de volta
+      // fazia o over dos titulares "voltar" sozinho. Aqui só valem as notas.
       linhas.slice(1).forEach(l => {
         const id = parseInt(l[iId], 10);
         if (!idsDoTime.has(id)) { fora++; return; }
@@ -344,8 +346,6 @@ function importar(file){
           const v = (l[cab.indexOf(rot.toLowerCase())] || '').trim().toUpperCase();
           if (v) reg[col] = v;
         });
-        if (iOvr   >= 0 && l[iOvr]   !== '') reg.ovr = parseInt(l[iOvr], 10);
-        if (iIdade >= 0 && l[iIdade] !== '') reg.age = parseInt(l[iIdade], 10);
         novosSkills[id] = reg; aplicados++;
       });
     } else {
@@ -386,8 +386,10 @@ function desenharRevisao(){
     const tds = [`<td class="nm">${esc(p.name)}</td>`];
     if (temSkills){
       const mudou = (novo, velho) => novo != null && String(novo) !== String(velho ?? '');
-      tds.push(`<td class="val ${mudou(s.ovr, p.ovr) ? 'mudou' : ''}">${esc(s.ovr ?? p.ovr)}</td>`);
-      tds.push(`<td class="val ${mudou(s.age, p.age) ? 'mudou' : ''}">${esc(s.age ?? p.age)}</td>`);
+      // Ficam na tabela só pra ajudar a reconhecer o jogador — nunca como
+      // alteração, porque o envio não mexe neles.
+      tds.push(`<td class="val">${esc(p.ovr)}</td>`);
+      tds.push(`<td class="val">${esc(p.age)}</td>`);
       colsS.forEach(([col]) => {
         const novo = s[col];
         tds.push(`<td class="val ${mudou(novo, p[col]) ? 'mudou' : ''}">${esc(novo ?? p[col] ?? '—')}</td>`);
