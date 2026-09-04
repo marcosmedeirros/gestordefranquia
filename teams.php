@@ -105,7 +105,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
 }
 
 $stmt = $pdo->prepare('
-    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
+    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.roster_updated_at, t.team_tag,
              t.trades_used, t.public_enabled, t.public_slug, t.conference, t.atualizado_terceiro_em,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL' . sqlSoPunicoes() . ') as punicoes_count,
@@ -140,9 +140,6 @@ if ($team) {
 // O que cada time já recebeu de terceiros (skills, stats), numa consulta só —
 // é o que decide se o ícone de atualizar aparece.
 $atualizacoesFeitas = atualizacaoTiposFeitosDaLiga($pdo, (string)$user['league']);
-
-// A ponte com o antigo banco do games saiu na fusão — nada de sincronizar
-// tapas a cada carregamento da lista de times.
 
 foreach ($teams as &$t) {
     if (empty($t['owner_name'])) {
@@ -797,7 +794,7 @@ function getSerasaScore(int $avisos): array {
         /* Stats row inside card */
         .team-stats {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 0;
         }
 
@@ -916,7 +913,7 @@ function getSerasaScore(int $avisos): array {
 
         .list-header {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 90px 200px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 90px 200px;
             gap: 0 8px;
             padding: 10px 18px;
             background: var(--panel-2);
@@ -939,7 +936,7 @@ function getSerasaScore(int $avisos): array {
 
         .list-row {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 90px 200px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 90px 200px;
             gap: 0 8px;
             padding: 12px 18px;
             border: 1px solid var(--border);
@@ -1109,7 +1106,7 @@ function getSerasaScore(int $avisos): array {
             .list-header, .list-row {
                 grid-template-columns: 1fr 60px 55px 55px 160px;
             }
-            .list-col-tapas, .list-col-punicoes, .list-col-serasa { display: none; }
+            .list-col-punicoes, .list-col-serasa { display: none; }
             .page-top { padding-top: 20px; }
         }
 
@@ -1343,10 +1340,6 @@ function getSerasaScore(int $avisos): array {
                             <div class="team-stat-label">Trades</div>
                         </div>
                         <div class="team-stat">
-                            <div class="team-stat-val yellow"><?= (int)($t['tapas'] ?? 0) ?></div>
-                            <div class="team-stat-label">Tapas</div>
-                        </div>
-                        <div class="team-stat">
                             <div class="team-stat-val"><?= (int)($t['punicoes_count'] ?? 0) ?></div>
                             <div class="team-stat-label">Pun.</div>
                         </div>
@@ -1434,7 +1427,6 @@ function getSerasaScore(int $avisos): array {
                     <div class="list-header-cell sortable list-col-cap" id="listCapSort" style="justify-content:center;">CAP <span id="listCapSortLabel">↓</span></div>
                     <div class="list-header-cell" style="justify-content:center;">Jog.</div>
                     <div class="list-header-cell" style="justify-content:center;">Trades</div>
-                    <div class="list-header-cell list-col-tapas" style="justify-content:center;">Tapas</div>
                     <div class="list-header-cell list-col-punicoes" style="justify-content:center;">Pun.</div>
                     <div class="list-header-cell list-col-serasa" style="justify-content:center;">SERASA</div>
                     <div class="list-header-cell" style="justify-content:flex-end;">Ações</div>
@@ -1509,9 +1501,6 @@ function getSerasaScore(int $avisos): array {
                     <div class="list-cell" style="text-align:center">
                         <?php $ltu = (int)($t['trades_used'] ?? 0); ?>
                         <span style="font-weight:700;color:<?= $ltu >= $maxTrades ? 'var(--red)' : 'var(--text)' ?>"><?= $ltu ?></span><span style="color:var(--text-3);font-size:.85em">/<?= $maxTrades ?></span>
-                    </div>
-                    <div class="list-cell list-col-tapas" style="text-align:center">
-                        <span class="badge-pill yellow"><?= (int)($t['tapas'] ?? 0) ?></span>
                     </div>
                     <div class="list-cell list-col-punicoes" style="text-align:center">
                         <span class="badge-pill gray"><?= (int)($t['punicoes_count'] ?? 0) ?></span>

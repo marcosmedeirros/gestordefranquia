@@ -215,8 +215,11 @@ function ensureRound2DeadlineSet(PDO $pdo, int $draftSessionId): void {
  *  - só entra quem tem o mock ATIVO (draft_mock_settings.is_active);
  *  - não sobrescreve nada: se o GM já tinha deixado preferência pra vaga, a
  *    dele manda, e a fila preenche só o que sobrou até o limite;
- *  - o mesmo jogador não é repetido em duas vagas do mesmo time — seria
- *    gastar duas escolhas com uma pessoa só.
+ *  - cada vaga herda a fila inteira, a partir do topo. Repetir o mesmo jogador
+ *    em duas vagas do time não gasta duas escolhas: na resolução, a vaga que
+ *    escolhe primeiro leva ele e a outra desce pra próxima preferência. Era
+ *    aqui que estava o furo — a primeira vaga comia a fila toda e a segunda
+ *    pick de 2ª rodada do mesmo time ficava sem nada.
  */
 function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId, bool $soVagasVazias = false): void
 {
@@ -260,9 +263,8 @@ function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId, bool $soVagasVazias 
         foreach ($vagasPorTime as $teamId => $vagas) {
             $daFila = $fila[$teamId] ?? [];
             if (!$daFila) continue;
-            $jaUsados = [];   // no time inteiro, pra não repetir entre vagas
-
             foreach ($vagas as $vagaId) {
+                $jaUsados = [];   // por vaga: dentro de uma vaga ninguém se repete
                 $stExistentes->execute([$vagaId]);
                 $atuais = $stExistentes->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($atuais as $a) $jaUsados[(int)$a['player_id']] = true;

@@ -2970,6 +2970,21 @@ function _leilaoAdminFormCriar(league) {
         <button type="button" class="btn-ghost mt-3" id="lqBtnAbrir" style="color:#22c55e;border-color:rgba(34,197,94,.3)" disabled>
           <i class="bi bi-hammer me-1"></i> Abrir leilão
         </button>
+
+        <!-- LEILAO QUE ACONTECEU FORA DO APP.
+             Quando o leilao roda no WhatsApp, o resultado ja esta decidido: nao ha
+             o que abrir nem propostas a receber, so registrar quem levou e o que
+             pagou. O backend pra isso ja existia (cadastrar_manual) e nao tinha
+             tela nenhuma chamando. -->
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px">
+          <button type="button" class="btn-ghost" onclick="_leilaoManualAbrir('${league}')">
+            <i class="bi bi-whatsapp me-1" style="color:#25d366"></i> Registrar leilão feito no WhatsApp
+          </button>
+          <div style="font-size:11.5px;color:var(--text-3);margin-top:6px">
+            Já resolvido fora do app: você diz quem vendeu, quem levou e o que foi pago.
+            A troca é executada e o leilão entra no histórico como finalizado.
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -11611,5 +11626,165 @@ async function desfazerDispensa(registroId, nome) {
     loadDispensas();
   } catch (e) {
     showAlert('danger', e.error || 'Não deu pra desfazer a dispensa.');
+  }
+}
+
+/* ===== Leilão manual (o que rolou no WhatsApp) =====
+   O leilão já terminou fora do app: não há o que abrir, nem propostas a
+   esperar. Aqui o admin só declara o resultado — quem vendeu, quem levou e
+   o que pagou — e o backend executa a troca com a mesma engine do aceite
+   normal, deixando o leilão no histórico como finalizado. */
+let _leilaoManualLiga = null;
+let _leilaoManualTimes = [];
+
+function ensureLeilaoManualModal() {
+  if (document.getElementById('leilaoManualModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'leilaoManualModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-whatsapp me-2" style="color:#25d366"></i>Leilão feito no WhatsApp</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="leilaoManualBody"></div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-warning btn-sm" id="leilaoManualBtnSalvar" onclick="_leilaoManualSalvar()">
+            <i class="bi bi-check2 me-1"></i>Registrar e executar a troca
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function _leilaoManualAbrir(league) {
+  ensureLeilaoManualModal();
+  _leilaoManualLiga = league;
+  new bootstrap.Modal(document.getElementById('leilaoManualModal')).show();
+  const body = document.getElementById('leilaoManualBody');
+  body.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  try {
+    const d = await api(`admin.php?action=teams&league=${encodeURIComponent(league)}`);
+    _leilaoManualTimes = (d.teams || d || []).slice().sort((a, b) =>
+      (_leilaoManualNomeTime(a)).localeCompare(_leilaoManualNomeTime(b)));
+    const opts = '<option value="">Selecione...</option>' + _leilaoManualTimes
+      .map(t => `<option value="${t.id}">${escapeHtml(_leilaoManualNomeTime(t))}</option>`).join('');
+    body.innerHTML = `
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label text-white-50" style="font-size:12px">Time que vendeu</label>
+          <select class="form-select form-select-sm" id="lmVendedor" onchange="_leilaoManualCarregarLado('vendedor')">${opts}</select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label text-white-50" style="font-size:12px">Jogador leiloado</label>
+          <select class="form-select form-select-sm" id="lmJogador"><option value="">Escolha o time primeiro</option></select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label text-white-50" style="font-size:12px">Time que arrematou</label>
+          <select class="form-select form-select-sm" id="lmVencedor" onchange="_leilaoManualCarregarLado('vencedor')">${opts}</select>
+        </div>
+        <div class="col-12">
+          <label class="form-label text-white-50" style="font-size:12px">O que o vencedor pagou</label>
+          <div id="lmPagamento" style="border:1px solid var(--border);border-radius:8px;padding:10px;max-height:240px;overflow:auto">
+            <span style="font-size:12px;color:var(--text-3)">Escolha o time que arrematou para listar o elenco e as picks dele.</span>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label text-white-50" style="font-size:12px">Observação (opcional)</label>
+          <input type="text" class="form-control form-control-sm" id="lmObs" placeholder="Ex.: leilão do grupo, 03/09">
+        </div>
+      </div>
+      <div id="lmErro" class="mt-3" style="display:none;color:#ef4444;font-size:13px"></div>`;
+  } catch (e) {
+    body.innerHTML = `<p style="color:#ef4444;font-size:13px">${escapeHtml(e.error || e.message || 'Erro ao carregar os times.')}</p>`;
+  }
+}
+
+function _leilaoManualNomeTime(t) {
+  return ((t.city || '') + ' ' + (t.name || '')).trim() || ('Time #' + t.id);
+}
+
+async function _leilaoManualCarregarLado(lado) {
+  const vendedor = lado === 'vendedor';
+  const teamId = document.getElementById(vendedor ? 'lmVendedor' : 'lmVencedor').value;
+  const alvo = vendedor ? document.getElementById('lmJogador') : document.getElementById('lmPagamento');
+  if (!teamId) {
+    alvo.innerHTML = vendedor
+      ? '<option value="">Escolha o time primeiro</option>'
+      : '<span style="font-size:12px;color:var(--text-3)">Escolha o time que arrematou para listar o elenco e as picks dele.</span>';
+    return;
+  }
+  alvo.innerHTML = vendedor
+    ? '<option value="">Carregando...</option>'
+    : '<span style="font-size:12px;color:var(--text-3)">Carregando...</span>';
+  try {
+    const d = await api(`leilao.php?action=seller_items&seller_team_id=${teamId}`);
+    const players = d.players || [];
+    const picks = d.picks || [];
+    if (vendedor) {
+      alvo.innerHTML = '<option value="">Selecione...</option>' + players.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.name)} · ${escapeHtml(p.position || '')} ${p.ovr || ''}</option>`).join('');
+      return;
+    }
+    const linha = (id, tipo, txt) => `
+      <label style="display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:12.5px;color:var(--text-1);cursor:pointer">
+        <input type="checkbox" class="lm-item" data-tipo="${tipo}" value="${id}">${escapeHtml(txt)}
+      </label>`;
+    let html = '';
+    if (players.length) {
+      html += '<div style="font-size:11px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">Jogadores</div>';
+      html += players.map(p => linha(p.id, 'player', `${p.name} · ${p.position || ''} ${p.ovr || ''}`)).join('');
+    }
+    if (picks.length) {
+      html += '<div style="font-size:11px;text-transform:uppercase;color:var(--text-3);margin:10px 0 4px">Picks</div>';
+      html += picks.map(p => linha(p.id, 'pick',
+        `${p.season_year} · ${p.round}ª rodada${p.original_team_name && p.original_team_name.trim() ? ' (via ' + p.original_team_name.trim() + ')' : ''}`)).join('');
+    }
+    alvo.innerHTML = html || '<span style="font-size:12px;color:var(--text-3)">Esse time não tem jogadores nem picks.</span>';
+  } catch (e) {
+    alvo.innerHTML = vendedor
+      ? '<option value="">Erro ao carregar</option>'
+      : '<span style="font-size:12px;color:#ef4444">Erro ao carregar.</span>';
+  }
+}
+
+async function _leilaoManualSalvar() {
+  const el = (id) => document.getElementById(id);
+  const erro = el('lmErro');
+  const btn = el('leilaoManualBtnSalvar');
+  const mostrar = (msg) => { erro.textContent = msg; erro.style.display = 'block'; };
+  erro.style.display = 'none';
+
+  const marcados = Array.from(document.querySelectorAll('#lmPagamento .lm-item:checked'));
+  const corpo = {
+    action: 'cadastrar_manual',
+    seller_team_id: parseInt(el('lmVendedor').value, 10) || 0,
+    winner_team_id: parseInt(el('lmVencedor').value, 10) || 0,
+    auctioned_player_id: parseInt(el('lmJogador').value, 10) || 0,
+    offered_player_ids: marcados.filter(i => i.dataset.tipo === 'player').map(i => parseInt(i.value, 10)),
+    offered_pick_ids: marcados.filter(i => i.dataset.tipo === 'pick').map(i => parseInt(i.value, 10)),
+    obs: el('lmObs').value.trim()
+  };
+  if (!corpo.seller_team_id || !corpo.winner_team_id || !corpo.auctioned_player_id) {
+    return mostrar('Informe o time que vendeu, o jogador leiloado e o time que arrematou.');
+  }
+  if (!corpo.offered_player_ids.length && !corpo.offered_pick_ids.length) {
+    return mostrar('Marque ao menos um jogador ou pick que o vencedor pagou.');
+  }
+
+  btn.disabled = true;
+  try {
+    const d = await api('leilao.php', { method: 'POST', body: JSON.stringify(corpo) });
+    if (d && d.success === false) throw d;
+    bootstrap.Modal.getInstance(document.getElementById('leilaoManualModal'))?.hide();
+    showLeilaoAdmin(_leilaoManualLiga);
+  } catch (e) {
+    mostrar(e.error || e.message || 'Erro ao registrar o leilão.');
+    btn.disabled = false;
   }
 }
