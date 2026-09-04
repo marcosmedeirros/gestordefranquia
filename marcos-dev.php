@@ -644,6 +644,10 @@ async function devRevisarPicks() {
       bloco('Time dono de mais de uma vaga na mesma rodada', '#fc0025',
         (d.origem_repetida || []).map(x => `<b>${devEsc(x.time_nome)}</b> aparece como dono das picks `
           + `${x.picks.join(', ')} na ${x.rodada}ª rodada`)),
+      bloco('Pick duplicada — mais de uma linha pra mesma vaga', '#fc0025',
+        (d.pick_duplicada || []).map(x => `<b>${x.rodada}ª rodada, vaga de ${devEsc(x.origem_nome)}</b>: `
+          + x.linhas.map(l => `#${l.id} com ${devEsc(l.dono_nome)}`).join(' e ')
+          + ` — vale a #${x.vale}. Apague a outra em Picks.`)),
       bloco('Proteções ainda não resolvidas', '#f59e0b',
         (d.protecoes || []).map(x => `<b>Pick ${x.pick}</b> (de ${devEsc(x.origem_nome)}, com ${devEsc(x.dono_nome)}) — proteção ${devEsc(x.protecao)}`)),
       bloco('Sem pick cadastrada — a vaga fica com o time de origem', '#f59e0b',
@@ -653,7 +657,10 @@ async function devRevisarPicks() {
           + `<b>${devEsc(x.pior_dono_nome)}</b> com a ${x.pior_pick} (de ${devEsc(x.pior_de_nome)})`)),
     ];
 
-    const problema = (d.divergencias || []).length || (d.sem_pick || []).length || (d.protecoes || []).length;
+    // A duplicata entra na conta: era justamente ela que fazia a tela dizer
+    // "está tudo certo" enquanto o quadro e a Trade Machine discordavam.
+    const problema = (d.divergencias || []).length || (d.sem_pick || []).length
+                  || (d.protecoes || []).length || (d.pick_duplicada || []).length;
     box.innerHTML = `<div class="pg-ver">Draft de <b>${d.ano}</b> · ${d.vagas} escolhas conferidas</div>`
       + (problema ? partes.join('')
          : `<div style="border:1px solid #22c55e55;background:#22c55e18;border-radius:10px;padding:11px 13px;margin-bottom:9px">

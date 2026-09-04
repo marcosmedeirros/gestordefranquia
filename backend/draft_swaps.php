@@ -181,6 +181,82 @@ function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
 }
 
 /**
+ * As picks de um ano, indexadas por [rodada][time de origem].
+ *
+ * ESTAVA COPIADO em draftSincronizarOrdem e draftConferirOrdem, com a mesma
+ * linha nas duas:
+ *
+ *     $porOrigem[$p['round']][$p['original_team_id']] = $p;
+ *
+ * Atribuição simples. Quando existe MAIS DE UMA linha em `picks` pra mesma
+ * vaga — mesmo ano, mesma rodada, mesma origem — a última lida apaga a
+ * anterior, e qual delas sobrevive depende da ordem em que o banco devolveu
+ * as linhas. Foi assim que o quadro do draft e a Trade Machine passaram a
+ * discordar sobre a mesma escolha: a troca move UMA linha (`WHERE id = ?`),
+ * a Trade Machine lista por dono e acha a que se moveu, e o índice daqui
+ * ficava com a que não se moveu. O quadro mostrava o dono antigo e o
+ * conferidor não acusava nada, porque a linha divergente era invisível pras
+ * duas funções.
+ *
+ * Duas coisas mudam aqui:
+ *
+ *   1. O desempate é EXPLÍCITO. Ganha a linha que registra transferência
+ *      (team_id != original_team_id): se alguém pagou por aquela vaga, é esse
+ *      o dono. Empate entre duas iguais fica com o id maior, a mais recente.
+ *      Sem duplicata — o caso normal — nada disso roda.
+ *   2. A colisão é DEVOLVIDA em vez de sumir, pra quem confere poder mostrar.
+ *
+ * @return array{0: array<int,array<int,array>>, 1: array<int,array>, 2: array<int,array>}
+ *         [porOrigem, porId, duplicadas]
+ */
+function draftPicksPorOrigem(PDO $pdo, int $ano): array
+{
+    $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,
+                                protection, protection_resultado
+                         FROM picks WHERE CAST(season_year AS UNSIGNED) = ?');
+    $st->execute([$ano]);
+
+    $porOrigem = $porId = $vistas = $duplicadas = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $porId[(int)$p['id']] = $p;
+        $r = (int)$p['round'];
+        $o = (int)$p['original_team_id'];
+        $vistas[$r][$o][] = $p;
+
+        $atual = $porOrigem[$r][$o] ?? null;
+        if ($atual === null || draftPickGanhaDoDuplicado($p, $atual)) {
+            $porOrigem[$r][$o] = $p;
+        }
+    }
+
+    foreach ($vistas as $r => $porTime) {
+        foreach ($porTime as $o => $linhas) {
+            if (count($linhas) < 2) continue;
+            $duplicadas[] = [
+                'rodada' => $r,
+                'origem' => $o,
+                'vale'   => (int)$porOrigem[$r][$o]['id'],
+                'linhas' => array_map(fn($l) => [
+                    'id'   => (int)$l['id'],
+                    'dono' => (int)$l['team_id'],
+                ], $linhas),
+            ];
+        }
+    }
+
+    return [$porOrigem, $porId, $duplicadas];
+}
+
+/** $a desbanca $b como a linha que vale pra vaga? Ver draftPicksPorOrigem. */
+function draftPickGanhaDoDuplicado(array $a, array $b): bool
+{
+    $trocada = fn($p) => (int)$p['team_id'] > 0
+                      && (int)$p['team_id'] !== (int)$p['original_team_id'];
+    if ($trocada($a) !== $trocada($b)) return $trocada($a);
+    return (int)$a['id'] > (int)$b['id'];
+}
+
+/**
  * Reescreve quem escolhe em cada vaga: primeiro pelo dono da pick, depois
  * aplicando os swaps.
  *
@@ -205,15 +281,7 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
     if ($ano <= 0) return ['donos' => 0, 'swaps' => 0];
 
     // As picks daquele ano, indexadas por [rodada][time de origem].
-    $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id
-                         FROM picks WHERE season_year = ?');
-    $st->execute([$ano]);
-    $porOrigem = [];
-    $porId = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
-        $porOrigem[(int)$p['round']][(int)$p['original_team_id']] = $p;
-        $porId[(int)$p['id']] = $p;
-    }
+    [$porOrigem, $porId, ] = draftPicksPorOrigem($pdo, $ano);
     if (!$porOrigem) return ['donos' => 0, 'swaps' => 0];
 
     $st = $pdo->prepare('SELECT id, team_id, original_team_id, pick_position, round
@@ -340,7 +408,8 @@ function draftNomesDosTimes(PDO $pdo, array $ids): array
  */
 function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
 {
-    $vazio = ['ano' => 0, 'vagas' => 0, 'divergencias' => [], 'origem_repetida' => [], 'swaps' => [], 'sem_pick' => [], 'protecoes' => []];
+    $vazio = ['ano' => 0, 'vagas' => 0, 'divergencias' => [], 'origem_repetida' => [],
+              'pick_duplicada' => [], 'swaps' => [], 'sem_pick' => [], 'protecoes' => []];
 
     $st = $pdo->prepare('SELECT id, season_id, league FROM draft_sessions WHERE id = ?');
     $st->execute([$draftSessionId]);
@@ -350,21 +419,13 @@ function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
     $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
     if ($ano <= 0) return $vazio;
 
-    $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,
-                                protection, protection_resultado
-                         FROM picks WHERE season_year = ?');
-    $st->execute([$ano]);
-    $porOrigem = $porId = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
-        $porOrigem[(int)$p['round']][(int)$p['original_team_id']] = $p;
-        $porId[(int)$p['id']] = $p;
-    }
+    [$porOrigem, $porId, $pickDuplicada] = draftPicksPorOrigem($pdo, $ano);
 
     $st = $pdo->prepare('SELECT id, team_id, original_team_id, pick_position, round
                          FROM draft_order WHERE draft_session_id = ? ORDER BY round, pick_position');
     $st->execute([$draftSessionId]);
     $vagas = $st->fetchAll(PDO::FETCH_ASSOC);
-    if (!$vagas) return array_merge($vazio, ['ano' => $ano]);
+    if (!$vagas) return array_merge($vazio, ['ano' => $ano, 'pick_duplicada' => $pickDuplicada]);
 
     // Quem deveria escolher em cada vaga, pela mesma regra da sincronização.
     $esperado = $veioDeSwap = [];
@@ -458,6 +519,7 @@ function draftConferirOrdem(PDO $pdo, int $draftSessionId): array
         'vagas'           => count($vagas),
         'divergencias'    => $divergencias,
         'origem_repetida' => $origens,
+        'pick_duplicada'  => $pickDuplicada,
         'swaps'           => $swaps,
         'sem_pick'        => $semPick,
         'protecoes'       => $protecoes,

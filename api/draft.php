@@ -445,6 +445,10 @@ if ($method === 'GET') {
             foreach ($conf['swaps'] as $s) { $ids[] = $s['melhor_dono']; $ids[] = $s['melhor_de']; $ids[] = $s['pior_dono']; $ids[] = $s['pior_de']; }
             foreach ($conf['sem_pick'] as $s) $ids[] = $s['origem'];
             foreach ($conf['origem_repetida'] as $o) $ids[] = $o['time'];
+            foreach ($conf['pick_duplicada'] as $q) {
+                $ids[] = $q['origem'];
+                foreach ($q['linhas'] as $l) $ids[] = $l['dono'];
+            }
             foreach ($conf['protecoes'] as $p) { $ids[] = $p['origem']; $ids[] = $p['dono']; }
             $nomes = draftNomesDosTimes($pdo, $ids);
             $nome = fn($id) => $nomes[(int)$id] ?? ('Time ' . (int)$id);
@@ -462,6 +466,10 @@ if ($method === 'GET') {
             ], $conf['swaps']);
             $conf['sem_pick']        = array_map(fn($s) => $s + ['origem_nome' => $nome($s['origem'])], $conf['sem_pick']);
             $conf['origem_repetida'] = array_map(fn($o) => $o + ['time_nome' => $nome($o['time'])], $conf['origem_repetida']);
+            $conf['pick_duplicada'] = array_map(fn($q) => $q + [
+                'origem_nome' => $nome($q['origem']),
+                'linhas'      => array_map(fn($l) => $l + ['dono_nome' => $nome($l['dono'])], $q['linhas']),
+            ], $conf['pick_duplicada']);
             $conf['protecoes'] = array_map(fn($p) => $p + [
                 'origem_nome' => $nome($p['origem']),
                 'dono_nome'   => $nome($p['dono']),
