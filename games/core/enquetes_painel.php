@@ -76,6 +76,20 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-saldo span{font-size:10px;font-weight:800;letter-spacing:.4px;
   text-transform:uppercase;color:var(--text3)}
 
+/* O placar, no mesmo desenho dos cards de palpite da aba Apostas — é a mesma
+   informação (quanto acertei), e duas caras pra ela na mesma página faria a
+   pessoa reaprender a ler o número ao trocar de aba. */
+.eq-placar{display:grid;gap:10px;margin-bottom:16px;
+  grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+.eq-pc{background:var(--panel);border:1px solid var(--borda);border-radius:10px;
+  padding:13px 14px;display:flex;flex-direction:column;gap:2px}
+.eq-pc b{font-family:var(--num);font-size:22px;font-weight:800;line-height:1.05;
+  font-variant-numeric:tabular-nums}
+.eq-pc span{font-size:11px;color:var(--text3);font-weight:600}
+.eq-pc span i{display:block;font-style:normal;font-size:10px;opacity:.75;margin-top:1px}
+.eq-pc-verde b{color:var(--verde)}
+.eq-pc-vermelho b{color:var(--vermelho)}
+
 .eq-btn{background:var(--panel3);border:1px solid var(--borda);color:var(--texto);
   border-radius:10px;padding:10px 15px;font-family:var(--font);font-size:13px;
   font-weight:800;cursor:pointer;transition:border-color .15s}
@@ -307,6 +321,11 @@ require_once __DIR__ . '/enquetes_motor.php';
     </p>
   </details>
 
+  <?php /* O PLACAR, no mesmo desenho do que a aba Apostas mostra nos palpites.
+           Vem antes da lista porque é o que a pessoa quer saber ao chegar:
+           quanto isso me deu e o quanto eu acerto. Fica escondido enquanto ela
+           não tiver apostado nada — cinco zeros não informam ninguém. */ ?>
+  <div class="eq-placar" id="placar" hidden></div>
 
   <div class="eq-fim-topo" id="topoAbertas" hidden>
     <h2>Eventos abertos</h2>
@@ -452,6 +471,8 @@ async function carregar() {
     cx.hidden = !d.retido;
   }
 
+  pintarPlacar(d);
+
   // Em cima o que ainda aceita aposta; embaixo, o histórico.
   const lista = d.enquetes || [];
   ABERTAS    = lista.filter(e => e.status === 'aberta');
@@ -479,6 +500,56 @@ function irParaOEventoDoLink() {
   alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
   alvo.classList.add('eq-alvo');
   setTimeout(() => alvo.classList.remove('eq-alvo'), 2600);
+}
+
+/**
+ * O placar de eventos: ganho, saldo, acertos, erros e aproveitamento.
+ *
+ * Só aparece pra quem já apostou. Uma fileira de zeros na primeira visita não
+ * conta nada e ainda empurra a lista de eventos pra baixo, que é o que a
+ * pessoa veio ver.
+ */
+function pintarPlacar(d) {
+  const cx = document.getElementById('placar');
+  if (!cx) return;
+  const p = d.placar || {};
+  // Ganhos também contam: quem só BANCA não tem acerto nem erro (ele não
+  // aposta), e mesmo assim é quem mais tem resultado pra ver.
+  const jogou = (p.acertos || 0) + (p.erros || 0) + (p.abertos || 0) > 0
+             || !!p.ganhos || !!p.apostado || !!d.retido;
+  cx.hidden = !jogou;
+  if (!jogou) { cx.innerHTML = ''; return; }
+
+  const plural = (n, um, muitos) => (n === 1 ? um : muitos);
+  // O ganho é o único que pode ser negativo, e o sinal é a informação: sem o
+  // "+" na frente, ganhar 200 e ter 200 parados na conta viram o mesmo número.
+  const g = p.ganhos || 0;
+  const cor = g > 0 ? 'eq-pc-verde' : (g < 0 ? 'eq-pc-vermelho' : '');
+  const sinal = g > 0 ? '+' : '';
+
+  cx.innerHTML = `
+    <div class="eq-pc ${cor}">
+      <b>${sinal}${n(g)}</b>
+      <span>ganhos com eventos${p.apostado ? `<i>${n(p.apostado)} apostados</i>` : ''}</span>
+    </div>
+    <div class="eq-pc">
+      <b>${n(d.saldo || 0)}</b>
+      <span>saldo${d.retido ? `<i>${n(d.retido)} retido</i>` : ''}</span>
+    </div>
+    <div class="eq-pc eq-pc-verde">
+      <b>${p.acertos || 0}</b>
+      <span>${plural(p.acertos || 0, 'acerto', 'acertos')}</span>
+    </div>
+    <div class="eq-pc eq-pc-vermelho">
+      <b>${p.erros || 0}</b>
+      <span>${plural(p.erros || 0, 'erro', 'erros')}</span>
+    </div>
+    <div class="eq-pc">
+      <b>${p.aproveitamento || 0}%</b>
+      <!-- Sobre os já decididos: contar o que ainda não saiu como erro
+           derrubaria o número de quem acabou de apostar. -->
+      <span>aproveitamento${p.abertos ? `<i>${p.abertos} em aberto</i>` : '<i>dos já decididos</i>'}</span>
+    </div>`;
 }
 
 /** O que a pessoa digitou, contra pergunta, detalhe, categoria e quem banca. */

@@ -97,6 +97,7 @@ try {
             'saldo' => enqSaldo($pdo, $uid),
             'livre' => enqSaldoLivre($pdo, $uid),
             'retido' => enqRetidoTotal($pdo, $uid),
+            'placar' => enqPlacarDoUsuario($pdo, $uid),
             'admin' => $ehAdmin,
             'limites' => ['odd_min' => ENQ_ODD_MIN, 'odd_max' => ENQ_ODD_MAX,
                           'aposta_min' => ENQ_APOSTA_MIN, 'dias_max' => ENQ_DIAS_MAX,

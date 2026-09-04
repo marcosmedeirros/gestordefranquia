@@ -826,3 +826,66 @@ function enqAnunciarNoGrupo(PDO $pdo, int $enqueteId): void
         error_log('[enquetes] anunciar: ' . $ex->getMessage());
     }
 }
+
+/**
+ * O placar da pessoa nos eventos: quanto ela ganhou e quanto ela acerta.
+ *
+ * O GANHO sai do extrato inteiro, e não de uma conta feita sobre as apostas.
+ * O extrato é a única coisa que registra TUDO que mexeu em moeda por causa de
+ * evento — a aposta que saiu, o retorno que entrou, o lucro e o prejuízo de
+ * quem bancou, a devolução de evento cancelado. Somar as linhas dá o saldo
+ * real da pessoa nessa brincadeira; refazer a conta pelas apostas esqueceria
+ * quem banca, que é metade do sistema.
+ *
+ * ACERTO E ERRO só contam eventos JÁ PAGOS. Aposta em evento aberto não é
+ * acerto nem erro, e contá-la como erro derrubaria o número de quem acabou de
+ * apostar. Evento cancelado também fica de fora: o dinheiro voltou, não houve
+ * resultado.
+ *
+ * A porcentagem é sobre os decididos, pela mesma razão.
+ */
+function enqPlacarDoUsuario(PDO $pdo, int $uid): array
+{
+    $zero = ['ganhos' => 0, 'apostado' => 0, 'acertos' => 0, 'erros' => 0,
+             'abertos' => 0, 'aproveitamento' => 0];
+    if ($uid <= 0) return $zero;
+
+    try {
+        $st = $pdo->prepare("SELECT COALESCE(SUM(valor),0) FROM enquete_extrato WHERE id_usuario = ?");
+        $st->execute([$uid]);
+        $ganhos = (int)$st->fetchColumn();
+
+        // Quanto já passou pela mesa. Vale como tamanho do ganho: +200 de quem
+        // movimentou 300 e de quem movimentou 30 mil são coisas diferentes.
+        $st = $pdo->prepare("SELECT COALESCE(SUM(valor),0) FROM enquete_apostas WHERE id_usuario = ?");
+        $st->execute([$uid]);
+        $apostado = (int)$st->fetchColumn();
+
+        $st = $pdo->prepare("
+            SELECT SUM(e.status = 'paga' AND a.alternativa_id = e.vencedora_id) AS acertos,
+                   SUM(e.status = 'paga' AND a.alternativa_id <> e.vencedora_id) AS erros,
+                   SUM(e.status IN ('aberta','fechada'))                        AS abertos
+              FROM enquete_apostas a
+              JOIN enquetes e ON e.id = a.enquete_id
+             WHERE a.id_usuario = ?");
+        $st->execute([$uid]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $acertos = (int)($r['acertos'] ?? 0);
+        $erros   = (int)($r['erros'] ?? 0);
+        $decidido = $acertos + $erros;
+
+        return [
+            'ganhos'         => $ganhos,
+            'apostado'       => $apostado,
+            'acertos'        => $acertos,
+            'erros'          => $erros,
+            'abertos'        => (int)($r['abertos'] ?? 0),
+            'aproveitamento' => $decidido > 0 ? (int)round($acertos * 100 / $decidido) : 0,
+        ];
+    } catch (Throwable $e) {
+        // O placar é resumo: se ele falhar, a aba tem que abrir do mesmo jeito.
+        error_log('[enquetes] placar: ' . $e->getMessage());
+        return $zero;
+    }
+}
