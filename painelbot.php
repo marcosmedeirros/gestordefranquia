@@ -177,7 +177,12 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
 .captura{padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--border);
   flex:none;display:none;max-height:38vh;overflow-y:auto}
 .captura.aberto{display:block}
-.pino-btn{cursor:pointer;font-family:var(--font)}
+/* Serve pra <button> e pra <a>: o link do Admin usa o mesmo pino, e sem isto
+   ele viria sublinhado e azul no meio dos outros. */
+.pino-btn{cursor:pointer;font-family:var(--font);text-decoration:none;
+  display:inline-flex;align-items:center;gap:4px;color:var(--text2);
+  border-color:var(--border);background:var(--panel3)}
+.pino-btn:hover{color:var(--text)}
 .captura-tit{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
   color:var(--text3);margin-bottom:8px}
 .captura-ops{display:flex;gap:7px;flex-wrap:wrap}
@@ -194,7 +199,13 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
 .gsel.on{border-color:var(--green);color:var(--green);background:var(--green-soft)}
 /* Grupos de comando: painel que abre pelo pino "Grupos", igual ao de
    arquivo — a tela principal continua sendo a conversa. */
-.cmd{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+/* O body é uma tela cheia de app de chat (100dvh + overflow hidden), então
+   painel que abre aqui dentro NÃO herda rolagem nenhuma: passando da altura da
+   tela, o resto fica inalcançável. Era o que acontecia com a lista de grupos —
+   os últimos cadastrados, justamente os novos, não apareciam de jeito nenhum.
+   O painel rola por conta própria. */
+.cmd{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel);
+  max-height:78dvh;overflow-y:auto;overscroll-behavior:contain}
 .cmd.aberto{display:block}
 .cmd-tit{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800}
 .cmd-fecha{background:none;border:0;color:var(--text3);cursor:pointer;padding:2px 4px}
@@ -270,6 +281,11 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
           title="Os grupos onde o bot responde /comando">
     <i class="bi bi-people-fill"></i> Grupos
   </button>
+  <!-- A seta de voltar leva ao admin, mas ninguém a lê como "ir pro admin":
+       ela parece só desfazer a navegação. Este diz onde vai. -->
+  <a class="pino pino-btn" href="/admin.php" title="Abrir o painel do admin">
+    <i class="bi bi-shield-lock-fill"></i> Admin
+  </a>
   <button class="pino pino-btn <?= $captura['modo'] === 'off' ? 'off' : 'on' ?>" id="pinoCaptura"
             onclick="document.getElementById('painelCaptura').classList.toggle('aberto')"
             title="O que este painel arquiva">
