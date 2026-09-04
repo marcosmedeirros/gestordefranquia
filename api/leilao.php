@@ -2179,6 +2179,11 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
     $playerId       = (int)($body['auctioned_player_id'] ?? 0);
     $offeredPlayers = array_values(array_unique(array_map('intval', $body['offered_player_ids'] ?? [])));
     $offeredPicks   = array_values(array_unique(array_map('intval', $body['offered_pick_ids'] ?? [])));
+    // O vendedor também pode ter jogado coisa junto com o jogador leiloado —
+    // é a "oferta personalizada" do fluxo normal, e no WhatsApp acontece
+    // bastante. Vai do vendedor pro vencedor, junto com o leiloado.
+    $extraPlayers   = array_values(array_unique(array_map('intval', $body['extra_player_ids'] ?? [])));
+    $extraPicks     = array_values(array_unique(array_map('intval', $body['extra_pick_ids'] ?? [])));
     $obs            = trim((string)($body['obs'] ?? ''));
 
     if (!$sellerTeamId || !$winnerTeamId || !$playerId) {
@@ -2191,6 +2196,10 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
     }
     $offeredPlayers = array_values(array_filter($offeredPlayers));
     $offeredPicks   = array_values(array_filter($offeredPicks));
+    // O leiloado já vai sozinho: listá-lo de novo como extra tentaria
+    // transferir o mesmo jogador duas vezes.
+    $extraPlayers = array_values(array_filter($extraPlayers, fn($p) => $p && $p !== $playerId));
+    $extraPicks   = array_values(array_filter($extraPicks));
     if (!$offeredPlayers && !$offeredPicks) {
         echo json_encode(['success' => false, 'error' => 'O vencedor precisa enviar ao menos um jogador ou pick.']);
         return;
@@ -2239,6 +2248,26 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
         }
     }
 
+    // Itens extras precisam ser do vendedor — é ele quem os manda junto.
+    if ($extraPlayers) {
+        $ph = implode(',', array_fill(0, count($extraPlayers), '?'));
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE id IN ($ph) AND team_id = ?");
+        $stmt->execute(array_merge($extraPlayers, [$sellerTeamId]));
+        if ((int)$stmt->fetchColumn() !== count($extraPlayers)) {
+            echo json_encode(['success' => false, 'error' => 'Algum jogador extra não pertence ao time vendedor.']);
+            return;
+        }
+    }
+    if ($extraPicks) {
+        $ph = implode(',', array_fill(0, count($extraPicks), '?'));
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE id IN ($ph) AND team_id = ?");
+        $stmt->execute(array_merge($extraPicks, [$sellerTeamId]));
+        if ((int)$stmt->fetchColumn() !== count($extraPicks)) {
+            echo json_encode(['success' => false, 'error' => 'Alguma pick extra não pertence ao time vendedor.']);
+            return;
+        }
+    }
+
     // league_id p/ o registro (resolve pelo nome se a sessão não trouxe).
     $leagueIdResolved = $league_id;
     if (!$leagueIdResolved) {
@@ -2257,9 +2286,10 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
 
         // Proposta vencedora
         $notaTxt = $obs !== '' ? $obs : 'Cadastro manual de leilão';
+        $personalizada = ($extraPlayers || $extraPicks) ? 1 : 0;
         $stmt = $pdo->prepare("INSERT INTO leilao_propostas (leilao_id, team_id, obs, status, is_personalized)
-                               VALUES (?, ?, ?, 'pendente', 0)");
-        $stmt->execute([$leilaoId, $winnerTeamId, $notaTxt]);
+                               VALUES (?, ?, ?, 'pendente', ?)");
+        $stmt->execute([$leilaoId, $winnerTeamId, $notaTxt, $personalizada]);
         $propostaId = (int)$pdo->lastInsertId();
 
         // Itens enviados pelo vencedor
@@ -2272,6 +2302,16 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
             foreach ($offeredPicks as $pid) { $ins->execute([$propostaId, $pid]); }
         }
 
+        // Itens que o vendedor mandou junto com o leiloado
+        if ($extraPlayers) {
+            $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_players (proposta_id, player_id) VALUES (?, ?)");
+            foreach ($extraPlayers as $pid) { $ins->execute([$propostaId, $pid]); }
+        }
+        if ($extraPicks) {
+            $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, NULL)");
+            foreach ($extraPicks as $pid) { $ins->execute([$propostaId, $pid]); }
+        }
+
         // Executa a troca com a mesma engine do aceite normal
         $proposta = [
             'id'              => $propostaId,
@@ -2280,7 +2320,7 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
             'player_id'       => $playerId,
             'leilao_team_id'  => $sellerTeamId,
             'is_temp_player'  => 0,
-            'is_personalized' => 0,
+            'is_personalized' => $personalizada,
         ];
         _executarTrocaLeilao($pdo, $proposta);
 

@@ -11682,7 +11682,7 @@ async function _leilaoManualAbrir(league) {
         </div>
         <div class="col-12 col-md-6">
           <label class="form-label text-white-50" style="font-size:12px">Jogador leiloado</label>
-          <select class="form-select form-select-sm" id="lmJogador"><option value="">Escolha o time primeiro</option></select>
+          <select class="form-select form-select-sm" id="lmJogador" onchange="_leilaoManualSincronizarExtras()"><option value="">Escolha o time primeiro</option></select>
         </div>
         <div class="col-12 col-md-6">
           <label class="form-label text-white-50" style="font-size:12px">Time que arrematou</label>
@@ -11692,6 +11692,14 @@ async function _leilaoManualAbrir(league) {
           <label class="form-label text-white-50" style="font-size:12px">O que o vencedor pagou</label>
           <div id="lmPagamento" style="border:1px solid var(--border);border-radius:8px;padding:10px;max-height:240px;overflow:auto">
             <span style="font-size:12px;color:var(--text-3)">Escolha o time que arrematou para listar o elenco e as picks dele.</span>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label text-white-50" style="font-size:12px">
+            O vendedor mandou mais alguma coisa junto? <span style="color:var(--text-3)">(opcional)</span>
+          </label>
+          <div id="lmExtras" style="border:1px solid var(--border);border-radius:8px;padding:10px;max-height:240px;overflow:auto">
+            <span style="font-size:12px;color:var(--text-3)">Escolha o time que vendeu para listar o elenco e as picks dele.</span>
           </div>
         </div>
         <div class="col-12">
@@ -11712,28 +11720,33 @@ function _leilaoManualNomeTime(t) {
 async function _leilaoManualCarregarLado(lado) {
   const vendedor = lado === 'vendedor';
   const teamId = document.getElementById(vendedor ? 'lmVendedor' : 'lmVencedor').value;
-  const alvo = vendedor ? document.getElementById('lmJogador') : document.getElementById('lmPagamento');
+  const select = vendedor ? document.getElementById('lmJogador') : null;
+  const caixa  = document.getElementById(vendedor ? 'lmExtras' : 'lmPagamento');
+  const vazio  = vendedor
+    ? 'Escolha o time que vendeu para listar o elenco e as picks dele.'
+    : 'Escolha o time que arrematou para listar o elenco e as picks dele.';
   if (!teamId) {
-    alvo.innerHTML = vendedor
-      ? '<option value="">Escolha o time primeiro</option>'
-      : '<span style="font-size:12px;color:var(--text-3)">Escolha o time que arrematou para listar o elenco e as picks dele.</span>';
+    if (select) select.innerHTML = '<option value="">Escolha o time primeiro</option>';
+    caixa.innerHTML = `<span style="font-size:12px;color:var(--text-3)">${vazio}</span>`;
     return;
   }
-  alvo.innerHTML = vendedor
-    ? '<option value="">Carregando...</option>'
-    : '<span style="font-size:12px;color:var(--text-3)">Carregando...</span>';
+  if (select) select.innerHTML = '<option value="">Carregando...</option>';
+  caixa.innerHTML = '<span style="font-size:12px;color:var(--text-3)">Carregando...</span>';
   try {
     const d = await api(`leilao.php?action=seller_items&seller_team_id=${teamId}`);
     const players = d.players || [];
     const picks = d.picks || [];
-    if (vendedor) {
-      alvo.innerHTML = '<option value="">Selecione...</option>' + players.map(p =>
+    if (select) {
+      select.innerHTML = '<option value="">Selecione...</option>' + players.map(p =>
         `<option value="${p.id}">${escapeHtml(p.name)} · ${escapeHtml(p.position || '')} ${p.ovr || ''}</option>`).join('');
-      return;
     }
+    // Os dois lados marcam do mesmo jeito; o que muda é de quem é o elenco.
+    // No lado do vendedor a marcação vira "mandou junto com o leiloado".
+    const classe = vendedor ? 'lm-extra' : 'lm-item';
     const linha = (id, tipo, txt) => `
-      <label style="display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:12.5px;color:var(--text-1);cursor:pointer">
-        <input type="checkbox" class="lm-item" data-tipo="${tipo}" value="${id}">${escapeHtml(txt)}
+      <label data-pid="${tipo === 'player' ? id : ''}"
+             style="display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:12.5px;color:var(--text-1);cursor:pointer">
+        <input type="checkbox" class="${classe}" data-tipo="${tipo}" value="${id}">${escapeHtml(txt)}
       </label>`;
     let html = '';
     if (players.length) {
@@ -11745,12 +11758,25 @@ async function _leilaoManualCarregarLado(lado) {
       html += picks.map(p => linha(p.id, 'pick',
         `${p.season_year} · ${p.round}ª rodada${p.original_team_name && p.original_team_name.trim() ? ' (via ' + p.original_team_name.trim() + ')' : ''}`)).join('');
     }
-    alvo.innerHTML = html || '<span style="font-size:12px;color:var(--text-3)">Esse time não tem jogadores nem picks.</span>';
+    caixa.innerHTML = html || '<span style="font-size:12px;color:var(--text-3)">Esse time não tem jogadores nem picks.</span>';
+    if (vendedor) _leilaoManualSincronizarExtras();
   } catch (e) {
-    alvo.innerHTML = vendedor
-      ? '<option value="">Erro ao carregar</option>'
-      : '<span style="font-size:12px;color:#ef4444">Erro ao carregar.</span>';
+    if (select) select.innerHTML = '<option value="">Erro ao carregar</option>';
+    caixa.innerHTML = '<span style="font-size:12px;color:#ef4444">Erro ao carregar.</span>';
   }
+}
+
+/* O jogador leiloado já vai sozinho — deixá-lo marcável nos extras seria
+   pedir a mesma transferência duas vezes. Some da lista de extras. */
+function _leilaoManualSincronizarExtras() {
+  const leiloado = document.getElementById('lmJogador')?.value || '';
+  document.querySelectorAll('#lmExtras label[data-pid]').forEach(l => {
+    const ehOLeiloado = l.dataset.pid && l.dataset.pid === leiloado;
+    // 'flex', não '': limpar a propriedade apagaria o display:flex do style
+    // inline da linha e a lista virava um amontoado inline.
+    l.style.display = ehOLeiloado ? 'none' : 'flex';
+    if (ehOLeiloado) l.querySelector('input').checked = false;
+  });
 }
 
 async function _leilaoManualSalvar() {
@@ -11761,6 +11787,7 @@ async function _leilaoManualSalvar() {
   erro.style.display = 'none';
 
   const marcados = Array.from(document.querySelectorAll('#lmPagamento .lm-item:checked'));
+  const extras   = Array.from(document.querySelectorAll('#lmExtras .lm-extra:checked'));
   const corpo = {
     action: 'cadastrar_manual',
     seller_team_id: parseInt(el('lmVendedor').value, 10) || 0,
@@ -11768,6 +11795,8 @@ async function _leilaoManualSalvar() {
     auctioned_player_id: parseInt(el('lmJogador').value, 10) || 0,
     offered_player_ids: marcados.filter(i => i.dataset.tipo === 'player').map(i => parseInt(i.value, 10)),
     offered_pick_ids: marcados.filter(i => i.dataset.tipo === 'pick').map(i => parseInt(i.value, 10)),
+    extra_player_ids: extras.filter(i => i.dataset.tipo === 'player').map(i => parseInt(i.value, 10)),
+    extra_pick_ids: extras.filter(i => i.dataset.tipo === 'pick').map(i => parseInt(i.value, 10)),
     obs: el('lmObs').value.trim()
   };
   if (!corpo.seller_team_id || !corpo.winner_team_id || !corpo.auctioned_player_id) {
