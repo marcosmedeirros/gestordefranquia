@@ -375,6 +375,7 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
                 ->execute([$playerId, (int)$pick['id']]);
             $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                 ->execute([$targetTeamId, $pickNumber, $playerId]);
+            draftCancelarWaiverDaSobra($pdo, (int)$playerId);
 
             $playerName = trim((string)($player['name'] ?? ''));
             $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
@@ -2815,6 +2816,7 @@ if ($method === 'POST') {
 
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
+                draftCancelarWaiverDaSobra($pdo, (int)$playerId);
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
@@ -2968,6 +2970,10 @@ if ($method === 'POST') {
                     echo json_encode(['success' => false, 'error' => 'Esta escolha já foi feita']);
                     exit;
                 }
+
+                // Só depois das duas travas: se qualquer uma barrou, a escolha
+                // não aconteceu e o waiver dele tem que continuar de pé.
+                draftCancelarWaiverDaSobra($pdo, (int)$playerId);
 
                 $stPl = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ?');
                 $stPl->execute([$playerId]);
@@ -3169,6 +3175,7 @@ if ($method === 'POST') {
 
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$pick['team_id'], (int)$pickNumber, (int)$playerId]);
+                draftCancelarWaiverDaSobra($pdo, (int)$playerId);
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 try {

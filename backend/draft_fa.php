@@ -230,3 +230,48 @@ function draftEncerrarSessao(PDO $pdo, int $draftSessionId): array
         ->execute([$draftSessionId]);
     return draftSobrasParaWaiver($pdo, $draftSessionId);
 }
+
+/**
+ * Tira do waiver o calouro que, depois de tudo encerrado, acabou indo pra um
+ * time.
+ *
+ * Acontece quando o admin preenche uma pick que ficou em aberto: o draft já
+ * tinha terminado, a sobra já tinha entrado no waiver, e aí o jogador aparece
+ * nas duas pontas — no elenco do time e na lista de dispensas, aceitando lance
+ * de todo mundo. Foi o caso do Jim Cook e do Dave Corzine em 04/09/2026.
+ *
+ * Waiver que já recebeu lance NÃO é apagado: alguém comprometeu espaço de cap
+ * nele e some sem explicação seria pior que o problema. Nesse caso o registro
+ * fica e o admin resolve na mão, sabendo o que está desfazendo.
+ *
+ * Best-effort: preencher a pick é o que importa, e uma falha aqui não pode
+ * derrubar a escolha que já foi gravada.
+ */
+function draftCancelarWaiverDaSobra(PDO $pdo, int $poolId): void
+{
+    try {
+        if ($poolId <= 0) return;
+        if (!draftFaTemColuna($pdo, 'draft_pool', 'waiver_id')) return;
+
+        $st = $pdo->prepare('SELECT waiver_id FROM draft_pool WHERE id = ?');
+        $st->execute([$poolId]);
+        $wid = (int)($st->fetchColumn() ?: 0);
+        if ($wid <= 0) return;
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM waiver_retention WHERE id = ? AND status = 'open'");
+        $st->execute([$wid]);
+        if (!(int)$st->fetchColumn()) return;   // já resolvido: não é caso nosso
+
+        $st = $pdo->prepare('SELECT COUNT(*) FROM waiver_claims WHERE retention_id = ?');
+        $st->execute([$wid]);
+        if ((int)$st->fetchColumn() > 0) {
+            error_log("[draft] waiver {$wid} do pool {$poolId} tem lance — nao removido automaticamente");
+            return;
+        }
+
+        $pdo->prepare('DELETE FROM waiver_retention WHERE id = ?')->execute([$wid]);
+        $pdo->prepare('UPDATE draft_pool SET waiver_id = NULL WHERE id = ?')->execute([$poolId]);
+    } catch (Throwable $e) {
+        error_log('[draftCancelarWaiverDaSobra] ' . $e->getMessage());
+    }
+}
