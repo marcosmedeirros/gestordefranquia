@@ -173,9 +173,21 @@ function draftAutopickGravar(PDO $pdo, array $session, array $pick, array $jogad
         } else {
             $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
                 ->execute([$sessionId]);
+            $encerrouAgora = true;
         }
 
         $pdo->commit();
+
+        /* Quando o relógio da ÚLTIMA pick estoura, é aqui que o draft acaba —
+           e este caminho marcava a sessão como completed sem mandar as sobras
+           pro waiver, ao contrário de draftEncerrarSessao(). Fora da
+           transação porque enterWaiver dispara push e WhatsApp; a função é
+           idempotente pela marca draft_pool.waiver_id, então chamar de novo
+           num draft que já passou por aqui não duplica ninguém. */
+        if (!empty($encerrouAgora)) {
+            require_once __DIR__ . '/draft_fa.php';
+            draftSobrasParaWaiver($pdo, $sessionId);
+        }
         return [
             'ok' => true,
             'proximo_time' => $proxima ? (int)$proxima['team_id'] : null,

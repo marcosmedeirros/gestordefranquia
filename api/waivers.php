@@ -44,8 +44,11 @@ try {
                       disputando (ou que não tem ninguém) muda o valor que o
                       time escolhe, e o lance é cego. */
                    (SELECT COUNT(*) FROM waiver_claims wc WHERE wc.retention_id = wr.id AND wc.team_id = ?) AS mine
+            /* LEFT: calouro que sobrou do draft entra com team_id = 0, porque
+               não veio de time nenhum. Com JOIN normal ele sumia da tela
+               inteira — o waiver era criado direito e ninguém via. */
             FROM waiver_retention wr
-            JOIN teams t ON t.id = wr.team_id
+            LEFT JOIN teams t ON t.id = wr.team_id
             WHERE wr.status = 'open' AND wr.league = 'ELITE'
             ORDER BY wr.expires_at ASC");
         $stmt->execute([$myTeamId]);
@@ -99,7 +102,7 @@ try {
             SELECT wr.name, wr.ovr, wr.status, wr.resolved_at,
                    CONCAT(t.city,' ',t.name) AS from_name,
                    (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name
-            FROM waiver_retention wr JOIN teams t ON t.id = wr.team_id
+            FROM waiver_retention wr LEFT JOIN teams t ON t.id = wr.team_id
             WHERE wr.status IN ('claimed','cleared') AND wr.league = 'ELITE'
             ORDER BY wr.resolved_at DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
 

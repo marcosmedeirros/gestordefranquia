@@ -185,7 +185,7 @@ a{color:inherit;text-decoration:none}
     <div>
       <div class="page-hero-eyebrow">FBA Elite · <span id="waiverHoursKicker">12h</span> de janela</div>
       <h1 class="page-hero-title"><i class="bi bi-hourglass-split" style="color:var(--red);margin-right:8px"></i>Dispensas</h1>
-      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período cada time dá <b>um lance fechado</b>: você escolhe o valor até o limite do seu espaço no salary cap, e <b>ninguém vê os lances dos outros</b> — nem quantos existem. Ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu primeiro; editar o valor refaz a sua hora) e o salário dele entra no cap do vencedor. Só dá pra dar lance em quem <b>cabe no seu cap</b>. Sem lances, cai no free agency.</p>
+      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período cada time dá <b>um lance fechado</b>: você escolhe o valor até o limite do seu espaço no salary cap, e <b>ninguém vê os lances dos outros</b> — nem quantos existem. Ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu primeiro; editar o valor refaz a sua hora) e o salário dele entra no cap do vencedor. Só dá pra dar lance em quem <b>cabe no seu cap</b>. Sem lances, cai no free agency. Quem <b>sobrou do draft</b> entra pela mesma porta, com <b>24h</b> de janela.</p>
     </div>
     <div class="page-hero-actions" style="flex-direction:column;align-items:flex-end">
       <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
@@ -296,7 +296,12 @@ function render(){
           </div>
           <div class="ovr"><div class="v">${w.ovr}</div><div class="l">OVR</div></div>
         </div>
-        <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
+        ${w.waived_by_name
+          ? `<div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>`
+          /* Calouro que sobrou do draft não veio de time nenhum: dizer
+             "dispensado por" seria mentira, e deixar em branco esconde de
+             onde ele saiu. */
+          : `<div class="row"><i class="bi bi-mortarboard"></i> <b style="color:var(--text)">Não escolhido no draft</b></div>`}
         ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${fmtCap(w.cap_custo, w.cap_unidade)}</b> no seu cap</div>`:''}
         ${mine?`<div class="bid">
           <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
@@ -318,8 +323,8 @@ function render(){
         <span class="rn">${esc(r.name)}</span>
         <span style="color:var(--text-3);font-size:12px">${r.ovr} OVR</span>
         ${r.status==='claimed'
-          ? `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name)} → <b style="color:var(--text)">${esc(r.to_name||'?')}</b></span><span class="badge claimed">Levado no lance</span>`
-          : `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name)} → Free Agency</span><span class="badge cleared">Sem lance</span>`}
+          ? `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → <b style="color:var(--text)">${esc(r.to_name||'?')}</b></span><span class="badge claimed">Levado no lance</span>`
+          : `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → Free Agency</span><span class="badge cleared">Sem lance</span>`}
       </div>`).join('') + `</div>`;
   }
 
