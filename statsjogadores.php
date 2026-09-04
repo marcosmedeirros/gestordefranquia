@@ -88,7 +88,17 @@ try {
 // Guardada ANTES de $seasonId virar a escolhida: a importação de CSV grava
 // sempre na corrente, e a tela precisa dizer isso quando você está olhando
 // outra — senão o lançamento parece ir pra temporada que está na tela.
-$seasonCorrenteId = $seasonId;
+/* ONDE O LANÇAMENTO CAI, que não é necessariamente a temporada corrente.
+   A corrente pode ser a que acabou de nascer e ainda está no draft: nela
+   ninguém jogou nada, e quem lança agora está com os números da anterior na
+   mão. Quem decide é statsTemporadaAlvo(), pelo marco da classificação —
+   definidos os playoffs de uma temporada, é ela que passa a receber. */
+require_once __DIR__ . '/backend/stats_temporada.php';
+$alvo = statsTemporadaAlvo($pdo, $liga);
+$seasonCorrenteId   = (int)($alvo['alvo']['id'] ?? $seasonId);   // pra onde grava
+$seasonAlvoRotulo   = statsRotuloTemporada($alvo['alvo'] ?? null);
+$seasonAtualRotulo  = statsRotuloTemporada($alvo['corrente'] ?? null);
+$alvoDiferenteDaAtual = (int)($alvo['alvo']['id'] ?? 0) !== (int)($alvo['corrente']['id'] ?? 0);
 
 $idsValidos = array_column($temporadas, 'id');
 $pedida = isset($_GET['temporada']) ? (int)$_GET['temporada'] : 0;
@@ -465,11 +475,25 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
     <?php /* Olhando temporada passada, o aviso é obrigatório: a importação
              grava na CORRENTE, e sem dizer isso o lançamento parece ir pra
              temporada que está na tela. */ ?>
-    <?php if ($seasonCorrenteId && $seasonId !== $seasonCorrenteId): ?>
+    <?php /* O AVISO DE ONDE O LANÇAMENTO CAI.
+             Na virada, a liga entra numa temporada que ainda não foi jogada — e
+             quem vai lançar está com os números da anterior. Dizer isso na tela
+             é o que separa "lancei certo" de descobrir depois que a temporada
+             inteira foi pro lugar errado. */ ?>
+    <?php if ($alvoDiferenteDaAtual): ?>
+    <div class="aviso-temp">
+      <i class="bi bi-clock-history"></i>
+      Estamos na <b><?= htmlspecialchars($seasonAtualRotulo) ?></b>, que ainda não teve
+      os playoffs definidos. Todo lançamento — CSV, foto ou manual — cai na
+      <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, que é a última disputada.
+      <br>Assim que a classificação da <?= htmlspecialchars($seasonAtualRotulo) ?> for
+      definida no card Pontuação, os lançamentos passam a ir pra ela.
+    </div>
+    <?php elseif ($seasonCorrenteId && $seasonId !== $seasonCorrenteId): ?>
     <div class="aviso-temp">
       <i class="bi bi-clock-history"></i>
       Você está vendo uma <b>temporada passada</b>. Importar estatísticas ou
-      atributos grava sempre na <b>temporada atual</b>, não nesta.
+      atributos grava na <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, não nesta.
     </div>
     <?php endif; ?>
 

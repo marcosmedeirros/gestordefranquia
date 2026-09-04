@@ -40,14 +40,17 @@ const COLUNA_DO_SKILL = [
 /** As notas aceitas. Qualquer outra coisa no CSV é recusada com o motivo. */
 const NOTAS_VALIDAS = ['A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F','-'];
 
-/** A temporada em andamento da liga. */
+/**
+ * A temporada que RECEBE o lançamento.
+ *
+ * Não é a "em andamento": a que acabou de nascer ainda está no draft e não
+ * teve jogo nenhum — quem lança agora está com os números da anterior na mão.
+ * O marco é a classificação; ver backend/stats_temporada.php.
+ */
 function temporadaDaLiga(PDO $pdo, string $liga): ?array
 {
-    $st = $pdo->prepare("SELECT id, season_number FROM seasons
-                         WHERE league = ? AND (status IS NULL OR status <> 'completed')
-                         ORDER BY id DESC LIMIT 1");
-    $st->execute([$liga]);
-    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    require_once __DIR__ . '/../backend/stats_temporada.php';
+    return statsTemporadaAlvo($pdo, $liga)['alvo'] ?: null;
 }
 
 /**

@@ -56,9 +56,10 @@ if (!$team || !in_array($team['league'] ?? '', STATS_LEAGUES, true)) {
 }
 $teamId = (int)$team['id'];
 
-$stmtSeason = $pdo->prepare("SELECT id, season_number FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY id DESC LIMIT 1");
-$stmtSeason->execute([$team['league']]);
-$season = $stmtSeason->fetch(PDO::FETCH_ASSOC);
+/* Mesma regra do CSV e do salvar manual: a estatística cai na temporada que
+   foi DISPUTADA, e não na que acabou de nascer e está no draft. */
+require_once __DIR__ . '/../backend/stats_temporada.php';
+$season = statsTemporadaAlvo($pdo, (string)$team['league'])['alvo'] ?: null;
 $seasonId = $season ? (int)$season['id'] : null;
 
 // Cota: a leitura de estatísticas divide o mesmo balde da leitura de skills,

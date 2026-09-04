@@ -175,13 +175,13 @@ if ($acao === 'salvar') {
         exit;
     }
 
+    /* A temporada do lancamento nao e a "aberta": a que acabou de nascer esta
+       no draft e nao teve jogo. Quem decide e statsTemporadaAlvo(), pelo marco
+       da classificacao — a mesma regra do CSV e da foto. */
     $temporada = null;
     try {
-        $stS = $pdo->prepare("SELECT id, season_number FROM seasons
-                              WHERE league = ? AND (status IS NULL OR status <> 'completed')
-                              ORDER BY id DESC LIMIT 1");
-        $stS->execute([$minhaLiga]);
-        $temporada = $stS->fetch(PDO::FETCH_ASSOC) ?: null;
+        require_once __DIR__ . '/../backend/stats_temporada.php';
+        $temporada = statsTemporadaAlvo($pdo, $minhaLiga)['alvo'] ?: null;
     } catch (Throwable $e) {}
     if ($okStats && !$temporada) {
         http_response_code(400);
