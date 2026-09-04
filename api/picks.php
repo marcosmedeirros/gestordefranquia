@@ -45,7 +45,33 @@ function buildDraftOrderMap(PDO $pdo, int $draftSessionId): array
     return $map;
 }
 
-function applyDraftContextToPick(array $pick, ?array $draftSession, array $draftMap, ?int $sessionSeasonId = null, ?int $sessionYear = null): array
+/**
+ * O PAR DE CADA PICK EM SWAP, por ano.
+ *
+ * Mesma funcao de api/trades.php: devolve o tipo (SB/SW) e a ORIGEM da pick
+ * emparelhada, que e o que liga o swap as duas vagas do draft.
+ */
+function buildSwapPairMap(PDO $pdo, int $ano): array
+{
+    $mapa = [];
+    try {
+        $st = $pdo->prepare("SELECT p.id, p.swap_type, par.original_team_id AS par_origem
+                               FROM picks p
+                               JOIN picks par ON par.id = p.swap_pair_pick_id
+                              WHERE p.season_year = ? AND p.round = 1
+                                AND p.swap_type IN ('SB','SW') AND par.round = 1");
+        $st->execute([$ano]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $mapa[(int)$r['id']] = ['tipo' => strtoupper((string)$r['swap_type']),
+                                      'par_origem' => (int)$r['par_origem']];
+        }
+    } catch (Throwable $e) {
+        return [];
+    }
+    return $mapa;
+}
+
+function applyDraftContextToPick(array $pick, ?array $draftSession, array $draftMap, ?int $sessionSeasonId = null, ?int $sessionYear = null, array $swapMap = []): array
 {
     if (!$draftSession) {
         return $pick;
@@ -66,6 +92,25 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
         return $pick;
     }
     $info = $draftMap[$key];
+
+    /* NO SWAP, A VAGA DA ORIGEM NAO E A VAGA DO DONO.
+       As duas vagas do par sao redistribuidas: a de numero menor vai pro dono
+       da pick SB e a maior pro dono da SW. Sem isto a pagina de Picks mostrava
+       a vaga da ORIGEM — a mesma falha que aparecia na Trade Machine. */
+    $pickId = (int)($pick['id'] ?? 0);
+    if ($pickId && isset($swapMap[$pickId])) {
+        $par = $swapMap[$pickId];
+        $chavePar = $par['par_origem'] . '-' . $round;
+        if ($par['par_origem'] > 0 && isset($draftMap[$chavePar])) {
+            $vagaPar = $draftMap[$chavePar];
+            $minha = (int)$info['pick_position'];
+            $dele  = (int)$vagaPar['pick_position'];
+            $melhor = $minha <= $dele ? $info : $vagaPar;
+            $pior   = $minha <= $dele ? $vagaPar : $info;
+            $info = ($par['tipo'] === 'SB') ? $melhor : $pior;
+        }
+    }
+
     $pick['draft_session_id'] = (int)$draftSession['id'];
     $pick['draft_pick_number'] = (int)$info['pick_number'];
     $pick['draft_pick_position'] = (int)$info['pick_position'];
@@ -179,8 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $sessionYear = null;
                 }
             }
-            $picks = array_map(static function ($pick) use ($draftSession, $draftMap, $sessionSeasonId, $sessionYear) {
-                return applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear);
+            // O par do swap decide qual das duas vagas é do dono desta pick.
+            $swapMap = $sessionYear ? buildSwapPairMap($pdo, $sessionYear) : [];
+            $picks = array_map(static function ($pick) use ($draftSession, $draftMap, $sessionSeasonId, $sessionYear, $swapMap) {
+                return applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear, $swapMap);
             }, $picks);
         }
     }
