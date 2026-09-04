@@ -187,6 +187,17 @@ switch ($action) {
         $stmtLeague->execute([$draftSessionId]);
         $sessionLeague = $stmtLeague->fetchColumn();
 
+        /* SÓ QUEM ADMINISTRA ESTA LIGA. Esconder o botão não protege nada —
+           basta chamar a URL. O mock é a estratégia do GM antes do draft, e um
+           admin de outra liga lendo a fila alheia é vantagem sobre uma liga
+           que não é dele. Admin geral cai aqui com todas as ligas na lista. */
+        if (!$sessionLeague
+            || !in_array(strtoupper((string)$sessionLeague), getAdminLeagues($pdo, (int)$user['id']), true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não administra esta liga']);
+            exit;
+        }
+
         $stmtTeams = $pdo->prepare('
             SELECT t.id, TRIM(CONCAT(t.city," ",t.name)) AS team_name,
                    COALESCE(ms.is_active, 0) AS is_active

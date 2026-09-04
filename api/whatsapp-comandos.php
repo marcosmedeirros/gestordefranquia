@@ -3477,6 +3477,13 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'regulamento':
                 return wcEdital($pdo, $arg, $ligaDoGrupo);
 
+            // Quem está fora das regras na liga do grupo: elenco fora da
+            // faixa, acima do teto ou abaixo do piso. Mesma conta do card do
+            // admin — número diferente entre bot e site é discussão na certa.
+            case 'irregulares':
+            case 'irregular':
+                return wcIrregulares($pdo, $arg, $ligaDoGrupo);
+
             // A Copa do Mundo do Games. Sem argumento mostra a copa em
             // andamento; com um número, aquela copa — pra conferir uma
             // antiga sem ter que abrir o site.
@@ -3564,4 +3571,68 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
         error_log('[whatsapp-cmd] ' . $cmd . ': ' . $e->getMessage());
         return 'Deu erro aqui ao buscar isso. Avisa o admin.';
     }
+}
+
+/**
+ * /irregulares — quem está fora das regras na liga do grupo.
+ *
+ * O mesmo que o admin vê no site, no grupo: elenco fora de 14–15, acima do
+ * teto ou abaixo do piso. A conta sai de capTimesIrregulares(), a mesma do
+ * card — bot e site dizendo números diferentes sobre o cap de um time é
+ * discussão garantida.
+ *
+ * Aberto pra liga inteira de propósito: quem está irregular precisa saber, e
+ * hoje só descobre quando alguém do administrativo avisa.
+ */
+function wcIrregulares(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/salary_cap.php';
+
+    $liga = strtoupper(trim($arg)) ?: strtoupper((string)($ligaDoGrupo ?? ''));
+    if (!in_array($liga, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+        return "Diga a liga: */irregulares elite*, *next*, *rise* ou *rookie*.";
+    }
+
+    $res = capTimesIrregulares($pdo, $liga);
+    $times = $res['times'];
+    if (!$times) {
+        return "✅ *{$liga}* — está todo mundo em ordem.\n_Elenco entre "
+             . ELENCO_MIN . " e " . ELENCO_MAX . ", dentro da faixa de cap._";
+    }
+
+    /* Separado por MOTIVO, e não uma lista corrida: quem abre isso quer saber
+       o que precisa fazer, e "falta jogador" e "está acima do teto" se
+       resolvem de jeitos diferentes. */
+    $porElenco = [];
+    $porCap    = [];
+    foreach ($times as $t) {
+        $elenco = null; $cap = null;
+        foreach ($t['motivos'] as $m) {
+            if ($m['tipo'] === 'elenco') $elenco = $m;
+            else $cap = $m;
+        }
+        $linha = '• *' . $t['nome'] . '* — ';
+        $partes = [];
+        if ($elenco) $partes[] = $elenco['texto'] . ' (' . $elenco['detalhe'] . ')';
+        if ($cap)    $partes[] = $cap['texto'];
+        $linha .= implode(' · ', $partes);
+
+        if ($elenco) $porElenco[] = $linha;
+        else         $porCap[] = $linha;
+    }
+
+    $l = ["⚠️ *IRREGULARES · {$liga}*", ''];
+    if ($porElenco) {
+        $l[] = '*Elenco fora de ' . ELENCO_MIN . '–' . ELENCO_MAX . '*';
+        $l = array_merge($l, $porElenco);
+        $l[] = '';
+    }
+    if ($porCap) {
+        $l[] = '*Fora da faixa de cap*';
+        $l = array_merge($l, $porCap);
+        $l[] = '';
+    }
+    $n = count($times);
+    $l[] = "_{$n} de {$res['total_times']} times da liga._";
+    return implode("\n", $l);
 }

@@ -913,3 +913,96 @@ function checkTradeSalaryMatch(int $payrollAtual, int $capMax, int $enviado, int
         'motivo'        => "Recebe {$recebido}M enviando {$enviado}M — o limite é {$limite}M (" . CAP_TRADE_MATCH_PCT . "%). Excesso de {$excesso}M.",
     ];
 }
+
+/**
+ * OS TIMES IRREGULARES DE UMA LIGA — elenco fora da faixa, acima do teto ou
+ * abaixo do piso.
+ *
+ * Mora aqui, e não no card do admin, porque a mesma pergunta é feita em dois
+ * lugares: a tela do admin e o /irregulares do bot. Duas cópias da conta
+ * seriam duas chances de divergirem — e foi assim que o card passou meses
+ * comparando folha salarial com piso de OVR.
+ *
+ * CADA LIGA COM A SUA RÉGUA. Na ELITE o limite é o SALÁRIO do elenco inteiro
+ * (getTeamCapSummary, o Salary Cap novo). Nas outras é a soma de OVR dos
+ * CAP_TOP_N melhores, contra a faixa da liga — e o teto inclui o bônus de
+ * jogador restrito, que é o que o app e o /time mostram. Faixa diferente
+ * entre as telas é briga na certa.
+ *
+ * @return array{unidade:string,total_times:int,times:list<array>}
+ */
+function capTimesIrregulares(PDO $pdo, string $liga): array
+{
+    $liga = strtoupper(trim($liga));
+    $usaSalario = capLigaUsaSalario($pdo, $liga);
+
+    $limites = ['cap_min' => 0, 'cap_max' => 0];
+    if (!$usaSalario) {
+        $st = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+        $st->execute([$liga]);
+        $limites = $st->fetch(PDO::FETCH_ASSOC) ?: $limites;
+    }
+
+    $stTimes = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
+                                FROM teams WHERE league = ? ORDER BY city, name");
+    $stTimes->execute([$liga]);
+    $stQtd = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+
+    $out = [];
+    $total = 0;
+    foreach ($stTimes->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $total++;
+        $id = (int)$t['id'];
+
+        if ($usaSalario) {
+            try {
+                $s = getTeamCapSummary($pdo, $id);
+            } catch (Throwable $e) {
+                error_log('[irregulares] time ' . $id . ': ' . $e->getMessage());
+                continue;
+            }
+            $qtd    = count($s['roster'] ?? []);
+            $valor  = (int)($s['payroll'] ?? 0);
+            $piso   = (int)($s['cap_floor'] ?? 0);
+            $teto   = (int)($s['cap_max'] ?? 0);
+            $status = $s['status'] ?? 'dentro_do_cap';
+        } else {
+            $stQtd->execute([$id]);
+            $qtd   = (int)$stQtd->fetchColumn();
+            $valor = topOvrCap($pdo, $id);
+            $piso  = (int)$limites['cap_min'];
+            $teto  = (int)$limites['cap_max'];
+            if ($teto > 0) $teto += restrictedCapBonus($pdo, $id);
+            $status = 'dentro_do_cap';
+            if ($teto > 0 && $valor > $teto)     $status = 'over_the_cap';
+            elseif ($piso > 0 && $valor < $piso) $status = 'abaixo_do_piso';
+        }
+
+        $motivos = [];
+        if ($qtd < ELENCO_MIN) {
+            $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
+                          'detalhe' => 'faltam ' . (ELENCO_MIN - $qtd)];
+        } elseif ($qtd > ELENCO_MAX) {
+            $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
+                          'detalhe' => ($qtd - ELENCO_MAX) . ' a mais'];
+        }
+
+        $unidade = $usaSalario ? 'M' : 'OVR';
+        if ($status === 'over_the_cap') {
+            $motivos[] = ['tipo' => 'cap',
+                          'texto' => capValorEscrito($valor - $teto, $unidade) . ' acima do cap',
+                          'detalhe' => 'teto ' . capValorEscrito($teto, $unidade)];
+        } elseif ($status === 'abaixo_do_piso') {
+            $motivos[] = ['tipo' => 'piso',
+                          'texto' => capValorEscrito(max(0, $piso - $valor), $unidade) . ' abaixo do piso',
+                          'detalhe' => 'piso ' . capValorEscrito($piso, $unidade)];
+        }
+
+        if ($motivos) {
+            $out[] = ['id' => $id, 'nome' => $t['nome'], 'jogadores' => $qtd,
+                      'valor' => $valor, 'motivos' => $motivos];
+        }
+    }
+
+    return ['unidade' => $usaSalario ? 'M' : 'OVR', 'total_times' => $total, 'times' => $out];
+}

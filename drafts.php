@@ -30,6 +30,13 @@ if (!$team) {
 $userLeague = ligaAtualDoUsuario($pdo, $user) ?: $team['league'];
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
+/* VER OS MOCKS É DE QUEM ADMINISTRA ESTA LIGA, e não de qualquer admin.
+   O mock é a estratégia do GM antes do draft: quem manda na NEXT não tem o
+   que fazer com a fila de um time da ROOKIE, e ver aquilo é vantagem sobre
+   uma liga que não é dele. Admin geral continua vendo todas. */
+$adminDestaLiga = $isAdmin
+    && in_array(strtoupper((string)$userLeague), getAdminLeagues($pdo, (int)$user['id']), true);
+
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
@@ -745,7 +752,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <i class="bi bi-list-ol"></i>
           <span>Ver Jogadores</span>
         </button>
-        <?php if ($isAdmin): ?>
+        <?php if ($adminDestaLiga): ?>
         <button class="btn-ghost" onclick="openAdminMocksModal()">
           <i class="bi bi-eye-fill"></i>
           <span>Ver Mocks</span>

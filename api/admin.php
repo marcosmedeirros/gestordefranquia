@@ -346,91 +346,14 @@ if ($method === 'GET') {
             $ligaIrr = strtoupper(trim($_GET['league'] ?? 'ELITE'));
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaIrr);
 
-            $stI = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
-                                  FROM teams WHERE league = ? ORDER BY city, name");
-            $stI->execute([$ligaIrr]);
+            /* A conta mora em capTimesIrregulares(), no salary_cap: a mesma
+               pergunta e feita aqui e no /irregulares do bot, e duas copias
+               seriam duas chances de divergirem — foi assim que este card
+               passou a comparar folha salarial com piso de OVR. */
+            $res = capTimesIrregulares($pdo, $ligaIrr);
+            $irregulares = $res["times"];
+            $totalTimes  = $res["total_times"];
 
-            /* CADA LIGA TEM A SUA RÉGUA, e este card usava a da ELITE em todas.
-               `getTeamCapSummary()` é o Salary Cap novo: soma o SALÁRIO do
-               elenco inteiro. Fora da ELITE não existe salário — o limite é a
-               soma de OVR dos CAP_TOP_N melhores. O card comparava a folha
-               (141) com o piso em OVR (743) e anunciava "602 de OVR abaixo do
-               piso" pra liga quase inteira. O Celtics, que soma 771 de OVR e
-               está ACIMA do piso, aparecia como irregular.
-
-               A própria api/cap.php já recusa liga de OVR com "o Salary Cap
-               novo vale só para a ELITE" — era este card que não tinha lido o
-               aviso. */
-            $usaSalario = capLigaUsaSalario($pdo, $ligaIrr);
-            $unidadeIrr = $usaSalario ? 'M' : 'OVR';
-
-            $limites = ['cap_min' => 0, 'cap_max' => 0];
-            if (!$usaSalario) {
-                $stLim = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
-                $stLim->execute([$ligaIrr]);
-                $limites = $stLim->fetch(PDO::FETCH_ASSOC) ?: $limites;
-            }
-            $stQtd = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
-
-            $irregulares = [];
-            $totalTimes  = 0;
-            foreach ($stI->fetchAll(PDO::FETCH_ASSOC) as $t) {
-                $totalTimes++;
-
-                if ($usaSalario) {
-                    try {
-                        $sum = getTeamCapSummary($pdo, (int)$t['id']);
-                    } catch (Throwable $e) {
-                        error_log('[irregulares] time ' . $t['id'] . ': ' . $e->getMessage());
-                        continue;
-                    }
-                    $qtd    = count($sum['roster'] ?? []);
-                    $valor  = (int)($sum['payroll'] ?? 0);
-                    $piso   = (int)($sum['cap_floor'] ?? 0);
-                    $teto   = (int)($sum['cap_max'] ?? 0);
-                    $status = $sum['status'] ?? 'dentro_do_cap';
-                    $espaco = (int)($sum['space'] ?? 0);
-                } else {
-                    $stQtd->execute([(int)$t['id']]);
-                    $qtd   = (int)$stQtd->fetchColumn();
-                    $valor = topOvrCap($pdo, (int)$t['id']);   // soma dos CAP_TOP_N melhores
-                    $piso  = (int)$limites['cap_min'];
-                    $teto  = (int)$limites['cap_max'];
-                    $espaco = $teto - $valor;
-                    $status = 'dentro_do_cap';
-                    if ($teto > 0 && $valor > $teto)      $status = 'over_the_cap';
-                    elseif ($piso > 0 && $valor < $piso)  $status = 'abaixo_do_piso';
-                }
-
-                $motivos = [];
-
-                if ($qtd < ELENCO_MIN) {
-                    $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
-                                  'detalhe' => 'faltam ' . (ELENCO_MIN - $qtd)];
-                } elseif ($qtd > ELENCO_MAX) {
-                    $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
-                                  'detalhe' => (ELENCO_MAX - $qtd) * -1 . ' a mais'];
-                }
-                if ($status === 'over_the_cap') {
-                    $motivos[] = ['tipo' => 'cap',
-                                  'texto' => capValorEscrito(abs($espaco), $unidadeIrr) . ' acima do cap',
-                                  'detalhe' => 'teto ' . capValorEscrito($teto, $unidadeIrr)];
-                } elseif ($status === 'abaixo_do_piso') {
-                    $falta = $piso - $valor;
-                    $motivos[] = ['tipo' => 'piso',
-                                  'texto' => capValorEscrito(max(0, $falta), $unidadeIrr) . ' abaixo do piso',
-                                  'detalhe' => 'piso ' . capValorEscrito($piso, $unidadeIrr)];
-                }
-
-                if ($motivos) {
-                    $irregulares[] = [
-                        'id'        => (int)$t['id'],
-                        'nome'      => $t['nome'],
-                        'jogadores' => $qtd,
-                        'motivos'   => $motivos,
-                    ];
-                }
-            }
 
             echo json_encode([
                 'success'     => true,
