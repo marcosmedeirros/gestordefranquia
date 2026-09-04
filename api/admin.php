@@ -2784,6 +2784,35 @@ if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
 
     switch ($action) {
+        /* DESFAZER UMA DISPENSA: o jogador volta pro time e a dispensa volta
+           pro saldo. A regra e as travas moram em backend/waivers.php — aqui
+           é só a porta do admin. */
+        case 'desfazer_dispensa': {
+            require_once __DIR__ . '/../backend/waivers.php';
+            $origem = (string)($data['origem'] ?? 'free_agent');
+            $regId  = (int)($data['registro_id'] ?? 0);
+
+            // Admin de liga só desfaz na liga que administra.
+            $ligaDoReg = null;
+            try {
+                $st = $pdo->prepare($origem === 'waiver'
+                    ? 'SELECT league FROM waiver_retention WHERE id = ?'
+                    : 'SELECT league FROM free_agents WHERE id = ?');
+                $st->execute([$regId]);
+                $ligaDoReg = $st->fetchColumn() ?: null;
+            } catch (Throwable $e) {}
+            if ($ligaDoReg) requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, strtoupper((string)$ligaDoReg));
+
+            $r = desfazerDispensa($pdo, $origem, $regId);
+            if (!$r['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $r['erro']]);
+                exit;
+            }
+            echo json_encode(['success' => true, 'nome' => $r['nome'], 'player_id' => $r['player_id']]);
+            break;
+        }
+
         case 'games_user_saldo':
             // Ajuste de moedas / FBA Points de um GM, pela aba Games do Admin.
             ensureGamesSchema($pdo);

@@ -411,3 +411,116 @@ function resolveExpiredWaivers(PDO $pdo): array
     }
     return $out;
 }
+
+/**
+ * DESFAZER UMA DISPENSA — o jogador volta pro time e a dispensa volta pro saldo.
+ *
+ * Existe porque dispensa é clique de uma via: errou o jogador, errou o time, ou
+ * o GM se arrependeu, e não havia caminho de volta — o atleta ficava na fila e
+ * o time perdia a dispensa do mesmo jeito.
+ *
+ * SÓ ENQUANTO NINGUÉM MEXEU NELE. Com lance no waiver ou proposta na free
+ * agency, desfazer tiraria da mesa a disputa de outros times sem que eles
+ * soubessem. Aí é caso de resolver a disputa, não de desfazer.
+ *
+ * O QUE VOLTA E O QUE NÃO VOLTA: a fila guarda nome, idade, posição, OVR e as
+ * marcas de draft — isso volta. As NOTAS (skill_in, skill_mid…) não são
+ * guardadas ali; quando existe registro do jogador em `player_season_log`, elas
+ * são recuperadas de lá. Não existindo, o atleta volta sem notas e o GM
+ * preenche de novo — é a diferença entre recuperar quase tudo e não ter volta
+ * nenhuma.
+ *
+ * @return array{ok:bool,erro:?string,player_id:?int,nome:?string,time_id:?int}
+ */
+function desfazerDispensa(PDO $pdo, string $origem, int $registroId): array
+{
+    $falha = fn(string $m) => ['ok' => false, 'erro' => $m, 'player_id' => null, 'nome' => null, 'time_id' => null];
+
+    if (!in_array($origem, ['waiver', 'free_agent'], true)) return $falha('Origem inválida');
+    if ($registroId <= 0) return $falha('Registro não informado');
+
+    try {
+        if ($origem === 'waiver') {
+            ensureWaiverTables($pdo);
+            $st = $pdo->prepare('SELECT * FROM waiver_retention WHERE id = ?');
+            $st->execute([$registroId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return $falha('Essa dispensa não está mais na lista.');
+            if (($r['status'] ?? 'open') !== 'open') {
+                return $falha('Esse waiver já foi resolvido — o jogador não está mais livre.');
+            }
+            $st = $pdo->prepare('SELECT COUNT(*) FROM waiver_claims WHERE retention_id = ?');
+            $st->execute([$registroId]);
+            if ((int)$st->fetchColumn() > 0) {
+                return $falha('Já tem time com lance neste waiver. Resolva o waiver em vez de desfazer.');
+            }
+            $timeId = (int)$r['team_id'];
+        } else {
+            $st = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
+            $st->execute([$registroId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return $falha('Essa dispensa não está mais na lista.');
+            $status = strtolower((string)($r['status'] ?? 'available'));
+            if ($status !== '' && $status !== 'available') {
+                return $falha('Esse jogador já saiu da fila — não dá pra desfazer.');
+            }
+            $st = $pdo->prepare("SELECT COUNT(*) FROM free_agent_offers WHERE free_agent_id = ? AND status = 'pending'");
+            $st->execute([$registroId]);
+            if ((int)$st->fetchColumn() > 0) {
+                return $falha('Já tem proposta neste jogador. Resolva a free agency em vez de desfazer.');
+            }
+            $timeId = (int)($r['original_team_id'] ?? 0);
+        }
+
+        if ($timeId <= 0) return $falha('Não dá pra saber de que time ele saiu.');
+
+        $nome = (string)($r['name'] ?? '');
+        $ovr  = (int)($r['ovr'] ?? $r['overall'] ?? 0);
+
+        $pdo->beginTransaction();
+
+        $cols = ['team_id' => $timeId, 'name' => $nome, 'age' => $r['age'] ?? null,
+                 'position' => $r['position'] ?? null,
+                 'secondary_position' => $r['secondary_position'] ?? null,
+                 'ovr' => $ovr];
+        if ($origem === 'waiver') {
+            $cols['seasons_in_league']   = (int)($r['seasons_in_league'] ?? 0);
+            $cols['drafted_by_team_id']  = $r['drafted_by_team_id'] ?? null;
+            $cols['draft_round']         = $r['draft_round'] ?? null;
+            $cols['draft_pick_position'] = $r['draft_pick_position'] ?? null;
+            $cols['role']                = $r['role'] ?? 'Titular';
+        }
+
+        /* As notas voltam do último registro por temporada, quando existe: a
+           fila não as guarda, e sem isto o elenco volta com o jogador zerado. */
+        try {
+            $st = $pdo->prepare("SELECT skill_in, skill_mid, skill_3pt, skill_post_d, skill_per_d,
+                                        skill_play, skill_reb, skill_athl, skill_iq, skill_pot
+                                   FROM player_season_log
+                                  WHERE player_name = ? ORDER BY season_id DESC LIMIT 1");
+            $st->execute([$nome]);
+            if ($sk = $st->fetch(PDO::FETCH_ASSOC)) {
+                foreach ($sk as $c => $v) if ($v !== null && $v !== '') $cols[$c] = $v;
+            }
+        } catch (Throwable $e) { /* sem log: volta sem notas */ }
+
+        $campos = implode(', ', array_keys($cols));
+        $marcas = implode(', ', array_fill(0, count($cols), '?'));
+        $pdo->prepare("INSERT INTO players ({$campos}) VALUES ({$marcas})")->execute(array_values($cols));
+        $novoId = (int)$pdo->lastInsertId();
+
+        if ($origem === 'waiver') $pdo->prepare('DELETE FROM waiver_retention WHERE id = ?')->execute([$registroId]);
+        else                      $pdo->prepare('DELETE FROM free_agents WHERE id = ?')->execute([$registroId]);
+
+        // A dispensa volta pro saldo do time — nunca abaixo de zero.
+        $pdo->prepare('UPDATE teams SET waivers_used = GREATEST(COALESCE(waivers_used,0) - 1, 0) WHERE id = ?')
+            ->execute([$timeId]);
+
+        $pdo->commit();
+        return ['ok' => true, 'erro' => null, 'player_id' => $novoId, 'nome' => $nome, 'time_id' => $timeId];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[desfazerDispensa] ' . $e->getMessage());
+        return $falha('Não deu pra desfazer agora.');
+    }
+}

@@ -2712,6 +2712,18 @@ async function showLeilaoAdmin(league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
   const back = `<button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>`;
 
+  /* O FORMULARIO DE ABRIR LEILAO NAO DEPENDE DA LISTAGEM.
+     Ele vivia dentro do try junto com tudo: bastava a listagem falhar —
+     rede, timeout, um erro na API — pra tela virar so a mensagem de erro, e o
+     admin ficar sem como criar leilao manual. E criar e justamente o que ele
+     precisa quando o leilao foi combinado no WhatsApp e tem que entrar no app. */
+  const cabecalho = `
+    <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+      ${back}
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
+    </div>
+    ${_leilaoAdminFormCriar(league)}`;
+
   try {
     const data = await api(`leilao.php?action=listar_admin&league=${league}`);
     const leiloes = data.leiloes || [];
@@ -2736,12 +2748,7 @@ async function showLeilaoAdmin(league) {
         </div>
       </div>`;
 
-    container.innerHTML = `
-      <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
-        ${back}
-        <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
-      </div>
-      ${_leilaoAdminFormCriar(league)}
+    container.innerHTML = cabecalho + `
       <!-- Os slots comprados na loja: quem pediu leilão e ainda não foi
            atendido. Fica logo abaixo do formulário porque é essa a ordem do
            trabalho — ver quem pediu, criar o leilão, marcar como usado. -->
@@ -2786,7 +2793,11 @@ async function showLeilaoAdmin(league) {
     // se recarrega sozinha a cada ação sem redesenhar o card inteiro.
     _carregarSlotsLeilao(league);
   } catch (e) {
-    container.innerHTML = `<div class="mb-3">${back}</div><div class="alert alert-danger">Erro ao carregar leilões: ${escapeHtml(e.error || e.message || '')}</div>`;
+    // A listagem caiu, mas abrir leilao continua possivel.
+    container.innerHTML = cabecalho
+      + `<div class="alert alert-danger">Não deu pra carregar os leilões existentes: ${escapeHtml(e.error || e.message || '')}<br>
+         <small>Abrir um leilão novo, acima, continua funcionando.</small></div>`;
+    _leilaoAdminLigarFormCriar(league);
   }
 }
 
@@ -8406,9 +8417,14 @@ function renderDispensasTable() {
         </div>
         <div>
           ${players.map(w => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
-              <span style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(w.name || '-')}</span>
-              <span style="font-size:11px;color:var(--text)">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:0">${escapeHtml(w.name || '-')}</span>
+              <span style="font-size:11px;color:var(--text);white-space:nowrap">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
+              <button class="btn-ghost btn-sm" style="white-space:nowrap"
+                      title="Devolve o jogador ao time e a dispensa ao saldo"
+                      onclick="desfazerDispensa(${Number(w.id)}, '${escapeHtml(w.name || '').replace(/'/g, "\'")}')">
+                <i class="bi bi-arrow-counterclockwise"></i> Desfazer
+              </button>
             </div>`).join('')}
         </div>
       </div>
@@ -11576,3 +11592,24 @@ async function congelarRanking(league) {
 /* carregarSnapshots() saiu junto com a lista que ela desenhava — era a
    única chamadora, e função sem quem chame é peso morto. O endpoint
    list_ranking_snapshots continua no servidor, se um dia a lista voltar. */
+
+/**
+ * Desfaz uma dispensa: o jogador volta pro time e a dispensa volta pro saldo.
+ *
+ * Pede confirmação porque mexe em duas coisas de uma vez — o elenco e o saldo
+ * de dispensas do time —, e porque as notas do atleta só voltam se ele tiver
+ * registro de temporada; sem isso, o GM precisa preencher de novo.
+ */
+async function desfazerDispensa(registroId, nome) {
+  if (!confirm(`Desfazer a dispensa de ${nome}?\n\nEle volta pro elenco do time e a dispensa volta pro saldo.`)) return;
+  try {
+    const r = await api('admin.php?action=desfazer_dispensa', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'desfazer_dispensa', origem: 'free_agent', registro_id: Number(registroId) })
+    });
+    showAlert('success', `${r.nome || nome} voltou pro time e a dispensa foi devolvida.`);
+    loadDispensas();
+  } catch (e) {
+    showAlert('danger', e.error || 'Não deu pra desfazer a dispensa.');
+  }
+}
