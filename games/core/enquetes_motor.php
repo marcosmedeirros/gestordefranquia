@@ -414,6 +414,9 @@ function enqCriar(PDO $pdo, int $uid, array $dados): array
             $ins->execute([$id, mb_substr(trim((string)$a['texto']), 0, 120), (float)$a['odd'], $i]);
         }
         $pdo->commit();
+        // Fora da transação: enfileirar no WhatsApp não pode segurar o commit
+        // nem derrubar a criação se o bot estiver fora do ar.
+        enqAnunciarNoGrupo($pdo, $id);
         return ['ok' => true, 'id' => $id, 'pior_caso' => $piorCaso];
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -727,7 +730,7 @@ function enqTextoBot(PDO $pdo, string $filtro = ''): string
         // As odds em uma linha só: com quatro opções, uma por linha faria
         // trinta eventos virarem uma parede de texto.
         $l[] = '   ' . implode('  ·  ', array_map(
-            fn($a) => $a['texto'] . ' *' . number_format($odds[(int)$a['id']] ?? (float)$a['odd_inicial'], 2) . '*',
+            fn($a) => $a['texto'] . ' *' . number_format($odds[(int)$a['id']] ?? (float)$a['odd_inicial'], 2, ',', '') . '*',
             $alts));
 
         $rodape = 'banca: ' . ($e['criador_nome'] ?: '?');
@@ -753,4 +756,73 @@ function enqDaquiA(int $segundos): string
     if ($segundos < 86400)  return 'em ' . (int)round($segundos / 3600) . 'h';
     $dias = (int)round($segundos / 86400);
     return 'em ' . $dias . ($dias === 1 ? ' dia' : ' dias');
+}
+
+/**
+ * Avisa o grupo principal (The Pathetic) que abriu um evento novo.
+ *
+ * Quem cria é a comunidade, não o admin: sem o aviso, o evento só era
+ * descoberto por quem abrisse a aba por conta própria, e uma aposta que
+ * ninguém vê não tem contra quem ser feita. O link leva direto pra ela —
+ * `#enq-<id>`, que o painel usa pra rolar até o card e destacá-lo.
+ *
+ * As odds vão as INICIAIS de propósito: no instante em que o evento nasce
+ * ainda não entrou aposta nenhuma, então a odd atual é essa mesma.
+ *
+ * Best-effort: o evento já está criado e commitado quando isto roda. Uma
+ * falha aqui (bot desligado, grupo não configurado, Evolution fora) não pode
+ * desfazer nem atrasar a criação — no pior caso o evento nasce sem aviso e
+ * continua aparecendo na aba e no /eventos.
+ */
+function enqAnunciarNoGrupo(PDO $pdo, int $enqueteId): void
+{
+    try {
+        require_once __DIR__ . '/../../backend/whatsapp.php';
+        if (!function_exists('whatsappParaGrupoPrincipal')) return;
+
+        $st = $pdo->prepare("SELECT e.*, g.nome AS criador_nome
+                               FROM enquetes e
+                          LEFT JOIN games_usuarios g ON g.id = e.criador_id
+                              WHERE e.id = ? LIMIT 1");
+        $st->execute([$enqueteId]);
+        $e = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$e) return;
+
+        $sa = $pdo->prepare("SELECT texto, odd_inicial FROM enquete_alternativas
+                              WHERE enquete_id = ? ORDER BY ordem, id");
+        $sa->execute([$enqueteId]);
+        $alts = $sa->fetchAll(PDO::FETCH_ASSOC);
+        if (!$alts) return;
+
+        $cat = trim((string)($e['categoria'] ?? '')) ?: 'Outros';
+
+        $l = [];
+        $l[] = '🎲 *NOVO EVENTO* · ' . $cat;
+        $l[] = '';
+        $l[] = '*' . trim((string)$e['titulo']) . '*';
+        if (trim((string)($e['descricao'] ?? '')) !== '') {
+            $l[] = '_' . trim((string)$e['descricao']) . '_';
+        }
+        $l[] = '';
+        // Numa linha só, igual ao /eventos: com quatro alternativas, uma por
+        // linha já vira parede de texto no grupo.
+        $l[] = implode('  ·  ', array_map(
+            fn($a) => $a['texto'] . ' *' . number_format((float)$a['odd_inicial'], 2, ',', '') . '*',
+            $alts));
+        $l[] = '';
+
+        $rodape = 'Banca: ' . (trim((string)($e['criador_nome'] ?? '')) ?: '?');
+        if ((int)$e['max_por_pessoa'] > 0) $rodape .= ' · até ' . (int)$e['max_por_pessoa'] . ' por pessoa';
+        if (!empty($e['fecha_em'])) {
+            $falta = strtotime((string)$e['fecha_em']) - time();
+            if ($falta > 0) $rodape .= ' · fecha ' . enqDaquiA($falta);
+        }
+        $l[] = '_' . $rodape . '_';
+        $l[] = '';
+        $l[] = '👉 ' . ENQ_LINK . '#enq-' . $enqueteId;
+
+        whatsappParaGrupoPrincipal($pdo, implode("\n", $l), 'evento');
+    } catch (Throwable $ex) {
+        error_log('[enquetes] anunciar: ' . $ex->getMessage());
+    }
 }

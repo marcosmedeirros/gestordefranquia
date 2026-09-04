@@ -100,7 +100,11 @@ require_once __DIR__ . '/enquetes_motor.php';
 .eq-grupo-n{font-size:10.5px;font-weight:800;color:var(--text3);
   background:var(--panel);border-radius:99px;padding:2px 8px}
 
-.eq-mesa{border-bottom:1px solid var(--borda);background:var(--panel)}
+.eq-mesa{border-bottom:1px solid var(--borda);background:var(--panel);transition:background .4s ease,box-shadow .4s ease}
+/* O pisca de quem chegou pelo link do grupo. Sai sozinho depois de 2,6s: é
+   pra dizer "é este aqui", não pra marcar o card pra sempre. */
+.eq-alvo{background:color-mix(in srgb,var(--amber) 12%,var(--panel));box-shadow:inset 3px 0 0 var(--amber)}
+@media (prefers-reduced-motion:reduce){.eq-mesa{transition:none}}
 .eq-mesa:last-child{border-bottom:0}
 .eq-mesa.eq-minha{background:rgba(59,130,246,.05)}
 .eq-mesa-linha{display:flex;align-items:stretch;gap:12px;padding:11px 14px}
@@ -455,6 +459,26 @@ async function carregar() {
   pintarAbertas();
   pintarMeus();
   pintarEncerradas();
+  irParaOEventoDoLink();
+}
+
+/**
+ * Quem chegou pelo link do grupo (#enq-12) cai no evento, não no topo da aba.
+ *
+ * O aviso do WhatsApp é sobre UM evento; abrir a lista inteira e deixar a
+ * pessoa procurar o card no meio de trinta é perder o motivo do link. Só roda
+ * depois de pintar, porque antes disso o elemento não existe.
+ */
+function irParaOEventoDoLink() {
+  const m = (location.hash || '').match(/^#enq-(\d+)$/);
+  if (!m) return;
+  const alvo = document.getElementById('enq-' + m[1]);
+  // Evento já encerrado ou cancelado some da lista: sem card, fica no topo
+  // mesmo, que é melhor que rolar pro vazio.
+  if (!alvo) return;
+  alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  alvo.classList.add('eq-alvo');
+  setTimeout(() => alvo.classList.remove('eq-alvo'), 2600);
 }
 
 /** O que a pessoa digitou, contra pergunta, detalhe, categoria e quem banca. */
@@ -562,7 +586,7 @@ function mesa(e) {
     </div>`).join('');
 
   return `
-  <div class="eq-mesa ${e.sou_dono ? 'eq-minha' : ''}" data-alts="${e.alternativas.length}">
+  <div class="eq-mesa ${e.sou_dono ? 'eq-minha' : ''}" id="enq-${e.id}" data-alts="${e.alternativas.length}">
     <div class="eq-mesa-linha">
       <div class="eq-mesa-t">
         <b>${esc(e.titulo)}</b>
