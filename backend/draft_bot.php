@@ -232,8 +232,11 @@ function draftBotAnunciarEscolha(PDO $pdo, int $sessionId, int $round, int $pick
         /* Lê a escolha do banco em vez de receber os nomes por parâmetro: quem
            chama já gravou, e assim a mensagem sai do mesmo lugar que a tela
            mostra — se divergirem, é a mensagem que está errada. */
+        // Sem posição nem overall: o anúncio conta QUEM foi escolhido e em
+        // que número, e a ficha do jogador é justamente o que a liga não quer
+        // ver vazando no grupo no meio do draft.
         $st = $pdo->prepare('SELECT CONCAT(t.city, " ", t.name) AS time, t.league,
-                                    dp.name AS jogador, dp.position AS pos, dp.ovr
+                                    dp.name AS jogador
                                FROM draft_order o
                                JOIN teams t ON t.id = o.team_id
                                JOIN draft_pool dp ON dp.id = o.picked_player_id
@@ -250,12 +253,8 @@ function draftBotAnunciarEscolha(PDO $pdo, int $sessionId, int $round, int $pick
         // leitura e deixa claro que é o número da escolha, não uma contagem.
         $num = str_pad((string)$pickPosition, 2, '0', STR_PAD_LEFT);
 
-        $ficha = trim((string)($e['pos'] ?? ''));
-        if (!empty($e['ovr'])) $ficha = ($ficha !== '' ? $ficha . ' · ' : '') . 'OVR ' . (int)$e['ovr'];
-
         $txt = "🏀 *DRAFT · {$e['league']}*\n\n"
-             . "*{$e['time']}* escolheu *{$e['jogador']}* na *{$num}*"
-             . ($ficha !== '' ? "\n_{$ficha}_" : '');
+             . "*{$e['time']}* escolheu *{$e['jogador']}* na *{$num}*";
 
         whatsappEnfileirar($pdo, $grupo, $txt, true, 'draft');
     } catch (Throwable $ex) {
