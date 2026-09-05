@@ -706,7 +706,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             listWaivers($pdo, $league);
             break;
         case 'limits':
-            freeAgencyLimits($team);
+            freeAgencyLimits($pdo, $team);
             break;
         case 'cap_espaco':
             capEspacoDoTime($pdo, $team_id);
@@ -1267,7 +1267,7 @@ function listWaivers(PDO $pdo, string $league): void
     jsonSuccess(['league' => $league, 'waivers' => array_slice($waivers, 0, 400)]);
 }
 
-function freeAgencyLimits(?array $team): void
+function freeAgencyLimits(PDO $pdo, ?array $team): void
 {
     $waiversUsed = isset($team['waivers_used']) ? (int)$team['waivers_used'] : 0;
     $signingsUsed = isset($team['fa_signings_used']) ? (int)$team['fa_signings_used'] : 0;
@@ -1276,9 +1276,16 @@ function freeAgencyLimits(?array $team): void
     // mantém o "usei 3 de 4" legível — descontando, o número de usadas viraria
     // mentira e o admin que mexesse nele apagaria a compra sem perceber.
     $extra = isset($team['waivers_extra']) ? (int)$team['waivers_extra'] : 0;
+    /* O teto vem de waiverLimiteDoTime(), a MESMA função que autoriza a
+       dispensa em api/players.php. Refazer a soma aqui — ainda que idêntica
+       hoje — é o arranjo que deixou a tela dizer "3 de 4" enquanto a ação
+       recusava a quarta; uma conta só é o que impede isso de voltar.
+       Sem time (admin sem elenco na liga observada) sobra a base. */
+    $teamId = isset($team['id']) ? (int)$team['id'] : 0;
+    $maxWaivers = $teamId > 0 ? waiverLimiteDoTime($pdo, $teamId) : WAIVERS_BASE;
     jsonSuccess([
         'waivers_used' => $waiversUsed,
-        'waivers_max' => WAIVERS_BASE + $extra,
+        'waivers_max' => $maxWaivers,
         'waivers_extra' => $extra,
         'signings_used' => $signingsUsed,
         'signings_max' => 3
