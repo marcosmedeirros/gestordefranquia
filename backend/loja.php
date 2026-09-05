@@ -521,6 +521,43 @@ if (!function_exists('lojaAplicarAutomatico')) {
     }
 }
 
+if (!defined('WAIVERS_BASE')) {
+    /** As dispensas que todo time tem por temporada, antes de comprar slot. */
+    define('WAIVERS_BASE', 3);
+}
+
+if (!function_exists('waiverLimiteDoTime')) {
+    /**
+     * Quantas dispensas o time pode fazer nesta temporada: a base mais os
+     * slots que ele comprou na loja.
+     *
+     * ESTA CONTA ESTAVA EM DOIS LUGARES, e só um sabia da compra.
+     * `api/free-agency.php` respondia `waivers_max = 3 + waivers_extra` — era
+     * o que a tela do elenco mostrava, "3 / 4". Mas quem AUTORIZA a dispensa
+     * é `api/players.php`, e lá o teto era um `$MAX_WAIVERS = 3` fixo, escrito
+     * antes de a loja existir e que nunca ouviu falar de `waivers_extra`.
+     *
+     * Resultado: o slot era cobrado, somava na coluna, aparecia no contador —
+     * e na hora de usar a quarta dispensa a resposta era "Limite de dispensas
+     * por temporada atingido". A loja vendia uma dispensa que não existia.
+     *
+     * Agora a conta é uma só, e é esta.
+     */
+    function waiverLimiteDoTime(PDO $pdo, int $teamId): int
+    {
+        waiverGarantirColunaExtra($pdo);
+        try {
+            $st = $pdo->prepare('SELECT COALESCE(waivers_extra, 0) FROM teams WHERE id = ?');
+            $st->execute([$teamId]);
+            $extra = (int)$st->fetchColumn();
+        } catch (Throwable $e) {
+            error_log('[loja/waiverLimiteDoTime] ' . $e->getMessage());
+            $extra = 0;
+        }
+        return WAIVERS_BASE + max(0, $extra);
+    }
+}
+
 if (!function_exists('waiverGarantirColunaExtra')) {
     /**
      * `waivers_extra`: quantas dispensas a MAIS o time comprou nesta temporada.

@@ -4,11 +4,12 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/loja.php';   // waiverLimiteDoTime()
 
 $pdo = db();
 $config = loadConfig();
 $method = $_SERVER['REQUEST_METHOD'];
-$MAX_WAIVERS = 3;
+
 
 ensureTeamFreeAgencyColumns($pdo);
 ensurePlayerRestrictionColumns($pdo);
@@ -171,7 +172,14 @@ if (!function_exists('syncWaiversSeasonCounter')) {
                 return 0;
             }
             if ((int)($row['waivers_reset_year'] ?? 0) !== (int)$seasonYear) {
-                $stmtUpdate = $pdo->prepare('UPDATE teams SET waivers_used = 0, waivers_reset_year = ? WHERE id = ?');
+                /* Zera o comprado JUNTO com o usado, igual ao syncFaSeasonCounters
+                   do free-agency.php. Os dois viram a temporada, os dois gravam
+                   waivers_reset_year, e só um zerava waivers_extra — então quem
+                   expirava o slot era quem chegasse primeiro. Se a dispensa
+                   acontecesse antes de a tela de limites abrir, este aqui
+                   marcava o ano novo e o outro nunca mais entrava: o slot de
+                   uma temporada virava permanente. */
+                $stmtUpdate = $pdo->prepare('UPDATE teams SET waivers_used = 0, waivers_extra = 0, waivers_reset_year = ? WHERE id = ?');
                 $stmtUpdate->execute([$seasonYear, $teamId]);
                 return 0;
             }
@@ -900,7 +908,12 @@ if ($method === 'DELETE') {
     // Dispensa normal - verifica limite de waivers
     $leagueForReset = strtoupper($row['league'] ?? 'ELITE');
     $row['waivers_used'] = syncWaiversSeasonCounter($pdo, (int)$row['team_id'], $leagueForReset);
-    if ($row['waivers_used'] >= $MAX_WAIVERS) {
+    // O teto sai de waiverLimiteDoTime(): base + slots comprados na loja. Era
+    // um 3 fixo aqui, e por isso o slot comprado nunca virava dispensa de
+    // verdade — o contador da tela já somava a compra, mas esta autorização
+    // não. Ver o comentário da função em backend/loja.php.
+    $maxWaivers = waiverLimiteDoTime($pdo, (int)$row['team_id']);
+    if ($row['waivers_used'] >= $maxWaivers) {
         jsonResponse(400, ['error' => 'Limite de dispensas por temporada atingido.']);
     }
 
@@ -979,7 +992,7 @@ if ($method === 'DELETE') {
 
     marcarElencoAtualizado($pdo, (int)$row['team_id']);
     $newCap = topOvrCap($pdo, (int)$row['team_id']);
-    $waiversRemaining = max(0, $MAX_WAIVERS - ($row['waivers_used'] + 1));
+    $waiversRemaining = max(0, $maxWaivers - ($row['waivers_used'] + 1));
 
     jsonResponse(200, [
         'message' => ($league === 'ELITE')

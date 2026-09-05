@@ -1267,9 +1267,6 @@ function listWaivers(PDO $pdo, string $league): void
     jsonSuccess(['league' => $league, 'waivers' => array_slice($waivers, 0, 400)]);
 }
 
-/** As dispensas que todo time tem por temporada, antes de comprar slot. */
-const WAIVERS_BASE = 3;
-
 function freeAgencyLimits(?array $team): void
 {
     $waiversUsed = isset($team['waivers_used']) ? (int)$team['waivers_used'] : 0;
