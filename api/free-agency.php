@@ -1155,68 +1155,116 @@ function listContracts(PDO $pdo, string $league): void
     listAdminContracts($pdo, $league);
 }
 
+/**
+ * TODAS as dispensas da liga, e não só as que ainda estão na prateleira.
+ *
+ * Isto lia só `free_agents` disponíveis, e por isso o card mostrava um
+ * histórico com buracos: na ELITE a dispensa entra primeiro em
+ * `waiver_retention`, e de lá ela pode (a) estar aberta esperando lance, (b)
+ * ter sido levada no lance — e aí NUNCA chega em free_agents — ou (c) vencer
+ * sem lance e cair na free agency. Some ainda quem foi assinado depois, que o
+ * filtro de "disponível" tirava. Na ELITE eram 33 de 58 aparecendo; um time
+ * que teve as cinco dispensas levadas no lance mostrava zero.
+ *
+ * As duas fontes vêm juntas, com a SITUAÇÃO de cada uma. Deduplicar é por
+ * nome + time: quando o waiver vence sem lance, a mesma dispensa existe nas
+ * duas tabelas e não há chave ligando uma à outra — a linha do waiver manda,
+ * porque é ela que tem a data em que o jogador foi cortado de verdade.
+ */
 function listWaivers(PDO $pdo, string $league): void
 {
-    $params = [];
-    $seasonYearExpr = 'NULL';
-    $seasonNumberExpr = 'NULL';
-    $seasonJoin = '';
     $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
-    $teamFilter = isset($_GET['team_name']) ? trim((string)$_GET['team_name']) : '';
+    $teamFilter   = isset($_GET['team_name']) ? trim((string)$_GET['team_name']) : '';
 
-    if (columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons')) {
-        $seasonJoin = 'LEFT JOIN seasons s ON fa.season_id = s.id';
-        $seasonYearExpr = 's.year';
-        $seasonNumberExpr = 's.season_number';
-    }
+    $temSeason = columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons');
+    $seasonJoin = $temSeason ? 'LEFT JOIN seasons s ON fa.season_id = s.id' : '';
+    $anoExpr    = $temSeason ? 's.year' : 'NULL';
+    $numExpr    = $temSeason ? 's.season_number' : 'NULL';
 
-    $seasonSelect = $seasonYearExpr . ' AS season_year, ' . $seasonNumberExpr . ' AS season_number';
-
+    // ── Lado free_agents ──────────────────────────────────────────────
     $where = 'fa.original_team_name IS NOT NULL';
-
+    $params = [];
     if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league')) {
         $where .= ' AND fa.league = ?';
         $params[] = $league;
     } elseif (freeAgentsUseLeagueId($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
         $leagueId = resolveLeagueId($pdo, $league);
-        if ($leagueId) {
-            $where .= ' AND fa.league_id = ?';
-            $params[] = $leagueId;
-        }
+        if ($leagueId) { $where .= ' AND fa.league_id = ?'; $params[] = $leagueId; }
     }
-
-    // Excluir aposentadorias, se coluna existir
+    // Aposentadoria não é dispensa: o jogador saiu por idade, não por corte.
     if (columnExists($pdo, 'free_agents', 'is_retirement')) {
         $where .= ' AND (fa.is_retirement = 0 OR fa.is_retirement IS NULL)';
     }
 
-    // Somente ainda disponíveis (não assinados)
-    if (columnExists($pdo, 'free_agents', 'status')) {
-        $where .= " AND (fa.status IS NULL OR fa.status = 'available')";
+    // O status entra como INFORMAÇÃO, não como filtro: quem já assinou
+    // continua tendo sido dispensado, e some do histórico não faz sentido.
+    $temStatus = columnExists($pdo, 'free_agents', 'status');
+    $temWinner = columnExists($pdo, 'free_agents', 'winner_team_id');
+    $situacaoFa = $temWinner
+        ? "CASE WHEN fa.winner_team_id IS NOT NULL THEN 'contratado' ELSE 'na free agency' END"
+        : ($temStatus ? "CASE WHEN fa.status = 'signed' THEN 'contratado' ELSE 'na free agency' END" : "'na free agency'");
+    $origemTeamFa = columnExists($pdo, 'free_agents', 'original_team_id') ? 'fa.original_team_id' : 'NULL';
+
+    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$origemTeamFa} AS original_team_id,
+                                  fa.waived_at, {$anoExpr} AS season_year, {$numExpr} AS season_number,
+                                  'free_agent' AS origem, {$situacaoFa} AS situacao
+                             FROM free_agents fa {$seasonJoin}
+                            WHERE {$where}
+                            ORDER BY fa.waived_at DESC
+                            LIMIT 400");
+    $stmt->execute($params);
+    $doFa = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // ── Lado waiver_retention ─────────────────────────────────────────
+    $doWaiver = [];
+    try {
+        // team_id > 0: com 0 é calouro que sobrou do draft, que não foi
+        // dispensado por ninguém e não conta pra nenhum time.
+        $st = $pdo->prepare("SELECT w.id, w.name, w.team_id AS original_team_id,
+                                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS original_team_name,
+                                    w.waived_at, w.status,
+                                    'waiver' AS origem
+                               FROM waiver_retention w
+                               LEFT JOIN teams t ON t.id = w.team_id
+                              WHERE w.league = ? AND w.team_id > 0
+                              ORDER BY w.waived_at DESC
+                              LIMIT 400");
+        $st->execute([$league]);
+        $rotulo = ['open' => 'no waiver', 'claimed' => 'levado no lance', 'cleared' => 'foi pra free agency'];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $w) {
+            $w['situacao'] = $rotulo[$w['status']] ?? (string)$w['status'];
+            // A temporada sai da data: waiver_retention não guarda season_id, e
+            // pedir por jogador seria uma consulta por linha.
+            $w['season_year'] = $w['waived_at'] ? (int)date('Y', strtotime((string)$w['waived_at'])) : null;
+            $w['season_number'] = null;
+            unset($w['status']);
+            $doWaiver[] = $w;
+        }
+    } catch (Throwable $e) {
+        // Sem a tabela (liga que nunca teve waiver), o lado free_agents basta.
+        error_log('[free-agency] listWaivers waiver_retention: ' . $e->getMessage());
     }
-    if (columnExists($pdo, 'free_agents', 'winner_team_id')) {
-        $where .= ' AND (fa.winner_team_id IS NULL)';
+
+    // ── Junta, com o waiver mandando no empate ────────────────────────
+    $chave = fn(array $r) => mb_strtolower(trim((string)$r['name'])) . '#' . (int)($r['original_team_id'] ?? 0);
+    $vistos = [];
+    $waivers = [];
+    foreach (array_merge($doWaiver, $doFa) as $r) {
+        $k = $chave($r);
+        if (isset($vistos[$k])) continue;
+        $vistos[$k] = true;
+        $waivers[] = $r;
     }
 
     if ($seasonFilter) {
-        $where .= ' AND ' . $seasonYearExpr . ' = ?';
-        $params[] = $seasonFilter;
+        $waivers = array_values(array_filter($waivers, fn($r) => (int)$r['season_year'] === $seasonFilter));
     }
     if ($teamFilter !== '') {
-        $where .= ' AND fa.original_team_name = ?';
-        $params[] = $teamFilter;
+        $waivers = array_values(array_filter($waivers, fn($r) => $r['original_team_name'] === $teamFilter));
     }
+    usort($waivers, fn($a, $b) => strcmp((string)$b['waived_at'], (string)$a['waived_at']));
 
-    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, fa.waived_at, {$seasonSelect}
-        FROM free_agents fa
-        {$seasonJoin}
-        WHERE {$where}
-        ORDER BY fa.waived_at DESC
-        LIMIT 200");
-    $stmt->execute($params);
-    $waivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    jsonSuccess(['league' => $league, 'waivers' => $waivers]);
+    jsonSuccess(['league' => $league, 'waivers' => array_slice($waivers, 0, 400)]);
 }
 
 /** As dispensas que todo time tem por temporada, antes de comprar slot. */

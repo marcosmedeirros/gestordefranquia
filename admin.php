@@ -442,6 +442,22 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             font-size: 11px; font-weight: 600; color: var(--text-2);
             text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px;
         }
+        /* Onde a dispensa parou. A cor separa o que ainda está em jogo (lance
+           aberto) do que já acabou, sem precisar ler a palavra. */
+        .disp-sit {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .04em; white-space: nowrap; padding: 2px 8px;
+            border-radius: 999px; background: var(--panel-2);
+            border: 1px solid var(--border); color: var(--text-3);
+        }
+        .disp-sit[data-sit="no waiver"] {
+            color: #f59e0b; border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.10);
+        }
+        .disp-sit[data-sit="levado no lance"],
+        .disp-sit[data-sit="contratado"] {
+            color: #3b82f6; border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.10);
+        }
+
         .pun-card {
             background: var(--panel-2); border: 1px solid var(--border);
             border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px;

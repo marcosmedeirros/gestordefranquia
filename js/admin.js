@@ -8434,10 +8434,11 @@ function renderDispensasTable() {
           ${players.map(w => `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
               <span style="font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:0">${escapeHtml(w.name || '-')}</span>
+              <span class="disp-sit" data-sit="${escapeHtml(w.situacao || '')}">${escapeHtml(w.situacao || '-')}</span>
               <span style="font-size:11px;color:var(--text);white-space:nowrap">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
               <button class="btn-ghost btn-sm" style="white-space:nowrap"
                       title="Devolve o jogador ao time e a dispensa ao saldo"
-                      onclick="desfazerDispensa(${Number(w.id)}, '${escapeHtml(w.name || '').replace(/'/g, "\'")}')">
+                      onclick="desfazerDispensa(${Number(w.id)}, '${escapeHtml(w.name || '').replace(/'/g, "\'")}', '${w.origem || "free_agent"}')">
                 <i class="bi bi-arrow-counterclockwise"></i> Desfazer
               </button>
             </div>`).join('')}
@@ -11615,12 +11616,15 @@ async function congelarRanking(league) {
  * de dispensas do time —, e porque as notas do atleta só voltam se ele tiver
  * registro de temporada; sem isso, o GM precisa preencher de novo.
  */
-async function desfazerDispensa(registroId, nome) {
+async function desfazerDispensa(registroId, nome, origem) {
   if (!confirm(`Desfazer a dispensa de ${nome}?\n\nEle volta pro elenco do time e a dispensa volta pro saldo.`)) return;
   try {
     const r = await api('admin.php?action=desfazer_dispensa', {
       method: 'POST',
-      body: JSON.stringify({ action: 'desfazer_dispensa', origem: 'free_agent', registro_id: Number(registroId) })
+      // A origem diz em QUAL tabela está o registro: os ids de
+      // waiver_retention e free_agents colidem, e mandar a origem errada
+      // desfaz a dispensa de outro jogador.
+      body: JSON.stringify({ action: 'desfazer_dispensa', origem: origem === 'waiver' ? 'waiver' : 'free_agent', registro_id: Number(registroId) })
     });
     showAlert('success', `${r.nome || nome} voltou pro time e a dispensa foi devolvida.`);
     loadDispensas();
