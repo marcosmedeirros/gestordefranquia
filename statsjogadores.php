@@ -1007,7 +1007,12 @@ function desenharImport(d) {
       '<code>id,nome,' + cols.join(',') + '</code>' +
       (impTipo === 'skills'
         ? '<br>As notas vão de <code>A+</code> a <code>F</code>; <code>-</code> deixa em branco.'
-        : '<br>Aceita vírgula ou ponto no decimal.') +
+        : '<br>Aceita vírgula ou ponto no decimal.' +
+          // TO e TOC são quase a mesma sigla no print, e é o engano que faz
+          // armador aparecer com 8 tocos por jogo.
+          '<br><b>rou</b> é a coluna <code>STL</code> do print e <b>toc</b> é a ' +
+          '<code>BLK</code>. A coluna <code>TO</code> é turnover (bolas perdidas) ' +
+          'e não entra aqui.') +
       '<br>Baixe o modelo, preencha e cole aqui — quem já tem lançamento também pode ser corrigido.</div>' +
     '<div class="imp-acoes">' +
       '<button type="button" class="f-chip" onclick="baixarModelo()">' +

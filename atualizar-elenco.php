@@ -570,7 +570,13 @@ function baixarModeloEstatisticas() {
 }
 function promptEstatisticas() {
   return 'Preciso que você preencha um CSV com estatísticas (médias por jogo) de jogadores de basquete a partir de uma imagem que vou anexar.\n\n'
-    + 'O print mostra a tela "Per Game" de um jogo, com Jogos, MIN (minutos), PTS, REB, AST, ROU (roubadas de bola) e TOC (tocos/bloqueios).\n\n'
+    + 'O print mostra a tela "Per Game" de um jogo. As colunas do CSV correspondem assim:\n'
+    + 'Jogos = GP · MIN = MIN · PTS = PTS · REB = REB · AST = AST · ROU = STL (roubadas) · TOC = BLK (tocos/bloqueios).\n\n'
+    // TO e TOC são quase a mesma sigla, e a IA pega a coluna errada sozinha:
+    // é assim que armador aparece com 8,8 tocos. O aviso é explícito porque
+    // dizer só "TOC = tocos" já se mostrou insuficiente.
+    + 'ATENÇÃO: a coluna TOC vem de BLK, NUNCA da coluna TO. No print, TO é turnover '
+    + '(bolas perdidas) e NÃO deve ser usada em nenhuma coluna. Ignore TO, GS, FLS e as de aproveitamento.\n\n'
     + 'Colei abaixo o modelo em CSV, já com as colunas "id" e "jogador" preenchidas — NÃO mude essas duas colunas. '
     + 'Preencha as outras colunas pra cada jogador que aparecer na imagem, e devolva o CSV completo — '
     + 'só o CSV, sem nenhum texto explicando antes ou depois, pra eu poder colar direto num arquivo.\n\n'
@@ -587,7 +593,7 @@ function importarEstatisticasCSV(file) {
     if (idxId === -1) { msg($('msgImportEstatisticas'), 'err', 'O CSV precisa ter uma coluna "id" — baixe o modelo e não apague essa coluna.'); return; }
     const labelParaChave = {};
     Object.entries(STATS_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
-    const limites = { games: [0, 200], min_pg: [0, 60], pts_pg: [0, 99], reb_pg: [0, 50], ast_pg: [0, 50], stl_pg: [0, 20], blk_pg: [0, 20] };
+    const limites = { games: [0, 200], min_pg: [0, 60], pts_pg: [0, 99], reb_pg: [0, 50], ast_pg: [0, 50], stl_pg: [0, 5], blk_pg: [0, 6] };
 
     let aplicados = 0, semLinha = 0;
     for (let i = 1; i < linhas.length; i++) {

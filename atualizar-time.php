@@ -286,6 +286,10 @@ $('btnPrompt').addEventListener('click', async (ev) => {
     'Preencha este CSV com os dados dos jogadores de basquete a partir da imagem que vou anexar.\n\n' +
     'As notas de skill são: ' + NOTAS.join(', ') + '.\n' +
     'NÃO altere as colunas "id" e "jogador" — elas ligam cada linha ao jogador certo.\n\n' +
+    // Vale mesmo neste prompt, que é o das skills: a mesma pessoa manda os dois
+    // arquivos, e é aqui que ela copia o texto pra IA.
+    'Se o CSV tiver colunas de estatística: ROU vem de STL (roubadas) e TOC vem de BLK (tocos). ' +
+    'A coluna TO do print é turnover (bolas perdidas) e NÃO entra em lugar nenhum — ignore.\n\n' +
     'IMPORTANTE: me devolva o resultado como um ARQUIVO .csv pronto pra baixar, ' +
     'codificado em UTF-8, separado por vírgula, com o mesmo cabeçalho do modelo. ' +
     'Não escreva o CSV no meio da conversa e não explique nada — só gere o arquivo.\n\n' +

@@ -212,6 +212,21 @@ if ($tipo === 'stats') {
                 $recusados[] = ['linha' => $n + 1, 'motivo' => 'id ' . ($c[0] ?? '?') . ' não é da liga'];
                 continue;
             }
+            /* ROU e TOC vêm de STL e BLK. Quem copia a coluna TO do print —
+               turnover, sigla quase igual a TOC — manda número que jogador
+               nenhum faz: o recorde da NBA é 3,7 roubos e 5,6 tocos.
+               RECUSA em vez de saturar: cortar 8,8 tocos em 6 gravaria um dado
+               igualmente errado, só que sem deixar pista de que houve engano. */
+            foreach ([['rou', 7, 5.0, 'STL'], ['toc', 8, 6.0, 'BLK']] as [$rot, $ix, $teto, $daTela]) {
+                $bruto = str_replace(',', '.', trim((string)($c[$ix] ?? '')));
+                if (is_numeric($bruto) && (float)$bruto > $teto) {
+                    $recusados[] = ['linha' => $n + 1, 'motivo' =>
+                        strtoupper($rot) . ' = ' . $bruto . ' é alto demais (máx ' . $teto . '). '
+                        . 'Essa coluna vem de ' . $daTela . ' — confira se não copiou a coluna TO, que é turnover.'];
+                    continue 2;
+                }
+            }
+
             // Colunas: id, nome, jogos, min, pts, reb, ast, rou, toc
             $stmt->execute([
                 $pid, (int)$temp['id'], (int)$temp['season_number'], $liga, $daLiga[$pid]['team_id'],
@@ -220,8 +235,8 @@ if ($tipo === 'stats') {
                 numeroCsv($c[4] ?? 0, 99),
                 numeroCsv($c[5] ?? 0, 50),
                 numeroCsv($c[6] ?? 0, 50),
-                numeroCsv($c[7] ?? 0, 20),
-                numeroCsv($c[8] ?? 0, 20),
+                numeroCsv($c[7] ?? 0, 5),
+                numeroCsv($c[8] ?? 0, 6),
             ]);
             $gravados++;
         }

@@ -45,8 +45,14 @@ const ATUALIZACAO_STATS = [
     'pts_pg' => ['rot' => 'PTS',   'max' => 60],
     'reb_pg' => ['rot' => 'REB',   'max' => 30],
     'ast_pg' => ['rot' => 'AST',   'max' => 25],
-    'stl_pg' => ['rot' => 'ROU',   'max' => 12],
-    'blk_pg' => ['rot' => 'TOC',   'max' => 12],
+    /* ROU e TOC saem das colunas STL e BLK do print — NÃO da coluna TO, que é
+       turnover (bolas perdidas) e não é lançada em lugar nenhum. TO e TOC são
+       quase a mesma sigla, e é assim que armador aparece com 8,8 tocos.
+       Os tetos são o que separa engano de dado: 12 aceitava o turnover de
+       qualquer um, 5 e 6 recusam. O recorde da NBA é 3,7 roubos e 5,6 tocos —
+       sobra folga pra jogador real. */
+    'stl_pg' => ['rot' => 'ROU',   'max' => 5],
+    'blk_pg' => ['rot' => 'TOC',   'max' => 6],
 ];
 
 function ensureAtualizacaoTables(PDO $pdo): void
