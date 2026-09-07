@@ -263,6 +263,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0}
   background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.28);color:var(--text-2)}
 .aviso-temp b{color:var(--text)}
 .aviso-temp i{color:#f59e0b;margin-top:2px;flex-shrink:0}
+/* min-width:0 porque item de flex não encolhe abaixo do próprio conteúdo por
+   padrão, e a frase tem palavras longas ("classificação", "Temporada"). */
+.aviso-temp p{margin:0;min-width:0}
 .admin-barra .f-chip{display:inline-flex;align-items:center;gap:6px}
 
 /* ── importação em massa ────────────────────────── */
@@ -481,19 +484,23 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
              é o que separa "lancei certo" de descobrir depois que a temporada
              inteira foi pro lugar errado. */ ?>
     <?php if ($alvoDiferenteDaAtual): ?>
+    <?php /* O <p> não é decorativo: sem ele, cada pedaço de texto solto entre
+             os <b> vira um item flex separado do .aviso-temp, e no celular a
+             frase se parte em colunas de uma palavra que transbordam a caixa e
+             fazem a PÁGINA INTEIRA rolar de lado. */ ?>
     <div class="aviso-temp">
       <i class="bi bi-clock-history"></i>
-      Estamos na <b><?= htmlspecialchars($seasonAtualRotulo) ?></b>, que ainda não teve
+      <p>Estamos na <b><?= htmlspecialchars($seasonAtualRotulo) ?></b>, que ainda não teve
       os playoffs definidos. Todo lançamento — CSV, foto ou manual — cai na
       <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, que é a última disputada.
       <br>Assim que a classificação da <?= htmlspecialchars($seasonAtualRotulo) ?> for
-      definida no card Pontuação, os lançamentos passam a ir pra ela.
+      definida no card Pontuação, os lançamentos passam a ir pra ela.</p>
     </div>
     <?php elseif ($seasonCorrenteId && $seasonId !== $seasonCorrenteId): ?>
     <div class="aviso-temp">
       <i class="bi bi-clock-history"></i>
-      Você está vendo uma <b>temporada passada</b>. Importar estatísticas ou
-      atributos grava na <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, não nesta.
+      <p>Você está vendo uma <b>temporada passada</b>. Importar estatísticas ou
+      atributos grava na <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, não nesta.</p>
     </div>
     <?php endif; ?>
 
