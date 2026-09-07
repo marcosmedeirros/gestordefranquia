@@ -8381,11 +8381,20 @@ async function loadDispensas() {
     const data = await api(`free-agency.php?action=waivers&league=${encodeURIComponent(league)}`);
     _dispensasCache = data.waivers || [];
 
-    // Populate season dropdown from data
+    /* O select agora é por TEMPORADA, não por ano. A liga roda mais de uma
+       temporada no mesmo ano — T2 e T3 da ELITE nasceram com uma semana de
+       diferença —, e o filtro por ano juntava as duas numa opção só. */
     const seasonSel = document.getElementById('dispensasSeason');
     if (seasonSel) {
-      const years = [...new Set(_dispensasCache.map(w => w.season_year).filter(Boolean))].sort((a, b) => b - a);
-      seasonSel.innerHTML = '<option value="">Todas</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+      const temps = data.temporadas || [];
+      seasonSel.innerHTML = temps.map(t => `<option value="${t.id}">${escapeHtml(t.rotulo)}</option>`).join('')
+                          + '<option value="">Todas as temporadas</option>';
+      // Abre na corrente: o que o admin faz aqui é olhar a que está rodando.
+      // Se ela ainda não teve dispensa, não está na lista — aí a mais recente.
+      const corrente = data.season_corrente;
+      seasonSel.value = temps.some(t => Number(t.id) === Number(corrente))
+        ? String(corrente)
+        : (temps.length ? String(temps[0].id) : '');
     }
 
     renderDispensasTable();
@@ -8398,13 +8407,19 @@ function renderDispensasTable() {
   const resultEl = document.getElementById('dispensasResult');
   if (!resultEl) return;
 
-  const selectedYear = document.getElementById('dispensasSeason')?.value || '';
-  const filtered = selectedYear
-    ? _dispensasCache.filter(w => String(w.season_year) === selectedYear)
+  const sel = document.getElementById('dispensasSeason');
+  const selectedSeason = sel?.value || '';
+  const filtered = selectedSeason
+    ? _dispensasCache.filter(w => String(w.season_id) === selectedSeason)
     : _dispensasCache;
 
   if (!filtered.length) {
-    resultEl.innerHTML = '<div class="text-light-gray text-center py-4">Nenhuma dispensa encontrada para os filtros selecionados.</div>';
+    // Diz QUAL temporada está vazia: "nenhuma encontrada" sozinho parece erro
+    // de carregamento quando a temporada é só nova.
+    const rot = sel?.selectedOptions?.[0]?.textContent?.trim();
+    resultEl.innerHTML = `<div class="text-light-gray text-center py-4">
+      Nenhuma dispensa${rot && selectedSeason ? ' na ' + escapeHtml(rot) : ''} ainda.
+    </div>`;
     return;
   }
 
@@ -8443,7 +8458,11 @@ function renderDispensasTable() {
                      <i class="bi bi-arrow-right-short"></i>${escapeHtml(w.destino)}
                    </span>`
                 : ''}
-              <span style="font-size:11px;color:var(--text);white-space:nowrap">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
+              <span style="font-size:11px;color:var(--text);white-space:nowrap">${
+                /* Com o filtro em "Todas", o ano sozinho não distingue T2 de
+                   T3 — as duas são 2026. O número da temporada é o que separa. */
+                w.season_number ? 'T' + w.season_number + ' · ' : ''
+              }${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
               <button class="btn-ghost btn-sm" style="white-space:nowrap"
                       title="Devolve o jogador ao time e a dispensa ao saldo"
                       onclick="desfazerDispensa(${Number(w.id)}, '${escapeHtml(w.name || '').replace(/'/g, "\'")}', '${w.origem || "free_agent"}')">

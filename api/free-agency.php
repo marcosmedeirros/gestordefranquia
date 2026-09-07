@@ -1156,6 +1156,59 @@ function listContracts(PDO $pdo, string $league): void
 }
 
 /**
+ * Em que temporada da liga uma data caiu.
+ *
+ * `waiver_retention` não tem season_id: quando ele foi escrito, waiver era
+ * coisa de uma temporada só. A data é o que sobra — e ela basta, porque cada
+ * temporada nasce num instante e vale até a próxima nascer.
+ *
+ * O ano do calendário NÃO serve como substituto: a liga roda mais de uma
+ * temporada por ano (T2 e T3 da ELITE nasceram com uma semana de diferença, em
+ * 2026), e agrupar por ano juntaria as duas num "2026" só — que foi o que o
+ * filtro do card mostrava.
+ *
+ * A lista de temporadas é lida uma vez por liga e fica em memória: são 400
+ * dispensas no card e uma consulta por linha seria 400 idas ao banco.
+ */
+function temporadaDaData(PDO $pdo, string $league, string $quando): array
+{
+    static $cache = [];
+    $vazio = ['id' => null, 'year' => null, 'season_number' => null];
+
+    if (!isset($cache[$league])) {
+        $cache[$league] = [];
+        try {
+            // Mais nova primeiro: a primeira que começou ANTES da data é a dela.
+            $st = $pdo->prepare('SELECT id, year, season_number, created_at
+                                   FROM seasons WHERE league = ?
+                               ORDER BY created_at DESC, id DESC');
+            $st->execute([$league]);
+            $cache[$league] = $st->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log('[free-agency] temporadaDaData: ' . $e->getMessage());
+        }
+    }
+    if (!$cache[$league] || trim($quando) === '') return $vazio;
+
+    $t = strtotime($quando);
+    if ($t === false) return $vazio;
+
+    foreach ($cache[$league] as $s) {
+        $ini = strtotime((string)$s['created_at']);
+        if ($ini !== false && $ini <= $t) {
+            return ['id' => (int)$s['id'], 'year' => (int)$s['year'],
+                    'season_number' => (int)$s['season_number']];
+        }
+    }
+    /* Dispensa anterior à primeira temporada registrada: acontece com dado
+       migrado, e a mais antiga é o melhor palpite — melhor que sumir do
+       filtro por não ter temporada nenhuma. */
+    $ultima = end($cache[$league]);
+    return ['id' => (int)$ultima['id'], 'year' => (int)$ultima['year'],
+            'season_number' => (int)$ultima['season_number']];
+}
+
+/**
  * TODAS as dispensas da liga, e não só as que ainda estão na prateleira.
  *
  * Isto lia só `free_agents` disponíveis, e por isso o card mostrava um
@@ -1180,6 +1233,7 @@ function listWaivers(PDO $pdo, string $league): void
     $seasonJoin = $temSeason ? 'LEFT JOIN seasons s ON fa.season_id = s.id' : '';
     $anoExpr    = $temSeason ? 's.year' : 'NULL';
     $numExpr    = $temSeason ? 's.season_number' : 'NULL';
+    $sidExpr    = $temSeason ? 's.id' : 'NULL';
 
     // ── Lado free_agents ──────────────────────────────────────────────
     $where = 'fa.original_team_name IS NOT NULL';
@@ -1215,6 +1269,7 @@ function listWaivers(PDO $pdo, string $league): void
 
     $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$origemTeamFa} AS original_team_id,
                                   fa.waived_at, {$anoExpr} AS season_year, {$numExpr} AS season_number,
+                                  {$sidExpr} AS season_id,
                                   'free_agent' AS origem, {$situacaoFa} AS situacao,
                                   {$destinoFa} AS destino
                              FROM free_agents fa {$seasonJoin} {$destinoJoin}
@@ -1244,10 +1299,15 @@ function listWaivers(PDO $pdo, string $league): void
         $rotulo = ['open' => 'no waiver', 'claimed' => 'levado no lance', 'cleared' => 'foi pra free agency'];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $w) {
             $w['situacao'] = $rotulo[$w['status']] ?? (string)$w['status'];
-            // A temporada sai da data: waiver_retention não guarda season_id, e
-            // pedir por jogador seria uma consulta por linha.
-            $w['season_year'] = $w['waived_at'] ? (int)date('Y', strtotime((string)$w['waived_at'])) : null;
-            $w['season_number'] = null;
+            /* waiver_retention não guarda season_id, então a temporada sai da
+               DATA: é a última temporada aberta antes do corte. O ano do
+               calendário não serve — a liga roda várias temporadas no mesmo ano
+               (T2 e T3 nasceram com uma semana de diferença), e usá-lo juntava
+               num "2026" só coisas de temporadas diferentes. */
+            $t = temporadaDaData($pdo, $league, (string)$w['waived_at']);
+            $w['season_id']     = $t['id'];
+            $w['season_year']   = $t['year'];
+            $w['season_number'] = $t['season_number'];
             unset($w['status']);
             $doWaiver[] = $w;
         }
@@ -1287,7 +1347,34 @@ function listWaivers(PDO $pdo, string $league): void
     }
     usort($waivers, fn($a, $b) => strcmp((string)$b['waived_at'], (string)$a['waived_at']));
 
-    jsonSuccess(['league' => $league, 'waivers' => array_slice($waivers, 0, 400)]);
+    /* As temporadas que o filtro oferece saem das PRÓPRIAS dispensas, e não da
+       tabela de seasons: temporada sem nenhuma dispensa vira opção que abre uma
+       lista vazia. Vêm prontas com o rótulo, pra tela não ter que remontá-lo. */
+    $temporadas = [];
+    foreach ($waivers as $r) {
+        $sid = (int)($r['season_id'] ?? 0);
+        if (!$sid || isset($temporadas[$sid])) continue;
+        $temporadas[$sid] = [
+            'id'      => $sid,
+            'year'    => (int)$r['season_year'],
+            'numero'  => $r['season_number'] !== null ? (int)$r['season_number'] : null,
+            'rotulo'  => ($r['season_number'] !== null ? 'Temporada ' . (int)$r['season_number'] . ' · ' : '')
+                       . (int)$r['season_year'],
+        ];
+    }
+    $temporadas = array_values($temporadas);
+    usort($temporadas, fn($a, $b) => $b['id'] <=> $a['id']);
+
+    // Qual delas a tela abre marcada. É a corrente da liga, e não "todas": o
+    // que o admin faz aqui é olhar a temporada que está rodando.
+    $corrente = resolveCurrentSeason($pdo, $league);
+
+    jsonSuccess([
+        'league'            => $league,
+        'waivers'           => array_slice($waivers, 0, 400),
+        'temporadas'        => $temporadas,
+        'season_corrente'   => $corrente['id'] ?? null,
+    ]);
 }
 
 function freeAgencyLimits(PDO $pdo, ?array $team): void
