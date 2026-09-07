@@ -8351,7 +8351,7 @@ async function showDispensas() {
       <span class="text-light-gray ms-3" style="font-size:14px;font-weight:600">Dispensas — ${_dispLeague || 'Liga'}</span>
     </div>
     <div class="panel mb-4">
-      <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Filtrar por Temporada</div>
+      <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Filtrar</div>
       <div class="d-flex flex-wrap gap-3 align-items-end">
         <input type="hidden" id="dispensasLeague" value="${_dispLeague || ''}">
         <div>
@@ -8360,12 +8360,24 @@ async function showDispensas() {
             <option value="">Todas</option>
           </select>
         </div>
+        <div>
+          <label class="form-label text-light-gray small mb-1">Destino</label>
+          <select class="form-select form-select-sm" id="dispensasDestino" style="min-width:190px">
+            <option value="">Todos</option>
+            <option value="lance">Contratados no waiver</option>
+            <option value="fa">Foram pra free agency</option>
+            <option value="fa_livre">— ainda disponíveis</option>
+            <option value="fa_assinado">— já contratados na FA</option>
+            <option value="aberto">Ainda no waiver</option>
+          </select>
+        </div>
       </div>
     </div>
     <div id="dispensasResult"></div>
   `;
 
   document.getElementById('dispensasSeason').addEventListener('change', renderDispensasTable);
+  document.getElementById('dispensasDestino').addEventListener('change', renderDispensasTable);
 
   await loadDispensas();
 }
@@ -8409,16 +8421,35 @@ function renderDispensasTable() {
 
   const sel = document.getElementById('dispensasSeason');
   const selectedSeason = sel?.value || '';
-  const filtered = selectedSeason
+  let filtered = selectedSeason
     ? _dispensasCache.filter(w => String(w.season_id) === selectedSeason)
     : _dispensasCache;
 
+  /* O DESTINO: onde o jogador foi parar.
+     "Foram pra free agency" junta quem ainda está lá com quem já foi
+     contratado — as duas coisas responderam à mesma pergunta ("não foi levado
+     no waiver"), e separá-las obrigaria a somar duas telas pra ter o total.
+     As duas opções indentadas abrem esse grupo pra quem quer só um lado. */
+  const selDest = document.getElementById('dispensasDestino');
+  const destino = selDest?.value || '';
+  const grupos = {
+    lance:       ['levado no lance'],
+    fa:          ['foi pra free agency', 'na free agency', 'contratado'],
+    fa_livre:    ['foi pra free agency', 'na free agency'],
+    fa_assinado: ['contratado'],
+    aberto:      ['no waiver'],
+  };
+  if (grupos[destino]) {
+    filtered = filtered.filter(w => grupos[destino].includes(w.situacao));
+  }
+
   if (!filtered.length) {
-    // Diz QUAL temporada está vazia: "nenhuma encontrada" sozinho parece erro
-    // de carregamento quando a temporada é só nova.
+    // Diz QUAL recorte está vazio: "nenhuma encontrada" sozinho parece erro de
+    // carregamento quando é só uma temporada nova ou um filtro sem casos.
     const rot = sel?.selectedOptions?.[0]?.textContent?.trim();
+    const rotDest = selDest?.selectedOptions?.[0]?.textContent?.trim().replace(/^—\s*/, '');
     resultEl.innerHTML = `<div class="text-light-gray text-center py-4">
-      Nenhuma dispensa${rot && selectedSeason ? ' na ' + escapeHtml(rot) : ''} ainda.
+      Nenhuma dispensa${destino ? ' <b>' + escapeHtml(rotDest.toLowerCase()) + '</b>' : ''}${rot && selectedSeason ? ' na ' + escapeHtml(rot) : ''}.
     </div>`;
     return;
   }
