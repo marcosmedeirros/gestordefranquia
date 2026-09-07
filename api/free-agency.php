@@ -1205,10 +1205,19 @@ function listWaivers(PDO $pdo, string $league): void
         : ($temStatus ? "CASE WHEN fa.status = 'signed' THEN 'contratado' ELSE 'na free agency' END" : "'na free agency'");
     $origemTeamFa = columnExists($pdo, 'free_agents', 'original_team_id') ? 'fa.original_team_id' : 'NULL';
 
+    /* PRA ONDE ELE FOI. "Contratado" sem dizer por quem obriga o admin a
+       procurar o jogador no elenco de trinta times pra descobrir o que a linha
+       já sabe. */
+    $destinoJoin = $temWinner ? 'LEFT JOIN teams dt ON dt.id = fa.winner_team_id' : '';
+    $destinoFa   = $temWinner
+        ? "TRIM(CONCAT(COALESCE(dt.city,''),' ',COALESCE(dt.name,'')))"
+        : 'NULL';
+
     $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$origemTeamFa} AS original_team_id,
                                   fa.waived_at, {$anoExpr} AS season_year, {$numExpr} AS season_number,
-                                  'free_agent' AS origem, {$situacaoFa} AS situacao
-                             FROM free_agents fa {$seasonJoin}
+                                  'free_agent' AS origem, {$situacaoFa} AS situacao,
+                                  {$destinoFa} AS destino
+                             FROM free_agents fa {$seasonJoin} {$destinoJoin}
                             WHERE {$where}
                             ORDER BY fa.waived_at DESC
                             LIMIT 400");
@@ -1223,9 +1232,11 @@ function listWaivers(PDO $pdo, string $league): void
         $st = $pdo->prepare("SELECT w.id, w.name, w.team_id AS original_team_id,
                                     TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS original_team_name,
                                     w.waived_at, w.status,
-                                    'waiver' AS origem
+                                    'waiver' AS origem,
+                                    TRIM(CONCAT(COALESCE(c.city,''),' ',COALESCE(c.name,''))) AS destino
                                FROM waiver_retention w
                                LEFT JOIN teams t ON t.id = w.team_id
+                               LEFT JOIN teams c ON c.id = w.claimed_by_team_id
                               WHERE w.league = ? AND w.team_id > 0
                               ORDER BY w.waived_at DESC
                               LIMIT 400");
@@ -1251,8 +1262,20 @@ function listWaivers(PDO $pdo, string $league): void
     $waivers = [];
     foreach (array_merge($doWaiver, $doFa) as $r) {
         $k = $chave($r);
-        if (isset($vistos[$k])) continue;
-        $vistos[$k] = true;
+        if (isset($vistos[$k])) {
+            /* A duplicata é descartada, mas o DESTINO dela não.
+               O waiver que vence sem lance vira linha na free agency, e é lá
+               que fica registrado quem contratou depois. Ficar só com a linha
+               do waiver — que diz "foi pra free agency" e mais nada — perderia
+               justamente o time pra onde o jogador foi. */
+            $i = $vistos[$k];
+            if (empty($waivers[$i]['destino']) && !empty($r['destino'])) {
+                $waivers[$i]['destino']  = $r['destino'];
+                $waivers[$i]['situacao'] = $r['situacao'];
+            }
+            continue;
+        }
+        $vistos[$k] = count($waivers);
         $waivers[] = $r;
     }
 

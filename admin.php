@@ -453,6 +453,33 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .disp-sit[data-sit="no waiver"] {
             color: #f59e0b; border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.10);
         }
+        /* A linha da dispensa. No celular ela QUEBRA: eram cinco blocos numa
+           linha só, e o nome do jogador ficava embaixo do badge de situação. */
+        .disp-linha {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 8px 0; border-bottom: 1px solid var(--border);
+        }
+        .disp-nome {
+            font-size: 13px; font-weight: 600; color: var(--text);
+            flex: 1 1 100%; min-width: 0;
+        }
+        @media (min-width: 720px) {
+            /* Na largura em que tudo cabe, o nome volta pra mesma linha e
+               empurra o resto pra direita. */
+            .disp-nome { flex: 1 1 auto; }
+        }
+        .disp-linha .btn-ghost { margin-left: auto; }
+
+        /* O time que levou, colado na situação: as duas juntas contam a
+           história inteira da linha — o que aconteceu e para onde ele foi. */
+        .disp-dest {
+            display: inline-flex; align-items: center; gap: 1px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+            color: var(--text-2); max-width: 190px; overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .disp-dest i { font-size: 14px; color: var(--text-3); flex: none; }
+
         .disp-sit[data-sit="levado no lance"],
         .disp-sit[data-sit="contratado"] {
             color: #3b82f6; border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.10);

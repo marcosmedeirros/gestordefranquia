@@ -8432,9 +8432,17 @@ function renderDispensasTable() {
         </div>
         <div>
           ${players.map(w => `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
-              <span style="font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:0">${escapeHtml(w.name || '-')}</span>
+            <div class="disp-linha">
+              <span class="disp-nome">${escapeHtml(w.name || '-')}</span>
               <span class="disp-sit" data-sit="${escapeHtml(w.situacao || '')}">${escapeHtml(w.situacao || '-')}</span>
+              ${w.destino
+                /* Quem levou. Sem isso, "levado no lance" mandava o admin
+                   procurar o jogador no elenco de trinta times pra descobrir
+                   o que a própria linha já sabia. */
+                ? `<span class="disp-dest" title="Foi para ${escapeHtml(w.destino)}">
+                     <i class="bi bi-arrow-right-short"></i>${escapeHtml(w.destino)}
+                   </span>`
+                : ''}
               <span style="font-size:11px;color:var(--text);white-space:nowrap">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
               <button class="btn-ghost btn-sm" style="white-space:nowrap"
                       title="Devolve o jogador ao time e a dispensa ao saldo"
