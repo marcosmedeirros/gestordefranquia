@@ -409,10 +409,20 @@ function importar(file){
       linhas.slice(1).forEach(l => {
         const id = parseInt(l[iId], 10);
         if (!idsDoTime.has(id)) { fora++; return; }
+        /* Coluna em branco no arquivo herda o que JÁ ESTÁ LANÇADO.
+           Antes ela ia como '' e o servidor gravava 0: um CSV só com PTS
+           preenchido zerava rebotes, assistências e o resto sem avisar. O
+           registro sai completo de propósito — é a linha inteira que o salvar
+           grava, e é ela que a revisão mostra. Pra zerar, digita 0. */
+        const jogador = elenco.find(j => Number(j.id) === id) || {};
         const reg = {id};
+        let algum = false;
         Object.entries(STATS).forEach(([col, rot]) => {
-          reg[col] = (l[cab.indexOf(rot.toLowerCase())] || '').trim();
+          const v = (l[cab.indexOf(rot.toLowerCase())] || '').trim();
+          if (v !== '') algum = true;
+          reg[col] = v !== '' ? v : (jogador[col] ?? '');
         });
+        if (!algum) return;   // linha só de brancos não é atualização
         novosStats[id] = reg; aplicados++;
       });
     }
@@ -420,9 +430,25 @@ function importar(file){
     msg($('msgImport'), aplicados ? 'ok' : 'err',
       `${aplicados} jogador(es) lidos do CSV de <b>${ehSkills ? 'skills' : 'estatísticas'}</b>.` +
       (fora ? ` ${fora} linha(s) ignorada(s): não são deste time.` : '') +
-      (aplicados ? ' Confira abaixo e salve.' : ''));
+      (aplicados ? ' <b>Confira e corrija na tabela abaixo</b> antes de salvar.' : ''));
 
-    if (aplicados) desenharRevisao();
+    if (aplicados) {
+      /* O CSV CAI NOS CAMPOS, não numa tabela de leitura.
+         A revisão mostrava o que veio do arquivo e só dava duas saídas:
+         salvar assim ou refazer o CSV inteiro por causa de uma célula. Como o
+         arquivo alimenta os mesmos novosSkills/novosStats que a tabela do
+         elenco, basta redesenhá-la: o que veio aparece preenchido e editável,
+         e corrigir um número vira um clique.
+
+         Abre na aba do que foi importado — quem subiu estatísticas quer ver
+         estatísticas, não as skills. */
+      manualAba = ehSkills ? 'skills' : 'stats';
+      document.querySelectorAll('.manual-aba').forEach(o =>
+        o.classList.toggle('on', o.dataset.manual === manualAba));
+      desenharManual();
+      document.querySelector('.manual')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+      desenharRevisao();
+    }
   };
   fr.readAsText(file, 'utf-8');
 }
@@ -476,12 +502,19 @@ function desenharRevisao(){
    subir o CSV e ajustar uma célula na mão antes de salvar. */
 let manualAba = 'skills';
 
+/* Âmbar = DIFERENTE do que está lançado hoje, e não "tem alguma coisa".
+   Com o CSV caindo aqui dentro, marcar todo campo preenchido pintaria a
+   tabela inteira e a pessoa perderia justamente o que o arquivo mudou. É o
+   mesmo critério do "mudou" da tela de revisão. */
+const manualMudou = (novo, atual) =>
+  novo !== undefined && novo !== '' && String(novo) !== String(atual ?? '');
+
 function manualCampoSkill(p, col) {
-  const atual = novosSkills[p.id]?.[col];
+  const digitado = novosSkills[p.id]?.[col];
   const opcoes = ['', ...NOTAS].map(n =>
-    `<option value="${n}"${String(atual || '') === n ? ' selected' : ''}>${n || '—'}</option>`).join('');
+    `<option value="${n}"${String(digitado || '') === n ? ' selected' : ''}>${n || '—'}</option>`).join('');
   return `<td class="campo"><select data-tipo="skills" data-id="${p.id}" data-col="${col}"
-            class="${atual ? 'tem' : ''}">${opcoes}</select></td>`;
+            class="${manualMudou(digitado, p[col]) ? 'tem' : ''}">${opcoes}</select></td>`;
 }
 
 function manualCampoStat(p, col) {
@@ -495,7 +528,7 @@ function manualCampoStat(p, col) {
   // números tem casa decimal (32.4 minutos, 18.7 pontos).
   return `<td class="campo"><input type="text" inputmode="decimal" data-tipo="stats"
             data-id="${p.id}" data-col="${col}" value="${esc(valor)}"
-            class="${digitado !== undefined ? 'tem' : ''}"></td>`;
+            class="${manualMudou(digitado, p[col]) ? 'tem' : ''}"></td>`;
 }
 
 function desenharManual() {
@@ -552,7 +585,8 @@ function manualGuardar(el) {
     if (algum) novosStats[id] = reg; else delete novosStats[id];
   }
 
-  el.classList.toggle('tem', valor !== '');
+  const jogador = elenco.find(j => Number(j.id) === id) || {};
+  el.classList.toggle('tem', manualMudou(valor, jogador[col]));
   manualResumo();
 }
 
