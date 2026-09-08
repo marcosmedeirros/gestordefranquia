@@ -48,7 +48,35 @@ const DUVIDA_TABELAS = [
     'draft_pool', 'draft_order', 'draft_sessions',
     'free_agents', 'waiver_retention', 'leilao_jogadores',
     'divisions', 'league_settings', 'league_sprint_config',
+    // Só o nome do GM, por uma view. Ver duvidaGarantirViewGms().
+    'duvida_gms',
 ];
+
+/**
+ * A VIEW QUE DÁ O NOME DO GM SEM ABRIR A TABELA DE USUÁRIOS.
+ *
+ * "Quem é o GM do Souks" é das perguntas mais comuns do grupo, e o bot
+ * respondia "é o usuário de ID 43" — o único dado que ele tinha, porque
+ * `users` está fora da lista e vai continuar: lá moram e-mail, telefone e
+ * hash de senha.
+ *
+ * A view expõe duas colunas e nada mais. Liberar a tabela e confiar numa
+ * lista de colunas proibidas seria apostar que ninguém escreve `SELECT *`.
+ */
+function duvidaGarantirViewGms(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $pdo->exec('CREATE OR REPLACE VIEW duvida_gms AS
+                    SELECT id AS user_id, name AS nome FROM users');
+    } catch (Throwable $e) {
+        // Sem privilégio de view, o bot segue sem saber nome de GM — que é o
+        // comportamento de antes, e não um erro novo.
+        error_log('[duvida] view de GMs: ' . $e->getMessage());
+    }
+}
 
 /** Colunas que não saem daqui nem por acidente. */
 const DUVIDA_COLUNAS_PROIBIDAS = [
@@ -71,6 +99,8 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     static $cache = null;
     if ($cache !== null) return $cache;
 
+    duvidaGarantirViewGms($pdo);
+
     $l = ['TABELAS QUE VOCÊ PODE CONSULTAR (MySQL)', ''];
     foreach (DUVIDA_TABELAS as $t) {
         try {
@@ -90,6 +120,11 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '';
     $l[] = 'COMO OS DADOS SE LIGAM (o que não dá pra adivinhar pelo nome):';
     $l[] = '- Time: teams(id, city, name, league, conference). O nome completo é city + name.';
+    $l[] = '- QUEM É O GM de um time: teams.user_id liga em duvida_gms(user_id, nome).';
+    $l[] = '  Ex.: SELECT g.nome FROM teams t JOIN duvida_gms g ON g.user_id = t.user_id';
+    $l[] = "       WHERE t.name LIKE '%Souks%'.";
+    $l[] = '  NUNCA responda "o usuário de ID 43": esse número não diz nada pra quem perguntou.';
+    $l[] = '  Não achando o nome, diga que não achou.';
     $l[] = '- Temporada: seasons(id, league, season_number, year). season_number é a T1, T2… da liga;';
     $l[] = '  year é o ano fictício. Uma pergunta sobre "temporada 1" é season_number = 1.';
     /* position é TEXTO, e não número.
