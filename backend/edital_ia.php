@@ -79,8 +79,8 @@ const EDITAL_IA_MAX_TOKENS_GEMINI = 4000;
    esta congestionado e vai estourar o timeout de qualquer jeito. Entao as
    primeiras tentativas sao curtas e so a ULTIMA ganha folga, que e quando nao
    ha mais pra quem recorrer. */
-const EDITAL_IA_TIMEOUT          = 15;
-const EDITAL_IA_TIMEOUT_ULTIMA   = 35;
+const EDITAL_IA_TIMEOUT          = 30;
+const EDITAL_IA_TIMEOUT_ULTIMA   = 45;
 
 /**
  * Uma chave, de onde ela estiver: variável de ambiente ou `config.php`.
@@ -640,8 +640,12 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     // coluna inventada e queima uma rodada aprendendo o que já podia saber.
     $partes[] = ['text' => duvidaEsquemaParaIA($pdo)];
 
-    $partes[] = ['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n"
-                         . "(documento em PDF; é a última fonte, e tem ponto desatualizado)\n\n" . $edital];
+    /* O EDITAL NAO VEM MAIS AQUI: virou ferramenta (buscar_no_edital).
+       Sao 17,5 mil tokens, e com a conversa multi-turno isso passou a ser pago
+       em CADA rodada. Medido: com ele dentro, o modelo estourava os 15s sem
+       comecar a responder, o pedido caia de modelo em modelo e a pergunta
+       terminava em 100 segundos com "nao consegui". Fora do prompt ele continua
+       ao alcance, e so pra pergunta de regra. Ver duvidaBuscarNoEdital(). */
 
     // As instruções por último: a regra de precedência é lida com todas as
     // fontes já na mão.
@@ -669,6 +673,22 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     ],
                 ],
                 'required' => ['sql'],
+            ],
+        ], [
+            'name' => 'buscar_no_edital',
+            'description' =>
+                'Procura artigos do edital da liga por palavra. Use só quando a pergunta for '
+              . 'de REGRA e nem o app nem o guia responderem — o edital é a última fonte e '
+              . 'tem ponto desatualizado. Devolve até 4 artigos.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'termo' => [
+                        'type' => 'string',
+                        'description' => 'Palavras do assunto. Ex.: "leilão lance", "punição pick".',
+                    ],
+                ],
+                'required' => ['termo'],
             ],
         ]],
     ]];
@@ -713,12 +733,19 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
             $contents[] = ['role' => 'model', 'parts' => $partesResposta];
             $respostas = [];
             foreach ($chamadas as $c) {
-                $sql = (string)($c['args']['sql'] ?? '');
-                $r = duvidaConsultar($pdo, $sql);
-                error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'RECUSADA') . ': ' . $r['sql']);
+                $nome = (string)($c['name'] ?? 'consultar_dados');
+                if ($nome === 'buscar_no_edital') {
+                    $termo = (string)($c['args']['termo'] ?? '');
+                    $resultado = duvidaBuscarNoEdital($pdo, $league, $termo);
+                    error_log('[duvida/edital] busca: ' . $termo);
+                } else {
+                    $r = duvidaConsultar($pdo, (string)($c['args']['sql'] ?? ''));
+                    error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'RECUSADA') . ': ' . $r['sql']);
+                    $resultado = duvidaResultadoParaIA($r);
+                }
                 $respostas[] = ['functionResponse' => [
-                    'name'     => (string)($c['name'] ?? 'consultar_dados'),
-                    'response' => ['resultado' => duvidaResultadoParaIA($r)],
+                    'name'     => $nome,
+                    'response' => ['resultado' => $resultado],
                 ]];
             }
             $contents[] = ['role' => 'user', 'parts' => $respostas];

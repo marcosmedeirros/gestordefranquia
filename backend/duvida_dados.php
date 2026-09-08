@@ -184,6 +184,62 @@ function duvidaConsultar(PDO $pdo, string $sql): array
     }
 }
 
+/**
+ * O EDITAL VIROU FERRAMENTA, e deixou de morar no prompt.
+ *
+ * Ele ia inteiro no contexto de toda pergunta — 17,5 mil tokens — e, depois
+ * que a conversa virou multi-turno, isso passou a ser pago em CADA rodada. O
+ * efeito foi medido: com o edital dentro, o modelo estourava 15s sem começar a
+ * responder, o pedido caía de modelo em modelo e a pergunta levava 100s pra
+ * terminar em "não consegui".
+ *
+ * Fora do prompt, ele continua ao alcance: o modelo pede quando precisa, e só
+ * pra pergunta de regra — que é o que a organização queria (o edital entra pro
+ * que o app não tem).
+ *
+ * Busca por palavra, e não semântica: os artigos são curtos e o vocabulário da
+ * liga é pequeno. "Cap", "leilão", "punição" acham o que precisam.
+ */
+function duvidaBuscarNoEdital(PDO $pdo, string $league, string $termo): string
+{
+    require_once __DIR__ . '/edital_texto.php';
+
+    $termo = trim($termo);
+    if ($termo === '') return 'Diga o que procurar no edital.';
+
+    $texto = editalTexto($pdo, $league);
+    if ($texto === null) return "A {$league} não tem edital cadastrado.";
+
+    // Cada palavra com 3+ letras conta; artigo que casa com mais vem antes.
+    $palavras = array_values(array_filter(
+        preg_split('/\s+/u', mb_strtolower($termo)),
+        fn($p) => mb_strlen($p) >= 3
+    ));
+    if (!$palavras) $palavras = [mb_strtolower($termo)];
+
+    $achados = [];
+    foreach (editalArtigos($texto) as $a) {
+        $corpo = mb_strtolower($a['texto']);
+        $pontos = 0;
+        foreach ($palavras as $p) if (str_contains($corpo, $p)) $pontos++;
+        if ($pontos > 0) $achados[] = ['pontos' => $pontos, 'art' => $a];
+    }
+    if (!$achados) return "Não achei nada sobre \"{$termo}\" no edital da {$league}.";
+
+    usort($achados, fn($x, $y) => $y['pontos'] <=> $x['pontos']);
+    $achados = array_slice($achados, 0, 4);
+
+    $out = [];
+    foreach ($achados as $x) {
+        $a = $x['art'];
+        // 700 por artigo: quatro artigos cabem sem virar outro edital dentro
+        // do contexto, que é o que esta função existe pra evitar.
+        $out[] = 'Art. ' . $a['num'] . ' — ' . editalTituloLegivel($a['capitulo']) . "\n"
+               . mb_substr($a['texto'], 0, 700);
+    }
+    return implode("\n\n———\n\n", $out);
+}
+
 /** O resultado em texto, do jeito que o modelo lê melhor. */
 function duvidaResultadoParaIA(array $r): string
 {
