@@ -696,14 +696,18 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     $contents = [['role' => 'user', 'parts' => [['text' => $pergunta]]]];
 
     for ($rodada = 1; $rodada <= DUVIDA_MAX_RODADAS; $rodada++) {
-        /* NA ÚLTIMA RODADA AS FERRAMENTAS SAEM DA MESA.
-           Sem isso o modelo podia pedir dados até o fim e nunca escrever a
-           resposta — foi o que aconteceu com "qual time vai vencer a próxima
-           temporada": ele consultou campanha, ranking e elenco, acabaram as
-           rodadas, e o GM recebeu "não consegui fechar". Ele já tinha tudo na
-           mão; só faltava alguém dizer que era hora de responder.
-           Sem `tools` no payload, não há o que pedir: ou responde em texto, ou
-           diz que não sabe — as duas saídas servem mais que o erro. */
+        /* NA ÚLTIMA RODADA ELE É OBRIGADO A RESPONDER.
+           Sem isso o modelo pedia dados até o fim e nunca escrevia a resposta:
+           "qual time vai vencer a próxima temporada" consultava campanha,
+           ranking e elenco, acabavam as rodadas, e o GM recebia "não consegui
+           fechar". Ele já tinha tudo na mão; faltava dizer que era hora.
+
+           O jeito é `tool_config` com mode NONE, e não tirar `tools` do
+           payload. Tirar foi a primeira tentativa e saiu pior: o histórico
+           tem functionCall e functionResponse, e sem a declaração das funções
+           o Gemini devolve texto VAZIO com finishReason STOP — medido, na
+           pergunta sobre quem o Coyotes eliminou. As declarações ficam, o
+           direito de chamar é que sai. */
         $ultimaRodada = ($rodada === DUVIDA_MAX_RODADAS);
 
         $payload = [
@@ -723,7 +727,10 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                    o modelo gasta tudo pensando e devolve texto vazio. */
             ],
         ];
-        if (!$ultimaRodada) $payload['tools'] = $tools;
+        $payload['tools'] = $tools;
+        if ($ultimaRodada) {
+            $payload['tool_config'] = ['function_calling_config' => ['mode' => 'NONE']];
+        }
 
         [$ok, $j, $err] = editalIaChamarGemini($pdo, $payload, $erro);
         if (!$ok) return $err;
