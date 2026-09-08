@@ -76,10 +76,44 @@ function requireAuth() {
     }
 }
 
+/**
+ * As preferências que o usuário muda em UM aparelho e espera ver em TODOS.
+ *
+ * A sessão é por dispositivo: cor de destaque e atalhos eram gravados nela no
+ * login e ficavam congelados até o próximo. Quem trocasse a cor no PC via o
+ * celular na cor antiga — e a imagem do elenco, que herda o CSS da página,
+ * saía com a cor errada dependendo de onde foi gerada.
+ *
+ * Relê do banco no máximo uma vez por minuto por sessão: a troca de cor é
+ * rara, a página é carregada o tempo todo, e um SELECT por request só pra
+ * isso seria caro à toa. Falha em silêncio — o que está na sessão continua
+ * valendo, que é o comportamento de antes.
+ */
+function refreshUserPrefs(): void
+{
+    if (empty($_SESSION['user_id'])) return;
+    $agora = time();
+    if (($_SESSION['prefs_lidas_em'] ?? 0) > $agora - 60) return;
+    $_SESSION['prefs_lidas_em'] = $agora;   // antes da consulta: erro não repete a cada request
+
+    try {
+        require_once __DIR__ . '/db.php';
+        $st = db()->prepare('SELECT accent_color, dashboard_shortcuts FROM users WHERE id = ? LIMIT 1');
+        $st->execute([(int)$_SESSION['user_id']]);
+        if ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+            $_SESSION['user_accent_color'] = $row['accent_color'];
+            $_SESSION['user_dashboard_shortcuts'] = $row['dashboard_shortcuts'];
+        }
+    } catch (Throwable $e) {
+        error_log('[auth] refreshUserPrefs: ' . $e->getMessage());
+    }
+}
+
 function getUserSession() {
     if (!isset($_SESSION['user_id'])) {
         return null;
     }
+    refreshUserPrefs();
     return [
         'id' => $_SESSION['user_id'],
         'name' => $_SESSION['user_name'] ?? '',
@@ -105,6 +139,10 @@ function setUserSession($user) {
     $_SESSION['user_approved'] = $user['approved'] ?? 1;
     $_SESSION['user_accent_color'] = $user['accent_color'] ?? null;
     $_SESSION['user_dashboard_shortcuts'] = $user['dashboard_shortcuts'] ?? null;
+    // Acabou de vir do banco (login) ou de ser gravado nele (salvar perfil):
+    // reler no próximo request seria uma consulta pra confirmar o que já se
+    // sabe. Ver refreshUserPrefs().
+    $_SESSION['prefs_lidas_em'] = time();
 }
 
 function destroyUserSession() {
