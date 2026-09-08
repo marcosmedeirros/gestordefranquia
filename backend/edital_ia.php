@@ -696,10 +696,19 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     $contents = [['role' => 'user', 'parts' => [['text' => $pergunta]]]];
 
     for ($rodada = 1; $rodada <= DUVIDA_MAX_RODADAS; $rodada++) {
+        /* NA ÚLTIMA RODADA AS FERRAMENTAS SAEM DA MESA.
+           Sem isso o modelo podia pedir dados até o fim e nunca escrever a
+           resposta — foi o que aconteceu com "qual time vai vencer a próxima
+           temporada": ele consultou campanha, ranking e elenco, acabaram as
+           rodadas, e o GM recebeu "não consegui fechar". Ele já tinha tudo na
+           mão; só faltava alguém dizer que era hora de responder.
+           Sem `tools` no payload, não há o que pedir: ou responde em texto, ou
+           diz que não sabe — as duas saídas servem mais que o erro. */
+        $ultimaRodada = ($rodada === DUVIDA_MAX_RODADAS);
+
         $payload = [
             'system_instruction' => ['parts' => $partes],
             'contents' => $contents,
-            'tools'    => $tools,
             'generationConfig' => [
                 'maxOutputTokens' => EDITAL_IA_MAX_TOKENS_GEMINI,
                 // Regra é leitura, não criação. Opinião sobre time e jogador
@@ -714,6 +723,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                    o modelo gasta tudo pensando e devolve texto vazio. */
             ],
         ];
+        if (!$ultimaRodada) $payload['tools'] = $tools;
 
         [$ok, $j, $err] = editalIaChamarGemini($pdo, $payload, $erro);
         if (!$ok) return $err;

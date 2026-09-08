@@ -39,6 +39,10 @@
 const DUVIDA_TABELAS = [
     'teams', 'players', 'seasons', 'sprints', 'leagues',
     'season_standings', 'playoff_results', 'season_awards', 'team_ranking_points',
+    // Os confrontos. Sem elas, "quem o Coyotes eliminou na 1ª rodada" não
+    // tinha resposta possível: playoff_results só guarda até onde cada time
+    // chegou, e não contra quem.
+    'playoff_series', 'playoff_matches', 'playoff_brackets',
     'picks', 'trades', 'trade_items',
     'player_season_stats', 'player_season_log',
     'draft_pool', 'draft_order', 'draft_sessions',
@@ -88,8 +92,21 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '- Time: teams(id, city, name, league, conference). O nome completo é city + name.';
     $l[] = '- Temporada: seasons(id, league, season_number, year). season_number é a T1, T2… da liga;';
     $l[] = '  year é o ano fictício. Uma pergunta sobre "temporada 1" é season_number = 1.';
-    $l[] = '- Campeão e colocação de playoff: playoff_results(season_id, team_id, position).';
-    $l[] = '  position = 1 é o CAMPEÃO, 2 o vice. Quem não foi aos playoffs não tem linha aqui.';
+    /* position é TEXTO, e não número.
+       O esquema dizia "1 é o campeão" e o modelo saía consultando position=1:
+       o MySQL compara 'champion' com 1 por coerção e devolve linha errada ou
+       nenhuma, sem erro nenhum pra avisar. */
+    $l[] = '- Até onde cada time chegou no playoff: playoff_results(season_id, team_id, position).';
+    $l[] = '  ATENÇÃO: position é TEXTO, não número. Os valores são exatamente:';
+    $l[] = "  'champion', 'runner_up', 'conference_final', 'second_round', 'first_round'.";
+    $l[] = '  Quem não foi aos playoffs não tem linha aqui. Esta tabela NÃO diz contra quem se jogou.';
+    $l[] = '- CONFRONTO a confronto: playoff_series(season_id, league, fase, conferencia, team_a_id,';
+    $l[] = "  team_b_id, winner_team_id, jogos). fase usa 'r1', e jogos é o placar da série (ex.: 6 = 4x2).";
+    $l[] = '  É AQUI que se descobre quem eliminou quem. O perdedor é o time da série que não é o winner.';
+    $l[] = '- Também há playoff_matches(season_id, league, conference, round, team1_id, team2_id, winner_id)';
+    $l[] = "  com round em 'first_round','semifinals','conference_finals','finals' — mesma ideia, formato";
+    $l[] = '  mais antigo. E playoff_brackets(season_id, team_id, conference, seed, status) traz a';
+    $l[] = '  cabeça de chave. Se uma não tiver a temporada pedida, tente a outra.';
     $l[] = '- Classificação da fase regular: season_standings(season_id, team_id, wins, losses, position).';
     $l[] = '- Prêmios: season_awards(season_id, team_id, award_type, player_name).';
     $l[] = '- Pontuação do ranking: team_ranking_points(team_id, season_id, league, total_points e as parciais).';
