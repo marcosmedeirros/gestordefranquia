@@ -364,19 +364,23 @@ function wcNormalizarLiga(string $termo): ?string
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * O EDITAL, RESPONDENDO DÚVIDA.
+ * /duvida — "como funciona isso?"
  *
- * Sem argumento devolve o índice: os capítulos do edital daquela liga, lidos
- * do próprio PDF, mais exemplos do que dá pra perguntar. Com argumento, manda
- * a dúvida pro modelo com o edital inteiro no contexto.
+ * O antecessor era /edital e tinha o PDF como assunto: sem argumento, listava
+ * os capítulos; a resposta citava artigo. Só que a dúvida que chega no grupo é
+ * "como funciona a 2ª rodada do draft", "como funciona a pontuação" — pergunta
+ * sobre o APP, e o PDF nem sempre sabe. Pior: punição, pontuação e limites
+ * mudaram no app e o edital ficou pra trás.
  *
- * A LIGA É A DO GRUPO. Ninguém precisa dizer de qual edital está falando: o
- * grupo da ROOKIE pergunta do edital da ROOKIE. Dá pra forçar outra liga com
- * "/edital rise ..." — mas só quando a primeira palavra é o nome de uma liga E
- * sobra pergunta depois, senão "/edital rise" perguntaria sobre a palavra
- * "rise" na liga do grupo.
+ * Agora a base é o app e o guia, com o edital de reserva (ver
+ * editalIaPerguntarGemini). O nome velho continua funcionando — a liga passou
+ * meses aprendendo /edital, e tirar isso do dia pra noite custaria mais do que
+ * ganharia.
+ *
+ * A busca por número de artigo fica: quem quer o Art. 41 quer o texto do
+ * artigo, e nenhum modelo entrega isso melhor que o próprio artigo.
  */
-function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
 {
     require_once __DIR__ . '/../backend/edital_texto.php';
 
@@ -389,85 +393,89 @@ function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
         $arg  = trim($partes[1]);
     }
 
-    $texto = editalTexto($pdo, $liga);
-    if ($texto === null) {
-        return "📕 A *{$liga}* ainda não tem edital cadastrado no site.";
-    }
-
-    /* Quando a liga lê o edital de outra, isso é dito na resposta. Responder
-       calado seria apresentar o documento da ROOKIE como se fosse o da RISE, e
-       o texto cita o nome da outra liga aqui e ali — quem lê ia estranhar sem
-       entender por quê. */
-    $emprestado = (editalTextoProprio($pdo, $liga) === null)
-        ? (EDITAL_HERDA_DE[$liga] ?? null) : null;
-    $rodapeEmprestado = $emprestado
-        ? "\n\n_A {$liga} não tem edital próprio: isto é o edital da {$emprestado}, que responde por ela._"
-        : '';
-
-    // Sem pergunta: o índice. É o "quais comandos existem" do edital.
+    // Sem pergunta: o que dá pra perguntar. O índice de capítulos saiu — ele
+    // respondia "o que tem no PDF", e a pessoa que digita /duvida sem nada não
+    // quer um sumário, quer um exemplo pra copiar.
     if ($arg === '') {
-        $caps = editalCapitulos($texto);
-        $arts = editalArtigos($texto);
-        $linhas = ["📕 *EDITAL DA {$liga}* — " . count($arts) . " artigos", ''];
-        foreach ($caps as $c) {
-            // O título vem em caixa alta do PDF; em caixa alta inteira no
-            // WhatsApp parece grito.
-            $linhas[] = '• ' . editalTituloLegivel($c['titulo']);
-        }
-        $linhas[] = '';
-        $linhas[] = '*Pergunta o que quiser:*';
-        $linhas[] = '/edital como funciona o cap';
-        $linhas[] = '/edital o que acontece se eu passar do cap';
-        $linhas[] = '/edital como funciona o leilão';
-        $linhas[] = '/edital quais são as punições';
-        $linhas[] = '';
-        $linhas[] = '_Respondo com base no edital e digo o artigo._';
-        return implode("\n", $linhas) . $rodapeEmprestado;
+        return implode("\n", [
+            "💬 *DÚVIDAS DA {$liga}*",
+            '',
+            'Pergunta em português mesmo, junto do comando:',
+            '',
+            '/duvida como funciona a 2ª rodada do draft',
+            '/duvida como funciona a pontuação',
+            '/duvida o que acontece se eu passar do cap',
+            '/duvida como eu dispenso um jogador',
+            '/duvida como funciona o leilão',
+            '',
+            '_Respondo com o que está no app agora, no guia e no edital._',
+            '_Pra ler um artigo específico: */duvida 41*._',
+        ]);
     }
 
-    // Número puro é pedido de artigo, e não precisa de modelo nenhum.
+    /* Número puro continua sendo pedido de artigo, e não passa por modelo
+       nenhum: o texto do artigo é a melhor resposta possível pra ele. */
     if (preg_match('/^art\.?\s*(\d{1,3})$|^(\d{1,3})$/iu', $arg, $m)) {
-        $num = (int)($m[1] ?: $m[2]);
-
-        /* TODAS as ocorrências, não a primeira.
-           O edital da ELITE usa o mesmo número duas vezes em oito artigos: o
-           71, por exemplo, é uma regra de janela de mercado num capítulo e uma
-           regra de punição em outro. Parando na primeira, a segunda regra não
-           existia pra quem pergunta pelo bot — e é a que fala de perder pick. */
-        $achados = [];
-        foreach (editalArtigos($texto) as $a) {
-            if ($a['num'] === $num) $achados[] = $a;
-        }
-        if (!$achados) return "Não achei o Art. {$num} no edital da {$liga}.";
-
-        // Com mais de um, cada um fica menor pra mensagem não virar um muro.
-        $limite = count($achados) > 1 ? 900 : 1200;
-        $partes = [];
-        foreach ($achados as $i => $a) {
-            $corpo = mb_substr($a['texto'], 0, $limite);
-            $cab = editalTituloLegivel($a['capitulo']);
-            if (count($achados) > 1) $cab = '*' . ($i + 1) . ' de ' . count($achados) . '* · ' . $cab;
-            $partes[] = $cab . "\n\n" . $corpo . (mb_strlen($a['texto']) > $limite ? "\n_(cortado)_" : '');
-        }
-
-        $aviso = count($achados) > 1
-            ? "\n_O edital da {$liga} tem " . count($achados) . " artigos com o número {$num}, "
-              . "em capítulos diferentes. Os dois valem._"
-            : '';
-
-        return "📕 *EDITAL DA {$liga}*{$aviso}\n\n" . implode("\n\n———\n\n", $partes) . $rodapeEmprestado;
+        return wcEditalArtigo($pdo, $liga, (int)($m[1] ?: $m[2]));
     }
 
     require_once __DIR__ . '/../backend/edital_ia.php';
     if (!editalIaLigada()) {
-        return "📕 Ainda não dá pra perguntar em texto livre por aqui.\n"
-             . "Use */edital* pra ver os capítulos, ou */edital 41* pra ler um artigo.";
+        return "💬 Ainda não dá pra perguntar em texto livre por aqui.\n"
+             . "O guia completo está em fbabrasil.com.br/guia.php.";
     }
 
     $r = editalIaPerguntar($pdo, $liga, $arg);
-    if (!$r['ok']) return '📕 ' . $r['erro'];
+    if (!$r['ok']) return '💬 ' . $r['erro'];
 
-    return "📕 *EDITAL DA {$liga}*\n\n" . $r['resposta'] . $rodapeEmprestado;
+    return '💬 ' . $r['resposta'];
+}
+
+/**
+ * O texto de um artigo do edital, pelo número.
+ *
+ * Estava dentro do /edital e saiu pra função própria quando o comando virou
+ * /duvida: ali ele era o caminho principal, aqui é o atalho de quem já sabe o
+ * número — e o resto da função não tem mais nada a ver com ele.
+ */
+function wcEditalArtigo(PDO $pdo, string $liga, int $num): string
+{
+    $texto = editalTexto($pdo, $liga);
+    if ($texto === null) return "📕 A *{$liga}* não tem edital cadastrado no site.";
+
+    $emprestado = (editalTextoProprio($pdo, $liga) === null)
+        ? (EDITAL_HERDA_DE[$liga] ?? null) : null;
+    $rodape = $emprestado
+        ? "\n\n_A {$liga} não tem edital próprio: isto é o edital da {$emprestado}, que responde por ela._"
+        : '';
+
+    /* TODAS as ocorrências, não a primeira.
+       O edital da ELITE usa o mesmo número duas vezes em oito artigos: o 71,
+       por exemplo, é uma regra de janela de mercado num capítulo e uma regra de
+       punição em outro. Parando na primeira, a segunda regra não existia pra
+       quem pergunta pelo bot — e é a que fala de perder pick. */
+    $achados = [];
+    foreach (editalArtigos($texto) as $a) {
+        if ($a['num'] === $num) $achados[] = $a;
+    }
+    if (!$achados) return "Não achei o Art. {$num} no edital da {$liga}.";
+
+    // Com mais de um, cada um fica menor pra mensagem não virar um muro.
+    $limite = count($achados) > 1 ? 900 : 1200;
+    $partes = [];
+    foreach ($achados as $i => $a) {
+        $corpo = mb_substr($a['texto'], 0, $limite);
+        $cab = editalTituloLegivel($a['capitulo']);
+        if (count($achados) > 1) $cab = '*' . ($i + 1) . ' de ' . count($achados) . '* · ' . $cab;
+        $partes[] = $cab . "\n\n" . $corpo . (mb_strlen($a['texto']) > $limite ? "\n_(cortado)_" : '');
+    }
+
+    $aviso = count($achados) > 1
+        ? "\n_O edital da {$liga} tem " . count($achados) . " artigos com o número {$num}, "
+          . "em capítulos diferentes. Os dois valem._"
+        : '';
+
+    return "📕 *EDITAL DA {$liga}*{$aviso}\n\n" . implode("\n\n———\n\n", $partes) . $rodape;
 }
 
 function wcAjuda(): string
@@ -511,7 +519,7 @@ function wcAjuda(): string
         . "/pontuacao — quanto vale cada conquista na temporada\n"
         // Entra na lista porque é a dúvida que mais volta no grupo, e a única
         // que hoje só se tira abrindo o PDF no celular.
-        . "/edital _sua dúvida_ — a resposta pelo edital da liga, com o artigo\n"
+        . "/duvida _sua pergunta_ — como funciona qualquer coisa do app e da liga\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // Ao lado das apostas da organização porque é a mesma pergunta vista
@@ -3470,12 +3478,18 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 require_once __DIR__ . '/../games/core/enquetes_motor.php';
                 return enqTextoBot($pdo, trim($arg));
 
-            // O edital da liga DO GRUPO. Sem argumento mostra o que dá pra
-            // perguntar; com uma dúvida, responde lendo o edital.
+            /* /duvida — como o app e a liga funcionam.
+               Nasceu /edital, lendo só o PDF, e por isso respondia "qual é a
+               regra" quando a pergunta do grupo é "como funciona isso". Agora
+               a base é o app e o guia, e o edital entra por último.
+               /edital e os outros continuam valendo: são o nome que a liga
+               aprendeu, e quebrar isso obrigaria a reeducar todo mundo. */
+            case 'duvida':
+            case 'duvidas':
             case 'edital':
             case 'regras':
             case 'regulamento':
-                return wcEdital($pdo, $arg, $ligaDoGrupo);
+                return wcDuvida($pdo, $arg, $ligaDoGrupo);
 
             // Quem está fora das regras na liga do grupo: elenco fora da
             // faixa, acima do teto ou abaixo do piso. Mesma conta do card do
