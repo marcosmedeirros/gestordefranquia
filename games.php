@@ -559,12 +559,15 @@ $jogosDiarios = [
 // não passa pelo carregador index.php?game=. O laço lá embaixo aceita os
 // dois, e é isso que permite os dois tipos morarem na mesma grade.
 //
-// The Journey não está aqui: ele ainda está sendo ajustado e não entra no
-// lançamento. A página continua de pé em /games/games/thejourney.php pra quem
-// tem o link (o /caminho.php antigo redireciona pra lá).
+// The Journey entrou na grade em 08/09/2026, ao lado do Copero: são os dois
+// jogos de carreira daqui, e quem gosta de um é quem procura o outro. Ele
+// também vem por `href` — é página inteira em /games/games/, e não passa pelo
+// carregador index.php?game=.
 $jogosLivres = [
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
+    ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',
+     'sub'  => 'Uma carreira no basquete', 'icone' => 'bi-dribbble', 'cor' => '#f97316'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
