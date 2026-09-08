@@ -285,6 +285,24 @@ function editalIaDetalhesDoApp(): string
         '  36 em diante. Não aparecendo, é porque o atleta está com menos que isso',
         '  cadastrado — corrija a idade dele em Meu Elenco (editar jogador) e a opção surge.',
         '  O sistema recusa aposentadoria de quem tem 35 ou menos, então não adianta insistir.',
+        '',
+        /* Conferido em api/draft.php: ensureRound2DeadlineSet() só liga o
+           relógio quando current_round vira 2, ROUND2_PREFERENCIAS é 5, e
+           resolveRound2MocksIfDue() deixa a vaga em aberto quando não há
+           preferência livre. É a dúvida que mais volta no grupo em dia de
+           draft, e a parte do "só começa quando a 1ª acaba" é a que some das
+           respostas quando não está escrita como fato. */
+        '- 2ª RODADA DO DRAFT: é toda de uma vez, sem vez de ninguém.',
+        '  - O cronômetro de 20 MINUTOS só COMEÇA QUANDO A 1ª RODADA TERMINA. Enquanto a 1ª',
+        '    estiver rolando, a 2ª nem abriu e o relógio não está correndo — não existe prazo',
+        '    de 20 minutos valendo antes disso.',
+        '  - Aberta a 2ª, todas as picks dela ficam disponíveis ao mesmo tempo, e cada vaga',
+        '    aceita até 5 preferências em ordem.',
+        '  - Quando o prazo vence, o sistema resolve da pick mais alta pra mais baixa: a vaga',
+        '    leva a 1ª preferência que ainda estiver livre; se todas já foram, desce a lista.',
+        '  - Quem deixou o mock da 1ª rodada ligado tem a fila dele aproveitada como',
+        '    preferência das vagas de 2ª que estiverem vazias.',
+        '  - Vaga sem nenhuma preferência livre fica EM ABERTO e o admin preenche depois.',
     ]);
 }
 
