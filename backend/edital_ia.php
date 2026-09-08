@@ -342,6 +342,17 @@ function editalIaInstrucoes(string $league): string
         'QUALQUER pergunta sobre a liga — como o app funciona, o que diz a regra, e também',
         'os dados: campeões, classificação, elencos, OVR, estatística, trocas, picks.',
         '',
+        /* O bot respondeu as dispensas do Pelicans (ROOKIE) com a regra do
+           waiver, que é só da ELITE, e concluiu que o time nunca dispensou
+           ninguém. A liga do grupo é o padrão, não uma venda nos olhos. */
+        "A LIGA MANDA NA RESPOSTA. O grupo é da {$league}, e é dela que você fala por padrão.",
+        '- Sem liga dita, é a do grupo: "quem lidera?" é o líder dela, não da ELITE.',
+        '- Mas se a pergunta cita um TIME, a liga é a DAQUELE time — descubra com teams.league',
+        '  antes de responder. O Pelicans é da ROOKIE mesmo que o grupo seja outro.',
+        '- As ligas NÃO funcionam igual. Cap, moedas, waiver e limites mudam entre elas. Nunca',
+        '  aplique a regra da ELITE a time de outra liga: confira na configuração e no esquema',
+        '  qual vale pra liga em questão.',
+        '',
         'DADOS: você tem a ferramenta consultar_dados, que roda SELECT no banco da liga.',
         '- Pergunta sobre FATO da liga? Consulte. Não responda de cabeça e não estime.',
         '  "Quem foi campeão da T1", "quem mais foi aos playoffs", "qual lenda mais evoluiu",',

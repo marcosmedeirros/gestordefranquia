@@ -154,6 +154,18 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '- Trocas: trades(from_team_id, to_team_id, status, season_year) e trade_items(trade_id,';
     $l[] = '  player_id, pick_id, from_team). status "accepted" é troca que aconteceu.';
     $l[] = '- Picks: picks(team_id = dono hoje, original_team_id = de quem era, season_year, round).';
+    /* Dispensa é a pergunta que mais engana, porque o caminho MUDA de liga
+       pra liga: o bot procurou as dispensas do Pelicans (ROOKIE) no waiver, que
+       só existe na ELITE, e respondeu que o time nunca dispensou ninguém —
+       enquanto havia seis linhas em free_agents. */
+    $l[] = '- DISPENSAS — e aqui o caminho depende da liga:';
+    $l[] = '  - Em QUALQUER liga: free_agents(name, original_team_id = quem dispensou, waived_at,';
+    $l[] = '    league, status, winner_team_id = quem contratou depois). É a fonte que sempre vale.';
+    $l[] = '  - Só na ELITE existe o waiver de 12h antes da free agency:';
+    $l[] = '    waiver_retention(name, team_id = quem dispensou, status, claimed_by_team_id).';
+    $l[] = '    NEXT, RISE e ROOKIE NÃO têm waiver: lá a dispensa cai direto na free agency.';
+    $l[] = '  - Procurando dispensa de um time, comece por free_agents. Não ache que o time nunca';
+    $l[] = '    dispensou ninguém só porque waiver_retention está vazio pra ele.';
 
     return $cache = implode("\n", $l);
 }
