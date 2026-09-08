@@ -332,11 +332,27 @@ function editalIaInstrucoes(string $league): string
 {
     return implode("\n", [
         "Você é o assistente da FBA Brasil, uma liga de fantasy de basquete no NBA 2K.",
-        "Quem pergunta é um GM da liga {$league}, no grupo de WhatsApp. Você ajuda ele a",
-        "USAR O APP e a entender as regras — nessa ordem, porque a maior parte do que chega",
-        "é 'como funciona isso' e 'onde eu faço isso', e não 'o que diz o artigo tal'.",
+        "Quem pergunta é um GM da liga {$league}, no grupo de WhatsApp. Você responde",
+        'QUALQUER pergunta sobre a liga — como o app funciona, o que diz a regra, e também',
+        'os dados: campeões, classificação, elencos, OVR, estatística, trocas, picks.',
         '',
-        'SEU TRABALHO É ENSINAR A USAR O APP. O edital entra só pro que o app não tem.',
+        'DADOS: você tem a ferramenta consultar_dados, que roda SELECT no banco da liga.',
+        '- Pergunta sobre FATO da liga? Consulte. Não responda de cabeça e não estime.',
+        '  "Quem foi campeão da T1", "quem mais foi aos playoffs", "qual lenda mais evoluiu",',
+        '  "compare o jogador X com o Y" — tudo isso é consulta, não é memória.',
+        '- Consultou e não veio nada? Diga que não achou. Não preencha o buraco com suposição.',
+        '- Erro na consulta: leia a mensagem, corrija e tente de novo. Você tem poucas tentativas,',
+        '  então pense na consulta antes de mandar.',
+        '- Traga o número na resposta. "O Mafia foi campeão da T1 com 52-30" vale mais que',
+        '  "o Mafia foi bem".',
+        '',
+        'OPINIÃO: pode dar, e a liga gosta. Mas só DEPOIS de consultar os dados, e dizendo em',
+        'que você se baseou: "pelo OVR do quinteto e pela campanha, eu ficaria com o X".',
+        '- Palpite de confronto, melhor time, qual jogador preferir: tudo liberado.',
+        '- Deixe claro que é opinião sua, não decisão da liga. Não opine sobre conduta de GM,',
+        '  punição merecida ou quem está certo numa discussão — isso é da organização.',
+        '',
+        'REGRAS E COMO USAR O APP: o edital entra só pro que o app não tem.',
         '',
         'O QUE VALE, EM ORDEM:',
         '1. Os dados do app ("COMO A LIGA ESTÁ CONFIGURADA", pontuação, punições). São o que',
@@ -361,7 +377,9 @@ function editalIaInstrucoes(string $league): string
         '  app, citar artigo confunde — dá a entender que a fonte é o PDF quando não é.',
         '',
         'FORMATO:',
-        '- Português do Brasil, direto, no máximo 6 linhas.',
+        // 8 e não 6: resposta com dados precisa caber a lista. Continua sendo
+        // teto de mensagem de grupo, não de relatório.
+        '- Português do Brasil, direto, no máximo 8 linhas.',
         '- Sem saudação e sem "espero ter ajudado".',
         '- WhatsApp: *negrito* com um asterisco só. Nada de markdown de título, nada de tabela.',
         '- Quando a resposta tiver passos ou condições, use hífen no começo da linha.',
@@ -475,74 +493,25 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
 }
 
 /**
- * A mesma pergunta, pelo Gemini.
+ * Quantas vezes o modelo pode consultar o banco antes de responder.
  *
- * O formato é outro: o system vai em `system_instruction`, a pergunta em
- * `contents`, e o teto de saída em `generationConfig.maxOutputTokens`.
- *
- * TENTA MAIS DE UM MODELO. O free tier responde 503 "high demand" com
- * frequência — medido: o mesmo modelo respondeu em 2,6s e recusou o pedido
- * seguinte. Como a recusa é do modelo e não da chave, o pedido cai pro próximo
- * da fila; só depois de todos recusarem é que o GM recebe um "não deu".
- *
- * Não há cache do edital como na Anthropic: no free tier o cache é implícito e
- * não há custo por token pra economizar.
- *
- * @param callable $erro Fábrica do retorno de erro, do chamador.
+ * Três cobre o que aparece na prática: uma consulta que erra a coluna, a
+ * correção, e a resposta. Mais que isso costuma ser o modelo insistindo numa
+ * pergunta que os dados não respondem — e aí o certo é ele dizer que não achou.
  */
-function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro): array
+const DUVIDA_MAX_RODADAS = 3;
+
+/**
+ * Uma ida ao Gemini, com a fila de modelos como plano B.
+ *
+ * Separado do resto porque agora a conversa tem várias idas: o modelo pede
+ * dados, recebe, e só então responde. Antes era uma só e o loop de modelos
+ * podia morar junto do resto.
+ *
+ * @return array{0:bool, 1:?array, 2:?array} [ok, json da resposta, erro pronto]
+ */
+function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
 {
-    /* A ORDEM É A DA PRECEDÊNCIA, e ela mudou quando o /edital virou /duvida.
-       Antes o PDF vinha primeiro e era o assunto; agora ele é a última fonte.
-       Quem chega no grupo pergunta "como eu faço" e "quanto é hoje" — o
-       edital responde "qual é a regra", e em ponto importante ele está velho.
-       Então: o que o app diz agora, o guia que explica o app, as regras que a
-       organização mexe pelo painel, e o edital pro que sobrar. */
-    $partes = [];
-
-    $fatos = editalIaFatosDoApp($pdo, $league);
-    if ($fatos !== '') $partes[] = ['text' => $fatos];
-
-    require_once __DIR__ . '/duvida_contexto.php';
-    $regras = duvidaRegrasDoApp($pdo, $league);
-    if ($regras !== '') $partes[] = ['text' => $regras];
-
-    $guia = duvidaTextoDoGuia();
-    if ($guia !== '') {
-        $partes[] = ['text' => "GUIA DO GM — como o app funciona, explicado pra quem chegou\n\n" . $guia];
-    }
-
-    $telas = editalIaComoUsarOApp();
-    if ($telas !== '') $partes[] = ['text' => $telas];
-
-    $partes[] = ['text' => editalIaDetalhesDoApp()];
-
-    $partes[] = ['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n"
-                         . "(documento em PDF; é a última fonte, e tem ponto desatualizado)\n\n" . $edital];
-
-    // As instruções por último: a regra de precedência é lida com todas as
-    // fontes já na mão.
-    $partes[] = ['text' => editalIaInstrucoes($league)];
-
-    $payload = [
-        'system_instruction' => ['parts' => $partes],
-        'contents' => [
-            ['role' => 'user', 'parts' => [['text' => $pergunta]]],
-        ],
-        'generationConfig' => [
-            'maxOutputTokens' => EDITAL_IA_MAX_TOKENS_GEMINI,
-            // Regulamento é leitura, não criação: o modelo deve repetir o que
-            // está escrito, e não achar uma forma nova de dizer.
-            'temperature'     => 0.2,
-
-            /* SEM thinkingConfig, de propósito.
-               Testado contra a API: `thinking_level` não existe no v1beta, e
-               `thinkingConfig.thinkingBudget = 0` é recusado com 400 pelos
-               modelos 3.x — neles o raciocínio não desliga. Como ele sai do
-               mesmo orçamento da resposta, o teto acima é generoso: apertado,
-               o modelo gasta tudo pensando e devolve texto vazio. */
-        ],
-    ];
     $corpoJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     // O modelo escolhido à mão manda; senão, a fila padrão.
@@ -587,8 +556,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
         curl_close($ch);
 
         if ($corpo === false || $falha !== '') {
-            error_log("[edital_ia/gemini] {$modelo} curl: " . $falha);
-            $ultimoErro = 'Não consegui consultar o edital agora. Tenta de novo em um minuto.';
+            error_log("[duvida/gemini] {$modelo} curl: " . $falha);
+            $ultimoErro = 'Não consegui responder agora. Tenta de novo em um minuto.';
             continue;
         }
 
@@ -599,49 +568,183 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
            toa até o dia seguinte. Não adianta trocar de modelo — a cota é da
            chave. */
         if ($status === 429) {
-            error_log("[edital_ia/gemini] {$modelo} 429: " . editalIaSemSegredo((string)$corpo));
-            return $erro('O limite de consultas de hoje acabou. Tenta mais tarde, '
-                       . 'ou pergunta pra organização.');
+            error_log("[duvida/gemini] {$modelo} 429: " . editalIaSemSegredo((string)$corpo));
+            return [false, null, $erro('O limite de consultas de hoje acabou. Tenta mais tarde, '
+                                     . 'ou pergunta pra organização.')];
         }
 
         // 503 é fila do modelo, e 404 é modelo que saiu do ar pra contas novas:
         // nos dois casos o próximo da fila pode atender.
         if ($status === 503 || $status === 404 || $status >= 500) {
-            error_log("[edital_ia/gemini] {$modelo} http {$status}, tentando o próximo");
-            $ultimoErro = 'Não consegui consultar o edital agora. Tenta de novo em um minuto.';
+            error_log("[duvida/gemini] {$modelo} http {$status}, tentando o próximo");
+            $ultimoErro = 'Não consegui responder agora. Tenta de novo em um minuto.';
             continue;
         }
 
         if ($status !== 200 || !is_array($j)) {
-            error_log("[edital_ia/gemini] {$modelo} http {$status}: " . editalIaSemSegredo((string)$corpo));
-            return $erro('Não consegui consultar o edital agora. Tenta de novo em um minuto.');
+            error_log("[duvida/gemini] {$modelo} http {$status}: " . editalIaSemSegredo((string)$corpo));
+            return [false, null, $erro('Não consegui responder agora. Tenta de novo em um minuto.')];
         }
 
         // Bloqueio por filtro de conteúdo vem com 200 e sem candidato nenhum.
         if (!empty($j['promptFeedback']['blockReason'])) {
-            return $erro('Não consegui responder essa. Fala com a organização.');
+            return [false, null, $erro('Não consegui responder essa. Fala com a organização.')];
         }
+
+        $j['__modelo'] = $modelo;
+        return [true, $j, null];
+    }
+
+    return [false, null, $erro($ultimoErro ?? 'Não consegui responder agora.')];
+}
+
+/**
+ * A conversa com o Gemini, com o banco à disposição.
+ *
+ * O modelo recebe as fontes de texto (regras, guia, edital) E uma ferramenta
+ * pra consultar os dados. Pergunta de regra ele responde direto; pergunta de
+ * fato — quem foi campeão, quem tem mais OVR — ele consulta e responde com o
+ * que voltou. É a diferença entre um bot que sabe as regras e um que conhece
+ * a liga.
+ */
+function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro): array
+{
+    require_once __DIR__ . '/duvida_contexto.php';
+    require_once __DIR__ . '/duvida_dados.php';
+
+    /* A ORDEM É A DA PRECEDÊNCIA, e ela mudou quando o /edital virou /duvida.
+       Antes o PDF vinha primeiro e era o assunto; agora ele é a última fonte.
+       Quem chega no grupo pergunta "como eu faço" e "quanto é hoje" — o
+       edital responde "qual é a regra", e em ponto importante ele está velho.
+       Então: o que o app diz agora, o guia que explica o app, as regras que a
+       organização mexe pelo painel, e o edital pro que sobrar. */
+    $partes = [];
+
+    $fatos = editalIaFatosDoApp($pdo, $league);
+    if ($fatos !== '') $partes[] = ['text' => $fatos];
+
+    $regras = duvidaRegrasDoApp($pdo, $league);
+    if ($regras !== '') $partes[] = ['text' => $regras];
+
+    $guia = duvidaTextoDoGuia();
+    if ($guia !== '') {
+        $partes[] = ['text' => "GUIA DO GM — como o app funciona, explicado pra quem chegou\n\n" . $guia];
+    }
+
+    $telas = editalIaComoUsarOApp();
+    if ($telas !== '') $partes[] = ['text' => $telas];
+
+    $partes[] = ['text' => editalIaDetalhesDoApp()];
+
+    // O esquema do banco vai junto: sem ele o modelo escreve consulta com
+    // coluna inventada e queima uma rodada aprendendo o que já podia saber.
+    $partes[] = ['text' => duvidaEsquemaParaIA($pdo)];
+
+    $partes[] = ['text' => "EDITAL DA LIGA {$league} — FBA BRASIL\n"
+                         . "(documento em PDF; é a última fonte, e tem ponto desatualizado)\n\n" . $edital];
+
+    // As instruções por último: a regra de precedência é lida com todas as
+    // fontes já na mão.
+    $partes[] = ['text' => editalIaInstrucoes($league)];
+
+    $tools = [[
+        'function_declarations' => [[
+            'name' => 'consultar_dados',
+            'description' =>
+                'Roda uma consulta SQL de LEITURA no banco da FBA e devolve as linhas. '
+              . 'Use sempre que a resposta depender de um dado da liga: campeões, '
+              . 'classificação, elenco, OVR, estatística, trocas, picks, histórico de '
+              . 'jogador. Não invente número que você pode consultar. '
+              . 'Só SELECT, uma instrução, nas tabelas listadas no esquema.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'sql' => [
+                        'type' => 'string',
+                        'description' => 'A consulta SELECT, em MySQL. Use LIMIT.',
+                    ],
+                    'motivo' => [
+                        'type' => 'string',
+                        'description' => 'Em poucas palavras, o que você quer descobrir com ela.',
+                    ],
+                ],
+                'required' => ['sql'],
+            ],
+        ]],
+    ]];
+
+    $contents = [['role' => 'user', 'parts' => [['text' => $pergunta]]]];
+
+    for ($rodada = 1; $rodada <= DUVIDA_MAX_RODADAS; $rodada++) {
+        $payload = [
+            'system_instruction' => ['parts' => $partes],
+            'contents' => $contents,
+            'tools'    => $tools,
+            'generationConfig' => [
+                'maxOutputTokens' => EDITAL_IA_MAX_TOKENS_GEMINI,
+                // Regra é leitura, não criação. Opinião sobre time e jogador
+                // sai boa mesmo assim: ela vem dos dados, não da temperatura.
+                'temperature'     => 0.3,
+
+                /* SEM thinkingConfig, de propósito.
+                   Testado contra a API: `thinking_level` não existe no v1beta, e
+                   `thinkingConfig.thinkingBudget = 0` é recusado com 400 pelos
+                   modelos 3.x — neles o raciocínio não desliga. Como ele sai do
+                   mesmo orçamento da resposta, o teto acima é generoso: apertado,
+                   o modelo gasta tudo pensando e devolve texto vazio. */
+            ],
+        ];
+
+        [$ok, $j, $err] = editalIaChamarGemini($pdo, $payload, $erro);
+        if (!$ok) return $err;
 
         $cand = $j['candidates'][0] ?? null;
-        $texto = '';
-        foreach (($cand['content']['parts'] ?? []) as $parte) {
-            if (isset($parte['text'])) $texto .= $parte['text'];
-        }
-        $texto = trim($texto);
+        $partesResposta = $cand['content']['parts'] ?? [];
 
+        // O modelo pediu dados? Roda, devolve, e a conversa continua.
+        $chamadas = [];
+        $texto = '';
+        foreach ($partesResposta as $parte) {
+            if (isset($parte['functionCall'])) $chamadas[] = $parte['functionCall'];
+            if (isset($parte['text']))         $texto .= $parte['text'];
+        }
+
+        if ($chamadas && $rodada < DUVIDA_MAX_RODADAS) {
+            $contents[] = ['role' => 'model', 'parts' => $partesResposta];
+            $respostas = [];
+            foreach ($chamadas as $c) {
+                $sql = (string)($c['args']['sql'] ?? '');
+                $r = duvidaConsultar($pdo, $sql);
+                error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'RECUSADA') . ': ' . $r['sql']);
+                $respostas[] = ['functionResponse' => [
+                    'name'     => (string)($c['name'] ?? 'consultar_dados'),
+                    'response' => ['resultado' => duvidaResultadoParaIA($r)],
+                ]];
+            }
+            $contents[] = ['role' => 'user', 'parts' => $respostas];
+            continue;
+        }
+
+        $texto = trim($texto);
         if ($texto === '') {
             $motivo = (string)($cand['finishReason'] ?? '');
-            error_log("[edital_ia/gemini] {$modelo} resposta vazia, finishReason=" . $motivo);
+            error_log('[duvida/gemini] resposta vazia, finishReason=' . $motivo
+                    . ($chamadas ? ' (pediu dados na última rodada)' : ''));
+            if ($chamadas) {
+                // Gastou as rodadas consultando e não concluiu. Insistir aqui
+                // custaria outra chamada pra provavelmente repetir o ciclo.
+                return $erro('Essa eu não consegui fechar com os dados que achei. Tenta perguntar de outro jeito.');
+            }
             return $erro($motivo === 'MAX_TOKENS'
                 ? 'A resposta ficou longa demais e foi cortada. Tenta uma pergunta mais específica.'
                 : 'Vieram só linhas vazias. Tenta reformular a pergunta.');
         }
 
         return ['ok' => true, 'resposta' => $texto, 'erro' => null,
-                'uso' => ($j['usageMetadata'] ?? []) + ['modelo' => $modelo]];
+                'uso' => ($j['usageMetadata'] ?? []) + ['modelo' => $j['__modelo'] ?? '?']];
     }
 
-    return $erro($ultimoErro ?? 'Não consegui consultar o edital agora.');
+    return $erro('Essa eu não consegui fechar. Tenta perguntar de outro jeito.');
 }
 
 /**

@@ -3478,15 +3478,13 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 require_once __DIR__ . '/../games/core/enquetes_motor.php';
                 return enqTextoBot($pdo, trim($arg));
 
-            /* /duvida — como o app e a liga funcionam.
-               Nasceu /edital, lendo só o PDF, e por isso respondia "qual é a
-               regra" quando a pergunta do grupo é "como funciona isso". Agora
-               a base é o app e o guia, e o edital entra por último.
-               /edital e os outros continuam valendo: são o nome que a liga
-               aprendeu, e quebrar isso obrigaria a reeducar todo mundo. */
+            /* /duvida — qualquer pergunta sobre o app, a liga e os dados dela.
+               Nasceu /edital, lendo só o PDF, e respondia "qual é a regra"
+               quando a pergunta do grupo é "como funciona isso" e "quem foi
+               campeão da T1". O /edital saiu de vez a pedido da organização;
+               /regras e /regulamento continuam como atalho pelo nome. */
             case 'duvida':
             case 'duvidas':
-            case 'edital':
             case 'regras':
             case 'regulamento':
                 return wcDuvida($pdo, $arg, $ligaDoGrupo);
