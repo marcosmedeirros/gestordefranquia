@@ -1446,6 +1446,23 @@ try {
                 // Colunas podem não existir em instalações antigas; ignorar silenciosamente
             }
 
+            /* OBSERVAÇÕES DA TÁTICA LIMPAM NA VIRADA.
+               O campo é recado pro simulador daquela temporada — "esse aqui só
+               como SF", "usar o pick and roll do 12". Na temporada seguinte o
+               elenco é outro e o recado velho continuava lá, valendo pra
+               jogador que já saiu. O resto da tática fica: rotação, minutos e
+               modelo técnico são escolha do GM, não bilhete de um ano.
+               Só as observações, e em todos os slots — o GM tem mais de um. */
+            try {
+                $pdo->prepare("UPDATE team_tactics tt
+                                 JOIN teams t ON t.id = tt.team_id
+                                  SET tt.notes = NULL
+                                WHERE t.league = ? AND tt.notes IS NOT NULL AND tt.notes <> ''")
+                    ->execute([$league]);
+            } catch (Exception $e) {
+                error_log('[create_season] limpar observações da tática: ' . $e->getMessage());
+            }
+
             /* CONTRATO DE LEILÃO VALE UMA TEMPORADA.
                O lance que o time deu no waiver/FA vira o salário dele naquele
                ano; virando o ano, ele volta pra tabela por OVR como todo
