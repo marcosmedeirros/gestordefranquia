@@ -2540,6 +2540,28 @@ if ($method === 'PUT') {
                     $revertLog .= "\nAvisos: " . implode('; ', $errors);
                 }
 
+                /* A TROCA CONTA OU NÃO CONTA?
+                   Reverter tinha uma resposta só: os ativos voltavam e o
+                   consumo ficava. Serve pra troca desfeita por castigo — o
+                   time gastou a trade e perdeu. Não serve pro erro do app ou
+                   do admin, em que o time não pode pagar por um engano.
+                   Quem decide é o admin, no momento de reverter. */
+                $devolverTroca = !empty($data['devolver_troca']);
+                $devolvidas = [];
+                if ($devolverTroca) {
+                    $stmtDec = $pdo->prepare('UPDATE teams SET trades_used = GREATEST(COALESCE(trades_used,0) - 1, 0) WHERE id = ?');
+                    foreach ([(int)$trade['from_team_id'], (int)$trade['to_team_id']] as $tid) {
+                        $stmtDec->execute([$tid]);
+                        // GREATEST evita negativo: com o contador já em zero
+                        // (virada de temporada no meio), devolver não inventa
+                        // uma trade a mais.
+                        if ($stmtDec->rowCount() > 0) $devolvidas[] = $tid;
+                    }
+                    $revertLog .= "\nA troca NÃO contou: devolvida ao saldo dos dois times.";
+                } else {
+                    $revertLog .= "\nA troca CONTOU: o saldo dos times não mudou.";
+                }
+
                 $stmtUpdate = $pdo->prepare("UPDATE trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
                 $stmtUpdate->execute([$revertLog, $tradeId]);
 
@@ -2547,9 +2569,11 @@ if ($method === 'PUT') {
 
                 $response = [
                     'success' => true,
-                    'message' => 'Trade revertida com sucesso',
+                    'message' => 'Trade revertida com sucesso'
+                        . ($devolverTroca ? ' — a troca foi devolvida ao saldo dos dois times.' : ' — a troca continua contando.'),
                     'players_reverted' => count($playersReverted),
-                    'picks_reverted' => count($picksReverted)
+                    'picks_reverted' => count($picksReverted),
+                    'troca_devolvida' => $devolverTroca
                 ];
 
                 if (!empty($errors)) {
@@ -2663,6 +2687,26 @@ if ($method === 'PUT') {
                     $revertLog .= "\nAvisos: " . implode('; ', $errors);
                 }
 
+                /* Mesma escolha da troca de dois times, e aqui ela pesa mais:
+                   a múltipla consumiu a trade de TODOS os envolvidos, então
+                   "não contar" devolve pra cada um. Os times saem dos próprios
+                   itens — a múltipla não tem "from" e "to" fixos. */
+                $devolverTroca = !empty($data['devolver_troca']);
+                $envolvidos = [];
+                foreach ($items as $item) {
+                    $envolvidos[(int)$item['from_team_id']] = true;
+                    $envolvidos[(int)$item['to_team_id']]   = true;
+                }
+                unset($envolvidos[0]);
+                if ($devolverTroca && $envolvidos) {
+                    $stmtDec = $pdo->prepare('UPDATE teams SET trades_used = GREATEST(COALESCE(trades_used,0) - 1, 0) WHERE id = ?');
+                    foreach (array_keys($envolvidos) as $tid) $stmtDec->execute([$tid]);
+                    $revertLog .= "\nA troca NÃO contou: devolvida ao saldo dos "
+                                . count($envolvidos) . ' times envolvidos.';
+                } else {
+                    $revertLog .= "\nA troca CONTOU: o saldo dos times não mudou.";
+                }
+
                 $stmtUpdate = $pdo->prepare("UPDATE multi_trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
                 $stmtUpdate->execute([$revertLog, $tradeId]);
 
@@ -2670,9 +2714,13 @@ if ($method === 'PUT') {
 
                 $response = [
                     'success' => true,
-                    'message' => 'Trade múltipla revertida com sucesso',
+                    'message' => 'Trade múltipla revertida com sucesso'
+                        . ($devolverTroca
+                            ? ' — a troca foi devolvida a ' . count($envolvidos) . ' time(s).'
+                            : ' — a troca continua contando.'),
                     'players_reverted' => count($playersReverted),
-                    'picks_reverted' => count($picksReverted)
+                    'picks_reverted' => count($picksReverted),
+                    'troca_devolvida' => $devolverTroca
                 ];
 
                 if (!empty($errors)) {

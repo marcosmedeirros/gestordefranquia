@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 // Quem escolhe em cada vaga do draft (dono da pick + swap).
 require_once dirname(__DIR__) . '/backend/draft_swaps.php';
+require_once dirname(__DIR__) . '/backend/picks_usadas.php';   // pick escolhida nao se troca mais
 // Proteção de pick (só ELITE, só 1ª rodada) — regra e trava do ano seguinte.
 require_once dirname(__DIR__) . '/backend/pick_protection.php';
 
@@ -1861,6 +1862,56 @@ function tradePodeSerRefeita(PDO $pdo, array $trade): array
     return [true, null];
 }
 
+/**
+ * A múltipla do histórico ainda pode ser remontada?
+ *
+ * Mesma pergunta de tradePodeSerRefeita(), com uma diferença que muda a
+ * consulta inteira: na troca de dois times o lado de cada item sai de
+ * `from_team` (um booleano), e aqui cada item já traz `from_team_id` — a
+ * múltipla não tem "proponente" e "recebedor", tem N times mandando coisa uns
+ * pros outros. O dono esperado de cada peça é o from_team_id dela.
+ *
+ * Sem isto o botão nunca aparecia nas múltiplas: o front lê `pode_refazer`, e
+ * essa listagem nunca preenchia o campo.
+ *
+ * @return array{0:bool,1:?string} [pode, motivo de não poder]
+ */
+function multiTradePodeSerRefeita(PDO $pdo, array $trade, array $items): array
+{
+    if (($trade['status'] ?? '') === 'accepted') return [false, 'Esta troca foi aceita.'];
+    if (!$items) return [false, 'Esta troca não tem itens.'];
+
+    try {
+        $stJog  = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
+        $stPick = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
+
+        foreach ($items as $item) {
+            $dono = (int)($item['from_team_id'] ?? 0);
+            if ($dono <= 0) continue;
+
+            if (!empty($item['player_id'])) {
+                $stJog->execute([(int)$item['player_id']]);
+                $atual = $stJog->fetch(PDO::FETCH_ASSOC);
+                $nome = trim((string)($item['player_name'] ?? 'Um jogador'));
+                if (!$atual) return [false, $nome . ' não está mais na liga.'];
+                if ((int)$atual['team_id'] !== $dono) {
+                    return [false, trim((string)$atual['name']) . ' mudou de time desde então.'];
+                }
+            } elseif (!empty($item['pick_id'])) {
+                $stPick->execute([(int)$item['pick_id']]);
+                $t = $stPick->fetchColumn();
+                if ($t === false) return [false, 'Uma das picks não existe mais.'];
+                if ((int)$t !== $dono) return [false, 'Uma das picks mudou de time desde então.'];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[multiTradePodeSerRefeita] ' . $e->getMessage());
+        return [false, null];
+    }
+
+    return [true, null];
+}
+
 function cancelarTrocasImpossiveis(PDO $pdo, ?int $tradeIdIgnorar = null): int
 {
     try {
@@ -2155,6 +2206,9 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     // Antes de listar: troca que ficou impossível não pode aparecer como
     // pendente esperando uma resposta que vai falhar no aceite.
     cancelarTrocasImpossiveis($pdo);
+    // Mesma coisa pelas picks: a que já virou jogador no draft não é mais
+    // moeda de troca, mas continua na tabela e a proposta antiga seguia lá.
+    cancelarTrocasComPickUsada($pdo);
 
     $conditions = [];
     $params = [];
@@ -2441,6 +2495,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         }
         unset($item);
         $trade['items'] = $items;
+
+        // Dá pra remontar? Só no histórico, que é onde o botão existe.
+        if ($type === 'history') {
+            [$trade['pode_refazer'], $trade['refazer_motivo']] =
+                multiTradePodeSerRefeita($pdo, $trade, $items);
+        }
     }
     unset($trade);
 
@@ -3867,6 +3927,23 @@ if ($method === 'PUT') {
             echo json_encode(['success' => false, 'error' => $bloqueioAceite]);
             exit;
         }
+        /* PICK JÁ ESCOLHIDA NÃO SE TROCA MAIS.
+           A limpeza da listagem cancela essas propostas, mas ela roda quando
+           alguém abre a tela — entre o draft consumir a pick e isso acontecer,
+           o aceite continuava passando. Aqui é o ponto que decide de verdade:
+           barra e cancela a proposta, pra ela não voltar a aparecer pendente. */
+        $picksGastas = picksUsadasDaTroca($pdo, (int)$tradeId);
+        if ($picksGastas) {
+            $pdo->prepare("UPDATE trades SET status = 'cancelled' WHERE id = ? AND status = 'pending'")
+                ->execute([(int)$tradeId]);
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' =>
+                'Esta troca foi cancelada: ' . implode(', ', $picksGastas)
+                . (count($picksGastas) === 1 ? ' já foi usada' : ' já foram usadas')
+                . ' no draft.']);
+            exit;
+        }
+
         $maxTrades = getLeagueMaxTrades($pdo, $tradeLeague ?: $user['league'], 3);
         $fromTradesUsed = getTeamTradesUsed($pdo, (int)$trade['from_team_id']);
         if ($fromTradesUsed >= $maxTrades) {

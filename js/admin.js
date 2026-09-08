@@ -6423,21 +6423,44 @@ async function cancelTrade(tradeId) {
 }
 
 async function revertTrade(tradeId) {
-  if (!await confirmarSite('REVERTER trade? Jogadores voltarão aos times originais.')) return;
+  /* A pergunta não é "reverter ou não", é COMO reverter.
+     Desfazer por castigo e desfazer por erro do app terminam no mesmo lugar
+     pros jogadores e picks, e em lugares opostos pro saldo de trocas do time.
+     Quem sabe qual é o caso é o admin, e ele decide aqui. */
+  const escolha = await escolherSite(
+    'Jogadores e picks voltam aos times originais. E a troca, conta ou não conta?', [
+      { rotulo: 'Não contar — devolve a troca', valor: 'devolver' },
+      { rotulo: 'Contar mesmo assim', valor: 'contar', secundario: true },
+    ], { titulo: 'Reverter trade' });
+  if (!escolha) return;
+
   try {
-    await api('admin.php?action=revert_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
+    const r = await api('admin.php?action=revert_trade', {
+      method: 'PUT',
+      body: JSON.stringify({ trade_id: tradeId, devolver_troca: escolha === 'devolver' })
+    });
     await showTrades();
-    alert('Revertida!');
-  } catch (e) { alert('Erro'); }
+    alert(r.message || 'Revertida!');
+  } catch (e) { alert(e.error || 'Erro'); }
 }
 
 async function revertMultiTrade(tradeId) {
-  if (!await confirmarSite('REVERTER trade múltipla? Itens voltarão aos times originais.')) return;
+  // Igual à de dois times, e aqui a devolução vale pra TODOS os envolvidos.
+  const escolha = await escolherSite(
+    'Os itens voltam aos times originais. E a troca, conta ou não conta?', [
+      { rotulo: 'Não contar — devolve a todos', valor: 'devolver' },
+      { rotulo: 'Contar mesmo assim', valor: 'contar', secundario: true },
+    ], { titulo: 'Reverter trade múltipla' });
+  if (!escolha) return;
+
   try {
-    await api('admin.php?action=revert_multi_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
+    const r = await api('admin.php?action=revert_multi_trade', {
+      method: 'PUT',
+      body: JSON.stringify({ trade_id: tradeId, devolver_troca: escolha === 'devolver' })
+    });
     await showTrades();
-    alert('Revertida!');
-  } catch (e) { alert('Erro'); }
+    alert(r.message || 'Revertida!');
+  } catch (e) { alert(e.error || 'Erro'); }
 }
 
 function addPlayer(teamId) {

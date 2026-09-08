@@ -14,6 +14,7 @@ require_once __DIR__ . '/../backend/draft_swaps.php';
 require_once __DIR__ . '/../backend/pick_protection.php';
 // O pool que sobra no fim do draft vai pra Free Agency.
 require_once __DIR__ . '/../backend/draft_fa.php';
+require_once __DIR__ . '/../backend/picks_usadas.php';  // pick escolhida cancela troca pendente
 require_once __DIR__ . '/../backend/loteria_grupos.php';
 
 header('Content-Type: application/json');
@@ -376,6 +377,10 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
             $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                 ->execute([$targetTeamId, $pickNumber, $playerId]);
             draftCancelarWaiverDaSobra($pdo, (int)$playerId);
+            // A pick que acabou de virar jogador nao pode mais ser negociada:
+            // a proposta pendente que a inclui morre aqui, e nao so quando
+            // alguem abrir a tela de trocas.
+            cancelarTrocasComPickUsada($pdo, null, true);
 
             $playerName = trim((string)($player['name'] ?? ''));
             $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
@@ -2817,6 +2822,10 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
                 draftCancelarWaiverDaSobra($pdo, (int)$playerId);
+                // A pick que acabou de virar jogador nao pode mais ser negociada:
+                // a proposta pendente que a inclui morre aqui, e nao so quando
+                // alguem abrir a tela de trocas.
+                cancelarTrocasComPickUsada($pdo, null, true);
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
@@ -2974,6 +2983,10 @@ if ($method === 'POST') {
                 // Só depois das duas travas: se qualquer uma barrou, a escolha
                 // não aconteceu e o waiver dele tem que continuar de pé.
                 draftCancelarWaiverDaSobra($pdo, (int)$playerId);
+                // A pick que acabou de virar jogador nao pode mais ser negociada:
+                // a proposta pendente que a inclui morre aqui, e nao so quando
+                // alguem abrir a tela de trocas.
+                cancelarTrocasComPickUsada($pdo, null, true);
 
                 $stPl = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ?');
                 $stPl->execute([$playerId]);
@@ -3176,6 +3189,10 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$pick['team_id'], (int)$pickNumber, (int)$playerId]);
                 draftCancelarWaiverDaSobra($pdo, (int)$playerId);
+                // A pick que acabou de virar jogador nao pode mais ser negociada:
+                // a proposta pendente que a inclui morre aqui, e nao so quando
+                // alguem abrir a tela de trocas.
+                cancelarTrocasComPickUsada($pdo, null, true);
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 try {

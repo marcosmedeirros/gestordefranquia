@@ -2050,17 +2050,52 @@ function createMultiTradeCard(trade, type) {
     card.appendChild(actions);
   }
 
+  /* REFAZER a múltipla. O botão existia só na troca de dois times — aqui o
+     campo pode_refazer nem era calculado, então nunca aparecia. Como o modal
+     de múltipla já sabe se montar a partir de uma troca (é o que o Editar
+     usa), refazer é abrir o mesmo modal sem o id de edição. */
+  if (type === 'history' && trade.status !== 'accepted') {
+    const actions = document.createElement('div');
+    actions.className = 'tc-actions';
+    if (trade.pode_refazer) {
+      actions.innerHTML = `<button class="btn-r secondary sm">
+        <i class="bi bi-arrow-clockwise"></i>Refazer
+      </button>`;
+      actions.querySelector('button').addEventListener('click', () => openEditMultiTrade(trade, true));
+    } else {
+      // Apagado com o motivo, e não escondido: sumir deixaria a pergunta
+      // "por que essa não tem?" sem resposta.
+      const motivo = trade.refazer_motivo || 'Alguma peça mudou de time desde esta proposta.';
+      actions.innerHTML = `
+        <button class="btn-r secondary sm" disabled title="${esc(motivo)}"
+                style="opacity:.45;cursor:not-allowed">
+          <i class="bi bi-arrow-clockwise"></i>Refazer
+        </button>
+        <span style="font-size:11.5px;color:var(--text-3);align-self:center">${esc(motivo)}</span>`;
+    }
+    card.appendChild(actions);
+  }
+
   return card;
 }
 
-async function openEditMultiTrade(trade) {
+/**
+ * @param {boolean} refazer Abre a mesa com a mesma proposta, mas como uma
+ *   troca NOVA. É a diferença inteira entre editar e refazer: sem o
+ *   editTradeId, o envio cria em vez de substituir. A múltipla do histórico
+ *   não existe mais pra ser editada — o que a pessoa quer é propor de novo.
+ */
+async function openEditMultiTrade(trade, refazer) {
   resetMultiTradeForm();
 
   const modal = document.getElementById('multiTradeModal');
   if (!modal) return;
-  modal.dataset.editTradeId = trade.id;
+  if (refazer) delete modal.dataset.editTradeId;
+  else modal.dataset.editTradeId = trade.id;
   const modalTitle = modal.querySelector('.modal-title');
-  if (modalTitle) modalTitle.innerHTML = '<i class="bi bi-pencil me-2" style="color:var(--red)"></i>Editar Trade Múltipla';
+  if (modalTitle) modalTitle.innerHTML = refazer
+    ? '<i class="bi bi-arrow-clockwise me-2" style="color:var(--red)"></i>Refazer Trade Múltipla'
+    : '<i class="bi bi-pencil me-2" style="color:var(--red)"></i>Editar Trade Múltipla';
 
   // Check team boxes for the trade's teams
   const teamsContainer = document.getElementById('multiTradeTeamsList');

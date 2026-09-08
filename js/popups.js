@@ -315,6 +315,36 @@
   }, true);
 
   /** Aviso com tom escolhido na mão, quando adivinhar não serve. */
+  /**
+   * Pergunta com mais de duas saídas. Devolve Promise com o valor do botão
+   * escolhido, ou null se a pessoa fechou.
+   *
+   * O confirmarSite só tem sim e não. Quando a decisão é "de que jeito", e não
+   * "faz ou não faz", encaixar isso em dois botões vira um sim que quer dizer
+   * uma coisa e um cancelar que quer dizer outra — e o admin acaba clicando no
+   * errado. Ex.: reverter a troca devolvendo ou não a trade ao saldo.
+   *
+   *   const r = await escolherSite('Contar a troca?', [
+   *     { rotulo: 'Contar',     valor: 'contar' },
+   *     { rotulo: 'Não contar', valor: 'devolver' },
+   *   ]);
+   */
+  window.escolherSite = function (texto, opcoesBotoes, opcoes) {
+    opcoes = opcoes || {};
+    return new Promise(function (resolve) {
+      abrir({
+        tipo: opcoes.tipo || 'duvida',
+        titulo: opcoes.titulo,
+        texto: texto,
+        valorEscape: null,
+        aoFechar: function (v) { resolve(v === undefined ? null : v); },
+        botoes: (opcoesBotoes || []).concat([
+          { rotulo: opcoes.cancelar || 'Cancelar', valor: null, secundario: true }
+        ])
+      });
+    });
+  };
+
   window.avisarSite = function (texto, tipo, titulo) {
     if (!document.body) { nativoAlert(texto); return; }
     abrir({
