@@ -3481,12 +3481,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             /* /duvida — qualquer pergunta sobre o app, a liga e os dados dela.
                Nasceu /edital, lendo só o PDF, e respondia "qual é a regra"
                quando a pergunta do grupo é "como funciona isso" e "quem foi
-               campeão da T1". O /edital saiu de vez a pedido da organização;
-               /regras e /regulamento continuam como atalho pelo nome. */
+               campeão da T1". Um nome só, a pedido da organização: /edital,
+               /regras e /regulamento saíram, porque cada apelido a mais é uma
+               forma diferente de chamar a mesma coisa e um jeito a mais de a
+               liga achar que são comandos diferentes. */
             case 'duvida':
             case 'duvidas':
-            case 'regras':
-            case 'regulamento':
                 return wcDuvida($pdo, $arg, $ligaDoGrupo);
 
             // Quem está fora das regras na liga do grupo: elenco fora da
