@@ -170,6 +170,70 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     return $cache = implode("\n", $l);
 }
 
+/**
+ * A SPRINT ATUAL DE CADA LIGA — e o recorte de tudo que o bot responde.
+ *
+ * O banco guarda a história inteira: 56 temporadas de sprints encerradas
+ * convivem com as 10 que estão valendo. Sem recorte, "qual lenda mais evoluiu"
+ * varre 20 mil linhas de log incluindo a T20 de 2044 de um ciclo que acabou, e
+ * "quem foi campeão da T1" acha duas T1 — a de agora e a de dois anos atrás.
+ *
+ * A liga vive o ciclo corrente. Os season_id vão explícitos porque é o que o
+ * modelo consegue colar no WHERE sem errar: pedir "filtre pela sprint ativa"
+ * dependeria de ele acertar o JOIN com sprints toda vez.
+ *
+ * Vale pras QUATRO ligas, e não só pra do grupo: pergunta sobre time de outra
+ * liga também tem que cair no ciclo atual dela.
+ */
+function duvidaSprintAtual(PDO $pdo): string
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $l = [
+        'A SPRINT ATUAL — USE SÓ ESTAS TEMPORADAS',
+        '',
+        'O banco tem a história de ciclos antigos. Eles NÃO valem: a liga vive a sprint atual,',
+        'e o GM que pergunta está nela. Toda consulta que envolva temporada tem que se limitar',
+        'aos season_id abaixo — em seasons, season_standings, playoff_results, playoff_series,',
+        'season_awards, team_ranking_points, player_season_stats e player_season_log.',
+        '',
+    ];
+
+    try {
+        $st = $pdo->query("SELECT s.id, s.league, s.season_number, s.year, s.status,
+                                  sp.sprint_number
+                             FROM seasons s
+                             JOIN sprints sp ON sp.id = s.sprint_id
+                            WHERE sp.status = 'active'
+                         ORDER BY FIELD(s.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number");
+        $porLiga = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $porLiga[$r['league']][] = $r;
+        if (!$porLiga) return $cache = '';
+
+        foreach ($porLiga as $liga => $temps) {
+            $ids = implode(',', array_map(fn($t) => (int)$t['id'], $temps));
+            $desc = [];
+            foreach ($temps as $t) {
+                $desc[] = 'T' . $t['season_number'] . ' (' . $t['year'] . ', id ' . $t['id']
+                        . ', ' . $t['status'] . ')';
+            }
+            $l[] = "- {$liga} — sprint {$temps[0]['sprint_number']}: " . implode(', ', $desc);
+            $l[] = "  Use: season_id IN ({$ids})";
+        }
+    } catch (Throwable $e) {
+        error_log('[duvida] sprint atual: ' . $e->getMessage());
+        return $cache = '';
+    }
+
+    $l[] = '';
+    $l[] = 'Quando falarem "temporada 1", "T2" etc., é a DESTA sprint — não a de um ciclo antigo.';
+    $l[] = 'Só saia daqui se pedirem explicitamente história antiga ("em todos os tempos",';
+    $l[] = '"na sprint passada"), e aí diga que está olhando fora do ciclo atual.';
+
+    return $cache = implode("\n", $l);
+}
+
 /** A coluna carrega dado pessoal? */
 function duvidaColunaProibida(string $nome): bool
 {

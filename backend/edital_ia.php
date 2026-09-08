@@ -354,6 +354,9 @@ function editalIaInstrucoes(string $league): string
         '  qual vale pra liga em questão.',
         '',
         'DADOS: você tem a ferramenta consultar_dados, que roda SELECT no banco da liga.',
+        '- SEMPRE dentro da SPRINT ATUAL. O bloco "A SPRINT ATUAL" tem os season_id de cada liga;',
+        '  toda consulta com temporada filtra por eles. Ciclo antigo não vale e confunde: existe',
+        '  mais de uma "T1" no banco, e a que interessa é a desta sprint.',
         '- Pergunta sobre FATO da liga? Consulte. Não responda de cabeça e não estime.',
         '  "Quem foi campeão da T1", "quem mais foi aos playoffs", "qual lenda mais evoluiu",',
         '  "compare o jogador X com o Y" — tudo isso é consulta, não é memória.',
@@ -681,6 +684,11 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     // O esquema do banco vai junto: sem ele o modelo escreve consulta com
     // coluna inventada e queima uma rodada aprendendo o que já podia saber.
     $partes[] = ['text' => duvidaEsquemaParaIA($pdo)];
+
+    // Logo depois do esquema, e antes de tudo mais: é o recorte que vale pra
+    // toda consulta que ele for escrever.
+    $sprint = duvidaSprintAtual($pdo);
+    if ($sprint !== '') $partes[] = ['text' => $sprint];
 
     // O vocabulário que a liga ensinou. Vai depois do esquema e antes das
     // instruções, que é onde ele avisa o que fazer (e o que não fazer) com isso.
