@@ -183,10 +183,14 @@ function leilaoBotAoCriarProposta(PDO $pdo, int $leilao_id, int $proposta_id): v
  * ONDE A CERIMÔNIA É ANUNCIADA — loteria e draft, não o leilão.
  *
  * O leilão é conversa de mercado e vive no Chat Off. Loteria e draft são
- * evento: na ELITE eles acontecem no Gameplay, que é onde a liga assiste, e
- * anunciar no Chat Off era falar num lugar e o pessoal estar no outro.
+ * evento: eles acontecem no Gameplay, que é onde a liga assiste, e anunciar
+ * no Chat Off era falar num lugar e o pessoal estar no outro.
  *
- * A liga que não estiver na lista segue no Chat Off, como sempre.
+ * Vale pras QUATRO ligas. Era só a ELITE, por uma lista fixa escrita quando
+ * só ela tinha Gameplay — as outras três ganharam o grupo depois e ninguém
+ * voltou aqui, então draft e loteria da NEXT, RISE e ROOKIE continuavam
+ * caindo no Chat Off. Sem lista: quem tiver Gameplay recebe lá, e liga nova
+ * já nasce certa.
  *
  * Procura pelo NOME dentro dos grupos que o admin já declarou daquela liga —
  * assim o grupo pode trocar de JID sem quebrar. Não achando, cai no Chat Off:
@@ -195,21 +199,18 @@ function leilaoBotAoCriarProposta(PDO $pdo, int $leilao_id, int $proposta_id): v
 function botGrupoDaCerimonia(PDO $pdo, string $liga): ?string
 {
     $liga = strtoupper(trim($liga));
+    if ($liga === '') return null;
 
-    // liga => pedaço do nome do grupo onde a cerimônia é acompanhada.
-    $preferido = ['ELITE' => '%gameplay%'];
-    if (isset($preferido[$liga])) {
-        try {
-            $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
-                                  WHERE ativo = 1 AND UPPER(liga) = ? AND LOWER(nome) LIKE ?
-                               ORDER BY criado_em ASC, jid ASC LIMIT 1");
-            $st->execute([$liga, $preferido[$liga]]);
-            $jid = trim((string)($st->fetchColumn() ?: ''));
-            if ($jid !== '') return $jid;
-            error_log("[bot] grupo de cerimônia da {$liga} não encontrado; usando o Chat Off");
-        } catch (Throwable $e) {
-            error_log('[bot] grupo de cerimônia: ' . $e->getMessage());
-        }
+    try {
+        $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
+                              WHERE ativo = 1 AND UPPER(liga) = ? AND LOWER(nome) LIKE '%gameplay%'
+                           ORDER BY criado_em ASC, jid ASC LIMIT 1");
+        $st->execute([$liga]);
+        $jid = trim((string)($st->fetchColumn() ?: ''));
+        if ($jid !== '') return $jid;
+        error_log("[bot] Gameplay da {$liga} não encontrado; usando o Chat Off");
+    } catch (Throwable $e) {
+        error_log('[bot] grupo de cerimônia: ' . $e->getMessage());
     }
 
     return leilaoBotGrupoDaLiga($pdo, $liga);
