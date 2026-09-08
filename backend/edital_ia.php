@@ -66,7 +66,13 @@ const EDITAL_IA_MODELOS_GEMINI = [
  * Serve pras duas coisas: se um dia houver faturamento, é teto de gasto; sem
  * faturamento, evita queimar a cota gratuita de manhã e ficar sem à tarde.
  */
-const EDITAL_IA_LIMITE_DIA = 150;
+/* 400, e não 150.
+   O número foi escolhido quando uma pergunta era UMA chamada. Com a conversa
+   multi-turno, uma pergunta de dado custa de 2 a 4 — o modelo consulta,
+   recebe, às vezes corrige e só então responde. Com 150 a cota acabava em
+   ~40 perguntas, e acabou mesmo, num dia de teste. 400 mantém a trava (o free
+   tier do flash-lite dá bem mais que isso) e cobre um dia de grupo movimentado. */
+const EDITAL_IA_LIMITE_DIA = 400;
 
 /* Teto de resposta. Resposta de grupo de WhatsApp é curta — mas no Gemini o
    raciocínio do modelo sai DESTE mesmo orçamento, e o 2.5-flash não deixa
@@ -348,6 +354,9 @@ function editalIaInstrucoes(string $league): string
         '',
         'MEMÓRIA: a liga te ensina o vocabulário dela, e você guarda com a ferramenta lembrar.',
         '- "Chama o Blue Foxes de patinho", "o apelido do Marcos é Medeiros": guarde e use depois.',
+        '- USE o que está guardado ANTES de consultar. Se perguntarem "como está o patinho" e a',
+        '  memória disser que patinho é o Oakland Blue Foxes, a pergunta é sobre o Blue Foxes:',
+        '  consulte por ele. Nunca procure o apelido no banco — apelido não está lá, está aqui.',
         '- Ensinar o mesmo assunto de novo corrige o que estava lá. Pediram pra esquecer? esquecer.',
         '- Guarde APELIDO e JEITO DE FALAR. Não guarde regra, número, nem nada que o app já',
         '  responda — isso muda no app e a memória ficaria mentindo. Se tentarem te ensinar uma',
