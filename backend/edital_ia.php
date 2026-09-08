@@ -729,7 +729,18 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
         ];
         $payload['tools'] = $tools;
         if ($ultimaRodada) {
-            $payload['tool_config'] = ['function_calling_config' => ['mode' => 'NONE']];
+            /* Os dois nomes, de propósito: o REST do v1beta documenta
+               camelCase, o resto deste payload usa snake_case e funciona, e
+               o campo que o modelo não conhecer ele ignora. Mandar os dois
+               custa nada e cobre a versão que estiver do outro lado. */
+            $modo = ['function_calling_config' => ['mode' => 'NONE']];
+            $payload['tool_config'] = $modo;
+            $payload['toolConfig']  = ['functionCallingConfig' => ['mode' => 'NONE']];
+            // E o pedido em português, que é o que o modelo lê de verdade.
+            $contents[] = ['role' => 'user', 'parts' => [['text' =>
+                'Agora responda a pergunta com o que você já consultou. Não peça mais dados. '
+              . 'Se o que você tem não responde, diga isso em uma frase.']]];
+            $payload['contents'] = $contents;
         }
 
         [$ok, $j, $err] = editalIaChamarGemini($pdo, $payload, $erro);
