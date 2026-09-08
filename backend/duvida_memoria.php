@@ -26,6 +26,40 @@
 /** Quantas lembranças cabem por liga. */
 const DUVIDA_MEMORIA_MAX = 80;
 
+/**
+ * A CONEXÃO MORRE ENQUANTO O MODELO PENSA.
+ *
+ * Medido: uma pergunta que levou 75 segundos (o free tier caindo de modelo em
+ * modelo) voltou com "MySQL server has gone away" na hora de gravar. O bot
+ * disse "guardei!" e não havia guardado nada — o pior desfecho possível, porque
+ * a pessoa acredita e só descobre depois.
+ *
+ * O `wait_timeout` do MySQL não sabe que estamos esperando uma API do outro
+ * lado do mundo. Então, antes de escrever, a conexão é testada; morta, uma
+ * nova é aberta. Um SELECT 1 é barato perto de perder o que a liga ensinou.
+ */
+function duvidaMemoriaConexaoViva(PDO $pdo): PDO
+{
+    try {
+        $pdo->query('SELECT 1');
+        return $pdo;
+    } catch (Throwable $e) {
+        error_log('[duvida/memoria] conexão caiu, reabrindo: ' . $e->getMessage());
+    }
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $c = loadConfig()['db'];
+        return new PDO(
+            sprintf('mysql:host=%s;dbname=%s;charset=%s', $c['host'], $c['name'], $c['charset']),
+            $c['user'], $c['pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+    } catch (Throwable $e) {
+        error_log('[duvida/memoria] reabrir falhou: ' . $e->getMessage());
+        return $pdo;   // devolve a morta: quem chamou trata o erro da escrita
+    }
+}
+
 function duvidaMemoriaTabela(PDO $pdo): void
 {
     static $feito = false;
@@ -83,6 +117,9 @@ function duvidaMemoriaTexto(PDO $pdo, string $liga): string
  */
 function duvidaMemoriaGravar(PDO $pdo, string $liga, string $assunto, string $fato, ?string $quem = null): string
 {
+    // A escrita vem depois de uma espera longa pelo modelo: a conexão pode ter
+    // morrido no caminho. Ver duvidaMemoriaConexaoViva().
+    $pdo = duvidaMemoriaConexaoViva($pdo);
     duvidaMemoriaTabela($pdo);
 
     $assunto = trim(mb_substr(trim($assunto), 0, 80));
@@ -113,6 +150,7 @@ function duvidaMemoriaGravar(PDO $pdo, string $liga, string $assunto, string $fa
 /** Esquece o que foi pedido. */
 function duvidaMemoriaApagar(PDO $pdo, string $liga, string $assunto): string
 {
+    $pdo = duvidaMemoriaConexaoViva($pdo);
     duvidaMemoriaTabela($pdo);
     $assunto = trim($assunto);
     if ($assunto === '') return 'Diga o que devo esquecer.';
