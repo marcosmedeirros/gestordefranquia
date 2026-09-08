@@ -99,6 +99,36 @@ if ($acao === 'elenco') {
     $st->execute([$teamId]);
     $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
 
+    /* As estatísticas QUE JÁ EXISTEM na temporada alvo.
+       Sem elas, quem preenche uma coluna sozinha na tela zera as outras: o
+       formulário manda a linha inteira e o que vai em branco vira 0. Com o
+       valor atual no campo, editar PTS mexe só em PTS. */
+    try {
+        require_once __DIR__ . '/../backend/stats_temporada.php';
+        $alvo = statsTemporadaAlvo($pdo, $minhaLiga)['alvo'] ?? null;
+        if ($alvo) {
+            $colsStat = implode(', ', array_keys(ATUALIZACAO_STATS));
+            $stS = $pdo->prepare("SELECT player_id, {$colsStat} FROM player_season_stats
+                                   WHERE team_id = ? AND season_id = ?");
+            $stS->execute([$teamId, (int)$alvo['id']]);
+            $porJogador = [];
+            foreach ($stS->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $porJogador[(int)$r['player_id']] = $r;
+            }
+            foreach ($jogadores as &$j) {
+                $s = $porJogador[(int)$j['id']] ?? null;
+                foreach (array_keys(ATUALIZACAO_STATS) as $c) {
+                    // null e não 0: campo vazio é "não tem lançamento", e um
+                    // zero de verdade continua aparecendo como zero.
+                    $j[$c] = $s !== null ? $s[$c] : null;
+                }
+            }
+            unset($j);
+        }
+    } catch (Throwable $e) {
+        error_log('[atualizar-time] stats atuais: ' . $e->getMessage());
+    }
+
     echo json_encode(['ok' => true,
         'time' => ['id' => $teamId,
                    'nome' => trim(($check['time']['city'] ?? '') . ' ' . ($check['time']['name'] ?? '')),

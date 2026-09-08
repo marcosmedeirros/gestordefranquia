@@ -112,6 +112,31 @@ td.nm{font-weight:700}
   display:flex;flex-direction:column;gap:2px}
 .premio b{font-family:var(--num);font-size:18px;font-weight:900;color:var(--amber);letter-spacing:-.5px}
 .oculto{display:none}
+
+/* ── Preencher na mão ──
+   Mesma tabela da revisão, com os campos abertos. Fica embaixo do CSV porque
+   é o caminho de quem vai mexer em poucos jogadores; quem lança o time
+   inteiro a partir de um print continua subindo o arquivo. */
+.manual{margin-top:16px;border-top:1px solid var(--border);padding-top:14px}
+.manual-cab{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.manual-abas{display:flex;gap:6px}
+.manual-aba{background:transparent;border:1.5px solid var(--border2);color:var(--text2);
+  border-radius:9px;padding:7px 13px;font-family:var(--font);font-size:12.5px;font-weight:800;
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+.manual-aba:hover{color:var(--text)}
+.manual-aba.on{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.manual-dica{font-size:12px;color:var(--text3);flex:1;min-width:180px}
+/* A célula do campo perde o padding: o input ocupa a célula inteira e a
+   tabela não fica com dois espaçamentos, o dela e o do campo. */
+#tblManual td.campo{padding:3px 4px}
+#tblManual input,#tblManual select{width:100%;min-width:62px;background:var(--panel2);
+  border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 7px;
+  font-family:var(--num);font-size:12.5px;text-align:center}
+#tblManual input:focus,#tblManual select:focus{outline:none;border-color:var(--red)}
+/* Preenchido fica âmbar, igual ao "mudou" da revisão: é o que a pessoa
+   confere de relance antes de salvar. */
+#tblManual input.tem,#tblManual select.tem{border-color:rgba(245,158,11,.45);color:var(--amber);font-weight:800}
+#tblManual td.nm{position:sticky;left:0;background:var(--panel);z-index:1}
 </style>
 </head>
 <body>
@@ -156,6 +181,32 @@ td.nm{font-weight:700}
       <input type="file" id="arquivo" accept=".csv,text/csv" hidden>
     </label>
     <div id="msgImport"></div>
+
+    <?php /* O ELENCO NA TELA.
+             Antes daqui só saía CSV: pra corrigir a nota de um jogador só, a
+             pessoa tinha que baixar o modelo, abrir no Excel, preencher e
+             subir de volta. O elenco já vem do servidor pra montar o modelo —
+             mostrá-lo é de graça, e quem quiser preencher à mão preenche
+             direto. O CSV continua sendo o caminho de quem vai lançar o time
+             inteiro a partir de um print. */ ?>
+    <div class="manual">
+      <div class="manual-cab">
+        <div class="manual-abas">
+          <button type="button" class="manual-aba on" data-manual="skills">
+            <i class="bi bi-sliders"></i> Skills
+          </button>
+          <button type="button" class="manual-aba" data-manual="stats">
+            <i class="bi bi-bar-chart-fill"></i> Estatísticas
+          </button>
+        </div>
+        <span class="manual-dica">Preencha só o que quiser mudar — o que ficar em branco não é tocado.</span>
+      </div>
+      <div class="rolar"><table id="tblManual"></table></div>
+      <div class="acoes" style="margin-top:12px">
+        <button class="btn azul" id="btnManualRevisar"><i class="bi bi-check2-square"></i> Revisar o que preenchi</button>
+        <span class="lead" style="margin:0" id="manualResumo"></span>
+      </div>
+    </div>
   </div>
 
   <div class="painel oculto" id="painelRevisao">
@@ -256,6 +307,7 @@ async function abrirTime(id){
   $('painelCSV').classList.remove('oculto');
   $('painelRevisao').classList.add('oculto');
   $('msgImport').innerHTML = '';
+  desenharManual();
 }
 
 $('btnTrocar').addEventListener('click', () => {
@@ -414,6 +466,131 @@ function desenharRevisao(){
   $('painelRevisao').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
+/* ── Preencher na mão ────────────────────────────────────────────────
+   O elenco já vem do servidor pra montar o CSV modelo. Mostrá-lo com os
+   campos abertos não custa nada e resolve o caso que o CSV atrapalhava:
+   corrigir a nota de um ou dois jogadores.
+
+   Escreve nos MESMOS novosSkills/novosStats que o CSV alimenta, então a
+   revisão, o prêmio e o salvar continuam sendo um caminho só. Dá até pra
+   subir o CSV e ajustar uma célula na mão antes de salvar. */
+let manualAba = 'skills';
+
+function manualCampoSkill(p, col) {
+  const atual = novosSkills[p.id]?.[col];
+  const opcoes = ['', ...NOTAS].map(n =>
+    `<option value="${n}"${String(atual || '') === n ? ' selected' : ''}>${n || '—'}</option>`).join('');
+  return `<td class="campo"><select data-tipo="skills" data-id="${p.id}" data-col="${col}"
+            class="${atual ? 'tem' : ''}">${opcoes}</select></td>`;
+}
+
+function manualCampoStat(p, col) {
+  /* O campo abre com o que JÁ está lançado (p[col], vindo do servidor). É o
+     que impede o efeito colateral: o salvar manda a linha inteira e o que vai
+     em branco vira 0, então preencher só PTS zeraria REB, AST e o resto. Com o
+     valor de hoje ali, editar uma coluna mexe só nela. */
+  const digitado = novosStats[p.id]?.[col];
+  const valor = digitado ?? (p[col] ?? '');
+  // inputmode decimal: no celular abre o teclado numérico, e a maioria destes
+  // números tem casa decimal (32.4 minutos, 18.7 pontos).
+  return `<td class="campo"><input type="text" inputmode="decimal" data-tipo="stats"
+            data-id="${p.id}" data-col="${col}" value="${esc(valor)}"
+            class="${digitado !== undefined ? 'tem' : ''}"></td>`;
+}
+
+function desenharManual() {
+  const alvo = $('tblManual');
+  if (!alvo || !elenco.length) { if (alvo) alvo.innerHTML = ''; return; }
+
+  const cols = manualAba === 'skills' ? Object.entries(SKILLS) : Object.entries(STATS);
+  // OVR e idade só de leitura: eles não são atualizados por terceiro (ver o
+  // comentário em backend/atualizacoes.php), e estão aqui pra reconhecer o
+  // jogador — o print da tela do jogo lista por OVR.
+  const cab = ['Jogador', 'OVR', 'Idade', ...cols.map(([, r]) => r)];
+
+  const linhas = elenco.map(p => {
+    const tds = [`<td class="nm">${esc(p.name)}</td>`,
+                 `<td class="val">${esc(p.ovr)}</td>`,
+                 `<td class="val">${esc(p.age)}</td>`];
+    cols.forEach(([col]) => {
+      tds.push(manualAba === 'skills' ? manualCampoSkill(p, col) : manualCampoStat(p, col));
+    });
+    return `<tr>${tds.join('')}</tr>`;
+  }).join('');
+
+  alvo.innerHTML = `<thead><tr>${cab.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody>`;
+  manualResumo();
+}
+
+/* Guarda o que foi digitado. Campo apagado SOME do registro em vez de virar
+   string vazia: vazio é "não mexi neste", e mandar '' faria o backend receber
+   uma nota inválida — ou, nas estatísticas, gravar zero por cima do número
+   que já estava lá. */
+function manualGuardar(el) {
+  const id = parseInt(el.dataset.id, 10);
+  const col = el.dataset.col;
+  const valor = el.value.trim();
+
+  if (el.dataset.tipo === 'skills') {
+    if (!novosSkills[id]) novosSkills[id] = { id };
+    if (valor === '') delete novosSkills[id][col];
+    else novosSkills[id][col] = valor.toUpperCase();
+    // Sobrou só o id: a linha não tem nada preenchido e não deve ir junto.
+    if (Object.keys(novosSkills[id]).length <= 1) delete novosSkills[id];
+  } else {
+    /* Estatística vai a LINHA INTEIRA, lida da tela.
+       O salvar grava a linha completa e o que vier em branco vira 0. Mandar só
+       a coluna editada zeraria as outras — inclusive as que já estavam
+       lançadas e aparecem preenchidas ali do lado. */
+    const linha = el.closest('tr');
+    const reg = { id };
+    let algum = false;
+    linha.querySelectorAll('input[data-col]').forEach(campo => {
+      const v = campo.value.trim();
+      if (v !== '') { reg[campo.dataset.col] = v; algum = true; }
+    });
+    if (algum) novosStats[id] = reg; else delete novosStats[id];
+  }
+
+  el.classList.toggle('tem', valor !== '');
+  manualResumo();
+}
+
+function manualResumo() {
+  const el = $('manualResumo');
+  if (!el) return;
+  const nS = Object.keys(novosSkills).length, nE = Object.keys(novosStats).length;
+  const btn = $('btnManualRevisar');
+  if (btn) btn.disabled = !nS && !nE;
+  if (!nS && !nE) { el.textContent = 'Nada preenchido ainda.'; return; }
+  const partes = [];
+  if (nS) partes.push(`${nS} com skills`);
+  if (nE) partes.push(`${nE} com estatísticas`);
+  el.innerHTML = `<b style="color:var(--amber)">${partes.join(' · ')}</b>`;
+}
+
+document.querySelectorAll('.manual-aba').forEach(b => {
+  b.addEventListener('click', () => {
+    manualAba = b.dataset.manual;
+    document.querySelectorAll('.manual-aba').forEach(o => o.classList.toggle('on', o === b));
+    desenharManual();
+  });
+});
+
+// Delegação: a tabela é redesenhada a cada troca de aba, e ouvinte por campo
+// seria centenas deles recriados toda vez.
+$('tblManual').addEventListener('input', e => {
+  if (e.target.matches('input[data-col],select[data-col]')) manualGuardar(e.target);
+});
+$('tblManual').addEventListener('change', e => {
+  if (e.target.matches('select[data-col]')) manualGuardar(e.target);
+});
+
+$('btnManualRevisar').addEventListener('click', () => {
+  if (!Object.keys(novosSkills).length && !Object.keys(novosStats).length) return;
+  desenharRevisao();
+});
+
 /* ── Limpar ──────────────────────────────────────────────────────────
    Mandou o CSV errado, ou o do time errado, e percebeu na conferência: sem
    isto o jeito de recomeçar era sair e entrar de novo na página. Nada foi
@@ -422,6 +599,7 @@ $('btnLimpar').addEventListener('click', () => {
   novosSkills = {}; novosStats = {};
   csvBruto = {skills: '', stats: ''};
   $('tabela').innerHTML = '';
+  desenharManual();   // os campos preenchidos à mão limpam junto
   $('painelRevisao').classList.add('oculto');
   $('msgSalvar').innerHTML = '';
   msg($('msgImport'), 'info', 'Limpo. Envie o CSV de novo quando quiser.');
