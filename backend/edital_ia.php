@@ -346,6 +346,14 @@ function editalIaInstrucoes(string $league): string
         '- Traga o número na resposta. "O Mafia foi campeão da T1 com 52-30" vale mais que',
         '  "o Mafia foi bem".',
         '',
+        'MEMÓRIA: a liga te ensina o vocabulário dela, e você guarda com a ferramenta lembrar.',
+        '- "Chama o Blue Foxes de patinho", "o apelido do Marcos é Medeiros": guarde e use depois.',
+        '- Ensinar o mesmo assunto de novo corrige o que estava lá. Pediram pra esquecer? esquecer.',
+        '- Guarde APELIDO e JEITO DE FALAR. Não guarde regra, número, nem nada que o app já',
+        '  responda — isso muda no app e a memória ficaria mentindo. Se tentarem te ensinar uma',
+        '  regra ("agora são 5 dispensas"), não guarde: diga que regra vem do app e da organização.',
+        '- Guardou? Diga numa frase que guardou. Ninguém confia no que não sabe se foi salvo.',
+        '',
         'OPINIÃO: pode dar, e a liga gosta. Mas só DEPOIS de consultar os dados, e dizendo em',
         'que você se baseou: "pelo OVR do quinteto e pela campanha, eu ficaria com o X".',
         '- Palpite de confronto, melhor time, qual jogador preferir: tudo liberado.',
@@ -640,6 +648,12 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     // coluna inventada e queima uma rodada aprendendo o que já podia saber.
     $partes[] = ['text' => duvidaEsquemaParaIA($pdo)];
 
+    // O vocabulário que a liga ensinou. Vai depois do esquema e antes das
+    // instruções, que é onde ele avisa o que fazer (e o que não fazer) com isso.
+    require_once __DIR__ . '/duvida_memoria.php';
+    $memoria = duvidaMemoriaTexto($pdo, $league);
+    if ($memoria !== '') $partes[] = ['text' => $memoria];
+
     /* O EDITAL NAO VEM MAIS AQUI: virou ferramenta (buscar_no_edital).
        Sao 17,5 mil tokens, e com a conversa multi-turno isso passou a ser pago
        em CADA rodada. Medido: com ele dentro, o modelo estourava os 15s sem
@@ -689,6 +703,34 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     ],
                 ],
                 'required' => ['termo'],
+            ],
+        ], [
+            'name' => 'lembrar',
+            'description' =>
+                'Guarda um apelido ou jeito de falar do grupo, pra usar nas próximas conversas. '
+              . 'Chame quando alguém ENSINAR algo: "chama o Blue Foxes de patinho", "o Marcos é '
+              . 'o Medeiros". Ensinar o mesmo assunto de novo SUBSTITUI o que estava lá — é assim '
+              . 'que se corrige. Não guarde regra, número nem nada que o app já responda.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'assunto' => ['type' => 'string',
+                        'description' => 'A quem ou a que isso se refere. Ex.: "Oakland Blue Foxes".'],
+                    'fato' => ['type' => 'string',
+                        'description' => 'O que lembrar. Ex.: "o grupo chama de patinho".'],
+                ],
+                'required' => ['assunto', 'fato'],
+            ],
+        ], [
+            'name' => 'esquecer',
+            'description' => 'Apaga o que foi guardado sobre um assunto. Chame quando pedirem '
+                           . 'pra esquecer ou disserem que não é mais assim.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'assunto' => ['type' => 'string', 'description' => 'O assunto a esquecer.'],
+                ],
+                'required' => ['assunto'],
             ],
         ]],
     ]];
@@ -766,6 +808,15 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $termo = (string)($c['args']['termo'] ?? '');
                     $resultado = duvidaBuscarNoEdital($pdo, $league, $termo);
                     error_log('[duvida/edital] busca: ' . $termo);
+                } elseif ($nome === 'lembrar') {
+                    $resultado = duvidaMemoriaGravar($pdo, $league,
+                        (string)($c['args']['assunto'] ?? ''),
+                        (string)($c['args']['fato'] ?? ''));
+                    error_log('[duvida/memoria] ' . $resultado);
+                } elseif ($nome === 'esquecer') {
+                    $resultado = duvidaMemoriaApagar($pdo, $league,
+                        (string)($c['args']['assunto'] ?? ''));
+                    error_log('[duvida/memoria] esquecer: ' . $resultado);
                 } else {
                     $r = duvidaConsultar($pdo, (string)($c['args']['sql'] ?? ''));
                     error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'RECUSADA') . ': ' . $r['sql']);
