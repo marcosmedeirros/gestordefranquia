@@ -96,7 +96,37 @@ function duvidaRegrasDoApp(PDO $pdo, string $league): string
         error_log('[duvida] punições: ' . $e->getMessage());
     }
 
+    $l[] = duvidaRegrasDaOrganizacao();
+
     return implode("\n", $l);
+}
+
+/**
+ * OS COMBINADOS DA ORGANIZAÇÃO que não moram em lugar nenhum.
+ *
+ * Nem no app (que não tem tela pra isso) nem no edital (que não os traz ou
+ * traz desatualizado). São regras de operação que a organização firmou e que
+ * hoje só existem na cabeça de quem está na liga há tempo — e é exatamente o
+ * tipo de coisa que o novato pergunta no grupo.
+ *
+ * Lista pra crescer. Só entra o que a organização confirmar, escrito como ela
+ * disse: aqui não há código pra conferir, então inventar detalhe é criar
+ * regra. Faltando um pedaço, é melhor a linha ficar curta.
+ */
+function duvidaRegrasDaOrganizacao(): string
+{
+    return implode("\n", [
+        'REGRAS DA ORGANIZAÇÃO (combinados da liga; não têm tela no app)',
+        '',
+        '- VETO DE TROCA / STFBA:',
+        '  - Uma troca passa a ser analisada quando recebe 5 DENÚNCIAS de GMs feitas a um admin.',
+        '    Não existe botão de denúncia no app: a denúncia é falar com um admin.',
+        '  - Quem analisa é o STFBA. A decisão dele é FINAL — não cabe recurso e o resultado',
+        '    não é revisto.',
+        '  - Troca vetada pode ser REFEITA: os times podem propor de novo, em outros termos.',
+        '  - Tentar refazer a mesma troca por LEILÃO é proibido. O leilão é cancelado e os GMs',
+        '    envolvidos são punidos.',
+    ]);
 }
 
 /**
