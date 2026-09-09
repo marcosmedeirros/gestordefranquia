@@ -516,6 +516,8 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
 {
     if ($teamId <= 0) return '';
     $l = [];
+    // Guardadas pra decidir, no fim, o que presta pra zoacao.
+    $pos = 0; $times = 0; $elenco = 0; $capRuim = '';
 
     // ── Classificação: a última temporada ENCERRADA da sprint ativa ──────
     // A em curso costuma estar em draft e sem uma linha sequer; foi o que fez
@@ -539,6 +541,7 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
                 $nTimes = (int)$q->fetchColumn();
             } catch (Throwable $e) { /* sem o total, a linha ainda serve */ }
 
+            $pos = (int)$r['position']; $times = $nTimes;
             $l[] = '- Classificação: ' . (int)$r['position'] . 'º'
                  . ($nTimes > 0 ? ' de ' . $nTimes . ' times' : '')
                  . ($r['conference'] ? ' (conferência ' . $r['conference'] . ')' : '')
@@ -572,12 +575,16 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
             require_once __DIR__ . '/salary_cap.php';
             $s = getTeamCapSummary($pdo, $teamId);
             if ($s) {
-                $l[] = '- Folha: ' . (int)($s['payroll'] ?? 0) . 'M'
-                     . (isset($s['cap_max']) ? ' (teto ' . (int)$s['cap_max'] . 'M)' : '') . '.';
+                $folha = (int)($s['payroll'] ?? 0); $teto = (int)($s['cap_max'] ?? 0);
+                $l[] = '- Folha: ' . $folha . 'M' . ($teto ? ' (teto ' . $teto . 'M)' : '') . '.';
+                if ($teto > 0 && $folha > $teto) $capRuim = "folha de {$folha}M estourando o teto de {$teto}M";
             }
         } else {
-            $l[] = '- CAP do elenco: ' . topOvrCap($pdo, $teamId)
-                 . ' (faixa da liga ' . (int)($cfg['cap_min'] ?? 0) . '–' . (int)($cfg['cap_max'] ?? 0) . ').';
+            $cap = topOvrCap($pdo, $teamId);
+            $min = (int)($cfg['cap_min'] ?? 0); $max = (int)($cfg['cap_max'] ?? 0);
+            $l[] = "- CAP do elenco: {$cap} (faixa da liga {$min}–{$max}).";
+            if ($max > 0 && $cap > $max) $capRuim = "CAP de {$cap} acima do teto de {$max}";
+            elseif ($min > 0 && $cap < $min) $capRuim = "CAP de {$cap} abaixo do piso de {$min}";
         }
     } catch (Throwable $e) { error_log('[duvida/ficha] cap: ' . $e->getMessage()); }
 
@@ -585,7 +592,8 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
     try {
         $st = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
         $st->execute([$teamId]);
-        $l[] = '- Elenco: ' . (int)$st->fetchColumn() . ' jogadores.';
+        $elenco = (int)$st->fetchColumn();
+        $l[] = '- Elenco: ' . $elenco . ' jogadores.';
 
         $st = $pdo->prepare('SELECT COUNT(*) FROM picks WHERE team_id = ? AND round = 1');
         $st->execute([$teamId]);
@@ -596,6 +604,30 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
     } catch (Throwable $e) { error_log('[duvida/ficha] elenco: ' . $e->getMessage()); }
 
     if (!$l) return '';
+
+    /* O QUE PRESTA PRA ZOAR, JÁ DECIDIDO AQUI.
+       Não adianta entregar os números e a regra ("posição só vale da 20ª pra
+       baixo") — testado duas vezes, e nas duas ele abriu com "burro é quem
+       está em 2º". A posição é o número mais à mão, e ele pega o mais à mão.
+       Então a conclusão vem pronta: esta lista é curta, é o que de fato está
+       ruim, e vazia quer dizer que não há o que cutucar. */
+    $fracos = [];
+    if ($pos > 0 && $times > 0) {
+        if ($pos > 20)                 $fracos[] = "está em {$pos}º de {$times} — zona ruim da tabela";
+        elseif ($pos > $times - 5)     $fracos[] = "está em {$pos}º de {$times}, perto do fundo";
+    }
+    if ($capRuim !== '') $fracos[] = $capRuim;
+    if ($elenco > 0 && $elenco < ELENCO_MIN) {
+        $fracos[] = "elenco com {$elenco} jogadores, abaixo do mínimo de " . ELENCO_MIN;
+    }
+
+    $l[] = '';
+    $l[] = $fracos
+        ? 'O QUE ESTÁ RUIM NO TIME DELE (é SÓ isto que serve pra devolver uma zoação): '
+          . implode('; ', $fracos) . '.'
+        : 'NÃO HÁ NADA RUIM no time dele. Zoado, NÃO use posição, cap nem elenco — todos '
+          . 'jogam a favor dele, e citá-los como se fossem defeito é elogio com cara de '
+          . 'ofensa. Reconheça que o time vai bem e devolva pelo lado da conversa, sem número.';
 
     return "COMO O TIME DELE ESTÁ (já conferido no banco — use isto, não invente e não consulte de novo):\n"
          . implode("\n", $l);
