@@ -171,21 +171,98 @@ function wcNumeroDoBot(PDO $pdo, array $evento, array $mensagens): string
     return $cache = ($achado !== '' ? $achado : $guardado);
 }
 
+/**
+ * Todo contextInfo que a Evolution possa ter posto na mensagem.
+ *
+ * O campo muda de lugar conforme o tipo: texto puro com citação vai em
+ * extendedTextMessage, legenda de imagem em imageMessage, e algumas versões
+ * repetem no topo. Procurar num lugar só é como o primeiro teste falhou.
+ */
+function wcContextos(array $m): array
+{
+    $msg = $m['message'] ?? [];
+    $ctx = [];
+    foreach (['extendedTextMessage', 'imageMessage', 'videoMessage', 'documentMessage',
+              'audioMessage', 'stickerMessage'] as $k) {
+        if (isset($msg[$k]['contextInfo'])) $ctx[] = (array)$msg[$k]['contextInfo'];
+    }
+    if (isset($msg['contextInfo'])) $ctx[] = (array)$msg['contextInfo'];
+    if (isset($m['contextInfo']))   $ctx[] = (array)$m['contextInfo'];
+    return $ctx;
+}
+
+/** Só os dígitos de um JID: "5511999@s.whatsapp.net" -> "5511999". */
+function wcDigitos($v): string
+{
+    return preg_replace('/\D+/', '', explode('@', (string)$v)[0] ?? '');
+}
+
+/**
+ * Dois identificadores são a mesma pessoa?
+ *
+ * Compara inteiro e, não batendo, pelos últimos 8 dígitos — a mesma rede de
+ * segurança que o /meucap usa pra cadastro sem DDI ou sem o 9. Aqui ela vale
+ * dobrado: o número que o WhatsApp escreve numa menção nem sempre é o mesmo
+ * que ele manda no `sender`.
+ */
+function wcMesmoNumero(string $a, string $b): bool
+{
+    if ($a === '' || $b === '') return false;
+    if ($a === $b) return true;
+    return strlen($a) >= 8 && strlen($b) >= 8 && substr($a, -8) === substr($b, -8);
+}
+
 /** O bot foi marcado nesta mensagem? */
 function wcMarcaramOBot(array $m, string $texto, string $numeroBot): bool
 {
     if ($numeroBot === '') return false;
 
-    // No texto a menção chega como "@5511999999999" — é assim que o WhatsApp
-    // a escreve, e é o mesmo formato que o /duvida já resolve pros GMs.
-    if (str_contains($texto, '@' . $numeroBot)) return true;
+    // No texto a menção chega como "@5511999999999". Comparo cada @número do
+    // texto em vez de procurar a string exata: o WhatsApp escreve o número
+    // com ou sem o 9, e str_contains erraria por um dígito.
+    if (preg_match_all('/@(\d{8,20})/', $texto, $ms)) {
+        foreach ($ms[1] as $n) if (wcMesmoNumero($n, $numeroBot)) return true;
+    }
 
     // E na lista formal de marcados, que é o que a etiqueta azul usa.
-    $ctx = $m['message']['extendedTextMessage']['contextInfo'] ?? [];
-    foreach ((array)($ctx['mentionedJid'] ?? []) as $jid) {
-        if (preg_replace('/\D+/', '', explode('@', (string)$jid)[0] ?? '') === $numeroBot) return true;
+    foreach (wcContextos($m) as $ctx) {
+        foreach ((array)($ctx['mentionedJid'] ?? []) as $jid) {
+            if (wcMesmoNumero(wcDigitos($jid), $numeroBot)) return true;
+        }
     }
     return false;
+}
+
+/**
+ * REGISTRA O QUE VEIO NUMA MENÇÃO QUE NÃO FOI RECONHECIDA.
+ *
+ * O primeiro teste no grupo não funcionou e o log não tinha nada — não dava
+ * pra saber se o webhook nem chegou, se o número não bateu, ou se a Evolution
+ * põe a menção em outro lugar. Sem o payload na mão isso vira adivinhação.
+ *
+ * Só os campos de MENÇÃO, nunca o texto: o conteúdo da conversa do grupo não
+ * é assunto do log de erro. E só quando há um "@" na mensagem, senão isto
+ * escreveria uma linha por conversa do grupo inteiro.
+ */
+function wcLogMencaoNaoReconhecida(array $m, string $texto, string $numeroBot): void
+{
+    if (!str_contains($texto, '@')) return;
+
+    $arrobas = [];
+    if (preg_match_all('/@(\d{6,20})/', $texto, $ms)) $arrobas = $ms[1];
+
+    $marcados = [];
+    foreach (wcContextos($m) as $ctx) {
+        foreach ((array)($ctx['mentionedJid'] ?? []) as $jid) $marcados[] = (string)$jid;
+        foreach (['participant', 'participantPn'] as $k) {
+            if (!empty($ctx[$k])) $marcados[] = 'citou:' . $ctx[$k];
+        }
+    }
+
+    error_log('[whatsapp/mencao] nao reconhecida'
+            . ' | bot=' . ($numeroBot ?: 'DESCONHECIDO')
+            . ' | @ no texto=' . (implode(',', $arrobas) ?: '-')
+            . ' | mentionedJid=' . (implode(',', array_slice($marcados, 0, 6)) ?: '-'));
 }
 
 /**
@@ -198,10 +275,10 @@ function wcMarcaramOBot(array $m, string $texto, string $numeroBot): bool
 function wcResponderamAoBot(array $m, string $numeroBot): bool
 {
     if ($numeroBot === '') return false;
-    $ctx = $m['message']['extendedTextMessage']['contextInfo'] ?? [];
-    foreach (['participantPn', 'participant'] as $k) {
-        $c = preg_replace('/\D+/', '', explode('@', (string)($ctx[$k] ?? ''))[0] ?? '');
-        if ($c !== '' && $c === $numeroBot) return true;
+    foreach (wcContextos($m) as $ctx) {
+        foreach (['participantPn', 'participant', 'remoteJid'] as $k) {
+            if (wcMesmoNumero(wcDigitos($ctx[$k] ?? ''), $numeroBot)) return true;
+        }
     }
     return false;
 }
@@ -288,12 +365,22 @@ foreach ($mensagens as $m) {
         } elseif (wcResponderamAoBot($m, $numeroBot)) {
             $gatilho = 'resposta';
         } else {
+            // Tinha "@" e não era ele? Deixa o rastro pra saber por quê —
+            // menção que não é reconhecida é indistinguível de webhook que
+            // não chegou, e as duas se consertam de jeitos diferentes.
+            if (isset($gruposPermitidos[$de])) wcLogMencaoNaoReconhecida($m, $texto, $numeroBot);
             continue;   // conversa do grupo que não é com ele
         }
 
-        // A menção sai do texto: "@5511... quem lidera?" vira "quem lidera?".
-        // Deixá-la faria o modelo tentar descobrir de quem é aquele número.
-        $limpo = trim(preg_replace('/@' . preg_quote($numeroBot, '/') . '\b/', '', $texto));
+        /* A menção sai do texto: "@5511... quem lidera?" vira "quem lidera?".
+           Deixá-la faria o modelo tentar descobrir de quem é aquele número.
+
+           Tiro QUALQUER @número que seja ele, e não a string exata do número
+           guardado: o WhatsApp escreve a menção com ou sem o 9, e um casamento
+           literal deixaria o número na frente da pergunta. */
+        $limpo = trim(preg_replace_callback('/@(\d{8,20})/',
+            fn($mm) => wcMesmoNumero($mm[1], $numeroBot) ? '' : $mm[0], $texto));
+        $limpo = trim(preg_replace('/\s+/', ' ', $limpo));
         if ($limpo === '') {
             // Marcaram o bot e não perguntaram nada: cai no /duvida sem argumento,
             // que é justamente a lista de exemplos do que dá pra perguntar.
