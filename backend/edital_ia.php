@@ -66,13 +66,19 @@ const EDITAL_IA_MODELOS_GEMINI = [
  * Serve pras duas coisas: se um dia houver faturamento, é teto de gasto; sem
  * faturamento, evita queimar a cota gratuita de manhã e ficar sem à tarde.
  */
-/* 400, e não 150.
-   O número foi escolhido quando uma pergunta era UMA chamada. Com a conversa
-   multi-turno, uma pergunta de dado custa de 2 a 4 — o modelo consulta,
-   recebe, às vezes corrige e só então responde. Com 150 a cota acabava em
-   ~40 perguntas, e acabou mesmo, num dia de teste. 400 mantém a trava (o free
-   tier do flash-lite dá bem mais que isso) e cobre um dia de grupo movimentado. */
-const EDITAL_IA_LIMITE_DIA = 400;
+/* 1200, e não 400 (que já tinha sido 150).
+   Uma pergunta não é uma chamada: com a conversa multi-turno, uma pergunta de
+   dado custa de 2 a 4 — o modelo consulta, recebe, às vezes corrige e só então
+   responde. 137 perguntas num dia deram 373 chamadas, contra o teto de 400.
+   Passou raspando, e o corte não é suave: o bot para de responder no meio do
+   dia e manda todo mundo esperar amanhã.
+
+   O NÚMERO SAIU DO CONSOLE DO GOOGLE, e não de estimativa. O free tier é de
+   500 por dia POR MODELO, e a fila aqui tenta quatro em sequência — quando um
+   esgota, o pedido cai pro próximo. O teto real é da ordem de 2000/dia. 1200
+   deixa três modelos de folga e continua sendo trava de verdade: se algo
+   disparar em looping, ainda existe um fim. */
+const EDITAL_IA_LIMITE_DIA = 1200;
 
 /* Teto de resposta. Resposta de grupo de WhatsApp é curta — mas no Gemini o
    raciocínio do modelo sai DESTE mesmo orçamento, e o 2.5-flash não deixa
