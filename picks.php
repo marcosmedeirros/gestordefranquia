@@ -565,7 +565,6 @@ $tradedAway   = count($picksAway);
                                 <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>" data-pos="<?= (int)($pick['pick_position'] ?? 0) ?>"><b>—</b><em>troca</em></span>
                         <?php if ($salaryCapMode): ?>
                         <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(1)) ?>"><b><?= pickCapLabel(1) ?></b><em>cap</em></span>
                         <?php endif; ?>
@@ -622,7 +621,6 @@ $tradedAway   = count($picksAway);
                                 <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>" data-pos="<?= (int)($pick['pick_position'] ?? 0) ?>"><b>—</b><em>troca</em></span>
                         <?php if ($salaryCapMode): ?>
                         <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(2)) ?>"><b><?= pickCapLabel(2) ?></b><em>cap</em></span>
                         <?php endif; ?>
@@ -688,7 +686,6 @@ $tradedAway   = count($picksAway);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= assetUrl('/js/pwa.js') ?>"></script>
-<script src="<?= assetUrl('/js/trade-value.js') ?>"></script>
 <script>
     window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
 </script>
@@ -723,18 +720,12 @@ $tradedAway   = count($picksAway);
         el.style.animationDelay = (i * 0.06 + 0.05) + 's';
     });
 
-    // Valor estimado de troca (mesmo modelo de trades.php/trade-simulator.php)
-    if (window.TradeValue) {
-        document.querySelectorAll('.pick-value').forEach(el => {
-            const item = { round: Number(el.dataset.round), season_year: Number(el.dataset.year),
-                           pick_position: Number(el.dataset.pos) || null };
-            // Só o número: o <em> com o rótulo "troca" tem que sobreviver.
-            const num = el.querySelector('b');
-            if (num) num.textContent = Math.round(TradeValue.itemValue(item));
-            el.title = 'Valor estimado de troca — ' + TradeValue.explain(item)
-                + '. É a mesma escala do simulador de trocas, pra comparar picks e jogadores entre si.';
-        });
-    }
+    /* O valor de troca saiu daqui.
+       Ele estimava quanto a pick vale como moeda, e ficava estampado ao lado de
+       cada uma. O número é uma opinião do sistema sobre o preço de um ativo que
+       os GMs negociam entre si — e virava âncora na conversa deles. Quem quiser
+       comparar tem o simulador de trocas, onde o número aparece no contexto de
+       uma proposta, e não como se fosse tabela oficial da liga. */
 
     // Filtro por ano
     const yearFilter = document.getElementById('yearFilter');

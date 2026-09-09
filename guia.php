@@ -308,12 +308,11 @@ html{scroll-behavior:smooth}
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-calendar3"></i></span><span class="aba-nome">Picks</span><span class="selo selo-todas">Todas as ligas</span></div>
-      <p>Suas escolhas de draft, ano a ano, de 1ª e 2ª rodada — as suas e as que você recebeu de outros times. Cada pick mostra dois números:</p>
+      <p>Suas escolhas de draft, ano a ano, de 1ª e 2ª rodada — as suas e as que você recebeu de outros times. Cada pick mostra:</p>
       <ul>
-        <li><strong>TROCA</strong> — o valor estimado dela como moeda de troca. É a mesma escala do simulador de trocas, pra comparar picks e jogadores entre si.</li>
         <li><strong>CAP</strong> — quanto o calouro vai custar no seu cap no primeiro ano <span class="selo selo-elite">Elite</span>. A 2ª rodada custa 2M sempre; a 1ª depende de onde a pick cair, por isso aparece uma faixa.</li>
       </ul>
-      <p>Picks futuras valem menos que as próximas: quanto mais distante o ano, maior a incerteza sobre quem vai estar escolhendo.</p>
+      <p>Quanto uma pick vale numa negociação é você quem decide com o outro GM. Se quiser uma referência, o simulador de trocas mostra o peso de cada lado enquanto você monta a proposta.</p>
       <figure>
         <img src="/img/guia/gm-picks.png" alt="Tela Minhas Picks, com as escolhas de draft por ano e rodada." loading="lazy">
         <figcaption><b>Picks.</b> Suas escolhas ano a ano, com o valor de troca e o custo no cap.</figcaption>
