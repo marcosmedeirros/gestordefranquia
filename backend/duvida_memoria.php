@@ -147,6 +147,41 @@ function duvidaMemoriaGravar(PDO $pdo, string $liga, string $assunto, string $fa
     }
 }
 
+/**
+ * NÃO DEIXA O BOT DIZER QUE GUARDOU SEM TER GUARDADO.
+ *
+ * Aconteceu no grupo: "Guardado: o time do burro é o Athens" — frase idêntica
+ * à que a ferramenta devolve, e nada no banco. Na pergunta seguinte ele não
+ * sabia de nada, e a liga viu o bot se contradizer em dois minutos.
+ *
+ * Instrução no prompt não resolve isso: o modelo escreve a confirmação porque
+ * ela é a continuação natural da frase, tenha chamado a função ou não. Aqui a
+ * checagem é mecânica — se `lembrar` não gravou nesta conversa, a resposta não
+ * pode afirmar que gravou.
+ *
+ * Só entra quando a frase é AFIRMAÇÃO de guarda. "Se quiser me ensinar, é só
+ * dizer" também tem a palavra "ensinar" e é uma resposta correta; por isso o
+ * padrão exige o verbo no passado ou o "vou lembrar".
+ */
+function duvidaCorrigirFalsoGuardado(string $texto, bool $gravouMesmo): string
+{
+    if ($gravouMesmo || $texto === '') return $texto;
+
+    $afirmou = preg_match(
+        '/\b(guardado|guardei|guardadinho|anotado|anotei|memorizado|memorizei'
+      . '|vou lembrar|já sei disso|ficou salvo|salvei)\b/iu',
+        $texto
+    );
+    if (!$afirmou) return $texto;
+
+    error_log('[duvida/memoria] o modelo disse que guardou sem chamar lembrar: '
+            . mb_substr($texto, 0, 120));
+
+    return "Quase: eu *não* consegui guardar isso agora — falei antes da hora, desculpa.\n"
+         . 'Manda de novo assim, bem direto: "chama o Athens de burro". '
+         . 'Aí eu guardo e confirmo.';
+}
+
 /** Esquece o que foi pedido. */
 function duvidaMemoriaApagar(PDO $pdo, string $liga, string $assunto): string
 {

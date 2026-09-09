@@ -119,7 +119,14 @@ function duvidaEsquemaParaIA(PDO $pdo): string
 
     $l[] = '';
     $l[] = 'COMO OS DADOS SE LIGAM (o que não dá pra adivinhar pelo nome):';
-    $l[] = '- Time: teams(id, city, name, league, conference). O nome completo é city + name.';
+    /* "o San Jose vai cair?" não achou nada: San Jose é a CIDADE, e o `name`
+       é Carpinteros. Procurar só em `name` perde metade dos jeitos de chamar
+       um time — no grupo se fala tanto "o San Jose" quanto "o Carpinteros". */
+    $l[] = '- Time: teams(id, city, name, mascot, league, conference).';
+    $l[] = '  O nome completo é city + name: city="San Jose", name="Carpinteros".';
+    $l[] = '  PROCURE NOS DOIS, sempre: WHERE t.city LIKE %termo% OR t.name LIKE %termo%.';
+    $l[] = '  A galera chama o time tanto pela cidade quanto pelo nome, e às vezes pelo mascote.';
+    $l[] = '  Não achou de um jeito? Tente o outro antes de dizer que o time não existe.';
     $l[] = '- QUEM É O GM de um time: teams.user_id liga em duvida_gms(user_id, nome).';
     $l[] = '  Ex.: SELECT g.nome FROM teams t JOIN duvida_gms g ON g.user_id = t.user_id';
     $l[] = "       WHERE t.name LIKE '%Souks%'.";

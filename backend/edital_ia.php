@@ -390,6 +390,10 @@ function editalIaInstrucoes(string $league): string
         '- LEIA O QUE A FERRAMENTA RESPONDEU antes de confirmar. Ela devolve "Guardado: ..." ou um',
         '  erro; só diga que guardou se veio "Guardado". Vindo erro, avise que não deu e peça pra',
         '  repetir. Dizer "guardei!" sem ter guardado é o pior desfecho: a pessoa acredita.',
+        '- CHAME A FERRAMENTA, não escreva a confirmação. Escrever "Guardado: ..." sem chamar não',
+        '  guarda nada — e a resposta é trocada por um aviso de erro antes de chegar no grupo.',
+        '- Ensino em frase condicional TAMBÉM é ensino: "se perguntarem do burro, é o Athens",',
+        '  "quando falarem em X, é Y". Chame lembrar do mesmo jeito. Só não guarde pergunta.',
         '',
         'OPINIÃO: pode dar, e a liga gosta. Mas só DEPOIS de consultar os dados, e dizendo em',
         'que você se baseou: "pelo OVR do quinteto e pela campanha, eu ficaria com o X".',
@@ -779,6 +783,14 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
 
     $contents = [['role' => 'user', 'parts' => [['text' => $pergunta]]]];
 
+    /* O modelo já anunciou "Guardado: o time do burro é o Athens" sem ter
+       chamado lembrar — a frase saiu igualzinha à que a ferramenta devolve, e
+       nada foi gravado. Aconteceu no grupo, com o Kevyn, e é o pior tipo de
+       erro: todo mundo acredita e só descobre na pergunta seguinte.
+       Instrução não basta contra isso; aqui a confirmação passa a depender de
+       um fato, e não da boa vontade do modelo. */
+    $gravouMesmo = false;
+
     for ($rodada = 1; $rodada <= DUVIDA_MAX_RODADAS; $rodada++) {
         /* NA ÚLTIMA RODADA ELE É OBRIGADO A RESPONDER.
            Sem isso o modelo pedia dados até o fim e nunca escrevia a resposta:
@@ -854,6 +866,9 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $resultado = duvidaMemoriaGravar($pdo, $league,
                         (string)($c['args']['assunto'] ?? ''),
                         (string)($c['args']['fato'] ?? ''));
+                    // Guarda o desfecho pra conferir a resposta no fim: o modelo
+                    // já disse "Guardado" sem ter chamado esta função.
+                    if (str_starts_with($resultado, 'Guardado')) $gravouMesmo = true;
                     error_log('[duvida/memoria] ' . $resultado);
                 } elseif ($nome === 'esquecer') {
                     $resultado = duvidaMemoriaApagar($pdo, $league,
@@ -887,6 +902,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                 ? 'A resposta ficou longa demais e foi cortada. Tenta uma pergunta mais específica.'
                 : 'Vieram só linhas vazias. Tenta reformular a pergunta.');
         }
+
+        $texto = duvidaCorrigirFalsoGuardado($texto, $gravouMesmo);
 
         return ['ok' => true, 'resposta' => $texto, 'erro' => null,
                 'uso' => ($j['usageMetadata'] ?? []) + ['modelo' => $j['__modelo'] ?? '?']];
