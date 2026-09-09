@@ -149,7 +149,15 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = "  com round em 'first_round','semifinals','conference_finals','finals' — mesma ideia, formato";
     $l[] = '  mais antigo. E playoff_brackets(season_id, team_id, conference, seed, status) traz a';
     $l[] = '  cabeça de chave. Se uma não tiver a temporada pedida, tente a outra.';
-    $l[] = '- Classificação da fase regular: season_standings(season_id, team_id, wins, losses, position).';
+    /* wins/losses existem como coluna e são ZERO nas 184 linhas: a FBA anota a
+       classificação final, não o retrospecto jogo a jogo. O modelo pediu
+       wins/losses pra "quem lidera a ELITE?", viu zeros e respondeu que os
+       jogos não tinham sido computados — conclusão correta a partir do que ele
+       viu, e errada sobre a liga. */
+    $l[] = '- Classificação da fase regular: season_standings(season_id, team_id, position,';
+    $l[] = '  overall_position, conference). É `position` que vale — 1 é o líder.';
+    $l[] = '  IGNORE wins e losses: a liga não registra vitória/derrota, as colunas existem';
+    $l[] = '  e estão zeradas em TODAS as linhas. Consultá-las faz parecer que não houve jogo.';
     $l[] = '- Prêmios: season_awards(season_id, team_id, award_type, player_name).';
     $l[] = '- Pontuação do ranking: team_ranking_points(team_id, season_id, league, total_points e as parciais).';
     $l[] = '- Elenco de hoje: players(team_id, name, age, ovr, position, is_lenda, seasons_in_league).';
