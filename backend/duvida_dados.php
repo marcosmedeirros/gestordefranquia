@@ -227,12 +227,32 @@ function duvidaSprintAtual(PDO $pdo): string
             }
             $l[] = "- {$liga} — sprint {$temps[0]['sprint_number']}: " . implode(', ', $desc);
             $l[] = "  Use: season_id IN ({$ids})";
+
+            /* A temporada em curso pode não ter NADA ainda.
+               "o San Jose vai cair?" morreu aqui: o modelo filtrou pela ELITE
+               2027, que está em draft, achou zero linha e respondeu que não
+               tinha dado do time — quando na 2026 ele estava em 15º. Temporada
+               em draft/preseason não tem classificação nem estatística; o que
+               responde a pergunta é a última encerrada. */
+            $encerradas = array_values(array_filter($temps, fn($t) => $t['status'] === 'completed'));
+            if ($encerradas) {
+                $u = end($encerradas);
+                $l[] = "  Última ENCERRADA (é onde tem classificação e estatística): id {$u['id']}"
+                     . " — T{$u['season_number']}, {$u['year']}.";
+            } else {
+                $l[] = '  Nenhuma temporada encerrada nesta sprint ainda: não há classificação nem'
+                     . ' estatística pra mostrar.';
+            }
         }
     } catch (Throwable $e) {
         error_log('[duvida] sprint atual: ' . $e->getMessage());
         return $cache = '';
     }
 
+    $l[] = '';
+    $l[] = 'Consulta de classificação, estatística ou premiação voltou vazia na temporada em curso?';
+    $l[] = 'É porque ela ainda não rodou. NÃO responda "não achei dados do time": refaça na última';
+    $l[] = 'encerrada da sprint e diga de que temporada está falando.';
     $l[] = '';
     $l[] = 'Quando falarem "temporada 1", "T2" etc., é a DESTA sprint — não a de um ciclo antigo.';
     $l[] = 'Só saia daqui se pedirem explicitamente história antiga ("em todos os tempos",';
