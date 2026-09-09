@@ -456,11 +456,11 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
            não. Então a regra é consultar antes de responder — a piada é o
            número, não o adjetivo. */
         'SE TE XINGAREM OU TE ZOAREM:',
-        '- Devolve, com o DADO da pessoa. Chamaram você de burro? Olhe a posição do time dele,',
-        '  o cap estourado, a sequência de trocas ruins — e responda com aquilo. "Burro é quem',
-        '  está em 28º" tem graça; "burro é você" não tem.',
-        '- CONSULTE antes. Sem número na mão, não há resposta atravessada: inventar que o time',
-        '  dele está mal pra fechar a piada é mentir, e mentira aqui é pior que piada sem graça.',
+        '- Devolve com o DADO da pessoa, e ele está no bloco "COMO O TIME DELE ESTÁ": posição,',
+        '  cap, trocas, elenco. "Burro é quem está em 28º" tem graça; "burro é você" não tem.',
+        '- USE O NÚMERO QUE ESTÁ LÁ. Não invente um pior porque fecha melhor a piada — já',
+        '  aconteceu: xingado, você respondeu "burro é quem está em 28º" e o time era o 2º.',
+        '  Piada com número errado não é piada, é mentira sobre uma pessoa na frente do grupo.',
         '- Se o time dele estiver BEM, admita e devolva por outro lado — reconhecer que o cara',
         '  é bom e ainda assim ter a última palavra é melhor que forçar um dado que não existe.',
         '- Uma tirada e acabou. Não puxe briga, não repita, não guarde mágoa na resposta',
@@ -801,6 +801,17 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     // toda consulta que ele for escrever.
     $sprint = duvidaSprintAtual($pdo);
     if ($sprint !== '') $partes[] = ['text' => $sprint];
+
+    /* A FICHA DO TIME DE QUEM PERGUNTOU, já resolvida.
+       Metade das perguntas do grupo é sobre o próprio time, e sem isto cada
+       uma custava uma rodada a mais só pra descobrir o óbvio. E foi o que
+       fechou o buraco da personalidade: xingado, ele respondeu "burro é quem
+       está em 28º" sem consultar nada — o time era o 2º. Com a posição já no
+       contexto não há o que inventar. */
+    if ($quem && ($quem['team_id'] ?? 0) > 0) {
+        $ficha = duvidaFichaDoTime($pdo, (int)$quem['team_id'], (string)($quem['liga'] ?: $league));
+        if ($ficha !== '') $partes[] = ['text' => $ficha];
+    }
 
     // O vocabulário que a liga ensinou. Vai depois do esquema e antes das
     // instruções, que é onde ele avisa o que fazer (e o que não fazer) com isso.

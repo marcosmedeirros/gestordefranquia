@@ -492,3 +492,100 @@ function duvidaResultadoParaIA(array $r): string
     }
     return implode("\n", $out);
 }
+
+/**
+ * A FICHA DO TIME DE QUEM ESTÁ PERGUNTANDO.
+ *
+ * Nasceu de um defeito concreto. Com a personalidade ligada, alguém xingou o
+ * bot e ele devolveu "burro é quem está em 28º lugar" — sem ter feito consulta
+ * nenhuma. O time da pessoa era o 2º da conferência. A instrução mandava
+ * consultar antes de responder atravessado; ele foi direto pra piada, porque
+ * o número que fecha a piada é mais atraente que o número que existe.
+ *
+ * Instrução não conserta isso — o que conserta é o dado já estar na mão. Com a
+ * ficha no contexto, não há o que inventar: a posição está ali, e uma resposta
+ * atravessada com o número certo é melhor que com o número errado.
+ *
+ * De quebra resolve "como estou?" sem consulta nenhuma, e economiza uma rodada
+ * do modelo nas perguntas mais comuns do grupo, que são sobre o próprio time.
+ *
+ * Best-effort de ponta a ponta: cada pedaço falha sozinho. Ficha incompleta é
+ * melhor que resposta que não sai.
+ */
+function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
+{
+    if ($teamId <= 0) return '';
+    $l = [];
+
+    // ── Classificação: a última temporada ENCERRADA da sprint ativa ──────
+    // A em curso costuma estar em draft e sem uma linha sequer; foi o que fez
+    // ele responder "não encontrei dados do San Jose" pra um time que existe.
+    try {
+        $st = $pdo->prepare("SELECT ss.position, ss.conference, s.season_number, s.year
+                               FROM season_standings ss
+                               JOIN seasons s ON s.id = ss.season_id
+                               JOIN sprints sp ON sp.id = s.sprint_id
+                              WHERE ss.team_id = ? AND sp.status = 'active' AND s.status = 'completed'
+                           ORDER BY s.season_number DESC LIMIT 1");
+        $st->execute([$teamId]);
+        if ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+            $l[] = '- Classificação: ' . (int)$r['position'] . 'º'
+                 . ($r['conference'] ? ' na conferência ' . $r['conference'] : '')
+                 . ' na T' . (int)$r['season_number'] . ' (' . (int)$r['year'] . '), a última encerrada.';
+        } else {
+            $l[] = '- Classificação: sem temporada encerrada nesta sprint ainda.';
+        }
+    } catch (Throwable $e) { error_log('[duvida/ficha] classificacao: ' . $e->getMessage()); }
+
+    // ── Trocas ───────────────────────────────────────────────────────────
+    try {
+        $st = $pdo->prepare('SELECT t.trades_used, ls.max_trades
+                               FROM teams t LEFT JOIN league_settings ls ON ls.league = t.league
+                              WHERE t.id = ?');
+        $st->execute([$teamId]);
+        if ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+            $max = (int)($r['max_trades'] ?: 0);
+            $l[] = '- Trocas: ' . (int)$r['trades_used'] . ' usadas'
+                 . ($max > 0 ? ' de ' . $max : '') . ' nesta temporada.';
+        }
+    } catch (Throwable $e) { error_log('[duvida/ficha] trocas: ' . $e->getMessage()); }
+
+    // ── Cap: a régua muda de liga pra liga ───────────────────────────────
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $st = $pdo->prepare('SELECT cap_mode, cap_min, cap_max FROM league_settings WHERE league = ?');
+        $st->execute([$liga]);
+        $cfg = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        if (($cfg['cap_mode'] ?? 'ovr_sum') === 'salary') {
+            require_once __DIR__ . '/salary_cap.php';
+            $s = getTeamCapSummary($pdo, $teamId);
+            if ($s) {
+                $l[] = '- Folha: ' . (int)($s['payroll'] ?? 0) . 'M'
+                     . (isset($s['cap_max']) ? ' (teto ' . (int)$s['cap_max'] . 'M)' : '') . '.';
+            }
+        } else {
+            $l[] = '- CAP do elenco: ' . topOvrCap($pdo, $teamId)
+                 . ' (faixa da liga ' . (int)($cfg['cap_min'] ?? 0) . '–' . (int)($cfg['cap_max'] ?? 0) . ').';
+        }
+    } catch (Throwable $e) { error_log('[duvida/ficha] cap: ' . $e->getMessage()); }
+
+    // ── Elenco e picks, que é o resto do "como estou?" ───────────────────
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+        $st->execute([$teamId]);
+        $l[] = '- Elenco: ' . (int)$st->fetchColumn() . ' jogadores.';
+
+        $st = $pdo->prepare('SELECT COUNT(*) FROM picks WHERE team_id = ? AND round = 1');
+        $st->execute([$teamId]);
+        $p1 = (int)$st->fetchColumn();
+        $st = $pdo->prepare('SELECT COUNT(*) FROM picks WHERE team_id = ? AND round = 2');
+        $st->execute([$teamId]);
+        $l[] = '- Picks: ' . $p1 . ' de 1ª rodada e ' . (int)$st->fetchColumn() . ' de 2ª.';
+    } catch (Throwable $e) { error_log('[duvida/ficha] elenco: ' . $e->getMessage()); }
+
+    if (!$l) return '';
+
+    return "COMO O TIME DELE ESTÁ (já conferido no banco — use isto, não invente e não consulte de novo):\n"
+         . implode("\n", $l);
+}
