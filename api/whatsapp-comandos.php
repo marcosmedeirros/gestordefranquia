@@ -410,7 +410,8 @@ function wcQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): ?array
     ];
 }
 
-function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = ''): string
+function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = '',
+                  string $grupoJid = '', string $gatilho = 'comando'): string
 {
     require_once __DIR__ . '/../backend/edital_texto.php';
 
@@ -462,8 +463,25 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = 
     // sem isto o bot guardava apelido no assunto "@5531971356427".
     $arg = wcTrocarMencoes($pdo, $arg, $citados);
 
-    $r = editalIaPerguntar($pdo, $liga, $arg, $quem, $citados);
+    /* A CONVERSA DE ANTES. Só quando dá pra saber de quem: o fio é por pessoa
+       dentro do grupo, e sem remetente não há fio nenhum — juntar todo mundo
+       faria o "e o segundo?" de um cair na pergunta do outro. */
+    require_once __DIR__ . '/../backend/duvida_conversas.php';
+    $historico = ($deQuem !== '' && $grupoJid !== '')
+        ? duvidaConversaHistorico($pdo, $grupoJid, $deQuem)
+        : [];
+
+    $r = editalIaPerguntar($pdo, $liga, $arg, $quem, $citados, $historico);
     if (!$r['ok']) return '💬 ' . $r['erro'];
+
+    /* Guarda a pergunta JUNTO da resposta — a pergunta com as menções já
+       resolvidas, que é a que o modelo leu. Serve pra duas coisas ao mesmo
+       tempo: auditar "o bot errou" (antes só existia a resposta, e não dava
+       pra saber o que tinham perguntado) e ser a memória da próxima. */
+    if ($grupoJid !== '') {
+        duvidaConversaGravar($pdo, $liga, $grupoJid, $deQuem,
+                             $quem['nome'] ?? null, $arg, $r['resposta'], $gatilho);
+    }
 
     return '💬 ' . $r['resposta'];
 }
@@ -3391,7 +3409,8 @@ function wcNomeDoComando(string $texto): string
 }
 
 function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
-                            string $deQuem = '', string $grupoJid = ''): ?string
+                            string $deQuem = '', string $grupoJid = '',
+                            string $gatilho = 'comando'): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -3605,7 +3624,7 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                liga achar que são comandos diferentes. */
             case 'duvida':
             case 'duvidas':
-                return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem);
+                return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
 
             // Quem está fora das regras na liga do grupo: elenco fora da
             // faixa, acima do teto ou abaixo do piso. Mesma conta do card do

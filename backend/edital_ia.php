@@ -507,7 +507,7 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
  *
  * @return array{ok:bool,resposta:?string,erro:?string,uso:?array}
  */
-function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null, ?array $citados = null): array
+function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null, ?array $citados = null, ?array $historico = null): array
 {
     $erro = fn(string $m) => ['ok' => false, 'resposta' => null, 'erro' => $m, 'uso' => null];
 
@@ -530,7 +530,7 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
     }
 
     if ($provedor === 'gemini') {
-        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem, $citados);
+        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem, $citados, $historico);
     }
 
     $chave = editalIaChave();
@@ -725,7 +725,7 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
  * que voltou. É a diferença entre um bot que sabe as regras e um que conhece
  * a liga.
  */
-function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null, ?array $citados = null): array
+function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null, ?array $citados = null, ?array $historico = null): array
 {
     require_once __DIR__ . '/duvida_contexto.php';
     require_once __DIR__ . '/duvida_dados.php';
@@ -856,7 +856,27 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
         ]],
     ]];
 
-    $contents = [['role' => 'user', 'parts' => [['text' => $pergunta]]]];
+    /* A CONVERSA ANTERIOR ENTRA COMO CONVERSA, e não como texto no prompt.
+       Cada /duvida era uma pergunta solta: "quem lidera?" respondido, e "e o
+       segundo?" chegava sem contexto nenhum. Aqui as últimas trocas voltam
+       como turnos de verdade (user/model), que é o formato que o modelo
+       entende — enfiar isso no system como "antes você disse X" faz ele tratar
+       a própria fala passada como instrução.
+
+       As ferramentas NÃO são reencenadas: só o que foi perguntado e o que foi
+       respondido. Se a resposta de agora depender de um dado, ele consulta de
+       novo — e é o certo, porque o dado pode ter mudado desde a pergunta
+       anterior. */
+    $contents = [];
+    foreach ($historico ?? [] as $t) {
+        $p = trim((string)($t['pergunta'] ?? ''));
+        $r = trim((string)($t['resposta'] ?? ''));
+        if ($p === '' || $r === '') continue;
+        $contents[] = ['role' => 'user',  'parts' => [['text' => $p]]];
+        // O 💬 é enfeite da mensagem do WhatsApp, não da fala dele.
+        $contents[] = ['role' => 'model', 'parts' => [['text' => ltrim($r, "💬 ")]]];
+    }
+    $contents[] = ['role' => 'user', 'parts' => [['text' => $pergunta]]];
 
     /* O modelo já anunciou "Guardado: o time do burro é o Athens" sem ter
        chamado lembrar — a frase saiu igualzinha à que a ferramenta devolve, e

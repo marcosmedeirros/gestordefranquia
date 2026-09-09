@@ -158,6 +158,38 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '  É AQUI que se vê evolução de OVR ao longo das temporadas — players só tem o valor atual.';
     $l[] = '- Estatística por temporada: player_season_stats(player_id, season_id, season_number, games,';
     $l[] = '  min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg). stl_pg é ROUBO e blk_pg é TOCO.';
+    $l[] = '';
+
+    /* PROJEÇÃO É CONTA, E A CONTA VAI PRONTA.
+       Perguntado quanto um jogador vai fazer, o modelo repetia a média da
+       última temporada com uma casa decimal — o grupo lê "29.6" e trata como
+       cravado, quando aquilo é só o passado repetido. E deixar ele inventar a
+       fórmula na hora dá um número diferente a cada pergunta.
+       Então a régua é uma só, roda no BANCO (que não erra aritmética) e fica
+       registrada no log junto da consulta. */
+    $l[] = 'PROJEÇÃO DE PONTOS/REBOTES/ASSISTÊNCIAS — use ESTA conta, não invente outra:';
+    $l[] = '  base = a média da última temporada ENCERRADA do jogador (player_season_stats)';
+    $l[] = '  ajuste de OVR = ovr de hoje (players.ovr) ÷ ovr que ele tinha naquela temporada';
+    $l[] = '                  (player_season_log.ovr, mesmo player_id e season_id)';
+    $l[] = '  ajuste de idade = 1.05 se tem até 23 anos, 1.00 de 24 a 29, 0.97 de 30 a 32, 0.92 de 33 pra cima';
+    $l[] = '  projeção = base × ajuste de OVR × ajuste de idade';
+    $l[] = 'Consulta pronta (troque o nome e o season_id da última encerrada):';
+    $l[] = '  SELECT p.name, p.ovr AS ovr_hoje, p.age, l.ovr AS ovr_na_epoca,';
+    $l[] = '         s.pts_pg, s.reb_pg, s.ast_pg,';
+    $l[] = '         ROUND(s.pts_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
+    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS pts_proj,';
+    $l[] = '         ROUND(s.reb_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
+    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS reb_proj,';
+    $l[] = '         ROUND(s.ast_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
+    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS ast_proj';
+    $l[] = '    FROM players p';
+    $l[] = '    JOIN player_season_stats s ON s.player_id = p.id AND s.season_id = ?';
+    $l[] = '    JOIN player_season_log   l ON l.player_id = p.id AND l.season_id = s.season_id';
+    $l[] = '   WHERE p.name LIKE ? AND l.ovr > 0 LIMIT 5';
+    $l[] = 'AO RESPONDER, mostre de onde veio: a média da temporada X, o OVR de lá contra o de';
+    $l[] = 'hoje, e a idade. Número de projeção sem a base ao lado vira boato de grupo.';
+    $l[] = 'E diga que é ESTIMATIVA: não entra tática, minutagem nem elenco novo. Sem estatística';
+    $l[] = 'da temporada passada (calouro, ou quem não jogou), não há projeção — diga isso.';
     $l[] = '- Trocas: trades(from_team_id, to_team_id, status, season_year) e trade_items(trade_id,';
     $l[] = '  player_id, pick_id, from_team). status "accepted" é troca que aconteceu.';
     $l[] = '- Picks: picks(team_id = dono hoje, original_team_id = de quem era, season_year, round).';

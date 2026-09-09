@@ -112,6 +112,100 @@ function wcRemetenteDaMensagem(array $m): string
     return $reserva;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   FALAR COM O BOT SEM DIGITAR COMANDO.
+
+   Até aqui o bot só existia depois de uma barra. Isso o deixava com cara de
+   máquina de consulta: ninguém "conversa" digitando /duvida, e a pergunta
+   seguinte — "e o segundo?" — não chegava nele.
+
+   Agora ele também atende quando o MARCAM e quando RESPONDEM uma mensagem
+   dele. As duas coisas são o jeito natural de chamar alguém num grupo.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * O número do próprio bot, aprendido sozinho e guardado.
+ *
+ * Não existe em configuração nenhuma, e pedir pro admin digitar seria mais um
+ * campo pra ficar errado depois de uma troca de número. Mas ele passa por aqui
+ * o tempo todo: `sender` no topo do evento, e o `participant` de qualquer
+ * mensagem que o próprio bot mandou (fromMe). Aprende na primeira e guarda.
+ */
+function wcNumeroDoBot(PDO $pdo, array $evento, array $mensagens): string
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM whatsapp_config LIKE 'numero_bot'")->fetch()) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN numero_bot VARCHAR(40) NULL");
+        }
+        $guardado = (string)($pdo->query("SELECT numero_bot FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: '');
+    } catch (Throwable $e) {
+        $guardado = '';
+    }
+
+    $so = fn($v) => preg_replace('/\D+/', '', explode('@', (string)$v)[0] ?? '');
+
+    // O que veio agora vale mais que o guardado: número trocado se corrige
+    // sozinho na primeira mensagem depois da troca.
+    $achado = $so($evento['sender'] ?? '');
+    if ($achado === '' || strlen($achado) < 8) {
+        foreach ($mensagens as $m) {
+            if (empty($m['key']['fromMe'])) continue;
+            foreach (['participantPn', 'participant'] as $k) {
+                $c = $so($m['key'][$k] ?? '');
+                if (strlen($c) >= 8) { $achado = $c; break 2; }
+            }
+        }
+    }
+
+    if ($achado !== '' && $achado !== $guardado) {
+        try {
+            $pdo->prepare("UPDATE whatsapp_config SET numero_bot = ? WHERE id = 1")->execute([$achado]);
+        } catch (Throwable $e) {
+            error_log('[whatsapp] guardar numero do bot: ' . $e->getMessage());
+        }
+        return $cache = $achado;
+    }
+    return $cache = ($achado !== '' ? $achado : $guardado);
+}
+
+/** O bot foi marcado nesta mensagem? */
+function wcMarcaramOBot(array $m, string $texto, string $numeroBot): bool
+{
+    if ($numeroBot === '') return false;
+
+    // No texto a menção chega como "@5511999999999" — é assim que o WhatsApp
+    // a escreve, e é o mesmo formato que o /duvida já resolve pros GMs.
+    if (str_contains($texto, '@' . $numeroBot)) return true;
+
+    // E na lista formal de marcados, que é o que a etiqueta azul usa.
+    $ctx = $m['message']['extendedTextMessage']['contextInfo'] ?? [];
+    foreach ((array)($ctx['mentionedJid'] ?? []) as $jid) {
+        if (preg_replace('/\D+/', '', explode('@', (string)$jid)[0] ?? '') === $numeroBot) return true;
+    }
+    return false;
+}
+
+/**
+ * A mensagem é uma resposta a algo que o BOT disse?
+ *
+ * `contextInfo.participant` é o autor da mensagem citada. Quando ela é do bot,
+ * responder a ela é falar com ele — do mesmo jeito que responder alguém no
+ * grupo é falar com essa pessoa.
+ */
+function wcResponderamAoBot(array $m, string $numeroBot): bool
+{
+    if ($numeroBot === '') return false;
+    $ctx = $m['message']['extendedTextMessage']['contextInfo'] ?? [];
+    foreach (['participantPn', 'participant'] as $k) {
+        $c = preg_replace('/\D+/', '', explode('@', (string)($ctx[$k] ?? ''))[0] ?? '');
+        if ($c !== '' && $c === $numeroBot) return true;
+    }
+    return false;
+}
+
 /**
  * A Evolution reentrega o evento quando o webhook demora ou devolve erro — e
  * também manda messages.upsert mais de uma vez em alguns casos. Sem trava, o
@@ -150,6 +244,13 @@ $mensagens = isset($dados['key']) ? [$dados] : (is_array($dados) ? $dados : []);
 $gruposPermitidos = whatsappGruposDeComando($pdo);
 $respondidas = 0;
 
+/* ANTES DO LAÇO, e não dentro dele.
+   O número do bot é aprendido, entre outras fontes, das mensagens que o
+   PRÓPRIO bot mandou (fromMe) — e essas o laço descarta na primeira linha.
+   Aprendendo aqui, um evento só de fromMe (que é o mais comum logo depois de
+   ele responder) também ensina. */
+$numeroBot = wcNumeroDoBot($pdo, $evento, $mensagens);
+
 foreach ($mensagens as $m) {
     if (!is_array($m) || !isset($m['key'])) continue;
 
@@ -170,7 +271,37 @@ foreach ($mensagens as $m) {
     whatsappGravarConversa($pdo, $de, $m, wcRemetenteDaMensagem($m));
 
     $texto = wcTextoDaMensagem($m['message'] ?? []);
-    if ($texto === '' || $texto[0] !== '/') continue;
+    if ($texto === '') continue;
+
+    /* TRÊS JEITOS DE FALAR COM ELE: a barra de sempre, marcar o bot, e
+       responder uma mensagem dele. Os dois últimos entram como /duvida —
+       é o comando que aceita pergunta em português.
+
+       O gatilho fica registrado porque muda o que se entende do número de
+       uso: "o bot foi usado 300 vezes" é outra coisa quando metade vem de
+       conversa e não de comando. */
+    $gatilho = 'comando';
+
+    if ($texto[0] !== '/') {
+        if (wcMarcaramOBot($m, $texto, $numeroBot)) {
+            $gatilho = 'mencao';
+        } elseif (wcResponderamAoBot($m, $numeroBot)) {
+            $gatilho = 'resposta';
+        } else {
+            continue;   // conversa do grupo que não é com ele
+        }
+
+        // A menção sai do texto: "@5511... quem lidera?" vira "quem lidera?".
+        // Deixá-la faria o modelo tentar descobrir de quem é aquele número.
+        $limpo = trim(preg_replace('/@' . preg_quote($numeroBot, '/') . '\b/', '', $texto));
+        if ($limpo === '') {
+            // Marcaram o bot e não perguntaram nada: cai no /duvida sem argumento,
+            // que é justamente a lista de exemplos do que dá pra perguntar.
+            $texto = '/duvida';
+        } else {
+            $texto = '/duvida ' . $limpo;
+        }
+    }
 
     // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
     // chegasse na instância viraria consulta ao banco da liga.
@@ -220,7 +351,7 @@ foreach ($mensagens as $m) {
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.
-    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de);
+    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de, $gatilho);
     if ($resposta === null) continue;   // comando desconhecido: silêncio
     if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
 
