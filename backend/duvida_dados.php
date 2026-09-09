@@ -158,6 +158,12 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '  overall_position, conference). É `position` que vale — 1 é o líder.';
     $l[] = '  IGNORE wins e losses: a liga não registra vitória/derrota, as colunas existem';
     $l[] = '  e estão zeradas em TODAS as linhas. Consultá-las faz parecer que não houve jogo.';
+    /* Depois de mandar ignorar as colunas, ele passou a CITÁ-LAS na resposta:
+       "como a temporada não registrou vitórias e derrotas no sistema...". Vira
+       desculpa por uma limitação que não existe — a liga simplesmente não usa
+       esse dado, e quem lê acha que falta alguma coisa. */
+    $l[] = '  E não fale delas na resposta. "Não há vitórias registradas" soa como sistema';
+    $l[] = '  incompleto; a liga só não usa esse dado. Diga a colocação e pronto.';
     $l[] = '- Prêmios: season_awards(season_id, team_id, award_type, player_name).';
     $l[] = '- Pontuação do ranking: team_ranking_points(team_id, season_id, league, total_points e as parciais).';
     $l[] = '- Elenco de hoje: players(team_id, name, age, ovr, position, is_lenda, seasons_in_league).';
