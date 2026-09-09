@@ -164,10 +164,25 @@ function wcNumeroDoBot(PDO $pdo, array $evento, array $mensagens): array
     };
 
     $achaNo($evento['sender'] ?? '');
+    $achaNo($evento['senderLid'] ?? '');
+
+    /* AS MENSAGENS DO PRÓPRIO BOT são a fonte do LID.
+       O `sender` do evento traz o telefone; o LID só aparece no eco de uma
+       mensagem que ELE mandou. O nome do campo mudou entre versões do Baileys
+       e da Evolution — e como não dá pra perguntar pra Evolution daqui (a
+       config dela vive na VPS, não no servidor), varro todos os candidatos e
+       registro o que veio. Se nenhum servir, o log diz quais campos existiam,
+       que é o que falta pra saber onde procurar. */
     foreach ($mensagens as $m) {
         if (empty($m['key']['fromMe'])) continue;
-        foreach (['participantPn', 'participantAlt', 'participant', 'senderPn'] as $k) {
+        foreach (['participantPn', 'participantAlt', 'participantLid', 'participant',
+                  'senderPn', 'senderLid', 'remoteJidAlt'] as $k) {
             $achaNo($m['key'][$k] ?? '');
+            $achaNo($m[$k] ?? '');
+        }
+        if ($lid === '') {
+            error_log('[whatsapp/identidade] mensagem do bot sem LID à vista. campos em key: '
+                    . implode(',', array_keys((array)($m['key'] ?? []))));
         }
     }
 
