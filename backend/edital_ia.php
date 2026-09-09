@@ -75,10 +75,13 @@ const EDITAL_IA_MODELOS_GEMINI = [
 
    O NÚMERO SAIU DO CONSOLE DO GOOGLE, e não de estimativa. O free tier é de
    500 por dia POR MODELO, e a fila aqui tenta quatro em sequência — quando um
-   esgota, o pedido cai pro próximo. O teto real é da ordem de 2000/dia. 1200
-   deixa três modelos de folga e continua sendo trava de verdade: se algo
-   disparar em looping, ainda existe um fim. */
-const EDITAL_IA_LIMITE_DIA = 1200;
+   esgota, o pedido cai pro próximo. O teto real é da ordem de 2000/dia.
+
+   1980 é quase esse teto, e é escolha consciente de quem administra: a trava
+   deixou de ser margem de segurança e passou a ser só o freio de looping. Na
+   prática, quem cortar primeiro agora será o Google, com 429 — e a resposta
+   ao grupo é a mesma nos dois casos, então ninguém percebe a diferença. */
+const EDITAL_IA_LIMITE_DIA = 1980;
 
 /* Teto de resposta. Resposta de grupo de WhatsApp é curta — mas no Gemini o
    raciocínio do modelo sai DESTE mesmo orçamento, e o 2.5-flash não deixa
@@ -624,8 +627,10 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
        trava nenhuma: o pedido já teria saído. */
     $limite = editalIaLimiteDia();
     if ($limite > 0 && editalIaUsoDeHoje($pdo) >= $limite) {
-        return $erro('O limite de consultas de hoje já foi usado. '
-                   . 'Amanhã volta, ou pergunta pra organização.');
+        // Uma frase, na voz dele. O texto antigo explicava a trava e mandava
+        // procurar a organização — ninguém quer relatório de cota, quer saber
+        // se adianta insistir.
+        return $erro('Cheguei no meu limite por hoje. Até amanhã!');
     }
 
     if ($provedor === 'gemini') {
@@ -786,8 +791,10 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
            chave. */
         if ($status === 429) {
             error_log("[duvida/gemini] {$modelo} 429: " . editalIaSemSegredo((string)$corpo));
-            return [false, null, $erro('O limite de consultas de hoje acabou. Tenta mais tarde, '
-                                     . 'ou pergunta pra organização.')];
+            // Mesmo texto do teto nosso: pra quem pergunta, os dois casos são
+            // a mesma coisa — acabou por hoje. A diferença é só nossa, e está
+            // no log.
+            return [false, null, $erro('Cheguei no meu limite por hoje. Até amanhã!')];
         }
 
         // 503 é fila do modelo, e 404 é modelo que saiu do ar pra contas novas:
