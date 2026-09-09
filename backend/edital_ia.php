@@ -876,7 +876,10 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     error_log('[duvida/memoria] esquecer: ' . $resultado);
                 } else {
                     $r = duvidaConsultar($pdo, (string)($c['args']['sql'] ?? ''));
-                    error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'RECUSADA') . ': ' . $r['sql']);
+                    // O motivo entra no log: "RECUSADA" sozinho não separava
+                    // consulta proibida de erro do banco, e as duas apareciam
+                    // iguais quando a conexão caía.
+                    error_log('[duvida/sql] ' . ($r['ok'] ? 'ok' : 'FALHOU (' . $r['erro'] . ')') . ': ' . $r['sql']);
                     $resultado = duvidaResultadoParaIA($r);
                 }
                 $respostas[] = ['functionResponse' => [

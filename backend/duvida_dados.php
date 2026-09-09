@@ -252,12 +252,54 @@ function duvidaColunaProibida(string $nome): bool
 }
 
 /**
+ * A CONEXÃO MORRE ENQUANTO O MODELO PENSA.
+ *
+ * Medido: uma pergunta que levou 75 segundos (o free tier caindo de modelo em
+ * modelo) voltou com "MySQL server has gone away" na hora de gravar. O bot
+ * disse "guardei!" e não havia guardado nada — o pior desfecho possível, porque
+ * a pessoa acredita e só descobre depois.
+ *
+ * O `wait_timeout` do MySQL não sabe que estamos esperando uma API do outro
+ * lado do mundo. Então, antes de escrever, a conexão é testada; morta, uma
+ * nova é aberta. Um SELECT 1 é barato perto de perder o que a liga ensinou.
+ */
+function duvidaConexaoViva(PDO $pdo): PDO
+{
+    try {
+        $pdo->query('SELECT 1');
+        return $pdo;
+    } catch (Throwable $e) {
+        error_log('[duvida/conexao] caiu, reabrindo: ' . $e->getMessage());
+    }
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $c = loadConfig()['db'];
+        return new PDO(
+            sprintf('mysql:host=%s;dbname=%s;charset=%s', $c['host'], $c['name'], $c['charset']),
+            $c['user'], $c['pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+    } catch (Throwable $e) {
+        error_log('[duvida/conexao] reabrir falhou: ' . $e->getMessage());
+        return $pdo;   // devolve a morta: quem chamou trata o erro da escrita
+    }
+}
+
+/**
  * Roda a consulta do modelo, se ela passar pelas travas.
  *
  * @return array{ok:bool, linhas:?array, erro:?string, sql:string}
  */
 function duvidaConsultar(PDO $pdo, string $sql): array
 {
+    /* A consulta vem DEPOIS de o modelo pensar, e ele às vezes leva 30s. Nesse
+       tempo o MySQL fecha a conexão por inatividade e o SELECT volta com
+       "server has gone away" — que o log registrava como "RECUSADA", como se a
+       consulta fosse proibida. Aconteceu com "o San Jose vai cair?": a consulta
+       estava certa, rodada à mão depois funcionou, e a resposta ao grupo foi
+       "não consegui acessar os dados". */
+    $pdo = duvidaConexaoViva($pdo);
+
     $sql = trim($sql);
     $falha = fn(string $m) => ['ok' => false, 'linhas' => null, 'erro' => $m, 'sql' => $sql];
 
