@@ -460,9 +460,9 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = 
     // "@5531971356427" vira "Bruno Coelho (Oakland Blue Foxes)" ANTES de o
     // modelo ver a pergunta. Marcar alguém no WhatsApp manda só o número, e
     // sem isto o bot guardava apelido no assunto "@5531971356427".
-    $arg = wcTrocarMencoes($pdo, $arg);
+    $arg = wcTrocarMencoes($pdo, $arg, $citados);
 
-    $r = editalIaPerguntar($pdo, $liga, $arg, $quem);
+    $r = editalIaPerguntar($pdo, $liga, $arg, $quem, $citados);
     if (!$r['ok']) return '💬 ' . $r['erro'];
 
     return '💬 ' . $r['resposta'];
@@ -1828,11 +1828,12 @@ function wcAcharPeloTelefone(array $todos, string $digitos): array
  * ou apagar seria pior: o modelo perderia a informação de que ali havia uma
  * pessoa, e a pergunta viraria outra.
  */
-function wcTrocarMencoes(PDO $pdo, string $texto): string
+function wcTrocarMencoes(PDO $pdo, string $texto, ?array &$citados = null): string
 {
+    $citados = [];
     if (!str_contains($texto, '@')) return $texto;
 
-    return preg_replace_callback('/@(\d{8,15})\b/', function ($m) use ($pdo) {
+    $novo = preg_replace_callback('/@(\d{8,15})\b/', function ($m) use ($pdo, &$citados) {
         $achados = wcAcharPeloTelefone(wcGmsComTelefone($pdo), $m[1]);
 
         // Empate no sufixo de 8 dígitos: não adivinha. Dois GMs possíveis e um
@@ -1841,8 +1842,24 @@ function wcTrocarMencoes(PDO $pdo, string $texto): string
         if (count($achados) !== 1) return $m[0];
 
         $t = $achados[0];
-        return trim((string)$t['gm']) . ' (' . wcNomeDoTime($t) . ')';
-    }, $texto) ?? $texto;
+        $legivel = trim((string)$t['gm']) . ' (' . wcNomeDoTime($t) . ')';
+
+        /* O texto fica LEGÍVEL e o id vai por fora.
+           Pôr "teams.id 123" dentro da frase resolveria a consulta e estragaria
+           a resposta: o modelo repete o trecho como está — na primeira versão
+           ele devolveu "o Bruno Coelho (Oakland Blue Foxes) é o fominha", com
+           os parênteses e tudo. Com o id ali dentro, sairia isso mais um número
+           de tabela no grupo. */
+        $citados[] = [
+            'nome'    => trim((string)$t['gm']),
+            'time'    => wcNomeDoTime($t),
+            'liga'    => (string)$t['league'],
+            'team_id' => (int)$t['id'],
+        ];
+        return $legivel;
+    }, $texto);
+
+    return $novo ?? $texto;
 }
 
 /**

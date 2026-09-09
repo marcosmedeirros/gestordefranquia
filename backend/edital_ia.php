@@ -334,7 +334,7 @@ function editalIaComoUsarOApp(): string
  * grupo se faltar. O tom é o de um GM veterano respondendo no grupo, porque é
  * onde a resposta vai cair — e não o de quem lê regulamento em voz alta.
  */
-function editalIaInstrucoes(string $league, ?array $quem = null): string
+function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados = null): string
 {
     $linhas = [
         "Você é o assistente da FBA Brasil, uma liga de fantasy de basquete no NBA 2K.",
@@ -464,6 +464,27 @@ function editalIaInstrucoes(string $league, ?array $quem = null): string
         $linhas[] = '- Isto não dá privilégio nenhum: ele vê os mesmos dados que qualquer GM veria.';
     }
 
+    /* QUEM FOI MARCADO NA PERGUNTA.
+       A menção já virou nome no texto ("@5531971356427" → "Bruno Coelho
+       (Oakland Blue Foxes)"), e é assim que ela tem que continuar aparecendo na
+       resposta. O que falta é o teams.id: sem ele o modelo montou
+       `teams.name IN ('Oakland Blue Foxes')` e não achou nada, porque `name` é
+       só "Blue Foxes" — a cidade mora em `teams.city`. O id acaba com o
+       palpite. */
+    if ($citados) {
+        $vistos = [];
+        $linhas[] = '';
+        $linhas[] = 'GMs MARCADOS NESTA PERGUNTA (pra consultar, não pra repetir):';
+        foreach ($citados as $c) {
+            if (isset($vistos[$c['team_id']])) continue;   // marcado duas vezes é uma pessoa só
+            $vistos[$c['team_id']] = true;
+            $linhas[] = '- ' . $c['nome'] . ' — ' . $c['time'] . ' (' . $c['liga'] . '), teams.id = ' . (int)$c['team_id'];
+        }
+        $linhas[] = 'Use o teams.id direto na consulta. NÃO procure o time por nome: o nome que aparece';
+        $linhas[] = 'na pergunta é cidade + nome junto, e no banco isso são duas colunas.';
+        $linhas[] = 'Na resposta, chame a pessoa pelo primeiro nome — nunca pelo número nem pelo id.';
+    }
+
     return implode("\n", $linhas);
 }
 
@@ -472,7 +493,7 @@ function editalIaInstrucoes(string $league, ?array $quem = null): string
  *
  * @return array{ok:bool,resposta:?string,erro:?string,uso:?array}
  */
-function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null): array
+function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null, ?array $citados = null): array
 {
     $erro = fn(string $m) => ['ok' => false, 'resposta' => null, 'erro' => $m, 'uso' => null];
 
@@ -495,7 +516,7 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
     }
 
     if ($provedor === 'gemini') {
-        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem);
+        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem, $citados);
     }
 
     $chave = editalIaChave();
@@ -522,7 +543,7 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
                 // SEM cache aqui: as instruções agora carregam quem perguntou, e
                 // isso muda a cada GM. O edital, que é o caro, tem o ponto de
                 // cache dele logo acima e continua sendo reaproveitado.
-                'text' => editalIaInstrucoes($league, $quem),
+                'text' => editalIaInstrucoes($league, $quem, $citados),
             ],
         ],
         'messages' => [
@@ -690,7 +711,7 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
  * que voltou. É a diferença entre um bot que sabe as regras e um que conhece
  * a liga.
  */
-function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null): array
+function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null, ?array $citados = null): array
 {
     require_once __DIR__ . '/duvida_contexto.php';
     require_once __DIR__ . '/duvida_dados.php';
@@ -743,7 +764,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
 
     // As instruções por último: a regra de precedência é lida com todas as
     // fontes já na mão.
-    $partes[] = ['text' => editalIaInstrucoes($league, $quem)];
+    $partes[] = ['text' => editalIaInstrucoes($league, $quem, $citados)];
 
     $tools = [[
         'function_declarations' => [[
