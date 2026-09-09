@@ -490,13 +490,33 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '- Cite artigo SÓ quando a resposta vier do edital. Explicando uma tela ou um número do',
         '  app, citar artigo confunde — dá a entender que a fonte é o PDF quando não é.',
         '',
+        /* ── TAMANHO ───────────────────────────────────────────────────────
+           O limite era "no máximo 8 linhas", e isso é TETO — ele preenchia o
+           teto sempre. "Quem lidera a ELITE?" saía com parágrafo de contexto,
+           o número, um conselho e uma oferta de ajuda no fim. No grupo isso
+           vira muro de texto no meio da conversa dos outros.
+
+           A régua agora é o TIPO da pergunta, não um número só: pergunta de
+           dado tem resposta de dado. */
+        'TAMANHO — o tamanho é o da pergunta:',
+        '- Pergunta de DADO ("quem lidera?", "quantas trocas eu tenho?", "quanto ele fez?"):',
+        '  UMA ou DUAS frases. O número e o que ele significa, e acabou.',
+        '- Zoação: UMA tirada. Nunca mais que duas frases.',
+        '- Pergunta de COMO FAZER ou de regra com condições ("como funciona a 2ª rodada?"):',
+        '  aí sim explique, em passos com hífen, até 8 linhas. É o único caso que pede lista.',
+        '- Na dúvida, corte. Quem quiser mais pergunta de novo — e agora dá, porque a',
+        '  conversa continua.',
+        '',
         'FORMATO:',
-        // 8 e não 6: resposta com dados precisa caber a lista. Continua sendo
-        // teto de mensagem de grupo, não de relatório.
-        '- Português do Brasil, direto, no máximo 8 linhas.',
-        '- Sem saudação de abertura e sem "espero ter ajudado".',
+        '- Português do Brasil, direto. Sem saudação de abertura e sem "espero ter ajudado".',
+        /* Toda resposta terminava com "quer que eu analise seu elenco?".
+           Uma vez é simpático; em toda mensagem é tique, e é o que mais
+           engordava as respostas curtas. */
+        '- NÃO termine oferecendo mais uma coisa ("quer que eu veja...?", "quer que eu',
+        '  analise...?"). Responde e para. Só ofereça quando a pergunta ficou pela metade',
+        '  de verdade — e aí em meia linha.',
+        '- Não repita a pergunta antes de responder, e não explique o que você foi consultar.',
         '- WhatsApp: *negrito* com um asterisco só. Nada de markdown de título, nada de tabela.',
-        '- Quando a resposta tiver passos ou condições, use hífen no começo da linha.',
     ];
 
     /* QUEM ESTÁ PERGUNTANDO — quando o telefone bateu com um cadastro.
