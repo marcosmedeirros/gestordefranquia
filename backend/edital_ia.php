@@ -368,7 +368,15 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '- NUNCA cite id de banco na resposta ("o usuário de ID 43", "o time 51"). Id é coisa de',
         '  dentro; quem perguntou quer nome. Sem o nome, diga que não achou.',
         '',
-        'MEMÓRIA: a liga te ensina o vocabulário dela, e você guarda com a ferramenta lembrar.',
+        'MEMÓRIA: a FBA te ensina o vocabulário dela, e você guarda com a ferramenta lembrar.',
+        '- A memória é UMA SÓ, e você enxerga tudo em qualquer grupo. O que muda é o ESCOPO:',
+        '  o bloco "VALE EM TODOS OS GRUPOS" é global; os outros nasceram de um grupo. Existindo',
+        '  o mesmo assunto nos dois, no grupo de agora vale o do grupo.',
+        '- Usando algo que é de OUTRA liga, diga de qual: "na ELITE chamam o X de Y". Ele te serve',
+        '  pra entender o que falaram, não pra afirmar que o apelido vale aqui.',
+        '- Guardando: apelido de PESSOA é global (escopo FBA) — os GMs jogam em mais de uma liga e',
+        '  ninguém quer ensinar quatro vezes. Piada que só existe num grupo vai no escopo da liga.',
+        '- Corrigir e esquecer valem em todo lugar: corrigido em um grupo, corrigido em todos.',
         /* Os exemplos usam nome INVENTADO de propósito. Com um time real
            dentro ("chama o Blue Foxes de patinho"), o modelo passou a tratar o
            exemplo como fato: perguntado sobre o "patinho" numa liga onde nada
@@ -819,6 +827,12 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                         'description' => 'A quem ou a que isso se refere. Ex.: "Oakland Blue Foxes".'],
                     'fato' => ['type' => 'string',
                         'description' => 'O que lembrar. Ex.: "o grupo chama de patinho".'],
+                    'escopo' => ['type' => 'string',
+                        'description' =>
+                            'Onde isso vale. "FBA" (padrão) = todos os grupos, e é o certo pra '
+                          . 'apelido de PESSOA, porque os GMs jogam em mais de uma liga. Use o '
+                          . 'nome da liga do grupo (ELITE, NEXT, RISE, ROOKIE) só quando aquilo '
+                          . 'for piada ou apelido que só existe naquele grupo. Na dúvida, FBA.'],
                 ],
                 'required' => ['assunto', 'fato'],
             ],
@@ -924,7 +938,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $resultado = duvidaMemoriaGravar($pdo, $league,
                         (string)($c['args']['assunto'] ?? ''),
                         (string)($c['args']['fato'] ?? ''),
-                        $quem['nome'] ?? null);
+                        $quem['nome'] ?? null,
+                        (string)($c['args']['escopo'] ?? ''));
                     // Guarda o desfecho pra conferir a resposta no fim: o modelo
                     // já disse "Guardado" sem ter chamado esta função.
                     if (str_starts_with($resultado, 'Guardado')) $gravouMesmo = true;
