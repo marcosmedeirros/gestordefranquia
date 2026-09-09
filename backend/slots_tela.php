@@ -108,6 +108,64 @@ function slotsTelaProximaRegular(PDO $pdo, string $liga, ?string $agora = null):
     return null;
 }
 
+/**
+ * A LIVE IMEDIATAMENTE ANTERIOR A ESTA, na mesma liga.
+ *
+ * Serve pra uma coisa só: saber se o time já esteve na tela na semana
+ * passada. Por isso ela vem do CALENDÁRIO e não da tabela de vendas — se
+ * ninguém tivesse comprado na semana passada, o "último data_live vendido"
+ * apontaria pra duas semanas atrás e bloquearia quem já ficou de fora uma vez.
+ *
+ * Dez dias pra trás cobrem a cadência semanal com folga pra live adiada.
+ * Não achando nenhuma, devolve null e ninguém é bloqueado: a primeira live da
+ * série não tem anterior, e inventar uma seria travar por nada.
+ */
+function slotsTelaLiveAnterior(PDO $pdo, string $liga, string $inicioLiveAtual): ?string
+{
+    $tz    = new DateTimeZone('America/Sao_Paulo');
+    $atual = new DateTimeImmutable($inicioLiveAtual, $tz);
+    $de    = $atual->modify('-10 days')->format('Y-m-d H:i:s');
+    $ate   = $atual->modify('-1 hour')->format('Y-m-d H:i:s');
+    $limite = $atual->format('Y-m-d H:i:s');
+
+    $anterior = null;
+    foreach (calendarioEventos($pdo, [strtoupper(trim($liga))], $de, $ate) as $ev) {
+        if (($ev['tipo'] ?? '') !== 'live') continue;
+        if (escalaFaseDaLive($ev['titulo'] ?? '') === 'playoffs') continue;
+        $ini = (string)$ev['inicio'];
+        if ($ini >= $limite) continue;
+        // Fica a última do laço: os eventos vêm em ordem, então é a mais
+        // próxima da live de agora.
+        $anterior = substr($ini, 0, 10);
+    }
+    return $anterior;
+}
+
+/**
+ * O time levou vaga na live passada?
+ *
+ * A regra é rodízio: oito vagas por semana numa liga de 32 times, e sem isto
+ * quem tem mais pontos guardados aparecia toda semana enquanto o resto nunca
+ * entrava. Ficar de fora UMA live e voltar na seguinte é o que gira a fila sem
+ * travar ninguém por muito tempo.
+ */
+function slotsTelaComprouNaAnterior(PDO $pdo, string $liga, int $teamId, ?string $dataAnterior): bool
+{
+    if ($teamId <= 0 || !$dataAnterior) return false;
+    slotsTelaGarantirTabela($pdo);
+    try {
+        $st = $pdo->prepare("SELECT 1 FROM slots_tela
+                              WHERE league = ? AND data_live = ? AND team_id = ? LIMIT 1");
+        $st->execute([strtoupper(trim($liga)), $dataAnterior, $teamId]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        // Falha de leitura não pode virar bloqueio: melhor deixar comprar do
+        // que recusar por um erro de banco.
+        error_log('[slots-tela] comprou na anterior: ' . $e->getMessage());
+        return false;
+    }
+}
+
 /** Quem já comprou slot nesta live, na ordem em que compraram. */
 function slotsTelaDaLive(PDO $pdo, string $liga, string $dataLive): array
 {
@@ -236,14 +294,30 @@ function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora
     $vendidos = count($lista);
     $meu      = $teamId > 0 && in_array($teamId, array_map(fn($x) => (int)$x['team_id'], $lista), true);
 
+    // Rodízio: quem esteve na tela na live passada fica de fora desta.
+    $anterior = slotsTelaLiveAnterior($pdo, $liga, $live['inicio']);
+    $repetiu  = slotsTelaComprouNaAnterior($pdo, $liga, $teamId, $anterior);
+
+    /* A ORDEM DOS MOTIVOS É A ORDEM DO QUE INTERESSA A QUEM LÊ.
+       "comecou" primeiro porque fecha a venda pra todo mundo. Depois os dois
+       que são sobre ESTE time — já tenho, e o rodízio.
+
+       O rodízio vem ANTES do "cedo" de propósito: quem está de fora desta
+       live continuaria lendo "a venda abre às 18h", esperaria a hora e só aí
+       levaria a recusa. E vem antes do "esgotado" pelo mesmo motivo — ler que
+       os slots acabaram faz a pessoa tentar mais cedo na semana seguinte,
+       quando o problema não era velocidade. */
     $motivo = 'ok';
-    if ($ref < $abre)                        $motivo = 'cedo';
-    elseif ($ref >= $inicio)                 $motivo = 'comecou';
-    elseif ($vendidos >= SLOTS_TELA_TOTAL)   $motivo = 'esgotado';
+    if ($ref >= $inicio)                     $motivo = 'comecou';
     elseif ($meu)                            $motivo = 'ja_tenho';
+    elseif ($repetiu)                        $motivo = 'live_passada';
+    elseif ($ref < $abre)                    $motivo = 'cedo';
+    elseif ($vendidos >= SLOTS_TELA_TOTAL)   $motivo = 'esgotado';
 
     return [
         'live'     => $live + ['abre' => $abre->format('Y-m-d H:i:s')],
+        'anterior' => $anterior,
+        'repetiu'  => $repetiu,
         'aberta'   => $motivo === 'ok',
         'motivo'   => $motivo,
         'abre_em'  => $abre->format('Y-m-d H:i:s'),
@@ -288,6 +362,12 @@ function slotsTelaComprar(PDO $pdo, int $userId, int $teamId, string $liga): arr
         case 'comecou':  return $falha('A live já começou — a venda fechou.');
         case 'esgotado': return $falha('Os ' . SLOTS_TELA_TOTAL . ' slots desta live já foram.');
         case 'ja_tenho': return $falha('Seu time já está na tela desta live.');
+        // A trava do rodízio também mora aqui, e não só no estado: o estado é
+        // o retrato que a tela desenha, e uma compra que chega por outro
+        // caminho não passa por ele.
+        case 'live_passada':
+            return $falha('Seu time esteve na tela na live passada — a vaga é de rodízio, '
+                        . 'então esta semana fica pra outro. Você volta a poder na próxima.');
     }
 
     $data   = $estado['live']['data'];

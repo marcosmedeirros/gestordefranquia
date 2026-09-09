@@ -1688,7 +1688,14 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
-                                <?php if ($liveHoje['restam'] > 0 && $liveHoje['venda'] !== 'comecou'): ?>
+                                <?php if ($liveHoje['venda'] === 'live_passada'): ?>
+                                    <!-- Convidar quem está de fora pelo rodízio é pior que não
+                                         convidar: ele clica, atravessa duas telas e leva a recusa. -->
+                                    <div class="live-cta" style="cursor:default;color:var(--text-3)">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                        Você esteve na tela na live passada — o rodízio é semana sim, semana não
+                                    </div>
+                                <?php elseif ($liveHoje['restam'] > 0 && $liveHoje['venda'] !== 'comecou'): ?>
                                     <a class="live-cta" href="/games.php?aba=loja">
                                         <i class="bi bi-tv"></i>
                                         <?= $liveHoje['venda'] === 'cedo'
@@ -2885,7 +2892,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             var bt = card.querySelector('.live-copiar');
             if (bt && d.copiar) bt.dataset.copiar = d.copiar;
 
-            if (d.restam <= 0 || d.motivo === 'comecou') {
+            if (d.restam <= 0 || d.motivo === 'comecou' || d.motivo === 'live_passada') {
               cta.remove();
               parado = true;
               return;

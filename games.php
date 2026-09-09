@@ -1599,6 +1599,10 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     <?php if ($slots['motivo'] === 'ja_tenho'): ?>
                       <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
                       Seu time já está na tela desta live.
+                    <?php elseif ($slots['motivo'] === 'live_passada'): ?>
+                      <i class="bi bi-arrow-repeat" style="color:#f59e0b"></i>
+                      Seu time esteve na tela na live passada. A vaga é de rodízio —
+                      esta semana fica pra outro, e você volta a poder na próxima.
                     <?php elseif ($slots['motivo'] === 'esgotado'): ?>
                       <i class="bi bi-lock-fill"></i> Os oito slots já foram.
                     <?php elseif ($slots['motivo'] === 'comecou'): ?>
@@ -2422,6 +2426,9 @@ function trocarLigaRanking(liga) {
                         ? '<i class="bi bi-lock-fill"></i> Os oito slots já foram.'
                         : d.motivo === 'ja_tenho'
                             ? '<i class="bi bi-check-circle-fill" style="color:var(--green)"></i> Seu time já está na tela desta live.'
+                        : d.motivo === 'live_passada'
+                            ? '<i class="bi bi-arrow-repeat" style="color:#f59e0b"></i> Seu time esteve na tela na live passada. '
+                              + 'A vaga é de rodízio — você volta a poder na próxima.'
                             : '<i class="bi bi-broadcast"></i> A live já começou — a venda fechou.';
                     form.replaceWith(aviso);
                 }
