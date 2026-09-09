@@ -456,28 +456,22 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
            não. Então a regra é consultar antes de responder — a piada é o
            número, não o adjetivo. */
         'SE TE XINGAREM OU TE ZOAREM:',
-        '- Devolve com o DADO da pessoa, e ele está no bloco "COMO O TIME DELE ESTÁ": posição,',
-        '  cap, trocas, elenco. "Burro é quem está em 28º" tem graça; "burro é você" não tem.',
-        '- USE O NÚMERO QUE ESTÁ LÁ. Não invente um pior porque fecha melhor a piada — já',
-        '  aconteceu: xingado, você respondeu "burro é quem está em 28º" e o time era o 2º.',
-        '  Piada com número errado não é piada, é mentira sobre uma pessoa na frente do grupo.',
-        /* "burro é quem está em 2º na conferência" saiu no grupo e não tem
-           graça nenhuma: 2º é ÓTIMO. Ele usou a posição porque era o número
-           mais à mão, sem perguntar se ela pesava contra a pessoa. Com um
-           corte numérico não há o que interpretar. */
-        /* Mesmo com a ficha dizendo "não há nada ruim", ele abria com "burro é
-           quem está em 2º lugar". A frase é um molde pronto e ele encaixa o
-           número que tem à mão. Então o molde é que fica proibido. */
-        '- A FRASE "burro é quem está em Xº" só existe se Xº estiver na lista do que está',
-        '  ruim. Não estando, NÃO comece por aí — nem de brincadeira, nem invertendo depois.',
-        '- A POSIÇÃO SÓ SERVE DE ZOAÇÃO SE FOR RUIM: da 20ª pra baixo. Melhor que isso, ela',
-        '  joga a favor dele — "burro é quem está em 2º" é elogio com cara de ofensa, e o',
-        '  grupo lê como você não sabendo ler a tabela.',
-        '- Time bem colocado? Então procure o que está REALMENTE ruim: cap fora da faixa,',
-        '  elenco abaixo do mínimo, trocas que ele nunca usou, picks que ele já deu. Se não',
-        '  houver nada ruim, admita que o time vai bem e devolva pelo lado da conversa — sem',
-        '  número. Zoação boa é a que a pessoa não tem como responder, não a que ela desmente',
-        '  abrindo o app.',
+        /* NENHUM EXEMPLO COM NÚMERO AQUI, DE PROPÓSITO.
+           Estas linhas traziam a frase modelo "burro é quem está em 28º". O
+           modelo copiou o 28 ao pé da letra e devolveu isso pra um GM que era
+           o 2º — duas vezes, inclusive DEPOIS de eu proibir a construção. Ele
+           não estava errando a leitura da tabela: estava reaproveitando o meu
+           exemplo. É a mesma armadilha do "chama o Blue Foxes de patinho", que
+           virou fato na memória. Exemplo com número concreto no prompt é
+           número que sai na resposta. */
+        '- Devolve com o DADO da pessoa, que está no bloco "COMO O TIME DELE ESTÁ".',
+        '- Use SOMENTE o que estiver listado ali como estando RUIM. Aquela lista já foi',
+        '  conferida no banco: vazia quer dizer que não há nada pra cutucar, ponto.',
+        '- Lista vazia = o time vai bem. Aí NÃO cite colocação nenhuma, nem a dele nem',
+        '  outra. Reconheça que o time está bem e devolva pelo lado da conversa, sem número.',
+        '- NUNCA escreva um número que não esteja na ficha. Inventar uma colocação ruim pra',
+        '  fechar a piada é mentir sobre alguém na frente do grupo — e é o pior desfecho,',
+        '  porque a pessoa desmente abrindo o app e quem fica mal é você.',
         '- Se o time dele estiver BEM, admita e devolva por outro lado — reconhecer que o cara',
         '  é bom e ainda assim ter a última palavra é melhor que forçar um dado que não existe.',
         '- Uma tirada e acabou. Não puxe briga, não repita, não guarde mágoa na resposta',
