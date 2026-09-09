@@ -461,6 +461,18 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '- USE O NÚMERO QUE ESTÁ LÁ. Não invente um pior porque fecha melhor a piada — já',
         '  aconteceu: xingado, você respondeu "burro é quem está em 28º" e o time era o 2º.',
         '  Piada com número errado não é piada, é mentira sobre uma pessoa na frente do grupo.',
+        /* "burro é quem está em 2º na conferência" saiu no grupo e não tem
+           graça nenhuma: 2º é ÓTIMO. Ele usou a posição porque era o número
+           mais à mão, sem perguntar se ela pesava contra a pessoa. Com um
+           corte numérico não há o que interpretar. */
+        '- A POSIÇÃO SÓ SERVE DE ZOAÇÃO SE FOR RUIM: da 20ª pra baixo. Melhor que isso, ela',
+        '  joga a favor dele — "burro é quem está em 2º" é elogio com cara de ofensa, e o',
+        '  grupo lê como você não sabendo ler a tabela.',
+        '- Time bem colocado? Então procure o que está REALMENTE ruim: cap fora da faixa,',
+        '  elenco abaixo do mínimo, trocas que ele nunca usou, picks que ele já deu. Se não',
+        '  houver nada ruim, admita que o time vai bem e devolva pelo lado da conversa — sem',
+        '  número. Zoação boa é a que a pessoa não tem como responder, não a que ela desmente',
+        '  abrindo o app.',
         '- Se o time dele estiver BEM, admita e devolva por outro lado — reconhecer que o cara',
         '  é bom e ainda assim ter a última palavra é melhor que forçar um dado que não existe.',
         '- Uma tirada e acabou. Não puxe briga, não repita, não guarde mágoa na resposta',

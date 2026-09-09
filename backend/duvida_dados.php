@@ -529,8 +529,19 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
                            ORDER BY s.season_number DESC LIMIT 1");
         $st->execute([$teamId]);
         if ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+            /* O TOTAL DE TIMES vai junto: "2º" sozinho não diz se é bom ou
+               ruim, e sem a escala o modelo tratou uma 2ª colocação como
+               motivo de zoação. "2º de 32" não deixa dúvida. */
+            $nTimes = 0;
+            try {
+                $q = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
+                $q->execute([$liga]);
+                $nTimes = (int)$q->fetchColumn();
+            } catch (Throwable $e) { /* sem o total, a linha ainda serve */ }
+
             $l[] = '- Classificação: ' . (int)$r['position'] . 'º'
-                 . ($r['conference'] ? ' na conferência ' . $r['conference'] : '')
+                 . ($nTimes > 0 ? ' de ' . $nTimes . ' times' : '')
+                 . ($r['conference'] ? ' (conferência ' . $r['conference'] . ')' : '')
                  . ' na T' . (int)$r['season_number'] . ' (' . (int)$r['year'] . '), a última encerrada.';
         } else {
             $l[] = '- Classificação: sem temporada encerrada nesta sprint ainda.';
