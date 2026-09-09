@@ -3619,6 +3619,26 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
         exit;
     }
 
+    /* TROCA QUE JÁ ACONTECEU NÃO SE RECUSA MAIS.
+       Não havia checagem de status aqui: recusar ou cancelar rodava o UPDATE
+       em qualquer estado. Aconteceu na NEXT em 04/09 — a múltipla #554 foi
+       aceita pelos três times às 11:49, os jogadores e a pick mudaram de time,
+       e às 11:52 alguém clicou em recusar numa tela que ainda estava aberta na
+       versão antiga. A troca virou "cancelada" com os elencos já trocados: nada
+       foi desfeito, porque cancelar só muda o status.
+
+       Desfazer o que já foi executado é trabalho do Reverter, no admin — ele
+       devolve os ativos e agora ainda pergunta se a troca conta ou não. */
+    if (in_array($action, ['rejected', 'cancelled'], true)
+        && ($trade['status'] ?? '') !== 'pending') {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => ($trade['status'] ?? '') === 'accepted'
+            ? 'Esta troca já foi aceita e executada — os jogadores e picks já mudaram de time. '
+            . 'Pra desfazer, só um admin pelo Reverter.'
+            : 'Esta troca não está mais pendente.']);
+        exit;
+    }
+
     if ($action === 'accepted' && !areTradesEnabled($pdo, $trade['league'] ?? null)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
