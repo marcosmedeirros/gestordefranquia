@@ -1155,6 +1155,31 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .span-3 { grid-column: span 3; }
         .span-2 { grid-column: span 2; }
 
+        /* ── Edital: card de linha inteira ──
+           Numa coluna só ele ficava alto e deixava dois terços da fileira em
+           branco, porque o conteúdo é uma frase e um botão. Ocupando a linha,
+           o texto e o botão ficam lado a lado e a altura cai pra de uma
+           faixa. O `wrap` é quem cuida do celular: quando os dois não cabem
+           mais na mesma linha, o botão desce e vira largura cheia, sem media
+           query. */
+        .edital-corpo {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 18px; flex-wrap: wrap;
+        }
+        .edital-texto { flex: 1 1 320px; min-width: 0; }
+        .edital-texto p { font-size: 12px; color: var(--text-3); line-height: 1.55; margin: 0; }
+        .edital-arquivo {
+            display: block; font-size: 11px; color: var(--text-3);
+            opacity: .7; margin-top: 6px; word-break: break-all;
+        }
+        .edital-botao {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 6px; text-decoration: none; flex-shrink: 0; white-space: nowrap;
+        }
+        @media (max-width: 640px) {
+            .edital-botao { width: 100%; }
+        }
+
         /* ── A régua de pontos ──
            Colunas que se acomodam sozinhas: são três blocos, quatro na ELITE,
            e no celular eles viram uma coluna só sem media query nenhuma. */
@@ -1975,22 +2000,20 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                      enviado, o card inteiro some em vez de virar um botão que
                      baixa um 404. -->
                 <?php if ($editalArquivo !== ''): ?>
-                <div class="bc" style="animation-delay:.52s">
+                <div class="bc span-3" style="animation-delay:.52s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-file-earmark-text"></i> Edital da <?= htmlspecialchars($team['league']) ?></div>
                     </div>
-                    <div class="bc-body">
-                        <p style="font-size:12px;color:var(--text-3);line-height:1.55;margin:0 0 14px">
-                            O regulamento oficial da sua liga, em arquivo. Dúvida rápida de regra também
-                            dá pra tirar pelo <b>/duvida</b> no grupo.
-                        </p>
-                        <a class="btn-orange" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none"
+                    <div class="bc-body edital-corpo">
+                        <div class="edital-texto">
+                            <p>O regulamento oficial da sua liga, em arquivo. Dúvida rápida de regra também
+                            dá pra tirar pelo <b>/duvida</b> no grupo.</p>
+                            <span class="edital-arquivo"><?= htmlspecialchars($editalArquivo) ?></span>
+                        </div>
+                        <a class="btn-orange edital-botao"
                            href="/api/edital.php?action=download_edital&amp;league=<?= urlencode($team['league']) ?>" download>
                             <i class="bi bi-download"></i> Baixar edital
                         </a>
-                        <div style="font-size:11px;color:var(--text-3);margin-top:10px;word-break:break-all">
-                            <?= htmlspecialchars($editalArquivo) ?>
-                        </div>
                     </div>
                 </div>
                 <?php endif; ?>
