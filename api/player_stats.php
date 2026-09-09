@@ -263,10 +263,10 @@ if ($action === 'save_snapshot') {
         exit;
     }
 
-    // Se este foi o último time da liga a registrar o elenco desta temporada
-    // (ímpar, a cada 2), o CAP da liga é recalculado sozinho a partir da
-    // média de todos os times. Best-effort — nunca derruba o salvamento.
-    maybeAutoRecalcularCapDaLiga($pdo, $league, (int)$season['id'], (int)$season['season_number']);
+    // O CAP da liga NÃO é mais recalculado aqui. Salvar elenco disparava a
+    // conta sozinho nas temporadas ímpares, e o CAP mudava no meio de um
+    // avanço de temporada sem ninguém pedir. Agora é o botão "Calcular CAP" na
+    // aba da liga, no admin — ver recalcularCapAgora() em backend/league_cap.php.
 
     echo json_encode(['success' => true, 'saved' => $ok,
                       'season_number' => (int)$season['season_number']]);

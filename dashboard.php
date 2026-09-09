@@ -182,6 +182,15 @@ try {
     if ($capLimits) { $capMin = $capLimits['cap_min'] ?? 0; $capMax = $capLimits['cap_max'] ?? 999; }
 } catch (Exception $e) { error_log('dashboard cap_limits: ' . $e->getMessage()); }
 
+// O edital da liga DESTE GM, e só dele: o card de download só existe se o
+// admin já tiver subido o arquivo, e cada liga tem o seu.
+$editalArquivo = '';
+try {
+    $stmtEdital = $pdo->prepare('SELECT edital_file FROM league_settings WHERE league = ?');
+    $stmtEdital->execute([$team['league']]);
+    $editalArquivo = (string)($stmtEdital->fetchColumn() ?: '');
+} catch (Exception $e) { error_log('dashboard edital: ' . $e->getMessage()); }
+
 $capBonus = restrictedCapBonus($pdo, (int)$team['id']);
 $capMaxBase = $capMax;
 $capMax = capMaxWithRestrictedBonus($pdo, (int)$team['id'], (int)$capMax);
@@ -1958,6 +1967,33 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         dos três blocos<?= (($team['league'] ?? '') === 'ELITE') ? ' mais a NBA Cup' : '' ?>.</div>
                     </div>
                 </div>
+
+
+                <!-- ── Edital da liga ──
+                     Só aparece pra quem tem edital: o arquivo é por liga, e o
+                     GM da NEXT não tem o que fazer com o da ELITE. Sem arquivo
+                     enviado, o card inteiro some em vez de virar um botão que
+                     baixa um 404. -->
+                <?php if ($editalArquivo !== ''): ?>
+                <div class="bc" style="animation-delay:.52s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-file-earmark-text"></i> Edital da <?= htmlspecialchars($team['league']) ?></div>
+                    </div>
+                    <div class="bc-body">
+                        <p style="font-size:12px;color:var(--text-3);line-height:1.55;margin:0 0 14px">
+                            O regulamento oficial da sua liga, em arquivo. Dúvida rápida de regra também
+                            dá pra tirar pelo <b>/duvida</b> no grupo.
+                        </p>
+                        <a class="btn-orange" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none"
+                           href="/api/edital.php?action=download_edital&amp;league=<?= urlencode($team['league']) ?>" download>
+                            <i class="bi bi-download"></i> Baixar edital
+                        </a>
+                        <div style="font-size:11px;color:var(--text-3);margin-top:10px;word-break:break-all">
+                            <?= htmlspecialchars($editalArquivo) ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
 
                 <!-- ── GMs pelo Brasil ── -->

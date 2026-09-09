@@ -190,37 +190,73 @@ function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
 }
 
 /**
- * Ponto de entrada chamado depois de qualquer "salvar elenco da temporada".
+ * O CAP NÃO SE MEXE MAIS SOZINHO.
  *
- * Só recalcula quando: a temporada é 3, 5, 7… (o "a cada 2 temporadas"),
- * ainda não recalculou pra essa temporada, e TODOS os times da liga já
- * registraram o elenco. Nunca lança exceção pro chamador.
+ * Antes o recálculo disparava sozinho nas temporadas 3, 5, 7…, assim que o
+ * último time da liga registrava o elenco. Isso punha o CAP pra mudar no meio
+ * de um avanço de temporada, sem ninguém pedir e sem ninguém conferir os
+ * números antes — a liga só descobria pelo push, com o valor já gravado.
  *
- * A TEMPORADA 1 FICA DE FORA. A regra era "ímpares", e 1 é ímpar — foi assim
- * que o cap da ROOKIE se mexeu logo na estreia da liga, antes de existirem
- * duas temporadas pra comparar. O ajuste é a cada duas: a primeira vez que
- * ele cabe é entrando na 3ª.
+ * Agora quem manda é o admin: o botão "Calcular CAP" na aba da liga chama
+ * recalcularCapAgora(), que faz exatamente a mesma conta de sempre. A régua do
+ * "a cada 2 temporadas" continua valendo — só que como decisão de quem
+ * administra, e não como automatismo.
+ *
+ * A função antiga fica aqui sem efeito, e não some: ela é chamada de fora, e
+ * apagá-la trocaria "não faz nada" por erro fatal no meio de um salvamento de
+ * elenco.
  */
-const LEAGUE_CAP_PRIMEIRA_TEMPORADA = 3;
-
 function maybeAutoRecalcularCapDaLiga(PDO $pdo, string $league, int $seasonId, int $seasonNumber): ?array
 {
-    try {
-        if ($seasonNumber < LEAGUE_CAP_PRIMEIRA_TEMPORADA) return null;
-        if ($seasonNumber % 2 === 0) return null;   // 3, 5, 7…
+    return null;
+}
 
-        ensureLeagueCapAutoTables($pdo);
-        $stmt = $pdo->prepare("SELECT cap_auto_last_season FROM league_settings WHERE league = ?");
-        $stmt->execute([$league]);
-        $lastSeason = $stmt->fetchColumn();
-        if ($lastSeason !== false && $lastSeason !== null && (int)$lastSeason >= $seasonNumber) return null;
+/**
+ * O botão do admin: recalcula o CAP da liga agora, na temporada em curso.
+ *
+ * Devolve ['ok' => bool, 'erro' => ?string, 'resumo' => ?array]. O separado
+ * importa porque, do lado do recalcularCapDaLiga, "esta liga não tem
+ * temporada" e "não deu pra tirar a média" voltam os dois como null, e o
+ * admin precisa saber qual dos dois é.
+ */
+function recalcularCapAgora(PDO $pdo, string $league): array
+{
+    /* A TEMPORADA DA SPRINT ATIVA, e não a de maior número no banco.
+       Pegando o maior season_number da liga, a ELITE caía na temporada 20 da
+       sprint 1, encerrada — e o cálculo ia parar no histórico com esse número,
+       enquanto a liga está na temporada 2 da sprint 2. Os season_number
+       recomeçam a cada sprint, então "o maior" não quer dizer "a de agora". */
+    $st = $pdo->prepare("SELECT s.id, s.season_number
+                           FROM seasons s
+                           JOIN sprints sp ON sp.id = s.sprint_id
+                          WHERE s.league = ? AND sp.status = 'active'
+                       ORDER BY s.season_number DESC LIMIT 1");
+    $st->execute([$league]);
+    $temp = $st->fetch(PDO::FETCH_ASSOC);
 
-        $status = leagueRosterUpdateStatus($pdo, $league, $seasonId);
-        if (!$status['complete']) return null;
-
-        return recalcularCapDaLiga($pdo, $league, $seasonNumber);
-    } catch (Throwable $e) {
-        error_log('maybeAutoRecalcularCapDaLiga: ' . $e->getMessage());
-        return null;
+    // Liga sem sprint ativa (ainda não migrou, ou fechou a última): cai na
+    // última temporada cadastrada, que é o que existe pra usar.
+    if (!$temp) {
+        $st = $pdo->prepare('SELECT id, season_number FROM seasons
+                              WHERE league = ? ORDER BY id DESC LIMIT 1');
+        $st->execute([$league]);
+        $temp = $st->fetch(PDO::FETCH_ASSOC);
     }
+    if (!$temp) {
+        return ['ok' => false, 'erro' => 'Esta liga não tem temporada cadastrada.', 'resumo' => null];
+    }
+
+    $resumo = recalcularCapDaLiga($pdo, $league, (int)$temp['season_number']);
+    if (!$resumo) {
+        return ['ok' => false, 'erro' => 'Não há times com elenco suficiente pra tirar a média.', 'resumo' => null];
+    }
+
+    /* Quantos times já mexeram no elenco desta temporada. Não trava nada — o
+       admin pediu, a conta sai —, mas volta junto pra ele ver na hora se está
+       tirando média de uma liga que metade ainda não atualizou. Era isso que a
+       espera automática garantia, e que agora é responsabilidade de quem
+       clica. */
+    $resumo['atualizados'] = leagueRosterUpdateStatus($pdo, $league, (int)$temp['id']);
+
+    return ['ok' => true, 'erro' => null, 'resumo' => $resumo];
 }

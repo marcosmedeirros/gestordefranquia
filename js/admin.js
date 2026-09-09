@@ -5166,6 +5166,116 @@ async function handleLeagueVideoUpload(fileInput, league, slot) {
 }
 window.handleLeagueVideoUpload = handleLeagueVideoUpload;
 
+/**
+ * O BOTÃO QUE CALCULA O CAP DA LIGA.
+ *
+ * A conta é a de sempre: soma o CAP de todos os times, tira a média, aplica a
+ * margem pra cima e pra baixo. O que mudou é que ela não dispara mais sozinha
+ * ao avançar de temporada — antes o CAP se mexia no meio do avanço, sem
+ * ninguém pedir e sem ninguém conferir os números antes.
+ *
+ * A margem fica junto do botão de propósito: é o único parâmetro da conta, e
+ * ver o número que vai ser usado logo antes de apertar evita o "calculei com a
+ * margem errada" que só se descobre depois pelo push da liga.
+ */
+function capBotaoHtml(lg) {
+  const modo = lg.cap_mode === 'salary' ? 'folha salarial' : `OVR top-${window.__CAP_TOP_N__ || 10}`;
+  const campoMargem = lg.cap_mode === 'salary'
+    ? `<div class="lgcfg-campo">
+         <label>Margem (% da folha)</label>
+         <input type="number" class="form-control form-control-sm" min="0"
+                value="${lg.cap_auto_margin_pct}" data-league="${lg.league}" data-field="cap_auto_margin_pct">
+       </div>`
+    : `<div class="lgcfg-campo">
+         <label>Margem (pontos de OVR)</label>
+         <input type="number" class="form-control form-control-sm" min="0"
+                value="${lg.cap_auto_margin}" data-league="${lg.league}" data-field="cap_auto_margin">
+       </div>`;
+  return `
+    <div class="lgcfg-nums">
+      ${campoMargem}
+      <div class="lgcfg-faixa"><b>${lg.cap_min}–${lg.cap_max}</b><span>faixa de hoje</span></div>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin:10px 0 0;line-height:1.5">
+      Soma o CAP de todos os times (${modo}), tira a média e aplica a margem pra cima e pra baixo.
+      Grava a nova faixa e avisa a liga por push.
+      ${lg.cap_auto_last_season ? `Último cálculo: temporada ${lg.cap_auto_last_season}.` : 'Nunca foi calculado nesta liga.'}
+      Salve a margem antes, se mudou.
+    </p>
+    <button type="button" class="btn-orange" style="margin-top:10px"
+            onclick="recalcularCapDaLiga(this, '${lg.league}')">
+      <i class="bi bi-calculator me-1"></i>Calcular CAP
+    </button>
+    <div id="capCalcMsg_${lg.league}" style="font-size:11px;margin-top:8px"></div>`;
+}
+
+async function recalcularCapDaLiga(btn, league) {
+  const msg = document.getElementById(`capCalcMsg_${league}`);
+  if (!await confirmarSite(
+        `Calcular o CAP da ${league} agora?\n\n`
+      + 'A faixa atual é substituída pela média dos times e todo mundo da liga recebe um push.')) return;
+
+  const html = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calculando...';
+  if (msg) msg.innerHTML = '';
+  try {
+    const r = await api('admin.php?action=recalcular_cap', {
+      method: 'POST', body: JSON.stringify({ league })
+    });
+    const s = r.resumo || {};
+    const at = s.atualizados || {};
+    // O "quantos times atualizaram" era o que a espera automática garantia
+    // antes de calcular. Agora quem decide é o admin, então o número aparece
+    // aqui: média tirada com meia liga desatualizada continua saindo, e é
+    // melhor ele ver isso na hora do que descobrir pelo push.
+    const parcial = at.total && at.done < at.total
+      ? `<div style="color:var(--red);margin-top:4px"><i class="bi bi-exclamation-triangle me-1"></i>`
+        + `Só ${at.done} de ${at.total} times atualizaram o elenco nesta temporada.</div>`
+      : '';
+    if (msg) msg.innerHTML =
+      `<div style="color:#25c677"><i class="bi bi-check2-circle me-1"></i>`
+      + `Nova faixa: <b>${s.cap_min}–${s.cap_max}</b> (média ${s.avg}, margem ${s.margin}, ${s.teams_total} times).</div>`
+      + `<div style="color:var(--text-3);margin-top:2px">${s.teams_above} acima e ${s.teams_below} abaixo da faixa.</div>`
+      + parcial;
+    showAlert('success', `CAP da ${league} recalculado: ${s.cap_min}–${s.cap_max}.`);
+    loadCapHistory(league);
+  } catch (e) {
+    if (msg) msg.innerHTML = `<div style="color:var(--red)">${e.error || 'Erro ao calcular o CAP.'}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = html;
+  }
+}
+window.recalcularCapDaLiga = recalcularCapDaLiga;
+
+/** O edital da liga: manda o arquivo, e mostra o que já está lá pra baixar. */
+function editalBlocoHtml(lg) {
+  const temArquivo = !!lg.edital_file;
+  return `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="file" class="form-control form-control-sm" id="edital_file_${lg.league}"
+             accept=".pdf,.doc,.docx" style="flex:1;min-width:170px">
+      <button type="button" class="btn-orange" onclick="uploadEdital('${lg.league}')">
+        <i class="bi bi-upload me-1"></i>Enviar
+      </button>
+    </div>
+    ${temArquivo ? `
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:9px 11px;
+                background:rgba(37,198,119,.08);border:1px solid rgba(37,198,119,.2);border-radius:10px;flex-wrap:wrap">
+      <i class="bi bi-file-earmark-check" style="color:#25c677;font-size:15px"></i>
+      <span style="font-size:12px;color:#25c677;flex:1;min-width:120px;word-break:break-all">${lg.edital_file}</span>
+      <a href="/api/edital.php?action=download_edital&league=${lg.league}"
+         class="btn btn-sm btn-outline-light" download target="_blank"><i class="bi bi-download me-1"></i>Baixar</a>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>` : `
+    <div style="font-size:11px;color:var(--text-3);margin-top:8px">
+      <i class="bi bi-info-circle me-1"></i>Nenhum edital enviado. Sem ele, o card de download não aparece no dashboard da liga.
+    </div>`}`;
+}
+
 async function showConfig() {
   appState.view = 'config';
   updateBreadcrumb();
@@ -5245,10 +5355,12 @@ async function showConfig() {
     </div>
   </div>
   <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
-    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-calculator me-1"></i>Recálculo automático do CAP</div>
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-calculator me-1"></i>Cálculo do CAP</div>
     <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
-      A cada 2 temporadas (1, 3, 5...), assim que <b>todos</b> os times da liga atualizarem o elenco, o CAP é recalculado sozinho: soma o CAP de todos os times (${lg.cap_mode === 'salary' ? 'folha salarial' : `OVR top-${window.__CAP_TOP_N__ || 10}`}), tira a média, e aplica a margem abaixo pra cima e pra baixo.
-      ${lg.cap_auto_last_season ? `Última vez: temporada ${lg.cap_auto_last_season}.` : 'Ainda não recalculou automaticamente nesta liga.'}
+      A conta não roda mais sozinha ao avançar de temporada: ela é este botão. Soma o CAP de todos os times
+      (${lg.cap_mode === 'salary' ? 'folha salarial' : `OVR top-${window.__CAP_TOP_N__ || 10}`}), tira a média e aplica
+      a margem pra cima e pra baixo. A régua continua sendo a cada 2 temporadas — quem decide a hora é você.
+      ${lg.cap_auto_last_season ? `Último cálculo: temporada ${lg.cap_auto_last_season}.` : 'Nunca foi calculado nesta liga.'}
     </p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
       <div>
@@ -5260,6 +5372,10 @@ async function showConfig() {
         <input type="number" class="form-control" min="0" value="${lg.cap_auto_margin_pct}" data-league="${lg.league}" data-field="cap_auto_margin_pct" />
       </div>
     </div>
+    <button type="button" class="btn-orange" style="margin-top:12px" onclick="recalcularCapDaLiga(this, '${lg.league}')">
+      <i class="bi bi-calculator me-1"></i>Calcular CAP
+    </button>
+    <div id="capCalcMsg_${lg.league}" style="font-size:11px;margin-top:8px"></div>
     <div id="capHistory_${lg.league}" style="margin-top:12px"></div>
   </div>
   ${lg.league === 'ELITE' ? `
@@ -5298,13 +5414,9 @@ async function showConfig() {
     <input type="text" class="form-control" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url" />
     <div style="font-size:11px;color:var(--text-3);margin-top:4px">Disparado automaticamente quando uma trade com jogador OVR 80+ for aceita nesta liga.</div>
   </div>
-  <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px"><i class="bi bi-camera-reels me-1"></i>Vídeos</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:8px">
-    ${videoFieldHtml(lg.league, 'progression', 'Progression', lg.progression_video_url, false)}
-    ${videoFieldHtml(lg.league, 'sistemas', 'Sistemas', lg.sistemas_video_url, false)}
-    ${videoFieldHtml(lg.league, 'freeagency', 'Free Agency', lg.freeagency_video_url, false)}
-  </div>
-  <div style="font-size:11px;color:var(--text-3);margin-bottom:24px">Cada um aparece como um card no dashboard de todo mundo desta liga, se tiver link ou vídeo enviado. Cole um link do YouTube/Vimeo/Drive, ou clique no ícone de upload pra enviar um arquivo de vídeo direto (até 300MB) — o upload salva na hora, sem precisar clicar em Salvar. Vídeo enviado como arquivo permite capturar o frame parado; links incorporados (YouTube/Vimeo/Drive) usam compartilhamento de tela pra capturar.</div>
+  <!-- Os campos de link de vídeo saíram daqui. Os valores continuam no banco e
+       nada foi apagado — só não há mais onde digitá-los, porque os cards de
+       vídeo já não existem no dashboard. -->
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Status da Liga</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">
@@ -5377,16 +5489,7 @@ async function showConfig() {
   </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Edital da Liga</div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="file" class="form-control" id="edital_file_${lg.league}" accept=".pdf,.doc,.docx" style="flex:1;min-width:180px" />
-    <button class="btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
-  </div>
-  ${lg.edital_file ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;background:rgba(37,198,119,.08);border:1px solid rgba(37,198,119,.2);border-radius:10px">
-    <i class="bi bi-file-earmark-check" style="color:#25c677;font-size:16px"></i>
-    <span style="font-size:12px;color:#25c677;flex:1">${lg.edital_file}</span>
-    <a href="/api/edital.php?action=download_edital&league=${lg.league}" class="btn btn-sm btn-outline-light" download target="_blank"><i class="bi bi-download me-1"></i>Baixar</a>
-    <button class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')"><i class="bi bi-trash"></i></button>
-  </div>` : `<div style="font-size:12px;color:var(--text-3);margin-top:8px"><i class="bi bi-info-circle me-1"></i>Nenhum arquivo enviado</div>`}
+  ${editalBlocoHtml(lg)}
 
 </div>`).join('');
     filtered.forEach(lg => {
@@ -5989,7 +6092,7 @@ async function saveLeagueSettings(btn) {
   inputs.forEach(inp => {
     const lg = inp.dataset.league;
     groups[lg] = groups[lg] || { league: lg };
-    const stringFields = ['edital', 'n8n_webhook_url', 'progression_video_url', 'sistemas_video_url', 'freeagency_video_url'];
+    const stringFields = ['n8n_webhook_url'];   // o edital e os videos nao tem mais campo de texto na tela
     const value = stringFields.includes(inp.dataset.field) ? inp.value : parseInt(inp.value);
     groups[lg][inp.dataset.field] = value;
   });
@@ -6105,13 +6208,18 @@ async function _loadLeagueConfigInline(league) {
           <div id="ctrlExtra_${lg.league}" style="display:flex;gap:10px;flex-wrap:wrap"></div>
         </div>
 
+        <!-- Os campos de link de vídeo saíram daqui. Os valores continuam no
+             banco e nada foi apagado — só não há mais onde digitá-los, porque
+             os cards de vídeo já não existem no dashboard. -->
+
         <div class="lgcfg-bloco">
-          <div class="lgcfg-titulo"><i class="bi bi-play-btn"></i>Vídeos</div>
-          <div class="lgcfg-videos">
-            ${videoFieldHtml(lg.league, 'progression', 'Progression', lg.progression_video_url, true)}
-            ${videoFieldHtml(lg.league, 'sistemas', 'Sistemas', lg.sistemas_video_url, true)}
-            ${videoFieldHtml(lg.league, 'freeagency', 'Free Agency', lg.freeagency_video_url, true)}
-          </div>
+          <div class="lgcfg-titulo"><i class="bi bi-calculator"></i>CAP da liga</div>
+          ${capBotaoHtml(lg)}
+        </div>
+
+        <div class="lgcfg-bloco">
+          <div class="lgcfg-titulo"><i class="bi bi-file-earmark-text"></i>Edital</div>
+          ${editalBlocoHtml(lg)}
         </div>
 
       </div>`;
@@ -6807,6 +6915,21 @@ async function applyMovePick(pickId) {
 }
 
 // Função para upload de edital
+/**
+ * Depois de mandar ou remover um edital, redesenha o painel EM QUE SE ESTÁ.
+ *
+ * Antes chamava showConfig() direto, e o bloco do edital agora também vive na
+ * aba da liga: quem enviasse o arquivo de lá era jogado pra Central da Liga,
+ * perdendo a aba aberta, como se tivesse clicado em outra coisa.
+ */
+function _recarregarPainelDoEdital(league) {
+  if (document.getElementById('leagueConfigInline')?.offsetParent !== null) {
+    _loadLeagueConfigInline(league);
+    return;
+  }
+  if (document.getElementById('configContainer')) showConfig();
+}
+
 async function uploadEdital(league) {
   const fileInput = document.getElementById(`edital_file_${league}`);
   const file = fileInput.files[0];
@@ -6842,8 +6965,8 @@ async function uploadEdital(league) {
     const result = await response.json();
     
     if (result.success) {
-      alert('Edital enviado com sucesso!');
-      showConfig(); // Recarrega para mostrar o arquivo
+      showAlert('success', 'Edital enviado!');
+      _recarregarPainelDoEdital(league);
     } else {
       alert('Erro: ' + (result.error || 'Falha no upload'));
     }
@@ -6866,8 +6989,8 @@ async function deleteEdital(league) {
     const result = await response.json();
     
     if (result.success) {
-      alert('Edital removido!');
-      showConfig(); // Recarrega
+      showAlert('success', 'Edital removido.');
+      _recarregarPainelDoEdital(league);
     } else {
       alert('Erro: ' + (result.error || 'Falha ao remover'));
     }
