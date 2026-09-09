@@ -465,6 +465,11 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
            graça nenhuma: 2º é ÓTIMO. Ele usou a posição porque era o número
            mais à mão, sem perguntar se ela pesava contra a pessoa. Com um
            corte numérico não há o que interpretar. */
+        /* Mesmo com a ficha dizendo "não há nada ruim", ele abria com "burro é
+           quem está em 2º lugar". A frase é um molde pronto e ele encaixa o
+           número que tem à mão. Então o molde é que fica proibido. */
+        '- A FRASE "burro é quem está em Xº" só existe se Xº estiver na lista do que está',
+        '  ruim. Não estando, NÃO comece por aí — nem de brincadeira, nem invertendo depois.',
         '- A POSIÇÃO SÓ SERVE DE ZOAÇÃO SE FOR RUIM: da 20ª pra baixo. Melhor que isso, ela',
         '  joga a favor dele — "burro é quem está em 2º" é elogio com cara de ofensa, e o',
         '  grupo lê como você não sabendo ler a tabela.',
