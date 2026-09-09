@@ -457,6 +457,11 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = 
 
     $quem = $deQuem !== '' ? wcQuemPerguntou($pdo, $deQuem, $ligaDoGrupo) : null;
 
+    // "@5531971356427" vira "Bruno Coelho (Oakland Blue Foxes)" ANTES de o
+    // modelo ver a pergunta. Marcar alguém no WhatsApp manda só o número, e
+    // sem isto o bot guardava apelido no assunto "@5531971356427".
+    $arg = wcTrocarMencoes($pdo, $arg);
+
     $r = editalIaPerguntar($pdo, $liga, $arg, $quem);
     if (!$r['ok']) return '💬 ' . $r['erro'];
 
@@ -1753,18 +1758,101 @@ function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
 }
 
 /**
+ * Todo GM com telefone no cadastro, com o time dele.
+ *
+ * Uma consulta por requisição, e não uma por número procurado: com uma menção
+ * de @fulano por frase, procurar de novo a cada uma seria a mesma leitura
+ * repetida. São poucas dezenas de linhas.
+ */
+function wcGmsComTelefone(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    return $cache = $pdo->query("
+        SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference,
+               u.name AS gm, u.id AS user_id, u.phone
+        FROM users u JOIN teams t ON t.user_id = u.id
+        WHERE u.phone IS NOT NULL AND u.phone <> ''
+        ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE')
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * A REGRA DE CASAR TELEFONE, num lugar só.
+ *
+ * Número inteiro primeiro; só se não achar ninguém é que cai nos últimos 8
+ * dígitos — a rede de segurança pra cadastro antigo, sem o 9 do celular ou sem
+ * o DDI. Nessa ordem, e não direto no sufixo, porque 8 dígitos batem entre
+ * países diferentes: um +1 e um +55 podem terminar igual, e aí o bot
+ * responderia com o time de outra pessoa.
+ *
+ * A comparação é em PHP, e não em SQL: REGEXP_REPLACE só existe do MySQL 8 pra
+ * cima e eu não controlo a versão da hospedagem.
+ *
+ * Devolve TODOS os que bateram — quem chamou é que decide o que fazer com
+ * empate, e as duas chamadas decidem diferente.
+ */
+function wcAcharPeloTelefone(array $todos, string $digitos): array
+{
+    $so = fn($t) => preg_replace('/\D+/', '', (string)$t['phone']);
+
+    $achados = array_values(array_filter($todos, fn($t) => $so($t) === $digitos));
+    if ($achados) return $achados;
+
+    if (strlen($digitos) < 8) return [];
+    $fim = substr($digitos, -8);
+    return array_values(array_filter($todos, function ($t) use ($so, $fim) {
+        $d = $so($t);
+        return strlen($d) >= 8 && substr($d, -8) === $fim;
+    }));
+}
+
+/**
+ * TROCA AS MENÇÕES PELO NOME DE QUEM FOI MARCADO.
+ *
+ * Marcar alguém no WhatsApp não manda o nome: o texto chega literalmente como
+ * "@5531971356427", e o nome de exibição vai num campo à parte que a Evolution
+ * nem sempre repassa. Pro modelo aquilo é uma sequência de dígitos.
+ *
+ * Medido antes disto existir: "/duvida chama o @5531971356427 de burro" gravou
+ * na memória o assunto "@5531971356427". Ninguém nunca ia perguntar por esse
+ * assunto de novo — a lembrança nascia morta.
+ *
+ * Aqui o número vira "Bruno Coelho (Oakland Blue Foxes)" antes de a pergunta
+ * chegar no modelo. É a MESMA busca por telefone que identifica quem mandou a
+ * mensagem, e é de propósito: um número que o bot reconhece num sentido tem
+ * que ser reconhecido no outro.
+ *
+ * Número que não está em cadastro nenhum fica como está. Trocar por "alguém"
+ * ou apagar seria pior: o modelo perderia a informação de que ali havia uma
+ * pessoa, e a pergunta viraria outra.
+ */
+function wcTrocarMencoes(PDO $pdo, string $texto): string
+{
+    if (!str_contains($texto, '@')) return $texto;
+
+    return preg_replace_callback('/@(\d{8,15})\b/', function ($m) use ($pdo) {
+        $achados = wcAcharPeloTelefone(wcGmsComTelefone($pdo), $m[1]);
+
+        // Empate no sufixo de 8 dígitos: não adivinha. Dois GMs possíveis e um
+        // chute erra metade das vezes — e o erro aqui é pôr o apelido na
+        // pessoa errada, na frente do grupo.
+        if (count($achados) !== 1) return $m[0];
+
+        $t = $achados[0];
+        return trim((string)$t['gm']) . ' (' . wcNomeDoTime($t) . ')';
+    }, $texto) ?? $texto;
+}
+
+/**
  * Acha o time de quem mandou a mensagem, pelo número do WhatsApp.
  *
  * Voltou depois de os telefones serem padronizados: antes metade dos cadastros
  * estava sem o 55, e um comando que erra a pessoa é pior que comando nenhum.
  *
- * Compara o número inteiro primeiro. Só se não achar ninguém é que cai nos
- * últimos 8 dígitos — a rede de segurança pra cadastro antigo, sem o 9 do
- * celular ou sem o DDI. Nessa ordem, e não direto no sufixo, porque 8 dígitos
- * batem entre países diferentes: um +1 e um +55 podem terminar igual, e aí o
- * comando responderia com o time de outra pessoa.
- *
- * Se sobrar mais de um, não adivinha.
+ * A regra de casar o número mora em wcAcharPeloTelefone(). Se sobrar mais de
+ * um, não adivinha.
  * Retorna [time|null, mensagemDeErro|null].
  */
 function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): array
@@ -1784,26 +1872,7 @@ function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): 
                     . "então não tenho como saber qual é o seu time. Use o comando com o nome, tipo /cap lakers."];
     }
 
-    // A comparação é em PHP, não em SQL: REGEXP_REPLACE só existe do MySQL 8
-    // pra cima e eu não controlo a versão da hospedagem. São poucas dezenas de
-    // linhas (uma por GM com time), então filtrar aqui não custa nada.
-    $todos = $pdo->query("
-        SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference,
-               u.name AS gm, u.id AS user_id, u.phone
-        FROM users u JOIN teams t ON t.user_id = u.id
-        WHERE u.phone IS NOT NULL AND u.phone <> ''
-        ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE')
-    ")->fetchAll(PDO::FETCH_ASSOC);
-
-    $so = fn($t) => preg_replace('/\D+/', '', (string)$t['phone']);
-    $times = array_values(array_filter($todos, fn($t) => $so($t) === $digitos));
-    if (!$times) {
-        $fim = substr($digitos, -8);
-        $times = array_values(array_filter($todos, function ($t) use ($so, $fim) {
-            $d = $so($t);
-            return strlen($d) >= 8 && substr($d, -8) === $fim;
-        }));
-    }
+    $times = wcAcharPeloTelefone(wcGmsComTelefone($pdo), $digitos);
 
     if (!$times) {
         // Os últimos 4 dígitos vão junto de propósito: sem eles, "confere seu
