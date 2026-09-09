@@ -18,10 +18,20 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/modelos_tecnicos.php';
 
-/** As ligas que usam modelo técnico. RISE e ROOKIE não têm. */
+/**
+ * As ligas que usam modelo técnico e playbook. A ROOKIE não tem.
+ *
+ * ESTA LISTA É A ÚNICA. Ela estava copiada em três outros lugares — a trava
+ * do salvamento, o resumo do admin e a tela do GM —, e liberar uma liga
+ * exigia lembrar dos quatro. Quem esquecesse um deixaria o campo aparecendo
+ * na tela e sendo recusado no servidor, ou o contrário.
+ *
+ * A RISE entrou junto com o mesmo recorte de modelos da NEXT (ver
+ * modelosTecnicosPorLiga, em modelos_tecnicos.php).
+ */
 function modeloTecnicoLigas(): array
 {
-    return ['ELITE', 'NEXT'];
+    return ['ELITE', 'NEXT', 'RISE'];
 }
 
 function modeloTecnicoLigaUsa(?string $league): bool

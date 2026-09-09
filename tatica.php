@@ -21,11 +21,12 @@ if (!$team) { header('Location: my-roster.php'); exit; }
 
 $isElite = strtoupper((string)$team['league']) === 'ELITE';
 
-// Modelo técnico e playbook são de ELITE e NEXT. Na RISE e na ROOKIE não
-// existem — mostrar os campos lá seria pedir uma escolha que não vale nada.
+// Quais ligas têm modelo e playbook mora em modeloTecnicoLigas(), num lugar
+// só — mostrar o campo numa liga que não usa é pedir escolha que não vale nada.
 require_once __DIR__ . '/backend/modelos_tecnicos.php';
-$temModeloTecnico = in_array(strtoupper((string)$team['league']), ['ELITE', 'NEXT'], true);
-// Com a liga: a NEXT so oferece sete dos catorze.
+require_once __DIR__ . '/backend/modelo_tecnico_trocas.php';
+$temModeloTecnico = modeloTecnicoLigaUsa((string)$team['league']);
+// Com a liga: NEXT e RISE oferecem sete dos catorze.
 $MODELOS = $temModeloTecnico ? modelosTecnicosParaJson((string)$team['league']) : [];
 $SIGLAS  = modeloTecnicoAtributos();
 

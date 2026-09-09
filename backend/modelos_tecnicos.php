@@ -42,11 +42,16 @@ function modeloTecnicoLimiteDaLiga(?string $league): int
  */
 function modelosTecnicosPorLiga(): array
 {
+    // A RISE usa o MESMO recorte da NEXT, e não uma cópia da lista: as duas
+    // ligas oferecem os mesmos sete, e duas listas iguais lado a lado é a
+    // garantia de que um dia elas deixam de ser iguais sem ninguém querer.
+    $recorteNext = [
+        'Butch Carter', 'Gregg Popovich', 'Nick Nurse', 'Pofexo',
+        'The Special One', 'Joe Mazzulla', 'Ted Lasso',
+    ];
     return [
-        'NEXT' => [
-            'Butch Carter', 'Gregg Popovich', 'Nick Nurse', 'Pofexo',
-            'The Special One', 'Joe Mazzulla', 'Ted Lasso',
-        ],
+        'NEXT' => $recorteNext,
+        'RISE' => $recorteNext,
     ];
 }
 

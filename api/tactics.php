@@ -326,10 +326,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'notes'                => 'Observações',
         ];
 
-        // Modelo técnico e playbook são de ELITE e NEXT. Na RISE e na ROOKIE
-        // não existem, e mostrar o campo vazio no resumo do admin faria
-        // parecer que o GM deixou de preencher.
-        if (!in_array(strtoupper($league), ['ELITE', 'NEXT'], true)) {
+        // Quais ligas têm modelo e playbook: modeloTecnicoLigas(), num lugar
+        // só. Mostrar o campo vazio no resumo do admin faria parecer que o GM
+        // deixou de preencher.
+        require_once __DIR__ . '/../backend/modelo_tecnico_trocas.php';
+        if (!modeloTecnicoLigaUsa($league)) {
             unset($camposConfig['technical_model'], $camposConfig['playbook']);
         }
 
@@ -337,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // quantas das oito vagas cada um já gastou. Só os DADOS — o que fazer
         // com quem não definiu é decisão do admin, não do sistema.
         $modelos = null;
-        if (in_array(strtoupper($league), ['ELITE', 'NEXT'], true)) {
+        if (modeloTecnicoLigaUsa($league)) {
             require_once __DIR__ . '/../backend/modelo_tecnico_trocas.php';
             require_once __DIR__ . '/../backend/modelos_tecnicos.php';
             // O limite e da liga que esta na tela, nao a constante global.
