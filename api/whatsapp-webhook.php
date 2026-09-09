@@ -131,44 +131,56 @@ function wcRemetenteDaMensagem(array $m): string
  * o tempo todo: `sender` no topo do evento, e o `participant` de qualquer
  * mensagem que o próprio bot mandou (fromMe). Aprende na primeira e guarda.
  */
-function wcNumeroDoBot(PDO $pdo, array $evento, array $mensagens): string
+function wcNumeroDoBot(PDO $pdo, array $evento, array $mensagens): array
 {
     static $cache = null;
     if ($cache !== null) return $cache;
 
     try {
-        if (!$pdo->query("SHOW COLUMNS FROM whatsapp_config LIKE 'numero_bot'")->fetch()) {
-            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN numero_bot VARCHAR(40) NULL");
-        }
-        $guardado = (string)($pdo->query("SELECT numero_bot FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: '');
-    } catch (Throwable $e) {
-        $guardado = '';
-    }
-
-    $so = fn($v) => preg_replace('/\D+/', '', explode('@', (string)$v)[0] ?? '');
-
-    // O que veio agora vale mais que o guardado: número trocado se corrige
-    // sozinho na primeira mensagem depois da troca.
-    $achado = $so($evento['sender'] ?? '');
-    if ($achado === '' || strlen($achado) < 8) {
-        foreach ($mensagens as $m) {
-            if (empty($m['key']['fromMe'])) continue;
-            foreach (['participantPn', 'participant'] as $k) {
-                $c = $so($m['key'][$k] ?? '');
-                if (strlen($c) >= 8) { $achado = $c; break 2; }
+        foreach (['numero_bot', 'lid_bot'] as $col) {
+            if (!$pdo->query("SHOW COLUMNS FROM whatsapp_config LIKE '{$col}'")->fetch()) {
+                $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN {$col} VARCHAR(40) NULL");
             }
         }
+        $g = $pdo->query("SELECT numero_bot, lid_bot FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $g = [];
+    }
+    $numero = (string)($g['numero_bot'] ?? '');
+    $lid    = (string)($g['lid_bot'] ?? '');
+
+    /* O LID TAMBÉM, e não só o telefone.
+       O WhatsApp migrou pra LID — um id interno que NÃO é o número — e este
+       projeto já apanhou disso no /meuelenco. Numa menção, o que vai no texto
+       e no mentionedJid pode ser o LID; comparar só com o telefone erra 100%
+       das vezes nesse caso, e sem sintoma nenhum. */
+    $achaNo = function ($v) use (&$numero, &$lid) {
+        $v = (string)$v;
+        $d = preg_replace('/\D+/', '', explode('@', $v)[0] ?? '');
+        if (strlen($d) < 8) return;
+        if (str_contains($v, '@lid'))                 { $lid = $d; return; }
+        if (str_contains($v, '@s.whatsapp.net'))      { $numero = $d; return; }
+        if ($numero === '') $numero = $d;
+    };
+
+    $achaNo($evento['sender'] ?? '');
+    foreach ($mensagens as $m) {
+        if (empty($m['key']['fromMe'])) continue;
+        foreach (['participantPn', 'participantAlt', 'participant', 'senderPn'] as $k) {
+            $achaNo($m['key'][$k] ?? '');
+        }
     }
 
-    if ($achado !== '' && $achado !== $guardado) {
+    if ($numero !== (string)($g['numero_bot'] ?? '') || $lid !== (string)($g['lid_bot'] ?? '')) {
         try {
-            $pdo->prepare("UPDATE whatsapp_config SET numero_bot = ? WHERE id = 1")->execute([$achado]);
+            $pdo->prepare("UPDATE whatsapp_config SET numero_bot = ?, lid_bot = ? WHERE id = 1")
+                ->execute([$numero ?: null, $lid ?: null]);
         } catch (Throwable $e) {
-            error_log('[whatsapp] guardar numero do bot: ' . $e->getMessage());
+            error_log('[whatsapp] guardar identidade do bot: ' . $e->getMessage());
         }
-        return $cache = $achado;
     }
-    return $cache = ($achado !== '' ? $achado : $guardado);
+    // Os dois vão juntos: quem compara tem que aceitar qualquer um dos dois.
+    return $cache = array_values(array_filter([$numero, $lid], fn($x) => $x !== ''));
 }
 
 /**
@@ -213,21 +225,21 @@ function wcMesmoNumero(string $a, string $b): bool
 }
 
 /** O bot foi marcado nesta mensagem? */
-function wcMarcaramOBot(array $m, string $texto, string $numeroBot): bool
+function wcMarcaramOBot(array $m, string $texto, array $ids): bool
 {
-    if ($numeroBot === '') return false;
+    if (!$ids) return false;
 
-    // No texto a menção chega como "@5511999999999". Comparo cada @número do
-    // texto em vez de procurar a string exata: o WhatsApp escreve o número
-    // com ou sem o 9, e str_contains erraria por um dígito.
+    // No texto a menção chega como "@5511999999999" — ou como o LID, que é
+    // outro número. Comparo cada @número do texto com TODAS as identidades
+    // conhecidas do bot, em vez de procurar uma string exata.
     if (preg_match_all('/@(\d{8,20})/', $texto, $ms)) {
-        foreach ($ms[1] as $n) if (wcMesmoNumero($n, $numeroBot)) return true;
+        foreach ($ms[1] as $n) foreach ($ids as $id) if (wcMesmoNumero($n, $id)) return true;
     }
 
     // E na lista formal de marcados, que é o que a etiqueta azul usa.
     foreach (wcContextos($m) as $ctx) {
         foreach ((array)($ctx['mentionedJid'] ?? []) as $jid) {
-            if (wcMesmoNumero(wcDigitos($jid), $numeroBot)) return true;
+            foreach ($ids as $id) if (wcMesmoNumero(wcDigitos($jid), $id)) return true;
         }
     }
     return false;
@@ -244,7 +256,7 @@ function wcMarcaramOBot(array $m, string $texto, string $numeroBot): bool
  * é assunto do log de erro. E só quando há um "@" na mensagem, senão isto
  * escreveria uma linha por conversa do grupo inteiro.
  */
-function wcLogMencaoNaoReconhecida(array $m, string $texto, string $numeroBot): void
+function wcLogMencaoNaoReconhecida(array $m, string $texto, array $ids, string $grupo, bool $registrado): void
 {
     if (!str_contains($texto, '@')) return;
 
@@ -260,7 +272,8 @@ function wcLogMencaoNaoReconhecida(array $m, string $texto, string $numeroBot): 
     }
 
     error_log('[whatsapp/mencao] nao reconhecida'
-            . ' | bot=' . ($numeroBot ?: 'DESCONHECIDO')
+            . ' | grupo=' . $grupo . ($registrado ? ' (cadastrado)' : ' (NAO CADASTRADO)')
+            . ' | bot=' . (implode('+', $ids) ?: 'DESCONHECIDO')
             . ' | @ no texto=' . (implode(',', $arrobas) ?: '-')
             . ' | mentionedJid=' . (implode(',', array_slice($marcados, 0, 6)) ?: '-'));
 }
@@ -272,12 +285,12 @@ function wcLogMencaoNaoReconhecida(array $m, string $texto, string $numeroBot): 
  * responder a ela é falar com ele — do mesmo jeito que responder alguém no
  * grupo é falar com essa pessoa.
  */
-function wcResponderamAoBot(array $m, string $numeroBot): bool
+function wcResponderamAoBot(array $m, array $ids): bool
 {
-    if ($numeroBot === '') return false;
+    if (!$ids) return false;
     foreach (wcContextos($m) as $ctx) {
-        foreach (['participantPn', 'participant', 'remoteJid'] as $k) {
-            if (wcMesmoNumero(wcDigitos($ctx[$k] ?? ''), $numeroBot)) return true;
+        foreach (['participantPn', 'participantAlt', 'participant', 'remoteJid'] as $k) {
+            foreach ($ids as $id) if (wcMesmoNumero(wcDigitos($ctx[$k] ?? ''), $id)) return true;
         }
     }
     return false;
@@ -326,7 +339,7 @@ $respondidas = 0;
    PRÓPRIO bot mandou (fromMe) — e essas o laço descarta na primeira linha.
    Aprendendo aqui, um evento só de fromMe (que é o mais comum logo depois de
    ele responder) também ensina. */
-$numeroBot = wcNumeroDoBot($pdo, $evento, $mensagens);
+$idsDoBot = wcNumeroDoBot($pdo, $evento, $mensagens);
 
 foreach ($mensagens as $m) {
     if (!is_array($m) || !isset($m['key'])) continue;
@@ -360,15 +373,15 @@ foreach ($mensagens as $m) {
     $gatilho = 'comando';
 
     if ($texto[0] !== '/') {
-        if (wcMarcaramOBot($m, $texto, $numeroBot)) {
+        if (wcMarcaramOBot($m, $texto, $idsDoBot)) {
             $gatilho = 'mencao';
-        } elseif (wcResponderamAoBot($m, $numeroBot)) {
+        } elseif (wcResponderamAoBot($m, $idsDoBot)) {
             $gatilho = 'resposta';
         } else {
             // Tinha "@" e não era ele? Deixa o rastro pra saber por quê —
             // menção que não é reconhecida é indistinguível de webhook que
             // não chegou, e as duas se consertam de jeitos diferentes.
-            if (isset($gruposPermitidos[$de])) wcLogMencaoNaoReconhecida($m, $texto, $numeroBot);
+            wcLogMencaoNaoReconhecida($m, $texto, $idsDoBot, $de, isset($gruposPermitidos[$de]));
             continue;   // conversa do grupo que não é com ele
         }
 
@@ -379,7 +392,10 @@ foreach ($mensagens as $m) {
            guardado: o WhatsApp escreve a menção com ou sem o 9, e um casamento
            literal deixaria o número na frente da pergunta. */
         $limpo = trim(preg_replace_callback('/@(\d{8,20})/',
-            fn($mm) => wcMesmoNumero($mm[1], $numeroBot) ? '' : $mm[0], $texto));
+            function ($mm) use ($idsDoBot) {
+                foreach ($idsDoBot as $id) if (wcMesmoNumero($mm[1], $id)) return '';
+                return $mm[0];
+            }, $texto));
         $limpo = trim(preg_replace('/\s+/', ' ', $limpo));
         if ($limpo === '') {
             // Marcaram o bot e não perguntaram nada: cai no /duvida sem argumento,
