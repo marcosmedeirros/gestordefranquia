@@ -218,6 +218,61 @@ function wcContextos(array $m): array
     return $ctx;
 }
 
+/**
+ * APRENDE O LID DO BOT PELA MENSAGEM QUE CITARAM.
+ *
+ * O LID é o identificador que o WhatsApp usa hoje no lugar do telefone, e é
+ * com ele que as menções chegam. O bot não tem como saber o próprio: o
+ * `sender` do evento traz o telefone, e a Evolution NÃO entrega ao webhook as
+ * mensagens que ele mesmo manda — medido, não suposto: nenhuma linha
+ * [whatsapp/identidade] apareceu no log depois de meia hora de grupo ativo.
+ *
+ * Mas quando alguém RESPONDE uma mensagem, o payload traz duas coisas: quem
+ * escreveu a citada (o LID dela) e o TEXTO da citada. Então dá pra provar em
+ * vez de deduzir: se o texto citado é igual a um que nós enfileiramos pra
+ * aquele grupo, a mensagem é nossa, e o autor dela é o bot.
+ *
+ * É prova e não palpite de propósito. Chutar o LID pelo horário de uma
+ * mensagem faria o bot responder toda vez que alguém marcasse um GM
+ * específico — e ninguém entenderia por quê.
+ */
+function wcAprenderLidPelaCitacao(PDO $pdo, array $m, string $grupo, array $ids): void
+{
+    // Já tem LID? Nada a fazer. (Dois ids = telefone + LID.)
+    if (count($ids) >= 2 || $grupo === '') return;
+
+    foreach (wcContextos($m) as $ctx) {
+        $citada = $ctx['quotedMessage'] ?? null;
+        if (!is_array($citada)) continue;
+
+        $texto = wcTextoDaMensagem($citada);
+        if (mb_strlen($texto) < 20) continue;   // curto demais pra identificar
+
+        $autor = '';
+        foreach (['participant', 'participantPn', 'participantAlt'] as $k) {
+            $v = (string)($ctx[$k] ?? '');
+            if ($v !== '') { $autor = $v; break; }
+        }
+        $lid = wcDigitos($autor);
+        if (!str_contains($autor, '@lid') || strlen($lid) < 8) continue;
+
+        try {
+            // O começo basta, e é o que sobrevive a emoji e quebra de linha.
+            $st = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
+                                  WHERE destino = ? AND texto LIKE ?
+                                    AND created_at > NOW() - INTERVAL 7 DAY");
+            $st->execute([$grupo, mb_substr($texto, 0, 60) . '%']);
+            if ((int)$st->fetchColumn() === 0) continue;   // não é mensagem nossa
+
+            $pdo->prepare("UPDATE whatsapp_config SET lid_bot = ? WHERE id = 1")->execute([$lid]);
+            error_log('[whatsapp/identidade] LID do bot aprendido pela citação: ' . $lid);
+            return;
+        } catch (Throwable $e) {
+            error_log('[whatsapp/identidade] citação: ' . $e->getMessage());
+        }
+    }
+}
+
 /** Só os dígitos de um JID: "5511999@s.whatsapp.net" -> "5511999". */
 function wcDigitos($v): string
 {
@@ -374,6 +429,12 @@ foreach ($mensagens as $m) {
     // a conversa, não só o que virou `/comando`. Não grava nada enquanto a
     // captura estiver desligada, que é como ela nasce.
     whatsappGravarConversa($pdo, $de, $m, wcRemetenteDaMensagem($m));
+
+    /* Antes de decidir o que fazer com a mensagem: se ela cita uma resposta
+ nossa, é a chance de aprender o LID do bot. Roda em toda mensagem
+       citada, inclusive nas que não são pra ele — quem responde "kkkk" numa
+       resposta do bot ensina tanto quanto quem faz pergunta. */
+    wcAprenderLidPelaCitacao($pdo, $m, $de, $idsDoBot);
 
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '') continue;
