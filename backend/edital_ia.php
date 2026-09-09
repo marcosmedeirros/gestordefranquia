@@ -334,9 +334,9 @@ function editalIaComoUsarOApp(): string
  * grupo se faltar. O tom é o de um GM veterano respondendo no grupo, porque é
  * onde a resposta vai cair — e não o de quem lê regulamento em voz alta.
  */
-function editalIaInstrucoes(string $league): string
+function editalIaInstrucoes(string $league, ?array $quem = null): string
 {
-    return implode("\n", [
+    $linhas = [
         "Você é o assistente da FBA Brasil, uma liga de fantasy de basquete no NBA 2K.",
         "Quem pergunta é um GM da liga {$league}, no grupo de WhatsApp. Você responde",
         'QUALQUER pergunta sobre a liga — como o app funciona, o que diz a regra, e também',
@@ -429,10 +429,42 @@ function editalIaInstrucoes(string $league): string
         // 8 e não 6: resposta com dados precisa caber a lista. Continua sendo
         // teto de mensagem de grupo, não de relatório.
         '- Português do Brasil, direto, no máximo 8 linhas.',
-        '- Sem saudação e sem "espero ter ajudado".',
+        '- Sem saudação de abertura e sem "espero ter ajudado".',
         '- WhatsApp: *negrito* com um asterisco só. Nada de markdown de título, nada de tabela.',
         '- Quando a resposta tiver passos ou condições, use hífen no começo da linha.',
-    ]);
+    ];
+
+    /* QUEM ESTÁ PERGUNTANDO — quando o telefone bateu com um cadastro.
+       O grupo é um grupo: a resposta chega no meio da conversa de todo mundo,
+       e "Marcos, o teu Coyotes tem 3 trocas" é lida por quem perguntou. Sem o
+       nome, o bot responde como um manual — e a liga já tem o PDF pra isso.
+       Vem no fim de propósito, depois do FORMATO: é ele quem manda não abrir
+       com saudação, e a regra do nome precisa poder corrigir esse ponto.
+
+       O bloco só existe quando a identificação deu certo. Não identificado (o
+       WhatsApp manda @lid em alguns grupos, ou o telefone não está no
+       cadastro), nada disso entra no prompt e o modelo não tem como inventar
+       um nome — que seria o pior desfecho: chamar a pessoa por um nome que
+       não é o dela é pior do que não chamar por nome nenhum. */
+    if ($quem && ($quem['primeiro'] ?? '') !== '') {
+        $linhas[] = '';
+        $linhas[] = 'QUEM ESTÁ PERGUNTANDO AGORA:';
+        $linhas[] = '- Nome: ' . $quem['nome'] . ' (chame de ' . $quem['primeiro'] . ')';
+        if (($quem['time'] ?? '') !== '') {
+            $linhas[] = '- Time: ' . $quem['time'] . ' (' . ($quem['liga'] ?: $league) . ')'
+                      . (($quem['team_id'] ?? 0) ? ', teams.id = ' . (int)$quem['team_id'] : '');
+        }
+        $linhas[] = '- Trate por VOCÊ e use o primeiro nome UMA vez, onde ficar natural — no começo';
+        $linhas[] = '  da resposta ou junto do que interessa a ele. Uma vez só: repetir o nome a cada';
+        $linhas[] = '  frase soa a robô de atendimento, não a alguém do grupo.';
+        $linhas[] = '- "Meu time", "meu elenco", "minhas picks", "quantas trocas eu tenho" são sobre o';
+        $linhas[] = '  time acima. Consulte por esse teams.id e responda direto, sem perguntar de quem é.';
+        $linhas[] = '- A liga da pergunta continua sendo a do grupo. O time dele serve pra saber quem é';
+        $linhas[] = '  e pra responder o que for dele — não pra trocar a liga do assunto.';
+        $linhas[] = '- Isto não dá privilégio nenhum: ele vê os mesmos dados que qualquer GM veria.';
+    }
+
+    return implode("\n", $linhas);
 }
 
 /**
@@ -440,7 +472,7 @@ function editalIaInstrucoes(string $league): string
  *
  * @return array{ok:bool,resposta:?string,erro:?string,uso:?array}
  */
-function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
+function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null): array
 {
     $erro = fn(string $m) => ['ok' => false, 'resposta' => null, 'erro' => $m, 'uso' => null];
 
@@ -463,7 +495,7 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
     }
 
     if ($provedor === 'gemini') {
-        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro);
+        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem);
     }
 
     $chave = editalIaChave();
@@ -487,8 +519,10 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta): array
             ],
             [
                 'type' => 'text',
-                'text' => editalIaInstrucoes($league),
-                'cache_control' => ['type' => 'ephemeral'],
+                // SEM cache aqui: as instruções agora carregam quem perguntou, e
+                // isso muda a cada GM. O edital, que é o caro, tem o ponto de
+                // cache dele logo acima e continua sendo reaproveitado.
+                'text' => editalIaInstrucoes($league, $quem),
             ],
         ],
         'messages' => [
@@ -656,7 +690,7 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
  * que voltou. É a diferença entre um bot que sabe as regras e um que conhece
  * a liga.
  */
-function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro): array
+function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null): array
 {
     require_once __DIR__ . '/duvida_contexto.php';
     require_once __DIR__ . '/duvida_dados.php';
@@ -709,7 +743,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
 
     // As instruções por último: a regra de precedência é lida com todas as
     // fontes já na mão.
-    $partes[] = ['text' => editalIaInstrucoes($league)];
+    $partes[] = ['text' => editalIaInstrucoes($league, $quem)];
 
     $tools = [[
         'function_declarations' => [[
@@ -863,9 +897,13 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $resultado = duvidaBuscarNoEdital($pdo, $league, $termo);
                     error_log('[duvida/edital] busca: ' . $termo);
                 } elseif ($nome === 'lembrar') {
+                    // Agora dá pra saber QUEM ensinou: a coluna ensinado_por
+                    // existe desde o começo e vinha sempre nula, porque o bot
+                    // não sabia com quem estava falando.
                     $resultado = duvidaMemoriaGravar($pdo, $league,
                         (string)($c['args']['assunto'] ?? ''),
-                        (string)($c['args']['fato'] ?? ''));
+                        (string)($c['args']['fato'] ?? ''),
+                        $quem['nome'] ?? null);
                     // Guarda o desfecho pra conferir a resposta no fim: o modelo
                     // já disse "Guardado" sem ter chamado esta função.
                     if (str_starts_with($resultado, 'Guardado')) $gravouMesmo = true;

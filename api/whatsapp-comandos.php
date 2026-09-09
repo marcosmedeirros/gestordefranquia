@@ -380,7 +380,37 @@ function wcNormalizarLiga(string $termo): ?string
  * A busca por número de artigo fica: quem quer o Art. 41 quer o texto do
  * artigo, e nenhum modelo entrega isso melhor que o próprio artigo.
  */
-function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+/**
+ * QUEM MANDOU A MENSAGEM, quando dá pra saber — e null quando não dá.
+ *
+ * É a mesma identificação pelo telefone que o /meutime e o /meucap usam, mas
+ * aqui ela NÃO pode virar erro: os "meus" existem pra falar do time de quem
+ * digitou e sem o número não têm o que responder; o /duvida responde a pergunta
+ * do mesmo jeito, só que sem chamar a pessoa pelo nome.
+ *
+ * Por isso a mensagem de erro do wcTimeDeQuemPerguntou é descartada aqui, e não
+ * repassada: "não achei seu cadastro pelo telefone" no meio de uma dúvida sobre
+ * regra do draft não ajuda ninguém — a pessoa não pediu pra ser reconhecida.
+ */
+function wcQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): ?array
+{
+    [$t, $_erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    if (!$t) return null;
+
+    $gm = trim((string)($t['gm'] ?? ''));
+    if ($gm === '') return null;
+
+    return [
+        'nome'      => $gm,
+        // O primeiro nome é como o grupo chama: "Marcos", não "Marcos Medeiros".
+        'primeiro'  => preg_split('/\s+/', $gm)[0],
+        'time'      => wcNomeDoTime($t),
+        'liga'      => (string)($t['league'] ?? ''),
+        'team_id'   => (int)($t['id'] ?? 0),
+    ];
+}
+
+function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = ''): string
 {
     require_once __DIR__ . '/../backend/edital_texto.php';
 
@@ -425,7 +455,9 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
              . "O guia completo está em fbabrasil.com.br/guia.php.";
     }
 
-    $r = editalIaPerguntar($pdo, $liga, $arg);
+    $quem = $deQuem !== '' ? wcQuemPerguntou($pdo, $deQuem, $ligaDoGrupo) : null;
+
+    $r = editalIaPerguntar($pdo, $liga, $arg, $quem);
     if (!$r['ok']) return '💬 ' . $r['erro'];
 
     return '💬 ' . $r['resposta'];
@@ -3487,7 +3519,7 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                liga achar que são comandos diferentes. */
             case 'duvida':
             case 'duvidas':
-                return wcDuvida($pdo, $arg, $ligaDoGrupo);
+                return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem);
 
             // Quem está fora das regras na liga do grupo: elenco fora da
             // faixa, acima do teto ou abaixo do piso. Mesma conta do card do
