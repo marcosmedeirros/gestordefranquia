@@ -534,17 +534,22 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
             /* O TOTAL DE TIMES vai junto: "2º" sozinho não diz se é bom ou
                ruim, e sem a escala o modelo tratou uma 2ª colocação como
                motivo de zoação. "2º de 32" não deixa dúvida. */
+            /* Os times da CONFERÊNCIA, e não da liga.
+               `position` vai de 1 a 16 dentro da conferência — não de 1 a 32.
+               Escrever '2º de 32' era erro de escala: o time é 2º entre 16. */
             $nTimes = 0;
             try {
-                $q = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
-                $q->execute([$liga]);
+                $q = $pdo->prepare('SELECT COUNT(*) FROM season_standings ss2
+                                     WHERE ss2.season_id = (SELECT season_id FROM season_standings WHERE team_id = ? 
+                                       ORDER BY id DESC LIMIT 1) AND ss2.conference <=> ?');
+                $q->execute([$teamId, $r['conference']]);
                 $nTimes = (int)$q->fetchColumn();
             } catch (Throwable $e) { /* sem o total, a linha ainda serve */ }
 
             $pos = (int)$r['position']; $times = $nTimes;
             $l[] = '- Classificação: ' . (int)$r['position'] . 'º'
-                 . ($nTimes > 0 ? ' de ' . $nTimes . ' times' : '')
-                 . ($r['conference'] ? ' (conferência ' . $r['conference'] . ')' : '')
+                 . ($nTimes > 0 ? ' de ' . $nTimes : '')
+                 . ($r['conference'] ? ' na conferência ' . $r['conference'] : ' na liga')
                  . ' na T' . (int)$r['season_number'] . ' (' . (int)$r['year'] . '), a última encerrada.';
         } else {
             $l[] = '- Classificação: sem temporada encerrada nesta sprint ainda.';
@@ -612,9 +617,13 @@ function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
        Então a conclusão vem pronta: esta lista é curta, é o que de fato está
        ruim, e vazia quer dizer que não há o que cutucar. */
     $fracos = [];
-    if ($pos > 0 && $times > 0) {
-        if ($pos > 20)                 $fracos[] = "está em {$pos}º de {$times} — zona ruim da tabela";
-        elseif ($pos > $times - 5)     $fracos[] = "está em {$pos}º de {$times}, perto do fundo";
+    /* O CORTE É PROPORCIONAL, e não um número fixo.
+       A régua pedida foi 'da 20ª pra baixo', pensando numa tabela de 32. Mas
+       `position` é por CONFERÊNCIA e vai até 16 — com 20 fixo, ninguém nunca
+       seria zoado. 20 de 32 é o começo do terço final, e é isso que fica:
+       último terço da conferência. */
+    if ($pos > 0 && $times > 0 && $pos > (int)ceil($times * 0.62)) {
+        $fracos[] = "está em {$pos}º de {$times} — terço final da tabela";
     }
     if ($capRuim !== '') $fracos[] = $capRuim;
     if ($elenco > 0 && $elenco < ELENCO_MIN) {
