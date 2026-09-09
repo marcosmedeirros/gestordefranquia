@@ -1246,6 +1246,51 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'history' => $stmtHist->fetchAll(PDO::FETCH_ASSOC)]);
             break;
 
+        /* As picks que podem fazer par num swap com esta, pro seletor do card.
+           Sem esta lista o admin teria que saber o id da outra pick de cabeça
+           — e swap sem par é o defeito que estamos fechando. */
+        case 'swap_candidatas': {
+            require_once dirname(__DIR__) . '/backend/draft_swaps.php';
+            $pickId = (int)($_GET['pick_id'] ?? 0);
+            if ($pickId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'pick_id obrigatório']);
+                exit;
+            }
+            $stEsc = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stEsc->execute([$pickId]);
+            $ligaDaPick = $stEsc->fetchColumn();
+            if ($ligaDaPick === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaDaPick);
+            echo json_encode(['success' => true, 'picks' => swapCandidatas($pdo, $pickId)]);
+            break;
+        }
+
+        /* A conferência: toda pick marcada como swap sem par válido de volta.
+           É o relatório que faltava — meio swap não dava sintoma nenhum até o
+           dia do draft, quando a ordem saía sem o swap e ninguém entendia. */
+        case 'swap_meios': {
+            require_once dirname(__DIR__) . '/backend/draft_swaps.php';
+            $liga = strtoupper(trim($_GET['league'] ?? ''));
+            if ($liga !== '' && !in_array($liga, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            if ($liga !== '') requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $liga);
+            $meios = swapMeiosSwaps($pdo, $liga !== '' ? $liga : null);
+            if (!$isGlobalAdminApi) {
+                $meios = array_values(array_filter($meios,
+                    fn($m) => in_array($m['league'], $apiAdminLeagues, true)));
+            }
+            echo json_encode(['success' => true, 'picks' => $meios]);
+            break;
+        }
+
         case 'nba_teams':
             // Os 30 times da NBA + quais já foram escolhidos, pro seletor de "Criar GM" na ROOKIE.
             require_once dirname(__DIR__) . '/backend/nba_teams.php';
@@ -2738,6 +2783,57 @@ if ($method === 'PUT') {
             }
             break;
 
+        /* O SWAP, NOS DOIS LADOS OU EM NENHUM.
+           Endpoint próprio porque swap é um acordo entre DUAS picks, e não um
+           campo de uma. Enquanto morava dentro do `pick`, gravava metade: a
+           pick editada ficava "SB · Melhor" contra ninguém e a ordem do draft
+           ignorava o acordo, sem sintoma nenhum até o dia do draft.
+           A regra mora em swapGravarPar() — ver backend/draft_swaps.php. */
+        case 'pick_swap': {
+            require_once dirname(__DIR__) . '/backend/draft_swaps.php';
+
+            $pickId = (int)($data['pick_id'] ?? 0);
+            if ($pickId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'pick_id obrigatório']);
+                exit;
+            }
+
+            // Escopo pelas DUAS picks: um admin de liga não pode prender uma
+            // pick da liga dele a uma de outra.
+            $stEsc = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stEsc->execute([$pickId]);
+            $ligaDaPick = $stEsc->fetchColumn();
+            if ($ligaDaPick === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaDaPick);
+
+            $parId = isset($data['swap_pair_pick_id']) && $data['swap_pair_pick_id'] !== ''
+                   ? (int)$data['swap_pair_pick_id'] : null;
+            if ($parId) {
+                $stEsc->execute([$parId]);
+                $ligaDoPar = $stEsc->fetchColumn();
+                if ($ligaDoPar === false) {
+                    http_response_code(404);
+                    echo json_encode(['success' => false, 'error' => 'Pick do par não encontrada']);
+                    exit;
+                }
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaDoPar);
+            }
+
+            $r = swapGravarPar($pdo, $pickId, (string)($data['swap_type'] ?? ''), $parId);
+            if (!$r['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $r['erro']]);
+                exit;
+            }
+            echo json_encode(['success' => true, 'message' => $r['mensagem']]);
+            exit;
+        }
+
         case 'pick':
             // Atualizar ou adicionar pick
             $pickId = $data['pick_id'] ?? null;
@@ -2746,10 +2842,11 @@ if ($method === 'PUT') {
             $seasonYear = $data['season_year'] ?? null;
             $round = $data['round'] ?? null;
             $notes = $data['notes'] ?? null;
-            $swapTypeRaw = isset($data['swap_type']) ? trim((string)$data['swap_type']) : null;
-            $swapType = ($swapTypeRaw !== null && $swapTypeRaw !== '') ? strtoupper($swapTypeRaw) : null;
-            if ($swapType !== null && !in_array($swapType, ['SW', 'SB'])) $swapType = null;
-            $swapLocked = $swapType !== null ? 1 : 0;
+            /* O SWAP NÃO SE GRAVA MAIS AQUI: é o `pick_swap`, logo abaixo.
+               Este UPDATE marcava `swap_type` só na pick editada e nunca
+               preenchia o par — e meio swap é swap nenhum, porque a ordem do
+               draft exige as duas apontando uma pra outra. Editar o ano de uma
+               pick também não deve mexer no acordo que ela carrega. */
 
             if (!$teamId || !$originalTeamId || !$seasonYear || !$round) {
                 http_response_code(400);
@@ -2790,10 +2887,10 @@ if ($method === 'PUT') {
                 // Atualizar pick existente
                 $stmt = $pdo->prepare('
                     UPDATE picks
-                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, swap_type = ?, swap_locked = ?, swap_pair_pick_id = CASE WHEN ? IS NULL THEN NULL ELSE swap_pair_pick_id END, auto_generated = 0, last_owner_team_id = ?
+                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $swapType, $swapLocked, $swapType, $teamId, $pickId]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $teamId, $pickId]);
             } else {
                 // Reutilizar pick existente com mesma origem/ano/rodada ou criar um novo
                 $stmtExisting = $pdo->prepare('

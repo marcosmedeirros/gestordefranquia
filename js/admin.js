@@ -4357,7 +4357,8 @@ async function _applySrchMovePick(pickId, isAway) {
       original_team_id: p.original_team_id,
       season_year: p.season_year,
       round: p.round,
-      swap_type: p.swap_type || null,
+      // swap_type NAO vai aqui: mover a pick nao mexe no acordo de swap,
+      // e este endpoint nao grava mais swap (ver pick_swap).
       notes: p.notes || null
     })});
     const m = document.querySelector('.modal.show');
@@ -4372,41 +4373,10 @@ function srchSwapPick(pickId, isAway) {
   const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
   const p = cache.find(x => x.id == pickId);
   if (!p) return;
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.innerHTML = `<div class="modal-dialog modal-sm"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
-<h5 class="modal-title text-white" style="font-size:14px">Swap — ${p.season_year} R${p.round}</h5>
-<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><div class="d-flex flex-column gap-2">
-<button type="button" class="btn ${!p.swap_type ? 'btn-orange' : 'btn-secondary'}" onclick="_applySrchSwap(${pickId},${isAway},'')">Nenhum</button>
-<button type="button" class="btn ${p.swap_type==='SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="_applySrchSwap(${pickId},${isAway},'SW')">SW — Worst</button>
-<button type="button" class="btn ${p.swap_type==='SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="_applySrchSwap(${pickId},${isAway},'SB')">SB — Best</button>
-</div></div></div></div>`;
-  document.body.appendChild(modal);
-  new bootstrap.Modal(modal).show();
-  modal.addEventListener('hidden.bs.modal', () => modal.remove());
-}
-
-async function _applySrchSwap(pickId, isAway, swapType) {
-  const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
-  const p = cache.find(x => x.id == pickId);
-  if (!p) return;
-  try {
-    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
-      pick_id: pickId,
-      team_id: p.team_id,
-      original_team_id: p.original_team_id,
-      season_year: p.season_year,
-      round: p.round,
-      swap_type: swapType || null,
-      notes: p.notes || null
-    })});
-    const m = document.querySelector('.modal.show');
-    bootstrap.Modal.getInstance(m)?.hide();
-    showAlert('success', swapType ? `Swap: ${swapType}` : 'Swap removido');
+  abrirSwap(p, () => {
     const teamId = document.getElementById('srchPickTeam')?.value;
     if (teamId) runLeaguePickSearch(teamId);
-  } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+  });
 }
 
 /**
@@ -6222,8 +6192,13 @@ async function _loadLeagueConfigInline(league) {
           ${editalBlocoHtml(lg)}
         </div>
 
+        <!-- Só aparece quando há problema: meio swap não dava sintoma nenhum
+             até o dia do draft, e um bloco vazio permanente vira paisagem. -->
+        <div class="lgcfg-bloco" id="swapAviso_${lg.league}" style="display:none"></div>
+
       </div>`;
     _carregarControlesExtras(league);
+    _conferirSwaps(league);
     // O "falta quanto" vivo: recalcula ao digitar e de minuto em minuto.
     atualizarFaltaAgenda(body);
     body.querySelectorAll('input[data-agenda-alvo]').forEach(inp =>
@@ -6738,12 +6713,20 @@ function editPick(pickId) {
 <div class="mb-3"><label class="form-label text-light-gray">Dono atual — mover pick</label>
 <select class="form-select bg-dark text-white border-orange" id="editPickOwnerTeam">
 <option value="">Carregando...</option></select></div>
-<div class="mb-3"><label class="form-label text-light-gray">Tipo de Swap</label>
-<select class="form-select bg-dark text-white border-orange" id="editPickSwapType">
-<option value="" ${!p.swap_type ? 'selected' : ''}>Nenhum</option>
-<option value="SW" ${p.swap_type === 'SW' ? 'selected' : ''}>SW — Worst</option>
-<option value="SB" ${p.swap_type === 'SB' ? 'selected' : ''}>SB — Best</option>
-</select></div>
+<!-- O swap saiu do formulário: ele é um acordo entre DUAS picks, e um select
+     aqui só marcava esta, deixando o outro lado sem nada. Vai por botão, que
+     é onde se escolhe a pick do par. -->
+<div class="mb-3"><label class="form-label text-light-gray">Swap</label>
+<div class="d-flex align-items-center gap-2">
+  <span style="font-size:12px;color:${p.swap_type ? 'var(--red)' : 'var(--text-3)'};font-weight:600">
+    ${p.swap_type
+      ? (p.swap_type === 'SB' ? 'SB · Melhor' : 'SW · Pior')
+        + (p.swap_partner_name ? ` c/ ${escapeHtml(p.swap_partner_city || '')} ${escapeHtml(p.swap_partner_name)}` : '')
+      : 'sem swap'}
+  </span>
+  <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="quickSwapType(${pickId})">Editar swap</button>
+</div>
+<div style="font-size:10.5px;color:var(--text-3);margin-top:4px">Salvo na hora, separado deste formulário.</div></div>
 <div class="mb-3"><label class="form-label text-light-gray">Observações (opcional)</label>
 <textarea class="form-control bg-dark text-white border-orange" id="editPickNotes" rows="2">${p.notes || ''}</textarea></div>
 </div>
@@ -6776,14 +6759,12 @@ function editPick(pickId) {
 
 async function savePickEdit(pickId) {
   const ownerTeamId = parseInt(document.getElementById('editPickOwnerTeam')?.value || 0);
-  const swapType = document.getElementById('editPickSwapType')?.value || null;
   const data = {
     pick_id: pickId,
     team_id: ownerTeamId || appState.currentTeam.id,
     original_team_id: parseInt(document.getElementById('editPickOriginalTeam').value),
     season_year: parseInt(document.getElementById('editPickYear').value),
     round: document.getElementById('editPickRound').value,
-    swap_type: swapType || null,
     notes: document.getElementById('editPickNotes').value.trim() || null
   };
 
@@ -6814,43 +6795,157 @@ async function deletePick(pickId) {
 function quickSwapType(pickId) {
   const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
   if (!p) return;
+  abrirSwap(p, () => showTeam(appState.currentTeam.id));
+}
+
+/**
+ * SWAP É PAR: MARCAR UM LADO SÓ NÃO EXISTE MAIS.
+ *
+ * Os três lugares que marcavam swap gravavam `swap_type` na pick aberta e
+ * pronto. Ficava meio swap — a pick dizia "SB · Melhor" contra ninguém, e a
+ * ordem do draft, que exige uma SB e uma SW apontando uma pra outra, ignorava
+ * e montava tudo como se não houvesse acordo. Ninguém descobria até o dia do
+ * draft. Foi o que aconteceu na troca #11000 da NEXT.
+ *
+ * Agora escolher o tipo obriga a escolher a pick parceira, e o par recebe o
+ * tipo contrário sozinho — o passo que era esquecido some. O servidor recusa
+ * de qualquer jeito (ver swapGravarPar), então isto aqui é conveniência, não
+ * a trava.
+ *
+ * As candidatas vêm do servidor, e não do que a tela tem em mãos: a outra pick
+ * é de OUTRO time, e nenhuma destas telas carrega o elenco de picks da liga
+ * inteira.
+ */
+async function abrirSwap(p, aoSalvar) {
   const modal = document.createElement('div');
   modal.className = 'modal fade';
-  modal.innerHTML = `<div class="modal-dialog modal-sm"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
-<h5 class="modal-title text-white" style="font-size:14px">Swap — ${p.season_year} R${p.round}</h5>
-<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel">
+<div class="modal-header border-orange">
+  <h5 class="modal-title text-white" style="font-size:14px">Swap — ${p.season_year} ${p.round}ª rodada</h5>
+  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
 <div class="modal-body">
-<div class="d-flex flex-column gap-2">
-<button type="button" class="btn ${!p.swap_type ? 'btn-orange' : 'btn-secondary'}" onclick="applySwapType(${pickId}, '')">Nenhum</button>
-<button type="button" class="btn ${p.swap_type === 'SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SW')">SW — Worst</button>
-<button type="button" class="btn ${p.swap_type === 'SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SB')">SB — Best</button>
-</div></div></div></div>`;
+  <p style="font-size:11.5px;color:var(--text-3);line-height:1.5;margin-bottom:14px">
+    Quem fica com <b>SB</b> escolhe na melhor das duas vagas; quem fica com <b>SW</b>, na pior.
+    A pick do par recebe o tipo contrário automaticamente — swap só vale com os dois lados marcados.
+  </p>
+  <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Esta pick fica como</div>
+  <div class="d-flex gap-2 mb-3">
+    <button type="button" class="btn ${p.swap_type==='SB'?'btn-orange':'btn-outline-light'} flex-grow-1"
+            id="swTipoSB" onclick="_swSelTipo('SB')">SB — Melhor</button>
+    <button type="button" class="btn ${p.swap_type==='SW'?'btn-orange':'btn-outline-light'} flex-grow-1"
+            id="swTipoSW" onclick="_swSelTipo('SW')">SW — Pior</button>
+  </div>
+  <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Faz par com</div>
+  <select class="form-control form-control-sm" id="swPar"><option>carregando...</option></select>
+  <div id="swErro" style="font-size:11.5px;color:var(--red);margin-top:10px"></div>
+</div>
+<div class="modal-footer border-orange d-flex justify-content-between">
+  <button type="button" class="btn btn-outline-danger btn-sm" onclick="_swSalvar(${p.id}, true)">
+    ${p.swap_type ? 'Desfazer swap' : 'Sem swap'}
+  </button>
+  <button type="button" class="btn-orange" onclick="_swSalvar(${p.id}, false)">Salvar swap</button>
+</div></div></div>`;
   document.body.appendChild(modal);
   new bootstrap.Modal(modal).show();
   modal.addEventListener('hidden.bs.modal', () => modal.remove());
-}
 
-async function applySwapType(pickId, swapType) {
-  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
-  if (!p) return;
+  window.__swTipo = p.swap_type || null;
+  window.__swDepois = aoSalvar;
+
+  const sel = modal.querySelector('#swPar');
   try {
-    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
-      pick_id: pickId,
-      team_id: p.team_id,
-      original_team_id: p.original_team_id,
-      season_year: p.season_year,
-      round: p.round,
-      swap_type: swapType || null,
-      notes: p.notes || null
-    })});
-    const openModal = document.querySelector('.modal.show');
-    if (openModal) bootstrap.Modal.getInstance(openModal)?.hide();
-    await showTeam(appState.currentTeam.id);
-    showAlert('success', swapType ? `Tipo definido como ${swapType}` : 'Swap type removido');
+    const r = await api(`admin.php?action=swap_candidatas&pick_id=${p.id}`);
+    const opts = (r.picks || []).map(c =>
+      `<option value="${c.id}" ${c.id == p.swap_pair_pick_id ? 'selected' : ''}>`
+      + `${escapeHtml(c.dono_city || '')} ${escapeHtml(c.dono_name || '')}`
+      + ` — ${c.season_year} R${c.round} de ${escapeHtml(c.origem_city || '')} ${escapeHtml(c.origem_name || '')}`
+      + `</option>`).join('');
+    sel.innerHTML = opts || '<option value="">nenhuma pick elegível deste ano e rodada</option>';
   } catch (e) {
-    alert('Erro: ' + (e.error || 'Desconhecido'));
+    sel.innerHTML = '<option value="">erro ao carregar</option>';
   }
 }
+
+/**
+ * NENHUMA PICK FICA MARCADA COMO SWAP SEM O OUTRO LADO.
+ *
+ * O defeito não dava sintoma: a pick mostrava "SB · Melhor" na tela e a ordem
+ * do draft simplesmente ignorava, porque falta o par. Só se descobria no dia
+ * do draft, com a ordem saindo sem o swap combinado.
+ *
+ * O caminho de gravação já não deixa acontecer. Isto é a rede embaixo: pega o
+ * que ficou de antes e o que vier por outro caminho (reversão de troca,
+ * correção no banco). Some da tela quando está tudo certo.
+ */
+async function _conferirSwaps(league) {
+  const box = document.getElementById(`swapAviso_${league}`);
+  if (!box) return;
+  try {
+    const r = await api(`admin.php?action=swap_meios&league=${league}`);
+    const meias = r.picks || [];
+    if (!meias.length) { box.style.display = 'none'; return; }
+
+    box.style.display = '';
+    box.innerHTML = `
+      <div class="lgcfg-titulo" style="color:var(--red)">
+        <i class="bi bi-exclamation-triangle"></i>Swaps pela metade (${meias.length})
+      </div>
+      <p style="font-size:11px;color:var(--text-3);line-height:1.5;margin:0 0 10px">
+        Estas picks estão marcadas como swap mas sem o outro lado. Assim o draft ignora o acordo
+        e a ordem sai como se não houvesse swap. Clique pra escolher o par ou desfazer.
+      </p>
+      ${meias.map(m => `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border)">
+          <span style="font-size:12px;color:var(--text)">
+            <b>${m.season_year} R${m.round}</b> · ${m.swap_type} ·
+            ${escapeHtml(m.dono_city || '')} ${escapeHtml(m.dono_name || '')}
+            <span style="color:var(--text-3)">(de ${escapeHtml(m.origem_city || '')} ${escapeHtml(m.origem_name || '')})</span>
+          </span>
+          <button type="button" class="btn btn-sm btn-outline-light ms-auto"
+                  onclick='abrirSwap(${JSON.stringify({
+                    id: m.id, season_year: m.season_year, round: m.round,
+                    swap_type: m.swap_type, swap_pair_pick_id: m.swap_pair_pick_id
+                  })}, () => _loadLeagueConfigInline("${league}"))'>Resolver</button>
+        </div>`).join('')}`;
+  } catch (e) {
+    box.style.display = 'none';
+  }
+}
+
+function _swSelTipo(t) {
+  window.__swTipo = t;
+  document.getElementById('swTipoSB')?.classList.toggle('btn-orange', t === 'SB');
+  document.getElementById('swTipoSB')?.classList.toggle('btn-outline-light', t !== 'SB');
+  document.getElementById('swTipoSW')?.classList.toggle('btn-orange', t === 'SW');
+  document.getElementById('swTipoSW')?.classList.toggle('btn-outline-light', t !== 'SW');
+}
+
+async function _swSalvar(pickId, desfazer) {
+  const erroEl = document.getElementById('swErro');
+  const tipo = desfazer ? '' : (window.__swTipo || '');
+  const par = desfazer ? null : (document.getElementById('swPar')?.value || null);
+
+  if (!desfazer && !tipo) { erroEl.textContent = 'Escolha SB ou SW.'; return; }
+  if (!desfazer && !par)  { erroEl.textContent = 'Escolha a pick que faz par.'; return; }
+
+  erroEl.textContent = '';
+  try {
+    // Só o swap: mandar os outros campos daqui era como um ajuste de swap
+    // acabava reescrevendo dono e ano com o que a tela tinha em cache.
+    const r = await api('admin.php?action=pick_swap', { method: 'PUT', body: JSON.stringify({
+      pick_id: pickId, swap_type: tipo || null, swap_pair_pick_id: par
+    })});
+    bootstrap.Modal.getInstance(document.querySelector('.modal.show'))?.hide();
+    showAlert('success', r.message || 'Swap salvo.');
+    if (typeof window.__swDepois === 'function') await window.__swDepois();
+  } catch (e) {
+    erroEl.textContent = e.error || 'Erro ao salvar o swap.';
+  }
+}
+window.abrirSwap = abrirSwap;
+window._swSelTipo = _swSelTipo;
+window._swSalvar = _swSalvar;
 
 function movePick(pickId) {
   const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
@@ -6902,7 +6997,8 @@ async function applyMovePick(pickId) {
       original_team_id: p.original_team_id,
       season_year: p.season_year,
       round: p.round,
-      swap_type: p.swap_type || null,
+      // swap_type NAO vai aqui: mover a pick nao mexe no acordo de swap,
+      // e este endpoint nao grava mais swap (ver pick_swap).
       notes: p.notes || null
     })});
     const openModal = document.querySelector('.modal.show');

@@ -597,3 +597,196 @@ function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int 
     }
     return null;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MARCAR UM SWAP É MARCAR OS DOIS LADOS.
+
+   O card do admin gravava `swap_type` só na pick editada e nunca preenchia o
+   `swap_pair_pick_id`. Ficava meio swap: a pick aparecia como "SB · Melhor"
+   contra ninguém, e o motor aqui de cima — que exige uma SB, uma SW e as duas
+   apontando uma pra outra — ignorava e montava a ordem como se não houvesse
+   swap nenhum. A marcação virava etiqueta.
+
+   Aconteceu de verdade: duas picks da ELITE ficaram meio marcadas, e a troca
+   #11000 da NEXT (Colorado x Atlanta) foi aceita sem swap porque o admin
+   marcou um lado só.
+
+   Daqui pra frente não existe meio swap: ou grava os dois, ou não grava.
+
+   O PAR NÃO DÁ PRA ADIVINHAR. A tentação é deduzir — "o parceiro é a pick
+   espelhada, mesma classe, onde os donos se invertem". Funciona nos casos
+   simples e erra nos reais: na NEXT, a 7091 (origem Providence, hoje do San
+   Francisco) faz par com a 7061, que veio do Buffalo. Não há espelho. Quem
+   diz qual é o par é quem administra.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** O tipo oposto num par de swap. */
+function swapTipoOposto(string $tipo): string
+{
+    return strtoupper(trim($tipo)) === 'SB' ? 'SW' : 'SB';
+}
+
+/**
+ * As picks que podem fazer par com esta.
+ *
+ * Mesma liga, mesma classe (ano + rodada) e outro dono — swap é acordo entre
+ * dois times sobre a mesma leva do draft. Fica de fora quem já está travada
+ * num par com uma terceira: entrar num swap novo sem desfazer o antigo deixa
+ * a terceira pick apontando pro vazio, que é o problema que isto veio
+ * resolver.
+ */
+function swapCandidatas(PDO $pdo, int $pickId): array
+{
+    $st = $pdo->prepare('SELECT p.season_year, p.round, p.team_id, t.league
+                           FROM picks p JOIN teams t ON t.id = p.team_id
+                          WHERE p.id = ?');
+    $st->execute([$pickId]);
+    $base = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$base) return [];
+
+    $st = $pdo->prepare("
+        SELECT p.id, p.season_year, p.round, p.swap_type, p.swap_pair_pick_id,
+               po.city AS origem_city, po.name AS origem_name,
+               td.city AS dono_city,  td.name AS dono_name
+          FROM picks p
+          JOIN teams po ON po.id = p.original_team_id
+          JOIN teams td ON td.id = p.team_id
+         WHERE p.season_year = ? AND p.round = ? AND p.id <> ?
+           AND td.league = ? AND p.team_id <> ?
+           AND (p.swap_pair_pick_id IS NULL OR p.swap_pair_pick_id = ?)
+      ORDER BY td.city, td.name");
+    $st->execute([(int)$base['season_year'], (int)$base['round'], $pickId,
+                  $base['league'], (int)$base['team_id'], $pickId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Grava (ou desfaz) um swap, sempre nos dois lados.
+ *
+ * `$tipo` vazio desfaz: limpa esta pick e o par dela. `$tipo` SB ou SW exige
+ * `$parId` — e o par recebe o tipo contrário, automaticamente. Ninguém precisa
+ * lembrar de ir na outra pick marcar o oposto, que é justamente o passo que
+ * era esquecido.
+ *
+ * Tudo numa transação: meio swap gravado é o defeito que estamos consertando,
+ * e não pode voltar por uma falha no meio.
+ *
+ * @return array{ok:bool, erro:?string, mensagem:?string}
+ */
+function swapGravarPar(PDO $pdo, int $pickId, ?string $tipo, ?int $parId): array
+{
+    $falha = fn(string $m) => ['ok' => false, 'erro' => $m, 'mensagem' => null];
+
+    $st = $pdo->prepare('SELECT p.id, p.season_year, p.round, p.team_id, p.swap_pair_pick_id, t.league
+                           FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $st->execute([$pickId]);
+    $pick = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$pick) return $falha('Pick não encontrada.');
+
+    $tipo = strtoupper(trim((string)$tipo));
+
+    // ── Desfazer ──────────────────────────────────────────────────────────
+    if ($tipo === '') {
+        $antigo = (int)($pick['swap_pair_pick_id'] ?? 0);
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
+                            WHERE id = ?')->execute([$pickId]);
+            // Só o par que apontava de volta: pick presa em outro swap não é
+            // desfeita de carona.
+            if ($antigo > 0) {
+                $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
+                                WHERE id = ? AND swap_pair_pick_id = ?')->execute([$antigo, $pickId]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            error_log('[swap] desfazer: ' . $e->getMessage());
+            return $falha('Não consegui desfazer o swap.');
+        }
+        return ['ok' => true, 'erro' => null,
+                'mensagem' => $antigo > 0 ? 'Swap desfeito nas duas picks.' : 'Swap removido.'];
+    }
+
+    if (!in_array($tipo, ['SB', 'SW'], true)) return $falha('Tipo de swap inválido.');
+
+    // ── Marcar ────────────────────────────────────────────────────────────
+    if (!$parId) {
+        return $falha('Escolha a pick que faz par. Swap sem par não vale nada: '
+                    . 'a ordem do draft só aplica quando as duas apontam uma pra outra.');
+    }
+    if ($parId === $pickId) return $falha('A pick não pode fazer par consigo mesma.');
+
+    $st = $pdo->prepare('SELECT p.id, p.season_year, p.round, p.team_id, p.swap_pair_pick_id, t.league
+                           FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $st->execute([$parId]);
+    $par = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$par) return $falha('A pick do par não existe.');
+
+    if ($par['league'] !== $pick['league'])            return $falha('As duas picks têm que ser da mesma liga.');
+    if ((int)$par['season_year'] !== (int)$pick['season_year']
+        || (int)$par['round'] !== (int)$pick['round']) return $falha('Swap é entre picks do mesmo ano e da mesma rodada.');
+    if ((int)$par['team_id'] === (int)$pick['team_id']) return $falha('As duas picks são do mesmo time — swap é entre times diferentes.');
+
+    // O par já está preso a uma TERCEIRA pick? Aí desfaça aquele swap antes.
+    $presoEm = (int)($par['swap_pair_pick_id'] ?? 0);
+    if ($presoEm > 0 && $presoEm !== $pickId) {
+        return $falha('A pick escolhida já está num swap com outra. Desfaça aquele primeiro.');
+    }
+
+    $antigo = (int)($pick['swap_pair_pick_id'] ?? 0);
+
+    $pdo->beginTransaction();
+    try {
+        // A pick que ESTA deixou pra trás fica sem par, e sem par ela não é
+        // swap nenhum — limpar é o que evita a órfã travada.
+        if ($antigo > 0 && $antigo !== $parId) {
+            $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
+                            WHERE id = ? AND swap_pair_pick_id = ?')->execute([$antigo, $pickId]);
+        }
+
+        $gravar = $pdo->prepare('UPDATE picks SET swap_type = ?, swap_locked = 1, swap_pair_pick_id = ?
+                                  WHERE id = ?');
+        $gravar->execute([$tipo, $parId, $pickId]);
+        $gravar->execute([swapTipoOposto($tipo), $pickId, $parId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[swap] gravar par: ' . $e->getMessage());
+        return $falha('Não consegui gravar o swap.');
+    }
+
+    return ['ok' => true, 'erro' => null,
+            'mensagem' => "Swap gravado: esta pick {$tipo}, a do par " . swapTipoOposto($tipo) . '.'];
+}
+
+/**
+ * Toda pick marcada como swap sem par válido de volta.
+ *
+ * É a conferência que faltava: serve pro admin ver que não sobrou nenhuma pela
+ * metade, que era exatamente o jeito de o defeito passar despercebido.
+ */
+function swapMeiosSwaps(PDO $pdo, ?string $league = null): array
+{
+    $sql = "SELECT p.id, p.season_year, p.round, p.swap_type, p.swap_pair_pick_id,
+                   t.league,
+                   po.city AS origem_city, po.name AS origem_name,
+                   td.city AS dono_city,  td.name AS dono_name
+              FROM picks p
+              JOIN teams t  ON t.id  = p.team_id
+              JOIN teams td ON td.id = p.team_id
+              JOIN teams po ON po.id = p.original_team_id
+         LEFT JOIN picks par ON par.id = p.swap_pair_pick_id
+             WHERE p.swap_type IS NOT NULL
+               AND (par.id IS NULL
+                    OR par.swap_pair_pick_id <> p.id
+                    OR par.swap_type IS NULL
+                    OR par.swap_type = p.swap_type)";
+    $args = [];
+    if ($league !== null && $league !== '') { $sql .= ' AND t.league = ?'; $args[] = $league; }
+    $sql .= ' ORDER BY t.league, p.season_year, p.id';
+
+    $st = $pdo->prepare($sql);
+    $st->execute($args);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
