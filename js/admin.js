@@ -7256,7 +7256,7 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
       <div class="tac-obs ${observacao.mudou ? 'mudou' : ''}">${escapeHtml(String(observacao.valor))}</div>` : '';
 
     return `
-      <div class="tac-item${clsFora}">
+      <div class="tac-item${clsFora}" id="tac-item-${tid}">
         <div class="tac-head" onclick="_tacToggle(${tid})">
           <i class="bi bi-chevron-right tac-seta" id="tac-seta-${tid}"></i>
           ${selo}
@@ -7273,10 +7273,17 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
           ${!at.tem_snapshot ? `
           <div class="tac-aviso">
             <i class="bi bi-info-circle"></i>
-            ${faseOffs
-              ? 'Esta tática não existia quando a temporada regular fechou — não há com o que comparar, então nada aparece em vermelho.'
-              : 'Ainda não houve virada de temporada com esta tática — nada a comparar, então nada aparece em vermelho.'}
-          </div>` : ''}
+            Este time nunca foi marcado como "Feito no jogo" — não há com o que comparar, então nada aparece em vermelho.
+            Aplique a tática inteira e marque: a partir daí, o vermelho mostra tudo o que ele mexer.
+          </div>` : `
+          <div class="tac-base">
+            <i class="bi bi-clock-history"></i>
+            ${at.base === 'feito'
+              ? `Comparando com o que foi aplicado no último "Feito no jogo"${at.base_em ? ` (${escapeHtml(formatDirectiveTimestampAdmin(at.base_em))})` : ''}.`
+              : (at.base === 'offs'
+                  ? 'Ainda não foi marcado como feito — comparando com o fim da temporada regular.'
+                  : 'Ainda não foi marcado como feito — comparando com a virada da temporada.')}
+          </div>`}
           ${(at.gleague || []).length ? `
             <div class="tac-secao">G-League</div>
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
@@ -7310,8 +7317,8 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
       </div>` : ''}
       <div style="font-size:11.5px;color:var(--text-3);margin-bottom:12px">
         Abra um time pra ver a tática exata dele. Em <span style="color:#ef4444;font-weight:700">vermelho</span>,
-        o que o time mexeu desde ${faseOffs ? 'o fim da temporada regular' : 'a virada da temporada'}.
-        O "Feito no jogo" zera sozinho a cada temporada nova.
+        tudo o que o time mexeu desde o último <b>"Feito no jogo"</b> — soma todas as alterações, não só a última.
+        Marcar zera o vermelho; se o GM mexer de novo, o card desmarca sozinho e volta pra fila.
       </div>
       <div class="tac-lista">${rows || '<div class="tac-vazio">Nenhum time nesta liga.</div>'}</div>
     </div>
@@ -7368,6 +7375,7 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
         border-radius:8px; padding:10px 12px; min-height:52px; }
       .tac-obs.mudou { border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.08); color:#ef4444; }
       .tac-vazio { font-size:12px; color:var(--text-3); }
+      .tac-base { font-size:11px; color:var(--text-3); margin-top:12px; display:flex; gap:6px; align-items:flex-start; }
       .tac-aviso { font-size:11.5px; color:var(--text-3); background:var(--panel-3);
         border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-top:12px; }
     </style>
@@ -7386,6 +7394,16 @@ async function _tacFeito(teamId, feito, el) {
       method: 'POST',
       body: JSON.stringify({ action: 'admin_feito_no_jogo', team_id: teamId, feito }),
     });
+    // Marcou: o que está na tela virou o que está no jogo. O vermelho sai na
+    // hora, sem recarregar a lista (e sem o card pular de lugar na mão de quem
+    // está copiando).
+    if (feito) {
+      const item = document.getElementById(`tac-item-${teamId}`);
+      item?.querySelectorAll('.mudou, .mudou-offs').forEach(n => n.classList.remove('mudou', 'mudou-offs'));
+      item?.querySelector('.tac-mudou-badge')?.remove();
+      const base = item?.querySelector('.tac-base');
+      if (base) base.innerHTML = `<i class="bi bi-clock-history"></i> Comparando com o que foi aplicado no último "Feito no jogo" (${escapeHtml(new Date().toLocaleString('pt-BR'))}).`;
+    }
   } catch (e) {
     el.checked = !feito;
     showAlert('danger', e.error || e.message || 'Não consegui salvar.');

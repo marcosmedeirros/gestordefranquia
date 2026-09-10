@@ -59,6 +59,79 @@ const TATICA_CAMPOS = [
     'rotation_players','veteran_focus','technical_model','playbook','notes',
 ];
 
+/* ── O "ANTES" É O QUE JÁ ESTÁ NO JOGO ───────────────────────────────────
+ *
+ * O vermelho do admin comparava com um retrato tirado na virada de temporada
+ * ou quando a classificação era salva. Quem mexia duas vezes perdia a
+ * primeira: se o retrato dos playoffs saía entre as duas, a tela só acendia a
+ * última mudança, e o operacional aplicava só ela no jogo — o estilo de jogo
+ * e a rotação que o GM tinha mudado antes ficavam para trás (NEXT, 09/2026).
+ *
+ * Agora o retrato é tirado quando o operacional marca "Feito no jogo". O
+ * vermelho passa a dizer exatamente "o que ainda não foi aplicado": acumula
+ * tudo o que o GM mexer até alguém marcar, e zera quando marcam. */
+const TATICA_RETRATO = [
+    'starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id',
+    'bench_1_id','bench_2_id','bench_3_id','gleague_1_id','gleague_2_id',
+    'pace','offensive_rebound','offensive_aggression','defensive_focus',
+    'defensive_rebound','rotation_style','game_style','offense_style',
+    'rotation_players','veteran_focus','technical_model','playbook','notes',
+];
+
+function taticaGarantirBaseFeito(PDO $pdo): void {
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM team_tactics")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('snapshot_feito_json', $cols, true)) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_feito_json TEXT NULL");
+        }
+        if (!in_array('snapshot_feito_em', $cols, true)) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_feito_em DATETIME NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('[tactics] base do feito: ' . $e->getMessage());
+    }
+}
+
+function taticaRetrato(array $linha): array {
+    $r = [];
+    foreach (TATICA_RETRATO as $c) $r[$c] = isset($linha[$c]) ? (string)$linha[$c] : '';
+    return $r;
+}
+
+/** A tática que o admin vê pro time: a ativa, ou a "regular" se nenhuma está marcada. */
+function taticaEmVigor(PDO $pdo, int $teamId): ?array {
+    $st = $pdo->prepare("SELECT * FROM team_tactics WHERE team_id = ?
+                         ORDER BY is_active DESC, (slot = 'regular') DESC LIMIT 1");
+    $st->execute([$teamId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * O GM mexeu depois do "Feito no jogo"? Então não está mais feito.
+ *
+ * Sem isto o time marcado ia pro fim da fila e a mudança nova ficava escondida
+ * atrás dele — o vermelho acendia num card que ninguém ia abrir. Só desmarca
+ * quando a tática REALMENTE ficou diferente do que foi aplicado: salvar sem
+ * mexer, ou desfazer a mudança, não devolve trabalho pro operacional.
+ */
+function taticaDesmarcarSeMudou(PDO $pdo, int $teamId): void {
+    taticaGarantirBaseFeito($pdo);
+    try {
+        $atual = taticaEmVigor($pdo, $teamId);
+        if (!$atual || (int)($atual['feito_no_jogo'] ?? 0) !== 1) return;
+        $base = json_decode((string)($atual['snapshot_feito_json'] ?? ''), true);
+        if (!is_array($base)) return;   // marcado antes da base existir: não dá pra comparar
+        if (taticaRetrato($base) === taticaRetrato($atual)) return;
+        $pdo->prepare("UPDATE team_tactics SET feito_no_jogo = 0 WHERE team_id = ?")->execute([$teamId]);
+    } catch (Throwable $e) {
+        // Nunca derruba o save do GM por causa do painel do admin.
+        error_log('[tactics] desmarcar feito: ' . $e->getMessage());
+    }
+}
+
 /**
  * Quinteto sugerido: melhor OVR de cada posição, preferindo quem já está
  * marcado como Titular no elenco. Posição vazia é preenchida pelo melhor
@@ -287,6 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             exit;
         }
 
+        taticaGarantirBaseFeito($pdo);   // antes do SELECT tt.*: as colunas precisam existir
         $stmtTeams = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city, name');
         $stmtTeams->execute([$league]);
         $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
@@ -459,10 +533,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 // tática depois), não dá pra dizer o que mudou pros offs, e
                 // comparar com a virada de temporada acenderia vermelho por
                 // uma diferença de outro assunto.
+                //
+                // ACIMA DE TUDO: o retrato do último "Feito no jogo". É o que
+                // está de fato aplicado, então vale em qualquer fase — ver
+                // TATICA_RETRATO. Os dois retratos de fase só entram pra time
+                // que ninguém marcou ainda.
                 $antes = [];
-                $bruto = $faseOffs
-                    ? ($ativa['snapshot_offs_json'] ?? null)
-                    : ($ativa['snapshot_json'] ?? null);
+                $base = 'feito';
+                $bruto = $ativa['snapshot_feito_json'] ?? null;
+                if (empty($bruto)) {
+                    $base = $faseOffs ? 'offs' : 'temporada';
+                    $bruto = $faseOffs
+                        ? ($ativa['snapshot_offs_json'] ?? null)
+                        : ($ativa['snapshot_json'] ?? null);
+                }
                 if (!empty($bruto)) {
                     $decodificado = json_decode((string)$bruto, true);
                     if (is_array($decodificado)) $antes = $decodificado;
@@ -513,6 +597,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     'updated_at'    => $ativa['updated_at'],
                     'feito_no_jogo' => (int)($ativa['feito_no_jogo'] ?? 0) === 1,
                     'tem_snapshot'  => !empty($antes),
+                    // Contra o que o vermelho está comparando, pra tela dizer.
+                    'base'          => !empty($antes) ? $base : null,
+                    'base_em'       => $base === 'feito' ? ($ativa['snapshot_feito_em'] ?? null) : null,
                 ];
             }
 
@@ -692,8 +779,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Time inválido.']);
             exit;
         }
-        $pdo->prepare("UPDATE team_tactics SET feito_no_jogo = ? WHERE team_id = ? AND is_active = 1")
-            ->execute([$feito, $teamId]);
+        taticaGarantirBaseFeito($pdo);
+
+        // Todas as linhas do time, não só a ativa: time sem nenhuma marcada
+        // aparece no admin pela "regular", e o UPDATE só na ativa não gravava
+        // nada pra ele.
+        if ($feito) {
+            // Marcar = "o jogo está assim agora". Esse retrato vira o antes, e
+            // o vermelho zera. Vai pras três táticas do time: se o GM trocar
+            // qual está ativa, a comparação continua sendo com o que está no
+            // jogo, e a outra tática inteira acende o que tiver de diferente.
+            $atual = taticaEmVigor($pdo, $teamId);
+            if (!$atual) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Este time não tem tática salva.']);
+                exit;
+            }
+            $pdo->prepare("UPDATE team_tactics
+                              SET feito_no_jogo = 1, snapshot_feito_json = ?, snapshot_feito_em = NOW()
+                            WHERE team_id = ?")
+                ->execute([json_encode(taticaRetrato($atual), JSON_UNESCAPED_UNICODE), $teamId]);
+        } else {
+            // Desmarcar NÃO apaga o retrato: o jogo continua como foi aplicado
+            // da última vez. Só volta o card pra fila.
+            $pdo->prepare("UPDATE team_tactics SET feito_no_jogo = 0 WHERE team_id = ?")
+                ->execute([$teamId]);
+        }
         echo json_encode(['success' => true, 'feito' => (bool)$feito]);
         exit;
     }
@@ -896,6 +1007,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int)$stmtActive->fetchColumn() === 1) {
             mirrorActiveTactic($pdo, $teamId, $team['league']);
         }
+        taticaDesmarcarSeMudou($pdo, $teamId);
 
         echo json_encode(['success' => true]);
         exit;
@@ -924,6 +1036,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         mirrorActiveTactic($pdo, $teamId, $team['league']);
+        taticaDesmarcarSeMudou($pdo, $teamId);
         echo json_encode(['success' => true]);
         exit;
     }
