@@ -24,6 +24,11 @@ $ehAdmin = ($user['user_type'] ?? 'jogador') === 'admin'
         || !empty(getAdminLeagues($pdo, (int)$user['id']));
 $minhasLigas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
+// O menu lateral mostra o cartão do time do usuário quando $team existe.
+$stTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stTeam->execute([(int)$user['id']]);
+$team = $stTeam->fetch(PDO::FETCH_ASSOC) ?: null;
+
 $pedida = strtoupper(trim((string)($_GET['league'] ?? '')));
 
 // ?time=ID (vindo do "Editar" em teams.php): a liga sai do time, e a tela abre
@@ -62,7 +67,7 @@ $tipoInicial = ($_GET['tipo'] ?? '') === 'letras' ? 'letras' : 'stats';
   --font:'Montserrat',system-ui,sans-serif;--num:'Oswald',sans-serif;--radius:14px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;padding:22px 18px 60px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1180px;margin:0 auto}
 
 .topo{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}
@@ -148,7 +153,7 @@ td.mudou{color:var(--amber);font-weight:800;background:rgba(245,158,11,.06)}
 td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
 
 @media (max-width:700px){
-  body{padding:14px 12px 50px}
+  .main{padding-left:12px;padding-right:12px;padding-bottom:50px}
   h1{font-size:20px}
   .fundo{padding:0}
   .caixa{max-height:100vh;height:100vh;border-radius:0}
@@ -156,9 +161,33 @@ td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
   .seletor button{flex:1;justify-content:center}
 }
 @media (prefers-reduced-motion:reduce){.tcard{transition:none}.tcard:hover{transform:none}}
+
+/* ── Menu lateral: o mesmo das outras telas ─────────────────────────── */
+:root{--sidebar-w:260px;--radius-sm:10px;--ease:cubic-bezier(.2,.8,.2,1);--t:200ms;
+  --border-red:color-mix(in srgb,var(--red) 22%,transparent)}
+.main{margin-left:var(--sidebar-w);min-height:100vh;padding:22px 18px 60px;transition:margin var(--t) var(--ease)}
+<?php include __DIR__ . '/includes/sidebar-css.php'; ?>
+@media (max-width:992px){
+  :root{--sidebar-w:0px}
+  .main{margin-left:0;padding-top:70px;width:100%}
+  .topbar{display:flex}
+  .sidebar{transform:translateX(-260px)}
+  .sidebar.open{transform:translateX(0)}
+}
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>
 <body>
+<div class="app">
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
+<div class="sb-overlay" id="sbOverlay"></div>
+
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+  <div class="topbar-title">FBA <em>Manager</em></div>
+</header>
+
+<div class="main">
 <div class="wrap">
   <div class="topo">
     <div>
@@ -184,6 +213,8 @@ td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
   <div class="aviso-topo" id="avisoTopo" hidden></div>
   <div class="grade" id="grade"><div class="vazio">Carregando…</div></div>
 </div>
+</div><!-- .main -->
+</div><!-- .app -->
 
 <div class="fundo" id="modal" hidden>
   <div class="caixa" role="dialog" aria-modal="true" aria-labelledby="mTitulo">
@@ -566,6 +597,18 @@ $('mSalvar').addEventListener('click', async () => {
     btn.innerHTML = '<i class="bi bi-save2"></i> Salvar';
     btn.disabled = Object.keys(modal.novos).length === 0;
   }
+});
+
+// Menu lateral no celular — mesmo comportamento das outras telas.
+const sidebar = document.getElementById('sidebar');
+const sbOverlay = document.getElementById('sbOverlay');
+document.getElementById('menuBtn')?.addEventListener('click', () => {
+  sidebar?.classList.toggle('open');
+  sbOverlay?.classList.toggle('show');
+});
+sbOverlay?.addEventListener('click', () => {
+  sidebar?.classList.remove('open');
+  sbOverlay.classList.remove('show');
 });
 
 renderBarra();
