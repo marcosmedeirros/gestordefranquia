@@ -373,7 +373,7 @@ html{scroll-behavior:smooth}
       </ul>
       <p>Os lances ficam <strong>fechados</strong> — você não vê quem deu, nem quanto, antes do prazo vencer. É a mesma tela onde caem os calouros não escolhidos no draft, que ficam 24 horas em vez de 12.</p>
       <div class="nota green">
-        <p>Precisa de mais uma dispensa? A loja vende <strong>slot extra de waiver</strong>, e ele cai no seu time <strong>na hora</strong>, sem esperar aprovação de ninguém.</p>
+        <p>Precisa de mais uma dispensa? A loja vende a <strong>Dispensa extra</strong>, e ela cai no seu time <strong>na hora</strong>, sem esperar aprovação de ninguém.</p>
       </div>
     </div>
 
@@ -577,7 +577,7 @@ html{scroll-behavior:smooth}
       <table>
         <thead><tr><th>Item</th><th>O que faz</th></tr></thead>
         <tbody>
-          <tr><td>Slot extra de waiver</td><td><strong>+1 dispensa</strong> nesta temporada. Zera na virada do ano.</td></tr>
+          <tr><td>Dispensa extra</td><td><strong>+1 dispensa</strong> nesta temporada. Zera na virada do ano.</td></tr>
           <tr><td>Slot extra de G-League</td><td><strong>+1 vaga</strong> na sua G-League.</td></tr>
           <tr><td>Slot de leilão</td><td>Liberado na hora.</td></tr>
         </tbody>

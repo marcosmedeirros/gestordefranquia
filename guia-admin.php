@@ -525,7 +525,7 @@ html{scroll-behavior:smooth}
       <table>
         <thead><tr><th>Item</th><th>O que acontece</th></tr></thead>
         <tbody>
-          <tr><td>Slot extra de waiver</td><td>Soma <strong>+1 dispensa</strong> ao time nesta temporada. Zera na virada do ano, como está escrito na loja.</td></tr>
+          <tr><td>Dispensa extra</td><td>Soma <strong>+1 dispensa</strong> ao time nesta temporada. Zera na virada do ano, como está escrito na loja.</td></tr>
           <tr><td>Slot extra de G-League</td><td>Soma <strong>+1 vaga</strong> na G-League do time.</td></tr>
           <tr><td>Slot de leilão</td><td>Fica registrado e liberado na hora. <strong>Não soma em contador nenhum</strong> — não existe limite de leilão no sistema.</td></tr>
         </tbody>
@@ -740,7 +740,7 @@ html{scroll-behavior:smooth}
 
     <h4 style="font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--text)">Como atender um pedido da loja</h4>
     <ol class="passos">
-      <li><b>Abra Pedidos da Loja.</b> Só aparece aqui o que precisa de gente — slot de waiver, G-League e leilão já foram aplicados sozinhos.</li>
+      <li><b>Abra Pedidos da Loja.</b> Só aparece aqui o que precisa de gente — Dispensa extra, G-League e leilão já foram aplicados sozinhos.</li>
       <li><b>Badge:</b> o pedido diz o jogador e a badge. <b>Aprovar consome</b> a badge do GM; <b>recusar não tira nada</b> e ele pode pedir de novo.</li>
       <li><b>City Edition:</b> o uniforme precisa ser produzido antes de marcar como atendido.</li>
     </ol>

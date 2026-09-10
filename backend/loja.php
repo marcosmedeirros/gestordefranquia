@@ -43,7 +43,7 @@ function lojaCatalogo(): array
         ],
         // Aplicado na hora da compra — ver lojaAplicarAutomatico().
         'slot_waiver' => [
-            'nome'  => 'Slot extra de waiver',
+            'nome'  => 'Dispensa extra',
             'preco' => 1500,
             'icone' => 'bi-arrow-repeat',
             'cor'   => '#22c55e',
