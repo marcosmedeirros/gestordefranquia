@@ -29,6 +29,9 @@ if (!$ehAdminGlobal && empty($minhasLigas)) {
 
 $pedida = strtoupper(trim((string)($_GET['league'] ?? '')));
 $ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida : $minhasLigas[0];
+// Veio do card "Editar Stats" da aba de uma liga: a tela fica só nela, sem
+// abas pras outras — cada liga tem a sua página.
+if (in_array($pedida, $minhasLigas, true)) $minhasLigas = [$pedida];
 $tipoInicial = ($_GET['tipo'] ?? '') === 'letras' ? 'letras' : 'stats';
 ?>
 <!DOCTYPE html>
@@ -236,6 +239,7 @@ function lembrarNaUrl() {
 
 /* ── Barra ─────────────────────────────────────────────────────────── */
 function renderBarra() {
+  $('abas').style.display = LIGAS.length < 2 ? 'none' : '';
   $('abas').innerHTML = LIGAS.map(l =>
     `<button type="button" class="aba ${l === liga ? 'on' : ''}" data-liga="${l}">${l}</button>`).join('');
   $('seletor').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tipo === tipo));

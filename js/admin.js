@@ -3646,7 +3646,7 @@ async function showLeague(league) {
       // existindo (showScheduler), só não têm mais atalho no card.
       { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       // Letras e estatísticas da liga inteira por CSV, time a time ou todos.
-      { icon: 'bi-table',                   label: 'Controle<br>Elencos',        fn: `abrirControleElencos('${league}')`,    color: '#22c55e', bg: 'rgba(34,197,94,.12)'   },
+      { icon: 'bi-table',                   label: 'Editar<br>Stats',            fn: `abrirControleElencos('${league}')`,    color: '#22c55e', bg: 'rgba(34,197,94,.12)'   },
       /* A LOTERIA ENTRA AQUI, e não na tela da loteria.
          Conduzir a cerimônia é ato de administração de UMA liga, e quem
          administra nem sempre joga nela. Na tela da loteria isso virava um
