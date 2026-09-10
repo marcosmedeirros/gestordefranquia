@@ -3645,6 +3645,8 @@ async function showLeague(league) {
       // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
       // existindo (showScheduler), só não têm mais atalho no card.
       { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      // Letras e estatísticas da liga inteira por CSV, time a time ou todos.
+      { icon: 'bi-table',                   label: 'Controle<br>Elencos',        fn: `abrirControleElencos('${league}')`,    color: '#22c55e', bg: 'rgba(34,197,94,.12)'   },
       /* A LOTERIA ENTRA AQUI, e não na tela da loteria.
          Conduzir a cerimônia é ato de administração de UMA liga, e quem
          administra nem sempre joga nela. Na tela da loteria isso virava um
@@ -9380,6 +9382,11 @@ async function panelToggleTatica(abrir) {
 /** Abre o controle de drafts já na aba da liga de onde saiu o clique. */
 function abrirControleDrafts(league) {
   window.location.href = '/controledrafts.php?league=' + encodeURIComponent(league);
+}
+
+/** Abre o controle de elencos já na liga de onde saiu o clique. */
+function abrirControleElencos(league) {
+  window.location.href = '/controle-elencos.php?league=' + encodeURIComponent(league);
 }
 
 /* A cerimônia da loteria daquela liga, com os controles.

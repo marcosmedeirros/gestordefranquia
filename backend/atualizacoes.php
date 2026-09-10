@@ -83,6 +83,12 @@ function ensureAtualizacaoTables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         // A trava vive no time: uma consulta a menos em toda listagem.
+        // Envio do admin fica no mesmo histórico (é o que deixa reverter),
+        // mas não conta pra trava nem pro ranking: ver controle_elencos.php.
+        if (!$pdo->query("SHOW COLUMNS FROM atualizacoes_terceiros LIKE 'origem'")->fetch()) {
+            $pdo->exec("ALTER TABLE atualizacoes_terceiros ADD COLUMN origem VARCHAR(10) NOT NULL DEFAULT 'terceiro'");
+        }
+
         $cols = $pdo->query("SHOW COLUMNS FROM teams")->fetchAll(PDO::FETCH_COLUMN);
         if (!in_array('atualizado_terceiro_por', $cols, true)) {
             $pdo->exec("ALTER TABLE teams ADD COLUMN atualizado_terceiro_por INT NULL");
@@ -108,7 +114,7 @@ function atualizacaoTiposFeitos(PDO $pdo, int $teamId): array
     $feito = ['skills' => false, 'stats' => false];
     try {
         $st = $pdo->prepare("SELECT DISTINCT tipo FROM atualizacoes_terceiros
-                             WHERE team_id = ? AND revertido_em IS NULL");
+                             WHERE team_id = ? AND revertido_em IS NULL AND origem = 'terceiro'");
         $st->execute([$teamId]);
         foreach ($st as $r) {
             if (isset($feito[$r['tipo']])) $feito[$r['tipo']] = true;
@@ -135,7 +141,7 @@ function atualizacaoTiposFeitosDaLiga(PDO $pdo, string $liga): array
     $mapa = [];
     try {
         $st = $pdo->prepare("SELECT DISTINCT team_id, tipo FROM atualizacoes_terceiros
-                             WHERE league = ? AND revertido_em IS NULL");
+                             WHERE league = ? AND revertido_em IS NULL AND origem = 'terceiro'");
         $st->execute([strtoupper($liga)]);
         foreach ($st as $r) {
             $id = (int)$r['team_id'];
@@ -266,7 +272,7 @@ function atualizacaoResumoDoUsuario(PDO $pdo, int $userId): array
         $st = $pdo->prepare("SELECT COUNT(DISTINCT team_id) AS times, COUNT(*) AS envios,
                                     COALESCE(SUM(moedas), 0) AS moedas
                              FROM atualizacoes_terceiros
-                             WHERE user_id = ? AND revertido_em IS NULL");
+                             WHERE user_id = ? AND revertido_em IS NULL AND origem = 'terceiro'");
         $st->execute([$userId]);
         return $st->fetch(PDO::FETCH_ASSOC) ?: ['times' => 0, 'envios' => 0, 'moedas' => 0];
     } catch (Throwable $e) {
@@ -284,7 +290,7 @@ function atualizacaoRanking(PDO $pdo, string $liga, int $limite = 20): array
                                     MAX(a.criado_em) AS ultimo
                              FROM atualizacoes_terceiros a
                              JOIN users u ON u.id = a.user_id
-                             WHERE a.league = ? AND a.revertido_em IS NULL
+                             WHERE a.league = ? AND a.revertido_em IS NULL AND a.origem = 'terceiro'
                              GROUP BY a.user_id, u.name
                              ORDER BY times DESC, moedas DESC, ultimo ASC
                              LIMIT {$limite}");

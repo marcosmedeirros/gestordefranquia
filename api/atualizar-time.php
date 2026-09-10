@@ -331,7 +331,7 @@ if ($acao === 'salvar') {
 if ($acao === 'historico') {
     if (!$souAdmin) { http_response_code(403); echo json_encode(['erro' => 'Só admin.']); exit; }
     $st = $pdo->query("SELECT a.id, a.team_id, a.league, a.tipo, a.jogadores, a.moedas,
-                              a.criado_em, a.revertido_em,
+                              a.criado_em, a.revertido_em, a.origem,
                               TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time,
                               u.name AS gm
                        FROM atualizacoes_terceiros a
@@ -407,7 +407,7 @@ if ($acao === 'reverter') {
 
         // Destrava o time só se não sobrou nenhum envio válido dele.
         $resta = $pdo->prepare("SELECT COUNT(*) FROM atualizacoes_terceiros
-                                WHERE team_id = ? AND revertido_em IS NULL");
+                                WHERE team_id = ? AND revertido_em IS NULL AND origem = 'terceiro'");
         $resta->execute([(int)$reg['team_id']]);
         if ((int)$resta->fetchColumn() === 0) {
             $pdo->prepare("UPDATE teams SET atualizado_terceiro_por = NULL, atualizado_terceiro_em = NULL

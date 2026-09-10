@@ -224,6 +224,7 @@ td.nm{font-weight:700}
 
 </div>
 
+<script src="/js/elenco-csv.js?v=<?= @filemtime(__DIR__ . '/js/elenco-csv.js') ?>"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -238,29 +239,10 @@ function msg(el, tipo, texto) {
 }
 
 /* ── CSV ─────────────────────────────────────────────────────────── */
-function csvEscape(v){ v = String(v ?? ''); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; }
-function baixarCSV(nome, linhas){
-  // BOM: sem ele o Excel do Windows abre os acentos errados.
-  const csv = '﻿' + linhas.map(l => l.map(csvEscape).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8;'}));
-  a.download = nome; document.body.appendChild(a); a.click(); a.remove();
-}
-function parseCSV(texto){
-  texto = texto.replace(/^﻿/, '');
-  const linhas = []; let linha = [], campo = '', aspas = false;
-  for (let i = 0; i < texto.length; i++){
-    const c = texto[i];
-    if (aspas){ if (c === '"'){ if (texto[i+1] === '"'){ campo += '"'; i++; } else aspas = false; } else campo += c; }
-    else if (c === '"') aspas = true;
-    else if (c === ',') { linha.push(campo); campo = ''; }
-    else if (c === '\r') {}
-    else if (c === '\n') { linha.push(campo); linhas.push(linha); linha = []; campo = ''; }
-    else campo += c;
-  }
-  if (campo !== '' || linha.length) { linha.push(campo); linhas.push(linha); }
-  return linhas.filter(l => !(l.length === 1 && l[0].trim() === ''));
-}
+// Helpers comuns em js/elenco-csv.js (mesmos da página do GM e do admin).
+const csvEscape = ElencoCSV.escapar;
+const baixarCSV = ElencoCSV.baixar;
+const parseCSV  = ElencoCSV.ler;
 
 /* ── Escolha do time ─────────────────────────────────────────────── */
 async function carregarTimes(){

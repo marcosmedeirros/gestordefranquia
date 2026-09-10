@@ -388,6 +388,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= assetUrl('/js/elenco-csv.js') ?>"></script>
 <script>
 /* menu mobile + tema */
 (function(){
@@ -423,50 +424,12 @@ function msg(el, tipo, texto) {
  * o elenco atual, joga modelo + print numa IA de uso geral (por conta dele),
  * e sobe o CSV que ela devolver. Só PREENCHE a tabela, igual a leitura por
  * foto — quem grava é o botão "Salvar" de sempre, depois de revisão. */
-function csvEscape(v) {
-  v = String(v ?? '');
-  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-}
-function baixarCSV(nomeArquivo, linhas) {
-  // BOM na frente: sem ele o Excel no Windows abre acento errado.
-  const csv = '﻿' + linhas.map(l => l.map(csvEscape).join(',')).join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = nomeArquivo;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-}
-/** Parser de CSV com suporte a campo entre aspas (nome com vírgula, etc). */
-function parseCSV(texto) {
-  texto = texto.replace(/^﻿/, '');
-  const linhas = [];
-  let linha = [], campo = '', dentroAspas = false;
-  for (let i = 0; i < texto.length; i++) {
-    const c = texto[i];
-    if (dentroAspas) {
-      if (c === '"') { if (texto[i + 1] === '"') { campo += '"'; i++; } else dentroAspas = false; }
-      else campo += c;
-    } else if (c === '"') dentroAspas = true;
-    else if (c === ',') { linha.push(campo); campo = ''; }
-    else if (c === '\r') { /* ignora, o \n que fecha a linha */ }
-    else if (c === '\n') { linha.push(campo); linhas.push(linha); linha = []; campo = ''; }
-    else campo += c;
-  }
-  if (campo !== '' || linha.length) { linha.push(campo); linhas.push(linha); }
-  return linhas.filter(l => !(l.length === 1 && l[0].trim() === ''));
-}
-async function copiarTexto(texto, btn) {
-  const original = btn.innerHTML;
-  try { await navigator.clipboard.writeText(texto); }
-  catch (e) {
-    const ta = document.createElement('textarea');
-    ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-  }
-  btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
-  setTimeout(() => { btn.innerHTML = original; }, 1800);
-}
+// Os helpers de CSV moram em js/elenco-csv.js: eram cópia do que as telas de
+// terceiros e do admin também tinham. Os nomes antigos seguem valendo aqui.
+const csvEscape   = ElencoCSV.escapar;
+const baixarCSV   = ElencoCSV.baixar;
+const parseCSV    = ElencoCSV.ler;
+const copiarTexto = ElencoCSV.copiar;
 
 /* Atributos */
 function baixarModeloAtributos() {
@@ -482,14 +445,11 @@ function baixarModeloAtributos() {
   baixarCSV('modelo-atributos.csv', linhas);
 }
 function promptAtributos() {
-  return 'Preciso que você preencha um CSV com os atributos de jogadores de basquete a partir de uma imagem que vou anexar.\n\n'
-    + 'O print mostra as skills no formato do jogo: IN, MID, 3PT, POST D, PER D, PLAY, REB, ATHL, IQ, POT — cada uma numa nota de '
-    + 'A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D- ou F.\n\n'
-    + 'Colei abaixo o modelo em CSV, já com as colunas "id" e "jogador" preenchidas — NÃO mude essas duas colunas. '
-    + 'Preencha só ovr, idade e as 10 notas de skill de cada jogador que aparecer na imagem, e devolva o CSV completo — '
-    + 'só o CSV, sem nenhum texto explicando antes ou depois, pra eu poder colar direto num arquivo.\n\n'
-    + '--- MODELO ---\n'
-    + linhasParaCSVTexto(document.querySelectorAll('#tblSkills tbody tr'), 'atributos');
+  // O texto mora em js/elenco-csv.js, junto do da tela do admin. Aqui o
+  // modelo leva OVR e idade: é o dono ajustando o próprio elenco.
+  return ElencoCSV.promptLetras(
+    linhasParaCSVTexto(document.querySelectorAll('#tblSkills tbody tr'), 'atributos'),
+    { notas: NOTAS_JS, comOvrIdade: true });
 }
 function linhasParaCSVTexto(trs, tipo) {
   const labels = tipo === 'atributos' ? Object.values(SKILL_KEYS_JS) : Object.values(STATS_KEYS_JS);
@@ -569,19 +529,8 @@ function baixarModeloEstatisticas() {
   baixarCSV('modelo-estatisticas.csv', linhas);
 }
 function promptEstatisticas() {
-  return 'Preciso que você preencha um CSV com estatísticas (médias por jogo) de jogadores de basquete a partir de uma imagem que vou anexar.\n\n'
-    + 'O print mostra a tela "Per Game" de um jogo. As colunas do CSV correspondem assim:\n'
-    + 'Jogos = GP · MIN = MIN · PTS = PTS · REB = REB · AST = AST · ROU = STL (roubadas) · TOC = BLK (tocos/bloqueios).\n\n'
-    // TO e TOC são quase a mesma sigla, e a IA pega a coluna errada sozinha:
-    // é assim que armador aparece com 8,8 tocos. O aviso é explícito porque
-    // dizer só "TOC = tocos" já se mostrou insuficiente.
-    + 'ATENÇÃO: a coluna TOC vem de BLK, NUNCA da coluna TO. No print, TO é turnover '
-    + '(bolas perdidas) e NÃO deve ser usada em nenhuma coluna. Ignore TO, GS, FLS e as de aproveitamento.\n\n'
-    + 'Colei abaixo o modelo em CSV, já com as colunas "id" e "jogador" preenchidas — NÃO mude essas duas colunas. '
-    + 'Preencha as outras colunas pra cada jogador que aparecer na imagem, e devolva o CSV completo — '
-    + 'só o CSV, sem nenhum texto explicando antes ou depois, pra eu poder colar direto num arquivo.\n\n'
-    + '--- MODELO ---\n'
-    + linhasParaCSVTexto(document.querySelectorAll('#tblStats tbody tr'), 'estatisticas');
+  return ElencoCSV.promptStats(
+    linhasParaCSVTexto(document.querySelectorAll('#tblStats tbody tr'), 'estatisticas'));
 }
 function importarEstatisticasCSV(file) {
   const reader = new FileReader();
