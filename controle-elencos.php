@@ -283,15 +283,21 @@ async function carregar() {
 
 function situacao(t) {
   if (!t.jogadores) return { cls: 'cinza', txt: 'sem jogadores', pendente: false };
+  // 7 lançados já conta como feito (verde): é o mesmo mínimo que paga as
+  // moedas, e o fim do banco raramente tem letra ou jogo pra lançar.
+  const MIN = <?= (int)ATUALIZACAO_MIN_JOGADORES_MOEDA ?>;
+  const bastam = Math.min(MIN, t.jogadores);
   if (tipo === 'letras') {
-    return t.sem_letras > 0
-      ? { cls: 'falta', txt: `${t.sem_letras} sem letras`, pendente: true }
-      : { cls: 'ok', txt: 'letras completas', pendente: false };
+    const comLetras = t.jogadores - t.sem_letras;
+    if (t.sem_letras === 0) return { cls: 'ok', txt: 'letras completas', pendente: false };
+    if (comLetras >= bastam) return { cls: 'ok', txt: `${comLetras}/${t.jogadores} com letras`, pendente: false };
+    return { cls: 'falta', txt: `${t.sem_letras} sem letras`, pendente: true };
   }
   if (!temporada) return { cls: 'cinza', txt: 'sem temporada', pendente: false };
   if (t.com_stats === 0) return { cls: 'falta', txt: 'nada lançado', pendente: true };
-  if (t.com_stats < t.jogadores) return { cls: 'falta', txt: `${t.com_stats}/${t.jogadores} lançados`, pendente: true };
-  return { cls: 'ok', txt: 'tudo lançado', pendente: false };
+  if (t.com_stats >= t.jogadores) return { cls: 'ok', txt: 'tudo lançado', pendente: false };
+  if (t.com_stats >= bastam) return { cls: 'ok', txt: `${t.com_stats}/${t.jogadores} lançados`, pendente: false };
+  return { cls: 'falta', txt: `${t.com_stats}/${t.jogadores} lançados`, pendente: true };
 }
 
 function dataCurta(s) {
