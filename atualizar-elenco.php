@@ -43,12 +43,20 @@ $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age,
 $stmtP->execute([$teamId]);
 $jogadores = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
-// Estatísticas já gravadas nesta temporada, para pré-preencher a aba
+/* A TABELA DE ESTATÍSTICAS abre na temporada que RECEBE lançamento
+   (statsTemporadaAlvo), não na aberta. A aberta pode ser a que acabou de nascer
+   e está no draft: a tabela vinha vazia, e quem lançou errado na anterior não
+   tinha onde corrigir (ROOKIE, 10/09/2026: 50 assistências que eram 9,5). A foto
+   e o CSV já gravavam na alvo; agora a tabela e o Salvar também. */
+require_once __DIR__ . '/backend/stats_temporada.php';
+$seasonStats = statsTemporadaAlvo($pdo, $league)['alvo'] ?? $season;
+
+// Estatísticas já gravadas nessa temporada, para pré-preencher a aba
 $statsAtuais = [];
-if ($season) {
+if ($seasonStats) {
     $stmtS = $pdo->prepare("SELECT player_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source
                             FROM player_season_stats WHERE season_id = ? AND team_id = ?");
-    $stmtS->execute([(int)$season['id'], $teamId]);
+    $stmtS->execute([(int)$seasonStats['id'], $teamId]);
     foreach ($stmtS->fetchAll(PDO::FETCH_ASSOC) as $r) $statsAtuais[(int)$r['player_id']] = $r;
 }
 
@@ -346,7 +354,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
 
     <div class="panel">
-      <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Estatísticas da temporada</div>
+      <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Estatísticas da <?= htmlspecialchars(statsRotuloTemporada($seasonStats)) ?></div>
       <div class="scroll-x">
         <table class="tbl" id="tblStats">
           <thead>
@@ -363,13 +371,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             <?php $corClonado = $ehClonado ? ' style="border-color:var(--amber)"' : ''; ?>
             <tr data-pid="<?= (int)$p['id'] ?>">
               <td class="nm"><?= htmlspecialchars($p['name']) ?><?php if ($ehClonado): ?><span class="tag-clonado" title="Copiado da temporada passada — ainda não confirmado nesta. Confira e salve, ou ajuste o que mudou.">Clonado</span><?php endif; ?></td>
-              <td><input class="inp" type="number" min="0" max="200" step="1"   data-f="games"  value="<?= $s ? (int)$s['games'] : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="60"  step="0.1" data-f="min_pg" value="<?= $s ? rtrim(rtrim($s['min_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="99"  step="0.1" data-f="pts_pg" value="<?= $s ? rtrim(rtrim($s['pts_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="reb_pg" value="<?= $s ? rtrim(rtrim($s['reb_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="ast_pg" value="<?= $s ? rtrim(rtrim($s['ast_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="stl_pg" value="<?= $s ? rtrim(rtrim($s['stl_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
-              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="blk_pg" value="<?= $s ? rtrim(rtrim($s['blk_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <?php /* Tetos = ATUALIZACAO_STATS (backend/atualizacoes.php), os mesmos que o servidor recusa. */ ?>
+              <td><input class="inp" type="number" min="0" max="120" step="1"   data-f="games"  value="<?= $s ? (int)$s['games'] : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="48"  step="0.1" data-f="min_pg" value="<?= $s ? rtrim(rtrim($s['min_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="60"  step="0.1" data-f="pts_pg" value="<?= $s ? rtrim(rtrim($s['pts_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="30"  step="0.1" data-f="reb_pg" value="<?= $s ? rtrim(rtrim($s['reb_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="25"  step="0.1" data-f="ast_pg" value="<?= $s ? rtrim(rtrim($s['ast_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="5"   step="0.1" data-f="stl_pg" value="<?= $s ? rtrim(rtrim($s['stl_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="6"   step="0.1" data-f="blk_pg" value="<?= $s ? rtrim(rtrim($s['blk_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -542,9 +551,11 @@ function importarEstatisticasCSV(file) {
     if (idxId === -1) { msg($('msgImportEstatisticas'), 'err', 'O CSV precisa ter uma coluna "id" — baixe o modelo e não apague essa coluna.'); return; }
     const labelParaChave = {};
     Object.entries(STATS_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
-    const limites = { games: [0, 200], min_pg: [0, 60], pts_pg: [0, 99], reb_pg: [0, 50], ast_pg: [0, 50], stl_pg: [0, 5], blk_pg: [0, 6] };
+    // Os tetos do servidor (ATUALIZACAO_STATS). Fora da faixa é recusado, não
+    // cortado: cortar 50 assistências em 25 só troca um número errado por outro.
+    const limites = { games: [0, 120], min_pg: [0, 48], pts_pg: [0, 60], reb_pg: [0, 30], ast_pg: [0, 25], stl_pg: [0, 5], blk_pg: [0, 6] };
 
-    let aplicados = 0, semLinha = 0;
+    let aplicados = 0, semLinha = 0, foraDaFaixa = [];
     for (let i = 1; i < linhas.length; i++) {
       const row = linhas[i];
       if (!row[idxId]) continue;
@@ -560,7 +571,11 @@ function importarEstatisticasCSV(file) {
         const num = parseFloat(String(raw).replace(',', '.'));
         if (isNaN(num)) return;
         const [min, max] = limites[chave];
-        const val = Math.max(min, Math.min(max, chave === 'games' ? Math.round(num) : num));
+        if (num < min || num > max) {
+          foraDaFaixa.push(`${tr.querySelector('.nm')?.textContent.trim() || pid}: ${STATS_KEYS_JS[chave]} ${num} (máx. ${max})`);
+          return;
+        }
+        const val = chave === 'games' ? Math.round(num) : num;
         const inp = tr.querySelector(`[data-f="${chave}"]`);
         if (inp) { inp.value = val; inp.style.borderColor = 'var(--amber)'; mudou = true; }
       });
@@ -568,7 +583,11 @@ function importarEstatisticasCSV(file) {
     }
     let texto = `${aplicados} jogador(es) preenchidos a partir do CSV — confira os campos em amber e clique em <strong>Salvar estatísticas</strong>.`;
     if (semLinha) texto += ` ${semLinha} linha(s) com um "id" que não bate com nenhum jogador deste elenco (ignoradas).`;
-    msg($('msgImportEstatisticas'), semLinha && aplicados ? 'warn' : (aplicados ? 'ok' : 'err'), texto);
+    if (foraDaFaixa.length) {
+      texto += `<br><strong>${foraDaFaixa.length} valor(es) fora da faixa ficaram de fora</strong> — confira o print: ` +
+               foraDaFaixa.slice(0, 5).map(esc).join('; ') + (foraDaFaixa.length > 5 ? '…' : '');
+    }
+    msg($('msgImportEstatisticas'), (semLinha || foraDaFaixa.length) && aplicados ? 'warn' : (aplicados ? 'ok' : 'err'), texto);
   };
   reader.readAsText(file, 'UTF-8');
 }

@@ -154,6 +154,14 @@ if ($action === 'save_stats') {
         exit;
     }
 
+    /* A TEMPORADA DO LANÇAMENTO é a alvo (statsTemporadaAlvo), a mesma da foto,
+       do CSV e da tabela da tela — não a aberta. Gravar na aberta mandava o
+       número pra temporada do draft, e a correção nunca chegava onde estava o
+       erro. */
+    require_once __DIR__ . '/../backend/stats_temporada.php';
+    require_once __DIR__ . '/../backend/atualizacoes.php';
+    $seasonStats = statsTemporadaAlvo($pdo, $league)['alvo'] ?? $season;
+
     $sql = "INSERT INTO player_season_stats
               (player_id, season_id, season_number, league, team_id,
                games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source)
@@ -165,23 +173,38 @@ if ($action === 'save_stats') {
     $stmt = $pdo->prepare($sql);
 
     $ok = 0; $ignorados = 0;
-    $num = fn($v, $max) => max(0, min($max, round((float)($v ?? 0), 1)));
+
+    /* Valida tudo ANTES de gravar, com os tetos de ATUALIZACAO_STATS. Antes o
+       valor era cortado no teto (50 assistências passavam inteiras): agora fora
+       da faixa recusa o envio e diz de quem é, pra pessoa corrigir o campo. */
+    $stNome = $pdo->prepare('SELECT name FROM players WHERE id = ?');
+    $validos = [];
+    foreach ($itens as $it) {
+        $pid = (int)($it['player_id'] ?? 0);
+        if (!$pid || !in_array($pid, $doElenco, true)) { $ignorados++; continue; }
+        $linha = [];
+        foreach (ATUALIZACAO_STATS as $col => $regra) {
+            $n = (float)str_replace(',', '.', (string)($it[$col] ?? 0));
+            if ($n < 0 || $n > $regra['max']) {
+                $stNome->execute([$pid]);
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' =>
+                    ($stNome->fetchColumn() ?: "Jogador $pid") . ": {$regra['rot']} {$n} fora da faixa (0–{$regra['max']}). Nada foi salvo."]);
+                exit;
+            }
+            $linha[$col] = $col === 'games' ? (int)$n : round($n, 1);
+        }
+        $linha['source'] = ($it['source'] ?? 'manual') === 'foto' ? 'foto' : 'manual';
+        $validos[$pid] = $linha;
+    }
 
     $pdo->beginTransaction();
     try {
-        foreach ($itens as $it) {
-            $pid = (int)($it['player_id'] ?? 0);
-            if (!$pid || !in_array($pid, $doElenco, true)) { $ignorados++; continue; }
+        foreach ($validos as $pid => $l) {
             $stmt->execute([
-                $pid, (int)$season['id'], (int)$season['season_number'], $league, $teamId,
-                max(0, min(200, (int)($it['games'] ?? 0))),
-                $num($it['min_pg'] ?? 0, 60),
-                $num($it['pts_pg'] ?? 0, 99),
-                $num($it['reb_pg'] ?? 0, 50),
-                $num($it['ast_pg'] ?? 0, 50),
-                $num($it['stl_pg'] ?? 0, 20),
-                $num($it['blk_pg'] ?? 0, 20),
-                ($it['source'] ?? 'manual') === 'foto' ? 'foto' : 'manual',
+                $pid, (int)$seasonStats['id'], (int)$seasonStats['season_number'], $league, $teamId,
+                $l['games'], $l['min_pg'], $l['pts_pg'], $l['reb_pg'], $l['ast_pg'], $l['stl_pg'], $l['blk_pg'],
+                $l['source'],
             ]);
             $ok++;
         }
@@ -199,7 +222,7 @@ if ($action === 'save_stats') {
     marcarElencoAtualizado($pdo, $teamId);
 
     echo json_encode(['success' => true, 'saved' => $ok, 'skipped' => $ignorados,
-                      'season_number' => (int)$season['season_number']]);
+                      'season_number' => (int)$seasonStats['season_number']]);
     exit;
 }
 
