@@ -28,6 +28,13 @@ require_once __DIR__ . '/helpers.php';
 /** Quanto cada tipo de atualização paga, em moedas. */
 const ATUALIZACAO_MOEDAS = ['skills' => 100, 'stats' => 80];
 
+/* Na tela única de edição (controle-elencos.php) o prêmio é por TIME: 100
+   moedas pra cada time de outro GM da própria liga em que a pessoa lançou pelo
+   menos 7 jogadores. Menos que isso não paga — senão bastava mudar uma letra de
+   um jogador por time pra rodar a liga inteira recebendo. */
+const ATUALIZACAO_MOEDAS_POR_TIME = 100;
+const ATUALIZACAO_MIN_JOGADORES_MOEDA = 7;
+
 /** As dez skills, na ordem em que aparecem no CSV. */
 const ATUALIZACAO_SKILLS = [
     'skill_in' => 'IN', 'skill_mid' => 'MID', 'skill_3pt' => '3PT',

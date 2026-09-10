@@ -25,6 +25,16 @@ $ehAdmin = ($user['user_type'] ?? 'jogador') === 'admin'
 $minhasLigas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 $pedida = strtoupper(trim((string)($_GET['league'] ?? '')));
+
+// ?time=ID (vindo do "Editar" em teams.php): a liga sai do time, e a tela abre
+// com o modal dele já aberto.
+$timeInicial = (int)($_GET['time'] ?? 0);
+if ($timeInicial) {
+    $stLigaTime = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stLigaTime->execute([$timeInicial]);
+    $ligaDoTime = strtoupper((string)$stLigaTime->fetchColumn());
+    if ($ligaDoTime !== '') $pedida = $ligaDoTime; else $timeInicial = 0;
+}
 $ligaDoUsuario = strtoupper((string)($user['league'] ?? ''));
 $ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida
              : (in_array($ligaDoUsuario, $minhasLigas, true) ? $ligaDoUsuario : $minhasLigas[0]);
@@ -213,6 +223,7 @@ const NOTAS  = <?= json_encode(ATUALIZACAO_NOTAS) ?>;
 const API    = '/api/controle-elencos.php';
 
 let liga = <?= json_encode($ligaInicial) ?>;
+const TIME_INICIAL = <?= (int)$timeInicial ?>;
 let tipo = <?= json_encode($tipoInicial) ?>;
 let times = [], temporada = null;
 const modal = { escopo: null, timeId: null, nome: '', jogadores: [], porId: {}, novos: {} };
@@ -534,6 +545,7 @@ $('mSalvar').addEventListener('click', async () => {
     let txt = `Gravado: ${d.times.map(t => `${esc(t.nome)} (${t.jogadores})`).join(', ')}.`;
     if (d.vazios) txt += ` ${d.vazios} linha(s) sem dado foram puladas.`;
     if (d.ignorados) txt += ` ${d.ignorados} jogador(es) não são mais da liga.`;
+    if (d.moedas) txt += `<br><b>+${d.moedas} moedas</b> pra você.`;
     modal.novos = {};
     aviso('ok', txt);
     // Recarrega o que está na tela: o valor "de agora" passou a ser o novo.
@@ -551,7 +563,9 @@ $('mSalvar').addEventListener('click', async () => {
 });
 
 renderBarra();
-carregar();
+carregar().then(() => {
+  if (TIME_INICIAL && times.some(t => t.id === TIME_INICIAL)) abrirModal('time', TIME_INICIAL);
+});
 </script>
 </body>
 </html>

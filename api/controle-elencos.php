@@ -65,8 +65,11 @@ if ($acao === 'salvar') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405); echo json_encode(['ok' => false, 'erro' => 'Use POST.']); exit;
     }
+    // Admin não recebe moeda; o resto recebe por time (ver ceGravar).
+    $ehAdmin = ($user['user_type'] ?? 'jogador') === 'admin'
+            || in_array($liga, getAdminLeagues($pdo, (int)$user['id']), true);
     $r = ceGravar($pdo, (int)$user['id'], $liga, (string)($corpo['tipo'] ?? ''),
-                  is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : []);
+                  is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : [], $ehAdmin);
     if (!$r['ok']) http_response_code(400);
     echo json_encode($r, JSON_UNESCAPED_UNICODE);
     exit;

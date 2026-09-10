@@ -507,17 +507,6 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
     </div>
     <?php endif; ?>
 
-    <div class="imp-fundo" id="impFundo" onclick="if(event.target===this)fecharImport()">
-      <div class="imp-cx" role="dialog" aria-modal="true" aria-labelledby="impTitulo">
-        <div class="imp-cab">
-          <b id="impTitulo">Importar</b>
-          <button type="button" class="imp-x" onclick="fecharImport()" aria-label="Fechar">
-            <i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="imp-corpo" id="impCorpo"></div>
-      </div>
-    </div>
-
     <div class="tabela-caixa">
       <table class="stats">
         <thead>
@@ -723,7 +712,7 @@ function render() {
       ? '<i class="bi bi-calendar-x"></i>Nenhuma temporada aberta nesta liga ainda.'
       : (nenhum
         ? '<i class="bi bi-clipboard-data"></i>Nenhum ' + oQue + ' nesta liga ainda.<br>'
-          + 'Os dados aparecem aqui conforme os GMs preenchem em <a href="/atualizar-elenco.php">Atualizar elenco</a>.'
+          + 'Os dados aparecem aqui conforme alguém preenche em <a href="/controle-elencos.php?league=' + encodeURIComponent(<?= json_encode($liga) ?>) + '">Editar jogadores</a>.'
           + '<br><span style="font-size:12.5px;color:var(--text-3)">Escolha um time no filtro para ver o elenco mesmo sem lançamento.</span>'
         : '<i class="bi bi-search"></i>Nenhum jogador com esses filtros.');
     document.getElementById('contador').textContent = '';
@@ -959,152 +948,8 @@ if (chip) {
 
 render();
 
-/* ══ IMPORTAÇÃO EM MASSA ══════════════════════════════════════════════
-   A tela já mostra quem está sem lançamento; aqui dá pra ver a lista dos
-   pendentes, baixar um CSV com eles já preenchidos nas duas primeiras colunas
-   (id e nome, pra não errar de jogador) e devolver o arquivo preenchido.
-   Aberto pra qualquer GM, e vale pra liga inteira. */
-
-const IMP_COLS = {
-  stats:  ['jogos', 'min', 'pts', 'reb', 'ast', 'rou', 'toc'],
-  skills: ['in', 'mid', '3pt', 'post_d', 'per_d', 'play', 'reb', 'athl', 'iq', 'pot'],
-};
-const IMP_TITULO = { stats: 'Importar estatísticas', skills: 'Importar atributos' };
-let impTipo = 'stats';
-let impPendentes = [];
-
-function fecharImport() {
-  document.getElementById('impFundo').classList.remove('on');
-}
-
-async function abrirImport(tipo) {
-  impTipo = tipo;
-  document.getElementById('impTitulo').textContent = IMP_TITULO[tipo];
-  document.getElementById('impFundo').classList.add('on');
-  document.getElementById('impCorpo').innerHTML =
-    '<div class="imp-vazio"><i class="bi bi-hourglass-split"></i> Carregando quem falta…</div>';
-
-  try {
-    const r = await fetch('/api/stats-import.php?tipo=' + tipo, { credentials: 'same-origin' });
-    const d = await r.json();
-    if (!d.success) throw new Error(d.error || 'Erro ao carregar');
-    impPendentes = d.jogadores || [];
-    desenharImport(d);
-  } catch (e) {
-    document.getElementById('impCorpo').innerHTML =
-      '<div class="imp-msg erro">' + (e.message || 'Não deu pra carregar a lista.') + '</div>';
-  }
-}
-
-function desenharImport(d) {
-  const cols = IMP_COLS[impTipo];
-  const oQue = impTipo === 'stats'
-    ? 'sem estatística lançada (ou com tudo zerado) na temporada' + (d.season_number ? ' ' + d.season_number : '')
-    : 'sem nenhum atributo preenchido';
-
-  const lista = impPendentes.length
-    ? impPendentes.map(j =>
-        '<div class="imp-linha"><span class="id">#' + j.id + '</span>' +
-        '<span class="nome">' + esc(j.name) + '</span>' +
-        '<span class="time">' + esc(j.time || '') + '</span></div>').join('')
-    : '<div class="imp-vazio">Ninguém pendente — está tudo lançado.</div>';
-
-  document.getElementById('impCorpo').innerHTML =
-    '<div class="imp-info"><b>' + impPendentes.length + '</b> jogador' +
-      (impPendentes.length === 1 ? '' : 'es') + ' ' + oQue + ' na ' + esc(d.league) + '.</div>' +
-    '<div class="imp-lista">' + lista + '</div>' +
-    '<div class="imp-info">O CSV tem uma linha por jogador, nesta ordem:<br>' +
-      '<code>id,nome,' + cols.join(',') + '</code>' +
-      (impTipo === 'skills'
-        ? '<br>As notas vão de <code>A+</code> a <code>F</code>; <code>-</code> deixa em branco.'
-        : '<br>Aceita vírgula ou ponto no decimal.' +
-          // TO e TOC são quase a mesma sigla no print, e é o engano que faz
-          // armador aparecer com 8 tocos por jogo.
-          '<br><b>rou</b> é a coluna <code>STL</code> do print e <b>toc</b> é a ' +
-          '<code>BLK</code>. A coluna <code>TO</code> é turnover (bolas perdidas) ' +
-          'e não entra aqui.') +
-      '<br>Baixe o modelo, preencha e cole aqui — quem já tem lançamento também pode ser corrigido.</div>' +
-    '<div class="imp-acoes">' +
-      '<button type="button" class="f-chip" onclick="baixarModelo()">' +
-        '<i class="bi bi-download"></i> Baixar modelo com os ' + impPendentes.length + ' pendentes</button>' +
-      '<label class="f-chip" style="cursor:pointer">' +
-        '<i class="bi bi-file-earmark-arrow-up"></i> Escolher arquivo' +
-        '<input type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="lerArquivo(this)"></label>' +
-    '</div>' +
-    '<textarea class="imp-txt" id="impCsv" placeholder="Cole aqui o CSV preenchido…"></textarea>' +
-    '<div id="impMsg"></div>' +
-    '<div class="imp-acoes"><button type="button" class="imp-btn" onclick="enviarImport(this)">' +
-      'Importar' + '</button></div>';
-}
-
-/** O modelo já vem com id e nome preenchidos: é o que impede trocar de jogador. */
-function baixarModelo() {
-  const cols = IMP_COLS[impTipo];
-  const linhas = ['id,nome,' + cols.join(',')];
-  impPendentes.forEach(j => {
-    // O nome vai entre aspas porque quase todo nome tem espaço e alguns têm vírgula.
-    linhas.push(j.id + ',"' + String(j.name).replace(/"/g, '""') + '"' + ','.repeat(cols.length));
-  });
-  // O BOM faz o Excel abrir os acentos certos — sem ele "Doncic" vira "DonÄiÄ".
-  const blob = new Blob(['﻿' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'fba-' + impTipo + '-pendentes.csv';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
-function lerArquivo(input) {
-  const f = input.files && input.files[0];
-  if (!f) return;
-  const leitor = new FileReader();
-  leitor.onload = () => {
-    document.getElementById('impCsv').value = String(leitor.result || '').replace(/^﻿/, '');
-  };
-  leitor.readAsText(f, 'UTF-8');
-  input.value = '';
-}
-
-async function enviarImport(botao) {
-  const csv = (document.getElementById('impCsv').value || '').trim();
-  const msg = document.getElementById('impMsg');
-  if (!csv) {
-    msg.innerHTML = '<div class="imp-msg erro">Cole o CSV ou escolha um arquivo antes.</div>';
-    return;
-  }
-  botao.disabled = true;
-  botao.textContent = 'Importando…';
-  try {
-    const r = await fetch('/api/stats-import.php', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'importar', tipo: impTipo, csv }),
-    });
-    const d = await r.json();
-    if (!d.success) throw new Error(d.error || 'Erro na importação');
-
-    const recusadas = d.recusados || [];
-    msg.innerHTML =
-      '<div class="imp-msg ok"><b>' + d.gravados + '</b> jogador' +
-      (d.gravados === 1 ? '' : 'es') + ' atualizado' + (d.gravados === 1 ? '' : 's') + '.' +
-      (recusadas.length
-        ? '</div><div class="imp-msg erro" style="margin-top:8px">' + recusadas.length +
-          ' linha' + (recusadas.length === 1 ? '' : 's') + ' de fora:<br>' +
-          recusadas.slice(0, 12).map(x => 'linha ' + x.linha + ' — ' + esc(x.motivo)).join('<br>') +
-          (recusadas.length > 12 ? '<br>…e mais ' + (recusadas.length - 12) + '.' : '') + '</div>'
-        : '</div>') +
-      (d.gravados ? '<div class="imp-info" style="margin-top:8px">Recarregue a página pra ver na tabela.</div>' : '');
-  } catch (e) {
-    msg.innerHTML = '<div class="imp-msg erro">' + esc(e.message || 'Falhou.') + '</div>';
-  }
-  botao.disabled = false;
-  botao.textContent = 'Importar';
-}
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') fecharImport();
-});
+/* A importação em massa saiu daqui: a edição de letras e estatísticas mora
+   em controle-elencos.php (botão "Editar jogadores" no topo). */
 
 // Menu lateral no celular — mesmo comportamento das outras telas.
 const sidebar = document.getElementById('sidebar');

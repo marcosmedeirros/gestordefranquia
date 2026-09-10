@@ -1396,9 +1396,12 @@ function getSerasaScore(int $avisos): array {
                             $podeAtualizar = !$isMyTeam && $faltamNoTime !== [];
                         ?>
                         <?php if ($podeAtualizar): ?>
-                        <a class="btn-action info" href="/atualizar-time.php?time=<?= (int)$t['id'] ?>"
+                        <?php /* Leva pra tela única de edição, já com o modal
+                                 deste time aberto. Se só faltam as skills, abre
+                                 direto em Letras. */ ?>
+                        <a class="btn-action info" href="/controle-elencos.php?time=<?= (int)$t['id'] ?><?= $faltamNoTime === ['skills'] ? '&tipo=letras' : '' ?>"
                            title="Preencher <?= htmlspecialchars(implode(' e ', array_map(
-                               fn($f) => $f === 'skills' ? 'skills' : 'estatísticas', $faltamNoTime))) ?> deste time e ganhar moedas">
+                               fn($f) => $f === 'skills' ? 'skills' : 'estatísticas', $faltamNoTime))) ?> deste time">
                             <i class="bi bi-pencil-square"></i>
                         </a>
                         <?php endif; ?>

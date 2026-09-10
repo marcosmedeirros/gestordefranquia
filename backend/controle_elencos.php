@@ -149,9 +149,9 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId): array
  *
  * @return array{ok:bool, erro:?string, times:array, ignorados:int, vazios:int}
  */
-function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $linhas): array
+function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $linhas, bool $ehAdmin = true): array
 {
-    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'times' => [], 'ignorados' => 0, 'vazios' => 0];
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'times' => [], 'ignorados' => 0, 'vazios' => 0, 'moedas' => 0];
     if (!in_array($tipo, ['letras', 'stats'], true)) return $falha('Tipo inválido.');
     if (!$linhas) return $falha('Nada pra gravar.');
 
@@ -204,6 +204,31 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
     $tipoRegistro = $tipo === 'letras' ? 'skills' : 'stats';
     $resumo = [];
 
+    /* QUEM RECEBE, time a time (ver ATUALIZACAO_MOEDAS_POR_TIME):
+         admin                              → 'admin', 0 moedas
+         o próprio time                     → 'dono', 0
+         outra liga, < 7 jogadores, ou esse
+         tipo já foi pago a alguém no time  → 'livre', 0 (grava, não tranca)
+         senão                              → 'terceiro', 100 e tranca o tipo
+       'livre' e 'dono' ficam no histórico (dá pra reverter), mas a trava e o
+       ranking só contam 'terceiro'. */
+    $stMeu = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stMeu->execute([$adminId]);
+    $meu = $stMeu->fetch(PDO::FETCH_ASSOC) ?: null;
+    $jaPagos = atualizacaoTiposFeitosDaLiga($pdo, $liga);
+    $pagamento = [];
+    foreach ($porTime as $tid => $jogadores) {
+        if ($ehAdmin)                                                   $pagamento[$tid] = ['admin', 0];
+        elseif ($meu && (int)$meu['id'] === $tid)                       $pagamento[$tid] = ['dono', 0];
+        elseif (!$meu || strtoupper((string)$meu['league']) !== $liga)  $pagamento[$tid] = ['livre', 0];
+        elseif (count($jogadores) < ATUALIZACAO_MIN_JOGADORES_MOEDA)    $pagamento[$tid] = ['livre', 0];
+        elseif (!empty($jaPagos[$tid][$tipoRegistro]))                  $pagamento[$tid] = ['livre', 0];
+        else                                                            $pagamento[$tid] = ['terceiro', ATUALIZACAO_MOEDAS_POR_TIME];
+    }
+    $moedasTotal = array_sum(array_column($pagamento, 1));
+    // DDL das tabelas do Games fora da transação (commit implícito no MySQL).
+    if ($moedasTotal > 0) ensureGamesSchema($pdo);
+
     $pdo->beginTransaction();
     try {
         if ($tipo === 'letras') {
@@ -220,7 +245,8 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
         }
         $reg = $pdo->prepare("INSERT INTO atualizacoes_terceiros
             (team_id, league, user_id, tipo, jogadores, moedas, antes, csv, origem)
-            VALUES (?,?,?,?,?,0,?,?,'admin')");
+            VALUES (?,?,?,?,?,?,?,?,?)");
+        $trancar = $pdo->prepare("UPDATE teams SET atualizado_terceiro_por = ?, atualizado_terceiro_em = NOW() WHERE id = ?");
 
         foreach ($porTime as $tid => $jogadores) {
             foreach ($jogadores as $pid => $vals) {
@@ -238,10 +264,21 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
                     ]));
                 }
             }
-            $reg->execute([$tid, $liga, $adminId, $tipoRegistro, count($jogadores),
+            [$origem, $moedas] = $pagamento[$tid];
+            $reg->execute([$tid, $liga, $adminId, $tipoRegistro, count($jogadores), $moedas,
                            json_encode($fotos[$tid], JSON_UNESCAPED_UNICODE),
-                           mb_substr(json_encode($jogadores, JSON_UNESCAPED_UNICODE), 0, 200000)]);
+                           mb_substr(json_encode($jogadores, JSON_UNESCAPED_UNICODE), 0, 200000),
+                           $origem]);
+            if ($origem === 'terceiro') $trancar->execute([$adminId, $tid]);
             $resumo[$tid] = count($jogadores);
+        }
+
+        if ($moedasTotal > 0) {
+            // games_usuarios pode não ter linha ainda: sem o INSERT IGNORE o
+            // UPDATE não pagaria nada e ninguém saberia.
+            $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, pontos) VALUES (?, 0)")->execute([$adminId]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
+                ->execute([$moedasTotal, $adminId]);
         }
         $pdo->commit();
     } catch (Throwable $e) {
@@ -262,8 +299,10 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
     $st = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''),' ',name)) FROM teams WHERE id = ?");
     foreach ($resumo as $tid => $n) {
         $st->execute([$tid]);
-        $nomes[] = ['id' => $tid, 'nome' => (string)$st->fetchColumn(), 'jogadores' => $n];
+        $nomes[] = ['id' => $tid, 'nome' => (string)$st->fetchColumn(), 'jogadores' => $n,
+                    'moedas' => $pagamento[$tid][1]];
     }
 
-    return ['ok' => true, 'erro' => null, 'times' => $nomes, 'ignorados' => $ignorados, 'vazios' => $vazios];
+    return ['ok' => true, 'erro' => null, 'times' => $nomes, 'ignorados' => $ignorados, 'vazios' => $vazios,
+            'moedas' => $moedasTotal];
 }
