@@ -358,10 +358,31 @@ function wcLogMencaoNaoReconhecida(array $m, string $texto, array $ids, string $
 function wcResponderamAoBot(array $m, array $ids): bool
 {
     if (!$ids) return false;
+
     foreach (wcContextos($m) as $ctx) {
+        $doBot = false;
         foreach (['participantPn', 'participantAlt', 'participant', 'remoteJid'] as $k) {
-            foreach ($ids as $id) if (wcMesmoNumero(wcDigitos($ctx[$k] ?? ''), $id)) return true;
+            foreach ($ids as $id) {
+                if (wcMesmoNumero(wcDigitos($ctx[$k] ?? ''), $id)) { $doBot = true; break 2; }
+            }
         }
+        if (!$doBot) continue;
+
+        /* SÓ CONTINUA CONVERSA QUEM ESTAVA CONVERSANDO.
+           Responder a uma mensagem do bot passou a ser um jeito de falar com
+           ele — e isso pegou demais: alguém respondeu "joga o Maxey no meu
+           peito" na saída de um /time, que é uma tabela, e o bot entrou na
+           brincadeira como se fosse pergunta.
+
+           Comando comum é boletim, não conversa: a resposta a ele quase sempre
+           é comentário entre as pessoas do grupo. O que é conversa é a resposta
+           do /duvida — e ela é reconhecível, começa com 💬. Sem esse selo, o
+           bot fica quieto e quem quiser falar com ele marca o @. */
+        $citada = $ctx['quotedMessage'] ?? null;
+        $texto  = is_array($citada) ? wcTextoDaMensagem($citada) : '';
+        if ($texto !== '' && !str_starts_with(ltrim($texto), '💬')) return false;
+
+        return true;
     }
     return false;
 }
