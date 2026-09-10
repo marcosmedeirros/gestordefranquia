@@ -133,6 +133,15 @@ h1 i{color:var(--red)}
 .btn.ghost{background:transparent;border-color:var(--border-md);color:var(--text-2)}
 .btn.ghost:hover:not(:disabled){border-color:var(--red);color:var(--red)}
 .btn.azul{background:#2563eb}
+.temp-sel{display:inline-flex;align-items:center;gap:7px;margin-left:auto;padding:0 4px 0 11px;height:38px;
+  border-radius:10px;border:1.5px solid var(--border-md);background:var(--panel-2);color:var(--text-2)}
+.temp-sel[hidden]{display:none}
+.temp-sel i{color:var(--red)}
+.temp-sel select{background:transparent;border:0;color:var(--text);font-family:var(--font);font-size:12.5px;
+  font-weight:700;height:100%;padding-right:6px;cursor:pointer;outline:none}
+.temp-sel select option{background:var(--panel-2);color:var(--text)}
+.temp-sel:focus-within{border-color:var(--red)}
+@media (max-width:700px){.temp-sel{margin-left:0;width:100%}.temp-sel select{flex:1}}
 
 .msg{margin:0 18px;font-size:12.5px;line-height:1.5;border-radius:10px;padding:9px 12px;border:1px solid}
 .msg:empty{display:none}
@@ -232,6 +241,12 @@ td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
         <i class="bi bi-upload"></i> Enviar CSV
         <input type="file" id="mArquivo" accept=".csv,text/csv" hidden>
       </label>
+      <?php /* Só nas estatísticas: letra não tem temporada. Vem marcada a de
+               sempre (a última com classificação); dá pra voltar numa anterior. */ ?>
+      <label class="temp-sel" id="mTempRot" title="Temporada que recebe as estatísticas">
+        <i class="bi bi-calendar3"></i>
+        <select id="mTemporada" aria-label="Temporada"></select>
+      </label>
     </div>
     <div class="msg" id="mMsg"></div>
     <div class="caixa-corpo"><table id="mTabela"></table></div>
@@ -256,8 +271,8 @@ const API    = '/api/controle-elencos.php';
 let liga = <?= json_encode($ligaInicial) ?>;
 const TIME_INICIAL = <?= (int)$timeInicial ?>;
 let tipo = <?= json_encode($tipoInicial) ?>;
-let times = [], temporada = null;
-const modal = { escopo: null, timeId: null, nome: '', jogadores: [], porId: {}, novos: {} };
+let times = [], temporada = null, temporadas = [];
+const modal = { escopo: null, timeId: null, nome: '', jogadores: [], porId: {}, novos: {}, temporadaId: null };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -305,7 +320,7 @@ async function carregar() {
   $('grade').innerHTML = '<div class="vazio">Carregando…</div>';
   try {
     const d = await getJSON(`${API}?acao=times&liga=${encodeURIComponent(liga)}`);
-    times = d.times || []; temporada = d.temporada;
+    times = d.times || []; temporada = d.temporada; temporadas = d.temporadas || [];
     renderGrade();
   } catch (e) {
     $('grade').innerHTML = `<div class="vazio">${esc(e.message)}</div>`;
@@ -406,12 +421,28 @@ async function abrirModal(escopo, timeId) {
     ? 'O modelo traz todos os jogadores da liga, com a coluna do time.'
     : (t ? `${t.gm} · ${t.jogadores} jogadores` : '');
   aviso('', '');
-  $('mTabela').innerHTML = '<tbody><tr><td class="vazio-cel">Carregando…</td></tr></tbody>';
   $('modal').hidden = false;
   document.body.style.overflow = 'hidden';
 
+  // Seletor de temporada: sempre abre na de sempre (a alvo).
+  modal.temporadaId = temporada ? temporada.id : null;
+  $('mTempRot').hidden = tipo !== 'stats' || !temporadas.length;
+  $('mTemporada').innerHTML = temporadas.map(s =>
+    `<option value="${s.id}"${s.id === modal.temporadaId ? ' selected' : ''}>${esc(s.rotulo)}${
+      temporada && s.id === temporada.id ? ' (padrão)' : ''}</option>`).join('');
+
+  await carregarElencoModal();
+}
+
+function urlElencoModal() {
+  return `${API}?acao=elenco&liga=${encodeURIComponent(liga)}${modal.timeId ? '&time=' + modal.timeId : ''}` +
+         (tipo === 'stats' && modal.temporadaId ? '&temporada=' + modal.temporadaId : '');
+}
+
+async function carregarElencoModal() {
+  $('mTabela').innerHTML = '<tbody><tr><td class="vazio-cel">Carregando…</td></tr></tbody>';
   try {
-    const d = await getJSON(`${API}?acao=elenco&liga=${encodeURIComponent(liga)}${timeId ? '&time=' + timeId : ''}`);
+    const d = await getJSON(urlElencoModal());
     modal.jogadores = d.jogadores || [];
     modal.porId = Object.fromEntries(modal.jogadores.map(j => [j.id, j]));
     renderModal();
@@ -420,6 +451,19 @@ async function abrirModal(escopo, timeId) {
     $('mTabela').innerHTML = '';
   }
 }
+
+// Trocar a temporada troca o "valor de agora" da revisão inteira.
+$('mTemporada').addEventListener('change', async e => {
+  if (Object.keys(modal.novos).length &&
+      !confirm('Tem mudança lida do CSV que ainda não foi salva. Trocar de temporada e descartar?')) {
+    e.target.value = modal.temporadaId;
+    return;
+  }
+  modal.temporadaId = parseInt(e.target.value, 10) || null;
+  modal.novos = {};
+  aviso('', '');
+  await carregarElencoModal();
+});
 
 function fecharModal() {
   if (Object.keys(modal.novos).length &&
@@ -577,7 +621,7 @@ $('mSalvar').addEventListener('click', async () => {
   try {
     const d = await getJSON(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acao: 'salvar', liga, tipo, linhas })
+      body: JSON.stringify({ acao: 'salvar', liga, tipo, linhas, temporada: modal.temporadaId })
     });
     let txt = `Gravado: ${d.times.map(t => `${esc(t.nome)} (${t.jogadores})`).join(', ')}.`;
     if (d.vazios) txt += ` ${d.vazios} linha(s) sem dado foram puladas.`;
@@ -586,7 +630,7 @@ $('mSalvar').addEventListener('click', async () => {
     modal.novos = {};
     aviso('ok', txt);
     // Recarrega o que está na tela: o valor "de agora" passou a ser o novo.
-    const e = await getJSON(`${API}?acao=elenco&liga=${encodeURIComponent(liga)}${modal.timeId ? '&time=' + modal.timeId : ''}`);
+    const e = await getJSON(urlElencoModal());
     modal.jogadores = e.jogadores || [];
     modal.porId = Object.fromEntries(modal.jogadores.map(j => [j.id, j]));
     renderModal();

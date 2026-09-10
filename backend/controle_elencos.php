@@ -92,10 +92,18 @@ function ceTimesDaLiga(PDO $pdo, string $liga): array
         ];
     }
 
+    // Pro seletor do modal: todas as da sprint ativa. A alvo vem marcada.
+    $temporadas = array_map(fn($s) => [
+        'id'     => (int)$s['id'],
+        'numero' => (int)$s['season_number'],
+        'rotulo' => statsRotuloTemporada($s),
+    ], statsTemporadasDaLiga($pdo, $liga));
+
     return [
-        'times'     => $times,
-        'temporada' => $alvo ? ['id' => (int)$alvo['id'], 'numero' => (int)$alvo['season_number'],
-                                'ano' => (int)($alvo['year'] ?? 0)] : null,
+        'times'      => $times,
+        'temporada'  => $alvo ? ['id' => (int)$alvo['id'], 'numero' => (int)$alvo['season_number'],
+                                 'ano' => (int)($alvo['year'] ?? 0)] : null,
+        'temporadas' => $temporadas,
     ];
 }
 
@@ -104,9 +112,9 @@ function ceTimesDaLiga(PDO $pdo, string $liga): array
  * letras de agora e as estatísticas já lançadas na temporada-alvo. É o que o
  * modal mostra como "valor atual" ao lado do que veio no CSV.
  */
-function ceJogadores(PDO $pdo, string $liga, ?int $teamId): array
+function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = null): array
 {
-    $alvo = statsTemporadaAlvo($pdo, $liga)['alvo'] ?? null;
+    $alvo = statsTemporadaEscolhida($pdo, $liga, $temporadaId);
     $colsSkill = implode(', ', array_map(fn($c) => "p.{$c}", array_keys(ATUALIZACAO_SKILLS)));
     $colsStat  = implode(', ', array_map(fn($c) => "s.{$c}", array_keys(ATUALIZACAO_STATS)));
 
@@ -149,7 +157,7 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId): array
  *
  * @return array{ok:bool, erro:?string, times:array, ignorados:int, vazios:int}
  */
-function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $linhas, bool $ehAdmin = true): array
+function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $linhas, bool $ehAdmin = true, ?int $temporadaId = null): array
 {
     $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'times' => [], 'ignorados' => 0, 'vazios' => 0, 'moedas' => 0];
     if (!in_array($tipo, ['letras', 'stats'], true)) return $falha('Tipo inválido.');
@@ -194,7 +202,8 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
 
     $temporada = null;
     if ($tipo === 'stats') {
-        $temporada = statsTemporadaAlvo($pdo, $liga)['alvo'] ?? null;
+        // A escolhida no modal, validada contra a liga; sem escolha, a alvo.
+        $temporada = statsTemporadaEscolhida($pdo, $liga, $temporadaId);
         if (!$temporada) return $falha('A liga não tem temporada pra receber estatística.');
     }
 

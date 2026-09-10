@@ -56,7 +56,8 @@ if ($acao === 'elenco') {
             exit;
         }
     }
-    echo json_encode(['ok' => true, 'jogadores' => ceJogadores($pdo, $liga, $timeId ?: null)],
+    $temporadaId = (int)($_GET['temporada'] ?? 0) ?: null;
+    echo json_encode(['ok' => true, 'jogadores' => ceJogadores($pdo, $liga, $timeId ?: null, $temporadaId)],
                      JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -69,7 +70,8 @@ if ($acao === 'salvar') {
     $ehAdmin = ($user['user_type'] ?? 'jogador') === 'admin'
             || in_array($liga, getAdminLeagues($pdo, (int)$user['id']), true);
     $r = ceGravar($pdo, (int)$user['id'], $liga, (string)($corpo['tipo'] ?? ''),
-                  is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : [], $ehAdmin);
+                  is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : [], $ehAdmin,
+                  (int)($corpo['temporada'] ?? 0) ?: null);
     if (!$r['ok']) http_response_code(400);
     echo json_encode($r, JSON_UNESCAPED_UNICODE);
     exit;

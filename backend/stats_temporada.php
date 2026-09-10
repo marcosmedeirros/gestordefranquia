@@ -73,6 +73,41 @@ function statsTemporadaAlvo(PDO $pdo, string $liga): array
     }
 }
 
+/**
+ * As temporadas da sprint ativa da liga, da mais nova pra mais velha. É a
+ * lista do seletor da tela de edição: quem esqueceu de lançar a T1 e já está
+ * na T3 precisa conseguir voltar nela.
+ */
+function statsTemporadasDaLiga(PDO $pdo, string $liga): array
+{
+    try {
+        $st = $pdo->prepare("SELECT s.id, s.season_number, s.status, s.year, sp.start_year
+                               FROM seasons s
+                               JOIN sprints sp ON sp.id = s.sprint_id
+                              WHERE s.league = ? AND sp.status = 'active'
+                           ORDER BY s.season_number DESC, s.id DESC");
+        $st->execute([strtoupper(trim($liga))]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[stats] temporadas da liga: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * A temporada pedida, se for mesmo desta liga e da sprint ativa; senão, a
+ * alvo de sempre. Id vindo da tela nunca decide sozinho onde gravar.
+ */
+function statsTemporadaEscolhida(PDO $pdo, string $liga, ?int $id): ?array
+{
+    if ($id) {
+        foreach (statsTemporadasDaLiga($pdo, $liga) as $s) {
+            if ((int)$s['id'] === $id) return $s;
+        }
+    }
+    return statsTemporadaAlvo($pdo, $liga)['alvo'] ?? null;
+}
+
 /** "Temporada 2 · 2027", do jeito que a tela escreve. */
 function statsRotuloTemporada(?array $s): string
 {
