@@ -20,9 +20,10 @@ $user = getUserSession();
 if (!$user) { http_response_code(401); echo json_encode(['ok' => false, 'erro' => 'Sessão expirada.']); exit; }
 
 $pdo = db();
-$ehGlobal = ($user['user_type'] ?? 'jogador') === 'admin';
-$ligas = $ehGlobal ? ['ELITE', 'NEXT', 'RISE', 'ROOKIE'] : getAdminLeagues($pdo, (int)$user['id']);
-if (!$ligas) { http_response_code(403); echo json_encode(['ok' => false, 'erro' => 'Só admin.']); exit; }
+// Aberta a qualquer usuário logado (pedido de 10/09/2026): a edição de letras
+// e estatísticas foi centralizada aqui, com atalho na página de stats. Cada
+// gravação continua no histórico com o id de quem enviou, e dá pra reverter.
+$ligas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 $corpo = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -230,6 +230,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0}
 .page-title{font-size:26px;font-weight:900;letter-spacing:-.6px;line-height:1.1;display:flex;align-items:center;gap:10px}
 .page-title i{color:var(--red)}
 .page-sub{color:var(--text-2);font-size:14px;margin-top:5px}
+.bt-editar{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:9px 16px;
+  border-radius:10px;background:var(--red);color:#fff;font-size:13px;font-weight:700;
+  text-decoration:none;transition:filter .15s}
+.bt-editar:hover{filter:brightness(1.12);color:#fff}
+.bt-editar:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
 .content{padding:16px 28px 60px}
 
@@ -405,6 +410,10 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
     <div class="page-eyebrow">Liga <?= htmlspecialchars($liga) ?><?= $seasonLabel ? ' · ' . htmlspecialchars($seasonLabel) : '' ?></div>
     <h1 class="page-title"><i class="bi bi-bar-chart-line-fill"></i> Stats e Skills</h1>
     <p class="page-sub">Clique no título de uma coluna para ordenar. Clique de novo para inverter.</p>
+    <?php /* A edição mora numa tela só (controle-elencos.php): time a time ou a
+             liga inteira, com revisão antes de gravar. Aqui é só leitura. */ ?>
+    <a href="/controle-elencos.php?league=<?= urlencode($liga) ?>" class="bt-editar">
+      <i class="bi bi-pencil-square"></i> Editar jogadores</a>
   </div>
 
   <div class="content">
@@ -455,15 +464,9 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
       <span class="f-contador" id="contador"></span>
     </div>
 
-    <?php /* A importação era só do admin. Virou de todo mundo: o gargalo era
-             depender de uma pessoa só pra lançar o que a liga inteira já tem
-             na mão, e quem tiver a planilha resolve. Vale pra liga toda, não
-             só pro próprio elenco. */ ?>
+    <?php /* A importação saiu daqui: a edição foi centralizada no botão
+             "Editar jogadores" do topo. */ ?>
     <div class="admin-barra">
-      <button type="button" class="f-chip" onclick="abrirImport('stats')">
-        <i class="bi bi-clipboard-data"></i> Importar estatísticas</button>
-      <button type="button" class="f-chip" onclick="abrirImport('skills')">
-        <i class="bi bi-sliders"></i> Importar atributos</button>
       <?php /* Ao lado da importação porque é o movimento contrário: leva a
                tabela inteira de uma vez. Sai separado por TAB, que é o que
                cola direto em planilha — o botão de cada linha continua
@@ -499,8 +502,8 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
     <?php elseif ($seasonCorrenteId && $seasonId !== $seasonCorrenteId): ?>
     <div class="aviso-temp">
       <i class="bi bi-clock-history"></i>
-      <p>Você está vendo uma <b>temporada passada</b>. Importar estatísticas ou
-      atributos grava na <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, não nesta.</p>
+      <p>Você está vendo uma <b>temporada passada</b>. O que for lançado em
+      "Editar jogadores" grava na <b><?= htmlspecialchars($seasonAlvoRotulo) ?></b>, não nesta.</p>
     </div>
     <?php endif; ?>
 

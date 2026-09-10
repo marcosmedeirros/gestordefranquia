@@ -17,18 +17,17 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-$ehAdminGlobal = ($user['user_type'] ?? 'jogador') === 'admin';
-$minhasLigas   = $ehAdminGlobal ? ['ELITE', 'NEXT', 'RISE', 'ROOKIE'] : getAdminLeagues($pdo, (int)$user['id']);
-if (!$ehAdminGlobal && empty($minhasLigas)) {
-    http_response_code(403);
-    echo '<!DOCTYPE html><meta charset="utf-8"><title>Controle de Elencos</title>'
-       . '<body style="font-family:system-ui;background:#07070a;color:#f0f0f3;display:grid;place-items:center;min-height:100vh">'
-       . '<p>Esta tela é de admin de liga. <a href="/dashboard.php" style="color:#fc0025">Voltar</a></p></body>';
-    exit;
-}
+// Aberta a qualquer usuário logado: é a tela única de edição de letras e
+// estatísticas, com atalho em Stats e Skills. O admin continua chegando pelos
+// cards da aba da liga.
+$ehAdmin = ($user['user_type'] ?? 'jogador') === 'admin'
+        || !empty(getAdminLeagues($pdo, (int)$user['id']));
+$minhasLigas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 $pedida = strtoupper(trim((string)($_GET['league'] ?? '')));
-$ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida : $minhasLigas[0];
+$ligaDoUsuario = strtoupper((string)($user['league'] ?? ''));
+$ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida
+             : (in_array($ligaDoUsuario, $minhasLigas, true) ? $ligaDoUsuario : $minhasLigas[0]);
 // Veio do card "Editar Stats" da aba de uma liga: a tela fica só nela, sem
 // abas pras outras — cada liga tem a sua página.
 if (in_array($pedida, $minhasLigas, true)) $minhasLigas = [$pedida];
@@ -157,7 +156,11 @@ td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
       <div class="sub">Lance as letras e as estatísticas de um time — ou da liga inteira — por CSV.
         Nada é gravado direto do arquivo: ele preenche a revisão, e o Salvar é seu.</div>
     </div>
+    <?php if ($ehAdmin): ?>
     <a href="/admin.php" class="voltar"><i class="bi bi-arrow-left"></i> Admin</a>
+    <?php else: ?>
+    <a href="/statsjogadores.php" class="voltar"><i class="bi bi-arrow-left"></i> Stats e Skills</a>
+    <?php endif; ?>
   </div>
 
   <div class="barra">
