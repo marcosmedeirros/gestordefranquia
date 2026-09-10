@@ -785,16 +785,22 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
 
         $j = json_decode((string)$corpo, true);
 
-        /* O teto diário é o erro esperado do free tier, e merece resposta
-           própria: "tenta de novo em um minuto" mandaria a pessoa insistir à
-           toa até o dia seguinte. Não adianta trocar de modelo — a cota é da
-           chave. */
+        /* 429 É COTA DAQUELE MODELO, E NÃO DA CHAVE.
+           Isto aqui desistia na hora, com o comentário "não adianta trocar de
+           modelo — a cota é da chave". Estava errado, e o console do Google
+           mostrou: o free tier é 500 por dia POR MODELO, cada um com seu
+           contador. Medido no dia: o bot morreu às 21h13 com 605 chamadas de
+           um teto de 1980, porque o `3.1-flash-lite` esgotou os 500 dele
+           enquanto os outros três estavam intactos.
+
+           Agora o 429 cai pro próximo da fila, igual ao 503. Só quando TODOS
+           recusarem é que acabou de verdade — e aí o $ultimoErro carrega a
+           mensagem de limite, em vez do "tenta de novo em um minuto", que
+           mandaria a pessoa insistir à toa. */
         if ($status === 429) {
-            error_log("[duvida/gemini] {$modelo} 429: " . editalIaSemSegredo((string)$corpo));
-            // Mesmo texto do teto nosso: pra quem pergunta, os dois casos são
-            // a mesma coisa — acabou por hoje. A diferença é só nossa, e está
-            // no log.
-            return [false, null, $erro('Cheguei no meu limite por hoje. Até amanhã!')];
+            error_log("[duvida/gemini] {$modelo} 429 (cota do modelo): " . editalIaSemSegredo((string)$corpo));
+            $ultimoErro = 'Cheguei no meu limite por hoje. Até amanhã!';
+            continue;
         }
 
         // 503 é fila do modelo, e 404 é modelo que saiu do ar pra contas novas:
