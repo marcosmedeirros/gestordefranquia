@@ -76,8 +76,20 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS vision_monthly_usage (
     count INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+/* A COTA CONTA NA TEMPORADA EM ANDAMENTO, não na que recebe o lançamento.
+   O balde é o mesmo da leitura de skills, e lá a chave é a temporada aberta.
+   Aqui ela era a alvo ($seasonId), que na virada passa a ser a temporada
+   anterior — justamente a que o time já tinha gastado as 4 leituras quando ela
+   era a aberta. Resultado (11/09/2026): 30 times travados em "limite atingido"
+   sem ter usado foto nenhuma na temporada nova. O número continua sendo gravado
+   na alvo; só a contagem mudou de chave. Mesma consulta de vision_skills.php. */
+$stmtSeasonUso = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY id DESC LIMIT 1");
+$stmtSeasonUso->execute([$team['league']]);
+$seasonUsoId = $stmtSeasonUso->fetchColumn() ?: null;
+$seasonUsoId = $seasonUsoId !== null ? (int)$seasonUsoId : null;
+
 $stmtUsage = $pdo->prepare('SELECT count FROM vision_skill_usage WHERE team_id = ? AND season_id <=> ?');
-$stmtUsage->execute([$teamId, $seasonId]);
+$stmtUsage->execute([$teamId, $seasonUsoId]);
 $currentCount = (int)($stmtUsage->fetchColumn() ?: 0);
 
 $isUnlimited = in_array($user['email'] ?? '', STATS_UNLIMITED_EMAILS);
@@ -139,7 +151,7 @@ if (!empty($visionData['error'])) {
 // O Google cobra a chamada mesmo sem achar texto: conta antes de avaliar o
 // resultado, senao uma imagem ruim repetida fura o freio sem ser registrada.
 $pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
-    ON DUPLICATE KEY UPDATE count = count + 1')->execute([$teamId, $seasonId]);
+    ON DUPLICATE KEY UPDATE count = count + 1')->execute([$teamId, $seasonUsoId]);
 $currentCount++;
 $pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
     ON DUPLICATE KEY UPDATE count = count + 1')->execute([$ym]);
