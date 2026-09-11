@@ -10,9 +10,13 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
-$stTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-$stTeam->execute([(int)$user['id']]);
-$team = $stTeam->fetch(PDO::FETCH_ASSOC) ?: null;
+// Saldo de moedas do Games — é onde o prêmio da rodada cai.
+$moedas = 0;
+try {
+    $stMoedas = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
+    $stMoedas->execute([(int)$user['id']]);
+    $moedas = (int)($stMoedas->fetchColumn() ?: 0);
+} catch (Throwable $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -154,24 +158,31 @@ tr.eu td{background:var(--red-soft)}
 .caixa .linha{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .caixa .linha span{color:var(--text-2)}
 
-/* ── Menu lateral ── */
-:root{--sidebar-w:260px;--radius-sm:10px;--ease:cubic-bezier(.2,.8,.2,1);--t:200ms;--border-red:color-mix(in srgb,var(--red) 22%,transparent)}
-.main{margin-left:var(--sidebar-w);min-height:100vh;padding:22px 18px 60px;transition:margin var(--t) var(--ease)}
-<?php include __DIR__ . '/includes/sidebar-css.php'; ?>
+/* ── Barra do topo: sem menu lateral, só voltar pro Games e o saldo ── */
+.main{min-height:100vh;padding:0 18px 60px}
+.barra-topo{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border);margin:0 -18px 18px;padding:10px 18px}
+.barra-topo .in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.voltar{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid var(--border-md);color:var(--text-2);text-decoration:none;font-size:12.5px;font-weight:700}
+.voltar:hover{border-color:var(--red);color:var(--red)}
+.marca{font-weight:800;font-size:15px}.marca em{color:var(--red);font-style:normal}
+.saldo{margin-left:auto;display:inline-flex;align-items:center;gap:7px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--amber);border-radius:99px;padding:6px 13px;font-family:var(--num);font-size:16px;font-weight:600}
+.saldo small{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2)}
+
+/* ── Janela do nome do time ── */
+#inNome{width:100%;background:var(--panel-2);border:1.5px solid var(--border-md);color:var(--text);border-radius:11px;padding:12px 14px;font-family:var(--font);font-size:15px;font-weight:700;outline:none}
+#inNome:focus{border-color:var(--red)}
+.nome-rodape{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+.nome-rodape small{font-size:11px;color:var(--text-3)}
+.nome-rodape .msg{margin:0;min-height:0}
 @media (max-width:1100px){
   .grid-esc{grid-template-columns:1fr}
   .lado{position:static;order:-1}
   .lista{max-height:none}
 }
-@media (max-width:992px){
-  :root{--sidebar-w:0px}
-  .main{margin-left:0;padding-top:70px;width:100%}
-  .topbar{display:flex}
-  .sidebar{transform:translateX(-260px)}
-  .sidebar.open{transform:translateX(0)}
-}
 @media (max-width:640px){
   .main{padding-left:10px;padding-right:10px}
+  .barra-topo{margin:0 -10px 14px;padding:9px 10px}
+  .marca{display:none}
   .cab{grid-template-columns:1fr}
   .numeros div{flex:1;min-width:0;padding:10px}
   .numeros strong{font-size:19px}
@@ -189,14 +200,14 @@ tr.eu td{background:var(--red-soft)}
 </head>
 <body>
 <div class="app">
-<?php include __DIR__ . '/includes/sidebar.php'; ?>
-<div class="sb-overlay" id="sbOverlay"></div>
-<header class="topbar">
-  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
-  <div class="topbar-title">FBA <em>Manager</em></div>
-</header>
-
 <div class="main">
+<header class="barra-topo">
+  <div class="in">
+    <a class="voltar" href="/games.php"><i class="bi bi-arrow-left"></i> Games</a>
+    <span class="marca">Fantasy <em>FBA</em></span>
+    <span class="saldo" title="Suas moedas no Games"><i class="bi bi-coin"></i> <?= number_format($moedas, 0, ',', '.') ?> <small>moedas</small></span>
+  </div>
+</header>
 <div class="wrap">
   <div class="cab">
     <div class="meu">
@@ -302,6 +313,19 @@ tr.eu td{background:var(--red-soft)}
     </div>
     <div id="dCorpo"></div>
   </div>
+</div>
+
+<div class="fundo" id="fundoNome" hidden>
+  <form class="caixa" id="formNome" role="dialog" aria-modal="true" aria-labelledby="nTit">
+    <h2 id="nTit">Nome do seu time</h2>
+    <p style="font-size:12.5px;color:var(--text-2);margin:4px 0 14px">É como você aparece no ranking do Fantasy.</p>
+    <input id="inNome" maxlength="30" autocomplete="off" aria-label="Nome do time">
+    <div class="nome-rodape"><small id="nConta">0/30</small><span class="msg err" id="nErro" role="alert"></span></div>
+    <div class="acoes" style="justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn" id="nCancelar">Cancelar</button>
+      <button type="submit" class="btn pri" id="nSalvar"><i class="bi bi-check2"></i> Salvar</button>
+    </div>
+  </form>
 </div>
 
 <script>
@@ -548,21 +572,35 @@ $('btSalvar').addEventListener('click', salvar);
 $('btLimpar').addEventListener('click', () => { POS.forEach(p => S.esc[p] = null); S.cap = null; S.sujo = true; aviso(''); mercado(); quadra(); });
 $('busca').addEventListener('input', e => { S.busca = e.target.value; mercado(); });
 $('ordem').addEventListener('change', e => { S.ordem = e.target.value; mercado(); });
-$('btNome').addEventListener('click', async () => {
-  const nome = prompt('Nome do seu time no Fantasy:', S.dados?.cartola?.nome || '');
-  if (!nome) return;
-  const r = await fetch('/api/fantasy.php', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({acao: 'nome', nome})});
-  const d = await r.json();
-  if (!d.ok) return alert(d.erro);
-  S.dados.cartola.nome = d.nome; cabecalho();
+/* Nome do time: janela do site, não o prompt do navegador. */
+const contaNome = () => { $('nConta').textContent = `${$('inNome').value.length}/30`; };
+const fecharNome = () => { $('fundoNome').hidden = true; $('btNome').focus(); };
+$('btNome').addEventListener('click', () => {
+  $('inNome').value = S.dados?.cartola?.nome || '';
+  $('nErro').textContent = '';
+  contaNome();
+  $('fundoNome').hidden = false;
+  $('inNome').focus(); $('inNome').select();
+});
+$('inNome').addEventListener('input', () => { contaNome(); $('nErro').textContent = ''; });
+$('nCancelar').addEventListener('click', fecharNome);
+$('fundoNome').addEventListener('click', e => { if (e.target.id === 'fundoNome') fecharNome(); });
+$('formNome').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nome = $('inNome').value.trim();
+  if (nome.length < 3) { $('nErro').textContent = 'Use pelo menos 3 letras.'; return; }
+  $('nSalvar').disabled = true;
+  try {
+    const r = await fetch('/api/fantasy.php', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({acao: 'nome', nome})});
+    const d = await r.json();
+    if (!d.ok) { $('nErro').textContent = d.erro || 'Não deu pra salvar.'; return; }
+    S.dados.cartola.nome = d.nome; cabecalho(); fecharNome();
+  } catch (_) { $('nErro').textContent = 'Sem conexão. Tente de novo.'; }
+  finally { $('nSalvar').disabled = false; }
 });
 $('fundo').addEventListener('click', e => { if (e.target.id === 'fundo') $('fundo').hidden = true; });
 $('dFechar').addEventListener('click', () => $('fundo').hidden = true);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') $('fundo').hidden = true; });
-
-const sidebar = document.getElementById('sidebar'), sbOverlay = document.getElementById('sbOverlay');
-document.getElementById('menuBtn')?.addEventListener('click', () => { sidebar?.classList.toggle('open'); sbOverlay?.classList.toggle('show'); });
-sbOverlay?.addEventListener('click', () => { sidebar?.classList.remove('open'); sbOverlay.classList.remove('show'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('fundo').hidden = true; if (!$('fundoNome').hidden) fecharNome(); } });
 
 carregar();
 </script>

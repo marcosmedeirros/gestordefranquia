@@ -53,6 +53,25 @@ if (!is_array($evento)) {
     exit;
 }
 
+/* RESPONDE PRA EVOLUTION ANTES DE PENSAR.
+   Um /duvida que consulta memória, time e apelido leva 40–55 s no modelo
+   (medido em 11/09/2026). A Evolution não espera isso: desiste do webhook, o
+   servidor derruba o PHP no meio, e a mensagem — já marcada como vista —
+   nunca é respondida, nem no reenvio. Era o "de vez em quando ele não
+   funciona". Agora a Evolution recebe o OK na hora e o resto roda solto;
+   a resposta sai pela fila, como sempre saiu. */
+ignore_user_abort(true);
+set_time_limit(300);
+echo json_encode(['ok' => true, 'recebido' => true]);
+if (function_exists('litespeed_finish_request')) {
+    litespeed_finish_request();
+} elseif (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    @ob_flush();
+    flush();
+}
+
 /**
  * Texto da mensagem, seja qual for o formato que a Evolution mandar.
  * Mensagem simples vem em conversation; com citação ou formatação, em
