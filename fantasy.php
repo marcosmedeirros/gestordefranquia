@@ -115,7 +115,13 @@ button{font-family:var(--font)}
 .card b{display:block;font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card small{display:block;font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pos{display:inline-block;font-size:10px;font-weight:800;background:var(--panel-3);border-radius:5px;padding:1px 5px;margin-right:4px;color:var(--text)}
-.lenda{font-size:9px;font-weight:800;color:var(--amber);margin-left:5px;letter-spacing:.4px}
+/* Rolagem fina e escura, na cor do tema — a padrão do Windows é um trilho cinza largo. */
+.lista,.tabwrap,.abas,.caixa{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--red) 55%,var(--panel-3)) transparent}
+.lista::-webkit-scrollbar,.tabwrap::-webkit-scrollbar,.abas::-webkit-scrollbar{width:6px;height:6px}
+.lista::-webkit-scrollbar-track,.tabwrap::-webkit-scrollbar-track,.abas::-webkit-scrollbar-track{background:transparent}
+.lista::-webkit-scrollbar-thumb,.tabwrap::-webkit-scrollbar-thumb,.abas::-webkit-scrollbar-thumb{background:var(--panel-3);border-radius:99px}
+.lista:hover::-webkit-scrollbar-thumb,.tabwrap:hover::-webkit-scrollbar-thumb,.abas:hover::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--red) 60%,var(--panel-3))}
+.lista{padding-right:6px}
 .valores{display:grid;grid-template-columns:repeat(2,auto);gap:0 14px;text-align:right}
 .valores span{font-size:9.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 .valores strong{font-family:var(--num);font-size:15px;font-weight:600}
@@ -375,7 +381,7 @@ function mercado() {
     const varTxt = v == null ? '' : `<span class="var ${v > 0 ? 'up' : v < 0 ? 'down' : 'zero'}">${v > 0 ? '▲' : v < 0 ? '▼' : '='} ${f1(Math.abs(v))}</span>`;
     return `<div class="card${on ? ' on' : ''}">
       <button class="foto" data-ver="${j.id}" aria-label="Ver ${esc(j.nome)}" style="border:0;cursor:pointer">${foto(j)}</button>
-      <div style="min-width:0"><b>${esc(j.nome)}${j.lenda ? '<span class="lenda">LENDA</span>' : ''}</b>
+      <div style="min-width:0"><b>${esc(j.nome)}</b>
         <small><span class="pos">${j.pos}</span>${esc(j.time_curto)} · OVR ${j.ovr}</small></div>
       <div class="valores"><span>Preço</span><span>Últ. temp.</span>
         <strong>F$ ${f1(j.preco)}</strong><strong>${j.base != null ? f1(j.base) : '—'}</strong>
