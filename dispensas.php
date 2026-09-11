@@ -323,7 +323,7 @@ function render(){
         <span class="rn">${esc(r.name)}</span>
         <span style="color:var(--text-3);font-size:12px">${r.ovr} OVR</span>
         ${r.status==='claimed'
-          ? `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → <b style="color:var(--text)">${esc(r.to_name||'?')}</b></span><span class="badge claimed">Levado no lance</span>`
+          ? `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → <b style="color:var(--text)">${esc(r.to_name||'?')}</b></span><span class="badge claimed">${r.bid != null ? 'Levado por ' + Number(r.bid) + 'M' : 'Levado no lance'}</span>`
           : `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → Free Agency</span><span class="badge cleared">Sem lance</span>`}
       </div>`).join('') + `</div>`;
   }

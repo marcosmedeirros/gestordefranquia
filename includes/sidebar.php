@@ -314,11 +314,14 @@ if (!function_exists('sbActive')) {
     if (players.length) {
       html += '<div class="gs-group-title">Jogadores</div>';
       players.forEach(p => {
-        const href = '/player.php?id=' + p.id;
+        // Sem clube sem histórico não tem página de jogador: vai pra Free Agency.
+        const href = p.id ? '/player.php?id=' + p.id : '/free-agency.php';
         items.push({ href });
-        const onde = p.retired
-          ? `<span class="gs-tag">Aposentado${p.last_year ? ' ' + p.last_year : ''}</span>`
-          : '';
+        const onde = p.free_agent
+          ? '<span class="gs-tag">Sem clube</span>'
+          : (p.retired
+              ? `<span class="gs-tag">Aposentado${p.last_year ? ' ' + p.last_year : ''}</span>`
+              : '');
         html += `<a class="gs-item" href="${href}">
           <span class="gs-pos">${esc(p.position)}</span>
           <span class="gs-main">

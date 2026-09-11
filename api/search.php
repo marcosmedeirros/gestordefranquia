@@ -75,10 +75,19 @@ try {
         ];
     }
 
-    // ── Jogadores aposentados (só existem no histórico) ──
-    // Mesma regra do "Hall dos Aposentados": não existe mais em players.
+    /* ── Jogadores fora de players: aposentado OU sem clube ──
+       Dispensar também apaga o jogador de players (ele vai pra free_agents, ou
+       pra waiver_retention na ELITE). Sem distinguir, todo dispensado aparecia
+       como "Aposentado". Sem clube = está disponível na free agency ou com a
+       dispensa aberta, pelo nome e pela liga. */
+    $semClubeSql = "(EXISTS (SELECT 1 FROM free_agents fa
+                               WHERE fa.name = psl.player_name AND fa.league = psl.league
+                                 AND fa.status = 'available' AND COALESCE(fa.is_retirement, 0) = 0)
+                     OR EXISTS (SELECT 1 FROM waiver_retention wr
+                               WHERE wr.name = psl.player_name AND wr.league = psl.league
+                                 AND wr.status = 'open'))";
     $sqlRet = "SELECT psl.player_id, psl.player_name, psl.position, psl.ovr, psl.age,
-                      psl.team_name, psl.league, psl.year
+                      psl.team_name, psl.league, psl.year, {$semClubeSql} AS sem_clube
                FROM player_season_log psl
                INNER JOIN (
                    SELECT player_id, MAX(year) AS last_year
@@ -96,7 +105,10 @@ try {
     $stR->bindValue(':lg', $userLeague);
     $stR->execute();
 
+    $jaListados = [];
     foreach ($stR->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $semClube = !empty($r['sem_clube']);
+        $jaListados[mb_strtolower($r['player_name'])] = true;
         $players[] = [
             'id'        => (int)$r['player_id'],
             'name'      => $r['player_name'],
@@ -104,13 +116,53 @@ try {
             'ovr'       => (int)$r['ovr'],
             'age'       => (int)$r['age'],
             'team_id'   => null,
-            'team_name' => $r['team_name'] ?: '',
-            'team_full' => $r['team_name'] ?: '',
+            // Sem clube não mostra o último time: ele não joga mais lá.
+            'team_name' => $semClube ? '' : ($r['team_name'] ?: ''),
+            'team_full' => $semClube ? '' : ($r['team_name'] ?: ''),
             'team_photo'=> '/img/default-team.png',
             'league'    => $r['league'],
-            'retired'   => true,
+            'retired'   => !$semClube,
+            'free_agent'=> $semClube,
             'last_year' => (int)$r['year'],
         ];
+    }
+
+    // Sem clube que nunca entrou no histórico (ex.: dispensado antes do
+    // primeiro fim de temporada): não aparecia em lugar nenhum da busca.
+    try {
+        $sqlFa = "SELECT fa.name, fa.position, fa.overall AS ovr, fa.age, fa.league
+                    FROM free_agents fa
+                   WHERE fa.name LIKE :like AND fa.league = :lg
+                     AND fa.status = 'available' AND COALESCE(fa.is_retirement, 0) = 0
+                   UNION
+                  SELECT wr.name, wr.position, wr.ovr, wr.age, wr.league
+                    FROM waiver_retention wr
+                   WHERE wr.name LIKE :like2 AND wr.league = :lg2 AND wr.status = 'open'
+                   LIMIT {$LIMIT}";
+        $stF = $pdo->prepare($sqlFa);
+        $stF->bindValue(':like', $like);  $stF->bindValue(':lg', $userLeague);
+        $stF->bindValue(':like2', $like); $stF->bindValue(':lg2', $userLeague);
+        $stF->execute();
+        foreach ($stF->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if (isset($jaListados[mb_strtolower($r['name'])])) continue;
+            $jaListados[mb_strtolower($r['name'])] = true;
+            $players[] = [
+                'id'        => null,
+                'name'      => $r['name'],
+                'position'  => $r['position'] ?: '',
+                'ovr'       => (int)$r['ovr'],
+                'age'       => (int)$r['age'],
+                'team_id'   => null,
+                'team_name' => '',
+                'team_full' => '',
+                'team_photo'=> '/img/default-team.png',
+                'league'    => $r['league'],
+                'retired'   => false,
+                'free_agent'=> true,
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[search] sem clube: ' . $e->getMessage());
     }
 
     // ── Times ───────────────────────────────────────────

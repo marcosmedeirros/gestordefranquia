@@ -101,7 +101,11 @@ try {
         $recent = $pdo->query("
             SELECT wr.name, wr.ovr, wr.status, wr.resolved_at,
                    CONCAT(t.city,' ',t.name) AS from_name,
-                   (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name
+                   (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name,
+                   -- O lance vencedor só sai DEPOIS de resolvido: enquanto a
+                   -- dispensa está aberta o lance é cego (ver acima).
+                   (SELECT wc.bid_space FROM waiver_claims wc
+                     WHERE wc.retention_id = wr.id AND wc.team_id = wr.claimed_by_team_id) AS bid
             FROM waiver_retention wr LEFT JOIN teams t ON t.id = wr.team_id
             WHERE wr.status IN ('claimed','cleared') AND wr.league = 'ELITE'
             ORDER BY wr.resolved_at DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
