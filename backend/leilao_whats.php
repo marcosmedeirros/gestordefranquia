@@ -179,7 +179,7 @@ function lwAjuda(): string
          . "*Abrir leilão* de um jogador seu (" . LW_OVR_MINIMO . "+ e com slot de leilão):\n"
          . "/leilao Nome do Jogador\n\n"
          . "*Mandar proposta* no leilão aberto da sua liga:\n"
-         . "/leilao Jogador leiloado + Seu jogador + Pick 2026 R1\n\n"
+         . "/oferta Seu jogador + Pick 2026 R1\n\n"
          . "*Decidir* (se o leilão é seu): ✅ ou ❌ no Gameplay (mandando o emoji ou reagindo à proposta) — também valem /aceitar e /recusar, ou ✅ / ❌ aqui no privado.\n\n"
          . "O leilão fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova. A última proposta aceita leva.";
 }
@@ -313,6 +313,29 @@ function lwComandoPrivado(PDO $pdo, string $texto, string $jid): string
 {
     lwGarantirTabelas($pdo);
 
+    /* /oferta Jogador + Pick 2026 R1 — proposta sem repetir o leiloado.
+       Há um leilão aberto por liga, então a liga da pessoa já diz qual é. Se
+       ela escrever o nome do leiloado mesmo assim, ele sai da lista. */
+    if (preg_match('~^/oferta(\s|$)~iu', trim($texto))) {
+        $times = lwTimesDoNumero($pdo, $jid);
+        if (!$times) return lwNaoTeAchei($jid);
+        $resto = trim(preg_replace('~^/oferta~iu', '', trim($texto)));
+        $partes = array_values(array_filter(array_map(fn($p) => trim(ltrim(trim($p), "*•- \t")),
+                  preg_split('/\s*[+\n,;]\s*/u', $resto)), 'strlen'));
+        foreach ($times as $t) {
+            $lw = lwLeilaoAbertoDaLiga($pdo, $t['league']);
+            if (!$lw) continue;
+            if ((int)$t['id'] === (int)$lw['vendedor_team_id']) {
+                return "Esse leilão é seu. Responda as propostas com ✅ ou ❌ no Gameplay.";
+            }
+            if ($partes && lwNomeCasa(preg_replace('/^[A-Z]{1,2}\s*:\s*|\s+\d{2}\s*\/\s*\d{2}\s*y?$/i', '', $partes[0]), (string)$lw['jogador'])) {
+                array_shift($partes);
+            }
+            return lwReceberProposta($pdo, $lw, $t, $partes, $jid);
+        }
+        return "Não tem leilão aberto na sua liga agora. Quando abrir, o bot anuncia no Gameplay.";
+    }
+
     $arg = trim(preg_replace('~^/leil[aã]o\b~iu', '', trim($texto)));
     if ($arg === '' || in_array(mb_strtolower($arg), ['ajuda', 'help', '?'], true)) return lwAjuda();
 
@@ -422,20 +445,20 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "{$t['name']} leiloa:\n\n"
              . "* " . lwLinhaJogador($p) . "\n\n"
              . "Mande sua proposta no *privado do bot*:\n"
-             . "/leilao {$p['name']} + Jogador + Pick 2026 R1\n\n"
+             . "/oferta Jogador + Pick 2026 R1\n\n"
              . "⏱ Fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova.";
     whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO);
 
     return "✅ Leilão de *{$p['name']}* aberto e anunciado no Gameplay da {$liga}.\n\n"
-         . "As propostas vão aparecer lá, uma por vez. Responda /aceitar ou /recusar no grupo "
-         . "(ou /leilao aceitar aqui). O slot é consumido quando o leilão fechar.";
+         . "As propostas vão aparecer lá, uma por vez. Responda cada uma com ✅ ou ❌ no grupo "
+         . "(ou aqui no privado). O slot é consumido quando o leilão fechar.";
 }
 
 function lwReceberProposta(PDO $pdo, array $lw, array $time, array $itens, string $jid): string
 {
     if (strtotime($lw['fim_max']) <= time()) return "⏱ O leilão de {$lw['jogador']} já fechou.";
     if (!$itens) {
-        return "Faltou o que você oferece. Exemplo:\n/leilao {$lw['jogador']} + Jogador + Pick 2026 R1";
+        return "Faltou o que você oferece. Exemplo:\n/oferta Jogador + Pick 2026 R1";
     }
 
     $teamId = (int)$time['id'];

@@ -505,7 +505,7 @@ foreach ($mensagens as $m) {
        Qualquer outra coisa no privado segue ignorada — o bot não vira consulta
        ao banco da liga fora dos grupos cadastrados. */
     if (!str_ends_with($de, '@g.us')) {
-        if (!preg_match('~^/leil[aã]o(\s|$)~iu', $texto)) continue;
+        if (!preg_match('~^/(leil[aã]o|oferta)(\s|$)~iu', $texto)) continue;
 
         $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
                                   WHERE tipo = 'leilao' AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
