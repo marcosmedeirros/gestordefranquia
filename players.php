@@ -340,13 +340,51 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 		.players-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 		.players-table thead th {
-			text-transform: uppercase; font-size: 11px; letter-spacing: .18em; color: var(--text-3);
-			padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border);
+			text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; color: var(--text-3);
+			padding: 12px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap;
 		}
-		.players-table tbody td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
+		.players-table tbody td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 		.players-table tbody tr:hover { background: var(--panel-2); }
-		.players-table .col-actions { width: 220px; }
+		/* Ações numa linha só. Com largura fixa e sem nowrap os cinco botões
+		   empilhavam na vertical, a linha ficava com 140px de altura e o último
+		   saía cortado pela borda da tabela. */
+		/* Ações presas na borda direita: em tela de notebook a tabela ainda rola
+		   de lado, e eram justamente os botões que sumiam lá no fim. */
+		.players-table .col-actions {
+			white-space: nowrap; position: sticky; right: 0; z-index: 1;
+			background: var(--panel); box-shadow: -10px 0 12px -10px rgba(0,0,0,.55);
+		}
+		.players-table tbody tr:hover td.col-actions { background: var(--panel-2); }
+		/* Nome com as etiquetas (Lenda, Trade, Leal) numa linha só deixava a
+		   coluna com 314px. Agora as etiquetas descem pra baixo do nome. */
+		/* Foto e nome sempre juntos numa linha; só as etiquetas descem. Com o
+		   wrap solto a foto ia pra uma linha e o nome quebrava na outra, e a
+		   coluna encolhia pra 110px com linhas de 187px de altura. */
+		.players-table tbody td:first-child { min-width: 200px; max-width: 260px; }
+		.players-table tbody td:first-child > .d-flex { flex-wrap: wrap; row-gap: 3px; }
+		.players-table tbody td:first-child > .d-flex > img { flex-shrink: 0; }
+		.players-table tbody td:first-child > .d-flex > strong { white-space: nowrap; }
+		/* Badges é a coluna menos consultada: sai em tela de notebook e devolve
+		   o espaço que o nome precisa. Continua no detalhe do jogador. */
+		@media (max-width: 1440px) { .players-table .col-badges { display: none; } }
+		.players-table .col-actions .acoes { display: flex; align-items: center; gap: 6px; }
+		.players-table .col-actions .acoes > * { flex-shrink: 0; margin: 0; }
 		.players-table .col-actions .fav-star { width: 28px; height: 28px; vertical-align: middle; }
+		.players-table .col-actions .acoes .btn-outline,
+		.players-table .col-actions .acoes .btn-trade-action {
+			width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+			font-size: 13px; border-radius: 8px;
+		}
+		/* Time em no máximo duas linhas: "New Orleans Voodoos" em três deixava
+		   a linha com o dobro da altura das outras. */
+		/* O corte vai num span: -webkit-box direto no <td> tira a célula do
+		   layout de tabela e desalinha a coluna. */
+		.players-table .col-time { max-width: 150px; }
+		.players-table .time-clamp {
+			line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+		}
+		.players-table .col-pos { white-space: nowrap; }
+		.players-table .pos-sec { color: var(--text-3); }
 
 		.badge-ovr {
 			display: inline-flex; align-items: center; justify-content: center;
@@ -632,6 +670,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
 					<div class="panel-title" style="margin:0">Jogadores da Liga</div>
 					<div style="display:flex;gap:8px;flex-wrap:wrap">
+						<button type="button" id="semLendasBtn" class="players-toggle-btn" aria-pressed="false" title="Tira da lista os jogadores marcados como lenda"><i class="bi bi-eye-slash"></i> <span>Esconder lendas</span></button>
 						<button type="button" id="favFilterBtn" class="players-toggle-btn"><i class="bi bi-star"></i> <span>Favoritos</span></button>
 						<button type="button" id="compareBtn" class="players-toggle-btn"><i class="bi bi-bar-chart-steps"></i> <span>Comparar</span></button>
 					</div>
@@ -652,7 +691,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<th title="Quanto o jogador ocupa no teto salarial da franquia">Salário</th>
 							<?php endif; ?>
 							<th>Idade</th>
-							<th>Posicao</th>
+							<?php /* A secundária vai junto ("PG/SG"): numa coluna própria, lá
+							         depois das médias, ela ficava longe da posição e ninguém
+							         lia as duas juntas. */ ?>
+							<th>Posição</th>
 							<?php /* GP vem ANTES das médias, e não depois: uma média de 30
 							         pontos em 2 jogos e outra em 60 são coisas diferentes, e
 							         quem lê a linha precisa saber disso antes de olhar o
@@ -662,11 +704,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<th class="col-stat" title="Pontos por jogo na temporada">PTS</th>
 							<th class="col-stat" title="Rebotes por jogo na temporada">REB</th>
 							<th class="col-stat" title="Assistências por jogo na temporada">AST</th>
-							<th>Posicao Sec.</th>
-							<th>Badges</th>
+							<th class="col-stat col-badges">Badges</th>
 							<th>Time</th>
-							<th>Contato</th>
-							<th class="col-actions">Acoes</th>
+							<?php /* Contato virou o ícone de WhatsApp dentro de Ações: a coluna
+							         própria, com botão "Falar", empurrava as ações pra fora da
+							         tela em qualquer monitor menor que 1400px. */ ?>
+							<th class="col-actions">Ações</th>
 						</tr>
 					</thead>
 					<tbody id="playersTableBody"></tbody>
@@ -794,6 +837,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	// ── Favoritos + Comparar ─────────────────────────
 	let favoriteIds = new Set();
 	let onlyFavorites = false;
+	// "Esconder lendas": lembrado neste navegador, porque quem esconde uma vez
+	// costuma querer a lista assim sempre.
+	let semLendas = (() => { try { return localStorage.getItem('fba-jogadores-sem-lendas') === '1'; } catch (e) { return false; } })();
 	let compareMode = false;
 	let compareSel = []; // [{id, name, ovr}]
 
@@ -1209,6 +1255,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (capMin) params.set('cap_min', capMin);
 		if (capMax) params.set('cap_max', capMax);
 		if (teamId) params.set('team_id', teamId);
+		if (semLendas) params.set('sem_lendas', '1');
 		params.set('page', onlyFavorites ? 1 : currentPage);
 		params.set('per_page', onlyFavorites ? 3000 : perPage);
 
@@ -1257,23 +1304,22 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						</td>
 								${LIGA_TEM_CAP ? `<td>${capSalarioHtml(p)}</td>` : ''}
 								<td>${p.age ?? '-'}</td>
-								<td>${p.position ?? '-'}</td>
-								<td class="col-stat">${temStats(p) ? p.games : '-'}</td>
+								<td class="col-pos">${p.position ?? '—'}${p.secondary_position ? `<span class="pos-sec">/${p.secondary_position}</span>` : ''}</td>
+								<td class="col-stat">${temStats(p) ? p.games : '—'}</td>
 								<td class="col-stat"><b>${pg(p.pts_pg)}</b></td>
 								<td class="col-stat">${pg(p.reb_pg)}</td>
 								<td class="col-stat">${pg(p.ast_pg)}</td>
-								<td>${p.secondary_position ?? '-'}</td>
-								<td>${p.badges_count ?? 0}</td>
-								<td>${teamName || '-'}</td>
-								<td>
-									${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-light-gray">Sem contato</span>'}
-								</td>
+								<td class="col-stat col-badges">${p.badges_count ?? 0}</td>
+								<td class="col-time" title="${teamName}"><span class="time-clamp">${teamName || '—'}</span></td>
 								<td class="col-actions">
+									<div class="acoes">
+									${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener" title="Falar com o GM no WhatsApp"><i class="bi bi-whatsapp"></i></a>` : ''}
 									${favStarHtml(p.id)}
 									${compareBtnHtml(p.id)}
 									<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})" title="Detalhes"><i class="bi bi-info-circle"></i></button>
 									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 									<a class="btn-trade-action" href="${linkProporTrade(p)}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i></a>
+									</div>
 								</td>
 							</tr>
 						`;
@@ -1334,6 +1380,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	const favFilterBtn = document.getElementById('favFilterBtn');
 	const compareBtn = document.getElementById('compareBtn');
 	const compareBar = document.getElementById('compareBar');
+	const semLendasBtn = document.getElementById('semLendasBtn');
+	if (semLendasBtn) {
+		semLendasBtn.classList.toggle('active', semLendas);
+		semLendasBtn.setAttribute('aria-pressed', String(semLendas));
+		semLendasBtn.addEventListener('click', () => {
+			semLendas = !semLendas;
+			semLendasBtn.classList.toggle('active', semLendas);
+			semLendasBtn.setAttribute('aria-pressed', String(semLendas));
+			try { localStorage.setItem('fba-jogadores-sem-lendas', semLendas ? '1' : '0'); } catch (e) {}
+			currentPage = 1;
+			carregarJogadores();
+		});
+	}
 	if (favFilterBtn) favFilterBtn.addEventListener('click', () => {
 		onlyFavorites = !onlyFavorites;
 		favFilterBtn.classList.toggle('active', onlyFavorites);

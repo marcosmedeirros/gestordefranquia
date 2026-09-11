@@ -253,6 +253,11 @@ if ($method === 'GET') {
         if ($availableForTrade) {
             $where .= ' AND p.available_for_trade = 1';
         }
+        // "Esconder lendas" da página de Jogadores. No SQL e não no cliente:
+        // filtrando depois, a página de 50 viria com buracos e o total mentiria.
+        if (($_GET['sem_lendas'] ?? '') === '1') {
+            $where .= ' AND COALESCE(p.is_lenda, 0) = 0';
+        }
         if ($query !== '') {
             $where .= ' AND p.name LIKE ?';
             $params[] = '%' . $query . '%';
@@ -289,14 +294,17 @@ if ($method === 'GET') {
         // Estatísticas da temporada corrente da liga, para a listagem poder
         // mostrar e ordenar por PTS/REB/AST. LEFT JOIN: quem não tem registro
         // continua aparecendo, com os campos nulos.
+        //
+        // A temporada é a que RECEBE lançamento (statsTemporadaAlvo), não a
+        // aberta: na virada a aberta é a que acabou de nascer, no draft, sem
+        // número nenhum — e a coluna inteira de médias vinha vazia. É a mesma
+        // régua da página de Stats e do Atualizar elenco.
         $seasonAtual = null;
         try {
-            $stSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ?
-                                       AND (status IS NULL OR status <> 'completed')
-                                       ORDER BY id DESC LIMIT 1");
-            $stSeason->execute([$league]);
-            $seasonAtual = $stSeason->fetchColumn() ?: null;
-        } catch (Exception $e) { $seasonAtual = null; }
+            require_once __DIR__ . '/../backend/stats_temporada.php';
+            $alvoStats = statsTemporadaAlvo($pdo, (string)$league)['alvo'] ?? null;
+            $seasonAtual = $alvoStats ? (int)$alvoStats['id'] : null;
+        } catch (Throwable $e) { $seasonAtual = null; }
 
         $joinStats = $seasonAtual
             ? 'LEFT JOIN player_season_stats ps ON ps.player_id = p.id AND ps.season_id = ' . (int)$seasonAtual
