@@ -11357,6 +11357,24 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
   modal.id = '_dcEditModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1100;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
   modal.innerHTML = `
+    <style>
+      /* No celular a tabela de 6 colunas espremia tudo: nome e posição viravam
+         uma letra. Cada jogador vira um cartão — nome na linha de cima, os
+         números embaixo com o rótulo de cada campo. */
+      @media (max-width:576px){
+        #_dcEditModal{padding:8px!important}
+        #_dcEditModal .panel{margin-top:8px!important}
+        .dc-tab thead{display:none}
+        .dc-tab tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:6px 8px;padding:10px;align-items:end}
+        .dc-tab td{padding:0!important;text-align:left!important}
+        .dc-tab td.dc-nome{grid-column:1 / -1}
+        .dc-tab td input,.dc-tab td select{width:100%!important;font-size:13px!important;padding:6px 8px!important}
+        .dc-tab td[data-l]::before{content:attr(data-l);display:block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+        .dc-add{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}
+        .dc-add > *{min-width:0!important;width:100%}
+        .dc-add .dc-add-nome{grid-column:1 / -1}
+      }
+    </style>
     <div class="panel" style="width:100%;max-width:700px;padding:0;margin-top:24px">
       <div class="panel-header" style="padding:16px 18px 0">
         <div class="panel-title"><i class="bi bi-archive-fill" style="color:#a855f7"></i> ${templateId ? 'Editar Classe' : 'Nova Classe'}</div>
@@ -11406,8 +11424,8 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
           </div>
           <div style="margin-top:12px;padding:12px;background:var(--panel-2);border-radius:var(--radius-sm)">
             <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar jogador</div>
-            <div class="d-flex gap-2 flex-wrap">
-              <input type="text" id="_dcNewName" class="form-control form-control-sm" placeholder="Nome" style="flex:2;min-width:120px">
+            <div class="d-flex gap-2 flex-wrap dc-add">
+              <input type="text" id="_dcNewName" class="form-control form-control-sm dc-add-nome" placeholder="Nome" style="flex:2;min-width:120px">
               <select id="_dcNewPos" class="form-select form-select-sm" style="flex:1;min-width:80px">
                 ${['PG','SG','SF','PF','C'].map(p=>`<option>${p}</option>`).join('')}
               </select>
@@ -11465,7 +11483,7 @@ async function _dcSaveNewClassWithCSV() {
 
 function _dcRenderPlayerList() {
   if (!_dcEditPlayers.length) return '<div class="empty-state" style="padding:16px">Nenhum jogador</div>';
-  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+  return `<table class="dc-tab" style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="background:var(--panel-2)">
       <th style="padding:7px 10px;text-align:left;color:var(--text-3);font-weight:500">Nome</th>
       <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Pos</th>
@@ -11477,21 +11495,21 @@ function _dcRenderPlayerList() {
     <tbody>
       ${_dcEditPlayers.map((p, i) => `
         <tr style="border-top:1px solid var(--border)" id="_dcRow_${p.id || i}">
-          <td style="padding:5px 10px">
+          <td class="dc-nome" data-l="Nome" style="padding:5px 10px">
             <input type="text" value="${escapeHtml(p.name)}" class="form-control form-control-sm" style="font-size:11px" onchange="_dcEditPlayerField(${p.id || i}, 'name', this.value)">
           </td>
-          <td style="padding:5px 7px;text-align:center">
+          <td data-l="Pos" style="padding:5px 7px;text-align:center">
             <select class="form-select form-select-sm" style="font-size:11px;padding:2px 4px" onchange="_dcEditPlayerField(${p.id || i}, 'position', this.value)">
               ${['PG','SG','SF','PF','C'].map(pos=>`<option ${pos===p.position?'selected':''}>${pos}</option>`).join('')}
             </select>
           </td>
-          <td style="padding:5px 7px;text-align:center">
+          <td data-l="OVR" style="padding:5px 7px;text-align:center">
             <input type="number" value="${p.ovr}" min="1" max="99" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'ovr', this.value)">
           </td>
-          <td style="padding:5px 7px;text-align:center">
+          <td data-l="Idade" style="padding:5px 7px;text-align:center">
             <input type="number" value="${p.age}" min="18" max="45" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'age', this.value)">
           </td>
-          <td style="padding:5px 7px;text-align:center">
+          <td data-l="Ordem" style="padding:5px 7px;text-align:center">
             <input type="number" value="${p.pick_hint ?? ''}" min="1" placeholder="—" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'pick_hint', this.value)">
           </td>
           <td style="padding:5px 7px;text-align:center">
