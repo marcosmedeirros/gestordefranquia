@@ -655,10 +655,13 @@ function lwDecidir(PDO $pdo, string $cmd, array $times, bool $noPrivado, ?string
         : "❌ *{$lw['vendedor_nome']} recusou* a proposta do *{$vez['time_nome']}*.";
 
     if ($noPrivado) {
+        // Decidido no privado, o grupo não viu emoji nenhum: aí o aviso faz falta.
         whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txtGrupo, true, LEILAO_BOT_TIPO);
         return $cmd === 'aceitar' ? "✅ Aceita. Avisei no Gameplay." : "❌ Recusada. Avisei no Gameplay.";
     }
-    return $txtGrupo;
+    // No grupo o ✅/❌ do dono já é o anúncio — repetir em frase só polui.
+    // String vazia = atendido em silêncio (o webhook não enfileira nada).
+    return '';
 }
 
 /**
