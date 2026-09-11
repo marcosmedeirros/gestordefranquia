@@ -1400,7 +1400,7 @@ async function showRegistroPontuacao(league) {
 
                 <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
                     <div style="font-size:13px;font-weight:700;color:var(--text)"><i class="bi bi-list-ol"></i> ${isElite ? '4' : '2'}. Posições</div>
-                    <div style="font-size:12px;color:var(--text-3);margin:4px 0 10px">Preencha a posição final de <b>todos</b> os times de cada conferência. Os 8 primeiros valem pontos de seed e formam o chaveamento; os demais ficam registrados no histórico de posições.</div>
+                    <div style="font-size:12px;color:var(--text-3);margin:4px 0 10px">Preencha a posição final de <b>todos</b> os times de cada conferência, <b>já com o play-in resolvido</b>: 1º ao 6º direto, 7º e 8º os <b>vencedores do play-in</b>, e do 9º em diante quem ficou fora — os perdedores do play-in vão pro 9º e 10º, mesmo que tenham terminado a regular em 7º ou 8º. Os 8 primeiros valem pontos de seed e formam o chaveamento.</div>
                     <div id="standingsContainer">
                         <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">
                             <i class="bi bi-download me-1"></i> Carregar Times
@@ -2427,11 +2427,23 @@ async function loadTeamsForStandings(league) {
             const opts = '<option value="">—</option>' +
                 confTeams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
             const slotCount = Math.max(8, confTeams.length);
+            /* TRÊS BLOCOS, como a temporada acontece: 1º–6º vão direto, 7º e
+               8º são os que VENCERAM o play-in, e do 9º em diante fica quem
+               não foi — inclusive quem perdeu o play-in, mesmo tendo terminado
+               a regular em 8º. Sem os blocos, o GM punha o 8º da regular no 8º
+               e o time que o eliminou ficava sem vaga nenhuma. */
+            const bloco = (titulo, dica) => `<div style="display:flex;align-items:baseline;gap:8px;margin:${titulo.startsWith('Direto') ? '0' : '12px'} 0 8px;padding-left:36px">
+                <span style="font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2)">${titulo}</span>
+                <span style="font-size:11px;color:var(--text-3)">${dica}</span></div>`;
             return Array.from({length: slotCount}, (_, i) => {
                 const rank = i + 1;
                 const isSeedCut = rank === 8 && slotCount > 8;
                 const outOfPlayoffs = rank > 8;
-                return `
+                const cabecalho = rank === 1 ? bloco('Direto', '1º ao 6º')
+                    : rank === 7 ? bloco('Vencedores do play-in', '7º e 8º')
+                    : rank === 9 ? bloco('Fora dos playoffs', 'perdedores do play-in entram aqui (9º e 10º)')
+                    : '';
+                return `${cabecalho}
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="fw-bold" style="width:28px;text-align:right;color:${outOfPlayoffs ? 'var(--text-3)' : 'var(--text-2)'}">${rank}°</span>
                     <select class="form-select form-select-sm bg-dark text-white border-orange"
