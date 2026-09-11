@@ -2445,9 +2445,14 @@ try {
                    chaveamento e pra pontuação de seed. */
                 $ordemGeral = is_array($input['ordem_geral'] ?? null) ? $input['ordem_geral'] : [];
                 if ($ordemGeral) {
-                    // O primeiro de fora vem logo depois dos classificados:
-                    // com 32 times e 16 na lista, começa no 17.
-                    $primeiroDeFora = count($vistos) - count($ordemGeral) + 1;
+                    /* O primeiro de fora vem logo depois dos classificados — os
+                       8 primeiros de cada conferência, contados no que acabou
+                       de ser gravado. Era "total − tamanho da lista + 1": com as
+                       vagas do 17º ao 30º sempre visíveis, uma lista preenchida
+                       pela metade começaria no 21º em vez do 17º. */
+                    $stClass = $pdo->prepare("SELECT COUNT(*) FROM season_standings WHERE season_id = ? AND position <= 8");
+                    $stClass->execute([$seasonId]);
+                    $primeiroDeFora = (int)$stClass->fetchColumn() + 1;
 
                     $stmtGeral = $pdo->prepare("UPDATE season_standings SET overall_position = ?
                                                  WHERE season_id = ? AND team_id = ?");

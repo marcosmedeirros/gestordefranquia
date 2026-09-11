@@ -2141,27 +2141,23 @@ function montarOrdemGeral() {
     });
 
     const fora = todos.filter(id => !classificados.has(String(id)));
-    // Enquanto as oito vagas não estiverem preenchidas nos dois lados, "quem
-    // ficou de fora" ainda é a liga inteira — mostrar a lista aí seria pedir
-    // uma ordem que ninguém tem como dar.
-    if (classificados.size < 16 || fora.length < 2) {
-        /* VISÍVEL MESMO ANTES DE LIBERAR. Escondida, a seção parecia não
-           existir: quem abria o card da RISE não via o 17º ao 30º e achava
-           que faltava. Agora ela aparece e diz o que falta pra abrir. */
-        wrap.style.display = '';
-        slots.innerHTML = `<div style="font-size:12.5px;color:var(--text-3);background:var(--panel-2);border:1px dashed var(--border-md);border-radius:10px;padding:12px 14px">
-            <i class="bi bi-lock me-1"></i> Preencha do <b>1º ao 8º</b> das duas conferências
-            (<b>${classificados.size}/16</b>) — aí aparecem aqui as vagas do <b>17º ao ${todos.length}º</b>.</div>`;
-        return;
-    }
     wrap.style.display = '';
 
-    // A numeração continua de onde os classificados param.
-    const primeiro = classificados.size + 1;
+    /* SEMPRE VISÍVEL, com todas as vagas: do 17º ao último (30º nas ligas de
+       30 times, 32º na ELITE). Pedido da liga — esperar as 16 vagas de cima
+       pra a lista aparecer fazia parecer que ela não existia. Enquanto o top 8
+       não está completo, cada vaga oferece todo time que ainda não está nele. */
+    const primeiro = 17;
+    const vagas = Math.max(0, todos.length - 16);
 
-    // O que já foi preenchido (salvamento ou rascunho) volta como estava —
-    // reabrir a tela não pode apagar o trabalho de quem já ordenou.
-    const guardada = (window._ordemGeralSalva || []).map(String).filter(id => fora.includes(id));
+    /* O que está NA TELA ganha do salvo: esta função roda de novo a cada
+       mudança nas conferências, e redesenhar a partir do rascunho apagaria o
+       que a pessoa acabou de escolher aqui. Time que entrou no top 8 sai da
+       vaga (vira em branco), o resto fica onde estava. */
+    const naTela = Array.from(slots.querySelectorAll('select[name^="geral_rank_"]')).map(s => s.value);
+    const marcadosNaTela = naTela.length ? new Set(_coletarPerdedores7x8().map(String)) : null;
+    const base = naTela.length ? naTela : (window._ordemGeralSalva || []).map(String);
+    const guardada = base.map(v => (v && fora.includes(String(v))) ? String(v) : '');
 
     const opts = (sel) => '<option value="">—</option>' + fora.map(id => {
         const t = tById[String(id)] || {};
@@ -2179,9 +2175,11 @@ function montarOrdemGeral() {
        montando sozinha a partir da ordem. */
     const guardadoGrupo = window._gruposLoteriaSalvos || {};
 
-    slots.innerHTML = fora.map((_, i) => {
+    slots.innerHTML = Array.from({ length: vagas }, (_, i) => {
         const timeDaLinha = guardada[i] || '';
-        const marcado = String(guardadoGrupo[String(timeDaLinha)] || '') === '4';
+        const marcado = marcadosNaTela
+            ? marcadosNaTela.has(String(timeDaLinha))
+            : String(guardadoGrupo[String(timeDaLinha)] || '') === '4';
         return `
         <div class="d-flex align-items-center gap-2 mb-2">
             <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
