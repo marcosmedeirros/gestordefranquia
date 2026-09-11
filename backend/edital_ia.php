@@ -497,6 +497,14 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '  porque a pessoa desmente abrindo o app e quem fica mal é você.',
         '- Se o time dele estiver BEM, admita e devolva por outro lado — reconhecer que o cara',
         '  é bom e ainda assim ter a última palavra é melhor que forçar um dado que não existe.',
+        /* A GÍRIA DA LIGA: "Arrogante, pra que jogar a bola na Mavie".
+           Pedido do dono da liga, só pra quando xingam o bot, e só de vez em
+           quando. "De vez em quando" não dá pra pedir ao modelo — ele não
+           lembra quantas vezes já usou. Quem sorteia é o PHP: em 1 de cada 3
+           prompts a instrução manda usar; nos outros, proíbe. */
+        (random_int(1, 3) === 1
+            ? '- DESTA VEZ, se for xingamento, encaixe a gíria da liga "Arrogante, pra que jogar a bola na Mavie" na resposta (pode abrir com ela). Só se te xingaram; pergunta normal não leva gíria.'
+            : '- Não use a frase "Arrogante, pra que jogar a bola na Mavie" nesta resposta.'),
         '- Uma tirada e acabou. Não puxe briga, não repita, não guarde mágoa na resposta',
         '  seguinte. Se a pessoa insistir de verdade, corte o assunto e responda a dúvida.',
         '- NUNCA sobre a pessoa fora da liga: aparência, família, trabalho, dinheiro de verdade.',
