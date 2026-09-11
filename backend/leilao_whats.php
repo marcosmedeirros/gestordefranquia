@@ -593,6 +593,40 @@ function lwReceberProposta(PDO $pdo, array $lw, array $time, array $itens, strin
 
 /* ─── decisão do dono ─────────────────────────────────────────────────────── */
 
+/** Nome comparável: sem acento, pontuação ou caixa ("J.R. Smith" = "jr smith" ≈ "j r smith"). */
+function lwNormal(string $s): string
+{
+    $s = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    return trim(preg_replace('/[^a-z0-9]+/', ' ', strtolower($s)));
+}
+
+/**
+ * Acha um jogador do time cujo nome APARECE na linha, com o que vier em volta:
+ * "Harvey Catchings tem q conferir over c a adm". Fica com o nome mais longo
+ * que couber — "Lou Williams" ganha de "Williams" se os dois existirem.
+ */
+function lwAcharJogadorNaLinha(PDO $pdo, int $teamId, string $linha): ?array
+{
+    static $elencos = [];
+    if (!isset($elencos[$teamId])) {
+        $st = $pdo->prepare("SELECT id, name, position, ovr, age, team_id FROM players WHERE team_id = ?");
+        $st->execute([$teamId]);
+        $elencos[$teamId] = $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $alvo = ' ' . lwNormal($linha) . ' ';
+    $sem = str_replace(' ', '', $alvo);
+    $melhor = null; $tam = 0;
+    foreach ($elencos[$teamId] as $p) {
+        $n = lwNormal((string)$p['name']);
+        if (strlen($n) < 5) continue;
+        // Com espaços ("lou williams") ou colado ("jrsmith" pra "J.R. Smith").
+        if (str_contains($alvo, ' ' . $n . ' ') || (strlen(str_replace(' ', '', $n)) >= 6 && str_contains($sem, str_replace(' ', '', $n)))) {
+            if (strlen($n) > $tam) { $melhor = $p; $tam = strlen($n); }
+        }
+    }
+    return $melhor;
+}
+
 /**
  * /oferta EM TEXTO LIVRE — o que o pessoal cola do trade block:
  *
@@ -639,8 +673,12 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
             $nome = trim($nome);
             if ($nome === '') continue;
             [$j] = lwAcharJogadorDoTime($pdo, $teamId, $nome);
-            if ($j) { $envia[(int)$j['id']] = $j; continue; }
-            [$j] = lwAcharJogadorDoTime($pdo, $sellerId, $nome);
+            $doOfertante = (bool)$j;
+            if (!$j) [$j] = lwAcharJogadorDoTime($pdo, $sellerId, $nome);
+            // Nome com observação em volta: procura o nome DENTRO do texto.
+            if (!$j) { $j = lwAcharJogadorNaLinha($pdo, $teamId, $nome); $doOfertante = (bool)$j; }
+            if (!$j) $j = lwAcharJogadorNaLinha($pdo, $sellerId, $nome);
+            if ($j && $doOfertante) { $envia[(int)$j['id']] = $j; continue; }
             if ($j) {
                 if ((int)$j['id'] !== (int)$lw['player_id']) $extra[(int)$j['id']] = $j;
                 continue;
@@ -649,13 +687,17 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
         }
     }
 
-    if ($naoAchei) {
-        return "❌ Oferta não enviada. Não reconheci: "
-             . implode(', ', array_map(fn($n) => "\"{$n}\"", array_values(array_unique($naoAchei)))) . ".\n\n"
-             . "Confere o nome (jogador do seu elenco ou do {$lw['vendedor_nome']}; pick como \"2031 · 1ª Round\") e manda de novo.";
-    }
+    /* O QUE NÃO FOI RECONHECIDO NÃO BARRA MAIS a oferta — o texto vai inteiro
+       pro Gameplay e a adm confere. Só entra na troca automática o que foi
+       reconhecido, e a pessoa fica sabendo exatamente o quê. Barrar, só se
+       nada do elenco de quem oferta aparecer: aí não há oferta nenhuma. */
+    $aviso = $naoAchei
+        ? "\n\n⚠️ Não reconheci: " . implode(', ', array_map(fn($n) => "\"{$n}\"", array_values(array_unique($naoAchei))))
+          . ". Vai no texto pro Gameplay, mas não entra na troca automática — confere com a adm."
+        : '';
     if (!$envia && !$enviaPicks) {
-        return "Não achei nada do seu elenco na oferta. Exemplo:\n/oferta Jogador + Pick 2026 R1";
+        return "❌ Não achei nenhum jogador ou pick do seu elenco na oferta." . $aviso
+             . "\n\nExemplo:\n/oferta Jogador + Pick 2026 R1";
     }
 
     // Cap: só o teto, só onde a liga usa salário — agora contando o que vem junto.
@@ -732,7 +774,7 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
     }
 
     return "📨 Oferta " . ($substituida ? 'atualizada' : 'recebida') . ". Pro app, reconheci assim:\n\n"
-         . lwBlocoDaProposta($pdo, $propostaId) . "\n\n"
+         . lwBlocoDaProposta($pdo, $propostaId) . $aviso . "\n\n"
          . ($naFrente > 0 ? "Tem {$naFrente} na sua frente — ela vai pro Gameplay quando for a vez."
                           : "Vai pro Gameplay em instantes.");
 }
@@ -921,8 +963,9 @@ function lwPostarProxima(PDO $pdo, array $lw): void
     $st->execute([(int)$lw['leilao_id'], (int)$lw['vendedor_team_id']]);
     $v = $st->fetch(PDO::FETCH_ASSOC) ?: ['name' => 'Dono', 'phone' => null, 'jogador' => ''];
 
-    $numero = whatsappNumero($v['phone'] ?? null);
-    $marca = $numero ? '@' . $numero : '*' . $v['name'] . '*';
+    // Sem @número: marcar o dono escrevia o telefone em toda proposta.
+    $numero = null;
+    $marca = '*' . $v['name'] . '*';
 
     // Oferta colada em texto livre vai como a pessoa escreveu.
     if (!empty($prox['texto'])) {
@@ -932,9 +975,9 @@ function lwPostarProxima(PDO $pdo, array $lw): void
     } else {
         $corpo = lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
     }
-    $txt = "🔨 Proposta por *{$v['jogador']}*\n\n"
-         . $corpo . "\n\n"
-         . "{$marca}, responda ✅ pra aceitar ou ❌ pra recusar";
+    // Só a proposta: o dono já sabe responder com ✅/❌, e a linha de instrução
+    // (com o número dele) se repetia em toda oferta.
+    $txt = "🔨 Proposta por *{$v['jogador']}*\n\n" . $corpo;
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO, null, $numero ? [$numero] : null);
 }
 
