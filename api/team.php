@@ -349,6 +349,9 @@ if ($method === 'GET') {
                   p.was_traded, p.drafted_by_team_id,
                   -- usados só pra calcular o salário do cap (ver getPlayerBaseSalary)
                   p.draft_round, p.draft_pick_position, p.drafted_season_number,
+                  -- contrato da Free Agency ou lance vencedor da dispensa: manda
+                  -- no salário até a virada da temporada (getPlayerBaseSalary).
+                  COALESCE(p.contract_salary, 0) AS contract_salary,
                   COALESCE(p.is_lenda, 0) as is_lenda,
                   COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
