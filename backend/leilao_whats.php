@@ -180,7 +180,7 @@ function lwAjuda(): string
          . "/leilao Nome do Jogador\n\n"
          . "*Mandar proposta* no leilão aberto da sua liga:\n"
          . "/leilao Jogador leiloado + Seu jogador + Pick 2026 R1\n\n"
-         . "*Decidir* (se o leilão é seu): /aceitar ou /recusar no Gameplay — ou aqui, /leilao aceitar e /leilao recusar.\n\n"
+         . "*Decidir* (se o leilão é seu): ✅ ou ❌ no Gameplay (mandando o emoji ou reagindo à proposta) — também valem /aceitar e /recusar, ou ✅ / ❌ aqui no privado.\n\n"
          . "O leilão fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova. A última proposta aceita leva.";
 }
 
@@ -621,6 +621,38 @@ function lwDecidir(PDO $pdo, string $cmd, array $times, bool $noPrivado, ?string
     return $txtGrupo;
 }
 
+/**
+ * ✅ / ❌ como decisão. Só quando a mensagem é SÓ o emoji (repetido vale):
+ * "✅ fechado com ele" é conversa, não resposta.
+ * Devolve 'aceitar', 'recusar' ou null.
+ */
+function lwEmojiDecisao(string $texto): ?string
+{
+    // Seletor de variação (✔️ = ✔ + FE0F) e espaços não mudam o sentido.
+    $t = preg_replace('/[\x{FE0E}\x{FE0F}\x{200D}\s]+/u', '', $texto);
+    if ($t === null || $t === '') return null;
+    if (preg_match('/^[\x{2705}\x{2714}\x{2611}]+$/u', $t)) return 'aceitar';   // ✅ ✔ ☑
+    if (preg_match('/^[\x{274C}\x{2716}\x{274E}]+$/u', $t)) return 'recusar';   // ❌ ✖ ❎
+    return null;
+}
+
+/** Quem mandou é o dono de um leilão aberto neste grupo, com proposta na vez? */
+function lwVendedorComVezNoGrupo(PDO $pdo, string $deQuem, string $grupoJid): bool
+{
+    lwGarantirTabelas($pdo);
+    $times = lwTimesDoNumero($pdo, $deQuem);
+    if (!$times) return false;
+    $ids = array_map(fn($t) => (int)$t['id'], $times);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT 1 FROM leilao_whats w
+                          WHERE w.status = 'aberto' AND w.grupo_jid = ? AND w.vendedor_team_id IN ($ph)
+                            AND EXISTS (SELECT 1 FROM leilao_whats_propostas p
+                                         WHERE p.lw_id = w.id AND p.status = 'na_vez')
+                          LIMIT 1");
+    $st->execute(array_merge([$grupoJid], $ids));
+    return (bool)$st->fetchColumn();
+}
+
 /* ─── o relógio ───────────────────────────────────────────────────────────── */
 
 /**
@@ -686,7 +718,7 @@ function lwPostarProxima(PDO $pdo, array $lw): void
 
     $txt = "🔨 Proposta por *{$v['jogador']}*\n\n"
          . lwBlocoDaProposta($pdo, (int)$prox['proposta_id']) . "\n\n"
-         . "{$marca}, responda /aceitar ou /recusar";
+         . "{$marca}, responda ✅ pra aceitar ou ❌ pra recusar";
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO, null, $numero ? [$numero] : null);
 }
 

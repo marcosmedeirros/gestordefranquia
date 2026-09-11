@@ -477,7 +477,28 @@ foreach ($mensagens as $m) {
     wcAprenderLidPelaCitacao($pdo, $m, $de, $idsDoBot);
 
     $texto = wcTextoDaMensagem($m['message'] ?? []);
+    // Reação (segurar a mensagem e escolher o emoji) chega em outro campo.
+    if ($texto === '' && !empty($m['message']['reactionMessage']['text'])) {
+        $texto = trim((string)$m['message']['reactionMessage']['text']);
+    }
     if ($texto === '') continue;
+
+    /* ✅ E ❌ NO LEILÃO DO WHATSAPP.
+       No grupo, só vira /aceitar ou /recusar se quem mandou é o DONO do leilão
+       aberto ali e há proposta esperando resposta — ✅ e ❌ aparecem na conversa
+       o tempo todo, e o bot não pode sair decidindo leilão por isso. Qualquer
+       outro caso segue em silêncio. No privado vira /leilao aceitar|recusar. */
+    require_once __DIR__ . '/../backend/leilao_whats.php';
+    $emojiLeilao = lwEmojiDecisao($texto);
+    if ($emojiLeilao !== null) {
+        if (!str_ends_with($de, '@g.us')) {
+            $texto = '/leilao ' . $emojiLeilao;
+        } elseif (lwVendedorComVezNoGrupo($pdo, wcRemetenteDaMensagem($m), $de)) {
+            $texto = '/' . $emojiLeilao;
+        } else {
+            continue;
+        }
+    }
 
     /* CONVERSA PARTICULAR: só /leilao.
        É por aqui que se abre leilão e se manda proposta (backend/leilao_whats.php).
