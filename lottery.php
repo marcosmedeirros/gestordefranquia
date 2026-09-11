@@ -1619,10 +1619,19 @@ function spinBalls(pool, entry, onDone){
    Nada disso aplica a ordem ao draft — quem faz isso é o Confirmar. */
 const SESSAO_ID = () => parseInt(($('sessionSelect') || {}).value || 0, 10);
 
+/* O ANÚNCIO NO GRUPO DEPENDE DE A CERIMÔNIA ESTAR NO AR.
+   Transmitir e revelar eram "dispara e esquece": quando o servidor recusava,
+   a escolha saía só na tela de quem conduzia, e o Gameplay nunca sabia — foi
+   o que aconteceu com a loteria da RISE em 11/09. Agora a resposta é lida:
+   falhou, a tela diz; revelou sem cerimônia no ar, ela é posta no ar de novo
+   e a revelação é repetida uma vez. */
+let cerimoniaNoAr = false;
+let avisouFalhaDoGrupo = false;
+
 async function transmitirSorteio(data){
-  if (!PODE_EDITAR_ORDEM || MODO_TESTE || !data || data.preview !== false) return;
+  if (!PODE_EDITAR_ORDEM || MODO_TESTE || !data || data.preview !== false) return false;
   try {
-    await fetch('/api/draft.php', {
+    const res = await fetch('/api/draft.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'lottery_transmitir',
@@ -1631,15 +1640,46 @@ async function transmitirSorteio(data){
         ajustes: data.adjustments || [],
       })
     });
-  } catch (e) { /* a cerimônia continua na tela de quem conduz */ }
+    const d = await res.json().catch(() => ({}));
+    cerimoniaNoAr = !!d.success;
+    if (!cerimoniaNoAr) {
+      alert('A loteria foi sorteada, mas não entrou no ar: ' + (d.error || 'erro no servidor') +
+            '.\nAs escolhas não vão pro grupo do WhatsApp. Sorteie de novo ou fale com o suporte.');
+    }
+    return cerimoniaNoAr;
+  } catch (e) {
+    cerimoniaNoAr = false;
+    alert('Sem conexão pra colocar a loteria no ar. As escolhas não vão pro grupo do WhatsApp — confira a internet e sorteie de novo.');
+    return false;
+  }
 }
 
-function transmitirRevelada(pos){
+async function transmitirRevelada(pos){
   if (!PODE_EDITAR_ORDEM || MODO_TESTE) return;
-  fetch('/api/draft.php', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'lottery_revelar', draft_session_id: SESSAO_ID(), position: pos })
-  }).catch(() => {});
+  const revelar = async () => {
+    const res = await fetch('/api/draft.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'lottery_revelar', draft_session_id: SESSAO_ID(), position: pos })
+    });
+    return res.json().catch(() => ({}));
+  };
+  try {
+    let d = await revelar();
+    // Sem cerimônia no ar: põe no ar com a ordem da tela e tenta de novo.
+    if (!d.success && result && result.preview === false && await transmitirSorteio(result)) {
+      d = await revelar();
+    }
+    if (!d.success && !avisouFalhaDoGrupo) {
+      avisouFalhaDoGrupo = true;
+      alert(`A escolha #${pos} apareceu aqui, mas não foi registrada nem anunciada no grupo: ` +
+            (d.error || 'erro no servidor') + '.');
+    }
+  } catch (e) {
+    if (!avisouFalhaDoGrupo) {
+      avisouFalhaDoGrupo = true;
+      alert(`Sem conexão: a escolha #${pos} não foi registrada nem anunciada no grupo.`);
+    }
+  }
 }
 
 let acompanhandoEm = null;   // carimbo da última mudança já aplicada
@@ -1710,6 +1750,12 @@ function escoarFilaDeQuemAssiste(){
 
 function revealNext(){
   if (busy || !revealQueue.length) return;
+  // A prévia mostra as chances, não um resultado: revelar em cima dela
+  // "sorteava" uma escolha que não existe em lugar nenhum.
+  if (!MODO_TESTE && PODE_EDITAR_ORDEM && (!result || result.preview !== false)) {
+    alert('Isto é a prévia. Clique em "Sortear a loteria" antes de revelar as escolhas.');
+    return;
+  }
   const pos = revealQueue[0];
   // Quem conduz avisa o servidor ANTES da animação: quem assiste tem os
   // mesmos segundos de bolinha girando, não o resultado já pronto.
