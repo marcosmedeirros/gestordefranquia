@@ -1164,8 +1164,34 @@ async function showRegistroPontuacao(league) {
     _regPtsEtapa = rascunhoServidor?.etapa || 'regular';
 
     const cacheLocal = _regPtsLoadCache();
-    const cached = cacheLocal?.form ? cacheLocal
-                 : (rascunhoServidor?.dados?.form ? { form: rascunhoServidor.dados.form } : null);
+    let cached = cacheLocal?.form ? cacheLocal
+               : (rascunhoServidor?.dados?.form ? { form: rascunhoServidor.dados.form } : null);
+
+    /* SEM RASCUNHO COM POSIÇÕES, VALE O QUE ESTÁ SALVO.
+       O rascunho mora no navegador de quem digitou (e numa cópia no servidor
+       que nem sempre existe). Outro admin abrindo uma temporada já salva via
+       tudo "—" — e a ordem geral, que só aparece com as 16 vagas cheias,
+       sumia junto. Aqui a classificação gravada vira o formulário. Rascunho
+       com posição continua ganhando: é o trabalho mais recente. */
+    const temPosicao = f => !!f && Object.keys(f).some(k => /^(leste|oeste)_rank_\d+$/.test(k) && f[k]);
+    if (!temPosicao(cached?.form)) {
+        try {
+            const salvo = await api(`seasons.php?action=classificacao_salva&season_id=${season.id}`);
+            const form = {};
+            (salvo?.times || []).forEach(t => {
+                const conf = String(t.conference || '').toLowerCase();
+                if ((conf === 'leste' || conf === 'oeste') && t.position) {
+                    form[`${conf}_rank_${t.position}`] = String(t.team_id);
+                }
+                // Ordem geral: só quem ficou fora das 8 vagas da conferência.
+                if (t.overall_position && t.position > 8) {
+                    form[`geral_rank_${t.overall_position}`] = String(t.team_id);
+                    if (t.lottery_group === 4) form[`geral_7x8_${t.overall_position}`] = true;
+                }
+            });
+            if (Object.keys(form).length) cached = { form: { ...(cached?.form || {}), ...form } };
+        } catch (_) {}
+    }
     // Chaveamento também vem do rascunho quando esta máquina não tem cópia.
     // Sem nenhuma das duas, zera: _bracket é global, e o que sobrou da
     // temporada aberta antes apareceria como se fosse desta.
@@ -2119,8 +2145,13 @@ function montarOrdemGeral() {
     // ficou de fora" ainda é a liga inteira — mostrar a lista aí seria pedir
     // uma ordem que ninguém tem como dar.
     if (classificados.size < 16 || fora.length < 2) {
-        wrap.style.display = 'none';
-        slots.innerHTML = '';
+        /* VISÍVEL MESMO ANTES DE LIBERAR. Escondida, a seção parecia não
+           existir: quem abria o card da RISE não via o 17º ao 30º e achava
+           que faltava. Agora ela aparece e diz o que falta pra abrir. */
+        wrap.style.display = '';
+        slots.innerHTML = `<div style="font-size:12.5px;color:var(--text-3);background:var(--panel-2);border:1px dashed var(--border-md);border-radius:10px;padding:12px 14px">
+            <i class="bi bi-lock me-1"></i> Preencha do <b>1º ao 8º</b> das duas conferências
+            (<b>${classificados.size}/16</b>) — aí aparecem aqui as vagas do <b>17º ao ${todos.length}º</b>.</div>`;
         return;
     }
     wrap.style.display = '';

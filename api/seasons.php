@@ -2206,6 +2206,31 @@ try {
         // ========== RASCUNHO DO REGISTRO (autosave do formulário) ==========
         // Só leitura/escrita do que está digitado. Nada aqui pontua nem
         // registra nada — é o que permite fechar a aba no meio e voltar.
+        /* A CLASSIFICAÇÃO QUE JÁ ESTÁ SALVA, pro card de Pontuação.
+           O card só se preenchia com rascunho (do navegador ou do servidor).
+           Temporada salva sem rascunho — outro admin, outro aparelho, rascunho
+           limpo — abria com tudo "—", inclusive a ordem geral da loteria,
+           como se nada tivesse sido registrado. */
+        case 'classificacao_salva': {
+            $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            $cols = ['team_id', 'position'];
+            foreach (['conference', 'overall_position', 'lottery_group'] as $c) {
+                $cols[] = columnExists($pdo, 'season_standings', $c) ? $c : "NULL AS {$c}";
+            }
+            $stmtC = $pdo->prepare("SELECT " . implode(', ', $cols) . " FROM season_standings WHERE season_id = ? ORDER BY position");
+            $stmtC->execute([$seasonId]);
+            $times = array_map(fn($r) => [
+                'team_id'          => (int)$r['team_id'],
+                'position'         => $r['position'] !== null ? (int)$r['position'] : null,
+                'conference'       => $r['conference'] !== null ? strtoupper((string)$r['conference']) : null,
+                'overall_position' => $r['overall_position'] !== null ? (int)$r['overall_position'] : null,
+                'lottery_group'    => $r['lottery_group'] !== null ? (int)$r['lottery_group'] : null,
+            ], $stmtC->fetchAll(PDO::FETCH_ASSOC));
+            echo json_encode(['success' => true, 'times' => $times]);
+            break;
+        }
+
         case 'registro_rascunho': {
             $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
             if (!$seasonId) throw new Exception('season_id é obrigatório');
