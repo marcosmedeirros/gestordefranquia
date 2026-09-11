@@ -35,6 +35,19 @@ try {
 
     $method = $_SERVER['REQUEST_METHOD'];
 
+    // Detalhes de um jogador das dispensas, pro modal (ver waiverDetalhes).
+    if ($method === 'GET' && ($_GET['action'] ?? '') === 'detalhes') {
+        $st = $pdo->prepare("SELECT wr.*, CONCAT(t.city,' ',t.name) AS from_name,
+                                    (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name
+                               FROM waiver_retention wr LEFT JOIN teams t ON t.id = wr.team_id
+                              WHERE wr.id = ?");
+        $st->execute([(int)($_GET['id'] ?? 0)]);
+        $w = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$w) { echo json_encode(['success' => false, 'error' => 'Dispensa não encontrada.']); exit; }
+        echo json_encode(['success' => true] + waiverDetalhes($pdo, $w), JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     if ($method === 'GET') {
         $stmt = $pdo->prepare("
             SELECT wr.id, wr.name, wr.age, wr.position, wr.secondary_position, wr.ovr, wr.team_id,
@@ -99,7 +112,7 @@ try {
 
         // Resolvidos recentes (para mostrar o desfecho)
         $recent = $pdo->query("
-            SELECT wr.name, wr.ovr, wr.status, wr.resolved_at,
+            SELECT wr.id, wr.name, wr.ovr, wr.status, wr.resolved_at,
                    CONCAT(t.city,' ',t.name) AS from_name,
                    (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name,
                    -- O lance vencedor só sai DEPOIS de resolvido: enquanto a

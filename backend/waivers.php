@@ -63,6 +63,14 @@ function ensureWaiverTables(PDO $pdo): void
         UNIQUE KEY uq_claim (retention_id, team_id),
         INDEX idx_wc_ret (retention_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    /* FOTO E NOTAS NO MOMENTO DA DISPENSA. A linha em `players` é apagada ao
+       dispensar, e com ela iam a foto e as letras: o modal de detalhes das
+       dispensas não tinha de onde tirar. MEDIUMTEXT porque foto_adicional pode
+       ser um data URI inteiro. */
+    if (!waiverColExists($pdo, 'waiver_retention', 'extras_json')) {
+        try { $pdo->exec("ALTER TABLE waiver_retention ADD COLUMN extras_json MEDIUMTEXT NULL"); }
+        catch (Throwable $e) { error_log('[waivers] extras_json: ' . $e->getMessage()); }
+    }
     // bid_space = espaço no cap do time no momento do lance (o "lance"). Coluna nova em bases antigas.
     // "ADD COLUMN IF NOT EXISTS" só existe em MySQL 8.0.29+/MariaDB 10.0.2+; em versões mais
     // antigas isso é um erro de sintaxe (silenciosamente ignorado pelo catch), deixando a coluna
@@ -90,20 +98,131 @@ function enterWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): in
 {
     ensureWaiverTables($pdo);
     $horas = ($horas !== null && $horas > 0) ? $horas : WAIVER_HOURS;
+    // Foto e notas vão junto (ver extras_json em ensureWaiverTables). A coluna
+    // é conferida com SHOW COLUMNS, que não é DDL: esta função roda dentro da
+    // transação da dispensa, e sem a coluna o INSERT derrubaria a dispensa.
+    $extras = [];
+    foreach (['nba_player_id', 'foto_adicional', 'player_skill_grades', 'skill_in', 'skill_mid', 'skill_3pt',
+              'skill_post_d', 'skill_per_d', 'skill_play', 'skill_reb', 'skill_athl', 'skill_iq', 'skill_pot'] as $k) {
+        if (isset($p[$k]) && $p[$k] !== '') $extras[$k] = $p[$k];
+    }
+    $temExtras = waiverColExists($pdo, 'waiver_retention', 'extras_json');
+
     $stmt = $pdo->prepare("INSERT INTO waiver_retention
         (player_id, team_id, league, name, age, position, secondary_position, ovr, seasons_in_league,
-         drafted_by_team_id, draft_round, draft_pick_position, role, expires_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR))");
-    $stmt->execute([
+         drafted_by_team_id, draft_round, draft_pick_position, role, expires_at" . ($temExtras ? ', extras_json' : '') . ")
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR)" . ($temExtras ? ', ?' : '') . ")");
+    $params = [
         $p['id'] ?? null, (int)$p['team_id'], $league, $p['name'], $p['age'] ?? null,
         $p['position'] ?? null, $p['secondary_position'] ?? null, (int)($p['ovr'] ?? 0),
         (int)($p['seasons_in_league'] ?? 0), $p['drafted_by_team_id'] ?? null,
         $p['draft_round'] ?? null, $p['draft_pick_position'] ?? null, $p['role'] ?? 'Titular',
         $horas,
-    ]);
+    ];
+    if ($temExtras) $params[] = $extras ? json_encode($extras, JSON_UNESCAPED_UNICODE) : null;
+    $stmt->execute($params);
     $id = (int)$pdo->lastInsertId();
     notificarEntradaNoWaiver($pdo, $p, $league, $horas);
     return $id;
+}
+
+/**
+ * O que o modal de detalhes mostra pra um jogador que está (ou passou) pelas
+ * dispensas — o mesmo formato de api/team.php?action=player_details.
+ *
+ * Não dá pra usar aquela: ela procura o jogador em `players`, e a dispensa
+ * apaga a linha. O que sobra é a própria dispensa (dados + extras_json) e o
+ * histórico, que continua preso ao player_id original.
+ *
+ * $w = linha de waiver_retention com from_name e to_name.
+ */
+function waiverDetalhes(PDO $pdo, array $w): array
+{
+    $extras = json_decode((string)($w['extras_json'] ?? ''), true) ?: [];
+    $pid = (int)($w['player_id'] ?? 0);
+    $nome = (string)$w['name'];
+
+    /* Dispensado antes de a dispensa guardar a foto: procura outra linha com o
+       mesmo nome (a mesma lenda em outra liga, ou ele já recriado no time que
+       levou). Só a FOTO — letra de skill de outra linha seria de outro jogador. */
+    if (empty($extras['nba_player_id']) && empty($extras['foto_adicional'])) {
+        try {
+            $st = $pdo->prepare("SELECT nba_player_id, foto_adicional FROM players
+                                  WHERE name = ? AND (nba_player_id IS NOT NULL OR (foto_adicional IS NOT NULL AND foto_adicional <> ''))
+                               ORDER BY (nba_player_id IS NOT NULL) DESC LIMIT 1");
+            $st->execute([$nome]);
+            if ($f = $st->fetch(PDO::FETCH_ASSOC)) {
+                $extras['nba_player_id'] = $f['nba_player_id'];
+                $extras['foto_adicional'] = $f['foto_adicional'];
+            }
+        } catch (Throwable $e) {}
+    }
+
+    $de = trim((string)($w['from_name'] ?? ''));
+    $onde = match ((string)$w['status']) {
+        'claimed' => ($de ?: 'Draft') . ' → ' . (trim((string)($w['to_name'] ?? '')) ?: '?'),
+        'cleared' => ($de ?: 'Draft') . ' → Free Agency',
+        default   => $de ? 'Dispensado por ' . $de : 'Não escolhido no draft',
+    };
+
+    $seasonLog = [];
+    if ($pid > 0) {
+        try {
+            $st = $pdo->prepare("SELECT season_number, year, team_name, ovr, age FROM player_season_log
+                                  WHERE player_id = ?
+                                    AND season_id IN (SELECT id FROM seasons WHERE sprint_id IN
+                                                      (SELECT id FROM sprints WHERE status = 'active'))
+                               ORDER BY season_id ASC");
+            $st->execute([$pid]);
+            $seasonLog = $st->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {}
+    }
+
+    // Trocas: mesma regra de api/team.php (por id, ou pelo nome quando o item não guardou id).
+    $linhas = [];
+    foreach ([
+        "SELECT t.created_at, ti.from_team AS enviou,
+                TRIM(CONCAT(COALESCE(ft.city,''),' ',ft.name)) AS de, TRIM(CONCAT(COALESCE(tt.city,''),' ',tt.name)) AS para
+           FROM trade_items ti JOIN trades t ON t.id = ti.trade_id
+           JOIN teams ft ON ft.id = t.from_team_id JOIN teams tt ON tt.id = t.to_team_id
+          WHERE ti.pick_id IS NULL AND t.status = 'accepted' AND t.league = ?
+            AND (ti.player_id = ? OR (ti.player_id IS NULL AND ti.player_name = ?))",
+        "SELECT mt.created_at, 1 AS enviou,
+                TRIM(CONCAT(COALESCE(ft.city,''),' ',ft.name)) AS de, TRIM(CONCAT(COALESCE(tt.city,''),' ',tt.name)) AS para
+           FROM multi_trade_items mti JOIN multi_trades mt ON mt.id = mti.trade_id
+           JOIN teams ft ON ft.id = mti.from_team_id JOIN teams tt ON tt.id = mti.to_team_id
+          WHERE mti.pick_id IS NULL AND mt.status = 'accepted' AND mt.league = ?
+            AND (mti.player_id = ? OR (mti.player_id IS NULL AND mti.player_name = ?))",
+    ] as $sql) {
+        try {
+            $st = $pdo->prepare($sql);
+            $st->execute([(string)$w['league'], $pid, $nome]);
+            $linhas = array_merge($linhas, $st->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Throwable $e) {}
+    }
+    usort($linhas, fn($a, $b) => strcmp((string)$b['created_at'], (string)$a['created_at']));
+    $transfers = []; $vistos = [];
+    foreach ($linhas as $r) {
+        $mandou = (int)$r['enviou'] === 1;
+        $from = $mandou ? $r['de'] : $r['para'];
+        $to   = $mandou ? $r['para'] : $r['de'];
+        $ano  = $r['created_at'] ? (int)substr((string)$r['created_at'], 0, 4) : null;
+        $chave = strtolower("{$ano}|{$from}|{$to}");
+        if (isset($vistos[$chave])) continue;
+        $vistos[$chave] = true;
+        $transfers[] = ['from_team' => $from, 'to_team' => $to, 'year' => $ano];
+    }
+
+    return [
+        'status' => (string)$w['status'],
+        'player' => [
+            'name' => $nome, 'age' => $w['age'], 'position' => $w['position'],
+            'secondary_position' => $w['secondary_position'], 'ovr' => (int)$w['ovr'],
+            'team_name' => $onde,
+        ] + $extras,
+        'season_log' => $seasonLog,
+        'transfers' => $transfers,
+    ];
 }
 
 /** Avisa a liga que abriu um waiver — menos o time que dispensou. */

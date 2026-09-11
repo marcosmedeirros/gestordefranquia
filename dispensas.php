@@ -156,6 +156,25 @@ a{color:inherit;text-decoration:none}
 .badge{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:999px;flex-shrink:0}
 .badge.claimed{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green);border:1px solid color-mix(in srgb,var(--green) 30%,transparent)}
 .badge.cleared{background:var(--panel-3);color:var(--text-2);border:1px solid var(--border)}
+/* ── Botão ⓘ e modal de detalhes (o mesmo de Jogadores, sem Bootstrap) ── */
+.infobtn{width:28px;height:28px;border-radius:8px;border:1px solid color-mix(in srgb,var(--blue) 45%,transparent);background:color-mix(in srgb,var(--blue) 10%,transparent);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;flex-shrink:0;transition:var(--t);padding:0}
+.infobtn:hover{background:var(--blue);color:#fff}
+.infobtn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.nmrow{display:flex;align-items:center;gap:8px;min-width:0}
+.nmrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-fundo{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(3px);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.dm-fundo[hidden]{display:none}
+.dm-caixa{background:var(--panel);border:1px solid var(--border-md);border-radius:16px;width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.dm-cab{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.dm-cab h3{font-size:16px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-fechar{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer}
+.dm-fechar:hover{border-color:var(--red);color:var(--red)}
+.dm-corpo{overflow-y:auto}
+.skill-grades-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.skill-grade-item{background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 4px;text-align:center}
+.skill-grade-label{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.skill-grade-value{font-size:15px;font-weight:800}
+@media (max-width:520px){.skill-grades-grid{gap:4px}.skill-grade-value{font-size:13px}.dm-fundo{padding:8px}}
 .loading{text-align:center;color:var(--text-3);padding:60px;font-size:14px}
 .loading i{font-size:24px;display:block;margin-bottom:10px;color:var(--red);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -201,6 +220,99 @@ a{color:inherit;text-decoration:none}
 </div>
 </main>
 </div><!-- .app -->
+
+<div class="dm-fundo" id="dmFundo" hidden>
+  <div class="dm-caixa" role="dialog" aria-modal="true" aria-labelledby="dmTitulo">
+    <div class="dm-cab">
+      <h3 id="dmTitulo">Detalhes</h3>
+      <button class="dm-fechar" id="dmFechar" type="button" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dm-corpo" id="dmCorpo"></div>
+  </div>
+</div>
+
+<script>
+/* ── Modal de detalhes: mesmo desenho do de Jogadores (players.php) ── */
+const SKILL_GRADE_FIELDS = [
+  {key:'in',label:'IN'},{key:'mid',label:'MID'},{key:'pt3',label:'3PT'},{key:'post_d',label:'POST D'},{key:'per_d',label:'PER D'},
+  {key:'play',label:'PLAY'},{key:'reb',label:'REB'},{key:'athl',label:'ATHL'},{key:'iq',label:'IQ'},{key:'pot',label:'POT'},
+];
+function _corAvatar(){ try{ const m=getComputedStyle(document.documentElement).getPropertyValue('--red').trim().match(/#([0-9a-fA-F]{6})/); return m?m[1]:'fc0025'; }catch(e){ return 'fc0025'; } }
+function fotoDoJogador(p){
+  const custom = String(p.foto_adicional||'').trim();
+  if (custom) return custom;
+  return p.nba_player_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_player_id}.png`
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'P')}&background=121212&color=${_corAvatar()}&rounded=true&bold=true`;
+}
+function notasDoJogador(p){
+  let g = {};
+  try { g = typeof p.player_skill_grades === 'object' && p.player_skill_grades ? p.player_skill_grades : JSON.parse(p.player_skill_grades||'{}') || {}; } catch(e) { g = {}; }
+  const col = {in:p.skill_in,mid:p.skill_mid,pt3:p.skill_3pt,post_d:p.skill_post_d,per_d:p.skill_per_d,play:p.skill_play,reb:p.skill_reb,athl:p.skill_athl,iq:p.skill_iq,pot:p.skill_pot};
+  Object.entries(col).forEach(([k,v]) => { if (v !== null && v !== undefined && v !== '') g[k] = v; });
+  return g;
+}
+function corDaNota(v){ if(!v||v==='-') return 'var(--text-3)'; const g=String(v).toUpperCase().trim();
+  if(['A+','A','A-','B+'].includes(g)) return '#22c55e'; if(['B','B-','C+','C','C-'].includes(g)) return '#f59e0b'; return '#ef4444'; }
+const rotulo = t => `<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">${t}</div>`;
+
+async function abrirDetalhes(id){
+  const corpo = $('dmCorpo');
+  $('dmTitulo').textContent = 'Detalhes';
+  corpo.innerHTML = '<div class="loading"><i class="bi bi-hourglass-split"></i> Carregando…</div>';
+  $('dmFundo').hidden = false;
+  $('dmFechar').focus();
+  try{
+    const r = await fetch('/api/waivers.php?action=detalhes&id=' + encodeURIComponent(id));
+    const d = await r.json();
+    if(!d.success){ corpo.innerHTML = `<div style="padding:20px;color:var(--red)">${esc(d.error||'Erro ao carregar.')}</div>`; return; }
+    const p = d.player || {}, log = d.season_log || [], tr = d.transfers || [];
+    $('dmTitulo').textContent = p.name || 'Detalhes';
+    const delta = log.length >= 2 ? (parseInt(log[log.length-1].ovr)||0) - (parseInt(log[log.length-2].ovr)||0) : 0;
+    const deltaHtml = delta > 0 ? `<span style="font-size:11px;color:#22c55e;font-weight:700;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);padding:2px 8px;border-radius:999px;margin-left:8px">+${delta}</span>`
+      : delta < 0 ? `<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:999px;margin-left:8px">${delta}</span>` : '';
+    const logHtml = log.length ? log.map((s,i) => {
+        const label = (s.season_number ? `Temp ${s.season_number}` : `Temporada ${i+1}`) + (s.year ? ` · ${s.year}` : '');
+        const dd = i > 0 ? (parseInt(s.ovr)||0) - (parseInt(log[i-1].ovr)||0) : 0;
+        const dh = dd > 0 ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${dd}</span>` : dd < 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${dd}</span>` : '';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:12px;font-weight:600">${esc(label)}</div><div style="font-size:11px;color:var(--text-2)">${esc(s.team_name||'-')} · ${s.age??'-'}a</div></div>
+          <div style="display:flex;align-items:center"><span style="color:var(--red);font-weight:800;font-size:15px">${s.ovr??'-'}</span>${dh}</div></div>`;
+      }).join('') : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhum snapshot registrado ainda.</div>';
+    const trHtml = tr.length ? tr.map(t => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600">${esc(t.from_team)} <span style="color:var(--text-3)">→</span> ${esc(t.to_team)}</div>
+        ${t.year ? `<div style="font-size:11px;color:var(--text-3)">${t.year}</div>` : ''}</div>`).join('')
+      : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
+    const notas = notasDoJogador(p);
+    const temNota = SKILL_GRADE_FIELDS.some(f => notas[f.key]);
+    const notasHtml = `<div class="skill-grades-grid">${SKILL_GRADE_FIELDS.map(f => { const v = notas[f.key] || '-';
+        return `<div class="skill-grade-item"><div class="skill-grade-label">${f.label}</div><div class="skill-grade-value" style="color:${corDaNota(v)}">${esc(v)}</div></div>`; }).join('')}</div>`
+      + (temNota ? '' : '<div style="font-size:11.5px;color:var(--text-3);margin-top:8px">As notas não foram guardadas quando este jogador foi dispensado.</div>');
+    const reserva = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'P')}&background=121212&color=${_corAvatar()}&rounded=true&bold=true`;
+    corpo.innerHTML = `
+      <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
+        <img src="${esc(fotoDoJogador(p))}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)" onerror="this.onerror=null;this.src='${reserva}'">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:18px;font-weight:800;line-height:1.2">${esc(p.name||'-')}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:2px">${esc(p.team_name||'-')}</div>
+          <div style="display:flex;align-items:center;margin-top:6px"><span style="font-size:30px;font-weight:900;color:var(--red);line-height:1">${p.ovr??'-'}</span>${deltaHtml}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
+        ${[['Idade',p.age??'-'],['Posição',p.position??'-'],['Pos. Sec.',p.secondary_position||'-']].map(([l,v]) =>
+          `<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${esc(v)}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
+      </div>
+      <div style="padding:14px 22px;border-bottom:1px solid var(--border)">${rotulo('Notas por Skill')}${notasHtml}</div>
+      <div style="padding:16px 22px">${rotulo('Evolução por Temporada')}${logHtml}</div>
+      <div style="padding:0 22px 22px">${rotulo('Transferências')}${trHtml}</div>`;
+  }catch(e){ corpo.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>'; }
+}
+function fecharDetalhes(){ $('dmFundo').hidden = true; }
+document.addEventListener('DOMContentLoaded', () => {
+  $('dmFechar').addEventListener('click', fecharDetalhes);
+  $('dmFundo').addEventListener('click', e => { if (e.target.id === 'dmFundo') fecharDetalhes(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dmFundo').hidden) fecharDetalhes(); });
+});
+</script>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -291,7 +403,7 @@ function render(){
         <div class="pl">
           <div class="av">${esc((w.position||'?').slice(0,2))}</div>
           <div style="min-width:0">
-            <div class="nm">${esc(w.name)}</div>
+            <div class="nmrow"><div class="nm">${esc(w.name)}</div><button class="infobtn" type="button" onclick="abrirDetalhes(${w.id})" title="Detalhes" aria-label="Detalhes do jogador"><i class="bi bi-info-circle"></i></button></div>
             <div class="meta">${esc(pos)} · ${w.age||'?'} anos</div>
           </div>
           <div class="ovr"><div class="v">${w.ovr}</div><div class="l">OVR</div></div>
@@ -321,6 +433,7 @@ function render(){
     html += `<div class="section"><i class="bi bi-clock-history"></i> Resolvidos recentemente</div><div class="recent">` +
       recent.map(r=>`<div class="rrow">
         <span class="rn">${esc(r.name)}</span>
+        <button class="infobtn" type="button" onclick="abrirDetalhes(${r.id})" title="Detalhes" aria-label="Detalhes do jogador"><i class="bi bi-info-circle"></i></button>
         <span style="color:var(--text-3);font-size:12px">${r.ovr} OVR</span>
         ${r.status==='claimed'
           ? `<span style="margin-left:auto;font-size:12px;color:var(--text-2)">${esc(r.from_name || 'Draft')} → <b style="color:var(--text)">${esc(r.to_name||'?')}</b></span><span class="badge claimed">${r.bid != null ? 'Levado por ' + Number(r.bid) + 'M' : 'Levado no lance'}</span>`
