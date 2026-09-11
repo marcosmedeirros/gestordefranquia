@@ -75,6 +75,10 @@ function lwGarantirTabelas(PDO $pdo): void
             UNIQUE KEY uk_proposta (proposta_id),
             KEY idx_lw (lw_id, status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        // O texto da oferta como a pessoa mandou — é ele que vai pro Gameplay.
+        if (!$pdo->query("SHOW COLUMNS FROM leilao_whats_propostas LIKE 'texto'")->fetch()) {
+            $pdo->exec("ALTER TABLE leilao_whats_propostas ADD COLUMN texto TEXT NULL");
+        }
     } catch (Throwable $e) {
         error_log('[leilao_whats] tabelas: ' . $e->getMessage());
     }
@@ -170,7 +174,29 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
     $st->execute([$propostaId]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $linhas[] = '* ' . lwLinhaPick($pk, (int)$cab['team_id']);
 
-    return $cab['name'] . " envia:\n\n" . implode("\n", $linhas);
+    $bloco = $cab['name'] . " envia:\n\n" . implode("\n", $linhas);
+
+    // O que o vendedor manda junto com o leiloado (oferta colada do trade block).
+    $st = $pdo->prepare("SELECT t.id, t.name FROM leilao_propostas lp
+                           JOIN leilao_jogadores l ON l.id = lp.leilao_id
+                           JOIN teams t ON t.id = l.team_id WHERE lp.id = ?");
+    $st->execute([$propostaId]);
+    $vend = $st->fetch(PDO::FETCH_ASSOC);
+    $extras = [];
+    $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM leilao_proposta_extra_players x
+                           JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ? ORDER BY x.id");
+    $st->execute([$propostaId]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $extras[] = '* ' . lwLinhaJogador($p);
+    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, o.name AS origem
+                           FROM leilao_proposta_extra_picks x JOIN picks pk ON pk.id = x.pick_id
+                      LEFT JOIN teams o ON o.id = pk.original_team_id
+                          WHERE x.proposta_id = ? ORDER BY x.id");
+    $st->execute([$propostaId]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $extras[] = '* ' . lwLinhaPick($pk, (int)($vend['id'] ?? 0));
+    if ($extras && $vend) {
+        $bloco .= "\n\n" . $vend['name'] . " manda junto:\n\n" . implode("\n", $extras);
+    }
+    return $bloco;
 }
 
 function lwAjuda(): string
@@ -287,7 +313,7 @@ function lwLerPick(string $texto): ?array
     if (!$rodada) return null;
 
     $resto = str_replace([$mAno[0], $mm[0]], ' ', $t);
-    $resto = preg_replace('/\b(pick|picks|escolha|de|da|do|via)\b|[()*•\-]/iu', ' ', $resto);
+    $resto = preg_replace('/\b(pick|picks|escolha|de|da|do|via)\b|[()*•·\-]/iu', ' ', $resto);
     return [(int)$mAno[1], $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
 }
 
@@ -335,18 +361,13 @@ function lwComandoPrivado(PDO $pdo, string $texto, string $jid): string
         $times = lwTimesDoNumero($pdo, $jid);
         if (!$times) return lwNaoTeAchei($jid);
         $resto = trim(preg_replace('~^/oferta~iu', '', trim($texto)));
-        $partes = array_values(array_filter(array_map(fn($p) => trim(ltrim(trim($p), "*•- \t")),
-                  preg_split('/\s*[+\n,;]\s*/u', $resto)), 'strlen'));
         foreach ($times as $t) {
             $lw = lwLeilaoAbertoDaLiga($pdo, $t['league']);
             if (!$lw) continue;
             if ((int)$t['id'] === (int)$lw['vendedor_team_id']) {
                 return "Esse leilão é seu. Responda as propostas com ✅ ou ❌ no Gameplay.";
             }
-            if ($partes && lwNomeCasa(preg_replace('/^[A-Z]{1,2}\s*:\s*|\s+\d{2}\s*\/\s*\d{2}\s*y?$/i', '', $partes[0]), (string)$lw['jogador'])) {
-                array_shift($partes);
-            }
-            return lwReceberProposta($pdo, $lw, $t, $partes, $jid);
+            return lwReceberPropostaLivre($pdo, $lw, $t, $resto, $jid);
         }
         return "Não tem leilão aberto na sua liga agora. Quando abrir, o bot anuncia no Gameplay.";
     }
@@ -573,6 +594,150 @@ function lwReceberProposta(PDO $pdo, array $lw, array $time, array $itens, strin
 /* ─── decisão do dono ─────────────────────────────────────────────────────── */
 
 /**
+ * /oferta EM TEXTO LIVRE — o que o pessoal cola do trade block:
+ *
+ *   BUFFALO BLUES recebe:
+ *     • Nick Young (SF, OVR 87/28a)
+ *   BED-STUY ALLEY DOGS recebe:
+ *     • Deron Williams (PG, OVR 87/29a)
+ *     • 2031 · 1ª Round (Oregon Puddles)
+ *
+ * O texto vai pro Gameplay do jeito que veio. Pra troca no app cada linha é
+ * reconhecida, e quem decide a direção é o DONO do item, não o cabeçalho:
+ * item de quem oferta vai pro vendedor; item do vendedor (fora o leiloado)
+ * vai junto pra quem oferta. Linha que não bate com ninguém barra a oferta —
+ * trocar sem um dos itens seria pior que pedir o nome certo.
+ */
+function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto, string $jid): string
+{
+    if (strtotime($lw['fim_max']) <= time()) return "⏱ O leilão de {$lw['jogador']} já fechou.";
+    if (trim($texto) === '') return "Faltou o que você oferece. Exemplo:\n/oferta Jogador + Pick 2026 R1";
+
+    $teamId   = (int)$time['id'];
+    $sellerId = (int)$lw['vendedor_team_id'];
+    $liga     = (string)$lw['liga'];
+
+    $envia = []; $enviaPicks = []; $extra = []; $extraPicks = []; $naoAchei = [];
+    foreach (preg_split('/\R/u', $texto) as $linha) {
+        $linha = trim(preg_replace('/^[\s*•·\-–—>]+/u', '', $linha));
+        if ($linha === '' || str_ends_with($linha, ':')) continue;
+        if (preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $linha)) continue;
+
+        if ($pick = lwLerPick($linha)) {
+            [$ano, $rodada, $origem] = $pick;
+            [$pk] = lwAcharPickDoTime($pdo, $teamId, $liga, $ano, $rodada, $origem);
+            if ($pk) { $enviaPicks[(int)$pk['id']] = $pk; continue; }
+            [$pk] = lwAcharPickDoTime($pdo, $sellerId, $liga, $ano, $rodada, $origem);
+            if ($pk) { $extraPicks[(int)$pk['id']] = $pk; continue; }
+            $naoAchei[] = $linha;
+            continue;
+        }
+
+        // "(SF, OVR 87/28a)" é enfeite; + , ; separam nomes na mesma linha.
+        $semEnfeite = trim(preg_replace('/\s*\(.*$/u', '', $linha));
+        foreach (preg_split('/\s*[+,;]\s*/u', $semEnfeite) as $nome) {
+            $nome = trim($nome);
+            if ($nome === '') continue;
+            [$j] = lwAcharJogadorDoTime($pdo, $teamId, $nome);
+            if ($j) { $envia[(int)$j['id']] = $j; continue; }
+            [$j] = lwAcharJogadorDoTime($pdo, $sellerId, $nome);
+            if ($j) {
+                if ((int)$j['id'] !== (int)$lw['player_id']) $extra[(int)$j['id']] = $j;
+                continue;
+            }
+            $naoAchei[] = $nome;
+        }
+    }
+
+    if ($naoAchei) {
+        return "❌ Oferta não enviada. Não reconheci: "
+             . implode(', ', array_map(fn($n) => "\"{$n}\"", array_values(array_unique($naoAchei)))) . ".\n\n"
+             . "Confere o nome (jogador do seu elenco ou do {$lw['vendedor_nome']}; pick como \"2031 · 1ª Round\") e manda de novo.";
+    }
+    if (!$envia && !$enviaPicks) {
+        return "Não achei nada do seu elenco na oferta. Exemplo:\n/oferta Jogador + Pick 2026 R1";
+    }
+
+    // Cap: só o teto, só onde a liga usa salário — agora contando o que vem junto.
+    try {
+        if (capLigaUsaSalario($pdo, $liga)) {
+            $doVendedor = capSalariosDoTime($pdo, $sellerId, $liga);
+            $meus = capSalariosDoTime($pdo, $teamId, $liga);
+            $recebe = (int)($doVendedor[(int)$lw['player_id']] ?? 0);
+            foreach (array_keys($extra) as $pid) $recebe += (int)($doVendedor[$pid] ?? 0);
+            $manda = 0;
+            foreach (array_keys($envia) as $pid) $manda += (int)($meus[$pid] ?? 0);
+            $espaco = (int)(getTeamCapSummary($pdo, $teamId)['space'] ?? 0);
+            if ($recebe - $manda > max(0, $espaco)) {
+                $falta = $recebe - $manda - max(0, $espaco);
+                return "❌ Essa oferta te deixa {$falta}M acima do teto: você recebe {$recebe}M, manda {$manda}M "
+                     . "e tem {$espaco}M de espaço. Inclua mais salário.";
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[leilao_whats] cap livre: ' . $e->getMessage());
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("SELECT status FROM leilao_whats WHERE id = ? FOR UPDATE");
+        $st->execute([(int)$lw['id']]);
+        if ($st->fetchColumn() !== 'aberto') {
+            $pdo->rollBack();
+            return "⏱ O leilão de {$lw['jogador']} acabou de fechar.";
+        }
+
+        $st = $pdo->prepare("SELECT id, proposta_id, status FROM leilao_whats_propostas
+                              WHERE lw_id = ? AND team_id = ? AND status IN ('aguardando','na_vez')");
+        $st->execute([(int)$lw['id'], $teamId]);
+        $substituida = false;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $antiga) {
+            if ($antiga['status'] === 'na_vez') {
+                $pdo->rollBack();
+                return "⏳ Sua oferta anterior está no Gameplay esperando a resposta do {$lw['vendedor_nome']}. Manda a nova depois que ele responder.";
+            }
+            $pdo->prepare("UPDATE leilao_whats_propostas SET status = 'substituida', decidida_em = NOW() WHERE id = ?")
+                ->execute([(int)$antiga['id']]);
+            $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?")
+                ->execute([(int)$antiga['proposta_id']]);
+            $substituida = true;
+        }
+
+        $pdo->prepare("INSERT INTO leilao_propostas (leilao_id, team_id, obs, status, is_personalized, created_at)
+                       VALUES (?, ?, 'Proposta pelo WhatsApp', 'pendente', ?, NOW())")
+            ->execute([(int)$lw['leilao_id'], $teamId, ($extra || $extraPicks) ? 1 : 0]);
+        $propostaId = (int)$pdo->lastInsertId();
+
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_jogadores (proposta_id, player_id) VALUES (?, ?)");
+        foreach (array_keys($envia) as $pid) $ins->execute([$propostaId, $pid]);
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_picks (proposta_id, pick_id) VALUES (?, ?)");
+        foreach (array_keys($enviaPicks) as $pid) $ins->execute([$propostaId, $pid]);
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_players (proposta_id, player_id) VALUES (?, ?)");
+        foreach (array_keys($extra) as $pid) $ins->execute([$propostaId, $pid]);
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, NULL)");
+        foreach (array_keys($extraPicks) as $pid) $ins->execute([$propostaId, $pid]);
+
+        $pdo->prepare("INSERT INTO leilao_whats_propostas (lw_id, proposta_id, team_id, autor_jid, texto) VALUES (?, ?, ?, ?, ?)")
+            ->execute([(int)$lw['id'], $propostaId, $teamId, mb_substr($jid, 0, 80), mb_substr(trim($texto), 0, 1500)]);
+        $pdo->prepare("UPDATE leilao_whats SET ultima_atividade = NOW() WHERE id = ?")->execute([(int)$lw['id']]);
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM leilao_whats_propostas WHERE lw_id = ? AND status IN ('aguardando','na_vez') AND proposta_id <> ?");
+        $st->execute([(int)$lw['id'], $propostaId]);
+        $naFrente = (int)$st->fetchColumn();
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao_whats] oferta livre: ' . $e->getMessage());
+        return "Deu erro ao registrar a oferta. Tenta de novo.";
+    }
+
+    return "📨 Oferta " . ($substituida ? 'atualizada' : 'recebida') . ". Pro app, reconheci assim:\n\n"
+         . lwBlocoDaProposta($pdo, $propostaId) . "\n\n"
+         . ($naFrente > 0 ? "Tem {$naFrente} na sua frente — ela vai pro Gameplay quando for a vez."
+                          : "Vai pro Gameplay em instantes.");
+}
+
+/**
  * /aceitar ou /recusar sem código, no Gameplay. Devolve null quando não há
  * leilão do WhatsApp esperando essa pessoa — aí o comando segue pro fluxo
  * antigo (o que usa código).
@@ -733,7 +898,7 @@ function lwDespachar(PDO $pdo): void
 
 function lwPostarProxima(PDO $pdo, array $lw): void
 {
-    $st = $pdo->prepare("SELECT id, proposta_id FROM leilao_whats_propostas
+    $st = $pdo->prepare("SELECT id, proposta_id, team_id, texto FROM leilao_whats_propostas
                           WHERE lw_id = ? AND status = 'aguardando' ORDER BY id LIMIT 1");
     $st->execute([(int)$lw['id']]);
     $prox = $st->fetch(PDO::FETCH_ASSOC);
@@ -759,8 +924,16 @@ function lwPostarProxima(PDO $pdo, array $lw): void
     $numero = whatsappNumero($v['phone'] ?? null);
     $marca = $numero ? '@' . $numero : '*' . $v['name'] . '*';
 
+    // Oferta colada em texto livre vai como a pessoa escreveu.
+    if (!empty($prox['texto'])) {
+        $stT = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
+        $stT->execute([(int)$prox['team_id']]);
+        $corpo = '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n" . $prox['texto'];
+    } else {
+        $corpo = lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
+    }
     $txt = "🔨 Proposta por *{$v['jogador']}*\n\n"
-         . lwBlocoDaProposta($pdo, (int)$prox['proposta_id']) . "\n\n"
+         . $corpo . "\n\n"
          . "{$marca}, responda ✅ pra aceitar ou ❌ pra recusar";
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO, null, $numero ? [$numero] : null);
 }
@@ -895,6 +1068,21 @@ function lwTrocaAindaPossivel(PDO $pdo, array $lw, array $vencedor): ?string
         if ((int)$pk['team_id'] !== $winner) return "a Pick {$pk['season_year']} R{$pk['round']} não é mais do {$vencedor['name']}";
         if (!empty($usadas[(int)$pk['id']])) return "a Pick {$pk['season_year']} R{$pk['round']} já foi usada no draft";
     }
+
+    // O que o vendedor manda junto tem que continuar com ele.
+    $st = $pdo->prepare("SELECT p.name, p.team_id FROM leilao_proposta_extra_players x
+                           JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ? FOR UPDATE");
+    $st->execute([(int)$vencedor['proposta_id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        if ((int)$p['team_id'] !== $seller) return "{$p['name']} não está mais no {$lw['vendedor_nome']}";
+    }
+    $st = $pdo->prepare("SELECT pk.id, pk.team_id, pk.season_year, pk.round FROM leilao_proposta_extra_picks x
+                           JOIN picks pk ON pk.id = x.pick_id WHERE x.proposta_id = ? FOR UPDATE");
+    $st->execute([(int)$vencedor['proposta_id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+        if ((int)$pk['team_id'] !== $seller) return "a Pick {$pk['season_year']} R{$pk['round']} não é mais do {$lw['vendedor_nome']}";
+        if (!empty($usadas[(int)$pk['id']])) return "a Pick {$pk['season_year']} R{$pk['round']} já foi usada no draft";
+    }
     return null;
 }
 
@@ -925,5 +1113,18 @@ function lwExecutarTroca(PDO $pdo, array $lw, array $vencedor): void
     if ($picks) {
         $ph = implode(',', array_fill(0, count($picks), '?'));
         $pdo->prepare("UPDATE picks SET team_id = ? WHERE id IN ($ph)")->execute(array_merge([$seller], $picks));
+    }
+
+    // O que o vendedor manda junto vai pro vencedor.
+    $st = $pdo->prepare("SELECT player_id FROM leilao_proposta_extra_players WHERE proposta_id = ?");
+    $st->execute([$propostaId]);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $pid) $mover->execute([$winner, (int)$pid]);
+
+    $st = $pdo->prepare("SELECT pick_id FROM leilao_proposta_extra_picks WHERE proposta_id = ?");
+    $st->execute([$propostaId]);
+    $extraPicks = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    if ($extraPicks) {
+        $ph = implode(',', array_fill(0, count($extraPicks), '?'));
+        $pdo->prepare("UPDATE picks SET team_id = ? WHERE id IN ($ph)")->execute(array_merge([$winner], $extraPicks));
     }
 }
