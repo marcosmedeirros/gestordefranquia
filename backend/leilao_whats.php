@@ -651,7 +651,6 @@ function lwDecidir(PDO $pdo, string $cmd, array $times, bool $noPrivado, ?string
 
     $txtGrupo = $cmd === 'aceitar'
         ? "✅ *{$lw['vendedor_nome']} aceitou* a proposta do *{$vez['time_nome']}*. É a melhor até agora — ainda dá pra cobrir.\n"
-          . (($link = lwLinkDoBot($pdo)) ? "👉 Cobrir: {$link}\n" : '')
           . "⏱ Até " . lwMinutosRestantes($lw) . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova."
         : "❌ *{$lw['vendedor_nome']} recusou* a proposta do *{$vez['time_nome']}*.";
 
