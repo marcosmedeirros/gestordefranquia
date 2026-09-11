@@ -181,29 +181,13 @@ function duvidaEsquemaParaIA(PDO $pdo): string
        fórmula na hora dá um número diferente a cada pergunta.
        Então a régua é uma só, roda no BANCO (que não erra aritmética) e fica
        registrada no log junto da consulta. */
-    $l[] = 'PROJEÇÃO DE PONTOS/REBOTES/ASSISTÊNCIAS — use ESTA conta, não invente outra:';
-    $l[] = '  base = a média da última temporada ENCERRADA do jogador (player_season_stats)';
-    $l[] = '  ajuste de OVR = ovr de hoje (players.ovr) ÷ ovr que ele tinha naquela temporada';
-    $l[] = '                  (player_season_log.ovr, mesmo player_id e season_id)';
-    $l[] = '  ajuste de idade = 1.05 se tem até 23 anos, 1.00 de 24 a 29, 0.97 de 30 a 32, 0.92 de 33 pra cima';
-    $l[] = '  projeção = base × ajuste de OVR × ajuste de idade';
-    $l[] = 'Consulta pronta (troque o nome e o season_id da última encerrada):';
-    $l[] = '  SELECT p.name, p.ovr AS ovr_hoje, p.age, l.ovr AS ovr_na_epoca,';
-    $l[] = '         s.pts_pg, s.reb_pg, s.ast_pg,';
-    $l[] = '         ROUND(s.pts_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
-    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS pts_proj,';
-    $l[] = '         ROUND(s.reb_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
-    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS reb_proj,';
-    $l[] = '         ROUND(s.ast_pg * (p.ovr/l.ovr) * CASE WHEN p.age<=23 THEN 1.05';
-    $l[] = '           WHEN p.age<=29 THEN 1.00 WHEN p.age<=32 THEN 0.97 ELSE 0.92 END,1) AS ast_proj';
-    $l[] = '    FROM players p';
-    $l[] = '    JOIN player_season_stats s ON s.player_id = p.id AND s.season_id = ?';
-    $l[] = '    JOIN player_season_log   l ON l.player_id = p.id AND l.season_id = s.season_id';
-    $l[] = '   WHERE p.name LIKE ? AND l.ovr > 0 LIMIT 5';
-    $l[] = 'AO RESPONDER, mostre de onde veio: a média da temporada X, o OVR de lá contra o de';
-    $l[] = 'hoje, e a idade. Número de projeção sem a base ao lado vira boato de grupo.';
-    $l[] = 'E diga que é ESTIMATIVA: não entra tática, minutagem nem elenco novo. Sem estatística';
-    $l[] = 'da temporada passada (calouro, ou quem não jogou), não há projeção — diga isso.';
+    /* A conta saiu daqui e virou ferramenta (backend/duvida_projecoes.php):
+       uma régua só, com as duas últimas temporadas, e o jogador recontratado
+       com id novo achado pelo nome. SQL colado no prompt dava número diferente
+       cada vez que o modelo reescrevia a consulta. */
+    $l[] = 'PROJEÇÕES — temporada de um time, confronto entre dois, médias de jogador na próxima';
+    $l[] = 'temporada: NÃO calcule e NÃO escreva SQL pra isso. Chame projetar_temporada,';
+    $l[] = 'projetar_confronto ou projetar_jogador — a conta vem pronta, com a base.';
     $l[] = '- Trocas: trades(from_team_id, to_team_id, status, season_year) e trade_items(trade_id,';
     $l[] = '  player_id, pick_id, from_team). status "accepted" é troca que aconteceu.';
     $l[] = '- Picks: picks(team_id = dono hoje, original_team_id = de quem era, season_year, round).';

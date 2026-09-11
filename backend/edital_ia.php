@@ -379,6 +379,21 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '- NUNCA cite id de banco na resposta ("o usuário de ID 43", "o time 51"). Id é coisa de',
         '  dentro; quem perguntou quer nome. Sem o nome, diga que não achou.',
         '',
+        /* PROJEÇÃO É FERRAMENTA. Sem isto ele respondia "o Coyotes vai terminar
+           em 3º" de cabeça, ou escrevia uma conta nova a cada pergunta. */
+        'PROJEÇÕES: previsão de temporada de um time, confronto entre dois times e médias de um',
+        'jogador na próxima temporada SEMPRE passam por projetar_temporada, projetar_confronto ou',
+        'projetar_jogador. Nunca estime por conta própria, nem com consultar_dados.',
+        '- Responda em CHANCE e FAIXA ("62% de chance de playoff, deve ficar entre 4º e 9º"),',
+        '  nunca como resultado cravado. É estimativa pelo elenco, e a liga é imprevisível.',
+        '- Traga a base em meia linha (a força do elenco, as temporadas usadas) — o número sem a',
+        '  base vira boato no grupo.',
+        '- Tamanho: até 4 linhas. Confronto: a chance da série, o placar mais provável e um ou',
+        '  dois duelos de posição que decidem. Jogador: PTS/REB/AST com faixa, e o resto só se',
+        '  perguntarem.',
+        '- A ferramenta pediu pra escolher entre times ou jogadores com nome parecido? Pergunte',
+        '  qual, em uma linha.',
+        '',
         'MEMÓRIA: a FBA te ensina o vocabulário dela, e você guarda com a ferramenta lembrar.',
         '- A memória é UMA SÓ, e você enxerga tudo em qualquer grupo. O que muda é o ESCOPO:',
         '  o bloco "VALE EM TODOS OS GRUPOS" é global; os outros nasceram de um grupo. Existindo',
@@ -943,6 +958,48 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                 'required' => ['termo'],
             ],
         ], [
+            'name' => 'projetar_temporada',
+            'description' =>
+                'Projeta a temporada de UM time: posição mais provável e faixa, chance de playoff, '
+              . 'top 4, liderança, final e título, a partir de milhares de temporadas simuladas com o '
+              . 'elenco de hoje. Use pra "como vai ser a temporada do X", "o X vai pros playoffs?", '
+              . '"quem é favorito?". Não calcule por conta própria.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'time' => ['type' => 'string',
+                        'description' => 'Nome, cidade ou apelido já resolvido do time. Ex.: "Las Vegas Coyotes", "Coyotes".'],
+                ],
+                'required' => ['time'],
+            ],
+        ], [
+            'name' => 'projetar_confronto',
+            'description' =>
+                'Projeta um confronto entre DOIS times da mesma liga: chance de vencer uma série melhor '
+              . 'de 7 e um jogo isolado, placar mais provável e o duelo dos titulares por posição. Use pra '
+              . '"quem ganha entre X e Y", "X x Y nos playoffs".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'time_a' => ['type' => 'string', 'description' => 'O primeiro time.'],
+                    'time_b' => ['type' => 'string', 'description' => 'O segundo time.'],
+                ],
+                'required' => ['time_a', 'time_b'],
+            ],
+        ], [
+            'name' => 'projetar_jogador',
+            'description' =>
+                'Projeta as médias por jogo de UM jogador na próxima temporada (MIN, PTS, REB, AST, ROU, '
+              . 'TOC) com faixa provável, a partir das duas últimas temporadas, do OVR de hoje e da idade. '
+              . 'Use pra "quanto o X vai fazer", "projeção do X".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'jogador' => ['type' => 'string', 'description' => 'Nome do jogador. Ex.: "Kobe Bryant".'],
+                ],
+                'required' => ['jogador'],
+            ],
+        ], [
             'name' => 'lembrar',
             'description' =>
                 'Guarda um apelido ou jeito de falar do grupo, pra usar nas próximas conversas. '
@@ -1097,6 +1154,23 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $resultado = duvidaMemoriaApagar($pdo, $league,
                         (string)($c['args']['assunto'] ?? ''));
                     error_log('[duvida/memoria] esquecer: ' . $resultado);
+                } elseif (in_array($nome, ['projetar_temporada', 'projetar_confronto', 'projetar_jogador'], true)) {
+                    // A conta roda aqui (backend/duvida_projecoes.php); o modelo só
+                    // explica. A conexão pode ter caído esperando o Gemini.
+                    require_once __DIR__ . '/duvida_projecoes.php';
+                    $pdo = duvidaConexaoViva($pdo);
+                    $args = $c['args'] ?? [];
+                    try {
+                        $resultado = match ($nome) {
+                            'projetar_temporada' => projTemporadaTexto($pdo, (string)($args['time'] ?? ''), $league),
+                            'projetar_confronto' => projConfrontoTexto($pdo, (string)($args['time_a'] ?? ''), (string)($args['time_b'] ?? ''), $league),
+                            'projetar_jogador'   => projJogadorTexto($pdo, (string)($args['jogador'] ?? ''), $league),
+                        };
+                    } catch (Throwable $e) {
+                        error_log('[duvida/proj] ' . $nome . ': ' . $e->getMessage());
+                        $resultado = 'A projeção falhou agora. Diga que não deu pra calcular e sugira tentar de novo.';
+                    }
+                    error_log('[duvida/proj] ' . $nome . ': ' . json_encode($args, JSON_UNESCAPED_UNICODE));
                 } else {
                     $r = duvidaConsultar($pdo, (string)($c['args']['sql'] ?? ''));
                     // O motivo entra no log: "RECUSADA" sozinho não separava
