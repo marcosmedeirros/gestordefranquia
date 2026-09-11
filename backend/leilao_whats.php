@@ -189,6 +189,21 @@ function lwMinutosRestantes(array $lw): int
     return max(0, (int)ceil((strtotime($lw['fim_max']) - time()) / 60));
 }
 
+/**
+ * Link que abre o privado do bot já com "/oferta " digitado.
+ * O número vem de whatsapp_config.numero_bot, que o webhook aprende sozinho.
+ * Sem número conhecido, null — a mensagem sai sem o link.
+ */
+function lwLinkDoBot(PDO $pdo, string $texto = '/oferta '): ?string
+{
+    try {
+        $n = preg_replace('/\D+/', '', (string)$pdo->query("SELECT numero_bot FROM whatsapp_config WHERE id = 1")->fetchColumn());
+    } catch (Throwable $e) {
+        return null;
+    }
+    return strlen($n) >= 10 ? 'https://wa.me/' . $n . '?text=' . rawurlencode($texto) : null;
+}
+
 /* ─── consultas ───────────────────────────────────────────────────────────── */
 
 function lwLeilaoAbertoDaLiga(PDO $pdo, string $liga): ?array
@@ -445,7 +460,9 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "{$t['name']} leiloa:\n\n"
              . "* " . lwLinhaJogador($p) . "\n\n"
              . "Mande sua proposta no *privado do bot*:\n"
-             . "/oferta Jogador + Pick 2026 R1\n\n"
+             . "/oferta Jogador + Pick 2026 R1\n"
+             . (($link = lwLinkDoBot($pdo)) ? "👉 Chamar o bot: {$link}\n" : '')
+             . "\n"
              . "⏱ Fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova.";
     whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO);
 
@@ -634,6 +651,7 @@ function lwDecidir(PDO $pdo, string $cmd, array $times, bool $noPrivado, ?string
 
     $txtGrupo = $cmd === 'aceitar'
         ? "✅ *{$lw['vendedor_nome']} aceitou* a proposta do *{$vez['time_nome']}*. É a melhor até agora — ainda dá pra cobrir.\n"
+          . (($link = lwLinkDoBot($pdo)) ? "👉 Cobrir: {$link}\n" : '')
           . "⏱ Até " . lwMinutosRestantes($lw) . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova."
         : "❌ *{$lw['vendedor_nome']} recusou* a proposta do *{$vez['time_nome']}*.";
 
