@@ -385,6 +385,99 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $body = readJsonBody();
     $action = $body['action'] ?? null;
+
+    /* ESCALAÇÃO DA QUADRA (js/quadra.js) — várias funções de uma vez.
+     *
+     * Existe porque trocar dois titulares da mesma posição pelo PUT, um de cada
+     * vez, é impossível: o primeiro save já tromba em "já tem um PG titular" e o
+     * segundo nunca chega. Aqui vem o conjunto de mudanças, a regra é conferida
+     * no elenco FINAL (depois de todas elas) e grava tudo ou nada.
+     *
+     * As travas são as mesmas do PUT: 5 titulares, uma posição principal de cada,
+     * G-League só abaixo de 25 anos. A vaga de G-League conta a base + as
+     * compradas na loja (gleague_extra), igual à tática. */
+    if ($action === 'set_lineup') {
+        $sessionUser = getUserSession();
+        if (!isset($sessionUser['id'])) {
+            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+        }
+        $teamId = (int)($body['team_id'] ?? 0);
+        $stT = $pdo->prepare('SELECT id, league, user_id FROM teams WHERE id = ? LIMIT 1');
+        $stT->execute([$teamId]);
+        $timeLineup = $stT->fetch(PDO::FETCH_ASSOC);
+        if (!$timeLineup || (int)$timeLineup['user_id'] !== (int)$sessionUser['id']) {
+            jsonResponse(403, ['error' => 'Sem permissão para escalar este time.']);
+        }
+
+        $pedidas = [];
+        foreach ((array)($body['roles'] ?? []) as $pid => $role) $pedidas[(int)$pid] = (string)$role;
+        if (!$pedidas) jsonResponse(422, ['error' => 'Nada pra salvar.']);
+
+        $stE = $pdo->prepare('SELECT id, name, position, age, role FROM players WHERE team_id = ?');
+        $stE->execute([$teamId]);
+        $elenco = [];
+        foreach ($stE->fetchAll(PDO::FETCH_ASSOC) as $p) $elenco[(int)$p['id']] = $p;
+
+        $rolesValidos = ['Titular', 'Banco', 'Outro', 'G-League'];
+        foreach ($pedidas as $pid => $role) {
+            if (!isset($elenco[$pid])) jsonResponse(422, ['error' => 'Um dos jogadores não é mais do seu elenco. Recarregue a página.']);
+            if (!in_array($role, $rolesValidos, true)) jsonResponse(422, ['error' => 'Função inválida.']);
+        }
+
+        // O elenco como fica depois das mudanças — é ele que tem que ser válido.
+        $final = [];
+        foreach ($elenco as $pid => $p) $final[$pid] = $pedidas[$pid] ?? $p['role'];
+
+        $titulares = array_keys(array_filter($final, fn($r) => $r === 'Titular'));
+        if (count($titulares) > 5) {
+            jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
+        }
+        $donoDaPosicao = [];
+        foreach ($titulares as $pid) {
+            $pos = strtoupper(trim((string)$elenco[$pid]['position']));
+            if (isset($donoDaPosicao[$pos])) {
+                jsonResponse(409, ['error' => "Dois {$pos} titulares: {$donoDaPosicao[$pos]} e {$elenco[$pid]['name']}. "
+                    . 'O quinteto é uma posição de cada.']);
+            }
+            $donoDaPosicao[$pos] = $elenco[$pid]['name'];
+        }
+
+        $gleagueExtra = 0;
+        try {
+            $stGl = $pdo->prepare('SELECT COALESCE(gleague_extra, 0) FROM teams WHERE id = ?');
+            $stGl->execute([$teamId]);
+            $gleagueExtra = (int)$stGl->fetchColumn();
+        } catch (Throwable $e) { /* coluna nasce na primeira compra na loja */ }
+        $vagasGL = (defined('GLEAGUE_VAGAS') ? GLEAGUE_VAGAS : 2) + $gleagueExtra;
+        $naGL = array_keys(array_filter($final, fn($r) => $r === 'G-League'));
+        foreach ($pedidas as $pid => $role) {
+            if ($role !== 'G-League' || $elenco[$pid]['role'] === 'G-League') continue;
+            if (count($naGL) > $vagasGL) {
+                jsonResponse(409, ['error' => "Limite de G-League atingido (máximo {$vagasGL})."]);
+            }
+            if ((int)$elenco[$pid]['age'] >= 25) {
+                jsonResponse(409, ['error' => "{$elenco[$pid]['name']} não é elegível para G-League: precisa ter menos de 25 anos."]);
+            }
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $up = $pdo->prepare('UPDATE players SET role = ? WHERE id = ? AND team_id = ?');
+            $n = 0;
+            foreach ($pedidas as $pid => $role) {
+                if ($elenco[$pid]['role'] === $role) continue;
+                $up->execute([$role, $pid, $teamId]);
+                $n++;
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[players/set_lineup] ' . $e->getMessage());
+            jsonResponse(500, ['error' => 'Não deu pra salvar a escalação. Nada foi alterado.']);
+        }
+        jsonResponse(200, ['success' => true, 'alterados' => $n]);
+    }
+
     if ($action === 'bulk_update_skill_grades') {
         $sessionUser = getUserSession();
         if (!isset($sessionUser['id'])) {

@@ -92,6 +92,18 @@ if ($teamId) {
 
 $canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true);
 $isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
+
+// Vagas de G-League pra quadra de escalação: base + compradas na loja.
+// Só a ELITE tem G-League (mesma regra do select de função e da tática).
+$gleagueVagas = 0;
+if ($isElite && !empty($team['id'])) {
+    $gleagueVagas = defined('GLEAGUE_VAGAS') ? GLEAGUE_VAGAS : 2;
+    try {
+        $stGlVagas = $pdo->prepare('SELECT COALESCE(gleague_extra, 0) FROM teams WHERE id = ?');
+        $stGlVagas->execute([(int)$team['id']]);
+        $gleagueVagas += (int)$stGlVagas->fetchColumn();
+    } catch (Throwable $e) { /* coluna nasce na primeira compra na loja */ }
+}
 // Ligas com atualizacao por foto. Precisa bater com VISION_LEAGUES em
 // api/vision_skills.php e STATS_LEAGUES em api/vision_stats.php.
 $podeFoto = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true);
@@ -501,6 +513,71 @@ if ($teamId) {
         @media (max-width: 900px) { .q5 { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 560px) { .q5 { grid-template-columns: repeat(2, 1fr); gap: 8px; } }
 
+        /* ── Quadra de escalação (js/quadra.js) ───────────
+           Meia quadra com os cinco lugares na posição de cada um (armador em
+           cima, alas nas laterais, grandes no garrafão), banco e G-League ao
+           lado. A cor de cada lugar é a mesma do quinteto de antes. */
+        .qd { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius, 14px); padding: 16px; margin-bottom: 1.5rem; }
+        .qd-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .qd-titulo { letter-spacing: .12em; text-transform: uppercase; font-size: 10px; font-weight: 700; color: var(--text-3); }
+        .qd-resumo { font-size: 12px; color: var(--text-2); }
+        .qd-resumo b { color: var(--text); font-variant-numeric: tabular-nums; }
+        .qd-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .qd-quadra { position: relative; aspect-ratio: 500 / 470; border-radius: 12px; overflow: hidden; border: 1px solid var(--border);
+            background: radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, var(--red) 10%, var(--panel-2)), var(--panel-2) 70%); }
+        .qd-quadra svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+        .qd-quadra svg * { fill: none; stroke: var(--border-md); stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .qd-lugar { position: absolute; transform: translate(-50%, -50%); width: 96px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+            background: transparent; border: 1px solid transparent; padding: 5px 4px; color: var(--text); cursor: pointer; border-radius: 12px; font-family: inherit;
+            transition: background .15s, border-color .15s, opacity .15s; }
+        .qd-lugar[draggable="true"] { cursor: grab; }
+        .qd-foto { width: 62px; height: 62px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pos-c); background: var(--panel-3); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+        .qd-vazio { width: 62px; height: 62px; border-radius: 50%; border: 2px dashed var(--pos-c); display: grid; place-items: center; font-size: 12px; font-weight: 800;
+            color: var(--pos-c); background: color-mix(in srgb, var(--pos-c) 8%, transparent); }
+        .qd-pos { font-size: 9px; font-weight: 800; letter-spacing: .08em; background: var(--pos-c); color: #fff; border-radius: 999px; padding: 1px 7px; margin-top: -11px; position: relative; }
+        .qd-nome { font-size: 11.5px; font-weight: 700; max-width: 92px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+        .qd-ovr { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 700; line-height: 1; }
+        .qd-zona { border: 1px dashed var(--border-md); border-radius: 12px; padding: 10px; margin-bottom: 12px; transition: background .15s, border-color .15s; }
+        .qd-zona h6 { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); margin: 0 0 8px; display: flex; justify-content: space-between; }
+        .qd-lista { display: flex; flex-direction: column; gap: 6px; }
+        .qd-jog { display: flex; align-items: center; gap: 8px; width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+            padding: 6px 8px; color: var(--text); cursor: grab; font-family: inherit; text-align: left; transition: opacity .15s; }
+        .qd-jog img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--panel-3); flex-shrink: 0; }
+        .qd-jog .n { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .qd-jog .m { font-size: 10.5px; color: var(--text-3); font-weight: 600; }
+        .qd-jog .o { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 700; }
+        .qd-jog:focus-visible, .qd-lugar:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+        .qd-jog.sel, .qd-lugar.sel { outline: 2px solid var(--red); outline-offset: 2px; }
+        .qd-jog.arrastando, .qd-lugar.arrastando { opacity: .4; }
+        .qd-mudou .qd-foto, .qd-jog.qd-mudou { box-shadow: 0 0 0 2px #f59e0b; }
+        .qd-vaga { border: 1px dashed var(--border); border-radius: 10px; padding: 8px; font-size: 11px; color: var(--text-3); text-align: center; }
+        .qd-zona.qd-alvo-ok, .qd-lugar.qd-alvo-ok { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.55); }
+        .qd-zona.qd-alvo-no, .qd-lugar.qd-alvo-no { opacity: .45; }
+        .qd-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+            background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); font-size: 12.5px; color: var(--text-2); }
+        .qd-barra[hidden] { display: none; }
+        .qd-barra .sp { flex: 1; min-width: 160px; }
+        .qd-btn { border: 1px solid var(--border-md); background: transparent; color: var(--text-2); border-radius: 9px; padding: 7px 12px; font-size: 12.5px;
+            font-weight: 700; font-family: inherit; cursor: pointer; }
+        .qd-btn.pri { background: var(--red); border-color: var(--red); color: #fff; }
+        .qd-btn:disabled { opacity: .6; cursor: wait; }
+        .qd-msg { font-size: 12.5px; margin-top: 10px; line-height: 1.45; }
+        .qd-msg:empty { display: none; }
+        .qd-msg.err { color: #ef4444; }
+        .qd-msg.ok { color: #22c55e; }
+        .qd-msg.info { color: var(--text-2); }
+        .qd-dica { font-size: 11px; color: var(--text-3); margin-top: 10px; }
+        @media (max-width: 900px) { .qd-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 560px) {
+            .qd { padding: 12px; }
+            .qd-lugar { width: 74px; padding: 3px 2px; }
+            .qd-foto, .qd-vazio { width: 46px; height: 46px; }
+            .qd-foto { border-width: 2px; }
+            .qd-nome { font-size: 10.5px; max-width: 72px; }
+            .qd-ovr { font-size: 13px; }
+        }
+        @media (prefers-reduced-motion: reduce) { .qd-lugar, .qd-zona, .qd-jog { transition: none; } }
+
         /* ── Roster card (JS quinteto) ─────────────────── */
         .roster-card {
             background: var(--panel-2) !important;
@@ -816,6 +893,11 @@ if ($teamId) {
             </div>
         </div>
         <?php endif; ?>
+
+        <!-- Quadra de escalação (js/quadra.js). Antes da tabela: é a primeira
+             coisa que quem abre o elenco quer ver, e fora do #players-grid, que
+             some no celular — a quadra vale nas duas telas. -->
+        <div id="quadra-escalacao"></div>
 
         <!-- Panel: Jogadores -->
         <div class="panel">
@@ -1187,6 +1269,7 @@ if ($teamId) {
     window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;
     window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'cap_floor' => (int)$salCap['cap_floor'], 'status' => $salCap['status'], 'roster' => array_map(fn($r) => ['id' => (int)$r['id'], 'total_salary' => (int)$r['total_salary']], $salCap['roster'])]) : 'null' ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
+    window.__GLEAGUE_VAGAS__ = <?= (int)$gleagueVagas ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
     window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;
     window.__TEAM_TAG_AI_SEASON__ = <?= json_encode(isset($team['team_tag_ai_season']) ? (int)$team['team_tag_ai_season'] : null) ?>;
@@ -1691,6 +1774,7 @@ if ($teamId) {
         } finally { botao.disabled = false; }
     });
 </script>
+<script src="<?= assetUrl('/js/quadra.js') ?>"></script>
 <script src="<?= assetUrl('/js/my-roster-v2.js') ?>"></script>
 <?= cartaoScript() ?>
 </body>

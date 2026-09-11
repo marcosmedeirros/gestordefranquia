@@ -848,92 +848,13 @@ function renderPlayers(players) {
   updateSortIndicator();
   renderRosterComposition(players);
 
-  // Renderizar Quinteto Titular (grid) + Banco (lista lateral)
-  const grid = document.getElementById('players-grid');
-  if (grid) {
-    grid.innerHTML = '';
-    const titulares = sorted.filter(p => normalizeRoleKey(p.role) === 'Titular');
-    titulares.sort((a, b) => {
-      const pa = starterPositionOrder[a.position] ?? 999;
-      const pb = starterPositionOrder[b.position] ?? 999;
-      if (pa !== pb) return pa - pb;
-      return Number(b.ovr) - Number(a.ovr);
-    });
-    const starters = titulares.slice(0, 5);
-    const bench = sorted
-      .filter(p => normalizeRoleKey(p.role) === 'Banco')
-      .sort((a, b) => Number(b.ovr) - Number(a.ovr));
-
-    const row = document.createElement('div');
-    row.className = 'row g-3';
-
-    const colLeft = document.createElement('div');
-    // Largura total: sao cinco cartoes lado a lado, e em 8/12 cada um
-    // ficava com ~96px — foto de 76px mais nome nao cabe nisso. O banco desce
-    // pra baixo, que e a ordem em que a pagina e lida mesmo.
-    colLeft.className = 'col-12';
-    const startersSection = document.createElement('div');
-    startersSection.className = 'roster-section';
-    startersSection.innerHTML = '<h5>Quinteto Titular</h5>';
-    if (starters.length === 0) {
-      startersSection.innerHTML += '<div class="empty-state"><i class="bi bi-person-x"></i><p>Sem jogadores marcados como Titular.</p></div>';
-    } else {
-      // Uma cor por posição: o quinteto é lido de relance, e a cor faz o
-      // armador saltar sem precisar procurar a etiqueta.
-      const CORES_POS = { PG:'#3b82f6', SG:'#06b6d4', SF:'#22c55e', PF:'#f59e0b', C:'#ef4444' };
-      const list = document.createElement('div');
-      list.className = 'q5';
-      // A ordem é a da quadra (PG→C), não a de OVR: quem abre a página está
-      // conferindo escalação, e escalação tem ordem fixa.
-      starters.forEach(p => {
-        const cor = CORES_POS[p.position] || 'var(--red)';
-        const card = document.createElement('div');
-        card.className = 'q5-card';
-        card.style.setProperty('--pos-c', cor);
-        card.innerHTML = `
-          <span class="q5-pos">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-          <img class="q5-foto" src="${getPlayerPhotoUrl(p)}" alt="${p.name}"
-               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
-          <div class="q5-nome"><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)}</div>
-          <div class="q5-ovr" style="color:${getOvrColor(p.ovr)}">${p.ovr}</div>
-          <div class="q5-meta">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ''}</div>
-          <div class="q5-tags">${lendaTagHtml(p)}${loyalTagHtml(p)}${renderPlayerTagBadge(p)}</div>`;
-        list.appendChild(card);
-      });
-      startersSection.appendChild(list);
-    }
-    colLeft.appendChild(startersSection);
-
-    const colRight = document.createElement('div');
-    colRight.className = 'col-12';
-    const benchSection = document.createElement('div');
-    benchSection.className = 'roster-section';
-    benchSection.innerHTML = '<h5>Banco</h5>';
-    if (bench.length === 0) {
-      benchSection.innerHTML += '<div class="empty-state"><i class="bi bi-person-x"></i><p>Sem jogadores no banco.</p></div>';
-    } else {
-      const ul = document.createElement('ul');
-      ul.className = 'list-group list-group-flush';
-      bench.forEach(p => {
-        const tagBadgeBench = renderPlayerTagBadge(p);
-        const li = document.createElement('li');
-        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
-        li.innerHTML = `
-          <span><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)} ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
-          <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
-        ul.appendChild(li);
-      });
-      benchSection.appendChild(ul);
-    }
-    colRight.appendChild(benchSection);
-
-    row.appendChild(colLeft);
-    row.appendChild(colRight);
-    grid.appendChild(row);
-
-    document.getElementById('players-status').style.display = 'none';
-    grid.style.display = '';
-  }
+  // Quinteto, banco e G-League moram na quadra de escalação (js/quadra.js):
+  // arrastar ou tocar pra escalar, com as travas do servidor. Vai o elenco
+  // INTEIRO, não o `sorted` — este vem filtrado pela busca e pelo filtro de
+  // função da tabela, e a quadra sumiria com quem não passou no filtro.
+  if (window.QuadraEscalacao) window.QuadraEscalacao.render(allPlayers);
+  const statusQuadra = document.getElementById('players-status');
+  if (statusQuadra) statusQuadra.style.display = 'none';
 
   renderPlayersMobileCards(sorted);
 
