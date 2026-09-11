@@ -527,7 +527,8 @@ const loadMultiAssets = async (teamId, type) => {
   if (multiTradeState.assets[type][teamId]) {
     return multiTradeState.assets[type][teamId];
   }
-  const endpoint = type === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}`;
+  // sem_usadas=1: pick que já virou jogador no draft não entra na troca.
+  const endpoint = type === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}&sem_usadas=1`;
   const data = await api(endpoint);
   let list = type === 'players' ? (data.players || []) : (data.picks || []);
   if (type === 'picks') {

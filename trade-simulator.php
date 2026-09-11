@@ -146,7 +146,16 @@ if ($action === 'roster') {
             $tid,
             $currentYear,
         ]);
-        $picks = protecaoAnotarPicks($pdo, $stmtPk->fetchAll(PDO::FETCH_ASSOC), (string)$league);
+        /* PICK QUE JÁ VIROU JOGADOR SAI DA LISTA.
+           Pick escolhida não é apagada da tabela enquanto o draft roda, e
+           continuava aparecendo pra troca — a Escolha 4 da ELITE seguia no
+           picker depois de virar o Rauf. A regra é a mesma que cancela as
+           propostas com pick usada (backend/picks_usadas.php). */
+        require_once __DIR__ . '/backend/picks_usadas.php';
+        $usadas = picksJaUsadas($pdo);
+        $linhasPk = array_values(array_filter($stmtPk->fetchAll(PDO::FETCH_ASSOC),
+            fn($pk) => empty($usadas[(int)$pk['id']])));
+        $picks = protecaoAnotarPicks($pdo, $linhasPk, (string)$league);
     } catch (Exception $e) {}
 
     $cap = topEightCap($pdo, $tid);

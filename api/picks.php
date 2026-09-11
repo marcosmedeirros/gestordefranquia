@@ -237,6 +237,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         return $y >= $currentYear;
     }));
 
+    // ?sem_usadas=1 (Trade Machine): pick que já virou jogador no draft não é
+    // mais moeda de troca. Opcional porque a página de Picks mostra a escolha
+    // feita de propósito — é o histórico do time.
+    if (($_GET['sem_usadas'] ?? '') === '1') {
+        require_once dirname(__DIR__) . '/backend/picks_usadas.php';
+        $usadas = picksJaUsadas($pdo);
+        $picks = array_values(array_filter($picks, fn($pick) => empty($usadas[(int)($pick['id'] ?? 0)])));
+    }
+
     // Proteção de pick (só ELITE): a tela precisa saber de duas coisas — se a
     // pick está travada por servir de lastro, e se pode receber proteção. A
     // regra fica no backend; aqui só é entregue pronta pra não haver uma
