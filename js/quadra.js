@@ -5,10 +5,15 @@
  * G-League. Escalar é arrastar o jogador pro destino — ou, no celular, tocar
  * nele e depois no destino (arrastar com o dedo não funciona no Safari).
  *
- * Nada grava sozinho: as mudanças ficam pendentes (contorno âmbar) até o
- * "Salvar escalação", que manda tudo junto pra api/players.php
- * (action=set_lineup). É junto por necessidade: trocar dois armadores um de
- * cada vez esbarra na regra de "uma posição de cada" no primeiro save.
+ * Cada movimento SALVA NA HORA (api/players.php, action=set_lineup). Um
+ * movimento pode mexer em dois jogadores — quem entra e quem sai do lugar — e
+ * os dois vão juntos: trocar dois armadores um de cada vez esbarraria na regra
+ * de "uma posição de cada" no primeiro save. Se o servidor recusar, a quadra
+ * volta pro que está gravado e diz o motivo.
+ *
+ * A barra "Salvar escalação" só aparece quando a própria quadra achou algo a
+ * corrigir ao abrir (dois titulares na mesma posição): isso não foi escolha do
+ * GM, então não grava sem ele confirmar.
  *
  * As travas daqui são as do servidor, repetidas só pra acender o lugar certo
  * enquanto se arrasta — quem decide continua sendo a API.
@@ -40,6 +45,7 @@
   let chave = '';       // retrato do elenco: muda quando o servidor muda
   let selecionado = null;
   let arrastando = null;
+  let salvando = false; // um save por vez: mexer de novo no meio embaralharia o que foi pro servidor
   let msg = { tipo: '', html: '' };
 
   const raizEl = () => document.getElementById('quadra-escalacao');
@@ -104,8 +110,7 @@
     const m = motivo(j, alvo);
     if (m) { aviso('err', esc(m)); desenhar(); return; }
     mover(j, alvo);
-    aviso('', '');
-    desenhar();
+    salvar();
   }
 
   function render(lista) {
@@ -196,13 +201,13 @@
         <div class="qd-lado">${zonaBanco}${zonaGL}</div>
       </div>
       <div class="qd-barra"${nMud ? '' : ' hidden'}>
-        <span class="sp">${nMud} ${nMud === 1 ? 'jogador mudou' : 'jogadores mudaram'} de função — ainda não foi salvo.</span>
+        <span class="sp">${nMud} ${nMud === 1 ? 'jogador precisa' : 'jogadores precisam'} ir pro banco pra quadra ficar válida.</span>
         <button type="button" class="qd-btn" data-acao="desfazer">Desfazer</button>
         <button type="button" class="qd-btn pri" data-acao="salvar"><i class="bi bi-check2"></i> Salvar escalação</button>
       </div>
       <div class="qd-msg ${msg.tipo}" role="status">${msg.html}</div>
       <div class="qd-dica"><i class="bi bi-hand-index"></i> Arraste um jogador pra quadra, pro banco${vagasGL() ? ' ou pra G-League' : ''} — ou toque nele e depois no destino.
-        Cada lugar da quadra aceita só a posição principal.</div>
+        Cada lugar aceita só a posição principal, e cada mudança é salva na hora.</div>
     </section>`;
     marcarAlvos(raiz);
   }
@@ -220,12 +225,15 @@
     });
   }
 
-  async function salvar(btn) {
+  async function salvar() {
     const roles = {};
     mudancas().forEach(id => { roles[id] = pend[id]; });
-    if (!Object.keys(roles).length) return;
-    btn.disabled = true;
-    btn.textContent = 'Salvando…';
+    if (!Object.keys(roles).length || salvando) return;
+    salvando = true;
+    aviso('info', '<i class="bi bi-arrow-repeat"></i> Salvando…');
+    desenhar();
+
+    let erro = '';
     try {
       const r = await fetch('/api/players.php', {
         method: 'POST',
@@ -233,19 +241,27 @@
         body: JSON.stringify({ action: 'set_lineup', team_id: window.__TEAM_ID__, roles }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.success) {
-        aviso('err', esc(d.error || 'Não deu pra salvar a escalação.'));
-        desenhar();
-        return;
-      }
-      aviso('ok', '<i class="bi bi-check2-circle"></i> Escalação salva.');
-      chave = '';   // o elenco do servidor mudou: a próxima render recomeça dele
-      if (typeof loadPlayers === 'function') await loadPlayers();
-      else desenhar();
+      if (!r.ok || !d.success) erro = d.error || 'Não deu pra salvar a escalação.';
     } catch (e) {
-      aviso('err', 'Não deu pra salvar a escalação. Confira a conexão e tente de novo.');
-      desenhar();
+      erro = 'Não deu pra salvar a escalação. Confira a conexão e tente de novo.';
     }
+
+    if (erro) {
+      // Recusado: a quadra volta pro que está gravado.
+      Object.keys(roles).forEach(id => { delete pend[id]; });
+      aviso('err', esc(erro));
+    } else {
+      // Aceito: a função nova passa a ser a oficial aqui mesmo, sem recarregar
+      // a página — os objetos são os mesmos da tabela (allPlayers).
+      Object.entries(roles).forEach(([id, role]) => { const j = porId(id); if (j) j.role = role; });
+      aviso('ok', '<i class="bi bi-check2-circle"></i> Salvo.');
+    }
+    salvando = false;
+    chave = '';
+    // Redesenha a página inteira (tabela, contagem por função e a quadra),
+    // respeitando a busca e o filtro que estiverem na tela.
+    if (typeof renderPlayers === 'function' && typeof allPlayers !== 'undefined') renderPlayers(allPlayers);
+    else render(jogadores);
   }
 
   function ligar(raiz) {
@@ -253,9 +269,10 @@
     raiz.dataset.ligado = '1';
 
     raiz.addEventListener('click', e => {
+      if (salvando) return;
       const acao = e.target.closest('[data-acao]');
       if (acao) {
-        if (acao.dataset.acao === 'salvar') salvar(acao);
+        if (acao.dataset.acao === 'salvar') salvar();
         else { aviso('', ''); chave = ''; render(jogadores); }
         return;
       }
@@ -290,6 +307,7 @@
     raiz.addEventListener('dragstart', e => {
       const el = e.target.closest('[data-id]');
       if (!el) return;
+      if (salvando) { e.preventDefault(); return; }
       arrastando = el.dataset.id;
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', String(arrastando)); } catch (_) {}
