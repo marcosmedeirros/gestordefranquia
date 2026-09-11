@@ -480,19 +480,16 @@ if (!function_exists('lojaAplicarAutomatico')) {
         if (!in_array($itemKey, ['slot_waiver', 'slot_gleague', 'slot_leilao'], true)) return false;
 
         /*
-         * O SLOT DE LEILÃO NÃO SOMA EM LUGAR NENHUM — de propósito.
+         * O SLOT DE LEILÃO FICA EM ABERTO até um leilão gastá-lo.
          *
-         * Não existe teto de leilão no sistema: cadastrarLeilao() não conta
-         * nada, e não há coluna de limite em `teams`. Somar +1 num contador
-         * que ninguém lê seria código morto fingindo que faz algo.
-         *
-         * Aqui ele só deixa de passar pela fila do admin: fica registrado
-         * como comprado e atendido na hora. Quem quiser leiloar, leiloa —
-         * é o que já acontece hoje.
+         * Era marcado como atendido na hora da compra, quando nada conferia
+         * slot. Agora o /leilao do WhatsApp (backend/leilao_whats.php) exige
+         * um slot com atendido_em NULL e o consome quando o leilão fecha —
+         * nascer atendido era comprar e já não ter.
          */
         if ($itemKey === 'slot_leilao') {
             $pdo->prepare("UPDATE loja_inventario
-                              SET usado_em = NOW(), atendido_em = NOW()
+                              SET usado_em = NOW(), atendido_em = NULL
                             WHERE id = ? AND id_usuario = ?")->execute([$inventarioId, $userId]);
             return true;
         }

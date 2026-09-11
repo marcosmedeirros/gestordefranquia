@@ -104,6 +104,9 @@ if ($acao === 'pendentes') {
     // reservar a fila pra que o que sair agora já vá nesta leva.
     require_once __DIR__ . '/../backend/leilao_bot.php';
     leilaoBotDespachar($pdo);
+    // Leilão feito inteiro no WhatsApp: posta a próxima proposta e fecha o que venceu.
+    require_once __DIR__ . '/../backend/leilao_whats.php';
+    lwDespachar($pdo);
 
     $naJanela = whatsappDentroDaJanela(null, $pdo);
     $filtroTipo = $naJanela ? '' : whatsappFiltroForaDaJanela();

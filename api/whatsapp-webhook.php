@@ -460,6 +460,29 @@ foreach ($mensagens as $m) {
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '') continue;
 
+    /* CONVERSA PARTICULAR: só /leilao.
+       É por aqui que se abre leilão e se manda proposta (backend/leilao_whats.php).
+       Qualquer outra coisa no privado segue ignorada — o bot não vira consulta
+       ao banco da liga fora dos grupos cadastrados. */
+    if (!str_ends_with($de, '@g.us')) {
+        if (!preg_match('~^/leil[aã]o(\s|$)~iu', $texto)) continue;
+
+        $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
+                                  WHERE tipo = 'leilao' AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
+        $stFreio->execute([$de]);
+        if ((int)$stFreio->fetchColumn() >= 8) continue;
+        if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
+
+        require_once __DIR__ . '/../backend/leilao_whats.php';
+        $quem = lwJidDaConversaPrivada($m, $de);
+        $resposta = lwComandoPrivado($pdo, $texto, $quem);
+        if ($resposta !== '') {
+            whatsappEnfileirar($pdo, $de, $resposta, false, LEILAO_BOT_TIPO, null, null, $quem, 'leilao');
+            $respondidas++;
+        }
+        continue;
+    }
+
     /* TRÊS JEITOS DE FALAR COM ELE: a barra de sempre, marcar o bot, e
        responder uma mensagem dele. Os dois últimos entram como /duvida —
        é o comando que aceita pergunta em português.

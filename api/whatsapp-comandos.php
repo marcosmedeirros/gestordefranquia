@@ -3501,6 +3501,12 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'aceitar':
             case 'recusar':
+                // Sem código, no Gameplay: é o leilão feito pelo WhatsApp.
+                if ($arg === '' && $grupoJid !== '') {
+                    require_once __DIR__ . '/../backend/leilao_whats.php';
+                    $r = lwDecidirNoGrupo($pdo, $cmd, $deQuem, $grupoJid);
+                    if ($r !== null) return $r;
+                }
                 return wcDecidirPropostaDeLeilao($pdo, $cmd, $arg, $deQuem);
 
             case 'confronto':
