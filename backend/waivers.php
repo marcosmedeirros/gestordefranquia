@@ -233,30 +233,25 @@ function waiverToFreeAgency(PDO $pdo, array $w): void
  * sem ter pedido, e sem aviso nenhum. É a mesma regra da trade, do draft e
  * da free agency, que já entregam no banco.
  */
-function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId, ?int $lance = null): void
+function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
 {
     /*
-     * O LANCE VENCEDOR VIRA O SALÁRIO ATÉ A VIRADA — regra da liga, 11/09/2026.
+     * O LANCE DO WAIVER NÃO É SALÁRIO — regra da liga, 30/08/2026.
      *
-     * Substitui a regra de 30/08 ("o lance não é salário"). Quem leva o Scola
-     * por 12M paga 12M: é o que ele ocupa no cap e o que conta no casamento
-     * salarial da trade, até o avanço da temporada zerar `contract_salary` —
-     * daí em diante ele volta à tabela de OVR. É o mesmo campo e a mesma
-     * validade do contrato da Free Agency.
+     * O jogador continua recebendo o que está no app, pela tabela de OVR.
+     * Antawn Jamison recebe 5M; um lance de 150M ganha o waiver e ele segue
+     * recebendo 5M. O lance existe pra decidir QUEM leva e pra comprometer o
+     * espaço durante a disputa, não pra virar contrato.
      *
-     * Só na ELITE, que é onde existe cap. Lance zero ou ausente não vira
-     * contrato: o jogador fica no salário normal.
+     * Contrato de leilão existe só na Free Agency (`contract_salary`), e lá
+     * vale um ano.
      */
-    capGarantirColunaContrato($pdo);
-    $liga = strtoupper((string)($w['league'] ?? ''));
-    $contrato = ($liga === 'ELITE' && $lance !== null && $lance > 0) ? $lance : null;
     $pdo->prepare("INSERT INTO players
         (team_id, name, age, position, secondary_position, ovr, seasons_in_league,
-         drafted_by_team_id, draft_round, draft_pick_position, role, contract_salary)
-        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco',?)")->execute([
+         drafted_by_team_id, draft_round, draft_pick_position, role)
+        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco')")->execute([
         $teamId, $w['name'], $w['age'], $w['position'], $w['secondary_position'], (int)$w['ovr'],
         (int)$w['seasons_in_league'], $w['drafted_by_team_id'], $w['draft_round'], $w['draft_pick_position'],
-        $contrato,
     ]);
 }
 
@@ -318,15 +313,12 @@ function waiverFiltrarPorEspaco(PDO $pdo, array $claims, int $ovr): array
 {
     if (count($claims) < 1) return $claims;
 
-    $salarioNormal = getPlayerBaseSalary(['ovr' => $ovr]);
+    $custo = getPlayerBaseSalary(['ovr' => $ovr]);
+    if ($custo <= 0) return $claims;
 
     $sobram = [];
     foreach ($claims as $c) {
         $teamId = (int)$c['team_id'];
-        // O custo é o LANCE deste time (vira o salário dele até a virada);
-        // sem lance, o salário normal do jogador.
-        $custo = (int)($c['bid_space'] ?? 0) > 0 ? (int)$c['bid_space'] : $salarioNormal;
-        if ($custo <= 0) { $sobram[] = $c; continue; }
         try {
             $liga = $pdo->query("SELECT league FROM teams WHERE id = " . $teamId)->fetchColumn();
             if (strtoupper(trim((string)$liga)) !== 'ELITE') { $sobram[] = $c; continue; }
@@ -399,7 +391,7 @@ function resolveExpiredWaivers(PDO $pdo): array
             $winner = 0;
             if ($claims) {
                 $winner = (int)$claims[0]['team_id'];
-                waiverRecreatePlayer($pdo, $w, $winner, (int)($claims[0]['bid_space'] ?? 0));
+                waiverRecreatePlayer($pdo, $w, $winner);
                 $pdo->prepare("UPDATE waiver_retention SET status='claimed', claimed_by_team_id=?, resolved_at=NOW() WHERE id=?")->execute([$winner, $wid]);
                 $out['claimed']++;
             } else {
