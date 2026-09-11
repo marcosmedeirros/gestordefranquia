@@ -659,6 +659,80 @@ async function carregarLeiloesAtivos(silent = false) {
   }
 }
 
+// ── Leilões realizados (formato de troca) ─────────────────────────────────────
+/* Os leilões passaram a acontecer fora do app (11/09/2026): a página mostra
+   só o que já foi trocado. Ativos e propostas ficaram escondidos, com o código
+   intacto — é esta chave que desliga a carga e a atualização deles. */
+const LEILAO_SO_HISTORICO = true;
+let _histBuscaTimer = null;
+
+async function carregarHistoricoTrocas() {
+  const box = document.getElementById('leiloesHistoricoContainer');
+  if (!box) return;
+  const selTemp = document.getElementById('histTemporada');
+  const selTime = document.getElementById('histTime');
+  const busca = document.getElementById('histBusca');
+  box.innerHTML = '<div style="display:flex;justify-content:center;padding:28px"><div class="spinner-border" style="color:var(--red);width:1.2rem;height:1.2rem" role="status"></div></div>';
+
+  const qs = new URLSearchParams({ action: 'historico_trocas' });
+  if (selTemp?.value) qs.set('temporada', selTemp.value);
+  if (selTime?.value) qs.set('time', selTime.value);
+  if (busca?.value.trim()) qs.set('busca', busca.value.trim());
+
+  try {
+    const data = await _fetchJson('api/leilao.php?' + qs.toString());
+    // Os filtros se preenchem na primeira resposta e depois ficam como estão.
+    if (selTemp && selTemp.options.length <= 1) {
+      (data.temporadas || []).slice().reverse().forEach(t => selTemp.add(new Option(t.rotulo, t.id)));
+    }
+    if (selTime && selTime.options.length <= 1) {
+      (data.times || []).forEach(t => selTime.add(new Option(t.nome, t.id)));
+    }
+    const leiloes = data.leiloes || [];
+    if (!leiloes.length) {
+      const filtrando = qs.has('temporada') || qs.has('time') || qs.has('busca');
+      box.innerHTML = `<p class="lt-vazio">${filtrando ? 'Nenhum leilão com esses filtros.' : 'Nenhum leilão realizado nesta sprint ainda.'}</p>`;
+      return;
+    }
+    box.innerHTML = `<div class="lt-lista">${leiloes.map(cardDeLeilaoTroca).join('')}</div>`;
+  } catch (e) {
+    box.innerHTML = '<p style="color:#ef4444;font-size:13px">Não deu pra carregar os leilões. Recarregue a página.</p>';
+  }
+}
+
+function cardDeLeilaoTroca(l) {
+  const data = l.data ? new Date(String(l.data).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  const lado = (time, itens) => `
+    <div style="min-width:0">
+      <div class="lt-time"><img src="${_esc(time.logo)}" alt="" onerror="this.src='/img/default-team.png'"><b>${_esc(time.nome)}</b></div>
+      <div class="lt-rot">enviou</div>
+      <ul class="lt-itens">${itens.length ? itens.map(i => `<li>${_esc(i)}</li>`).join('') : '<li>nada</li>'}</ul>
+    </div>`;
+  return `
+    <article class="lt-card">
+      <div class="lt-cab">
+        <span class="lt-tag">Leilão${l.temporada ? ' · ' + _esc(l.temporada) : ''}</span>
+        ${data ? `<span>${_esc(data)}</span>` : ''}
+        ${l.revertido ? '<span class="lt-revertido">Revertido</span>' : ''}
+      </div>
+      <div class="lt-lados">
+        ${lado(l.vendedor, l.vendedor_enviou || [])}
+        <div class="lt-seta" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></div>
+        ${lado(l.comprador, l.comprador_enviou || [])}
+      </div>
+      ${l.obs ? `<div class="lt-obs">"${_esc(l.obs)}"</div>` : ''}
+    </article>`;
+}
+
+function ligarFiltrosDoHistorico() {
+  document.getElementById('histTemporada')?.addEventListener('change', carregarHistoricoTrocas);
+  document.getElementById('histTime')?.addEventListener('change', carregarHistoricoTrocas);
+  document.getElementById('histBusca')?.addEventListener('input', () => {
+    clearTimeout(_histBuscaTimer);
+    _histBuscaTimer = setTimeout(carregarHistoricoTrocas, 350);
+  });
+}
+
 // ── Histórico ─────────────────────────────────────────────────────────────────
 
 async function carregarHistoricoLeiloes() {
@@ -1592,16 +1666,23 @@ function _forceModalCleanup() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-  carregarLeiloesAtivos();
-  if (userTeamId) carregarPropostasRecebidas();
-  carregarHistoricoLeiloes();
-  if (isAdmin) {
-    carregarLeiloesAdmin();
-    carregarPendentesCriados();
-    setupAdminEvents();
+  if (LEILAO_SO_HISTORICO) {
+    // Só o histórico: ativos, propostas e a atualização automática deles
+    // ficam desligados (os painéis estão escondidos em leilao.php).
+    ligarFiltrosDoHistorico();
+    carregarHistoricoTrocas();
+  } else {
+    carregarLeiloesAtivos();
+    if (userTeamId) carregarPropostasRecebidas();
+    carregarHistoricoLeiloes();
+    if (isAdmin) {
+      carregarLeiloesAdmin();
+      carregarPendentesCriados();
+      setupAdminEvents();
+    }
+    _applyLeilaoTableLabels();
+    _startPageAutoRefresh();
   }
-  _applyLeilaoTableLabels();
-  _startPageAutoRefresh();
 
   // Garante limpeza do backdrop em mobile ao fechar qualquer modal
   document.querySelectorAll('.modal').forEach(modalEl => {

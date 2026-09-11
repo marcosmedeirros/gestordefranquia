@@ -33,6 +33,13 @@ ensureProposalPicksTable($pdo);
 ensureProposalObsColumn($pdo);
 ensurePersonalizedProposalSupport($pdo);
 ensureLeilaoMensagensTable($pdo);
+/* A fila do WhatsApp nasce AQUI, fora de qualquer transação. Quem mexe nela
+   (leilaoBotEncerrarLeilao) é chamado de dentro de _executarTrocaLeilao, com
+   a transação aberta — e CREATE TABLE, mesmo "IF NOT EXISTS", faz commit
+   implícito no MariaDB. Era o que fazia o "Registrar leilão do WhatsApp"
+   gravar a troca e responder erro fatal ("There is no active transaction").
+   A função guarda que já rodou, então as próximas chamadas não criam nada. */
+leilaoBotGarantirTabela($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
@@ -334,6 +341,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             historicoLeiloes($pdo, $league_id_param);
             break;
+        case 'historico_trocas':
+            // Histórico em formato de troca, com filtros. Pro GM é sempre a
+            // liga dele; o admin escolhe pela aba (nome da liga) e só entre as
+            // ligas que administra.
+            $ligaHist = $league_id;
+            if ($is_admin && !empty($_GET['league'])) {
+                $nomeLg = strtoupper(trim((string)$_GET['league']));
+                if (in_array($nomeLg, getAdminLeagues($pdo, (int)$user_id), true)) {
+                    $stLgH = $pdo->prepare("SELECT id FROM leagues WHERE name = ? LIMIT 1");
+                    $stLgH->execute([$nomeLg]);
+                    $ligaHist = (int)($stLgH->fetchColumn() ?: 0) ?: null;
+                }
+            }
+            if (!$ligaHist) {
+                // Sessão sem liga: a do time do usuário.
+                $stLgU = $pdo->prepare("SELECT lg.id FROM teams t JOIN leagues lg ON lg.name = t.league WHERE t.user_id = ? LIMIT 1");
+                $stLgU->execute([(int)$user_id]);
+                $ligaHist = (int)($stLgU->fetchColumn() ?: 0) ?: null;
+            }
+            historicoTrocasLeilao($pdo, $ligaHist, $is_admin, [
+                'temporada' => (int)($_GET['temporada'] ?? 0),
+                'time'      => (int)($_GET['time'] ?? 0),
+                'busca'     => (string)($_GET['busca'] ?? ''),
+            ]);
+            break;
         case 'cap_leilao':
             capDoLeilao($pdo, (int)($_GET['leilao_id'] ?? 0), $team_id);
             break;
@@ -471,6 +503,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             reverterLeilao($pdo, $body);
             break;
+        case 'reverter_seguro':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            reverterLeilaoSeguro($pdo, is_array($body) ? $body : [], (int)$user_id);
+            break;
         case 'cadastrar_manual':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -503,6 +542,327 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
     }
     exit;
+}
+
+/* ══ HISTÓRICO EM FORMATO DE TROCA + REVERSÃO SEGURA — 11/09/2026 ══════════
+ *
+ * Os leilões passaram a acontecer fora do app (WhatsApp) e o app virou o
+ * registro: o admin lança o resultado pelo "Registrar leilão do WhatsApp" e a
+ * página mostra só o que já aconteceu. As telas de leilão ativo e de proposta
+ * foram ESCONDIDAS, não apagadas — o código delas continua aqui.
+ *
+ * leilao_jogadores não tem temporada: a temporada de cada leilão sai da data,
+ * contra o início das temporadas da sprint ativa da liga.
+ *
+ * O `reverter` antigo (reverterLeilao) não conferia nada: devolvia os itens
+ * por cima de trocas feitas depois, e em leilão de jogador avulso deixava o
+ * jogador com o comprador. Ele fica, sem tela chamando; a tela usa o seguro. */
+
+function leilaoGarantirColunasReversao(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM leilao_jogadores")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('revertido_em', $cols, true))  $pdo->exec("ALTER TABLE leilao_jogadores ADD COLUMN revertido_em DATETIME NULL");
+        if (!in_array('revertido_por', $cols, true)) $pdo->exec("ALTER TABLE leilao_jogadores ADD COLUMN revertido_por INT NULL");
+        if (!in_array('reversao_log', $cols, true))  $pdo->exec("ALTER TABLE leilao_jogadores ADD COLUMN reversao_log TEXT NULL");
+    } catch (Throwable $e) {
+        error_log('[leilao] colunas de reversao: ' . $e->getMessage());
+    }
+}
+
+function leilaoTemporadasDaLiga(PDO $pdo, string $liga): array
+{
+    $st = $pdo->prepare("SELECT s.id, s.season_number, s.created_at FROM seasons s
+                           JOIN sprints sp ON sp.id = s.sprint_id
+                          WHERE s.league = ? AND sp.status = 'active'
+                       ORDER BY s.season_number");
+    $st->execute([strtoupper($liga)]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** A temporada em curso naquela data: a última que já tinha começado. */
+function leilaoTemporadaDaData(array $temps, ?string $data): ?array
+{
+    $achou = null;
+    foreach ($temps as $t) {
+        if ($data && $t['created_at'] <= $data) $achou = $t;
+    }
+    return $achou ?? ($temps[0] ?? null);
+}
+
+/** Os itens da proposta aceita, com onde cada um está hoje. */
+function leilaoItensDaTroca(PDO $pdo, array $l): array
+{
+    $ovr = playerOvrColumn($pdo);
+    $jogadores = function (array $ids) use ($pdo, $ovr): array {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) return [];
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $st = $pdo->prepare("SELECT id, name, position, {$ovr} AS ovr, team_id FROM players WHERE id IN ($in)");
+        $st->execute($ids);
+        $achados = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $achados[(int)$p['id']] = $p;
+        $out = [];
+        foreach ($ids as $id) {
+            $p = $achados[$id] ?? null;
+            $out[] = ['id' => $id, 'existe' => (bool)$p, 'team_id' => $p ? (int)$p['team_id'] : null,
+                      'rotulo' => $p ? trim($p['name'] . ' (' . ($p['position'] ?: '?') . ' · ' . ((int)$p['ovr'] ?: '?') . ')')
+                                     : 'jogador que já não está na liga'];
+        }
+        return $out;
+    };
+    $picks = function (array $linhas) use ($pdo): array {
+        $out = [];
+        $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.team_id,
+                                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS origem
+                               FROM picks pk LEFT JOIN teams t ON t.id = pk.original_team_id WHERE pk.id = ?");
+        foreach ($linhas as $ln) {
+            $st->execute([(int)$ln['pick_id']]);
+            $pk = $st->fetch(PDO::FETCH_ASSOC);
+            $out[] = ['id' => (int)$ln['pick_id'], 'existe' => (bool)$pk, 'team_id' => $pk ? (int)$pk['team_id'] : null,
+                      'rotulo' => $pk ? ($pk['round'] . 'ª rodada ' . $pk['season_year'] . ($pk['origem'] ? ' (do ' . $pk['origem'] . ')' : '')
+                                          . (!empty($ln['swap_type']) ? ' · swap ' . $ln['swap_type'] : ''))
+                                      : 'pick que já não existe'];
+        }
+        return $out;
+    };
+    $pid = (int)($l['proposta_aceita_id'] ?? 0);
+    $col = function (string $sql) use ($pdo, $pid): array {
+        if (!$pid) return [];
+        $st = $pdo->prepare($sql);
+        $st->execute([$pid]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    };
+
+    $leiloado = $jogadores([(int)($l['player_id'] ?? 0)]);
+    if (!$leiloado && !empty($l['temp_name'])) {
+        $leiloado = [['id' => 0, 'existe' => false, 'team_id' => null, 'rotulo' => trim($l['temp_name'] . ' (avulso)')]];
+    }
+    return [
+        'leiloado'        => $leiloado,
+        'jogadores'       => $jogadores(array_column($col('SELECT player_id FROM leilao_proposta_jogadores WHERE proposta_id = ?'), 'player_id')),
+        'picks'           => $picks($col('SELECT pick_id, swap_type FROM leilao_proposta_picks WHERE proposta_id = ?')),
+        'extra_jogadores' => $jogadores(array_column($col('SELECT player_id FROM leilao_proposta_extra_players WHERE proposta_id = ?'), 'player_id')),
+        'extra_picks'     => $picks($col('SELECT pick_id, swap_type FROM leilao_proposta_extra_picks WHERE proposta_id = ?')),
+    ];
+}
+
+/**
+ * Dá pra desfazer sem atropelar nada? Tudo tem que estar exatamente onde o
+ * leilão deixou: devolver por cima de uma troca feita depois tiraria jogador
+ * de quem já não tinha mais nada com o leilão.
+ *
+ * @return array{0:bool,1:string[]}
+ */
+function leilaoPodeReverter(array $l, array $it, array $picksUsadas): array
+{
+    $m = [];
+    $vend = (int)$l['team_id'];
+    $comp = (int)($l['winner_team_id'] ?? 0);
+    if (!$comp) return [false, ['o leilão terminou sem troca']];
+    if (!empty($l['is_temp_player'])) {
+        $m[] = 'jogador avulso criado no leilão — não há time de origem pra devolver';
+    }
+    foreach ($it['leiloado'] as $j) {
+        if (!$j['existe']) $m[] = "{$j['rotulo']}: o jogador leiloado não está mais no banco";
+        elseif ($j['team_id'] !== $comp) $m[] = "{$j['rotulo']} já não está no time que comprou";
+    }
+    foreach ($it['jogadores'] as $j) {
+        if (!$j['existe']) $m[] = "{$j['rotulo']}: saiu da liga";
+        elseif ($j['team_id'] !== $vend) $m[] = "{$j['rotulo']} já não está no time que vendeu";
+    }
+    foreach ($it['extra_jogadores'] as $j) {
+        if (!$j['existe']) $m[] = "{$j['rotulo']}: saiu da liga";
+        elseif ($j['team_id'] !== $comp) $m[] = "{$j['rotulo']} já não está no time que comprou";
+    }
+    foreach ([['picks', $vend], ['extra_picks', $comp]] as [$chave, $dono]) {
+        foreach ($it[$chave] as $p) {
+            if (!$p['existe']) $m[] = "{$p['rotulo']}";
+            elseif (!empty($picksUsadas[$p['id']])) $m[] = "{$p['rotulo']} já foi usada no draft";
+            elseif ($p['team_id'] !== $dono) $m[] = "{$p['rotulo']} já mudou de dono";
+        }
+    }
+    return [!$m, $m];
+}
+
+function historicoTrocasLeilao(PDO $pdo, ?int $leagueId, bool $isAdmin, array $f): void
+{
+    leilaoGarantirColunasReversao($pdo);
+    if (!$leagueId) {
+        echo json_encode(['success' => true, 'leiloes' => [], 'temporadas' => [], 'times' => []]);
+        return;
+    }
+    $liga = (string)(getLeagueNameById($pdo, $leagueId) ?? '');
+    $temps = leilaoTemporadasDaLiga($pdo, $liga);
+
+    $st = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome, photo_url
+                           FROM teams WHERE league = ? ORDER BY city, name");
+    $st->execute([strtoupper($liga)]);
+    $times = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) $times[(int)$t['id']] = $t;
+    $timeInfo = function (int $id) use ($pdo, &$times): array {
+        if (!isset($times[$id])) {
+            $s = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome, photo_url FROM teams WHERE id = ?");
+            $s->execute([$id]);
+            $times[$id] = $s->fetch(PDO::FETCH_ASSOC) ?: ['id' => $id, 'nome' => 'Time removido', 'photo_url' => null];
+        }
+        $t = $times[$id];
+        return ['id' => $id, 'nome' => $t['nome'], 'logo' => (!empty($t['photo_url']) ? $t['photo_url'] : '/img/default-team.png')];
+    };
+
+    $where = "l.league_id = ? AND (l.status = 'finalizado'" . ($isAdmin ? " OR l.revertido_em IS NOT NULL" : '') . ")";
+    $params = [$leagueId];
+    if ($corte = corteDaSprintDoLeilao($pdo, $leagueId)) {
+        $where .= " AND l.created_at >= ?";
+        $params[] = $corte;
+    }
+    $st = $pdo->prepare("SELECT l.id, l.player_id, l.team_id, l.data_fim, l.created_at, l.status, l.proposta_aceita_id,
+                                l.is_temp_player, l.temp_name, l.revertido_em,
+                                lp.team_id AS winner_team_id, lp.obs
+                           FROM leilao_jogadores l
+                      LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
+                          WHERE {$where}
+                       ORDER BY COALESCE(l.data_fim, l.created_at) DESC
+                          LIMIT 300");
+    $st->execute($params);
+
+    $filtroTemp = (int)($f['temporada'] ?? 0);
+    $filtroTime = (int)($f['time'] ?? 0);
+    $busca = mb_strtolower(trim((string)($f['busca'] ?? '')));
+    $usadas = [];
+    if ($isAdmin) {
+        require_once __DIR__ . '/../backend/picks_usadas.php';
+        $usadas = picksJaUsadas($pdo);
+    }
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        if (empty($l['winner_team_id'])) continue;
+        $data = $l['data_fim'] ?: $l['created_at'];
+        $temp = leilaoTemporadaDaData($temps, $data);
+        if ($filtroTemp && (!$temp || (int)$temp['id'] !== $filtroTemp)) continue;
+        $vend = (int)$l['team_id']; $comp = (int)$l['winner_team_id'];
+        if ($filtroTime && $filtroTime !== $vend && $filtroTime !== $comp) continue;
+
+        $it = leilaoItensDaTroca($pdo, $l);
+        $vendEnviou = array_merge(array_column($it['leiloado'], 'rotulo'), array_column($it['extra_jogadores'], 'rotulo'), array_column($it['extra_picks'], 'rotulo'));
+        $compEnviou = array_merge(array_column($it['jogadores'], 'rotulo'), array_column($it['picks'], 'rotulo'));
+        $V = $timeInfo($vend); $C = $timeInfo($comp);
+        if ($busca !== '') {
+            $palheiro = mb_strtolower(implode(' ', array_merge($vendEnviou, $compEnviou, [$V['nome'], $C['nome']])));
+            if (!str_contains($palheiro, $busca)) continue;
+        }
+        $item = [
+            'id'               => (int)$l['id'],
+            'data'             => $data,
+            'temporada'        => $temp ? 'T' . (int)$temp['season_number'] : null,
+            'vendedor'         => $V,
+            'comprador'        => $C,
+            'vendedor_enviou'  => $vendEnviou,
+            'comprador_enviou' => $compEnviou,
+            'obs'              => ($l['obs'] && $l['obs'] !== 'Cadastro manual de leilão') ? $l['obs'] : null,
+            'revertido'        => !empty($l['revertido_em']),
+            'revertido_em'     => $l['revertido_em'],
+        ];
+        if ($isAdmin && !$item['revertido']) {
+            [$pode, $motivos] = leilaoPodeReverter($l, $it, $usadas);
+            $item['pode_reverter'] = $pode;
+            $item['motivo'] = $pode ? null : implode('; ', $motivos);
+        }
+        $out[] = $item;
+    }
+
+    echo json_encode([
+        'success'    => true,
+        'liga'       => $liga,
+        'leiloes'    => $out,
+        'temporadas' => array_map(fn($t) => ['id' => (int)$t['id'], 'rotulo' => 'T' . (int)$t['season_number']], $temps),
+        'times'      => array_values(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome']], $times)),
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Desfaz um leilão finalizado — só se tudo ainda estiver onde ele deixou.
+ * Modelo: revert_trade (api/admin.php). Tudo ou nada; o motivo vai pra tela.
+ */
+function reverterLeilaoSeguro(PDO $pdo, array $body, int $userId): void
+{
+    leilaoGarantirColunasReversao($pdo);
+    require_once __DIR__ . '/../backend/picks_usadas.php';
+    $id = (int)($body['leilao_id'] ?? 0);
+    if (!$id) { echo json_encode(['success' => false, 'error' => 'Leilão não informado.']); return; }
+
+    /* TUDO QUE PODE CRIAR TABELA, ANTES DA TRANSAÇÃO.
+       getAdminLeagues() roda CREATE TABLE league_admins a cada chamada, e isso
+       faz commit implícito: chamada lá dentro, a transação morria ali e cada
+       UPDATE da reversão passava a ser gravado na hora — a tela dizia "nada foi
+       alterado" com os itens já devolvidos. */
+    $ligasDoAdmin = getAdminLeagues($pdo, $userId);
+    $picksUsadas = picksJaUsadas($pdo, true);
+
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("SELECT l.*, lp.team_id AS winner_team_id FROM leilao_jogadores l
+                          LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
+                              WHERE l.id = ? FOR UPDATE");
+        $st->execute([$id]);
+        $l = $st->fetch(PDO::FETCH_ASSOC);
+        $falha = function (string $msg) use ($pdo) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['success' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
+        };
+        if (!$l) { $falha('Leilão não encontrado.'); return; }
+        if ($l['status'] !== 'finalizado' || !empty($l['revertido_em'])) { $falha('Só dá pra reverter leilão finalizado que ainda não foi revertido.'); return; }
+        $ligaNome = strtoupper((string)(getLeagueNameById($pdo, (int)$l['league_id']) ?? ''));
+        if (!in_array($ligaNome, $ligasDoAdmin, true)) { $falha('Você não administra a liga desse leilão.'); return; }
+
+        // Trava as linhas antes de conferir: nada muda entre a conferência e o UPDATE.
+        $it = leilaoItensDaTroca($pdo, $l);
+        $idsJog = array_filter(array_column(array_merge($it['leiloado'], $it['jogadores'], $it['extra_jogadores']), 'id'));
+        $idsPk = array_column(array_merge($it['picks'], $it['extra_picks']), 'id');
+        if ($idsJog) { $in = implode(',', array_fill(0, count($idsJog), '?')); $pdo->prepare("SELECT id FROM players WHERE id IN ($in) FOR UPDATE")->execute(array_values($idsJog)); }
+        if ($idsPk)  { $in = implode(',', array_fill(0, count($idsPk), '?'));  $pdo->prepare("SELECT id FROM picks WHERE id IN ($in) FOR UPDATE")->execute($idsPk); }
+        $it = leilaoItensDaTroca($pdo, $l);
+
+        [$pode, $motivos] = leilaoPodeReverter($l, $it, $picksUsadas);
+        if (!$pode) { $falha('Não dá pra reverter sem desfazer outra movimentação: ' . implode('; ', $motivos) . '.'); return; }
+        // Última trava antes de mover: se algo fechou a transação no caminho,
+        // cada UPDATE seria gravado sozinho. Melhor não mexer em nada.
+        if (!$pdo->inTransaction()) throw new RuntimeException('transação encerrada antes de mover os itens');
+
+        $vend = (int)$l['team_id']; $comp = (int)$l['winner_team_id'];
+        $movJog = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ? AND team_id = ?");
+        $movPk  = $pdo->prepare("UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ? AND team_id = ?");
+        $feito = function ($stmt, array $args) {
+            $stmt->execute($args);
+            if ($stmt->rowCount() !== 1) throw new RuntimeException('item mudou durante a reversão');
+        };
+        foreach ($it['leiloado'] as $j)        $feito($movJog, [$vend, $j['id'], $comp]);
+        foreach ($it['jogadores'] as $j)       $feito($movJog, [$comp, $j['id'], $vend]);
+        foreach ($it['extra_jogadores'] as $j) $feito($movJog, [$vend, $j['id'], $comp]);
+        foreach ($it['picks'] as $p)           $feito($movPk,  [$comp, $vend, $p['id'], $vend]);
+        foreach ($it['extra_picks'] as $p)     $feito($movPk,  [$vend, $comp, $p['id'], $comp]);
+
+        $log = json_encode([
+            'voltou_pro_vendedor'  => array_merge(array_column($it['leiloado'], 'rotulo'), array_column($it['extra_jogadores'], 'rotulo'), array_column($it['extra_picks'], 'rotulo')),
+            'voltou_pro_comprador' => array_merge(array_column($it['jogadores'], 'rotulo'), array_column($it['picks'], 'rotulo')),
+        ], JSON_UNESCAPED_UNICODE);
+        $pdo->prepare("UPDATE leilao_jogadores SET status = 'cancelado', revertido_em = NOW(), revertido_por = ?, reversao_log = ? WHERE id = ?")
+            ->execute([$userId, $log, $id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao/reverter_seguro] ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Não deu pra reverter agora. Nada foi alterado.']);
+        return;
+    }
+    try { leilaoBotEncerrarLeilao($pdo, $id); } catch (Throwable $e) { /* fila do WhatsApp é detalhe */ }
+
+    $n = count($idsJog) + count($idsPk);
+    echo json_encode(['success' => true, 'message' => "Leilão revertido: {$n} item(ns) voltaram pros times de antes."], JSON_UNESCAPED_UNICODE);
 }
 
 // ========== FUNCOES GET ==========
@@ -2326,8 +2686,10 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
 
         $pdo->commit();
         echo json_encode(['success' => true, 'message' => 'Leilão cadastrado e troca executada com sucesso.', 'leilao_id' => $leilaoId]);
-    } catch (Exception $e) {
-        $pdo->rollBack();
+    } catch (Throwable $e) {
+        // rollBack sem transação vira erro fatal e esconde o motivo real.
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao/cadastrar_manual] ' . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Erro ao cadastrar o leilão.']);
     }
 }

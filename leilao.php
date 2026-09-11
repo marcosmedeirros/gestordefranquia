@@ -329,6 +329,37 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
             .page-hero { padding: 16px 16px 0; }
             .content { padding: 16px 16px 48px; }
         }
+        /* ── Leilões realizados, em formato de troca ── */
+        [hidden] { display: none !important; }
+        .lt-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+        .lt-filtros input, .lt-filtros select {
+            background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+            font-family: var(--font); font-size: 13px; padding: 8px 12px; min-height: 38px;
+        }
+        .lt-filtros input { flex: 1; min-width: 200px; }
+        .lt-filtros input:focus, .lt-filtros select:focus { outline: none; border-color: var(--red); }
+        .lt-lista { display: flex; flex-direction: column; gap: 10px; }
+        .lt-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm, 10px); padding: 12px 14px; }
+        .lt-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11.5px; color: var(--text-3); flex-wrap: wrap; }
+        .lt-tag { font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 10px; color: var(--red);
+            background: color-mix(in srgb, var(--red) 12%, transparent); border-radius: 999px; padding: 2px 8px; }
+        .lt-revertido { font-weight: 800; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #f59e0b;
+            background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); border-radius: 999px; padding: 1px 8px; }
+        .lt-lados { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 12px; align-items: start; }
+        .lt-time { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 6px; }
+        .lt-time img { width: 26px; height: 26px; border-radius: 7px; object-fit: cover; background: var(--panel); flex-shrink: 0; }
+        .lt-time b { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lt-rot { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 4px; }
+        .lt-itens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--text-2); }
+        .lt-itens li::before { content: "•"; color: var(--red); margin-right: 6px; }
+        .lt-seta { color: var(--text-3); padding-top: 30px; font-size: 14px; }
+        .lt-obs { margin-top: 8px; font-size: 12px; color: var(--text-3); font-style: italic; }
+        .lt-vazio { color: var(--text-3); font-size: 13px; text-align: center; padding: 20px 0; }
+        @media (max-width: 640px) {
+            .lt-lados { grid-template-columns: 1fr; gap: 8px; }
+            .lt-seta { padding-top: 0; transform: rotate(90deg); justify-self: center; }
+            .lt-filtros select { flex: 1; }
+        }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -351,26 +382,37 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
         <div class="page-hero">
             <div class="hero-eyebrow">Liga · <?= htmlspecialchars($user['league'] ?? 'ELITE') ?></div>
             <h1 class="hero-title"><i class="bi bi-hammer" style="color:var(--red)"></i>Leilão</h1>
-            <p class="hero-sub">Propostas por jogadores em leilão na sua liga</p>
+            <p class="hero-sub">Os leilões da liga acontecem no WhatsApp. Aqui fica o que já foi trocado em cada um.</p>
             <?php if ($is_admin): ?>
-            <p class="hero-sub" style="margin-top:6px"><i class="bi bi-info-circle me-1"></i>Para abrir ou resolver leilões, use o card <strong>Leilão</strong> na aba da liga, em <a href="/admin.php" style="color:var(--red)">Administração</a>.</p>
+            <p class="hero-sub" style="margin-top:6px"><i class="bi bi-info-circle me-1"></i>Pra registrar ou reverter um leilão, use o card <strong>Leilão</strong> na aba da liga, em <a href="/admin.php" style="color:var(--red)">Administração</a>.</p>
             <?php endif; ?>
         </div>
 
         <div class="content">
-            <div class="panel-card">
+            <?php /* LEILÃO ATIVO E PROPOSTAS: ESCONDIDOS, NÃO APAGADOS (11/09/2026).
+                     Os leilões passaram a acontecer fora do app. Os painéis e o
+                     JS deles continuam aqui — ver LEILAO_SO_HISTORICO em
+                     js/leilao.js — pra voltar é tirar o hidden e a chave. */ ?>
+            <div class="panel-card" hidden>
                 <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
                 <div class="panel-card-body"><div id="leiloesAtivosContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
             </div>
             <?php if ($team_id): ?>
-            <div class="panel-card">
+            <div class="panel-card" hidden>
                 <div class="panel-card-header"><i class="bi bi-inbox panel-card-icon"></i><span class="panel-card-title">Propostas Recebidas</span></div>
                 <div class="panel-card-body"><div id="propostasRecebidasContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
             </div>
             <?php endif; ?>
             <div class="panel-card">
-                <div class="panel-card-header"><i class="bi bi-clock-history panel-card-icon"></i><span class="panel-card-title">Histórico de Leilões</span></div>
-                <div class="panel-card-body"><div id="leiloesHistoricoContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
+                <div class="panel-card-header"><i class="bi bi-clock-history panel-card-icon"></i><span class="panel-card-title">Leilões realizados</span></div>
+                <div class="panel-card-body">
+                    <div class="lt-filtros">
+                        <input type="search" id="histBusca" placeholder="Buscar jogador ou time" aria-label="Buscar jogador ou time">
+                        <select id="histTemporada" aria-label="Temporada"><option value="">Todas as temporadas</option></select>
+                        <select id="histTime" aria-label="Time"><option value="">Todos os times</option></select>
+                    </div>
+                    <div id="leiloesHistoricoContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                </div>
             </div>
         </div>
     </main>

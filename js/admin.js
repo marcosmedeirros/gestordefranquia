@@ -2702,9 +2702,146 @@ function showWaitlistModal() {
   }
 }
 
-// ── Leilão (admin): acompanhar e resolver os leilões da liga ────────────────
+// ── Leilão (admin): registrar o do WhatsApp, ver o histórico e reverter ─────
+/* Os leilões passaram a acontecer fora do app (11/09/2026). O card ficou com
+   o botão de registrar e o histórico em formato de troca, com filtros e
+   reversão. A tela antiga (abrir leilão, pendentes, em andamento, cancelados,
+   slots) está guardada em showLeilaoAdminAntigo, sem nada chamando. */
+let _leilaoAdminFiltros = { temporada: '', time: '', busca: '' };
 
-async function showLeilaoAdmin(league) {
+async function showLeilaoAdmin(league, filtros) {
+  league = league || appState.currentLeague;
+  appState.view = 'leilao_admin';
+  updateBreadcrumb();
+  if (filtros) _leilaoAdminFiltros = Object.assign({ temporada: '', time: '', busca: '' }, filtros);
+  const f = _leilaoAdminFiltros;
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
+
+  const topo = `
+    <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
+    </div>
+    <div class="panel mb-3 la-registrar">
+      <div class="la-registrar-corpo">
+        <div style="flex:1;min-width:220px">
+          <div style="font-weight:700;font-size:15px;color:var(--text)">Leilão feito no WhatsApp</div>
+          <div style="font-size:12.5px;color:var(--text-3);margin-top:3px;max-width:60ch">Os leilões acontecem fora do app. Registre aqui quem vendeu, quem levou e o que foi pago: a troca é feita no app e entra no histórico.</div>
+        </div>
+        <button type="button" class="la-btn-whats" onclick="_leilaoManualAbrir('${league}')">
+          <i class="bi bi-whatsapp"></i> Registrar leilão do WhatsApp
+        </button>
+      </div>
+    </div>`;
+
+  const estilo = `<style>
+    .la-registrar { border-color: rgba(37,211,102,.35); background: linear-gradient(135deg, rgba(37,211,102,.08), transparent 60%); }
+    .la-registrar-corpo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px 18px; }
+    .la-btn-whats { display:inline-flex; align-items:center; gap:8px; background:#25d366; color:#06240f; border:0; border-radius:10px;
+      padding:11px 18px; font-weight:800; font-size:14px; cursor:pointer; box-shadow:0 6px 18px rgba(37,211,102,.25); }
+    .la-btn-whats:hover { filter:brightness(1.06); }
+    .la-btn-whats:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+    .la-filtros { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+    .la-filtros .form-control, .la-filtros .form-select { max-width:none; }
+    .la-filtros .la-busca { flex:1; min-width:200px; }
+    .la-card { border:1px solid var(--border); border-radius:10px; background:var(--panel-2); padding:12px 14px; margin-bottom:10px; }
+    .la-cab { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11.5px; color:var(--text-3); margin-bottom:8px; }
+    .la-tag { font-weight:800; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--red);
+      background:color-mix(in srgb, var(--red) 12%, transparent); border-radius:999px; padding:2px 8px; }
+    .la-rev { font-weight:800; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#f59e0b;
+      background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); border-radius:999px; padding:1px 8px; }
+    .la-lados { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:12px; align-items:start; }
+    .la-time { font-size:13px; font-weight:700; color:var(--text); margin-bottom:2px; }
+    .la-rot { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:3px; }
+    .la-itens { margin:0; padding-left:16px; font-size:12.5px; color:var(--text-2); }
+    .la-seta { color:var(--text-3); padding-top:18px; }
+    .la-acoes { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+    .la-motivo { font-size:11.5px; color:var(--text-3); flex:1; min-width:200px; }
+    @media (max-width:640px) { .la-lados { grid-template-columns:1fr; gap:6px; } .la-seta { padding-top:0; transform:rotate(90deg); justify-self:center; } }
+  </style>`;
+
+  let data;
+  try {
+    const qs = new URLSearchParams({ action: 'historico_trocas', league });
+    if (f.temporada) qs.set('temporada', f.temporada);
+    if (f.time) qs.set('time', f.time);
+    if (f.busca) qs.set('busca', f.busca);
+    data = await api('leilao.php?' + qs.toString());
+    if (data && data.success === false) throw data;
+  } catch (e) {
+    container.innerHTML = topo + estilo + `<div class="alert alert-danger">Não deu pra carregar os leilões: ${escapeHtml(e.error || e.message || '')}<br>
+      <small>Registrar um leilão do WhatsApp, acima, continua funcionando.</small></div>`;
+    return;
+  }
+
+  const leiloes = data.leiloes || [];
+  const opt = (v, t, sel) => `<option value="${escapeHtml(String(v))}"${String(sel) === String(v) ? ' selected' : ''}>${escapeHtml(t)}</option>`;
+  const filtrosHtml = `
+    <form class="la-filtros" onsubmit="event.preventDefault(); showLeilaoAdmin('${league}', { temporada: this.temporada.value, time: this.time.value, busca: this.busca.value.trim() })">
+      <input class="form-control la-busca" name="busca" type="search" placeholder="Buscar jogador ou time e tecle Enter" value="${escapeHtml(f.busca)}" aria-label="Buscar jogador ou time">
+      <select class="form-select" name="temporada" aria-label="Temporada" onchange="this.form.requestSubmit()">
+        ${opt('', 'Todas as temporadas', f.temporada)}${(data.temporadas || []).slice().reverse().map(t => opt(t.id, t.rotulo, f.temporada)).join('')}
+      </select>
+      <select class="form-select" name="time" aria-label="Time" onchange="this.form.requestSubmit()">
+        ${opt('', 'Todos os times', f.time)}${(data.times || []).map(t => opt(t.id, t.nome, f.time)).join('')}
+      </select>
+    </form>`;
+
+  const lado = (time, itens) => `
+    <div style="min-width:0">
+      <div class="la-time">${escapeHtml(time.nome)}</div>
+      <div class="la-rot">enviou</div>
+      <ul class="la-itens">${itens.length ? itens.map(i => `<li>${escapeHtml(i)}</li>`).join('') : '<li>nada</li>'}</ul>
+    </div>`;
+  const cards = leiloes.map(l => {
+    const dataTxt = l.data ? new Date(String(l.data).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const acoes = l.revertido
+      ? `<span class="la-motivo">Revertido em ${escapeHtml(new Date(String(l.revertido_em).replace(' ', 'T')).toLocaleString('pt-BR'))}.</span>`
+      : `<span class="la-motivo">${l.pode_reverter ? 'Tudo ainda está onde o leilão deixou.' : 'Não dá pra reverter: ' + escapeHtml(l.motivo || '')}</span>
+         <button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.35)" ${l.pode_reverter ? '' : 'disabled'}
+           onclick="_leilaoAdminReverter(${l.id}, '${league}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Reverter</button>`;
+    return `
+      <div class="la-card">
+        <div class="la-cab">
+          <span class="la-tag">Leilão${l.temporada ? ' · ' + escapeHtml(l.temporada) : ''}</span>
+          ${dataTxt ? `<span>${escapeHtml(dataTxt)}</span>` : ''}
+          ${l.revertido ? '<span class="la-rev">Revertido</span>' : ''}
+        </div>
+        <div class="la-lados">
+          ${lado(l.vendedor, l.vendedor_enviou || [])}
+          <div class="la-seta" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></div>
+          ${lado(l.comprador, l.comprador_enviou || [])}
+        </div>
+        ${l.obs ? `<div style="margin-top:6px;font-size:12px;color:var(--text-3);font-style:italic">"${escapeHtml(l.obs)}"</div>` : ''}
+        <div class="la-acoes">${acoes}</div>
+      </div>`;
+  }).join('');
+  const filtrando = f.temporada || f.time || f.busca;
+
+  container.innerHTML = topo + estilo + `
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3)"></i> Leilões realizados (${leiloes.length})</div></div>
+      <div class="panel-body">
+        ${filtrosHtml}
+        ${cards || `<p style="color:var(--text-3);font-size:13px">${filtrando ? 'Nenhum leilão com esses filtros.' : 'Nenhum leilão realizado nesta sprint ainda.'}</p>`}
+      </div>
+    </div>`;
+}
+
+async function _leilaoAdminReverter(leilaoId, league) {
+  if (!confirm('Reverter este leilão? Os jogadores e picks voltam pros times de antes, e o leilão fica marcado como revertido no histórico.')) return;
+  try {
+    const r = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'reverter_seguro', leilao_id: leilaoId }) });
+    if (!r || r.success === false) throw r || {};
+    showAlert('success', r.message || 'Leilão revertido.');
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Não deu pra reverter.');
+  }
+  showLeilaoAdmin(league);
+}
+
+async function showLeilaoAdminAntigo(league) {
   league = league || appState.currentLeague;
   appState.view = 'leilao_admin';
   updateBreadcrumb();
