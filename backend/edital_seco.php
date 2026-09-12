@@ -31,6 +31,8 @@ function editalSecoInstrucoes(string $liga): string
         '3. Formato de consequência: "<situação como o edital chama> (<artigo, inciso e parágrafo como no edital>) - <consequência>."',
         '   Exemplo: OVR Cap abaixo do piso técnico (Art. 26, II c/c §2º) - Perda da próxima pick própria de 1ª rodada, de forma irrecorrível, já na 1ª ocorrência.',
         '4. Pergunta de sim ou não: comece com "Sim." ou "Não." e, na mesma linha, a regra e o artigo que sustentam a resposta.',
+        '   ANTES de responder, confira se a situação perguntada cumpre LITERALMENTE a condição do artigo. Se o artigo fala de "transação", "troca" ou "ato do GM" e a situação é outra coisa (punição, draft, loteria, decisão da organização), a regra não se aplica e a resposta é "Não." — mesmo que o resultado final pareça parecido.',
+        '   Exemplo: "se alguém perde uma pick por punição, pode cair na Stepien?" → Não. A Stepien Rule se caracteriza na formalização de uma transação (Art. 27, §2º); perda de pick por punição não é transação.',
         '5. Sempre cite o artigo entre parênteses. Nunca invente número de artigo.',
         "6. Se o edital não trata do assunto, responda exatamente: \"O edital da {$liga} não trata disso.\" Não deduza.",
         '7. Sem saudação, sem introdução, sem conclusão, sem emoji. No máximo 3 linhas. Pode usar *negrito* do WhatsApp.',

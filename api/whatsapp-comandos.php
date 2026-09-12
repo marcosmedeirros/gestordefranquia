@@ -998,38 +998,37 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $l
     $comSalario = strtoupper(trim((string)$t['league'])) === 'ELITE'
                && wcLigaEmSalario($pdo, (string)$t['league']);
 
-    $porAno = [];
-    $pesoTotal = 0;
+    /* LISTA POR RODADA, UMA PICK POR LINHA (pedido da liga, 12/09/2026).
+       Antes era "2030: 1ª (5M) (do Phantoms), 1ª (5M)..." numa linha só por
+       ano, difícil de ler no celular. Agora:
+         *Picks 1º round:*
+         -2028 — 5M
+         -2028 (Slimmers) — 5M
+       A própria vem antes das de outros times no mesmo ano. O valor só na
+       ELITE, que é onde pick pesa no casamento salarial. */
+    $porRodada = [];
     foreach ($picks as $p) {
-        $rot = $p['round'] . 'ª';
-        if ($comSalario) {
-            $peso = capValorDaPickNaTroca((int)$p['round']);
-            $pesoTotal += $peso;
-            $rot .= " ({$peso}M)";
-        }
-        // Pick que veio de outro time: dizer de quem é o que importa numa troca.
-        if ((int)$p['original_team_id'] !== (int)$t['id']) {
-            $rot .= ' (do ' . wcNomeDoTime(['city' => $p['o_city'], 'name' => $p['o_name']]) . ')';
-        }
+        $proprio = (int)$p['original_team_id'] === (int)$t['id'];
+        $linha = '-' . $p['season_year'] . ($proprio ? '' : ' (' . ($p['o_name'] ?: '?') . ')');
         // Condição da pick: protegida ou em swap.
         $swap = strtoupper(trim((string)($p['swap_type'] ?? '')));
-        if ($swap === 'SB' || $swap === 'SW') $rot .= ' [swap ' . $swap . ']';
+        if ($swap === 'SB' || $swap === 'SW') $linha .= ' [swap ' . $swap . ']';
         if (protecaoValida($p['protection'] ?? null)) {
             $res = $p['protection_resultado'] ?? null;
-            $rot .= $res === 'passou' ? ' [passou, era ' . protecaoRotulo($p['protection']) . ']'
-                  : ($res === 'rolou' ? ' [não passou, ' . protecaoRotulo($p['protection']) . ']'
-                  : ' [protegida ' . protecaoRotulo($p['protection']) . ']');
+            $linha .= $res === 'passou' ? ' [passou, era ' . protecaoRotulo($p['protection']) . ']'
+                    : ($res === 'rolou' ? ' [não passou, ' . protecaoRotulo($p['protection']) . ']'
+                    : ' [protegida ' . protecaoRotulo($p['protection']) . ']');
         }
-        $porAno[(int)$p['season_year']][] = $rot;
+        if ($comSalario) $linha .= ' — ' . capValorDaPickNaTroca((int)$p['round']) . 'M';
+        $porRodada[(int)$p['round']][] = ['ano' => (int)$p['season_year'], 'proprio' => $proprio ? 0 : 1,
+                                          'origem' => (string)$p['o_name'], 'linha' => $linha];
     }
+    ksort($porRodada);
 
-    $txt = '*Picks — ' . wcNomeDoTime($t) . "*\n" . count($picks) . " no total\n\n";
-    foreach ($porAno as $ano => $lista) {
-        $txt .= "*{$ano}:* " . implode(', ', $lista) . "\n";
-    }
-    if ($comSalario) {
-        $txt .= "\n_Peso na troca: *{$pesoTotal}M* no total (1ª = "
-             . capValorDaPickNaTroca(1) . 'M, 2ª = ' . capValorDaPickNaTroca(2) . "M). Pick não entra na folha._\n";
+    $txt = '*Picks — ' . wcNomeDoTime($t) . "*\n";
+    foreach ($porRodada as $rodada => $lista) {
+        usort($lista, fn($a, $b) => [$a['ano'], $a['proprio'], $a['origem']] <=> [$b['ano'], $b['proprio'], $b['origem']]);
+        $txt .= "\n*Picks {$rodada}º round:*\n" . implode("\n", array_column($lista, 'linha')) . "\n";
     }
     return rtrim($txt);
 }
@@ -2130,6 +2129,45 @@ function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
 }
 
 /**
+ * Itens de uma troca 1x1 no formato do /trocas: um por linha, jogador com
+ * "(OVR/IDADEy POS)" e pick como "R1 2030 (Time)" — o time de origem só
+ * quando a pick não é de quem está mandando.
+ *
+ * @return array{0:string[],1:string[]} [o que o "de" envia, o que o "para" envia]
+ */
+function wcLinhasDaTroca(PDO $pdo, int $tradeId, int $deId, int $paraId): array
+{
+    static $st = null;
+    if ($st === null) {
+        $st = $pdo->prepare("SELECT ti.from_team, ti.player_name, ti.player_ovr, ti.player_age, ti.player_position, ti.pick_id,
+                                    pk.round, pk.season_year, pk.original_team_id, o.name AS origem
+                               FROM trade_items ti
+                          LEFT JOIN picks pk ON pk.id = ti.pick_id
+                          LEFT JOIN teams o ON o.id = pk.original_team_id
+                              WHERE ti.trade_id = ? ORDER BY ti.id");
+    }
+    $st->execute([$tradeId]);
+    $doDe = []; $doPara = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
+        $manda = !empty($i['from_team']) ? $deId : $paraId;
+        if ($i['player_name']) {
+            $ficha = trim(($i['player_ovr'] ? $i['player_ovr'] . ($i['player_age'] ? '/' . $i['player_age'] . 'y' : '') : '')
+                   . ' ' . (string)($i['player_position'] ?? ''));
+            $rot = $i['player_name'] . ($ficha !== '' ? " ({$ficha})" : '');
+        } elseif ($i['pick_id']) {
+            $rot = $i['round'] ? 'R' . $i['round'] . ($i['season_year'] ? ' ' . $i['season_year'] : '') : 'uma pick';
+            if ($i['original_team_id'] && (int)$i['original_team_id'] !== $manda && $i['origem']) {
+                $rot .= " ({$i['origem']})";
+            }
+        } else {
+            $rot = '?';
+        }
+        if (!empty($i['from_team'])) $doDe[] = $rot; else $doPara[] = $rot;
+    }
+    return [$doDe, $doPara];
+}
+
+/**
  * Os itens de uma troca de VÁRIOS times, agrupados por quem recebe.
  *
  * Irmã de wcItensDaTroca() — aquela é 1x1 e usa `trade_items`/`from_team`
@@ -2382,7 +2420,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     }
 
     $st = $pdo->prepare("
-        SELECT t.id, t.league, t.updated_at, '1x1' AS tipo,
+        SELECT t.id, t.league, t.updated_at, '1x1' AS tipo, t.from_team_id, t.to_team_id,
                de.city AS de_city, de.name AS de_name,
                pra.city AS pra_city, pra.name AS pra_name
         FROM trades t
@@ -2453,18 +2491,20 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
             $porTime = wcItensMultiPorTime($pdo, (int)$t['id']);
             $txt .= "\n*Troca de " . count($porTime) . " times*{$sufixoLiga}\n";
             foreach ($porTime as $time => $itens) {
-                $txt .= "{$time} recebe: " . ($itens ? implode(', ', $itens) : 'nada') . "\n";
+                $txt .= "{$time} recebe:\n" . ($itens ? implode("\n", $itens) : 'nada') . "\n\n";
             }
+            $txt = rtrim($txt) . "\n";
             continue;
         }
 
-        [$vai, $vem] = wcItensDaTroca($pdo, (int)$t['id'], (string)($t['league'] ?? $liga ?? ''));
+        [$vai, $vem] = wcLinhasDaTroca($pdo, (int)$t['id'], (int)$t['from_team_id'], (int)$t['to_team_id']);
         $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
         $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
 
-        $txt .= "\n*{$deNome}* ⇄ *{$praNome}*{$sufixoLiga}\n"
-              . '→ ' . ($vai ? implode(', ', $vai) : 'nada') . "\n"
-              . '← ' . ($vem ? implode(', ', $vem) : 'nada') . "\n";
+        // Um item por linha, "Time envia:" dos dois lados (pedido da liga).
+        $txt .= "\n*{$deNome} ⇄ {$praNome}*{$sufixoLiga}\n"
+              . "{$deNome} envia:\n" . ($vai ? implode("\n", $vai) : 'nada') . "\n\n"
+              . "{$praNome} envia:\n" . ($vem ? implode("\n", $vem) : 'nada') . "\n";
     }
     return rtrim($txt);
 }
