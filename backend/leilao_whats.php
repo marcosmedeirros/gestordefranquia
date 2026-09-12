@@ -344,9 +344,24 @@ function lwLerPick(string $texto): ?array
     }
     if (!$rodada && !$ehPick) return null;
 
-    $resto = str_replace(array_values(array_filter([$mAno[0], $mm[0]], fn($s) => $s !== '')), ' ', $t);
+    /* POSIÇÃO NO DRAFT: "Escolha 24 · 2026 (Minnesota Paisley)". Com ano de 4
+       dígitos no item, o número curto depois de escolha/pick é a posição, não o
+       ano. Ela volta como 4º valor (só quando existe) e quem conhece a liga tira
+       a rodada dela: até o nº de times é 1ª, depois é 2ª. Sem ano de 4 dígitos,
+       "Pick 26" continua sendo 2026. */
+    $slot = null; $mSlot = [''];
+    if (strlen($mAno[1]) === 4
+        && preg_match('/\b(?:escolha|pick|pico|pik)\s*(?:n[º°o.]?\s*)?#?(\d{1,2})\b(?!\s*(?:ª|º|°))/iu', $t, $mSlot)) {
+        $slot = (int)$mSlot[1];
+    } else {
+        $mSlot = [''];
+    }
+
+    $resto = str_replace(array_values(array_filter([$mAno[0], $mm[0], $mSlot[0]], fn($s) => $s !== '')), ' ', $t);
     $resto = preg_replace("/\\b(pick|picks|pico|pik|escolha|de|da|do|via|{$abrev1}|{$abrev2})\\b|[()*•·\\-']/iu", ' ', $resto);
-    return [$ano, $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
+    $saida = [$ano, $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
+    if ($slot && !$rodada) $saida[] = $slot;
+    return $saida;
 }
 
 /** Acha a pick do time. Devolve [pick|null, erro|null]. */
@@ -857,6 +872,16 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
 
             if ($pick = lwLerPick($item)) {
                 [$ano, $rodada, $origem] = $pick;
+                // "Escolha 24 · 2026": a posição dá a rodada (até o nº de times da liga é a 1ª).
+                if (!$rodada && isset($pick[3])) {
+                    static $timesPorLiga = [];
+                    if (!isset($timesPorLiga[$liga])) {
+                        $stL = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
+                        $stL->execute([$liga]);
+                        $timesPorLiga[$liga] = max(1, (int)$stL->fetchColumn());
+                    }
+                    $rodada = (int)$pick[3] <= $timesPorLiga[$liga] ? 1 : 2;
+                }
                 $dono = $primeiro;
                 [$pk] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem);
                 if (!$pk) { $dono = $segundo; [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem); }
