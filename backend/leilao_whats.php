@@ -665,6 +665,61 @@ function lwTextoComFicha(string $texto, array $jogadores): string
     return implode("\n", $saida);
 }
 
+/**
+ * A proposta de texto livre no padrão do Gameplay, montada do que o bot reconheceu:
+ *
+ *   *Waves* oferece:
+ *
+ *   SF: Taylor Hendricks 76/21y
+ *   Pick 1R 2030 (Waves)
+ *
+ * A pick sai sempre com o time de origem entre parênteses. O que o vendedor
+ * manda junto vem num bloco próprio. O que não foi reconhecido vai no fim do
+ * jeito que a pessoa escreveu — some do post, não; a adm confere.
+ *
+ * @return ?string null quando nada da proposta foi reconhecido (aí vale o texto da pessoa)
+ */
+function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto): ?string
+{
+    $st = $pdo->prepare("SELECT w.liga, w.vendedor_team_id, l.player_id, tv.name vendedor, lp.team_id, tp.name ofertante
+                           FROM leilao_whats w
+                           JOIN leilao_jogadores l ON l.id = w.leilao_id
+                           JOIN teams tv ON tv.id = w.vendedor_team_id
+                           JOIN leilao_propostas lp ON lp.id = ?
+                           JOIN teams tp ON tp.id = lp.team_id
+                          WHERE w.id = ?");
+    $st->execute([$propostaId, $lwId]);
+    $ctx = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$ctx) return null;
+
+    $pick = fn(array $pk) => 'Pick ' . (int)$pk['round'] . 'R ' . (int)$pk['season_year'] . ' (' . ($pk['origem'] ?: '?') . ')';
+    $itens = function (string $tabJog, string $tabPick) use ($pdo, $propostaId, $pick): array {
+        $linhas = [];
+        $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM {$tabJog} x JOIN players p ON p.id = x.player_id
+                              WHERE x.proposta_id = ? ORDER BY x.id");
+        $st->execute([$propostaId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $linhas[] = lwLinhaJogador($p);
+        $st = $pdo->prepare("SELECT pk.season_year, pk.round, o.name AS origem FROM {$tabPick} x
+                               JOIN picks pk ON pk.id = x.pick_id LEFT JOIN teams o ON o.id = pk.original_team_id
+                              WHERE x.proposta_id = ? ORDER BY CAST(pk.season_year AS UNSIGNED), pk.round, x.id");
+        $st->execute([$propostaId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $linhas[] = $pick($pk);
+        return $linhas;
+    };
+
+    $envia  = $itens('leilao_proposta_jogadores', 'leilao_proposta_picks');
+    $extras = $itens('leilao_proposta_extra_players', 'leilao_proposta_extra_picks');
+    if (!$envia && !$extras) return null;
+
+    $txt = "*{$ctx['ofertante']}* oferece:\n\n" . implode("\n", $envia);
+    if ($extras) $txt .= "\n\n*{$ctx['vendedor']}* manda junto:\n\n" . implode("\n", $extras);
+
+    [, , , , $naoAchei] = lwLerItensDaOferta($pdo, $texto, (int)$ctx['team_id'], (int)$ctx['vendedor_team_id'],
+                                             (string)$ctx['liga'], (int)$ctx['player_id']);
+    if ($naoAchei) $txt .= "\n\n_Não reconhecido:_ " . implode(' + ', array_values(array_unique($naoAchei)));
+    return $txt;
+}
+
 /** Os jogadores reconhecidos numa proposta (de quem oferta e os extras do vendedor), com OVR e idade. */
 function lwJogadoresDaProposta(PDO $pdo, int $propostaId): array
 {
@@ -1053,8 +1108,10 @@ function lwPostarProxima(PDO $pdo, array $lw): void
     if (!empty($prox['texto'])) {
         $stT = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
         $stT->execute([(int)$prox['team_id']]);
-        // Com a ficha (posição, OVR e idade) de quem foi reconhecido, mesmo que a pessoa tenha mandado só o nome.
-        $corpo = '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n"
+        // No padrão, montado do que foi reconhecido (não do texto cru). Se nada foi
+        // reconhecido, vai o texto da pessoa com a ficha de quem der pra achar.
+        $formatada = lwPropostaFormatada($pdo, (int)$prox['proposta_id'], (int)$lw['id'], (string)$prox['texto']);
+        $corpo = $formatada ?? '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n"
                . lwTextoComFicha((string)$prox['texto'], lwJogadoresDaProposta($pdo, (int)$prox['proposta_id']));
     } else {
         $corpo = lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
