@@ -1132,10 +1132,30 @@ async function loadPlayers() {
   }
 }
 
+/* Voltou pra esta aba (ex.: mudou a posição pela tela de Tática): se a função
+   ou a posição de alguém mudou no servidor, redesenha a tabela e a quadra sem
+   F5. Não mexe com um modal aberto — trocaria o jogador debaixo da edição. */
+async function recarregarSeElencoMudou() {
+  const teamId = window.__TEAM_ID__;
+  if (document.visibilityState !== 'visible' || !teamId || !Array.isArray(allPlayers) || !allPlayers.length) return;
+  if (document.querySelector('.modal.show')) return;
+  try {
+    const data = await api(`players.php?team_id=${teamId}`);
+    const retrato = lista => JSON.stringify((lista || [])
+      .map(p => [Number(p.id), String(p.role || ''), String(p.position || ''), p.secondary_position || null])
+      .sort((a, b) => a[0] - b[0]));
+    if (retrato(data.players) === retrato(allPlayers)) return;
+    allPlayers = data.players || [];
+    renderPlayers(allPlayers);
+  } catch (e) { /* sem rede: fica o que está na tela */ }
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
   loadPlayers();
   loadFreeAgencyLimits();
+  document.addEventListener('visibilitychange', recarregarSeElencoMudou);
+  window.addEventListener('focus', recarregarSeElencoMudou);
 
   document.getElementById('btn-ai-analysis')?.addEventListener('click', generateAIAnalysis);
 

@@ -896,6 +896,29 @@ window.addEventListener('beforeunload', () => {
     new Blob([JSON.stringify(montarPayload())], { type: 'application/json' }));
 });
 
+/* A posição e a função moram no elenco. Se a pessoa mexeu no Meu Elenco
+   (outra aba) e voltou pra cá, a lista tem que refletir sem F5 — só as
+   posições são recarregadas, o resto da tática (que pode estar sendo
+   editado) fica como está. */
+async function recarregarPosicoes() {
+  if (document.visibilityState !== 'visible' || !ELENCO.length) return;
+  // Não troca a lista debaixo do dedo de quem está escolhendo uma posição.
+  if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.pos) return;
+  try {
+    const r = await fetch('/api/tactics.php?action=get');
+    const d = await r.json();
+    if (!d.success || !Array.isArray(d.players)) return;
+    const antes = JSON.stringify(ELENCO.map(p => [p.id, p.role, p.position, p.secondary_position || null]));
+    const depois = JSON.stringify(d.players.map(p => [p.id, p.role, p.position, p.secondary_position || null]));
+    if (antes === depois) return;
+    ELENCO = d.players;
+    renderPosicoes();
+    aplicarBloqueioEdicao();
+  } catch (e) { /* sem rede: fica o que está na tela */ }
+}
+document.addEventListener('visibilitychange', recarregarPosicoes);
+window.addEventListener('focus', recarregarPosicoes);
+
 carregar();
 </script>
 </body>

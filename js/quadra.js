@@ -74,6 +74,7 @@
   function motivo(j, alvo) {
     const origem = roleDe(j.id);
     if (alvo === 'Banco') return origem === 'Banco' ? 'Já está no banco.' : '';
+    if (alvo === 'Outro') return origem === 'Outro' ? 'Já está em Outros.' : '';
     if (alvo === 'G-League') {
       if (!vagasGL()) return 'Esta liga não tem G-League.';
       if (origem === 'G-League') return 'Já está na G-League.';
@@ -115,7 +116,11 @@
 
   function render(lista) {
     lista = lista || [];
-    const nova = lista.map(j => j.id + ':' + normRole(j.role)).sort().join('|');
+    // A posição entra no retrato: mudar só a posição de alguém (no modal do
+    // elenco ou na tela de tática) tem que redesenhar a quadra na hora — com o
+    // retrato só de função, a quadra achava que nada tinha mudado.
+    const nova = lista.map(j => j.id + ':' + normRole(j.role) + ':' + posDe(j) + '/' + String(j.secondary_position || ''))
+      .sort().join('|');
     // Ordenar ou filtrar a tabela redesenha a página inteira. Se o elenco do
     // servidor não mudou, a quadra mantém o que ainda não foi salvo.
     if (nova === chave && jogadores.length) { desenhar(); return; }
@@ -141,10 +146,9 @@
   }
 
   function chip(j) {
-    const extra = roleDe(j.id) === 'Outro' ? ' · Outro' : '';
     return `<button type="button" class="qd-jog${sel(j)}${j.id in pend ? ' qd-mudou' : ''}" data-id="${esc(j.id)}" draggable="true">
       <img src="${esc(foto(j))}" alt="" draggable="false" loading="lazy" onerror="this.onerror=null;this.src='${reserva(j)}'">
-      <span class="n">${esc(j.name)}<span class="m"> · ${esc(posDe(j))}${j.secondary_position ? '/' + esc(j.secondary_position) : ''} · ${esc(j.age)}a${extra}</span></span>
+      <span class="n">${esc(j.name)}<span class="m"> · ${esc(posDe(j))}${j.secondary_position ? '/' + esc(j.secondary_position) : ''} · ${esc(j.age)}a</span></span>
       <span class="o" style="color:${corOvr(j.ovr)}">${esc(j.ovr)}</span>
     </button>`;
   }
@@ -160,8 +164,11 @@
       ? Math.round(escalados.reduce((s, j) => s + Number(j.ovr || 0), 0) / escalados.length) : 0;
     const temSalario = typeof SALARY_MODE !== 'undefined' && SALARY_MODE && typeof playerSalary === 'function';
     const salario = temSalario ? escalados.reduce((s, j) => s + Number(playerSalary(j) || 0), 0) : null;
-    const banco = jogadores.filter(j => ['Banco', 'Outro'].includes(roleDe(j.id)))
-      .sort((a, b) => Number(b.ovr) - Number(a.ovr));
+    // Banco e "Outros" separados: quem está como Outro não é reserva da rotação,
+    // e misturar os dois fazia o banco parecer maior do que é.
+    const porOvr = (a, b) => Number(b.ovr) - Number(a.ovr);
+    const banco = jogadores.filter(j => roleDe(j.id) === 'Banco').sort(porOvr);
+    const outros = jogadores.filter(j => roleDe(j.id) === 'Outro').sort(porOvr);
     const gl = jogadores.filter(j => roleDe(j.id) === 'G-League');
     const nMud = mudancas().length;
 
@@ -183,6 +190,10 @@
         <h6><span>Banco</span><span>${banco.length}</span></h6>
         <div class="qd-lista">${banco.map(chip).join('') || '<div class="qd-vaga">Ninguém no banco</div>'}</div>
       </div>`;
+    const zonaOutros = `<div class="qd-zona" data-alvo="Outro">
+        <h6><span>Outros</span><span>${outros.length}</span></h6>
+        <div class="qd-lista">${outros.map(chip).join('') || '<div class="qd-vaga">Ninguém em Outros</div>'}</div>
+      </div>`;
     const zonaGL = (vagasGL() || gl.length) ? `<div class="qd-zona" data-alvo="G-League">
         <h6><span>G-League</span><span>${gl.length}/${vagasGL()}</span></h6>
         <div class="qd-lista">${gl.map(chip).join('')}${
@@ -198,7 +209,7 @@
       </div>
       <div class="qd-grid">
         <div class="qd-quadra">${SVG}${lugares}</div>
-        <div class="qd-lado">${zonaBanco}${zonaGL}</div>
+        <div class="qd-lado">${zonaBanco}${zonaOutros}${zonaGL}</div>
       </div>
       <div class="qd-barra"${nMud ? '' : ' hidden'}>
         <span class="sp">${nMud} ${nMud === 1 ? 'jogador precisa' : 'jogadores precisam'} ir pro banco pra quadra ficar válida.</span>
@@ -206,7 +217,7 @@
         <button type="button" class="qd-btn pri" data-acao="salvar"><i class="bi bi-check2"></i> Salvar escalação</button>
       </div>
       <div class="qd-msg ${msg.tipo}" role="status">${msg.html}</div>
-      <div class="qd-dica"><i class="bi bi-hand-index"></i> Arraste um jogador pra quadra, pro banco${vagasGL() ? ' ou pra G-League' : ''} — ou toque nele e depois no destino.
+      <div class="qd-dica"><i class="bi bi-hand-index"></i> Arraste um jogador pra quadra, pro banco, pra Outros${vagasGL() ? ' ou pra G-League' : ''} — ou toque nele e depois no destino.
         Cada lugar aceita só a posição principal, e cada mudança é salva na hora.</div>
     </section>`;
     marcarAlvos(raiz);
