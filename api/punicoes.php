@@ -5,13 +5,32 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 
 $user = getUserSession();
-if (!$user || ($user['user_type'] ?? 'jogador') !== 'admin') {
+$pdo = db();
+// Admin geral ou admin de liga — este só mexe nas ligas que administra.
+if (!$user || empty($user['id']) || !hasAdminAccess($pdo, (int)$user['id'])) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Acesso negado']);
     exit;
 }
+$punLigasPermitidas = getAdminLeagues($pdo, (int)$user['id']);
 
-$pdo = db();
+function punBarrarLiga(?string $liga): void
+{
+    global $punLigasPermitidas;
+    if (!in_array(strtoupper((string)$liga), $punLigasPermitidas, true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Você não administra essa liga.']);
+        exit;
+    }
+}
+
+function punLigaDoTime(PDO $pdo, int $teamId): ?string
+{
+    $s = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $s->execute([$teamId]);
+    $l = $s->fetchColumn();
+    return $l === false ? null : (string)$l;
+}
 $method = $_SERVER['REQUEST_METHOD'];
 
 function columnExists(PDO $pdo, string $table, string $column): bool
@@ -205,7 +224,7 @@ if ($method === 'GET') {
     if ($action === 'leagues') {
         try {
             $stmt = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
-            $leagues = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $leagues = array_values(array_intersect($stmt->fetchAll(PDO::FETCH_COLUMN), $punLigasPermitidas));
             echo json_encode(['success' => true, 'leagues' => $leagues]);
         } catch (Exception $e) {
             echo json_encode(['success' => true, 'leagues' => []]);
@@ -220,6 +239,7 @@ if ($method === 'GET') {
             echo json_encode(['success' => false, 'error' => 'Liga inválida']);
             exit;
         }
+        punBarrarLiga($league);
         $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city, name');
         $stmt->execute([$league]);
         echo json_encode(['success' => true, 'teams' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
@@ -236,6 +256,8 @@ if ($method === 'GET') {
             exit;
         }
 
+        punBarrarLiga($teamId ? punLigaDoTime($pdo, $teamId) : $league);
+        if ($teamId && $league) punBarrarLiga($league);
         $conditions = ["tp.type <> 'AVISO_TRADE'"];
         $params = [];
         if ($teamId) {
@@ -269,6 +291,7 @@ if ($method === 'GET') {
             echo json_encode(['success' => false, 'error' => 'Time inválido']);
             exit;
         }
+        punBarrarLiga(punLigaDoTime($pdo, $teamId));
         $stmt = $pdo->prepare('SELECT id, season_year, round FROM picks WHERE team_id = ? ORDER BY season_year ASC, round ASC');
         $stmt->execute([$teamId]);
         echo json_encode(['success' => true, 'picks' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
@@ -296,6 +319,7 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Liga inválida']);
             exit;
         }
+        punBarrarLiga($league);
         require_once dirname(__DIR__) . '/backend/team_punishments.php';
         try {
             $result = resetPunicoesEAvisosDaLiga($pdo, $league, (int)$user['id']);
@@ -362,6 +386,7 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Punição não encontrada']);
             exit;
         }
+        punBarrarLiga($pun['league'] ?: punLigaDoTime($pdo, (int)$pun['team_id']));
         if (!empty($pun['reverted_at'])) {
             echo json_encode(['success' => true]);
             exit;
@@ -450,6 +475,7 @@ if ($method === 'POST') {
     }
 
     $league = $team['league'] ?? null;
+    punBarrarLiga($league);
     $currentCycle = getTeamCurrentCycle($pdo, $teamId);
     $banUntil = $currentCycle;
     if ($seasonScope === 'next' && $currentCycle > 0) {
