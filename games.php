@@ -564,6 +564,10 @@ $jogosDiarios = [
 // também vem por `href` — é página inteira em /games/games/, e não passa pelo
 // carregador index.php?game=.
 $jogosLivres = [
+    // Fantasy FBA: o Cartola da ELITE. Página própria na raiz (/fantasy.php),
+    // por isso também vem por `href`. Primeiro da grade: é o jogo da temporada.
+    ['href' => '/fantasy.php', 'nome' => 'Fantasy FBA',
+     'sub'  => 'Escale e dispute ligas', 'icone' => 'bi-stars', 'cor' => '#fc0025'],
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',

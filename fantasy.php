@@ -1,8 +1,8 @@
 <?php
 /**
- * fantasy.php — o Cartola da ELITE. Por enquanto só por link (fora do menu e
- * do /games). A regra mora em backend/fantasy.php; a tela conversa com
- * api/fantasy.php.
+ * fantasy.php — o Cartola da ELITE. Entra pelo card "Fantasy FBA" nos
+ * Minigames do /games. A regra mora em backend/fantasy.php; a tela conversa
+ * com api/fantasy.php.
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
