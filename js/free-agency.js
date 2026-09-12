@@ -205,7 +205,7 @@ function renderDispensadosDaTemporada() {
             <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>
             ${lixeira}
             <button class="disp-lapis" data-corrigir="${j.id}" data-ovr="${j.ovr}" data-age="${j.age}"
-                    data-nome="${escHtml(j.name)}"
+                    data-nome="${escHtml(j.name)}" data-eh-pedido="${j.pedido ? 1 : 0}"
                     title="O vídeo mostra outro OVR ou idade? Corrija aqui">
               <i class="bi bi-pencil"></i>
             </button>
@@ -222,7 +222,9 @@ function renderDispensadosDaTemporada() {
     alvo.querySelectorAll('[data-disp]').forEach(b => {
         b.addEventListener('click', () => abrirModalDispensado(Number(b.dataset.disp)));
     });
-    alvo.querySelectorAll('[data-pedido]').forEach(b => {
+    // Só o botão Propor: a lixeira também leva data-pedido (0/1), e pegar ela
+    // aqui abria o formulário de pedido junto com o "tirar da lista".
+    alvo.querySelectorAll('.disp-btn[data-pedido]').forEach(b => {
         b.addEventListener('click', () => abrirPedido(
             dispTemporada.find(x => x.pedido && Number(x.id) === Number(b.dataset.pedido))));
     });
@@ -1226,9 +1228,12 @@ function renderWaiversList(waivers) {
    sabia em qual dar lance. */
 
 let corrigirId = null;
+// Pedido ("jogador não está") mora em outra tabela: o servidor precisa saber qual é.
+let corrigirPedido = false;
 
 function corrigirFicha(dados) {
     corrigirId = Number(dados.corrigir);
+    corrigirPedido = dados.ehPedido === '1';
     // Vem preenchido com o que está no app: quase sempre só um campo muda, e
     // redigitar o resto é convite pra errar.
     document.getElementById('corrigirNome').value  = dados.nome || '';
@@ -1268,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = await fetch('api/free-agency.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: corrigirId, nome, ovr, age })
+                body: JSON.stringify({ action: 'corrigir_ficha', free_agent_id: corrigirId, pedido: corrigirPedido ? 1 : 0, nome, ovr, age })
             });
             const d = await r.json();
             if (!d.success) {

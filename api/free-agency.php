@@ -1784,6 +1784,10 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
     if (!$normalizedName) {
         jsonError('Nome do jogador invalido');
     }
+    // Mesmas faixas da correção de ficha: sem isso um "2212" no lugar de "21"
+    // virava a idade do pedido pra liga inteira.
+    if ($age < 18 || $age > 45) jsonError('Idade precisa ficar entre 18 e 45');
+    if ($ovr < 40 || $ovr > 99) jsonError('OVR precisa ficar entre 40 e 99');
 
     $stmt = $pdo->prepare('SELECT id FROM fa_requests WHERE league = ? AND normalized_name = ? AND status = "open" LIMIT 1');
     $stmt->execute([$league, $normalizedName]);
@@ -2889,6 +2893,10 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
     if ($ovr !== null && ($ovr < 40 || $ovr > 99)) jsonError('OVR precisa ficar entre 40 e 99');
     if ($age !== null && ($age < 18 || $age > 45)) jsonError('Idade precisa ficar entre 18 e 45');
 
+    // Card de PEDIDO ("jogador não está") mora em fa_requests, não em free_agents:
+    // procurar o id dele aqui dava "saiu da lista" pra qualquer pedido.
+    if (!empty($body['pedido'])) corrigirFichaPedido($pdo, $id, $ovr, $age, $nome, $userId, $minhaLiga);
+
     $st = $pdo->prepare('SELECT id, name, overall, age, league, status FROM free_agents WHERE id = ?');
     $st->execute([$id]);
     $fa = $st->fetch(PDO::FETCH_ASSOC);
@@ -2913,30 +2921,7 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
         jsonSuccess(['mudou' => false, 'ovr' => $novoOvr, 'age' => $novaAge, 'nome' => $novoNome]);
     }
 
-    /* O registro nasce junto com a primeira correção: a tabela é pequena e
-       criar aqui evita mais uma migração pra uma coisa que só este caminho
-       usa. */
-    try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS free_agent_correcoes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            free_agent_id INT NOT NULL,
-            user_id INT NOT NULL,
-            ovr_antes INT NULL, ovr_depois INT NULL,
-            age_antes INT NULL, age_depois INT NULL,
-            nome_antes VARCHAR(120) NULL, nome_depois VARCHAR(120) NULL,
-            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            KEY idx_fa (free_agent_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-        // A tabela pode ter nascido antes de o nome ser editável, e o CREATE
-        // acima não mexe em tabela que já existe.
-        if (!$pdo->query("SHOW COLUMNS FROM free_agent_correcoes LIKE 'nome_antes'")->fetch()) {
-            $pdo->exec("ALTER TABLE free_agent_correcoes
-                        ADD COLUMN nome_antes VARCHAR(120) NULL,
-                        ADD COLUMN nome_depois VARCHAR(120) NULL");
-        }
-    } catch (Throwable $e) {
-        error_log('[fa] tabela de correcoes: ' . $e->getMessage());
-    }
+    faGarantirTabelaCorrecoes($pdo);
 
     $pdo->prepare('UPDATE free_agents SET overall = ?, age = ?, name = ? WHERE id = ?')
         ->execute([$novoOvr, $novaAge, $novoNome, $id]);
@@ -2957,6 +2942,93 @@ function corrigirFichaFreeAgent(PDO $pdo, array $body, int $userId, ?string $min
         'age'   => $novaAge,
         'nome'  => $novoNome,
     ]);
+}
+
+/**
+ * O registro de correções nasce junto com a primeira: a tabela é pequena e
+ * criar aqui evita mais uma migração pra uma coisa que só este caminho usa.
+ * `tipo` diz de onde é o id: 'fa' (free_agents) ou 'pedido' (fa_requests).
+ */
+function faGarantirTabelaCorrecoes(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS free_agent_correcoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            free_agent_id INT NOT NULL,
+            user_id INT NOT NULL,
+            ovr_antes INT NULL, ovr_depois INT NULL,
+            age_antes INT NULL, age_depois INT NULL,
+            nome_antes VARCHAR(120) NULL, nome_depois VARCHAR(120) NULL,
+            tipo VARCHAR(10) NOT NULL DEFAULT 'fa',
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_fa (free_agent_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        // A tabela pode ter nascido antes de o nome ser editável (ou antes do
+        // tipo), e o CREATE acima não mexe em tabela que já existe.
+        if (!$pdo->query("SHOW COLUMNS FROM free_agent_correcoes LIKE 'nome_antes'")->fetch()) {
+            $pdo->exec("ALTER TABLE free_agent_correcoes
+                        ADD COLUMN nome_antes VARCHAR(120) NULL,
+                        ADD COLUMN nome_depois VARCHAR(120) NULL");
+        }
+        if (!$pdo->query("SHOW COLUMNS FROM free_agent_correcoes LIKE 'tipo'")->fetch()) {
+            $pdo->exec("ALTER TABLE free_agent_correcoes ADD COLUMN tipo VARCHAR(10) NOT NULL DEFAULT 'fa'");
+        }
+    } catch (Throwable $e) {
+        error_log('[fa] tabela de correcoes: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Corrigir a ficha de um PEDIDO ("jogador não está"), com as mesmas regras do
+ * free agent: só na liga do GM, só enquanto o pedido está aberto, e registrado.
+ *
+ * O nome é a chave do pedido — as ofertas se agrupam por normalized_name —,
+ * então ele muda junto. Se já existe outro pedido aberto com o nome novo, a
+ * correção para: juntar dois pedidos em silêncio misturaria as disputas.
+ * Não volta: termina sempre em jsonSuccess/jsonError.
+ */
+function corrigirFichaPedido(PDO $pdo, int $id, ?int $ovr, ?int $age, ?string $nome, int $userId, ?string $minhaLiga): void
+{
+    $st = $pdo->prepare('SELECT id, league, player_name, normalized_name, ovr, age, status FROM fa_requests WHERE id = ?');
+    $st->execute([$id]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$r) jsonError('Esse pedido saiu da lista — alguém mexeu nele agora há pouco. A lista foi atualizada.');
+
+    if ($minhaLiga && strtoupper((string)$r['league']) !== strtoupper($minhaLiga)) {
+        jsonError('Esse jogador é de outra liga', 403);
+    }
+    if (strtolower((string)$r['status']) !== 'open') {
+        jsonError('Esse pedido já foi resolvido — a ficha dele não muda mais');
+    }
+
+    $novoOvr  = $ovr  ?? (int)$r['ovr'];
+    $novaAge  = $age  ?? (int)$r['age'];
+    $novoNome = $nome ?? (string)$r['player_name'];
+    if ($novoOvr === (int)$r['ovr'] && $novaAge === (int)$r['age'] && $novoNome === (string)$r['player_name']) {
+        jsonSuccess(['mudou' => false, 'ovr' => $novoOvr, 'age' => $novaAge, 'nome' => $novoNome]);
+    }
+
+    $novoNorm = normalizeFaPlayerName($novoNome);
+    if ($novoNorm !== (string)$r['normalized_name']) {
+        $st = $pdo->prepare('SELECT id FROM fa_requests WHERE league = ? AND normalized_name = ? AND status = "open" AND id <> ? LIMIT 1');
+        $st->execute([$r['league'], $novoNorm, $id]);
+        if ($st->fetchColumn()) jsonError('Já tem um pedido aberto com esse nome — dê o lance nele em vez de renomear este.');
+    }
+
+    faGarantirTabelaCorrecoes($pdo);
+    $pdo->prepare('UPDATE fa_requests SET player_name = ?, normalized_name = ?, ovr = ?, age = ?, updated_at = NOW() WHERE id = ?')
+        ->execute([$novoNome, $novoNorm, $novoOvr, $novaAge, $id]);
+
+    try {
+        $pdo->prepare('INSERT INTO free_agent_correcoes
+                       (free_agent_id, user_id, ovr_antes, ovr_depois, age_antes, age_depois, nome_antes, nome_depois, tipo)
+                       VALUES (?,?,?,?,?,?,?,?,\'pedido\')')
+            ->execute([$id, $userId, (int)$r['ovr'], $novoOvr, (int)$r['age'], $novaAge, (string)$r['player_name'], $novoNome]);
+    } catch (Throwable $e) {
+        error_log('[fa] registrar correcao de pedido: ' . $e->getMessage());
+    }
+
+    jsonSuccess(['mudou' => true, 'ovr' => $novoOvr, 'age' => $novaAge, 'nome' => $novoNome]);
 }
 
 /**
