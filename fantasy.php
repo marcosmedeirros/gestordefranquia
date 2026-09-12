@@ -240,6 +240,11 @@ tr.eu td{background:var(--red-soft)}
   .grid2{grid-template-columns:1fr}
   .status .admin{margin-left:0}
 }
+@media (max-width:400px){
+  .lugar{gap:1px}.bola{width:44px;height:44px}
+  .lugar .pr,.lugar .pt{font-size:11px;line-height:1.3}
+  .lugar.seis .bola{width:38px;height:38px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
