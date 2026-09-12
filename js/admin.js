@@ -2758,16 +2758,34 @@ async function showLeilaoAdmin(league, filtros) {
     .la-seta { color:var(--text-3); padding-top:18px; }
     .la-acoes { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
     .la-motivo { font-size:11.5px; color:var(--text-3); flex:1; min-width:200px; }
-    @media (max-width:640px) { .la-lados { grid-template-columns:1fr; gap:6px; } .la-seta { padding-top:0; transform:rotate(90deg); justify-self:center; } }
+    .la-slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:8px; }
+    .la-slot { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:10px; align-items:center;
+      border:1px solid var(--border); border-radius:10px; background:var(--panel-2); padding:9px 12px; }
+    .la-slot.tem { border-color:rgba(168,85,247,.4); }
+    .la-slot-time { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .la-slot-gm { font-size:11px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .la-slot-num { text-align:center; line-height:1.05; min-width:42px; }
+    .la-slot-num b { display:block; font-size:18px; font-weight:800; color:#a855f7; font-variant-numeric:tabular-nums; }
+    .la-slot-num.usado b { color:var(--text-2); }
+    .la-slot-num span { font-size:9.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); }
+    .la-slot-btn { padding:5px 10px; font-size:12px; white-space:nowrap; }
+    @media (max-width:640px) { .la-lados { grid-template-columns:1fr; gap:6px; } .la-seta { padding-top:0; transform:rotate(90deg); justify-self:center; }
+      .la-slots { grid-template-columns:1fr; } }
   </style>`;
 
   let data;
+  let slots = null;   // null = não carregou (o histórico segue funcionando sem eles)
   try {
     const qs = new URLSearchParams({ action: 'historico_trocas', league });
     if (f.temporada) qs.set('temporada', f.temporada);
     if (f.time) qs.set('time', f.time);
     if (f.busca) qs.set('busca', f.busca);
-    data = await api('leilao.php?' + qs.toString());
+    const [hist, sl] = await Promise.all([
+      api('leilao.php?' + qs.toString()),
+      api(`leilao.php?action=slots_leilao&league=${encodeURIComponent(league)}`).catch(() => null),
+    ]);
+    data = hist;
+    slots = sl && sl.success !== false ? (sl.slots || []) : null;
     if (data && data.success === false) throw data;
   } catch (e) {
     container.innerHTML = topo + estilo + `<div class="alert alert-danger">Não deu pra carregar os leilões: ${escapeHtml(e.error || e.message || '')}<br>
@@ -2819,7 +2837,35 @@ async function showLeilaoAdmin(league, filtros) {
   }).join('');
   const filtrando = f.temporada || f.time || f.busca;
 
-  container.innerHTML = topo + estilo + `
+  /* SLOTS DE LEILÃO POR TIME. É o que o bot confere antes de abrir um /leilao,
+     e o admin precisa ver sem sair do card: quem tem, quem já gastou, e dar
+     baixa num slot usado fora do bot. */
+  const somaSlots = (k) => (slots || []).reduce((s, t) => s + (Number(t[k]) || 0), 0);
+  const slotsHtml = slots === null ? '' : `
+    <div class="panel mb-3">
+      <div class="panel-header" style="flex-wrap:wrap;gap:6px">
+        <div class="panel-title"><i class="bi bi-ticket-perforated" style="color:#a855f7"></i> Slots de leilão</div>
+        <div style="font-size:12px;color:var(--text-3)"><b style="color:#a855f7">${somaSlots('pendentes')}</b> disponíveis · <b style="color:var(--text-2)">${somaSlots('usados')}</b> usados</div>
+      </div>
+      <div class="panel-body">
+        ${slots.length ? `<div class="la-slots">${slots.map(t => `
+          <div class="la-slot${t.pendentes > 0 ? ' tem' : ''}">
+            <div style="min-width:0">
+              <div class="la-slot-time" title="${escapeHtml(t.time)}">${escapeHtml(t.time)}</div>
+              <div class="la-slot-gm">${escapeHtml(t.gm || 'sem GM')}</div>
+            </div>
+            <div class="la-slot-num"><b>${t.pendentes}</b><span>disp.</span></div>
+            <div class="la-slot-num usado"><b>${t.usados}</b><span>usados</span></div>
+            <button type="button" class="btn-ghost la-slot-btn" data-time="${escapeHtml(t.time)}"
+              ${t.pendentes > 0 && t.user_id ? '' : 'disabled'}
+              title="${t.pendentes > 0 ? 'Marcar um slot como usado' : 'Sem slot disponível'}"
+              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this)"><i class="bi bi-check2-square me-1"></i>Usar</button>
+          </div>`).join('')}</div>`
+        : '<p style="color:var(--text-3);font-size:13px;margin:0">Nenhum time nesta liga.</p>'}
+      </div>
+    </div>`;
+
+  container.innerHTML = topo + estilo + slotsHtml + `
     <div class="panel">
       <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3)"></i> Leilões realizados (${leiloes.length})</div></div>
       <div class="panel-body">
@@ -2827,6 +2873,24 @@ async function showLeilaoAdmin(league, filtros) {
         ${cards || `<p style="color:var(--text-3);font-size:13px">${filtrando ? 'Nenhum leilão com esses filtros.' : 'Nenhum leilão realizado nesta sprint ainda.'}</p>`}
       </div>
     </div>`;
+}
+
+/* Dá baixa num slot de leilão (o mais antigo em aberto do GM). A mesma ação do
+   bot quando o leilão fecha — aqui pra quando o leilão aconteceu fora dele. */
+async function _leilaoSlotUsar(userId, league, btn) {
+  if (!userId) return;
+  const time = (btn && btn.dataset && btn.dataset.time) || 'este time';
+  if (!confirm(`Marcar um slot de leilão do ${time} como usado?`)) return;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'slot_leilao_mexer', user_id: userId, op: 'usar' }) });
+    if (!r || r.success === false) throw r || {};
+    if (typeof showAlert === 'function') showAlert('success', `Slot do ${time} marcado como usado.`);
+    showLeilaoAdmin(league);
+  } catch (e) {
+    alert('Não deu pra marcar o slot: ' + (e.error || e.message || 'erro desconhecido'));
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function _leilaoAdminReverter(leilaoId, league) {

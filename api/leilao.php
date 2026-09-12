@@ -943,18 +943,21 @@ function slotsDeLeilao(PDO $pdo, string $league): void
     require_once __DIR__ . '/../backend/loja.php';
     lojaGarantirTabela($pdo);
 
+    /* TODOS OS TIMES DA LIGA, e não só quem já comprou: o card mostra o saldo
+       de cada franquia (disponíveis e usados), e zero também é informação —
+       é o que o admin confere antes de aceitar um /leilao no WhatsApp. */
     $st = $pdo->prepare("
-        SELECT u.id AS user_id, u.name AS gm,
-               t.id AS team_id, CONCAT(t.city,' ',t.name) AS time,
-               COUNT(*) AS total,
-               SUM(i.atendido_em IS NULL) AS pendentes,
+        SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS time, t.photo_url,
+               u.id AS user_id, u.name AS gm,
+               COUNT(i.id) AS total,
+               COALESCE(SUM(i.id IS NOT NULL AND i.atendido_em IS NULL), 0) AS pendentes,
                MAX(i.comprado_em) AS ultima_compra
-          FROM loja_inventario i
-          JOIN users u ON u.id = i.id_usuario
-          JOIN teams t ON t.user_id = u.id
-         WHERE i.item_key = 'slot_leilao' AND t.league = ?
-      GROUP BY u.id, u.name, t.id, time
-      ORDER BY pendentes DESC, ultima_compra DESC");
+          FROM teams t
+     LEFT JOIN users u ON u.id = t.user_id
+     LEFT JOIN loja_inventario i ON i.id_usuario = u.id AND i.item_key = 'slot_leilao'
+         WHERE t.league = ?
+      GROUP BY t.id, time, t.photo_url, u.id, u.name
+      ORDER BY pendentes DESC, total DESC, time ASC");
     $st->execute([$league]);
     $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
 
@@ -963,6 +966,7 @@ function slotsDeLeilao(PDO $pdo, string $league): void
         $l['team_id']   = (int)$l['team_id'];
         $l['total']     = (int)$l['total'];
         $l['pendentes'] = (int)$l['pendentes'];
+        $l['usados']    = $l['total'] - $l['pendentes'];
     }
     unset($l);
 
