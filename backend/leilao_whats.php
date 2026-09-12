@@ -583,6 +583,74 @@ function lwNormal(string $s): string
 }
 
 /**
+ * A oferta como a pessoa escreveu, com a ficha de cada jogador reconhecido:
+ * "paul george + Pick 26 (Paisley)" vira "SF: Paul George 86/43y + Pick 26 (Paisley)".
+ *
+ * Só troca o pedaço que casa com um jogador que o parser JÁ reconheceu na
+ * proposta (nome inteiro ou sobrenome). Pick, cabeçalho ("Time envia:") e o que
+ * não casar ficam exatamente como vieram — o texto continua sendo o da pessoa.
+ *
+ * @param array $jogadores linhas com name, position, ovr, age
+ */
+function lwTextoComFicha(string $texto, array $jogadores): string
+{
+    if (!$jogadores) return $texto;
+    $fichas = [];
+    foreach ($jogadores as $p) $fichas[] = ['norm' => lwNormal((string)$p['name']), 'linha' => lwLinhaJogador($p), 'usado' => false];
+
+    $achar = function (string $pedaco) use (&$fichas): ?string {
+        $base = lwNormal(trim(preg_replace('/\s*\(.*$/u', '', $pedaco)));
+        if ($base === '' || lwLerPick($pedaco)) return null;
+        // 1º nome inteiro; 2º o pedaço dentro do nome ("george") ou o nome dentro do pedaço ("paul george tá bom").
+        foreach ([true, false] as $exato) {
+            foreach ($fichas as $i => $f) {
+                if ($f['usado']) continue;
+                $bate = $exato
+                    ? $f['norm'] === $base
+                    : (strlen($base) >= 4 && preg_match('/\b' . preg_quote($base, '/') . '\b/', $f['norm']))
+                      || preg_match('/\b' . preg_quote($f['norm'], '/') . '\b/', $base);
+                if ($bate) { $fichas[$i]['usado'] = true; return $f['linha']; }
+            }
+        }
+        return null;
+    };
+
+    $saida = [];
+    foreach (preg_split('/\R/u', $texto) as $linha) {
+        $limpa = trim($linha);
+        if ($limpa === '' || str_ends_with($limpa, ':')
+            || preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $limpa)) {
+            $saida[] = $linha;
+            continue;
+        }
+        // Separa por + , ; só FORA de parênteses: "(SF, OVR 87/28a)" é enfeite de um nome só.
+        $partes = preg_split('/\s*([+,;])\s*(?![^()]*\))/u', $linha, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $nova = '';
+        foreach ($partes as $k => $parte) {
+            if ($k % 2 === 1) { $nova .= $parte === '+' ? ' + ' : $parte . ' '; continue; }
+            // Mantém o marcador de lista do começo ("• ", "- ") fora da comparação.
+            preg_match('/^([\s*•·\-–—>]*)(.*)$/u', $parte, $m);
+            $ficha = $achar($m[2]);
+            $nova .= $ficha !== null ? $m[1] . $ficha : $parte;
+        }
+        $saida[] = $nova;
+    }
+    return implode("\n", $saida);
+}
+
+/** Os jogadores reconhecidos numa proposta (de quem oferta e os extras do vendedor), com OVR e idade. */
+function lwJogadoresDaProposta(PDO $pdo, int $propostaId): array
+{
+    $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM leilao_proposta_jogadores x
+                           JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ?
+                         UNION ALL
+                         SELECT p.name, p.position, p.ovr, p.age FROM leilao_proposta_extra_players x
+                           JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ?");
+    $st->execute([$propostaId, $propostaId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
  * Acha um jogador do time cujo nome APARECE na linha, com o que vier em volta:
  * "Harvey Catchings tem q conferir over c a adm". Fica com o nome mais longo
  * que couber — "Lou Williams" ganha de "Williams" se os dois existirem.
@@ -935,13 +1003,16 @@ function lwPostarProxima(PDO $pdo, array $lw): void
     if (!empty($prox['texto'])) {
         $stT = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
         $stT->execute([(int)$prox['team_id']]);
-        $corpo = '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n" . $prox['texto'];
+        // Com a ficha (posição, OVR e idade) de quem foi reconhecido, mesmo que a pessoa tenha mandado só o nome.
+        $corpo = '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n"
+               . lwTextoComFicha((string)$prox['texto'], lwJogadoresDaProposta($pdo, (int)$prox['proposta_id']));
     } else {
         $corpo = lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
     }
     // Só a proposta: o dono já sabe responder com ✅/❌, e a linha de instrução
     // (com o número dele) se repetia em toda oferta.
-    $txt = "🔨 Proposta por *{$v['jogador']}*\n\n" . $corpo;
+    // Sem cabeçalho "Proposta por": o anúncio do leilão já disse quem está em jogo.
+    $txt = $corpo;
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO, null, $numero ? [$numero] : null);
 }
 
