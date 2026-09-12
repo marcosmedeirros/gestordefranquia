@@ -299,49 +299,75 @@ function lwAnoAtual(PDO $pdo, string $liga): ?int
  * É pick? "Pick 2026 R1", "2026 R1", "2026 1ª", "1a 2026", "R2 2027 Lakers".
  * Devolve [ano, rodada, resto] ou null quando não parece pick.
  */
+/**
+ * Lê uma pick escrita do jeito que o grupo escreve. Devolve [ano, rodada|null, origem].
+ *
+ *   "Pick 2026 R1"                 → [2026, 1, '']
+ *   "2031 · 1ª Round (Origem)"     → [2031, 1, 'Origem']
+ *   "Pick 26 (Paisley)"            → [2026, null, 'Paisley']   ← ano curto, sem rodada
+ *
+ * Sem a palavra "pick"/"escolha", continua exigindo ano E rodada: "Paul George
+ * 2026" não pode virar pick. Rodada null = qualquer uma; lwAcharPickDoTime só
+ * aceita se sobrar uma pick só daquele ano (e origem).
+ */
 function lwLerPick(string $texto): ?array
 {
     $t = trim($texto);
-    if (!preg_match('/\b(20\d{2})\b/', $t, $mAno)) return null;
+    // "pico"/"pik" = "pick" digitado no celular.
+    $ehPick = (bool)preg_match('/\b(pick|picks|pico|pik|escolha)\b/iu', $t);
+    if (preg_match('/\b(20\d{2})\b/', $t, $mAno)) {
+        $ano = (int)$mAno[1];
+    } elseif (preg_match('/\b(?:picks?|pico|pik|escolha)\s*\'?(\d{2})\b/iu', $t, $mAno)) {
+        $ano = 2000 + (int)$mAno[1];     // "Pick 26" = pick de 2026
+    } else {
+        return null;
+    }
+
     $rodada = null;
     if (preg_match('/\b(?:r|rd|round)\s*([12])\b/i', $t, $mm)
         || preg_match('/\b([12])\s*(?:ª|º|a|o|st|nd)?\s*(?:rodada|round|r)\b/iu', $t, $mm)
         || preg_match('/\b([12])\s*(?:ª|º)/u', $t, $mm)
         || preg_match('/\b([12])(?:a|o|st|nd)\b/i', $t, $mm)) {
         $rodada = (int)$mm[1];
+    } else {
+        $mm = [''];
     }
-    if (!$rodada) return null;
+    if (!$rodada && !$ehPick) return null;
 
-    $resto = str_replace([$mAno[0], $mm[0]], ' ', $t);
-    $resto = preg_replace('/\b(pick|picks|escolha|de|da|do|via)\b|[()*•·\-]/iu', ' ', $resto);
-    return [(int)$mAno[1], $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
+    $resto = str_replace(array_values(array_filter([$mAno[0], $mm[0]], fn($s) => $s !== '')), ' ', $t);
+    $resto = preg_replace('/\b(pick|picks|pico|pik|escolha|de|da|do|via)\b|[()*•·\-\']/iu', ' ', $resto);
+    return [$ano, $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
 }
 
 /** Acha a pick do time. Devolve [pick|null, erro|null]. */
-function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, int $rodada, string $origem): array
+/** Acha a pick do time. $rodada null = qualquer rodada ("Pick 26"). Devolve [pick|null, erro|null]. */
+function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $rodada, string $origem): array
 {
     $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, pk.team_id,
                                 o.name AS origem, o.city AS origem_cidade
                            FROM picks pk LEFT JOIN teams o ON o.id = pk.original_team_id
-                          WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) = ? AND pk.round = ?");
-    $st->execute([$teamId, $ano, (string)$rodada]);
+                          WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) = ?"
+                        . ($rodada ? " AND pk.round = ?" : '') . " ORDER BY pk.round");
+    $st->execute($rodada ? [$teamId, $ano, (string)$rodada] : [$teamId, $ano]);
     $usadas = picksJaUsadas($pdo);
     $lista = array_values(array_filter($st->fetchAll(PDO::FETCH_ASSOC), fn($p) => empty($usadas[(int)$p['id']])));
+    $rot = $rodada ? " R{$rodada}" : '';
 
     $atual = lwAnoAtual($pdo, $liga);
-    if ($atual && $ano < $atual) return [null, "a pick {$ano} R{$rodada} é de ano que já passou"];
+    if ($atual && $ano < $atual) return [null, "a pick {$ano}{$rot} é de ano que já passou"];
 
     if ($origem !== '') {
         $lista = array_values(array_filter($lista, fn($p) =>
             lwNomeCasa($origem, (string)$p['origem']) || lwNomeCasa($origem, trim($p['origem_cidade'] . ' ' . $p['origem']))));
     }
     if (count($lista) === 1) return [$lista[0], null];
-    if (!$lista) return [null, "você não tem a pick {$ano} R{$rodada}" . ($origem !== '' ? " ({$origem})" : '')];
+    if (!$lista) return [null, "você não tem a pick {$ano}{$rot}" . ($origem !== '' ? " ({$origem})" : '')];
 
     // Mais de uma do mesmo ano e rodada: a sua primeiro, se estiver entre elas.
-    foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null];
-    $ops = array_map(fn($p) => "Pick {$ano} R{$rodada} {$p['origem']}", $lista);
-    return [null, "você tem mais de uma {$ano} R{$rodada}. Diz qual: " . implode(' / ', $ops)];
+    // Sem rodada escrita não dá pra escolher sozinho entre R1 e R2 — pergunta.
+    if ($rodada) foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null];
+    $ops = array_map(fn($p) => "Pick {$ano} R{$p['round']} {$p['origem']}", $lista);
+    return [null, "você tem mais de uma {$ano}{$rot}. Diz qual: " . implode(' / ', $ops)];
 }
 
 /* ─── privado: /leilao ────────────────────────────────────────────────────── */
@@ -692,35 +718,44 @@ function lwAcharJogadorNaLinha(PDO $pdo, int $teamId, string $linha): ?array
  * vai junto pra quem oferta. Linha que não bate com ninguém barra a oferta —
  * trocar sem um dos itens seria pior que pedir o nome certo.
  */
-function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto, string $jid): string
+/**
+ * Reconhece os itens de uma oferta em texto livre. Só lê o banco, não grava.
+ *
+ * Cada pedaço da linha é um item: "Paul George + Pick 26 (Paisley)" são dois.
+ * A linha é separada por + , ; ANTES de qualquer leitura, e só fora de
+ * parênteses — "(SF, OVR 87/28a)" é enfeite do jogador e "(Paisley)" é a origem
+ * da pick; os dois ficam com o item deles. (Ler a linha inteira como pick
+ * primeiro fazia "Paul George + Pick 2026 R1" virar uma pick com origem "Paul
+ * George" e perder os dois.)
+ *
+ * Direção pelo dono do item: do ofertante vai pro vendedor; do vendedor (fora o
+ * leiloado) vem junto como extra.
+ *
+ * @return array{0:array,1:array,2:array,3:array,4:array} [envia, enviaPicks, extra, extraPicks, naoAchei]
+ */
+function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId, string $liga, int $leiloadoId): array
 {
-    if (strtotime($lw['fim_max']) <= time()) return "⏱ O leilão de {$lw['jogador']} já fechou.";
-    if (trim($texto) === '') return "Faltou o que você oferece. Exemplo:\n/oferta Jogador + Pick 2026 R1";
-
-    $teamId   = (int)$time['id'];
-    $sellerId = (int)$lw['vendedor_team_id'];
-    $liga     = (string)$lw['liga'];
-
     $envia = []; $enviaPicks = []; $extra = []; $extraPicks = []; $naoAchei = [];
     foreach (preg_split('/\R/u', $texto) as $linha) {
         $linha = trim(preg_replace('/^[\s*•·\-–—>]+/u', '', $linha));
         if ($linha === '' || str_ends_with($linha, ':')) continue;
         if (preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $linha)) continue;
 
-        if ($pick = lwLerPick($linha)) {
-            [$ano, $rodada, $origem] = $pick;
-            [$pk] = lwAcharPickDoTime($pdo, $teamId, $liga, $ano, $rodada, $origem);
-            if ($pk) { $enviaPicks[(int)$pk['id']] = $pk; continue; }
-            [$pk] = lwAcharPickDoTime($pdo, $sellerId, $liga, $ano, $rodada, $origem);
-            if ($pk) { $extraPicks[(int)$pk['id']] = $pk; continue; }
-            $naoAchei[] = $linha;
-            continue;
-        }
+        foreach (preg_split('/\s*[+,;]\s*(?![^()]*\))/u', $linha) as $item) {
+            $item = trim($item);
+            if ($item === '') continue;
 
-        // "(SF, OVR 87/28a)" é enfeite; + , ; separam nomes na mesma linha.
-        $semEnfeite = trim(preg_replace('/\s*\(.*$/u', '', $linha));
-        foreach (preg_split('/\s*[+,;]\s*/u', $semEnfeite) as $nome) {
-            $nome = trim($nome);
+            if ($pick = lwLerPick($item)) {
+                [$ano, $rodada, $origem] = $pick;
+                [$pk] = lwAcharPickDoTime($pdo, $teamId, $liga, $ano, $rodada, $origem);
+                if ($pk) { $enviaPicks[(int)$pk['id']] = $pk; continue; }
+                [$pk] = lwAcharPickDoTime($pdo, $sellerId, $liga, $ano, $rodada, $origem);
+                if ($pk) { $extraPicks[(int)$pk['id']] = $pk; continue; }
+                $naoAchei[] = $item;
+                continue;
+            }
+
+            $nome = trim(preg_replace('/\s*\(.*$/u', '', $item));
             if ($nome === '') continue;
             [$j] = lwAcharJogadorDoTime($pdo, $teamId, $nome);
             $doOfertante = (bool)$j;
@@ -730,12 +765,26 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
             if (!$j) $j = lwAcharJogadorNaLinha($pdo, $sellerId, $nome);
             if ($j && $doOfertante) { $envia[(int)$j['id']] = $j; continue; }
             if ($j) {
-                if ((int)$j['id'] !== (int)$lw['player_id']) $extra[(int)$j['id']] = $j;
+                if ((int)$j['id'] !== $leiloadoId) $extra[(int)$j['id']] = $j;
                 continue;
             }
             $naoAchei[] = $nome;
         }
     }
+    return [$envia, $enviaPicks, $extra, $extraPicks, $naoAchei];
+}
+
+function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto, string $jid): string
+{
+    if (strtotime($lw['fim_max']) <= time()) return "⏱ O leilão de {$lw['jogador']} já fechou.";
+    if (trim($texto) === '') return "Faltou o que você oferece. Exemplo:\n/oferta Jogador + Pick 2026 R1";
+
+    $teamId   = (int)$time['id'];
+    $sellerId = (int)$lw['vendedor_team_id'];
+    $liga     = (string)$lw['liga'];
+
+    [$envia, $enviaPicks, $extra, $extraPicks, $naoAchei] =
+        lwLerItensDaOferta($pdo, $texto, $teamId, $sellerId, $liga, (int)$lw['player_id']);
 
     /* O QUE NÃO FOI RECONHECIDO NÃO BARRA MAIS a oferta — o texto vai inteiro
        pro Gameplay e a adm confere. Só entra na troca automática o que foi
