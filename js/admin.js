@@ -2759,7 +2759,9 @@ async function showLeilaoAdmin(league, filtros) {
     .la-acoes { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
     .la-motivo { font-size:11.5px; color:var(--text-3); flex:1; min-width:200px; }
     .la-slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:8px; }
-    .la-slot { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto auto; gap:8px; align-items:center;
+    .la-slot-logo { width:30px; height:30px; border-radius:8px; object-fit:cover; background:var(--panel-3); flex-shrink:0; }
+    .la-slot-btn.ico { width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:15px; }
+    .la-slot { display:grid; grid-template-columns:auto minmax(0,1fr) auto auto auto auto; gap:8px; align-items:center;
       border:1px solid var(--border); border-radius:10px; background:var(--panel-2); padding:9px 12px; }
     .la-slot.tem { border-color:rgba(168,85,247,.4); }
     .la-slot-time { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2850,19 +2852,22 @@ async function showLeilaoAdmin(league, filtros) {
       <div class="panel-body">
         ${slots.length ? `<div class="la-slots">${slots.map(t => `
           <div class="la-slot${t.pendentes > 0 ? ' tem' : ''}">
+            <img class="la-slot-logo" src="${escapeHtml(t.photo_url || '/img/default-team.png')}" alt="" onerror="this.onerror=null;this.src='/img/default-team.png'">
             <div style="min-width:0">
-              <div class="la-slot-time" title="${escapeHtml(t.time)}">${escapeHtml(t.time)}</div>
+              <div class="la-slot-time" title="${escapeHtml(t.time)}">${escapeHtml(t.nome || t.time)}</div>
               <div class="la-slot-gm">${escapeHtml(t.gm || 'sem GM')}</div>
             </div>
             <div class="la-slot-num"><b>${t.pendentes}</b><span>disp.</span></div>
             <div class="la-slot-num usado"><b>${t.usados}</b><span>usados</span></div>
-            <button type="button" class="btn-ghost la-slot-btn" data-time="${escapeHtml(t.time)}"
+            <button type="button" class="btn-ghost la-slot-btn ico" data-time="${escapeHtml(t.time)}"
               ${t.pendentes > 0 && t.user_id ? '' : 'disabled'}
               title="${t.pendentes > 0 ? 'Marcar um slot como usado' : 'Sem slot disponível'}"
-              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this)"><i class="bi bi-check2-square me-1"></i>Usar</button>
-            <button type="button" class="btn-ghost la-slot-btn" data-time="${escapeHtml(t.time)}" style="color:#a855f7"
+              aria-label="Marcar slot como usado"
+              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this)"><i class="bi bi-check2-square"></i></button>
+            <button type="button" class="btn-ghost la-slot-btn ico" data-time="${escapeHtml(t.time)}" style="color:#a855f7"
               ${t.user_id ? '' : 'disabled'} title="Dar ou devolver um slot"
-              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this, 'dar')"><i class="bi bi-plus-lg me-1"></i>Slot</button>
+              aria-label="Dar ou devolver um slot"
+              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this, 'dar')"><i class="bi bi-plus-lg"></i></button>
           </div>`).join('')}</div>`
         : '<p style="color:var(--text-3);font-size:13px;margin:0">Nenhum time nesta liga.</p>'}
       </div>

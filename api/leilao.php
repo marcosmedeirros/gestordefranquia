@@ -947,7 +947,7 @@ function slotsDeLeilao(PDO $pdo, string $league): void
        de cada franquia (disponíveis e usados), e zero também é informação —
        é o que o admin confere antes de aceitar um /leilao no WhatsApp. */
     $st = $pdo->prepare("
-        SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS time, t.photo_url,
+        SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS time, t.name AS nome, t.photo_url,
                u.id AS user_id, u.name AS gm,
                COUNT(i.id) AS total,
                COALESCE(SUM(i.id IS NOT NULL AND i.atendido_em IS NULL), 0) AS pendentes,
