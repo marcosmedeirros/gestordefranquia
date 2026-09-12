@@ -8783,7 +8783,11 @@ function _faResumoResolucao(r) {
 }
 
 async function _faResolverTudo(league, btn) {
-  if (!confirm(`Resolver toda a Free Agency da ${league}?\n\nCada jogador vai pro maior lance válido. Quem não tiver lance válido fica como recusado.`)) return;
+  const texto = `Cada jogador vai pro maior lance válido. Quem não tiver lance válido fica como recusado, e o resultado é anunciado no Gameplay da ${league}.`;
+  const ok = typeof confirmarSite === 'function'
+    ? await confirmarSite(texto, { titulo: `Resolver a Free Agency da ${league}?`, confirmar: 'Resolver FA' })
+    : confirm(`Resolver a Free Agency da ${league}?\n\n${texto}`);
+  if (!ok) return;
   if (btn) btn.disabled = true;
   const r = await _faResolverLiga(league);
   if (btn) btn.disabled = false;

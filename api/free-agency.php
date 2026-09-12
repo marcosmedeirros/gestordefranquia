@@ -867,7 +867,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonError('Você não administra essa liga', 403);
             }
             try {
-                jsonSuccess(['league' => $ligaResolver] + faResolverLiga($pdo, $ligaResolver, (int)$user_id));
+                $resolucao = faResolverLiga($pdo, $ligaResolver, (int)$user_id);
+                $resolucao['anunciado'] = faAnunciarResolucao($pdo, $ligaResolver, $resolucao);
+                jsonSuccess(['league' => $ligaResolver] + $resolucao);
             } catch (Throwable $e) {
                 error_log('[fa/resolver] ' . $e->getMessage());
                 jsonError('Erro ao resolver a Free Agency.', 500);
@@ -1959,7 +1961,10 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
 
         $pdo->commit();
         return ['ok' => true,
-                'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])];
+                'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name']),
+                // Pro anúncio no Gameplay (faAnunciarResolucao).
+                'jogador' => $offer['player_name'], 'posicao' => $offer['position'], 'ovr' => (int)$offer['ovr'],
+                'time' => $nomeTime, 'valor' => (int)$offer['amount'], 'elite' => $ehElite];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[fa/atribuir] ' . $e->getMessage());
@@ -2013,7 +2018,7 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
     $recusarResto  = $pdo->prepare("UPDATE fa_request_offers SET status = 'rejected' WHERE request_id = ? AND status = 'pending'");
     $fecharPedido  = $pdo->prepare("UPDATE fa_requests SET status = 'rejected', resolved_at = NOW() WHERE id = ? AND status = 'open'");
 
-    $contratados = []; $semVencedor = []; $recusados = [];
+    $contratados = []; $semVencedor = []; $recusados = []; $detalhes = [];
     foreach ($pedidos as $rid => $p) {
         $levou = false;
         foreach (faOrdenarPropostas($pdo, $p['ofertas'], $league) as $o) {
@@ -2022,7 +2027,7 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
             if ($aindaPendente->fetchColumn() !== 'pending') continue;
 
             $r = faAtribuirOferta($pdo, (int)$o['id'], $adminId);
-            if ($r['ok']) { $contratados[] = $r['message']; $levou = true; break; }
+            if ($r['ok']) { $contratados[] = $r['message']; $detalhes[] = $r; $levou = true; break; }
             $recusarOferta->execute([$o['id']]);
             $recusados[] = "{$p['nome']} — {$o['team_name']}: {$r['erro']}";
         }
@@ -2032,7 +2037,46 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
             $semVencedor[] = $p['nome'];
         }
     }
-    return ['contratados' => $contratados, 'sem_vencedor' => $semVencedor, 'recusados' => $recusados];
+    return ['contratados' => $contratados, 'sem_vencedor' => $semVencedor, 'recusados' => $recusados,
+            'detalhes' => $detalhes];
+}
+
+/**
+ * Anuncia no Gameplay da liga que a Free Agency foi resolvida.
+ *
+ * Vale pros dois caminhos — fechar a FA e o botão "Resolver FA" —, porque os
+ * dois passam pela mesma ação. Sem nada resolvido, fica quieto: "a FA foi
+ * resolvida, ninguém levou ninguém e não havia lance" não é notícia.
+ *
+ * Tipo 'manual': sai mesmo fora da janela de horário do bot, como os avisos
+ * que o admin dispara na mão. Nunca derruba a resolução.
+ */
+function faAnunciarResolucao(PDO $pdo, string $league, array $res): bool
+{
+    $detalhes = $res['detalhes'] ?? [];
+    $sem = $res['sem_vencedor'] ?? [];
+    if (!$detalhes && !$sem) return false;
+    try {
+        require_once __DIR__ . '/../backend/leilao_bot.php';   // botGrupoDaCerimonia + whatsapp
+        $grupo = botGrupoDaCerimonia($pdo, $league);
+        if (!$grupo) return false;
+
+        $txt = "🆓 *FREE AGENCY · {$league} — RESOLVIDA*";
+        if ($detalhes) {
+            $txt .= "\n\n✅ *Contratações*";
+            foreach ($detalhes as $d) {
+                $valor = $d['elite'] ? "{$d['valor']}M" : ($d['valor'] === 1 ? '1 moeda' : "{$d['valor']} moedas");
+                $txt .= "\n• {$d['jogador']} ({$d['posicao']}, {$d['ovr']}) → *{$d['time']}* · {$valor}";
+            }
+        }
+        if ($sem) {
+            $txt .= "\n\n❌ *Sem lance válido:* " . implode(', ', $sem);
+        }
+        return whatsappEnfileirar($pdo, (string)$grupo, $txt, true, 'manual');
+    } catch (Throwable $e) {
+        error_log('[fa/anunciar] ' . $e->getMessage());
+        return false;
+    }
 }
 
 function rejectNewFaRequest(PDO $pdo, array $body): void
