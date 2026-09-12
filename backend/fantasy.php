@@ -1324,3 +1324,115 @@ function fanTabelaLiga(PDO $pdo, int $uid, int $ligaId): array
     $resp['campeao'] = $l['campeao_user_id'] ? $quem((int)$l['campeao_user_id']) : null;
     return $resp;
 }
+
+/* ─── bot do WhatsApp: /meufantasy e /fantasy ──────────────────────────────── */
+
+/**
+ * O time de um cartola na rodada atual, pronto pro bot montar a mensagem.
+ *
+ * $mostrarEscalacao = false esconde os jogadores enquanto o mercado está
+ * aberto — como no Cartola, ninguém vê (e copia) o time do outro antes de
+ * fechar. Com o mercado fechado ou a rodada encerrada, todo mundo vê.
+ *
+ * @return ?array null quando o usuário nunca entrou no Fantasy
+ */
+function fanTimeParaBot(PDO $pdo, int $userId, bool $mostrarEscalacao): ?array
+{
+    fanGarantirTabelas($pdo);
+    $st = $pdo->prepare("SELECT c.nome_time, c.patrimonio, u.name gm
+                           FROM fantasy_cartolas c JOIN users u ON u.id = c.user_id WHERE c.user_id = ?");
+    $st->execute([$userId]);
+    $c = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$c) return null;
+
+    $out = [
+        'user_id' => $userId, 'time' => fanNomeCartola($c['nome_time'], $c['gm']), 'gm' => $c['gm'],
+        'patrimonio' => (float)$c['patrimonio'], 'rodada' => null, 'escalou' => false, 'escondida' => false,
+        'jogadores' => [], 'custo' => null, 'total' => null, 'colocacao' => null, 'participantes' => null,
+        'ultima' => fanHistorico($pdo, $userId)[0] ?? null,
+    ];
+    $r = fanRodadaAtual($pdo);
+    if (!$r) return $out;
+    $out['rodada'] = ['temporada' => (int)$r['season_number'], 'status' => $r['status']];
+
+    // Só a escalação SALVA nesta rodada — a sugerida da rodada passada não conta.
+    $st = $pdo->prepare("SELECT * FROM fantasy_escalacoes WHERE rodada_id = ? AND user_id = ?");
+    $st->execute([(int)$r['id'], $userId]);
+    $e = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$e) return $out;
+    $out['escalou'] = true;
+    if ($r['status'] === 'aberta' && !$mostrarEscalacao) { $out['escondida'] = true; return $out; }
+
+    $ids = array_values(array_filter(array_map('intval', [$e['pg'], $e['sg'], $e['sf'], $e['pf'], $e['c'], $e['reserva'] ?? 0])));
+    $info = [];
+    if ($ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $st = $pdo->prepare("SELECT p.id, p.name, fp.preco FROM players p
+                          LEFT JOIN fantasy_precos fp ON fp.player_id = p.id AND fp.rodada_id = ?
+                              WHERE p.id IN ($ph)");
+        $st->execute(array_merge([(int)$r['id']], $ids));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $info[(int)$p['id']] = $p;
+    }
+
+    $pontos = $r['status'] === 'aberta' ? null : fanPontosDaTemporada($pdo, (int)$r['season_id']);
+    $det = $pontos ? fanDetalheDoTime($e, $pontos) : ['total' => null, 'substituido' => null];
+    $cap = (int)$e['capitao'];
+    foreach (['pg' => 'PG', 'sg' => 'SG', 'sf' => 'SF', 'pf' => 'PF', 'c' => 'C', 'reserva' => '6º'] as $k => $rotulo) {
+        $pid = (int)($e[$k] ?? 0);
+        if (!$pid) continue;
+        $ehCap = $pid === $cap && $k !== 'reserva';
+        $bruto = $pontos ? (float)($pontos['id'][$pid]['total'] ?? 0) : null;
+        $out['jogadores'][] = [
+            'pos' => $rotulo, 'nome' => $info[$pid]['name'] ?? '?',
+            'preco' => isset($info[$pid]['preco']) ? (float)$info[$pid]['preco'] : null,
+            'capitao' => $ehCap,
+            'pontos' => $bruto === null ? null : ($ehCap ? $bruto * FAN_CAPITAO : $bruto),
+            'saiu' => $det['substituido'] === $k,
+            'entrou' => $k === 'reserva' && $det['substituido'] !== null,
+            'banco' => $k === 'reserva' && $pontos !== null && $det['substituido'] === null,
+        ];
+    }
+    $out['custo'] = (float)$e['custo'];
+
+    if ($r['status'] === 'encerrada') {
+        $out['total'] = $e['pontos'] !== null ? (float)$e['pontos'] : $det['total'];
+        $out['colocacao'] = $e['colocacao'] !== null ? (int)$e['colocacao'] : null;
+    } elseif ($pontos) {
+        $out['total'] = $det['total'];
+        $rk = fanRanking($pdo, $r)['rodada'];
+        foreach ($rk as $i => $t) if ($t['user_id'] === $userId) $out['colocacao'] = $i + 1;
+        $out['participantes'] = count($rk);
+    }
+    return $out;
+}
+
+/**
+ * Cartolas pelo nome do time do Fantasy (ou, se não achar, pelo nome do GM),
+ * sem acento e sem diferença de maiúscula. Nome exato ganha de "contém".
+ */
+function fanBuscarCartolas(PDO $pdo, string $termo): array
+{
+    fanGarantirTabelas($pdo);
+    $norm = function (string $s): string {
+        $s = mb_strtolower(trim($s), 'UTF-8');
+        $s = strtr($s, ['á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+                        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i','ó'=>'o','ò'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+                        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','ç'=>'c','ñ'=>'n']);
+        return trim(preg_replace('/\s+/', ' ', preg_replace('/[^a-z0-9 ]+/', ' ', $s)));
+    };
+    $q = $norm($termo);
+    if (strlen($q) < 2) return [];
+
+    $exato = []; $noTime = []; $noGm = [];
+    $rows = $pdo->query("SELECT c.user_id, c.nome_time, u.name gm FROM fantasy_cartolas c JOIN users u ON u.id = c.user_id")
+                ->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) {
+        $nome = fanNomeCartola($r['nome_time'], $r['gm']);
+        $item = ['user_id' => (int)$r['user_id'], 'time' => $nome, 'gm' => (string)$r['gm']];
+        $n = $norm($nome);
+        if ($n === $q) $exato[] = $item;
+        elseif (str_contains($n, $q)) $noTime[] = $item;
+        elseif (str_contains($norm((string)$r['gm']), $q)) $noGm[] = $item;
+    }
+    return $exato ?: ($noTime ?: $noGm);
+}

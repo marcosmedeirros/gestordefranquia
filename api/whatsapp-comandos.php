@@ -581,7 +581,8 @@ function wcAjuda(): string
         . "/minhaspicks — as picks que você tem\n"
         . "/meutblock — seu trade block
 "
-        . "/minhastrades — suas 3 últimas trocas\n\n"
+        . "/minhastrades — suas 3 últimas trocas\n"
+        . "/meufantasy — seu time no Fantasy FBA\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
@@ -607,6 +608,7 @@ function wcAjuda(): string
         // Ao lado das apostas da organização porque é a mesma pergunta vista
         // do outro lado: ali a liga é a casa, aqui é um GM qualquer.
         . "/eventos — os eventos abertos e as odds (aceita a _categoria_)\n"
+        . "/fantasy _nome do time_ — o time de alguém no Fantasy FBA\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -3450,6 +3452,110 @@ function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 // Comandos que sabem quem perguntou
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * /meufantasy — o time do Fantasy FBA de quem digitou, com a escalação.
+ *
+ * O Fantasy é por PESSOA, não por time da FBA: quem tem time em duas ligas é
+ * um cartola só. Por isso aqui basta achar o usuário pelo telefone, sem a
+ * pergunta "qual liga?" do wcTimeDeQuemPerguntou.
+ */
+/** @return array{0:?int, 1:?string} [user_id de quem mandou, erro pra responder] */
+function wcFantasyUsuarioDoNumero(PDO $pdo, string $deQuem): array
+{
+    if (str_contains($deQuem, '@lid')) {
+        return [null, "O WhatsApp não está me passando seu número neste grupo, então não sei qual é o seu time. Use */fantasy nome do time*."];
+    }
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) return [null, "Não consegui identificar seu número por aqui. Use */fantasy nome do time*."];
+
+    $usuarios = array_values(array_unique(array_map(fn($t) => (int)$t['user_id'],
+        wcAcharPeloTelefone(wcGmsComTelefone($pdo), $digitos))));
+    if (!$usuarios) {
+        return [null, "Não achei seu cadastro pelo telefone (o WhatsApp me mandou um número terminado em "
+                    . substr($digitos, -4) . "). Use */fantasy nome do time*."];
+    }
+    return [$usuarios[0], null];
+}
+
+function wcMeuFantasy(PDO $pdo, string $deQuem): string
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    [$uid, $erro] = wcFantasyUsuarioDoNumero($pdo, $deQuem);
+    if (!$uid) return $erro;
+    $t = fanTimeParaBot($pdo, $uid, true);
+    if (!$t) return "Você ainda não entrou no Fantasy FBA. Monte seu time: https://fbabrasil.com.br/fantasy.php";
+    return wcFantasyTexto($t, true);
+}
+
+/**
+ * /fantasy nome do time — o time de outro cartola.
+ * Com o mercado aberto a escalação fica escondida (só diz se já escalou).
+ */
+function wcFantasy(PDO $pdo, string $arg, string $deQuem): string
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    if ($arg === '') {
+        return $deQuem !== '' ? wcMeuFantasy($pdo, $deQuem) : "Use assim: /fantasy nome do time";
+    }
+    $achados = fanBuscarCartolas($pdo, $arg);
+    if (!$achados) return "Não achei nenhum time do Fantasy com \"{$arg}\".";
+    if (count($achados) > 1) {
+        $lista = array_slice($achados, 0, 6);
+        return "Achei " . count($achados) . " times com \"{$arg}\":\n"
+             . implode("\n", array_map(fn($a) => "• {$a['time']} ({$a['gm']})", $lista))
+             . "\n\nManda o nome inteiro, tipo: /fantasy {$lista[0]['time']}";
+    }
+    // Buscou o próprio time pelo nome: é dele, então mostra mesmo com o mercado aberto.
+    $euMesmo = $deQuem !== '' && wcFantasyUsuarioDoNumero($pdo, $deQuem)[0] === $achados[0]['user_id'];
+    $t = fanTimeParaBot($pdo, $achados[0]['user_id'], $euMesmo);
+    return $t ? wcFantasyTexto($t, $euMesmo) : "Não achei esse time.";
+}
+
+function wcFantasyTexto(array $t, bool $meu): string
+{
+    $f = fn($n) => number_format((float)$n, 1, ',', '.');
+    $l = ["⭐ *Fantasy FBA — {$t['time']}*", "{$t['gm']} · patrimônio F\$ " . $f($t['patrimonio'])];
+    $r = $t['rodada'];
+    if (!$r) {
+        $l[] = '';
+        $l[] = '_Nenhuma rodada aberta ainda._';
+        return implode("\n", $l);
+    }
+    $status = ['aberta' => 'mercado aberto', 'fechada' => 'em andamento', 'encerrada' => 'encerrada'][$r['status']] ?? $r['status'];
+    $l[] = "Rodada T{$r['temporada']} · {$status}";
+    $l[] = '';
+
+    if (!$t['escalou']) {
+        $l[] = $meu
+            ? ($r['status'] === 'aberta' ? "Você ainda não salvou a escalação desta rodada.\n👉 https://fbabrasil.com.br/fantasy.php" : 'Você não escalou nesta rodada.')
+            : 'Não escalou nesta rodada.';
+    } elseif ($t['escondida']) {
+        $l[] = '✅ Já escalou. O time aparece quando o mercado fechar.';
+    } else {
+        foreach ($t['jogadores'] as $j) {
+            $valor = $j['pontos'] !== null ? $f($j['pontos']) . ' pts' : ($j['preco'] !== null ? 'F$ ' . $f($j['preco']) : '');
+            $nota = $j['saiu'] ? ' _saiu pro 6º_' : ($j['entrou'] ? ' _entrou_' : ($j['banco'] ? ' _ficou no banco_' : ''));
+            $nome = $j['saiu'] ? "~{$j['nome']}~" : $j['nome'];
+            $l[] = "*{$j['pos']}* {$nome}" . ($j['capitao'] ? ' (C)' : '') . " — {$valor}{$nota}";
+        }
+        $l[] = '';
+        if ($t['total'] !== null) {
+            $l[] = '*Total: ' . $f($t['total']) . ' pts*' . ($r['status'] === 'fechada' ? ' _(parcial)_' : '')
+                 . ($t['colocacao'] ? ' · ' . $t['colocacao'] . 'º' . ($t['participantes'] ? ' de ' . $t['participantes'] : '') : '');
+        } else {
+            $l[] = 'Custo F$ ' . $f($t['custo']);
+        }
+    }
+
+    $u = $t['ultima'];
+    if ($u && !($r['status'] === 'encerrada' && $u['temporada'] === $r['temporada'])) {
+        $l[] = '';
+        $l[] = "Última rodada (T{$u['temporada']}): " . $f($u['pontos']) . " pts · {$u['colocacao']}º"
+             . ($u['moedas'] ? " · +{$u['moedas']} FBA Points" : '');
+    }
+    return implode("\n", $l);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -3755,6 +3861,15 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'minhastrocas':
             case 'meustrades':
                 return wcMinhasTrades($pdo, $deQuem, $ligaDoGrupo);
+
+            // Fantasy FBA: o meu pelo telefone, o dos outros pelo nome do time.
+            case 'meufantasy':
+            case 'meucartola':
+                return wcMeuFantasy($pdo, $deQuem);
+
+            case 'fantasy':
+            case 'cartola':
+                return wcFantasy($pdo, $arg, $deQuem);
 
             case 'lendas':
             case 'lenda':

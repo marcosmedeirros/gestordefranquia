@@ -505,6 +505,8 @@ async function carregar() {
   S.modoReserva = false;
   if (!S.rkLiga) S.rkLiga = d.minha_liga_fba || 'ELITE';
   S.sujo = d.escalacao && !d.escalacao.salva && POS.some(p => S.esc[p]);
+  // "Sugerida" = veio da rodada passada e ninguém mexeu ainda; o aviso dela some na primeira mudança.
+  S.sugerida = S.sujo;
   tudo();
 }
 
@@ -600,7 +602,7 @@ function quadra() {
   $('btLimpar').disabled = !aberta();
   if (!aberta()) aviso(S.dados.rodada?.status === 'fechada' ? 'Mercado fechado: acompanhe as parciais.' : '');
   else if (POS.every(p => S.esc[p]) && !S.reserva && !S.modoReserva) aviso('Falta o 6º homem pra salvar: toque no 6º, no canto da quadra, e escolha no mercado.', 'err');
-  else if (S.sujo) aviso('Escalação da rodada passada. Confira e salve pra valer nesta.');
+  else if (S.sugerida) aviso('Escalação da rodada passada. Confira e salve pra valer nesta.');
 }
 
 function aviso(t, tipo) { const m = $('msg'); m.textContent = t; m.className = 'msg' + (tipo ? ' ' + tipo : ''); }
@@ -618,7 +620,7 @@ function escalar(id) {
       S.reserva = id;
     }
     S.modoReserva = false;
-    S.sujo = true; aviso('Não esqueça de salvar.');
+    S.sujo = true; S.sugerida = false; aviso('Não esqueça de salvar.');
     mercado(); quadra(); return;
   }
   if (S.esc[p] === id) { S.esc[p] = null; if (S.cap === id) S.cap = null; }
@@ -629,7 +631,7 @@ function escalar(id) {
     S.esc[p] = id;
     if (!S.cap) S.cap = id;
   }
-  S.sujo = true; aviso('Não esqueça de salvar.');
+  S.sujo = true; S.sugerida = false; aviso('Não esqueça de salvar.');
   mercado(); quadra();
 }
 
@@ -909,7 +911,7 @@ document.addEventListener('click', async e => {
   else if (t.dataset.ver) verJogador(+t.dataset.ver);
   else if (t.dataset.lugar) {
     const p = t.dataset.lugar, id = S.esc[p];
-    if (id && aberta()) { S.cap = id; S.sujo = true; aviso(`${S.porId.get(id).nome} é o capitão. Salve pra valer.`); quadra(); }
+    if (id && aberta()) { S.cap = id; S.sujo = true; S.sugerida = false; aviso(`${S.porId.get(id).nome} é o capitão. Salve pra valer.`); quadra(); }
     else if (id) verJogador(id);
     else { S.pos = p; mercado(); document.getElementById('lista').scrollIntoView({behavior: 'smooth', block: 'start'}); }
   } else if (t.dataset.tirar) {
@@ -917,7 +919,7 @@ document.addEventListener('click', async e => {
     const k = t.dataset.tirar;
     if (k === 'reserva') S.reserva = null;
     else { if (S.cap === S.esc[k]) S.cap = null; S.esc[k] = null; }
-    S.sujo = true; aviso('Não esqueça de salvar.'); mercado(); quadra();
+    S.sujo = true; S.sugerida = false; aviso('Não esqueça de salvar.'); mercado(); quadra();
   } else if (t.dataset.seis) {
     if (!aberta()) { if (S.reserva) verJogador(S.reserva); return; }
     S.modoReserva = !S.modoReserva;
@@ -1011,7 +1013,7 @@ function irParaAba(aba) {
   document.querySelectorAll('[data-painel]').forEach(p => p.hidden = p.dataset.painel !== aba);
 }
 $('btSalvar').addEventListener('click', salvar);
-$('btLimpar').addEventListener('click', () => { POS.forEach(p => S.esc[p] = null); S.cap = null; S.reserva = null; S.modoReserva = false; S.sujo = true; aviso(''); mercado(); quadra(); });
+$('btLimpar').addEventListener('click', () => { POS.forEach(p => S.esc[p] = null); S.cap = null; S.reserva = null; S.modoReserva = false; S.sujo = true; S.sugerida = false; aviso(''); mercado(); quadra(); });
 $('busca').addEventListener('input', e => { S.busca = e.target.value; mercado(); });
 $('ordem').addEventListener('change', e => { S.ordem = e.target.value; mercado(); });
 /* Nome do time: janela do site, não o prompt do navegador. */
