@@ -7501,6 +7501,10 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
           ${(at.gleague || []).length ? `
             <div class="tac-secao">G-League</div>
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
+          ${(at.posicoes || []).length ? `
+            <div class="tac-secao">Posições</div>
+            <div class="tac-jogadores">${at.posicoes.map(p => `<span class="tac-jog">${escapeHtml(p.nome)}
+              <b style="color:var(--text-3);font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b></span>`).join('')}</div>` : ''}
           <div class="tac-secao">Configurações</div>
           <div class="tac-campos">${config}</div>
           ${observacaoHtml}

@@ -130,12 +130,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .slot.dup{border-color:#ef4444}
 .slot.dup .slot-info{color:#f87171}
 
-/* Minutos previstos (somente leitura) */
-.min-preview{display:flex;flex-wrap:wrap;gap:8px}
-.min-chip{display:flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:5px 10px 5px 6px;font-size:11.5px}
-.min-chip .tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-3)}
-.min-chip .tag.tit{background:var(--red-soft);color:var(--red)}
-.min-chip .mn{font-family:'Oswald',sans-serif;font-weight:700;color:var(--text)}
+/* Posições dos jogadores (as mesmas do Meu Elenco) */
+.pos-lista{display:flex;flex-direction:column;gap:6px}
+.pos-cab,.pos-linha{display:grid;grid-template-columns:minmax(0,1fr) 96px 96px;gap:8px;align-items:center}
+.pos-cab{padding:0 10px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
+.pos-linha{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:7px 10px;transition:border-color var(--t) var(--ease)}
+.pos-nome{min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pos-linha select{width:100%;background:var(--panel-3);border:1px solid var(--border-md);color:var(--text);border-radius:8px;padding:6px;font-family:inherit;font-size:12px}
+.pos-linha select:focus{outline:none;border-color:var(--red)}
+.pos-linha.salvo{border-color:rgba(34,197,94,.5)}
+.pos-linha.erro{border-color:rgba(239,68,68,.6)}
+@media (max-width:480px){.pos-cab,.pos-linha{grid-template-columns:minmax(0,1fr) 72px 72px;gap:6px}}
 
 /* ── Modelo técnico ────────────────────────────────── */
 .mt-bloco{margin-top:16px;padding:14px;border-radius:12px;
@@ -308,8 +313,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <input type="number" id="f_veteran_focus" data-f="veteran_focus" min="0" max="100" placeholder="ex.: 50">
         </div>
       </div>
-      <div class="section-title" style="margin-bottom:8px"><i class="bi bi-eye"></i> Minutos previstos <span class="hint">Calculado pelo sistema — não é editável aqui.</span></div>
-      <div class="min-preview" id="minPreview"></div>
+    </div>
+
+    <!-- Posições: as mesmas do Meu Elenco -->
+    <div class="panel">
+      <div class="section-title"><i class="bi bi-person-lines-fill"></i> Posições dos jogadores
+        <span class="hint">Titulares e reservas. É a mesma posição do Meu Elenco — mudou aqui, muda lá.</span>
+      </div>
+      <div class="pos-lista" id="posLista"></div>
     </div>
 
     <!-- Sistema -->
@@ -378,7 +389,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="field" style="grid-column:1/-1">
           <label for="f_notes">Observações</label>
           <textarea id="f_notes" data-f="notes"
-            placeholder="Aqui você coloca as posições que quer os jogadores — se ele vai ser só SF, ou SF/PF."></textarea>
+            placeholder="Algo que o admin precisa saber pra montar a sua tática no jogo."></textarea>
         </div>
       </div>
     </div>
@@ -542,7 +553,10 @@ function renderJanela() {
 
 function aplicarBloqueioEdicao() {
   const bloqueado = !EDIT_WINDOW.open;
-  document.querySelectorAll('#conteudo select, #conteudo input, #conteudo textarea').forEach(el => { el.disabled = bloqueado; });
+  // As posições ficam de fora: são do elenco, e no elenco se mudam a qualquer hora.
+  document.querySelectorAll('#conteudo select, #conteudo input, #conteudo textarea').forEach(el => {
+    if (!el.dataset.pos) el.disabled = bloqueado;
+  });
   // btnCopiar fica de fora: copiar nao altera nada, entao vale com a janela fechada.
   ['btnSalvar','btnAtivar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
 }
@@ -573,61 +587,66 @@ function montarGleague() {
       <select id="f_gleague_2_id" data-f="gleague_2_id"><option value="">—</option>${ELENCO.map(opts).join('')}</select></div>`;
   }
   box.innerHTML = html;
-  box.querySelectorAll('select').forEach(s => s.addEventListener('change', atualizarPreviewMinutos));
 }
 
-/* O tamanho da rotação também refaz a prévia.
-   Quem disparava o recálculo eram os selects do quinteto e da G-League; o
-   campo de rotação nunca teve gatilho, e com o quinteto fora ele passou a ser
-   a principal coisa que a pessoa mexe aqui — mudar de 8 pra 12 e a lista não
-   se mover parece tela travada. */
-function ligarGatilhoRotacao() {
-  const el = $('f_rotation_players');
-  if (!el || el.dataset.ligado) return;
-  el.dataset.ligado = '1';
-  el.addEventListener('input', atualizarPreviewMinutos);
-  el.addEventListener('change', atualizarPreviewMinutos);
+/* ── Posições dos jogadores ──
+   São as do Meu Elenco (players.position / secondary_position): mudou aqui,
+   muda lá. Cada troca salva na hora, sozinha — não entra no autosave da
+   tática e não trava com a janela de edição, igual acontece no elenco.
+   (Os "minutos previstos" saíram desta tela a pedido da liga.) */
+const POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
+
+function elencoComPosicao() {
+  const ordem = { Titular: 0, Banco: 1 };
+  return ELENCO.filter(p => p.role === 'Titular' || p.role === 'Banco')
+    .sort((a, b) => (ordem[a.role] - ordem[b.role]) || (Number(b.ovr) - Number(a.ovr)));
 }
 
-/* ── Minutos previstos (somente leitura) ── */
-function atualizarPreviewMinutos() {
-  // Pedimos ao backend pra recalcular com o quinteto/rotação atuais da tela,
-  // sem esperar o autosave — assim o GM ve o efeito na hora.
-  clearTimeout(atualizarPreviewMinutos._t);
-  atualizarPreviewMinutos._t = setTimeout(async () => {
-    try {
-      /* A AÇÃO VAI NO CORPO, não só na URL.
-         No POST a API lê $body['action'], e montarPayload() sempre escreve
-         'save' ali — então esta chamada, apesar da URL dizer outra coisa,
-         caía no salvar: a resposta vinha sem preview_minutes e a lista de
-         minutos zerava a cada tecla no campo de rotação. */
-      const r = await fetch('/api/tactics.php?action=preview_minutes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...montarPayload(), action: 'preview_minutes' })
-      });
-      const d = await r.json();
-      if (d.success) renderPreviewMinutos(d.preview_minutes || {});
-    } catch (e) { /* pré-visualização é cortesia — sem bloquear a tela por isso */ }
-  }, 350);
-}
-
-function renderPreviewMinutos(mapa) {
-  const ids = Object.keys(mapa).map(Number);
-  if (!ids.length) {
-    $('minPreview').innerHTML = '<span style="color:var(--text-3);font-size:12px">'
-      + 'Defina o tamanho da rotação para ver a prévia.</span>';
+function renderPosicoes() {
+  const box = $('posLista');
+  if (!box) return;
+  const lista = elencoComPosicao();
+  if (!lista.length) {
+    box.innerHTML = '<span style="color:var(--text-3);font-size:12px">Nenhum titular ou reserva no elenco.</span>';
     return;
   }
-  const ordenado = ids.sort((a, b) => (mapa[b] || 0) - (mapa[a] || 0));
-  /* O selo saía do quinteto escolhido. Sem ele, a função vem do ELENCO — que
-     é o que o jogo lê de verdade, e é onde a pessoa muda se quiser mexer. */
-  $('minPreview').innerHTML = ordenado.map(id => {
-    const p = ELENCO.find(x => Number(x.id) === id);
-    if (!p) return '';
-    const tit = (p.role || '') === 'Titular';
-    return `<div class="min-chip"><span class="tag ${tit ? 'tit' : ''}">${esc(p.role || 'Banco')}</span>
-      <span>${esc(p.name)}</span><span class="mn">${mapa[id]}min</span></div>`;
-  }).join('');
+  const opcoes = (atual, comVazio) => (comVazio ? '<option value="">—</option>' : '')
+    + POSICOES.map(p => `<option value="${p}"${p === atual ? ' selected' : ''}>${p}</option>`).join('');
+  box.innerHTML = '<div class="pos-cab"><span>Jogador</span><span>Principal</span><span>Secundária</span></div>'
+    + lista.map(p => `
+      <div class="pos-linha" data-linha="${p.id}">
+        <span class="pos-nome" title="${esc(p.name)}">${esc(p.name)}</span>
+        <select data-pos="primaria" data-id="${p.id}" aria-label="Posição principal de ${esc(p.name)}">${opcoes(p.position, false)}</select>
+        <select data-pos="secundaria" data-id="${p.id}" aria-label="Posição secundária de ${esc(p.name)}">${opcoes(p.secondary_position || '', true)}</select>
+      </div>`).join('');
+  box.querySelectorAll('select[data-pos]').forEach(s =>
+    s.addEventListener('change', () => salvarPosicao(Number(s.dataset.id))));
+}
+
+async function salvarPosicao(id) {
+  const linha = document.querySelector(`.pos-linha[data-linha="${id}"]`);
+  if (!linha) return;
+  const pri = linha.querySelector('[data-pos="primaria"]');
+  const sec = linha.querySelector('[data-pos="secundaria"]');
+  if (sec.value === pri.value) sec.value = '';   // secundária igual à principal é nenhuma
+  const p = ELENCO.find(x => Number(x.id) === id);
+  linha.classList.remove('salvo', 'erro');
+  try {
+    const r = await fetch('/api/tactics.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'posicao', player_id: id, position: pri.value, secondary_position: sec.value || null })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || 'Não salvou a posição.');
+    if (p) { p.position = d.position; p.secondary_position = d.secondary_position; }
+    linha.classList.add('salvo');
+    setTimeout(() => linha.classList.remove('salvo'), 1500);
+  } catch (e) {
+    // Volta pro que está gravado: a tela não pode mostrar uma posição que não salvou.
+    if (p) { pri.value = p.position; sec.value = p.secondary_position || ''; }
+    linha.classList.add('erro');
+    msg('err', esc(e.message || 'Não salvou a posição.'));
+  }
 }
 
 /* ── Carga ── */
@@ -652,7 +671,7 @@ async function carregar() {
 
   renderJanela();
   montarGleague();
-  ligarGatilhoRotacao();
+  renderPosicoes();
   mostrarSlot(SLOT);
 
   $('carregando').style.display = 'none';
@@ -680,8 +699,6 @@ function mostrarSlot(slot) {
      escolhido no campo e o quadro do lado vazio, como se não houvesse
      técnico. Vale ao abrir a página e a cada troca de tática. */
   if (typeof pintarModeloEscolhido === 'function') pintarModeloEscolhido();
-
-  renderPreviewMinutos(TATICAS[slot]?.preview_minutes || {});
 
   const statusBox = $('tacticStatus');
   statusBox.innerHTML = (slot === ACTIVE_SLOT)
@@ -726,6 +743,13 @@ function montarTextoDaTatica() {
     linhas.push('');
     linhas.push('*G-League*');
     gl.forEach(n => linhas.push(`• ${n}`));
+  }
+
+  const comPosicao = elencoComPosicao();
+  if (comPosicao.length) {
+    linhas.push('');
+    linhas.push('*Posições*');
+    comPosicao.forEach(p => linhas.push(`• ${p.name} — ${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}`));
   }
 
   const sistema = [];
@@ -852,7 +876,8 @@ function agendarAutosave() {
 ['input', 'change'].forEach(ev =>
   document.addEventListener(ev, e => {
     if (carregando) return;
-    if (e.target.closest('#conteudo')) agendarAutosave();
+    // Posição salva sozinha (salvarPosicao); não é campo da tática.
+    if (e.target.closest('#conteudo') && !e.target.dataset?.pos) agendarAutosave();
   })
 );
 

@@ -588,7 +588,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     ];
                 }
 
+                // As posições do elenco (titulares e reservas), as mesmas do Meu Elenco.
+                $stPos = $pdo->prepare("SELECT name, position, secondary_position, role FROM players
+                                         WHERE team_id = ? AND role IN ('Titular','Banco')
+                                      ORDER BY FIELD(role,'Titular','Banco'), ovr DESC, name");
+                $stPos->execute([(int)$t['id']]);
+                $posicoes = array_map(fn($p) => [
+                    'nome' => $p['name'], 'position' => $p['position'],
+                    'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
+                ], $stPos->fetchAll(PDO::FETCH_ASSOC));
+
                 $tatica = [
+                    'posicoes'      => $posicoes,
                     'slot_label'    => TATICA_SLOTS[$ativa['slot']] ?? $ativa['slot'],
                     'titulares'     => $titulares,
                     'banco'         => array_values(array_filter([$ativa['b1'], $ativa['b2'], $ativa['b3']])),
@@ -898,6 +909,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmtE->execute([$teamId]);
     $jogadoresElenco = $stmtE->fetchAll(PDO::FETCH_ASSOC);
     $doElenco = array_map(fn($p) => (int)$p['id'], $jogadoresElenco);
+
+    /* POSIÇÃO DO JOGADOR, pela tela de tática.
+       É o MESMO campo do Meu Elenco (players.position / secondary_position):
+       mudou aqui, muda lá. Por isso não passa pela janela de edição da tática —
+       no elenco a posição se muda a qualquer hora. */
+    if ($action === 'posicao') {
+        $validas = ['PG', 'SG', 'SF', 'PF', 'C'];
+        $pid = (int)($body['player_id'] ?? 0);
+        $pos = strtoupper(trim((string)($body['position'] ?? '')));
+        $sec = strtoupper(trim((string)($body['secondary_position'] ?? '')));
+        if (!in_array($pid, $doElenco, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Esse jogador não é do seu elenco.']);
+            exit;
+        }
+        if (!in_array($pos, $validas, true)) {
+            echo json_encode(['success' => false, 'error' => 'Escolha a posição principal.']);
+            exit;
+        }
+        if ($sec === '' || $sec === '-' || $sec === '—') $sec = null;
+        if ($sec !== null && !in_array($sec, $validas, true)) {
+            echo json_encode(['success' => false, 'error' => 'Posição secundária inválida.']);
+            exit;
+        }
+        if ($sec === $pos) $sec = null;   // secundária igual à principal é nenhuma
+        $pdo->prepare('UPDATE players SET position = ?, secondary_position = ? WHERE id = ? AND team_id = ?')
+            ->execute([$pos, $sec, $pid, $teamId]);
+        echo json_encode(['success' => true, 'position' => $pos, 'secondary_position' => $sec]);
+        exit;
+    }
 
     if ($action === 'preview_minutes') {
         $starters = array_values(array_filter([
