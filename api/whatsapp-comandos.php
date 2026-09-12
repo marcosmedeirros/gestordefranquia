@@ -487,6 +487,32 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = 
 }
 
 /**
+ * /edital — a regra do edital da liga do grupo, seca, só o que foi perguntado.
+ * Número puro continua trazendo o artigo inteiro, sem modelo nenhum.
+ */
+function wcEdital(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/edital_texto.php';
+    $liga = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+    $arg  = trim($arg);
+
+    if ($arg === '') {
+        return "📕 *EDITAL DA {$liga}*\n\n"
+             . "Pergunta junto do comando, e eu respondo com o que está no edital:\n\n"
+             . "/edital o que acontece se ficar abaixo do cap\n"
+             . "/edital quantas trocas posso fazer por temporada\n"
+             . "/edital 26 _(o artigo inteiro)_";
+    }
+    if (preg_match('/^art\.?\s*(\d{1,3})$|^(\d{1,3})$/iu', $arg, $m)) {
+        return wcEditalArtigo($pdo, $liga, (int)($m[1] ?: $m[2]));
+    }
+
+    require_once __DIR__ . '/../backend/edital_seco.php';
+    $r = editalSecoPerguntar($pdo, $liga, $arg);
+    return '📕 ' . ($r['ok'] ? $r['resposta'] : $r['erro']);
+}
+
+/**
  * O texto de um artigo do edital, pelo número.
  *
  * Estava dentro do /edital e saiu pra função própria quando o comando virou
@@ -575,6 +601,7 @@ function wcAjuda(): string
         // Entra na lista porque é a dúvida que mais volta no grupo, e a única
         // que hoje só se tira abrindo o PDF no celular.
         . "/duvida _sua pergunta_ — como funciona qualquer coisa do app e da liga\n"
+        . "/edital _pergunta_ — só o que o edital da liga diz, direto e com o artigo\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
         // Ao lado das apostas da organização porque é a mesma pergunta vista
@@ -3631,6 +3658,11 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'duvida':
             case 'duvidas':
                 return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
+
+            // /edital voltou, mas SECO: só o texto do edital da liga do grupo,
+            // só o que foi perguntado. O /duvida continua sendo o que conversa.
+            case 'edital':
+                return wcEdital($pdo, $arg, $ligaDoGrupo);
 
             // Quem está fora das regras na liga do grupo: elenco fora da
             // faixa, acima do teto ou abaixo do piso. Mesma conta do card do
