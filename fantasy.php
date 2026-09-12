@@ -154,7 +154,9 @@ tr.eu td{background:var(--red-soft)}
 .bw{position:relative;display:inline-block}
 .tira{position:absolute;top:-5px;left:-6px;width:20px;height:20px;border-radius:99px;border:2px solid var(--court);background:var(--down);color:#fff;font-size:9px;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
 .tira:hover{filter:brightness(1.15)}
-.lugar.seis .bola{width:44px;height:44px;font-size:13px;border-color:color-mix(in srgb,var(--amber) 55%,transparent)}
+.lugar.seis{transform:none;width:64px;gap:1px}
+.lugar.seis .nm{max-width:64px}
+.lugar.seis .bola{width:40px;height:40px;font-size:12px;border-color:color-mix(in srgb,var(--amber) 55%,transparent)}
 .lugar.seis.cheio .bola{border:2px solid var(--amber)}
 .lugar.seis.escolhendo .bola{border:2px solid var(--amber);background:rgba(245,158,11,.18);color:var(--amber)}
 .lugar.seis .nm{font-size:10.5px;color:var(--amber)}
@@ -439,7 +441,7 @@ tr.eu td{background:var(--red-soft)}
 
 <script>
 const POS = ['PG','SG','SF','PF','C'];
-const LUGAR = {PG:[50,21],SG:[82,40],SF:[18,40],PF:[70,76],C:[30,76]};
+const LUGAR = {PG:[50,21],SG:[82,43],SF:[18,43],PF:[70,76],C:[30,76]};
 const SVG = `<svg viewBox="0 0 500 400" preserveAspectRatio="none" aria-hidden="true"><rect x="1" y="1" width="498" height="398"/>
   <path d="M200 1 A50 50 0 0 0 300 1"/><rect x="180" y="240" width="140" height="159"/><path d="M200 240 A50 50 0 0 1 300 240"/>
   <path d="M40 399 V300 A210 210 0 0 1 460 300 V399"/><line x1="225" y1="378" x2="275" y2="378"/><circle cx="250" cy="365" r="9"/></svg>`;
@@ -540,7 +542,7 @@ function quadra() {
   const tira = (chave, j) => ab ? `<button class="tira" data-tirar="${chave}" aria-label="Tirar ${esc(j.nome)}" title="Tirar"><i class="bi bi-x-lg"></i></button>` : '';
   const r6 = S.reserva && S.porId.get(S.reserva);
   // 6º homem no canto da quadra: compacto pra não trombar com o SF.
-  const seis = `<div class="lugar seis${r6 ? ' cheio' : ''}${S.modoReserva ? ' escolhendo' : ''}${det && r6 && !det.sub ? ' saiu' : ''}" style="left:90%;top:89%">
+  const seis = `<div class="lugar seis${r6 ? ' cheio' : ''}${S.modoReserva ? ' escolhendo' : ''}${det && r6 && !det.sub ? ' saiu' : ''}" style="right:6px;top:6px">
       <div class="bw"><button class="bola" data-seis="1" aria-label="${r6 ? '6º homem: ' + esc(r6.nome) : 'Escolher o 6º homem'}" style="padding:0">${r6 ? foto(r6) : '6º'}${r6 ? '<span class="c seis-tag">6</span>' : ''}</button>${r6 ? tira('reserva', r6) : ''}</div>
       <div class="nm">${r6 ? sobrenome(r6) + (det ? ' · ' + f1(det.rp) : '') : (S.modoReserva ? 'escolha →' : '6º homem')}</div>
     </div>`;
