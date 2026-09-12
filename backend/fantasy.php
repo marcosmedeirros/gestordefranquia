@@ -22,10 +22,10 @@
 require_once __DIR__ . '/db.php';
 
 const FAN_LIGA = 'ELITE';
-// Patrimônio inicial. Na T1 o quinteto dos mais caros custava F$ 114: com
-// 100 quase dava pra levar todos. Com 75 o melhor time custa 1,5× o que se
-// tem — escalar vira escolha.
-const FAN_ORCAMENTO = 75.0;
+// Patrimônio inicial. Na T1 o quinteto dos mais caros custava F$ 114 e, com o
+// 6º homem, o time ideal passa de F$ 135: com 100 ainda não cabe todo mundo,
+// mas sobra espaço pra um reserva que muda a rodada (com 75 o 6º virava enfeite).
+const FAN_ORCAMENTO = 100.0;
 const FAN_CAPITAO = 1.5;
 const FAN_PONTOS_POR_FS = 3.0;     // 60 pontos na temporada = F$ 20
 const FAN_PRECO_MIN = 2.0;
@@ -58,6 +58,8 @@ const FAN_BONUS = [
 ];
 
 /** Moedas por colocação na rodada. */
+const FAN_ENTRADA_MAX = 5000;       // teto da entrada de uma copa, em moedas
+// Prêmio do ranking DA RODADA, em FBA Points. Geral, por liga e ligas de pontos corridos não pagam.
 const FAN_PREMIOS = [1 => 500, 2 => 300, 3 => 200, 4 => 100, 5 => 100, 6 => 100, 7 => 100, 8 => 100, 9 => 100, 10 => 100];
 
 /** Ligas dos usuários: quantas cada um participa (criadas + que entrou) e o teto de gente por liga. */
@@ -152,6 +154,43 @@ function fanGarantirTabelas(PDO $pdo): void
             $pdo->exec("ALTER TABLE fantasy_escalacoes ADD COLUMN reserva INT NULL AFTER capitao");
         }
     } catch (Throwable $e) { error_log('[fantasy] coluna reserva: ' . $e->getMessage()); }
+    // Copa: entrada em moedas do Games; o pote inteiro vai pro campeão (premio_pago evita pagar duas vezes).
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM fantasy_ligas LIKE 'entrada'")->fetch()) {
+            $pdo->exec("ALTER TABLE fantasy_ligas ADD COLUMN entrada INT NOT NULL DEFAULT 0 AFTER tipo,
+                        ADD COLUMN pote INT NOT NULL DEFAULT 0 AFTER entrada,
+                        ADD COLUMN premio_pago TINYINT(1) NOT NULL DEFAULT 0 AFTER campeao_user_id");
+        }
+    } catch (Throwable $e) { error_log('[fantasy] colunas da copa: ' . $e->getMessage()); }
+}
+
+/**
+ * Mexe nas MOEDAS do Games (games_usuarios.pontos). Débito só passa se houver
+ * saldo — devolve false sem mexer em nada. Crédito sempre passa.
+ */
+function fanMexerMoedas(PDO $pdo, int $uid, int $valor): bool
+{
+    $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, pontos) VALUES (?, 0)")->execute([$uid]);
+    if ($valor >= 0) {
+        $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$valor, $uid]);
+        return true;
+    }
+    $st = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ? AND pontos >= ?");
+    $st->execute([-$valor, $uid, -$valor]);
+    return $st->rowCount() > 0;
+}
+
+/** @return array{moedas:int, fba_points:int} */
+function fanSaldo(PDO $pdo, int $uid): array
+{
+    try {
+        $st = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id = ?");
+        $st->execute([$uid]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        return ['moedas' => (int)($r['pontos'] ?? 0), 'fba_points' => (int)($r['fba_points'] ?? 0)];
+    } catch (Throwable $e) {
+        return ['moedas' => 0, 'fba_points' => 0];
+    }
 }
 
 /* ─── pontuação ───────────────────────────────────────────────────────────── */
@@ -444,6 +483,7 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
         return ['rodada' => null, 'regras' => fanRegras(), 'admin' => $ehAdmin, 'eu' => (int)$user['id'],
                 'ligas' => fanMinhasLigas($pdo, (int)$user['id']), 'max_ligas' => FAN_MAX_LIGAS,
                 'minha_liga_fba' => fanLigaFbaDoUsuario($pdo, (int)$user['id']),
+                'saldo' => fanSaldo($pdo, (int)$user['id']),
                 'ranking' => ['rodada' => [], 'geral' => [], 'por_liga' => []]];
     }
     $rid = (int)$rodada['id'];
@@ -523,6 +563,7 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
         'ligas' => fanMinhasLigas($pdo, (int)$user['id']),
         'max_ligas' => FAN_MAX_LIGAS,
         'minha_liga_fba' => fanLigaFbaDoUsuario($pdo, (int)$user['id']),
+        'saldo' => fanSaldo($pdo, (int)$user['id']),
         'regras' => fanRegras(),
         'admin' => $ehAdmin,
         'eu' => (int)$user['id'],
@@ -719,7 +760,8 @@ function fanEncerrarRodada(PDO $pdo): array
         $upE = $pdo->prepare("UPDATE fantasy_escalacoes SET pontos = ?, patrimonio_fim = ?, colocacao = ?, moedas = ? WHERE id = ?");
         $upC = $pdo->prepare("UPDATE fantasy_cartolas SET patrimonio = ? WHERE user_id = ?");
         $garante = $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, pontos) VALUES (?, 0)");
-        $paga = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?");
+        // A coluna fantasy_escalacoes.moedas guarda o prêmio, que agora é pago em FBA Points.
+        $paga = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points + ? WHERE id = ?");
         $pos = 0; $ultimoPonto = null; $lugar = 0;
         foreach ($times as $e) {
             $pos++;
@@ -790,17 +832,21 @@ function fanMinhasLigas(PDO $pdo, int $userId): array
     return array_map(fn($l) => [
         'id' => (int)$l['id'], 'nome' => $l['nome'], 'tipo' => $l['tipo'], 'codigo' => $l['codigo'],
         'status' => $l['status'], 'fase_atual' => (int)$l['fase_atual'], 'membros' => (int)$l['membros'],
+        'entrada' => (int)($l['entrada'] ?? 0), 'pote' => (int)($l['pote'] ?? 0),
         'dono' => (int)$l['dono_user_id'] === $userId,
     ], $st->fetchAll(PDO::FETCH_ASSOC));
 }
 
-function fanCriarLiga(PDO $pdo, array $user, string $nome, string $tipo): array
+function fanCriarLiga(PDO $pdo, array $user, string $nome, string $tipo, int $entrada = 0): array
 {
     fanGarantirTabelas($pdo);
     $uid = (int)$user['id'];
     $nome = trim(preg_replace('/\s+/', ' ', strip_tags($nome)));
     if (mb_strlen($nome) < 3 || mb_strlen($nome) > 40) return ['ok' => false, 'erro' => 'O nome da liga precisa ter de 3 a 40 letras.'];
     if (!in_array($tipo, ['pontos', 'mata_mata'], true)) return ['ok' => false, 'erro' => 'Escolha o formato da liga.'];
+    // Só a copa cobra entrada; liga de pontos corridos é de graça e não paga nada.
+    $entrada = $tipo === 'mata_mata' ? max(0, $entrada) : 0;
+    if ($entrada > FAN_ENTRADA_MAX) return ['ok' => false, 'erro' => 'A entrada vai até ' . FAN_ENTRADA_MAX . ' moedas.'];
     if (fanQuantasLigas($pdo, $uid) >= FAN_MAX_LIGAS) {
         return ['ok' => false, 'erro' => 'Você já está em ' . FAN_MAX_LIGAS . ' ligas, que é o limite. Saia de uma pra criar outra.'];
     }
@@ -815,11 +861,16 @@ function fanCriarLiga(PDO $pdo, array $user, string $nome, string $tipo): array
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare("INSERT INTO fantasy_ligas (nome, tipo, codigo, dono_user_id, rodada_minima, status, criada_em)
-                       VALUES (?, ?, ?, ?, ?, ?, NOW())")
-            ->execute([$nome, $tipo, $codigo, $uid, $minima, $tipo === 'pontos' ? 'andamento' : 'aberta']);
+        $pdo->prepare("INSERT INTO fantasy_ligas (nome, tipo, entrada, pote, codigo, dono_user_id, rodada_minima, status, criada_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())")
+            ->execute([$nome, $tipo, $entrada, $entrada, $codigo, $uid, $minima, $tipo === 'pontos' ? 'andamento' : 'aberta']);
         $id = (int)$pdo->lastInsertId();
         $pdo->prepare("INSERT INTO fantasy_liga_membros (liga_id, user_id, entrou_em) VALUES (?, ?, NOW())")->execute([$id, $uid]);
+        // Quem cria a copa também paga a entrada.
+        if ($entrada > 0 && !fanMexerMoedas($pdo, $uid, -$entrada)) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => "Você não tem {$entrada} moedas pra pagar a entrada."];
+        }
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -855,8 +906,50 @@ function fanEntrarLiga(PDO $pdo, array $user, string $codigo): array
     }
 
     fanCartola($pdo, $user);
-    $pdo->prepare("INSERT IGNORE INTO fantasy_liga_membros (liga_id, user_id, entrou_em) VALUES (?, ?, NOW())")->execute([$ligaId, $uid]);
-    return ['ok' => true, 'liga_id' => $ligaId, 'nome' => $l['nome']];
+    $entrada = (int)($l['entrada'] ?? 0);
+    $pdo->beginTransaction();
+    try {
+        // Trava a liga: ninguém entra (nem paga) depois de o mata-mata começar.
+        $st = $pdo->prepare("SELECT status FROM fantasy_ligas WHERE id = ? FOR UPDATE");
+        $st->execute([$ligaId]);
+        if ($l['tipo'] === 'mata_mata' && $st->fetchColumn() !== 'aberta') {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Esse mata-mata já começou — não dá mais pra entrar.'];
+        }
+        $ins = $pdo->prepare("INSERT IGNORE INTO fantasy_liga_membros (liga_id, user_id, entrou_em) VALUES (?, ?, NOW())");
+        $ins->execute([$ligaId, $uid]);
+        if ($ins->rowCount() > 0 && $entrada > 0) {
+            if (!fanMexerMoedas($pdo, $uid, -$entrada)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'erro' => "A entrada dessa copa é {$entrada} moedas e você não tem saldo."];
+            }
+            $pdo->prepare("UPDATE fantasy_ligas SET pote = pote + ? WHERE id = ?")->execute([$entrada, $ligaId]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fantasy] entrar liga: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra entrar na liga. Tente de novo.'];
+    }
+    return ['ok' => true, 'liga_id' => $ligaId, 'nome' => $l['nome'], 'pagou' => $entrada];
+}
+
+/** O que o convite é, antes de entrar — pra copa mostrar quanto custa. */
+function fanPreviaConvite(PDO $pdo, int $uid, string $codigo): array
+{
+    fanGarantirTabelas($pdo);
+    $codigo = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $codigo));
+    $st = $pdo->prepare("SELECT l.id, l.nome, l.tipo, l.entrada, l.pote, l.status,
+                                (SELECT COUNT(*) FROM fantasy_liga_membros m WHERE m.liga_id = l.id) membros,
+                                (SELECT COUNT(*) FROM fantasy_liga_membros m WHERE m.liga_id = l.id AND m.user_id = ?) ja
+                           FROM fantasy_ligas l WHERE l.codigo = ?");
+    $st->execute([$uid, $codigo]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l) return ['ok' => false, 'erro' => 'Convite inválido. Confira o código.'];
+    return ['ok' => true, 'liga' => [
+        'id' => (int)$l['id'], 'nome' => $l['nome'], 'tipo' => $l['tipo'], 'entrada' => (int)$l['entrada'],
+        'pote' => (int)$l['pote'], 'status' => $l['status'], 'membros' => (int)$l['membros'], 'ja' => (int)$l['ja'] > 0,
+    ], 'saldo' => fanSaldo($pdo, $uid)];
 }
 
 /** Sair da liga. Quem criou, ao sair, apaga a liga pra todos. */
@@ -871,9 +964,19 @@ function fanSairLiga(PDO $pdo, array $user, int $ligaId): array
     $l = $st->fetch(PDO::FETCH_ASSOC);
     if (!$l) return ['ok' => false, 'erro' => 'Você não está nessa liga.'];
 
+    $entrada = (int)($l['entrada'] ?? 0);
     if ((int)$l['dono_user_id'] === $uid) {
+        if ($entrada > 0 && $l['status'] === 'andamento') {
+            return ['ok' => false, 'erro' => 'A copa já começou e tem pote em jogo — dá pra excluir depois que sair o campeão.'];
+        }
         $pdo->beginTransaction();
         try {
+            // Copa que nem começou: devolve a entrada de todo mundo antes de apagar.
+            if ($entrada > 0 && $l['status'] === 'aberta') {
+                $st = $pdo->prepare("SELECT user_id FROM fantasy_liga_membros WHERE liga_id = ?");
+                $st->execute([$ligaId]);
+                foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $membro) fanMexerMoedas($pdo, (int)$membro, $entrada);
+            }
             $pdo->prepare("DELETE FROM fantasy_confrontos WHERE liga_id = ?")->execute([$ligaId]);
             $pdo->prepare("DELETE FROM fantasy_liga_membros WHERE liga_id = ?")->execute([$ligaId]);
             $pdo->prepare("DELETE FROM fantasy_ligas WHERE id = ?")->execute([$ligaId]);
@@ -888,7 +991,21 @@ function fanSairLiga(PDO $pdo, array $user, int $ligaId): array
     if ($l['tipo'] === 'mata_mata' && $l['status'] === 'andamento') {
         return ['ok' => false, 'erro' => 'O mata-mata já começou — dá pra sair quando ele terminar.'];
     }
-    $pdo->prepare("DELETE FROM fantasy_liga_membros WHERE liga_id = ? AND user_id = ?")->execute([$ligaId, $uid]);
+    $pdo->beginTransaction();
+    try {
+        $del = $pdo->prepare("DELETE FROM fantasy_liga_membros WHERE liga_id = ? AND user_id = ?");
+        $del->execute([$ligaId, $uid]);
+        // Saiu da copa antes de começar: a entrada volta e sai do pote.
+        if ($del->rowCount() > 0 && $entrada > 0 && $l['status'] === 'aberta') {
+            fanMexerMoedas($pdo, $uid, $entrada);
+            $pdo->prepare("UPDATE fantasy_ligas SET pote = GREATEST(pote - ?, 0) WHERE id = ?")->execute([$entrada, $ligaId]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fantasy] sair liga: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra sair da liga.'];
+    }
     return ['ok' => true];
 }
 
@@ -987,7 +1104,10 @@ function fanAvancarMataMata(PDO $pdo, int $ligaId): void
     $vencedores = array_map('intval', $vencedores);
 
     if (count($vencedores) === 1) {
-        $pdo->prepare("UPDATE fantasy_ligas SET status = 'encerrada', campeao_user_id = ? WHERE id = ?")->execute([$vencedores[0], $ligaId]);
+        // Campeão leva o pote todo, uma vez só (premio_pago = 0 na condição).
+        $fim = $pdo->prepare("UPDATE fantasy_ligas SET status = 'encerrada', campeao_user_id = ?, premio_pago = 1 WHERE id = ? AND premio_pago = 0");
+        $fim->execute([$vencedores[0], $ligaId]);
+        if ($fim->rowCount() > 0 && (int)($l['pote'] ?? 0) > 0) fanMexerMoedas($pdo, $vencedores[0], (int)$l['pote']);
         return;
     }
     // Próxima fase sem rodada: ela é ligada à rodada que abrir (fanAbrirRodada).
@@ -1032,7 +1152,8 @@ function fanTabelaLiga(PDO $pdo, int $uid, int $ligaId): array
     $resp = [
         'ok' => true, 'eu' => $uid, 'dono' => (int)$l['dono_user_id'] === $uid,
         'liga' => ['id' => (int)$l['id'], 'nome' => $l['nome'], 'tipo' => $l['tipo'], 'codigo' => $l['codigo'],
-                   'status' => $l['status'], 'fase_atual' => (int)$l['fase_atual']],
+                   'status' => $l['status'], 'fase_atual' => (int)$l['fase_atual'],
+                   'entrada' => (int)($l['entrada'] ?? 0), 'pote' => (int)($l['pote'] ?? 0)],
         'membros' => array_values($membros),
     ];
 

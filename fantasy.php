@@ -10,12 +10,14 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
-// Saldo de moedas do Games — é onde o prêmio da rodada cai.
-$moedas = 0;
+// Saldos do Games: FBA Points (prêmio da rodada) e moedas (entrada e pote das copas).
+$moedas = 0; $fbaPoints = 0;
 try {
-    $stMoedas = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
+    $stMoedas = $pdo->prepare('SELECT pontos, fba_points FROM games_usuarios WHERE id = ?');
     $stMoedas->execute([(int)$user['id']]);
-    $moedas = (int)($stMoedas->fetchColumn() ?: 0);
+    $saldoRow = $stMoedas->fetch(PDO::FETCH_ASSOC) ?: [];
+    $moedas = (int)($saldoRow['pontos'] ?? 0);
+    $fbaPoints = (int)($saldoRow['fba_points'] ?? 0);
 } catch (Throwable $e) {}
 ?>
 <!DOCTYPE html>
@@ -211,7 +213,10 @@ tr.eu td{background:var(--red-soft)}
 .voltar{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid var(--border-md);color:var(--text-2);text-decoration:none;font-size:12.5px;font-weight:700}
 .voltar:hover{border-color:var(--red);color:var(--red)}
 .marca{font-weight:800;font-size:15px}.marca em{color:var(--red);font-style:normal}
-.saldo{margin-left:auto;display:inline-flex;align-items:center;gap:7px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--amber);border-radius:99px;padding:6px 13px;font-family:var(--num);font-size:16px;font-weight:600}
+.saldos{margin-left:auto;display:flex;gap:6px;align-items:center}
+.saldo.fp{background:var(--red-soft);border-color:color-mix(in srgb,var(--red) 35%,transparent);color:var(--red)}
+@media (max-width:640px){.saldo small{display:none}.saldo{padding:5px 10px;font-size:14px}}
+.saldo{display:inline-flex;align-items:center;gap:7px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--amber);border-radius:99px;padding:6px 13px;font-family:var(--num);font-size:16px;font-weight:600}
 .saldo small{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2)}
 
 /* ── Janela do nome do time ── */
@@ -257,7 +262,10 @@ tr.eu td{background:var(--red-soft)}
   <div class="in">
     <a class="voltar" href="/games.php"><i class="bi bi-arrow-left"></i> Games</a>
     <span class="marca">Fantasy <em>FBA</em></span>
-    <span class="saldo" title="Suas moedas no Games"><i class="bi bi-coin"></i> <?= number_format($moedas, 0, ',', '.') ?> <small>moedas</small></span>
+    <span class="saldos">
+      <span class="saldo fp" title="Seus FBA Points — o prêmio da rodada cai aqui"><i class="bi bi-star-fill"></i> <span id="sFbaPts"><?= number_format($fbaPoints, 0, ',', '.') ?></span> <small>FBA Points</small></span>
+      <span class="saldo" title="Suas moedas no Games — usadas na entrada das copas"><i class="bi bi-coin"></i> <span id="sMoedas"><?= number_format($moedas, 0, ',', '.') ?></span> <small>moedas</small></span>
+    </span>
   </div>
 </header>
 <div class="wrap">
@@ -410,7 +418,12 @@ tr.eu td{background:var(--red-soft)}
     <label class="campo">Formato</label>
     <div class="tipos">
       <button type="button" class="tipo" data-tipo="pontos" aria-pressed="true"><b>Pontos corridos</b><small>Soma os pontos de todas as rodadas</small></button>
-      <button type="button" class="tipo" data-tipo="mata_mata" aria-pressed="false"><b>Mata-mata</b><small>Confronto a cada rodada; quem perde sai</small></button>
+      <button type="button" class="tipo" data-tipo="mata_mata" aria-pressed="false"><b>Copa (mata-mata)</b><small>Confronto a cada rodada; quem perde sai. Pode cobrar entrada.</small></button>
+    </div>
+    <div id="blocoEntrada" hidden>
+      <label class="campo" for="inEntrada">Entrada em moedas</label>
+      <input class="txt" id="inEntrada" type="number" min="0" max="5000" step="10" value="0" inputmode="numeric">
+      <p class="dica">0 = grátis. Cada participante paga ao entrar (você também) e o campeão leva o pote todo. Quem sai antes de a copa começar recebe de volta.</p>
     </div>
     <div class="msg err" id="cErro" role="alert"></div>
     <div class="acoes" style="justify-content:flex-end;margin-top:12px">
@@ -489,7 +502,9 @@ function cabecalho() {
   $('nPatrimonio').textContent = 'F$ ' + f1(orcamento());
   const ult = d.historico?.[0];
   $('nUltima').textContent = ult ? f1(ult.pontos) : '—';
-  $('subTime').textContent = ult ? `${ult.colocacao}º na T${ult.temporada}${ult.moedas ? ' · +' + ult.moedas + ' moedas' : ''}` : 'Fantasy da ELITE · escale 5, escolha o capitão';
+  $('subTime').textContent = ult ? `${ult.colocacao}º na T${ult.temporada}${ult.moedas ? ' · +' + ult.moedas + ' FBA Points' : ''}` : 'Fantasy da ELITE · escale 5, escolha o capitão';
+  const num = n => (+n || 0).toLocaleString('pt-BR');
+  if (d.saldo) { $('sFbaPts').textContent = num(d.saldo.fba_points); $('sMoedas').textContent = num(d.saldo.moedas); }
 }
 
 function status() {
@@ -680,7 +695,7 @@ function tabelaRanking(lista, vazio, rodada) {
   return `<table><thead><tr><th></th><th>Time</th><th class="r">${ab ? '' : 'Pontos'}</th>${rodada ? '' : '<th class="r">Patrimônio</th>'}</tr></thead><tbody>
     ${lista.map((t, i) => `<tr class="${t.user_id === d.eu ? 'eu' : ''}"><td class="pos-rank">${ab ? '' : i + 1}</td>
       <td><b>${esc(t.time)}</b><br><small style="color:var(--text-2)">${esc(t.gm)}${!rodada && t.rodadas ? ` · ${t.rodadas} rodada${t.rodadas > 1 ? 's' : ''}` : ''}</small></td>
-      <td class="r num">${ab ? '<span style="color:var(--text-3)">escalado</span>' : (t.pontos == null ? '—' : f1(t.pontos))}${rodada && t.moedas ? `<br><small style="color:var(--amber)">+${t.moedas} moedas</small>` : ''}</td>
+      <td class="r num">${ab ? '<span style="color:var(--text-3)">escalado</span>' : (t.pontos == null ? '—' : f1(t.pontos))}${rodada && t.moedas ? `<br><small style="color:var(--red)">+${t.moedas} FBA Points</small>` : ''}</td>
       ${rodada ? '' : `<td class="r num">F$ ${f1(t.patrimonio)}</td>`}</tr>`).join('')}</tbody></table>`;
 }
 
@@ -696,7 +711,8 @@ function ranking() {
   ligas();
 }
 
-const ROTULO_TIPO = {pontos: 'Pontos corridos', mata_mata: 'Mata-mata'};
+const ROTULO_TIPO = {pontos: 'Pontos corridos', mata_mata: 'Copa'};
+const potes = l => l.tipo === 'mata_mata' && l.entrada ? ` · pote ${(+l.pote).toLocaleString('pt-BR')} moedas` : '';
 function rotuloStatusLiga(l) {
   if (l.tipo === 'pontos') return 'em andamento';
   if (l.status === 'aberta') return 'esperando começar';
@@ -710,7 +726,7 @@ function ligas() {
   $('btCriarLiga').title = cheio ? `Limite de ${max} ligas` : '';
   $('minhasLigas').innerHTML = lista.length ? lista.map(l => `<button type="button" class="liga-card" data-liga="${l.id}">
       <span class="liga-ico"><i class="bi ${l.tipo === 'mata_mata' ? 'bi-diagram-3' : 'bi-list-ol'}"></i></span>
-      <span style="min-width:0;flex:1"><b>${esc(l.nome)}</b><small>${ROTULO_TIPO[l.tipo]} · ${l.membros} participante${l.membros === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}${l.dono ? ' · você criou' : ''}</small></span>
+      <span style="min-width:0;flex:1"><b>${esc(l.nome)}</b><small>${ROTULO_TIPO[l.tipo]}${potes(l)} · ${l.membros} participante${l.membros === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}${l.dono ? ' · você criou' : ''}</small></span>
       <i class="bi bi-chevron-right" style="color:var(--text-3)"></i></button>`).join('')
     : `<div class="vazio" style="padding:18px">Você ainda não está em nenhuma liga. Crie uma e mande o convite, ou entre com o código de um amigo. Até ${max} ligas por pessoa.</div>`;
 }
@@ -728,7 +744,7 @@ async function abrirLiga(id) {
   if (!d.ok) { $('lTit').textContent = 'Liga'; $('lCorpo').innerHTML = `<div class="vazio">${esc(d.erro || 'Não deu pra abrir a liga.')}</div>`; return; }
   const l = d.liga, eu = d.eu;
   $('lTit').textContent = l.nome;
-  $('lSub').textContent = `${ROTULO_TIPO[l.tipo]} · ${d.membros.length} participante${d.membros.length === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}`;
+  $('lSub').textContent = `${ROTULO_TIPO[l.tipo]}${potes(l)} · ${d.membros.length} participante${d.membros.length === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}`;
   const link = linkConvite(l.codigo);
   const podeConvidar = l.tipo === 'pontos' ? l.status !== 'encerrada' : l.status === 'aberta';
   let h = podeConvidar ? `<div class="convite"><span style="font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--text-3)">CONVITE</span>
@@ -736,6 +752,9 @@ async function abrirLiga(id) {
       <button type="button" class="btn peq" data-copiar="${esc(link)}"><i class="bi bi-clipboard"></i> Copiar</button>
       <a class="btn peq" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Entra na minha liga "${l.nome}" no Fantasy FBA: ${link}`)}"><i class="bi bi-whatsapp"></i> WhatsApp</a></div>` : '';
 
+  if (l.tipo === 'mata_mata' && l.entrada && l.status !== 'encerrada') {
+    h += `<div class="campeao" style="margin-top:8px"><i class="bi bi-coin"></i> Pote: ${(+l.pote).toLocaleString('pt-BR')} moedas · entrada ${l.entrada}. O campeão leva tudo.</div>`;
+  }
   const nome = m => m ? `<b>${esc(m.time)}</b>${m.user_id === eu ? ' <small style="color:var(--red)">(você)</small>' : ''}` : '';
   if (l.tipo === 'pontos') {
     h += `<div class="tabwrap" style="margin-top:8px"><table><thead><tr><th></th><th>Time</th><th class="r">Pontos</th><th class="r">Patrimônio</th></tr></thead><tbody>
@@ -748,7 +767,7 @@ async function abrirLiga(id) {
     h += `<p class="tit" style="margin-top:12px">Inscritos</p>` + d.membros.map(m => `<div class="linha" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${nome(m)}</span><small style="color:var(--text-2)">${esc(m.gm)}</small></div>`).join('')
       + `<p class="dica">Os confrontos são sorteados quando ${d.dono ? 'você começar' : 'quem criou começar'} o mata-mata, com o mercado aberto. Cada fase é decidida numa rodada: passa quem fizer mais pontos (empate: maior patrimônio).</p>`;
   } else {
-    if (d.campeao) h += `<div class="campeao"><i class="bi bi-trophy-fill"></i> Campeão: ${esc(d.campeao.time)}</div>`;
+    if (d.campeao) h += `<div class="campeao"><i class="bi bi-trophy-fill"></i> Campeão: ${esc(d.campeao.time)}${l.pote ? ` · levou ${(+l.pote).toLocaleString('pt-BR')} moedas` : ''}</div>`;
     h += d.fases.slice().reverse().map(f => `<div class="fase"><h3>${f.confrontos.length === 1 && f.confrontos[0].b ? 'Final' : f.fase + 'ª fase'}${f.temporada ? ' · T' + f.temporada : ' · próxima rodada'}</h3>
       ${f.confrontos.map(c => {
         const pa = c.pontos_a ?? c.parcial_a, pb = c.pontos_b ?? c.parcial_b;
@@ -776,9 +795,10 @@ async function copiarConvite(link, bt) {
 async function acaoLiga(tipo, id, bt) {
   const liga = (S.dados.ligas || []).find(l => l.id === id);
   if (tipo === 'sair') {
+    const devolve = liga?.entrada && liga.status === 'aberta';
     const ok = liga?.dono
-      ? await perguntar(`Excluir a liga "${liga.nome}"? Ela some pra todos os participantes.`, 'Excluir liga', 'Excluir')
-      : await perguntar(`Sair da liga "${liga?.nome || ''}"?`, 'Sair da liga', 'Sair');
+      ? await perguntar(`Excluir a liga "${liga.nome}"? Ela some pra todos os participantes${devolve ? ' e cada um recebe a entrada de volta' : ''}.`, 'Excluir liga', 'Excluir')
+      : await perguntar(`Sair da liga "${liga?.nome || ''}"?${devolve ? ` Suas ${liga.entrada} moedas de entrada voltam.` : ''}`, 'Sair da liga', 'Sair');
     if (!ok) return;
   } else if (!await perguntar('Começar o mata-mata? Os confrontos são sorteados agora e ninguém mais entra.', 'Começar mata-mata', 'Começar')) return;
   bt.disabled = true;
@@ -792,6 +812,7 @@ async function acaoLiga(tipo, id, bt) {
 
 function abrirCriar() {
   $('inLigaNome').value = ''; $('cErro').textContent = '';
+  $('inEntrada').value = 0; $('blocoEntrada').hidden = true;
   document.querySelectorAll('.tipo').forEach(b => b.setAttribute('aria-pressed', b.dataset.tipo === 'pontos'));
   $('fundoCriar').hidden = false; $('inLigaNome').focus();
 }
@@ -812,8 +833,8 @@ function regras() {
     <p><b>O preço sai da última temporada:</b> pontos ÷ ${String(g.pontos_por_fs).replace('.', ',')}. Quem fez 60 pontos custa F$ 20. Quando a rodada encerra, o preço de cada jogador vira o que ele pontuou nela — e o seu patrimônio sobe ou cai junto com os cinco que você escalou.</p>
     <p><b>Todo mundo começa com F$ ${f1(g.orcamento)}.</b> Na rodada seguinte, seu limite é o patrimônio novo. A escalação passada fica sugerida, mas só vale depois de salvar.</p>
     <p><b>6º homem:</b> além dos cinco, dá pra escalar um reserva de qualquer posição (o preço entra na conta). Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
-    <p><b>Ligas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite, em pontos corridos ou mata-mata (passa quem fizer mais pontos na rodada; empate vai pro maior patrimônio). Cada pessoa participa de até ${S.dados.max_ligas || 3} ligas.</p>
-    <p><b>Moedas por rodada:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}.</p>
+    <p><b>Prêmio da rodada, em FBA Points:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}. Só o ranking da rodada paga — o ranking geral, o por liga da FBA e as ligas de pontos corridos valem pela disputa.</p>
+    <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis e soma as rodadas. <b>Copa</b> é mata-mata — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
     <p style="color:var(--text-3)">O mercado fecha antes de a temporada ser jogada. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;
 }
 
@@ -870,6 +891,7 @@ document.addEventListener('click', async e => {
     S.rk = t.dataset.rk; ranking();
   } else if (t.dataset.tipo) {
     document.querySelectorAll('.tipo').forEach(b => b.setAttribute('aria-pressed', b === t));
+    $('blocoEntrada').hidden = t.dataset.tipo !== 'mata_mata';
   } else if (t.dataset.liga) {
     abrirLiga(+t.dataset.liga);
   } else if (t.dataset.copiar) {
@@ -881,7 +903,7 @@ document.addEventListener('click', async e => {
   } else if (t.dataset.admin) {
     const acao = t.dataset.admin;
     const pergunta = {fechar: 'Fechar o mercado? Ninguém mais consegue escalar nesta rodada.', reabrir: 'Reabrir o mercado?',
-      encerrar: `Encerrar a rodada? ${S.dados.rodada.times_com_stats} de 32 times lançaram estatística. Os pontos, os preços e as moedas ficam definitivos.`}[acao];
+      encerrar: `Encerrar a rodada? ${S.dados.rodada.times_com_stats} de 32 times lançaram estatística. Os pontos, os preços e os FBA Points ficam definitivos.`}[acao];
     if (!await perguntar(pergunta, 'Fantasy', 'Confirmar')) return;
     t.disabled = true;
     const d = await postar({acao});
@@ -898,8 +920,13 @@ $('formCriar').addEventListener('submit', async e => {
   const nome = $('inLigaNome').value.trim();
   const tipo = document.querySelector('.tipo[aria-pressed="true"]')?.dataset.tipo || 'pontos';
   if (nome.length < 3) { $('cErro').textContent = 'Dê um nome com pelo menos 3 letras.'; return; }
+  const entrada = tipo === 'mata_mata' ? Math.max(0, parseInt($('inEntrada').value, 10) || 0) : 0;
+  const saldo = S.dados.saldo?.moedas ?? 0;
+  if (entrada > 5000) { $('cErro').textContent = 'A entrada vai até 5.000 moedas.'; return; }
+  if (entrada > saldo) { $('cErro').textContent = `Você tem ${saldo.toLocaleString('pt-BR')} moedas — não dá pra pagar a entrada de ${entrada}.`; return; }
+  if (entrada > 0 && !await perguntar(`Criar a copa "${nome}" cobra ${entrada} moedas de entrada de você também. O campeão leva o pote.`, 'Criar copa', 'Criar e pagar')) return;
   $('cSalvar').disabled = true;
-  const r = await postar({acao: 'criar_liga', nome, tipo});
+  const r = await postar({acao: 'criar_liga', nome, tipo, entrada});
   $('cSalvar').disabled = false;
   if (!r.ok) { $('cErro').textContent = r.erro || 'Não deu pra criar.'; return; }
   $('fundoCriar').hidden = true;
@@ -910,6 +937,16 @@ $('formEntrar').addEventListener('submit', async e => {
   e.preventDefault();
   const codigo = $('inCodigo').value.trim();
   if (codigo.length < 4) { $('eErro').textContent = 'Digite o código do convite.'; return; }
+  // Copa com entrada: mostra quanto custa antes de cobrar.
+  let pv;
+  try { pv = await (await fetch('/api/fantasy.php?convite=' + encodeURIComponent(codigo), {credentials: 'same-origin'})).json(); }
+  catch (_) { pv = {ok: false, erro: 'Sem conexão. Tente de novo.'}; }
+  if (!pv.ok) { $('eErro').textContent = pv.erro || 'Convite inválido.'; return; }
+  const lg = pv.liga;
+  if (lg.entrada > 0 && !lg.ja) {
+    if (pv.saldo.moedas < lg.entrada) { $('eErro').textContent = `A entrada da copa "${lg.nome}" é ${lg.entrada} moedas e você tem ${pv.saldo.moedas.toLocaleString('pt-BR')}.`; return; }
+    if (!await perguntar(`Entrar na copa "${lg.nome}" custa ${lg.entrada} moedas. O pote hoje é de ${lg.pote.toLocaleString('pt-BR')} moedas e o campeão leva tudo.`, 'Entrar na copa', 'Pagar e entrar')) return;
+  }
   $('eSalvar').disabled = true;
   const r = await postar({acao: 'entrar_liga', codigo});
   $('eSalvar').disabled = false;

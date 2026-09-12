@@ -30,6 +30,11 @@ try {
             echo json_encode(fanTabelaLiga($pdo, (int)$user['id'], (int)$_GET['liga']), JSON_UNESCAPED_UNICODE);
             exit;
         }
+        // ?convite=CODIGO → nome, formato e entrada da liga, antes de entrar.
+        if (isset($_GET['convite'])) {
+            echo json_encode(fanPreviaConvite($pdo, (int)$user['id'], (string)$_GET['convite']), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         echo json_encode(['ok' => true] + fanEstado($pdo, $user, $ehAdmin), JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -49,7 +54,7 @@ try {
         'fechar'   => fanFecharMercado($pdo),
         'reabrir'  => fanReabrirMercado($pdo),
         'encerrar' => fanEncerrarRodada($pdo),
-        'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? '')),
+        'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? ''), (int)($corpo['entrada'] ?? 0)),
         'entrar_liga'  => fanEntrarLiga($pdo, $user, (string)($corpo['codigo'] ?? '')),
         'iniciar_liga' => fanIniciarMataMata($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
         'sair_liga'    => fanSairLiga($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
