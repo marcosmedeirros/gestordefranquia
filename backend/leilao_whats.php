@@ -317,17 +317,24 @@ function lwLerPick(string $texto): ?array
 {
     $t = trim($texto);
     // "pico"/"pik" = "pick" digitado no celular.
-    $ehPick = (bool)preg_match('/\b(pick|picks|pico|pik|escolha)\b/iu', $t);
+    // Abreviação já diz a rodada: FPR/FRP/FR/1RP = 1ª ("first round pick"), SPR/SRP/SR/2RP = 2ª.
+    $abrev1 = 'fpr|frp|fr|1rp';
+    $abrev2 = 'spr|srp|sr|2rp';
+    $ehPick = (bool)preg_match("/\\b(pick|picks|pico|pik|escolha|{$abrev1}|{$abrev2})\\b/iu", $t);
     if (preg_match('/\b(20\d{2})\b/', $t, $mAno)) {
         $ano = (int)$mAno[1];
-    } elseif (preg_match('/\b(?:picks?|pico|pik|escolha)\s*\'?(\d{2})\b/iu', $t, $mAno)) {
-        $ano = 2000 + (int)$mAno[1];     // "Pick 26" = pick de 2026
+    } elseif (preg_match("/\\b(?:picks?|pico|pik|escolha|{$abrev1}|{$abrev2})\\s*(?:de\\s*)?'?(\\d{2})\\b/iu", $t, $mAno)) {
+        $ano = 2000 + (int)$mAno[1];     // "Pick 26" / "FPR 26" = pick de 2026
     } else {
         return null;
     }
 
     $rodada = null;
-    if (preg_match('/\b(?:r|rd|round)\s*([12])\b/i', $t, $mm)
+    if (preg_match("/\\b(?:{$abrev1})\\b/iu", $t, $mm)) {
+        $rodada = 1;
+    } elseif (preg_match("/\\b(?:{$abrev2})\\b/iu", $t, $mm)) {
+        $rodada = 2;
+    } elseif (preg_match('/\b(?:r|rd|round)\s*([12])\b/i', $t, $mm)
         || preg_match('/\b([12])\s*(?:ª|º|a|o|st|nd)?\s*(?:rodada|round|r)\b/iu', $t, $mm)
         || preg_match('/\b([12])\s*(?:ª|º)/u', $t, $mm)
         || preg_match('/\b([12])(?:a|o|st|nd)\b/i', $t, $mm)) {
@@ -338,7 +345,7 @@ function lwLerPick(string $texto): ?array
     if (!$rodada && !$ehPick) return null;
 
     $resto = str_replace(array_values(array_filter([$mAno[0], $mm[0]], fn($s) => $s !== '')), ' ', $t);
-    $resto = preg_replace('/\b(pick|picks|pico|pik|escolha|de|da|do|via)\b|[()*•·\-\']/iu', ' ', $resto);
+    $resto = preg_replace("/\\b(pick|picks|pico|pik|escolha|de|da|do|via|{$abrev1}|{$abrev2})\\b|[()*•·\\-']/iu", ' ', $resto);
     return [$ano, $rodada, trim(preg_replace('/\s+/', ' ', $resto))];
 }
 
