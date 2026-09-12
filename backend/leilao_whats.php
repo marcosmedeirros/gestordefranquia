@@ -14,7 +14,8 @@
  *      Aceitar não fecha: a proposta vira a melhor até agora e o leilão segue.
  *      A próxima só é postada depois da resposta — igual os admins faziam.
  *   4. Fecha em 20 min, ou 5 min sem nada novo. A última aceita leva: a troca
- *      é feita no app e o slot é consumido (com ou sem troca).
+ *      é feita no app e o slot é consumido (com ou sem troca). Se ninguém
+ *      mandou proposta, o slot não é gasto e o jogador fica no time.
  *
  * Um leilão por liga de cada vez: o /aceitar no grupo não diz de qual leilão
  * é, e dois ao mesmo tempo no mesmo Gameplay seria a confusão que isto veio
@@ -515,7 +516,7 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
 
     return "✅ Leilão de *{$p['name']}* aberto e anunciado no Gameplay da {$liga}.\n\n"
          . "As propostas vão aparecer lá, uma por vez. Responda cada uma com ✅ ou ❌ no grupo "
-         . "(ou aqui no privado). O slot é consumido quando o leilão fechar.";
+         . "(ou aqui no privado). O slot é consumido quando o leilão fechar — se ninguém mandar proposta, ele volta pra você.";
 }
 
 function lwReceberProposta(PDO $pdo, array $lw, array $time, array $itens, string $jid): string
@@ -1090,6 +1091,7 @@ function lwEncerrar(PDO $pdo, int $lwId): void
     $motivo = null;
     $vencedor = null;
     $propostaId = null;
+    $slotDevolvido = false;
 
     $pdo->beginTransaction();
     try {
@@ -1127,14 +1129,22 @@ function lwEncerrar(PDO $pdo, int $lwId): void
         $pdo->prepare("UPDATE leilao_whats_propostas SET status = 'descartada'
                         WHERE lw_id = ? AND status IN ('aguardando','na_vez')")->execute([$lwId]);
 
-        // O slot vai embora em qualquer desfecho — foi o combinado.
-        $st = $pdo->prepare("SELECT id FROM loja_inventario
-                              WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL
-                           ORDER BY comprado_em ASC, id ASC LIMIT 1 FOR UPDATE");
-        $st->execute([(int)$lw['vendedor_user_id']]);
-        if ($slot = $st->fetchColumn()) {
-            $pdo->prepare("UPDATE loja_inventario SET atendido_em = NOW(), obs = ? WHERE id = ?")
-                ->execute([mb_substr('Leilão no WhatsApp: ' . $lw['jogador'] . ' (#' . $lw['leilao_id'] . ')', 0, 250), (int)$slot]);
+        /* O slot só é gasto se o leilão teve proposta. Ninguém ofereceu nada e
+           o jogador voltou pro time: o slot volta pro dono (na prática, nunca
+           sai — ele só é consumido aqui, no fechamento). Com proposta, vai
+           embora em qualquer desfecho, troca ou não. */
+        $st = $pdo->prepare("SELECT COUNT(*) FROM leilao_whats_propostas WHERE lw_id = ?");
+        $st->execute([$lwId]);
+        $slotDevolvido = $resultado !== 'troca' && (int)$st->fetchColumn() === 0;
+        if (!$slotDevolvido) {
+            $st = $pdo->prepare("SELECT id FROM loja_inventario
+                                  WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL
+                               ORDER BY comprado_em ASC, id ASC LIMIT 1 FOR UPDATE");
+            $st->execute([(int)$lw['vendedor_user_id']]);
+            if ($slot = $st->fetchColumn()) {
+                $pdo->prepare("UPDATE loja_inventario SET atendido_em = NOW(), obs = ? WHERE id = ?")
+                    ->execute([mb_substr('Leilão no WhatsApp: ' . $lw['jogador'] . ' (#' . $lw['leilao_id'] . ')', 0, 250), (int)$slot]);
+            }
         }
 
         $pdo->prepare("UPDATE leilao_whats SET status = 'encerrado', encerrado_em = NOW(), resultado = ? WHERE id = ?")
@@ -1165,7 +1175,9 @@ function lwEncerrar(PDO $pdo, int $lwId): void
         $txt = "🏁 O leilão de *{$lw['jogador']}* foi cancelado.";
     } else {
         $txt = "🏁 *LEILÃO ENCERRADO*\n\n"
-             . "Nenhuma proposta aceita. *{$linhaJog}* continua no *{$lw['vendedor_nome']}*.";
+             . ($slotDevolvido
+                 ? "Ninguém mandou proposta. *{$linhaJog}* continua no *{$lw['vendedor_nome']}* e o slot de leilão volta pra ele."
+                 : "Nenhuma proposta aceita. *{$linhaJog}* continua no *{$lw['vendedor_nome']}*.");
     }
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO);
 }
