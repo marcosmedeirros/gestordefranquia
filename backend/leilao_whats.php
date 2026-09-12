@@ -153,6 +153,7 @@ function lwLinhaPick(array $pk, int $donoTeamId): string
     if ((int)$pk['original_team_id'] !== $donoTeamId && !empty($pk['origem'])) {
         $txt .= ' (' . $pk['origem'] . ')';
     }
+    if (!empty($pk['swap_type'])) $txt .= ' [Swap ' . strtoupper($pk['swap_type']) . ']';
     return $txt;
 }
 
@@ -170,7 +171,7 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
     $st->execute([$propostaId]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $linhas[] = '* ' . lwLinhaJogador($p);
 
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, o.name AS origem
+    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
                            FROM leilao_proposta_picks x JOIN picks pk ON pk.id = x.pick_id
                       LEFT JOIN teams o ON o.id = pk.original_team_id
                           WHERE x.proposta_id = ? ORDER BY x.id");
@@ -190,7 +191,7 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
                            JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ? ORDER BY x.id");
     $st->execute([$propostaId]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $extras[] = '* ' . lwLinhaJogador($p);
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, o.name AS origem
+    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
                            FROM leilao_proposta_extra_picks x JOIN picks pk ON pk.id = x.pick_id
                       LEFT JOIN teams o ON o.id = pk.original_team_id
                           WHERE x.proposta_id = ? ORDER BY x.id");
@@ -413,9 +414,9 @@ function lwLerPick(string $texto): ?array
 
 /** Acha a pick do time. Devolve [pick|null, erro|null]. */
 /** Acha a pick do time. $rodada null = qualquer rodada ("Pick 26"). Devolve [pick|null, erro|null]. */
-function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $rodada, string $origem): array
+function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $rodada, string $origem, ?string $swap = null): array
 {
-    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, pk.team_id,
+    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, pk.team_id, pk.swap_type,
                                 o.name AS origem, o.city AS origem_cidade
                            FROM picks pk LEFT JOIN teams o ON o.id = pk.original_team_id
                           WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) = ?"
@@ -431,6 +432,13 @@ function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $
     if ($origem !== '') {
         $lista = array_values(array_filter($lista, fn($p) =>
             lwNomeCasa($origem, (string)$p['origem']) || lwNomeCasa($origem, trim($p['origem_cidade'] . ' ' . $p['origem']))));
+    }
+    /* "[Swap SW]" / "[Swap SB]": o swap que a OFERTA propõe (pick ainda sem
+       swap — o jeito como a tela de trade escreve) ou uma pick que já está num
+       swap daquele mesmo lado. Travada no lado oposto não serve. */
+    if ($swap !== null) {
+        $lista = array_values(array_filter($lista, fn($p) => empty($p['swap_type']) || strtoupper((string)$p['swap_type']) === $swap));
+        $rot .= " [Swap {$swap}]";
     }
     if (count($lista) === 1) return [$lista[0], null];
     if (!$lista) return [null, "você não tem a pick {$ano}{$rot}" . ($origem !== '' ? " ({$origem})" : '')];
@@ -770,14 +778,15 @@ function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto
     $ctx = $st->fetch(PDO::FETCH_ASSOC);
     if (!$ctx) return null;
 
-    $pick = fn(array $pk) => 'Pick ' . (int)$pk['round'] . 'R ' . (int)$pk['season_year'] . ' (' . ($pk['origem'] ?: '?') . ')';
+    $pick = fn(array $pk) => 'Pick ' . (int)$pk['round'] . 'R ' . (int)$pk['season_year'] . ' (' . ($pk['origem'] ?: '?') . ')'
+                           . (!empty($pk['swap_type']) ? ' [Swap ' . strtoupper($pk['swap_type']) . ']' : '');
     $itens = function (string $tabJog, string $tabPick) use ($pdo, $propostaId, $pick): array {
         $linhas = [];
         $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM {$tabJog} x JOIN players p ON p.id = x.player_id
                               WHERE x.proposta_id = ? ORDER BY x.id");
         $st->execute([$propostaId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $linhas[] = lwLinhaJogador($p);
-        $st = $pdo->prepare("SELECT pk.season_year, pk.round, o.name AS origem FROM {$tabPick} x
+        $st = $pdo->prepare("SELECT pk.season_year, pk.round, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem FROM {$tabPick} x
                                JOIN picks pk ON pk.id = x.pick_id LEFT JOIN teams o ON o.id = pk.original_team_id
                               WHERE x.proposta_id = ? ORDER BY CAST(pk.season_year AS UNSIGNED), pk.round, x.id");
         $st->execute([$propostaId]);
@@ -923,6 +932,15 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
             $item = trim($item);
             if ($item === '') continue;
 
+            /* "2031 · 1ª Round (Louisville Shuffle) [Swap SW]" — o jeito como a tela
+               de trade escreve um swap. O marcador sai do texto (senão virava
+               parte da origem) e vai junto da pick como o lado proposto. */
+            $swap = null;
+            if (preg_match('/\[?\s*swap\s*[-:]?\s*(sw|sb)\s*\]?/iu', $item, $mSw)) {
+                $swap = strtoupper($mSw[1]);
+                $item = trim(preg_replace('/\s+/', ' ', str_replace($mSw[0], ' ', $item)));
+            }
+
             /* "Pick 3", "Pick 23", "Escolha 23" sem ano: a posição no draft atual —
                mas SÓ se essa pick estiver com um dos dois times (e bater com o
                parêntese, se tiver). Não bateu: segue a leitura de sempre, em que
@@ -963,9 +981,11 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
                     $rodada = (int)$pick[3] <= $timesPorLiga[$liga] ? 1 : 2;
                 }
                 $dono = $primeiro;
-                [$pk] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem);
-                if (!$pk) { $dono = $segundo; [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem); }
+                [$pk] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem, $swap);
+                if (!$pk) { $dono = $segundo; [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem, $swap); }
                 if (!$pk) { $naoAchei[] = $item; continue; }
+                // Lado do swap proposto (só se a pick ainda não está num swap).
+                $pk['swap_proposto'] = ($swap !== null && empty($pk['swap_type'])) ? $swap : null;
                 if ($dono === $teamId) $enviaPicks[(int)$pk['id']] = $pk;
                 else                   $extraPicks[(int)$pk['id']] = $pk;
                 continue;
@@ -1046,12 +1066,13 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
 
         $ins = $pdo->prepare("INSERT INTO leilao_proposta_jogadores (proposta_id, player_id) VALUES (?, ?)");
         foreach (array_keys($envia) as $pid) $ins->execute([$propostaId, $pid]);
-        $ins = $pdo->prepare("INSERT INTO leilao_proposta_picks (proposta_id, pick_id) VALUES (?, ?)");
-        foreach (array_keys($enviaPicks) as $pid) $ins->execute([$propostaId, $pid]);
+        // swap_type = o lado do swap proposto ("[Swap SW]"), quando houver.
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, ?)");
+        foreach ($enviaPicks as $pid => $pk) $ins->execute([$propostaId, $pid, $pk['swap_proposto'] ?? null]);
         $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_players (proposta_id, player_id) VALUES (?, ?)");
         foreach (array_keys($extra) as $pid) $ins->execute([$propostaId, $pid]);
-        $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, NULL)");
-        foreach (array_keys($extraPicks) as $pid) $ins->execute([$propostaId, $pid]);
+        $ins = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, ?)");
+        foreach ($extraPicks as $pid => $pk) $ins->execute([$propostaId, $pid, $pk['swap_proposto'] ?? null]);
 
         $pdo->prepare("INSERT INTO leilao_whats_propostas (lw_id, proposta_id, team_id, autor_jid, texto) VALUES (?, ?, ?, ?, ?)")
             ->execute([(int)$lw['id'], $propostaId, $teamId, mb_substr($jid, 0, 80), mb_substr(trim($texto), 0, 1500)]);
@@ -1484,6 +1505,29 @@ function lwTrocaAindaPossivel(PDO $pdo, array $lw, array $vencedor): ?string
         if ((int)$pk['team_id'] !== $seller) return "a Pick {$pk['season_year']} R{$pk['round']} não é mais do {$lw['vendedor_nome']}";
         if (!empty($usadas[(int)$pk['id']])) return "a Pick {$pk['season_year']} R{$pk['round']} já foi usada no draft";
     }
+
+    /* Swap combinado na proposta: as mesmas regras da trade. Só pick de 1ª
+       rodada, sem trava de swap, e com par do outro time — mesmo ano, lado
+       oposto. Pick que já estava num swap só muda de dono (não entra aqui). */
+    $st = $pdo->prepare("SELECT 'oferta' AS lado, UPPER(x.swap_type) AS papel, CAST(pk.season_year AS UNSIGNED) AS ano,
+                                pk.round, pk.swap_type AS atual, pk.swap_locked
+                           FROM leilao_proposta_picks x JOIN picks pk ON pk.id = x.pick_id
+                          WHERE x.proposta_id = ? AND UPPER(x.swap_type) IN ('SB','SW')
+                         UNION ALL
+                         SELECT 'vendedor', UPPER(x.swap_type), CAST(pk.season_year AS UNSIGNED), pk.round, pk.swap_type, pk.swap_locked
+                           FROM leilao_proposta_extra_picks x JOIN picks pk ON pk.id = x.pick_id
+                          WHERE x.proposta_id = ? AND UPPER(x.swap_type) IN ('SB','SW')");
+    $st->execute([(int)$vencedor['proposta_id'], (int)$vencedor['proposta_id']]);
+    $swaps = array_values(array_filter($st->fetchAll(PDO::FETCH_ASSOC), fn($s) => empty($s['atual'])));
+    foreach ($swaps as $s) {
+        if ((string)$s['round'] !== '1') return "swap só vale pra pick de 1ª rodada (a Pick {$s['ano']} R{$s['round']} não pode)";
+        if (!empty($s['swap_locked'])) return "a Pick {$s['ano']} R1 está travada pra swap";
+        $temPar = false;
+        foreach ($swaps as $o) {
+            if ($o['lado'] !== $s['lado'] && (int)$o['ano'] === (int)$s['ano'] && $o['papel'] !== $s['papel']) { $temPar = true; break; }
+        }
+        if (!$temPar) return "o swap da Pick {$s['ano']} R1 [Swap {$s['papel']}] ficou sem a pick do outro time";
+    }
     return null;
 }
 
@@ -1527,5 +1571,54 @@ function lwExecutarTroca(PDO $pdo, array $lw, array $vencedor): void
     if ($extraPicks) {
         $ph = implode(',', array_fill(0, count($extraPicks), '?'));
         $pdo->prepare("UPDATE picks SET team_id = ? WHERE id IN ($ph)")->execute(array_merge([$winner], $extraPicks));
+    }
+
+    lwAplicarSwaps($pdo, $propostaId, (string)($lw['liga'] ?? ''));
+}
+
+/**
+ * Os swaps combinados na proposta ("[Swap SW]" / "[Swap SB]"), do jeito da trade:
+ * a pick de quem oferta faz par com a do vendedor do MESMO ano e do lado
+ * oposto; cada uma guarda o lado (swap_type), a outra (swap_pair_pick_id) e fica
+ * travada (swap_locked). As picks já mudaram de dono antes — quem fica com a
+ * SB escolhe na vaga melhor das duas. Pick que já estava num swap só muda de
+ * dono: o swap dela continua o mesmo. Chamar com a transação aberta.
+ */
+function lwAplicarSwaps(PDO $pdo, int $propostaId, string $liga): void
+{
+    $marcadas = function (string $tabela) use ($pdo, $propostaId): array {
+        $st = $pdo->prepare("SELECT x.pick_id, UPPER(x.swap_type) AS papel, CAST(pk.season_year AS UNSIGNED) AS ano, pk.swap_type AS atual
+                               FROM {$tabela} x JOIN picks pk ON pk.id = x.pick_id
+                              WHERE x.proposta_id = ? AND UPPER(x.swap_type) IN ('SB','SW')");
+        $st->execute([$propostaId]);
+        return array_values(array_filter($st->fetchAll(PDO::FETCH_ASSOC), fn($r) => empty($r['atual'])));
+    };
+    $deQuemOferta = $marcadas('leilao_proposta_picks');
+    $doVendedor   = $marcadas('leilao_proposta_extra_picks');
+    if (!$deQuemOferta || !$doVendedor) return;
+
+    $marcar = $pdo->prepare('UPDATE picks SET swap_type = ?, swap_pair_pick_id = ?, swap_locked = 1 WHERE id = ? AND swap_type IS NULL');
+    $jaPareada = [];
+    $criou = false;
+    foreach ($deQuemOferta as $a) {
+        foreach ($doVendedor as $b) {
+            if (isset($jaPareada[$b['pick_id']]) || (int)$a['ano'] !== (int)$b['ano'] || $a['papel'] === $b['papel']) continue;
+            $marcar->execute([$a['papel'], (int)$b['pick_id'], (int)$a['pick_id']]);
+            $marcar->execute([$b['papel'], (int)$a['pick_id'], (int)$b['pick_id']]);
+            $jaPareada[$b['pick_id']] = true;
+            $criou = true;
+            continue 2;
+        }
+    }
+
+    // Ordem do draft já montada: o swap novo tem que valer nela, como na trade.
+    if ($criou && $liga !== '') {
+        try {
+            require_once __DIR__ . '/draft_swaps.php';
+            $ds = findActiveDraftSession($pdo, $liga, null, null);
+            if ($ds) draftSincronizarOrdem($pdo, (int)$ds['id']);
+        } catch (Throwable $e) {
+            error_log('[leilao_whats] swap na ordem do draft: ' . $e->getMessage());
+        }
     }
 }
