@@ -859,6 +859,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             closeWithoutWinner($pdo, $body);
             break;
+        case 'resolver_fa':
+            // Resolve a FA inteira da liga: botão "Resolver FA" e fechamento.
+            if (!$is_admin) { jsonError('Acesso negado', 403); }
+            $ligaResolver = strtoupper(trim((string)($body['league'] ?? '')));
+            if (!in_array($ligaResolver, getAdminLeagues($pdo, (int)$user_id), true)) {
+                jsonError('Você não administra essa liga', 403);
+            }
+            try {
+                jsonSuccess(['league' => $ligaResolver] + faResolverLiga($pdo, $ligaResolver, (int)$user_id));
+            } catch (Throwable $e) {
+                error_log('[fa/resolver] ' . $e->getMessage());
+                jsonError('Erro ao resolver a Free Agency.', 500);
+            }
+            break;
         case 'admin_fa_revert':
             if (!$is_admin) { jsonError('Acesso negado', 403); }
             adminFaRevert($pdo, $body, $user_id);
@@ -1808,9 +1822,25 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
 
 function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
 {
-    $offerId = (int)($body['offer_id'] ?? 0);
+    $r = faAtribuirOferta($pdo, (int)($body['offer_id'] ?? 0), $adminId);
+    if (!$r['ok']) jsonError($r['erro'], $r['status'] ?? 400);
+    jsonSuccess(['message' => $r['message']]);
+}
+
+/**
+ * Dá o jogador pro time da proposta — o "Aprovar" do admin.
+ *
+ * Saiu de assignNewFaRequest pra DEVOLVER o resultado em vez de encerrar a
+ * requisição: a resolução da FA inteira (faResolverLiga) chama isto em série,
+ * e um jsonError no meio pararia tudo no primeiro lance recusado. As regras
+ * são as mesmas nos dois caminhos, então o automático decide igual ao manual.
+ *
+ * @return array{ok:bool, erro?:string, status?:int, message?:string}
+ */
+function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
+{
     if (!$offerId) {
-        jsonError('Proposta invalida');
+        return ['ok' => false, 'erro' => 'Proposta invalida'];
     }
 
     $stmt = $pdo->prepare('
@@ -1826,27 +1856,28 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
     $offer = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$offer || $offer['status'] !== 'pending' || $offer['request_status'] !== 'open') {
-        jsonError('Proposta nao encontrada');
+        return ['ok' => false, 'erro' => 'Proposta nao encontrada'];
     }
     /* Na ELITE o lance é salário em milhões, não moeda: comparar os dois
        recusava proposta legítima — um lance de 7M num time com 3 moedas era
        barrado como "sem saldo". Quem manda lá é o cap, conferido logo abaixo. */
+    $nomeTime = trim($offer['team_city'] . ' ' . $offer['team_name']);
     if (!faCapAplica($pdo, (int)$offer['team_id'])
         && (int)$offer['moedas'] < (int)$offer['amount']) {
-        jsonError('Time nao tem moedas suficientes');
+        return ['ok' => false, 'erro' => "{$nomeTime} nao tem moedas suficientes"];
     }
 
     if (getTeamFaWins($pdo, (int)$offer['team_id']) >= 3) {
-        jsonError('Este time ja atingiu o limite de 3 contratacoes na Free Agency');
+        return ['ok' => false, 'erro' => "{$nomeTime} ja atingiu o limite de 3 contratacoes na Free Agency"];
     }
 
     // O espaço pode ter sumido entre a proposta e a aprovação — o time pode
     // ter assinado outro no meio do caminho.
     $fit = faCap($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
     if (!$fit['cabe']) {
-        jsonError($offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
-                . ' e o cap de ' . $offer['team_city'] . ' ' . $offer['team_name'] . ' não cobre: '
-                . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
+        return ['ok' => false, 'erro' => $offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                . ' e o cap de ' . $nomeTime . ' não cobre: '
+                . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.'];
     }
 
     $pdo->beginTransaction();
@@ -1927,13 +1958,81 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
         cancelarPropostasSemEspacoNoCap($pdo, (int)$offer['team_id']);
 
         $pdo->commit();
-        jsonSuccess([
-            'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])
-        ]);
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        jsonError('Erro ao aprovar solicitacao.', 500);
+        return ['ok' => true,
+                'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fa/atribuir] ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Erro ao aprovar solicitacao.', 'status' => 500];
     }
+}
+
+/**
+ * RESOLVE A FREE AGENCY DA LIGA INTEIRA — o "Resolver FA" e o fechamento.
+ *
+ * Cada jogador em aberto vai pro melhor lance que passar nas regras do
+ * "Aprovar" (moedas, limite de 3 contratações, cap na ELITE), na ordem
+ * oficial de faOrdenarPropostas. Lance barrado é recusado e o próximo é
+ * tentado. Jogador sem lance válido — ou sem lance nenhum — fica recusado,
+ * com os lances dele: a FA fechou e não há mais o que decidir. Nada é
+ * apagado, tudo fica no histórico.
+ *
+ * Os jogadores de maior lance são resolvidos primeiro: um time com uma vaga
+ * sobrando leva o que ele mais quis pagar, não o que calhou de vir antes.
+ *
+ * @return array{contratados:string[], sem_vencedor:string[], recusados:string[]}
+ */
+function faResolverLiga(PDO $pdo, string $league, int $adminId): array
+{
+    $league = strtoupper(trim($league));
+    $st = $pdo->prepare("SELECT r.id AS request_id, r.player_name,
+                                o.id, o.team_id, o.amount, o.priority, o.created_at,
+                                TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS team_name
+                           FROM fa_requests r
+                      LEFT JOIN fa_request_offers o ON o.request_id = r.id AND o.status = 'pending'
+                      LEFT JOIN teams t ON t.id = o.team_id
+                          WHERE r.league = ? AND r.status = 'open'");
+    $st->execute([$league]);
+
+    $pedidos = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        $rid = (int)$l['request_id'];
+        $pedidos[$rid] ??= ['nome' => $l['player_name'], 'ofertas' => []];
+        if ($l['id']) {
+            $pedidos[$rid]['ofertas'][] = [
+                'id' => (int)$l['id'], 'team_id' => (int)$l['team_id'], 'team_name' => $l['team_name'],
+                'amount' => (int)$l['amount'], 'priority' => (int)$l['priority'], 'created_at' => $l['created_at'],
+            ];
+        }
+    }
+    $maior = fn($p) => $p['ofertas'] ? max(array_column($p['ofertas'], 'amount')) : -1;
+    uasort($pedidos, fn($a, $b) => $maior($b) <=> $maior($a));
+
+    $aindaPendente = $pdo->prepare("SELECT status FROM fa_request_offers WHERE id = ?");
+    $recusarOferta = $pdo->prepare("UPDATE fa_request_offers SET status = 'rejected' WHERE id = ? AND status = 'pending'");
+    $recusarResto  = $pdo->prepare("UPDATE fa_request_offers SET status = 'rejected' WHERE request_id = ? AND status = 'pending'");
+    $fecharPedido  = $pdo->prepare("UPDATE fa_requests SET status = 'rejected', resolved_at = NOW() WHERE id = ? AND status = 'open'");
+
+    $contratados = []; $semVencedor = []; $recusados = [];
+    foreach ($pedidos as $rid => $p) {
+        $levou = false;
+        foreach (faOrdenarPropostas($pdo, $p['ofertas'], $league) as $o) {
+            // Uma contratação anterior pode ter cancelado este lance (sem cap).
+            $aindaPendente->execute([$o['id']]);
+            if ($aindaPendente->fetchColumn() !== 'pending') continue;
+
+            $r = faAtribuirOferta($pdo, (int)$o['id'], $adminId);
+            if ($r['ok']) { $contratados[] = $r['message']; $levou = true; break; }
+            $recusarOferta->execute([$o['id']]);
+            $recusados[] = "{$p['nome']} — {$o['team_name']}: {$r['erro']}";
+        }
+        if (!$levou) {
+            $recusarResto->execute([$rid]);
+            $fecharPedido->execute([$rid]);
+            $semVencedor[] = $p['nome'];
+        }
+    }
+    return ['contratados' => $contratados, 'sem_vencedor' => $semVencedor, 'recusados' => $recusados];
 }
 
 function rejectNewFaRequest(PDO $pdo, array $body): void

@@ -7760,8 +7760,12 @@ async function showFAAdmin() {
     </div>
 
     <div class="panel mb-4">
-      <div class="panel-header">
+      <div class="panel-header" style="flex-wrap:wrap;gap:8px">
         <div class="panel-title"><i class="bi bi-person-check-fill" style="color:var(--red);margin-right:8px;"></i>Solicitações Free Agency — ${league}</div>
+        <button class="btn btn-sm btn-success fw-bold" style="margin-left:auto" onclick="_faResolverTudo('${league}', this)"
+                title="Cada jogador vai pro maior lance válido; o resto fica recusado">
+          <i class="bi bi-lightning-charge-fill me-1"></i>Resolver FA
+        </button>
       </div>
       <input type="hidden" id="faNewAdminLeague" value="${league}">
       <div id="faNewAdminRequests"><p class="empty-state">Carregando...</p></div>
@@ -8742,10 +8746,51 @@ async function toggleFA(league, enabled) {
       badge.className = 'lgcfg-selo ' + (on ? 'on' : 'off');
       badge.removeAttribute('style');
     }
-    showAlert('success', `Free Agency ${on ? 'ativada' : 'desativada'} para a liga ${league}!`);
+    if (on) {
+      showAlert('success', `Free Agency ativada para a liga ${league}!`);
+      return;
+    }
+    /* FECHOU = RESOLVE. Cada jogador vai pro maior lance válido e o resto
+       fica recusado, sem o admin aprovar um por um. */
+    showAlert('info', `Free Agency fechada na ${league}. Resolvendo os lances…`);
+    const r = await _faResolverLiga(league);
+    if (r) showAlert('success', `Free Agency fechada na ${league}. ` + _faResumoResolucao(r));
   } catch (e) {
     showAlert('danger', 'Erro ao atualizar status da Free Agency');
   }
+}
+
+/** Chama a resolução da FA da liga. Devolve o resumo, ou null (e avisa) se falhar. */
+async function _faResolverLiga(league) {
+  try {
+    const r = await fetch('/api/free-agency.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resolver_fa', league })
+    }).then(x => x.json());
+    if (!r || !r.success) throw r || {};
+    return r;
+  } catch (e) {
+    showAlert('danger', `Não deu pra resolver a Free Agency da ${league}: ${(e && (e.error || e.message)) || 'erro'}. Tente o botão "Resolver FA".`);
+    return null;
+  }
+}
+
+function _faResumoResolucao(r) {
+  const c = (r.contratados || []).length, s = (r.sem_vencedor || []).length;
+  if (!c && !s) return 'Não havia lances pendentes.';
+  return `${c} contratação${c === 1 ? '' : 'ões'} feita${c === 1 ? '' : 's'}`
+       + (s ? ` · ${s} jogador${s === 1 ? '' : 'es'} sem lance válido (recusado${s === 1 ? '' : 's'})` : '') + '.';
+}
+
+async function _faResolverTudo(league, btn) {
+  if (!confirm(`Resolver toda a Free Agency da ${league}?\n\nCada jogador vai pro maior lance válido. Quem não tiver lance válido fica como recusado.`)) return;
+  if (btn) btn.disabled = true;
+  const r = await _faResolverLiga(league);
+  if (btn) btn.disabled = false;
+  if (!r) return;
+  showAlert('success', `FA da ${league} resolvida: ` + _faResumoResolucao(r));
+  if (typeof carregarSolicitacoesNovaFA === 'function') carregarSolicitacoesNovaFA();
+  if (typeof loadAdminFaHistory === 'function') loadAdminFaHistory();
 }
 
 async function approveUser(userId, username) {
