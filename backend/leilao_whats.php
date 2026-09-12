@@ -513,26 +513,8 @@ function lwReceberProposta(PDO $pdo, array $lw, array $time, array $itens, strin
     }
     if ($erros) return "❌ Proposta não enviada:\n• " . implode("\n• ", $erros);
 
-    // Cap: mesma trava do leilão no app — só o teto, só onde a liga usa salário.
+    // Leilão não tem teto salarial (regra da liga): nenhuma conta de cap aqui.
     $liga = (string)$lw['liga'];
-    try {
-        if (capLigaUsaSalario($pdo, $liga)) {
-            $doVendedor = capSalariosDoTime($pdo, (int)$lw['vendedor_team_id'], $liga);
-            $meus = capSalariosDoTime($pdo, $teamId, $liga);
-            $recebe = (int)($doVendedor[(int)$lw['player_id']] ?? 0);
-            $envia = 0;
-            foreach (array_keys($jogadores) as $pid) $envia += (int)($meus[$pid] ?? 0);
-            $espaco = (int)(getTeamCapSummary($pdo, $teamId)['space'] ?? 0);
-            $delta = $recebe - $envia;
-            if ($delta > max(0, $espaco)) {
-                $falta = $delta - max(0, $espaco);
-                return "❌ Essa proposta te deixa {$falta}M acima do teto: você recebe {$recebe}M, manda {$envia}M "
-                     . "e tem {$espaco}M de espaço. Inclua mais salário.";
-            }
-        }
-    } catch (Throwable $e) {
-        error_log('[leilao_whats] cap: ' . $e->getMessage());
-    }
 
     $pdo->beginTransaction();
     try {
@@ -700,25 +682,7 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
              . "\n\nExemplo:\n/oferta Jogador + Pick 2026 R1";
     }
 
-    // Cap: só o teto, só onde a liga usa salário — agora contando o que vem junto.
-    try {
-        if (capLigaUsaSalario($pdo, $liga)) {
-            $doVendedor = capSalariosDoTime($pdo, $sellerId, $liga);
-            $meus = capSalariosDoTime($pdo, $teamId, $liga);
-            $recebe = (int)($doVendedor[(int)$lw['player_id']] ?? 0);
-            foreach (array_keys($extra) as $pid) $recebe += (int)($doVendedor[$pid] ?? 0);
-            $manda = 0;
-            foreach (array_keys($envia) as $pid) $manda += (int)($meus[$pid] ?? 0);
-            $espaco = (int)(getTeamCapSummary($pdo, $teamId)['space'] ?? 0);
-            if ($recebe - $manda > max(0, $espaco)) {
-                $falta = $recebe - $manda - max(0, $espaco);
-                return "❌ Essa oferta te deixa {$falta}M acima do teto: você recebe {$recebe}M, manda {$manda}M "
-                     . "e tem {$espaco}M de espaço. Inclua mais salário.";
-            }
-        }
-    } catch (Throwable $e) {
-        error_log('[leilao_whats] cap livre: ' . $e->getMessage());
-    }
+    // Leilão não tem teto salarial (regra da liga): nenhuma conta de cap aqui.
 
     $pdo->beginTransaction();
     try {
