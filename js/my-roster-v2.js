@@ -1628,6 +1628,27 @@ document.addEventListener('DOMContentLoaded', () => {
      tem" é ruído na barra de ações. */
   let badgeSaldo = 0, badgeCompradas = 0, badgePendentes = 0;
 
+  async function cancelarPedidoBadge(btn) {
+    const nome = btn.dataset.nome || 'esse pedido';
+    const texto = `Cancelar o pedido "${nome}"? A badge continua sua pra pedir de novo.`;
+    const ok = typeof confirmarSite === 'function'
+      ? await confirmarSite(texto, { titulo: 'Cancelar pedido de badge', confirmar: 'Cancelar pedido' })
+      : confirm(texto);
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      await api('tapas.php?action=cancel_badge', {
+        method: 'POST',
+        body: JSON.stringify({ request_id: Number(btn.dataset.cancelarBadge) }),
+      });
+      await carregarBadges();   // saldo e lista na hora
+    } catch (err) {
+      btn.disabled = false;
+      alert(err.error || err.message || 'Não deu pra cancelar agora.');
+      carregarBadges();
+    }
+  }
+
   async function carregarBadges() {
     try {
       const d = await api('tapas.php?action=badges_status');
@@ -1656,8 +1677,18 @@ document.addEventListener('DOMContentLoaded', () => {
             + ped.slice(0, 5).map(p => `<div style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 0">
                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.badge_name || '—'} · ${p.player_name}</span>
                  <span style="color:${cor[p.status] || 'var(--text-3)'};font-weight:700;font-size:11px">${rot[p.status] || p.status}</span>
+                 ${p.status === 'pending'
+                   ? `<button type="button" data-cancelar-badge="${Number(p.id)}"
+                        data-nome="${String(p.badge_name || '').replace(/"/g, '&quot;')} · ${String(p.player_name || '').replace(/"/g, '&quot;')}"
+                        title="Cancelar este pedido" aria-label="Cancelar pedido de badge"
+                        style="background:transparent;border:1px solid var(--border-md);color:var(--text-2);border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer">Cancelar</button>`
+                   : ''}
                </div>`).join('')
           : '';
+        // Só o que ainda está aguardando pode ser cancelado: aprovado já foi pro
+        // jogo, recusado já devolveu a badge.
+        box.querySelectorAll('[data-cancelar-badge]').forEach(b =>
+          b.addEventListener('click', () => cancelarPedidoBadge(b)));
       }
     } catch (e) { /* sem badge, sem botão — silêncio é o certo aqui */ }
   }

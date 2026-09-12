@@ -553,4 +553,28 @@ if ($method === 'POST' && $action === 'request_badge') {
          'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'], (int)$team['id'])]);
 }
 
+// ── POST cancel_badge ─────────────────────────────────────────────────────────
+// O GM desiste de um pedido de badge que a organização ainda não respondeu.
+// Não há o que devolver: a badge só sai do inventário quando o admin APLICA,
+// então apagar o pedido pendente já libera a vaga pra pedir de novo.
+if ($method === 'POST' && $action === 'cancel_badge') {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $requestId = (int)($body['request_id'] ?? 0);
+    if (!$requestId) err('Pedido inválido');
+
+    $stmtT = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtT->execute([$user['id']]);
+    $team = $stmtT->fetch(PDO::FETCH_ASSOC);
+    if (!$team) err('Time não encontrado');
+
+    $rows = $pdo->prepare("DELETE FROM tapas_requests
+                            WHERE id = ? AND team_id = ? AND action_type = 'badge' AND status = 'pending'");
+    $rows->execute([$requestId, $team['id']]);
+    if ($rows->rowCount() === 0) err('Esse pedido não está mais aguardando — a organização já respondeu.');
+
+    out(['success' => true,
+         'message' => 'Pedido de badge cancelado. A badge continua sua.',
+         'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'], (int)$team['id'])]);
+}
+
 err('Ação inválida');
