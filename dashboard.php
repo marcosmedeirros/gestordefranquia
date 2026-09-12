@@ -2337,11 +2337,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const startersMap = {};
         positions.forEach(p => startersMap[p] = null);
         const fmt = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
-        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
+        // "Substituir nome" marcado: na cópia o jogador sai pelo texto da tag (no app continua o nome).
+        const nomeDe = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? p.player_tag : (p ? p.name : '');
         // Salário só existe na ELITE — o PHP só preenche p.salary lá.
         const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
-        const fmtLine = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
-        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
+        const fmtLine = (label, p) => p ? `${label}: ${nomeDe(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
 
         rosterData.filter(p => p.role === 'Titular').forEach(p => { if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p; });
         const bench   = rosterData.filter(p => p.role === 'Banco');

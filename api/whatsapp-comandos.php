@@ -3581,9 +3581,77 @@ function wcNomeDoComando(string $texto): string
     return mb_strtolower($partes[0] ?? '');
 }
 
+/**
+ * Comandos que falam de negócio fechado ou em andamento — leilão, oferta,
+ * decisão de proposta. Neles o jogador aparece SEMPRE pelo nome real: é o nome
+ * que identifica quem vai pra onde, e o apelido ali só confundiria.
+ */
+const WC_SEM_APELIDO = ['aceitar', 'recusar', 'jogosemana', 'jogodasemana', 'leilao', 'oferta', 'lance', 'lances'];
+
+/**
+ * "SUBSTITUIR NOME" (players.player_tag_copy): no WhatsApp o jogador aparece
+ * pelo texto da tag. É só estético — no app nada muda, e a busca continua pelo
+ * nome real (/jogador LeBron James acha e responde "King James").
+ *
+ * A troca é feita no texto pronto, depois do comando, pra valer em qualquer
+ * resposta sem mexer em cada consulta. Pra não trocar o jogador errado:
+ * - só olha a liga do grupo, quando o grupo é de uma liga;
+ * - nome repetido nesse escopo (homônimo) fica de fora — não dá pra saber de
+ *   qual dos dois o texto está falando.
+ */
+function wcAplicarApelidos(PDO $pdo, string $texto, ?string $liga, bool $recarregar = false): string
+{
+    if ($texto === '') return $texto;
+    static $cache = [];
+    $chave = strtoupper((string)$liga);
+    if ($recarregar || !isset($cache[$chave])) {
+        $filtroLiga = $chave !== '' ? ' AND t.league = ?' : '';
+        $params = $chave !== '' ? [$chave] : [];
+        $st = $pdo->prepare("SELECT TRIM(p.name) AS nome, TRIM(p.player_tag) AS tag
+                               FROM players p JOIN teams t ON t.id = p.team_id
+                              WHERE p.player_tag_copy = 1 AND p.player_tag IS NOT NULL AND TRIM(p.player_tag) <> ''{$filtroLiga}");
+        $st->execute($params);
+        $mapa = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if ($r['nome'] === '' || mb_strtolower($r['nome']) === mb_strtolower($r['tag'])) continue;
+            $mapa[$r['nome']] = $r['tag'];
+        }
+        if ($mapa) {
+            $ph = implode(',', array_fill(0, count($mapa), '?'));
+            $st = $pdo->prepare("SELECT TRIM(p.name) AS nome, COUNT(*) AS n FROM players p JOIN teams t ON t.id = p.team_id
+                                  WHERE TRIM(p.name) IN ($ph){$filtroLiga} GROUP BY TRIM(p.name) HAVING COUNT(*) > 1");
+            $st->execute(array_merge(array_keys($mapa), $params));
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) unset($mapa[$r['nome']]);
+        }
+        // Nome mais longo primeiro: "Gary Payton II" antes de "Gary Payton".
+        uksort($mapa, fn($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+        $cache[$chave] = $mapa;
+    }
+    foreach ($cache[$chave] as $nome => $tag) {
+        $texto = preg_replace('/(?<![\p{L}\p{N}])' . preg_quote($nome, '/') . '(?![\p{L}\p{N}])/iu', addcslashes($tag, '\\$'), $texto);
+    }
+    return $texto;
+}
+
 function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
                             string $deQuem = '', string $grupoJid = '',
                             string $gatilho = 'comando'): ?string
+{
+    $resposta = wcResponderComandoCru($pdo, $texto, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
+    if ($resposta === null || $resposta === '') return $resposta;
+    if (in_array(wcNomeDoComando($texto), WC_SEM_APELIDO, true)) return $resposta;
+    try {
+        return wcAplicarApelidos($pdo, $resposta, $ligaDoGrupo);
+    } catch (Throwable $e) {
+        // Apelido é enfeite: se der erro, vai o nome real.
+        error_log('[whatsapp-cmd] apelidos: ' . $e->getMessage());
+        return $resposta;
+    }
+}
+
+function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
+                               string $deQuem = '', string $grupoJid = '',
+                               string $gatilho = 'comando'): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;

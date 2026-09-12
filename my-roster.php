@@ -1142,7 +1142,9 @@ if ($teamId) {
                             <div style="grid-column: span 4; display:flex; align-items:center; gap:10px; padding-top:22px;">
                                 <div class="form-check" style="margin:0;">
                                     <input class="form-check-input" type="checkbox" id="edit-tag-copy">
-                                    <label class="form-check-label" for="edit-tag-copy">Incluir na cópia do time</label>
+                                    <label class="form-check-label" for="edit-tag-copy"
+                                           title="Na cópia do time e no bot do WhatsApp o jogador aparece pelo texto da tag. No app continua o nome; leilão e oferta também.">Substituir nome
+                                        <span style="display:block;color:var(--text-3);font-size:10.5px;font-weight:500;">Só na cópia e no bot do WhatsApp — no app, no leilão e na oferta fica o nome.</span></label>
                                 </div>
                             </div>
                         </div>
@@ -1403,11 +1405,12 @@ if ($teamId) {
         // Number(age) antes do teste: o PDO devolve colunas numéricas como string ("24"), e
         // Number.isFinite("24") é false — a idade saía como "-" em toda cópia.
         const fmt    = age => { const n = Number(age); return (Number.isFinite(n) && n > 0) ? `${n}y` : '-'; };
-        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
+        // "Substituir nome" marcado: na cópia o jogador sai pelo texto da tag (no app continua o nome).
+        const nomeDe = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? p.player_tag : (p ? p.name : '');
         // Salário só existe na ELITE — p.salary só vem preenchido lá.
         const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
-        const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
-        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
+        const fmtLine   = (label, p) => p ? `${label}: ${nomeDe(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
         const isElite   = (_teamMeta.league||'').toUpperCase() === 'ELITE';
 
         _rosterData.filter(p => p.role === 'Titular').forEach(p => {
