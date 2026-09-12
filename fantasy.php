@@ -278,7 +278,7 @@ tr.eu td{background:var(--red-soft)}
       <div class="escudo" id="escudo">F</div>
       <div style="min-width:0">
         <h1><span id="nomeTime">Fantasy FBA</span> <button id="btNome" title="Mudar nome do time" aria-label="Mudar nome do time"><i class="bi bi-pencil"></i></button></h1>
-        <small id="subTime">Fantasy da ELITE · escale 5, escolha o capitão</small>
+        <small id="subTime">Fantasy da ELITE · escale 5 + o 6º homem, escolha o capitão</small>
       </div>
     </div>
     <div class="numeros">
@@ -327,7 +327,7 @@ tr.eu td{background:var(--red-soft)}
             <button class="btn" id="btLimpar">Limpar</button>
           </div>
           <div class="msg" id="msg" role="status"></div>
-          <p class="dica">Toque na bolinha vazia pra filtrar a posição · toque no escalado pra fazer capitão · X tira · o 6º homem (no canto) entra no lugar do pior titular se pontuar mais</p>
+          <p class="dica">Toque na bolinha vazia pra filtrar a posição · toque no escalado pra fazer capitão · X tira · o 6º homem (no canto) é obrigatório e entra no lugar do pior titular se pontuar mais</p>
         </div>
       </div>
     </div>
@@ -517,7 +517,7 @@ function cabecalho() {
   $('nPatrimonio').textContent = 'F$ ' + f1(orcamento());
   const ult = d.historico?.[0];
   $('nUltima').textContent = ult ? f1(ult.pontos) : '—';
-  $('subTime').textContent = ult ? `${ult.colocacao}º na T${ult.temporada}${ult.moedas ? ' · +' + ult.moedas + ' FBA Points' : ''}` : 'Fantasy da ELITE · escale 5, escolha o capitão';
+  $('subTime').textContent = ult ? `${ult.colocacao}º na T${ult.temporada}${ult.moedas ? ' · +' + ult.moedas + ' FBA Points' : ''}` : 'Fantasy da ELITE · escale 5 + o 6º homem, escolha o capitão';
   const num = n => (+n || 0).toLocaleString('pt-BR');
   if (d.saldo) { $('sFbaPts').textContent = num(d.saldo.fba_points); $('sMoedas').textContent = num(d.saldo.moedas); }
 }
@@ -595,10 +595,11 @@ function quadra() {
   $('oCusto').textContent = f1(c);
   $('oSobra').textContent = f1(sobra); $('oSobra').classList.toggle('neg', sobra < 0);
   $('oBase').textContent = f1(POS.reduce((s, p) => { const j = S.esc[p] && S.porId.get(S.esc[p]); return s + (j?.base || 0) * (j && S.cap === j.id ? S.dados.regras.capitao : 1); }, 0));
-  const completo = POS.every(p => S.esc[p]) && S.cap;
+  const completo = POS.every(p => S.esc[p]) && S.cap && S.reserva;
   $('btSalvar').disabled = !aberta() || !completo || sobra < 0;
   $('btLimpar').disabled = !aberta();
   if (!aberta()) aviso(S.dados.rodada?.status === 'fechada' ? 'Mercado fechado: acompanhe as parciais.' : '');
+  else if (POS.every(p => S.esc[p]) && !S.reserva && !S.modoReserva) aviso('Falta o 6º homem pra salvar: toque no 6º, no canto da quadra, e escolha no mercado.', 'err');
   else if (S.sujo) aviso('Escalação da rodada passada. Confira e salve pra valer nesta.');
 }
 
@@ -867,11 +868,11 @@ function regras() {
       <span class="fp"><i class="bi bi-star-fill"></i> Prêmio da rodada em <b>FBA Points</b></span>
       <span><i class="bi bi-coin"></i> Moedas só na entrada das <b>copas</b></span>
     </div>
-    <p><b>Cada temporada da ELITE é uma rodada.</b> Com o mercado aberto, você escala um jogador de cada posição (PG, SG, SF, PF e C) e escolhe o capitão, que pontua <b>${String(g.capitao).replace('.', ',')}×</b>.</p>
+    <p><b>Cada temporada da ELITE é uma rodada.</b> Com o mercado aberto, você escala um jogador de cada posição (PG, SG, SF, PF e C), mais o 6º homem, e escolhe o capitão, que pontua <b>${String(g.capitao).replace('.', ',')}×</b>.</p>
     <p><b>A pontuação é o jogo médio da temporada.</b> Exemplo: 25 pontos, 8 rebotes e 6 assistências = 25 + 12 + 12 = <b>49</b>. Quem jogou só parte da temporada ganha proporcional: 41 de 82 jogos vale metade. No fim somam os bônus.</p>
     <p><b>O preço sai da última temporada:</b> pontos ÷ ${String(g.pontos_por_fs).replace('.', ',')}. Quem fez 60 pontos custa F$ 20. Quando a rodada encerra, o preço de cada jogador vira o que ele pontuou nela — e o seu patrimônio sobe ou cai junto com os cinco que você escalou.</p>
     <p><b>Todo mundo começa com F$ ${Math.round(g.orcamento)}.</b> Na rodada seguinte, seu limite é o patrimônio novo. A escalação passada fica sugerida, mas só vale depois de salvar.</p>
-    <p><b>6º homem:</b> além dos cinco, dá pra escalar um reserva de qualquer posição (o preço entra na conta). Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
+    <p><b>6º homem (obrigatório):</b> além dos cinco, você escala um reserva de qualquer posição (o preço entra na conta) — sem ele a escalação não salva. Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
     <p><b>Prêmio da rodada, em FBA Points:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}. Só o ranking da rodada paga — o ranking geral, o por liga da FBA e as ligas de pontos corridos valem pela disputa.</p>
     <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis: quem cria escolhe de 1 a 20 rodadas e, no fim, quem somou mais é o campeão. <b>Copa</b> é mata-mata de <b>8 ou 16 times</b> e começa sozinha quando completa — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
     <p style="color:var(--text-3)">O mercado fecha antes de a temporada ser jogada. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;

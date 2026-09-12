@@ -440,6 +440,8 @@ function fanSalvarEscalacao(PDO $pdo, array $user, array $corpo): array
 
     // 6º homem é opcional, de qualquer posição, e não pode estar no quinteto.
     $reserva = (int)($corpo['reserva'] ?? 0) ?: null;
+    // O 6º homem é obrigatório pra salvar. Escalação salva antes da regra continua valendo.
+    if (!$reserva) return ['ok' => false, 'erro' => 'Falta o 6º homem: são 5 titulares + 1 reserva pra salvar.'];
     if ($reserva && in_array($reserva, $ids, true)) return ['ok' => false, 'erro' => 'O 6º homem não pode estar no quinteto.'];
     $todos = $reserva ? array_merge($ids, [$reserva]) : $ids;
 
