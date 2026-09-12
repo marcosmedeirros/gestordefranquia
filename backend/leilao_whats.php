@@ -435,9 +435,15 @@ function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $
     if (count($lista) === 1) return [$lista[0], null];
     if (!$lista) return [null, "você não tem a pick {$ano}{$rot}" . ($origem !== '' ? " ({$origem})" : '')];
 
+    // Sem rodada escrita ("pick 2030"), vale a 1ª rodada — é como a liga fala.
+    // Só a 2ª do ano? aí é ela (já saiu acima, com count === 1).
+    if (!$rodada) {
+        $primeiras = array_values(array_filter($lista, fn($p) => (string)$p['round'] === '1'));
+        if (count($primeiras) === 1) return [$primeiras[0], null];
+        if ($primeiras) $lista = $primeiras;
+    }
     // Mais de uma do mesmo ano e rodada: a sua primeiro, se estiver entre elas.
-    // Sem rodada escrita não dá pra escolher sozinho entre R1 e R2 — pergunta.
-    if ($rodada) foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null];
+    foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null];
     $ops = array_map(fn($p) => "Pick {$ano} R{$p['round']} {$p['origem']}", $lista);
     return [null, "você tem mais de uma {$ano}{$rot}. Diz qual: " . implode(' / ', $ops)];
 }
