@@ -669,13 +669,14 @@ function lwTextoComFicha(string $texto, array $jogadores): string
  * A proposta de texto livre no padrão do Gameplay, montada do que o bot reconheceu:
  *
  *   *Waves* oferece:
- *
  *   SF: Taylor Hendricks 76/21y
  *   Pick 1R 2030 (Waves)
  *
- * A pick sai sempre com o time de origem entre parênteses. O que o vendedor
- * manda junto vem num bloco próprio. O que não foi reconhecido vai no fim do
- * jeito que a pessoa escreveu — some do post, não; a adm confere.
+ *   Por PF: Anthony Davis 95/32y + SG: Fulano 80/25y
+ *
+ * A pick sai sempre com o time de origem entre parênteses. O "Por" é o
+ * leiloado mais o que o vendedor manda junto. O que não foi reconhecido vai no
+ * fim do jeito que a pessoa escreveu — some do post, não; a adm confere.
  *
  * @return ?string null quando nada da proposta foi reconhecido (aí vale o texto da pessoa)
  */
@@ -711,8 +712,14 @@ function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto
     $extras = $itens('leilao_proposta_extra_players', 'leilao_proposta_extra_picks');
     if (!$envia && !$extras) return null;
 
-    $txt = "*{$ctx['ofertante']}* oferece:\n\n" . implode("\n", $envia);
-    if ($extras) $txt .= "\n\n*{$ctx['vendedor']}* manda junto:\n\n" . implode("\n", $extras);
+    // "Por" = o que a oferta leva: o leiloado + o que o vendedor manda junto.
+    $st = $pdo->prepare("SELECT name, position, ovr, age FROM players WHERE id = ?");
+    $st->execute([(int)$ctx['player_id']]);
+    $leiloado = $st->fetch(PDO::FETCH_ASSOC);
+    $por = array_merge($leiloado ? [lwLinhaJogador($leiloado)] : [], $extras);
+
+    $txt = "*{$ctx['ofertante']}* oferece:\n" . implode("\n", $envia);
+    if ($por) $txt .= "\n\nPor " . implode(' + ', $por);
 
     [, , , , $naoAchei] = lwLerItensDaOferta($pdo, $texto, (int)$ctx['team_id'], (int)$ctx['vendedor_team_id'],
                                              (string)$ctx['liga'], (int)$ctx['player_id']);
@@ -795,7 +802,14 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
     foreach (preg_split('/\R/u', $texto) as $linha) {
         $linha = trim(preg_replace('/^[\s*•·\-–—>]+/u', '', $linha));
         if ($linha === '' || str_ends_with($linha, ':')) continue;
-        if (preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $linha)) continue;
+        // Formato de trade: "Paisley envia: Davis + Durant" — vale o que vem depois dos dois-pontos.
+        // Quem manda o quê sai do dono de cada item, não do cabeçalho.
+        if (preg_match('/^[^:]*\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b[^:]*:\s*(.*)$/iu', $linha, $mCab)) {
+            $linha = trim($mCab[2]);
+            if ($linha === '') continue;
+        } elseif (preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $linha)) {
+            continue;
+        }
 
         foreach (preg_split('/\s*[+,;]\s*(?![^()]*\))/u', $linha) as $item) {
             $item = trim($item);
