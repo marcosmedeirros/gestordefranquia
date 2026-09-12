@@ -2759,7 +2759,7 @@ async function showLeilaoAdmin(league, filtros) {
     .la-acoes { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
     .la-motivo { font-size:11.5px; color:var(--text-3); flex:1; min-width:200px; }
     .la-slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:8px; }
-    .la-slot { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:10px; align-items:center;
+    .la-slot { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto auto; gap:8px; align-items:center;
       border:1px solid var(--border); border-radius:10px; background:var(--panel-2); padding:9px 12px; }
     .la-slot.tem { border-color:rgba(168,85,247,.4); }
     .la-slot-time { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2860,6 +2860,9 @@ async function showLeilaoAdmin(league, filtros) {
               ${t.pendentes > 0 && t.user_id ? '' : 'disabled'}
               title="${t.pendentes > 0 ? 'Marcar um slot como usado' : 'Sem slot disponível'}"
               onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this)"><i class="bi bi-check2-square me-1"></i>Usar</button>
+            <button type="button" class="btn-ghost la-slot-btn" data-time="${escapeHtml(t.time)}" style="color:#a855f7"
+              ${t.user_id ? '' : 'disabled'} title="Dar ou devolver um slot"
+              onclick="_leilaoSlotUsar(${Number(t.user_id) || 0}, '${league}', this, 'dar')"><i class="bi bi-plus-lg me-1"></i>Slot</button>
           </div>`).join('')}</div>`
         : '<p style="color:var(--text-3);font-size:13px;margin:0">Nenhum time nesta liga.</p>'}
       </div>
@@ -2877,15 +2880,20 @@ async function showLeilaoAdmin(league, filtros) {
 
 /* Dá baixa num slot de leilão (o mais antigo em aberto do GM). A mesma ação do
    bot quando o leilão fecha — aqui pra quando o leilão aconteceu fora dele. */
-async function _leilaoSlotUsar(userId, league, btn) {
+async function _leilaoSlotUsar(userId, league, btn, op = 'usar') {
   if (!userId) return;
   const time = (btn && btn.dataset && btn.dataset.time) || 'este time';
-  if (!confirm(`Marcar um slot de leilão do ${time} como usado?`)) return;
+  // "dar" também é o devolver: o slot volta disponível, e o que foi usado
+  // continua no histórico como usado.
+  const pergunta = op === 'dar'
+    ? `Dar (ou devolver) um slot de leilão pro ${time}?`
+    : `Marcar um slot de leilão do ${time} como usado?`;
+  if (!confirm(pergunta)) return;
   if (btn) btn.disabled = true;
   try {
-    const r = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'slot_leilao_mexer', user_id: userId, op: 'usar' }) });
+    const r = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'slot_leilao_mexer', user_id: userId, op }) });
     if (!r || r.success === false) throw r || {};
-    if (typeof showAlert === 'function') showAlert('success', `Slot do ${time} marcado como usado.`);
+    if (typeof showAlert === 'function') showAlert('success', op === 'dar' ? `Slot dado ao ${time}.` : `Slot do ${time} marcado como usado.`);
     showLeilaoAdmin(league);
   } catch (e) {
     alert('Não deu pra marcar o slot: ' + (e.error || e.message || 'erro desconhecido'));
