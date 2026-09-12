@@ -799,17 +799,48 @@ function lwAcharJogadorNaLinha(PDO $pdo, int $teamId, string $linha): ?array
 function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId, string $liga, int $leiloadoId): array
 {
     $envia = []; $enviaPicks = []; $extra = []; $extraPicks = []; $naoAchei = [];
+
+    /* O CABEÇALHO DIZ DE QUEM PROCURAR PRIMEIRO. "Paisley envia:" põe os itens
+       de baixo no Paisley — sem isso, "Pick 2028 R1" embaixo do Paisley virava
+       a 2028 R1 de quem oferta, porque os dois times têm a própria. "Paisley
+       recebe:" é o lado contrário. Sem cabeçalho, procura primeiro em quem
+       oferta (como sempre foi). O dono de cada item continua decidindo a
+       direção: o cabeçalho só desempata. */
+    $st = $pdo->prepare("SELECT id, name, city FROM teams WHERE id IN (?, ?)");
+    $st->execute([$teamId, $sellerId]);
+    $nomesTimes = $st->fetchAll(PDO::FETCH_ASSOC);
+    $timeDoCabecalho = function (string $quem, string $verbo) use ($nomesTimes, $teamId, $sellerId): ?int {
+        $quem = trim($quem);
+        if ($quem === '') return null;
+        foreach ($nomesTimes as $t) {
+            if (lwNomeCasa($quem, (string)$t['name']) || lwNomeCasa($quem, trim($t['city'] . ' ' . $t['name']))) {
+                $id = (int)$t['id'];
+                if (preg_match('/^recebem?$/iu', $verbo)) $id = $id === $teamId ? $sellerId : $teamId;
+                return $id;
+            }
+        }
+        return null;
+    };
+    $lado = null;
+
     foreach (preg_split('/\R/u', $texto) as $linha) {
         $linha = trim(preg_replace('/^[\s*•·\-–—>]+/u', '', $linha));
-        if ($linha === '' || str_ends_with($linha, ':')) continue;
+        if ($linha === '') continue;
         // Formato de trade: "Paisley envia: Davis + Durant" — vale o que vem depois dos dois-pontos.
-        // Quem manda o quê sai do dono de cada item, não do cabeçalho.
-        if (preg_match('/^[^:]*\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b[^:]*:\s*(.*)$/iu', $linha, $mCab)) {
-            $linha = trim($mCab[2]);
+        if (preg_match('/^([^:]*?)\s*\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b[^:]*:\s*(.*)$/iu', $linha, $mCab)) {
+            $lado = $timeDoCabecalho($mCab[1], $mCab[2]) ?? $lado;
+            $linha = trim($mCab[3]);
             if ($linha === '') continue;
+        } elseif (str_ends_with($linha, ':')) {
+            // "Paisley:" sozinho também abre a seção do time.
+            $lado = $timeDoCabecalho(rtrim($linha, ': '), 'envia') ?? $lado;
+            continue;
         } elseif (preg_match('/\b(recebe|recebem|envia|enviam|manda|mandam|oferece)\b/iu', $linha)) {
             continue;
         }
+
+        $primeiro = $lado === $sellerId ? $sellerId : $teamId;
+        $segundo  = $primeiro === $teamId ? $sellerId : $teamId;
 
         foreach (preg_split('/\s*[+,;]\s*(?![^()]*\))/u', $linha) as $item) {
             $item = trim($item);
@@ -817,28 +848,26 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
 
             if ($pick = lwLerPick($item)) {
                 [$ano, $rodada, $origem] = $pick;
-                [$pk] = lwAcharPickDoTime($pdo, $teamId, $liga, $ano, $rodada, $origem);
-                if ($pk) { $enviaPicks[(int)$pk['id']] = $pk; continue; }
-                [$pk] = lwAcharPickDoTime($pdo, $sellerId, $liga, $ano, $rodada, $origem);
-                if ($pk) { $extraPicks[(int)$pk['id']] = $pk; continue; }
-                $naoAchei[] = $item;
+                $dono = $primeiro;
+                [$pk] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem);
+                if (!$pk) { $dono = $segundo; [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem); }
+                if (!$pk) { $naoAchei[] = $item; continue; }
+                if ($dono === $teamId) $enviaPicks[(int)$pk['id']] = $pk;
+                else                   $extraPicks[(int)$pk['id']] = $pk;
                 continue;
             }
 
             $nome = trim(preg_replace('/\s*\(.*$/u', '', $item));
             if ($nome === '') continue;
-            [$j] = lwAcharJogadorDoTime($pdo, $teamId, $nome);
-            $doOfertante = (bool)$j;
-            if (!$j) [$j] = lwAcharJogadorDoTime($pdo, $sellerId, $nome);
+            $dono = $primeiro;
+            [$j] = lwAcharJogadorDoTime($pdo, $primeiro, $nome);
+            if (!$j) { $dono = $segundo; [$j] = lwAcharJogadorDoTime($pdo, $segundo, $nome); }
             // Nome com observação em volta: procura o nome DENTRO do texto.
-            if (!$j) { $j = lwAcharJogadorNaLinha($pdo, $teamId, $nome); $doOfertante = (bool)$j; }
-            if (!$j) $j = lwAcharJogadorNaLinha($pdo, $sellerId, $nome);
-            if ($j && $doOfertante) { $envia[(int)$j['id']] = $j; continue; }
-            if ($j) {
-                if ((int)$j['id'] !== $leiloadoId) $extra[(int)$j['id']] = $j;
-                continue;
-            }
-            $naoAchei[] = $nome;
+            if (!$j) { $dono = $primeiro; $j = lwAcharJogadorNaLinha($pdo, $primeiro, $nome); }
+            if (!$j) { $dono = $segundo;  $j = lwAcharJogadorNaLinha($pdo, $segundo, $nome); }
+            if (!$j) { $naoAchei[] = $nome; continue; }
+            if ($dono === $teamId) $envia[(int)$j['id']] = $j;
+            elseif ((int)$j['id'] !== $leiloadoId) $extra[(int)$j['id']] = $j;
         }
     }
     return [$envia, $enviaPicks, $extra, $extraPicks, $naoAchei];
