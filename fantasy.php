@@ -150,6 +150,10 @@ tr.eu td{background:var(--red-soft)}
 .regra strong{font-family:var(--num);font-size:17px;color:var(--green)}
 .texto p{font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:8px}
 .texto b{color:var(--text)}
+.resumo-regras{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+.resumo-regras span{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);background:var(--panel-2);border:1px solid var(--border-md);border-radius:99px;padding:5px 11px}
+.resumo-regras span.fp{color:var(--red);background:var(--red-soft);border-color:color-mix(in srgb,var(--red) 35%,transparent)}
+.resumo-regras span.fp b{color:var(--red)}
 .vazio{padding:30px;text-align:center;color:var(--text-2);font-size:13px}
 
 /* ── X de tirar e 6º homem ── */
@@ -828,10 +832,15 @@ function regras() {
   const premios = Object.entries(g.premios);
   $('textoRegras').innerHTML = `
     <p class="tit">Como funciona</p>
+    <div class="resumo-regras">
+      <span><i class="bi bi-wallet2"></i> Começa com <b>F$ ${Math.round(g.orcamento)}</b></span>
+      <span class="fp"><i class="bi bi-star-fill"></i> Prêmio da rodada em <b>FBA Points</b></span>
+      <span><i class="bi bi-coin"></i> Moedas só na entrada das <b>copas</b></span>
+    </div>
     <p><b>Cada temporada da ELITE é uma rodada.</b> Com o mercado aberto, você escala um jogador de cada posição (PG, SG, SF, PF e C) e escolhe o capitão, que pontua <b>${String(g.capitao).replace('.', ',')}×</b>.</p>
     <p><b>A pontuação é o jogo médio da temporada.</b> Exemplo: 25 pontos, 8 rebotes e 6 assistências = 25 + 12 + 12 = <b>49</b>. Quem jogou só parte da temporada ganha proporcional: 41 de 82 jogos vale metade. No fim somam os bônus.</p>
     <p><b>O preço sai da última temporada:</b> pontos ÷ ${String(g.pontos_por_fs).replace('.', ',')}. Quem fez 60 pontos custa F$ 20. Quando a rodada encerra, o preço de cada jogador vira o que ele pontuou nela — e o seu patrimônio sobe ou cai junto com os cinco que você escalou.</p>
-    <p><b>Todo mundo começa com F$ ${f1(g.orcamento)}.</b> Na rodada seguinte, seu limite é o patrimônio novo. A escalação passada fica sugerida, mas só vale depois de salvar.</p>
+    <p><b>Todo mundo começa com F$ ${Math.round(g.orcamento)}.</b> Na rodada seguinte, seu limite é o patrimônio novo. A escalação passada fica sugerida, mas só vale depois de salvar.</p>
     <p><b>6º homem:</b> além dos cinco, dá pra escalar um reserva de qualquer posição (o preço entra na conta). Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
     <p><b>Prêmio da rodada, em FBA Points:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}. Só o ranking da rodada paga — o ranking geral, o por liga da FBA e as ligas de pontos corridos valem pela disputa.</p>
     <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis e soma as rodadas. <b>Copa</b> é mata-mata — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
