@@ -184,7 +184,7 @@ tr.eu td{background:var(--red-soft)}
 .liga-card small{display:block;font-size:11.5px;color:var(--text-2)}
 .caixa.larga{max-width:640px;max-height:88vh;overflow:auto}
 .caixa label.campo{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin:12px 0 6px}
-.caixa input.txt{width:100%;background:var(--panel-2);border:1.5px solid var(--border-md);color:var(--text);border-radius:11px;padding:11px 13px;font-family:var(--font);font-size:15px;font-weight:700;outline:none}
+.caixa input.txt,.caixa select.txt{width:100%;background:var(--panel-2);border:1.5px solid var(--border-md);color:var(--text);border-radius:11px;padding:11px 13px;font-family:var(--font);font-size:15px;font-weight:700;outline:none}
 .caixa input.txt:focus{border-color:var(--red)}
 .tipos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tipo{border:1.5px solid var(--border-md);border-radius:12px;padding:10px 12px;cursor:pointer;background:var(--panel-2);text-align:left;color:var(--text)}
@@ -424,7 +424,18 @@ tr.eu td{background:var(--red-soft)}
       <button type="button" class="tipo" data-tipo="pontos" aria-pressed="true"><b>Pontos corridos</b><small>Soma os pontos de todas as rodadas</small></button>
       <button type="button" class="tipo" data-tipo="mata_mata" aria-pressed="false"><b>Copa (mata-mata)</b><small>Confronto a cada rodada; quem perde sai. Pode cobrar entrada.</small></button>
     </div>
+    <div id="blocoRodadas">
+      <label class="campo" for="inRodadas">Quantas rodadas</label>
+      <select class="txt" id="inRodadas"></select>
+      <p class="dica">Soma os pontos das próximas rodadas; quem tiver mais no fim é o campeão.</p>
+    </div>
     <div id="blocoEntrada" hidden>
+      <label class="campo">Tamanho da copa</label>
+      <div class="tipos">
+        <button type="button" class="tipo" data-vagas="8" aria-pressed="true"><b>8 times</b><small>Quartas, semifinal e final</small></button>
+        <button type="button" class="tipo" data-vagas="16" aria-pressed="false"><b>16 times</b><small>Oitavas até a final</small></button>
+      </div>
+      <p class="dica">Começa sozinha quando completar. Cada fase é decidida numa rodada.</p>
       <label class="campo" for="inEntrada">Entrada em moedas</label>
       <input class="txt" id="inEntrada" type="number" min="0" max="5000" step="10" value="0" inputmode="numeric">
       <p class="dica">0 = grátis. Cada participante paga ao entrar (você também) e o campeão leva o pote todo. Quem sai antes de a copa começar recebe de volta.</p>
@@ -717,11 +728,19 @@ function ranking() {
 
 const ROTULO_TIPO = {pontos: 'Pontos corridos', mata_mata: 'Copa'};
 const potes = l => l.tipo === 'mata_mata' && l.entrada ? ` · pote ${(+l.pote).toLocaleString('pt-BR')} moedas` : '';
+// Nome da fase pelo número de times que ainda estão vivos nela.
+const NOME_FASE = {16: 'Oitavas', 8: 'Quartas', 4: 'Semifinal', 2: 'Final'};
+const nomeFase = (l, fase) => (l.vagas ? NOME_FASE[l.vagas >> (fase - 1)] : null) || `${fase}ª fase`;
 function rotuloStatusLiga(l) {
-  if (l.tipo === 'pontos') return 'em andamento';
-  if (l.status === 'aberta') return 'esperando começar';
-  if (l.status === 'encerrada') return 'encerrado';
-  return `${l.fase_atual}ª fase`;
+  if (l.status === 'encerrada') return 'encerrada';
+  if (l.tipo === 'pontos') return l.rodadas ? `rodada ${Math.min((l.rodadas_feitas || 0) + 1, l.rodadas)} de ${l.rodadas}` : 'em andamento';
+  if (l.status === 'aberta') return l.vagas ? `${l.membros}/${l.vagas} inscritos` : 'esperando começar';
+  return nomeFase(l, l.fase_atual);
+}
+function descLiga(l) {
+  const tam = l.tipo === 'pontos' ? (l.rodadas ? ` de ${l.rodadas} rodada${l.rodadas > 1 ? 's' : ''}` : '') : (l.vagas ? ` de ${l.vagas} times` : '');
+  const gente = l.tipo === 'mata_mata' && l.vagas && l.status === 'aberta' ? '' : ` · ${l.membros} participante${l.membros === 1 ? '' : 's'}`;
+  return `${ROTULO_TIPO[l.tipo]}${tam}${potes(l)}${gente} · ${rotuloStatusLiga(l)}`;
 }
 function ligas() {
   const d = S.dados, lista = d.ligas || [], max = d.max_ligas || 3, cheio = lista.length >= max;
@@ -730,7 +749,7 @@ function ligas() {
   $('btCriarLiga').title = cheio ? `Limite de ${max} ligas` : '';
   $('minhasLigas').innerHTML = lista.length ? lista.map(l => `<button type="button" class="liga-card" data-liga="${l.id}">
       <span class="liga-ico"><i class="bi ${l.tipo === 'mata_mata' ? 'bi-diagram-3' : 'bi-list-ol'}"></i></span>
-      <span style="min-width:0;flex:1"><b>${esc(l.nome)}</b><small>${ROTULO_TIPO[l.tipo]}${potes(l)} · ${l.membros} participante${l.membros === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}${l.dono ? ' · você criou' : ''}</small></span>
+      <span style="min-width:0;flex:1"><b>${esc(l.nome)}</b><small>${descLiga(l)}${l.dono ? ' · você criou' : ''}</small></span>
       <i class="bi bi-chevron-right" style="color:var(--text-3)"></i></button>`).join('')
     : `<div class="vazio" style="padding:18px">Você ainda não está em nenhuma liga. Crie uma e mande o convite, ou entre com o código de um amigo. Até ${max} ligas por pessoa.</div>`;
 }
@@ -748,9 +767,10 @@ async function abrirLiga(id) {
   if (!d.ok) { $('lTit').textContent = 'Liga'; $('lCorpo').innerHTML = `<div class="vazio">${esc(d.erro || 'Não deu pra abrir a liga.')}</div>`; return; }
   const l = d.liga, eu = d.eu;
   $('lTit').textContent = l.nome;
-  $('lSub').textContent = `${ROTULO_TIPO[l.tipo]}${potes(l)} · ${d.membros.length} participante${d.membros.length === 1 ? '' : 's'} · ${rotuloStatusLiga(l)}`;
+  $('lSub').textContent = descLiga({...l, membros: d.membros.length});
+  const completa = l.vagas && d.membros.length >= l.vagas;
   const link = linkConvite(l.codigo);
-  const podeConvidar = l.tipo === 'pontos' ? l.status !== 'encerrada' : l.status === 'aberta';
+  const podeConvidar = l.tipo === 'pontos' ? l.status !== 'encerrada' : l.status === 'aberta' && !completa;
   let h = podeConvidar ? `<div class="convite"><span style="font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--text-3)">CONVITE</span>
       <b class="num" style="font-size:17px;letter-spacing:2px">${esc(l.codigo)}</b><code>${esc(link)}</code>
       <button type="button" class="btn peq" data-copiar="${esc(link)}"><i class="bi bi-clipboard"></i> Copiar</button>
@@ -761,18 +781,23 @@ async function abrirLiga(id) {
   }
   const nome = m => m ? `<b>${esc(m.time)}</b>${m.user_id === eu ? ' <small style="color:var(--red)">(você)</small>' : ''}` : '';
   if (l.tipo === 'pontos') {
+    if (l.status === 'encerrada' && d.campeao) h += `<div class="campeao"><i class="bi bi-trophy-fill"></i> Campeão: ${esc(d.campeao.time)}</div>`;
     h += `<div class="tabwrap" style="margin-top:8px"><table><thead><tr><th></th><th>Time</th><th class="r">Pontos</th><th class="r">Patrimônio</th></tr></thead><tbody>
       ${d.tabela.map((t, i) => `<tr class="${t.user_id === eu ? 'eu' : ''}"><td class="pos-rank">${i + 1}</td>
         <td>${nome(t)}<br><small style="color:var(--text-2)">${esc(t.gm)} · ${t.rodadas} rodada${t.rodadas === 1 ? '' : 's'}</small></td>
         <td class="r num">${f1(t.pontos)}${t.parcial != null ? `<br><small style="color:var(--green)">+${f1(t.parcial)} parcial</small>` : ''}</td>
         <td class="r num">F$ ${f1(t.patrimonio)}</td></tr>`).join('')}</tbody></table></div>
-      <p class="dica">Conta as rodadas encerradas desde que a liga foi criada. Empate: maior patrimônio.</p>`;
+      <p class="dica">${l.rodadas
+        ? `Vale ${l.rodadas} rodada${l.rodadas > 1 ? 's' : ''} a partir da criação — ${l.rodadas_feitas} encerrada${l.rodadas_feitas === 1 ? '' : 's'}.`
+        : 'Conta as rodadas encerradas desde que a liga foi criada.'} Empate: maior patrimônio.</p>`;
   } else if (l.status === 'aberta') {
-    h += `<p class="tit" style="margin-top:12px">Inscritos</p>` + d.membros.map(m => `<div class="linha" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${nome(m)}</span><small style="color:var(--text-2)">${esc(m.gm)}</small></div>`).join('')
-      + `<p class="dica">Os confrontos são sorteados quando ${d.dono ? 'você começar' : 'quem criou começar'} o mata-mata, com o mercado aberto. Cada fase é decidida numa rodada: passa quem fizer mais pontos (empate: maior patrimônio).</p>`;
+    h += `<p class="tit" style="margin-top:12px">Inscritos ${d.membros.length}${l.vagas ? '/' + l.vagas : ''}</p>` + d.membros.map(m => `<div class="linha" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${nome(m)}</span><small style="color:var(--text-2)">${esc(m.gm)}</small></div>`).join('')
+      + `<p class="dica">${l.vagas
+          ? `A copa começa sozinha quando completar os ${l.vagas} times — se o mercado estiver fechado, começa quando a próxima rodada abrir. Os confrontos são sorteados na hora.`
+          : `Os confrontos são sorteados quando ${d.dono ? 'você começar' : 'quem criou começar'} o mata-mata, com o mercado aberto.`} Cada fase é decidida numa rodada: passa quem fizer mais pontos (empate: maior patrimônio).</p>`;
   } else {
     if (d.campeao) h += `<div class="campeao"><i class="bi bi-trophy-fill"></i> Campeão: ${esc(d.campeao.time)}${l.pote ? ` · levou ${(+l.pote).toLocaleString('pt-BR')} moedas` : ''}</div>`;
-    h += d.fases.slice().reverse().map(f => `<div class="fase"><h3>${f.confrontos.length === 1 && f.confrontos[0].b ? 'Final' : f.fase + 'ª fase'}${f.temporada ? ' · T' + f.temporada : ' · próxima rodada'}</h3>
+    h += d.fases.slice().reverse().map(f => `<div class="fase"><h3>${l.vagas ? nomeFase(l, f.fase) : (f.confrontos.length === 1 && f.confrontos[0].b ? 'Final' : f.fase + 'ª fase')}${f.temporada ? ' · T' + f.temporada : ' · próxima rodada'}</h3>
       ${f.confrontos.map(c => {
         const pa = c.pontos_a ?? c.parcial_a, pb = c.pontos_b ?? c.parcial_b;
         const va = c.vencedor && c.vencedor === c.a?.user_id, vb = c.vencedor && c.b && c.vencedor === c.b.user_id;
@@ -784,7 +809,7 @@ async function abrirLiga(id) {
   }
 
   const acoes = [];
-  if (d.dono && l.tipo === 'mata_mata' && l.status === 'aberta') acoes.push(`<button type="button" class="btn pri peq" data-iniciar-liga="${l.id}"><i class="bi bi-play-fill"></i> Começar mata-mata</button>`);
+  if (d.dono && l.tipo === 'mata_mata' && l.status === 'aberta' && (!l.vagas || completa)) acoes.push(`<button type="button" class="btn pri peq" data-iniciar-liga="${l.id}"><i class="bi bi-play-fill"></i> Começar mata-mata</button>`);
   acoes.push(`<button type="button" class="btn peq" data-sair-liga="${l.id}" style="color:var(--down)"><i class="bi ${d.dono ? 'bi-trash' : 'bi-box-arrow-left'}"></i> ${d.dono ? 'Excluir liga' : 'Sair da liga'}</button>`);
   h += `<div class="acoes" style="margin-top:14px;justify-content:flex-end">${acoes.join('')}</div><div class="msg err" id="lErro" role="alert"></div>`;
   $('lCorpo').innerHTML = h;
@@ -816,8 +841,13 @@ async function acaoLiga(tipo, id, bt) {
 
 function abrirCriar() {
   $('inLigaNome').value = ''; $('cErro').textContent = '';
-  $('inEntrada').value = 0; $('blocoEntrada').hidden = true;
-  document.querySelectorAll('.tipo').forEach(b => b.setAttribute('aria-pressed', b.dataset.tipo === 'pontos'));
+  $('inEntrada').value = 0; $('blocoEntrada').hidden = true; $('blocoRodadas').hidden = false;
+  if (!$('inRodadas').options.length) {
+    $('inRodadas').innerHTML = Array.from({length: 20}, (_, i) => `<option value="${i + 1}">${i + 1} rodada${i ? 's' : ''}</option>`).join('');
+  }
+  $('inRodadas').value = '10';
+  document.querySelectorAll('.tipo[data-tipo]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tipo === 'pontos'));
+  document.querySelectorAll('.tipo[data-vagas]').forEach(b => b.setAttribute('aria-pressed', b.dataset.vagas === '8'));
   $('fundoCriar').hidden = false; $('inLigaNome').focus();
 }
 function abrirEntrar(codigo) {
@@ -843,7 +873,7 @@ function regras() {
     <p><b>Todo mundo começa com F$ ${Math.round(g.orcamento)}.</b> Na rodada seguinte, seu limite é o patrimônio novo. A escalação passada fica sugerida, mas só vale depois de salvar.</p>
     <p><b>6º homem:</b> além dos cinco, dá pra escalar um reserva de qualquer posição (o preço entra na conta). Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
     <p><b>Prêmio da rodada, em FBA Points:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}. Só o ranking da rodada paga — o ranking geral, o por liga da FBA e as ligas de pontos corridos valem pela disputa.</p>
-    <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis e soma as rodadas. <b>Copa</b> é mata-mata — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
+    <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis: quem cria escolhe de 1 a 20 rodadas e, no fim, quem somou mais é o campeão. <b>Copa</b> é mata-mata de <b>8 ou 16 times</b> e começa sozinha quando completa — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
     <p style="color:var(--text-3)">O mercado fecha antes de a temporada ser jogada. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;
 }
 
@@ -899,8 +929,11 @@ document.addEventListener('click', async e => {
   } else if (t.dataset.rk) {
     S.rk = t.dataset.rk; ranking();
   } else if (t.dataset.tipo) {
-    document.querySelectorAll('.tipo').forEach(b => b.setAttribute('aria-pressed', b === t));
+    document.querySelectorAll('.tipo[data-tipo]').forEach(b => b.setAttribute('aria-pressed', b === t));
     $('blocoEntrada').hidden = t.dataset.tipo !== 'mata_mata';
+    $('blocoRodadas').hidden = t.dataset.tipo !== 'pontos';
+  } else if (t.dataset.vagas) {
+    document.querySelectorAll('.tipo[data-vagas]').forEach(b => b.setAttribute('aria-pressed', b === t));
   } else if (t.dataset.liga) {
     abrirLiga(+t.dataset.liga);
   } else if (t.dataset.copiar) {
@@ -927,15 +960,18 @@ $('rkLiga').addEventListener('change', e => { S.rkLiga = e.target.value; ranking
 $('formCriar').addEventListener('submit', async e => {
   e.preventDefault();
   const nome = $('inLigaNome').value.trim();
-  const tipo = document.querySelector('.tipo[aria-pressed="true"]')?.dataset.tipo || 'pontos';
+  const tipo = document.querySelector('.tipo[data-tipo][aria-pressed="true"]')?.dataset.tipo || 'pontos';
+  const tamanho = tipo === 'mata_mata'
+    ? +(document.querySelector('.tipo[data-vagas][aria-pressed="true"]')?.dataset.vagas || 8)
+    : +$('inRodadas').value || 10;
   if (nome.length < 3) { $('cErro').textContent = 'Dê um nome com pelo menos 3 letras.'; return; }
   const entrada = tipo === 'mata_mata' ? Math.max(0, parseInt($('inEntrada').value, 10) || 0) : 0;
   const saldo = S.dados.saldo?.moedas ?? 0;
   if (entrada > 5000) { $('cErro').textContent = 'A entrada vai até 5.000 moedas.'; return; }
   if (entrada > saldo) { $('cErro').textContent = `Você tem ${saldo.toLocaleString('pt-BR')} moedas — não dá pra pagar a entrada de ${entrada}.`; return; }
-  if (entrada > 0 && !await perguntar(`Criar a copa "${nome}" cobra ${entrada} moedas de entrada de você também. O campeão leva o pote.`, 'Criar copa', 'Criar e pagar')) return;
+  if (entrada > 0 && !await perguntar(`Criar a copa "${nome}" (${tamanho} times) cobra ${entrada} moedas de entrada de você também. O campeão leva o pote.`, 'Criar copa', 'Criar e pagar')) return;
   $('cSalvar').disabled = true;
-  const r = await postar({acao: 'criar_liga', nome, tipo, entrada});
+  const r = await postar({acao: 'criar_liga', nome, tipo, entrada, tamanho});
   $('cSalvar').disabled = false;
   if (!r.ok) { $('cErro').textContent = r.erro || 'Não deu pra criar.'; return; }
   $('fundoCriar').hidden = true;
@@ -952,6 +988,9 @@ $('formEntrar').addEventListener('submit', async e => {
   catch (_) { pv = {ok: false, erro: 'Sem conexão. Tente de novo.'}; }
   if (!pv.ok) { $('eErro').textContent = pv.erro || 'Convite inválido.'; return; }
   const lg = pv.liga;
+  if (lg.tipo === 'mata_mata' && lg.vagas && lg.membros >= lg.vagas && !lg.ja) {
+    $('eErro').textContent = `A copa "${lg.nome}" já está completa (${lg.vagas}/${lg.vagas}).`; return;
+  }
   if (lg.entrada > 0 && !lg.ja) {
     if (pv.saldo.moedas < lg.entrada) { $('eErro').textContent = `A entrada da copa "${lg.nome}" é ${lg.entrada} moedas e você tem ${pv.saldo.moedas.toLocaleString('pt-BR')}.`; return; }
     if (!await perguntar(`Entrar na copa "${lg.nome}" custa ${lg.entrada} moedas. O pote hoje é de ${lg.pote.toLocaleString('pt-BR')} moedas e o campeão leva tudo.`, 'Entrar na copa', 'Pagar e entrar')) return;

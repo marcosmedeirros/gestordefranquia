@@ -54,7 +54,7 @@ try {
         'fechar'   => fanFecharMercado($pdo),
         'reabrir'  => fanReabrirMercado($pdo),
         'encerrar' => fanEncerrarRodada($pdo),
-        'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? ''), (int)($corpo['entrada'] ?? 0)),
+        'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? ''), (int)($corpo['entrada'] ?? 0), (int)($corpo['tamanho'] ?? 0)),
         'entrar_liga'  => fanEntrarLiga($pdo, $user, (string)($corpo['codigo'] ?? '')),
         'iniciar_liga' => fanIniciarMataMata($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
         'sair_liga'    => fanSairLiga($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
