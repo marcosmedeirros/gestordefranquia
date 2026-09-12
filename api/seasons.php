@@ -564,7 +564,48 @@ $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add
                  'save_temporada_regular', 'registro_rascunho', 'salvar_rascunho',
                  'recalcular_pontos_campanha'];
 
-if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
+/**
+ * A liga sobre a qual a ação age: pela temporada (season_id, na URL ou no
+ * corpo) ou pelo campo league. Vazio quando não dá pra saber.
+ */
+function seasonsLigaDaAcao(PDO $pdo): string
+{
+    static $liga = null;
+    if ($liga !== null) return $liga;
+    $corpo = json_decode((string)file_get_contents('php://input'), true);
+    $corpo = is_array($corpo) ? $corpo : [];
+    $liga = strtoupper(trim((string)($_GET['league'] ?? $_POST['league'] ?? $corpo['league'] ?? '')));
+    $sid = (int)($_GET['season_id'] ?? $_POST['season_id'] ?? $corpo['season_id'] ?? 0);
+    if ($sid > 0) {
+        try {
+            $st = $pdo->prepare('SELECT league FROM seasons WHERE id = ?');
+            $st->execute([$sid]);
+            $daTemporada = strtoupper((string)($st->fetchColumn() ?: ''));
+            if ($daTemporada !== '') $liga = $daTemporada;   // a temporada manda
+        } catch (Throwable $e) {}
+    }
+    return $liga;
+}
+
+/**
+ * ADMIN GERAL OU ADMIN DA LIGA DA AÇÃO.
+ *
+ * Era só user_type = 'admin': admin de liga abria o card Pontuação, preenchia
+ * tudo e levava "Apenas administradores" no Salvar (11/09/2026). O critério
+ * passa a ser o do resto do painel — quem administra a liga daquela temporada
+ * pode registrar nela; de outra liga, não.
+ */
+function seasonsEhAdminDaLiga(PDO $pdo, ?array $user): bool
+{
+    if (($user['user_type'] ?? 'jogador') === 'admin') return true;
+    if (empty($user['id'])) return false;
+    $liga = seasonsLigaDaAcao($pdo);
+    if ($liga === '') return false;
+    if (!function_exists('getAdminLeagues')) require_once __DIR__ . '/../backend/auth.php';
+    return in_array($liga, getAdminLeagues($pdo, (int)$user['id']), true);
+}
+
+if (in_array($action, $adminActions) && !seasonsEhAdminDaLiga($pdo, $user ?? null)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
     exit;
@@ -995,7 +1036,7 @@ try {
             if ($method !== 'POST') throw new Exception('Método inválido');
 
             // Somente admin
-            if (($user['user_type'] ?? 'jogador') !== 'admin') {
+            if (!seasonsEhAdminDaLiga($pdo, $user ?? null)) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
@@ -1107,7 +1148,7 @@ try {
             }
 
             if ($method === 'POST') {
-                if (($user['user_type'] ?? 'jogador') !== 'admin') {
+                if (!seasonsEhAdminDaLiga($pdo, $user ?? null)) {
                     http_response_code(403);
                     echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                     exit;
@@ -3448,7 +3489,7 @@ try {
                 if ($method !== 'POST') throw new Exception('Método inválido');
 
                 // Somente admin pode ajustar
-                if (($user['user_type'] ?? 'jogador') !== 'admin') {
+                if (!seasonsEhAdminDaLiga($pdo, $user ?? null)) {
                     http_response_code(403);
                     echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                     exit;
