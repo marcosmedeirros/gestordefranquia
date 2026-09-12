@@ -1,15 +1,41 @@
 // Registrar Service Worker e funcionalidades PWA
-if ('serviceWorker' in navigator) {
+
+/* O LAÇO DE RECARREGAR (11/09/2026).
+   A página recarregava sozinha a cada troca de service worker. Num Safari que
+   não consegue guardar o SW novo, toda abertura instalava de novo, trocava de
+   novo e recarregava de novo — o GM via "Nova versão disponível" piscando e
+   não conseguia nem fazer login por dois dias.
+
+   Agora: só recarrega quem CLICOU em "Atualizar", e mesmo assim no máximo
+   uma vez a cada 30 s. E se a página recarregar 3 vezes em 1 minuto, o SW
+   deste navegador é desligado e o site segue sem ele, que funciona igual. */
+(function freioDeRecarga() {
+  try {
+    const agora = Date.now();
+    const marcas = JSON.parse(sessionStorage.getItem('fba-pwa-cargas') || '[]').filter(t => agora - t < 60000);
+    marcas.push(agora);
+    sessionStorage.setItem('fba-pwa-cargas', JSON.stringify(marcas));
+    if (marcas.length >= 3 && 'serviceWorker' in navigator) {
+      window.__pwaDesligado = true;
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => Promise.all(regs.map(r => r.unregister())))
+        .catch(() => {});
+    }
+  } catch (e) { /* sessionStorage bloqueado: segue sem o freio */ }
+})();
+
+if ('serviceWorker' in navigator && !window.__pwaDesligado) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
         console.log('[PWA] Service Worker registrado:', registration.scope);
 
         registration.update();
-        
+
         // Verificar atualizações
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
+          if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               // Nova versão disponível
@@ -18,17 +44,26 @@ if ('serviceWorker' in navigator) {
           });
         });
 
-        let refreshing = false;
+        // Troca de SW só recarrega a página se a pessoa pediu (botão Atualizar).
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (refreshing) return;
-          refreshing = true;
-          window.location.reload();
+          if (!window.__pwaPediuAtualizar) return;
+          window.__pwaPediuAtualizar = false;
+          recarregarComFreio();
         });
       })
       .catch(err => {
         console.log('[PWA] Erro ao registrar Service Worker:', err);
       });
   });
+}
+
+function recarregarComFreio() {
+  try {
+    const ultima = Number(sessionStorage.getItem('fba-pwa-ultima-recarga') || 0);
+    if (Date.now() - ultima < 30000) return;
+    sessionStorage.setItem('fba-pwa-ultima-recarga', String(Date.now()));
+  } catch (e) {}
+  window.location.reload();
 }
 
 // Notificação de atualização disponível
@@ -50,10 +85,12 @@ function showUpdateNotification() {
 }
 
 function updateApp() {
+  // Marca que foi a pessoa que pediu: é o que libera o recarregamento na troca de SW.
+  window.__pwaPediuAtualizar = true;
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
   }
-  window.location.reload();
+  recarregarComFreio();
 }
 
 // Detectar se é PWA instalado

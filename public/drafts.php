@@ -352,6 +352,6 @@ if (!$userTeam) {
         // Carregar drafts ao abrir a página
         document.addEventListener('DOMContentLoaded', loadDrafts);
     </script>
-    <script src="/js/pwa.js"></script>
+    <script src="/js/pwa.js?v=<?= @filemtime(__DIR__ . '/../js/pwa.js') ?: 1 ?>"></script>
 </body>
 </html>

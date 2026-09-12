@@ -298,6 +298,6 @@ $positionStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
     <script src="js/app.js"></script>
-    <script src="/js/pwa.js"></script>
+    <script src="/js/pwa.js?v=<?= @filemtime(__DIR__ . '/../js/pwa.js') ?: 1 ?>"></script>
 </body>
 </html>

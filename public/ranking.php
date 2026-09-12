@@ -333,6 +333,6 @@ foreach ($standings as $team) {
             });
         }
     </script>
-    <script src="/js/pwa.js"></script>
+    <script src="/js/pwa.js?v=<?= @filemtime(__DIR__ . '/../js/pwa.js') ?: 1 ?>"></script>
 </body>
 </html>
