@@ -38,6 +38,8 @@ const LW_OVR_MINIMO = 85;
 const LW_DURACAO_MIN = 20;
 /** Fecha antes se ficar esse tempo sem proposta nova nem decisão. */
 const LW_OCIOSO_MIN = 5;
+// O dono tem este tempo pra responder a proposta da vez. Passou: conta como recusada e vai a próxima.
+const LW_RESPOSTA_SEG = 90;
 
 const LW_IDS_LIGA = ['ELITE' => 1, 'NEXT' => 2, 'RISE' => 3, 'ROOKIE' => 4];
 
@@ -1109,6 +1111,10 @@ function lwDespachar(PDO $pdo): void
                 lwEncerrar($pdo, (int)$lw['id']);
                 continue;
             }
+            // Dono sem responder a proposta da vez: recusa por tempo e libera a fila.
+            if (!empty($fila['na_vez']) && lwExpirarVez($pdo, $lw)) {
+                $fila['na_vez'] = 0;
+            }
             if (empty($fila['na_vez']) && !empty($fila['aguardando'])) {
                 lwPostarProxima($pdo, $lw);
             }
@@ -1116,6 +1122,48 @@ function lwDespachar(PDO $pdo): void
     } catch (Throwable $e) {
         error_log('[leilao_whats] despachar: ' . $e->getMessage());
     }
+}
+
+/**
+ * Proposta da vez sem resposta há LW_RESPOSTA_SEG: vira recusada (igual ao ❌)
+ * e o Gameplay fica sabendo. Devolve true se expirou alguma.
+ *
+ * A trava é a mesma do lwDecidir (FOR UPDATE na da vez + UPDATE condicional):
+ * se o dono responder no mesmo instante, só um dos dois vale. O relógio de
+ * "5 min sem proposta nova" não anda por causa disso — silêncio do dono não é
+ * movimento do leilão.
+ */
+function lwExpirarVez(PDO $pdo, array $lw): bool
+{
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("SELECT wp.id, wp.proposta_id, t.name AS time_nome, tv.name AS vendedor_nome
+                               FROM leilao_whats_propostas wp
+                               JOIN leilao_whats w ON w.id = wp.lw_id
+                               JOIN teams t ON t.id = wp.team_id
+                               JOIN teams tv ON tv.id = w.vendedor_team_id
+                              WHERE wp.lw_id = ? AND wp.status = 'na_vez'
+                                AND wp.postada_em <= NOW() - INTERVAL " . LW_RESPOSTA_SEG . " SECOND
+                              LIMIT 1 FOR UPDATE");
+        $st->execute([(int)$lw['id']]);
+        $vez = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$vez) { $pdo->rollBack(); return false; }
+
+        $up = $pdo->prepare("UPDATE leilao_whats_propostas SET status = 'recusada', decidida_em = NOW() WHERE id = ? AND status = 'na_vez'");
+        $up->execute([(int)$vez['id']]);
+        if ($up->rowCount() < 1) { $pdo->rollBack(); return false; }
+        $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?")->execute([(int)$vez['proposta_id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao_whats] expirar vez: ' . $e->getMessage());
+        return false;
+    }
+
+    whatsappEnfileirar($pdo, (string)$lw['grupo_jid'],
+        "⏱ Oferta do *{$vez['time_nome']}* sem resposta do *{$vez['vendedor_nome']}* em " . LW_RESPOSTA_SEG . " s — considerada *recusada*.",
+        true, LEILAO_BOT_TIPO);
+    return true;
 }
 
 function lwPostarProxima(PDO $pdo, array $lw): void
@@ -1157,7 +1205,9 @@ function lwPostarProxima(PDO $pdo, array $lw): void
         $corpo = $formatada ?? '*' . ($stT->fetchColumn() ?: '?') . "* oferece:\n\n"
                . lwTextoComFicha((string)$prox['texto'], lwJogadoresDaProposta($pdo, (int)$prox['proposta_id']));
     } else {
-        $corpo = lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
+        // Proposta montada item a item (sem texto livre): mesmo formato do Gameplay.
+        $corpo = lwPropostaFormatada($pdo, (int)$prox['proposta_id'], (int)$lw['id'], '')
+              ?? lwBlocoDaProposta($pdo, (int)$prox['proposta_id']);
     }
     // Só a proposta: o dono já sabe responder com ✅/❌, e a linha de instrução
     // (com o número dele) se repetia em toda oferta.
