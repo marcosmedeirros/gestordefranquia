@@ -251,8 +251,9 @@ function lwLeilaoAbertoDaLiga(PDO $pdo, string $liga): ?array
 /** Nome digitado casa com o jogador? Exato (sem acento/caixa) ou contido. */
 function lwNomeCasa(string $digitado, string $nome): bool
 {
-    $n = fn($s) => mb_strtolower(trim(preg_replace('/\s+/', ' ',
-        iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s)));
+    // Mesma régua dos dois lados, pontuação vira espaço: "Bed-Stuy Alley Dogs"
+    // escrito "Bed Stuy Alley Dogs" (o leitor da pick tira o hífen) tem que casar.
+    $n = fn($s) => lwNormal((string)$s);
     $a = $n($digitado);
     $b = $n($nome);
     return $a !== '' && ($a === $b || (mb_strlen($a) >= 4 && str_contains($b, $a)));
@@ -294,6 +295,52 @@ function lwAnoAtual(PDO $pdo, string $liga): ?int
         $a = $st->fetchColumn();
         return $a ? (int)$a : null;
     } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * "Pick 23" no draft ATUAL da liga: qual pick é a 23ª escolha.
+ *
+ * A sessão é a mesma que o /draft mostra (sprint ativa, temporada mais nova).
+ * A numeração é corrida, como a liga fala: com 32 na 1ª rodada, a 33ª é a 1ª
+ * da 2ª. O ano vem de draftAnoDasPicks (a temporada distribui a classe do ano
+ * seguinte). Escolha já feita não conta — não dá mais pra oferecer.
+ *
+ * @return ?array{round:int, posicao:int, original_team_id:int, ano:int, origem:string, origem_completo:string}
+ */
+function lwPickDaPosicao(PDO $pdo, string $liga, int $numero): ?array
+{
+    if ($numero < 1) return null;
+    try {
+        require_once __DIR__ . '/draft_bot.php';
+        require_once __DIR__ . '/draft_swaps.php';
+        $sprint = draftBotSprintAtiva($pdo, $liga);
+        if ($sprint === null) return null;
+        $st = $pdo->prepare("SELECT ds.id, ds.season_id FROM draft_sessions ds JOIN seasons s ON s.id = ds.season_id
+                              WHERE ds.league = ? AND s.sprint_id = ? ORDER BY s.season_number DESC, ds.id DESC LIMIT 1");
+        $st->execute([$liga, $sprint]);
+        $sessao = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sessao) return null;
+        $sid = (int)$sessao['id'];
+
+        $n1 = (int)$pdo->query("SELECT COUNT(*) FROM draft_order WHERE draft_session_id = {$sid} AND round = 1")->fetchColumn();
+        if ($n1 < 1) return null;
+        [$rodada, $posicao] = $numero <= $n1 ? [1, $numero] : [2, $numero - $n1];
+
+        $st = $pdo->prepare("SELECT o.original_team_id, o.picked_player_id, ot.name, ot.city
+                               FROM draft_order o JOIN teams ot ON ot.id = o.original_team_id
+                              WHERE o.draft_session_id = ? AND o.round = ? AND o.pick_position = ? LIMIT 1");
+        $st->execute([$sid, $rodada, $posicao]);
+        $o = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$o || $o['picked_player_id'] !== null) return null;
+
+        $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
+        if ($ano <= 0) return null;
+        return ['round' => $rodada, 'posicao' => $posicao, 'original_team_id' => (int)$o['original_team_id'], 'ano' => $ano,
+                'origem' => (string)$o['name'], 'origem_completo' => trim($o['city'] . ' ' . $o['name'])];
+    } catch (Throwable $e) {
+        error_log('[leilao_whats] pick da posição: ' . $e->getMessage());
         return null;
     }
 }
@@ -869,6 +916,33 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
         foreach (preg_split('/\s*[+,;]\s*(?![^()]*\))/u', $linha) as $item) {
             $item = trim($item);
             if ($item === '') continue;
+
+            /* "Pick 3", "Pick 23", "Escolha 23" sem ano: a posição no draft atual —
+               mas SÓ se essa pick estiver com um dos dois times (e bater com o
+               parêntese, se tiver). Não bateu: segue a leitura de sempre, em que
+               "Pick 26" é a de 2026. */
+            if (preg_match('/^(?:picks?|escolha|pico|pik)\s*(?:n[º°o.]?\s*)?#?\s*(\d{1,2})\s*(?:\(([^)]*)\))?$/iu', $item, $mPos)) {
+                $pos = lwPickDaPosicao($pdo, $liga, (int)$mPos[1]);
+                $origemEscrita = trim($mPos[2] ?? '');
+                if ($pos && ($origemEscrita === '' || lwNomeCasa($origemEscrita, $pos['origem']) || lwNomeCasa($origemEscrita, $pos['origem_completo']))) {
+                    $stP = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, pk.team_id, o.name AS origem
+                                            FROM picks pk LEFT JOIN teams o ON o.id = pk.original_team_id
+                                           WHERE pk.team_id = ? AND pk.original_team_id = ? AND pk.round = ?
+                                             AND CAST(pk.season_year AS UNSIGNED) = ? LIMIT 1");
+                    $usadasPos = picksJaUsadas($pdo);
+                    $achouPos = false;
+                    foreach ([$primeiro, $segundo] as $donoPos) {
+                        $stP->execute([$donoPos, $pos['original_team_id'], (string)$pos['round'], $pos['ano']]);
+                        $pk = $stP->fetch(PDO::FETCH_ASSOC);
+                        if (!$pk || !empty($usadasPos[(int)$pk['id']])) continue;
+                        if ($donoPos === $teamId) $enviaPicks[(int)$pk['id']] = $pk;
+                        else                      $extraPicks[(int)$pk['id']] = $pk;
+                        $achouPos = true;
+                        break;
+                    }
+                    if ($achouPos) continue;
+                }
+            }
 
             if ($pick = lwLerPick($item)) {
                 [$ano, $rodada, $origem] = $pick;
