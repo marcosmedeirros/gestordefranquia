@@ -478,16 +478,25 @@ function badgeConsumir(PDO $pdo, int $userId): bool
 }
 
 if ($method === 'GET' && $action === 'badges_status') {
-    $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, league FROM teams WHERE user_id = ? LIMIT 1");
     $stmt->execute([$user['id']]);
-    $teamId = (int)$stmt->fetchColumn();
+    $timeBadge = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $teamId = (int)($timeBadge['id'] ?? 0);
     if (!$teamId) out(['success' => true, 'disponiveis' => 0, 'pedidos' => []]);
+
+    // "Seus pedidos" só do sprint ativo da liga — o mesmo corte por data do card do admin.
+    $desdeSprint = null;
+    try {
+        $stSp = $pdo->prepare("SELECT start_date FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+        $stSp->execute([(string)($timeBadge['league'] ?? '')]);
+        $desdeSprint = $stSp->fetchColumn() ?: null;
+    } catch (Throwable $e) { error_log('[tapas/badges sprint] ' . $e->getMessage()); }
 
     $st = $pdo->prepare("SELECT id, player_name, badge_name, status, created_at
                            FROM tapas_requests
-                          WHERE team_id = ? AND action_type = 'badge'
+                          WHERE team_id = ? AND action_type = 'badge'" . ($desdeSprint ? " AND created_at >= ?" : "") . "
                           ORDER BY created_at DESC LIMIT 20");
-    $st->execute([$teamId]);
+    $st->execute($desdeSprint ? [$teamId, $desdeSprint] : [$teamId]);
 
     out(['success' => true,
          'disponiveis' => badgesDisponiveis($pdo, (int)$user['id'], $teamId),

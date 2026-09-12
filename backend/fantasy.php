@@ -60,6 +60,10 @@ const FAN_BONUS = [
 /** Moedas por colocação na rodada. */
 const FAN_PREMIOS = [1 => 500, 2 => 300, 3 => 200, 4 => 100, 5 => 100, 6 => 100, 7 => 100, 8 => 100, 9 => 100, 10 => 100];
 
+/** Ligas dos usuários: quantas cada um participa (criadas + que entrou) e o teto de gente por liga. */
+const FAN_MAX_LIGAS = 3;
+const FAN_MAX_MEMBROS = 64;
+
 function fanGarantirTabelas(PDO $pdo): void
 {
     static $feito = false;
@@ -106,9 +110,48 @@ function fanGarantirTabelas(PDO $pdo): void
             patrimonio DECIMAL(7,1) NOT NULL DEFAULT " . FAN_ORCAMENTO . ",
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS fantasy_ligas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(40) NOT NULL,
+            tipo ENUM('pontos','mata_mata') NOT NULL DEFAULT 'pontos',
+            codigo VARCHAR(12) NOT NULL,
+            dono_user_id INT NOT NULL,
+            rodada_minima INT NOT NULL DEFAULT 1,
+            status ENUM('aberta','andamento','encerrada') NOT NULL DEFAULT 'aberta',
+            fase_atual INT NOT NULL DEFAULT 0,
+            campeao_user_id INT NULL,
+            criada_em DATETIME NOT NULL,
+            UNIQUE KEY uk_codigo (codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS fantasy_liga_membros (
+            liga_id INT NOT NULL,
+            user_id INT NOT NULL,
+            entrou_em DATETIME NOT NULL,
+            PRIMARY KEY (liga_id, user_id),
+            KEY idx_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS fantasy_confrontos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            liga_id INT NOT NULL,
+            fase INT NOT NULL,
+            rodada_id INT NULL,
+            user_a INT NOT NULL,
+            user_b INT NULL,
+            pontos_a DECIMAL(7,1) NULL,
+            pontos_b DECIMAL(7,1) NULL,
+            vencedor INT NULL,
+            KEY idx_liga (liga_id, fase),
+            KEY idx_rodada (rodada_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { error_log('[fantasy] tabela: ' . $e->getMessage()); }
     }
+    // O 6º homem: reserva de qualquer posição (ver fanDetalheDoTime).
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM fantasy_escalacoes LIKE 'reserva'")->fetch()) {
+            $pdo->exec("ALTER TABLE fantasy_escalacoes ADD COLUMN reserva INT NULL AFTER capitao");
+        }
+    } catch (Throwable $e) { error_log('[fantasy] coluna reserva: ' . $e->getMessage()); }
 }
 
 /* ─── pontuação ───────────────────────────────────────────────────────────── */
@@ -240,6 +283,8 @@ function fanAbrirRodada(PDO $pdo, array $temporada): void
     $st->execute([(int)$temporada['id']]);
     $rodadaId = (int)$st->fetchColumn();
     fanCompletarPrecos($pdo, $rodadaId, (int)$temporada['id']);
+    // Fase de mata-mata criada no fim da rodada passada é decidida nesta.
+    $pdo->prepare("UPDATE fantasy_confrontos SET rodada_id = ? WHERE rodada_id IS NULL")->execute([$rodadaId]);
 }
 
 /** A temporada com estatística imediatamente antes desta. */
@@ -316,7 +361,7 @@ function fanEscalacao(PDO $pdo, int $rodadaId, int $userId): array
     $st = $pdo->prepare("SELECT * FROM fantasy_escalacoes WHERE user_id = ? AND rodada_id < ? ORDER BY rodada_id DESC LIMIT 1");
     $st->execute([$userId, $rodadaId]);
     $ult = $st->fetch(PDO::FETCH_ASSOC);
-    $vazia = ['pg' => null, 'sg' => null, 'sf' => null, 'pf' => null, 'c' => null, 'capitao' => null];
+    $vazia = ['pg' => null, 'sg' => null, 'sf' => null, 'pf' => null, 'c' => null, 'capitao' => null, 'reserva' => null];
     return ($ult ? array_intersect_key($ult, $vazia) : $vazia) + ['salva' => false];
 }
 
@@ -338,12 +383,17 @@ function fanSalvarEscalacao(PDO $pdo, array $user, array $corpo): array
     $capitao = (int)($corpo['capitao'] ?? 0);
     if (!in_array($capitao, $ids, true)) return ['ok' => false, 'erro' => 'Escolha o capitão entre os cinco.'];
 
-    $ph = implode(',', array_fill(0, 5, '?'));
+    // 6º homem é opcional, de qualquer posição, e não pode estar no quinteto.
+    $reserva = (int)($corpo['reserva'] ?? 0) ?: null;
+    if ($reserva && in_array($reserva, $ids, true)) return ['ok' => false, 'erro' => 'O 6º homem não pode estar no quinteto.'];
+    $todos = $reserva ? array_merge($ids, [$reserva]) : $ids;
+
+    $ph = implode(',', array_fill(0, count($todos), '?'));
     $st = $pdo->prepare("SELECT p.id, p.name, UPPER(TRIM(p.position)) pos, fp.preco
                            FROM players p JOIN teams t ON t.id = p.team_id
                            JOIN fantasy_precos fp ON fp.player_id = p.id AND fp.rodada_id = ?
                           WHERE t.league = ? AND p.id IN ($ph)");
-    $st->execute(array_merge([$rid, FAN_LIGA], $ids));
+    $st->execute(array_merge([$rid, FAN_LIGA], $todos));
     $achados = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $achados[(int)$r['id']] = $r;
 
@@ -353,6 +403,10 @@ function fanSalvarEscalacao(PDO $pdo, array $user, array $corpo): array
         if ($achados[$id]['pos'] !== $pos) return ['ok' => false, 'erro' => "{$achados[$id]['name']} não joga de {$pos}."];
         $custo += (float)$achados[$id]['preco'];
     }
+    if ($reserva) {
+        if (!isset($achados[$reserva])) return ['ok' => false, 'erro' => 'O 6º homem não está mais na ELITE. Troque e salve de novo.'];
+        $custo += (float)$achados[$reserva]['preco'];
+    }
 
     $cartola = fanCartola($pdo, $user);
     $patrimonio = (float)$cartola['patrimonio'];
@@ -361,11 +415,13 @@ function fanSalvarEscalacao(PDO $pdo, array $user, array $corpo): array
                                         . ' e você tem F$ ' . number_format($patrimonio, 1, ',', '.') . '.'];
     }
 
-    $pdo->prepare("INSERT INTO fantasy_escalacoes (rodada_id, user_id, pg, sg, sf, pf, c, capitao, custo, patrimonio_inicio, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,NOW())
+    $pdo->prepare("INSERT INTO fantasy_escalacoes (rodada_id, user_id, pg, sg, sf, pf, c, capitao, reserva, custo, patrimonio_inicio, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())
                    ON DUPLICATE KEY UPDATE pg=VALUES(pg), sg=VALUES(sg), sf=VALUES(sf), pf=VALUES(pf), c=VALUES(c),
-                       capitao=VALUES(capitao), custo=VALUES(custo), patrimonio_inicio=VALUES(patrimonio_inicio), atualizado_em=NOW()")
-        ->execute([$rid, (int)$user['id'], $esc['PG'], $esc['SG'], $esc['SF'], $esc['PF'], $esc['C'], $capitao, round($custo, 1), $patrimonio]);
+                       capitao=VALUES(capitao), reserva=VALUES(reserva), custo=VALUES(custo),
+                       patrimonio_inicio=VALUES(patrimonio_inicio), atualizado_em=NOW()")
+        ->execute([$rid, (int)$user['id'], $esc['PG'], $esc['SG'], $esc['SF'], $esc['PF'], $esc['C'], $capitao, $reserva,
+                   round($custo, 1), $patrimonio]);
 
     return ['ok' => true, 'custo' => round($custo, 1)];
 }
@@ -385,7 +441,10 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
 {
     $rodada = fanRodadaAtual($pdo);
     if (!$rodada) {
-        return ['rodada' => null, 'regras' => fanRegras(), 'admin' => $ehAdmin];
+        return ['rodada' => null, 'regras' => fanRegras(), 'admin' => $ehAdmin, 'eu' => (int)$user['id'],
+                'ligas' => fanMinhasLigas($pdo, (int)$user['id']), 'max_ligas' => FAN_MAX_LIGAS,
+                'minha_liga_fba' => fanLigaFbaDoUsuario($pdo, (int)$user['id']),
+                'ranking' => ['rodada' => [], 'geral' => [], 'por_liga' => []]];
     }
     $rid = (int)$rodada['id'];
     if ($rodada['status'] === 'aberta') fanCompletarPrecos($pdo, $rid, (int)$rodada['season_id']);
@@ -455,11 +514,15 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
             'PG' => $esc['pg'] ? (int)$esc['pg'] : null, 'SG' => $esc['sg'] ? (int)$esc['sg'] : null,
             'SF' => $esc['sf'] ? (int)$esc['sf'] : null, 'PF' => $esc['pf'] ? (int)$esc['pf'] : null,
             'C' => $esc['c'] ? (int)$esc['c'] : null, 'capitao' => $esc['capitao'] ? (int)$esc['capitao'] : null,
+            'reserva' => !empty($esc['reserva']) ? (int)$esc['reserva'] : null,
             'salva' => $esc['salva'],
         ],
         'jogadores' => $jogadores,
         'ranking' => fanRanking($pdo, $rodada),
         'historico' => fanHistorico($pdo, (int)$user['id']),
+        'ligas' => fanMinhasLigas($pdo, (int)$user['id']),
+        'max_ligas' => FAN_MAX_LIGAS,
+        'minha_liga_fba' => fanLigaFbaDoUsuario($pdo, (int)$user['id']),
         'regras' => fanRegras(),
         'admin' => $ehAdmin,
         'eu' => (int)$user['id'],
@@ -476,16 +539,39 @@ function fanRegras(): array
     ];
 }
 
-/** Pontos de um time na rodada (com o capitão) a partir dos pontos dos jogadores. */
+/** Pontos de um time na rodada (com o capitão e o 6º homem) a partir dos pontos dos jogadores. */
 function fanPontosDoTime(array $e, array $pontos): float
 {
-    $total = 0.0;
+    return fanDetalheDoTime($e, $pontos)['total'];
+}
+
+/**
+ * O 6º HOMEM: se ele pontuar mais que o PIOR titular, entra no lugar dele.
+ * A comparação é pelos pontos do jogador, sem o bônus de capitão; e quem entra
+ * não herda o bônus — se o pior for o capitão, o 6º entra com os pontos dele.
+ * Empate no pior: vale o primeiro na ordem PG, SG, SF, PF, C.
+ *
+ * @return array{total:float, substituido:?string}
+ */
+function fanDetalheDoTime(array $e, array $pontos): array
+{
+    $raw = [];
     foreach (['pg', 'sg', 'sf', 'pf', 'c'] as $k) {
-        $id = (int)$e[$k];
-        $p = $pontos['id'][$id]['total'] ?? 0.0;
-        $total += $id === (int)$e['capitao'] ? $p * FAN_CAPITAO : $p;
+        $raw[$k] = (float)($pontos['id'][(int)($e[$k] ?? 0)]['total'] ?? 0.0);
     }
-    return round($total, 1);
+    $reserva = (int)($e['reserva'] ?? 0);
+    $rp = $reserva > 0 ? (float)($pontos['id'][$reserva]['total'] ?? 0.0) : 0.0;
+    $substituido = null;
+    if ($reserva > 0) {
+        $pior = array_keys($raw, min($raw))[0];
+        if ($rp > $raw[$pior]) $substituido = $pior;
+    }
+    $total = 0.0;
+    foreach ($raw as $k => $p) {
+        if ($k === $substituido) { $total += $rp; continue; }
+        $total += (int)($e[$k] ?? 0) === (int)($e['capitao'] ?? 0) ? $p * FAN_CAPITAO : $p;
+    }
+    return ['total' => round($total, 1), 'substituido' => $substituido];
 }
 
 /** Ranking da rodada (parcial ou final) e o geral. */
@@ -525,7 +611,33 @@ function fanRanking(PDO $pdo, array $rodada): array
         'moedas' => (int)$g['moedas'], 'rodadas' => (int)$g['rodadas'],
     ], $geral);
 
-    return ['rodada' => $rodadaLista, 'geral' => $geral];
+    /* POR LIGA DA FBA: o mesmo geral, separado pela liga do time de cada
+       cartola. Quem tem time em duas ligas aparece nas duas. */
+    $porLiga = [];
+    try {
+        $st = $pdo->query("SELECT t.league, c.user_id, u.name gm, c.nome_time, c.patrimonio,
+                                  COALESCE(SUM(e.pontos),0) pontos, COUNT(e.pontos) rodadas
+                             FROM fantasy_cartolas c
+                             JOIN users u ON u.id = c.user_id
+                             JOIN (SELECT DISTINCT user_id, league FROM teams WHERE user_id IS NOT NULL) t ON t.user_id = c.user_id
+                        LEFT JOIN fantasy_escalacoes e ON e.user_id = c.user_id AND e.pontos IS NOT NULL
+                         GROUP BY t.league, c.user_id, u.name, c.nome_time, c.patrimonio
+                           HAVING rodadas > 0
+                         ORDER BY pontos DESC");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $g) {
+            $lg = (string)$g['league'];
+            if (count($porLiga[$lg] ?? []) >= 100) continue;
+            $porLiga[$lg][] = [
+                'user_id' => (int)$g['user_id'], 'time' => fanNomeCartola($g['nome_time'], $g['gm']),
+                'gm' => $g['gm'], 'pontos' => (float)$g['pontos'], 'patrimonio' => (float)$g['patrimonio'],
+                'rodadas' => (int)$g['rodadas'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[fantasy] ranking por liga: ' . $e->getMessage());
+    }
+
+    return ['rodada' => $rodadaLista, 'geral' => $geral, 'por_liga' => $porLiga];
 }
 
 function fanHistorico(PDO $pdo, int $userId): array
@@ -594,8 +706,9 @@ function fanEncerrarRodada(PDO $pdo): array
         foreach ($times as &$e) {
             $e['_pontos'] = fanPontosDoTime($e, $pontos);
             $delta = 0.0;
-            foreach (['pg', 'sg', 'sf', 'pf', 'c'] as $k) {
-                [$antes, $depois] = $precos[(int)$e[$k]] ?? [0, 0];
+            // O 6º homem também valoriza ou desvaloriza o patrimônio.
+            foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
+                [$antes, $depois] = $precos[(int)($e[$k] ?? 0)] ?? [0, 0];
                 $delta += $depois - $antes;
             }
             $e['_patrimonio'] = round(max(FAN_ORCAMENTO / 2, (float)$e['patrimonio_inicio'] + $delta), 1);
@@ -624,5 +737,350 @@ function fanEncerrarRodada(PDO $pdo): array
         error_log('[fantasy] encerrar: ' . $ex->getMessage());
         return ['ok' => false, 'erro' => 'Erro ao encerrar a rodada.'];
     }
+    // Com os pontos gravados, os confrontos de mata-mata desta rodada se decidem.
+    fanLigasAposRodada($pdo, $rid);
     return ['ok' => true, 'times' => count($times)];
+}
+
+/* ─── ligas dos usuários ─────────────────────────────────────────────────── */
+
+function fanNomeCartola(?string $nomeTime, ?string $gm): string
+{
+    if ($nomeTime) return $nomeTime;
+    return 'Time do ' . (explode(' ', trim((string)$gm))[0] ?: 'Cartola');
+}
+
+/** A liga da FBA do time do usuário (a primeira, se tiver mais de uma). */
+function fanLigaFbaDoUsuario(PDO $pdo, int $userId): ?string
+{
+    $st = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? ORDER BY FIELD(league,'ELITE','NEXT','RISE','ROOKIE') LIMIT 1");
+    $st->execute([$userId]);
+    return $st->fetchColumn() ?: null;
+}
+
+function fanQuantasLigas(PDO $pdo, int $userId): int
+{
+    $st = $pdo->prepare("SELECT COUNT(*) FROM fantasy_liga_membros WHERE user_id = ?");
+    $st->execute([$userId]);
+    return (int)$st->fetchColumn();
+}
+
+/** Código de convite curto e sem caracteres ambíguos (0/O, 1/I/L). */
+function fanNovoCodigo(PDO $pdo): string
+{
+    $letras = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    $st = $pdo->prepare("SELECT 1 FROM fantasy_ligas WHERE codigo = ?");
+    for ($i = 0; $i < 30; $i++) {
+        $c = '';
+        for ($k = 0; $k < 6; $k++) $c .= $letras[random_int(0, strlen($letras) - 1)];
+        $st->execute([$c]);
+        if (!$st->fetchColumn()) return $c;
+    }
+    return strtoupper(bin2hex(random_bytes(4)));
+}
+
+function fanMinhasLigas(PDO $pdo, int $userId): array
+{
+    fanGarantirTabelas($pdo);
+    $st = $pdo->prepare("SELECT l.*, (SELECT COUNT(*) FROM fantasy_liga_membros m2 WHERE m2.liga_id = l.id) AS membros
+                           FROM fantasy_ligas l
+                           JOIN fantasy_liga_membros m ON m.liga_id = l.id AND m.user_id = ?
+                       ORDER BY m.entrou_em");
+    $st->execute([$userId]);
+    return array_map(fn($l) => [
+        'id' => (int)$l['id'], 'nome' => $l['nome'], 'tipo' => $l['tipo'], 'codigo' => $l['codigo'],
+        'status' => $l['status'], 'fase_atual' => (int)$l['fase_atual'], 'membros' => (int)$l['membros'],
+        'dono' => (int)$l['dono_user_id'] === $userId,
+    ], $st->fetchAll(PDO::FETCH_ASSOC));
+}
+
+function fanCriarLiga(PDO $pdo, array $user, string $nome, string $tipo): array
+{
+    fanGarantirTabelas($pdo);
+    $uid = (int)$user['id'];
+    $nome = trim(preg_replace('/\s+/', ' ', strip_tags($nome)));
+    if (mb_strlen($nome) < 3 || mb_strlen($nome) > 40) return ['ok' => false, 'erro' => 'O nome da liga precisa ter de 3 a 40 letras.'];
+    if (!in_array($tipo, ['pontos', 'mata_mata'], true)) return ['ok' => false, 'erro' => 'Escolha o formato da liga.'];
+    if (fanQuantasLigas($pdo, $uid) >= FAN_MAX_LIGAS) {
+        return ['ok' => false, 'erro' => 'Você já está em ' . FAN_MAX_LIGAS . ' ligas, que é o limite. Saia de uma pra criar outra.'];
+    }
+
+    /* A liga conta a partir da rodada que ainda dá pra escalar: a aberta, ou a
+       próxima se o mercado já fechou — pontuar uma rodada que já estava em
+       andamento na hora de criar seria entrar sabendo o resultado. */
+    $r = fanRodadaAtual($pdo);
+    $minima = $r ? (int)$r['id'] + ($r['status'] === 'aberta' ? 0 : 1) : 1;
+    $codigo = fanNovoCodigo($pdo);
+    fanCartola($pdo, $user);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("INSERT INTO fantasy_ligas (nome, tipo, codigo, dono_user_id, rodada_minima, status, criada_em)
+                       VALUES (?, ?, ?, ?, ?, ?, NOW())")
+            ->execute([$nome, $tipo, $codigo, $uid, $minima, $tipo === 'pontos' ? 'andamento' : 'aberta']);
+        $id = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO fantasy_liga_membros (liga_id, user_id, entrou_em) VALUES (?, ?, NOW())")->execute([$id, $uid]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fantasy] criar liga: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra criar a liga. Tente de novo.'];
+    }
+    return ['ok' => true, 'liga_id' => $id, 'codigo' => $codigo];
+}
+
+function fanEntrarLiga(PDO $pdo, array $user, string $codigo): array
+{
+    fanGarantirTabelas($pdo);
+    $uid = (int)$user['id'];
+    $codigo = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $codigo));
+    $st = $pdo->prepare("SELECT * FROM fantasy_ligas WHERE codigo = ?");
+    $st->execute([$codigo]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l) return ['ok' => false, 'erro' => 'Convite inválido. Confira o código.'];
+    $ligaId = (int)$l['id'];
+
+    $st = $pdo->prepare("SELECT 1 FROM fantasy_liga_membros WHERE liga_id = ? AND user_id = ?");
+    $st->execute([$ligaId, $uid]);
+    if ($st->fetchColumn()) return ['ok' => true, 'liga_id' => $ligaId, 'ja' => true];
+
+    if ($l['status'] === 'encerrada') return ['ok' => false, 'erro' => 'Essa liga já terminou.'];
+    if ($l['tipo'] === 'mata_mata' && $l['status'] !== 'aberta') return ['ok' => false, 'erro' => 'Esse mata-mata já começou — não dá mais pra entrar.'];
+
+    $st = $pdo->prepare("SELECT COUNT(*) FROM fantasy_liga_membros WHERE liga_id = ?");
+    $st->execute([$ligaId]);
+    if ((int)$st->fetchColumn() >= FAN_MAX_MEMBROS) return ['ok' => false, 'erro' => 'Essa liga está cheia (' . FAN_MAX_MEMBROS . ' participantes).'];
+    if (fanQuantasLigas($pdo, $uid) >= FAN_MAX_LIGAS) {
+        return ['ok' => false, 'erro' => 'Você já está em ' . FAN_MAX_LIGAS . ' ligas, que é o limite. Saia de uma pra entrar nesta.'];
+    }
+
+    fanCartola($pdo, $user);
+    $pdo->prepare("INSERT IGNORE INTO fantasy_liga_membros (liga_id, user_id, entrou_em) VALUES (?, ?, NOW())")->execute([$ligaId, $uid]);
+    return ['ok' => true, 'liga_id' => $ligaId, 'nome' => $l['nome']];
+}
+
+/** Sair da liga. Quem criou, ao sair, apaga a liga pra todos. */
+function fanSairLiga(PDO $pdo, array $user, int $ligaId): array
+{
+    fanGarantirTabelas($pdo);
+    $uid = (int)$user['id'];
+    $st = $pdo->prepare("SELECT l.* FROM fantasy_ligas l
+                           JOIN fantasy_liga_membros m ON m.liga_id = l.id AND m.user_id = ?
+                          WHERE l.id = ?");
+    $st->execute([$uid, $ligaId]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l) return ['ok' => false, 'erro' => 'Você não está nessa liga.'];
+
+    if ((int)$l['dono_user_id'] === $uid) {
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("DELETE FROM fantasy_confrontos WHERE liga_id = ?")->execute([$ligaId]);
+            $pdo->prepare("DELETE FROM fantasy_liga_membros WHERE liga_id = ?")->execute([$ligaId]);
+            $pdo->prepare("DELETE FROM fantasy_ligas WHERE id = ?")->execute([$ligaId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[fantasy] excluir liga: ' . $e->getMessage());
+            return ['ok' => false, 'erro' => 'Não deu pra excluir a liga.'];
+        }
+        return ['ok' => true, 'excluida' => true];
+    }
+    if ($l['tipo'] === 'mata_mata' && $l['status'] === 'andamento') {
+        return ['ok' => false, 'erro' => 'O mata-mata já começou — dá pra sair quando ele terminar.'];
+    }
+    $pdo->prepare("DELETE FROM fantasy_liga_membros WHERE liga_id = ? AND user_id = ?")->execute([$ligaId, $uid]);
+    return ['ok' => true];
+}
+
+/** Monta os confrontos de uma fase, na ordem da lista; o que sobrar sozinho passa direto. */
+function fanCriarFase(PDO $pdo, int $ligaId, int $fase, array $ids, ?int $rodadaId): void
+{
+    $ins = $pdo->prepare("INSERT INTO fantasy_confrontos (liga_id, fase, rodada_id, user_a, user_b, vencedor) VALUES (?, ?, ?, ?, ?, ?)");
+    $ids = array_values($ids);
+    for ($i = 0; $i < count($ids); $i += 2) {
+        $a = (int)$ids[$i];
+        $b = isset($ids[$i + 1]) ? (int)$ids[$i + 1] : null;
+        $ins->execute([$ligaId, $fase, $rodadaId, $a, $b, $b === null ? $a : null]);
+    }
+}
+
+function fanIniciarMataMata(PDO $pdo, array $user, int $ligaId): array
+{
+    fanGarantirTabelas($pdo);
+    $uid = (int)$user['id'];
+    $st = $pdo->prepare("SELECT * FROM fantasy_ligas WHERE id = ?");
+    $st->execute([$ligaId]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l || (int)$l['dono_user_id'] !== $uid) return ['ok' => false, 'erro' => 'Só quem criou a liga pode começar o mata-mata.'];
+    if ($l['tipo'] !== 'mata_mata' || $l['status'] !== 'aberta') return ['ok' => false, 'erro' => 'Esse mata-mata já começou.'];
+
+    $st = $pdo->prepare("SELECT user_id FROM fantasy_liga_membros WHERE liga_id = ?");
+    $st->execute([$ligaId]);
+    $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    if (count($ids) < 2) return ['ok' => false, 'erro' => 'Precisa de pelo menos 2 participantes. Mande o convite pros amigos.'];
+
+    $r = fanRodadaAtual($pdo);
+    if (!$r || $r['status'] !== 'aberta') {
+        return ['ok' => false, 'erro' => 'Comece com o mercado aberto: a 1ª fase é decidida na rodada em que dá pra escalar.'];
+    }
+
+    shuffle($ids);
+    $pdo->beginTransaction();
+    try {
+        fanCriarFase($pdo, $ligaId, 1, $ids, (int)$r['id']);
+        $pdo->prepare("UPDATE fantasy_ligas SET status = 'andamento', fase_atual = 1, rodada_minima = ? WHERE id = ?")
+            ->execute([(int)$r['id'], $ligaId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fantasy] iniciar mata-mata: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra começar o mata-mata.'];
+    }
+    return ['ok' => true];
+}
+
+/**
+ * Decide os confrontos da rodada que acabou de encerrar e avança as fases.
+ * Quem fez mais pontos passa; empate vai pro maior patrimônio; sem escalação,
+ * o time conta 0.
+ */
+function fanLigasAposRodada(PDO $pdo, int $rid): void
+{
+    try {
+        $pts = [];
+        $st = $pdo->prepare("SELECT e.user_id, e.pontos, COALESCE(e.patrimonio_fim, c.patrimonio, 0) patr
+                               FROM fantasy_escalacoes e LEFT JOIN fantasy_cartolas c ON c.user_id = e.user_id
+                              WHERE e.rodada_id = ?");
+        $st->execute([$rid]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $pts[(int)$r['user_id']] = [(float)($r['pontos'] ?? 0), (float)$r['patr']];
+
+        $st = $pdo->prepare("SELECT * FROM fantasy_confrontos WHERE rodada_id = ? AND vencedor IS NULL AND user_b IS NOT NULL");
+        $st->execute([$rid]);
+        $up = $pdo->prepare("UPDATE fantasy_confrontos SET pontos_a = ?, pontos_b = ?, vencedor = ? WHERE id = ?");
+        $ligas = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $a = (int)$c['user_a']; $b = (int)$c['user_b'];
+            [$pa, $patA] = $pts[$a] ?? [0.0, 0.0];
+            [$pb, $patB] = $pts[$b] ?? [0.0, 0.0];
+            $venc = $pa > $pb ? $a : ($pb > $pa ? $b : ($patB > $patA ? $b : $a));
+            $up->execute([$pa, $pb, $venc, (int)$c['id']]);
+            $ligas[(int)$c['liga_id']] = true;
+        }
+        foreach (array_keys($ligas) as $ligaId) fanAvancarMataMata($pdo, $ligaId);
+    } catch (Throwable $e) {
+        error_log('[fantasy] ligas após rodada: ' . $e->getMessage());
+    }
+}
+
+function fanAvancarMataMata(PDO $pdo, int $ligaId): void
+{
+    $st = $pdo->prepare("SELECT * FROM fantasy_ligas WHERE id = ?");
+    $st->execute([$ligaId]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l || $l['status'] !== 'andamento') return;
+    $fase = (int)$l['fase_atual'];
+
+    $st = $pdo->prepare("SELECT vencedor FROM fantasy_confrontos WHERE liga_id = ? AND fase = ? ORDER BY id");
+    $st->execute([$ligaId, $fase]);
+    $vencedores = $st->fetchAll(PDO::FETCH_COLUMN);
+    if (!$vencedores || in_array(null, $vencedores, true)) return;   // fase ainda não acabou
+    $vencedores = array_map('intval', $vencedores);
+
+    if (count($vencedores) === 1) {
+        $pdo->prepare("UPDATE fantasy_ligas SET status = 'encerrada', campeao_user_id = ? WHERE id = ?")->execute([$vencedores[0], $ligaId]);
+        return;
+    }
+    // Próxima fase sem rodada: ela é ligada à rodada que abrir (fanAbrirRodada).
+    fanCriarFase($pdo, $ligaId, $fase + 1, $vencedores, null);
+    $pdo->prepare("UPDATE fantasy_ligas SET fase_atual = ? WHERE id = ?")->execute([$fase + 1, $ligaId]);
+}
+
+/** A tabela (pontos corridos) ou a chave (mata-mata) de uma liga, pra quem participa dela. */
+function fanTabelaLiga(PDO $pdo, int $uid, int $ligaId): array
+{
+    fanGarantirTabelas($pdo);
+    $st = $pdo->prepare("SELECT l.* FROM fantasy_ligas l
+                           JOIN fantasy_liga_membros m ON m.liga_id = l.id AND m.user_id = ?
+                          WHERE l.id = ?");
+    $st->execute([$uid, $ligaId]);
+    $l = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$l) return ['ok' => false, 'erro' => 'Essa liga não existe ou você não participa dela.'];
+
+    $st = $pdo->prepare("SELECT m.user_id, u.name gm, c.nome_time, COALESCE(c.patrimonio, ?) patrimonio
+                           FROM fantasy_liga_membros m
+                           JOIN users u ON u.id = m.user_id
+                      LEFT JOIN fantasy_cartolas c ON c.user_id = m.user_id
+                          WHERE m.liga_id = ? ORDER BY m.entrou_em");
+    $st->execute([FAN_ORCAMENTO, $ligaId]);
+    $membros = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $membros[(int)$m['user_id']] = ['user_id' => (int)$m['user_id'], 'time' => fanNomeCartola($m['nome_time'], $m['gm']),
+                                        'gm' => $m['gm'], 'patrimonio' => (float)$m['patrimonio']];
+    }
+
+    // Parcial da rodada em andamento, pra tabela e os confrontos andarem junto.
+    $rodada = fanRodadaAtual($pdo);
+    $parcial = [];
+    if ($rodada && $rodada['status'] === 'fechada' && $membros) {
+        $pontos = fanPontosDaTemporada($pdo, (int)$rodada['season_id']);
+        $ph = implode(',', array_fill(0, count($membros), '?'));
+        $st = $pdo->prepare("SELECT * FROM fantasy_escalacoes WHERE rodada_id = ? AND user_id IN ($ph)");
+        $st->execute(array_merge([(int)$rodada['id']], array_keys($membros)));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $e) $parcial[(int)$e['user_id']] = fanPontosDoTime($e, $pontos);
+    }
+
+    $resp = [
+        'ok' => true, 'eu' => $uid, 'dono' => (int)$l['dono_user_id'] === $uid,
+        'liga' => ['id' => (int)$l['id'], 'nome' => $l['nome'], 'tipo' => $l['tipo'], 'codigo' => $l['codigo'],
+                   'status' => $l['status'], 'fase_atual' => (int)$l['fase_atual']],
+        'membros' => array_values($membros),
+    ];
+
+    if ($l['tipo'] === 'pontos') {
+        $soma = [];
+        if ($membros) {
+            $ph = implode(',', array_fill(0, count($membros), '?'));
+            $st = $pdo->prepare("SELECT e.user_id, SUM(e.pontos) pts, COUNT(e.pontos) rodadas
+                                   FROM fantasy_escalacoes e JOIN fantasy_rodadas r ON r.id = e.rodada_id
+                                  WHERE r.status = 'encerrada' AND e.pontos IS NOT NULL AND e.rodada_id >= ?
+                                    AND e.user_id IN ($ph)
+                               GROUP BY e.user_id");
+            $st->execute(array_merge([(int)$l['rodada_minima']], array_keys($membros)));
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) $soma[(int)$s['user_id']] = [(float)$s['pts'], (int)$s['rodadas']];
+        }
+        $contaParcial = $rodada && (int)$rodada['id'] >= (int)$l['rodada_minima'];
+        $tabela = [];
+        foreach ($membros as $id => $m) {
+            $tabela[] = $m + ['pontos' => round($soma[$id][0] ?? 0, 1), 'rodadas' => $soma[$id][1] ?? 0,
+                              'parcial' => $contaParcial ? ($parcial[$id] ?? null) : null];
+        }
+        usort($tabela, fn($a, $b) => [$b['pontos'] + ($b['parcial'] ?? 0), $b['patrimonio']]
+                                 <=> [$a['pontos'] + ($a['parcial'] ?? 0), $a['patrimonio']]);
+        $resp['tabela'] = $tabela;
+        return $resp;
+    }
+
+    $quem = fn($u) => $u === null ? null
+        : ($membros[(int)$u] ?? ['user_id' => (int)$u, 'time' => 'Saiu da liga', 'gm' => '', 'patrimonio' => 0]);
+    $st = $pdo->prepare("SELECT c.*, r.season_number FROM fantasy_confrontos c
+                      LEFT JOIN fantasy_rodadas r ON r.id = c.rodada_id
+                          WHERE c.liga_id = ? ORDER BY c.fase, c.id");
+    $st->execute([$ligaId]);
+    $fases = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        $f = (int)$c['fase'];
+        $fases[$f] ??= ['fase' => $f, 'temporada' => $c['season_number'] !== null ? (int)$c['season_number'] : null, 'confrontos' => []];
+        $noAr = !$c['vencedor'] && $rodada && (int)$c['rodada_id'] === (int)$rodada['id'];
+        $fases[$f]['confrontos'][] = [
+            'a' => $quem($c['user_a']), 'b' => $quem($c['user_b'] !== null ? (int)$c['user_b'] : null),
+            'pontos_a' => $c['pontos_a'] !== null ? (float)$c['pontos_a'] : null,
+            'pontos_b' => $c['pontos_b'] !== null ? (float)$c['pontos_b'] : null,
+            'parcial_a' => $noAr ? ($parcial[(int)$c['user_a']] ?? null) : null,
+            'parcial_b' => $noAr && $c['user_b'] !== null ? ($parcial[(int)$c['user_b']] ?? null) : null,
+            'vencedor' => $c['vencedor'] !== null ? (int)$c['vencedor'] : null,
+        ];
+    }
+    $resp['fases'] = array_values($fases);
+    $resp['campeao'] = $l['campeao_user_id'] ? $quem((int)$l['campeao_user_id']) : null;
+    return $resp;
 }

@@ -25,6 +25,11 @@ $ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // ?liga=ID → a tabela ou a chave de uma liga do usuário (modal da aba Ranking).
+        if (isset($_GET['liga'])) {
+            echo json_encode(fanTabelaLiga($pdo, (int)$user['id'], (int)$_GET['liga']), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         echo json_encode(['ok' => true] + fanEstado($pdo, $user, $ehAdmin), JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -44,6 +49,10 @@ try {
         'fechar'   => fanFecharMercado($pdo),
         'reabrir'  => fanReabrirMercado($pdo),
         'encerrar' => fanEncerrarRodada($pdo),
+        'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? '')),
+        'entrar_liga'  => fanEntrarLiga($pdo, $user, (string)($corpo['codigo'] ?? '')),
+        'iniciar_liga' => fanIniciarMataMata($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
+        'sair_liga'    => fanSairLiga($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
         default    => ['ok' => false, 'erro' => 'Ação inválida.'],
     };
     echo json_encode($r, JSON_UNESCAPED_UNICODE);
