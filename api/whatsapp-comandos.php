@@ -570,6 +570,7 @@ function wcAjuda(): string
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
         . "/time _nome_ — quinteto, banco, folha e posição\n"
         . "/cap _time_ — folha e espaço no cap\n"
+        . "/cap+ — quem está dando Cap Flex na ELITE e quanto\n"
         . "/picks _time_ — picks que o time tem
 "
         . "/tblock _time_ — quem o time pôs no trade block
@@ -609,6 +610,8 @@ function wcAjuda(): string
         // do outro lado: ali a liga é a casa, aqui é um GM qualquer.
         . "/eventos — os eventos abertos e as odds (aceita a _categoria_)\n"
         . "/fantasy _nome do time_ — o time de alguém no Fantasy FBA\n"
+        . "/fantasyescalados — os 10 mais escalados da rodada\n"
+        . "/fantasypontos — os 10 que mais pontuaram na rodada\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -3511,6 +3514,128 @@ function wcFantasy(PDO $pdo, string $arg, string $deQuem): string
     return $t ? wcFantasyTexto($t, $euMesmo) : "Não achei esse time.";
 }
 
+/**
+ * /fantasyescalados — os 10 jogadores mais escalados na rodada de agora.
+ *
+ * Conta em quantos times o jogador está (titular ou 6º homem) e em quantos é
+ * capitão. Com o mercado aberto a lista é parcial e diz isso; ela não abre a
+ * escalação de ninguém, só o agregado.
+ */
+function wcFantasyEscalados(PDO $pdo): string
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    $r = fanRodadaAtual($pdo);
+    if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
+    $st = $pdo->prepare("SELECT pg, sg, sf, pf, c, reserva, capitao FROM fantasy_escalacoes WHERE rodada_id = ?");
+    $st->execute([(int)$r['id']]);
+    $times = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$times) return "Ninguém escalou na rodada T{$r['season_number']} ainda.";
+
+    $vezes = []; $cap = [];
+    foreach ($times as $e) {
+        foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
+            $pid = (int)($e[$k] ?? 0);
+            if ($pid > 0) $vezes[$pid] = ($vezes[$pid] ?? 0) + 1;
+        }
+        $c = (int)($e['capitao'] ?? 0);
+        if ($c > 0) $cap[$c] = ($cap[$c] ?? 0) + 1;
+    }
+    arsort($vezes);
+    $top = array_slice($vezes, 0, 10, true);
+    $nomes = wcNomesDosJogadores($pdo, array_keys($top));
+
+    $status = $r['status'] === 'aberta' ? ' · mercado aberto, parcial' : '';
+    $txt = "⭐ *Fantasy FBA — mais escalados*\nRodada T{$r['season_number']} · " . count($times) . " time" . (count($times) === 1 ? '' : 's') . "{$status}\n\n";
+    $i = 1;
+    foreach ($top as $pid => $n) {
+        $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
+        $pct = round($n / count($times) * 100);
+        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — {$n} " . ($n === 1 ? 'time' : 'times') . " ({$pct}%)"
+              . (!empty($cap[$pid]) ? " · capitão em {$cap[$pid]}" : '') . "\n";
+        $i++;
+    }
+    return rtrim($txt);
+}
+
+/**
+ * /fantasypontos — os 10 jogadores que mais pontuaram na rodada.
+ *
+ * A pontuação é a mesma do app (média por jogo × presença + bônus). Com o
+ * mercado aberto a temporada ainda não tem jogo, então cai na rodada anterior.
+ */
+function wcFantasyPontos(PDO $pdo): string
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    $r = fanRodadaAtual($pdo);
+    if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
+    $pontos = fanPontosDaTemporada($pdo, (int)$r['season_id'])['id'];
+    if (!$pontos && $r['status'] === 'aberta') {
+        $st = $pdo->prepare("SELECT * FROM fantasy_rodadas WHERE id < ? ORDER BY id DESC LIMIT 1");
+        $st->execute([(int)$r['id']]);
+        $ant = $st->fetch(PDO::FETCH_ASSOC);
+        if ($ant) { $r = $ant; $pontos = fanPontosDaTemporada($pdo, (int)$r['season_id'])['id']; }
+    }
+    if (!$pontos) return "A rodada T{$r['season_number']} ainda não tem pontuação — os pontos aparecem quando a temporada tiver jogos lançados.";
+
+    uasort($pontos, fn($a, $b) => $b['total'] <=> $a['total']);
+    $top = array_slice($pontos, 0, 10, true);
+    $nomes = wcNomesDosJogadores($pdo, array_keys($top));
+    $f = fn($n) => number_format((float)$n, 1, ',', '.');
+    $status = $r['status'] === 'fechada' ? ' · parcial' : '';
+    $txt = "🏆 *Fantasy FBA — quem mais pontuou*\nRodada T{$r['season_number']}{$status}\n\n";
+    $i = 1;
+    foreach ($top as $pid => $d) {
+        $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
+        $bonus = $d['bonus'] ? ' _+' . implode(', ', array_map(fn($b) => FAN_BONUS[$b][0] ?? $b, $d['bonus'])) . '_' : '';
+        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — " . $f($d['total']) . " pts"
+              . " · {$d['jogos']} jogos" . $bonus . "\n";
+        $i++;
+    }
+    return rtrim($txt);
+}
+
+/** [id => ['nome' => ..., 'time' => nome do time sem cidade]] pra listas do Fantasy. */
+function wcNomesDosJogadores(PDO $pdo, array $ids): array
+{
+    $ids = array_values(array_filter(array_map('intval', $ids)));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT p.id, p.name, t.name AS time FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id IN ($ph)");
+    $st->execute($ids);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) $out[(int)$l['id']] = ['nome' => $l['name'], 'time' => (string)($l['time'] ?? '')];
+    return $out;
+}
+
+/**
+ * /cap+ — quem está dando Cap Flex na ELITE, time por time (só o nome do
+ * time) e quanto cada jogador soma. Mesmo cálculo da tela Folha & Cap.
+ */
+function wcCapMais(PDO $pdo): string
+{
+    $st = $pdo->prepare("SELECT id, name FROM teams WHERE league = ? ORDER BY name");
+    $st->execute(['ELITE']);
+    $com = []; $sem = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $s = getTeamCapSummary($pdo, (int)$t['id']);
+        $quem = [];
+        foreach ($s['roster'] as $r) {
+            if (!empty($r['cap_flex_counted'])) {
+                $quem[] = $r['name'] . (!empty($r['is_lenda']) ? ' (lenda)' : '') . " +{$r['cap_flex_value']}M";
+            }
+        }
+        if ($quem) $com[] = ['time' => $t['name'], 'total' => (int)$s['cap_flex_total'], 'teto' => (int)$s['cap_max'], 'quem' => $quem];
+        else $sem[] = $t['name'];
+    }
+    usort($com, fn($a, $b) => $b['total'] <=> $a['total'] ?: strcmp($a['time'], $b['time']));
+    $txt = "⚡ *Cap Flex — ELITE*\n_jogador draftado pelo time ou lenda nunca trocada: 85–89 +3M · 90–92 +5M · 93+ +8M, até 2 por time_\n\n";
+    foreach ($com as $c) {
+        $txt .= "*{$c['time']}* +{$c['total']}M (teto {$c['teto']}M): " . implode(', ', $c['quem']) . "\n";
+    }
+    if ($sem) $txt .= "\n_Sem Cap Flex:_ " . implode(', ', $sem);
+    return rtrim($txt);
+}
+
 function wcFantasyTexto(array $t, bool $meu): string
 {
     $f = fn($n) => number_format((float)$n, 1, ',', '.');
@@ -3709,6 +3834,20 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'cap':
             case 'folha':
                 return wcCap($pdo, $arg, null, $ligaDoGrupo);
+
+            case 'cap+':
+            case 'capflex':
+            case 'capmais':
+                return wcCapMais($pdo);
+
+            case 'fantasyescalados':
+            case 'escalados':
+                return wcFantasyEscalados($pdo);
+
+            case 'fantasypontos':
+            case 'fantasypontuacao':
+            case 'fantasypontuação':
+                return wcFantasyPontos($pdo);
 
             case 'picks':
             case 'pick':
