@@ -48,6 +48,19 @@ if ($gmId):
 </section>
 <?php endif; ?>
 
+<?php $moves = League::transactions(null, 40); ?>
+<section class="card">
+  <div class="card-head"><h2>🔄 Movimentações da liga</h2><span class="muted" style="font-size:11px">trocas, contratações, dispensas e draft — os 40 últimos</span></div>
+  <?php if (!$moves): ?><p class="muted">Nenhuma movimentação ainda.</p><?php else: ?>
+  <div class="news-list">
+    <?php foreach ($moves as $m):
+      $ic = ['troca' => '🔄', 'free agency' => '✍️', 'dispensa' => '🚪', 'draft' => '🎓', 'renovação' => '📝', 'retire' => '👋', 'vitrine' => '📣', 'punição' => '⚖️', 'expansão' => '🆕'][$m['type']] ?? '•'; ?>
+      <div class="nl-item"><span class="muted" style="font-size:10px">T<?= (int)$m['season'] ?><?= (int)$m['day'] ? ' · dia ' . (int)$m['day'] : '' ?></span> <?= $ic ?> <?= e($m['description']) ?></div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+</section>
+
 <div class="dashboard">
   <section class="card">
     <div class="card-head"><h2>🏆 Campeões</h2></div>

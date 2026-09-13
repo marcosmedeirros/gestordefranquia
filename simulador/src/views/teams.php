@@ -64,7 +64,7 @@ foreach(array_merge($standE, $standW) as $s) { $seeds[(int)$s['id']] = (int)$s['
       $ovrC = $p['ovr']>=90?'elite':($p['ovr']>=80?'star':($p['ovr']>=75?'good':'role'));
     ?>
     <tr>
-      <td><img class="face-mini" src="<?= PlayerFace::url((int)$p['id'], $p['name'], $p['pos']) ?>" alt=""></td>
+      <td><?= player_photo((int)($p['nba_id'] ?? 0), $p['name'], '#1a1a2e', 'sm', 'face-mini', (int)$p['id'], $p['pos']) ?></td>
       <td class="bx-name"><a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a></td>
       <td>
         <a href="<?= url('teams',['id'=>$p['team_id']]) ?>" style="display:flex;align-items:center;gap:6px">

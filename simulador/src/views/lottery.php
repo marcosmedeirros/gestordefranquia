@@ -68,6 +68,7 @@ for ($i = 13; $i >= 0; $i--) {
       <button id="revealBtn" class="btn btn-primary btn-lg">🎱 Revelar próxima escolha</button>
       <a id="startDraftBtn" class="btn btn-primary btn-lg" style="display:none"
          href="<?= url('home', ['action' => 'start-draft']) ?>">🎓 Iniciar o Draft →</a>
+      <a class="btn" href="<?= url('draft') ?>">👀 Ver a classe do draft</a>
     </div>
   </section>
 </div>

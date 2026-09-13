@@ -33,7 +33,7 @@ $teamStrength = League::teamStrength($id);
     <tbody>
     <?php foreach ($roster as $p): ?>
       <tr class="<?= $p['is_starter'] ? 'starter' : '' ?>">
-        <td><img class="face-mini" src="<?= PlayerFace::url((int)$p['id'], $p['name'], $p['pos']) ?>" alt=""></td>
+        <td><?= player_photo((int)($p['nba_id'] ?? 0), $p['name'], $t['primary_color'] ?? '#1a1a2e', 'sm', 'face-mini', (int)$p['id'], $p['pos']) ?></td>
         <td class="bx-name">
           <a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a>
           <?= $p['is_starter'] ? '<span class="tag">Titular</span>' : '' ?>

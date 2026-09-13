@@ -621,6 +621,15 @@ class League
             } catch (Throwable $e) {}
         }
 
+        // Superequipe custa entrosamento: time com 4+ jogadores de 85+ perde química aos poucos
+        // (vale pra IA também). Vencer em sequência recupera, como sempre.
+        if (self::chanceF(0.08)) {
+            try {
+                Database::conn()->exec("UPDATE teams SET chemistry = chemistry - 1 WHERE chemistry > 55 AND id IN (
+                    SELECT team_id FROM players WHERE retired=0 AND ovr>=85 AND team_id IS NOT NULL GROUP BY team_id HAVING COUNT(*) >= 4)");
+            } catch (Throwable $e) {}
+        }
+
         // pode surgir uma decisão de inbox para o GM
         if ($gm && !$autoGm) self::maybeGenerateDecision();
         // ...ou uma proposta de troca de outro time (mais frequente com gente na vitrine)
@@ -1011,7 +1020,7 @@ class League
         if (!in_array($stat, $allowed)) $stat = 'pts';
         $limit = max(1, (int) $limit);
         $st = Database::conn()->prepare(
-            "SELECT p.id, p.name, p.pos, t.abbr, s.gp,
+            "SELECT p.id, p.name, p.pos, p.nba_id, t.abbr, t.primary_color, s.gp,
                     ROUND(s.$stat * 1.0 / NULLIF(s.gp,0), 1) AS avg,
                     ROUND(s.pts * 1.0 / NULLIF(s.gp,0), 1) AS ppg
              FROM season_stats s JOIN players p ON p.id=s.player_id JOIN teams t ON t.id=p.team_id
@@ -2129,6 +2138,7 @@ class League
             'bench_unhappy' => ['😤', 'Vestiário'],
             'wants_star' => ['⭐', 'Vestiário'],
             'fight' => ['🥊', 'Comissão Técnica'],
+            'too_many_stars' => ['🧩', 'Comissão Técnica'],
             'trade_offer' => ['🤝', 'Central de Trocas'],
             default => ['🛌', 'Comissão Técnica'],
         };
@@ -2214,8 +2224,28 @@ class League
             return;
         }
 
-        // 4) Briga no treino quando a química está baixa
+        // 4) Muitas estrelas: o elenco não se entrosa (4+ jogadores de 85+)
         $t = self::team($gm);
+        $st = $db->prepare("SELECT id,name,ovr FROM players WHERE team_id=? AND retired=0 AND ovr>=85 ORDER BY ovr DESC");
+        $st->execute([$gm]);
+        $stars = $st->fetchAll();
+        if (count($stars) >= 4 && (int) ($t['chemistry'] ?? 70) < 78 && self::chanceF(0.35)
+            && !self::hasPendingFor((int) $stars[count($stars) - 1]['id'])) {
+            $names = implode(', ', array_map(fn($s) => $s['name'], $stars));
+            $last = $stars[count($stars) - 1];
+            self::addDecision('too_many_stars',
+                "🧩 Elenco não está entrosado — estrelas demais",
+                "Com " . count($stars) . " jogadores de 85+ ({$names}), sobra bola de menos pra tanta gente e o vestiário se ressente. A química está em {$t['chemistry']}. O que você faz?",
+                [
+                    'meeting'   => 'Reunião do elenco (+química, mas os egos não gostam: −moral das estrelas)',
+                    'hierarchy' => "Definir hierarquia clara (+química, −moral de {$last['name']})",
+                    'ignore'    => 'Deixar o tempo resolver (−química)',
+                ],
+                ['player_id' => (int) $last['id'], 'name' => $last['name'], 'stars' => array_map(fn($s) => (int) $s['id'], $stars)]);
+            return;
+        }
+
+        // 5) Briga no treino quando a química está baixa
         if ((int) ($t['chemistry'] ?? 70) < 66 && self::chanceF(0.3)) {
             $st = $db->prepare("SELECT id,name,pos,ovr FROM players WHERE team_id=? AND retired=0 AND rotation=1 ORDER BY RANDOM() LIMIT 2");
             $st->execute([$gm]);
@@ -2329,6 +2359,22 @@ class League
             } else {
                 if ($gm) $db->prepare("UPDATE teams SET chemistry = MAX(50, chemistry - 1) WHERE id=?")->execute([$gm]);
                 $msg = "Protagonismo dividido — o vestiário aceitou, mas o entrosamento sofreu um pouco.";
+            }
+        } elseif ($d['type'] === 'too_many_stars' && $pid) {
+            $gm = self::gmTeam();
+            $stars = array_map('intval', $payload['stars'] ?? []);
+            $in = $stars ? implode(',', $stars) : '0';
+            if ($choice === 'meeting') {
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MIN(99, chemistry + 5) WHERE id=?")->execute([$gm]);
+                $db->exec("UPDATE players SET morale = MAX(30, morale - 4) WHERE id IN ($in)");
+                $msg = 'Reunião feita: a química subiu, mas as estrelas saíram resmungando.';
+            } elseif ($choice === 'hierarchy') {
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MIN(99, chemistry + 4) WHERE id=?")->execute([$gm]);
+                $db->prepare("UPDATE players SET morale = MAX(30, morale - 10) WHERE id=?")->execute([$pid]);
+                $msg = "Hierarquia definida — {$payload['name']} virou coadjuvante e não gostou, mas o time ganhou clareza.";
+            } else {
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MAX(50, chemistry - 4) WHERE id=?")->execute([$gm]);
+                $msg = 'Você deixou rolar — a química caiu mais um pouco.';
             }
         } elseif ($d['type'] === 'fight' && $pid) {
             $other = (int) ($payload['other_id'] ?? 0);

@@ -95,6 +95,10 @@ $fmtM = fn($v) => Cap::m((int) $v);
         <td class="num hide-sm"><?= (int)$p['contract_years'] > 0 ? (int)$p['contract_years'].' ano'.((int)$p['contract_years']>1?'s':'') : '<span class="muted">expira</span>' ?></td>
         <td style="white-space:nowrap">
           <?php if ($isMine): ?>
+            <?php if ((int)$p['contract_years'] <= 1): $dem = League::resignDemand($p); ?>
+              <a class="btn btn-sm btn-primary" href="<?= url('home', ['action'=>'resign','pid'=>$p['id'],'choice'=>'accept','back'=>'cap']) ?>"
+                 onclick="return confirm('Renovar <?= e($p['name']) ?> por <?= $dem['years'] ?> anos? O salário segue a tabela por OVR (<?= $fmtM($dem['salary']) ?>/ano hoje).')">✍️ Renovar <?= $dem['years'] ?>a</a>
+            <?php endif; ?>
             <a class="btn btn-sm" href="<?= url('home', ['action'=>'release','pid'=>$p['id'],'back'=>'cap']) ?>"
                onclick="return confirm('Dispensar <?= e($p['name']) ?>? Ele vira agente livre e o salário de <?= $fmtM($p['salary']) ?> sai da folha na hora.')">🚪 Dispensar</a>
           <?php endif; ?>
@@ -137,6 +141,7 @@ $fmtM = fn($v) => Cap::m((int) $v);
     <div><strong>Cap Flex.</strong> Jogador que <em>você draftou</em> e virou 85+ soma no seu teto: 85–89 = +3M · 90–92 = +5M · 93+ = +8M (até 2 jogadores, enquanto ficarem no time).</div>
     <div><strong>Bônus de prêmio.</strong> MVP +5M · DPOY +3M · MVP das Finais +3M · ROY +2M · All-NBA 1º/2º/3º time +3/+2/+1M — entram na folha só na temporada seguinte.</div>
     <div><strong>Trocas (regra dos 120%).</strong> Nenhum lado pode receber mais de 120% do salário que envia. Pick de 1ª rodada conta 5M e de 2ª rodada 2M nos dois lados. Time acima do teto não pode sair da troca com folha maior.</div>
+    <div><strong>Vínculo e renovação.</strong> Cada jogador tem anos de vínculo; quando resta 1 ano (ou zero, na entressafra) aparece o botão <em>Renovar</em> aqui e o pedido do agente na caixa de mensagens. Quem não é renovado sai de graça na virada da temporada. O salário nunca é negociado — é sempre o da tabela por OVR.</div>
     <div><strong>Teto, piso e deadline.</strong> Acima do teto na Trade Deadline (dia <?= $dl ?>) ou no início da temporada, a liga trava o calendário até você regularizar — dispensa (o salário sai na hora), troca ou contratação de agente livre (só se couber no espaço). Abaixo do piso na deadline: perde a pick de 2ª rodada do próximo draft.</div>
   </div>
 </section>

@@ -15,9 +15,7 @@ $cats = ['pts' => 'Pontos', 'reb' => 'Rebotes', 'ast' => 'Assistências', 'stl' 
           <tr>
             <td class="rank"><?= $r++ ?></td>
             <td>
-              <img src="<?= PlayerFace::url((int)$l['id'], $l['name'], $l['pos']) ?>"
-                   style="width:28px;height:34px;border-radius:5px;object-fit:cover;object-position:top;vertical-align:middle;margin-right:6px;background:var(--card2)"
-                   alt="">
+              <?= player_photo((int)($l['nba_id'] ?? 0), $l['name'], $l['primary_color'] ?? '#1a1a2e', 'sm', 'face-mini', (int)$l['id'], $l['pos']) ?>
               <a href="<?= url('player',['id'=>$l['id']]) ?>"><?= e($l['name']) ?></a>
               <span class="muted"><?= e($l['abbr']) ?> · <?= e($l['pos']) ?></span>
             </td>
