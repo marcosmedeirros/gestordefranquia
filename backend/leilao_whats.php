@@ -7,7 +7,7 @@
  * troca no app. Era o maior gargalo da liga. Aqui o bot faz o papel do admin:
  *
  *   1. O dono manda no PRIVADO do bot: /leilao Nome do Jogador
- *      → confere slot de leilão e requisito (85+) e anuncia no Gameplay.
+ *      → confere slot de leilão e requisito (85+, 83+ até 23 anos, ou Escolha 1-5) e anuncia no Gameplay.
  *   2. Quem quer o jogador manda no privado: /leilao Jogador + Jogador + Pick 2026 R1
  *      → o bot posta no Gameplay, UMA proposta por vez.
  *   3. O dono responde /aceitar ou /recusar no grupo (ou /leilao aceitar no privado).
@@ -32,8 +32,33 @@ require_once __DIR__ . '/leilao_bot.php';     // botGrupoDaCerimonia, LEILAO_BOT
 require_once __DIR__ . '/salary_cap.php';
 require_once __DIR__ . '/picks_usadas.php';
 
-/** Requisito pra ir a leilão. Por enquanto é só esse. */
+/* O que pode ir a leilão: jogador 85+, jogador 83+ com até 23 anos, ou uma
+   das 5 primeiras escolhas do draft atual ("Escolha 1" a "Escolha 5"). */
 const LW_OVR_MINIMO = 85;
+const LW_OVR_JOVEM = 83;
+const LW_IDADE_JOVEM = 23;
+const LW_ESCOLHA_MAX = 5;
+
+function lwJogadorPodeIrALeilao(array $p): bool
+{
+    $ovr = (int)$p['ovr'];
+    return $ovr >= LW_OVR_MINIMO || ($ovr >= LW_OVR_JOVEM && (int)$p['age'] <= LW_IDADE_JOVEM);
+}
+
+/** Leilão de escolha do draft: o "jogador" do leilão vira o rótulo da escolha. */
+function lwCompletarLeiloado(array $lw): array
+{
+    if (!empty($lw['pick_id'])) {
+        $lw['jogador'] = (string)($lw['leiloado_texto'] ?? 'Escolha do draft');
+    }
+    return $lw;
+}
+
+/** A linha do leiloado nas mensagens: ficha do jogador ou o rótulo da escolha. */
+function lwLinhaLeiloado(array $lw): string
+{
+    return !empty($lw['pick_id']) ? (string)$lw['jogador'] : lwLinhaJogador(['name' => $lw['jogador']] + $lw);
+}
 /** Duração máxima do leilão. */
 const LW_DURACAO_MIN = 20;
 /** Fecha antes se ficar esse tempo sem proposta nova nem decisão. */
@@ -81,6 +106,14 @@ function lwGarantirTabelas(PDO $pdo): void
         // O texto da oferta como a pessoa mandou — é ele que vai pro Gameplay.
         if (!$pdo->query("SHOW COLUMNS FROM leilao_whats_propostas LIKE 'texto'")->fetch()) {
             $pdo->exec("ALTER TABLE leilao_whats_propostas ADD COLUMN texto TEXT NULL");
+        }
+        // Leilão de escolha do draft: a pick leiloada e como ela aparece ("Escolha 3 · 2026 (Nets)").
+        if (!$pdo->query("SHOW COLUMNS FROM leilao_whats LIKE 'pick_id'")->fetch()) {
+            $pdo->exec("ALTER TABLE leilao_whats ADD COLUMN pick_id INT NULL, ADD COLUMN leiloado_texto VARCHAR(120) NULL");
+        }
+        $col = $pdo->query("SHOW COLUMNS FROM leilao_jogadores LIKE 'player_id'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && strtoupper((string)$col['Null']) === 'NO') {
+            $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN player_id INT NULL");
         }
     } catch (Throwable $e) {
         error_log('[leilao_whats] tabelas: ' . $e->getMessage());
@@ -206,8 +239,9 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
 function lwAjuda(): string
 {
     return "🔨 *Leilão pelo WhatsApp*\n\n"
-         . "*Abrir leilão* de um jogador seu (" . LW_OVR_MINIMO . "+ e com slot de leilão):\n"
-         . "/leilao Nome do Jogador\n\n"
+         . "*Abrir leilão* (precisa de slot de leilão):\n"
+         . "/leilao Nome do Jogador — jogador " . LW_OVR_MINIMO . "+, ou " . LW_OVR_JOVEM . "+ com até " . LW_IDADE_JOVEM . " anos\n"
+         . "/leilao Escolha 3 — escolha do draft atual, só do top " . LW_ESCOLHA_MAX . "\n\n"
          . "*Mandar proposta* no leilão aberto da sua liga:\n"
          . "/oferta Seu jogador + Pick 2026 R1\n\n"
          . "*Decidir* (se o leilão é seu): ✅ ou ❌ no Gameplay (mandando o emoji ou reagindo à proposta) — também valem /aceitar e /recusar, ou ✅ / ❌ aqui no privado.\n\n"
@@ -246,7 +280,8 @@ function lwLeilaoAbertoDaLiga(PDO $pdo, string $liga): ?array
                            JOIN teams t ON t.id = w.vendedor_team_id
                           WHERE w.status = 'aberto' AND w.liga = ? LIMIT 1");
     $st->execute([$liga]);
-    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    $lw = $st->fetch(PDO::FETCH_ASSOC);
+    return $lw ? lwCompletarLeiloado($lw) : null;
 }
 
 /** Nome digitado casa com o jogador? Exato (sem acento/caixa) ou contido. */
@@ -519,24 +554,62 @@ function lwComandoPrivado(PDO $pdo, string $texto, string $jid): string
     return lwAbrirLeilao($pdo, $times, $alvo);
 }
 
+/**
+ * "/leilao Escolha 3": uma das 5 primeiras escolhas do draft atual, que tem que
+ * estar com um dos times da pessoa agora (dona pode ser outra que não a original).
+ * Devolve [pick, time, rótulo] ou a mensagem de erro.
+ */
+function lwAcharEscolhaParaLeilao(PDO $pdo, array $times, int $numero): array|string
+{
+    if ($numero < 1 || $numero > LW_ESCOLHA_MAX) {
+        return "❌ Só vão a leilão as escolhas 1 a " . LW_ESCOLHA_MAX . " do draft atual.";
+    }
+    $usadas = picksJaUsadas($pdo);
+    $motivo = null;
+    foreach ($times as $t) {
+        $d = lwPickDaPosicao($pdo, (string)$t['league'], $numero);
+        if (!$d || (int)$d['round'] !== 1) { $motivo ??= "não achei a escolha {$numero} do draft atual da {$t['league']} (ou ela já foi feita)"; continue; }
+        $st = $pdo->prepare("SELECT id, season_year, round, original_team_id, team_id FROM picks
+                              WHERE team_id = ? AND original_team_id = ? AND round = '1' AND CAST(season_year AS UNSIGNED) = ?");
+        $st->execute([(int)$t['id'], $d['original_team_id'], $d['ano']]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+            if (empty($usadas[(int)$pk['id']])) {
+                return [$pk, $t, "Escolha {$numero} · {$d['ano']} ({$d['origem']})"];
+            }
+        }
+        $motivo = "a escolha {$numero} · {$d['ano']} ({$d['origem']}) não é do seu time";
+    }
+    return "❌ " . ucfirst($motivo ?? "não achei a escolha {$numero}") . ".";
+}
+
 function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
 {
-    // O jogador tem que ser de um dos times da pessoa.
-    $achado = null; $erros = [];
-    foreach ($times as $t) {
-        [$p, $erro] = lwAcharJogadorDoTime($pdo, (int)$t['id'], $nome);
-        if ($p) { $achado = [$p, $t]; break; }
-        $erros[] = $erro;
+    $p = null; $pk = null;
+    if (preg_match('/^(?:escolha|pick|pik|pico)\s*(?:n[º°o.]?\s*)?#?\s*(\d{1,2})\b/iu', trim($nome), $mEsc)) {
+        $achou = lwAcharEscolhaParaLeilao($pdo, $times, (int)$mEsc[1]);
+        if (is_string($achou)) return $achou;
+        [$pk, $t, $rotulo] = $achou;
+        $linha = $rotulo;
+    } else {
+        // O jogador tem que ser de um dos times da pessoa.
+        $achado = null; $erros = [];
+        foreach ($times as $t) {
+            [$p, $erro] = lwAcharJogadorDoTime($pdo, (int)$t['id'], $nome);
+            if ($p) { $achado = [$p, $t]; break; }
+            $erros[] = $erro;
+        }
+        if (!$achado) {
+            return "Não achei leilão aberto nem jogador seu com esse nome: " . ($erros[0] ?? $nome) . ".\n\nManda /leilao pra ver como funciona.";
+        }
+        [$p, $t] = $achado;
+        if (!lwJogadorPodeIrALeilao($p)) {
+            return "❌ {$p['name']} tem OVR {$p['ovr']} e {$p['age']} anos. Vai a leilão jogador " . LW_OVR_MINIMO
+                 . "+, ou " . LW_OVR_JOVEM . "+ com até " . LW_IDADE_JOVEM . " anos.";
+        }
+        $rotulo = (string)$p['name'];
+        $linha = lwLinhaJogador($p);
     }
-    if (!$achado) {
-        return "Não achei leilão aberto nem jogador seu com esse nome: " . ($erros[0] ?? $nome) . ".\n\nManda /leilao pra ver como funciona.";
-    }
-    [$p, $t] = $achado;
     $liga = (string)$t['league'];
-
-    if ((int)$p['ovr'] < LW_OVR_MINIMO) {
-        return "❌ {$p['name']} tem OVR {$p['ovr']}. Só vai a leilão jogador " . LW_OVR_MINIMO . "+.";
-    }
 
     $aberto = lwLeilaoAbertoDaLiga($pdo, $liga);
     if ($aberto) {
@@ -544,9 +617,11 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "Fecha em até " . lwMinutosRestantes($aberto) . " min — tenta de novo depois.";
     }
 
-    $st = $pdo->prepare("SELECT 1 FROM leilao_jogadores WHERE player_id = ? AND status = 'ativo' LIMIT 1");
-    $st->execute([(int)$p['id']]);
-    if ($st->fetchColumn()) return "❌ {$p['name']} já está num leilão ativo no app.";
+    if ($p) {
+        $st = $pdo->prepare("SELECT 1 FROM leilao_jogadores WHERE player_id = ? AND status = 'ativo' LIMIT 1");
+        $st->execute([(int)$p['id']]);
+        if ($st->fetchColumn()) return "❌ {$p['name']} já está num leilão ativo no app.";
+    }
 
     $grupo = botGrupoDaCerimonia($pdo, $liga);
     if (!$grupo) return "Não achei o grupo Gameplay da {$liga} cadastrado no bot. Fala com um admin.";
@@ -575,13 +650,14 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
 
         $pdo->prepare("INSERT INTO leilao_jogadores (player_id, team_id, league_id, data_inicio, data_fim, status)
                        VALUES (?, ?, ?, NOW(), NOW() + INTERVAL " . LW_DURACAO_MIN . " MINUTE, 'ativo')")
-            ->execute([(int)$p['id'], (int)$t['id'], LW_IDS_LIGA[$liga] ?? 0]);
+            ->execute([$p ? (int)$p['id'] : null, (int)$t['id'], LW_IDS_LIGA[$liga] ?? 0]);
         $leilaoId = (int)$pdo->lastInsertId();
 
         $pdo->prepare("INSERT INTO leilao_whats
-                         (leilao_id, liga, grupo_jid, vendedor_team_id, vendedor_user_id, inicio, fim_max, ultima_atividade)
-                       VALUES (?, ?, ?, ?, ?, NOW(), NOW() + INTERVAL " . LW_DURACAO_MIN . " MINUTE, NOW())")
-            ->execute([$leilaoId, $liga, $grupo, (int)$t['id'], (int)$t['user_id']]);
+                         (leilao_id, liga, grupo_jid, vendedor_team_id, vendedor_user_id, inicio, fim_max, ultima_atividade, pick_id, leiloado_texto)
+                       VALUES (?, ?, ?, ?, ?, NOW(), NOW() + INTERVAL " . LW_DURACAO_MIN . " MINUTE, NOW(), ?, ?)")
+            ->execute([$leilaoId, $liga, $grupo, (int)$t['id'], (int)$t['user_id'],
+                       $pk ? (int)$pk['id'] : null, $pk ? mb_substr($rotulo, 0, 120) : null]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -591,7 +667,7 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
 
     $anuncio = "🔨 *LEILÃO ABERTO*\n\n"
              . "{$t['name']} leiloa:\n\n"
-             . "* " . lwLinhaJogador($p) . "\n\n"
+             . "* " . $linha . "\n\n"
              . "Mande sua proposta no *privado do bot*:\n"
              . "/oferta Jogador + Pick 2026 R1\n"
              . (($link = lwLinkDoBot($pdo)) ? "👉 Chamar o bot: {$link}\n" : '')
@@ -599,7 +675,7 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "⏱ Fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova.";
     whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO);
 
-    return "✅ Leilão de *{$p['name']}* aberto e anunciado no Gameplay da {$liga}.\n\n"
+    return "✅ Leilão de *{$rotulo}* aberto e anunciado no Gameplay da {$liga}.\n\n"
          . "As propostas vão aparecer lá, uma por vez. Responda cada uma com ✅ ou ❌ no grupo "
          . "(ou aqui no privado). O slot é consumido quando o leilão fechar — se ninguém mandar proposta, ele volta pra você.";
 }
@@ -767,7 +843,7 @@ function lwTextoComFicha(string $texto, array $jogadores): string
  */
 function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto): ?string
 {
-    $st = $pdo->prepare("SELECT w.liga, w.vendedor_team_id, l.player_id, tv.name vendedor, lp.team_id, tp.name ofertante
+    $st = $pdo->prepare("SELECT w.liga, w.vendedor_team_id, w.pick_id, w.leiloado_texto, l.player_id, tv.name vendedor, lp.team_id, tp.name ofertante
                            FROM leilao_whats w
                            JOIN leilao_jogadores l ON l.id = w.leilao_id
                            JOIN teams tv ON tv.id = w.vendedor_team_id
@@ -802,7 +878,8 @@ function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto
     $st = $pdo->prepare("SELECT name, position, ovr, age FROM players WHERE id = ?");
     $st->execute([(int)$ctx['player_id']]);
     $leiloado = $st->fetch(PDO::FETCH_ASSOC);
-    $por = array_merge($leiloado ? [lwLinhaJogador($leiloado)] : [], $extras);
+    $linhaLeiloado = !empty($ctx['pick_id']) ? (string)$ctx['leiloado_texto'] : ($leiloado ? lwLinhaJogador($leiloado) : '');
+    $por = array_merge($linhaLeiloado !== '' ? [$linhaLeiloado] : [], $extras);
 
     $txt = "*{$ctx['ofertante']}* oferece:\n" . implode("\n", $envia);
     if ($por) $txt .= "\n\nPor " . implode(' + ', $por);
@@ -1131,6 +1208,7 @@ function lwDecidir(PDO $pdo, string $cmd, array $times, bool $noPrivado, ?string
     $st->execute($params);
     $lw = $st->fetch(PDO::FETCH_ASSOC);
     if (!$lw) return "Você não tem leilão aberto" . ($grupoJid ? ' neste grupo' : '') . ".";
+    $lw = lwCompletarLeiloado($lw);
 
     $pdo->beginTransaction();
     try {
@@ -1369,6 +1447,7 @@ function lwEncerrar(PDO $pdo, int $lwId): void
     $st->execute([$lwId]);
     $lw = $st->fetch(PDO::FETCH_ASSOC);
     if (!$lw) return;
+    $lw = lwCompletarLeiloado($lw);
 
     $resultado = 'sem_troca';
     $motivo = null;
@@ -1441,7 +1520,7 @@ function lwEncerrar(PDO $pdo, int $lwId): void
         return;
     }
 
-    $linhaJog = lwLinhaJogador(['name' => $lw['jogador']] + $lw);
+    $linhaJog = lwLinhaLeiloado($lw);
     if ($resultado === 'troca' && $propostaId) {
         $st = $pdo->prepare("SELECT t.name FROM leilao_propostas lp JOIN teams t ON t.id = lp.team_id WHERE lp.id = ?");
         $st->execute([$propostaId]);
@@ -1471,9 +1550,16 @@ function lwTrocaAindaPossivel(PDO $pdo, array $lw, array $vencedor): ?string
     $winner = (int)$vencedor['team_id'];
     $seller = (int)$lw['vendedor_team_id'];
 
-    $st = $pdo->prepare("SELECT team_id FROM players WHERE id = ? FOR UPDATE");
-    $st->execute([(int)$lw['player_id']]);
-    if ((int)$st->fetchColumn() !== $seller) return "{$lw['jogador']} não está mais no {$lw['vendedor_nome']}";
+    if (!empty($lw['pick_id'])) {
+        $st = $pdo->prepare("SELECT team_id FROM picks WHERE id = ? FOR UPDATE");
+        $st->execute([(int)$lw['pick_id']]);
+        if ((int)$st->fetchColumn() !== $seller) return "a {$lw['jogador']} não é mais do {$lw['vendedor_nome']}";
+        if (!empty(picksJaUsadas($pdo, true)[(int)$lw['pick_id']])) return "a {$lw['jogador']} já foi usada no draft";
+    } else {
+        $st = $pdo->prepare("SELECT team_id FROM players WHERE id = ? FOR UPDATE");
+        $st->execute([(int)$lw['player_id']]);
+        if ((int)$st->fetchColumn() !== $seller) return "{$lw['jogador']} não está mais no {$lw['vendedor_nome']}";
+    }
 
     $st = $pdo->prepare("SELECT p.name, p.team_id FROM leilao_proposta_jogadores x
                            JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ? FOR UPDATE");
@@ -1546,7 +1632,11 @@ function lwExecutarTroca(PDO $pdo, array $lw, array $vencedor): void
 
     // Quem muda de time chega no banco, como na trade, no draft e na FA.
     $mover = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
-    $mover->execute([$winner, (int)$lw['player_id']]);
+    if (!empty($lw['pick_id'])) {
+        $pdo->prepare("UPDATE picks SET team_id = ? WHERE id = ?")->execute([$winner, (int)$lw['pick_id']]);
+    } else {
+        $mover->execute([$winner, (int)$lw['player_id']]);
+    }
 
     $st = $pdo->prepare("SELECT player_id FROM leilao_proposta_jogadores WHERE proposta_id = ?");
     $st->execute([$propostaId]);
