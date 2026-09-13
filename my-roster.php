@@ -1269,7 +1269,7 @@ if ($teamId) {
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
     window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;
-    window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'cap_floor' => (int)$salCap['cap_floor'], 'status' => $salCap['status'], 'roster' => array_map(fn($r) => ['id' => (int)$r['id'], 'total_salary' => (int)$r['total_salary']], $salCap['roster'])]) : 'null' ?>;
+    window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'cap_base' => (int)$salCap['cap_base'], 'cap_flex_total' => (int)$salCap['cap_flex_total'], 'cap_loyalty_total' => (int)$salCap['cap_loyalty_total'], 'cap_floor' => (int)$salCap['cap_floor'], 'status' => $salCap['status'], 'roster' => array_map(fn($r) => ['id' => (int)$r['id'], 'total_salary' => (int)$r['total_salary']], $salCap['roster'])]) : 'null' ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
     window.__GLEAGUE_VAGAS__ = <?= (int)$gleagueVagas ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
