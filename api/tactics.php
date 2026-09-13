@@ -124,7 +124,10 @@ function taticaDesmarcarSeMudou(PDO $pdo, int $teamId): void {
         if (!$atual || (int)($atual['feito_no_jogo'] ?? 0) !== 1) return;
         $base = json_decode((string)($atual['snapshot_feito_json'] ?? ''), true);
         if (!is_array($base)) return;   // marcado antes da base existir: não dá pra comparar
-        if (taticaRetrato($base) === taticaRetrato($atual)) return;
+        // Mudou a tática OU a posição de alguém (que o operacional também aplica no jogo).
+        require_once __DIR__ . '/../backend/tatica_posicoes.php';
+        $mudouPosicao = taticaPosicoesMudaram($base, taticaPosicoesDoTime($pdo, $teamId));
+        if (taticaRetrato($base) === taticaRetrato($atual) && !$mudouPosicao) return;
         $pdo->prepare("UPDATE team_tactics SET feito_no_jogo = 0 WHERE team_id = ?")->execute([$teamId]);
     } catch (Throwable $e) {
         // Nunca derruba o save do GM por causa do painel do admin.
@@ -589,14 +592,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 }
 
                 // As posições do elenco (titulares e reservas), as mesmas do Meu Elenco.
-                $stPos = $pdo->prepare("SELECT name, position, secondary_position, role FROM players
+                // Vermelho quando a posição é diferente do retrato (mesma base do resto do card).
+                require_once __DIR__ . '/../backend/tatica_posicoes.php';
+                $stPos = $pdo->prepare("SELECT id, name, position, secondary_position, role FROM players
                                          WHERE team_id = ? AND role IN ('Titular','Banco')
                                       ORDER BY FIELD(role,'Titular','Banco'), ovr DESC, name");
                 $stPos->execute([(int)$t['id']]);
-                $posicoes = array_map(fn($p) => [
-                    'nome' => $p['name'], 'position' => $p['position'],
-                    'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
-                ], $stPos->fetchAll(PDO::FETCH_ASSOC));
+                $posAntes = (is_array($antes['posicoes'] ?? null)) ? $antes['posicoes'] : null;
+                $posicoes = array_map(function ($p) use ($posAntes) {
+                    $agora = taticaPosicaoTexto($p['position'], $p['secondary_position']);
+                    $antesDele = ($posAntes !== null && array_key_exists((string)$p['id'], $posAntes)) ? (string)$posAntes[(string)$p['id']] : null;
+                    return [
+                        'nome' => $p['name'], 'position' => $p['position'],
+                        'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
+                        'mudou' => $antesDele !== null && $antesDele !== $agora,
+                        'antes' => $antesDele,
+                    ];
+                }, $stPos->fetchAll(PDO::FETCH_ASSOC));
 
                 $tatica = [
                     'posicoes'      => $posicoes,
@@ -806,10 +818,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Este time não tem tática salva.']);
                 exit;
             }
+            // As posições do elenco entram junto: mudar a posição depois disto
+            // também acende vermelho (backend/tatica_posicoes.php).
+            require_once __DIR__ . '/../backend/tatica_posicoes.php';
+            $retrato = taticaRetrato($atual) + ['posicoes' => taticaPosicoesDoTime($pdo, $teamId)];
             $pdo->prepare("UPDATE team_tactics
                               SET feito_no_jogo = 1, snapshot_feito_json = ?, snapshot_feito_em = NOW()
                             WHERE team_id = ?")
-                ->execute([json_encode(taticaRetrato($atual), JSON_UNESCAPED_UNICODE), $teamId]);
+                ->execute([json_encode($retrato, JSON_UNESCAPED_UNICODE), $teamId]);
         } else {
             // Desmarcar NÃO apaga o retrato: o jogo continua como foi aplicado
             // da última vez. Só volta o card pra fila.
@@ -936,6 +952,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($sec === $pos) $sec = null;   // secundária igual à principal é nenhuma
         $pdo->prepare('UPDATE players SET position = ?, secondary_position = ? WHERE id = ? AND team_id = ?')
             ->execute([$pos, $sec, $pid, $teamId]);
+        // Mudou do que já está no jogo? O card do admin volta pra fila (igual ao salvar da tática).
+        taticaDesmarcarSeMudou($pdo, $teamId);
         echo json_encode(['success' => true, 'position' => $pos, 'secondary_position' => $sec]);
         exit;
     }

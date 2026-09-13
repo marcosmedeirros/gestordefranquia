@@ -7450,7 +7450,9 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
        aceso, e não havia onde procurar a outra. Agora o número bate com os
        campos em vermelho logo abaixo — ainda mais depois que o quinteto saiu
        da tela do GM e deixou de ser uma escolha de alguém. */
-    const mudancas = (at.config || []).filter(x => x.mudou).length;
+    // Posição de jogador que mudou também é mudança a aplicar no jogo.
+    const mudancas = (at.config || []).filter(x => x.mudou).length
+                   + (at.posicoes || []).filter(p => p.mudou).length;
 
     // O nome em vermelho é o aviso de "este mexeu na tática pros playoffs".
     // Só vale pra quem está nos offs: eliminado mexendo na tática não muda
@@ -7503,8 +7505,10 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
           ${(at.posicoes || []).length ? `
             <div class="tac-secao">Posições</div>
-            <div class="tac-jogadores">${at.posicoes.map(p => `<span class="tac-jog">${escapeHtml(p.nome)}
-              <b style="color:var(--text-3);font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b></span>`).join('')}</div>` : ''}
+            <div class="tac-jogadores">${at.posicoes.map(p => `<span class="tac-jog ${p.mudou ? 'mudou' : ''}"
+                ${p.mudou && p.antes ? `title="Era ${escapeHtml(p.antes)}"` : ''}>${escapeHtml(p.nome)}
+              <b style="color:${p.mudou ? 'inherit' : 'var(--text-3)'};font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b>${
+                p.mudou && p.antes ? `<small style="margin-left:5px;font-weight:600;opacity:.8">(era ${escapeHtml(p.antes)})</small>` : ''}</span>`).join('')}</div>` : ''}
           <div class="tac-secao">Configurações</div>
           <div class="tac-campos">${config}</div>
           ${observacaoHtml}

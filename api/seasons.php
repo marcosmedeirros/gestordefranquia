@@ -239,8 +239,11 @@ function snapshotTaticasDaLiga(PDO $pdo, string $league): void
             WHERE team_id = ? AND slot = ?"
         : "UPDATE team_tactics SET snapshot_json = ?, feito_no_jogo = 0
             WHERE team_id = ? AND slot = ?");
+    // As posições do elenco entram no retrato: mudar de posição depois acende vermelho no admin.
+    require_once __DIR__ . '/../backend/tatica_posicoes.php';
     foreach ($linhas as $l) {
-        $upd->execute([json_encode(taticaCampos($l), JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
+        $retrato = taticaCampos($l) + ['posicoes' => taticaPosicoesDoTime($pdo, (int)$l['team_id'])];
+        $upd->execute([json_encode($retrato, JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
     }
 }
 
@@ -263,8 +266,10 @@ function snapshotTaticasOffs(PDO $pdo, string $league): void
     if (!$linhas) return;
 
     $upd = $pdo->prepare("UPDATE team_tactics SET snapshot_offs_json = ? WHERE team_id = ? AND slot = ?");
+    require_once __DIR__ . '/../backend/tatica_posicoes.php';
     foreach ($linhas as $l) {
-        $upd->execute([json_encode(taticaCampos($l), JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
+        $retrato = taticaCampos($l) + ['posicoes' => taticaPosicoesDoTime($pdo, (int)$l['team_id'])];
+        $upd->execute([json_encode($retrato, JSON_UNESCAPED_UNICODE), (int)$l['team_id'], $l['slot']]);
     }
 }
 
