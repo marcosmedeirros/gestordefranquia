@@ -259,9 +259,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </details>
     <details>
       <summary><i class="bi bi-arrows-angle-expand"></i> Cap Flex</summary>
-      <div class="rules-body">Time que ainda tem o jogador que ele mesmo draftou ganha um bônus no <b>Cap Máximo</b>
-      (não no salário do jogador) se o OVR for alto: 85–89 = +3M, 90–92 = +5M, 93+ = +8M. Se o jogador for negociado
-      para outro time, o Cap Flex dele deixa de valer.</div>
+      <div class="rules-body">Time que ainda tem o jogador que ele mesmo draftou — ou a <b>lenda que nunca trocou</b> — ganha um bônus no <b>Cap Máximo</b>
+      (não no salário do jogador) se o OVR for alto: 85–89 = +3M, 90–92 = +5M, 93+ = +8M, para no máximo 2 jogadores. Se o jogador for negociado
+      para outro time, o Cap Flex dele deixa de valer (a lenda trocada também não gera mais).</div>
     </details>
     <details>
       <summary><i class="bi bi-trophy"></i> Bônus de Prêmio</summary>
@@ -408,7 +408,7 @@ async function loadCap(){
           ${p.is_lenda ? '<span class="tag lenda" title="Lenda da franquia: uma por time. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Anula o Bônus de Lealdade — os dois não se somam.">LENDA</span>' : ''}
           ${p.is_rookie_scale ? '<span class="tag rookie" title="Salário definido pela Rookie Scale (posição do pick), não pela tabela de OVR, por ser a temporada de estreia.">Rookie Scale</span>' : ''}
           ${p.cap_flex_eligible ? (p.cap_flex_counted
-            ? `<span class="tag flex" title="Ainda está no time que o draftou e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`
+            ? `<span class="tag flex" title="${p.is_lenda ? 'Lenda que nunca foi trocada' : 'Ainda está no time que o draftou'} e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`
             : `<span class="tag flex-off" title="Qualifica para Cap Flex, mas o time já usou as ${s.cap_flex_max_players} vagas com jogadores de valor maior — este não soma ao Cap Máximo.">Cap Flex +${p.cap_flex_value}M (fora das vagas)</span>`) : ''}
           ${p.award_bonus > 0 ? `<span class="tag bonus" title="Bônus de prêmio da temporada anterior, vale só nesta temporada.">Bônus +${p.award_bonus}M</span>` : ''}
           ${p.loyalty_bonus_eligible ? (p.loyalty_bonus_counted

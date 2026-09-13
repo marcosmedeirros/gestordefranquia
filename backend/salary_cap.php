@@ -442,15 +442,21 @@ function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = nul
 }
 
 /**
- * Cap Flex: só se aplica enquanto o jogador está no time que o draftou
+ * Cap Flex: vale enquanto o jogador está no time que o draftou
  * (drafted_by_team_id == team_id) e o OVR está nas faixas elegíveis.
  * Aumenta o Cap Máximo da franquia — não o salário do jogador.
+ *
+ * A LENDA NUNCA TROCADA TAMBÉM CONTA (decisão da liga, 13/09/2026). Ela não
+ * tem drafted_by_team_id — veio do draft de lendas —, mas é a estrela que a
+ * franquia segurou desde o início, que é o espírito do Cap Flex. Trocou a
+ * lenda, acabou: was_traded fica marcado e ela não gera flex pra ninguém.
  */
 function getPlayerCapFlex(array $player): int
 {
     $teamId = (int)($player['team_id'] ?? 0);
     $draftedBy = $player['drafted_by_team_id'] ?? null;
-    if ($draftedBy === null || (int)$draftedBy !== $teamId) {
+    $lendaFiel = !empty($player['is_lenda']) && (int)($player['was_traded'] ?? 0) === 0;
+    if (!$lendaFiel && ($draftedBy === null || (int)$draftedBy !== $teamId)) {
         return 0;
     }
     $ovr = (int)($player['ovr'] ?? 0);
