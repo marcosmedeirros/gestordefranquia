@@ -150,11 +150,45 @@ function gradeClass($v): string
     return $v >= 83 ? 'g-a' : ($v >= 73 ? 'g-b' : ($v >= 65 ? 'g-c' : 'g-d'));
 }
 
+/**
+ * Potencial como os olheiros veem: uma nota (A+…D) com erro estável por
+ * jogador, nunca o número. Ninguém sabe se o cara vai virar 99 ou parar no 84 —
+ * é preciso desenvolver e descobrir. Devolve '' quando não há teto acima do OVR.
+ */
+function potGrade(array $p): string
+{
+    $ovr = (int) ($p['ovr'] ?? 0);
+    $pot = (int) ($p['potential'] ?? $ovr);
+    if ($pot <= $ovr) return '';
+    $noise = (abs(crc32((string) ($p['name'] ?? '') . (string) ($p['id'] ?? ''))) % 9) - 4; // -4..+4, fixo por jogador
+    return grade(max($ovr + 1, min(99, $pot + $noise)));
+}
+
 /** Item do menu top nav. */
 function nav_item(string $page, string $cur, string $icon, string $label, array $params = []): void
 {
     $active = $cur === $page ? ' active' : '';
     echo '<a class="tn-tab' . $active . '" href="' . url($page, $params) . '">' . e($label) . '</a>';
+}
+
+/**
+ * Grupo do menu (Liga / Franquia): um botão que abre a lista. No desktop abre
+ * no hover, no toque abre no clique (app.js). Fica "active" se a tela atual
+ * está dentro dele — e mostra o nome dela no botão, pra ninguém se perder.
+ * $flags = [page => html extra] (ex.: o "!" da folha irregular).
+ */
+function nav_group(string $label, array $items, string $cur, array $flags = []): void
+{
+    $inside = array_key_exists($cur, $items);
+    $groupFlag = implode('', $flags);
+    echo '<div class="tn-group' . ($inside ? ' active' : '') . '">';
+    echo '<button type="button" class="tn-tab tn-group-btn" aria-haspopup="true" aria-expanded="false">'
+        . e($label) . ($inside ? ' <span class="tn-group-cur">· ' . e($items[$cur]) . '</span>' : '') . $groupFlag . ' <span class="tn-caret">▾</span></button>';
+    echo '<div class="tn-menu">';
+    foreach ($items as $page => $text) {
+        echo '<a class="tn-menu-item' . ($cur === $page ? ' active' : '') . '" href="' . url($page) . '">' . e($text) . ($flags[$page] ?? '') . '</a>';
+    }
+    echo '</div></div>';
 }
 
 function fba_head(string $title): void
@@ -279,9 +313,11 @@ function render_header(string $title = 'FBA'): void
     </div>
   </nav>
 
-  <!-- NAV TABS BAR (sempre visível, largura total) -->
+  <!-- NAV TABS BAR: o essencial à vista, o resto agrupado em Liga / Franquia -->
   <div class="nav-tabs-bar">
     <?php
+      $capC = $gm ? Cap::gmCompliance() : null;
+      $capFlag = ($capC && $capC['status'] !== 'ok') ? ' <span class="tab-badge tab-badge-warn" title="Folha fora do teto/piso">!</span>' : '';
       nav_item('home',      $cur, '', 'Início');
       if ($showPreseason) nav_item('preseason', $cur, '', 'Pré-Temporada');
       if ($gm) {
@@ -290,24 +326,31 @@ function render_header(string $title = 'FBA'): void
         $badge = $inboxUnread > 0 ? ' <span class="tab-badge">' . $inboxUnread . '</span>' : '';
         echo '<a class="tn-tab' . $active . '" href="' . url('inbox') . '">Mensagens' . $badge . '</a>';
       }
-      nav_item('standings', $cur, '', 'Classificação');
-      if ($showPlayoffs) nav_item('playoffs', $cur, '', 'Playoffs');
-      nav_item('power',     $cur, '', 'Power Rankings');
-      nav_item('schedule',  $cur, '', 'Jogos');
-      nav_item('leaders',   $cur, '', 'Líderes');
-      nav_item('cap',       $cur, '', 'Contratos');
       // Eventos da entressafra — só aparecem no momento de cada um:
       if ($showLottery) nav_item('lottery', $cur, '', 'Loteria');
       if ($showDraft)   nav_item('draft',   $cur, '', 'Draft');
       if ($showFA)      nav_item('freeagency', $cur, '', 'Free Agency');
-      nav_item('history',   $cur, '', 'Histórico');
-      nav_item('teams',     $cur, '', 'Times');
-      if ($gm):
-        nav_item('manage',  $cur, '', 'Meu Time');
-        nav_item('lineup',  $cur, '', 'Escalação');
-        nav_item('trades',  $cur, '', 'Trocas');
-      endif;
+      if ($showPlayoffs) nav_item('playoffs', $cur, '', 'Playoffs');
+      nav_item('standings', $cur, '', 'Classificação');
+
+      // Grupo LIGA
+      $liga = ['schedule' => 'Jogos', 'leaders' => 'Líderes', 'power' => 'Power Rankings', 'teams' => 'Times', 'history' => 'Histórico', 'draft' => 'Draft'];
+      if ($showPlayoffs) unset($liga['draft']);
+      nav_group('Liga', $liga, $cur);
+
+      // Grupo FRANQUIA (só com GM)
+      if ($gm) {
+          $fr = ['manage' => 'Meu Time', 'lineup' => 'Escalação', 'trades' => 'Trocas', 'cap' => 'Folha & Cap'];
+          if (Cap::signingOpen() && !$showFA) $fr['freeagency'] = 'Agentes Livres';
+          nav_group('Franquia', $fr, $cur, $capFlag ? ['cap' => $capFlag] : []);
+      } else {
+          nav_item('cap', $cur, '', 'Folha & Cap');
+      }
     ?>
+    <form class="tn-search" method="get" action="index.php" role="search">
+      <input type="hidden" name="p" value="search">
+      <input type="search" name="q" placeholder="Buscar jogador, time…" value="<?= e($_GET['q'] ?? '') ?>" aria-label="Buscar">
+    </form>
   </div>
 
   <!-- Page content -->

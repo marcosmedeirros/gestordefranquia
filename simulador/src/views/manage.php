@@ -22,7 +22,8 @@ $warns = isset($_GET['w']) && $_GET['w'] !== '' ? explode('|', $_GET['w']) : [];
     <p class="th-meta">
       <?= $t['conf']==='E'?'Conferência Leste':'Conferência Oeste' ?> · <?= e($t['div']) ?>
       · <strong style="font-size:18px"><?= $t['wins'] ?>-<?= $t['losses'] ?></strong>
-      · Folha <strong><?= money(League::teamPayroll($gmId)) ?></strong>
+      <?php $capM = Cap::summary($gmId); ?>
+      · Folha <strong><?= Cap::m($capM['payroll']) ?></strong> <span style="opacity:.8">/ teto <?= Cap::m($capM['cap_max']) ?></span><?= $capM['status'] !== 'ok' ? ' <span class="neg-txt">(' . ($capM['status'] === 'over' ? 'acima do teto' : 'abaixo do piso') . ')</span>' : '' ?>
       · Química <strong><?= (int)$t['chemistry'] ?></strong>
     </p>
     <p class="th-sub">

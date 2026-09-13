@@ -67,7 +67,19 @@ class Offseason
     {
         if (!$stats) return;
         $db = Database::conn();
-        $ins = $db->prepare("INSERT INTO awards(season,type,player_id,team_id,value) VALUES(?,?,?,?,?)");
+        // Bônus de prêmio (Cap da ELITE): vale só na temporada seguinte — o do ano passado some agora.
+        $db->exec("UPDATE players SET award_bonus=0 WHERE award_bonus<>0");
+        $bonusTable = Cap::awardBonusTable();
+        $insRaw = $db->prepare("INSERT INTO awards(season,type,player_id,team_id,value) VALUES(?,?,?,?,?)");
+        $addBonus = $db->prepare("UPDATE players SET award_bonus = award_bonus + ? WHERE id=?");
+        $ins = new class($insRaw, $addBonus, $bonusTable) {
+            public function __construct(private $ins, private $bonus, private array $table) {}
+            public function execute(array $row): void {
+                $this->ins->execute($row);
+                $b = $this->table[$row[1]] ?? 0;
+                if ($b > 0 && $row[2]) $this->bonus->execute([$b, (int) $row[2]]);
+            }
+        };
 
         // MVP
         $byMvp = $stats;
@@ -219,6 +231,7 @@ class Offseason
             ins=?, mid=?, thr=?, pmk=?, reb=?, def=?, ath=?, sta=?, morale=?, potential=? WHERE id=?");
         $db->beginTransaction();
         $changed = 0;
+        $log = [];
         foreach ($players as $p) {
             $age = (int) $p['age'] + 1;
             $gp = max(1, (int) ($p['gp'] ?? 1));
@@ -248,9 +261,39 @@ class Offseason
             $upd->execute([$age, $ovr2, $adj($p['ins']), $adj($p['mid']), $adj($p['thr']),
                 $adj($p['pmk']), $adj($p['reb']), $adj($p['def']), $adj($p['ath']), $sta, $morale, $pot2, $p['id']]);
             if ($delta !== 0) $changed++;
+            if ($p['team_id'] !== null) {
+                $log[] = ['id' => (int) $p['id'], 'team_id' => (int) $p['team_id'], 'name' => $p['name'], 'pos' => $p['pos'],
+                          'age' => $age, 'from' => $ovr, 'to' => $ovr2, 'delta' => $ovr2 - $ovr];
+            }
         }
         $db->commit();
+        // OVR mudou → salário muda (tabela da ELITE); calouro deixa a rookie scale ao virar seasons_pro 1.
+        Cap::refreshSalaries();
+        self::announceProgression($log);
         return ['changed' => $changed];
+    }
+
+    /**
+     * Relatório de progressão do elenco do GM na caixa de entrada: quem subiu,
+     * quem caiu e quanto — o que antes acontecia em silêncio na virada.
+     */
+    private static function announceProgression(array $log): void
+    {
+        $gm = League::gmTeam();
+        if (!$gm) return;
+        $mine = array_values(array_filter($log, fn($r) => $r['team_id'] === $gm));
+        if (!$mine) return;
+        usort($mine, fn($a, $b) => $b['delta'] <=> $a['delta'] ?: $b['to'] <=> $a['to']);
+        $up = array_filter($mine, fn($r) => $r['delta'] > 0);
+        $down = array_filter($mine, fn($r) => $r['delta'] < 0);
+        $same = array_filter($mine, fn($r) => $r['delta'] === 0);
+        $fmt = fn($r) => "{$r['name']} ({$r['pos']}, {$r['age']} anos): {$r['from']} → {$r['to']} (" . ($r['delta'] > 0 ? '+' : '') . "{$r['delta']})";
+        $body = '';
+        if ($up)   $body .= "📈 Evoluíram:\n" . implode("\n", array_map($fmt, $up)) . "\n\n";
+        if ($down) $body .= "📉 Caíram:\n" . implode("\n", array_map($fmt, $down)) . "\n\n";
+        if ($same) $body .= "➖ Mantiveram: " . implode(', ', array_map(fn($r) => "{$r['name']} ({$r['to']})", $same)) . "\n\n";
+        $body .= "Os salários já foram recalculados pela tabela de OVR — confira a folha em Folha & Cap.";
+        League::inboxAdd('progress', 'Comissão Técnica', '📊 Progressão do elenco na entressafra', trim($body), url('cap'), '📊', true);
     }
 
     private static function retirements(int $season): array
@@ -407,16 +450,23 @@ class Offseason
         League::ensurePicksWindow($year + 1, League::PICK_WINDOW);
     }
 
-    /** Cria o jogador a partir de um prospecto, marca como draftado e consome a pick. */
-    private static function createPlayerFromProspect(array $pr, int $teamId, int $pickNo, int $season, int $pickId = 0): int
+    /**
+     * Cria o jogador a partir de um prospecto, marca como draftado e consome a pick.
+     * Grava quem draftou (Cap Flex), a rodada e a posição na rodada (rookie scale
+     * do 1º ano: 18M na escolha 1 até 3M no fim da 1ª rodada; 2ª rodada é 2M).
+     */
+    private static function createPlayerFromProspect(array $pr, int $teamId, int $pickNo, int $season, int $pickId = 0, int $round = 0): int
     {
         $db = Database::conn();
+        if ($round <= 0) $round = $pickNo <= 30 ? 1 : 2;
+        $pos = $round === 1 ? $pickNo : 0;
         $insP = $db->prepare("INSERT INTO players
-            (team_id,name,pos,age,ht,ovr,ins,mid,thr,pmk,reb,def,ath,sta,potential,seasons_pro,morale,is_starter,rotation,salary,contract_years)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,75,0,0,?,4)");
+            (team_id,name,pos,age,ht,ovr,ins,mid,thr,pmk,reb,def,ath,sta,potential,seasons_pro,morale,is_starter,rotation,salary,contract_years,
+             drafted_by,draft_round,draft_pos)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,75,0,0,?,4,?,?,?)");
         $insP->execute([$teamId, $pr['name'], $pr['pos'], $pr['age'], $pr['ht'], $pr['ovr'],
             $pr['ins'], $pr['mid'], $pr['thr'], $pr['pmk'], $pr['reb'], $pr['def'], $pr['ath'], $pr['sta'], $pr['potential'],
-            Database::rookieSalary($pickNo)]);
+            Cap::rookieScale($round, $pos) * Cap::M, $teamId, $round, $pos]);
         $pid = (int) $db->lastInsertId();
         $db->prepare("INSERT INTO season_stats(player_id) VALUES(?)")->execute([$pid]);
         $db->prepare("UPDATE draft_prospects SET drafted=1, picked_by=?, pick_no=? WHERE id=?")
@@ -450,7 +500,7 @@ class Offseason
     private static function cpuPickForEntry(array $entry, int $pickNo, int $season): void
     {
         $pr = self::bestAvailableForCpu($season);
-        if ($pr) self::createPlayerFromProspect($pr, (int) $entry['owner'], $pickNo, $season, (int) $entry['pick_id']);
+        if ($pr) self::createPlayerFromProspect($pr, (int) $entry['owner'], $pickNo, $season, (int) $entry['pick_id'], (int) ($entry['round'] ?? 0));
     }
 
     /** Draft 100% automático (sem franquia controlada). */
@@ -553,8 +603,26 @@ class Offseason
         }
         Database::setMeta('draft_pick', (string) $pick);
         self::finishDraftPicks();
+        self::announceDraft($season);
         self::beginFreeAgency($season); // após o draft, abre a janela de Free Agency
         return ['phase' => 'freeagency', 'done' => true];
+    }
+
+    /** Draft concluído: caixa de entrada com as escolhas do GM e o top-5 da classe, com link pros resultados. */
+    private static function announceDraft(int $season): void
+    {
+        $gm = League::gmTeam();
+        if (!$gm) return;
+        $all = League::draftResults($season);
+        $mine = array_values(array_filter($all, fn($r) => (int) $r['picked_by'] === $gm));
+        $fmt = fn($r) => "#{$r['pick_no']} {$r['name']} ({$r['pos']}, {$r['age']} anos, OVR {$r['ovr']})";
+        $body = $mine
+            ? "Suas escolhas:\n" . implode("\n", array_map($fmt, $mine))
+            : "Você não tinha picks neste draft.";
+        $top = array_slice($all, 0, 5);
+        if ($top) $body .= "\n\nTop 5 da classe:\n" . implode("\n", array_map(fn($r) => "#{$r['pick_no']} {$r['name']} → {$r['team_abbr']}", $top));
+        $body .= "\n\nOs calouros já estão nos elencos (rookie scale no 1º ano). Veja a classe completa, com OVR e potencial revelados, em Draft.";
+        League::inboxAdd('draft', 'Liga', "🎓 Draft {$season} concluído", $body, url('draft', ['season' => $season]), '🎓', true);
     }
 
     public static function userPick(int $prospectId): array
@@ -570,7 +638,7 @@ class Offseason
         $pr->execute([$prospectId, $season]);
         $row = $pr->fetch();
         if (!$row) return ['error' => 'Prospecto indisponível.'];
-        self::createPlayerFromProspect($row, $gm, $pick + 1, $season, (int) $order[$pick]['pick_id']);
+        self::createPlayerFromProspect($row, $gm, $pick + 1, $season, (int) $order[$pick]['pick_id'], (int) ($order[$pick]['round'] ?? 0));
         Database::setMeta('draft_pick', (string) ($pick + 1));
         return self::autoPickUntilUserOrEnd();
     }
@@ -646,6 +714,9 @@ class Offseason
         $reb  = (int) $rebuilders[array_rand($rebuilders)]['id'];
         if ($cont === $reb) return false;
 
+        $gm = League::gmTeam();
+        if ($cont === $gm || $reb === $gm) return false;
+
         // pick R1 futura do contender (a mais distante, que dói menos)
         $pk = $db->prepare("SELECT * FROM draft_picks WHERE owner_team_id=? AND round=1 AND used=0 ORDER BY year DESC LIMIT 1");
         $pk->execute([$cont]);
@@ -662,6 +733,8 @@ class Offseason
         // contrapartida do contender: um coadjuvante
         $fillerPiece = self::pickTradePiece($cont);
         if (!$fillerPiece) return false;
+        // regra dos 120% + teto: o contender manda coadjuvante + pick e recebe o reforço
+        if (!Cap::tradeCheck($cont, [$fillerPiece], [$pick], $reb, [$target], [])['ok']) return false;
 
         // executa: target -> contender; filler + pick -> rebuilder
         $db->prepare("UPDATE players SET team_id=?, morale=62 WHERE id=?")->execute([$cont, $target['id']]);
@@ -678,7 +751,8 @@ class Offseason
     private static function randomFairTrade(int $season): ?array
     {
         $db = Database::conn();
-        $teams = $db->query("SELECT id FROM teams WHERE active=1 ORDER BY id")->fetchAll();
+        $gm = League::gmTeam();
+        $teams = $db->query("SELECT id FROM teams WHERE active=1" . ($gm ? " AND id<>$gm" : "") . " ORDER BY id")->fetchAll();
         $a = (int) $teams[array_rand($teams)]['id'];
         $b = (int) $teams[array_rand($teams)]['id'];
         if ($a === $b) return null;
@@ -693,7 +767,7 @@ class Offseason
     {
         // pega um jogador fora do top-3 do time para não desmontar o núcleo
         $rows = Database::conn()->prepare(
-            "SELECT id,name,ovr FROM players WHERE team_id=? AND retired=0 ORDER BY ovr DESC");
+            "SELECT id,name,ovr,salary,team_id FROM players WHERE team_id=? AND retired=0 ORDER BY ovr DESC");
         $rows->execute([$teamId]);
         $list = $rows->fetchAll();
         if (count($list) < 6) return null;
@@ -743,6 +817,8 @@ class Offseason
     private static function executeTrade(int $season, int $teamA, array $pa, int $teamB, array $pb, string $type): ?array
     {
         $db = Database::conn();
+        // Troca de IA também obedece aos 120% e ao teto.
+        if (!Cap::tradeCheck($teamA, [$pa], [], $teamB, [$pb], [])['ok']) return null;
         $db->prepare("UPDATE players SET team_id=?, morale=62 WHERE id=?")->execute([$teamB, $pa['id']]);
         $db->prepare("UPDATE players SET team_id=?, morale=62 WHERE id=?")->execute([$teamA, $pb['id']]);
         $ta = League::team($teamA); $tb = League::team($teamB);
@@ -765,7 +841,7 @@ class Offseason
         // ninguém assinou) se aposentam em vez de serem apagadas — preserva o histórico
         // de carreira de jogadores reais (ex.: não-renovados pelo GM, cortes da IA).
         $db->exec("UPDATE players SET retired=1 WHERE team_id IS NULL AND retired = 0");
-        $size = $size ?: random_int(24, 32);
+        $size = $size ?: random_int(28, 36);
         $insP = $db->prepare("INSERT INTO players
             (team_id,name,pos,age,ht,ovr,ins,mid,thr,pmk,reb,def,ath,sta,potential,seasons_pro,morale,is_starter,rotation,salary,contract_years)
             VALUES(NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,70,0,0,?,0)");
@@ -775,8 +851,8 @@ class Offseason
             $pos = $positions[array_rand($positions)];
             $fa = Installer::makeFreeAgent($pos);
             $ovr = (int) $fa['ovr'];
-            // ~25% são veteranos com OVR um pouco melhor (alvos de disputa)
-            if (self::chance(0.25)) $ovr = min(86, $ovr + random_int(4, 10));
+            // ~30% são veteranos com OVR melhor (alvos de disputa e salário de verdade na tabela)
+            if (self::chance(0.30)) $ovr = min(86, $ovr + random_int(4, 12));
             $age = random_int(23, 35);
             // salário = pretensão de mercado pelo OVR/idade; contract_years=0 (ainda livre)
             $insP->execute([$fa['name'], $fa['pos'], $age, $fa['ht'], $ovr,
@@ -796,8 +872,9 @@ class Offseason
     }
 
     /** Assina um agente livre para um time (usado por GM e IA).
-     *  $enforceCap=true (GM): bloqueia se a folha ultrapassar o teto rígido (apron).
-     *  $enforceCap=false (IA): preenche elenco livremente (exceção de mínimo). */
+     *  O salário é o da tabela por OVR e precisa CABER no teto (regra da ELITE,
+     *  pra todo mundo). A única exceção é a da IA com elenco abaixo do mínimo,
+     *  que pode assinar salário mínimo (2M) para completar o elenco. */
     public static function signFreeAgent(int $teamId, int $faId, int $season, bool $enforceCap = true): array
     {
         $db = Database::conn();
@@ -806,16 +883,18 @@ class Offseason
         $p = $fa->fetch();
         if (!$p) return ['error' => 'Agente livre indisponível.'];
         $cnt = (int) $db->query("SELECT COUNT(*) c FROM players WHERE team_id=$teamId AND retired=0")->fetch()['c'];
-        if ($cnt >= 15) return ['error' => 'Elenco cheio (máximo de 15 jogadores).'];
-        // ao assinar: define salário pela pretensão de mercado e um contrato de 1–4 anos
-        $signSalary = (int) ($p['salary'] ?: Database::salaryForOvr((int)$p['ovr'], (int)$p['age']));
+        if ($cnt >= Cap::ROSTER_MAX) return ['error' => 'Elenco cheio (máximo de ' . Cap::ROSTER_MAX . ' jogadores).'];
+        $p['team_id'] = $teamId;
+        $signSalary = Cap::playerSalaryM($p) * Cap::M;
         $signYears  = Database::contractYearsFor((int) $p['ovr']);
 
-        // Consciência de teto salarial (só para o GM): não pode ultrapassar o teto rígido.
-        $payrollNow = League::teamPayroll($teamId);
-        if ($enforceCap && $payrollNow + $signSalary > Database::APRON) {
-            return ['error' => 'Sem espaço salarial: a contratação ($' . number_format($signSalary/1e6,1)
-                . 'M) ultrapassaria o teto rígido de $' . number_format(Database::APRON/1e6,0) . 'M. Libere salário antes.'];
+        $sum = Cap::summary($teamId);
+        if ($signSalary > max(0, $sum['space'])) {
+            $minException = !$enforceCap && $cnt < Cap::ROSTER_MIN && $signSalary <= Cap::VETERAN_MIN * Cap::M;
+            if (!$minException) {
+                return ['error' => 'Sem espaço no teto: ' . $p['name'] . ' custa ' . Cap::m($signSalary)
+                    . ' e você tem ' . Cap::m(max(0, $sum['space'])) . ' de espaço (teto ' . Cap::m($sum['cap_max']) . '). Libere salário antes.'];
+            }
         }
 
         $db->prepare("UPDATE players SET team_id=?, morale=70, rotation=0, is_starter=0, min_target=0, salary=?, contract_years=? WHERE id=?")
@@ -827,25 +906,36 @@ class Offseason
         $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,0,'free agency',?)")
            ->execute([$season, "{$tm['abbr']} contrata o agente livre {$p['name']} ({$p['pos']}, OVR {$p['ovr']})"]);
 
-        $msg = '✅ ' . $p['name'] . ' assinado por $' . number_format($signSalary/1e6,1) . 'M/ano · ' . $signYears . ' ano' . ($signYears>1?'s':'') . '.';
-        if ($payrollNow + $signSalary > Database::TAX_LINE) $msg .= ' ⚠️ Folha entra no imposto de luxo.';
+        $msg = '✅ ' . $p['name'] . ' assinado por ' . Cap::m($signSalary) . '/ano · ' . $signYears . ' ano' . ($signYears>1?'s':'') . '.';
+        $left = $sum['space'] - $signSalary;
+        $msg .= $left >= 0 ? ' Espaço restante: ' . Cap::m($left) . '.' : '';
         return ['ok' => true, 'player' => $p, 'msg' => $msg, 'salary' => $signSalary];
     }
 
-    /** Melhor agente livre para um time, priorizando a posição mais carente. */
-    private static function bestFaForTeam(int $teamId): ?array
+    /** Melhor agente livre QUE CABE na folha do time, priorizando a posição mais carente. */
+    private static function bestFaForTeam(int $teamId, ?int $maxSalary = null): ?array
     {
         $db = Database::conn();
+        if ($maxSalary === null) {
+            $cnt = (int) $db->query("SELECT COUNT(*) FROM players WHERE team_id=$teamId AND retired=0")->fetchColumn();
+            $space = Cap::summary($teamId)['space'];
+            // abaixo do mínimo de elenco a IA sempre pode assinar salário mínimo
+            $maxSalary = max($space, $cnt < Cap::ROSTER_MIN ? Cap::VETERAN_MIN * Cap::M : 0);
+        }
         $posCount = [];
         foreach (['PG','SG','SF','PF','C'] as $pp) {
             $posCount[$pp] = (int) $db->query("SELECT COUNT(*) c FROM players WHERE team_id=$teamId AND retired=0 AND pos='$pp'")->fetch()['c'];
         }
         asort($posCount);
         $need = array_key_first($posCount);
-        $r = $db->prepare("SELECT * FROM players WHERE team_id IS NULL AND retired=0 AND pos=? ORDER BY ovr DESC LIMIT 1");
-        $r->execute([$need]);
+        $r = $db->prepare("SELECT * FROM players WHERE team_id IS NULL AND retired=0 AND pos=? AND salary<=? ORDER BY ovr DESC LIMIT 1");
+        $r->execute([$need, $maxSalary]);
         $fa = $r->fetch();
-        if (!$fa) $fa = $db->query("SELECT * FROM players WHERE team_id IS NULL AND retired=0 ORDER BY ovr DESC LIMIT 1")->fetch();
+        if (!$fa) {
+            $r = $db->prepare("SELECT * FROM players WHERE team_id IS NULL AND retired=0 AND salary<=? ORDER BY ovr DESC LIMIT 1");
+            $r->execute([$maxSalary]);
+            $fa = $r->fetch();
+        }
         return $fa ?: null;
     }
 
@@ -869,7 +959,8 @@ class Offseason
                 if ($cnt >= $target) break;
                 $fa = self::bestFaForTeam($tid);
                 if (!$fa) break;
-                self::signFreeAgent($tid, (int) $fa['id'], $season, false); // IA preenche livre
+                $r = self::signFreeAgent($tid, (int) $fa['id'], $season, false); // IA: só o que cabe no teto
+                if (empty($r['ok'])) break;
                 $signed++;
             }
         }
@@ -898,7 +989,9 @@ class Offseason
             $weak = end($roster); // pior OVR do elenco
             if (!$weak) continue;
 
-            $fa = self::bestFaForTeam($tid);
+            // o reforço precisa caber no espaço que sobra depois de liberar o pior
+            $weakSal = (int) $db->query("SELECT salary FROM players WHERE id={$weak['id']}")->fetchColumn();
+            $fa = self::bestFaForTeam($tid, Cap::summary($tid)['space'] + $weakSal);
             if (!$fa) continue;
             if ((int) $fa['ovr'] < (int) $weak['ovr'] + 4) continue; // só troca se for upgrade real
 
@@ -906,6 +999,7 @@ class Offseason
             $db->prepare("UPDATE players SET team_id=NULL, is_starter=0, rotation=0, min_target=0 WHERE id=?")->execute([(int) $weak['id']]);
             $r = self::signFreeAgent($tid, (int) $fa['id'], $season, false);
             if (isset($r['ok'])) $signed++;
+            else $db->prepare("UPDATE players SET team_id=? WHERE id=?")->execute([$tid, (int) $weak['id']]); // não coube: volta
         }
         return $signed;
     }
@@ -915,6 +1009,9 @@ class Offseason
     {
         self::offseasonTrades($season);
         self::buildFreeAgentPool($season);
+        // A progressão mexeu nos OVRs (e nos salários): quem ficou fora do teto/piso
+        // se ajusta antes de a janela abrir — os dispensados entram no pool.
+        Cap::aiEnforce(true);
         self::aiSignFreeAgents($season, false); // IA pega parte do pool, deixa o resto para o GM
         self::aiUpgradeSignings($season);        // IA melhora elenco trocando banco fraco por FA melhor
         Database::setMeta('phase', 'freeagency');
@@ -922,14 +1019,18 @@ class Offseason
         return ['phase' => 'freeagency', 'season' => $season];
     }
 
-    /** Encerra a Free Agency: IA completa elencos, limpa sobras e inicia a temporada. */
+    /**
+     * Encerra a Free Agency: IA completa elencos e inicia a temporada. Quem não
+     * foi assinado CONTINUA agente livre durante a temporada (dá pra assinar
+     * até a deadline); o pool só é limpo na próxima entressafra.
+     */
     public static function finishFreeAgency(): array
     {
         $season = (int) Database::meta('fa_season', League::season() + 1);
         self::aiSignFreeAgents($season, true);
-        Database::conn()->exec("DELETE FROM players WHERE team_id IS NULL AND retired = 0"); // dispensa sobras
         self::refillRosters();
         self::recomputeRotations();
+        Cap::aiEnforce(true);
         self::resetForNewSeason($season);
         Database::conn()->prepare("DELETE FROM meta WHERE k='fa_season'")->execute();
         return ['phase' => 'regular', 'season' => $season];

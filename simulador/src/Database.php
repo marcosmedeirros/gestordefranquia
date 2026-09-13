@@ -162,6 +162,27 @@ class Database
         } catch (Throwable $e) { /* silencioso */ }
 
         try {
+            // ─── SALARY CAP da ELITE: colunas de draft/bônus + teto do save ────
+            // Save antigo ganha as colunas, tem os salários regravados pela tabela
+            // de OVR e o teto calibrado uma única vez (meta cap_elite).
+            $cols = array_column($db->query('PRAGMA table_info(players)')->fetchAll(), 'name');
+            foreach (['drafted_by' => 'INTEGER DEFAULT 0', 'draft_round' => 'INTEGER DEFAULT 0',
+                      'draft_pos' => 'INTEGER DEFAULT 0', 'award_bonus' => 'INTEGER DEFAULT 0'] as $c => $ddl) {
+                if (!in_array($c, $cols)) $db->exec("ALTER TABLE players ADD COLUMN $c $ddl");
+            }
+            $flag = $db->query("SELECT v FROM meta WHERE k='cap_elite'")->fetchColumn();
+            if (!$flag) {
+                self::$pdo = $db; // Cap usa Database::conn() — já aponta pra este banco
+                require_once __DIR__ . '/Cap.php';
+                // calouros já no elenco (seasons_pro=0) entram como 2ª rodada: rookie scale mínima
+                $db->exec("UPDATE players SET draft_round=2 WHERE retired=0 AND seasons_pro=0 AND draft_round=0");
+                Cap::refreshSalaries();
+                Cap::calibrate();
+                $db->prepare("INSERT INTO meta(k,v) VALUES('cap_elite','1') ON CONFLICT(k) DO UPDATE SET v='1'")->execute();
+            }
+        } catch (Throwable $e) { /* silencioso */ }
+
+        try {
             // ─── tabela inbox (caixa de mensagens FM) ──────────────────────
             $tables = array_column($db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(), 'name');
             if (!in_array('inbox', $tables)) {
@@ -180,30 +201,22 @@ class Database
     }
 
     // ===================== SISTEMA FINANCEIRO / CONTRATOS =====================
-    // Valores em dólares, escala NBA (aproximada). Substitui o antigo "Cap por OVR".
-    public const SALARY_CAP = 140000000; // teto salarial flexível ($140M)
-    public const TAX_LINE   = 170000000; // linha do imposto de luxo ($170M)
-    public const APRON      = 195000000; // teto rígido para contratações ($195M)
-    public const MIN_SALARY = 2000000;   // salário mínimo ($2M)
-    public const MAX_SALARY = 52000000;  // salário máximo ($52M)
+    // O salário segue a tabela por OVR da FBA ELITE (ver Cap.php). Estas duas
+    // funções ficaram como atalho para quem já as chamava; a idade não conta mais.
+    public const MIN_SALARY = 2000000;   // mínimo de veterano ($2M, OVR 77 ou menos)
+    public const MAX_SALARY = 60000000;  // OVR 99
 
-    /** Salário anual estimado a partir do OVR (e leve ajuste por idade). Arredonda a 100k.
-     *  Curva cúbica: reservas perto do mínimo, prêmio forte para estrelas. */
+    /** Salário anual pela tabela de OVR da ELITE, em dólares. */
     public static function salaryForOvr(int $ovr, int $age = 25): int
     {
-        $t = max(0.0, min(1.0, ($ovr - 58) / 38.0));
-        $sal = self::MIN_SALARY + ($t * $t * $t) * (self::MAX_SALARY - self::MIN_SALARY);
-        if ($age >= 34)      $sal *= 0.85; // veteranos custam um pouco menos
-        elseif ($age <= 21)  $sal *= 0.90; // jovens ainda baratos
-        return (int) (round($sal / 100000) * 100000);
+        return Cap::ovrSalary($ovr) * Cap::M;
     }
 
-    /** Salário de calouro pela posição no draft (escala de novato). */
-    public static function rookieSalary(int $pickNo): int
+    /** Salário de calouro pela posição no draft (rookie scale da ELITE), em dólares. */
+    public static function rookieSalary(int $pickNo, int $round = 0): int
     {
-        $pickNo = max(1, min(60, $pickNo));
-        $sal = self::MIN_SALARY + (12000000 - self::MIN_SALARY) * (61 - $pickNo) / 60.0;
-        return (int) (round($sal / 100000) * 100000);
+        if ($round <= 0) $round = $pickNo <= 30 ? 1 : 2;
+        return Cap::rookieScale($round, $round === 1 ? $pickNo : 0) * Cap::M;
     }
 
     /** Anos de contrato típicos para um jogador recém-gerado (estrelas assinam mais longo). */
@@ -319,7 +332,11 @@ class Database
             rest_games {INT} DEFAULT 0,
             nba_id {INT} DEFAULT 0,
             salary {INT} DEFAULT 0,
-            contract_years {INT} DEFAULT 0
+            contract_years {INT} DEFAULT 0,
+            drafted_by {INT} DEFAULT 0,
+            draft_round {INT} DEFAULT 0,
+            draft_pos {INT} DEFAULT 0,
+            award_bonus {INT} DEFAULT 0
         ){ENGINE}"));
 
         $db->exec(self::ddl("CREATE TABLE season_stats (
@@ -537,3 +554,5 @@ class Database
         self::conn()->prepare($sql)->execute([$key, (string) $value]);
     }
 }
+
+require_once __DIR__ . '/Cap.php';

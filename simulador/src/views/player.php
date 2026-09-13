@@ -58,13 +58,15 @@ $awardLabels = [
       <?php if (!empty($p['salary'])): ?>
       <p class="ph2-meta" style="margin-top:2px">
         💵 <strong><?= money($p['salary']) ?></strong>/ano
-        · 📄 <?= (int)$p['contract_years'] > 0 ? (int)$p['contract_years'].' ano'.((int)$p['contract_years']>1?'s':'').' de contrato' : 'contrato expirando' ?>
+        <span class="muted">(<?= Cap::salarySource($p) === 'rookie' ? 'rookie scale' : 'tabela OVR ' . $ovr ?><?= (int)($p['award_bonus'] ?? 0) ? ' + bônus de prêmio ' . (int)$p['award_bonus'] . 'M' : '' ?>)</span>
+        · 📄 <?= (int)$p['contract_years'] > 0 ? (int)$p['contract_years'].' ano'.((int)$p['contract_years']>1?'s':'').' de vínculo' : 'vínculo expirando' ?>
+        <?php if (Cap::flexOf($p) > 0): ?> · <span title="Draftado pelo time: soma no teto">🧬 Cap Flex +<?= Cap::flexOf($p) ?>M</span><?php endif; ?>
       </p>
       <?php endif; ?>
       <div class="ph2-badges">
         <?php if ($seasPro === 0): ?><span class="ph2-badge rookie">🌟 Calouro</span><?php endif; ?>
         <?php if ($injGames > 0): ?><span class="ph2-badge injured">🩹 Lesionado (<?= $injGames ?>j)</span><?php endif; ?>
-        <?php if ($potential > $ovr): ?><span class="ph2-badge potential">↑ Pot. <?= $potential ?></span><?php endif; ?>
+        <?php if ($potential > $ovr): ?><span class="ph2-badge potential" title="Estimativa dos olheiros — o teto real só se descobre desenvolvendo">↑ Potencial <?= potGrade($p) ?></span><?php endif; ?>
         <?php if ($morale >= 80): ?><span class="ph2-badge" style="color:var(--green);border-color:rgba(43,212,122,.3)">😊 Alto moral</span><?php endif; ?>
         <?php if ($morale < 55): ?><span class="ph2-badge" style="color:var(--red);border-color:rgba(255,91,103,.3)">😤 Insatisfeito</span><?php endif; ?>
       </div>

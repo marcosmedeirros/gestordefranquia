@@ -38,6 +38,13 @@ $cta = League::nextAction();
   <?php if (!empty($cta['alt'])): ?>
     <a class="cta-alt" href="<?= e($cta['alt']['href']) ?>" onclick="return confirm('<?= e($cta['alt']['confirm']) ?>')"><?= e($cta['alt']['label']) ?></a>
   <?php endif; ?>
+  <?php if (!empty($cta['more'])): ?>
+    <div class="cta-more">
+      <?php foreach ($cta['more'] as $m2): ?>
+        <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'onclick="return confirm(\''.e($m2['confirm']).'\')"' : '' ?>><?= e($m2['label']) ?></a>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
 </section>
 <?php endif; ?>
 

@@ -227,7 +227,7 @@ foreach(array_merge($standE, $standW) as $s) { $seeds[(int)$s['id']] = (int)$s['
           <td class="num"><?= e($p['pos']) ?></td>
           <td class="num"><?= $p['age'] ?></td>
           <td class="num"><span class="ovr ovr-<?= $ovrC ?>"><?= $p['ovr'] ?></span></td>
-          <td class="num"><?= (int)($p['potential']??0) > (int)$p['ovr'] ? '<span class="muted">'.(int)$p['potential'].'</span>' : '—' ?></td>
+          <td class="num"><?= potGrade($p) !== '' ? '<span class="muted" title="Estimativa dos olheiros">'.potGrade($p).'</span>' : '—' ?></td>
           <td class="num"><?= $gp ?: '—' ?></td>
           <td class="num <?= $p['_ppg'] >= 20 ? 'stat-hot' : ($p['_ppg'] >= 12 ? 'stat-good' : '') ?>"><?= $gp ? $p['_ppg'] : '—' ?></td>
           <td class="num <?= $p['_rpg'] >= 10 ? 'stat-hot' : ($p['_rpg'] >= 7 ? 'stat-good' : '') ?>"><?= $gp ? $p['_rpg'] : '—' ?></td>

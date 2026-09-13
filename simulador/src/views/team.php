@@ -43,7 +43,7 @@ $teamStrength = League::teamStrength($id);
         <td><?= e($p['pos']) ?></td>
         <td class="num"><?= $p['age'] ?></td>
         <td class="num"><span class="ovr ovr-<?= $p['ovr']>=90?'elite':($p['ovr']>=80?'star':($p['ovr']>=75?'good':'role')) ?>"><?= $p['ovr'] ?></span></td>
-        <td class="num"><?= (int)($p['potential'] ?? 0) > (int)$p['ovr'] ? '<span class="muted">'.(int)$p['potential'].'</span>' : '—' ?></td>
+        <td class="num"><?= potGrade($p) !== '' ? '<span class="muted" title="Estimativa dos olheiros">'.potGrade($p).'</span>' : '—' ?></td>
         <td class="num"><?= (int)($p['gp'] ?? 0) ?></td>
         <td class="num"><?= avg($p['s_pts'] ?? 0, $p['gp'] ?? 0) ?></td>
         <td class="num"><?= avg($p['s_reb'] ?? 0, $p['gp'] ?? 0) ?></td>

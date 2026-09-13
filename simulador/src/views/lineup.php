@@ -57,7 +57,8 @@ $moraleLabel = fn($m) => (int)$m >= 85 ? ['🟢','Ótimo'] : ((int)$m >= 65 ? ['
   <?= team_logo($t['abbr'], $t['primary_color'], 'xl', 'th-logo') ?>
   <div class="th-body">
     <h1><?= e(teamFull($t)) ?></h1>
-    <p class="th-meta"><?= $t['wins'] ?>-<?= $t['losses'] ?> · Folha <?= money(League::teamPayroll($gmId)) ?> · Química <?= (int)$t['chemistry'] ?></p>
+    <?php $capL = Cap::summary($gmId); ?>
+    <p class="th-meta"><?= $t['wins'] ?>-<?= $t['losses'] ?> · Folha <?= Cap::m($capL['payroll']) ?> / teto <?= Cap::m($capL['cap_max']) ?><?= $capL['status'] !== 'ok' ? ' <span class="neg-txt">(' . ($capL['status'] === 'over' ? 'acima do teto' : 'abaixo do piso') . ')</span>' : '' ?> · Química <?= (int)$t['chemistry'] ?></p>
     <p class="th-sub">
       <a href="<?= url('manage') ?>" style="color:rgba(255,255,255,.8);text-decoration:underline">⚙️ Gerenciar →</a>
       &nbsp;·&nbsp;
@@ -256,6 +257,8 @@ if ($upcoming):
         <a class="pm-btn" href="${appBase}/index.php?action=boost-morale&pid=${pid}">💬 Conversar</a>
         <a class="pm-btn" href="${appBase}/index.php?action=rest-player&pid=${pid}">😴 Descansar</a>
         <a class="pm-btn pm-view" href="${appBase}/index.php?p=player&id=${pid}">📋 Ver ficha completa</a>
+        <a class="pm-btn pm-danger" href="${appBase}/index.php?action=release&pid=${pid}&back=lineup"
+           onclick="return confirm('Dispensar ' + p.name + '? Ele vira agente livre e o salário sai da folha na hora.')">🚪 Dispensar</a>
       </div>
     `;
     modal.style.display = 'flex';

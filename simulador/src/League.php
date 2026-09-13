@@ -267,6 +267,15 @@ class League
         }
 
         // --- lesões: primeiro reduz lesões vigentes dos times em quadra, depois aplica novas ---
+        // quem estava no último jogo de lesão volta agora — o GM é avisado (abaixo)
+        $gmId = self::gmTeam();
+        $returning = [];
+        if ($gmId && in_array($gmId, [(int) $g['home_id'], (int) $g['away_id']], true)) {
+            // só quem importa pra rotação — o 13º homem voltando de lesão não vira mensagem
+            $rs = $db->prepare("SELECT id, name, pos, ovr, min_target FROM players WHERE team_id=? AND injury_games=1 AND retired=0 AND (rotation=1 OR min_target>0 OR ovr>=78)");
+            $rs->execute([$gmId]);
+            $returning = $rs->fetchAll();
+        }
         $db->prepare("UPDATE players SET injury_games = injury_games - 1
                       WHERE team_id IN (?,?) AND injury_games > 0")->execute([$g['home_id'], $g['away_id']]);
         // jogadores poupados voltam: consome 1 jogo de descanso
@@ -306,6 +315,13 @@ class League
             foreach ($result['injuries'] as $inj) {
                 self::announceInjury((int) $inj['player_id'], (int) $inj['games']);
             }
+        }
+        foreach ($returning as $p) {
+            $mins = (int) $p['min_target'];
+            self::inboxAdd('injury_ok', 'Dept. Médico', $p['name'] . ' está recuperado',
+                "{$p['name']} ({$p['pos']}, OVR {$p['ovr']}) recebeu alta e já pode jogar. "
+                . ($mins > 0 ? "Ele volta à rotação com os {$mins} minutos que tinha." : 'Ele está fora da rotação — defina os minutos dele na Escalação.'),
+                url('lineup'), '✅', true, (int) $p['id']);
         }
     }
 
@@ -439,19 +455,27 @@ class League
         }
 
         if ($gmToday) {
+            $series = $phase === 'playoffs' ? self::seriesStatus((int) ($gmToday['series_id'] ?? 0)) : null;
             return [
                 'href' => url('game', ['id' => $gmToday['id'], 'live' => 1]),
                 'label' => '🎮 Comandar meu jogo · ' . $gmToday['away_abbr'] . ' @ ' . $gmToday['home_abbr'],
-                'note' => 'Seu jogo de hoje — ' . self::dateLabel($day),
+                'note' => ($series ? $series['label'] . ' — ' : 'Seu jogo de hoje — ') . self::dateLabel($day),
                 'alt' => ['href' => url('home', ['action' => 'sim-game-ai', 'id' => $gmToday['id']]),
                           'label' => 'ou simular sem comandar', 'confirm' => 'Simular sua partida sem comandar?'],
+                'more' => self::simShortcuts($phase),
             ];
         }
         if (in_array($phase, ['regular', 'playin', 'playoffs'], true)) {
+            $note = ($phase === 'playoffs' ? 'Playoffs' : ($phase === 'playin' ? 'Play-In' : 'Temporada Regular')) . ' — ' . self::dateLabel($day);
+            if ($phase === 'regular') {
+                $dl = Cap::deadlineDay();
+                if ($day <= $dl) $note .= ' · Trade Deadline no dia ' . $dl . ' (' . ($dl - $day) . ' dias)';
+            }
             return [
                 'href' => url('home', ['action' => 'advance', 'back' => url('home')]),
                 'label' => '▶ Avançar para a próxima data',
-                'note' => ($phase === 'playoffs' ? 'Playoffs' : ($phase === 'playin' ? 'Play-In' : 'Temporada Regular')) . ' — ' . self::dateLabel($day),
+                'note' => $note,
+                'more' => self::simShortcuts($phase),
             ];
         }
         if ($phase === 'preseason') {
@@ -459,6 +483,8 @@ class League
                 'href' => url('home', ['action' => 'preseason-advance']),
                 'label' => '▶ Avançar dia · ' . self::preseasonDay() . '/' . self::PRESEASON_DAYS . ' da pré-temporada',
                 'note' => 'Trocas, free agency e acontecimentos antes do início da temporada',
+                'more' => [['href' => url('home', ['action' => 'preseason-finish']), 'label' => '⏭ Pular a pré-temporada',
+                            'confirm' => 'Encerrar a pré-temporada e iniciar a temporada agora?']],
             ];
         }
         if ($phase === 'lottery') {
@@ -471,11 +497,32 @@ class League
             return ['href' => url('freeagency'), 'label' => '🖊️ Ir para a Free Agency', 'note' => 'Contrate agentes livres'];
         }
         if ($phase === 'offseason') {
+            if (Database::meta('champion_id') && Database::meta('awards_seen') !== (string) self::season()) {
+                return ['href' => url('awards'), 'label' => '🏆 Cerimônia de Premiação',
+                        'note' => 'O campeão, o MVP e todos os prêmios da temporada ' . self::season()];
+            }
             return ['href' => url('home', ['action' => 'next-season']), 'label' => '🏁 Iniciar próxima temporada',
                     'note' => 'Entressafra: progressão, loteria, draft e free agency',
                     'confirm' => 'Rodar a entressafra e iniciar a próxima temporada?'];
         }
         return null;
+    }
+
+    /** Atalhos de simulação em lote ao lado do botão principal (o "clicar 82 vezes" acabou). */
+    private static function simShortcuts(string $phase): array
+    {
+        if ($phase === 'regular') {
+            return [
+                ['href' => url('home', ['action' => 'sim-days', 'n' => 7]), 'label' => '⏩ Simular 1 semana', 'confirm' => 'Simular 7 dias (seus jogos serão simulados automaticamente)?'],
+                ['href' => url('home', ['action' => 'sim-season']), 'label' => '⏭ Simular até os playoffs', 'confirm' => 'Simular TODA a temporada regular de uma vez? Seus jogos serão simulados automaticamente.'],
+            ];
+        }
+        if ($phase === 'playin' || $phase === 'playoffs') {
+            return [
+                ['href' => url('home', ['action' => 'sim-round']), 'label' => '⏩ Simular a rodada inteira', 'confirm' => 'Simular todos os jogos desta rodada (inclusive os seus)?'],
+            ];
+        }
+        return [];
     }
 
     /** Marca d'água (maior id da inbox) para depois capturar exatamente o que aconteceu num avanço. */
@@ -513,6 +560,61 @@ class League
 
         $day = self::currentDay();
         $gm = self::gmTeam();
+        $deadline = Cap::deadlineDay();
+
+        // ── TRADE DEADLINE: no dia da deadline ninguém passa acima do teto; abaixo do piso custa uma pick ──
+        if ($gm && $day === $deadline) {
+            $block = Cap::gmBlockMessage('passar da Trade Deadline (dia ' . $deadline . ')');
+            if ($block) return ['blocked' => true, 'msg' => $block];
+            if (Database::meta('floor_penalty') !== (string) self::season()) {
+                Database::setMeta('floor_penalty', (string) self::season());
+                $pen = Cap::floorPenalty($gm);
+                if ($pen) {
+                    self::inboxAdd('cap', 'Liga', '⚖️ Punição: folha abaixo do piso na deadline', $pen . '. Para não repetir, contrate agentes livres ou receba salário em trocas antes da próxima deadline.', url('cap'), '⚖️', true);
+                }
+            }
+        }
+        // aviso com antecedência (uma vez por temporada)
+        if ($gm && $day === $deadline - 8 && Database::meta('deadline_warned') !== (string) self::season()) {
+            Database::setMeta('deadline_warned', (string) self::season());
+            $c = Cap::gmCompliance();
+            if ($c && $c['status'] !== 'ok') {
+                self::inboxAdd('cap', 'Liga', '⚠️ Trade Deadline em 8 dias — sua folha está irregular',
+                    ($c['status'] === 'over'
+                        ? 'Você está ' . Cap::m($c['excess']) . ' acima do teto de ' . Cap::m($c['cap_max']) . '.'
+                        : 'Você está ' . Cap::m($c['deficit']) . ' abaixo do piso de ' . Cap::m($c['floor']) . '.')
+                    . " No dia $deadline a liga trava o calendário até você regularizar. Depois da deadline não há mais trocas.",
+                    url('cap'), '⏰', true);
+            } else {
+                self::inboxAdd('cap', 'Liga', '⏰ Trade Deadline em 8 dias',
+                    "Última chance de negociar: no dia $deadline a janela de trocas fecha até a entressafra.", url('trades'), '⏰', false);
+            }
+        }
+        // a IA se ajusta ao teto ao longo da temporada; na deadline, obrigatoriamente
+        if ($day <= $deadline && ($day === $deadline || self::chanceF(0.5))) {
+            try { Cap::aiEnforce($day === $deadline, 1); } catch (Throwable $e) { error_log('cap aiEnforce: ' . $e->getMessage()); }
+        }
+        // trocas entre times de IA durante a temporada (até a deadline) e contratações de agentes livres
+        if ($day < $deadline && self::chanceF(0.07)) {
+            try {
+                require_once __DIR__ . '/Offseason.php';
+                $t = Offseason::aiPreseasonTrade();
+                if ($t) {
+                    self::inboxAdd('trade', 'Rumores da Liga', $t['headline'], $t['detail'], '', '🔄', false);
+                    self::addHeadline(self::season(), $day, 'trade', '🔄 ' . $t['detail']);
+                }
+            } catch (Throwable $e) {}
+        }
+        if ($day <= $deadline && self::chanceF(0.12)) {
+            try {
+                require_once __DIR__ . '/Offseason.php';
+                $sg = Offseason::aiPreseasonSigning();
+                if ($sg) {
+                    self::inboxAdd('signing', 'Free Agency', $sg['headline'], $sg['detail'], url('freeagency'), '✍️', false);
+                    self::addHeadline(self::season(), $day, 'signing', '✍️ ' . $sg['detail']);
+                }
+            } catch (Throwable $e) {}
+        }
 
         // pode surgir uma decisão de inbox para o GM
         if ($gm && !$autoGm) self::maybeGenerateDecision();
@@ -575,8 +677,63 @@ class League
     public static function simulateToEnd(): array
     {
         $count = 0;
-        while (self::phase() === 'regular') { self::advanceDay(true); $count++; if ($count > 200) break; }
+        while (self::phase() === 'regular') {
+            $r = self::advanceDay(true);
+            if (!empty($r['blocked'])) return $r;
+            $count++; if ($count > 200) break;
+        }
         return ['msg' => "Temporada regular simulada.", 'phase' => self::phase()];
+    }
+
+    /** Simula N dias (jogos do GM inclusive), parando se a liga travar por causa do teto. */
+    public static function simulateDays(int $days): array
+    {
+        $last = [];
+        for ($i = 0; $i < $days; $i++) {
+            if (!in_array(self::phase(), ['regular', 'playin', 'playoffs'], true)) break;
+            $last = self::advanceDay(true);
+            if (!empty($last['blocked'])) return $last;
+        }
+        return $last ?: ['msg' => 'Nada a simular.'];
+    }
+
+    /** Simula até a rodada atual dos playoffs terminar (ou a fase mudar). */
+    public static function simulatePlayoffRound(): array
+    {
+        $phase = self::phase();
+        if (!in_array($phase, ['playin', 'playoffs'], true)) return ['msg' => 'Não há rodada de playoffs em andamento.'];
+        $round = (int) Database::meta('playoff_round', 0);
+        $stage = (int) Database::meta('playin_stage', 0);
+        for ($i = 0; $i < 40; $i++) {
+            $r = self::advanceDay(true);
+            if (self::phase() !== $phase) break;
+            if ($phase === 'playoffs' && (int) Database::meta('playoff_round', 0) !== $round) break;
+            if ($phase === 'playin' && (int) Database::meta('playin_stage', 0) !== $stage) break;
+        }
+        return ['msg' => 'Rodada simulada.', 'phase' => self::phase()];
+    }
+
+    /** Situação da série de playoffs de um jogo: "Jogo 5 · série 2-2", ou null fora dos playoffs. */
+    public static function seriesStatus(?int $seriesId): ?array
+    {
+        if (!$seriesId) return null;
+        $st = Database::conn()->prepare(
+            "SELECT ps.*, ht.abbr AS high_abbr, lt.abbr AS low_abbr FROM playoff_series ps
+             JOIN teams ht ON ht.id=ps.high_seed_id JOIN teams lt ON lt.id=ps.low_seed_id WHERE ps.id=?");
+        $st->execute([$seriesId]);
+        $s = $st->fetch();
+        if (!$s) return null;
+        $hw = (int) $s['high_wins']; $lw = (int) $s['low_wins'];
+        $gameNo = $hw + $lw + 1;
+        $names = [1 => '1ª Rodada', 2 => 'Semifinal de Conferência', 3 => 'Final de Conferência', 4 => 'Finais'];
+        $lead = $hw === $lw ? "série empatada {$hw}-{$lw}"
+              : ($hw > $lw ? "{$s['high_abbr']} lidera {$hw}-{$lw}" : "{$s['low_abbr']} lidera {$lw}-{$hw}");
+        $tag = '';
+        if ($hw === 3 && $lw === 3) $tag = 'JOGO 7 — decisivo';
+        elseif ($hw === 3 || $lw === 3) $tag = ($hw === 3 ? $s['high_abbr'] : $s['low_abbr']) . ' pode fechar a série';
+        return ['round' => (int) $s['round'], 'round_name' => $names[(int) $s['round']] ?? 'Playoffs', 'game' => $gameNo,
+                'high_wins' => $hw, 'low_wins' => $lw, 'lead' => $lead, 'tag' => $tag, 'done' => !empty($s['winner_id']),
+                'label' => ($names[(int) $s['round']] ?? 'Playoffs') . " · Jogo {$gameNo} · {$lead}" . ($tag ? " · {$tag}" : '')];
     }
 
     // ===================== PLAY-IN (7º ao 10º) =====================
@@ -890,57 +1047,37 @@ class League
         return (int) round($sum / count($teams));
     }
 
-    /** Folha salarial de um time = soma dos salários do elenco. */
+    /** Folha salarial de um time = soma dos salários do elenco (regras em Cap.php). */
     public static function teamPayroll(int $teamId): int
     {
-        $st = Database::conn()->prepare(
-            "SELECT COALESCE(SUM(salary),0) FROM players WHERE team_id = ? AND retired = 0");
-        $st->execute([$teamId]);
-        return (int) $st->fetchColumn();
+        return Cap::payroll($teamId);
     }
 
-    /** Status financeiro de uma folha: 'ok' | 'tax' | 'apron'. */
+    /** Status de uma folha frente ao teto base e ao piso: 'ok' | 'over' | 'under'. */
     public static function payrollStatus(int $payroll): string
     {
-        if ($payroll >= Database::APRON)    return 'apron';
-        if ($payroll >= Database::TAX_LINE) return 'tax';
+        if ($payroll > Cap::max())   return 'over';
+        if ($payroll < Cap::floor()) return 'under';
         return 'ok';
     }
 
-    /** Imposto de luxo devido (simples: 1.5x o valor acima da linha). */
-    public static function luxuryTax(int $payroll): int
-    {
-        return $payroll > Database::TAX_LINE ? (int) (($payroll - Database::TAX_LINE) * 1.5) : 0;
-    }
-
-    /** Espaço de teto disponível (pode ser negativo se acima do teto). */
+    /** Espaço no teto (negativo = acima do teto). Considera o Cap Flex do time. */
     public static function capSpace(int $teamId): int
     {
-        return Database::SALARY_CAP - self::teamPayroll($teamId);
+        return Cap::summary($teamId)['space'];
     }
 
     /** Tabela de folha salarial da liga (todas as equipes, ordenadas). */
     public static function payrollTable(): array
     {
-        $teams = self::allTeams();
-        $rows = [];
-        foreach ($teams as $t) {
-            $pay = self::teamPayroll((int) $t['id']);
-            $rows[] = [
-                'id' => $t['id'], 'abbr' => $t['abbr'], 'city' => $t['city'], 'name' => $t['name'],
-                'conf' => $t['conf'], 'color' => $t['primary_color'],
-                'payroll' => $pay, 'status' => self::payrollStatus($pay),
-                'tax' => self::luxuryTax($pay), 'space' => Database::SALARY_CAP - $pay,
-            ];
-        }
-        usort($rows, fn($a, $b) => $b['payroll'] <=> $a['payroll']);
-        return [
-            'teams' => $rows,
-            'cap' => Database::SALARY_CAP,
-            'tax_line' => Database::TAX_LINE,
-            'apron' => Database::APRON,
-            'season' => self::season(),
-        ];
+        return ['teams' => Cap::leagueTable(), 'cap' => Cap::max(), 'floor' => Cap::floor(), 'season' => self::season()];
+    }
+
+    /** Dificuldade do save: 'facil' | 'normal' | 'dificil'. */
+    public static function difficulty(): string
+    {
+        $d = (string) Database::meta('difficulty', 'normal');
+        return in_array($d, ['facil', 'normal', 'dificil'], true) ? $d : 'normal';
     }
 
     // ===================== JOGADOR — CARREIRA E PRÊMIOS =====================
@@ -1263,6 +1400,11 @@ class League
         $givePicks = self::picksByIds($givePickIds); // picks do GM -> IA
         $getPicks  = self::picksByIds($getPickIds);  // picks da IA -> GM
         if (!$give && !$givePicks && !$get && !$getPicks) return ['accept' => false, 'reason' => 'Selecione jogadores ou picks dos dois lados.'];
+        if (!Cap::tradesOpen()) {
+            return ['accept' => false, 'reason' => self::phase() === 'regular'
+                ? 'A Trade Deadline (dia ' . Cap::deadlineDay() . ') já passou. Trocas só na entressafra.'
+                : 'A janela de trocas está fechada nesta fase.'];
+        }
         foreach ($give as $p) if ((int) $p['team_id'] !== $gmTeam) return ['accept' => false, 'reason' => 'Jogador inválido no seu lado.'];
         foreach ($get as $p)  if ((int) $p['team_id'] !== $aiTeam) return ['accept' => false, 'reason' => 'Jogador inválido no lado adversário.'];
         foreach ($givePicks as $pk) if ((int) $pk['owner_team_id'] !== $gmTeam) return ['accept' => false, 'reason' => 'Pick inválida no seu lado.'];
@@ -1274,34 +1416,30 @@ class League
         $send = 0; foreach ($get as $p)  $send += self::playerValue($p, $aiTeam);
         foreach ($getPicks as $pk) $send += self::pickValue($pk);
 
-        // ── Salários (NBA-style simples): folha resultante + teto rígido ──
-        $gmSalOut = 0; foreach ($give as $p) $gmSalOut += (int) $p['salary']; // sai do GM
-        $gmSalIn  = 0; foreach ($get  as $p) $gmSalIn  += (int) $p['salary']; // entra no GM
-        $gmPayrollAfter = self::teamPayroll($gmTeam) - $gmSalOut + $gmSalIn;
-        $aiPayrollAfter = self::teamPayroll($aiTeam) - $gmSalIn + $gmSalOut;
-        // a IA reluta em absorver salário líquido (pensa no teto)
-        $aiSalaryAdded = $gmSalOut - $gmSalIn; // salário que a IA passa a pagar (líquido)
-        if ($aiSalaryAdded > 0) $recv -= $aiSalaryAdded / 8000000;
+        // "Imposto de estrela": a IA cobra mais pelos 3 melhores do elenco dela.
+        $aiTop = Database::conn()->prepare("SELECT id FROM players WHERE team_id=? AND retired=0 ORDER BY ovr DESC LIMIT 3");
+        $aiTop->execute([$aiTeam]);
+        $topIds = array_map('intval', array_column($aiTop->fetchAll(), 'id'));
+        foreach ($get as $i => $p) {
+            $rank = array_search((int) $p['id'], $topIds, true);
+            if ($rank === 0) $send += 3.0; elseif ($rank !== false) $send += 1.5;
+        }
 
-        $aiCount = (int) Database::conn()->query("SELECT COUNT(*) c FROM players WHERE team_id=$aiTeam AND retired=0")->fetch()['c'];
-        $aiAfter = $aiCount - count($get) + count($give);
-        $gmCount = (int) Database::conn()->query("SELECT COUNT(*) c FROM players WHERE team_id=$gmTeam AND retired=0")->fetch()['c'];
-        $gmAfter = $gmCount - count($give) + count($get);
+        // ── Salário: regra dos 120% e teto da ELITE (Cap::tradeCheck), pros dois lados ──
+        $chk = Cap::tradeCheck($gmTeam, $give, $givePicks, $aiTeam, $get, $getPicks);
+        $sal = ['gm_after' => $chk['a']['after'], 'ai_after' => $chk['b']['after'], 'gm_out' => $chk['a']['send'], 'gm_in' => $chk['a']['recv'],
+                'gm_cap' => $chk['a']['cap'], 'ai_cap' => $chk['b']['cap'], 'check' => $chk];
+        if (!$chk['ok']) {
+            return ['accept' => false, 'reason' => implode(' ', $chk['errors']), 'salary' => $sal, 'cap_fail' => true];
+        }
+        // a IA ainda reluta em absorver salário líquido quando fica perto do teto
+        $aiAdded = $chk['b']['after'] - $chk['b']['before'];
+        if ($aiAdded > 0 && $chk['b']['after'] > $chk['b']['cap'] * 0.9) $recv -= $aiAdded / (8 * Cap::M);
 
-        if ($aiAfter < 9)  return ['accept' => false, 'reason' => 'O time adversário ficaria com elenco curto demais.'];
-        if ($aiAfter > 16) return ['accept' => false, 'reason' => 'O time adversário ficaria com elenco grande demais.'];
-        if ($gmAfter < 9)  return ['accept' => false, 'reason' => 'Seu time ficaria com menos de 9 jogadores.'];
-        if ($gmAfter > 16) return ['accept' => false, 'reason' => 'Seu time ficaria com elenco grande demais.'];
-
-        // Teto rígido (apron): nenhuma das folhas pode ultrapassá-lo após a troca.
-        $sal = ['gm_after' => $gmPayrollAfter, 'ai_after' => $aiPayrollAfter, 'gm_out' => $gmSalOut, 'gm_in' => $gmSalIn];
-        if ($gmPayrollAfter > Database::APRON)
-            return ['accept' => false, 'reason' => 'Sua folha ($' . number_format($gmPayrollAfter/1e6,1) . 'M) ultrapassaria o teto rígido de $' . number_format(Database::APRON/1e6,0) . 'M.', 'salary' => $sal];
-        if ($aiPayrollAfter > Database::APRON)
-            return ['accept' => false, 'reason' => 'O adversário ultrapassaria o teto rígido — a IA não pode absorver esse salário.', 'salary' => $sal];
-
+        // Dificuldade: no fácil a IA aceita ficar um pouco atrás; no difícil quer sair ganhando.
+        $tol = ['facil' => -1.5, 'normal' => 0.0, 'dificil' => 2.0][self::difficulty()] ?? 0.0;
         $diff = $recv - $send;
-        $accept = $diff >= -1.5; // pequena tolerância
+        $accept = $diff >= $tol;
         if ($accept) {
             $reason = $diff >= 4 ? 'Ótimo negócio para nós, aceito!' : 'Negócio equilibrado, fechado.';
             return ['accept' => true, 'reason' => $reason, 'recv' => round($recv, 1), 'send' => round($send, 1), 'salary' => $sal];
@@ -1312,16 +1450,23 @@ class League
         $counterGive = $giveIds; // o que o GM oferece (IA pede mais)
         $deficit = abs($diff);
 
-        // IA pede um jogador a mais do GM (o melhor disponível não incluído)
+        // IA pede um jogador a mais do GM (o melhor disponível não incluído) — sem
+        // furar os 120%/teto: só entra na contraproposta se o pacote continuar válido.
         $aiRoster = Database::conn()->prepare("SELECT * FROM players WHERE team_id=? AND retired=0 ORDER BY ovr DESC");
         $aiRoster->execute([$gmTeam]);
+        $counterOk = false;
         foreach ($aiRoster->fetchAll() as $candidate) {
             if (in_array((int)$candidate['id'], $giveIds)) continue;
+            $try = array_merge($counterGive, [(int) $candidate['id']]);
+            $c2 = Cap::tradeCheck($gmTeam, self::playersByIds($try), $givePicks, $aiTeam, $get, $getPicks);
+            if (!$c2['ok']) continue;
             $val = self::playerValue($candidate, $aiTeam);
-            $counterGive[] = (int)$candidate['id'];
+            $counterGive = $try;
             $deficit -= $val;
+            $counterOk = true;
             if ($deficit <= 1.5) break;
         }
+        if (!$counterOk) $counterGive = $giveIds;
 
         $reason = $diff >= -5 ? 'Precisamos de um pouco mais nesse pacote.' : 'Você está pedindo muito mais do que oferece.';
         return [
@@ -1707,9 +1852,20 @@ class League
             ->execute([self::season(), self::currentDay(), $type, $title, $body,
                 json_encode($options, JSON_UNESCAPED_UNICODE), json_encode($payload, JSON_UNESCAPED_UNICODE)]);
         $decId = (int) $db->lastInsertId();
-        $icon = $type === 'trade_demand' ? '🗣️' : '🛌';
-        $sender = $type === 'trade_demand' ? 'Vestiário' : 'Comissão Técnica';
+        [$icon, $sender] = self::decisionStyle($type);
         self::inboxAdd('decision', $sender, $title, $body, '', $icon, true, $decId);
+    }
+
+    /** Ícone e remetente de cada tipo de decisão. */
+    private static function decisionStyle(string $type): array
+    {
+        return match ($type) {
+            'trade_demand' => ['🗣️', 'Vestiário'],
+            'bench_unhappy' => ['😤', 'Vestiário'],
+            'wants_star' => ['⭐', 'Vestiário'],
+            'fight' => ['🥊', 'Comissão Técnica'],
+            default => ['🛌', 'Comissão Técnica'],
+        };
     }
 
     /** Cria na caixa de entrada o espelho de qualquer decisão pendente que ainda não tenha um. */
@@ -1721,8 +1877,7 @@ class League
                 "SELECT * FROM decisions WHERE status='pending'
                  AND id NOT IN (SELECT ref_id FROM inbox WHERE kind='decision')")->fetchAll();
             foreach ($rows as $d) {
-                $icon = $d['type'] === 'trade_demand' ? '🗣️' : '🛌';
-                $sender = $d['type'] === 'trade_demand' ? 'Vestiário' : 'Comissão Técnica';
+                [$icon, $sender] = self::decisionStyle((string) $d['type']);
                 self::inboxAdd('decision', $sender, $d['title'], $d['body'], '', $icon, true, (int) $d['id']);
             }
         } catch (Throwable $e) { /* save antigo sem tabela inbox */ }
@@ -1755,7 +1910,66 @@ class League
             return;
         }
 
-        // 2) Load management: veterano estrela com muitos jogos
+        // 2) Reserva de qualidade sem minutos: descontente por não jogar
+        $st = $db->prepare("SELECT p.* FROM players p WHERE p.team_id=? AND p.retired=0 AND p.ovr>=78
+            AND p.injury_games=0 AND (p.rotation=0 OR p.min_target<12) AND p.morale<78 ORDER BY p.ovr DESC");
+        $st->execute([$gm]);
+        foreach ($st->fetchAll() as $p) {
+            if (self::hasPendingFor((int) $p['id'])) continue;
+            if (!self::chanceF(0.5)) break;
+            self::addDecision('bench_unhappy',
+                "😤 {$p['name']} está descontente por não jogar",
+                "{$p['name']} ({$p['pos']}, OVR {$p['ovr']}) acha que merece mais minutos e reclamou com a comissão. O vestiário está de olho na sua resposta.",
+                [
+                    'minutes' => 'Prometer mais minutos (entra na rotação com 16 min, +moral)',
+                    'showcase' => 'Colocar na vitrine de trocas',
+                    'ignore'  => 'Manter a hierarquia (−moral, −química)',
+                ],
+                ['player_id' => (int) $p['id'], 'name' => $p['name']]);
+            return;
+        }
+
+        // 3) Duas estrelas de nível parecido: o segundo quer ser o protagonista
+        $st = $db->prepare("SELECT p.* FROM players p WHERE p.team_id=? AND p.retired=0 AND p.ovr>=86 ORDER BY p.ovr DESC LIMIT 2");
+        $st->execute([$gm]);
+        $stars = $st->fetchAll();
+        if (count($stars) === 2 && (int) $stars[0]['ovr'] - (int) $stars[1]['ovr'] <= 3 && (int) $stars[1]['morale'] < 80
+            && !self::hasPendingFor((int) $stars[1]['id']) && self::chanceF(0.35)) {
+            [$a, $b] = $stars;
+            self::addDecision('wants_star',
+                "⭐ {$b['name']} quer ser a estrela do time",
+                "{$b['name']} (OVR {$b['ovr']}) sente que joga à sombra de {$a['name']} (OVR {$a['ovr']}) e pediu para ser a referência do ataque. Como você decide a hierarquia?",
+                [
+                    'him'  => "{$b['name']} vira a referência (+moral dele, −moral de {$a['name']})",
+                    'keep' => "{$a['name']} segue como estrela (−moral de {$b['name']})",
+                    'share' => 'Dividir o protagonismo (−1 química, moral dos dois neutra)',
+                ],
+                ['player_id' => (int) $b['id'], 'name' => $b['name'], 'other_id' => (int) $a['id'], 'other' => $a['name']]);
+            return;
+        }
+
+        // 4) Briga no treino quando a química está baixa
+        $t = self::team($gm);
+        if ((int) ($t['chemistry'] ?? 70) < 66 && self::chanceF(0.3)) {
+            $st = $db->prepare("SELECT id,name,pos,ovr FROM players WHERE team_id=? AND retired=0 AND rotation=1 ORDER BY RANDOM() LIMIT 2");
+            $st->execute([$gm]);
+            $pair = $st->fetchAll();
+            if (count($pair) === 2 && !self::hasPendingFor((int) $pair[0]['id']) && !self::hasPendingFor((int) $pair[1]['id'])) {
+                [$a, $b] = $pair;
+                self::addDecision('fight',
+                    "🥊 {$a['name']} deu um soco em {$b['name']} no treino",
+                    "Após um empurrão de {$b['name']}, {$a['name']} partiu para cima e a comissão precisou separar os dois. A química do elenco está em {$t['chemistry']}. Qual será sua ação?",
+                    [
+                        'calm'    => 'Apaziguar os ânimos (+química, moral dos dois leve alta)',
+                        'punish_a' => "Punir {$a['name']} (1 jogo fora, −moral dele, +moral de {$b['name']})",
+                        'punish_b' => "Punir {$b['name']} (1 jogo fora, −moral dele, +moral de {$a['name']})",
+                    ],
+                    ['player_id' => (int) $a['id'], 'name' => $a['name'], 'other_id' => (int) $b['id'], 'other' => $b['name']]);
+                return;
+            }
+        }
+
+        // 5) Load management: veterano estrela com muitos jogos
         $st = $db->prepare("SELECT p.* FROM players p JOIN season_stats s ON s.player_id=p.id
             WHERE p.team_id=? AND p.retired=0 AND p.age>=32 AND p.ovr>=84 AND s.gp>=10 ORDER BY p.ovr DESC");
         $st->execute([$gm]);
@@ -1805,6 +2019,52 @@ class League
             } else {
                 $db->prepare("UPDATE players SET morale = MIN(99, morale + 6) WHERE id=?")->execute([$pid]);
                 $msg = "{$payload['name']} segue em quadra — moral em alta.";
+            }
+        } elseif ($d['type'] === 'bench_unhappy' && $pid) {
+            $gm = self::gmTeam();
+            if ($choice === 'minutes') {
+                $db->prepare("UPDATE players SET rotation=1, min_target=MAX(min_target,16), morale=MIN(99, morale+12) WHERE id=?")->execute([$pid]);
+                $msg = "{$payload['name']} entrou na rotação com 16 minutos — ajuste o resto da minutagem na Escalação.";
+            } elseif ($choice === 'showcase') {
+                $db->prepare("UPDATE players SET morale = MIN(99, morale + 4) WHERE id=?")->execute([$pid]);
+                $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?, 'vitrine', ?)")
+                   ->execute([self::season(), self::currentDay(), "{$payload['name']} foi colocado na vitrine de trocas."]);
+                $msg = "{$payload['name']} está na vitrine — negocie na Central de Trocas.";
+            } else {
+                $db->prepare("UPDATE players SET morale = MAX(30, morale - 12) WHERE id=?")->execute([$pid]);
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MAX(50, chemistry - 2) WHERE id=?")->execute([$gm]);
+                $msg = "Você manteve a hierarquia — {$payload['name']} segue insatisfeito e a química caiu.";
+            }
+        } elseif ($d['type'] === 'wants_star' && $pid) {
+            $other = (int) ($payload['other_id'] ?? 0);
+            $gm = self::gmTeam();
+            if ($choice === 'him') {
+                $db->prepare("UPDATE players SET morale = MIN(99, morale + 12) WHERE id=?")->execute([$pid]);
+                if ($other) $db->prepare("UPDATE players SET morale = MAX(30, morale - 8) WHERE id=?")->execute([$other]);
+                $msg = "{$payload['name']} vira a referência do ataque. {$payload['other']} não gostou.";
+            } elseif ($choice === 'keep') {
+                $db->prepare("UPDATE players SET morale = MAX(30, morale - 10) WHERE id=?")->execute([$pid]);
+                if ($other) $db->prepare("UPDATE players SET morale = MIN(99, morale + 4) WHERE id=?")->execute([$other]);
+                $msg = "{$payload['other']} segue como a estrela. {$payload['name']} engoliu seco.";
+            } else {
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MAX(50, chemistry - 1) WHERE id=?")->execute([$gm]);
+                $msg = "Protagonismo dividido — o vestiário aceitou, mas o entrosamento sofreu um pouco.";
+            }
+        } elseif ($d['type'] === 'fight' && $pid) {
+            $other = (int) ($payload['other_id'] ?? 0);
+            $gm = self::gmTeam();
+            if ($choice === 'calm') {
+                $db->prepare("UPDATE players SET morale = MIN(99, morale + 3) WHERE id IN (?,?)")->execute([$pid, $other]);
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MIN(99, chemistry + 3) WHERE id=?")->execute([$gm]);
+                $msg = "Você reuniu o grupo e apaziguou os ânimos — a química melhorou.";
+            } else {
+                $punished = $choice === 'punish_a' ? $pid : $other;
+                $spared   = $choice === 'punish_a' ? $other : $pid;
+                $pName    = $choice === 'punish_a' ? $payload['name'] : $payload['other'];
+                $db->prepare("UPDATE players SET rest_games = MAX(rest_games, 1), morale = MAX(30, morale - 10) WHERE id=?")->execute([$punished]);
+                $db->prepare("UPDATE players SET morale = MIN(99, morale + 6) WHERE id=?")->execute([$spared]);
+                if ($gm) $db->prepare("UPDATE teams SET chemistry = MIN(99, chemistry + 1) WHERE id=?")->execute([$gm]);
+                $msg = "{$pName} foi suspenso por 1 jogo pela comissão. O vestiário entendeu o recado.";
             }
         }
 
@@ -2015,17 +2275,12 @@ class League
         self::generateReSignRequests();
     }
 
-    /** Demanda de renovação de um jogador: anos + salário pedidos (determinístico). */
+    /** Demanda de renovação de um jogador: anos pedidos; o salário é o da tabela por OVR (regra da ELITE). */
     public static function resignDemand(array $p): array
     {
         $age = (int) $p['age'];
-        $ovr = (int) $p['ovr'];
         $years = $age <= 27 ? 4 : ($age <= 30 ? 3 : 2);
-        // pretensão = valor de mercado com pequeno prêmio para estrelas
-        $base = Database::salaryForOvr($ovr, $age);
-        $premium = $ovr >= 88 ? 1.10 : ($ovr >= 82 ? 1.05 : 1.0);
-        $salary = (int) (round($base * $premium / 100000) * 100000);
-        return ['years' => $years, 'salary' => $salary];
+        return ['years' => $years, 'salary' => Cap::playerSalaryM($p) * Cap::M];
     }
 
     /**
@@ -2039,7 +2294,7 @@ class League
         if (!$gm) return;
         $db = Database::conn();
         $rows = $db->prepare(
-            "SELECT id,name,pos,age,ovr,salary,contract_years FROM players
+            "SELECT * FROM players
              WHERE team_id=? AND retired=0 AND contract_years<=? AND ovr>=74 ORDER BY ovr DESC LIMIT 5");
         $rows->execute([$gm, $threshold]);
         $exists = $db->prepare("SELECT 1 FROM inbox WHERE kind IN ('resign','resign_done') AND ref_id=? AND season=?");
@@ -2048,13 +2303,9 @@ class League
             $exists->execute([(int) $p['id'], self::season()]);
             if ($exists->fetch()) continue;
             $d = self::resignDemand($p);
-            $old = (int) $p['salary'];
-            $deltaPct = $old > 0 ? (int) round(($d['salary'] - $old) / $old * 100) : 0;
-            $trend = $deltaPct > 0 ? "📈 +{$deltaPct}% vs. o salário atual"
-                   : ($deltaPct < 0 ? "📉 {$deltaPct}% vs. o salário atual" : "mesmo patamar salarial");
-            $body = "Meu cliente {$p['name']} ({$p['pos']}, OVR {$p['ovr']}, {$p['age']} anos) está com o contrato no fim. "
-                . "Hoje ganha $" . number_format($old/1e6,1) . "M; pede $" . number_format($d['salary']/1e6,1)
-                . "M/ano por {$d['years']} anos ({$trend}). Renova?";
+            $body = "Meu cliente {$p['name']} ({$p['pos']}, OVR {$p['ovr']}, {$p['age']} anos) está com o contrato no fim e quer "
+                . "{$d['years']} anos de vínculo. O salário é o da tabela por OVR (" . Cap::m($d['salary']) . "/ano) e acompanha o OVR dele. "
+                . "Se você recusar, ele cumpre o último ano e sai de graça na entressafra. Renova?";
             self::inboxAdd('resign', 'Agente de ' . $p['name'], $p['name'] . ' pede renovação',
                 $body, '', '✍️', true, (int) $p['id']);
         }
@@ -2095,9 +2346,7 @@ class League
         $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?,'renovação',?)")
            ->execute([self::season(), self::currentDay(),
                       "Renovação: {$p['name']} assina por \$" . number_format($d['salary']/1e6,1) . "M/ano por {$d['years']} anos."]);
-        $payroll = self::teamPayroll($gm);
-        $msg = '✅ ' . $p['name'] . ' renovado: $' . number_format($d['salary']/1e6,1) . 'M/ano · ' . $d['years'] . ' anos.';
-        if ($payroll > Database::TAX_LINE) $msg .= ' ⚠️ Folha no imposto de luxo.';
+        $msg = '✅ ' . $p['name'] . ' renovado: ' . Cap::m($d['salary']) . '/ano · ' . $d['years'] . ' anos.';
         self::inboxAdd('agent', 'Agente de ' . $p['name'], 'Renovação fechada!',
             "{$p['name']} renovou com o time por {$d['years']} anos. Obrigado pela confiança!", url('cap'), '🤝', false);
         return ['ok' => true, 'msg' => $msg];
@@ -2112,6 +2361,9 @@ class League
         require_once __DIR__ . '/Offseason.php';
         $day = self::preseasonDay();
         if ($day >= self::PRESEASON_DAYS) {
+            // a temporada só começa com o GM dentro do teto
+            $block = Cap::gmBlockMessage('começar a temporada', false);
+            if ($block) return ['phase' => 'preseason', 'blocked' => true, 'msg' => $block];
             // encerra a janela → temporada regular
             Database::setMeta('phase', 'regular');
             Database::conn()->prepare("DELETE FROM meta WHERE k='preseason_day'")->execute();
@@ -2124,6 +2376,8 @@ class League
 
         // ── Eventos da liga (IA) neste dia ──
         $events = 0;
+        // 0) Times fora do teto/piso se ajustam (uma jogada por time por dia)
+        try { $events += count(Cap::aiEnforce(false, 1)); } catch (Throwable $e) { error_log('cap preseason: ' . $e->getMessage()); }
         // 1) Uma troca de IA (de vez em quando)
         if (self::chanceF(0.55)) {
             try {

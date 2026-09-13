@@ -11,7 +11,16 @@ $isGmGame = $gm && ((int) $g['home_id'] === $gm || (int) $g['away_id'] === $gm);
 $advancePhase = in_array(League::phase(), ['regular', 'playin', 'playoffs'], true);
 $dateLabel = League::dateLabel((int) $g['day']);
 ?>
-<p class="muted" style="margin:0 0 8px">📅 <?= e($dateLabel) ?> · <?= e(['regular'=>'Temporada Regular','playin'=>'Play-In','playoffs'=>'Playoffs'][League::phase()] ?? '') ?></p>
+<?php $series = $g['stage'] === 'playoffs' ? League::seriesStatus((int) ($g['series_id'] ?? 0)) : null; ?>
+<p class="muted" style="margin:0 0 8px">📅 <?= e($dateLabel) ?> · <?= e(['regular'=>'Temporada Regular','playin'=>'Play-In','playoffs'=>'Playoffs'][$g['stage']] ?? ucfirst($g['stage'])) ?></p>
+<?php if ($series): ?>
+<div class="series-bar <?= $series['tag'] ? 'hot' : '' ?>">
+  <span class="sb-round"><?= e($series['round_name']) ?></span>
+  <span class="sb-game">Jogo <?= $series['game'] > 7 ? 7 : $series['game'] ?></span>
+  <span class="sb-lead"><?= e($series['lead']) ?></span>
+  <?php if ($series['tag']): ?><span class="sb-tag"><?= e($series['tag']) ?></span><?php endif; ?>
+</div>
+<?php endif; ?>
 <div class="scoreboard" id="scoreboard"
      data-game="<?= $id ?>"
      data-home="<?= e($g['home_abbr']) ?>" data-away="<?= e($g['away_abbr']) ?>">

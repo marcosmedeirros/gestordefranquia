@@ -24,7 +24,16 @@ if (!empty($_GET['counter'])) {
     $counter = array_filter(array_map('intval', explode(',', $_GET['counter'])));
 }
 $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode(',', $_GET['cgive']))) : [];
+$open    = Cap::tradesOpen();
+$gmCap   = Cap::summary($gmId);
+$aiCap   = Cap::summary($aiId);
+$dl      = Cap::deadlineDay();
 ?>
+
+<?php if (!$open): ?>
+<div class="cap-alert cap-alert-danger" style="margin-bottom:14px">🔒 Janela de trocas fechada
+  <?= League::phase() === 'regular' ? "— a Trade Deadline (dia $dl) já passou. Trocas voltam na entressafra." : '— trocas só na pré-temporada, na free agency e na temporada regular até a deadline.' ?></div>
+<?php endif; ?>
 
 <!-- Topbar da página -->
 <div class="card-head page" style="margin-bottom:18px">
@@ -103,14 +112,14 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
         <?= team_logo($gm['abbr'], $gm['primary_color'], 'md') ?>
         <div>
           <div class="trade-col-title"><?= e($gm['city'].' '.$gm['name']) ?></div>
-          <div class="trade-col-record">Você envia · Folha <?= money(League::teamPayroll($gmId)) ?></div>
+          <div class="trade-col-record">Você envia · Folha <?= Cap::m($gmCap['payroll']) ?> / teto <?= Cap::m($gmCap['cap_max']) ?><?= $gmCap['status'] === 'over' ? ' <span class="neg-txt">(acima)</span>' : '' ?></div>
         </div>
       </div>
       <div id="myPlayers">
         <?php foreach ($myRoster as $p):
           $ovrCls = $p['ovr']>=90?'ovr-elite':($p['ovr']>=80?'ovr-star':($p['ovr']>=75?'ovr-good':'ovr-role'));
         ?>
-        <label class="trade-player-card" data-val="<?= tradeValue($p) ?>">
+        <label class="trade-player-card" data-val="<?= tradeValue($p) ?>" data-sal="<?= (int)$p['salary'] ?>">
           <input type="checkbox" name="give[]" value="<?= $p['id'] ?>">
           <?= player_photo((int)($p['nba_id']??0), $p['name'], $gm['primary_color'], 'sm', 'tpc-photo') ?>
           <div class="tpc-info">
@@ -126,7 +135,7 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
           <?php foreach ($myPicks as $pk):
             $via = ((int)$pk['original_team_id'] !== (int)$pk['owner_team_id']) ? ('via '.$pk['orig_abbr']) : 'própria';
           ?>
-          <label class="trade-player-card" data-val="15">
+          <label class="trade-player-card" data-val="<?= (int)$pk['round'] === 1 ? 12 : 4 ?>" data-sal="<?= (Cap::PICK_VALUE[(int)$pk['round']] ?? 0) * Cap::M ?>">
             <input type="checkbox" name="give_pick[]" value="<?= $pk['id'] ?>">
             <span style="font-size:20px;margin-right:4px">📋</span>
             <div class="tpc-info">
@@ -152,14 +161,14 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
         <?= team_logo($ai['abbr'], $ai['primary_color'], 'md') ?>
         <div>
           <div class="trade-col-title"><?= e($ai['city'].' '.$ai['name']) ?></div>
-          <div class="trade-col-record">Você recebe · Folha <?= money(League::teamPayroll($aiId)) ?></div>
+          <div class="trade-col-record">Você recebe · Folha <?= Cap::m($aiCap['payroll']) ?> / teto <?= Cap::m($aiCap['cap_max']) ?><?= $aiCap['status'] === 'over' ? ' <span class="neg-txt">(acima)</span>' : '' ?></div>
         </div>
       </div>
       <div id="aiPlayers">
         <?php foreach ($aiRoster as $p):
           $ovrCls = $p['ovr']>=90?'ovr-elite':($p['ovr']>=80?'ovr-star':($p['ovr']>=75?'ovr-good':'ovr-role'));
         ?>
-        <label class="trade-player-card" data-val="<?= tradeValue($p) ?>">
+        <label class="trade-player-card" data-val="<?= tradeValue($p) ?>" data-sal="<?= (int)$p['salary'] ?>">
           <input type="checkbox" name="get[]" value="<?= $p['id'] ?>">
           <?= player_photo((int)($p['nba_id']??0), $p['name'], $ai['primary_color'], 'sm', 'tpc-photo') ?>
           <div class="tpc-info">
@@ -175,7 +184,7 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
           <?php foreach ($aiPicks as $pk):
             $via = ((int)$pk['original_team_id'] !== (int)$pk['owner_team_id']) ? ('via '.$pk['orig_abbr']) : 'própria';
           ?>
-          <label class="trade-player-card" data-val="15">
+          <label class="trade-player-card" data-val="<?= (int)$pk['round'] === 1 ? 12 : 4 ?>" data-sal="<?= (Cap::PICK_VALUE[(int)$pk['round']] ?? 0) * Cap::M ?>">
             <input type="checkbox" name="get_pick[]" value="<?= $pk['id'] ?>">
             <span style="font-size:20px;margin-right:4px">📋</span>
             <div class="tpc-info">
@@ -204,13 +213,34 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
       <span class="tvb-num" id="aiValNum">0</span>
     </div>
     <div class="trade-verdict neutral" id="tradeVerdict">Selecione jogadores para ver a análise</div>
+
+    <!-- Casamento salarial (regra dos 120% da ELITE) -->
+    <div class="trade-salary" id="tradeSalary"
+         data-gm-pay="<?= $gmCap['payroll'] ?>" data-gm-cap="<?= $gmCap['cap_max'] ?>"
+         data-ai-pay="<?= $aiCap['payroll'] ?>" data-ai-cap="<?= $aiCap['cap_max'] ?>"
+         data-gm-abbr="<?= e($gm['abbr']) ?>" data-ai-abbr="<?= e($ai['abbr']) ?>">
+      <div class="ts-title">💵 Salários (regra dos 120%)</div>
+      <div class="ts-grid">
+        <div class="ts-side">
+          <div class="ts-lbl"><?= e($gm['abbr']) ?> envia <strong id="tsGmSend">$0</strong> · recebe <strong id="tsGmRecv">$0</strong></div>
+          <div class="ts-sub" id="tsGmLimit">pode receber até $0</div>
+          <div class="ts-sub" id="tsGmAfter">folha depois: —</div>
+        </div>
+        <div class="ts-side">
+          <div class="ts-lbl"><?= e($ai['abbr']) ?> envia <strong id="tsAiSend">$0</strong> · recebe <strong id="tsAiRecv">$0</strong></div>
+          <div class="ts-sub" id="tsAiLimit">pode receber até $0</div>
+          <div class="ts-sub" id="tsAiAfter">folha depois: —</div>
+        </div>
+      </div>
+      <div class="ts-verdict" id="tsVerdict">Picks contam 5M (1ª rodada) e 2M (2ª) nos dois lados.</div>
+    </div>
   </div>
 
   <div style="text-align:center;margin-top:20px;display:flex;gap:12px;justify-content:center">
-    <button class="btn btn-primary btn-lg" type="submit">⇄ Propor troca</button>
+    <button class="btn btn-primary btn-lg" type="submit" <?= $open ? '' : 'disabled' ?>>⇄ Propor troca</button>
   </div>
   <p class="legend" style="text-align:center;margin-top:8px">
-    A IA avalia valor, idade, potencial e necessidade de posição. Se recusar, pode enviar uma contraproposta.
+    A IA avalia valor, idade, potencial e necessidade de posição — e cobra mais pelos 3 melhores dela. Se recusar, pode enviar uma contraproposta.
   </p>
 </form>
 
@@ -237,7 +267,48 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
     return v;
   }
 
+  function getSal(side, onlyPlayers) {
+    let v = 0;
+    document.querySelectorAll('#' + side + ' .trade-player-card.selected').forEach(c => {
+      const isPick = !!c.querySelector('input[name$="pick[]"]');
+      if (onlyPlayers && isPick) return;
+      v += parseFloat(c.dataset.sal || 0);
+    });
+    return v;
+  }
+  const M = v => '$' + (v / 1e6).toFixed(1) + 'M';
+
+  function updateSalary() {
+    const box = document.getElementById('tradeSalary');
+    const gmSend = getSal('myPlayers', false), aiSend = getSal('aiPlayers', false);
+    const gmSal  = getSal('myPlayers', true),  aiSal  = getSal('aiPlayers', true);
+    const gmPay = +box.dataset.gmPay, gmCap = +box.dataset.gmCap, aiPay = +box.dataset.aiPay, aiCap = +box.dataset.aiCap;
+    const gmLim = Math.floor(gmSend * 1.2), aiLim = Math.floor(aiSend * 1.2);
+    const gmAfter = gmPay - gmSal + aiSal, aiAfter = aiPay - aiSal + gmSal;
+    document.getElementById('tsGmSend').textContent = M(gmSend);
+    document.getElementById('tsGmRecv').textContent = M(aiSend);
+    document.getElementById('tsAiSend').textContent = M(aiSend);
+    document.getElementById('tsAiRecv').textContent = M(gmSend);
+    document.getElementById('tsGmLimit').textContent = 'pode receber até ' + M(gmLim);
+    document.getElementById('tsAiLimit').textContent = 'pode receber até ' + M(aiLim);
+    const gmA = document.getElementById('tsGmAfter'), aiA = document.getElementById('tsAiAfter');
+    gmA.textContent = 'folha depois: ' + M(gmAfter) + ' / teto ' + M(gmCap);
+    aiA.textContent = 'folha depois: ' + M(aiAfter) + ' / teto ' + M(aiCap);
+    gmA.className = 'ts-sub ' + (gmAfter > gmCap && gmAfter > gmPay ? 'bad' : '');
+    aiA.className = 'ts-sub ' + (aiAfter > aiCap && aiAfter > aiPay ? 'bad' : '');
+    const v = document.getElementById('tsVerdict');
+    const probs = [];
+    if (gmSend === 0 && aiSend === 0) { v.className = 'ts-verdict'; v.textContent = 'Picks contam 5M (1ª rodada) e 2M (2ª) nos dois lados.'; return; }
+    if (aiSend > gmLim) probs.push(box.dataset.gmAbbr + ' recebe ' + M(aiSend) + ' mas só pode receber ' + M(gmLim) + ' — envie pelo menos ' + M(Math.ceil(aiSend / 1.2)));
+    if (gmSend > aiLim) probs.push(box.dataset.aiAbbr + ' recebe ' + M(gmSend) + ' mas só pode receber ' + M(aiLim));
+    if (gmAfter > gmCap && gmAfter > gmPay) probs.push('sua folha sairia acima do teto');
+    if (aiAfter > aiCap && aiAfter > aiPay) probs.push('a folha do ' + box.dataset.aiAbbr + ' sairia acima do teto');
+    if (probs.length) { v.className = 'ts-verdict bad'; v.textContent = '❌ ' + probs.join(' · '); }
+    else { v.className = 'ts-verdict good'; v.textContent = '✅ Salários casam dentro dos 120% e dos tetos.'; }
+  }
+
   function updateSummary() {
+    updateSalary();
     const mv = getVal('myPlayers'), av = getVal('aiPlayers');
     const max = Math.max(mv, av, 1);
     document.getElementById('myValBar').style.width = (mv/max*100) + '%';
@@ -249,15 +320,16 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
     if (mv === 0 && av === 0) {
       v.className = 'trade-verdict neutral'; v.textContent = 'Selecione jogadores para ver a análise';
     } else {
-      const diff = mv > 0 ? (av - mv) / mv : 1;
-      if (Math.abs(diff) < 0.12) {
-        v.className = 'trade-verdict fair'; v.textContent = '✅ Troca justa — boa chance de aprovação';
-      } else if (diff > 0.12) {
-        v.className = 'trade-verdict fair'; v.textContent = '🔥 Você leva vantagem — aprovação provável';
+      // pela ótica da IA: ela recebe o que você envia (mv) e entrega o que você pede (av)
+      const diff = av > 0 ? (mv - av) / av : 1;
+      if (diff >= 0.12) {
+        v.className = 'trade-verdict fair'; v.textContent = '✅ A IA sai ganhando — aprovação provável';
+      } else if (diff >= -0.06) {
+        v.className = 'trade-verdict fair'; v.textContent = '🤝 Troca equilibrada — pode passar (no difícil a IA quer vantagem)';
       } else if (diff < -0.30) {
-        v.className = 'trade-verdict unfair'; v.textContent = '❌ Muito desfavorável — provável contraproposta';
+        v.className = 'trade-verdict unfair'; v.textContent = '❌ Você pede muito mais do que oferece — recusa quase certa';
       } else {
-        v.className = 'trade-verdict neutral'; v.textContent = '🤝 Ligeiramente desfavorável — pode gerar contraproposta';
+        v.className = 'trade-verdict neutral'; v.textContent = '⚠️ Você leva vantagem — provável contraproposta';
       }
     }
   }

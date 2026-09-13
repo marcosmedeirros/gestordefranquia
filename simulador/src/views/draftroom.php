@@ -14,8 +14,10 @@ $origTeam = !empty($st['orig']) ? League::team((int)$st['orig']) : null;
 $viaTxt = ($origTeam && (int)$st['orig'] !== (int)$st['on_clock']) ? ' (via ' . e($origTeam['abbr']) . ')' : '';
 $gm = League::team(League::gmTeam());
 $avail = Offseason::availableProspects($season);
-$recent = Offseason::recentPicks($season, 10);
+$recent = Offseason::recentPicks($season, 200);
 $err = $_GET['err'] ?? '';
+$gmPicksAhead = 0;
+foreach (array_slice($st['order'], $st['pick']) as $en) { if ((int) $en['owner'] === (int) $gm['id']) $gmPicksAhead++; }
 ?>
 <h1 class="page-title">🎓 Sala do Draft — Temporada <?= $season ?></h1>
 <?php if ($err): ?><div class="trade-msg no"><?= e($err) ?></div><?php endif; ?>
@@ -23,7 +25,8 @@ $err = $_GET['err'] ?? '';
 <div class="draft-status">
   <div>Escolha <strong>#<?= $st['pick'] + 1 ?></strong> de <?= $st['total'] ?> <span class="muted">(<?= (int)$st['round']===2?'2ª':'1ª' ?> rodada)</span></div>
   <div>Na vez: <strong style="color:<?= e($onClock['primary_color']) ?>"><?= e(teamFull($onClock)) ?></strong><?= $viaTxt ?></div>
-  <?php if ($st['is_user']): ?><div class="on-clock-you">⏰ É a SUA vez de escolher!</div><?php endif; ?>
+  <?php if ($st['is_user']): ?><div class="on-clock-you">⏰ É a SUA vez de escolher!</div>
+  <?php else: ?><div class="muted">Você ainda tem <strong><?= $gmPicksAhead ?></strong> escolha<?= $gmPicksAhead === 1 ? '' : 's' ?> neste draft.</div><?php endif; ?>
 </div>
 
 <p class="legend">🔍 <strong>Névoa de guerra:</strong> você vê as <em>notas de olheiro</em> e a nota geral estimada — mas o
@@ -64,12 +67,12 @@ $err = $_GET['err'] ?? '';
   </section>
 
   <section class="card span2">
-    <div class="card-head"><h2>Escolhas recentes</h2></div>
+    <div class="card-head"><h2>Escolhas feitas (<?= count($recent) ?>)</h2></div>
     <?php if (!$recent): ?><p class="muted">O draft está começando...</p><?php else: ?>
     <table class="mini-table">
-      <?php foreach ($recent as $r): ?>
-        <tr><td class="rank">#<?= $r['pick_no'] ?></td>
-            <td><strong><?= e($r['team_abbr']) ?></strong> — <?= e($r['name']) ?> <span class="muted">(<?= e($r['pos']) ?>, OVR <?= $r['ovr'] ?>)</span></td></tr>
+      <?php foreach ($recent as $r): $mine = (int)$r['picked_by'] === (int)$gm['id']; ?>
+        <tr<?= $mine ? ' style="background:rgba(228,0,43,.08)"' : '' ?>><td class="rank">#<?= $r['pick_no'] ?></td>
+            <td><strong><?= e($r['team_abbr']) ?></strong><?= $mine ? ' <span class="cap-tag cap-tag-flex">você</span>' : '' ?> — <?= e($r['name']) ?> <span class="muted">(<?= e($r['pos']) ?>, <?= (int)$r['age'] ?> anos)</span></td></tr>
       <?php endforeach; ?>
     </table>
     <?php endif; ?>

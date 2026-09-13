@@ -2460,3 +2460,132 @@ h1.page-title {
   transition:opacity .4s ease;
 }
 @keyframes toast-in{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* =================================================================
+   SALARY CAP DA ELITE — Folha & Cap, trocas, agentes livres
+   ================================================================= */
+.pay-over  { background:rgba(255,91,103,.15);color:var(--red); }
+.pay-under { background:rgba(245,166,35,.15);color:#f5a623; }
+.pay-box small { display:block;font-size:9px;color:#666;text-transform:none;letter-spacing:0;margin-top:2px; }
+.pay-summary { grid-template-columns:repeat(5,1fr); }
+@media(max-width:760px){ .pay-summary{ grid-template-columns:repeat(2,1fr); } }
+.cap-card.status-over { border-color:rgba(255,91,103,.45); }
+.cap-card.status-under { border-color:rgba(245,166,35,.45); }
+.cap-alert { padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;border:1px solid; }
+.cap-alert a { text-decoration:underline;color:inherit; }
+.cap-alert-danger { background:rgba(255,91,103,.12);border-color:rgba(255,91,103,.4);color:#ff9aa3; }
+.cap-alert-ok { background:rgba(43,212,122,.1);border-color:rgba(43,212,122,.35);color:#9bffc0; }
+.cap-dl-pill { display:inline-block;background:rgba(245,166,35,.15);color:#f5a623;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700; }
+.cap-suggestions { display:flex;flex-direction:column;gap:6px;margin:12px 0 4px; }
+.cap-sg { font-size:12px;padding:8px 10px;border-radius:6px;border-left:3px solid #444;background:rgba(255,255,255,.03); }
+.cap-sg-danger { border-color:var(--red);color:#ff9aa3; }
+.cap-sg-warn { border-color:#f5a623;color:#f5c56a; }
+.cap-sg-ok { border-color:var(--green);color:#9bffc0; }
+.cap-sg-info { border-color:#4a90e2; }
+.cap-sg-tip { border-color:#555;color:#aaa; }
+.cap-actions { display:flex;gap:8px;flex-wrap:wrap;margin-top:10px; }
+.cap-tag { display:inline-block;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-left:5px;background:#2a2a2a;color:#999;vertical-align:middle; }
+.cap-tag-flex { background:rgba(43,212,122,.15);color:var(--green); }
+.cap-tag-rookie { background:rgba(74,144,226,.15);color:#7fb3ff; }
+.cap-tag-bonus { background:rgba(245,166,35,.15);color:#f5a623; }
+.neg-txt { color:var(--red);font-weight:700; }
+.btn-disabled { opacity:.45;cursor:not-allowed;pointer-events:none; }
+.row-injured td { opacity:.6; }
+.cap-rules { display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;font-size:12px;color:#bbb; }
+.cap-rules > div { background:rgba(255,255,255,.03);border-radius:8px;padding:10px 12px;line-height:1.5; }
+.cap-rules strong { color:var(--text); }
+.tab-badge-warn { background:#f5a623 !important;color:#111 !important; }
+.only-inline { display:inline-block;width:56px;vertical-align:middle;margin-left:6px; }
+@media(max-width:640px){ .only-inline{ display:none; } }
+/* trocas: painel de salários */
+.trade-salary { margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid #242424; }
+.ts-title { font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#888;margin-bottom:6px; }
+.ts-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+@media(max-width:640px){ .ts-grid{ grid-template-columns:1fr; } }
+.ts-lbl { font-size:12px; }
+.ts-sub { font-size:11px;color:#888; }
+.ts-sub.bad { color:var(--red); }
+.ts-verdict { margin-top:8px;font-size:12px;color:#999; }
+.ts-verdict.bad { color:#ff9aa3; }
+.ts-verdict.good { color:#9bffc0; }
+/* home: folha no hero + atalhos de simulação */
+.gmh-cap { display:flex;flex-direction:column;gap:2px;margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);color:#fff;text-decoration:none;width:max-content;max-width:100%; }
+.gmh-cap-lbl { font-size:9px;letter-spacing:1px;text-transform:uppercase;opacity:.75; }
+.gmh-cap-val { font-family:var(--display);font-size:18px;font-weight:800; }
+.gmh-cap-val small { font-size:11px;font-weight:600;opacity:.75;font-family:var(--ui); }
+.gmh-cap-st { font-size:10.5px;opacity:.9; }
+.gmh-cap.status-over { border-color:rgba(255,91,103,.7);background:rgba(120,0,20,.45); }
+.gmh-cap.status-under { border-color:rgba(245,166,35,.7);background:rgba(120,80,0,.35); }
+.gmh-next-more, .cta-more { display:flex;gap:10px;flex-wrap:wrap;margin-top:8px; }
+.gmh-next-more a, .cta-more a { font-size:11px;color:rgba(255,255,255,.75);text-decoration:underline; }
+.cta-more a { color:var(--muted); }
+.pm-btn.pm-danger { color:#ff9aa3; }
+
+/* =================================================================
+   MENU AGRUPADO (Liga / Franquia) + BUSCA + SÉRIE + PREMIAÇÃO
+   ================================================================= */
+.nav-tabs-bar { overflow:visible; }
+.nav-tabs-bar .tn-search { margin-left:auto;display:flex;align-items:center;flex:none;padding-left:8px; }
+.tn-search input { background:#1a1a1a;border:1px solid #2a2a2a;color:var(--text);border-radius:6px;font-size:11px;padding:4px 8px;width:150px;font-family:var(--ui); }
+.tn-search input:focus { outline:none;border-color:var(--brand); width:190px; }
+.tn-group { position:relative;display:flex;align-items:stretch;flex:none; }
+.tn-group-btn { gap:4px; }
+.tn-group.active > .tn-group-btn { color:#fff;border-bottom-color:var(--brand);font-weight:700; }
+.tn-group-cur { color:#aaa;font-weight:600; }
+.tn-caret { font-size:9px;opacity:.7; }
+.tn-menu { display:none;position:absolute;top:100%;left:0;min-width:180px;background:#161616;border:1px solid #2a2a2a;border-radius:0 0 8px 8px;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:6px 0;z-index:120; }
+.tn-group.open > .tn-menu { display:block; }
+@media (hover:hover) { .tn-group:hover > .tn-menu { display:block; } }
+.tn-menu-item { display:block;padding:8px 14px;font-size:12px;color:#bbb;text-decoration:none;white-space:nowrap; }
+.tn-menu-item:hover { background:#222;color:#fff; }
+.tn-menu-item.active { color:#fff;font-weight:700;border-left:2px solid var(--brand); }
+@media (max-width:640px) {
+  .nav-tabs-bar { overflow-x:auto;overflow-y:visible;height:auto;min-height:38px;flex-wrap:nowrap; }
+  .tn-search { position:static; }
+  .tn-search input { width:110px; }
+  .tn-search input:focus { width:140px; }
+  .tn-menu { position:fixed;left:8px;right:8px;top:auto;margin-top:0;border-radius:8px; }
+}
+/* busca */
+.search-form { display:flex;gap:8px;margin-bottom:16px; }
+.search-form input { flex:1;min-width:0;background:#141414;border:1px solid #2a2a2a;color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px; }
+/* barra da série nos playoffs */
+.series-bar { display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid #2a2a2a;font-size:12px; }
+.series-bar .sb-round { font-weight:800;letter-spacing:.5px;text-transform:uppercase;font-size:10px;color:#999; }
+.series-bar .sb-game { font-family:var(--display);font-size:16px;font-weight:800; }
+.series-bar .sb-tag { color:#f5a623;font-weight:800; }
+.series-bar.hot { border-color:rgba(245,166,35,.5); }
+/* cerimônia de premiação */
+.awards-stage { position:relative;overflow:hidden;border-radius:14px;padding:34px 20px 30px;text-align:center;color:#fff;margin-bottom:18px;
+  background:radial-gradient(ellipse at 50% 0%, var(--c1) 0%, #0d0d0d 70%);border:1px solid rgba(255,255,255,.1); }
+.awards-stage.is-champ { background:radial-gradient(ellipse at 50% 0%, var(--c1) 0%, #1a0f00 55%, #0d0d0d 100%);border-color:#ffd700; }
+.confetti { position:absolute;inset:0;width:100%;height:100%;pointer-events:none; }
+.as-inner { position:relative;z-index:2; }
+.as-kicker { font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.75; }
+.as-trophy { font-size:64px;line-height:1;margin:10px 0 4px;filter:drop-shadow(0 6px 18px rgba(255,215,0,.35)); }
+.as-champ-lbl { font-family:var(--display);font-size:14px;letter-spacing:3px;font-weight:800;color:#ffd700; }
+.as-champ { display:flex;align-items:center;justify-content:center;gap:14px;margin:8px 0 6px;font-family:var(--display);font-size:34px;font-weight:900;letter-spacing:.5px; }
+.as-runner { font-size:13px;opacity:.85; }
+.as-you { margin:12px auto 0;max-width:560px;font-size:13px;background:rgba(0,0,0,.35);border-radius:8px;padding:10px 14px; }
+.awards-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px; }
+.award-big { display:block;background:var(--card, #161616);border:1px solid #2a2a2a;border-radius:12px;padding:16px;text-decoration:none;color:var(--text);text-align:center;transition:transform .12s; }
+.award-big:hover { transform:translateY(-2px);border-color:#444; }
+.award-big.mine { border-color:#ffd700;box-shadow:0 0 0 1px rgba(255,215,0,.35) inset; }
+.ab-icon { font-size:34px;line-height:1; }
+.ab-label { font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#999;margin-top:8px; }
+.ab-name { font-family:var(--display);font-size:22px;font-weight:800;margin-top:2px; }
+.ab-meta { font-size:11px;color:#888;margin-top:2px; }
+@media (max-width:600px) { .as-champ { font-size:24px; } .as-trophy { font-size:48px; } }
+
+/* Mobile: rotação do Meu Time cabe na tela (some idade/estamina), cabeçalhos de página empilham */
+@media (max-width:640px) {
+  .roster-row, .roster-header { grid-template-columns:28px 1fr 44px 46px 62px !important; gap:6px; }
+  .roster-row .rr-stat:nth-child(5), .roster-row .rr-stat:nth-child(6),
+  .roster-header span:nth-child(5), .roster-header span:nth-child(6) { display:none; }
+  .rr-mins { min-width:0; }
+  .rr-mins .min-input { width:100%; }
+  .card-head.page { flex-wrap:wrap; gap:8px; }
+  .card-head.page > * { max-width:100%; }
+  .card-head.page .page-title { width:100%; }
+  .season-select { max-width:100%; }
+}

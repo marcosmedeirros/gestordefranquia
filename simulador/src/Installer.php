@@ -86,6 +86,11 @@ class Installer
             }
         }
 
+        // Salários pela tabela da ELITE e teto/piso calibrados pela folha média desta era.
+        Cap::refreshSalaries();
+        Cap::calibrate();
+        Database::setMeta('cap_elite', '1');
+
         $games = self::buildSchedule($activeIds);
         $insGame = $db->prepare("INSERT INTO games(day,stage,home_id,away_id) VALUES(?, 'regular', ?, ?)");
         $db->beginTransaction();
@@ -138,6 +143,7 @@ class Installer
     private static function makeRolePlayer(string $pos): array
     {
         $name = trim(self::$firstNames[array_rand(self::$firstNames)]) . ' ' . self::$lastNames[array_rand(self::$lastNames)];
+        // até 76: role player custa o mínimo de veterano (2M) na tabela da ELITE
         $base = random_int(62, 76);
         $ht = match ($pos) {
             'PG' => random_int(183, 193),

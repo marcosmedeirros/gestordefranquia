@@ -83,6 +83,7 @@ if ($action) {
             $watermark = League::inboxWatermark();
             $label = League::dateLabel(League::currentDay());
             $r = League::advanceDay();
+            if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
             if (!empty($r['gm_game_pending'])) { header('Location: ' . url('game', ['id' => $r['game_id'], 'live' => 1])); exit; }
             // Auto-save a cada 5 dias de jogo
             $autoSaved = (League::currentDay() % 5 === 0);
@@ -92,14 +93,37 @@ if ($action) {
             header('Location: ' . url('recap', $recapParams));
             exit;
         case 'sim-season':
-            League::simulateToEnd();
+            $watermark = League::inboxWatermark();
+            $r = League::simulateToEnd();
             Accounts::touch((int) Accounts::activeSaveId());
-            header('Location: ' . url('standings', ['autosaved' => '1']));
+            if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
+            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Temporada regular simulada', 'back' => url('standings'), 'autosaved' => '1']));
+            exit;
+        case 'sim-days':
+            $watermark = League::inboxWatermark();
+            $n = max(1, min(30, (int) ($_GET['n'] ?? 7)));
+            $r = League::simulateDays($n);
+            Accounts::touch((int) Accounts::activeSaveId());
+            if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
+            header('Location: ' . url('recap', ['since' => $watermark, 'label' => "$n dias simulados", 'back' => url('home'), 'autosaved' => '1']));
+            exit;
+        case 'sim-round':
+            $watermark = League::inboxWatermark();
+            League::simulatePlayoffRound();
+            Accounts::touch((int) Accounts::activeSaveId());
+            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Rodada dos playoffs simulada', 'back' => url('playoffs'), 'autosaved' => '1']));
+            exit;
+        case 'release':
+            $gm = League::gmTeam();
+            $r = $gm ? Cap::release($gm, (int) ($_GET['pid'] ?? 0), 'gm') : ['error' => 'Sem franquia.'];
+            $back = in_array($_GET['back'] ?? '', ['cap', 'lineup', 'manage'], true) ? $_GET['back'] : 'cap';
+            header('Location: ' . url($back, isset($r['error']) ? ['err' => $r['error']] : ['msg' => '🚪 ' . $r['desc'] . '.']));
             exit;
         case 'preseason-advance':
             $watermark = League::inboxWatermark();
             $label = 'Dia ' . League::preseasonDay() . '/' . League::PRESEASON_DAYS . ' da pré-temporada';
-            League::advancePreseasonDay();
+            $r = League::advancePreseasonDay();
+            if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
             $autoSaved = (League::preseasonDay() % 5 === 0);
             if ($autoSaved) Accounts::touch((int) Accounts::activeSaveId());
             $recapParams = ['since' => $watermark, 'label' => $label, 'back' => url('preseason')];
@@ -109,7 +133,11 @@ if ($action) {
         case 'preseason-finish':
             // pula direto para a temporada (encerra a janela) — resumo mostra tudo que rolou
             $watermark = League::inboxWatermark();
-            while (League::phase() === 'preseason') { League::advancePreseasonDay(); }
+            $guard = 0;
+            while (League::phase() === 'preseason' && $guard++ < 40) {
+                $r = League::advancePreseasonDay();
+                if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
+            }
             Accounts::touch((int) Accounts::activeSaveId());
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Fim da pré-temporada', 'back' => url('home'), 'autosaved' => '1']));
             exit;
@@ -143,12 +171,14 @@ if ($action) {
         case 'sign-fa':
             require_once dirname(__DIR__) . '/src/Offseason.php';
             $gm = League::gmTeam();
-            $season = (int) Database::meta('fa_season', League::season() + 1);
-            $res = $gm ? Offseason::signFreeAgent($gm, (int) ($_GET['fa'] ?? 0), $season) : ['error' => 'Sem franquia.'];
+            $season = League::phase() === 'freeagency' ? (int) Database::meta('fa_season', League::season() + 1) : League::season();
+            if (!Cap::signingOpen()) $res = ['error' => 'Contratações fechadas nesta fase.'];
+            else $res = $gm ? Offseason::signFreeAgent($gm, (int) ($_GET['fa'] ?? 0), $season) : ['error' => 'Sem franquia.'];
             header('Location: ' . url('freeagency', ['msg' => $res['error'] ?? $res['msg'] ?? '✅ Contratação concluída.']));
             exit;
         case 'finish-fa':
             require_once dirname(__DIR__) . '/src/Offseason.php';
+            if ($block = Cap::gmBlockMessage('começar a temporada', false)) { header('Location: ' . url('cap', ['err' => $block])); exit; }
             $watermark = League::inboxWatermark();
             Offseason::finishFreeAgency();
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Início da temporada', 'back' => url('home')]));
@@ -266,6 +296,8 @@ $map = [
     'preseason' => 'preseason.php',
     'inbox' => 'inbox.php',
     'recap' => 'recap.php',
+    'awards' => 'awards.php',
+    'search' => 'search.php',
     'saves' => 'saves.php',
 ];
 $file = $views . ($map[$page] ?? 'home.php');
