@@ -879,6 +879,15 @@ if ($method === 'PUT') {
     }
 
     $setClause = implode(', ', array_map(fn($col) => $col . ' = ?', array_keys($fields)));
+    // Posição mudou pelo Meu Elenco: a de antes vai pro retrato da tática, pro
+    // card do admin acender vermelho igual quando muda pela tela de Tática.
+    require_once __DIR__ . '/../backend/tatica_posicoes.php';
+    $posAntesTexto = taticaPosicaoTexto($player['position'] ?? '', $player['secondary_position'] ?? '');
+    $posDepoisTexto = taticaPosicaoTexto($position, $hasSecondaryPosition ? ($secondaryPosition ?: '') : ($player['secondary_position'] ?? ''));
+    if ($posAntesTexto !== $posDepoisTexto) {
+        taticaGuardarPosicaoAnterior($pdo, (int)$player['team_id'], $playerId, $posAntesTexto);
+    }
+
     $upd = $pdo->prepare('UPDATE players SET ' . $setClause . ' WHERE id = ?');
     $values = array_values($fields);
     $values[] = $playerId;

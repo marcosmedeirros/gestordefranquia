@@ -33,6 +33,40 @@ function taticaPosicoesDoTime(PDO $pdo, int $teamId): array
 }
 
 /**
+ * A posição vai mudar: guarda a de ANTES nos retratos do time que ainda não
+ * conhecem esse jogador. Os retratos antigos (de antes das posições existirem)
+ * não têm `posicoes`, e sem isso o card nunca acendia — nem sobrescrevia nada,
+ * só não tinha com o que comparar. Retrato que já tem o jogador fica como está:
+ * mudar duas vezes continua comparando com o que está no jogo.
+ */
+function taticaGuardarPosicaoAnterior(PDO $pdo, int $teamId, int $playerId, string $antes): void
+{
+    if ($antes === '') return;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM team_tactics")->fetchAll(PDO::FETCH_COLUMN);
+        $colunas = array_values(array_intersect(['snapshot_feito_json', 'snapshot_offs_json', 'snapshot_json'], $cols));
+        if (!$colunas) return;
+        $st = $pdo->prepare("SELECT slot, " . implode(', ', $colunas) . " FROM team_tactics WHERE team_id = ?");
+        $st->execute([$teamId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $linha) {
+            foreach ($colunas as $col) {
+                if (empty($linha[$col])) continue;
+                $retrato = json_decode((string)$linha[$col], true);
+                if (!is_array($retrato)) continue;
+                $pos = is_array($retrato['posicoes'] ?? null) ? $retrato['posicoes'] : [];
+                if (array_key_exists((string)$playerId, $pos)) continue;
+                $pos[(string)$playerId] = $antes;
+                $retrato['posicoes'] = $pos;
+                $pdo->prepare("UPDATE team_tactics SET {$col} = ? WHERE team_id = ? AND slot = ?")
+                    ->execute([json_encode($retrato, JSON_UNESCAPED_UNICODE), $teamId, $linha["slot"]]);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('taticaGuardarPosicaoAnterior: ' . $e->getMessage());
+    }
+}
+
+/**
  * Algum jogador que estava no retrato está com outra posição agora?
  * Quem chegou depois do retrato (não está nele) não conta.
  */

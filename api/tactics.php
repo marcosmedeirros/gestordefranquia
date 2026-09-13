@@ -950,6 +950,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         if ($sec === $pos) $sec = null;   // secundária igual à principal é nenhuma
+        require_once __DIR__ . '/../backend/tatica_posicoes.php';
+        $stAnt = $pdo->prepare('SELECT position, secondary_position FROM players WHERE id = ? AND team_id = ?');
+        $stAnt->execute([$pid, $teamId]);
+        if ($ant = $stAnt->fetch(PDO::FETCH_ASSOC)) {
+            $textoAntes = taticaPosicaoTexto($ant['position'], $ant['secondary_position']);
+            if ($textoAntes !== taticaPosicaoTexto($pos, $sec)) {
+                taticaGuardarPosicaoAnterior($pdo, $teamId, $pid, $textoAntes);
+            }
+        }
         $pdo->prepare('UPDATE players SET position = ?, secondary_position = ? WHERE id = ? AND team_id = ?')
             ->execute([$pos, $sec, $pid, $teamId]);
         // Mudou do que já está no jogo? O card do admin volta pra fila (igual ao salvar da tática).
