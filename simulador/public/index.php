@@ -83,6 +83,7 @@ if ($action) {
             $watermark = League::inboxWatermark();
             $label = League::dateLabel(League::currentDay());
             $r = League::advanceDay();
+            if (!empty($r['fired'])) { header('Location: ' . url('gmselect')); exit; }
             if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
             if (!empty($r['gm_game_pending'])) { header('Location: ' . url('game', ['id' => $r['game_id'], 'live' => 1])); exit; }
             // Auto-save a cada 5 dias de jogo
@@ -96,6 +97,7 @@ if ($action) {
             $watermark = League::inboxWatermark();
             $r = League::simulateToEnd();
             Accounts::touch((int) Accounts::activeSaveId());
+            if (!empty($r['fired'])) { header('Location: ' . url('gmselect')); exit; }
             if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Temporada regular simulada', 'back' => url('standings'), 'autosaved' => '1']));
             exit;
@@ -104,6 +106,7 @@ if ($action) {
             $n = max(1, min(30, (int) ($_GET['n'] ?? 7)));
             $r = League::simulateDays($n);
             Accounts::touch((int) Accounts::activeSaveId());
+            if (!empty($r['fired'])) { header('Location: ' . url('gmselect')); exit; }
             if (!empty($r['blocked'])) { header('Location: ' . url('cap', ['err' => $r['msg']])); exit; }
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => "$n dias simulados", 'back' => url('home'), 'autosaved' => '1']));
             exit;
@@ -149,9 +152,24 @@ if ($action) {
             $r = League::resignPlayer((int) ($_GET['pid'] ?? 0), ($_GET['choice'] ?? '') === 'accept');
             header('Location: ' . url($_GET['back'] ?? 'inbox', ['msg' => $r['msg'] ?? $r['error'] ?? '']));
             exit;
+        case 'set-gm':
+            $r = League::hireAt((int) ($_GET['team'] ?? 0));
+            if (isset($r['error'])) { header('Location: ' . url('gmselect', ['err' => $r['error']])); exit; }
+            Accounts::conn()->prepare("UPDATE saves SET team_abbr=? WHERE id=?")->execute([$r['team']['abbr'], (int) Accounts::activeSaveId()]);
+            header('Location: ' . url('home', ['dmsg' => '🤝 Você assumiu o ' . $r['team']['city'] . ' ' . $r['team']['name'] . '. Boa sorte na nova casa!']));
+            exit;
+        case 'dev-focus':
+            $r = League::toggleDevFocus((int) ($_GET['pid'] ?? 0));
+            header('Location: ' . url('lineup', ['msg' => $r['msg'] ?? ('⚠️ ' . $r['error'])]));
+            exit;
+        case 'trade-block':
+            $r = League::toggleTradeBlock((int) ($_GET['pid'] ?? 0));
+            header('Location: ' . url('lineup', ['msg' => $r['msg'] ?? ('⚠️ ' . $r['error'])]));
+            exit;
         case 'next-season':
             $watermark = League::inboxWatermark();
-            League::nextSeason();
+            $r = League::nextSeason();
+            if (!empty($r['fired'])) { header('Location: ' . url('gmselect')); exit; }
             Accounts::touch((int) Accounts::activeSaveId());
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Entressafra', 'back' => url('home'), 'autosaved' => '1']));
             exit;
@@ -228,14 +246,12 @@ if ($action) {
             header('Location: ' . url('lineup', ['msg' => '😴 Jogador descansado.']));
             exit;
         case 'save-coach':
+            // Só o nome: os atributos do técnico agora pesam no jogo e vêm do estilo escolhido no save.
             $coach = League::gmCoach();
             if ($coach) {
-                League::saveCoach((int)$coach['id'], trim($_POST['coach_name'] ?? $coach['name']), [
-                    'ofensivo'       => $_POST['ofensivo']       ?? $coach['ofensivo'],
-                    'defensivo'      => $_POST['defensivo']      ?? $coach['defensivo'],
-                    'desenvolvimento'=> $_POST['desenvolvimento'] ?? $coach['desenvolvimento'],
-                    'gestao'         => $_POST['gestao']         ?? $coach['gestao'],
-                    'intensidade'    => $_POST['intensidade']    ?? $coach['intensidade'],
+                League::saveCoach((int)$coach['id'], trim($_POST['coach_name'] ?? $coach['name']) ?: $coach['name'], [
+                    'ofensivo' => $coach['ofensivo'], 'defensivo' => $coach['defensivo'], 'desenvolvimento' => $coach['desenvolvimento'],
+                    'gestao' => $coach['gestao'], 'intensidade' => $coach['intensidade'],
                 ]);
             }
             header('Location: ' . url('manage', ['saved' => 'coach']));

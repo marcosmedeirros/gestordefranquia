@@ -41,6 +41,13 @@ foreach ($posOrder as $posSlot) {
 }
 
 $msg = $_GET['msg'] ?? '';
+$block = League::tradeBlock();
+$flagsOf = function (array $p) use ($block): string {
+    $out = '';
+    if (!empty($p['dev_focus'])) $out .= '<span class="flag-pill focus" title="Foco de treino">🎯 treino</span>';
+    if (in_array((int)$p['id'], $block, true)) $out .= '<span class="flag-pill block" title="Na vitrine de trocas">📣 vitrine</span>';
+    return $out;
+};
 
 // Mapas de labels
 $posLabel = ['PG'=>'Armador','SG'=>'Ala-Armador','SF'=>'Ala','PF'=>'Ala-Pivô','C'=>'Pivô'];
@@ -101,6 +108,7 @@ $moraleLabel = fn($m) => (int)$m >= 85 ? ['🟢','Ótimo'] : ((int)$m >= 65 ? ['
         <div class="ls-morale" title="Moral: <?= (int)$p['morale'] ?>">
           <?= $mor[0] ?> <span style="font-size:11px;color:var(--muted)"><?= $mor[1] ?> (<?= (int)$p['morale'] ?>)</span>
         </div>
+        <?php if ($f = $flagsOf($p)): ?><div style="display:flex;gap:4px;margin-top:4px"><?= $f ?></div><?php endif; ?>
       </div>
       <div class="ls-actions">
         <a class="ls-btn" href="<?= url('home',['action'=>'boost-morale','pid'=>$p['id']]) ?>" title="Conversar" onclick="event.stopPropagation()">💬</a>
@@ -138,10 +146,12 @@ $moraleLabel = fn($m) => (int)$m >= 85 ? ['🟢','Ótimo'] : ((int)$m >= 65 ? ['
         <span class="bc-ppg"><?= $ppg ?></span>
         <span class="bc-morale"><?= $morIcon ?></span>
       </div>
+      <?php if ($f = $flagsOf($p)): ?><div class="bc-flags"><?= $f ?></div><?php endif; ?>
     </div>
     <div class="bc-btns">
       <a class="bc-btn" href="<?= url('home',['action'=>'boost-morale','pid'=>$p['id']]) ?>" title="Conversar">💬</a>
       <a class="bc-btn" href="<?= url('home',['action'=>'rest-player','pid'=>$p['id']]) ?>" title="Descansar">😴</a>
+      <a class="bc-btn" href="#" onclick="event.preventDefault();openPlayer(<?= (int)$p['id'] ?>,<?= htmlspecialchars(json_encode($p),ENT_QUOTES) ?>)" title="Ações">⋯</a>
     </div>
   </div>
   <?php endforeach; ?>
@@ -228,10 +238,14 @@ if ($upcoming):
   if(form){ form.addEventListener('input', recalc); recalc(); }
 
   // Modal de ações do jogador
+  const TRADE_BLOCK = <?= json_encode(array_values($block)) ?>;
   window.openPlayer = function(pid, p) {
     const modal = document.getElementById('playerModal');
     const content = document.getElementById('pmContent');
     const appBase  = '<?= defined("APP_BASE") ? APP_BASE : "" ?>';
+    const inBlock = TRADE_BLOCK.includes(pid);
+    const focusOn = parseInt(p.dev_focus || 0) === 1;
+    const young = parseInt(p.age) <= 25;
     const faceUrl = appBase+'/face.php?id='+pid+'&name='+encodeURIComponent(p.name)+'&pos='+(p.pos||'');
     const cdnUrl  = p.nba_id > 0 ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null;
     const photoSrc = cdnUrl || faceUrl;
@@ -257,6 +271,8 @@ if ($upcoming):
         <a class="pm-btn" href="${appBase}/index.php?action=boost-morale&pid=${pid}">💬 Conversar</a>
         <a class="pm-btn" href="${appBase}/index.php?action=rest-player&pid=${pid}">😴 Descansar</a>
         <a class="pm-btn pm-view" href="${appBase}/index.php?p=player&id=${pid}">📋 Ver ficha completa</a>
+        ${young || focusOn ? `<a class="pm-btn" href="${appBase}/index.php?action=dev-focus&pid=${pid}">🎯 ${focusOn ? 'Tirar do foco de treino' : 'Foco de treino'}</a>` : ''}
+        <a class="pm-btn" href="${appBase}/index.php?action=trade-block&pid=${pid}">📣 ${inBlock ? 'Tirar da vitrine' : 'Colocar na vitrine de trocas'}</a>
         <a class="pm-btn pm-danger" href="${appBase}/index.php?action=release&pid=${pid}&back=lineup"
            onclick="return confirm('Dispensar ' + p.name + '? Ele vira agente livre e o salário sai da folha na hora.')">🚪 Dispensar</a>
       </div>

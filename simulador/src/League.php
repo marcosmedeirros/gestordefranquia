@@ -448,6 +448,10 @@ class League
         $phase = self::phase();
         $day = self::currentDay();
         $gmId = self::gmTeam();
+        if ($gmId && self::isFired()) {
+            return ['href' => url('gmselect'), 'label' => '🔴 Escolher nova franquia',
+                    'note' => 'Você foi demitido. A liga só segue quando você assumir outro time.'];
+        }
         $gmToday = null;
         if ($gmId && in_array($phase, ['regular', 'playin', 'playoffs'], true)) {
             $gg = self::gmGameOnDay($day);
@@ -561,6 +565,7 @@ class League
         $day = self::currentDay();
         $gm = self::gmTeam();
         $deadline = Cap::deadlineDay();
+        if ($gm && self::isFired()) return ['blocked' => true, 'fired' => true, 'msg' => 'Você foi demitido — escolha uma nova franquia antes de seguir.'];
 
         // ── TRADE DEADLINE: no dia da deadline ninguém passa acima do teto; abaixo do piso custa uma pick ──
         if ($gm && $day === $deadline) {
@@ -618,6 +623,10 @@ class League
 
         // pode surgir uma decisão de inbox para o GM
         if ($gm && !$autoGm) self::maybeGenerateDecision();
+        // ...ou uma proposta de troca de outro time (mais frequente com gente na vitrine)
+        if ($gm && $day < $deadline && self::chanceF(self::tradeBlock() ? 0.14 : 0.05)) {
+            try { self::aiTradeOffer(); } catch (Throwable $e) { error_log('aiTradeOffer: ' . $e->getMessage()); }
+        }
 
         // jogo do GM ainda não jogado hoje?
         $pendingId = 0;
@@ -642,6 +651,7 @@ class League
 
         if ($day >= self::totalDays()) {
             self::startPlayIn();
+            try { self::seasonRecap(); } catch (Throwable $e) {}
             return ['msg' => "Temporada regular encerrada! Torneio Play-In iniciado.", 'played' => $played, 'phase' => 'playin'];
         }
         Database::setMeta('current_day', $day + 1);
@@ -1197,6 +1207,7 @@ class League
     public static function nextSeason(): array
     {
         require_once __DIR__ . '/Offseason.php';
+        if (self::gmTeam() && self::isFired()) return ['blocked' => true, 'fired' => true, 'msg' => 'Você foi demitido — escolha uma nova franquia antes de seguir.'];
         // Com franquia controlada: passa pela Loteria (com odds e sorteio animado) antes do Draft.
         if (self::gmTeam()) return Offseason::beginLottery();
         return Offseason::run();
@@ -1602,6 +1613,260 @@ class League
 
     private static function clampF(float $v, float $lo, float $hi): float { return max($lo, min($hi, $v)); }
 
+    // ===================== DIRETORIA: PACIÊNCIA E DEMISSÃO =====================
+
+    public const PATIENCE_MAX = 4;
+
+    /** Paciência da diretoria (0..4). Começa em 3 (2 no Difícil, 4 no Fácil). */
+    public static function boardPatience(): int
+    {
+        $v = Database::meta('board_patience');
+        if ($v === null || $v === '') {
+            $v = ['facil' => 4, 'normal' => 3, 'dificil' => 2][self::difficulty()] ?? 3;
+            Database::setMeta('board_patience', (string) $v);
+        }
+        return max(0, min(self::PATIENCE_MAX, (int) $v));
+    }
+
+    public static function isFired(): bool { return Database::meta('gm_fired', '0') === '1'; }
+
+    /**
+     * Fim de temporada: a diretoria compara o resultado com a meta. Cumpriu: +1 de
+     * paciência (até 4). Falhou: -1 (-2 se nem a meta mínima de vitórias saiu).
+     * Zerou: o GM é demitido e precisa achar outra franquia (ver hireAt).
+     */
+    public static function boardReview(int $championId): void
+    {
+        $gm = self::gmTeam();
+        if (!$gm) return;
+        $goal = self::boardGoalProgress();
+        if (!$goal) return;
+        $t = self::team($gm);
+        $p = self::boardPatience();
+        $season = self::season();
+        if ($goal['status'] === 'cumprida') {
+            $p2 = min(self::PATIENCE_MAX, $p + 1);
+            $msg = $championId === $gm
+                ? "Campeões! A diretoria está em êxtase. Você tem carta branca — paciência da diretoria em {$p2}/" . self::PATIENCE_MAX . "."
+                : "Meta cumprida ({$goal['desc']}). A diretoria confia no projeto: paciência em {$p2}/" . self::PATIENCE_MAX . ".";
+            Database::setMeta('board_patience', (string) $p2);
+            self::inboxAdd('board', 'Diretoria', '✅ Avaliação da temporada ' . $season . ': aprovado', $msg, url('manage'), '🤝', true);
+            return;
+        }
+        $loss = ($goal['type'] ?? '') === 'wins' ? 2 : 1;
+        $p2 = max(0, $p - $loss);
+        Database::setMeta('board_patience', (string) $p2);
+        if ($p2 <= 0) {
+            Database::setMeta('gm_fired', '1');
+            self::inboxAdd('board', 'Diretoria', '🔴 Você foi demitido do ' . $t['city'] . ' ' . $t['name'],
+                "A meta era \"{$goal['desc']}\" e a temporada terminou em {$t['wins']}-{$t['losses']}. A paciência da diretoria acabou e a franquia vai em outra direção. "
+                . "Outras franquias têm interesse no seu trabalho: escolha a nova casa para continuar a carreira.", url('gmselect'), '🔴', true);
+            self::addHeadline($season, 0, 'gm', "🔴 {$t['city']} {$t['name']} demite o GM após temporada abaixo da meta.", $gm);
+            return;
+        }
+        $aviso = $p2 === 1 ? ' ÚLTIMA CHANCE: mais uma temporada abaixo da meta e você está fora.' : '';
+        self::inboxAdd('board', 'Diretoria', '⚠️ Avaliação da temporada ' . $season . ': abaixo da meta',
+            "A meta era \"{$goal['desc']}\" e não saiu ({$t['wins']}-{$t['losses']}). Paciência da diretoria caiu para {$p2}/" . self::PATIENCE_MAX . '.' . $aviso,
+            url('manage'), '⚠️', true);
+    }
+
+    /**
+     * GM demitido assume outra franquia: técnico e paciência vão junto (paciência
+     * volta ao padrão), o time antigo vira IA. Só vale com gm_fired=1 (ou sem GM).
+     */
+    public static function hireAt(int $teamId): array
+    {
+        $t = self::team($teamId);
+        if (!$t || !(int) $t['active']) return ['error' => 'Franquia inválida.'];
+        $old = self::gmTeam();
+        if ($old && !self::isFired()) return ['error' => 'Você só troca de franquia quando a diretoria te demite.'];
+        if ($old === $teamId) return ['error' => 'Essa é a franquia que te demitiu.'];
+        $db = Database::conn();
+        if ($old) {
+            // o time antigo volta à rotação automática e perde as marcas do GM
+            $db->prepare("UPDATE players SET dev_focus=0 WHERE team_id=?")->execute([$old]);
+            $db->prepare("UPDATE coaches SET team_id=? WHERE team_id=?")->execute([$teamId, $old]);
+        }
+        self::setGmTeam($teamId);
+        $db->prepare("DELETE FROM meta WHERE k IN ('gm_fired','gm_goal','board_patience','trade_block')")->execute();
+        Database::setMeta('board_patience', (string) (['facil' => 4, 'normal' => 3, 'dificil' => 2][self::difficulty()] ?? 3));
+        $name = Database::meta('gm_name', 'GM');
+        self::inboxAdd('board', 'Diretoria', "🤝 Bem-vindo ao {$t['city']} {$t['name']}",
+            "A diretoria do {$t['name']} contratou {$name} como novo Gerente Geral. A meta da temporada será definida com base no elenco atual — confira em Meu Time.",
+            url('manage'), '🤝', true);
+        self::addHeadline(self::season(), self::currentDay(), 'gm', "🤝 {$t['city']} {$t['name']} anuncia {$name} como novo GM.", $teamId);
+        return ['ok' => true, 'team' => $t];
+    }
+
+    // ===================== VITRINE DE TROCAS + FOCO DE TREINO =====================
+
+    /** Ids dos jogadores do GM na vitrine (a IA faz propostas por eles). */
+    public static function tradeBlock(): array
+    {
+        $ids = json_decode((string) Database::meta('trade_block', '[]'), true) ?: [];
+        return array_values(array_map('intval', $ids));
+    }
+
+    public static function toggleTradeBlock(int $pid): array
+    {
+        $gm = self::gmTeam();
+        $p = self::player($pid);
+        if (!$gm || !$p || (int) $p['team_id'] !== $gm) return ['error' => 'Jogador não é do seu elenco.'];
+        $ids = self::tradeBlock();
+        if (in_array($pid, $ids, true)) {
+            $ids = array_values(array_diff($ids, [$pid]));
+            $msg = "📣 {$p['name']} saiu da vitrine de trocas.";
+        } else {
+            $ids[] = $pid;
+            $msg = "📣 {$p['name']} está na vitrine — a liga foi avisada; propostas chegam na caixa de entrada.";
+            Database::conn()->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?, 'vitrine', ?)")
+                ->execute([self::season(), self::currentDay(), "{$p['name']} foi colocado na vitrine de trocas."]);
+        }
+        Database::setMeta('trade_block', json_encode($ids));
+        return ['ok' => true, 'msg' => $msg, 'on' => in_array($pid, $ids, true)];
+    }
+
+    public const DEV_FOCUS_MAX = 2;
+
+    /** Foco de treino: até 2 jogadores de até 25 anos progridem mais na entressafra. */
+    public static function toggleDevFocus(int $pid): array
+    {
+        $gm = self::gmTeam();
+        $p = self::player($pid);
+        if (!$gm || !$p || (int) $p['team_id'] !== $gm) return ['error' => 'Jogador não é do seu elenco.'];
+        $db = Database::conn();
+        if (!empty($p['dev_focus'])) {
+            $db->prepare("UPDATE players SET dev_focus=0 WHERE id=?")->execute([$pid]);
+            return ['ok' => true, 'msg' => "🎯 {$p['name']} saiu do foco de treino."];
+        }
+        if ((int) $p['age'] > 25) return ['error' => 'Foco de treino só para jogadores de até 25 anos.'];
+        $n = (int) $db->query("SELECT COUNT(*) FROM players WHERE team_id=$gm AND retired=0 AND dev_focus=1")->fetchColumn();
+        if ($n >= self::DEV_FOCUS_MAX) return ['error' => 'Você já tem ' . self::DEV_FOCUS_MAX . ' jogadores em foco de treino. Tire um antes.'];
+        $db->prepare("UPDATE players SET dev_focus=1 WHERE id=?")->execute([$pid]);
+        return ['ok' => true, 'msg' => "🎯 {$p['name']} entrou no foco de treino — progride mais na entressafra."];
+    }
+
+    // ===================== PROPOSTAS DE TROCA DA IA =====================
+
+    /**
+     * Um time de IA faz uma proposta pelo jogador do GM (de preferência quem está na
+     * vitrine). A oferta entra na caixa como decisão: aceitar executa a troca na hora,
+     * se ainda for válida. A IA oferece o que vale pra ela (no Difícil, um pouco menos).
+     */
+    public static function aiTradeOffer(): ?array
+    {
+        $gm = self::gmTeam();
+        if (!$gm || !Cap::tradesOpen()) return null;
+        $db = Database::conn();
+        $pending = (int) $db->query("SELECT COUNT(*) FROM decisions WHERE status='pending'")->fetchColumn();
+        if ($pending >= 2) return null;
+
+        $roster = $db->query("SELECT * FROM players WHERE team_id=$gm AND retired=0 ORDER BY ovr DESC")->fetchAll();
+        if (count($roster) < 9) return null;
+        $block = self::tradeBlock();
+        $pool = array_values(array_filter($roster, fn($p) => in_array((int) $p['id'], $block, true)));
+        if (!$pool) {
+            // sem vitrine: alguém do 2º ao 8º melhor
+            $pool = array_slice($roster, 1, 7);
+            if (!self::chanceF(0.6)) return null; // menos assédio quando você não anunciou ninguém
+        }
+        $target = $pool[array_rand($pool)];
+        if (self::hasPendingFor((int) $target['id'])) return null;
+
+        $teams = array_values(array_filter(self::allTeams(), fn($t) => (int) $t['id'] !== $gm));
+        shuffle($teams);
+        $factor = ['facil' => 1.08, 'normal' => 1.0, 'dificil' => 0.92][self::difficulty()] ?? 1.0;
+        foreach (array_slice($teams, 0, 10) as $t) {
+            $aiId = (int) $t['id'];
+            $want = self::playerValue($target, $aiId) * $factor;
+            $their = $db->query("SELECT * FROM players WHERE team_id=$aiId AND retired=0 ORDER BY ovr DESC")->fetchAll();
+            if (count($their) < 10) continue;
+            $cands = array_slice($their, 2); // a IA não oferece as 2 estrelas dela
+            // pacote: 1 jogador, ou 2 jogadores, que somem ~o valor desejado; pick R1 fecha a conta
+            $offers = [];
+            foreach ($cands as $a) $offers[] = [$a];
+            for ($i = 0; $i < count($cands); $i++) for ($j = $i + 1; $j < count($cands); $j++) $offers[] = [$cands[$i], $cands[$j]];
+            shuffle($offers);
+            foreach ($offers as $pack) {
+                $val = array_sum(array_map(fn($p) => self::playerValue($p, $gm), $pack));
+                $picks = [];
+                if ($val < $want * 0.85) {
+                    $pk = $db->prepare("SELECT dp.*, ot.abbr AS orig_abbr FROM draft_picks dp JOIN teams ot ON ot.id=dp.original_team_id
+                                         WHERE dp.owner_team_id=? AND dp.round=1 AND dp.used=0 ORDER BY dp.year DESC LIMIT 1");
+                    $pk->execute([$aiId]);
+                    if ($pkRow = $pk->fetch()) { $picks = [$pkRow]; $val += self::pickValue($pkRow); }
+                }
+                if ($val < $want * 0.9 || $val > $want * 1.25) continue;
+                $chk = Cap::tradeCheck($gm, [$target], [], $aiId, $pack, $picks);
+                if (!$chk['ok']) continue;
+                // achou: registra como decisão
+                $names = implode(' + ', array_map(fn($p) => "{$p['name']} ({$p['pos']}, OVR {$p['ovr']}, " . Cap::m((int) $p['salary']) . ")", $pack));
+                if ($picks) $names .= ' + pick ' . self::pickLabel($picks[0]);
+                $title = "🤝 {$t['abbr']} quer {$target['name']}";
+                $body = "{$t['city']} {$t['name']} oferece {$names} por {$target['name']} ({$target['pos']}, OVR {$target['ovr']}, " . Cap::m((int) $target['salary']) . "). "
+                      . "Sua folha depois: " . Cap::m($chk['a']['after']) . " (teto " . Cap::m($chk['a']['cap']) . "). A proposta vale até você responder ou até a deadline.";
+                self::addDecision('trade_offer', $title, $body,
+                    ['accept' => '✅ Aceitar a troca', 'decline' => '❌ Recusar'],
+                    ['player_id' => (int) $target['id'], 'name' => $target['name'], 'ai_team' => $aiId,
+                     'get' => array_map(fn($p) => (int) $p['id'], $pack), 'get_picks' => array_map(fn($p) => (int) $p['id'], $picks)]);
+                return ['team' => $t, 'target' => $target];
+            }
+        }
+        return null;
+    }
+
+    /** Executa a proposta da IA aceita pelo GM (revalida cap e elencos antes). */
+    private static function acceptAiOffer(array $payload): array
+    {
+        $gm = self::gmTeam();
+        $aiId = (int) ($payload['ai_team'] ?? 0);
+        $target = self::playersByIds([(int) ($payload['player_id'] ?? 0)]);
+        $get = self::playersByIds($payload['get'] ?? []);
+        $picks = self::picksByIds($payload['get_picks'] ?? []);
+        if (!$gm || !$aiId || !$target || (int) $target[0]['team_id'] !== $gm) return ['error' => 'A proposta não vale mais: o jogador já não está no seu elenco.'];
+        foreach ($get as $p) if ((int) $p['team_id'] !== $aiId) return ['error' => 'A proposta não vale mais: o outro time mexeu no elenco.'];
+        if (count($get) !== count($payload['get'] ?? [])) return ['error' => 'A proposta não vale mais.'];
+        if (!Cap::tradesOpen()) return ['error' => 'A janela de trocas fechou.'];
+        $chk = Cap::tradeCheck($gm, $target, [], $aiId, $get, $picks);
+        if (!$chk['ok']) return ['error' => 'A proposta não passa mais no cap: ' . implode(' ', $chk['errors'])];
+        $db = Database::conn();
+        $db->beginTransaction();
+        $mv = $db->prepare("UPDATE players SET team_id=?, morale=62, rotation=0, is_starter=0, min_target=0, dev_focus=0 WHERE id=?");
+        $mv->execute([$aiId, (int) $target[0]['id']]);
+        foreach ($get as $p) $mv->execute([$gm, (int) $p['id']]);
+        foreach ($picks as $pk) self::transferPick((int) $pk['id'], $gm);
+        $ta = self::team($gm); $tb = self::team($aiId);
+        $desc = "{$ta['abbr']} envia {$target[0]['name']} para {$tb['abbr']} e recebe "
+              . implode(', ', array_merge(array_column($get, 'name'), array_map([self::class, 'pickLabel'], $picks)));
+        $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?, 'troca', ?)")->execute([self::season(), self::currentDay(), $desc]);
+        $db->commit();
+        $block = array_values(array_diff(self::tradeBlock(), [(int) $target[0]['id']]));
+        Database::setMeta('trade_block', json_encode($block));
+        self::addHeadline(self::season(), self::currentDay(), 'trade', "🔄 {$desc}.", $gm);
+        return ['ok' => true, 'msg' => "✅ Troca feita: {$desc}."];
+    }
+
+    /** Balanço da temporada regular na caixa do GM (chamado quando o play-in abre). */
+    public static function seasonRecap(): void
+    {
+        $gm = self::gmTeam();
+        if (!$gm) return;
+        $t = self::team($gm);
+        $seed = null;
+        foreach (self::standings($t['conf']) as $s) { if ((int) $s['id'] === $gm) { $seed = (int) $s['seed']; break; } }
+        $status = $seed === null ? '' : ($seed <= 6 ? "Classificado direto aos playoffs (seed #{$seed})."
+            : ($seed <= 10 ? "Vai ao Play-In (seed #{$seed}) — precisa vencer para entrar nos playoffs." : "Fora dos playoffs (seed #{$seed})."));
+        $top = Database::conn()->query(
+            "SELECT p.name, ROUND(s.pts*1.0/MAX(s.gp,1),1) ppg FROM season_stats s JOIN players p ON p.id=s.player_id
+             WHERE p.team_id=$gm AND s.gp>=20 ORDER BY ppg DESC LIMIT 1")->fetch();
+        $goal = self::boardGoalProgress();
+        $body = "Campanha: {$t['wins']}-{$t['losses']}. {$status}"
+              . ($top ? " Cestinha: {$top['name']} ({$top['ppg']} pts/jogo)." : '')
+              . ($goal ? " Meta da diretoria: {$goal['desc']} — " . ($goal['status'] === 'cumprida' ? 'cumprida ✅' : 'em aberto') . '.' : '')
+              . ' Paciência da diretoria: ' . self::boardPatience() . '/' . self::PATIENCE_MAX . '.';
+        self::inboxAdd('league', 'Liga', '📋 Fim da temporada regular — balanço', $body, url('playoffs'), '📋', true);
+    }
+
     /** Mensagens da diretoria/imprensa para o GM (derivadas do estado atual). */
     public static function gmInbox(int $limit = 6): array
     {
@@ -1864,6 +2129,7 @@ class League
             'bench_unhappy' => ['😤', 'Vestiário'],
             'wants_star' => ['⭐', 'Vestiário'],
             'fight' => ['🥊', 'Comissão Técnica'],
+            'trade_offer' => ['🤝', 'Central de Trocas'],
             default => ['🛌', 'Comissão Técnica'],
         };
     }
@@ -1999,15 +2265,28 @@ class League
         $db = Database::conn();
         $msg = '';
 
-        if ($d['type'] === 'trade_demand' && $pid) {
+        if ($d['type'] === 'trade_offer' && $pid) {
+            if ($choice === 'accept') {
+                $r = self::acceptAiOffer($payload);
+                if (isset($r['error'])) {
+                    $db->prepare("UPDATE decisions SET status='resolved', choice=? WHERE id=?")->execute(['expired', $id]);
+                    $db->prepare("UPDATE inbox SET kind='decision_done', is_read=1 WHERE kind='decision' AND ref_id=?")->execute([$id]);
+                    return ['error' => $r['error']];
+                }
+                $msg = $r['msg'];
+            } else {
+                $msg = "Você recusou a proposta por {$payload['name']}.";
+            }
+        } elseif ($d['type'] === 'trade_demand' && $pid) {
             if ($choice === 'promise') {
                 $db->prepare("UPDATE players SET morale = MIN(99, morale + 14) WHERE id=?")->execute([$pid]);
                 $msg = "Você conversou com {$payload['name']} — moral recuperada.";
             } elseif ($choice === 'block') {
                 $db->prepare("UPDATE players SET morale = MIN(99, morale + 5) WHERE id=?")->execute([$pid]);
+                $ids = self::tradeBlock(); if (!in_array($pid, $ids, true)) { $ids[] = $pid; Database::setMeta('trade_block', json_encode($ids)); }
                 $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?, 'vitrine', ?)")
                    ->execute([self::season(), self::currentDay(), "{$payload['name']} foi colocado na vitrine de trocas."]);
-                $msg = "{$payload['name']} entrou na vitrine de trocas — negocie na Central de Trocas.";
+                $msg = "{$payload['name']} entrou na vitrine de trocas — a liga foi avisada e propostas chegam na caixa.";
             } else { // ignore
                 $db->prepare("UPDATE players SET morale = MAX(30, morale - 10) WHERE id=?")->execute([$pid]);
                 $msg = "Você ignorou o pedido de {$payload['name']} — moral em queda.";
@@ -2027,9 +2306,10 @@ class League
                 $msg = "{$payload['name']} entrou na rotação com 16 minutos — ajuste o resto da minutagem na Escalação.";
             } elseif ($choice === 'showcase') {
                 $db->prepare("UPDATE players SET morale = MIN(99, morale + 4) WHERE id=?")->execute([$pid]);
+                $ids = self::tradeBlock(); if (!in_array($pid, $ids, true)) { $ids[] = $pid; Database::setMeta('trade_block', json_encode($ids)); }
                 $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?, 'vitrine', ?)")
                    ->execute([self::season(), self::currentDay(), "{$payload['name']} foi colocado na vitrine de trocas."]);
-                $msg = "{$payload['name']} está na vitrine — negocie na Central de Trocas.";
+                $msg = "{$payload['name']} está na vitrine — propostas da liga chegam na caixa de entrada.";
             } else {
                 $db->prepare("UPDATE players SET morale = MAX(30, morale - 12) WHERE id=?")->execute([$pid]);
                 if ($gm) $db->prepare("UPDATE teams SET chemistry = MAX(50, chemistry - 2) WHERE id=?")->execute([$gm]);

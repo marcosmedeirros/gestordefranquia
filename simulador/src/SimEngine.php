@@ -105,7 +105,8 @@ class SimEngine
                 $age = (int) ($p['age'] ?? 25);
                 $prob = 0.011 * ($p['min'] / 30)
                     * (1 + max(0, $age - 30) * 0.05)
-                    * (1 + (85 - $sta) / 100);
+                    * (1 + (85 - $sta) / 100)
+                    * (float) ($team['inj_mult'] ?? 1.0); // técnico intenso desgasta mais
                 if (self::chance(self::clamp($prob, 0.0, 0.06))) {
                     $games = self::injuryDuration();
                     $injuries[] = ['player_id' => (int) $p['id'], 'games' => $games, 'name' => $p['name']];
@@ -474,14 +475,31 @@ class SimEngine
         // química: 70 = neutro; cada ponto acima/abaixo dá pequeno bônus/penalidade
         $chem = (($team['chemistry'] ?? 70) - 70) / 100 * 0.05; // ~±0.015
 
+        // O TÉCNICO PESA: ofensivo melhora a eficiência, defensivo a defesa, intensidade
+        // dá rebote mas desgasta (mais lesão). 70 é neutro; 100 vale ~+1% de eficiência,
+        // +3 de defesa, +3% de rebote e +18% de risco de lesão.
+        $defRating = $n ? $defSum / $n : 75;
+        $injMult = 1.0;
+        try {
+            $c = $db->prepare("SELECT ofensivo, defensivo, intensidade FROM coaches WHERE team_id=? LIMIT 1");
+            $c->execute([$teamId]);
+            if ($coach = $c->fetch()) {
+                $mods['eff_bonus'] += ((int) $coach['ofensivo'] - 70) * 0.00035;
+                $defRating += ((int) $coach['defensivo'] - 70) * 0.1;
+                $mods['reb_bonus'] += ((int) $coach['intensidade'] - 70) * 0.001;
+                $injMult = 1 + ((int) $coach['intensidade'] - 70) * 0.006;
+            }
+        } catch (Throwable $e) { /* sem tabela de técnicos */ }
+
         return [
             'id' => $teamId,
             'players' => $players,
-            'def_rating' => $n ? $defSum / $n : 75,
+            'def_rating' => $defRating,
             'scheme_off' => $team['scheme_off'] ?? 'Pace and Space',
             'scheme_def' => $team['scheme_def'] ?? 'Man-to-Man',
             'mods' => $mods,
             'chem' => $chem,
+            'inj_mult' => $injMult,
         ];
     }
 

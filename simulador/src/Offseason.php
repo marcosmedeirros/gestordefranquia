@@ -35,13 +35,16 @@ class Offseason
         $ct = League::team($championId);
         League::addHeadline($season, 0, 'champion',
             "🏆 {$ct['city']} {$ct['name']} é campeão da NBA na temporada {$season}!", $championId);
+
+        // A diretoria avalia o GM: meta cumprida enche a paciência, meta perdida gasta — e acaba em demissão.
+        League::boardReview($championId);
     }
 
     /** Agrega estatísticas da TEMPORADA REGULAR (exclui playoffs) por jogador. */
     private static function regularSeasonAggregate(): array
     {
         $rows = Database::conn()->query(
-            "SELECT p.id, p.name, p.team_id, p.pos, p.age, p.ovr, p.seasons_pro, p.def AS defrtg,
+            "SELECT p.id, p.name, p.team_id, p.pos, p.age, p.ovr, p.seasons_pro, p.def AS defrtg, p.is_starter,
                     t.wins AS twins, t.abbr,
                     COUNT(*) AS gp, SUM(b.pts) AS pts, SUM(b.reb) AS reb, SUM(b.ast) AS ast,
                     SUM(b.stl) AS stl, SUM(b.blk) AS blk
@@ -121,6 +124,35 @@ class Offseason
             $ins->execute([$season, 'Finals MVP', $fmvp, $championId, $fmvpName ?? '']);
         }
 
+        // 6º Homem: o melhor entre quem NÃO é titular
+        $sixth = null;
+        $bench = array_values(array_filter($byMvp, fn($r) => (int) ($r['is_starter'] ?? 0) === 0));
+        if ($bench) {
+            $sixth = $bench[0];
+            $ins->execute([$season, '6º Homem', $sixth['id'], $sixth['team_id'],
+                sprintf('%.1f pts / %.1f reb / %.1f ast', $sixth['ppg'], $sixth['rpg'], $sixth['apg'])]);
+        }
+
+        // MIP (Most Improved): maior salto de OVR em relação à temporada anterior (mín. +3)
+        $mip = null;
+        if ($season > 1) {
+            $prev = [];
+            $pq = $db->prepare("SELECT player_id, ovr FROM player_seasons WHERE season=?");
+            $pq->execute([$season - 1]);
+            foreach ($pq->fetchAll() as $r) $prev[(int) $r['player_id']] = (int) $r['ovr'];
+            $bestGain = 2;
+            foreach ($stats as $r) {
+                $before = $prev[(int) $r['id']] ?? null;
+                if ($before === null) continue;
+                $gain = (int) $r['ovr'] - $before;
+                if ($gain > $bestGain || ($gain === $bestGain && $mip && $r['mvp_score'] > $mip['mvp_score'])) { $bestGain = $gain; $mip = $r + ['gain' => $gain]; }
+            }
+            if ($mip) {
+                $ins->execute([$season, 'MIP', $mip['id'], $mip['team_id'],
+                    sprintf('+%d de OVR (%d → %d) · %.1f pts', $mip['gain'], (int) $mip['ovr'] - $mip['gain'], (int) $mip['ovr'], $mip['ppg'])]);
+            }
+        }
+
         // ── ANÚNCIO DOS VENCEDORES (caixa de entrada + manchetes) ──
         $lines = [];
         $add = function (string $label, string $player, string $val = '') use ($season, &$lines) {
@@ -131,6 +163,8 @@ class Offseason
         $add('🛡️ Defensor do Ano (DPOY)', $dpoy['name'], sprintf('%.1f toco, %.1f roubo', $dpoy['bpg'], $dpoy['spg']));
         if ($roy)      $add('🌟 Novato do Ano (ROY)', $roy['name'], sprintf('%.1f pts', $roy['ppg']));
         if ($fmvpName) $add('🏆 MVP das Finais', $fmvpName);
+        if ($sixth)    $add('🪑 6º Homem do Ano', $sixth['name'], sprintf('%.1f pts saindo do banco', $sixth['ppg']));
+        if ($mip)      $add('📈 Jogador que Mais Evoluiu (MIP)', $mip['name'], "+{$mip['gain']} de OVR");
         League::inboxAdd('award', 'Liga NBA', "🏆 Premiações da Temporada $season",
             "Os grandes vencedores da temporada foram anunciados:\n\n" . implode("\n", $lines),
             League::gmTeam() ? 'index.php?p=history' : '', '🏆', true);
@@ -229,6 +263,11 @@ class Offseason
             LEFT JOIN season_stats s ON s.player_id = p.id WHERE p.retired = 0")->fetchAll();
         $upd = $db->prepare("UPDATE players SET age=?, seasons_pro=seasons_pro+1, ovr=?,
             ins=?, mid=?, thr=?, pmk=?, reb=?, def=?, ath=?, sta=?, morale=?, potential=? WHERE id=?");
+        // O técnico do GM conta: "desenvolvimento" acima de 70 dá chance extra de +1 aos
+        // jovens dele, e o FOCO DE TREINO (até 2 jogadores) garante progresso a mais.
+        $gm = League::gmTeam();
+        $coach = $gm ? League::gmCoach() : null;
+        $devBonus = $coach ? max(0.0, ((int) $coach['desenvolvimento'] - 70) / 100) : 0.0; // 92 → 22%
         $db->beginTransaction();
         $changed = 0;
         $log = [];
@@ -239,14 +278,19 @@ class Offseason
             $ovr = (int) $p['ovr'];
             $pot = (int) $p['potential'];
             $delta = 0;
+            $mine = $gm && (int) ($p['team_id'] ?? 0) === $gm;
+            $focus = $mine && !empty($p['dev_focus']);
 
             if ($age <= 24) { // jovem promessa
                 $room = max(0, $pot - $ovr);
                 $base = random_int(0, 2) + ($mpg >= 26 ? 1 : 0) + ($mpg >= 32 ? 1 : 0);
+                if ($mine && $devBonus > 0 && self::chance($devBonus)) $base++;
+                if ($focus) $base += 1 + (self::chance(0.5) ? 1 : 0);
                 $delta = min($room, $base);
                 if ($room > 0 && $delta === 0 && self::chance(0.4)) $delta = 1;
             } elseif ($age <= 31) { // auge
                 $delta = self::chance(0.3) ? random_int(-1, 1) : 0;
+                if ($focus && $age <= 27 && $pot > $ovr && $delta < 1 && self::chance(0.6)) $delta = 1;
             } else { // declínio
                 $sev = 1 + intdiv($age - 32, 2);
                 $delta = -random_int(1, min(4, $sev + 1));
@@ -267,6 +311,8 @@ class Offseason
             }
         }
         $db->commit();
+        // foco de treino só faz sentido em jogador jovem: passou dos 26, sai sozinho
+        $db->exec("UPDATE players SET dev_focus=0 WHERE dev_focus=1 AND age>26");
         // OVR mudou → salário muda (tabela da ELITE); calouro deixa a rookie scale ao virar seasons_pro 1.
         Cap::refreshSalaries();
         self::announceProgression($log);

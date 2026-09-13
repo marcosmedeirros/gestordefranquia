@@ -14,6 +14,13 @@ usort($roster, function ($a, $b) {
     return $b['ovr'] <=> $a['ovr'];
 });
 $warns = isset($_GET['w']) && $_GET['w'] !== '' ? explode('|', $_GET['w']) : [];
+$capM = Cap::summary($gmId);
+$goal = League::boardGoalProgress();
+$oc = League::ownerConfidence();
+$pat = League::boardPatience();
+$coach = League::gmCoach();
+$block = League::tradeBlock();
+$focus = array_values(array_filter($roster, fn($p) => !empty($p['dev_focus'])));
 ?>
 <div class="team-hero-v2" style="background:linear-gradient(135deg,<?= e($t['primary_color']) ?>,<?= e($t['secondary_color'] ?? $t['primary_color']) ?>99)">
   <?= team_logo($t['abbr'], $t['primary_color'], 'xl', 'th-logo') ?>
@@ -22,75 +29,95 @@ $warns = isset($_GET['w']) && $_GET['w'] !== '' ? explode('|', $_GET['w']) : [];
     <p class="th-meta">
       <?= $t['conf']==='E'?'Conferência Leste':'Conferência Oeste' ?> · <?= e($t['div']) ?>
       · <strong style="font-size:18px"><?= $t['wins'] ?>-<?= $t['losses'] ?></strong>
-      <?php $capM = Cap::summary($gmId); ?>
       · Folha <strong><?= Cap::m($capM['payroll']) ?></strong> <span style="opacity:.8">/ teto <?= Cap::m($capM['cap_max']) ?></span><?= $capM['status'] !== 'ok' ? ' <span class="neg-txt">(' . ($capM['status'] === 'over' ? 'acima do teto' : 'abaixo do piso') . ')</span>' : '' ?>
       · Química <strong><?= (int)$t['chemistry'] ?></strong>
     </p>
     <p class="th-sub">
-      <a href="<?= url('gmselect') ?>" style="color:rgba(255,255,255,.8);text-decoration:underline">Trocar de franquia</a>
+      <a href="<?= url('lineup') ?>" style="color:rgba(255,255,255,.8);text-decoration:underline">Escalação →</a>
       &nbsp;·&nbsp;
       <a href="<?= url('trades') ?>" style="color:rgba(255,255,255,.8);text-decoration:underline">Central de Trocas →</a>
+      &nbsp;·&nbsp;
+      <a href="<?= url('cap') ?>" style="color:rgba(255,255,255,.8);text-decoration:underline">Folha &amp; Cap →</a>
     </p>
   </div>
 </div>
 
-<?php $goal = League::boardGoalProgress(); if ($goal): ?>
-<div class="board-goal goal-<?= $goal['status'] ?>">
-  🎯 <strong>Meta da diretoria:</strong> <?= e($goal['desc']) ?>
-  <span class="goal-detail"><?= e($goal['detail']) ?></span>
-  <span class="goal-badge"><?= ['andamento'=>'em andamento','cumprida'=>'✅ cumprida','falhou'=>'❌ não cumprida'][$goal['status']] ?></span>
-</div>
-<?php endif; ?>
-
-<?php
-$coach = League::gmCoach();
-if (isset($_GET['saved'])): ?>
+<?php if (isset($_GET['saved'])): ?>
   <div class="injury-note" style="background:#10371f;border-color:#1f6b3a;color:#9bffc0">
     ✅ <?= $_GET['saved']==='scheme' ? 'Estilo de jogo salvo.' : ($_GET['saved']==='coach' ? 'Técnico atualizado.' : 'Rotação salva.') ?>
     <?php foreach ($warns as $w): ?><br>⚠️ <?= e($w) ?><?php endforeach; ?>
   </div>
 <?php endif; ?>
 
-<?php if ($coach): ?>
-<section class="card coach-card">
-  <div class="card-head">
-    <h2>🎽 Técnico</h2>
-    <span class="pill" style="background:rgba(228,0,43,.15);color:#E4002B;border:1px solid rgba(228,0,43,.3)">
-      <?= e(ucfirst($coach['style'])) ?>
-    </span>
+<!-- ═══════════ DIRETORIA ═══════════ -->
+<section class="card">
+  <div class="card-head"><h2>🏛️ Diretoria</h2>
+    <?php if ($oc): ?><span class="pill conf-<?= $oc['value']>=45?'ok':($oc['value']>=30?'warn':'bad') ?>">Confiança: <?= e($oc['label']) ?> (<?= $oc['value'] ?>%)</span><?php endif; ?>
   </div>
-  <form method="post" action="<?= url('home', ['action'=>'save-coach']) ?>" class="coach-form">
-    <div class="coach-identity">
+  <div class="board-panel">
+    <div class="board-box">
+      <div class="bb-lbl">🎯 Meta da temporada</div>
+      <div class="bb-val" style="font-size:16px"><?= $goal ? e($goal['desc']) : '—' ?></div>
+      <div class="bb-sub"><?= $goal ? e($goal['detail']) . ' · ' . ['andamento'=>'em andamento','cumprida'=>'✅ cumprida','falhou'=>'❌ não cumprida'][$goal['status']] : '' ?></div>
+    </div>
+    <div class="board-box">
+      <div class="bb-lbl">⏳ Paciência</div>
+      <div class="bb-val"><span class="pat-dots"><?php for ($i = 1; $i <= League::PATIENCE_MAX; $i++): ?><i class="<?= $i <= $pat ? 'on' : '' ?>"></i><?php endfor; ?></span></div>
+      <div class="bb-sub">Meta cumprida enche, meta perdida gasta (2 se nem o mínimo sair). Zerou: demissão.<?= $pat <= 1 ? ' <strong class="pat-warn">Última chance.</strong>' : '' ?></div>
+    </div>
+    <div class="board-box">
+      <div class="bb-lbl">📈 Confiança do dono</div>
+      <div class="bb-val"><?= $oc ? $oc['value'] . '%' : '—' ?></div>
+      <?php if ($oc): ?><div class="conf-bar" style="margin-top:6px"><span style="width:<?= max(2,min(100,$oc['value'])) ?>%"></span></div><?php endif; ?>
+      <div class="bb-sub">Campanha vs. o que o elenco promete; sequências pesam.</div>
+    </div>
+    <div class="board-box">
+      <div class="bb-lbl">💰 Folha</div>
+      <div class="bb-val" style="font-size:18px"><?= Cap::m($capM['payroll']) ?> <small style="font-size:11px;font-weight:600;color:#888">/ <?= Cap::m($capM['cap_max']) ?></small></div>
+      <div class="bb-sub"><?= $capM['status'] === 'ok' ? Cap::m($capM['space']) . ' de espaço' : ($capM['status'] === 'over' ? '<span class="neg-txt">' . Cap::m($capM['excess']) . ' acima do teto</span>' : Cap::m($capM['deficit']) . ' abaixo do piso') ?> · deadline dia <?= Cap::deadlineDay() ?></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ TÉCNICO ═══════════ -->
+<?php if ($coach):
+  $attrLabels = [
+    'ofensivo'        => ['🏀','Ofensivo',        'eficiência do ataque'],
+    'defensivo'       => ['🛡️','Defensivo',       'nota da defesa'],
+    'desenvolvimento' => ['📈','Desenvolvimento', 'jovens progridem mais na entressafra'],
+    'gestao'          => ['🤝','Gestão',          'moral e química'],
+    'intensidade'     => ['🔥','Intensidade',     'rebotes, mas mais desgaste e lesões'],
+  ];
+?>
+<section class="card coach-card">
+  <div class="card-head"><h2>🎽 Técnico</h2>
+    <span class="pill" style="background:rgba(228,0,43,.15);color:#E4002B;border:1px solid rgba(228,0,43,.3)"><?= e(ucfirst($coach['style'])) ?></span>
+  </div>
+  <div class="coach-static">
+    <form method="post" action="<?= url('home', ['action'=>'save-coach']) ?>" class="coach-identity">
       <div class="coach-avatar"><?= strtoupper(substr($coach['name'],0,1)) ?></div>
       <div>
         <input type="text" name="coach_name" value="<?= e($coach['name']) ?>" class="coach-name-input" maxlength="40">
         <div class="coach-record"><?= (int)$coach['wins'] ?>V · <?= (int)$coach['losses'] ?>D · <?= (int)$coach['seasons'] ?> temp.</div>
+        <button class="btn btn-sm" type="submit" style="margin-top:6px">Salvar nome</button>
       </div>
-    </div>
-    <div class="coach-attrs">
-      <?php
-      $attrLabels = [
-        'ofensivo'        => ['🏀','Ofensivo',    'Mais pontos, pace rápido, mais bolas de 3'],
-        'defensivo'       => ['🛡️','Defensivo',   'Menos pontos cedidos, mais roubos e bloqueios'],
-        'desenvolvimento' => ['📈','Desenvolvimento','Jovens crescem mais rápido no seu elenco'],
-        'gestao'          => ['🤝','Gestão',      'Melhor química, moral e confiança da diretoria'],
-        'intensidade'     => ['🔥','Intensidade', 'Mais energia, rebotes e luta, porém mais lesões'],
-      ];
-      foreach ($attrLabels as $key => [$icon, $label, $tip]):
-        $val = (int)$coach[$key];
-        $pct = $val;
-        $cls = $val>=80?'attr-elite':($val>=65?'attr-good':'attr-low');
-      ?>
-      <div class="coach-attr-row">
-        <span class="car-icon"><?= $icon ?></span>
-        <span class="car-label" title="<?= e($tip) ?>"><?= $label ?></span>
-        <div class="car-bar"><div class="car-fill <?= $cls ?>" style="width:<?= $pct ?>%"></div></div>
-        <input type="number" name="<?= $key ?>" value="<?= $val ?>" min="1" max="99" class="car-num">
+    </form>
+    <div>
+      <div class="coach-attrs">
+        <?php foreach ($attrLabels as $key => [$icon, $label, $tip]):
+          $val = (int)$coach[$key];
+          $cls = $val>=80?'attr-elite':($val>=65?'attr-good':'attr-low'); ?>
+          <div class="coach-attr-row">
+            <span class="car-icon"><?= $icon ?></span>
+            <span class="car-label" title="<?= e($tip) ?>"><?= $label ?></span>
+            <div class="car-bar"><div class="car-fill <?= $cls ?>" style="width:<?= $val ?>%"></div></div>
+            <span class="car-num"><?= $val ?></span>
+          </div>
+        <?php endforeach; ?>
       </div>
-      <?php endforeach; ?>
+      <div class="coach-effect">Os atributos vêm do estilo escolhido na criação do save e <strong>pesam no jogo</strong>: ofensivo/defensivo na simulação, desenvolvimento na progressão dos seus jovens (junto com o <strong>foco de treino</strong>, na Escalação), intensidade em rebotes e risco de lesão.</div>
     </div>
-    <button class="btn btn-primary" type="submit" style="margin-top:10px">💾 Salvar técnico</button>
-  </form>
+  </div>
 </section>
 <?php endif; ?>
 
@@ -125,19 +152,23 @@ if (isset($_GET['saved'])): ?>
   </section>
 
   <section class="card">
-    <div class="card-head"><h2>⏱️ Estilo no jogo ao vivo</h2></div>
+    <div class="card-head"><h2>🧭 Projeto</h2></div>
+    <p class="legend" style="margin:0 0 8px"><strong>🎯 Foco de treino</strong> (até <?= League::DEV_FOCUS_MAX ?>, até 25 anos): progridem mais na entressafra.</p>
+    <div class="cap-actions" style="margin-bottom:10px">
+      <?php if ($focus): foreach ($focus as $p): ?><span class="flag-pill focus">🎯 <?= e($p['name']) ?> (<?= (int)$p['ovr'] ?>)</span><?php endforeach; else: ?><span class="muted" style="font-size:12px">ninguém — defina na Escalação</span><?php endif; ?>
+    </div>
+    <p class="legend" style="margin:0 0 8px"><strong>📣 Vitrine de trocas</strong>: a liga sabe que estão à venda e manda propostas na caixa.</p>
+    <div class="cap-actions">
+      <?php $inBlock = array_values(array_filter($roster, fn($p) => in_array((int)$p['id'], $block, true)));
+      if ($inBlock): foreach ($inBlock as $p): ?><span class="flag-pill block">📣 <?= e($p['name']) ?> (<?= (int)$p['ovr'] ?>)</span><?php endforeach; else: ?><span class="muted" style="font-size:12px">ninguém na vitrine</span><?php endif; ?>
+    </div>
     <?php
       $gmGameToday = null;
       foreach (League::gamesByDay(League::currentDay()) as $gg) {
         if (((int)$gg['home_id'] === $gmId || (int)$gg['away_id'] === $gmId) && !$gg['played']) { $gmGameToday = $gg; break; }
       }
-    ?>
-    <p class="legend">O estilo acima é o padrão da equipe. Durante o jogo ao vivo você pode mudar a tática
-       quarto a quarto, fazer marcação dupla e pedir tempo.</p>
-    <?php if ($gmGameToday): ?>
-      <a class="btn btn-primary" href="<?= url('game', ['id'=>$gmGameToday['id'], 'live'=>1]) ?>">🎮 Comandar jogo de hoje (<?= e($gmGameToday['away_abbr']) ?> @ <?= e($gmGameToday['home_abbr']) ?>)</a>
-    <?php else: ?>
-      <p class="muted">Nenhum jogo seu pendente hoje. Avance a data no <a href="<?= url('home') ?>">Início</a>.</p>
+      if ($gmGameToday): ?>
+      <a class="btn btn-primary" style="margin-top:12px" href="<?= url('game', ['id'=>$gmGameToday['id'], 'live'=>1]) ?>">🎮 Comandar jogo de hoje (<?= e($gmGameToday['away_abbr']) ?> @ <?= e($gmGameToday['home_abbr']) ?>)</a>
     <?php endif; ?>
   </section>
 </div>
@@ -173,6 +204,8 @@ if (isset($_GET['saved'])): ?>
             <a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a>
             <span class="rr-pos"><?= e($p['pos']) ?></span>
             <?php if ($inj): ?><span class="badge-inj">🩹 <?= $inj ?>j</span><?php endif; ?>
+            <?php if (!empty($p['dev_focus'])): ?><span class="flag-pill focus">🎯</span><?php endif; ?>
+            <?php if (in_array((int)$p['id'], $block, true)): ?><span class="flag-pill block">📣</span><?php endif; ?>
           </div>
         </div>
         <div class="rr-ovr"><span class="ovr <?= $ovrc ?>"><?= $p['ovr'] ?></span></div>
@@ -192,39 +225,21 @@ if (isset($_GET['saved'])): ?>
 
 <?php render_decisions(League::pendingDecisions(), url('manage')); ?>
 
-<?php $oc = League::ownerConfidence(); $inbox = League::gmInbox(6); ?>
+<?php $upcoming = League::upcomingGames($gmId, 8); $nextGame = $upcoming[0] ?? null; ?>
 <div class="dashboard">
   <section class="card">
-    <div class="card-head"><h2>📥 Inbox do GM</h2>
-      <?php if ($oc): ?><span class="pill conf-<?= $oc['value']>=45?'ok':($oc['value']>=30?'warn':'bad') ?>">Diretoria: <?= e($oc['label']) ?> (<?= $oc['value'] ?>%)</span><?php endif; ?>
-    </div>
-    <?php if ($oc): ?><div class="conf-bar"><span style="width:<?= max(2,min(100,$oc['value'])) ?>%"></span></div><?php endif; ?>
-    <div class="inbox-list">
-      <?php foreach ($inbox as $m): ?>
-        <div class="inbox-item"><span class="ib-icon"><?= $m['icon'] ?></span>
-          <div><span class="ib-from"><?= e($m['from']) ?></span><?= e($m['text']) ?></div></div>
-      <?php endforeach; ?>
-      <?php if (!$inbox): ?><p class="muted">Sem mensagens no momento.</p><?php endif; ?>
-    </div>
-  </section>
-  <section class="card">
-    <?php
-      $upcoming = League::upcomingGames($gmId, 8);
-      $nextGame = $upcoming[0] ?? null;
-    ?>
     <div class="card-head"><h2>📅 Próximos jogos</h2></div>
     <?php render_team_schedule($upcoming); ?>
   </section>
+  <?php if (!empty($nextGame)): ?>
+  <section class="card">
+    <div class="card-head"><h2>🔍 Scouting do próximo adversário</h2></div>
+    <p class="muted" style="margin:0 0 10px">Próximo: <?= $nextGame['is_home'] ? 'vs' : '@' ?>
+      <strong><?= e($nextGame['opp_city'].' '.$nextGame['opp_name']) ?></strong> · 📅 <?= e(League::dateLabel((int)$nextGame['day'])) ?></p>
+    <?php render_scout_card(League::scoutReport((int)$nextGame['opp_id'], $gmId)); ?>
+  </section>
+  <?php endif; ?>
 </div>
-
-<?php if (!empty($nextGame)): ?>
-<section class="card">
-  <div class="card-head"><h2>🔍 Scouting do próximo adversário</h2></div>
-  <p class="muted" style="margin:0 0 10px">Próximo: <?= $nextGame['is_home'] ? 'vs' : '@' ?>
-    <strong><?= e($nextGame['opp_city'].' '.$nextGame['opp_name']) ?></strong> · 📅 <?= e(League::dateLabel((int)$nextGame['day'])) ?></p>
-  <?php render_scout_card(League::scoutReport((int)$nextGame['opp_id'], $gmId)); ?>
-</section>
-<?php endif; ?>
 
 <script>
 (function(){

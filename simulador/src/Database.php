@@ -167,7 +167,8 @@ class Database
             // de OVR e o teto calibrado uma única vez (meta cap_elite).
             $cols = array_column($db->query('PRAGMA table_info(players)')->fetchAll(), 'name');
             foreach (['drafted_by' => 'INTEGER DEFAULT 0', 'draft_round' => 'INTEGER DEFAULT 0',
-                      'draft_pos' => 'INTEGER DEFAULT 0', 'award_bonus' => 'INTEGER DEFAULT 0'] as $c => $ddl) {
+                      'draft_pos' => 'INTEGER DEFAULT 0', 'award_bonus' => 'INTEGER DEFAULT 0',
+                      'dev_focus' => 'INTEGER DEFAULT 0'] as $c => $ddl) {
                 if (!in_array($c, $cols)) $db->exec("ALTER TABLE players ADD COLUMN $c $ddl");
             }
             $flag = $db->query("SELECT v FROM meta WHERE k='cap_elite'")->fetchColumn();
@@ -177,8 +178,28 @@ class Database
                 // calouros já no elenco (seasons_pro=0) entram como 2ª rodada: rookie scale mínima
                 $db->exec("UPDATE players SET draft_round=2 WHERE retired=0 AND seasons_pro=0 AND draft_round=0");
                 Cap::refreshSalaries();
-                Cap::calibrate();
+                $cal = Cap::calibrate();
                 $db->prepare("INSERT INTO meta(k,v) VALUES('cap_elite','1') ON CONFLICT(k) DO UPDATE SET v='1'")->execute();
+                // Save antigo montado sem teto: o GM ganha a temporada corrente (ou a próxima,
+                // se está na entressafra) de carência antes de a liga travar o calendário.
+                $gm = (int) $db->query("SELECT v FROM meta WHERE k='gm_team'")->fetchColumn();
+                $season = (int) $db->query("SELECT v FROM meta WHERE k='season'")->fetchColumn();
+                $phase = (string) $db->query("SELECT v FROM meta WHERE k='phase'")->fetchColumn();
+                $grace = in_array($phase, ['offseason', 'lottery', 'draft', 'freeagency'], true) ? $season + 1 : $season;
+                $db->prepare("INSERT INTO meta(k,v) VALUES('cap_grace_season',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")->execute([(string) $grace]);
+                if ($gm) {
+                    $pay = (int) $db->query("SELECT COALESCE(SUM(salary),0) FROM players WHERE team_id=$gm AND retired=0")->fetchColumn();
+                    $capM = $cal['cap'];
+                    $txt = "A liga passou a usar o Salary Cap da FBA ELITE: salário só pelo OVR, teto de {$capM}M e piso de {$cal['floor']}M, regra dos 120% nas trocas e Trade Deadline. "
+                         . "Sua folha hoje é " . number_format($pay / 1000000, 1) . "M. "
+                         . "Você tem CARÊNCIA até o fim da temporada {$grace}: nesse período a liga não trava o calendário nem pune pelo piso — use-a para se adequar. Veja tudo em Folha & Cap.";
+                    try {
+                        $db->prepare("INSERT INTO inbox(season,day,kind,icon,sender,title,body,link,ref_id,is_read,urgent,created_at)
+                                      VALUES(?,?,?,?,?,?,?,?,0,0,1,?)")
+                           ->execute([$season, (int) $db->query("SELECT v FROM meta WHERE k='current_day'")->fetchColumn(), 'cap', '💰', 'Liga',
+                                      '💰 Novo Salary Cap da liga — carência até o fim da temporada ' . $grace, $txt, 'index.php?p=cap', date('c')]);
+                    } catch (Throwable $e) { /* inbox pode não existir num save muito antigo */ }
+                }
             }
         } catch (Throwable $e) { /* silencioso */ }
 
@@ -336,7 +357,8 @@ class Database
             drafted_by {INT} DEFAULT 0,
             draft_round {INT} DEFAULT 0,
             draft_pos {INT} DEFAULT 0,
-            award_bonus {INT} DEFAULT 0
+            award_bonus {INT} DEFAULT 0,
+            dev_focus {INT} DEFAULT 0
         ){ENGINE}"));
 
         $db->exec(self::ddl("CREATE TABLE season_stats (

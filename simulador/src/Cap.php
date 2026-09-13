@@ -64,7 +64,7 @@ class Cap
     /** Bônus por prêmio (milhões), válido só na temporada seguinte. */
     public static function awardBonusTable(): array
     {
-        return ['MVP' => 5, 'DPOY' => 3, 'ROY' => 2, 'Finals MVP' => 3,
+        return ['MVP' => 5, 'DPOY' => 3, 'ROY' => 2, 'Finals MVP' => 3, 'MIP' => 2, '6º Homem' => 2,
                 'All-NBA 1' => 3, 'All-NBA 2' => 2, 'All-NBA 3' => 1];
     }
 
@@ -554,6 +554,19 @@ class Cap
         return $s + ['deadline_day' => $dl, 'days_left' => $daysLeft, 'trades_open' => self::tradesOpen()];
     }
 
+    /** Temporada até a qual o save antigo tem carência (0 = sem carência). */
+    public static function graceSeason(): int
+    {
+        return (int) Database::meta('cap_grace_season', 0);
+    }
+
+    /** Ainda na carência: a liga não trava nem pune o GM. */
+    public static function inGrace(): bool
+    {
+        $g = self::graceSeason();
+        return $g > 0 && League::season() <= $g;
+    }
+
     /**
      * Mensagem de bloqueio quando o GM não pode avançar por causa da folha (null = pode).
      * Só o TETO trava o calendário. Ficar abaixo do piso não trava — custa uma
@@ -561,6 +574,7 @@ class Cap
      */
     public static function gmBlockMessage(string $momento, bool $floorToo = false): ?string
     {
+        if (self::inGrace()) return null;
         $c = self::gmCompliance();
         if (!$c) return null;
         if ($c['status'] === 'over') {
@@ -581,6 +595,7 @@ class Cap
      */
     public static function floorPenalty(int $teamId): ?string
     {
+        if (self::inGrace()) return null;
         $s = self::summary($teamId);
         if ($s['status'] !== 'under') return null;
         $db = Database::conn();

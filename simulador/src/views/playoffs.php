@@ -32,8 +32,11 @@ foreach ($bracket as $s) { $byRound[$s['round']][] = $s; }
       <?php foreach ($series as $s):
         $hw = (int)$s['high_wins']; $lw = (int)$s['low_wins'];
         $confLabel = $s['conf'] === 'E' ? 'Leste' : ($s['conf'] === 'W' ? 'Oeste' : 'Final'); ?>
-        <div class="series <?= $s['winner_id'] ? 'done' : '' ?>">
-          <div class="series-conf"><?= e($confLabel) ?></div>
+        <?php $stt = League::seriesStatus((int) $s['id']); ?>
+        <div class="series <?= $s['winner_id'] ? 'done' : '' ?> <?= $stt && $stt['tag'] && !$s['winner_id'] ? 'hot' : '' ?>">
+          <div class="series-conf"><?= e($confLabel) ?>
+            <?php if ($stt): ?><span class="series-stt"><?= $s['winner_id'] ? 'encerrada ' . max($hw, $lw) . '-' . min($hw, $lw) : e('jogo ' . min(7, $stt['game']) . ($stt['tag'] ? ' · ' . $stt['tag'] : '')) ?></span><?php endif; ?>
+          </div>
           <div class="series-team <?= $s['winner_id']==$s['high_seed_id']?'winner':'' ?>">
             <span class="seed"><?= $s['high_seed'] ?></span>
             <a href="<?= url('team',['id'=>$s['high_seed_id']]) ?>"><?= e($s['high_abbr']) ?></a>

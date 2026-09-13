@@ -124,7 +124,16 @@ render_header('Início');
 
 <?php if (!empty($_GET['dmsg'])): ?><div class="injury-note" style="background:#10371f;border-color:#1f6b3a;color:#9bffc0"><?= e($_GET['dmsg']) ?></div><?php endif; ?>
 
-<?php $gmHero = $gmId && $gmTeamData && in_array($phase, ['regular','playin','playoffs']); ?>
+<?php if ($gmId && League::isFired()): ?>
+<div class="fired-banner">
+  <div class="fb-kicker">🔴 Demitido</div>
+  <h1>A diretoria do <?= e(teamFull($gmTeamData)) ?> te dispensou.</h1>
+  <p>A paciência acabou depois das temporadas abaixo da meta. A liga só continua quando você assumir outra franquia.</p>
+  <a class="btn btn-primary btn-lg" href="<?= url('gmselect') ?>">Escolher nova franquia →</a>
+</div>
+<?php endif; ?>
+
+<?php $gmHero = $gmId && $gmTeamData && in_array($phase, ['regular','playin','playoffs']) && !League::isFired(); ?>
 
 <?php if ($gmHero):
   $g2 = (int)$gmTeamData['wins'] + (int)$gmTeamData['losses'];
@@ -185,6 +194,12 @@ render_header('Início');
       <div class="gmh-mission-desc"><?= e($goal['desc']) ?></div>
       <div class="gmh-mission-detail"><?= e($goal['detail']) ?>
         <span class="gmh-mission-badge"><?= ['andamento'=>'em andamento','cumprida'=>'✅ cumprida','falhou'=>'❌ não cumprida'][$goal['status']] ?></span>
+      </div>
+      <?php $pat = League::boardPatience(); ?>
+      <div class="gmh-patience" title="Meta cumprida enche; meta perdida gasta. Zerou, você é demitido.">
+        Paciência da diretoria
+        <span class="pat-dots"><?php for ($i = 1; $i <= League::PATIENCE_MAX; $i++): ?><i class="<?= $i <= $pat ? 'on' : '' ?>"></i><?php endfor; ?></span>
+        <?= $pat <= 1 ? '<span class="pat-warn">última chance</span>' : '' ?>
       </div>
     </div>
     <?php endif; ?>

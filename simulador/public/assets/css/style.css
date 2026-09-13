@@ -2589,3 +2589,39 @@ h1.page-title {
   .card-head.page .page-title { width:100%; }
   .season-select { max-width:100%; }
 }
+
+/* =================================================================
+   DIRETORIA (paciência/demissão), FOCO DE TREINO, VITRINE, TÉCNICO
+   ================================================================= */
+.gmh-patience { display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10px;letter-spacing:.6px;text-transform:uppercase;opacity:.9; }
+.pat-dots { display:inline-flex;gap:4px; }
+.pat-dots i { width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);display:inline-block; }
+.pat-dots i.on { background:#2bd47a;border-color:#2bd47a;box-shadow:0 0 8px rgba(43,212,122,.6); }
+.pat-warn { color:#ff9aa3;font-weight:800; }
+.fired-banner { border:1px solid rgba(255,91,103,.5);background:linear-gradient(135deg,rgba(120,0,20,.55),#141414);border-radius:14px;padding:22px 24px;margin-bottom:18px; }
+.fired-banner .fb-kicker { font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#ff9aa3;font-weight:800; }
+.fired-banner h1 { font-family:var(--display);font-size:26px;margin:6px 0 6px; }
+.fired-banner p { color:#ccc;font-size:13px;max-width:720px;margin:0 0 12px; }
+.gm-card-static { opacity:.75; }
+.gm-card-static:hover { transform:none; }
+.series-stt { display:block;font-size:9px;color:#999;letter-spacing:.3px;text-transform:none;margin-top:2px; }
+.series.hot { border-color:rgba(245,166,35,.55); }
+.series.hot .series-stt { color:#f5a623;font-weight:700; }
+/* técnico: card fixo com barras, sem inputs (os atributos pesam no jogo) */
+.coach-static { display:grid;grid-template-columns:auto 1fr;gap:16px 22px;align-items:start; }
+.coach-static .coach-attrs { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 18px; }
+.coach-static .car-num { border:none;background:none;color:var(--text);font-weight:800;width:auto;text-align:right; }
+.coach-effect { font-size:11px;color:#888;margin-top:8px;line-height:1.5; }
+@media(max-width:640px){ .coach-static { grid-template-columns:1fr; } }
+/* diretoria no Meu Time */
+.board-panel { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px; }
+.board-box { background:rgba(255,255,255,.03);border:1px solid #242424;border-radius:10px;padding:12px 14px; }
+.board-box .bb-lbl { font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#888; }
+.board-box .bb-val { font-family:var(--display);font-size:22px;font-weight:800;margin-top:2px; }
+.board-box .bb-sub { font-size:11px;color:#aaa;margin-top:2px; }
+/* escalação: selos de foco/vitrine */
+.ls-flag { position:absolute;left:8px;bottom:8px;display:flex;gap:4px; }
+.flag-pill { font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:#222;color:#bbb; }
+.flag-pill.focus { background:rgba(74,144,226,.2);color:#7fb3ff; }
+.flag-pill.block { background:rgba(245,166,35,.2);color:#f5a623; }
+.bench-card .bc-flags { display:flex;gap:4px;margin-top:4px; }

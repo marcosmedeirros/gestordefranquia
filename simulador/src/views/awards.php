@@ -17,6 +17,8 @@ $main = [
   'Finals MVP' => ['🏆', 'MVP das Finais', 'Decisivo na série do título'],
   'DPOY' => ['🛡️', 'Defensor do Ano', 'Tocos, roubos e presença'],
   'ROY' => ['🌟', 'Novato do Ano', 'O melhor calouro'],
+  '6º Homem' => ['🪑', '6º Homem do Ano', 'O melhor saindo do banco'],
+  'MIP' => ['📈', 'Jogador que Mais Evoluiu', 'Maior salto de OVR'],
 ];
 $gmAwards = $gmId ? array_values(array_filter($aw, fn($a) => (int) $a['team_id'] === $gmId)) : [];
 $myHist = $gmId ? League::teamSeasonHistory($gmId) : [];
@@ -73,7 +75,7 @@ render_header('Premiação');
     <?php else: ?>
       <p class="muted" style="font-size:12px">Nenhum jogador seu foi premiado nesta temporada.</p>
     <?php endif; ?>
-    <p class="legend" style="margin-top:10px">Os bônus de prêmio (MVP +5M, DPOY +3M, MVP das Finais +3M, ROY +2M, All-NBA +3/+2/+1M) entram na folha dos premiados na próxima temporada.</p>
+    <p class="legend" style="margin-top:10px">Os bônus de prêmio (MVP +5M, DPOY +3M, MVP das Finais +3M, ROY +2M, 6º Homem +2M, MIP +2M, All-NBA +3/+2/+1M) entram na folha dos premiados na próxima temporada.</p>
   </section>
   <?php endif; ?>
 </div>

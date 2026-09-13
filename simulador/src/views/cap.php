@@ -31,6 +31,7 @@ $fmtM = fn($v) => Cap::m((int) $v);
 </div>
 
 <?php if ($err): ?><div class="cap-alert cap-alert-danger">⛔ <?= e($err) ?></div><?php endif; ?>
+<?php if ($gmId && Cap::inGrace()): ?><div class="cap-alert cap-alert-ok">🕊️ Carência: seu save é anterior ao Salary Cap. Até o fim da temporada <?= Cap::graceSeason() ?> a liga não trava o calendário nem pune pelo piso — use esse tempo para se adequar.</div><?php endif; ?>
 <?php if ($msg): ?><div class="cap-alert cap-alert-ok"><?= e($msg) ?></div><?php endif; ?>
 
 <p class="legend">As regras da <strong>FBA ELITE</strong>: o salário de cada jogador vem <strong>só do OVR</strong> (99 = $60M … 78 = $3M, 77 ou menos = $2M),
