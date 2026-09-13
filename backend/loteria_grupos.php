@@ -162,6 +162,23 @@ function loteriaTexto(PDO $pdo, string $liga): string
         foreach ($ordem as $o) {
             $l[] = str_pad((string)(int)$o['pick_position'], 2, ' ', STR_PAD_LEFT) . '. ' . $o['time_nome'];
         }
+
+        /* NÃO SAÍRAM: os times da liga que não são donos de nenhuma escolha da
+           1ª rodada — trocaram a pick (ou perderam). A lista acima é por dono,
+           então quem tem duas aparece duas vezes e quem não tem nenhuma sumia
+           sem aviso; aqui ele aparece. */
+        $st = $pdo->prepare("SELECT t.name FROM teams t
+                              WHERE t.league = ?
+                                AND t.id NOT IN (SELECT o2.team_id FROM draft_order o2
+                                                  WHERE o2.draft_session_id = ? AND o2.round = 1)
+                           ORDER BY t.name");
+        $st->execute([$liga, (int)$sessao['id']]);
+        $semEscolha = $st->fetchAll(PDO::FETCH_COLUMN);
+        if ($semEscolha) {
+            $l[] = '';
+            $l[] = '*Não saíram*';
+            foreach ($semEscolha as $nome) $l[] = '• ' . $nome;
+        }
         return implode("\n", $l);
     }
 
