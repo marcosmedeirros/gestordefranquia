@@ -111,6 +111,10 @@ function lwGarantirTabelas(PDO $pdo): void
         if (!$pdo->query("SHOW COLUMNS FROM leilao_whats LIKE 'pick_id'")->fetch()) {
             $pdo->exec("ALTER TABLE leilao_whats ADD COLUMN pick_id INT NULL, ADD COLUMN leiloado_texto VARCHAR(120) NULL");
         }
+        // Avisos de "faltam 5 minutos" / "falta 1 minuto" já enviados no Gameplay.
+        if (!$pdo->query("SHOW COLUMNS FROM leilao_whats LIKE 'aviso_5'")->fetch()) {
+            $pdo->exec("ALTER TABLE leilao_whats ADD COLUMN aviso_5 TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN aviso_1 TINYINT(1) NOT NULL DEFAULT 0");
+        }
         $col = $pdo->query("SHOW COLUMNS FROM leilao_jogadores LIKE 'player_id'")->fetch(PDO::FETCH_ASSOC);
         if ($col && strtoupper((string)$col['Null']) === 'NO') {
             $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN player_id INT NULL");
@@ -1322,6 +1326,7 @@ function lwDespachar(PDO $pdo): void
                 lwEncerrar($pdo, (int)$lw['id']);
                 continue;
             }
+            lwAvisarTempo($pdo, $lw);
             // Dono sem responder a proposta da vez: recusa por tempo e libera a fila.
             if (!empty($fila['na_vez']) && lwExpirarVez($pdo, $lw)) {
                 $fila['na_vez'] = 0;
@@ -1332,6 +1337,37 @@ function lwDespachar(PDO $pdo): void
         }
     } catch (Throwable $e) {
         error_log('[leilao_whats] despachar: ' . $e->getMessage());
+    }
+}
+
+/**
+ * "⏰ FALTAM 5 MINUTOS" e "⏰ FALTA 1 MINUTO" no Gameplay, contados pelo prazo
+ * final do leilão (fim_max). Cada um sai uma vez: o UPDATE condicional é a
+ * trava, então dois pulsos do worker juntos não mandam o aviso duas vezes.
+ * Leilão que abriu com menos tempo que isso (não acontece hoje) só pula o aviso.
+ */
+function lwAvisarTempo(PDO $pdo, array $lw): void
+{
+    $resta = strtotime((string)$lw['fim_max']) - time();
+    if ($resta <= 0) return;
+    foreach ([1 => 60, 5 => 300] as $min => $seg) {
+        if ($resta > $seg || !empty($lw["aviso_{$min}"])) continue;
+        // Marca também o de 5 quando já está no último minuto: não manda os dois de uma vez.
+        $up = $pdo->prepare("UPDATE leilao_whats SET aviso_{$min} = 1" . ($min === 1 ? ", aviso_5 = 1" : '')
+                          . " WHERE id = ? AND aviso_{$min} = 0");
+        $up->execute([(int)$lw['id']]);
+        if ($up->rowCount() < 1) return;
+        $leiloado = lwCompletarLeiloado($lw + ['jogador' => '']);
+        if (empty($leiloado['jogador'])) {
+            $st = $pdo->prepare("SELECT p.name FROM leilao_jogadores l JOIN players p ON p.id = l.player_id WHERE l.id = ?");
+            $st->execute([(int)$lw['leilao_id']]);
+            $leiloado['jogador'] = (string)$st->fetchColumn();
+        }
+        $txt = ($min === 1 ? "⏰ *FALTA 1 MINUTO*" : "⏰ *FALTAM 5 MINUTOS*")
+             . ($leiloado['jogador'] !== '' ? " no leilão de *{$leiloado['jogador']}*" : ' no leilão')
+             . ".\n\nÚltima chance: /oferta no privado do bot.";
+        whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO);
+        return;
     }
 }
 
