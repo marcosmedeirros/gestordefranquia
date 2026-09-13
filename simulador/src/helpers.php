@@ -48,7 +48,7 @@ function player_photo_url(int $nbaId, string $name, string $teamColor = '#1a1a2e
         return "https://cdn.nba.com/headshots/nba/latest/260x190/{$nbaId}.png";
     }
     $pid = $playerId ?: (abs(crc32($name)) % 9000 + 1);
-    return APP_BASE . '/face.php?id=' . $pid . '&name=' . rawurlencode($name) . '&pos=' . rawurlencode($pos);
+    return APP_BASE . '/face.php?id=' . $pid . '&name=' . rawurlencode($name) . '&pos=' . rawurlencode($pos) . '&c=' . rawurlencode(ltrim($teamColor, '#'));
 }
 
 /**
@@ -60,7 +60,7 @@ function player_photo(int $nbaId, string $name, string $teamColor = '#1a1a2e', s
     $sizes = ['sm'=>40,'md'=>64,'lg'=>96,'hero'=>140,'xl'=>180];
     $px  = $sizes[$size] ?? 64;
     $pid = $playerId ?: (abs(crc32($name)) % 9000 + 1);
-    $faceUrl  = APP_BASE . '/face.php?id=' . $pid . '&name=' . rawurlencode($name) . '&pos=' . rawurlencode($pos);
+    $faceUrl  = APP_BASE . '/face.php?id=' . $pid . '&name=' . rawurlencode($name) . '&pos=' . rawurlencode($pos) . '&c=' . rawurlencode(ltrim($teamColor, '#'));
     $baseClass = 'player-photo player-photo-' . $size . ($class ? ' ' . $class : '');
     if ($nbaId > 0) {
         $cdn = "https://cdn.nba.com/headshots/nba/latest/260x190/{$nbaId}.png";

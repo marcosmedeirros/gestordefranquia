@@ -246,7 +246,7 @@ if ($upcoming):
     const inBlock = TRADE_BLOCK.includes(pid);
     const focusOn = parseInt(p.dev_focus || 0) === 1;
     const young = parseInt(p.age) <= 25;
-    const faceUrl = appBase+'/face.php?id='+pid+'&name='+encodeURIComponent(p.name)+'&pos='+(p.pos||'');
+    const faceUrl = appBase+'/face.php?id='+pid+'&name='+encodeURIComponent(p.name)+'&pos='+(p.pos||'')+'&c=<?= e(ltrim($t['primary_color'] ?? '', '#')) ?>';
     const cdnUrl  = p.nba_id > 0 ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null;
     const photoSrc = cdnUrl || faceUrl;
     const photoErr = cdnUrl ? `this.onerror=null;this.src='${faceUrl}'` : `this.src='${appBase}/face.php?id=1&name=Player'`;
