@@ -3517,8 +3517,7 @@ function wcFantasy(PDO $pdo, string $arg, string $deQuem): string
 /**
  * /fantasyescalados — os 10 jogadores mais escalados na rodada de agora.
  *
- * Conta em quantos times o jogador está (titular ou 6º homem) e em quantos é
- * capitão. Com o mercado aberto a lista é parcial e diz isso; ela não abre a
+ * Conta em quantos times o jogador está (titular ou 6º homem). Com o mercado aberto a lista é parcial e diz isso; ela não abre a
  * escalação de ninguém, só o agregado.
  */
 function wcFantasyEscalados(PDO $pdo): string
@@ -3526,19 +3525,17 @@ function wcFantasyEscalados(PDO $pdo): string
     require_once __DIR__ . '/../backend/fantasy.php';
     $r = fanRodadaAtual($pdo);
     if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
-    $st = $pdo->prepare("SELECT pg, sg, sf, pf, c, reserva, capitao FROM fantasy_escalacoes WHERE rodada_id = ?");
+    $st = $pdo->prepare("SELECT pg, sg, sf, pf, c, reserva FROM fantasy_escalacoes WHERE rodada_id = ?");
     $st->execute([(int)$r['id']]);
     $times = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$times) return "Ninguém escalou na rodada T{$r['season_number']} ainda.";
 
-    $vezes = []; $cap = [];
+    $vezes = [];
     foreach ($times as $e) {
         foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
             $pid = (int)($e[$k] ?? 0);
             if ($pid > 0) $vezes[$pid] = ($vezes[$pid] ?? 0) + 1;
         }
-        $c = (int)($e['capitao'] ?? 0);
-        if ($c > 0) $cap[$c] = ($cap[$c] ?? 0) + 1;
     }
     arsort($vezes);
     $top = array_slice($vezes, 0, 10, true);
@@ -3550,8 +3547,7 @@ function wcFantasyEscalados(PDO $pdo): string
     foreach ($top as $pid => $n) {
         $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
         $pct = round($n / count($times) * 100);
-        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — {$n} " . ($n === 1 ? 'time' : 'times') . " ({$pct}%)"
-              . (!empty($cap[$pid]) ? " · capitão em {$cap[$pid]}" : '') . "\n";
+        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — {$n} " . ($n === 1 ? 'time' : 'times') . " ({$pct}%)\n";
         $i++;
     }
     return rtrim($txt);
