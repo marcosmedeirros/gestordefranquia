@@ -433,6 +433,24 @@ if ($copa && $userId) {
   .bt-envio:hover{border-color:var(--ouro);color:var(--ouro-2)}
   .envio.ocupado .bt-envio{opacity:.55;pointer-events:none}
   .envio-dica{font-size:11.5px;color:var(--text-3);line-height:1.5;flex:1;min-width:180px}
+  /* Modo com foto: um cartão por competidor, a foto e o nome do lado. */
+  .foto-link{display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap}
+  .foto-link input{flex:1;min-width:210px}
+  .fotos-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-bottom:9px}
+  .fotos-lista[hidden]{display:none}
+  .foto-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;
+             border:1px solid var(--border-md);background:var(--panel-2)}
+  .foto-item.quebrada,.foto-item.sem-nome{border-color:rgba(239,68,68,.6)}
+  .foto-thumb{width:54px;height:54px;border-radius:8px;object-fit:cover;flex:none;background:var(--panel-3)}
+  .foto-thumb.vazia{display:grid;place-items:center;font-weight:900;font-size:18px;color:var(--text-3)}
+  .foto-campos{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .foto-campos input.foto-nome{padding:7px 9px;font-size:13px}
+  .foto-aviso{font-size:10.5px;font-weight:700;color:#f87171;line-height:1.3}
+  .foto-aviso.neutro{color:var(--text-3);font-weight:600}
+  .foto-x{flex:none;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-md);
+          background:transparent;color:var(--text-3);cursor:pointer;font-size:13px}
+  .foto-x:hover{border-color:var(--vermelho);color:var(--vermelho)}
+  @media (max-width:560px){ .fotos-lista{grid-template-columns:1fr} }
   .lado.vence{color:var(--ouro-2)}
   .lado.vence .n{color:var(--ouro-2)}
   .lado.perde{opacity:.42}
@@ -591,19 +609,31 @@ if ($copa && $userId) {
         </div>
 
         <?php /* O envio fica junto do modo com foto e não num passo separado:
-                 escolher os arquivos JÁ é montar a lista — cada foto vira uma
-                 linha "Nome | url" com o nome tirado do arquivo, pronta pra
-                 corrigir antes de sortear. */ ?>
+                 escolher os arquivos JÁ é montar a lista. Cada foto vira um
+                 cartão com a miniatura e, do lado, o campo do nome (tirado do
+                 arquivo, pronto pra corrigir). Link colado vira cartão também,
+                 e a miniatura mostra na hora se o link é mesmo de imagem — link
+                 de página (matéria, post) não aparece como foto na copa.
+                 O textarea continua sendo o que vai pro servidor ("Nome | url"
+                 por linha); no modo com foto ele fica escondido e o script o
+                 reescreve a cada mudança nos cartões. */ ?>
         <div class="envio" id="envio" style="display:none">
           <label class="bt-envio">
             <i class="bi bi-upload"></i> Enviar fotos do computador
             <input type="file" id="arquivos" accept="image/*" multiple hidden>
           </label>
           <span class="envio-dica" id="envioDica">
-            Dá pra escolher várias de uma vez — o nome do arquivo vira o nome
-            do competidor.
+            Dá pra escolher várias de uma vez — cada foto aparece aqui embaixo
+            com o nome pra você ajustar.
           </span>
         </div>
+        <div class="foto-link" id="fotoLink" style="display:none">
+          <input type="text" id="linkFoto" autocomplete="off"
+                 placeholder="Ou cole o link: botão direito na foto → Copiar endereço da IMAGEM">
+          <button type="button" class="bt" id="btLink"><i class="bi bi-link-45deg"></i> Adicionar link</button>
+          <button type="button" class="bt" id="btSemFoto"><i class="bi bi-plus-lg"></i> Só nome</button>
+        </div>
+        <div class="fotos-lista" id="fotosLista" hidden></div>
         <textarea name="nomes" id="nomes" required
                   placeholder="Coxinha&#10;Pastel&#10;Empada&#10;Kibe"><?= $esc($form['nomes']) ?></textarea>
         <div class="dica" id="previsao">
@@ -611,8 +641,8 @@ if ($copa && $userId) {
           e linhas vazias são descartados.
         </div>
         <div class="dica" id="dicaFoto" style="display:none">
-          Uma linha por competidor: <b>Nome | link da foto</b>. Quem ficar sem
-          link aparece só com o nome — dá pra misturar.
+          Cada competidor é um cartão: <b>a foto e, do lado, o nome que vai
+          aparecer</b>. Quem ficar sem foto aparece só com o nome — dá pra misturar.
         </div>
         <?php /* Os presets não travam nada: são só um atalho pra saber quantos
                  faltam. Qualquer número de 2 a 64 monta chaveamento.
@@ -1049,7 +1079,10 @@ if ($copa && $userId) {
   function atualizar() {
     var n = limpos().length;
     conta.textContent = n ? '(' + n + ')' : '';
-    if (n < 2) { prev.textContent = base; return; }
+    if (n < 2) {
+      prev.textContent = modoAtual() === 'fotos' ? 'Envie as fotos ou adicione os competidores acima — são pelo menos 2.' : base;
+      return;
+    }
     if (n > 64) { prev.textContent = 'São ' + n + ' — o máximo é 64.'; return; }
 
     var slots = 2; while (slots < n) slots *= 2;
@@ -1067,42 +1100,177 @@ if ($copa && $userId) {
   /* ── Os dois modos de entrada ─────────────────────────────────────── */
   var campoModo = document.getElementById('campoModo');
   var dicaFoto  = document.getElementById('dicaFoto');
-  document.querySelectorAll('.modo').forEach(function (b) {
-    b.addEventListener('click', function () {
-      document.querySelectorAll('.modo').forEach(function (x) { x.classList.remove('on'); });
-      b.classList.add('on');
-      var comFoto = b.dataset.modo === 'fotos';
-      campoModo.value = b.dataset.modo;
-      dicaFoto.style.display = comFoto ? '' : 'none';
-      document.getElementById('envio').style.display = comFoto ? '' : 'none';
-      // A previsão do chaveamento fica nos DOIS modos: saber quantas rodadas
-      // e quantos byes vão sair importa igual, com foto ou sem.
-      ta.placeholder = comFoto
-        ? 'Coxinha | https://exemplo.com/coxinha.jpg\nPastel | https://exemplo.com/pastel.jpg\nEmpada'
-        : 'Coxinha\nPastel\nEmpada\nKibe';
-      atualizar();
+  var envio     = document.getElementById('envio');
+  var linkRow   = document.getElementById('fotoLink');
+  var linkInput = document.getElementById('linkFoto');
+  var listaEl   = document.getElementById('fotosLista');
+  var inputArq  = document.getElementById('arquivos');
+  var envioDica = document.getElementById('envioDica');
+  var dicaBase  = envioDica ? envioDica.textContent : '';
+  var timerDica = null;
+
+  function avisoEnvio(texto, ms) {
+    envioDica.textContent = texto;
+    clearTimeout(timerDica);
+    timerDica = setTimeout(function () { envioDica.textContent = dicaBase; }, ms || 7000);
+  }
+
+  /* ── Cartões do modo com foto ──────────────────────────────────────
+   *
+   * Cada competidor é um cartão: miniatura, o nome do lado e um X pra tirar.
+   * Antes eram linhas "Nome | link" num textarea, e errar o link (colar o
+   * endereço da matéria em vez do da foto) só aparecia depois de sortear —
+   * a copa nascia sem foto nenhuma. Agora a miniatura quebrada avisa na hora.
+   *
+   * O textarea continua sendo o que vai pro servidor: escondido, reescrito a
+   * cada mudança. O motor da copa e a contagem de cima não mudaram.
+   */
+  var itens = [];   // [{nome, url, quebrada}]
+
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  function sincronizar() {
+    ta.value = itens.map(function (it) {
+      return it.nome.trim() + (it.url ? ' | ' + it.url : '');
+    }).join('\n');
+    atualizar();
+  }
+
+  function desenharLista() {
+    listaEl.innerHTML = itens.map(function (it, i) {
+      var inicial = (it.nome.trim().charAt(0) || '?').toUpperCase();
+      var aviso = it.quebrada ? '<span class="foto-aviso">Esse link não abre como imagem — troque pelo endereço da foto</span>'
+                : (!it.url ? '<span class="foto-aviso neutro">Sem foto — aparece só o nome</span>' : '');
+      return '<div class="foto-item' + (it.quebrada ? ' quebrada' : '') + '" data-i="' + i + '">'
+        + (it.url ? '<img class="foto-thumb" src="' + escAttr(it.url) + '" alt="" data-i="' + i + '">'
+                  : '<span class="foto-thumb vazia">' + escAttr(inicial) + '</span>')
+        + '<div class="foto-campos">'
+        +   '<input type="text" class="foto-nome" data-i="' + i + '" maxlength="80" placeholder="Nome que aparece na copa" value="' + escAttr(it.nome) + '">'
+        +   aviso
+        + '</div>'
+        + '<button type="button" class="foto-x" data-i="' + i + '" aria-label="Tirar ' + escAttr(it.nome || 'este competidor') + '"><i class="bi bi-x-lg"></i></button>'
+        + '</div>';
+    }).join('');
+    listaEl.hidden = !itens.length;
+    listaEl.querySelectorAll('img.foto-thumb').forEach(function (img) {
+      img.addEventListener('error', function () {
+        var it = itens[Number(img.dataset.i)];
+        if (it && !it.quebrada) { it.quebrada = true; desenharLista(); }
+      }, { once: true });
+    });
+  }
+
+  function adicionar(novos, focar) {
+    var primeiro = itens.length;
+    novos.forEach(function (n) { itens.push({ nome: n.nome || '', url: n.url || '', quebrada: false }); });
+    desenharLista();
+    sincronizar();
+    if (focar) {
+      var el = listaEl.querySelector('.foto-nome[data-i="' + primeiro + '"]');
+      if (el) { el.focus(); el.select(); }
+    }
+  }
+
+  // Digitar o nome não redesenha a lista: redesenhar tiraria o foco do campo.
+  listaEl.addEventListener('input', function (e) {
+    var el = e.target.closest('.foto-nome');
+    if (!el) return;
+    itens[Number(el.dataset.i)].nome = el.value;
+    el.closest('.foto-item').classList.remove('sem-nome');
+    sincronizar();
+  });
+  listaEl.addEventListener('click', function (e) {
+    var x = e.target.closest('.foto-x');
+    if (!x) return;
+    itens.splice(Number(x.dataset.i), 1);
+    desenharLista();
+    sincronizar();
+  });
+
+  /* Link colado. Três casos:
+     - "Copiar endereço da imagem" no Google Imagens costuma dar um data:image
+       com milhares de caracteres — não cabe na copa (400). Ele vira arquivo e
+       sobe pelo mesmo envio das fotos do computador.
+     - Link http longo demais também não cabe: pede pra salvar e enviar.
+     - "Copiar endereço do LINK" dá o endereço da página, não da foto: entra,
+       e a miniatura quebrada avisa na hora (ver desenharLista). */
+  async function adicionarLink() {
+    var u = linkInput.value.trim();
+    if (!u) { linkInput.focus(); return; }
+    if (/^data:image\//i.test(u)) {
+      linkInput.value = '';
+      try {
+        var blob = await (await fetch(u)).blob();
+        var ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*$/, '');
+        await enviarArquivos([new File([blob], 'imagem.' + ext, { type: blob.type })], true);
+      } catch (e) {
+        avisoEnvio('Não deu pra usar essa imagem colada. Salve a foto e envie pelo botão.');
+      }
+      return;
+    }
+    if (!/^https?:\/\//i.test(u)) {
+      avisoEnvio('O link precisa começar com http:// ou https:// — clique com o botão direito na foto e use "Copiar endereço da imagem".');
+      return;
+    }
+    if (u.length > 400) {
+      avisoEnvio('Esse link é longo demais pra copa. Salve a imagem no computador e envie pelo botão.', 9000);
+      return;
+    }
+    linkInput.value = '';
+    adicionar([{ nome: '', url: u }], true);
+  }
+  document.getElementById('btLink').addEventListener('click', adicionarLink);
+  document.getElementById('btSemFoto').addEventListener('click', function () { adicionar([{ nome: '', url: '' }], true); });
+  linkInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); adicionarLink(); }
+  });
+
+  /** "Nome | url" por linha (ou só "Nome") vira cartões. */
+  function linhasParaItens(texto) {
+    return texto.split('\n').map(function (l) {
+      var p = l.split('|');
+      return { nome: p[0].trim().replace(/\s+/g, ' '), url: p.slice(1).join('|').trim() };
+    }).filter(function (it) { return it.nome || it.url; });
+  }
+
+  function aplicarModo(modo) {
+    var comFoto = modo === 'fotos';
+    var eraFoto = campoModo.value === 'fotos';
+    document.querySelectorAll('.modo').forEach(function (x) { x.classList.toggle('on', x.dataset.modo === modo); });
+    campoModo.value = modo;
+    dicaFoto.style.display = comFoto ? '' : 'none';
+    envio.style.display = comFoto ? '' : 'none';
+    linkRow.style.display = comFoto ? '' : 'none';
+    // No modo com foto quem aparece são os cartões; o textarea só carrega os dados.
+    ta.style.display = comFoto ? 'none' : '';
+    ta.required = !comFoto;
+    if (comFoto && !eraFoto) { itens = linhasParaItens(ta.value); desenharLista(); }
+    if (!comFoto) listaEl.hidden = true;
+    // A previsão do chaveamento fica nos DOIS modos: saber quantas rodadas
+    // e quantos byes vão sair importa igual, com foto ou sem.
+    atualizar();
+  }
+  document.querySelectorAll('.modo').forEach(function (b) {
+    b.addEventListener('click', function () { aplicarModo(b.dataset.modo); });
   });
 
   /* ── Envio de fotos ───────────────────────────────────────────────
    *
-   * Cada foto que sobe vira uma linha "Nome | url" no fim do textarea. O
-   * texto que já estava fica: quem envia em duas levas não perde a
-   * primeira, e quem já digitou nomes à mão vê as fotos chegarem embaixo.
+   * Cada foto que sobe vira um cartão no fim da lista, com o nome tirado do
+   * arquivo e o campo focado pra corrigir. Os cartões que já estavam ficam:
+   * quem envia em duas levas não perde a primeira.
    *
    * Envia TUDO numa requisição só. Uma por arquivo seriam 32 idas ao
    * servidor pra montar uma copa, e a primeira que falhasse deixaria a
    * lista pela metade sem ninguém saber quais entraram.
    */
-  var envio = document.getElementById('envio');
-  var inputArq = document.getElementById('arquivos');
-  var envioDica = document.getElementById('envioDica');
-  var dicaBase = envioDica ? envioDica.textContent : '';
-
-  if (inputArq) inputArq.addEventListener('change', async function () {
-    var arqs = [...inputArq.files];
+  /** Sobe as imagens e vira cartões. semNome: imagem colada não tem nome de arquivo que sirva. */
+  async function enviarArquivos(arqs, semNome) {
     if (!arqs.length) return;
-
     var fd = new FormData();
     arqs.forEach(function (f) { fd.append('fotos[]', f); });
 
@@ -1116,26 +1284,59 @@ if ($copa && $userId) {
       var d = await r.json();
       if (!d.ok) throw new Error(d.erro || 'não deu');
 
-      var linhas = d.fotos.map(function (f) { return f.nome + ' | ' + f.url; });
-      if (linhas.length) {
-        var atual = ta.value.replace(/\s*$/, '');
-        ta.value = (atual ? atual + '\n' : '') + linhas.join('\n');
-        ta.dispatchEvent(new Event('input'));
+      if (d.fotos.length) {
+        adicionar(d.fotos.map(function (f) { return { nome: semNome ? '' : f.nome, url: f.url }; }), true);
       }
 
       // Os que falharam aparecem NOMEADOS. "3 de 16 falharam" faria a pessoa
       // conferir as dezesseis pra descobrir quais.
-      envioDica.textContent = linhas.length + ' foto(s) na lista.'
-        + (d.erros && d.erros.length ? ' Fora: ' + d.erros.join('; ') : '');
+      avisoEnvio(d.fotos.length + ' foto(s) na lista — ' + (semNome ? 'escreva o nome.' : 'confira os nomes.')
+        + (d.erros && d.erros.length ? ' Fora: ' + d.erros.join('; ') : ''), 9000);
     } catch (e) {
-      envioDica.textContent = 'Não deu pra enviar: ' + (e.message || 'erro');
+      avisoEnvio('Não deu pra enviar: ' + (e.message || 'erro'));
     } finally {
       envio.classList.remove('ocupado');
-      // Zera o input pra escolher o MESMO arquivo de novo disparar o change.
-      inputArq.value = '';
-      setTimeout(function () { envioDica.textContent = dicaBase; }, 6000);
     }
+  }
+
+  if (inputArq) inputArq.addEventListener('change', async function () {
+    var arqs = [...inputArq.files];
+    // Zera o input pra escolher o MESMO arquivo de novo disparar o change.
+    inputArq.value = '';
+    await enviarArquivos(arqs, false);
   });
+
+  /* Antes de sortear, no modo com foto: todo cartão com nome, sem nome
+     repetido (o servidor descartaria o segundo, e a foto dele sumiria) e sem
+     link que não abre como imagem. O sorteio não se desfaz. */
+  ta.form.addEventListener('submit', function (e) {
+    if (campoModo.value !== 'fotos') return;
+    sincronizar();
+    var semNome = 0, quebradas = 0, vistos = {}, repetido = '';
+    listaEl.querySelectorAll('.foto-item').forEach(function (el) {
+      var it = itens[Number(el.dataset.i)];
+      var nome = it.nome.trim().replace(/\s+/g, ' ');
+      if (!nome) { semNome++; el.classList.add('sem-nome'); }
+      else if (vistos[nome.toLowerCase()]) { repetido = repetido || nome; el.classList.add('sem-nome'); }
+      else vistos[nome.toLowerCase()] = 1;
+      if (it.quebrada) quebradas++;
+    });
+    var problema = !itens.length ? 'Envie as fotos ou adicione os competidores antes de sortear.'
+      : semNome ? (semNome === 1 ? 'Falta o nome de 1 competidor.' : 'Faltam os nomes de ' + semNome + ' competidores.')
+      : repetido ? 'Tem dois competidores chamados "' + repetido + '". Troque um dos nomes.'
+      : quebradas ? (quebradas === 1 ? '1 link não abre como imagem: troque pelo endereço da foto ou tire antes de sortear.'
+                                     : quebradas + ' links não abrem como imagem: troque pelo endereço da foto ou tire antes de sortear.')
+      : '';
+    if (!problema) return;
+    e.preventDefault();
+    // popup do site (js/popups.js); sem ele, o aviso vai pra dica do envio
+    if (typeof window.avisarSite === 'function') window.avisarSite(problema); else avisoEnvio(problema);
+    var alvo = listaEl.querySelector('.sem-nome .foto-nome') || listaEl.querySelector('.quebrada');
+    if (alvo) { alvo.scrollIntoView({ block: 'center' }); if (alvo.focus) alvo.focus(); }
+  });
+
+  // Voltou do servidor com erro e a lista tinha foto: reabre no modo com foto.
+  if (ta.value.indexOf('|') !== -1) aplicarModo('fotos');
 
   document.querySelectorAll('.preset').forEach(function (b) {
     b.addEventListener('click', function () {
