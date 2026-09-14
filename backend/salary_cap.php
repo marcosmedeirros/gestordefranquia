@@ -446,8 +446,15 @@ function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = nul
  * (drafted_by_team_id == team_id) e o OVR está nas faixas elegíveis.
  * Aumenta o Cap Máximo da franquia — não o salário do jogador.
  *
- * A LENDA NUNCA TROCADA TAMBÉM CONTA (decisão da liga, 13/09/2026). Ela não
- * tem drafted_by_team_id — veio do draft de lendas —, mas é a estrela que a
+ * SÓ O DRAFT ANUAL CONTA, não o Draft Inicial (decisão da liga, 13/09/2026).
+ * O Draft Inicial distribui os elencos no começo da edição e grava
+ * drafted_by_team_id em todo mundo — se valesse, meio elenco de cada time
+ * geraria flex sem a franquia ter formado ninguém. O que separa os dois é o
+ * drafted_season_number: o draft anual (api/draft.php) sempre grava a
+ * temporada, o inicial nunca (mesma régua de capEhCalouroNaTemporadaAtual).
+ *
+ * A LENDA NUNCA TROCADA TAMBÉM CONTA (mesma decisão). Ela não tem
+ * drafted_by_team_id — veio do draft de lendas —, mas é a estrela que a
  * franquia segurou desde o início, que é o espírito do Cap Flex. Trocou a
  * lenda, acabou: was_traded fica marcado e ela não gera flex pra ninguém.
  */
@@ -455,8 +462,9 @@ function getPlayerCapFlex(array $player): int
 {
     $teamId = (int)($player['team_id'] ?? 0);
     $draftedBy = $player['drafted_by_team_id'] ?? null;
+    $draftAnual = ($player['drafted_season_number'] ?? null) !== null && (int)$player['drafted_season_number'] > 0;
     $lendaFiel = !empty($player['is_lenda']) && (int)($player['was_traded'] ?? 0) === 0;
-    if (!$lendaFiel && ($draftedBy === null || (int)$draftedBy !== $teamId)) {
+    if (!$lendaFiel && ($draftedBy === null || (int)$draftedBy !== $teamId || !$draftAnual)) {
         return 0;
     }
     $ovr = (int)($player['ovr'] ?? 0);

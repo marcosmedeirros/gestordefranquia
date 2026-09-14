@@ -3628,7 +3628,7 @@ function wcCapMais(PDO $pdo): string
         else $sem[] = $t['name'];
     }
     usort($com, fn($a, $b) => $b['total'] <=> $a['total'] ?: strcmp($a['time'], $b['time']));
-    $txt = "⚡ *Cap Flex — ELITE*\n_jogador draftado pelo time ou lenda nunca trocada: 85–89 +3M · 90–92 +5M · 93+ +8M, até 2 por time_\n\n";
+    $txt = "⚡ *Cap Flex — ELITE*\n_jogador escolhido pelo time no draft anual (draft inicial não conta) ou lenda nunca trocada: 85–89 +3M · 90–92 +5M · 93+ +8M, até 2 por time_\n\n";
     foreach ($com as $c) {
         $txt .= "*{$c['time']}* +{$c['total']}M (teto {$c['teto']}M): " . implode(', ', $c['quem']) . "\n";
     }

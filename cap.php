@@ -259,7 +259,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </details>
     <details>
       <summary><i class="bi bi-arrows-angle-expand"></i> Cap Flex</summary>
-      <div class="rules-body">Time que ainda tem o jogador que ele mesmo draftou — ou a <b>lenda que nunca trocou</b> — ganha um bônus no <b>Cap Máximo</b>
+      <div class="rules-body">Time que ainda tem o jogador que ele mesmo escolheu <b>no draft anual</b> (o Draft Inicial não conta) — ou a <b>lenda que nunca trocou</b> — ganha um bônus no <b>Cap Máximo</b>
       (não no salário do jogador) se o OVR for alto: 85–89 = +3M, 90–92 = +5M, 93+ = +8M, para no máximo 2 jogadores. Se o jogador for negociado
       para outro time, o Cap Flex dele deixa de valer (a lenda trocada também não gera mais).</div>
     </details>
