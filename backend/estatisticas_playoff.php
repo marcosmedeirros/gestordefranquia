@@ -264,3 +264,105 @@ function epDominio(PDO $pdo): array
     }
     return $map;
 }
+
+/** Todos os times de cada liga: [liga => [team_id => nome]]. */
+function epTimes(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    foreach ($pdo->query("SELECT id, league, city, name FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $cache[$t['league']][(int) $t['id']] = epNome($t['city'], $t['name']);
+    }
+    return $cache;
+}
+
+/**
+ * Quem foi ao playoff em cada temporada fechada da sprint: tem linha em
+ * playoff_results naquela temporada, em qualquer fase. Só entram temporadas
+ * com resultado registrado; a temporada em andamento não conta como "fora".
+ *
+ * Antes a régua era "3 pontos ou mais na temporada", que deixava de fora o 7º
+ * e o 8º que caíam na 1ª rodada (2 pontos) e contava quem só pontuou bem na
+ * temporada regular.
+ *
+ * @return array [liga => [season_number => [team_id => true]]]
+ */
+function epClassificados(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $st = $pdo->query("
+        SELECT s.league, s.season_number, pr.team_id
+        FROM playoff_results pr
+        JOIN seasons s ON s.id = pr.season_id
+        WHERE pr.season_id IN " . epSprintAtiva() . "
+        ORDER BY s.league, s.season_number");
+    $cache = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $cache[$r['league']][(int) $r['season_number']][(int) $r['team_id']] = true;
+    }
+    foreach ($cache as $lg => $temps) {
+        ksort($temps);
+        $cache[$lg] = $temps;
+    }
+    return $cache;
+}
+
+/** Aparições no Playoff: em quantas temporadas fechadas da sprint o time foi ao playoff. */
+function epAparicoes(PDO $pdo): array
+{
+    $map = [];
+    $times = epTimes($pdo);
+    foreach (epClassificados($pdo) as $lg => $temps) {
+        $linhas = [];
+        foreach ($times[$lg] ?? [] as $tid => $nome) {
+            $n = 0;
+            foreach ($temps as $foram) {
+                if (isset($foram[$tid])) $n++;
+            }
+            $linhas[] = ['team_id' => $tid, 'name' => $nome, 'count' => $n];
+        }
+        if ($linhas) $map[$lg] = epOrdena($linhas);
+    }
+    return $map;
+}
+
+/**
+ * Maior sequência de idas ao playoff e maior jejum, temporada a temporada nas
+ * temporadas fechadas da sprint. Um buraco na numeração quebra as duas contas.
+ *
+ * @return array ['sequencia' => mapa, 'jejum' => mapa]
+ */
+function epSequencias(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = ['sequencia' => [], 'jejum' => []];
+    $times = epTimes($pdo);
+    foreach (epClassificados($pdo) as $lg => $temps) {
+        $seq = [];
+        $jej = [];
+        foreach ($times[$lg] ?? [] as $tid => $nome) {
+            $maxS = $maxJ = $curS = $curJ = 0;
+            $ultima = null;
+            foreach ($temps as $num => $foram) {
+                if ($ultima !== null && $num !== $ultima + 1) { $curS = 0; $curJ = 0; }
+                $ultima = $num;
+                if (isset($foram[$tid])) { $curS++; $curJ = 0; } else { $curJ++; $curS = 0; }
+                $maxS = max($maxS, $curS);
+                $maxJ = max($maxJ, $curJ);
+            }
+            $seq[] = ['team_id' => $tid, 'name' => $nome, 'count' => $maxS];
+            $jej[] = ['team_id' => $tid, 'name' => $nome, 'count' => $maxJ];
+        }
+        if ($seq) {
+            $cache['sequencia'][$lg] = epOrdena($seq);
+            $cache['jejum'][$lg] = epOrdena($jej);
+        }
+    }
+    return $cache;
+}
+
+function epSequenciaPlayoff(PDO $pdo): array { return epSequencias($pdo)['sequencia']; }
+function epJejumPlayoff(PDO $pdo): array { return epSequencias($pdo)['jejum']; }

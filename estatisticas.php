@@ -63,14 +63,10 @@ function applyCoyotesMusketeersFix(array &$map): void {
 }
 
 // ── 3. Mais aparições no playoff ─────────────────────────────────
-$playoffMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
-    FROM teams t
-    LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
-         AND tsp.season_id IN $TEMPORADAS_DA_SPRINT
-    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($playoffMap);
+// Foi ao playoff = tem resultado de playoff registrado na temporada (qualquer
+// fase). Mesma conta do bot (/idasplayoffs), em backend/estatisticas_playoff.php.
+require_once __DIR__ . '/backend/estatisticas_playoff.php';
+$playoffMap = epSeguro(fn() => epAparicoes($pdo), 'aparicoes');
 
 // ── 5. Elenco mais jovem ─────────────────────────────────────────
 // LEFT JOIN (em vez de INNER JOIN) para times sem elenco/jogadores elegíveis
@@ -187,52 +183,11 @@ try {
 
 
 
-// ── Mais playoff consecutivos (streak) + Maior jejum (sem playoff) ───
-// As duas métricas usam exatamente a mesma query-base (pontos por temporada de
-// cada time) e o mesmo cálculo de sequência em PHP, só invertendo a condição
-// (>=3 = playoff / <3 = fora do playoff). Calculadas juntas para evitar rodar
-// a mesma query pesada duas vezes.
-$streakMap = [];
-$jejumMap = [];
-try {
-    $psRows = $pdo->query("
-        SELECT tsp.league, tsp.team_id, CONCAT(t.city,' ',t.name) AS name,
-               s.season_number, tsp.points
-        FROM team_season_points tsp
-        JOIN teams t ON t.id=tsp.team_id
-        JOIN seasons s ON s.id=tsp.season_id
-        WHERE tsp.season_id IN $TEMPORADAS_DA_SPRINT
-        ORDER BY tsp.league, tsp.team_id, s.season_number ASC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    $byTeam = [];
-    foreach ($psRows as $r) {
-        $byTeam[$r['league']][$r['team_id']]['name'] = $r['name'];
-        $byTeam[$r['league']][$r['team_id']]['pts'][$r['season_number']] = (int)$r['points'];
-    }
-    // Include teams with 0 playoffs
-    $allT = $pdo->query("SELECT id, league, CONCAT(city,' ',name) AS nm FROM teams")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($allT as $t) {
-        if (!isset($byTeam[$t['league']][$t['id']])) {
-            $byTeam[$t['league']][$t['id']] = ['name'=>$t['nm'],'pts'=>[]];
-        }
-    }
-    foreach ($byTeam as $lg => $teams) {
-        foreach ($teams as $tid => $data) {
-            $pts = $data['pts']; ksort($pts);
-            $maxStreak = 0; $curStreak = 0;
-            $maxJejum = 0; $curJejum = 0;
-            foreach ($pts as $p) {
-                if ($p >= 3) { $curStreak++; $maxStreak = max($maxStreak, $curStreak); } else $curStreak = 0;
-                if ($p < 3) { $curJejum++; $maxJejum = max($maxJejum, $curJejum); } else $curJejum = 0;
-            }
-            $streakMap[$lg][] = ['name'=>$data['name'],'count'=>$maxStreak];
-            $jejumMap[$lg][] = ['name'=>$data['name'],'count'=>$maxJejum];
-        }
-    }
-    sortLeagueData($streakMap);
-    sortLeagueData($jejumMap);
-} catch (Exception) {}
-
+// ── Maior sequência de playoffs + maior jejum ────────────────────
+// Mesma régua das aparições (resultado de playoff registrado), temporada a
+// temporada. Conta compartilhada com o bot (/sequencia e /jejum).
+$streakMap = epSeguro(fn() => epSequenciaPlayoff($pdo), 'sequencia');
+$jejumMap  = epSeguro(fn() => epJejumPlayoff($pdo), 'jejum');
 // ── Jogadores que passaram por mais times ─────────────────────────
 // ── Retenção: média de temporadas por jogador no mesmo time ───────
 $retencaoMap = [];

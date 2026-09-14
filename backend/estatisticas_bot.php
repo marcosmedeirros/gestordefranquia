@@ -81,27 +81,23 @@ function ebCatalogo(): array
         ],
 
         // ── Playoff ──────────────────────────────────────────────────
-        // $playoffMap — playoff = 3 pontos ou mais na temporada.
-        'playoffs' => [
-            'titulo' => 'Aparições no Playoff', 'sub' => 'temporadas em que chegou ao playoff',
+        // Aparições: foi ao playoff = resultado de playoff registrado na
+        // temporada. O /playoffs é o chaveamento (whatsapp-comandos.php); a
+        // estatística é o /idasplayoffs.
+        'idasplayoffs' => [
+            'titulo' => 'Aparições no Playoff', 'sub' => 'temporadas da sprint em que foi ao playoff',
             'alto' => '🎯 Mais playoffs', 'baixo' => '📉 Menos playoffs', 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(DISTINCT tsp.season_id) AS valor
-                      FROM teams t
-                      LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3
-                           AND tsp.league COLLATE utf8mb4_unicode_ci = t.league COLLATE utf8mb4_unicode_ci
-                           AND tsp.season_id IN {$T}
-                      WHERE t.league = :liga
-                      GROUP BY t.id, t.city, t.name",
+            'calc' => 'epAparicoes',
         ],
         'sequencia' => [
             'titulo' => 'Maior Sequência de Playoffs', 'sub' => 'temporadas seguidas classificado',
             'alto' => '🔥 Maior sequência', 'baixo' => null, 'ordem' => 'desc',
-            'calc' => 'ebSequencias', 'calc_arg' => 'streak',
+            'calc' => 'epSequenciaPlayoff', 'sem_zero' => true,
         ],
         'jejum' => [
             'titulo' => 'Maior Jejum de Playoffs', 'sub' => 'temporadas seguidas fora do playoff',
             'alto' => '😴 Maior jejum', 'baixo' => null, 'ordem' => 'desc',
-            'calc' => 'ebSequencias', 'calc_arg' => 'jejum',
+            'calc' => 'epJejumPlayoff', 'sem_zero' => true,
         ],
         // Títulos, dinastia, eterno vice e seed médio: a conta é a da página,
         // em backend/estatisticas_playoff.php (registro de fim de temporada).
@@ -304,50 +300,13 @@ function ebCatalogo(): array
 }
 
 /**
- * Sequência e jejum de playoff, numa passada só.
- *
- * Não cabe em SQL porque "temporadas seguidas" depende da ORDEM: um time que
- * foi ao playoff nas temporadas 1, 2 e 5 tem sequência 2, não 3.
- * Cópia de estatisticas.php ($streakMap/$jejumMap).
- */
-function ebSequencias(PDO $pdo, string $liga, string $qual): array
-{
-    $T = ebTemporadasDaSprint();
-    $st = $pdo->prepare("
-        SELECT tsp.team_id, CONCAT(t.city,' ',t.name) AS nome, s.season_number, tsp.points
-        FROM team_season_points tsp
-        JOIN teams t ON t.id = tsp.team_id
-        JOIN seasons s ON s.id = tsp.season_id
-        WHERE tsp.league = :liga AND tsp.season_id IN {$T}
-        ORDER BY tsp.team_id, s.season_number ASC");
-    $st->execute([':liga' => $liga]);
-
-    $porTime = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $porTime[(int)$r['team_id']]['nome'] = $r['nome'];
-        $porTime[(int)$r['team_id']]['pts'][(int)$r['season_number']] = (int)$r['points'];
-    }
-
-    $out = [];
-    foreach ($porTime as $d) {
-        $pts = $d['pts']; ksort($pts);
-        $max = 0; $atual = 0;
-        foreach ($pts as $p) {
-            // 3 pontos ou mais na temporada = chegou ao playoff.
-            $conta = $qual === 'streak' ? ($p >= 3) : ($p < 3);
-            if ($conta) { $atual++; $max = max($max, $atual); } else $atual = 0;
-        }
-        if ($max > 0) $out[] = ['nome' => $d['nome'], 'valor' => $max];
-    }
-    return $out;
-}
-
-/**
  * Linhas da conta compartilhada (backend/estatisticas_playoff.php) no formato
  * do bot: 'nome' e 'valor'. Dupla sai com os nomes curtos ("Blues × Heat").
  */
 function ebDoMapa(array $linhas, array $def): array
 {
+    // Sequência e jejum: quem tem zero não é notícia no top 5.
+    if (!empty($def['sem_zero'])) $linhas = array_values(array_filter($linhas, fn($l) => (float) $l['count'] > 0));
     $sep = $def['sep'] ?? ' × ';
     return array_map(fn($l) => [
         'nome'  => !empty($def['par']) ? ($l['a'] . $sep . $l['b']) : $l['name'],
@@ -365,9 +324,7 @@ function ebLinhas(PDO $pdo, array $def, string $liga): array
             require_once __DIR__ . '/estatisticas_playoff.php';
             return ebDoMapa(($def['calc'])($pdo)[$liga] ?? [], $def);
         }
-        if (!empty($def['calc'])) {
-            $linhas = ebSequencias($pdo, $liga, $def['calc_arg']);
-        } else {
+        if (empty($def['calc'])) {
             // :anopick só é passado pra quem pede — PDO recusa parâmetro que
             // a consulta não usa, então mandar sempre quebraria as outras.
             $params = [':liga' => $liga];
@@ -480,7 +437,7 @@ function ebListar(?string $ligaDoGrupo): string
 
     $grupos = [
         'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5', 'toppicks'],
-        'Playoff'        => ['titulos', 'dinastia', 'vice', 'seed', 'playoffs', 'sequencia', 'jejum', '4a0', '0a4', 'jogo7'],
+        'Playoff'        => ['titulos', 'dinastia', 'vice', 'seed', 'idasplayoffs', 'sequencia', 'jejum', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
         // Só os rankings entram aqui. O /trades e o /trocas são o feed das
         // últimas trocas e vivem no /ajuda, não nesta lista — misturar 'o que

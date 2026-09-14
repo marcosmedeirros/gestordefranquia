@@ -4100,7 +4100,7 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                 return wcQuizAqui($pdo, $deQuem, $grupoJid);
 
             default:
-                // Um comando por estatística (/playoffs, /4a0, /rivalidades…).
+                // Um comando por estatística (/idasplayoffs, /4a0, /rivalidades…).
                 // Não estão listados um por um de propósito: quem sabe quais
                 // existem é o catálogo em backend/estatisticas_bot.php, e
                 // repetir os nomes aqui seria uma segunda lista pra manter.
