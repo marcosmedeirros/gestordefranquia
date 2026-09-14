@@ -836,8 +836,10 @@ function renderPlayers(players) {
 
     // Em caso de empate por função, ordenar por posição de armador a pivô
     if (currentSort.field === 'role' && a.role === 'Titular' && b.role === 'Titular') {
-      const aPos = starterPositionOrder[a.position] ?? 999;
-      const bPos = starterPositionOrder[b.position] ?? 999;
+      // pelo lugar na quadra: a secundária quando o GM escalou ele ali (lineup_slot)
+      const lugar = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
+      const aPos = starterPositionOrder[lugar(a)] ?? 999;
+      const bPos = starterPositionOrder[lugar(b)] ?? 999;
       if (aPos !== bPos) {
         return currentSort.ascending ? aPos - bPos : bPos - aPos;
       }

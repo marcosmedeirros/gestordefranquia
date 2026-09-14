@@ -961,6 +961,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $pdo->prepare('UPDATE players SET position = ?, secondary_position = ? WHERE id = ? AND team_id = ?')
             ->execute([$pos, $sec, $pid, $teamId]);
+        // Lugar na quadra (Meu Elenco) que não é mais posição dele volta pra principal.
+        if (ensurePlayerLineupSlotColumn($pdo)) {
+            $pdo->prepare("UPDATE players SET lineup_slot = NULL WHERE id = ? AND team_id = ? AND lineup_slot IS NOT NULL
+                              AND lineup_slot <> ? AND (? IS NULL OR lineup_slot <> ?)")
+                ->execute([$pid, $teamId, $pos, $sec, $sec]);
+        }
         // Mudou do que já está no jogo? O card do admin volta pra fila (igual ao salvar da tática).
         taticaDesmarcarSeMudou($pdo, $teamId);
         echo json_encode(['success' => true, 'position' => $pos, 'secondary_position' => $sec]);

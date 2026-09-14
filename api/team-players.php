@@ -6,6 +6,9 @@ require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 
 $pdo = db();
+require_once dirname(__DIR__) . '/backend/tatica_posicoes.php';
+// lugar do titular na quadra (a cópia do time usa)
+$colLugar = ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '';
 
 // GET - Listar jogadores de um time
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -33,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         try {
             $stmt = $pdo->prepare('
-                SELECT id, name, nba_player_id, foto_adicional, age, position, secondary_position, role, ovr, available_for_trade, seasons_in_league,
+                SELECT id, name, nba_player_id, foto_adicional, age, position, secondary_position' . $colLugar . ', role, ovr, available_for_trade, seasons_in_league,
                        COALESCE(player_tag, NULL) as player_tag,
                        COALESCE(player_tag_color, NULL) as player_tag_color,
                        COALESCE(player_tag_copy, 0) as player_tag_copy,
@@ -44,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ');
         } catch (Exception $e) {
             $stmt = $pdo->prepare('
-                SELECT id, name, nba_player_id, foto_adicional, age, position, secondary_position, role, ovr, available_for_trade, seasons_in_league
+                SELECT id, name, nba_player_id, foto_adicional, age, position, secondary_position' . $colLugar . ', role, ovr, available_for_trade, seasons_in_league
                 FROM players
                 WHERE team_id = ?
                 ORDER BY role, ovr DESC

@@ -13,33 +13,36 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 ensureTeamFreeAgencyColumns($pdo);
 ensurePlayerRestrictionColumns($pdo);
+require_once __DIR__ . '/../backend/tatica_posicoes.php';
+ensurePlayerLineupSlotColumn($pdo);
 
 /**
- * Já existe titular nessa posição no time?
+ * Já existe titular nesse lugar da quadra?
  *
- * O quinteto é uma posição de cada — dois armadores titulares ao mesmo
+ * O quinteto é um lugar de cada — dois armadores titulares ao mesmo
  * tempo não é uma escalação, é um erro de digitação que só aparece na hora
  * de reproduzir a tática dentro do jogo.
  *
- * Compara pela posição PRINCIPAL. A secundária existe pra dizer onde o
- * jogador também joga, e barrar por ela impediria escalar um SG/SF de
- * verdade ao lado de um SF — que é uma escalação legítima e comum.
+ * O lugar é a posição principal, ou a secundária quando o GM escalou o
+ * jogador ali pela quadra (players.lineup_slot, ver taticaLugarEmQuadra): um
+ * SF/PF pode fechar o PF ao lado de um SF de verdade.
  *
  * @param int $ignorarId jogador que está sendo editado (ele não conta
  *                       contra si mesmo ao ser salvo de novo)
- * @return string nome do titular que já ocupa a posição, ou '' se está livre
+ * @return string nome do titular que já ocupa o lugar, ou '' se está livre
  */
 function titularNaPosicao(PDO $pdo, int $teamId, string $posicao, int $ignorarId = 0): string
 {
     $posicao = strtoupper(trim($posicao));
     if ($posicao === '') return '';
 
-    $st = $pdo->prepare("SELECT name FROM players
-                          WHERE team_id = ? AND role = 'Titular'
-                            AND UPPER(TRIM(position)) = ? AND id <> ?
-                          LIMIT 1");
-    $st->execute([$teamId, $posicao, $ignorarId]);
-    return (string)($st->fetchColumn() ?: '');
+    $cols = 'name, position, secondary_position' . (ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '');
+    $st = $pdo->prepare("SELECT {$cols} FROM players WHERE team_id = ? AND role = 'Titular' AND id <> ?");
+    $st->execute([$teamId, $ignorarId]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        if (taticaLugarEmQuadra($p) === $posicao) return (string)$p['name'];
+    }
+    return '';
 }
 
 if (!function_exists('playersTableExists')) {
@@ -411,9 +414,14 @@ if ($method === 'POST') {
 
         $pedidas = [];
         foreach ((array)($body['roles'] ?? []) as $pid => $role) $pedidas[(int)$pid] = (string)$role;
-        if (!$pedidas) jsonResponse(422, ['error' => 'Nada pra salvar.']);
+        // Lugar na quadra de quem vai (ou continua) titular: 'PF' pra um SF/PF fechar o PF.
+        // Vazio é a posição principal.
+        $lugaresPedidos = [];
+        foreach ((array)($body['slots'] ?? []) as $pid => $lugar) $lugaresPedidos[(int)$pid] = strtoupper(trim((string)$lugar));
+        if (!$pedidas && !$lugaresPedidos) jsonResponse(422, ['error' => 'Nada pra salvar.']);
 
-        $stE = $pdo->prepare('SELECT id, name, position, age, role FROM players WHERE team_id = ?');
+        $temLugar = ensurePlayerLineupSlotColumn($pdo);
+        $stE = $pdo->prepare('SELECT id, name, position, secondary_position, age, role' . ($temLugar ? ', lineup_slot' : '') . ' FROM players WHERE team_id = ?');
         $stE->execute([$teamId]);
         $elenco = [];
         foreach ($stE->fetchAll(PDO::FETCH_ASSOC) as $p) $elenco[(int)$p['id']] = $p;
@@ -423,10 +431,27 @@ if ($method === 'POST') {
             if (!isset($elenco[$pid])) jsonResponse(422, ['error' => 'Um dos jogadores não é mais do seu elenco. Recarregue a página.']);
             if (!in_array($role, $rolesValidos, true)) jsonResponse(422, ['error' => 'Função inválida.']);
         }
+        foreach ($lugaresPedidos as $pid => $lugar) {
+            if (!isset($elenco[$pid])) jsonResponse(422, ['error' => 'Um dos jogadores não é mais do seu elenco. Recarregue a página.']);
+        }
 
         // O elenco como fica depois das mudanças — é ele que tem que ser válido.
+        // $lugarFinal: lugar de cada titular na quadra (NULL fora do quinteto ou na principal).
         $final = [];
-        foreach ($elenco as $pid => $p) $final[$pid] = $pedidas[$pid] ?? $p['role'];
+        $lugarFinal = [];
+        foreach ($elenco as $pid => $p) {
+            $final[$pid] = $pedidas[$pid] ?? $p['role'];
+            $lugarFinal[$pid] = null;
+            if ($final[$pid] !== 'Titular') continue;
+            $pri = strtoupper(trim((string)$p['position']));
+            $sec = strtoupper(trim((string)($p['secondary_position'] ?? '')));
+            $lugar = array_key_exists($pid, $lugaresPedidos) ? $lugaresPedidos[$pid] : strtoupper(trim((string)($p['lineup_slot'] ?? '')));
+            if (array_key_exists($pid, $lugaresPedidos) && $lugar !== '' && $lugar !== $pri && $lugar !== $sec) {
+                jsonResponse(409, ['error' => "{$p['name']} não joga de {$lugar}: é " . taticaPosicaoTexto($pri, $sec) . '.']);
+            }
+            $efetivo = taticaLugarEmQuadra(['position' => $pri, 'secondary_position' => $sec, 'lineup_slot' => $lugar]);
+            $lugarFinal[$pid] = $efetivo === $pri ? null : $efetivo;
+        }
 
         $titulares = array_keys(array_filter($final, fn($r) => $r === 'Titular'));
         if (count($titulares) > 5) {
@@ -434,10 +459,10 @@ if ($method === 'POST') {
         }
         $donoDaPosicao = [];
         foreach ($titulares as $pid) {
-            $pos = strtoupper(trim((string)$elenco[$pid]['position']));
+            $pos = $lugarFinal[$pid] ?? strtoupper(trim((string)$elenco[$pid]['position']));
             if (isset($donoDaPosicao[$pos])) {
                 jsonResponse(409, ['error' => "Dois {$pos} titulares: {$donoDaPosicao[$pos]} e {$elenco[$pid]['name']}. "
-                    . 'O quinteto é uma posição de cada.']);
+                    . 'O quinteto é um lugar de cada.']);
             }
             $donoDaPosicao[$pos] = $elenco[$pid]['name'];
         }
@@ -468,6 +493,16 @@ if ($method === 'POST') {
                 if ($elenco[$pid]['role'] === $role) continue;
                 $up->execute([$role, $pid, $teamId]);
                 $n++;
+            }
+            if ($temLugar) {
+                // grava o lugar de quem mudou e limpa o de quem saiu do quinteto
+                $upLugar = $pdo->prepare('UPDATE players SET lineup_slot = ? WHERE id = ? AND team_id = ?');
+                foreach ($lugarFinal as $pid => $lugar) {
+                    $antes = strtoupper(trim((string)($elenco[$pid]['lineup_slot'] ?? ''))) ?: null;
+                    if ($antes === $lugar) continue;
+                    $upLugar->execute([$lugar, $pid, $teamId]);
+                    if (!isset($pedidas[$pid])) $n++;
+                }
             }
             $pdo->commit();
         } catch (Throwable $e) {
@@ -783,11 +818,15 @@ if ($method === 'PUT') {
     // FORA do if acima de propósito. Aquele só roda quando o role muda, e
     // não é só promover que cria posição repetida: trocar a POSIÇÃO de quem
     // já é titular faz o mesmo estrago sem o role mudar em nada.
+    // Lugar em quadra com as posições novas: a secundária escolhida na quadra só
+    // vale enquanto ele ainda joga ali.
+    $lugarNaQuadra = taticaLugarEmQuadra(['position' => $position, 'secondary_position' => $secondaryPosition,
+                                          'lineup_slot' => $player['lineup_slot'] ?? null]);
     if ($role === 'Titular') {
-        $ocupante = titularNaPosicao($pdo, (int)$player['team_id'], $position, $playerId);
+        $ocupante = titularNaPosicao($pdo, (int)$player['team_id'], $lugarNaQuadra, $playerId);
         if ($ocupante !== '') {
-            jsonResponse(409, ['error' => "Já tem um {$position} titular: {$ocupante}. "
-                . 'O quinteto é uma posição de cada — mande ele pro banco antes.']);
+            jsonResponse(409, ['error' => "Já tem um {$lugarNaQuadra} titular: {$ocupante}. "
+                . 'O quinteto é um lugar de cada — mande ele pro banco antes.']);
         }
     }
 
@@ -847,6 +886,10 @@ if ($method === 'PUT') {
     ];
     if ($hasSecondaryPosition) {
         $fields['secondary_position'] = $secondaryPosition ?: null;
+    }
+    if (array_key_exists('lineup_slot', $player)) {
+        // fora do quinteto não tem lugar; jogando na principal fica NULL
+        $fields['lineup_slot'] = ($role === 'Titular' && $lugarNaQuadra !== strtoupper(trim($position))) ? $lugarNaQuadra : null;
     }
     if ($hasBadgesCount) {
         $fields['badges_count'] = $badgesCount !== null ? max(0, (int)$badgesCount) : null;

@@ -1397,6 +1397,12 @@ if ($teamId) {
         return `_Salary Cap_: *${s.payroll}M* / ${s.cap_max}M — ${sobra} (${rotulo})`;
     }
 
+    /** Lugar do titular na quadra: a secundária quando o GM escalou ele ali (lineup_slot), senão a principal. */
+    function _lugarEmQuadra(p) {
+        const l = String(p.lineup_slot || '').toUpperCase();
+        return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position;
+    }
+
     function _buildSummary(mode) {
         // mode: 'team' = completo com picks | 'roster' = só titular+banco+CAP
         const positions = ['PG','SG','SF','PF','C'];
@@ -1414,7 +1420,8 @@ if ($teamId) {
         const isElite   = (_teamMeta.league||'').toUpperCase() === 'ELITE';
 
         _rosterData.filter(p => p.role === 'Titular').forEach(p => {
-            if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p;
+            const l = _lugarEmQuadra(p);
+            if (positions.includes(l) && !startersMap[l]) startersMap[l] = p;
         });
         const bench   = _rosterData.filter(p => p.role === 'Banco');
         const others  = _rosterData.filter(p => p.role === 'Outro');
@@ -1507,7 +1514,7 @@ if ($teamId) {
 
         const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
         const titulares = _rosterData.filter(p => p.role === 'Titular')
-            .sort((a, b) => (posOrder[a.position] ?? 9) - (posOrder[b.position] ?? 9)).slice(0, 5);
+            .sort((a, b) => (posOrder[_lugarEmQuadra(a)] ?? 9) - (posOrder[_lugarEmQuadra(b)] ?? 9)).slice(0, 5);
         const banco = _rosterData.filter(p => p.role === 'Banco')
             .sort((a, b) => Number(b.ovr) - Number(a.ovr));
 

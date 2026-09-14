@@ -1967,8 +1967,11 @@ function getSerasaScore(int $avisos): array {
             const positions = ['PG','SG','SF','PF','C'];
             const startersMap = {};
             positions.forEach(pos => startersMap[pos] = null);
+            // Lugar na quadra: a secundária quando o GM escalou ele ali (lineup_slot), senão a principal.
+            const lugarDe = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
             roster.filter(p => p.role === 'Titular').forEach(p => {
-                if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p;
+                const l = lugarDe(p);
+                if (positions.includes(l) && !startersMap[l]) startersMap[l] = p;
             });
 
             // Number(age) antes do teste: o PDO devolve numérico como string ("24"), e

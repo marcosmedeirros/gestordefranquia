@@ -1,18 +1,22 @@
 /**
  * QUADRA DE ESCALAÇÃO — Meu Elenco.
  *
- * Meia quadra com os cinco lugares (um por posição principal), o banco e a
- * G-League. Escalar é arrastar o jogador pro destino — ou, no celular, tocar
- * nele e depois no destino (arrastar com o dedo não funciona no Safari).
+ * Meia quadra com os cinco lugares (PG, SG, SF, PF, C), o banco e a G-League.
+ * Escalar é arrastar o jogador pro destino — ou, no celular, tocar nele e
+ * depois no destino (arrastar com o dedo não funciona no Safari).
+ *
+ * Cada lugar aceita a posição principal ou a secundária do jogador: Giannis
+ * (SF/PF) pode fechar o PF. O lugar escolhido vai junto no save (slots, gravado
+ * em players.lineup_slot); vazio é a principal.
  *
  * Cada movimento SALVA NA HORA (api/players.php, action=set_lineup). Um
  * movimento pode mexer em dois jogadores — quem entra e quem sai do lugar — e
  * os dois vão juntos: trocar dois armadores um de cada vez esbarraria na regra
- * de "uma posição de cada" no primeiro save. Se o servidor recusar, a quadra
+ * de "um lugar de cada" no primeiro save. Se o servidor recusar, a quadra
  * volta pro que está gravado e diz o motivo.
  *
  * A barra "Salvar escalação" só aparece quando a própria quadra achou algo a
- * corrigir ao abrir (dois titulares na mesma posição): isso não foi escolha do
+ * corrigir ao abrir (dois titulares no mesmo lugar): isso não foi escolha do
  * GM, então não grava sem ele confirmar.
  *
  * As travas daqui são as do servidor, repetidas só pra acender o lugar certo
@@ -42,6 +46,8 @@
   let jogadores = [];
   let base = {};        // id -> função no servidor
   let pend = {};        // id -> função ainda não salva
+  let baseLugar = {};   // id -> lugar gravado ('' = posição principal)
+  let pendLugar = {};   // id -> lugar ainda não salvo
   let chave = '';       // retrato do elenco: muda quando o servidor muda
   let selecionado = null;
   let arrastando = null;
@@ -53,8 +59,12 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const normRole = r => (typeof normalizeRoleKey === 'function' ? normalizeRoleKey(r) : String(r || ''));
   const posDe = j => String(j.position || '').toUpperCase().trim();
+  const secDe = j => String(j.secondary_position || '').toUpperCase().trim();
+  const posTexto = j => posDe(j) + (secDe(j) && secDe(j) !== posDe(j) ? '/' + secDe(j) : '');
+  const cobre = (j, p) => !!p && (posDe(j) === p || secDe(j) === p);
   const porId = id => jogadores.find(j => String(j.id) === String(id));
   const roleDe = id => (id in pend ? pend[id] : base[id]);
+  const lugarBruto = id => (id in pendLugar ? pendLugar[id] : baseLugar[id]) || '';
   const vagasGL = () => Number(window.__GLEAGUE_VAGAS__ || 0);
   const foto = j => (typeof getPlayerPhotoUrl === 'function' ? getPlayerPhotoUrl(j) : '');
   const corOvr = o => (typeof getOvrColor === 'function' ? getOvrColor(Number(o)) : 'var(--text)');
@@ -66,9 +76,20 @@
   const sel = j => (j && String(selecionado) === String(j.id) ? ' sel' : '');
 
   function aviso(tipo, html) { msg = { tipo, html }; }
-  function titularDe(p) { return jogadores.find(j => roleDe(j.id) === 'Titular' && posDe(j) === p); }
-  function mudancas() { return Object.keys(pend).filter(id => pend[id] !== base[id]); }
+  /** Lugar do titular: o escolhido, se ele ainda joga ali; senão a posição principal. */
+  function lugarDe(j) { const l = lugarBruto(j.id); return cobre(j, l) ? l : posDe(j); }
+  function titularDe(p) { return jogadores.find(j => roleDe(j.id) === 'Titular' && lugarDe(j) === p); }
+  function mudancas() {
+    const ids = Object.keys(pend).filter(id => pend[id] !== base[id])
+      .concat(Object.keys(pendLugar).filter(id => pendLugar[id] !== (baseLugar[id] || '')));
+    return [...new Set(ids)];
+  }
   function definir(id, role) { if (base[id] === role) delete pend[id]; else pend[id] = role; }
+  function definirLugar(id, lugar) {
+    const j = porId(id);
+    const l = (j && lugar === posDe(j)) ? '' : (lugar || '');   // a principal é guardada como vazio
+    if ((baseLugar[id] || '') === l) delete pendLugar[id]; else pendLugar[id] = l;
+  }
 
   /** '' se pode ir; senão o motivo, em texto de gente. */
   function motivo(j, alvo) {
@@ -83,7 +104,7 @@
       if (ocupadas >= vagasGL()) return `G-League cheia (${vagasGL()} vagas). Tire alguém antes.`;
       return '';
     }
-    if (posDe(j) !== alvo) return `${j.name} é ${posDe(j) || 'sem posição'} — esse lugar é de ${alvo}.`;
+    if (!cobre(j, alvo)) return `${j.name} é ${posTexto(j) || 'sem posição'} — esse lugar é de ${alvo}.`;
     const ocupante = titularDe(alvo);
     if (ocupante && String(ocupante.id) === String(j.id)) return 'Já está nesse lugar.';
     return '';
@@ -93,15 +114,24 @@
     const origem = roleDe(j.id);
     if (POS.includes(alvo)) {
       const ocupante = titularDe(alvo);
+      const lugarAntes = origem === 'Titular' ? lugarDe(j) : '';
       definir(j.id, 'Titular');
+      definirLugar(j.id, alvo);
       if (ocupante) {
-        // Quem sai da quadra vai pra onde o outro estava; da G-League só volta
-        // quem ainda pode estar lá, e "Outro" vira banco.
-        let destino = (origem === 'G-League' && Number(ocupante.age) < 25) ? 'G-League' : 'Banco';
-        definir(ocupante.id, destino);
+        if (lugarAntes && cobre(ocupante, lugarAntes)) {
+          // Troca dentro da quadra: quem estava vai pro lugar que o outro deixou.
+          definirLugar(ocupante.id, lugarAntes);
+        } else {
+          // Quem sai da quadra vai pra onde o outro estava; da G-League só volta
+          // quem ainda pode estar lá, e "Outro" vira banco.
+          const destino = (origem === 'G-League' && Number(ocupante.age) < 25) ? 'G-League' : 'Banco';
+          definir(ocupante.id, destino);
+          definirLugar(ocupante.id, '');
+        }
       }
     } else {
       definir(j.id, alvo);
+      definirLugar(j.id, '');
     }
     selecionado = null;
   }
@@ -116,39 +146,49 @@
 
   function render(lista) {
     lista = lista || [];
-    // A posição entra no retrato: mudar só a posição de alguém (no modal do
-    // elenco ou na tela de tática) tem que redesenhar a quadra na hora — com o
+    // Posições e lugar entram no retrato: mudar só a posição de alguém (no modal
+    // do elenco ou na tela de tática) tem que redesenhar a quadra na hora — com o
     // retrato só de função, a quadra achava que nada tinha mudado.
-    const nova = lista.map(j => j.id + ':' + normRole(j.role) + ':' + posDe(j) + '/' + String(j.secondary_position || ''))
+    const nova = lista.map(j => j.id + ':' + normRole(j.role) + ':' + posDe(j) + '/' + secDe(j) + '@' + String(j.lineup_slot || ''))
       .sort().join('|');
     // Ordenar ou filtrar a tabela redesenha a página inteira. Se o elenco do
     // servidor não mudou, a quadra mantém o que ainda não foi salvo.
     if (nova === chave && jogadores.length) { desenhar(); return; }
     chave = nova;
     jogadores = lista.slice();
-    base = {}; pend = {}; selecionado = null;
-    jogadores.forEach(j => { base[j.id] = normRole(j.role); });
+    base = {}; pend = {}; baseLugar = {}; pendLugar = {}; selecionado = null;
+    jogadores.forEach(j => {
+      base[j.id] = normRole(j.role);
+      baseLugar[j.id] = String(j.lineup_slot || '').toUpperCase().trim();
+    });
 
-    // Titular repetido na mesma posição (ou sem posição de quadra) não cabe
-    // em lugar nenhum: fica o de maior OVR, os outros vão pro banco pendentes.
-    const dono = {}; const sobra = [];
-    jogadores.filter(j => base[j.id] === 'Titular')
-      .sort((a, b) => Number(b.ovr) - Number(a.ovr))
-      .forEach(j => {
-        const p = posDe(j);
-        if (!POS.includes(p) || dono[p]) { pend[j.id] = 'Banco'; sobra.push(j.name); } else dono[p] = true;
-      });
-    if (sobra.length) {
-      aviso('info', `${esc(sobra.join(', '))} ${sobra.length === 1 ? 'estava' : 'estavam'} como titular numa posição que já tinha dono — ` +
-        `${sobra.length === 1 ? 'foi' : 'foram'} pro banco. Salve pra confirmar.`);
+    // Dois titulares no mesmo lugar (ou sem posição de quadra) não cabem: fica o
+    // de maior OVR; o outro vai pra secundária se ela estiver livre, senão pro
+    // banco. Tudo pendente, esperando o GM confirmar.
+    const dono = {}; const repetidos = []; const mudouLugar = []; const sobra = [];
+    const titulares = jogadores.filter(j => base[j.id] === 'Titular').sort((a, b) => Number(b.ovr) - Number(a.ovr));
+    titulares.forEach(j => {
+      const p = lugarDe(j);
+      if (POS.includes(p) && !dono[p]) dono[p] = true; else repetidos.push(j);
+    });
+    repetidos.forEach(j => {
+      const alt = [posDe(j), secDe(j)].find(p => POS.includes(p) && !dono[p]);
+      if (alt) { dono[alt] = true; definirLugar(j.id, alt); mudouLugar.push(`${j.name} (${alt})`); }
+      else { pend[j.id] = 'Banco'; definirLugar(j.id, ''); sobra.push(j.name); }
+    });
+    const partes = [];
+    if (mudouLugar.length) partes.push(`${esc(mudouLugar.join(', '))} ${mudouLugar.length === 1 ? 'foi' : 'foram'} pro lugar livre da outra posição`);
+    if (sobra.length) partes.push(`${esc(sobra.join(', '))} ${sobra.length === 1 ? 'foi' : 'foram'} pro banco`);
+    if (partes.length) {
+      aviso('info', `Havia titular repetido no mesmo lugar: ${partes.join('; ')}. Salve pra confirmar.`);
     }
     desenhar();
   }
 
   function chip(j) {
-    return `<button type="button" class="qd-jog${sel(j)}${j.id in pend ? ' qd-mudou' : ''}" data-id="${esc(j.id)}" draggable="true">
+    return `<button type="button" class="qd-jog${sel(j)}${j.id in pend || j.id in pendLugar ? ' qd-mudou' : ''}" data-id="${esc(j.id)}" draggable="true">
       <img src="${esc(foto(j))}" alt="" draggable="false" loading="lazy" onerror="this.onerror=null;this.src='${reserva(j)}'">
-      <span class="n">${esc(j.name)}<span class="m"> · ${esc(posDe(j))}${j.secondary_position ? '/' + esc(j.secondary_position) : ''} · ${esc(j.age)}a</span></span>
+      <span class="n">${esc(j.name)}<span class="m"> · ${esc(posTexto(j))} · ${esc(j.age)}a</span></span>
       <span class="o" style="color:${corOvr(j.ovr)}">${esc(j.ovr)}</span>
     </button>`;
   }
@@ -175,9 +215,10 @@
     const lugares = POS.map(p => {
       const j = titularDe(p);
       const [x, y] = LUGAR[p];
-      return `<button type="button" class="qd-lugar${sel(j)}${j && j.id in pend ? ' qd-mudou' : ''}" data-alvo="${p}"
+      const naSecundaria = j && posDe(j) !== p;
+      return `<button type="button" class="qd-lugar${sel(j)}${j && (j.id in pend || j.id in pendLugar) ? ' qd-mudou' : ''}" data-alvo="${p}"
           ${j ? `data-id="${esc(j.id)}" draggable="true"` : ''} style="left:${x}%;top:${y}%;--pos-c:${CORES[p]}"
-          aria-label="${p}: ${j ? esc(j.name) : 'vazio'}">
+          aria-label="${p}: ${j ? esc(j.name) + (naSecundaria ? ` (${esc(posTexto(j))}, na posição secundária)` : '') : 'vazio'}">
         ${j ? `<img class="qd-foto" src="${esc(foto(j))}" alt="" draggable="false" onerror="this.onerror=null;this.src='${reserva(j)}'">`
             : `<span class="qd-vazio">${p}</span>`}
         <span class="qd-pos">${p}</span>
@@ -212,13 +253,13 @@
         <div class="qd-lado">${zonaBanco}${zonaOutros}${zonaGL}</div>
       </div>
       <div class="qd-barra"${nMud ? '' : ' hidden'}>
-        <span class="sp">${nMud} ${nMud === 1 ? 'jogador precisa' : 'jogadores precisam'} ir pro banco pra quadra ficar válida.</span>
+        <span class="sp">${nMud} ${nMud === 1 ? 'jogador precisa' : 'jogadores precisam'} mudar de lugar pra quadra ficar válida.</span>
         <button type="button" class="qd-btn" data-acao="desfazer">Desfazer</button>
         <button type="button" class="qd-btn pri" data-acao="salvar"><i class="bi bi-check2"></i> Salvar escalação</button>
       </div>
       <div class="qd-msg ${msg.tipo}" role="status">${msg.html}</div>
       <div class="qd-dica"><i class="bi bi-hand-index"></i> Arraste um jogador pra quadra, pro banco, pra Outros${vagasGL() ? ' ou pra G-League' : ''} — ou toque nele e depois no destino.
-        Cada lugar aceita só a posição principal, e cada mudança é salva na hora.</div>
+        Cada lugar aceita a posição principal ou a secundária do jogador, e cada mudança é salva na hora.</div>
     </section>`;
     marcarAlvos(raiz);
   }
@@ -237,9 +278,14 @@
   }
 
   async function salvar() {
+    const ids = mudancas();
     const roles = {};
-    mudancas().forEach(id => { roles[id] = pend[id]; });
-    if (!Object.keys(roles).length || salvando) return;
+    const slots = {};
+    ids.forEach(id => {
+      if (id in pend && pend[id] !== base[id]) roles[id] = pend[id];
+      if (id in pendLugar && pendLugar[id] !== (baseLugar[id] || '')) slots[id] = pendLugar[id];
+    });
+    if (!ids.length || salvando) return;
     salvando = true;
     aviso('info', '<i class="bi bi-arrow-repeat"></i> Salvando…');
     desenhar();
@@ -249,7 +295,7 @@
       const r = await fetch('/api/players.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_lineup', team_id: window.__TEAM_ID__, roles }),
+        body: JSON.stringify({ action: 'set_lineup', team_id: window.__TEAM_ID__, roles, slots }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.success) erro = d.error || 'Não deu pra salvar a escalação.';
@@ -259,12 +305,18 @@
 
     if (erro) {
       // Recusado: a quadra volta pro que está gravado.
-      Object.keys(roles).forEach(id => { delete pend[id]; });
+      ids.forEach(id => { delete pend[id]; delete pendLugar[id]; });
       aviso('err', esc(erro));
     } else {
-      // Aceito: a função nova passa a ser a oficial aqui mesmo, sem recarregar
-      // a página — os objetos são os mesmos da tabela (allPlayers).
+      // Aceito: a função e o lugar novos passam a ser os oficiais aqui mesmo, sem
+      // recarregar a página — os objetos são os mesmos da tabela (allPlayers).
       Object.entries(roles).forEach(([id, role]) => { const j = porId(id); if (j) j.role = role; });
+      ids.forEach(id => {
+        const j = porId(id);
+        if (!j) return;
+        const lugar = normRole(j.role) === 'Titular' ? lugarBruto(id) : '';
+        j.lineup_slot = lugar || null;
+      });
       aviso('ok', '<i class="bi bi-check2-circle"></i> Salvo.');
     }
     salvando = false;

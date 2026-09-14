@@ -145,8 +145,11 @@ if ($method === 'GET') {
         $teamIds = array_map(static fn($row) => (int)$row['id'], $teams);
         $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
         $playerOvr = playerOvrColumnForDetails($pdo);
+        // Titular sai no lugar em que joga na quadra (a secundária, se o GM escalou ele ali).
+        require_once __DIR__ . '/../backend/tatica_posicoes.php';
+        $colLugar = ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '';
         $stmtPlayers = $pdo->prepare(
-            'SELECT id, team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
+            'SELECT id, team_id, name, position, secondary_position' . $colLugar . ', age, role, ' . $playerOvr . ' AS ovr
              FROM players
              WHERE team_id IN (' . $placeholders . ')
              ORDER BY team_id,
@@ -170,7 +173,8 @@ if ($method === 'GET') {
         // Salário por jogador (só ELITE). O mapa vem vazio nas outras ligas, e aí
         // a linha sai igual sempre saiu.
         $linhaJogador = function (array $p, array $salarios): string {
-            $base = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+            $posLinha = ($p['role'] ?? '') === 'Titular' ? taticaLugarEmQuadra($p) : $p['position'];
+            $base = sprintf('- %s | %s | OVR %s | %s anos', $posLinha, $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
             $sal = $salarios[(int)($p['id'] ?? 0)] ?? null;
             return $sal === null ? $base : $base . ' | ' . $sal . 'M';
         };

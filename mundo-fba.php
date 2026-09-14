@@ -546,11 +546,15 @@ foreach ($leagueOrder as $league) {
         }
         $byPos = ['PG'=>null,'SG'=>null,'SF'=>null,'PF'=>null,'C'=>null];
         try {
-            $s = $pdo->prepare("SELECT name, position, ovr, age FROM players WHERE team_id = ? AND role = 'Titular' ORDER BY FIELD(position,'PG','SG','SF','PF','C') LIMIT 10");
+            // Lugar na quadra: a secundária quando o GM escalou ele ali (Meu Elenco).
+            require_once __DIR__ . '/backend/tatica_posicoes.php';
+            $colLugar = ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '';
+            $s = $pdo->prepare("SELECT name, position, secondary_position{$colLugar}, ovr, age FROM players WHERE team_id = ? AND role = 'Titular' ORDER BY FIELD(position,'PG','SG','SF','PF','C') LIMIT 10");
             $s->execute([$t['id']]);
             foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
-                if (array_key_exists($p['position'], $byPos) && $byPos[$p['position']] === null)
-                    $byPos[$p['position']] = $p;
+                $lugar = taticaLugarEmQuadra($p);
+                if (array_key_exists($lugar, $byPos) && $byPos[$lugar] === null)
+                    $byPos[$lugar] = $p;
             }
         } catch (Exception $e) {}
         $t['starters'] = $byPos;

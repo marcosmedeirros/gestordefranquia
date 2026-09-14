@@ -16,6 +16,7 @@ require_once __DIR__ . '/../backend/helpers.php';   // CAP_TOP_N
 require_once __DIR__ . '/../backend/pick_protection.php';   // condicao da pick
 require_once __DIR__ . '/../backend/draft_swaps.php';       // draftAnoDasPicks()
 require_once __DIR__ . '/../backend/playoff_series.php';
+require_once __DIR__ . '/../backend/tatica_posicoes.php';      // lugar do titular na quadra
 
 /**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
@@ -744,6 +745,12 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
  *
  * Devolve [posição => jogador|null].
  */
+/** ", lineup_slot" pro SELECT do elenco quando a coluna existe (lugar do titular na quadra). */
+function wcColLugar(PDO $pdo): string
+{
+    return ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '';
+}
+
 function wcQuintetoTitular(array $elenco): array
 {
     $vagas = ['PG' => null, 'SG' => null, 'SF' => null, 'PF' => null, 'C' => null];
@@ -757,7 +764,8 @@ function wcQuintetoTitular(array $elenco): array
     // roubaria o titular de outra. Resolvo vaga a vaga, faixa a faixa.
     foreach (array_keys($vagas) as $vaga) {
         foreach ([
-            fn($p) => $ehTitular($p) && $pos($p, 'position') === $vaga,
+            // titular no lugar em que o GM escalou na quadra (principal ou secundária)
+            fn($p) => $ehTitular($p) && taticaLugarEmQuadra($p) === $vaga,
             fn($p) => $ehTitular($p) && $pos($p, 'secondary_position') === $vaga,
             fn($p) => $pos($p, 'position') === $vaga,
             fn($p) => $pos($p, 'secondary_position') === $vaga,
@@ -814,7 +822,8 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
     }
 
     $ovr = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT id, name, position, secondary_position, role, age, {$ovr} AS ovr
+    $lug = wcColLugar($pdo);
+    $st = $pdo->prepare("SELECT id, name, position, secondary_position{$lug}, role, age, {$ovr} AS ovr
                          FROM players WHERE team_id = ? ORDER BY {$ovr} DESC");
     $st->execute([(int)$t['id']]);
     $elenco = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -1532,7 +1541,8 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     // Um SELECT pro elenco da liga inteira. Um por time seriam 32 idas ao
     // banco só pra montar uma mensagem.
     $ovrCol = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT id, team_id, name, position, secondary_position, role, age, {$ovrCol} AS ovr
+    $lug = wcColLugar($pdo);
+    $st = $pdo->prepare("SELECT id, team_id, name, position, secondary_position{$lug}, role, age, {$ovrCol} AS ovr
                          FROM players WHERE team_id IN (
                              SELECT id FROM teams WHERE league = ?
                          ) ORDER BY {$ovrCol} DESC");
@@ -3161,7 +3171,8 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     // ler dois números grudados é mais rápido que caçá-los nas pontas.
     $ovrCol = wcColunaOvr($pdo);
     $elencoDe = function (int $id) use ($pdo, $ovrCol): array {
-        $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovrCol} AS ovr
+        $lug = wcColLugar($pdo);
+        $st = $pdo->prepare("SELECT name, position, secondary_position{$lug}, role, age, {$ovrCol} AS ovr
                              FROM players WHERE team_id = ? ORDER BY {$ovrCol} DESC");
         $st->execute([$id]);
         return $st->fetchAll(PDO::FETCH_ASSOC);

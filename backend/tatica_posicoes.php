@@ -80,3 +80,37 @@ function taticaPosicoesMudaram(?array $retrato, array $atuais): bool
     }
     return false;
 }
+
+/**
+ * LUGAR DO TITULAR NA QUADRA.
+ *
+ * O titular joga na posição principal ou, se o GM escalou ele ali pela quadra
+ * do Meu Elenco, na secundária: Giannis (SF/PF) pode fechar o PF com um SF de
+ * verdade ao lado. O lugar escolhido fica em players.lineup_slot; NULL é a
+ * principal. Lugar que não bate mais com as posições (a secundária mudou
+ * depois) volta a ser a principal. Quem monta o quinteto usa esta função.
+ */
+function taticaLugarEmQuadra(array $p): string
+{
+    $pri = strtoupper(trim((string)($p['position'] ?? '')));
+    $sec = strtoupper(trim((string)($p['secondary_position'] ?? '')));
+    $lugar = strtoupper(trim((string)($p['lineup_slot'] ?? '')));
+    return ($lugar !== '' && ($lugar === $pri || $lugar === $sec)) ? $lugar : $pri;
+}
+
+/** Cria players.lineup_slot na primeira vez. Devolve se a coluna existe. */
+function ensurePlayerLineupSlotColumn(PDO $pdo): bool
+{
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM players LIKE 'lineup_slot'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN lineup_slot VARCHAR(2) NULL DEFAULT NULL");
+        }
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('ensurePlayerLineupSlotColumn: ' . $e->getMessage());
+        $ok = false;
+    }
+    return $ok;
+}

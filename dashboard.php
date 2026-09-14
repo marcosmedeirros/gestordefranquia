@@ -324,12 +324,16 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     $seasonDisplayYear = (int)$currentSeason['year'];
 }
 
+// Secundária e lugar na quadra: o quinteto da cópia sai com o titular no lugar
+// em que o GM escalou (Giannis SF/PF no PF), igual à quadra do Meu Elenco.
+require_once __DIR__ . '/backend/tatica_posicoes.php';
+$colLugar = ', secondary_position' . (ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '');
 try {
-    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age, player_tag, player_tag_color, player_tag_copy FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age, player_tag, player_tag_color, player_tag_copy{$colLugar} FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
     $stmtAllPlayers->execute([$team['id']]);
     $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age{$colLugar} FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
     $stmtAllPlayers->execute([$team['id']]);
     $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -2344,7 +2348,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const fmtLine = (label, p) => p ? `${label}: ${nomeDe(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
         const fmtPlayer = p => `${p.position}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
 
-        rosterData.filter(p => p.role === 'Titular').forEach(p => { if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p; });
+        // Lugar na quadra: a secundária quando o GM escalou ele ali, senão a principal.
+        const lugarDe = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
+        rosterData.filter(p => p.role === 'Titular').forEach(p => { const l = lugarDe(p); if (positions.includes(l) && !startersMap[l]) startersMap[l] = p; });
         const bench   = rosterData.filter(p => p.role === 'Banco');
         const others  = rosterData.filter(p => p.role === 'Outro');
         const gleague = rosterData.filter(p => (p.role||'').toLowerCase() === 'g-league');
