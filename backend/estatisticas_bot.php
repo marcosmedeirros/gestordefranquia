@@ -103,17 +103,27 @@ function ebCatalogo(): array
             'alto' => '😴 Maior jejum', 'baixo' => null, 'ordem' => 'desc',
             'calc' => 'ebSequencias', 'calc_arg' => 'jejum',
         ],
-        // Eterno vice: perdeu final e nunca ganhou nenhuma.
+        // Títulos, dinastia, eterno vice e seed médio: a conta é a da página,
+        // em backend/estatisticas_playoff.php (registro de fim de temporada).
+        'titulos' => [
+            'titulo' => 'Ranking de Títulos', 'sub' => 'quem mais foi campeão na sprint',
+            'alto' => '🏆 Mais títulos', 'baixo' => null, 'ordem' => 'desc',
+            'calc' => 'epTitulos',
+        ],
+        'dinastia' => [
+            'titulo' => 'Maior Dinastia', 'sub' => 'títulos em temporadas seguidas',
+            'alto' => '🔥 Maior sequência', 'baixo' => null, 'ordem' => 'desc',
+            'calc' => 'epDinastia',
+        ],
         'vice' => [
             'titulo' => 'Eterno Vice', 'sub' => 'vice-campeonatos sem nenhum título',
             'alto' => '🥈 Mais vices sem taça', 'baixo' => null, 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, SUM(pb.status='runner_up') AS valor
-                      FROM playoff_brackets pb
-                      JOIN seasons s ON s.id = pb.season_id
-                      JOIN teams t ON t.id = pb.team_id
-                      WHERE s.league = :liga AND pb.season_id IN {$T}
-                      GROUP BY t.id, t.city, t.name
-                      HAVING valor > 0 AND SUM(pb.status='champion') = 0",
+            'calc' => 'epEternoVice',
+        ],
+        'seed' => [
+            'titulo' => 'Seed Médio no Playoff', 'sub' => 'posição média com que entra no playoff; menor é mais favorito',
+            'alto' => '🌡️ Melhor seed médio', 'baixo' => '📉 Pior seed médio', 'ordem' => 'asc',
+            'calc' => 'epSeedMedio',
         ],
         // As três de série dependem de playoff_series.jogos. Sem série lançada
         // com o adversário elas vêm vazias — e a resposta diz isso.
@@ -146,22 +156,16 @@ function ebCatalogo(): array
         // ── Confrontos (dupla de times) ───────────────────────────────
         'rivalidades' => [
             'titulo' => 'Maiores Rivalidades', 'sub' => 'duplas que mais se enfrentaram no playoff',
-            'alto' => '⚔️ Mais confrontos', 'baixo' => null, 'ordem' => 'desc', 'par' => true,
-            'sql' => "SELECT CONCAT(a.name,' × ',b.name) AS nome, COUNT(*) AS valor
-                      FROM playoff_matches pm
-                      JOIN seasons s ON s.id = pm.season_id
-                      JOIN teams a ON a.id = LEAST(pm.team1_id, pm.team2_id)
-                      JOIN teams b ON b.id = GREATEST(pm.team1_id, pm.team2_id)
-                      WHERE pm.team1_id > 0 AND pm.team2_id > 0
-                        AND s.league = :liga AND pm.season_id IN {$T}
-                      GROUP BY a.id, b.id, a.name, b.name HAVING valor >= 2",
+            'alto' => '⚔️ Mais confrontos', 'baixo' => null, 'ordem' => 'desc', 'par' => true, 'sep' => ' × ',
+            'calc' => 'epRivalidades',
         ],
         'dominio' => [
             'titulo' => 'Domínio Total', 'sub' => 'duplas em que um time venceu TODOS os confrontos',
-            'alto' => '💀 Freguesia', 'baixo' => null, 'ordem' => 'desc', 'par' => true,
-            'calc' => 'ebDominio',
+            'alto' => '💀 Freguesia', 'baixo' => null, 'ordem' => 'desc', 'par' => true, 'sep' => ' sobre ',
+            'calc' => 'epDominio',
         ],
-        // $pairsMap
+        // $pairsMap — só a sprint ativa, pelo created_at, igual à página. O fim
+        // de sprint já apaga as trades simples; o corte fica explícito mesmo assim.
         'duplas' => [
             'titulo' => 'Duplas que Mais Trocaram', 'sub' => 'trades aceitas entre os dois times',
             'alto' => '🔄 Maiores parceiros', 'baixo' => null, 'ordem' => 'desc', 'par' => true,
@@ -171,9 +175,11 @@ function ebCatalogo(): array
                       JOIN teams b ON b.id = GREATEST(tr.from_team_id, tr.to_team_id)
                       WHERE tr.status = 'accepted' AND tr.from_team_id <> tr.to_team_id
                         AND a.league = :liga
+                        AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                       GROUP BY a.id, b.id, a.name, b.name",
         ],
         // $direcionalMap — aqui a ordem importa, então NÃO normaliza a dupla.
+        // Mesmo corte das duplas: só a sprint ativa.
         'unidirecionais' => [
             'titulo' => 'Trades Unidirecionais', 'sub' => 'quem mandou mais trades pra um mesmo time',
             'alto' => '📤 Mais unidirecionais', 'baixo' => null, 'ordem' => 'desc', 'par' => true,
@@ -182,6 +188,7 @@ function ebCatalogo(): array
                       JOIN teams a ON a.id = tr.from_team_id
                       JOIN teams b ON b.id = tr.to_team_id
                       WHERE tr.status = 'accepted' AND a.league = :liga
+                        AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                       GROUP BY a.id, b.id, a.name, b.name",
         ],
 
@@ -336,61 +343,30 @@ function ebSequencias(PDO $pdo, string $liga, string $qual): array
 }
 
 /**
- * Domínio total: duplas em que um lado venceu TODOS os confrontos.
- *
- * Saldo positivo com uma derrota no meio não é domínio, é vantagem — por isso
- * o par só entra quando o outro lado tem zero. Cópia da lógica que hoje está
- * em estatisticas.php ($dominioMap).
+ * Linhas da conta compartilhada (backend/estatisticas_playoff.php) no formato
+ * do bot: 'nome' e 'valor'. Dupla sai com os nomes curtos ("Blues × Heat").
  */
-function ebDominio(PDO $pdo, string $liga): array
+function ebDoMapa(array $linhas, array $def): array
 {
-    $T = ebTemporadasDaSprint();
-    $st = $pdo->prepare("
-        SELECT pm.team1_id, pm.team2_id, pm.winner_id, t1.name AS n1, t2.name AS n2
-        FROM playoff_matches pm
-        JOIN seasons s ON s.id = pm.season_id
-        JOIN teams t1 ON t1.id = pm.team1_id
-        JOIN teams t2 ON t2.id = pm.team2_id
-        WHERE pm.winner_id > 0 AND pm.team1_id > 0 AND pm.team2_id > 0
-          AND s.league = :liga AND pm.season_id IN {$T}");
-    $st->execute([':liga' => $liga]);
-
-    $pares = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $d) {
-        $a = min((int)$d['team1_id'], (int)$d['team2_id']);
-        $b = max((int)$d['team1_id'], (int)$d['team2_id']);
-        $k = $a . '|' . $b;
-        if (!isset($pares[$k])) $pares[$k] = ['vit' => [$a => 0, $b => 0], 'nomes' => []];
-        $pares[$k]['nomes'][(int)$d['team1_id']] = $d['n1'];
-        $pares[$k]['nomes'][(int)$d['team2_id']] = $d['n2'];
-        $w = (int)$d['winner_id'];
-        if (isset($pares[$k]['vit'][$w])) $pares[$k]['vit'][$w]++;
-    }
-
-    $out = [];
-    foreach ($pares as $p) {
-        $ids = array_keys($p['vit']);
-        [$x, $y] = [$p['vit'][$ids[0]], $p['vit'][$ids[1]]];
-        if ($x + $y < 2) continue;        // um duelo só não é domínio
-        if ($x > 0 && $y > 0) continue;   // levou uma: não é domínio
-        $dono  = $x > $y ? $ids[0] : $ids[1];
-        $outro = $dono === $ids[0] ? $ids[1] : $ids[0];
-        $out[] = [
-            'nome'  => ($p['nomes'][$dono] ?? '?') . ' sobre ' . ($p['nomes'][$outro] ?? '?'),
-            'valor' => $x + $y,
-        ];
-    }
-    return $out;
+    $sep = $def['sep'] ?? ' × ';
+    return array_map(fn($l) => [
+        'nome'  => !empty($def['par']) ? ($l['a'] . $sep . $l['b']) : $l['name'],
+        'valor' => $l['count'],
+    ], $linhas);
 }
 
 /** As linhas de uma estatística, já ordenadas. */
 function ebLinhas(PDO $pdo, array $def, string $liga): array
 {
     try {
+        if (!empty($def['calc']) && str_starts_with($def['calc'], 'ep')) {
+            // Conta compartilhada com a página: já vem ordenada do jeito dela,
+            // com desempates que o usort lá de baixo desfaria.
+            require_once __DIR__ . '/estatisticas_playoff.php';
+            return ebDoMapa(($def['calc'])($pdo)[$liga] ?? [], $def);
+        }
         if (!empty($def['calc'])) {
-            $linhas = $def['calc'] === 'ebSequencias'
-                ? ebSequencias($pdo, $liga, $def['calc_arg'])
-                : ebDominio($pdo, $liga);
+            $linhas = ebSequencias($pdo, $liga, $def['calc_arg']);
         } else {
             // :anopick só é passado pra quem pede — PDO recusa parâmetro que
             // a consulta não usa, então mandar sempre quebraria as outras.
@@ -504,7 +480,7 @@ function ebListar(?string $ligaDoGrupo): string
 
     $grupos = [
         'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5', 'toppicks'],
-        'Playoff'        => ['playoffs', 'sequencia', 'jejum', 'vice', '4a0', '0a4', 'jogo7'],
+        'Playoff'        => ['titulos', 'dinastia', 'vice', 'seed', 'playoffs', 'sequencia', 'jejum', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
         // Só os rankings entram aqui. O /trades e o /trocas são o feed das
         // últimas trocas e vivem no /ajuda, não nesta lista — misturar 'o que

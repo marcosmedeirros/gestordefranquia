@@ -290,6 +290,9 @@ try {
 // ── Pares direcionais: quem mais ofereceu para quem ─────────────
 $direcionalMap = [];
 try {
+    // Só a sprint ativa, pelo created_at (trade não tem season_id). O fim de
+    // sprint já apaga as trades simples, mas o corte fica explícito: a conta
+    // não pode depender de uma limpeza feita em outro arquivo pra estar certa.
     $dirRaw = $pdo->query("
         SELECT t1.league,
                CONCAT(t1.city,' ',t1.name) AS a_long, t1.name AS a,
@@ -299,6 +302,7 @@ try {
         JOIN teams t1 ON t1.id = tr.from_team_id
         JOIN teams t2 ON t2.id = tr.to_team_id
         WHERE tr.status = 'accepted'
+          AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t1.league AND sp.status='active')
         GROUP BY t1.league, t1.id, t2.id
         ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -316,6 +320,7 @@ try {
 // ── Pares de times que mais fizeram trade entre si ───────────────
 $pairsMap = [];
 try {
+    // Mesmo corte das direcionais acima: só a sprint ativa.
     $prRaw = $pdo->query("
         SELECT t1.league,
                CONCAT(t1.city,' ',t1.name) AS a_long, t1.name AS a,
@@ -325,6 +330,7 @@ try {
         JOIN teams t1 ON t1.id = LEAST(tr.from_team_id, tr.to_team_id)
         JOIN teams t2 ON t2.id = GREATEST(tr.from_team_id, tr.to_team_id)
         WHERE tr.status = 'accepted' AND tr.from_team_id <> tr.to_team_id
+          AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t1.league AND sp.status='active')
         GROUP BY t1.league, t1.id, t2.id ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($prRaw as $r) $pairsMap[$r['league']][] = ['a'=>$r['a'],'b'=>$r['b'],'a_long'=>$r['a_long'],'b_long'=>$r['b_long'],'count'=>(int)$r['count'],'name'=>$r['a_long'].' × '.$r['b_long']];
@@ -608,172 +614,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 // $opts = [ label_hi, label_lo, color_hi, label_copy_hi, label_copy_lo, suffix, reverse_bot ]
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYOFF — as estatísticas que antes existiam só pra RISE, e como um
-// bloco à parte alimentado à mão a partir de vídeos de simulação.
+// PLAYOFF — títulos, dinastia, eterno vice, seed médio, rivalidades e domínio.
 //
-// Agora saem do banco, iguais pras quatro ligas, de três fontes:
-//
-//   playoff_brackets   seed e até onde cada time chegou (status)
-//   playoff_matches    quem enfrentou quem em cada fase, e quem passou
-//   playoff_series     o mesmo, MAIS em quantos jogos — é a única que sabe
-//                      dizer 4-0 ou 4-3, e por isso as de sweep, jogo 7 e
-//                      margem nas finais dependem dela.
-//
-// As que dependem de `jogos` nascem vazias até a série ser lançada com o
-// adversário; as outras já têm dado desde a primeira temporada registrada.
+// Saem do registro de fim de temporada (playoff_results, team_ranking_points
+// e playoff_series), com a MESMA conta do bot: está toda em
+// backend/estatisticas_playoff.php. Antes liam playoff_brackets e
+// playoff_matches, que o fechamento de temporada não preenche mais — na
+// sprint ativa as duas estão vazias e as seis seções saíam "Sem dados".
+// Sweeps, jogo 7 e margem nas finais, logo abaixo, leem playoff_series direto.
 // ═══════════════════════════════════════════════════════════════════════
-
-// Título = campeão da temporada. Sai do bracket, não de playoff_results:
-// aquela tabela é esparsa (34 linhas contra 304), e um ranking de títulos
-// com metade das temporadas faltando é pior que nenhum.
-$titulosMap = queryByLeague($pdo, "
-    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
-           COUNT(*) AS count
-    FROM playoff_brackets pb
-    JOIN seasons s ON s.id = pb.season_id
-    JOIN teams t ON t.id = pb.team_id
-    WHERE pb.status = 'champion' AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
-    GROUP BY s.league, t.id, name
-    ORDER BY s.league, count DESC, name");
-
-// Vice sem nunca ter sido campeão. O HAVING é o que separa "perdeu finais"
-// de "eterno vice": quem levantou a taça uma vez não é vice de nada.
-$eternoViceMap = queryByLeague($pdo, "
-    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
-           SUM(pb.status = 'runner_up') AS count
-    FROM playoff_brackets pb
-    JOIN seasons s ON s.id = pb.season_id
-    JOIN teams t ON t.id = pb.team_id
-    WHERE pb.season_id IN {$TEMPORADAS_DA_SPRINT}
-    GROUP BY s.league, t.id, name
-    HAVING count > 0 AND SUM(pb.status = 'champion') = 0
-    ORDER BY s.league, count DESC, name");
-
-// Seed médio no playoff. Quanto MENOR, mais favorito o time costuma entrar —
-// por isso o label diz isso em vez de deixar o leitor adivinhar.
-$seedMap = queryByLeague($pdo, "
-    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
-           ROUND(AVG(pb.seed), 1) AS count
-    FROM playoff_brackets pb
-    JOIN seasons s ON s.id = pb.season_id
-    JOIN teams t ON t.id = pb.team_id
-    WHERE pb.seed > 0 AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
-    GROUP BY s.league, t.id, name
-    HAVING COUNT(*) >= 2
-    ORDER BY s.league, count ASC, name");
-
-// Dinastia: maior sequência de títulos em temporadas seguidas. Em PHP e não
-// em SQL porque "seguidas" depende da ordem das temporadas, e window function
-// não está garantida na versão do banco.
-$dinastiaMap = [];
-try {
-    $campeoes = $pdo->query("
-        SELECT s.league, s.season_number, pb.team_id,
-               TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name
-        FROM playoff_brackets pb
-        JOIN seasons s ON s.id = pb.season_id
-        JOIN teams t ON t.id = pb.team_id
-        WHERE pb.status = 'champion' AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
-        ORDER BY s.league, s.season_number")->fetchAll(PDO::FETCH_ASSOC);
-
-    $porLiga = [];
-    foreach ($campeoes as $c) $porLiga[$c['league']][] = $c;
-
-    foreach ($porLiga as $lg => $lista) {
-        $melhor = [];   // team_id => maior sequência
-        $atualId = null; $atual = 0; $ultimaTemp = null;
-        foreach ($lista as $c) {
-            $tid = (int)$c['team_id'];
-            $temp = (int)$c['season_number'];
-            // Só conta como sequência se a temporada for a seguinte: campeão em
-            // 3 e 5 não é bicampeão seguido.
-            $emSequencia = ($tid === $atualId && $ultimaTemp !== null && $temp === $ultimaTemp + 1);
-            $atual = $emSequencia ? $atual + 1 : 1;
-            $atualId = $tid; $ultimaTemp = $temp;
-            if (!isset($melhor[$tid]) || $atual > $melhor[$tid]['count']) {
-                $melhor[$tid] = ['team_id' => $tid, 'name' => $c['name'], 'count' => $atual];
-            }
-        }
-        $linhas = array_values(array_filter($melhor, fn($m) => $m['count'] >= 2));
-        usort($linhas, fn($a, $b) => $b['count'] <=> $a['count'] ?: strcasecmp($a['name'], $b['name']));
-        if ($linhas) $dinastiaMap[$lg] = $linhas;
-    }
-} catch (Exception) {}
-
-// ── Confrontos diretos ───────────────────────────────────────────────
-//
-// playoff_matches guarda os dois times e o vencedor, então o par sai daqui.
-// LEAST/GREATEST normaliza a dupla: sem isso "Blues × Heat" e "Heat × Blues"
-// virariam duas linhas e nenhuma delas com o total certo.
-$rivaisMap = queryByLeague($pdo, "
-    SELECT s.league,
-           TRIM(CONCAT(COALESCE(a.city,''),' ',COALESCE(a.name,''))) AS a_long, a.name AS a,
-           TRIM(CONCAT(COALESCE(b.city,''),' ',COALESCE(b.name,''))) AS b_long, b.name AS b,
-           COUNT(*) AS count
-    FROM playoff_matches pm
-    JOIN seasons s ON s.id = pm.season_id
-    JOIN teams a ON a.id = LEAST(pm.team1_id, pm.team2_id)
-    JOIN teams b ON b.id = GREATEST(pm.team1_id, pm.team2_id)
-    WHERE pm.team1_id > 0 AND pm.team2_id > 0 AND pm.season_id IN {$TEMPORADAS_DA_SPRINT}
-    GROUP BY s.league, a.id, b.id, a_long, a, b_long, b
-    HAVING count >= 2
-    ORDER BY s.league, count DESC, a_long");
-foreach ($rivaisMap as &$__lg) foreach ($__lg as &$__r) $__r['name'] = $__r['a_long'] . ' × ' . $__r['b_long'];
-unset($__lg, $__r);
-
-// Domínio: maior saldo num confronto direto. O par é o mesmo do de cima; o
-// que muda é contar quem passou. Só entra quem venceu TODAS — saldo positivo
-// com uma derrota no meio não é domínio, é vantagem.
-$dominioMap = [];
-try {
-    $duelos = $pdo->query("
-        SELECT s.league, pm.team1_id, pm.team2_id, pm.winner_id,
-               TRIM(CONCAT(COALESCE(t1.city,''),' ',COALESCE(t1.name,''))) AS n1, t1.name AS m1,
-               TRIM(CONCAT(COALESCE(t2.city,''),' ',COALESCE(t2.name,''))) AS n2, t2.name AS m2
-        FROM playoff_matches pm
-        JOIN seasons s ON s.id = pm.season_id
-        JOIN teams t1 ON t1.id = pm.team1_id
-        JOIN teams t2 ON t2.id = pm.team2_id
-        WHERE pm.winner_id > 0 AND pm.team1_id > 0 AND pm.team2_id > 0
-          AND pm.season_id IN {$TEMPORADAS_DA_SPRINT}")->fetchAll(PDO::FETCH_ASSOC);
-
-    $pares = [];
-    foreach ($duelos as $d) {
-        $a = min((int)$d['team1_id'], (int)$d['team2_id']);
-        $b = max((int)$d['team1_id'], (int)$d['team2_id']);
-        $k = $d['league'] . '|' . $a . '|' . $b;
-        if (!isset($pares[$k])) {
-            $pares[$k] = ['league' => $d['league'], 'nomes' => [], 'curtos' => [], 'vit' => [$a => 0, $b => 0]];
-        }
-        $pares[$k]['nomes'][(int)$d['team1_id']]  = $d['n1'];
-        $pares[$k]['nomes'][(int)$d['team2_id']]  = $d['n2'];
-        $pares[$k]['curtos'][(int)$d['team1_id']] = $d['m1'];
-        $pares[$k]['curtos'][(int)$d['team2_id']] = $d['m2'];
-        $w = (int)$d['winner_id'];
-        if (isset($pares[$k]['vit'][$w])) $pares[$k]['vit'][$w]++;
-    }
-    foreach ($pares as $p) {
-        $ids = array_keys($p['vit']);
-        [$x, $y] = [$p['vit'][$ids[0]], $p['vit'][$ids[1]]];
-        $total = $x + $y;
-        if ($total < 2) continue;                 // um duelo só não é domínio
-        if ($x > 0 && $y > 0) continue;           // levou uma: não é domínio
-        $dono = $x > $y ? $ids[0] : $ids[1];
-        $outro = $dono === $ids[0] ? $ids[1] : $ids[0];
-        $dominioMap[$p['league']][] = [
-            'a_long' => $p['nomes'][$dono]  ?? '?',
-            'b_long' => $p['nomes'][$outro] ?? '?',
-            'a'      => $p['curtos'][$dono]  ?? ($p['nomes'][$dono]  ?? '?'),
-            'b'      => $p['curtos'][$outro] ?? ($p['nomes'][$outro] ?? '?'),
-            'name'   => ($p['nomes'][$dono] ?? '?') . ' sobre ' . ($p['nomes'][$outro] ?? '?'),
-            'count'       => $total,
-        ];
-    }
-    foreach ($dominioMap as $lg => &$l) {
-        usort($l, fn($a, $b) => $b['count'] <=> $a['count'] ?: strcasecmp($a['name'], $b['name']));
-    }
-    unset($l);
-} catch (Exception) {}
+require_once __DIR__ . '/backend/estatisticas_playoff.php';
+$titulosMap    = epSeguro(fn() => epTitulos($pdo), 'titulos');
+$dinastiaMap   = epSeguro(fn() => epDinastia($pdo), 'dinastia');
+$eternoViceMap = epSeguro(fn() => epEternoVice($pdo), 'eterno vice');
+$seedMap       = epSeguro(fn() => epSeedMedio($pdo), 'seed medio');
+$rivaisMap     = epSeguro(fn() => epRivalidades($pdo), 'rivalidades');
+$dominioMap    = epSeguro(fn() => epDominio($pdo), 'dominio');
 
 // ── As que dependem do número de jogos da série ──────────────────────
 //
