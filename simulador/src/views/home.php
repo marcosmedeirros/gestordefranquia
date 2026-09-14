@@ -208,17 +208,17 @@ render_header('Início');
     <?php if ($cta): ?>
     <div class="gmh-next">
       <a class="gmh-next-btn" href="<?= e($cta['href']) ?>"
-         <?= isset($cta['confirm']) ? 'onclick="return confirm(\''.e($cta['confirm']).'\')"' : '' ?>>
+         <?= isset($cta['confirm']) ? 'data-confirm="'.e($cta['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>>
         <span class="gmh-next-kicker">▶ Próximo passo</span>
         <span class="gmh-next-label"><?= e($cta['label']) ?></span>
       </a>
       <?php if (!empty($cta['alt'])): ?>
-        <a class="gmh-next-alt" href="<?= e($cta['alt']['href']) ?>" onclick="return confirm('<?= e($cta['alt']['confirm']) ?>')"><?= e($cta['alt']['label']) ?></a>
+        <a class="gmh-next-alt" href="<?= e($cta['alt']['href']) ?>" data-confirm="<?= e($cta['alt']['confirm']) ?>" data-confirm-title="Próximo passo"><?= e($cta['alt']['label']) ?></a>
       <?php endif; ?>
       <?php if (!empty($cta['more'])): ?>
         <div class="gmh-next-more">
           <?php foreach ($cta['more'] as $m2): ?>
-            <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'onclick="return confirm(\''.e($m2['confirm']).'\')"' : '' ?>><?= e($m2['label']) ?></a>
+            <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'data-confirm="'.e($m2['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($m2['label']) ?></a>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
@@ -328,11 +328,11 @@ render_header('Início');
 <section class="cta-card">
   <div class="cta-info"><span class="cta-note"><?= e($cta['note']) ?></span></div>
   <a class="btn btn-primary btn-lg cta-btn" href="<?= e($cta['href']) ?>"
-     <?= isset($cta['confirm']) ? 'onclick="return confirm(\''.e($cta['confirm']).'\')"' : '' ?>><?= e($cta['label']) ?></a>
+     <?= isset($cta['confirm']) ? 'data-confirm="'.e($cta['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($cta['label']) ?></a>
   <?php if (!empty($cta['more'])): ?>
     <div class="cta-more">
       <?php foreach ($cta['more'] as $m2): ?>
-        <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'onclick="return confirm(\''.e($m2['confirm']).'\')"' : '' ?>><?= e($m2['label']) ?></a>
+        <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'data-confirm="'.e($m2['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($m2['label']) ?></a>
       <?php endforeach; ?>
     </div>
   <?php endif; ?>

@@ -36,7 +36,7 @@ $avg = League::avgStrength();
     $isCur = $current == $t['id']; ?>
     <a class="gm-card <?= $isCur ? 'active' : '' ?> <?= $canPick && !$isCur ? '' : 'gm-card-static' ?>" style="<?= gradient($t) ?>"
        href="<?= $canPick && !$isCur ? url('home', ['action' => 'set-gm', 'team' => $t['id']]) : url('team', ['id' => $t['id']]) ?>"
-       <?= $canPick && !$isCur ? 'onclick="return confirm(\'Assumir o ' . e(teamFull($t)) . '?\')"' : '' ?>>
+       <?= $canPick && !$isCur ? 'data-confirm="Assumir o ' . e(teamFull($t)) . '?" data-confirm-title="Assumir franquia" data-confirm-ok="Assumir"' : '' ?>>
       <div class="gm-abbr"><?= e($t['abbr']) ?></div>
       <div class="gm-name"><?= e(teamFull($t)) ?></div>
       <div class="gm-meta"><?= $t['conf'] === 'E' ? 'Leste' : 'Oeste' ?> · <?= $t['wins'] ?>-<?= $t['losses'] ?> · Força <?= $str ?> · <?= (int)$t['titles'] ?> 🏆</div>

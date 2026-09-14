@@ -17,7 +17,7 @@ foreach ($bracket as $s) { $byRound[$s['round']][] = $s; }
 <?php if (!$bracket): ?>
   <p class="muted">Os playoffs ainda não começaram. Conclua a temporada regular.</p>
   <?php if ($phase === 'regular'): ?>
-    <a class="btn" href="<?= url('home',['action'=>'sim-season']) ?>" onclick="return confirm('Simular toda a temporada regular?')">⏭ Simular temporada e ir aos playoffs</a>
+    <a class="btn" href="<?= url('home',['action'=>'sim-season']) ?>" data-confirm="Simular toda a temporada regular?" data-confirm-title="Simular temporada" data-confirm-ok="Simular">⏭ Simular temporada e ir aos playoffs</a>
   <?php endif; ?>
 <?php else: ?>
   <?php if ($phase === 'offseason' && Database::meta('champion_id')):

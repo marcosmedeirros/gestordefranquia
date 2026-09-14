@@ -57,7 +57,7 @@ foreach (array_slice($st['order'], $st['pick']) as $en) { if ((int) $en['owner']
           <td>
             <?php if ($st['is_user']): ?>
               <a class="btn btn-primary btn-sm" href="<?= url('home', ['action'=>'draft-pick','prospect'=>$p['id']]) ?>"
-                 onclick="return confirm('Draftar <?= e($p['name']) ?> com a pick #<?= $st['pick']+1 ?>?')">Draftar</a>
+                 data-confirm="Draftar <?= e($p['name']) ?> com a pick #<?= $st['pick']+1 ?>?" data-confirm-title="Draft" data-confirm-ok="Draftar">Draftar</a>
             <?php endif; ?>
           </td>
         </tr>

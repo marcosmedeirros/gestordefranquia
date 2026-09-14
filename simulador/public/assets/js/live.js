@@ -70,8 +70,8 @@
     try {
       const res = await fetch((window.API_URL || 'api.php') + '?live=start&game=' + window.GAME_ID);
       data = await res.json();
-    } catch (e) { alert('Erro ao iniciar o jogo.'); return false; }
-    if (data.error) { alert(data.error); return false; }
+    } catch (e) { window.fbaAlert('Erro ao iniciar o jogo.'); return false; }
+    if (data.error) { window.fbaAlert(data.error); return false; }
 
     meta = data.game;
     window.HOME_ID = meta.home_id; window.AWAY_ID = meta.away_id;
@@ -113,8 +113,8 @@
       try {
         const res = await fetch((window.API_URL || 'api.php') + '?live=step', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
         data = await res.json();
-      } catch (e) { alert('Erro ao simular.'); return; }
-      if (data.error) { alert(data.error); return; }
+      } catch (e) { window.fbaAlert('Erro ao simular.'); return; }
+      if (data.error) { window.fbaAlert(data.error); return; }
 
       timeoutChk.checked = false;
       if (typeof data.timeouts === 'object') toLbl.textContent = data.timeouts[data.gm_side];
@@ -149,7 +149,7 @@
       }
     } catch (e) {
       console.error('Erro ao processar o quarto simulado:', e);
-      alert('Ocorreu um erro inesperado ao simular. Tente novamente.');
+      window.fbaAlert('Ocorreu um erro inesperado ao simular. Tente novamente.');
     } finally {
       busy = false;
       if (!finished) { nextBtn.disabled = false; autoBtn.disabled = false; }
@@ -167,7 +167,7 @@
       guard++;
     }
     if (!finished) {
-      alert('Não foi possível concluir a simulação automática do jogo. Tente simular quarto a quarto.');
+      window.fbaAlert('Não foi possível concluir a simulação automática do jogo. Tente simular quarto a quarto.');
       nextBtn.disabled = false; autoBtn.disabled = false;
     }
   }

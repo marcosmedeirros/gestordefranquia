@@ -13,6 +13,8 @@ if (!Cap::signingOpen()) {
 }
 
 $gm = League::gmTeam();
+// save antigo ou mercado esvaziado: a lista curta se completa ao abrir a página
+if (in_array($phase, ['preseason', 'regular'], true)) { try { Offseason::marketRefresh(false, true); } catch (Throwable $e) {} }
 $season = $isWindow ? (int) Database::meta('fa_season', League::season() + 1) : League::season();
 $msg = $_GET['msg'] ?? null;
 $fas = Offseason::freeAgents(80);
@@ -30,8 +32,8 @@ $space = $cap ? max(0, $cap['space']) : 0;
 </div>
 <?php else: ?>
 <h1 class="page-title">✍️ Agentes Livres</h1>
-<p class="legend">Jogadores sem time — dispensados pelos clubes para caber no teto ou sobras da última free agency. Qualquer time pode assinar,
-   desde que o salário (tabela por OVR) <strong>caiba no espaço do teto</strong> e o elenco tenha vaga (máx. <?= Cap::ROSTER_MAX ?>).</p>
+<p class="legend">Jogadores sem clube — dispensados pra caber no teto, veteranos sem contrato e nomes que chegam de fora. O mercado se renova o ano todo
+   e qualquer time pode assinar, desde que o salário (tabela por OVR) <strong>caiba no espaço do teto</strong> e o elenco tenha vaga (máx. <?= Cap::ROSTER_MAX ?>).</p>
 <?php endif; ?>
 
 <?php if ($msg): ?><div class="cap-alert <?= str_starts_with($msg, '✅') ? 'cap-alert-ok' : 'cap-alert-danger' ?>"><?= e($msg) ?></div><?php endif; ?>
@@ -69,7 +71,7 @@ $space = $cap ? max(0, $cap['space']) : 0;
           <td>
             <?php if ($fits): ?>
               <a class="btn btn-sm btn-primary" href="<?= url('home', ['action'=>'sign-fa','fa'=>$p['id']]) ?>"
-                 onclick="return confirm('Contratar <?= e($p['name']) ?> por <?= Cap::m($sal) ?>/ano?')">Contratar</a>
+                 data-confirm="Contratar <?= e($p['name']) ?> por <?= Cap::m($sal) ?>/ano?" data-confirm-title="Contratar agente livre" data-confirm-ok="Contratar">Contratar</a>
             <?php elseif ($gm): ?>
               <span class="btn btn-sm btn-disabled" title="<?= $rosterCount >= Cap::ROSTER_MAX ? 'Elenco cheio' : 'Não cabe no teto' ?>"><?= $rosterCount >= Cap::ROSTER_MAX ? 'sem vaga' : 'não cabe' ?></span>
             <?php endif; ?>
@@ -86,7 +88,7 @@ $space = $cap ? max(0, $cap['space']) : 0;
     <div class="card-head"><h2>Encerrar a janela</h2></div>
     <p class="legend">Ao concluir, a IA completa os elencos e a nova temporada começa. Você precisa estar <strong>dentro do teto</strong> para começar.</p>
     <a class="btn btn-primary" href="<?= url('home', ['action'=>'finish-fa']) ?>"
-       onclick="return confirm('Encerrar a Free Agency e iniciar a temporada <?= $season ?>?')">🏁 Concluir e iniciar temporada</a>
+       data-confirm="Encerrar a Free Agency e iniciar a temporada <?= $season ?>?" data-confirm-title="Free Agency" data-confirm-ok="Iniciar temporada">🏁 Concluir e iniciar temporada</a>
     <?php else: ?>
     <div class="card-head"><h2>Abrir espaço</h2></div>
     <p class="legend">Sem espaço no teto? Dispense ou troque alguém em <a href="<?= url('cap') ?>">Folha &amp; Cap</a>. O salário do dispensado sai da folha na hora.</p>

@@ -2625,3 +2625,50 @@ h1.page-title {
 .flag-pill.focus { background:rgba(74,144,226,.2);color:#7fb3ff; }
 .flag-pill.block { background:rgba(245,166,35,.2);color:#f5a623; }
 .bench-card .bc-flags { display:flex;gap:4px;margin-top:4px; }
+
+/* =================================================================
+   DIÁLOGO DO JOGO — substitui o alert/confirm do navegador
+   ================================================================= */
+.fba-dialog{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;
+  padding:16px;background:rgba(3,5,9,.74);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  animation:fd-fade .16s ease both}
+.fba-dialog.fd-out{opacity:0;transition:opacity .16s ease}
+.fd-box{position:relative;width:100%;max-width:430px;overflow:hidden;
+  background:linear-gradient(180deg,#1b2231 0%,#121724 100%);border:1px solid #2c3750;border-radius:14px;
+  box-shadow:0 30px 80px rgba(0,0,0,.65);
+  padding:22px 22px 18px;animation:fd-pop .22s cubic-bezier(.2,.9,.25,1.15) both}
+.fd-box::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--brand),#ff6a3d)}
+.fd-box.fd-danger::before{background:linear-gradient(90deg,#ff5b67,#b3122e)}
+.fd-box.fd-alert::before{background:linear-gradient(90deg,var(--accent2),#5fa8ff)}
+.fd-head{display:flex;align-items:center;gap:12px;margin:0 0 10px}
+.fd-icon{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0;border-radius:10px;
+  background:rgba(228,0,43,.14);font-size:20px;line-height:1}
+.fd-danger .fd-icon{background:rgba(255,91,103,.14)}
+.fd-alert .fd-icon{background:rgba(47,123,255,.16)}
+.fd-title{margin:0;font-family:var(--display,'Oswald','Segoe UI',sans-serif);font-size:20px;font-weight:700;
+  letter-spacing:.4px;text-transform:uppercase;color:#fff;line-height:1.15;text-wrap:balance}
+.fd-msg{margin:0 0 20px;color:#c3cce0;font-size:14.5px;line-height:1.55;white-space:pre-line;overflow-wrap:anywhere}
+.fd-actions{display:flex;justify-content:flex-end;gap:10px}
+.fd-btn{-webkit-appearance:none;appearance:none;border:1px solid #33405c;background:#222b3d;color:#e8edf6;
+  font:700 14px/1 var(--ui,'Inter','Segoe UI',system-ui,sans-serif);padding:12px 18px;border-radius:9px;
+  min-width:112px;cursor:pointer;transition:background .15s,border-color .15s,filter .15s,transform .1s}
+.fd-btn:hover{background:#2a3449;border-color:#465575}
+.fd-btn:active{transform:translateY(1px)}
+.fd-btn:focus-visible{outline:2px solid #5fa8ff;outline-offset:2px}
+.fd-ok{background:var(--brand);border-color:var(--brand);color:#fff}
+.fd-ok:hover{background:#ff1a44;border-color:#ff1a44}
+.fd-alert .fd-ok{background:var(--accent2);border-color:var(--accent2)}
+.fd-alert .fd-ok:hover{background:#4a8dff;border-color:#4a8dff}
+.fd-ok.fd-ok-danger{background:#c81e3a;border-color:#c81e3a}
+.fd-ok.fd-ok-danger:hover{background:#e0294a;border-color:#e0294a}
+@keyframes fd-fade{from{opacity:0}to{opacity:1}}
+@keyframes fd-pop{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes fd-sheet{from{transform:translateY(100%)}to{transform:none}}
+@media (max-width:560px){
+  .fba-dialog{align-items:flex-end;padding:0}
+  .fd-box{max-width:none;border-radius:18px 18px 0 0;border-bottom:0;
+    padding:22px 18px calc(18px + env(safe-area-inset-bottom));animation-name:fd-sheet}
+  .fd-actions{flex-direction:column-reverse;gap:8px}
+  .fd-btn{width:100%;padding:15px 18px;font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){.fba-dialog,.fd-box{animation:none}}

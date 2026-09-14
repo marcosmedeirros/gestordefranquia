@@ -21,7 +21,7 @@ $msgs  = League::inboxList(40);
   <div class="ps-actions">
     <a class="btn btn-primary" href="<?= url('home', ['action'=>'preseason-advance']) ?>">▶ Avançar dia</a>
     <a class="btn" href="<?= url('home', ['action'=>'preseason-finish']) ?>"
-       onclick="return confirm('Encerrar a pré-temporada e iniciar a temporada agora?')">⏭ Iniciar temporada</a>
+       data-confirm="Encerrar a pré-temporada e iniciar a temporada agora?" data-confirm-title="Pré-temporada" data-confirm-ok="Iniciar temporada">⏭ Iniciar temporada</a>
   </div>
 </div>
 

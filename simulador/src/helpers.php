@@ -409,7 +409,7 @@ function render_inbox_actions(array $m, string $backPage): void
             echo '<a class="btn btn-sm btn-primary" href="' . url('home', ['action'=>'resign','pid'=>$m['ref_id'],'choice'=>'accept','back'=>$backPage]) . '">'
                . '✅ Renovar · ' . $d['years'] . 'a / ' . money($d['salary']) . '</a>';
             echo '<a class="btn btn-sm" href="' . url('home', ['action'=>'resign','pid'=>$m['ref_id'],'choice'=>'reject','back'=>$backPage]) . '"'
-               . ' onclick="return confirm(\'Recusar renovação de ' . e($rp['name']) . '?\')">❌ Recusar</a>';
+               . ' data-confirm="Recusar a renovação de ' . e($rp['name']) . '?" data-confirm-title="Renovação de contrato" data-confirm-ok="Recusar">❌ Recusar</a>';
             echo '</div>';
         }
         return;

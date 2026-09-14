@@ -610,10 +610,12 @@ class League
                 }
             } catch (Throwable $e) {}
         }
-        if ($day <= $deadline && self::chanceF(0.12)) {
+        // o mercado de jogadores sem clube se renova o ano todo, e a IA usa o espaço do teto pra contratar
+        try { require_once __DIR__ . '/Offseason.php'; Offseason::marketRefresh(); } catch (Throwable $e) {}
+        if (self::chanceF(0.30)) {
             try {
                 require_once __DIR__ . '/Offseason.php';
-                $sg = Offseason::aiPreseasonSigning();
+                $sg = Offseason::aiMarketSigning(self::season());
                 if ($sg) {
                     self::inboxAdd('signing', 'Free Agency', $sg['headline'], $sg['detail'], url('freeagency'), '✍️', false);
                     self::addHeadline(self::season(), $day, 'signing', '✍️ ' . $sg['detail']);
@@ -2714,10 +2716,11 @@ class League
                 }
             } catch (Throwable $e) {}
         }
-        // 2) Uma assinatura de agente livre pela liga
+        // 2) O mercado se renova e um time usa o espaço do teto pra contratar
+        try { Offseason::marketRefresh(); } catch (Throwable $e) {}
         if (self::chanceF(0.6)) {
             try {
-                $s = Offseason::aiPreseasonSigning();
+                $s = Offseason::aiMarketSigning(self::season()) ?? Offseason::aiPreseasonSigning();
                 if ($s) { self::inboxAdd('signing', 'Free Agency', $s['headline'], $s['detail'], url('freeagency'), '✍️', false); $events++; }
             } catch (Throwable $e) {}
         }

@@ -97,10 +97,10 @@ $fmtM = fn($v) => Cap::m((int) $v);
           <?php if ($isMine): ?>
             <?php if ((int)$p['contract_years'] <= 1): $dem = League::resignDemand($p); ?>
               <a class="btn btn-sm btn-primary" href="<?= url('home', ['action'=>'resign','pid'=>$p['id'],'choice'=>'accept','back'=>'cap']) ?>"
-                 onclick="return confirm('Renovar <?= e($p['name']) ?> por <?= $dem['years'] ?> anos? O salário segue a tabela por OVR (<?= $fmtM($dem['salary']) ?>/ano hoje).')">✍️ Renovar <?= $dem['years'] ?>a</a>
+                 data-confirm="Renovar <?= e($p['name']) ?> por <?= $dem['years'] ?> anos? O salário segue a tabela por OVR (<?= $fmtM($dem['salary']) ?>/ano hoje)." data-confirm-title="Renovar contrato" data-confirm-ok="Renovar">✍️ Renovar <?= $dem['years'] ?>a</a>
             <?php endif; ?>
             <a class="btn btn-sm" href="<?= url('home', ['action'=>'release','pid'=>$p['id'],'back'=>'cap']) ?>"
-               onclick="return confirm('Dispensar <?= e($p['name']) ?>? Ele vira agente livre e o salário de <?= $fmtM($p['salary']) ?> sai da folha na hora.')">🚪 Dispensar</a>
+               data-confirm="Dispensar <?= e($p['name']) ?>? Ele vira agente livre e o salário de <?= $fmtM($p['salary']) ?> sai da folha na hora." data-confirm-title="Dispensar jogador" data-confirm-ok="Dispensar" data-confirm-danger>🚪 Dispensar</a>
           <?php endif; ?>
         </td>
       </tr>

@@ -16,7 +16,7 @@ $gmId   = League::gmTeam();
   <div class="actions">
     <a class="btn btn-primary" href="<?= url('home', ['action'=>'advance','back'=>url('schedule',['day'=>$cur])]) ?>">▶ Avançar data</a>
     <?php if ($phase === 'regular'): ?>
-      <a class="btn" href="<?= url('home', ['action'=>'sim-season']) ?>" onclick="return confirm('Simular toda a temporada regular de uma vez?')">⏭ Simular tudo</a>
+      <a class="btn" href="<?= url('home', ['action'=>'sim-season']) ?>" data-confirm="Simular toda a temporada regular de uma vez?" data-confirm-title="Simular temporada" data-confirm-ok="Simular">⏭ Simular tudo</a>
     <?php endif; ?>
   </div>
 </div>

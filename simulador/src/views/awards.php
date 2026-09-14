@@ -82,7 +82,7 @@ render_header('Premiação');
 
 <section class="cta-card recap-cta">
   <div class="cta-info"><span class="cta-note">Entressafra: progressão do elenco, loteria, draft e free agency</span></div>
-  <a class="btn btn-primary btn-lg cta-btn" href="<?= url('home', ['action' => 'next-season']) ?>" onclick="return confirm('Rodar a entressafra e iniciar a próxima temporada?')">🏁 Iniciar próxima temporada</a>
+  <a class="btn btn-primary btn-lg cta-btn" href="<?= url('home', ['action' => 'next-season']) ?>" data-confirm="Rodar a entressafra e iniciar a próxima temporada?" data-confirm-title="Entressafra" data-confirm-ok="Iniciar">🏁 Iniciar próxima temporada</a>
   <div class="cta-more"><a href="<?= url('history') ?>">Ver histórico completo</a><a href="<?= url('playoffs') ?>">Chaveamento dos playoffs</a></div>
 </section>
 

@@ -81,7 +81,7 @@ $eraEmojis = [
           <div class="slot-actions">
             <a class="btn btn-primary" href="<?= url('home', ['action' => 'load-save', 'save' => $s['id']]) ?>">▶ Continuar</a>
             <a class="btn btn-danger btn-sm" href="<?= url('home', ['action' => 'delete-save', 'save' => $s['id']]) ?>"
-               onclick="return confirm('Excluir \'<?= e(addslashes($s['name'])) ?>\'? Esta ação é permanente.')">🗑</a>
+               data-confirm="Excluir a dinastia “<?= e($s['name']) ?>”? Esta ação é permanente." data-confirm-title="Excluir dinastia" data-confirm-ok="Excluir" data-confirm-danger>🗑</a>
           </div>
         </div>
       </div>
@@ -361,7 +361,7 @@ $eraEmojis = [
         <div class="wiz-nav">
           <button class="btn btn-lg" type="button" data-wiz-prev>← Editar</button>
           <button class="btn btn-primary btn-lg" type="submit"
-                  onclick="return confirm('Criar a nova dinastia? Isso pode levar alguns segundos.')">
+                  data-confirm="Criar a nova dinastia? Isso pode levar alguns segundos." data-confirm-title="Nova dinastia" data-confirm-ok="Criar dinastia">
             🏀 Criar Dinastia
           </button>
         </div>

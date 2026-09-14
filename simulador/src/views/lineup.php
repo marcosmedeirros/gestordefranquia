@@ -240,6 +240,7 @@ if ($upcoming):
   // Modal de ações do jogador
   const TRADE_BLOCK = <?= json_encode(array_values($block)) ?>;
   window.openPlayer = function(pid, p) {
+    const escAttr = s => String(s == null ? "" : s).replace(/[&"<>]/g, c => ({"&":"&amp;","\"":"&quot;","<":"&lt;",">":"&gt;"}[c]));
     const modal = document.getElementById('playerModal');
     const content = document.getElementById('pmContent');
     const appBase  = '<?= defined("APP_BASE") ? APP_BASE : "" ?>';
@@ -274,7 +275,7 @@ if ($upcoming):
         ${young || focusOn ? `<a class="pm-btn" href="${appBase}/index.php?action=dev-focus&pid=${pid}">🎯 ${focusOn ? 'Tirar do foco de treino' : 'Foco de treino'}</a>` : ''}
         <a class="pm-btn" href="${appBase}/index.php?action=trade-block&pid=${pid}">📣 ${inBlock ? 'Tirar da vitrine' : 'Colocar na vitrine de trocas'}</a>
         <a class="pm-btn pm-danger" href="${appBase}/index.php?action=release&pid=${pid}&back=lineup"
-           onclick="return confirm('Dispensar ' + p.name + '? Ele vira agente livre e o salário sai da folha na hora.')">🚪 Dispensar</a>
+           data-confirm="Dispensar ${escAttr(p.name)}? Ele vira agente livre e o salário sai da folha na hora." data-confirm-title="Dispensar jogador" data-confirm-ok="Dispensar" data-confirm-danger>🚪 Dispensar</a>
       </div>
     `;
     modal.style.display = 'flex';

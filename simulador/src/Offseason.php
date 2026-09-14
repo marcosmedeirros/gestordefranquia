@@ -240,7 +240,7 @@ class Offseason
         $log['trades'] = self::offseasonTrades($newSeason);
         self::buildFreeAgentPool($newSeason);
         $log['fa'] = self::aiSignFreeAgents($newSeason, true);
-        Database::conn()->exec("DELETE FROM players WHERE team_id IS NULL AND retired = 0");
+        // quem sobrou continua jogador sem clube: dá pra assinar durante a temporada (o mercado se renova sozinho)
         self::refillRosters();
         self::recomputeRotations();
         self::resetForNewSeason($newSeason);
@@ -949,8 +949,8 @@ class Offseason
             $db->prepare("INSERT INTO season_stats(player_id) VALUES(?)")->execute([$p['id']]);
         }
         $tm = League::team($teamId);
-        $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,0,'free agency',?)")
-           ->execute([$season, "{$tm['abbr']} contrata o agente livre {$p['name']} ({$p['pos']}, OVR {$p['ovr']})"]);
+        $db->prepare("INSERT INTO transactions(season,day,type,description) VALUES(?,?,'free agency',?)")
+           ->execute([$season, League::phase() === 'regular' ? League::currentDay() : 0, "{$tm['abbr']} contrata o agente livre {$p['name']} ({$p['pos']}, OVR {$p['ovr']})"]);
 
         $msg = '✅ ' . $p['name'] . ' assinado por ' . Cap::m($signSalary) . '/ano · ' . $signYears . ' ano' . ($signYears>1?'s':'') . '.';
         $left = $sum['space'] - $signSalary;
@@ -1080,6 +1080,86 @@ class Offseason
         self::resetForNewSeason($season);
         Database::conn()->prepare("DELETE FROM meta WHERE k='fa_season'")->execute();
         return ['phase' => 'regular', 'season' => $season];
+    }
+
+    // ============ MERCADO DE JOGADORES SEM CLUBE (o ano todo) ============
+
+    /** A lista de agentes livres tenta ficar entre esses dois tamanhos durante o ano. */
+    public const MARKET_MIN = 10;
+    public const MARKET_MAX = 40;
+
+    /**
+     * Renova o mercado de jogadores sem clube na pré-temporada e na temporada
+     * regular. Lista curta → entram alguns nomes novos (dispensados de outras
+     * ligas, veteranos sem contrato, gente vindo de fora); de vez em quando entra
+     * um nome mesmo com a lista razoável, pra ela não ficar parada. Assim qualquer
+     * time com espaço no teto sempre tem quem contratar. Retorna os criados.
+     * $onlyIfShort: só completa a lista curta (a página usa isso — recarregar não sorteia nomes).
+     */
+    public static function marketRefresh(bool $force = false, bool $onlyIfShort = false): array
+    {
+        $db = Database::conn();
+        $count = (int) $db->query("SELECT COUNT(*) FROM players WHERE team_id IS NULL AND retired=0")->fetchColumn();
+        if ($count >= self::MARKET_MAX) return [];
+        $n = 0;
+        if ($count < self::MARKET_MIN) $n = random_int(2, 4);
+        elseif (!$onlyIfShort && ($force || self::chance(0.25))) $n = 1;
+        if ($n === 0) return [];
+        $ins = $db->prepare("INSERT INTO players
+            (team_id,name,pos,age,ht,ovr,ins,mid,thr,pmk,reb,def,ath,sta,potential,seasons_pro,morale,is_starter,rotation,salary,contract_years)
+            VALUES(NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,70,0,0,?,0)");
+        $positions = ['PG','SG','SF','PF','C'];
+        $made = [];
+        for ($i = 0; $i < $n; $i++) {
+            $fa = Installer::makeFreeAgent($positions[array_rand($positions)]);
+            $ovr = (int) $fa['ovr'];
+            // a maioria é coadjuvante de salário mínimo; ~25% é um veterano útil (79–84)
+            if (self::chance(0.25)) $ovr = min(84, max($ovr, random_int(79, 84)));
+            $age = random_int(23, 34);
+            $ins->execute([$fa['name'], $fa['pos'], $age, $fa['ht'], $ovr,
+                $fa['ins'], $fa['mid'], $fa['thr'], $fa['pmk'], $fa['reb'], $fa['def'], $fa['ath'], $fa['sta'],
+                max($ovr, (int) $fa['potential']), max(1, $age - 19), Database::salaryForOvr($ovr, $age)]);
+            $made[] = ['id' => (int) $db->lastInsertId(), 'name' => $fa['name'], 'pos' => $fa['pos'], 'ovr' => $ovr];
+        }
+        return $made;
+    }
+
+    /**
+     * Um time de IA usa o espaço do teto pra contratar um agente livre durante o
+     * ano. Prioridade pra quem está abaixo do piso ou com elenco curto; os demais
+     * só assinam quem cabe no teto E é melhor que o fim do banco. Devolve a
+     * manchete da contratação ou null se ninguém fez nada.
+     */
+    public static function aiMarketSigning(int $season): ?array
+    {
+        $gm = League::gmTeam();
+        $cands = [];
+        foreach (League::allTeams() as $t) {
+            $tid = (int) $t['id'];
+            if ($tid === $gm) continue;
+            $s = Cap::summary($tid);
+            if ($s['count'] >= Cap::ROSTER_MAX) continue;
+            $need = $s['status'] === 'under' || $s['count'] < Cap::ROSTER_MIN;
+            if (!$need && $s['space'] < Cap::VETERAN_MIN * Cap::M) continue;
+            $fa = self::bestFaForTeam($tid);
+            if (!$fa) continue;
+            if (!$need) {
+                $minOvr = 99;
+                foreach ($s['roster'] as $p) $minOvr = min($minOvr, (int) $p['ovr']);
+                // com 13 já vale um igual ao pior; com 14 só um reforço de verdade
+                if ((int) $fa['ovr'] < $minOvr + ($s['count'] <= Cap::ROSTER_MIN ? 0 : 2)) continue;
+            }
+            $cands[] = ['tid' => $tid, 'fa' => $fa, 'w' => $need ? 6 : 1 + (int) floor($s['space'] / (10 * Cap::M))];
+        }
+        if (!$cands) return null;
+        $total = 0; foreach ($cands as $c) $total += $c['w'];
+        $r = random_int(1, max(1, $total)); $pick = $cands[0];
+        foreach ($cands as $c) { $r -= $c['w']; if ($r <= 0) { $pick = $c; break; } }
+        $res = self::signFreeAgent($pick['tid'], (int) $pick['fa']['id'], $season, false);
+        if (empty($res['ok'])) return null;
+        $tm = League::team($pick['tid']); $fa = $pick['fa'];
+        return ['headline' => "{$tm['abbr']} assina {$fa['name']}",
+                'detail'   => "{$tm['city']} {$tm['name']} contrata {$fa['name']} ({$fa['pos']}, OVR {$fa['ovr']}, " . Cap::m((int) $res['salary']) . "/ano) no mercado de agentes livres."];
     }
 
     // ============ MANUTENÇÃO DE ELENCOS / RESET ============
