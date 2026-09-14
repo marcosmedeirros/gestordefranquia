@@ -3546,8 +3546,7 @@ function wcFantasyEscalados(PDO $pdo): string
     $i = 1;
     foreach ($top as $pid => $n) {
         $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
-        $pct = round($n / count($times) * 100);
-        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — {$n} " . ($n === 1 ? 'time' : 'times') . " ({$pct}%)\n";
+        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — {$n} " . ($n === 1 ? 'time' : 'times') . "\n";
         $i++;
     }
     return rtrim($txt);
