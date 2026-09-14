@@ -198,6 +198,10 @@ function ebCatalogo(): array
         // O recorte é por DATA e não por season_id: trade não tem season_id,
         // tem created_at. A data de início vem de sprints.start_date da
         // sprint com status 'active' daquela liga.
+        //
+        // SEM recorte por ciclo (14/09/2026): é a sprint ativa INTEIRA, todos
+        // os ciclos dela — pedido do Marcos. Por isso o número pode passar do
+        // max_trades, que é por ciclo; não é bug, é outro período.
         'parceiros' => [
             'titulo' => 'Diversidade de Parceiros', 'sub' => 'franquias diferentes com quem trocou na sprint',
             'alto' => '🌐 Mais parceiros', 'baixo' => '🏝️ Menos interativos', 'ordem' => 'desc',
@@ -207,20 +211,20 @@ function ebCatalogo(): array
                       FROM teams t
                       LEFT JOIN (
                           SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro
-                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                           UNION ALL
                           SELECT tr.to_team_id, tr.from_team_id
-                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                           UNION ALL
                           SELECT mi.from_team_id, mi.to_team_id
                             FROM multi_trade_items mi
                             JOIN multi_trades mt ON mt.id = mi.trade_id
-                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                           UNION ALL
                           SELECT mi.to_team_id, mi.from_team_id
                             FROM multi_trade_items mi
                             JOIN multi_trades mt ON mt.id = mi.trade_id
-                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                       ) e ON e.eu = t.id AND e.parceiro <> t.id
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
@@ -251,9 +255,9 @@ function ebCatalogo(): array
             // participantes entraram na proposta de alguém, não fizeram uma.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
                              (SELECT COUNT(*) FROM trades tr
-                               WHERE tr.from_team_id = t.id AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga))
+                               WHERE tr.from_team_id = t.id AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active'))
                            + (SELECT COUNT(*) FROM multi_trades mt
-                               WHERE mt.created_by_team_id = t.id AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)) AS valor
+                               WHERE mt.created_by_team_id = t.id AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')) AS valor
                       FROM teams t
                       WHERE t.league = :liga",
         ],
@@ -266,12 +270,12 @@ function ebCatalogo(): array
             // por item — uma troca de cinco jogadores viraria cinco trades.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
                              (SELECT COUNT(*) FROM trades tr
-                               WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                               WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                                  AND (tr.from_team_id = t.id OR tr.to_team_id = t.id))
                            + (SELECT COUNT(DISTINCT mt.id)
                                 FROM multi_trades mt
                                 JOIN multi_trade_items mi ON mi.trade_id = mt.id
-                               WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                               WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                                  AND (mi.from_team_id = t.id OR mi.to_team_id = t.id)) AS valor
                       FROM teams t
                       WHERE t.league = :liga",
@@ -285,7 +289,7 @@ function ebCatalogo(): array
                       FROM teams t
                       LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id)
                                          AND tr.status='rejected'
-                                         AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
+                                         AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
