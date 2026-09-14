@@ -1,0 +1,17 @@
+/* Times da liga: conferências e divisões */
+.tl-div + .tl-div{margin-top:14px}
+.tl-div .sub-h{margin:0 0 4px}
+.tl-row{display:flex;align-items:center;gap:12px;min-height:58px;margin:0 -10px;padding:8px 10px;border-radius:10px}
+.tl-row:hover{background:var(--panel-2);color:inherit}
+.tl-row.mine{background:var(--team-soft);box-shadow:inset 3px 0 0 var(--team-bright)}
+.tl-row .tlogo{width:38px;height:38px}
+.tl-txt{flex:1;min-width:0}
+.tl-txt b{display:block;font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-txt small{display:block;margin-top:1px;font-size:13px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-lvl{flex:none;display:inline-flex}
+
+@media (max-width:640px){
+  .tl-star{display:none}
+  .tl-row{min-height:54px;gap:10px}
+  .tl-row .tlogo{width:34px;height:34px}
+}

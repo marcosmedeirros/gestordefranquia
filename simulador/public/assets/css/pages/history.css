@@ -1,0 +1,61 @@
+/* História da liga (?p=history) */
+
+/* sua franquia */
+.fr-id{display:flex;align-items:center;gap:14px;min-width:0;margin-bottom:16px}
+.fr-id .tlogo{width:64px;height:64px;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45))}
+.fr-id h2{margin-top:6px;font-size:30px;font-weight:800;text-transform:uppercase}
+.fr-stats{margin-bottom:4px}
+
+/* prêmios */
+.hist-seasons{margin-bottom:14px}
+.aw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.aw-card{display:flex;flex-direction:column;gap:5px;min-width:0;padding:14px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line)}
+a.aw-card:hover{border-color:var(--line-2);color:inherit}
+.aw-card .label{display:flex;align-items:center;gap:6px}
+.aw-card .label i{font-size:14px;color:var(--go)}
+.aw-card b{font:700 22px/1.1 var(--f-display);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aw-card small{color:var(--text-3);font-size:13.5px}
+.allnba-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.allnba-row:first-child{border-top:0;padding-top:0}
+.allnba-players{display:flex;flex-wrap:wrap;gap:6px}
+.ap{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:14.5px;font-weight:600}
+.ap small{font-size:12.5px;font-weight:700;letter-spacing:.04em;color:var(--text-3)}
+a.ap:hover{border-color:var(--line-2)}
+
+/* dinastias e recordes */
+.hist-titles{display:inline-flex;align-items:center;gap:6px;font:800 20px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hist-titles i{font-size:15px;color:var(--go)}
+.hist-avg{font:800 19px/1 var(--f-display)}
+
+/* movimentações */
+.tx-list{display:flex;flex-direction:column}
+.tx{display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.tx-list > .tx:first-child{padding-top:0}
+.tx-list > .tx:last-child{border-bottom:0}
+.tx-ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--panel-3);color:var(--text-2);font-size:16px}
+.tx.t-team .tx-ic{background:var(--team-soft);color:var(--team-bright)}
+.tx.t-ok .tx-ic{background:rgba(47,210,123,.12);color:var(--win)}
+.tx.t-bad .tx-ic{background:rgba(255,84,103,.12);color:var(--loss)}
+.tx.t-info .tx-ic{background:rgba(86,163,255,.12);color:var(--info)}
+.tx.t-go .tx-ic{background:rgba(255,184,28,.13);color:var(--go)}
+.tx-txt{color:var(--text);font-size:14.5px;line-height:1.45}
+.tx-when{display:block;margin-top:2px;color:var(--text-3);font-size:13px}
+.tx-more{margin-top:4px;padding-top:6px;border-top:1px solid var(--line)}
+.tx-more summary{list-style:none;cursor:pointer;min-height:40px}
+.tx-more summary::-webkit-details-marker{display:none}
+.tx-more summary i{transition:transform .15s}
+.tx-more[open] summary i{transform:rotate(180deg)}
+.tx-more .tx-list > .tx:first-child{padding-top:11px}
+
+@media (max-width:640px){
+  /* nomes longos quebram a linha em vez de empurrar a tabela para o lado */
+  .hist-tbl .who b,.hist-tbl .who small{white-space:normal}
+  .fr-id .tlogo{width:48px;height:48px}
+  .fr-id h2{font-size:24px}
+  .aw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aw-card b{font-size:19px}
+  .allnba-row{grid-template-columns:1fr;gap:6px}
+}
+@media (max-width:420px){
+  .aw-grid{grid-template-columns:1fr}
+}

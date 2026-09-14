@@ -1,527 +1,324 @@
 <?php
 require_once dirname(__DIR__) . '/helpers.php';
-$phase = League::phase();
-$day = League::currentDay();
-$season  = League::season();
-$eraName = Database::meta('era_name');
-$phaseLabel = ['regular'=>'Temporada Regular','playin'=>'Play-In','playoffs'=>'Playoffs',
-               'lottery'=>'Loteria','draft'=>'Draft','freeagency'=>'Free Agency','offseason'=>'Off-season'][$phase] ?? ucfirst($phase);
-$east = League::standings('E');
-$west = League::standings('W');
-$ppgLeaders = League::leaders('pts', 5);
-$todays = ($phase === 'offseason') ? [] : League::gamesByDay($day);
-$awardRace = ($phase === 'regular' && $day >= 10) ? League::awardRace() : null;
-$champ = null;
-if ($phase === 'offseason' && Database::meta('champion_id')) {
-    $champ = League::team((int) Database::meta('champion_id'));
-}
-$goal = League::boardGoalProgress();
-$headlines = League::headlines(6);
-$power = League::powerRankings();
-$gmId = League::gmTeam();
+
+$phase  = League::phase();
+$day    = League::currentDay();
+$season = League::season();
+$gmId   = (int) League::gmTeam();
+$gm     = $gmId ? League::team($gmId) : null;
+$fired  = $gmId && League::isFired();
+$active = in_array($phase, ['regular', 'playin', 'playoffs'], true);
+
+// Jogo de hoje ou próximo jogo do GM
 $gmToday = null;
-if ($gmId && in_array($phase, ['regular','playin','playoffs'])) {
+if ($gmId && $active) {
     $gg = League::gmGameOnDay($day);
-    if ($gg && !$gg['played']) $gmToday = $gg;
+    if ($gg && empty($gg['played'])) $gmToday = $gg;
 }
+$nextGame = ($gmId && $active && !$gmToday) ? (League::upcomingGames($gmId, 1)[0] ?? null) : null;
 
-// ── DC dashboard data ──
-$gmTeamData    = $gmId ? League::team($gmId) : null;
-$gmTopPerf     = [];
-$gmRecentForm  = [];
-$gmPPG         = 0.0;
-$gmStreak      = '';
-$gmNextGame    = null;
-$gmHomeW = $gmHomeL = $gmAwayW = $gmAwayL = 0;
-if ($gmId && $gmTeamData && in_array($phase, ['regular','playin','playoffs'])) {
-    // Top performers
-    $roster = League::roster($gmId);
-    $perf = array_values(array_filter($roster, fn($p) => (int)$p['gp'] > 0));
-    usort($perf, fn($a, $b) => ($b['s_pts']/$b['gp']) <=> ($a['s_pts']/$a['gp']));
-    $gmTopPerf = array_slice($perf, 0, 4);
-
-    $db = Database::conn();
-
-    // Last 5 games for form + home/away split
-    $st = $db->prepare(
-        "SELECT CASE WHEN home_id=:t THEN home_pts ELSE away_pts END AS my_pts,
-                CASE WHEN home_id=:t THEN away_pts ELSE home_pts END AS op_pts,
-                CASE WHEN home_id=:t THEN 1 ELSE 0 END AS is_home
-         FROM games WHERE (home_id=:t OR away_id=:t) AND played=1
-         ORDER BY day DESC LIMIT 5"
-    );
+// Forma recente (5 jogos) e sequência
+$form = [];
+$streak = '';
+if ($gmId) {
+    $st = Database::conn()->prepare(
+        "SELECT CASE WHEN home_id=:t THEN home_pts ELSE away_pts END AS my,
+                CASE WHEN home_id=:t THEN away_pts ELSE home_pts END AS op
+         FROM games WHERE (home_id=:t OR away_id=:t) AND played=1 ORDER BY day DESC LIMIT 5");
     $st->execute([':t' => $gmId]);
-    $gmRecentForm = array_reverse($st->fetchAll());
-    foreach ($gmRecentForm as $g) {
-        $w = (int)$g['my_pts'] > (int)$g['op_pts'];
-        if ($g['is_home']) { $w ? $gmHomeW++ : $gmHomeL++; }
-        else               { $w ? $gmAwayW++ : $gmAwayL++; }
-    }
-
-    // Streak from recent form
-    if ($gmRecentForm) {
-        $rev  = array_reverse($gmRecentForm);
-        $lw   = (int)$rev[0]['my_pts'] > (int)$rev[0]['op_pts'];
-        $cnt  = 0;
-        foreach ($rev as $g) { if (((int)$g['my_pts'] > (int)$g['op_pts']) === $lw) $cnt++; else break; }
-        $gmStreak = ($lw ? 'V' : 'D') . $cnt;
-    }
-
-    // Team PPG
-    $r = $db->prepare("SELECT AVG(CASE WHEN home_id=:t THEN home_pts ELSE away_pts END) AS ppg FROM games WHERE (home_id=:t OR away_id=:t) AND played=1");
-    $r->execute([':t' => $gmId]);
-    $gmPPG = round((float)(($r->fetch())['ppg'] ?? 0), 1);
-
-    // Next unplayed game
-    if (!$gmToday) {
-        $ns = $db->prepare(
-            "SELECT g.*, at.abbr AS away_abbr, ht.abbr AS home_abbr
-             FROM games g JOIN teams at ON at.id=g.away_id JOIN teams ht ON ht.id=g.home_id
-             WHERE (g.home_id=:t OR g.away_id=:t) AND g.played=0 ORDER BY g.day ASC LIMIT 1"
-        );
-        $ns->execute([':t' => $gmId]);
-        $gmNextGame = $ns->fetch() ?: null;
+    $last = $st->fetchAll();
+    foreach (array_reverse($last) as $g) $form[] = (int) $g['my'] > (int) $g['op'];
+    if ($last) {
+        $w0 = (int) $last[0]['my'] > (int) $last[0]['op'];
+        $n = 0;
+        foreach ($last as $g) { if (((int) $g['my'] > (int) $g['op']) === $w0) $n++; else break; }
+        $streak = ($w0 ? 'V' : 'D') . $n;
     }
 }
 
-// ── Técnico / GM ──
-$gmCoach = ($gmId && in_array($phase, ['regular','playin','playoffs','offseason'])) ? League::gmCoach() : null;
+$seed = null;
+$confRows = [];
+if ($gm) {
+    $confRows = League::standings($gm['conf']);
+    foreach ($confRows as $r) { if ((int) $r['id'] === $gmId) { $seed = (int) $r['seed']; break; } }
+}
+$goal      = $gmId ? League::boardGoalProgress() : null;
+$pat       = $gmId ? League::boardPatience() : 0;
+$oc        = $gmId ? League::ownerConfidence() : null;
+$cap       = $gmId ? Cap::summary($gmId) : null;
+$decisions = $gmId ? League::pendingDecisions() : [];
+$inbox     = $gmId ? League::inboxList(8) : [];
+$todays    = ($phase === 'offseason') ? [] : League::gamesByDay($day);
+$headlines = League::headlines(6);
+$champ     = ($phase === 'offseason' && Database::meta('champion_id')) ? League::team((int) Database::meta('champion_id')) : null;
+$race      = ($phase === 'regular' && $day >= 10) ? League::awardRace() : null;
 
-// ── Narrativa: manchetes relacionadas ao MEU time ──
-$gmStorylines = [];
-if ($gmId && $gmTeamData) {
-    $abbr = $gmTeamData['abbr'] ?? '';
-    foreach (League::headlines(20) as $h) {
-        if ($abbr && (stripos($h['text'], $abbr) !== false
-            || stripos($h['text'], $gmTeamData['name'] ?? '###') !== false
-            || (int)($h['team_id'] ?? 0) === $gmId)) {
-            $gmStorylines[] = $h['text'];
-        }
-        if (count($gmStorylines) >= 4) break;
+// Destaques do elenco: pontos por jogo; antes da estreia, os maiores OVR
+$top = [];
+if ($gmId) {
+    $roster = League::roster($gmId);
+    $played = array_values(array_filter($roster, fn($p) => (int) ($p['gp'] ?? 0) > 0));
+    if ($played) {
+        usort($played, fn($a, $b) => ($b['s_pts'] / $b['gp']) <=> ($a['s_pts'] / $a['gp']));
+        $top = array_slice($played, 0, 5);
+    } else {
+        usort($roster, fn($a, $b) => (int) $b['ovr'] <=> (int) $a['ovr']);
+        $top = array_slice($roster, 0, 5);
     }
-    // storylines geradas a partir do estado do time
-    if ($gmStreak && (int)substr($gmStreak,1) >= 3) {
-        $tipo = substr($gmStreak,0,1) === 'V' ? 'embala com' : 'tropeça em';
-        array_unshift($gmStorylines, ($gmTeamData['city'] ?? '').' '.($gmTeamData['name'] ?? '').' '.$tipo.' '.substr($gmStreak,1).' jogos seguidos.');
-    }
-    if ($gmTopPerf) {
-        $star = $gmTopPerf[0];
-        $gmStorylines[] = e($star['name']).' lidera o time com '.avg($star['s_pts']??0, $star['gp']??1).' pts/jogo.';
-    }
-    $gmStorylines = array_slice($gmStorylines, 0, 4);
 }
 
-// ---- Ação central única (CTA) conforme a fase ----
-$cta = League::nextAction();
+$confName = $gm ? ($gm['conf'] === 'E' ? 'Leste' : 'Oeste') : '';
+$goalTone = ['andamento' => 'info', 'cumprida' => 'ok', 'falhou' => 'bad'];
+$goalText = ['andamento' => 'em andamento', 'cumprida' => 'cumprida', 'falhou' => 'não cumprida'];
 
-render_header('Início');
+render_header('Central');
 ?>
+
+<?php if ($fired): ?>
+<section class="panel alert home-banner">
+  <span class="eyebrow">Fim da linha</span>
+  <h1>A diretoria do <?= e(teamFull($gm)) ?> te dispensou</h1>
+  <p class="muted">A paciência acabou depois de temporadas abaixo da meta. Escolha outra franquia para seguir a carreira.</p>
+</section>
+<?php endif; ?>
+
 <?php if ($champ): ?>
-<div class="champion-banner" style="<?= gradient($champ) ?>">
-  🏆 Campeão da Temporada <?= League::season() ?>: <strong><?= e(teamFull($champ)) ?></strong>
-</div>
+<section class="panel hot home-banner home-champ">
+  <?= team_logo($champ['abbr'], $champ['primary_color'] ?? '#333', 'xl') ?>
+  <div>
+    <span class="eyebrow">Campeão da temporada <?= $season ?></span>
+    <h1><?= e(teamFull($champ)) ?></h1>
+  </div>
+</section>
 <?php endif; ?>
 
-<?php if (!empty($_GET['dmsg'])): ?><div class="injury-note" style="background:#10371f;border-color:#1f6b3a;color:#9bffc0"><?= e($_GET['dmsg']) ?></div><?php endif; ?>
-
-<?php if ($gmId && League::isFired()): ?>
-<div class="fired-banner">
-  <div class="fb-kicker">🔴 Demitido</div>
-  <h1>A diretoria do <?= e(teamFull($gmTeamData)) ?> te dispensou.</h1>
-  <p>A paciência acabou depois das temporadas abaixo da meta. A liga só continua quando você assumir outra franquia.</p>
-  <a class="btn btn-primary btn-lg" href="<?= url('gmselect') ?>">Escolher nova franquia →</a>
-</div>
-<?php endif; ?>
-
-<?php $gmHero = $gmId && $gmTeamData && in_array($phase, ['regular','playin','playoffs']) && !League::isFired(); ?>
-
-<?php if ($gmHero):
-  $g2 = (int)$gmTeamData['wins'] + (int)$gmTeamData['losses'];
-  $pctStr = $g2 ? number_format($gmTeamData['wins'] / $g2, 3) : '.000';
-  // seed na conferência
-  $mySeed = null;
-  foreach (League::standings($gmTeamData['conf']) as $s) { if ((int)$s['id'] === $gmId) { $mySeed = $s['seed']; break; } }
-  $coachStyleLabels = ['equilibrado'=>'Equilibrado','ofensivo'=>'Ofensivo','defensivo'=>'Defensivo','desenvolvimento'=>'Desenvolvedor','gestao'=>'Gestor'];
-?>
-<!-- ═══════════ GM COMMAND CENTER ═══════════ -->
-<section class="gm-hero">
-  <div class="gm-hero-bg"></div>
-  <div class="gm-hero-inner">
-
-    <!-- Identidade + treinador -->
-    <div class="gmh-identity">
-      <div class="gmh-logo"><?= team_logo($gmTeamData['abbr'], $gmTeamData['primary_color'], 'lg') ?></div>
-      <div class="gmh-id-txt">
-        <div class="gmh-team"><?= e(($gmTeamData['city']??'').' '.($gmTeamData['name']??'')) ?></div>
-        <div class="gmh-sub"><?= e($eraName ?: 'Era Atual') ?> · Temporada <?= $season ?> · <?= e($phaseLabel) ?></div>
-        <?php if ($gmCoach): ?>
-        <div class="gmh-coach">
-          <span class="gmh-coach-ava"><?= strtoupper(substr($gmCoach['name'] ?: 'T', 0, 1)) ?></span>
-          <div>
-            <div class="gmh-coach-name"><?= e($gmCoach['name'] ?: 'Técnico') ?> <span class="gmh-coach-role">· Gerente Geral</span></div>
-            <div class="gmh-coach-attrs">
-              <span title="Estilo"><?= e($coachStyleLabels[$gmCoach['style']] ?? ucfirst($gmCoach['style'])) ?></span>
-              <span>OFE <strong><?= (int)$gmCoach['ofensivo'] ?></strong></span>
-              <span>DEF <strong><?= (int)$gmCoach['defensivo'] ?></strong></span>
-              <span>DES <strong><?= (int)$gmCoach['desenvolvimento'] ?></strong></span>
-            </div>
-          </div>
-        </div>
-        <?php endif; ?>
+<?php if ($gm): ?>
+<section class="home-hero">
+  <div class="hh-id">
+    <?= team_logo($gm['abbr'], $gm['primary_color'] ?? '#333', 'xl') ?>
+    <div class="hh-id-txt">
+      <span class="eyebrow"><?= e(Database::meta('era_name') ?: 'Era atual') ?> · Temporada <?= $season ?></span>
+      <h1><?= e(teamFull($gm)) ?></h1>
+      <div class="row hh-meta">
+        <span class="hh-rec" title="Campanha"><?= (int) $gm['wins'] ?>-<?= (int) $gm['losses'] ?></span>
+        <?php if ($seed && (int) $gm['wins'] + (int) $gm['losses'] > 0): ?><?= chip($seed . 'º no ' . $confName, $seed <= 6 ? 'ok' : ($seed <= 10 ? 'warn' : 'bad')) ?><?php endif; ?>
+        <?php if ($streak): ?><?= chip('Sequência ' . $streak, $streak[0] === 'V' ? 'ok' : 'bad') ?><?php endif; ?>
+        <?= $form ? form_boxes($form) : '' ?>
       </div>
     </div>
+  </div>
 
-    <!-- Stats grandes -->
-    <div class="gmh-stats">
-      <div class="gmh-stat">
-        <div class="gmh-stat-num"><?= (int)$gmTeamData['wins'] ?>-<?= (int)$gmTeamData['losses'] ?></div>
-        <div class="gmh-stat-lbl"><?= $pctStr ?> · <?= $mySeed ? $mySeed.'º '.($gmTeamData['conf']==='E'?'Leste':'Oeste') : ($gmTeamData['conf']==='E'?'Leste':'Oeste') ?></div>
+  <div class="hh-side">
+  <?php if ($gmToday || $nextGame):
+      if ($gmToday) {
+          $awayAbbr = $gmToday['away_abbr']; $homeAbbr = $gmToday['home_abbr'];
+          $when = 'Hoje · ' . League::dateLabel($day);
+          $href = url('game', ['id' => $gmToday['id'], 'live' => 1]);
+          $series = $phase === 'playoffs' ? League::seriesStatus((int) ($gmToday['series_id'] ?? 0)) : null;
+      } else {
+          $opp = $nextGame['opp_abbr'];
+          $awayAbbr = !empty($nextGame['is_home']) ? $opp : $gm['abbr'];
+          $homeAbbr = !empty($nextGame['is_home']) ? $gm['abbr'] : $opp;
+          $when = League::dateLabel((int) $nextGame['day']);
+          $href = url('game', ['id' => $nextGame['id']]);
+          $series = null;
+      } ?>
+    <a class="hh-card" href="<?= $href ?>">
+      <span class="hh-label"><?= $gmToday ? 'Jogo de hoje' : 'Próximo jogo' ?></span>
+      <div class="matchup">
+        <div class="mu-side"><?= team_logo($awayAbbr, '#333', 'lg') ?><b><?= e($awayAbbr) ?></b><small>Visitante</small></div>
+        <div class="mu-mid">@</div>
+        <div class="mu-side"><?= team_logo($homeAbbr, '#333', 'lg') ?><b><?= e($homeAbbr) ?></b><small>Mandante</small></div>
       </div>
-      <div class="gmh-stat">
-        <div class="gmh-stat-num <?= $gmStreak && substr($gmStreak,0,1)==='V' ? 'pos' : ($gmStreak ? 'neg' : '') ?>"><?= $gmStreak ?: '—' ?></div>
-        <div class="gmh-stat-lbl">sequência</div>
-      </div>
-      <div class="gmh-stat">
-        <div class="gmh-stat-num"><?= $gmPPG > 0 ? $gmPPG : '—' ?></div>
-        <div class="gmh-stat-lbl">pontos/jogo</div>
-      </div>
-    </div>
-
-    <!-- Missão -->
-    <?php if ($goal): ?>
-    <div class="gmh-mission goal-<?= $goal['status'] ?>">
-      <div class="gmh-mission-label">🎯 Missão da Temporada</div>
-      <div class="gmh-mission-desc"><?= e($goal['desc']) ?></div>
-      <div class="gmh-mission-detail"><?= e($goal['detail']) ?>
-        <span class="gmh-mission-badge"><?= ['andamento'=>'em andamento','cumprida'=>'✅ cumprida','falhou'=>'❌ não cumprida'][$goal['status']] ?></span>
-      </div>
-      <?php $pat = League::boardPatience(); ?>
-      <div class="gmh-patience" title="Meta cumprida enche; meta perdida gasta. Zerou, você é demitido.">
-        Paciência da diretoria
-        <span class="pat-dots"><?php for ($i = 1; $i <= League::PATIENCE_MAX; $i++): ?><i class="<?= $i <= $pat ? 'on' : '' ?>"></i><?php endfor; ?></span>
-        <?= $pat <= 1 ? '<span class="pat-warn">última chance</span>' : '' ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Próximo passo (CTA) -->
-    <?php if ($cta): ?>
-    <div class="gmh-next">
-      <a class="gmh-next-btn" href="<?= e($cta['href']) ?>"
-         <?= isset($cta['confirm']) ? 'data-confirm="'.e($cta['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>>
-        <span class="gmh-next-kicker">▶ Próximo passo</span>
-        <span class="gmh-next-label"><?= e($cta['label']) ?></span>
-      </a>
-      <?php if (!empty($cta['alt'])): ?>
-        <a class="gmh-next-alt" href="<?= e($cta['alt']['href']) ?>" data-confirm="<?= e($cta['alt']['confirm']) ?>" data-confirm-title="Próximo passo"><?= e($cta['alt']['label']) ?></a>
-      <?php endif; ?>
-      <?php if (!empty($cta['more'])): ?>
-        <div class="gmh-next-more">
-          <?php foreach ($cta['more'] as $m2): ?>
-            <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'data-confirm="'.e($m2['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($m2['label']) ?></a>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-    <!-- Folha & Cap -->
-    <?php $capH = Cap::summary($gmId); ?>
-    <a class="gmh-cap status-<?= $capH['status'] ?>" href="<?= url('cap') ?>" title="Folha & Cap">
-      <span class="gmh-cap-lbl">💰 Folha</span>
-      <span class="gmh-cap-val"><?= Cap::m($capH['payroll']) ?> <small>/ teto <?= Cap::m($capH['cap_max']) ?></small></span>
-      <span class="gmh-cap-st"><?= $capH['status'] === 'ok' ? 'dentro do teto · ' . Cap::m($capH['space']) . ' de espaço'
-          : ($capH['status'] === 'over' ? '⛔ ' . Cap::m($capH['excess']) . ' ACIMA DO TETO' : '⚠️ ' . Cap::m($capH['deficit']) . ' abaixo do piso') ?>
-        <?php if ($phase === 'regular' && $day <= Cap::deadlineDay()): ?> · deadline dia <?= Cap::deadlineDay() ?><?php endif; ?></span>
+      <span class="hh-when"><?= e($when) ?><?= $series ? ' · ' . e($series['round_name'] . ', ' . $series['lead']) : '' ?></span>
     </a>
-
-  </div>
-</section>
-
-<!-- ═══════════ CAIXA DE ENTRADA DO GM (fonte única: League::inboxList) ═══════════ -->
-<?php
-  $inboxItems = League::inboxList(6);
-  // "Jogo de hoje" é um lembrete efêmero (muda todo dia) — não fica salvo na caixa,
-  // só é injetado no topo da prévia enquanto for válido.
-  if ($gmToday) {
-      array_unshift($inboxItems, [
-          'kind' => 'game', 'icon' => '🎮', 'sender' => 'Sala de Comando',
-          'title' => 'Jogo hoje: ' . $gmToday['away_abbr'] . ' @ ' . $gmToday['home_abbr'],
-          'body' => 'Comande sua equipe ao vivo ou simule a partida.',
-          'link' => url('game', ['id' => $gmToday['id'], 'live' => 1]),
-          'ref_id' => 0, 'urgent' => true,
-      ]);
-  }
-  $inboxItems = array_slice($inboxItems, 0, 6);
-  $inboxUnreadTotal = League::inboxUnread();
-?>
-<section class="card gm-inbox">
-  <div class="card-head">
-    <h2>📬 Caixa de Entrada<?= $inboxUnreadTotal ? ' <span class="inbox-badge">' . $inboxUnreadTotal . '</span>' : '' ?></h2>
-    <a class="link-more" href="<?= url('inbox') ?>">Ver todas →</a>
-  </div>
-  <?php if (!$inboxItems): ?>
-    <p class="muted" style="font-size:11px">Nenhuma mensagem nova. Avance as datas para movimentar a liga.</p>
-  <?php else: ?>
-  <div class="inbox-list">
-    <?php foreach ($inboxItems as $m): render_inbox_msg($m, 'home'); endforeach; ?>
-  </div>
+  <?php elseif ($phase === 'preseason'):
+      $pd = League::preseasonDay(); $tot = League::PRESEASON_DAYS; ?>
+    <div class="hh-card">
+      <span class="hh-label">Pré-temporada</span>
+      <b class="hh-big">Dia <?= $pd ?><small> de <?= $tot ?></small></b>
+      <?= meter($pd / $tot * 100, 'go') ?>
+      <p class="muted">Trocas, contratações e notícias acontecem a cada dia até a estreia.</p>
+    </div>
+  <?php else:
+      $pc = [
+          'lottery'    => ['dice-5-fill', 'Loteria do draft', 'O sorteio define quem escolhe primeiro na nova classe.'],
+          'draft'      => ['mortarboard-fill', 'Draft em andamento', 'Os calouros da nova classe estão chegando aos times.'],
+          'freeagency' => ['person-plus-fill', 'Free agency', 'Jogadores sem contrato esperam proposta antes da estreia.'],
+          'offseason'  => ['trophy-fill', 'Entressafra', 'Hora de rever a temporada e planejar a próxima.'],
+          'playoffs'   => ['trophy-fill', 'Playoffs', 'Seu time não joga nesta data.'],
+          'playin'     => ['trophy-fill', 'Play-in', 'Seu time não joga nesta data.'],
+          'regular'    => ['calendar-check', 'Temporada regular', 'Seu time não tem mais jogos marcados.'],
+      ][$phase] ?? ['calendar3', phase_label($phase), '']; ?>
+    <div class="hh-card">
+      <span class="hh-label"><?= e($pc[1]) ?></span>
+      <i class="bi bi-<?= e($pc[0]) ?> hh-ic" aria-hidden="true"></i>
+      <p class="muted"><?= e($pc[2]) ?></p>
+    </div>
   <?php endif; ?>
+  </div>
 </section>
 
-<!-- ═══════════ 3-COL: PERFORMERS · FORMA · NARRATIVA ═══════════ -->
-<div class="dc-dash-mid">
-  <!-- Top Performers -->
-  <div class="dc-mid-card">
-    <div class="dc-mid-label">⭐ Destaques do Elenco</div>
-    <?php foreach ($gmTopPerf as $p): ?>
-      <div class="dc-perf-row">
-        <div>
-          <div class="dc-pr-name"><a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a></div>
-          <div class="dc-pr-pos"><?= e($p['pos']) ?> · OVR <?= (int)$p['ovr'] ?></div>
-        </div>
-        <div style="text-align:right">
-          <div class="dc-pr-stat"><?= avg($p['s_pts']??0, $p['gp']??1) ?></div>
-          <div class="dc-pr-lbl">PPG</div>
-        </div>
-      </div>
-    <?php endforeach; ?>
-    <?php if (!$gmTopPerf): ?>
-      <p class="muted" style="font-size:10px">Jogue alguns jogos para ver as stats.</p>
-    <?php endif; ?>
-  </div>
-
-  <!-- Forma Recente -->
-  <div class="dc-mid-card">
-    <div class="dc-mid-label">📈 Forma Recente</div>
-    <div class="dc-form-row">
-      <?php if ($gmRecentForm): ?>
-        <?php foreach ($gmRecentForm as $g): $win = (int)$g['my_pts'] > (int)$g['op_pts']; ?>
-          <div class="dc-fb <?= $win ? 'dc-fb-w' : 'dc-fb-l' ?>"><?= $win ? 'V' : 'D' ?></div>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <span class="muted" style="font-size:10px">Sem jogos ainda.</span>
-      <?php endif; ?>
-    </div>
-    <div class="dc-form-stats">
-      <span>Casa: <?= $gmHomeW ?>-<?= $gmHomeL ?> | Fora: <?= $gmAwayW ?>-<?= $gmAwayL ?></span>
-      <?php if ($gmPPG > 0): ?><span><?= $gmPPG ?> PPG de média</span><?php endif; ?>
-    </div>
-  </div>
-
-  <!-- Narrativa da temporada -->
-  <div class="dc-mid-card">
-    <div class="dc-mid-label">📰 Sua Temporada</div>
-    <?php if ($gmStorylines): ?>
-      <?php foreach ($gmStorylines as $story): ?>
-        <div class="dc-story"><span class="dc-story-bar"></span><span><?= $story ?></span></div>
-      <?php endforeach; ?>
+<div class="home-status">
+  <a class="hs-card" href="<?= url('manage') ?>">
+    <span class="label">Meta da diretoria</span>
+    <?php if ($goal): ?>
+      <span class="hs-title"><?= e($goal['desc']) ?></span>
+      <span class="row"><?= chip($goalText[$goal['status']] ?? $goal['status'], $goalTone[$goal['status']] ?? '') ?><span class="hs-line"><?= e($goal['detail']) ?></span></span>
     <?php else: ?>
-      <p class="muted" style="font-size:10px">A história da sua temporada será escrita a cada jogo.</p>
+      <span class="hs-line">Sem meta definida.</span>
     <?php endif; ?>
-  </div>
-</div>
-<?php endif; /* fim gmHero */ ?>
-
-<?php /* CTA + meta para saves SEM hero (não-GM ou fora de temporada ativa) */ ?>
-<?php if (!$gmHero && $cta): ?>
-<section class="cta-card">
-  <div class="cta-info"><span class="cta-note"><?= e($cta['note']) ?></span></div>
-  <a class="btn btn-primary btn-lg cta-btn" href="<?= e($cta['href']) ?>"
-     <?= isset($cta['confirm']) ? 'data-confirm="'.e($cta['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($cta['label']) ?></a>
-  <?php if (!empty($cta['more'])): ?>
-    <div class="cta-more">
-      <?php foreach ($cta['more'] as $m2): ?>
-        <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'data-confirm="'.e($m2['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($m2['label']) ?></a>
-      <?php endforeach; ?>
-    </div>
+  </a>
+  <a class="hs-card" href="<?= url('manage') ?>">
+    <span class="label">Paciência da diretoria</span>
+    <span class="row hs-pat"><?= pips($pat, League::PATIENCE_MAX) ?><?php if ($pat <= 1): ?><?= chip('Última chance', 'bad') ?><?php endif; ?></span>
+    <?php if ($oc): ?>
+      <span class="hs-line">Confiança do dono: <b class="strong"><?= e($oc['label']) ?></b> · <?= (int) $oc['value'] ?>%</span>
+      <?= meter((float) $oc['value'], $oc['value'] >= 45 ? 'ok' : ($oc['value'] >= 30 ? 'warn' : 'bad')) ?>
+    <?php endif; ?>
+  </a>
+  <?php if ($cap):
+      $capPct = $cap['cap_max'] > 0 ? $cap['payroll'] / $cap['cap_max'] * 100 : 0;
+      $capTone = $cap['status'] === 'over' ? 'bad' : ($cap['status'] === 'under' ? 'warn' : 'ok'); ?>
+  <a class="hs-card" href="<?= url('cap') ?>">
+    <span class="label">Folha salarial</span>
+    <span class="hs-big"><?= Cap::m((int) $cap['payroll']) ?><small> / <?= Cap::m((int) $cap['cap_max']) ?></small></span>
+    <?= meter($capPct, $capTone) ?>
+    <span class="hs-line <?= $capTone === 'ok' ? '' : ($capTone === 'bad' ? 'neg' : 'warn-txt') ?>">
+      <?= $cap['status'] === 'over' ? Cap::m((int) ($cap['excess'] ?? 0)) . ' acima do teto'
+        : ($cap['status'] === 'under' ? Cap::m((int) ($cap['deficit'] ?? 0)) . ' abaixo do piso' : Cap::m((int) $cap['space']) . ' de espaço no teto') ?>
+      <?php if ($phase === 'regular' && $day <= Cap::deadlineDay()): ?> · deadline no dia <?= Cap::deadlineDay() ?><?php endif; ?>
+    </span>
+  </a>
   <?php endif; ?>
-</section>
-<?php if ($gmId): $capH = Cap::summary($gmId); if ($capH['status'] !== 'ok'): ?>
-  <div class="cap-alert cap-alert-danger">
-    <?= $capH['status'] === 'over' ? '⛔ Sua folha está ' . Cap::m($capH['excess']) . ' acima do teto (' . Cap::m($capH['cap_max']) . ').' : '⚠️ Sua folha está ' . Cap::m($capH['deficit']) . ' abaixo do piso (' . Cap::m($capH['floor']) . ').' ?>
-    A temporada só começa com o time regular — <a href="<?= url('cap') ?>">resolver em Folha &amp; Cap →</a>
-  </div>
-<?php endif; endif; ?>
-<?php endif; ?>
-
-<?php if (!$gmHero && $gmId) render_decisions(League::pendingDecisions(), url('home')); ?>
-
-<?php if (!$gmHero && $goal): ?>
-<div class="board-goal goal-<?= $goal['status'] ?>">
-  🎯 <strong>Meta da diretoria:</strong> <?= e($goal['desc']) ?>
-  <span class="goal-detail"><?= e($goal['detail']) ?></span>
-  <span class="goal-badge"><?= ['andamento'=>'em andamento','cumprida'=>'✅ cumprida','falhou'=>'❌ não cumprida'][$goal['status']] ?></span>
 </div>
-<?php endif; ?>
+<?php endif; /* $gm */ ?>
 
-<?php if ($phase === 'offseason'):
-  $aw = League::awards(League::season());
-  $byType = [];
-  foreach ($aw as $a) { $byType[$a['type']][] = $a; }
-  $main = ['MVP' => '🏅 MVP', 'Finals MVP' => '🏆 MVP das Finais', 'DPOY' => '🛡️ Defensor do Ano', 'ROY' => '🌟 Novato do Ano'];
-?>
-<section class="card span2">
-  <div class="card-head"><h2>Premiações da Temporada <?= League::season() ?></h2>
-    <a class="link-more" href="<?= url('history') ?>">Histórico completo →</a></div>
-  <div class="awards-row">
-    <?php foreach ($main as $type => $label): if (empty($byType[$type])) continue; $a = $byType[$type][0]; ?>
-      <div class="award-card">
-        <div class="award-label"><?= $label ?></div>
-        <a class="award-name" href="<?= url('player',['id'=>$a['player_id']]) ?>"><?= e($a['player_name']) ?></a>
-        <div class="award-meta"><?= e($a['abbr']) ?> · <?= e($a['value']) ?></div>
-      </div>
-    <?php endforeach; ?>
-  </div>
-</section>
-<?php endif; ?>
+<div class="grid cols-main home-cols">
+  <div class="stack">
+    <?php render_decisions($decisions, url('home')); ?>
 
-<?php /* ===== CORRIDA PELOS PRÊMIOS ===== */
-if ($awardRace): ?>
-<section class="card award-race-card">
-  <div class="card-head">
-    <h2>🏅 Corrida pelos Prêmios</h2>
-    <span class="muted" style="font-size:12px">dia <?= $day ?>/82</span>
-  </div>
-  <div class="ar-grid">
-
-    <div>
-      <div class="ar-cat-title"><span class="ar-trophy">🏅</span> MVP</div>
-      <?php if ($awardRace['mvp']): ?>
-        <?php foreach ($awardRace['mvp'] as $i => $p): ?>
-        <div class="ar-row">
-          <span class="ar-rank <?= $i===0?'gold':'' ?>"><?= $i+1 ?></span>
-          <span class="ar-name"><a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a>
-            <span class="ar-abbr"><?= e($p['abbr']) ?></span></span>
-          <span class="ar-val"><?= number_format((float)$p['ppg'],1) ?> pts</span>
-        </div>
-        <?php endforeach; ?>
-      <?php else: ?><div class="ar-empty">Jogos insuficientes.</div><?php endif; ?>
-    </div>
-
-    <div>
-      <div class="ar-cat-title"><span class="ar-trophy">🛡️</span> DPOY</div>
-      <?php if ($awardRace['dpoy']): ?>
-        <?php foreach ($awardRace['dpoy'] as $i => $p): ?>
-        <div class="ar-row">
-          <span class="ar-rank <?= $i===0?'gold':'' ?>"><?= $i+1 ?></span>
-          <span class="ar-name"><a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a>
-            <span class="ar-abbr"><?= e($p['abbr']) ?></span></span>
-          <span class="ar-val"><?= number_format((float)$p['bpg'],1) ?>b+<?= number_format((float)$p['spg'],1) ?>s</span>
-        </div>
-        <?php endforeach; ?>
-      <?php else: ?><div class="ar-empty">Jogos insuficientes.</div><?php endif; ?>
-    </div>
-
-    <div>
-      <div class="ar-cat-title"><span class="ar-trophy">🌟</span> ROY</div>
-      <?php if ($awardRace['roy']): ?>
-        <?php foreach ($awardRace['roy'] as $i => $p): ?>
-        <div class="ar-row">
-          <span class="ar-rank <?= $i===0?'gold':'' ?>"><?= $i+1 ?></span>
-          <span class="ar-name"><a href="<?= url('player',['id'=>$p['id']]) ?>"><?= e($p['name']) ?></a>
-            <span class="ar-abbr"><?= e($p['abbr']) ?></span></span>
-          <span class="ar-val"><?= number_format((float)$p['ppg'],1) ?> pts</span>
-        </div>
-        <?php endforeach; ?>
-      <?php else: ?><div class="ar-empty">Nenhum calouro com jogos.</div><?php endif; ?>
-    </div>
-
-  </div>
-</section>
-<?php endif; ?>
-
-<?php /* ===== MANCHETES EM DESTAQUE ===== */ ?>
-<section class="card news-card">
-  <div class="card-head"><h2>📰 Manchetes da Liga</h2><a class="link-more" href="<?= url('history') ?>">Histórico →</a></div>
-  <?php if (!$headlines): ?>
-    <p class="muted">Avance as datas para gerar notícias da liga.</p>
-  <?php else: ?>
-  <div class="news-feature">
-    <?php foreach ($headlines as $h): ?>
-      <div class="nf-item"><span class="nf-bar"></span><span class="nf-text"><?= e($h['text']) ?></span></div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-</section>
-
-<div class="dashboard">
-  <section class="card span2">
-    <div class="card-head">
-      <h2><?= $phase === 'playoffs' ? 'Playoffs — ' . e(League::dateLabel($day)) : ($phase === 'offseason' ? 'Off-season' : 'Jogos · ' . e(League::dateLabel($day))) ?></h2>
-      <a class="link-more" href="<?= url('schedule') ?>">Ver calendário →</a>
-    </div>
-    <?php if (!$todays): ?>
-      <p class="muted">Nenhum jogo agendado. <?= $phase === 'playoffs' ? 'Avance para gerar a próxima leva de jogos.' : '' ?></p>
-    <?php else: ?>
-    <div class="games-grid">
-      <?php foreach ($todays as $g):
-        $isGmGame = $gmId && ((int)$g['home_id'] === $gmId || (int)$g['away_id'] === $gmId);
-        $awayW = $g['played'] && $g['away_pts'] > $g['home_pts'];
-        $homeW = $g['played'] && $g['home_pts'] > $g['away_pts'];
+    <section class="panel">
+      <?= panel_head('Caixa de entrada', ['icon' => 'inbox-fill', 'more' => ['Ver todas', url('inbox')]]) ?>
+      <?php
+        $shown = 0;
+        echo '<div class="feed">';
+        foreach ($inbox as $m) {
+            if ($decisions && $m['kind'] === 'decision') continue; // já estão no painel acima
+            render_inbox_msg($m, 'home', ['unread' => empty($m['is_read'])]);
+            if (++$shown >= 5) break;
+        }
+        echo '</div>';
+        if (!$shown) echo empty_state('Nada novo por aqui.', 'Avance os dias para movimentar a liga.', 'inbox');
       ?>
-        <a class="game-card <?= $g['played'] ? 'played' : '' ?> <?= $isGmGame ? 'gm-game' : '' ?>"
-           href="<?= url('game', ['id' => $g['id']]) ?>">
-          <?php if ($isGmGame): ?><span class="gc-mine">MEU JOGO</span><?php endif; ?>
-          <div class="gc-teams">
-            <div class="gc-side">
-              <img src="<?= e(logo_url($g['away_abbr'])) ?>" style="width:38px;height:38px;object-fit:contain" alt="<?= e($g['away_abbr']) ?>">
-              <span class="gc-abbr"><?= e($g['away_abbr']) ?></span>
-              <?php if ($g['played']): ?><span class="gc-pts <?= $awayW?'winner':'loser' ?>"><?= $g['away_pts'] ?></span><?php endif; ?>
-            </div>
-            <div class="gc-sep">
-              <?= $g['played'] ? 'FIN' : '@' ?>
-              <?php if ($g['ot']): ?><br><span class="ot-tag">PR<?= $g['ot']>1?$g['ot']:'' ?></span><?php endif; ?>
-            </div>
-            <div class="gc-side">
-              <img src="<?= e(logo_url($g['home_abbr'])) ?>" style="width:38px;height:38px;object-fit:contain" alt="<?= e($g['home_abbr']) ?>">
-              <span class="gc-abbr"><?= e($g['home_abbr']) ?></span>
-              <?php if ($g['played']): ?><span class="gc-pts <?= $homeW?'winner':'loser' ?>"><?= $g['home_pts'] ?></span><?php endif; ?>
-            </div>
-          </div>
-          <div class="gc-status <?= !$g['played']?'pending':'' ?>">
-            <?= $g['played'] ? 'Ver box score' : ($isGmGame ? '🎮 Comandar' : 'Simular') ?>
-          </div>
-        </a>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-  </section>
-</div>
+    </section>
 
-<div class="dashboard dash-4">
-  <section class="card">
-    <div class="card-head"><h2>🔥 Líderes de pontos</h2><a class="link-more" href="<?= url('leaders') ?>">Todos →</a></div>
-    <table class="mini-table">
-      <?php foreach ($ppgLeaders as $l): ?>
-        <tr>
-          <td><a href="<?= url('player', ['id' => $l['id']]) ?>"><?= e($l['name']) ?></a> <span class="muted"><?= e($l['abbr']) ?></span></td>
-          <td class="num"><strong><?= e($l['avg']) ?></strong> pts</td>
-        </tr>
-      <?php endforeach; ?>
-      <?php if (!$ppgLeaders): ?><tr><td class="muted">Avance as datas para ver os líderes.</td></tr><?php endif; ?>
-    </table>
-  </section>
-  <section class="card">
-    <div class="card-head"><h2>📊 Power Rankings — Top 5</h2><a class="link-more" href="<?= url('power') ?>">Ver tudo →</a></div>
-    <table class="mini-table ranked">
-      <?php foreach (array_slice($power, 0, 5) as $t): ?>
-        <tr><td class="rank"><?= $t['rank'] ?></td>
-            <td><span class="dot" style="background:<?= e($t['primary_color']) ?>"></span><?= e($t['city'].' '.$t['name']) ?>
-                <span class="muted"><?= $t['wins'] ?>-<?= $t['losses'] ?></span></td>
-            <td class="num"><strong><?= number_format($t['power'],1) ?></strong></td></tr>
-      <?php endforeach; ?>
-    </table>
-  </section>
-  <section class="card">
-    <div class="card-head"><h2>Conferência Leste</h2></div>
-    <?php include __DIR__ . '/_standings_table.php'; renderStandings(array_slice($east, 0, 8), true); ?>
-    <a class="link-more" href="<?= url('standings') ?>">Tabela completa →</a>
-  </section>
-  <section class="card">
-    <div class="card-head"><h2>Conferência Oeste</h2></div>
-    <?php renderStandings(array_slice($west, 0, 8), true); ?>
-    <a class="link-more" href="<?= url('standings') ?>">Tabela completa →</a>
-  </section>
+    <?php if ($todays): ?>
+    <section class="panel">
+      <?= panel_head($phase === 'regular' ? 'Jogos da data' : phase_label($phase), ['icon' => 'calendar3', 'meta' => League::dateLabel($day), 'more' => ['Calendário', url('schedule')]]) ?>
+      <div class="games">
+        <?php foreach ($todays as $g) echo game_tile($g, $gmId); ?>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($phase === 'offseason'):
+      $aw = League::awards($season);
+      $byType = [];
+      foreach ($aw as $a) $byType[$a['type']][] = $a;
+      $main = ['MVP' => 'MVP', 'Finals MVP' => 'MVP das finais', 'DPOY' => 'Defensor do ano', 'ROY' => 'Novato do ano'];
+    ?>
+    <section class="panel">
+      <?= panel_head('Prêmios da temporada ' . $season, ['icon' => 'award-fill', 'more' => ['Cerimônia', url('awards')]]) ?>
+      <div class="grid cols-2">
+        <?php foreach ($main as $type => $label): if (empty($byType[$type])) continue; $a = $byType[$type][0]; ?>
+          <a class="hs-card" href="<?= url('player', ['id' => $a['player_id']]) ?>">
+            <span class="label"><?= e($label) ?></span>
+            <span class="hs-title"><?= e($a['player_name']) ?></span>
+            <span class="hs-line"><?= e($a['abbr']) ?> · <?= e($a['value']) ?></span>
+          </a>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <section class="panel">
+      <?= panel_head('Manchetes da liga', ['icon' => 'newspaper', 'more' => ['História', url('history')]]) ?>
+      <?php if ($headlines): ?>
+        <div class="headlines">
+          <?php foreach ($headlines as $h): ?><div class="headline"><span><?= e($h['text']) ?></span></div><?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <?= empty_state('A liga ainda está quieta.', 'As manchetes aparecem conforme os dias passam.', 'newspaper') ?>
+      <?php endif; ?>
+    </section>
+  </div>
+
+  <div class="stack">
+    <?php if ($top): ?>
+    <section class="panel">
+      <?= panel_head($played ? 'Destaques do elenco' : 'Seus melhores', ['icon' => 'star-fill', 'more' => ['Escalação', url('lineup')]]) ?>
+      <div class="stack-sm">
+        <?php foreach ($top as $p):
+          $gp = (int) ($p['gp'] ?? 0);
+          $small = $p['pos'] . ($gp ? ' · ' . avg($p['s_pts'] ?? 0, $gp) . ' pts/jogo' : ' · ' . (int) $p['age'] . ' anos')
+                 . ((int) ($p['injury_games'] ?? 0) ? ' · lesionado' : ''); ?>
+          <div class="spread home-player">
+            <?= player_who($p, $small, $gm['primary_color'] ?? '#1a1a2e') ?>
+            <?= ovr_badge($p['ovr']) ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($confRows): ?>
+    <section class="panel">
+      <?= panel_head('Conferência ' . $confName, ['icon' => 'bar-chart-fill', 'more' => ['Tabela', url('standings')]]) ?>
+      <div class="table-wrap">
+        <table class="tbl compact">
+          <thead><tr><th class="c">#</th><th>Time</th><th class="num">V</th><th class="num">D</th></tr></thead>
+          <tbody>
+          <?php
+            $rows = array_slice($confRows, 0, 10);
+            $inTop = false;
+            foreach ($rows as $r) if ((int) $r['id'] === $gmId) $inTop = true;
+            if (!$inTop && $seed) foreach ($confRows as $r) if ((int) $r['id'] === $gmId) $rows[] = $r;
+            foreach ($rows as $r): $mine = (int) $r['id'] === $gmId; ?>
+            <tr class="<?= $mine ? 'mine' : '' ?>">
+              <td class="rank"><?= (int) $r['seed'] ?></td>
+              <td><a class="who" href="<?= url('team', ['id' => $r['id']]) ?>"><?= team_logo($r['abbr'], $r['primary_color'] ?? '#333', 'sm') ?><b><?= e($r['abbr']) ?></b><small class="hide-sm"><?= e($r['name']) ?></small></a></td>
+              <td class="num"><?= (int) $r['wins'] ?></td>
+              <td class="num"><?= (int) $r['losses'] ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($race): ?>
+    <section class="panel">
+      <?= panel_head('Corrida pelos prêmios', ['icon' => 'award-fill']) ?>
+      <div class="race">
+        <?php foreach (['mvp' => ['MVP', fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
+                        'dpoy' => ['Defensor', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
+                        'roy' => ['Novato', fn($p) => number_format((float) $p['ppg'], 1) . ' pts']] as $k => [$label, $val]): ?>
+          <div class="race-col">
+            <div class="sub-h"><?= e($label) ?></div>
+            <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i => $p): ?>
+              <a class="race-row" href="<?= url('player', ['id' => $p['id']]) ?>">
+                <span class="rk"><?= $i + 1 ?></span><span class="nm"><?= e($p['name']) ?> <span class="dim"><?= e($p['abbr']) ?></span></span><span class="vl"><?= e($val($p)) ?></span>
+              </a>
+            <?php endforeach; else: ?>
+              <p class="dim">Jogos insuficientes.</p>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
+  </div>
 </div>
 <?php render_footer(); ?>

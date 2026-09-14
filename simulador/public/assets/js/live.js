@@ -12,6 +12,7 @@
   const speedSel = document.getElementById('speedSel');
   const boxCard = document.getElementById('boxCard');
   const boxContent = document.getElementById('boxContent');
+  const boxTitle = document.getElementById('boxTitle');
 
   const offSel = document.getElementById('ctrlOff');
   const defSel = document.getElementById('ctrlDef');
@@ -37,6 +38,7 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
+  function icon(name) { return '<i class="bi bi-' + name + '" aria-hidden="true"></i>'; }
   function classFor(ev) {
     let c = 'pbp-item';
     if (ev.t === 'made') c += /3/.test(ev.text) ? ' made three' : ' made';
@@ -48,21 +50,34 @@
     return c;
   }
   function addItem(ev) {
-    const abbr = ev.team === meta.home_id ? meta.home_abbr : meta.away_abbr;
+    const isHome = ev.team === meta.home_id;
+    const abbr = isHome ? meta.home_abbr : meta.away_abbr;
+    const scored = (ev.t === 'made' || ev.t === 'ft') && ev.home_pts !== undefined;
     const div = document.createElement('div');
-    div.className = classFor(ev);
-    div.innerHTML = '<span class="pbp-meta">' + ev.q + ' ' + ev.clock + ' · ' + abbr + '</span>' + escapeHtml(ev.text);
+    div.className = classFor(ev) + (isHome ? ' home' : ' away');
+    div.innerHTML = '<span class="pbp-meta">' + escapeHtml((ev.q + ' ' + ev.clock).trim()) + '</span>' +
+      '<span class="pbp-tag">' + escapeHtml(abbr) + '</span>' +
+      '<span class="pbp-txt">' + escapeHtml(ev.text) + '</span>' +
+      (scored ? '<span class="pbp-score">' + ev.away_pts + '-' + ev.home_pts + '</span>' : '');
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
   }
   function sep(txt) {
     const div = document.createElement('div');
-    div.className = 'pbp-item quarter-sep';
-    div.textContent = '— ' + txt + ' —';
+    div.className = 'pbp-sep';
+    div.innerHTML = '<span>' + escapeHtml(txt) + '</span>';
     feed.appendChild(div);
   }
   function bump(el) { el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 150); }
   function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function markFinal(home, away) {
+    const sb = document.getElementById('scoreboard');
+    if (!sb) return;
+    sb.classList.add('is-final');
+    const h = sb.querySelector('.sb-team.home'), a = sb.querySelector('.sb-team.away');
+    if (h) h.classList.add(+home > +away ? 'won' : 'lost');
+    if (a) a.classList.add(+away > +home ? 'won' : 'lost');
+  }
 
   async function start() {
     if (started) return true;
@@ -75,17 +90,17 @@
 
     meta = data.game;
     window.HOME_ID = meta.home_id; window.AWAY_ID = meta.away_id;
-    sideLbl.textContent = '(você comanda ' + (data.gm_side === 'home' ? meta.home_abbr : meta.away_abbr) + ')';
+    sideLbl.textContent = 'Você comanda ' + (data.gm_side === 'home' ? meta.home_abbr : meta.away_abbr);
     offSel.length = 0; defSel.length = 0;
     data.schemes_off.forEach(s => offSel.add(new Option(s, s)));
     data.schemes_def.forEach(s => defSel.add(new Option(s, s)));
-    data.opp_players.forEach(p => doubleSel.add(new Option(p.name + ' (' + p.pos + ' ' + p.ovr + ')', p.id)));
+    data.opp_players.forEach(p => doubleSel.add(new Option(p.name + ' · ' + p.pos + ' · OVR ' + p.ovr, p.id)));
     if (data.cur_timeouts) toLbl.textContent = data.cur_timeouts[data.gm_side];
     sbHome.textContent = data.score.home; sbAway.textContent = data.score.away;
     if (data.resumed && data.period > 0) {
       if (empty) { empty.remove(); empty = null; }
       sbQuarter.textContent = qHuman(qFromPeriod(data.period));
-      sep('jogo retomado · ' + qHuman(qFromPeriod(data.period)) + ' ' + data.score.away + '-' + data.score.home);
+      sep('jogo retomado · ' + qHuman(qFromPeriod(data.period)) + ' · ' + data.score.away + '-' + data.score.home);
     }
     started = true;
     return true;
@@ -133,19 +148,25 @@
 
       const diff = Math.abs(data.score.home - data.score.away);
       if (!data.done && data.period >= 4 && diff <= 6) {
-        hint.textContent = '🔥 CLUTCH TIME! Jogo apertado — ajuste a tática e decida o jogo.';
+        hint.innerHTML = icon('fire') + ' Clutch time! Jogo apertado: ajuste a tática e decida o jogo.';
         hint.classList.add('clutch');
       }
 
       if (data.done) {
         finished = true;
         sbClock.textContent = 'FINAL'; sbQuarter.textContent = 'Encerrado';
+        markFinal(data.score.home, data.score.away);
         nextBtn.style.display = 'none'; autoBtn.style.display = 'none';
         const det = document.querySelector('.live-tactics'); if (det) det.style.display = 'none';
-        hint.textContent = '✅ Jogo encerrado e registrado.';
+        hint.innerHTML = icon('check-circle-fill') + ' Jogo encerrado. O resultado já está salvo.';
         hint.classList.remove('clutch');
+        panel.classList.add('is-done');
         renderBox(data.box);
-        const bar = document.getElementById('continueBar'); if (bar) bar.style.display = '';
+        const bar = document.getElementById('continueBar');
+        if (bar) {
+          bar.hidden = false; bar.style.display = '';
+          bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       }
     } catch (e) {
       console.error('Erro ao processar o quarto simulado:', e);
@@ -172,26 +193,49 @@
     }
   }
 
+  // Box score: a mesma tabela que o renderBoxScore do game.php monta.
+  const BOX_COLS = ['min', 'pts', 'reb', 'ast', 'stl', 'blk', 'tov', 'fgm', 'fga', 'tpm', 'tpa', 'ftm', 'fta'];
+  const BOX_HEAD = '<thead><tr><th>Jogador</th><th class="num hide-sm" title="Minutos">MIN</th><th class="num" title="Pontos">PTS</th>' +
+    '<th class="num" title="Rebotes">REB</th><th class="num" title="Assistências">AST</th>' +
+    '<th class="num hide-sm" title="Roubos de bola">RB</th><th class="num hide-sm" title="Tocos">TOC</th>' +
+    '<th class="num hide-sm" title="Erros">ERR</th><th class="num" title="Arremessos de quadra">FG</th>' +
+    '<th class="num" title="Bolas de três">3P</th><th class="num hide-sm" title="Lances livres">LL</th></tr></thead>';
+  function boxCells(v) {
+    return '<td class="num hide-sm">' + Math.round(v.min) + '</td><td class="num"><b>' + v.pts + '</b></td>' +
+      '<td class="num">' + v.reb + '</td><td class="num">' + v.ast + '</td>' +
+      '<td class="num hide-sm">' + v.stl + '</td><td class="num hide-sm">' + v.blk + '</td>' +
+      '<td class="num hide-sm">' + v.tov + '</td>' +
+      '<td class="num">' + v.fgm + '-' + v.fga + '</td><td class="num">' + v.tpm + '-' + v.tpa + '</td>' +
+      '<td class="num hide-sm">' + v.ftm + '-' + v.fta + '</td>';
+  }
+  function boxTeam(side, tname, rows) {
+    const tot = {};
+    BOX_COLS.forEach(k => { tot[k] = 0; });
+    let body = '';
+    for (const b of rows) {
+      const v = {};
+      BOX_COLS.forEach(k => { v[k] = Number(b[k]) || 0; tot[k] += v[k]; });
+      body += '<tr><td><a class="bx-p" href="index.php?p=player&amp;id=' + encodeURIComponent(b.player_id) + '"><b>' +
+        escapeHtml(b.name) + '</b><span class="pos-tag">' + escapeHtml(b.pos) + '</span></a></td>' + boxCells(v) + '</tr>';
+    }
+    if (!rows.length) body = '<tr><td colspan="11" class="dim">Sem estatísticas registradas.</td></tr>';
+    return '<div class="box-team ' + side + '"><h3 class="box-team-h"><span class="box-dot"></span>' + escapeHtml(tname) + '</h3>' +
+      '<div class="table-wrap"><table class="tbl compact box-tbl">' + BOX_HEAD + '<tbody>' + body + '</tbody>' +
+      (rows.length ? '<tfoot><tr><td>Total</td>' + boxCells(tot) + '</tr></tfoot>' : '') + '</table></div></div>';
+  }
+
   function renderBox(box) {
     if (!boxCard || !box) return;
     boxCard.style.display = '';
-    const teams = [[meta.away_id, meta.away_name], [meta.home_id, meta.home_name]];
-    let html = '';
-    for (const [tid, tname] of teams) {
+    if (boxTitle) boxTitle.textContent = 'Box score';
+    const names = window.GAME_META || {};
+    const teams = [['away', meta.away_id, names.away_name || meta.away_name], ['home', meta.home_id, names.home_name || meta.home_name]];
+    let html = '<div class="box-teams">';
+    for (const [side, tid, tname] of teams) {
       const rows = box.filter(b => b.team_id == tid).sort((a, b) => b.pts - a.pts);
-      html += '<h3 class="box-team">' + escapeHtml(tname) + '</h3>';
-      html += '<table class="box-table"><thead><tr><th>Jogador</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>R/T</th><th>TO</th><th>FG</th><th>3P</th><th>LL</th></tr></thead><tbody>';
-      for (const b of rows) {
-        html += '<tr><td class="bx-name">' + escapeHtml(b.name) + ' <span class="muted">' + b.pos + '</span></td>' +
-          '<td class="num">' + Math.round(b.min) + '</td><td class="num"><strong>' + b.pts + '</strong></td>' +
-          '<td class="num">' + b.reb + '</td><td class="num">' + b.ast + '</td>' +
-          '<td class="num">' + b.stl + '/' + b.blk + '</td><td class="num">' + b.tov + '</td>' +
-          '<td class="num">' + b.fgm + '-' + b.fga + '</td><td class="num">' + b.tpm + '-' + b.tpa + '</td>' +
-          '<td class="num">' + b.ftm + '-' + b.fta + '</td></tr>';
-      }
-      html += '</tbody></table>';
+      html += boxTeam(side, tname, rows);
     }
-    boxContent.innerHTML = html;
+    boxContent.innerHTML = html + '</div>';
   }
 
   nextBtn.addEventListener('click', () => step(false));

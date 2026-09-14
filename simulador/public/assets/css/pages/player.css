@@ -1,0 +1,68 @@
+/* Ficha do jogador (player) */
+
+/* ─── herói: a carta do jogador + identidade, contrato e ações ───────── */
+.pl-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:230px minmax(0,1fr);grid-template-areas:"card side";
+  align-items:center;gap:26px;padding:22px;border-radius:var(--r-xl);border:1px solid var(--line);
+  background:radial-gradient(720px 340px at 0% 0%,var(--panel-3),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.pl-hero.mine{border-color:var(--team-line);
+  background:radial-gradient(720px 340px at 0% 0%,var(--team-soft),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.pl-card{grid-area:card;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;padding:12px 12px 14px;border-radius:18px;
+  background:linear-gradient(180deg,var(--panel-3),var(--bg-2));border:1px solid var(--line-2)}
+.pl-hero.mine .pl-card{border-color:var(--team-line)}
+.pl-card-top{align-self:stretch;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pl-card .pl-photo{width:180px;height:180px;border-radius:14px;object-fit:cover;object-position:center top;
+  background:linear-gradient(180deg,var(--panel-3),var(--panel))}
+.pl-card-foot{display:flex;align-items:center;gap:8px;font:700 18px/1 var(--f-display);letter-spacing:.06em}
+.pl-side{grid-area:side;min-width:0}
+.pl-id{min-width:0}
+.pl-id .eyebrow:hover{color:var(--text)}
+.pl-id h1{margin-top:8px;font-size:50px;font-weight:800;line-height:.95;text-transform:uppercase;overflow-wrap:anywhere}
+.pl-meta{margin-top:10px;color:var(--text-2);font-size:15.5px}
+.pl-more{min-width:0}
+.pl-chips{gap:6px;margin-top:14px}
+.pl-chips .chip{white-space:normal}
+.pl-contract{margin-top:16px}
+.pl-actions{gap:8px;margin-top:16px}
+
+/* ─── atributos ──────────────────────────────────────────────────────── */
+.pl-attrs{display:flex;flex-direction:column;gap:11px}
+.pl-attr{display:grid;grid-template-columns:130px minmax(0,1fr) 34px 28px;align-items:center;gap:10px}
+.pl-attr-lbl{color:var(--text-2);font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-attr-val{text-align:right;font:700 18px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.pl-pot{margin-top:14px;font-size:14px;line-height:1.45}
+
+/* ─── prêmios ────────────────────────────────────────────────────────── */
+.pl-awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.pl-award{display:flex;align-items:center;gap:12px;min-width:0;padding:12px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line)}
+.pl-award > i{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:var(--team-soft);color:var(--team-bright);font-size:20px}
+.pl-award b{display:block;font-size:15px;font-weight:700;line-height:1.25}
+.pl-award small{display:block;margin-top:2px;color:var(--text-3);font-size:13.5px;line-height:1.35}
+
+/* ─── tabelas ────────────────────────────────────────────────────────── */
+.pl-date,.pl-season{white-space:nowrap}
+.pl-season{font-weight:600}
+.pl-log-empty{padding:0 18px 6px}
+
+@media (max-width:1023px){
+  .pl-hero{grid-template-columns:190px minmax(0,1fr);gap:20px;padding:18px}
+  .pl-card .pl-photo{width:150px;height:150px}
+  .pl-id h1{font-size:38px}
+}
+@media (max-width:640px){
+  .pl-hero{grid-template-columns:104px minmax(0,1fr);grid-template-areas:"card id" "more more";gap:14px;padding:14px;border-radius:18px}
+  .pl-side{display:contents}
+  .pl-id{grid-area:id;align-self:center}
+  .pl-more{grid-area:more}
+  .pl-card{gap:6px;padding:7px 7px 8px;border-radius:14px}
+  .pl-card-top{justify-content:center}
+  .pl-card-top .pos-tag,.pl-card-foot{display:none}
+  .pl-card .ovr.lg{min-width:46px;height:36px;font-size:23px;border-radius:9px}
+  .pl-card .pl-photo{width:88px;height:88px;border-radius:10px}
+  .pl-id h1{margin-top:6px;font-size:28px}
+  .pl-meta{margin-top:6px;font-size:14px}
+  .pl-chips{margin-top:0}
+  .pl-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-actions .btn:last-child:nth-child(odd){grid-column:1/-1}
+  .pl-attr{grid-template-columns:108px minmax(0,1fr) 32px 26px;gap:8px}
+  .pl-log-empty{padding:0 14px 6px}
+}

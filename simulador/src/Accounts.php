@@ -2,7 +2,12 @@
 require_once __DIR__ . '/Database.php';
 
 /**
- * Contas de usuário + saves (multi-save). Cada usuário pode ter até 2 saves.
+ * Contas + saves (multi-save). Cada jogador pode ter até 2 saves.
+ *
+ * O simulador é um jogo do FBA Games: quem entra é quem está logado no site
+ * (mesma sessão, mesmo cookie). A conta local só existe para ligar os saves a
+ * esse usuário (users.main_user_id); não há login nem senha próprios.
+ * As chaves do jogo na sessão têm prefixo sim_ para nunca pisar nas do site.
  *
  * Arquitetura de dados:
  *  - Contas (users, saves): MySQL em produção, SQLite em dev sem MySQL
@@ -14,8 +19,6 @@ class Accounts
     public const MAX_SAVES = 2;
 
     private static ?PDO $acc = null;
-    private static ?PDO $main = null;
-    private static bool $mainTried = false;
 
     public static function savesDir(): string { return dirname(__DIR__) . '/storage/saves'; }
     public static function savePath(int $saveId): string { return self::savesDir() . '/save_' . $saveId . '.sqlite'; }
@@ -132,63 +135,35 @@ class Accounts
     }
 
     /**
-     * Conexão somente-leitura ao banco do site principal (fbabrasil.com.br),
-     * usada para permitir login no /simulador com a conta de lá. Retorna null
-     * se 'main_mysql' não estiver configurado (recurso desativado) ou se a
-     * conexão falhar — nesses casos o login cai de volta para a conta local.
-     */
-    private static function mainConn(): ?PDO
-    {
-        if (self::$mainTried) return self::$main;
-        self::$mainTried = true;
-
-        $cfg = Database::config();
-        $m = $cfg['main_mysql'] ?? null;
-        if (($cfg['driver'] ?? 'sqlite') !== 'mysql' || !is_array($m) || empty($m['database'])) {
-            return null;
-        }
-        try {
-            $dsn = "mysql:host={$m['host']};port={$m['port']};dbname={$m['database']};charset={$m['charset']}";
-            self::$main = new PDO($dsn, $m['user'], $m['pass']);
-            self::$main->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            self::$main->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        } catch (Throwable $e) {
-            self::$main = null;
-        }
-        return self::$main;
-    }
-
-    /**
-     * Busca (ou cria) a conta local do /simulador vinculada a um usuário do
-     * site principal (fbabrasil.com.br). Vínculo é feito por main_user_id
-     * (estável mesmo se o e-mail mudar lá); casa por e-mail só na primeira
-     * vez, pra não duplicar conta de quem já logou antes desse campo existir.
-     * Necessário porque saves.user_id referencia a tabela users local, não a
-     * do site principal — as tabelas do simulador continuam isoladas, só o
-     * vínculo de identidade é compartilhado.
+     * Busca (ou cria) a conta local ligada a um usuário do site. O vínculo é por
+     * main_user_id (estável mesmo se o e-mail mudar lá); casa por e-mail só na
+     * primeira vez, pra não duplicar conta de quem jogou antes desse campo existir.
+     * As tabelas do simulador continuam isoladas; só a identidade é compartilhada.
      */
     private static function linkedLocalUser(array $mainUser): array
     {
         $db = self::conn();
         $mainId = (int) $mainUser['id'];
-        $email = trim($mainUser['email']);
+        $email = strtolower(trim((string) ($mainUser['email'] ?? '')));
 
         $st = $db->prepare("SELECT * FROM users WHERE main_user_id=?");
         $st->execute([$mainId]);
         $u = $st->fetch();
         if ($u) return $u;
 
-        // Conta local pré-existente (criada antes do vínculo por id) com o mesmo e-mail: adota o vínculo.
-        $st = $db->prepare("SELECT * FROM users WHERE email=? AND main_user_id IS NULL");
-        $st->execute([$email]);
-        $u = $st->fetch();
-        if ($u) {
-            $db->prepare("UPDATE users SET main_user_id=? WHERE id=?")->execute([$mainId, (int) $u['id']]);
-            $u['main_user_id'] = $mainId;
-            return $u;
+        // Conta local antiga (de antes do vínculo por id) com o mesmo e-mail: adota o vínculo.
+        if ($email !== '') {
+            $st = $db->prepare("SELECT * FROM users WHERE LOWER(email)=? AND main_user_id IS NULL");
+            $st->execute([$email]);
+            $u = $st->fetch();
+            if ($u) {
+                $db->prepare("UPDATE users SET main_user_id=? WHERE id=?")->execute([$mainId, (int) $u['id']]);
+                $u['main_user_id'] = $mainId;
+                return $u;
+            }
         }
 
-        // Gera um username local único a partir do nome/e-mail do site principal.
+        // Gera um username local único a partir do e-mail do site.
         $base = preg_replace('/[^A-Za-z0-9_]/', '', explode('@', $email)[0]) ?: 'gm';
         $base = substr($base, 0, 16) ?: 'gm';
         $username = $base;
@@ -201,7 +176,7 @@ class Accounts
             $suffix++;
         }
 
-        // Sem senha local utilizável (login sempre passa pela conta principal);
+        // Sem senha local utilizável (o acesso é sempre pela sessão do site);
         // guarda um hash aleatório só para satisfazer a coluna NOT NULL.
         $randomHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
         $db->prepare("INSERT INTO users(username,email,pass_hash,main_user_id,created_at) VALUES(?,?,?,?,?)")
@@ -212,87 +187,74 @@ class Accounts
         return $st->fetch();
     }
 
-    // ---------- Sessão / autenticação ----------
+    // ---------- Sessão: a do site ----------
 
+    /**
+     * Abre a sessão do fbabrasil.com.br (backend/auth.php: mesmo cookie, mesma
+     * validade) e descobre a conta local de quem está logado. Fecha a escrita
+     * logo em seguida: uma simulação longa não pode travar a sessão do site nas
+     * outras abas. Gravações depois disso passam por remember().
+     */
     public static function startSession(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_name('fba_sim');
-            session_set_cookie_params(['path' => '/simulador/']);
-            session_start();
+            $auth = dirname(__DIR__, 2) . '/backend/auth.php';
+            if (is_file($auth)) require_once $auth;
+            if (session_status() !== PHP_SESSION_ACTIVE) session_start();
         }
+        self::resolveUser();
+        session_write_close();
+    }
+
+    private static function resolveUser(): void
+    {
+        $mainId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($mainId > 0) {
+            if ((int) ($_SESSION['sim_main_id'] ?? 0) !== $mainId || empty($_SESSION['sim_user_id'])) {
+                $local = self::linkedLocalUser([
+                    'id' => $mainId,
+                    'email' => (string) ($_SESSION['user_email'] ?? ''),
+                    'name' => (string) ($_SESSION['user_name'] ?? ''),
+                ]);
+                if ((int) ($_SESSION['sim_main_id'] ?? 0) !== $mainId) unset($_SESSION['sim_save_id']);
+                $_SESSION['sim_main_id'] = $mainId;
+                $_SESSION['sim_user_id'] = (int) $local['id'];
+            }
+            return;
+        }
+        unset($_SESSION['sim_user_id'], $_SESSION['sim_main_id'], $_SESSION['sim_save_id']);
+        // php -S local, sem o site rodando: entra com a primeira conta local.
+        if (PHP_SAPI === 'cli-server') {
+            $u = self::conn()->query("SELECT id FROM users ORDER BY id LIMIT 1")->fetch();
+            if ($u) $_SESSION['sim_user_id'] = (int) $u['id'];
+        }
+    }
+
+    /** Grava uma chave do jogo na sessão do site, reabrindo só pelo tempo da escrita. */
+    private static function remember(string $key, $value): void
+    {
+        $reopen = session_status() !== PHP_SESSION_ACTIVE && !headers_sent();
+        if ($reopen) @session_start();
+        if ($value === null) unset($_SESSION[$key]);
+        else $_SESSION[$key] = $value;
+        if ($reopen) session_write_close();
     }
 
     public static function userId(): ?int
     {
-        return isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
+        return !empty($_SESSION['sim_user_id']) ? (int) $_SESSION['sim_user_id'] : null;
     }
 
+    /** Conta local de quem joga, com o nome que ele usa no site. */
     public static function user(): ?array
     {
         $id = self::userId();
         if (!$id) return null;
         $st = self::conn()->prepare("SELECT id, username, email FROM users WHERE id=?");
         $st->execute([$id]);
-        return $st->fetch() ?: null;
-    }
-
-    public static function register(string $username, string $email, string $pass): array
-    {
-        $username = trim($username);
-        if (!preg_match('/^[A-Za-z0-9_]{3,20}$/', $username)) {
-            return ['error' => 'Usuário deve ter 3–20 letras, números ou _.'];
-        }
-        if (strlen($pass) < 4) return ['error' => 'Senha muito curta (mínimo 4 caracteres).'];
-        $db = self::conn();
-        $ex = $db->prepare("SELECT 1 FROM users WHERE username=?");
-        $ex->execute([$username]);
-        if ($ex->fetch()) return ['error' => 'Este nome de usuário já existe.'];
-        $db->prepare("INSERT INTO users(username,email,pass_hash,created_at) VALUES(?,?,?,?)")
-           ->execute([$username, trim($email), password_hash($pass, PASSWORD_DEFAULT), date('c')]);
-        $id = (int) $db->lastInsertId();
-        $_SESSION['user_id'] = $id;
-        return ['ok' => true, 'id' => $id];
-    }
-
-    /**
-     * Login primário: conta do site principal (fbabrasil.com.br), por e-mail.
-     * Se validado lá, garante uma conta local vinculada (main_user_id) — as
-     * tabelas/saves do simulador continuam só no banco do simulador.
-     * Fallback (main_mysql indisponível, ex.: dev local): conta local por
-     * e-mail e, por compatibilidade com contas antigas, também por username.
-     */
-    public static function login(string $emailOrUsername, string $pass): array
-    {
-        $identifier = strtolower(trim($emailOrUsername));
-
-        $main = self::mainConn();
-        if ($main) {
-            $stm = $main->prepare("SELECT id, name, email, password_hash FROM users WHERE email=? LIMIT 1");
-            $stm->execute([$identifier]);
-            $mu = $stm->fetch();
-            if ($mu && password_verify($pass, $mu['password_hash'])) {
-                $local = self::linkedLocalUser($mu);
-                $_SESSION['user_id'] = (int) $local['id'];
-                return ['ok' => true, 'id' => (int) $local['id']];
-            }
-        }
-
-        // Fallback local: por e-mail, e por username (contas antigas/dev sem main_mysql).
-        $st = self::conn()->prepare("SELECT * FROM users WHERE email=? OR username=?");
-        $st->execute([$identifier, trim($emailOrUsername)]);
-        $u = $st->fetch();
-        if ($u && password_verify($pass, $u['pass_hash'])) {
-            $_SESSION['user_id'] = (int) $u['id'];
-            return ['ok' => true, 'id' => (int) $u['id']];
-        }
-
-        return ['error' => 'E-mail ou senha inválidos.'];
-    }
-
-    public static function logout(): void
-    {
-        unset($_SESSION['user_id'], $_SESSION['save_id']);
+        $u = $st->fetch() ?: null;
+        if ($u) $u['name'] = (string) ($_SESSION['user_name'] ?? $u['username']);
+        return $u;
     }
 
     // ---------- Saves ----------
@@ -387,7 +349,7 @@ class Accounts
 
         $db->prepare("UPDATE saves SET team_abbr=? WHERE id=?")->execute([$team['abbr'], $saveId]);
 
-        $_SESSION['save_id'] = $saveId;
+        self::remember('sim_save_id', $saveId);
         return ['ok' => true, 'save_id' => $saveId];
     }
 
@@ -397,7 +359,7 @@ class Accounts
         $s = self::save($saveId);
         if (!$s || (int) $s['user_id'] !== self::userId()) return ['error' => 'Save não encontrado.'];
         if (!is_file(self::savePath($saveId))) return ['error' => 'Arquivo do save ausente.'];
-        $_SESSION['save_id'] = $saveId;
+        if ((int) ($_SESSION['sim_save_id'] ?? 0) !== $saveId) self::remember('sim_save_id', $saveId);
         Database::useSavePath(self::savePath($saveId));
         return ['ok' => true];
     }
@@ -405,7 +367,13 @@ class Accounts
     /** Save ativo na sessão (id), se houver. */
     public static function activeSaveId(): ?int
     {
-        return isset($_SESSION['save_id']) ? (int) $_SESSION['save_id'] : null;
+        return !empty($_SESSION['sim_save_id']) ? (int) $_SESSION['sim_save_id'] : null;
+    }
+
+    /** Esquece o save ativo (arquivo sumiu, save excluído). */
+    public static function forgetActiveSave(): void
+    {
+        self::remember('sim_save_id', null);
     }
 
     /** Atualiza o "updated_at" do save ativo (chamado após avançar a temporada). */
@@ -421,7 +389,7 @@ class Accounts
         self::conn()->prepare("DELETE FROM saves WHERE id=?")->execute([$saveId]);
         $path = self::savePath($saveId);
         if (is_file($path)) @unlink($path);
-        if (self::activeSaveId() === $saveId) unset($_SESSION['save_id']);
+        if (self::activeSaveId() === $saveId) self::remember('sim_save_id', null);
         return ['ok' => true];
     }
 }

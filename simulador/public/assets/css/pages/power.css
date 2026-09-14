@@ -1,0 +1,33 @@
+/* Power ranking: os três primeiros em destaque e a tabela completa */
+.pw-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.pw-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--r-lg);background:var(--panel);border:1px solid var(--line);min-width:0}
+.pw-card:hover{border-color:var(--line-2);color:inherit}
+.pw-card.mine{border-color:var(--team-line);background:linear-gradient(135deg,var(--team-soft),var(--panel) 70%)}
+.pw-rk{flex:none;min-width:24px;text-align:center;font:800 40px/1 var(--f-display);color:var(--text-3)}
+.pw-card:first-child .pw-rk{color:var(--team-bright)}
+.pw-card .tlogo{width:48px;height:48px}
+.pw-txt{flex:1;min-width:0}
+.pw-txt b{display:block;font:700 19px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pw-txt small{display:block;margin-top:3px;font-size:13.5px;color:var(--text-3);white-space:nowrap}
+.pw-idx{flex:none;text-align:right}
+.pw-idx b{display:block;font:800 28px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.pw-idx small{display:block;margin-top:3px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+
+.pw-panel .tbl th:first-child,.pw-panel .tbl td:first-child{padding-left:16px}
+.pw-panel .tbl th:last-child,.pw-panel .tbl td:last-child{padding-right:16px}
+.pw-val{font:800 20px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.pw-bar{width:140px}
+.pw-foot{padding:11px 16px 13px;border-top:1px solid var(--line);color:var(--text-3);font-size:13px;line-height:1.45}
+
+@media (max-width:1279px){
+  .pw-top{grid-template-columns:1fr}
+  .pw-card{padding:12px 14px}
+  .pw-rk{font-size:32px}
+  .pw-card .tlogo{width:42px;height:42px}
+}
+@media (max-width:640px){
+  .pw-panel .tbl th:first-child,.pw-panel .tbl td:first-child{padding-left:12px}
+  .pw-panel .tbl th:last-child,.pw-panel .tbl td:last-child{padding-right:12px}
+  .pw-tbl .who .w-txt{max-width:8rem}
+  .pw-foot{padding:10px 12px 12px}
+}

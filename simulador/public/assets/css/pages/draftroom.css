@@ -1,0 +1,99 @@
+/* Sala do draft (draftroom) — quem está na vez em tamanho de placar, o board
+   dos olheiros e o fio das escolhas feitas. O âmbar da escolha acende quando a
+   vez é sua (a mesma cor do botão Próxima). */
+
+/* ─── na vez ─────────────────────────────────────────────────────────── */
+.dr-clock{position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1.25fr) minmax(0,1fr);align-items:center;gap:18px 24px;
+  padding:22px;border-radius:var(--r-xl);border:1px solid var(--line-2);
+  background:radial-gradient(700px 320px at 0% 0%,rgba(255,255,255,.05),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.dr-clock.is-you{border-color:var(--team-line);
+  background:radial-gradient(760px 340px at 0% 0%,var(--team-soft),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.drc-pick{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:132px;padding:14px 18px 16px;border-radius:18px;
+  background:rgba(7,10,16,.55);border:1px solid var(--line-2);text-align:center}
+.drc-pick .label{letter-spacing:.2em}
+.drc-pick b{margin-top:6px;font:800 76px/.86 var(--f-display);font-variant-numeric:tabular-nums}
+.drc-pick small{margin-top:8px;color:var(--text-2);font-size:13.5px;white-space:nowrap}
+.dr-clock.is-you .drc-pick{border-color:rgba(255,184,28,.55);animation:dr-glow 2.2s ease-in-out infinite}
+.dr-clock.is-you .drc-pick b{color:var(--go)}
+.drc-team{display:flex;align-items:center;gap:18px;min-width:0}
+.drc-team .tlogo{width:96px;height:96px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.45))}
+.drc-id{min-width:0}
+.drc-id h1{margin-top:8px;font-size:46px;font-weight:800;line-height:.95;text-transform:uppercase}
+.drc-chips{margin-top:12px;gap:8px}
+.drc-status{display:flex;flex-direction:column;gap:6px;min-width:0;padding:14px 16px;border-radius:16px;background:rgba(7,10,16,.45);border:1px solid var(--line)}
+.drc-status b{font:700 22px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.drc-status > span{color:var(--text-2);font-size:14.5px;line-height:1.4}
+.drc-prog{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+.drc-prog small{color:var(--text-3);font-size:13px}
+.drc-next{grid-column:1/-1;min-width:0;display:flex;align-items:center;gap:14px;padding-top:16px;border-top:1px solid var(--line)}
+.drc-next ol{display:flex;gap:8px;min-width:0;max-width:100%;margin:0;padding:0;list-style:none;overflow-x:auto;scrollbar-width:none}
+.drc-next ol::-webkit-scrollbar{display:none}
+.drc-next li{flex:none;display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.drc-next li small{color:var(--text-3);font:700 13px/1 var(--f-display);letter-spacing:.04em}
+.drc-next li b{font:700 16px/1 var(--f-display);letter-spacing:.04em}
+.drc-next li.mine{border-color:var(--team-line);background:var(--team-soft)}
+@keyframes dr-glow{
+  0%,100%{box-shadow:0 0 0 4px rgba(255,184,28,.07),0 0 34px rgba(255,184,28,.12)}
+  50%{box-shadow:0 0 0 6px rgba(255,184,28,.12),0 0 54px rgba(255,184,28,.24)}
+}
+
+/* ─── board ──────────────────────────────────────────────────────────── */
+.dr-key{padding:0 18px 12px;color:var(--text-3);font-size:13.5px;line-height:1.5}
+.dr-key b{color:var(--text-2);font-weight:600}
+.dr-board{border-top:1px solid var(--line)}
+.dr-list{margin:0;padding:0;list-style:none}
+.dr-row{display:grid;grid-template-columns:30px minmax(0,1fr) 56px auto 104px;align-items:center;gap:10px 14px;padding:10px 18px;border-bottom:1px solid var(--line)}
+.dr-list .dr-row:last-child{border-bottom:0}
+.dr-list .dr-row:hover{background:rgba(255,255,255,.025)}
+.dr-headrow{padding-top:9px;padding-bottom:9px;font:600 12px/1.2 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.dr-rk{color:var(--text-3);font:700 17px/1 var(--f-display);text-align:center;font-variant-numeric:tabular-nums}
+.dr-ovr{display:flex;align-items:center;justify-content:center}
+.dr-ovr small,.dr-g small{display:none}
+.dr-list .dr-ovr .grade{min-width:42px;height:30px;font-size:18px}
+.dr-sk{display:grid;grid-template-columns:repeat(6,36px);gap:6px;justify-items:center;text-align:center}
+.dr-g{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.dr-act{display:flex;justify-content:flex-end}
+
+/* ─── escolhas feitas ────────────────────────────────────────────────── */
+.dr-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.dr-pick{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);min-width:0}
+.dr-pick .tlogo{width:28px;height:28px}
+.dr-pick .w-txt{min-width:0}
+.dr-pick b{display:block;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-pick small{display:block;color:var(--text-3);font-size:13px;white-space:nowrap}
+.dp-no{min-width:38px;font:800 18px/1 var(--f-display);color:var(--text-2);font-variant-numeric:tabular-nums}
+.dr-pick.mine{border-color:var(--team-line);background:linear-gradient(135deg,var(--team-soft),var(--panel-2) 70%)}
+.dr-pick.mine .dp-no{color:var(--team-bright)}
+
+@media (max-width:1023px){
+  .dr-clock{grid-template-columns:auto minmax(0,1fr);padding:18px}
+  .drc-status{grid-column:1/-1}
+  .drc-team .tlogo{width:72px;height:72px}
+  .drc-id h1{font-size:36px}
+}
+@media (max-width:760px){
+  .dr-headrow{display:none}
+  .dr-row{grid-template-columns:24px 46px minmax(0,1fr) auto;grid-template-areas:"rk who who act" ". ovr sk sk";gap:10px;padding:12px 14px}
+  .dr-rk{grid-area:rk}
+  .dr-who{grid-area:who}
+  .dr-act{grid-area:act}
+  .dr-ovr{grid-area:ovr;flex-direction:column;gap:3px}
+  .dr-sk{grid-area:sk;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+  .dr-ovr small,.dr-g small{display:block;font:700 12px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+  .dr-list .dr-ovr .grade{min-width:40px;height:26px;font-size:16px}
+  .dr-g .grade{min-width:0;width:100%;max-width:36px}
+  .dr-key{padding:0 14px 12px}
+}
+@media (max-width:640px){
+  .dr-clock{gap:14px;padding:16px 14px;border-radius:18px}
+  .drc-pick{min-width:96px;padding:10px 10px 12px}
+  .drc-pick b{font-size:54px}
+  .drc-pick small{font-size:12.5px;white-space:normal}
+  .drc-team{flex-direction:column;align-items:flex-start;gap:8px}
+  .drc-team .tlogo{width:52px;height:52px}
+  .drc-id h1{margin-top:6px;font-size:28px}
+  .drc-status{padding:12px 14px}
+  .drc-status b{font-size:20px}
+  .drc-next{flex-direction:column;align-items:flex-start;gap:8px}
+  .dr-picks{grid-template-columns:1fr}
+}

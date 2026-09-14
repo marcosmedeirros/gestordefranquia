@@ -1,0 +1,79 @@
+/* Premiação (awards) — a cerimônia: o campeão no palco sob o refletor dourado,
+   os troféus individuais em cartas e os quintetos All-NBA. */
+
+/* ─── palco do campeão ───────────────────────────────────────────────── */
+.aw-stage{position:relative;overflow:hidden;padding:30px 22px 26px;border-radius:var(--r-xl);border:1px solid var(--line-2);text-align:center;
+  background:
+    radial-gradient(520px 300px at 50% -6%,rgba(255,184,28,.22),transparent 70%),
+    radial-gradient(420px 90px at 50% 100%,rgba(255,255,255,.05),transparent 70%),
+    linear-gradient(180deg,var(--panel-2),var(--bg-2) 88%)}
+.aw-stage.is-champ{border-color:rgba(255,184,28,.5);box-shadow:0 0 0 1px rgba(255,184,28,.2),0 24px 70px rgba(0,0,0,.45)}
+.aw-confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.aw-in{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center}
+.aw-trophy{display:block;margin-top:16px;font-size:54px;line-height:1;color:var(--go);filter:drop-shadow(0 6px 18px rgba(255,184,28,.45))}
+.aw-stage .tlogo-hero{width:140px;height:140px;margin-top:12px;filter:drop-shadow(0 16px 30px rgba(0,0,0,.55))}
+.aw-lbl{margin-top:16px;font:700 15px/1 var(--f-display);letter-spacing:.24em;text-transform:uppercase;color:var(--go)}
+.aw-stage h1{margin-top:10px;font-size:64px;font-weight:800;line-height:.92;text-transform:uppercase;letter-spacing:.005em;overflow-wrap:anywhere}
+.aw-runner{margin-top:14px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 8px;color:var(--text-2);font-size:15.5px}
+.aw-runner b{color:var(--text)}
+.aw-you{margin-top:12px;max-width:56ch;color:var(--text);font-size:15.5px}
+.aw-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:20px}
+
+/* ─── troféus individuais ────────────────────────────────────────────── */
+.aw-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.aw-grid.n1{grid-template-columns:minmax(0,1fr)}
+.aw-grid.n2,.aw-grid.n4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.aw-card{display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:var(--r-lg);background:var(--panel);border:1px solid var(--line);
+  min-width:0;color:inherit;transition:border-color .15s,transform .15s}
+.aw-card:hover{border-color:var(--line-2);transform:translateY(-2px);color:inherit}
+.awc-head{display:flex;align-items:center;gap:12px;min-width:0}
+.awc-ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;flex:none;background:rgba(255,184,28,.12);color:var(--go);font-size:21px}
+.awc-lbl{min-width:0}
+.awc-lbl b{display:block;font:700 19px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.awc-lbl small{display:block;margin-top:3px;color:var(--text-3);font-size:13px}
+.awc-body{display:flex;align-items:center;gap:14px;min-width:0}
+.awc-body .player-photo{width:72px;height:72px;border-radius:16px;background:linear-gradient(180deg,var(--panel-3),var(--panel-2))}
+.awc-who{min-width:0}
+.awc-who b{display:block;font:800 26px/1 var(--f-display);text-transform:uppercase;letter-spacing:.01em;text-wrap:balance;overflow-wrap:anywhere}
+.awc-team{display:flex;align-items:center;gap:7px;margin-top:7px;color:var(--text-2);font-size:14px;font-weight:600}
+.awc-team .tlogo{width:22px;height:22px}
+.awc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+.awc-val{color:var(--text-2);font-size:14.5px;font-variant-numeric:tabular-nums}
+.aw-card.is-mvp{border-color:rgba(255,184,28,.45);background:linear-gradient(160deg,rgba(255,184,28,.1),var(--panel) 55%)}
+.aw-card.is-mvp .awc-ic{background:var(--go);color:var(--go-ink)}
+.aw-card.mine{border-color:var(--team-line)}
+.aw-card.mine:not(.is-mvp){background:linear-gradient(160deg,var(--team-soft),var(--panel) 55%)}
+
+/* ─── All-NBA ────────────────────────────────────────────────────────── */
+.aw-list{display:flex;flex-direction:column}
+.aw-line{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);min-width:0;color:inherit}
+.aw-line:first-child{padding-top:0}
+.aw-line:last-child{border-bottom:0;padding-bottom:0}
+.aw-line .pos-tag{flex:none}
+.aw-line .who{flex:1}
+.aw-line:hover{color:inherit}
+.aw-line:hover b{text-decoration:underline}
+.aw-line.mine b{color:var(--team-bright)}
+
+/* ─── sua temporada ──────────────────────────────────────────────────── */
+.aw-mine .chip{white-space:normal;text-align:left}
+.aw-none{margin-top:14px;font-size:15px}
+.aw-bonus{margin-top:14px}
+
+@media (max-width:1023px){
+  .aw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aw-stage h1{font-size:48px}
+}
+@media (max-width:640px){
+  .aw-stage{padding:22px 14px 18px;border-radius:18px}
+  .aw-trophy{margin-top:12px;font-size:40px}
+  .aw-stage .tlogo-hero{width:104px;height:104px}
+  .aw-lbl{font-size:14px;letter-spacing:.2em}
+  .aw-stage h1{font-size:36px}
+  .aw-links{width:100%}
+  .aw-links .btn{flex:1 1 100%}
+  .aw-grid,.aw-grid.n2,.aw-grid.n4{grid-template-columns:1fr;gap:10px}
+  .aw-card{padding:14px;gap:12px}
+  .awc-body .player-photo{width:60px;height:60px;border-radius:14px}
+  .awc-who b{font-size:23px}
+}

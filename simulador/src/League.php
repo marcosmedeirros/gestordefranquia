@@ -207,7 +207,7 @@ class League
     public static function boxScore(int $gameId): array
     {
         $st = Database::conn()->prepare(
-            "SELECT b.*, p.name, p.pos, p.team_id
+            "SELECT b.*, p.name, p.pos
              FROM box_scores b JOIN players p ON p.id = b.player_id
              WHERE b.game_id = ? ORDER BY b.pts DESC");
         $st->execute([$gameId]);
@@ -1130,7 +1130,7 @@ class League
     public static function awards(int $season): array
     {
         $st = Database::conn()->prepare(
-            "SELECT a.*, p.name AS player_name, p.pos, t.abbr
+            "SELECT a.*, p.name AS player_name, p.pos, p.nba_id, t.abbr
              FROM awards a LEFT JOIN players p ON p.id = a.player_id
              LEFT JOIN teams t ON t.id = a.team_id
              WHERE a.season = ? ORDER BY a.id");

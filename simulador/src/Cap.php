@@ -579,7 +579,7 @@ class Cap
         if (!$c) return null;
         if ($c['status'] === 'over') {
             return "Sua folha está " . self::m($c['excess']) . " ACIMA do teto (" . self::m($c['cap_max']) . "). "
-                 . "A liga não deixa $momento com o time fora do teto: troque ou dispense jogadores em Folha & Cap.";
+                 . "A liga não deixa $momento com o time fora do teto: troque ou dispense jogadores em Folha e teto.";
         }
         if ($c['status'] === 'under' && $floorToo) {
             return "Sua folha está " . self::m($c['deficit']) . " ABAIXO do piso (" . self::m($c['floor']) . "). "
@@ -627,7 +627,7 @@ class Cap
             $out[] = ['type' => 'danger', 'text' => 'Você está ' . self::m($s['excess']) . ' acima do teto de ' . self::m($s['cap_max']) . '. Precisa reduzir até a Trade Deadline (dia ' . self::deadlineDay() . ').'];
             $single = null;
             foreach (array_reverse($sorted) as $p) { if ((int) $p['salary'] >= $s['excess']) { $single = $p; break; } }
-            if ($single) $out[] = ['type' => 'info', 'text' => "Negociar {$single['name']} (" . self::m((int) $single['salary']) . ") resolveria sozinho — troque por alguém mais barato ou dispense."];
+            if ($single) $out[] = ['type' => 'info', 'text' => "Negociar {$single['name']} (" . self::m((int) $single['salary']) . ") resolveria sozinho: troque por alguém mais barato ou dispense."];
             $out[] = ['type' => 'tip', 'text' => 'Numa troca cada lado recebe no máximo 120% do que envia, então a folha cai devagar (no máximo 1/6 do que você manda). Dispensar corta o salário inteiro na hora.'];
         } elseif ($s['status'] === 'under') {
             $out[] = ['type' => 'warn', 'text' => 'Você está ' . self::m($s['deficit']) . ' abaixo do piso de ' . self::m($s['floor']) . '. Quem passa a Trade Deadline abaixo do piso perde a pick de 2ª rodada do próximo draft.'];

@@ -3,8 +3,17 @@ Options -Indexes
 RewriteEngine On
 RewriteBase /simulador/
 
-# Requisições que já chegam diretamente em public/ não precisam de rewrite
+# O simulador é um jogo do Games: o endereço público é /games/simulador/
+# (a regra que serve esse endereço mora em games/.htaccess). Quem chega pelo
+# endereço antigo é mandado pra lá. THE_REQUEST é a linha original do pedido,
+# então o que já vem reescrito de /games/simulador/ não entra aqui.
+RewriteCond %{THE_REQUEST} ^[A-Z]+[[:space:]]/simulador/public/
+RewriteRule ^public/(.*)$ /games/simulador/$1 [R=301,L]
+RewriteCond %{THE_REQUEST} ^[A-Z]+[[:space:]]/simulador(/|[[:space:]?])
+RewriteRule ^(.*)$ /games/simulador/$1 [R=301,L]
+
+# Pedidos que já chegam em public/ (reescritos) seguem direto
 RewriteRule ^public/ - [L]
 
-# Tudo o mais é roteado para public/
+# Tudo o mais é roteado para public/ (config, src e storage nunca ficam expostos)
 RewriteRule ^(.*)$ public/$1 [QSA,L]

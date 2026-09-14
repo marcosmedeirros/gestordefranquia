@@ -1,54 +1,68 @@
 <?php
 require_once dirname(__DIR__) . '/helpers.php';
-render_header('Avançar');
 
-$since = (int) ($_GET['since'] ?? 0);
-$label = $_GET['label'] ?? '';
-$backUrl = $_GET['back'] ?? url('home');
-// extrai a chave de página (ex.: "home") da URL completa em $backUrl, para
-// passar aos botões de ação das mensagens (decisão/renovação).
-preg_match('/[?&]p=([a-z]+)/', $backUrl, $bm);
-$backPage = $bm[1] ?? 'home';
-
+$since  = (int) ($_GET['since'] ?? 0);
+$label  = trim((string) ($_GET['label'] ?? ''));
 $events = $since > 0 ? League::inboxSince($since) : [];
-$cta = League::nextAction();
+$phase  = League::phase();
+$gmId   = (int) League::gmTeam();
+
+// Resultados da última data com jogos (temporada, play-in e playoffs)
+$results = [];
+$lastDay = 0;
+if (in_array($phase, ['regular', 'playin', 'playoffs'], true)) {
+    $lastDay = (int) Database::conn()->query("SELECT COALESCE(MAX(day),0) FROM games WHERE played=1")->fetchColumn();
+    if ($lastDay > 0) $results = array_values(array_filter(League::gamesByDay($lastDay), fn($g) => !empty($g['played'])));
+}
+$mine = null;
+foreach ($results as $i => $g) {
+    if ((int) $g['home_id'] === $gmId || (int) $g['away_id'] === $gmId) { $mine = $g; unset($results[$i]); break; }
+}
+
+render_header('Resumo');
+page_head($label !== '' ? $label : 'Resumo', [
+    'eyebrow' => 'O que aconteceu',
+    'sub' => $events
+        ? (count($events) === 1 ? 'Um acontecimento' : count($events) . ' acontecimentos') . ' desde a sua última jogada.'
+        : 'Nada de novo envolvendo o seu time desta vez.',
+]);
 ?>
-<div class="recap-head">
-  <div class="recap-date"><?= e($label) ?></div>
-  <?php if ($events): ?>
-    <div class="recap-count"><?= count($events) ?> acontecimento<?= count($events) === 1 ? '' : 's' ?></div>
-  <?php else: ?>
-    <div class="recap-count muted">Sem novidades por aqui.</div>
-  <?php endif; ?>
-</div>
+<div class="grid cols-main">
+  <div class="stack">
+    <?php if ($mine):
+      $won = ((int) $mine['home_id'] === $gmId) === ((int) $mine['home_pts'] > (int) $mine['away_pts']);
+      $awayWon = (int) $mine['away_pts'] > (int) $mine['home_pts']; ?>
+    <a class="panel hot" href="<?= url('game', ['id' => $mine['id']]) ?>">
+      <?= panel_head('Seu jogo', ['icon' => 'play-circle-fill', 'right' => chip($won ? 'Vitória' : 'Derrota', $won ? 'ok' : 'bad')]) ?>
+      <div class="matchup">
+        <div class="mu-side <?= $awayWon ? '' : 'lost' ?>"><?= team_logo($mine['away_abbr'], '#333', 'lg') ?><b><?= e($mine['away_abbr']) ?></b><span class="mu-score"><?= (int) $mine['away_pts'] ?></span></div>
+        <div class="mu-mid">Final<?= !empty($mine['ot']) ? '<br>PR' : '' ?></div>
+        <div class="mu-side <?= $awayWon ? 'lost' : '' ?>"><?= team_logo($mine['home_abbr'], '#333', 'lg') ?><b><?= e($mine['home_abbr']) ?></b><span class="mu-score"><?= (int) $mine['home_pts'] ?></span></div>
+      </div>
+    </a>
+    <?php endif; ?>
 
-<?php if ($events): ?>
-<section class="card">
-  <div class="inbox-list">
-    <?php foreach ($events as $m): render_inbox_msg($m, $backPage); endforeach; ?>
+    <section class="panel">
+      <?= panel_head('Acontecimentos', ['icon' => 'lightning-charge-fill', 'more' => ['Caixa de entrada', url('inbox')]]) ?>
+      <?php if ($events): ?>
+        <div class="feed">
+          <?php foreach ($events as $m) render_inbox_msg($m, 'home'); ?>
+        </div>
+      <?php else: ?>
+        <?= empty_state('Sem novidades.', 'A liga seguiu sem nada que envolva o seu time.', 'moon-stars') ?>
+      <?php endif; ?>
+    </section>
   </div>
-</section>
-<?php endif; ?>
 
-<?php if ($cta): ?>
-<section class="cta-card recap-cta">
-  <div class="cta-info"><span class="cta-note"><?= e($cta['note']) ?></span></div>
-  <a class="btn btn-primary btn-lg cta-btn" href="<?= e($cta['href']) ?>"
-     <?= isset($cta['confirm']) ? 'data-confirm="'.e($cta['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($cta['label']) ?></a>
-  <?php if (!empty($cta['alt'])): ?>
-    <a class="cta-alt" href="<?= e($cta['alt']['href']) ?>" data-confirm="<?= e($cta['alt']['confirm']) ?>" data-confirm-title="Próximo passo"><?= e($cta['alt']['label']) ?></a>
-  <?php endif; ?>
-  <?php if (!empty($cta['more'])): ?>
-    <div class="cta-more">
-      <?php foreach ($cta['more'] as $m2): ?>
-        <a href="<?= e($m2['href']) ?>" <?= isset($m2['confirm']) ? 'data-confirm="'.e($m2['confirm']).'" data-confirm-title="Próximo passo"' : '' ?>><?= e($m2['label']) ?></a>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-</section>
-<?php endif; ?>
-
-<div class="recap-actions">
-  <a class="im-link" href="<?= e($backUrl) ?>">← Ver painel sem avançar</a>
+  <div class="stack">
+    <?php if ($results): ?>
+    <section class="panel">
+      <?= panel_head('Outros resultados', ['icon' => 'calendar3', 'meta' => League::dateLabel($lastDay)]) ?>
+      <div class="games">
+        <?php foreach ($results as $g) echo game_tile($g, $gmId); ?>
+      </div>
+    </section>
+    <?php endif; ?>
+  </div>
 </div>
 <?php render_footer(); ?>

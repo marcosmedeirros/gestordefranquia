@@ -1,0 +1,72 @@
+/* Central do GM (home) */
+.home-banner{margin-bottom:18px}
+.home-banner h1{margin-top:8px;font-size:34px;font-weight:800;text-transform:uppercase}
+.home-banner p{margin-top:8px}
+.home-champ{display:flex;align-items:center;gap:18px}
+
+/* herói: identidade do time + o jogo/fase de agora. As linhas de quadra no
+   canto (arco dos três pontos e garrafão) são a assinatura da tela. */
+.home-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;
+  padding:22px;border-radius:var(--r-xl);border:1px solid var(--line);
+  background:radial-gradient(760px 340px at 0% 0%,var(--team-soft),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.home-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 100% 118%,transparent 0 238px,rgba(255,255,255,.055) 239px 241px,transparent 242px),
+    radial-gradient(circle at 100% 118%,transparent 0 96px,rgba(255,255,255,.05) 97px 99px,transparent 100px)}
+.hh-id{position:relative;display:flex;align-items:center;gap:20px;min-width:0}
+.hh-id .tlogo{width:104px;height:104px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.45))}
+.hh-id-txt{min-width:0}
+.hh-id h1{margin-top:8px;font-size:48px;font-weight:800;line-height:.96;text-transform:uppercase}
+.hh-meta{margin-top:14px;gap:8px}
+.hh-rec{font:800 36px/1 var(--f-display);font-variant-numeric:tabular-nums;margin-right:6px}
+.hh-side{position:relative;display:flex;min-width:0}
+.hh-card{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:16px 18px;border-radius:16px;
+  background:rgba(7,10,16,.5);border:1px solid var(--line);min-width:0}
+a.hh-card:hover{border-color:var(--line-2);color:inherit}
+.hh-label{font:700 13px/1 var(--f-display);letter-spacing:.18em;text-transform:uppercase;color:var(--go)}
+.hh-when{text-align:center;color:var(--text-2);font-size:14.5px}
+.hh-big{font:800 46px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hh-big small{font-size:22px;color:var(--text-3);font-weight:700}
+.hh-ic{font-size:42px;line-height:1;color:var(--team-bright)}
+.hh-card .mu-side .tlogo{width:64px;height:64px}
+
+/* faixa de status: meta, diretoria, folha */
+.home-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:18px}
+.hs-card{display:flex;flex-direction:column;gap:9px;padding:16px;border-radius:var(--r-lg);background:var(--panel);border:1px solid var(--line);min-width:0}
+a.hs-card:hover{border-color:var(--line-2);color:inherit}
+.hs-title{font:700 22px/1.12 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.hs-line{color:var(--text-2);font-size:14.5px;line-height:1.4}
+.hs-big{font:800 30px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hs-big small{font-size:17px;color:var(--text-3);font-weight:700}
+.hs-pat .pips i{width:26px;height:9px;border-radius:5px}
+.home-cols{margin-top:18px}
+.home-player .who{flex:1}
+
+/* corrida pelos prêmios */
+.race{display:grid;grid-template-columns:1fr;gap:4px}
+.race-col .sub-h{margin:10px 0 4px}
+.race-col:first-child .sub-h{margin-top:0}
+.race-row{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:14.5px;border-bottom:1px solid var(--line)}
+.race-row:last-child{border-bottom:0}
+.race-row .rk{width:16px;color:var(--text-3);font:700 16px/1 var(--f-display)}
+.race-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.race-row .vl{color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+@media (max-width:1023px){
+  .home-hero{grid-template-columns:1fr;padding:18px}
+  .hh-id .tlogo{width:72px;height:72px}
+  .hh-id h1{font-size:34px}
+  .hh-rec{font-size:30px}
+}
+@media (max-width:760px){
+  .home-status{grid-template-columns:1fr;gap:12px;margin-top:14px}
+}
+@media (max-width:640px){
+  .home-hero{padding:16px;border-radius:18px}
+  .hh-id{gap:14px}
+  .hh-id .tlogo{width:60px;height:60px}
+  .hh-id h1{font-size:28px}
+  .hh-rec{font-size:26px}
+  .home-banner h1{font-size:26px}
+  .home-cols{margin-top:14px}
+}

@@ -192,7 +192,7 @@ class Database
                     $capM = $cal['cap'];
                     $txt = "A liga passou a usar o Salary Cap da FBA ELITE: salário só pelo OVR, teto de {$capM}M e piso de {$cal['floor']}M, regra dos 120% nas trocas e Trade Deadline. "
                          . "Sua folha hoje é " . number_format($pay / 1000000, 1) . "M. "
-                         . "Você tem CARÊNCIA até o fim da temporada {$grace}: nesse período a liga não trava o calendário nem pune pelo piso — use-a para se adequar. Veja tudo em Folha & Cap.";
+                         . "Você tem CARÊNCIA até o fim da temporada {$grace}: nesse período a liga não trava o calendário nem pune pelo piso. Use esse tempo para se adequar. Veja tudo em Folha e teto.";
                     try {
                         $db->prepare("INSERT INTO inbox(season,day,kind,icon,sender,title,body,link,ref_id,is_read,urgent,created_at)
                                       VALUES(?,?,?,?,?,?,?,?,0,0,1,?)")

@@ -1,0 +1,31 @@
+/* Agentes livres (freeagency) */
+.fa-capbar{margin-top:14px}
+.fa-capbar .meter{height:12px}
+.fa-scale{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:14px;color:var(--text-2)}
+.fa-scale b{color:var(--text);font-variant-numeric:tabular-nums}
+.fa-cap .note{margin-top:14px}
+
+/* lista: tabela colada na borda, verde cabe e vermelho não cabe */
+.fa-help{margin:-4px 0 0;padding:0 18px 12px;color:var(--text-3);font-size:14px}
+.fa-tbl th:first-child,.fa-tbl td:first-child{padding-left:18px}
+.fa-tbl th:last-child,.fa-tbl td:last-child{padding-right:18px}
+.fa-tbl .who{max-width:240px}
+.sal{font:700 18px/1 var(--f-display);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fa-tbl .sal + .dim{margin-left:2px;font-size:13px}
+.fa-tbl tr.fit td:first-child{box-shadow:inset 3px 0 0 var(--win)}
+.fa-tbl tr.nofit .who,.fa-tbl tr.nofit .ovr,.fa-tbl tr.nofit .grade{opacity:.62}
+.fa-sign{white-space:nowrap}
+
+/* movimentações: ponto verde para contratação, vermelho para dispensa */
+.fa-move.in::before{background:var(--win)}
+.fa-move.out::before{background:var(--loss)}
+
+@media (max-width:640px){
+  .fa-help{padding:0 14px 10px}
+  .fa-tbl th:first-child,.fa-tbl td:first-child{padding-left:14px}
+  .fa-tbl th:last-child,.fa-tbl td:last-child{padding-right:14px}
+  .fa-tbl .who{max-width:132px}
+  .sal{font-size:16px}
+  .fa-sign{width:40px;min-height:40px;padding:0}
+  .fa-tbl .chip{min-height:30px;padding:3px 8px}
+}

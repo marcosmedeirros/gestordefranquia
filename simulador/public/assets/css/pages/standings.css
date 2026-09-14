@@ -1,0 +1,28 @@
+/* Classificação (standings) e a tabela de views/_standings_table.php.
+   Faixas pela regra do jogo (League::startPlayIn / finalSeeds): 1º ao 6º vão
+   direto aos playoffs, 7º ao 10º jogam o play-in, do 11º para baixo estão fora. */
+.st-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap}
+.st-legend{display:flex;gap:6px;flex-wrap:wrap}
+.st-grid{display:grid;gap:18px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.st-panel .tbl th:first-child,.st-panel .tbl td:first-child{padding-left:16px}
+.st-panel .tbl th:last-child,.st-panel .tbl td:last-child{padding-right:16px}
+.st-table .who .tlogo{width:28px;height:28px}
+.st-table tr.mine .who b{color:var(--text);font-weight:700}
+.st-table tr.mine td.rank{color:var(--team-bright)}
+.st-abbr{display:none}
+.st-zones tr.z-po td.rank{box-shadow:inset 4px 0 0 var(--win)}
+.st-zones tr.z-pi td.rank{box-shadow:inset 4px 0 0 var(--warn)}
+.st-zones tr.cut td{border-bottom:2px dashed var(--line-2)}
+.st-foot{padding:11px 16px 13px;border-top:1px solid var(--line);color:var(--text-3);font-size:13px;line-height:1.45}
+
+@media (max-width:1279px){
+  .st-grid{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .st-grid{gap:14px}
+  .st-full{display:none}
+  .st-abbr{display:inline}
+  .st-panel .tbl th:first-child,.st-panel .tbl td:first-child{padding-left:12px}
+  .st-panel .tbl th:last-child,.st-panel .tbl td:last-child{padding-right:12px}
+  .st-foot{padding:10px 12px 12px}
+}

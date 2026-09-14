@@ -1,64 +1,126 @@
 <?php
 require_once dirname(__DIR__) . '/helpers.php';
-render_header('Buscar');
-$q = trim((string) ($_GET['q'] ?? ''));
+
+$q       = trim((string) ($_GET['q'] ?? ''));
+$needle  = mb_strtolower($q);
+$gmId    = (int) League::gmTeam();
 $players = $q !== '' ? League::searchPlayers($q) : [];
-$teams = [];
+$teams   = [];
 if ($q !== '') {
-    $needle = mb_strtolower($q);
     foreach (League::allTeams() as $t) {
-        if (str_contains(mb_strtolower($t['city'] . ' ' . $t['name'] . ' ' . $t['abbr']), $needle)) $teams[] = $t;
+        if (str_contains(mb_strtolower($t['city'] . ' ' . $t['name'] . ' ' . $t['abbr'] . ' ' . teamFull($t)), $needle)) $teams[] = $t;
     }
 }
-// atalhos de página, pra quem procura uma tela pelo nome
+
+// Atalhos de tela para quem procura pelo nome: [rótulo, página, ícone, descrição, outras palavras]
 $pages = [
-    'Classificação' => 'standings', 'Power Rankings' => 'power', 'Jogos' => 'schedule', 'Líderes' => 'leaders',
-    'Folha & Cap' => 'cap', 'Histórico' => 'history', 'Times' => 'teams', 'Meu Time' => 'manage',
-    'Escalação' => 'lineup', 'Trocas' => 'trades', 'Agentes Livres' => 'freeagency', 'Mensagens' => 'inbox',
-    'Draft' => 'draft', 'Playoffs' => 'playoffs',
+    ['Classificação', 'standings', 'bar-chart-fill', 'Tabela das conferências', 'tabela standings'],
+    ['Jogos', 'schedule', 'calendar3', 'Resultados data por data', 'calendario calendário agenda placar resultados'],
+    ['Playoffs', 'playoffs', 'trophy-fill', 'Chave e séries', 'chave mata-mata play-in playin'],
+    ['Líderes', 'leaders', 'graph-up', 'Melhores médias da liga', 'estatisticas estatísticas stats'],
+    ['Power ranking', 'power', 'lightning-charge-fill', 'Quem está mais forte', 'ranking forca força'],
+    ['Times', 'teams', 'buildings-fill', 'Todas as franquias', 'franquias equipes'],
+    ['História', 'history', 'clock-history', 'Campeões e temporadas passadas', 'historico histórico campeoes campeões'],
+    ['Escalação', 'lineup', 'people-fill', 'Titulares e minutos', 'rotacao rotação quinteto titulares'],
+    ['Diretoria e técnico', 'manage', 'briefcase-fill', 'Meta, técnico e esquemas', 'meu time diretoria tecnico técnico esquema'],
+    ['Trocas', 'trades', 'arrow-left-right', 'Negocie com os outros times', 'troca trade'],
+    ['Agentes livres', 'freeagency', 'person-plus-fill', 'Jogadores sem contrato', 'free agency contratar fa'],
+    ['Folha e teto', 'cap', 'cash-coin', 'Salários e espaço no teto', 'cap salario salário folha teto contratos'],
+    ['Drafts', 'draft', 'mortarboard-fill', 'Classes e escolhas', 'draft picks calouros'],
+    ['Caixa de entrada', 'inbox', 'inbox-fill', 'Mensagens e decisões', 'mensagens inbox'],
 ];
 $pageHits = [];
-if ($q !== '') foreach ($pages as $label => $key) { if (str_contains(mb_strtolower($label), mb_strtolower($q))) $pageHits[$label] = $key; }
-?>
-<h1 class="page-title">🔍 Buscar</h1>
-<form method="get" class="search-form">
-  <input type="hidden" name="p" value="search">
-  <input type="search" name="q" value="<?= e($q) ?>" placeholder="Jogador, time ou tela (ex.: Tatum, Lakers, trocas)" autofocus>
-  <button class="btn btn-primary" type="submit">Buscar</button>
-</form>
+if ($q !== '') {
+    foreach ($pages as $pg) {
+        if (str_contains(mb_strtolower($pg[0] . ' ' . $pg[4]), $needle)) $pageHits[] = $pg;
+    }
+}
+$qlink = fn(array $pg): string => '<a class="qlink" href="' . url($pg[1]) . '">' . bi($pg[2])
+    . '<span><b>' . e($pg[0]) . '</b><small>' . e($pg[3]) . '</small></span></a>';
+$total = count($players) + count($teams) + count($pageHits);
 
-<?php if ($q === ''): ?>
-  <p class="muted">Digite o nome de um jogador, de um time ou de uma tela.</p>
-<?php else: ?>
-  <?php if ($pageHits): ?>
-  <section class="card"><div class="card-head"><h2>Telas</h2></div>
-    <div class="cap-actions"><?php foreach ($pageHits as $label => $key): ?><a class="btn" href="<?= url($key) ?>"><?= e($label) ?> →</a><?php endforeach; ?></div>
-  </section>
-  <?php endif; ?>
-  <?php if ($teams): ?>
-  <section class="card"><div class="card-head"><h2>Times</h2></div>
-    <div class="cap-actions"><?php foreach ($teams as $t): ?><a class="btn" href="<?= url('team', ['id' => $t['id']]) ?>"><?= team_logo($t['abbr'], $t['primary_color'], 'sm') ?> <?= e(teamFull($t)) ?></a><?php endforeach; ?></div>
-  </section>
-  <?php endif; ?>
-  <section class="card"><div class="card-head"><h2>Jogadores (<?= count($players) ?>)</h2></div>
-    <?php if (!$players): ?><p class="muted">Nenhum jogador encontrado com "<?= e($q) ?>".</p><?php else: ?>
-    <table class="box-table">
-      <thead><tr><th>Jogador</th><th>Time</th><th>Pos</th><th class="hide-sm">Idade</th><th>OVR</th><th class="hide-sm">Salário</th><th class="hide-sm">PPG</th></tr></thead>
-      <tbody>
-      <?php foreach ($players as $p): ?>
-        <tr>
-          <td class="bx-name"><a href="<?= url('player', ['id' => $p['id']]) ?>"><?= e($p['name']) ?></a></td>
-          <td><span class="dot" style="background:<?= e($p['primary_color']) ?>"></span><?= e($p['abbr']) ?></td>
-          <td><?= e($p['pos']) ?></td>
-          <td class="num hide-sm"><?= (int)$p['age'] ?></td>
-          <td><span class="ovr ovr-<?= $p['ovr']>=90?'elite':($p['ovr']>=80?'star':($p['ovr']>=75?'good':'role')) ?>"><?= (int)$p['ovr'] ?></span></td>
-          <td class="num hide-sm"><?= money($p['salary'] ?? 0) ?></td>
-          <td class="num hide-sm"><?= avg($p['s_pts'] ?? 0, $p['gp'] ?? 0) ?></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
+render_header('Busca');
+page_head('Busca', [
+    'eyebrow' => 'Liga',
+    'sub' => 'Ache jogadores, times e telas do jogo pelo nome.',
+]);
+?>
+<div class="stack">
+  <form method="get" class="panel sr-form" role="search">
+    <input type="hidden" name="p" value="search">
+    <div class="sr-row">
+      <label class="sr-field">
+        <span class="sr-only">Buscar jogador, time ou tela</span>
+        <?= bi('search') ?>
+        <input class="input" type="search" name="q" value="<?= e($q) ?>" placeholder="Jogador, time ou tela (ex.: Tatum, Lakers, trocas)" autocomplete="off"<?= $q === '' ? ' autofocus' : '' ?>>
+      </label>
+      <button class="btn btn-primary" type="submit"><?= bi('search') ?>Buscar</button>
+    </div>
+  </form>
+
+  <?php if ($q === ''): ?>
+    <p class="sr-count">Digite o nome de um jogador, de um time ou de uma tela. Alguns atalhos:</p>
+    <div class="qlinks">
+      <?php foreach ([$pages[0], $pages[3], $pages[5], $pages[1]] as $pg) echo $qlink($pg); ?>
+    </div>
+
+  <?php elseif ($total === 0): ?>
+    <section class="panel">
+      <?= empty_state('Nada encontrado para “' . $q . '”.', 'Confira a grafia ou tente só o sobrenome.', 'search') ?>
+    </section>
+
+  <?php else: ?>
+    <p class="sr-count"><?= $total === 1 ? '1 resultado' : $total . ' resultados' ?> para “<?= e($q) ?>”</p>
+
+    <?php if ($pageHits): ?>
+    <section class="panel">
+      <?= panel_head('Telas', ['icon' => 'grid-fill']) ?>
+      <div class="qlinks">
+        <?php foreach ($pageHits as $pg) echo $qlink($pg); ?>
+      </div>
+    </section>
     <?php endif; ?>
-  </section>
-<?php endif; ?>
+
+    <?php if ($teams): ?>
+    <section class="panel">
+      <?= panel_head('Times', ['icon' => 'buildings-fill', 'meta' => count($teams) === 1 ? '1 time' : count($teams) . ' times']) ?>
+      <div class="sr-teams">
+        <?php foreach ($teams as $t): ?>
+          <div class="sr-team<?= (int) $t['id'] === $gmId ? ' mine' : '' ?>">
+            <?= team_who($t, ($t['conf'] === 'E' ? 'Leste' : 'Oeste') . ' · ' . (int) $t['wins'] . '-' . (int) $t['losses']) ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($players): ?>
+    <section class="panel pad-0 sr-panel">
+      <?= panel_head('Jogadores', ['icon' => 'person-fill', 'meta' => count($players) >= 40 ? 'Os 40 primeiros, por OVR' : (count($players) === 1 ? '1 jogador' : count($players) . ' jogadores')]) ?>
+      <div class="table-wrap">
+        <table class="tbl sr-tbl">
+          <thead><tr>
+            <th>Jogador</th>
+            <th>Time</th>
+            <th class="c">OVR</th>
+            <th class="num hide-sm">Salário</th>
+            <th class="num hide-sm">Pts/jogo</th>
+          </tr></thead>
+          <tbody>
+          <?php foreach ($players as $p): $gp = (int) $p['gp']; ?>
+            <tr<?= (int) $p['team_id'] === $gmId ? ' class="mine"' : '' ?>>
+              <td><?= player_who($p, $p['pos'] . ' · ' . (int) $p['age'] . ' anos', (string) ($p['primary_color'] ?? '#1a1a2e')) ?></td>
+              <td><a class="who" href="<?= url('team', ['id' => $p['team_id']]) ?>"><?= team_logo((string) $p['abbr'], (string) ($p['primary_color'] ?? '#333'), 'sm') ?><b><?= e($p['abbr']) ?></b></a></td>
+              <td class="c"><?= ovr_badge($p['ovr'], 'sm') ?></td>
+              <td class="num hide-sm"><?= money($p['salary'] ?? 0) ?></td>
+              <td class="num hide-sm"><?= $gp ? avg($p['s_pts'], $gp) : '<span class="dim">—</span>' ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <?php endif; ?>
+  <?php endif; ?>
+</div>
 <?php render_footer(); ?>

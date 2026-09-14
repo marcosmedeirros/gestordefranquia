@@ -12,26 +12,17 @@ Accounts::startSession();
 
 $action = $_GET['action'] ?? null;
 
-// ============ AÇÕES DE CONTA (sem login) ============
-if ($action === 'register') {
-    $r = Accounts::register($_POST['username'] ?? '', $_POST['email'] ?? '', $_POST['password'] ?? '');
-    if (isset($r['error'])) { header('Location: ' . url('register', ['err' => $r['error']])); exit; }
-    header('Location: ' . url('saves')); exit;
-}
-if ($action === 'login') {
-    $r = Accounts::login($_POST['username'] ?? '', $_POST['password'] ?? '');
-    if (isset($r['error'])) { header('Location: ' . url('login', ['err' => $r['error']])); exit; }
-    header('Location: ' . url('saves')); exit;
-}
-if ($action === 'logout') { Accounts::logout(); header('Location: ' . url('login')); exit; }
-
-// ============ EXIGE LOGIN ============
-if (!Accounts::userId()) {
-    $page = $_GET['p'] ?? 'login';
-    if (!in_array($page, ['login', 'register'], true)) { header('Location: ' . url('login')); exit; }
-    require dirname(__DIR__) . '/src/views/' . $page . '.php';
+// ============ LOGIN: é o do site (o simulador é um jogo do FBA Games) ============
+// Quem não está logado vai pro login da FBA e volta direto pro jogo (?next=).
+if (in_array($action, ['login', 'register', 'logout'], true)) {
+    header('Location: ' . ($action === 'logout' ? '/games.php' : '/login.php?next=' . rawurlencode(APP_BASE . '/')));
     exit;
 }
+if (!Accounts::userId()) {
+    header('Location: /login.php?next=' . rawurlencode(APP_BASE . '/'));
+    exit;
+}
+if ((int) ($_SESSION['user_approved'] ?? 1) === 0) { header('Location: /pending-approval.php'); exit; }
 
 // ============ AÇÕES DE SAVE ============
 if ($action === 'create-save') {
@@ -67,7 +58,7 @@ if ($action === 'delete-save') {
 $saveId = Accounts::activeSaveId();
 if ($saveId) {
     $act = Accounts::activate($saveId);
-    if (isset($act['error'])) { unset($_SESSION['save_id']); $saveId = null; }
+    if (isset($act['error'])) { Accounts::forgetActiveSave(); $saveId = null; }
 }
 if (!Accounts::activeSaveId()) {
     $page = $_GET['p'] ?? 'saves';
@@ -144,6 +135,10 @@ if ($action) {
             Accounts::touch((int) Accounts::activeSaveId());
             header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Fim da pré-temporada', 'back' => url('home'), 'autosaved' => '1']));
             exit;
+        case 'guide-skip':
+            Database::setMeta('guide_done', '1');
+            header('Location: ' . url('home'));
+            exit;
         case 'inbox-read':
             League::inboxMarkRead();
             header('Location: ' . url('inbox'));
@@ -159,12 +154,12 @@ if ($action) {
             header('Location: ' . url('home', ['dmsg' => '🤝 Você assumiu o ' . $r['team']['city'] . ' ' . $r['team']['name'] . '. Boa sorte na nova casa!']));
             exit;
         case 'dev-focus':
-            $r = League::toggleDevFocus((int) ($_GET['pid'] ?? 0));
-            header('Location: ' . url('lineup', ['msg' => $r['msg'] ?? ('⚠️ ' . $r['error'])]));
-            exit;
         case 'trade-block':
-            $r = League::toggleTradeBlock((int) ($_GET['pid'] ?? 0));
-            header('Location: ' . url('lineup', ['msg' => $r['msg'] ?? ('⚠️ ' . $r['error'])]));
+            $r = $action === 'dev-focus'
+                ? League::toggleDevFocus((int) ($_GET['pid'] ?? 0))
+                : League::toggleTradeBlock((int) ($_GET['pid'] ?? 0));
+            $back = in_array($_GET['back'] ?? '', ['lineup', 'trades', 'manage'], true) ? $_GET['back'] : 'lineup';
+            header('Location: ' . url($back, ['msg' => $r['msg'] ?? ('⚠️ ' . $r['error'])]));
             exit;
         case 'next-season':
             $watermark = League::inboxWatermark();
@@ -287,6 +282,10 @@ if (!Database::isInstalled()) {
 
 // ============ ROTEAMENTO DE PÁGINAS ============
 $page = $_GET['p'] ?? 'home';
+// Guia do save novo: abrir a escalação e a folha conta como passo cumprido.
+if (in_array($page, ['lineup', 'cap'], true) && League::phase() === 'preseason' && Database::meta('guide_done') !== '1') {
+    Database::setMeta($page === 'lineup' ? 'guide_lineup' : 'guide_cap', '1');
+}
 $views = dirname(__DIR__) . '/src/views/';
 $map = [
     'home' => 'home.php',

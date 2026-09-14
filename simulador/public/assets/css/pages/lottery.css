@@ -1,0 +1,120 @@
+/* Loteria do draft (lottery) — o sorteio como momento de TV: palco "ao vivo",
+   envelope girando e a revelação mais recente em destaque no topo da lista.
+   A cor de cada time chega do JS em --tc (faixa lateral e brilho do destaque). */
+.lot-cols{align-items:start}
+
+/* palco */
+.lot-stage{position:relative;overflow:hidden;min-width:0;padding:20px;border-radius:var(--r-xl);border:1px solid var(--line-2);
+  background:
+    radial-gradient(560px 260px at 50% -12%,rgba(255,184,28,.14),transparent 70%),
+    radial-gradient(640px 320px at 100% 110%,var(--team-soft),transparent 70%),
+    linear-gradient(180deg,var(--panel-2),var(--panel) 75%)}
+.lot-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.lot-live{display:inline-flex;align-items:center;gap:9px;padding:6px 12px 6px 10px;border-radius:999px;
+  background:rgba(7,10,16,.55);border:1px solid var(--line-2);
+  font:700 13px/1 var(--f-display);letter-spacing:.2em;text-transform:uppercase;color:var(--text)}
+.lot-live i{width:9px;height:9px;border-radius:50%;background:var(--loss);animation:lot-pulse 1.6s ease-out infinite}
+.lot-live .ll-off{display:none}
+.lot-stage.is-done .lot-live i{background:var(--win);animation:none}
+.lot-stage.is-done .ll-on{display:none}
+.lot-stage.is-done .ll-off{display:inline}
+.lot-count{color:var(--text-3);font-size:14px}
+.lot-count b{color:var(--text);font:800 20px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.lot-title{margin-top:16px}
+.lot-title h2{margin-top:8px;font-size:44px;font-weight:800;line-height:.96;text-transform:uppercase}
+.lot-you{margin-top:12px;font-size:14.5px}
+.lot-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+
+/* antes do primeiro envelope */
+.lot-hint{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 16px;border-radius:16px;
+  border:1px dashed var(--line-2);background:rgba(7,10,16,.35);text-align:center;color:var(--text-2);font-size:15px}
+.lot-hint b{font:800 26px/1.05 var(--f-display);letter-spacing:.02em;text-transform:uppercase;color:var(--text)}
+.lot-ball{width:66px;height:66px;margin-bottom:10px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 34% 28%,var(--go-2) 0%,var(--go) 45%,var(--warn) 100%);
+  box-shadow:0 14px 26px rgba(0,0,0,.45),inset 0 -6px 12px rgba(0,0,0,.18);animation:lot-float 2.6s ease-in-out infinite}
+.lot-ball::after{content:"?";font:800 34px/1 var(--f-display);color:var(--go-ink)}
+
+/* posições reveladas */
+.lot-slots{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.lot-card{--tc:var(--line-2);display:grid;grid-template-columns:52px 36px minmax(0,1fr) auto;align-items:center;gap:8px 12px;
+  padding:9px 12px 9px 8px;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--tc);min-width:0}
+.lc-pick{display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1}
+.lc-pick small{font:700 12px/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)}
+.lc-pick b{font:800 26px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.lc-logo{display:grid;place-items:center;width:36px;height:36px;flex:none}
+.lc-logo img{width:100%;height:100%;object-fit:contain}
+.lc-logo b{display:none}
+.lc-logo.no-img{border-radius:50%;background:var(--panel-3)}
+.lc-logo.no-img b{display:block;font:700 12px/1 var(--f-display);letter-spacing:.04em}
+.lc-txt{min-width:0}
+.lc-txt b{display:block;font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-txt small{display:block;margin-top:2px;color:var(--text-3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-side{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.lot-card.is-gm{border-color:var(--team-line);border-left-color:var(--tc);background:linear-gradient(100deg,var(--team-soft),var(--panel) 60%)}
+.lot-card.top-pick{border-left-color:var(--go)}
+
+/* destaque: a revelação mais recente, em tamanho de TV */
+.lot-slots > .lot-card:first-child{grid-template-columns:auto 84px minmax(0,1fr);gap:8px 18px;padding:18px 18px 18px 16px;border-radius:16px;
+  border-color:var(--line-2);border-left-width:6px;border-left-color:var(--tc);
+  background:linear-gradient(100deg,color-mix(in srgb,var(--tc) 34%,var(--panel-2)) 0%,var(--panel-2) 62%);
+  box-shadow:0 16px 44px rgba(0,0,0,.38)}
+.lot-slots > .lot-card:first-child .lc-pick,
+.lot-slots > .lot-card:first-child .lc-logo{grid-row:span 2}
+.lot-slots > .lot-card:first-child .lc-pick{min-width:64px}
+.lot-slots > .lot-card:first-child .lc-pick small{font-size:13px}
+.lot-slots > .lot-card:first-child .lc-pick b{font-size:60px;line-height:.9}
+.lot-slots > .lot-card:first-child .lc-logo{width:84px;height:84px}
+.lot-slots > .lot-card:first-child .lc-logo img{filter:drop-shadow(0 10px 20px rgba(0,0,0,.45))}
+.lot-slots > .lot-card:first-child .lc-txt{align-self:end}
+.lot-slots > .lot-card:first-child .lc-txt b{font:800 34px/1 var(--f-display);text-transform:uppercase;letter-spacing:.01em;white-space:normal;text-wrap:balance}
+.lot-slots > .lot-card:first-child .lc-txt small{margin-top:7px;font-size:14.5px;color:var(--text-2);white-space:normal}
+.lot-slots > .lot-card:first-child .lc-side{grid-column:3;align-self:start;justify-content:flex-start}
+.lot-slots > .lot-card.drawing:first-child .lc-txt{grid-row:span 2;align-self:center}
+.lot-slots > .lot-card.is-gm:first-child{border-color:var(--team-line);border-left-color:var(--tc)}
+.lot-slots > .lot-card.top-pick:first-child{border-color:rgba(255,184,28,.55);border-left-color:var(--go);
+  background:radial-gradient(420px 200px at 0% 50%,rgba(255,184,28,.22),transparent 70%),
+             linear-gradient(100deg,color-mix(in srgb,var(--tc) 34%,var(--panel-2)) 0%,var(--panel-2) 62%);
+  box-shadow:0 0 0 1px rgba(255,184,28,.35),0 0 60px rgba(255,184,28,.16),0 16px 44px rgba(0,0,0,.4)}
+.lot-slots > .lot-card.top-pick:first-child .lc-pick b{color:var(--go)}
+
+/* suspense e entrada */
+.lot-card.drawing .lc-logo img{animation:lot-spin .24s linear infinite}
+.lot-card.drawing .lc-txt b,.lot-card.drawing .lc-pick b{color:var(--go)}
+.lot-card.pop{animation:lot-pop .45s cubic-bezier(.2,.9,.25,1.2) both}
+.lot-card.top-pick.pop{animation-duration:.8s}
+
+@keyframes lot-pop{from{opacity:0;transform:translateY(-12px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes lot-spin{0%,100%{transform:rotate(-10deg) scale(.94)}50%{transform:rotate(10deg) scale(1.04)}}
+@keyframes lot-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes lot-pulse{0%{box-shadow:0 0 0 0 rgba(255,84,103,.6)}75%{box-shadow:0 0 0 9px rgba(255,84,103,0)}100%{box-shadow:0 0 0 0 rgba(255,84,103,0)}}
+
+/* chances */
+.lot-odds .tbl td.t-cell{width:100%;max-width:0}
+.lot-odds .odds{display:inline-flex;flex-direction:column;align-items:flex-end;gap:5px}
+.lot-odds .odds b{font:700 17px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.lot-odds .odds .meter{width:72px;height:6px}
+
+@media (max-width:1023px){
+  .lot-title h2{font-size:36px}
+}
+@media (max-width:640px){
+  .lot-stage{padding:16px 14px;border-radius:18px}
+  .lot-title h2{font-size:30px}
+  .lot-actions .btn-lg{flex:1 1 100%}
+  .lot-actions .btn:not(.btn-lg){flex:1 1 0}
+  .lot-card{grid-template-columns:44px 32px minmax(0,1fr);padding:8px 10px 8px 6px}
+  .lot-card .lc-logo{width:32px;height:32px}
+  .lc-pick b{font-size:22px}
+  .lc-side{grid-column:2/-1;justify-content:flex-start}
+  .lot-slots > .lot-card:first-child{grid-template-columns:auto 60px minmax(0,1fr);gap:8px 12px;padding:14px 12px 14px 10px}
+  .lot-slots > .lot-card:first-child .lc-pick,
+  .lot-slots > .lot-card:first-child .lc-logo{grid-row:auto}
+  .lot-slots > .lot-card:first-child .lc-pick{min-width:48px}
+  .lot-slots > .lot-card:first-child .lc-pick b{font-size:44px}
+  .lot-slots > .lot-card:first-child .lc-logo{width:60px;height:60px}
+  .lot-slots > .lot-card:first-child .lc-txt{align-self:center}
+  .lot-slots > .lot-card:first-child .lc-txt b{font-size:24px}
+  .lot-slots > .lot-card:first-child .lc-txt small{font-size:14px}
+  .lot-slots > .lot-card:first-child .lc-side{grid-column:1/-1}
+  .lot-slots > .lot-card.drawing:first-child .lc-txt{grid-row:auto}
+}

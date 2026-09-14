@@ -338,7 +338,7 @@ class Offseason
         if ($up)   $body .= "📈 Evoluíram:\n" . implode("\n", array_map($fmt, $up)) . "\n\n";
         if ($down) $body .= "📉 Caíram:\n" . implode("\n", array_map($fmt, $down)) . "\n\n";
         if ($same) $body .= "➖ Mantiveram: " . implode(', ', array_map(fn($r) => "{$r['name']} ({$r['to']})", $same)) . "\n\n";
-        $body .= "Os salários já foram recalculados pela tabela de OVR — confira a folha em Folha & Cap.";
+        $body .= "Os salários já foram recalculados pela tabela de OVR — confira a folha em Folha e teto.";
         League::inboxAdd('progress', 'Comissão Técnica', '📊 Progressão do elenco na entressafra', trim($body), url('cap'), '📊', true);
     }
 

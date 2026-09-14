@@ -1,46 +1,63 @@
 <?php
 require_once dirname(__DIR__) . '/helpers.php';
-render_header('Mensagens');
 
-$msgs   = League::inboxList(100);
-$unread = League::inboxUnread();
+$msgs      = League::inboxList(100);
+$unread    = League::inboxUnread();
+$decisions = League::pendingDecisions();
+$filtro    = in_array($_GET['f'] ?? '', ['novas', 'importantes'], true) ? $_GET['f'] : 'todas';
 
-// rótulo de tempo relativo simples a partir de created_at
-function inbox_when(?string $iso): string {
+/** Há quanto tempo a mensagem chegou (tempo real, não o calendário do jogo). */
+function inbox_when(?string $iso): string
+{
     if (!$iso) return '';
     $ts = strtotime($iso);
     if (!$ts) return '';
     $diff = time() - $ts;
-    if ($diff < 3600) return floor($diff/60) . ' min';
-    if ($diff < 86400) return floor($diff/3600) . 'h';
-    return floor($diff/86400) . 'd';
+    if ($diff < 60) return 'agora';
+    if ($diff < 3600) return floor($diff / 60) . ' min';
+    if ($diff < 86400) return floor($diff / 3600) . ' h';
+    return floor($diff / 86400) . ' d';
 }
-?>
-<div class="card-head page">
-  <h1 class="page-title">📬 Caixa de Entrada</h1>
-  <?php if ($unread > 0): ?>
-    <a class="btn btn-sm" href="<?= url('home', ['action'=>'inbox-read']) ?>">✓ Marcar todas como lidas (<?= $unread ?>)</a>
-  <?php endif; ?>
-</div>
-<p class="legend">Tudo que acontece na liga e na sua franquia chega aqui — decisões da diretoria, pedidos de
-   agentes, trocas, contratações e notícias. <?= $unread > 0 ? "<strong>$unread não lida(s).</strong>" : 'Tudo em dia.' ?></p>
 
-<?php if (!$msgs): ?>
-  <section class="card"><p class="muted">Nenhuma mensagem ainda. Avance os dias para movimentar a liga.</p></section>
-<?php else: ?>
-  <?php foreach ($msgs as $m): ?>
-    <div class="inbox-page-msg <?= $m['is_read'] ? 'read' : 'unread' ?> <?= $m['urgent'] ? 'urgent' : '' ?> kind-<?= e($m['kind']) ?>">
-      <div class="ipm-icon"><?= e($m['icon'] ?: '📬') ?></div>
-      <div class="ipm-body">
-        <div class="ipm-top">
-          <span class="ipm-sender"><?= e($m['sender']) ?> · Temporada <?= (int)$m['season'] ?></span>
-          <span class="ipm-when"><?= inbox_when($m['created_at']) ?></span>
-        </div>
-        <div class="ipm-title"><?= e($m['title']) ?></div>
-        <?php if (!empty($m['body'])): ?><div class="ipm-text"><?= e($m['body']) ?></div><?php endif; ?>
-        <?php render_inbox_actions($m, 'inbox'); ?>
-      </div>
-    </div>
-  <?php endforeach; ?>
-<?php endif; ?>
-<?php render_footer(); ?>
+render_header('Caixa de entrada');
+page_head('Caixa de entrada', [
+    'eyebrow' => 'Início',
+    'sub' => $unread
+        ? ($unread === 1 ? 'Uma mensagem nova.' : "$unread mensagens novas.") . ' Decisões e renovações se resolvem direto aqui.'
+        : 'Tudo lido. Avance os dias para movimentar a liga.',
+]);
+?>
+<div class="stack">
+  <?php render_decisions($decisions, url('inbox')); ?>
+
+  <nav class="seg" aria-label="Filtrar mensagens">
+    <?php foreach (['todas' => 'Todas', 'novas' => 'Novas', 'importantes' => 'Importantes'] as $k => $label): ?>
+      <a class="<?= $filtro === $k ? 'on' : '' ?>" href="<?= url('inbox', $k === 'todas' ? [] : ['f' => $k]) ?>"><?= e($label) ?></a>
+    <?php endforeach; ?>
+  </nav>
+
+  <section class="panel">
+    <?php
+      $n = 0;
+      echo '<div class="feed">';
+      foreach ($msgs as $m) {
+          if ($decisions && $m['kind'] === 'decision') continue; // já estão no painel de decisões
+          if ($filtro === 'novas' && !empty($m['is_read'])) continue;
+          if ($filtro === 'importantes' && empty($m['urgent'])) continue;
+          render_inbox_msg($m, 'inbox', [
+              'when' => 'Temporada ' . (int) $m['season'] . ' · ' . inbox_when($m['created_at'] ?? null),
+              'unread' => empty($m['is_read']),
+          ]);
+          $n++;
+      }
+      echo '</div>';
+      if (!$n) {
+          echo empty_state($filtro === 'todas' ? 'Nenhuma mensagem ainda.' : 'Nada neste filtro.', 'Avance os dias para movimentar a liga.', 'inbox');
+      }
+    ?>
+  </section>
+</div>
+<?php
+// Abrir a caixa conta como leitura: o contador do menu zera na próxima tela.
+if ($unread > 0) League::inboxMarkRead();
+render_footer();

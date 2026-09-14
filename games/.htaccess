@@ -7,4 +7,9 @@
     RewriteCond %{HTTP_HOST} ^games\. [NC]
     RewriteCond %{REQUEST_URI} !movido\.php$
     RewriteRule ^ movido.php [L]
+
+    # Simulador (jogo do Games): o código mora em /simulador/public e é servido
+    # em /games/simulador/. Sem card no hub por enquanto, só por link.
+    RewriteRule ^simulador$ /games/simulador/ [R=301,L]
+    RewriteRule ^simulador/(.*)$ /simulador/public/$1 [L,QSA]
 </IfModule>

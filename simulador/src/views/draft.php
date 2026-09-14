@@ -1,7 +1,8 @@
 <?php
 require_once dirname(__DIR__) . '/helpers.php';
 require_once dirname(__DIR__) . '/Offseason.php';
-render_header('Draft');
+require_once dirname(__DIR__) . '/PlayerFace.php';
+render_header('Drafts');
 $seasons = League::draftSeasons();
 $sel = (int) ($_GET['season'] ?? ($seasons[0] ?? 0));
 $picks = $sel ? League::draftResults($sel) : [];
@@ -12,98 +13,109 @@ $mockProspects = Offseason::availableProspects($currentSeason);
 if (!$mockProspects) {
     $mockProspects = Offseason::availableProspects($currentSeason + 1);
 }
+
+$phase = League::phase();
+$gmIdD = League::gmTeam();
+$teamMap = [];
+foreach (League::allTeams() as $t) $teamMap[(int) $t['id']] = $t;
+$live = $phase === 'draft' && $sel === (int) Database::meta('draft_season', 0);
+$mockSkills = ['thr' => 'ARR', 'ins' => 'INT', 'def' => 'DEF', 'pmk' => 'PAS', 'reb' => 'REB'];
+$skills = ['thr' => 'ARR', 'ins' => 'INT', 'def' => 'DEF', 'pmk' => 'PAS'];
+
+page_head('Drafts', [
+    'eyebrow' => 'Mercado',
+    'sub' => 'As classes de calouros de cada temporada. Antes da escolha só existem as notas dos olheiros; depois dela o OVR aparece, e o potencial continua sendo uma estimativa.',
+]);
 ?>
-<div class="card-head page">
-  <h1 class="page-title">Draft — Resultados</h1>
+<div class="stack">
+  <?php if ($mockProspects): ?>
+  <section class="panel hot pad-0 dft-mock">
+    <?= panel_head($phase === 'draft' ? 'Calouros ainda disponíveis' : 'Próxima classe', [
+        'icon' => 'mortarboard-fill',
+        'meta' => 'Top 20 do board',
+        'more' => $phase === 'draft' ? ['Sala do draft', url('draftroom')] : ($phase === 'lottery' ? ['Loteria', url('lottery')] : null),
+    ]) ?>
+    <p class="dft-key">Notas dos olheiros: <b>ARR</b> arremesso de 3 · <b>INT</b> jogo interior · <b>DEF</b> defesa · <b>PAS</b> passe · <b>REB</b> rebote</p>
+    <div class="table-wrap">
+      <table class="tbl compact">
+        <thead><tr>
+          <th class="c">#</th><th>Prospecto</th><th class="c">Geral</th>
+          <?php foreach ($mockSkills as $ab): ?><th class="c hide-sm"><?= $ab ?></th><?php endforeach; ?>
+        </tr></thead>
+        <tbody>
+        <?php foreach (array_slice($mockProspects, 0, 20) as $i => $p): ?>
+          <tr>
+            <td class="rank"><?= $i + 1 ?></td>
+            <td class="t-who"><span class="who"><img class="face" src="<?= e(PlayerFace::url((int) $p['id'], $p['name'], $p['pos'])) ?>" alt="" loading="lazy"><span class="w-txt"><b><?= e($p['name']) ?></b><small><?= e($p['pos']) ?> · <?= (int) $p['age'] ?> anos</small></span></span></td>
+            <td class="c"><span class="grade <?= gradeClass($p['ovr']) ?>"><?= grade($p['ovr']) ?></span></td>
+            <?php foreach ($mockSkills as $k => $ab): ?><td class="c hide-sm"><span class="grade <?= gradeClass($p[$k]) ?>"><?= grade($p[$k]) ?></span></td><?php endforeach; ?>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <?php if ($seasons): ?>
-  <form method="get" style="margin:0">
-    <input type="hidden" name="p" value="draft">
-    <select name="season" onchange="this.form.submit()" class="season-select">
-      <?php foreach ($seasons as $s): ?>
-        <option value="<?= $s ?>" <?= $s==$sel?'selected':'' ?>>Draft <?= $s ?></option>
+  <nav class="seg" aria-label="Temporada do draft">
+    <?php foreach ($seasons as $s): ?>
+      <a class="<?= $s === $sel ? 'on' : '' ?>" href="<?= url('draft', ['season' => $s]) ?>">Temporada <?= $s ?></a>
+    <?php endforeach; ?>
+  </nav>
+  <?php endif; ?>
+
+  <?php if (!$picks): ?>
+  <section class="panel">
+    <?= empty_state($seasons ? 'Nenhuma escolha nesta temporada.' : 'Nenhum draft realizado ainda.', 'Os calouros chegam na entressafra: primeiro a loteria, depois o draft.', 'mortarboard') ?>
+  </section>
+  <?php else: ?>
+  <?php $myPicks = $gmIdD ? array_values(array_filter($picks, fn($p) => (int) $p['picked_by'] === $gmIdD)) : []; ?>
+  <?php if ($myPicks): ?>
+  <section class="panel hot">
+    <?= panel_head('Suas escolhas', ['icon' => 'person-check-fill', 'meta' => 'Draft da temporada ' . $sel]) ?>
+    <div class="pcards">
+      <?php foreach ($myPicks as $p): ?>
+        <div class="pcard starter">
+          <span class="dft-no">#<?= (int) $p['pick_no'] ?></span>
+          <div class="pc-txt">
+            <b><?= e($p['name']) ?></b>
+            <small><?= e($p['pos']) ?> · <?= (int) $p['age'] ?> anos</small>
+            <div class="pc-flags"><span class="dft-pot">Potencial <span class="grade <?= gradeClass((int) $p['potential']) ?>" title="Estimativa dos olheiros"><?= grade((int) $p['potential']) ?></span></span></div>
+          </div>
+          <?= ovr_badge($p['ovr']) ?>
+        </div>
       <?php endforeach; ?>
-    </select>
-  </form>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <section class="panel pad-0">
+    <?= panel_head('Classe da temporada ' . $sel, ['icon' => 'list-ol', 'right' => $live ? chip('Em andamento', 'warn', 'broadcast') : '', 'meta' => count($picks) === 1 ? '1 escolha' : count($picks) . ' escolhas']) ?>
+    <div class="table-wrap">
+      <table class="tbl compact">
+        <thead><tr>
+          <th class="c">#</th><th>Time</th><th>Calouro</th><th class="c">OVR</th><th class="c" title="Estimativa dos olheiros">Pot.</th>
+          <?php foreach ($skills as $ab): ?><th class="c hide-sm"><?= $ab ?></th><?php endforeach; ?>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($picks as $p):
+          $mine = $gmIdD && (int) $p['picked_by'] === $gmIdD;
+          $pt = $teamMap[(int) $p['picked_by']] ?? null; ?>
+          <tr class="<?= $mine ? 'mine' : '' ?>">
+            <td class="rank"><?= (int) $p['pick_no'] ?></td>
+            <td><a class="who" href="<?= url('team', ['id' => $p['picked_by']]) ?>"><?= team_logo((string) $p['team_abbr'], $pt['primary_color'] ?? '#333', 'sm') ?><b class="hide-sm"><?= e($p['team_abbr']) ?></b></a></td>
+            <td class="dft-name"><b><?= e($p['name']) ?></b><small><?= e($p['pos']) ?> · <?= (int) $p['age'] ?> anos</small></td>
+            <td class="c"><?= ovr_badge($p['ovr'], 'sm') ?></td>
+            <td class="c"><span class="grade <?= gradeClass((int) $p['potential']) ?>" title="Estimativa dos olheiros"><?= grade((int) $p['potential']) ?></span></td>
+            <?php foreach ($skills as $k => $ab): ?><td class="c hide-sm"><span class="grade <?= gradeClass($p[$k]) ?>"><?= grade($p[$k]) ?></span></td><?php endforeach; ?>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <p class="dft-foot">Salário de calouro no 1º ano: #1–3 18M · #4–8 14M · #9–12 12M · #13–16 8M · #17–22 5M · #23+ 3M · 2ª rodada 2M.</p>
+  </section>
   <?php endif; ?>
 </div>
-
-<p class="legend">🔍 <strong>Névoa de guerra:</strong> antes do Draft, os times só conhecem as <em>notas de olheiro</em> (não o OVR exato)
-   e nunca o <em>potencial real</em>. Calouros chegam com OVR baixo — alguns viram lendas, outros são <em>busts</em>.
-   Depois da seleção o OVR é revelado; o potencial continua sendo só a estimativa dos olheiros.</p>
-
-<?php if ($mockProspects): ?>
-<section class="card" style="margin-bottom:18px;border-color:rgba(228,0,43,.3)">
-  <div class="card-head">
-    <h2>🎓 Mock Draft — Próximos Prospectos (Top 20)</h2>
-    <?php if (League::phase() === 'draft'): ?>
-      <a class="btn btn-primary btn-sm" href="<?= url('draftroom') ?>">Ir para a Sala do Draft →</a>
-    <?php endif; ?>
-  </div>
-  <table class="box-table draft-table">
-    <thead><tr>
-      <th>#</th><th>Prospecto</th><th>Pos</th><th>Idade</th><th>Nota</th>
-      <th>Arr.3</th><th>Interior</th><th>Defesa</th><th>Passe</th><th>Rebote</th>
-    </tr></thead>
-    <tbody>
-    <?php foreach (array_slice($mockProspects, 0, 20) as $i => $p): ?>
-      <tr>
-        <td class="seed" style="color:var(--brand2);font-weight:800"><?= $i+1 ?></td>
-        <td class="bx-name"><strong><?= e($p['name']) ?></strong></td>
-        <td><?= e($p['pos']) ?></td>
-        <td class="num"><?= $p['age'] ?></td>
-        <td><span class="grade <?= gradeClass($p['ovr']) ?>"><?= grade($p['ovr']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['thr']) ?>"><?= grade($p['thr']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['ins']) ?>"><?= grade($p['ins']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['def']) ?>"><?= grade($p['def']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['pmk']) ?>"><?= grade($p['pmk']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['reb']) ?>"><?= grade($p['reb']) ?></span></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-</section>
-<?php endif; ?>
-
-<?php if (!$picks): ?>
-  <p class="muted">Nenhum draft realizado ainda. Os calouros entram na virada de temporada (botão "Iniciar próxima temporada").</p>
-<?php else: ?>
-<?php $gmIdD = League::gmTeam(); $myPicks = $gmIdD ? array_values(array_filter($picks, fn($p) => (int)$p['picked_by'] === $gmIdD)) : []; ?>
-<?php if ($myPicks): ?>
-<section class="card" style="margin-bottom:14px;border-color:rgba(228,0,43,.3)">
-  <div class="card-head"><h2>🎯 Suas escolhas no Draft <?= $sel ?></h2></div>
-  <div class="cap-actions">
-    <?php foreach ($myPicks as $p): ?>
-      <span class="counter-chip">#<?= $p['pick_no'] ?> <?= e($p['name']) ?> <span class="muted"><?= e($p['pos']) ?> · <?= (int)$p['age'] ?> anos · OVR <?= (int)$p['ovr'] ?> · pot. <?= grade((int)$p['potential']) ?></span></span>
-    <?php endforeach; ?>
-  </div>
-</section>
-<?php endif; ?>
-<section class="card">
-  <div class="card-head"><h2>Classe completa — Draft <?= $sel ?></h2><span class="muted" style="font-size:11px">Rookie scale no 1º ano: #1–3 18M · #4–8 14M · #9–12 12M · #13–16 8M · #17–22 5M · #23+ 3M · 2ª rodada 2M</span></div>
-  <table class="box-table draft-table">
-    <thead><tr>
-      <th>#</th><th>Time</th><th>Calouro</th><th>Pos</th><th>Idade</th>
-      <th>OVR</th><th>Potencial</th><th>Arr. 3</th><th>Interior</th><th>Defesa</th><th>Passe</th>
-    </tr></thead>
-    <tbody>
-    <?php foreach ($picks as $p):
-      $potGap = (int)$p['potential'] - (int)$p['ovr']; $mine = $gmIdD && (int)$p['picked_by'] === $gmIdD; ?>
-      <tr<?= $mine ? ' style="background:rgba(228,0,43,.08)"' : '' ?>>
-        <td class="seed"><?= $p['pick_no'] ?></td>
-        <td><a href="<?= url('team',['id'=>$p['picked_by']]) ?>"><?= e($p['team_abbr']) ?></a></td>
-        <td class="bx-name"><?= e($p['name']) ?></td>
-        <td><?= e($p['pos']) ?></td>
-        <td class="num"><?= $p['age'] ?></td>
-        <td class="num"><span class="ovr ovr-<?= $p['ovr']>=80?'star':($p['ovr']>=75?'good':'role') ?>"><?= $p['ovr'] ?></span></td>
-        <td class="num"><span class="pot pot-<?= $potGap>=10?'high':($potGap>=5?'mid':'low') ?>" title="Estimativa dos olheiros"><?= grade((int)$p['potential']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['thr']) ?>"><?= grade($p['thr']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['ins']) ?>"><?= grade($p['ins']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['def']) ?>"><?= grade($p['def']) ?></span></td>
-        <td><span class="grade <?= gradeClass($p['pmk']) ?>"><?= grade($p['pmk']) ?></span></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-</section>
-<?php endif; ?>
 <?php render_footer(); ?>

@@ -1,0 +1,61 @@
+/* Página de um time. O herói recebe as cores do time visitado
+   (team_theme_style no style do próprio herói), então --team* ali dentro
+   é o time da página, não o seu. */
+.tm-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;padding:22px;
+  border-radius:var(--r-xl);border:1px solid var(--line);box-shadow:inset 0 3px 0 var(--team-bright);
+  background:radial-gradient(720px 320px at 0% 0%,var(--team-soft),transparent 65%),linear-gradient(135deg,var(--panel-2),var(--panel) 70%)}
+.tm-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 100% 118%,transparent 0 238px,rgba(255,255,255,.05) 239px 241px,transparent 242px),
+    radial-gradient(circle at 100% 118%,transparent 0 96px,rgba(255,255,255,.045) 97px 99px,transparent 100px)}
+.tm-hero.solo{grid-template-columns:1fr}
+.tm-id{position:relative;display:flex;align-items:center;gap:20px;min-width:0}
+.tm-id .tlogo{width:104px;height:104px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.45))}
+.tm-id-txt{min-width:0}
+.tm-id h1{margin-top:8px;font-size:46px;font-weight:800;line-height:.96;text-transform:uppercase}
+.tm-meta{margin-top:14px;gap:8px}
+.tm-rec{font:800 34px/1 var(--f-display);font-variant-numeric:tabular-nums;margin-right:6px}
+.tm-schemes{margin-top:10px;color:var(--text-2);font-size:14.5px}
+.tm-side{position:relative;display:flex;min-width:0}
+.tm-card{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:16px 18px;border-radius:16px;
+  background:rgba(7,10,16,.5);border:1px solid var(--line);min-width:0}
+a.tm-card:hover{border-color:var(--line-2);color:inherit}
+.tm-card-h{font:700 13px/1 var(--f-display);letter-spacing:.18em;text-transform:uppercase;color:var(--team-bright)}
+.tm-card .mu-side .tlogo{width:60px;height:60px}
+.tm-card .mu-score{font-size:38px}
+.tm-when{text-align:center;color:var(--text-2);font-size:14.5px}
+
+.tm-pcards{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+a.pcard:hover{color:inherit}
+.tm-panel .tbl th:first-child,.tm-panel .tbl td:first-child{padding-left:16px}
+.tm-panel .tbl th:last-child,.tm-panel .tbl td:last-child{padding-right:16px}
+.tm-tbl th.sort{padding-top:0;padding-bottom:0}
+.tm-sort{display:inline-flex;align-items:center;gap:3px;min-height:40px;color:inherit}
+.tm-sort:hover,.tm-sort.on{color:var(--text)}
+.tm-sort i{font-size:10px}
+.tm-tbl tr.tm-inj .who small{color:var(--warn)}
+.tm-tbl .who .w-txt{max-width:12rem}
+.tm-picks{gap:6px}
+.tm-sched .sub-h.first{margin-top:0}
+
+@media (max-width:1279px){
+  .tm-cols{grid-template-columns:1fr}
+}
+@media (max-width:1023px){
+  .tm-hero{grid-template-columns:1fr;padding:18px}
+  .tm-id .tlogo{width:72px;height:72px}
+  .tm-id h1{font-size:34px}
+  .tm-rec{font-size:30px}
+}
+@media (max-width:640px){
+  .tm-hero{padding:16px;border-radius:18px}
+  .tm-id{gap:14px}
+  .tm-id .tlogo{width:60px;height:60px}
+  .tm-id h1{font-size:28px}
+  .tm-rec{font-size:26px}
+  .tm-card{padding:14px}
+  .tm-card .mu-score{font-size:32px}
+  .tm-panel .tbl th:first-child,.tm-panel .tbl td:first-child{padding-left:12px}
+  .tm-panel .tbl th:last-child,.tm-panel .tbl td:last-child{padding-right:12px}
+  .tm-tbl .who .w-txt{max-width:9.5rem}
+}

@@ -1,0 +1,76 @@
+/* Playoffs: campeão, seu time, play-in, chave por conferência e finais.
+   A chave é re-semeada a cada rodada (League::buildNextRound), então as
+   rodadas ficam lado a lado sem linhas ligando as séries. No celular as
+   rodadas empilham e as séries de cada rodada ficam em duas colunas. */
+.po-champ{display:flex;align-items:center;gap:18px}
+.po-champ .tlogo{width:84px;height:84px;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
+.po-champ h2{margin-top:7px;font-size:36px;font-weight:800;line-height:1;text-transform:uppercase}
+.po-champ p{margin-top:7px}
+.po-you{display:flex;align-items:center;gap:14px}
+.po-you .tlogo{width:52px;height:52px}
+.po-you-txt{flex:1;min-width:0}
+.po-you-top{gap:8px}
+.po-you-txt b{display:block;margin-top:6px;font:700 22px/1.12 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+
+.po-rounds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.po-round{display:flex;flex-direction:column;min-width:0}
+.po-round-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px;margin-bottom:10px;
+  font:700 14px/1.1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--text-3)}
+.po-round.now .po-round-h{color:var(--text)}
+.po-list{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:10px}
+
+.po-series{border-radius:12px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden;min-width:0}
+.po-series.mine{border-color:var(--team-line);background:linear-gradient(135deg,var(--team-soft),var(--panel-2) 70%)}
+.po-series.hot{box-shadow:inset 3px 0 0 var(--warn)}
+.po-series.tbd{background:transparent;border-style:dashed}
+.po-team{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 12px}
+.po-team + .po-team{border-top:1px solid var(--line)}
+a.po-team:hover{background:rgba(255,255,255,.03);color:inherit}
+.po-seed{flex:none;width:16px;text-align:center;font:700 14px/1 var(--f-display);color:var(--text-3)}
+.po-team b{font:700 17px/1 var(--f-display);letter-spacing:.04em}
+.po-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-3);font-size:13.5px}
+.po-wins{margin-left:auto;min-width:20px;text-align:right;font:800 22px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.po-team.won .po-wins{color:var(--win)}
+.po-team.lost b,.po-team.lost .po-wins{color:var(--text-3)}
+.po-team.lost .tlogo{opacity:.5}
+.po-tbd{color:var(--text-3);font-size:14px}
+.po-foot{padding:7px 12px;border-top:1px solid var(--line);font-size:13px;line-height:1.3;color:var(--text-2)}
+.po-series.hot .po-foot{color:var(--warn)}
+
+.po-finals .matchup{max-width:560px;margin:0 auto}
+.po-fin-score{font:800 46px/1 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--text)}
+.po-fin-status{margin-top:12px;text-align:center;color:var(--text-2);font-size:14.5px}
+.po-q{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--panel-3);color:var(--text-3);font:800 30px/1 var(--f-display)}
+
+.po-empty-cta{justify-content:center;padding-bottom:12px}
+.po-pi-conf .sub-h.first{margin-top:0}
+.po-pi-conf + .po-pi-conf{margin-top:4px}
+.po-pi-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.po-pi{display:flex;flex-direction:column;gap:6px;min-width:0}
+.po-pi-lbl{font-size:13px;font-weight:600;line-height:1.3;color:var(--text-3)}
+.po-pi-lbl b{color:var(--text-2)}
+.po-pi-tbd{display:grid;place-items:center;min-height:92px;border-radius:12px;border:1px dashed var(--line-2);color:var(--text-3);font-size:14px}
+
+@media (max-width:1023px){
+  .po-fin-score{font-size:38px}
+}
+@media (max-width:640px){
+  .po-champ{gap:12px}
+  .po-champ .tlogo{width:60px;height:60px}
+  .po-champ h2{font-size:26px}
+  .po-you{gap:12px}
+  .po-you .tlogo{width:40px;height:40px}
+  .po-you-txt b{font-size:19px}
+  .po-rounds{grid-template-columns:1fr;gap:16px}
+  .po-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .po-list.one{grid-template-columns:1fr}
+  .po-name{display:none}
+  .po-team{gap:6px;padding:6px 10px}
+  .po-foot{padding:6px 10px}
+  .po-pi-list{grid-template-columns:1fr}
+  .po-fin-score{font-size:32px}
+  .po-q{width:56px;height:56px;font-size:24px}
+}
+@media (max-width:360px){
+  .po-list{grid-template-columns:1fr}
+}

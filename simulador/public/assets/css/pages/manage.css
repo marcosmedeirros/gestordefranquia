@@ -1,0 +1,71 @@
+/* Diretoria e técnico (manage) */
+
+/* ─── diretoria: meta, paciência, confiança ──────────────────────────── */
+.mg-board{gap:12px}
+.mg-box{display:flex;flex-direction:column;gap:10px;min-width:0;padding:16px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line)}
+.mg-box .muted{font-size:14.5px;line-height:1.45}
+.mg-title{font:700 24px/1.1 var(--f-display);letter-spacing:.02em;text-transform:uppercase}
+.mg-line{gap:8px}
+.mg-num{font:800 36px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.mg-num small{margin-left:1px;font-size:19px;font-weight:700;color:var(--text-3)}
+.mg-pat{gap:12px}
+.mg-pat .pips{gap:5px}
+.mg-pat .pips i{width:26px;height:10px;border-radius:5px}
+
+/* ─── estilo de jogo: opções em cartão ───────────────────────────────── */
+.mg-scheme > .sub-h:first-of-type{margin-top:0}
+.mg-opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mg-opt{display:flex;align-items:flex-start;gap:10px;min-width:0;padding:12px;border-radius:12px;cursor:pointer;
+  border:1px solid var(--line-2);background:var(--panel-2);transition:border-color .15s,background .15s}
+.mg-opt:hover{border-color:var(--text-3)}
+.mg-opt input{flex:none;margin:2px 0 0}
+.mg-opt b{display:block;font-size:15px;font-weight:700;line-height:1.25}
+.mg-opt small{display:block;margin-top:4px;color:var(--text-2);font-size:13.5px;line-height:1.4}
+.mg-opt:has(input:checked){border-color:var(--team-line);background:var(--team-soft)}
+.mg-opt:has(input:focus-visible){outline:2px solid var(--info);outline-offset:2px}
+.mg-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:16px}
+.mg-foot{margin-top:14px;font-size:14px;line-height:1.45}
+
+/* ─── técnico ────────────────────────────────────────────────────────── */
+.mg-coach{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mg-avatar{width:54px;height:54px;flex:none;display:grid;place-items:center;border-radius:14px;
+  background:var(--team);color:var(--team-ink);font:800 28px/1 var(--f-display)}
+.mg-coach-txt{flex:1;min-width:0}
+.mg-coach-name{display:block;font:700 26px/1.05 var(--f-display);letter-spacing:.02em;text-transform:uppercase;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mg-coach-txt small{display:block;margin-top:5px;font-size:14px}
+.mg-rename > summary{list-style:none}
+.mg-rename > summary::-webkit-details-marker{display:none}
+.mg-rename .mg-rn-open{display:none}
+.mg-rename[open]{flex-basis:100%}
+.mg-rename[open] .mg-rn-open{display:inline}
+.mg-rename[open] .mg-rn-closed{display:none}
+.mg-rename form{margin-top:10px}
+.mg-rename .field{flex:1 1 200px}
+.mg-attrs{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.mg-attr{display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"ic txt val" "ic bar bar";align-items:center;gap:6px 12px}
+.mg-attr > i{grid-area:ic;align-self:start;width:36px;height:36px;display:grid;place-items:center;border-radius:10px;
+  background:var(--team-soft);color:var(--team-bright);font-size:16px}
+.mg-attr-txt{grid-area:txt;min-width:0}
+.mg-attr-txt b{display:block;font-size:15px;font-weight:600;line-height:1.2}
+.mg-attr-txt small{display:block;margin-top:1px;color:var(--text-3);font-size:13px;line-height:1.35}
+.mg-attr-val{grid-area:val;font:700 22px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.mg-attr > .meter{grid-area:bar;height:6px}
+
+/* ─── projeto do elenco ──────────────────────────────────────────────── */
+.mg-subhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mg-subhead .sub-h{margin:0}
+.mg-hint{margin-top:6px;font-size:14px;line-height:1.45}
+.mg-list{margin-top:12px}
+.mg-list .who{flex:1}
+.mg-empty{font-size:14.5px}
+
+@media (max-width:1023px){
+  .mg-duo{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .mg-opts{grid-template-columns:1fr}
+  .mg-title{font-size:22px}
+  .mg-num{font-size:32px}
+  .mg-actions .btn{flex:1}
+}

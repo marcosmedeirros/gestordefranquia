@@ -1,0 +1,66 @@
+/* Folha e teto (cap) */
+.cap-pick{min-width:260px}
+
+/* herói: status do time, número grande e a régua folha × piso × teto */
+.cap-hero{display:flex;flex-direction:column;gap:16px}
+.cap-hero-top{display:flex;align-items:center;justify-content:space-between;gap:14px 24px;flex-wrap:wrap}
+.cap-id{display:flex;align-items:center;gap:14px;min-width:0}
+.cap-id .tlogo{width:60px;height:60px}
+.cap-id-txt{min-width:0}
+.cap-id h2{margin-top:6px;font-size:30px;font-weight:800;text-transform:uppercase}
+.cap-id .row{margin-top:10px;gap:6px}
+.cap-big{text-align:right}
+.cap-big .big-num{margin-top:6px;font-size:52px}
+
+.capbar{position:relative;padding:7px 0}
+.capbar .meter{height:14px}
+.cb-tick{position:absolute;top:0;bottom:0;left:var(--at);width:3px;margin-left:-1px;border-radius:2px;background:var(--text);
+  box-shadow:0 0 0 2px var(--panel)}
+.cb-tick.floor{background:var(--warn)}
+.cb-scale{display:flex;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;margin-top:6px;font-size:14px;color:var(--text-2)}
+.cb-scale b{color:var(--text);font-variant-numeric:tabular-nums}
+.cb-key{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--text)}
+.cb-key.floor{background:var(--warn)}
+.cb-key.pay.ok{background:var(--win)} .cb-key.pay.bad{background:var(--loss)} .cb-key.pay.warn{background:var(--warn)}
+
+/* tabelas coladas na borda: respiro nas pontas */
+.cap-tbl th:first-child,.cap-tbl td:first-child{padding-left:18px}
+.cap-tbl th:last-child,.cap-tbl td:last-child{padding-right:18px}
+.sal{font:700 18px/1 var(--f-display);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cap-roster .who{max-width:260px}
+.cap-share{display:flex;align-items:center;gap:8px;min-width:120px}
+.cap-share .meter{flex:1}
+.cap-share > small{width:36px;text-align:right;font-size:13px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.cap-src{font-size:14px;color:var(--text-2);white-space:nowrap}
+.cap-flags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.cap-acts{display:flex;gap:6px;justify-content:flex-end}
+.cap-league .who b{font-weight:700}
+.only-sm{display:none}
+
+/* regras */
+.cap-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cap-rule{display:flex;gap:12px;padding:12px 14px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line)}
+.cap-rule > i{font-size:20px;line-height:1.2;color:var(--team-bright);flex:none}
+.cap-rule b{display:block;margin-bottom:3px;font-size:15px}
+.cap-rule p{color:var(--text-2);font-size:14.5px;line-height:1.5}
+
+@media (max-width:1023px){
+  .cap-big .big-num{font-size:44px}
+}
+@media (max-width:640px){
+  .page-head .ph-actions{width:100%}
+  .cap-pick{min-width:0;width:100%}
+  .cap-hero{gap:14px}
+  .cap-id .tlogo{width:48px;height:48px}
+  .cap-id h2{font-size:24px}
+  .cap-big{text-align:left}
+  .cap-big .big-num{font-size:40px}
+  .cap-tbl th:first-child,.cap-tbl td:first-child{padding-left:14px}
+  .cap-tbl th:last-child,.cap-tbl td:last-child{padding-right:14px}
+  .sal{font-size:16px}
+  .cap-roster .who{max-width:132px}
+  .cap-acts{flex-direction:column;align-items:flex-end}
+  .cap-act{width:40px;min-height:40px;padding:0}
+  .cap-rules{grid-template-columns:1fr}
+  .only-sm{display:inline}
+}

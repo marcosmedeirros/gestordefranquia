@@ -1,0 +1,95 @@
+/* Escalação (lineup): resumo ao vivo, quinteto titular, banco e a ficha rápida do jogador */
+
+/* ─── resumo ─────────────────────────────────────────────────────────── */
+.rot-issues{margin-top:12px}
+.rot-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;margin-top:14px}
+.rot-bar .more{white-space:normal}
+.rot-save{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.rot-note{margin-bottom:12px}
+
+/* ─── carta de jogador com os controles da rotação ───────────────────── */
+.pcard.rot-card{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who ovr" "ctrl ctrl" "bar bar";
+  align-items:center;gap:10px 12px}
+.rot-card .rc-who{grid-area:who;display:flex;align-items:center;gap:12px;min-width:0;border-radius:10px;color:inherit}
+.rot-card .rc-who:hover{color:inherit}
+.rot-card .rc-who:hover b{text-decoration:underline}
+.rot-card > .ovr{grid-area:ovr}
+.rot-card .pc-flags{margin-top:5px}
+.rot-card .rc-ctrl{grid-area:ctrl;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rot-card > .meter{grid-area:bar;height:6px}
+.rot-card.off .rc-who,.rot-card.off > .ovr{opacity:.6}
+.rot-card.inj{grid-template-areas:"who ovr"}
+
+.rc-start{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 14px 0 12px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line-2);background:var(--bg-2);color:var(--text-2);font-weight:600;font-size:14.5px;
+  -webkit-user-select:none;user-select:none}
+.rc-start:hover{color:var(--text);border-color:var(--text-3)}
+.rot-card.starter .rc-start{background:var(--team-soft);border-color:var(--team-line);color:var(--text)}
+.rc-min{display:inline-flex;align-items:center;gap:4px}
+.rc-min input[type=number].input{width:58px;max-width:58px;padding:0 4px;font-size:17px;font-weight:700;
+  -moz-appearance:textfield;appearance:textfield}
+.rc-min input[type=number].input::-webkit-inner-spin-button,
+.rc-min input[type=number].input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.rc-unit{margin-left:2px;font-size:13px}
+
+/* vaga livre no quinteto */
+.rot-slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:112px;padding:14px;
+  border-radius:14px;border:1.5px dashed var(--line-2);color:var(--text-3);text-align:center;font-size:14px;line-height:1.35}
+.rot-slot > i{font-size:22px;margin-bottom:2px}
+.rot-slot b{color:var(--text-2);font-weight:600;font-size:15px}
+
+/* a carta que mudou de quadro pisca uma vez */
+@keyframes rc-flash{from{box-shadow:0 0 0 3px var(--team-bright)}to{box-shadow:0 0 0 3px transparent}}
+.rot-card.moved{animation:rc-flash 1.2s ease-out}
+
+/* ─── desktop largo: o quinteto vira cinco cartas em pé ──────────────── */
+@media (min-width:1280px){
+  .rot-five{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .rot-five .rot-card{position:relative;grid-template-columns:minmax(0,1fr);grid-template-areas:"who" "ctrl" "bar";
+    align-content:start;padding:14px 12px 12px;text-align:center}
+  .rot-five .rc-who{flex-direction:column;gap:8px;padding-top:4px}
+  .rot-five .rot-card .face{width:72px;height:72px;border-radius:16px}
+  .rot-five .rot-card .pc-txt{width:100%}
+  .rot-five .rot-card .pc-txt b{white-space:normal;font-size:16px;line-height:1.2}
+  .rot-five .rot-card .pc-flags{justify-content:center}
+  .rot-five .rot-card > .ovr{position:absolute;top:8px;right:8px;min-width:44px;height:34px;font-size:21px}
+  .rot-five .rc-ctrl{flex-direction:column;align-items:stretch}
+  .rot-five .rc-start,.rot-five .rc-min{justify-content:center}
+  .rot-five .rc-unit{display:none}
+}
+
+@media (max-width:640px){
+  .rot-bar > .row{width:100%}
+  .rot-bar .btn{flex:1}
+  .rot-save .btn{width:100%}
+  .rot-slot{min-height:84px}
+}
+@media (max-width:420px){
+  .rc-unit{display:none}
+}
+
+/* ─── ficha rápida (usa o diálogo do jogo; no celular vira folha de baixo) ─ */
+html.pm-lock{overflow:hidden}
+.pm .fd-box{max-width:500px;max-height:90vh;max-height:90dvh;overflow-y:auto;overscroll-behavior:contain}
+.pm .fd-box::before{background:var(--team-bright)}
+.pm-x{position:absolute;top:12px;right:12px;z-index:1}
+.pm-head{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:12px;padding-right:46px}
+.pm-head .pm-face{width:64px;height:64px;border-radius:14px}
+.pm-id{min-width:0}
+.pm-id .fd-title{margin-top:5px;overflow-wrap:anywhere}
+.pm-meta{display:block;margin-top:4px;color:var(--text-2);font-size:14.5px}
+.pm-chips{gap:6px;margin-top:14px}
+.pm-attrs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;margin:16px 0}
+.pm-attr .spread{flex-wrap:nowrap;gap:6px;margin-bottom:6px}
+.pm-av{display:inline-flex;align-items:center;gap:6px;font:700 16px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.pm-acts{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pm-acts .qlink{padding:10px 12px;gap:10px;background:var(--panel-2)}
+.pm-acts .qlink > i{width:38px;height:38px;border-radius:10px;font-size:18px}
+.pm-acts .qlink b{font-size:15px}
+.pm-acts .qlink small{font-size:13px}
+.pm-danger > i{background:color-mix(in srgb,var(--loss) 14%,transparent);color:var(--loss)}
+.pm-danger:hover{border-color:color-mix(in srgb,var(--loss) 50%,transparent)}
+@media (max-width:640px){
+  .pm .fd-box{max-height:88vh;max-height:88dvh}
+  .pm-acts{grid-template-columns:1fr}
+}

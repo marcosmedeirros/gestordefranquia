@@ -1,0 +1,40 @@
+/* Franquias (gmselect) — a liga inteira em cartas, agrupada pelo nível do
+   elenco. O logo do time aparece grande e apagado no canto de cada carta. */
+.gm-fired{display:flex;align-items:center;gap:20px}
+.gm-fired .tlogo{width:96px;height:96px;filter:grayscale(.45) drop-shadow(0 10px 22px rgba(0,0,0,.45))}
+.gm-fired .eyebrow{color:var(--loss)}
+.gm-fired h1{margin-top:8px;font-size:40px;font-weight:800;line-height:.98;text-transform:uppercase}
+.gm-fired p{margin-top:10px;max-width:70ch;color:var(--text-2);font-size:15.5px}
+.gm-lead{margin:22px 0 12px}
+
+.gm-tier .panel-head{margin-bottom:12px}
+.gm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.gm-card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:var(--r-lg);min-width:0;color:inherit;
+  background:linear-gradient(160deg,var(--panel-2),var(--panel) 70%);border:1px solid var(--line);
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.gm-card:hover{border-color:var(--line-2);color:inherit}
+.gm-card.can-hire:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(0,0,0,.35)}
+.gm-card.is-cur{border-color:var(--team-line);background:linear-gradient(160deg,var(--team-soft),var(--panel) 65%)}
+.gmc-wm{position:absolute;right:-28px;bottom:-32px;width:150px;height:150px;object-fit:contain;opacity:.07;transform:rotate(-12deg);pointer-events:none}
+.gmc-top{position:relative;display:flex;align-items:center;gap:12px;min-width:0}
+.gmc-top .tlogo{width:52px;height:52px}
+.gmc-id{min-width:0}
+.gmc-id b{display:block;font:800 22px/1.02 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.gmc-id small{display:block;margin-top:4px;color:var(--text-3);font-size:13.5px}
+.gmc-stats{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gmc-stats > div{min-width:0;padding:9px 11px;border-radius:10px;background:rgba(7,10,16,.4);border:1px solid var(--line)}
+.gmc-stats small{display:block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.gmc-stats b{display:block;margin-top:4px;font:800 24px/1 var(--f-display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.gmc-stats span{display:block;margin-top:4px;font-size:13px;line-height:1.25;color:var(--text-3)}
+.gmc-foot{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
+.gmc-foot > :only-child{margin-left:auto}
+.gmc-cta{pointer-events:none}
+
+@media (max-width:640px){
+  .gm-fired{flex-direction:column;align-items:flex-start;gap:12px}
+  .gm-fired .tlogo{width:64px;height:64px}
+  .gm-fired h1{font-size:28px}
+  .gm-lead{margin:18px 0 10px}
+  .gm-grid{grid-template-columns:1fr;gap:10px}
+  .gm-card{padding:14px}
+}
