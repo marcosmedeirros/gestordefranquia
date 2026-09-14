@@ -567,6 +567,11 @@ class League
         $deadline = Cap::deadlineDay();
         // save de antes dos esquemas da IA: escolhe agora, uma vez
         if (!Database::meta('ai_schemes')) self::aiPickAllSchemes();
+        // temporada virada antes da correção do calendário ímpar: total_days ficava em 82 com jogos até o dia 85
+        if ($day === 1) {
+            $lastDay = (int) Database::conn()->query("SELECT COALESCE(MAX(day), 0) FROM games WHERE stage='regular'")->fetchColumn();
+            if ($lastDay > self::totalDays()) Database::setMeta('total_days', (string) $lastDay);
+        }
         if ($gm && self::isFired()) return ['blocked' => true, 'fired' => true, 'msg' => 'Você foi demitido — escolha uma nova franquia antes de seguir.'];
 
         // ── TRADE DEADLINE: no dia da deadline ninguém passa acima do teto; abaixo do piso custa uma pick ──

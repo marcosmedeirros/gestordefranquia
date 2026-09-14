@@ -308,6 +308,7 @@ class Installer
         $db->beginTransaction();
         foreach ($games as $g) { $ins->execute([$g['day'], $g['home'], $g['away']]); }
         $db->commit();
-        return self::TARGET_DAYS;
+        // último dia do calendário: com número ímpar de times passa de 82 (dias extras)
+        return $games ? (int) max(array_column($games, 'day')) : self::TARGET_DAYS;
     }
 }

@@ -1304,8 +1304,10 @@ class Offseason
         foreach (['playin_seeds','playin_map','playin_stage','champion_id','playoff_round'] as $k) {
             $db->prepare("DELETE FROM meta WHERE k=?")->execute([$k]);
         }
-        // elencos mudaram na entressafra: a IA reescolhe o esquema
+        // elencos mudaram na entressafra: a IA reescolhe o esquema, e o teto
+        // precisa caber o craque que ficou mais caro (Cap::ensureStarRoom)
         League::aiPickAllSchemes();
+        Cap::ensureStarRoom();
         $days = Installer::newSeasonSchedule();
         Database::setMeta('season', (string) $newSeason);
         Database::setMeta('current_day', '1');

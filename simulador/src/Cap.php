@@ -128,9 +128,10 @@ class Cap
                             LEFT JOIN players p ON p.team_id=t.id AND p.retired=0
                             WHERE t.active=1 GROUP BY t.id")->fetchAll();
         $avg = $rows ? array_sum(array_column($rows, 'pay')) / count($rows) / self::M : 100;
-        $capM   = max(60, (int) (round($avg * self::CAP_RATIO / 5) * 5));
+        $capM   = max(60, (int) (round($avg * self::CAP_RATIO / 5) * 5), self::starRoomNeedM());
         $floorM = max(30, (int) (round($avg * self::FLOOR_RATIO / 5) * 5));
         Database::setMeta('cap_max_m', (string) $capM);
+        Database::setMeta('cap_star_room', (string) (int) Database::meta('season', 1));
         Database::setMeta('cap_floor_m', (string) $floorM);
         Database::setMeta('cap_avg_m', (string) round($avg));
         return ['cap' => $capM, 'floor' => $floorM, 'avg' => round($avg)];
@@ -141,7 +142,32 @@ class Cap
     {
         $v = (int) Database::meta('cap_max_m', 0);
         if ($v <= 0) $v = self::calibrate()['cap'];
+        elseif (!Database::meta('cap_star_room')) $v = self::ensureStarRoom(); // save de antes da regra: uma vez
         return $v * self::M;
+    }
+
+    /**
+     * Teto mínimo (em milhões) para caber o maior salário da liga com um elenco mínimo
+     * e mais uma vaga de salário mínimo. A tabela de salário por OVR é a mesma em toda
+     * era, mas o teto é calibrado pela folha média, e nas eras de folha baixa o craque
+     * sozinho mais 12 mínimos passava do teto (Jordan em 1997: 60M + 24M contra 60M) —
+     * o time travava e a única saída era perder o craque.
+     */
+    private static function starRoomNeedM(): int
+    {
+        $maxSal = (int) Database::conn()->query("SELECT COALESCE(MAX(salary), 0) FROM players WHERE retired=0 AND team_id IS NOT NULL")->fetchColumn();
+        $minM = self::ovrSalary(62);
+        return (int) (ceil((ceil($maxSal / self::M) + self::ROSTER_MIN * $minM) / 5) * 5);
+    }
+
+    /** Sobe o teto do save se ele não cabe mais o maior salário (nunca desce). Devolve o teto em milhões. */
+    public static function ensureStarRoom(): int
+    {
+        $cur = (int) Database::meta('cap_max_m', 0);
+        $need = self::starRoomNeedM();
+        if ($need > $cur) Database::setMeta('cap_max_m', (string) $need);
+        Database::setMeta('cap_star_room', (string) (int) Database::meta('season', 1));
+        return max($need, $cur);
     }
 
     /** Piso da folha, em dólares. */
