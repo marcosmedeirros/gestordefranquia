@@ -337,22 +337,23 @@ try {
     // Soma `trades` (dois times) com `multi_trades` (três ou mais). Cada
     // troca vira duas arestas — ida e volta — pra o time aparecer dos dois
     // lados sem IF no meio da contagem.
+    // Período: a sprint ativa inteira, sem recorte por ciclo (ver o bloco
+    // das trades aceitas, logo abaixo).
     $pcRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT e.parceiro) AS count
         FROM teams t
         LEFT JOIN (
-            SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro, tr.created_at, tr.cycle FROM trades tr WHERE tr.status='accepted'
+            SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro, tr.created_at FROM trades tr WHERE tr.status='accepted'
             UNION ALL
-            SELECT tr.to_team_id, tr.from_team_id, tr.created_at, tr.cycle FROM trades tr WHERE tr.status='accepted'
+            SELECT tr.to_team_id, tr.from_team_id, tr.created_at FROM trades tr WHERE tr.status='accepted'
             UNION ALL
-            SELECT mi.from_team_id, mi.to_team_id, mt.created_at, mt.cycle FROM multi_trade_items mi
+            SELECT mi.from_team_id, mi.to_team_id, mt.created_at FROM multi_trade_items mi
               JOIN multi_trades mt ON mt.id = mi.trade_id WHERE mt.status='accepted'
             UNION ALL
-            SELECT mi.to_team_id, mi.from_team_id, mt.created_at, mt.cycle FROM multi_trade_items mi
+            SELECT mi.to_team_id, mi.from_team_id, mt.created_at FROM multi_trade_items mi
               JOIN multi_trades mt ON mt.id = mi.trade_id WHERE mt.status='accepted'
         ) e ON e.eu = t.id AND e.parceiro <> t.id
              AND e.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-             AND e.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league)
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($pcRaw as $r) $parceirosMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -368,12 +369,10 @@ try {
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
                (SELECT COUNT(*) FROM trades tr
                  WHERE tr.from_team_id = t.id
-                   AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-                   AND tr.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league))
+                   AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active'))
              + (SELECT COUNT(*) FROM multi_trades mt
                  WHERE mt.created_by_team_id = t.id
-                   AND mt.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-                   AND mt.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league)) AS count
+                   AND mt.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')) AS count
         FROM teams t
         ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -388,25 +387,26 @@ try {
     // aceitaram a mesma troca. Na multi, vale pros N participantes — e o
     // DISTINCT no mt.id evita contar a mesma multi uma vez por item, senão
     // uma troca de cinco jogadores viraria cinco trades.
-    // ── SÓ A SPRINT E O CICLO ATUAIS ────────────────────────────────
-    // Recorta pela sprint aberta E pelo ciclo corrente, igual ao bot. Estas
-    // contas eram as únicas somando desde o começo da liga, e diziam 33 numa
-    // liga onde o limite POR CICLO é 10 — número que ninguém reconhecia.
+    // ── A SPRINT ATIVA INTEIRA ──────────────────────────────────────
+    // Recorta pela sprint aberta, igual ao bot. Estas contas eram as únicas
+    // somando desde o começo da liga, e diziam 33 numa liga onde o limite
+    // POR CICLO é 10 — número que ninguém reconhecia.
     //
-    // O recorte é por DATA porque trade não tem season_id. O ciclo entra
-    // junto porque uma sprint tem vários ciclos, e é o ciclo que o contador
-    // oficial (teams.trades_used) zera — é dele que sai o número da tela.
+    // O recorte é por DATA porque trade não tem season_id. Até 14/09/2026
+    // também cortava pelo ciclo corrente; saiu a pedido do Marcos: toda
+    // estatística é da sprint inteira, todos os ciclos dela. Por isso o
+    // número pode passar do max_trades, que é por ciclo — não é bug, é outro
+    // período. Vale pras quatro contas de trade daqui (parceiros, ofertas,
+    // aceitas e recusadas), e o bot (backend/estatisticas_bot.php) segue igual.
     $taRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
                (SELECT COUNT(*) FROM trades tr
                  WHERE tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id)
-                   AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-                   AND tr.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league))
+                   AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active'))
              + (SELECT COUNT(DISTINCT mt.id) FROM multi_trades mt
                   JOIN multi_trade_items mi ON mi.trade_id = mt.id
                  WHERE mt.status='accepted' AND (mi.from_team_id=t.id OR mi.to_team_id=t.id)
-                   AND mt.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-                   AND mt.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league)) AS count
+                   AND mt.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')) AS count
         FROM teams t
         ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -423,7 +423,6 @@ try {
         LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id)
                            AND tr.status='rejected'
                            AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')
-                           AND tr.cycle = (SELECT MAX(te.current_cycle) FROM teams te WHERE te.league = t.league)
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($trRaw as $r) $tradesRecusadasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];

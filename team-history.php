@@ -782,18 +782,21 @@ async function load(){
   }
 
   // ── Trades por ciclo ──
-  // Trade sem ciclo é registro velho, de antes de o ciclo existir: a barra
-  // "Sem ciclo" não diz nada sobre a história do time e costumava ser a maior
-  // de todas, achatando as que importam. Sai da lista e da contagem — deixar
-  // no total faria a soma não bater com as barras mostradas.
-  const ciclos = tradesByCycle.filter(c => c.cycle);
+  // A API manda só a sprint ativa, e o "Trades por Time" sai desse mesmo
+  // conjunto — por isso os dois badges mostram o mesmo total.
+  // Não filtra mais o "Sem ciclo": ele era a vida inteira do time, registro
+  // de antes de o ciclo existir, e dentro da sprint não aparece. Se um dia
+  // aparecer, vira barra própria em vez de sumir da soma. O ciclo 0 (a RISE
+  // tem trades assim nesta sprint) também conta — o filtro antigo o descartava.
+  const ciclos = tradesByCycle;
+  const totalTradesSprint = ciclos.reduce((acc, c) => acc + (c.total || 0), 0);
   if (ciclos.length) {
     document.getElementById('cycle-acc-item').style.display = 'block';
-    document.getElementById('cycle-count-badge').textContent = ciclos.reduce((acc, c) => acc + (c.total || 0), 0);
+    document.getElementById('cycle-count-badge').textContent = totalTradesSprint;
     const maxC = Math.max(...ciclos.map(c => c.total), 1);
     document.getElementById('cycle-content').innerHTML = ciclos.map(c => `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
-        <span style="font-size:12px;color:var(--text-2);width:64px;flex-shrink:0">Ciclo ${c.cycle}</span>
+        <span style="font-size:12px;color:var(--text-2);width:64px;flex-shrink:0">${c.cycle === null ? 'Sem ciclo' : 'Ciclo ' + c.cycle}</span>
         <div style="flex:1;height:8px;background:var(--panel-3);border-radius:999px;overflow:hidden">
           <div style="height:100%;width:${Math.round((c.total / maxC) * 100)}%;background:var(--red);border-radius:999px"></div>
         </div>
@@ -804,7 +807,11 @@ async function load(){
   // ── Trades por time parceiro (mostra 8, com opção de ver todos) ──
   if (tradesByPartner.length) {
     document.getElementById('partner-acc-item').style.display = 'block';
-    document.getElementById('partner-count-badge').textContent = tradesByPartner.length;
+    // Badge = total de trades da sprint, o mesmo número do "por Ciclo". Não
+    // é a soma das linhas: numa multi-trade cada parceiro recebe 1, então as
+    // linhas podem somar mais. Antes era tradesByPartner.length — o número
+    // de times da liga (31 na ELITE), que parecia contagem de trade.
+    document.getElementById('partner-count-badge').textContent = totalTradesSprint;
     const LIMITE = 8;
     const linhaParceiro = p => `
       <div class="row">

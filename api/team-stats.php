@@ -182,6 +182,21 @@ try {
     }
 } catch (Exception $e) { $positionsByYear = []; }
 
+// ── Recorte da aba Trades: só a sprint ativa da liga do time ─────
+// "Trades por Ciclo" (7d) e "Trades por Time" (7e) contam o MESMO
+// conjunto: as trades aceitas desde o início da sprint ativa. Trade não
+// tem season_id, então o corte é por data (sprints.start_date), a mesma
+// régua do estatisticas.php e do bot. Sem ele o "por Time" somava a vida
+// inteira (as multi-trades de sprints passadas continuavam entrando), e o
+// "por Ciclo" juntaria o ciclo 1 de todas as sprints, porque o ciclo
+// recomeça a cada uma.
+//
+// Sem sprint ativa a data de corte vai pro futuro e as contas saem
+// zeradas: falhar vazio é mais seguro que mostrar trade de outra sprint
+// (mesma ideia do [0] de seasonIdsDaSprintAtual).
+$sprintAtiva = sprintAtualDaLiga($pdo, (string)($team['league'] ?? ''));
+$corteSprint = $sprintAtiva['start_date'] ?? '9999-12-31';
+
 // ── 7d. Trades por ciclo (trades simples + multi-trades) ─────────
 // multi_trades só passou a registrar o ciclo depois desta atualização;
 // trocas multi-time antigas caem no grupo "cycle = null" (sem ciclo
@@ -196,9 +211,10 @@ try {
         SELECT cycle, COUNT(*) AS total
         FROM trades
         WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)
+          AND created_at >= ?
         GROUP BY cycle
     ");
-    $sTC->execute([$teamId, $teamId]);
+    $sTC->execute([$teamId, $teamId, $corteSprint]);
     foreach ($sTC->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $key = $r['cycle'] !== null ? (int)$r['cycle'] : $SEM_CICLO;
         $cycleCounts[$key] = ($cycleCounts[$key] ?? 0) + (int)$r['total'];
@@ -211,9 +227,10 @@ try {
         FROM multi_trades mt
         JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id
         WHERE mt.status = 'accepted' AND mtt.team_id = ?
+          AND mt.created_at >= ?
         GROUP BY {$cycleCol}
     ");
-    $sMTC->execute([$teamId]);
+    $sMTC->execute([$teamId, $corteSprint]);
     foreach ($sMTC->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $key = $r['cycle'] !== null ? (int)$r['cycle'] : $SEM_CICLO;
         $cycleCounts[$key] = ($cycleCounts[$key] ?? 0) + (int)$r['total'];
@@ -233,7 +250,9 @@ try {
 
 // ── 7e. Trades por time parceiro (trades simples + multi-trades) ──
 // Numa multi-trade com 3+ times, cada outro participante conta como
-// parceiro — o time negociou com todos eles naquele evento.
+// parceiro — o time negociou com todos eles naquele evento. Por isso a
+// soma das linhas pode passar do total de trades do 7d: uma multi de 4
+// times soma 1 em cada um dos 3 parceiros. Mesmo recorte do 7d.
 $tradesByPartner = [];
 try {
     $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
@@ -253,9 +272,10 @@ try {
         FROM trades tr
         JOIN teams other ON other.id = CASE WHEN tr.from_team_id = ? THEN tr.to_team_id ELSE tr.from_team_id END
         WHERE tr.status = 'accepted' AND (tr.from_team_id = ? OR tr.to_team_id = ?)
+          AND tr.created_at >= ?
         GROUP BY other.id
     ");
-    $sTP->execute([$teamId, $teamId, $teamId]);
+    $sTP->execute([$teamId, $teamId, $teamId, $corteSprint]);
     foreach ($sTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $countByTeam[(int)$r['team_id']] = (int)$r['total'];
     }
@@ -264,11 +284,12 @@ try {
         SELECT other.team_id AS team_id, COUNT(*) AS total
         FROM multi_trade_teams mine
         JOIN multi_trades mt ON mt.id = mine.trade_id AND mt.status = 'accepted'
+                            AND mt.created_at >= ?
         JOIN multi_trade_teams other ON other.trade_id = mine.trade_id AND other.team_id <> mine.team_id
         WHERE mine.team_id = ?
         GROUP BY other.team_id
     ");
-    $sMTP->execute([$teamId]);
+    $sMTP->execute([$corteSprint, $teamId]);
     foreach ($sMTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $tid = (int)$r['team_id'];
         $countByTeam[$tid] = ($countByTeam[$tid] ?? 0) + (int)$r['total'];
