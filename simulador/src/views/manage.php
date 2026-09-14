@@ -45,15 +45,8 @@ $goalTone = ['andamento' => 'info', 'cumprida' => 'ok', 'falhou' => 'bad'];
 $goalText = ['andamento' => 'em andamento', 'cumprida' => 'cumprida', 'falhou' => 'não cumprida'];
 $ocTone   = $oc ? ((int) $oc['value'] >= 45 ? 'ok' : ((int) $oc['value'] >= 30 ? 'warn' : 'bad')) : '';
 
-// O que cada esquema muda no motor (SimEngine::schemeMods).
-$schemeInfo = [
-    'Pace and Space'             => 'Ritmo rápido e muito mais bolas de 3.',
-    'Pick and Roll Offense'      => 'Mais assistências e arremessos um pouco melhores.',
-    'Post Play / Grit and Grind' => 'Jogo de garrafão e rebote. Poucas bolas de 3, ritmo lento.',
-    'Man-to-Man'                 => 'Marcação individual. Equilibrada, sem ponto fraco.',
-    '2-3 Zone'                   => 'Fecha o garrafão, mas cede mais bolas de 3.',
-    'Switch All'                 => 'Corta as assistências deles. Cede um pouco no garrafão.',
-];
+// O que cada esquema faz e contra o quê ele rende: cada ataque castiga uma defesa e sofre contra outra.
+$schemeInfo = League::SCHEME_INFO;
 $curOff = in_array($t['scheme_off'] ?? '', League::SCHEMES_OFF, true) ? $t['scheme_off'] : League::SCHEMES_OFF[0];
 $curDef = in_array($t['scheme_def'] ?? '', League::SCHEMES_DEF, true) ? $t['scheme_def'] : League::SCHEMES_DEF[0];
 

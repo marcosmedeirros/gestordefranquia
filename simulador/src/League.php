@@ -565,6 +565,8 @@ class League
         $day = self::currentDay();
         $gm = self::gmTeam();
         $deadline = Cap::deadlineDay();
+        // save de antes dos esquemas da IA: escolhe agora, uma vez
+        if (!Database::meta('ai_schemes')) self::aiPickAllSchemes();
         if ($gm && self::isFired()) return ['blocked' => true, 'fired' => true, 'msg' => 'Você foi demitido — escolha uma nova franquia antes de seguir.'];
 
         // ── TRADE DEADLINE: no dia da deadline ninguém passa acima do teto; abaixo do piso custa uma pick ──
@@ -579,6 +581,9 @@ class League
                 }
             }
         }
+        // Passou a deadline: proposta de troca da IA que ficou sem resposta expira (antes
+        // ficava na caixa com o botão Aceitar e só dava "a janela de trocas fechou").
+        if ($day > $deadline) self::expireTradeOffers();
         // aviso com antecedência (uma vez por temporada)
         if ($gm && $day === $deadline - 8 && Database::meta('deadline_warned') !== (string) self::season()) {
             Database::setMeta('deadline_warned', (string) self::season());
@@ -636,7 +641,8 @@ class League
         if ($gm && !$autoGm) self::maybeGenerateDecision();
         // ...ou uma proposta de troca de outro time (mais frequente com gente na vitrine)
         if ($gm && $day < $deadline && self::chanceF(self::tradeBlock() ? 0.14 : 0.05)) {
-            try { self::aiTradeOffer(); } catch (Throwable $e) { error_log('aiTradeOffer: ' . $e->getMessage()); }
+            // no dia da deadline não chega proposta nova: ela caducaria na mesma noite
+            if ($day < $deadline) { try { self::aiTradeOffer(); } catch (Throwable $e) { error_log('aiTradeOffer: ' . $e->getMessage()); } }
         }
 
         // jogo do GM ainda não jogado hoje?
@@ -663,9 +669,12 @@ class League
         if ($day >= self::totalDays()) {
             self::startPlayIn();
             try { self::seasonRecap(); } catch (Throwable $e) {}
+            self::expireTradeOffers();
             return ['msg' => "Temporada regular encerrada! Torneio Play-In iniciado.", 'played' => $played, 'phase' => 'playin'];
         }
         Database::setMeta('current_day', $day + 1);
+        // virou o dia e a janela fechou: proposta pendente caduca já (quem simula a semana não vê um Aceitar morto)
+        if ($day + 1 > $deadline) self::expireTradeOffers();
         return ['msg' => "Dia $day simulado ($played jogos).", 'played' => $played, 'day' => $day + 1];
     }
 
@@ -1336,6 +1345,16 @@ class League
     public const SCHEMES_OFF = ['Pace and Space', 'Pick and Roll Offense', 'Post Play / Grit and Grind'];
     public const SCHEMES_DEF = ['Man-to-Man', '2-3 Zone', 'Switch All'];
 
+    /** O que cada esquema faz e contra o quê ele rende (SimEngine::schemeMods e MATCHUP). */
+    public const SCHEME_INFO = [
+        'Pace and Space'             => 'Ritmo rápido e muito mais bolas de 3. Castiga a Zona 2-3; sofre contra o Switch All.',
+        'Pick and Roll Offense'      => 'Mais assistências e infiltração. Castiga o Switch All; sofre contra o Man-to-Man.',
+        'Post Play / Grit and Grind' => 'Garrafão e rebote ofensivo, poucas bolas de 3. Castiga o Man-to-Man; sofre contra a Zona 2-3.',
+        'Man-to-Man'                 => 'Marcação individual. Segura o pick and roll; sofre com o jogo de garrafão.',
+        '2-3 Zone'                   => 'Fecha o garrafão e chama o arremesso de fora. Segura o Post Play; sofre com o Pace and Space.',
+        'Switch All'                 => 'Troca tudo e corta as assistências. Segura o Pace and Space; sofre com o pick and roll.',
+    ];
+
     public static function gmTeam(): ?int
     {
         $v = Database::meta('gm_team');
@@ -1345,6 +1364,69 @@ class League
     public static function setGmTeam(int $teamId): void { Database::setMeta('gm_team', $teamId); }
 
     public static function isGm(int $teamId): bool { return self::gmTeam() === $teamId; }
+
+    /**
+     * Esquema de um time da IA pelo elenco: quem arremessa bem joga Pace and Space,
+     * quem tem armador de elite joga pick and roll, quem manda no garrafão joga de
+     * costas pra cesta; na defesa, time alto fecha a zona e time atlético troca tudo.
+     * Antes todo time da IA ficava para sempre em Pace and Space com Man-to-Man.
+     */
+    /** Perfil dos 8 principais de um time: arremesso de 3, garrafão, armação (2 melhores), altura e atletismo. */
+    private static function rotationProfile(int $teamId): ?array
+    {
+        $rows = Database::conn()->query("SELECT thr, ins, pmk, ht, ath FROM players WHERE team_id=" . (int) $teamId . " AND retired=0 ORDER BY ovr DESC LIMIT 8")->fetchAll();
+        if (!$rows) return null;
+        $avg = fn(string $k) => array_sum(array_map('intval', array_column($rows, $k))) / count($rows);
+        $pmk = array_map('intval', array_column($rows, 'pmk'));
+        rsort($pmk);
+        return ['thr' => $avg('thr'), 'ins' => $avg('ins'), 'pmk' => (($pmk[0] ?? 0) + ($pmk[1] ?? $pmk[0] ?? 0)) / 2,
+                'ht' => $avg('ht'), 'ath' => $avg('ath')];
+    }
+
+    /**
+     * Esquema de um time da IA pelo elenco, comparado com a média da liga naquela era
+     * (as notas de arremesso de fora são sempre menores que as de garrafão, então a
+     * régua precisa ser relativa): o ataque vai para onde o time está mais acima da
+     * média — 3 pontos (Pace and Space), garrafão (Post Play) ou armação (pick and
+     * roll) — e a defesa fecha a zona se o time é alto ou troca tudo se é atlético.
+     */
+    public static function aiPickSchemes(int $teamId, ?array $league = null): void
+    {
+        $me = self::rotationProfile($teamId);
+        if (!$me) return;
+        $league = $league ?? self::leagueRotationProfile();
+        $d = fn(string $k) => $me[$k] - ($league[$k] ?? $me[$k]);
+        $offScores = ['Pace and Space' => $d('thr'), 'Post Play / Grit and Grind' => $d('ins'), 'Pick and Roll Offense' => $d('pmk')];
+        arsort($offScores);
+        $off = array_key_first($offScores);
+        $def = ($d('ht') >= 1.5 && $d('ht') / 2 >= $d('ath')) ? '2-3 Zone' : ($d('ath') >= 1.5 ? 'Switch All' : 'Man-to-Man');
+        self::setScheme($teamId, $off, $def);
+    }
+
+    /** Média do perfil de rotação dos times ativos. */
+    private static function leagueRotationProfile(): array
+    {
+        $sum = [];
+        $n = 0;
+        foreach (Database::conn()->query("SELECT id FROM teams WHERE active=1")->fetchAll() as $t) {
+            $p = self::rotationProfile((int) $t['id']);
+            if (!$p) continue;
+            foreach ($p as $k => $v) $sum[$k] = ($sum[$k] ?? 0) + $v;
+            $n++;
+        }
+        return $n ? array_map(fn($v) => $v / $n, $sum) : [];
+    }
+
+    /** Todos os times da IA escolhem o esquema pelo elenco (na criação da liga e a cada temporada). */
+    public static function aiPickAllSchemes(): void
+    {
+        $gm = (int) self::gmTeam();
+        $league = self::leagueRotationProfile();
+        foreach (Database::conn()->query("SELECT id FROM teams WHERE active=1")->fetchAll() as $t) {
+            if ((int) $t['id'] !== $gm) self::aiPickSchemes((int) $t['id'], $league);
+        }
+        Database::setMeta('ai_schemes', (string) self::season());
+    }
 
     public static function setScheme(int $teamId, string $off, string $def): bool
     {
@@ -1696,11 +1778,15 @@ class League
         if ($old) {
             // o time antigo volta à rotação automática e perde as marcas do GM
             $db->prepare("UPDATE players SET dev_focus=0 WHERE team_id=?")->execute([$old]);
-            $db->prepare("UPDATE coaches SET team_id=? WHERE team_id=?")->execute([$teamId, $old]);
+            // o técnico do GM vai junto e o da nova casa assume o time antigo (troca de lugar)
+            $mineId = (int) $db->query("SELECT id FROM coaches WHERE team_id=" . (int) $old . " ORDER BY id LIMIT 1")->fetchColumn();
+            $db->prepare("UPDATE coaches SET team_id=? WHERE team_id=?")->execute([$old, $teamId]);
+            if ($mineId) $db->prepare("UPDATE coaches SET team_id=? WHERE id=?")->execute([$teamId, $mineId]);
         }
         self::setGmTeam($teamId);
         $db->prepare("DELETE FROM meta WHERE k IN ('gm_fired','gm_goal','board_patience','trade_block')")->execute();
         Database::setMeta('board_patience', (string) (['facil' => 4, 'normal' => 3, 'dificil' => 2][self::difficulty()] ?? 3));
+        Cap::graceIfStartsOver();
         $name = Database::meta('gm_name', 'GM');
         self::inboxAdd('board', 'Diretoria', "🤝 Bem-vindo ao {$t['city']} {$t['name']}",
             "A diretoria do {$t['name']} contratou {$name} como novo Gerente Geral. A meta da temporada será definida com base no elenco atual — confira em Meu Time.",
@@ -1755,6 +1841,44 @@ class League
         if ($n >= self::DEV_FOCUS_MAX) return ['error' => 'Você já tem ' . self::DEV_FOCUS_MAX . ' jogadores em foco de treino. Tire um antes.'];
         $db->prepare("UPDATE players SET dev_focus=1 WHERE id=?")->execute([$pid]);
         return ['ok' => true, 'msg' => "🎯 {$p['name']} entrou no foco de treino — progride mais na entressafra."];
+    }
+
+    /**
+     * Conversar com o jogador: +8 de moral (até 95), uma vez por semana por jogador
+     * (a cada duas no Difícil). A moral pesa na simulação; sem limite, bastava
+     * clicar no elenco inteiro antes de cada jogo.
+     */
+    public static function talkToPlayer(int $pid): array
+    {
+        $gm = self::gmTeam();
+        $p = self::player($pid);
+        if (!$gm || !$p || (int) $p['team_id'] !== $gm) return ['error' => 'Jogador não é do seu elenco.'];
+        if ((int) $p['morale'] >= 95) return ['error' => "{$p['name']} já está com a moral lá em cima."];
+        $every = self::difficulty() === 'dificil' ? 14 : 7;
+        $phase = self::phase();
+        $day = in_array($phase, ['regular', 'playin', 'playoffs'], true) ? self::currentDay() : ($phase === 'preseason' ? self::preseasonDay() : 1);
+        $slot = self::season() . ':' . $phase . ':' . intdiv(max(0, $day - 1), $every);
+        $log = json_decode((string) Database::meta('talks', '{}'), true) ?: [];
+        if (($log[$pid] ?? '') === $slot) {
+            return ['error' => "Você já conversou com {$p['name']} nesta " . ($every === 14 ? 'quinzena' : 'semana') . '. A conversa só pesa de novo daqui a alguns dias.'];
+        }
+        $log[$pid] = $slot;
+        Database::setMeta('talks', json_encode($log));
+        Database::conn()->prepare("UPDATE players SET morale = MIN(95, morale + 8) WHERE id=?")->execute([$pid]);
+        return ['ok' => true, 'msg' => "💬 Conversa com {$p['name']}: a moral subiu."];
+    }
+
+    /** Propostas de troca da IA sem resposta caducam quando a janela de trocas fecha. */
+    public static function expireTradeOffers(): int
+    {
+        if (Cap::tradesOpen()) return 0;
+        $db = Database::conn();
+        $ids = array_map('intval', array_column($db->query("SELECT id FROM decisions WHERE status='pending' AND type='trade_offer'")->fetchAll(), 'id'));
+        foreach ($ids as $id) {
+            $db->prepare("UPDATE decisions SET status='resolved', choice='expired' WHERE id=?")->execute([$id]);
+            $db->prepare("UPDATE inbox SET kind='decision_done', is_read=1 WHERE kind='decision' AND ref_id=?")->execute([$id]);
+        }
+        return count($ids);
     }
 
     // ===================== PROPOSTAS DE TROCA DA IA =====================
@@ -2014,8 +2138,16 @@ class League
         $played = array_values(array_filter(self::teamSchedule($teamId), fn($g) => $g['played']));
         $form = array_map(fn($g) => $g['win'] ? 'V' : 'D', array_slice($played, -5));
 
-        // plano sugerido
+        // plano sugerido — primeiro o confronto de esquemas (SimEngine::MATCHUP)
         $tips = [];
+        require_once __DIR__ . '/SimEngine.php';
+        if ($cd = SimEngine::COUNTER_DEF[$t['scheme_off']] ?? null) $tips[] = "🧠 Atacam em {$t['scheme_off']}: {$cd} é a defesa que segura.";
+        if ($co = SimEngine::COUNTER_OFF[$t['scheme_def']] ?? null) $tips[] = "🔑 Defendem em {$t['scheme_def']}: {$co} é o ataque que castiga.";
+        if ($vsTeamId && $vsTeamId === self::gmTeam()) {
+            $d = self::difficulty();
+            if ($d === 'dificil') $tips[] = '⚠️ No Difícil eles estudam o esquema que você mais usou nos últimos 5 jogos e armam o contra-ataque, e no jogo ao vivo revêem no intervalo. Variar o estilo pega eles desprevenidos.';
+            elseif ($d === 'normal') $tips[] = '👀 Eles podem armar a defesa contra o ataque que você mais tem usado.';
+        }
         if (in_array('Arremesso de 3', $strengths)) $tips[] = '🎯 Bom de 3 — pressione o perímetro e evite a Zona 2-3 (cede 3pts).';
         if (in_array('Jogo interior', $strengths)) $tips[] = '🛡️ Forte no garrafão — a Zona 2-3 ajuda a fechar a pintura.';
         if ($star && (int) $star['ovr'] >= 88) $tips[] = "👁️ Marcação dupla em {$star['name']} (OVR {$star['ovr']}) pode travar o ataque deles.";

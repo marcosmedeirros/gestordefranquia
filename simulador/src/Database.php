@@ -138,6 +138,14 @@ class Database
         } catch (Throwable $e) { /* silencioso */ }
 
         try {
+            // ─── técnicos da IA: saves de antes só tinham o técnico do GM ────
+            if (!$db->query("SELECT v FROM meta WHERE k='ai_coaches'")->fetchColumn()) {
+                self::seedAiCoaches($db);
+                $db->prepare("INSERT INTO meta(k,v) VALUES('ai_coaches','1') ON CONFLICT(k) DO UPDATE SET v='1'")->execute();
+            }
+        } catch (Throwable $e) { /* silencioso */ }
+
+        try {
             // ─── players: salary + contract_years (sistema de contratos) ────
             $cols = array_column($db->query('PRAGMA table_info(players)')->fetchAll(), 'name');
             $needsBackfill = false;
@@ -257,6 +265,41 @@ class Database
             'vencedor'       => ['ofensivo'=>80,'defensivo'=>78,'desenvolvimento'=>55,'gestao'=>85,'intensidade'=>90],
             default          => ['ofensivo'=>72,'defensivo'=>72,'desenvolvimento'=>72,'gestao'=>72,'intensidade'=>72],
         };
+    }
+
+    /**
+     * Técnico para cada time que ainda não tem um (a liga inteira, expansões incluídas).
+     * Antes só o time do GM tinha técnico, e os bônus dele (ataque, defesa, rebote e
+     * desenvolvimento dos jovens) eram uma vantagem que nenhum adversário tinha.
+     * Os da IA sorteiam o estilo e ficam um pouco abaixo da ficha que o GM escolhe;
+     * a dificuldade ajusta o peso deles na simulação (SimEngine) e na progressão.
+     */
+    public static function seedAiCoaches(?PDO $db = null): int
+    {
+        $db = $db ?? self::conn();
+        $first = ['Ray','Glenn','Warren','Dale','Curtis','Stan','Lionel','Vernon','Mitch','Hal','Roland','Byron','Clint','Dwight',
+                  'Emmett','Floyd','Grant','Howard','Lamar','Milton','Norris','Otis','Preston','Russell','Sterling','Truman','Wendell'];
+        $last = ['Ashford','Bellamy','Crane','Dorsey','Easton','Fairbanks','Garland','Hollister','Irwin','Jennings','Kessler','Marlowe',
+                 'Norcross','Oakes','Prescott','Quimby','Radford','Stanton','Thorne','Upton','Voss','Whitaker','Yardley','Zeller','Mercer','Langford'];
+        $styles = ['equilibrado', 'equilibrado', 'ofensivo', 'defensivo', 'desenvolvimento', 'vencedor'];
+        // o time do GM fica de fora: o técnico dele é o que o jogador criou (ou o padrão do gmCoach)
+        $gm = (int) $db->query("SELECT v FROM meta WHERE k='gm_team'")->fetchColumn();
+        $teams = $db->query("SELECT t.id FROM teams t WHERE t.id <> $gm AND NOT EXISTS (SELECT 1 FROM coaches c WHERE c.team_id = t.id)")->fetchAll();
+        $ins = $db->prepare("INSERT INTO coaches(team_id,name,style,ofensivo,defensivo,desenvolvimento,gestao,intensidade) VALUES(?,?,?,?,?,?,?,?)");
+        foreach ($teams as $t) {
+            $style = $styles[random_int(0, count($styles) - 1)];
+            $a = array_map(fn($v) => max(50, min(92, $v + random_int(-8, 4))), self::coachAttrsForStyle($style));
+            $ins->execute([(int) $t['id'], $first[random_int(0, count($first) - 1)] . ' ' . $last[random_int(0, count($last) - 1)], $style,
+                           $a['ofensivo'], $a['defensivo'], $a['desenvolvimento'], $a['gestao'], $a['intensidade']]);
+        }
+        return count($teams);
+    }
+
+    /** Ajuste da dificuldade no técnico de um time da IA (o do GM nunca muda): −4, 0 ou +4. */
+    public static function aiCoachEdge(int $teamId): int
+    {
+        if ($teamId === (int) self::meta('gm_team', 0)) return 0;
+        return ['facil' => -4, 'normal' => 0, 'dificil' => 4][(string) self::meta('difficulty', 'normal')] ?? 0;
     }
 
     public static function isInstalled(): bool

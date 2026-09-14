@@ -122,17 +122,33 @@
     });
   }
 
-  // ---- team search ----
+  // ---- times da era + busca ----
+  // Cada cartão diz em quais eras o time já existe (data-eras); os outros entram na
+  // liga depois, por expansão, e não podem ser escolhidos no começo daquela era.
+  function inEra(card) {
+    return !state.era || (' ' + (card.dataset.eras || '') + ' ').includes(' ' + state.era + ' ');
+  }
+  function filterTeams() {
+    const input = document.getElementById('teamSearch');
+    const q = input ? input.value.toLowerCase() : '';
+    let count = 0;
+    document.querySelectorAll('.team-pick-card').forEach(c => {
+      const ok = inEra(c);
+      if (ok) count++;
+      c.hidden = !(ok && (c.dataset.search || '').toLowerCase().includes(q));
+      if (!ok && c.classList.contains('tp-sel')) {
+        c.classList.remove('tp-sel');
+        const inp = c.querySelector('input[type=radio]');
+        if (inp) inp.checked = false;
+        state.team = ''; state.teamName = ''; state.teamCity = ''; state.teamColor = '';
+      }
+    });
+    const others = document.getElementById('wizOthers');
+    if (others && count) others.textContent = String(count - 1);
+  }
   function bindTeamSearch() {
     const input = document.getElementById('teamSearch');
-    if (!input) return;
-    input.addEventListener('input', () => {
-      const q = input.value.toLowerCase();
-      document.querySelectorAll('.team-pick-card').forEach(c => {
-        const text = (c.dataset.search || '').toLowerCase();
-        c.style.display = text.includes(q) ? '' : 'none';
-      });
-    });
+    if (input) input.addEventListener('input', filterTeams);
   }
 
   // ---- init ----
@@ -151,6 +167,7 @@
     bindCards('.era-card', 'era', (card) => {
       state.eraName = card.dataset.eraName || '';
       state.eraYear = card.dataset.eraYear || '';
+      filterTeams();
     });
 
     // Team cards

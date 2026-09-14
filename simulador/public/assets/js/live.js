@@ -94,6 +94,16 @@
     offSel.length = 0; defSel.length = 0;
     data.schemes_off.forEach(s => offSel.add(new Option(s, s)));
     data.schemes_def.forEach(s => defSel.add(new Option(s, s)));
+    // dica do confronto: o que o ataque e a defesa escolhidos castigam e o que os segura
+    const tacticHint = document.getElementById('tacticHint');
+    const info = data.scheme_info || {};
+    const showHint = () => {
+      if (!tacticHint) return;
+      tacticHint.textContent = [info[offSel.value], info[defSel.value]].filter(Boolean).join(' ');
+    };
+    offSel.addEventListener('change', showHint);
+    defSel.addEventListener('change', showHint);
+    showHint();
     data.opp_players.forEach(p => doubleSel.add(new Option(p.name + ' · ' + p.pos + ' · OVR ' + p.ovr, p.id)));
     if (data.cur_timeouts) toLbl.textContent = data.cur_timeouts[data.gm_side];
     sbHome.textContent = data.score.home; sbAway.textContent = data.score.away;

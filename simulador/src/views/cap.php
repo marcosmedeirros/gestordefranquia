@@ -44,7 +44,8 @@ page_head('Folha e teto', [
 ?>
 <div class="stack">
 <?php if ($gmId && Cap::inGrace()): ?>
-  <?= note('<b>Carência.</b> Seu save é anterior ao teto salarial. Até o fim da temporada ' . Cap::graceSeason()
+  <?= note('<b>Carência.</b> ' . (Database::meta('cap_grace_reason') === 'inicio' ? 'Seu elenco chegou acima do teto.' : 'Seu save é anterior ao teto salarial.')
+      . ' Até o fim da temporada ' . Cap::graceSeason()
       . ' a liga não trava o calendário nem pune pelo piso. Use esse tempo para se adequar.', 'ok', 'shield-check') ?>
 <?php endif; ?>
 

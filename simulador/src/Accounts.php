@@ -301,6 +301,10 @@ class Accounts
         $eras = require dirname(__DIR__) . '/data/eras.php';
         if (!isset($eras[$eraKey])) $eraKey = 'modern';
         $eraName = $eras[$eraKey]['name'] ?? 'Era Atual';
+        // time que só entra por expansão não pode ser escolhido no começo da era
+        if (!empty($eras[$eraKey]['teams']) && !in_array($teamAbbr, $eras[$eraKey]['teams'], true)) {
+            return ['error' => "Esse time ainda não existe em {$eraName}: ele entra na liga mais tarde, por expansão. Escolha outra franquia."];
+        }
         // sanitize
         $coachStyle    = in_array($coachStyle,    ['ofensivo','defensivo','equilibrado','desenvolvimento','vencedor'], true) ? $coachStyle : 'equilibrado';
         $difficulty    = in_array($difficulty,    ['facil','normal','dificil'], true) ? $difficulty : 'normal';
@@ -329,6 +333,7 @@ class Accounts
 
         // Cria o técnico do GM com atributos baseados no estilo escolhido
         $coachAttrs = Database::coachAttrsForStyle($coachStyle);
+        Database::conn()->prepare("DELETE FROM coaches WHERE team_id=?")->execute([(int) $team['id']]);
         Database::conn()->prepare(
             "INSERT INTO coaches(team_id,name,style,ofensivo,defensivo,desenvolvimento,gestao,intensidade)
              VALUES(?,?,?,?,?,?,?,?)"
@@ -342,6 +347,9 @@ class Accounts
         }
 
         League::ensurePicksWindow(League::season(), League::PICK_WINDOW); // picks dos próximos 5 anos
+
+        // Elenco que já nasce acima do teto: carência na 1ª temporada em vez de travar o dia 1.
+        Cap::graceIfStartsOver();
 
         // Abre a janela de PRÉ-TEMPORADA (estilo 2K): trocas + free agency + eventos
         // na caixa de entrada antes do início da temporada regular.

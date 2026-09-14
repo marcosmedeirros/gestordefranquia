@@ -1,2 +1,4 @@
 config/config.php
 config/config.local.php
+storage/accounts.sqlite
+storage/saves/

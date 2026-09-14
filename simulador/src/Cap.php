@@ -568,6 +568,30 @@ class Cap
     }
 
     /**
+     * GM que assume um elenco já acima do teto (save novo ou nova franquia depois
+     * de demitido) ganha carência até o fim da temporada, em vez de encontrar o
+     * calendário travado no primeiro dia e ter que cortar um titular sem jogar.
+     * Devolve a temporada da carência, ou null quando a folha já cabe no teto.
+     */
+    public static function graceIfStartsOver(): ?int
+    {
+        $gm = League::gmTeam();
+        if (!$gm) return null;
+        $s = self::summary($gm);
+        if ($s['payroll'] <= $s['cap_max']) return null;
+        $grace = in_array(League::phase(), ['offseason', 'lottery', 'draft', 'freeagency'], true) ? League::season() + 1 : League::season();
+        if (self::graceSeason() >= $grace) return $grace;
+        Database::setMeta('cap_grace_season', (string) $grace);
+        Database::setMeta('cap_grace_reason', 'inicio');
+        League::inboxAdd('cap', 'Liga', "💰 Folha acima do teto: carência até o fim da temporada $grace",
+            'O elenco que você recebeu custa ' . self::m($s['payroll']) . ', ' . self::m($s['payroll'] - $s['cap_max'])
+            . ' acima do teto de ' . self::m($s['cap_max']) . ". Até o fim da temporada $grace a liga não trava o calendário nem pune pelo piso. "
+            . 'Depois disso, a temporada só começa com a folha dentro do teto: troque ou dispense quem custa caro em Folha e teto.',
+            url('cap'), '💰', true);
+        return $grace;
+    }
+
+    /**
      * Mensagem de bloqueio quando o GM não pode avançar por causa da folha (null = pode).
      * Só o TETO trava o calendário. Ficar abaixo do piso não trava — custa uma
      * pick (ver floorPenalty), porque nem sempre há salário disponível pra contratar.

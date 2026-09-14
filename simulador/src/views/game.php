@@ -233,6 +233,7 @@ ob_start(); ?>
           <span><b>Pedir tempo</b><small>Descansa o time e dá um gás neste quarto.</small></span>
         </label>
       </div>
+      <p class="live-hint" id="tacticHint" aria-live="polite"></p>
     </details>
   </section>
 

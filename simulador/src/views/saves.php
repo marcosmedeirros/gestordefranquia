@@ -155,7 +155,7 @@ page_head('Meus saves', [
       <div class="wiz-panel" id="step2">
         <span class="eyebrow">Passo 2 de 4</span>
         <h2 class="wiz-h">Escolha sua franquia</h2>
-        <p class="wiz-sub">Você comanda este time. Os outros 29 ficam com a IA.</p>
+        <p class="wiz-sub">Você comanda este time. Os outros <span id="wizOthers"><?= count($allTeams) - 1 ?></span> ficam com a IA.</p>
 
         <div class="tp-search">
           <?= bi('search') ?>
@@ -165,8 +165,10 @@ page_head('Meus saves', [
         <?php foreach (['E' => 'Conferência Leste', 'W' => 'Conferência Oeste'] as $conf => $confName): ?>
         <div class="sub-h"><?= e($confName) ?></div>
         <div class="team-pick-grid">
-          <?php foreach ($allTeams as $t): if ($t['conf'] !== $conf) continue; ?>
-          <label class="team-pick-card" style="<?= e(saves_team_style($t)) ?>"
+          <?php foreach ($allTeams as $t): if ($t['conf'] !== $conf) continue;
+            // eras em que o time já existe no começo (as outras o recebem por expansão)
+            $inEras = array_keys(array_filter($eras, fn($er) => empty($er['teams']) || in_array($t['abbr'], $er['teams'], true))); ?>
+          <label class="team-pick-card" style="<?= e(saves_team_style($t)) ?>" data-eras="<?= e(implode(' ', $inEras)) ?>"
                  data-team-name="<?= e($t['name']) ?>"
                  data-team-city="<?= e($t['city']) ?>"
                  data-team-color="<?= e($t['primary']) ?>"

@@ -263,11 +263,15 @@ class Offseason
             LEFT JOIN season_stats s ON s.player_id = p.id WHERE p.retired = 0")->fetchAll();
         $upd = $db->prepare("UPDATE players SET age=?, seasons_pro=seasons_pro+1, ovr=?,
             ins=?, mid=?, thr=?, pmk=?, reb=?, def=?, ath=?, sta=?, morale=?, potential=? WHERE id=?");
-        // O técnico do GM conta: "desenvolvimento" acima de 70 dá chance extra de +1 aos
-        // jovens dele, e o FOCO DE TREINO (até 2 jogadores) garante progresso a mais.
+        // O técnico conta: "desenvolvimento" acima de 70 dá chance extra de +1 aos jovens
+        // do time (92 → 22%). Vale para todos os times — antes só o GM tinha técnico — e
+        // o FOCO DE TREINO (até 2 jogadores) segue exclusivo do GM.
         $gm = League::gmTeam();
-        $coach = $gm ? League::gmCoach() : null;
-        $devBonus = $coach ? max(0.0, ((int) $coach['desenvolvimento'] - 70) / 100) : 0.0; // 92 → 22%
+        if ($gm) League::gmCoach(); // save antigo sem técnico do GM ganha o padrão antes da conta
+        $devBonusByTeam = [];
+        foreach ($db->query("SELECT team_id, MAX(desenvolvimento) d FROM coaches GROUP BY team_id")->fetchAll() as $c) {
+            $devBonusByTeam[(int) $c['team_id']] = max(0.0, ((int) $c['d'] + Database::aiCoachEdge((int) $c['team_id']) - 70) / 100);
+        }
         $db->beginTransaction();
         $changed = 0;
         $log = [];
@@ -284,7 +288,8 @@ class Offseason
             if ($age <= 24) { // jovem promessa
                 $room = max(0, $pot - $ovr);
                 $base = random_int(0, 2) + ($mpg >= 26 ? 1 : 0) + ($mpg >= 32 ? 1 : 0);
-                if ($mine && $devBonus > 0 && self::chance($devBonus)) $base++;
+                $devBonus = $devBonusByTeam[(int) ($p['team_id'] ?? 0)] ?? 0.0;
+                if ($devBonus > 0 && self::chance($devBonus)) $base++;
                 if ($focus) $base += 1 + (self::chance(0.5) ? 1 : 0);
                 $delta = min($room, $base);
                 if ($room > 0 && $delta === 0 && self::chance(0.4)) $delta = 1;
@@ -1299,10 +1304,12 @@ class Offseason
         foreach (['playin_seeds','playin_map','playin_stage','champion_id','playoff_round'] as $k) {
             $db->prepare("DELETE FROM meta WHERE k=?")->execute([$k]);
         }
-        Installer::newSeasonSchedule();
+        // elencos mudaram na entressafra: a IA reescolhe o esquema
+        League::aiPickAllSchemes();
+        $days = Installer::newSeasonSchedule();
         Database::setMeta('season', (string) $newSeason);
         Database::setMeta('current_day', '1');
-        Database::setMeta('total_days', (string) Installer::targetDays());
+        Database::setMeta('total_days', (string) $days);
         Database::setMeta('phase', 'regular');
     }
 

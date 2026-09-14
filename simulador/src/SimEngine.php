@@ -14,6 +14,8 @@ class SimEngine
     {
         $home = self::loadTeam($homeId);
         $away = self::loadTeam($awayId);
+        self::aiTactics($home, $away);
+        self::aiTactics($away, $home);
 
         $box = self::emptyBox($home, $away);
         $score = [$homeId => 0, $awayId => 0];
@@ -37,6 +39,7 @@ class SimEngine
         }
 
         $injuries = self::computeInjuries($home, $away, $score, $pbp);
+        self::logGmTactics($home, $away);
 
         return [
             'home_pts' => $score[$homeId],
@@ -126,6 +129,8 @@ class SimEngine
     {
         $home = self::loadTeam($homeId);
         $away = self::loadTeam($awayId);
+        self::aiTactics($home, $away);
+        self::aiTactics($away, $home);
         $box = self::emptyBox($home, $away);
         return [
             'home_id' => $homeId, 'away_id' => $awayId,
@@ -191,6 +196,8 @@ class SimEngine
         $period = $state['period'] + 1;
         $state['period'] = $period;
         if ($period > 4) $state['ot'] = $period - 4;
+        // no Difícil a IA revê a tática no intervalo, lendo o que o GM escolheu agora
+        if ($period === 3) self::aiTactics($teams[$opp], $teams[$gm], true);
 
         $score = [$home['id'] => $state['score']['home'], $away['id'] => $state['score']['away']];
         $box = $state['box'];
@@ -226,6 +233,7 @@ class SimEngine
     public static function liveResult(array $state): array
     {
         $pbp = $state['pbp'];
+        self::logGmTactics($state['home'], $state['away']);
         $injuries = self::computeInjuries($state['home'], $state['away'],
             [$state['home']['id'] => $state['score']['home'], $state['away']['id'] => $state['score']['away']], $pbp);
         return [
@@ -251,7 +259,8 @@ class SimEngine
         $events = [];
         $defRating = $def['def_rating'];
         $om = $off['mods']; $dm = $def['mods'];
-        $om['eff_bonus'] += (float) ($off['timeout_bonus'] ?? 0.0);
+        $om['eff_bonus'] += (float) ($off['timeout_bonus'] ?? 0.0) + (float) ($off['coach_eff'] ?? 0.0)
+            + self::matchup((string) ($off['scheme_off'] ?? ''), (string) ($def['scheme_def'] ?? ''));
         $offChem = $off['chem'];
 
         // escolhe o jogador que finaliza a posse (usage)
@@ -291,7 +300,8 @@ class SimEngine
         }
 
         // tipo de arremesso (esquema ofensivo influencia a escolha por 3pts)
-        $threeTend = self::clamp(($actor['thr'] - 45) / 100, 0.05, 0.62) * $om['three_mult'];
+        // a zona chama o arremesso de fora (def_three_rate)
+        $threeTend = self::clamp(($actor['thr'] - 45) / 100, 0.05, 0.62) * $om['three_mult'] * (float) ($dm['def_three_rate'] ?? 1.0);
         $isThree = self::chance(self::clamp($threeTend * 0.75, 0.02, 0.8));
 
         // probabilidade de cesta
@@ -383,7 +393,8 @@ class SimEngine
     /** Resolve o rebote. Em rebote ofensivo, registra mas a posse encerra (simplificação). */
     private static function rebound(array $off, array $def, array &$box, int $offId, bool $ftMiss = false): array
     {
-        $oRebProb = $ftMiss ? 0.14 : 0.26;
+        // jogo de garrafão (Post Play) e técnico intenso pegam mais rebote ofensivo
+        $oRebProb = ($ftMiss ? 0.14 : 0.26) + (float) ($off['mods']['reb_bonus'] ?? 0.0) + (float) ($off['coach_reb'] ?? 0.0);
         if (self::chance($oRebProb)) {
             $reb = self::weightedPick($off['players'], 'reb');
             $box[$reb['id']]['reb']++;
@@ -445,17 +456,37 @@ class SimEngine
             $players = $st->fetchAll();
         }
 
-        // minutagem manual (GM) tem prioridade; senão usa a distribuição padrão
-        $customSum = 0;
-        foreach ($players as $p) { $customSum += (int) ($p['min_target'] ?? 0); }
+        // Minutagem manual (GM) tem prioridade. Quem ficou sem minuto marcado divide o
+        // que sobra pela distribuição padrão, e ninguém passa de 44. Antes, um único
+        // jogador com minuto marcado (a decisão "dar minutos" a um reserva, por exemplo)
+        // jogava os 240 minutos sozinho e o box score virava uma linha só.
         $minutes = self::MIN_DIST;
+        $customSum = 0;
+        $freeW = 0.0;
+        foreach ($players as $i => $p) {
+            $mt = (int) ($p['min_target'] ?? 0);
+            if ($mt > 0) $customSum += $mt; else $freeW += (float) (self::MIN_DIST[$i] ?? 8);
+        }
         if ($customSum > 0) {
-            $scale = 240 / $customSum;
+            $rest = max(0, 240 - $customSum);
+            $scaleC = ($customSum > 240 || $freeW <= 0) ? 240 / $customSum : 1.0;
             $minutes = [];
-            foreach ($players as $p) {
+            foreach ($players as $i => $p) {
                 $mt = (int) ($p['min_target'] ?? 0);
-                $minutes[] = $mt > 0 ? round($mt * $scale, 1) : 0;
+                $minutes[] = $mt > 0 ? $mt * $scaleC : ($freeW > 0 ? (float) (self::MIN_DIST[$i] ?? 8) * $rest / $freeW : 0.0);
             }
+            for ($round = 0; $round < 4; $round++) {
+                $excess = 0.0;
+                $room = 0.0;
+                foreach ($minutes as $k => $m) {
+                    if ($m > 44) { $excess += $m - 44; $minutes[$k] = 44.0; } elseif ($m > 0) { $room += 44 - $m; }
+                }
+                if ($excess <= 0.01 || $room <= 0) break;
+                foreach ($minutes as $k => $m) {
+                    if ($m > 0 && $m < 44) $minutes[$k] = $m + $excess * (44 - $m) / $room;
+                }
+            }
+            $minutes = array_map(fn($m) => round($m, 1), $minutes);
         }
 
         $defSum = 0; $n = 0;
@@ -480,13 +511,18 @@ class SimEngine
         // +3 de defesa, +3% de rebote e +18% de risco de lesão.
         $defRating = $n ? $defSum / $n : 75;
         $injMult = 1.0;
+        // o bônus do técnico fica fora dos 'mods': a troca de esquema (IA ou GM ao vivo) recalcula os mods e não pode apagá-lo
+        $coachEff = 0.0;
+        $coachReb = 0.0;
         try {
             $c = $db->prepare("SELECT ofensivo, defensivo, intensidade FROM coaches WHERE team_id=? LIMIT 1");
             $c->execute([$teamId]);
             if ($coach = $c->fetch()) {
-                $mods['eff_bonus'] += ((int) $coach['ofensivo'] - 70) * 0.00035;
-                $defRating += ((int) $coach['defensivo'] - 70) * 0.1;
-                $mods['reb_bonus'] += ((int) $coach['intensidade'] - 70) * 0.001;
+                // técnico da IA: a dificuldade dá −4/+4 em ataque e defesa
+                $edge = Database::aiCoachEdge($teamId);
+                $coachEff = ((int) $coach['ofensivo'] + $edge - 70) * 0.00035;
+                $defRating += ((int) $coach['defensivo'] + $edge - 70) * 0.1;
+                $coachReb = ((int) $coach['intensidade'] - 70) * 0.001;
                 $injMult = 1 + ((int) $coach['intensidade'] - 70) * 0.006;
             }
         } catch (Throwable $e) { /* sem tabela de técnicos */ }
@@ -498,30 +534,102 @@ class SimEngine
             'scheme_off' => $team['scheme_off'] ?? 'Pace and Space',
             'scheme_def' => $team['scheme_def'] ?? 'Man-to-Man',
             'mods' => $mods,
+            'coach_eff' => $coachEff,
+            'coach_reb' => $coachReb,
             'chem' => $chem,
             'inj_mult' => $injMult,
         ];
     }
 
-    /** Modificadores táticos dos esquemas ofensivo/defensivo. */
+    /**
+     * Modificadores táticos. Cada esquema muda o jeito de jogar (mais bolas de 3, mais
+     * assistências, jogo de garrafão) e o confronto com o esquema do outro lado decide
+     * quem leva vantagem: cada ataque castiga uma defesa e sofre contra outra (MATCHUP).
+     * Antes a Zona 2-3 era melhor contra tudo e trocar pra ela rendia ~30% mais vitórias.
+     */
     private static function schemeMods(string $off, string $def): array
     {
         $m = [
             'three_mult' => 1.0, 'eff_bonus' => 0.0, 'assist_bonus' => 0.0, 'pace' => 0,
             'reb_bonus' => 0.0, 'inside_bonus' => 0.0,
-            'def_2pt' => 0.0, 'def_3pt_allow' => 0.0, 'def_assist' => 0.0,
+            'def_2pt' => 0.0, 'def_3pt_allow' => 0.0, 'def_assist' => 0.0, 'def_three_rate' => 1.0,
         ];
         switch ($off) {
-            case 'Pace and Space':           $m['three_mult'] = 1.35; $m['pace'] = -2; break;
-            case 'Pick and Roll Offense':    $m['assist_bonus'] = 0.06; $m['eff_bonus'] = 0.012; break;
-            case 'Post Play / Grit and Grind': $m['three_mult'] = 0.6; $m['inside_bonus'] = 0.025; $m['pace'] = 3; $m['reb_bonus'] = 0.04; break;
+            case 'Pace and Space':             $m['three_mult'] = 1.30; $m['pace'] = -2; break;
+            case 'Pick and Roll Offense':      $m['assist_bonus'] = 0.05; $m['inside_bonus'] = 0.010; break;
+            case 'Post Play / Grit and Grind': $m['three_mult'] = 0.70; $m['inside_bonus'] = 0.010; $m['pace'] = 3; $m['reb_bonus'] = 0.02; break;
         }
         switch ($def) {
-            case '2-3 Zone':   $m['def_2pt'] = -0.045; $m['def_3pt_allow'] = 0.030; break;
-            case 'Switch All': $m['def_assist'] = -0.06; $m['def_2pt'] = 0.010; break;
+            case '2-3 Zone':   $m['def_2pt'] = -0.012; $m['def_3pt_allow'] = 0.010; $m['def_three_rate'] = 1.10; break;
+            case 'Switch All': $m['def_assist'] = -0.04; $m['def_2pt'] = 0.005; break;
             // Man-to-Man = neutro
         }
         return $m;
+    }
+
+    /** Pedra-papel-tesoura: bônus (ou castigo) no aproveitamento do ataque contra cada defesa. */
+    private const MATCHUP = [
+        'Pace and Space'             => ['2-3 Zone' => 0.01, 'Switch All' => -0.01],
+        'Pick and Roll Offense'      => ['Switch All' => 0.01, 'Man-to-Man' => -0.01],
+        'Post Play / Grit and Grind' => ['Man-to-Man' => 0.01, '2-3 Zone' => -0.01],
+    ];
+    /** A defesa que segura cada ataque, e o ataque que castiga cada defesa. */
+    public const COUNTER_DEF = ['Pace and Space' => 'Switch All', 'Pick and Roll Offense' => 'Man-to-Man', 'Post Play / Grit and Grind' => '2-3 Zone'];
+    public const COUNTER_OFF = ['2-3 Zone' => 'Pace and Space', 'Switch All' => 'Pick and Roll Offense', 'Man-to-Man' => 'Post Play / Grit and Grind'];
+
+    private static function matchup(string $off, string $def): float
+    {
+        return self::MATCHUP[$off][$def] ?? 0.0;
+    }
+
+    /**
+     * O que o GM mais usou nos últimos 5 jogos (empate: o mais recente). A IA lê essa
+     * tendência, não o esquema de hoje: quem nunca muda é lido e castigado; quem varia
+     * pega a IA desprevenida. Null antes do primeiro jogo registrado.
+     */
+    private static function gmTendency(): ?array
+    {
+        $log = array_reverse(json_decode((string) Database::meta('gm_tactics', '[]'), true) ?: []);
+        if (!$log) return null;
+        $off = array_count_values(array_column($log, 0));
+        $def = array_count_values(array_column($log, 1));
+        arsort($off);
+        arsort($def);
+        return ['scheme_off' => (string) array_key_first($off), 'scheme_def' => (string) array_key_first($def)];
+    }
+
+    /** Guarda o esquema com que o time do GM terminou o jogo (os 5 últimos). */
+    private static function logGmTactics(array $home, array $away): void
+    {
+        $gm = (int) Database::meta('gm_team', 0);
+        foreach ([$home, $away] as $t) {
+            if (!$gm || (int) $t['id'] !== $gm) continue;
+            $log = json_decode((string) Database::meta('gm_tactics', '[]'), true) ?: [];
+            $log[] = [(string) $t['scheme_off'], (string) $t['scheme_def']];
+            Database::setMeta('gm_tactics', json_encode(array_slice($log, -5)));
+        }
+    }
+
+    /**
+     * A IA lê o adversário antes do jogo: escolhe a defesa que segura o ataque dele e,
+     * no Difícil contra o GM, também o ataque que castiga a defesa dele — e revê no
+     * intervalo do jogo ao vivo. Contra o GM: Fácil nunca ajusta, Normal metade das
+     * vezes, Difícil sempre. Entre times da IA, metade das vezes.
+     */
+    private static function aiTactics(array &$me, array $opp, bool $halftime = false): void
+    {
+        $gm = (int) Database::meta('gm_team', 0);
+        if ((int) $me['id'] === $gm) return;
+        $diff = (string) Database::meta('difficulty', 'normal');
+        $vsGm = $gm > 0 && (int) $opp['id'] === $gm;
+        if ($halftime && !($vsGm && $diff === 'dificil')) return;
+        $p = $vsGm ? (['facil' => 0.0, 'normal' => 0.5, 'dificil' => 1.0][$diff] ?? 0.5) : 0.5;
+        if ($p <= 0 || !self::chance($p)) return;
+        // contra o GM: antes do jogo, a tendência dos últimos jogos; no intervalo, o que ele fez no 1º tempo
+        $read = ($vsGm && !$halftime) ? (self::gmTendency() ?? $opp) : $opp;
+        $me['scheme_def'] = self::COUNTER_DEF[$read['scheme_off'] ?? ''] ?? $me['scheme_def'];
+        if ($vsGm && $diff === 'dificil') $me['scheme_off'] = self::COUNTER_OFF[$read['scheme_def'] ?? ''] ?? $me['scheme_off'];
+        $me['mods'] = self::schemeMods($me['scheme_off'], $me['scheme_def']);
     }
 
     private static function emptyLine(int $pid, int $tid, float $min): array

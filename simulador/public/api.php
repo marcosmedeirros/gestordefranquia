@@ -41,6 +41,7 @@ if ($live === 'start') {
         ],
         'schemes_off' => League::SCHEMES_OFF,
         'schemes_def' => League::SCHEMES_DEF,
+        'scheme_info' => League::SCHEME_INFO,
         'opp_players' => $oppStars,
         'timeouts' => 7,
     ], JSON_UNESCAPED_UNICODE);

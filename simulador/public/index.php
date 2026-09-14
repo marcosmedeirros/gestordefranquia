@@ -221,14 +221,12 @@ if ($action) {
             header('Location: ' . ($_GET['back'] ?? url('home', ['dmsg' => $msg])));
             exit;
         case 'boost-morale':
-            // Conversar com jogador: +8 morale, max 95
-            $pid = (int)($_GET['pid'] ?? 0);
-            if ($pid) {
-                Database::conn()->prepare(
-                    "UPDATE players SET morale = MIN(95, morale + 8) WHERE id=?"
-                )->execute([$pid]);
-            }
-            header('Location: ' . url('lineup', ['msg' => '💬 Conversa motivacional realizada!']));
+            // Conversar com jogador: +8 de moral (até 95), uma vez por semana por jogador
+            // (a cada duas no Difícil). Sem limite, bastava clicar no elenco inteiro.
+            $r = League::talkToPlayer((int) ($_GET['pid'] ?? 0));
+            $back = in_array($_GET['back'] ?? '', ['lineup', 'player'], true) ? $_GET['back'] : 'lineup';
+            $params = $back === 'player' ? ['id' => (int) ($_GET['pid'] ?? 0)] : [];
+            header('Location: ' . url($back, $params + (isset($r['error']) ? ['err' => $r['error']] : ['msg' => $r['msg']])));
             exit;
         case 'rest-player':
             // Descansar jogador: +2 dias de rest, remove da rotação temporariamente

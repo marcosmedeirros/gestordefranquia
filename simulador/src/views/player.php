@@ -117,7 +117,7 @@ render_header((string) $p['name']);
 
         <?php if ($mine): ?>
         <div class="row pl-actions">
-          <a class="btn" href="<?= url('home', ['action' => 'boost-morale', 'pid' => $id]) ?>"><?= bi('chat-heart-fill') ?>Conversar</a>
+          <a class="btn" href="<?= url('home', ['action' => 'boost-morale', 'pid' => $id, 'back' => 'player']) ?>"><?= bi('chat-heart-fill') ?>Conversar</a>
           <?php if (!$inj): ?>
             <a class="btn" href="<?= url('home', ['action' => 'rest-player', 'pid' => $id]) ?>"><?= bi('moon-stars-fill') ?>Dar descanso</a>
           <?php endif; ?>

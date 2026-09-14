@@ -91,6 +91,13 @@ class Installer
         Cap::calibrate();
         Database::setMeta('cap_elite', '1');
 
+        // Todo time com técnico (o do GM substitui o do time dele no createSave).
+        Database::seedAiCoaches();
+        Database::setMeta('ai_coaches', '1');
+        // e com um esquema tático que combina com o elenco
+        require_once __DIR__ . '/League.php';
+        League::aiPickAllSchemes();
+
         $games = self::buildSchedule($activeIds);
         $insGame = $db->prepare("INSERT INTO games(day,stage,home_id,away_id) VALUES(?, 'regular', ?, ?)");
         $db->beginTransaction();
@@ -210,37 +217,72 @@ class Installer
     }
 
     /**
-     * Calendário pelo método do círculo: cada time joga 1x por dia.
-     * Gera TARGET_DAYS rodadas (82), alternando mando a cada ciclo => 82 jogos/time.
+     * Calendário: cada time joga no máximo 1x por dia e todos fecham exatamente 82
+     * jogos. Com número par de times, o método do círculo dá 82 rodadas redondas.
+     * Com número ímpar (eras antigas: 23, 25, 27, 29 times) sempre sobra um de folga
+     * por dia e o círculo puro deixava todo mundo com 78 ou 79 jogos: agora ele roda
+     * enquanto a rodada inteira cabe e quem ficou devendo joga em dias extras no fim.
      */
     private const TARGET_DAYS = 82;
 
     private static function buildSchedule(array $teamIds): array
     {
+        $target = self::TARGET_DAYS;
         $arr = $teamIds;
         $n = count($arr);
-        if ($n % 2 !== 0) { $arr[] = 0; $n++; } // bye fictício se ímpar
+        if ($n < 2) return [];
+        if ($n % 2 !== 0) { $arr[] = 0; $n++; } // folga fictícia se ímpar
         $half = $n / 2;
         $games = [];
+        $played = array_fill_keys($teamIds, 0);
+        $home = array_fill_keys($teamIds, 0);
 
         $list = $arr;
-        for ($day = 1; $day <= self::TARGET_DAYS; $day++) {
+        for ($day = 1; ; $day++) {
+            $round = [];
             for ($i = 0; $i < $half; $i++) {
                 $a = $list[$i];
                 $b = $list[$n - 1 - $i];
                 if ($a === 0 || $b === 0) continue;
-                // alterna o mando a cada dia para equilibrar casa/fora
-                if (($day + $i) % 2 === 0) {
-                    $games[] = ['day'=>$day, 'home'=>$a, 'away'=>$b];
-                } else {
-                    $games[] = ['day'=>$day, 'home'=>$b, 'away'=>$a];
-                }
+                // manda quem jogou menos em casa até aqui (41 em casa, 41 fora);
+                // no empate alterna pelo dia. Só alternar pelo dia deixava 29 a 53 em casa.
+                if ($home[$a] !== $home[$b]) $round[] = $home[$a] < $home[$b] ? [$a, $b] : [$b, $a];
+                else $round[] = ($day + $i) % 2 === 0 ? [$a, $b] : [$b, $a];
+            }
+            $fits = true;
+            foreach ($round as [$h, $v]) {
+                if ($played[$h] >= $target || $played[$v] >= $target) { $fits = false; break; }
+            }
+            if (!$fits) break;
+            foreach ($round as [$h, $v]) {
+                $games[] = ['day' => $day, 'home' => $h, 'away' => $v];
+                $played[$h]++;
+                $played[$v]++;
+                $home[$h]++;
             }
             // rotação do método do círculo (primeiro fixo)
             $fixed = array_shift($list);
             $last = array_pop($list);
             array_unshift($list, $last);
             array_unshift($list, $fixed);
+        }
+
+        // Dias extras: quem mais deve joga primeiro, com o adversário embaralhado
+        // entre os que devem o mesmo tanto, pra não repetir o mesmo duelo toda noite.
+        for ($guard = 0; $guard < 60; $guard++, $day++) {
+            $owe = array_keys(array_filter($played, fn($g) => $g < $target));
+            if (count($owe) < 2) break;
+            shuffle($owe);
+            usort($owe, fn($x, $y) => $played[$x] <=> $played[$y]);
+            for ($i = 0; $i + 1 < count($owe); $i += 2) {
+                [$a, $b] = [$owe[$i], $owe[$i + 1]];
+                $h = $home[$a] <= $home[$b] ? $a : $b;
+                $v = $h === $a ? $b : $a;
+                $games[] = ['day' => $day, 'home' => $h, 'away' => $v];
+                $played[$a]++;
+                $played[$b]++;
+                $home[$h]++;
+            }
         }
 
         return $games;

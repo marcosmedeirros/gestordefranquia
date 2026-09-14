@@ -253,7 +253,7 @@ page_head('Escalação', [
     <?php endforeach; ?>
   </div>
   <div class="qlinks pm-acts">
-    <a class="qlink" href="<?= url('home', ['action' => 'boost-morale', 'pid' => $id]) ?>"><?= bi('chat-heart-fill') ?><span><b>Conversar</b><small>A moral sobe 8 pontos</small></span></a>
+    <a class="qlink" href="<?= url('home', ['action' => 'boost-morale', 'pid' => $id, 'back' => 'lineup']) ?>"><?= bi('chat-heart-fill') ?><span><b>Conversar</b><small>A moral sobe 8 pontos, uma vez por semana</small></span></a>
     <?php if (!$inj): ?>
     <a class="qlink" href="<?= url('home', ['action' => 'rest-player', 'pid' => $id]) ?>"><?= bi('moon-stars-fill') ?><span><b>Dar descanso</b><small>Fica fora dos 2 próximos jogos e perde 5 min</small></span></a>
     <?php endif; ?>
