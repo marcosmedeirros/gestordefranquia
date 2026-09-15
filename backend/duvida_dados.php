@@ -222,6 +222,47 @@ function duvidaEsquemaParaIA(PDO $pdo): string
  * Vale pras QUATRO ligas, e não só pra do grupo: pergunta sobre time de outra
  * liga também tem que cair no ciclo atual dela.
  */
+/**
+ * A fase da temporada em uma linha: regular, playoffs com a chave montada ou
+ * playoffs registrados. Lê o mesmo rascunho do /playoffs.
+ */
+function duvidaFaseDaTemporada(PDO $pdo, int $seasonId): string
+{
+    try {
+        $st = $pdo->prepare('SELECT dados FROM season_registro_rascunho WHERE season_id = ?');
+        $st->execute([$seasonId]);
+        $d = json_decode((string)$st->fetchColumn(), true);
+        $chave = is_array($d) ? ($d['bracket'] ?? null) : null;
+        if (is_array($chave)) {
+            $series = [];
+            foreach (['leste', 'oeste'] as $lado) {
+                foreach (['r1', 'r2'] as $r) foreach ((array)($chave[$lado][$r] ?? []) as $m) $series[] = $m;
+                $series[] = $chave[$lado]['cf'] ?? null;
+            }
+            $series[] = $chave['final'] ?? null;
+            $decididas = count(array_filter($series, fn($m) => is_array($m) && !empty($m['w'])));
+            if (!empty($chave['final']['w'])) {
+                return 'playoffs decididos na chave; falta registrar a pontuação.';
+            }
+            return "PLAYOFFS EM ANDAMENTO — chave montada, {$decididas} série(s) decidida(s). "
+                 . 'Quem está nos playoffs, quem passa e a chance de título: projetar_playoffs.';
+        }
+
+        $st = $pdo->prepare('SELECT COUNT(*) FROM playoff_series WHERE season_id = ?');
+        $st->execute([$seasonId]);
+        if ((int)$st->fetchColumn() > 0) return 'playoffs registrados (temporada praticamente encerrada).';
+
+        $st = $pdo->prepare('SELECT COUNT(*) FROM season_standings WHERE season_id = ? AND COALESCE(position, 0) > 0');
+        $st->execute([$seasonId]);
+        if ((int)$st->fetchColumn() > 0) return 'regular encerrada (classificação lançada); a chave dos playoffs ainda não foi montada.';
+
+        return 'sem classificação ainda — antes ou durante a temporada regular. Nada de playoffs.';
+    } catch (Throwable $e) {
+        error_log('[duvida] fase da temporada: ' . $e->getMessage());
+        return '';
+    }
+}
+
 function duvidaSprintAtual(PDO $pdo): string
 {
     static $cache = null;
@@ -257,6 +298,13 @@ function duvidaSprintAtual(PDO $pdo): string
             }
             $l[] = "- {$liga} — sprint {$temps[0]['sprint_number']}: " . implode(', ', $desc);
             $l[] = "  Use: season_id IN ({$ids})";
+
+            /* EM QUE PÉ A LIGA ESTÁ. "Ontem foi a regular da NEXT, hoje tem os
+               offs": o status da temporada fica em draft do começo ao fim, e
+               sem esta linha o bot não sabia que havia playoffs rolando. */
+            $atual = end($temps);
+            $fase = duvidaFaseDaTemporada($pdo, (int)$atual['id']);
+            if ($fase !== '') $l[] = "  Agora (T{$atual['season_number']}): {$fase}";
 
             /* A temporada em curso pode não ter NADA ainda.
                "o San Jose vai cair?" morreu aqui: o modelo filtrou pela ELITE

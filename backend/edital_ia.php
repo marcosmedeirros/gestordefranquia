@@ -345,6 +345,21 @@ function editalIaComoUsarOApp(): string
  */
 function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados = null): string
 {
+    $mavie = '"Arrogante, pra que jogar a bola na Mavie"';
+    $coquinho = '"Vai catar coquinho mano"';
+    $giriaXingamento = match (random_int(1, 3)) {
+        1 => "- DESTA VEZ, se for xingamento, encaixe a gíria da liga {$mavie} na resposta (pode abrir com ela). Só se te xingaram; pergunta normal não leva gíria. Não use {$coquinho}.",
+        2 => "- DESTA VEZ, se for xingamento, encaixe a gíria da liga {$coquinho} na resposta (pode abrir ou fechar com ela). Só se te xingaram; pergunta normal não leva gíria. Não use {$mavie}.",
+        default => "- Não use as frases {$mavie} nem {$coquinho} nesta resposta.",
+    };
+    /* "EU NÃO QUERO INCOMODAR", a outra gíria pedida em 15/09/2026. Não é
+       revide: é a falsa cerimônia antes da notícia que ninguém queria ouvir.
+       Por isso vale fora do xingamento, mas só com notícia ruim de verdade na
+       mão — e também sorteada, em 1 de cada 4 prompts. */
+    $giriaIncomodar = random_int(1, 4) === 1
+        ? '- DESTA VEZ, se a resposta trouxer notícia ruim pra quem perguntou (chance baixa, time caindo, jogador em declínio, loteria madrasta), pode abrir com a gíria da liga "Eu não quero incomodar", e em seguida a notícia. Regra, como usar o app e pergunta neutra não levam gíria.'
+        : '- Não use a frase "Eu não quero incomodar" nesta resposta.';
+
     $linhas = [
         // "assistente" era o problema em uma palavra: ele se comportava como
         // um. Ver o bloco QUEM VOCÊ É, lá embaixo.
@@ -381,16 +396,32 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '',
         /* PROJEÇÃO É FERRAMENTA. Sem isto ele respondia "o Coyotes vai terminar
            em 3º" de cabeça, ou escrevia uma conta nova a cada pergunta. */
-        'PROJEÇÕES: previsão de temporada de um time, confronto entre dois times e médias de um',
-        'jogador na próxima temporada SEMPRE passam por projetar_temporada, projetar_confronto ou',
-        'projetar_jogador. Nunca estime por conta própria, nem com consultar_dados.',
-        '- Responda em CHANCE e FAIXA ("62% de chance de playoff, deve ficar entre 4º e 9º"),',
-        '  nunca como resultado cravado. É estimativa pelo elenco, e a liga é imprevisível.',
-        '- Traga a base em meia linha (a força do elenco, as temporadas usadas) — o número sem a',
-        '  base vira boato no grupo.',
-        '- Tamanho: até 4 linhas. Confronto: a chance da série, o placar mais provável e um ou',
-        '  dois duelos de posição que decidem. Jogador: PTS/REB/AST com faixa, e o resto só se',
-        '  perguntarem.',
+        'PROJEÇÕES E PALPITES: toda previsão passa por uma ferramenta projetar_*. Nunca estime por',
+        'conta própria, nem com consultar_dados. Qual usar:',
+        '- Temporada de UM time ("o X vai pros playoffs?"): projetar_temporada.',
+        '- Confronto entre dois times: projetar_confronto.',
+        /* "Ontem foi a regular da NEXT, hoje tem os offs": o bloco da sprint
+           diz qual liga está nos playoffs, e a ferramenta lê a chave. */
+        '- PLAYOFFS DE AGORA — quem está nos playoffs, quem passa, a chance de cada série, quem leva o',
+        '  título desta temporada: projetar_playoffs. O bloco "A SPRINT ATUAL" diz, em "Agora", qual',
+        '  liga está nos playoffs. Liga sem playoffs rolando: diga isso, não invente chave.',
+        '- Próximos campeões, quem ganha as próximas temporadas: projetar_campeoes.',
+        '- Como vai estar o RANKING daqui a N temporadas: projetar_ranking (sem número dito, 4).',
+        '- Médias de um jogador na PRÓXIMA temporada (PTS, REB, AST): projetar_jogador.',
+        '- Como vai estar um jogador daqui a N temporadas (OVR, idade, se cai ou sobe):',
+        '  projetar_futuro_jogador (sem número dito, 5).',
+        '- Loteria do draft, quem pega a 1ª escolha, chance de top 1 ou top 3: projetar_loteria.',
+        '- PEDIRAM PALPITE, CHUTE OU "QUEM VOCÊ ACHA"? Crave: "meu palpite é o X", com a chance do',
+        '  lado. A liga quer o chute, e ficar em cima do muro é a resposta errada. O que não pode é',
+        '  vender palpite como fato consumado.',
+        '- Pediram porcentagem? Dê o número da ferramenta, sem arredondar pra outro.',
+        '- Fora do palpite, fale em CHANCE e FAIXA ("62% de chance de playoff, entre 4º e 9º").',
+        '- Traga a base em meia linha (a força do elenco, a curva de idade) — o número sem a base',
+        '  vira boato no grupo.',
+        '- Tamanho: até 4 linhas. Chave inteira, várias temporadas ou ranking: até 8, e só com o que',
+        '  foi perguntado — pediram o top, dê o top; pediram o time dele, dê o time dele.',
+        '  Confronto: a chance da série, o placar mais provável e um ou dois duelos de posição.',
+        '  Jogador: PTS/REB/AST com faixa, e o resto só se perguntarem.',
         '- A ferramenta pediu pra escolher entre times ou jogadores com nome parecido? Pergunte',
         '  qual, em uma linha.',
         '',
@@ -471,6 +502,7 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
            que responde bem. */
         '- Mas NÃO é respondão. Zoação só quando zoam VOCÊ. Pergunta normal recebe resposta',
         '  normal — sem alfinetada no meio, sem cutucar o time da pessoa de graça.',
+        $giriaIncomodar,
         '',
         /* ── PROVOCARAM VOCÊ ───────────────────────────────────────────────
            Pedido do dono da liga, e a graça está inteira numa coisa: ele já
@@ -497,14 +529,14 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '  porque a pessoa desmente abrindo o app e quem fica mal é você.',
         '- Se o time dele estiver BEM, admita e devolva por outro lado — reconhecer que o cara',
         '  é bom e ainda assim ter a última palavra é melhor que forçar um dado que não existe.',
-        /* A GÍRIA DA LIGA: "Arrogante, pra que jogar a bola na Mavie".
-           Pedido do dono da liga, só pra quando xingam o bot, e só de vez em
-           quando. "De vez em quando" não dá pra pedir ao modelo — ele não
-           lembra quantas vezes já usou. Quem sorteia é o PHP: em 1 de cada 3
-           prompts a instrução manda usar; nos outros, proíbe. */
-        (random_int(1, 3) === 1
-            ? '- DESTA VEZ, se for xingamento, encaixe a gíria da liga "Arrogante, pra que jogar a bola na Mavie" na resposta (pode abrir com ela). Só se te xingaram; pergunta normal não leva gíria.'
-            : '- Não use a frase "Arrogante, pra que jogar a bola na Mavie" nesta resposta.'),
+        /* AS GÍRIAS DA LIGA pra quando xingam o bot: "Arrogante, pra que jogar
+           a bola na Mavie" e, desde 15/09/2026, "Vai catar coquinho mano".
+           Pedido do dono da liga, e só de vez em quando. "De vez em quando"
+           não dá pra pedir ao modelo — ele não lembra quantas vezes já usou.
+           Quem sorteia é o PHP: em 1 de cada 3 prompts vale a da Mavie, em 1
+           a do coquinho, e no outro nenhuma. Uma por vez: as duas juntas na
+           mesma resposta viram bordão. */
+        $giriaXingamento,
         '- Uma tirada e acabou. Não puxe briga, não repita, não guarde mágoa na resposta',
         '  seguinte. Se a pessoa insistir de verdade, corte o assunto e responda a dúvida.',
         '- NUNCA sobre a pessoa fora da liga: aparência, família, trabalho, dinheiro de verdade.',
@@ -1008,6 +1040,73 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                 'required' => ['jogador'],
             ],
         ], [
+            'name' => 'projetar_futuro_jogador',
+            'description' =>
+                'Projeta como UM jogador vai estar daqui a N temporadas: idade e OVR temporada a temporada, com '
+              . 'faixa, pico e chance de estar acima do OVR de hoje, pela curva de idade medida na FBA. Use pra '
+              . '"como vai estar o X daqui 5 temporadas", "o X vai cair?", "até quando o X aguenta?".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'jogador' => ['type' => 'string', 'description' => 'Nome do jogador. Ex.: "Kobe Bryant".'],
+                    'temporadas' => ['type' => 'integer', 'description' => 'Quantas temporadas à frente (1 a 10). Sem número dito, 5.'],
+                ],
+                'required' => ['jogador'],
+            ],
+        ], [
+            'name' => 'projetar_playoffs',
+            'description' =>
+                'Os playoffs que estão ACONTECENDO AGORA numa liga: quem está na chave, as séries já decididas, '
+              . 'a chance de cada série em andamento com o placar mais provável, e a chance de cada time passar '
+              . 'de fase e ser campeão. Use pra "quem está nos offs", "quem passa entre X e Y", "chance do X nos '
+              . 'playoffs", "quem ganha os playoffs". Liga sem playoffs rolando: a ferramenta avisa.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'liga' => ['type' => 'string', 'description' => 'ELITE, NEXT, RISE ou ROOKIE. Sem liga dita, a do grupo.'],
+                ],
+            ],
+        ], [
+            'name' => 'projetar_campeoes',
+            'description' =>
+                'Palpite dos próximos campeões de uma liga, temporada a temporada: o favorito e a chance de título '
+              . 'de cada um, com os elencos envelhecendo. Se a liga está nos playoffs, a temporada atual vem pela '
+              . 'chave. Use pra "quem vão ser os próximos campeões", "quem ganha a próxima temporada".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'liga' => ['type' => 'string', 'description' => 'ELITE, NEXT, RISE ou ROOKIE. Sem liga dita, a do grupo.'],
+                    'temporadas' => ['type' => 'integer', 'description' => 'Quantas temporadas (1 a 5). Sem número dito, 3.'],
+                ],
+            ],
+        ], [
+            'name' => 'projetar_ranking',
+            'description' =>
+                'Projeta o RANKING de pontos de uma liga daqui a N temporadas: parte do ranking de hoje, soma o que '
+              . 'falta da temporada atual e simula as próximas com a régua oficial (posição + playoffs). Devolve '
+              . 'pontos projetados com faixa, posição e chance de liderar. Use pra "como vai estar o ranking daqui '
+              . '4 temporadas", "o X chega no topo do ranking?".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'liga' => ['type' => 'string', 'description' => 'ELITE, NEXT, RISE ou ROOKIE. Sem liga dita, a do grupo.'],
+                    'temporadas' => ['type' => 'integer', 'description' => 'Quantas temporadas à frente (1 a 10). Sem número dito, 4.'],
+                ],
+            ],
+        ], [
+            'name' => 'projetar_loteria',
+            'description' =>
+                'A loteria do draft da temporada atual: chance de cada time pegar a 1ª escolha, top 3 e top 5, com '
+              . 'um palpite pro top 1. Com a classificação lançada usa a urna de verdade; sem ela, projeta pela '
+              . 'força dos elencos; já sorteada, devolve a ordem. Use pra "quem pega a 1ª pick", "quem vai ser top 1 '
+              . 'da loteria", "qual a chance do X na loteria".',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'liga' => ['type' => 'string', 'description' => 'ELITE, NEXT, RISE ou ROOKIE. Sem liga dita, a do grupo.'],
+                ],
+            ],
+        ], [
             'name' => 'lembrar',
             'description' =>
                 'Guarda um apelido ou jeito de falar do grupo, pra usar nas próximas conversas. '
@@ -1162,7 +1261,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                     $resultado = duvidaMemoriaApagar($pdo, $league,
                         (string)($c['args']['assunto'] ?? ''));
                     error_log('[duvida/memoria] esquecer: ' . $resultado);
-                } elseif (in_array($nome, ['projetar_temporada', 'projetar_confronto', 'projetar_jogador'], true)) {
+                } elseif (str_starts_with($nome, 'projetar_')) {
                     // A conta roda aqui (backend/duvida_projecoes.php); o modelo só
                     // explica. A conexão pode ter caído esperando o Gemini.
                     require_once __DIR__ . '/duvida_projecoes.php';
@@ -1173,6 +1272,12 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                             'projetar_temporada' => projTemporadaTexto($pdo, (string)($args['time'] ?? ''), $league),
                             'projetar_confronto' => projConfrontoTexto($pdo, (string)($args['time_a'] ?? ''), (string)($args['time_b'] ?? ''), $league),
                             'projetar_jogador'   => projJogadorTexto($pdo, (string)($args['jogador'] ?? ''), $league),
+                            'projetar_futuro_jogador' => projFuturoJogadorTexto($pdo, (string)($args['jogador'] ?? ''), (int)($args['temporadas'] ?? 0), $league),
+                            'projetar_playoffs'  => projPlayoffsTexto($pdo, (string)($args['liga'] ?? ''), $league),
+                            'projetar_campeoes'  => projCampeoesTexto($pdo, (string)($args['liga'] ?? ''), (int)($args['temporadas'] ?? 0), $league),
+                            'projetar_ranking'   => projRankingTexto($pdo, (string)($args['liga'] ?? ''), (int)($args['temporadas'] ?? 0), $league),
+                            'projetar_loteria'   => projLoteriaTexto($pdo, (string)($args['liga'] ?? ''), $league),
+                            default => 'Essa projeção não existe. Use uma das ferramentas projetar_* declaradas.',
                         };
                     } catch (Throwable $e) {
                         error_log('[duvida/proj] ' . $nome . ': ' . $e->getMessage());

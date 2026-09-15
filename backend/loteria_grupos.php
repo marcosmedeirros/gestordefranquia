@@ -157,7 +157,10 @@ function loteriaTexto(PDO $pdo, string $liga): string
                        ORDER BY do.pick_position ASC");
     $st->execute([(int)$sessao['id']]);
     $ordem = $st->fetchAll(PDO::FETCH_ASSOC);
-    if ($ordem) {
+    /* Confirmada é com a 1ª ESCOLHA lá. Na NEXT de 15/09 o admin já tinha
+       lançado as picks 6 a 14 antes de rodar a loteria, e o comando mostrava
+       essa lista começando na 6ª como se fosse a ordem final. */
+    if ($ordem && (int)$ordem[0]['pick_position'] === 1) {
         $l = ["🎲 *LOTERIA — {$liga}*", "_Ordem do draft · Temporada " . (int)$sessao['season_number'] . "_", ''];
         foreach ($ordem as $o) {
             $l[] = str_pad((string)(int)$o['pick_position'], 2, ' ', STR_PAD_LEFT) . '. ' . $o['time_nome'];
