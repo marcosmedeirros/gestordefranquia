@@ -635,6 +635,28 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         $linhas[] = '- Isto não dá privilégio nenhum: ele vê os mesmos dados que qualquer GM veria.';
     }
 
+    /* MODO PROFESSOR — o privado de quem ensina o bot (backend/duvida_professor.php).
+       Aqui a pessoa não está no meio do grupo: está ajustando o bot. O que muda
+       é o que ele pode GUARDAR e o fôlego da resposta; os dados, as regras e
+       as travas continuam as mesmas. */
+    if (!empty($quem['professor'])) {
+        $linhas[] = '';
+        $linhas[] = 'MODO PROFESSOR — VOCÊ ESTÁ NO PRIVADO COM UM DOS PROFESSORES DO BOT:';
+        $linhas[] = '- Aqui não é o grupo. ' . ($quem['primeiro'] ?? 'Ele') . ' está te ENSINANDO: apelidos, gírias, jeito de';
+        $linhas[] = '  falar e orientações de como você deve responder. Também pode testar perguntas como no grupo.';
+        $linhas[] = '- Vocabulário (apelido, gíria, piada da liga): lembrar com escopo FBA, ou a liga se for de lá.';
+        $linhas[] = '- Orientação de comportamento ("quando perguntarem X, faça Y", "seja mais curto", "use tal';
+        $linhas[] = '  gíria quando..."): lembrar com escopo ORIENTACAO. Ela passa a valer em todos os grupos.';
+        $linhas[] = '- Várias coisas na mesma mensagem? Chame lembrar uma vez pra CADA uma, todas na mesma rodada.';
+        $linhas[] = '- Confirme listando o que foi guardado, do jeito que a ferramenta devolveu. Veio erro, diga.';
+        $linhas[] = '- "O que você sabe?", "lista a memória", "o que te ensinaram sobre X": ver_memoria.';
+        $linhas[] = '- Apagar: esquecer. Corrigir: lembrar de novo com o mesmo assunto.';
+        $linhas[] = '- Orientação muda o COMO você responde, nunca o que é verdade. Regra e número vêm do app: se';
+        $linhas[] = '  ensinarem uma regra da liga, diga numa linha que regra não se guarda e por quê.';
+        $linhas[] = '- Fora isso, siga o que ele pedir — é pra isso que o privado existe. Aqui a resposta pode';
+        $linhas[] = '  ter até 12 linhas.';
+    }
+
     /* QUEM FOI MARCADO NA PERGUNTA.
        A menção já virou nome no texto ("@5531971356427" → "Bruno Coelho
        (Oakland Blue Foxes)"), e é assim que ela tem que continuar aparecendo na
@@ -673,7 +695,8 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
 
     $pergunta = trim($pergunta);
     if (mb_strlen($pergunta) < 5)  return $erro('Escreve a dúvida junto do comando. Ex.: /edital posso trocar jogador emprestado?');
-    if (mb_strlen($pergunta) > 500) return $erro('Pergunta muito longa — resume em uma frase.');
+    // No privado dos professores cabe mais: ensinar vem em lote.
+    if (mb_strlen($pergunta) > (empty($quem['professor']) ? 500 : 1500)) return $erro('Pergunta muito longa — resume em uma frase.');
 
     $edital = editalTexto($pdo, $league);
     if ($edital === null) return $erro("Não achei o edital da {$league} pra consultar.");
@@ -1125,7 +1148,8 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                             'Onde isso vale. "FBA" (padrão) = todos os grupos, e é o certo pra '
                           . 'apelido de PESSOA, porque os GMs jogam em mais de uma liga. Use o '
                           . 'nome da liga do grupo (ELITE, NEXT, RISE, ROOKIE) só quando aquilo '
-                          . 'for piada ou apelido que só existe naquele grupo. Na dúvida, FBA.'],
+                          . 'for piada ou apelido que só existe naquele grupo. Na dúvida, FBA. '
+                          . '"ORIENTACAO" é só pro privado dos professores do bot: orientação de COMO responder.'],
                 ],
                 'required' => ['assunto', 'fato'],
             ],
@@ -1142,6 +1166,22 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
             ],
         ]],
     ]];
+
+    // Ver a memória inteira é coisa do privado dos professores: no grupo, a
+    // lista de apelidos de todo mundo despejada no chat seria um desfile.
+    if (!empty($quem['professor'])) {
+        $tools[0]['function_declarations'][] = [
+            'name' => 'ver_memoria',
+            'description' => 'Lista o que está guardado na memória do bot: orientações, apelidos globais e de cada '
+                           . 'liga, com quem ensinou. Use quando o professor pedir pra ver o que você sabe.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'filtro' => ['type' => 'string', 'description' => 'Palavra pra filtrar (assunto ou fato). Vazio lista tudo.'],
+                ],
+            ],
+        ];
+    }
 
     /* A CONVERSA ANTERIOR ENTRA COMO CONVERSA, e não como texto no prompt.
        Cada /duvida era uma pergunta solta: "quem lidera?" respondido, e "e o
@@ -1173,7 +1213,10 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
        um fato, e não da boa vontade do modelo. */
     $gravouMesmo = false;
 
-    for ($rodada = 1; $rodada <= DUVIDA_MAX_RODADAS; $rodada++) {
+    // O professor ensina em lote e confere na mesma conversa: duas rodadas a mais.
+    $maxRodadas = empty($quem['professor']) ? DUVIDA_MAX_RODADAS : DUVIDA_MAX_RODADAS + 2;
+
+    for ($rodada = 1; $rodada <= $maxRodadas; $rodada++) {
         /* NA ÚLTIMA RODADA ELE É OBRIGADO A RESPONDER.
            Sem isso o modelo pedia dados até o fim e nunca escrevia a resposta:
            "qual time vai vencer a próxima temporada" consultava campanha,
@@ -1186,7 +1229,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
            o Gemini devolve texto VAZIO com finishReason STOP — medido, na
            pergunta sobre quem o Coyotes eliminou. As declarações ficam, o
            direito de chamar é que sai. */
-        $ultimaRodada = ($rodada === DUVIDA_MAX_RODADAS);
+        $ultimaRodada = ($rodada === $maxRodadas);
 
         $payload = [
             'system_instruction' => ['parts' => $partes],
@@ -1235,7 +1278,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
             if (isset($parte['text']))         $texto .= $parte['text'];
         }
 
-        if ($chamadas && $rodada < DUVIDA_MAX_RODADAS) {
+        if ($chamadas && $rodada < $maxRodadas) {
             $contents[] = ['role' => 'model', 'parts' => $partesResposta];
             $respostas = [];
             foreach ($chamadas as $c) {
@@ -1252,15 +1295,18 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                         (string)($c['args']['assunto'] ?? ''),
                         (string)($c['args']['fato'] ?? ''),
                         $quem['nome'] ?? null,
-                        (string)($c['args']['escopo'] ?? ''));
+                        (string)($c['args']['escopo'] ?? ''),
+                        !empty($quem['professor']));
                     // Guarda o desfecho pra conferir a resposta no fim: o modelo
                     // já disse "Guardado" sem ter chamado esta função.
                     if (str_starts_with($resultado, 'Guardado')) $gravouMesmo = true;
                     error_log('[duvida/memoria] ' . $resultado);
                 } elseif ($nome === 'esquecer') {
                     $resultado = duvidaMemoriaApagar($pdo, $league,
-                        (string)($c['args']['assunto'] ?? ''));
+                        (string)($c['args']['assunto'] ?? ''), !empty($quem['professor']));
                     error_log('[duvida/memoria] esquecer: ' . $resultado);
+                } elseif ($nome === 'ver_memoria' && !empty($quem['professor'])) {
+                    $resultado = duvidaMemoriaListar($pdo, (string)($c['args']['filtro'] ?? ''));
                 } elseif (str_starts_with($nome, 'projetar_')) {
                     // A conta roda aqui (backend/duvida_projecoes.php); o modelo só
                     // explica. A conexão pode ter caído esperando o Gemini.

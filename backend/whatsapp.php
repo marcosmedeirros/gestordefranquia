@@ -192,7 +192,9 @@ function whatsappFiltroForaDaJanela(): string
     // 'leilao' entra aqui porque leilão dura 20 minutos e é aberto com o
     // dono ativo: guardar a proposta pro dia seguinte não serviria a
     // ninguém — quando saísse, o leilão já teria acabado.
-    return " AND tipo IN ('comando', 'manual', 'leilao')";
+    // 'professor' é o privado de quem ensina o bot: alguém mandou a mensagem
+    // agora e está esperando a resposta, igual ao comando.
+    return " AND tipo IN ('comando', 'manual', 'leilao', 'professor')";
 }
 
 /** Quanto tempo uma linha reservada fica fora do alcance dos outros. */

@@ -505,7 +505,28 @@ foreach ($mensagens as $m) {
        Qualquer outra coisa no privado segue ignorada — o bot não vira consulta
        ao banco da liga fora dos grupos cadastrados. */
     if (!str_ends_with($de, '@g.us')) {
-        if (!preg_match('~^/(leil[aã]o|oferta)(\s|$)~iu', $texto)) continue;
+        if (!preg_match('~^/(leil[aã]o|oferta)(\s|$)~iu', $texto)) {
+            /* MODO PROFESSOR: os dois contatos que ensinam o bot falam com ele no
+               privado sem comando nenhum (backend/duvida_professor.php). Pra
+               qualquer outro número o privado segue só com /leilao. */
+            require_once __DIR__ . '/../backend/duvida_professor.php';
+            $jidPv = lwJidDaConversaPrivada($m, $de);
+            $prof = duvidaProfessorDoNumero($pdo, $jidPv);
+            if (!$prof) continue;
+
+            $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
+                                      WHERE tipo = ? AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
+            $stFreio->execute([DUVIDA_PROFESSOR_TIPO, $de]);
+            if ((int)$stFreio->fetchColumn() >= DUVIDA_PROFESSOR_FREIO) continue;
+            if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
+
+            $resposta = duvidaProfessorResponder($pdo, $texto, $prof, $jidPv);
+            if ($resposta !== '') {
+                whatsappEnfileirar($pdo, $de, $resposta, false, DUVIDA_PROFESSOR_TIPO, null, null, $jidPv, 'professor');
+                $respondidas++;
+            }
+            continue;
+        }
 
         $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
                                   WHERE tipo = 'leilao' AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
