@@ -20,11 +20,32 @@ require_once __DIR__ . '/duvida_conversas.php';
 /** users.id dos professores: Marcos Medeiros (1) e Kleberson Barreto Costa (35). */
 const DUVIDA_PROFESSORES = [1, 35];
 
-/** Mensagens por minuto que um professor manda antes do freio. */
-const DUVIDA_PROFESSOR_FREIO = 6;
+/** Mensagens por minuto no privado do professor antes do freio (conversa e comandos somados, como no grupo). */
+const DUVIDA_PROFESSOR_FREIO = 12;
 
 /** O tipo das respostas na fila — separa o privado dos professores do uso nos grupos. */
 const DUVIDA_PROFESSOR_TIPO = 'professor';
+
+/**
+ * Quem pode usar TODOS os comandos (/time, /cap, /ranking...) no privado:
+ * só o Marcos Medeiros (1), pedido dele em 15/09/2026. O Kleberson segue com
+ * o modo professor, sem os comandos.
+ */
+const DUVIDA_COMANDOS_NO_PRIVADO = [1];
+
+/**
+ * Esta mensagem é um comando que o professor pode rodar no privado?
+ *
+ * /duvida fica de fora de propósito: no privado ele já é o modo professor,
+ * que faz tudo o que o /duvida faz e ainda guarda orientação.
+ */
+function duvidaComandoNoPrivado(array $prof, string $texto): bool
+{
+    $texto = trim($texto);
+    if ($texto === '' || $texto[0] !== '/') return false;
+    if (!in_array((int)($prof['user_id'] ?? 0), DUVIDA_COMANDOS_NO_PRIVADO, true)) return false;
+    return !preg_match('~^/duvida\b~iu', $texto);
+}
 
 /**
  * O professor dono deste número, ou null.

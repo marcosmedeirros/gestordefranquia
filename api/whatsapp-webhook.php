@@ -515,10 +515,27 @@ foreach ($mensagens as $m) {
             if (!$prof) continue;
 
             $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
-                                      WHERE tipo = ? AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
+                                      WHERE tipo IN (?, 'comando') AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
             $stFreio->execute([DUVIDA_PROFESSOR_TIPO, $de]);
             if ((int)$stFreio->fetchColumn() >= DUVIDA_PROFESSOR_FREIO) continue;
             if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
+
+            /* TODOS OS COMANDOS NO PRIVADO — só pra quem está em
+               DUVIDA_COMANDOS_NO_PRIVADO. É o mesmo atendimento do grupo, com a
+               liga do cadastro dele no lugar da liga do grupo. O jid do grupo
+               vai vazio: sem grupo não há quiz pra votar nem grupo pra
+               cadastrar, e o /quizaqui já recusa fora de grupo. */
+            if (duvidaComandoNoPrivado($prof, $texto)) {
+                $resposta = wcResponderComando($pdo, $texto, $prof['liga'], $jidPv, '', 'comando');
+                // No grupo o comando desconhecido fica em silêncio pra não
+                // atrapalhar a conversa; aqui a conversa é só com ele.
+                if ($resposta === null) $resposta = 'Não conheço esse comando. Manda /ajuda pra ver a lista.';
+                if ($resposta !== '') {
+                    whatsappEnfileirar($pdo, $de, $resposta, false, 'comando', null, null, $jidPv, wcNomeDoComando($texto));
+                    $respondidas++;
+                }
+                continue;
+            }
 
             $resposta = duvidaProfessorResponder($pdo, $texto, $prof, $jidPv);
             if ($resposta !== '') {
