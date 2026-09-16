@@ -537,6 +537,8 @@ function status() {
   if (d.admin) {
     if (r.status === 'aberta') adm = `<button class="btn peq" data-admin="fechar"><i class="bi bi-lock"></i> Fechar mercado</button>`;
     if (r.status === 'fechada') adm = `<button class="btn peq" data-admin="reabrir">Reabrir</button><button class="btn peq pri" data-admin="encerrar"><i class="bi bi-flag"></i> Encerrar rodada</button>`;
+    // Time que lança estatística depois do encerramento: o recálculo traz os pontos dele.
+    if (r.status === 'encerrada') adm = `<button class="btn peq" data-admin="recalcular"><i class="bi bi-arrow-repeat"></i> Recalcular pontos</button>`;
   }
   $('status').innerHTML = `<span class="selo ${r.status}"><i class="bi bi-circle-fill"></i> ${nome}</span><span class="txt">${txt}</span>${adm ? `<span class="admin">${adm}</span>` : ''}`;
 }
@@ -948,11 +950,16 @@ document.addEventListener('click', async e => {
   } else if (t.dataset.admin) {
     const acao = t.dataset.admin;
     const pergunta = {fechar: 'Fechar o mercado? Ninguém mais consegue escalar nesta rodada.', reabrir: 'Reabrir o mercado?',
-      encerrar: `Encerrar a rodada? ${S.dados.rodada.times_com_stats} de 32 times lançaram estatística. Os pontos, os preços e os FBA Points ficam definitivos.`}[acao];
+      encerrar: `Encerrar a rodada? ${S.dados.rodada.times_com_stats} de 32 times lançaram estatística. Os pontos, os preços e os FBA Points ficam definitivos.`,
+      recalcular: `Recalcular a rodada T${S.dados.rodada.temporada} com as estatísticas de agora? ${S.dados.rodada.times_com_stats} de 32 times lançaram. Pontos, patrimônio e colocação são refeitos, e os FBA Points acertados pela diferença do prêmio.`}[acao];
     if (!await perguntar(pergunta, 'Fantasy', 'Confirmar')) return;
     t.disabled = true;
     const d = await postar({acao});
     if (!d.ok) avisar(d.erro || 'Não deu.');
+    else if (acao === 'recalcular') {
+      avisar(`Rodada T${d.temporada} recalculada: ${d.jogadores} jogador(es) com pontuação nova, ${d.times} time(s) com pontos diferentes, ${d.colocacoes} mudança(s) de colocação e ${d.premios} prêmio(s) acertado(s).`
+        + (d.confrontos_divergentes ? ` Atenção: ${d.confrontos_divergentes} confronto(s) de mata-mata teriam outro vencedor — o resultado não foi trocado.` : ''), 'Fantasy');
+    }
     carregar();
   }
 });

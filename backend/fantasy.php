@@ -750,44 +750,19 @@ function fanEncerrarRodada(PDO $pdo): array
         $st->execute([$rid]);
         if (!$st->fetchColumn()) { $pdo->rollBack(); return ['ok' => false, 'erro' => 'A rodada já foi encerrada.']; }
 
-        $precos = [];
-        $up = $pdo->prepare("UPDATE fantasy_precos SET pontos = ?, preco_depois = ? WHERE rodada_id = ? AND player_id = ?");
-        foreach ($pdo->query("SELECT player_id, preco FROM fantasy_precos WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            $id = (int)$p['player_id'];
-            $d = $pontos['id'][$id] ?? null;
-            // Sem estatística: não pontua e o preço fica onde está.
-            $novo = $d ? fanPrecoPorPontos($d['total']) : (float)$p['preco'];
-            $up->execute([$d ? $d['total'] : null, $novo, $rid, $id]);
-            $precos[$id] = [(float)$p['preco'], $novo];
-        }
-
-        $times = $pdo->query("SELECT * FROM fantasy_escalacoes WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($times as &$e) {
-            $e['_pontos'] = fanPontosDoTime($e, $pontos);
-            $delta = 0.0;
-            // O 6º homem também valoriza ou desvaloriza o patrimônio.
-            foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
-                [$antes, $depois] = $precos[(int)($e[$k] ?? 0)] ?? [0, 0];
-                $delta += $depois - $antes;
-            }
-            $e['_patrimonio'] = round(max(FAN_ORCAMENTO / 2, (float)$e['patrimonio_inicio'] + $delta), 1);
-        }
-        unset($e);
-        usort($times, fn($a, $b) => $b['_pontos'] <=> $a['_pontos']);
+        $apurado = fanApurarRodada($pdo, $rid, $pontos);
+        $times = $apurado['times'];
+        fanGravarPrecosApurados($pdo, $rid, $apurado['precos']);
 
         $upE = $pdo->prepare("UPDATE fantasy_escalacoes SET pontos = ?, patrimonio_fim = ?, colocacao = ?, moedas = ? WHERE id = ?");
         $upC = $pdo->prepare("UPDATE fantasy_cartolas SET patrimonio = ? WHERE user_id = ?");
         $garante = $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, pontos) VALUES (?, 0)");
         // A coluna fantasy_escalacoes.moedas guarda o prêmio, que agora é pago em FBA Points.
         $paga = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points + ? WHERE id = ?");
-        $pos = 0; $ultimoPonto = null; $lugar = 0;
         foreach ($times as $e) {
-            $pos++;
-            if ($e['_pontos'] !== $ultimoPonto) { $lugar = $pos; $ultimoPonto = $e['_pontos']; }   // empate divide o lugar
-            $moedas = FAN_PREMIOS[$lugar] ?? 0;
-            $upE->execute([$e['_pontos'], $e['_patrimonio'], $lugar, $moedas, (int)$e['id']]);
-            $upC->execute([$e['_patrimonio'], (int)$e['user_id']]);
-            if ($moedas > 0) { $garante->execute([(int)$e['user_id']]); $paga->execute([$moedas, (int)$e['user_id']]); }
+            $upE->execute([$e['pontos'], $e['patrimonio'], $e['colocacao'], $e['moedas'], $e['id']]);
+            $upC->execute([$e['patrimonio'], $e['user_id']]);
+            if ($e['moedas'] > 0) { $garante->execute([$e['user_id']]); $paga->execute([$e['moedas'], $e['user_id']]); }
         }
 
         $pdo->prepare("UPDATE fantasy_rodadas SET status = 'encerrada', encerrada_em = NOW() WHERE id = ?")->execute([$rid]);
@@ -801,6 +776,177 @@ function fanEncerrarRodada(PDO $pdo): array
     fanLigasAposRodada($pdo, $rid);
     fanAnunciarRodadaNoGrupo($pdo, $rid);
     return ['ok' => true, 'times' => count($times)];
+}
+
+/**
+ * A CONTA DE UMA RODADA, sem gravar nada: o que cada jogador pontuou e passa a
+ * valer, e o que cada time fez, com patrimônio, colocação e prêmio.
+ *
+ * Mora aqui sozinha porque tem dois leitores — encerrar a rodada e
+ * recalculá-la depois — e as duas precisam dar exatamente o mesmo número. Com
+ * a conta escrita duas vezes, o recálculo acabaria "corrigindo" o que o
+ * encerramento fez certo.
+ *
+ * @return array{precos: array<int, array{preco: float, depois: float, pontos: ?float}>,
+ *               times: list<array{id: int, user_id: int, pontos: float, patrimonio: float,
+ *                                 colocacao: int, moedas: int, antes: array}>}
+ */
+function fanApurarRodada(PDO $pdo, int $rid, array $pontos): array
+{
+    $precos = [];
+    foreach ($pdo->query("SELECT player_id, preco FROM fantasy_precos WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $id = (int)$p['player_id'];
+        $d = $pontos['id'][$id] ?? null;
+        // Sem estatística: não pontua e o preço fica onde está.
+        $precos[$id] = [
+            'preco'  => (float)$p['preco'],
+            'depois' => $d ? fanPrecoPorPontos($d['total']) : (float)$p['preco'],
+            'pontos' => $d ? $d['total'] : null,
+        ];
+    }
+
+    $times = [];
+    foreach ($pdo->query("SELECT * FROM fantasy_escalacoes WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $e) {
+        $delta = 0.0;
+        // O 6º homem também valoriza ou desvaloriza o patrimônio.
+        foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
+            $p = $precos[(int)($e[$k] ?? 0)] ?? null;
+            if ($p) $delta += $p['depois'] - $p['preco'];
+        }
+        $times[] = [
+            'id' => (int)$e['id'], 'user_id' => (int)$e['user_id'],
+            'pontos' => fanPontosDoTime($e, $pontos),
+            'patrimonio' => round(max(FAN_ORCAMENTO / 2, (float)$e['patrimonio_inicio'] + $delta), 1),
+            'antes' => ['pontos' => $e['pontos'] !== null ? (float)$e['pontos'] : null,
+                        'colocacao' => $e['colocacao'] !== null ? (int)$e['colocacao'] : null,
+                        'moedas' => (int)$e['moedas'], 'patrimonio' => $e['patrimonio_fim'] !== null ? (float)$e['patrimonio_fim'] : null],
+        ];
+    }
+    usort($times, fn($a, $b) => $b['pontos'] <=> $a['pontos']);
+
+    $pos = 0; $ultimoPonto = null; $lugar = 0;
+    foreach ($times as &$t) {
+        $pos++;
+        if ($t['pontos'] !== $ultimoPonto) { $lugar = $pos; $ultimoPonto = $t['pontos']; }   // empate divide o lugar
+        $t['colocacao'] = $lugar;
+        $t['moedas'] = FAN_PREMIOS[$lugar] ?? 0;
+    }
+    unset($t);
+    return ['precos' => $precos, 'times' => $times];
+}
+
+function fanGravarPrecosApurados(PDO $pdo, int $rid, array $precos): void
+{
+    $up = $pdo->prepare("UPDATE fantasy_precos SET pontos = ?, preco_depois = ? WHERE rodada_id = ? AND player_id = ?");
+    foreach ($precos as $id => $p) $up->execute([$p['pontos'], $p['depois'], $rid, $id]);
+}
+
+/**
+ * RECALCULA A ÚLTIMA RODADA ENCERRADA com as estatísticas de agora.
+ *
+ * Por que existe (17/09/2026): a rodada T4 foi encerrada com o Spiders ainda
+ * sem estatística lançada — o Oscar Robertson, escalado em 11 times, entrou
+ * com zero. O time lança depois, e sem isto os pontos dele nunca chegavam.
+ *
+ * Refaz a mesma conta do encerramento (fanApurarRodada) e grava por cima:
+ * pontos, preço de saída, patrimônio, colocação e prêmio. O prêmio é acertado
+ * pela DIFERENÇA — quem subiu de lugar recebe o que falta, quem caiu devolve o
+ * excedente —, pra nunca pagar a rodada duas vezes.
+ *
+ * Só a última rodada, e só enquanto a seguinte não tem escalação: o patrimônio
+ * que sai daqui é o que o cartola leva pra próxima, e mexer nele depois de
+ * alguém ter montado o time com o valor antigo desmontaria o orçamento dele.
+ * Confronto de mata-mata já decidido não troca de vencedor: os pontos dele são
+ * atualizados e a divergência volta no resultado, pra decisão ser do admin.
+ */
+function fanRecalcularRodada(PDO $pdo): array
+{
+    require_once __DIR__ . '/helpers.php';
+    ensureGamesSchema($pdo);   // DDL fora da transação
+    fanGarantirTabelas($pdo);
+
+    $r = $pdo->query("SELECT * FROM fantasy_rodadas WHERE status = 'encerrada' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    if (!$r) return ['ok' => false, 'erro' => 'Não há rodada encerrada pra recalcular.'];
+    $rid = (int)$r['id'];
+
+    $st = $pdo->prepare("SELECT COUNT(*) FROM fantasy_escalacoes e JOIN fantasy_rodadas r ON r.id = e.rodada_id WHERE r.id > ?");
+    $st->execute([$rid]);
+    if ((int)$st->fetchColumn() > 0) {
+        return ['ok' => false, 'erro' => "A rodada seguinte já tem escalação montada com o patrimônio da T{$r['season_number']} — recalcular agora mexeria no orçamento de quem já escalou."];
+    }
+
+    $pontos = fanPontosDaTemporada($pdo, (int)$r['season_id']);
+    if (!$pontos['id']) return ['ok' => false, 'erro' => 'Nenhum time lançou estatística desta temporada.'];
+
+    $res = ['ok' => true, 'temporada' => (int)$r['season_number'], 'jogadores' => 0, 'times' => 0,
+            'colocacoes' => 0, 'premios' => 0, 'confrontos_divergentes' => 0];
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("SELECT id FROM fantasy_rodadas WHERE id = ? AND status = 'encerrada' FOR UPDATE");
+        $st->execute([$rid]);
+        if (!$st->fetchColumn()) { $pdo->rollBack(); return ['ok' => false, 'erro' => 'A rodada mudou de estado. Recarregue.']; }
+
+        $antesPrecos = [];
+        foreach ($pdo->query("SELECT player_id, pontos, preco_depois FROM fantasy_precos WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $antesPrecos[(int)$p['player_id']] = [$p['pontos'] !== null ? (float)$p['pontos'] : null, $p['preco_depois'] !== null ? (float)$p['preco_depois'] : null];
+        }
+        $apurado = fanApurarRodada($pdo, $rid, $pontos);
+        foreach ($apurado['precos'] as $id => $p) {
+            [$ptsAntes] = $antesPrecos[$id] ?? [null, null];
+            if ($ptsAntes === null ? $p['pontos'] !== null : ($p['pontos'] === null || abs($p['pontos'] - $ptsAntes) > 0.001)) $res['jogadores']++;
+        }
+        fanGravarPrecosApurados($pdo, $rid, $apurado['precos']);
+
+        /* Preço de rodada seguinte ainda sem escalação: o preço de ENTRADA dela
+           veio do preço de saída desta. Onde ele ainda é o antigo, acompanha. */
+        $seguintes = $pdo->prepare("SELECT id FROM fantasy_rodadas WHERE id > ?");
+        $seguintes->execute([$rid]);
+        $upSeg = $pdo->prepare("UPDATE fantasy_precos SET preco = ? WHERE rodada_id = ? AND player_id = ? AND ABS(preco - ?) < 0.001");
+        foreach ($seguintes->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            foreach ($apurado['precos'] as $id => $p) {
+                $antigo = $antesPrecos[$id][1] ?? null;
+                if ($antigo !== null && abs($antigo - $p['depois']) > 0.001) $upSeg->execute([$p['depois'], (int)$sid, $id, $antigo]);
+            }
+        }
+
+        $upE = $pdo->prepare("UPDATE fantasy_escalacoes SET pontos = ?, patrimonio_fim = ?, colocacao = ?, moedas = ? WHERE id = ?");
+        $upC = $pdo->prepare("UPDATE fantasy_cartolas SET patrimonio = ? WHERE user_id = ?");
+        $garante = $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, pontos) VALUES (?, 0)");
+        // Devolver prêmio não deixa ninguém negativo: quem já gastou fica em zero.
+        $acerta = $pdo->prepare("UPDATE games_usuarios SET fba_points = GREATEST(0, fba_points + ?) WHERE id = ?");
+        foreach ($apurado['times'] as $t) {
+            $a = $t['antes'];
+            if ($a['pontos'] === null || abs($a['pontos'] - $t['pontos']) > 0.001) $res['times']++;
+            if ($a['colocacao'] !== $t['colocacao']) $res['colocacoes']++;
+            $upE->execute([$t['pontos'], $t['patrimonio'], $t['colocacao'], $t['moedas'], $t['id']]);
+            $upC->execute([$t['patrimonio'], $t['user_id']]);
+            $diferenca = $t['moedas'] - $a['moedas'];
+            if ($diferenca !== 0) {
+                $garante->execute([$t['user_id']]);
+                $acerta->execute([$diferenca, $t['user_id']]);
+                $res['premios']++;
+            }
+        }
+
+        $pts = [];
+        foreach ($apurado['times'] as $t) $pts[$t['user_id']] = $t['pontos'];
+        $conf = $pdo->prepare("SELECT * FROM fantasy_confrontos WHERE rodada_id = ? AND user_b IS NOT NULL");
+        $conf->execute([$rid]);
+        $upConf = $pdo->prepare("UPDATE fantasy_confrontos SET pontos_a = ?, pontos_b = ? WHERE id = ?");
+        foreach ($conf->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $pa = $pts[(int)$c['user_a']] ?? 0.0; $pb = $pts[(int)$c['user_b']] ?? 0.0;
+            $upConf->execute([$pa, $pb, (int)$c['id']]);
+            if ($c['vencedor'] !== null && $pa !== $pb && (int)$c['vencedor'] !== ($pa > $pb ? (int)$c['user_a'] : (int)$c['user_b'])) {
+                $res['confrontos_divergentes']++;
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $ex) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[fantasy] recalcular: ' . $ex->getMessage());
+        return ['ok' => false, 'erro' => 'Erro ao recalcular a rodada.'];
+    }
+    return $res;
 }
 
 /**

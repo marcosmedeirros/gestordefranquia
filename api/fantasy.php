@@ -42,7 +42,7 @@ try {
     $corpo = json_decode(file_get_contents('php://input'), true) ?: [];
     $acao = (string)($corpo['acao'] ?? '');
 
-    if (in_array($acao, ['fechar', 'reabrir', 'encerrar'], true) && !$ehAdmin) {
+    if (in_array($acao, ['fechar', 'reabrir', 'encerrar', 'recalcular'], true) && !$ehAdmin) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'erro' => 'Só admin.']);
         exit;
@@ -54,6 +54,7 @@ try {
         'fechar'   => fanFecharMercado($pdo),
         'reabrir'  => fanReabrirMercado($pdo),
         'encerrar' => fanEncerrarRodada($pdo),
+        'recalcular' => fanRecalcularRodada($pdo),
         'criar_liga'   => fanCriarLiga($pdo, $user, (string)($corpo['nome'] ?? ''), (string)($corpo['tipo'] ?? ''), (int)($corpo['entrada'] ?? 0), (int)($corpo['tamanho'] ?? 0)),
         'entrar_liga'  => fanEntrarLiga($pdo, $user, (string)($corpo['codigo'] ?? '')),
         'iniciar_liga' => fanIniciarMataMata($pdo, $user, (int)($corpo['liga_id'] ?? 0)),
