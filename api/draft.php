@@ -307,6 +307,7 @@ function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId, bool $soVagasVazias 
 // preenche depois pelo "Preencher pick passada", igual já é feito hoje. No final, o draft é
 // marcado concluído (rodada 2 é sempre a última).
 function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = false): void {
+    // Conferência barata, sem trava: quase toda chamada sai aqui.
     $stmt = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
     $stmt->execute([$draftSessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -314,6 +315,26 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
     if (!$force) {
         if (empty($session['round2_mock_deadline'])) return;
         if (strtotime($session['round2_mock_deadline']) > time()) return;
+    }
+
+    /* UMA RESOLUÇÃO POR VEZ (NEXT, 16/09/2026).
+       Esta função roda em qualquer tela aberta quando o prazo vence. Três
+       aberturas no mesmo segundo leram as mesmas vagas "em aberto" antes de a
+       primeira gravar, e cada uma resolveu a rodada de novo: onde a primeira
+       já tinha levado a 1ª preferência, a segunda descia pra 2ª, a terceira
+       pra 3ª — e cada passada criava mais um jogador no elenco. O Berserkers
+       saiu da pick #5 com três novatos.
+
+       Agora a sessão é trancada (FOR UPDATE) antes de ler vaga nenhuma. Quem
+       chega depois espera a primeira terminar, relê a sessão já concluída e
+       vai embora. */
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? FOR UPDATE');
+    $stmt->execute([$draftSessionId]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$session || $session['status'] !== 'in_progress' || (int)$session['current_round'] !== 2) {
+        $pdo->rollBack();
+        return;
     }
 
     $stmtSeasonNum = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
@@ -346,7 +367,6 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
        faria a lista voltar pra quem tivesse apagado uma preferência herdada
        de propósito. */
 
-    $pdo->beginTransaction();
     try {
         $claimed = [];
         foreach ($picks as $pick) {
@@ -372,8 +392,13 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
             $targetTeamId = (int)$pick['team_id'];
             $pickNumber = (($pick['round'] - 1) * $roundSize) + $pick['pick_position'];
 
-            $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')
-                ->execute([$playerId, (int)$pick['id']]);
+            // Segunda trava, a da vaga: só grava em vaga ainda vazia. Uma pick
+            // feita à mão no mesmo instante não é sobrescrita, nem ganha um
+            // segundo jogador no elenco.
+            $stmtVaga = $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW()
+                                        WHERE id = ? AND picked_player_id IS NULL');
+            $stmtVaga->execute([$playerId, (int)$pick['id']]);
+            if ($stmtVaga->rowCount() === 0) continue;
             $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                 ->execute([$targetTeamId, $pickNumber, $playerId]);
             draftCancelarWaiverDaSobra($pdo, (int)$playerId);
