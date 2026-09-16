@@ -589,6 +589,7 @@ function wcAjuda(): string
         . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
+        . "/temporada _nº_ _liga_ — resumo da temporada: campeão, prêmios, seeds e pick 1\n"
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
@@ -3528,6 +3529,126 @@ function wcFantasy(PDO $pdo, string $arg, string $deQuem): string
 }
 
 /**
+ * /temporada [número] [liga] — o resumo de uma temporada da sprint atual:
+ * campeão, vice, MVP das Finais, seed 1 de cada conferência, os prêmios e a
+ * pick 1 do draft daquela temporada.
+ *
+ * A ordem dos argumentos é livre ("/temporada 1 elite" ou "/temporada elite
+ * 1"). Sem liga, a do grupo, e sem grupo de liga, a ELITE. Sem número, a
+ * última temporada que já tem campeão.
+ *
+ * A temporada é a da SPRINT ATIVA — "temporada 1" é a T1 de agora, não a de
+ * um ciclo antigo. Só sem sprint ativa cai na mais recente com esse número.
+ */
+function wcTemporadaResumo(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
+{
+    $numero = null; $liga = null;
+    foreach (preg_split('/\s+/', trim($arg)) as $p) {
+        if ($p === '') continue;
+        if (preg_match('/^t?(\d{1,2})$/i', $p, $m)) { $numero = (int)$m[1]; continue; }
+        $l = wcNormalizarLiga($p);
+        if (!$l) return "Não entendi \"{$p}\". Use assim: /temporada 1 ou /temporada 1 elite";
+        $liga = $l;
+    }
+    $liga ??= $ligaDoGrupo ? (wcNormalizarLiga($ligaDoGrupo) ?? 'ELITE') : 'ELITE';
+
+    $comSprint = "SELECT s.id, s.season_number, s.year, s.status FROM seasons s JOIN sprints sp ON sp.id = s.sprint_id
+                   WHERE s.league = ? AND sp.status = 'active'";
+    if ($numero === null) {
+        // Sem número: a última com campeão registrado.
+        $st = $pdo->prepare($comSprint . " AND EXISTS (SELECT 1 FROM playoff_results pr WHERE pr.season_id = s.id AND pr.position = 'champion')
+                                           ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
+        $st->execute([$liga]);
+    } else {
+        $st = $pdo->prepare($comSprint . " AND s.season_number = ? ORDER BY s.id DESC LIMIT 1");
+        $st->execute([$liga, $numero]);
+    }
+    $s = $st->fetch(PDO::FETCH_ASSOC);
+    // Com sprint ativa, número que ela não tem é número que não existe: a T9 de
+    // um ciclo antigo não é resposta pra "temporada 9" hoje.
+    $stSprint = $pdo->prepare("SELECT COUNT(*) FROM sprints WHERE league = ? AND status = 'active'");
+    $stSprint->execute([$liga]);
+    if (!$s && $numero !== null && (int)$stSprint->fetchColumn() > 0) {
+        return "A {$liga} ainda não chegou na temporada {$numero} nesta sprint.";
+    }
+    if (!$s && $numero !== null) {
+        $st = $pdo->prepare("SELECT id, season_number, year, status FROM seasons WHERE league = ? AND season_number = ? ORDER BY id DESC LIMIT 1");
+        $st->execute([$liga, $numero]);
+        $s = $st->fetch(PDO::FETCH_ASSOC);
+    }
+    if (!$s) {
+        return $numero === null ? "A {$liga} ainda não tem temporada com campeão nesta sprint."
+                                : "A {$liga} não tem a temporada {$numero}.";
+    }
+    $sid = (int)$s['id'];
+
+    $nome = function (?int $teamId) use ($pdo): string {
+        static $cache = [];
+        if (!$teamId) return '—';
+        if (!isset($cache[$teamId])) {
+            $st = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
+            $st->execute([$teamId]);
+            $cache[$teamId] = (string)($st->fetchColumn() ?: '?');
+        }
+        return $cache[$teamId];
+    };
+
+    $st = $pdo->prepare("SELECT position, team_id FROM playoff_results WHERE season_id = ? AND position IN ('champion', 'runner_up')");
+    $st->execute([$sid]);
+    $po = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $po[$r['position']] = (int)$r['team_id'];
+
+    $st = $pdo->prepare("SELECT award_type, team_id, player_name FROM season_awards WHERE season_id = ?");
+    $st->execute([$sid]);
+    $premio = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) $premio[$a['award_type']] ??= $a;
+    $txtPremio = fn(string $tipo) => isset($premio[$tipo])
+        ? $premio[$tipo]['player_name'] . ' (' . $nome((int)$premio[$tipo]['team_id']) . ')' : '—';
+
+    $st = $pdo->prepare("SELECT UPPER(COALESCE(ss.conference, t.conference)) conf, ss.team_id
+                           FROM season_standings ss JOIN teams t ON t.id = ss.team_id
+                          WHERE ss.season_id = ? AND ss.position = 1");
+    $st->execute([$sid]);
+    $seed = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $seed[$r['conf']] = (int)$r['team_id'];
+
+    // A pick 1 do draft DESTA temporada (o que acontece no fim dela).
+    $st = $pdo->prepare("SELECT o.team_id, o.original_team_id, dp.name jogador
+                           FROM draft_sessions ds
+                           JOIN draft_order o ON o.draft_session_id = ds.id AND o.round = 1 AND o.pick_position = 1
+                      LEFT JOIN draft_pool dp ON dp.id = o.picked_player_id
+                          WHERE ds.season_id = ? ORDER BY ds.id DESC LIMIT 1");
+    $st->execute([$sid]);
+    $pick = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$pick) {
+        $txtPick = 'ainda não definida';
+    } else {
+        $via = ((int)$pick['original_team_id'] && (int)$pick['original_team_id'] !== (int)$pick['team_id'])
+            ? ' via ' . $nome((int)$pick['original_team_id']) : '';
+        $txtPick = ($pick['jogador'] ? $pick['jogador'] . ' — ' : 'ainda não escolhida — ') . $nome((int)$pick['team_id']) . $via;
+    }
+
+    $l = ["📅 *Temporada {$s['season_number']} — {$liga}*" . ($s['year'] ? " ({$s['year']})" : ''), ''];
+    if (!$po && !$seed && !$premio) $l[] = '_Temporada ainda sem resultado lançado._';
+    $l[] = '🏆 *Campeão:* ' . $nome($po['champion'] ?? null);
+    $l[] = '🥈 *Vice:* ' . $nome($po['runner_up'] ?? null);
+    // O MVP das Finais só é registrado na ELITE: nas outras a linha seria sempre "—".
+    if ($liga === 'ELITE' || isset($premio['finals_mvp'])) $l[] = '⭐ *MVP das Finais:* ' . $txtPremio('finals_mvp');
+    $l[] = '';
+    $l[] = '🔴 *Seed 1 Oeste:* ' . $nome($seed['OESTE'] ?? null);
+    $l[] = '🔵 *Seed 1 Leste:* ' . $nome($seed['LESTE'] ?? null);
+    $l[] = '';
+    $l[] = '🏅 *MVP:* ' . $txtPremio('mvp');
+    $l[] = '🌱 *ROY:* ' . $txtPremio('roy');
+    $l[] = '🛡️ *DPOY:* ' . $txtPremio('dpoy');
+    $l[] = '📈 *MIP:* ' . $txtPremio('mip');
+    $l[] = '🪑 *6º Homem:* ' . $txtPremio('6th_man');
+    $l[] = '';
+    $l[] = '🎯 *Pick 1:* ' . $txtPick;
+    return implode("\n", $l);
+}
+
+/**
  * /fantasyescalados — os 10 jogadores mais escalados na rodada de agora.
  *
  * Conta em quantos times o jogador está (titular ou 6º homem). Com o mercado aberto a lista é parcial e diz isso; ela não abre a
@@ -3972,6 +4093,10 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
 
             case 'fantasyrodada':
                 return wcFantasyRodada($pdo);
+
+            case 'temporada':
+            case 'season':
+                return wcTemporadaResumo($pdo, $arg, $ligaDoGrupo);
 
             case 'fantasyliga':
             case 'fantasytabela':
