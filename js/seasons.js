@@ -1183,8 +1183,8 @@ async function showRegistroPontuacao(league) {
                 if ((conf === 'leste' || conf === 'oeste') && t.position) {
                     form[`${conf}_rank_${t.position}`] = String(t.team_id);
                 }
-                // Ordem geral: só quem ficou fora das 8 vagas da conferência.
-                if (t.overall_position && t.position > 8) {
+                // Ordem geral: a liga inteira, do 1º ao último.
+                if (t.overall_position) {
                     form[`geral_rank_${t.overall_position}`] = String(t.team_id);
                     if (t.lottery_group === 4) form[`geral_7x8_${t.overall_position}`] = true;
                 }
@@ -1487,11 +1487,16 @@ async function showRegistroPontuacao(league) {
                O que o admin já tinha ajustado é lido do próprio rascunho
                (geral_rank_*) e tem prioridade sobre o palpite automático —
                reabrir a tela não pode desfazer uma ordem corrigida na mão. */
-            window._ordemGeralSalva = Object.keys(cached.form)
+            /* Indexada pela POSIÇÃO (índice 0 = 1º), e não compactada: um
+               rascunho antigo, do tempo em que a lista começava no 17º, tem
+               que voltar pro 17º — compactar jogaria esses times pro topo. */
+            window._ordemGeralSalva = [];
+            Object.keys(cached.form)
                 .filter(n => n.startsWith('geral_rank_'))
-                .sort((a, b) => parseInt(a.split('geral_rank_')[1], 10) - parseInt(b.split('geral_rank_')[1], 10))
-                .map(n => cached.form[n])
-                .filter(Boolean);
+                .forEach(n => {
+                    const pos = parseInt(n.split('geral_rank_')[1], 10);
+                    if (pos > 0 && cached.form[n]) window._ordemGeralSalva[pos - 1] = String(cached.form[n]);
+                });
             /* As marcações voltam indexadas pelo TIME, não pela linha: o
                rascunho guarda geral_7x8_N ao lado de geral_rank_N, e é o time
                daquela linha que carrega a marcação. */
@@ -1641,6 +1646,10 @@ async function salvarTemporadaRegular(seasonId, league) {
                 // 15º de um lado e o 15º do outro ficam empatados e o
                 // desempate acaba saindo da ordem de uma consulta.
                 ordem_geral: getRankList('geral'),
+                // A ordem geral COMPLETA, posição → time (do 1º ao último).
+                // Vai como mapa e não como lista porque vaga em branco não
+                // pode empurrar os de baixo pra cima.
+                ordem_geral_posicoes: _coletarOrdemGeralPosicoes(),
                 // Os dois times que perderam o 7x8. É o único grupo que não
                 // se deduz de posição nenhuma; o resto a loteria monta.
                 perdedores_7x8: _coletarPerdedores7x8(),
@@ -2118,9 +2127,46 @@ function _coletarPerdedores7x8() {
         if (!sel.value) return;
         const n = sel.name.split('geral_rank_')[1];
         const chk = document.querySelector(`input[name="geral_7x8_${n}"]`);
-        if (chk && chk.checked) ids.push(parseInt(sel.value, 10));
+        // Caixa desabilitada é de time classificado: não entra na loteria.
+        if (chk && chk.checked && !chk.disabled) ids.push(parseInt(sel.value, 10));
     });
     return ids;
+}
+
+/** A ordem geral como mapa posição → time, só com as vagas preenchidas. */
+function _coletarOrdemGeralPosicoes() {
+    const mapa = {};
+    document.querySelectorAll('select[name^="geral_rank_"]').forEach(sel => {
+        const pos = parseInt(sel.name.split('geral_rank_')[1], 10);
+        if (pos > 0 && sel.value) mapa[pos] = parseInt(sel.value, 10);
+    });
+    return mapa;
+}
+
+/** O 7x8 só vale pra quem ficou fora dos 8 de cada conferência. */
+function _atualizar7x8OrdemGeral() {
+    const classificados = _classificadosNaTela();
+    document.querySelectorAll('select[name^="geral_rank_"]').forEach(sel => {
+        const n = sel.name.split('geral_rank_')[1];
+        const chk = document.querySelector(`input[name="geral_7x8_${n}"]`);
+        if (!chk) return;
+        const bloqueia = !!sel.value && classificados.has(String(sel.value));
+        chk.disabled = bloqueia;
+        if (bloqueia) chk.checked = false;
+        const label = chk.closest('label');
+        if (label) label.style.opacity = bloqueia ? '0.35' : '';
+    });
+}
+
+/** Quem ocupa as 8 primeiras vagas de alguma conferência. */
+function _classificadosNaTela() {
+    const classificados = new Set();
+    ['leste', 'oeste'].forEach(conf => {
+        Array.from(document.querySelectorAll(`select[name^="${conf}_rank_"]`))
+            .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+            .forEach((s, i) => { if (i < 8 && s.value) classificados.add(String(s.value)); });
+    });
+    return classificados;
 }
 
 function montarOrdemGeral() {
@@ -2132,34 +2178,27 @@ function montarOrdemGeral() {
     const todos = Object.keys(tById);
     if (todos.length < 4) { wrap.style.display = 'none'; slots.innerHTML = ''; return; }
 
-    // Quem está entre os 8 primeiros de alguma conferência já se classificou.
-    const classificados = new Set();
-    ['leste', 'oeste'].forEach(conf => {
-        Array.from(document.querySelectorAll(`select[name^="${conf}_rank_"]`))
-            .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
-            .forEach((s, i) => { if (i < 8 && s.value) classificados.add(String(s.value)); });
-    });
-
-    const fora = todos.filter(id => !classificados.has(String(id)));
     wrap.style.display = '';
 
-    /* SEMPRE VISÍVEL, com todas as vagas: do 17º ao último (30º nas ligas de
-       30 times, 32º na ELITE). Pedido da liga — esperar as 16 vagas de cima
-       pra a lista aparecer fazia parecer que ela não existia. Enquanto o top 8
-       não está completo, cada vaga oferece todo time que ainda não está nele. */
-    const primeiro = 17;
-    const vagas = Math.max(0, todos.length - 16);
+    /* A LIGA INTEIRA, do 1º ao último (30 vagas, 32 na ELITE). Pedido da liga
+       em 16/09/2026: a lista começava no 17º e só ordenava quem ficou fora,
+       mas é ela que decide as moedas da FA e a ordem das picks de quem não
+       vai pra loteria — e pra isso os classificados também precisam de
+       ordem. A loteria continua lendo só a ordem relativa dos que ficaram
+       de fora. */
+    const primeiro = 1;
+    const vagas = todos.length;
 
     /* O que está NA TELA ganha do salvo: esta função roda de novo a cada
        mudança nas conferências, e redesenhar a partir do rascunho apagaria o
-       que a pessoa acabou de escolher aqui. Time que entrou no top 8 sai da
-       vaga (vira em branco), o resto fica onde estava. */
+       que a pessoa acabou de escolher aqui. */
     const naTela = Array.from(slots.querySelectorAll('select[name^="geral_rank_"]')).map(s => s.value);
     const marcadosNaTela = naTela.length ? new Set(_coletarPerdedores7x8().map(String)) : null;
-    const base = naTela.length ? naTela : (window._ordemGeralSalva || []).map(String);
-    const guardada = base.map(v => (v && fora.includes(String(v))) ? String(v) : '');
+    const salva = window._ordemGeralSalva || [];
+    const base = naTela.length ? naTela : Array.from({ length: vagas }, (_, i) => salva[i] || '');
+    const guardada = base.map(v => (v && todos.includes(String(v))) ? String(v) : '');
 
-    const opts = (sel) => '<option value="">—</option>' + fora.map(id => {
+    const opts = (sel) => '<option value="">—</option>' + todos.map(id => {
         const t = tById[String(id)] || {};
         return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
     }).join('');
@@ -2185,7 +2224,7 @@ function montarOrdemGeral() {
             <span class="fw-bold" style="width:34px;text-align:right;color:var(--text-3)">${primeiro + i}°</span>
             <select class="form-select form-select-sm bg-dark text-white border-orange"
                     name="geral_rank_${primeiro + i}" style="border-radius:10px;flex:1 1 auto;min-width:0"
-                    onchange="_updateStandingsUnique('geral'); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
+                    onchange="_updateStandingsUnique('geral'); _atualizar7x8OrdemGeral(); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
             <label class="d-flex align-items-center gap-1 mb-0 text-nowrap" style="flex:0 0 auto;cursor:pointer;font-size:12px;color:var(--text-3)"
                    title="Marque os dois times que perderam o jogo 7x8 — eles entram na loteria com 1 bolinha, a menor chance">
                 <input type="checkbox" class="form-check-input mt-0" name="geral_7x8_${primeiro + i}"
@@ -2195,6 +2234,7 @@ function montarOrdemGeral() {
         </div>`;
     }).join('');
     _updateStandingsUnique('geral');
+    _atualizar7x8OrdemGeral();
 }
 
 function _updateStandingsUnique(conf) {
@@ -2467,12 +2507,12 @@ async function loadTeamsForStandings(league) {
                 </div>
             </div>
             <div id="ordemGeralWrap" class="mt-4" style="display:none">
-                <h6 class="text-orange mb-1"><i class="bi bi-list-ol me-1"></i>Ordem geral de quem ficou fora</h6>
+                <h6 class="text-orange mb-1"><i class="bi bi-list-ol me-1"></i>Ordem geral da liga</h6>
                 <div class="small text-secondary mb-2">
-                    É daqui que a <b>loteria</b> monta os grupos de bolinhas. A colocação de
-                    conferência não separa quem terminou no mesmo degrau nos dois lados —
-                    esta lista separa. Preencha do <b>melhor pro pior</b>: o primeiro é quem
-                    chegou mais perto do playoff, e o último é o pior da liga.
+                    A classificação completa, do <b>1º ao último</b>. Ela define as <b>moedas da FA</b>
+                    (quanto pior, mais moedas), a <b>ordem das picks</b> de quem não vai pra loteria
+                    (quanto melhor, mais tarde escolhe) e os grupos de bolinhas da <b>loteria</b>.
+                    "Perdeu o 7x8" só vale pra quem ficou fora dos playoffs.
                 </div>
                 <div id="ordemGeralSlots"></div>
             </div>`;

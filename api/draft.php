@@ -1552,10 +1552,24 @@ if ($method === 'POST') {
             /* A ordem declarada manda quando existe: ela é a única que separa
                dois times que playoff_results empata. Sem ela, vale o critério
                de sempre — quem foi menos longe pica antes, campeão por último. */
-            usort($playoffRows, function ($a, $b) use ($poRank, $teamTail) {
+            /* A ORDEM GERAL DO CARD PONTUAÇÃO manda na cauda (16/09/2026): ela
+               vai do 1º ao último, e quem terminou pior escolhe antes. Só vale
+               com a ordem dos classificados COMPLETA — metade numerada e metade
+               no critério antigo misturaria duas réguas na mesma fila. A
+               ordem ajustada na tela da loteria (draft_tail_position) continua
+               ganhando dela, porque é um desempate feito depois, de propósito. */
+            $caudaTemOrdemGeral = $playoffRows && !array_filter($playoffRows,
+                fn($r) => ($teamOverall[(int)$r['team_id']] ?? null) === null);
+            usort($playoffRows, function ($a, $b) use ($poRank, $teamTail, $teamOverall, $caudaTemOrdemGeral) {
                 $ta = $teamTail[(int)$a['team_id']] ?? null;
                 $tb = $teamTail[(int)$b['team_id']] ?? null;
                 if ($ta !== null && $tb !== null && $ta !== $tb) return $ta <=> $tb;
+
+                if ($caudaTemOrdemGeral) {
+                    $oa = $teamOverall[(int)$a['team_id']];
+                    $ob = $teamOverall[(int)$b['team_id']];
+                    if ($oa !== $ob) return $ob <=> $oa;   // número maior = pior = escolhe antes
+                }
 
                 $ra = $poRank[(int)$a['team_id']] ?? 0;
                 $rb = $poRank[(int)$b['team_id']] ?? 0;
@@ -2215,11 +2229,31 @@ if ($method === 'POST') {
                sido o melhor. Gravar isso como colocação geral faria o
                campeão virar o 1º da liga na loteria do ano seguinte. */
             $topoSalvar = 16 + count($ordemLimpa);
+
+            /* COM A ORDEM GERAL COMPLETA (card Pontuação, do 1º ao último), os
+               números dos que ficaram fora não são mais 17 em diante: um 9º do
+               Leste pode ser o 15º geral. Renumerar a partir do 16 colidiria
+               com o número de um classificado. Então a nova ordem REUSA os
+               números que esses times já tinham — o pior da lista fica com o
+               maior deles — e os classificados não mudam. */
+            $numerosExistentes = null;
+            if ($ordemLimpa) {
+                $phOrdem = implode(',', array_fill(0, count($ordemLimpa), '?'));
+                $stNums = $pdo->prepare("SELECT overall_position FROM season_standings
+                                          WHERE season_id = ? AND team_id IN ($phOrdem) AND overall_position IS NOT NULL");
+                $stNums->execute(array_merge([$seasonIdOrdem], $ordemLimpa));
+                $nums = array_map('intval', $stNums->fetchAll(PDO::FETCH_COLUMN));
+                if (count($nums) === count($ordemLimpa) && count(array_unique($nums)) === count($nums)) {
+                    rsort($nums);
+                    $numerosExistentes = $nums;
+                }
+            }
             try {
                 $pdo->beginTransaction();
                 $stmtUpd = $pdo->prepare('UPDATE season_standings SET overall_position = ? WHERE season_id = ? AND team_id = ?');
                 foreach ($ordemLimpa as $iSalvar => $tidOrdem) {
-                    $stmtUpd->execute([$topoSalvar - $iSalvar, $seasonIdOrdem, $tidOrdem]);
+                    $numero = $numerosExistentes !== null ? $numerosExistentes[$iSalvar] : $topoSalvar - $iSalvar;
+                    $stmtUpd->execute([$numero, $seasonIdOrdem, $tidOrdem]);
                 }
                 $stmtCauda = $pdo->prepare('UPDATE season_standings SET draft_tail_position = ? WHERE season_id = ? AND team_id = ?');
                 foreach ($caudaLimpa as $iSalvar => $tidOrdem) {

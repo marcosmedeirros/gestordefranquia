@@ -2489,8 +2489,35 @@ try {
                    overall_position (17 em diante). É gravado por cima da
                    classificação de conferência, que continua valendo pro
                    chaveamento e pra pontuação de seed. */
+                /* A ORDEM GERAL COMPLETA, do 1º ao último (16/09/2026).
+                   Passou a valer pra liga inteira porque é ela que define as
+                   moedas da FA e a ordem das picks de quem não vai pra
+                   loteria. Chega como mapa posição → time: vaga em branco
+                   fica em branco, sem empurrar os de baixo pra cima.
+
+                   Antes de gravar, a ordem restaurada lá em cima é apagada: um
+                   número antigo esquecido num time que não está no mapa
+                   empataria com a posição nova de outro. */
+                $posicoesGeral = is_array($input['ordem_geral_posicoes'] ?? null) ? $input['ordem_geral_posicoes'] : null;
+                if ($posicoesGeral !== null) {
+                    $pdo->prepare("UPDATE season_standings SET overall_position = NULL WHERE season_id = ?")
+                        ->execute([$seasonId]);
+                    $stmtGeral = $pdo->prepare("UPDATE season_standings SET overall_position = ?
+                                                 WHERE season_id = ? AND team_id = ?");
+                    ksort($posicoesGeral, SORT_NUMERIC);
+                    $vistosGeral = [];
+                    foreach ($posicoesGeral as $pos => $tid) {
+                        $pos = (int)$pos; $tid = (int)$tid;
+                        if ($pos <= 0 || $tid <= 0 || isset($vistosGeral[$tid])) continue;
+                        $vistosGeral[$tid] = true;
+                        $stmtGeral->execute([$pos, $seasonId, $tid]);
+                    }
+                }
+
+                // O formato antigo (só quem ficou fora, a partir do 17º) segue
+                // valendo pra uma tela que ainda não recarregou o JS novo.
                 $ordemGeral = is_array($input['ordem_geral'] ?? null) ? $input['ordem_geral'] : [];
-                if ($ordemGeral) {
+                if ($posicoesGeral === null && $ordemGeral) {
                     /* O primeiro de fora vem logo depois dos classificados — os
                        8 primeiros de cada conferência, contados no que acabou
                        de ser gravado. Era "total − tamanho da lista + 1": com as

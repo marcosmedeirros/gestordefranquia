@@ -2211,7 +2211,11 @@ function nomeDoPremio(?string $awardType): string
 /**
  * Distribui as moedas de Free Agency pela classificação geral da liga.
  *
- * A régua é `ranking_points`/`ranking_titles`, na mesma ordem de
+ * Desde 16/09/2026 a régua é a ORDEM GERAL do card Pontuação (do 1º ao último)
+ * da última temporada com classificação lançada, quando ela está completa.
+ * Sem ela, vale a régua antiga, descrita abaixo.
+ *
+ * A régua antiga é `ranking_points`/`ranking_titles`, na mesma ordem de
  * congelarRankingDaSprint() — ou seja, a ordem que o GM vê no ranking. NÃO usa
  * season_standings: a linha da sprint corrente nasce zerada e a `position` de
  * lá é a posição dentro da conferência (1 a 15 repetindo num grupo de 30), que
@@ -2252,10 +2256,44 @@ function distribuirMoedasPorClassificacao(
     $ranked = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$ranked) return array_merge($vazio, ['motivo' => 'Nenhum time nesta liga.']);
 
+    /* A ORDEM GERAL DO CARD PONTUAÇÃO MANDA, quando está completa.
+       Decisão da liga em 16/09/2026: as moedas saem da classificação da
+       temporada que acabou (do 1º ao último, declarada no card), e não mais do
+       ranking acumulado. Vale a ÚLTIMA temporada com classificação lançada —
+       se a ordem dela não estiver inteira (algum time sem número, número
+       repetido), não se mistura com outra temporada: cai no ranking, como era. */
+    $porOrdemGeral = false;
+    try {
+        $stS = $pdo->prepare("SELECT s.id FROM seasons s
+                               WHERE s.league = ?
+                                 AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
+                            ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
+        $stS->execute([$league]);
+        $ultimaComClassificacao = (int)$stS->fetchColumn();
+        if ($ultimaComClassificacao > 0) {
+            $stO = $pdo->prepare("SELECT team_id, overall_position FROM season_standings WHERE season_id = ?");
+            $stO->execute([$ultimaComClassificacao]);
+            $ordem = [];
+            foreach ($stO->fetchAll(PDO::FETCH_ASSOC) as $o) {
+                if ($o['overall_position'] !== null) $ordem[(int)$o['team_id']] = (int)$o['overall_position'];
+            }
+            $idsLiga = array_map(fn($r) => (int)$r['team_id'], $ranked);
+            $completa = count($ordem) === count($idsLiga)
+                && !array_diff($idsLiga, array_keys($ordem))
+                && count(array_unique($ordem)) === count($ordem);
+            if ($completa) {
+                usort($ranked, fn($a, $b) => $ordem[(int)$a['team_id']] <=> $ordem[(int)$b['team_id']]);
+                $porOrdemGeral = true;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[distribuirMoedasPorClassificacao] ordem geral: ' . $e->getMessage());
+    }
+
     $comPontos = 0;
     foreach ($ranked as $r) if ((int)$r['pts'] > 0) $comPontos++;
     $zerados = count($ranked) - $comPontos;
-    if ($comPontos === 0) {
+    if (!$porOrdemGeral && $comPontos === 0) {
         return array_merge($vazio, [
             'times'   => count($ranked),
             'zerados' => $zerados,
