@@ -2841,6 +2841,20 @@ try {
                 ensureRegistroRascunhoTable($pdo);
                 $pdo->prepare("DELETE FROM season_registro_rascunho WHERE season_id = ?")->execute([$seasonId]);
             } catch (Throwable $ignored) {}
+
+            /* OS ENVIOS DE IMAGEM VOLTAM A ZERO. Com a pontuação registrada, o
+               GM quer mandar as estatísticas da temporada inteira — e os
+               envios dela já tinham sido gastos durante a temporada, travando
+               o upload até alguém avançar. Só no primeiro registro: corrigir
+               não devolve envio de novo. Ver backend/vision_uso.php. */
+            try {
+                require_once __DIR__ . '/../backend/vision_uso.php';
+                $zerados = visionZerarNoRegistroDaPontuacao($pdo, (string)$league2, (int)$seasonId);
+                if ($zerados !== null) error_log("[register_pontuacao] envios de imagem zerados na {$league2}: {$zerados} time(s)");
+            } catch (Throwable $e) {
+                // Acessório: não pode derrubar um registro que já foi gravado.
+                error_log('[register_pontuacao] zerar envios de imagem: ' . $e->getMessage());
+            }
             echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
             break;
 

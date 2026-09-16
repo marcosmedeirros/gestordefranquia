@@ -32,6 +32,7 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/draft_swaps.php';
+require_once __DIR__ . '/backend/vision_uso.php';
 requireAuth();
 
 const DONO_DEV = 'medeirros99@gmail.com';
@@ -241,6 +242,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->exec("INSERT INTO `$tabela` SELECT * FROM _dev_tmp");
             $pdo->exec("DROP TABLE _dev_tmp");
             $aviso = ['ok', "$tabela ficou com uma linha só (a mais recente)."];
+
+        } elseif ($acao === 'zerar_envios_imagem') {
+            $liga = strtoupper((string)($_POST['liga'] ?? ''));
+            if (!in_array($liga, $LIGAS, true)) throw new RuntimeException('Liga inválida.');
+            $teamId = (int)($_POST['team_id'] ?? 0);
+            if ($teamId > 0) {
+                $st = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''),' ',name)) FROM teams WHERE id = ? AND league = ?");
+                $st->execute([$teamId, $liga]);
+                $nome = $st->fetchColumn();
+                if ($nome === false) throw new RuntimeException("Esse time não é da $liga.");
+                $n = visionZerarEnvios($pdo, $liga, $teamId);
+                $aviso = ['ok', $n ? "Envios de imagem do $nome zerados." : "O $nome já estava sem envio contado."];
+            } else {
+                $n = visionZerarEnvios($pdo, $liga);
+                $aviso = ['ok', "Envios de imagem da $liga zerados: $n time(s) voltaram a ter os envios da temporada."];
+            }
 
         } elseif ($acao !== '') {
             throw new RuntimeException('Ação desconhecida.');
@@ -562,6 +579,56 @@ foreach ($P as $lista) $totalProblemas += count($lista);
       <?php endforeach; ?>
     </div>
   <?php endforeach; ?>
+
+<?php
+/*
+ * ENVIOS DE IMAGEM — o limite por temporada da atualização por foto.
+ *
+ * Não é defeito: é contador. Fica aqui porque é aqui que se resolve o "está
+ * bloqueado e eu preciso mandar" sem esperar o avanço da temporada. O registro
+ * da pontuação final já zera a liga uma vez por temporada (vision_uso.php);
+ * este bloco é pro resto — um time que queimou envio com foto errada, uma
+ * correção depois do registro.
+ */
+$enviosPorLiga = [];
+foreach ($LIGAS as $lg) {
+    try { $enviosPorLiga[$lg] = visionEnviosDaLiga($pdo, $lg); }
+    catch (Throwable $e) { $enviosPorLiga[$lg] = []; error_log('[dev/envios] ' . $e->getMessage()); }
+}
+?>
+<div class="pagina" style="margin-top:26px">
+  <div class="pg-nome"><i class="bi bi-images"></i> Envios de imagem por temporada</div>
+  <div class="pg-ver" style="margin-bottom:12px">
+    Quantas leituras por foto (estatísticas e skills) cada time já usou na temporada em aberto — o limite é 4.
+    Registrar a pontuação final já zera a liga uma vez por temporada. Zerar aqui devolve os envios na hora.
+  </div>
+  <?php foreach ($enviosPorLiga as $lg => $times): ?>
+    <div class="item">
+      <span class="liga"><?= h($lg) ?></span>
+      <?php if (!$times): ?>
+        Nenhum envio contado nesta temporada.
+      <?php else: ?>
+        <?= count($times) ?> time(s) com envio contado:
+        <?= h(implode(' · ', array_map(fn($t) => "{$t['nome']} {$t['count']}/4", $times))) ?>
+        <form method="post" onsubmit="return confirm(<?= htmlspecialchars(json_encode("Zerar os envios de imagem de todos os times da $lg?"), ENT_QUOTES) ?>)">
+          <input type="hidden" name="acao" value="zerar_envios_imagem">
+          <input type="hidden" name="liga" value="<?= h($lg) ?>">
+          <button type="submit">Zerar a <?= h($lg) ?></button>
+        </form>
+        <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input type="hidden" name="acao" value="zerar_envios_imagem">
+          <input type="hidden" name="liga" value="<?= h($lg) ?>">
+          <select name="team_id" style="padding:7px 10px;border-radius:8px;min-width:0;max-width:100%">
+            <?php foreach ($times as $t): ?>
+              <option value="<?= (int)$t['id'] ?>"><?= h($t['nome']) ?> (<?= (int)$t['count'] ?>/4)</option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit">Zerar só este time</button>
+        </form>
+      <?php endif; ?>
+    </div>
+  <?php endforeach; ?>
+</div>
 
 <?php
 /*
