@@ -613,6 +613,8 @@ function wcAjuda(): string
         . "/fantasy _nome do time_ — o time de alguém no Fantasy FBA\n"
         . "/fantasyescalados — os 10 mais escalados da rodada\n"
         . "/fantasypontos — os 10 que mais pontuaram na rodada\n"
+        . "/fantasyrodada — os times que mais e menos pontuaram na rodada\n"
+        . "/fantasyliga _liga_ — a tabela do Fantasy (sem liga, a geral)\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -3592,11 +3594,106 @@ function wcFantasyPontos(PDO $pdo): string
     $i = 1;
     foreach ($top as $pid => $d) {
         $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
-        $bonus = $d['bonus'] ? ' _+' . implode(', ', array_map(fn($b) => FAN_BONUS[$b][0] ?? $b, $d['bonus'])) . '_' : '';
-        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — " . $f($d['total']) . " pts"
-              . " · {$d['jogos']} jogos" . $bonus . "\n";
+        // Só o nome e os pontos (pedido da liga, 17/09/2026): jogos e bônus
+        // faziam cada linha quebrar em duas no celular.
+        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — " . $f($d['total']) . " pts\n";
         $i++;
     }
+    return rtrim($txt);
+}
+
+/**
+ * A rodada do Fantasy que tem pontos pra mostrar: a atual, ou a anterior
+ * quando o mercado da atual ainda está aberto (não houve jogo). Mesma regra
+ * do /fantasypontos.
+ */
+function wcFantasyRodadaComPontos(PDO $pdo): ?array
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    $r = fanRodadaAtual($pdo);
+    if ($r && $r['status'] === 'aberta') {
+        $st = $pdo->prepare("SELECT * FROM fantasy_rodadas WHERE id < ? ORDER BY id DESC LIMIT 1");
+        $st->execute([(int)$r['id']]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: $r;
+    }
+    return $r ?: null;
+}
+
+/** Uma linha de time do Fantasy: posição, time, primeiro nome do GM e pontos. */
+function wcFantasyLinhaTime(int $pos, array $t, bool $nomeRepetido = false): string
+{
+    $gm = trim((string)($t['gm'] ?? ''));
+    $primeiro = explode(' ', $gm)[0];
+    // "Time do Ramon (Ramon)" repetiria o nome: o GM só entra quando o time
+    // tem nome próprio — ou, com o nome COMPLETO, quando dois times aparecem
+    // iguais na lista (dois "Time do Vinicius").
+    if ($nomeRepetido && $gm !== '')                                  $sufixo = " ({$gm})";
+    elseif ($primeiro !== '' && !str_contains((string)$t['time'], $primeiro)) $sufixo = " ({$primeiro})";
+    else                                                              $sufixo = '';
+    return "{$pos}. *{$t['time']}*{$sufixo} — " . number_format((float)$t['pontos'], 1, ',', '.') . " pts\n";
+}
+
+/** Os nomes de time que aparecem mais de uma vez na lista. */
+function wcFantasyNomesRepetidos(array $lista): array
+{
+    $n = [];
+    foreach ($lista as $t) $n[(string)$t['time']] = ($n[(string)$t['time']] ?? 0) + 1;
+    return array_filter($n, fn($c) => $c > 1);
+}
+
+/**
+ * /fantasyrodada — os times que mais e menos pontuaram na rodada: top 8 e os
+ * 5 últimos. Pontos do app (fanRanking); rodada fechada sai como parcial.
+ */
+function wcFantasyRodada(PDO $pdo): string
+{
+    $r = wcFantasyRodadaComPontos($pdo);
+    if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
+    if ($r['status'] === 'aberta') return "A rodada T{$r['season_number']} está com o mercado aberto — ainda não tem pontos.";
+
+    $lista = array_values(array_filter(fanRanking($pdo, $r)['rodada'], fn($t) => $t['pontos'] !== null));
+    if (!$lista) return "Ninguém pontuou na rodada T{$r['season_number']} ainda.";
+
+    $status = $r['status'] === 'fechada' ? ' · parcial' : '';
+    $txt = "🏀 *Fantasy FBA — times da rodada*\nRodada T{$r['season_number']}{$status} · " . count($lista) . " times\n\n*🔝 Top 8*\n";
+    $rep = wcFantasyNomesRepetidos($lista);
+    foreach (array_slice($lista, 0, 8) as $i => $t) $txt .= wcFantasyLinhaTime($i + 1, $t, isset($rep[$t['time']]));
+
+    // Os 5 de baixo não repetem ninguém do top 8, mesmo com poucos times.
+    $total = count($lista);
+    $inicioFundo = max(8, $total - 5);
+    if ($inicioFundo < $total) {
+        $txt .= "\n*🔻 Menos pontos*\n";
+        foreach (array_slice($lista, $inicioFundo, null, true) as $i => $t) $txt .= wcFantasyLinhaTime($i + 1, $t, isset($rep[$t['time']]));
+    }
+    return rtrim($txt);
+}
+
+/**
+ * /fantasyliga [liga] — a tabela acumulada do Fantasy. Com liga (ELITE, NEXT,
+ * RISE, ROOKIE), só os cartolas com time nela, como a aba por liga do app;
+ * sem liga, a geral.
+ */
+function wcFantasyLiga(PDO $pdo, string $termo): string
+{
+    require_once __DIR__ . '/../backend/fantasy.php';
+    $termo = trim($termo);
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : null;
+    if ($termo !== '' && !$liga) return "Liga não reconhecida. Use /fantasyliga ELITE, NEXT, RISE ou ROOKIE — ou só /fantasyliga pra geral.";
+
+    $r = wcFantasyRodadaComPontos($pdo);
+    if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
+    $rk = fanRanking($pdo, $r);
+    $lista = $liga ? ($rk['por_liga'][$liga] ?? []) : $rk['geral'];
+    if (!$lista) {
+        return $liga ? "Nenhum cartola da {$liga} pontuou no Fantasy ainda." : "Ninguém pontuou no Fantasy ainda.";
+    }
+
+    $txt = "📊 *Fantasy FBA — " . ($liga ? "tabela da {$liga}" : 'tabela geral') . "*\n"
+         . count($lista) . " times · pontos somados das rodadas encerradas\n\n";
+    $rep = wcFantasyNomesRepetidos($lista);
+    foreach ($lista as $i => $t) $txt .= wcFantasyLinhaTime($i + 1, $t, isset($rep[$t['time']]));
+    if (!$liga) $txt .= "\n_Por liga: /fantasyliga next_";
     return rtrim($txt);
 }
 
@@ -3854,6 +3951,13 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'fantasypontuacao':
             case 'fantasypontuação':
                 return wcFantasyPontos($pdo);
+
+            case 'fantasyrodada':
+                return wcFantasyRodada($pdo);
+
+            case 'fantasyliga':
+            case 'fantasytabela':
+                return wcFantasyLiga($pdo, $arg);
 
             case 'picks':
             case 'pick':
