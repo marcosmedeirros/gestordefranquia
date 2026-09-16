@@ -538,7 +538,14 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
             'lenda' => (int)$j['lenda'], 'time' => trim($j['time_cidade'] . ' ' . $j['time_nome']), 'time_curto' => $j['time_nome'],
             'foto' => $foto ?: null,
             'preco' => (float)$j['preco'],
-            'variacao' => isset($antes[$id]) ? round((float)$j['preco'] - $antes[$id], 1) : null,
+            /* Quanto valorizou ou desvalorizou. Com a rodada encerrada é o
+               movimento DELA (preço de saída − preço de entrada), que é o que
+               o cartola quer ver depois dos jogos — e a única variação que a
+               primeira rodada tem. Antes disso, o preço desta contra o da
+               rodada anterior. */
+            'variacao' => $rodada['status'] === 'encerrada' && $j['preco_depois'] !== null
+                ? round((float)$j['preco_depois'] - (float)$j['preco'], 1)
+                : (isset($antes[$id]) ? round((float)$j['preco'] - $antes[$id], 1) : null),
             'base' => $j['base_pontos'] !== null ? (float)$j['base_pontos'] : null,
             'pontos' => $parcial,
             'preco_depois' => $j['preco_depois'] !== null ? (float)$j['preco_depois'] : null,
@@ -947,6 +954,66 @@ function fanRecalcularRodada(PDO $pdo): array
         return ['ok' => false, 'erro' => 'Erro ao recalcular a rodada.'];
     }
     return $res;
+}
+
+/**
+ * OS ESCALADOS SEM PONTUAÇÃO — pra conferir antes de recalcular.
+ *
+ * Só quem está em alguma escalação da rodada (quinteto ou 6º homem): jogador
+ * sem estatística que ninguém escalou não muda ponto de ninguém, e listar os
+ * 170 deixaria o que importa escondido. Cada um sai em um de dois estados:
+ *   - "falta recalcular": o time já lançou, mas a rodada gravou zero;
+ *   - "sem estatística": o time dele ainda não lançou.
+ */
+function fanEscaladosSemPontuacao(PDO $pdo): array
+{
+    $r = fanRodadaAtual($pdo);
+    if ($r && $r['status'] === 'aberta') {
+        $r = $pdo->query("SELECT * FROM fantasy_rodadas WHERE status <> 'aberta' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if (!$r) return ['ok' => false, 'erro' => 'Não há rodada com jogo pra conferir.'];
+    $rid = (int)$r['id'];
+
+    $escalado = []; $capitao = [];
+    foreach ($pdo->query("SELECT pg, sg, sf, pf, c, reserva, capitao FROM fantasy_escalacoes WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $e) {
+        foreach (['pg', 'sg', 'sf', 'pf', 'c', 'reserva'] as $k) {
+            $pid = (int)($e[$k] ?? 0);
+            if ($pid > 0) $escalado[$pid] = ($escalado[$pid] ?? 0) + 1;
+        }
+        if ((int)$e['capitao'] > 0) $capitao[(int)$e['capitao']] = ($capitao[(int)$e['capitao']] ?? 0) + 1;
+    }
+    if (!$escalado) return ['ok' => true, 'temporada' => (int)$r['season_number'], 'status' => $r['status'], 'jogadores' => []];
+
+    $agora = fanPontosDaTemporada($pdo, (int)$r['season_id'])['id'];
+    $gravado = [];
+    foreach ($pdo->query("SELECT player_id, pontos FROM fantasy_precos WHERE rodada_id = {$rid}")->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $gravado[(int)$p['player_id']] = $p['pontos'] !== null ? (float)$p['pontos'] : null;
+    }
+
+    $ids = array_keys($escalado);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT p.id, p.name, UPPER(TRIM(p.position)) pos, TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) time
+                           FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id IN ($ph)");
+    $st->execute($ids);
+    $info = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $info[(int)$p['id']] = $p;
+
+    $lista = [];
+    foreach ($escalado as $pid => $vezes) {
+        $temAgora = isset($agora[$pid]);
+        // Encerrada: vale o que ficou gravado. Fechada: ainda é parcial, vale o de agora.
+        $semNaRodada = $r['status'] === 'encerrada' ? ($gravado[$pid] ?? null) === null : !$temAgora;
+        if (!$semNaRodada) continue;
+        $lista[] = [
+            'id' => $pid, 'nome' => $info[$pid]['name'] ?? "Jogador #{$pid}", 'pos' => $info[$pid]['pos'] ?? '',
+            'time' => $info[$pid]['time'] ?? '—', 'escalado' => $vezes, 'capitao' => $capitao[$pid] ?? 0,
+            'situacao' => $temAgora ? 'falta_recalcular' : 'sem_estatistica',
+            'pontos_agora' => $temAgora ? round($agora[$pid]['total'], 1) : null,
+        ];
+    }
+    usort($lista, fn($a, $b) => [$a['situacao'] === 'sem_estatistica', -$a['escalado'], $a['nome']]
+                                <=> [$b['situacao'] === 'sem_estatistica', -$b['escalado'], $b['nome']]);
+    return ['ok' => true, 'temporada' => (int)$r['season_number'], 'status' => $r['status'], 'jogadores' => $lista];
 }
 
 /**

@@ -538,7 +538,8 @@ function status() {
     if (r.status === 'aberta') adm = `<button class="btn peq" data-admin="fechar"><i class="bi bi-lock"></i> Fechar mercado</button>`;
     if (r.status === 'fechada') adm = `<button class="btn peq" data-admin="reabrir">Reabrir</button><button class="btn peq pri" data-admin="encerrar"><i class="bi bi-flag"></i> Encerrar rodada</button>`;
     // Time que lança estatística depois do encerramento: o recálculo traz os pontos dele.
-    if (r.status === 'encerrada') adm = `<button class="btn peq" data-admin="recalcular"><i class="bi bi-arrow-repeat"></i> Recalcular pontos</button>`;
+    if (r.status === 'encerrada') adm = `<button class="btn peq" data-sem-pontos="1"><i class="bi bi-list-check"></i> Escalados sem pontuação</button><button class="btn peq" data-admin="recalcular"><i class="bi bi-arrow-repeat"></i> Recalcular pontos</button>`;
+    if (r.status === 'fechada') adm = `<button class="btn peq" data-sem-pontos="1"><i class="bi bi-list-check"></i> Escalados sem pontuação</button>` + adm;
   }
   $('status').innerHTML = `<span class="selo ${r.status}"><i class="bi bi-circle-fill"></i> ${nome}</span><span class="txt">${txt}</span>${adm ? `<span class="admin">${adm}</span>` : ''}`;
 }
@@ -567,8 +568,7 @@ function mercado() {
       <div style="min-width:0"><b>${esc(j.nome)}</b>
         <small><span class="pos">${j.pos}</span>${esc(j.time_curto)} · OVR ${j.ovr}</small></div>
       <div class="valores"><span>Preço</span><span>Últ. temp.</span>
-        <strong>F$ ${f1(j.preco)}</strong><strong>${j.base != null ? f1(j.base) : '—'}</strong>
-        <span>${varTxt}</span><span></span></div>
+        <strong>F$ ${f1(j.preco)} ${varTxt}</strong><strong>${j.base != null ? f1(j.base) : '—'}</strong></div>
       ${aberta() ? `<button class="add${on ? ' tirar' : ''}" data-add="${j.id}" ${cabe && !(S.modoReserva && noQuinteto) ? '' : 'disabled'} title="${cabe ? '' : 'Não cabe no patrimônio'}" aria-label="${on ? 'Tirar' : 'Escalar'} ${esc(j.nome)}">${on ? '−' : '+'}</button>` : '<span></span>'}
     </div>`;
   }).join('') || '<div class="vazio">Nenhum jogador com esse filtro.</div>';
@@ -882,13 +882,43 @@ function regras() {
     <p style="color:var(--text-3)">O mercado fecha antes de a temporada ser jogada. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;
 }
 
+/* OS ESCALADOS SEM PONTUAÇÃO, pro admin conferir antes de recalcular. Usa o
+   mesmo modal do jogador: título, subtítulo e uma linha por nome. */
+async function verSemPontuacao(bt) {
+  bt.disabled = true;
+  let d;
+  try { d = await (await fetch('/api/fantasy.php?sem_pontuacao=1', {credentials: 'same-origin'})).json(); }
+  catch (_) { d = {ok: false}; }
+  bt.disabled = false;
+  if (!d.ok) return avisar(d.erro || 'Não deu pra carregar a lista.');
+
+  const falta = d.jogadores.filter(j => j.situacao === 'falta_recalcular');
+  const sem = d.jogadores.filter(j => j.situacao === 'sem_estatistica');
+  const linha = j => `<div class="linha"><span><b style="color:var(--text)">${esc(j.nome)}</b> <small style="color:var(--text-3)">${esc(j.pos)} · ${esc(j.time)}</small><br>
+      <small style="color:var(--text-2)">em ${j.escalado} time${j.escalado === 1 ? '' : 's'}${j.capitao ? ` · capitão em ${j.capitao}` : ''}</small></span>
+      <b class="num" style="color:${j.pontos_agora != null ? 'var(--green)' : 'var(--text-3)'}">${j.pontos_agora != null ? f1(j.pontos_agora) + ' pts' : '—'}</b></div>`;
+  const bloco = (titulo, nota, lista) => lista.length
+    ? `<p class="tit" style="margin-top:14px">${titulo} (${lista.length})</p><p style="color:var(--text-3);font-size:12px;margin:0 0 6px">${nota}</p>${lista.map(linha).join('')}` : '';
+
+  $('dFoto').innerHTML = '<i class="bi bi-list-check" style="font-size:24px"></i>';
+  $('dTit').textContent = 'Escalados sem pontuação';
+  $('dSub').textContent = `Rodada T${d.temporada} · só quem está em alguma escalação`;
+  $('dCorpo').innerHTML = !d.jogadores.length
+    ? '<div class="vazio">Todo jogador escalado nesta rodada tem pontuação.</div>'
+    : bloco('Já lançou — falta recalcular', 'O time lançou a estatística depois do encerramento. O "Recalcular pontos" traz estes pontos pra rodada.', falta)
+      + bloco('Time ainda não lançou', 'Sem estatística da temporada: continuam em zero até o time lançar.', sem);
+  $('fundo').hidden = false;
+}
+
 function verJogador(id) {
   const j = S.porId.get(id); if (!j) return;
   $('dFoto').innerHTML = foto(j);
   $('dTit').textContent = j.nome;
   $('dSub').textContent = `${j.pos} · ${j.time} · OVR ${j.ovr} · ${j.idade} anos`;
   const g = S.dados.regras;
-  let corpo = `<div class="linha"><span>Preço</span><b class="num">F$ ${f1(j.preco)}</b></div>
+  const v = j.variacao;
+  const varTxt = v == null ? '' : ` <span class="var ${v > 0 ? 'up' : v < 0 ? 'down' : 'zero'}">${v > 0 ? '▲' : v < 0 ? '▼' : '='} ${f1(Math.abs(v))}</span>`;
+  let corpo = `<div class="linha"><span>Preço</span><b class="num">F$ ${f1(j.preco)}${varTxt}</b></div>
     <div class="linha"><span>Pontos na última temporada</span><b class="num">${j.base != null ? f1(j.base) : '—'}</b></div>`;
   if (j.pontos) {
     const p = j.pontos;
@@ -947,6 +977,8 @@ document.addEventListener('click', async e => {
     acaoLiga('iniciar', +t.dataset.iniciarLiga, t);
   } else if (t.dataset.sairLiga) {
     acaoLiga('sair', +t.dataset.sairLiga, t);
+  } else if (t.dataset.semPontos) {
+    verSemPontuacao(t);
   } else if (t.dataset.admin) {
     const acao = t.dataset.admin;
     const pergunta = {fechar: 'Fechar o mercado? Ninguém mais consegue escalar nesta rodada.', reabrir: 'Reabrir o mercado?',

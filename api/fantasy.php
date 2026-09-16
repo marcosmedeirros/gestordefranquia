@@ -25,6 +25,12 @@ $ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // ?sem_pontuacao=1 → os escalados sem pontuação na rodada (conferência do admin).
+        if (isset($_GET['sem_pontuacao'])) {
+            if (!$ehAdmin) { http_response_code(403); echo json_encode(['ok' => false, 'erro' => 'Só admin.']); exit; }
+            echo json_encode(fanEscaladosSemPontuacao($pdo), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         // ?liga=ID → a tabela ou a chave de uma liga do usuário (modal da aba Ranking).
         if (isset($_GET['liga'])) {
             echo json_encode(fanTabelaLiga($pdo, (int)$user['id'], (int)$_GET['liga']), JSON_UNESCAPED_UNICODE);
