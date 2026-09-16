@@ -3571,10 +3571,10 @@ function wcFantasyEscalados(PDO $pdo): string
  * A pontuação é a mesma do app (média por jogo × presença + bônus). Com o
  * mercado aberto a temporada ainda não tem jogo, então cai na rodada anterior.
  */
-function wcFantasyPontos(PDO $pdo): string
+function wcFantasyPontos(PDO $pdo, int $top = 10, ?array $rodada = null): string
 {
     require_once __DIR__ . '/../backend/fantasy.php';
-    $r = fanRodadaAtual($pdo);
+    $r = $rodada ?? fanRodadaAtual($pdo);
     if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
     $pontos = fanPontosDaTemporada($pdo, (int)$r['season_id'])['id'];
     if (!$pontos && $r['status'] === 'aberta') {
@@ -3586,18 +3586,35 @@ function wcFantasyPontos(PDO $pdo): string
     if (!$pontos) return "A rodada T{$r['season_number']} ainda não tem pontuação — os pontos aparecem quando a temporada tiver jogos lançados.";
 
     uasort($pontos, fn($a, $b) => $b['total'] <=> $a['total']);
-    $top = array_slice($pontos, 0, 10, true);
-    $nomes = wcNomesDosJogadores($pdo, array_keys($top));
+    $melhores = array_slice($pontos, 0, $top, true);
+
+    /* OS 5 PIORES SAEM DOS ESCALADOS. Entre todos os jogadores, os piores
+       são quem mal entrou em quadra e fez 0 — lista que não diz nada a
+       ninguém. O que interessa ao cartola é quem ele escalou e não rendeu. */
+    $escalados = [];
+    $st = $pdo->prepare("SELECT pg, sg, sf, pf, c, reserva FROM fantasy_escalacoes WHERE rodada_id = ?");
+    $st->execute([(int)$r['id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $e) foreach ($e as $pid) if ((int)$pid > 0) $escalados[(int)$pid] = true;
+    $piores = array_diff_key(array_intersect_key($pontos, $escalados), $melhores);
+    uasort($piores, fn($a, $b) => $a['total'] <=> $b['total']);
+    $piores = array_slice($piores, 0, 5, true);
+
+    $nomes = wcNomesDosJogadores($pdo, array_merge(array_keys($melhores), array_keys($piores)));
     $f = fn($n) => number_format((float)$n, 1, ',', '.');
-    $status = $r['status'] === 'fechada' ? ' · parcial' : '';
-    $txt = "🏆 *Fantasy FBA — quem mais pontuou*\nRodada T{$r['season_number']}{$status}\n\n";
-    $i = 1;
-    foreach ($top as $pid => $d) {
+    // Só o nome e os pontos (pedido da liga, 17/09/2026): jogos e bônus
+    // faziam cada linha quebrar em duas no celular.
+    $linha = function (int $i, int $pid, array $d) use ($nomes, $f): string {
         $j = $nomes[$pid] ?? ['nome' => "Jogador #{$pid}", 'time' => ''];
-        // Só o nome e os pontos (pedido da liga, 17/09/2026): jogos e bônus
-        // faziam cada linha quebrar em duas no celular.
-        $txt .= "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — " . $f($d['total']) . " pts\n";
-        $i++;
+        return "{$i}. *{$j['nome']}*" . ($j['time'] ? " ({$j['time']})" : '') . " — " . $f($d['total']) . " pts\n";
+    };
+    $status = $r['status'] === 'fechada' ? ' · parcial' : '';
+    $txt = "🏆 *Fantasy FBA — jogadores da rodada*\nRodada T{$r['season_number']}{$status}\n\n*🔝 Top {$top}*\n";
+    $i = 1;
+    foreach ($melhores as $pid => $d) $txt .= $linha($i++, (int)$pid, $d);
+    if ($piores) {
+        $txt .= "\n*🔻 Piores escalados*\n";
+        $i = 1;
+        foreach ($piores as $pid => $d) $txt .= $linha($i++, (int)$pid, $d);
     }
     return rtrim($txt);
 }
@@ -3645,9 +3662,10 @@ function wcFantasyNomesRepetidos(array $lista): array
  * /fantasyrodada — os times que mais e menos pontuaram na rodada: top 8 e os
  * 5 últimos. Pontos do app (fanRanking); rodada fechada sai como parcial.
  */
-function wcFantasyRodada(PDO $pdo): string
+function wcFantasyRodada(PDO $pdo, ?array $rodada = null): string
 {
-    $r = wcFantasyRodadaComPontos($pdo);
+    require_once __DIR__ . '/../backend/fantasy.php';
+    $r = $rodada ?? wcFantasyRodadaComPontos($pdo);
     if (!$r) return "O Fantasy FBA ainda não tem rodada aberta.";
     if ($r['status'] === 'aberta') return "A rodada T{$r['season_number']} está com o mercado aberto — ainda não tem pontos.";
 

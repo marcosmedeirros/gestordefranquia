@@ -799,7 +799,34 @@ function fanEncerrarRodada(PDO $pdo): array
     }
     // Com os pontos gravados, os confrontos de mata-mata desta rodada se decidem.
     fanLigasAposRodada($pdo, $rid);
+    fanAnunciarRodadaNoGrupo($pdo, $rid);
     return ['ok' => true, 'times' => count($times)];
+}
+
+/**
+ * O FECHAMENTO DA RODADA NO THE PATHETIC (pedido da liga, 17/09/2026): os
+ * times e os jogadores da rodada, cada lista com os 8 melhores e os 5 piores.
+ *
+ * Sai uma vez só porque encerrar a rodada só dá certo uma vez (a trava do
+ * status 'fechada' acima). Os textos são os mesmos do /fantasyrodada e do
+ * /fantasypontos, pra o grupo ler no anúncio o que o bot responde depois.
+ * Falha aqui não desfaz nada: a rodada já está encerrada e paga.
+ */
+function fanAnunciarRodadaNoGrupo(PDO $pdo, int $rodadaId): void
+{
+    try {
+        require_once __DIR__ . '/whatsapp.php';
+        if (!function_exists('wcFantasyRodada')) require_once __DIR__ . '/../api/whatsapp-comandos.php';
+        $st = $pdo->prepare("SELECT * FROM fantasy_rodadas WHERE id = ?");
+        $st->execute([$rodadaId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return;
+        whatsappParaGrupoPrincipal($pdo, wcFantasyRodada($pdo, $r)
+            . "\n\n_Rodada encerrada — veja seu time: fbabrasil.com.br/fantasy.php_", 'fantasy');
+        whatsappParaGrupoPrincipal($pdo, wcFantasyPontos($pdo, 8, $r), 'fantasy');
+    } catch (Throwable $e) {
+        error_log('[fantasy] anunciar rodada: ' . $e->getMessage());
+    }
 }
 
 /* ─── ligas dos usuários ─────────────────────────────────────────────────── */
