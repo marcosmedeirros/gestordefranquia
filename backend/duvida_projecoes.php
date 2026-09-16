@@ -1008,15 +1008,17 @@ function projRankingTexto(PDO $pdo, string $ligaPedida, int $temporadas, string 
     if (!$base) return "A {$liga} não tem times cadastrados.";
 
     /* O QUE A TEMPORADA EM CURSO AINDA VAI SOMAR.
-       A regular entra no ranking quando a classificação é salva, e os playoffs
-       só no registro final. Na NEXT de 15/09 a T3 estava exatamente no meio:
-       60 pontos de regular já somados e os playoffs em disputa. Contar a
-       regular de novo daria pontos em dobro; ignorar os playoffs jogaria fora
-       a parte da temporada que mais mexe no ranking. */
-    $st = $pdo->prepare('SELECT COALESCE(SUM(regular_season_points), 0) rs, COALESCE(SUM(playoff_points), 0) po
-                           FROM team_ranking_points WHERE season_id = ?');
+       O /ranking (teams.ranking_points) só recebe a temporada no REGISTRO
+       FINAL da pontuação — regular, playoffs e prêmios de uma vez. Salvar a
+       classificação no card grava a regular em team_ranking_points, mas não
+       no ranking. A primeira versão tomava essa linha como "já somada" e
+       deixava a regular em andamento de fora; a auditoria de 17/09 mostrou a
+       ELITE T4 exatamente assim, com a regular lançada e fora do ranking.
+       Então: temporada sem playoff registrado ainda deve a regular inteira e
+       os playoffs; registrada, já está toda no ranking. */
+    $st = $pdo->prepare('SELECT COUNT(*) FROM playoff_results WHERE season_id = ?');
     $st->execute([$sid]);
-    $lancado = $st->fetch(PDO::FETCH_ASSOC) ?: ['rs' => 0, 'po' => 0];
+    $registrada = (int)$st->fetchColumn() > 0;
     $st = $pdo->prepare('SELECT team_id, position FROM season_standings WHERE season_id = ? AND COALESCE(position, 0) > 0');
     $st->execute([$sid]);
     $posAtual = [];
@@ -1026,18 +1028,14 @@ function projRankingTexto(PDO $pdo, string $ligaPedida, int $temporadas, string 
     $fixo = array_fill_keys(array_keys($base), 0);
     $chave = null;
     $notaAtual = '';
-    if ($regularAcabou) {
-        if ((int)$lancado['rs'] === 0) {
-            foreach ($posAtual as $id => $p) if (isset($fixo[$id])) $fixo[$id] += pontosPorPosicao($p);
-            $notaAtual = "a regular da T{$n} (lançada e ainda não somada)";
-        } else {
-            $notaAtual = "(a regular da T{$n} já está somada)";
-        }
-        if ((int)$lancado['po'] === 0) {
-            $ch = projChaveAtual($pdo, $liga);
-            if ($ch && (int)$ch['temporada']['id'] === $sid && !projRodarChave($ch['chave'], null)['campeao']) $chave = $ch['chave'];
-            $notaAtual .= $chave ? " + os playoffs da T{$n}, simulados na chave de agora" : '';
-        }
+    if ($regularAcabou && $registrada) {
+        $notaAtual = "(a T{$n} já está toda somada)";
+    } elseif ($regularAcabou) {
+        foreach ($posAtual as $id => $p) if (isset($fixo[$id])) $fixo[$id] += pontosPorPosicao($p);
+        $notaAtual = "a regular da T{$n} (lançada, entra no ranking no registro final)";
+        $ch = projChaveAtual($pdo, $liga);
+        if ($ch && (int)$ch['temporada']['id'] === $sid && !projRodarChave($ch['chave'], null)['campeao']) $chave = $ch['chave'];
+        $notaAtual .= $chave ? " + os playoffs da T{$n}, simulados na chave de agora" : '';
     }
     $inicio = $regularAcabou ? 1 : 0;
     $ultimo = $inicio + $temporadas - 1;
