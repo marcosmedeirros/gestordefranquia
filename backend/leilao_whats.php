@@ -451,8 +451,13 @@ function lwLerPick(string $texto): ?array
     return $saida;
 }
 
-/** Acha a pick do time. Devolve [pick|null, erro|null]. */
-/** Acha a pick do time. $rodada null = qualquer rodada ("Pick 26"). Devolve [pick|null, erro|null]. */
+/**
+ * Acha a pick do time. $rodada null = qualquer rodada ("Pick 26").
+ *
+ * Devolve [pick|null, erro|null, motivo|null], e o MOTIVO importa pra quem lê
+ * uma oferta: 'sem' (o time não tem essa pick), 'passado' (ano que já foi) e
+ * 'ambigua' (tem mais de uma e falta dizer qual) pedem desfechos diferentes.
+ */
 function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $rodada, string $origem, ?string $swap = null): array
 {
     $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, pk.team_id, pk.swap_type,
@@ -466,7 +471,7 @@ function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $
     $rot = $rodada ? " R{$rodada}" : '';
 
     $atual = lwAnoAtual($pdo, $liga);
-    if ($atual && $ano < $atual) return [null, "a pick {$ano}{$rot} é de ano que já passou"];
+    if ($atual && $ano < $atual) return [null, "a pick {$ano}{$rot} é de ano que já passou", 'passado'];
 
     if ($origem !== '') {
         $lista = array_values(array_filter($lista, fn($p) =>
@@ -479,20 +484,20 @@ function lwAcharPickDoTime(PDO $pdo, int $teamId, string $liga, int $ano, ?int $
         $lista = array_values(array_filter($lista, fn($p) => empty($p['swap_type']) || strtoupper((string)$p['swap_type']) === $swap));
         $rot .= " [Swap {$swap}]";
     }
-    if (count($lista) === 1) return [$lista[0], null];
-    if (!$lista) return [null, "você não tem a pick {$ano}{$rot}" . ($origem !== '' ? " ({$origem})" : '')];
+    if (count($lista) === 1) return [$lista[0], null, null];
+    if (!$lista) return [null, "você não tem a pick {$ano}{$rot}" . ($origem !== '' ? " ({$origem})" : ''), 'sem'];
 
     // Sem rodada escrita ("pick 2030"), vale a 1ª rodada — é como a liga fala.
     // Só a 2ª do ano? aí é ela (já saiu acima, com count === 1).
     if (!$rodada) {
         $primeiras = array_values(array_filter($lista, fn($p) => (string)$p['round'] === '1'));
-        if (count($primeiras) === 1) return [$primeiras[0], null];
+        if (count($primeiras) === 1) return [$primeiras[0], null, null];
         if ($primeiras) $lista = $primeiras;
     }
     // Mais de uma do mesmo ano e rodada: a sua primeiro, se estiver entre elas.
-    foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null];
+    foreach ($lista as $p) if ((int)$p['original_team_id'] === $teamId && $origem === '') return [$p, null, null];
     $ops = array_map(fn($p) => "Pick {$ano} R{$p['round']} {$p['origem']}", $lista);
-    return [null, "você tem mais de uma {$ano}{$rot}. Diz qual: " . implode(' / ', $ops)];
+    return [null, "você tem mais de uma {$ano}{$rot}. Diz qual: " . implode(' / ', $ops), 'ambigua'];
 }
 
 /* ─── privado: /leilao ────────────────────────────────────────────────────── */
@@ -1062,9 +1067,25 @@ function lwLerItensDaOferta(PDO $pdo, string $texto, int $teamId, int $sellerId,
                     $rodada = (int)$pick[3] <= $timesPorLiga[$liga] ? 1 : 2;
                 }
                 $dono = $primeiro;
-                [$pk] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem, $swap);
-                if (!$pk) { $dono = $segundo; [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem, $swap); }
-                if (!$pk) { $naoAchei[] = $item; continue; }
+                [$pk, $erroPick, $motivo] = lwAcharPickDoTime($pdo, $primeiro, $liga, $ano, $rodada, $origem, $swap);
+
+                /* AMBÍGUA DE UM LADO NÃO VIRA PICK DO OUTRO.
+                   Aconteceu na ROOKIE em 14/09/2026: o Suns ofereceu "Pick 2030
+                   R2" tendo TRÊS picks de 2030 · 2ª rodada. A busca no lado dele
+                   não tinha como escolher, a leitura caía no outro lado e achava
+                   a 2030 · 2ª do próprio vendedor — então a oferta tirava do
+                   Pacers a pick dele em vez de entregar a do Suns, e a troca foi
+                   executada assim. Sem saber qual é, o certo é não adivinhar:
+                   o item vira "não reconhecido", com a lista pra pessoa dizer
+                   qual, e nada é movido automaticamente. */
+                if (!$pk && $motivo !== 'ambigua') {
+                    $dono = $segundo;
+                    [$pk] = lwAcharPickDoTime($pdo, $segundo, $liga, $ano, $rodada, $origem, $swap);
+                }
+                if (!$pk) {
+                    $naoAchei[] = $motivo === 'ambigua' ? "{$item} ({$erroPick})" : $item;
+                    continue;
+                }
                 // Lado do swap proposto (só se a pick ainda não está num swap).
                 $pk['swap_proposto'] = ($swap !== null && empty($pk['swap_type'])) ? $swap : null;
                 if ($dono === $teamId) $enviaPicks[(int)$pk['id']] = $pk;
