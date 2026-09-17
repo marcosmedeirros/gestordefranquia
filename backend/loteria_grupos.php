@@ -314,16 +314,22 @@ function loteriaTextoAoVivo(PDO $pdo, string $liga, int $sessaoId, int $temporad
         $l[] = '';
     }
 
-    // Quem ainda está na urna é a vaga (o time de origem), sem posição.
+    /* Quem ainda está na urna é QUEM TEM A PICK (pedido da liga, 17/09): é
+       esse time que vai escolher, e é por ele que o grupo torce. Sem posição;
+       quem tem mais de uma leva a contagem. */
     $posFaltam = array_keys($faltam);
     sort($posFaltam);
     $contiguas = $posFaltam === range($posFaltam[0], end($posFaltam));
     $rotulo = count($posFaltam) === 1 ? "pick {$posFaltam[0]}"
             : ($contiguas ? "picks {$posFaltam[0]} a " . end($posFaltam) : 'picks ' . implode(', ', $posFaltam));
-    $naUrna = array_map(fn($item) => $nome((int)($item['origin_team_id'] ?? $item['team_id'] ?? 0), (string)($item['origin_name'] ?? $item['team_name'] ?? '')), $faltam);
-    sort($naUrna, SORT_NATURAL | SORT_FLAG_CASE);
+    $vezes = [];
+    foreach ($faltam as $item) {
+        $n = $nome((int)($item['team_id'] ?? 0), (string)($item['team_name'] ?? ''));
+        $vezes[$n] = ($vezes[$n] ?? 0) + 1;
+    }
+    uksort($vezes, fn($a, $b) => strnatcasecmp($a, $b));
     $l[] = "*Ainda na urna ({$rotulo})*";
-    $l[] = implode(' · ', $naUrna);
+    $l[] = implode(' · ', array_map(fn($n, $c) => $c > 1 ? "{$n} ×{$c}" : $n, array_keys($vezes), $vezes));
     return implode("\n", $l);
 }
 
