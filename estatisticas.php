@@ -375,6 +375,43 @@ try {
     sortLeagueData($tradesAceitasMap);
 } catch (Exception) {}
 
+// ── Picks de 1ª rodada movimentadas em trocas ──────────────────────
+//
+// "Quem mexe com pick de 1ª" é outra pergunta que "quem faz mais trades":
+// um time pode fechar dez trocas de banco e nunca tocar numa escolha de
+// primeira, e outro faz duas trocas levando quatro picks. Por isso a conta é
+// de PICKS, e não de trades — uma troca que leva três picks de 1ª vale três.
+//
+// Só 1ª rodada (picks.round = '1'), só troca ACEITA, e a mesma sprint ativa
+// das outras contas de trade daqui.
+//
+// Nas trocas de dois times a pick sempre passa de um pro outro, então ela
+// conta pros dois lados. Na multi-trade o corte é pelo ITEM: conta a pick que
+// ESTE time deu ou recebeu, não a que dois terceiros trocaram entre si no
+// mesmo acordo.
+$picks1rMap = [];
+try {
+    $p1Raw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               (SELECT COUNT(*) FROM trades tr
+                  JOIN trade_items ti ON ti.trade_id = tr.id
+                  JOIN picks pk ON pk.id = ti.pick_id
+                 WHERE tr.status='accepted' AND pk.round = '1'
+                   AND (tr.from_team_id=t.id OR tr.to_team_id=t.id)
+                   AND tr.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active'))
+             + (SELECT COUNT(*) FROM multi_trades mt
+                  JOIN multi_trade_items mi ON mi.trade_id = mt.id
+                  JOIN picks pk ON pk.id = mi.pick_id
+                 WHERE mt.status='accepted' AND pk.round = '1'
+                   AND (mi.from_team_id=t.id OR mi.to_team_id=t.id)
+                   AND mt.created_at >= (SELECT COALESCE(MAX(sp.start_date),'1900-01-01') FROM sprints sp WHERE sp.league = t.league AND sp.status='active')) AS count
+        FROM teams t
+        ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($p1Raw as $r) $picks1rMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($picks1rMap);
+} catch (Exception) {}
+
 // ── Trades recusadas ───────────────────────────────────────────────
 $tradesRecusadasMap = [];
 try {
@@ -1037,6 +1074,15 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
         'label_hi' => '🤝 Mais trades aceitas', 'label_lo' => '🧊 Menos trades aceitas',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
+    ], $myTeamName);
+
+renderSection('picks-1a-rodada', '🎯', 'rgba(56,189,248,.10)', 'Picks de 1ª Rodada Trocadas',
+    'Quantas escolhas de 1ª rodada cada time deu ou recebeu em trocas aceitas',
+    $picks1rMap, $leagues, [
+        // Sem o lado "menos": não trocar pick de 1ª é o normal, e uma coluna
+        // de zeros não é notícia — é a mesma régua dos títulos e dos sweeps.
+        'label_hi' => '🎯 Mais picks de 1ª', 'show_lo' => false, 'color_hi' => 'blue',
+        'copy_hi' => 'Mais picks de 1ª rodada trocadas',
     ], $myTeamName);
 
 // ─── Playoff: as dez que antes existiam só pra RISE, agora nas quatro ligas ─
