@@ -194,14 +194,16 @@ if ($tipo === 'stats') {
         exit;
     }
 
+    require_once __DIR__ . '/../backend/stats_temporada.php';
+    statsGarantirFgPct($pdo);
     $sql = "INSERT INTO player_season_stats
               (player_id, season_id, season_number, league, team_id,
-               games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'manual')
+               games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, fg_pct, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'manual')
             ON DUPLICATE KEY UPDATE
               games=VALUES(games), min_pg=VALUES(min_pg), pts_pg=VALUES(pts_pg),
               reb_pg=VALUES(reb_pg), ast_pg=VALUES(ast_pg), stl_pg=VALUES(stl_pg),
-              blk_pg=VALUES(blk_pg), source=VALUES(source), team_id=VALUES(team_id)";
+              blk_pg=VALUES(blk_pg), fg_pct=VALUES(fg_pct), source=VALUES(source), team_id=VALUES(team_id)";
     $stmt = $pdo->prepare($sql);
 
     $pdo->beginTransaction();
@@ -227,7 +229,14 @@ if ($tipo === 'stats') {
                 }
             }
 
-            // Colunas: id, nome, jogos, min, pts, reb, ast, rou, toc
+            // FG% é a 10ª coluna, opcional: CSV antigo, sem ela, continua valendo.
+            [$fgOk, $fg] = statsFgPct($c[9] ?? '');
+            if (!$fgOk) {
+                $recusados[] = ['linha' => $n + 1, 'motivo' => 'FG% "' . ($c[9] ?? '') . '" inválido (use 57.3 ou .573)'];
+                continue;
+            }
+
+            // Colunas: id, nome, jogos, min, pts, reb, ast, rou, toc, fg%
             $stmt->execute([
                 $pid, (int)$temp['id'], (int)$temp['season_number'], $liga, $daLiga[$pid]['team_id'],
                 max(0, min(200, (int)($c[2] ?? 0))),
@@ -237,6 +246,7 @@ if ($tipo === 'stats') {
                 numeroCsv($c[6] ?? 0, 50),
                 numeroCsv($c[7] ?? 0, 5),
                 numeroCsv($c[8] ?? 0, 6),
+                $fg,
             ]);
             $gravados++;
         }

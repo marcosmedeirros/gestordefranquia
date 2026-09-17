@@ -8,6 +8,8 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
+require_once __DIR__ . '/backend/stats_temporada.php';   // FG%
+require_once __DIR__ . '/backend/altura.php';
 requireAuth();
 
 $user = getUserSession();
@@ -79,10 +81,11 @@ try {
 // ── Estatísticas por temporada ─────────────────────────
 $statsSeasons = [];
 $statsCarreira = null;
+statsGarantirFgPct($pdo);
 try {
     $stmtSt = $pdo->prepare("
         SELECT ps.season_number, s.year, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
-               ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.source,
+               ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct, ps.source,
                CONCAT(t.city,' ',t.name) AS team_name
         FROM player_season_stats ps
         LEFT JOIN seasons s ON s.id = ps.season_id
@@ -106,6 +109,7 @@ try {
         }
         $statsCarreira = ['games' => $jogos, 'temporadas' => count($statsSeasons)];
         foreach ($acc as $k => $v) $statsCarreira[$k] = $jogos > 0 ? round($v / $jogos, 1) : 0;
+        $statsCarreira['fg_pct'] = statsFgPctCarreira($statsSeasons);
     }
 } catch (Exception $e) {}
 
@@ -449,6 +453,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="p-sub">
         <?php if ($dispPos): ?><span><?= htmlspecialchars($dispPos) ?></span> ·<?php endif; ?>
         <?php if ($dispAge): ?><span><?= $dispAge ?> anos</span> ·<?php endif; ?>
+        <?php if (!$isRetired && !empty($P['height'])): ?><span><?= htmlspecialchars($P['height']) ?></span> ·<?php endif; ?>
         <?php if ($isRetired): ?>
           <span><?= htmlspecialchars($dispTeam ?: '—') ?></span>
         <?php else: ?>
@@ -498,6 +503,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="kv"><div class="kv-l">Posição</div><div class="kv-v"><?= htmlspecialchars($dispPos ?: '—') ?></div></div>
         <div class="kv"><div class="kv-l">OVR</div><div class="kv-v"><?= $dispOvr ?: '—' ?></div></div>
         <div class="kv"><div class="kv-l">Idade</div><div class="kv-v"><?= $dispAge ?: '—' ?></div></div>
+        <?php if (!$isRetired): ?>
+        <div class="kv"><div class="kv-l">Altura</div><div class="kv-v"><?= htmlspecialchars($P['height'] ?? '') ?: '—' ?></div></div>
+        <?php endif; ?>
         <div class="kv"><div class="kv-l">Time</div><div class="kv-v small"><?= htmlspecialchars($dispTeam ?: '—') ?></div></div>
         <?php if (!$isRetired): ?>
         <div class="kv"><div class="kv-l">Temporadas na liga</div><div class="kv-v"><?= (int)($P['seasons_in_league'] ?? 0) ?></div></div>
@@ -542,6 +550,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <div class="st-l"><?= $lbl ?> <span>por jogo</span></div>
         </div>
       <?php endforeach; ?>
+      <div class="st-card">
+        <div class="st-v"><?= statsFgPctTexto($c['fg_pct'] ?? null) ?></div>
+        <div class="st-l">FG% <span>arremessos</span></div>
+      </div>
       <div class="st-card alt">
         <div class="st-v"><?= (int)$c['games'] ?></div>
         <div class="st-l">Jogos <span>em <?= (int)$c['temporadas'] ?> temporada<?= $c['temporadas'] == 1 ? '' : 's' ?></span></div>
@@ -557,7 +569,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <thead><tr>
             <th>Temporada</th><th>Time</th><th class="num">J</th><th class="num">MIN</th>
             <th class="num">PTS</th><th class="num">REB</th><th class="num">AST</th>
-            <th class="num">ROU</th><th class="num">TOC</th>
+            <th class="num">ROU</th><th class="num">TOC</th><th class="num">FG%</th>
           </tr></thead>
           <tbody>
           <?php
@@ -566,6 +578,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             foreach (['pts_pg','reb_pg','ast_pg','stl_pg','blk_pg'] as $k) {
                 $melhor[$k] = max(array_map(fn($l) => (float)$l[$k], $statsSeasons));
             }
+            // FG%: só entre as temporadas que têm o número lançado.
+            $fgLancados = array_filter(array_column($statsSeasons, 'fg_pct'), fn($v) => $v !== null);
+            $melhor['fg_pct'] = $fgLancados ? max(array_map('floatval', $fgLancados)) : null;
             foreach (array_reverse($statsSeasons) as $l): ?>
             <tr>
               <td>T<?= (int)$l['season_number'] ?><?= $l['year'] ? ' <span style="color:var(--text-3);font-size:11px">(' . (int)$l['year'] . ')</span>' : '' ?></td>
@@ -576,6 +591,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
                 $eMelhor = count($statsSeasons) > 1 && (float)$l[$k] > 0 && (float)$l[$k] == $melhor[$k]; ?>
                 <td class="num<?= $eMelhor ? ' st-best' : '' ?>"<?= $eMelhor ? ' title="Melhor temporada da carreira"' : '' ?>><?= fmtPg($l[$k]) ?></td>
               <?php endforeach; ?>
+              <?php $fgMelhor = count($fgLancados) > 1 && $l['fg_pct'] !== null && (float)$l['fg_pct'] == $melhor['fg_pct']; ?>
+              <td class="num<?= $fgMelhor ? ' st-best' : '' ?>"<?= $fgMelhor ? ' title="Melhor temporada da carreira"' : '' ?>><?= statsFgPctTexto($l['fg_pct']) ?></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -590,6 +607,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
               <td class="num"><?= fmtPg($c['ast_pg']) ?></td>
               <td class="num"><?= fmtPg($c['stl_pg']) ?></td>
               <td class="num"><?= fmtPg($c['blk_pg']) ?></td>
+              <td class="num"><?= statsFgPctTexto($c['fg_pct'] ?? null) ?></td>
             </tr>
           </tfoot>
           <?php endif; ?>

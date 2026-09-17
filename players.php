@@ -607,6 +607,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<option value="pts">Pontos por jogo</option>
 						<option value="reb">Rebotes por jogo</option>
 						<option value="ast">Assistências por jogo</option>
+						<option value="fg">Aproveitamento (FG%)</option>
 						<option value="name">Nome</option>
 						<option value="age">Idade</option>
 					</select>
@@ -704,6 +705,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<th class="col-stat" title="Pontos por jogo na temporada">PTS</th>
 							<th class="col-stat" title="Rebotes por jogo na temporada">REB</th>
 							<th class="col-stat" title="Assistências por jogo na temporada">AST</th>
+							<th class="col-stat" title="Aproveitamento de arremessos na temporada">FG%</th>
 							<th class="col-stat col-badges">Badges</th>
 							<th>Time</th>
 							<?php /* Contato virou o ícone de WhatsApp dentro de Ações: a coluna
@@ -952,7 +954,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				// nao entende a virgula e devolveria NaN, matando a comparacao.
 				const paraNum = v => {
 					if (v === null || v === undefined || v === '') return null;
-					const n = Number(String(v).replace(',', '.'));
+					// O FG% chega com o sinal de porcentagem colado ("57,3%").
+					const n = Number(String(v).replace(',', '.').replace('%', ''));
 					return Number.isFinite(n) ? n : null;
 				};
 				const n1 = paraNum(v1), n2 = paraNum(v2);
@@ -977,6 +980,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div>
 					${cmpRow('OVR', p1.ovr, p2.ovr, 'high')}
 					${cmpRow('Idade', p1.age, p2.age, 'low')}
+					${(p1.height || p2.height) ? cmpRow('Altura', p1.height || '-', p2.height || '-', null) : ''}
 					${cmpRow('Posição', p1.position, p2.position, null)}
 					${cmpRow('Pos. Sec.', p1.secondary_position || '-', p2.secondary_position || '-', null)}
 					${cmpRow('Badges', p1.badges_count ?? 0, p2.badges_count ?? 0, 'high')}
@@ -993,6 +997,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					${cmpRow('AST', c1s ? pg(c1s.ast_pg) : null, c2s ? pg(c2s.ast_pg) : null, 'high')}
 					${cmpRow('ROU', c1s ? pg(c1s.stl_pg) : null, c2s ? pg(c2s.stl_pg) : null, 'high')}
 					${cmpRow('TOC', c1s ? pg(c1s.blk_pg) : null, c2s ? pg(c2s.blk_pg) : null, 'high')}
+					${cmpRow('FG%', c1s ? fgPct(c1s.fg_pct) : null, c2s ? fgPct(c2s.fg_pct) : null, 'high')}
 					${cmpRow('MIN', c1s ? pg(c1s.min_pg) : null, c2s ? pg(c2s.min_pg) : null, 'high')}
 					${cmpRow('Jogos', c1s ? c1s.games : null, c2s ? c2s.games : null, 'high')}
 					${cmpRow('Temporadas', c1s ? c1s.temporadas : null, c2s ? c2s.temporadas : null, null)}
@@ -1180,6 +1185,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (v === null || v === undefined || v === '') return '—';
 		return String(Number(v)).replace('.', ',');
 	}
+	// Aproveitamento de arremessos: uma casa e o sinal, como o jogo mostra.
+	function fgPct(v) {
+		if (v === null || v === undefined || v === '') return '—';
+		return Number(v).toFixed(1).replace('.', ',') + '%';
+	}
 	function temStats(p) { return p.games !== null && p.games !== undefined; }
 
 	/** Linha compacta de estatísticas — usada no cartão do mobile. */
@@ -1189,6 +1199,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			<span><b>${pg(p.pts_pg)}</b> PTS</span>
 			<span><b>${pg(p.reb_pg)}</b> REB</span>
 			<span><b>${pg(p.ast_pg)}</b> AST</span>
+			${(p.fg_pct === null || p.fg_pct === undefined) ? '' : `<span><b>${fgPct(p.fg_pct)}</b> FG</span>`}
 			<span class="j">${p.games}J</span>
 		</div>`;
 	}
@@ -1201,7 +1212,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			<div class="mpl-item">
 				<div class="mpl-main">
 					<div class="mpl-name"><a class="pl-link"${isLenda(p) ? lendaNameStyle(p) : loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a>${lendaTagHtml(p)}${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadge}${tradeBadge}</div>
-					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0}${LIGA_TEM_CAP && p.cap_salario != null ? ` · ${p.cap_salario}M` : ''} · ${teamName}</div>
+					<div class="mpl-meta">${p.position ?? '-'}${p.height ? ' · ' + p.height : ''} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0}${LIGA_TEM_CAP && p.cap_salario != null ? ` · ${p.cap_salario}M` : ''} · ${teamName}</div>
 					${statsLinha(p)}
 				</div>
 				<div class="mpl-right">
@@ -1309,6 +1320,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								<td class="col-stat"><b>${pg(p.pts_pg)}</b></td>
 								<td class="col-stat">${pg(p.reb_pg)}</td>
 								<td class="col-stat">${pg(p.ast_pg)}</td>
+								<td class="col-stat">${fgPct(p.fg_pct)}</td>
 								<td class="col-stat col-badges">${p.badges_count ?? 0}</td>
 								<td class="col-time" title="${teamName}"><span class="time-clamp">${teamName || '—'}</span></td>
 								<td class="col-actions">
@@ -1515,8 +1527,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						</div>
 					</div>
 				</div>
-				<div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
-					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
+				<div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
+					${[['Idade',player.age??'-'],['Altura',player.height||'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
 						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
 				</div>
 				<div style="padding:14px 22px;border-bottom:1px solid var(--border)">

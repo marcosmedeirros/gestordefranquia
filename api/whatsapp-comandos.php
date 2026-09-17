@@ -110,7 +110,7 @@ function wcStatsDoJogador(PDO $pdo, int $playerId): ?array
     try {
         $st = $pdo->prepare("
             SELECT ps.season_number, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
-                   ps.ast_pg, ps.stl_pg, ps.blk_pg
+                   ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct
             FROM player_season_stats ps
             WHERE ps.player_id = ? AND ps.games > 0
             ORDER BY ps.season_number DESC, ps.id DESC
@@ -660,7 +660,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     $ovr = wcColunaOvr($pdo);
     $ordem = wcOrdemLiga($ligaDoGrupo);
     $st = $pdo->prepare("
-        SELECT p.id, p.name, p.age, p.position, p.secondary_position, p.{$ovr} AS ovr,
+        SELECT p.id, p.name, p.age, p.height, p.position, p.secondary_position, p.{$ovr} AS ovr,
                p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
                " . wcColunasSkill('p') . ",
                t.city, t.mascot, t.name AS team_name, t.league
@@ -696,6 +696,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         . wcNomeDoTime($p) . " — {$p['league']}\n\n"
         . "OVR: *{$p['ovr']}*\n"
         . "Posição: {$pos}\n"
+        . (!empty($p['height']) ? "Altura: {$p['height']}\n" : '')
         . "Idade: {$p['age']} anos\n"
         . "Temporadas na liga: " . (int)$p['seasons_in_league'] . "\n";
 
@@ -719,6 +720,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         $txt .= "\n📊 *Última temporada*\n"
               . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
               . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
+              . ($s['fg_pct'] !== null ? ' · ' . wcNum($s['fg_pct']) . '% fg' : '')
               . ' em ' . (int)$s['games'] . " jogos\n";
     }
 
@@ -2540,7 +2542,7 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
     $ordem = wcOrdemLiga($ligaDoGrupo);
     $achar = function (string $nome) use ($pdo, $ovr, $ordem) {
         $st = $pdo->prepare("
-            SELECT p.id, p.name, p.age, p.position, p.{$ovr} AS ovr, p.seasons_in_league,
+            SELECT p.id, p.name, p.age, p.height, p.position, p.{$ovr} AS ovr, p.seasons_in_league,
                    p.team_id, COALESCE(p.is_lenda,0) AS is_lenda,
                    " . wcColunasSkill('p') . ",
                    t.city, t.name AS team_name, t.league
@@ -2590,6 +2592,7 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
          . $linha('Idade', $a['age'] . ' anos', $b['age'] . ' anos',
                   $m((int)$a['age'], (int)$b['age'], false), $m((int)$b['age'], (int)$a['age'], false))
          . $linha('Posição', $a['position'], $b['position'])
+         . (($a['height'] || $b['height']) ? $linha('Altura', $a['height'] ?: '—', $b['height'] ?: '—') : '')
          . $linha('Temporadas', (int)$a['seasons_in_league'], (int)$b['seasons_in_league']);
 
     if ($sa !== null || $sb !== null) {
@@ -2618,15 +2621,19 @@ function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
         // de cara. Vem primeiro porque é o que qualifica todo o resto.
         foreach ([['games','Jogos'],
                   ['pts_pg','Pontos'], ['reb_pg','Rebotes'], ['ast_pg','Assist.'],
-                  ['stl_pg','Roubos'], ['blk_pg','Tocos'], ['min_pg','Minutos']] as [$campo, $rot]) {
-            $va = $ea ? (float)$ea[$campo] : null;
-            $vb = $eb ? (float)$eb[$campo] : null;
+                  ['stl_pg','Roubos'], ['blk_pg','Tocos'], ['min_pg','Minutos'],
+                  ['fg_pct','FG%']] as [$campo, $rot]) {
+            // FG% pode estar em branco em quem foi lançado antes da coluna
+            // existir: aí a linha some, em vez de mostrar 0% como se ele
+            // tivesse errado tudo.
+            $va = ($ea && $ea[$campo] !== null) ? (float)$ea[$campo] : null;
+            $vb = ($eb && $eb[$campo] !== null) ? (float)$eb[$campo] : null;
             if ($va === null && $vb === null) continue;
             // Jogos é contagem, não média: sai inteiro. wcNum daria "60.0
             // jogos", que se lê como se meio jogo existisse.
             $fmt = $campo === 'games'
                 ? fn($v) => (string)(int)$v
-                : fn($v) => wcNum($v);
+                : ($campo === 'fg_pct' ? fn($v) => wcNum($v) . '%' : fn($v) => wcNum($v));
             $txt .= $linha($rot,
                 $va !== null ? $fmt($va) : '—',
                 $vb !== null ? $fmt($vb) : '—',

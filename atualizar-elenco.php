@@ -54,7 +54,8 @@ $seasonStats = statsTemporadaAlvo($pdo, $league)['alvo'] ?? $season;
 // Estatísticas já gravadas nessa temporada, para pré-preencher a aba
 $statsAtuais = [];
 if ($seasonStats) {
-    $stmtS = $pdo->prepare("SELECT player_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source
+    statsGarantirFgPct($pdo);
+    $stmtS = $pdo->prepare("SELECT player_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, fg_pct, source
                             FROM player_season_stats WHERE season_id = ? AND team_id = ?");
     $stmtS->execute([(int)$seasonStats['id'], $teamId]);
     foreach ($stmtS->fetchAll(PDO::FETCH_ASSOC) as $r) $statsAtuais[(int)$r['player_id']] = $r;
@@ -361,7 +362,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             <tr>
               <th>Jogador</th><th style="width:66px">Jogos</th><th style="width:66px">MIN</th>
               <th style="width:66px">PTS</th><th style="width:66px">REB</th><th style="width:66px">AST</th>
-              <th style="width:66px">ROU</th><th style="width:66px">TOC</th>
+              <th style="width:66px">ROU</th><th style="width:66px">TOC</th><th style="width:70px" title="Aproveitamento de arremessos (FG%). Pode digitar 57.3 ou .573, como aparece no jogo.">FG%</th>
             </tr>
           </thead>
           <tbody>
@@ -379,6 +380,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
               <td><input class="inp" type="number" min="0" max="25"  step="0.1" data-f="ast_pg" value="<?= $s ? rtrim(rtrim($s['ast_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
               <td><input class="inp" type="number" min="0" max="5"   step="0.1" data-f="stl_pg" value="<?= $s ? rtrim(rtrim($s['stl_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
               <td><input class="inp" type="number" min="0" max="6"   step="0.1" data-f="blk_pg" value="<?= $s ? rtrim(rtrim($s['blk_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <?php /* FG%: texto e não number — aceita ".573", do jeito que o jogo mostra; o servidor converte pra 57.3. */ ?>
+              <td><input class="inp" type="text" inputmode="decimal" placeholder="—" data-f="fg_pct" value="<?= $s && $s['fg_pct'] !== null ? rtrim(rtrim($s['fg_pct'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -417,7 +420,7 @@ const ELENCO = <?= json_encode(array_map(fn($p) => ['id' => (int)$p['id'], 'name
 // {skill_in: 'IN', skill_mid: 'MID', ...} — mesma fonte que monta a tabela de atributos no servidor.
 const SKILL_KEYS_JS = <?= json_encode($SKILL_KEYS) ?>;
 const NOTAS_JS = <?= json_encode(array_values(array_filter($NOTAS, fn($n) => $n !== ''))) ?>;
-const STATS_KEYS_JS = { games: 'Jogos', min_pg: 'MIN', pts_pg: 'PTS', reb_pg: 'REB', ast_pg: 'AST', stl_pg: 'ROU', blk_pg: 'TOC' };
+const STATS_KEYS_JS = { games: 'Jogos', min_pg: 'MIN', pts_pg: 'PTS', reb_pg: 'REB', ast_pg: 'AST', stl_pg: 'ROU', blk_pg: 'TOC', fg_pct: 'FG%' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -553,7 +556,7 @@ function importarEstatisticasCSV(file) {
     Object.entries(STATS_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
     // Os tetos do servidor (ATUALIZACAO_STATS). Fora da faixa é recusado, não
     // cortado: cortar 50 assistências em 25 só troca um número errado por outro.
-    const limites = { games: [0, 120], min_pg: [0, 48], pts_pg: [0, 60], reb_pg: [0, 30], ast_pg: [0, 25], stl_pg: [0, 5], blk_pg: [0, 6] };
+    const limites = { games: [0, 120], min_pg: [0, 48], pts_pg: [0, 60], reb_pg: [0, 30], ast_pg: [0, 25], stl_pg: [0, 5], blk_pg: [0, 6], fg_pct: [0, 100] };
 
     let aplicados = 0, semLinha = 0, foraDaFaixa = [];
     for (let i = 1; i < linhas.length; i++) {
@@ -568,8 +571,10 @@ function importarEstatisticasCSV(file) {
         if (!chave) return;
         const raw = row[idx];
         if (!raw) return;
-        const num = parseFloat(String(raw).replace(',', '.'));
+        let num = parseFloat(String(raw).replace(',', '.').replace('%', ''));
         if (isNaN(num)) return;
+        // FG% do jogo vem como fração (.573): vira percentual, como o banco guarda.
+        if (chave === 'fg_pct' && num <= 1) num = Math.round(num * 1000) / 10;
         const [min, max] = limites[chave];
         if (num < min || num > max) {
           foraDaFaixa.push(`${tr.querySelector('.nm')?.textContent.trim() || pid}: ${STATS_KEYS_JS[chave]} ${num} (máx. ${max})`);
@@ -691,7 +696,7 @@ if (PODE_FOTO) {
       const tr = document.querySelector(`#tblStats tbody tr[data-pid="${x.player_id}"]`);
       if (!tr) return;
       aplicados++;
-      ['games','min_pg','pts_pg','reb_pg','ast_pg','stl_pg','blk_pg'].forEach(f => {
+      ['games','min_pg','pts_pg','reb_pg','ast_pg','stl_pg','blk_pg','fg_pct'].forEach(f => {
         const i = tr.querySelector(`[data-f="${f}"]`);
         if (i && x[f] != null) { i.value = x[f]; i.style.borderColor = 'var(--amber)'; }
       });
@@ -759,7 +764,9 @@ $('btnSalvarStats').addEventListener('click', async () => {
     if (!games && !v('pts_pg')) return;
     stats.push({ player_id: pid, games: games || 0, min_pg: v('min_pg') || 0, pts_pg: v('pts_pg') || 0,
                  reb_pg: v('reb_pg') || 0, ast_pg: v('ast_pg') || 0, stl_pg: v('stl_pg') || 0,
-                 blk_pg: v('blk_pg') || 0, source: 'manual' });
+                 blk_pg: v('blk_pg') || 0,
+                 // FG% vai como digitado (".573" ou "57.3"); vazio é "não lançado", não 0%.
+                 fg_pct: (tr.querySelector('[data-f="fg_pct"]')?.value || '').trim(), source: 'manual' });
   });
 
   if (!stats.length) { msg(out, 'err', 'Preencha ao menos um jogador (jogos ou pontos).'); return; }

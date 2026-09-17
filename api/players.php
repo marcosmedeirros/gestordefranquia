@@ -5,6 +5,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/loja.php';   // waiverLimiteDoTime()
+require_once __DIR__ . '/../backend/altura.php'; // alturaNormalizar()
 
 $pdo = db();
 $config = loadConfig();
@@ -15,6 +16,7 @@ ensureTeamFreeAgencyColumns($pdo);
 ensurePlayerRestrictionColumns($pdo);
 require_once __DIR__ . '/../backend/tatica_posicoes.php';
 ensurePlayerLineupSlotColumn($pdo);
+alturaGarantirColuna($pdo);
 
 /**
  * Já existe titular nesse lugar da quadra?
@@ -718,6 +720,16 @@ if ($method === 'PUT') {
         ? (is_numeric($body['badges_count']) ? (int)$body['badges_count'] : null)
         : ($player['badges_count'] ?? null);
     $seasonsInLeague = isset($body['seasons_in_league']) ? (int)$body['seasons_in_league'] : (int)($player['seasons_in_league'] ?? 0);
+    /* Altura no padrão americano (6'5"). Quem digita é o GM no lápis do Meu
+       Elenco, então aceita as várias formas de escrever (6´5, 6-5, 65) e
+       recusa o que não é altura de jogador em vez de gravar lixo. */
+    $height = $player['height'] ?? null;
+    if (array_key_exists('height', $body)) {
+        [$okAltura, $height] = alturaNormalizar($body['height']);
+        if (!$okAltura) {
+            jsonResponse(400, ['error' => 'Altura inválida. Use o padrão americano, tipo 6\'5".']);
+        }
+    }
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
     $availableForTrade = isset($body['available_for_trade']) ? (int)((bool)$body['available_for_trade']) : (int)$player['available_for_trade'];
@@ -865,6 +877,8 @@ if ($method === 'PUT') {
         }
         $skillCols = ensureSkillGradeColumns($pdo);
         $hasSkillGradeColumns = !empty($skillCols);
+        alturaGarantirColuna($pdo);
+        $hasHeight = true;
     } catch (Exception $e) {
         $hasSecondaryPosition = false;
         $hasSeasonsInLeague = false;
@@ -873,6 +887,7 @@ if ($method === 'PUT') {
         $hasSkillGrades = false;
         $hasBadgesCount = false;
         $hasSkillGradeColumns = false;
+        $hasHeight = false;
     }
 
     // Construir UPDATE dinamicamente
@@ -896,6 +911,9 @@ if ($method === 'PUT') {
     }
     if ($hasSeasonsInLeague) {
         $fields['seasons_in_league'] = $seasonsInLeague;
+    }
+    if ($hasHeight) {
+        $fields['height'] = $height;
     }
     if ($hasFotoAdicional && $hasFotoAdicionalField) {
         $fields['foto_adicional'] = $fotoAdicional;

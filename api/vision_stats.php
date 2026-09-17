@@ -195,11 +195,19 @@ function statsWordBounds($annotation) {
  * sem separador nessas colunas, a casa decimal é recolocada.
  * Jogos (GP) é inteiro de verdade e fica intacto.
  */
-function normalizaValorEstatistica(string $raw, string $campo): float
+function normalizaValorEstatistica(string $raw, string $campo): ?float
 {
     $raw = str_replace(',', '.', trim($raw));
     if ($campo === 'games') {
         return (float)round((float)$raw);
+    }
+    /* FG% vem como fração de três casas (.573, 1.000). Sem o ponto, o OCR
+       devolve "573": três dígitos são milésimos. Fora de 0–100 não é FG%. */
+    if ($campo === 'fg_pct') {
+        if (preg_match('/^\d{3}$/', $raw)) $raw = '.' . $raw;
+        require_once __DIR__ . '/../backend/stats_temporada.php';
+        [$ok, $v] = statsFgPct($raw);
+        return $ok ? $v : null;
     }
     if (strpos($raw, '.') !== false) {
         return (float)$raw;
@@ -237,7 +245,7 @@ function parseStatsTable($annotations) {
 
     // Cabeçalho: a linha que tem as colunas de estatística
     $alvo = ['GP' => 'games', 'MIN' => 'min_pg', 'PTS' => 'pts_pg', 'REB' => 'reb_pg',
-             'AST' => 'ast_pg', 'STL' => 'stl_pg', 'BLK' => 'blk_pg'];
+             'AST' => 'ast_pg', 'STL' => 'stl_pg', 'BLK' => 'blk_pg', 'FG%' => 'fg_pct'];
     $headerRowIdx = -1;
     $colX = [];
     foreach ($rows as $ri => $row) {
@@ -249,6 +257,13 @@ function parseStatsTable($annotations) {
                 $t = strtoupper(trim($w['text']));
                 if (isset($alvo[$t]) && !isset($colX[$alvo[$t]])) $colX[$alvo[$t]] = $w['x'];
             }
+            /* O OCR às vezes separa "FG%" em "FG" e "%". Sem "FG%" inteiro, o
+               primeiro "FG" da linha é a coluna — é a que vem logo depois de FLS. */
+            if (!isset($colX['fg_pct'])) {
+                foreach ($row as $w) {
+                    if (strtoupper(trim($w['text'])) === 'FG') { $colX['fg_pct'] = $w['x']; break; }
+                }
+            }
             break;
         }
     }
@@ -259,7 +274,8 @@ function parseStatsTable($annotations) {
     $ignoradas = [];
     foreach ($rows[$headerRowIdx] as $w) {
         $t = strtoupper(trim($w['text']));
-        if (in_array($t, ['GS', 'TO', 'FLS', 'FG%', 'FG', '3P%', 'FT%', 'POS'], true)) {
+        // FG% saiu daqui: desde 17/09/2026 ela é lida (fg_pct).
+        if (in_array($t, ['GS', 'TO', 'FLS', '3P%', 'FT%', 'POS'], true)) {
             $ignoradas[] = $w['x'];
         }
     }
@@ -279,7 +295,8 @@ function parseStatsTable($annotations) {
             $t = trim($w['text']);
             // Números aceitos: inteiros (82) e decimais (42.6). Guardamos o
             // texto cru porque a ausência de ponto precisa ser tratada depois.
-            if (preg_match('/^\d{1,3}([.,]\d)?$/', $t) && $w['x'] >= $primeiraColX - 40) {
+            // FG% chega como ".573", "0.573" ou "1.000" — três casas depois do ponto.
+            if (preg_match('/^(\d{1,3}([.,]\d)?|\d?[.,]\d{3})$/', $t) && $w['x'] >= $primeiraColX - 40) {
                 $numeros[] = ['x' => $w['x'], 'raw' => $t];
             } elseif ($w['x'] < $primeiraColX - 40) {
                 // O OCR captura lixo gráfico (bordas do realce) junto do nome;
@@ -310,7 +327,8 @@ function parseStatsTable($annotations) {
             // Longe demais de qualquer coluna conhecida: provavelmente outra coluna
             if ($melhorCampo === null || $melhorDist > 60) continue;
             if (!isset($valores[$melhorCampo])) {
-                $valores[$melhorCampo] = normalizaValorEstatistica($n['raw'], $melhorCampo);
+                $v = normalizaValorEstatistica($n['raw'], $melhorCampo);
+                if ($v !== null) $valores[$melhorCampo] = $v;
             }
         }
         if (count($valores) < 3) continue;
@@ -324,6 +342,8 @@ function parseStatsTable($annotations) {
             'ast_pg' => (float)($valores['ast_pg'] ?? 0),
             'stl_pg' => (float)($valores['stl_pg'] ?? 0),
             'blk_pg' => (float)($valores['blk_pg'] ?? 0),
+            // null quando a coluna não saiu no print: o campo fica vazio, não 0%.
+            'fg_pct' => isset($valores['fg_pct']) ? (float)$valores['fg_pct'] : null,
         ];
     }
 

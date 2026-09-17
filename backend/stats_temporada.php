@@ -118,3 +118,75 @@ function statsRotuloTemporada(?array $s): string
         : (int)($s['year'] ?? 0);
     return 'Temporada ' . $n . ($ano ? ' · ' . $ano : '');
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FG% — o aproveitamento de arremessos de quadra (17/09/2026).
+
+   A tela "Per Game" do jogo mostra FG% como fração com três casas (.573). O
+   banco guarda em PERCENTUAL, com uma casa (57.3), que é como se lê e como
+   cabe na coluna DECIMAL(4,1) das outras médias.
+
+   NULL é "não lançado", e não zero: as temporadas de antes desta coluna não
+   têm o número, e um 0% nelas diria que o jogador errou tudo.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Garante player_season_stats.fg_pct. DDL: chamar fora de transação. */
+function statsGarantirFgPct(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito || $pdo->inTransaction()) return;
+    $feito = true;
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM player_season_stats LIKE 'fg_pct'")->fetch()) {
+            $pdo->exec("ALTER TABLE player_season_stats ADD COLUMN fg_pct DECIMAL(4,1) NULL AFTER blk_pg");
+        }
+    } catch (Throwable $e) {
+        error_log('[stats] coluna fg_pct: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Lê um FG% em qualquer formato que chegue — ".573" (o jogo), "0.573",
+ * "57.3", "57,3%", "57" — e devolve em percentual com uma casa.
+ *
+ * Até 1 é fração e vira percentual; acima de 1 já é percentual. "1" é a única
+ * ambiguidade (100% ou 1%?) e fica como 100%: é o que o jogo mostra como 1.000.
+ *
+ * @return array{0: bool, 1: ?float} [válido, valor] — vazio é válido e NULL
+ */
+function statsFgPct($bruto): array
+{
+    $t = trim(str_replace(['%', ' '], '', (string)$bruto));
+    if ($t === '' || $t === '-' || $t === '—') return [true, null];
+    $t = str_replace(',', '.', $t);
+    if (!is_numeric($t)) return [false, null];
+    $n = (float)$t;
+    if ($n < 0) return [false, null];
+    if ($n <= 1) $n *= 100;
+    if ($n > 100) return [false, null];
+    return [true, round($n, 1)];
+}
+
+/** FG% pra mostrar: "57,3%", ou "—" sem lançamento. */
+function statsFgPctTexto($v): string
+{
+    return $v === null || $v === '' ? '—' : number_format((float)$v, 1, ',', '') . '%';
+}
+
+/**
+ * O FG% de várias temporadas juntas, ponderado pelos jogos — só entre as que
+ * têm FG% lançado. Uma temporada sem o número não conta como 0%.
+ *
+ * @param array $linhas linhas com 'games' e 'fg_pct'
+ */
+function statsFgPctCarreira(array $linhas): ?float
+{
+    $soma = 0.0; $jogos = 0;
+    foreach ($linhas as $l) {
+        $g = (int)($l['games'] ?? 0);
+        if ($g <= 0 || !isset($l['fg_pct']) || $l['fg_pct'] === null || $l['fg_pct'] === '') continue;
+        $soma += (float)$l['fg_pct'] * $g;
+        $jogos += $g;
+    }
+    return $jogos > 0 ? round($soma / $jogos, 1) : null;
+}

@@ -19,6 +19,8 @@ header('Content-Type: application/json; charset=utf-8');
 
 $pdo  = db();
 $user = getUserSession();
+require_once __DIR__ . '/../backend/stats_temporada.php';
+statsGarantirFgPct($pdo);
 
 $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -44,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'season_
 
     $st = $pdo->prepare("
         SELECT s.season_number, s.year, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
-               ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.source, ps.updated_at,
+               ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct, ps.source, ps.updated_at,
                CONCAT(t.city,' ',t.name) AS team_name
         FROM player_season_stats ps
         LEFT JOIN seasons s ON s.id = ps.season_id
@@ -69,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'season_
     }
     $carreira = ['games' => $jogos, 'temporadas' => count($linhas)];
     foreach ($soma as $k => $v) $carreira[$k] = $jogos > 0 ? round($v / $jogos, 1) : 0;
+    $carreira['fg_pct'] = statsFgPctCarreira($linhas);
 
     echo json_encode(['success' => true, 'seasons' => $linhas, 'career' => $carreira]);
     exit;
@@ -98,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'team_ro
                -- da página do time cairia todo no avatar de iniciais.
                p.nba_player_id, p.foto_adicional,
                p.team_id, COALESCE(p.was_traded,0) AS was_traded, COALESCE(p.player_tag_color,NULL) AS player_tag_color,
-               ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
+               ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct
         FROM players p
         LEFT JOIN player_season_stats ps
                ON ps.player_id = p.id AND ps.season_id <=> ?
@@ -162,14 +165,15 @@ if ($action === 'save_stats') {
     require_once __DIR__ . '/../backend/atualizacoes.php';
     $seasonStats = statsTemporadaAlvo($pdo, $league)['alvo'] ?? $season;
 
+    statsGarantirFgPct($pdo);
     $sql = "INSERT INTO player_season_stats
               (player_id, season_id, season_number, league, team_id,
-               games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+               games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, fg_pct, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE
               games=VALUES(games), min_pg=VALUES(min_pg), pts_pg=VALUES(pts_pg),
               reb_pg=VALUES(reb_pg), ast_pg=VALUES(ast_pg), stl_pg=VALUES(stl_pg),
-              blk_pg=VALUES(blk_pg), source=VALUES(source), team_id=VALUES(team_id)";
+              blk_pg=VALUES(blk_pg), fg_pct=VALUES(fg_pct), source=VALUES(source), team_id=VALUES(team_id)";
     $stmt = $pdo->prepare($sql);
 
     $ok = 0; $ignorados = 0;
@@ -183,16 +187,16 @@ if ($action === 'save_stats') {
         $pid = (int)($it['player_id'] ?? 0);
         if (!$pid || !in_array($pid, $doElenco, true)) { $ignorados++; continue; }
         $linha = [];
-        foreach (ATUALIZACAO_STATS as $col => $regra) {
-            $n = (float)str_replace(',', '.', (string)($it[$col] ?? 0));
-            if ($n < 0 || $n > $regra['max']) {
+        foreach (array_keys(ATUALIZACAO_STATS) as $col) {
+            [$okValor, $valor, $erroValor] = atualizacaoValorStat($col, $it[$col] ?? '');
+            if (!$okValor) {
                 $stNome->execute([$pid]);
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' =>
-                    ($stNome->fetchColumn() ?: "Jogador $pid") . ": {$regra['rot']} {$n} fora da faixa (0–{$regra['max']}). Nada foi salvo."]);
+                    ($stNome->fetchColumn() ?: "Jogador $pid") . ": {$erroValor}. Nada foi salvo."]);
                 exit;
             }
-            $linha[$col] = $col === 'games' ? (int)$n : round($n, 1);
+            $linha[$col] = $valor;
         }
         $linha['source'] = ($it['source'] ?? 'manual') === 'foto' ? 'foto' : 'manual';
         $validos[$pid] = $linha;
@@ -204,7 +208,7 @@ if ($action === 'save_stats') {
             $stmt->execute([
                 $pid, (int)$seasonStats['id'], (int)$seasonStats['season_number'], $league, $teamId,
                 $l['games'], $l['min_pg'], $l['pts_pg'], $l['reb_pg'], $l['ast_pg'], $l['stl_pg'], $l['blk_pg'],
-                $l['source'],
+                $l['fg_pct'], $l['source'],
             ]);
             $ok++;
         }

@@ -1016,6 +1016,7 @@ function desenharEscalacao(jogadores) {
         <td style="text-align:center">${n(p.ast_pg)}</td>
         <td style="text-align:center">${n(p.stl_pg)}</td>
         <td style="text-align:center">${n(p.blk_pg)}</td>
+        <td style="text-align:center">${p.fg_pct === null || p.fg_pct === undefined ? '—' : n(p.fg_pct) + '%'}</td>
       </tr>`).join('');
 
     const comStats = d.players.filter(p => p.games !== null).length;
@@ -1028,6 +1029,7 @@ function desenharEscalacao(jogadores) {
             <th style="text-align:center">MIN</th><th style="text-align:center">PTS</th>
             <th style="text-align:center">REB</th><th style="text-align:center">AST</th>
             <th style="text-align:center">ROU</th><th style="text-align:center">TOC</th>
+            <th style="text-align:center">FG%</th>
           </tr></thead>
           <tbody>${linhas}</tbody>
         </table>

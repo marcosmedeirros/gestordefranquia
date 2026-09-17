@@ -943,7 +943,7 @@ function renderPlayersMobileCards(players) {
         </div>
         <div class="text-end">
           <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</div>
-          <small class="text-light-gray">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
+          <small class="text-light-gray">${p.age} anos${p.height ? ` · ${p.height}` : ''}${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
         </div>
       </div>
       <div class="mt-2">
@@ -961,7 +961,7 @@ function renderPlayersTable(players) {
   if (!wrapper || !tbody) return;
   tbody.innerHTML = '';
   if (!players || players.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${SALARY_MODE ? 9 : 8}"><div class="empty-state"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${SALARY_MODE ? 10 : 9}"><div class="empty-state"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div></td></tr>`;
     wrapper.style.display = '';
     return;
   }
@@ -986,6 +986,7 @@ function renderPlayersTable(players) {
       <td><span style="color:${getOvrColor(p.ovr)};" class="fw-bold">${p.ovr}</span>${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</td>
       ${SALARY_MODE ? `<td class="fw-bold" style="color:var(--red)">${playerSalary(p)}M</td>` : ''}
       <td>${p.age}</td>
+      <td>${p.height || '—'}</td>
       <td>${normalizeRoleKey(p.role)}</td>
       <td>
         ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
@@ -1329,6 +1330,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const editPreview = document.getElementById('edit-foto-preview');
         if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
         document.getElementById('edit-age').value = player.age;
+        const _editAltura = document.getElementById('edit-height');
+        if (_editAltura) _editAltura.value = player.height || '';
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
         document.getElementById('edit-badges-count').value = (player.badges_count ?? '') === null ? '' : (player.badges_count ?? '');
@@ -1413,6 +1416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const editPreview = document.getElementById('edit-foto-preview');
         if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
         document.getElementById('edit-age').value = player.age;
+        const _editAltura = document.getElementById('edit-height');
+        if (_editAltura) _editAltura.value = player.height || '';
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
         document.getElementById('edit-badges-count').value = (player.badges_count ?? '') === null ? '' : (player.badges_count ?? '');
@@ -1481,6 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: _editPlayerId,
       name: document.getElementById('edit-name').value,
       age: ageVal,
+      height: (document.getElementById('edit-height')?.value || '').trim(),
       position: document.getElementById('edit-position').value,
       secondary_position: document.getElementById('edit-secondary-position').value || null,
       badges_count: Number.isNaN(badgesValNum) ? null : badgesValNum,
@@ -1587,11 +1593,13 @@ document.addEventListener('DOMContentLoaded', () => {
             Médias na temporada${st.season_number ? ' ' + st.season_number : ''}
             <span style="text-transform:none;letter-spacing:0;color:var(--text-2);font-weight:600">· ${st.games} jogo${st.games === 1 ? '' : 's'}</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
-            ${[['PTS', st.pts], ['REB', st.reb], ['AST', st.ast],
-               ['ROU', st.stl], ['TOC', st.blk], ['MIN', st.min]]
-              .map(([r, v]) => `<div style="background:var(--panel-2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:10px;padding:9px 4px;text-align:center">
-                   <div style="font-size:16px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums">${num(v)}</div>
+          <!-- Sete tiles: flex com flex-grow faz a última fileira esticar e
+               preencher a largura, em vez de deixar um buraco de grid. -->
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${[['PTS', st.pts], ['REB', st.reb], ['AST', st.ast], ['FG%', st.fg],
+               ['MIN', st.min], ['ROU', st.stl], ['TOC', st.blk]]
+              .map(([r, v]) => `<div style="flex:1 1 calc(25% - 6px);min-width:58px;background:var(--panel-2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:10px;padding:9px 4px;text-align:center">
+                   <div style="font-size:16px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums">${num(v)}${r === 'FG%' && v !== null && v !== undefined ? '%' : ''}</div>
                    <div style="font-size:9.5px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-top:2px">${r}</div>
                  </div>`).join('')}
           </div>
@@ -1611,8 +1619,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
-          ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
+          ${[['Idade',player.age??'-'],['Altura',player.height||'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
             .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
         </div>
         ${statsHtml}

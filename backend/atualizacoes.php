@@ -60,7 +60,31 @@ const ATUALIZACAO_STATS = [
        sobra folga pra jogador real. */
     'stl_pg' => ['rot' => 'ROU',   'max' => 5],
     'blk_pg' => ['rot' => 'TOC',   'max' => 6],
+    /* FG% em percentual (57.3). Aceita a fração do jogo (.573) e vazio vira
+       NULL, não 0 — ver statsFgPct() em backend/stats_temporada.php. */
+    'fg_pct' => ['rot' => 'FG%',   'max' => 100],
 ];
+
+/**
+ * Um valor de estatística já no formato do banco, ou o motivo da recusa.
+ * Mesma regra pro salvar do dono, pro CSV e pra atualização de terceiros.
+ *
+ * @return array{0: bool, 1: int|float|null, 2: string} [válido, valor, erro]
+ */
+function atualizacaoValorStat(string $col, $bruto): array
+{
+    $regra = ATUALIZACAO_STATS[$col] ?? null;
+    if (!$regra) return [false, null, "coluna {$col} desconhecida"];
+    if ($col === 'fg_pct') {
+        require_once __DIR__ . '/stats_temporada.php';
+        [$ok, $v] = statsFgPct($bruto);
+        return $ok ? [true, $v, ''] : [false, null, "FG% inválido: {$bruto} (use 57.3 ou .573)"];
+    }
+    if ($bruto === '' || $bruto === null) return [true, 0, ''];
+    $n = (float)str_replace(',', '.', (string)$bruto);
+    if ($n < 0 || $n > $regra['max']) return [false, null, "{$regra['rot']} fora da faixa (0–{$regra['max']}): {$n}"];
+    return [true, $col === 'games' ? (int)$n : round($n, 1), ''];
+}
 
 function ensureAtualizacaoTables(PDO $pdo): void
 {
@@ -256,14 +280,10 @@ function atualizacaoValidarSkills(array $linha): array
 function atualizacaoValidarStats(array $linha): array
 {
     $vals = [];
-    foreach (ATUALIZACAO_STATS as $col => $regra) {
-        $v = $linha[$col] ?? '';
-        if ($v === '' || $v === null) { $vals[$col] = 0; continue; }
-        $n = (float)str_replace(',', '.', (string)$v);
-        if ($n < 0 || $n > $regra['max']) {
-            return [false, [], "{$regra['rot']} fora da faixa (0–{$regra['max']}): {$n}"];
-        }
-        $vals[$col] = $col === 'games' ? (int)$n : round($n, 1);
+    foreach (array_keys(ATUALIZACAO_STATS) as $col) {
+        [$ok, $v, $erro] = atualizacaoValorStat($col, $linha[$col] ?? '');
+        if (!$ok) return [false, [], $erro];
+        $vals[$col] = $v;
     }
     // Linha vazia não vale envio nem moeda.
     if (($vals['games'] ?? 0) <= 0 && ($vals['pts_pg'] ?? 0) <= 0) {

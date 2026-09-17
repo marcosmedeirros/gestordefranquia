@@ -1260,6 +1260,27 @@ function runMigrations() {
         $errors[] = "ajuste_player_season_stats_source_clonado: " . $e->getMessage();
     }
 
+    // FG% da temporada, em percentual (57.3). NULL = não lançado: as temporadas
+    // de antes desta coluna não têm o número. Ver statsFgPct().
+    try {
+        if ($pdo->query("SHOW TABLES LIKE 'player_season_stats'")->fetch()
+            && !$pdo->query("SHOW COLUMNS FROM player_season_stats LIKE 'fg_pct'")->fetch()) {
+            $pdo->exec("ALTER TABLE player_season_stats ADD COLUMN fg_pct DECIMAL(4,1) NULL AFTER blk_pg");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_player_season_stats_fg_pct: " . $e->getMessage();
+    }
+
+    // Altura do jogador no jogo, no formato americano: 6'5". Ver backend/altura.php.
+    try {
+        if ($pdo->query("SHOW TABLES LIKE 'players'")->fetch()
+            && !$pdo->query("SHOW COLUMNS FROM players LIKE 'height'")->fetch()) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN height VARCHAR(8) NULL AFTER age");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_players_height: " . $e->getMessage();
+    }
+
     try {
         $hasLeagueSettingsTable = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
         if ($hasLeagueSettingsTable) {

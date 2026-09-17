@@ -129,7 +129,7 @@ $sql = '
            p.skill_in, p.skill_mid, p.skill_3pt, p.skill_post_d, p.skill_per_d,
            p.skill_play, p.skill_reb, p.skill_athl, p.skill_iq, p.skill_pot,
            t.city AS team_city, t.name AS team_name,
-           ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
+           ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct
     FROM players p
     JOIN teams t ON t.id = p.team_id
     LEFT JOIN player_season_stats ps
@@ -182,6 +182,7 @@ $dados = array_map(function ($r) use ($SKILLS) {
         'ast'   => $num($r['ast_pg']),
         'rou'   => $num($r['stl_pg']),
         'toc'   => $num($r['blk_pg']),
+        'fg'    => $num($r['fg_pct']),
     ];
 }, $linhas);
 
@@ -543,6 +544,9 @@ const COLS = {
     { c:'jogos', rot:'Jogos' }, { c:'min', rot:'Min', dec:1 }, { c:'pts', rot:'Pts', dec:1 },
     { c:'reb', rot:'Reb', dec:1 }, { c:'ast', rot:'Ast', dec:1 },
     { c:'rou', rot:'Rou', dec:1 }, { c:'toc', rot:'Toc', dec:1 },
+    // FG% em percentual (57.3): o sufixo entra na formatação, não no número,
+    // pra ordenação continuar numérica.
+    { c:'fg', rot:'FG%', dec:1, sufixo:'%' },
   ].map(function (o) { return Object.assign({ tipo:'num', cls:'num' }, o); }),
   skills: [
     ['in','IN'],['mid','MID'],['pt3','3PT'],['post_d','POST D'],['per_d','PER D'],
@@ -737,7 +741,7 @@ function render() {
       if (col.tipo === 'skill') {
         return '<td class="num' + on + '" style="' + corSkill(v) + '">' + (v === null ? '—' : esc(v)) + '</td>';
       }
-      return '<td class="num' + on + '">' + fmt(v, col.dec) + '</td>';
+      return '<td class="num' + on + '">' + fmt(v, col.dec) + (v !== null && v !== undefined && col.sufixo ? col.sufixo : '') + '</td>';
     }).join('');
     // A coluna de copiar não entra em colunas(): não é dado, não ordena e
     // não muda com a aba. Fica no fim, onde o olho já terminou de ler a linha.
@@ -780,7 +784,8 @@ function textoDoJogador(p) {
       linhas.push(
         [p.jogos + ' J', fmt(p.min, 1) + ' MIN', fmt(p.pts, 1) + ' PTS',
          fmt(p.reb, 1) + ' REB', fmt(p.ast, 1) + ' AST',
-         fmt(p.rou, 1) + ' ROU', fmt(p.toc, 1) + ' TOC'].join(' · ')
+         fmt(p.rou, 1) + ' ROU', fmt(p.toc, 1) + ' TOC',
+         (p.fg === null ? '—' : fmt(p.fg, 1) + '%') + ' FG'].join(' · ')
       );
     }
   } else {

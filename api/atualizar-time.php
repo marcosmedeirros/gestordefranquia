@@ -25,6 +25,9 @@ if (!$user) { http_response_code(401); echo json_encode(['erro' => 'Sessão expi
 
 $pdo = db();
 ensureAtualizacaoTables($pdo);
+// A coluna fg_pct está em ATUALIZACAO_STATS, e as consultas abaixo a leem.
+require_once __DIR__ . '/../backend/stats_temporada.php';
+statsGarantirFgPct($pdo);
 
 $uid = (int)$user['id'];
 
@@ -387,7 +390,8 @@ if ($acao === 'reverter') {
                     $sets = implode(', ', array_map(fn($c) => "{$c} = :{$c}", array_keys(ATUALIZACAO_STATS)));
                     $up = $pdo->prepare("UPDATE player_season_stats SET {$sets} WHERE id = :id");
                     $p = ['id' => (int)$f['id']];
-                    foreach (array_keys(ATUALIZACAO_STATS) as $c) $p[$c] = $f[$c] ?? 0;
+                    // FG% sem registro antes volta a NULL (não lançado), não a 0%.
+                    foreach (array_keys(ATUALIZACAO_STATS) as $c) $p[$c] = $f[$c] ?? ($c === 'fg_pct' ? null : 0);
                     $up->execute($p);
                 } else {
                     $pdo->prepare("DELETE FROM player_season_stats WHERE team_id = ? AND player_id = ?")

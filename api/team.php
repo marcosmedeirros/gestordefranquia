@@ -3,6 +3,10 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/salary_cap.php';
+require_once __DIR__ . '/../backend/altura.php';
+require_once __DIR__ . '/../backend/stats_temporada.php';
+alturaGarantirColuna(db());
+statsGarantirFgPct(db());
 
 /**
  * Resumo da folha pro "Copiar Time" — só nas ligas em salary cap.
@@ -322,6 +326,7 @@ if ($method === 'GET') {
             'pts'  => 'ps.pts_pg IS NULL, ps.pts_pg DESC, p.ovr DESC',
             'reb'  => 'ps.reb_pg IS NULL, ps.reb_pg DESC, p.ovr DESC',
             'ast'  => 'ps.ast_pg IS NULL, ps.ast_pg DESC, p.ovr DESC',
+            'fg'   => 'ps.fg_pct IS NULL, ps.fg_pct DESC, p.ovr DESC',
         ];
         $sortKey = strtolower(trim($_GET['sort'] ?? 'ovr'));
         $orderBy = $ordens[$sortKey] ?? $ordens['ovr'];
@@ -347,7 +352,7 @@ if ($method === 'GET') {
 
                 try {
             $stmt = $pdo->prepare("
-                                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
+                                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.height, p.ovr, p.position, p.secondary_position
                                     {$badgesSelect}{$tapasSelect},
                   p.role,
                   p.was_traded, p.drafted_by_team_id,
@@ -363,7 +368,7 @@ if ($method === 'GET') {
                   COALESCE(p.player_tag_copy, 0) as player_tag_copy,
                   t.id as team_id, t.city, t.name as team_name, t.league,
                   u.phone as owner_phone,
-                  ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
+                  ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct
                 FROM players p
                 JOIN teams t ON p.team_id = t.id
                 JOIN users u ON t.user_id = u.id
@@ -675,7 +680,7 @@ if ($method === 'GET') {
         $stats = null;
         try {
             $stmtStats = $pdo->prepare("
-                SELECT ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg,
+                SELECT ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct,
                        s.season_number
                   FROM player_season_stats ps
                   JOIN seasons s ON s.id = ps.season_id
@@ -698,6 +703,7 @@ if ($method === 'GET') {
                     'ast'   => $num($linhaStats['ast_pg']),
                     'stl'   => $num($linhaStats['stl_pg']),
                     'blk'   => $num($linhaStats['blk_pg']),
+                    'fg'    => $num($linhaStats['fg_pct']),
                 ];
             }
         } catch (Exception $e) {
@@ -710,6 +716,7 @@ if ($method === 'GET') {
                 'id' => (int)$player['id'],
                 'name' => $player['name'],
                 'age' => $player['age'] ?? null,
+                'height' => $player['height'] ?? null,
                 'position' => $player['position'] ?? null,
                 'secondary_position' => $player['secondary_position'] ?? null,
                 'ovr' => $player[$ovrColumn] ?? ($player['ovr'] ?? null),

@@ -166,12 +166,15 @@ function duvidaEsquemaParaIA(PDO $pdo): string
     $l[] = '  incompleto; a liga só não usa esse dado. Diga a colocação e pronto.';
     $l[] = '- Prêmios: season_awards(season_id, team_id, award_type, player_name).';
     $l[] = '- Pontuação do ranking: team_ranking_points(team_id, season_id, league, total_points e as parciais).';
-    $l[] = '- Elenco de hoje: players(team_id, name, age, ovr, position, is_lenda, seasons_in_league).';
+    $l[] = '- Elenco de hoje: players(team_id, name, age, height, ovr, position, is_lenda, seasons_in_league).';
+    $l[] = '  height é a altura no padrão americano, texto tipo 6\'5" (pode ser NULL em quem não preencheu).';
     $l[] = '  is_lenda = 1 marca as LENDAS. players só tem quem está em algum time agora.';
     $l[] = '- Histórico de cada jogador: player_season_log(player_name, season_number, year, team_name, ovr, age).';
     $l[] = '  É AQUI que se vê evolução de OVR ao longo das temporadas — players só tem o valor atual.';
     $l[] = '- Estatística por temporada: player_season_stats(player_id, season_id, season_number, games,';
-    $l[] = '  min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg). stl_pg é ROUBO e blk_pg é TOCO.';
+    $l[] = '  min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, fg_pct). stl_pg é ROUBO e blk_pg é TOCO.';
+    $l[] = '  fg_pct é o APROVEITAMENTO DE ARREMESSOS em percentual (57.3 = 57,3%); pode ser NULL em';
+    $l[] = '  lançamento antigo, então some com fg_pct IS NOT NULL antes de comparar.';
     $l[] = '';
 
     /* PROJEÇÃO É CONTA, E A CONTA VAI PRONTA.

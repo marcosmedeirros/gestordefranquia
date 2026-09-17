@@ -994,6 +994,7 @@ if ($teamId) {
                                 <th data-sort="salary"   class="sortable">Salário</th>
                                 <?php endif; ?>
                                 <th data-sort="age"      class="sortable">Idade</th>
+                                <th>Altura</th>
                                 <th data-sort="role"     class="sortable">Função</th>
                                 <th>Transferência</th>
                                 <th class="text-end actions-col">Ações</th>
@@ -1062,6 +1063,10 @@ if ($teamId) {
                     <div class="field" style="grid-column: span 2;">
                         <label for="edit-age">Idade</label>
                         <input type="number" id="edit-age" min="16" max="50" required>
+                    </div>
+                    <div class="field" style="grid-column: span 2;">
+                        <label for="edit-height">Altura</label>
+                        <input type="text" id="edit-height" inputmode="text" maxlength="8" placeholder="6'5&quot;">
                     </div>
                     <div class="field" style="grid-column: span 2;">
                         <label for="edit-position">Posição</label>

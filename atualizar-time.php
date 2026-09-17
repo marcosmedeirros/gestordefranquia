@@ -323,6 +323,7 @@ $('btnPrompt').addEventListener('click', async (ev) => {
     // Vale mesmo neste prompt, que é o das skills: a mesma pessoa manda os dois
     // arquivos, e é aqui que ela copia o texto pra IA.
     'Se o CSV tiver colunas de estatística: ROU vem de STL (roubadas) e TOC vem de BLK (tocos). ' +
+    'FG% vem da coluna FG% — copie como aparece (.573). ' +
     'A coluna TO do print é turnover (bolas perdidas) e NÃO entra em lugar nenhum — ignore.\n\n' +
     'IMPORTANTE: me devolva o resultado como um ARQUIVO .csv pronto pra baixar, ' +
     'codificado em UTF-8, separado por vírgula, com o mesmo cabeçalho do modelo. ' +
