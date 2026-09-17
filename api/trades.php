@@ -2225,7 +2225,6 @@ if (($_GET['action'] ?? '') === 'rascunhos' && $method === 'GET') {
     echo json_encode([
         'success'   => true,
         'rascunhos' => rascunhosDoTime($pdo, (int)$teamId),
-        'max'       => TRADE_RASCUNHO_MAX,
     ]);
     exit;
 }

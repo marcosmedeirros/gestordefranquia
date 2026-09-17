@@ -16,8 +16,10 @@
  * uma troca com um jogador que já foi embora não descreve mais nada.
  */
 
-/** Quantos rascunhos cada time pode ter guardados. */
-const TRADE_RASCUNHO_MAX = 5;
+/* Sem teto de quantidade: o time guarda quantos rascunhos quiser. Havia um
+   limite de 5 no primeiro dia (17/09/2026) e saiu a pedido do Marcos — quem
+   monta cenário atrás de cenário não tem por que apagar um pra pensar no
+   próximo, e a faxina de ativo fora do lugar já impede o acúmulo de lixo. */
 
 /** Garante as tabelas. DDL comita sozinho: nunca de dentro de transação. */
 function rascunhoGarantirTabelas(PDO $pdo): void
@@ -329,14 +331,6 @@ function rascunhoSalvar(PDO $pdo, int $teamId, string $league, ?int $id, array $
             $pdo->prepare('DELETE FROM trade_rascunho_itens WHERE rascunho_id = ?')->execute([$id]);
             $novoId = $id;
         } else {
-            // O limite é por time, contado na hora de criar: cinco cenários
-            // guardados já são mais do que alguém compara de cabeça.
-            $st = $pdo->prepare('SELECT COUNT(*) FROM trade_rascunhos WHERE team_id = ?');
-            $st->execute([$teamId]);
-            if ((int)$st->fetchColumn() >= TRADE_RASCUNHO_MAX) {
-                $pdo->rollBack();
-                return [false, null, 'Você já tem ' . TRADE_RASCUNHO_MAX . ' rascunhos salvos. Apague um na aba Rascunhos pra guardar outro.'];
-            }
             $pdo->prepare('INSERT INTO trade_rascunhos (team_id, league, dados, notes) VALUES (?, ?, ?, ?)')
                 ->execute([$teamId, $league, $dados, $notes !== '' ? $notes : null]);
             $novoId = (int)$pdo->lastInsertId();

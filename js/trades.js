@@ -2470,9 +2470,8 @@ async function openModifyTrade(tradeId) {
    Mesas montadas na Trade Machine e guardadas sem enviar. Proposta nenhuma
    existe: ninguém foi avisado, o outro GM não vê nada. A aba só aparece se
    houver rascunho, e some quando o último é apagado (aqui mesmo ou pela
-   faxina do servidor, quando um dos ativos troca de time). */
-let rascunhoMax = 5;
-
+   faxina do servidor, quando um dos ativos troca de time). Não há limite de
+   quantos o time guarda. */
 async function carregarRascunhos() {
   const container = document.getElementById('draftsTradesList');
   const item = document.getElementById('drafts-tab-item');
@@ -2482,7 +2481,6 @@ async function carregarRascunhos() {
   try {
     const d = await api('trades.php?action=rascunhos');
     lista = d.rascunhos || [];
-    if (d.max) rascunhoMax = Number(d.max);
   } catch (err) {
     // Falhar aqui não pode sumir com a tela de trocas: a aba simplesmente
     // não aparece, como quando não há rascunho nenhum.
@@ -2507,7 +2505,8 @@ async function carregarRascunhos() {
   item.style.display = '';
   container.innerHTML = lista.map(r => cartaoRascunho(r)).join('')
     + `<div style="font-size:12px;color:var(--text-3);margin-top:4px">
-         ${lista.length} de ${rascunhoMax} rascunhos guardados. Eles são só seus — nenhum GM é avisado.
+         ${lista.length} rascunho${lista.length === 1 ? '' : 's'} guardado${lista.length === 1 ? '' : 's'}.
+         ${lista.length === 1 ? 'Ele é' : 'Eles são'} só ${lista.length === 1 ? 'seu' : 'seus'} — nenhum GM é avisado.
        </div>`;
 }
 
