@@ -9,6 +9,8 @@ require_once dirname(__DIR__) . '/backend/draft_swaps.php';
 require_once dirname(__DIR__) . '/backend/picks_usadas.php';   // pick escolhida nao se troca mais
 // Proteção de pick (só ELITE, só 1ª rodada) — regra e trava do ano seguinte.
 require_once dirname(__DIR__) . '/backend/pick_protection.php';
+// Rascunho de troca: a mesa guardada que ainda não foi proposta a ninguém.
+require_once dirname(__DIR__) . '/backend/trade_rascunhos.php';
 
 /**
  * OVR mínimo pra uma trade aceita virar aviso no grupo do WhatsApp e no n8n.
@@ -2176,6 +2178,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
 
         $pdo->commit();
 
+        // Jogador mudou de time: rascunho de QUALQUER time que contava com ele
+        // deixa de descrever algo possível.
+        rascunhosLimparFurados($pdo);
+
         try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); } catch (Exception $e) {}
 
         echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
@@ -2199,6 +2205,68 @@ if (!$teamId) {
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+/* ── RASCUNHOS ────────────────────────────────────────────────────────────────
+   Nada aqui notifica ninguém: rascunho é papel de rascunho, só o time que
+   montou vê. A liga do rascunho é sempre a do usuário logado — como na
+   criação da proposta, o time vem da sessão e não do corpo do pedido. */
+if (($_GET['action'] ?? '') === 'rascunhos' && $method === 'GET') {
+    rascunhosLimparFurados($pdo, (int)$teamId);
+    $um = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if ($um > 0) {
+        $dados = rascunhoDados($pdo, (int)$teamId, $um);
+        if (!$dados) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Rascunho não encontrado. Ele pode ter sido apagado por causa de uma troca.']);
+            exit;
+        }
+        echo json_encode(['success' => true, 'rascunho' => $dados]);
+        exit;
+    }
+    echo json_encode([
+        'success'   => true,
+        'rascunhos' => rascunhosDoTime($pdo, (int)$teamId),
+        'max'       => TRADE_RASCUNHO_MAX,
+    ]);
+    exit;
+}
+
+if (($_GET['action'] ?? '') === 'rascunho' && $method === 'POST') {
+    $data = json_decode(file_get_contents('php://input'), true) ?: [];
+    $liga = strtoupper(trim((string)($user['league'] ?? '')));
+    [$ok, $novoId, $erro] = rascunhoSalvar(
+        $pdo, (int)$teamId, $liga,
+        isset($data['rascunho_id']) ? (int)$data['rascunho_id'] : null,
+        is_array($data['slots'] ?? null) ? $data['slots'] : [],
+        is_array($data['itens'] ?? null) ? $data['itens'] : [],
+        trim((string)($data['notes'] ?? ''))
+    );
+    if (!$ok) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $erro]);
+        exit;
+    }
+    echo json_encode(['success' => true, 'rascunho_id' => $novoId,
+                      'total' => rascunhosQuantos($pdo, (int)$teamId)]);
+    exit;
+}
+
+if (($_GET['action'] ?? '') === 'rascunho' && $method === 'DELETE') {
+    $data = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($data['rascunho_id'] ?? $_GET['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'rascunho_id obrigatório']);
+        exit;
+    }
+    if (!rascunhoApagar($pdo, (int)$teamId, $id)) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Rascunho não encontrado.']);
+        exit;
+    }
+    echo json_encode(['success' => true, 'total' => rascunhosQuantos($pdo, (int)$teamId)]);
+    exit;
+}
+
 // GET - Listar trades
 if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     $type = $_GET['type'] ?? 'received'; // received, sent, history
@@ -2209,6 +2277,9 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     // Mesma coisa pelas picks: a que já virou jogador no draft não é mais
     // moeda de troca, mas continua na tabela e a proposta antiga seguia lá.
     cancelarTrocasComPickUsada($pdo);
+    // E os rascunhos: ninguém foi avisado deles, então não é "cancelar" — o
+    // que tinha um ativo fora do lugar simplesmente deixa de existir.
+    rascunhosLimparFurados($pdo, (int)$teamId);
 
     $conditions = [];
     $params = [];
@@ -3837,6 +3908,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
 
                 $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $tradeId]);
                 $pdo->commit();
+                rascunhosLimparFurados($pdo);   // os ativos trocaram de time
                 try {
                     sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
                 } catch (Exception $e) {
@@ -4197,6 +4269,9 @@ if ($method === 'PUT') {
         }
 
         $pdo->commit();
+        // Trade aceita move jogador e pick: todo rascunho que contava com eles
+        // morre agora, sem esperar alguém abrir a tela de trocas.
+        if ($action === 'accepted') rascunhosLimparFurados($pdo);
         try {
             $event = $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled');
             sendTradeWebhook($pdo, (int)$tradeId, $event);

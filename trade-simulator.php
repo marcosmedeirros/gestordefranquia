@@ -634,6 +634,13 @@ body{overflow-x:hidden}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
         <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
+        <?php /* Rascunho existe mesmo com o envio fechado: guardar a mesa não
+                 propõe nada a ninguém, e é justamente com as trocas fechadas
+                 que dá vontade de deixar a troca pronta pra quando abrir. */ ?>
+        <button class="btn-r secondary sm" id="draftSaveBtn" onclick="salvarRascunho()"
+                title="Guarda esta mesa pra depois, sem enviar nada pro outro GM">
+          <i class="bi bi-bookmark-plus"></i>Rascunho
+        </button>
         <?php if ($__podeEnviar): ?>
         <button class="btn-r primary lg" id="submitBtn" onclick="submitTrade()" disabled>
           <i class="bi bi-send-fill"></i>Enviar Proposta
@@ -725,6 +732,10 @@ let MODIFICAR = null;
 // A troca do histórico que está sendo REFEITA. Só marca a origem: a proposta
 // sai como nova, porque a antiga já foi recusada ou cancelada.
 let REFAZER = null;
+/* O rascunho aberto nesta mesa. Salvar de novo REGRAVA este, em vez de
+   guardar uma cópia quase igual — cinco rascunhos acabam rápido se cada
+   ajuste virar um novo. */
+let RASCUNHO_ID = null;
 
 // Pré-seleção vinda de fora (o modal de trades não existe mais na ELITE):
 // "Propor trade por este jogador" (players.php/mercado.php) manda team_id+
@@ -820,6 +831,199 @@ async function boot() {
     // (a proposta é sua, você só está mexendo nela).
     await preencherDaTroca(id, !!CONTRA_TRADE);
   }
+
+  /* Rascunho vindo da aba Rascunhos. Com &enviar=1 a mesa é montada e o
+     envio dispara sozinho — o botão "Enviar" da aba manda pelo caminho normal
+     (mesma validação de 120%, mesma janela de trocas) e a pessoa vê o que
+     está indo, em vez de existir um segundo jeito de criar proposta. */
+  const rascunhoId = parseInt(par.get('rascunho') || '0', 10) || null;
+  if (rascunhoId) {
+    const ok = await preencherDoRascunho(rascunhoId);
+    if (ok && par.get('enviar') === '1') {
+      recalc();
+      if (canSubmit() && document.getElementById('submitBtn')) {
+        await submitTrade();
+      } else {
+        alert('O rascunho está na mesa, mas o envio está barrado — confira o aviso na tela.');
+      }
+    }
+  }
+}
+
+/**
+ * Remonta a mesa de um rascunho salvo.
+ *
+ * O rascunho guarda o essencial (quais times, quem recebe o quê) e não uma
+ * foto da tela: os números vêm do elenco de agora, então uma mesa aberta
+ * amanhã mostra o salário e o OVR de amanhã. Se o rascunho não existir mais
+ * (algum ativo foi trocado e a faxina o apagou), avisa em vez de abrir a
+ * Trade Machine vazia sem explicação.
+ */
+async function preencherDoRascunho(id) {
+  let dados = null;
+  try {
+    const r = await fetch(`/api/trades.php?action=rascunhos&id=${id}`);
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Rascunho não encontrado.'); return false; }
+    dados = d.rascunho;
+  } catch (e) {
+    alert('Não deu pra carregar o rascunho agora.');
+    return false;
+  }
+
+  const slots = Array.isArray(dados.slots) ? dados.slots : [];
+  if (slots.length < 2) return false;
+
+  // Painéis: dois já existem, o resto nasce aqui (até 7, como no envio).
+  while (activeSlots.length < slots.length && activeSlots.length < MAX_TEAMS) addTeamSlot();
+
+  // A chave salva ('A'..'G') é só a ordem — o que vale é o time de cada
+  // painel, na sequência em que foram salvos.
+  const mapaChave = {};
+  for (let i = 0; i < slots.length && i < activeSlots.length; i++) {
+    const key = activeSlots[i];
+    mapaChave[slots[i].key] = key;
+    const sel = document.getElementById(`sel_${key}`);
+    if (sel) sel.value = String(slots[i].team_id);
+    await loadTeam(key, slots[i].team_id);
+  }
+
+  let perdidos = 0;
+  (Array.isArray(dados.itens) ? dados.itens : []).forEach(it => {
+    const para = mapaChave[it.para], de = mapaChave[it.de];
+    if (!para || !de) { perdidos++; return; }
+    const ok = it.tipo === 'pick'
+      ? mesaAddPick(para, de, it.id, { protection: it.protection, swapRole: it.swapRole })
+      : mesaAddJogador(para, de, it.id);
+    if (!ok) perdidos++;
+  });
+
+  RASCUNHO_ID = id;
+  const notas = document.getElementById('tradeNotes');
+  if (notas && dados.notes) notas.value = dados.notes;
+
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
+  recalc();
+  avisoRascunho(perdidos);
+  return perdidos === 0;
+}
+
+/** A faixa que diz que esta mesa veio de um rascunho. */
+function avisoRascunho(perdidos) {
+  const bar = document.getElementById('capBar');
+  if (!bar || !bar.parentNode) return;
+  let aviso = document.getElementById('rascunhoAviso');
+  if (!aviso) {
+    aviso = document.createElement('div');
+    aviso.id = 'rascunhoAviso';
+    aviso.className = 'contra-aviso';
+    bar.parentNode.insertBefore(aviso, bar);
+  }
+  aviso.innerHTML = perdidos
+    ? `<i class="bi bi-exclamation-triangle"></i> Rascunho <b>#${RASCUNHO_ID}</b> aberto, mas ${perdidos} item${perdidos > 1 ? 'ns' : ''} não está${perdidos > 1 ? 'vam' : ''} mais disponível. Ajuste antes de enviar.`
+    : `<i class="bi bi-bookmark-fill"></i> Rascunho <b>#${RASCUNHO_ID}</b> na mesa. Salvar de novo regrava este rascunho; enviar cria a proposta.`;
+}
+
+/** Apaga o rascunho que está na mesa, se houver. Falhar aqui não é erro de
+ *  envio: a proposta já foi criada, e a faxina da listagem pega o resto. */
+async function apagarRascunhoAberto() {
+  if (!RASCUNHO_ID) return;
+  try {
+    await fetch('/api/trades.php?action=rascunho', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rascunho_id: RASCUNHO_ID }),
+    });
+  } catch (e) { /* segue o envio */ }
+  RASCUNHO_ID = null;
+}
+
+/** A mesa em forma de rascunho: quais times e quem recebe o quê. */
+function estadoDoRascunho() {
+  const slots = activeSlots.filter(k => teams[k]).map(k => ({ key: k, team_id: teams[k].id }));
+  const itens = [];
+  activeSlots.forEach(k => (receives[k] || []).forEach(i => itens.push({
+    para: k, de: i.fromKey, tipo: i.type, id: i.id,
+    protection: i.type === 'pick' ? (i.protection || null) : null,
+    swapRole: i.swapRole || null,
+  })));
+  return { slots, itens };
+}
+
+/**
+ * Guarda a mesa sem propor nada.
+ *
+ * Não passa por canSubmit(): rascunho é papel de rascunho — uma troca que
+ * fura os 120% pode ser exatamente o que você quer guardar pra ajustar
+ * depois. O que o servidor exige é o mínimo pra mesa existir: dois times e
+ * um item.
+ */
+async function salvarRascunho() {
+  const { slots, itens } = estadoDoRascunho();
+  if (slots.length < 2) { alert('Escolha os dois times antes de salvar o rascunho.'); return; }
+  if (!itens.length)    { alert('Coloque pelo menos um jogador ou pick na mesa.'); return; }
+
+  const btn = document.getElementById('draftSaveBtn');
+  const htmlAntes = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i>Salvando...'; }
+  try {
+    const r = await fetch('/api/trades.php?action=rascunho', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rascunho_id: RASCUNHO_ID,
+        slots, itens,
+        notes: document.getElementById('tradeNotes')?.value || '',
+      }),
+    });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Não deu pra salvar o rascunho.'); return; }
+    RASCUNHO_ID = d.rascunho_id;
+    avisoRascunho(0);
+    if (btn) {
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>Rascunho salvo';
+      setTimeout(() => { btn.innerHTML = htmlAntes; }, 2200);
+    }
+  } catch (e) {
+    alert('Não deu pra salvar o rascunho agora.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* ── Colocar item na mesa ─────────────────────────────────────────────────────
+   Os dados da linha (salário, OVR, idade, rótulo da pick) vivem no elenco
+   carregado, não no papel de onde a mesa veio — por isso tudo é procurado por
+   id ali. Item que não está mais no elenco é ignorado: jogador negociado
+   depois não volta pra mesa só porque estava numa proposta (ou num rascunho)
+   antigo. As duas funções são compartilhadas pela contraproposta/modificar/
+   refazer e pelo rascunho — duas cópias divergiriam na primeira mudança. */
+function mesaAddJogador(destino, origem, id) {
+  if (!teams[origem] || !receives[destino]) return false;
+  const p = (teams[origem].players || []).find(x => Number(x.id) === Number(id));
+  if (!p) return false;
+  receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
+    pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+  teams[origem].tradedOut.add(p.id);
+  return true;
+}
+
+function mesaAddPick(destino, origem, id, opts) {
+  if (!teams[origem] || !receives[destino]) return false;
+  const pk = (teams[origem].picks || []).find(x => Number(x.id) === Number(id));
+  if (!pk) return false;
+  receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
+    orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
+    season_year: pk.season_year, pick_position: pk.pick_position ?? null,
+    pick_overall: pk.pick_overall ?? null, swapRole: (opts && opts.swapRole) || null,
+    podeProteger: !!pk.pode_proteger,
+    protection: (opts && opts.protection) || pk.protection || null,
+    protecaoOriginal: pk.protection || null });
+  return true;
 }
 
 /**
@@ -858,28 +1062,8 @@ async function preencherDaTroca(tradeId, inverter) {
   } catch (e) { /* sem a original a mesa fica vazia, e a faixa já avisa */ }
   if (!orig) return;
 
-  // Os dados da linha (salário, OVR, idade) vivem no elenco carregado, não no
-  // papel da proposta — por isso tudo é procurado por id ali.
-  const acharJogador = (key, id) => (teams[key].players || []).find(p => Number(p.id) === Number(id));
-  const acharPick    = (key, id) => (teams[key].picks   || []).find(p => Number(p.id) === Number(id));
-
-  const porJogador = (destino, origem, id) => {
-    const p = acharJogador(origem, id);
-    if (!p) return;
-    receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
-      pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
-    teams[origem].tradedOut.add(p.id);
-  };
-
-  const porPick = (destino, origem, id) => {
-    const pk = acharPick(origem, id);
-    if (!pk) return;
-    receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
-      orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-      season_year: pk.season_year, pick_position: pk.pick_position ?? null, pick_overall: pk.pick_overall ?? null, swapRole: null,
-      podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
-      protecaoOriginal: pk.protection || null });
-  };
+  const porJogador = mesaAddJogador;
+  const porPick    = mesaAddPick;
 
   // CONTRAPROPOSTA inverte: o que eles ofereciam vira o que eu peço.
   // MODIFICAR não: a proposta é minha, offer continua sendo o que EU dou.
@@ -1723,6 +1907,9 @@ async function submitSingleTrade(notes) {
   const d = await r.json();
   if (!r.ok || d.success === false) throw d;
 
+  // Virou proposta de verdade: o rascunho cumpriu o papel e sai da lista.
+  await apagarRascunhoAberto();
+
   alert('Proposta enviada com sucesso!');
   if (window.self !== window.top) {
     window.parent.postMessage({ type: 'trade-submitted' }, '*');
@@ -1783,6 +1970,8 @@ async function submitMultiTrade(notes) {
   const d = await r.json();
   if (!r.ok || d.success === false) throw d;
 
+  await apagarRascunhoAberto();
+
   alert('Trade múltipla enviada!');
   if (window.self !== window.top) {
     window.parent.postMessage({ type: 'trade-submitted' }, '*');
@@ -1793,6 +1982,13 @@ async function submitMultiTrade(notes) {
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetAll() {
+  /* Limpar a mesa desgruda do rascunho aberto: o próximo "Rascunho" salva um
+     novo, em vez de regravar aquele com uma mesa que não tem nada a ver. O
+     rascunho salvo continua salvo. */
+  if (RASCUNHO_ID) {
+    RASCUNHO_ID = null;
+    document.getElementById('rascunhoAviso')?.remove();
+  }
   activeSlots.forEach(k => {
     receives[k] = [];
     if (teams[k]) teams[k].tradedOut = new Set();

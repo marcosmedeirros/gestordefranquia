@@ -1979,6 +1979,16 @@ function runMigrations() {
         $errors[] = 'agenda_fechamento_colunas: ' . $e->getMessage();
     }
 
+    // Rascunho de troca (a mesa da Trade Machine guardada sem enviar). As
+    // tabelas também nascem sozinhas no primeiro uso; aqui elas nascem no
+    // deploy, antes de alguém clicar em Rascunho.
+    try {
+        require_once __DIR__ . '/trade_rascunhos.php';
+        rascunhoGarantirTabelas($pdo);
+    } catch (Throwable $e) {
+        $errors[] = 'trade_rascunhos: ' . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

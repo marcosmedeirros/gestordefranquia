@@ -1454,7 +1454,8 @@ async function init() {
   loadTrades('sent');
   loadTrades('history');
   loadTrades('league');
-  
+  carregarRascunhos();
+
   // Event listeners
   document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
   document.getElementById('targetTeam').addEventListener('change', onTargetTeamChange);
@@ -2317,6 +2318,9 @@ async function respondTrade(tradeId, action) {
     loadTrades('sent');
     loadTrades('history');
   loadTrades('league');
+    // A trade aceita pode ter levado um ativo que estava num rascunho: a
+    // faxina do servidor já apagou, aqui a lista (e a aba) acompanham.
+    carregarRascunhos();
     // Atualiza meus jogadores e picks imediatamente após a decisão
     try {
       await loadMyAssets();
@@ -2460,6 +2464,119 @@ async function openModifyTrade(tradeId) {
   const modalEl = document.getElementById('proposeTradeModal');
   modalEl.dataset.modifyFrom = tradeId;
   bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+/* ── RASCUNHOS ────────────────────────────────────────────────────────────────
+   Mesas montadas na Trade Machine e guardadas sem enviar. Proposta nenhuma
+   existe: ninguém foi avisado, o outro GM não vê nada. A aba só aparece se
+   houver rascunho, e some quando o último é apagado (aqui mesmo ou pela
+   faxina do servidor, quando um dos ativos troca de time). */
+let rascunhoMax = 5;
+
+async function carregarRascunhos() {
+  const container = document.getElementById('draftsTradesList');
+  const item = document.getElementById('drafts-tab-item');
+  if (!container || !item) return;
+
+  let lista = [];
+  try {
+    const d = await api('trades.php?action=rascunhos');
+    lista = d.rascunhos || [];
+    if (d.max) rascunhoMax = Number(d.max);
+  } catch (err) {
+    // Falhar aqui não pode sumir com a tela de trocas: a aba simplesmente
+    // não aparece, como quando não há rascunho nenhum.
+    item.style.display = 'none';
+    return;
+  }
+
+  const conta = document.getElementById('draftsCount');
+  if (conta) conta.textContent = String(lista.length);
+
+  if (!lista.length) {
+    item.style.display = 'none';
+    container.innerHTML = '';
+    // Se o último rascunho foi apagado com a aba aberta, volta pra Recebidas
+    // em vez de deixar a tela num painel que não existe mais.
+    if (document.getElementById('drafts')?.classList.contains('active')) {
+      document.getElementById('received-tab')?.click();
+    }
+    return;
+  }
+
+  item.style.display = '';
+  container.innerHTML = lista.map(r => cartaoRascunho(r)).join('')
+    + `<div style="font-size:12px;color:var(--text-3);margin-top:4px">
+         ${lista.length} de ${rascunhoMax} rascunhos guardados. Eles são só seus — nenhum GM é avisado.
+       </div>`;
+}
+
+function cartaoRascunho(r) {
+  const lados = (r.lados || []).map(l => `
+    <div class="col-md-6">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">
+        ${esc(l.team)} recebe
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-2)">
+        ${(l.itens || []).map(i => `<li>${esc(i)}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+
+  // status vazio de propósito: rascunho não tem "mais de 24h sem resposta",
+  // ninguém está esperando resposta nenhuma.
+  const quando = r.updated_at ? _fmtTradeDate(r.updated_at, '') : '';
+
+  return `
+    <div class="tc" data-rascunho="${r.id}">
+      <div class="tc-header">
+        <div>
+          <div class="tc-title">${(r.times || []).map(t => esc(t)).join(' <i class="bi bi-arrow-left-right" style="color:var(--red)"></i> ')}</div>
+          <div class="tc-date">${quando}</div>
+        </div>
+        <span class="tag gray"><i class="bi bi-bookmark-fill me-1"></i>Rascunho</span>
+      </div>
+      <div class="row g-3">${lados}</div>
+      ${r.notes ? `<div class="tc-response-notes"><div style="font-size:13px;color:var(--text-2)">${esc(r.notes)}</div></div>` : ''}
+      <div class="d-flex gap-2 flex-wrap mt-3">
+        <a class="btn-r secondary sm" style="text-decoration:none" href="/trade-simulator.php?rascunho=${r.id}">
+          <i class="bi bi-arrow-left-right"></i> Abrir na Trade Machine
+        </a>
+        <button class="btn-r primary sm" onclick="enviarRascunho(${r.id})">
+          <i class="bi bi-send-fill"></i> Enviar
+        </button>
+        <button class="btn-r secondary sm" onclick="apagarRascunho(${r.id})">
+          <i class="bi bi-trash"></i> Apagar
+        </button>
+      </div>
+    </div>`;
+}
+
+/* Enviar abre a Trade Machine com a mesa montada e dispara o envio de lá: é
+   o mesmo caminho do botão Enviar Proposta (regra dos 120%, janela de trocas,
+   limite de trades), e a pessoa vê o que está indo. Um segundo jeito de criar
+   proposta significaria uma segunda cópia das regras. */
+async function enviarRascunho(id) {
+  const ok = typeof confirmarSite === 'function'
+    ? await confirmarSite('Enviar este rascunho como proposta de troca?', { titulo: 'Enviar rascunho', confirmar: 'Enviar' })
+    : true;
+  if (!ok) return;
+  window.location.href = `/trade-simulator.php?rascunho=${id}&enviar=1`;
+}
+
+async function apagarRascunho(id) {
+  const ok = typeof confirmarSite === 'function'
+    ? await confirmarSite('Apagar este rascunho? A mesa montada se perde.', { titulo: 'Apagar rascunho', confirmar: 'Apagar' })
+    : true;
+  if (!ok) return;
+  try {
+    await api('trades.php?action=rascunho', {
+      method: 'DELETE',
+      body: JSON.stringify({ rascunho_id: id }),
+    });
+  } catch (err) {
+    alert(err.error || 'Não deu pra apagar o rascunho.');
+  }
+  carregarRascunhos();
 }
 
 // Inicializar

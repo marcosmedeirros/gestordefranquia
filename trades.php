@@ -528,6 +528,15 @@ try {
               <i class="bi bi-clock-history me-1"></i>Histórico
             </button>
           </li>
+          <?php /* RASCUNHOS: nasce escondida e só aparece quando o time tem
+                   algum rascunho salvo (o JS mostra em carregarRascunhos).
+                   Uma aba vazia permanente só ocuparia a fileira em quem
+                   nunca usou o botão Rascunho da Trade Machine. */ ?>
+          <li class="nav-item" role="presentation" id="drafts-tab-item" style="display:none">
+            <button class="nav-link" id="drafts-tab" data-bs-toggle="tab" data-bs-target="#drafts" type="button">
+              <i class="bi bi-bookmark-fill me-1"></i>Rascunhos <span class="tag gray" id="draftsCount" style="margin-left:4px">0</span>
+            </button>
+          </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="league-tab" data-bs-toggle="tab" data-bs-target="#league" type="button">
               <i class="bi bi-trophy me-1"></i>Trocas Gerais
@@ -559,6 +568,12 @@ try {
               <button class="hist-pill" data-status="cancelled">Canceladas</button>
             </div>
             <div id="historyTradesList"></div>
+          </div>
+
+          <!-- Rascunhos: mesas montadas na Trade Machine e guardadas sem
+               enviar. Ninguém além deste time vê o que está aqui. -->
+          <div class="tab-pane fade" id="drafts" role="tabpanel">
+            <div id="draftsTradesList"></div>
           </div>
 
           <!-- Trocas Gerais -->
