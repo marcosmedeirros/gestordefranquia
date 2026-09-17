@@ -149,6 +149,10 @@ function loteriaTexto(PDO $pdo, string $liga): string
     $sessao = $st->fetch(PDO::FETCH_ASSOC);
     if (!$sessao) return "A *{$liga}* ainda não tem draft montado.";
 
+    // Cerimônia no ar com escolha ainda por revelar: o que já saiu e quem falta.
+    $aoVivo = loteriaTextoAoVivo($pdo, $liga, (int)$sessao['id'], (int)$sessao['season_number']);
+    if ($aoVivo !== null) return $aoVivo;
+
     // Já confirmada? Então a loteria acabou, e o que vale é a ordem.
     $st = $pdo->prepare("SELECT do.pick_position, t.name AS time_nome
                            FROM draft_order do
@@ -169,7 +173,18 @@ function loteriaTexto(PDO $pdo, string $liga): string
         /* NÃO SAÍRAM: os times da liga que não são donos de nenhuma escolha da
            1ª rodada — trocaram a pick (ou perderam). A lista acima é por dono,
            então quem tem duas aparece duas vezes e quem não tem nenhuma sumia
-           sem aviso; aqui ele aparece. */
+           sem aviso; aqui ele aparece.
+
+           Só com a 1ª rodada inteira gravada. Entre a última revelação e o
+           "Confirmar e aplicar" as vagas dos classificados ainda não existem,
+           e todos eles apareceriam aqui como se tivessem ficado sem escolha. */
+        $stN = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
+        $stN->execute([$liga]);
+        if (count($ordem) < (int)$stN->fetchColumn()) {
+            $l[] = '';
+            $l[] = '_As escolhas de quem foi aos playoffs entram quando a ordem for confirmada._';
+            return implode("\n", $l);
+        }
         $st = $pdo->prepare("SELECT t.name FROM teams t
                               WHERE t.league = ?
                                 AND t.id NOT IN (SELECT o2.team_id FROM draft_order o2
@@ -230,6 +245,85 @@ function loteriaTexto(PDO $pdo, string $liga): string
     }
     $l[] = '';
     $l[] = '_Chance de pegar uma das 3 primeiras escolhas._';
+    return implode("\n", $l);
+}
+
+/**
+ * A LOTERIA AO VIVO, pro /loteria no meio da cerimônia.
+ *
+ * Enquanto o admin revela as escolhas, o comando não sabia que havia sorteio
+ * acontecendo: mostrava as chances de antes do sorteio, ou uma "ordem do
+ * draft" só com as picks reveladas e o resto da urna listado como "não
+ * saíram". Aqui ele mostra o que já saiu, em ordem, e quem ainda está na urna.
+ *
+ * NADA DO QUE FALTA É ADIANTADO. A transmissão guarda a ordem inteira, mas
+ * daqui só sai a posição do que já foi revelado. Quem ainda está na urna vai em
+ * ordem alfabética, sem vaga — o mesmo que qualquer um sabe olhando a tela.
+ *
+ * Devolve null quando não há cerimônia no ar ou quando tudo já foi revelado:
+ * aí vale o texto de sempre.
+ */
+function loteriaTextoAoVivo(PDO $pdo, string $liga, int $sessaoId, int $temporada): ?string
+{
+    try {
+        $st = $pdo->prepare('SELECT ordem, reveladas FROM lottery_broadcast WHERE draft_session_id = ?');
+        $st->execute([$sessaoId]);
+        $tr = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;   // tabela ainda não existe: nunca houve cerimônia
+    }
+    if (!$tr) return null;
+
+    $ordem = json_decode((string)$tr['ordem'], true);
+    if (!is_array($ordem) || !$ordem) return null;
+    $reveladas = array_flip(array_filter(array_map('intval', explode(',', (string)$tr['reveladas']))));
+
+    // A cerimônia é a das vagas sorteadas; a cauda dos classificados não é revelada.
+    $vagas = [];
+    foreach ($ordem as $i => $item) {
+        if (!is_array($item)) continue;
+        if (isset($item['source']) && $item['source'] !== 'lottery') continue;
+        $pos = (int)($item['position'] ?? ($i + 1));
+        if ($pos > 0) $vagas[$pos] = $item;
+    }
+    if (!$vagas) return null;
+    $faltam = array_diff_key($vagas, $reveladas);
+    if (!$faltam) return null;
+
+    $stT = $pdo->prepare('SELECT id, name FROM teams WHERE league = ?');
+    $stT->execute([$liga]);
+    $nomes = [];
+    foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) $nomes[(int)$t['id']] = (string)$t['name'];
+    $nome = fn(int $id, string $reserva = '') => $nomes[$id] ?? ($reserva !== '' ? $reserva : '?');
+
+    $l = ["🎲 *LOTERIA — {$liga} · ao vivo*", "_Draft da temporada {$temporada}_", ''];
+
+    $saiu = array_intersect_key($vagas, $reveladas);
+    if ($saiu) {
+        ksort($saiu);
+        $l[] = '*Já saíram*';
+        foreach ($saiu as $pos => $item) {
+            $dono = (int)($item['team_id'] ?? 0);
+            $origem = (int)($item['origin_team_id'] ?? $dono);
+            $l[] = "{$pos}ª " . $nome($dono, (string)($item['team_name'] ?? ''))
+                 . ($origem && $origem !== $dono ? ' (via ' . $nome($origem, (string)($item['origin_name'] ?? '')) . ')' : '');
+        }
+        $l[] = '';
+    } else {
+        $l[] = '_Nenhuma escolha revelada ainda._';
+        $l[] = '';
+    }
+
+    // Quem ainda está na urna é a vaga (o time de origem), sem posição.
+    $posFaltam = array_keys($faltam);
+    sort($posFaltam);
+    $contiguas = $posFaltam === range($posFaltam[0], end($posFaltam));
+    $rotulo = count($posFaltam) === 1 ? "pick {$posFaltam[0]}"
+            : ($contiguas ? "picks {$posFaltam[0]} a " . end($posFaltam) : 'picks ' . implode(', ', $posFaltam));
+    $naUrna = array_map(fn($item) => $nome((int)($item['origin_team_id'] ?? $item['team_id'] ?? 0), (string)($item['origin_name'] ?? $item['team_name'] ?? '')), $faltam);
+    sort($naUrna, SORT_NATURAL | SORT_FLAG_CASE);
+    $l[] = "*Ainda na urna ({$rotulo})*";
+    $l[] = implode(' · ', $naUrna);
     return implode("\n", $l);
 }
 
