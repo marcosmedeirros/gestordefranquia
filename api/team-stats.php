@@ -44,14 +44,30 @@ unset($team['owner_phone']);
 $team['owner_whatsapp'] = preg_match('/^\d{10,15}$/', $fone) ? 'https://wa.me/' . $fone : null;
 
 // ── 1. Pontos por temporada ───────────────────────────────────────
-$stmtPts = $pdo->prepare("SELECT COUNT(*) AS seasons_played, SUM(points) AS total_points, MAX(points) AS best_season_pts FROM team_season_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
+$stmtPts = $pdo->prepare("SELECT SUM(points) AS total_points, MAX(points) AS best_season_pts FROM team_season_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtPts->execute([$teamId]);
 $ptsData = $stmtPts->fetch(PDO::FETCH_ASSOC);
 
-// ── 2. Playoffs (≥2 pts) ─────────────────────────────────────────
-$stmtPlayoffs = $pdo->prepare("SELECT COUNT(*) AS playoff_appearances FROM team_season_points WHERE team_id = ? AND points >= 2 AND season_id IN $TEMPORADAS_DA_SPRINT");
+/* TEMPORADAS JOGADAS vem da classificação, não da pontuação.
+   Contava as linhas de team_season_points, e ali só entra quem PONTUOU: o
+   Suns da ROOKIE terminou a T3 em 11º, fez 0 ponto, ficou sem linha — e o
+   card dizia "2 temporadas" numa liga que já tinha três, com "100% das
+   temporadas no playoff" pra quem foi em duas de três. Quem diz que o time
+   disputou a temporada é ele estar na classificação dela. */
+$stmtJogadas = $pdo->prepare("SELECT COUNT(DISTINCT ss.season_id) FROM season_standings ss
+                               WHERE ss.team_id = ? AND ss.season_id IN $TEMPORADAS_DA_SPRINT");
+$stmtJogadas->execute([$teamId]);
+$seasonsPlayed = (int)$stmtJogadas->fetchColumn();
+
+// ── 2. Playoffs: quem esteve no chaveamento ──────────────────────
+/* Era "temporada com 2 pontos ou mais", um atalho que errava dos dois
+   lados: um 3º lugar que não passou do play-in contava como playoff, e um
+   9º que entrou pelo play-in e caiu na 1ª rodada não contava. playoff_results
+   guarda exatamente quem esteve na chave, em qualquer fase. */
+$stmtPlayoffs = $pdo->prepare("SELECT COUNT(DISTINCT pr.season_id) FROM playoff_results pr
+                                WHERE pr.team_id = ? AND pr.season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtPlayoffs->execute([$teamId]);
-$playoffData = $stmtPlayoffs->fetch(PDO::FETCH_ASSOC);
+$playoffAppearances = (int)$stmtPlayoffs->fetchColumn();
 
 // ── 3. Temporada regular via team_ranking_points ─────────────────
 $stmtStandings = $pdo->prepare("SELECT regular_season_points, playoff_champion, playoff_runner_up, playoff_conference_finals, playoff_second_round, playoff_first_round FROM team_ranking_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
@@ -86,14 +102,12 @@ $stmtPicks->execute([$teamId, $teamId]);
 $picksOwned = $stmtPicks->fetch(PDO::FETCH_ASSOC);
 
 // ── 6. Trocas ────────────────────────────────────────────────────
-$stmtTrades = $pdo->prepare("SELECT COUNT(*) AS c FROM trades WHERE status='accepted' AND (from_team_id=? OR to_team_id=?)");
-$stmtTrades->execute([$teamId, $teamId]);
-$tradesCount = (int)$stmtTrades->fetch(PDO::FETCH_ASSOC)['c'];
-try {
-    $stmtMT = $pdo->prepare("SELECT COUNT(DISTINCT mt.id) AS c FROM multi_trades mt JOIN multi_trade_teams mtt ON mtt.trade_id=mt.id WHERE mt.status='accepted' AND mtt.team_id=?");
-    $stmtMT->execute([$teamId]);
-    $tradesCount += (int)$stmtMT->fetch(PDO::FETCH_ASSOC)['c'];
-} catch (Exception $e) {}
+// O card "Trocas" da Visão geral é o MESMO número dos badges da aba Trades:
+// é preenchido logo depois do 7d, com a soma dele (só a sprint ativa), e não
+// por uma consulta própria. Antes contava a vida inteira — 25 pros Archers
+// contra 9 na sprint — porque o fim de sprint apaga as trades simples mas
+// deixa as multi-trades.
+$tradesCount = 0;
 
 // ── 7. Jogadores históricos ──────────────────────────────────────
 $stmtAllPlayers = $pdo->prepare("SELECT COUNT(DISTINCT player_id) AS total FROM player_season_log WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
@@ -169,6 +183,14 @@ try {
             ORDER BY s.year ASC, s.season_number ASC
         ");
         $sPos->execute([$teamId]);
+        // Em quais temporadas ele esteve na chave — mesma fonte do card de
+        // Playoffs acima, e não "ficou entre os 8 primeiros": o play-in muda
+        // quem entra, e a posição sozinha não sabe disso.
+        $stChave = $pdo->prepare("SELECT DISTINCT s.season_number FROM playoff_results pr
+                                    JOIN seasons s ON s.id = pr.season_id
+                                   WHERE pr.team_id = ? AND pr.season_id IN $TEMPORADAS_DA_SPRINT");
+        $stChave->execute([$teamId]);
+        $temporadasNaChave = array_map('intval', $stChave->fetchAll(PDO::FETCH_COLUMN));
         foreach ($sPos->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $positionsByYear[] = [
                 'year'       => $r['year'] !== null ? (int)$r['year'] : null,
@@ -176,7 +198,7 @@ try {
                 'position'   => (int)$r['position'],
                 'conference' => $r['conference'],
                 'conference_size' => isset($r['conference_size']) ? (int)$r['conference_size'] : null,
-                'made_playoffs' => (int)$r['position'] <= 8,
+                'made_playoffs' => in_array((int)$r['season_number'], $temporadasNaChave, true),
             ];
         }
     }
@@ -247,6 +269,7 @@ try {
         $tradesByCycle[] = ['cycle' => ($cycle === $SEM_CICLO ? null : $cycle), 'total' => $total];
     }
 } catch (Exception $e) { $tradesByCycle = []; }
+$tradesCount = array_sum(array_column($tradesByCycle, 'total')); // card "Trocas" (ver o item 6)
 
 // ── 7e. Trades por time parceiro (trades simples + multi-trades) ──
 // Numa multi-trade com 3+ times, cada outro participante conta como
@@ -518,12 +541,12 @@ echo json_encode([
     'success'  => true,
     'team'     => $team,
     'seasons'  => [
-        'played'       => (int)($ptsData['seasons_played'] ?? 0),
+        'played'       => $seasonsPlayed,
         'total_points' => (int)($ptsData['total_points'] ?? 0),
         'best_pts'     => (int)($ptsData['best_season_pts'] ?? 0),
     ],
     'playoffs' => [
-        'appearances'   => (int)($playoffData['playoff_appearances'] ?? 0),
+        'appearances'   => $playoffAppearances,
         'titles'        => (int)($titlesData['titles'] ?? 0),
         'runner_ups'    => (int)($titlesData['runner_ups'] ?? 0),
         'conf_finals'   => $playoffResults['conference_final'],
