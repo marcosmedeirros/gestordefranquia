@@ -104,27 +104,7 @@ if ($action === 'roster') {
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round, pk.team_id, pk.original_team_id,
                    pk.protection,
-                   ot.city AS orig_city, ot.name AS orig_name,
-                   (SELECT dor.pick_position
-                      FROM draft_order dor
-                     WHERE dor.draft_session_id = ?
-                       AND dor.original_team_id = pk.original_team_id
-                       AND dor.round = pk.round
-                       AND CAST(pk.season_year AS UNSIGNED) = ?
-                     LIMIT 1) AS pick_position,
-                   /* DOIS NÚMEROS, e cada um serve a uma coisa.
-                      `pick_position` é a posição DENTRO DA RODADA, que é o
-                      que fica gravado e o que a régua de valor precisa: a 5ª
-                      da 2ª rodada vale como 5ª, não como 37ª.
-                      `pick_overall` é a numeração corrida, que é como as
-                      pessoas falam — "escolha 43". Só rótulo. */
-                   (SELECT (pk.round - 1) * ? + dor.pick_position
-                      FROM draft_order dor
-                     WHERE dor.draft_session_id = ?
-                       AND dor.original_team_id = pk.original_team_id
-                       AND dor.round = pk.round
-                       AND CAST(pk.season_year AS UNSIGNED) = ?
-                     LIMIT 1) AS pick_overall
+                   ot.city AS orig_city, ot.name AS orig_name
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
@@ -135,17 +115,17 @@ if ($action === 'roster') {
                "Escolha 54" concluía que ela não estava na lista. */
             ORDER BY CAST(pk.season_year AS UNSIGNED) ASC, pk.round ASC
         ');
-        // Sem draft aberto, a subconsulta não casa com nada e toda pick sai
-        // sem número — que é justamente o certo nesse caso.
-        $stmtPk->execute([
-            $draftAberto['id'] ?? 0,
-            $draftAberto['ano'] ?? 0,
-            $draftAberto['vagas_por_rodada'] ?? 0,
-            $draftAberto['id'] ?? 0,
-            $draftAberto['ano'] ?? 0,
-            $tid,
-            $currentYear,
-        ]);
+        $stmtPk->execute([$tid, $currentYear]);
+
+        /* O NÚMERO DA ESCOLHA VEM COM O SWAP RESOLVIDO.
+           Antes saía da vaga de ORIGEM da pick, e num par de swap isso é a
+           vaga errada: a 1ª rodada do Empire aparecia como "Escolha 31" (a
+           vaga que ele cedeu) quando o acordo já a tinha levado pra 18, e
+           quem procurava a 18 achava que a escolha do time tinha sumido da
+           lista. Sem draft aberto ou sem swap, o número é o mesmo de sempre;
+           sem vaga nenhuma, a pick sai sem número, que é o certo. */
+        $vagaDaPick = $draftAberto ? draftVagaDasPicks($pdo, (int)$draftAberto['id']) : [];
+
         /* PICK QUE JÁ VIROU JOGADOR SAI DA LISTA.
            Pick escolhida não é apagada da tabela enquanto o draft roda, e
            continuava aparecendo pra troca — a Escolha 4 da ELITE seguia no
@@ -153,8 +133,22 @@ if ($action === 'roster') {
            propostas com pick usada (backend/picks_usadas.php). */
         require_once __DIR__ . '/backend/picks_usadas.php';
         $usadas = picksJaUsadas($pdo);
-        $linhasPk = array_values(array_filter($stmtPk->fetchAll(PDO::FETCH_ASSOC),
-            fn($pk) => empty($usadas[(int)$pk['id']])));
+        $linhasPk = [];
+        foreach ($stmtPk->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+            if (!empty($usadas[(int)$pk['id']])) continue;
+            $vaga = $vagaDaPick[(int)$pk['id']] ?? null;
+            /* DOIS NÚMEROS, e cada um serve a uma coisa.
+               `pick_position` é a posição DENTRO DA RODADA, que é o que fica
+               gravado e o que a régua de valor precisa: a 5ª da 2ª rodada
+               vale como 5ª, não como 37ª. `pick_overall` é a numeração
+               corrida, que é como as pessoas falam — "escolha 43". */
+            $pk['pick_position'] = $vaga['pick_position'] ?? null;
+            $pk['pick_overall']  = $vaga['pick_overall'] ?? null;
+            // Número que veio de acordo, não da campanha do time de origem:
+            // a tela avisa, senão "Escolha 18 (St. Louis Archers)" parece erro.
+            $pk['vaga_por_swap'] = !empty($vaga['por_swap']);
+            $linhasPk[] = $pk;
+        }
         $picks = protecaoAnotarPicks($pdo, $linhasPk, (string)$league);
     } catch (Exception $e) {}
 
@@ -2098,7 +2092,11 @@ function pickLabel(p) {
   // pick — "escolha 43", e não "5ª da segunda". O pick_position, que é a
   // posição dentro da rodada, fica pro cálculo de valor.
   const n = p.pick_overall || p.pick_position;
-  return n ? `Escolha ${n} · ${p.season_year ?? '?'}` : `${p.season_year ?? '?'} · ${rodada}`;
+  /* "(swap)" quando o número veio do acordo e não da campanha do time de
+     origem: sem isso, "Escolha 18 · St. Louis Archers" parece erro pra quem
+     sabe que a vaga 18 é de outro time. */
+  const swap = p.vaga_por_swap ? ' (swap)' : '';
+  return n ? `Escolha ${n} · ${p.season_year ?? '?'}${swap}` : `${p.season_year ?? '?'} · ${rodada}`;
 }
 function escH(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escA(s) { return String(s ?? '').replace(/"/g,'&quot;'); }

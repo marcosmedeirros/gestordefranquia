@@ -120,6 +120,22 @@ $stmtPicksAway = $pdo->prepare('
 $stmtPicksAway->execute([$__draftSid, $__draftAno, $team['id'], $team['id'], $currentSeasonYear]);
 $picksAway = $stmtPicksAway->fetchAll();
 
+/* O SWAP MUDA A VAGA, e a subconsulta acima só sabe da vaga de ORIGEM.
+   Num par resolvido, quem tem o lado SB escolhe na melhor das duas vagas —
+   então a pick sai rotulada com um número que não é o dela. draftVagaDasPicks()
+   é a mesma régua que grava o dono de cada vaga na ordem do draft. */
+$__vagaDaPick = $__draftSid ? draftVagaDasPicks($pdo, (int)$__draftSid) : [];
+$__comSwap = function (array $linhas) use ($__vagaDaPick): array {
+    foreach ($linhas as &$p) {
+        $v = $__vagaDaPick[(int)($p['id'] ?? 0)] ?? null;
+        if ($v) $p['pick_position'] = $v['pick_position'];
+    }
+    unset($p);
+    return $linhas;
+};
+$picks     = $__comSwap($picks);
+$picksAway = $__comSwap($picksAway);
+
 // Marca quais picks estão penduradas por servirem de lastro a uma protegida.
 $picks = protecaoAnotarPicks($pdo, $picks, (string)($team['league'] ?? ''));
 

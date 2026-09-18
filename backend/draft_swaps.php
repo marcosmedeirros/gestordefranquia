@@ -257,6 +257,110 @@ function draftPickGanhaDoDuplicado(array $a, array $b): bool
 }
 
 /**
+ * EM QUE VAGA CADA PICK ESCOLHE — com o swap já resolvido.
+ *
+ * Por padrão a pick escolhe na vaga da sua ORIGEM: a pick de 1ª rodada do
+ * Empire escolhe na vaga do Empire, esteja ela com quem estiver. O swap muda
+ * isso, e é aí que meio sistema errava: quem tem o lado SB passa a escolher
+ * na melhor das duas vagas e quem tem o SW na pior, então a pick e a vaga
+ * deixam de ser a mesma coisa.
+ *
+ * O estrago aparecia em dois lugares, com o mesmo par de picks:
+ *
+ *   - na Trade Machine, a pick do Empire saía rotulada "Escolha 31" (a vaga
+ *     de origem dela) quando o swap já a tinha levado pra 18. Quem procurava
+ *     a 18 na lista concluía que a escolha do time tinha sumido;
+ *   - em picksJaUsadas(), a vaga escolhida marcava a pick da ORIGEM — então
+ *     depois do Wyverns escolher na vaga 11 (que ele ganhou por swap), quem
+ *     saía do picker era a pick do outro time, e a dele, já gasta, continuava
+ *     negociável.
+ *
+ * A régua aqui é a mesma de draftSincronizarOrdem(), que é quem grava o dono
+ * de cada vaga — duas cópias divergiriam na primeira mudança.
+ *
+ * @return array pick_id => ['round','pick_position','pick_overall','picked_player_id','por_swap']
+ */
+function draftVagaDasPicks(PDO $pdo, int $draftSessionId): array
+{
+    $st = $pdo->prepare('SELECT id, season_id FROM draft_sessions WHERE id = ?');
+    $st->execute([$draftSessionId]);
+    $sessao = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$sessao) return [];
+
+    $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
+    if ($ano <= 0) return [];
+
+    [$porOrigem, $porId, ] = draftPicksPorOrigem($pdo, $ano);
+    if (!$porOrigem) return [];
+
+    $st = $pdo->prepare('SELECT original_team_id, round, pick_position, picked_player_id
+                           FROM draft_order WHERE draft_session_id = ? ORDER BY round, pick_position');
+    $st->execute([$draftSessionId]);
+    $vagas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$vagas) return [];
+
+    $vagasPorRodada = (int)$pdo->query('SELECT COUNT(*) FROM draft_order
+                                         WHERE draft_session_id = ' . (int)$draftSessionId . ' AND round = 1')
+                               ->fetchColumn();
+
+    // Base: cada vaga é da pick da sua origem.
+    $daPick = [];        // pick_id => vaga
+    $vagaDaOrigem = [];  // [origem] => vaga da 1ª rodada, pro swap achar o par
+    foreach ($vagas as $v) {
+        $r = (int)$v['round'];
+        $o = (int)$v['original_team_id'];
+        if ($r === 1) $vagaDaOrigem[$o] = $v;
+        $pick = $porOrigem[$r][$o] ?? null;
+        if (!$pick) continue;
+        $daPick[(int)$pick['id']] = [
+            'round'            => $r,
+            'pick_position'    => (int)$v['pick_position'],
+            'pick_overall'     => ($r - 1) * $vagasPorRodada + (int)$v['pick_position'],
+            'picked_player_id' => $v['picked_player_id'] !== null ? (int)$v['picked_player_id'] : null,
+            'por_swap'         => false,
+        ];
+    }
+
+    // O swap troca as vagas entre as duas picks do par (só 1ª rodada).
+    $feitos = [];
+    foreach ($porOrigem[1] ?? [] as $origemId => $pick) {
+        if (strtoupper(trim((string)($pick['swap_type'] ?? ''))) !== 'SB') continue;
+        $parId = (int)($pick['swap_pair_pick_id'] ?? 0);
+        if (!$parId || isset($feitos[(int)$pick['id']])) continue;
+
+        $par = $porId[$parId] ?? null;
+        if (!$par
+            || (int)$par['round'] !== 1
+            || strtoupper(trim((string)($par['swap_type'] ?? ''))) !== 'SW'
+            || (int)($par['swap_pair_pick_id'] ?? 0) !== (int)$pick['id']) {
+            continue;
+        }
+
+        $vagaSB = $vagaDaOrigem[$origemId] ?? null;
+        $vagaSW = $vagaDaOrigem[(int)$par['original_team_id']] ?? null;
+        if (!$vagaSB || !$vagaSW) continue;
+
+        $melhor = ((int)$vagaSB['pick_position'] <= (int)$vagaSW['pick_position']) ? $vagaSB : $vagaSW;
+        $pior   = ($melhor === $vagaSB) ? $vagaSW : $vagaSB;
+
+        $comoVaga = fn(array $v) => [
+            'round'            => 1,
+            'pick_position'    => (int)$v['pick_position'],
+            'pick_overall'     => (int)$v['pick_position'],
+            'picked_player_id' => $v['picked_player_id'] !== null ? (int)$v['picked_player_id'] : null,
+            'por_swap'         => true,
+        ];
+        $daPick[(int)$pick['id']] = $comoVaga($melhor);   // o lado SB fica com a melhor
+        $daPick[$parId]           = $comoVaga($pior);     // o SW com a pior
+
+        $feitos[(int)$pick['id']] = true;
+        $feitos[$parId] = true;
+    }
+
+    return $daPick;
+}
+
+/**
  * Reescreve quem escolhe em cada vaga: primeiro pelo dono da pick, depois
  * aplicando os swaps.
  *

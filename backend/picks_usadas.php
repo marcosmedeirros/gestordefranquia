@@ -38,21 +38,16 @@ function picksJaUsadas(PDO $pdo, bool $recarregar = false): array
                                  WHERE status IN ('in_progress','completed')")->fetchAll(PDO::FETCH_ASSOC);
         if (!$sessoes) return $cache;
 
-        $stVagas = $pdo->prepare('SELECT DISTINCT original_team_id, round
-                                    FROM draft_order
-                                   WHERE draft_session_id = ? AND picked_player_id IS NOT NULL');
-        $stPick = $pdo->prepare('SELECT id FROM picks
-                                  WHERE CAST(season_year AS UNSIGNED) = ? AND round = ? AND original_team_id = ?');
-
+        /* QUEM GASTOU A VAGA É QUEM ESCOLHEU NELA, e com swap isso não é a
+           pick da origem. O casamento por (ano, rodada, origem) marcava a pick
+           errada nos dois lados de um par: depois de o Wyverns escolher na
+           vaga 11 — que ele ganhou por swap —, quem sumia do picker era a
+           pick do outro time, e a dele, já gasta, seguia negociável.
+           draftVagaDasPicks() resolve o swap e diz em que vaga cada pick
+           escolhe; sem swap nenhum o resultado é o mesmo de antes. */
         foreach ($sessoes as $s) {
-            $ano = draftAnoDasPicks($pdo, (int)$s['season_id']);
-            if ($ano <= 0) continue;
-            $stVagas->execute([(int)$s['id']]);
-            foreach ($stVagas->fetchAll(PDO::FETCH_ASSOC) as $v) {
-                $stPick->execute([$ano, (int)$v['round'], (int)$v['original_team_id']]);
-                foreach ($stPick->fetchAll(PDO::FETCH_COLUMN) as $pid) {
-                    $cache[(int)$pid] = true;
-                }
+            foreach (draftVagaDasPicks($pdo, (int)$s['id']) as $pickId => $vaga) {
+                if (!empty($vaga['picked_player_id'])) $cache[(int)$pickId] = true;
             }
         }
     } catch (Throwable $e) {
