@@ -124,7 +124,7 @@ $picksAway = $stmtPicksAway->fetchAll();
    Num par resolvido, quem tem o lado SB escolhe na melhor das duas vagas —
    então a pick sai rotulada com um número que não é o dela. draftVagaDasPicks()
    é a mesma régua que grava o dono de cada vaga na ordem do draft. */
-$__vagaDaPick = $__draftSid ? draftVagaDasPicks($pdo, (int)$__draftSid) : [];
+$__vagaDaPick = $__draftSid ? draftVagaDasPicks($pdo, (int)$__draftSid, true) : [];
 $__comSwap = function (array $linhas) use ($__vagaDaPick): array {
     foreach ($linhas as &$p) {
         $v = $__vagaDaPick[(int)($p['id'] ?? 0)] ?? null;

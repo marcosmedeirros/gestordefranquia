@@ -1443,9 +1443,10 @@ function updateRevealButton(){
     document.body.classList.add('bc-complete'); // esconde revelação/urna na transmissão
     renderPodium();                             // mostra o pódio do top-3
 
-    /* Rede de segurança: normalmente a ordem já foi gravada na primeira
-       revelação (ver revealNext). Se a cerimônia chegou ao fim sem isso — a
-       tela de quem assiste virando conduzida, por exemplo —, ela vai aqui. */
+    /* A ÚLTIMA PICK SAIU: a ordem do draft é esta, e agora ela vai inteira —
+       inclusive as vagas de playoff, que a revelação não cobre. Enquanto a
+       cerimônia rolava, cada bolinha já tinha gravado a sua (ver revealNext);
+       aqui o resto entra e a ordem fica fechada. */
     if (PODE_EDITAR_ORDEM && !jaAplicouAoDraft && result && result.preview === false) {
       jaAplicouAoDraft = true;
       aplicarAoDraft(false);
@@ -1648,16 +1649,14 @@ function revealNext(){
     alert('A loteria ainda não foi sorteada — recarregue a página.');
     return;
   }
-  /* A PRIMEIRA BOLINHA JÁ VALE.
-     A ordem inteira nasce no sorteio; a revelação só conta ela devagar. Ao
-     clicar em revelar, quem conduz decidiu que essa é a ordem — então ela vai
-     pro draft agora, e não depois da última pick. Assim uma cerimônia
-     interrompida no meio não deixa a liga com a ordem na tela e nenhuma no
-     draft. Vai uma vez só; sortear de novo reabre a gravação. */
-  if (PODE_EDITAR_ORDEM && !jaAplicouAoDraft && result && result.preview === false) {
-    jaAplicouAoDraft = true;
-    aplicarAoDraft(false);
-  }
+  /* CADA BOLINHA JÁ VALE — UMA POR VEZ.
+     A revelação grava no draft a vaga que acabou de sair (transmitirRevelada
+     → lottery_revelar), e é isso que faz o "já vale". Aqui houve, em
+     18/09/2026, uma tentativa de adiantar a ordem INTEIRA no primeiro clique:
+     ela gravava também as picks que ainda estavam na urna, e a Trade Machine
+     passou a mostrar "Escolha 2" de quem ninguém tinha revelado ainda —
+     a loteria vazava pelo picker. O que falta (as vagas de playoff e o
+     fechamento) entra quando a última pick sai, logo abaixo. */
   const pos = revealQueue[0];
   // Quem conduz avisa o servidor ANTES da animação: quem assiste tem os
   // mesmos segundos de bolinha girando, não o resultado já pronto.

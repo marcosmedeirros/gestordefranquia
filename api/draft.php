@@ -755,6 +755,20 @@ if ($method === 'GET') {
             $stmt->execute([$draftSessionId]);
             $order = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            /* O QUE AINDA ESTÁ NA URNA NÃO SAI DAQUI.
+               A escolha revelada vira vaga no banco na hora, e é isso que faz
+               ela valer. Mas se por qualquer caminho a ordem inteira tiver
+               sido gravada antes do fim da cerimônia, esta resposta contaria o
+               resultado pra quem abrisse a tela do draft — ou chamasse a API.
+               A liga descobre a ordem na revelação, e em lugar nenhum antes. */
+            $naUrna = draftPosicoesNaUrna($pdo, (int)$draftSessionId);
+            if ($naUrna) {
+                // Vale pras duas rodadas: a 2ª repete a ordem da 1ª, então
+                // deixar a vaga 6 da 2ª rodada visível contaria quem tem a 6.
+                $order = array_values(array_filter($order, fn($o) =>
+                    !isset($naUrna[(int)$o['pick_position']])));
+            }
+
             $stmtSession = $pdo->prepare(
                 "SELECT ds.*, s.season_number, s.year
                  FROM draft_sessions ds

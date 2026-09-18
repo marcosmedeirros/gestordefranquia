@@ -124,7 +124,7 @@ if ($action === 'roster') {
            quem procurava a 18 achava que a escolha do time tinha sumido da
            lista. Sem draft aberto ou sem swap, o número é o mesmo de sempre;
            sem vaga nenhuma, a pick sai sem número, que é o certo. */
-        $vagaDaPick = $draftAberto ? draftVagaDasPicks($pdo, (int)$draftAberto['id']) : [];
+        $vagaDaPick = $draftAberto ? draftVagaDasPicks($pdo, (int)$draftAberto["id"], true) : [];
 
         /* PICK QUE JÁ VIROU JOGADOR SAI DA LISTA.
            Pick escolhida não é apagada da tabela enquanto o draft roda, e

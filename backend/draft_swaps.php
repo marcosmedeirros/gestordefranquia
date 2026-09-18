@@ -257,6 +257,41 @@ function draftPickGanhaDoDuplicado(array $a, array $b): bool
 }
 
 /**
+ * AS VAGAS QUE AINDA NÃO SAÍRAM DA URNA, na cerimônia em andamento.
+ *
+ * Só existe enquanto há transmissão no ar (lottery_broadcast): a ordem
+ * sorteada fica lá com a lista do que já foi revelado. Fora da cerimônia
+ * devolve [] — aí toda vaga é pública, que é o normal.
+ *
+ * @return array<int,bool> posição da 1ª rodada => true (ainda na urna)
+ */
+function draftPosicoesNaUrna(PDO $pdo, int $draftSessionId): array
+{
+    static $cache = [];
+    if (isset($cache[$draftSessionId])) return $cache[$draftSessionId];
+    $cache[$draftSessionId] = [];
+    try {
+        $st = $pdo->prepare('SELECT ordem, reveladas FROM lottery_broadcast WHERE draft_session_id = ?');
+        $st->execute([$draftSessionId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return $cache[$draftSessionId];
+
+        $reveladas = array_flip(array_values(array_filter(
+            array_map('intval', explode(',', (string)$row['reveladas'])))));
+        foreach (json_decode((string)$row['ordem'], true) ?: [] as $o) {
+            // A cauda de playoff não é sorteada: ela sai da campanha e já é
+            // pública desde antes da cerimônia.
+            if (($o['source'] ?? '') === 'playoff') continue;
+            $pos = (int)($o['position'] ?? 0);
+            if ($pos > 0 && !isset($reveladas[$pos])) $cache[$draftSessionId][$pos] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('[draft] posicoes na urna: ' . $e->getMessage());
+    }
+    return $cache[$draftSessionId];
+}
+
+/**
  * EM QUE VAGA CADA PICK ESCOLHE — com o swap já resolvido.
  *
  * Por padrão a pick escolhe na vaga da sua ORIGEM: a pick de 1ª rodada do
@@ -278,9 +313,12 @@ function draftPickGanhaDoDuplicado(array $a, array $b): bool
  * A régua aqui é a mesma de draftSincronizarOrdem(), que é quem grava o dono
  * de cada vaga — duas cópias divergiriam na primeira mudança.
  *
+ * @param bool $ocultarNaoReveladas true nas telas: enquanto a cerimônia da
+ *        loteria está no ar, a vaga que ainda não saiu da urna volta SEM
+ *        número. Ver draftPosicoesNaUrna().
  * @return array pick_id => ['round','pick_position','pick_overall','picked_player_id','por_swap']
  */
-function draftVagaDasPicks(PDO $pdo, int $draftSessionId): array
+function draftVagaDasPicks(PDO $pdo, int $draftSessionId, bool $ocultarNaoReveladas = false): array
 {
     $st = $pdo->prepare('SELECT id, season_id FROM draft_sessions WHERE id = ?');
     $st->execute([$draftSessionId]);
@@ -355,6 +393,25 @@ function draftVagaDasPicks(PDO $pdo, int $draftSessionId): array
 
         $feitos[(int)$pick['id']] = true;
         $feitos[$parId] = true;
+    }
+
+    /* NADA DE ADIANTAR O QUE AINDA ESTÁ NA URNA.
+       Durante a cerimônia, as vagas já reveladas viram ordem no banco na
+       hora — é o que faz a pick revelada valer. Só que quem consulta as
+       telas leria também as que ainda não saíram, e a Trade Machine passou a
+       mostrar "Escolha 2" de um time que ninguém tinha chamado. Aqui elas
+       voltam sem número, como antes do sorteio. */
+    if ($ocultarNaoReveladas) {
+        $urna = draftPosicoesNaUrna($pdo, $draftSessionId);
+        if ($urna) {
+            foreach ($daPick as $pid => $v) {
+                if ((int)$v['round'] === 1 && isset($urna[(int)$v['pick_position']])) {
+                    $daPick[$pid]['pick_position'] = null;
+                    $daPick[$pid]['pick_overall']  = null;
+                    $daPick[$pid]['na_urna']       = true;
+                }
+            }
+        }
     }
 
     return $daPick;
