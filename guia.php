@@ -454,9 +454,8 @@ html{scroll-behavior:smooth}
         <thead><tr><th>Elemento</th><th>O que é</th></tr></thead>
         <tbody>
           <tr><td>Cap Base</td><td>O teto que todo time começa tendo.</td></tr>
-          <tr><td>Cap Flex</td><td>Bônus por manter jogadores que você mesmo draftou. Vale pra um número limitado de jogadores.</td></tr>
-          <tr><td>Bônus de Lealdade</td><td>Bônus por jogador leal de alto OVR — nunca trocado e vindo do seu próprio draft.</td></tr>
-          <tr><td>Cap Máximo</td><td>Cap Base + Cap Flex + Bônus de Lealdade. O seu teto real.</td></tr>
+          <tr><td>Cap Flex</td><td>Bônus por manter jogadores leais — que você mesmo draftou e nunca trocou. Até 2 jogadores, no máximo +16M. É o benefício da lealdade: não existe outro por cima dele.</td></tr>
+          <tr><td>Cap Máximo</td><td>Cap Base + Cap Flex. O seu teto real.</td></tr>
           <tr><td>Folha Salarial</td><td>A soma do que você paga hoje.</td></tr>
           <tr><td>Cap Mínimo</td><td>O piso. Depois da Trade Deadline, todo time precisa alcançá-lo.</td></tr>
         </tbody>
@@ -487,7 +486,7 @@ html{scroll-behavior:smooth}
     <p>Cada franquia pode marcar <strong>um jogador</strong> como a sua lenda. O nome fica dourado e ganha a tag LENDA nas telas.</p>
     <p>Em troca do símbolo, tem um custo: a lenda <strong>ignora a tabela de OVR e passa a valer no mínimo 40M</strong> no seu cap, mais bônus e prêmios. Se o OVR dele passar de 94, a tabela normal volta a valer — a essa altura ela já cobra mais que os 40M.</p>
     <div class="nota amber">
-      <p>Um jogador pode ser <strong>leal e lenda ao mesmo tempo</strong>, e as duas tags aparecem. Mas os benefícios de cap <strong>não se somam</strong>: com a lenda marcada, o Bônus de Lealdade dele é anulado.</p>
+      <p>Um jogador pode ser <strong>leal e lenda ao mesmo tempo</strong>, e as duas tags aparecem. O benefício de cap é um só — o <strong>Cap Flex</strong> —, e a lenda que nunca foi trocada gera ele como qualquer jogador leal.</p>
     </div>
     <p>Quem marca é o GM, no próprio elenco. Escolha com cuidado: é uma por time.</p>
   </section>

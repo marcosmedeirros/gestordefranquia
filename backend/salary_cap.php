@@ -80,13 +80,11 @@ function capMediaSalarialDaLiga(PDO $pdo, string $league): int
 
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 170;
-// Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
+/* Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo. Dois, a
+   +8M no melhor caso: é daqui que sai o teto de +16M de que a liga fala. O
+   antigo "Bônus de Lealdade", que somava outros 8M por jogador leal, saiu em
+   18/09/2026 — era o mesmo benefício contado duas vezes (ver getPlayerCapFlex). */
 const CAP_FLEX_MAX_PLAYERS = 2;
-// Bônus de Lealdade: jogador leal (nunca trocado, OVR>=90, draftado pelo draft
-// da própria temporada — mesma régua da RISE/NEXT) soma este valor no Cap
-// Máximo, limitado a este nº de jogadores por time.
-const CAP_LOYALTY_MAX_PLAYERS = 2;
-const CAP_LOYALTY_BONUS_MILLIONS = 8;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
 const CAP_TRADE_MATCH_PCT = 120;
 
@@ -443,8 +441,19 @@ function getPlayerBaseSalary(array $player, int|array|null $temporadaAtual = nul
 
 /**
  * Cap Flex: vale enquanto o jogador está no time que o draftou
- * (drafted_by_team_id == team_id) e o OVR está nas faixas elegíveis.
- * Aumenta o Cap Máximo da franquia — não o salário do jogador.
+ * (drafted_by_team_id == team_id), NUNCA FOI TROCADO e o OVR está nas faixas
+ * elegíveis. Aumenta o Cap Máximo da franquia — não o salário do jogador.
+ *
+ * CAP FLEX É O BÔNUS DE LEALDADE — são a mesma coisa, e não duas (decisão da
+ * Ágata e do Marcos em 18/09/2026). O sistema tratava como dois: o mesmo
+ * jogador draftado pelo time contava +8M de Cap Flex e +8M de "Bônus de
+ * Lealdade", e o Jerry West do Pittsburgh sozinho levantava o teto em 16M.
+ * Agora existe um benefício só, com o valor por OVR, no máximo dois jogadores
+ * — ou seja, até +16M no time inteiro.
+ *
+ * "Não tem cap flex pra jogador recebido por troca": por isso o was_traded
+ * entra aqui. Um jogador que o time draftou, trocou e recomprou volta a ter
+ * drafted_by_team_id igual ao time, mas leal ele não é mais.
  *
  * SÓ O DRAFT ANUAL CONTA, não o Draft Inicial (decisão da liga, 13/09/2026).
  * O Draft Inicial distribui os elencos no começo da edição e grava
@@ -463,8 +472,12 @@ function getPlayerCapFlex(array $player): int
     $teamId = (int)($player['team_id'] ?? 0);
     $draftedBy = $player['drafted_by_team_id'] ?? null;
     $draftAnual = ($player['drafted_season_number'] ?? null) !== null && (int)$player['drafted_season_number'] > 0;
-    $lendaFiel = !empty($player['is_lenda']) && (int)($player['was_traded'] ?? 0) === 0;
-    if (!$lendaFiel && ($draftedBy === null || (int)$draftedBy !== $teamId || !$draftAnual)) {
+    $nuncaTrocado = (int)($player['was_traded'] ?? 0) === 0;
+    // is_loyal já carrega o override manual do admin (ver markLoyaltyEligibility);
+    // sem ele na mão, "nunca trocado" é a mesma pergunta.
+    $leal = array_key_exists('is_loyal', $player) ? !empty($player['is_loyal']) : $nuncaTrocado;
+    $lendaFiel = !empty($player['is_lenda']) && $nuncaTrocado;
+    if (!$lendaFiel && (!$leal || $draftedBy === null || (int)$draftedBy !== $teamId || !$draftAnual)) {
         return 0;
     }
     $ovr = (int)($player['ovr'] ?? 0);
@@ -633,12 +646,9 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'cap_flex_value' => $flex,
             'cap_flex_counted' => false,
             'is_on_draft_team' => $p['drafted_by_team_id'] !== null && (int)$p['drafted_by_team_id'] === (int)$p['team_id'],
-            // Leal e Lenda coexistem, mas os benefícios de cap NÃO se somam: com a
-            // tag de lenda o jogador já vale no mínimo 40M, então o +8M da lealdade
-            // é anulado. A tag "Leal" continua aparecendo — só o bônus some.
+            // A tag "Leal" continua na tela, agora só como informação: o
+            // benefício de cap dela É o Cap Flex, não um bônus por cima.
             'is_loyal' => !empty($p['is_loyal']),
-            'loyalty_bonus_eligible' => !empty($p['cap_bonus_eligible']) && empty($p['is_lenda']),
-            'loyalty_bonus_counted' => false,
         ];
     }
 
@@ -661,35 +671,18 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         $contados++;
     }
 
-    // Bônus de Lealdade: até CAP_LOYALTY_MAX_PLAYERS jogadores elegíveis somam
-    // CAP_LOYALTY_BONUS_MILLIONS cada no Cap Máximo (desempate pelo OVR).
-    //
-    // Nota de regra: o deck da FBA Elite 15 fala em teto de 205M indo até 221M (só o
-    // Cap Flex). Dois motivos pra o número de hoje não bater com o do documento, e
-    // nenhum é bug:
-    //
-    //   1. A base deixou de ser fixa — vem do "CAP Máximo" que o admin configura
-    //      na Central da Liga (capBaseEFloorDaLiga). O deck virou o padrão de quem
-    //      nunca preencheu o campo.
-    //   2. O Bônus de Lealdade é regra da liga, acrescentada depois do deck: com
-    //      dois leais no elenco, o teto sobe mais 16M por cima de tudo.
-    $loyalElegiveis = [];
-    foreach ($roster as $i => $r) {
-        if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
-    }
-    uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
+    /* O "Bônus de Lealdade" saiu daqui em 18/09/2026. Ele era um segundo
+       acréscimo de +8M por jogador leal, somado POR CIMA do Cap Flex — e como
+       as duas condições são a mesma coisa (jogador que o time draftou e nunca
+       trocou), o mesmo craque levantava o teto duas vezes: o Jerry West do
+       Pittsburgh valia +8M de flex e +8M de lealdade sozinho.
 
-    $capLoyaltyTotal = 0;
-    $loyalContados = 0;
-    foreach ($loyalElegiveis as $i => $r) {
-        if ($loyalContados >= CAP_LOYALTY_MAX_PLAYERS) break;
-        $roster[$i]['loyalty_bonus_counted'] = true;
-        $capLoyaltyTotal += CAP_LOYALTY_BONUS_MILLIONS;
-        $loyalContados++;
-    }
+       Cap Flex é o nome de TODO acréscimo ao teto, e ele já é o benefício da
+       lealdade. Um só, com o valor por OVR e no máximo dois jogadores: até
+       +16M no time inteiro, que é o teto que a liga sempre falou. */
 
     $baseFloor = capBaseEFloorDaLiga($pdo, (string)$league);
-    $capMax = $baseFloor['base'] + $capFlexTotal + $capLoyaltyTotal;
+    $capMax = $baseFloor['base'] + $capFlexTotal;
     $space = $capMax - $payroll;
     $status = 'dentro_do_cap';
     if ($payroll > $capMax) {
@@ -707,11 +700,6 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         'cap_flex_max_players' => CAP_FLEX_MAX_PLAYERS,
         'cap_flex_used_slots' => $contados,
         'cap_flex_eligible_count' => count($elegiveis),
-        'cap_loyalty_total' => $capLoyaltyTotal,
-        'cap_loyalty_max_players' => CAP_LOYALTY_MAX_PLAYERS,
-        'cap_loyalty_used_slots' => $loyalContados,
-        'cap_loyalty_eligible_count' => count($loyalElegiveis),
-        'cap_loyalty_bonus_millions' => CAP_LOYALTY_BONUS_MILLIONS,
         'cap_max' => $capMax,
         'payroll' => $payroll,
         'space' => $space,

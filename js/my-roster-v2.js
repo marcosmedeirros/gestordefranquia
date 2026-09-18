@@ -1044,11 +1044,11 @@ function updateRosterStats() {
     // O "+N" aqui é o Cap Flex (lenda nunca trocada / draftado pelo time, 85+),
     // que já está somado no teto. O bônus de jogador restrito é coisa das ligas
     // por soma de OVR e não aparece na ELITE — era ele que saía como "+2".
-    const extra = Number(sc.cap_flex_total || 0) + Number(sc.cap_loyalty_total || 0);
+    const extra = Number(sc.cap_flex_total || 0);
     const bl0 = document.getElementById('cap-bonus-label');
     if (bl0) {
       bl0.textContent = extra > 0 ? `⚡+${extra}M` : '';
-      bl0.title = extra > 0 ? `Teto base ${sc.cap_base}M + Cap Flex ${sc.cap_flex_total}M` + (Number(sc.cap_loyalty_total) > 0 ? ` + Lealdade ${sc.cap_loyalty_total}M` : '') : '';
+      bl0.title = extra > 0 ? `Teto base ${sc.cap_base}M + Cap Flex ${extra}M` : '';
     }
     const cr0 = document.getElementById('cap-range'); if (cr0) cr0.textContent = '';
     updateCapGauge(sc.cap_floor, sc.payroll, sc.cap_max, 'M');

@@ -954,9 +954,6 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $lig
     if ((int)$cap['cap_flex_total'] > 0) {
         $txt .= "Cap Flex: +{$cap['cap_flex_total']}M ({$cap['cap_flex_used_slots']} de {$cap['cap_flex_max_players']})\n";
     }
-    if ((int)$cap['cap_loyalty_total'] > 0) {
-        $txt .= "Lealdade: +{$cap['cap_loyalty_total']}M ({$cap['cap_loyalty_used_slots']} de {$cap['cap_loyalty_max_players']})\n";
-    }
 
     $roster = $cap['roster'] ?? [];
     usort($roster, fn($a, $b) => (int)$b['total_salary'] <=> (int)$a['total_salary']);

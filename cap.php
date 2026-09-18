@@ -260,8 +260,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <details>
       <summary><i class="bi bi-arrows-angle-expand"></i> Cap Flex</summary>
       <div class="rules-body">Time que ainda tem o jogador que ele mesmo escolheu <b>no draft anual</b> (o Draft Inicial não conta) — ou a <b>lenda que nunca trocou</b> — ganha um bônus no <b>Cap Máximo</b>
-      (não no salário do jogador) se o OVR for alto: 85–89 = +3M, 90–92 = +5M, 93+ = +8M, para no máximo 2 jogadores. Se o jogador for negociado
-      para outro time, o Cap Flex dele deixa de valer (a lenda trocada também não gera mais).</div>
+      (não no salário do jogador) se o OVR for alto: 85–89 = +3M, 90–92 = +5M, 93+ = +8M, para no máximo 2 jogadores — até +16M no time inteiro. O jogador precisa ser LEAL: recebido em troca não gera Cap Flex, e quem for negociado deixa de gerar (a lenda trocada também não gera mais). Não existe um "bônus de lealdade" separado: o Cap Flex É esse benefício.</div>
     </details>
     <details>
       <summary><i class="bi bi-trophy"></i> Bônus de Prêmio</summary>
@@ -285,7 +284,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <!-- Os dois números vêm do resumo, não do texto: a base e o piso são
            configurados pelo admin (Central da Liga), e um texto fixo aqui
            passaria a mentir no dia em que a liga mudasse o teto. -->
-      <div class="rules-body">Cap Máximo = <b id="regraCapBase">—</b> + Cap Flex + Bônus de Lealdade do elenco.
+      <div class="rules-body">Cap Máximo = <b id="regraCapBase">—</b> + Cap Flex do elenco.
       Cap Mínimo = <b id="regraCapPiso">—</b> — ficar abaixo do piso
       só é um problema de verdade depois da Trade Deadline (a validação automática disso ainda não existe, é só um
       aviso informativo por enquanto).</div>
@@ -370,14 +369,11 @@ async function loadCap(){
     if (regraPiso) regraPiso.textContent = s.cap_floor + 'M';
 
     document.getElementById('statsGrid').innerHTML = [
-      statCard('Cap Base', s.cap_base + 'M', '', '', 'O teto que a liga definiu, igual pra toda franquia — antes de Cap Flex e Bônus de Lealdade.'),
+      statCard('Cap Base', s.cap_base + 'M', '', '', 'O teto que a liga definiu, igual pra toda franquia — antes do Cap Flex.'),
       statCard('Cap Flex', '+' + s.cap_flex_total + 'M',
         `${s.cap_flex_used_slots}/${s.cap_flex_max_players} vagas` + (s.cap_flex_eligible_count > s.cap_flex_max_players ? ` · ${s.cap_flex_eligible_count} elegíveis` : ''),
-        '', `O Cap Flex vale para no máximo ${s.cap_flex_max_players} jogadores. Havendo mais elegíveis, contam os de maior valor.`),
-      statCard('Bônus de Lealdade', '+' + s.cap_loyalty_total + 'M',
-        `${s.cap_loyalty_used_slots}/${s.cap_loyalty_max_players} vagas` + (s.cap_loyalty_eligible_count > s.cap_loyalty_max_players ? ` · ${s.cap_loyalty_eligible_count} elegíveis` : ''),
-        '', `Jogador Leal (nunca trocado, OVR≥90, draftado pelo draft da própria temporada) soma +${s.cap_loyalty_bonus_millions}M ao Cap Máximo, no máximo ${s.cap_loyalty_max_players} jogadores.`),
-      statCard('Cap Máximo', s.cap_max + 'M', '', 'hi-amber', 'Cap Base + Cap Flex + Bônus de Lealdade — o teto real de folha salarial da sua franquia.'),
+        '', `O benefício do jogador leal: vale para no máximo ${s.cap_flex_max_players} jogadores, até +16M no time. Havendo mais elegíveis, contam os de maior valor.`),
+      statCard('Cap Máximo', s.cap_max + 'M', '', 'hi-amber', 'Cap Base + Cap Flex — o teto real de folha salarial da sua franquia.'),
       statCard('Folha Salarial', s.payroll + 'M', '', s.payroll > s.cap_max ? 'hi-red' : '', 'Soma do salário total (base + bônus de prêmio) de todo o elenco.'),
       statCard('Espaço Disponível', s.space + 'M', '', s.space < 0 ? 'hi-red' : '', 'Cap Máximo menos a Folha Salarial. Negativo = acima do Cap.'),
       statCard('Cap Mínimo', s.cap_floor + 'M', 'informativo', '', 'Piso da liga — fica abaixo dele só é aplicado de verdade na Trade Deadline.'),
@@ -405,16 +401,13 @@ async function loadCap(){
         <td class="num">${p.ovr}</td>
         <td class="num">${p.base_salary}M</td>
         <td>
-          ${p.is_lenda ? '<span class="tag lenda" title="Lenda da franquia: uma por time. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Anula o Bônus de Lealdade — os dois não se somam.">LENDA</span>' : ''}
+          ${p.is_lenda ? '<span class="tag lenda" title="Lenda da franquia: uma por time. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Nunca trocada, ela gera Cap Flex como qualquer jogador leal.">LENDA</span>' : ''}
           ${p.is_rookie_scale ? '<span class="tag rookie" title="Salário definido pela Rookie Scale (posição do pick), não pela tabela de OVR, por ser a temporada de estreia.">Rookie Scale</span>' : ''}
           ${p.cap_flex_eligible ? (p.cap_flex_counted
             ? `<span class="tag flex" title="${p.is_lenda ? 'Lenda que nunca foi trocada' : 'Ainda está no time que o draftou'} e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`
             : `<span class="tag flex-off" title="Qualifica para Cap Flex, mas o time já usou as ${s.cap_flex_max_players} vagas com jogadores de valor maior — este não soma ao Cap Máximo.">Cap Flex +${p.cap_flex_value}M (fora das vagas)</span>`) : ''}
           ${p.award_bonus > 0 ? `<span class="tag bonus" title="Bônus de prêmio da temporada anterior, vale só nesta temporada.">Bônus +${p.award_bonus}M</span>` : ''}
-          ${p.loyalty_bonus_eligible ? (p.loyalty_bonus_counted
-            ? `<span class="tag flex" title="Jogador Leal (nunca trocado, OVR≥90, draftado pelo draft da própria temporada) — adiciona +${s.cap_loyalty_bonus_millions}M ao Cap Máximo.">Leal +${s.cap_loyalty_bonus_millions}M</span>`
-            : `<span class="tag flex-off" title="Qualifica pro Bônus de Lealdade, mas o time já usou as ${s.cap_loyalty_max_players} vagas com jogadores de OVR maior — este não soma ao Cap Máximo.">Leal +${s.cap_loyalty_bonus_millions}M (fora das vagas)</span>`)
-            : (p.is_loyal ? `<span class="tag" title="Nunca foi trocado e veio do draft normal, mas não cumpre OVR≥90 — só a tag, sem bônus de cap.">Leal</span>` : '')}
+          ${p.is_loyal ? '<span class="tag" title="Nunca foi trocado e veio do seu draft. É o que dá direito ao Cap Flex — não existe um bônus separado por cima dele.">Leal</span>' : ''}
         </td>
         <td class="num">${p.total_salary}M</td>
       </tr>
