@@ -1861,17 +1861,16 @@ function avisarAplicada(ok, erro){
  * houve acordo: a ordem final mostra o resultado sem a explicação, e a
  * pergunta "por que o Coyotes escolhe na vaga do Kings?" fica sem resposta.
  *
- * Sem nada a dizer, volta o alerta simples de sempre.
+ * SEM POP-UP. A ordem passou a ir pro draft na primeira revelação, e um
+ * "ordem aplicada com sucesso" no meio da cerimônia é um clique a mais entre
+ * o sorteio e a bolinha — ainda mais quando ninguém pediu nada. Não havendo
+ * acordo pra explicar, o painel simplesmente não aparece; o aviso discreto de
+ * que a ordem foi aplicada já está no lugar do antigo botão de confirmar.
  */
 function mostrarEventos(eventos) {
-  if (!eventos.length) { alert('Ordem aplicada com sucesso ao draft!'); return; }
-
   const cx = document.getElementById('painelEventos');
   const corpo = document.getElementById('eventosCorpo');
-  if (!cx || !corpo) {
-    alert('Ordem aplicada!\n\n' + eventos.map(e => '• ' + e.texto + (e.extra ? '\n  ' + e.extra : '')).join('\n'));
-    return;
-  }
+  if (!eventos.length || !cx || !corpo) return;
 
   const escE = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
