@@ -1698,6 +1698,13 @@ function adminFaChangeTeam(PDO $pdo, array $body, int $adminId): void
     if (!$req) jsonError('Solicitação não encontrada');
     if ((int)$req['old_team_id'] === $newTeamId) jsonError('Time já é o atual');
 
+    // Trocar o vencedor na mão também não pode fazer um 16º jogador.
+    $stRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+    $stRoster->execute([$newTeamId]);
+    if ((int)$stRoster->fetchColumn() >= ELENCO_MAX) {
+        jsonError('O time escolhido está com o elenco cheio (' . ELENCO_MAX . ' jogadores).');
+    }
+
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM players WHERE team_id = ? AND name = ? LIMIT 1')
@@ -1875,6 +1882,18 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
 
     if (getTeamFaWins($pdo, (int)$offer['team_id']) >= 3) {
         return ['ok' => false, 'erro' => "{$nomeTime} ja atingiu o limite de 3 contratacoes na Free Agency"];
+    }
+
+    /* ELENCO CHEIO NÃO RECEBE MAIS NINGUÉM.
+       O envio da proposta já barra quem está com 15, mas entre propor e
+       resolver o time pode ter enchido o elenco por trade, waiver ou por uma
+       contratação anterior desta mesma resolução — e aí o jogador entrava
+       como 16º. O lance é recusado e o jogador segue pro próximo maior, que é
+       o mesmo caminho de quem fica sem moeda ou sem cap. */
+    $stRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+    $stRoster->execute([(int)$offer['team_id']]);
+    if ((int)$stRoster->fetchColumn() >= ELENCO_MAX) {
+        return ['ok' => false, 'erro' => "{$nomeTime} está com o elenco cheio (" . ELENCO_MAX . ' jogadores)'];
     }
 
     // O espaço pode ter sumido entre a proposta e a aprovação — o time pode
@@ -2647,6 +2666,17 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
     if (!faCapAplica($pdo, (int)$offer['team_id'])
         && (int)$offer['moedas'] < (int)$offer['amount']) {
         jsonError('Time nao tem moedas suficientes');
+    }
+
+    /* Elenco cheio não recebe mais ninguém: o time pode ter enchido entre a
+       proposta e a aprovação (trade, waiver, outra assinatura). O aviso abaixo
+       já existia DEPOIS de assinar, cancelando as outras propostas — faltava
+       barrar a que estava sendo aprovada. */
+    $stRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+    $stRoster->execute([(int)$offer['team_id']]);
+    if ((int)$stRoster->fetchColumn() >= ELENCO_MAX) {
+        jsonError(trim($offer['team_city'] . ' ' . $offer['team_name'])
+            . ' está com o elenco cheio (' . ELENCO_MAX . ' jogadores). Dispense alguém antes de aprovar.');
     }
 
     // Quem mais estava na disputa — precisa ser lido ANTES, porque o UPDATE

@@ -4,12 +4,14 @@
  *
  * Para cada jogador em aberto (fa_requests.status='open'), o vencedor é a MAIOR
  * oferta em moedas; empate → maior prioridade do time (1=Alta) → quem ofertou
- * primeiro. Respeita o saldo de moedas e o limite de 3 contratações por time:
- * cada time honra suas ofertas de maior prioridade dentro do que cabe; o jogador
- * que ele não levar vai pro próximo maior lance. Sem oferta viável → segue livre.
+ * primeiro. Respeita o saldo de moedas, o limite de 3 contratações por time e
+ * o TAMANHO DO ELENCO (ELENCO_MAX): cada time honra suas ofertas de maior
+ * prioridade dentro do que cabe; o jogador que ele não levar vai pro próximo
+ * maior lance. Sem oferta viável → segue livre.
  * Ao fim, fecha a janela da FA (fa_enabled = 0) da liga.
  */
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers.php';   // ELENCO_MAX
 
 function faCol(PDO $pdo, string $table, string $col): bool
 {
@@ -33,6 +35,13 @@ function faTeamCoins(PDO $pdo, int $teamId): int
     return (int)$st->fetchColumn();
 }
 
+/**
+ * Quantos jogadores esse time ainda pode assinar nesta Free Agency.
+ *
+ * São dois tetos, e vale o menor: as 3 contratações da FA e o tamanho do
+ * elenco. Um time com 15 jogadores não recebe mais ninguém, mesmo tendo lance
+ * maior e moeda sobrando — antes ele levava o jogador e ficava com 16.
+ */
 function faTeamSlotsLeft(PDO $pdo, int $teamId): int
 {
     $used = 0;
@@ -41,7 +50,11 @@ function faTeamSlotsLeft(PDO $pdo, int $teamId): int
         $st->execute([$teamId]);
         $used = (int)$st->fetchColumn();
     }
-    return max(0, 3 - $used);
+    $st = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
+    $st->execute([$teamId]);
+    $vagasNoElenco = ELENCO_MAX - (int)$st->fetchColumn();
+
+    return max(0, min(3 - $used, $vagasNoElenco));
 }
 
 /** Cria o jogador no time vencedor, desconta moedas, fecha o request e as ofertas. */
