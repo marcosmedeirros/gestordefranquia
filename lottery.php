@@ -4,20 +4,11 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/loteria_grupos.php';   // sprint ativa e regras da loteria
 
-/* MODO ENSAIO. Ligado pelo lottery-teste.php, que só existe pra dar um
-   endereço limpo a isto. Aqui a cerimônia roda inteira e não conta: o
-   sorteio nunca escreveu no banco, e o "Confirmar" — a ação que aplica a
-   ordem ao draft — não é montado. Por isso qualquer um pode sortear e
-   mexer na ordem: não há o que estragar.
-
-   E por isso o ensaio também dispensa login. A página serve pra explicar o
-   modelo pra quem ainda vai entrar na liga, e um link que pede senha antes
-   de mostrar qualquer coisa não explica nada a ninguém. O que ela expõe —
-   nomes de times e porcentagens — é o mesmo que a liga anuncia no
-   comunicado. */
-$modoTeste = !empty($MODO_TESTE_LOTERIA);
-
-if (!$modoTeste) requireAuth();
+/* O MODO ENSAIO SAIU em 18/09/2026, a pedido do Marcos. A tela agora abre
+   sorteando de verdade: quem entra aqui veio conduzir a cerimônia, e um
+   ensaio ao lado do sorteio oficial só criava a dúvida de qual dos dois
+   estava valendo. */
+requireAuth();
 $user = getUserSession() ?: ['id' => 0, 'user_type' => 'visitante', 'name' => 'Visitante', 'league' => ''];
 $pdo  = db();
 $ehVisitante = empty($user['id']);
@@ -44,14 +35,10 @@ $team = $ehVisitante ? null : timeDaTela($pdo, (int)$user['id']);
    admin: quem não é vê a tela inteira sem um único controle. */
 $LIGAS_LOTERIA = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
-/* A loteria oficial é sempre a do draft em CONFIGURAÇÃO — é a única que
-   ainda não aconteceu. O ensaio não pode ter essa exigência: fora da janela
-   entre uma temporada e outra não existe draft em configuração em liga
-   nenhuma, e a página de aprender ficaria em branco justamente nos meses em
-   que alguém procuraria por ela. Lá, vale o draft mais recente de cada liga,
-   qualquer que seja o estado dele — o que se ensaia é o sorteio, e ele roda
-   igual sobre qualquer temporada com classificação lançada. */
-$buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) {
+/* A loteria é sempre a do draft em CONFIGURAÇÃO — é a única que ainda não
+   aconteceu. Sem draft em configuração não há loteria pra sortear: é ele que
+   diz de qual temporada é a ordem. */
+$buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA) {
     $ligas = array_values(array_intersect($LIGAS_LOTERIA, $ligas));
     if (!$ligas) return [];
     $ph = implode(',', array_fill(0, count($ligas), '?'));
@@ -67,47 +54,17 @@ $buscarSessoes = function (array $ligas) use ($pdo, $LIGAS_LOTERIA, $modoTeste) 
     if (!$sprints) return [];
     $phSprint = implode(',', array_fill(0, count($sprints), '?'));
 
-    if (!$modoTeste) {
-        /* Uma loteria por liga: a da temporada mais alta em configuração.
-           Sem esse corte, uma sessão antiga esquecida nesse estado — e elas
-           existem — disputa com a atual e pode vencer, colocando a liga
-           diante da loteria de uma temporada que já passou. */
-        $st = $pdo->prepare("
-            SELECT ds.id, ds.status, ds.league, s.season_number, s.year
-            FROM draft_sessions ds
-            JOIN seasons s ON s.id = ds.season_id
-            WHERE ds.league IN ($ph) AND ds.status = 'setup'
-              AND s.sprint_id IN ($phSprint)
-            ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC, ds.id DESC
-        ");
-        $st->execute(array_merge($ligas, $sprints));
-        $umaPorLiga = [];
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $s) {
-            if (!isset($umaPorLiga[$s['league']])) $umaPorLiga[$s['league']] = $s;
-        }
-        return array_values($umaPorLiga);
-    }
-
-    /* Ensaio: a temporada MAIS RECENTE de cada liga, e só isso.
-       Preferir a sessão em configuração parecia melhor — é a loteria que a
-       liga tem em mente — mas sobra por aí sessão antiga esquecida nesse
-       estado, e uma delas venceu a disputa: a página abria na Temporada 1 de
-       2025, sem classificação pra sortear, e não mostrava nada. A temporada
-       mais alta é a única escolha que não depende de arrumação de status. */
+    /* Uma loteria por liga: a da temporada mais alta em configuração.
+       Sem esse corte, uma sessão antiga esquecida nesse estado — e elas
+       existem — disputa com a atual e pode vencer, colocando a liga diante
+       da loteria de uma temporada que já passou. */
     $st = $pdo->prepare("
         SELECT ds.id, ds.status, ds.league, s.season_number, s.year
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
-        WHERE ds.league IN ($ph)
+        WHERE ds.league IN ($ph) AND ds.status = 'setup'
           AND s.sprint_id IN ($phSprint)
-          AND EXISTS (
-                SELECT 1 FROM season_standings ss
-                  JOIN seasons s2 ON s2.id = ss.season_id
-                 WHERE s2.league = s.league
-                   AND s2.season_number <= s.season_number
-              )
-        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'),
-                 s.season_number DESC, ds.id DESC
+        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC, ds.id DESC
     ");
     $st->execute(array_merge($ligas, $sprints));
 
@@ -141,9 +98,7 @@ $ligaPedida = strtoupper((string)($_GET['liga'] ?? ''));
 $podeConduzirPedida = in_array($ligaPedida, $LIGAS_LOTERIA, true)
     && ($isGlobalAdmin || in_array($ligaPedida, $adminLeagues, true));
 
-if ($modoTeste) {
-    $ligaAtual = in_array($ligaPedida, $LIGAS_LOTERIA, true) ? $ligaPedida : 'ELITE';
-} elseif ($podeConduzirPedida) {
+if ($podeConduzirPedida) {
     $ligaAtual = $ligaPedida;                                  // veio do painel de admin
 } elseif (in_array($minhaLiga, $LIGAS_LOTERIA, true)) {
     $ligaAtual = $minhaLiga;                                   // a liga onde a pessoa joga
@@ -157,7 +112,7 @@ if ($modoTeste) {
    na liga de quem olha, na prática só aparece pra quem administra a própria
    liga; nos outros casos, quem chega pelo painel de admin. */
 $podeConduzirEstaLiga = $ligaAtual !== ''
-    && ($modoTeste || $isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
+    && ($isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
 
 $setupSessions = $ligaAtual ? $buscarSessoes([$ligaAtual]) : [];
 
@@ -402,17 +357,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .balls-table tr:last-child td{border-bottom:none}
 .balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700;font-variant-numeric:tabular-nums}
 .balls-rodape{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);line-height:1.5}
-/* A faixa do ensaio usa listra de obra, não o vermelho da liga: quem chega
-   por link precisa saber em dois segundos que não está na loteria oficial. */
-.faixa-ensaio{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;padding:13px 16px;border-radius:12px;
-  font-size:13px;line-height:1.55;color:var(--text);
-  background:repeating-linear-gradient(135deg,rgba(245,158,11,.10) 0 12px,rgba(245,158,11,.05) 12px 24px);
-  border:1px solid rgba(245,158,11,.42)}
-.faixa-ensaio > i{color:var(--amber);font-size:18px;line-height:1.2;flex-shrink:0}
-.btn-teste{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;padding:9px 18px;border-radius:999px;
-  border:1px solid rgba(245,158,11,.42);background:rgba(245,158,11,.08);color:var(--amber);
-  font-size:12px;font-weight:700;text-decoration:none;transition:all var(--t) var(--ease)}
-.btn-teste:hover{background:rgba(245,158,11,.16);border-color:var(--amber)}
 .liga-vinda{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;
   border-radius:10px;font-size:12.5px;background:var(--panel);border:1px solid var(--border-md);color:var(--text-2)}
 .liga-vinda i{color:var(--red)}
@@ -600,27 +544,7 @@ body.bc-complete .podium{display:grid}
       <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red);margin-right:8px"></i>Loteria do Draft</h1>
       <p class="page-hero-sub">Modelo 3-2-1 anti-tanking: os 16 times fora do playoff disputam as primeiras picks em 4 grupos com chances diferentes.</p>
     </div>
-    <?php /* No canto, e não embaixo do texto: a loteria acontece uma vez por
-             ano e decide o draft inteiro, mas quem abre esta tela vem ver a
-             cerimônia — o ensaio é uma saída, não o assunto.
-
-             Leva pra MESMA liga que está aberta aqui: ensaiar a loteria de
-             outra liga não ensina nada sobre a sua. */ ?>
-    <a href="/lottery-teste.php?liga=<?= urlencode($ligaAtual) ?>" class="btn-teste">
-      <i class="bi bi-dice-5"></i> Teste a loteria
-    </a>
   </div>
-
-  <?php if ($modoTeste): ?>
-  <div class="faixa-ensaio">
-    <i class="bi bi-cone-striped"></i>
-    <div>
-      <b>Modo de ensaio.</b> Esta é a loteria de verdade, sorteando de verdade — e nada do que acontecer aqui
-      é gravado. Sorteie quantas vezes quiser, mude a ordem e os grupos à vontade: some tudo ao fechar a página,
-      e a loteria oficial continua exatamente como está.
-    </div>
-  </div>
-  <?php endif; ?>
 
   <?php /* Quem chegou pelo painel de admin está numa liga que não é a dele.
            Sem isso, nada na tela diria de qual liga é a loteria que ele está
@@ -644,15 +568,10 @@ body.bc-complete .podium{display:grid}
       <?= $ligaAtual
         ? 'A ' . htmlspecialchars($ligaAtual) . ' ainda não sorteou a ordem do draft desta temporada.'
         : 'A loteria é de cada liga, e você ainda não tem franquia em nenhuma. Assim que estiver numa, ela aparece aqui.' ?>
-      <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo —
-               e no ensaio ninguém está aqui pra destravar nada. */ ?>
-      <?php if ($podeConduzirEstaLiga && !$modoTeste): ?>
+      <?php /* O caminho pra destravar só vale pra quem pode percorrê-lo. */ ?>
+      <?php if ($podeConduzirEstaLiga): ?>
       <div style="font-size:11px;color:var(--text-3);margin-top:8px">
         A loteria aparece aqui quando existir uma sessão de draft em configuração — ela é criada na tela de Draft.
-      </div>
-      <?php elseif ($modoTeste): ?>
-      <div style="font-size:11px;color:var(--text-3);margin-top:8px">
-        Escolha outra liga nas abas acima para ensaiar o sorteio dela.
       </div>
       <?php endif; ?>
     </div>
@@ -701,9 +620,9 @@ body.bc-complete .podium{display:grid}
         <?= htmlspecialchars($draftUnico['league']) ?> · Temporada <?= (int)$draftUnico['season_number'] ?>
       </div>
     </div>
-    <?php if ($podeConduzirEstaLiga): ?>
-    <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
-    <?php endif; ?>
+    <?php /* Sem botão de sortear: quem abre esta tela veio conduzir a
+             cerimônia, e o sorteio acontece sozinho ao abrir (ver o boot lá
+             embaixo). Refazer continua existindo, no painel do resultado. */ ?>
   </div>
   <select id="sessionSelect" style="display:none">
     <option value="<?= (int)$draftUnico['id'] ?>" selected></option>
@@ -721,9 +640,6 @@ body.bc-complete .podium{display:grid}
           <?php endforeach; ?>
         </select>
       </div>
-      <?php if ($podeConduzirEstaLiga): ?>
-      <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Sortear a loteria</button>
-      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -747,10 +663,8 @@ body.bc-complete .podium{display:grid}
       <i class="bi bi-eye" style="color:var(--red)"></i>
       <b>Prévia</b> — estes são os times que entram na loteria, com o grupo e as chances de cada um.
       A ordem abaixo é a da <b>campanha</b>; nada foi sorteado ainda.
-      <?php /* Quem não sorteia não deve ser mandado clicar num botão que a
-               tela dele não tem. */ ?>
       <?= $podeConduzirEstaLiga
-        ? 'Clique em <b>Sortear a loteria</b> quando estiver tudo certo.'
+        ? 'O sorteio começa em instantes — se houver algo a corrigir na ordem, use o <b>Desfazer</b> e o <b>Salvar</b> da barra acima.'
         : 'A cerimônia do sorteio é feita pela administração da liga.' ?>
     </div>
 
@@ -764,9 +678,7 @@ body.bc-complete .podium{display:grid}
       <span id="ordemBarTexto"></span>
       <span class="ordem-bar-acoes">
         <button class="btn-ghost2" id="btnOrdemDesfazer" type="button"><i class="bi bi-arrow-counterclockwise"></i> Desfazer</button>
-        <?php if (!$modoTeste): ?>
         <button class="btn-red" id="btnOrdemSalvar" type="button"><i class="bi bi-check-lg"></i> Salvar</button>
-        <?php endif; ?>
       </span>
     </div>
     <?php endif; ?>
@@ -850,12 +762,15 @@ body.bc-complete .podium{display:grid}
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
 
-    <?php if ($podeConduzirEstaLiga && !$modoTeste): ?>
+    <?php /* SEM BOTÃO DE CONFIRMAR. A ordem passou a ser gravada na primeira
+             revelação (ver aplicarAoDraft): quando a bolinha sai, ela já vale.
+             Pedir um clique depois era o jeito de a liga ficar com a ordem na
+             tela e nenhuma ordem no draft. O que sobra aqui é o refazer. */ ?>
+    <?php if ($podeConduzirEstaLiga): ?>
     <div class="panel" id="confirmPanel" style="display:none">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
         <button class="btn-ghost2" id="btnRedo"><i class="bi bi-arrow-repeat"></i> Sortear de novo</button>
-        <span style="font-size:11px;color:var(--text-3)">Aplica esta ordem nas duas rodadas do draft (a 2ª reaproveita a mesma ordem).</span>
+        <span style="font-size:11px;color:var(--text-3)">A ordem revelada já vale nas duas rodadas do draft. Sortear de novo substitui.</span>
       </div>
     </div>
     <?php endif; ?>
@@ -1014,27 +929,24 @@ let busy = false;
 
 const $ = (id) => document.getElementById(id);
 
+/**
+ * SORTEIA. Chamada sozinha ao abrir a tela (ver o boot) e pelo "Sortear de
+ * novo" — o botão de sortear no topo saiu: quem abre a loteria veio sortear,
+ * e o clique a mais só atrasava a cerimônia.
+ */
 async function prepare(){
   const sel = $('sessionSelect');
   const sessionId = sel ? sel.value : '';
-  const btn = $('btnPrepare');
-  const label = '<i class="bi bi-dice-5-fill"></i> Sortear a loteria';
+  const btn = $('btnRedo');
 
-  if (!sessionId) { alert('Escolha uma sessão de draft.'); return; }
+  if (!sessionId) return;
 
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sorteando...';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sorteando...';
+  }
   try {
     const payload = { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
-    if (MODO_TESTE) {
-      payload.simulacao = true;
-      // No ensaio nada foi gravado, então o que está na tela é o que vale:
-      // a ordem e os grupos vão junto pra que o sorteio use exatamente o
-      // cenário que a pessoa montou.
-      payload.ordem = ordemLoteria;
-      payload.ordem_playoff = ordemPlayoff;
-      payload.grupos = Object.fromEntries(ordemLoteria.map(t => [t, gruposEditados[t] || 0]));
-    }
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1047,19 +959,14 @@ async function prepare(){
     // Coloca a cerimônia no ar antes de revelar a primeira: quem estiver
     // com a página aberta passa a ver o quadro desta ordem.
     transmitirSorteio(data);
-    // No ensaio o botão de aplicar ao draft não existe.
-    if ($('btnConfirm')) $('btnConfirm').style.display = '';
     $('resultSection').style.display = 'block';
   } catch (e) {
     alert('Erro ao sortear a loteria.');
   } finally {
-    btn.disabled = false;
-    // O rótulo depende de já ter sorteado ou não — e o setupBoardAndOdds já
-    // decidiu isso. Restaurar o texto fixo aqui desfazia a troca dele.
-    const jaSorteou = result && result.preview === false;
-    btn.innerHTML = jaSorteou
-      ? '<i class="bi bi-arrow-repeat"></i> Sortear de novo'
-      : label;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sortear de novo';
+    }
   }
 }
 
@@ -1081,9 +988,6 @@ function logo(url, cls){
    Salvar. Enquanto houver mudança pendente o sorteio fica bloqueado, porque
    ele sortearia pela ordem gravada, não pela que está na tela. */
 const PODE_EDITAR_ORDEM = <?= $podeConduzirEstaLiga ? 'true' : 'false' ?>;
-/* No ensaio o sorteio vai marcado, e o servidor devolve a ordem sem gravar
-   nada — nem aqui nem na loteria oficial, que é a mesma chamada. */
-const MODO_TESTE = <?= $modoTeste ? 'true' : 'false' ?>;
 const LIGA_ATUAL = <?= json_encode($ligaAtual) ?>;
 let ordemLoteria = [];    // origin_team_id na ordem do quadro (pior primeiro)
 let ordemSalvaRef = [];   // como estava na última vez que gravou
@@ -1110,17 +1014,15 @@ function atualizarBarraOrdem(){
   if (!bar) return;
   bar.style.display = ordemPendente ? '' : 'none';
   const txt = $('ordemBarTexto');
-  if (txt) txt.innerHTML = MODO_TESTE
-    ? '<i class="bi bi-cone-striped"></i> <b>Cenário alterado.</b> O sorteio abaixo vai usar esta ordem. '
-      + 'Nada disso é gravado — o Desfazer devolve o cenário oficial.'
-    : '<i class="bi bi-exclamation-triangle-fill"></i> '
+  if (txt) txt.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> '
       + '<b>Alterações não salvas.</b> As chances abaixo já refletem a mudança, mas ela ainda não foi gravada — '
       + 'sair da página agora perde a edição.';
-  const btnSortear = $('btnPrepare');
-  if (btnSortear) {
-    // No ensaio não há o que salvar, então nada trava o sorteio.
-    btnSortear.disabled = ordemPendente && !MODO_TESTE;
-    btnSortear.title = (ordemPendente && !MODO_TESTE) ? 'Salve a ordem antes de sortear' : '';
+  // Refazer o sorteio com edição pendente sortearia pela ordem GRAVADA, não
+  // pela que está na tela.
+  const btnRefazer = $('btnRedo');
+  if (btnRefazer) {
+    btnRefazer.disabled = ordemPendente;
+    btnRefazer.title = ordemPendente ? 'Salve a ordem antes de sortear de novo' : '';
   }
 }
 
@@ -1329,20 +1231,11 @@ function setupBoardAndOdds(data){
     gruposEditados = {};
     data.balls.forEach(b => { if (b.group_declarado) gruposEditados[b.team_id] = b.group; });
   }
-  /* Sorteou de verdade: o aviso de prévia sai e o botão do topo muda de
-     nome. Ele NÃO some: o "Sortear de novo" só aparece quando a revelação
-     termina, e esconder os dois deixaria sem saída quem sorteou a sessão
-     errada e quer refazer no ato. Some do botão só a inocência — a partir
-     daqui ele pergunta antes, porque jogar fora um sorteio que a liga já
-     está vendo revelar não pode acontecer por um clique distraído. */
+  /* Sorteou de verdade: o aviso de prévia sai. O refazer aparece junto, e não
+     só no fim da revelação — quem sorteou a sessão errada precisa de saída no
+     ato, sem esperar as dezesseis bolinhas. */
   const avisoPrevia = $('previaAviso');
   if (avisoPrevia) avisoPrevia.style.display = data.preview ? '' : 'none';
-  const btnSortear = $('btnPrepare');
-  if (btnSortear) {
-    btnSortear.innerHTML = data.preview
-      ? '<i class="bi bi-dice-5-fill"></i> Sortear a loteria'
-      : '<i class="bi bi-arrow-repeat"></i> Sortear de novo';
-  }
   data.order.forEach(o => { photoById[o.team_id] = o.photo_url; });
 
   /* Chances. O grupo vira um seletor enquanto a loteria é prévia: quem caiu
@@ -1507,8 +1400,9 @@ function setupBoardAndOdds(data){
 
   // Estado do palco
   if (!temPalco) return;
-  // O painel de aplicar ao draft não existe pra quem só assiste.
-  if ($('confirmPanel')) $('confirmPanel').style.display = 'none';
+  /* O painel do refazer aparece assim que existe sorteio (some na prévia, que
+     não tem o que refazer) — e não existe pra quem só assiste. */
+  if ($('confirmPanel')) $('confirmPanel').style.display = data.preview ? 'none' : 'block';
   $('revealStage').classList.remove('armed');
   $('ballMachine')?.classList.remove('on');
   $('revealLogo').style.display = '';
@@ -1549,10 +1443,10 @@ function updateRevealButton(){
     document.body.classList.add('bc-complete'); // esconde revelação/urna na transmissão
     renderPodium();                             // mostra o pódio do top-3
 
-    /* A última pick saiu: a ordem do draft é esta, e não há mais nada a
-       decidir. Vai sozinha, uma vez só — a revelação passa por aqui várias
-       vezes até a tela assentar. */
-    if (PODE_EDITAR_ORDEM && !MODO_TESTE && !jaAplicouAoDraft && result && result.preview === false) {
+    /* Rede de segurança: normalmente a ordem já foi gravada na primeira
+       revelação (ver revealNext). Se a cerimônia chegou ao fim sem isso — a
+       tela de quem assiste virando conduzida, por exemplo —, ela vai aqui. */
+    if (PODE_EDITAR_ORDEM && !jaAplicouAoDraft && result && result.preview === false) {
       jaAplicouAoDraft = true;
       aplicarAoDraft(false);
     }
@@ -1629,7 +1523,7 @@ let cerimoniaNoAr = false;
 let avisouFalhaDoGrupo = false;
 
 async function transmitirSorteio(data){
-  if (!PODE_EDITAR_ORDEM || MODO_TESTE || !data || data.preview !== false) return false;
+  if (!PODE_EDITAR_ORDEM || !data || data.preview !== false) return false;
   try {
     const res = await fetch('/api/draft.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1655,7 +1549,7 @@ async function transmitirSorteio(data){
 }
 
 async function transmitirRevelada(pos){
-  if (!PODE_EDITAR_ORDEM || MODO_TESTE) return;
+  if (!PODE_EDITAR_ORDEM) return;
   const revelar = async () => {
     const res = await fetch('/api/draft.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1697,7 +1591,6 @@ let acompanhandoFila = [];
  * olhando as picks saírem.
  */
 async function acompanharCerimonia(){
-  if (MODO_TESTE) return;
   const sid = SESSAO_ID();
   if (!sid) return;
   try {
@@ -1737,8 +1630,7 @@ async function acompanharCerimonia(){
     const aviso = $('previaAviso');
     if (aviso) aviso.style.display = 'none';
     $('resultSection').style.display = 'block';
-    const btnSortear = $('btnPrepare');
-    if (btnSortear) btnSortear.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sortear de novo';
+    if ($('confirmPanel')) $('confirmPanel').style.display = 'block';
   } catch (e) { /* próxima olhada tenta de novo */ }
 }
 
@@ -1752,9 +1644,19 @@ function revealNext(){
   if (busy || !revealQueue.length) return;
   // A prévia mostra as chances, não um resultado: revelar em cima dela
   // "sorteava" uma escolha que não existe em lugar nenhum.
-  if (!MODO_TESTE && PODE_EDITAR_ORDEM && (!result || result.preview !== false)) {
-    alert('Isto é a prévia. Clique em "Sortear a loteria" antes de revelar as escolhas.');
+  if (PODE_EDITAR_ORDEM && (!result || result.preview !== false)) {
+    alert('A loteria ainda não foi sorteada — recarregue a página.');
     return;
+  }
+  /* A PRIMEIRA BOLINHA JÁ VALE.
+     A ordem inteira nasce no sorteio; a revelação só conta ela devagar. Ao
+     clicar em revelar, quem conduz decidiu que essa é a ordem — então ela vai
+     pro draft agora, e não depois da última pick. Assim uma cerimônia
+     interrompida no meio não deixa a liga com a ordem na tela e nenhuma no
+     draft. Vai uma vez só; sortear de novo reabre a gravação. */
+  if (PODE_EDITAR_ORDEM && !jaAplicouAoDraft && result && result.preview === false) {
+    jaAplicouAoDraft = true;
+    aplicarAoDraft(false);
   }
   const pos = revealQueue[0];
   // Quem conduz avisa o servidor ANTES da animação: quem assiste tem os
@@ -1878,29 +1780,18 @@ function aplicarRevelacao(pos, comEncenacao){
   }
 }
 
-async function confirmOrder(){
-  if (!result) return;
-  if (!await confirmarSite('Confirmar essa ordem e aplicar ao draft? Isso substitui qualquer ordem já definida para as duas rodadas dessa sessão.')) return;
-  aplicarAoDraft(true);
-}
-
 /**
  * GRAVA A ORDEM NO DRAFT.
  *
- * Quando a última pick sai, a loteria já disse tudo que tinha a dizer: a
- * ordem do draft é aquela. Pedir mais um clique depois disso era só um
- * passo a mais entre a cerimônia e o draft aberto — e um jeito de a liga
- * ficar com a ordem revelada na tela e nenhuma ordem gravada.
+ * Roda sozinha na primeira revelação: a ordem inteira já saiu no sorteio, e
+ * a cerimônia só conta ela devagar. Pedir um clique de "confirmar" no fim era
+ * um passo a mais entre a loteria e o draft aberto — e o jeito de a liga
+ * ficar com a ordem na tela e nenhuma ordem gravada.
  *
  * Sortear de novo depois substitui o que foi gravado, então nada fica preso.
  */
-async function aplicarAoDraft(comBotao){
-  if (!result || !PODE_EDITAR_ORDEM || MODO_TESTE) return;
-  const btn = comBotao ? $('btnConfirm') : null;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aplicando...';
-  }
+async function aplicarAoDraft(){
+  if (!result || !PODE_EDITAR_ORDEM) return;
   try {
     /* VAI O TIME DE ORIGEM, NÃO QUEM ESCOLHE.
        O slot pertence a quem fez a campanha; quem escolhe pode ser outro,
@@ -1915,21 +1806,11 @@ async function aplicarAoDraft(comBotao){
       body: JSON.stringify({ action: 'set_draft_order', draft_session_id: result.draft_session_id, team_order: teamOrder })
     });
     const data = await res.json();
-    if (!data.success) {
-      if (comBotao) alert(data.error || 'Erro ao aplicar a ordem.');
-      else avisarAplicada(false, data.error);
-      return;
-    }
+    if (!data.success) { avisarAplicada(false, data.error); return; }
     mostrarEventos(data.eventos || []);
-    if (!comBotao) avisarAplicada(true);
+    avisarAplicada(true);
   } catch (e) {
-    if (comBotao) alert('Erro ao aplicar a ordem.');
-    else avisarAplicada(false);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft';
-    }
+    avisarAplicada(false);
   }
 }
 
@@ -1943,8 +1824,9 @@ function restaurarConfirmPanel(){
   const painel = $('confirmPanel');
   if (!painel || confirmPanelOriginal === null) return;
   painel.innerHTML = confirmPanelOriginal;
-  const btn = $('btnConfirm');
-  if (btn) btn.addEventListener('click', confirmOrder);
+  // O innerHTML novo traz outro botão: o listener do anterior foi embora com ele.
+  const btn = $('btnRedo');
+  if (btn) btn.addEventListener('click', pedirNovoSorteio);
 }
 
 function avisarAplicada(ok, erro){
@@ -2008,20 +1890,13 @@ function mostrarEventos(eventos) {
 
 // Quem não administra loteria nenhuma não tem esses controles na página
 // (só vê a ordem já confirmada), então todos os binds ficam guardados.
-// A partir do segundo sorteio o clique descarta um resultado que já existe —
-// e que pode estar sendo revelado na frente da liga. Pergunta antes.
-if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => {
-  const jaSorteou = result && result.preview === false;
-  if (jaSorteou && !confirm('Sortear de novo? A ordem que está na tela é descartada e uma nova é sorteada do zero.')) return;
-  prepare();
-});
 if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
-if ($('btnConfirm')) $('btnConfirm').addEventListener('click', confirmOrder);
 // Refazer joga fora um sorteio que já aconteceu — e que a liga pode já ter
 // visto sendo revelado. Pergunta antes.
-if ($('btnRedo')) $('btnRedo').addEventListener('click', () => {
+function pedirNovoSorteio(){
   if (confirm('Sortear de novo? A ordem que está na tela é descartada e uma nova é sorteada do zero.')) prepare();
-});
+}
+if ($('btnRedo')) $('btnRedo').addEventListener('click', pedirNovoSorteio);
 
 /* A PRÉVIA CARREGA SOZINHA.
    Quem abre esta tela quer ver quem entra na loteria, em que grupo e com
@@ -2039,8 +1914,7 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
     const corpo = { action: 'run_lottery', draft_session_id: parseInt(sel.value, 10), preview: true };
     // No ensaio até a prévia vai marcada: é o que permite a página funcionar
     // pra quem chegou pelo link sem ter conta.
-    if (MODO_TESTE) corpo.simulacao = true;
-    // Ordem ainda não gravada: o servidor recalcula os grupos com ela e
+        // Ordem ainda não gravada: o servidor recalcula os grupos com ela e
     // devolve as chances de verdade, em vez de a tela adivinhar a regra.
     if (Array.isArray(ordemProvisoria)) corpo.ordem = ordemProvisoria;
     if (Array.isArray(caudaProvisoria)) corpo.ordem_playoff = caudaProvisoria;
@@ -2066,11 +1940,9 @@ async function carregarPrevia(ordemProvisoria, caudaProvisoria, gruposProvisorio
     result = data;
     setupBoardAndOdds(data);
     $('resultSection').style.display = 'block';
-    // Confirmar só existe depois de sortear de verdade.
-    if ($('btnConfirm')) $('btnConfirm').style.display = 'none';
     const aviso = $('previaAviso');
     if (aviso) aviso.style.display = '';
-  } catch (e) { /* a tela continua servindo pelo botão */ }
+  } catch (e) { /* o sorteio automático do boot tenta de novo */ }
 }
 // Trocar de sessão zera a edição pendente: a ordem é de outra temporada.
 if ($('sessionSelect')) $('sessionSelect').addEventListener('change', () => { ordemPendente = false; carregarPrevia(); });
@@ -2079,12 +1951,11 @@ $('btnOrdemDesfazer')?.addEventListener('click', desfazerOrdem);
 /* Última barreira antes de perder o trabalho. A barra já avisa na tela, mas
    quem trocou uma tag e foi conferir outra coisa sai sem olhar pra cima. */
 window.addEventListener('beforeunload', (e) => {
-  if (!ordemPendente || MODO_TESTE) return;   // no ensaio não há nada a perder
+  if (!ordemPendente) return;   // no ensaio não há nada a perder
   e.preventDefault();
   e.returnValue = '';
 });
-carregarPrevia().then(() => {
-  if (MODO_TESTE) return;
+carregarPrevia().then(async () => {
   /* TODOS na mesma cerimônia, o tempo todo.
      Ao abrir, a tela retoma o que está no ar — inclusive a de quem conduz,
      que senão recarrega e encontra a própria cerimônia sumida. E todos
@@ -2094,8 +1965,23 @@ carregarPrevia().then(() => {
      Três segundos é rápido o bastante pra parecer ao vivo e espaçado o
      bastante pra dezenas de páginas abertas não virarem carga. A resposta é
      minúscula, e a tela só é redesenhada quando o carimbo de hora muda. */
-  acompanharCerimonia();
+  await acompanharCerimonia();
   setInterval(acompanharCerimonia, 3000);
+
+  /* ABRIU, SORTEOU.
+     O botão "Sortear a loteria" saiu do topo: quem entra aqui veio conduzir
+     a cerimônia, e o clique só adiava o que ele já tinha decidido fazer.
+
+     Mas só sorteia quando não há NADA no ar: recarregar a página no meio da
+     revelação não pode embaralhar a ordem que a liga está vendo sair — nesse
+     caso acompanharCerimonia() acabou de retomar a cerimônia em curso, e o
+     que a tela mostra é ela. Também não sorteia com edição de ordem pendente
+     (sortearia pela ordem gravada, não pela da tela) nem pra quem só assiste.
+     Refazer de propósito é o "Sortear de novo", que pergunta antes. */
+  const cerimoniaEmCurso = result && result.preview === false;
+  if (PODE_EDITAR_ORDEM && !ordemPendente && !cerimoniaEmCurso && SESSAO_ID()) {
+    prepare();
+  }
 });
 </script>
 </body>
