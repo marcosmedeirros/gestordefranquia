@@ -406,7 +406,14 @@ async function loadCap(){
           ${p.cap_flex_eligible ? (p.cap_flex_counted
             ? `<span class="tag flex" title="${p.is_lenda ? 'Lenda que nunca foi trocada' : 'Ainda está no time que o draftou'} e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`
             : `<span class="tag flex-off" title="Qualifica para Cap Flex, mas o time já usou as ${s.cap_flex_max_players} vagas com jogadores de valor maior — este não soma ao Cap Máximo.">Cap Flex +${p.cap_flex_value}M (fora das vagas)</span>`) : ''}
-          ${p.award_bonus > 0 ? `<span class="tag bonus" title="Bônus de prêmio da temporada anterior, vale só nesta temporada.">Bônus +${p.award_bonus}M</span>` : ''}
+          ${p.award_bonus > 0 ? (() => {
+            // Diz QUAL prêmio: "Bônus +5M" sozinho não explica por que este
+            // jogador custa mais que a tabela de OVR manda.
+            const itens = Array.isArray(p.award_bonus_detail) ? p.award_bonus_detail : [];
+            const detalhe = itens.length ? itens.map(i => `${i.label} +${i.value}M`).join(' · ') : 'Prêmio da temporada anterior';
+            const rotulo = itens.length === 1 ? `${itens[0].label} +${p.award_bonus}M` : `Prêmios +${p.award_bonus}M`;
+            return `<span class="tag bonus" title="${detalhe} — vale só nesta temporada.">${rotulo}</span>`;
+          })() : ''}
           ${p.is_loyal ? '<span class="tag" title="Nunca foi trocado e veio do seu draft. É o que dá direito ao Cap Flex — não existe um bônus separado por cima dele.">Leal</span>' : ''}
         </td>
         <td class="num">${p.total_salary}M</td>

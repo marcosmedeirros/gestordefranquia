@@ -717,14 +717,30 @@ const SALARY_MODE = !!(window.__SALARY_CAP__ && window.__SALARY_CAP__.roster);
 // Deixa de ser const: marcar a LENDA muda a folha na hora (o jogador passa a
 // valer 40M) e o mapa precisa acompanhar sem depender de recarregar a página.
 let SALARY_BY_ID = {};
+let BONUS_BY_ID = {};
 function rebuildSalaryMap() {
   const sc = window.__SALARY_CAP__;
   SALARY_BY_ID = (sc && sc.roster)
     ? Object.fromEntries(sc.roster.map(r => [Number(r.id), Number(r.total_salary)]))
     : {};
+  BONUS_BY_ID = (sc && sc.roster)
+    ? Object.fromEntries(sc.roster.map(r => [Number(r.id), { total: Number(r.award_bonus || 0), itens: r.award_bonus_detail || [] }]))
+    : {};
 }
 rebuildSalaryMap();
 function playerSalary(p) { return SALARY_BY_ID[Number(p.id)] ?? 0; }
+
+/* QUANTO DO SALÁRIO É BÔNUS DE PRÊMIO, e de qual prêmio.
+   O número do salário já vem com o bônus somado; sem isto, ninguém sabia que
+   5M dali eram do MVP do ano passado (e que somem na virada). */
+function playerBonusTag(p) {
+  const b = BONUS_BY_ID[Number(p.id)];
+  if (!b || !b.total) return '';
+  const itens = Array.isArray(b.itens) ? b.itens : [];
+  const detalhe = itens.length ? itens.map(i => `${i.label} +${i.value}M`).join(' · ') : 'Prêmio da temporada passada';
+  const rotulo = itens.length === 1 ? `+${b.total}M ${itens[0].label}` : `+${b.total}M prêmios`;
+  return `<span title="${detalhe} — vale só nesta temporada" style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3);margin-left:5px;white-space:nowrap">${rotulo}</span>`;
+}
 
 /** Aplica um cap recalculado vindo do servidor e repinta o que depende dele. */
 function aplicarCapAtualizado(cap) {
@@ -943,7 +959,7 @@ function renderPlayersMobileCards(players) {
         </div>
         <div class="text-end">
           <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</div>
-          <small class="text-light-gray">${p.age} anos${p.height ? ` · ${p.height}` : ''}${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
+          <small class="text-light-gray">${p.age} anos${p.height ? ` · ${p.height}` : ''}${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>${playerBonusTag(p)}` : ""}</small>
         </div>
       </div>
       <div class="mt-2">
@@ -984,7 +1000,7 @@ function renderPlayersTable(players) {
       </td>
       <td>${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</td>
       <td><span style="color:${getOvrColor(p.ovr)};" class="fw-bold">${p.ovr}</span>${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</td>
-      ${SALARY_MODE ? `<td class="fw-bold" style="color:var(--red)">${playerSalary(p)}M</td>` : ''}
+      ${SALARY_MODE ? `<td class="fw-bold" style="color:var(--red)">${playerSalary(p)}M${playerBonusTag(p)}</td>` : ''}
       <td>${p.age}</td>
       <td>${p.height || '—'}</td>
       <td>${normalizeRoleKey(p.role)}</td>

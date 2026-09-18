@@ -528,7 +528,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="section-title"><i class="bi bi-cash-stack"></i> Contrato (ELITE)</div>
       <div class="grid-2">
         <div class="kv"><div class="kv-l">Salário base</div><div class="kv-v"><?= (int)$salary['base_salary'] ?>M</div></div>
-        <div class="kv"><div class="kv-l">Bônus de prêmio</div><div class="kv-v"><?= (int)$salary['award_bonus'] ?>M</div></div>
+        <?php
+          /* O bônus item a item. Só o total não dizia de onde vinha — e é a
+             primeira pergunta de quem vê o salário acima da tabela de OVR. */
+          $bonusItens = $salary['award_bonus_detail'] ?? [];
+          $bonusTexto = $bonusItens
+            ? implode(' · ', array_map(fn($i) => $i['label'] . ' +' . $i['value'] . 'M', $bonusItens))
+            : '';
+        ?>
+        <div class="kv"><div class="kv-l">Bônus de prêmio</div><div class="kv-v"><?= (int)$salary['award_bonus'] ?>M<?php
+          if ($bonusTexto !== ''): ?><span class="small" style="display:block;color:var(--text-3);font-weight:600"><?= htmlspecialchars($bonusTexto) ?></span><?php endif; ?></div></div>
         <div class="kv"><div class="kv-l">Salário total</div><div class="kv-v" style="color:var(--red)"><?= (int)$salary['total_salary'] ?>M</div></div>
         <div class="kv"><div class="kv-l">Cap Flex</div><div class="kv-v small"><?= !empty($salary['cap_flex_eligible']) ? '+' . (int)$salary['cap_flex_value'] . 'M' : 'Não elegível' ?></div></div>
         <div class="kv"><div class="kv-l">Rookie Scale</div><div class="kv-v small"><?= !empty($salary['is_rookie_scale']) ? 'Sim' : 'Não' ?></div></div>

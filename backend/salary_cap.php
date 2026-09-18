@@ -583,6 +583,71 @@ function getAwardBonusesByPlayerName(PDO $pdo, string $league): array
     return $bonuses;
 }
 
+/** Como cada prêmio se chama na tela. A tabela de valores é capAwardBonusTable(). */
+function capAwardLabels(): array
+{
+    return [
+        'mvp' => 'MVP', 'dpoy' => 'DPOY', 'roy' => 'Calouro do Ano',
+        'mip' => 'MIP', '6th_man' => '6º Homem', 'finals_mvp' => 'MVP das Finais',
+        'all_nba_1' => 'All-NBA 1º time', 'all_nba_2' => 'All-NBA 2º time', 'all_nba_3' => 'All-NBA 3º time',
+        'all_def_1' => 'All-Defensivo 1º time', 'all_def_2' => 'All-Defensivo 2º time',
+    ];
+}
+
+/**
+ * O MESMO bônus da função acima, item a item: qual prêmio e quanto cada um vale.
+ *
+ * A soma sozinha não respondia "por que este custa 5M a mais que a tabela de
+ * OVR" — e essa é justamente a pergunta de quem olha a folha. Devolve
+ * "nome em minúsculas" => [ ['type','label','value'], ... ].
+ */
+function getAwardBonusDetailsByPlayerName(PDO $pdo, string $league): array
+{
+    $detalhes = [];
+    try {
+        $st = $pdo->prepare("
+            SELECT s.season_number, s.sprint_id
+            FROM seasons s
+            LEFT JOIN sprints sp ON sp.id = s.sprint_id
+            WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed'))
+            ORDER BY COALESCE(sp.sprint_number, 0) DESC, s.season_number DESC, s.created_at DESC
+            LIMIT 1
+        ");
+        $st->execute([$league]);
+        $atual = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$atual) return $detalhes;
+
+        $anterior = (int)$atual['season_number'] - 1;
+        if ($anterior < 1) return $detalhes;
+
+        $st = $pdo->prepare("SELECT id FROM seasons
+                              WHERE league = ? AND season_number = ? AND sprint_id <=> ?
+                              ORDER BY created_at DESC LIMIT 1");
+        $st->execute([$league, $anterior, $atual['sprint_id']]);
+        $seasonId = $st->fetchColumn();
+        if (!$seasonId) return $detalhes;
+
+        $valores = capAwardBonusTable();
+        $rotulos = capAwardLabels();
+        $st = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ?");
+        $st->execute([(int)$seasonId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $valor = $valores[$row['award_type']] ?? 0;
+            if ($valor <= 0) continue;
+            $key = mb_strtolower(trim((string)$row['player_name']));
+            if ($key === '') continue;
+            $detalhes[$key][] = [
+                'type'  => $row['award_type'],
+                'label' => $rotulos[$row['award_type']] ?? strtoupper((string)$row['award_type']),
+                'value' => $valor,
+            ];
+        }
+    } catch (Exception $e) {
+        return $detalhes;
+    }
+    return $detalhes;
+}
+
 /**
  * Resumo completo de cap de um time ELITE: folha salarial, cap flex, cap máximo,
  * espaço disponível, status, e o detalhamento por jogador.
@@ -595,6 +660,8 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $league = $team['league'] ?? 'ELITE';
 
     $awardBonuses = getAwardBonusesByPlayerName($pdo, $league);
+    // Item a item, pra tela poder dizer DE ONDE vem o que ele custa a mais.
+    $awardDetails = getAwardBonusDetailsByPlayerName($pdo, $league);
 
     // Temporada ativa da liga: define quem é calouro (rookie scale) e se o Cap
     // Flex já vale (ver capFlexLiberado).
@@ -641,6 +708,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'is_rookie_scale' => $isRookieScale && empty($p['is_lenda']),
             'is_lenda' => !empty($p['is_lenda']),
             'award_bonus' => $bonus,
+            'award_bonus_detail' => $awardDetails[mb_strtolower(trim((string)$p['name']))] ?? [],
             'total_salary' => $baseSalary + $bonus,
             'cap_flex_eligible' => $flex > 0,
             'cap_flex_value' => $flex,

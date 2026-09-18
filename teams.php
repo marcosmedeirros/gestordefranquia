@@ -2099,6 +2099,22 @@ function getSerasaScore(int $avisos): array {
                 return `<span title="${motivo}${premio}" style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:${fundo};color:${cor};border:1px solid ${borda};font-variant-numeric:tabular-nums;flex-shrink:0">${p.salary}M</span>`;
             };
 
+            /* QUANTO ELE CUSTA A MAIS, E POR QUÊ.
+               O salário já vem com o bônus somado, e olhando o número ninguém
+               sabia que 5M dali eram do MVP do ano passado. O chip mostra o
+               acréscimo e o prêmio que o gerou — "+3M" com o All-NBA no
+               tooltip, e o rótulo inteiro quando é um prêmio só. */
+            const chipBonus = (p) => {
+                const total = Number(p.award_bonus || 0);
+                if (!total) return '';
+                const itens = Array.isArray(p.award_bonus_detail) ? p.award_bonus_detail : [];
+                const texto = itens.length
+                    ? itens.map(i => `${i.label} +${i.value}M`).join(' · ')
+                    : 'Prêmio da temporada passada';
+                const rotulo = itens.length === 1 ? `+${total}M ${itens[0].label}` : `+${total}M`;
+                return `<span title="${texto} — vale só nesta temporada" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3);white-space:nowrap;flex-shrink:0">${rotulo}</span>`;
+            };
+
             const renderSection = (title, players) => {
                 if (!players || !players.length) return '';
                 const subtotal = temSalario(players)
@@ -2125,7 +2141,8 @@ function getSerasaScore(int $avisos): array {
                                 <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
                             </div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;margin-left:8px">
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
+                            ${chipBonus(p)}
                             ${chipSalario(p)}
                             <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
                         </div>

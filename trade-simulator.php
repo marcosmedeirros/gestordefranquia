@@ -161,9 +161,11 @@ if ($action === 'roster') {
             $summary = getTeamCapSummary($pdo, $tid);
             $salById = [];
             $rookieById = [];
+            $bonusById = [];
             foreach ($summary['roster'] as $rp) {
                 $salById[(int)$rp['id']] = (int)$rp['total_salary'];
                 $rookieById[(int)$rp['id']] = !empty($rp['is_rookie_scale']);
+                $bonusById[(int)$rp['id']] = ['total' => (int)$rp['award_bonus'], 'itens' => $rp['award_bonus_detail'] ?? []];
             }
             foreach ($players as &$pp) {
                 $pp['salary'] = $salById[(int)$pp['id']] ?? 0;
@@ -171,6 +173,11 @@ if ($action === 'roster') {
                 // scale e vale SÓ este ano. Quem está negociando precisa saber
                 // — recebe um contrato de 18M que vira 48M na virada.
                 $pp['rookie_scale'] = $rookieById[(int)$pp['id']] ?? false;
+                /* Quanto do salário é bônus de prêmio (e de qual prêmio): ele
+                   some na virada, então quem recebe o jogador precisa saber
+                   que parte daquele peso na folha tem prazo. */
+                $pp['award_bonus'] = $bonusById[(int)$pp['id']]['total'] ?? 0;
+                $pp['award_bonus_detail'] = $bonusById[(int)$pp['id']]['itens'] ?? [];
             }
             unset($pp);
             $salaryMode   = true;
@@ -711,6 +718,17 @@ const PROTECOES = <?= json_encode(protecaoLigaUsa($user['league'] ?? '') ? PICK_
 const SALARY_MODE = <?= $__salaryMode ? 'true' : 'false' ?>;
 const TEM_ORDEM_DRAFT = <?= $__temOrdemDeDraft ? 'true' : 'false' ?>;
 
+/* QUANTO DO SALÁRIO É PRÊMIO. O bônus vale só nesta temporada e some na
+   virada — quem recebe o jogador numa troca precisa saber que parte daquele
+   peso na folha tem prazo de validade. */
+function bonusTexto(p) {
+  const total = Number(p && p.award_bonus || 0);
+  if (!SALARY_MODE || !total) return '';
+  const itens = Array.isArray(p.award_bonus_detail) ? p.award_bonus_detail : [];
+  const nomes = itens.length ? itens.map(i => i.label).join(', ') : 'prêmio';
+  return ` · <span style="color:#22c55e;font-weight:700" title="${escA(nomes)} — só nesta temporada">+${total}M ${escH(nomes)}</span>`;
+}
+
 /** Salário em M, ou '' quando a liga não usa dinheiro. */
 function salarioDe(p) {
   if (!SALARY_MODE) return '';
@@ -1001,7 +1019,7 @@ function mesaAddJogador(destino, origem, id) {
   const p = (teams[origem].players || []).find(x => Number(x.id) === Number(id));
   if (!p) return false;
   receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
-    pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+    pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary, award_bonus: p.award_bonus, award_bonus_detail: p.award_bonus_detail });
   teams[origem].tradedOut.add(p.id);
   return true;
 }
@@ -1161,7 +1179,7 @@ function aplicarPreselecoes(key) {
   if (PRESELECT_PLAYER_ID && !PRESELECT_PLAYER_APLICADO && key === kB && teams[kB] && teams[kA]) {
     const p = (teams[kB].players || []).find(pl => Number(pl.id) === PRESELECT_PLAYER_ID);
     if (p) {
-      receives[kA].push({ id: p.id, type: 'player', fromKey: kB, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+      receives[kA].push({ id: p.id, type: 'player', fromKey: kB, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary, award_bonus: p.award_bonus, award_bonus_detail: p.award_bonus_detail });
       teams[kB].tradedOut.add(p.id);
       PRESELECT_PLAYER_APLICADO = true;
       // O painel de A não é o "key" que está carregando agora (é o de B) —
@@ -1273,7 +1291,7 @@ function itemHtml(item, toKey) {
       <div class="sim-item-ovr">${item.ovr}</div>
       <div class="sim-item-info">
         <div class="sim-item-name">${escH(item.name)}</div>
-        <div class="sim-item-meta">${item.pos} · ${item.age}a · OVR ${item.ovr}</div>
+        <div class="sim-item-meta">${item.pos} · ${item.age}a · OVR ${item.ovr}${bonusTexto(item)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
       ${sal ? `<div class="sim-item-sal" title="Entra na folha deste time">${sal}</div>` : ''}
@@ -1382,7 +1400,7 @@ function renderPickerList() {
             <div class="picker-ovr">${p.ovr}</div>
             <div>
               <div class="picker-name">${escH(p.name)}</div>
-              <div class="picker-meta">${p.position} · ${p.age} anos · OVR ${p.ovr}${p.rookie_scale ? ' · <span style="color:var(--amber);font-weight:700">calouro</span>' : ''}</div>
+              <div class="picker-meta">${p.position} · ${p.age} anos · OVR ${p.ovr}${p.rookie_scale ? ' · <span style="color:var(--amber);font-weight:700">calouro</span>' : ''}${bonusTexto(p)}</div>
             </div>
             ${sal ? `<div class="picker-sal" title="${p.rookie_scale ? 'Rookie scale: vale só nesta temporada. Na próxima ele passa a custar pela tabela de OVR.' : 'Peso deste jogador na folha'}">${sal}</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
@@ -1473,7 +1491,7 @@ function confirmPicker() {
     if (pickerType === 'player') {
       const p = src.players.find(pl => pl.id === id);
       if (!p) return;
-      receives[pickerToSlot].push({ id, type: 'player', fromKey: pickerFromSlot, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+      receives[pickerToSlot].push({ id, type: 'player', fromKey: pickerFromSlot, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary, award_bonus: p.award_bonus, award_bonus_detail: p.award_bonus_detail });
       teams[pickerFromSlot].tradedOut.add(id);
     } else {
       const pk = src.picks.find(pk => pk.id === id);

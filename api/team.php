@@ -827,6 +827,9 @@ if ($method === 'GET') {
                     $salarioPorJogador[(int)$r['id']] = [
                         'salary'          => (int)$r['total_salary'],
                         'award_bonus'     => (int)$r['award_bonus'],
+                        // De onde vem o que ele custa a mais: "All-NBA 1º time +3M".
+                        'award_bonus_detail' => $r['award_bonus_detail'] ?? [],
+                        'base_salary'     => (int)$r['base_salary'],
                         'is_rookie_scale' => (bool)$r['is_rookie_scale'],
                         'is_lenda'        => (bool)$r['is_lenda'],
                     ];
