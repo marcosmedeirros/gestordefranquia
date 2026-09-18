@@ -451,12 +451,49 @@ if ($method === 'GET') {
             $st->execute([$sid]);
             $row = $st->fetch(PDO::FETCH_ASSOC);
             if (!$row) { echo json_encode(['success' => true, 'no_ar' => false]); exit; }
+
+            /* A TRANSMISSÃO SÓ CONTA O QUE JÁ FOI ANUNCIADO.
+               A ordem sorteada mora aqui inteira — é ela que faz todo mundo
+               ver a mesma cerimônia —, mas devolvê-la inteira entregava o
+               resultado a quem chamasse a API no meio do sorteio. Cada vaga
+               ainda na urna vai como lugar vazio: a tela desenha o
+               "Aguardando" do mesmo jeito e o nome só chega na revelação.
+
+               Duas exceções, as duas necessárias:
+               — a cauda de playoff, que não é sorteada (sai da campanha) e já
+                 era pública antes de a loteria começar;
+               — QUEM CONDUZ a cerimônia, que precisa da ordem inteira pra
+                 revelar a próxima. Ele é quem sorteou; esconder dele só
+                 quebraria a tela dele depois de um F5. */
+            $reveladas = array_values(array_filter(array_map('intval', explode(',', (string)$row['reveladas']))));
+            $ordemCompleta = json_decode($row['ordem'], true) ?: [];
+
+            $stLigaT = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
+            $stLigaT->execute([$sid]);
+            $ligaDaSessao = (string)($stLigaT->fetchColumn() ?: '');
+            $conduz = ($user['user_type'] ?? '') === 'admin'
+                || ($ligaDaSessao !== '' && in_array($ligaDaSessao, getAdminLeagues($pdo, (int)$user['id']), true));
+
+            if ($conduz) {
+                $ordemPublica = $ordemCompleta;
+            } else {
+                $jaSaiu = array_flip($reveladas);
+                $ordemPublica = [];
+                foreach ($ordemCompleta as $o) {
+                    $pos = (int)($o['position'] ?? 0);
+                    $ehPlayoff = ($o['source'] ?? '') === 'playoff';
+                    $ordemPublica[] = ($ehPlayoff || isset($jaSaiu[$pos]))
+                        ? $o
+                        : ['position' => $pos, 'source' => $o['source'] ?? 'lottery'];
+                }
+            }
+
             echo json_encode([
                 'success'   => true,
                 'no_ar'     => true,
-                'ordem'     => json_decode($row['ordem'], true) ?: [],
+                'ordem'     => $ordemPublica,
                 'ajustes'   => json_decode((string)$row['ajustes'], true) ?: [],
-                'reveladas' => array_values(array_filter(array_map('intval', explode(',', (string)$row['reveladas'])))),
+                'reveladas' => $reveladas,
                 'em'        => $row['atualizado_em'],
             ]);
             break;
