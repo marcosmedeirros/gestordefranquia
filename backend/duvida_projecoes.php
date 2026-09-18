@@ -1208,9 +1208,15 @@ function projLoteriaTexto(PDO $pdo, string $ligaPedida, string $ligaGrupo): stri
     $st->execute([$sid]);
     $sessao = (int)$st->fetchColumn();
     if ($sessao > 0) {
+        /* Cerimônia rolando: o FBAbot não conta o que a urna não entregou.
+           A ordem parcial fica no banco conforme cada bolinha sai, e sem este
+           corte ele responderia com as primeiras escolhas no meio do sorteio. */
+        require_once __DIR__ . '/draft_swaps.php';
+        $naUrnaProj = draftPosicoesNaUrna($pdo, $sessao);
         $st = $pdo->prepare('SELECT pick_position, team_id FROM draft_order WHERE draft_session_id = ? AND round = 1 ORDER BY pick_position LIMIT 5');
         $st->execute([$sessao]);
         $ordem = $st->fetchAll(PDO::FETCH_ASSOC);
+        if ($naUrnaProj) $ordem = [];
         if ($ordem && (int)$ordem[0]['pick_position'] === 1) {
             return "LOTERIA DA {$liga} (draft da {$T}) — JÁ SORTEADA. Primeiras escolhas: "
                  . implode(', ', array_map(fn($o) => (int)$o['pick_position'] . 'ª ' . ($nomes[(int)$o['team_id']] ?? '?'), $ordem))

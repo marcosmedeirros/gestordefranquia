@@ -468,13 +468,7 @@ if ($method === 'GET') {
             $reveladas = array_values(array_filter(array_map('intval', explode(',', (string)$row['reveladas']))));
             $ordemCompleta = json_decode($row['ordem'], true) ?: [];
 
-            $stLigaT = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
-            $stLigaT->execute([$sid]);
-            $ligaDaSessao = (string)($stLigaT->fetchColumn() ?: '');
-            $conduz = ($user['user_type'] ?? '') === 'admin'
-                || ($ligaDaSessao !== '' && in_array($ligaDaSessao, getAdminLeagues($pdo, (int)$user['id']), true));
-
-            if ($conduz) {
+            if (draftConduzALiga($pdo, $sid, $user)) {
                 $ordemPublica = $ordemCompleta;
             } else {
                 $jaSaiu = array_flip($reveladas);
@@ -506,6 +500,15 @@ if ($method === 'GET') {
         case 'conferir_picks': {
             $sid = (int)($_GET['draft_session_id'] ?? 0);
             if (!$sid) { echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']); exit; }
+
+            /* A conferência fala de vagas por número ("a 6 está com quem
+               não devia"), então no meio da cerimônia ela contaria a ordem.
+               Enquanto tem escolha na urna, só quem conduz consulta. */
+            if (draftPosicoesNaUrna($pdo, $sid) && !draftConduzALiga($pdo, $sid, $user)) {
+                echo json_encode(['success' => false,
+                    'error' => 'A loteria está sendo revelada agora — a conferência volta quando a ordem terminar de sair.']);
+                exit;
+            }
 
             $conf = draftConferirOrdem($pdo, $sid);
 
@@ -979,6 +982,14 @@ if ($method === 'GET') {
                     $stmtOrder->execute([$sessionData['id']]);
                     $order = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
 
+                    // Mesmo corte do 'draft_order': o histórico de uma sessão
+                    // em cerimônia não pode contar o que ainda está na urna.
+                    $naUrnaHist = draftPosicoesNaUrna($pdo, (int)$sessionData['id']);
+                    if ($naUrnaHist) {
+                        $order = array_values(array_filter($order, fn($o) =>
+                            !isset($naUrnaHist[(int)$o['pick_position']])));
+                    }
+
                     echo json_encode([
                         'success' => true,
                         'season' => $season,
@@ -1145,6 +1156,15 @@ if ($method === 'GET') {
                     'prefs_count' => count($prefsPorPick[(int)$r['draft_order_id']] ?? []),
                 ];
             }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+            /* A 2ª RODADA REPETE A ORDEM DA 1ª, então este quadro conta a
+               loteria inteira se a ordem tiver sido gravada antes do fim da
+               cerimônia: ver a vaga 6 aqui é saber quem levou a 6 lá. Some
+               enquanto a posição está na urna. */
+            $naUrnaR2 = draftPosicoesNaUrna($pdo, (int)$draftSessionId);
+            if ($naUrnaR2) {
+                $picks = array_values(array_filter($picks, fn($p) => !isset($naUrnaR2[(int)$p['pick_position']])));
+            }
 
             // Quantas preferências cabem por vaga. Vai pra tela em vez de o JS
             // ter o próprio número: com o valor escrito nos dois lados, mudar

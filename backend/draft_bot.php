@@ -117,6 +117,21 @@ function draftBotTexto(PDO $pdo, string $liga, ?int $round = null): string
         error_log('[draftBotTexto/ordem] ' . $e->getMessage());
         return 'Não consegui ler a ordem do draft agora.';
     }
+
+    /* CERIMÔNIA NO AR: o bot não adianta o que a urna ainda não entregou.
+       Sem este corte, um /draft no meio da loteria despejava a rodada inteira
+       no grupo — inclusive as escolhas que ninguém tinha anunciado. Quem quer
+       acompanhar tem o /loteria, que mostra o que já saiu. */
+    require_once __DIR__ . '/draft_swaps.php';
+    $naUrna = draftPosicoesNaUrna($pdo, $sid);
+    if ($naUrna) {
+        $vagas = array_values(array_filter($vagas, fn($v) => !isset($naUrna[(int)$v['pick_position']])));
+        if (!$vagas) {
+            return "🏀 *Draft {$liga}* · Temporada " . (int)$sessao['season_number'] . "\n\n"
+                 . "_A loteria está acontecendo agora._ Use */loteria {$liga}* pra acompanhar as escolhas conforme elas saem.";
+        }
+    }
+
     if (!$vagas) return "A *{$liga}* não tem {$rodada}ª rodada montada.";
 
     // Quantas vagas tem a 1ª rodada: é o que converte a posição da 2ª (que

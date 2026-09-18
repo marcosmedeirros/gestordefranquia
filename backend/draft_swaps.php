@@ -292,6 +292,29 @@ function draftPosicoesNaUrna(PDO $pdo, int $draftSessionId): array
 }
 
 /**
+ * Esta pessoa CONDUZ a cerimônia desta sessão?
+ *
+ * Só ela enxerga a ordem inteira enquanto a loteria é revelada — é quem
+ * sorteou e quem anuncia. Admin de OUTRA liga não entra: o segredo é da liga
+ * que está sorteando.
+ */
+function draftConduzALiga(PDO $pdo, int $draftSessionId, array $user): bool
+{
+    if (empty($user['id'])) return false;
+    if (($user['user_type'] ?? '') === 'admin') return true;
+    try {
+        $st = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
+        $st->execute([$draftSessionId]);
+        $liga = (string)($st->fetchColumn() ?: '');
+        if ($liga === '') return false;
+        require_once __DIR__ . '/auth.php';
+        return in_array($liga, getAdminLeagues($pdo, (int)$user['id']), true);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * EM QUE VAGA CADA PICK ESCOLHE — com o swap já resolvido.
  *
  * Por padrão a pick escolhe na vaga da sua ORIGEM: a pick de 1ª rodada do

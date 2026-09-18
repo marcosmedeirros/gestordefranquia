@@ -375,6 +375,11 @@ function lwPickDaPosicao(PDO $pdo, string $liga, int $numero): ?array
         $o = $st->fetch(PDO::FETCH_ASSOC);
         if (!$o || $o['picked_player_id'] !== null) return null;
 
+        /* "Pick 6" enquanto a loteria rola não vira vaga nenhuma: dizer de
+           quem ela é contaria o sorteio antes do anúncio. */
+        require_once __DIR__ . '/draft_swaps.php';
+        if (isset(draftPosicoesNaUrna($pdo, $sid)[$posicao])) return null;
+
         $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
         if ($ano <= 0) return null;
         return ['round' => $rodada, 'posicao' => $posicao, 'original_team_id' => (int)$o['original_team_id'], 'ano' => $ano,

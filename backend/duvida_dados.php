@@ -343,6 +343,29 @@ function duvidaSprintAtual(PDO $pdo): string
 }
 
 /** A coluna carrega dado pessoal? */
+/**
+ * Tem cerimônia de loteria no ar, em qualquer liga, com escolha por revelar?
+ *
+ * Enquanto tiver, a ordem do draft não é assunto do FBAbot: a consulta livre
+ * dele leria a ordem parcial gravada e contaria o resultado antes do anúncio.
+ */
+function duvidaLoteriaEmCerimonia(PDO $pdo): bool
+{
+    static $resposta = null;
+    if ($resposta !== null) return $resposta;
+    $resposta = false;
+    try {
+        require_once __DIR__ . '/draft_swaps.php';
+        $st = $pdo->query('SELECT draft_session_id FROM lottery_broadcast');
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            if (draftPosicoesNaUrna($pdo, (int)$sid)) { $resposta = true; break; }
+        }
+    } catch (Throwable $e) {
+        // Sem a tabela (base antiga) não há cerimônia pra proteger.
+    }
+    return $resposta;
+}
+
 function duvidaColunaProibida(string $nome): bool
 {
     $n = mb_strtolower($nome);
@@ -438,6 +461,13 @@ function duvidaConsultar(PDO $pdo, string $sql): array
         foreach ($m[1] as $tab) {
             if (!in_array($tab, DUVIDA_TABELAS, true)) {
                 return $falha("A tabela `{$tab}` não pode ser consultada por aqui.");
+            }
+            /* LOTERIA ROLANDO: a ordem do draft sai da mesa. O SQL aqui é
+               escrito pelo modelo, então não dá pra confiar num filtro dentro
+               da consulta — a tabela inteira fica fora do ar enquanto houver
+               escolha por revelar. O /loteria conta o que já saiu. */
+            if ($tab === 'draft_order' && duvidaLoteriaEmCerimonia($pdo)) {
+                return $falha('A loteria está acontecendo agora — a ordem do draft só depois que as escolhas forem anunciadas. Acompanhe com /loteria.');
             }
         }
     }

@@ -437,6 +437,15 @@ function protecaoResolverNoDraft(PDO $pdo, int $draftSessionId): array
         foreach ($st as $r) $posicao[(int)$r['original_team_id']] = (int)$r['pick_position'];
         if (!$posicao) return [];
 
+        /* PROTEÇÃO NÃO SE RESOLVE COM PICK QUE AINDA ESTÁ NA URNA.
+           A vaga é a resposta da proteção ("caiu no top 5, ficou protegida"),
+           e decidir isso no meio da cerimônia não só adianta o resultado como
+           GRAVA a mudança de dono — o selo apareceria na Trade Machine antes
+           de a bolinha sair. Enquanto houver posição por revelar nesta sessão,
+           nada é resolvido; ao fim da revelação isto roda normalmente. */
+        require_once __DIR__ . '/draft_swaps.php';
+        if (draftPosicoesNaUrna($pdo, (int)$draftSessionId)) return [];
+
         $st = $pdo->prepare("SELECT id, original_team_id, team_id, season_year, protection
                              FROM picks
                              WHERE season_year = ? AND round = '1'

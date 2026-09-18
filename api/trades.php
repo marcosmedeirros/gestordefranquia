@@ -1640,8 +1640,14 @@ function buildDraftOrderMap(PDO $pdo, int $draftSessionId): array
         $stmt = $pdo->prepare('SELECT id, team_id, original_team_id, pick_position, round FROM draft_order WHERE draft_session_id = ? ORDER BY round ASC, pick_position ASC, id ASC');
         $stmt->execute([$draftSessionId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        /* NADA DE CONTAR O QUE AINDA ESTÁ NA URNA. Este mapa vira o "Escolha
+           N" das picks nas listagens de trade e no anúncio da troca no grupo.
+           Durante a cerimônia da loteria, a vaga não revelada não entra: a
+           pick sai sem número, como antes do sorteio. */
+        $naUrna = draftPosicoesNaUrna($pdo, $draftSessionId);
         $overall = 1;
         foreach ($rows as $row) {
+            if (isset($naUrna[(int)$row['pick_position']])) { $overall++; continue; }
             $key = (int)$row['original_team_id'] . '-' . (int)$row['round'];
             $map[$key] = [
                 'draft_order_id' => (int)$row['id'],

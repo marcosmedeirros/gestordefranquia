@@ -2111,7 +2111,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (draftSessionId) {
         try {
           const orderData = await api(`draft.php?action=draft_order&draft_session_id=${draftSessionId}`);
-          if (orderData && orderData.order && orderData.order.length > 0) order = orderData.order;
+          /* A ordem em tempo real MANDA, inclusive quando volta vazia: durante
+             a cerimônia da loteria o servidor esconde as vagas que ainda estão
+             na urna, e o antigo `length > 0` fazia a tela cair no histórico
+             não filtrado justamente aí — mostrando a ordem inteira. */
+          if (orderData && Array.isArray(orderData.order)) order = orderData.order;
         } catch (err) { console.warn('Fallback: Não foi possível carregar a ordem em tempo real.', err); }
       }
       if (!order.length) { alert('Nenhuma ordem de draft encontrada para esta temporada'); return; }

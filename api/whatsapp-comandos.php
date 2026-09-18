@@ -3617,13 +3617,19 @@ function wcTemporadaResumo(PDO $pdo, string $arg, ?string $ligaDoGrupo): string
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $seed[$r['conf']] = (int)$r['team_id'];
 
     // A pick 1 do draft DESTA temporada (o que acontece no fim dela).
-    $st = $pdo->prepare("SELECT o.team_id, o.original_team_id, dp.name jogador
+    $st = $pdo->prepare("SELECT ds.id AS sessao, o.team_id, o.original_team_id, dp.name jogador
                            FROM draft_sessions ds
                            JOIN draft_order o ON o.draft_session_id = ds.id AND o.round = 1 AND o.pick_position = 1
                       LEFT JOIN draft_pool dp ON dp.id = o.picked_player_id
                           WHERE ds.season_id = ? ORDER BY ds.id DESC LIMIT 1");
     $st->execute([$sid]);
     $pick = $st->fetch(PDO::FETCH_ASSOC);
+    /* Loteria em andamento: a pick 1 é o clímax da cerimônia, e o /temporada
+       não pode entregá-la antes do anúncio. */
+    if ($pick) {
+        require_once __DIR__ . '/../backend/draft_swaps.php';
+        if (isset(draftPosicoesNaUrna($pdo, (int)$pick['sessao'])[1])) $pick = null;
+    }
     if (!$pick) {
         $txtPick = 'ainda não definida';
     } else {
