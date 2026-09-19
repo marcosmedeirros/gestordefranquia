@@ -6,10 +6,15 @@
  * time na tela durante a transmissão. Quem chegar primeiro leva — não há
  * reserva, fila nem sorteio.
  *
- * A venda abre UMA HORA antes da live e fecha quando a live começa ou quando
- * os oito acabam, o que vier primeiro. É curta de propósito: o valor da vaga
- * vem de ela ser disputada na hora, e uma janela de dias viraria só mais um
- * item de catálogo que quem tem pontos compra sem pensar.
+ * A venda abre AO MEIO-DIA do dia da live e fecha quando a live começa ou
+ * quando os oito acabam, o que vier primeiro. É de um dia só, de propósito: o
+ * valor da vaga vem de ela ser disputada, e uma janela de dias viraria só
+ * mais um item de catálogo que quem tem pontos compra sem pensar.
+ *
+ * Era "uma hora antes" até 19/09/2026, e a hora móvel foi o problema: a
+ * ROOKIE mudou a live de 11h pra 17h no dia, a venda tinha aberto às 10h e a
+ * liga ficou sem saber quando valia. Meio-dia é o mesmo horário toda semana,
+ * em qualquer liga, mude a live o que mudar.
  *
  * Só a REGULAR. A live de playoffs tem outra dinâmica e não entrou; a fase
  * sai do título do evento, pela mesma leitura que a escala usa.
@@ -20,8 +25,24 @@ require_once __DIR__ . '/escala_live.php';
 
 const SLOTS_TELA_TOTAL = 8;
 const SLOTS_TELA_PRECO = 50;
-/** Quantos minutos antes da live a venda abre. */
-const SLOTS_TELA_ANTECEDENCIA = 60;
+/** A que horas do DIA DA LIVE a venda abre. Igual pra todas as ligas. */
+const SLOTS_TELA_HORA_ABERTURA = '12:00';
+
+/**
+ * Quando a venda desta live abre: meio-dia do dia dela.
+ *
+ * Live marcada pra antes do meio-dia é o único caso especial — aí a venda
+ * abre junto com o dia (00h) em vez de abrir depois de a live ter começado,
+ * que seria não abrir nunca.
+ */
+function slotsTelaAberturaPadrao(DateTimeImmutable $inicioLive): DateTimeImmutable
+{
+    $abre = new DateTimeImmutable(
+        $inicioLive->format('Y-m-d') . ' ' . SLOTS_TELA_HORA_ABERTURA,
+        $inicioLive->getTimezone()
+    );
+    return $abre < $inicioLive ? $abre : $inicioLive->setTime(0, 0);
+}
 
 function slotsTelaGarantirTabela(PDO $pdo): void
 {
@@ -196,9 +217,9 @@ function slotsTelaDaLive(PDO $pdo, string $liga, string $dataLive): array
 /**
  * A ABERTURA NA MÃO.
  *
- * A regra continua sendo uma hora antes da live. Só que a live às vezes muda
- * de hora em cima da hora, ou a liga quer soltar as vagas antes por outro
- * motivo — e sem isto a única saída era esperar o relógio.
+ * A regra continua sendo o meio-dia do dia da live. Só que a liga às vezes
+ * quer soltar as vagas mais cedo — e sem isto a única saída era esperar o
+ * relógio.
  *
  * Guarda o instante em que o admin abriu. O estado usa esse instante no lugar
  * da antecedência padrão, e nunca o contrário: abrir antes é decisão de quem
@@ -280,7 +301,7 @@ function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora
     if (!$live) return $base;
 
     $inicio = new DateTimeImmutable($live['inicio'], $tz);
-    $abre   = $inicio->modify('-' . SLOTS_TELA_ANTECEDENCIA . ' minutes');
+    $abre   = slotsTelaAberturaPadrao($inicio);
 
     // Aberto na mão vale se for ANTES do horário normal: o admin adianta a
     // venda, nunca atrasa. Se ele abriu depois da hora, a hora já valia.
@@ -358,7 +379,7 @@ function slotsTelaComprar(PDO $pdo, int $userId, int $teamId, string $liga): arr
     $estado = slotsTelaEstado($pdo, $liga, $teamId);
     if (!$estado['live']) return $falha('A ' . $liga . ' não tem live da regular marcada.');
     switch ($estado['motivo']) {
-        case 'cedo':     return $falha('A venda abre uma hora antes da live.');
+        case 'cedo':     return $falha('A venda abre ao meio-dia do dia da live.');
         case 'comecou':  return $falha('A live já começou — a venda fechou.');
         case 'esgotado': return $falha('Os ' . SLOTS_TELA_TOTAL . ' slots desta live já foram.');
         case 'ja_tenho': return $falha('Seu time já está na tela desta live.');

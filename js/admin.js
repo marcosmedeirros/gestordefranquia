@@ -150,7 +150,7 @@ async function showGamesAdmin() {
         </button>
       </div>
       <div class="small text-secondary mb-2">
-        As oito vagas abrem sozinhas <b>uma hora antes</b> de cada live. A chave só adianta —
+        As oito vagas abrem sozinhas <b>ao meio-dia</b> do dia de cada live. A chave só adianta —
         o fechamento continua sendo o começo da transmissão ou o fim das vagas.
       </div>
       <div id="slotsLiveWrap" class="text-center py-3">
@@ -387,7 +387,7 @@ async function _eventoCancelar(id, status) {
 }
 
 /* ── Vagas de tela da live ──────────────────────────────────────────────
- * As oito vagas abrem sozinhas uma hora antes da live. A chave aqui só
+ * As oito vagas abrem sozinhas ao meio-dia do dia da live. A chave aqui só
  * adianta isso — pro dia em que a live muda de horário e ninguém quer
  * esperar o relógio. Nunca atrasa, e não mexe no fechamento.
  * ─────────────────────────────────────────────────────────────────────── */

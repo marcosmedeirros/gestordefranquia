@@ -1580,7 +1580,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
 
                 <p class="st-txt">
                   Oito times aparecem na tela durante a live. Quem compra primeiro leva —
-                  a venda abre <b>uma hora antes</b> e fecha quando a live começa ou quando
+                  a venda abre <b>ao meio-dia</b> do dia da live e fecha quando ela começa ou quando
                   os oito acabam.
                 </p>
 

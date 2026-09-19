@@ -212,6 +212,9 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
 {
     leilaoSemanaTabela($pdo);
     $liga = strtoupper(trim($liga));
+    // Passou do meio-dia do dia da regular: o leilão fecha aqui, antes de
+    // qualquer lance entrar — senão o atrasado passaria por cima do prazo.
+    leilaoSemanaFecharSePassouDaHora($pdo, $liga);
     $temporada = leilaoSemanaTemporada($pdo, $liga);
 
     $falha = fn(string $e, int $m = 0) => ['ok' => false, 'erro' => $e, 'minimo' => $m];
@@ -309,6 +312,8 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
 function leilaoSemanaTexto(PDO $pdo, string $liga): string
 {
     $liga = strtoupper(trim($liga));
+    // O prazo vale também pra quem pergunta pelo bot.
+    leilaoSemanaFecharSePassouDaHora($pdo, $liga);
     $temporada = leilaoSemanaTemporada($pdo, $liga);
 
     if ($temporada <= 0) return "A *{$liga}* não tem temporada em andamento.";
@@ -385,6 +390,48 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
  * O histórico guarda o confronto ANTES de limpar: é o registro de que aquela
  * semana teve aquele jogo, e o que ele custou.
  */
+/**
+ * FECHA SOZINHO AO MEIO-DIA DO DIA DA LIVE.
+ *
+ * O leilão do jogo da semana dependia de alguém clicar em "fechar", e o
+ * clique às vezes vinha com a transmissão já no ar — ou não vinha. O prazo
+ * agora é o mesmo da abertura das vagas de tela: meio-dia do dia da regular.
+ * Quem quiser fechar antes continua podendo, na mão.
+ *
+ * Preguiçoso, como o resto do sistema: roda quando alguém olha o leilão ou
+ * tenta dar lance. Sem cron pra esquecer de configurar.
+ *
+ * Devolve true se fechou agora.
+ */
+function leilaoSemanaFecharSePassouDaHora(PDO $pdo, string $liga): bool
+{
+    $liga = strtoupper(trim($liga));
+    try {
+        $temporada = leilaoSemanaTemporada($pdo, $liga);
+        if ($temporada <= 0) return false;
+        // Já fechado (na mão ou aqui): não há o que fazer.
+        if (leilaoSemanaUltimoFechado($pdo, $liga, $temporada)) return false;
+        // Sem lance nenhum, fechar só apagaria um leilão vazio e travaria a
+        // semana inteira — deixa aberto até alguém dar o primeiro lance.
+        if (!leilaoSemanaLances($pdo, $liga, $temporada)) return false;
+
+        require_once __DIR__ . '/slots_tela.php';
+        $live = slotsTelaProximaRegular($pdo, $liga);
+        if (!$live) return false;
+
+        $tz    = new DateTimeZone('America/Sao_Paulo');
+        $prazo = new DateTimeImmutable(substr((string)$live['inicio'], 0, 10) . ' '
+                                       . SLOTS_TELA_HORA_ABERTURA, $tz);
+        if (new DateTimeImmutable('now', $tz) < $prazo) return false;
+
+        $r = leilaoSemanaFechar($pdo, $liga, 0);
+        return !empty($r['ok']);
+    } catch (Throwable $e) {
+        error_log('[leilao-semana] fechar no prazo: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function leilaoSemanaFechar(PDO $pdo, string $liga, int $fechadoPor = 0): array
 {
     leilaoSemanaTabela($pdo);
@@ -481,6 +528,9 @@ function leilaoSemanaRetidoDoTime(array $lances, int $teamId): int
 function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
 {
     $liga = strtoupper(trim($liga));
+    // O prazo é meio-dia do dia da regular; quem abre o card depois disso já
+    // encontra o leilão fechado, sem depender de alguém ter clicado.
+    leilaoSemanaFecharSePassouDaHora($pdo, $liga);
     $temporada = leilaoSemanaTemporada($pdo, $liga);
     $lances = leilaoSemanaLances($pdo, $liga, $temporada);
 

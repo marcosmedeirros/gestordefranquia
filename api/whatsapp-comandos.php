@@ -3277,7 +3277,7 @@ function wcSlotsTela(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 
     if ($e['motivo'] === 'cedo') {
         $abre = substr((string)$e['abre_em'], 11, 5);
-        $txt .= "A venda abre às *{$abre}*, uma hora antes da live.\n";
+        $txt .= "A venda abre às *{$abre}*, meio-dia do dia da live.\n";
         $txt .= "São {$e['total']} vagas, {$e['preco']} moedas cada — quem chegar primeiro leva.";
         return $txt;
     }

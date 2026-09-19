@@ -2,7 +2,7 @@
 /**
  * ABRIR AS VAGAS DE TELA NA MÃO.
  *
- * A venda abre sozinha uma hora antes da live e isso continua valendo. Este
+ * A venda abre sozinha ao meio-dia do dia da live e isso continua valendo. Este
  * endereço existe pro que o relógio não cobre: a live que mudou de horário em
  * cima da hora, ou a liga que quer soltar as vagas antes por outro motivo.
  *
@@ -92,7 +92,7 @@ try {
                 ? ($e['aberta']
                     ? 'Vagas abertas na ' . $liga . ' para a live de ' . slotsTelaHora($r['live']['inicio']) . '.'
                     : 'Gravado, mas a venda segue fechada (' . $e['motivo'] . ').')
-                : 'A ' . $liga . ' voltou a abrir sozinha, uma hora antes da live.',
+                : 'A ' . $liga . ' voltou a abrir sozinha, ao meio-dia do dia da live.',
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
