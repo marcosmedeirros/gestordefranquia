@@ -1646,9 +1646,14 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
     // pros dois lados — elenco cru também custa, só que custa menos adiante.
     $idadeNota = $mediaIdade > 0 ? wcNota0a100(100 - abs($mediaIdade - 25.5) * 9) : 50.0;
 
-    // PONTUAÇÃO: quanto o time já fez no ciclo, medido contra o líder.
+    /* PONTUAÇÃO: quanto o time já fez no ciclo, medido contra o líder.
+       Começa em 20, e não em 0: quem não pontuou ainda perde os 80 de cima,
+       o que já é castigo suficiente. Zerar de vez fazia o time que acabou de
+       montar elenco pesado despencar vinte posições por um passado que ele
+       não tem mais — e power ranking é sobre agora. */
     $pontos = (int)($hist['pontos'] ?? 0);
-    $pontosNota = $ctx['maxPontos'] > 0 ? wcNota0a100($pontos / $ctx['maxPontos'] * 100) : 50.0;
+    $pontosNota = $ctx['maxPontos'] > 0
+        ? wcNota0a100(20 + ($pontos / $ctx['maxPontos']) * 80) : 50.0;
 
     // CAMPANHA: posição geral de cada temporada virada em nota, com a mais
     // recente pesando 4 e a mais velha 1. Título soma por cima, com teto —
@@ -1663,7 +1668,11 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
             $pesos += $peso;
             $peso = max(1.0, $peso - 1.0);
         }
-        $campanhaNota = wcNota0a100($soma / max(1.0, $pesos) + min(15, (int)($hist['titulos'] ?? 0) * 6));
+        // Mesmo piso da pontuação, pela mesma razão: o lanterna do ano
+        // passado não vale zero se hoje ele tem time.
+        $campanhaNota = wcNota0a100(
+            20 + ($soma / max(1.0, $pesos)) * 0.8 + min(15, (int)($hist['titulos'] ?? 0) * 6)
+        );
     }
 
     return [
