@@ -159,6 +159,25 @@ async function showGamesAdmin() {
 
       <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
 
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="fw-semibold" style="font-size:14px">
+          <i class="bi bi-trophy-fill me-1" style="color:#22c55e"></i>Pagar o jogo da semana
+        </span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarPagamentoSemana()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Escolha quem venceu: o vencedor recebe <b>o que apostou de volta</b> mais
+        <b>50% do lance do adversário</b>. Um jogo por liga de cada vez — o próximo só aparece
+        depois que este for pago.
+      </div>
+      <div id="pagamentoSemanaWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+
+      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
+
       <div class="fw-semibold mb-1" style="font-size:14px">
         <i class="bi bi-exclamation-triangle me-1" style="color:#ef4444"></i>Zerar
       </div>
@@ -217,6 +236,7 @@ async function showGamesAdmin() {
   _carregarGamesDobro();
   _carregarLeilaoSemana();
   _carregarSlotsLive();
+  _carregarPagamentoSemana();
 }
 
 /* ── Eventos: as apostas que os GMs criam em /games ─────────────────────
@@ -449,6 +469,95 @@ async function _alternarSlotsLive(liga, acao, bt) {
   // Recarrega dos dois jeitos: o estado real pode não ser o que o clique
   // pediu (a live pode ter começado no meio do caminho).
   _carregarSlotsLive();
+}
+
+/* ── Pagar o jogo da semana ─────────────────────────────────────────────
+ * O leilão escolhe o jogo e cobra dos dois; o resultado decide pra onde o
+ * dinheiro vai. Quem vence leva o próprio lance de volta mais metade do
+ * lance do adversário, e o que sobra fica com a liga.
+ *
+ * Um jogo por liga de cada vez: enquanto o da semana passada não tiver
+ * vencedor, o próximo não aparece. Fila de pagamento fora de ordem é erro
+ * que só se descobre semanas depois, quando ninguém lembra quem ganhou.
+ * ─────────────────────────────────────────────────────────────────────── */
+let _pagamentoSemana = [];
+
+async function _carregarPagamentoSemana() {
+  const alvo = document.getElementById('pagamentoSemanaWrap');
+  if (!alvo) return;
+  try {
+    const d = await api('admin.php?action=leilao_semana_pagamento_estado');
+    _pagamentoSemana = d.ligas || [];
+
+    const comJogo = _pagamentoSemana.filter(l => l.jogo);
+    alvo.className = '';
+    if (!comJogo.length) {
+      alvo.innerHTML = '<div class="small text-secondary py-2">'
+        + 'Nenhum jogo esperando resultado. O próximo aparece aqui quando o leilão fechar.</div>';
+      return;
+    }
+
+    alvo.innerHTML = comJogo.map(l => {
+      const j = l.jogo;
+      // Um botão por time, com o prêmio que cada um levaria já calculado —
+      // o admin decide vendo o número, não confiando na conta de cabeça.
+      const lado = (id, nome, lance, premio) => id === null
+        ? '<div class="small text-secondary">vaga aberta</div>'
+        : `<button class="btn btn-sm btn-outline-success text-start" style="flex:1;min-width:150px"
+                   onclick="_pagarJogoSemana('${escapeHtml(l.liga)}',${j.id},${id})">
+             <div class="fw-bold">${escapeHtml(nome || 'time')} venceu</div>
+             <div class="small">apostou ${lance.toLocaleString('pt-BR')} · recebe
+               <b style="color:#22c55e">${premio.toLocaleString('pt-BR')}</b></div>
+           </button>`;
+
+      return `
+        <div class="py-2" style="border-top:1px solid var(--border);text-align:left">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="fw-bold">${escapeHtml(l.liga)}
+              <span class="small text-secondary">· temporada ${j.temporada} ·
+                fechado ${escapeHtml((j.fechado_em || '').slice(0, 16).replace('T', ' '))}</span>
+            </div>
+            <div class="small text-secondary">
+              ${escapeHtml(j.time1 || '—')} × ${escapeHtml(j.time2 || 'vaga aberta')}
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap mt-2">
+            ${lado(j.time1_id, j.time1, j.valor1, j.premio1)}
+            ${lado(j.time2_id, j.time2, j.valor2, j.premio2)}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    alvo.className = '';
+    alvo.innerHTML = `<div class="small text-danger py-2">Não deu pra carregar: ${escapeHtml(e.error || e.message || 'erro')}</div>`;
+  }
+}
+
+async function _pagarJogoSemana(liga, jogoId, vencedorId) {
+  const l = _pagamentoSemana.find(x => x.liga === liga);
+  const j = l && l.jogo;
+  if (!j || j.id !== jogoId) { showAlert('warning', 'Esse jogo mudou. Atualize a lista.'); return; }
+
+  const venceu = j.time1_id === vencedorId ? j.time1 : j.time2;
+  const premio = j.time1_id === vencedorId ? j.premio1 : j.premio2;
+  const ok = await confirmarSite(
+    `Declarar que o ${venceu} venceu o jogo da semana da ${liga}?\n\n`
+    + `Ele recebe ${premio} FBA Points na hora, e o jogo sai da fila.`
+  );
+  if (!ok) return;
+
+  try {
+    const d = await api('admin.php?action=leilao_semana_pagar', {
+      method: 'POST',
+      body: JSON.stringify({ liga, jogo_id: jogoId, vencedor_team_id: vencedorId }),
+    });
+    showAlert('success', `${d.vencedor} recebeu ${d.premio} FBA Points.`);
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao pagar.');
+  }
+  // Recarrega dos dois jeitos: se outro admin pagou no meio do caminho, a
+  // lista tem que mostrar o estado real, não o que este clique esperava.
+  _carregarPagamentoSemana();
 }
 
 /* ── Dobro de moedas por jogo ───────────────────────────────────────────

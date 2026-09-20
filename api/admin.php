@@ -286,6 +286,44 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'jogos' => $listaJogos]);
             exit;
 
+        /**
+         * O JOGO DA SEMANA QUE ESPERA RESULTADO, liga por liga.
+         *
+         * Só um por liga aparece: enquanto o da semana passada não tiver
+         * vencedor declarado, o próximo não entra na fila. Pagar fora de
+         * ordem é erro que só se descobre semanas depois.
+         */
+        case 'leilao_semana_pagamento_estado':
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $pagamentos = [];
+            foreach (['ELITE','NEXT','RISE','ROOKIE'] as $lgPg) {
+                $jogoPg = leilaoSemanaAPagar($pdo, $lgPg);
+                $pagamentos[] = [
+                    'liga' => $lgPg,
+                    'jogo' => $jogoPg ? [
+                        'id'         => (int)$jogoPg['id'],
+                        'temporada'  => (int)$jogoPg['temporada'],
+                        'fechado_em' => (string)$jogoPg['fechado_em'],
+                        'time1_id'   => $jogoPg['time1_id'] !== null ? (int)$jogoPg['time1_id'] : null,
+                        'time1'      => $jogoPg['time1_nome'],
+                        'valor1'     => (int)$jogoPg['valor1'],
+                        'premio1'    => (int)$jogoPg['premio1'],
+                        'time2_id'   => $jogoPg['time2_id'] !== null ? (int)$jogoPg['time2_id'] : null,
+                        'time2'      => $jogoPg['time2_nome'],
+                        'valor2'     => (int)$jogoPg['valor2'],
+                        'premio2'    => (int)$jogoPg['premio2'],
+                    ] : null,
+                ];
+            }
+            echo json_encode(['success' => true, 'ligas' => $pagamentos,
+                              'percentual' => LEILAO_SEMANA_PREMIO_PCT], JSON_UNESCAPED_UNICODE);
+            exit;
+
         case 'leilao_semana_estado':
             // O que está em disputa em cada liga, pro painel da aba Games
             // mostrar o confronto ANTES do botão: fechar cobra FBA Points de
@@ -3105,6 +3143,33 @@ if ($method === 'POST') {
                 $ligaFechar, (int)$user['id'], (int)$r['pago']));
             echo json_encode(['success' => true, 'jogo' => array_values(array_filter($r['jogo'])),
                               'pago' => (int)$r['pago']]);
+            exit;
+
+        case 'leilao_semana_pagar':
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $ligaPg = strtoupper(trim((string)($data['liga'] ?? '')));
+            if (!in_array($ligaPg, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            $rPg = leilaoSemanaPagar($pdo, $ligaPg, (int)($data['jogo_id'] ?? 0),
+                                     (int)($data['vencedor_team_id'] ?? 0), (int)$user['id']);
+            if (!$rPg['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $rPg['erro']]);
+                exit;
+            }
+            error_log(sprintf('[leilao_semana_pagar] %s jogo=%d vencedor=%d premio=%d por user_id=%d',
+                $ligaPg, (int)($data['jogo_id'] ?? 0), (int)($data['vencedor_team_id'] ?? 0),
+                (int)$rPg['premio'], (int)$user['id']));
+            echo json_encode(['success' => true, 'premio' => (int)$rPg['premio'],
+                              'vencedor' => $rPg['vencedor']], JSON_UNESCAPED_UNICODE);
             exit;
 
         case 'games_zerar':

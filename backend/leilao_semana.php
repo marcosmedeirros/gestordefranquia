@@ -87,6 +87,59 @@ function leilaoSemanaTabela(PDO $pdo): void
         fechado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY idx_hist (league, temporada)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* O PAGAMENTO DO JOGO, acrescentado em 20/09/2026.
+       Até aqui o leilão terminava no fechamento: os dois pagavam e acabava.
+       Agora o jogo tem vencedor, e quem ganha leva o próprio lance de volta
+       mais metade do lance do adversário — o que sobra fica com a liga.
+
+       Os user_id ficam gravados junto porque quem recebe é QUEM DEU O LANCE,
+       e o time pode trocar de GM entre a quarta e o domingo. Olhar o dono do
+       time na hora de pagar creditaria o sucessor. */
+    $nasceuAgora = false;
+    try {
+        $nasceuAgora = !$pdo->query("SHOW COLUMNS FROM leilao_semana_historico LIKE 'pago_em'")->fetch();
+    } catch (Throwable $e) {
+        error_log('[leilao-semana] checar pago_em: ' . $e->getMessage());
+    }
+
+    foreach ([
+        'time1_user_id'    => 'INT NULL',
+        'time2_user_id'    => 'INT NULL',
+        'vencedor_team_id' => 'INT NULL',
+        'premio'           => 'INT NOT NULL DEFAULT 0',
+        'pago_em'          => 'DATETIME NULL',
+        'pago_por'         => 'INT NULL',
+    ] as $coluna => $tipo) {
+        try {
+            $pdo->exec("ALTER TABLE leilao_semana_historico ADD COLUMN IF NOT EXISTS {$coluna} {$tipo}");
+        } catch (Throwable $e) {
+            error_log('[leilao-semana] coluna ' . $coluna . ': ' . $e->getMessage());
+        }
+    }
+
+    /* O QUE JÁ PASSOU NÃO ENTRA NA FILA.
+       Quando o pagamento nasceu havia dez jogos fechados, alguns de um mês
+       atrás. Sem isto, o painel abriria pedindo o vencedor do jogo de 26 de
+       agosto — e o admin teria de resolver a arqueologia antes de chegar no
+       jogo desta semana.
+
+       Fica de fora o ÚLTIMO de cada liga: esse é o jogo corrente, ainda vale
+       pagar. Os anteriores ficam com pago_em = fechado_em e prêmio zero, que
+       é como se lê "encerrado sem pagamento" — não inventa vencedor nenhum.
+       Roda uma vez só, no request em que a coluna nasce. */
+    if ($nasceuAgora) {
+        try {
+            $pdo->exec("UPDATE leilao_semana_historico h
+                          JOIN (SELECT league, MAX(id) AS ultimo
+                                  FROM leilao_semana_historico GROUP BY league) u
+                            ON u.league = h.league
+                           SET h.pago_em = h.fechado_em, h.premio = 0
+                         WHERE h.id <> u.ultimo AND h.pago_em IS NULL");
+        } catch (Throwable $e) {
+            error_log('[leilao-semana] dispensar históricos antigos: ' . $e->getMessage());
+        }
+    }
 }
 
 /**
@@ -455,11 +508,14 @@ function leilaoSemanaFechar(PDO $pdo, string $liga, int $fechadoPor = 0): array
         $b = $podio[1] ?? null;
 
         $pdo->prepare("INSERT INTO leilao_semana_historico
-                       (league, temporada, time1_id, time1_nome, valor1, time2_id, time2_nome, valor2, fechado_por)
-                       VALUES (?,?,?,?,?,?,?,?,?)")
+                       (league, temporada, time1_id, time1_nome, valor1, time1_user_id,
+                        time2_id, time2_nome, valor2, time2_user_id, fechado_por)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)")
             ->execute([$liga, $temporada,
                        $a ? (int)$a['team_id'] : null, $a ? $a['time_nome'] : null, $a ? (int)$a['valor'] : 0,
+                       $a ? (int)$a['user_id'] : null,
                        $b ? (int)$b['team_id'] : null, $b ? $b['time_nome'] : null, $b ? (int)$b['valor'] : 0,
+                       $b ? (int)$b['user_id'] : null,
                        $fechadoPor ?: null]);
 
         // Os lances somem: quem estava no pódio já pagou (o retido vira gasto),
@@ -563,4 +619,142 @@ function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
             : leilaoSemanaMinimo($lances),
         'meu'       => $meu,
     ];
+}
+
+/* ── O PAGAMENTO DO JOGO ────────────────────────────────────────────────
+ *
+ * O leilão escolhe o jogo e cobra dos dois. O resultado do jogo é que decide
+ * pra onde o dinheiro vai: quem vence leva o próprio lance de volta e metade
+ * do lance do adversário. O que sobra fica com a liga.
+ *
+ * Um jogo por vez, de propósito: enquanto o da semana passada não tiver
+ * vencedor declarado, o próximo não aparece no painel. Pagar fora de ordem é
+ * o tipo de erro que só se descobre semanas depois, quando ninguém lembra
+ * mais quem ganhou o quê.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+/** Quanto do lance do perdedor vai pro vencedor. */
+const LEILAO_SEMANA_PREMIO_PCT = 50;
+
+/**
+ * Quanto o vencedor recebe: o lance dele de volta, mais a fatia do adversário.
+ *
+ * Arredonda pra baixo na fatia — meio ponto não existe no saldo, e sobrar pra
+ * liga é melhor que pagar um ponto que ninguém apostou.
+ */
+function leilaoSemanaPremio(int $lanceVencedor, int $lancePerdedor): int
+{
+    return $lanceVencedor + (int)floor($lancePerdedor * LEILAO_SEMANA_PREMIO_PCT / 100);
+}
+
+/**
+ * O jogo fechado desta liga que ainda espera resultado.
+ *
+ * O mais ANTIGO sem pagamento, não o mais recente: se por algum motivo dois
+ * ficaram na fila, o painel resolve na ordem em que aconteceram.
+ */
+function leilaoSemanaAPagar(PDO $pdo, string $liga): ?array
+{
+    leilaoSemanaTabela($pdo);
+    $liga = strtoupper(trim($liga));
+    try {
+        $st = $pdo->prepare("SELECT h.id, h.league, h.temporada, h.fechado_em,
+                                    h.time1_id, h.valor1, h.time1_user_id,
+                                    h.time2_id, h.valor2, h.time2_user_id,
+                                    COALESCE(t1.name, h.time1_nome) AS time1_nome,
+                                    COALESCE(t2.name, h.time2_nome) AS time2_nome,
+                                    t1.photo_url AS time1_logo, t2.photo_url AS time2_logo
+                               FROM leilao_semana_historico h
+                          LEFT JOIN teams t1 ON t1.id = h.time1_id
+                          LEFT JOIN teams t2 ON t2.id = h.time2_id
+                              WHERE h.league = ? AND h.pago_em IS NULL
+                           ORDER BY h.id ASC LIMIT 1");
+        $st->execute([$liga]);
+        $jogo = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$jogo) return null;
+
+        // O prêmio de cada lado já calculado: é o número que o admin precisa
+        // ver ANTES de clicar, e calcular na tela duplicaria a regra.
+        $jogo['premio1'] = leilaoSemanaPremio((int)$jogo['valor1'], (int)$jogo['valor2']);
+        $jogo['premio2'] = leilaoSemanaPremio((int)$jogo['valor2'], (int)$jogo['valor1']);
+        return $jogo;
+    } catch (Throwable $e) {
+        error_log('[leilao-semana] a pagar: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Declara o vencedor e credita o prêmio.
+ *
+ * Quem recebe é o user que DEU O LANCE. Se aquele registro for antigo e não
+ * tiver o user gravado, cai no dono atual do time — é a melhor aproximação
+ * possível, e vale só pros jogos fechados antes de 20/09/2026.
+ *
+ * @return array{ok:bool, erro:?string, premio:int, vencedor:?string}
+ */
+function leilaoSemanaPagar(PDO $pdo, string $liga, int $historicoId, int $vencedorTeamId, int $adminId = 0): array
+{
+    leilaoSemanaTabela($pdo);
+    $liga = strtoupper(trim($liga));
+
+    $pdo->beginTransaction();
+    try {
+        // FOR UPDATE: dois cliques no mesmo jogo pagariam duas vezes, e o
+        // segundo pagamento não teria como ser desfeito pela tela.
+        $st = $pdo->prepare("SELECT * FROM leilao_semana_historico
+                              WHERE id = ? AND league = ? FOR UPDATE");
+        $st->execute([$historicoId, $liga]);
+        $jogo = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$jogo) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Esse jogo não existe na ' . $liga . '.', 'premio' => 0, 'vencedor' => null];
+        }
+        if ($jogo['pago_em'] !== null) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Esse jogo já foi pago em '
+                    . substr((string)$jogo['pago_em'], 0, 16) . '.', 'premio' => 0, 'vencedor' => null];
+        }
+
+        $ehTime1 = (int)$jogo['time1_id'] === $vencedorTeamId;
+        $ehTime2 = (int)$jogo['time2_id'] === $vencedorTeamId;
+        if (!$ehTime1 && !$ehTime2) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'O time escolhido não é um dos dois do jogo.',
+                    'premio' => 0, 'vencedor' => null];
+        }
+
+        $lanceVencedor = (int)($ehTime1 ? $jogo['valor1'] : $jogo['valor2']);
+        $lancePerdedor = (int)($ehTime1 ? $jogo['valor2'] : $jogo['valor1']);
+        $premio  = leilaoSemanaPremio($lanceVencedor, $lancePerdedor);
+        $nome    = (string)($ehTime1 ? $jogo['time1_nome'] : $jogo['time2_nome']);
+        $userId  = (int)($ehTime1 ? ($jogo['time1_user_id'] ?? 0) : ($jogo['time2_user_id'] ?? 0));
+
+        if ($userId <= 0) {
+            $stU = $pdo->prepare("SELECT user_id FROM teams WHERE id = ?");
+            $stU->execute([$vencedorTeamId]);
+            $userId = (int)$stU->fetchColumn();
+        }
+        if ($userId <= 0) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'O ' . $nome . ' não tem GM pra receber o prêmio.',
+                    'premio' => 0, 'vencedor' => null];
+        }
+
+        if ($premio > 0) {
+            $pdo->prepare("UPDATE games_usuarios SET fba_points = COALESCE(fba_points,0) + ? WHERE id = ?")
+                ->execute([$premio, $userId]);
+        }
+        $pdo->prepare("UPDATE leilao_semana_historico
+                          SET vencedor_team_id = ?, premio = ?, pago_em = NOW(), pago_por = ?
+                        WHERE id = ?")
+            ->execute([$vencedorTeamId, $premio, $adminId ?: null, $historicoId]);
+
+        $pdo->commit();
+        return ['ok' => true, 'erro' => null, 'premio' => $premio, 'vencedor' => $nome];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao-semana] pagar: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra pagar agora.', 'premio' => 0, 'vencedor' => null];
+    }
 }
