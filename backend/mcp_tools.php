@@ -506,14 +506,35 @@ function mcpFreeAgency(PDO $pdo, ?string $liga, string $jogador): string
     return $out;
 }
 
+/**
+ * O comando sem o que está entre aspas — é nele que as travas olham.
+ *
+ * Um jogador chamado Bud Grant fazia o INSERT ser recusado por "GRANT", e
+ * REPLACE() numa consulta virava "comando de escrita". A palavra perigosa é a
+ * que está NO COMANDO; dentro de um literal ela é só texto. Some com os
+ * literais primeiro, e o resto da checagem passa a olhar só o que importa.
+ *
+ * Aspas escapadas ('' ou \') morrem junto com o literal que as contém, que é
+ * exatamente o que se quer: nada do conteúdo sobra pra checagem.
+ */
+function mcpSqlSemLiterais(string $sql): string
+{
+    return preg_replace(
+        ["/'(?:[^'\\\\]|\\\\.|'')*'/s", '/"(?:[^"\\\\]|\\\\.|"")*"/s'],
+        ["''", '""'],
+        $sql
+    ) ?? $sql;
+}
+
 function mcpConsulta(PDO $pdo, string $sql): string
 {
     $sql = trim(rtrim(trim($sql), ';'));
     if ($sql === '') throw new McpErro('Mande o SELECT.');
-    if (!preg_match('/^(select|with|show|describe|explain)\b/i', $sql)) {
+    $limpo = mcpSqlSemLiterais($sql);
+    if (!preg_match('/^(select|with|show|describe|explain)\b/i', $limpo)) {
         throw new McpErro('Só leitura aqui. Para escrever, use executar_sql.');
     }
-    if (preg_match('/\b(insert|update|delete|drop|truncate|alter|create|replace|grant)\b/i', $sql)) {
+    if (preg_match('/\b(insert|update|delete|drop|truncate|alter|create|grant)\b/i', $limpo)) {
         throw new McpErro('Essa consulta tem palavra de escrita. Use executar_sql se a intenção é mudar algo.');
     }
     $st = $pdo->query($sql);
@@ -613,14 +634,15 @@ function mcpExecutarSql(PDO $pdo, string $sql, string $motivo): string
     if ($sql === '')          throw new McpErro('Mande o comando.');
     if (trim($motivo) === '') throw new McpErro('Escreva o motivo.');
 
-    if (preg_match('/\b(drop|truncate|alter|create|rename|grant|revoke)\b/i', $sql, $m)) {
+    $limpo = mcpSqlSemLiterais($sql);
+    if (preg_match('/\b(drop|truncate|alter|create|rename|grant|revoke)\b/i', $limpo, $m)) {
         throw new McpErro('"' . $m[1] . '" não passa por aqui. Mudança de estrutura é migração, no código.');
     }
-    if (!preg_match('/^(insert|update|delete)\b/i', $sql, $tipo)) {
+    if (!preg_match('/^(insert|update|delete)\b/i', $limpo, $tipo)) {
         throw new McpErro('Aqui só INSERT, UPDATE ou DELETE. Pra ler, use consulta.');
     }
     $comando = strtolower($tipo[1]);
-    if (in_array($comando, ['update', 'delete'], true) && !preg_match('/\bwhere\b/i', $sql)) {
+    if (in_array($comando, ['update', 'delete'], true) && !preg_match('/\bwhere\b/i', $limpo)) {
         throw new McpErro('UPDATE e DELETE sem WHERE, não. Isso pegaria a tabela inteira.');
     }
 
