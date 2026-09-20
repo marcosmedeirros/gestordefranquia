@@ -590,7 +590,8 @@ function wcAjuda(): string
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
         . "/temporada _nº_ _liga_ — resumo da temporada: campeão, prêmios, seeds e pick 1\n"
-        . "/power — o power ranking da liga inteira\n"
+        . "/power — o power ranking da liga (elenco, astros, idade, pontuação e campanha)\n"
+        . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
@@ -1524,11 +1525,199 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
 }
 
 /**
+ * O HISTÓRICO DA LIGA, por time: o que já foi conquistado e pontuado.
+ *
+ * Duas coisas que o elenco não conta. A pontuação é o `ranking_points` do
+ * ciclo — a régua oficial da liga, a mesma do /ranking. A campanha vem da
+ * ordem geral das últimas temporadas registradas (a do card Pontuação, que já
+ * embute o quanto o time foi longe nos playoffs), com a temporada mais
+ * recente pesando mais: o que o time fez ano passado diz mais do que o que ele
+ * fez quatro anos atrás.
+ *
+ * Liga nova volta com tudo zerado e `tem_historico` falso — e aí quem chama
+ * redistribui o peso, em vez de castigar todo mundo por igual.
+ */
+function wcHistoricoDaLiga(PDO $pdo, string $liga): array
+{
+    $out = ['times' => [], 'tem_historico' => false, 'temporadas' => []];
+
+    try {
+        $temTitulos = (bool)$pdo->query("SHOW COLUMNS FROM teams LIKE 'ranking_titles'")->fetch();
+        $colTitulos = $temTitulos ? 'COALESCE(t.ranking_titles,0)' : '0';
+        $st = $pdo->prepare("SELECT t.id, COALESCE(t.ranking_points,0) pontos, {$colTitulos} titulos
+                               FROM teams t WHERE t.league = ?");
+        $st->execute([$liga]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+            $out['times'][(int)$t['id']] = [
+                'pontos'   => (int)$t['pontos'],
+                'titulos'  => (int)$t['titulos'],
+                'campanha' => [],   // [ ['temporada'=>n, 'pos'=>1, 'de'=>30], ... ]
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[wcHistoricoDaLiga] pontos: ' . $e->getMessage());
+        return $out;
+    }
+
+    // As quatro últimas temporadas COM classificação lançada. Quatro porque é
+    // o que cabe num ciclo de liga sem virar arqueologia.
+    try {
+        $st = $pdo->prepare("SELECT s.id, s.season_number FROM seasons s
+                              WHERE s.league = ?
+                                AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
+                           ORDER BY s.season_number DESC, s.id DESC LIMIT 4");
+        $st->execute([$liga]);
+        $temporadas = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$temporadas) return $out;
+
+        $ids = array_keys($out['times']);
+        foreach ($temporadas as $s) {
+            // A mesma ordem do card Pontuação, reconstruída da classificação —
+            // é a função que as moedas da FA usam, então bot e site contam a
+            // mesma história.
+            $ordem = classificacaoGeralDaTemporada($pdo, (int)$s['id'], $ids);
+            if (!$ordem) continue;
+            $out['temporadas'][] = (int)$s['season_number'];
+            $quantos = count($ordem);
+            foreach ($ordem as $tid => $pos) {
+                if (!isset($out['times'][$tid])) continue;
+                $out['times'][$tid]['campanha'][] = [
+                    'temporada' => (int)$s['season_number'],
+                    'pos'       => (int)$pos,
+                    'de'        => $quantos,
+                ];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[wcHistoricoDaLiga] campanha: ' . $e->getMessage());
+    }
+
+    foreach ($out['times'] as $t) {
+        if ($t['pontos'] > 0 || $t['campanha']) { $out['tem_historico'] = true; break; }
+    }
+    return $out;
+}
+
+/** Nota de 0 a 100, sem estourar pra nenhum dos lados. */
+function wcNota0a100(float $v): float { return max(0.0, min(100.0, $v)); }
+
+/**
+ * Os cinco pedaços da nota de um time, cada um de 0 a 100.
+ *
+ * Antes o power ranking era só OVR com um tempero de idade. Agora ele responde
+ * a pergunta inteira: que elenco é esse, tem astro, em que fase da vida está,
+ * o que já pontuou e até onde chegou. Cada pedaço vem com a frase que explica
+ * o número — sem isso o GM vê "72" e não tem como discordar com argumento.
+ *
+ * @param array $ctx ['maxForca','minForca','maxPontos'] — a escala da liga
+ */
+function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $ctx): array
+{
+    $rotacao = array_values(array_filter($elenco, function ($p) {
+        $r = trim((string)($p['role'] ?? ''));
+        return $r === 'Titular' || $r === 'Banco';
+    }));
+    usort($rotacao, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
+    $oito = array_slice($rotacao, 0, 8);
+
+    $ovrs = array_map(fn($p) => (int)$p['ovr'], $oito);
+    $teto = $ovrs ? max($ovrs) : 0;
+    $n90  = count(array_filter($ovrs, fn($o) => $o >= 90));
+    $n85  = count(array_filter($ovrs, fn($o) => $o >= 85));
+    $mediaOvr = $ovrs ? array_sum($ovrs) / count($ovrs) : 0;
+
+    // ELENCO: a força do /confronto, posta na régua da própria liga. Escala
+    // absoluta não serviria — 82 de média é elenco médio na ELITE e time
+    // dominante na ROOKIE.
+    $faixa = max(1.0, $ctx['maxForca'] - $ctx['minForca']);
+    $elencoNota = wcNota0a100(35 + (($forca - $ctx['minForca']) / $faixa) * 65);
+
+    // ASTROS: o teto manda, porque é quem decide série de playoff. A
+    // quantidade entra depois — dois de 90 valem mais que um, mas não o dobro.
+    $astrosNota = wcNota0a100(
+        (($teto - 72) / 24) * 70
+        + min(1.0, $n85 / 3) * 20
+        + min(1.0, $n90 / 2) * 10
+    );
+
+    $idades = array_filter(array_map(fn($p) => (int)($p['age'] ?? 0), $oito));
+    $mediaIdade = $idades ? array_sum($idades) / count($idades) : 0;
+    // IDADE: 25 e meio é o pico da janela. Cada ano fora disso tira 9 pontos,
+    // pros dois lados — elenco cru também custa, só que custa menos adiante.
+    $idadeNota = $mediaIdade > 0 ? wcNota0a100(100 - abs($mediaIdade - 25.5) * 9) : 50.0;
+
+    // PONTUAÇÃO: quanto o time já fez no ciclo, medido contra o líder.
+    $pontos = (int)($hist['pontos'] ?? 0);
+    $pontosNota = $ctx['maxPontos'] > 0 ? wcNota0a100($pontos / $ctx['maxPontos'] * 100) : 50.0;
+
+    // CAMPANHA: posição geral de cada temporada virada em nota, com a mais
+    // recente pesando 4 e a mais velha 1. Título soma por cima, com teto —
+    // dinastia antiga não pode carregar elenco que hoje não existe mais.
+    $campanha = $hist['campanha'] ?? [];
+    $campanhaNota = 50.0;
+    if ($campanha) {
+        $soma = 0.0; $pesos = 0.0; $peso = 4.0;
+        foreach ($campanha as $c) {
+            $de = max(2, (int)$c['de']);
+            $soma  += (100 - (((int)$c['pos'] - 1) / ($de - 1)) * 100) * $peso;
+            $pesos += $peso;
+            $peso = max(1.0, $peso - 1.0);
+        }
+        $campanhaNota = wcNota0a100($soma / max(1.0, $pesos) + min(15, (int)($hist['titulos'] ?? 0) * 6));
+    }
+
+    return [
+        'elenco'    => ['nota' => $elencoNota, 'txt' => sprintf('ovr médio %.0f, teto %d', $mediaOvr, $teto)],
+        'astros'    => ['nota' => $astrosNota, 'txt' => $n90 || $n85
+                            ? trim(($n90 ? "{$n90} de 90+" : '') . ($n90 && $n85 > $n90 ? ', ' : '')
+                                 . ($n85 > $n90 ? ($n85 - $n90) . ' de 85+' : ''))
+                            : 'nenhum de 85+'],
+        'idade'     => ['nota' => $idadeNota, 'txt' => $mediaIdade > 0
+                            ? number_format($mediaIdade, 1, ',', '') . ' anos de média'
+                            : 'sem idade cadastrada'],
+        'pontuacao' => ['nota' => $pontosNota, 'txt' => $pontos . ' pts no ranking'],
+        'campanha'  => ['nota' => $campanhaNota, 'txt' => $campanha
+                            ? wcResumoDeCampanha($campanha, (int)($hist['titulos'] ?? 0))
+                            : 'sem temporada registrada'],
+    ];
+}
+
+/** "3º, 1º e 12º nas últimas" — a campanha em uma frase curta. */
+function wcResumoDeCampanha(array $campanha, int $titulos): string
+{
+    $partes = array_map(fn($c) => $c['pos'] . 'º', array_slice($campanha, 0, 3));
+    $txt = implode(', ', $partes) . (count($campanha) > 1 ? ' nas últimas' : ' na última');
+    if ($titulos > 0) $txt .= ' · ' . $titulos . '🏆';
+    return $txt;
+}
+
+/**
+ * A nota final: os cinco pedaços com o peso de cada um.
+ *
+ * Elenco manda, porque é o que joga a temporada que vem. Campanha vem em
+ * seguida — ganhar é prova, e prova vale mais que projeção. Idade pesa pouco
+ * de propósito: ela já está embutida na força do elenco, e contar duas vezes
+ * faria um time velho e bom despencar sem motivo.
+ *
+ * Sem histórico na liga, os pesos de pontuação e campanha voltam pro elenco e
+ * pros astros — liga recém-criada não tem passado pra cobrar de ninguém.
+ */
+function wcNotaDePower(array $comp, bool $temHistorico): float
+{
+    $pesos = $temHistorico
+        ? ['elenco' => 0.40, 'astros' => 0.15, 'idade' => 0.10, 'pontuacao' => 0.15, 'campanha' => 0.20]
+        : ['elenco' => 0.60, 'astros' => 0.25, 'idade' => 0.15, 'pontuacao' => 0.0,  'campanha' => 0.0];
+
+    $total = 0.0;
+    foreach ($pesos as $k => $p) $total += ($comp[$k]['nota'] ?? 50.0) * $p;
+    return round($total, 1);
+}
+
+/**
  * As fichas de força de uma liga, prontas pra ordenar.
  *
  * Serve aos dois power rankings — o da liga inteira e o por conferência — pra
- * que os dois deem a MESMA resposta sobre o mesmo time. A força é a do
- * /confronto (wcForcaDoTime), pelo mesmo motivo.
+ * que os dois deem a MESMA resposta sobre o mesmo time.
  *
  * Devolve null quando a liga não existe ou não tem quinteto montado; a
  * mensagem de erro fica com quem chamou, que sabe o nome do próprio comando.
@@ -1563,42 +1752,145 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
         }
     }
 
+    /* A nota deixou de ser só o elenco. A força continua sendo a espinha —
+       e continua idêntica à do /confronto —, mas agora ela entra numa conta
+       com astros, idade, pontuação e campanha. Por isso a escala da liga
+       (maior e menor força, maior pontuação) é medida antes: cada time é
+       comparado com os vizinhos dele, não com uma régua inventada. */
+    $hist  = wcHistoricoDaLiga($pdo, $liga);
+    $forcas = [];
+    foreach ($times as $t) {
+        $f = wcForcaDoTime($porTime[(int)$t['id']] ?? []);
+        if ($f > 0) $forcas[(int)$t['id']] = $f;
+    }
+    if (!$forcas) return null;
+
+    $ctx = [
+        'maxForca'  => max($forcas),
+        'minForca'  => min($forcas),
+        'maxPontos' => max(array_map(fn($h) => (int)$h['pontos'], $hist['times'] ?: [['pontos' => 0]])),
+    ];
+
     $fichas = [];
     foreach ($times as $t) {
-        $forca = wcForcaDoTime($porTime[(int)$t['id']] ?? []);
-        if ($forca <= 0) continue;                       // sem quinteto montado
+        $id = (int)$t['id'];
+        if (!isset($forcas[$id])) continue;              // sem quinteto montado
+        $comp = wcComponentesDoPower(
+            $porTime[$id] ?? [],
+            $forcas[$id],
+            $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => []],
+            $ctx
+        );
         $fichas[] = [
+            'id'         => $id,
             'nome'       => wcNomeDoTime($t),
-            'forca'      => $forca,
-            'posto'      => $posto[(int)$t['id']] ?? null,
+            'curto'      => trim((string)($t['name'] ?? '')) ?: wcNomeDoTime($t),
+            'forca'      => $forcas[$id],
+            'nota'       => wcNotaDePower($comp, $hist['tem_historico']),
+            'comp'       => $comp,
+            'historico'  => $hist['tem_historico'],
+            'posto'      => $posto[$id] ?? null,
             'conferencia'=> $t['conference'] ?: null,
         ];
     }
     if (!$fichas) return null;
 
-    usort($fichas, fn($a, $b) => $b['forca'] <=> $a['forca']);
+    usort($fichas, fn($a, $b) => ($b['nota'] <=> $a['nota']) ?: ($b['forca'] <=> $a['forca']));
     return $fichas;
 }
 
-/** A linha de um time no power ranking: medalha, nome e posto na tabela. */
+/** A linha de um time no power ranking: medalha, nome, nota e posto. */
 function wcLinhaDePower(array $f, int $posicao): string
 {
     $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
-    // O posto da tabela ao lado da força é o ponto do comando: dá pra ver de
+    // O posto da tabela ao lado da nota é o ponto do comando: dá pra ver de
     // um relance quem está rendendo acima e quem está devendo.
-    $cauda = $f['posto'] ? " ({$f['posto']}º na tabela)" : '';
-    return "{$medalha} *{$f['nome']}*{$cauda}\n";
+    $cauda = $f['posto'] ? " · {$f['posto']}º na tabela" : '';
+    $nota = number_format((float)($f['nota'] ?? 0), 1, ',', '');
+    return "{$medalha} *{$f['nome']}* — {$nota}{$cauda}\n";
+}
+
+/** Barra de oito blocos: o número visto de longe, sem precisar comparar. */
+function wcBarraDeNota(float $nota): string
+{
+    $cheios = (int)round(wcNota0a100($nota) / 12.5);
+    return str_repeat('█', $cheios) . str_repeat('░', 8 - $cheios);
 }
 
 /**
- * /powerranking — os mais fortes da liga do grupo.
+ * /power <time> — a ficha, quando a lista não basta.
  *
- * A força é a mesma do /confronto (wcForcaDoTime), pra o bot não dar duas
- * opiniões diferentes sobre o mesmo time em dois comandos.
+ * A lista responde "quem é o melhor"; ela não responde "por que eu estou
+ * atrás dele". Aqui cada pedaço aparece com nota, barra e a frase que explica
+ * o número, mais a posição do time em cada um deles dentro da liga — é o que
+ * transforma discussão de grupo em argumento.
+ */
+function wcPowerDoTime(PDO $pdo, array $time): string
+{
+    $liga = (string)$time['league'];
+    $fichas = wcFichasDeForca($pdo, $liga);
+    if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
+
+    $eu = null; $posicao = 0;
+    foreach ($fichas as $i => $f) {
+        if ((int)$f['id'] === (int)$time['id']) { $eu = $f; $posicao = $i + 1; break; }
+    }
+    if (!$eu) return wcNomeDoTime($time) . " ainda não tem quinteto montado.";
+
+    $rotulos = [
+        'elenco'    => 'Elenco',
+        'astros'    => 'Astros',
+        'idade'     => 'Idade',
+        'pontuacao' => 'Pontuação',
+        'campanha'  => 'Campanha',
+    ];
+
+    $txt = "*{$eu['nome']}*\n_Power {$liga}: "
+         . number_format((float)$eu['nota'], 1, ',', '') . " · {$posicao}º de " . count($fichas) . "_\n";
+    if ($eu['posto']) $txt .= "_Tabela: {$eu['posto']}º_\n";
+    $txt .= "\n";
+
+    foreach ($rotulos as $chave => $rotulo) {
+        if (!$eu['historico'] && in_array($chave, ['pontuacao', 'campanha'], true)) continue;
+        $c = $eu['comp'][$chave];
+
+        // Onde ele está NESTE pedaço: a nota sozinha não diz se 72 é bom.
+        $melhores = 1;
+        foreach ($fichas as $f) if ($f['comp'][$chave]['nota'] > $c['nota'] + 0.001) $melhores++;
+
+        $txt .= sprintf("%s %s %d\n   _%s · %dº da liga_\n",
+            wcBarraDeNota((float)$c['nota']), $rotulo, (int)round($c['nota']), $c['txt'], $melhores);
+    }
+
+    if (!$eu['historico']) {
+        $txt .= "\n_A liga ainda não tem temporada registrada, então a nota sai só do elenco._";
+    }
+    return rtrim($txt);
+}
+
+/**
+ * /power — os mais fortes da liga do grupo, ou a ficha de um time.
+ *
+ * A nota junta cinco coisas: elenco (a mesma força do /confronto), astros,
+ * idade, pontuação no ranking e campanha das últimas temporadas. Era só OVR
+ * com tempero de idade, e isso deixava de fora justamente o que o grupo usa
+ * pra discutir — quem tem craque e quem já ganhou.
+ *
+ * Com um nome de time no lugar da liga, abre a ficha daquele time.
  */
 function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
+    $termo = trim($termo);
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+
+    /* Não era liga? Provavelmente é time. Tentar resolver ANTES de reclamar
+       evita a resposta boba de "liga não reconhecida" pra quem digitou
+       /power Lakers, que é o uso mais natural do comando. */
+    if (!$liga && $termo !== '') {
+        [$time, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
+        if ($time) return wcPowerDoTime($pdo, $time);
+        return $erro ?: "Não reconheci \"{$termo}\" como liga nem como time.";
+    }
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
     $fichas = wcFichasDeForca($pdo, $liga);
@@ -1606,9 +1898,12 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
 
     // A liga inteira, não um top 10: quem está em 24º também quer se achar
     // na lista, e é justamente quem mais procura.
-    $txt = "*Power Ranking {$liga}*\n_o que a régua diz, não o que o grupo acha_\n\n";
+    $sub = $fichas[0]['historico']
+        ? 'elenco, astros, idade, pontuação e campanha'
+        : 'só o elenco — a liga ainda não tem temporada registrada';
+    $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
     foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1);
-    return rtrim($txt);
+    return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
 }
 
 /**
@@ -1705,7 +2000,14 @@ function wcDecidirPropostaDeLeilao(PDO $pdo, string $cmd, string $arg, string $d
 
 function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
+    $termo = trim($termo);
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga && $termo !== '') {
+        // Mesma gentileza do /power: nome de time abre a ficha.
+        [$time, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
+        if ($time) return wcPowerDoTime($pdo, $time);
+        return $erro ?: "Não reconheci \"{$termo}\" como liga nem como time.";
+    }
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
     $fichas = wcFichasDeForca($pdo, $liga);
@@ -1720,10 +2022,9 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         array_keys($porConf)
     )));
 
-    $temTabela = false;
-    foreach ($fichas as $f) if ($f['posto']) { $temTabela = true; break; }
-    $sub = $temTabela ? 'a força do elenco, e onde ele está na tabela'
-                     : 'a força do elenco — a temporada ainda não começou';
+    $sub = $fichas[0]['historico']
+        ? 'elenco, astros, idade, pontuação e campanha'
+        : 'só o elenco — a liga ainda não tem temporada registrada';
     $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
     foreach ($ordem as $conf) {
         $lista = $porConf[$conf];
