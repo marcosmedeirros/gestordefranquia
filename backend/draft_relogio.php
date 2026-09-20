@@ -139,11 +139,12 @@ function draftRelogioAnunciarVez(PDO $pdo, array $sessao, ?array $vez = null): v
     $pdo->prepare('UPDATE draft_sessions SET vez_anunciada = ? WHERE id = ?')
         ->execute([$marca, (int)$sessao['id']]);
 
-    $quem = $vez['numero'] ? '@' . $vez['numero'] : '';
-    $txt  = "⏱️ *Pick {$vez['pick']} · 1ª rodada*\n\n"
-          . "É a vez do *{$vez['time']}* {$quem}\n"
-          . "*3 minutos* pra escolher no app.\n\n"
-          . "_Passou o tempo, entra o primeiro da ordem que estiver livre._";
+    /* UMA LINHA, e só. O aviso sai a cada pick — são trinta por rodada — e o
+       texto explicando as regras, repetido trinta vezes, vira parede no grupo.
+       Quem precisa da regra já ouviu na abertura; quem está na vez precisa
+       saber que é a vez dele, e o resto é ruído. */
+    $quem = $vez['numero'] ? ' @' . $vez['numero'] : '';
+    $txt  = "⏱️ *Pick {$vez['pick']} · {$vez['time']}*{$quem}";
 
     draftRelogioFalar($pdo, (string)$sessao['league'], $txt, $vez['numero'] ? [$vez['numero']] : null);
 }
