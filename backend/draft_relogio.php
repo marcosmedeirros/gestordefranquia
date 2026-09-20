@@ -209,11 +209,15 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
           grupo recebe é a chamada do time da vez. O texto cabe em duas linhas
           de propósito: o aviso é pra ser lido de relance. */
     if ($round === 1 && empty($s['clock_aviso_em'])
-        && $agora < $inicio && ($inicio - $agora) <= DRAFT_RELOGIO_AVISO_MIN * 60) {
+        && ($inicio - $agora) >= 120 && ($inicio - $agora) <= DRAFT_RELOGIO_AVISO_MIN * 60) {
+        /* O PISO DE 2 MINUTOS. Marcar a hora na mão pra daqui a pouco fazia o
+           aviso e a abertura saírem colados — foi o que aconteceu na RISE em
+           20/09/2026, com o "começa em breve" chegando um minuto antes do
+           "começou". Perto assim, a abertura já é o aviso. */
         $pdo->prepare('UPDATE draft_sessions SET clock_aviso_em = NOW()
                         WHERE id = ? AND clock_aviso_em IS NULL')->execute([$sessionId]);
         if ($pdo->query('SELECT ROW_COUNT()')->fetchColumn() > 0) {
-            $faltam = max(1, (int)round(($inicio - $agora) / 60));
+            $faltam = max(2, (int)round(($inicio - $agora) / 60));
             draftRelogioFalar($pdo, $liga,
                 "⏳ *O relógio do draft começa em {$faltam} minutos* — às *"
                 . draftRelogioHora($inicio) . "*.\n\n"
