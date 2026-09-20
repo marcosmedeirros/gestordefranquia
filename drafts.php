@@ -688,6 +688,13 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .mock-queue-num { font-weight: 700; font-size: 11px; color: var(--text-3); width: 16px; flex-shrink: 0; text-align: center; }
     .mock-queue-name { flex: 1; font-size: 12px; font-weight: 600; }
     .mock-queue-meta { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+    /* Quem já foi escolhido por outro time: fica na lista, riscado, com o
+       nome de quem levou. Sumir sozinho faria o GM procurar o que ele lembra
+       ter colocado ali. */
+    .mock-queue-item.saiu { opacity: .55; }
+    .mock-queue-item.saiu .mock-queue-name { text-decoration: line-through; color: var(--text-3); }
+    .mock-queue-item.saiu .mock-queue-num  { color: var(--red); }
+    .mock-queue-item.saiu .mock-queue-meta { color: var(--red); font-style: italic; }
     .mock-queue-del {
       background: none; border: none; cursor: pointer;
       color: var(--text-3); padding: 2px 4px; border-radius: 4px;
@@ -977,7 +984,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       </div>
       <div class="modal-body">
         <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">
-          Defina até 8 jogadores em ordem de preferência. Com auto-pick ativo, o sistema escolhe o primeiro disponível após 30 min na sua vez.
+          Defina até 8 jogadores em ordem de preferência. Com auto-pick ativo, o sistema escolhe o primeiro da sua lista que ainda estiver livre assim que chegar a sua vez — sem esperar o relógio. Sem lista, a vez vence em 3 minutos depois que o relógio abre. Vale só na 1ª rodada.
         </p>
 
         <!-- Fila atual -->
@@ -2303,10 +2310,15 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
       ? `<span class="mock-badge on">Auto ON</span>`
       : `<span class="mock-badge off">Auto OFF</span>`;
 
-    const queueSummary = mockQueue.length > 0
-      ? mockQueue.slice(0, 3).map((item, i) => `<div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i+1}. ${esc(item.player_name)}</div>`).join('') +
-        (mockQueue.length > 3 ? `<div style="font-size:10px;color:var(--text-3)">+${mockQueue.length - 3} mais</div>` : '')
-      : `<div style="font-size:11px;color:var(--text-3)">Sem jogadores</div>`;
+    /* O resumo mostra quem AINDA está livre: é a resposta pra "quem eu pego
+       se a vez chegar agora". Quem já saiu continua no modal, riscado. */
+    const filaViva = mockQueue.filter(i => !jaSaiu(i));
+    const queueSummary = filaViva.length > 0
+      ? filaViva.slice(0, 3).map((item, i) => `<div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i+1}. ${esc(item.player_name)}</div>`).join('') +
+        (filaViva.length > 3 ? `<div style="font-size:10px;color:var(--text-3)">+${filaViva.length - 3} mais</div>` : '')
+      : (mockQueue.length > 0
+        ? `<div style="font-size:11px;color:var(--red)">Todos da fila já foram escolhidos</div>`
+        : `<div style="font-size:11px;color:var(--text-3)">Sem jogadores</div>`);
 
     body.innerHTML = `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
@@ -2371,22 +2383,64 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
     }
   }
 
+  /** Quem já foi escolhido por outro time — some da fila na prática. */
+  function jaSaiu(item) { return String(item.draft_status || '') === 'drafted'; }
+
   function renderMockQueueInModal() {
     const listEl  = document.getElementById('mockQueueListModal');
     const countEl = document.getElementById('mockQueueCountBadge');
     if (!listEl) return;
-    if (countEl) countEl.textContent = `(${mockQueue.length}/8)`;
+
+    /* O CONTADOR CONTA QUEM AINDA VALE. A fila é de 8, mas um nome que já
+       saiu não ocupa vaga nenhuma — mostrar 8/8 com três riscados faria o GM
+       achar que não cabe mais ninguém. */
+    const vivos = mockQueue.filter(i => !jaSaiu(i));
+    const saidos = mockQueue.length - vivos.length;
+    if (countEl) countEl.textContent = `(${vivos.length}/8)`;
+
     if (!mockQueue.length) {
       listEl.innerHTML = '<div class="mock-queue-empty">Nenhum jogador na fila.</div>';
       return;
     }
-    listEl.innerHTML = mockQueue.map((item, idx) => `
-      <div class="mock-queue-item">
-        <span class="mock-queue-num">${idx + 1}</span>
+
+    let ordem = 0;
+    listEl.innerHTML = mockQueue.map(item => {
+      const saiu = jaSaiu(item);
+      if (!saiu) ordem++;
+      const quem = item.drafted_by ? `levado pelo ${esc(item.drafted_by)}` : 'já escolhido';
+      return `
+      <div class="mock-queue-item${saiu ? ' saiu' : ''}">
+        <span class="mock-queue-num">${saiu ? '<i class="bi bi-x-circle"></i>' : ordem}</span>
         <span class="mock-queue-name">${esc(item.player_name)}</span>
-        <span class="mock-queue-meta">${esc(item.player_position)}</span>
+        <span class="mock-queue-meta">${saiu ? quem : esc(item.player_position)}</span>
         <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
-      </div>`).join('');
+      </div>`;
+    }).join('')
+      + (saidos ? `<button class="btn-ghost" style="font-size:11px;margin-top:6px;align-self:flex-start"
+                           onclick="limparMockQueueSaidos()">
+                     <i class="bi bi-eraser me-1"></i>Tirar da fila ${saidos > 1 ? `os ${saidos} que já saíram` : 'quem já saiu'}
+                   </button>` : '');
+  }
+
+  /**
+   * Tira de uma vez quem já foi escolhido.
+   *
+   * Dá pra remover um a um no X, mas quando o draft anda rápido a fila junta
+   * três ou quatro de uma vez, e apagar um por um é trabalho que o botão faz.
+   */
+  async function limparMockQueueSaidos() {
+    if (!currentDraftSession) return;
+    const antes = mockQueue.length;
+    mockQueue = mockQueue.filter(i => !jaSaiu(i));
+    if (mockQueue.length === antes) return;
+    renderMockQueueInModal();
+    renderMockCard(currentDraftSession);
+    try {
+      await api('draft-mock.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save', draft_session_id: currentDraftSession.id, player_ids: mockQueue.map(m => m.player_id) })
+      });
+    } catch (e) { alert('Erro ao salvar a fila: ' + (e.error || 'Desconhecido')); }
   }
 
   function renderMockPlayerList(players) {

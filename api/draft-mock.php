@@ -73,13 +73,19 @@ switch ($action) {
             exit;
         }
 
+        /* QUEM LEVOU O JOGADOR vem junto: a fila fica na tela enquanto o draft
+           corre, e um nome que já saiu continuava ali como se estivesse livre.
+           Com o time ao lado, o GM risca da cabeça sem precisar conferir a
+           lista de escolhas. */
         $stmt = $pdo->prepare("
             SELECT mq.id, mq.player_id, mq.priority,
                    dp.name as player_name, dp.position as player_position,
                    dp.ovr as player_ovr, dp.age as player_age,
-                   dp.draft_status
+                   dp.draft_status,
+                   t.name AS drafted_by
             FROM draft_mock_queue mq
             JOIN draft_pool dp ON mq.player_id = dp.id
+            LEFT JOIN teams t ON t.id = dp.drafted_by_team_id
             WHERE mq.team_id = ? AND mq.draft_session_id = ?
             ORDER BY mq.priority ASC
         ");
