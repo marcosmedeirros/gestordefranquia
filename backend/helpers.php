@@ -2209,6 +2209,92 @@ function nomeDoPremio(?string $awardType): string
 }
 
 /**
+ * A ordem do 1º ao último de uma temporada, como está no card Pontuação.
+ *
+ * Existe porque `overall_position` sozinho não dá a lista inteira. No formato
+ * antigo, o card só pedia a ordem de quem FICOU DE FORA (17º em diante) — os
+ * 16 classificados não têm número nenhum, e a lista fica pela metade. Só as
+ * temporadas registradas no formato novo (16/09/2026) têm a liga toda numerada.
+ *
+ * Então, quando a numeração não está inteira, a ordem é RECONSTRUÍDA do que o
+ * card registrou: primeiro os classificados, na ordem em que caíram nos
+ * playoffs (campeão, vice, final de conferência, semi, 1ª rodada), depois os de
+ * fora na ordem declarada. Dentro de cada degrau desempata a posição de
+ * conferência, e só então campanha e nome — nunca o ranking acumulado, que é
+ * de outra régua e foi o que fez as moedas saírem erradas.
+ *
+ * Time da liga sem linha na temporada (chegou depois) vai pro fim, na ordem em
+ * que veio, para que a lista devolvida cubra a liga inteira.
+ *
+ * @param array $idsLiga ids dos times da liga, já na ordem de desempate final
+ * @return array<int,int> team_id => posição (1 = melhor); vazio se não há classificação
+ */
+function classificacaoGeralDaTemporada(PDO $pdo, int $seasonId, array $idsLiga): array
+{
+    if ($seasonId <= 0 || !$idsLiga) return [];
+
+    $st = $pdo->prepare("SELECT ss.team_id, ss.position, ss.overall_position, ss.wins,
+                                COALESCE(ss.points_for,0) - COALESCE(ss.points_against,0) AS saldo,
+                                pr.position AS playoff
+                           FROM season_standings ss
+                      LEFT JOIN playoff_results pr
+                             ON pr.season_id = ss.season_id AND pr.team_id = ss.team_id
+                          WHERE ss.season_id = ?");
+    $st->execute([$seasonId]);
+
+    $linhas = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $linhas[(int)$r['team_id']] = $r;
+    if (!$linhas) return [];
+
+    // Numeração inteira e sem repetição: é a ordem declarada, vale como está.
+    $declarada = [];
+    foreach ($idsLiga as $tid) {
+        $n = $linhas[$tid]['overall_position'] ?? null;
+        if ($n !== null) $declarada[$tid] = (int)$n;
+    }
+    if (count($declarada) === count($idsLiga)
+        && count(array_unique($declarada)) === count($declarada)) {
+        asort($declarada, SORT_NUMERIC);
+        $pos = 0; $out = [];
+        foreach (array_keys($declarada) as $tid) $out[$tid] = ++$pos;
+        return $out;
+    }
+
+    static $degrau = [
+        'champion' => 0, 'runner_up' => 1, 'conference_final' => 2,
+        'second_round' => 3, 'first_round' => 4,
+    ];
+    $INF = PHP_INT_MAX;
+
+    $comClass = [];
+    $semClass = [];
+    foreach ($idsLiga as $i => $tid) {
+        if (!isset($linhas[$tid])) { $semClass[] = $tid; continue; }
+        $l = $linhas[$tid];
+        $comClass[] = [
+            'team_id' => $tid,
+            'degrau'  => $degrau[(string)($l['playoff'] ?? '')] ?? 5,
+            'geral'   => $l['overall_position'] !== null ? (int)$l['overall_position'] : $INF,
+            'seed'    => $l['position']         !== null ? (int)$l['position']         : $INF,
+            'wins'    => (int)($l['wins'] ?? 0),
+            'saldo'   => (int)($l['saldo'] ?? 0),
+            'entrada' => $i,   // último desempate: a ordem com que a liga chegou
+        ];
+    }
+    if (!$comClass) return [];
+
+    usort($comClass, function (array $a, array $b) {
+        return [$a['degrau'], $a['geral'], $a['seed'], -$a['wins'], -$a['saldo'], $a['entrada']]
+           <=> [$b['degrau'], $b['geral'], $b['seed'], -$b['wins'], -$b['saldo'], $b['entrada']];
+    });
+
+    $out = []; $pos = 0;
+    foreach ($comClass as $c) $out[$c['team_id']] = ++$pos;
+    foreach ($semClass as $tid) $out[$tid] = ++$pos;
+    return $out;
+}
+
+/**
  * Distribui as moedas de Free Agency pela classificação geral da liga.
  *
  * Desde 16/09/2026 a régua é a ORDEM GERAL do card Pontuação (do 1º ao último)
@@ -2244,7 +2330,8 @@ function distribuirMoedasPorClassificacao(
     bool $somar = true
 ): array {
     $league = strtoupper(trim($league));
-    $vazio = ['aplicado' => false, 'motivo' => null, 'times' => 0, 'zerados' => 0, 'distribuicao' => []];
+    $vazio = ['aplicado' => false, 'motivo' => null, 'times' => 0, 'origem' => 'ranking',
+              'temporada' => null, 'zerados' => 0, 'distribuicao' => []];
 
     $st = $pdo->prepare("SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
                                 COALESCE(t.moedas,0) AS moedas,
@@ -2256,39 +2343,43 @@ function distribuirMoedasPorClassificacao(
     $ranked = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$ranked) return array_merge($vazio, ['motivo' => 'Nenhum time nesta liga.']);
 
-    /* A ORDEM GERAL DO CARD PONTUAÇÃO MANDA, quando está completa.
+    /* A CLASSIFICAÇÃO DO CARD PONTUAÇÃO MANDA.
        Decisão da liga em 16/09/2026: as moedas saem da classificação da
-       temporada que acabou (do 1º ao último, declarada no card), e não mais do
-       ranking acumulado. Vale a ÚLTIMA temporada com classificação lançada —
-       se a ordem dela não estiver inteira (algum time sem número, número
-       repetido), não se mistura com outra temporada: cai no ranking, como era. */
+       temporada que acabou (do 1º ao último), e não do ranking acumulado.
+       Vale a ÚLTIMA temporada com classificação lançada.
+
+       A primeira versão exigia a numeração geral inteira e, sem ela, caía no
+       ranking — que é exatamente o que acontecia na prática, porque só as
+       temporadas do formato novo têm os 30 numerados. Agora a ordem é
+       reconstruída da própria classificação (playoffs + ordem dos de fora);
+       o ranking só volta a valer se a temporada não tiver classificação
+       nenhuma. */
     $porOrdemGeral = false;
+    $temporadaDaOrdem = null;
     try {
-        $stS = $pdo->prepare("SELECT s.id FROM seasons s
+        $stS = $pdo->prepare("SELECT s.id, s.season_number FROM seasons s
                                WHERE s.league = ?
                                  AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
                             ORDER BY s.season_number DESC, s.id DESC LIMIT 1");
         $stS->execute([$league]);
-        $ultimaComClassificacao = (int)$stS->fetchColumn();
-        if ($ultimaComClassificacao > 0) {
-            $stO = $pdo->prepare("SELECT team_id, overall_position FROM season_standings WHERE season_id = ?");
-            $stO->execute([$ultimaComClassificacao]);
-            $ordem = [];
-            foreach ($stO->fetchAll(PDO::FETCH_ASSOC) as $o) {
-                if ($o['overall_position'] !== null) $ordem[(int)$o['team_id']] = (int)$o['overall_position'];
-            }
+        $ultima = $stS->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($ultima) {
             $idsLiga = array_map(fn($r) => (int)$r['team_id'], $ranked);
-            $completa = count($ordem) === count($idsLiga)
-                && !array_diff($idsLiga, array_keys($ordem))
-                && count(array_unique($ordem)) === count($ordem);
-            if ($completa) {
+            $ordem = classificacaoGeralDaTemporada($pdo, (int)$ultima['id'], $idsLiga);
+            if ($ordem) {
                 usort($ranked, fn($a, $b) => $ordem[(int)$a['team_id']] <=> $ordem[(int)$b['team_id']]);
                 $porOrdemGeral = true;
+                $temporadaDaOrdem = (int)$ultima['season_number'];
             }
         }
     } catch (Throwable $e) {
         error_log('[distribuirMoedasPorClassificacao] ordem geral: ' . $e->getMessage());
     }
+
+    /* De onde saiu a ordem, dito em voz alta: a prévia do admin mostrava a
+       coluna de pontos do ranking e avisava que os zerados sairiam por nome —
+       o que deixou de ser verdade quando a ordem vem da classificação. */
+    $origem = $porOrdemGeral ? 'classificacao' : 'ranking';
 
     $comPontos = 0;
     foreach ($ranked as $r) if ((int)$r['pts'] > 0) $comPontos++;
@@ -2315,8 +2406,8 @@ function distribuirMoedasPorClassificacao(
     }
 
     if (!$aplicar) {
-        return ['aplicado' => false, 'motivo' => null, 'times' => $n,
-                'zerados' => $zerados, 'distribuicao' => $dist];
+        return ['aplicado' => false, 'motivo' => null, 'times' => $n, 'origem' => $origem,
+                'temporada' => $temporadaDaOrdem, 'zerados' => $zerados, 'distribuicao' => $dist];
     }
 
     /* Chamado de dentro do create_season, que já abriu a sua transação: abrir
@@ -2348,8 +2439,8 @@ function distribuirMoedasPorClassificacao(
             $aplicados++;
         }
         if ($minhaTransacao) $pdo->commit();
-        return ['aplicado' => true, 'motivo' => null, 'times' => $aplicados,
-                'zerados' => $zerados, 'distribuicao' => $dist];
+        return ['aplicado' => true, 'motivo' => null, 'times' => $aplicados, 'origem' => $origem,
+                'temporada' => $temporadaDaOrdem, 'zerados' => $zerados, 'distribuicao' => $dist];
     } catch (Throwable $e) {
         if ($minhaTransacao && $pdo->inTransaction()) $pdo->rollBack();
         throw $e;

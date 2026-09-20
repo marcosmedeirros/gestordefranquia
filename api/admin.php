@@ -3859,11 +3859,13 @@ if ($method === 'POST') {
             }
             if (!$apply) {
                 echo json_encode(['success' => true, 'preview' => true,
+                                  'origem' => $r['origem'] ?? 'ranking', 'temporada' => $r['temporada'] ?? null,
                                   'zerados' => $r['zerados'], 'distribution' => $r['distribuicao']]);
                 exit;
             }
             echo json_encode(['success' => true,
                 'message' => sprintf('Distribuidas moedas por classificacao para %d times da %s.', $r['times'], $league),
+                'origem' => $r['origem'] ?? 'ranking', 'temporada' => $r['temporada'] ?? null,
                 'distribution' => $r['distribuicao']]);
             break;
 

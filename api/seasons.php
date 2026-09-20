@@ -2498,7 +2498,14 @@ try {
                    Antes de gravar, a ordem restaurada lá em cima é apagada: um
                    número antigo esquecido num time que não está no mapa
                    empataria com a posição nova de outro. */
-                $posicoesGeral = is_array($input['ordem_geral_posicoes'] ?? null) ? $input['ordem_geral_posicoes'] : null;
+                /* MAPA VAZIO NÃO APAGA NADA. Um salvamento feito com a seção
+                   da ordem geral fora da tela (etapa 2, tela antiga em cache)
+                   manda `{}` — e o UPDATE que limpa antes de gravar zerava a
+                   ordem inteira da temporada, levando as moedas da FA de volta
+                   pro ranking. Sem conteúdo, o que está gravado fica. */
+                $posicoesGeral = is_array($input['ordem_geral_posicoes'] ?? null)
+                    && $input['ordem_geral_posicoes'] !== []
+                    ? $input['ordem_geral_posicoes'] : null;
                 if ($posicoesGeral !== null) {
                     $pdo->prepare("UPDATE season_standings SET overall_position = NULL WHERE season_id = ?")
                         ->execute([$seasonId]);
