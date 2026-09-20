@@ -33,6 +33,22 @@ AddDefaultCharset UTF-8
     # é o que está no robots.txt e o que o Google já conhece; trocar o
     # endereço custaria uma nova descoberta sem ganho nenhum.
     RewriteRule ^sitemap\.xml$ /sitemap.php [L]
+
+    # OAuth do MCP: o app do Claude procura estes dois endereços na RAIZ do
+    # domínio, com esses nomes exatos e sem extensão (RFC 8414 e RFC 9728).
+    # Não dá pra "hospedar na pasta certa": tem que ser aqui. O sufixo
+    # opcional existe porque o cliente pode pendurar o caminho do recurso no
+    # fim (/.well-known/oauth-protected-resource/api/mcp.php).
+    RewriteRule ^\.well-known/oauth-authorization-server(/.*)?$ /api/oauth/metadata.php?tipo=as [L,QSA]
+    RewriteRule ^\.well-known/oauth-protected-resource(/.*)?$   /api/oauth/metadata.php?tipo=recurso [L,QSA]
+
+    # Alguns clientes ainda procuram o metadata do OpenID no mesmo lugar.
+    RewriteRule ^\.well-known/openid-configuration(/.*)?$ /api/oauth/metadata.php?tipo=as [L,QSA]
+
+    # O cabeçalho Authorization some antes do PHP em parte das hospedagens;
+    # esta cópia é o que faz o token chegar.
+    RewriteCond %{HTTP:Authorization} ^(.+)$
+    RewriteRule ^api/(mcp|oauth)/?.*$ - [E=HTTP_AUTHORIZATION:%1]
 </IfModule>
 
 # Compressão

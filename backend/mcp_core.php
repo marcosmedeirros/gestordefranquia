@@ -92,11 +92,31 @@ function mcpTokenRecebido(): string
     return (string)($_GET['token'] ?? '');
 }
 
-function mcpAutenticado(PDO $pdo): bool
+/**
+ * Duas portas, a mesma sala.
+ *
+ * O token fixo é o do Claude Code, que manda cabeçalho e pronto. O token de
+ * OAuth é o do app — ele nasce de uma aprovação na tela e expira. Aceitar os
+ * dois evita a escolha entre quebrar o que já está ligado e não funcionar no
+ * celular. Devolve quem entrou, ou null.
+ */
+function mcpQuemEntrou(PDO $pdo): ?array
 {
     $enviado = mcpTokenRecebido();
-    if ($enviado === '') return false;
-    return hash_equals(mcpToken($pdo), $enviado);
+    if ($enviado === '') return null;
+
+    if (hash_equals(mcpToken($pdo), $enviado)) {
+        return ['via' => 'token', 'user_id' => null, 'nome' => 'Claude Code'];
+    }
+
+    require_once __DIR__ . '/mcp_oauth.php';
+    $dono = mcpOauthValidarAcesso($pdo, $enviado);
+    return $dono ? ['via' => 'oauth', 'user_id' => $dono['user_id'], 'nome' => $dono['nome']] : null;
+}
+
+function mcpAutenticado(PDO $pdo): bool
+{
+    return mcpQuemEntrou($pdo) !== null;
 }
 
 function mcpRegistrar(PDO $pdo, string $ferramenta, array $args, bool $escreveu, bool $ok, string $resultado): void

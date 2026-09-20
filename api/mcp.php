@@ -21,9 +21,17 @@
 
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/mcp_tools.php';
+require_once __DIR__ . '/../backend/mcp_oauth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
+// O app do Claude fala com este endereço de outra origem.
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Headers: Authorization, Content-Type, MCP-Protocol-Version, Mcp-Session-Id');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Expose-Headers: WWW-Authenticate, Mcp-Session-Id');
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(204); exit; }
 
 const MCP_PROTOCOLO_PADRAO = '2025-06-18';
 
@@ -56,8 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $pdo = db();
 
+/* O 401 aponta pro documento que diz como se autenticar (RFC 9728). É por
+   este cabeçalho que o app do Claude descobre sozinho o caminho do OAuth —
+   sem ele, o conector só diria "não autorizado" e pararia. */
 if (!mcpAutenticado($pdo)) {
-    header('WWW-Authenticate: Bearer');
+    header('WWW-Authenticate: Bearer realm="FBA", resource_metadata="'
+         . mcpOauthEmissor() . '/.well-known/oauth-protected-resource"');
     mcpErroRpc(null, -32001, 'Token inválido ou ausente.', 401);
 }
 
