@@ -3599,11 +3599,41 @@ if ($method === 'POST') {
                 }
                 $clockValue = date('Y-m-d H:i:s', $ts);
             }
-            $pdo->prepare('UPDATE draft_sessions SET round1_clock_start_at = ? WHERE id = ?')
-                ->execute([$clockValue, $draftSessionId]);
+            /* MUDAR A HORA APAGA O QUE JÁ FOI DITO.
+               O aviso das 4 horas e o anúncio da abertura saem uma vez só,
+               marcados na própria sessão. Adiar o relógio sem limpar as marcas
+               deixaria a liga sem aviso nenhum na hora nova — e o grupo já
+               teria ouvido um horário que não vale mais.
+
+               `clock_manual_off` é o que segura o relógio automático: sem ela,
+               remover na mão não adiantaria nada, porque o tick veria a coluna
+               vazia e armaria o relógio de novo no segundo seguinte. */
+            require_once dirname(__DIR__) . '/backend/draft_relogio.php';
+            draftRelogioColunas($pdo);
+            try {
+                $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN IF NOT EXISTS clock_manual_off DATETIME NULL");
+            } catch (Throwable $e) { /* já existe */ }
+
+            $pdo->prepare('UPDATE draft_sessions
+                              SET round1_clock_start_at = ?, clock_manual_off = ?,
+                                  clock_aviso_em = NULL, clock_abertura_em = NULL, vez_anunciada = NULL
+                            WHERE id = ?')
+                ->execute([$clockValue, $clockValue === null ? date('Y-m-d H:i:s') : null, $draftSessionId]);
+
+            // Marcou pra agora (o botão "Começar agora"): o relógio já abre
+            // nesta chamada, em vez de esperar o próximo pulso do worker.
+            if ($clockValue !== null && strtotime($clockValue) <= time()) {
+                try { draftRelogioSessao($pdo, $draftSessionId); }
+                catch (Throwable $e) { error_log('[draft-relogio] ao começar agora: ' . $e->getMessage()); }
+            }
+
             echo json_encode([
                 'success' => true,
-                'message' => $clockValue ? "Relógio da 1ª rodada agendado para {$clockValue}" : 'Relógio da 1ª rodada removido',
+                'message' => $clockValue
+                    ? (strtotime($clockValue) <= time()
+                        ? 'Relógio começou — o bot já está chamando o time da vez.'
+                        : "Relógio da 1ª rodada marcado para {$clockValue}")
+                    : 'Relógio removido — ele não nasce mais sozinho neste draft.',
                 'round1_clock_start_at' => $clockValue,
             ]);
             break;

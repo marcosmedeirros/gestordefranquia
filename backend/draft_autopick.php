@@ -29,8 +29,14 @@ require_once __DIR__ . '/push.php';
 /** Teto de picks encadeadas numa passada. Trava de segurança, não regra. */
 const DRAFT_AUTOPICK_MAX_CASCATA = 120;
 
-/** Prazo de quem não deixou lista, depois do relógio armado. */
-const DRAFT_AUTOPICK_PRAZO_CURTO = 300;    // 5 min
+/**
+ * Prazo de quem não deixou lista, depois do relógio armado.
+ *
+ * Três minutos desde 20/09/2026, junto com o relógio automático: o bot chama
+ * o time no Gameplay marcando o GM, então o prazo não é mais "o tempo de
+ * alguém perceber que é a vez dele" — é o tempo de escolher sabendo que é.
+ */
+const DRAFT_AUTOPICK_PRAZO_CURTO = 180;    // 3 min
 /** Prazo antes de o admin armar o relógio da 1ª rodada. */
 const DRAFT_AUTOPICK_PRAZO_LONGO = 1800;   // 30 min
 

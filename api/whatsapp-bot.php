@@ -90,6 +90,23 @@ if ($acao === 'pendentes') {
             error_log('[quiz] apurar no batimento: ' . $e->getMessage());
         }
     }
+
+    /**
+     * O RELÓGIO DO DRAFT também pega carona, mas de 20 em 20 segundos.
+     *
+     * O cron dele roda de cinco em cinco minutos, e um prazo de três minutos
+     * não sobrevive a isso: a pick estouraria e ficaria parada até a próxima
+     * execução. O worker bate aqui o tempo todo — é o relógio de segundos que
+     * a liga já tem de pé. O throttle mora no módulo, e é ele que garante uma
+     * passada por janela mesmo com duas batidas no mesmo instante.
+     */
+    try {
+        require_once dirname(__DIR__) . '/backend/draft_relogio.php';
+        draftRelogioTickThrottled($pdo, 20);
+    } catch (Throwable $e) {
+        // Carona também: o draft travar não pode travar a fila do bot.
+        error_log('[draft-relogio] no batimento: ' . $e->getMessage());
+    }
 }
 
 // ── Pendentes ───────────────────────────────────────────────────────────

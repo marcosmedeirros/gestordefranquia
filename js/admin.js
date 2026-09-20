@@ -10508,9 +10508,11 @@ async function showAdminDraft(league) {
           ${draft.pick_deadline_ts ? `<span id="admin-draft-detail-timer" style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:2px 10px">⏱ --:--</span>` : ''}
         </div>` : '';
 
-      // Relógio da 1ª rodada: admin agenda quando o prazo por pick cai de 30min pra 5min
-      // (com fallback pra melhor da ordem geral se a fila pessoal do time não resolver).
-      // Editável em setup ou em andamento, pra dar tempo do admin agendar antes de iniciar.
+      /* Relógio da 1ª rodada. Desde 20/09/2026 ele nasce sozinho 16 horas
+         depois de o draft abrir — o campo continua aqui pra antecipar ou
+         adiar, e o botão "Começar agora" é pro dia em que ninguém quer
+         esperar o relógio. Quem conta as horas e avisa o grupo é o
+         backend/draft_relogio.php. */
       let round1ClockPanel = '';
       if (draftStatus === 'setup' || draftStatus === 'in_progress') {
         const clockRaw = draft.round1_clock_start_at ? String(draft.round1_clock_start_at) : '';
@@ -10519,12 +10521,15 @@ async function showAdminDraft(league) {
         round1ClockPanel = `
           <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div>
-              <label class="pun-field-label" style="font-size:11px;color:var(--text-3);display:block;margin-bottom:3px">Relógio da 1ª rodada (5min/pick a partir daqui)</label>
+              <label class="pun-field-label" style="font-size:11px;color:var(--text-3);display:block;margin-bottom:3px">Relógio da 1ª rodada (3min por pick a partir daqui)</label>
               <input type="datetime-local" class="form-control form-control-sm" id="round1ClockInput_${draft.id}" value="${clockValueForInput}" style="min-width:200px">
             </div>
             <button class="btn-ghost" style="font-size:12px" onclick="_adminSetRound1Clock(${draft.id}, '${league}')"><i class="bi bi-clock-history me-1"></i>Salvar</button>
+            ${clockArmed ? '' : `<button class="btn-ghost" style="font-size:12px;color:#22c55e" onclick="_adminStartRound1ClockNow(${draft.id}, '${league}')"><i class="bi bi-play-circle me-1"></i>Começar agora</button>`}
             ${clockRaw ? `<button class="btn-ghost" style="font-size:12px;color:#ef4444" onclick="_adminClearRound1Clock(${draft.id}, '${league}')"><i class="bi bi-x-circle me-1"></i>Remover</button>` : ''}
-            <span style="font-size:11px;color:var(--text-3)">${clockRaw ? (clockArmed ? 'Ativo — picks agora têm 5min' : 'Agendado — ainda não chegou a hora') : 'Sem relógio definido — prazo de sempre (30min + fila)'}</span>
+            <span style="font-size:11px;color:var(--text-3)">${clockRaw
+              ? (clockArmed ? 'Correndo — 3min por pick, o bot chama cada time no Gameplay' : 'Marcado — o bot avisa o grupo 4h antes')
+              : 'Sem relógio: nasce sozinho 16h depois de o draft abrir'}</span>
           </div>`;
       }
 
@@ -11055,8 +11060,33 @@ async function _adminSetRound1Clock(draftSessionId, league) {
   }
 }
 
+/**
+ * "Começar agora": liga o relógio neste instante.
+ *
+ * Pro dia em que ninguém quer esperar as 16 horas — o draft está com todo
+ * mundo online e a liga quer rodar. O bot anuncia a abertura e já chama o
+ * primeiro time no mesmo pulso.
+ */
+async function _adminStartRound1ClockNow(draftSessionId, league) {
+  if (!await confirmarSite(
+    'Começar o relógio agora?\n\nCada time passa a ter 3 minutos pra escolher, '
+    + 'e o bot vai chamar o time da vez no Gameplay.')) return;
+  // O formato é o mesmo do campo (datetime-local), montado da hora local pra
+  // não cair na hora do servidor — que está em UTC.
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const agora = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  try {
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: agora }) });
+    showAlert('success', result.message || 'Relógio começou.');
+    showAdminDraft(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao começar o relógio');
+  }
+}
+
 async function _adminClearRound1Clock(draftSessionId, league) {
-  if (!await confirmarSite('Remover o relógio da 1ª rodada? As picks voltam a ter o prazo de sempre (30min + fila).')) return;
+  if (!await confirmarSite('Remover o relógio da 1ª rodada? Ele volta a nascer sozinho 16h depois de o draft abrir.')) return;
   try {
     const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: '' }) });
     showAlert('success', result.message || 'Relógio removido');
