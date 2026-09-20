@@ -170,7 +170,19 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
           Só quando ninguém marcou nada: hora escolhida na mão (ou o botão
           "iniciar agora") manda, e este passo não encosta nela. */
     if (empty($s['round1_clock_start_at']) && empty($s['clock_manual_off']) && !empty($s['started_at'])) {
-        $quando = strtotime((string)$s['started_at']) + DRAFT_RELOGIO_ESPERA_HORAS * 3600;
+        /* O PISO DAS 4 HORAS. Um draft que já estava aberto há mais de 16
+           horas quando esta regra nasceu tem "started_at + 16h" no passado, e
+           sem o piso o relógio abriria no mesmo segundo: a liga levaria o
+           anúncio de abertura e o autopick juntos, sem nunca ter ouvido o
+           aviso. Foi o que aconteceu na RISE e na ROOKIE em 20/09/2026.
+
+           Ninguém perde a vez por uma regra que entrou em vigor enquanto o
+           draft corria: o relógio nunca começa a menos de um aviso de
+           distância. */
+        $quando = max(
+            strtotime((string)$s['started_at']) + DRAFT_RELOGIO_ESPERA_HORAS * 3600,
+            $agora + DRAFT_RELOGIO_AVISO_HORAS * 3600
+        );
         $pdo->prepare('UPDATE draft_sessions SET round1_clock_start_at = ?, clock_auto_definido_em = NOW()
                         WHERE id = ? AND round1_clock_start_at IS NULL')
             ->execute([date('Y-m-d H:i:s', $quando), $sessionId]);
