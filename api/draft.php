@@ -3600,7 +3600,7 @@ if ($method === 'POST') {
                 $clockValue = date('Y-m-d H:i:s', $ts);
             }
             /* MUDAR A HORA APAGA O QUE JÁ FOI DITO.
-               O aviso das 4 horas e o anúncio da abertura saem uma vez só,
+               O aviso da meia hora e o anúncio da abertura saem uma vez só,
                marcados na própria sessão. Adiar o relógio sem limpar as marcas
                deixaria a liga sem aviso nenhum na hora nova — e o grupo já
                teria ouvido um horário que não vale mais.

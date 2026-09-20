@@ -10490,12 +10490,22 @@ async function showAdminDraft(league) {
           </div>
         </div>`;
     } else {
+      /* O relógio da 1ª rodada: o estado é lido aqui em cima porque o botão de
+         iniciar agora mora no cabeçalho do card, junto dos outros comandos —
+         era onde ele estava sendo procurado, e não na linha do campo de hora. */
+      const clockRaw = draft.round1_clock_start_at ? String(draft.round1_clock_start_at) : '';
+      const clockValueForInput = clockRaw ? clockRaw.slice(0, 16).replace(' ', 'T') : '';
+      const clockArmed = !!clockRaw && new Date(clockRaw.replace(' ', 'T')).getTime() <= Date.now();
+
       const actionBtns = [];
       if (draftStatus === 'setup') {
         actionBtns.push(`<button class="btn-ghost" style="color:#22c55e" onclick="_adminDraftStart(${draft.id}, '${league}')"><i class="bi bi-play-fill me-1"></i>Iniciar Draft</button>`);
         actionBtns.push(`<button class="btn-ghost" style="color:#ef4444;font-size:11px" onclick="_adminDraftDelete(${draft.id}, '${league}')"><i class="bi bi-trash me-1"></i>Excluir</button>`);
       }
       if (draftStatus === 'in_progress') {
+        if (!clockArmed) {
+          actionBtns.push(`<button class="btn-ghost" style="color:#22c55e" onclick="_adminStartRound1ClockNow(${draft.id}, '${league}')"><i class="bi bi-stopwatch me-1"></i>Iniciar relógio agora</button>`);
+        }
         actionBtns.push(`<button class="btn-ghost" style="color:#ef4444" onclick="_adminDraftFinalize(${draft.id}, '${league}')"><i class="bi bi-check2-all me-1"></i>Finalizar</button>`);
       }
       actionBtns.push(`<button class="btn-ghost" style="color:#a855f7" onclick="_adminDraftAddPlayerModal(${draft.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-plus me-1"></i>Adicionar Jogador</button>`);
@@ -10510,14 +10520,10 @@ async function showAdminDraft(league) {
 
       /* Relógio da 1ª rodada. Desde 20/09/2026 ele nasce sozinho 16 horas
          depois de o draft abrir — o campo continua aqui pra antecipar ou
-         adiar, e o botão "Começar agora" é pro dia em que ninguém quer
-         esperar o relógio. Quem conta as horas e avisa o grupo é o
-         backend/draft_relogio.php. */
+         adiar. O "Iniciar relógio agora" subiu pro cabeçalho do card. Quem
+         conta as horas e avisa o grupo é o backend/draft_relogio.php. */
       let round1ClockPanel = '';
       if (draftStatus === 'setup' || draftStatus === 'in_progress') {
-        const clockRaw = draft.round1_clock_start_at ? String(draft.round1_clock_start_at) : '';
-        const clockValueForInput = clockRaw ? clockRaw.slice(0, 16).replace(' ', 'T') : '';
-        const clockArmed = clockRaw && new Date(clockRaw.replace(' ', 'T')).getTime() <= Date.now();
         round1ClockPanel = `
           <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div>
@@ -10525,10 +10531,10 @@ async function showAdminDraft(league) {
               <input type="datetime-local" class="form-control form-control-sm" id="round1ClockInput_${draft.id}" value="${clockValueForInput}" style="min-width:200px">
             </div>
             <button class="btn-ghost" style="font-size:12px" onclick="_adminSetRound1Clock(${draft.id}, '${league}')"><i class="bi bi-clock-history me-1"></i>Salvar</button>
-            ${clockArmed ? '' : `<button class="btn-ghost" style="font-size:12px;color:#22c55e" onclick="_adminStartRound1ClockNow(${draft.id}, '${league}')"><i class="bi bi-play-circle me-1"></i>Começar agora</button>`}
+            ${draftStatus === 'setup' && !clockArmed ? `<button class="btn-ghost" style="font-size:12px;color:#22c55e" onclick="_adminStartRound1ClockNow(${draft.id}, '${league}')"><i class="bi bi-play-circle me-1"></i>Começar agora</button>` : ''}
             ${clockRaw ? `<button class="btn-ghost" style="font-size:12px;color:#ef4444" onclick="_adminClearRound1Clock(${draft.id}, '${league}')"><i class="bi bi-x-circle me-1"></i>Remover</button>` : ''}
             <span style="font-size:11px;color:var(--text-3)">${clockRaw
-              ? (clockArmed ? 'Correndo — 3min por pick, o bot chama cada time no Gameplay' : 'Marcado — o bot avisa o grupo 4h antes')
+              ? (clockArmed ? 'Correndo — 3min por pick, o bot chama cada time no Gameplay' : 'Marcado — o bot avisa o grupo 30min antes')
               : 'Sem relógio: nasce sozinho 16h depois de o draft abrir'}</span>
           </div>`;
       }

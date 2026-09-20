@@ -9,7 +9,7 @@
  * A regra, agora, é sozinha do começo ao fim:
  *
  *   1. O draft abre e a liga tem 16 HORAS pra escolher com calma, sem relógio.
- *   2. Faltando 4 HORAS o bot avisa no Gameplay que o relógio vem, e a que
+ *   2. Faltando 30 MINUTOS o bot avisa no Gameplay que o relógio vem, e a que
  *      horas ele começa.
  *   3. Na hora, o relógio abre e o bot chama o time da vez, marcando o GM.
  *   4. Dali em diante cada time tem 3 MINUTOS. Não escolheu, entra o primeiro
@@ -35,8 +35,16 @@ require_once __DIR__ . '/leilao_bot.php';   // botGrupoDaCerimonia()
 /** Quanto tempo a liga tem antes de o relógio começar a correr. */
 const DRAFT_RELOGIO_ESPERA_HORAS = 16;
 
-/** Com quanto tempo de antecedência o bot avisa que o relógio vem. */
-const DRAFT_RELOGIO_AVISO_HORAS = 4;
+/**
+ * Com quanto tempo de antecedência o bot avisa que o relógio vem.
+ *
+ * Era de 4 horas e virou 30 MINUTOS em 20/09/2026. Não é só um número menor:
+ * um aviso dado com quatro horas de distância chega cedo demais pra servir de
+ * aviso — quem lê às 12h já esqueceu às 16h — e o grupo ganha uma mensagem a
+ * mais sem ganhar informação. Meia hora é tempo de montar o mock e ainda é
+ * perto o bastante pra ser lembrete.
+ */
+const DRAFT_RELOGIO_AVISO_MIN = 30;
 
 /** Tipo das mensagens na fila do WhatsApp — serve pro relatório e pro filtro. */
 const DRAFT_RELOGIO_TIPO = 'draft';
@@ -182,7 +190,7 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
            distância. */
         $quando = max(
             strtotime((string)$s['started_at']) + DRAFT_RELOGIO_ESPERA_HORAS * 3600,
-            $agora + DRAFT_RELOGIO_AVISO_HORAS * 3600
+            $agora + DRAFT_RELOGIO_AVISO_MIN * 60
         );
         $pdo->prepare('UPDATE draft_sessions SET round1_clock_start_at = ?, clock_auto_definido_em = NOW()
                         WHERE id = ? AND round1_clock_start_at IS NULL')
@@ -194,20 +202,22 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
     $inicio = strtotime((string)$s['round1_clock_start_at']);
     $round  = (int)$s['current_round'];
 
-    /* 2. O AVISO DAS 4 HORAS. Só faz sentido antes de o relógio abrir — um
-          draft que já começou não precisa saber que ia começar. */
+    /* 2. O AVISO DA MEIA HORA. Só faz sentido antes de o relógio abrir — um
+          draft que já começou não precisa saber que ia começar.
+
+          São DUAS mensagens no dia todo, esta e a abertura; o resto do que o
+          grupo recebe é a chamada do time da vez. O texto cabe em duas linhas
+          de propósito: o aviso é pra ser lido de relance. */
     if ($round === 1 && empty($s['clock_aviso_em'])
-        && $agora < $inicio && ($inicio - $agora) <= DRAFT_RELOGIO_AVISO_HORAS * 3600) {
+        && $agora < $inicio && ($inicio - $agora) <= DRAFT_RELOGIO_AVISO_MIN * 60) {
         $pdo->prepare('UPDATE draft_sessions SET clock_aviso_em = NOW()
                         WHERE id = ? AND clock_aviso_em IS NULL')->execute([$sessionId]);
         if ($pdo->query('SELECT ROW_COUNT()')->fetchColumn() > 0) {
-            $faltam = max(1, (int)round(($inicio - $agora) / 3600));
+            $faltam = max(1, (int)round(($inicio - $agora) / 60));
             draftRelogioFalar($pdo, $liga,
-                "⏳ *O relógio do draft começa em {$faltam} horas* — às *"
+                "⏳ *O relógio do draft começa em {$faltam} minutos* — às *"
                 . draftRelogioHora($inicio) . "*.\n\n"
-                . "Daí em diante cada time tem *3 minutos* pra escolher. "
-                . "Quem não escolher leva o primeiro da ordem que estiver livre.\n\n"
-                . "_Dá tempo de montar sua lista no app agora._");
+                . "Daí em diante são *3 minutos por pick*. _Monte sua lista no app._");
         }
     }
 
@@ -217,9 +227,8 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
                         WHERE id = ? AND clock_abertura_em IS NULL')->execute([$sessionId]);
         if ($pdo->query('SELECT ROW_COUNT()')->fetchColumn() > 0) {
             draftRelogioFalar($pdo, $liga,
-                "🚨 *O relógio do draft começou.*\n\n"
-                . "A partir de agora cada time tem *3 minutos* pra escolher. "
-                . "Passou, entra o primeiro da ordem que estiver livre e a vez passa adiante.");
+                "🚨 *O relógio começou* — *3 minutos por pick*.\n\n"
+                . "Passou o tempo, entra o primeiro da ordem que estiver livre e a vez passa adiante.");
         }
         $s['vez_anunciada'] = null;   // a próxima chamada é a primeira de verdade
     }
