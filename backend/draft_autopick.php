@@ -63,6 +63,14 @@ function draftAutopickJogador(PDO $pdo, array $session, int $teamId): ?array
 {
     $sessionId = (int)$session['id'];
 
+    /* A 2ª RODADA NÃO TEM ESCOLHA AUTOMÁTICA.
+       Ela é opcional: quem montou mock leva o jogador, quem não montou fica
+       com a vaga em aberto pro admin, e é resolveRound2MocksIfDue() quem
+       decide isso no fim dos 20 minutos. O caminho do prazo daqui não olhava
+       a rodada — com o relógio da 1ª armado, ele escolheria por quem não quis
+       escolher, que é exatamente o contrário da regra. */
+    if ((int)($session['current_round'] ?? 1) !== 1) return null;
+
     /* 1. A FILA DO TIME. Vem primeiro e sem olhar o relógio: o GM já disse o
           que queria, e fazer ele esperar cinco minutos por uma decisão que já
           está tomada é o bug que esta função conserta. */

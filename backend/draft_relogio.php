@@ -253,10 +253,15 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
         if ($pdo->query('SELECT ROW_COUNT()')->fetchColumn() > 0) {
             $prazo = !empty($s['round2_mock_deadline'])
                 ? ' (até ' . draftRelogioHora(strtotime((string)$s['round2_mock_deadline'])) . ')' : '';
+            /* Sem ameaça no fim: a 2ª rodada é OPCIONAL. Quem monta o mock
+               leva o jogador; quem não monta fica com a vaga em aberto, e o
+               sistema não escolhe por ninguém aqui. Dizer o contrário era
+               mentir pro grupo — e a mentira ainda cobrava uma pressa que a
+               regra não pede. */
             draftRelogioFalar($pdo, $liga,
                 "✅ *Acabou a 1ª rodada.*\n\n"
                 . "A 2ª rodada tem *20 minutos*{$prazo} — *faça seu mock no app*.\n\n"
-                . "_Quem não montar a lista fica com o que o sistema escolher._");
+                . "_É opcional: só escolhe quem montar a lista._");
         }
     }
 }
