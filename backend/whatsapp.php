@@ -696,6 +696,16 @@ function whatsappGarantirColunasDeAutoria(PDO $pdo): void
 function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null, ?string $pedidoPor = null, ?string $comando = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;
+
+    /* A CONEXÃO PRIMEIRO, PORQUE AQUI CHEGA GENTE QUE ESPEROU.
+       A resposta do /duvida nasce depois de dezenas de segundos falando com o
+       modelo, e o banco desta hospedagem derruba conexão parada. Sem isto, as
+       duas linhas abaixo estouram antes do try e levam o processo inteiro:
+       a resposta existe, está pronta, e morre a um INSERT de distância do
+       grupo. Ver dbRevive() e o wait_timeout em backend/db.php. */
+    require_once __DIR__ . '/db.php';
+    $pdo = dbRevive($pdo);
+
     // As colunas antes do "está ligado?": com o bot desligado nada é
     // enfileirado, e sem isto elas só nasceriam na primeira mensagem depois de
     // religar — qualquer consulta ao relatório até lá quebraria.

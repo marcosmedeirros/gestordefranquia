@@ -480,6 +480,9 @@ function wcDuvida(PDO $pdo, string $arg, ?string $ligaDoGrupo, string $deQuem = 
        tempo: auditar "o bot errou" (antes só existia a resposta, e não dava
        pra saber o que tinham perguntado) e ser a memória da próxima. */
     if ($grupoJid !== '') {
+        // Depois da espera pelo modelo, a conexão pode não existir mais.
+        require_once __DIR__ . '/../backend/db.php';
+        $pdo = dbRevive($pdo);
         duvidaConversaGravar($pdo, $liga, $grupoJid, $deQuem,
                              $quem['nome'] ?? null, $arg, $r['resposta'], $gatilho);
     }
@@ -4333,6 +4336,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 {
     $resposta = wcResponderComandoCru($pdo, $texto, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
     if ($resposta === null || $resposta === '') return $resposta;
+
+    /* O COMANDO PODE TER DEMORADO. O /duvida fala com o modelo lá fora e volta
+       meio minuto depois; o banco desta hospedagem já derrubou a conexão nesse
+       tempo, e daqui pra frente tudo que toca o banco morre — os apelidos aqui
+       embaixo, e o INSERT na fila lá no webhook. Reabrir aqui é o ponto em que
+       a resposta ainda está inteira na mão. */
+    require_once __DIR__ . '/../backend/db.php';
+    $pdo = dbRevive($pdo);
     if (in_array(wcNomeDoComando($texto), WC_SEM_APELIDO, true)) return $resposta;
     try {
         return wcAplicarApelidos($pdo, $resposta, $ligaDoGrupo);

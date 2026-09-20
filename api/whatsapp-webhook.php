@@ -656,6 +656,11 @@ foreach ($mensagens as $m) {
     if ($resposta === null) continue;   // comando desconhecido: silêncio
     if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
 
+    /* Comando demorado (o /duvida fala com o modelo) pode ter custado a
+       conexão com o banco. Este $pdo segue vivo pro resto do laço: a próxima
+       mensagem do mesmo lote também precisa dele. */
+    $pdo = dbRevive($pdo);
+
     /* QUEM PEDIU E O QUÊ ficam gravados junto da resposta.
        Sem isso a fila só dizia em que grupo o bot falou: não dava pra montar
        um ranking de quem mais usa, e o comando tinha que ser adivinhado pelo

@@ -22,6 +22,21 @@ function db(): PDO
     // Definir timezone no MySQL também
     $pdo->exec("SET time_zone = '-03:00'");
 
+    /* O BANCO DESTA HOSPEDAGEM FECHA A CONEXÃO EM 20 SEGUNDOS PARADA.
+       (wait_timeout = 20, conferido em produção em 20/09/2026.)
+
+       Vinte segundos é menos do que qualquer espera por serviço de fora. O bot
+       pergunta ao Gemini, o modelo demora 30s, e quando a resposta volta a
+       conexão já morreu: gravar a conversa falha, pôr a resposta na fila
+       falha, e o GM no grupo simplesmente não recebe nada — sem erro, sem
+       pista. Foi o que tirou o /duvida e o @ do ar naquele dia.
+
+       A sessão pode esticar o próprio limite, e é o que se faz aqui. Cada
+       requisição PHP fecha a conexão ao terminar, então isto não deixa
+       conexão ociosa pendurada — só impede que ela morra no meio do trabalho. */
+    try { $pdo->exec('SET SESSION wait_timeout = 300, SESSION interactive_timeout = 300'); }
+    catch (Throwable $e) { error_log('[db] wait_timeout: ' . $e->getMessage()); }
+
     ensureSchema($pdo, $config['db']['name']);
     checkMaintenanceGate($pdo);
 
@@ -36,6 +51,44 @@ function db(): PDO
     }
 
     return $pdo;
+}
+
+/**
+ * A conexão, viva — reabrindo se ela tiver morrido no caminho.
+ *
+ * O cinto sobre o wait_timeout esticado lá em cima: sobra pra espera que passar
+ * dos cinco minutos e pra queda por outro motivo (o servidor derrubou, a rede
+ * piscou). Quem chama TEM que usar o retorno, porque uma conexão nova é um
+ * objeto novo — `dbRevive($pdo)` sem o `$pdo =` na frente não conserta nada.
+ *
+ * Não reabriu? Devolve a morta, e quem chamou trata o erro da escrita como
+ * trataria antes — nunca é pior do que era.
+ */
+function dbRevive(PDO $pdo): PDO
+{
+    try {
+        $pdo->query('SELECT 1');
+        return $pdo;
+    } catch (Throwable $e) {
+        error_log('[db] conexão caiu, reabrindo: ' . $e->getMessage());
+    }
+
+    try {
+        $c   = loadConfig()['db'];
+        $novo = new PDO(
+            sprintf('mysql:host=%s;dbname=%s;charset=%s', $c['host'], $c['name'], $c['charset']),
+            $c['user'], $c['pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+        $novo->exec("SET time_zone = '-03:00'");
+        try { $novo->exec('SET SESSION wait_timeout = 300, SESSION interactive_timeout = 300'); }
+        catch (Throwable $e) {}
+        return $novo;
+    } catch (Throwable $e) {
+        error_log('[db] reabrir falhou: ' . $e->getMessage());
+        return $pdo;
+    }
 }
 
 // dbGames() foi removida na fusão: o games passou a viver no mesmo banco do

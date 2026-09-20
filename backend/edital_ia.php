@@ -833,7 +833,13 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
            registrada no fim.
 
            Conta a CHAMADA, e não o sucesso: pedido que falhou no meio do
-           caminho consumiu cota do outro lado do mesmo jeito. */
+           caminho consumiu cota do outro lado do mesmo jeito.
+
+           A conexão vem revivida porque a rodada anterior pode ter esperado
+           trinta segundos por um modelo congestionado: contador que não grava
+           é cota que ninguém vê acabar. */
+        require_once __DIR__ . '/db.php';
+        $pdo = dbRevive($pdo);
         editalIaRegistrarUso($pdo);
 
         $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/'
