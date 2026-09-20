@@ -521,9 +521,14 @@ async function _carregarPagamentoSemana() {
               ${escapeHtml(j.time1 || '—')} × ${escapeHtml(j.time2 || 'vaga aberta')}
             </div>
           </div>
-          <div class="d-flex gap-2 flex-wrap mt-2">
+          <div class="d-flex gap-2 flex-wrap mt-2 align-items-stretch">
             ${lado(j.time1_id, j.time1, j.valor1, j.premio1)}
             ${lado(j.time2_id, j.time2, j.valor2, j.premio2)}
+            <button class="btn btn-sm btn-outline-secondary" style="min-width:44px"
+                    title="Já acertei por fora: tira da fila sem pagar nada"
+                    onclick="_dispensarJogoSemana('${escapeHtml(l.liga)}',${j.id})">
+              <i class="bi bi-x-lg"></i>
+            </button>
           </div>
         </div>`;
     }).join('');
@@ -557,6 +562,36 @@ async function _pagarJogoSemana(liga, jogoId, vencedorId) {
   }
   // Recarrega dos dois jeitos: se outro admin pagou no meio do caminho, a
   // lista tem que mostrar o estado real, não o que este clique esperava.
+  _carregarPagamentoSemana();
+}
+
+/**
+ * O "x": tira o jogo da fila sem creditar nada.
+ *
+ * Pro caso em que o pagamento já foi feito por fora — na mão, pelo painel de
+ * pontos, ou porque os dois combinaram outra coisa. Sem isso o jogo ficaria
+ * parado aqui pra sempre e o próximo nunca apareceria.
+ */
+async function _dispensarJogoSemana(liga, jogoId) {
+  const l = _pagamentoSemana.find(x => x.liga === liga);
+  const j = l && l.jogo;
+  if (!j || j.id !== jogoId) { showAlert('warning', 'Esse jogo mudou. Atualize a lista.'); return; }
+
+  const ok = await confirmarSite(
+    `Tirar da fila o jogo da ${liga} (${j.time1 || '—'} × ${j.time2 || 'vaga aberta'})?\n\n`
+    + 'Conta como resolvido e NÃO paga ninguém. Use quando o acerto já foi feito por fora.'
+  );
+  if (!ok) return;
+
+  try {
+    const d = await api('admin.php?action=leilao_semana_dispensar', {
+      method: 'POST',
+      body: JSON.stringify({ liga, jogo_id: jogoId }),
+    });
+    showAlert('success', `${d.jogo} saiu da fila. Nada foi pago.`);
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao tirar da fila.');
+  }
   _carregarPagamentoSemana();
 }
 

@@ -3172,6 +3172,32 @@ if ($method === 'POST') {
                               'vencedor' => $rPg['vencedor']], JSON_UNESCAPED_UNICODE);
             exit;
 
+        case 'leilao_semana_dispensar':
+            // O "x" do painel: o acerto foi feito fora daqui (crédito na mão,
+            // combinação entre os dois), então o jogo só sai da fila.
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $ligaDisp = strtoupper(trim((string)($data['liga'] ?? '')));
+            if (!in_array($ligaDisp, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            $rDisp = leilaoSemanaDispensar($pdo, $ligaDisp, (int)($data['jogo_id'] ?? 0), (int)$user['id']);
+            if (!$rDisp['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $rDisp['erro']]);
+                exit;
+            }
+            error_log(sprintf('[leilao_semana_dispensar] %s jogo=%d tirado da fila por user_id=%d',
+                $ligaDisp, (int)($data['jogo_id'] ?? 0), (int)$user['id']));
+            echo json_encode(['success' => true, 'jogo' => $rDisp['jogo']], JSON_UNESCAPED_UNICODE);
+            exit;
+
         case 'games_zerar':
             // Zera moedas OU FBA Points de todo mundo de uma vez. Desde que o
             // reset automático do dia 1º saiu, este é o ÚNICO jeito de zerar —

@@ -758,3 +758,51 @@ function leilaoSemanaPagar(PDO $pdo, string $liga, int $historicoId, int $venced
         return ['ok' => false, 'erro' => 'Não deu pra pagar agora.', 'premio' => 0, 'vencedor' => null];
     }
 }
+
+/**
+ * Tira o jogo da fila SEM pagar nada.
+ *
+ * É pro caso em que o acerto já foi feito fora daqui — o admin creditou na
+ * mão, ou os dois combinaram outra coisa. Sem isso o jogo ficaria parado no
+ * painel pra sempre, e o próximo nunca apareceria.
+ *
+ * Grava do mesmo jeito que os históricos antigos: prêmio zero e sem vencedor,
+ * que é como se lê "encerrado sem pagamento". O `pago_por` é o que diferencia
+ * a dispensa feita por alguém da que a migração fez sozinha.
+ */
+function leilaoSemanaDispensar(PDO $pdo, string $liga, int $historicoId, int $adminId = 0): array
+{
+    leilaoSemanaTabela($pdo);
+    $liga = strtoupper(trim($liga));
+
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("SELECT id, pago_em, time1_nome, time2_nome
+                               FROM leilao_semana_historico
+                              WHERE id = ? AND league = ? FOR UPDATE");
+        $st->execute([$historicoId, $liga]);
+        $jogo = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$jogo) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Esse jogo não existe na ' . $liga . '.'];
+        }
+        if ($jogo['pago_em'] !== null) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Esse jogo já saiu da fila em '
+                    . substr((string)$jogo['pago_em'], 0, 16) . '.'];
+        }
+
+        $pdo->prepare("UPDATE leilao_semana_historico
+                          SET vencedor_team_id = NULL, premio = 0, pago_em = NOW(), pago_por = ?
+                        WHERE id = ?")
+            ->execute([$adminId ?: null, $historicoId]);
+
+        $pdo->commit();
+        return ['ok' => true, 'erro' => null,
+                'jogo' => trim((string)$jogo['time1_nome'] . ' × ' . (string)$jogo['time2_nome'])];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao-semana] dispensar: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra tirar da fila agora.'];
+    }
+}
