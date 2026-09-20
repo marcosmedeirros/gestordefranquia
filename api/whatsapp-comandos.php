@@ -1808,15 +1808,22 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     return $fichas;
 }
 
-/** A linha de um time no power ranking: medalha, nome, nota e posto. */
+/**
+ * A linha de um time no power ranking: medalha, nome e posto na tabela.
+ *
+ * A NOTA NÃO APARECE AQUI de propósito. Ela existe, é o que ordena a lista, e
+ * sai inteira no /power <time> — mas no grupo o número vira discussão sobre o
+ * número ("por que 81,0 e não 83?") em vez de discussão sobre a ordem, que é
+ * o que o comando tem a dizer.
+ *
+ * O posto da tabela fica: ao lado da posição, ele mostra de um relance quem
+ * está rendendo acima do elenco e quem está devendo.
+ */
 function wcLinhaDePower(array $f, int $posicao): string
 {
     $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
-    // O posto da tabela ao lado da nota é o ponto do comando: dá pra ver de
-    // um relance quem está rendendo acima e quem está devendo.
-    $cauda = $f['posto'] ? " · {$f['posto']}º na tabela" : '';
-    $nota = number_format((float)($f['nota'] ?? 0), 1, ',', '');
-    return "{$medalha} *{$f['nome']}* — {$nota}{$cauda}\n";
+    $cauda = $f['posto'] ? " _({$f['posto']}º na tabela)_" : '';
+    return "{$medalha} *{$f['nome']}*{$cauda}\n";
 }
 
 /** Barra de oito blocos: o número visto de longe, sem precisar comparar. */
