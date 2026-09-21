@@ -107,8 +107,56 @@ function trRevCabecalho(PDO $pdo, string $tipo, int $id): ?array
     }
 }
 
-/** Nome legível da troca, pra lista que o admin lê antes de confirmar. */
-function trRevRotulo(PDO $pdo, string $tipo, int $id): string
+/**
+ * O QUE ESTAVA NA TROCA, pelo nome.
+ *
+ * Jogador pelo nome de hoje, com o nome gravado na época como reserva (jogador
+ * apagado do elenco ainda precisa aparecer na lista); pick por ano e rodada.
+ */
+function trRevAtivosLegiveis(PDO $pdo, string $tipo, int $id, int $limite = 4): array
+{
+    $tabela = $tipo === 'multi' ? 'multi_trade_items' : 'trade_items';
+    $nomes = [];
+
+    try {
+        $st = $pdo->prepare("SELECT i.player_id, i.player_name, i.pick_id,
+                                    p.name AS nome_hoje, pk.season_year, pk.round
+                               FROM {$tabela} i
+                          LEFT JOIN players p ON p.id = i.player_id
+                          LEFT JOIN picks pk ON pk.id = i.pick_id
+                              WHERE i.trade_id = ?
+                           ORDER BY i.id");
+        $st->execute([$id]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $it) {
+            if (!empty($it['player_id'])) {
+                $n = trim((string)($it['nome_hoje'] ?? '')) ?: trim((string)($it['player_name'] ?? ''));
+                if ($n !== '') $nomes[] = $n;
+            } elseif (!empty($it['pick_id']) && !empty($it['season_year'])) {
+                $nomes[] = $it['season_year'] . ' R' . $it['round'];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[trade-revert] ativos: ' . $e->getMessage());
+    }
+
+    $nomes = array_values(array_unique($nomes));
+    if (count($nomes) > $limite) {
+        $sobra = count($nomes) - $limite;
+        $nomes = array_slice($nomes, 0, $limite);
+        $nomes[] = "+{$sobra}";
+    }
+    return $nomes;
+}
+
+/**
+ * Como a troca é chamada nas listas e no grupo.
+ *
+ * Os TIMES e o QUE ESTAVA NELA — nunca o número dela. "Troca #8667" não diz
+ * nada a quem está lendo no grupo nem ao admin que precisa reconhecer a
+ * negociação que vai cair junto; "Catrinas ↔ Swaneys — Kawhi Leonard, 2030 R1"
+ * é a mesma troca, do jeito que a liga se lembra dela.
+ */
+function trRevTimesRotulo(PDO $pdo, string $tipo, int $id): string
 {
     if ($tipo === 'multi') {
         try {
@@ -118,7 +166,7 @@ function trRevRotulo(PDO $pdo, string $tipo, int $id): string
             $st->execute([$id]);
             $nomes = (string)$st->fetchColumn();
         } catch (Throwable $e) { $nomes = ''; }
-        return "Múltipla #{$id}" . ($nomes !== '' ? " ({$nomes})" : '');
+        return $nomes !== '' ? $nomes : 'troca múltipla';
     }
 
     $st = $pdo->prepare("SELECT a.name AS a, b.name AS b FROM trades t
@@ -127,7 +175,13 @@ function trRevRotulo(PDO $pdo, string $tipo, int $id): string
                           WHERE t.id = ?");
     $st->execute([$id]);
     $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-    return "Troca #{$id}" . (!empty($r['a']) ? " ({$r['a']} ↔ {$r['b']})" : '');
+    return !empty($r['a']) ? "{$r['a']} ↔ {$r['b']}" : 'troca';
+}
+
+function trRevRotulo(PDO $pdo, string $tipo, int $id): string
+{
+    $ativos = trRevAtivosLegiveis($pdo, $tipo, $id);
+    return trRevTimesRotulo($pdo, $tipo, $id) . ($ativos ? ' — ' . implode(', ', $ativos) : '');
 }
 
 /**
@@ -389,12 +443,14 @@ function trRevAvisarGrupo(PDO $pdo, array $resultado): void
     if (!$destaques) return;
 
     arsort($destaques);
-    $nomes = array_slice(array_keys($destaques), 0, 4);
+
+    /* O QUE ESTAVA NA TROCA, e não o número dela. Ninguém no grupo reconhece
+       "Troca #8667"; todo mundo reconhece "Catrinas ↔ Swaneys — Kawhi". */
+    $ativosBase = trRevAtivosLegiveis($pdo, (string)$base['tipo'], (int)$base['id'], 6);
 
     $txt = "↩️ *TROCA DESFEITA*\n\n"
-         . '*' . $base['rotulo'] . "* foi desfeita pela organização.\n"
-         . 'Voltaram pros times de origem: *' . implode('*, *', $nomes) . '*'
-         . (count($destaques) > count($nomes) ? ' e outros' : '') . ".\n";
+         . '*' . trRevTimesRotulo($pdo, (string)$base['tipo'], (int)$base['id']) . "*\n"
+         . ($ativosBase ? 'Voltaram pros times de origem: ' . implode(', ', $ativosBase) . "\n" : '');
 
     $arrastadas = array_values(array_filter($resultado['feitas'], fn($f) => empty($f['base'])
         && !((string)$f['tipo'] === (string)$base['tipo'] && (int)$f['id'] === (int)$base['id'])));
