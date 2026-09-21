@@ -4170,6 +4170,7 @@ if ($method === 'POST') {
                     'error' => $quemSobe['name'] . ' já está na ' . $quemSobe['league'] . ' — isso não seria uma promoção.']); exit;
             }
 
+            $hall = ['movidas' => 0, 'somadas' => 0, 'linhas' => []];
             $pdo->beginTransaction();
             try {
                 // 1. a cadeira que ele deixa vira a próxima vaga
@@ -4204,6 +4205,18 @@ if ($method === 'POST') {
                                VALUES (?,?,NULL,?,?,?)")
                     ->execute([$teamId, $destino['league'], $userId,
                                'promovido da ' . ($quemSobe['league'] ?: '—'), (int)$user['id']]);
+
+                /* 4. OS TÍTULOS VÃO COM ELE.
+                      O Hall credita por (time, liga), então sem isto o que ele
+                      ganhou ficava na cadeira que ele acabou de deixar — e ia
+                      parar no colo de quem assumisse depois. A liga de cada
+                      título não muda: dois títulos de ROOKIE continuam sendo de
+                      ROOKIE depois de ele subir. Ver backend/hall_gm.php. */
+                require_once __DIR__ . '/../backend/hall_gm.php';
+                $hall = hallSeguirGm($pdo, $userId, (string)$quemSobe['name'],
+                                     !empty($quemSobe['team_id']) ? (int)$quemSobe['team_id'] : null,
+                                     $teamId);
+
                 $pdo->commit();
             } catch (Throwable $e) {
                 $pdo->rollBack();
@@ -4211,9 +4224,19 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao promover']); exit;
             }
 
+            // O que aconteceu com os títulos entra na mensagem: é mexida em
+            // Hall da Fama, e quem clicou precisa ver que ela aconteceu.
+            $msgHall = '';
+            $totalHall = ($hall['movidas'] ?? 0) + ($hall['somadas'] ?? 0);
+            if ($totalHall > 0) {
+                $msgHall = ' ' . $totalHall . ' registro(s) do Hall da Fama vieram junto com ele.';
+            }
+
             echo json_encode(['success' => true,
                 'message' => $quemSobe['name'] . ' assumiu ' . $destino['nome'] . ' na ' . $destino['league'] . '.'
-                           . (!empty($quemSobe['nome']) ? ' A cadeira de ' . $quemSobe['nome'] . ' (' . $quemSobe['league'] . ') está aberta.' : ''),
+                           . (!empty($quemSobe['nome']) ? ' A cadeira de ' . $quemSobe['nome'] . ' (' . $quemSobe['league'] . ') está aberta.' : '')
+                           . $msgHall,
+                'hall' => $hall ?? null,
                 'nova_vaga' => !empty($quemSobe['team_id']) ? (int)$quemSobe['team_id'] : null],
                 JSON_UNESCAPED_UNICODE);
             exit;
