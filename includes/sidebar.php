@@ -126,9 +126,8 @@ if (!function_exists('sbActive')) {
            onde a pessoa vê que foi escalada. */ ?>
         <a href="/calendario.php"<?= sbActive('calendario.php', $__sbCurrent) ?>><i class="bi bi-calendar3"></i> Calendário</a>
         <a href="/games.php"<?= sbActive('games.php', $__sbCurrent) ?>><i class="bi bi-controller"></i> Games</a>
-        <?php /* Por enquanto só a ELITE tem tela de playoffs — o nome do item
-           diz isso pra ninguém da NEXT clicar esperando o chaveamento dela. */ ?>
-        <a href="/playoffs-elite.php"<?= sbActive('playoffs-elite.php', $__sbCurrent) ?>><i class="bi bi-diagram-2-fill"></i> Playoffs ELITE</a>
+        <?php /* Playoffs da ELITE: tela existe (/playoffs-elite.php), mas fora
+           do menu a pedido dele — é de uma liga só, e o menu é de todo mundo. */ ?>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-trophy-fill"></i> Prêmios</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
