@@ -448,10 +448,24 @@ function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): strin
             if (!$r['ok']) return '❌ ' . ($r['erro'] ?? 'Não deu pra recalcular.');
             $s = $r['resumo'];
             $atu = $s['atualizados'] ?? null;
+
+            /* O ALVO APARECE QUANDO O TETO SEGUROU.
+               Sem isso, o admin que esperava a faixa da média e viu outra não
+               sabe se o passo entrou ou se a conta mudou — e é justamente o
+               passo que ele precisa acompanhar de recálculo em recálculo. */
+            $freio = !empty($s['segurou'])
+                ? "\n_A média pedia {$s['alvo_min']}–{$s['alvo_max']}; o cap anda no máximo "
+                  . LEAGUE_CAP_PASSO_MAXIMO . " por vez._"
+                : '';
+            $antes = !empty($s['antes_min'])
+                ? "Era: {$s['antes_min']} – {$s['antes_max']}\n" : '';
+
             return "📊 *CAP DA {$liga} ATUALIZADO*\n"
-                 . "Média: *{$s['avg']}* · margem {$s['margin']}\n"
+                 . $antes
                  . "Faixa nova: *{$s['cap_min']} – {$s['cap_max']}*\n"
+                 . "Média dos elencos: {$s['avg']} · margem {$s['margin']}\n"
                  . "{$s['teams_above']} acima, {$s['teams_below']} abaixo"
+                 . $freio
                  . ($atu ? "\n\n_Elencos atualizados quando rodou: {$atu['done']}/{$atu['total']}._" : '');
 
         case 'draft':

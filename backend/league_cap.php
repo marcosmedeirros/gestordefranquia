@@ -20,6 +20,17 @@ require_once __DIR__ . '/helpers.php';
 const LEAGUE_CAP_DEFAULT_OVR_MARGIN     = 18; // pontos de OVR pra cima/baixo da média (faixa pedida: 15 a 20)
 const LEAGUE_CAP_DEFAULT_SALARY_MARGIN  = 12; // % pra cima/baixo da folha média (ELITE, modo salário)
 
+/**
+ * O MÁXIMO QUE O CAP ANDA NUM RECÁLCULO.
+ *
+ * Sete, e quase sempre menos: o passo é a distância até o alvo quando ela é
+ * menor que isso, então liga que cresceu três anda três. A liga pediu assim
+ * depois de ver a conta pela média propor um salto de dezoito pontos de uma
+ * vez — cap é a régua que decide quem está irregular, e mudá-la de supetão
+ * manda gente cortar jogador por causa de uma conta, não de uma decisão.
+ */
+const LEAGUE_CAP_PASSO_MAXIMO = 7;
+
 function ensureLeagueCapAutoTables(PDO $pdo): void
 {
     try {
@@ -127,7 +138,7 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?arra
 {
     ensureLeagueCapAutoTables($pdo);
 
-    $stmtCfg = $pdo->prepare("SELECT cap_mode, cap_auto_margin, cap_auto_margin_pct FROM league_settings WHERE league = ?");
+    $stmtCfg = $pdo->prepare("SELECT cap_mode, cap_auto_margin, cap_auto_margin_pct, cap_min, cap_max FROM league_settings WHERE league = ?");
     $stmtCfg->execute([$league]);
     $cfg = $stmtCfg->fetch(PDO::FETCH_ASSOC) ?: [];
     $capMode = $cfg['cap_mode'] ?? 'ovr_sum';
@@ -162,8 +173,40 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?arra
         $marginRecord = $ovrMargin;
     }
 
-    $newMax = (int)round($avg) + $margin;
-    $newMin = max(0, (int)round($avg) - $margin);
+    /* O ALVO é a faixa que a média de hoje pediria. Ele quase nunca vira o cap
+       novo: entre um e outro está o passo. */
+    $alvoMax = (int)round($avg) + $margin;
+    $alvoMin = max(0, (int)round($avg) - $margin);
+
+    /* O CAP ANDA DE POUCO EM POUCO, e nunca dá um salto.
+       O cálculo pela média sozinho propôs 805–841 pra RISE em 21/09/2026,
+       contra os 794–823 que estavam valendo: onze e dezoito pontos de uma vez.
+       Os admins olharam e puseram 800–830 na mão. É esse o comportamento certo,
+       e a razão é simples: o cap é a régua que decide quem está irregular, e
+       um salto muda de um dia pro outro quem pode fechar troca e quem tem que
+       cortar jogador.
+
+       Então o novo cap sai do ATUAL, andando na direção do alvo, no máximo
+       LEAGUE_CAP_PASSO_MAXIMO por vez. Liga que cresceu pouco anda pouco (a
+       distância manda); liga que disparou anda o teto e continua subindo no
+       recálculo seguinte, com a liga tendo tempo de acompanhar.
+
+       Vale pros dois lados: descida em salto deixaria metade da liga irregular
+       sem ninguém ter feito nada. E vale só quando JÁ EXISTE cap — na primeira
+       vez da liga não há de onde andar, e o alvo entra inteiro. */
+    $atualMin = (int)($cfg['cap_min'] ?? 0);
+    $atualMax = (int)($cfg['cap_max'] ?? 0);
+    $temCapAtual = $atualMin > 0 && $atualMax > 0;
+
+    $passo = static function (int $atual, int $alvo): int {
+        $dif = $alvo - $atual;
+        if ($dif === 0) return $atual;
+        $anda = min(abs($dif), LEAGUE_CAP_PASSO_MAXIMO);
+        return $atual + ($dif > 0 ? $anda : -$anda);
+    };
+
+    $newMax = $temCapAtual ? $passo($atualMax, $alvoMax) : $alvoMax;
+    $newMin = $temCapAtual ? max(0, $passo($atualMin, $alvoMin)) : $alvoMin;
 
     $acima = 0; $abaixo = 0;
     foreach ($values as $v) {
@@ -183,6 +226,13 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?arra
         'league' => $league, 'season_number' => $seasonNumber, 'cap_mode' => $capMode,
         'avg' => (int)round($avg), 'margin' => $marginRecord, 'cap_min' => $newMin, 'cap_max' => $newMax,
         'teams_total' => count($values), 'teams_above' => $acima, 'teams_below' => $abaixo,
+        /* De onde veio e pra onde ia: sem isso, o admin que esperava 841 e viu
+           830 não tem como saber se o teto segurou ou se a conta mudou. */
+        'antes_min' => $temCapAtual ? $atualMin : null,
+        'antes_max' => $temCapAtual ? $atualMax : null,
+        'alvo_min'  => $alvoMin,
+        'alvo_max'  => $alvoMax,
+        'segurou'   => $temCapAtual && ($alvoMin !== $newMin || $alvoMax !== $newMax),
     ];
     notificarRecalculoCapDaLiga($pdo, $resumo);
 
@@ -250,9 +300,16 @@ function capAvisarGrupoDoRecalculo(PDO $pdo, array $resumo): void
         if (!empty($resumo['teams_above'])) $fora[] = (int)$resumo['teams_above'] . ' acima';
         if (!empty($resumo['teams_below'])) $fora[] = (int)$resumo['teams_below'] . ' abaixo';
 
+        // De quanto foi o passo: é o que mostra que a régua andou devagar.
+        $de = '';
+        if (!empty($resumo['antes_min']) && !empty($resumo['antes_max'])) {
+            $de = "_Era {$resumo['antes_min']}–{$resumo['antes_max']}{$un}._\n";
+        }
+
         $txt = "📊 *NOVO CAP DEFINIDO — {$liga}*\n\n"
              . "Cap máximo: *{$resumo['cap_max']}{$un}*\n"
              . "Cap mínimo: *{$resumo['cap_min']}{$un}*\n"
+             . ($de !== '' ? "\n" . $de : '')
              . "\n_Média dos elencos: {$resumo['avg']}{$un}"
              . ($fora ? ' · ' . implode(' e ', $fora) . ' da faixa' : ' · todo mundo dentro da faixa')
              . '_';
