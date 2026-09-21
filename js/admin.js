@@ -10687,6 +10687,16 @@ async function showAdminDraft(league) {
         actionBtns.push(`<button class="btn-ghost" style="color:#22c55e" onclick="_adminDraftStart(${draft.id}, '${league}')"><i class="bi bi-play-fill me-1"></i>Iniciar Draft</button>`);
         actionBtns.push(`<button class="btn-ghost" style="color:#ef4444;font-size:11px" onclick="_adminDraftDelete(${draft.id}, '${league}')"><i class="bi bi-trash me-1"></i>Excluir</button>`);
       }
+      /* SORTEAR SEM ABRIR A CERIMÔNIA.
+         Abrir a tela da loteria já sorteia e guarda — mas obriga a passar
+         pelo quadro da cerimônia, com o botão de revelar do lado. Aqui o
+         sorteio acontece e para: a ordem fica guardada, nada é anunciado, e
+         quem administra pode saber o resultado antes sem risco de um clique
+         a mais revelar a primeira pick. */
+      if (draftStatus === 'setup') {
+        actionBtns.push(`<button class="btn-ghost" style="color:#0ea5e9" onclick="_adminSortearLoteria(${draft.id}, '${league}')"><i class="bi bi-shuffle me-1"></i>Sortear loteria (sem revelar)</button>`);
+      }
+
       if (draftStatus === 'in_progress') {
         if (!clockArmed) {
           actionBtns.push(`<button class="btn-ghost" style="color:#22c55e" onclick="_adminStartRound1ClockNow(${draft.id}, '${league}')"><i class="bi bi-stopwatch me-1"></i>Iniciar relógio agora</button>`);
@@ -11258,6 +11268,57 @@ async function _adminSetRound1Clock(draftSessionId, league) {
  * mundo online e a liga quer rodar. O bot anuncia a abertura e já chama o
  * primeiro time no mesmo pulso.
  */
+/**
+ * Sorteia a loteria e guarda, sem revelar nada.
+ *
+ * O mesmo sorteio da cerimônia (run_lottery) seguido do mesmo "põe no ar"
+ * (lottery_transmitir) — o que muda é não abrir a tela da cerimônia, onde o
+ * botão de revelar fica a um clique de distância.
+ *
+ * Sortear de novo TROCA a ordem e zera o que já foi revelado, então o que já
+ * está no ar é conferido antes: apagar uma cerimônia em andamento sem avisar
+ * seria perder o que a liga já viu.
+ */
+async function _adminSortearLoteria(draftSessionId, league) {
+  let jaTem = false, reveladas = 0;
+  try {
+    const est = await api(`draft.php?action=lottery_transmissao&draft_session_id=${draftSessionId}`);
+    jaTem = !!est.no_ar;
+    reveladas = (est.reveladas || []).length;
+  } catch (e) { /* sem transmissão: segue como primeiro sorteio */ }
+
+  const aviso = !jaTem
+    ? 'Sortear a loteria agora?\n\nA ordem fica guardada e NADA é revelado — a cerimônia continua sendo feita na tela da loteria, quando você quiser.'
+    : (reveladas
+        ? `⚠️ Esta loteria já está no ar com ${reveladas} escolha(s) revelada(s).\n\nSortear de novo TROCA a ordem e apaga o que já foi revelado. Tem certeza?`
+        : 'Esta loteria já foi sorteada e nada foi revelado.\n\nSortear de novo troca a ordem guardada. Tem certeza?');
+
+  if (!await confirmarSite(aviso)) return;
+
+  try {
+    const r = await api('draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'run_lottery', draft_session_id: draftSessionId })
+    });
+    if (!r || r.preview !== false) throw new Error(r?.error || 'O sorteio não retornou uma ordem.');
+
+    await api('draft.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'lottery_transmitir',
+        draft_session_id: draftSessionId,
+        ordem: r.order || r.ordem,
+        ajustes: r.ajustes || [],
+      })
+    });
+
+    showAlert('success', 'Loteria sorteada e guardada. Nada foi revelado.');
+    showAdminDraft(league);
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao sortear a loteria.');
+  }
+}
+
 async function _adminStartRound1ClockNow(draftSessionId, league) {
   if (!await confirmarSite(
     'Começar o relógio agora?\n\nCada time passa a ter 3 minutos pra escolher, '
