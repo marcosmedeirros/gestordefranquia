@@ -407,6 +407,9 @@ function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): strin
 
         case 'relogio':
             return botAdminIniciarRelogio($pdo, $liga);
+
+        case 'tela':
+            return botAdminTela($pdo, $liga, ($partes[2] ?? '1') === '1', (int)($partes[3] ?? 0));
     }
     return 'Não sei mais o que era pra fazer.';
 }
@@ -576,7 +579,40 @@ function botAdminIniciarRelogio(PDO $pdo, string $liga): string
          . '_O bot já chamou o time da vez no Gameplay._';
 }
 
-/** A lista dos comandos que só existem aqui. */
+/**
+ * /abrirtela e /fechartela — a venda dos slots de tela da próxima live.
+ *
+ * A venda abre sozinha no horário; o que este comando faz é antecipar, que é
+ * o caso real: a live foi remarcada, ou a organização quer vender antes. O
+ * "fechar" não fecha nada — desfaz a antecipação e devolve a venda ao relógio.
+ *
+ * Quem já comprou continua comprado: os slots vendidos não são tocados aqui.
+ */
+function botAdminTela(PDO $pdo, string $liga, bool $abrir, int $adminId): string
+{
+    require_once __DIR__ . '/slots_tela.php';
+
+    $r = $abrir ? slotsTelaAbrirAgora($pdo, $liga, $adminId)
+                : slotsTelaCancelarAbertura($pdo, $liga);
+
+    if (empty($r['ok'])) return '❌ ' . ($r['erro'] ?? 'Não deu certo.');
+
+    $live = $r['live'] ?? [];
+    $quando = !empty($live['inicio'])
+        ? date('d/m \à\s H:i', strtotime((string)$live['inicio'])) : 'a próxima live';
+
+    return $abrir
+        ? "📺 *Venda de tela aberta na {$liga}*\nLive de {$quando}.\n_Fecha sozinha quando a live começar._"
+        : "🔒 *Venda de tela da {$liga} voltou pro horário automático.*\nLive de {$quando}.\n_Quem já comprou continua com o slot._";
+}
+
+/**
+ * /admin — a lista dos comandos que só existem aqui.
+ *
+ * Fora do /ajuda de propósito: aquele é o cartaz do grupo dos GMs, e comando
+ * que só funciona no grupo de admin lá vira pergunta ("por que não funciona
+ * pra mim?"). Aqui dentro, /admin é o índice.
+ */
 function botAdminAjuda(array $ligasPermitidas): string
 {
     $l = mb_strtolower($ligasPermitidas[0] ?? 'elite');
@@ -592,6 +628,9 @@ function botAdminAjuda(array $ligasPermitidas): string
          . "/atualizarcap _{$l}_ — recalcula a faixa de CAP\n"
          . "/iniciardraft _{$l}_ — abre o draft\n"
          . "/relogio _{$l}_ — liga os 3 min por pick agora\n\n"
+         . "*Games*\n"
+         . "/abrirtela _{$l}_ — antecipa a venda de slot da próxima live\n"
+         . "/fechartela _{$l}_ — devolve a venda ao horário automático\n\n"
          . "*Edital e regras*\n"
          . "/duvida _sua pergunta_ · /edital _termo_\n\n"
          . '_Suas ligas: ' . (implode(', ', $ligasPermitidas) ?: 'nenhuma') . '._';

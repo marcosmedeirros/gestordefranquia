@@ -4715,12 +4715,29 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                 if (!$ligasAdm) return null;
                 return botAdminTimesStatus($pdo, $arg, $ligasAdm, $ligaDoGrupo);
 
+            /* /admin é o índice deles. Fica fora do /ajuda de propósito:
+               aquele é o cartaz do grupo dos GMs, e comando que só funciona
+               no grupo de admin lá vira pergunta de quem não pode usar. */
+            case 'admin':
             case 'ajudaadmin':
             case 'comandosadmin':
                 require_once __DIR__ . '/../backend/bot_admin.php';
                 $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
                 if (!$ligasAdm) return null;
                 return botAdminAjuda($ligasAdm);
+
+            /* A venda de slot da próxima live. Abrir é antecipar (ela abre
+               sozinha no horário), e fechar é devolver ao relógio — nenhum
+               dos dois mexe em quem já comprou, então não passa pelo /ok. */
+            case 'abrirtela':
+            case 'fechartela':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                [$ligaAlvo, $erroLiga] = botAdminLigaDoComando($arg, $ligasAdm, $ligaDoGrupo);
+                if ($ligaAlvo === null) return $erroLiga;
+                $euAdmin = botAdminUsuario($pdo, $deQuem);
+                return botAdminTela($pdo, $ligaAlvo, $cmd === 'abrirtela', (int)($euAdmin['id'] ?? 0));
 
             case 'fases':
             case 'janelas':
