@@ -581,13 +581,10 @@ function botAdminPedirCap(PDO $pdo, string $arg, array $ligasPermitidas,
         if (!empty($previa['antes_min'])) {
             $linhas .= "\n_Hoje: {$previa['antes_min']} – {$previa['antes_max']}{$un}_";
         }
+        /* Três linhas e só. O alvo da média e a contagem de quem fica fora da
+           faixa saíram a pedido dele: a pergunta aqui é "aplico este cap?", e
+           o resto é conversa pra depois de aplicado. */
         $linhas .= "\n_Média dos elencos: {$previa['avg']}{$un}_";
-        if (!empty($previa['segurou'])) {
-            $linhas .= "\n_A média pedia {$previa['alvo_min']}–{$previa['alvo_max']}{$un}; o cap anda no máximo "
-                     . LEAGUE_CAP_PASSO_MAXIMO . ' por vez._';
-        }
-        // Com a faixa nova: quem fica irregular é o que decide se é hora.
-        $linhas .= "\n_Na faixa nova: {$previa['teams_above']} acima e {$previa['teams_below']} abaixo._";
         $pedido .= $linhas;
     }
 
