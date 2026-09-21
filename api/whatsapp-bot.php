@@ -155,6 +155,16 @@ if ($acao === 'pendentes') {
         'ultima_entrada' => whatsappUltimaEntrada($pdo),
         'ultima_entrada_seg' => whatsappUltimaEntradaSeg($pdo),
         'mensagens' => $pendentes,
+        /* AÇÕES DE GRUPO (dar e tirar admin) vêm no mesmo pacote das
+           mensagens: é o mesmo worker, na mesma batida. A varredura roda
+           antes de montar a lista, então uma promoção esquecida já sai com o
+           rebaixamento nesta rodada. Worker antigo ignora o campo — e aí o
+           único efeito é o cargo demorar a ser tirado. */
+        'acoes_grupo' => (function () use ($pdo) {
+            require_once __DIR__ . '/../backend/whatsapp_grupo.php';
+            waGrupoVarredura($pdo);
+            return waGrupoPendentes($pdo);
+        })(),
     ]);
 }
 
@@ -352,7 +362,16 @@ if ($acao === 'resultado') {
             $falhas++;
         }
     }
-    botResponder(200, ['enviadas' => $enviadas, 'falhas' => $falhas]);
+    /* O resultado das ações de grupo volta no mesmo pacote, em outra chave:
+       é outra tabela e outro tipo de falha (o demote que não pegou não pode
+       virar backoff de mensagem). Worker antigo não manda nada aqui. */
+    $acoes = 0;
+    if (!empty($corpo['acoes_grupo']) && is_array($corpo['acoes_grupo'])) {
+        require_once __DIR__ . '/../backend/whatsapp_grupo.php';
+        $acoes = waGrupoResultado($pdo, $corpo['acoes_grupo']);
+    }
+
+    botResponder(200, ['enviadas' => $enviadas, 'falhas' => $falhas, 'acoes_grupo' => $acoes]);
 }
 
 botResponder(400, ['erro' => 'Ação desconhecida']);

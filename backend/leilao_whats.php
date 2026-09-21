@@ -704,6 +704,23 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "⏱ Fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova.";
     whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO, null, null, null, null, true);
 
+    /* O DONO PRECISA PODER RESPONDER NO GRUPO.
+       O Gameplay fica restrito a administradores, e é ali que as propostas
+       aparecem — sem o cargo, o ✅ dele não sai. O bot promove agora e rebaixa
+       no encerramento (lwEncerrar); quem já era admin não é tocado na volta, e
+       uma promoção esquecida cai na varredura de backend/whatsapp_grupo.php. */
+    try {
+        require_once __DIR__ . '/whatsapp_grupo.php';
+        $stDono = $pdo->prepare('SELECT u.phone FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ?');
+        $stDono->execute([(int)$t['id']]);
+        $numeroDono = whatsappNumero($stDono->fetchColumn() ?: null);
+        if ($numeroDono) {
+            waGrupoPromover($pdo, (string)$grupo, $numeroDono . '@s.whatsapp.net', 'leilao');
+        }
+    } catch (Throwable $e) {
+        error_log('[leilao_whats] promover dono: ' . $e->getMessage());
+    }
+
     return "✅ Leilão de *{$rotulo}* aberto e anunciado no Gameplay da {$liga}.\n\n"
          . "As propostas vão aparecer lá, uma por vez. Responda cada uma com ✅ ou ❌ no grupo "
          . "(ou aqui no privado). O slot é consumido quando o leilão fechar — se ninguém mandar proposta, ele volta pra você.";
@@ -1641,6 +1658,21 @@ function lwEncerrar(PDO $pdo, int $lwId): void
         $pdo->prepare("UPDATE leilao_whats SET status = 'encerrado', encerrado_em = NOW(), resultado = ? WHERE id = ?")
             ->execute([$resultado, $lwId]);
         $pdo->commit();
+
+        /* O cargo sai junto com o leilão. Fora da transação de propósito: se o
+           rebaixamento falhar, o leilão já está fechado e certo — e quem tira
+           o admin esquecido é a varredura, não um rollback. */
+        try {
+            require_once __DIR__ . '/whatsapp_grupo.php';
+            $stD = $pdo->prepare('SELECT u.phone FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ?');
+            $stD->execute([(int)$lw['vendedor_team_id']]);
+            $numeroDono = whatsappNumero($stD->fetchColumn() ?: null);
+            if ($numeroDono) {
+                waGrupoRebaixar($pdo, (string)$lw['grupo_jid'], $numeroDono . '@s.whatsapp.net', 'leilao');
+            }
+        } catch (Throwable $e) {
+            error_log('[leilao_whats] rebaixar dono: ' . $e->getMessage());
+        }
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         // Volta pra aberto: o próximo pulso tenta de novo em vez de largar o leilão preso.

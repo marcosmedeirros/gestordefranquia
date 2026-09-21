@@ -123,6 +123,14 @@ while (true) {
     // de diferença num PHP que assumiu Europe/Berlin.
     $entradaSeg = $resp['ultima_entrada_seg'] ?? null;
 
+    /* DAR E TIRAR ADMIN vem junto da fila de mensagens, em outra chave.
+       É o leilão: o dono precisa responder ✅/❌ num Gameplay restrito a
+       administradores, então o bot o promove ao abrir e rebaixa ao fechar.
+       Fica antes do envio porque é o que destrava alguém — mensagem espera
+       um pulso, cargo não. */
+    $acoes = $resp['acoes_grupo'] ?? [];
+    if ($acoes) processarAcoesDeGrupo($acoes, $cfg, $site, $hdrAuth, $hdrEvo);
+
     if (!$msgs) {
         // Nada a fazer. Dorme e tenta de novo, se ainda couber no minuto.
         // Silencioso de propósito: logar cada batida encheria o arquivo de
@@ -226,6 +234,47 @@ function sincronizarNomes(array $cfg, string $site, array $hdrAuth, array $hdrEv
 
     [$st2, , ] = req($site . '/api/whatsapp-bot.php?action=nomes', ['grupos' => $grupos], $hdrAuth);
     if ($st2 === 200) logar('nomes de grupo sincronizados: ' . count($grupos));
+}
+
+/**
+ * Dá e tira admin de gente no grupo, a mando do site.
+ *
+ * O bot precisa ser administrador do grupo pra isso valer — e é a Evolution
+ * quem recusa se não for. O site decide QUEM e QUANDO (ver
+ * backend/whatsapp_grupo.php); aqui é só o braço.
+ *
+ * Cada ação vai sozinha, com o resultado devolvido uma a uma: promover cinco
+ * e falhar na terceira não pode fazer o site achar que nenhuma pegou — o
+ * rebaixamento depois depende de saber exatamente quais deram certo.
+ */
+function processarAcoesDeGrupo(array $acoes, array $cfg, string $site, array $hdrAuth, array $hdrEvo): void
+{
+    $base = rtrim($cfg['evolution_url'], '/') . '/group/updateParticipant/'
+          . rawurlencode($cfg['evolution_instancia']);
+
+    $resultados = [];
+    foreach ($acoes as $a) {
+        $jid  = trim((string)($a['grupo_jid'] ?? ''));
+        $quem = trim((string)($a['participante'] ?? ''));
+        $acao = (string)($a['acao'] ?? '');
+        if ($jid === '' || $quem === '' || !in_array($acao, ['promote', 'demote'], true)) continue;
+
+        $url = $base . '?groupJid=' . rawurlencode($jid);
+        [$s, $r, $e] = req($url, ['action' => $acao, 'participants' => [$quem]], $hdrEvo, 15);
+        $ok = !$e && $s >= 200 && $s < 300;
+
+        $resultados[] = [
+            'id'   => (int)($a['id'] ?? 0),
+            'ok'   => $ok,
+            'erro' => $ok ? null : ($e ?: ('evolution HTTP ' . $s . ' ' . mb_substr(json_encode($r, JSON_UNESCAPED_UNICODE), 0, 120))),
+        ];
+        logar(($ok ? 'ok' : 'FALHOU') . " {$acao} {$quem} em {$jid}");
+        usleep(500000);
+    }
+
+    if ($resultados) {
+        req($site . '/api/whatsapp-bot.php?action=resultado', ['acoes_grupo' => $resultados], $hdrAuth);
+    }
 }
 
 /** Envia um lote pela Evolution e devolve o resultado pro site. */
