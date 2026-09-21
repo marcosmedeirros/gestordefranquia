@@ -55,15 +55,19 @@ $stTeams = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS nm FROM teams WHER
 $stTeams->execute([$league]);
 $teams = $stTeams->fetchAll(PDO::FETCH_ASSOC);
 
-$updatedCount = 0;
-$notUpdated = [];
-foreach ($teams as $t) {
-    if (elencoAtualizadoNaTemporada($pdo, (int)$t['id'], $seasonId)) {
-        $updatedCount++;
-    } else {
-        $notUpdated[] = $t['nm'];
-    }
-}
+/* A MESMA CONTA DA BOLINHA DA ABA TIMES, e agora também aqui.
+   Este painel contava pelo `elencoAtualizadoNaTemporada`, que aceita uma linha
+   em player_season_log como prova de atualização — e o log da temporada nasce
+   cheio por outros caminhos. Resultado: o painel dizia "30 de 30" enquanto a
+   aba Times mostrava relógios amarelos, e o /timesstatus do bot (que já usa a
+   régua da bolinha) discordava dos dois.
+
+   Uma conta só, em leagueRosterUpdateStatus: bolinha, checklist, este painel e
+   o bot respondem igual. */
+require_once __DIR__ . '/../backend/league_cap.php';
+$rosterStatus = $seasonId ? leagueRosterUpdateStatus($pdo, $league, $seasonId) : null;
+$updatedCount = $rosterStatus['done'] ?? 0;
+$notUpdated   = $rosterStatus['pendentes'] ?? [];
 
 echo json_encode([
     'success' => true,
