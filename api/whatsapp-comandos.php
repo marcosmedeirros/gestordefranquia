@@ -665,6 +665,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     $ordem = wcOrdemLiga($ligaDoGrupo);
     $st = $pdo->prepare("
         SELECT p.id, p.name, p.age, p.height, p.position, p.secondary_position, p.{$ovr} AS ovr,
+               p.badges_count, p.badge_name,
                p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
                " . wcColunasSkill('p') . ",
                t.city, t.mascot, t.name AS team_name, t.league
@@ -701,6 +702,15 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         . "OVR: *{$p['ovr']}*\n"
         . "Posição: {$pos}\n"
         . (!empty($p['height']) ? "Altura: {$p['height']}\n" : '')
+        /* Badges e altura só aparecem quando alguém preencheu: são campos que
+           a liga enche à mão, jogador por jogador, e hoje 127 dos 1.821 têm
+           altura. Linha vazia em ficha de jogador é ruído que ensina a pular a
+           ficha inteira. O nome da badge entra junto quando existe — quem
+           preencheu um sem o outro fica com o que preencheu. */
+        . (!empty($p['badges_count'])
+            ? 'Badges: *' . (int)$p['badges_count'] . '*'
+              . (!empty($p['badge_name']) ? ' (' . $p['badge_name'] . ')' : '') . "\n"
+            : (!empty($p['badge_name']) ? "Badge: {$p['badge_name']}\n" : ''))
         . "Idade: {$p['age']} anos\n"
         . "Temporadas na liga: " . (int)$p['seasons_in_league'] . "\n";
 
