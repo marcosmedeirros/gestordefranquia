@@ -408,6 +408,12 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '- Próximos campeões, quem ganha as próximas temporadas: projetar_campeoes.',
         '- Como vai estar o RANKING daqui a N temporadas: projetar_ranking (sem número dito, 4).',
         '- Médias de um jogador na PRÓXIMA temporada (PTS, REB, AST): projetar_jogador.',
+        /* A pergunta que mais chega no grupo, e a que ele mais errava: tentava
+           descobrir os titulares por SQL e voltava com "não encontrei
+           titulares" num time que tem os cinco marcados. */
+        '- Previsão do QUINTETO de um time, jogador por jogador ("faça a previsão do X",',
+        '  "Nome 25/7/10" pra cada titular): projetar_quinteto. Ela já sabe quem são os titulares —',
+        '  não procure isso com consultar_dados.',
         '- Como vai estar um jogador daqui a N temporadas (OVR, idade, se cai ou sobe):',
         '  projetar_futuro_jogador (sem número dito, 5).',
         '- Loteria do draft, quem pega a 1ª escolha, chance de top 1 ou top 3: projetar_loteria.',
@@ -1056,6 +1062,21 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                 'required' => ['time_a', 'time_b'],
             ],
         ], [
+            'name' => 'projetar_quinteto',
+            'description' =>
+                'Projeta as médias da próxima temporada dos CINCO TITULARES de um time de uma vez: pontos, '
+              . 'rebotes e assistências por jogo de cada um. Use sempre que pedirem a previsão de um TIME no '
+              . 'formato "Jogador pontos/rebotes/assistências" — "faça a previsão do quinteto do X", '
+              . '"quanto cada titular do X vai fazer", "projeção do time X jogador por jogador". Não tente '
+              . 'descobrir os titulares por consulta: esta ferramenta já sabe quem são.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'time' => ['type' => 'string', 'description' => 'Nome, cidade ou apelido do time. Ex.: "Athens Gladiators", "Gladiators".'],
+                ],
+                'required' => ['time'],
+            ],
+        ], [
             'name' => 'projetar_jogador',
             'description' =>
                 'Projeta as médias por jogo de UM jogador na próxima temporada (MIN, PTS, REB, AST, ROU, '
@@ -1323,6 +1344,7 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
                         $resultado = match ($nome) {
                             'projetar_temporada' => projTemporadaTexto($pdo, (string)($args['time'] ?? ''), $league),
                             'projetar_confronto' => projConfrontoTexto($pdo, (string)($args['time_a'] ?? ''), (string)($args['time_b'] ?? ''), $league),
+                            'projetar_quinteto'  => projQuintetoTexto($pdo, (string)($args['time'] ?? ''), $league),
                             'projetar_jogador'   => projJogadorTexto($pdo, (string)($args['jogador'] ?? ''), $league),
                             'projetar_futuro_jogador' => projFuturoJogadorTexto($pdo, (string)($args['jogador'] ?? ''), (int)($args['temporadas'] ?? 0), $league),
                             'projetar_playoffs'  => projPlayoffsTexto($pdo, (string)($args['liga'] ?? ''), $league),

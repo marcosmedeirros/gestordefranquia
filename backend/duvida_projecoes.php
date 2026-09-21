@@ -365,12 +365,20 @@ function projAcharJogador(PDO $pdo, string $textoJogador, string $ligaGrupo): ar
 }
 
 /** Médias projetadas de um jogador pra próxima temporada, pronto pro bot. */
-function projJogadorTexto(PDO $pdo, string $textoJogador, string $ligaGrupo): string
+/**
+ * O CÁLCULO DA PROJEÇÃO DE UM JOGADOR, sem texto nenhum.
+ *
+ * Saiu de dentro de projJogadorTexto() quando a projeção do QUINTETO nasceu:
+ * a conta é a mesma para um jogador e para os cinco, e copiá-la seria garantir
+ * que um dia a ficha individual e a tabela do time discordassem sobre o mesmo
+ * jogador.
+ *
+ * @return array{temps:array, proj:array, meia:array, ajOvr:float, ajIdade:float, ovrEpoca:int}|null
+ *         null quando não há estatística lançada — calouro, recém-chegado ou
+ *         time que não lançou.
+ */
+function projCalculoDoJogador(PDO $pdo, array $j): ?array
 {
-    $achado = projAcharJogador($pdo, $textoJogador, $ligaGrupo);
-    if (isset($achado['erro'])) return $achado['erro'];
-    $j = $achado['jogador'];
-
     // O mesmo jogador pode ter mais de um id: dispensa e recontratação criam
     // cadastro novo. O histórico liga os ids pelo nome — mas SÓ DENTRO DA LIGA
     // dele: há um Kobe Bryant na ELITE e outro na ROOKIE, e ligar pelo nome sem
@@ -393,33 +401,142 @@ function projJogadorTexto(PDO $pdo, string $textoJogador, string $ligaGrupo): st
                        ORDER BY s.season_number DESC LIMIT 2");
     $st->execute(array_merge($ids, [$liga]));
     $temps = $st->fetchAll(PDO::FETCH_ASSOC);
-    if (!$temps) {
-        return "{$j['name']} ({$j['time']}) não tem estatística lançada nesta sprint — calouro, recém-chegado ou time que não lançou. Sem base, não há projeção.";
-    }
+    if (!$temps) return null;
 
     // Peso: a mais recente 65%, a anterior 35%, e cada uma pelos jogos.
-    $cols = ['min_pg' => 'MIN', 'pts_pg' => 'PTS', 'reb_pg' => 'REB', 'ast_pg' => 'AST', 'stl_pg' => 'ROU', 'blk_pg' => 'TOC'];
-    $base = []; $pesoTotal = 0; $jogos = 0;
+    $cols = ['min_pg', 'pts_pg', 'reb_pg', 'ast_pg', 'stl_pg', 'blk_pg'];
+    $base = []; $pesoTotal = 0;
     foreach ($temps as $i => $t) {
         $w = ($i === 0 ? 0.65 : 0.35) * (int)$t['games'];
-        $pesoTotal += $w; $jogos += ($i === 0 ? 0.65 : 0.35) * (int)$t['games'];
-        foreach ($cols as $c => $_) $base[$c] = ($base[$c] ?? 0) + (float)$t[$c] * $w;
+        $pesoTotal += $w;
+        foreach ($cols as $c) $base[$c] = ($base[$c] ?? 0) + (float)$t[$c] * $w;
     }
     foreach ($base as $c => $v) $base[$c] = $pesoTotal ? $v / $pesoTotal : 0;
-    $pesoJogos = count($temps) === 2 ? 1.0 : 0.65;
 
     $ovrEpoca = (int)($temps[0]['ovr_epoca'] ?? 0);
     $ajOvr = $ovrEpoca > 0 ? max(0.85, min(1.20, (int)$j['ovr'] / $ovrEpoca)) : 1.0;
     $idade = (int)$j['age'];
     $ajIdade = $idade <= 23 ? 1.05 : ($idade <= 29 ? 1.00 : ($idade <= 32 ? 0.97 : 0.92));
 
-    $linhas = [];
-    foreach ($cols as $c => $rot) {
-        $proj = $base[$c] * $ajOvr * $ajIdade;
-        if ($c === 'min_pg') $proj = min(40.0, $proj);
+    $proj = []; $meia = [];
+    foreach ($cols as $c) {
+        $v = $base[$c] * $ajOvr * $ajIdade;
+        if ($c === 'min_pg') $v = min(40.0, $v);
+        $proj[$c] = $v;
         // Faixa: metade da diferença entre as duas temporadas, e no mínimo 10%.
         $dif = count($temps) === 2 ? abs((float)$temps[0][$c] - (float)$temps[1][$c]) / 2 * $ajOvr * $ajIdade : 0;
-        $meia = max(0.10 * $proj, $dif);
+        $meia[$c] = max(0.10 * $v, $dif);
+    }
+
+    return ['temps' => $temps, 'proj' => $proj, 'meia' => $meia,
+            'ajOvr' => $ajOvr, 'ajIdade' => $ajIdade, 'ovrEpoca' => $ovrEpoca];
+}
+
+/**
+ * A PROJEÇÃO DO QUINTETO INTEIRO — jogador, pontos, rebotes e assistências.
+ *
+ * É o pedido que chegava no grupo e que o bot não conseguia atender: ele
+ * tentava descobrir sozinho quem eram os titulares, escrevia uma consulta e
+ * voltava com "não encontrei jogadores listados como titulares", num time que
+ * tem os cinco marcados. Adivinhar esquema por SQL improvisado é o caminho
+ * mais longo pra pergunta mais comum.
+ *
+ * Quem não tem estatística lançada (calouro, recém-chegado) entra na lista com
+ * o motivo, e não some: um quinteto com quatro linhas faz o leitor procurar o
+ * quinto.
+ *
+ * A conta de cada jogador é a MESMA da projeção individual — as duas chamam
+ * projCalculoDoJogador().
+ */
+function projQuintetoTexto(PDO $pdo, string $textoTime, string $ligaGrupo): string
+{
+    $achado = projAcharTime($pdo, $textoTime, $ligaGrupo);
+    if (isset($achado['erro'])) return $achado['erro'];
+    $t = $achado['time'] ?? $achado;
+    $teamId = (int)($t['id'] ?? 0);
+    $nomeTime = trim(((string)($t['city'] ?? '')) . ' ' . ((string)($t['name'] ?? '')));
+    $liga = strtoupper((string)($t['league'] ?? $ligaGrupo));
+    if (!$teamId) return "Não achei o time \"{$textoTime}\".";
+
+    /* OS TITULARES MARCADOS, na ordem da quadra. Sem nenhum marcado, os cinco
+       melhores por OVR — e a resposta diz isso, porque projetar "o quinteto"
+       de um time que não montou quinteto é outra coisa. */
+    $st = $pdo->prepare("SELECT id, name, age, ovr, position, role
+                           FROM players WHERE team_id = ? AND role = 'Titular'
+                       ORDER BY FIELD(UPPER(TRIM(position)),'PG','SG','SF','PF','C'), ovr DESC");
+    $st->execute([$teamId]);
+    $quinteto = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $porOvr = false;
+    if (!$quinteto) {
+        $porOvr = true;
+        $st = $pdo->prepare("SELECT id, name, age, ovr, position, role FROM players
+                              WHERE team_id = ? ORDER BY ovr DESC LIMIT 5");
+        $st->execute([$teamId]);
+        $quinteto = $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+    if (!$quinteto) return "O {$nomeTime} não tem jogadores no elenco.";
+
+    $linhas = [];
+    $semBase = 0;
+    foreach ($quinteto as $j) {
+        $j['league'] = $liga;
+        $calc = projCalculoDoJogador($pdo, $j);
+        $pos = strtoupper(trim((string)$j['position']));
+
+        if ($calc === null) {
+            $semBase++;
+            $linhas[] = "- {$j['name']} ({$pos}, {$j['ovr']} OVR): sem estatística lançada nesta sprint — não dá pra projetar.";
+            continue;
+        }
+
+        $base = implode(' e ', array_map(fn($x) => 'T' . (int)$x['season_number']
+            . ' (' . projNum((float)$x['pts_pg']) . '/' . projNum((float)$x['reb_pg']) . '/' . projNum((float)$x['ast_pg']) . ')',
+            $calc['temps']));
+
+        $linhas[] = "- {$j['name']} ({$pos}, {$j['ovr']} OVR): "
+            . projNum($calc['proj']['pts_pg']) . ' / '
+            . projNum($calc['proj']['reb_pg']) . ' / '
+            . projNum($calc['proj']['ast_pg'])
+            . ' — ' . projNum($calc['proj']['min_pg']) . ' min · base: ' . $base;
+    }
+
+    $l = [];
+    $l[] = "PROJEÇÃO DO QUINTETO — {$nomeTime} ({$liga})";
+    $l[] = 'Formato de cada linha: jogador (posição, OVR): PONTOS / REBOTES / ASSISTÊNCIAS por jogo.';
+    if ($porOvr) $l[] = 'ATENÇÃO: este time não tem titulares marcados — são os 5 maiores OVR do elenco. Diga isso na resposta.';
+    $l = array_merge($l, $linhas);
+    if ($semBase) $l[] = "{$semBase} jogador(es) sem base: diga o motivo em vez de inventar número.";
+    $l[] = 'A conta é a mesma da projeção individual: as duas últimas temporadas com jogo (a mais recente pesa 65%), '
+         . 'ajustada pelo OVR de hoje contra o da época e pela idade.';
+    $l[] = 'COMO LER: é estimativa do que já foi feito. Não entra minutagem nova, troca, tática nem mudança de papel. '
+         . 'Responda no formato que pediram — "Nome 25/7/10" é o que a liga usa.';
+    return implode("\n", $l);
+}
+
+function projJogadorTexto(PDO $pdo, string $textoJogador, string $ligaGrupo): string
+{
+    $achado = projAcharJogador($pdo, $textoJogador, $ligaGrupo);
+    if (isset($achado['erro'])) return $achado['erro'];
+    $j = $achado['jogador'];
+
+    $liga = strtoupper((string)$j['league']);
+
+    $calc = projCalculoDoJogador($pdo, $j);
+    if ($calc === null) {
+        return "{$j['name']} ({$j['time']}) não tem estatística lançada nesta sprint — calouro, recém-chegado ou time que não lançou. Sem base, não há projeção.";
+    }
+    $temps = $calc['temps'];
+    $ovrEpoca = $calc['ovrEpoca'];
+    $ajOvr = $calc['ajOvr'];
+    $ajIdade = $calc['ajIdade'];
+    $idade = (int)$j['age'];
+
+    $cols = ['min_pg' => 'MIN', 'pts_pg' => 'PTS', 'reb_pg' => 'REB', 'ast_pg' => 'AST', 'stl_pg' => 'ROU', 'blk_pg' => 'TOC'];
+    $linhas = [];
+    foreach ($cols as $c => $rot) {
+        $proj = $calc['proj'][$c];
+        $meia = $calc['meia'][$c];
         $linhas[] = "{$rot} " . projNum($proj) . ' (' . projNum(max(0, $proj - $meia)) . '–' . projNum($proj + $meia) . ')';
     }
 
