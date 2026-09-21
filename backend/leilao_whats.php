@@ -115,6 +115,10 @@ function lwGarantirTabelas(PDO $pdo): void
         if (!$pdo->query("SHOW COLUMNS FROM leilao_whats LIKE 'aviso_5'")->fetch()) {
             $pdo->exec("ALTER TABLE leilao_whats ADD COLUMN aviso_5 TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN aviso_1 TINYINT(1) NOT NULL DEFAULT 0");
         }
+        // "A janela fechou, mas ainda faltam N propostas pra decidir" — uma vez só.
+        if (!$pdo->query("SHOW COLUMNS FROM leilao_whats LIKE 'aviso_fila'")->fetch()) {
+            $pdo->exec("ALTER TABLE leilao_whats ADD COLUMN aviso_fila TINYINT(1) NOT NULL DEFAULT 0");
+        }
         $col = $pdo->query("SHOW COLUMNS FROM leilao_jogadores LIKE 'player_id'")->fetch(PDO::FETCH_ASSOC);
         if ($col && strtoupper((string)$col['Null']) === 'NO') {
             $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN player_id INT NULL");
@@ -1358,12 +1362,39 @@ function lwDespachar(PDO $pdo): void
             $st->execute([(int)$lw['id']]);
             $fila = $st->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            $semNada = empty($fila['aguardando']) && empty($fila['na_vez']);
-            if ($lw['status_app'] !== 'ativo' || $lw['venceu'] || ($lw['ocioso'] && $semNada)) {
+            $naFila  = (int)($fila['aguardando'] ?? 0) + (int)($fila['na_vez'] ?? 0);
+            $semNada = $naFila === 0;
+
+            /* OS 20 MINUTOS SÃO PRA MANDAR PROPOSTA, NÃO PRA DECIDIR.
+               Aqui o `venceu` encerrava o leilão na hora, sozinho. Com sete
+               propostas na fila e uma esperando resposta, o prazo estourou, o
+               bot fechou com a última que tinha sido aceita e executou a troca
+               — as sete nunca foram mostradas ao dono, e a que estava na vez
+               foi decidida por ninguém. Aconteceu em 21/09/2026.
+
+               Proposta que entrou dentro do tempo tem que ser ENTREGUE e
+               respondida. Quem entra depois do prazo já era barrado em
+               lwReceberProposta (pelo fim_max), então esperar a fila esvaziar
+               não estica a janela de ninguém: só termina o que foi aceito
+               enquanto ela estava aberta.
+
+               Sem risco de leilão eterno: o dono que não responde tem a vez
+               expirada em LW_RESPOSTA_SEG e a proposta vira recusada, então a
+               fila anda mesmo com ele offline. Pior caso: a fila inteira
+               vencendo uma a uma.
+
+               O `status_app` continua fechando na hora — ali a decisão veio do
+               app, e não do relógio. */
+            if ($lw['status_app'] !== 'ativo' || (($lw['venceu'] || $lw['ocioso']) && $semNada)) {
                 lwEncerrar($pdo, (int)$lw['id']);
                 continue;
             }
-            lwAvisarTempo($pdo, $lw);
+
+            if ($lw['venceu']) {
+                lwAvisarFilaRestante($pdo, $lw, $naFila);
+            } else {
+                lwAvisarTempo($pdo, $lw);
+            }
             // Dono sem responder a proposta da vez: recusa por tempo e libera a fila.
             if (!empty($fila['na_vez']) && lwExpirarVez($pdo, $lw)) {
                 $fila['na_vez'] = 0;
@@ -1406,6 +1437,31 @@ function lwAvisarTempo(PDO $pdo, array $lw): void
         whatsappEnfileirar($pdo, (string)$lw['grupo_jid'], $txt, true, LEILAO_BOT_TIPO);
         return;
     }
+}
+
+/**
+ * "A janela fechou, mas ainda tem fila" — uma vez só, quando o prazo vence com
+ * proposta pra decidir.
+ *
+ * Sem este aviso o grupo vê o "FALTA 1 MINUTO", depois o minuto passar, e o
+ * leilão continuar postando propostas: parece bot perdido. Aqui ele diz o que
+ * está acontecendo — não entram novas, faltam N pra decidir.
+ */
+function lwAvisarFilaRestante(PDO $pdo, array $lw, int $naFila): void
+{
+    if ($naFila < 1) return;
+
+    // O UPDATE condicional é a trava contra dois pulsos do worker juntos.
+    $up = $pdo->prepare("UPDATE leilao_whats SET aviso_fila = 1 WHERE id = ? AND aviso_fila = 0");
+    $up->execute([(int)$lw['id']]);
+    if ($up->rowCount() < 1) return;
+
+    whatsappEnfileirar($pdo, (string)$lw['grupo_jid'],
+        "⏱ *A janela de propostas fechou.*\n\n"
+        . "Não entram novas, mas ainda " . ($naFila === 1 ? 'falta *1* pra ser decidida' : "faltam *{$naFila}* pra serem decididas")
+        . " — elas vão aparecer aqui, uma por vez.\n\n"
+        . '_O leilão só fecha depois da última._',
+        true, LEILAO_BOT_TIPO);
 }
 
 /**
