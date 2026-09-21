@@ -860,9 +860,16 @@ try {
             $stmtReg->execute([$league]);
             $registeredIds = array_flip(array_column($stmtReg->fetchAll(PDO::FETCH_ASSOC), 'season_id'));
 
+            /* ORDENA PELO NOME QUE APARECE NA TELA, não pela cidade.
+               Era `ORDER BY t.city, t.name`, que dá quase no mesmo — até o time
+               com a cidade em branco, que virava " Villanova Valleys", com o
+               espaço na frente, e ia pro topo da lista. Quem procura o time no
+               dropdown procura pelo texto que está vendo. */
             $stmtLT = $pdo->prepare("
-                SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name
-                FROM teams t WHERE t.league = ? ORDER BY t.city, t.name
+                SELECT t.id AS team_id,
+                       TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS team_name
+                  FROM teams t WHERE t.league = ?
+              ORDER BY team_name
             ");
             $stmtLT->execute([$league]);
             $leagueTeams = $stmtLT->fetchAll(PDO::FETCH_ASSOC);

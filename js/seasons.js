@@ -2198,10 +2198,21 @@ function montarOrdemGeral() {
     const base = naTela.length ? naTela : Array.from({ length: vagas }, (_, i) => salva[i] || '');
     const guardada = base.map(v => (v && todos.includes(String(v))) ? String(v) : '');
 
-    const opts = (sel) => '<option value="">—</option>' + todos.map(id => {
+    /* EM ORDEM ALFABÉTICA, e não na ordem que o banco devolveu.
+       São 30 a 32 opções por slot, e a lista é percorrida uma vez por
+       posição: fora de ordem, cada colocação custa varrer a liga inteira com
+       o olho. `localeCompare` com pt-BR porque ordenação binária joga acento
+       pro fim — "México City Catrinas" cairia depois do Z. */
+    const nomeDoTime = (id) => {
         const t = tById[String(id)] || {};
-        return `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${(t.city || '') + ' ' + (t.name || id)}</option>`;
-    }).join('');
+        return `${t.city || ''} ${t.name || id}`.trim();
+    };
+    const todosAZ = [...todos].sort((a, b) =>
+        nomeDoTime(a).localeCompare(nomeDoTime(b), 'pt-BR', { sensitivity: 'base' }));
+
+    const opts = (sel) => '<option value="">—</option>' + todosAZ.map(id =>
+        `<option value="${id}"${String(id) === String(sel) ? ' selected' : ''}>${nomeDoTime(id)}</option>`
+    ).join('');
 
     /* QUEM PERDEU O 7x8, marcado à mão.
        É o único grupo que não se deduz de jeito nenhum: quem caiu no play-in
@@ -2460,12 +2471,28 @@ async function loadTeamsForStandings(league) {
         const teams = data.teams || [];
         seasonsState.teamsById = Object.fromEntries(teams.map(t => [String(t.id), t]));
 
+        /* OS DROPDOWNS DE PRÊMIO EM ORDEM ALFABÉTICA.
+           São 32 times em cada um, e a ordem que vinha do banco não é a que
+           se procura: achar "México City Catrinas" no meio de uma lista fora
+           de ordem é ler os 32. `localeCompare` com pt-BR porque ordenação
+           binária joga acento pro fim do alfabeto — o México cairia depois do
+           Z. Lista à parte: os slots de classificação abaixo continuam na
+           ordem da conferência, que ali é o que importa. */
+        const nomeDoTime = t => `${t.city || ''} ${t.name || ''}`.trim();
+        const timesAZ = [...teams].sort((a, b) =>
+            nomeDoTime(a).localeCompare(nomeDoTime(b), 'pt-BR', { sensitivity: 'base' }));
+        const opcoesAZ = timesAZ.map(t => `<option value="${t.id}">${nomeDoTime(t)}</option>`).join('');
+
         const leste = teams.filter(t => t.conference === 'LESTE');
         const oeste = teams.filter(t => t.conference === 'OESTE');
 
         const makeSlots = (conf, confTeams) => {
+            // Mesma ordem alfabética da ordem geral: é a mesma tarefa, com a
+            // lista menor (só a conferência).
             const opts = '<option value="">—</option>' +
-                confTeams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+                [...confTeams]
+                    .sort((a, b) => nomeDoTime(a).localeCompare(nomeDoTime(b), 'pt-BR', { sensitivity: 'base' }))
+                    .map(t => `<option value="${t.id}">${nomeDoTime(t)}</option>`).join('');
             const slotCount = Math.max(8, confTeams.length);
             /* TRÊS BLOCOS, como a temporada acontece: 1º–6º vão direto, 7º e
                8º são os que VENCERAM o play-in, e do 9º em diante fica quem
@@ -2521,8 +2548,7 @@ async function loadTeamsForStandings(league) {
         // Popular selects de premiações
         const selects = document.querySelectorAll('select[name$="_team_id"]');
         selects.forEach(select => {
-            select.innerHTML = '<option value="">Selecione...</option>' +
-                teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+            select.innerHTML = '<option value="">Selecione...</option>' + opcoesAZ;
         });
         // Restaurar valores selecionados antes do rebuild
         const regCache = _regPtsLoadCache();
@@ -2537,8 +2563,7 @@ async function loadTeamsForStandings(league) {
         ['first_round_losses', 'second_round_losses', 'conference_final_losses'].forEach(name => {
             const select = document.querySelector(`select[name="${name}"]`);
             if (select) {
-                select.innerHTML = '<option value="">Selecione...</option>' +
-                    teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+                select.innerHTML = '<option value="">Selecione...</option>' + opcoesAZ;
             }
         });
 

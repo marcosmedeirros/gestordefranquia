@@ -9448,6 +9448,15 @@ function collectPtsSeries(sid) {
 function buildPtsForm(seasonId, league, leagueTeams, inputClass) {
   const sid = String(seasonId);
   const isElite = (league||'').toUpperCase() === 'ELITE';
+
+  /* EM ORDEM ALFABÉTICA, pelo nome que aparece na tela.
+     São 32 times em cada dropdown de prêmio, e achar um deles numa lista
+     fora de ordem é ler a lista inteira. `localeCompare` com pt-BR porque
+     "México City Catrinas" tem que cair entre o M e o N, e não depois do Z —
+     ordenação binária joga acento pro fim. A cópia é de propósito: quem
+     chamou pode estar usando a lista original em outra ordem. */
+  leagueTeams = [...(leagueTeams || [])].sort((a, b) =>
+    String(a.team_name || '').localeCompare(String(b.team_name || ''), 'pt-BR', { sensitivity: 'base' }));
   const sel = 'background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:3px 5px;color:var(--text);font-size:11px;flex-shrink:0';
 
   const teamRows = leagueTeams.map(t => `
