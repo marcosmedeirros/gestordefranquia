@@ -109,8 +109,60 @@ function botAdminLigasDe(PDO $pdo, string $deQuem): array
  */
 function botAdminPermitido(PDO $pdo, string $deQuem, string $grupoJid): array
 {
-    if (!botAdminGrupoLiberado($pdo, $grupoJid)) return [];
+    if (!botAdminGrupoLiberado($pdo, $grupoJid)) {
+        botAdminDicaNoPrivado($pdo, $deQuem, $grupoJid);
+        return [];
+    }
     return botAdminLigasDe($pdo, $deQuem);
+}
+
+/**
+ * O SILÊNCIO É PRA QUEM NÃO PODE, NÃO PRA QUEM ESQUECEU DE DESTRANCAR.
+ *
+ * Comando de admin em grupo não marcado não responde nada — e está certo, o
+ * grupo dos GMs não precisa saber que ele existe. Só que isso também engole a
+ * pista de quem ADMINISTRA e só esqueceu do /adminaqui: cadastrar o grupo no
+ * painel não o marca como grupo de admin, e os dois passos são parecidos o
+ * bastante pra confundir. Aconteceu no grupo ADM da RISE em 21/09/2026.
+ *
+ * Então: o grupo continua em silêncio, e quem é admin geral recebe a dica no
+ * PRIVADO. Ninguém no grupo vê, e quem pode resolver fica sabendo o que fazer.
+ *
+ * Uma vez por grupo, por hora: comando repetido não vira enxurrada no PV.
+ */
+function botAdminDicaNoPrivado(PDO $pdo, string $deQuem, string $grupoJid): void
+{
+    if ($grupoJid === '' || !str_ends_with($grupoJid, '@g.us')) return;
+
+    $u = botAdminUsuario($pdo, $deQuem);
+    if (!$u || ($u['user_type'] ?? '') !== 'admin') return;   // só o admin geral
+
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) return;
+
+    try {
+        botAdminPendentesTabela($pdo);
+        // A marca de "já avisei" mora na própria tabela de pendências, como
+        // uma ação que nunca é confirmada — evita tabela nova só pra isto.
+        $st = $pdo->prepare("SELECT 1 FROM bot_admin_pendentes
+                              WHERE acao = 'dica' AND grupo_jid = ? AND quem = ?
+                                AND criado_em > DATE_SUB(NOW(), INTERVAL 1 HOUR) LIMIT 1");
+        $st->execute([$grupoJid, $deQuem]);
+        if ($st->fetchColumn()) return;
+
+        $pdo->prepare("INSERT INTO bot_admin_pendentes (codigo, grupo_jid, quem, acao, descricao, usado_em)
+                       VALUES ('0000', ?, ?, 'dica', 'aviso de grupo nao marcado', NOW())")
+            ->execute([$grupoJid, $deQuem]);
+
+        require_once __DIR__ . '/whatsapp.php';
+        whatsappEnfileirar($pdo, $digitos . '@s.whatsapp.net',
+            "🔐 Você usou um comando de admin num grupo que *ainda não é grupo de admin*.\n\n"
+            . "Cadastrar o grupo no painel não basta — digite */adminaqui* dentro dele que eu libero os comandos ali.\n\n"
+            . '_Respondi aqui no privado pra não abrir isso no grupo._',
+            false, BOT_ADMIN_TIPO, null, null, $deQuem, 'adminaqui');
+    } catch (Throwable $e) {
+        error_log('[bot-admin] dica: ' . $e->getMessage());
+    }
 }
 
 /**
