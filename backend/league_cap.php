@@ -218,6 +218,49 @@ function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
             error_log('notificarRecalculoCapDaLiga (push user_id=' . $uid . '): ' . $e->getMessage());
         }
     }
+
+    capAvisarGrupoDoRecalculo($pdo, $resumo);
+}
+
+/**
+ * O CAP NOVO NO GAMEPLAY DA LIGA.
+ *
+ * O push já existia, mas push é aviso de quem está com o app instalado e com
+ * a permissão ligada — e a faixa do CAP é a régua que decide quem pode fechar
+ * troca hoje à noite. Quem não soube que ela mudou monta elenco contra um
+ * número que não existe mais.
+ *
+ * Quantos times ficaram fora da faixa vai junto: é o que transforma o aviso em
+ * ação, porque quem está fora tem que se ajustar.
+ */
+function capAvisarGrupoDoRecalculo(PDO $pdo, array $resumo): void
+{
+    try {
+        require_once __DIR__ . '/whatsapp.php';
+        require_once __DIR__ . '/leilao_bot.php';   // botGrupoDaCerimonia()
+
+        $liga = strtoupper((string)($resumo['league'] ?? ''));
+        if ($liga === '') return;
+
+        $grupo = botGrupoDaCerimonia($pdo, $liga);
+        if (!$grupo) return;
+
+        $un = ($resumo['cap_mode'] ?? '') === 'salary' ? 'M' : '';
+        $fora = [];
+        if (!empty($resumo['teams_above'])) $fora[] = (int)$resumo['teams_above'] . ' acima';
+        if (!empty($resumo['teams_below'])) $fora[] = (int)$resumo['teams_below'] . ' abaixo';
+
+        $txt = "📊 *NOVO CAP DEFINIDO — {$liga}*\n\n"
+             . "Cap máximo: *{$resumo['cap_max']}{$un}*\n"
+             . "Cap mínimo: *{$resumo['cap_min']}{$un}*\n"
+             . "\n_Média dos elencos: {$resumo['avg']}{$un}"
+             . ($fora ? ' · ' . implode(' e ', $fora) . ' da faixa' : ' · todo mundo dentro da faixa')
+             . '_';
+
+        whatsappEnfileirar($pdo, $grupo, $txt, true, 'cap');
+    } catch (Throwable $e) {
+        error_log('[cap] aviso no grupo: ' . $e->getMessage());
+    }
 }
 
 /**
