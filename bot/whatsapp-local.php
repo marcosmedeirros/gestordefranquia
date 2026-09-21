@@ -243,6 +243,10 @@ function processarLote(array $msgs, string $urlEnvio, array $hdrEvo, string $sit
         // Menção: o número tem que estar no texto como @numero E nesta lista.
         // Só um dos dois não marca ninguém.
         if (!empty($m['mencoes']) && is_array($m['mencoes'])) $corpo['mentioned'] = $m['mencoes'];
+        // Marcar o grupo inteiro (o @todos). A Evolution resolve a lista de
+        // participantes sozinha — não precisa dos @numero no texto, que com
+        // trinta GMs viraria uma parede de arrobas.
+        if (!empty($m['mencionar_todos'])) $corpo['mentionsEveryOne'] = true;
 
         [$s, $r, $e] = req($urlEnvio, $corpo, $hdrEvo, 15);
         $deuCerto = !$e && $s >= 200 && $s < 300;

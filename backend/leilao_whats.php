@@ -679,6 +679,15 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
         return "Deu erro ao abrir o leilão. Tenta de novo em instantes.";
     }
 
+    /* O ANÚNCIO DE ABERTURA MARCA O GRUPO INTEIRO.
+       O leilão dura 20 minutos e quem não viu não dá proposta — é a única
+       mensagem do bot em que o prejuízo de não ser lida é imediato. Vale só
+       aqui: marcar todo mundo a cada proposta (são dezenas) é o caminho mais
+       curto pra liga silenciar o grupo.
+
+       E é aqui que a regra do ✅/❌ é dita, uma vez só. Ela vale pras
+       propostas que vierem depois, e repeti-la em cada uma seria três linhas
+       de instrução em cima de cada proposta. */
     $anuncio = "🔨 *LEILÃO ABERTO*\n\n"
              . "{$t['name']} leiloa:\n\n"
              . "* " . $linha . "\n\n"
@@ -686,8 +695,10 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
              . "/oferta Jogador + Pick 2026 R1\n"
              . (($link = lwLinkDoBot($pdo)) ? "👉 Chamar o bot: {$link}\n" : '')
              . "\n"
+             . "As propostas aparecem *aqui*, uma por vez, e {$t['name']} responde "
+             . "*✅* pra aceitar ou *❌* pra recusar — só o emoji já vale.\n\n"
              . "⏱ Fecha em " . LW_DURACAO_MIN . " min, ou " . LW_OCIOSO_MIN . " min sem proposta nova.";
-    whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO);
+    whatsappEnfileirar($pdo, $grupo, $anuncio, true, LEILAO_BOT_TIPO, null, null, null, null, true);
 
     return "✅ Leilão de *{$rotulo}* aberto e anunciado no Gameplay da {$liga}.\n\n"
          . "As propostas vão aparecer lá, uma por vez. Responda cada uma com ✅ ou ❌ no grupo "

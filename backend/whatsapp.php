@@ -230,8 +230,9 @@ function whatsappReservar(PDO $pdo, int $limite, string $filtroTipo = ''): array
 
         // `tentativas` vai junto porque o backoff de quem falha sai dela —
         // sem esse campo toda falha voltaria pro primeiro degrau da espera.
-        $st = $pdo->prepare("SELECT id, destino, texto, mencoes, tentativas FROM whatsapp_fila
-                             WHERE reservado_por = ? ORDER BY id ASC");
+        $st = $pdo->prepare("SELECT id, destino, texto, mencoes, mencionar_todos, tentativas
+                               FROM whatsapp_fila
+                              WHERE reservado_por = ? ORDER BY id ASC");
         $st->execute([$token]);
         return $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
@@ -372,6 +373,13 @@ function ensureWhatsAppTables(PDO $pdo): void
         // tem a fila criada precisa do ALTER.
         if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'mencoes'")->rowCount() === 0) {
             $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN mencoes TEXT NULL AFTER user_id");
+        }
+        /* MARCAR O GRUPO INTEIRO é outra coisa que marcar gente: a Evolution
+           tem `mentionsEveryOne`, que não precisa dos @numero no texto. Com a
+           lista de menções daria no mesmo resultado só à custa de trinta
+           arrobas no meio da mensagem. */
+        if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'mencionar_todos'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN mencionar_todos TINYINT(1) NOT NULL DEFAULT 0 AFTER mencoes");
         }
         if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'proxima_tentativa'")->rowCount() === 0) {
             $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN proxima_tentativa DATETIME NULL AFTER tentativas");
@@ -693,7 +701,7 @@ function whatsappGarantirColunasDeAutoria(PDO $pdo): void
  * @param string|null $pedidoPor jid/telefone de quem digitou (só comandos)
  * @param string|null $comando   o comando, sem a barra e sem argumento
  */
-function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null, ?string $pedidoPor = null, ?string $comando = null): bool
+function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null, ?string $pedidoPor = null, ?string $comando = null, bool $mencionarTodos = false): bool
 {
     if ($destino === '' || trim($texto) === '') return false;
 
@@ -719,10 +727,14 @@ function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGr
     $json = $mencoes ? json_encode(array_values(array_filter($mencoes))) : null;
 
     try {
+        // Marcar todo mundo só faz sentido em grupo — no privado a Evolution
+        // ignora, mas gravar a intenção errada confunde quem for ler a fila.
+        $todos = ($mencionarTodos && $ehGrupo) ? 1 : 0;
+
         $pdo->prepare("INSERT INTO whatsapp_fila
-                        (destino, eh_grupo, texto, tipo, user_id, mencoes, pedido_por, comando)
-                       VALUES (?,?,?,?,?,?,?,?)")
-            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId, $json,
+                        (destino, eh_grupo, texto, tipo, user_id, mencoes, mencionar_todos, pedido_por, comando)
+                       VALUES (?,?,?,?,?,?,?,?,?)")
+            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId, $json, $todos,
                        $pedidoPor ? mb_substr($pedidoPor, 0, 80) : null,
                        $comando ? mb_substr($comando, 0, 40) : null]);
         return true;

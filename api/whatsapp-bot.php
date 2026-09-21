@@ -135,6 +135,9 @@ if ($acao === 'pendentes') {
     // Guardado como JSON no banco; o worker recebe já como lista.
     foreach ($pendentes as &$p) {
         $p['mencoes'] = $p['mencoes'] ? (json_decode((string)$p['mencoes'], true) ?: []) : [];
+        // O worker espera booleano; o banco guarda 0/1. Worker antigo ignora
+        // o campo e a mensagem sai sem marcar ninguém, que é o pior caso.
+        $p['mencionar_todos'] = !empty($p['mencionar_todos']);
     }
     unset($p);
 
