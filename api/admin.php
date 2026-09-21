@@ -1574,7 +1574,23 @@ if ($method === 'GET') {
                 $conditions[] = "YEAR(t.created_at) = ?";
                 $params[] = (int)$seasonYear;
             }
-            
+
+            /* BUSCA POR JOGADOR.
+               A pergunta que se faz olhando esta tela quase nunca é "que
+               trocas o time X fez" — é "por onde esse jogador passou". Casa
+               pelo nome de HOJE e pelo nome gravado no item da troca: jogador
+               renomeado (ou já dispensado) continua achável pela grafia que
+               estava na negociação. */
+            $playerBusca = trim((string)($_GET['player'] ?? ''));
+            if ($playerBusca !== '') {
+                $conditions[] = "EXISTS (SELECT 1 FROM trade_items ti
+                                    LEFT JOIN players p ON p.id = ti.player_id
+                                        WHERE ti.trade_id = t.id
+                                          AND (p.name LIKE ? OR ti.player_name LIKE ?))";
+                $params[] = '%' . $playerBusca . '%';
+                $params[] = '%' . $playerBusca . '%';
+            }
+
             $whereClause = !empty($conditions) ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
             // O diário das reversões pode não existir ainda (deploy novo) — e
@@ -1685,6 +1701,18 @@ if ($method === 'GET') {
                 if ($seasonYear) {
                     $multiConditions[] = 'YEAR(mt.created_at) = ?';
                     $multiParams[] = (int)$seasonYear;
+                }
+
+                // A busca por jogador vale nas duas listas: a tela mistura as
+                // trocas de dois times com as múltiplas, e filtrar só metade
+                // daria a impressão de que o jogador nunca entrou numa multi.
+                if ($playerBusca !== '') {
+                    $multiConditions[] = "EXISTS (SELECT 1 FROM multi_trade_items mi
+                                             LEFT JOIN players p2 ON p2.id = mi.player_id
+                                                 WHERE mi.trade_id = mt.id
+                                                   AND (p2.name LIKE ? OR mi.player_name LIKE ?))";
+                    $multiParams[] = '%' . $playerBusca . '%';
+                    $multiParams[] = '%' . $playerBusca . '%';
                 }
 
                 $multiWhere = !empty($multiConditions) ? 'WHERE ' . implode(' AND ', $multiConditions) : '';

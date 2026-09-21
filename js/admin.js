@@ -4926,6 +4926,7 @@ async function showTrades() {
   const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
   const teamFilter = appState.tradeFilters.teamId || '';
   const seasonYearFilter = appState.tradeFilters.seasonYear || '';
+  const playerFilter = appState.tradeFilters.player || '';
 
   const leagueOptions = [
     { value: 'ALL', label: 'Todas as ligas' },
@@ -4955,6 +4956,12 @@ async function showTrades() {
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:160px" id="adminTradeTeamFilter" onchange="updateTradeFilter({ teamId: this.value })">
         <option value="">Todos os times</option>
       </select>
+      <div style="position:relative">
+        <i class="bi bi-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-3);pointer-events:none"></i>
+        <input id="adminTradePlayerFilter" type="search" placeholder="Buscar jogador…"
+               value="${escapeHtml(playerFilter)}"
+               style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px 5px 26px;font-size:12px;min-width:180px">
+      </div>
     </div>
   </div>
 </div>
@@ -4990,7 +4997,28 @@ async function showTrades() {
       }
     }
 
+    /* A BUSCA REDESENHA A TELA A CADA LETRA, então o foco e o cursor têm que
+       sobreviver ao redesenho — sem isto, quem digita "landry" digita um "l"
+       e perde o campo. O listener é montado aqui, depois do innerHTML. */
+    const inputJogador = document.getElementById('adminTradePlayerFilter');
+    if (inputJogador) {
+      if (playerFilter) {
+        inputJogador.focus();
+        inputJogador.setSelectionRange(playerFilter.length, playerFilter.length);
+      }
+      let debounce = null;
+      inputJogador.addEventListener('input', () => {
+        clearTimeout(debounce);
+        // Meio segundo: o suficiente pra terminar de digitar o sobrenome sem
+        // disparar uma consulta por tecla.
+        debounce = setTimeout(() => updateTradeFilter({ player: inputJogador.value.trim() }), 500);
+      });
+    }
+
     let url = 'admin.php?action=trades&status=accepted';
+    if (playerFilter) {
+      url += `&player=${encodeURIComponent(playerFilter)}`;
+    }
     if (leagueFilter && leagueFilter !== 'ALL') {
       url += `&league=${encodeURIComponent(leagueFilter)}`;
     }
