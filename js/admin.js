@@ -4343,12 +4343,24 @@ async function _loadSeasonChecklist(league) {
       const estado = i.feito === true ? 'ok' : (i.feito === null ? 'indef' : 'pend');
       const icone  = i.feito === true ? 'bi-check-circle-fill'
                    : (i.feito === null ? 'bi-question-circle' : 'bi-circle');
+      /* QUEM ESTÁ DEVENDO, PELO NOME. "24 de 30" diz que falta gente, mas não
+         a quem cobrar — e cobrar é a única coisa que se faz com esse número.
+         O item ocupa a linha inteira quando tem lista: nome de time não cabe
+         numa coluna de 240px. */
+      const faltando = (i.faltando || []);
+      const lista = faltando.length
+        ? `<div class="ck-faltam">
+             ${faltando.map(n => `<span class="ck-time">${escapeHtml(n)}</span>`).join('')}
+           </div>`
+        : '';
+
       return `
-        <div class="ck-item ${estado}">
+        <div class="ck-item ${estado}${faltando.length ? ' largo' : ''}">
           <i class="bi ${icone}"></i>
           <div class="ck-txt">
             <div class="ck-titulo">${escapeHtml(i.titulo)}${i.obrigatorio ? '' : ' <span class="ck-opt">opcional</span>'}</div>
             ${i.detalhe ? `<div class="ck-sub">${escapeHtml(i.detalhe)}</div>` : ''}
+            ${lista}
           </div>
         </div>`;
     }).join('');
@@ -4377,6 +4389,11 @@ async function _loadSeasonChecklist(league) {
         .ck-titulo { font-size:13px; font-weight:700; }
         .ck-item.ok .ck-titulo { color:#10b981; }
         .ck-sub { font-size:11px; color:var(--text-3); margin-top:1px; }
+        .ck-item.largo { grid-column:1/-1; }
+        .ck-faltam { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+        .ck-time { font-size:11px; font-weight:600; color:#f59e0b; white-space:nowrap;
+                   background:rgba(245,158,11,.10); border:1px solid rgba(245,158,11,.28);
+                   border-radius:20px; padding:2px 8px; }
         .ck-opt { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
                   color:var(--text-3); border:1px solid var(--border); border-radius:20px; padding:1px 6px; }
         .ck-resumo { font-size:11px; font-weight:700; color:var(--text-3);

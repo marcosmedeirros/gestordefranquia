@@ -22,24 +22,30 @@ function checklistDaTemporada(PDO $pdo, string $league, array $season): array
     $seasonId = (int)$season['id'];
     $itens = [];
 
-    $add = function (string $chave, string $titulo, ?bool $feito, string $detalhe = '', bool $obrigatorio = true) use (&$itens) {
-        $itens[] = compact('chave', 'titulo', 'feito', 'detalhe', 'obrigatorio');
+    $add = function (string $chave, string $titulo, ?bool $feito, string $detalhe = '', bool $obrigatorio = true, array $faltando = []) use (&$itens) {
+        // `faltando` são os nomes de quem está devendo. Um número pendente sem
+        // nome não dá pra cobrar — e cobrar é a única coisa que se faz com ele.
+        $itens[] = compact('chave', 'titulo', 'feito', 'detalhe', 'obrigatorio', 'faltando');
     };
 
     // ── Times atualizados ───────────────────────────────────────────────────
     // A contagem mora em backend/league_cap.php e é chamada daqui: a regra já
-    // esteve escrita nos dois arquivos, e regra repetida diverge.
+    // esteve escrita nos dois arquivos, e regra repetida diverge. É a mesma
+    // que pinta a bolinha do card na aba Times — verde contra relógio amarelo.
     try {
         require_once __DIR__ . '/league_cap.php';
         $st = leagueRosterUpdateStatus($pdo, $league, $seasonId);
         $totalTimes = $st['total'];
         $atualizados = $st['done'];
+        $faltando = $st['pendentes'] ?? [];
 
         $add(
             'times',
             'Times atualizados',
             $st['complete'],
-            "{$atualizados} de {$totalTimes} times"
+            "{$atualizados} de {$totalTimes} times",
+            true,
+            $faltando
         );
     } catch (Throwable $e) {
         $add('times', 'Times atualizados', null, 'não deu pra verificar');

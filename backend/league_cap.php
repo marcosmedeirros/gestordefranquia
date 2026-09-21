@@ -53,36 +53,63 @@ function ensureLeagueCapAutoTables(PDO $pdo): void
 }
 
 /**
- * Quantos times da liga já mexeram no elenco nesta temporada.
+ * Quantos times da liga já mexeram no elenco nesta temporada — e quais não.
  *
- * ESTE é o único lugar que conta — o checklist do admin chama daqui. A regra
- * já esteve escrita duas vezes, aqui e lá, e regra repetida é regra que
- * diverge no dia em que uma das duas muda.
+ * A REGRA É A DA BOLINHA DA ABA TIMES, e agora é só esta: o elenco conta como
+ * atualizado quando `roster_updated_at` é DESTA temporada, isto é, posterior à
+ * criação dela. É a mesma linha que teams.php usa pra decidir entre o ✓ verde
+ * e o relógio amarelo no card do time.
  *
- * Conta QUALQUER mexida: o carimbo `roster_touched_season`, gravado por
- * qualquer edição de elenco, ou uma linha em player_season_log, que é o que
- * o botão "Salvar atributos" grava. Os dois somam porque o carimbo é novo, e
- * sem o segundo os times que já tinham atualizado voltariam a aparecer como
- * pendentes no dia em que isto subisse.
+ * Antes daqui saía outra conta, e ela mentia. Valia o carimbo
+ * `roster_touched_season` OU uma linha em player_season_log daquela temporada
+ * — e o log da temporada nasce cheio, por outros caminhos que não são o GM
+ * mexendo no elenco. Medido na RISE em 21/09/2026: 24 times com carimbo da
+ * temporada, 30 com linha no log, e o checklist do admin anunciando
+ * "30 de 30 times" enquanto a aba Times mostrava seis relógios amarelos.
+ * Quem lia o admin achava que a liga estava pronta pra virar.
+ *
+ * A lista dos pendentes vem junto porque "24 de 30" sozinho não diz a quem
+ * cobrar — e cobrar é a única coisa que se faz com esse número.
+ *
+ * ATENÇÃO: as travas de trade e as pendências do GM usam outra função
+ * (elencoAtualizadoNaTemporada, em helpers.php), que ainda aceita o log.
+ * São contas diferentes de propósito enquanto ninguém decidir bloquear
+ * trade por este critério mais duro.
  */
 function leagueRosterUpdateStatus(PDO $pdo, string $league, int $seasonId): array
 {
     ensureRosterTouchColumn($pdo);
 
-    $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
-    $stmtTotal->execute([$league]);
-    $total = (int)$stmtTotal->fetchColumn();
+    $st = $pdo->prepare("SELECT created_at FROM seasons WHERE id = ?");
+    $st->execute([$seasonId]);
+    $inicio = (string)($st->fetchColumn() ?: '');
 
-    $stmtDone = $pdo->prepare("
-        SELECT COUNT(DISTINCT t.id)
-        FROM teams t
-        LEFT JOIN player_season_log psl ON psl.team_id = t.id AND psl.season_id = ?
-        WHERE t.league = ? AND (t.roster_touched_season = ? OR psl.player_id IS NOT NULL)
-    ");
-    $stmtDone->execute([$seasonId, $league, $seasonId]);
-    $done = (int)$stmtDone->fetchColumn();
+    /* Sem data de criação da temporada não dá pra dizer o que é "desta
+       temporada". Aí sobra o carimbo, que é o sinal honesto que existe. */
+    $sql = $inicio !== ''
+        ? "SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome,
+                  (roster_updated_at IS NOT NULL AND roster_updated_at >= ?) AS ok
+             FROM teams WHERE league = ? ORDER BY nome"
+        : "SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome,
+                  (roster_touched_season = ?) AS ok
+             FROM teams WHERE league = ? ORDER BY nome";
 
-    return ['total' => $total, 'done' => $done, 'complete' => $total > 0 && $done >= $total];
+    $st = $pdo->prepare($sql);
+    $st->execute([$inicio !== '' ? $inicio : $seasonId, $league]);
+
+    $total = 0; $done = 0; $pendentes = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $total++;
+        if ((int)$t['ok'] === 1) { $done++; continue; }
+        $pendentes[] = trim((string)$t['nome']) ?: ('Time #' . (int)$t['id']);
+    }
+
+    return [
+        'total'     => $total,
+        'done'      => $done,
+        'complete'  => $total > 0 && $done >= $total,
+        'pendentes' => $pendentes,
+    ];
 }
 
 /**
