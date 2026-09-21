@@ -1763,14 +1763,23 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     $porTime = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $porTime[(int)$p['team_id']][] = $p;
 
-    // O posto na tabela, quando a temporada já existe. Vitórias e derrotas
-    // saíram: elas não são cadastradas, então vinham 0-0 pra liga inteira.
-    $posto = [];
+    /* O posto na tabela, quando a temporada já existe. Vitórias e derrotas
+       saíram: elas não são cadastradas, então vinham 0-0 pra liga inteira.
+
+       SÃO DOIS POSTOS, e cada lista usa o seu: `position` é a colocação
+       dentro da CONFERÊNCIA e `overall_position` é a geral da liga. O
+       ranking da liga inteira mostrava a da conferência, e a lista saía com
+       três "1º na tabela" em posições diferentes — número certo, pergunta
+       errada. */
+    $postoConf = [];
+    $postoGeral = [];
     if ($temp = wcTemporadaAtiva($pdo, $liga)) {
-        $st = $pdo->prepare("SELECT team_id, position FROM season_standings WHERE season_id = ?");
+        $st = $pdo->prepare("SELECT team_id, position, overall_position
+                               FROM season_standings WHERE season_id = ?");
         $st->execute([(int)$temp['id']]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
-            if ($l['position'] !== null) $posto[(int)$l['team_id']] = (int)$l['position'];
+            if ($l['position'] !== null)         $postoConf[(int)$l['team_id']]  = (int)$l['position'];
+            if ($l['overall_position'] !== null) $postoGeral[(int)$l['team_id']] = (int)$l['overall_position'];
         }
     }
 
@@ -1811,8 +1820,11 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
             'nota'       => wcNotaDePower($comp, $hist['tem_historico']),
             'comp'       => $comp,
             'historico'  => $hist['tem_historico'],
-            'posto'      => $posto[$id] ?? null,
-            'conferencia'=> $t['conference'] ?: null,
+            // `posto` segue sendo o da conferência (é o que a ficha e o
+            // /confronto já mostravam); `posto_geral` é o da liga inteira.
+            'posto'       => $postoConf[$id] ?? null,
+            'posto_geral' => $postoGeral[$id] ?? null,
+            'conferencia' => $t['conference'] ?: null,
         ];
     }
     if (!$fichas) return null;
@@ -1832,10 +1844,17 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
  * O posto da tabela fica: ao lado da posição, ele mostra de um relance quem
  * está rendendo acima do elenco e quem está devendo.
  */
-function wcLinhaDePower(array $f, int $posicao): string
+function wcLinhaDePower(array $f, int $posicao, bool $geral = true): string
 {
     $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
-    $cauda = $f['posto'] ? " _({$f['posto']}º na tabela)_" : '';
+
+    /* O POSTO TEM QUE SER DA MESMA TABELA QUE A LISTA.
+       Na lista da liga inteira vale a colocação geral; na lista por
+       conferência, a da conferência. Misturar as duas põe três "1º na tabela"
+       em posições diferentes da mesma lista. Sem a geral lançada, cai na da
+       conferência — melhor um posto certo de outra régua do que nenhum. */
+    $posto = $geral ? ($f['posto_geral'] ?? $f['posto'] ?? null) : ($f['posto'] ?? null);
+    $cauda = $posto ? " _({$posto}º na tabela)_" : '';
     return "{$medalha} *{$f['nome']}*{$cauda}\n";
 }
 
@@ -1931,7 +1950,7 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
         ? 'elenco, astros, idade, pontuação e campanha'
         : 'só o elenco — a liga ainda não tem temporada registrada';
     $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
-    foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1);
+    foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, true);
     return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
 }
 
@@ -2059,7 +2078,7 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         $lista = $porConf[$conf];
         $titulo = $conf === 'SEM' ? 'Sem conferência' : ucfirst(mb_strtolower($conf, 'UTF-8'));
         $txt .= "\n*{$titulo}*\n";
-        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1);
+        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false);
     }
     return rtrim($txt);
 }
