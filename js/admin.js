@@ -6883,7 +6883,30 @@ async function cancelTrade(tradeId) {
 }
 
 async function revertTrade(tradeId) {
-  /* A pergunta não é "reverter ou não", é COMO reverter.
+  /* PRIMEIRO O TAMANHO DO ESTRAGO.
+     Desfazer uma troca pode derrubar as que vieram depois dela — o ativo que
+     precisa voltar pode ter sido negociado de novo. Isso não pode acontecer
+     escondido atrás de um "confirmar": quem clica tem que ver a lista antes. */
+  let plano;
+  try {
+    const p = await api('admin.php?action=revert_trade', {
+      method: 'PUT', body: JSON.stringify({ trade_id: tradeId, plano: true })
+    });
+    plano = p.plano || {};
+    if (!plano.ok) { alert(plano.erro || 'Não dá pra reverter essa troca.'); return; }
+  } catch (e) { alert(e.error || 'Erro ao conferir a troca'); return; }
+
+  const arrastadas = plano.arrastadas || [];
+  if (arrastadas.length) {
+    const lista = arrastadas.map(a => `• ${a.rotulo}`).join('\n');
+    const ok = await confirmarSite(
+      `Essa reversão arrasta ${arrastadas.length} troca(s) feita(s) depois dela:\n\n${lista}\n\n`
+      + 'Todas vão ser desfeitas juntas, e só a primeira pode contar no saldo — '
+      + 'as arrastadas são devolvidas aos times.');
+    if (!ok) return;
+  }
+
+  /* A outra pergunta não é "reverter ou não", é COMO reverter.
      Desfazer por castigo e desfazer por erro do app terminam no mesmo lugar
      pros jogadores e picks, e em lugares opostos pro saldo de trocas do time.
      Quem sabe qual é o caso é o admin, e ele decide aqui. */
@@ -6901,10 +6924,32 @@ async function revertTrade(tradeId) {
     });
     await showTrades();
     alert(r.message || 'Revertida!');
-  } catch (e) { alert(e.error || 'Erro'); }
+  } catch (e) {
+    // Ativo que não pode voltar (dispensado, foi pra free agency): nada é
+    // revertido, e a lista do que impediu vale mais que o "erro".
+    const detalhe = (e.bloqueios || []).map(b => '• ' + b).join('\n');
+    alert((e.error || 'Erro') + (detalhe ? '\n\n' + detalhe : ''));
+  }
 }
 
 async function revertMultiTrade(tradeId) {
+  // Mesma conferência da troca de dois times: a cascata aparece antes.
+  try {
+    const p = await api('admin.php?action=revert_multi_trade', {
+      method: 'PUT', body: JSON.stringify({ trade_id: tradeId, plano: true })
+    });
+    const plano = p.plano || {};
+    if (!plano.ok) { alert(plano.erro || 'Não dá pra reverter essa troca.'); return; }
+    const arrastadas = plano.arrastadas || [];
+    if (arrastadas.length) {
+      const ok = await confirmarSite(
+        `Essa reversão arrasta ${arrastadas.length} troca(s) feita(s) depois dela:\n\n`
+        + arrastadas.map(a => `• ${a.rotulo}`).join('\n')
+        + '\n\nTodas vão ser desfeitas juntas, e as arrastadas são devolvidas aos times.');
+      if (!ok) return;
+    }
+  } catch (e) { alert(e.error || 'Erro ao conferir a troca'); return; }
+
   // Igual à de dois times, e aqui a devolução vale pra TODOS os envolvidos.
   const escolha = await escolherSite(
     'Os itens voltam aos times originais. E a troca, conta ou não conta?', [

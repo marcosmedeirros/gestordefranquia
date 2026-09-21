@@ -2526,147 +2526,51 @@ if ($method === 'PUT') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $revertTradeLeague);
 
-            try {
-                $pdo->beginTransaction();
+            /* A CASCATA MORA EM backend/trade_revert.php.
+               Desfazer uma troca desfaz o que veio depois dela: se o ativo que
+               precisa voltar já foi negociado, aquela troca cai junto, senão a
+               primeira não tem como ser desfeita. Antes o código pulava o ativo
+               com um aviso ("foi negociado novamente") e deixava a reversão
+               pela metade.
 
-                // Buscar trade (FOR UPDATE evita corrida entre dois cliques de reverter)
-                $stmtTrade = $pdo->prepare("SELECT * FROM trades WHERE id = ? AND status = 'accepted' FOR UPDATE");
-                $stmtTrade->execute([$tradeId]);
-                $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+               Duas chamadas: `plano` devolve o que cairia, sem escrever nada —
+               é o que a tela mostra antes de perguntar —, e a execução faz tudo
+               numa transação só. */
+            require_once __DIR__ . '/../backend/trade_revert.php';
 
-                if (!$trade) {
-                    throw new Exception('Trade não encontrada ou não foi aceita');
-                }
-
-                // Buscar itens da trade
-                $stmtItems = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
-                $stmtItems->execute([$tradeId]);
-                $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
-
-                $playersReverted = [];
-                $picksReverted = [];
-                $errors = [];
-
-                // Reverter transferências
-                foreach ($items as $item) {
-                    // originalTeamId: time que deve receber de volta. expectedCurrentTeamId: time
-                    // que deveria estar com o ativo agora (quem recebeu nesta troca) — só revertemos
-                    // se o ativo ainda estiver lá; se já foi negociado de novo pra um terceiro time,
-                    // não mexemos (evita "roubar" um ativo de um time não relacionado a esta troca).
-                    $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                    $expectedCurrentTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-
-                    if ($item['player_id']) {
-                        // Verificar time atual do jogador
-                        $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
-                        $stmtCheckPlayer->execute([$item['player_id']]);
-                        $player = $stmtCheckPlayer->fetch(PDO::FETCH_ASSOC);
-
-                        if (!$player) {
-                            $errors[] = "Jogador ID {$item['player_id']} não encontrado (pode ter sido dispensado)";
-                        } elseif ((int)$player['team_id'] === (int)$expectedCurrentTeamId) {
-                            // Volta pro banco. Trades feitas antes da regra
-                            // "quem chega vai pro banco" deixaram titulares
-                            // espalhados: desfazer uma delas devolveria um
-                            // titular a um time que já recompôs o quinteto, e
-                            // ele acordaria com seis.
-                            $stmtRevert = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
-                            $stmtRevert->execute([$originalTeamId, $item['player_id']]);
-                            $playersReverted[] = $player['name'];
-                        } elseif ((int)$player['team_id'] === (int)$originalTeamId) {
-                            // Jogador já está no time original (pode ter sido revertido antes)
-                            $playersReverted[] = $player['name'] . ' (já estava no time)';
-                        } else {
-                            $errors[] = "Jogador {$player['name']} não está no time esperado (foi negociado novamente) — não revertido";
-                        }
-                    }
-
-                    if ($item['pick_id']) {
-                        // Verificar estado atual da pick
-                        $stmtCheckPick = $pdo->prepare('SELECT team_id, original_team_id, last_owner_team_id, season_year, round FROM picks WHERE id = ?');
-                        $stmtCheckPick->execute([$item['pick_id']]);
-                        $pick = $stmtCheckPick->fetch(PDO::FETCH_ASSOC);
-
-                        if (!$pick) {
-                            $errors[] = "Pick ID {$item['pick_id']} não encontrada";
-                        } elseif ((int)$pick['team_id'] === (int)$expectedCurrentTeamId) {
-                            // O last_owner deve ser quem tinha antes da trade atual
-                            // Se from_team=true, o dono original era from_team, então last_owner deve ser NULL ou from_team
-                            // Se from_team=false, o dono original era to_team
-                            $lastOwnerBeforeTrade = $item['from_team'] ? null : $trade['to_team_id'];
-
-                            $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
-                            $stmtRevert->execute([$originalTeamId, $lastOwnerBeforeTrade, $item['pick_id']]);
-                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
-                        } elseif ((int)$pick['team_id'] === (int)$originalTeamId) {
-                            // Pick já está no time original (caso swap), limpar campos de swap residuais
-                            $stmtClearSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
-                            $stmtClearSwap->execute([$item['pick_id']]);
-                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
-                        } else {
-                            $errors[] = "Pick {$pick['season_year']} R{$pick['round']} não está no time esperado (foi negociada novamente) — não revertida";
-                        }
-                    }
-                }
-
-                // Atualizar status da trade
-                $revertLog = "[Admin] Trade revertida em " . date('Y-m-d H:i:s');
-                if (!empty($playersReverted)) {
-                    $revertLog .= "\nJogadores revertidos: " . implode(', ', $playersReverted);
-                }
-                if (!empty($picksReverted)) {
-                    $revertLog .= "\nPicks revertidas: " . implode(', ', $picksReverted);
-                }
-                if (!empty($errors)) {
-                    $revertLog .= "\nAvisos: " . implode('; ', $errors);
-                }
-
-                /* A TROCA CONTA OU NÃO CONTA?
-                   Reverter tinha uma resposta só: os ativos voltavam e o
-                   consumo ficava. Serve pra troca desfeita por castigo — o
-                   time gastou a trade e perdeu. Não serve pro erro do app ou
-                   do admin, em que o time não pode pagar por um engano.
-                   Quem decide é o admin, no momento de reverter. */
-                $devolverTroca = !empty($data['devolver_troca']);
-                $devolvidas = [];
-                if ($devolverTroca) {
-                    $stmtDec = $pdo->prepare('UPDATE teams SET trades_used = GREATEST(COALESCE(trades_used,0) - 1, 0) WHERE id = ?');
-                    foreach ([(int)$trade['from_team_id'], (int)$trade['to_team_id']] as $tid) {
-                        $stmtDec->execute([$tid]);
-                        // GREATEST evita negativo: com o contador já em zero
-                        // (virada de temporada no meio), devolver não inventa
-                        // uma trade a mais.
-                        if ($stmtDec->rowCount() > 0) $devolvidas[] = $tid;
-                    }
-                    $revertLog .= "\nA troca NÃO contou: devolvida ao saldo dos dois times.";
-                } else {
-                    $revertLog .= "\nA troca CONTOU: o saldo dos times não mudou.";
-                }
-
-                $stmtUpdate = $pdo->prepare("UPDATE trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
-                $stmtUpdate->execute([$revertLog, $tradeId]);
-
-                $pdo->commit();
-
-                $response = [
-                    'success' => true,
-                    'message' => 'Trade revertida com sucesso'
-                        . ($devolverTroca ? ' — a troca foi devolvida ao saldo dos dois times.' : ' — a troca continua contando.'),
-                    'players_reverted' => count($playersReverted),
-                    'picks_reverted' => count($picksReverted),
-                    'troca_devolvida' => $devolverTroca
-                ];
-
-                if (!empty($errors)) {
-                    $response['warnings'] = $errors;
-                }
-
-                echo json_encode($response);
-            } catch (Exception $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
+            if (!empty($data['plano'])) {
+                echo json_encode(['success' => true, 'plano' => trRevPlano($pdo, 'trade', (int)$tradeId)],
+                                 JSON_UNESCAPED_UNICODE);
+                exit;
             }
+
+            $revR = trRevExecutar($pdo, 'trade', (int)$tradeId, !empty($data['devolver_troca']),
+                                  (string)($user['name'] ?? ''));
+
+            if (empty($revR['ok'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false,
+                                  'error' => $revR['erro'] ?? 'Não deu pra reverter',
+                                  'bloqueios' => $revR['bloqueios'] ?? []], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // O grupo fica sabendo depois de tudo gravado, e a falha do aviso
+            // nunca derruba a reversão — ela já aconteceu.
+            try { trRevAvisarGrupo($pdo, $revR); }
+            catch (Throwable $e) { error_log('[revert] aviso no grupo: ' . $e->getMessage()); }
+
+            $arrastadas = max(0, count($revR['feitas']) - 1);
+            echo json_encode([
+                'success'    => true,
+                'message'    => 'Trade revertida'
+                              . ($arrastadas ? " — e mais {$arrastadas} que dependiam dela." : '.')
+                              . (!empty($data['devolver_troca'])
+                                  ? ' A troca foi devolvida ao saldo dos dois times.'
+                                  : ' A troca continua contando.'),
+                'feitas'     => $revR['feitas'],
+                'arrastadas' => $arrastadas,
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'revert_multi_trade':
@@ -2695,125 +2599,41 @@ if ($method === 'PUT') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $revertMultiLeague);
 
-            try {
-                $pdo->beginTransaction();
+            // Mesma cascata da troca de dois times: desfazer uma múltipla
+            // derruba o que veio depois dela. Ver backend/trade_revert.php.
+            require_once __DIR__ . '/../backend/trade_revert.php';
 
-                $stmtTrade = $pdo->prepare("SELECT * FROM multi_trades WHERE id = ? AND status = 'accepted' FOR UPDATE");
-                $stmtTrade->execute([$tradeId]);
-                $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
-
-                if (!$trade) {
-                    throw new Exception('Trade não encontrada ou não foi aceita');
-                }
-
-                $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
-                $stmtItems->execute([$tradeId]);
-                $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
-
-                $playersReverted = [];
-                $picksReverted = [];
-                $errors = [];
-
-                $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
-                // Mesma coisa da reversão simples: volta pro banco.
-                $stmtMovePlayer = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
-                $stmtCheckPick = $pdo->prepare('SELECT team_id, season_year, round FROM picks WHERE id = ?');
-                $stmtMovePick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
-                $stmtClearPickSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
-
-                foreach ($items as $item) {
-                    if (!empty($item['player_id'])) {
-                        $stmtCheckPlayer->execute([(int)$item['player_id']]);
-                        $player = $stmtCheckPlayer->fetch(PDO::FETCH_ASSOC);
-
-                        if (!$player) {
-                            $errors[] = "Jogador ID {$item['player_id']} não encontrado";
-                        } elseif ((int)$player['team_id'] === (int)$item['to_team_id']) {
-                            $stmtMovePlayer->execute([(int)$item['from_team_id'], (int)$item['player_id']]);
-                            $playersReverted[] = $player['name'];
-                        } elseif ((int)$player['team_id'] === (int)$item['from_team_id']) {
-                            $playersReverted[] = $player['name'] . ' (já estava no time)';
-                        } else {
-                            $errors[] = "Jogador {$player['name']} não está no time esperado";
-                        }
-                    }
-
-                    if (!empty($item['pick_id'])) {
-                        $stmtCheckPick->execute([(int)$item['pick_id']]);
-                        $pick = $stmtCheckPick->fetch(PDO::FETCH_ASSOC);
-
-                        if (!$pick) {
-                            $errors[] = "Pick ID {$item['pick_id']} não encontrada";
-                        } elseif ((int)$pick['team_id'] === (int)$item['to_team_id']) {
-                            $stmtMovePick->execute([(int)$item['from_team_id'], (int)$item['to_team_id'], (int)$item['pick_id']]);
-                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
-                        } elseif ((int)$pick['team_id'] === (int)$item['from_team_id']) {
-                            // Pick já está no time original (caso swap), limpar campos de swap residuais
-                            $stmtClearPickSwap->execute([(int)$item['pick_id']]);
-                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
-                        } else {
-                            $errors[] = "Pick {$item['pick_id']} não está no time esperado";
-                        }
-                    }
-                }
-
-                $revertLog = "[Admin] Trade múltipla revertida em " . date('Y-m-d H:i:s');
-                if (!empty($playersReverted)) {
-                    $revertLog .= "\nJogadores revertidos: " . implode(', ', $playersReverted);
-                }
-                if (!empty($picksReverted)) {
-                    $revertLog .= "\nPicks revertidas: " . implode(', ', $picksReverted);
-                }
-                if (!empty($errors)) {
-                    $revertLog .= "\nAvisos: " . implode('; ', $errors);
-                }
-
-                /* Mesma escolha da troca de dois times, e aqui ela pesa mais:
-                   a múltipla consumiu a trade de TODOS os envolvidos, então
-                   "não contar" devolve pra cada um. Os times saem dos próprios
-                   itens — a múltipla não tem "from" e "to" fixos. */
-                $devolverTroca = !empty($data['devolver_troca']);
-                $envolvidos = [];
-                foreach ($items as $item) {
-                    $envolvidos[(int)$item['from_team_id']] = true;
-                    $envolvidos[(int)$item['to_team_id']]   = true;
-                }
-                unset($envolvidos[0]);
-                if ($devolverTroca && $envolvidos) {
-                    $stmtDec = $pdo->prepare('UPDATE teams SET trades_used = GREATEST(COALESCE(trades_used,0) - 1, 0) WHERE id = ?');
-                    foreach (array_keys($envolvidos) as $tid) $stmtDec->execute([$tid]);
-                    $revertLog .= "\nA troca NÃO contou: devolvida ao saldo dos "
-                                . count($envolvidos) . ' times envolvidos.';
-                } else {
-                    $revertLog .= "\nA troca CONTOU: o saldo dos times não mudou.";
-                }
-
-                $stmtUpdate = $pdo->prepare("UPDATE multi_trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
-                $stmtUpdate->execute([$revertLog, $tradeId]);
-
-                $pdo->commit();
-
-                $response = [
-                    'success' => true,
-                    'message' => 'Trade múltipla revertida com sucesso'
-                        . ($devolverTroca
-                            ? ' — a troca foi devolvida a ' . count($envolvidos) . ' time(s).'
-                            : ' — a troca continua contando.'),
-                    'players_reverted' => count($playersReverted),
-                    'picks_reverted' => count($picksReverted),
-                    'troca_devolvida' => $devolverTroca
-                ];
-
-                if (!empty($errors)) {
-                    $response['warnings'] = $errors;
-                }
-
-                echo json_encode($response);
-            } catch (Exception $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
+            if (!empty($data['plano'])) {
+                echo json_encode(['success' => true, 'plano' => trRevPlano($pdo, 'multi', (int)$tradeId)],
+                                 JSON_UNESCAPED_UNICODE);
+                exit;
             }
+
+            $revM = trRevExecutar($pdo, 'multi', (int)$tradeId, !empty($data['devolver_troca']),
+                                  (string)($user['name'] ?? ''));
+
+            if (empty($revM['ok'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false,
+                                  'error' => $revM['erro'] ?? 'Não deu pra reverter',
+                                  'bloqueios' => $revM['bloqueios'] ?? []], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            try { trRevAvisarGrupo($pdo, $revM); }
+            catch (Throwable $e) { error_log('[revert-multi] aviso no grupo: ' . $e->getMessage()); }
+
+            $arrastadasM = max(0, count($revM['feitas']) - 1);
+            echo json_encode([
+                'success'    => true,
+                'message'    => 'Trade múltipla revertida'
+                              . ($arrastadasM ? " — e mais {$arrastadasM} que dependiam dela." : '.')
+                              . (!empty($data['devolver_troca'])
+                                  ? ' A troca foi devolvida ao saldo dos times.'
+                                  : ' A troca continua contando.'),
+                'feitas'     => $revM['feitas'],
+                'arrastadas' => $arrastadasM,
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         /* O SWAP, NOS DOIS LADOS OU EM NENHUM.
