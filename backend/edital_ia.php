@@ -57,6 +57,18 @@ const EDITAL_IA_MODELOS_GEMINI = [
 ];
 
 /**
+ * As ferramentas que podem atender um pedido de previsão.
+ *
+ * Existe como lista porque ela é usada pra OBRIGAR a chamada: num pedido de
+ * projeção o modelo escolhe qual usar, mas não escolhe se vai usar alguma.
+ */
+const EDITAL_IA_FERRAMENTAS_PROJECAO = [
+    'projetar_quinteto', 'projetar_jogador', 'projetar_futuro_jogador',
+    'projetar_temporada', 'projetar_confronto', 'projetar_playoffs',
+    'projetar_campeoes', 'projetar_ranking', 'projetar_loteria',
+];
+
+/**
  * TRAVA DE USO, do nosso lado.
  *
  * O Google não tem botão de "nunca cobrar": orçamento lá só dispara alerta por
@@ -396,8 +408,20 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
         '',
         /* PROJEÇÃO É FERRAMENTA. Sem isto ele respondia "o Coyotes vai terminar
            em 3º" de cabeça, ou escrevia uma conta nova a cada pergunta. */
+        /* Os nomes são o ponto fraco: ele conhece a NBA real de cor e, com um
+           formato de tabela fresco no histórico, preenche as linhas de
+           memória. Aconteceu com o Buffalo Blues, que recebeu o elenco dos
+           Knicks. */
+        'NOME DE JOGADOR NUNCA VEM DE MEMÓRIA. Você conhece os elencos da NBA de verdade, e os da FBA',
+        'são outros: os mesmos nomes estão em times diferentes, e há jogadores que só existem aqui.',
+        'Nunca escreva uma lista de jogadores de um time sem ter recebido esses nomes de uma ferramenta',
+        'nesta conversa. Se a ferramenta não trouxe, diga que não conseguiu — inventar elenco é o pior',
+        'erro possível, porque parece certo e ninguém confere.',
+        '',
         'PROJEÇÕES E PALPITES: toda previsão passa por uma ferramenta projetar_*. Nunca estime por',
-        'conta própria, nem com consultar_dados. Qual usar:',
+        'conta própria, nem com consultar_dados. Isso vale IGUAL quando a pergunta chega como resposta',
+        'a uma mensagem sua: o que você acabou de responder sobre um time não diz nada sobre outro.',
+        'Qual usar:',
         '- Temporada de UM time ("o X vai pros playoffs?"): projetar_temporada.',
         '- Confronto entre dois times: projetar_confronto.',
         /* "Ontem foi a regular da NEXT, hoje tem os offs": o bloco da sprint
@@ -1240,6 +1264,17 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
        um fato, e não da boa vontade do modelo. */
     $gravouMesmo = false;
 
+    /* A pergunta pede PREVISÃO? Então a primeira rodada vai obrigada a chamar
+       uma ferramenta (ver o bloco do tool_config no laço). A lista é ampla de
+       propósito: errar pra mais só custa uma consulta a dados de verdade;
+       errar pra menos custa um elenco inventado no grupo. */
+    $exigeProjecao = (bool)preg_match(
+        '/\b(proje[çc][ãa]o|proje[çc][õo]es|projet(a|ar|e)|previs[ãa]o|prev[êe]|prever|palpite|'
+        . 'quinteto|pr[óo]xima temporada|vai fazer|vai render|quantos? (pontos|rebotes|assist))/iu',
+        $pergunta
+    );
+    $payloadForca = [];
+
     // O professor ensina em lote e confere na mesma conversa: duas rodadas a mais.
     $maxRodadas = empty($quem['professor']) ? DUVIDA_MAX_RODADAS : DUVIDA_MAX_RODADAS + 2;
 
@@ -1257,6 +1292,30 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
            pergunta sobre quem o Coyotes eliminou. As declarações ficam, o
            direito de chamar é que sai. */
         $ultimaRodada = ($rodada === $maxRodadas);
+
+        /* PEDIDO DE PROJEÇÃO NÃO PODE SER RESPONDIDO DE CABEÇA.
+           Em 21/09/2026 pediram a projeção do quinteto do Buffalo Blues
+           RESPONDENDO a uma mensagem do bot, e ele devolveu Jalen Brunson,
+           Mikal Bridges, OG Anunoby — o elenco dos Knicks da NBA, não o do
+           Blues. Minutos antes, a MESMA pergunta feita com @ tinha chamado a
+           ferramenta e acertado: com a tabela de outro time fresca no
+           histórico, ele copiou o formato e preencheu de memória.
+
+           Instrução não basta contra isso — ela já dizia "toda previsão passa
+           por uma ferramenta". Aqui o direito de responder direto é retirado:
+           na primeira rodada de um pedido de projeção, o modelo é OBRIGADO a
+           chamar uma das projetar_*. Ele escolhe qual; não escolhe se vai.
+
+           Só na rodada 1: depois de ter os números na mão, ele precisa poder
+           escrever a resposta. */
+        if ($rodada === 1 && $exigeProjecao) {
+            $modoProj = ['mode' => 'ANY', 'allowed_function_names' => EDITAL_IA_FERRAMENTAS_PROJECAO];
+            $payloadForca = [
+                'tool_config' => ['function_calling_config' => $modoProj],
+                'toolConfig'  => ['functionCallingConfig' => [
+                    'mode' => 'ANY', 'allowedFunctionNames' => EDITAL_IA_FERRAMENTAS_PROJECAO]],
+            ];
+        }
 
         $payload = [
             'system_instruction' => ['parts' => $partes],
@@ -1276,6 +1335,10 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
             ],
         ];
         $payload['tools'] = $tools;
+        if (!empty($payloadForca)) {
+            $payload += $payloadForca;
+            $payloadForca = [];
+        }
         if ($ultimaRodada) {
             /* Os dois nomes, de propósito: o REST do v1beta documenta
                camelCase, o resto deste payload usa snake_case e funciona, e
