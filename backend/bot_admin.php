@@ -211,6 +211,7 @@ function botAdminTimesStatus(PDO $pdo, string $arg, array $ligasPermitidas, ?str
     // ── Resumo de todas as ligas que ele administra ──────────────────────
     if ($alvo === null) {
         $linhas = [];
+        $pior = null; $piorFalta = 0;
         foreach ($ligasPermitidas as $liga) {
             $t = $temporadaDe($liga);
             if (!$t) { $linhas[] = "· *{$liga}* — sem temporada aberta"; continue; }
@@ -219,10 +220,14 @@ function botAdminTimesStatus(PDO $pdo, string $arg, array $ligasPermitidas, ?str
             $linhas[] = ($falta === 0 ? '✅' : '⏳')
                 . " *{$liga}* T{$t['season_number']} — {$r['done']}/{$r['total']}"
                 . ($falta ? " _({$falta} faltando)_" : '');
+            if ($falta > $piorFalta) { $piorFalta = $falta; $pior = $liga; }
         }
         if (!$linhas) return 'Você não administra nenhuma liga.';
-        return "🧾 *ELENCOS ATUALIZADOS*\n\n" . implode("\n", $linhas)
-             . "\n\n_/timesstatus " . strtolower($ligasPermitidas[0]) . " pra ver quem está devendo._";
+
+        // A dica aponta pra liga que tem gente devendo, e some quando não há
+        // nenhuma: mandar abrir a lista de uma liga completa é passo perdido.
+        $dica = $pior ? "\n\n_/timesstatus " . strtolower($pior) . " pra ver quem está devendo._" : '';
+        return "🧾 *ELENCOS ATUALIZADOS*\n\n" . implode("\n", $linhas) . $dica;
     }
 
     // ── Uma liga, com nome e GM de quem falta ────────────────────────────
