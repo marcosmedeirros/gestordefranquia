@@ -1497,6 +1497,48 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'teams' => $teams, 'league' => $league]);
             break;
 
+        /* AS REVERSÕES QUE AINDA DÁ PRA DESFAZER.
+           Vão pro fim da tela de Trades, que lista só as aceitas — troca
+           revertida vira 'cancelled' e some de lá. Sem esta lista, desfazer
+           uma reversão feita por engano viraria caça à troca. */
+        case 'reverts_recentes': {
+            require_once __DIR__ . '/../backend/trade_revert.php';
+            trRevLogTabela($pdo);
+
+            $ligaFiltro = strtoupper(trim((string)($_GET['league'] ?? '')));
+            $st = $pdo->query("SELECT rl.lote, rl.tipo, rl.trade_id, rl.rotulo, rl.admin_nome, rl.criado_em,
+                                      (SELECT COUNT(*) FROM trade_revert_log x
+                                        WHERE x.lote = rl.lote AND x.desfeito_em IS NULL) AS total
+                                 FROM trade_revert_log rl
+                                WHERE rl.desfeito_em IS NULL AND rl.eh_base = 1
+                             ORDER BY rl.id DESC LIMIT 30");
+
+            $lotes = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $cab = trRevCabecalho($pdo, (string)$l['tipo'], (int)$l['trade_id']);
+                $liga = strtoupper((string)($cab['league'] ?? ''));
+
+                // Só as ligas que este admin administra, e só a filtrada na tela.
+                if (!$isGlobalAdminApi && !in_array($liga, $apiAdminLeagues, true)) continue;
+                if ($ligaFiltro !== '' && $ligaFiltro !== 'ALL' && $liga !== $ligaFiltro) continue;
+
+                $lotes[] = [
+                    'lote'     => (int)$l['lote'],
+                    'tipo'     => (string)$l['tipo'],
+                    'trade_id' => (int)$l['trade_id'],
+                    'liga'     => $liga,
+                    'rotulo'   => (string)$l['rotulo'],
+                    'quem'     => (string)($l['admin_nome'] ?? ''),
+                    'quando'   => date('d/m H:i', strtotime((string)$l['criado_em'])),
+                    'total'    => (int)$l['total'],
+                ];
+                if (count($lotes) >= 10) break;
+            }
+
+            echo json_encode(['success' => true, 'lotes' => $lotes], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         case 'trades':
             // Listar todas as trades
             $status = $_GET['status'] ?? 'all'; // all, pending, accepted, rejected, cancelled
@@ -1534,16 +1576,27 @@ if ($method === 'GET') {
             }
             
             $whereClause = !empty($conditions) ? 'WHERE ' . implode(' AND ', $conditions) : '';
-            
+
+            // O diário das reversões pode não existir ainda (deploy novo) — e
+            // a listagem de trades não pode quebrar por causa disso.
+            require_once __DIR__ . '/../backend/trade_revert.php';
+            trRevLogTabela($pdo);
+
             $query = "
-                SELECT 
+                SELECT
                     t.*,
                     from_team.city as from_city,
                     from_team.name as from_name,
                     from_team.league as from_league,
                     to_team.city as to_city,
                     to_team.name as to_name,
-                    to_team.league as to_league
+                    to_team.league as to_league,
+                    /* Reversão em aberto: é o que faz o botão de desfazer
+                       aparecer só nas trocas que FORAM revertidas por aqui —
+                       cancelada por janela fechada não tem o que refazer. */
+                    (SELECT rl.lote FROM trade_revert_log rl
+                      WHERE rl.tipo = 'trade' AND rl.trade_id = t.id AND rl.desfeito_em IS NULL
+                   ORDER BY rl.id DESC LIMIT 1) AS revert_lote
                 FROM trades t
                 JOIN teams from_team ON t.from_team_id = from_team.id
                 JOIN teams to_team ON t.to_team_id = to_team.id
@@ -2635,6 +2688,61 @@ if ($method === 'PUT') {
                 'arrastadas' => $arrastadasM,
             ], JSON_UNESCAPED_UNICODE);
             break;
+
+        /* DESFAZER A REVERSÃO: reverteram, e não era pra reverter.
+           Refaz a troca e todas as que caíram com ela, no sentido original.
+           A regra inteira mora em backend/trade_revert.php. */
+        case 'undo_revert': {
+            $tradeId = (int)($data['trade_id'] ?? 0);
+            $tipoUndo = ($data['tipo'] ?? 'trade') === 'multi' ? 'multi' : 'trade';
+            if (!$tradeId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Trade ID obrigatório']);
+                exit;
+            }
+
+            require_once __DIR__ . '/../backend/trade_revert.php';
+
+            // Mesma porta de sempre: quem administra a liga da troca.
+            $cabUndo = trRevCabecalho($pdo, $tipoUndo, $tradeId);
+            if (!$cabUndo) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Troca não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, (string)$cabUndo['league']);
+
+            // Dry-run: a tela mostra o que vai voltar antes de perguntar.
+            if (!empty($data['plano'])) {
+                $lote = trRevLoteDaTroca($pdo, $tipoUndo, $tradeId);
+                echo json_encode(['success' => true, 'lote' => $lote ? [
+                    'lote'   => $lote['lote'],
+                    'trocas' => array_map(fn($l) => [
+                        'rotulo'    => $l['rotulo'],
+                        'eh_base'   => (int)$l['eh_base'] === 1,
+                        'devolvida' => (int)$l['devolvida'] === 1,
+                    ], $lote['linhas']),
+                ] : null], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $undo = trRevDesfazer($pdo, $tipoUndo, $tradeId, (string)($user['name'] ?? ''));
+            if (empty($undo['ok'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $undo['erro'] ?? 'Não deu pra desfazer',
+                                  'bloqueios' => $undo['bloqueios'] ?? []], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $qtd = count($undo['feitas']);
+            echo json_encode([
+                'success' => true,
+                'message' => $qtd === 1 ? 'A troca voltou a valer.'
+                                        : "As {$qtd} trocas da reversão voltaram a valer.",
+                'feitas'  => $undo['feitas'],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         /* O SWAP, NOS DOIS LADOS OU EM NENHUM.
            Endpoint próprio porque swap é um acordo entre DUAS picks, e não um

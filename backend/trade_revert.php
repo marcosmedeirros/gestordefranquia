@@ -34,6 +34,45 @@ require_once __DIR__ . '/helpers.php';
 const TR_REV_MAX_CASCATA = 12;
 
 /**
+ * O DIÁRIO DAS REVERSÕES — é ele que permite desfazer uma.
+ *
+ * Reverter por engano acontece: o admin clica na troca errada, ou descobre
+ * depois que a denúncia não procedia. Sem registro, refazer era remontar a
+ * troca à mão, item por item, e a cascata multiplicava isso por quantas
+ * tivessem caído junto.
+ *
+ * Cada reversão vira um LOTE: a troca que o admin mandou desfazer e todas as
+ * arrastadas, com a informação de quem teve a troca devolvida ao saldo. Desfazer
+ * a reversão é refazer o lote inteiro, na ordem em que as trocas aconteceram —
+ * o contrário da ordem em que foram desfeitas.
+ */
+function trRevLogTabela(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS trade_revert_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            lote INT NOT NULL,
+            tipo VARCHAR(10) NOT NULL,
+            trade_id INT NOT NULL,
+            eh_base TINYINT(1) NOT NULL DEFAULT 0,
+            devolvida TINYINT(1) NOT NULL DEFAULT 0,
+            rotulo VARCHAR(255) NULL,
+            admin_nome VARCHAR(120) NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            desfeito_em DATETIME NULL,
+            desfeito_por VARCHAR(120) NULL,
+            INDEX idx_lote (lote),
+            INDEX idx_troca (tipo, trade_id, desfeito_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+        error_log('[trade-revert] log: ' . $e->getMessage());
+    }
+}
+
+/**
  * A liga tem trocas múltiplas ligadas?
  *
  * Checagem própria, e não a `tableExists()` do api/admin.php: aquela mora
@@ -466,6 +505,141 @@ function trRevAvisarGrupo(PDO $pdo, array $resultado): void
 }
 
 /**
+ * O lote em aberto de uma troca revertida — ou null, se ela não foi revertida
+ * por aqui (ou a reversão já foi desfeita).
+ */
+function trRevLoteDaTroca(PDO $pdo, string $tipo, int $id): ?array
+{
+    trRevLogTabela($pdo);
+    try {
+        $st = $pdo->prepare('SELECT lote FROM trade_revert_log
+                              WHERE tipo = ? AND trade_id = ? AND desfeito_em IS NULL
+                           ORDER BY id DESC LIMIT 1');
+        $st->execute([$tipo, $id]);
+        $lote = $st->fetchColumn();
+        if ($lote === false) return null;
+
+        $st = $pdo->prepare('SELECT * FROM trade_revert_log WHERE lote = ? AND desfeito_em IS NULL ORDER BY id');
+        $st->execute([(int)$lote]);
+        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$linhas) return null;
+
+        return ['lote' => (int)$lote, 'linhas' => $linhas];
+    } catch (Throwable $e) {
+        error_log('[trade-revert] lote: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * DESFAZER A REVERSÃO: a troca (e as que caíram com ela) voltam a valer.
+ *
+ * Refaz cada movimento no sentido original — o ativo sai de onde a reversão o
+ * deixou e vai pra quem o tinha recebido. A ordem é a cronológica, a mais
+ * antiga primeiro: é o inverso da ordem em que foram desfeitas, e a única em
+ * que cada troca encontra os ativos onde espera.
+ *
+ * Quem teve a troca devolvida ao saldo paga de novo — ela voltou a existir.
+ *
+ * Mesmo tudo-ou-nada da reversão: se algum ativo não estiver onde a reversão o
+ * deixou (alguém já negociou de novo, dispensou, o que for), nada é refeito e a
+ * lista do que impediu volta pro admin.
+ */
+function trRevDesfazer(PDO $pdo, string $tipo, int $id, ?string $quemAdmin = null): array
+{
+    $lote = trRevLoteDaTroca($pdo, $tipo, $id);
+    if (!$lote) {
+        return ['ok' => false, 'erro' => 'Essa troca não tem uma reversão pra desfazer.'];
+    }
+
+    // Da mais antiga pra mais nova: a reversão andou ao contrário.
+    $linhas = array_reverse($lote['linhas']);
+
+    $minhaTransacao = !$pdo->inTransaction();
+    if ($minhaTransacao) $pdo->beginTransaction();
+
+    try {
+        $feitas = [];
+        $erros  = [];
+
+        foreach ($linhas as $l) {
+            $t = (string)$l['tipo'];
+            $tid = (int)$l['trade_id'];
+            $movidos = 0;
+
+            foreach (trRevItens($pdo, $t, $tid) as $it) {
+                $origem  = (int)$it['origem'];
+                $destino = (int)$it['destino'];
+
+                if (!empty($it['player_id'])) {
+                    $st = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
+                    $st->execute([(int)$it['player_id']]);
+                    $p = $st->fetch(PDO::FETCH_ASSOC);
+                    if (!$p) {
+                        $erros[] = $l['rotulo'] . ": jogador #{$it['player_id']} não existe mais";
+                    } elseif ((int)$p['team_id'] === $origem) {
+                        $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?")
+                            ->execute([$destino, (int)$it['player_id']]);
+                        $movidos++;
+                    } elseif ((int)$p['team_id'] !== $destino) {
+                        $erros[] = $l['rotulo'] . ": {$p['name']} já está em outro time";
+                    }
+                }
+
+                if (!empty($it['pick_id'])) {
+                    $st = $pdo->prepare('SELECT team_id, season_year, round FROM picks WHERE id = ?');
+                    $st->execute([(int)$it['pick_id']]);
+                    $pk = $st->fetch(PDO::FETCH_ASSOC);
+                    if (!$pk) {
+                        $erros[] = $l['rotulo'] . ": pick #{$it['pick_id']} não existe mais";
+                    } elseif ((int)$pk['team_id'] === $origem) {
+                        $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?')
+                            ->execute([$destino, $origem, (int)$it['pick_id']]);
+                        $movidos++;
+                    } elseif ((int)$pk['team_id'] !== $destino) {
+                        $erros[] = $l['rotulo'] . ": pick {$pk['season_year']} R{$pk['round']} já está em outro time";
+                    }
+                }
+            }
+
+            if ($erros) continue;   // já falhou: só termina de juntar os motivos
+
+            // A troca volta a valer, e quem teve o saldo devolvido paga de novo.
+            $tabela = $t === 'multi' ? 'multi_trades' : 'trades';
+            $nota = '[Admin] Reversão desfeita em ' . date('Y-m-d H:i:s')
+                  . ($quemAdmin ? ' por ' . $quemAdmin : '') . ' — a troca voltou a valer.';
+            $pdo->prepare("UPDATE {$tabela} SET status = 'accepted',
+                                  notes = CONCAT(IFNULL(notes,''), '\n', ?) WHERE id = ?")
+                ->execute([$nota, $tid]);
+
+            if ((int)$l['devolvida'] === 1) {
+                $up = $pdo->prepare('UPDATE teams SET trades_used = COALESCE(trades_used,0) + 1 WHERE id = ?');
+                foreach (trRevTimes($pdo, $t, $tid) as $team) $up->execute([$team]);
+            }
+
+            $feitas[] = ['tipo' => $t, 'id' => $tid, 'rotulo' => $l['rotulo'], 'movidos' => $movidos];
+        }
+
+        if ($erros) {
+            if ($minhaTransacao) $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Nada foi refeito — os ativos já não estão onde a reversão os deixou.',
+                    'bloqueios' => array_values(array_unique($erros))];
+        }
+
+        $pdo->prepare('UPDATE trade_revert_log SET desfeito_em = NOW(), desfeito_por = ? WHERE lote = ?')
+            ->execute([$quemAdmin, $lote['lote']]);
+
+        if ($minhaTransacao) $pdo->commit();
+        return ['ok' => true, 'feitas' => $feitas, 'lote' => $lote['lote']];
+
+    } catch (Throwable $e) {
+        if ($minhaTransacao && $pdo->inTransaction()) $pdo->rollBack();
+        error_log('[trade-revert] desfazer: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Erro ao desfazer a reversão.'];
+    }
+}
+
+/**
  * Executa o plano inteiro, numa transação só.
  *
  * TUDO OU NADA de propósito: reverter três de quatro trocas deixa a liga num
@@ -480,6 +654,13 @@ function trRevExecutar(PDO $pdo, string $tipo, int $id, bool $devolverBase, ?str
 {
     $plano = trRevPlano($pdo, $tipo, $id);
     if (!$plano['ok']) return ['ok' => false, 'erro' => $plano['erro'], 'plano' => $plano];
+
+    /* A TABELA DO DIÁRIO NASCE ANTES DA TRANSAÇÃO, e isso não é capricho:
+       CREATE TABLE dá commit implícito no MySQL. Criada lá dentro, ela
+       encerrava a transação no meio — o commit do fim estourava "there is no
+       active transaction" e a função devolvia erro depois de ter gravado tudo.
+       Erro na tela com a reversão feita é o pior dos dois mundos. */
+    trRevLogTabela($pdo);
 
     $minhaTransacao = !$pdo->inTransaction();
     if ($minhaTransacao) $pdo->beginTransaction();
@@ -516,7 +697,7 @@ function trRevExecutar(PDO $pdo, string $tipo, int $id, bool $devolverBase, ?str
 
             $feitas[] = ['tipo' => $t['tipo'], 'id' => (int)$t['id'], 'rotulo' => $t['rotulo'],
                          'jogadores' => count($r['jogadores']), 'picks' => count($r['picks']),
-                         'devolvida' => $devolve];
+                         'devolvida' => $devolve, 'eh_base' => $ehBase];
         }
 
         if ($erros) {
@@ -525,8 +706,20 @@ function trRevExecutar(PDO $pdo, string $tipo, int $id, bool $devolverBase, ?str
                     'bloqueios' => $erros, 'plano' => $plano];
         }
 
+        /* O LOTE, pra poder desfazer isto depois. Reverter por engano acontece,
+           e sem registro refazer seria remontar cada troca à mão — vezes
+           quantas a cascata derrubou. */
+        $lote = (int)$pdo->query('SELECT COALESCE(MAX(lote),0) + 1 FROM trade_revert_log')->fetchColumn();
+        $ins = $pdo->prepare('INSERT INTO trade_revert_log
+                               (lote, tipo, trade_id, eh_base, devolvida, rotulo, admin_nome)
+                              VALUES (?,?,?,?,?,?,?)');
+        foreach ($feitas as $f) {
+            $ins->execute([$lote, $f['tipo'], $f['id'], !empty($f['eh_base']) ? 1 : 0,
+                           $f['devolvida'] ? 1 : 0, mb_substr((string)$f['rotulo'], 0, 255), $quemAdmin]);
+        }
+
         if ($minhaTransacao) $pdo->commit();
-        return ['ok' => true, 'feitas' => $feitas, 'plano' => $plano];
+        return ['ok' => true, 'feitas' => $feitas, 'plano' => $plano, 'lote' => $lote];
 
     } catch (Throwable $e) {
         if ($minhaTransacao && $pdo->inTransaction()) $pdo->rollBack();

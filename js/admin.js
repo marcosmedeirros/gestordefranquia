@@ -4958,7 +4958,8 @@ async function showTrades() {
     </div>
   </div>
 </div>
-<div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
+<div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>
+<div id="revertsRecentes"></div>`;
   
   try {
     const teamUrl = leagueFilter && leagueFilter !== 'ALL'
@@ -5143,6 +5144,7 @@ async function showTrades() {
       </label>
       ${tr.status === 'pending' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
       ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}
+      ${tr.revert_lote ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="undoRevertTrade(${tr.id})" title="Reverteram sem querer? A troca volta a valer.">Desfazer reversão</button>` : ''}
     </div>
   </div>
   ${tr.notes ? `<div class="pun-card-meta" style="margin-top:6px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
@@ -5158,6 +5160,10 @@ async function showTrades() {
   </div>
 </div>`;
     }).join('');
+
+    // O bloco das reversões vem depois da lista e nunca a atrapalha: se ele
+    // falhar, a tela de trades continua inteira.
+    carregarRevertsRecentes();
   } catch (e) {
     document.getElementById('tradesListContainer').innerHTML = '<div class="alert alert-danger">Erro</div>';
   }
@@ -6927,6 +6933,86 @@ async function revertTrade(tradeId) {
   } catch (e) {
     // Ativo que não pode voltar (dispensado, foi pra free agency): nada é
     // revertido, e a lista do que impediu vale mais que o "erro".
+    const detalhe = (e.bloqueios || []).map(b => '• ' + b).join('\n');
+    alert((e.error || 'Erro') + (detalhe ? '\n\n' + detalhe : ''));
+  }
+}
+
+/**
+ * AS REVERSÕES RECENTES, no fim da tela de Trades.
+ *
+ * A lista de trades mostra só as aceitas — troca revertida vira 'cancelled' e
+ * some dali. Sem este bloco, desfazer uma reversão feita por engano exigiria
+ * achar a troca em algum outro lugar; aqui ela está onde o admin acabou de
+ * clicar em Reverter.
+ */
+async function carregarRevertsRecentes() {
+  const alvo = document.getElementById('revertsRecentes');
+  if (!alvo) return;
+  try {
+    const liga = (appState.tradeFilters.league || 'ALL').toUpperCase();
+    const d = await api('admin.php?action=reverts_recentes'
+      + (liga && liga !== 'ALL' ? `&league=${encodeURIComponent(liga)}` : ''));
+    const lotes = d.lotes || [];
+    if (!lotes.length) { alvo.innerHTML = ''; return; }
+
+    alvo.innerHTML = `
+      <div class="panel mt-3">
+        <div class="panel-title" style="margin-bottom:10px">
+          <i class="bi bi-arrow-counterclockwise" style="color:#f59e0b"></i> Revertidas recentemente
+          <span style="font-size:11px;font-weight:400;color:var(--text-3)">— dá pra desfazer</span>
+        </div>
+        ${lotes.map(l => `
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+                      padding:10px 12px;border:1px solid var(--border);border-radius:10px;
+                      background:var(--panel-2);margin-bottom:6px">
+            <div style="min-width:0">
+              <div style="font-size:13px;color:var(--text);font-weight:600">${escapeHtml(l.rotulo)}</div>
+              <div style="font-size:11px;color:var(--text-3)">
+                ${escapeHtml(l.quando)}${l.quem ? ' · por ' + escapeHtml(l.quem) : ''}
+                ${l.total > 1 ? ` · arrastou mais ${l.total - 1}` : ''}
+              </div>
+            </div>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px;color:#22c55e;border-color:rgba(34,197,94,.3)"
+                    onclick="undoRevertTrade(${l.trade_id}, '${l.tipo}')">Desfazer reversão</button>
+          </div>`).join('')}
+      </div>`;
+  } catch (e) {
+    alvo.innerHTML = '';
+  }
+}
+
+/**
+ * Reverteram e não era pra reverter.
+ *
+ * Mostra tudo que vai voltar a valer antes de confirmar — a reversão pode ter
+ * derrubado outras trocas junto, e refazer a primeira sem as outras deixaria a
+ * liga num meio-termo que ninguém consegue explicar.
+ */
+async function undoRevertTrade(tradeId, tipo = 'trade') {
+  let lote;
+  try {
+    const p = await api('admin.php?action=undo_revert', {
+      method: 'PUT', body: JSON.stringify({ trade_id: tradeId, tipo, plano: true })
+    });
+    lote = p.lote;
+    if (!lote) { alert('Essa troca não tem uma reversão pra desfazer.'); return; }
+  } catch (e) { alert(e.error || 'Erro ao conferir'); return; }
+
+  const linhas = (lote.trocas || []).map(t => `• ${t.rotulo}`).join('\n');
+  const ok = await confirmarSite(
+    `Voltam a valer ${lote.trocas.length} troca(s):\n\n${linhas}\n\n`
+    + 'Os jogadores e picks vão pros times que os receberam, e quem teve a troca '
+    + 'devolvida ao saldo paga de novo.');
+  if (!ok) return;
+
+  try {
+    const r = await api('admin.php?action=undo_revert', {
+      method: 'PUT', body: JSON.stringify({ trade_id: tradeId, tipo })
+    });
+    await showTrades();
+    alert(r.message || 'Pronto.');
+  } catch (e) {
     const detalhe = (e.bloqueios || []).map(b => '• ' + b).join('\n');
     alert((e.error || 'Erro') + (detalhe ? '\n\n' + detalhe : ''));
   }
