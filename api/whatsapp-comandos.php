@@ -4722,6 +4722,59 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                 if (!$ligasAdm) return null;
                 return botAdminAjuda($ligasAdm);
 
+            case 'fases':
+            case 'janelas':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminFases($pdo, $arg, $ligasAdm, $ligaDoGrupo);
+
+            /* Os que MEXEM não fazem nada na hora: preparam e devolvem um
+               código. No grupo não existe "tem certeza?" — o dedo escorrega,
+               o comando sai, e abrir a free agency três dias antes é a liga
+               inteira correndo pros free agents. */
+            case 'abrir':
+            case 'fechar':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminPedirFase($pdo, $arg, $cmd === 'abrir', $ligasAdm,
+                                         $ligaDoGrupo, $grupoJid, $deQuem);
+
+            case 'atualizarcap':
+            case 'recalcularcap':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminPedirCap($pdo, $arg, $ligasAdm, $ligaDoGrupo, $grupoJid, $deQuem);
+
+            case 'iniciardraft':
+            case 'comecardraft':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                [$ligaAlvo, $erroLiga] = botAdminLigaDoComando($arg, $ligasAdm, $ligaDoGrupo);
+                if ($ligaAlvo === null) return $erroLiga;
+                return botAdminPedirConfirmacao($pdo, $grupoJid, $deQuem, "draft|{$ligaAlvo}",
+                    "Iniciar o draft da {$ligaAlvo} — a 1ª rodada abre e o relógio é armado");
+
+            case 'relogio':
+            case 'iniciarrelogio':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                [$ligaAlvo, $erroLiga] = botAdminLigaDoComando($arg, $ligasAdm, $ligaDoGrupo);
+                if ($ligaAlvo === null) return $erroLiga;
+                return botAdminPedirConfirmacao($pdo, $grupoJid, $deQuem, "relogio|{$ligaAlvo}",
+                    "Ligar o relógio do draft da {$ligaAlvo} AGORA — 3 min por pick, e o bot chama a vez no Gameplay");
+
+            case 'ok':
+            case 'confirmar':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminConfirmar($pdo, $arg, $grupoJid, $deQuem, $ligasAdm);
+
             default:
                 // Um comando por estatística (/idasplayoffs, /4a0, /rivalidades…).
                 // Não estão listados um por um de propósito: quem sabe quais

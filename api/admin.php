@@ -2138,46 +2138,41 @@ if ($method === 'PUT') {
                     ->execute([$league, $max_seasons]);
             }
 
-            // Ao fechar a janela de trocas, cancela automaticamente qualquer
-            // troca ainda pendente daquela liga (1x1 e multi-times).
-            if ($trades_enabled === 0) {
-                try {
-                    $pdo->prepare("UPDATE trades SET status = 'cancelled' WHERE league = ? AND status = 'pending'")
-                        ->execute([$league]);
-                } catch (Exception $e) {
-                    error_log('Erro ao cancelar trades pendentes: ' . $e->getMessage());
+            /* O QUE ACONTECE ALÉM DE VIRAR O INTERRUPTOR mora em
+               backend/fases_liga.php: cancelar as propostas pendentes quando
+               as trades fecham, e avisar a liga nos dois sentidos. Estava
+               escrito aqui dentro, e aí quem abrisse uma fase de outro lugar
+               (o bot, um cron) teria que copiar a regra — que é como duas
+               telas do app passaram meses discordando sobre a mesma conta.
+
+               Só para quem MUDOU: salvar a tela de novo não é reabrir a fase,
+               e push repetido ensina a liga a ignorar o aviso que ela não
+               pode ignorar. */
+            require_once __DIR__ . '/../backend/fases_liga.php';
+            $fasesQueMudaram = [];
+            foreach ([
+                'trades'    => ['valor' => $trades_enabled,  'antes' => $antesToggles['trades_enabled']],
+                'fa'        => ['valor' => $fa_enabled,      'antes' => $antesToggles['fa_enabled']],
+                'dispensas' => ['valor' => $waivers_enabled, 'antes' => $antesToggles['waivers_enabled']],
+            ] as $fase => $t) {
+                if ($t['valor'] !== null && $t['antes'] !== $t['valor']) {
+                    $fasesQueMudaram[$fase] = $t['valor'] === 1;
                 }
-                try {
-                    $pdo->prepare("UPDATE multi_trades SET status = 'cancelled' WHERE league = ? AND status = 'pending'")
-                        ->execute([$league]);
-                } catch (Exception $e) {
-                    error_log('Erro ao cancelar multi_trades pendentes: ' . $e->getMessage());
-                }
+            }
+
+            // As trades pendentes são canceladas ANTES da resposta: quem fechou
+            // a janela vê a tela já sem elas.
+            if (isset($fasesQueMudaram['trades']) && $fasesQueMudaram['trades'] === false) {
+                faseLigaAplicarEfeitos($pdo, $league, 'trades', false);
+                unset($fasesQueMudaram['trades']);
             }
 
             require_once __DIR__ . '/../backend/push.php';
             responderEDepoisNotificar(
                 ['success' => true],
-                function () use ($pdo, $league, $trades_enabled, $fa_enabled, $antesToggles) {
-                    if ($trades_enabled !== null && $antesToggles['trades_enabled'] !== $trades_enabled) {
-                        sendPushToLeague($pdo, $league, $trades_enabled === 1
-                            ? ['title' => '🔄 Trades abertas na ' . $league,
-                               'body'  => 'A janela de trocas está no ar. Bora negociar.',
-                               'url'   => '/trades.php']
-                            : ['title' => '🔒 Trades fechadas na ' . $league,
-                               'body'  => 'A janela de trocas foi encerrada. As pendentes foram canceladas.',
-                               'url'   => '/trades.php'],
-                            'trades');
-                    }
-                    if ($fa_enabled !== null && $antesToggles['fa_enabled'] !== $fa_enabled) {
-                        sendPushToLeague($pdo, $league, $fa_enabled === 1
-                            ? ['title' => '💰 Free Agency aberta na ' . $league,
-                               'body'  => 'A janela de propostas está no ar. Corra pros free agents!',
-                               'url'   => '/free-agency.php']
-                            : ['title' => '🔒 Free Agency fechada na ' . $league,
-                               'body'  => 'A janela de propostas foi encerrada.',
-                               'url'   => '/free-agency.php'],
-                            'free_agency');
+                function () use ($pdo, $league, $fasesQueMudaram) {
+                    foreach ($fasesQueMudaram as $fase => $abriu) {
+                        faseLigaAplicarEfeitos($pdo, $league, $fase, $abriu);
                     }
                 }
             );

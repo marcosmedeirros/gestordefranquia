@@ -260,13 +260,339 @@ function botAdminTimesStatus(PDO $pdo, string $arg, array $ligasPermitidas, ?str
     return $cab . "\n\n*Faltam {$falta}:*\n" . implode("\n", $linhas);
 }
 
+/**
+ * Qual liga o comando está falando.
+ *
+ * O argumento manda; sem ele, a liga do grupo; sem as duas, erro que diz o que
+ * digitar. Um comando que escreve NUNCA assume liga: abrir a free agency da
+ * ELITE achando que era a da RISE é um estrago que o grupo inteiro vê.
+ *
+ * @return array{0:?string,1:?string} [liga, erro]
+ */
+function botAdminLigaDoComando(?string $arg, array $ligasPermitidas, ?string $ligaDoGrupo): array
+{
+    $arg = strtoupper(trim((string)$arg));
+    if ($arg !== '') {
+        if (in_array($arg, $ligasPermitidas, true)) return [$arg, null];
+        return [null, "Você não administra a *{$arg}*, ou essa liga não existe. "
+                    . 'Suas ligas: ' . implode(', ', $ligasPermitidas) . '.'];
+    }
+    $daqui = strtoupper((string)$ligaDoGrupo);
+    if ($daqui !== '' && in_array($daqui, $ligasPermitidas, true)) return [$daqui, null];
+
+    return [null, 'Diz a liga: ' . implode(', ', array_map('mb_strtolower', $ligasPermitidas)) . '.'];
+}
+
+// ── Confirmação em duas etapas ──────────────────────────────────────────
+//
+// Tudo que ESCREVE passa por aqui. No grupo não existe "tem certeza?" de
+// verdade: o dedo escorrega, o comando sai, e abrir a free agency por engano
+// é a liga inteira correndo pros free agents três dias antes da hora. Então o
+// comando só prepara a ação e devolve um código; o código é que executa.
+//
+// Vale 3 minutos e só pra quem pediu, no grupo onde pediu.
+
+const BOT_ADMIN_CONFIRMA_SEG = 180;
+
+function botAdminPendentesTabela(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bot_admin_pendentes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            codigo VARCHAR(8) NOT NULL,
+            grupo_jid VARCHAR(120) NOT NULL,
+            quem VARCHAR(120) NOT NULL,
+            acao VARCHAR(120) NOT NULL,
+            descricao VARCHAR(255) NOT NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            usado_em DATETIME NULL,
+            INDEX idx_cod (codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+        error_log('[bot-admin] tabela pendentes: ' . $e->getMessage());
+    }
+}
+
+/** Guarda a ação e devolve o texto que pede a confirmação. */
+function botAdminPedirConfirmacao(PDO $pdo, string $grupoJid, string $quem, string $acao, string $descricao): string
+{
+    botAdminPendentesTabela($pdo);
+    $codigo = (string)random_int(1000, 9999);
+    try {
+        $pdo->prepare('INSERT INTO bot_admin_pendentes (codigo, grupo_jid, quem, acao, descricao)
+                       VALUES (?,?,?,?,?)')
+            ->execute([$codigo, $grupoJid, $quem, $acao, mb_substr($descricao, 0, 255)]);
+    } catch (Throwable $e) {
+        error_log('[bot-admin] pedir confirmacao: ' . $e->getMessage());
+        return 'Não consegui preparar isso agora. Tenta de novo.';
+    }
+
+    $min = (int)round(BOT_ADMIN_CONFIRMA_SEG / 60);
+    return "⚠️ *{$descricao}*\n\nConfirma com */ok {$codigo}* — vale {$min} minutos.";
+}
+
+/** /ok CÓDIGO — executa o que estava guardado. */
+function botAdminConfirmar(PDO $pdo, string $arg, string $grupoJid, string $quem, array $ligasPermitidas): string
+{
+    botAdminPendentesTabela($pdo);
+    $codigo = preg_replace('/\D+/', '', $arg);
+    if ($codigo === '') return 'Manda o código: */ok 1234*.';
+
+    try {
+        /* O UPDATE condicional é o que garante UMA execução: dois /ok do mesmo
+           código, ou duas pessoas ao mesmo tempo, e só um muda linha. Quem não
+           mudou, não executa. */
+        $st = $pdo->prepare("UPDATE bot_admin_pendentes SET usado_em = NOW()
+                              WHERE codigo = ? AND grupo_jid = ? AND quem = ? AND usado_em IS NULL
+                                AND criado_em > DATE_SUB(NOW(), INTERVAL ? SECOND)");
+        $st->execute([$codigo, $grupoJid, $quem, BOT_ADMIN_CONFIRMA_SEG]);
+        if ($st->rowCount() === 0) {
+            return 'Esse código não vale mais — ou já foi usado, ou passou dos 3 minutos, ou é de outra pessoa. Manda o comando de novo.';
+        }
+
+        $st = $pdo->prepare('SELECT acao, descricao FROM bot_admin_pendentes
+                              WHERE codigo = ? AND grupo_jid = ? AND quem = ?
+                           ORDER BY id DESC LIMIT 1');
+        $st->execute([$codigo, $grupoJid, $quem]);
+        $p = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$p) return 'Perdi o que era pra fazer. Manda o comando de novo.';
+    } catch (Throwable $e) {
+        error_log('[bot-admin] confirmar: ' . $e->getMessage());
+        return 'Não consegui executar agora. Tenta de novo.';
+    }
+
+    return botAdminExecutar($pdo, (string)$p['acao'], $ligasPermitidas);
+}
+
+/**
+ * Faz o que foi confirmado.
+ *
+ * A liga é conferida DE NOVO contra o que a pessoa administra: entre pedir e
+ * confirmar, ela pode ter perdido o cargo — e o código guardado não é
+ * autorização eterna.
+ */
+function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): string
+{
+    $partes = explode('|', $acao);
+    $tipo = $partes[0] ?? '';
+    $liga = strtoupper($partes[1] ?? '');
+
+    if (!in_array($liga, $ligasPermitidas, true)) return "Você não administra mais a *{$liga}*.";
+
+    switch ($tipo) {
+        case 'fase':
+            require_once __DIR__ . '/fases_liga.php';
+            $fase  = $partes[2] ?? '';
+            $abrir = ($partes[3] ?? '0') === '1';
+            $r = faseLigaDefinir($pdo, $liga, $fase, $abrir);
+            return $r['texto'];
+
+        case 'cap':
+            require_once __DIR__ . '/league_cap.php';
+            $r = recalcularCapAgora($pdo, $liga);
+            if (!$r['ok']) return '❌ ' . ($r['erro'] ?? 'Não deu pra recalcular.');
+            $s = $r['resumo'];
+            $atu = $s['atualizados'] ?? null;
+            return "📊 *CAP DA {$liga} ATUALIZADO*\n"
+                 . "Média: *{$s['avg']}* · margem {$s['margin']}\n"
+                 . "Faixa nova: *{$s['cap_min']} – {$s['cap_max']}*\n"
+                 . "{$s['teams_above']} acima, {$s['teams_below']} abaixo"
+                 . ($atu ? "\n\n_Elencos atualizados quando rodou: {$atu['done']}/{$atu['total']}._" : '');
+
+        case 'draft':
+            return botAdminIniciarDraft($pdo, $liga);
+
+        case 'relogio':
+            return botAdminIniciarRelogio($pdo, $liga);
+    }
+    return 'Não sei mais o que era pra fazer.';
+}
+
+// ── As ações ────────────────────────────────────────────────────────────
+
+/** /fases — como estão trades, free agency e dispensas. */
+function botAdminFases(PDO $pdo, string $arg, array $ligasPermitidas, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/fases_liga.php';
+
+    $ligas = $ligasPermitidas;
+    [$uma, $erro] = botAdminLigaDoComando($arg, $ligasPermitidas, null);
+    if ($uma !== null) $ligas = [$uma];
+    elseif (trim($arg) !== '') return $erro;
+
+    $saida = [];
+    foreach ($ligas as $liga) {
+        $e = faseLigaEstado($pdo, $liga);
+        $linha = [];
+        foreach (FASES_LIGA as $chave => $f) {
+            $linha[] = ($e[$chave]['aberta'] ? '🟢' : '🔴') . ' ' . $f['nome'];
+        }
+        $texto = "*{$liga}*\n" . implode('  ·  ', $linha);
+
+        // Fechamento já marcado na tela do admin: quem abre a fase pelo bot
+        // precisa saber que existe um horário pra fechá-la de novo.
+        $ag = [];
+        foreach (['trades' => 'Trades', 'fa' => 'Free Agency'] as $k => $nome) {
+            if (!empty($e['_agendado'][$k])) {
+                $ag[] = $nome . ' fecha ' . date('d/m H:i', strtotime((string)$e['_agendado'][$k]));
+            }
+        }
+        if ($ag) $texto .= "\n_" . implode(' · ', $ag) . '_';
+        $saida[] = $texto;
+    }
+
+    return "🎚️ *FASES*\n\n" . implode("\n\n", $saida)
+         . "\n\n_/abrir trades " . mb_strtolower($ligas[0]) . " · /fechar fa " . mb_strtolower($ligas[0]) . "_";
+}
+
+/** /abrir e /fechar — preparam a mudança e pedem confirmação. */
+function botAdminPedirFase(PDO $pdo, string $arg, bool $abrir, array $ligasPermitidas,
+                           ?string $ligaDoGrupo, string $grupoJid, string $quem): string
+{
+    require_once __DIR__ . '/fases_liga.php';
+
+    $partes = preg_split('/\s+/', trim($arg), 2);
+    $fase = faseLigaNormalizar((string)($partes[0] ?? ''));
+    if ($fase === null) {
+        return 'O que abrir ou fechar? *trades*, *fa* ou *dispensas*. Ex.: /' . ($abrir ? 'abrir' : 'fechar') . ' trades rise';
+    }
+
+    [$liga, $erro] = botAdminLigaDoComando($partes[1] ?? null, $ligasPermitidas, $ligaDoGrupo);
+    if ($liga === null) return $erro;
+
+    $estado = faseLigaEstado($pdo, $liga)[$fase];
+    if ($estado['aberta'] === $abrir) {
+        return "{$estado['nome']} da *{$liga}* já " . ($abrir ? 'está aberta.' : 'está fechada.');
+    }
+
+    $desc = ($abrir ? 'Abrir' : 'Fechar') . " {$estado['nome']} da {$liga}"
+          . (!$abrir && $fase === 'trades' ? ' (cancela as propostas pendentes)' : '')
+          . ' — a liga recebe aviso';
+
+    return botAdminPedirConfirmacao($pdo, $grupoJid, $quem,
+        "fase|{$liga}|{$fase}|" . ($abrir ? '1' : '0'), $desc);
+}
+
+/** /atualizarcap — recalcula a faixa de CAP da liga. */
+function botAdminPedirCap(PDO $pdo, string $arg, array $ligasPermitidas,
+                          ?string $ligaDoGrupo, string $grupoJid, string $quem): string
+{
+    require_once __DIR__ . '/league_cap.php';
+
+    [$liga, $erro] = botAdminLigaDoComando($arg, $ligasPermitidas, $ligaDoGrupo);
+    if ($liga === null) return $erro;
+
+    /* QUANTOS TIMES AINDA NÃO ATUALIZARAM VEM NO AVISO, e não depois.
+       A faixa sai da média dos elencos: recalcular com metade da liga ainda
+       com o elenco da temporada passada produz um número errado que todo
+       mundo passa a seguir. É a informação que decide se é hora ou não. */
+    $st = $pdo->prepare("SELECT id, season_number FROM seasons
+                          WHERE league = ? AND (status IS NULL OR status <> 'completed')
+                       ORDER BY id DESC LIMIT 1");
+    $st->execute([$liga]);
+    $t = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$t) return "A *{$liga}* não tem temporada aberta agora.";
+
+    $r = leagueRosterUpdateStatus($pdo, $liga, (int)$t['id']);
+    $falta = $r['total'] - $r['done'];
+
+    $desc = "Recalcular o CAP da {$liga} (T{$t['season_number']})"
+          . ($falta ? " — ATENÇÃO: {$falta} time(s) ainda não atualizaram o elenco" : ' — todos os elencos atualizados');
+
+    return botAdminPedirConfirmacao($pdo, $grupoJid, $quem, "cap|{$liga}", $desc);
+}
+
+/** /iniciardraft — tira o draft do "configurando" e abre a 1ª rodada. */
+function botAdminIniciarDraft(PDO $pdo, string $liga): string
+{
+    $st = $pdo->prepare("SELECT ds.id, ds.status, s.season_number
+                           FROM draft_sessions ds
+                           JOIN seasons s ON s.id = ds.season_id
+                          WHERE ds.league = ? ORDER BY ds.id DESC LIMIT 1");
+    $st->execute([$liga]);
+    $d = $st->fetch(PDO::FETCH_ASSOC);
+
+    if (!$d) return "A *{$liga}* não tem draft criado. Isso é na tela do admin.";
+    if ($d['status'] === 'in_progress') return "O draft da *{$liga}* já está rolando.";
+    if ($d['status'] !== 'setup') return "O draft da *{$liga}* está como *{$d['status']}* — não dá pra iniciar.";
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ?');
+    $st->execute([(int)$d['id']]);
+    if ((int)$st->fetchColumn() === 0) {
+        return "A ordem do draft da *{$liga}* está vazia. Defina a ordem antes (loteria ou tela do admin).";
+    }
+
+    $pdo->prepare('UPDATE draft_sessions
+                      SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW()
+                    WHERE id = ? AND status = "setup"')->execute([(int)$d['id']]);
+
+    // O aviso da vez é do relógio (backend/draft_relogio.php), que também
+    // agenda a abertura automática 16h depois. Uma passada agora já deixa
+    // tudo armado, em vez de esperar o próximo tick.
+    try {
+        require_once __DIR__ . '/draft_relogio.php';
+        draftRelogioSessao($pdo, (int)$d['id']);
+    } catch (Throwable $e) {
+        error_log('[bot-admin] relogio pos-inicio: ' . $e->getMessage());
+    }
+
+    return "🏀 *Draft da {$liga} iniciado* (T{$d['season_number']}).\n"
+         . "_O relógio abre sozinho em 16h; /relogio começa agora._";
+}
+
+/** /relogio — liga o relógio de 3 min por pick na hora. */
+function botAdminIniciarRelogio(PDO $pdo, string $liga): string
+{
+    require_once __DIR__ . '/draft_relogio.php';
+
+    $st = $pdo->prepare("SELECT id, current_round, round1_clock_start_at
+                           FROM draft_sessions
+                          WHERE league = ? AND status = 'in_progress'
+                       ORDER BY id DESC LIMIT 1");
+    $st->execute([$liga]);
+    $d = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$d) return "A *{$liga}* não tem draft em andamento.";
+
+    $inicio = $d['round1_clock_start_at'] ? strtotime((string)$d['round1_clock_start_at']) : null;
+    if ($inicio !== null && $inicio <= time()) return "O relógio da *{$liga}* já está correndo.";
+
+    draftRelogioColunas($pdo);
+    $pdo->prepare('UPDATE draft_sessions
+                      SET round1_clock_start_at = NOW(), clock_manual_off = NULL,
+                          clock_aviso_em = NULL, clock_abertura_em = NULL, vez_anunciada = NULL
+                    WHERE id = ?')->execute([(int)$d['id']]);
+
+    // Anuncia a abertura e chama o primeiro da fila no mesmo pulso.
+    try {
+        draftRelogioSessao($pdo, (int)$d['id']);
+    } catch (Throwable $e) {
+        error_log('[bot-admin] relogio: ' . $e->getMessage());
+    }
+
+    return "⏱️ *Relógio da {$liga} ligado* — 3 minutos por pick a partir de agora.\n"
+         . '_O bot já chamou o time da vez no Gameplay._';
+}
+
 /** A lista dos comandos que só existem aqui. */
 function botAdminAjuda(array $ligasPermitidas): string
 {
+    $l = mb_strtolower($ligasPermitidas[0] ?? 'elite');
     return "🔐 *COMANDOS DE ADMIN*\n"
-         . '_Respondem só neste grupo, e só pra quem administra liga._' . "\n\n"
+         . '_Só neste grupo, e só pra quem administra liga._' . "\n\n"
+         . "*Ver*\n"
          . "/timesstatus — quem atualizou o elenco e quem não\n"
-         . "/timesstatus _liga_ — a lista nominal, com o GM de cada um\n"
-         . "/adminaqui off — tira este grupo da lista de grupos de admin\n\n"
+         . "/timesstatus _{$l}_ — a lista nominal, com o GM\n"
+         . "/fases — trades, free agency e dispensas de cada liga\n"
+         . "/irregulares _{$l}_ — quem está fora do cap ou da faixa\n\n"
+         . "*Mexer* _(pede confirmação)_\n"
+         . "/abrir trades _{$l}_ · /fechar fa _{$l}_\n"
+         . "/atualizarcap _{$l}_ — recalcula a faixa de CAP\n"
+         . "/iniciardraft _{$l}_ — abre o draft\n"
+         . "/relogio _{$l}_ — liga os 3 min por pick agora\n\n"
+         . "*Edital e regras*\n"
+         . "/duvida _sua pergunta_ · /edital _termo_\n\n"
          . '_Suas ligas: ' . (implode(', ', $ligasPermitidas) ?: 'nenhuma') . '._';
 }
