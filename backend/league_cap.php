@@ -97,18 +97,22 @@ function leagueRosterUpdateStatus(PDO $pdo, string $league, int $seasonId): arra
     $st = $pdo->prepare($sql);
     $st->execute([$inicio !== '' ? $inicio : $seasonId, $league]);
 
-    $total = 0; $done = 0; $pendentes = [];
+    $total = 0; $done = 0; $pendentes = []; $pendentesIds = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
         $total++;
         if ((int)$t['ok'] === 1) { $done++; continue; }
         $pendentes[] = trim((string)$t['nome']) ?: ('Time #' . (int)$t['id']);
+        $pendentesIds[] = (int)$t['id'];
     }
 
     return [
-        'total'     => $total,
-        'done'      => $done,
-        'complete'  => $total > 0 && $done >= $total,
-        'pendentes' => $pendentes,
+        'total'         => $total,
+        'done'          => $done,
+        'complete'      => $total > 0 && $done >= $total,
+        'pendentes'     => $pendentes,
+        // Os ids saem junto pra quem precisa de mais do que o nome — o bot
+        // marca o GM no grupo, e pra isso tem que chegar no dono do time.
+        'pendentes_ids' => $pendentesIds,
     ];
 }
 

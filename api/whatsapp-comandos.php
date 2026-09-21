@@ -4695,6 +4695,33 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'quizaqui':
                 return wcQuizAqui($pdo, $deQuem, $grupoJid);
 
+            /* ── COMANDOS DE ADMIN ───────────────────────────────────────
+               Respondem em DOIS lugares ao mesmo tempo: grupo marcado como
+               grupo de admin e pessoa que administra alguma liga. Faltando
+               qualquer um dos dois, `null` — que é como este switch diz "não
+               é comando meu", e o bot fica calado. Um "você não pode" contaria
+               ao grupo dos GMs que estes comandos existem.
+               A tranca inteira mora em backend/bot_admin.php. */
+            case 'adminaqui':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                return botAdminMarcarGrupo($pdo, $deQuem, $grupoJid,
+                    !in_array(mb_strtolower(trim($arg)), ['off', 'nao', 'não', '0'], true));
+
+            case 'timesstatus':
+            case 'statustimes':
+            case 'elencos':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminTimesStatus($pdo, $arg, $ligasAdm, $ligaDoGrupo);
+
+            case 'ajudaadmin':
+            case 'comandosadmin':
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminAjuda($ligasAdm);
+
             default:
                 // Um comando por estatística (/idasplayoffs, /4a0, /rivalidades…).
                 // Não estão listados um por um de propósito: quem sabe quais

@@ -611,7 +611,11 @@ foreach ($mensagens as $m) {
     // CADASTRAR o grupo, então exigir que ele já esteja cadastrado seria pedir
     // a chave que está trancada dentro. Ele não lê nada do banco da liga — só
     // confere se quem digitou é admin e grava o destino do quiz.
-    $ehQuizAqui = strtolower(ltrim(explode(' ', trim($texto))[0], '/')) === 'quizaqui';
+    // O /adminaqui entra pela mesma porta e pelo mesmo motivo: ele é o comando
+    // que CADASTRA o grupo de admin, e exigir grupo já cadastrado seria pedir
+    // a chave que está trancada dentro. Os dois conferem admin por conta.
+    $cmdCru = strtolower(ltrim(explode(' ', trim($texto))[0], '/'));
+    $ehQuizAqui = in_array($cmdCru, ['quizaqui', 'adminaqui'], true);
     if (!isset($gruposPermitidos[$de]) && !$ehQuizAqui) continue;
 
     // Freio contra enxurrada — alguém segurando o comando, ou a Evolution
