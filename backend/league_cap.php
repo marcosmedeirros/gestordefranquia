@@ -333,19 +333,19 @@ function capAvisarGrupoDoRecalculo(PDO $pdo, array $resumo): void
         if (!empty($resumo['teams_above'])) $fora[] = (int)$resumo['teams_above'] . ' acima';
         if (!empty($resumo['teams_below'])) $fora[] = (int)$resumo['teams_below'] . ' abaixo';
 
-        // De quanto foi o passo: é o que mostra que a régua andou devagar.
-        $de = '';
+        /* UMA LINHA DE RODAPÉ, no formato que ele pediu: de onde veio e quem
+           ficou fora. A média saiu — ela explica a conta, e quem lê no grupo
+           quer o número que vale e quem tem que se mexer. */
+        $rodape = [];
         if (!empty($resumo['antes_min']) && !empty($resumo['antes_max'])) {
-            $de = "_Era {$resumo['antes_min']}–{$resumo['antes_max']}{$un}._\n";
+            $rodape[] = "Era {$resumo['antes_min']}–{$resumo['antes_max']}{$un}";
         }
+        $rodape[] = $fora ? implode(' e ', $fora) . ' da faixa' : 'todo mundo dentro da faixa';
 
         $txt = "📊 *NOVO CAP DEFINIDO — {$liga}*\n\n"
              . "Cap máximo: *{$resumo['cap_max']}{$un}*\n"
-             . "Cap mínimo: *{$resumo['cap_min']}{$un}*\n"
-             . ($de !== '' ? "\n" . $de : '')
-             . "\n_Média dos elencos: {$resumo['avg']}{$un}"
-             . ($fora ? ' · ' . implode(' e ', $fora) . ' da faixa' : ' · todo mundo dentro da faixa')
-             . '_';
+             . "Cap mínimo: *{$resumo['cap_min']}{$un}*\n\n"
+             . '_' . implode(' | ', $rodape) . '_';
 
         whatsappEnfileirar($pdo, $grupo, $txt, true, 'cap');
     } catch (Throwable $e) {
