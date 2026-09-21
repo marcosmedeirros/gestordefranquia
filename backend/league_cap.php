@@ -134,7 +134,26 @@ function leagueRosterUpdateStatus(PDO $pdo, string $league, int $seasonId): arra
  * quem chama, ver maybeAutoRecalcularCapDaLiga). Retorna o resumo do
  * cálculo, ou null se não havia times/dados suficientes.
  */
-function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?array
+/**
+ * A CONTA DO CAP, SEM GRAVAR NADA.
+ *
+ * Saiu de dentro do recálculo pra que dê pra MOSTRAR a faixa antes de aplicar:
+ * o comando do grupo pergunta "confirma?" e, sem isto, perguntava sobre um
+ * número que ninguém tinha visto. A tela do admin e o bot passam a poder
+ * responder "vai ficar assim" com a mesma conta que vai rodar.
+ *
+ * @return array|null null quando a liga não tem times ou elenco pra tirar média.
+ */
+function capPreviaDoRecalculo(PDO $pdo, string $league): ?array
+{
+    return recalcularCapDaLiga($pdo, $league, 0, true);
+}
+
+/**
+ * @param bool $apenasCalcular não grava nada e não avisa ninguém — só devolve
+ *                             a conta. É o que a prévia usa.
+ */
+function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber, bool $apenasCalcular = false): ?array
 {
     ensureLeagueCapAutoTables($pdo);
 
@@ -212,6 +231,20 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?arra
     foreach ($values as $v) {
         if ($v > $newMax) $acima++;
         elseif ($v < $newMin) $abaixo++;
+    }
+
+    // A prévia para aqui: a conta está pronta e nada foi tocado.
+    if ($apenasCalcular) {
+        return [
+            'league' => $league, 'cap_mode' => $capMode,
+            'avg' => (int)round($avg), 'margin' => $marginRecord,
+            'cap_min' => $newMin, 'cap_max' => $newMax,
+            'antes_min' => $temCapAtual ? $atualMin : null,
+            'antes_max' => $temCapAtual ? $atualMax : null,
+            'alvo_min' => $alvoMin, 'alvo_max' => $alvoMax,
+            'segurou' => $temCapAtual && ($alvoMin !== $newMin || $alvoMax !== $newMax),
+            'teams_total' => count($values), 'teams_above' => $acima, 'teams_below' => $abaixo,
+        ];
     }
 
     $pdo->prepare("UPDATE league_settings SET cap_min = ?, cap_max = ?, cap_auto_last_season = ? WHERE league = ?")

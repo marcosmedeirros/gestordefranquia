@@ -568,7 +568,30 @@ function botAdminPedirCap(PDO $pdo, string $arg, array $ligasPermitidas,
     $desc = "Recalcular o CAP da {$liga} (T{$t['season_number']})"
           . ($falta ? " — ATENÇÃO: {$falta} time(s) ainda não atualizaram o elenco" : ' — todos os elencos atualizados');
 
-    return botAdminPedirConfirmacao($pdo, $grupoJid, $quem, "cap|{$liga}", $desc);
+    $pedido = botAdminPedirConfirmacao($pdo, $grupoJid, $quem, "cap|{$liga}", $desc);
+
+    /* A FAIXA SUGERIDA VEM ANTES DO /ok.
+       Confirmar um recálculo sem ver o número é assinar em branco: a mesma
+       conta que vai rodar já sabe dizer no que dá, e é ela que o admin quer
+       olhar antes de dizer sim. Nada é gravado aqui. */
+    $previa = capPreviaDoRecalculo($pdo, $liga);
+    if ($previa) {
+        $un = ($previa['cap_mode'] ?? '') === 'salary' ? 'M' : '';
+        $linhas = "\n\n📊 *Vai ficar: {$previa['cap_min']} – {$previa['cap_max']}{$un}*";
+        if (!empty($previa['antes_min'])) {
+            $linhas .= "\n_Hoje: {$previa['antes_min']} – {$previa['antes_max']}{$un}_";
+        }
+        $linhas .= "\n_Média dos elencos: {$previa['avg']}{$un}_";
+        if (!empty($previa['segurou'])) {
+            $linhas .= "\n_A média pedia {$previa['alvo_min']}–{$previa['alvo_max']}{$un}; o cap anda no máximo "
+                     . LEAGUE_CAP_PASSO_MAXIMO . ' por vez._';
+        }
+        // Com a faixa nova: quem fica irregular é o que decide se é hora.
+        $linhas .= "\n_Na faixa nova: {$previa['teams_above']} acima e {$previa['teams_below']} abaixo._";
+        $pedido .= $linhas;
+    }
+
+    return $pedido;
 }
 
 /** /iniciardraft — tira o draft do "configurando" e abre a 1ª rodada. */
