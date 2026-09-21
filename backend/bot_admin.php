@@ -407,9 +407,6 @@ function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): strin
 
         case 'relogio':
             return botAdminIniciarRelogio($pdo, $liga);
-
-        case 'tela':
-            return botAdminTela($pdo, $liga, ($partes[2] ?? '1') === '1', (int)($partes[3] ?? 0));
     }
     return 'Não sei mais o que era pra fazer.';
 }
@@ -580,30 +577,28 @@ function botAdminIniciarRelogio(PDO $pdo, string $liga): string
 }
 
 /**
- * /abrirtela e /fechartela — a venda dos slots de tela da próxima live.
+ * /abrirtela — antecipa a venda dos slots de tela da próxima live.
  *
- * A venda abre sozinha no horário; o que este comando faz é antecipar, que é
- * o caso real: a live foi remarcada, ou a organização quer vender antes. O
- * "fechar" não fecha nada — desfaz a antecipação e devolve a venda ao relógio.
+ * Só abre. A venda já abre sozinha no horário e fecha sozinha quando a live
+ * começa; o comando existe pro caso em que a organização quer vender antes.
+ * Não há "fechartela" de propósito — desfazer a antecipação é tela de admin,
+ * e um comando a mais no grupo por algo que se resolve sozinho em horas é
+ * mais uma linha pra alguém digitar por engano.
  *
  * Quem já comprou continua comprado: os slots vendidos não são tocados aqui.
  */
-function botAdminTela(PDO $pdo, string $liga, bool $abrir, int $adminId): string
+function botAdminTela(PDO $pdo, string $liga, int $adminId): string
 {
     require_once __DIR__ . '/slots_tela.php';
 
-    $r = $abrir ? slotsTelaAbrirAgora($pdo, $liga, $adminId)
-                : slotsTelaCancelarAbertura($pdo, $liga);
-
+    $r = slotsTelaAbrirAgora($pdo, $liga, $adminId);
     if (empty($r['ok'])) return '❌ ' . ($r['erro'] ?? 'Não deu certo.');
 
     $live = $r['live'] ?? [];
     $quando = !empty($live['inicio'])
         ? date('d/m \à\s H:i', strtotime((string)$live['inicio'])) : 'a próxima live';
 
-    return $abrir
-        ? "📺 *Venda de tela aberta na {$liga}*\nLive de {$quando}.\n_Fecha sozinha quando a live começar._"
-        : "🔒 *Venda de tela da {$liga} voltou pro horário automático.*\nLive de {$quando}.\n_Quem já comprou continua com o slot._";
+    return "📺 *Venda de tela aberta na {$liga}*\nLive de {$quando}.\n_Fecha sozinha quando a live começar._";
 }
 
 /**
@@ -629,8 +624,7 @@ function botAdminAjuda(array $ligasPermitidas): string
          . "/iniciardraft _{$l}_ — abre o draft\n"
          . "/relogio _{$l}_ — liga os 3 min por pick agora\n\n"
          . "*Games*\n"
-         . "/abrirtela _{$l}_ — antecipa a venda de slot da próxima live\n"
-         . "/fechartela _{$l}_ — devolve a venda ao horário automático\n\n"
+         . "/abrirtela _{$l}_ — antecipa a venda de slot da próxima live\n\n"
          . "*Edital e regras*\n"
          . "/duvida _sua pergunta_ · /edital _termo_\n\n"
          . '_Suas ligas: ' . (implode(', ', $ligasPermitidas) ?: 'nenhuma') . '._';
