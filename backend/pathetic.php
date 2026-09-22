@@ -544,12 +544,25 @@ function patheticContarView(PDO $pdo, int $noticiaId): void
     if (session_status() === PHP_SESSION_NONE) return;   // página sem sessão: não conta
 
     $vistas = $_SESSION['pathetic_vistas'] ?? [];
+
+    /* A SESSÃO PODE VIR CORROMPIDA, E A MATÉRIA NÃO PODE CAIR POR ISSO.
+       O save_path é um diretório só pra tudo que roda nesta conta, e lá
+       apareceram arquivos com a mesma chave gravada duas vezes e com valores
+       de outro tipo ("pathetic_vistas|i:0"). Quem leu um desses recebia um int
+       aqui: o foreach avisava e a linha de baixo derrubava a página inteira
+       com "Cannot use a scalar value as an array". O leitor não conseguia
+       abrir NENHUMA notícia — um contador de visitas tirou o jornal do ar.
+
+       Então nada que venha da sessão é tratado como certo: fora do formato,
+       a lista recomeça. O preço é uma view contada duas vezes pra quem caiu
+       nisso, o que é o menor dos dois problemas. */
+    if (!is_array($vistas)) $vistas = [];
     $agora = time();
 
     // Limpa o que passou da janela antes de decidir: sem isto a lista cresce
     // pra sempre dentro do cookie de sessão.
     foreach ($vistas as $id => $quando) {
-        if ($agora - (int)$quando > PATHETIC_JANELA_VIEW) unset($vistas[$id]);
+        if (!is_scalar($quando) || $agora - (int)$quando > PATHETIC_JANELA_VIEW) unset($vistas[$id]);
     }
 
     if (isset($vistas[$noticiaId])) { $_SESSION['pathetic_vistas'] = $vistas; return; }
