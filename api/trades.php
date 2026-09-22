@@ -3260,6 +3260,34 @@ if ($method === 'POST') {
         }
     }
     
+    /* ── Yan Rule / Stepien: dois anos seguidos sem 1ª rodada ──────────────
+       Só na ROOKIE, cujo edital (art. 31) escreve a regra nesses termos. Vale
+       pros DOIS lados: quem oferece pick e quem tem pick pedida ficam ambos
+       com menos escolhas depois da troca. @see backend/stepien.php */
+    require_once dirname(__DIR__) . '/backend/stepien.php';
+    if (stepienLigaUsa($ligaDaTroca)) {
+        $idsDe = fn(array $lista) => array_values(array_filter(array_map(
+            static fn($p) => (int)($p['id'] ?? 0), $lista)));
+        $picksOferecidas = $idsDe($offerPicks);
+        $picksPedidas    = $idsDe($requestPicks);
+
+        $stNomeAlvo = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''),' ',name)) FROM teams WHERE id = ?");
+        $stNomeAlvo->execute([(int)$toTeamId]);
+        $nomeAlvo = (string)($stNomeAlvo->fetchColumn() ?: 'O outro time');
+
+        foreach ([
+            [(int)$teamId,   $picksOferecidas, $picksPedidas,    'Seu time'],
+            [(int)$toTeamId, $picksPedidas,    $picksOferecidas, $nomeAlvo],
+        ] as [$tid, $saem, $entram, $rotulo]) {
+            $erroStepien = stepienConferir($pdo, $ligaDaTroca, $tid, $saem, $entram, $rotulo);
+            if ($erroStepien !== null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $erroStepien]);
+                exit;
+            }
+        }
+    }
+
     // ── Casamento salarial (120%) ────────────────────────────────────────────
     // A regra existia só no navegador (js/trades.js desabilita o botão). Quem
     // chamasse a API direto — ou com a página desatualizada — passava uma troca
@@ -4084,6 +4112,35 @@ if ($method === 'PUT') {
         // O limite é por time, não por liga: a punição pode ter cortado
         // trocas de um dos dois (ver getTeamMaxTrades).
         $ligaDaTroca = $tradeLeague ?: $user['league'];
+
+        /* Yan Rule / Stepien conferida DE NOVO no aceite, e não só ao propor.
+           Entre uma coisa e outra o quadro muda: o time pode ter fechado
+           outra troca, ou ter perdido uma pick por punição. Uma proposta
+           legal na terça vira ilegal na quinta, e é o aceite que faz valer. */
+        require_once dirname(__DIR__) . '/backend/stepien.php';
+        if (stepienLigaUsa($ligaDaTroca)) {
+            /* `from_team` é um SIM/NÃO, não um id: 1 = o item sai de quem
+               propôs, 0 = sai de quem recebeu a proposta. */
+            $stPk = $pdo->prepare("SELECT pick_id, from_team FROM trade_items
+                                    WHERE trade_id = ? AND pick_id IS NOT NULL");
+            $stPk->execute([(int)$tradeId]);
+            $de   = (int)$trade['from_team_id'];
+            $para = (int)$trade['to_team_id'];
+            $saemDe = $saemPara = [];
+            foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) as $it) {
+                if ((int)$it['from_team'] === 1) $saemDe[]   = (int)$it['pick_id'];
+                else                             $saemPara[] = (int)$it['pick_id'];
+            }
+            foreach ([[$de, $saemDe, $saemPara], [$para, $saemPara, $saemDe]] as [$tid, $saem, $entram]) {
+                $erroStepien = stepienConferir($pdo, $ligaDaTroca, $tid, $saem, $entram, 'O time');
+                if ($erroStepien !== null) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => $erroStepien]);
+                    exit;
+                }
+            }
+        }
+
         $fromTradesUsed = getTeamTradesUsed($pdo, (int)$trade['from_team_id']);
         if ($fromTradesUsed >= getTeamMaxTrades($pdo, (int)$trade['from_team_id'], $ligaDaTroca, 3)) {
             http_response_code(400);

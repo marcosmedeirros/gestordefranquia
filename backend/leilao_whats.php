@@ -1173,6 +1173,23 @@ function lwReceberPropostaLivre(PDO $pdo, array $lw, array $time, string $texto,
 
     // Leilão não tem teto salarial (regra da liga): nenhuma conta de cap aqui.
 
+    /* YAN RULE / STEPIEN — só na ROOKIE (art. 31).
+       O leilão fecha como troca de verdade, então a mesma regra que barra na
+       Trade Machine tem que barrar aqui. Sem isto, bastaria mandar pelo bot
+       aquilo que o app recusa. Os dois lados entram na conta: quem oferta
+       entrega `enviaPicks`, e o vendedor entrega o que colou junto do
+       leiloado. @see backend/stepien.php */
+    require_once __DIR__ . '/stepien.php';
+    if (stepienLigaUsa($liga)) {
+        foreach ([
+            [$teamId,   array_keys($enviaPicks), array_keys($extraPicks), 'Você'],
+            [$sellerId, array_keys($extraPicks), array_keys($enviaPicks), $lw['vendedor_nome'] ?? 'O vendedor'],
+        ] as [$tid, $saem, $entram, $rotulo]) {
+            $erro = stepienConferir($pdo, $liga, (int)$tid, $saem, $entram, (string)$rotulo);
+            if ($erro !== null) return "❌ {$erro}";
+        }
+    }
+
     $pdo->beginTransaction();
     try {
         $st = $pdo->prepare("SELECT status FROM leilao_whats WHERE id = ? FOR UPDATE");
