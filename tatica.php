@@ -142,6 +142,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pos-linha.erro{border-color:rgba(239,68,68,.6)}
 @media (max-width:480px){.pos-cab,.pos-linha{grid-template-columns:minmax(0,1fr) 72px 72px;gap:6px}}
 
+/* ── Encaixe do elenco por estilo de jogo ─────────────
+   A linha do estilo ESCOLHIDO fica destacada: a pergunta que traz o GM
+   aqui é "o que eu escolhi serve pro meu time?", e a resposta tem que
+   estar onde o olho cai, não no meio de uma lista de oito. */
+.sis-lista{display:flex;flex-direction:column;gap:6px}
+.sis-linha{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:8px 11px}
+.sis-linha.atual{border-color:var(--red);background:var(--red-soft)}
+.sis-nome{min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sis-nome .sis-tag{font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--red);margin-left:7px}
+.sis-estrelas{font-size:14px;letter-spacing:1px;color:#f59e0b;white-space:nowrap}
+.sis-estrelas .off{color:var(--text-3);opacity:.5}
+.sis-nota-num{font-size:12px;font-weight:700;color:var(--text-2);min-width:34px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.sis-nota{margin-top:11px;font-size:11.5px;line-height:1.5;color:var(--text-3)}
+@media (max-width:480px){
+  .sis-linha{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}
+  .sis-nota-num{grid-column:2;text-align:right}
+  .sis-estrelas{grid-column:1/-1;font-size:13px}
+}
+
 /* ── Modelo técnico ────────────────────────────────── */
 .mt-bloco{margin-top:16px;padding:14px;border-radius:12px;
   background:var(--panel-2);border:1px solid var(--border)}
@@ -394,6 +416,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </div>
     </div>
 
+    <!-- Quanto o elenco rende em cada estilo de jogo -->
+    <div class="panel" id="panelSistemas" style="display:none">
+      <div class="section-title"><i class="bi bi-stars"></i> Encaixe do elenco
+        <span class="hint">Média dos <b>titulares</b> em cada estilo. As notas saem da ficha técnica do elenco.</span>
+      </div>
+      <div id="sisLista"></div>
+      <div class="sis-nota" id="sisNota"></div>
+    </div>
+
     <div class="savebar">
       <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar agora</button>
       <button class="btn success" id="btnAtivar"><i class="bi bi-check-circle"></i> Ativar esta tática</button>
@@ -522,6 +553,10 @@ if (TEM_MODELO){
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnVerModelos')?.addEventListener('click', abrirModelos);
     document.getElementById('f_technical_model')?.addEventListener('change', pintarModeloEscolhido);
+    // Trocou o estilo de jogo: a linha dele passa a ser a destacada.
+    document.getElementById('f_game_style')?.addEventListener('change', () => {
+      if (typeof renderSistemas === 'function') renderSistemas();
+    });
     document.getElementById('mtModal')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-fechar]')) fecharModelos();
     });
@@ -535,6 +570,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 let ELENCO = [], TATICAS = {}, ACTIVE_SLOT = null, SLOT = 'regular', GLEAGUE_SLOTS = 0, EDIT_WINDOW = { open: true };
+let SISTEMAS = null;   // encaixe dos titulares em cada estilo de jogo
 let sujo = false;
 let carregando = true; // durante a carga os campos mudam sozinhos: não é edição
 let timerAuto = null;
@@ -649,6 +685,44 @@ async function salvarPosicao(id) {
   }
 }
 
+/* ── Encaixe do elenco em cada estilo de jogo ──────────────────────────
+   A nota é a média dos TITULARES: é quem joga o sistema. Quem está sem ficha
+   técnica não entra como zero — fica de fora e a tela avisa, porque média que
+   finge saber é pior que média incompleta assumida. */
+function renderSistemas() {
+  const painel = $('panelSistemas');
+  if (!painel) return;
+  const dados = SISTEMAS && SISTEMAS.sistemas ? SISTEMAS.sistemas : null;
+  const temNota = dados && Object.values(dados).some(s => s.nota !== null);
+  if (!temNota) { painel.style.display = 'none'; return; }
+  painel.style.display = '';
+
+  const escolhido = $('f_game_style')?.value || '';
+  const estrelas = n => '<span>' + '★'.repeat(n) + '</span>'
+                      + '<span class="off">' + '☆'.repeat(5 - n) + '</span>';
+
+  $('sisLista').className = 'sis-lista';
+  $('sisLista').innerHTML = Object.entries(dados).map(([chave, s]) => {
+    if (s.nota === null) return '';
+    const atual = chave === escolhido;
+    return `<div class="sis-linha${atual ? ' atual' : ''}">
+      <span class="sis-nome" title="${esc(s.rotulo)}">${esc(s.nome)}${atual ? '<span class="sis-tag">escolhido</span>' : ''}</span>
+      <span class="sis-estrelas" title="${esc(s.rotulo)}">${estrelas(s.estrelas)}</span>
+      <span class="sis-nota-num">${s.nota}</span>
+    </div>`;
+  }).join('');
+
+  const melhor = Object.values(dados).find(s => s.nota !== null);
+  const partes = [];
+  if (melhor) partes.push(`Hoje o elenco rende mais em <b>${esc(melhor.nome)}</b>.`);
+  if (SISTEMAS.sem_ficha > 0) {
+    partes.push(`${SISTEMAS.sem_ficha} titular${SISTEMAS.sem_ficha > 1 ? 'es estão' : ' está'} `
+              + `sem ficha técnica e ficou de fora da média.`);
+  }
+  partes.push('Os pesos de cada estilo são definidos pela liga — não é conta oficial do 2K.');
+  $('sisNota').innerHTML = partes.join(' ');
+}
+
 /* ── Carga ── */
 async function carregar() {
   carregando = true;
@@ -669,9 +743,12 @@ async function carregar() {
 
   if (!ELENCO.length) { $('carregando').textContent = 'Seu elenco está vazio.'; return; }
 
+  SISTEMAS = d.sistemas || null;
+
   renderJanela();
   montarGleague();
   renderPosicoes();
+  renderSistemas();
   mostrarSlot(SLOT);
 
   $('carregando').style.display = 'none';
@@ -699,6 +776,9 @@ function mostrarSlot(slot) {
      escolhido no campo e o quadro do lado vazio, como se não houvesse
      técnico. Vale ao abrir a página e a cada troca de tática. */
   if (typeof pintarModeloEscolhido === 'function') pintarModeloEscolhido();
+  // Mesma razão: trocar de tática muda o estilo escolhido, e é ele que fica
+  // destacado na lista de encaixe.
+  if (typeof renderSistemas === 'function') renderSistemas();
 
   const statusBox = $('tacticStatus');
   statusBox.innerHTML = (slot === ACTIVE_SLOT)

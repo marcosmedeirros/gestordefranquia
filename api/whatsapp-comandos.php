@@ -667,6 +667,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         SELECT p.id, p.name, p.age, p.height, p.position, p.secondary_position, p.{$ovr} AS ovr,
                p.badges_count, p.badge_name,
                p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
+               p.drafted_season_number,
                " . wcColunasSkill('p') . ",
                t.city, t.mascot, t.name AS team_name, t.league
         FROM players p JOIN teams t ON t.id = p.team_id
@@ -746,6 +747,21 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
             array_keys($skills), $skills
         ), 2);
         foreach ($pares as $par) $txt .= implode('  ·  ', $par) . "\n";
+    }
+
+    /* EM QUE SISTEMA ELE RENDE MAIS — uma linha, no fim, e só o melhor.
+       Os oito com estrela caberiam na tela do app, não numa mensagem de
+       grupo: aqui a pergunta é "esse cara serve pro meu esquema?", e a
+       resposta é o nome de um estilo. @see backend/sistema_proficiencia.php */
+    require_once dirname(__DIR__) . '/backend/sistema_proficiencia.php';
+    if ($melhor = sistemaMelhorDoJogador($p)) {
+        $txt .= "\n🎯 Melhor sistema: *{$melhor['nome']}* "
+              . sistemaEstrelasTexto($melhor['estrelas']) . "\n";
+    } elseif (!empty($p['drafted_season_number'])) {
+        /* O calouro é o único "sem ficha" que merece linha: ele acabou de ser
+           escolhido e a pergunta vai aparecer no grupo de qualquer jeito.
+           Para o resto vale a regra do arquivo — campo vazio não vira linha. */
+        $txt .= "\n🎯 Melhor sistema: _ROOKIE, ficha técnica ainda não preenchida_\n";
     }
 
     return rtrim($txt) . $notaLiga;

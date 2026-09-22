@@ -715,10 +715,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     $teamId = (int)$team['id'];
 
-    $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role
+    /* As skills vêm junto porque a tela calcula o encaixe do elenco em cada
+       sistema de jogo (backend/sistema_proficiencia.php). São as mesmas notas
+       que já aparecem no Meu Elenco — aqui viram estrela por sistema. */
+    require_once __DIR__ . '/../backend/sistema_proficiencia.php';
+    $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role, "
+                           . sistemaColunasSql('') . "
                             FROM players WHERE team_id = ? ORDER BY ovr DESC, name");
     $stmtP->execute([$teamId]);
     $jogadores = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+    // O perfil do TIME é dos titulares: é quem joga o sistema.
+    $titulares = array_values(array_filter($jogadores, fn($p) => ($p['role'] ?? '') === 'Titular'));
+    $perfilSistemas = sistemaPerfilDoTime($titulares);
 
     $playerCount = count($jogadores);
     // Duas vagas, sempre. Antes o número saía do tamanho do elenco (15+ dava
@@ -783,6 +792,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         'success' => true,
         'team' => ['id' => $teamId, 'name' => trim($team['city'] . ' ' . $team['name']), 'league' => $team['league']],
         'players' => $jogadores,
+        // Quanto os titulares rendem em cada estilo de jogo.
+        'sistemas' => $perfilSistemas,
         'gleague_slots' => $gleagueSlots,
         'edit_window' => getEditWindow($pdo, $team['league']),
         'active_slot' => $activeSlot,

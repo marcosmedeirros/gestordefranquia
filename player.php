@@ -370,6 +370,36 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 /* Grupos lado a lado */
 .sk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
+
+/* ── Encaixe por sistema ────────────────────────────── */
+.sis-card{margin-top:14px}
+.sis-melhor{font-size:11.5px;font-weight:500;color:var(--text-3);margin-left:auto}
+.sis-melhor b{color:var(--text-2);font-weight:700}
+.sis-lista{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.sis-linha{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:8px 11px}
+.sis-linha:first-child{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.06)}
+.sis-nome{min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sis-tag{font-size:9.5px;font-weight:800;color:#22c55e;margin-left:6px;
+  background:rgba(34,197,94,.14);border-radius:999px;padding:1px 6px}
+.sis-estrelas{font-size:14px;letter-spacing:1px;color:#f59e0b;white-space:nowrap}
+.sis-estrelas .off{color:var(--text-3);opacity:.5}
+.sis-nota-num{font-size:12px;font-weight:700;color:var(--text-2);min-width:34px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.sis-rodape{margin-top:10px;font-size:11px;line-height:1.5;color:var(--text-3)}
+/* Sem ficha: um selo em vez de oito traços. O calouro é o caso comum — ele
+   entra no elenco antes de alguém preencher, e "sem ficha" do lado do nome
+   parece defeito quando é só a vez dele ainda não ter chegado. */
+.sis-vazio{display:flex;align-items:center;gap:10px;margin-top:10px;
+  font-size:12.5px;line-height:1.5;color:var(--text-3)}
+.sis-selo{font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:999px;
+  background:var(--panel-3);color:var(--text-2);border:1px solid var(--border-md);flex:none}
+.sis-selo.rookie{background:rgba(59,130,246,.14);color:#60a5fa;border-color:rgba(59,130,246,.4)}
+@media (max-width:480px){
+  .sis-linha{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}
+  .sis-estrelas{grid-column:1/-1;font-size:13px}
+  .sis-melhor{margin-left:0;width:100%}
+}
 .sk-card{margin-bottom:0}
 /* gráfico de carreira */
 .chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px;overflow-x:auto}
@@ -492,7 +522,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <?php if (!$isRetired): ?><button class="tab-btn" data-tab="draft">Draft</button><?php endif; ?>
     <button class="tab-btn" data-tab="premios">Prêmios</button>
     <button class="tab-btn" data-tab="trades">Trades</button>
-    <?php if ($skills): ?><button class="tab-btn" data-tab="atributos">Atributos</button><?php endif; ?>
+    <?php /* A aba aparece mesmo sem ficha: e onde o selo ROOKIE explica por que
+         nao ha estrelas. Sem ela, o calouro simplesmente nao tinha a aba e
+         quem procurava achava que faltava algo. */ ?>
+    <?php if ($skills || !$isRetired): ?><button class="tab-btn" data-tab="atributos">Atributos</button><?php endif; ?>
   </div>
 
   <!-- Visão geral -->
@@ -732,8 +765,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   </div>
 
   <!-- Atributos -->
-  <?php if ($skills): ?>
+  <?php if ($skills || !$isRetired): ?>
   <div class="tab-pane" id="pane-atributos">
+    <?php if (!$skills): ?>
+      <?php /* Sem ficha nenhuma: a aba existe só pra dizer por quê. */ ?>
+    <?php else: ?>
     <?php
       $nums = array_filter(array_map(fn($v) => is_numeric($v) ? (int)$v : null, $skills), fn($v) => $v !== null);
       $melhorLabel = ''; $piorLabel = '';
@@ -780,6 +816,52 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </div>
       <?php endforeach; ?>
     </div>
+    <?php endif; /* fim do bloco que só existe com ficha */ ?>
+
+    <?php
+    /* ENCAIXE POR SISTEMA — a mesma conta da tela de Tática, aqui jogador a
+       jogador. Fica junto dos atributos porque é leitura DELES: as estrelas
+       não são um dado novo, são as notas acima pesadas pelo que cada estilo
+       de jogo pede. @see backend/sistema_proficiencia.php */
+    require_once __DIR__ . '/backend/sistema_proficiencia.php';
+    $perfilSistemas = $isRetired ? [] : sistemaPerfilDoJogador($P);
+    if ($perfilSistemas):
+      $melhorSis = reset($perfilSistemas);
+    ?>
+    <div class="panel sis-card">
+      <div class="section-title"><i class="bi bi-stars"></i> Encaixe por sistema
+        <span class="sis-melhor">Melhor: <b><?= htmlspecialchars($melhorSis['nome']) ?></b></span>
+      </div>
+      <div class="sis-lista">
+        <?php foreach ($perfilSistemas as $s): ?>
+        <div class="sis-linha">
+          <span class="sis-nome"><?= htmlspecialchars($s['nome']) ?>
+            <?php /* O destaque separa o especialista do coringa: quanto este
+                     estilo rende acima da média do próprio jogador. Só aparece
+                     quando é relevante — abaixo de 3 pontos é ruído. */ ?>
+            <?php if ($s['destaque'] >= 3): ?>
+              <span class="sis-tag" title="Rende <?= $s['destaque'] ?> pontos acima da média dele">+<?= $s['destaque'] ?></span>
+            <?php endif; ?>
+          </span>
+          <span class="sis-estrelas" title="<?= htmlspecialchars($s['rotulo']) ?>"><?php
+            echo str_repeat('★', $s['estrelas']) . '<span class="off">' . str_repeat('☆', 5 - $s['estrelas']) . '</span>';
+          ?></span>
+          <span class="sis-nota-num"><?= $s['nota'] ?></span>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <div class="sis-rodape">Os pesos de cada estilo são definidos pela liga — não é conta oficial do 2K.</div>
+    </div>
+    <?php elseif (!$isRetired):
+      $motivo = sistemaSemFichaMotivo($P); ?>
+    <div class="panel sis-card">
+      <div class="section-title"><i class="bi bi-stars"></i> Encaixe por sistema</div>
+      <div class="sis-vazio">
+        <span class="sis-selo<?= $motivo['tag'] === 'ROOKIE' ? ' rookie' : '' ?>"><?= htmlspecialchars($motivo['tag']) ?></span>
+        <?= htmlspecialchars($motivo['texto']) ?>
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 
