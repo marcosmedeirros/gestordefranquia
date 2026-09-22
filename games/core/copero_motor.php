@@ -1464,6 +1464,14 @@ function coperoConquistas(): array
                                              - COPERO_SELECAO_FOLGA],
         'idolo'       => ['🏠', 'Ídolo da casa',     'Faça sete temporadas seguidas no mesmo clube.',
                           'facil', fn($c) => $c['maiorSequencia'] >= 7],
+        /* OS NÚMEROS DAQUI PRA BAIXO SAÍRAM DE 5.722 CARREIRAS JÁ JOGADAS,
+           e não de palpite. Entre parênteses, quantas por cento chegaram lá —
+           é o que separa uma faixa da outra, e é por onde recalibrar se o
+           jogo mudar de novo. */
+        'rodagem'     => ['👟', 'Rodagem',           'Chegue a 400 jogos na carreira.',
+                          'facil', fn($c) => $c['jogos'] >= 400],
+        'fora_casa'   => ['✈️', 'Fora de casa',      'Jogue por clubes de dois continentes.',
+                          'facil', fn($c) => $c['continentes'] >= 2],
 
         // ── Medianas: pedem uma carreira boa ──────────────────────────
         'elite'       => ['⭐', 'Nome da elite',     'Chegue a 90 de overall.',
@@ -1484,6 +1492,22 @@ function coperoConquistas(): array
                           'media', fn($c) => $c['lesoes'] >= 3 && $c['picoOvr'] >= 88],
         'passaporte'  => ['🌍', 'Passaporte carimbado', 'Jogue em ligas de quatro países diferentes.',
                           'media', fn($c) => $c['paises'] >= 4],
+        // A Bola de Ouro só existia DENTRO de outras conquistas ('Da periferia',
+        // 'GOAT') — ganhar a maior premiação individual do futebol não dava
+        // nada por si só, o que é estranho de explicar pra quem acabou de
+        // ganhar uma.
+        'bola_ouro'   => ['🏅', 'A Bola de Ouro',    'Ganhe uma Bola de Ouro.',
+                          'media', fn($c) => $t($c,'bola_ouro') >= 1],
+        'veterano'    => ['🧓', 'Até o apito final', 'Encerre a carreira com 38 anos ou mais.',
+                          'media', fn($c) => ($c['idadeFinal'] ?? 0) >= 38],
+        // Lesão é sorteada: passar doze temporadas sem nenhuma é o contrário
+        // de 'Osso duro', que premia levar três e seguir jogando.
+        'ileso'       => ['🍀', 'Sem um arranhão',   'Faça 12 temporadas sem sofrer nenhuma lesão.',
+                          'media', fn($c) => (int)($c['lesoes'] ?? 0) === 0 && $c['temporadas'] >= 12],
+        // 8% das carreiras (contra 100 milhões da 'Cifra de craque', que é rota
+        // de passagem pra quase todo mundo que chega a 90 de overall).
+        'valor_mercado'=> ['💎', 'Valor de mercado', 'Valer 200 milhões de euros.',
+                          'media', fn($c) => $c['picoValor'] >= 200000000],
 
         // ── Difíceis: pedem uma carreira excepcional ──────────────────
         'teto'        => ['🟣', 'Fora da curva',     'Chegue a 96 de overall.',
@@ -1572,6 +1596,28 @@ function coperoConquistas(): array
                           'dificil', fn($c) => ($c['trocasRival'] ?? 0) >= 2],
         'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 200 jogos sem sofrer gol.',
                           'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 200],
+        // 5% das carreiras chegam a 850 jogos; 40% passam de 700, que seria
+        // uma conquista pra quase metade da sala.
+        'maratonista' => ['🏃', 'Maratonista',       'Chegue a 850 jogos na carreira.',
+                          'dificil', fn($c) => $c['jogos'] >= 850],
+        // `individuais` = artilheiro + chuteira + bola de ouro + rei da
+        // América + luva de ouro. É a estante PESSOAL, a que 'O mais vencedor
+        // da história' não conta porque lá só entra o que o time ganhou.
+        'vitrine'     => ['🎖️', 'Vitrine cheia',     'Ganhe 10 prêmios individuais na carreira.',
+                          'dificil', fn($c) => ($c['individuais'] ?? 0) >= 10],
+        // 1,7% — e o interessante é que as duas metades brigam entre si: quem
+        // joga pra fazer gol não faz o passe, e vice-versa.
+        'faz_e_faz'   => ['🎯', 'Faz e faz fazer',   'Marque 400 gols E dê 400 assistências na mesma carreira.',
+                          'dificil', fn($c) => $c['gols'] >= 400 && $c['ast'] >= 400],
+        // Supercopa não entra em 'coletivos' (ver o cálculo de $trofeus): é
+        // taça de verdade, mas não é dela que se lembra ao contar títulos.
+        // Aqui ela é o prêmio, então quem junta cinco ganha algo por isso.
+        'supercopas'  => ['🥂', 'Rei das supercopas', 'Levante cinco supercopas, somando nacionais e continentais.',
+                          'dificil', fn($c) => $t($c,'supernac') + $t($c,'supercont') >= 5],
+        'goleador'    => ['🥇', 'Goleador',          'Seja artilheiro da liga cinco vezes.',
+                          'dificil', fn($c) => $t($c,'artilheiro') >= 5],
+        'luvas'       => ['🧤', 'Dono da área',      'Como goleiro, ganhe três Luvas de Ouro.',
+                          'dificil', fn($c) => $c['posicao'] === 'GOL' && $t($c,'luva_ouro') >= 3],
 
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
         'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
@@ -1645,6 +1691,15 @@ function coperoConquistas(): array
                           'impossivel', fn($c) => $c['posicao'] === 'GOL' && $t($c,'bola_ouro') >= 1],
         'seis_conts'  => ['🌏', 'O mundo inteiro',   'Jogue por clubes dos cinco continentes: todos os que o jogo tem.',
                           'impossivel', fn($c) => $c['continentes'] >= 5],
+        // 0,5% — e não é questão de jogar bem, é de durar. A carreira começa
+        // aos 16 e o corpo decide quando para; 25 temporadas é quase o teto do
+        // que o jogo permite.
+        'imortal'     => ['⏳', 'Imortal',            'Jogue 25 temporadas numa mesma carreira.',
+                          'impossivel', fn($c) => $c['temporadas'] >= 25],
+        // 0,4%, contra 400 assistências do 'Maestro' — que 21 carreiras em
+        // 5.722 passaram. Este é o passador que atravessou duas décadas.
+        'ultimo_passe'=> ['🎻', 'O último passe',    'Dê 600 assistências na carreira.',
+                          'impossivel', fn($c) => $c['ast'] >= 600],
         'completar'   => ['✅', 'Completar o futebol', 'Ganhe liga, copa, continental, Mundial de Clubes, '
                                                      . 'Copa do Mundo e um continental de seleções.',
                           'impossivel', fn($c) => $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1
