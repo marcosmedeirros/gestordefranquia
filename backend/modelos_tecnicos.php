@@ -20,14 +20,19 @@ const MODELO_TECNICO_LIMITE = 8;
 /**
  * O limite de cada liga, quando difere do padrão.
  *
- * A NEXT tem 5 TROCAS, e o número aqui conta o modelo inicial junto — é assim
- * que o resto do sistema mede ("usados" conta registros, não trocas), e é o
- * que a tela mostra em "São N modelos na edição". Cinco trocas mais o inicial
- * dão seis.
+ * O NÚMERO QUE A LIGA FALA É DE TROCAS; o daqui conta o modelo inicial junto,
+ * porque é assim que o resto do sistema mede ("usados" conta registros, não
+ * trocas) e é o que a tela mostra em "São N modelos na edição". Por isso as
+ * 5 trocas da NEXT viram 6, e as 3 da RISE viram 4.
+ *
+ * A ELITE fica no padrão de 8.
  */
 function modeloTecnicoLimiteDaLiga(?string $league): int
 {
-    $porLiga = ['NEXT' => 6];   // 1 inicial + 5 trocas
+    $porLiga = [
+        'NEXT' => 6,   // 1 inicial + 5 trocas
+        'RISE' => 4,   // 1 inicial + 3 trocas
+    ];
     return $porLiga[strtoupper(trim((string)$league))] ?? MODELO_TECNICO_LIMITE;
 }
 
