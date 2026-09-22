@@ -59,8 +59,62 @@ const SISTEMA_PESOS = [
 ];
 
 /**
+ * O AJUSTE POR POSIÇÃO — medido contra as estrelas que o 2K mostra.
+ *
+ * O Marcos gravou a tela de System Proficiency do 2K e mandou os prints: 83
+ * leituras, 43 jogadores, oito sistemas. Rodando a nossa conta nos mesmos
+ * jogadores, o erro médio era de 0,97 estrela e, pior, era SEMPRE PRA BAIXO —
+ * nos doze maiores erros a nossa nota era menor que a do jogo, nenhum caso de
+ * superestimar. Não era ruído: era viés.
+ *
+ * A causa é que o 2K avalia o jogador NO PAPEL DA POSIÇÃO DELE, e a nossa
+ * conta cobrava de todos as mesmas skills. O caso que fecha o argumento:
+ *
+ *   Rajon Rondo (PG, 87)  defesa de perímetro A+, rebote C-, post D C  →  2K: 5 estrelas
+ *   Eric Gordon (SG, 85)  defesa de perímetro B+, rebote D+, post D D- →  2K: 1,5
+ *   Jud Buechler (PF, 73) tudo entre C- e C+                           →  2K: 0
+ *
+ * Rondo leva cinco estrelas em Defense com rebote C-, porque de um armador não
+ * se cobra rebote. A nossa conta descontava dele os 25% de rebote e os 30% de
+ * post D e o punia por ser armador.
+ *
+ * Os números abaixo são o desvio MEDIDO, por sistema e grupo de posição. Só
+ * entram os que têm pelo menos quatro leituras — onde a amostra é de um ou
+ * dois jogadores o ajuste fica em zero, porque um palpite com cara de medida é
+ * pior que nenhum ajuste. Com isto o erro médio caiu de 0,97 pra 0,57.
+ *
+ * COMO RECALIBRAR: mais prints do 2K, roda a comparação de novo, mexe aqui.
+ * O que falta é justamente o que tem pouca amostra — Pace & Space, Perimeter
+ * Centric e Defense.
+ */
+const SISTEMA_AJUSTE_POSICAO = [
+    'grit_grind'        => ['guard' => 13, 'big' => 6,  'ala' => 0],
+    'seven_seconds'     => ['guard' => 10, 'big' => 6,  'ala' => 0],
+    'post_centric'      => ['guard' => 7,  'big' => 0,  'ala' => 0],
+    'balanced'          => ['guard' => 6,  'big' => 2,  'ala' => 0],
+    'triangle'          => ['guard' => -1, 'big' => 0,  'ala' => 0],
+    // Amostra pequena (1 a 3 leituras): sem ajuste até ter print que sustente.
+    'pace_space'        => ['guard' => 0,  'big' => 0,  'ala' => 0],
+    'perimeter_centric' => ['guard' => 0,  'big' => 0,  'ala' => 0],
+    'defense'           => ['guard' => 0,  'big' => 0,  'ala' => 0],
+];
+
+/** Armador, ala ou homem grande — é assim que o ajuste é agrupado. */
+function sistemaGrupoDaPosicao(?string $pos): string
+{
+    $p = strtoupper(trim((string)$pos));
+    if (in_array($p, ['PG', 'SG'], true)) return 'guard';
+    if (in_array($p, ['PF', 'C'], true))  return 'big';
+    return 'ala';
+}
+
+/**
  * Os cortes, tirados dos percentis das notas reais da liga — e não de números
  * redondos. Aproximadamente: 10% chegam a cinco estrelas, 20% a quatro.
+ *
+ * Conferidos contra os prints do 2K: com o ajuste de posição aplicado, as
+ * medianas das leituras caem perto destes cortes (5 estrelas ≈ 91, 4 ≈ 83,
+ * 3 ≈ 80, 2 ≈ 61), então a régua ficou como estava.
  */
 const SISTEMA_ESTRELAS = [
     ['min' => 90, 'estrelas' => 5, 'rotulo' => 'Perfeito'],
@@ -148,7 +202,16 @@ function sistemaNotaDoJogador(array $p, string $sistema): ?float
         $soma += $v * $w;
         $peso += $w;
     }
-    return $peso > 0 ? round($soma / $peso, 1) : null;
+    if ($peso <= 0) return null;
+
+    /* O ajuste de posição entra DEPOIS da média das skills: ele corrige o que
+       a conta por atributo não vê — que de um armador não se cobra rebote.
+       @see SISTEMA_AJUSTE_POSICAO, medido contra a tela do 2K. */
+    $nota = $soma / $peso;
+    $grupo = sistemaGrupoDaPosicao($p['position'] ?? null);
+    $nota += SISTEMA_AJUSTE_POSICAO[$sistema][$grupo] ?? 0;
+
+    return round(max(0, min(100, $nota)), 1);
 }
 
 /** Quantas estrelas aquela nota vale. @return array ['estrelas','rotulo'] */
@@ -252,7 +315,14 @@ function sistemaPerfilDoTime(array $titulares): array
     return ['sistemas' => $saida, 'sem_ficha' => $semFicha, 'com_ficha' => count($comFicha)];
 }
 
-/** As colunas que as consultas precisam trazer pra tudo isto funcionar. */
+/**
+ * As colunas de skill que as consultas precisam trazer.
+ *
+ * ATENÇÃO: `position` também é obrigatório e NÃO está aqui — as três telas já
+ * o selecionam por conta própria (é dado de jogador, não de ficha técnica).
+ * Sem ele o ajuste de posição não se aplica e a nota sai baixa pra armador,
+ * sem erro nenhum na tela. Se aparecer um consumidor novo, confira.
+ */
 function sistemaColunasSql(string $alias = 'p'): string
 {
     $a = $alias !== '' ? $alias . '.' : '';
