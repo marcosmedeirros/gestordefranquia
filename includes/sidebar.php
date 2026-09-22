@@ -353,3 +353,10 @@ if (!function_exists('sbActive')) {
   }
 })();
 </script>
+
+<?php
+/* O popup de confirmar o WhatsApp entra aqui porque o sidebar está em toda
+   tela de dentro: quem acabou de assumir um time pode cair direto no Meu
+   Elenco pelo link do grupo, e não só no Dashboard. Ele decide sozinho se
+   aparece. @see includes/telefone-bot.php */
+include __DIR__ . '/telefone-bot.php';
