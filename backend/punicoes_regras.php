@@ -441,10 +441,26 @@ function punicaoPerderPick(PDO $pdo, int $teamId, int $punicaoId, ?int $pickId =
 {
     if (!punicaoGarantirEsquema($pdo)) return ['ok' => false, 'pick_id' => null, 'ano' => null, 'motivo' => 'esquema'];
     try {
+        /* PICK JÁ ESCOLHIDA NÃO SE PERDE.
+           "A mais próxima" é quase sempre a do draft que está rodando — e se
+           ele já escolheu com ela, tirá-la não pune nada: o jogador está no
+           elenco e a vaga aparece como PUNIDO depois de ter sido usada. A
+           pena tem que cair na próxima que ainda vale, que é o espírito do
+           art. 73 (recai sobre a escolha própria... disponível).
+           Mesma régua da Trade Machine, que também não deixa negociar pick
+           gasta. @see backend/picks_usadas.php */
+        require_once __DIR__ . '/picks_usadas.php';
+        $usadas = picksJaUsadas($pdo, true);
+
         if ($pickId) {
             // Pick apontada a dedo pelo admin: vale qualquer uma que seja dele.
             $st = $pdo->prepare('SELECT id, season_year FROM picks WHERE id = ? AND team_id = ? AND punicao_id IS NULL');
             $st->execute([$pickId, $teamId]);
+            $pick = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($pick && isset($usadas[(int)$pick['id']])) {
+                return ['ok' => false, 'pick_id' => null, 'ano' => null,
+                        'motivo' => 'Essa pick já foi usada no draft — escolha outra.'];
+            }
         } else {
             /* A própria de 1ª rodada, a mais próxima, que ele ainda tenha.
                `original_team_id = team_id` é o que separa "a minha" de "a que
@@ -452,10 +468,15 @@ function punicaoPerderPick(PDO $pdo, int $teamId, int $punicaoId, ?int $pickId =
             $st = $pdo->prepare("SELECT id, season_year FROM picks
                                   WHERE team_id = ? AND original_team_id = ? AND round = '1'
                                     AND punicao_id IS NULL
-                               ORDER BY CAST(season_year AS UNSIGNED) ASC, id ASC LIMIT 1");
+                               ORDER BY CAST(season_year AS UNSIGNED) ASC, id ASC");
             $st->execute([$teamId, $teamId]);
+            $pick = null;
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $cand) {
+                if (isset($usadas[(int)$cand['id']])) continue;
+                $pick = $cand;
+                break;
+            }
         }
-        $pick = $st->fetch(PDO::FETCH_ASSOC);
 
         if (!$pick) {
             /* Não tem a própria agora. O edital manda esperar, não pegar a de

@@ -201,6 +201,57 @@ try {
             transition: all var(--t) var(--ease);
         }
         .btn-submit-outline:hover { border-color: var(--border-red); color: var(--red); }
+        .btn-submit:disabled { opacity: .45; cursor: not-allowed; }
+        .btn-link-sm {
+            width: 100%; margin-top: 10px; padding: 6px; background: none; border: none;
+            color: var(--text-3); font-family: var(--font); font-size: 12px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn-link-sm:hover { color: var(--text-2); }
+        .lbl-hint { color: var(--text-3); font-weight: 500; font-size: 11px; }
+        .avulsa-nota { color: var(--text-3); font-size: 12px; line-height: 1.5; margin: 0 0 14px; }
+
+        /* A PRÉVIA: o degrau do edital e o que a pena vai fazer.
+           O admin confirma sabendo o resultado — antes ele escolhia uma
+           consequência de uma lista solta e descobria o efeito depois. */
+        .previa {
+            background: rgba(245,158,11,.07);
+            border: 1px solid rgba(245,158,11,.28);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px; margin-bottom: 16px;
+        }
+        .previa-degrau {
+            font-size: 11px; font-weight: 800; letter-spacing: .05em;
+            text-transform: uppercase; color: #f59e0b; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        }
+        .previa-efeito {
+            display: flex; align-items: flex-start; gap: 7px;
+            font-size: 13px; color: var(--text); line-height: 1.45; margin-top: 7px;
+        }
+        .previa-efeito i { color: #f59e0b; font-size: 11px; margin-top: 4px; flex-shrink: 0; }
+        .previa-efeito small { display: block; color: var(--text-3); font-weight: 500; }
+        .previa-aviso {
+            margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(245,158,11,.2);
+            font-size: 12px; color: var(--text-2); line-height: 1.5;
+        }
+        .previa-nada { font-size: 13px; color: var(--text-2); }
+
+        /* Quem está cumprindo alguma coisa agora */
+        .ativa-item {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-left: 3px solid #dc2626;
+            border-radius: var(--radius-sm); padding: 11px 14px; margin-bottom: 8px;
+        }
+        .ativa-time { font-weight: 700; font-size: 13px; color: var(--text); min-width: 150px; }
+        .ativa-tags { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+        .ativa-tag {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+            background: rgba(220,38,38,.14); color: #f87171; border: 1px solid rgba(220,38,38,.35);
+        }
+        .ativa-tag small { font-weight: 500; opacity: .8; }
 
         /* Punishment card */
         .pun-item {
@@ -303,16 +354,12 @@ try {
                 <!-- Coluna esquerda: formulários -->
                 <div class="col-lg-4">
 
-                    <!-- Nova punição -->
+                    <!-- Aplicar punição, pelo quadro do edital -->
                     <div class="panel mb-3">
                         <div class="panel-head">
-                            <span class="panel-head-title"><i class="bi bi-plus-circle-fill"></i> Nova punição</span>
+                            <span class="panel-head-title"><i class="bi bi-plus-circle-fill"></i> Aplicar punição</span>
                         </div>
                         <div class="panel-body">
-                            <div class="mb-3">
-                                <label class="form-label">Motivo</label>
-                                <select id="punicaoMotive" class="form-select"></select>
-                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Liga</label>
                                 <select id="punicaoLeague" class="form-select"></select>
@@ -320,6 +367,41 @@ try {
                             <div class="mb-3">
                                 <label class="form-label">Time</label>
                                 <select id="punicaoTeam" class="form-select"></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Infração <span class="lbl-hint">(quadro do edital)</span></label>
+                                <select id="punicaoInfracao" class="form-select"></select>
+                            </div>
+
+                            <!-- A prévia: em que degrau o time está e o que a pena faz -->
+                            <div id="punicaoPrevia" class="previa" style="display:none"></div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Observações <span class="lbl-hint">(opcional)</span></label>
+                                <textarea id="punicaoNotes" class="form-control" rows="2" placeholder="O que aconteceu, print, contexto..."></textarea>
+                            </div>
+                            <button id="punicaoSubmit" class="btn-submit" disabled>
+                                <i class="bi bi-check2-circle"></i> Aplicar punição
+                            </button>
+                            <button type="button" id="punicaoAvancado" class="btn-link-sm">
+                                <i class="bi bi-sliders"></i> Punição avulsa (fora do quadro)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Punição avulsa: o caminho antigo, agora escondido -->
+                    <div class="panel mb-3" id="painelAvulsa" style="display:none">
+                        <div class="panel-head">
+                            <span class="panel-head-title"><i class="bi bi-sliders"></i> Punição avulsa</span>
+                        </div>
+                        <div class="panel-body">
+                            <p class="avulsa-nota">
+                                Para o que o quadro não prevê — o edital chama de caso omisso.
+                                A consequência é escolhida na mão.
+                            </p>
+                            <div class="mb-3">
+                                <label class="form-label">Motivo</label>
+                                <select id="punicaoMotive" class="form-select"></select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Consequência</label>
@@ -330,22 +412,15 @@ try {
                                 <select id="punicaoPick" class="form-select"></select>
                             </div>
                             <div class="mb-3" id="punicaoScopeRow" style="display:none;">
-                                <label class="form-label">Temporada</label>
-                                <select id="punicaoScope" class="form-select">
-                                    <option value="current">Temporada atual</option>
-                                    <option value="next">Próxima temporada</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Observações</label>
-                                <textarea id="punicaoNotes" class="form-control" rows="3" placeholder="Detalhes ou contexto..."></textarea>
+                                <label class="form-label">Por quanto tempo</label>
+                                <select id="punicaoDuracao" class="form-select"></select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Data da punição (manual)</label>
                                 <input type="datetime-local" id="punicaoDate" class="form-control" />
                             </div>
-                            <button id="punicaoSubmit" class="btn-submit">
-                                <i class="bi bi-check2-circle"></i> Registrar punição
+                            <button id="punicaoSubmitAvulsa" class="btn-submit-outline">
+                                <i class="bi bi-check2-circle"></i> Registrar avulsa
                             </button>
                         </div>
                     </div>
@@ -384,8 +459,17 @@ try {
 
                 </div>
 
-                <!-- Coluna direita: histórico -->
+                <!-- Coluna direita: o que está pegando, e o histórico -->
                 <div class="col-lg-8">
+                    <div class="panel mb-3">
+                        <div class="panel-head">
+                            <span class="panel-head-title"><i class="bi bi-exclamation-octagon-fill"></i> Cumprindo punição agora</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="punicoesAtivas" style="color:var(--text-2);font-size:13px">Escolha uma liga.</div>
+                        </div>
+                    </div>
+
                     <div class="panel">
                         <div class="panel-head" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
                             <span class="panel-head-title"><i class="bi bi-clock-history"></i> Histórico de punições</span>

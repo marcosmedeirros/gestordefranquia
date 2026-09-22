@@ -24,6 +24,166 @@ const _BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY',
 
 const _el = id => document.getElementById(id);
 
+/* ─── O QUADRO DO EDITAL ────────────────────────────────────────────────
+   O admin escolhia "motivo" (texto livre) e "consequência" (lista solta),
+   sem nada ligando os dois — e sem saber que efeito aquilo teria. O edital
+   já liga: cada infração tem a sua escala por ocorrência. Aqui ele escolhe
+   a infração, e o sistema diz em que degrau o time está e o que vai
+   acontecer, antes de confirmar. */
+let _quadro = [];
+let _efeitosInfo = {};
+let _duracoes = {};
+let _momento = { temporada: 0, ciclo: 0 };
+let _previaAtual = null;
+
+async function _carregarQuadro(league) {
+  _quadro = []; _previaAtual = null;
+  const sel = _el('punicaoInfracao');
+  if (!league) {
+    if (sel) sel.innerHTML = '<option value="">Escolha a liga primeiro</option>';
+    return;
+  }
+  try {
+    const d = await _pApi(`punicoes.php?action=quadro&league=${encodeURIComponent(league)}`);
+    _quadro = d.quadro || [];
+    _efeitosInfo = d.efeitos || {};
+    _duracoes = d.duracoes || {};
+    _momento = d.momento || _momento;
+  } catch (e) { _quadro = []; }
+
+  if (sel) {
+    sel.innerHTML = '<option value="">Selecione a infração...</option>' + _quadro.map(i =>
+      `<option value="${i.id}">${_escapeHtml(i.codigo)} — ${_escapeHtml(i.titulo)}${i.artigo ? ' · ' + _escapeHtml(i.artigo) : ''}</option>`
+    ).join('');
+  }
+  _renderDuracoes();
+}
+
+function _renderDuracoes() {
+  const sel = _el('punicaoDuracao');
+  if (!sel || !Object.keys(_duracoes).length) return;
+  sel.innerHTML = Object.entries(_duracoes).map(([k, v]) =>
+    `<option value="${k}">${_escapeHtml(v)}</option>`).join('');
+}
+
+/** A prévia do que vai acontecer, buscada no servidor (é ele quem conta). */
+async function _carregarPrevia(teamId, infracaoId) {
+  const box = _el('punicaoPrevia');
+  const btn = _el('punicaoSubmit');
+  _previaAtual = null;
+  if (btn) btn.disabled = true;
+  if (!box) return;
+
+  if (!teamId || !infracaoId) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  box.style.display = '';
+  box.innerHTML = '<div class="previa-nada">Conferindo o histórico do time…</div>';
+
+  let d;
+  try {
+    d = await _pApi(`punicoes.php?action=previa&team_id=${teamId}&infracao_id=${infracaoId}`);
+  } catch (e) {
+    box.innerHTML = `<div class="previa-nada">Não deu pra calcular: ${_escapeHtml(e.error || 'erro')}</div>`;
+    return;
+  }
+  _previaAtual = d;
+
+  const ord = ['1ª', '2ª', '3ª', '4ª', '5ª'][d.ocorrencia - 1] || `${d.ocorrencia}ª`;
+  const reincid = d.ja_teve > 0
+    ? `${d.ja_teve} ${d.ja_teve === 1 ? 'vez' : 'vezes'} neste ciclo`
+    : 'primeira vez neste ciclo';
+
+  const efeitos = (d.efeitos || []).map(e => {
+    const info = _efeitosInfo[e.efeito] || { label: e.efeito };
+    const valor = (e.valor !== undefined && e.valor !== null) ? ` (${e.valor})` : '';
+    const dur = e.duracao && _duracoes[e.duracao] ? `<small>${_escapeHtml(_duracoes[e.duracao])}</small>` : '';
+    const manual = info.modo === 'registra'
+      ? '<small>fica registrado — quem executa é você</small>' : '';
+    return `<div class="previa-efeito"><i class="bi bi-dot"></i><div>${_escapeHtml(info.label)}${valor}${dur}${manual}</div></div>`;
+  }).join('');
+
+  const avisos = [];
+  if (d.pick_alvo && d.pick_alvo.ano) avisos.push(`Vai cair a pick própria de 1ª rodada de <b>${d.pick_alvo.ano}</b>.`);
+  if (d.pick_alvo && d.pick_alvo.aviso) avisos.push(_escapeHtml(d.pick_alvo.aviso));
+  if (d.fim_da_escala) avisos.push('O time já passou do último degrau do quadro — a pena repete a mais grave.');
+
+  box.innerHTML = `
+    <div class="previa-degrau">
+      <i class="bi bi-diagram-3-fill"></i> ${ord} ocorrência
+      <span style="opacity:.75;font-weight:600;text-transform:none;letter-spacing:0">· ${reincid}</span>
+    </div>
+    ${efeitos || '<div class="previa-nada">Esta infração não tem consequência no quadro.</div>'}
+    ${avisos.length ? `<div class="previa-aviso">${avisos.join('<br>')}</div>` : ''}`;
+
+  if (btn) btn.disabled = !(d.efeitos || []).length;
+}
+
+/** Quem está cumprindo alguma coisa agora, na liga escolhida. */
+async function _carregarAtivas(league) {
+  const box = _el('punicoesAtivas');
+  if (!box) return;
+  if (!league) { box.textContent = 'Escolha uma liga.'; return; }
+
+  box.textContent = 'Carregando…';
+  let lista = [];
+  try {
+    const d = await _pApi(`punicoes.php?action=punishments&league=${encodeURIComponent(league)}`);
+    lista = (d.punishments || []).filter(p => !p.reverted_at && p.efeitos_json);
+  } catch (e) { box.textContent = 'Não deu pra carregar.'; return; }
+
+  /* Só o que corre no tempo E já começou. Perda de pick e advertência já
+     aconteceram: listá-las aqui diria que o time está impedido de algo que
+     não existe mais. */
+  const porTime = new Map();
+  lista.forEach(p => {
+    let efeitos = [];
+    try { efeitos = JSON.parse(p.efeitos_json) || []; } catch { return; }
+    efeitos.forEach(e => {
+      const info = _efeitosInfo[e.efeito];
+      if (!info || info.duracao !== 'periodo') return;
+      const vig = (e.vigencia || '').toUpperCase();
+      const agora = vig === 'TEMPORADA' ? _momento.temporada : _momento.ciclo;
+      if (vig !== 'PERMANENTE') {
+        if (e.ate === null || e.ate === undefined || agora > Number(e.ate)) return;
+        if (e.desde !== null && e.desde !== undefined && agora < Number(e.desde)) return;
+      }
+      const nome = `${p.city || ''} ${p.name || ''}`.trim();
+      if (!porTime.has(nome)) porTime.set(nome, new Map());
+
+      /* UM EFEITO, UMA TAG. Duas punições podem impor a mesma coisa (o
+         quadro repete "rotação automática" em três degraus da mesma
+         infração), e listar as duas só enche a linha dizendo o mesmo. Fica
+         a que dura mais, que é o que responde "até quando". */
+      const atual = porTime.get(nome).get(e.efeito);
+      const maisLonga = !atual || vig === 'PERMANENTE'
+                        || (atual.ate !== null && Number(e.ate) > Number(atual.ate));
+      if (!maisLonga) return;
+
+      porTime.get(nome).set(e.efeito, {
+        tag: info.tag + (e.valor ? ` (${e.valor})` : ''),
+        ate: vig === 'PERMANENTE' ? 'sem prazo'
+           : (vig === 'TEMPORADA' ? `até a temporada ${e.ate}` : `até o ciclo ${e.ate}`),
+        atePrazo: vig === 'PERMANENTE' ? null : Number(e.ate),
+        infracao: p.motive || '',
+      });
+    });
+  });
+
+  if (!porTime.size) {
+    box.innerHTML = '<div style="color:var(--text-3)">Ninguém cumprindo punição nesta liga.</div>';
+    return;
+  }
+  box.innerHTML = [...porTime.entries()].map(([time, mapa]) => `
+    <div class="ativa-item">
+      <div class="ativa-time">${_escapeHtml(time)}</div>
+      <div class="ativa-tags">${[...mapa.values()].map(e => `
+        <span class="ativa-tag" title="${_escapeHtml(e.infracao)}">
+          <i class="bi bi-exclamation-octagon-fill"></i>${_escapeHtml(e.tag)}
+          <small>${_escapeHtml(e.ate)}</small>
+        </span>`).join('')}</div>
+    </div>`).join('');
+}
+
 function _renderTypeOptions() {
   const sel = _el('punicaoType');
   if (!sel) return;
@@ -195,6 +355,9 @@ window.initPunicoes = async function(preselectedLeague) {
     _curLeague = e.target.value;
     _curTeamId = '';
     await _loadTeams(_curLeague, 'punicaoTeam');
+    await _carregarQuadro(_curLeague);
+    await _carregarPrevia('', '');
+    await _carregarAtivas(_curLeague);
   });
 
   _el('punicaoTeam')?.addEventListener('change', async e => {
@@ -202,7 +365,17 @@ window.initPunicoes = async function(preselectedLeague) {
     await _loadPicks(_curTeamId);
     const ht = _el('punicaoHistoryTeam');
     if (ht) ht.value = _curTeamId;
+    await _carregarPrevia(_curTeamId, _el('punicaoInfracao')?.value || '');
     await window.loadPunishments({ teamId: _curTeamId, league: _el('punicaoHistoryLeague')?.value || _curLeague });
+  });
+
+  _el('punicaoInfracao')?.addEventListener('change', async e => {
+    await _carregarPrevia(_curTeamId, e.target.value);
+  });
+
+  _el('punicaoAvancado')?.addEventListener('click', () => {
+    const p = _el('painelAvulsa');
+    if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
   });
 
   _el('punicaoHistoryLeague')?.addEventListener('change', async e => {
@@ -220,7 +393,40 @@ window.initPunicoes = async function(preselectedLeague) {
     zerarPunicoesEAvisos(_curLeague || _el('punicaoLeague')?.value || '');
   });
 
+  // Aplicar pelo quadro: uma punição com todos os efeitos do degrau.
   _el('punicaoSubmit')?.addEventListener('click', async () => {
+    const infracaoId = Number(_el('punicaoInfracao')?.value || 0);
+    if (!_curTeamId) { alert('Selecione um time.'); return; }
+    if (!infracaoId)  { alert('Selecione a infração.'); return; }
+    if (!_previaAtual) { alert('Espere a prévia carregar.'); return; }
+
+    const btn = _el('punicaoSubmit');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({
+        action: 'aplicar',
+        team_id: Number(_curTeamId),
+        infracao_id: infracaoId,
+        ocorrencia: _previaAtual.ocorrencia,
+        notes: _el('punicaoNotes')?.value?.trim() || '',
+      })});
+      const notes = _el('punicaoNotes');
+      if (notes) notes.value = '';
+      await _loadPicks(_curTeamId);
+      await _carregarPrevia(_curTeamId, infracaoId);
+      await _carregarAtivas(_curLeague);
+      await window.loadPunishments({ teamId: _el('punicaoHistoryTeam')?.value || _curTeamId, league: _el('punicaoHistoryLeague')?.value || '' });
+      // Aviso do servidor (ex.: perda de pick que ficou pendente) não pode
+      // sumir atrás do "pronto": é a parte que não aconteceu.
+      if (r.avisos && r.avisos.length) _notify('warning', r.avisos.join(' '));
+      else _notify('success', 'Punição aplicada!');
+    } catch (e) {
+      alert(e.error || 'Erro ao aplicar.');
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  _el('punicaoSubmitAvulsa')?.addEventListener('click', async () => {
     if (!_curTeamId) { alert('Selecione um time.'); return; }
     const typeEl = _el('punicaoType');
     const type = typeEl?.value;
@@ -233,7 +439,9 @@ window.initPunicoes = async function(preselectedLeague) {
       punishment_label: type,
       effect_type: typeEl?.selectedOptions?.[0]?.dataset?.effectType || type,
       notes: _el('punicaoNotes')?.value?.trim() || '',
-      season_scope: _el('punicaoScope')?.value || 'current',
+      // A duração vem escolhida agora (temporada ou ciclo, com começo).
+      // `season_scope` fica pro servidor traduzir quando não vier nada.
+      duracao: _el('punicaoDuracao')?.value || 'TEMPORADA',
       created_at: _el('punicaoDate')?.value || ''
     };
     if (type === 'PERDA_PICK_ESPECIFICA') {
@@ -289,13 +497,24 @@ window.initPunicoes = async function(preselectedLeague) {
   });
 
   await Promise.all([_loadCatalog(), _loadLeagues(preselectedLeague)]);
-  if (preselectedLeague) {
-    await _loadTeams(preselectedLeague, 'punicaoTeam');
+  // A liga já vem escolhida quando se chega pelo admin; na página solta,
+  // a primeira da lista. Sem isso o quadro e as ativas abrem vazios e
+  // parecem quebrados até alguém mexer no seletor.
+  const seletorLiga = _el('punicaoLeague');
+  const primeira = [...(seletorLiga?.options || [])].map(o => o.value).find(v => v);
+  const ligaInicial = preselectedLeague || primeira || '';
+  if (ligaInicial) {
+    _curLeague = ligaInicial;
+    const ls = _el('punicaoLeague');
+    if (ls) ls.value = ligaInicial;
+    await _loadTeams(ligaInicial, 'punicaoTeam');
+    await _carregarQuadro(ligaInicial);
+    await _carregarAtivas(ligaInicial);
     const hl = _el('punicaoHistoryLeague');
     if (hl) {
-      hl.value = preselectedLeague;
-      await _loadTeams(preselectedLeague, 'punicaoHistoryTeam', 'Todos os times');
-      await window.loadPunishments({ league: preselectedLeague });
+      hl.value = ligaInicial;
+      await _loadTeams(ligaInicial, 'punicaoHistoryTeam', 'Todos os times');
+      await window.loadPunishments({ league: ligaInicial });
     }
   }
 };

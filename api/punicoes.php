@@ -290,6 +290,89 @@ if ($method === 'GET') {
         exit;
     }
 
+    /* O QUADRO DE INFRAÇÕES DA LIGA — o que a tela nova oferece pra escolher.
+       Antes o admin escolhia "motivo" (texto livre) e "consequência" (lista
+       solta), sem nada ligando os dois. O edital já liga: cada infração tem a
+       sua escala. @see backend/punicoes_catalogo.php */
+    if ($action === 'quadro') {
+        $league = strtoupper(trim($_GET['league'] ?? ''));
+        if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+            exit;
+        }
+        punBarrarLiga($league);
+        $m = punicaoMomentoDaLiga($pdo, $league);
+        $quadro = punicaoQuadroDaLiga($pdo, $league);
+        foreach ($quadro as &$inf) {
+            foreach ($inf['degraus'] as &$d) {
+                $d['texto'] = punicaoEfeitosTexto($d['efeitos'], $m['temporada'], $m['ciclo']);
+            }
+        }
+        echo json_encode([
+            'success'  => true,
+            'league'   => $league,
+            'momento'  => $m,
+            'quadro'   => $quadro,
+            'efeitos'  => PUNICAO_EFEITOS,
+            'duracoes' => PUNICAO_DURACOES,
+        ]);
+        exit;
+    }
+
+    /* A PRÉVIA: em que degrau este time está nesta infração, e o que a pena
+       vai fazer. O admin confirma sabendo o resultado — não descobre depois. */
+    if ($action === 'previa') {
+        $teamId = (int)($_GET['team_id'] ?? 0);
+        $infracaoId = (int)($_GET['infracao_id'] ?? 0);
+        if (!$teamId || !$infracaoId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Informe time e infração']);
+            exit;
+        }
+        $league = punLigaDoTime($pdo, $teamId);
+        punBarrarLiga($league);
+        $m = punicaoMomentoDaLiga($pdo, (string)$league);
+        $degrau = punicaoProximoDegrau($pdo, $teamId, $infracaoId);
+
+        /* Qual pick vai cair, com nome e ano — "perde a pick de 1ª" não diz
+           qual, e o admin precisa saber antes de confirmar. */
+        $pickAlvo = null;
+        foreach ($degrau['efeitos'] as $e) {
+            if (($e['efeito'] ?? '') !== 'PERDA_PICK_1R') continue;
+            // Mesma escolha de punicaoPerderPick, incluindo pular a que já
+            // foi usada no draft — a prévia tem que dizer a pick certa.
+            require_once dirname(__DIR__) . '/backend/picks_usadas.php';
+            $usadas = picksJaUsadas($pdo, true);
+            $st = $pdo->prepare("SELECT id, season_year FROM picks
+                                  WHERE team_id = ? AND original_team_id = ? AND round = '1' AND punicao_id IS NULL
+                               ORDER BY CAST(season_year AS UNSIGNED) ASC, id ASC");
+            $st->execute([$teamId, $teamId]);
+            $p = null;
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $cand) {
+                if (isset($usadas[(int)$cand['id']])) continue;
+                $p = $cand;
+                break;
+            }
+            $pickAlvo = $p
+                ? ['ano' => (int)$p['season_year'], 'aviso' => null]
+                : ['ano' => null, 'aviso' => 'O time não tem a própria pick de 1ª rodada agora. '
+                                           . 'A perda fica pendente e é cobrada quando ele voltar a ter.'];
+        }
+
+        echo json_encode([
+            'success'    => true,
+            'ocorrencia' => $degrau['ocorrencia'],
+            'ja_teve'    => $degrau['ocorrencia'] - 1,
+            'efeitos'    => $degrau['efeitos'],
+            'texto'      => punicaoEfeitosTexto($degrau['efeitos'], $m['temporada'], $m['ciclo']),
+            'fim_da_escala' => $degrau['fim_da_escala'],
+            'pick_alvo'  => $pickAlvo,
+            'momento'    => $m,
+        ]);
+        exit;
+    }
+
     if ($action === 'picks') {
         $teamId = (int)($_GET['team_id'] ?? 0);
         if (!$teamId) {
@@ -312,6 +395,117 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $action = $body['action'] ?? '';
+    /* APLICAR UM DEGRAU DO EDITAL.
+       Uma infração pode trazer mais de uma pena ("anulação da troca + sem
+       trocar por um ciclo") — o `add` antigo só sabia gravar uma. Aqui a
+       punição é uma só, com a lista de efeitos junto, que é como o edital
+       escreve e como o motor lê. */
+    if ($action === 'aplicar') {
+        $teamId     = (int)($body['team_id'] ?? 0);
+        $infracaoId = (int)($body['infracao_id'] ?? 0);
+        $notes      = trim((string)($body['notes'] ?? ''));
+        if (!$teamId || !$infracaoId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Informe time e infração']);
+            exit;
+        }
+        $league = punLigaDoTime($pdo, $teamId);
+        punBarrarLiga($league);
+
+        $st = $pdo->prepare('SELECT id, titulo, artigo FROM punicao_infracoes WHERE id = ? AND league = ?');
+        $st->execute([$infracaoId, $league]);
+        $infracao = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$infracao) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Infração não encontrada nesta liga']);
+            exit;
+        }
+
+        $m = punicaoMomentoDaLiga($pdo, (string)$league);
+        $degrau = punicaoProximoDegrau($pdo, $teamId, $infracaoId);
+
+        /* O admin pode ajustar o degrau antes de confirmar — o edital prevê
+           relevar a infração e o Tribunal pode agravar. O que ele mandar
+           manda; a sugestão é ponto de partida, não camisa de força. */
+        $efeitosBrutos = is_array($body['efeitos'] ?? null) && $body['efeitos']
+            ? $body['efeitos'] : $degrau['efeitos'];
+        if (!$efeitosBrutos) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Esta infração não tem consequência definida no quadro.']);
+            exit;
+        }
+
+        $efeitos = [];
+        foreach ($efeitosBrutos as $e) {
+            $nome = strtoupper(trim((string)($e['efeito'] ?? '')));
+            if (!isset(PUNICAO_EFEITOS[$nome])) continue;
+            $ehPeriodo = PUNICAO_EFEITOS[$nome]['duracao'] === 'periodo';
+            $v = $ehPeriodo
+                ? punicaoVigenciaDe((string)($e['duracao'] ?? 'TEMPORADA'), $m['temporada'], $m['ciclo'])
+                : ['vigencia' => 'EVENTO', 'desde' => null, 'ate' => null];
+            $efeitos[] = [
+                'efeito'   => $nome,
+                'valor'    => isset($e['valor']) ? (int)$e['valor'] : null,
+                'vigencia' => $v['vigencia'],
+                'desde'    => $v['desde'],
+                'ate'      => $v['ate'],
+            ];
+        }
+        if (!$efeitos) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Nenhum efeito válido']);
+            exit;
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $rotulo = $infracao['titulo'] . ($infracao['artigo'] ? ' (' . $infracao['artigo'] . ')' : '');
+            $pdo->prepare('INSERT INTO team_punishments
+                    (team_id, league, type, effect_type, motive, punishment_label, notes,
+                     infracao_id, ocorrencia, efeitos_json, vigencia, vigencia_desde, vigencia_ate, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                ->execute([
+                    $teamId, $league, 'CATALOGO', $efeitos[0]['efeito'],
+                    $rotulo, punicaoEfeitosTexto($efeitos, $m['temporada'], $m['ciclo']),
+                    $notes ?: null, $infracaoId, (int)($body['ocorrencia'] ?? $degrau['ocorrencia']),
+                    json_encode($efeitos, JSON_UNESCAPED_UNICODE),
+                    $efeitos[0]['vigencia'], $efeitos[0]['desde'], $efeitos[0]['ate'],
+                    (int)$user['id'],
+                ]);
+            $punicaoId = (int)$pdo->lastInsertId();
+
+            $avisos = [];
+            foreach ($efeitos as $e) {
+                if ($e['efeito'] === 'PERDA_PICK_1R') {
+                    $r = punicaoPerderPick($pdo, $teamId, $punicaoId);
+                    if (!$r['ok']) $avisos[] = $r['motivo'];
+                }
+                /* PERDA_MOEDAS zera o saldo na hora; multa desconta. As duas
+                   mexem em dado de verdade, então ficam dentro da transação.
+                   O saldo mora em `teams.moedas`, não no usuário: quem paga a
+                   multa é a franquia, e ela troca de dono. */
+                if ($e['efeito'] === 'PERDA_MOEDAS') {
+                    $pdo->prepare('UPDATE teams SET moedas = 0 WHERE id = ?')->execute([$teamId]);
+                }
+                if ($e['efeito'] === 'MULTA_MOEDAS' && (int)$e['valor'] > 0) {
+                    $pdo->prepare('UPDATE teams SET moedas = GREATEST(0, COALESCE(moedas,0) - ?) WHERE id = ?')
+                        ->execute([(int)$e['valor'], $teamId]);
+                }
+            }
+            $pdo->commit();
+
+            echo json_encode(['success' => true, 'punishment_id' => $punicaoId,
+                              'ocorrencia' => (int)($body['ocorrencia'] ?? $degrau['ocorrencia']),
+                              'avisos' => $avisos]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[punicoes] aplicar: ' . $e->getMessage());
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Erro ao aplicar a punição.']);
+        }
+        exit;
+    }
+
     if (!in_array($action, ['add', 'add_motive', 'add_type', 'revert', 'reset_league'], true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Ação inválida']);

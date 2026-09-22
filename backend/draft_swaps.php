@@ -598,14 +598,17 @@ function draftMarcarVagasPunidas(PDO $pdo, int $draftSessionId, array $porOrigem
             $pdo->exec('ALTER TABLE draft_order ADD COLUMN punida TINYINT(1) NOT NULL DEFAULT 0');
         }
 
-        $st = $pdo->prepare('SELECT id, original_team_id, round, punida FROM draft_order WHERE draft_session_id = ?');
+        $st = $pdo->prepare('SELECT id, original_team_id, round, punida, picked_player_id
+                               FROM draft_order WHERE draft_session_id = ?');
         $st->execute([$draftSessionId]);
 
         $up = $pdo->prepare('UPDATE draft_order SET punida = ? WHERE id = ?');
         $n = 0;
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $v) {
             $pick = $porOrigem[(int)$v['round']][(int)$v['original_team_id']] ?? null;
-            $deve = ($pick && (int)($pick['punicao_id'] ?? 0) > 0) ? 1 : 0;
+            // Vaga já escolhida não vira PUNIDO: o jogador está no elenco, e
+            // marcar depois só apagaria da tela uma escolha que aconteceu.
+            $deve = ($pick && (int)($pick['punicao_id'] ?? 0) > 0 && empty($v['picked_player_id'])) ? 1 : 0;
             if ($deve === (int)$v['punida']) continue;
             $up->execute([$deve, (int)$v['id']]);
             $n++;
