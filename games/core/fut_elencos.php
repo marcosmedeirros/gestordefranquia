@@ -134,7 +134,7 @@ function futNomeGenerico(int &$semente, array &$usados): string
  * garotos ficam bem abaixo. É isso que faz perder um titular doer e faz o
  * banco parecer banco.
  */
-function futOverallDoJogador(int $forcaClube, int $posto, int &$semente): int
+function futOverallDoJogador(int $forcaClube, int $posto, int $idade, int &$semente): int
 {
     /* O degrau por posto: titular perde pouco, o fim do elenco perde muito.
        Não é linear de propósito — do 1º pro 11º a queda é suave, do 11º pro
@@ -143,8 +143,29 @@ function futOverallDoJogador(int $forcaClube, int $posto, int &$semente): int
 
     $base = $forcaClube - $degrau;
     $ruido = futSorteio($semente, -4, 4);   // ninguém é exatamente a média
-    return (int)max(25, min(99, round($base + $ruido)));
+    $idadeAjuste = FUT_CURVA_IDADE[$idade] ?? ($idade < 17 ? -8 : -18);
+    return (int)max(25, min(99, round($base + $ruido + $idadeAjuste)));
 }
+
+/**
+ * O QUANTO A IDADE TIRA DO OVR — a curva de carreira.
+ *
+ * Sem isto, idade e OVR saíam sorteados um sem olhar pro outro, e o mercado
+ * entregava coisas como "atacante de 38 anos, OVR 94, o melhor do Flamengo".
+ * Não é só questão de parecer estranho: como o valor de mercado despenca com a
+ * idade, esse jogador seria o craque do elenco custando quase nada, e o jogo
+ * inteiro viraria garimpar velhos subvalorizados.
+ *
+ * O pico é dos 25 aos 30. O garoto ainda não chegou lá e o veterano já passou —
+ * os dois jogam abaixo do que o elenco pede, e é por isso que existem promessa
+ * e declínio no jogo em vez de só "jogador bom" e "jogador ruim".
+ */
+const FUT_CURVA_IDADE = [
+    17 => -7, 18 => -6, 19 => -5, 20 => -4, 21 => -3, 22 => -2, 23 => -1,
+    24 =>  0, 25 =>  0, 26 =>  0, 27 =>  0, 28 =>  0, 29 =>  0, 30 => -1,
+    31 => -2, 32 => -3, 33 => -5, 34 => -7, 35 => -9, 36 => -11,
+    37 => -13, 38 => -15, 39 => -17,
+];
 
 /**
  * A idade. Elenco de verdade tem pirâmide: muito jogador entre 23 e 29, alguns
@@ -194,11 +215,14 @@ function futElencoGenerico(string $nomeClube, int $forcaClube): array
     foreach (FUT_POSICOES as $pos => $cota) {
         for ($i = 0; $i < $cota['total']; $i++) {
             $posto = $i < $cota['titulares'] ? array_pop($titulares) : array_pop($reservas);
+            /* A IDADE VEM PRIMEIRO porque o OVR depende dela — um titular de
+               36 anos joga abaixo do que o posto dele pediria. */
+            $idade = futIdadeDoJogador($semente);
             $elenco[] = [
                 'nome'  => futNomeGenerico($semente, $usados),
                 'pos'   => $pos,
-                'ovr'   => futOverallDoJogador($forcaClube, (int)$posto, $semente),
-                'idade' => futIdadeDoJogador($semente),
+                'ovr'   => futOverallDoJogador($forcaClube, (int)$posto, $idade, $semente),
+                'idade' => $idade,
                 'num'   => 0,   // preenchido abaixo, depois de ordenar
             ];
         }
