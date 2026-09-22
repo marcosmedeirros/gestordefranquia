@@ -142,16 +142,210 @@ const QUIZ_BANCO = [
       'Espaço no CAP', 'Dois titulares medianos']],
 ];
 
+/**
+ * LOTE 2 — a fila do primeiro banco acabou em 19/09/2026.
+ *
+ * Mesma regra do lote acima: opinião, cinco alternativas, nenhuma "certa".
+ * A diferença é o que a primeira leva ensinou — as perguntas sobre a FBA
+ * foram as que mais moveram o grupo (30 a 47 votos, contra 23 na pior das de
+ * almanaque), então aqui elas são um quarto do lote em vez de um punhado no
+ * fim.
+ *
+ * As cinco opções existem pra DIVIDIR. Alternativa que ninguém marca é espaço
+ * desperdiçado num jogo em que o prêmio vai pra quem acerta a maioria: se uma
+ * delas é obviamente a resposta, a pergunta acabou antes de começar.
+ */
+const QUIZ_BANCO_2 = [
+    // ── Ídolos que ficaram de fora do primeiro lote ────────────────────
+    ['Maior ídolo da história do Knicks?',
+     ['Patrick Ewing', 'Walt Frazier', 'Willis Reed', 'Carmelo Anthony', 'Jalen Brunson']],
+
+    ['Maior ídolo da história do Sixers?',
+     ['Allen Iverson', 'Julius Erving', 'Wilt Chamberlain', 'Moses Malone', 'Joel Embiid']],
+
+    ['Maior ídolo da história do Suns?',
+     ['Steve Nash', 'Charles Barkley', 'Devin Booker', 'Amar\'e Stoudemire', 'Kevin Johnson']],
+
+    ['Maior ídolo da história do Rockets?',
+     ['Hakeem Olajuwon', 'James Harden', 'Yao Ming', 'Clyde Drexler', 'Tracy McGrady']],
+
+    ['Maior ídolo da história do Bucks?',
+     ['Giannis Antetokounmpo', 'Kareem Abdul-Jabbar', 'Oscar Robertson', 'Ray Allen', 'Sidney Moncrief']],
+
+    ['Maior ídolo da história do Raptors?',
+     ['Vince Carter', 'Kyle Lowry', 'DeMar DeRozan', 'Kawhi Leonard', 'Chris Bosh']],
+
+    // ── Os debates que nunca acabam ────────────────────────────────────
+    ['Melhor sexto homem da história?',
+     ['Manu Ginóbili', 'Jamal Crawford', 'Lou Williams', 'John Havlicek', 'Kevin McHale']],
+
+    ['Melhor temporada de calouro que você já viu?',
+     ['Michael Jordan', 'LeBron James', 'Tim Duncan', 'Larry Bird', 'Victor Wembanyama']],
+
+    ['Melhor europeu da história?',
+     ['Dirk Nowitzki', 'Nikola Jokić', 'Giannis Antetokounmpo', 'Luka Dončić', 'Pau Gasol']],
+
+    ['Maior bust da história do draft?',
+     ['Anthony Bennett', 'Greg Oden', 'Darko Miličić', 'Kwame Brown', 'Sam Bowie']],
+
+    ['Maior roubo da história do draft?',
+     ['Nikola Jokić (41ª)', 'Manu Ginóbili (57ª)', 'Draymond Green (35ª)',
+      'Isaiah Thomas (60ª)', 'Marc Gasol (48ª)']],
+
+    ['Melhor jogador que nunca foi campeão?',
+     ['Charles Barkley', 'Karl Malone', 'Allen Iverson', 'Steve Nash', 'Patrick Ewing']],
+
+    ['Quem é o jogador mais subestimado da história?',
+     ['Kevin Garnett', 'Chris Paul', 'Dwight Howard', 'Tracy McGrady', 'Scottie Pippen']],
+
+    ['E o mais superestimado?',
+     ['Carmelo Anthony', 'Russell Westbrook', 'Blake Griffin', 'Vince Carter', 'Nenhum, o hype é justo']],
+
+    // ── A liga hoje ────────────────────────────────────────────────────
+    ['Quem leva o próximo MVP?',
+     ['Nikola Jokić', 'Shai Gilgeous-Alexander', 'Luka Dončić', 'Victor Wembanyama', 'Giannis Antetokounmpo']],
+
+    ['Melhor jogador com menos de 25 anos?',
+     ['Victor Wembanyama', 'Anthony Edwards', 'Paolo Banchero', 'Chet Holmgren', 'Cade Cunningham']],
+
+    ['Melhor dupla da NBA hoje?',
+     ['Jokić e Murray', 'Curry e Green', 'Tatum e Brown', 'SGA e Holmgren', 'Dončić e Irving']],
+
+    ['Qual franquia está melhor montada pros próximos cinco anos?',
+     ['Thunder', 'Spurs', 'Rockets', 'Magic', 'Celtics']],
+
+    ['Melhor defensor da liga hoje?',
+     ['Victor Wembanyama', 'Rudy Gobert', 'Bam Adebayo', 'Draymond Green', 'Jrue Holiday']],
+
+    ['Qual time é a maior decepção dos últimos anos?',
+     ['Suns', 'Clippers', 'Sixers', 'Lakers', 'Bucks']],
+
+    // ── E se ───────────────────────────────────────────────────────────
+    ['Começando uma franquia do zero hoje, quem você escolhe?',
+     ['Victor Wembanyama', 'Nikola Jokić', 'Luka Dončić', 'Anthony Edwards', 'Shai Gilgeous-Alexander']],
+
+    ['Um jogo pela vida: quem toma o último arremesso?',
+     ['Michael Jordan', 'Stephen Curry', 'Kobe Bryant', 'Larry Bird', 'Damian Lillard']],
+
+    ['Qual era do basquete você escolheria pra jogar?',
+     ['Anos 80', 'Anos 90', 'Anos 2000', 'Anos 2010', 'Hoje']],
+
+    ['Se desse pra mudar uma regra da NBA, qual seria?',
+     ['Acabar com o load management', 'Voltar a deixar o jogo mais físico',
+      'Mudar o formato do play-in', 'Linha de 4 pontos', 'Não mudaria nada']],
+
+    ['O que você prefere numa carreira?',
+     ['Um anel e nada mais', 'Cinco anéis de coadjuvante', 'MVP sem título',
+      'Ser o maior pontuador da história', 'Uma franquia inteira na sua mão']],
+
+    ['Qual lesão mais mudou a história da NBA?',
+     ['Derrick Rose', 'Kevin Durant em 2019', 'Klay Thompson', 'Greg Oden', 'Yao Ming']],
+
+    ['Melhor time que NÃO foi campeão?',
+     ['Suns de 2005', 'Kings de 2002', 'Sixers de 2001', 'Jazz de 1997', 'Blazers de 1992']],
+
+    // ── Resenha ────────────────────────────────────────────────────────
+    ['Melhor tênis de basquete de todos os tempos?',
+     ['Air Jordan 1', 'Air Jordan 11', 'Kobe 4', 'Curry 1', 'LeBron 8']],
+
+    ['Melhor documentário de basquete?',
+     ['The Last Dance', 'Hoop Dreams', 'Winning Time', 'The Redeem Team', 'Nunca vi nenhum']],
+
+    ['Melhor NBA 2K de todos os tempos?',
+     ['2K11', '2K14', '2K16', '2K20', 'O mais novo sempre']],
+
+    ['Uniforme retrô mais bonito?',
+     ['Sonics anos 90', 'Raptors roxo', 'Grizzlies de Vancouver', 'Nuggets arco-íris', 'Hornets teal']],
+
+    ['O que faz um jogo ser inesquecível?',
+     ['Uma virada absurda', 'Um duelo individual', 'Uma cesta no estouro',
+      'Uma zebra nos playoffs', 'O clima da arena']],
+
+    // ── A FBA (foi o que mais moveu o grupo no primeiro lote) ──────────
+    ['O que você mais gosta de fazer na FBA?',
+     ['Montar o elenco', 'Negociar trocas', 'Acompanhar as simulações',
+      'Analisar os rivais', 'Resenhar no grupo']],
+
+    ['Qual a fase mais divertida da temporada?',
+     ['A offseason', 'O draft', 'A trade deadline', 'Os playoffs', 'A loteria']],
+
+    ['O que dá mais raiva na FBA?',
+     ['Proposta ignorada', 'Perder no detalhe', 'Ver o rival roubar na trade',
+      'Simulação não colaborar', 'Ficar sem pick']],
+
+    ['Que tipo de GM você é?',
+     ['Paciente, monta pelo draft', 'Agressivo, troca toda semana',
+      'Colecionador de picks', 'Vai de estrela pronta', 'Depende do dia']],
+
+    ['O que ganha mais na FBA?',
+     ['Um elenco todo em 80', 'Dois superastros', 'Um astro e bons role players',
+      'Profundidade pra rodar', 'Sorte na simulação']],
+
+    ['Qual liga da FBA você queria disputar?',
+     ['ELITE, pelo nível', 'NEXT, pelo equilíbrio', 'RISE, pela disputa',
+      'ROOKIE, pra construir do zero', 'A minha mesmo, tô bem']],
+
+    ['O que você mais quer ver no app da FBA?',
+     ['Mais estatísticas', 'Mais coisa no bot', 'Mais jogos no Games',
+      'Rankings históricos', 'Tá bom do jeito que tá']],
+
+    ['Qual foi a melhor troca da história da FBA?',
+     ['A que me fez campeão', 'A que o rival se arrependeu',
+      'A que ninguém entendeu na hora', 'A que envolveu meio elenco',
+      'Nenhuma, a liga ainda vai ver a melhor']],
+];
+
+/**
+ * Enche a fila com um lote, uma vez só.
+ *
+ * O semeador antigo só rodava com a tabela VAZIA — escrito assim pra não
+ * ressuscitar o que o admin apagasse pela tela. Só que isso também impedia
+ * lote novo de entrar: as perguntas do lote 2 ficariam no arquivo pra sempre,
+ * com a fila zerada.
+ *
+ * Agora cada lote tem a sua marca em `app_flags` e entra uma vez. O que o
+ * admin apagar continua apagado: a flag já está lá e o lote não volta.
+ *
+ * `ordem` continua a fila. O lote novo começa depois do último para estrear
+ * na sequência, e não embaralhado no meio do que já passou.
+ */
+function quizSemearLote(PDO $pdo, string $flag, array $banco): int
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS app_flags (
+            flag VARCHAR(100) PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $st = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+        $st->execute([$flag]);
+        if ($st->fetchColumn()) return 0;
+
+        $base = (int)$pdo->query("SELECT COALESCE(MAX(ordem), -1) + 1 FROM quiz_perguntas")->fetchColumn();
+        $ins  = $pdo->prepare("INSERT INTO quiz_perguntas (pergunta, opcoes, ordem) VALUES (?,?,?)");
+        foreach ($banco as $i => [$pergunta, $opcoes]) {
+            $ins->execute([$pergunta, json_encode($opcoes, JSON_UNESCAPED_UNICODE), $base + $i]);
+        }
+        $pdo->prepare("INSERT IGNORE INTO app_flags (flag) VALUES (?)")->execute([$flag]);
+        return count($banco);
+    } catch (Throwable $e) {
+        error_log('[quiz] semear ' . $flag . ': ' . $e->getMessage());
+        return 0;
+    }
+}
+
 /** Enche a fila uma única vez, quando a tabela ainda está vazia. */
 function quizSemear(PDO $pdo): void
 {
     try {
-        if ((int)$pdo->query("SELECT COUNT(*) FROM quiz_perguntas")->fetchColumn() > 0) return;
-
-        $st = $pdo->prepare("INSERT INTO quiz_perguntas (pergunta, opcoes, ordem) VALUES (?,?,?)");
-        foreach (QUIZ_BANCO as $i => [$pergunta, $opcoes]) {
-            $st->execute([$pergunta, json_encode($opcoes, JSON_UNESCAPED_UNICODE), $i]);
+        if ((int)$pdo->query("SELECT COUNT(*) FROM quiz_perguntas")->fetchColumn() === 0) {
+            $st = $pdo->prepare("INSERT INTO quiz_perguntas (pergunta, opcoes, ordem) VALUES (?,?,?)");
+            foreach (QUIZ_BANCO as $i => [$pergunta, $opcoes]) {
+                $st->execute([$pergunta, json_encode($opcoes, JSON_UNESCAPED_UNICODE), $i]);
+            }
         }
+        // Os lotes seguintes entram por marca, e não por "a tabela está vazia".
+        quizSemearLote($pdo, 'quiz_lote2_2026_09', QUIZ_BANCO_2);
     } catch (Throwable $e) {
         error_log('[quiz] semear: ' . $e->getMessage());
     }
