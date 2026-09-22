@@ -135,12 +135,16 @@ if ($teamId) {
     try {
         require_once __DIR__ . '/backend/pick_protection.php';
         ensurePickProtectionSchema($pdo);
-        $s = $pdo->prepare("SELECT p.season_year,p.round,orig.city,orig.name AS team_name,p.original_team_id,p.team_id,p.swap_type,p.protection FROM picks p JOIN teams orig ON p.original_team_id=orig.id WHERE p.team_id=? ORDER BY p.season_year ASC,p.round ASC");
-        $s->execute([$teamId]);
-        $allPicksCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+        /* A régua de quais picks ainda valem mora em backend/picks_visiveis.php
+           — antes era um `> $currentSeasonYear` daqui, e cada tela tinha o
+           seu, todos comparando ano quando a pergunta certa é se a pick já
+           foi USADA. @see backend/picks_visiveis.php */
+        require_once __DIR__ . '/backend/picks_visiveis.php';
+        $allPicksCopy = picksVisiveisDoTime($pdo, (int)$teamId,
+                                            picksAnoCorrenteDaLiga($pdo, (string)($team['league'] ?? '')));
         // Mesma funcao das outras telas — ver pickCopiaParenteses().
         foreach ($allPicksCopy as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); } unset($__pk);
-        $teamPicksCopy = array_values(array_filter($allPicksCopy, fn($p) => (int)($p['season_year']??0) > (int)$currentSeasonYear));
+        $teamPicksCopy = $allPicksCopy;
     } catch(Exception $e) {}
     try {
         $row = $pdo->prepare("SELECT trades_used,trades_cycle,current_cycle FROM teams WHERE id=?");

@@ -1872,7 +1872,7 @@ function getSerasaScore(int $avisos): array {
             if (data.error) throw new Error(data.error);
 
             const baseYear = Number(picksAnoBase) || Number(currentSeasonYear) || 0;
-            let picks = (data.picks || []).filter(pk => Number(pk.season_year) >= baseYear)
+            let picks = (data.picks || []).filter(pk => !pk.usada && Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
             const groupByYear = (items, renderItem) => {
@@ -1999,7 +1999,9 @@ function getSerasaScore(int $avisos): array {
             if (!teamInfo) throw new Error('Time não encontrado');
 
             const roster = playersData.players || [];
-            let picks = (picksData.picks || []).filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
+            // "usada" = o time já escolheu com ela; ano sozinho não basta,
+            // porque a de 1ª rodada do ano pode estar gasta e a de 2ª não.
+            let picks = (picksData.picks || []).filter(pk => !pk.usada && Number(pk.season_year) >= Number(currentSeasonYear));
 
             const positions = ['PG','SG','SF','PF','C'];
             const startersMap = {};

@@ -261,7 +261,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // O parenteses da linha de "copiar time" tambem sai pronto daqui:
     // e a MESMA funcao que o dashboard e o my-roster usam, e as tres
     // telas tinham cada uma a sua copia dessa linha.
-    foreach ($picks as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); }
+    /* `usada` diz se o time JÁ ESCOLHEU com aquela pick.
+       A aba Times filtrava a lista por ano ("season_year >= o ano corrente"),
+       e ano não responde: a pick de 1ª rodada de 2027 do New York tinha sido
+       gasta no draft, a de 2ª rodada do mesmo ano não — cortar por ano ou
+       mostrava a gasta como patrimônio ou escondia a que ele ainda tem.
+       O campo vai junto em vez de a API filtrar sozinha: a Trade Machine
+       também consome este endpoint e tem as suas próprias regras.
+       @see backend/picks_usadas.php */
+    require_once dirname(__DIR__) . '/backend/picks_usadas.php';
+    $picksUsadas = picksJaUsadas($pdo);
+    foreach ($picks as &$__pk) {
+        $__pk['copia'] = pickCopiaParenteses($__pk);
+        $__pk['usada'] = isset($picksUsadas[(int)$__pk['id']]);
+    }
     unset($__pk);
 
     $payload = ['success' => true, 'picks' => $picks,

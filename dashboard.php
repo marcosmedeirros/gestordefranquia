@@ -347,15 +347,18 @@ if ($salariosDoElenco) {
 
 require_once __DIR__ . '/backend/pick_protection.php';
 ensurePickProtectionSchema($pdo);
-$stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name AS team_name, p.original_team_id, p.team_id, p.swap_type, p.protection FROM picks p JOIN teams orig ON p.original_team_id = orig.id WHERE p.team_id = ? ORDER BY p.season_year ASC, p.round ASC");
-$stmtPicks->execute([$team['id']]);
-$teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+/* Quais picks ainda valem: régua única em backend/picks_visiveis.php. Aqui
+   era `>= $copySeasonYear`, no Meu Elenco era `>`, e na aba Times era outro
+   — o mesmo time saía com listas diferentes dependendo de onde se copiava.
+   E nenhum deles via a pick já usada no draft do ano corrente. */
+require_once __DIR__ . '/backend/picks_visiveis.php';
+$copySeasonYear = picksAnoCorrenteDaLiga($pdo, (string)($team['league'] ?? ''));
+$teamPicks = picksVisiveisDoTime($pdo, (int)$team['id'], $copySeasonYear);
 // O parenteses da linha de copia sai do PHP: e a MESMA funcao das outras
 // telas, entao swap e protecao nao podem aparecer numa e sumir na outra.
 foreach ($teamPicks as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); } unset($__pk);
-$copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
-$teamPicksForCopy = array_values(array_filter($teamPicks, fn($p) => (int)($p['season_year'] ?? 0) >= $copySeasonYear));
-$firstRoundPicksCount = count(array_filter($teamPicks, fn($p) => (int)($p['round'] ?? 0) === 1 && (int)($p['season_year'] ?? 0) >= $copySeasonYear));
+$teamPicksForCopy = $teamPicks;
+$firstRoundPicksCount = count(array_filter($teamPicks, fn($p) => (int)($p['round'] ?? 0) === 1));
 
 function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int {
     try {
