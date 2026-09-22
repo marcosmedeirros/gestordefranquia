@@ -594,7 +594,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 // As posições do elenco (titulares e reservas), as mesmas do Meu Elenco.
                 // Vermelho quando a posição é diferente do retrato (mesma base do resto do card).
                 require_once __DIR__ . '/../backend/tatica_posicoes.php';
-                $stPos = $pdo->prepare("SELECT id, name, position, secondary_position, role FROM players
+                taticaGarantirColunaPosAplicada($pdo);
+                $stPos = $pdo->prepare("SELECT id, name, position, secondary_position, role,
+                                               drafted_season_number, pos_aplicada_em
+                                          FROM players
                                          WHERE team_id = ? AND role IN ('Titular','Banco')
                                       ORDER BY FIELD(role,'Titular','Banco'), ovr DESC, name");
                 $stPos->execute([(int)$t['id']]);
@@ -607,11 +610,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
                         'mudou' => $antesDele !== null && $antesDele !== $agora,
                         'antes' => $antesDele,
+                        // Calouro que ninguém conferiu no jogo: acende mesmo sem
+                        // retrato pra comparar (backend/tatica_posicoes.php).
+                        'rookie_pendente' => taticaRookieSemPosicao($p),
                     ];
                 }, $stPos->fetchAll(PDO::FETCH_ASSOC));
+                $rookiesPendentes = count(array_filter($posicoes, fn($p) => $p['rookie_pendente']));
 
                 $tatica = [
-                    'posicoes'      => $posicoes,
+                    'posicoes'          => $posicoes,
+                    'rookies_pendentes' => $rookiesPendentes,
                     'slot_label'    => TATICA_SLOTS[$ativa['slot']] ?? $ativa['slot'],
                     'titulares'     => $titulares,
                     'banco'         => array_values(array_filter([$ativa['b1'], $ativa['b2'], $ativa['b3']])),
@@ -674,8 +682,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             if ($a['nos_offs'] !== null && $a['nos_offs'] !== $b['nos_offs']) {
                 return $a['nos_offs'] ? -1 : 1;
             }
-            $fa = !empty($a['active_tactic']['feito_no_jogo']);
-            $fb = !empty($b['active_tactic']['feito_no_jogo']);
+            // Time com calouro por conferir NÃO é "feito": ele foi marcado
+            // antes do draft e o rookie chegou depois. Se fosse pro fim da
+            // fila, o vermelho acenderia num card fechado que ninguém abre.
+            $pend = fn(array $x) => !empty($x['active_tactic']['feito_no_jogo'])
+                                 && empty($x['active_tactic']['rookies_pendentes']);
+            $fa = $pend($a);
+            $fb = $pend($b);
             if ($fa !== $fb) return $fa ? 1 : -1;
             // strnatcmp e não strcmp: sem ele, um time com número no nome
             // ordenaria "10" antes de "2".
@@ -826,6 +839,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               SET feito_no_jogo = 1, snapshot_feito_json = ?, snapshot_feito_em = NOW()
                             WHERE team_id = ?")
                 ->execute([json_encode($retrato, JSON_UNESCAPED_UNICODE), $teamId]);
+            // E os calouros deste elenco passam a ter posição conferida no
+            // jogo: é este clique que apaga o vermelho deles.
+            taticaCarimbarPosicoesAplicadas($pdo, $teamId);
         } else {
             // Desmarcar NÃO apaga o retrato: o jogo continua como foi aplicado
             // da última vez. Só volta o card pra fila.

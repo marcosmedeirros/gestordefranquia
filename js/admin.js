@@ -7771,13 +7771,18 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
        campos em vermelho logo abaixo — ainda mais depois que o quinteto saiu
        da tela do GM e deixou de ser uma escolha de alguém. */
     // Posição de jogador que mudou também é mudança a aplicar no jogo.
+    // Calouro sem posição conferida no jogo entra na conta: é trabalho a
+    // aplicar igual aos outros, e é o único que acende sem ter mudado nada.
     const mudancas = (at.config || []).filter(x => x.mudou).length
-                   + (at.posicoes || []).filter(p => p.mudou).length;
+                   + (at.posicoes || []).filter(p => p.mudou || p.rookie_pendente).length;
+    const rookiesPend = at.rookies_pendentes || 0;
 
     // O nome em vermelho é o aviso de "este mexeu na tática pros playoffs".
     // Só vale pra quem está nos offs: eliminado mexendo na tática não muda
     // nada, e pintar o nome dele só tiraria a atenção de quem importa.
-    const mudouNoOffs = faseOffs && t.nos_offs && mudancas > 0;
+    // Menos o rookie: "mexeu na tática pros playoffs" é acusação de alguém ter
+    // mudado algo, e calouro por conferir não é mudança de ninguém.
+    const mudouNoOffs = faseOffs && t.nos_offs && (mudancas - rookiesPend) > 0;
 
 
     const camposConfig = (at.config || []).filter(c => c.valor !== null);
@@ -7806,10 +7811,17 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
           </label>
         </div>
         <div class="tac-corpo" id="tac-corpo-${tid}">
+          ${rookiesPend > 0 ? `
+          <div class="tac-aviso">
+            <i class="bi bi-exclamation-triangle"></i>
+            ${rookiesPend === 1 ? 'Um calouro deste elenco nunca teve' : `${rookiesPend} calouros deste elenco nunca tiveram`}
+            a posição conferida no jogo — o app pode estar dizendo uma coisa e o 2K outra.
+            Confira ${rookiesPend === 1 ? 'a posição dele' : 'as posições'} e marque "Feito no jogo" pra apagar o vermelho.
+          </div>` : ''}
           ${!at.tem_snapshot ? `
           <div class="tac-aviso">
             <i class="bi bi-info-circle"></i>
-            Este time nunca foi marcado como "Feito no jogo" — não há com o que comparar, então nada aparece em vermelho.
+            Este time nunca foi marcado como "Feito no jogo" — não há com o que comparar, então nada aparece em vermelho${rookiesPend > 0 ? ' além dos calouros acima' : ''}.
             Aplique a tática inteira e marque: a partir daí, o vermelho mostra tudo o que ele mexer.
           </div>` : `
           <div class="tac-base">
@@ -7825,10 +7837,15 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
           ${(at.posicoes || []).length ? `
             <div class="tac-secao">Posições</div>
-            <div class="tac-jogadores">${at.posicoes.map(p => `<span class="tac-jog ${p.mudou ? 'mudou' : ''}"
-                ${p.mudou && p.antes ? `title="Era ${escapeHtml(p.antes)}"` : ''}>${escapeHtml(p.nome)}
-              <b style="color:${p.mudou ? 'inherit' : 'var(--text-3)'};font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b>${
-                p.mudou && p.antes ? `<small style="margin-left:5px;font-weight:600;opacity:.8">(era ${escapeHtml(p.antes)})</small>` : ''}</span>`).join('')}</div>` : ''}
+            <div class="tac-jogadores">${at.posicoes.map(p => {
+              const aceso = p.mudou || p.rookie_pendente;
+              const dica = p.mudou && p.antes ? `Era ${p.antes}`
+                         : (p.rookie_pendente ? 'Calouro: a posição nunca foi conferida no jogo' : '');
+              return `<span class="tac-jog ${aceso ? 'mudou' : ''}" ${dica ? `title="${escapeHtml(dica)}"` : ''}>${escapeHtml(p.nome)}
+              <b style="color:${aceso ? 'inherit' : 'var(--text-3)'};font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b>${
+                p.mudou && p.antes ? `<small style="margin-left:5px;font-weight:600;opacity:.8">(era ${escapeHtml(p.antes)})</small>`
+                : (p.rookie_pendente ? `<small style="margin-left:5px;font-weight:700;opacity:.9">calouro</small>` : '')}</span>`;
+            }).join('')}</div>` : ''}
           <div class="tac-secao">Configurações</div>
           <div class="tac-campos">${config}</div>
           ${observacaoHtml}

@@ -114,3 +114,77 @@ function ensurePlayerLineupSlotColumn(PDO $pdo): bool
     }
     return $ok;
 }
+
+/**
+ * ROOKIE QUE NUNCA TEVE A POSIÇÃO APLICADA NO JOGO.
+ *
+ * O calouro nasce no app com a posição que veio da lista do draft, mas quem
+ * cria o jogador dentro do 2K é o operacional — e ali ele pode sair com outra.
+ * Enquanto ninguém conferiu, app e jogo podem estar dizendo coisas diferentes,
+ * e o card do admin não tinha como avisar: a comparação do vermelho só olha
+ * quem já estava no retrato, e o recém-draftado nunca esteve em nenhum. Ele
+ * passava batido exatamente na única hora em que precisava ser visto.
+ *
+ * Então o carimbo é do JOGADOR, não do retrato do time: `pos_aplicada_em` é
+ * preenchido quando o admin marca "Feito no jogo". Antes disso o rookie fica
+ * aceso. Sendo do jogador, o carimbo o acompanha numa troca — quem já foi
+ * aplicado não volta a acender no elenco novo.
+ */
+
+/** Cria players.pos_aplicada_em na primeira vez (e carimba quem já está no jogo). */
+function taticaGarantirColunaPosAplicada(PDO $pdo): bool
+{
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM players LIKE 'pos_aplicada_em'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN pos_aplicada_em DATETIME NULL DEFAULT NULL");
+            /* O ELENCO DE HOJE JÁ ESTÁ NO JOGO. Sem esta primeira carimbada,
+               os 387 draftados de todas as temporadas passadas acenderiam de
+               uma vez e o card viraria um mar de vermelho inútil. Fica de fora
+               só quem foi escolhido na temporada que está correndo — que é
+               justamente quem o operacional ainda vai criar no jogo. */
+            $pdo->exec("UPDATE players p
+                          JOIN teams t ON t.id = p.team_id
+                     LEFT JOIN (SELECT league, MAX(season_number) AS sn FROM seasons
+                                 WHERE status IS NULL OR status <> 'completed'
+                              GROUP BY league) s ON s.league = t.league
+                           SET p.pos_aplicada_em = NOW()
+                         WHERE p.pos_aplicada_em IS NULL
+                           AND (p.drafted_season_number IS NULL
+                                OR s.sn IS NULL
+                                OR p.drafted_season_number < s.sn)");
+        }
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('taticaGarantirColunaPosAplicada: ' . $e->getMessage());
+        $ok = false;
+    }
+    return $ok;
+}
+
+/** "O jogo está assim agora": o elenco inteiro passa a ter posição aplicada. */
+function taticaCarimbarPosicoesAplicadas(PDO $pdo, int $teamId): void
+{
+    if (!taticaGarantirColunaPosAplicada($pdo)) return;
+    try {
+        $pdo->prepare("UPDATE players SET pos_aplicada_em = NOW()
+                        WHERE team_id = ? AND pos_aplicada_em IS NULL")
+            ->execute([$teamId]);
+    } catch (Throwable $e) {
+        error_log('taticaCarimbarPosicoesAplicadas: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Este jogador é calouro com posição ainda não aplicada?
+ *
+ * Calouro é quem veio do draft ANUAL: o Draft Inicial grava draft_round em
+ * todo mundo e não grava drafted_season_number, então é ele que separa os dois
+ * (mesma régua do salário — ver capEhCalouroNaTemporadaAtual).
+ */
+function taticaRookieSemPosicao(array $p): bool
+{
+    return ($p['drafted_season_number'] ?? null) !== null
+        && ($p['pos_aplicada_em'] ?? null) === null;
+}
