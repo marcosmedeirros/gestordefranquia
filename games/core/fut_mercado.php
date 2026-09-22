@@ -182,6 +182,37 @@ function futSaldoAnual(int $forca, string $div, array $elenco): float
 }
 
 /**
+ * O JOGADOR ESTÁ NA LISTA DE TRANSFERÊNCIAS?
+ *
+ * É a divisão que o Brasfoot faz e que muda tudo na hora de garimpar: quem o
+ * clube QUER vender sai perto do preço de tabela; quem ele não quer vender
+ * custa muito mais caro. Sem essa separação, o mercado é uma lista de preços
+ * e nada mais — com ela, existe a diferença entre fazer um bom negócio e pagar
+ * caro por capricho.
+ *
+ * A resposta é DETERMINÍSTICA (semeada em clube + jogador): a lista não pode
+ * mudar a cada vez que a tela abre, senão o jogador vê um preço, atualiza a
+ * página e vê outro.
+ *
+ * Quem entra na lista: reserva que não joga, veterano que o clube quer tirar
+ * da folha, e uma parcela dos demais — nenhum clube tem o elenco inteiro
+ * fechado.
+ */
+function futEstaAVenda(string $clube, array $jogador, int $posto): bool
+{
+    $idade = (int)($jogador['idade'] ?? 25);
+
+    // Um número estável de 0 a 99 pra este jogador neste clube.
+    $dado = crc32($clube . '|' . $jogador['nome']) % 100;
+
+    if ($posto >= 18) return $dado < 80;              // fim do elenco: quase todo mundo sai
+    if ($posto >= 12) return $dado < 55;              // reserva
+    if ($idade >= 33 && $posto >= 7) return $dado < 60;  // veterano caro que não é craque
+    if ($posto <= 3) return $dado < 8;                // o craque: raramente
+    return $dado < 22;
+}
+
+/**
  * QUANTO O CLUBE PEDE por um jogador dele.
  *
  * Sempre acima do valor de mercado, e mais caro quanto mais importante ele for
@@ -189,15 +220,26 @@ function futSaldoAnual(int $forca, string $div, array $elenco): float
  * É o que impede o jogador de montar um time de estrelas comprando todo mundo
  * pelo valor cheio — e é o que dá alguma graça a garimpar no banco dos outros.
  *
- * @param int $posto 1 = melhor do elenco; quanto maior, mais dispensável
+ * QUEM ESTÁ NA LISTA SAI PERTO DO PREÇO DE TABELA. Quem não está tem
+ * sobretaxa, e ela cresce com a importância do jogador: tirar o craque de um
+ * clube que não quer vendê-lo custa mais que o dobro do que ele vale.
+ *
+ * @param int  $posto   1 = melhor do elenco; quanto maior, mais dispensável
+ * @param bool $aVenda  está na lista de transferências?
  */
-function futPrecoPedido(float $valor, int $posto): float
+function futPrecoPedido(float $valor, int $posto, bool $aVenda = false): float
 {
-    if ($posto <= 1)      $mult = 2.10;   // o craque: o clube não quer vender
-    elseif ($posto <= 3)  $mult = 1.75;
-    elseif ($posto <= 6)  $mult = 1.45;
-    elseif ($posto <= 11) $mult = 1.25;
-    else                  $mult = 1.05;   // reserva: sai quase pelo preço
+    if ($aVenda) {
+        // O clube quer se livrar: quanto mais dispensável, mais barato sai.
+        $mult = $posto >= 18 ? 0.85 : ($posto >= 12 ? 0.95 : 1.08);
+        return round($valor * $mult, 2);
+    }
+
+    if ($posto <= 1)      $mult = 2.40;   // o craque: o clube não quer vender
+    elseif ($posto <= 3)  $mult = 2.00;
+    elseif ($posto <= 6)  $mult = 1.65;
+    elseif ($posto <= 11) $mult = 1.40;
+    else                  $mult = 1.20;
 
     return round($valor * $mult, 2);
 }
@@ -358,13 +400,15 @@ function futMercadoDisponivel(array $clubes, float $meuCaixa, int $limite = 60, 
         foreach ($elenco as $j) {
             $valor = futValorDeMercado((int)$j['ovr'], (int)$j['idade']);
             $posto = $postos[$j['nome']] ?? 25;
-            $pedido = futPrecoPedido($valor, $posto);
+            $aVenda = futEstaAVenda($c['nome'], $j, $posto);
+            $pedido = futPrecoPedido($valor, $posto, $aVenda);
 
             // Fora do alcance do caixa não entra na lista: mostrar o que não
             // dá pra comprar só faz o jogador rolar a tela à toa.
             if ($pedido > $meuCaixa * 2.5) continue;
 
             $lista[] = [
+                'a_venda' => $aVenda,
                 'nome'    => $j['nome'],
                 'pos'     => $j['pos'],
                 'ovr'     => (int)$j['ovr'],

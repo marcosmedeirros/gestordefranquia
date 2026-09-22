@@ -21,6 +21,7 @@
 
 require_once __DIR__ . '/fut_competicoes.php';
 require_once __DIR__ . '/fut_mercado.php';
+require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao
 
 /** A versão do save. Se o formato mudar, é por aqui que a migração começa. */
 const FUT_SAVE_VERSAO = 1;
@@ -179,6 +180,10 @@ function futCarreiraNova(string $nomeTecnico, string $nomeClube, int $ano = 2026
         'resultados' => [],
         'historico'  => [],
         'titulos'    => [],
+        'esquema'    => '4-4-2',
+        'escalacao'  => [],      // [vaga => nome]; vazio = escala sozinho
+        'stats'      => [],      // [nome => gols, assist, cartões, notas]
+        'suspensos'  => [],      // [nome => jogos que ainda faltam cumprir]
         'mensagens'  => ['Você assumiu o ' . $nomeClube . '. A diretoria espera: ' . futMetaDaTemporada($clube)['texto'] . '.'],
     ];
 }
@@ -349,8 +354,33 @@ function futCarreiraMontarCalendario(array $estado): array
     unset($j);
     return $cal;
 }
+/** Quantas partidas guardam os lances no save. */
+const FUT_JOGOS_COM_RESUMO = 12;
+
 /**
- * JOGA A PRÓXIMA PARTIDA do calendário.
+ * A ESCALAÇÃO QUE VAI A CAMPO nesta partida.
+ *
+ * Usa a escolha do jogador quando ela é válida, e escala sozinho quando não é
+ * — elenco mudou, jogador vendido, suspenso de última hora. O time NUNCA entra
+ * em campo desfalcado por falha de escalação: quem esquece de escalar joga com
+ * o que o automático escolher, e não perde por W.O.
+ */
+function futCarreiraEscalacaoAtual(array $estado): array
+{
+    $elenco = $estado['elenco'] ?? [];
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $fora = array_keys($estado['suspensos'] ?? []);
+
+    $escolha = $estado['escalacao'] ?? [];
+    if ($escolha) {
+        $v = futValidarEscalacao($escolha, $elenco, $esquema, $fora);
+        if ($v['ok']) return $v['escalados'];
+    }
+    return futEscalarAutomatico($elenco, $esquema, $fora);
+}
+
+/**
+ * JOGA A PRÓXIMA PARTIDA do calendário, com lances, cartões e notas.
  *
  * @return array ['fim'=>bool, 'jogo'=>array|null, 'estado'=>array]
  */
@@ -362,34 +392,59 @@ function futCarreiraJogarProxima(array $estado): array
 
     $j = $cal[$i];
     $clubes = futClubesDoBrasil();
-    $meuTime = futCarreiraMeuClube($estado);
+    $esquema = $estado['esquema'] ?? '4-4-2';
 
+    $meus = futCarreiraEscalacaoAtual($estado);
+    $forcaMeu = futForcaEscalada($meus, $esquema);
+
+    // O adversário escala sozinho, no esquema que o catálogo dele pedir.
     $advClube = $clubes[$j['adversario']] ?? ['nome' => $j['adversario'], 'forca' => 50, 'div' => '', 'uf' => ''];
     $advTime = futCarreiraTimes([$advClube], $estado)[0];
+    $elencoAdv = futElencoDoClube($advClube['nome'], (int)$advClube['forca']);
+    if (!empty($estado['saidas'][$advClube['nome']])) {
+        $foram = $estado['saidas'][$advClube['nome']];
+        $elencoAdv = array_values(array_filter($elencoAdv, fn($x) => !in_array($x['nome'], $foram, true)));
+    }
+    $esquemaAdv = array_keys(FUT_ESQUEMAS)[crc32($advClube['nome']) % count(FUT_ESQUEMAS)];
+    $deles = futEscalarAutomatico($elencoAdv, $esquemaAdv);
 
-    $p = $j['casa']
-        ? futPlacar($meuTime['forca'], $advTime['forca'])
-        : futPlacar($advTime['forca'], $meuTime['forca']);
+    $p = futSimularPartida($meus, $deles, $forcaMeu, (int)$advTime['forca'], (bool)$j['casa']);
 
-    $meusGols  = $j['casa'] ? $p['casa'] : $p['fora'];
-    $golsDeles = $j['casa'] ? $p['fora'] : $p['casa'];
+    // ── O que a partida deixou: estatística, cartão, suspensão ───────
+    $estado['stats'] = futAcumularEstatisticas($estado['stats'] ?? [], $meus, $p);
+    $estado['suspensos'] = futAtualizarSuspensoes($estado['suspensos'] ?? [], $estado['stats'], $p);
+    $estado['stats'] = futZerarAmarelos($estado['stats']);
 
     $resultado = [
-        'comp'       => $j['comp'],
-        'liga_rodada'=> $j['liga_rodada'] ?? 0,   // a tabela usa isto
-        'adversario' => $j['adversario'],
-        'casa'       => $j['casa'],
-        'meus'       => $meusGols,
-        'deles'      => $golsDeles,
-        'rodada'     => $j['rodada'],
+        'comp'        => $j['comp'],
+        'liga_rodada' => $j['liga_rodada'] ?? 0,   // a tabela usa isto
+        'adversario'  => $j['adversario'],
+        'casa'        => $j['casa'],
+        'meus'        => $p['meus'],
+        'deles'       => $p['deles'],
+        'rodada'      => $j['rodada'],
+        'fase'        => $j['fase'] ?? '',
+        'eventos'     => $p['eventos'],
+        'escalacao'   => array_map(fn($x) => ['nome' => $x['nome'], 'pos' => $x['pos'],
+                                              'ovr' => $x['ovr'], 'nota' => $p['notas'][$x['nome']] ?? 6.0], $meus),
     ];
 
     $estado['resultados'][] = $resultado;
     $estado['rodada'] = $i + 1;
 
+    /* OS LANCES SÓ FICAM NOS ÚLTIMOS JOGOS. Uma temporada tem 50 partidas, e
+       guardar lances e notas de todas engordaria o save a cada clique sem que
+       ninguém vá reler o resumo do jogo 3. O que interessa a longo prazo já
+       está somado em 'stats'. */
+    $n = count($estado['resultados']);
+    if ($n > FUT_JOGOS_COM_RESUMO) {
+        for ($k = 0; $k < $n - FUT_JOGOS_COM_RESUMO; $k++) {
+            unset($estado['resultados'][$k]['eventos'], $estado['resultados'][$k]['escalacao']);
+        }
+    }
+
     return ['fim' => false, 'jogo' => $resultado, 'estado' => $estado];
 }
-
 /** A campanha do clube numa competição: J, V, E, D, pontos. */
 function futCarreiraCampanha(array $estado, ?string $comp = null): array
 {
@@ -565,6 +620,14 @@ function futCarreiraFecharTemporada(array $estado): array
     $estado['calendario'] = [];
     $estado['fase'] = $demitido ? 'desempregado' : 'mercado';
 
+    /* A ESTATÍSTICA DO ANO VAI PRO HISTÓRICO E ZERA. Artilharia e cartão são
+       da temporada, não da carreira: somar tudo pra sempre daria um artilheiro
+       com 300 gols e nenhuma disputa ano a ano. O que sobrevive é o resumo. */
+    $art = futArtilharia($estado['stats'] ?? [], 3);
+    $estado['historico'][count($estado['historico']) - 1]['artilheiros'] = $art;
+    $estado['stats'] = [];
+    $estado['suspensos'] = [];
+
     // Todo mundo envelhece um ano, e o OVR acompanha a curva de carreira.
     $estado['elenco'] = futCarreiraEnvelhecerElenco($estado['elenco']);
     $estado['meta'] = futMetaDaTemporada($clube);
@@ -626,10 +689,13 @@ function futCarreiraComprar(array $estado, string $clubeVendedor, string $jogado
     if (!$alvo) return ['ok' => false, 'motivo' => 'Esse jogador não está mais no clube.', 'estado' => $estado];
 
     $postos = futPostosDoElenco($elencoDele);
+    $posto = $postos[$alvo['nome']] ?? 25;
     $valor = futValorDeMercado((int)$alvo['ovr'], (int)$alvo['idade']);
-    $pedido = futPrecoPedido($valor, $postos[$alvo['nome']] ?? 25);
+    /* O MESMO PREÇO QUE A TELA MOSTROU. Se aqui a conta fosse outra, o
+       jogador clicaria em comprar por 10 e levaria recusa por 24. */
+    $pedido = futPrecoPedido($valor, $posto, futEstaAVenda($clubeVendedor, $alvo, $posto));
 
-    $r = futAvaliarProposta($oferta, $pedido, count($elencoDele), $postos[$alvo['nome']] ?? 25);
+    $r = futAvaliarProposta($oferta, $pedido, count($elencoDele), $posto);
     if (!$r['aceita']) return ['ok' => false, 'motivo' => $r['motivo'], 'estado' => $estado];
 
     // O jogador também precisa querer vir.
@@ -642,6 +708,7 @@ function futCarreiraComprar(array $estado, string $clubeVendedor, string $jogado
     $estado['saidas'][$clubeVendedor][] = $alvo['nome'];
     $alvo['num'] = 0;
     $estado['elenco'][] = $alvo;
+    $estado['escalacao'] = [];   // elenco mudou: reescala na próxima
     $estado['mensagens'][] = sprintf('%s (%d) chegou do %s por %.2f mi.',
         $alvo['nome'], $alvo['ovr'], $clubeVendedor, $oferta);
 
@@ -666,6 +733,7 @@ function futCarreiraVender(array $estado, string $jogador, float $oferta, string
     if (!$achou) return ['ok' => false, 'motivo' => 'Esse jogador não está no seu elenco.', 'estado' => $estado];
 
     $estado['elenco'] = array_values($estado['elenco']);
+    $estado['escalacao'] = [];   // vendeu alguém: a escalação velha não vale mais
     $estado['caixa'] = round($estado['caixa'] + $oferta, 2);
     $estado['mensagens'][] = sprintf('%s foi vendido ao %s por %.2f mi.', $jogador, $comprador, $oferta);
 
