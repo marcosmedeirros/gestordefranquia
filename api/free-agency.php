@@ -575,20 +575,16 @@ function getTeamCurrentCycle(PDO $pdo, int $teamId): int
     return (int)($stmt->fetchColumn() ?: 0);
 }
 
+/*
+ * Mesma troca de régua que api/trades.php: o ban vem do motor de punições, e
+ * não mais de uma coluna em `teams` medida em ciclo. "Sem FA na temporada"
+ * prendia o time por duas — ciclo são duas temporadas.
+ * @see backend/punicoes_regras.php
+ */
 function isTeamFaBanned(PDO $pdo, int $teamId): bool
 {
-    ensureTeamPunishmentColumns($pdo);
-    if (!columnExists($pdo, 'teams', 'ban_fa_until_cycle')) {
-        return false;
-    }
-    $stmt = $pdo->prepare('SELECT ban_fa_until_cycle FROM teams WHERE id = ?');
-    $stmt->execute([$teamId]);
-    $banUntil = (int)($stmt->fetchColumn() ?: 0);
-    if ($banUntil <= 0) {
-        return false;
-    }
-    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
-    return $currentCycle > 0 && $currentCycle <= $banUntil;
+    require_once __DIR__ . '/../backend/punicoes_regras.php';
+    return punicaoEfeitoAtivo($pdo, $teamId, 'BAN_FREE_AGENCY') !== null;
 }
 
 function getLeagueFromRequest(array $validLeagues, ?string $fallback = null): ?string

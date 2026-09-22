@@ -1140,34 +1140,40 @@ function getTeamCurrentCycle(PDO $pdo, int $teamId): int
     return (int)($stmt->fetchColumn() ?: 0);
 }
 
+/*
+ * O BAN AGORA VEM DO MOTOR DE PUNIÇÕES, não de uma coluna em `teams`.
+ *
+ * A conta que estava aqui só sabia medir em ciclo: "$currentCycle <= $banUntil"
+ * com o banUntil vindo do ciclo atual. Como ciclo são duas temporadas, o time
+ * punido com "trades bloqueadas por uma temporada" ficava preso por duas, e o
+ * "próxima temporada" prendia por quatro. O admin lia um prazo na tela e o
+ * time cumpria outro.
+ *
+ * As assinaturas ficam: são oito chamadas espalhadas por este arquivo, e o
+ * ponto aqui é trocar a régua, não mexer em quem pergunta.
+ * @see backend/punicoes_regras.php
+ */
 function isTeamTradeBanned(PDO $pdo, int $teamId): bool
 {
-    if (!columnExists($pdo, 'teams', 'ban_trades_until_cycle')) {
-        return false;
-    }
-    $stmt = $pdo->prepare('SELECT ban_trades_until_cycle FROM teams WHERE id = ?');
-    $stmt->execute([$teamId]);
-    $banUntil = (int)($stmt->fetchColumn() ?: 0);
-    if ($banUntil <= 0) {
-        return false;
-    }
-    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
-    return $currentCycle > 0 && $currentCycle <= $banUntil;
+    require_once __DIR__ . '/../backend/punicoes_regras.php';
+    return punicaoEfeitoAtivo($pdo, $teamId, 'BAN_TRADES') !== null;
 }
 
 function isTeamPickTradeBanned(PDO $pdo, int $teamId): bool
 {
-    if (!columnExists($pdo, 'teams', 'ban_trades_picks_until_cycle')) {
-        return false;
-    }
-    $stmt = $pdo->prepare('SELECT ban_trades_picks_until_cycle FROM teams WHERE id = ?');
-    $stmt->execute([$teamId]);
-    $banUntil = (int)($stmt->fetchColumn() ?: 0);
-    if ($banUntil <= 0) {
-        return false;
-    }
-    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
-    return $currentCycle > 0 && $currentCycle <= $banUntil;
+    require_once __DIR__ . '/../backend/punicoes_regras.php';
+    return punicaoEfeitoAtivo($pdo, $teamId, 'BAN_TRADES_PICKS') !== null;
+}
+
+/** O motivo, pra mensagem de erro dizer por que e até quando. */
+function tradeBanMotivo(PDO $pdo, int $teamId, string $efeito = 'BAN_TRADES'): string
+{
+    require_once __DIR__ . '/../backend/punicoes_regras.php';
+    $p = punicaoEfeitoAtivo($pdo, $teamId, $efeito);
+    if (!$p) return '';
+    $txt = $p['label'];
+    if (!empty($p['infracao'])) $txt .= ' — ' . $p['infracao'] . (!empty($p['artigo']) ? ' (' . $p['artigo'] . ')' : '');
+    return $txt . ', ' . $p['texto'];
 }
 
 function isPickLastYearOfSprint(PDO $pdo, int $pickId): bool
@@ -1282,6 +1288,30 @@ function getTeamLeague(PDO $pdo, int $teamId): ?string
     $stmt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
     $stmt->execute([$teamId]);
     return $stmt->fetchColumn() ?: null;
+}
+
+/**
+ * O limite de trocas DESTE time — o da liga menos o que a punição cortou.
+ *
+ * "Perda de 8 trades do ciclo" é pena de edital (ELITE/NEXT, infração 04) e
+ * não cabia no limite por liga: o número era o mesmo pra todo mundo, então a
+ * única forma de cortar trocas de um time era proibir todas. Meio-termo não
+ * existia.
+ *
+ * O piso é zero: pena que corta mais trocas do que a liga dá vira proibição,
+ * não crédito negativo.
+ */
+function getTeamMaxTrades(PDO $pdo, int $teamId, ?string $league = null, int $default = 3): int
+{
+    $league = $league ?: getTeamLeague($pdo, $teamId);
+    $limite = getLeagueMaxTrades($pdo, (string)$league, $default);
+
+    require_once __DIR__ . '/../backend/punicoes_regras.php';
+    $corte = punicaoEfeitoAtivo($pdo, $teamId, 'PERDA_TRADES');
+    if ($corte && (int)$corte['valor'] > 0) {
+        $limite = max(0, $limite - (int)$corte['valor']);
+    }
+    return $limite;
 }
 
 /**
@@ -3166,7 +3196,7 @@ if ($method === 'POST') {
         exit;
     }
 
-    $maxTrades = getLeagueMaxTrades($pdo, $teamData['league'], 10);
+    $maxTrades = getTeamMaxTrades($pdo, (int)$teamId, $teamData['league'], 10);
 
     $tradesUsed = getTeamTradesUsed($pdo, (int)$teamId);
     if ($tradesUsed >= $maxTrades) {
@@ -3754,9 +3784,8 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $tradeTeams = array_map('intval', $stmtTeams->fetchAll(PDO::FETCH_COLUMN));
 
                 $league = $trade['league'] ?: $user['league'];
-                $maxTrades = getLeagueMaxTrades($pdo, $league, 3);
                 foreach ($tradeTeams as $tid) {
-                    if (getTeamTradesUsed($pdo, (int)$tid) >= $maxTrades) {
+                    if (getTeamTradesUsed($pdo, (int)$tid) >= getTeamMaxTrades($pdo, (int)$tid, $league, 3)) {
                         throw new Exception('Um dos times já atingiu o limite de trades.');
                     }
                 }
@@ -4041,13 +4070,16 @@ if ($method === 'PUT') {
             exit;
         }
 
-        $maxTrades = getLeagueMaxTrades($pdo, $tradeLeague ?: $user['league'], 3);
+        // O limite é por time, não por liga: a punição pode ter cortado
+        // trocas de um dos dois (ver getTeamMaxTrades).
+        $ligaDaTroca = $tradeLeague ?: $user['league'];
         $fromTradesUsed = getTeamTradesUsed($pdo, (int)$trade['from_team_id']);
-        if ($fromTradesUsed >= $maxTrades) {
+        if ($fromTradesUsed >= getTeamMaxTrades($pdo, (int)$trade['from_team_id'], $ligaDaTroca, 3)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'O time proponente já atingiu o limite de trades para esta temporada.']);
             exit;
         }
+        $maxTrades = getTeamMaxTrades($pdo, (int)$trade['to_team_id'], $ligaDaTroca, 3);
         $toTradesUsed = getTeamTradesUsed($pdo, (int)$trade['to_team_id']);
         if ($toTradesUsed >= $maxTrades) {
             http_response_code(400);
