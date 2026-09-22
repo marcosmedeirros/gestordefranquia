@@ -1464,7 +1464,7 @@ if ($method === 'GET') {
 
             $team['cap_top8'] = topOvrCap($pdo, $teamId);
             $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$teamId);
-            $team['restricted_bonus'] = $team['restricted_eligible'] * 2;
+            $team['restricted_bonus'] = restrictedCapBonus($pdo, (int)$teamId);   // a conta mora em helpers.php, e so la
 
             echo json_encode(['success' => true, 'team' => $team]);
             break;

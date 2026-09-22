@@ -578,13 +578,23 @@ function lendaTagHtml(player) {
     : '';
 }
 
+// O CAP +: +2 de teto por jogador elegível, +4 se ele for 95 ou mais, contando
+// no máximo dois. Tem que bater com restrictedCapBonus() em backend/helpers.php
+// — se as duas contas divergirem, a tela mostra um teto e o servidor valida por
+// outro, e o GM leva bloqueio numa jogada que a tela dizia caber.
+const RESTRICTED_BONUS_PADRAO = 2;
+const RESTRICTED_BONUS_ESTRELA = 4;
+const RESTRICTED_BONUS_OVR_ESTRELA = 95;
+const RESTRICTED_BONUS_MAX_JOGADORES = 2;
+
 function getRestrictedBonus(players) {
-  const eligible = players.filter(isFranchiseEligible);
-  const count90 = eligible.length;
-  if (count90 === 0) return 0;
-  const count94 = eligible.filter(p => Number(p.ovr) >= 94).length;
-  if (count90 >= 2 && count94 >= 1) return 4;
-  return 2;
+  return players
+    .filter(isFranchiseEligible)
+    .map(p => Number(p.ovr) || 0)
+    .sort((a, b) => b - a)                    // os dois melhores, não os dois primeiros
+    .slice(0, RESTRICTED_BONUS_MAX_JOGADORES)
+    .reduce((soma, ovr) => soma + (ovr >= RESTRICTED_BONUS_OVR_ESTRELA
+      ? RESTRICTED_BONUS_ESTRELA : RESTRICTED_BONUS_PADRAO), 0);
 }
 
 function getCapMaxAdjusted(players) {

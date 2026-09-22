@@ -466,14 +466,16 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
     // Busca em lote por id — funciona mesmo quando quem chamou não incluiu
     // loyal_override no SELECT (a maioria dos ~8 pontos que usam essa função).
     $overrides = [];
+    $lendas = [];
     if ($playerIds) {
         try {
             ensurePlayerRestrictionColumns($pdo);
             $ph = implode(',', array_fill(0, count($playerIds), '?'));
-            $stmt = $pdo->prepare("SELECT id, loyal_override FROM players WHERE id IN ($ph)");
+            $stmt = $pdo->prepare("SELECT id, loyal_override, is_lenda FROM players WHERE id IN ($ph)");
             $stmt->execute($playerIds);
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 if ($r['loyal_override'] !== null) $overrides[(int)$r['id']] = (int)$r['loyal_override'];
+                $lendas[(int)$r['id']] = (int)($r['is_lenda'] ?? 0) === 1;
             }
         } catch (Exception $e) {}
     }
@@ -490,73 +492,113 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         $pid = (int)($p['id'] ?? 0);
         $isLoyal = array_key_exists($pid, $overrides) ? ($overrides[$pid] === 1 && $notTraded) : $autoLoyal;
 
+        /* A LENDA FIEL TAMBÉM É ELEGÍVEL. Ela nunca sai como "leal" pela régua
+           automática, porque não veio de draft_pool e sim do draft de lendas. Mas
+           é a estrela que a franquia segurou desde o começo, e tanto o Cap +
+           (RISE/NEXT) quanto o Cap Flex (ELITE) contam com ela. Sem esta linha a
+           tela deixaria de destacar a lenda e o bônus somado no front não bateria
+           com o do servidor. */
+        $ehLenda = array_key_exists($pid, $lendas)
+            ? $lendas[$pid]
+            : (int)($p['is_lenda'] ?? 0) === 1;
+        $lendaFiel = $ehLenda && $notTraded;
+
         $p['is_loyal'] = $isLoyal ? 1 : 0;
-        $p['cap_bonus_eligible'] = ($isLoyal && $highOvr) ? 1 : 0;
+        $p['cap_bonus_eligible'] = (($isLoyal || $lendaFiel) && $highOvr) ? 1 : 0;
     }
     unset($p);
 }
 
-function restrictedEligibleCount(PDO $pdo, int $teamId): int
+/* ── O CAP + DA RISE E DA NEXT ────────────────────────────────────────
+   +2 de teto por jogador elegível, +4 se ele for 95 ou mais, contando no
+   máximo dois jogadores — ou seja, de +2 a +8. Regra definida pelo Marcos em
+   22/09/2026.
+
+   ANTES ERA OUTRA COISA, e a diferença é grande: o bônus era por TIME, não por
+   jogador. Um elegível dava +2 e três elegíveis davam os mesmos +2; pra chegar
+   a +4 era preciso ter dois elegíveis E um deles com 94+. Na prática nenhum
+   time das duas ligas tinha um único elegível, então o bônus nunca saiu do
+   papel desde que foi escrito.
+
+   A ELITE não usa isto — lá o benefício é em milhões, no Cap Flex
+   (backend/salary_cap.php), que também para em dois jogadores. */
+const RESTRICTED_BONUS_PADRAO = 2;
+const RESTRICTED_BONUS_ESTRELA = 4;     // pra quem está em 95+
+const RESTRICTED_BONUS_OVR_MINIMO = 90;
+const RESTRICTED_BONUS_OVR_ESTRELA = 95;
+const RESTRICTED_BONUS_MAX_JOGADORES = 2;
+
+/**
+ * Os OVRs dos jogadores que geram Cap +, do maior pro menor.
+ *
+ * Elegível é quem tem 90+, NUNCA foi trocado, e ou veio do draft normal da
+ * própria franquia, ou é LENDA. A lenda entra porque não foi draftada — veio
+ * do draft de lendas — mas é a estrela que a franquia segurou desde o começo,
+ * que é exatamente o que o bônus existe pra premiar. É a mesma decisão que
+ * vale no Cap Flex da ELITE. Trocou a lenda, acabou: was_traded marca, e ela
+ * não gera bônus pra ninguém mais.
+ */
+function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
 {
     ensurePlayerRestrictionColumns($pdo);
     try {
         $leagueStmt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
         $leagueStmt->execute([$teamId]);
         $league = strtoupper(trim((string)($leagueStmt->fetchColumn() ?? '')));
-        if ($league === '') return 0;
-        // Bônus por soma de OVR: vale pra RISE e NEXT (a ELITE usa +8M direto
-        // no salary cap real, calculado em backend/salary_cap.php).
-        if (!str_starts_with($league, 'RISE') && !str_starts_with($league, 'NEXT')) return 0;
+        if ($league === '') return [];
+        // Bônus por soma de OVR: vale pra RISE e NEXT (a ELITE usa o Cap Flex
+        // em milhões, calculado em backend/salary_cap.php).
+        if (!str_starts_with($league, 'RISE') && !str_starts_with($league, 'NEXT')) return [];
 
         $stmt = $pdo->prepare('
-            SELECT COUNT(*) FROM players p
+            SELECT p.ovr FROM players p
             WHERE p.team_id = ?
-            AND p.ovr >= 90
+            AND p.ovr >= ' . RESTRICTED_BONUS_OVR_MINIMO . '
             AND COALESCE(p.was_traded, 0) = 0
-            AND EXISTS (
-                SELECT 1 FROM draft_pool dp
-                WHERE dp.name = p.name
-                AND dp.drafted_by_team_id = ?
-                AND dp.draft_status = "drafted"
+            AND (
+                COALESCE(p.is_lenda, 0) = 1
+                OR EXISTS (
+                    SELECT 1 FROM draft_pool dp
+                    WHERE dp.name = p.name
+                    AND dp.drafted_by_team_id = ?
+                    AND dp.draft_status = "drafted"
+                )
             )
+            ORDER BY p.ovr DESC
         ');
         $stmt->execute([$teamId, $teamId]);
-        return (int) $stmt->fetchColumn();
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) {
-        return 0;
+        return [];
     }
 }
 
+function restrictedEligibleCount(PDO $pdo, int $teamId): int
+{
+    return count(restrictedEligibleOvrs($pdo, $teamId));
+}
+
+/** Quanto um jogador elegível vale de Cap +, pelo OVR dele. */
+function restrictedBonusDoOvr(int $ovr): int
+{
+    return $ovr >= RESTRICTED_BONUS_OVR_ESTRELA ? RESTRICTED_BONUS_ESTRELA : RESTRICTED_BONUS_PADRAO;
+}
+
+/**
+ * O Cap + de um time: soma dos DOIS melhores elegíveis, +4 cada um se for 95+.
+ *
+ * Contam os de maior OVR quando há mais de dois — o time não escolhe quais
+ * valem, senão o bônus dependeria da ordem em que o elenco foi lido.
+ */
 function restrictedCapBonus(PDO $pdo, int $teamId): int
 {
-    $count90 = restrictedEligibleCount($pdo, $teamId);
-    if ($count90 === 0) return 0;
-
-    // Verifica se há pelo menos 1 elegível com OVR >= 94
-    try {
-        $stmt94 = $pdo->prepare('
-            SELECT COUNT(*) FROM players p
-            WHERE p.team_id = ?
-            AND p.ovr >= 94
-            AND COALESCE(p.was_traded, 0) = 0
-            AND EXISTS (
-                SELECT 1 FROM draft_pool dp
-                WHERE dp.name = p.name
-                AND dp.drafted_by_team_id = ?
-                AND dp.draft_status = "drafted"
-            )
-        ');
-        $stmt94->execute([$teamId, $teamId]);
-        $count94 = (int)$stmt94->fetchColumn();
-    } catch (Exception $e) {
-        $count94 = 0;
+    $ovrs = restrictedEligibleOvrs($pdo, $teamId);   // já vem do maior pro menor
+    $total = 0;
+    foreach (array_slice($ovrs, 0, RESTRICTED_BONUS_MAX_JOGADORES) as $ovr) {
+        $total += restrictedBonusDoOvr($ovr);
     }
-
-    // +4 se tiver >= 2 elegíveis e pelo menos 1 com 94+; caso contrário +2
-    if ($count90 >= 2 && $count94 >= 1) return 4;
-    return 2;
+    return $total;
 }
-
 function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
 {
     return $capMax + restrictedCapBonus($pdo, $teamId);
