@@ -1827,6 +1827,39 @@ if ($method === 'POST') {
                 }
             }
 
+            /* AS TRAVAS ANTITANKING (Art. 25), depois do piso e antes de
+               recolocar quem já saiu.
+               Depois do piso porque as duas mexem na mesma lista e o piso é
+               garantia de quem está embaixo — se rodasse por último, desfaria
+               a trava. Antes da recolocação porque escolha já revelada não se
+               mexe. @see backend/loteria_travas.php */
+            require_once __DIR__ . '/../backend/loteria_travas.php';
+            /* Quem é o DONO de cada vaga hoje. $pickOwner, que responde isso
+               mais abaixo, só é montado depois daqui — e sem o mapa a trava
+               trataria toda vaga como própria, pegando justamente em quem
+               vendeu a pick, que é o contrário do que o edital manda. */
+            $donoDaVaga = [];
+            try {
+                $anoTrava = draftAnoDasPicks($pdo, (int)$lotterySession['season_id']);
+                if ($anoTrava > 0) {
+                    $stDono = $pdo->prepare("SELECT p.original_team_id, p.team_id
+                                               FROM picks p JOIN teams t ON t.id = p.original_team_id
+                                              WHERE t.league = ? AND p.round = '1'
+                                                AND CAST(p.season_year AS UNSIGNED) = ?");
+                    $stDono->execute([$lotterySession['league'], $anoTrava]);
+                    foreach ($stDono->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                        $donoDaVaga[(int)$r['original_team_id']] = (int)$r['team_id'];
+                    }
+                }
+            } catch (Throwable $e) {
+                error_log('[loteria-travas] donos das vagas: ' . $e->getMessage());
+            }
+            $comTravas = loteriaAplicarTravas($pdo, (string)$lotterySession['league'],
+                                              $drawOrder, $donoDaVaga, $teamNames,
+                                              $draftSessionId ?? null);
+            $drawOrder   = $comTravas['ordem'];
+            $adjustments = array_merge($adjustments, $comTravas['avisos']);
+
             /* Os que já saíram voltam pras posições onde saíram, e o que foi
                sorteado agora preenche o que sobrou, na ordem em que saiu da
                urna. Feito depois do piso: quem já estava numa posição não é
