@@ -1478,6 +1478,33 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			const transfers = Array.isArray(data.transfers) ? data.transfers : [];
 			const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
 
+			/* ENCAIXE POR SISTEMA — os três melhores, que é o que cabe num
+			   modal. Quem quiser os oito abre a página do jogador, e o link
+			   pra ela já está no rodapé. @see backend/sistema_proficiencia.php */
+			// Este arquivo não tinha helper de escape; o nome do sistema vem
+			// de constante nossa, mas escapar é mais barato que confiar.
+			const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+			const sistemas = Array.isArray(data.sistemas) ? data.sistemas : [];
+			const estrelasHtml = (n) => '<span style="color:#f59e0b">' + '★'.repeat(n) + '</span>'
+				+ `<span style="color:var(--text-3);opacity:.45">${'☆'.repeat(5 - n)}</span>`;
+			const sistemasHtml = sistemas.length
+				? `<div style="padding:0 22px 18px">
+					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Melhores sistemas</div>
+					${sistemas.slice(0, 3).map((s, i) => `
+						<div style="display:flex;align-items:center;gap:10px;padding:7px 0${i < 2 ? ';border-bottom:1px solid var(--border)' : ''}">
+							<span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.nome)}</span>
+							<span style="font-size:13px;letter-spacing:1px" title="${esc(s.rotulo)}">${estrelasHtml(s.estrelas)}</span>
+							<span style="font-size:11.5px;font-weight:700;color:var(--text-2);min-width:32px;text-align:right">${s.nota}</span>
+						</div>`).join('')}
+				</div>`
+				: (data.sistemas_tag
+					? `<div style="padding:0 22px 18px;font-size:12px;color:var(--text-3)">
+						<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(59,130,246,.14);color:#60a5fa;border:1px solid rgba(59,130,246,.4);margin-right:8px">${esc(data.sistemas_tag)}</span>
+						Sem ficha técnica — não dá pra calcular o encaixe por sistema.
+					</div>`
+					: '');
+
 			const latestDelta = seasonLog.length >= 2
 				? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
 				: 0;
@@ -1539,6 +1566,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
 					${seasonLogHtml}
 				</div>
+				${sistemasHtml}
 				<div style="padding:0 22px 22px">
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
 					${transferHtml}

@@ -710,8 +710,24 @@ if ($method === 'GET') {
             error_log('[team/player_details/stats] ' . $e->getMessage());
         }
 
+        /* Em que sistema ele rende — o mesmo cálculo da tela de Tática e da
+           página do jogador. Sai daqui porque este endpoint alimenta o modal
+           de detalhes em DOIS lugares (players.php e o Meu Elenco), e duas
+           contas iguais em telas diferentes é a garantia de que um dia elas
+           deixam de ser iguais. @see backend/sistema_proficiencia.php */
+        require_once __DIR__ . '/../backend/sistema_proficiencia.php';
+        $perfilSis = sistemaPerfilDoJogador($player);
+        $sistemasOut = [];
+        foreach ($perfilSis as $chave => $s) {
+            $sistemasOut[] = ['chave' => $chave, 'nome' => $s['nome'], 'nota' => $s['nota'],
+                              'estrelas' => $s['estrelas'], 'rotulo' => $s['rotulo'],
+                              'destaque' => $s['destaque']];
+        }
+
         jsonResponse(200, [
             'season_stats' => $stats,
+            'sistemas' => $sistemasOut,
+            'sistemas_tag' => $sistemasOut ? null : sistemaSemFichaMotivo($player)['tag'],
             'player' => [
                 'id' => (int)$player['id'],
                 'name' => $player['name'],

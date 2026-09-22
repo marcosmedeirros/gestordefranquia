@@ -16,6 +16,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/sistema_proficiencia.php'; // encaixe por sistema de jogo
 requireAuth();
 
 $user = getUserSession();
@@ -166,8 +167,19 @@ $dados = array_map(function ($r) use ($SKILLS) {
         $sk[$chave] = $v;
     }
 
+    /* A nota em cada um dos oito sistemas de jogo. É a mesma conta da tela de
+       Tática e da página do jogador — calculada aqui porque a tabela ordena e
+       filtra por ela, e refazer no navegador seria uma segunda versão da
+       regra. @see backend/sistema_proficiencia.php */
+    $sis = [];
+    foreach (array_keys(sistemaNomes()) as $chave) {
+        $n = sistemaNotaDoJogador($r, $chave);
+        $sis[$chave] = $n === null ? null : ['n' => $n, 'e' => sistemaEstrelas($n)['estrelas']];
+    }
+
     return [
         'sk' => $sk,
+        'sis' => $sis,
         'id'    => (int)$r['id'],
         'nome'  => $r['name'],
         'pos'   => $r['position'] ?: '',
@@ -379,6 +391,13 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
 .pos-tag{display:inline-block;min-width:30px;text-align:center;font-size:10px;font-weight:800;
   padding:2px 5px;border-radius:5px;background:var(--panel-3);color:var(--text-2)}
 
+/* Aba Sistemas: estrela em vez de número. São oito colunas, e "78,4" oito
+   vezes na linha não se lê de relance — a nota fica no title. */
+.sis-cel{white-space:nowrap;letter-spacing:-.5px;font-size:11px}
+.sis-on{color:#f59e0b}
+.sis-off{color:var(--text-3);opacity:.35}
+@media (max-width:640px){.sis-cel{font-size:9.5px;letter-spacing:-1px}}
+
 .vazio{padding:48px 20px;text-align:center;color:var(--text-2)}
 .vazio i{font-size:34px;color:var(--text-3);display:block;margin-bottom:12px}
 .vazio a{color:var(--red)}
@@ -421,6 +440,7 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
     <div class="abas" id="abas">
       <button type="button" class="aba on" data-aba="stats"><i class="bi bi-clipboard-data"></i> Estatísticas</button>
       <button type="button" class="aba" data-aba="skills"><i class="bi bi-sliders"></i> Atributos</button>
+      <button type="button" class="aba" data-aba="sistemas"><i class="bi bi-stars"></i> Sistemas</button>
     </div>
 
     <div class="filtros">
@@ -552,6 +572,15 @@ const COLS = {
     ['in','IN'],['mid','MID'],['pt3','3PT'],['post_d','POST D'],['per_d','PER D'],
     ['play','PLAY'],['reb','REB'],['athl','ATHL'],['iq','IQ'],['pot','POT'],
   ].map(function (par) { return { c:'sk.' + par[0], rot:par[1], tipo:'skill', cls:'num' }; }),
+  /* Os oito sistemas de jogo. O rótulo é curto porque são oito colunas
+     disputando a largura — o nome inteiro fica no `title` do cabeçalho.
+     @see backend/sistema_proficiencia.php */
+  sistemas: [
+    ['balanced','BAL','Balanced'], ['triangle','TRI','Triangle'],
+    ['grit_grind','G&G','Grit & Grind'], ['pace_space','P&S','Pace & Space'],
+    ['perimeter_centric','PER','Perimeter Centric'], ['post_centric','POST','Post Centric'],
+    ['seven_seconds','7SEC','Seven Seconds'], ['defense','DEF','Defense'],
+  ].map(function (t) { return { c:'sis.' + t[0], rot:t[1], nome:t[2], tipo:'sis', cls:'num' }; }),
 };
 
 let aba = 'stats';
@@ -587,9 +616,18 @@ function nomeCurto(nome) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-/** Valor de uma coluna, incluindo as de atributo ("sk.iq"). */
+/** Valor de uma coluna: atributo ("sk.iq"), sistema ("sis.triangle") ou fixa. */
 function valor(p, c) {
-  return c.indexOf('sk.') === 0 ? p.sk[c.slice(3)] : p[c];
+  if (c.indexOf('sk.') === 0) return p.sk[c.slice(3)];
+  /* No sistema o valor que ORDENA é a nota (0-100), e não o número de
+     estrelas: três jogadores de 3 estrelas têm notas diferentes, e ordenar
+     pela estrela deixaria os três empatados sem critério. A estrela é só
+     como a célula se mostra. */
+  if (c.indexOf('sis.') === 0) {
+    const s = p.sis ? p.sis[c.slice(4)] : null;
+    return s ? s.n : null;
+  }
+  return p[c];
 }
 
 // Notas em letra viram posto numérico só para ordenar — o app aceita as duas
@@ -690,8 +728,11 @@ function renderCabecalho() {
   document.getElementById('cabecalho').innerHTML = colunas().map(function (col) {
     const on = col.c === ordCol;
     const curto = compacto && ROTULO_CURTO[col.rot];
+    // O nome inteiro do sistema vive no title: "P&S" no cabeçalho não diz
+    // nada pra quem abriu a aba pela primeira vez.
+    const dica = col.nome || (curto ? col.rot : '');
     return '<th class="' + col.cls + (on ? ' ord' : '') + '" data-c="' + col.c + '"'
-      + (curto ? ' title="' + esc(col.rot) + '"' : '') + '>'
+      + (dica ? ' title="' + esc(dica) + '"' : '') + '>'
       + '<span class="seta">' + (on ? (ordAsc ? '▲' : '▼') : '▼') + '</span>'
       + esc(curto || col.rot) + '</th>';
   }).join('') + '<th class="col-copia"></th>';
@@ -711,7 +752,8 @@ function render() {
     corpo.innerHTML = '';
     vazio.style.display = 'block';
     const nenhum = aba === 'stats' ? COM_STATS === 0 : COM_SKILLS === 0;
-    const oQue   = aba === 'stats' ? 'estatística lançada' : 'atributo preenchido';
+    const oQue   = aba === 'stats' ? 'estatística lançada'
+                 : (aba === 'sistemas' ? 'jogador com ficha técnica' : 'atributo preenchido');
     vazio.innerHTML = (aba === 'stats' && !TEM_TEMP)
       ? '<i class="bi bi-calendar-x"></i>Nenhuma temporada aberta nesta liga ainda.'
       : (nenhum
@@ -740,6 +782,17 @@ function render() {
       const v = valor(p, col.c);
       if (col.tipo === 'skill') {
         return '<td class="num' + on + '" style="' + corSkill(v) + '">' + (v === null ? '—' : esc(v)) + '</td>';
+      }
+      /* ESTRELAS, e não a nota crua: a pergunta aqui é "serve ou não serve
+         neste sistema", e 78,4 não responde isso de relance numa tabela de
+         oito colunas. A nota vai no title, pra quem quiser o número, e é ela
+         que ordena (ver valor()). */
+      if (col.tipo === 'sis') {
+        const s = p.sis ? p.sis[col.c.slice(4)] : null;
+        if (!s) return '<td class="num' + on + '">—</td>';
+        return '<td class="num sis-cel' + on + '" title="' + s.n + '">'
+          + '<span class="sis-on">' + '★'.repeat(s.e) + '</span>'
+          + '<span class="sis-off">' + '☆'.repeat(5 - s.e) + '</span></td>';
       }
       return '<td class="num' + on + '">' + fmt(v, col.dec) + (v !== null && v !== undefined && col.sufixo ? col.sufixo : '') + '</td>';
     }).join('');
