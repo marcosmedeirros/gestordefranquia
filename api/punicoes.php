@@ -185,6 +185,12 @@ ensurePunishmentsColumns($pdo);
 ensureTeamPunishmentColumns($pdo);
 ensurePunishmentsCatalog($pdo);
 
+// O motor: colunas de vigência, quadro do edital e a conversão das punições
+// antigas (que gravavam o efeito em colunas de `teams`). @see backend/punicoes_regras.php
+require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
+punicaoGarantirEsquema($pdo);
+punicaoMigrarLegado($pdo);
+
 $allowedTypes = [
     'AVISO_FORMAL',
     'PERDA_PICK_1R',
@@ -399,10 +405,19 @@ if ($method === 'POST') {
             $effectType = strtoupper($pun['effect_type'] ?? $pun['type']);
 
             if ($effectType === 'PERDA_PICK_1R' || $effectType === 'PERDA_PICK_ESPECIFICA') {
+                /* Basta tirar o carimbo: a pick nunca saiu da tabela.
+                   O caminho de antes RECRIAVA a linha apagada, e recriar não é
+                   desfazer — a pick voltava sem swap, sem proteção e sem o
+                   histórico de dono, porque o DELETE tinha levado tudo. */
+                require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
+                $devolvidas = punicaoDevolverPicks($pdo, $punishmentId);
+
+                /* Punição antiga, de quando a pick era mesmo apagada: aí não
+                   há carimbo pra tirar e a linha precisa ser refeita. */
                 $seasonYear = (int)($pun['removed_pick_season_year'] ?? 0);
                 $round = (int)($pun['removed_pick_round'] ?? 0);
                 $originalTeamId = (int)($pun['removed_pick_original_team_id'] ?? 0);
-                if ($seasonYear && $round && $originalTeamId) {
+                if (!$devolvidas && $seasonYear && $round && $originalTeamId) {
                     $stmtExists = $pdo->prepare('SELECT id FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ?');
                     $stmtExists->execute([$originalTeamId, $seasonYear, $round]);
                     if (!$stmtExists->fetchColumn()) {
@@ -486,32 +501,27 @@ if ($method === 'POST') {
     try {
         $pdo->beginTransaction();
 
-        // Aplicar efeitos
+        /* A PICK NÃO É MAIS APAGADA.
+           Antes daqui saía um DELETE, e o time continuava escolhendo: a ordem
+           do draft é derivada de `picks`, e vaga sem pick correspondente fica
+           com quem estava lá. A punição mais usada da liga não tirava ninguém
+           do draft. Agora a pick fica marcada, aparece PUNIDO na ordem e o
+           draft pula. @see backend/punicoes_regras.php
+           A marcação precisa do id da punição, então acontece depois do
+           INSERT — aqui só guardamos o que vai ser cobrado. */
         $removedPick = null;
-        if ($effectType === 'PERDA_PICK_1R') {
-            $stmtPick = $pdo->prepare('SELECT id FROM picks WHERE team_id = ? AND round = 1 ORDER BY season_year ASC, id ASC LIMIT 1');
-            $stmtPick->execute([$teamId]);
-            $pickId = (int)($stmtPick->fetchColumn() ?: 0);
-            if ($pickId) {
-                $stmtPickInfo = $pdo->prepare('SELECT season_year, round, original_team_id, last_owner_team_id FROM picks WHERE id = ?');
-                $stmtPickInfo->execute([$pickId]);
-                $removedPick = $stmtPickInfo->fetch(PDO::FETCH_ASSOC);
-
-                $stmtDel = $pdo->prepare('DELETE FROM picks WHERE id = ?');
-                $stmtDel->execute([$pickId]);
-            }
+        $perderPick = in_array($effectType, ['PERDA_PICK_1R', 'PERDA_PICK_ESPECIFICA'], true);
+        if ($effectType === 'PERDA_PICK_ESPECIFICA' && !$pickId) {
+            throw new Exception('Selecione a pick para remover');
         }
-
-        if ($effectType === 'PERDA_PICK_ESPECIFICA') {
-            if (!$pickId) {
-                throw new Exception('Selecione a pick para remover');
-            }
-            $stmtPickInfo = $pdo->prepare('SELECT season_year, round, original_team_id, last_owner_team_id FROM picks WHERE id = ? AND team_id = ?');
-            $stmtPickInfo->execute([$pickId, $teamId]);
-            $removedPick = $stmtPickInfo->fetch(PDO::FETCH_ASSOC);
-
-            $stmtDel = $pdo->prepare('DELETE FROM picks WHERE id = ? AND team_id = ?');
-            $stmtDel->execute([$pickId, $teamId]);
+        if ($perderPick) {
+            $alvo = $pdo->prepare($effectType === 'PERDA_PICK_ESPECIFICA'
+                ? 'SELECT season_year, round, original_team_id, last_owner_team_id FROM picks WHERE id = ? AND team_id = ?'
+                : "SELECT season_year, round, original_team_id, last_owner_team_id FROM picks
+                    WHERE team_id = ? AND original_team_id = ? AND round = '1' AND punicao_id IS NULL
+                 ORDER BY CAST(season_year AS UNSIGNED) ASC, id ASC LIMIT 1");
+            $alvo->execute($effectType === 'PERDA_PICK_ESPECIFICA' ? [$pickId, $teamId] : [$teamId, $teamId]);
+            $removedPick = $alvo->fetch(PDO::FETCH_ASSOC) ?: null;
         }
 
         if ($effectType === 'BAN_TRADES') {
@@ -560,9 +570,47 @@ if ($method === 'POST') {
 
         $stmtIns = $pdo->prepare('INSERT INTO team_punishments (' . $columns . ') VALUES (' . $values . ')');
         $stmtIns->execute($params);
+        $punicaoId = (int)$pdo->lastInsertId();
+
+        /* O EFEITO, GRAVADO NO FORMATO QUE O MOTOR LÊ.
+           Sem isto a punição continuaria sendo só um registro: é `efeitos_json`
+           que trades, free agency e draft consultam. A duração vem do que o
+           admin escolheu; na falta, o rótulo antigo "temporada atual/próxima"
+           vira TEMPORADA — que é o que ele sempre quis dizer, e não o ciclo
+           que o sistema cumpria escondido. */
+        require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
+        $momento = punicaoMomentoDaLiga($pdo, (string)$league);
+        $duracao = strtoupper(trim((string)($body['duracao'] ?? '')));
+        if (!isset(PUNICAO_DURACOES[$duracao])) {
+            $duracao = $seasonScope === 'next' ? 'TEMPORADA_NEXT' : 'TEMPORADA';
+        }
+        $vig = punicaoVigenciaDe($duracao, $momento['temporada'], $momento['ciclo']);
+        $ehPeriodo = (PUNICAO_EFEITOS[$effectType]['duracao'] ?? 'evento') === 'periodo';
+        $efeitoUnico = [[
+            'efeito'   => $effectType,
+            'valor'    => isset($body['valor']) ? (int)$body['valor'] : null,
+            'vigencia' => $ehPeriodo ? $vig['vigencia'] : 'EVENTO',
+            'desde'    => $ehPeriodo ? $vig['desde'] : null,
+            'ate'      => $ehPeriodo ? $vig['ate'] : null,
+        ]];
+        $pdo->prepare('UPDATE team_punishments SET efeitos_json = ?, vigencia = ?, vigencia_desde = ?, vigencia_ate = ? WHERE id = ?')
+            ->execute([
+                json_encode($efeitoUnico, JSON_UNESCAPED_UNICODE),
+                $ehPeriodo ? $vig['vigencia'] : 'EVENTO',
+                $ehPeriodo ? $vig['desde'] : null,
+                $ehPeriodo ? $vig['ate'] : null,
+                $punicaoId,
+            ]);
+
+        $avisoPick = null;
+        if ($perderPick) {
+            $r = punicaoPerderPick($pdo, $teamId, $punicaoId,
+                                   $effectType === 'PERDA_PICK_ESPECIFICA' ? (int)$pickId : null);
+            if (!$r['ok']) $avisoPick = $r['motivo'];   // pendente: cobrada quando ele voltar a ter
+        }
 
         $pdo->commit();
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'punishment_id' => $punicaoId, 'aviso' => $avisoPick]);
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(400);

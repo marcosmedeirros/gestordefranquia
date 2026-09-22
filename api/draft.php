@@ -2669,7 +2669,7 @@ if ($method === 'POST') {
             $pdo->prepare('UPDATE draft_sessions SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
 
             // Busca o primeiro time para notificar após resposta
-            $stmtFirst = $pdo->prepare('SELECT team_id, round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+            $stmtFirst = $pdo->prepare('SELECT team_id, round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL AND COALESCE(punida,0) = 0 ORDER BY round ASC, pick_position ASC LIMIT 1');
             $stmtFirst->execute([(int)$draftSessionId]);
             $firstPick = $stmtFirst->fetch(PDO::FETCH_ASSOC);
 
@@ -2924,6 +2924,16 @@ if ($method === 'POST') {
                 exit;
             }
 
+            /* VAGA PUNIDA NÃO ESCOLHE — nem pelo admin por engano.
+               O avanço da vez já pula, então normalmente nem se chega aqui;
+               esta é a trava pra quando a punição cai com o draft em
+               andamento e a vaga dela é justamente a da vez. */
+            if (!empty($currentPick['punida'])) {
+                echo json_encode(['success' => false, 'error' =>
+                    'Esta escolha foi perdida por punição — o time não escolhe nesta vaga.']);
+                exit;
+            }
+
             $targetTeamId = $isAdmin && $teamIdOverride ? (int)$teamIdOverride : (int)$currentPick['team_id'];
             if (!$isAdmin && (int)$currentPick['team_id'] !== (int)$team['id']) {
                 echo json_encode(['success' => false, 'error' => 'Não é a sua vez de escolher']);
@@ -2977,7 +2987,7 @@ if ($method === 'POST') {
                     }
                 }
 
-                $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+                $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL AND COALESCE(punida,0) = 0 ORDER BY round ASC, pick_position ASC LIMIT 1');
                 $stmtNext->execute([(int)$draftSessionId]);
                 $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 

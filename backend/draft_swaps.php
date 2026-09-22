@@ -211,9 +211,20 @@ function draftAbertoDaLiga(PDO $pdo, string $liga): ?array
  */
 function draftPicksPorOrigem(PDO $pdo, int $ano): array
 {
-    $st = $pdo->prepare('SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,
-                                protection, protection_resultado
-                         FROM picks WHERE CAST(season_year AS UNSIGNED) = ?');
+    /* punicao_id só existe depois que o motor de punições rodou uma vez
+       (backend/punicoes_regras.php). Enquanto não existir, ninguém perdeu
+       pick, então a coluna vale 0 pra todo mundo — e a consulta não pode
+       quebrar por causa disso. */
+    static $temPunicao = null;
+    if ($temPunicao === null) {
+        try { $temPunicao = $pdo->query("SHOW COLUMNS FROM picks LIKE 'punicao_id'")->rowCount() > 0; }
+        catch (Throwable $e) { $temPunicao = false; }
+    }
+    $colPunicao = $temPunicao ? 'punicao_id' : '0 AS punicao_id';
+
+    $st = $pdo->prepare("SELECT id, original_team_id, team_id, round, swap_type, swap_pair_pick_id,
+                                protection, protection_resultado, {$colPunicao}
+                         FROM picks WHERE CAST(season_year AS UNSIGNED) = ?");
     $st->execute([$ano]);
 
     $porOrigem = $porId = $vistas = $duplicadas = [];
@@ -560,7 +571,50 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
         if (!empty($porSwap[(int)$v['id']])) $mexidasSwap++; else $mexidasDono++;
     }
 
-    return ['donos' => $mexidasDono, 'swaps' => $mexidasSwap, 'pares' => $pares];
+    $punidas = draftMarcarVagasPunidas($pdo, $draftSessionId, $porOrigem);
+
+    return ['donos' => $mexidasDono, 'swaps' => $mexidasSwap, 'pares' => $pares, 'punidas' => $punidas];
+}
+
+/**
+ * A VAGA DE QUEM PERDEU A PICK POR PUNIÇÃO.
+ *
+ * Marcar a pick não bastava: quem monta a ordem lê `picks` só pra saber o
+ * DONO, e uma pick perdida continuava com dono. O carimbo precisa chegar até
+ * a vaga, que é o que o draft consulta pra saber de quem é a vez.
+ *
+ * Roda junto com a sincronização do dono, e pela mesma razão: `picks` é a
+ * fonte da verdade e a ordem é derivada dela. Marcar a vaga na mão duraria
+ * até o próximo F5.
+ *
+ * Idempotente, e reversível: revertida a punição, o carimbo sai da pick e
+ * daqui junto.
+ */
+function draftMarcarVagasPunidas(PDO $pdo, int $draftSessionId, array $porOrigem): int
+{
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM picks LIKE 'punicao_id'")->rowCount() === 0) return 0;
+        if ($pdo->query("SHOW COLUMNS FROM draft_order LIKE 'punida'")->rowCount() === 0) {
+            $pdo->exec('ALTER TABLE draft_order ADD COLUMN punida TINYINT(1) NOT NULL DEFAULT 0');
+        }
+
+        $st = $pdo->prepare('SELECT id, original_team_id, round, punida FROM draft_order WHERE draft_session_id = ?');
+        $st->execute([$draftSessionId]);
+
+        $up = $pdo->prepare('UPDATE draft_order SET punida = ? WHERE id = ?');
+        $n = 0;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $v) {
+            $pick = $porOrigem[(int)$v['round']][(int)$v['original_team_id']] ?? null;
+            $deve = ($pick && (int)($pick['punicao_id'] ?? 0) > 0) ? 1 : 0;
+            if ($deve === (int)$v['punida']) continue;
+            $up->execute([$deve, (int)$v['id']]);
+            $n++;
+        }
+        return $n;
+    } catch (Throwable $e) {
+        error_log('[draft] marcar vagas punidas: ' . $e->getMessage());
+        return 0;
+    }
 }
 
 /**

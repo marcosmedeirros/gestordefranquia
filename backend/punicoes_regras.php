@@ -413,6 +413,131 @@ function punicaoSemearQuadro(PDO $pdo, string $league): int
     return $novas;
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   PERDA DE PICK
+   ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * Tira a pick do time — SEM APAGAR A LINHA.
+ *
+ * Era o furo mais caro do sistema antigo: a punição dava DELETE em `picks`, e
+ * o time seguia escolhendo normalmente. A ordem do draft é reescrita a partir
+ * de `picks` por draftSincronizarOrdem(), que diz, com todas as letras, que
+ * "vaga sem pick correspondente fica como está: não é o caso desta função
+ * inventar dono". Sem pick, a vaga simplesmente ficava com quem estava lá.
+ * Ou seja: a punição mais aplicada da liga não tirava ninguém do draft.
+ *
+ * Agora a pick fica e leva um carimbo. Quem lê a ordem mostra PUNIDO e pula a
+ * vez; a Trade Machine se recusa a negociá-la.
+ *
+ * QUAL PICK. Os dois editais dizem a mesma coisa (ELITE art. 73; ROOKIE
+ * art. 46): só a PRÓPRIA de 1ª rodada, a mais próxima. E se o time já
+ * negociou a própria, a pena não pega a de terceiros — espera a próxima
+ * temporada em que ele voltar a ter a dele.
+ *
+ * @return array ['ok'=>bool, 'pick_id'=>?int, 'ano'=>?int, 'motivo'=>string]
+ */
+function punicaoPerderPick(PDO $pdo, int $teamId, int $punicaoId, ?int $pickId = null): array
+{
+    if (!punicaoGarantirEsquema($pdo)) return ['ok' => false, 'pick_id' => null, 'ano' => null, 'motivo' => 'esquema'];
+    try {
+        if ($pickId) {
+            // Pick apontada a dedo pelo admin: vale qualquer uma que seja dele.
+            $st = $pdo->prepare('SELECT id, season_year FROM picks WHERE id = ? AND team_id = ? AND punicao_id IS NULL');
+            $st->execute([$pickId, $teamId]);
+        } else {
+            /* A própria de 1ª rodada, a mais próxima, que ele ainda tenha.
+               `original_team_id = team_id` é o que separa "a minha" de "a que
+               eu comprei de alguém". */
+            $st = $pdo->prepare("SELECT id, season_year FROM picks
+                                  WHERE team_id = ? AND original_team_id = ? AND round = '1'
+                                    AND punicao_id IS NULL
+                               ORDER BY CAST(season_year AS UNSIGNED) ASC, id ASC LIMIT 1");
+            $st->execute([$teamId, $teamId]);
+        }
+        $pick = $st->fetch(PDO::FETCH_ASSOC);
+
+        if (!$pick) {
+            /* Não tem a própria agora. O edital manda esperar, não pegar a de
+               terceiros — então a punição fica registrada e pendente, e é
+               cobrada quando ele voltar a ter (punicaoCobrarPicksPendentes). */
+            return ['ok' => false, 'pick_id' => null, 'ano' => null,
+                    'motivo' => 'O time não tem a própria pick de 1ª rodada. A perda fica pendente '
+                              . 'e será cobrada na próxima temporada em que ele voltar a ter (art. 73 / art. 46).'];
+        }
+
+        $pdo->prepare('UPDATE picks SET punicao_id = ? WHERE id = ?')->execute([$punicaoId, (int)$pick['id']]);
+        return ['ok' => true, 'pick_id' => (int)$pick['id'], 'ano' => (int)$pick['season_year'], 'motivo' => ''];
+    } catch (Throwable $e) {
+        error_log('[punicoes] perder pick: ' . $e->getMessage());
+        return ['ok' => false, 'pick_id' => null, 'ano' => null, 'motivo' => 'erro ao marcar a pick'];
+    }
+}
+
+/** Devolve a pick quando a punição é revertida. */
+function punicaoDevolverPicks(PDO $pdo, int $punicaoId): int
+{
+    if (!punicaoGarantirEsquema($pdo)) return 0;
+    try {
+        $st = $pdo->prepare('UPDATE picks SET punicao_id = NULL WHERE punicao_id = ?');
+        $st->execute([$punicaoId]);
+        return $st->rowCount();
+    } catch (Throwable $e) {
+        error_log('[punicoes] devolver pick: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * As perdas que ficaram esperando o time voltar a ter a própria pick.
+ *
+ * Roda quando o quadro de picks muda (virada de temporada, fim de draft). Sem
+ * isto, a pena de quem já tinha negociado a própria some sozinha — que é
+ * exatamente o que o edital não quer: ele manda transferir, não perdoar.
+ */
+function punicaoCobrarPicksPendentes(PDO $pdo, ?string $league = null): int
+{
+    if (!punicaoGarantirEsquema($pdo)) return 0;
+    try {
+        $sql = "SELECT tp.id, tp.team_id FROM team_punishments tp
+                  JOIN teams t ON t.id = tp.team_id
+                 WHERE tp.reverted_at IS NULL
+                   AND tp.efeitos_json LIKE '%PERDA_PICK_1R%'
+                   AND NOT EXISTS (SELECT 1 FROM picks p WHERE p.punicao_id = tp.id)";
+        $par = [];
+        if ($league) { $sql .= ' AND t.league = ?'; $par[] = strtoupper(trim($league)); }
+
+        $st = $pdo->prepare($sql);
+        $st->execute($par);
+        $n = 0;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $r = punicaoPerderPick($pdo, (int)$p['team_id'], (int)$p['id']);
+            if ($r['ok']) {
+                error_log("[punicoes] pendente cobrada: punição {$p['id']}, pick {$r['pick_id']} ({$r['ano']})");
+                $n++;
+            }
+        }
+        return $n;
+    } catch (Throwable $e) {
+        error_log('[punicoes] cobrar pendentes: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/** Esta pick está perdida por punição? (a Trade Machine pergunta) */
+function punicaoPickPerdida(PDO $pdo, int $pickId): bool
+{
+    if ($pickId <= 0) return false;
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM picks LIKE 'punicao_id'")->rowCount() === 0) return false;
+        $st = $pdo->prepare('SELECT punicao_id FROM picks WHERE id = ?');
+        $st->execute([$pickId]);
+        return (int)($st->fetchColumn() ?: 0) > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 /**
  * AS PUNIÇÕES DE ANTES DO MOTOR, traduzidas para o formato novo.
  *

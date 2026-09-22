@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/backend/helpers.php';
 // Quem escolhe em cada vaga do draft (dono da pick + swap).
 require_once dirname(__DIR__) . '/backend/draft_swaps.php';
 require_once dirname(__DIR__) . '/backend/picks_usadas.php';   // pick escolhida nao se troca mais
+require_once dirname(__DIR__) . '/backend/punicoes_regras.php'; // pick perdida por punicao nao se negocia
 // Proteção de pick (só ELITE, só 1ª rodada) — regra e trava do ano seguinte.
 require_once dirname(__DIR__) . '/backend/pick_protection.php';
 // Rascunho de troca: a mesa guardada que ainda não foi proposta a ninguém.
@@ -3233,6 +3234,16 @@ if ($method === 'POST') {
                 http_response_code(400);
                 echo json_encode(['success' => false,
                     'error' => "Uma das picks {$adj} está travada para swap e não pode ser negociada"]);
+                exit;
+            }
+            /* Pick perdida por punição continua na tabela — é assim que ela
+               aparece como PUNIDO no draft em vez de sumir —, mas não é mais
+               patrimônio de ninguém. Sem esta trava, o time venderia a pick
+               que já perdeu. */
+            if (punicaoPickPerdida($pdo, $pickId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false,
+                    'error' => "Uma das picks {$adj} foi perdida por punição e não pode ser negociada"]);
                 exit;
             }
             if (isPickLastYearOfSprint($pdo, $pickId)) {

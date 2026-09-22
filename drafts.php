@@ -302,6 +302,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
     .pick-card.completed { opacity: .8; }
     .pick-card.my-pick { background: var(--red-soft); border-color: var(--border-red); }
+    /* A vaga perdida por punição: fica na ordem, riscada, sem pulsar. */
+    .pick-card.punida {
+      opacity: .72;
+      border-style: dashed;
+      border-color: rgba(245,158,11,.5);
+      background: rgba(245,158,11,.06);
+    }
+    .pick-card.punida .pick-team { text-decoration: line-through; color: var(--text-2); }
+    .pick-punida {
+      font-weight: 800; letter-spacing: .06em; font-size: 13px; color: #f59e0b;
+      display: flex; align-items: center; gap: 5px;
+    }
     .pick-card.clickable { cursor: pointer; }
     .pick-card.clickable:hover { border-color: var(--border-red); transform: translateY(-2px); }
 
@@ -1529,7 +1541,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                        !pick.picked_player_id;
     const isCompleted = pick.picked_player_id !== null;
     const isMyPick    = parseInt(pick.team_id) === userTeamId;
-    const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
+    const canTradePick = session.status === 'in_progress' && !isCompleted
+                         && !Number(pick.punida) && (isAdmin || isMyPick);
 
     /* AS DUAS FERRAMENTAS DE CORREÇÃO VALEM COM O DRAFT JÁ ENCERRADO.
        Elas exigiam 'in_progress', e é exatamente quando NÃO se pode mais usá-las
@@ -1545,10 +1558,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        `canAdminSetCurrent` fica de fora: mover o ponteiro da vez num draft
        encerrado não corrige nada e reabriria o relógio por acidente. */
     const draftEditavel  = session.status === 'in_progress' || session.status === 'completed';
-    const canAdminPick   = isAdmin && draftEditavel && !isCompleted;
+    const vagaPunida     = !!Number(pick.punida);
+    // Vaga punida não escolhe, nem pelo admin: o botão só levaria ao erro que
+    // a API devolve. Trocar a pick também sai — ela não é mais patrimônio.
+    const canAdminPick   = isAdmin && draftEditavel && !isCompleted && !vagaPunida;
     const canAdminRevert = isAdmin && draftEditavel && isCompleted;
     // Permite voltar/adiantar o ponteiro do draft para uma escolha ainda aberta
-    const canAdminSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
+    const canAdminSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted
+                               && !isCurrent && !vagaPunida;
 
     /* NA 2a RODADA ABERTA O CARD E O QUADRO.
        Antes eram duas listas: esta grade, que so sabia dizer "Aguardando", e
@@ -1568,8 +1585,15 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const nPrefs = vagaR2 ? Number(vagaR2.prefs_count || prefs.length) : 0;
     const podeEscolherR2 = round2Aberta && (isAdmin || isMyPick);
 
+    /* PICK PERDIDA POR PUNIÇÃO.
+       Ela continua na ordem de propósito: sumir esconderia que aquele time
+       tinha uma escolha ali, e a numeração das seguintes mudaria sem
+       explicação. O card fica, marcado, e o draft passa pro próximo. */
+    const punida = !!Number(pick.punida);
+
     let cls = 'pick-card';
-    if (isCurrent)   cls += ' current';
+    if (punida)      cls += ' punida';
+    if (isCurrent && !punida) cls += ' current';
     if (isCompleted) cls += ' completed';
     if (isMyPick)    cls += ' my-pick';
 
@@ -1586,7 +1610,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         </div>
         <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
-        ${isCompleted ? `
+        ${punida ? `
+          <div class="pick-result">
+            <div class="pick-punida"><i class="bi bi-slash-circle"></i> PUNIDO</div>
+            <div class="pick-result-meta">Escolha perdida por punição</div>
+          </div>
+        ` : isCompleted ? `
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name)}</div>
             <div class="pick-result-meta">${esc(pick.player_position)}</div>
