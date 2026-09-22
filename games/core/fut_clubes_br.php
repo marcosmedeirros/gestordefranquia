@@ -66,7 +66,7 @@ const FUT_CLUBES_BR_EXTRA = [
     ['Operário-PR',        'BR2', 'PR', 61, ''],
     ['Botafogo-SP',        'BR2', 'SP', 60, ''],
     ['Amazonas',           'BR2', 'AM', 59, 'N'],
-    ['Athletic Club',      'BR2', 'MG', 58, ''],
+    ['Athletic-MG',        'BR2', 'MG', 58, ''],
     ['Ferroviária',        'BR2', 'SP', 58, ''],
     ['Náutico',            'BR2', 'PE', 60, 'NE'],
     ['Paysandu',           'BR2', 'PA', 58, 'N'],   // sobe da C do catálogo
@@ -86,7 +86,7 @@ const FUT_CLUBES_BR_EXTRA = [
     ['Madureira',          '',    'RJ', 43, ''],
     ['Nova Iguaçu',        '',    'RJ', 46, ''],
     ['Portuguesa-RJ',      '',    'RJ', 42, ''],
-    ['Boavista',           '',    'RJ', 43, ''],
+    ['Boavista-RJ',        '',    'RJ', 43, ''],
     ['Sampaio Corrêa-RJ',  '',    'RJ', 40, ''],
     ['Maricá',             '',    'RJ', 45, ''],
 

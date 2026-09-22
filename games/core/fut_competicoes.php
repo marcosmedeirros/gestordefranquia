@@ -16,13 +16,13 @@
  * ── UMA HONESTIDADE SOBRE OS OUTROS PAÍSES ───────────────────────────
  *
  * O jogo simula rodada a rodada só o futebol brasileiro. Argentina, Uruguai,
- * Chile e companhia não têm liga simulada: os representantes deles na
- * Libertadores e na Sul-Americana são sorteados entre os clubes do país com
- * peso pela força (futRepresentantes). River e Boca aparecem quase sempre, um
- * clube médio aparece de vez em quando — que é o que a classificação daquelas
- * ligas produziria, sem o custo de simular nove campeonatos que ninguém vai
- * abrir pra ver. Se um dia a carreira passar a permitir dirigir fora do Brasil,
- * é esta função que vira liga de verdade.
+ * Chile e companhia não têm liga simulada: a classificação de cada uma é
+ * resolvida em uma linha por futVagasDoPais() — a força do clube mais um susto
+ * de fim de temporada. O topo vai à Libertadores, a faixa seguinte à
+ * Sul-Americana. River e Boca estão quase sempre lá, e de vez em quando fazem
+ * um ano ruim e caem pra Sula, sem o custo de simular nove campeonatos que
+ * ninguém vai abrir pra ver. Se um dia a carreira deixar dirigir fora do
+ * Brasil, é essa função que vira liga de verdade.
  */
 
 require_once __DIR__ . '/fut_motor.php';
@@ -30,27 +30,37 @@ require_once __DIR__ . '/fut_clubes_br.php';
 require_once __DIR__ . '/fut_elencos.php';
 
 /**
- * As ligas sul-americanas do catálogo do Copero e quantas vagas cada país leva.
+ * As vagas de cada país da CONMEBOL.
  *
- * As cotas são as da CONMEBOL: Brasil e Argentina com mais, os demais com as
- * vagas fixas. O Brasil não está aqui porque as vagas dele saem da tabela
- * simulada, e não de sorteio.
+ * ── AS COTAS SOMAM 32, E ISSO NÃO É DETALHE ──────────────────────────
+ *
+ * A fase de grupos tem 32 clubes. Na primeira versão as cotas somavam 45 e a
+ * competição cortava os 32 MAIS FORTES — o que parecia razoável e destruía a
+ * ideia de vaga por país: Bolívar e Caracas, que na vida real jogam a
+ * Libertadores todo ano, simplesmente nunca entravam, porque um clube de 62
+ * perde a vaga pro décimo argentino de 70. Medindo 400 temporadas, Bolívia e
+ * Venezuela não apareciam uma vez sequer.
+ *
+ * Com as cotas somando exatamente 32, quem define quem entra é a CONMEBOL, e
+ * não a força — que é como o torneio funciona. O boliviano entra, e entra
+ * fraco, e é despachado na fase de grupos: isso é a Libertadores.
  */
 const FUT_PAISES_CONMEBOL = [
-    'AR1' => ['nome' => 'Argentina', 'liberta' => 6, 'sula' => 6],
-    'UY1' => ['nome' => 'Uruguai',   'liberta' => 4, 'sula' => 4],
-    'CL1' => ['nome' => 'Chile',     'liberta' => 4, 'sula' => 4],
-    'CO1' => ['nome' => 'Colômbia',  'liberta' => 4, 'sula' => 4],
-    'EC1' => ['nome' => 'Equador',   'liberta' => 4, 'sula' => 4],
-    'PY1' => ['nome' => 'Paraguai',  'liberta' => 4, 'sula' => 4],
-    'PE1' => ['nome' => 'Peru',      'liberta' => 4, 'sula' => 4],
-    'BO1' => ['nome' => 'Bolívia',   'liberta' => 4, 'sula' => 4],
-    'VE1' => ['nome' => 'Venezuela', 'liberta' => 4, 'sula' => 4],
-];
+    'AR1' => ['nome' => 'Argentina', 'liberta' => 5, 'sula' => 5],
+    'UY1' => ['nome' => 'Uruguai',   'liberta' => 3, 'sula' => 3],
+    'CL1' => ['nome' => 'Chile',     'liberta' => 3, 'sula' => 3],
+    'CO1' => ['nome' => 'Colômbia',  'liberta' => 3, 'sula' => 3],
+    'EC1' => ['nome' => 'Equador',   'liberta' => 3, 'sula' => 3],
+    'PY1' => ['nome' => 'Paraguai',  'liberta' => 2, 'sula' => 3],
+    'PE1' => ['nome' => 'Peru',      'liberta' => 2, 'sula' => 2],
+    'BO1' => ['nome' => 'Bolívia',   'liberta' => 2, 'sula' => 2],
+    'VE1' => ['nome' => 'Venezuela', 'liberta' => 2, 'sula' => 2],
+];   // 25 estrangeiros + 7 do Brasil = 32 na Libertadores
+     // 26 estrangeiros + 6 do Brasil = 32 na Sul-Americana
 
 /** Quantas vagas o Brasil leva, e por onde. */
 const FUT_VAGAS_BR = [
-    'liberta_tabela' => 6,    // do 1º ao 6º do Brasileirão
+    'liberta_tabela' => 6,    // do 1º ao 6º do Brasileirão, mais o da Copa
     'sula_tabela'    => 6,    // do 7º ao 12º
 ];
 
@@ -353,57 +363,91 @@ function futSimularRegional(string $regiao): array
 }
 
 /**
- * Os representantes de um país que não tem liga simulada.
+ * O "campeonato nacional" de um país que não tem liga simulada, resolvido em
+ * uma linha: a força de cada clube mais um susto de fim de temporada.
  *
- * Sorteio com peso pela força: os grandes aparecem quase sempre, o clube médio
- * de vez em quando. Ver a explicação no topo do arquivo sobre por que não
- * simulamos as nove ligas.
+ * ── POR QUE NÃO É SORTEIO POR PESO ───────────────────────────────────
+ *
+ * A primeira versão sorteava com peso pela força, e o resultado saiu ao
+ * contrário do esperado: medindo 400 temporadas, Olimpia (69) disputava
+ * continental em 110% delas e o Boca Juniors (87) em 72%. Dois defeitos
+ * somados: o sorteio por peso espalhava demais num país com 24 clubes e 12
+ * vagas, enquanto um país com 10 clubes e 8 vagas mandava quase todo mundo
+ * todo ano — ou seja, quem definia a presença era o tamanho do catálogo do
+ * país, não a qualidade do clube. E o 110% denunciava o segundo: o mesmo clube
+ * entrava na Libertadores E na Sul-Americana no mesmo ano, porque as duas
+ * chamavam esta função em sorteios separados.
+ *
+ * Agora é uma classificação só: força mais um ruído de alguns pontos, ordena, e
+ * o topo vai pra Libertadores, a faixa seguinte pra Sul-Americana. River quase
+ * sempre está lá; de vez em quando faz um ano ruim e cai pra Sula — que é
+ * exatamente o que acontece de verdade.
+ *
+ * @return array ['liberta' => [...], 'sula' => [...]]
  */
-function futRepresentantes(string $liga, int $quantos, array $jaEscolhidos = []): array
+function futVagasDoPais(string $liga, int $vagasLiberta, int $vagasSula): array
 {
     $doPais = [];
     foreach (COPERO_CLUBES as $c) {
         if ($c[1] !== $liga) continue;
-        if (in_array($c[0], $jaEscolhidos, true)) continue;
         $doPais[] = ['nome' => $c[0], 'forca' => (int)$c[2], 'uf' => '', 'div' => $c[1],
                      'escudo' => $c[3] ?? ''];
     }
-    if ($doPais === []) return [];
+    if ($doPais === []) return ['liberta' => [], 'sula' => []];
 
-    $escolhidos = [];
-    for ($i = 0; $i < $quantos && $doPais !== []; $i++) {
-        // O peso é a força ao cubo: separa bem o grande do médio sem excluir
-        // ninguém — uma liga onde só os quatro mesmos clubes vão à Libertadores
-        // todo ano não tem graça nenhuma.
-        $pesos = array_map(fn($c) => pow($c['forca'], 3), $doPais);
-        $total = array_sum($pesos);
-        $alvo = (mt_rand() / mt_getrandmax()) * $total;
-        $acum = 0;
-        foreach ($doPais as $k => $c) {
-            $acum += $pesos[$k];
-            if ($acum >= $alvo) { $escolhidos[] = $c; unset($doPais[$k]); $doPais = array_values($doPais); break; }
-        }
+    /* O ruído é a temporada que não foi simulada. Seis pontos de desvio deixam
+       o grande quase sempre à frente sem tornar a tabela congelada — com zero,
+       os mesmos quatro clubes iriam à Libertadores todo ano pra sempre. */
+    foreach ($doPais as &$c) {
+        $c['nota'] = $c['forca'] + (futSorteioNormal() * 6);
     }
-    return $escolhidos;
+    unset($c);
+    usort($doPais, fn($a, $b) => $b['nota'] <=> $a['nota']);
+
+    return [
+        'liberta' => array_slice($doPais, 0, $vagasLiberta),
+        'sula'    => array_slice($doPais, $vagasLiberta, $vagasSula),
+    ];
 }
 
+/** Um número normal (média 0, desvio 1) pelo método de Box-Muller. */
+function futSorteioNormal(): float
+{
+    $u = max(1e-9, mt_rand() / mt_getrandmax());
+    $v = mt_rand() / mt_getrandmax();
+    return sqrt(-2 * log($u)) * cos(2 * M_PI * $v);
+}
+
+/**
+ * As vagas de TODOS os países da CONMEBOL numa tacada.
+ *
+ * É uma chamada só por temporada de propósito: se a Libertadores e a
+ * Sul-Americana perguntassem cada uma por conta, o mesmo clube apareceria nas
+ * duas — era o bug que a medição de 400 temporadas expôs.
+ */
+function futVagasConmebol(): array
+{
+    $out = ['liberta' => [], 'sula' => []];
+    foreach (FUT_PAISES_CONMEBOL as $liga => $info) {
+        $v = futVagasDoPais($liga, $info['liberta'], $info['sula']);
+        $out['liberta'] = array_merge($out['liberta'], $v['liberta']);
+        $out['sula']    = array_merge($out['sula'], $v['sula']);
+    }
+    return $out;
+}
 /**
  * A LIBERTADORES (ou a Sul-Americana): fase de grupos e mata-mata, com final
  * em jogo único.
  *
  * @param array $brasileiros os clubes do Brasil que se classificaram
  */
-function futSimularContinental(string $qual, array $brasileiros): array
+function futSimularContinental(string $qual, array $brasileiros, array $estrangeiros = []): array
 {
-    $cota = $qual === 'liberta' ? 'liberta' : 'sula';
-    $times = $brasileiros;
-
-    foreach (FUT_PAISES_CONMEBOL as $liga => $info) {
-        foreach (futRepresentantes($liga, $info[$cota]) as $c) $times[] = $c;
-    }
-
+    /* SEM CORTE POR FORÇA: as cotas já somam 32, e cortar por força aqui
+       reintroduziria o defeito que elas existem pra evitar. A ordenação é só
+       pra distribuição em potes lá na fase de grupos. */
+    $times = array_merge($brasileiros, $estrangeiros);
     usort($times, fn($a, $b) => $b['forca'] <=> $a['forca']);
-    $times = array_slice($times, 0, 32);
 
     $g = futFaseDeGrupos($times, 4, 2);
     $mm = futMataMata($g['classificados'], true, true);   // final em jogo único
@@ -452,28 +496,39 @@ function futSimularTemporada(array $anoPassado = []): array
     $t['copa_brasil'] = futSimularCopaDoBrasil();
 
     // ── As vagas continentais saem da tabela do Brasileirão ──────────
+    /* O BRASIL MANDA SEMPRE 7 À LIBERTADORES E 6 À SUL-AMERICANA, e esse
+       "sempre" é o que faz as cotas fecharem os 32 de cada torneio. A primeira
+       versão perdia uma vaga quando o campeão da Copa do Brasil já estava no
+       G6: ninguém descia pra ocupar o lugar, o torneio ficava com 31 e a fase
+       de grupos — que monta grupos de 4 — descartava mais três, rodando com 28.
+       Acontecia em 4 de cada 10 temporadas.
+       Agora a vaga do campeão da Copa é extra de verdade: se ele já estava no
+       G6, quem sobe é o 7º, e a Sul-Americana repõe com o próximo da fila. */
     $ordem = array_keys($t['brasileirao']['tabela']);
     $clubes = $t['brasileirao']['clubes'];
-    $paraLiberta = [];
-    $paraSula = [];
-    foreach (array_slice($ordem, 0, FUT_VAGAS_BR['liberta_tabela']) as $nome) $paraLiberta[] = $clubes[$nome];
-    foreach (array_slice($ordem, FUT_VAGAS_BR['liberta_tabela'], FUT_VAGAS_BR['sula_tabela']) as $nome) $paraSula[] = $clubes[$nome];
-
-    /* O campeão da Copa do Brasil leva vaga na Libertadores. Se ele já estava
-       entre os seis primeiros, a vaga sobra e desce pro próximo da tabela —
-       senão o Brasil mandaria menos clubes do que tem direito. */
     $campeaoCopa = $t['copa_brasil']['campeao'] ?? null;
-    if ($campeaoCopa) {
-        $jaTem = in_array($campeaoCopa['nome'], array_column($paraLiberta, 'nome'), true);
-        if (!$jaTem) {
-            $paraLiberta[] = $campeaoCopa;
-            $paraSula = array_filter($paraSula, fn($c) => $c['nome'] !== $campeaoCopa['nome']);
-            $paraSula = array_values($paraSula);
+
+    $liberta = array_slice($ordem, 0, FUT_VAGAS_BR['liberta_tabela']);   // o G6
+    if ($campeaoCopa && !in_array($campeaoCopa['nome'], $liberta, true)) {
+        $liberta[] = $campeaoCopa['nome'];
+    } else {
+        // Campeão da Copa já classificado: a vaga dele desce pro próximo.
+        foreach ($ordem as $nome) {
+            if (!in_array($nome, $liberta, true)) { $liberta[] = $nome; break; }
         }
     }
+    // A Sul-Americana leva os 6 seguintes que sobraram da tabela.
+    $sula = [];
+    foreach ($ordem as $nome) {
+        if (count($sula) >= FUT_VAGAS_BR['sula_tabela']) break;
+        if (!in_array($nome, $liberta, true)) $sula[] = $nome;
+    }
 
-    $t['liberta'] = futSimularContinental('liberta', $paraLiberta);
-    $t['sula']    = futSimularContinental('sula', $paraSula);
+    $paraLiberta = array_map(fn($n) => $clubes[$n], $liberta);
+    $paraSula    = array_map(fn($n) => $clubes[$n], $sula);
+    $conmebol = futVagasConmebol();
+    $t['liberta'] = futSimularContinental('liberta', $paraLiberta, $conmebol['liberta']);
+    $t['sula']    = futSimularContinental('sula', $paraSula, $conmebol['sula']);
 
     return $t;
 }

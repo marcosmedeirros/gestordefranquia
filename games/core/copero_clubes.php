@@ -864,6 +864,76 @@ const COPERO_CLUBES = [
     // A-League
     ['Adelaide United', 'AU1', 66, 'https://r2.thesportsdb.com/images/media/team/badge/wpyuwv1473454602.png'],
     ['Western Sydney', 'AU1', 65, 'https://r2.thesportsdb.com/images/media/team/badge/yotugj1759632879.png'],
+    /* ── Mais CONMEBOL, pro jogo de carreira ─────────────────────────
+       A Libertadores e a Sul-Americana pedem 12 clubes da Argentina e 8 de
+       cada outro país, e oito dos nove países tinham menos que isso no
+       catálogo. Como o sorteio de representantes devolvia menos do que a cota
+       sem reclamar, as vagas sobravam e eram preenchidas por brasileiros — os
+       times do Brasil ganhavam a Libertadores muito mais do que deviam.
+       Estes fecham a cota com folga, pra que o sorteio tenha de fato o que
+       variar de um ano pro outro.
+       Sem escudo: o catálogo só guarda URL que existe, e clube sem imagem
+       aparece como monograma. */
+    // Liga Profesional (Argentina)
+    ['Argentinos Juniors', 'AR1', 75, ''],
+    ['Huracán', 'AR1', 74, ''],
+    ['Defensa y Justicia', 'AR1', 74, ''],
+    ['Gimnasia La Plata', 'AR1', 72, ''],
+    ['Banfield', 'AR1', 72, ''],
+    ['Unión Santa Fe', 'AR1', 71, ''],
+    ['Tigre', 'AR1', 71, ''],
+    ['Instituto', 'AR1', 70, ''],
+    ['Platense', 'AR1', 70, ''],
+    ['Central Córdoba', 'AR1', 70, ''],
+    // Primera División (Uruguai)
+    ['Montevideo Wanderers', 'UY1', 59, ''],
+    ['Boston River', 'UY1', 58, ''],
+    ['Fénix', 'UY1', 57, ''],
+    ['Plaza Colonia', 'UY1', 56, ''],
+    ['Cerro', 'UY1', 55, ''],
+    // Primera División (Chile)
+    ['Audax Italiano', 'CL1', 60, ''],
+    ['O\'Higgins', 'CL1', 59, ''],
+    ['Everton de Viña', 'CL1', 58, ''],
+    ['Ñublense', 'CL1', 57, ''],
+    ['Coquimbo Unido', 'CL1', 56, ''],
+    // Categoría Primera A (Colômbia)
+    ['Deportes Tolima', 'CO1', 65, ''],
+    ['Deportivo Pereira', 'CO1', 64, ''],
+    ['Once Caldas', 'CO1', 63, ''],
+    ['Atlético Bucaramanga', 'CO1', 62, ''],
+    ['Águilas Doradas', 'CO1', 60, ''],
+    // LigaPro (Equador)
+    ['El Nacional', 'EC1', 60, ''],
+    ['Deportivo Cuenca', 'EC1', 59, ''],
+    ['Orense', 'EC1', 58, ''],
+    ['Macará', 'EC1', 57, ''],
+    ['Técnico Universitario', 'EC1', 56, ''],
+    ['Mushuc Runa', 'EC1', 55, ''],
+    // Primera División (Paraguai)
+    ['Sportivo Ameliano', 'PY1', 59, ''],
+    ['Sportivo Luqueño', 'PY1', 58, ''],
+    ['Sportivo Trinidense', 'PY1', 56, ''],
+    ['General Caballero', 'PY1', 55, ''],
+    ['Tacuary', 'PY1', 54, ''],
+    // Liga 1 (Peru)
+    ['Sport Huancayo', 'PE1', 59, ''],
+    ['Cusco FC', 'PE1', 58, ''],
+    ['Deportivo Garcilaso', 'PE1', 57, ''],
+    ['Atlético Grau', 'PE1', 56, ''],
+    ['Sport Boys', 'PE1', 54, ''],
+    // División Profesional (Bolívia)
+    ['Jorge Wilstermann', 'BO1', 53, ''],
+    ['Nacional Potosí', 'BO1', 51, ''],
+    ['Royal Pari', 'BO1', 50, ''],
+    ['Aurora', 'BO1', 49, ''],
+    ['Guabirá', 'BO1', 48, ''],
+    // Liga FUTVE (Venezuela)
+    ['Deportivo La Guaira', 'VE1', 57, ''],
+    ['Academia Puerto Cabello', 'VE1', 55, ''],
+    ['Metropolitanos', 'VE1', 54, ''],
+    ['Zamora', 'VE1', 53, ''],
+    ['Rayo Zuliano', 'VE1', 50, ''],
 ];
 
 /** Os clubes de uma liga. */
