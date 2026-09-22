@@ -510,8 +510,8 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
 }
 
 /* ── O CAP + DA RISE E DA NEXT ────────────────────────────────────────
-   +2 de teto por jogador elegível, +4 se ele for 95 ou mais, contando no
-   máximo dois jogadores — ou seja, de +2 a +8. Regra definida pelo Marcos em
+   +2 de teto por jogador elegível, +3 se ele for 95 ou mais, contando no
+   máximo dois jogadores — ou seja, de +2 a +6. Regra definida pelo Marcos em
    22/09/2026.
 
    ANTES ERA OUTRA COISA, e a diferença é grande: o bônus era por TIME, não por
@@ -523,7 +523,7 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
    A ELITE não usa isto — lá o benefício é em milhões, no Cap Flex
    (backend/salary_cap.php), que também para em dois jogadores. */
 const RESTRICTED_BONUS_PADRAO = 2;
-const RESTRICTED_BONUS_ESTRELA = 4;     // pra quem está em 95+
+const RESTRICTED_BONUS_ESTRELA = 3;     // pra quem está em 95+
 const RESTRICTED_BONUS_OVR_MINIMO = 90;
 const RESTRICTED_BONUS_OVR_ESTRELA = 95;
 const RESTRICTED_BONUS_MAX_JOGADORES = 2;
