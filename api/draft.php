@@ -2038,6 +2038,10 @@ if ($method === 'POST') {
                     'swap_com'      => $pickOwner[$tid]['swap_com'] ?? null,
                     'swap_com_id'   => isset($pickOwner[$tid]['swap_com_id']) ? (int)$pickOwner[$tid]['swap_com_id'] : null,
                     'sb_id'         => isset($pickOwner[$tid]['sb_id']) ? (int)$pickOwner[$tid]['sb_id'] : null,
+                    // De quem é a CAMPANHA desta bolinha. No swap o card mostra
+                    // o dono do SB, então sem isto não dá pra dizer de qual das
+                    // duas vagas do par a bolinha saiu.
+                    'origin_name'   => $teamNames[$tid] ?? '',
                     'sb_nome'       => $pickOwner[$tid]['sb_nome'] ?? null,
                     'sb_photo'      => $pickOwner[$tid]['sb_photo'] ?? null,
                     // A chance da pick nº 1 é a única faixa que soma 100% entre

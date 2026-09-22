@@ -1308,15 +1308,27 @@ function setupBoardAndOdds(data){
        sair no topo. O SW só se resolve no fim, com a vaga que sobrar. */
     const nome  = ehSwap ? (b.sb_nome || b.team_name) : (b.escolhe_nome || b.team_name);
     const foto  = ehSwap ? (b.sb_photo || b.photo_url) : (b.escolhe_photo || b.photo_url);
+
+    /* O SELO É O LADO DO TIME DO CARD, NÃO O DA VAGA.
+       `swap_tipo` diz se a pick daquela ORIGEM é SB ou SW. O card, porém,
+       mostra o nome do dono do SB — então a bolinha da vaga que saiu do
+       Toronto aparecia com "Toronto" e "SWAP SW" juntos, afirmando que o
+       Toronto é o lado pior justamente quando ele é o melhor. O Toronto tem
+       as duas: a própria foi pro Austin (SW) e a do Austin veio pra ele (SB).
+       Quem olha lê o selo como característica do time, não da vaga.
+
+       Agora o selo acompanha o nome: card do dono do SB, selo SB. De qual
+       vaga é aquela bolinha continua sendo dito — no tooltip, que é onde
+       cabe (o card é estreito e o nome do par sairia cortado). */
+    const ladoDoCard = ehSwap ? (b.sb_nome ? 'SB' : (b.swap_tipo || '')) : '';
+    const dicaSwap = ehSwap
+      ? `SWAP ${ladoDoCard}${b.swap_com ? ' · com ' + esc(b.swap_com) : ''}`
+        + `${b.sb_nome && b.origin_name && b.sb_nome !== b.origin_name
+             ? ' · esta bolinha é a vaga do ' + esc(b.origin_name) : ''}`
+      : '';
     const rodape = ehSwap
-      /* O selo diz o lado e com quem: é o que se pergunta olhando a bolinha.
-         A explicação da regra sai daqui — quem acompanha a loteria já sabe o
-         que é um swap, e o texto longo cobria os cards vizinhos. */
-      /* O card da urna é estreito: o nome do par não cabe junto e sairia
-         cortado no meio, que é pior do que não estar. Fica no tooltip; a
-         linha da ordem, essa sim larga, mostra os dois. */
-      ? `<div class="bowl-swap" title="SWAP ${esc(b.swap_tipo || '')}${b.swap_com ? ' · ' + esc(b.swap_com) : ''}">
-           🔁 SWAP ${esc(b.swap_tipo || '')}
+      ? `<div class="bowl-swap" title="${dicaSwap}">
+           🔁 SWAP ${esc(ladoDoCard)}
          </div>`
       : (b.via_nome ? `<div class="bowl-via" title="A campanha é do ${esc(b.via_nome)}">via ${esc(b.via_nome)}</div>` : '');
     return `
