@@ -121,6 +121,26 @@ $stmt = $pdo->prepare('
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+/* A PUNIÇÃO QUE ESTÁ PEGANDO, com nome, na lista de times.
+   O contador já existia, mas "3 punições" não diz nada a quem vai propor uma
+   troca: o número soma advertência antiga com trade ban em vigor. O que
+   interessa aqui é o que ainda está valendo AGORA e o que ele impede — por
+   isso só os efeitos que correm no tempo, não os que já aconteceram.
+   @see backend/punicoes_regras.php */
+require_once __DIR__ . '/backend/punicoes_regras.php';
+foreach ($teams as &$_t) {
+    $_t['punicoes_ativas'] = [];
+    foreach (punicaoEfeitosAtivos($pdo, (int)$_t['id']) as $nome => $e) {
+        if ((PUNICAO_EFEITOS[$nome]['duracao'] ?? '') !== 'periodo') continue;
+        $_t['punicoes_ativas'][] = [
+            'tag'   => $e['tag'] . ($e['valor'] ? ' (' . $e['valor'] . ')' : ''),
+            'dica'  => $e['label'] . ' — ' . $e['texto']
+                     . ($e['infracao'] ? ' · ' . $e['infracao'] : ''),
+        ];
+    }
+}
+unset($_t);
+
 // O time do usuário fica fixado em primeiro — o resto segue a ordem normal
 // (cidade/nome). A borda de destaque (.team-card-mine) já existia; faltava
 // só isto.
@@ -790,6 +810,18 @@ function getSerasaScore(int $avisos): array {
         .team-tag.buying     { background: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
         .team-tag.selling    { background: rgba(249,115,22,.12); color: #f97316; border: 1px solid rgba(249,115,22,.3); }
         .team-tag.rebuilding { background: rgba(239,68,68,.12);  color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
+        /* Punição em vigor. Vermelho sólido de propósito: as tags acima são
+           leitura de mercado (o time se diz contender), esta é impedimento —
+           quem vai propor uma troca precisa ver antes de montar a proposta. */
+        .punicao-tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 800; padding: 2px 8px;
+            border-radius: 999px; margin-top: 4px;
+            background: rgba(220,38,38,.16); color: #f87171;
+            border: 1px solid rgba(220,38,38,.45);
+            max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .punicao-tag i { font-size: 9px; flex-shrink: 0; }
 
         /* Stats row inside card */
         .team-stats {
@@ -1317,6 +1349,11 @@ function getSerasaScore(int $avisos): array {
                                 <i class="bi bi-shield-check" style="font-size:9px"></i>
                                 <?= $score['label'] ?><?= $avisos > 0 ? ' <span style="opacity:.65">(' . $avisos . ')</span>' : '' ?>
                             </div>
+                            <?php foreach (($t['punicoes_ativas'] ?? []) as $_p): ?>
+                            <div class="punicao-tag" title="<?= htmlspecialchars($_p['dica']) ?>">
+                                <i class="bi bi-exclamation-octagon-fill"></i><?= htmlspecialchars($_p['tag']) ?>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
 
