@@ -729,6 +729,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $titulares = array_values(array_filter($jogadores, fn($p) => ($p['role'] ?? '') === 'Titular'));
     $perfilSistemas = sistemaPerfilDoTime($titulares);
 
+    /* E a nota de CADA jogador em cada estilo, pra lista de posições mostrar
+       as estrelas ao lado do nome. Vai junto do jogador em vez de numa
+       chamada à parte: a tela já tem a lista na mão, e uma segunda consulta
+       só pra isso deixaria as estrelas aparecendo depois do resto. */
+    foreach ($jogadores as &$__j) {
+        $notas = [];
+        foreach (array_keys(sistemaNomes()) as $chave) {
+            $n = sistemaNotaDoJogador($__j, $chave);
+            if ($n !== null) $notas[$chave] = ['nota' => $n, 'estrelas' => sistemaEstrelas($n)['estrelas']];
+        }
+        $__j['sistemas'] = $notas ?: null;
+        // O selo do calouro sai daqui pra tela não ter que repetir a regra.
+        $__j['sem_ficha_tag'] = $notas ? null : sistemaSemFichaMotivo($__j)['tag'];
+        // O JSON de skills não serve pra tela e é grande: sai do retorno.
+        unset($__j['player_skill_grades']);
+    }
+    unset($__j);
+
     $playerCount = count($jogadores);
     // Duas vagas, sempre. Antes o número saía do tamanho do elenco (15+ dava
     // duas, 14 dava uma, menos que isso nenhuma) — a regra caiu e agora é

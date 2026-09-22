@@ -141,6 +141,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pos-linha.salvo{border-color:rgba(34,197,94,.5)}
 .pos-linha.erro{border-color:rgba(239,68,68,.6)}
 @media (max-width:480px){.pos-cab,.pos-linha{grid-template-columns:minmax(0,1fr) 72px 72px;gap:6px}}
+/* Com as estrelas do sistema escolhido entra uma coluna a mais. A classe é
+   posta pelo JS só quando há nota — sem estilo escolhido a coluna nem existe,
+   e a grade volta às três de antes. */
+.pos-lista.com-estrelas .pos-cab,
+.pos-lista.com-estrelas .pos-linha{grid-template-columns:minmax(0,1fr) 92px 96px 96px}
+.pos-estrelas{font-size:13px;letter-spacing:.5px;color:#f59e0b;white-space:nowrap;text-align:center}
+.pos-estrelas .off{color:var(--text-3);opacity:.45}
+.pos-sem{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-align:center;color:var(--text-3);
+  background:var(--panel-3);border:1px solid var(--border);border-radius:999px;padding:2px 0}
+@media (max-width:640px){
+  .pos-lista.com-estrelas .pos-cab,
+  .pos-lista.com-estrelas .pos-linha{grid-template-columns:minmax(0,1fr) 80px 72px 72px;gap:6px}
+  .pos-estrelas{font-size:11.5px;letter-spacing:0}
+}
+@media (max-width:440px){
+  /* Estreito demais pras quatro colunas: as estrelas descem pra própria
+     linha, debaixo do nome, em vez de espremer os selects de posição. */
+  .pos-lista.com-estrelas .pos-cab{grid-template-columns:minmax(0,1fr) 72px 72px}
+  .pos-lista.com-estrelas .pos-cab span:nth-child(2){display:none}
+  .pos-lista.com-estrelas .pos-linha{grid-template-columns:minmax(0,1fr) 72px 72px;row-gap:3px}
+  .pos-lista.com-estrelas .pos-estrelas,
+  .pos-lista.com-estrelas .pos-sem{grid-column:1/-1;text-align:left}
+}
 
 /* ── Encaixe do elenco por estilo de jogo ─────────────
    A linha do estilo ESCOLHIDO fica destacada: a pergunta que traz o GM
@@ -553,9 +576,11 @@ if (TEM_MODELO){
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnVerModelos')?.addEventListener('click', abrirModelos);
     document.getElementById('f_technical_model')?.addEventListener('change', pintarModeloEscolhido);
-    // Trocou o estilo de jogo: a linha dele passa a ser a destacada.
+    // Trocou o estilo de jogo: muda a linha destacada na lista de encaixe E
+    // as estrelas de cada jogador, que são sempre do estilo escolhido.
     document.getElementById('f_game_style')?.addEventListener('change', () => {
       if (typeof renderSistemas === 'function') renderSistemas();
+      if (typeof renderPosicoes === 'function') renderPosicoes();
     });
     document.getElementById('mtModal')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-fechar]')) fecharModelos();
@@ -648,10 +673,33 @@ function renderPosicoes() {
   }
   const opcoes = (atual, comVazio) => (comVazio ? '<option value="">—</option>' : '')
     + POSICOES.map(p => `<option value="${p}"${p === atual ? ' selected' : ''}>${p}</option>`).join('');
-  box.innerHTML = '<div class="pos-cab"><span>Jogador</span><span>Principal</span><span>Secundária</span></div>'
+  /* AS ESTRELAS SÃO DO ESTILO ESCOLHIDO, e mudam quando ele muda. É a
+     pergunta que o GM faz montando o time: "com o sistema que eu escolhi,
+     quem rende?". Sem estilo escolhido não há o que medir, e a coluna some
+     em vez de mostrar oito traços. */
+  const estilo = $('f_game_style')?.value || '';
+  const notaDe = p => (estilo && p.sistemas && p.sistemas[estilo]) ? p.sistemas[estilo] : null;
+  const temEstrelas = estilo && lista.some(p => notaDe(p));
+  box.classList.toggle('com-estrelas', !!temEstrelas);
+
+  const celaEstrelas = (p) => {
+    if (!temEstrelas) return '';
+    const s = notaDe(p);
+    if (!s) {
+      const tag = p.sem_ficha_tag || '—';
+      return `<span class="pos-sem" title="Sem ficha técnica">${esc(tag)}</span>`;
+    }
+    return `<span class="pos-estrelas" title="${s.nota} no sistema escolhido">`
+         + '★'.repeat(s.estrelas) + `<span class="off">${'☆'.repeat(5 - s.estrelas)}</span></span>`;
+  };
+
+  box.innerHTML = '<div class="pos-cab"><span>Jogador</span>'
+      + (temEstrelas ? '<span>No sistema</span>' : '')
+      + '<span>Principal</span><span>Secundária</span></div>'
     + lista.map(p => `
       <div class="pos-linha" data-linha="${p.id}">
         <span class="pos-nome" title="${esc(p.name)}">${esc(p.name)}</span>
+        ${celaEstrelas(p)}
         <select data-pos="primaria" data-id="${p.id}" aria-label="Posição principal de ${esc(p.name)}">${opcoes(p.position, false)}</select>
         <select data-pos="secundaria" data-id="${p.id}" aria-label="Posição secundária de ${esc(p.name)}">${opcoes(p.secondary_position || '', true)}</select>
       </div>`).join('');
@@ -777,8 +825,9 @@ function mostrarSlot(slot) {
      técnico. Vale ao abrir a página e a cada troca de tática. */
   if (typeof pintarModeloEscolhido === 'function') pintarModeloEscolhido();
   // Mesma razão: trocar de tática muda o estilo escolhido, e é ele que fica
-  // destacado na lista de encaixe.
+  // destacado na lista de encaixe e nas estrelas de cada jogador.
   if (typeof renderSistemas === 'function') renderSistemas();
+  if (typeof renderPosicoes === 'function') renderPosicoes();
 
   const statusBox = $('tacticStatus');
   statusBox.innerHTML = (slot === ACTIVE_SLOT)
