@@ -1207,7 +1207,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             <div style="font-size:28px;line-height:1">🏆</div>
             <div>
               <div style="font-size:16px;font-weight:800;color:var(--green)">Draft Encerrado</div>
-              <div style="font-size:12px;color:var(--text-2);margin-top:2px">Temporada ${session.season_number} · ${session.year} · ${totalPicked} picks registradas</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:2px">Draft ${session.ano_das_picks || (session.year + 1)} · temporada T${session.season_number} · ${totalPicked} picks registradas</div>
             </div>
           </div>
           <button class="btn-ghost-sm" onclick="toggleHistoryView()"><i class="bi bi-clock-history"></i> Ver todos os drafts</button>
@@ -1234,10 +1234,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     // Status cards
     html += `
       <div class="draft-status-grid">
+        <?php /* O CARD DIZ A CLASSE, e a temporada vai embaixo.
+                 Dizia só "T4 · 2019", que é a temporada em que o draft
+                 acontece — e da mesa saíam as picks de 2020, porque o draft
+                 de uma temporada entrega a classe do ano seguinte. Isso virou
+                 "o draft está com bug" no grupo da NEXT. A classe é o que o
+                 GM confere contra as picks dele, então é ela que fica grande;
+                 a temporada não desaparece, desce pra linha de baixo. */ ?>
         <div class="status-card">
-          <div class="status-label"><i class="bi bi-calendar3"></i> Temporada</div>
-          <div class="status-val">T${session.season_number || currentDraftSession.season_number} · ${session.year || currentDraftSession.year}</div>
-          <div class="status-sub">${userLeague}</div>
+          <div class="status-label"><i class="bi bi-calendar3"></i> Classe do draft</div>
+          <div class="status-val">Draft ${session.ano_das_picks || currentDraftSession.ano_das_picks || ((session.year || currentDraftSession.year) + 1)}</div>
+          <div class="status-sub">T${session.season_number || currentDraftSession.season_number} · ${session.year || currentDraftSession.year} · ${userLeague}</div>
         </div>
         <div class="status-card">
           <div class="status-label"><i class="bi bi-activity"></i> Status</div>
@@ -2122,8 +2129,13 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="hist-card">
         <div class="hist-card-head">
           <div>
-            <div class="hist-season">T${season.season_number} · Ano ${season.year}</div>
-            <div class="hist-league">Liga: ${season.league}</div>
+            <div class="hist-season">Draft ${season.ano_das_picks || (season.year + 1)}</div>
+            <?php /* A temporada fica junto: a lista tinha "T5 · Ano 2020 —
+                     Sem Draft" logo acima de "T4 · Ano 2019 — Em Andamento",
+                     e quem lia entendia que o draft de 2020 não havia
+                     acontecido — quando a classe de 2020 era exatamente a que
+                     estava sendo escolhida na linha de baixo. */ ?>
+            <div class="hist-league">T${season.season_number} · ${season.year} · ${season.league}</div>
           </div>
           ${pillMap[season.draft_status] || '<span class="draft-status-pill done">Sem Draft</span>'}
         </div>
@@ -2177,7 +2189,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       </div>
       <div class="panel" style="margin-bottom:14px">
         <div class="panel-head">
-          <span class="panel-title"><i class="bi bi-calendar3"></i> Temporada ${season.season_number} · Ano ${season.year} · ${season.league}</span>
+          <span class="panel-title"><i class="bi bi-calendar3"></i> Draft ${season.ano_das_picks || (season.year + 1)} · temporada T${season.season_number} · ${season.league}</span>
           ${pillMap[draftStatus] || pillMap['completed']}
         </div>
       </div>

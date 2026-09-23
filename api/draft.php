@@ -570,6 +570,15 @@ if ($method === 'GET') {
             );
             $stmt->execute([$league, loteriaSprintAtiva($pdo, $league) ?? 0]);
             $draft = $stmt->fetch(PDO::FETCH_ASSOC);
+            /* A CLASSE QUE ESTE DRAFT DISTRIBUI, que não é o ano da temporada
+               dele: o draft da temporada de 2019 entrega a classe de 2020 (é
+               assim no basquete e é assim que as picks foram criadas). A tela
+               mostrava só 2019 e o GM via as picks de 2020 saindo da mesa —
+               veio parar no grupo como "o draft está com bug". Quem calcula é
+               draftAnoDasPicks, o mesmo que as picks e a loteria usam. */
+            if ($draft) {
+                $draft['ano_das_picks'] = draftAnoDasPicks($pdo, (int)$draft['season_id']);
+            }
             if ($draft && !empty($draft['current_pick_started_at'])) {
                 $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
             }
@@ -948,6 +957,8 @@ if ($method === 'GET') {
                     echo json_encode(['success' => false, 'error' => 'Temporada não encontrada']);
                     exit;
                 }
+                // A classe deste draft — ver a nota em 'active_draft'.
+                $season['ano_das_picks'] = draftAnoDasPicks($pdo, (int)$season['id']);
 
                 if (!empty($season['draft_order_snapshot'])) {
                     $snapshot = json_decode($season['draft_order_snapshot'], true);
@@ -1016,6 +1027,11 @@ if ($method === 'GET') {
             );
             $stmt->execute([$league, $league]);
             $seasons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // A classe de cada draft — ver a nota em 'active_draft'.
+            foreach ($seasons as &$_s) {
+                $_s['ano_das_picks'] = draftAnoDasPicks($pdo, (int)$_s['id']);
+            }
+            unset($_s);
 
             echo json_encode(['success' => true, 'seasons' => $seasons]);
             break;
