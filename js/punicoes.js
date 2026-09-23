@@ -355,7 +355,7 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
               </div>
               <div class="pun-v2-actions">
                 <span class="pun-badge ${reverted || cumprida ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : (cumprida ? 'Já cumprida' : 'Ativa')}</span>
-                ${reverted ? '' : `<button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="revertPunishment(${p.id})">Reverter</button>`}
+                ${reverted ? '' : `<button type="button" class="btn-reverter" onclick="revertPunishment(${p.id})"><i class="bi bi-arrow-counterclockwise"></i>Reverter</button>`}
               </div>
             </div>
             <div class="pun-v2-chips">

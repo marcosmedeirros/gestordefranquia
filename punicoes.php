@@ -305,6 +305,30 @@ try {
         }
         .pun-badge-off { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-3); }
 
+        /* O BOTÃO REVERTER.
+           Ele usava .btn-ghost, que só existe no CSS do admin.php — resto da
+           época em que esta tela tinha uma cópia lá. Com a cópia removida, o
+           botão ficava sem regra nenhuma e o navegador desenhava o botão
+           cinza padrão dele no meio do card. Classe própria, definida aqui,
+           na mesma altura do selo "Ativa" que fica do lado.
+           Discreto de propósito: reverter é ação de exceção, e botão vermelho
+           forte ao lado de cada punição convida ao clique errado. */
+        .btn-reverter {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 11px; border-radius: 999px;
+            background: transparent; border: 1px solid var(--border); color: var(--text-3);
+            font-family: var(--font); font-size: 10.5px; font-weight: 700; letter-spacing: .3px;
+            cursor: pointer; transition: all var(--t) var(--ease);
+        }
+        .btn-reverter:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
+        .btn-reverter:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+        /* Mesmo caso do .btn-reverter: o js escreve .empty-state nas listas
+           vazias ("Nenhuma punição registrada") e a regra também tinha
+           ficado só no admin.php. Sem ela o texto saía encostado à esquerda,
+           com a margem padrão do <p>. */
+        .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; margin: 0; font-size: 14px; }
+
         /* ── Card de punição (remodelado) ───────────────── */
         .pun-v2 { display:flex; overflow:hidden; background:var(--panel-2); border:1px solid var(--border);
             border-radius:12px; margin-bottom:10px; transition:border-color var(--t) var(--ease), box-shadow var(--t) var(--ease); }
