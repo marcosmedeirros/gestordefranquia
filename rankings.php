@@ -472,18 +472,20 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         <div class="content">
             <!-- Filtros Minimalistas -->
             <div class="filter-nav" id="rankingFilters">
-                <button type="button" class="filter-btn active" data-league="ELITE" onclick="loadRanking('ELITE')">ELITE</button>
+                <?php /* ELITE E ROOKIE ABREM NOS BLOCOS, com a classificação
+                         geral numa aba lá dentro. A ELITE tinha dois botões —
+                         "ELITE" com a tabela acumulada e "ELITE 5T" com os
+                         ciclos —, e eram a mesma liga em duas portas: a
+                         acumulada da ELITE é exatamente a aba geral (conferido
+                         em produção, os 32 times com o mesmo número). Dois
+                         botões pro mesmo dado só fazem a pessoa procurar em
+                         qual dos dois está o que ela quer. */ ?>
+                <button type="button" class="filter-btn active" data-league="ELITE" onclick="loadCiclo('ELITE')"
+                        title="5 Ciclos de 5 temporadas — com a classificação geral numa aba">ELITE</button>
                 <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
                 <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
-                <?php /* A ROOKIE abre nas Sprints: é assim que a liga é jogada
-                         desde 23/09/2026. Ela não tem mais a tabela acumulada
-                         solta — a classificação geral virou uma aba lá dentro. */ ?>
                 <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadCiclo('ROOKIE')"
                         title="5 Sprints de 3 temporadas, R$ 40 cada — com a classificação geral numa aba">ROOKIE</button>
-                <?php /* Ranking por bloco. Fica junto das ligas porque é outra
-                         forma de ver a MESMA liga, não uma liga nova. */ ?>
-                <button type="button" class="filter-btn" data-league="ELITE5T" onclick="loadCiclo('ELITE')"
-                        title="Soma das últimas 5 temporadas da ELITE — zera a cada ciclo">ELITE 5T</button>
                 <button type="button" class="wpp-btn" id="btnCopyWpp" onclick="copyRankingWpp()" title="Copia o ranking desta liga em texto, pronto para colar no WhatsApp">
                     <i class="bi bi-whatsapp"></i> <span>Copiar p/ WhatsApp</span>
                 </button>
@@ -625,6 +627,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
     let currentRanking = [];
+    // Qual tabela esta na tela ('Ciclo 2', 'Classificacao geral'), pro texto do
+    // WhatsApp. Vazio nas ligas sem bloco: la existe uma tabela so.
+    let currentRankingRotulo = '';
     let comparadoCom = {};
     let _rankingRequestSeq = 0;
 
@@ -665,6 +670,21 @@ $seasonDisplayYear = (string)$currentSeasonYear;
      */
     let _blocoSel = {};      // liga => qual bloco está aberto
     let _blocoAba = {};      // liga => 'bloco' ou 'geral'
+
+    /**
+     * Abre a liga na visão que ELA usa.
+     *
+     * ELITE e ROOKIE são jogadas em bloco e abrem nos cards, com a
+     * classificação geral numa aba; NEXT e RISE abrem na tabela acumulada.
+     * Existe um lugar só decidindo isso porque antes não existia nenhum: o
+     * carregamento da página chamava loadRanking sempre, e quem é da ROOKIE
+     * caía na tabela que os botões já não mostram mais.
+     */
+    function abrirLiga(liga) {
+        liga = String(liga || 'ELITE').toUpperCase();
+        if (BLOCOS[liga]) loadCiclo(liga);
+        else loadRanking(liga);
+    }
 
     /**
      * COMO SE SOBE — a regra fechada pelos admins em 23/09/2026.
@@ -737,9 +757,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         ++_rankingRequestSeq;
         // A ROOKIE marca o botão dela mesma; a ELITE tem um botão separado
         // porque lá a tabela acumulada continua sendo uma visão válida.
-        const botao = liga === 'ROOKIE' ? 'ROOKIE' : 'ELITE5T';
-        currentLeague = botao;
-        updateActiveButton(botao);
+        // O botão é o da própria liga: as duas que têm bloco abrem aqui, e a
+        // ELITE não tem mais um botão separado só pros ciclos.
+        currentLeague = liga;
+        updateActiveButton(liga);
         document.getElementById('wppManual').style.display = 'none';
 
         // Na primeira abertura, mostra o bloco em andamento e a visão por
@@ -807,9 +828,19 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>
              </td></tr>`;
 
+        /* O "Copiar p/ WhatsApp" lê currentRanking, e quem enche isso é o
+           loadRanking. Sem esta linha o botão dizia "não há ranking
+           carregado" nas duas ligas que abrem em bloco — e a ELITE é
+           justamente a que mais se copia pro grupo. Copia o que está na
+           tela: o bloco aberto, ou a geral. */
+        currentRanking = dados.map(l => ({
+            team_name: l.time, total_points: l.pontos, total_titles: l.titulos || 0,
+        }));
+
         const titulo = aba === 'geral'
             ? 'Classificação geral'
             : `${esc(B.rotulo)} ${blocoSel.ciclo}`;
+        currentRankingRotulo = aba === 'geral' ? 'geral' : `${B.rotulo} ${blocoSel.ciclo}`;
         const sub = aba === 'geral'
             ? `Todas as temporadas da sprint somadas · continua valendo normalmente`
             : `${blocoSel.de === blocoSel.ate ? `Temporada ${blocoSel.de}` : `Temporadas ${blocoSel.de} a ${blocoSel.ate}`}` +
@@ -826,8 +857,6 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </div>
 
             <div class="ct-slots">${slots}</div>
-
-            ${painelSubida(B)}
 
             <div class="ct-abas">
               <button type="button" class="ct-aba ${aba === 'bloco' ? 'on' : ''}"
@@ -851,7 +880,13 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                   <tbody>${linhas}</tbody>
                 </table>
               </div>
-            </div>`;
+            </div>
+
+            <?php /* O "Como se sobe" fecha a página, depois da tabela: é a
+                     regra, e regra se lê depois de olhar a classificação, não
+                     antes. Entre os cards e a tabela ele empurrava a tabela
+                     pra fora da tela no celular. */ ?>
+            ${painelSubida(B)}`;
     }
 
     /** Abre a tabela de um bloco (e sai da visão geral, se estava nela). */
@@ -892,6 +927,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
             const ranking = data.ranking[currentLeague] || [];
             currentRanking = ranking; // usado pelo "Copiar p/ WhatsApp"
+            currentRankingRotulo = ''; // liga sem bloco: existe uma tabela só
             comparadoCom = data.compared_to || {};
 
             if (ranking.length === 0) {
@@ -990,7 +1026,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     // Monta o texto em si. No WhatsApp *texto* vira negrito.
     function buildRankingWppText() {
         const linhas = [];
-        linhas.push(`*RANKING ${currentLeague}* 🏆`);
+        // O rótulo diz QUAL tabela é: nas ligas de bloco a tela pode estar no
+        // "Ciclo 2" ou na geral, e colar as duas como "RANKING ELITE" no
+        // grupo faria o time discutir números de janelas diferentes.
+        linhas.push(`*RANKING ${currentLeague}${currentRankingRotulo ? ' · ' + currentRankingRotulo : ''}* 🏆`);
         linhas.push('');
 
         currentRanking.forEach((team, idx) => {
@@ -1067,7 +1106,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     }
 
     // Load initial
-    document.addEventListener('DOMContentLoaded', () => loadRanking(userLeague));
+    document.addEventListener('DOMContentLoaded', () => abrirLiga(userLeague));
 
     /* ── Histórico de Pontuação ── */
     const ptsHistoryModal = document.getElementById('ptsHistoryModal');
@@ -1263,7 +1302,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao salvar');
 
             bootstrap.Modal.getInstance(editModal)?.hide();
-            loadRanking(currentLeague);
+            abrirLiga(currentLeague);
         } catch (e) {
             alert(e.message || 'Erro ao salvar');
         } finally {
