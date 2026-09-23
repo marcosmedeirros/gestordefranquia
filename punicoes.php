@@ -208,6 +208,22 @@ try {
             display: flex; align-items: center; justify-content: center; gap: 6px;
         }
         .btn-link-sm:hover { color: var(--text-2); }
+        /* "Punição avulsa": botão de verdade, só mais discreto que o
+           "Aplicar punição" que fica logo acima — mesma largura e altura,
+           fundo do painel em vez de vermelho. Os dois são ações; a diferença
+           é que esta é a de exceção, e a cor diz isso sem esconder o botão. */
+        .btn-avulsa {
+            width: 100%; margin-top: 8px; padding: 10px; border-radius: var(--radius-sm);
+            background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2);
+            font-family: var(--font); font-size: 12.5px; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all var(--t) var(--ease);
+        }
+        .btn-avulsa:hover { border-color: var(--border-md); color: var(--text); background: var(--panel-3); }
+        .btn-avulsa:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+        /* Aberto, o botão fica marcado: senão, depois de clicar, nada na tela
+           liga ele ao painel que apareceu embaixo. */
+        .btn-avulsa.aberto { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
         .lbl-hint { color: var(--text-3); font-weight: 500; font-size: 11px; }
         .avulsa-nota { color: var(--text-3); font-size: 12px; line-height: 1.5; margin: 0 0 14px; }
 
@@ -447,7 +463,12 @@ try {
                             <button id="punicaoSubmit" class="btn-submit" disabled>
                                 <i class="bi bi-check2-circle"></i> Aplicar punição
                             </button>
-                            <button type="button" id="punicaoAvancado" class="btn-link-sm">
+                            <?php /* Botão, e não link: abrir a avulsa é uma ação
+                                     do mesmo peso que aplicar pelo quadro — só é
+                                     a menos usada. Como texto solto embaixo do
+                                     botão vermelho passava por rodapé, e quem
+                                     precisava do caso omisso não achava. */ ?>
+                            <button type="button" id="punicaoAvancado" class="btn-avulsa" aria-expanded="false" aria-controls="painelAvulsa">
                                 <i class="bi bi-sliders"></i> Punição avulsa (fora do quadro)
                             </button>
                         </div>

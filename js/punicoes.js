@@ -353,10 +353,16 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
                   <span class="pun-v2-league">${league}</span>
                 </span>
               </div>
+              ${/* A REVERTIDA NÃO LEVA SELO. O canto de cima é onde se lê o
+                    que a punição está fazendo — e ela não está fazendo nada.
+                    O card já vem apagado (is-reverted) e a data diz "revertida
+                    em tal dia", então o selo era um terceiro aviso da mesma
+                    coisa, no lugar mais chamativo da linha. */ ''}
+              ${reverted ? '' : `
               <div class="pun-v2-actions">
-                <span class="pun-badge ${reverted || cumprida ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : (cumprida ? 'Já cumprida' : 'Ativa')}</span>
-                ${reverted ? '' : `<button type="button" class="btn-reverter" onclick="revertPunishment(${p.id})"><i class="bi bi-arrow-counterclockwise"></i>Reverter</button>`}
-              </div>
+                <span class="pun-badge ${cumprida ? 'pun-badge-off' : 'pun-badge-on'}">${cumprida ? 'Já cumprida' : 'Ativa'}</span>
+                <button type="button" class="btn-reverter" onclick="revertPunishment(${p.id})"><i class="bi bi-arrow-counterclockwise"></i>Reverter</button>
+              </div>`}
             </div>
             <div class="pun-v2-chips">
               <span class="pun-chip type">${punLabel}</span>
@@ -425,9 +431,15 @@ window.initPunicoes = async function(preselectedLeague) {
     await _carregarPrevia(_curTeamId, e.target.value);
   });
 
-  _el('punicaoAvancado')?.addEventListener('click', () => {
+  _el('punicaoAvancado')?.addEventListener('click', (ev) => {
     const p = _el('painelAvulsa');
-    if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+    if (!p) return;
+    const abrir = p.style.display === 'none';
+    p.style.display = abrir ? '' : 'none';
+    // O botão marca que o painel está aberto, e diz isso a quem usa leitor
+    // de tela — é ele que controla o painel de baixo.
+    ev.currentTarget.classList.toggle('aberto', abrir);
+    ev.currentTarget.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   });
 
   _el('punicaoHistoryLeague')?.addEventListener('change', async e => {
