@@ -71,6 +71,31 @@ $seasonDisplayYear  = (string)$currentSeasonYear;
    no site inteiro. Duas contas parecidas em telas diferentes é como elas
    divergem — foi assim que esta aqui ficou um ano atrás. */
 $picksAnoBase = anoDeCorteDasPicks($pdo, (string)$user['league']) ?: $currentSeasonYear;
+
+/* QUAL CLASSE ESTÁ NA MESA AGORA — 0 quando não há draft rolando.
+   A lista mostra 6 anos porque são a classe EM DISPUTA mais as 5 futuras
+   (getPickWindowYears, em api/seasons.php, usa horizonte 5). Sem dizer qual
+   é qual, os 6 se leem como "6 anos futuros", e foi daí que saiu o "tem algo
+   errado" da NEXT: o GM via 2020 na lista, o draft de 2020 acontecendo, e a
+   tela do draft dizendo "2019". A classe em disputa continua na lista de
+   propósito — durante o draft as escolhas dele são justamente as que estão
+   valendo —, mas agora ela vem marcada. */
+$picksAnoEmDraft = 0;
+try {
+    require_once __DIR__ . '/backend/draft_swaps.php';
+    $stDr = $pdo->prepare('SELECT ds.season_id FROM draft_sessions ds
+                             JOIN seasons s ON s.id = ds.season_id
+                            WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
+                              AND s.sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = "active"
+                                                  ORDER BY sprint_number DESC, id DESC LIMIT 1)
+                         ORDER BY s.season_number DESC LIMIT 1');
+    $stDr->execute([(string)$user['league'], (string)$user['league']]);
+    $sid = (int)$stDr->fetchColumn();
+    if ($sid > 0) $picksAnoEmDraft = draftAnoDasPicks($pdo, $sid);
+} catch (Throwable $e) {
+    error_log('[teams/picks] classe em draft: ' . $e->getMessage());
+}
+
 $seasonCreatedAt    = $currentSeason['season_created_at'] ?? null;
 
 $stmtTeam = $pdo->prepare('
@@ -1614,17 +1639,17 @@ function getSerasaScore(int $avisos): array {
                     <div class="spinner-border text-red" role="status"></div>
                 </div>
                 <div id="picksContent" style="display:none">
-                    <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Picks com o time</p>
+                    <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Picks com o time <span style="color:var(--text-3)">— a classe em disputa e as 5 futuras</span></p>
                     <div class="table-responsive">
                         <table class="table table-dark mb-0">
-                            <thead><tr><th>Ano</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
+                            <thead><tr><th>Classe</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
                             <tbody id="picksList"></tbody>
                         </table>
                     </div>
                     <p style="font-size:12px;color:var(--text-2);margin:20px 0 8px">Picks trocadas</p>
                     <div class="table-responsive">
                         <table class="table table-dark mb-0">
-                            <thead><tr><th>Ano</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
+                            <thead><tr><th>Classe</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
                             <tbody id="picksAwayList"></tbody>
                         </table>
                     </div>
@@ -1740,6 +1765,7 @@ function getSerasaScore(int $avisos): array {
     // O primeiro ano de pick que ainda vale — a classe do draft corrente. Nao e
     // o ano da temporada: o draft de 2026 distribui as picks de 2027.
     const picksAnoBase = <?= (int)$picksAnoBase ?>;
+    const picksAnoEmDraft = <?= (int)$picksAnoEmDraft ?>;
     // Peso da pick no casamento salarial, direto de CAP_PICK_TRADE_VALUE.
     const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
 
@@ -1942,7 +1968,13 @@ function getSerasaScore(int $avisos): array {
                     const entry = grouped.get(year);
                     const round1 = entry.r1.length ? entry.r1.join('') : '<span style="color:var(--text-2)">-</span>';
                     const round2 = entry.r2.length ? entry.r2.join('') : '<span style="color:var(--text-2)">-</span>';
-                    listEl.innerHTML += `<tr><td>${year}</td><td>${round1}</td><td>${round2}</td></tr>`;
+                    // A classe que está sendo escolhida agora é a única da
+                    // lista que não é futura: sem a marca, os 6 anos se leem
+                    // como 6 drafts por vir.
+                    const emDraft = picksAnoEmDraft && Number(year) === picksAnoEmDraft
+                        ? `<div style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:.04em;text-transform:uppercase;margin-top:2px">no draft agora</div>`
+                        : '';
+                    listEl.innerHTML += `<tr><td>${year}${emDraft}</td><td>${round1}</td><td>${round2}</td></tr>`;
                 });
             }
 
