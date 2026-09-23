@@ -1282,6 +1282,8 @@ if ($teamId) {
                                  'award_bonus' => (int)$r['award_bonus'],
                                  'award_bonus_detail' => $r['award_bonus_detail'] ?? []], $salCap['roster'])]) : 'null' ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
+    // A ROOKIE não usa lealdade nem lenda: ver ligaUsaLealdade() em helpers.php.
+    window.__USA_LEALDADE__ = <?= ligaUsaLealdade((string)($team['league'] ?? '')) ? 'true' : 'false' ?>;
     window.__GLEAGUE_VAGAS__ = <?= (int)$gleagueVagas ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
     window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;

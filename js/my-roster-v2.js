@@ -564,11 +564,18 @@ function loyalNameStyle(player) {
   return ` style="color:${color}"`;
 }
 
+/* A ROOKIE não mostra nem "Leal" nem "LENDA": a régua é ligaUsaLealdade() em
+ * backend/helpers.php, e ela também já zera is_loyal do lado do servidor. A
+ * checagem aqui é a segunda tranca, pra tela nenhuma escapar. */
+const USA_LEALDADE = (typeof window === 'undefined') || window.__USA_LEALDADE__ !== false;
+
 function loyalTagHtml(player) {
+  if (!USA_LEALDADE) return '';
   return isLoyalPlayer(player) ? '<span class="badge loyal-badge">Leal</span>' : '';
 }
 
 function isLendaPlayer(player) {
+  if (!USA_LEALDADE) return false;
   return !!Number(player?.is_lenda || 0);
 }
 
@@ -578,23 +585,38 @@ function lendaTagHtml(player) {
     : '';
 }
 
-// O CAP +: +2 de teto por jogador elegível, +3 se ele for 95 ou mais, contando
-// no máximo dois. Tem que bater com restrictedCapBonus() em backend/helpers.php
-// — se as duas contas divergirem, a tela mostra um teto e o servidor valida por
+// O CAP +: +2 de teto por jogador elegível, contando no máximo dois. Na NEXT,
+// quem está em 95+ vale +3; na RISE vale +2 igual, e a lenda não entra na
+// conta (a elegibilidade vem do servidor em cap_bonus_eligible, que já aplica
+// essa diferença).
+//
+// ESTA TABELA TEM QUE SER A MESMA de RESTRICTED_REGRAS em backend/helpers.php.
+// Se as duas contas divergirem, a tela mostra um teto e o servidor valida por
 // outro, e o GM leva bloqueio numa jogada que a tela dizia caber.
-const RESTRICTED_BONUS_PADRAO = 2;
-const RESTRICTED_BONUS_ESTRELA = 3;
+const RESTRICTED_REGRAS = {
+  NEXT: { padrao: 2, estrela: 3 },
+  RISE: { padrao: 2, estrela: 2 },
+};
 const RESTRICTED_BONUS_OVR_ESTRELA = 95;
 const RESTRICTED_BONUS_MAX_JOGADORES = 2;
 
+function getRestrictedRegra() {
+  const liga = String(window.__LEAGUE__ || '').toUpperCase();
+  for (const prefixo of Object.keys(RESTRICTED_REGRAS)) {
+    if (liga.startsWith(prefixo)) return RESTRICTED_REGRAS[prefixo];
+  }
+  return RESTRICTED_REGRAS.NEXT;
+}
+
 function getRestrictedBonus(players) {
+  const regra = getRestrictedRegra();
   return players
     .filter(isFranchiseEligible)
     .map(p => Number(p.ovr) || 0)
     .sort((a, b) => b - a)                    // os dois melhores, não os dois primeiros
     .slice(0, RESTRICTED_BONUS_MAX_JOGADORES)
     .reduce((soma, ovr) => soma + (ovr >= RESTRICTED_BONUS_OVR_ESTRELA
-      ? RESTRICTED_BONUS_ESTRELA : RESTRICTED_BONUS_PADRAO), 0);
+      ? regra.estrela : regra.padrao), 0);
 }
 
 function getCapMaxAdjusted(players) {

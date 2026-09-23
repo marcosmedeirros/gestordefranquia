@@ -451,6 +451,20 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         $pid = (int)($p['id'] ?? 0);
         if ($pid) $playerIds[] = $pid;
     }
+    /* A liga de cada time entra na conta porque a régua da lenda mudou de liga
+       pra liga. Uma consulta em lote, não uma por jogador. */
+    $ligaPorTime = [];
+    if ($teamIds) {
+        try {
+            $ph = implode(',', array_fill(0, count($teamIds), '?'));
+            $st = $pdo->prepare("SELECT id, league FROM teams WHERE id IN ($ph)");
+            $st->execute(array_keys($teamIds));
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $ligaPorTime[(int)$r['id']] = strtoupper(trim((string)$r['league']));
+            }
+        } catch (Exception $e) {}
+    }
+
     $seasonDraftPairs = [];
     if ($teamIds) {
         try {
@@ -492,16 +506,28 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         $pid = (int)($p['id'] ?? 0);
         $isLoyal = array_key_exists($pid, $overrides) ? ($overrides[$pid] === 1 && $notTraded) : $autoLoyal;
 
-        /* A LENDA FIEL TAMBÉM É ELEGÍVEL. Ela nunca sai como "leal" pela régua
-           automática, porque não veio de draft_pool e sim do draft de lendas. Mas
-           é a estrela que a franquia segurou desde o começo, e tanto o Cap +
-           (RISE/NEXT) quanto o Cap Flex (ELITE) contam com ela. Sem esta linha a
-           tela deixaria de destacar a lenda e o bônus somado no front não bateria
-           com o do servidor. */
+        /* A LENDA FIEL É ELEGÍVEL ONDE A LIGA DIZ QUE É. Ela nunca sai como
+           "leal" pela régua automática, porque não veio de draft_pool e sim do
+           draft de lendas. Na NEXT e na ELITE ela conta; na RISE, não (decisão
+           de 23/09/2026). Sem olhar a liga aqui, a tela da RISE destacaria a
+           lenda e somaria um bônus que o servidor não vai dar. */
         $ehLenda = array_key_exists($pid, $lendas)
             ? $lendas[$pid]
             : (int)($p['is_lenda'] ?? 0) === 1;
-        $lendaFiel = $ehLenda && $notTraded;
+        $ligaDele = $ligaPorTime[(int)($p['team_id'] ?? 0)] ?? '';
+        $regraDele = restrictedRegraDaLiga($ligaDele);
+        // Fora de RISE/NEXT (ELITE, ROOKIE) a lenda continua contando: lá quem
+        // manda é o salary_cap.php, e o campo serve só pro destaque na tela.
+        $lendaConta = $regraDele === null ? true : $regraDele['conta_lenda'];
+        $lendaFiel = $ehLenda && $notTraded && $lendaConta;
+
+        /* NA ROOKIE NADA DISSO EXISTE. Zerar aqui, e não em cada tela, é o que
+           garante que nenhuma delas mostre o selo por esquecimento. */
+        if (!ligaUsaLealdade($ligaDele)) {
+            $p['is_loyal'] = 0;
+            $p['cap_bonus_eligible'] = 0;
+            continue;
+        }
 
         $p['is_loyal'] = $isLoyal ? 1 : 0;
         $p['cap_bonus_eligible'] = (($isLoyal || $lendaFiel) && $highOvr) ? 1 : 0;
@@ -522,21 +548,67 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
 
    A ELITE não usa isto — lá o benefício é em milhões, no Cap Flex
    (backend/salary_cap.php), que também para em dois jogadores. */
-const RESTRICTED_BONUS_PADRAO = 2;
-const RESTRICTED_BONUS_ESTRELA = 3;     // pra quem está em 95+
 const RESTRICTED_BONUS_OVR_MINIMO = 90;
 const RESTRICTED_BONUS_OVR_ESTRELA = 95;
 const RESTRICTED_BONUS_MAX_JOGADORES = 2;
 
 /**
+ * A RÉGUA DE CADA LIGA, lado a lado.
+ *
+ * As duas eram iguais até 23/09/2026, quando o Marcos separou: a RISE ficou
+ * mais restrita. Deixar as duas aqui, uma embaixo da outra, é o que evita a
+ * regra virar um emaranhado de "if liga === RISE" espalhado pelo arquivo.
+ *
+ *   padrao       quanto vale um elegível de 90 a 94
+ *   estrela      quanto vale um elegível de 95+
+ *   conta_lenda  a lenda fiel entra na conta?
+ *
+ * Na RISE padrao e estrela são iguais de propósito: lá o OVR acima de 95 não
+ * vale mais nada, e é assim que a liga quis.
+ */
+const RESTRICTED_REGRAS = [
+    'NEXT' => ['padrao' => 2, 'estrela' => 3, 'conta_lenda' => true],
+    'RISE' => ['padrao' => 2, 'estrela' => 2, 'conta_lenda' => false],
+];
+
+/**
+ * A LIGA USA LEALDADE E LENDA?
+ *
+ * A ROOKIE não usa nada disso — nem tag "Leal", nem LENDA, nem bônus de cap
+ * (decisão do Marcos em 23/09/2026). Lá o elenco roda por outra lógica, e
+ * mostrar esses selos só confundia o GM com uma regra que não vale pra ele.
+ *
+ * Esta função é a fonte da verdade, e o servidor já entrega is_loyal e
+ * cap_bonus_eligible zerados na ROOKIE (ver markLoyaltyEligibility). Assim
+ * uma tela que ninguém mapeou não volta a mostrar o selo por esquecimento.
+ */
+function ligaUsaLealdade(string $league): bool
+{
+    return !str_starts_with(strtoupper(trim($league)), 'ROOKIE');
+}
+
+/** A régua da liga, ou null se a liga não usa Cap + (ELITE e ROOKIE). */
+function restrictedRegraDaLiga(string $league): ?array
+{
+    $league = strtoupper(trim($league));
+    foreach (RESTRICTED_REGRAS as $prefixo => $regra) {
+        if (str_starts_with($league, $prefixo)) return $regra;
+    }
+    return null;
+}
+
+/**
  * Os OVRs dos jogadores que geram Cap +, do maior pro menor.
  *
- * Elegível é quem tem 90+, NUNCA foi trocado, e ou veio do draft normal da
- * própria franquia, ou é LENDA. A lenda entra porque não foi draftada — veio
- * do draft de lendas — mas é a estrela que a franquia segurou desde o começo,
- * que é exatamente o que o bônus existe pra premiar. É a mesma decisão que
- * vale no Cap Flex da ELITE. Trocou a lenda, acabou: was_traded marca, e ela
- * não gera bônus pra ninguém mais.
+ * Elegível é quem tem 90+ e NUNCA foi trocado, vindo do draft normal da
+ * própria franquia.
+ *
+ * A LENDA DEPENDE DA LIGA. Na NEXT ela conta: não foi draftada (veio do draft
+ * de lendas), mas é a estrela que a franquia segurou desde o começo, que é o
+ * que o bônus premia — mesma decisão do Cap Flex da ELITE. Na RISE ela não
+ * conta, por decisão da liga em 23/09/2026: lá só vale quem a franquia
+ * draftou. Trocou a lenda, acabou de todo jeito — was_traded marca e ela não
+ * gera bônus pra ninguém.
  */
 function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
 {
@@ -548,22 +620,25 @@ function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
         if ($league === '') return [];
         // Bônus por soma de OVR: vale pra RISE e NEXT (a ELITE usa o Cap Flex
         // em milhões, calculado em backend/salary_cap.php).
-        if (!str_starts_with($league, 'RISE') && !str_starts_with($league, 'NEXT')) return [];
+        $regra = restrictedRegraDaLiga($league);
+        if ($regra === null) return [];
+
+        $doDraft = 'EXISTS (
+                SELECT 1 FROM draft_pool dp
+                WHERE dp.name = p.name
+                AND dp.drafted_by_team_id = ?
+                AND dp.draft_status = "drafted"
+            )';
+        $quemConta = $regra['conta_lenda']
+            ? '(COALESCE(p.is_lenda, 0) = 1 OR ' . $doDraft . ')'
+            : $doDraft;
 
         $stmt = $pdo->prepare('
             SELECT p.ovr FROM players p
             WHERE p.team_id = ?
             AND p.ovr >= ' . RESTRICTED_BONUS_OVR_MINIMO . '
             AND COALESCE(p.was_traded, 0) = 0
-            AND (
-                COALESCE(p.is_lenda, 0) = 1
-                OR EXISTS (
-                    SELECT 1 FROM draft_pool dp
-                    WHERE dp.name = p.name
-                    AND dp.drafted_by_team_id = ?
-                    AND dp.draft_status = "drafted"
-                )
-            )
+            AND ' . $quemConta . '
             ORDER BY p.ovr DESC
         ');
         $stmt->execute([$teamId, $teamId]);
@@ -578,10 +653,16 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
     return count(restrictedEligibleOvrs($pdo, $teamId));
 }
 
-/** Quanto um jogador elegível vale de Cap +, pelo OVR dele. */
-function restrictedBonusDoOvr(int $ovr): int
+/**
+ * Quanto um jogador elegível vale de Cap +, pelo OVR dele e pela liga.
+ *
+ * Na RISE os dois valores são 2, então o 95+ não vale mais que o 90 — é a
+ * régua da liga, e não um esquecimento.
+ */
+function restrictedBonusDoOvr(int $ovr, string $league = 'NEXT'): int
 {
-    return $ovr >= RESTRICTED_BONUS_OVR_ESTRELA ? RESTRICTED_BONUS_ESTRELA : RESTRICTED_BONUS_PADRAO;
+    $regra = restrictedRegraDaLiga($league) ?? RESTRICTED_REGRAS['NEXT'];
+    return $ovr >= RESTRICTED_BONUS_OVR_ESTRELA ? $regra['estrela'] : $regra['padrao'];
 }
 
 /**
@@ -593,11 +674,29 @@ function restrictedBonusDoOvr(int $ovr): int
 function restrictedCapBonus(PDO $pdo, int $teamId): int
 {
     $ovrs = restrictedEligibleOvrs($pdo, $teamId);   // já vem do maior pro menor
+    if (!$ovrs) return 0;
+
+    $liga = restrictedLigaDoTime($pdo, $teamId);
     $total = 0;
     foreach (array_slice($ovrs, 0, RESTRICTED_BONUS_MAX_JOGADORES) as $ovr) {
-        $total += restrictedBonusDoOvr($ovr);
+        $total += restrictedBonusDoOvr($ovr, $liga);
     }
     return $total;
+}
+
+/** A liga de um time, em cache: o Cap + pergunta isso a cada conta. */
+function restrictedLigaDoTime(PDO $pdo, int $teamId): string
+{
+    static $cache = [];
+    if (array_key_exists($teamId, $cache)) return $cache[$teamId];
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $st->execute([$teamId]);
+        $cache[$teamId] = strtoupper(trim((string)($st->fetchColumn() ?: '')));
+    } catch (Exception $e) {
+        $cache[$teamId] = '';
+    }
+    return $cache[$teamId];
 }
 function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
 {

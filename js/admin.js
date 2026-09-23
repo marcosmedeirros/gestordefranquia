@@ -6779,10 +6779,18 @@ async function saveTeamEdit(teamId) {
   }
 }
 
+/* A ROOKIE não usa lealdade nem lenda — nem as tags no elenco, nem os campos
+   aqui no editar. A régua no servidor é ligaUsaLealdade() em
+   backend/helpers.php, e esta função é a mesma coisa do lado do admin. */
+function ligaUsaLealdade(liga) {
+  return !String(liga || '').toUpperCase().startsWith('ROOKIE');
+}
+
 function editPlayer(playerId) {
   const p = appState.teamDetails.players.find(p => p.id == playerId);
   if (!p) return;
-  
+  const usaLealdade = ligaUsaLealdade(appState.currentTeam?.league);
+
   const modal = document.createElement('div');
   modal.className = 'modal fade';
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
@@ -6817,7 +6825,7 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerFranchise" ${Number(p.is_franchise_player) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerFranchise" style="color:#f59e0b;font-weight:600">🏆 Elegível Restricted CAP</label></div>
 <small class="text-light-gray d-block mt-1">Override manual: marca o jogador como elegível para bônus de CAP independente das regras automáticas.</small></div>` : ''}
-<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
+${usaLealdade ? `<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
 <div class="form-check form-switch">
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerLoyal" ${Number(p.is_loyal) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerLoyal" style="color:#3b82f6;font-weight:600">🤝 Leal</label></div>
@@ -6826,7 +6834,7 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 <div class="form-check form-switch">
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerLenda" ${Number(p.is_lenda) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerLenda" style="color:#f5c542;font-weight:700">⭐ Lenda da franquia</label></div>
-<small class="text-light-gray d-block mt-1">Uma por time — marcar aqui tira a marca do jogador anterior. Nome fica dourado com a tag LENDA${appState.currentTeam.league === 'ELITE' ? ', e no cap ele passa a valer no mínimo 40M (de OVR 95 pra cima volta a tabela)' : ''}.</small></div>
+<small class="text-light-gray d-block mt-1">Uma por time — marcar aqui tira a marca do jogador anterior. Nome fica dourado com a tag LENDA${appState.currentTeam.league === 'ELITE' ? ', e no cap ele passa a valer no mínimo 40M (de OVR 95 pra cima volta a tabela)' : ''}.</small></div>` : ''}
 <div class="mb-3"><label class="form-label text-light-gray">Transferir</label>
 <select class="form-select bg-dark text-white border-orange" id="editPlayerTeam"><option value="">Manter no time</option></select></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -7083,6 +7091,7 @@ async function revertMultiTrade(tradeId) {
 }
 
 function addPlayer(teamId) {
+  const usaLealdade = ligaUsaLealdade(appState.currentTeam?.league);
   const modal = document.createElement('div');
   modal.className = 'modal fade';
   modal.id = 'addPlayerModal';
@@ -7122,11 +7131,11 @@ function addPlayer(teamId) {
 <option value="Banco" selected>Banco</option>
 <option value="Outro">Outro</option>
 <option value="G-League">G-League</option></select></div>
-<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
+${usaLealdade ? `<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
 <div class="form-check form-switch">
 <input class="form-check-input" type="checkbox" role="switch" id="addPlayerLoyal">
 <label class="form-check-label" for="addPlayerLoyal" style="color:#3b82f6;font-weight:600">🤝 Leal</label></div>
-<small class="text-light-gray d-block mt-1">Jogador cadastrado direto não passa por draft, então a lealdade não tem como ser calculada — marque aqui se ele deve contar como leal.</small></div>
+<small class="text-light-gray d-block mt-1">Jogador cadastrado direto não passa por draft, então a lealdade não tem como ser calculada — marque aqui se ele deve contar como leal.</small></div>` : ''}
 </div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
