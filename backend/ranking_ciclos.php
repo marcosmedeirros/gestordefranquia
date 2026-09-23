@@ -28,8 +28,14 @@
  *   tamanho   temporadas em cada bloco
  *   blocos    quantos blocos a tela desenha (a grade é fixa: ver cicloQuantos)
  *   rotulo    como a liga chama o bloco
+ *   genero    'm' ou 'f' — o gênero do rótulo, pra quem escreve frase com ele
  *   premio    quanto vale o bloco em reais, ou null quando não há prêmio
  *   corte_gm  a pontuação conta só a partir de quando o GM atual assumiu?
+ *
+ * O genero anda junto do rotulo porque é propriedade dele: "Sprint" é
+ * feminino e "Ciclo" masculino, e o bot escreve frase com o rótulo dentro
+ * ("faltam 4 Sprints depois desta" / "4 Ciclos depois deste"). Sem isso a
+ * concordância sai errada em uma das duas ligas, sempre.
  *
  * O corte_gm está ligado só na ROOKIE porque é lá que a regra existe: GM que
  * sobe pra Rise deixa a cadeira, e quem assume não herda os pontos de quem
@@ -38,8 +44,8 @@
  * foi o que pediram.
  */
 const CICLO_CONFIG = [
-    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'premio' => null, 'corte_gm' => false],
-    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'premio' => 40,   'corte_gm' => true],
+    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false],
+    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true],
 ];
 
 /* Mantidas porque rankings.php as usa. A ELITE continua sendo a liga padrão de
@@ -254,6 +260,11 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, boo
         $st = $pdo->prepare("
             SELECT tsp.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
+                   /* A alcunha separada: dentro de uma liga ela identifica o time sozinha,
+                      e quem escreve pro WhatsApp precisa da lista curta. Cortar a cidade
+                      do nome completo por contagem de palavras não funciona — 'San Diego
+                      Empire' virava 'Diego Empire' e 'St. Louis Archers', 'Louis Archers'. */
+                   COALESCE(NULLIF(TRIM(t.name),''), TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')))) AS alcunha,
                    t.photo_url,
                    SUM(tsp.points)                 AS pontos,
                    COUNT(DISTINCT s.season_number) AS temporadas,
@@ -384,6 +395,11 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
         $st = $pdo->prepare("
             SELECT tsp.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
+                   /* A alcunha separada: dentro de uma liga ela identifica o time sozinha,
+                      e quem escreve pro WhatsApp precisa da lista curta. Cortar a cidade
+                      do nome completo por contagem de palavras não funciona — 'San Diego
+                      Empire' virava 'Diego Empire' e 'St. Louis Archers', 'Louis Archers'. */
+                   COALESCE(NULLIF(TRIM(t.name),''), TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')))) AS alcunha,
                    t.photo_url,
                    SUM(tsp.points)                 AS pontos,
                    COUNT(DISTINCT s.season_number) AS temporadas,
@@ -472,6 +488,10 @@ function cicloResumos(PDO $pdo, string $liga = CICLO_LIGA): array
             // agora, e a tela diz que é parcial: anunciar "campeão" de um
             // bloco que ainda corre seria dar título que pode mudar de dono.
             'campeao'     => $tem ? ($tab[0]['time'] ?: 'Time #' . $tab[0]['team_id']) : null,
+            /* Só a alcunha, pra quem escreve em linha curta (o bot, no grupo).
+               Vem do banco e não de um corte do nome completo: "San Diego
+               Empire" não tem como ser partido por contagem de palavras. */
+            'campeao_curto' => $tem ? ($tab[0]['alcunha'] ?: $tab[0]['time']) : null,
             'team_id'     => $tem ? $tab[0]['team_id'] : null,
             'photo_url'   => $tem ? $tab[0]['photo_url'] : null,
             'pontos'      => $tem ? $tab[0]['pontos'] : null,
@@ -512,6 +532,7 @@ function cicloPacoteDaLiga(PDO $pdo, string $liga): array
     return [
         'liga'            => strtoupper(trim($liga)),
         'rotulo'          => $cfg['rotulo'],
+        'genero'          => $cfg['genero'] ?? 'm',
         'tamanho'         => $cfg['tamanho'],
         'premio'          => $cfg['premio'],
         'temporada_atual' => cicloTemporadaAtual($pdo, $liga),

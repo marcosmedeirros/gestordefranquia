@@ -590,6 +590,7 @@ function wcAjuda(): string
         . "/meufantasy — seu time no Fantasy FBA\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
+        . "/rankingsprint _liga_ — a sprint em andamento e as já decididas\n"
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
         . "/temporada _nº_ _liga_ — resumo da temporada: campeão, prêmios, seeds e pick 1\n"
@@ -1092,6 +1093,103 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $l
  * A fonte é teams.ranking_points, a mesma da página de Rankings — os dois
  * lugares precisam dizer o mesmo número.
  */
+/**
+ * /rankingsprint — a SPRINT ATUAL da liga, com a tabela dela.
+ *
+ * É outra pergunta que o /ranking. O /ranking é a corrida acumulada do ciclo;
+ * este é o bloco em que a liga está agora — na ROOKIE, uma das 5 Sprints de 3
+ * temporadas que valem R$ 40 e a subida pra Rise (comunicado dos admins em
+ * 23/09/2026). É a pergunta que o GM faz no grupo: "como está a sprint?".
+ *
+ * A fonte é a MESMA da página de Rankings (backend/ranking_ciclos.php). Se o
+ * bot tivesse a sua própria conta, o grupo e a tela mostrariam sprints
+ * diferentes — e a que vale R$ 40 é uma só.
+ */
+function wcRankingSprint(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ROOKIE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    require_once __DIR__ . '/../backend/ranking_ciclos.php';
+
+    // NEXT e RISE não jogam em bloco: dizer isso é melhor que devolver a
+    // tabela de outra liga ou uma lista vazia sem explicação.
+    if (!in_array($liga, cicloLigas(), true)) {
+        return "A {$liga} não é jogada em sprints.\n"
+             . "Use */ranking {$liga}* pra pontuação do ciclo, ou *_/rankingsprint ROOKIE_*.";
+    }
+
+    try {
+        $p = cicloPacoteDaLiga($pdo, $liga);
+    } catch (Throwable $e) {
+        error_log('[wcRankingSprint] ' . $e->getMessage());
+        return "Não deu pra ler as sprints da {$liga} agora.";
+    }
+
+    $atual = null;
+    foreach ($p['ciclos'] as $c) if ($c['ciclo'] === $p['ciclo_atual']) $atual = $c;
+    if (!$atual) return "A {$liga} não tem sprint em andamento.";
+
+    $rot = $p['rotulo'];
+    // O rótulo muda de gênero entre as ligas ("a Sprint", "o Ciclo") e as
+    // frases abaixo têm o rótulo dentro. Sem isso uma das duas sai errada.
+    $f    = ($p['genero'] ?? 'm') === 'f';
+    $esta = $f ? 'desta'  : 'deste';
+    $nesta = $f ? 'nesta' : 'neste';
+    $faixa = $atual['de'] === $atual['ate'] ? "T{$atual['de']}" : "T{$atual['de']}–{$atual['ate']}";
+
+    $txt = "⚡ *{$rot} {$atual['ciclo']} · {$liga}*\n";
+    $txt .= "_{$faixa} · estamos na T{$p['temporada_atual']}_";
+    if ($p['premio']) $txt .= "\n_R$ {$p['premio']} pra quem ganhar_";
+    $txt .= "\n\n";
+
+    $tabela = $p['tabelas'][$atual['ciclo']] ?? [];
+    // Só quem pontuou: numa sprint recém-começada, metade da liga está com
+    // zero, e listar 30 times iguais não responde nada.
+    $comPontos = array_values(array_filter($tabela, fn($l) => (int)$l['pontos'] > 0));
+
+    if (!$comPontos) {
+        $txt .= "Ninguém pontuou {$nesta} {$rot} ainda.\n";
+        $txt .= "_A pontuação entra quando a temporada é registrada._";
+    } else {
+        $pos = 0; $anterior = null; $mostrado = 0;
+        foreach (array_slice($comPontos, 0, 12) as $l) {
+            $mostrado++;
+            // Empate divide a mesma posição, igual ao /ranking.
+            if ((int)$l['pontos'] !== $anterior) { $pos = $mostrado; $anterior = (int)$l['pontos']; }
+            $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$pos] ?? ($pos . '.');
+            // A alcunha, não o nome completo: no grupo a lista precisa caber
+            // em uma linha, e dentro de uma liga a alcunha já identifica o
+            // time. Ela vem pronta do banco — ver 'alcunha' em
+            // backend/ranking_ciclos.php.
+            $nome = (string)($l['alcunha'] ?: $l['time']);
+            $txt .= "{$medalha} *{$nome}* — {$l['pontos']} pts";
+            if ((int)($l['titulos'] ?? 0) > 0) $txt .= ' · ' . $l['titulos'] . '🏆';
+            $txt .= "\n";
+        }
+        if (count($comPontos) > 12) {
+            $txt .= "_… e mais " . (count($comPontos) - 12) . " com pontuação._\n";
+        }
+    }
+
+    // Os blocos já decididos: no grupo, é a pergunta que vem logo depois.
+    $fechadas = array_values(array_filter($p['ciclos'], fn($c) => $c['fechado'] && $c['tem_dados']));
+    if ($fechadas) {
+        $txt .= "\n*Já " . ($f ? 'decididas' : 'decididos') . "*\n";
+        foreach ($fechadas as $c) {
+            $campeao = (string)($c['campeao_curto'] ?: $c['campeao']);
+            $txt .= "{$rot} {$c['ciclo']} — *{$campeao}* ({$c['pontos']} pts)\n";
+        }
+    }
+
+    $futuras = count(array_filter($p['ciclos'], fn($c) => $c['futuro']));
+    if ($futuras > 0) {
+        $txt .= "\n_Faltam {$futuras} " . ($futuras === 1 ? $rot : $rot . 's') . " depois {$esta}._";
+    }
+
+    return rtrim($txt);
+}
+
 function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
@@ -4494,6 +4592,13 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'ranking':
             case 'pontos':
                 return wcRankingPontos($pdo, $arg, $ligaDoGrupo);
+
+            // A sprint é outra janela que o ciclo do /ranking: é o bloco de 3
+            // temporadas que vale R$ 40 e a subida na ROOKIE.
+            case 'rankingsprint':
+            case 'sprint':
+            case 'sprints':
+                return wcRankingSprint($pdo, $arg, $ligaDoGrupo);
 
             case 'classificacao':
             case 'classificação':
