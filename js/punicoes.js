@@ -317,7 +317,12 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
   if (league) params.append('league', league);
   try {
     const data = await _pApi(`punicoes.php?${params}`);
-    const rows = data.punishments || [];
+    /* REVERTIDA NÃO APARECE NO HISTÓRICO. Reverter é dizer que a punição não
+       existiu, então ela não é histórico de punição — e a lista era usada pra
+       saber o que o time levou, com as desfeitas no meio empurrando o que
+       vale pra baixo. A linha continua no banco (é ela que guarda o que foi
+       devolvido), só não é listada. */
+    const rows = (data.punishments || []).filter(p => !p.reverted_at);
     if (!rows.length) {
       container.innerHTML = '<p class="empty-state">Nenhuma punição registrada.</p>';
       return;
@@ -325,10 +330,8 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
     container.innerHTML = rows.map(p => {
       const teamName = _escapeHtml(`${p.city || ''} ${p.name || ''}`.trim() || 'Time');
       const league = p.league || p.team_league || '-';
-      const reverted = !!p.reverted_at;
-      // Revertida > já cumprida > ativa: revertida é a punição desfeita, já
-      // cumprida é a que vale mas não cobra. Dizer "Ativa" nas duas mentiria.
-      const cumprida = !reverted && !!Number(p.ja_cumprida);
+      // Sobraram duas: a que vale e cobra, e a que vale sem cobrar.
+      const cumprida = !!Number(p.ja_cumprida);
       const punLabel = _escapeHtml(p.punishment_label || _getTypeLabel(p.type));
       const initial = teamName.charAt(0).toUpperCase();
       const pickChip = p.pick_id
@@ -339,10 +342,8 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
         const d = new Date((p.created_at || '').replace(' ', 'T'));
         if (!isNaN(d)) dataFmt = d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
       } catch (e) {}
-      const revertedInfo = reverted && p.reverted_at ? ` · revertida em ${String(p.reverted_at).slice(0, 10).split('-').reverse().join('/')}` : '';
-
       return `
-        <div class="pun-v2${reverted ? ' is-reverted' : ''}">
+        <div class="pun-v2">
           <div class="pun-v2-bar"></div>
           <div class="pun-v2-body">
             <div class="pun-v2-top">
@@ -353,23 +354,17 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
                   <span class="pun-v2-league">${league}</span>
                 </span>
               </div>
-              ${/* A REVERTIDA NÃO LEVA SELO. O canto de cima é onde se lê o
-                    que a punição está fazendo — e ela não está fazendo nada.
-                    O card já vem apagado (is-reverted) e a data diz "revertida
-                    em tal dia", então o selo era um terceiro aviso da mesma
-                    coisa, no lugar mais chamativo da linha. */ ''}
-              ${reverted ? '' : `
               <div class="pun-v2-actions">
                 <span class="pun-badge ${cumprida ? 'pun-badge-off' : 'pun-badge-on'}">${cumprida ? 'Já cumprida' : 'Ativa'}</span>
                 <button type="button" class="btn-reverter" onclick="revertPunishment(${p.id})"><i class="bi bi-arrow-counterclockwise"></i>Reverter</button>
-              </div>`}
+              </div>
             </div>
             <div class="pun-v2-chips">
               <span class="pun-chip type">${punLabel}</span>
               ${pickChip}
             </div>
             ${p.motive ? `<div class="pun-v2-motive">${_escapeHtml(p.motive)}</div>` : ''}
-            <div class="pun-v2-date"><i class="bi bi-clock"></i> ${dataFmt}${revertedInfo}</div>
+            <div class="pun-v2-date"><i class="bi bi-clock"></i> ${dataFmt}</div>
           </div>
         </div>`;
     }).join('');

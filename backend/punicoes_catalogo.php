@@ -99,7 +99,7 @@ const PUNICAO_EFEITOS = [
        (trades.php já faz isso na virada). E aparece onde o GM olha: o
        contador de trocas dele fica em 10/10, não num aviso escondido. */
     'CICLO_SEM_TROCA' => [
-        'label' => 'Ciclo sem troca (zera as trocas do ciclo)',
+        'label' => 'Ciclo sem troca',
         'modo' => 'aplica', 'duracao' => 'periodo', 'valor' => null,
         'tag' => 'Ciclo sem troca',
     ],

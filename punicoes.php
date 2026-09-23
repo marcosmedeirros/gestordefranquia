@@ -359,6 +359,15 @@ try {
         .btn-reverter:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
         .btn-reverter:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
+        /* Voltar pro admin: neutro ao lado do vermelho do "zerar". Se os dois
+           fossem iguais, o botão que apaga a liga inteira teria o mesmo peso
+           visual do que só navega. */
+        .btn-voltar-admin {
+            border: 1px solid var(--border-md); color: var(--text-2); background: var(--panel-2);
+            font-weight: 600; transition: all var(--t) var(--ease);
+        }
+        .btn-voltar-admin:hover { border-color: var(--border-red); color: var(--red); background: var(--panel-3); }
+
         /* Mesmo caso do .btn-reverter: o js escreve .empty-state nas listas
            vazias ("Nenhuma punição registrada") e a regra também tinha
            ficado só no admin.php. Sem ela o texto saía encostado à esquerda,
@@ -436,9 +445,20 @@ try {
                 <div class="page-eyebrow">Admin · <?= htmlspecialchars(implode(" · ", $ligasQueAdministra ?: [$ligaDaTela])) ?></div>
                 <h1 class="page-title"><i class="bi bi-exclamation-triangle-fill"></i> Punições</h1>
             </div>
-            <button type="button" class="btn btn-outline-danger btn-sm" id="btnZerarPunicoesAvisos">
-                <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar punições e avisos da liga
-            </button>
+            <?php /* A volta pro admin fica AQUI, e não na sidebar: quem chega
+                     nesta tela vem do card de Punições do admin, e sem saída
+                     visível o caminho de volta era o botão do navegador. Os
+                     dois no mesmo canto porque são as duas ações que não são
+                     "aplicar punição"; o zerar segue vermelho porque apaga a
+                     liga inteira, e este é neutro. */ ?>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <a href="/admin.php" class="btn btn-sm btn-voltar-admin">
+                    <i class="bi bi-arrow-left me-1"></i>Voltar pro admin
+                </a>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btnZerarPunicoesAvisos">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar punições e avisos da liga
+                </button>
+            </div>
         </div>
 
         <div class="content">
