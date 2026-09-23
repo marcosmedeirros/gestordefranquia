@@ -255,11 +255,25 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, boo
             SELECT tsp.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
                    t.photo_url,
-                   SUM(tsp.points)                    AS pontos,
-                   SUM(COALESCE(tsp.points_regular,0))  AS pts_regular,
-                   SUM(COALESCE(tsp.points_playoffs,0)) AS pts_playoffs,
-                   SUM(COALESCE(tsp.points_prizes,0))   AS pts_premios,
-                   COUNT(DISTINCT s.season_number)      AS temporadas
+                   SUM(tsp.points)                 AS pontos,
+                   COUNT(DISTINCT s.season_number) AS temporadas,
+                   /* Os TÍTULOS da janela saem de playoff_results, e não de
+                      team_season_points: lá só há pontuação, e pontos de
+                      playoff não dizem quem foi campeão — um vice pontua. Esta
+                      tabela também sobrevive ao reset de sprint, ao contrário
+                      de team_ranking_points, que é apagada nele. */
+                   /* A liga vem por PARÂMETRO, e não de `s2.league =
+                      tsp.league`: as duas colunas têm collation diferente
+                      (uca1400 numa, unicode noutra) e compará-las derruba a
+                      consulta com erro 1267, de mistura ilegal de collations —
+                      a tabela inteira vinha vazia, em todas as ligas. */
+                   (SELECT COUNT(*) FROM playoff_results pr
+                     JOIN seasons s2 ON s2.id = pr.season_id
+                    WHERE pr.team_id = tsp.team_id
+                      AND pr.position = 'champion'
+                      AND s2.league = ?
+                      AND s2.season_number BETWEEN ? AND ?
+                      AND s2.sprint_id = s.sprint_id) AS titulos
             FROM team_season_points tsp
             JOIN seasons s ON s.id = tsp.season_id
             LEFT JOIN teams t ON t.id = tsp.team_id
@@ -268,9 +282,9 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, boo
               AND s.sprint_id = (SELECT id FROM sprints
                                  WHERE league = ? AND status = 'active'
                                  ORDER BY id DESC LIMIT 1)
-            GROUP BY tsp.team_id, time, t.photo_url
-            ORDER BY pontos DESC, temporadas DESC, time ASC");
-        $st->execute([$liga, $de, $ate, $liga]);
+            GROUP BY tsp.team_id, time, t.photo_url, s.sprint_id
+            ORDER BY pontos DESC, titulos DESC, time ASC");
+        $st->execute([$liga, $de, $ate, $liga, $de, $ate, $liga]);
         $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('[ciclos] classificacao: ' . $e->getMessage());
@@ -282,8 +296,8 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, boo
     $pos = 0;
     foreach ($linhas as &$l) {
         $l['pos'] = ++$pos;
-        foreach (['pontos', 'pts_regular', 'pts_playoffs', 'pts_premios', 'temporadas', 'team_id'] as $k) {
-            $l[$k] = (int)$l[$k];
+        foreach (['pontos', 'temporadas', 'titulos', 'team_id'] as $k) {
+            $l[$k] = (int)($l[$k] ?? 0);
         }
     }
     return $linhas;
@@ -311,25 +325,30 @@ function cicloAplicarCorte(PDO $pdo, string $liga, array $linhas, int $de, int $
 
         if ($corte > $ate) {
             // Assumiu depois do bloco todo: não fez nada dentro dele.
-            $l['pontos'] = 0; $l['pts_regular'] = 0; $l['pts_playoffs'] = 0;
-            $l['pts_premios'] = 0; $l['temporadas'] = 0;
+            $l['pontos'] = 0; $l['temporadas'] = 0; $l['titulos'] = 0;
             continue;
         }
 
         try {
+            /* O TÍTULO TAMBÉM ENTRA NO CORTE. Ele é conquista de quem estava
+               lá: o Hall da Fama já leva os títulos com o GM quando ele sobe
+               (hallSeguirGm), então deixá-los somando no time que ele deixou
+               daria o mesmo título a duas pessoas. */
             $st = $pdo->prepare("
                 SELECT SUM(tsp.points) AS pontos,
-                       SUM(COALESCE(tsp.points_regular,0))  AS pts_regular,
-                       SUM(COALESCE(tsp.points_playoffs,0)) AS pts_playoffs,
-                       SUM(COALESCE(tsp.points_prizes,0))   AS pts_premios,
-                       COUNT(DISTINCT s.season_number)      AS temporadas
+                       COUNT(DISTINCT s.season_number) AS temporadas,
+                       (SELECT COUNT(*) FROM playoff_results pr
+                         JOIN seasons s2 ON s2.id = pr.season_id
+                        WHERE pr.team_id = ? AND pr.position = 'champion'
+                          AND s2.league = ? AND s2.season_number BETWEEN ? AND ?) AS titulos
                   FROM team_season_points tsp
                   JOIN seasons s ON s.id = tsp.season_id
                  WHERE tsp.team_id = ? AND tsp.league = ?
                    AND s.season_number BETWEEN ? AND ?");
-            $st->execute([(int)$l['team_id'], $liga, $corte, $ate]);
+            $st->execute([(int)$l['team_id'], $liga, $corte, $ate,
+                          (int)$l['team_id'], $liga, $corte, $ate]);
             $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-            foreach (['pontos','pts_regular','pts_playoffs','pts_premios','temporadas'] as $k) {
+            foreach (['pontos', 'temporadas', 'titulos'] as $k) {
                 $l[$k] = (int)($r[$k] ?? 0);
             }
         } catch (Throwable $e) {
@@ -340,8 +359,8 @@ function cicloAplicarCorte(PDO $pdo, string $liga, array $linhas, int $de, int $
 
     // A ordem muda depois do corte: quem zerou desce.
     usort($linhas, fn($a, $b) =>
-        [(int)$b['pontos'], (int)$b['temporadas'], $a['time']]
-    <=> [(int)$a['pontos'], (int)$a['temporadas'], $b['time']]);
+        [(int)$b['pontos'], (int)$b['titulos'], $a['time']]
+    <=> [(int)$a['pontos'], (int)$a['titulos'], $b['time']]);
 
     return $linhas;
 }
@@ -366,11 +385,17 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
             SELECT tsp.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
                    t.photo_url,
-                   SUM(tsp.points)                      AS pontos,
-                   SUM(COALESCE(tsp.points_regular,0))  AS pts_regular,
-                   SUM(COALESCE(tsp.points_playoffs,0)) AS pts_playoffs,
-                   SUM(COALESCE(tsp.points_prizes,0))   AS pts_premios,
-                   COUNT(DISTINCT s.season_number)      AS temporadas
+                   SUM(tsp.points)                 AS pontos,
+                   COUNT(DISTINCT s.season_number) AS temporadas,
+                   /* Liga por parâmetro — ver a nota em cicloClassificacao
+                      sobre o choque de collation. */
+                   (SELECT COUNT(*) FROM playoff_results pr
+                     JOIN seasons s2 ON s2.id = pr.season_id
+                    WHERE pr.team_id = tsp.team_id
+                      AND pr.position = 'champion'
+                      AND s2.league = ?
+                      AND s2.season_number BETWEEN 1 AND ?
+                      AND s2.sprint_id = s.sprint_id) AS titulos
             FROM team_season_points tsp
             JOIN seasons s ON s.id = tsp.season_id
             LEFT JOIN teams t ON t.id = tsp.team_id
@@ -379,9 +404,9 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
               AND s.sprint_id = (SELECT id FROM sprints
                                  WHERE league = ? AND status = 'active'
                                  ORDER BY id DESC LIMIT 1)
-            GROUP BY tsp.team_id, time, t.photo_url
-            ORDER BY pontos DESC, temporadas DESC, time ASC");
-        $st->execute([$liga, $ultimo, $liga]);
+            GROUP BY tsp.team_id, time, t.photo_url, s.sprint_id
+            ORDER BY pontos DESC, titulos DESC, time ASC");
+        $st->execute([$liga, $ultimo, $liga, $ultimo, $liga]);
         $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('[ciclos] geral: ' . $e->getMessage());
@@ -396,7 +421,7 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
     $pos = 0;
     foreach ($linhas as &$l) {
         $l['pos'] = ++$pos;
-        foreach (['pontos', 'pts_regular', 'pts_playoffs', 'pts_premios', 'temporadas', 'team_id'] as $k) {
+        foreach (['pontos', 'temporadas', 'titulos', 'team_id'] as $k) {
             $l[$k] = (int)$l[$k];
         }
     }

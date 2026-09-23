@@ -699,21 +699,23 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         // ── A tabela: do bloco aberto, ou a geral da sprint ───────────
         const dados = aba === 'geral' ? (B.geral || []) : ((B.tabelas || {})[sel] || []);
 
+        /* Só pontos e títulos. As colunas de regular, playoffs e prêmios
+           saíram: são a decomposição de um número que a tela já mostra, e
+           somavam sete colunas numa tabela que no celular precisa caber em
+           375px. */
         const linhas = dados.length ? dados.map(l => `
             <tr>
               <td style="text-align:center;font-weight:800;color:${l.pos<=3?'var(--amber)':'var(--text-3)'}">${l.pos}</td>
               <td><div style="display:flex;align-items:center;gap:10px">${escudo(l.photo_url, l.time)}<span>${esc(l.time)}</span></div></td>
-              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.temporadas}</td>
-              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_regular}</td>
-              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_playoffs}</td>
-              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_premios}</td>
+              <td style="text-align:center;color:${l.titulos > 0 ? 'var(--amber)' : 'var(--text-3)'};font-weight:${l.titulos > 0 ? '800' : '500'}">${
+                  l.titulos > 0 ? '<i class="bi bi-trophy-fill" style="font-size:11px"></i> ' + l.titulos : '—'}</td>
               <td style="text-align:center;font-weight:800;font-size:15px">${l.pontos}</td>
             </tr>`).join('')
           // Vazio aqui quase sempre significa a mesma coisa, e vale dizer qual:
           // o ranking normal usa um total acumulado (teams.ranking_points),
           // enquanto o bloco precisa de pontuação POR TEMPORADA. Sem dizer
           // isso, a aba parece quebrada quando na verdade falta lançar.
-          : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">
+          : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">
                Nenhuma pontuação lançada ${aba === 'geral' ? 'nesta sprint' : 'nesta ' + esc(B.rotulo)} ainda.<br>
                <span style="font-size:11.5px">A conta soma a pontuação <strong>de cada temporada</strong>.
                O total da aba da liga é um acumulado e não dá pra fatiar —
@@ -753,11 +755,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                   <thead><tr>
                     <th style="width:60px;text-align:center">Pos</th>
                     <th>Franquia</th>
-                    <th class="hide-mobile" style="width:70px;text-align:center">Temps</th>
-                    <th class="hide-mobile" style="width:80px;text-align:center">Regular</th>
-                    <th class="hide-mobile" style="width:80px;text-align:center">Playoffs</th>
-                    <th class="hide-mobile" style="width:80px;text-align:center">Prêmios</th>
-                    <th style="width:90px;text-align:center"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Total</th>
+                    <?php /* nowrap e 72px: com 90px e o ícone antes de "Total",
+                             o cabeçalho quebrava em duas linhas no celular e a
+                             palavra saía cortada na borda. */ ?>
+                    <th style="width:72px;text-align:center;white-space:nowrap">Títulos</th>
+                    <th style="width:72px;text-align:center;white-space:nowrap">Total</th>
                   </tr></thead>
                   <tbody>${linhas}</tbody>
                 </table>
