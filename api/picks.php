@@ -82,10 +82,25 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
     if (!$draftSession) {
         return $pick;
     }
-    if ($sessionSeasonId && !empty($pick['season_id']) && (int)$pick['season_id'] !== $sessionSeasonId) {
-        return $pick;
-    }
-    if ($sessionYear && empty($pick['season_id']) && !empty($pick['season_year']) && (int)$pick['season_year'] !== $sessionYear) {
+    /*
+     * QUEM LIGA A PICK À VAGA É O ANO, não o season_id.
+     *
+     * Esta era a última cópia do defeito que api/trades.php já tinha
+     * corrigido. Aqui a comparação por ano só rodava quando a pick NÃO tinha
+     * season_id — e como quase toda pick tem, o que valia na prática era o
+     * season_id. O resultado ficava exatamente invertido:
+     *
+     * Medido na NEXT em 23/09/2026, com o draft da temporada 4 (ano 2019,
+     * distribuindo a classe de 2020). A pick de 2020 do Dallas tem season_id
+     * 167 e era RECUSADA por não ser 179; a pick de 2024 do mesmo time tem
+     * season_id 179 — o da sessão — e era ANOTADA como "Escolha 15". A tela
+     * mostrava "2024 R1 · Draft atual" e a classe certa desaparecia.
+     *
+     * O season_id da pick é o da temporada em que ela foi GERADA, não o do
+     * draft que vai distribuí-la: a classe de 2024 foi criada na temporada 4
+     * junto com as outras. Por isso ele não serve de chave, e o ano serve.
+     */
+    if ($sessionYear && !empty($pick['season_year']) && (int)$pick['season_year'] !== $sessionYear) {
         return $pick;
     }
     $round = isset($pick['round']) ? (int)$pick['round'] : 0;
@@ -124,18 +139,32 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
     return $pick;
 }
 
-function computeSeasonDisplayYear(?array $row): ?int
+/**
+ * O ano da classe de picks que este draft distribui.
+ *
+ * Delega pra draftAnoDasPicks(), que é a mesma resposta usada pela Trade
+ * Machine, pelos cards de troca e pela sincronização da ordem do draft.
+ *
+ * A conta anterior estava errada de duas formas ao mesmo tempo. Primeiro,
+ * respondia o ano da TEMPORADA e não o da classe de picks — o draft da
+ * temporada de 2019 distribui a classe de 2020, e ela devolvia 2019.
+ * Segundo, usava isset(start_year, season_number), e isset é verdadeiro pra
+ * ZERO: numa base com start_year = 0 ela devolvia season_number - 1, um
+ * "ano" 1. Quando esse número sai diferente do resto do sistema, a escolha
+ * perde o número no card e a transferência da vaga não acontece.
+ */
+function computeSeasonDisplayYear(?array $row, ?PDO $pdo = null, ?int $seasonId = null): ?int
 {
-    if (!$row) {
-        return null;
+    if ($pdo && $seasonId) {
+        $ano = draftAnoDasPicks($pdo, $seasonId);
+        if ($ano > 0) return $ano;
     }
-    if (isset($row['start_year'], $row['season_number'])) {
+    if (!$row) return null;
+    // Sem PDO (chamadas antigas): a conta velha, mas sem o furo do isset.
+    if (!empty($row['start_year']) && isset($row['season_number'])) {
         return (int)$row['start_year'] + (int)$row['season_number'] - 1;
     }
-    if (!empty($row['year'])) {
-        return (int)$row['year'];
-    }
-    return null;
+    return !empty($row['year']) ? (int)$row['year'] : null;
 }
 
 // POST - Desabilitado: sistema gera picks automaticamente
@@ -225,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 try {
                     $stmtSeason = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?');
                     $stmtSeason->execute([$sessionSeasonId]);
-                    $sessionYear = computeSeasonDisplayYear($stmtSeason->fetch(PDO::FETCH_ASSOC) ?: null);
+                    $sessionYear = computeSeasonDisplayYear($stmtSeason->fetch(PDO::FETCH_ASSOC) ?: null, $pdo, $sessionSeasonId);
                 } catch (Exception $e) {
                     $sessionYear = null;
                 }
