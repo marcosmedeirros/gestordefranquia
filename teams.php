@@ -73,13 +73,16 @@ $seasonDisplayYear  = (string)$currentSeasonYear;
 $picksAnoBase = anoDeCorteDasPicks($pdo, (string)$user['league']) ?: $currentSeasonYear;
 
 /* QUAL CLASSE ESTÁ NA MESA AGORA — 0 quando não há draft rolando.
-   A lista mostra 6 anos porque são a classe EM DISPUTA mais as 5 futuras
-   (getPickWindowYears, em api/seasons.php, usa horizonte 5). Sem dizer qual
-   é qual, os 6 se leem como "6 anos futuros", e foi daí que saiu o "tem algo
-   errado" da NEXT: o GM via 2020 na lista, o draft de 2020 acontecendo, e a
-   tela do draft dizendo "2019". A classe em disputa continua na lista de
-   propósito — durante o draft as escolhas dele são justamente as que estão
-   valendo —, mas agora ela vem marcada. */
+   Serve pra TIRAR essa classe da lista de picks do time: a pergunta ali é o
+   que o time tem pra frente, e a classe em disputa não é pra frente — ela
+   está sendo escolhida agora. Mostrá-la punha 2020 na lista no dia em que o
+   draft de 2020 acontecia, e foi o que fez a NEXT achar que a contagem
+   estava errada. Sobram as 5 futuras (o horizonte de getPickWindowYears, em
+   api/seasons.php).
+
+   O corte compartilhado (anoDeCorteDasPicks) NÃO muda: na Trade Machine a
+   classe em disputa é negociável enquanto o draft roda, e é isso que aquele
+   corte descreve. Aqui é outra pergunta, então é outro corte. */
 $picksAnoEmDraft = 0;
 try {
     require_once __DIR__ . '/backend/draft_swaps.php';
@@ -1639,7 +1642,7 @@ function getSerasaScore(int $avisos): array {
                     <div class="spinner-border text-red" role="status"></div>
                 </div>
                 <div id="picksContent" style="display:none">
-                    <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Picks com o time <span style="color:var(--text-3)">— a classe em disputa e as 5 futuras</span></p>
+                    <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Picks com o time <span style="color:var(--text-3)">— as 5 classes futuras</span></p>
                     <div class="table-responsive">
                         <table class="table table-dark mb-0">
                             <thead><tr><th>Classe</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
@@ -1897,7 +1900,19 @@ function getSerasaScore(int $avisos): array {
             const data = await fetch(`/api/picks.php?team_id=${teamId}&include_away=1`).then(r => r.json());
             if (data.error) throw new Error(data.error);
 
-            const baseYear = Number(picksAnoBase) || Number(currentSeasonYear) || 0;
+            /* A CLASSE QUE ESTÁ NO DRAFT NÃO ENTRA NESTA LISTA.
+               Aqui a pergunta é "o que este time tem pra frente", e a classe
+               em disputa não é pra frente: ela está sendo escolhida na mesa
+               agora. Mostrá-la punha 2020 na lista de um time no dia em que o
+               draft de 2020 acontecia, e foi o que fez a NEXT achar que a
+               contagem estava errada. Sobram as 5 futuras.
+
+               O corte compartilhado (anoDeCorteDasPicks) fica como está de
+               propósito: na Trade Machine a classe em disputa É negociável
+               enquanto o draft roda, e mexer lá mudaria isso. */
+            const emDraft = Number(picksAnoEmDraft) || 0;
+            const padrao = Number(picksAnoBase) || Number(currentSeasonYear) || 0;
+            const baseYear = emDraft > 0 ? Math.max(emDraft + 1, padrao) : padrao;
             let picks = (data.picks || []).filter(pk => !pk.usada && Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
@@ -1968,13 +1983,7 @@ function getSerasaScore(int $avisos): array {
                     const entry = grouped.get(year);
                     const round1 = entry.r1.length ? entry.r1.join('') : '<span style="color:var(--text-2)">-</span>';
                     const round2 = entry.r2.length ? entry.r2.join('') : '<span style="color:var(--text-2)">-</span>';
-                    // A classe que está sendo escolhida agora é a única da
-                    // lista que não é futura: sem a marca, os 6 anos se leem
-                    // como 6 drafts por vir.
-                    const emDraft = picksAnoEmDraft && Number(year) === picksAnoEmDraft
-                        ? `<div style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:.04em;text-transform:uppercase;margin-top:2px">no draft agora</div>`
-                        : '';
-                    listEl.innerHTML += `<tr><td>${year}${emDraft}</td><td>${round1}</td><td>${round2}</td></tr>`;
+                    listEl.innerHTML += `<tr><td>${year}</td><td>${round1}</td><td>${round2}</td></tr>`;
                 });
             }
 
