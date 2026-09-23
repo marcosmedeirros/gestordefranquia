@@ -29,10 +29,17 @@
  *   blocos    quantos blocos a tela desenha (a grade é fixa: ver cicloQuantos)
  *   rotulo    como a liga chama o bloco
  *   premio    quanto vale o bloco em reais, ou null quando não há prêmio
+ *   corte_gm  a pontuação conta só a partir de quando o GM atual assumiu?
+ *
+ * O corte_gm está ligado só na ROOKIE porque é lá que a regra existe: GM que
+ * sobe pra Rise deixa a cadeira, e quem assume não herda os pontos de quem
+ * subiu (o admin já zera o ranking_points nessas trocas). Na ELITE ele fica
+ * desligado até alguém pedir — ligar sozinho mudaria a aba ELITE 5T, que não
+ * foi o que pediram.
  */
 const CICLO_CONFIG = [
-    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'premio' => null],
-    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'premio' => 40],
+    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'premio' => null, 'corte_gm' => false],
+    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'premio' => 40,   'corte_gm' => true],
 ];
 
 /* Mantidas porque rankings.php as usa. A ELITE continua sendo a liga padrão de
@@ -173,14 +180,66 @@ function cicloFechado(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): bool
 }
 
 /**
+ * A PARTIR DE QUE TEMPORADA cada time conta pontos.
+ *
+ * Quando um GM sobe de liga (ou desiste), a cadeira fica pra outra pessoa — e
+ * quem assume não herda o que o anterior fez. O admin já zera o
+ * `teams.ranking_points` nessas trocas; esta função é o mesmo corte aplicado
+ * ao histórico por temporada, que é de onde os blocos somam.
+ *
+ * A data da troca vem de `team_gm_historico` e virá sempre a MAIS RECENTE: um
+ * time pode ter trocado três vezes, e o que vale é o GM que está lá agora. A
+ * temporada sai de `seasons.created_at` — é a última temporada que já havia
+ * começado quando a troca aconteceu.
+ *
+ * @return array [team_id => primeira temporada que conta]
+ */
+function cicloCortesDeGm(PDO $pdo, string $liga): array
+{
+    static $cache = [];
+    $liga = strtoupper(trim($liga));
+    if (isset($cache[$liga])) return $cache[$liga];
+
+    $cache[$liga] = [];
+    try {
+        $st = $pdo->prepare("
+            SELECT h.team_id,
+                   (SELECT MAX(se.season_number) FROM seasons se
+                     WHERE se.league = ? AND se.created_at <= h.criado_em) AS temporada
+              FROM team_gm_historico h
+              JOIN teams t ON t.id = h.team_id
+             WHERE t.league = ?
+               AND h.user_id_novo IS NOT NULL
+               AND h.criado_em = (SELECT MAX(h2.criado_em) FROM team_gm_historico h2
+                                   WHERE h2.team_id = h.team_id AND h2.user_id_novo IS NOT NULL)");
+        $st->execute([$liga, $liga]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $t = (int)($r['temporada'] ?? 0);
+            // Troca antes da primeira temporada não corta nada: o GM está lá
+            // desde o começo, mesmo que o registro exista.
+            if ($t > 1) $cache[$liga][(int)$r['team_id']] = $t;
+        }
+    } catch (Throwable $e) {
+        error_log('[ciclos] cortes de gm: ' . $e->getMessage());
+    }
+    return $cache[$liga];
+}
+
+/**
  * A soma de pontos de cada time num bloco.
  *
  * Devolve as linhas ordenadas, com posição já calculada. Empate é resolvido
  * por mais temporadas pontuadas e depois pelo nome — sem critério de desempate
  * a ordem mudava a cada carregamento e a mesma tela mostrava campeões
  * diferentes.
+ *
+ * @param bool $cortarPorGm conta só o que o GM ATUAL fez. Vale na
+ *        classificação geral e no bloco em andamento, e NÃO num bloco já
+ *        fechado: a Sprint 1 da ROOKIE foi ganha pelo Marcos com o Hornets, e
+ *        aplicar o corte lá apagaria o campeão de uma competição que
+ *        aconteceu — justamente a que dá a promoção.
  */
-function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): array
+function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, bool $cortarPorGm = false): array
 {
     $liga = strtoupper(trim($liga));
     [$de, $ate] = cicloIntervalo($pdo, $ciclo, $liga);
@@ -218,6 +277,8 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): ar
         return [];
     }
 
+    if ($cortarPorGm) $linhas = cicloAplicarCorte($pdo, $liga, $linhas, $de, $ate);
+
     $pos = 0;
     foreach ($linhas as &$l) {
         $l['pos'] = ++$pos;
@@ -225,6 +286,63 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): ar
             $l[$k] = (int)$l[$k];
         }
     }
+    return $linhas;
+}
+
+/**
+ * Refaz a soma dos times que trocaram de GM, contando só a partir da troca.
+ *
+ * Só recalcula QUEM TROCOU: uma segunda consulta pra três ou quatro times é
+ * barata, e refazer a conta de todos em PHP jogaria fora o GROUP BY do banco
+ * pra nada.
+ *
+ * O time cuja troca é posterior ao bloco inteiro fica com zero — e continua na
+ * lista, porque ele existe e está disputando: sumir da tabela faria parecer
+ * que o clube deixou a liga.
+ */
+function cicloAplicarCorte(PDO $pdo, string $liga, array $linhas, int $de, int $ate): array
+{
+    $cortes = cicloCortesDeGm($pdo, $liga);
+    if (!$cortes) return $linhas;
+
+    foreach ($linhas as &$l) {
+        $corte = $cortes[(int)$l['team_id']] ?? 0;
+        if ($corte <= $de) continue;   // o GM atual já estava lá no começo do bloco
+
+        if ($corte > $ate) {
+            // Assumiu depois do bloco todo: não fez nada dentro dele.
+            $l['pontos'] = 0; $l['pts_regular'] = 0; $l['pts_playoffs'] = 0;
+            $l['pts_premios'] = 0; $l['temporadas'] = 0;
+            continue;
+        }
+
+        try {
+            $st = $pdo->prepare("
+                SELECT SUM(tsp.points) AS pontos,
+                       SUM(COALESCE(tsp.points_regular,0))  AS pts_regular,
+                       SUM(COALESCE(tsp.points_playoffs,0)) AS pts_playoffs,
+                       SUM(COALESCE(tsp.points_prizes,0))   AS pts_premios,
+                       COUNT(DISTINCT s.season_number)      AS temporadas
+                  FROM team_season_points tsp
+                  JOIN seasons s ON s.id = tsp.season_id
+                 WHERE tsp.team_id = ? AND tsp.league = ?
+                   AND s.season_number BETWEEN ? AND ?");
+            $st->execute([(int)$l['team_id'], $liga, $corte, $ate]);
+            $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+            foreach (['pontos','pts_regular','pts_playoffs','pts_premios','temporadas'] as $k) {
+                $l[$k] = (int)($r[$k] ?? 0);
+            }
+        } catch (Throwable $e) {
+            error_log('[ciclos] corte: ' . $e->getMessage());
+        }
+    }
+    unset($l);
+
+    // A ordem muda depois do corte: quem zerou desce.
+    usort($linhas, fn($a, $b) =>
+        [(int)$b['pontos'], (int)$b['temporadas'], $a['time']]
+    <=> [(int)$a['pontos'], (int)$a['temporadas'], $b['time']]);
+
     return $linhas;
 }
 
@@ -270,6 +388,11 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
         return [];
     }
 
+    /* A GERAL É A DISPUTA VIVA, então ela conta só o que o GM atual fez: quem
+       subiu pra Rise saiu da briga, e deixar os pontos dele na tabela daria ao
+       time que ele deixou uma vantagem que o novo GM não conquistou. */
+    if ($cfg['corte_gm']) $linhas = cicloAplicarCorte($pdo, $liga, $linhas, 1, $ultimo);
+
     $pos = 0;
     foreach ($linhas as &$l) {
         $l['pos'] = ++$pos;
@@ -297,13 +420,17 @@ function cicloResumos(PDO $pdo, string $liga = CICLO_LIGA): array
     if (!$quantos) return [];
 
     $atual = cicloAtual($pdo, $liga);
-    $premio = cicloConfig($liga)['premio'];
+    $cfg = cicloConfig($liga);
+    $premio = $cfg['premio'];
 
     $out = [];
     for ($c = 1; $c <= $quantos; $c++) {
         [$de, $ate] = cicloIntervalo($pdo, $c, $liga);
-        $tab = cicloClassificacao($pdo, $c, $liga);
         $fechado = cicloFechado($pdo, $c, $liga);
+        /* O CORTE NÃO ENTRA EM BLOCO FECHADO. Bloco fechado é resultado, e
+           resultado não se reescreve quando o campeão muda de liga — a Sprint 1
+           da ROOKIE continua sendo do Hornets com o Marcos. */
+        $tab = cicloClassificacao($pdo, $c, $liga, $cfg['corte_gm'] && !$fechado);
         $tem = $tab && $tab[0]['pontos'] > 0;
 
         $out[] = [
@@ -352,7 +479,9 @@ function cicloPacoteDaLiga(PDO $pdo, string $liga): array
 
     $tabelas = [];
     foreach (cicloResumos($pdo, $liga) as $r) {
-        $tabelas[$r['ciclo']] = cicloClassificacao($pdo, $r['ciclo'], $liga);
+        // Mesma régua dos cards: corte só onde o bloco ainda está em disputa.
+        $tabelas[$r['ciclo']] = cicloClassificacao($pdo, $r['ciclo'], $liga,
+                                                   $cfg['corte_gm'] && !$r['fechado']);
     }
 
     return [

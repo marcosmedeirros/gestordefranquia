@@ -451,13 +451,15 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 <button type="button" class="filter-btn active" data-league="ELITE" onclick="loadRanking('ELITE')">ELITE</button>
                 <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
                 <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
-                <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
+                <?php /* A ROOKIE abre nas Sprints: é assim que a liga é jogada
+                         desde 23/09/2026. Ela não tem mais a tabela acumulada
+                         solta — a classificação geral virou uma aba lá dentro. */ ?>
+                <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadCiclo('ROOKIE')"
+                        title="5 Sprints de 3 temporadas, R$ 40 cada — com a classificação geral numa aba">ROOKIE</button>
                 <?php /* Ranking por bloco. Fica junto das ligas porque é outra
                          forma de ver a MESMA liga, não uma liga nova. */ ?>
                 <button type="button" class="filter-btn" data-league="ELITE5T" onclick="loadCiclo('ELITE')"
                         title="Soma das últimas 5 temporadas da ELITE — zera a cada ciclo">ELITE 5T</button>
-                <button type="button" class="filter-btn" data-league="ROOKIESPRINT" onclick="loadCiclo('ROOKIE')"
-                        title="As 5 Sprints da ROOKIE — 3 temporadas cada, R$ 40 por Sprint">ROOKIE Sprints</button>
                 <button type="button" class="wpp-btn" id="btnCopyWpp" onclick="copyRankingWpp()" title="Copia o ranking desta liga em texto, pronto para colar no WhatsApp">
                     <i class="bi bi-whatsapp"></i> <span>Copiar p/ WhatsApp</span>
                 </button>
@@ -648,7 +650,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         // Cancela uma busca de ranking em voo: sem isto, a resposta dela
         // chegaria depois e sobrescreveria esta tela.
         ++_rankingRequestSeq;
-        const botao = liga === 'ROOKIE' ? 'ROOKIESPRINT' : 'ELITE5T';
+        // A ROOKIE marca o botão dela mesma; a ELITE tem um botão separado
+        // porque lá a tabela acumulada continua sendo uma visão válida.
+        const botao = liga === 'ROOKIE' ? 'ROOKIE' : 'ELITE5T';
         currentLeague = botao;
         updateActiveButton(botao);
         document.getElementById('wppManual').style.display = 'none';
