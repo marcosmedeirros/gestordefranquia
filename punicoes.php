@@ -5,12 +5,32 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
-if (($user['user_type'] ?? 'jogador') !== 'admin') {
+$pdo = db();
+
+/* O PORTÃO É O MESMO DA API (api/punicoes.php): hasAdminAccess, que aceita
+   admin geral E admin de liga.
+
+   Aqui estava `user_type !== 'admin'`, e isso não descreve quem administra:
+   admin de liga é user_type='jogador' com linha em `league_admins` — em
+   produção são 20 pessoas assim, contra 12 admins gerais. Enquanto a tela
+   morava dentro do admin.php ninguém tropeçava, porque lá o portão já era o
+   hasAdminAccess; quando a entrada passou a vir pra cá, elas começaram a
+   cair no dashboard. A API sempre deixou entrar e ainda barra liga por liga
+   (punBarrarLiga), então o portão frouxo aqui não abre nada além da tela. */
+if (!$user || empty($user['id']) || !hasAdminAccess($pdo, (int)$user['id'])) {
     header('Location: /dashboard.php');
     exit;
 }
 
-$pdo = db();
+/* A LIGA DA TELA é a que a pessoa administra, não a que ela joga.
+   `users.league` é onde o GM tem time — e admin de liga costuma administrar
+   outra: em produção há quem jogue na ELITE e administre só a RISE. Usar a
+   liga dele fazia o cabeçalho anunciar "ADMIN · ELITE" e a temporada do
+   rodapé vir da ELITE numa tela que só mexe na RISE. */
+$ligasQueAdministra = getAdminLeagues($pdo, (int)$user['id']);
+$ligaDaTela = in_array($user['league'], $ligasQueAdministra, true)
+    ? $user['league']
+    : ($ligasQueAdministra[0] ?? $user['league']);
 
 $team = null;
 try {
@@ -29,7 +49,7 @@ try {
         WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed'))
         ORDER BY s.created_at DESC LIMIT 1
     ");
-    $s->execute([$user['league']]);
+    $s->execute([$ligaDaTela]);
     $currentSeason = $s->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($currentSeason) {
         $seasonDisplayYear = isset($currentSeason['start_year'], $currentSeason['season_number'])
@@ -413,7 +433,7 @@ try {
     <main class="main">
         <div class="page-hero" style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div>
-                <div class="page-eyebrow">Admin · <?= htmlspecialchars($user['league']) ?></div>
+                <div class="page-eyebrow">Admin · <?= htmlspecialchars(implode(" · ", $ligasQueAdministra ?: [$ligaDaTela])) ?></div>
                 <h1 class="page-title"><i class="bi bi-exclamation-triangle-fill"></i> Punições</h1>
             </div>
             <button type="button" class="btn btn-outline-danger btn-sm" id="btnZerarPunicoesAvisos">
