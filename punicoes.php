@@ -236,6 +236,18 @@ try {
             font-size: 12px; color: var(--text-2); line-height: 1.5;
         }
         .previa-nada { font-size: 13px; color: var(--text-2); }
+        /* O check "já cumpriu": caixa e texto na mesma linha clicável, com a
+           explicação embaixo — sem ela ninguém sabe se marcar pune ou não. */
+        .chk-cumprida {
+            display: flex; align-items: flex-start; gap: 9px; margin-bottom: 14px;
+            padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--panel-2); cursor: pointer;
+        }
+        .chk-cumprida:hover { border-color: var(--border-md); }
+        .chk-cumprida input { margin-top: 2px; flex-shrink: 0; width: 15px; height: 15px; accent-color: #f59e0b; }
+        .chk-cumprida span { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; }
+        .chk-cumprida small { display: block; margin-top: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+        .chk-cumprida:has(input:checked) { border-color: #f59e0b; background: rgba(245,158,11,.08); }
 
         /* Quem está cumprindo alguma coisa agora */
         .ativa-item {
@@ -380,6 +392,13 @@ try {
                                 <label class="form-label">Observações <span class="lbl-hint">(opcional)</span></label>
                                 <textarea id="punicaoNotes" class="form-control" rows="2" placeholder="O que aconteceu, print, contexto..."></textarea>
                             </div>
+                            <?php /* JÁ CUMPRIU: registra sem cobrar. É pra quando o GM já pagou
+                                     a pena fora do sistema — o admin aplicou na mão, ou virou
+                                     acordo no grupo. Nasce DESMARCADO: punição nova pune. */ ?>
+                            <label class="chk-cumprida">
+                                <input type="checkbox" id="punicaoJaCumprida">
+                                <span>Já cumpriu<small>Fica registrada e conta pra reincidência, mas não pune o GM de novo</small></span>
+                            </label>
                             <button id="punicaoSubmit" class="btn-submit" disabled>
                                 <i class="bi bi-check2-circle"></i> Aplicar punição
                             </button>
@@ -419,6 +438,13 @@ try {
                                 <label class="form-label">Data da punição (manual)</label>
                                 <input type="datetime-local" id="punicaoDate" class="form-control" />
                             </div>
+                            <?php /* O mesmo check do quadro. Duas caixas e não uma compartilhada:
+                                     os dois painéis abrem juntos, e uma caixa só faria o admin
+                                     marcar aqui e aplicar lá em cima sem perceber. */ ?>
+                            <label class="chk-cumprida">
+                                <input type="checkbox" id="punicaoJaCumpridaAvulsa">
+                                <span>Já cumpriu<small>Só registra — não perde pick, não bloqueia trade nem FA</small></span>
+                            </label>
                             <button id="punicaoSubmitAvulsa" class="btn-submit-outline">
                                 <i class="bi bi-check2-circle"></i> Registrar avulsa
                             </button>

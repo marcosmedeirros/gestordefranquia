@@ -128,7 +128,8 @@ async function _carregarAtivas(league) {
   let lista = [];
   try {
     const d = await _pApi(`punicoes.php?action=punishments&league=${encodeURIComponent(league)}`);
-    lista = (d.punishments || []).filter(p => !p.reverted_at && p.efeitos_json);
+    // Já cumprida fica fora daqui: ninguém está cumprindo o que já foi pago.
+    lista = (d.punishments || []).filter(p => !p.reverted_at && !Number(p.ja_cumprida) && p.efeitos_json);
   } catch (e) { box.textContent = 'Não deu pra carregar.'; return; }
 
   /* Só o que corre no tempo E já começou. Perda de pick e advertência já
@@ -277,6 +278,9 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
       const teamName = _escapeHtml(`${p.city || ''} ${p.name || ''}`.trim() || 'Time');
       const league = p.league || p.team_league || '-';
       const reverted = !!p.reverted_at;
+      // Revertida > já cumprida > ativa: revertida é a punição desfeita, já
+      // cumprida é a que vale mas não cobra. Dizer "Ativa" nas duas mentiria.
+      const cumprida = !reverted && !!Number(p.ja_cumprida);
       const punLabel = _escapeHtml(p.punishment_label || _getTypeLabel(p.type));
       const initial = teamName.charAt(0).toUpperCase();
       const pickChip = p.pick_id
@@ -302,7 +306,7 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
                 </span>
               </div>
               <div class="pun-v2-actions">
-                <span class="pun-badge ${reverted ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : 'Ativa'}</span>
+                <span class="pun-badge ${reverted || cumprida ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : (cumprida ? 'Já cumprida' : 'Ativa')}</span>
                 ${reverted ? '' : `<button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="revertPunishment(${p.id})">Reverter</button>`}
               </div>
             </div>
@@ -409,9 +413,15 @@ window.initPunicoes = async function(preselectedLeague) {
         infracao_id: infracaoId,
         ocorrencia: _previaAtual.ocorrencia,
         notes: _el('punicaoNotes')?.value?.trim() || '',
+        // Marcado, o servidor registra e não cobra nada. @see api/punicoes.php
+        ja_cumprida: !!_el('punicaoJaCumprida')?.checked,
       })});
       const notes = _el('punicaoNotes');
       if (notes) notes.value = '';
+      // Desmarca depois de aplicar: o padrão é punir, e o check esquecido
+      // marcado faria a próxima punição não valer sem ninguém notar.
+      const chk = _el('punicaoJaCumprida');
+      if (chk) chk.checked = false;
       await _loadPicks(_curTeamId);
       await _carregarPrevia(_curTeamId, infracaoId);
       await _carregarAtivas(_curLeague);
@@ -442,7 +452,8 @@ window.initPunicoes = async function(preselectedLeague) {
       // A duração vem escolhida agora (temporada ou ciclo, com começo).
       // `season_scope` fica pro servidor traduzir quando não vier nada.
       duracao: _el('punicaoDuracao')?.value || 'TEMPORADA',
-      created_at: _el('punicaoDate')?.value || ''
+      created_at: _el('punicaoDate')?.value || '',
+      ja_cumprida: !!_el('punicaoJaCumpridaAvulsa')?.checked
     };
     if (type === 'PERDA_PICK_ESPECIFICA') {
       const pickId = Number(_el('punicaoPick')?.value || 0);
@@ -453,6 +464,8 @@ window.initPunicoes = async function(preselectedLeague) {
       await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify(payload) });
       const notes = _el('punicaoNotes');
       if (notes) notes.value = '';
+      const chk = _el('punicaoJaCumpridaAvulsa');
+      if (chk) chk.checked = false;
       await _loadPicks(_curTeamId);
       await window.loadPunishments({ teamId: _el('punicaoHistoryTeam')?.value || _curTeamId, league: _el('punicaoHistoryLeague')?.value || '' });
       _notify('success', 'Punição registrada!');
@@ -522,7 +535,11 @@ window.initPunicoes = async function(preselectedLeague) {
 // Auto-init quando carregado diretamente na punicoes.php
 (function () {
   function _tryAutoInit() {
-    if (_el('punicaoLeague')) window.initPunicoes();
+    // ?league= vem de quem chegou pelo admin: cai na liga que estava aberta
+    // lá, em vez de na primeira da lista.
+    const q = new URLSearchParams(location.search).get('league') || '';
+    const liga = /^(ELITE|NEXT|RISE|ROOKIE)$/i.test(q) ? q.toUpperCase() : '';
+    if (_el('punicaoLeague')) window.initPunicoes(liga);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _tryAutoInit);

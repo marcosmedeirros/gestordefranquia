@@ -7983,119 +7983,24 @@ async function _tacFeito(teamId, feito, el) {
 
 // ========== FREE AGENCY ADMIN ==========
 
-async function showPunicoes() {
-  appState.view = 'punicoes';
-  updateBreadcrumb();
-
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  const container = document.getElementById('mainContainer');
-  container.innerHTML = `
-    <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <button class="btn btn-outline-danger btn-sm" onclick="zerarPunicoesEAvisos('${league}')">
-        <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar punições e avisos da ${league}
-      </button>
-    </div>
-
-    <div class="row g-4">
-      <div class="col-lg-4">
-
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-plus-circle-fill"></i> Nova punição</div>
-          </div>
-          <div class="d-flex flex-column gap-3 mt-1">
-            <div>
-              <div class="pun-field-label">Motivo</div>
-              <select id="punicaoMotive" class="form-select"></select>
-            </div>
-            <input type="hidden" id="punicaoLeague" value="${league}">
-            <div>
-              <div class="pun-field-label">Time</div>
-              <select id="punicaoTeam" class="form-select"></select>
-            </div>
-            <div>
-              <div class="pun-field-label">Consequência</div>
-              <select id="punicaoType" class="form-select"></select>
-            </div>
-            <div id="punicaoPickRow" style="display:none">
-              <div class="pun-field-label">Pick específica</div>
-              <select id="punicaoPick" class="form-select"></select>
-            </div>
-            <div id="punicaoScopeRow" style="display:none">
-              <div class="pun-field-label">Temporada</div>
-              <select id="punicaoScope" class="form-select">
-                <option value="current">Temporada atual</option>
-                <option value="next">Próxima temporada</option>
-              </select>
-            </div>
-            <div>
-              <div class="pun-field-label">Observações</div>
-              <textarea id="punicaoNotes" class="form-control" rows="3" placeholder="Detalhes ou contexto..."></textarea>
-            </div>
-            <div>
-              <div class="pun-field-label">Data da punição</div>
-              <input type="datetime-local" id="punicaoDate" class="form-control">
-            </div>
-            <button id="punicaoSubmit" class="btn-orange" style="width:100%;justify-content:center;padding:10px">
-              <i class="bi bi-check2-circle"></i> Registrar punição
-            </button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-tag-fill"></i> Cadastrar motivo</div>
-          </div>
-          <div class="d-flex flex-column gap-3 mt-1">
-            <div>
-              <div class="pun-field-label">Novo motivo</div>
-              <input type="text" id="newMotiveLabel" class="form-control" placeholder="Ex: Diretrizes erradas">
-            </div>
-            <button class="btn-ghost" style="width:100%;justify-content:center" id="newMotiveBtn">
-              <i class="bi bi-plus-circle"></i> Salvar motivo
-            </button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-lightning-fill"></i> Cadastrar consequência</div>
-          </div>
-          <div class="d-flex flex-column gap-3 mt-1">
-            <div>
-              <div class="pun-field-label">Nova consequência</div>
-              <input type="text" id="newPunishmentLabel" class="form-control" placeholder="Ex: Perda de pick específica">
-            </div>
-            <button class="btn-ghost" style="width:100%;justify-content:center" id="newPunishmentBtn">
-              <i class="bi bi-plus-circle"></i> Salvar consequência
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      <div class="col-lg-8">
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-clock-history"></i> Histórico de punições — ${league}</div>
-            <div class="admin-sel">
-              <label>Time</label>
-              <select id="punicaoHistoryTeam"><option value="">Todos os times</option></select>
-            </div>
-          </div>
-          <input type="hidden" id="punicaoHistoryLeague" value="${league}">
-          <div id="punicoesList">
-            <p class="empty-state">Selecione uma liga ou time para ver as punições.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  if (typeof window.initPunicoes === 'function') {
-    window.initPunicoes(league);
-  }
+/**
+ * Punições: manda pra /punicoes.php, que é a tela de verdade.
+ *
+ * ESTA TELA TINHA O FORMULÁRIO DUPLICADO e por isso estava quebrada. Quando o
+ * cadastro passou a ser pelo quadro do edital (o admin escolhe a INFRAÇÃO e o
+ * sistema diz o degrau), a punicoes.php ganhou os campos novos — select de
+ * infração, prévia, painel da avulsa — e esta cópia não. O js/punicoes.js é o
+ * mesmo nos dois, e o clique em "Registrar punição" caía no fluxo do quadro,
+ * não achava #punicaoInfracao e morria em "Selecione a infração." — sem
+ * campo de infração nenhum na tela pra selecionar.
+ *
+ * Duplicar a marcação de novo só adiaria o próximo desencontro, então aqui
+ * fica o redirecionamento: uma tela de punições, uma só. A liga vai na URL
+ * pra cair na mesma que estava aberta no admin.
+ */
+function showPunicoes() {
+  const league = appState.currentLeague || _leagues[0] || '';
+  window.location.href = '/punicoes.php' + (league ? '?league=' + encodeURIComponent(league) : '');
 }
 
 async function showFAAdmin() {

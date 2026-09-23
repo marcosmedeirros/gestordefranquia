@@ -404,6 +404,11 @@ if ($method === 'POST') {
         $teamId     = (int)($body['team_id'] ?? 0);
         $infracaoId = (int)($body['infracao_id'] ?? 0);
         $notes      = trim((string)($body['notes'] ?? ''));
+        /* JÁ CUMPRIDA: registra a punição sem cobrar nada do time. É pra
+           quando o GM já pagou a pena fora do sistema — o admin aplicou na
+           mão, ou a infração virou acordo no grupo. A infração continua
+           contando pra reincidência; o que não acontece é a cobrança. */
+        $jaCumprida = !empty($body['ja_cumprida']);
         if (!$teamId || !$infracaoId) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Informe time e infração']);
@@ -462,20 +467,25 @@ if ($method === 'POST') {
             $rotulo = $infracao['titulo'] . ($infracao['artigo'] ? ' (' . $infracao['artigo'] . ')' : '');
             $pdo->prepare('INSERT INTO team_punishments
                     (team_id, league, type, effect_type, motive, punishment_label, notes,
-                     infracao_id, ocorrencia, efeitos_json, vigencia, vigencia_desde, vigencia_ate, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                     infracao_id, ocorrencia, efeitos_json, vigencia, vigencia_desde, vigencia_ate,
+                     ja_cumprida, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
                 ->execute([
                     $teamId, $league, 'CATALOGO', $efeitos[0]['efeito'],
                     $rotulo, punicaoEfeitosTexto($efeitos, $m['temporada'], $m['ciclo']),
                     $notes ?: null, $infracaoId, (int)($body['ocorrencia'] ?? $degrau['ocorrencia']),
                     json_encode($efeitos, JSON_UNESCAPED_UNICODE),
                     $efeitos[0]['vigencia'], $efeitos[0]['desde'], $efeitos[0]['ate'],
+                    $jaCumprida ? 1 : 0,
                     (int)$user['id'],
                 ]);
             $punicaoId = (int)$pdo->lastInsertId();
 
             $avisos = [];
-            foreach ($efeitos as $e) {
+            /* Marcada como já cumprida, nada é cobrado: a pick não cai, o
+               saldo não mexe. O que corre no tempo (ban, rotação) já fica
+               fora sozinho — punicaoEfeitosAtivos ignora a linha. */
+            foreach ($jaCumprida ? [] : $efeitos as $e) {
                 if ($e['efeito'] === 'PERDA_PICK_1R') {
                     $r = punicaoPerderPick($pdo, $teamId, $punicaoId);
                     if (!$r['ok']) $avisos[] = $r['motivo'];
@@ -491,6 +501,9 @@ if ($method === 'POST') {
                     $pdo->prepare('UPDATE teams SET moedas = GREATEST(0, COALESCE(moedas,0) - ?) WHERE id = ?')
                         ->execute([(int)$e['valor'], $teamId]);
                 }
+            }
+            if ($jaCumprida) {
+                $avisos[] = 'Registrada como já cumprida: nada foi cobrado do time.';
             }
             $pdo->commit();
 
@@ -667,6 +680,8 @@ if ($method === 'POST') {
     $pickId = isset($body['pick_id']) ? (int)$body['pick_id'] : null;
     $seasonScope = strtolower(trim($body['season_scope'] ?? 'current'));
     $createdAt = trim($body['created_at'] ?? '');
+    // Mesma regra do caminho do quadro: registra sem cobrar. @see 'aplicar'
+    $jaCumprida = !empty($body['ja_cumprida']);
 
     if (!$teamId || !in_array($effectType, $allowedTypes, true)) {
         http_response_code(400);
@@ -704,8 +719,11 @@ if ($method === 'POST') {
            A marcação precisa do id da punição, então acontece depois do
            INSERT — aqui só guardamos o que vai ser cobrado. */
         $removedPick = null;
-        $perderPick = in_array($effectType, ['PERDA_PICK_1R', 'PERDA_PICK_ESPECIFICA'], true);
-        if ($effectType === 'PERDA_PICK_ESPECIFICA' && !$pickId) {
+        /* Já cumprida não perde pick nem leva ban: a pena foi paga fora do
+           sistema, e cobrar de novo é cobrar duas vezes. A linha fica no
+           histórico e conta pra reincidência. */
+        $perderPick = !$jaCumprida && in_array($effectType, ['PERDA_PICK_1R', 'PERDA_PICK_ESPECIFICA'], true);
+        if (!$jaCumprida && $effectType === 'PERDA_PICK_ESPECIFICA' && !$pickId) {
             throw new Exception('Selecione a pick para remover');
         }
         if ($perderPick) {
@@ -718,26 +736,28 @@ if ($method === 'POST') {
             $removedPick = $alvo->fetch(PDO::FETCH_ASSOC) ?: null;
         }
 
-        if ($effectType === 'BAN_TRADES') {
-            $stmt = $pdo->prepare('UPDATE teams SET ban_trades_until_cycle = ? WHERE id = ?');
-            $stmt->execute([$banUntil, $teamId]);
-        }
-        if ($effectType === 'BAN_TRADES_PICKS') {
-            $stmt = $pdo->prepare('UPDATE teams SET ban_trades_picks_until_cycle = ? WHERE id = ?');
-            $stmt->execute([$banUntil, $teamId]);
-        }
-        if ($effectType === 'BAN_FREE_AGENCY') {
-            $stmt = $pdo->prepare('UPDATE teams SET ban_fa_until_cycle = ? WHERE id = ?');
-            $stmt->execute([$banUntil, $teamId]);
-        }
-        if ($effectType === 'ROTACAO_AUTOMATICA') {
-            $stmt = $pdo->prepare('UPDATE teams SET auto_rotation_until_cycle = ? WHERE id = ?');
-            $stmt->execute([$banUntil, $teamId]);
+        if (!$jaCumprida) {
+            if ($effectType === 'BAN_TRADES') {
+                $stmt = $pdo->prepare('UPDATE teams SET ban_trades_until_cycle = ? WHERE id = ?');
+                $stmt->execute([$banUntil, $teamId]);
+            }
+            if ($effectType === 'BAN_TRADES_PICKS') {
+                $stmt = $pdo->prepare('UPDATE teams SET ban_trades_picks_until_cycle = ? WHERE id = ?');
+                $stmt->execute([$banUntil, $teamId]);
+            }
+            if ($effectType === 'BAN_FREE_AGENCY') {
+                $stmt = $pdo->prepare('UPDATE teams SET ban_fa_until_cycle = ? WHERE id = ?');
+                $stmt->execute([$banUntil, $teamId]);
+            }
+            if ($effectType === 'ROTACAO_AUTOMATICA') {
+                $stmt = $pdo->prepare('UPDATE teams SET auto_rotation_until_cycle = ? WHERE id = ?');
+                $stmt->execute([$banUntil, $teamId]);
+            }
         }
 
         // Registrar punição
-    $columns = 'team_id, league, type, motive, punishment_label, effect_type, notes, pick_id, season_scope, ban_until_cycle, removed_pick_season_year, removed_pick_round, removed_pick_original_team_id, removed_pick_last_owner_team_id, created_by';
-        $values = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+    $columns = 'team_id, league, type, motive, punishment_label, effect_type, notes, pick_id, season_scope, ban_until_cycle, removed_pick_season_year, removed_pick_round, removed_pick_original_team_id, removed_pick_last_owner_team_id, ja_cumprida, created_by';
+        $values = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
         $params = [
             $teamId,
             $league,
@@ -753,6 +773,7 @@ if ($method === 'POST') {
             $removedPick['round'] ?? null,
             $removedPick['original_team_id'] ?? null,
             $removedPick['last_owner_team_id'] ?? null,
+            $jaCumprida ? 1 : 0,
             $user['id']
         ];
 

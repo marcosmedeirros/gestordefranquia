@@ -69,6 +69,13 @@ function punicaoGarantirEsquema(PDO $pdo): bool
             'vigencia'       => "ALTER TABLE team_punishments ADD COLUMN vigencia VARCHAR(20) NULL",
             'vigencia_desde' => 'ALTER TABLE team_punishments ADD COLUMN vigencia_desde INT NULL',
             'vigencia_ate'   => 'ALTER TABLE team_punishments ADD COLUMN vigencia_ate INT NULL',
+            /* JÁ CUMPRIDA: a punição fica registrada, mas não pune.
+               Acontece sempre que o GM já pagou a pena fora do sistema — o
+               admin aplicou na mão antes de a tela existir, ou a infração
+               virou acordo no grupo. Registrar mesmo assim importa, porque a
+               reincidência conta o degrau seguinte; o que não pode é cobrar
+               duas vezes. Nasce 0: punição nova pune. */
+            'ja_cumprida'    => 'ALTER TABLE team_punishments ADD COLUMN ja_cumprida TINYINT(1) NOT NULL DEFAULT 0',
         ] as $col => $sql) {
             try {
                 if ($pdo->query("SHOW COLUMNS FROM team_punishments LIKE '{$col}'")->rowCount() === 0) {
@@ -221,6 +228,7 @@ function punicaoEfeitosAtivos(PDO $pdo, int $teamId): array
                                FROM team_punishments tp
                           LEFT JOIN punicao_infracoes i ON i.id = tp.infracao_id
                               WHERE tp.team_id = ? AND tp.reverted_at IS NULL
+                                AND tp.ja_cumprida = 0
                                 AND tp.efeitos_json IS NOT NULL
                            ORDER BY tp.id ASC");
         $st->execute([$teamId]);
@@ -320,6 +328,10 @@ function punicaoOcorrenciasNoCiclo(PDO $pdo, int $teamId, int $infracaoId): int
         $st->execute([$league, $de, $ate]);
         $desde = $st->fetchColumn();
 
+        /* PENA JÁ CUMPRIDA CONTA AQUI, de propósito: ela não pune de novo,
+           mas a infração aconteceu, e é a infração que move o degrau. Tirar
+           daqui faria o reincidente voltar pra 1ª ocorrência só porque a
+           primeira pena foi paga fora do sistema. */
         $sql = 'SELECT COUNT(*) FROM team_punishments
                  WHERE team_id = ? AND infracao_id = ? AND reverted_at IS NULL';
         $par = [$teamId, $infracaoId];
@@ -523,6 +535,10 @@ function punicaoCobrarPicksPendentes(PDO $pdo, ?string $league = null): int
         $sql = "SELECT tp.id, tp.team_id FROM team_punishments tp
                   JOIN teams t ON t.id = tp.team_id
                  WHERE tp.reverted_at IS NULL
+                   /* Pena já cumprida não fica esperando pick: ela não é
+                      pra ser cobrada, senão a cobrança pendente furaria o
+                      'já cumpriu' na primeira virada de temporada. */
+                   AND tp.ja_cumprida = 0
                    AND tp.efeitos_json LIKE '%PERDA_PICK_1R%'
                    AND NOT EXISTS (SELECT 1 FROM picks p WHERE p.punicao_id = tp.id)";
         $par = [];
