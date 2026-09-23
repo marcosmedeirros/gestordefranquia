@@ -762,15 +762,16 @@ body.bc-complete .podium{display:grid}
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
 
-    <?php /* SEM BOTÃO DE CONFIRMAR. A ordem passou a ser gravada na primeira
-             revelação (ver aplicarAoDraft): quando a bolinha sai, ela já vale.
-             Pedir um clique depois era o jeito de a liga ficar com a ordem na
-             tela e nenhuma ordem no draft. O que sobra aqui é o refazer. */ ?>
+    <?php /* SÓ O REVELAR. Não há botão de confirmar nem de sortear: a ordem
+             já está definida desde o salvar da temporada regular, e é gravada
+             no draft na primeira revelação (ver aplicarAoDraft) -- quando a
+             bolinha sai, ela já vale. Botão de sortear aqui dava a impressão
+             de que a ordem nascia na cerimônia, e ainda permitia repetir o
+             sorteio até sair uma ordem do agrado de quem conduz. */ ?>
     <?php if ($podeConduzirEstaLiga): ?>
     <div class="panel" id="confirmPanel" style="display:none">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn-ghost2" id="btnRedo"><i class="bi bi-arrow-repeat"></i> Sortear de novo</button>
-        <span style="font-size:11px;color:var(--text-3)">A ordem revelada já vale nas duas rodadas do draft. Sortear de novo substitui.</span>
+        <span style="font-size:11px;color:var(--text-3)">A ordem revelada já vale nas duas rodadas do draft.</span>
       </div>
     </div>
     <?php endif; ?>
@@ -1653,13 +1654,22 @@ function escoarFilaDeQuemAssiste(){
   aplicarRevelacao(pos, true);
 }
 
-function revealNext(){
+async function revealNext(){
   if (busy || !revealQueue.length) return;
-  // A prévia mostra as chances, não um resultado: revelar em cima dela
-  // "sorteava" uma escolha que não existe em lugar nenhum.
+
+  /* REVELAR É O ÚNICO BOTÃO. A urna já fechou no salvar da temporada
+     regular — a ordem existe desde então e não muda —, então "sortear" não é
+     mais um ato que alguém pratica na cerimônia: no primeiro Revelar a tela
+     busca a ordem que já está guardada e põe a transmissão no ar, calada.
+     Sem isto era preciso apertar um botão de sortear antes, e esse botão era
+     justamente o que dava a impressão de que a ordem nascia ali. */
   if (PODE_EDITAR_ORDEM && (!result || result.preview !== false)) {
-    alert('A loteria ainda não foi sorteada — recarregue a página.');
-    return;
+    busy = true;
+    try { await prepare(); } finally { busy = false; }
+    if (!result || result.preview !== false) {
+      alert('Não deu pra abrir a cerimônia. Confira a internet e tente de novo.');
+      return;
+    }
   }
   /* CADA BOLINHA JÁ VALE — UMA POR VEZ.
      A revelação grava no draft a vaga que acabou de sair (transmitirRevelada
@@ -1799,7 +1809,8 @@ function aplicarRevelacao(pos, comEncenacao){
  * um passo a mais entre a loteria e o draft aberto — e o jeito de a liga
  * ficar com a ordem na tela e nenhuma ordem gravada.
  *
- * Sortear de novo depois substitui o que foi gravado, então nada fica preso.
+ * A ordem esta travada desde o salvar da temporada regular: nao ha novo
+ * sorteio que substitua o que foi gravado.
  */
 async function aplicarAoDraft(){
   if (!result || !PODE_EDITAR_ORDEM) return;
@@ -1835,9 +1846,6 @@ function restaurarConfirmPanel(){
   const painel = $('confirmPanel');
   if (!painel || confirmPanelOriginal === null) return;
   painel.innerHTML = confirmPanelOriginal;
-  // O innerHTML novo traz outro botão: o listener do anterior foi embora com ele.
-  const btn = $('btnRedo');
-  if (btn) btn.addEventListener('click', pedirNovoSorteio);
 }
 
 function avisarAplicada(ok, erro){
@@ -1850,7 +1858,7 @@ function avisarAplicada(ok, erro){
          <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:20px"></i>
          <div style="flex:1;min-width:200px">
            <b>Ordem aplicada ao draft.</b>
-           <div style="font-size:11px;color:var(--text-3)">Vale para as duas rodadas. Sortear de novo substitui.</div>
+           <div style="font-size:11px;color:var(--text-3)">Vale para as duas rodadas do draft.</div>
          </div>
          <a class="btn-ghost2" href="/controledrafts.php?league=${encodeURIComponent(LIGA_ATUAL)}"><i class="bi bi-box-arrow-up-right"></i> Ir para o Controle de Drafts</a>
        </div>`
@@ -1901,12 +1909,9 @@ function mostrarEventos(eventos) {
 // Quem não administra loteria nenhuma não tem esses controles na página
 // (só vê a ordem já confirmada), então todos os binds ficam guardados.
 if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
-// Refazer joga fora um sorteio que já aconteceu — e que a liga pode já ter
-// visto sendo revelado. Pergunta antes.
-function pedirNovoSorteio(){
-  if (confirm('Sortear de novo? A ordem que está na tela é descartada e uma nova é sorteada do zero.')) prepare();
-}
-if ($('btnRedo')) $('btnRedo').addEventListener('click', pedirNovoSorteio);
+/* NÃO EXISTE MAIS "sortear de novo". A ordem está travada desde o salvar da
+   temporada regular, então um novo sorteio devolveria exatamente a mesma
+   ordem -- e o botão só servia pra sugerir que daria outra. */
 
 /* A PRÉVIA CARREGA SOZINHA.
    Quem abre esta tela quer ver quem entra na loteria, em que grupo e com
