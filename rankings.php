@@ -216,6 +216,20 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             border-left:3px solid var(--amber); border-radius:10px;
         }
         .ct-camp-ciclo { font-size:11px; font-weight:800; color:var(--text-3); min-width:64px; letter-spacing:.04em; }
+        /* O card é clicável: é assim que se troca a tabela de baixo. */
+        .ct-slot { cursor:pointer; }
+        .ct-slot:hover { border-color:var(--border-md); }
+        .ct-slot:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+        .ct-slot.aberto { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber) inset; }
+        .ct-slot-premio { margin-top:6px; font-size:10.5px; font-weight:800; color:var(--amber);
+            letter-spacing:.03em; }
+        /* As duas visões da tabela: por bloco e a geral da sprint. */
+        .ct-abas { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+        .ct-aba { padding:8px 14px; border-radius:10px; border:1px solid var(--border);
+            background:var(--panel); color:var(--text-3); font-size:12.5px; font-weight:700;
+            cursor:pointer; transition:all var(--t) var(--ease); }
+        .ct-aba:hover { color:var(--text); border-color:var(--border-md); }
+        .ct-aba.on { background:var(--amber); border-color:var(--amber); color:#1a1a1a; }
         .ct-camp-nome { font-size:14px; font-weight:700; color:var(--text); }
         .ct-camp-vice { font-size:11px; color:var(--text-3); margin-top:1px; }
         .ct-camp-pts { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--amber); margin-left:auto; }
@@ -438,10 +452,12 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
                 <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
                 <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
-                <?php /* Ciclo de 5 temporadas, só ELITE. Fica junto das ligas
-                         porque é outra forma de ver a ELITE, não outra liga. */ ?>
-                <button type="button" class="filter-btn" data-league="ELITE5T" onclick="loadCiclo()"
+                <?php /* Ranking por bloco. Fica junto das ligas porque é outra
+                         forma de ver a MESMA liga, não uma liga nova. */ ?>
+                <button type="button" class="filter-btn" data-league="ELITE5T" onclick="loadCiclo('ELITE')"
                         title="Soma das últimas 5 temporadas da ELITE — zera a cada ciclo">ELITE 5T</button>
+                <button type="button" class="filter-btn" data-league="ROOKIESPRINT" onclick="loadCiclo('ROOKIE')"
+                        title="As 5 Sprints da ROOKIE — 3 temporadas cada, R$ 40 por Sprint">ROOKIE Sprints</button>
                 <button type="button" class="wpp-btn" id="btnCopyWpp" onclick="copyRankingWpp()" title="Copia o ranking desta liga em texto, pronto para colar no WhatsApp">
                     <i class="bi bi-whatsapp"></i> <span>Copiar p/ WhatsApp</span>
                 </button>
@@ -537,14 +553,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
        Vem pronto do servidor: são poucas linhas e não muda enquanto a
        página está aberta — uma chamada de API só pra isso seria latência
        sem ganho. */
-    const CICLO = <?= json_encode([
-        'temporada_atual' => cicloTemporadaAtual($pdo),
-        'ciclo_atual'     => cicloAtual($pdo),
-        'tamanho'         => CICLO_TEMPORADAS,
-        // Um resumo por ciclo da sprint — é o que vira os cards do topo.
-        'ciclos'          => cicloResumos($pdo),
-        'tabela'          => cicloClassificacao($pdo, cicloAtual($pdo)),
-    ], JSON_UNESCAPED_UNICODE) ?>;
+    /* Uma entrada por liga que tem ranking por bloco: a ELITE em ciclos de 5
+       e a ROOKIE em Sprints de 3. Vem tudo pronto do servidor porque são
+       poucas linhas e não mudam enquanto a página está aberta — e porque o
+       jogador clica de um bloco pro outro em sequência, o que com API seria
+       uma ida ao servidor por clique. */
+    const BLOCOS = <?= json_encode(
+        array_reduce(cicloLigas(), function ($acc, $lg) use ($pdo) {
+            $acc[$lg] = cicloPacoteDaLiga($pdo, $lg);
+            return $acc;
+        }, []), JSON_UNESCAPED_UNICODE) ?>;
 
     /* ── Lógica Visual Sidebar / Tema ── */
     const themeToggle = document.getElementById('themeToggle');
@@ -609,19 +627,36 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     }
 
     /**
-     * A aba ELITE 5T: as cinco temporadas do ciclo, a soma até aqui e os
-     * campeões dos ciclos fechados.
+     * A aba de BLOCOS de uma liga: os cards de campeão por bloco, mais duas
+     * visões da tabela — por bloco e a geral da sprint.
      *
      * Não passa por loadRanking porque não é uma liga — é outra janela de
-     * tempo sobre a ELITE, com colunas próprias.
+     * tempo sobre a mesma liga, com colunas próprias.
+     *
+     * A ELITE chama o bloco de "ciclo" (5 temporadas) e a ROOKIE de "Sprint"
+     * (3 temporadas, R$ 40 cada, comunicado dos admins em 23/09/2026). O
+     * rótulo vem do servidor pra que a tela não tenha a regra duas vezes.
      */
-    function loadCiclo() {
+    let _blocoSel = {};      // liga => qual bloco está aberto
+    let _blocoAba = {};      // liga => 'bloco' ou 'geral'
+
+    function loadCiclo(liga) {
+        liga = String(liga || 'ELITE').toUpperCase();
+        const B = BLOCOS[liga];
+        if (!B) return;
+
         // Cancela uma busca de ranking em voo: sem isto, a resposta dela
         // chegaria depois e sobrescreveria esta tela.
         ++_rankingRequestSeq;
-        currentLeague = 'ELITE5T';
-        updateActiveButton('ELITE5T');
+        const botao = liga === 'ROOKIE' ? 'ROOKIESPRINT' : 'ELITE5T';
+        currentLeague = botao;
+        updateActiveButton(botao);
         document.getElementById('wppManual').style.display = 'none';
+
+        // Na primeira abertura, mostra o bloco em andamento e a visão por
+        // bloco: é onde a liga está, e é a pergunta que a pessoa traz.
+        if (!_blocoSel[liga]) _blocoSel[liga] = B.ciclo_atual;
+        if (!_blocoAba[liga]) _blocoAba[liga] = 'bloco';
 
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
             ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -629,31 +664,38 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             ? `<img src="${esc(u)}" alt="" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0">`
             : `<span style="width:26px;height:26px;border-radius:6px;background:var(--panel-3);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${esc((nome||'?').trim()[0]||'?')}</span>`;
 
-        // A faixa vem do próprio ciclo, não de conta com o número dele: o
-        // ciclo em andamento pode ter menos de 5 temporadas ainda, e a conta
-        // anunciava "11 a 15" quando só a 11 existia.
-        const cicloAgora = CICLO.ciclos.find(c => c.ciclo === CICLO.ciclo_atual) || {de:0, ate:0};
-        const de = cicloAgora.de, ate = cicloAgora.ate;
-        const faltam = CICLO.tamanho - (ate - de + 1);
+        const sel = _blocoSel[liga];
+        const aba = _blocoAba[liga];
+        const blocoSel = B.ciclos.find(c => c.ciclo === sel) || B.ciclos[0] || {de:0, ate:0, ciclo:1};
+        const faltam = B.tamanho - (blocoSel.ate - blocoSel.de + 1);
 
-        // ── Um card por CICLO, com o campeão da SOMA das 5 temporadas ─
-        // Não é um card por temporada: o ciclo é a unidade, e vencedor de
+        // ── Um card por BLOCO, com o campeão da SOMA das temporadas ───
+        // Não é um card por temporada: o bloco é a unidade, e vencedor de
         // temporada isolada responderia uma pergunta que ninguém fez.
-        const slots = CICLO.ciclos.map(c => {
-            const emAndamento = !!c.atual;
+        // Clicável: é assim que se troca a tabela de baixo.
+        const slots = B.ciclos.map(c => {
             const vazio = !c.tem_dados;
             const faixa = c.de === c.ate ? `T${c.de}` : `T${c.de}–${c.ate}`;
+            const aberto = (c.ciclo === sel && aba === 'bloco');
             return `
-              <div class="ct-slot ${vazio ? 'vazio' : ''} ${emAndamento ? 'agora' : ''}">
-                <div class="ct-slot-t">Ciclo ${c.ciclo} · ${faixa}</div>
+              <div class="ct-slot ${vazio ? 'vazio' : ''} ${c.atual ? 'agora' : ''} ${aberto ? 'aberto' : ''}"
+                   role="button" tabindex="0"
+                   onclick="abrirBloco('${liga}',${c.ciclo})"
+                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirBloco('${liga}',${c.ciclo})}"
+                   title="Ver a tabela desta ${esc(B.rotulo)}">
+                <div class="ct-slot-t">${esc(B.rotulo)} ${c.ciclo} · ${faixa}</div>
                 ${c.tem_dados ? escudo(c.photo_url, c.campeao) : '<div class="ct-slot-vazio"></div>'}
                 <div class="ct-slot-nome">${c.tem_dados ? esc(c.campeao) : 'sem pontuação'}</div>
                 <div class="ct-slot-pts">${c.tem_dados ? c.pontos + ' pts' : '—'}</div>
                 <div class="ct-slot-tag">${c.futuro ? 'por vir' : (c.atual ? 'em andamento' : (c.tem_dados ? 'campeão' : 'encerrado'))}</div>
+                ${(c.premio && c.fechado && c.tem_dados) ? `<div class="ct-slot-premio">R$ ${c.premio}</div>` : ''}
               </div>`;
         }).join('');
 
-        const linhas = CICLO.tabela.length ? CICLO.tabela.map(l => `
+        // ── A tabela: do bloco aberto, ou a geral da sprint ───────────
+        const dados = aba === 'geral' ? (B.geral || []) : ((B.tabelas || {})[sel] || []);
+
+        const linhas = dados.length ? dados.map(l => `
             <tr>
               <td style="text-align:center;font-weight:800;color:${l.pos<=3?'var(--amber)':'var(--text-3)'}">${l.pos}</td>
               <td><div style="display:flex;align-items:center;gap:10px">${escudo(l.photo_url, l.time)}<span>${esc(l.time)}</span></div></td>
@@ -665,29 +707,43 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </tr>`).join('')
           // Vazio aqui quase sempre significa a mesma coisa, e vale dizer qual:
           // o ranking normal usa um total acumulado (teams.ranking_points),
-          // enquanto o ciclo precisa de pontuação POR TEMPORADA. Sem dizer
+          // enquanto o bloco precisa de pontuação POR TEMPORADA. Sem dizer
           // isso, a aba parece quebrada quando na verdade falta lançar.
           : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">
-               Nenhuma pontuação lançada neste ciclo ainda.<br>
-               <span style="font-size:11.5px">O ciclo soma a pontuação <strong>de cada temporada</strong>.
-               O total da aba ELITE é um acumulado e não dá pra fatiar —
+               Nenhuma pontuação lançada ${aba === 'geral' ? 'nesta sprint' : 'nesta ' + esc(B.rotulo)} ainda.<br>
+               <span style="font-size:11.5px">A conta soma a pontuação <strong>de cada temporada</strong>.
+               O total da aba da liga é um acumulado e não dá pra fatiar —
                as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>
              </td></tr>`;
 
+        const titulo = aba === 'geral'
+            ? 'Classificação geral'
+            : `${esc(B.rotulo)} ${blocoSel.ciclo}`;
+        const sub = aba === 'geral'
+            ? `Todas as temporadas da sprint somadas · continua valendo normalmente`
+            : `${blocoSel.de === blocoSel.ate ? `Temporada ${blocoSel.de}` : `Temporadas ${blocoSel.de} a ${blocoSel.ate}`}` +
+              `${faltam > 0 ? ` · faltam ${faltam} pra fechar` : ''}` +
+              `${B.premio ? ` · R$ ${B.premio} pra quem ganhar` : ' · zera no fim do bloco'}`;
 
         document.getElementById('rankingContainer').innerHTML = `
             <div class="ct-topo">
               <div>
-                <div class="ct-ciclo">Ciclo ${CICLO.ciclo_atual}</div>
-                <div class="ct-sub">${de === ate ? `Temporada ${de}` : `Temporadas ${de} a ${ate}`}${
-                    faltam > 0 ? ` · faltam ${faltam} pra fechar` : ''} · zera no fim do ciclo</div>
+                <div class="ct-ciclo">${titulo}</div>
+                <div class="ct-sub">${sub}</div>
               </div>
-              <div class="ct-agora">T${CICLO.temporada_atual}</div>
+              <div class="ct-agora">T${B.temporada_atual}</div>
             </div>
 
             <div class="ct-slots">${slots}</div>
 
-            <div class="table-card" style="margin-top:18px">
+            <div class="ct-abas">
+              <button type="button" class="ct-aba ${aba === 'bloco' ? 'on' : ''}"
+                      onclick="abrirBloco('${liga}',${sel})">Por ${esc(B.rotulo)}</button>
+              <button type="button" class="ct-aba ${aba === 'geral' ? 'on' : ''}"
+                      onclick="abrirGeral('${liga}')">Classificação geral</button>
+            </div>
+
+            <div class="table-card" style="margin-top:12px">
               <div class="table-responsive">
                 <table class="m-table">
                   <thead><tr>
@@ -702,11 +758,22 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                   <tbody>${linhas}</tbody>
                 </table>
               </div>
-            </div>
-
-            <div class="section-label" style="margin-top:26px"><i class="bi bi-trophy-fill"></i> Campeões dos ciclos</div>
-            `;
+            </div>`;
     }
+
+    /** Abre a tabela de um bloco (e sai da visão geral, se estava nela). */
+    function abrirBloco(liga, n) {
+        _blocoSel[liga] = n;
+        _blocoAba[liga] = 'bloco';
+        loadCiclo(liga);
+    }
+
+    /** Abre a classificação geral da sprint. */
+    function abrirGeral(liga) {
+        _blocoAba[liga] = 'geral';
+        loadCiclo(liga);
+    }
+
 
     async function loadRanking(league = userLeague) {
         const mySeq = ++_rankingRequestSeq;
