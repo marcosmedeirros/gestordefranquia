@@ -223,6 +223,30 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .ct-slot.aberto { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber) inset; }
         .ct-slot-premio { margin-top:6px; font-size:10.5px; font-weight:800; color:var(--amber);
             letter-spacing:.03em; }
+        /* ── "Como se sobe" ──────────────────────────────────────────
+           Um painel, não um card por item: é regra com duas listas curtas, e
+           tratar cada lista como card afundava a regra no meio de caixas
+           iguais. A borda de cima é a única cor: a hierarquia já está no
+           tamanho do texto. */
+        .sb-box { margin-top:14px; padding:14px; border:1px solid var(--border);
+            border-top:2px solid var(--amber); border-radius:10px; background:var(--panel); }
+        .sb-titulo { font-size:10.5px; font-weight:800; letter-spacing:.09em;
+            text-transform:uppercase; color:var(--amber); }
+        .sb-regra { margin:6px 0 12px; font-size:12.5px; line-height:1.5; color:var(--text-2); }
+        .sb-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        .sb-h { font-size:11px; font-weight:800; letter-spacing:.05em; color:var(--text-3);
+            text-transform:uppercase; margin-bottom:6px; }
+        .sb-lista { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; }
+        .sb-lista li { font-size:12.5px; color:var(--text); line-height:1.35; }
+        .sb-n { font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber); margin-right:3px; }
+        .sb-obs { font-size:11px; color:var(--text-3); font-weight:600; }
+        .sb-lista .sb-vazio { color:var(--text-3); font-size:12px; font-style:italic; }
+        .sb-subiram { margin-top:12px; padding-top:10px; border-top:1px solid var(--border);
+            font-size:11.5px; color:var(--text-2); line-height:1.5; }
+        /* Duas colunas de lista não caem bem em 360px: uma linha por item já
+           é curta, e lado a lado o nome do time quebrava no meio. */
+        @media (max-width:560px){ .sb-cols { grid-template-columns:1fr; gap:12px; } }
+
         /* As duas visões da tabela: por bloco e a geral da sprint. */
         .ct-abas { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
         .ct-aba { padding:8px 14px; border-radius:10px; border:1px solid var(--border);
@@ -642,6 +666,67 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     let _blocoSel = {};      // liga => qual bloco está aberto
     let _blocoAba = {};      // liga => 'bloco' ou 'geral'
 
+    /**
+     * COMO SE SOBE — a regra fechada pelos admins em 23/09/2026.
+     *
+     * "As Sprints são feitas pra lista de desistência: no momento que
+     * desistiu, subiu o primeiro da lista, além do valor de 40 reais. A
+     * classificação geral sobe os 4 primeiros (tirando os que subiram por
+     * desistência)."
+     *
+     * Fica na tela porque a regra só é clara pra todos se estiver onde todos
+     * olham — e a fila em si é conta, não recado: sai de cicloFilaDeSubida,
+     * em backend/ranking_ciclos.php. Liga sem subida (a ELITE) não desenha
+     * nada.
+     */
+    function painelSubida(B) {
+        const S = B.subida;
+        if (!S || !S.sobe_geral) return '';
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const dia = (d) => d ? String(d).slice(8,10) + '/' + String(d).slice(5,7) : '';
+
+        // A FILA: campeões de Sprint fechada que ainda não subiram, em ordem.
+        const fila = (S.fila || []).map((f, i) => `
+            <li><span class="sb-n">${i + 1}º</span> <strong>${esc(f.nome)}</strong>
+                <span class="sb-obs">${esc(B.rotulo)} ${f.ciclo}${f.repetido ? ' · vaga do campeão repetido' : ''}</span></li>`
+        ).join('') || `<li class="sb-vazio">Ninguém esperando vaga.</li>`;
+
+        // OS 4 DA GERAL: parcial enquanto a edição corre, e a tela diz isso —
+        // anunciar "sobe" com a sprint em andamento seria prometer vaga.
+        const geral = (S.geral || []).map((g, i) => `
+            <li><span class="sb-n">${i + 1}º</span> <strong>${esc(g.nome)}</strong>
+                <span class="sb-obs">${g.pontos} pts${g.trocou ? ' · cadeira trocou no meio' : ''}</span></li>`
+        ).join('') || `<li class="sb-vazio">Sem pontuação lançada ainda.</li>`;
+
+        const subiram = (S.ja_subiram || []).map(f =>
+            `${esc(B.rotulo)} ${f.ciclo} — <strong>${esc(f.nome)}</strong> <span class="sb-obs">${dia(f.ja_subiu)}</span>`
+        ).join(' · ');
+
+        return `
+          <div class="sb-box">
+            <div class="sb-titulo">Como se sobe</div>
+            <p class="sb-regra">
+              A ${esc(B.rotulo)} alimenta a <strong>lista de desistência</strong>: quando alguém desiste
+              na Rise, sobe o primeiro da lista. O campeão leva os <strong>R$ ${B.premio}</strong> de
+              qualquer jeito. No fim da edição, a <strong>classificação geral sobe os
+              ${S.sobe_geral} primeiros</strong>, fora quem já subiu por desistência.
+            </p>
+            <div class="sb-cols">
+              <div>
+                <div class="sb-h">Na fila</div>
+                <ul class="sb-lista">${fila}</ul>
+              </div>
+              <div>
+                <div class="sb-h">Pela geral <span class="sb-obs">(parcial)</span></div>
+                <ul class="sb-lista">${geral}</ul>
+              </div>
+            </div>
+            ${subiram ? `<div class="sb-subiram">Já subiram: ${subiram}</div>` : ''}
+          </div>`;
+    }
+
     function loadCiclo(liga) {
         liga = String(liga || 'ELITE').toUpperCase();
         const B = BLOCOS[liga];
@@ -741,6 +826,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </div>
 
             <div class="ct-slots">${slots}</div>
+
+            ${painelSubida(B)}
 
             <div class="ct-abas">
               <button type="button" class="ct-aba ${aba === 'bloco' ? 'on' : ''}"

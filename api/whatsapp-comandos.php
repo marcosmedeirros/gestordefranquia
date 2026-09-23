@@ -1150,7 +1150,9 @@ function wcRankingSprint(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
 
     if (!$comPontos) {
         $txt .= "Ninguém pontuou {$nesta} {$rot} ainda.\n";
-        $txt .= "_A pontuação entra quando a temporada é registrada._";
+        // Fecha com \n igual ao outro ramo: o bloco seguinte abre com um \n
+        // pra separar, e sem este a fila colava na frase.
+        $txt .= "_A pontuação entra quando a temporada é registrada._\n";
     } else {
         $pos = 0; $anterior = null; $mostrado = 0;
         foreach (array_slice($comPontos, 0, 12) as $l) {
@@ -1179,6 +1181,41 @@ function wcRankingSprint(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         foreach ($fechadas as $c) {
             $campeao = (string)($c['campeao_curto'] ?: $c['campeao']);
             $txt .= "{$rot} {$c['ciclo']} — *{$campeao}* ({$c['pontos']} pts)\n";
+        }
+    }
+
+    /* A FILA DE SUBIDA — a regra fechada pelos admins em 23/09/2026.
+       É a pergunta que vem junto com "quem ganhou a Sprint", porque é pra
+       isso que a Sprint serve: alimentar a lista de desistência. A conta sai
+       de cicloFilaDeSubida (backend/ranking_ciclos.php), a mesma da tela.
+       Liga sem subida (a ELITE) não recebe nada disto. */
+    $sub = $p['subida'] ?? null;
+    if ($sub && $sub['sobe_geral']) {
+        $txt .= "\n🎟️ *Fila de desistência*\n";
+        if ($sub['fila']) {
+            foreach ($sub['fila'] as $i => $f) {
+                $txt .= ($i + 1) . "º *{$f['nome']}* — {$rot} {$f['ciclo']}";
+                // Vaga que desceu: sem dizer isso, a linha parece erro de quem
+                // sabe quem ganhou o bloco.
+                if ($f['repetido']) $txt .= " _(campeão repetido)_";
+                $txt .= "\n";
+            }
+        } else {
+            $txt .= "_Vazia — ninguém esperando vaga._\n";
+        }
+        $txt .= "_Desistiu na Rise, sobe o primeiro da fila. O campeão leva os "
+              . "R$ {$p['premio']} de qualquer jeito._\n";
+
+        if ($sub['geral']) {
+            // Parcial, e a mensagem diz isso: a edição não acabou, e anunciar
+            // "sobe" com a sprint correndo seria prometer vaga.
+            $nomes = array_map(fn($g) => $g['nome'], $sub['geral']);
+            $txt .= "\n_Pela geral sobem os {$sub['sobe_geral']} primeiros — hoje: "
+                  . implode(', ', $nomes) . "._\n";
+        }
+        if ($sub['ja_subiram']) {
+            $ja = array_map(fn($f) => "{$rot} {$f['ciclo']} ({$f['nome']})", $sub['ja_subiram']);
+            $txt .= "_Já usadas: " . implode(', ', $ja) . "._\n";
         }
     }
 

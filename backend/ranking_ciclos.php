@@ -31,6 +31,12 @@
  *   genero    'm' ou 'f' — o gênero do rótulo, pra quem escreve frase com ele
  *   premio    quanto vale o bloco em reais, ou null quando não há prêmio
  *   corte_gm  a pontuação conta só a partir de quando o GM atual assumiu?
+ *   sobe_geral quantos sobem pela classificação geral no fim da edição (0 = nenhum)
+ *
+ * O sobe_geral é 4 na ROOKIE e 0 na ELITE porque subir é regra da ROOKIE: a
+ * Sprint alimenta a lista de desistência e a geral sobe os 4 primeiros
+ * (regra fechada em 23/09/2026 — ver cicloFilaDeSubida). Da ELITE não se
+ * sobe pra lugar nenhum.
  *
  * O genero anda junto do rotulo porque é propriedade dele: "Sprint" é
  * feminino e "Ciclo" masculino, e o bot escreve frase com o rótulo dentro
@@ -44,8 +50,8 @@
  * foi o que pediram.
  */
 const CICLO_CONFIG = [
-    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false],
-    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true],
+    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false, 'sobe_geral' => 0],
+    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true,  'sobe_geral' => 4],
 ];
 
 /* Mantidas porque rankings.php as usa. A ELITE continua sendo a liga padrão de
@@ -92,7 +98,7 @@ function cicloTemporadasDaSprint(PDO $pdo, string $liga = CICLO_LIGA): array
         $sprint = sprintAtualDaLiga($pdo, $liga);
 
         if ($sprint) {
-            $st = $pdo->prepare("SELECT season_number, status FROM seasons
+            $st = $pdo->prepare("SELECT season_number, status, created_at FROM seasons
                                  WHERE sprint_id = ? ORDER BY season_number ASC");
             $st->execute([(int)$sprint['id']]);
             $cache[$liga] = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -102,7 +108,7 @@ function cicloTemporadasDaSprint(PDO $pdo, string $liga = CICLO_LIGA): array
         // amarrada —, cai pras temporadas da liga. Melhor um ranking com a
         // faixa toda que uma tela zerada sem explicação.
         if (!$cache[$liga]) {
-            $st = $pdo->prepare("SELECT season_number, status FROM seasons
+            $st = $pdo->prepare("SELECT season_number, status, created_at FROM seasons
                                  WHERE league = ? ORDER BY season_number ASC");
             $st->execute([$liga]);
             $cache[$liga] = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -512,6 +518,160 @@ function cicloCampeoes(PDO $pdo, string $liga = CICLO_LIGA): array
 }
 
 /**
+ * As subidas de GM que já aconteceram, por franquia: team_id => [datas].
+ *
+ * Quem sobe é o GM, não a franquia: a cadeira fica pra outra pessoa e o time
+ * continua na ROOKIE (é por isso que existe o corte_gm). Então a subida se lê
+ * no histórico da cadeira, não em teams.league — o time nunca sai da liga.
+ *
+ * As datas vêm em ordem porque quem chama consome uma por bloco: ver a nota
+ * em cicloFilaDeSubida sobre marcar o bloco errado como usado.
+ */
+function cicloSubidasDeGm(PDO $pdo, string $liga = CICLO_LIGA): array
+{
+    static $cache = [];
+    $liga = strtoupper(trim($liga));
+    if (isset($cache[$liga])) return $cache[$liga];
+
+    $cache[$liga] = [];
+    try {
+        // Liga por parâmetro, nunca coluna com coluna — ver a nota sobre o
+        // choque de collation em cicloClassificacao.
+        $st = $pdo->prepare("SELECT h.team_id, h.criado_em
+                               FROM team_gm_historico h
+                              WHERE h.league = ?
+                                AND h.motivo LIKE 'subiu%'
+                           ORDER BY h.criado_em ASC");
+        $st->execute([$liga]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $cache[$liga][(int)$r['team_id']][] = (string)$r['criado_em'];
+        }
+    } catch (Throwable $e) {
+        error_log('[ciclos] subidas de gm: ' . $e->getMessage());
+    }
+    return $cache[$liga];
+}
+
+/**
+ * A FILA DE SUBIDA e quem sobe pela geral — a regra fechada em 23/09/2026.
+ *
+ * As Sprints existem pra alimentar a LISTA DE DESISTÊNCIA: no momento em que
+ * alguém desiste na Rise, sobe o primeiro da lista. O campeão da Sprint leva
+ * os R$ 40 de qualquer jeito, tenha vaga aberta ou não. No fim da edição, a
+ * classificação geral sobe os 4 primeiros, tirando quem já subiu por
+ * desistência.
+ *
+ * Duas coisas da regra que a conta tem que respeitar:
+ *
+ * - CAMPEÃO REPETIDO não ocupa duas vagas. Quem ganha duas Sprints leva os
+ *   R$ 40 das duas, mas a segunda vaga desce pro próximo daquele bloco —
+ *   senão a fila teria um nome só e as outras Sprints não valeriam subida.
+ *
+ * - "JÁ SUBIU" se lê por bloco, e cada registro de subida é consumido por UM
+ *   bloco, em ordem. Sem isso a subida do GM campeão da Sprint 3 marcaria a
+ *   vaga da Sprint 1 como usada também, e a fila esvaziaria sozinha.
+ *
+ * O que NÃO está aqui: quantas vagas existem. Isso depende de quantos
+ * desistiram na Rise e é chamada de admin. A tela mostra a fila e quem já
+ * subiu; quem promove é gente.
+ */
+function cicloFilaDeSubida(PDO $pdo, string $liga = CICLO_LIGA): array
+{
+    $cfg = cicloConfig($liga);
+    $liga = strtoupper(trim($liga));
+
+    // A data de cada temporada, pra saber o que é "depois do bloco".
+    $quando = [];
+    foreach (cicloTemporadasDaSprint($pdo, $liga) as $t) {
+        $quando[(int)$t['season_number']] = (string)($t['created_at'] ?? '');
+    }
+
+    $subidas = cicloSubidasDeGm($pdo, $liga);
+    $consumidas = [];  // team_id => quantos registros de subida já foram usados
+    $naFila = [];      // team_id => já tem vaga na fila
+    $fila = [];
+
+    foreach (cicloCampeoes($pdo, $liga) as $r) {
+        [, $ate] = cicloIntervalo($pdo, $r['ciclo'], $liga);
+        // Bloco fechado não leva corte — resultado não se reescreve. É a
+        // mesma tabela que a tela mostra no card do bloco.
+        $tab = cicloClassificacao($pdo, $r['ciclo'], $liga, false);
+        if (!$tab) continue;
+
+        // A vaga é do campeão; se ele já está na fila, desce pro próximo do
+        // bloco que ainda não está. Sem pontuação ninguém entra.
+        $vaga = null;
+        foreach ($tab as $l) {
+            if ((int)$l['pontos'] <= 0) break;
+            if (!isset($naFila[(int)$l['team_id']])) { $vaga = $l; break; }
+        }
+        if (!$vaga) continue;
+
+        $vagaId = (int)$vaga['team_id'];
+        $naFila[$vagaId] = true;
+
+        // Consome a primeira subida daquela cadeira datada depois do fim do
+        // bloco. Uma subida anterior ao bloco é de outra fila, e uma já
+        // consumida por um bloco anterior não vale duas vezes.
+        $fim = $quando[$ate] ?? '';
+        $jaSubiu = null;
+        $lista = $subidas[$vagaId] ?? [];
+        $i = $consumidas[$vagaId] ?? 0;
+        for (; $i < count($lista); $i++) {
+            if ($fim === '' || $lista[$i] >= $fim) {
+                $jaSubiu = $lista[$i];
+                $consumidas[$vagaId] = $i + 1;
+                break;
+            }
+        }
+
+        $fila[] = [
+            'ciclo'    => $r['ciclo'],
+            'de'       => $r['de'],
+            'ate'      => $r['ate'],
+            // O campeão leva o prêmio mesmo quando a vaga desce pro próximo.
+            'campeao'  => $r['campeao_curto'] ?: $r['campeao'],
+            'premio'   => $r['premio'],
+            'team_id'  => $vagaId,
+            'nome'     => (string)($vaga['alcunha'] ?: $vaga['time']),
+            'pontos'   => (int)$vaga['pontos'],
+            'repetido' => $vagaId !== (int)$r['team_id'],
+            'ja_subiu' => $jaSubiu,
+        ];
+    }
+
+    /* OS QUE SOBEM PELA GERAL.
+       A regra diz "tirando os que subiram por desistência", e na ROOKIE isso
+       já vem de graça: a geral aplica o corte_gm, então os pontos de quem
+       subiu não estão mais na linha — o que está lá é o que o GM novo fez.
+       Excluir a FRANQUIA seria tirar a vaga de quem assumiu e pontuou. */
+    $sobeGeral = [];
+    $quantos = (int)($cfg['sobe_geral'] ?? 0);
+    if ($quantos > 0) {
+        foreach (cicloClassificacaoGeral($pdo, $liga) as $l) {
+            if (count($sobeGeral) >= $quantos) break;
+            if ((int)$l['pontos'] <= 0) break;
+            $sobeGeral[] = [
+                'team_id'  => (int)$l['team_id'],
+                'nome'     => (string)($l['alcunha'] ?: $l['time']),
+                'pontos'   => (int)$l['pontos'],
+                // A cadeira já trocou por subida no meio da edição? Não tira
+                // ninguém da lista, mas o admin precisa ver.
+                'trocou'   => !empty($subidas[(int)$l['team_id']]),
+            ];
+        }
+    }
+
+    return [
+        'sobe_geral'  => $quantos,
+        'fila'        => array_values(array_filter($fila, fn($f) => !$f['ja_subiu'])),
+        'blocos'      => $fila,       // a lista inteira, inclusive quem já subiu
+        'ja_subiram'  => array_values(array_filter($fila, fn($f) => (bool)$f['ja_subiu'])),
+        'geral'       => $sobeGeral,
+    ];
+}
+
+/**
  * Tudo que a tela precisa de uma liga, num pacote.
  *
  * Existe pra que rankings.php não precise chamar seis funções e montar o
@@ -542,5 +702,8 @@ function cicloPacoteDaLiga(PDO $pdo, string $liga): array
         // poucas linhas e o jogador clica de um card pro outro na sequência.
         'tabelas'         => $tabelas,
         'geral'           => cicloClassificacaoGeral($pdo, $liga),
+        // A fila de desistência e quem sobe pela geral: é a pergunta que vem
+        // logo depois de "quem ganhou a Sprint" — ver cicloFilaDeSubida.
+        'subida'          => cicloFilaDeSubida($pdo, $liga),
     ];
 }
