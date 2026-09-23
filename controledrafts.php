@@ -188,6 +188,10 @@ tr:last-child td{border-bottom:none}
 .pill.livre{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green)}
 .pill.usada{background:var(--panel-3);color:var(--text-3)}
 .pill.orfa{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}
+/* Verde e com borda: "no bolo" também é verde, e as duas aparecem na mesma
+   linha — sem a borda elas viravam a mesma coisa de longe. */
+.pill.notas{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green);
+  border:1px solid color-mix(in srgb,var(--green) 40%,transparent)}
 .vazio{text-align:center;padding:26px;color:var(--text-3);font-size:12.5px}
 .num{font-family:var(--num);font-weight:700}
 
@@ -422,7 +426,14 @@ function renderClasses() {
   const e = estado;
   const linha = (c, tipo) => `
     <tr>
-      <td><b>${esc(c.name)}</b></td>
+      <td><b>${esc(c.name)}</b>${
+        /* A TAG VERDE: a classe veio do CSV do jogo, com as letrinhas e a
+           ordem dele. Fica no nome porque é característica da classe, não
+           estado dela — e é o que responde, de fora, quais já estão prontas
+           e quais ainda são só nome e posição. */
+        (c.com_notas > 0)
+          ? ` <span class="pill notas" title="${c.com_notas} de ${c.jogadores} com as letrinhas do jogo">letrinhas</span>`
+          : ''}</td>
       <td class="num">${c.jogadores}</td>
       <td>${
         tipo === 'usada' ? `<span class="pill usada">usada${c.usada_em ? ' em ' + c.usada_em : ''}</span>`
@@ -561,15 +572,19 @@ async function aoEscolherCSV(input) {
   const arq = input.files?.[0];
   if (!arq || !_importTpl) return;
   const texto = await arq.text();
-  const jogadores = lerCSV(texto);
-  if (!jogadores.length) {
-    mostrarAviso('alerta', 'Não achei nenhuma linha com nome nesse arquivo.');
+  /* O TEXTO VAI CRU PRO SERVIDOR. O parser em JavaScript daqui saiu de cena:
+     quem lê o arquivo é draftCsvLer(), no servidor, que entende as letrinhas
+     e é testado contra o cabeçalho do jogo. Dois leitores do mesmo arquivo é
+     como eles divergem — e aqui o que divergia era justamente o que o arquivo
+     traz de coluna. */
+  const linhas = texto.split(/\r?\n/).filter(l => l.trim() !== '').length - 1;
+  if (linhas < 1) {
+    mostrarAviso('alerta', 'Esse arquivo não tem nenhuma linha de jogador.');
     return;
   }
-  if (!await confirmarSite(`Importar ${jogadores.length} jogador(es) para “${input.dataset.nome}”?\n\n`
-             + `Isso substitui a lista atual da classe.\n\n`
-             + `Primeiro: ${jogadores[0].name} · ${jogadores[0].position} · OVR ${jogadores[0].ovr}`)) return;
-  await acao('importar_jogadores', { template_id: _importTpl, players: jogadores });
+  if (!await confirmarSite(`Importar ${linhas} linha(s) para “${input.dataset.nome}”?\n\n`
+             + `Isso substitui a lista atual da classe. A ordem do arquivo vira a ordem do draft.`)) return;
+  await acao('importar_jogadores', { template_id: _importTpl, csv: texto });
 }
 
 /** Mostra os jogadores da classe, só pra conferir. */

@@ -257,7 +257,10 @@ function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId, string $liga = 
        lenda na NEXT e não é na ELITE, então some do pool de uma e continua
        no da outra. Por isso o corte é aqui, na hora de virar pool, e não na
        classe: a classe é a mesma para todo mundo. */
-    $st = $pdo->prepare("SELECT name, position, pick_hint
+    require_once __DIR__ . '/../backend/draft_class_csv.php';
+    draftCsvGarantirColunas($pdo);
+
+    $st = $pdo->prepare("SELECT name, position, pick_hint, ovr, age, notas
                          FROM draft_class_template_players
                          WHERE template_id = ?
                            AND (? = '' OR name NOT IN (
@@ -267,15 +270,26 @@ function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId, string $liga = 
     $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$jogadores) return 0;
 
-    $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status)
-                          VALUES (?,?,?,?,?,?,'available')");
+    $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, notas, draft_status)
+                          VALUES (?,?,?,?,?,?,?,'available')");
     foreach ($jogadores as $j) {
-        // Todo calouro entra igual: 60 de OVR e 18 anos. O que ele é de
-        // verdade fica por conta do 2K, e a tela do draft nem mostra esses
-        // números — o que importa aqui é nome, posição e ordem.
+        /* CLASSE IMPORTADA DO JOGO LEVA OS NÚMEROS DELA; a cadastrada na mão
+           continua entrando com 60 de OVR e 18 anos.
+
+           O 60/18 era pra todo mundo, com a justificativa de que "a tela do
+           draft nem mostra esses números" — e mostrava mesmo nada. Agora a
+           classe que vem do CSV traz OVR, idade e as dez notas por atributo,
+           e jogar isso fora pra gravar 60/18 seria importar o arquivo e
+           descartar o conteúdo dele.
+
+           O sinal é a coluna `notas`: quem tem nota veio do CSV. Classe
+           antiga não tem, e segue como sempre foi. */
+        $temNotas = !empty($j['notas']);
         $ins->execute([$seasonId, $j['name'], strtoupper((string)$j['position']),
-                       CD_IDADE_CALOURO, CD_OVR_CALOURO,
-                       $j['pick_hint'] !== null ? (int)$j['pick_hint'] : null]);
+                       $temNotas && (int)$j['age'] > 0 ? (int)$j['age'] : CD_IDADE_CALOURO,
+                       $temNotas && (int)$j['ovr'] > 0 ? (int)$j['ovr'] : CD_OVR_CALOURO,
+                       $j['pick_hint'] !== null ? (int)$j['pick_hint'] : null,
+                       $temNotas ? $j['notas'] : null]);
     }
     return count($jogadores);
 }
@@ -323,9 +337,17 @@ function cdEstado(PDO $pdo, string $liga): array {
                                         WHERE l.template_id = t.id AND l.league = ?)
                          ORDER BY t.name");
     $st->execute([$liga, $liga]);
+    /* A TAG VERDE: quais classes já vieram do CSV do jogo, com as letrinhas.
+       Uma consulta só pra todas, e não uma por classe. @see draft_class_csv */
+    require_once __DIR__ . '/../backend/draft_class_csv.php';
+    $comNotas = draftCsvTemplatesComNotas($pdo);
+
     $disponiveis = []; $usadas = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
         $c['jogadores'] = (int)$c['jogadores'];
+        // Quantos jogadores dela têm nota — 0 quando a classe foi cadastrada
+        // na mão. É o que acende a tag na tela.
+        $c['com_notas'] = $comNotas[(int)$c['id']] ?? 0;
         // Classe vazia também entra na roleta: as classes das lendas nascem
         // sem ninguém e os jogadores são cadastrados depois do sorteio.
         $c['sorteavel'] = true;
@@ -567,34 +589,47 @@ try {
         // lista não bater mais com o draft que saiu dela.
         if (!empty($classe['sorteio_id'])) cdErro(409, 'Essa classe já foi sorteada — a lista dela não muda mais.');
 
-        $limpos = [];
-        foreach ($jogadores as $j) {
-            $nome = trim((string)($j['name'] ?? ''));
-            if ($nome === '') continue;
-            $pos = strtoupper(trim((string)($j['position'] ?? '')));
-            if (!in_array($pos, ['PG','SG','SF','PF','C'], true)) $pos = 'PG';
-            $ordem = ($j['pick_hint'] ?? '') !== '' ? (int)$j['pick_hint'] : null;
-            // OVR e idade não vêm do arquivo: são o 2K que define, e aqui todo
-            // calouro é igual. Se o CSV trouxer essas colunas, elas são
-            // ignoradas — guardar um número que nunca vai ser usado só criaria
-            // a dúvida de por que a tela mostra um e o jogo outro.
-            $limpos[] = [mb_substr($nome, 0, 120), $pos, CD_OVR_CALOURO, CD_IDADE_CALOURO, $ordem];
+        /* QUEM LÊ O CSV É O SERVIDOR, e é um leitor só.
+           A tela tinha um parser em JavaScript e aqui havia outro tratamento
+           por cima dele — dois lugares pra entender o mesmo arquivo, que é
+           como eles divergem. Agora o navegador manda o TEXTO e quem
+           interpreta é draftCsvLer(), a mesma função testada contra o
+           cabeçalho do jogo. @see backend/draft_class_csv.php
+
+           O caminho antigo (`players` já montado) continua aceito: tela
+           velha em cache não fica sem importar. */
+        require_once __DIR__ . '/../backend/draft_class_csv.php';
+        $ignoradas = [];
+        if (!empty($corpo['csv']) && is_string($corpo['csv'])) {
+            $lido = draftCsvLer($corpo['csv']);
+            if ($lido['erros']) cdErro(400, implode(' ', $lido['erros']));
+            $limpos = $lido['jogadores'];
+            $ignoradas = $lido['ignoradas'];
+        } else {
+            $limpos = [];
+            foreach ($jogadores as $j) {
+                $nome = trim((string)($j['name'] ?? ''));
+                if ($nome === '') continue;
+                $limpos[] = [
+                    'name' => mb_substr($nome, 0, 120),
+                    'position' => strtoupper(trim((string)($j['position'] ?? ''))),
+                    'ovr' => DRAFT_CSV_OVR_PADRAO, 'age' => DRAFT_CSV_IDADE_PADRAO,
+                    'pick_hint' => ($j['pick_hint'] ?? '') !== '' ? (int)$j['pick_hint'] : (count($limpos) + 1),
+                    'notas' => null,
+                ];
+            }
         }
         if (!$limpos) cdErro(400, 'Nenhuma linha aproveitável — confira se o arquivo tem a coluna de nome.');
 
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id = ?")->execute([$tplId]);
-            $ins = $pdo->prepare("INSERT INTO draft_class_template_players
-                                  (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
-            foreach ($limpos as $j) $ins->execute([$tplId, $j[0], $j[1], $j[2], $j[3], $j[4]]);
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            throw $e;
-        }
-        echo json_encode(['success' => true, 'inseridos' => count($limpos),
-            'message' => count($limpos) . ' jogador(es) na classe.']);
+        $r = draftCsvAplicarNoTemplate($pdo, $tplId, $limpos);
+        if (!$r['ok']) cdErro(400, $r['erro'] ?? 'Erro ao gravar a classe.');
+
+        $comNotas = count(array_filter($limpos, fn($j) => !empty($j['notas'])));
+        $msg = $r['gravados'] . ' jogador(es) na classe';
+        $msg .= $comNotas ? ", {$comNotas} com as letrinhas." : ', sem letrinhas (o arquivo não trouxe as colunas de atributo).';
+        if ($ignoradas) $msg .= ' Colunas ignoradas: ' . implode(', ', $ignoradas) . '.';
+        echo json_encode(['success' => true, 'inseridos' => $r['gravados'],
+            'com_notas' => $comNotas, 'ignoradas' => $ignoradas, 'message' => $msg]);
         exit;
     }
 
