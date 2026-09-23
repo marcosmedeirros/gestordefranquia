@@ -782,3 +782,129 @@ function loteriaMatrizCache(array $bolinhas, array $protegidos, int $pisoIdx, in
     @file_put_contents($arquivo, json_encode($gravar));
     return null;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   A ORDEM TRAVADA
+   ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * O sorteio da urna: ponderado, sem reposição, do 1º ao último.
+ *
+ * Extraído de api/draft.php (run_lottery) pra poder rodar nos dois momentos
+ * sem duas contas — a cerimônia e a travada do "Salvar temporada regular"
+ * precisam sortear exatamente igual, senão a ordem guardada não é a ordem
+ * que a liga conhece.
+ *
+ * @param array<int,int> $bolinhas  team_id => peso
+ * @return int[]  team_ids na ordem em que saíram
+ */
+function loteriaSortearDaUrna(array $bolinhas): array
+{
+    $pool = $bolinhas;
+    $ordem = [];
+    while (!empty($pool)) {
+        $soma = array_sum($pool);
+        $rand = mt_rand(1, max(1, $soma));
+        $cum = 0;
+        $vencedor = null;
+        foreach ($pool as $tid => $peso) {
+            $cum += $peso;
+            if ($rand <= $cum) { $vencedor = (int)$tid; break; }
+        }
+        if ($vencedor === null) $vencedor = (int)array_key_last($pool);
+        $ordem[] = $vencedor;
+        unset($pool[$vencedor]);
+    }
+    return $ordem;
+}
+
+/** A tabela da ordem travada. Nasce na primeira gravação. */
+function loteriaGarantirTravada(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS loteria_ordem_travada (
+            season_id INT NOT NULL PRIMARY KEY,
+            league VARCHAR(20) NOT NULL,
+            ordem TEXT NOT NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('[loteria/travada] esquema: ' . $e->getMessage());
+    }
+}
+
+/**
+ * TRAVA A ORDEM DA LOTERIA no fechamento da temporada regular.
+ *
+ * O sorteio deixa de acontecer na cerimônia e passa a acontecer aqui, no
+ * instante em que a classificação é salva: a partir desse clique a ordem já
+ * existe, e nada que venha depois a muda — corrigir uma posição, mexer num
+ * grupo, refazer as chances. A cerimônia passa a REVELAR o que já estava
+ * guardado em vez de sortear na hora.
+ *
+ * GRAVA UMA VEZ SÓ (INSERT IGNORE). Um segundo salvamento — a correção que o
+ * admin faz dias depois — não pode reabrir a urna, senão a trava não trava
+ * nada: bastaria salvar de novo até sair a ordem desejada.
+ *
+ * As odds saem da classificação que acabou de ser salva, com os grupos
+ * normais (3 piores com mais bolinhas). O sinal de "temporada jogada" que a
+ * cerimônia usa é o playoff registrado, que só chega na etapa 2 — aqui ele
+ * ainda não existe, e usá-lo faria a urna sortear com chance igual pra todos.
+ * Classificação salva É campanha jogada, e é ela que manda neste momento.
+ *
+ * Não devolve nada e não aparece em tela nenhuma: quem lê é só a cerimônia.
+ */
+function loteriaTravarOrdem(PDO $pdo, int $seasonId, string $liga): void
+{
+    if ($seasonId <= 0) return;
+    try {
+        loteriaGarantirTravada($pdo);
+
+        $st = $pdo->prepare("SELECT 1 FROM loteria_ordem_travada WHERE season_id = ?");
+        $st->execute([$seasonId]);
+        if ($st->fetchColumn()) return;   // já travada: não se sorteia duas vezes
+
+        $st = $pdo->prepare("SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
+                                    ss.wins, ss.points_for, ss.points_against, ss.overall_position,
+                                    ss.lottery_group, t.name AS team_name
+                               FROM season_standings ss
+                               JOIN teams t ON t.id = ss.team_id
+                              WHERE ss.season_id = ?");
+        $st->execute([$seasonId]);
+        $standings = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$standings) return;
+
+        $g = loteriaMontarGrupos($standings, false);
+        if (empty($g['bolinhas'])) return;
+
+        $ordem = loteriaSortearDaUrna($g['bolinhas']);
+        if (!$ordem) return;
+
+        $pdo->prepare("INSERT IGNORE INTO loteria_ordem_travada (season_id, league, ordem) VALUES (?,?,?)")
+            ->execute([$seasonId, strtoupper(trim($liga)), json_encode($ordem)]);
+    } catch (Throwable $e) {
+        error_log('[loteria/travada] gravar: ' . $e->getMessage());
+    }
+}
+
+/** A ordem travada de uma temporada, ou null. Só a cerimônia chama. */
+function loteriaOrdemTravada(PDO $pdo, int $seasonId): ?array
+{
+    if ($seasonId <= 0) return null;
+    try {
+        loteriaGarantirTravada($pdo);
+        $st = $pdo->prepare("SELECT ordem FROM loteria_ordem_travada WHERE season_id = ?");
+        $st->execute([$seasonId]);
+        $json = $st->fetchColumn();
+        if (!$json) return null;
+        $ordem = json_decode((string)$json, true);
+        if (!is_array($ordem) || !$ordem) return null;
+        return array_values(array_map('intval', $ordem));
+    } catch (Throwable $e) {
+        error_log('[loteria/travada] ler: ' . $e->getMessage());
+        return null;
+    }
+}

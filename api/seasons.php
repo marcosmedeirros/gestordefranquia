@@ -2626,6 +2626,18 @@ try {
                O que esta etapa NÃO fazia era gravar os pontos de posição —
                e como ninguém mais os gravava, o total da temporada saía sem
                eles, com playoffs e prêmios apenas. */
+            /* A urna fecha aqui. @see loteriaTravarOrdem, em
+               backend/loteria_grupos.php — grava uma vez e nunca mais, então
+               a correção de dias depois não reabre o sorteio. Fora da
+               transação de propósito: se ela falhar, a classificação salva
+               continua salva, e a cerimônia volta a sortear na hora. */
+            try {
+                require_once dirname(__DIR__) . '/backend/loteria_grupos.php';
+                loteriaTravarOrdem($pdo, $seasonId, (string)$leagueR);
+            } catch (Throwable $e) {
+                error_log('[seasons/loteria] travar ordem: ' . $e->getMessage());
+            }
+
             echo json_encode([
                 'success'   => true,
                 'correcao'  => $ehCorrecao,

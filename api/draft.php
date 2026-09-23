@@ -1798,6 +1798,26 @@ if ($method === 'POST') {
             $pool = $balls;
             foreach ($jaSaiu as $tidFixo) unset($pool[$tidFixo]);   // fora da urna
             $drawOrder = [];
+
+            /* A URNA JÁ FOI FECHADA NO SALVAR DA TEMPORADA REGULAR.
+               Havendo ordem travada, a cerimônia REVELA em vez de sortear: a
+               ordem existe desde aquele clique, e nada depois dela a muda —
+               corrigir posição, mexer em grupo, refazer as chances. Vale só
+               no sorteio de verdade; prévia e simulação continuam sorteando
+               na hora, que é o que faz delas ensaio.
+               @see loteriaTravarOrdem, em backend/loteria_grupos.php */
+            $ordemTravada = (!$apenasPreview && !$simulacao)
+                ? loteriaOrdemTravada($pdo, (int)$lotterySession['season_id'])
+                : null;
+            if ($ordemTravada) {
+                // Só quem está na urna hoje, e na ordem travada. Quem entrou
+                // ou saiu da liga depois da trava não pode quebrar a lista:
+                // os que faltam entram no fim, sorteados entre si.
+                foreach ($ordemTravada as $tidTravado) {
+                    if (isset($pool[$tidTravado])) { $drawOrder[] = $tidTravado; unset($pool[$tidTravado]); }
+                }
+            }
+
             while (!$apenasPreview && !empty($pool)) {
                 $sum = array_sum($pool);
                 $rand = mt_rand(1, max(1, $sum));
