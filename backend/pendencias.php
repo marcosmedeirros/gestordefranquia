@@ -201,8 +201,13 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
         }
     } catch (Throwable $e) {}
 
-    // ── Waivers: janela de 12h pra reivindicar ──────────────────────────────
-    try {
+    /* ── Waivers: janela de 12h pra reivindicar ──────────────────────────────
+       SÓ NA ELITE. Dispensas é recurso da ELITE, e o aviso aparecia pra
+       qualquer liga que tivesse linha em `waiver_retention` — GM da NEXT via
+       "14 jogadores nas dispensas" com um link pra uma tela que a liga dele
+       não usa. Filtrar pela liga na consulta não bastava: a linha existe, o
+       que não existe é a regra fora da ELITE. */
+    if ($league === 'ELITE') try {
         $st = $pdo->prepare("
             SELECT COUNT(*) AS n, MIN(TIMESTAMPDIFF(SECOND, NOW(), wr.expires_at)) AS falta
             FROM waiver_retention wr
