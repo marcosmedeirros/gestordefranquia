@@ -59,15 +59,48 @@ ok('a força do elenco bate com o catálogo', max($erroForca) === 0, 'pior erro:
 
 $comRepetido = 0;
 $velhoNoTopo = 0;
+$gerados = 0;
 foreach ($br as $c) {
     $e = futElencoDoClube($c['nome'], (int)$c['forca']);
     $ns = array_column($e, 'nome');
     if (count($ns) !== count(array_unique($ns))) $comRepetido++;
+
+    /* O craque velho só é defeito no elenco GERADO — foi lá que idade e OVR
+       eram sorteados sem olhar um pro outro. Num elenco real, Hulk aos 40
+       sendo o melhor do Fluminense é a vida como ela é, e reprovar isso
+       transformaria o teste num alarme que só sabe dar falso positivo. */
+    if (futForcaDoElencoReal($c['nome']) !== null) continue;
+    $gerados++;
     usort($e, fn($x, $y) => $y['ovr'] <=> $x['ovr']);
     if ((int)$e[0]['idade'] >= 34) $velhoNoTopo++;
 }
 ok('nenhum elenco com nome repetido', $comRepetido === 0, "$comRepetido elencos");
-ok('nenhum craque com 34+ anos', $velhoNoTopo === 0, "$velhoNoTopo clubes");
+ok('nenhum craque velho nos elencos gerados', $velhoNoTopo === 0,
+   "$velhoNoTopo de $gerados gerados");
+
+$comReal = array_filter(array_keys($br), fn($n) => futForcaDoElencoReal($n) !== null);
+ok('há elencos reais importados', count($comReal) > 0, count($comReal) . ' clubes');
+
+if ($comReal) {
+    $maiorVelho = 0; $quemVelho = '';
+    $forcas = [];
+    foreach ($comReal as $nome) {
+        $forcas[$nome] = futForcaDoElencoReal($nome);
+        foreach (futElencoDoClube($nome, 70) as $j) {
+            if ((int)$j['idade'] >= 38 && (int)$j['ovr'] > $maiorVelho) {
+                $maiorVelho = (int)$j['ovr']; $quemVelho = $j['nome'] . ' (' . $j['idade'] . ')';
+            }
+        }
+    }
+    ok('ninguém de 38+ passa de 82 no elenco real', $maiorVelho <= 82,
+       $quemVelho . ' com ' . $maiorVelho);
+    arsort($forcas);
+    $topo = array_key_first($forcas);
+    $fundo = array_key_last($forcas);
+    ok('o elenco real espalha a liga em pelo menos 15 pontos',
+       $forcas[$topo] - $forcas[$fundo] >= 15,
+       "$topo {$forcas[$topo]} … $fundo {$forcas[$fundo]}");
+}
 
 // ═════════════════════════════════════════════════════════════════════
 secao('Economia');

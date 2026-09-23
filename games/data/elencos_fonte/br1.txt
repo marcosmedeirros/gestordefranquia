@@ -1,0 +1,897 @@
+# ELENCOS REAIS — fonte enviada pelo dono do jogo em 23/09/2026.
+#
+# Formato de cada linha:  Nome | Posição | dd/mm/aaaa (idade) | Nacionalidades | Valor
+# Linha que começa com "# CLUBE:" abre o elenco de um clube.
+#
+# O clube entre parênteses no nome do jogador é o clube DE ORIGEM de quem está
+# emprestado — o jogador conta pro elenco do bloco, não pro clube do parêntese.
+#
+# Este arquivo é a fonte; games/core/fut_importar.php vira elenco do jogo.
+
+# CLUBE: Flamengo
+Agustín Rossi | Goleiro | 21/08/1995 (31) | Argentina, Itália | € 10.00 mi.
+Andrew | Goleiro | 01/07/2001 (25) | Brasil | € 5.00 mi.
+Dyogo Alves | Goleiro | 09/01/2004 (22) | Brasil | € 400 mil
+Léo Ortiz | Zagueiro | 03/01/1996 (30) | Brasil, Itália | € 12.00 mi.
+Léo Pereira | Zagueiro | 31/01/1996 (30) | Brasil | € 12.00 mi.
+Vitão | Zagueiro | 02/02/2000 (26) | Brasil | € 10.00 mi.
+Danilo | Zagueiro | 15/07/1991 (35) | Brasil | € 2.00 mi.
+João Souza | Zagueiro | 01/01/2007 (19) | Brasil | € 800 mil
+Ayrton Lucas | Lateral Esq. | 19/06/1997 (29) | Brasil | € 4.00 mi.
+Alex Sandro | Lateral Esq. | 26/01/1991 (35) | Brasil | € 1.00 mi.
+Emerson Royal | Lateral Dir. | 14/01/1999 (27) | Brasil | € 5.00 mi.
+Guillermo Varela | Lateral Dir. | 24/03/1993 (33) | Uruguai, Itália | € 1.00 mi.
+Evertton Araújo | Volante | 28/02/2003 (23) | Brasil | € 10.00 mi.
+Erick Pulgar | Volante | 15/01/1994 (32) | Chile | € 4.50 mi.
+Jorginho | Volante | 20/12/1991 (34) | Itália, Brasil | € 4.00 mi.
+Nicolás de la Cruz | Meia Central | 01/06/1997 (29) | Uruguai, Argentina | € 8.00 mi.
+Saúl Ñíguez | Meia Central | 21/11/1994 (31) | Espanha | € 1.00 mi.
+Lucas Paquetá | Meia Ofensivo | 27/08/1997 (29) | Brasil, Portugal | € 32.00 mi.
+Giorgian de Arrascaeta | Meia Ofensivo | 01/06/1994 (32) | Uruguai, Itália | € 14.00 mi.
+Jorge Carrascal | Meia Ofensivo | 25/05/1998 (28) | Colômbia | € 13.00 mi.
+Samuel Lino | Ponta Esquerda | 23/12/1999 (26) | Brasil | € 15.00 mi.
+Gonzalo Plata | Ponta Direita | 01/11/2000 (25) | Equador | € 9.00 mi.
+Luiz Araújo | Ponta Direita | 02/06/1996 (30) | Brasil | € 7.00 mi.
+Anthony Valencia (Royal Antuérpia FC) | Ponta Direita | 21/07/2003 (23) | Equador | € 1.80 mi.
+Pedro | Centroavante | 20/06/1997 (29) | Brasil | € 20.00 mi.
+Joaquín Freitas (CA River Plate) | Centroavante | 02/12/2006 (19) | Argentina | € 1.00 mi.
+Bruno Henrique | Centroavante | 30/12/1990 (35) | Brasil | € 750 mil
+
+# CLUBE: Cruzeiro
+# ATENÇÃO: veio rotulado "Avaí FC / Diversos" na fonte, mas o elenco é do
+# Cruzeiro (Cássio, Fabrício Bruno, Kaio Jorge, Matheus Pereira, Sinisterra).
+# Confirmar com o dono do jogo antes de considerar fechado.
+Léo Aragão | Goleiro | 19/04/2002 (24) | Brasil | € 800 mil
+Otávio | Goleiro | 27/12/2005 (20) | Brasil | € 500 mil
+Cássio | Goleiro | 06/06/1987 (39) | Brasil | € 250 mil
+Fabrício Bruno | Zagueiro | 12/02/1996 (30) | Brasil | € 12.00 mi.
+Jonathan Jesus | Zagueiro | 27/05/2004 (22) | Brasil | € 8.00 mi.
+João Marcelo | Zagueiro | 13/06/2000 (26) | Brasil | € 3.00 mi.
+Lucas Villalba | Zagueiro | 19/08/1994 (32) | Argentina | € 1.70 mi.
+Gabriel Rojas (Racing Club) | Lateral Esq. | 22/06/1997 (29) | Argentina | € 4.00 mi.
+Matías Viña (CR Flamengo) | Lateral Esq. | 09/11/1997 (28) | Uruguai, Itália | € 2.50 mi.
+William | Lateral Dir. | 03/04/1995 (31) | Brasil | € 3.00 mi.
+Kauã Moraes | Lateral Dir. | 29/09/2006 (19) | Brasil | € 2.00 mi.
+Fagner | Lateral Dir. | 11/06/1989 (37) | Brasil | € 200 mil
+Zé Lucas (Sport Recife) | Volante | 23/03/2008 (18) | Brasil | € 8.00 mi.
+Lucas Romero | Volante | 18/04/1994 (32) | Argentina, Itália | € 2.50 mi.
+Lucas Silva | Volante | 16/02/1993 (33) | Brasil | € 450 mil
+Gerson | Meia Central | 20/05/1997 (29) | Brasil | € 18.00 mi.
+Matheus Henrique | Meia Central | 19/12/1997 (28) | Brasil | € 4.50 mi.
+Fabrizio Peralta (Club Cerro Porteño) | Meia Central | 02/08/2002 (24) | Paraguai | € 800 mil
+Matheus Pereira | Meia Ofensivo | 05/05/1996 (30) | Brasil, Portugal | € 14.00 mi.
+Felipe Morais | Meia Ofensivo | 29/08/2008 (18) | Brasil | -
+Luis Sinisterra (AFC Bournemouth) | Ponta Esquerda | 17/06/1999 (27) | Colômbia | € 11.00 mi.
+Wesley (Al-Nassr FC) | Ponta Esquerda | 05/03/2005 (21) | Brasil | € 4.00 mi.
+Kaique Kenji | Ponta Esquerda | 29/01/2006 (20) | Brasil, Japão | € 3.00 mi.
+Wanderson | Ponta Esquerda | 07/10/1994 (31) | Brasil, Bélgica | € 3.00 mi.
+Bruno Rodrigues (SE Palmeiras) | Ponta Esquerda | 07/03/1997 (29) | Brasil | € 1.20 mi.
+Keny Arroyo | Ponta Direita | 14/02/2006 (20) | Equador | € 10.00 mi.
+Gabriel Pec (Los Angeles Galaxy) | Ponta Direita | 11/02/2001 (25) | Brasil, Portugal | € 7.00 mi.
+Marquinhos | Ponta Direita | 07/04/2003 (23) | Brasil | € 2.50 mi.
+João Costa (Al-Ettifaq FC) | Ponta Direita | 28/03/2005 (21) | Portugal, Brasil | € 2.50 mi.
+Kaio Jorge | Centroavante | 24/01/2002 (24) | Brasil | € 25.00 mi.
+Luciano Rodríguez (NEOM SC) | Centroavante | 16/07/2003 (23) | Uruguai | € 9.00 mi.
+Néiser Villarreal | Centroavante | 24/04/2005 (21) | Colômbia | € 4.00 mi.
+
+# CLUBE: Corinthians
+Hugo Souza | Goleiro | 31/01/1999 (27) | Brasil | € 11.00 mi.
+Felipe Longo | Goleiro | 05/03/2005 (21) | Brasil, Itália | € 500 mil
+Kauê | Goleiro | 08/02/2004 (22) | Brasil | € 300 mil
+João Pedro Tchoca | Zagueiro | 31/12/2003 (22) | Brasil | € 4.00 mi.
+André Ramalho | Zagueiro | 16/02/1992 (34) | Brasil, Itália | € 800 mil
+Gustavo Henrique | Zagueiro | 24/03/1993 (33) | Brasil | € 700 mil
+Gabriel Paulista | Zagueiro | 26/11/1990 (35) | Brasil, Espanha | € 500 mil
+Renato Santos | Zagueiro | 11/10/2004 (21) | Brasil | -
+Matheus Bidu | Lateral Esq. | 04/05/1999 (27) | Brasil | € 7.00 mi.
+Hugo | Lateral Esq. | 29/08/1997 (29) | Brasil | € 700 mil
+Fabrizio Angileri | Lateral Esq. | 15/03/1994 (32) | Argentina, Itália | € 400 mil
+Matheuzinho | Lateral Dir. | 08/09/2000 (26) | Brasil | € 8.00 mi.
+Pedro Milans | Lateral Dir. | 24/03/2002 (24) | Uruguai, Itália | € 1.50 mi.
+Léo Mana (Criciúma EC) | Lateral Dir. | 06/04/2004 (22) | Brasil | € 500 mil
+Raniele | Volante | 31/12/1996 (29) | Brasil | € 4.00 mi.
+Allan (CR Flamengo) | Volante | 03/03/1997 (29) | Brasil | € 2.50 mi.
+Charles | Volante | 19/06/1996 (30) | Brasil | € 900 mil
+Breno Bidon | Meia Central | 20/02/2005 (21) | Brasil, Itália | € 22.00 mi.
+André | Meia Central | 20/06/2006 (20) | Brasil | € 16.00 mi.
+Matheus Pereira (Fortaleza EC) | Meia Central | 25/02/1998 (28) | Brasil | € 2.50 mi.
+Alex Santana | Meia Central | 13/05/1995 (31) | Brasil, Bulgária | € 1.00 mi.
+André Carrillo | Meia Central | 14/06/1991 (35) | Perú, Portugal | € 800 mil
+Bahia | Meia Central | 02/01/2006 (20) | Brasil | -
+Rodrigo Garro | Meia Ofensivo | 04/01/1998 (28) | Argentina, Itália | € 12.00 mi.
+Jesse Lingard | Meia Ofensivo | 15/12/1992 (33) | Inglaterra, São Vicente e Granadinas | € 2.00 mi.
+Zakaria Labyad | Meia Ofensivo | 09/03/1993 (33) | Marrocos, Holanda | € 400 mil
+Kayke | Ponta Esquerda | 28/04/2004 (22) | Brasil | € 1.50 mi.
+Vitinho | Ponta Esquerda | 09/10/1993 (32) | Brasil | € 800 mil
+Kaio César (Al-Hilal SFC) | Ponta Direita | 15/02/2004 (22) | Brasil | € 4.00 mi.
+Dieguinho | Ponta Direita | 16/09/2007 (19) | Brasil | € 4.00 mi.
+Yuri Alberto | Centroavante | 18/03/2001 (25) | Brasil, Itália | € 23.00 mi.
+Memphis Depay | Centroavante | 13/02/1994 (32) | Holanda, Gana | € 7.00 mi.
+Gui Negão | Centroavante | 06/02/2007 (19) | Brasil | € 7.00 mi.
+Pedro Raul | Centroavante | 05/11/1996 (29) | Brasil | € 2.50 mi.
+
+# CLUBE: Vasco da Gama
+Léo Jardim | Goleiro | 20/03/1995 (31) | Brasil | € 7.00 mi.
+Daniel Fuzato | Goleiro | 04/07/1997 (29) | Brasil | € 900 mil
+Pablo | Goleiro | 11/02/2003 (23) | Brasil | € 50 mil
+Robert Renan | Zagueiro | 11/10/2003 (22) | Brasil | € 10.00 mi.
+Carlos Cuesta | Zagueiro | 09/03/1999 (27) | Colômbia | € 8.00 mi.
+Gabriel Pereira | Zagueiro | 07/05/2000 (26) | Brasil | € 6.00 mi.
+Alan Saldivia | Zagueiro | 06/04/2002 (24) | Uruguai | € 1.20 mi.
+Lucas Freitas | Zagueiro | 20/01/2001 (25) | Brasil | € 1.00 mi.
+Walace Falcão | Zagueiro | 07/03/2005 (21) | Brasil | -
+Cuiabano | Lateral Esq. | 16/02/2003 (23) | Brasil | € 10.00 mi.
+Lucas Piton | Lateral Esq. | 09/10/2000 (25) | Brasil, Itália | € 6.00 mi.
+Riquelme | Lateral Esq. | 28/08/2002 (24) | Brasil | € 700 mil
+Paulinho | Lateral Esq. | 29/06/2004 (22) | Brasil | € 600 mil
+Paulo Henrique | Lateral Dir. | 25/07/1996 (30) | Brasil | € 6.00 mi.
+José Luis Rodríguez | Lateral Dir. | 14/03/1997 (29) | Uruguai | € 1.50 mi.
+JV Fonseca | Lateral Dir. | 29/05/2005 (21) | Brasil | -
+Santiago Sosa | Volante | 03/05/1999 (27) | Argentina | € 8.00 mi.
+Cauan Barros | Volante | 06/05/2004 (22) | Brasil | € 5.00 mi.
+Thiago Mendes | Volante | 15/03/1992 (34) | Brasil | € 1.30 mi.
+Mateus Carvalho | Volante | 18/03/2002 (24) | Brasil | € 1.20 mi.
+Jair | Volante | 26/08/1994 (32) | Brasil | € 800 mil
+Euder | Volante | 18/03/2005 (21) | Brasil | -
+Ramon Rique | Meia Central | 02/10/2007 (18) | Brasil | € 1.00 mi.
+Tchê Tchê | Meia Central | 30/08/1992 (34) | Brasil | € 800 mil
+Alan Lescano | Meia Ofensivo | 11/11/2001 (24) | Argentina | € 7.50 mi.
+Johan Rojas | Meia Ofensivo | 20/09/2002 (24) | Colômbia | € 3.80 mi.
+Guilherme Estrella | Meia Ofensivo | 06/01/2005 (21) | Brasil | € 1.00 mi.
+Andrés Gómez | Ponta Esquerda | 12/09/2002 (24) | Colômbia | € 11.00 mi.
+David | Ponta Esquerda | 17/10/1995 (30) | Brasil | € 1.50 mi.
+Nuno Moreira | Ponta Direita | 16/06/1999 (27) | Portugal | € 7.00 mi.
+Marino Hinestroza | Ponta Direita | 08/07/2002 (24) | Colômbia | € 4.80 mi.
+Adson | Ponta Direita | 06/10/2000 (25) | Brasil | € 2.50 mi.
+Loide Augusto | Ponta Direita | 26/02/2000 (26) | Angola | € 1.20 mi.
+Facundo Colidio | Centroavante | 04/01/2000 (26) | Argentina | € 5.00 mi.
+Bruno Duarte | Centroavante | 24/03/1996 (30) | Brasil | € 4.00 mi.
+Brenner | Centroavante | 16/01/2000 (26) | Brasil | € 4.00 mi.
+Claudio Spinelli | Centroavante | 21/01/1997 (29) | Argentina | € 3.00 mi.
+
+# CLUBE: Botafogo
+Gabriel Batista | Goleiro | 03/06/1998 (28) | Brasil | € 4.00 mi.
+Warleson | Goleiro | 31/08/1996 (30) | Brasil | € 2.00 mi.
+Cristhian Loor | Goleiro | 09/03/2006 (20) | Equador | € 350 mil
+Arthur Chaves | Zagueiro | 29/01/2001 (25) | Brasil | € 5.00 mi.
+Nahuel Ferraresi | Zagueiro | 19/11/1998 (27) | Venezuela | € 4.50 mi.
+Kaio | Zagueiro | 18/09/1995 (31) | Brasil | € 1.80 mi.
+Lucas Monzón | Zagueiro | 29/09/2001 (24) | Uruguai | € 550 mil
+Gabriel Justino | Zagueiro | 16/04/2006 (20) | Brasil | € 500 mil
+Anthony | Zagueiro | 12/07/2005 (21) | Brasil | € 300 mil
+Kawan | Zagueiro | 10/04/2003 (23) | Brasil | -
+Alex Telles | Lateral Esq. | 15/12/1992 (33) | Brasil | € 2.80 mi.
+Paulinho | Lateral Esq. | 03/01/1995 (31) | Brasil | € 400 mil
+Marçal | Lateral Esq. | 19/02/1989 (37) | Brasil | € 200 mil
+Jhoan Hernández | Lateral Esq. | 20/02/2006 (20) | Colômbia | € 150 mil
+Vitinho | Lateral Dir. | 23/07/1999 (27) | Brasil | € 9.00 mi.
+Mateo Ponte | Lateral Dir. | 24/05/2003 (23) | Uruguai | € 2.00 mi.
+Domingos Andrade | Volante | 07/05/2003 (23) | Moçambique | € 1.50 mi.
+Allan | Volante | 08/01/1991 (35) | Brasil | € 1.00 mi.
+Wallace Davi | Volante | 10/05/2007 (19) | Brasil | € 1.00 mi.
+Huguinho | Volante | 04/06/2007 (19) | Brasil | € 300 mil
+Danilo | Meia Central | 29/04/2001 (25) | Brasil | € 32.00 mi.
+Cristian Medina | Meia Central | 01/06/2002 (24) | Argentina | € 9.00 mi.
+Edenilson | Meia Central | 18/12/1989 (36) | Brasil | € 250 mil
+Jordan Barrera | Meia Ofensivo | 11/04/2006 (20) | Colômbia | € 2.50 mi.
+Álvaro Montoro | Ponta Esquerda | 17/04/2007 (19) | Argentina | € 10.00 mi.
+Matheus Martins | Ponta Esquerda | 16/07/2003 (23) | Brasil | € 6.00 mi.
+Júnior Santos | Ponta Direita | 11/10/1994 (31) | Brasil | € 3.00 mi.
+Hakim Ziyech | Ponta Direita | 19/03/1993 (33) | Marrocos | € 2.20 mi.
+Lucas Villalba | Ponta Direita | 11/05/2001 (25) | Argentina | € 1.50 mi.
+Arthur Cabral | Centroavante | 25/04/1998 (28) | Brasil | € 9.00 mi.
+Kadir Barría | Centroavante | 18/07/2007 (19) | Panamá | € 2.00 mi.
+Danilo Silva | Centroavante | 07/04/1999 (27) | Brasil | € 1.50 mi.
+Tiquinho Soares | Centroavante | 17/01/1991 (35) | Brasil | € 800 mil
+
+# CLUBE: Fluminense
+Vitor Eudes | Goleiro | 21/10/1998 (27) | Brasil | € 400 mil
+Marcelo Pitaluga | Goleiro | 20/12/2002 (23) | Brasil | € 200 mil
+Fábio | Goleiro | 30/09/1980 (45) | Brasil | € 75 mil
+Juan Pablo Freytes | Zagueiro | 11/01/2000 (26) | Argentina | € 5.00 mi.
+Julián Millán | Zagueiro | 27/03/1998 (28) | Colômbia | € 3.50 mi.
+Jemmes | Zagueiro | 09/04/2000 (26) | Brasil | € 3.00 mi.
+Ignácio | Zagueiro | 01/12/1996 (29) | Brasil | € 2.00 mi.
+Igor Rabello | Zagueiro | 28/04/1995 (31) | Brasil | € 1.40 mi.
+Thiago Silva | Zagueiro | 22/09/1984 (42) | Brasil | € 500 mil
+Guilherme Arana | Lateral Esq. | 14/04/1997 (29) | Brasil | € 6.00 mi.
+Renê | Lateral Esq. | 14/09/1992 (34) | Brasil | € 400 mil
+Léo Jance | Lateral Esq. | 23/03/2005 (21) | Brasil | -
+Guga | Lateral Dir. | 29/08/1998 (28) | Brasil | € 2.00 mi.
+Jhonny | Lateral Dir. | 16/04/2002 (24) | Brasil | € 350 mil
+Julio Fidelis | Lateral Dir. | 06/11/2006 (19) | Brasil | € 300 mil
+Samuel Xavier | Lateral Dir. | 06/06/1990 (36) | Brasil | € 200 mil
+Martinelli | Volante | 05/10/2001 (24) | Brasil | € 16.00 mi.
+Otávio | Volante | 04/05/1994 (32) | Brasil | € 1.20 mi.
+Luis Fernando | Volante | 18/02/2005 (21) | Brasil | -
+Hércules | Meia Central | 20/10/2000 (25) | Brasil | € 15.00 mi.
+Nonato | Meia Central | 03/03/1998 (28) | Brasil | € 2.00 mi.
+Alisson | Meia Central | 25/06/1993 (33) | Brasil | € 800 mil
+Jefferson Savarino | Meia Ofensivo | 11/11/1996 (29) | Venezuela | € 8.00 mi.
+Luciano Acosta | Meia Ofensivo | 31/05/1994 (32) | Argentina | € 5.00 mi.
+Ganso | Meia Ofensivo | 12/10/1989 (36) | Brasil | € 300 mil
+Yago Ferreira | Meia Ofensivo | 02/08/2001 (25) | Brasil | -
+Yeferson Soteldo | Ponta Esquerda | 30/06/1997 (29) | Venezuela | € 3.50 mi.
+Matheus Reis | Ponta Esquerda | 02/04/2007 (19) | Brasil | -
+Agustín Canobbio | Ponta Direita | 01/10/1998 (27) | Uruguai | € 8.00 mi.
+Riquelme | Ponta Direita | 13/03/2007 (19) | Brasil | € 6.00 mi.
+Kevin Serna | Ponta Direita | 17/12/1997 (28) | Colômbia | € 5.00 mi.
+John Kennedy | Centroavante | 18/05/2002 (24) | Brasil | € 9.00 mi.
+Rodrigo Castillo | Centroavante | 26/02/1999 (27) | Argentina | € 6.00 mi.
+Hulk | Centroavante | 25/07/1986 (40) | Brasil | € 1.00 mi.
+Germán Cano | Centroavante | 02/01/1988 (38) | Argentina | € 500 mil
+
+# CLUBE: Bahia
+Ronaldo | Goleiro | 22/08/1996 (30) | Brasil | € 2.00 mi.
+Guido Herrera | Goleiro | 29/02/1992 (34) | Argentina | € 1.50 mi.
+Léo Vieira | Goleiro | 22/09/1990 (36) | Brasil | € 200 mil
+Victor | Goleiro | 03/05/2006 (20) | Brasil | -
+Kanu | Zagueiro | 07/03/1997 (29) | Brasil | € 3.00 mi.
+David Duarte | Zagueiro | 24/01/1995 (31) | Brasil | € 1.50 mi.
+Marco Moreno | Zagueiro | 20/02/2001 (25) | Chile | € 900 mil
+Luiz Gustavo | Zagueiro | 12/04/2006 (20) | Brasil | € 600 mil
+Marcos Victor | Zagueiro | 26/12/2001 (24) | Brasil | € 450 mil
+Fredi Gomes | Zagueiro | 23/05/2006 (20) | Brasil | -
+Luciano Juba | Lateral Esq. | 29/08/1999 (27) | Brasil | € 14.00 mi.
+Zé Guilherme | Lateral Esq. | 16/03/2005 (21) | Brasil | € 400 mil
+Román Gómez | Lateral Dir. | 14/07/2004 (22) | Argentina | € 1.50 mi.
+Caio Alexandre | Volante | 24/02/1999 (27) | Brasil | € 7.00 mi.
+Nicolás Acevedo | Volante | 14/04/1999 (27) | Uruguai | € 6.00 mi.
+Erick | Volante | 14/11/1997 (28) | Brasil | € 4.00 mi.
+Lautaro López | Volante | 30/03/2005 (21) | Argentina | € 400 mil
+Jean Lucas | Meia Central | 22/06/1998 (28) | Brasil | € 13.00 mi.
+Rodrigo Nestor | Meia Central | 09/08/2000 (26) | Brasil | € 7.00 mi.
+Everton Ribeiro | Meia Ofensivo | 10/04/1989 (37) | Brasil | € 1.00 mi.
+Roger Gabriel | Meia Ofensivo | 12/02/2007 (19) | Brasil | -
+Erick Pulga | Ponta Esquerda | 02/10/2000 (25) | Brasil | € 11.00 mi.
+Ruan Pablo | Ponta Esquerda | 23/07/2008 (18) | Brasil | € 8.00 mi.
+Mateo Sanabria | Ponta Esquerda | 31/03/2004 (22) | Argentina | € 2.00 mi.
+Cristian Olivera | Ponta Direita | 17/04/2002 (24) | Uruguai | € 5.00 mi.
+Michel Araújo | Ponta Direita | 28/09/1996 (29) | Uruguai | € 2.50 mi.
+Kauê Furquim | Ponta Direita | 27/02/2009 (17) | Brasil | € 2.50 mi.
+Ademir | Ponta Direita | 16/02/1995 (31) | Brasil | € 1.20 mi.
+Alejo Veliz | Centroavante | 19/09/2003 (23) | Argentina | € 4.00 mi.
+Dell | Centroavante | 09/06/2008 (18) | Brasil | € 4.00 mi.
+Willian José | Centroavante | 23/11/1991 (34) | Brasil | € 1.20 mi.
+Everaldo | Centroavante | 05/07/1991 (35) | Brasil | € 350 mil
+
+# CLUBE: Santos
+Gabriel Brazão | Goleiro | 05/10/2000 (25) | Brasil | € 12.00 mi.
+João Paulo | Goleiro | 29/06/1995 (31) | Brasil | € 2.00 mi.
+Diógenes | Goleiro | 06/01/2001 (25) | Brasil | € 200 mil
+João Fernandes | Goleiro | 25/05/2004 (22) | Brasil | -
+Rodrigo Falcão | Goleiro | 23/03/2005 (21) | Brasil | -
+Lucas Veríssimo | Zagueiro | 02/07/1995 (31) | Brasil | € 4.50 mi.
+Alexis Duarte | Zagueiro | 12/03/2000 (26) | Paraguai | € 1.80 mi.
+Luan Peres | Zagueiro | 19/07/1994 (32) | Brasil | € 700 mil
+João Ananias | Zagueiro | 12/02/2007 (19) | Brasil | € 500 mil
+João Alencar | Zagueiro | 25/06/2007 (19) | Brasil | -
+Vinicius Lira | Lateral Esq. | 12/10/2007 (18) | Brasil | € 4.00 mi.
+Gonzalo Escobar | Lateral Esq. | 16/03/1997 (29) | Argentina | € 800 mil
+Gabriel Menino | Lateral Dir. | 29/09/2000 (25) | Brasil | € 7.00 mi.
+Igor Vinícius | Lateral Dir. | 01/04/1997 (29) | Brasil | € 2.00 mi.
+Rodinei | Lateral Dir. | 29/01/1992 (34) | Brasil | € 800 mil
+Arthur Melo | Volante | 12/08/1996 (30) | Brasil | € 4.00 mi.
+Christian Oliva | Volante | 01/06/1996 (30) | Uruguai | € 1.40 mi.
+Willian Arão | Volante | 12/03/1992 (34) | Brasil | € 800 mil
+João Schmidt | Volante | 19/05/1993 (33) | Brasil | € 700 mil
+Gustavinho | Volante | 07/04/2005 (21) | Brasil | € 500 mil
+Gabriel Bontempo | Meia Central | 16/01/2005 (21) | Brasil | € 9.00 mi.
+Neymar | Meia Ofensivo | 05/02/1992 (34) | Brasil | € 8.00 mi.
+Miguelito | Meia Ofensivo | 25/04/2004 (22) | Bolívia | € 5.00 mi.
+Philippe Coutinho | Meia Ofensivo | 12/06/1992 (34) | Brasil | € 2.50 mi.
+Lima | Meia Ofensivo | 11/06/1996 (30) | Brasil | € 2.00 mi.
+Thaciano | Meia Ofensivo | 12/05/1995 (31) | Brasil | € 1.00 mi.
+Pepê Fermino | Meia Ofensivo | 12/02/2007 (19) | Brasil | -
+Everton | Ponta Esquerda | 22/03/1996 (30) | Brasil | € 7.00 mi.
+Álvaro Barreal | Ponta Esquerda | 17/08/2000 (26) | Argentina | € 7.00 mi.
+Moisés | Ponta Esquerda | 02/09/1996 (30) | Brasil | € 2.00 mi.
+Gustavo Caballero | Ponta Esquerda | 21/09/2001 (25) | Paraguai | € 1.00 mi.
+Mateus Xavier | Ponta Esquerda | 29/06/2007 (19) | Brasil | € 400 mil
+Benjamín Rollheiser | Ponta Direita | 24/03/2000 (26) | Argentina | € 9.00 mi.
+Andrey Quintino | Ponta Direita | 05/08/2002 (24) | Brasil | -
+Enzo Boer | Ponta Direita | 06/01/2005 (21) | Brasil | -
+Rony | Centroavante | 11/05/1995 (31) | Brasil | € 4.50 mi.
+Gabriel Barbosa | Centroavante | 30/08/1996 (30) | Brasil | € 3.00 mi.
+
+# CLUBE: RB Bragantino
+Cleiton | Goleiro | 19/08/1997 (29) | Brasil | € 5.00 mi.
+Tiago Volpi | Goleiro | 19/12/1990 (35) | Brasil | € 900 mil
+Fabrício | Goleiro | 15/06/2000 (26) | Brasil | € 100 mil
+Gustavo Reis | Goleiro | 10/06/2005 (21) | Brasil | -
+Gustavo Marques | Zagueiro | 09/10/2001 (24) | Brasil | € 5.00 mi.
+Guzmán Rodríguez | Zagueiro | 08/02/2000 (26) | Uruguai | € 3.50 mi.
+Alix | Zagueiro | 06/11/1999 (26) | Brasil | € 3.00 mi.
+Eduardo | Zagueiro | 28/11/1997 (28) | Brasil | € 750 mil
+Juninho Capixaba | Lateral Esq. | 06/07/1997 (29) | Brasil | € 8.00 mi.
+Vanderlan | Lateral Esq. | 07/09/2002 (24) | Brasil | € 3.00 mi.
+Cauê Nascimento | Lateral Esq. | 13/12/2006 (19) | Brasil | € 500 mil
+Agustín Sant'Anna | Lateral Dir. | 27/09/1997 (28) | Uruguai | € 3.50 mi.
+José Andrés Hurtado | Lateral Dir. | 23/12/2001 (24) | Equador | € 3.00 mi.
+Ryan Augusto | Lateral Dir. | 04/09/2007 (19) | Brasil | € 1.00 mi.
+Fabinho | Volante | 09/04/2002 (24) | Brasil | € 5.00 mi.
+Patrick | Volante | 19/03/2004 (22) | Brasil | € 1.50 mi.
+Matheus Fernandes | Volante | 30/06/1998 (28) | Brasil | € 1.00 mi.
+Gabriel | Volante | 10/07/1992 (34) | Brasil | € 900 mil
+Ignacio Sosa | Meia Central | 31/08/2003 (23) | Uruguai | € 5.00 mi.
+Eric Ramires | Meia Central | 10/08/2000 (26) | Brasil | € 3.50 mi.
+Gustavo Neves | Meia Central | 23/04/2004 (22) | Brasil | € 3.50 mi.
+Praxedes | Meia Central | 08/02/2002 (24) | Brasil | € 1.20 mi.
+Rodriguinho | Meia Ofensivo | 16/03/2004 (22) | Brasil | € 6.00 mi.
+Bruninho | Meia Ofensivo | 14/03/2003 (23) | Brasil | € 1.00 mi.
+Marcelinho Braz | Meia Ofensivo | 16/08/2004 (22) | Brasil | € 400 mil
+Vinicinho | Ponta Esquerda | 20/02/2004 (22) | Brasil | € 3.50 mi.
+Henry Mosquera | Ponta Esquerda | 15/11/2001 (24) | Colômbia | € 3.50 mi.
+Davi Gomes | Ponta Esquerda | 06/06/2005 (21) | Brasil | € 400 mil
+Lucas Barbosa | Ponta Direita | 22/02/2001 (25) | Brasil | € 6.00 mi.
+José Herrera | Ponta Direita | 16/04/2003 (23) | Venezuela | € 2.50 mi.
+Kawê | Ponta Direita | 22/06/2002 (24) | Brasil | € 300 mil
+Isidro Pitta | Centroavante | 14/08/1999 (27) | Paraguai | € 7.50 mi.
+Wallace Yan | Centroavante | 08/02/2005 (21) | Brasil | € 5.00 mi.
+Fernando | Centroavante | 01/03/1999 (27) | Brasil | € 1.50 mi.
+Eduardo Sasha | Centroavante | 24/02/1992 (34) | Brasil | € 800 mil
+Gabriel Novaes | Centroavante | 05/04/1999 (27) | Brasil | € 600 mil
+
+# CLUBE: Atlético-MG
+Everson | Goleiro | 22/07/1990 (36) | Brasil | € 900 mil
+Pedro Cobra | Goleiro | 15/05/2006 (20) | Brasil | € 600 mil
+Gabriel Delfim | Goleiro | 10/07/2002 (24) | Brasil | € 300 mil
+Robert | Goleiro | 03/02/2005 (21) | Brasil | -
+Lyanco | Zagueiro | 01/02/1997 (29) | Brasil, Sérvia | € 4.50 mi.
+Ruan | Zagueiro | 07/06/1999 (27) | Brasil | € 4.00 mi.
+Léo Duarte | Zagueiro | 17/07/1996 (30) | Brasil | € 2.50 mi.
+Vitor Hugo | Zagueiro | 20/05/1991 (35) | Brasil | € 500 mil
+Vitão | Zagueiro | 04/03/2008 (18) | Brasil | -
+Renan Lodi | Lateral Esq. | 08/04/1998 (28) | Brasil, Itália | € 11.00 mi.
+Kauã Pascini | Lateral Esq. | 05/03/2008 (18) | Brasil | € 500 mil
+Natanael | Lateral Dir. | 05/01/2002 (24) | Brasil | € 4.50 mi.
+Angelo Preciado | Lateral Dir. | 18/02/1998 (28) | Equador | € 3.50 mi.
+Alexsander | Volante | 08/10/2003 (22) | Brasil | € 5.50 mi.
+Kevin Castaño | Volante | 29/09/2000 (25) | Colômbia | € 5.00 mi.
+Tomás Pérez | Volante | 26/08/2005 (21) | Argentina | € 3.00 mi.
+Victor Hugo | Meia Central | 11/05/2004 (22) | Brasil | € 7.00 mi.
+Fred | Meia Central | 05/03/1993 (33) | Brasil | € 4.50 mi.
+Alan Franco | Meia Central | 21/08/1998 (28) | Equador | € 4.50 mi.
+Maycon | Meia Central | 15/07/1997 (29) | Brasil | € 2.00 mi.
+Mamady Cissé | Meia Central | 01/07/2007 (19) | Guiné | € 1.00 mi.
+Índio | Meia Central | 03/04/2008 (18) | Brasil | -
+Gustavo Scarpa | Meia Ofensivo | 05/01/1994 (32) | Brasil, Itália | € 4.50 mi.
+Igor Gomes | Meia Ofensivo | 17/03/1999 (27) | Brasil | € 2.50 mi.
+Reinier | Meia Ofensivo | 19/01/2002 (24) | Brasil | € 2.00 mi.
+Tomás Cuello | Ponta Esquerda | 05/03/2000 (26) | Argentina, Itália | € 6.00 mi.
+Dudu | Ponta Esquerda | 07/01/1992 (34) | Brasil | € 800 mil
+Bernard | Ponta Esquerda | 08/09/1992 (34) | Brasil | € 600 mil
+Alan Minda | Ponta Direita | 14/05/2003 (23) | Equador | € 3.00 mi.
+Mateo Cassierra | Centroavante | 13/04/1997 (29) | Colômbia | € 8.00 mi.
+Thiago Borbas | Centroavante | 07/04/2002 (24) | Uruguai | € 3.50 mi.
+Cauã Soares | Centroavante | 30/06/2008 (18) | Brasil | € 500 mil
+
+# CLUBE: São Paulo
+Carlos Coronel | Goleiro | 29/12/1996 (29) | Brasil, Paraguai | € 1.50 mi.
+Rafael | Goleiro | 23/06/1989 (37) | Brasil | € 400 mil
+Young | Goleiro | 07/03/2002 (24) | Brasil | € 100 mil
+João Pedro | Goleiro | 10/04/2006 (20) | Brasil | -
+Felipe Preis | Goleiro | 19/11/2005 (20) | Brasil | -
+Sabino | Zagueiro | 25/10/1996 (29) | Brasil | € 1.00 mi.
+Matheus Belém | Zagueiro | 13/03/2003 (23) | Brasil | € 800 mil
+Rafael Tolói | Zagueiro | 10/10/1990 (35) | Brasil, Itália | € 800 mil
+Domingos Duarte | Zagueiro | 10/03/1995 (31) | Portugal | € 800 mil
+Robert Arboleda | Zagueiro | 22/10/1991 (34) | Equador | € 400 mil
+Isac | Zagueiro | 02/04/2006 (20) | Brasil | -
+Luis Osorio | Zagueiro | 06/09/2006 (20) | Colômbia | -
+Iago | Lateral Esq. | 23/03/1997 (29) | Brasil | € 3.50 mi.
+Enzo Díaz | Lateral Esq. | 07/12/1995 (30) | Argentina | € 3.00 mi.
+Wendell | Lateral Esq. | 20/07/1993 (33) | Brasil, Portugal | € 1.50 mi.
+Nicolas | Lateral Esq. | 08/04/2007 (19) | Brasil | -
+Pedro Lima | Lateral Dir. | 01/07/2006 (20) | Brasil | € 4.00 mi.
+Aurélio Buta | Lateral Dir. | 10/02/1997 (29) | Portugal, Angola | € 2.00 mi.
+Lucas Ramon | Lateral Dir. | 07/03/1994 (32) | Brasil | € 700 mil
+Cédric Soares | Lateral Dir. | 31/08/1991 (35) | Portugal, Alemanha | € 500 mil
+Igor Felisberto | Lateral Dir. | 07/03/2007 (19) | Brasil | -
+Pablo Maia | Volante | 10/01/2002 (24) | Brasil | € 5.00 mi.
+Newton | Volante | 12/03/2000 (26) | Brasil | € 3.00 mi.
+Marcos Antônio | Meia Central | 13/06/2000 (26) | Brasil | € 12.00 mi.
+Damián Bobadilla | Meia Central | 11/07/2001 (25) | Paraguai | € 8.00 mi.
+Danielzinho | Meia Central | 04/11/1994 (31) | Brasil | € 1.00 mi.
+Djhordney | Meia Central | 17/06/2007 (19) | Brasil | € 500 mil
+Cauly | Meia Ofensivo | 15/09/1995 (31) | Brasil, Alemanha | € 3.00 mi.
+Pedro Ferreira | Meia Ofensivo | 24/04/2007 (19) | Brasil | -
+Ferreirinha | Ponta Esquerda | 31/12/1997 (28) | Brasil | € 4.00 mi.
+Lucca | Ponta Esquerda | 14/06/2007 (19) | Brasil | € 3.00 mi.
+Victor Sá | Ponta Esquerda | 27/03/1994 (32) | Brasil | € 2.50 mi.
+Tetê | Ponta Esquerda | 14/04/2007 (19) | Brasil | € 1.00 mi.
+Artur | Ponta Direita | 15/02/1998 (28) | Brasil | € 8.00 mi.
+Lucas Moura | Ponta Direita | 13/08/1992 (34) | Brasil | € 2.00 mi.
+Ryan Francisco | Centroavante | 21/11/2006 (19) | Brasil | € 4.50 mi.
+André Silva | Centroavante | 03/06/1997 (29) | Brasil | € 3.00 mi.
+Jonathan Calleri | Centroavante | 23/09/1993 (33) | Argentina, Itália | € 1.50 mi.
+Luciano | Centroavante | 18/05/1993 (33) | Brasil | € 1.30 mi.
+Gustavo Santana | Centroavante | 02/09/2005 (21) | Brasil | -
+
+# CLUBE: Grêmio
+Gabriel Grando | Goleiro | 29/03/2000 (26) | Brasil | € 1.50 mi.
+Weverton | Goleiro | 13/12/1987 (38) | Brasil | € 700 mil
+Thiago Beltrame | Goleiro | 02/07/2003 (23) | Brasil | -
+Gabriel Menegon | Goleiro | 14/10/2008 (17) | Brasil | -
+Gustavo Martins | Zagueiro | 11/08/2002 (24) | Brasil | € 4.00 mi.
+Wagner Leonardo | Zagueiro | 23/07/1999 (27) | Brasil | € 3.00 mi.
+Fabián Balbuena | Zagueiro | 23/08/1991 (35) | Paraguai | € 900 mil
+Walter Kannemann | Zagueiro | 14/03/1991 (35) | Argentina, Alemanha | € 350 mil
+Wallace | Zagueiro | 06/12/2004 (21) | Brasil | € 200 mil
+Athos Thawan | Zagueiro | 29/03/2005 (21) | Brasil | -
+Luis Eduardo | Zagueiro | 16/01/2008 (18) | Brasil | -
+Marlon | Lateral Esq. | 20/05/1997 (29) | Brasil | € 4.00 mi.
+Caio Paulista | Lateral Esq. | 11/05/1998 (28) | Brasil | € 2.00 mi.
+Pedro Gabriel | Lateral Esq. | 06/06/2007 (19) | Brasil | € 2.00 mi.
+João Pedro | Lateral Dir. | 15/11/1996 (29) | Brasil | € 1.50 mi.
+Diego Caito | Lateral Dir. | 07/06/2004 (22) | Brasil | € 800 mil
+Marcos Rocha | Lateral Dir. | 11/12/1988 (37) | Brasil | € 200 mil
+Erick Noriega | Volante | 22/10/2001 (24) | Peru, Japão | € 5.00 mi.
+Mathías Villasanti | Volante | 24/01/1997 (29) | Paraguai | € 4.00 mi.
+Danilo Barbosa | Volante | 28/02/1996 (30) | Brasil | € 2.00 mi.
+Filip Krovinovic | Volante | 29/08/1995 (31) | Croácia | € 1.50 mi.
+Dodi | Volante | 17/04/1996 (30) | Brasil | € 700 mil
+Juan Nardoni | Meia Central | 14/07/2002 (24) | Argentina | € 9.00 mi.
+Tiago Augusto | Meia Central | 02/02/2008 (18) | Brasil | € 500 mil
+Riquelme | Meia Ofensivo | 13/08/2006 (20) | Brasil | € 2.00 mi.
+Francis Amuzu | Ponta Esquerda | 23/08/1999 (27) | Gana, Bélgica | € 9.00 mi.
+Jovane Cabral | Ponta Esquerda | 14/06/1998 (28) | Cabo Verde, Portugal | € 1.00 mi.
+Tetê | Ponta Direita | 15/02/2000 (26) | Brasil | € 9.00 mi.
+José Enamorado | Ponta Direita | 13/01/1999 (27) | Colômbia | € 3.00 mi.
+Cristian Pavón | Ponta Direita | 21/01/1996 (30) | Argentina | € 1.70 mi.
+Roger | Ponta Direita | 29/04/2008 (18) | Brasil | € 400 mil
+Carlos Vinícius | Centroavante | 25/03/1995 (31) | Brasil | € 7.00 mi.
+Matheus Nascimento | Centroavante | 03/03/2004 (22) | Brasil | € 2.00 mi.
+Martin Braithwaite | Centroavante | 05/06/1991 (35) | Dinamarca | € 1.00 mi.
+
+# CLUBE: Internacional
+Anthoni | Goleiro | 23/01/2002 (24) | Brasil | € 3.00 mi.
+Matheus Cunha | Goleiro | 24/05/2001 (25) | Brasil | € 3.00 mi.
+Sergio Rochet | Goleiro | 23/03/1993 (33) | Uruguai, Itália | € 1.80 mi.
+Kauan | Goleiro | 27/04/2003 (23) | Brasil | -
+Diego Esser | Goleiro | 13/04/2005 (21) | Brasil | -
+Victor Gabriel | Zagueiro | 28/04/2004 (22) | Brasil | € 5.00 mi.
+Guillermo Maripán | Zagueiro | 06/05/1994 (32) | Chile | € 2.00 mi.
+Félix Torres | Zagueiro | 11/01/1997 (29) | Equador | € 1.00 mi.
+Juninho | Zagueiro | 01/02/1995 (31) | Brasil | € 700 mil
+Gabriel Mercado | Zagueiro | 18/03/1987 (39) | Argentina | € 100 mil
+Alexandro Bernabei | Lateral Esq. | 24/09/2000 (25) | Argentina, Itália | € 8.00 mi.
+Matheus Bahia | Lateral Esq. | 11/08/1999 (27) | Brasil | € 3.00 mi.
+Bruno Gomes | Lateral Dir. | 04/04/2001 (25) | Brasil | € 6.00 mi.
+Braian Aguirre | Lateral Dir. | 28/07/2000 (26) | Argentina | € 2.50 mi.
+Rodrigo Villagra | Volante | 14/02/2001 (25) | Argentina | € 3.50 mi.
+Thiago Maia | Volante | 23/03/1997 (29) | Brasil | € 2.50 mi.
+Ronaldo | Volante | 23/10/1996 (29) | Brasil | € 2.00 mi.
+Benjamin | Volante | 29/05/2006 (20) | Brasil | -
+Paulinho Paula | Meia Central | 08/01/1997 (29) | Brasil | € 1.00 mi.
+Bruno Henrique | Meia Central | 21/10/1989 (36) | Brasil | € 300 mil
+Niclas Eliasson | Meia Direita | 07/12/1995 (30) | Suécia | € 3.00 mi.
+Alan Patrick | Meia Ofensivo | 13/05/1991 (35) | Brasil | € 2.00 mi.
+Calebe | Meia Ofensivo | 30/04/2000 (26) | Brasil | € 1.80 mi.
+Allex | Meia Ofensivo | 04/05/2006 (20) | Brasil | € 1.00 mi.
+Yago Noal | Meia Ofensivo | 05/02/2007 (19) | Brasil | € 500 mil
+Johan Carbonero | Ponta Esquerda | 20/07/1999 (27) | Colômbia | € 6.00 mi.
+Vitinho | Ponta Esquerda | 01/04/1999 (27) | Brasil | € 5.00 mi.
+Kayky | Ponta Direita | 11/06/2003 (23) | Brasil | € 5.00 mi.
+Alerrandro | Centroavante | 12/01/2000 (26) | Brasil | € 3.00 mi.
+Antonio Sanabria | Centroavante | 04/03/1996 (30) | Paraguai | € 1.80 mi.
+Raykkonen | Centroavante | 13/07/2008 (18) | Brasil | € 1.00 mi.
+
+# CLUBE: Athletico-PR
+Mycael | Goleiro | 12/03/2004 (22) | Brasil | € 2.00 mi.
+Santos | Goleiro | 17/03/1990 (36) | Brasil | € 400 mil
+Matheus Soares | Goleiro | 10/01/2005 (21) | Brasil | -
+Arthur Dias | Zagueiro | 10/04/2007 (19) | Brasil | € 3.00 mi.
+Carlos Terán | Zagueiro | 24/09/2000 (25) | Colômbia | € 2.00 mi.
+Juan Felipe Aguirre | Zagueiro | 29/08/1996 (30) | Colômbia | € 1.50 mi.
+Léo | Zagueiro | 06/03/1996 (30) | Brasil | € 1.20 mi.
+Dantas | Zagueiro | 25/07/2004 (22) | Brasil | € 700 mil
+Lucas Esquivel | Lateral Esq. | 14/10/2001 (24) | Argentina | € 7.00 mi.
+Léo Derik | Lateral Esq. | 24/07/2005 (21) | Brasil | € 2.50 mi.
+Claudinho | Lateral Esq. | 26/10/2005 (20) | Brasil | -
+Gastón Benavídez | Lateral Dir. | 23/10/1995 (30) | Argentina | € 3.50 mi.
+Gilberto | Lateral Dir. | 07/03/1993 (33) | Brasil | € 2.20 mi.
+Gilberto Junior | Lateral Dir. | 27/03/2005 (21) | Brasil | € 2.00 mi.
+Luiz Gustavo | Volante | 23/07/1987 (39) | Brasil | € 200 mil
+Juan Portilla | Meia Central | 12/09/1998 (28) | Colômbia | € 5.00 mi.
+João Cruz | Meia Central | 12/05/2006 (20) | Brasil | € 2.00 mi.
+Felipinho | Meia Central | 18/10/2001 (24) | Brasil | € 1.00 mi.
+Jádson | Meia Central | 30/08/1993 (33) | Brasil | € 1.00 mi.
+Alejandro García | Meia Central | 28/02/2001 (25) | Colômbia | € 700 mil
+Dudu | Meia Ofensivo | 01/01/2006 (20) | Brasil | € 5.00 mi.
+Bruno Zapelli | Meia Ofensivo | 16/05/2002 (24) | Argentina, Itália | € 4.50 mi.
+Chiqueti | Meia Ofensivo | 02/09/2005 (21) | Brasil | € 3.00 mi.
+Stiven Mendoza | Ponta Esquerda | 27/06/1992 (34) | Colômbia | € 600 mil
+Kerwin Vargas | Ponta Direita | 02/01/2002 (24) | Colômbia | € 3.50 mi.
+Leozinho | Ponta Direita | 05/12/1998 (27) | Brasil | € 750 mil
+Kevin Viveros | Centroavante | 26/04/2000 (26) | Colômbia | € 10.00 mi.
+Jorge Rivaldo | Centroavante | 28/09/2003 (22) | Colômbia | € 2.00 mi.
+Renan Peixoto | Centroavante | 21/02/2000 (26) | Brasil | € 1.50 mi.
+Renan Viana | Centroavante | 31/01/2003 (23) | Brasil | € 225 mil
+
+# CLUBE: Coritiba
+Pedro Morisco | Goleiro | 10/01/2004 (22) | Brasil | € 5.00 mi.
+Pedro Rangel | Goleiro | 29/06/2000 (26) | Brasil | € 1.00 mi.
+Keiller | Goleiro | 29/10/1996 (29) | Brasil | € 500 mil
+Benassi | Goleiro | 17/12/2003 (22) | Brasil | € 50 mil
+Jacy | Zagueiro | 11/07/1997 (29) | Brasil | € 2.50 mi.
+Tiago Cóser | Zagueiro | 16/01/2004 (22) | Brasil | € 1.50 mi.
+Maicon | Zagueiro | 14/09/1988 (38) | Brasil | € 100 mil
+Rodrigo Moledo | Zagueiro | 27/10/1987 (38) | Brasil | € 100 mil
+Thiago Santos | Zagueiro | 05/09/1989 (37) | Brasil | € 100 mil
+Felipe Jonatan | Lateral Esq. | 15/02/1998 (28) | Brasil | € 2.00 mi.
+Rodrigo Gelado | Lateral Esq. | 28/09/2003 (22) | Brasil | € 300 mil
+Bruno Melo | Lateral Esq. | 26/10/1992 (33) | Brasil | € 250 mil
+JP Chermont | Lateral Dir. | 18/01/2006 (20) | Brasil | € 4.00 mi.
+Fabricio Bustos | Lateral Dir. | 28/04/1996 (30) | Argentina | € 1.80 mi.
+Tinga | Lateral Dir. | 01/09/1993 (33) | Brasil | € 450 mil
+Nicolás Fonseca | Volante | 19/10/1998 (27) | Uruguai, Itália | € 3.00 mi.
+Richard | Volante | 18/02/1994 (32) | Brasil | € 500 mil
+Sebastián Gómez | Meia Central | 03/06/1996 (30) | Colômbia | € 1.80 mi.
+Vini Paulista | Meia Central | 22/03/2001 (25) | Brasil | € 1.00 mi.
+Gustavo | Meia Ofensivo | 11/09/2002 (24) | Brasil | € 500 mil
+Josué | Meia Ofensivo | 17/09/1990 (36) | Brasil | € 350 mil
+Joaquín Lavega | Ponta Esquerda | 03/02/2005 (21) | Uruguai | € 4.00 mi.
+Breno Lopes | Ponta Esquerda | 24/01/1996 (30) | Brasil | € 3.00 mi.
+Brian Ocampo | Ponta Esquerda | 25/06/1999 (27) | Uruguai | € 1.00 mi.
+Keno | Ponta Esquerda | 10/09/1989 (37) | Brasil | € 300 mil
+Lucas Ronier | Ponta Direita | 26/11/2004 (21) | Brasil | € 6.00 mi.
+Fabinho | Ponta Direita | 18/11/1999 (26) | Brasil | € 1.00 mi.
+Pedro Rocha | Centroavante | 01/10/1994 (31) | Brasil | € 1.50 mi.
+Renato Marques | Centroavante | 09/12/2003 (22) | Brasil | € 1.00 mi.
+Rodrigo Rodrigues | Centroavante | 18/06/1996 (30) | Brasil | € 500 mil
+Éberth | Centroavante | 19/06/2003 (23) | Brasil | € 250 mil
+Paulo Roberto | Centroavante | 20/05/2005 (21) | Brasil | -
+
+# CLUBE: Vitória
+Lucas Arcanjo | Goleiro | 08/08/1998 (28) | Brasil | € 2.50 mi.
+Fintelman | Goleiro | 20/07/2001 (25) | Brasil | € 100 mil
+Yuri Sena | Goleiro | 03/01/2001 (25) | Brasil | -
+Riccieli | Zagueiro | 17/09/1998 (28) | Brasil | € 1.80 mi.
+Cacá | Zagueiro | 25/04/1999 (27) | Brasil | € 1.50 mi.
+Zé Marcos | Zagueiro | 01/02/1998 (28) | Brasil | € 1.00 mi.
+Edu Ribeiro | Zagueiro | 16/06/2000 (26) | Brasil | € 800 mil
+Emanuel Brítez | Zagueiro | 26/03/1992 (34) | Argentina | € 500 mil
+Camutanga | Zagueiro | 27/09/1993 (32) | Brasil | € 250 mil
+Darlan | Zagueiro | 03/07/2003 (23) | Brasil | -
+Luan Cândido | Lateral Esq. | 02/02/2001 (25) | Brasil | € 3.00 mi.
+Ramon | Lateral Esq. | 13/03/2001 (25) | Brasil | € 2.00 mi.
+Jamerson | Lateral Esq. | 09/09/1998 (28) | Brasil | € 800 mil
+Nathan Mendes | Lateral Dir. | 19/08/2002 (24) | Brasil | € 1.50 mi.
+Fabiano | Lateral Dir. | 14/03/2000 (26) | Brasil | € 1.50 mi.
+Mateus Silva | Lateral Dir. | 07/10/1998 (27) | Brasil | € 800 mil
+Walace | Volante | 04/04/1995 (31) | Brasil | € 2.50 mi.
+Baralhas | Volante | 10/10/1998 (27) | Brasil | € 2.50 mi.
+Rúben Ismael | Volante | 25/03/1999 (27) | Espanha | € 1.20 mi.
+Dudu | Volante | 05/06/1999 (27) | Brasil | € 600 mil
+Caíque Gonçalves | Volante | 10/10/1995 (30) | Brasil | € 500 mil
+Zé Vitor | Meia Central | 02/05/2000 (26) | Brasil | € 500 mil
+Tomás Pochettino | Meia Ofensivo | 01/02/1996 (30) | Argentina | € 3.50 mi.
+Matheuzinho | Meia Ofensivo | 18/10/1997 (28) | Brasil | € 3.00 mi.
+Emmanuel Martínez | Meia Ofensivo | 04/06/1994 (32) | Argentina | € 1.20 mi.
+Diego Tarzia | Ponta Esquerda | 26/04/2003 (23) | Argentina | € 2.00 mi.
+Renê | Ponta Esquerda | 07/10/2003 (22) | Brasil | € 1.00 mi.
+Anderson Pato | Ponta Esquerda | 28/09/2002 (23) | Brasil | € 250 mil
+Erick | Ponta Direita | 10/12/1997 (28) | Brasil | € 2.50 mi.
+Ignacio Laquintana | Ponta Direita | 01/02/1999 (27) | Uruguai | € 1.00 mi.
+Lucas Silva | Ponta Direita | 27/08/1999 (27) | Brasil | € 700 mil
+Marinho | Ponta Direita | 29/05/1990 (36) | Brasil | € 200 mil
+Osvaldo | Ponta Direita | 11/04/1987 (39) | Brasil | € 75 mil
+Renato Kayzer | Centroavante | 17/02/1996 (30) | Brasil | € 1.00 mi.
+Fabri | Centroavante | 08/10/2000 (25) | Brasil | € 900 mil
+Alex Bruno | Centroavante | 07/01/1999 (27) | Brasil | € 300 mil
+
+# CLUBE: Mirassol
+Walter | Goleiro | 18/11/1987 (38) | Brasil | € 150 mil
+Alex Muralha | Goleiro | 10/11/1989 (36) | Brasil | € 75 mil
+Georgemy | Goleiro | 15/08/1995 (31) | Brasil | € 50 mil
+Thomazella | Goleiro | 15/08/1990 (36) | Brasil | -
+Willian Machado | Zagueiro | 13/11/1996 (29) | Brasil | € 2.00 mi.
+João Victor | Zagueiro | 02/09/1997 (29) | Brasil | € 1.50 mi.
+Lucas Oliveira | Zagueiro | 02/02/1996 (30) | Brasil | € 1.00 mi.
+Gabriel | Zagueiro | 18/10/2003 (22) | Brasil | € 700 mil
+Reinaldo | Lateral Esq. | 28/09/1989 (36) | Brasil | € 350 mil
+Victor Luís | Lateral Esq. | 23/06/1993 (33) | Brasil | € 300 mil
+Igor Formiga | Lateral Dir. | 08/01/1999 (27) | Brasil | € 2.00 mi.
+Elias | Lateral Dir. | 16/07/1999 (27) | Brasil | € 550 mil
+Daniel Borges | Lateral Dir. | 23/03/1993 (33) | Brasil | € 300 mil
+Wesley Santos | Lateral Dir. | 06/06/2004 (22) | Brasil | € 100 mil
+Neto Moura | Volante | 06/08/1996 (30) | Brasil | € 2.00 mi.
+Wallisson | Volante | 23/09/1997 (29) | Brasil | € 900 mil
+Gustavo Cazonatti | Volante | 03/07/1996 (30) | Brasil | € 450 mil
+Denilson | Meia Central | 23/03/2001 (25) | Brasil | € 2.00 mi.
+Aldo Filho | Meia Central | 25/07/1998 (28) | Brasil | € 1.50 mi.
+Japa | Meia Central | 02/01/2004 (22) | Brasil | € 1.00 mi.
+Shaylon | Meia Ofensivo | 27/04/1997 (29) | Brasil | € 1.00 mi.
+Eduardo | Meia Ofensivo | 17/10/1989 (36) | Brasil | € 600 mil
+Chico Kim | Meia Ofensivo | 16/05/1991 (35) | Coreia do Sul, Brasil | € 150 mil
+Alesson | Ponta Esquerda | 16/02/1999 (27) | Brasil | € 2.50 mi.
+Fernandinho | Ponta Esquerda | 19/07/1997 (29) | Brasil | € 600 mil
+Negueba | Ponta Direita | 03/12/1999 (26) | Brasil | € 3.00 mi.
+Gustavo Silva | Ponta Direita | 07/09/1997 (29) | Brasil | € 1.00 mi.
+Carlos Eduardo | Ponta Direita | 10/10/1996 (29) | Brasil | € 500 mil
+Luiz Filipe | Ponta Direita | 28/05/2001 (25) | Brasil | € 100 mil
+Edson Carioca | Centroavante | 04/06/1997 (29) | Brasil | € 1.50 mi.
+André Luis | Centroavante | 09/03/1994 (32) | Brasil | € 1.00 mi.
+Zé Roberto | Centroavante | 14/09/1993 (33) | Brasil | € 400 mil
+Bruno Santos | Centroavante | 18/11/1996 (29) | Brasil | € 200 mil
+
+# CLUBE: Remo
+Ivan | Goleiro | 02/07/1997 (29) | Brasil | € 1.00 mi.
+Marcelo Rangel | Goleiro | 17/05/1988 (38) | Brasil | € 50 mil
+Ygor Vinhas | Goleiro | 15/04/1994 (32) | Brasil | € 50 mil
+Zé Ivaldo | Zagueiro | 21/02/1997 (29) | Brasil | € 2.00 mi.
+Tchamba | Zagueiro | 10/07/1998 (28) | Camarões | € 800 mil
+Matheus Felipe | Zagueiro | 09/11/1998 (27) | Brasil | € 650 mil
+Léo Andrade | Zagueiro | 18/04/1998 (28) | Brasil | € 350 mil
+Marllon | Zagueiro | 16/04/1992 (34) | Brasil | € 350 mil
+Cristian Tassano | Zagueiro | 23/07/1996 (30) | Uruguai | € 350 mil
+Mayk | Lateral Esq. | 31/08/1999 (27) | Brasil | € 500 mil
+Marlon | Lateral Esq. | 13/02/1994 (32) | Brasil | € 300 mil
+Edson Kauã | Lateral Esq. | 09/01/2004 (22) | Brasil | -
+João Lucas | Lateral Dir. | 09/03/1998 (28) | Brasil | € 1.50 mi.
+Matheus Alexandre | Lateral Dir. | 07/04/1999 (27) | Brasil | € 900 mil
+Marcelinho | Lateral Dir. | 20/07/1998 (28) | Brasil | € 600 mil
+Caio Magalhães | Lateral Dir. | 10/11/2004 (21) | Brasil | -
+Leonel Picco | Volante | 22/10/1998 (27) | Argentina | € 3.00 mi.
+Zé Welison | Volante | 11/03/1995 (31) | Brasil | € 1.00 mi.
+David Braga | Volante | 11/12/2001 (24) | Brasil | € 650 mil
+Edson Fernando | Volante | 24/04/1998 (28) | Brasil | € 500 mil
+Zé Ricardo | Volante | 03/02/1999 (27) | Brasil | € 500 mil
+Patrick | Meia Central | 29/07/1992 (34) | Brasil | € 600 mil
+Franco Catarozzi | Meia Central | 02/04/2000 (26) | Uruguai, Itália | € 350 mil
+Vitor Bueno | Meia Ofensivo | 05/09/1994 (32) | Brasil | € 1.00 mi.
+Jajá | Ponta Esquerda | 12/11/1998 (27) | Brasil | € 800 mil
+Jáderson | Ponta Esquerda | 12/08/2000 (26) | Brasil | € 750 mil
+Alef Manga | Ponta Esquerda | 29/11/1994 (31) | Brasil | € 600 mil
+Antonio Galeano | Ponta Direita | 22/03/2000 (26) | Paraguai | € 3.50 mi.
+Yago Pikachu | Ponta Direita | 05/06/1992 (34) | Brasil | € 600 mil
+Tico | Ponta Direita | 21/09/2006 (20) | Brasil | -
+Gabriel Taliari | Centroavante | 13/04/1997 (29) | Brasil | € 1.80 mi.
+Gabriel Poveda | Centroavante | 07/07/1998 (28) | Brasil | € 500 mil
+Eduardo Melo | Centroavante | 13/05/2001 (25) | Brasil | € 75 mil
+
+# CLUBE: Chapecoense
+Anderson | Goleiro | 05/03/1998 (28) | Brasil | € 450 mil
+Rafael Santos | Goleiro | 14/03/1989 (37) | Brasil | € 75 mil
+Gabriel Werner | Goleiro | 14/07/2003 (23) | Brasil | -
+Matheus Aurélio | Goleiro | 23/06/1999 (27) | Brasil | -
+Doma | Zagueiro | 29/08/1998 (28) | Brasil | € 1.20 mi.
+João Paulo | Zagueiro | 04/07/1997 (29) | Brasil | € 700 mil
+Victor Caetano | Zagueiro | 19/10/1997 (28) | Brasil | € 700 mil
+Rafael Thyere | Zagueiro | 17/05/1993 (33) | Brasil | € 250 mil
+Kauan Faria | Zagueiro | 07/04/2003 (23) | Brasil | -
+Vinicius Eduardo | Zagueiro | 18/02/2005 (21) | Brasil | -
+Mancha | Lateral Esq. | 13/02/2001 (25) | Brasil | € 500 mil
+Fernando | Lateral Esq. | 14/09/1999 (27) | Brasil | € 400 mil
+Bruno Pacheco | Lateral Esq. | 08/12/1991 (34) | Brasil | € 250 mil
+Da Silva | Lateral Esq. | 16/11/1999 (26) | Brasil | -
+Dudu | Lateral Dir. | 30/05/1997 (29) | Brasil | € 700 mil
+Heitor | Lateral Dir. | 05/11/2000 (25) | Brasil | € 450 mil
+Everton | Lateral Dir. | 10/04/1995 (31) | Brasil | € 300 mil
+Gustavo Talles | Lateral Dir. | 14/07/2003 (23) | Brasil | -
+Carvalheira | Volante | 26/05/1999 (27) | Brasil | € 2.50 mi.
+Camilo | Volante | 23/02/1999 (27) | Brasil | € 2.00 mi.
+Vinicius Balieiro | Volante | 28/05/1999 (27) | Brasil | € 400 mil
+Rosivan | Volante | 20/03/2000 (26) | Brasil | -
+Yago Felipe | Meia Central | 03/02/1995 (31) | Brasil | € 1.20 mi.
+Bruno Matias | Meia Central | 24/02/1999 (27) | Brasil | € 500 mil
+David Antunes | Meia Central | 17/08/2005 (21) | Brasil | € 200 mil
+Robert Santos | Meia Ofensivo | 20/07/2003 (23) | Brasil | € 1.00 mi.
+Max | Meia Ofensivo | 12/05/2001 (25) | Brasil | € 600 mil
+Miguel Carvalho | Meia Ofensivo | 09/03/2005 (21) | Brasil | € 325 mil
+Giovanni Augusto | Meia Ofensivo | 05/09/1989 (37) | Brasil | € 150 mil
+Dylan Borrero | Ponta Esquerda | 05/01/2002 (24) | Colômbia | € 1.00 mi.
+Maurício Garcez | Ponta Esquerda | 16/03/1997 (29) | Brasil | € 800 mil
+Kevin Ramírez | Ponta Esquerda | 01/04/1994 (32) | Uruguai | € 400 mil
+Marcinho | Ponta Direita | 08/06/1995 (31) | Brasil | € 650 mil
+Bruno Tubarão | Ponta Direita | 05/03/1995 (31) | Brasil | € 400 mil
+Rubens | Ponta Direita | 28/03/2003 (23) | Brasil | € 250 mil
+Franco Rossi | Centroavante | 26/06/2002 (24) | Argentina | € 1.50 mi.
+Yannick Bolasie | Centroavante | 24/05/1989 (37) | RD Congo, França | € 150 mil
+Tulio Eduardo | Centroavante | 27/10/2004 (21) | Brasil | -
+
+# CLUBE: Fortaleza
+João Ricardo | Goleiro | 06/09/1988 (38) | Brasil | € 300 mil
+Magrão | Goleiro | 15/05/2000 (26) | Brasil | € 250 mil
+Vinícius | Goleiro | 28/03/1994 (32) | Brasil | € 250 mil
+Lucas Gazal | Zagueiro | 06/08/1999 (27) | Brasil | € 1.20 mi.
+Tomás Cardona | Zagueiro | 10/10/1995 (30) | Argentina, Itália | € 900 mil
+Bastos | Zagueiro | 27/03/1991 (35) | Angola, Portugal | € 600 mil
+Luan Freitas | Zagueiro | 20/01/2001 (25) | Brasil | € 500 mil
+Kauã Rocha | Zagueiro | 13/03/2007 (19) | Brasil | € 500 mil
+Neris | Zagueiro | 17/06/1992 (34) | Brasil | € 200 mil
+Gabriel Fuentes | Lateral Esq. | 09/02/1997 (29) | Colômbia | € 1.70 mi.
+Kaio Henrique | Lateral Esq. | 22/03/2006 (20) | Brasil | € 1.30 mi.
+Maurício Mucuri | Lateral Esq. | 11/05/2001 (25) | Brasil | € 600 mil
+Maílton | Lateral Dir. | 31/05/1998 (28) | Brasil | € 2.30 mi.
+Paulinho | Lateral Dir. | 23/05/2005 (21) | Brasil | € 400 mil
+Ryan | Volante | 15/07/2003 (23) | Brasil | € 3.00 mi.
+Ronald | Volante | 11/02/2003 (23) | Brasil | € 2.50 mi.
+Jailson | Volante | 07/09/1995 (31) | Brasil | € 700 mil
+Rodrigo Santos | Volante | 18/09/2000 (26) | Brasil | € 500 mil
+Lucas Sasha | Volante | 01/03/1990 (36) | Brasil, Itália | € 150 mil
+Pierre | Meia Central | 12/03/2002 (24) | Brasil | € 1.00 mi.
+Lucca Prior | Meia Ofensivo | 12/02/2004 (22) | Brasil | € 750 mil
+Lucas Crispim | Meia Ofensivo | 19/06/1994 (32) | Brasil, Itália | € 700 mil
+Lucas Emanoel | Meia Ofensivo | 14/07/2006 (20) | Brasil | € 300 mil
+Luiz Fernando | Ponta Esquerda | 16/10/1996 (29) | Brasil | € 1.80 mi.
+Rodriguinho | Ponta Esquerda | 05/06/2003 (23) | Brasil | € 900 mil
+Paulo Baya | Ponta Esquerda | 26/07/1999 (27) | Brasil | € 800 mil
+Vitinho | Ponta Direita | 23/04/2001 (25) | Brasil | € 3.00 mi.
+Welliton | Ponta Direita | 14/07/2000 (26) | Brasil | € 900 mil
+Pedro Henrique | Ponta Direita | 16/06/1990 (36) | Brasil | € 400 mil
+Juan Miritello | Centroavante | 08/02/1999 (27) | Argentina | € 2.30 mi.
+Nathan Fogaça | Centroavante | 09/06/1999 (27) | Brasil | € 1.50 mi.
+Chico da Costa | Centroavante | 05/05/1995 (31) | Brasil, Itália | € 1.00 mi.
+Juan Cantillo | Centroavante | 08/01/2003 (23) | Colômbia | € 200 mil
+
+# CLUBE: Sport Recife
+Thiago Couto | Goleiro | 26/03/1999 (27) | Brasil | € 900 mil
+Brenno | Goleiro | 01/04/1999 (27) | Brasil | € 500 mil
+Denis | Goleiro | 14/04/1987 (39) | Brasil | € 25 mil
+Adriano | Goleiro | 07/03/2003 (23) | Brasil | -
+Marcelo Benevenuto | Zagueiro | 07/01/1996 (30) | Brasil | € 900 mil
+Habraão | Zagueiro | 26/06/2001 (25) | Brasil | € 800 mil
+Kayky Almeida | Zagueiro | 01/05/2005 (21) | Brasil | € 800 mil
+Marcelo Ajul | Zagueiro | 26/08/2002 (24) | Brasil | € 600 mil
+Patrick | Zagueiro | 27/02/2005 (21) | Brasil | -
+Felipinho | Lateral Esq. | 13/01/1997 (29) | Brasil | € 900 mil
+Raí | Lateral Esq. | 28/03/2000 (26) | Brasil | € 350 mil
+Edson Lucas | Lateral Esq. | 30/07/2000 (26) | Brasil | € 50 mil
+Claudinho | Lateral Dir. | 24/09/2000 (25) | Brasil | € 1.70 mi.
+Augusto Pucci | Lateral Dir. | 03/11/2007 (18) | Brasil | € 700 mil
+Patrick de Paula | Volante | 08/09/1999 (27) | Brasil | € 2.50 mi.
+Zé Gabriel | Volante | 21/01/1999 (27) | Brasil | € 550 mil
+Murilo Rhikman | Volante | 13/03/2006 (20) | Brasil | € 500 mil
+Willian Oliveira | Volante | 16/05/1993 (33) | Brasil | € 300 mil
+Fernando Sobral | Meia Central | 17/12/1994 (31) | Brasil | € 1.50 mi.
+Fábio Matheus | Meia Central | 13/04/2003 (23) | Brasil | € 500 mil
+Juan Alano | Meia Direita | 02/09/1996 (30) | Brasil | € 900 mil
+Kervin Andrade | Meia Ofensivo | 13/04/2005 (21) | Venezuela | € 1.30 mi.
+Biel Fonseca | Meia Ofensivo | 19/03/2002 (24) | Brasil | € 500 mil
+Diego Hernández | Ponta Esquerda | 22/06/2000 (26) | Uruguai, Colômbia | € 1.50 mi.
+Carlos de Pena | Ponta Esquerda | 11/03/1992 (34) | Uruguai, Itália | € 750 mil
+Clayson | Ponta Esquerda | 19/03/1995 (31) | Brasil | € 700 mil
+Marlon | Ponta Esquerda | 15/09/1997 (29) | Brasil | € 400 mil
+Chrystian Barletta | Ponta Direita | 05/07/2001 (25) | Brasil, Itália | € 2.50 mi.
+Dudu Teodora | Centroavante | 10/08/1999 (27) | Brasil | € 1.00 mi.
+Perotti | Centroavante | 22/11/1997 (28) | Brasil | € 900 mil
+Neto Pessoa | Centroavante | 16/05/1994 (32) | Brasil | € 350 mil
+
+# CLUBE: Juventude
+Jandrei | Goleiro | 01/03/1993 (33) | Brasil, Itália | € 200 mil
+Pedro Rocha | Goleiro | 01/06/1998 (28) | Brasil | -
+Ruan Carneiro | Goleiro | 28/03/1990 (36) | Brasil | -
+Zé Henrique | Goleiro | 23/10/2004 (21) | Brasil | -
+Messias | Zagueiro | 03/11/1994 (31) | Brasil | € 500 mil
+Rodrigo Sam | Zagueiro | 24/07/1995 (31) | Brasil | € 350 mil
+Marcos Paulo | Zagueiro | 18/01/2003 (23) | Brasil | € 300 mil
+Gabriel Pinheiro | Zagueiro | 19/04/1997 (29) | Brasil | € 250 mil
+Titi | Zagueiro | 12/03/1988 (38) | Brasil | € 50 mil
+Patryck | Lateral Esq. | 18/01/2003 (23) | Brasil | € 1.20 mi.
+Wadson | Lateral Esq. | 02/09/2000 (26) | Brasil | € 200 mil
+Diogo Barbosa | Lateral Esq. | 17/08/1992 (34) | Brasil | € 200 mil
+Alan Ruschel | Lateral Esq. | 23/08/1989 (37) | Brasil | € 75 mil
+Nathan | Lateral Dir. | 05/09/2001 (25) | Brasil | € 1.20 mi.
+Raí Ramos | Lateral Dir. | 06/05/1994 (32) | Brasil | € 300 mil
+Aderlan | Lateral Dir. | 18/08/1990 (36) | Brasil | € 100 mil
+Lucas Mineiro | Volante | 24/02/1996 (30) | Brasil | € 900 mil
+Gabriel Pires | Volante | 18/09/1993 (33) | Brasil, Portugal | € 400 mil
+Luan Martins | Volante | 20/10/1998 (27) | Brasil | € 250 mil
+Iba Ly | Volante | 22/01/2003 (23) | Senegal | € 250 mil
+Davi Góes | Volante | 22/06/2005 (21) | Brasil | € 250 mil
+Mandaca | Meia Central | 02/10/2001 (24) | Brasil | € 2.20 mi.
+Pablo Roberto | Meia Central | 14/11/1999 (26) | Brasil | € 600 mil
+Raí | Meia Ofensivo | 21/04/2002 (24) | Brasil | € 700 mil
+Ray Breno | Meia Ofensivo | 31/08/2004 (22) | Brasil | -
+Marcos Paulo Ju | Ponta Esquerda | 01/02/2001 (25) | Brasil | € 550 mil
+Allanzinho | Ponta Esquerda | 04/04/2000 (26) | Brasil | € 400 mil
+Fábio Lima | Ponta Esquerda | 22/12/1996 (29) | Brasil | € 300 mil
+Manuel Castro | Ponta Direita | 27/09/1995 (30) | Uruguai | € 1.00 mi.
+Juan Christian | Ponta Direita | 10/03/2001 (25) | Brasil | € 600 mil
+Lucas Alves | Centroavante | 21/04/2002 (24) | Brasil | -
+Alisson Safira | Centroavante | 17/03/1995 (31) | Brasil | € 750 mil
+Luis Amarilla | Centroavante | 25/08/1995 (31) | Paraguai | € 500 mil
+Alan Kardec | Centroavante | 12/01/1989 (37) | Brasil, Itália | € 100 mil
+
+# CLUBE: Ceará
+Matheus Nogueira | Goleiro | 20/09/1997 (29) | Brasil | € 300 mil
+Richard Costa | Goleiro | 01/03/1991 (35) | Brasil | € 100 mil
+Caíque França | Goleiro | 03/06/1995 (31) | Brasil | -
+Luizão | Zagueiro | 09/10/1992 (33) | Brasil | € 550 mil
+Thalisson | Zagueiro | 20/01/2002 (24) | Brasil | € 400 mil
+Júlio César | Zagueiro | 28/09/2003 (22) | Brasil | € 400 mil
+Éder | Zagueiro | 05/04/1995 (31) | Brasil | € 250 mil
+Luiz Otávio | Zagueiro | 14/09/1988 (38) | Brasil | € 50 mil
+Stanley Boateng | Zagueiro | 22/03/2005 (21) | Gana | -
+Pedro Gilmar | Zagueiro | 02/04/2006 (20) | Brasil | -
+Sávio | Lateral Esq. | 26/05/1995 (31) | Brasil | € 350 mil
+Sánchez | Lateral Esq. | 28/09/1995 (30) | Colômbia | € 25 mil
+Rafael Ramos | Lateral Dir. | 09/01/1995 (31) | Portugal | € 400 mil
+Bryan Borges | Lateral Dir. | 03/08/1996 (30) | Brasil | € 300 mil
+Zanocelo | Volante | 30/01/2001 (25) | Brasil | € 2.00 mi.
+Richardson | Volante | 17/08/1991 (35) | Brasil | € 100 mil
+João Gabriel | Volante | 15/04/2006 (20) | Brasil | -
+Giovanni Pavani | Meia Central | 22/11/1996 (29) | Brasil | € 350 mil
+Matheus Araújo | Meia Ofensivo | 22/05/2002 (24) | Brasil | € 1.50 mi.
+Melk | Meia Ofensivo | 28/07/2006 (20) | Brasil | € 350 mil
+Vina | Meia Ofensivo | 15/04/1991 (35) | Brasil | € 250 mil
+Lucas Mugni | Meia Ofensivo | 12/01/1992 (34) | Argentina | € 200 mil
+Lenny Lobato | Ponta Esquerda | 03/02/2001 (25) | Brasil, Argentina | € 800 mil
+Nicolás Ferreira | Ponta Esquerda | 07/02/2002 (24) | Argentina | € 600 mil
+Rian Santana | Ponta Esquerda | 23/01/2001 (25) | Brasil | -
+Kauã | Ponta Esquerda | 01/03/2006 (20) | Brasil | -
+Wendel | Centroavante | 02/08/2000 (26) | Brasil | € 2.00 mi.
+Saulo Mineiro | Centroavante | 17/06/1997 (29) | Brasil | € 1.00 mi.
+Renzo López | Centroavante | 16/04/1994 (32) | Uruguai, Itália | € 650 mil
+Lucca | Centroavante | 02/04/2003 (23) | Brasil | € 600 mil
+
+# CLUBE: Goiás
+Tadeu | Goleiro | 04/02/1992 (34) | Brasil | € 900 mil
+Ezequiel Oliveira | Goleiro | 13/06/2003 (23) | Brasil | € 100 mil
+Thiago Rodrigues | Goleiro | 20/10/1988 (37) | Brasil | € 25 mil
+Lucas Ribeiro | Zagueiro | 19/01/1999 (27) | Brasil | € 750 mil
+Luisão | Zagueiro | 09/09/2003 (23) | Brasil | € 500 mil
+Ramon Menezes | Zagueiro | 03/05/1995 (31) | Brasil | € 400 mil
+Luiz Felipe | Zagueiro | 09/09/1993 (33) | Brasil, Itália | € 300 mil
+Nicolas | Lateral Esq. | 24/02/1997 (29) | Brasil | € 700 mil
+Djalma Silva | Lateral Esq. | 19/09/1994 (32) | Brasil | € 400 mil
+Danilo Cunha | Lateral Esq. | 12/05/2007 (19) | Brasil | -
+Rodrigo Soares | Lateral Dir. | 26/12/1992 (33) | Brasil | € 750 mil
+Marcos Vinícius | Lateral Dir. | 26/03/1997 (29) | Brasil | € 400 mil
+Filipe Machado | Volante | 20/01/1996 (30) | Brasil, Alemanha | € 1.00 mi.
+Baldória | Volante | 21/04/2005 (21) | Brasil | € 400 mil
+Lucas Rodrigues | Volante | 29/10/2007 (18) | Brasil | € 150 mil
+Juninho | Volante | 23/10/1987 (38) | Brasil | € 50 mil
+Lourenço | Meia Central | 07/09/1997 (29) | Brasil | € 2.50 mi.
+Lucas Lima | Meia Ofensivo | 09/07/1990 (36) | Brasil | € 300 mil
+Gegê | Meia Ofensivo | 28/01/1994 (32) | Brasil | € 200 mil
+Brayann | Meia Ofensivo | 25/10/1997 (28) | Brasil | € 200 mil
+Bruno Sávio | Meia Ofensivo | 01/08/1994 (32) | Brasil | € 150 mil
+Jean Carlos | Meia Ofensivo | 08/05/2005 (21) | Brasil | € 100 mil
+Esli García | Ponta Esquerda | 14/07/2000 (26) | Venezuela | € 500 mil
+Kadu | Ponta Esquerda | 03/03/2002 (24) | Brasil | -
+Pedrinho | Ponta Direita | 23/03/2004 (22) | Brasil | € 600 mil
+Wellington Rato | Ponta Direita | 18/06/1992 (34) | Brasil | € 450 mil
+Halerrandrio | Ponta Direita | 08/07/2006 (20) | Brasil | € 50 mil
+Vitor Hugo | Ponta Direita | 24/02/2004 (22) | Brasil | -
+Cadu | Centroavante | 24/05/2004 (22) | Brasil | € 600 mil
+Anselmo Ramon | Centroavante | 23/06/1988 (38) | Brasil | € 25 mil
+Felipe Clemente | Centroavante | 17/06/1999 (27) | Brasil | -
+
+# CLUBE: Novorizontino
+Jordi | Goleiro | 03/09/1993 (33) | Brasil | € 350 mil
+César | Goleiro | 16/02/1995 (31) | Brasil | € 300 mil
+Lucas | Goleiro | 21/06/1998 (28) | Brasil | -
+João Scapin | Goleiro | 12/02/2004 (22) | Brasil | -
+Paulo Henrique | Goleiro | 14/04/1991 (35) | Brasil | -
+Patrick | Zagueiro | 09/04/1999 (27) | Brasil | € 500 mil
+Alexis Alvariño | Zagueiro | 01/02/2001 (25) | Argentina | € 450 mil
+Carlinhos | Zagueiro | 16/06/1995 (31) | Brasil | € 200 mil
+Eduardo Brock | Zagueiro | 06/05/1991 (35) | Brasil, Alemanha | € 150 mil
+Gabriel Bahia | Zagueiro | 24/11/1998 (27) | Brasil | € 50 mil
+Renato Palm | Zagueiro | 14/10/1991 (34) | Brasil | € 50 mil
+Maykon Jesus | Lateral Esq. | 07/12/2005 (20) | Brasil | € 500 mil
+Sander | Lateral Esq. | 03/10/1990 (35) | Brasil | € 75 mil
+Jhilmar Lora | Lateral Dir. | 24/10/2000 (25) | Peru | € 600 mil
+Madson | Lateral Dir. | 13/01/1992 (34) | Brasil | € 175 mil
+Léo Naldi | Volante | 18/08/2001 (25) | Brasil | € 600 mil
+Luís Oyama | Volante | 30/01/1997 (29) | Brasil, Japão | € 500 mil
+Marlon | Volante | 26/02/1990 (36) | Brasil | € 100 mil
+Luiz Gabriel | Volante | 22/01/2005 (21) | Brasil | -
+Matheus Bianqui | Meia Central | 31/01/1998 (28) | Brasil | € 700 mil
+Tavinho | Meia Central | 19/07/2004 (22) | Brasil | € 500 mil
+Diego Galo | Meia Central | 04/06/2005 (21) | Brasil | € 500 mil
+Rômulo | Meia Ofensivo | 07/10/2001 (24) | Brasil | € 2.50 mi.
+Juninho | Meia Ofensivo | 23/01/2001 (25) | Brasil | € 1.20 mi.
+Christian Ortíz | Meia Ofensivo | 20/08/1992 (34) | Argentina | € 250 mil
+Vinícius Paiva | Ponta Direita | 01/03/2001 (25) | Brasil | € 450 mil
+Robson | Ponta Direita | 30/05/1991 (35) | Brasil | € 400 mil
+Ronald Barcellos | Ponta Direita | 02/03/2002 (24) | Brasil | -
+Hélio Borges | Ponta Direita | 15/05/2000 (26) | Brasil | -
+Hector Bianchi | Ponta Direita | 21/06/2005 (21) | Brasil | -
+Jardiel | Centroavante | 21/03/2005 (21) | Brasil | € 500 mil
+Carlão | Centroavante | 03/07/1992 (34) | Brasil | € 250 mil
+Diego Mathias | Centroavante | 12/06/1999 (27) | Brasil | € 150 mil
+Nicolas Careca | Centroavante | 18/05/1997 (29) | Brasil | € 100 mil

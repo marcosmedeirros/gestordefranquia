@@ -163,6 +163,33 @@ const FUT_UF_DO_COPERO = [
 ];
 
 /**
+ * A força que um elenco REAL dá ao clube, se ele tiver um.
+ *
+ * O número do catálogo é um palpite meu; o elenco real é o time de verdade.
+ * Quando os dois discordam, quem manda é o elenco — foi assim que apareceu
+ * que o Remo estava no catálogo como Série C (força 55) com um elenco que
+ * vale 71. Sem isto, o clube jogaria como time de 71 e receberia dinheiro de
+ * time de 55, com uma meta de time de 55.
+ *
+ * O resultado fica em cache: futClubesDoBrasil() é chamada muitas vezes por
+ * requisição, e ler 25 arquivos em cada uma seria desperdício puro.
+ */
+function futForcaDoElencoReal(string $clube): ?int
+{
+    static $cache = [];
+    if (array_key_exists($clube, $cache)) return $cache[$clube];
+
+    $arq = __DIR__ . '/../data/elencos/' . futSlugDoClube($clube) . '.php';
+    if (!is_file($arq)) return $cache[$clube] = null;
+
+    $lista = require $arq;
+    if (!is_array($lista) || $lista === []) return $cache[$clube] = null;
+
+    require_once __DIR__ . '/fut_elencos.php';
+    return $cache[$clube] = futForcaDoElenco($lista);
+}
+
+/**
  * TODOS os clubes brasileiros do jogo: os do Copero mais os daqui.
  *
  * @return array nome => ['nome','div','uf','forca','regiao','escudo']
@@ -187,6 +214,15 @@ function futClubesDoBrasil(): array
         $out[$nome] = ['nome' => $nome, 'div' => $div, 'uf' => $uf,
                        'forca' => $forca, 'regiao' => $regiao, 'escudo' => $escudo];
     }
+
+    /* ONDE HÁ ELENCO REAL, ELE MANDA na força. O número do catálogo continua
+       servindo pra quem não tem lista — e é ele que gera o elenco fictício
+       desses clubes, então não pode sair daqui. */
+    foreach ($out as $nome => $c) {
+        $real = futForcaDoElencoReal($nome);
+        if ($real !== null) $out[$nome]['forca'] = $real;
+    }
+
     return $out;
 }
 
