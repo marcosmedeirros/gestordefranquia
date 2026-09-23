@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/fut_elencos.php';
+require_once __DIR__ . '/fut_condicao.php';
 
 /**
  * Os esquemas disponíveis.
@@ -104,11 +105,17 @@ const FUT_AFINIDADE = [
     'ATA' => ['GOL' => 40, 'ZAG' => 15, 'LAT' => 13, 'VOL' => 11, 'MEI' => 6,  'PON' => 4,  'ATA' => 0],
 ];
 
-/** O OVR efetivo de um jogador numa vaga — o dele menos o custo de improviso. */
+/**
+ * O OVR efetivo de um jogador numa vaga: o dele, menos o custo do improviso,
+ * mais ou menos o que a condição física dele estiver cobrando hoje.
+ *
+ * As três coisas num número só é o que deixa a tela honesta — o número que
+ * aparece na camisa é exatamente o que o motor vai usar na partida.
+ */
 function futOvrNaVaga(array $jogador, string $vaga): int
 {
     $perda = FUT_AFINIDADE[$vaga][$jogador['pos']] ?? 12;
-    return (int)max(20, (int)$jogador['ovr'] - $perda);
+    return (int)max(20, (int)$jogador['ovr'] - $perda + futAjusteDeCondicao($jogador));
 }
 
 /**
@@ -125,7 +132,10 @@ function futOvrNaVaga(array $jogador, string $vaga): int
 function futEscalarAutomatico(array $elenco, string $esquema, array $fora = []): array
 {
     $vagas = FUT_ESQUEMAS[$esquema]['vagas'] ?? FUT_ESQUEMAS['4-4-2']['vagas'];
-    $disponiveis = array_values(array_filter($elenco, fn($j) => !in_array($j['nome'], $fora, true)));
+    $disponiveis = array_values(array_filter($elenco, function ($j) use ($fora) {
+        if (in_array($j['nome'], $fora, true)) return false;
+        return (int)($j['lesao'] ?? 0) === 0;   // machucado não entra nem por engano
+    }));
 
     /* A ordem de preenchimento: primeiro as vagas onde improvisar dói mais.
        O número é a maior perda possível daquela vaga — goleiro lidera de longe. */
@@ -248,11 +258,14 @@ function futValidarEscalacao(array $mapa, array $elenco, string $esquema, array 
     return ['ok' => true, 'erro' => '', 'escalados' => $escalados];
 }
 
-/** Os reservas: quem está no elenco e não está em campo. */
+/** Os reservas: quem está no elenco, não está em campo e pode jogar. */
 function futReservas(array $elenco, array $escalados, array $fora = []): array
 {
     $emCampo = [];
     foreach ($escalados as $j) $emCampo[$j['nome']] = true;
-    return array_values(array_filter($elenco,
-        fn($j) => !isset($emCampo[$j['nome']]) && !in_array($j['nome'], $fora, true)));
+    return array_values(array_filter($elenco, function ($j) use ($emCampo, $fora) {
+        if (isset($emCampo[$j['nome']])) return false;
+        if (in_array($j['nome'], $fora, true)) return false;
+        return (int)($j['lesao'] ?? 0) === 0;
+    }));
 }

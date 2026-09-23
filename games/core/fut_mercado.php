@@ -54,6 +54,35 @@ const FUT_VALOR_IDADE = [
     36 => 0.11, 37 => 0.07, 38 => 0.05, 39 => 0.03,
 ];
 
+/**
+ * ESCREVE UM VALOR EM DINHEIRO DO JEITO QUE SE FALA.
+ *
+ * Tudo no jogo é guardado em milhões, porque é a unidade em que os preços
+ * fazem sentido. Mas "0,31 mi" não é como ninguém diz um salário — se fala
+ * "310 mil". Esta função escolhe a unidade pelo tamanho do número, e é ela
+ * que toda tela usa: se cada tela formatasse por conta, o mesmo valor
+ * apareceria de três jeitos diferentes em três lugares.
+ */
+function futDinheiro(float $milhoes, bool $comSufixo = true): string
+{
+    $abs = abs($milhoes);
+    $sinal = $milhoes < 0 ? '-' : '';
+
+    if ($abs >= 1000) {
+        $n = number_format($abs / 1000, $abs >= 10000 ? 0 : 1, ',', '.');
+        return $sinal . $n . ($comSufixo ? ' bi' : '');
+    }
+    if ($abs >= 1) {
+        // Acima de 100 milhões a casa decimal não acrescenta nada.
+        $n = number_format($abs, $abs >= 100 ? 0 : ($abs >= 10 ? 1 : 2), ',', '.');
+        return $sinal . $n . ($comSufixo ? ' mi' : '');
+    }
+    // Abaixo de um milhão, fala-se em milhares.
+    $mil = $abs * 1000;
+    $n = number_format($mil, $mil >= 100 ? 0 : ($mil >= 10 ? 0 : 1), ',', '.');
+    return $sinal . $n . ($comSufixo ? ' mil' : '');
+}
+
 /** Quanto do valor de mercado o jogador ganha por ano, em salário. */
 const FUT_SALARIO_PCT = 0.11;
 

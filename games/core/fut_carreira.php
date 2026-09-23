@@ -21,7 +21,9 @@
 
 require_once __DIR__ . '/fut_competicoes.php';
 require_once __DIR__ . '/fut_mercado.php';
-require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao
+require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao e fut_condicao
+require_once __DIR__ . '/fut_evolucao.php';
+require_once __DIR__ . '/fut_mundo.php';
 
 /** A versão do save. Se o formato mudar, é por aqui que a migração começa. */
 const FUT_SAVE_VERSAO = 1;
@@ -162,7 +164,9 @@ function futCarreiraNova(string $nomeTecnico, string $nomeClube, int $ano = 2026
     $clube = $clubes[$nomeClube] ?? null;
     if (!$clube) throw new InvalidArgumentException("Clube desconhecido: $nomeClube");
 
-    $elenco = futElencoDoClube($nomeClube, (int)$clube['forca']);
+    $elenco = futGarantirCondicao(futElencoDoClube($nomeClube, (int)$clube['forca']));
+    foreach ($elenco as &$j) $j['potencial'] = futPotencialDe($j);
+    unset($j);
 
     return [
         'versao'     => FUT_SAVE_VERSAO,
@@ -184,6 +188,10 @@ function futCarreiraNova(string $nomeTecnico, string $nomeClube, int $ano = 2026
         'escalacao'  => [],      // [vaga => nome]; vazio = escala sozinho
         'stats'      => [],      // [nome => gols, assist, cartões, notas]
         'suspensos'  => [],      // [nome => jogos que ainda faltam cumprir]
+        'entradas'   => [],      // quem CHEGOU a cada clube (ver fut_mundo)
+        'trocas_tecnico' => [],  // quantas vezes cada clube trocou de técnico
+        'noticias'   => [],      // o que aconteceu no mundo na virada do ano
+        'propostas'  => [],      // clubes que querem o técnico
         'mensagens'  => ['Você assumiu o ' . $nomeClube . '. A diretoria espera: ' . futMetaDaTemporada($clube)['texto'] . '.'],
     ];
 }
@@ -213,12 +221,7 @@ function futCarreiraTimes(array $clubes, array $estado): array
     $out = [];
     foreach ($clubes as $c) {
         if ($c['nome'] === $meu) { $out[] = futCarreiraMeuClube($estado); continue; }
-        $elenco = futElencoDoClube($c['nome'], (int)$c['forca']);
-        if (!empty($saidas[$c['nome']])) {
-            $foram = $saidas[$c['nome']];
-            $elenco = array_values(array_filter($elenco, fn($j) => !in_array($j['nome'], $foram, true)));
-        }
-        $c['forca'] = futForcaDoElenco($elenco);
+        $c['forca'] = futForcaDoElenco(futElencoNoJogo($estado, $c['nome'], (int)$c['forca']));
         $out[] = $c;
     }
     return $out;
@@ -400,11 +403,7 @@ function futCarreiraJogarProxima(array $estado): array
     // O adversário escala sozinho, no esquema que o catálogo dele pedir.
     $advClube = $clubes[$j['adversario']] ?? ['nome' => $j['adversario'], 'forca' => 50, 'div' => '', 'uf' => ''];
     $advTime = futCarreiraTimes([$advClube], $estado)[0];
-    $elencoAdv = futElencoDoClube($advClube['nome'], (int)$advClube['forca']);
-    if (!empty($estado['saidas'][$advClube['nome']])) {
-        $foram = $estado['saidas'][$advClube['nome']];
-        $elencoAdv = array_values(array_filter($elencoAdv, fn($x) => !in_array($x['nome'], $foram, true)));
-    }
+    $elencoAdv = futElencoNoJogo($estado, $advClube['nome'], (int)$advClube['forca']);
     $esquemaAdv = array_keys(FUT_ESQUEMAS)[crc32($advClube['nome']) % count(FUT_ESQUEMAS)];
     $deles = futEscalarAutomatico($elencoAdv, $esquemaAdv);
 
@@ -414,6 +413,16 @@ function futCarreiraJogarProxima(array $estado): array
     $estado['stats'] = futAcumularEstatisticas($estado['stats'] ?? [], $meus, $p);
     $estado['suspensos'] = futAtualizarSuspensoes($estado['suspensos'] ?? [], $estado['stats'], $p);
     $estado['stats'] = futZerarAmarelos($estado['stats']);
+
+    // ── E o que ela custou: cansaço, moral e lesão ───────────────────
+    $desg = futAplicarDesgaste($estado['elenco'], $meus, $p['meus'], $p['deles']);
+    $estado['elenco'] = $desg['elenco'];
+    $avisosDaPartida = $desg['noticias'];
+
+    /* Machucado ou suspenso não pode seguir escalado: a escalação salva cai
+       e o time volta ao automático, que já respeita quem está fora. Sem isto
+       o jogador entraria em campo com dez. */
+    if ($avisosDaPartida || $estado['suspensos']) $estado['escalacao'] = [];
 
     $resultado = [
         'comp'        => $j['comp'],
@@ -427,6 +436,7 @@ function futCarreiraJogarProxima(array $estado): array
         'eventos'     => $p['eventos'],
         'escalacao'   => array_map(fn($x) => ['nome' => $x['nome'], 'pos' => $x['pos'],
                                               'ovr' => $x['ovr'], 'nota' => $p['notas'][$x['nome']] ?? 6.0], $meus),
+        'avisos'      => $avisosDaPartida,
     ];
 
     $estado['resultados'][] = $resultado;
@@ -600,6 +610,7 @@ function futCarreiraFecharTemporada(array $estado): array
     ];
 
     $relatorio = [
+        'aposentados' => [], 'novos' => [], 'evolucao' => [],
         'posicao'   => $posicao,
         'receita'   => $receita,
         'folha'     => $folha,
@@ -623,43 +634,86 @@ function futCarreiraFecharTemporada(array $estado): array
     /* A ESTATÍSTICA DO ANO VAI PRO HISTÓRICO E ZERA. Artilharia e cartão são
        da temporada, não da carreira: somar tudo pra sempre daria um artilheiro
        com 300 gols e nenhuma disputa ano a ano. O que sobrevive é o resumo. */
-    $art = futArtilharia($estado['stats'] ?? [], 3);
+    $statsDoAno = $estado['stats'] ?? [];
+    $art = futArtilharia($statsDoAno, 3);
     $estado['historico'][count($estado['historico']) - 1]['artilheiros'] = $art;
     $estado['stats'] = [];
     $estado['suspensos'] = [];
 
-    // Todo mundo envelhece um ano, e o OVR acompanha a curva de carreira.
-    $estado['elenco'] = futCarreiraEnvelhecerElenco($estado['elenco']);
+    // ── O ELENCO ATRAVESSA O ANO: evolui, envelhece, aposenta, renova ──
+    $forcaCat = (int)($clubes[$estado['clube']]['forca'] ?? 50);
+    $ano = futPassarAnoNoElenco($estado['elenco'], $statsDoAno, $estado['clube'], $forcaCat, (int)$estado['ano']);
+    $estado['elenco'] = futDescansoDeFimDeAno($ano['elenco']);
+    $estado['escalacao'] = [];   // o elenco mudou; reescala na pré-temporada
+
+    $relatorio['aposentados'] = $ano['aposentados'];
+    $relatorio['novos'] = $ano['novos'];
+    $relatorio['evolucao'] = $ano['evolucao'];
+
+    // ── E O MUNDO ANDA JUNTO ───────────────────────────────────────────
+    $noticias = [];
+    foreach ($ano['aposentados'] as $a) {
+        $noticias[] = sprintf('%s pendurou as chuteiras aos %d anos.', $a['nome'], (int)$a['idade']);
+    }
+    foreach ($ano['novos'] as $n) {
+        $noticias[] = sprintf('%s, %d anos, subiu da base (%s, %d).',
+            $n['nome'], (int)$n['idade'], $n['pos'], (int)$n['ovr']);
+    }
+
+    $mercadoIA = futTransferenciasDaIA($estado, $clubes);
+    $estado = $mercadoIA['estado'];
+    $noticias = array_merge($noticias, $mercadoIA['noticias']);
+
+    $danca = futDancaDosTecnicos($estado, $clubes);
+    $estado = $danca['estado'];
+    $noticias = array_merge($noticias, $danca['noticias']);
+
+    $estado['noticias'] = array_slice($noticias, 0, 40);
+
+    /* AS PROPOSTAS SÓ APARECEM PRA QUEM NÃO FOI DEMITIDO. Quem levou o bilhete
+       azul escolhe clube na tela de desempregado, que é outra lista e outra
+       régua — receber convite do Palmeiras no mesmo dia em que foi demitido
+       seria estranho. */
+    $estado['propostas'] = $demitido ? [] : futPropostasDeEmprego($estado, $clubes);
+
     $estado['meta'] = futMetaDaTemporada($clube);
 
     return ['estado' => $estado, 'relatorio' => $relatorio];
 }
 
 /**
- * Passa um ano no elenco: todo mundo fica mais velho, e o OVR segue a curva.
+ * ACEITAR UMA PROPOSTA e mudar de clube.
  *
- * O GAROTO MELHORA E O VETERANO PIORA, e é isso que faz o elenco ter idade
- * como recurso e não como enfeite. Um time inteiro de 33 anos ganha este ano e
- * se desmancha no seguinte — que é a armadilha clássica do gênero, e ela
- * precisa existir pro jogo ter consequência de médio prazo.
+ * O técnico leva a reputação e o histórico; o elenco e o caixa são do clube
+ * novo. É a subida na carreira: você chega num time melhor e recomeça a
+ * cobrança de outro patamar, com uma meta mais dura.
  */
-function futCarreiraEnvelhecerElenco(array $elenco): array
+function futCarreiraTrocarDeClube(array $estado, string $novoClube): array
 {
-    foreach ($elenco as &$j) {
-        $antes = FUT_CURVA_IDADE[(int)$j['idade']] ?? -18;
-        $j['idade'] = (int)$j['idade'] + 1;
-        $depois = FUT_CURVA_IDADE[(int)$j['idade']] ?? -18;
+    $clubes = futClubesDoBrasil();
+    $c = $clubes[$novoClube] ?? null;
+    if (!$c) return ['ok' => false, 'motivo' => 'Clube desconhecido.', 'estado' => $estado];
 
-        /* O degrau da curva é o que o ano fez com ele. Jovem sobe (de -5 pra
-           -4 é +1), veterano desce. Um ruído pequeno evita que todo elenco
-           evolua igualzinho. */
-        $delta = $depois - $antes + (mt_rand(0, 100) < 25 ? (mt_rand(0, 1) ? 1 : -1) : 0);
-        $j['ovr'] = (int)max(25, min(99, (int)$j['ovr'] + $delta));
-    }
+    $elenco = futGarantirCondicao(futElencoNoJogo($estado, $novoClube, (int)$c['forca']));
+    foreach ($elenco as &$j) if (!isset($j['potencial'])) $j['potencial'] = futPotencialDe($j);
     unset($j);
 
-    // Quem passou dos 39 pendura as chuteiras.
-    return array_values(array_filter($elenco, fn($j) => (int)$j['idade'] <= 39));
+    $estado['clube'] = $novoClube;
+    $estado['elenco'] = $elenco;
+    $estado['caixa'] = futCaixaInicial((int)$c['forca'], $c['div']);
+    $estado['escalacao'] = [];
+    $estado['stats'] = [];
+    $estado['suspensos'] = [];
+    $estado['calendario'] = [];
+    $estado['resultados'] = [];
+    $estado['rodada'] = 0;
+    $estado['falhas'] = 0;        // clube novo, conta zerada
+    $estado['propostas'] = [];
+    $estado['fase'] = 'mercado';
+    $estado['meta'] = futMetaDaTemporada($c);
+    $estado['mensagens'][] = 'Você assumiu o ' . $novoClube . '.';
+
+    return ['ok' => true, 'motivo' => 'Você é o novo técnico do ' . $novoClube . '.', 'estado' => $estado];
 }
 
 /**
@@ -707,6 +761,8 @@ function futCarreiraComprar(array $estado, string $clubeVendedor, string $jogado
     $estado['caixa'] = round($estado['caixa'] - $oferta, 2);
     $estado['saidas'][$clubeVendedor][] = $alvo['nome'];
     $alvo['num'] = 0;
+    $alvo['energia'] = 100; $alvo['moral'] = 80; $alvo['lesao'] = 0;
+    if (!isset($alvo['potencial'])) $alvo['potencial'] = futPotencialDe($alvo);
     $estado['elenco'][] = $alvo;
     $estado['escalacao'] = [];   // elenco mudou: reescala na próxima
     $estado['mensagens'][] = sprintf('%s (%d) chegou do %s por %.2f mi.',

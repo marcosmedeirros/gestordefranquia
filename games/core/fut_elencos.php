@@ -143,7 +143,7 @@ function futOverallDoJogador(int $forcaClube, int $posto, int $idade, int &$seme
 
     $base = $forcaClube - $degrau;
     $ruido = futSorteio($semente, -4, 4);   // ninguém é exatamente a média
-    $idadeAjuste = FUT_CURVA_IDADE[$idade] ?? ($idade < 17 ? -8 : -18);
+    $idadeAjuste = futCurvaDaIdade($idade);   // vale pra qualquer idade, inclusive 16
     return (int)max(25, min(99, round($base + $ruido + $idadeAjuste)));
 }
 
@@ -166,6 +166,25 @@ const FUT_CURVA_IDADE = [
     31 => -2, 32 => -3, 33 => -5, 34 => -7, 35 => -9, 36 => -11,
     37 => -13, 38 => -15, 39 => -17,
 ];
+
+/**
+ * A curva para QUALQUER idade, inclusive as que não estão na tabela.
+ *
+ * Existe por causa de um bug que só apareceu depois que a base começou a
+ * entregar garotos de 16: quem lia a tabela direto caía no valor padrão (-18,
+ * que é o de um jogador de 40) e, ao fazer 17 anos, "subia" onze pontos de
+ * graça — um garoto de 43 virava 56 numa temporada e passava do próprio
+ * potencial. Fora da tabela o degrau tem que continuar na mesma direção, e
+ * não pular pro outro extremo da vida.
+ */
+function futCurvaDaIdade(int $idade): int
+{
+    if (isset(FUT_CURVA_IDADE[$idade])) return FUT_CURVA_IDADE[$idade];
+    // Antes dos 17: um degrau a mais de imaturidade por ano que falta.
+    if ($idade < 17) return -7 - (17 - $idade) * 2;
+    // Depois dos 39: segue caindo no mesmo ritmo do fim da tabela.
+    return -17 - ($idade - 39) * 2;
+}
 
 /**
  * A idade. Elenco de verdade tem pirâmide: muito jogador entre 23 e 29, alguns
@@ -223,7 +242,10 @@ function futElencoGenerico(string $nomeClube, int $forcaClube): array
                 'pos'   => $pos,
                 'ovr'   => futOverallDoJogador($forcaClube, (int)$posto, $idade, $semente),
                 'idade' => $idade,
-                'num'   => 0,   // preenchido abaixo, depois de ordenar
+                'num'   => 0,      // preenchido abaixo, depois de ordenar
+                'energia' => 100,  // condição: ver fut_condicao.php
+                'moral'   => 75,
+                'lesao'   => 0,
             ];
         }
     }

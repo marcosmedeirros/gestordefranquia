@@ -78,6 +78,44 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             futCarreiraSalvar($pdo, $idUsuario, $estado);
         }
 
+        elseif ($estado && $acao === 'trocar_clube') {
+            $destino = (string)($_POST['clube'] ?? '');
+            /* SÓ VALE UM CLUBE QUE FEZ PROPOSTA. Sem esta conferência, um POST
+               montado à mão levaria o técnico direto pro Palmeiras. */
+            $convidou = false;
+            foreach ($estado['propostas'] ?? [] as $pr) if ($pr['nome'] === $destino) $convidou = true;
+            if (!$convidou) {
+                $erro = 'Esse clube não fez proposta a você.';
+            } else {
+                $r = futCarreiraTrocarDeClube($estado, $destino);
+                if ($r['ok']) { $estado = $r['estado']; $aviso = $r['motivo']; futCarreiraSalvar($pdo, $idUsuario, $estado); }
+                else $erro = $r['motivo'];
+            }
+        }
+
+        elseif ($estado && $acao === 'assumir_clube') {
+            /* SÓ VALE NA FASE DE DESEMPREGADO e dentro do que a reputação
+               alcança: senão um POST montado à mão levaria o técnico demitido
+               direto pro Palmeiras. */
+            $destino = (string)($_POST['clube'] ?? '');
+            $permitidos = futClubesParaComecar((int)($estado['tecnico']['reputacao'] ?? 0));
+            if (($estado['fase'] ?? '') !== 'desempregado') {
+                $erro = 'Você já tem clube.';
+            } elseif (!isset($permitidos[$destino]) || $destino === $estado['clube']) {
+                $erro = 'Esse clube não está ao seu alcance agora.';
+            } else {
+                $r = futCarreiraTrocarDeClube($estado, $destino);
+                if ($r['ok']) { $estado = $r['estado']; $aviso = $r['motivo']; futCarreiraSalvar($pdo, $idUsuario, $estado); }
+                else $erro = $r['motivo'];
+            }
+        }
+
+        elseif ($estado && $acao === 'recusar_propostas') {
+            $estado['propostas'] = [];
+            futCarreiraSalvar($pdo, $idUsuario, $estado);
+            $aviso = 'Você ficou no ' . $estado['clube'] . '.';
+        }
+
         elseif ($estado && $acao === 'escalar') {
             $esquema = (string)($_POST['esquema'] ?? '4-4-2');
             if (!isset(FUT_ESQUEMAS[$esquema])) $esquema = '4-4-2';
@@ -330,6 +368,46 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   line-height:1.15;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .camisa .vg{font-size:8px;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.3px}
 
+.cond{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:800;
+  padding:2px 7px;border-radius:6px;background:var(--panel3);border:1px solid var(--borda)}
+.cond.verde{color:var(--verde-claro)}
+.cond.amarelo{color:var(--amarelo)}
+.cond.vermelho{color:#fca5a5;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3)}
+.proposta{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--borda)}
+.proposta:last-of-type{border-bottom:0}
+.noticia{font-size:12.5px;color:var(--txt2);padding:3px 0;line-height:1.45}
+
+/* ── Banco e escalação interativa ───────────────────── */
+.dica-drag{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;margin-bottom:10px;
+  background:var(--panel3);border:1px solid var(--borda);font-size:12px;color:var(--txt2)}
+.dica-drag i{color:var(--verde-claro)}
+.slot{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.slot:active{cursor:grabbing}
+.slot:focus-visible{outline:2px solid var(--verde-claro);outline-offset:2px}
+.camisa.sel .bola{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35),0 2px 8px rgba(0,0,0,.5);
+  transform:scale(1.12)}
+.camisa.alvo .bola{border-color:var(--verde-claro);box-shadow:0 0 0 4px rgba(34,197,94,.4)}
+.camisa .bola{transition:transform .12s,box-shadow .12s,border-color .12s}
+
+.banco{margin-bottom:12px}
+.banco-titulo{font-size:12px;font-weight:800;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.banco-titulo i{color:var(--verde-claro)}
+.banco-lista{display:flex;flex-wrap:wrap;gap:6px}
+.reserva{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:9px;
+  background:var(--panel3);border:1px solid var(--borda);font-size:12px}
+.reserva.sel{border-color:#fff;background:var(--panel2);box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.reserva.alvo{border-color:var(--verde-claro);box-shadow:0 0 0 2px rgba(34,197,94,.35)}
+.reserva .r-ovr{font-weight:900;min-width:22px;text-align:center}
+.reserva .r-nome{font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reserva .r-pos{font-size:9.5px;font-weight:800;color:var(--txt3);letter-spacing:.3px}
+.reserva .r-en{font-size:10px;font-weight:800;padding:1px 5px;border-radius:5px;background:var(--panel)}
+.reserva .r-en.verde{color:var(--verde-claro)}
+.reserva .r-en.amarelo{color:var(--amarelo)}
+.reserva .r-en.vermelho{color:#fca5a5}
+@keyframes pulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.btn.pulsa{animation:pulsa 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.btn.pulsa{animation:none}}
+
 /* ── Celular ────────────────────────────────────────── */
 @media (max-width:560px){
   #app{padding:12px 12px 80px}
@@ -404,7 +482,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       </div>
     </div>
     <div class="fichas">
-      <div class="ficha"><div class="v"><?= number_format((float)$estado['caixa'], 1, ',', '.') ?></div><div class="r">caixa (mi)</div></div>
+      <div class="ficha"><div class="v"><?= h(futDinheiro((float)$estado['caixa'], false)) ?></div><div class="r">caixa (<?= h(trim(str_replace(futDinheiro((float)$estado['caixa'], false), '', futDinheiro((float)$estado['caixa'])))) ?>)</div></div>
       <div class="ficha"><div class="v"><?= (int)$meuClube['forca'] ?></div><div class="r">força</div></div>
       <div class="ficha"><div class="v"><?= (int)$estado['tecnico']['reputacao'] ?></div><div class="r">reputação</div></div>
       <div class="ficha"><div class="v"><?= $posicao ? $posicao . 'º' : '—' ?></div><div class="r">posição</div></div>
@@ -436,11 +514,51 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <i class="bi bi-trophy-fill"></i> <?= h($relatorio['titulo']) ?>!</p>
       <?php endif; ?>
       <div class="rolar"><table><tbody>
-        <tr><td>Receita do ano</td><td class="num">+<?= number_format($relatorio['receita'], 1, ',', '.') ?></td></tr>
-        <tr><td>Premiação</td><td class="num">+<?= number_format($relatorio['premio'], 1, ',', '.') ?></td></tr>
-        <tr><td>Folha salarial</td><td class="num">−<?= number_format($relatorio['folha'], 1, ',', '.') ?></td></tr>
-        <tr><td><strong>Caixa agora</strong></td><td class="num"><strong><?= number_format($relatorio['caixa'], 1, ',', '.') ?></strong></td></tr>
+        <tr><td>Receita do ano</td><td class="num">+<?= h(futDinheiro($relatorio['receita'])) ?></td></tr>
+        <tr><td>Premiação</td><td class="num">+<?= h(futDinheiro($relatorio['premio'])) ?></td></tr>
+        <tr><td>Folha salarial</td><td class="num">−<?= h(futDinheiro($relatorio['folha'])) ?></td></tr>
+        <tr><td><strong>Caixa agora</strong></td><td class="num"><strong><?= h(futDinheiro($relatorio['caixa'])) ?></strong></td></tr>
       </tbody></table></div>
+      <?php if (!empty($relatorio['aposentados'])): ?>
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:800;margin-bottom:5px"><i class="bi bi-door-closed"></i> Penduraram as chuteiras</div>
+          <?php foreach ($relatorio['aposentados'] as $a): ?>
+            <div style="font-size:12.5px;color:var(--txt2)">· <?= h($a['nome']) ?>, <?= (int)$a['idade'] ?> anos (<?= h($a['pos']) ?>)</div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!empty($relatorio['novos'])): ?>
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:800;margin-bottom:5px"><i class="bi bi-stars"></i> Subiram da base</div>
+          <?php foreach ($relatorio['novos'] as $n): ?>
+            <div style="font-size:12.5px;color:var(--txt2)">
+              · <?= h($n['nome']) ?>, <?= (int)$n['idade'] ?> anos — <?= h($n['pos']) ?> <?= (int)$n['ovr'] ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php
+        $subiram = array_filter($relatorio['evolucao'] ?? [], fn($x) => $x['delta'] >= 3);
+        $cairam  = array_filter($relatorio['evolucao'] ?? [], fn($x) => $x['delta'] <= -3);
+      ?>
+      <?php if ($subiram || $cairam): ?>
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:800;margin-bottom:5px"><i class="bi bi-graph-up-arrow"></i> Quem mudou de patamar</div>
+          <?php foreach ($subiram as $nm => $x): ?>
+            <div style="font-size:12.5px">· <?= h($nm) ?>
+              <span style="color:var(--verde-claro);font-weight:700"><?= (int)$x['antes'] ?> → <?= (int)$x['depois'] ?></span>
+              <span style="color:var(--txt3)">(<?= (int)$x['idade'] ?> anos)</span></div>
+          <?php endforeach; ?>
+          <?php foreach ($cairam as $nm => $x): ?>
+            <div style="font-size:12.5px">· <?= h($nm) ?>
+              <span style="color:#fca5a5;font-weight:700"><?= (int)$x['antes'] ?> → <?= (int)$x['depois'] ?></span>
+              <span style="color:var(--txt3)">(<?= (int)$x['idade'] ?> anos)</span></div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
       <?php if ($relatorio['demitido']): ?>
         <div class="msg err" style="margin-top:12px"><i class="bi bi-door-open"></i>
           Você foi demitido. Duas temporadas sem cumprir a meta.</div>
@@ -459,6 +577,53 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   <?php // ── ABA: PARTIDAS ──────────────────────────────────────────── ?>
   <?php if ($aba === 'jogo'): ?>
     <?php if (($estado['fase'] ?? '') === 'mercado'): ?>
+      <?php if (!empty($estado['propostas'])): ?>
+        <div class="bloco" style="border-color:rgba(34,197,94,.4)">
+          <h3><i class="bi bi-telephone-fill"></i> Clubes querem você</h3>
+          <p style="color:var(--txt2);font-size:13px;margin:0 0 12px">
+            Sua campanha chamou atenção. Aceitar significa começar do zero em outro clube,
+            com elenco e caixa dele — a reputação e os títulos vão com você.
+          </p>
+          <?php foreach ($estado['propostas'] as $pr): ?>
+            <div class="proposta">
+              <?= escudo($clubesTodos[$pr['nome']] ?? ['nome' => $pr['nome']], 32) ?>
+              <div style="min-width:0;flex:1">
+                <div style="font-weight:800"><?= h($pr['nome']) ?></div>
+                <div style="font-size:11.5px;color:var(--txt2)">
+                  <?= h($pr['div'] ?: 'estadual') ?> · força <?= (int)$pr['forca'] ?>
+                </div>
+              </div>
+              <form method="post" onsubmit="return confirm('Assumir o <?= h($pr['nome']) ?>? Você deixa o <?= h($estado['clube']) ?>.')">
+                <input type="hidden" name="acao" value="trocar_clube">
+                <input type="hidden" name="clube" value="<?= h($pr['nome']) ?>">
+                <button class="btn peq" type="submit">Aceitar</button>
+              </form>
+            </div>
+          <?php endforeach; ?>
+          <form method="post" style="margin-top:10px">
+            <input type="hidden" name="acao" value="recusar_propostas">
+            <button class="btn sec peq" type="submit">Ficar no <?= h($estado['clube']) ?></button>
+          </form>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!empty($estado['noticias'])): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-newspaper"></i> O que aconteceu na virada</h3>
+          <?php foreach (array_slice($estado['noticias'], 0, 12) as $n): ?>
+            <div class="noticia">· <?= h($n) ?></div>
+          <?php endforeach; ?>
+          <?php if (count($estado['noticias']) > 12): ?>
+            <details style="margin-top:6px">
+              <summary style="cursor:pointer;font-size:12px;color:var(--txt2)">ver todas</summary>
+              <?php foreach (array_slice($estado['noticias'], 12) as $n): ?>
+                <div class="noticia">· <?= h($n) ?></div>
+              <?php endforeach; ?>
+            </details>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
       <div class="bloco">
         <h3><i class="bi bi-calendar-plus"></i> Pré-temporada</h3>
         <p style="color:var(--txt2);font-size:13px;margin:0 0 12px">
@@ -482,15 +647,58 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       </div>
 
     <?php elseif (($estado['fase'] ?? '') === 'desempregado'): ?>
+      <?php
+        /* DEMITIDO NÃO É FIM DE JOGO. A carreira continua: a reputação, os
+           títulos e o histórico ficam, e o técnico procura clube — só que
+           agora a lista é a que a reputação dele alcança, que depois de duas
+           temporadas ruins costuma ser mais curta que a anterior. */
+        $rep = (int)($estado['tecnico']['reputacao'] ?? 0);
+        $vagas = futClubesParaComecar($rep);
+        unset($vagas[$estado['clube']]);   // o clube que te demitiu não te chama de volta
+        $vagas = array_slice($vagas, 0, 12, true);
+      ?>
       <div class="bloco">
         <h3><i class="bi bi-door-open"></i> Sem clube</h3>
         <p style="color:var(--txt2);font-size:13px;margin:0 0 12px">
-          Você está desempregado. Recomece uma carreira pra voltar a dirigir.
+          O <?= h($estado['clube']) ?> te demitiu. Sua reputação é <strong><?= $rep ?></strong> —
+          é ela que define quem te atende agora. Seus títulos e seu histórico continuam com você.
         </p>
-        <form method="post"><input type="hidden" name="acao" value="recomecar">
-          <button class="btn sec"><i class="bi bi-arrow-repeat"></i> Nova carreira</button>
+        <?php if (!$vagas): ?>
+          <div class="vazio">Nenhum clube quer você no momento.</div>
+        <?php else: ?>
+          <?php foreach ($vagas as $nome => $c): ?>
+            <div class="proposta">
+              <?= escudo($c, 30) ?>
+              <div style="min-width:0;flex:1">
+                <div style="font-weight:800"><?= h($nome) ?></div>
+                <div style="font-size:11.5px;color:var(--txt2)">
+                  <?= h($c['div'] ?: 'estadual') ?> · força <?= (int)$c['forca'] ?>
+                  · técnico atual: <?= h(futTecnicoDoClube($nome, (int)$estado['temporada'], $estado['trocas_tecnico'] ?? [])) ?>
+                </div>
+              </div>
+              <form method="post">
+                <input type="hidden" name="acao" value="assumir_clube">
+                <input type="hidden" name="clube" value="<?= h($nome) ?>">
+                <button class="btn peq" type="submit">Assumir</button>
+              </form>
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+        <form method="post" style="margin-top:12px"
+              onsubmit="return confirm('Apagar esta carreira e começar outra do zero?')">
+          <input type="hidden" name="acao" value="recomecar">
+          <button class="btn sec peq"><i class="bi bi-arrow-repeat"></i> Apagar e começar do zero</button>
         </form>
       </div>
+
+      <?php if (!empty($estado['noticias'])): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-newspaper"></i> O que aconteceu na virada</h3>
+          <?php foreach (array_slice($estado['noticias'], 0, 12) as $n): ?>
+            <div class="noticia">· <?= h($n) ?></div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
     <?php else: ?>
       <?php if ($proximo): ?>
@@ -613,13 +821,13 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     <div class="bloco">
       <h3><i class="bi bi-people-fill"></i> Elenco (<?= count($estado['elenco']) ?>)</h3>
       <div style="font-size:12px;color:var(--txt2);margin-bottom:10px">
-        Folha: <strong><?= number_format($folha, 2, ',', '.') ?> mi/ano</strong> ·
+        Folha: <strong><?= h(futDinheiro($folha)) ?>/ano</strong> ·
         Mínimo <?= FUT_ELENCO_MINIMO ?>, máximo <?= FUT_ELENCO_MAXIMO ?> jogadores
       </div>
       <div class="rolar"><table>
         <thead><tr>
           <th>Jogador</th><th>Pos</th><th class="num">OVR</th><th class="num">Idade</th>
-          <th class="num">Valor</th><th class="num">Salário</th><th></th>
+          <th>Condição</th><th class="num">Valor</th><th class="num">Salário</th><th></th>
         </tr></thead>
         <tbody>
         <?php
@@ -635,8 +843,18 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             <td><span class="tagpos"><?= h($j['pos']) ?></span></td>
             <td class="num"><span class="ovr <?= $cls ?>"><?= (int)$j['ovr'] ?></span></td>
             <td class="num"><?= (int)$j['idade'] ?></td>
-            <td class="num"><?= number_format($v, 2, ',', '.') ?></td>
-            <td class="num"><?= number_format($s, 2, ',', '.') ?></td>
+            <td style="white-space:nowrap">
+              <?php $lz = (int)($j['lesao'] ?? 0); $en = futTextoEnergia((int)($j['energia'] ?? 100)); ?>
+              <?php if ($lz > 0): ?>
+                <span class="cond vermelho"><i class="bi bi-bandaid-fill"></i> <?= $lz ?>j</span>
+              <?php elseif (isset(($estado['suspensos'] ?? [])[$j['nome']])): ?>
+                <span class="cond vermelho"><i class="bi bi-slash-circle"></i> susp.</span>
+              <?php else: ?>
+                <span class="cond <?= h($en['cor']) ?>"><?= h($en['txt']) ?></span>
+              <?php endif; ?>
+            </td>
+            <td class="num"><?= h(futDinheiro($v)) ?></td>
+            <td class="num"><?= h(futDinheiro($s)) ?></td>
             <td class="num">
               <form method="post" style="display:inline">
                 <input type="hidden" name="acao" value="vender">
@@ -662,8 +880,19 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       $avisos = futAvisosDaEscalacao($escalados, $esquema);
       $forcaEscalada = futForcaEscalada($escalados, $esquema);
       $suspensos = $estado['suspensos'] ?? [];
-      $elencoOrd = $estado['elenco'];
-      usort($elencoOrd, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
+      $indisp = futIndisponiveis($estado['elenco'], $suspensos);
+      $reservas = futReservas($estado['elenco'], $escalados, array_keys($suspensos));
+
+      // Tudo que o JS precisa saber sobre cada jogador, num lugar só.
+      $dadosJs = [];
+      foreach ($estado['elenco'] as $j) {
+        $dadosJs[$j['nome']] = [
+          'nome' => $j['nome'], 'pos' => $j['pos'], 'ovr' => (int)$j['ovr'],
+          'idade' => (int)$j['idade'], 'energia' => (int)($j['energia'] ?? 100),
+          'moral' => (int)($j['moral'] ?? 75), 'lesao' => (int)($j['lesao'] ?? 0),
+          'fora' => isset($indisp[$j['nome']]),
+        ];
+      }
     ?>
     <div class="bloco">
       <h3><i class="bi bi-diagram-3"></i> Escalação</h3>
@@ -672,10 +901,10 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <input type="hidden" name="acao" value="escalar">
         <input type="hidden" name="aba" value="escalacao">
 
-        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
           <div style="flex:1;min-width:150px">
             <label for="esquema">Esquema tático</label>
-            <select id="esquema" name="esquema" onchange="document.getElementById('formEsq').submit()">
+            <select id="esquema" name="esquema" onchange="this.form.querySelectorAll('input[name^=vaga]').forEach(i=>i.remove());this.form.submit()" title="Trocar o esquema reescala o time do zero">
               <?php foreach (FUT_ESQUEMAS as $k => $e): ?>
                 <option value="<?= h($k) ?>" <?= $k === $esquema ? 'selected' : '' ?>><?= h($e['nome']) ?></option>
               <?php endforeach; ?>
@@ -683,83 +912,249 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           </div>
           <div style="text-align:right">
             <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px">Força em campo</div>
-            <div style="font-size:22px;font-weight:900;line-height:1"><?= (int)$forcaEscalada ?></div>
+            <div style="font-size:22px;font-weight:900;line-height:1" id="forcaCampo"><?= (int)$forcaEscalada ?></div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--txt2);margin-bottom:12px"><?= h(FUT_ESQUEMAS[$esquema]['desc']) ?></div>
+        <div style="font-size:12px;color:var(--txt2);margin-bottom:10px"><?= h(FUT_ESQUEMAS[$esquema]['desc']) ?></div>
 
-        <div class="campo">
+        <div class="dica-drag" id="dicaDrag">
+          <i class="bi bi-hand-index"></i>
+          <span>Toque num jogador e depois no outro pra trocar. No computador, dá pra arrastar.</span>
+        </div>
+
+        <div class="campo" id="campo">
           <div class="linha-meio"></div><div class="circulo"></div>
           <div class="area cima"></div><div class="area baixo"></div>
           <?php foreach ($vagas as $iv => $v): ?>
-            <?php
-              $j = $escalados[$iv] ?? null;
-              $improv = $j && (FUT_AFINIDADE[$v[0]][$j['pos']] ?? 0) >= 8;
-            ?>
-            <div class="camisa" style="left:<?= (float)$v[1] ?>%;top:<?= (float)$v[2] ?>%">
-              <div class="bola <?= $improv ? 'improv' : '' ?> <?= $j ? '' : 'vazio' ?>">
-                <?= $j ? (int)futOvrNaVaga($j, $v[0]) : '—' ?>
-              </div>
+            <?php $j = $escalados[$iv] ?? null; ?>
+            <div class="camisa slot" data-vaga="<?= (int)$iv ?>" data-pos="<?= h($v[0]) ?>"
+                 data-nome="<?= h($j['nome'] ?? '') ?>"
+                 style="left:<?= (float)$v[1] ?>%;top:<?= (float)$v[2] ?>%"
+                 draggable="true" tabindex="0" role="button"
+                 aria-label="<?= h($v[0]) ?>: <?= h($j['nome'] ?? 'vazio') ?>">
+              <div class="bola"><?= $j ? (int)futOvrNaVaga($j, $v[0]) : '—' ?></div>
               <div class="nom"><?= $j ? h($j['nome']) : '—' ?></div>
               <div class="vg"><?= h($v[0]) ?></div>
             </div>
           <?php endforeach; ?>
+          <input type="hidden" name="_" value="1">
+        </div>
+
+        <div class="banco">
+          <div class="banco-titulo">
+            <i class="bi bi-people"></i> Banco
+            <span style="color:var(--txt3);font-weight:400">— arraste ou toque pra trocar</span>
+          </div>
+          <div class="banco-lista" id="banco">
+            <?php foreach ($reservas as $j): ?>
+              <div class="reserva slot" data-vaga="" data-nome="<?= h($j['nome']) ?>"
+                   data-pos="<?= h($j['pos']) ?>" draggable="true" tabindex="0" role="button"
+                   aria-label="<?= h($j['nome']) ?>, <?= h($j['pos']) ?>, força <?= (int)$j['ovr'] ?>">
+                <span class="r-ovr"><?= (int)$j['ovr'] ?></span>
+                <span class="r-nome"><?= h($j['nome']) ?></span>
+                <span class="r-pos"><?= h($j['pos']) ?></span>
+                <?php $en = futTextoEnergia((int)($j['energia'] ?? 100)); ?>
+                <span class="r-en <?= h($en['cor']) ?>" title="energia"><?= (int)($j['energia'] ?? 100) ?></span>
+              </div>
+            <?php endforeach; ?>
+            <?php if (!$reservas): ?>
+              <div style="color:var(--txt3);font-size:12px;padding:6px">Ninguém no banco.</div>
+            <?php endif; ?>
+          </div>
         </div>
 
         <?php if ($avisos): ?>
           <div class="msg err" style="display:block">
-            <strong><i class="bi bi-exclamation-triangle"></i> Improvisos custam OVR:</strong>
+            <strong><i class="bi bi-exclamation-triangle"></i> Improvisos custam força:</strong>
             <?php foreach ($avisos as $a): ?>
               <div style="font-size:12.5px;margin-top:3px">· <?= h($a['texto']) ?></div>
             <?php endforeach; ?>
           </div>
         <?php endif; ?>
 
-        <?php if ($suspensos): ?>
+        <?php if ($indisp): ?>
           <div class="msg err" style="display:block">
-            <strong><i class="bi bi-slash-circle"></i> Fora desta partida:</strong>
-            <?php foreach ($suspensos as $nm => $jg): ?>
-              <div style="font-size:12.5px;margin-top:3px">· <?= h($nm) ?> — suspenso por <?= (int)$jg ?> jogo(s)</div>
+            <strong><i class="bi bi-bandaid"></i> Fora desta partida:</strong>
+            <?php foreach ($indisp as $nm => $d): ?>
+              <div style="font-size:12.5px;margin-top:3px">
+                · <?= h($nm) ?> — <?= h($d['motivo']) ?>, <?= (int)$d['jogos'] ?> jogo(s)
+              </div>
             <?php endforeach; ?>
           </div>
         <?php endif; ?>
 
-        <h3 style="margin-top:16px"><i class="bi bi-pencil-square"></i> Quem joga onde</h3>
-        <div class="rolar"><table>
-          <thead><tr><th>Vaga</th><th>Jogador</th><th class="num">Em campo</th></tr></thead>
-          <tbody>
-          <?php foreach ($vagas as $iv => $v): ?>
-            <?php $atual = $escalados[$iv]['nome'] ?? ''; ?>
-            <tr>
-              <td><span class="tagpos"><?= h($v[0]) ?></span></td>
-              <td>
-                <select name="vaga[<?= (int)$iv ?>]" style="min-width:170px">
-                  <?php foreach ($elencoOrd as $j): ?>
-                    <?php if (isset($suspensos[$j['nome']])) continue; ?>
-                    <?php $perda = FUT_AFINIDADE[$v[0]][$j['pos']] ?? 12; ?>
-                    <option value="<?= h($j['nome']) ?>" <?= $j['nome'] === $atual ? 'selected' : '' ?>>
-                      <?= h($j['nome']) ?> (<?= h($j['pos']) ?> <?= (int)$j['ovr'] ?><?= $perda > 0 ? ' → ' . futOvrNaVaga($j, $v[0]) : '' ?>)
-                    </option>
-                  <?php endforeach; ?>
-                </select>
-              </td>
-              <td class="num"><?= $atual ? (int)futOvrNaVaga($escalados[$iv], $v[0]) : '—' ?></td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table></div>
-
         <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
           <button class="btn" type="submit"><i class="bi bi-check-lg"></i> Salvar escalação</button>
+          <button class="btn sec" type="button" id="btnAuto"><i class="bi bi-magic"></i> Escalar automaticamente</button>
         </div>
       </form>
-      <form method="post" style="margin-top:8px">
+      <form method="post" id="formAuto" style="display:none">
         <input type="hidden" name="acao" value="escalar_auto">
         <input type="hidden" name="aba" value="escalacao">
-        <button class="btn sec" type="submit"><i class="bi bi-magic"></i> Escalar automaticamente</button>
       </form>
     </div>
 
+    <script>
+    /* ── ESCALAÇÃO POR TOQUE E POR ARRASTO ──────────────────────────────
+       Dois jeitos de fazer a mesma coisa, porque nenhum serve sozinho: o
+       arrasto do HTML5 não funciona em toque, e no celular o que as pessoas
+       tentam primeiro é tocar. Então TOCAR é o mecanismo principal (tocar num
+       jogador seleciona, tocar no outro troca) e o arrasto é um atalho de
+       teclado e mouse por cima. O teclado entra de graça: Enter no elemento
+       focado faz o mesmo que o toque. */
+    (function () {
+      const JOGADORES = <?= json_encode($dadosJs, JSON_UNESCAPED_UNICODE) ?>;
+      const VAGAS = <?= json_encode(array_map(fn($v) => $v[0], $vagas)) ?>;
+      const AFIN = <?= json_encode(FUT_AFINIDADE) ?>;
+      const form = document.getElementById('formEsq');
+      const campo = document.getElementById('campo');
+      const banco = document.getElementById('banco');
+      let selecionado = null;
+
+      function ajusteCondicao(j) {
+        const porEnergia = j.energia >= 80 ? 0 : -Math.round((80 - j.energia) * 0.20);
+        const porMoral = Math.round((j.moral - 75) / 12);
+        return porEnergia + porMoral;
+      }
+      function ovrNaVaga(nome, pos) {
+        const j = JOGADORES[nome];
+        if (!j) return 0;
+        const perda = (AFIN[pos] && AFIN[pos][j.pos] !== undefined) ? AFIN[pos][j.pos] : 12;
+        return Math.max(20, j.ovr - perda + ajusteCondicao(j));
+      }
+
+      function pintar(slot) {
+        const nome = slot.dataset.nome;
+        const j = JOGADORES[nome];
+        if (slot.classList.contains('reserva')) {
+          slot.querySelector('.r-ovr').textContent = j ? j.ovr : '';
+          slot.querySelector('.r-nome').textContent = j ? j.nome : '';
+          slot.querySelector('.r-pos').textContent = j ? j.pos : '';
+          return;
+        }
+        const pos = slot.dataset.pos;
+        const bola = slot.querySelector('.bola');
+        bola.textContent = j ? ovrNaVaga(nome, pos) : '—';
+        slot.querySelector('.nom').textContent = j ? j.nome : '—';
+        const perda = j ? ((AFIN[pos] && AFIN[pos][j.pos] !== undefined) ? AFIN[pos][j.pos] : 12) : 0;
+        bola.classList.toggle('improv', !!j && perda >= 8);
+        bola.classList.toggle('vazio', !j);
+      }
+
+      /* A força em campo tem que ser a MESMA conta do servidor, senão o número
+         muda sozinho ao salvar e o jogador deixa de confiar na tela. */
+      const PESO = {GOL:1.25, ZAG:1.1, LAT:0.95, VOL:1.0, MEI:1.05, PON:0.95, ATA:1.1};
+      function recalcularForca() {
+        let soma = 0, pesos = 0;
+        campo.querySelectorAll('.slot').forEach(s => {
+          const pos = s.dataset.pos, p = PESO[pos] || 1;
+          const nome = s.dataset.nome;
+          soma += (nome && JOGADORES[nome] ? ovrNaVaga(nome, pos) : 35) * p;
+          pesos += p;
+        });
+        document.getElementById('forcaCampo').textContent = Math.round(soma / Math.max(0.001, pesos));
+      }
+
+      function limparSelecao() {
+        document.querySelectorAll('.slot.sel').forEach(s => s.classList.remove('sel'));
+        selecionado = null;
+      }
+
+      function trocar(a, b) {
+        if (!a || !b || a === b) return;
+        const na = a.dataset.nome, nb = b.dataset.nome;
+        // Trocar dois vazios não faz nada, e mover pro banco exige alguém.
+        if (!na && !nb) return;
+        a.dataset.nome = nb;
+        b.dataset.nome = na;
+
+        /* Uma reserva que ficou sem ninguém some do banco: um cartão vazio no
+           banco não significa nada e só ocupa espaço. */
+        [a, b].forEach(el => {
+          pintar(el);
+          if (el.classList.contains('reserva') && !el.dataset.nome) el.remove();
+        });
+        recalcularForca();
+        sincronizar();
+        marcarSujo();
+      }
+
+      let sujo = false;
+      function marcarSujo() {
+        if (sujo) return;
+        sujo = true;
+        const botao = form.querySelector('button[type=submit]');
+        if (botao) botao.classList.add('pulsa');
+      }
+
+      function aoAtivar(slot) {
+        if (!selecionado) {
+          if (!slot.dataset.nome) return;       // não dá pra pegar o vazio
+          selecionado = slot;
+          slot.classList.add('sel');
+          return;
+        }
+        if (selecionado === slot) { limparSelecao(); return; }
+        trocar(selecionado, slot);
+        limparSelecao();
+      }
+
+      function ligar(slot) {
+        slot.addEventListener('click', () => aoAtivar(slot));
+        slot.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aoAtivar(slot); }
+          if (e.key === 'Escape') limparSelecao();
+        });
+        slot.addEventListener('dragstart', e => {
+          if (!slot.dataset.nome) { e.preventDefault(); return; }
+          selecionado = slot;
+          slot.classList.add('sel');
+          e.dataTransfer.effectAllowed = 'move';
+          // Sem isto o Firefox ignora o arrasto.
+          e.dataTransfer.setData('text/plain', slot.dataset.nome);
+        });
+        slot.addEventListener('dragend', () => limparSelecao());
+        slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('alvo'); });
+        slot.addEventListener('dragleave', () => slot.classList.remove('alvo'));
+        slot.addEventListener('drop', e => {
+          e.preventDefault();
+          slot.classList.remove('alvo');
+          trocar(selecionado, slot);
+          limparSelecao();
+        });
+      }
+      document.querySelectorAll('.slot').forEach(ligar);
+
+      // Clicar fora cancela a seleção — senão ela fica presa e confunde.
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.slot')) limparSelecao();
+      });
+
+      /* OS CAMPOS OCULTOS FICAM SEMPRE SINCRONIZADOS com o campo, e não são
+         montados no evento submit. Parece detalhe e não é: form.submit()
+         chamado por código NÃO dispara o evento 'submit', então a versão
+         anterior enviava a escalação vazia sempre que o envio não vinha de um
+         clique no botão — o servidor recebia zero nomes, reescalava sozinho, e
+         o trabalho do jogador ia pro lixo sem nenhum aviso. */
+      function sincronizar() {
+        campo.querySelectorAll('.slot').forEach(s => {
+          let inp = form.querySelector('input[name="vaga[' + s.dataset.vaga + ']"]');
+          if (!inp) {
+            inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'vaga[' + s.dataset.vaga + ']';
+            form.appendChild(inp);
+          }
+          inp.value = s.dataset.nome || '';
+        });
+      }
+      sincronizar();
+
+      document.getElementById('btnAuto').addEventListener('click', () => {
+        document.getElementById('formAuto').submit();
+      });
+    })();
+    </script>
   <?php // ── ABA: NÚMEROS ───────────────────────────────────────────── ?>
   <?php elseif ($aba === 'stats'): ?>
     <?php
@@ -885,7 +1280,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     <div class="bloco">
       <h3><i class="bi bi-search"></i> Mercado</h3>
       <div style="font-size:12px;color:var(--txt2);margin-bottom:12px">
-        Caixa: <strong><?= number_format((float)$estado['caixa'], 2, ',', '.') ?> mi</strong>.
+        Caixa: <strong><?= h(futDinheiro((float)$estado['caixa'])) ?></strong>.
         Quem está <span style="color:var(--verde-claro);font-weight:700">à venda</span> sai perto do preço de tabela.
         Quem o clube não quer vender custa bem mais caro.
       </div>
@@ -957,8 +1352,8 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               <td class="num"><span class="ovr <?= $cls ?>"><?= (int)$m['ovr'] ?></span></td>
               <td class="num"><?= (int)$m['idade'] ?></td>
               <td style="font-size:12px;color:var(--txt2)"><?= h($m['clube']) ?></td>
-              <td class="num" style="color:var(--txt3)"><?= number_format($m['valor'], 2, ',', '.') ?></td>
-              <td class="num"><strong><?= number_format($m['pedido'], 2, ',', '.') ?></strong></td>
+              <td class="num" style="color:var(--txt3)"><?= h(futDinheiro($m['valor'])) ?></td>
+              <td class="num"><strong><?= h(futDinheiro($m['pedido'])) ?></strong></td>
               <td class="num">
                 <form method="post" style="display:inline">
                   <input type="hidden" name="acao" value="comprar">
