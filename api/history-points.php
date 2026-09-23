@@ -1140,7 +1140,10 @@ try {
                             t.league,
                             COALESCE(t.ranking_points, 0) as total_points,
                             {$titlesSelect},
-                            u.name as owner_name
+                            u.name as owner_name,
+                            /* O escudo, pra tabela da liga ficar igual à das
+                               ligas de bloco — lá ele já vinha e aqui não. */
+                            t.photo_url
                         FROM teams t
                         LEFT JOIN users u ON u.id = t.user_id
                         LEFT JOIN (
@@ -1151,7 +1154,7 @@ try {
                         ) titles ON titles.team_id = t.id";
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
-                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name, t.photo_url
                           ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);

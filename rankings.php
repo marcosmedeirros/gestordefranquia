@@ -75,6 +75,13 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
+            /* O DESTAQUE DESTA TELA segue a cor da pessoa.
+               Era o âmbar fixo, e num app todo vermelho ele já era o
+               estranho da casa; quem escolhia uma cor no perfil via o app
+               inteiro mudar e o ranking continuar amarelo. Aponta pra --red
+               porque é --red que o includes/accent-color.php sobrescreve com
+               a cor escolhida — tudo que deriva dela se recolore junto. */
+            --ct-accent:  var(--red);
             --blue:       #3b82f6;
             --sidebar-w:  260px;
             --font:       'Montserrat', sans-serif;
@@ -197,7 +204,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .ct-slot-tag { font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
             color:var(--text-3); margin-top:2px; }
         .ct-slot.agora .ct-slot-tag { color:var(--red); }
-        .ct-slot:not(.vazio):not(.agora) .ct-slot-tag { color:var(--amber); }
+        .ct-slot:not(.vazio):not(.agora) .ct-slot-tag { color:var(--ct-accent); }
         .ct-slot-t { font-size:10px; font-weight:800; letter-spacing:.08em; color:var(--text-3); }
         .ct-slot-vazio { width:26px; height:26px; border-radius:6px; border:1px dashed var(--border-md); }
         .ct-slot-nome {
@@ -205,7 +212,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
         }
         .ct-slot.vazio .ct-slot-nome { color:var(--text-3); font-weight:600; }
-        .ct-slot-pts { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; color:var(--amber); margin-top:auto; }
+        .ct-slot-pts { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; color:var(--ct-accent); margin-top:auto; }
         .ct-slot.vazio .ct-slot-pts { color:var(--text-3); }
         @media (max-width:640px){ .ct-slots{ grid-template-columns:repeat(3,1fr); } }
 
@@ -213,15 +220,15 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .ct-camp {
             display:flex; align-items:center; gap:12px; padding:12px 14px;
             background:var(--panel); border:1px solid var(--border);
-            border-left:3px solid var(--amber); border-radius:10px;
+            border-left:3px solid var(--ct-accent); border-radius:10px;
         }
         .ct-camp-ciclo { font-size:11px; font-weight:800; color:var(--text-3); min-width:64px; letter-spacing:.04em; }
         /* O card é clicável: é assim que se troca a tabela de baixo. */
         .ct-slot { cursor:pointer; }
         .ct-slot:hover { border-color:var(--border-md); }
-        .ct-slot:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
-        .ct-slot.aberto { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber) inset; }
-        .ct-slot-premio { margin-top:6px; font-size:10.5px; font-weight:800; color:var(--amber);
+        .ct-slot:focus-visible { outline:2px solid var(--ct-accent); outline-offset:2px; }
+        .ct-slot.aberto { border-color:var(--ct-accent); box-shadow:0 0 0 1px var(--ct-accent) inset; }
+        .ct-slot-premio { margin-top:6px; font-size:10.5px; font-weight:800; color:var(--ct-accent);
             letter-spacing:.03em; }
         /* ── "Como se sobe" ──────────────────────────────────────────
            Um painel, não um card por item: é regra com duas listas curtas, e
@@ -229,16 +236,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
            iguais. A borda de cima é a única cor: a hierarquia já está no
            tamanho do texto. */
         .sb-box { margin-top:14px; padding:14px; border:1px solid var(--border);
-            border-top:2px solid var(--amber); border-radius:10px; background:var(--panel); }
+            border-top:2px solid var(--ct-accent); border-radius:10px; background:var(--panel); }
         .sb-titulo { font-size:10.5px; font-weight:800; letter-spacing:.09em;
-            text-transform:uppercase; color:var(--amber); }
+            text-transform:uppercase; color:var(--ct-accent); }
         .sb-regra { margin:6px 0 12px; font-size:12.5px; line-height:1.5; color:var(--text-2); }
         .sb-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
         .sb-h { font-size:11px; font-weight:800; letter-spacing:.05em; color:var(--text-3);
             text-transform:uppercase; margin-bottom:6px; }
         .sb-lista { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; }
         .sb-lista li { font-size:12.5px; color:var(--text); line-height:1.35; }
-        .sb-n { font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber); margin-right:3px; }
+        .sb-n { font-family:'Oswald',sans-serif; font-weight:700; color:var(--ct-accent); margin-right:3px; }
         .sb-obs { font-size:11px; color:var(--text-3); font-weight:600; }
         .sb-lista .sb-vazio { color:var(--text-3); font-size:12px; font-style:italic; }
         .sb-subiram { margin-top:12px; padding-top:10px; border-top:1px solid var(--border);
@@ -253,10 +260,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             background:var(--panel); color:var(--text-3); font-size:12.5px; font-weight:700;
             cursor:pointer; transition:all var(--t) var(--ease); }
         .ct-aba:hover { color:var(--text); border-color:var(--border-md); }
-        .ct-aba.on { background:var(--amber); border-color:var(--amber); color:#1a1a1a; }
+        .ct-aba.on { background:var(--ct-accent); border-color:var(--ct-accent); color:#fff; }
         .ct-camp-nome { font-size:14px; font-weight:700; color:var(--text); }
         .ct-camp-vice { font-size:11px; color:var(--text-3); margin-top:1px; }
-        .ct-camp-pts { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--amber); margin-left:auto; }
+        .ct-camp-pts { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--ct-accent); margin-left:auto; }
         .ct-camp-pts small { font-size:10px; color:var(--text-3); margin-left:3px; font-family:var(--font); }
 
 
@@ -294,7 +301,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
         /* Highlights da Tabela */
         .rank-pos { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; width: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .rank-pos.gold { color: var(--amber); font-size: 15px; }
+        .rank-pos.gold { color: var(--ct-accent); font-size: 15px; }
         .rank-pos.silver { color: #94a3b8; font-size: 15px; }
         /* Variacao de posicao em relacao ao fim da sprint anterior */
         .rk-var { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 800;
@@ -304,9 +311,29 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .rk-var.down { color: #ef4444; background: rgba(239,68,68,.12); }
         .rk-var.same { color: var(--text-3); background: var(--panel-2); }
         .rk-var.none { color: var(--text-3); background: transparent; opacity: .5; }
-        .rk-legenda { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px;
-            color: var(--text-3); margin-bottom: 12px; }
         .rank-pos.bronze { color: #cd7c4a; font-size: 15px; }
+
+        /* O nome da franquia é botão: abre o histórico de pontuação do time.
+           Era um botão de ícone em coluna própria; virou o próprio nome
+           porque a coluna existia só pra ele e a tabela precisa caber em
+           375px. Herda tudo do texto ao redor pra não parecer link solto. */
+        /* Posição e seta na mesma célula: lado a lado quando cabe, empilhados
+           no celular. Lado a lado em 375px a coluna crescia e empurrava o
+           "Total" pra fora da tela — o mesmo corte que o cabeçalho já tinha
+           sofrido. Empilhar deixa a linha mais alta, que é barato, em vez de
+           mais larga, que não tem de onde tirar. */
+        .ct-pos { display:flex; align-items:center; justify-content:center; gap:5px; }
+        @media (max-width:520px){
+            .ct-pos { flex-direction:column; gap:1px; }
+            /* Sem a pílula: o fundo e o padding dela custavam os 2px que
+               faziam a coluna "Total" sair da tela em 375px. A cor já diz
+               subiu ou caiu. */
+            .ct-pos .rk-var { font-size:10px; padding:0; background:none; }
+        }
+        .ct-time-btn { background:none; border:0; padding:0; font:inherit; color:inherit;
+            text-align:left; cursor:pointer; }
+        .ct-time-btn:hover { color:var(--ct-accent); }
+        .ct-time-btn:focus-visible { outline:2px solid var(--ct-accent); outline-offset:2px; border-radius:3px; }
 
         /* Destaque Time Atual */
         .row-me { background: var(--red-soft) !important; }
@@ -358,7 +385,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .pts-row:last-child { border-bottom: none; }
         .pts-row:hover { background: var(--panel-2); }
         .pts-rank { width: 22px; font-size: 11px; font-weight: 800; color: var(--text-3); text-align: center; flex-shrink: 0; }
-        .pts-rank.g { color: var(--amber); }
+        .pts-rank.g { color: var(--ct-accent); }
         .pts-rank.s { color: #94a3b8; }
         .pts-rank.b { color: #cd7c4a; }
         .pts-team { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -671,6 +698,85 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     let _blocoSel = {};      // liga => qual bloco está aberto
     let _blocoAba = {};      // liga => 'bloco' ou 'geral'
 
+    const _esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    /** O escudo do time, ou a inicial quando não há foto. */
+    function ctEscudo(url, nome) {
+        return url
+            ? `<img src="${_esc(url)}" alt="" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0">`
+            : `<span style="width:26px;height:26px;border-radius:6px;background:var(--panel-3);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${_esc((nome||'?').trim()[0]||'?')}</span>`;
+    }
+
+    /**
+     * A TABELA DE CLASSIFICAÇÃO — uma só, pras quatro ligas.
+     *
+     * Existia uma por caminho: a das ligas de bloco (ELITE, ROOKIE) com Pos,
+     * Franquia, Títulos e Total, e a de NEXT/RISE com sete colunas, setas de
+     * variação, badge de liga e o nome do GM. Eram a mesma pergunta em dois
+     * desenhos, e cada ajuste pedido tinha que ser feito duas vezes — foi
+     * assim que a tela de punições quebrou hoje. Agora é esta função, e o que
+     * cada liga tem de diferente fica no que ela PASSA, não no HTML.
+     *
+     * Cada linha aceita {pos, nome, escudo, titulos, pontos, team_id, var}.
+     * Com team_id, a franquia abre o histórico de pontuação dela — era o
+     * único caminho pro log do time, e ele estava num botão de coluna própria
+     * que não existe mais. `var` é a seta de subiu/caiu, que só as ligas com
+     * posição anterior registrada passam; sem ela a coluna fica só com o
+     * número, e é por isso que ela entra na célula da posição e não numa
+     * coluna nova que ficaria vazia em duas das quatro ligas.
+     */
+    function ctTabela(linhas, vazio) {
+        const corpo = linhas.length ? linhas.map(l => {
+            const cor = l.pos <= 3 ? 'var(--ct-accent)' : 'var(--text-3)';
+            const nome = l.team_id
+                ? `<button type="button" class="ct-time-btn" data-bs-toggle="modal" data-bs-target="#teamLogModal"
+                           data-team-id="${l.team_id}" data-team-name="${_esc(l.nome)}"
+                           title="Ver o histórico de pontuação">${_esc(l.nome)}</button>`
+                : `<span>${_esc(l.nome)}</span>`;
+            return `
+            <tr>
+              <td style="text-align:center;font-weight:800;color:${cor}">
+                <div class="ct-pos">${l.pos}${l.var || ''}</div>
+              </td>
+              <td><div style="display:flex;align-items:center;gap:10px">${ctEscudo(l.escudo, l.nome)}${nome}</div></td>
+              <td style="text-align:center;color:${l.titulos > 0 ? 'var(--ct-accent)' : 'var(--text-3)'};font-weight:${l.titulos > 0 ? '800' : '500'}">${
+                  l.titulos > 0 ? '<i class="bi bi-trophy-fill" style="font-size:11px"></i> ' + l.titulos : '—'}</td>
+              <td style="text-align:center;font-weight:800;font-size:15px">${l.pontos}</td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">${vazio}</td></tr>`;
+
+        return `
+            <div class="table-card" style="margin-top:12px">
+              <div class="table-responsive">
+                <table class="m-table">
+                  <thead><tr>
+                    <th style="width:60px;text-align:center">Pos</th>
+                    <th>Franquia</th>
+                    <?php /* nowrap e 72px: com 90px e o ícone antes de "Total",
+                             o cabeçalho quebrava em duas linhas no celular e a
+                             palavra saía cortada na borda. */ ?>
+                    <th style="width:72px;text-align:center;white-space:nowrap">Títulos</th>
+                    <th style="width:72px;text-align:center;white-space:nowrap">Total</th>
+                  </tr></thead>
+                  <tbody>${corpo}</tbody>
+                </table>
+              </div>
+            </div>`;
+    }
+
+    /** O cabeçalho da tabela: título, subtítulo e a temporada atual. */
+    function ctTopo(titulo, sub, temporada) {
+        return `
+            <div class="ct-topo">
+              <div>
+                <div class="ct-ciclo">${_esc(titulo)}</div>
+                <div class="ct-sub">${sub}</div>
+              </div>
+              ${temporada ? `<div class="ct-agora">T${temporada}</div>` : ''}
+            </div>`;
+    }
+
     /**
      * Abre a liga na visão que ELA usa.
      *
@@ -771,11 +877,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         if (!_blocoSel[liga]) _blocoSel[liga] = B.ciclo_atual;
         if (!_blocoAba[liga]) _blocoAba[liga] = B.aba_padrao || 'bloco';
 
-        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
-            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const escudo = (u, nome) => u
-            ? `<img src="${esc(u)}" alt="" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0">`
-            : `<span style="width:26px;height:26px;border-radius:6px;background:var(--panel-3);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${esc((nome||'?').trim()[0]||'?')}</span>`;
+        // Os mesmos de ctTabela: um escapador por tela, nao um por funcao.
+        const esc = _esc, escudo = ctEscudo;
 
         const sel = _blocoSel[liga];
         const aba = _blocoAba[liga];
@@ -808,28 +911,20 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         // ── A tabela: do bloco aberto, ou a geral da sprint ───────────
         const dados = aba === 'geral' ? (B.geral || []) : ((B.tabelas || {})[sel] || []);
 
-        /* Só pontos e títulos. As colunas de regular, playoffs e prêmios
-           saíram: são a decomposição de um número que a tela já mostra, e
-           somavam sete colunas numa tabela que no celular precisa caber em
-           375px. */
-        const linhas = dados.length ? dados.map(l => `
-            <tr>
-              <td style="text-align:center;font-weight:800;color:${l.pos<=3?'var(--amber)':'var(--text-3)'}">${l.pos}</td>
-              <td><div style="display:flex;align-items:center;gap:10px">${escudo(l.photo_url, l.time)}<span>${esc(l.time)}</span></div></td>
-              <td style="text-align:center;color:${l.titulos > 0 ? 'var(--amber)' : 'var(--text-3)'};font-weight:${l.titulos > 0 ? '800' : '500'}">${
-                  l.titulos > 0 ? '<i class="bi bi-trophy-fill" style="font-size:11px"></i> ' + l.titulos : '—'}</td>
-              <td style="text-align:center;font-weight:800;font-size:15px">${l.pontos}</td>
-            </tr>`).join('')
-          // Vazio aqui quase sempre significa a mesma coisa, e vale dizer qual:
-          // o ranking normal usa um total acumulado (teams.ranking_points),
-          // enquanto o bloco precisa de pontuação POR TEMPORADA. Sem dizer
-          // isso, a aba parece quebrada quando na verdade falta lançar.
-          : `<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">
-               Nenhuma pontuação lançada ${aba === 'geral' ? 'nesta sprint' : 'nesta ' + esc(B.rotulo)} ainda.<br>
+        // Só pontos e títulos: as colunas de regular, playoffs e prêmios são a
+        // decomposição de um número que a tela já mostra. @see ctTabela
+        const linhas = dados.map(l => ({
+            pos: l.pos, nome: l.time, escudo: l.photo_url,
+            titulos: l.titulos, pontos: l.pontos, team_id: l.team_id,
+        }));
+        // Vazio aqui quase sempre significa a mesma coisa, e vale dizer qual:
+        // o ranking normal usa um total acumulado (teams.ranking_points),
+        // enquanto o bloco precisa de pontuação POR TEMPORADA. Sem dizer
+        // isso, a aba parece quebrada quando na verdade falta lançar.
+        const vazioMsg = `Nenhuma pontuação lançada ${aba === 'geral' ? 'nesta sprint' : 'nesta ' + esc(B.rotulo)} ainda.<br>
                <span style="font-size:11.5px">A conta soma a pontuação <strong>de cada temporada</strong>.
                O total da aba da liga é um acumulado e não dá pra fatiar —
-               as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>
-             </td></tr>`;
+               as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>`;
 
         /* O "Copiar p/ WhatsApp" lê currentRanking, e quem enche isso é o
            loadRanking. Sem esta linha o botão dizia "não há ranking
@@ -868,44 +963,19 @@ $seasonDisplayYear = (string)$currentSeasonYear;
            ficam sempre, porque lá a Sprint É a liga. */
         const cardsAqui = !abaGeralPrimeiro || aba === 'bloco';
 
-        document.getElementById('rankingContainer').innerHTML = `
-            <div class="ct-topo">
-              <div>
-                <div class="ct-ciclo">${titulo}</div>
-                <div class="ct-sub">${sub}</div>
-              </div>
-              <div class="ct-agora">T${B.temporada_atual}</div>
-            </div>
-
-            ${cardsAqui ? `<div class="ct-slots">${slots}</div>` : ''}
-
-            <div class="ct-abas">
-              ${abaGeralPrimeiro ? abaGeral : abaBloco}
-              ${abaGeralPrimeiro ? abaBloco : abaGeral}
-            </div>
-
-            <div class="table-card" style="margin-top:12px">
-              <div class="table-responsive">
-                <table class="m-table">
-                  <thead><tr>
-                    <th style="width:60px;text-align:center">Pos</th>
-                    <th>Franquia</th>
-                    <?php /* nowrap e 72px: com 90px e o ícone antes de "Total",
-                             o cabeçalho quebrava em duas linhas no celular e a
-                             palavra saía cortada na borda. */ ?>
-                    <th style="width:72px;text-align:center;white-space:nowrap">Títulos</th>
-                    <th style="width:72px;text-align:center;white-space:nowrap">Total</th>
-                  </tr></thead>
-                  <tbody>${linhas}</tbody>
-                </table>
-              </div>
-            </div>
-
-            <?php /* O "Como se sobe" fecha a página, depois da tabela: é a
-                     regra, e regra se lê depois de olhar a classificação, não
-                     antes. Entre os cards e a tabela ele empurrava a tabela
-                     pra fora da tela no celular. */ ?>
-            ${painelSubida(B)}`;
+        document.getElementById('rankingContainer').innerHTML =
+            ctTopo(titulo, sub, B.temporada_atual)
+            + (cardsAqui ? `<div class="ct-slots">${slots}</div>` : '')
+            + `<div class="ct-abas">
+                 ${abaGeralPrimeiro ? abaGeral : abaBloco}
+                 ${abaGeralPrimeiro ? abaBloco : abaGeral}
+               </div>`
+            + ctTabela(linhas, vazioMsg)
+            /* O "Como se sobe" fecha a página, depois da tabela: é a regra, e
+               regra se lê depois de olhar a classificação, não antes. Entre os
+               cards e a tabela ele empurrava a tabela pra fora da tela no
+               celular. */
+            + painelSubida(B);
     }
 
     /** Abre a tabela de um bloco (e sai da visão geral, se estava nela). */
@@ -960,79 +1030,32 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 return;
             }
 
-            // Gerar tabela HTML Minimalista
-            const totalTeams = ranking.length;
-            let rowsHtml = ranking.map((team, idx) => {
-                const isMyTeam = currentTeamId && Number(team.team_id) === currentTeamId;
-                const posClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '';
-                const isElite = currentLeague === 'ELITE';
-                const topLimit = isElite ? 1 : 4;
-                const bottomLimit = 4;
-                const isTop = idx < Math.min(topLimit, totalTeams);
-                const isBottom = idx >= Math.max(totalTeams - bottomLimit, 0);
-                const rowClass = [
-                    isMyTeam ? 'row-me' : '',
-                    isTop ? 'row-top' : '',
-                    isBottom ? 'row-bottom' : ''
-                ].filter(Boolean).join(' ');
-
-                return `
-                <tr class="${rowClass}">
-                    <td>
-                        <div style="display:flex;align-items:center;gap:7px">
-                            <div class="rank-pos ${posClass}">${idx + 1}º</div>
-                            ${setaVariacao(team)}
-                        </div>
-                    </td>
-                    <td>
-                        <span class="team-name-cell">${esc(team.team_name)}</span>
-                        ${team.owner_name ? `<span class="team-gm-cell">GM: ${esc(team.owner_name)}</span>` : ''}
-                    </td>
-                    <td class="hide-mobile"><span class="league-badge">${team.league}</span></td>
-                    <td style="text-align: center; color: var(--text-2); font-weight: 600;">${team.total_titles || 0}</td>
-                    <td style="text-align: center; color: var(--red); font-weight: 800; font-size: 15px;">
-                        ${team.total_points || 0}
-                    </td>
-                    <td style="text-align:center">
-                        <button class="hbadge" style="padding:4px 8px;font-size:11px;gap:4px"
-                            data-bs-toggle="modal" data-bs-target="#teamLogModal"
-                            data-team-id="${team.team_id}"
-                            data-team-name="${esc(team.team_name)}">
-                            <i class="bi bi-journal-text"></i>
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('');
-
+            /* A MESMA TABELA DA ELITE E DA ROOKIE. Era outro desenho aqui —
+               sete colunas, badge de liga, nome do GM e um botão de log em
+               coluna própria — pra responder a mesma pergunta, e qualquer
+               ajuste pedido tinha que ser feito nos dois lugares. O que
+               sobrevive muda de lugar, não desaparece: a seta de variação vai
+               junto do número da posição, e o log do time se abre clicando na
+               franquia. @see ctTabela */
             const refer = comparadoCom[currentLeague];
-            container.innerHTML = `
-                <div class="rk-legenda">
-                    <span><span class="rk-var up"><i class="bi bi-caret-up-fill"></i>2</span> subiu</span>
-                    <span><span class="rk-var down"><i class="bi bi-caret-down-fill"></i>1</span> caiu</span>
-                    <span><span class="rk-var same">=</span> manteve</span>
-                    <span style="margin-left:auto">${refer
-                        ? 'Comparado com o fim da <strong>' + esc(refer) + '</strong>'
-                        : 'Comparado com a última pontuação registrada'}</span>
-                </div>
-                <div class="table-card">
-                    <div class="table-responsive">
-                        <table class="m-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 60px; text-align: center;">Pos</th>
-                                    <th>Franquia</th>
-                                    <th class="hide-mobile" style="width: 100px;">Liga</th>
-                                    <th style="width: 100px; text-align: center;"><i class="bi bi-trophy"></i> Títulos</th>
-                                    <th style="width: 100px; text-align: center;"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Pontos</th>
-                                    <th style="width: 50px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rowsHtml}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>`;
+            container.innerHTML =
+                ctTopo('Classificação geral',
+                    'Pontuação acumulada da liga · ' + (refer
+                        ? 'variação comparada com o fim da <strong>' + esc(refer) + '</strong>'
+                        : 'variação comparada com a última pontuação registrada'),
+                    null)
+                + ctTabela(
+                    ranking.map((team, idx) => ({
+                        pos: idx + 1,
+                        nome: team.team_name,
+                        escudo: team.photo_url,
+                        titulos: Number(team.total_titles || 0),
+                        pontos: Number(team.total_points || 0),
+                        team_id: team.team_id,
+                        var: setaVariacao(team),
+                    })),
+                    'Nenhuma pontuação lançada nesta liga ainda.'
+                );
         } catch (e) {
             if (mySeq !== _rankingRequestSeq) return; // idem: resposta desatualizada, ignora
             console.error(e);
