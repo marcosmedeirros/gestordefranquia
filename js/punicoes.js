@@ -532,43 +532,13 @@ window.initPunicoes = async function(preselectedLeague) {
     } catch (e) { alert(e.error || 'Erro ao registrar.'); }
   });
 
-  _el('newMotiveBtn')?.addEventListener('click', async () => {
-    const input = _el('newMotiveLabel');
-    const label = input?.value.trim();
-    if (!label) { alert('Informe o motivo.'); return; }
-    try {
-      await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
-      if (input) input.value = '';
-      await _loadCatalog();
-      _notify('success', 'Motivo cadastrado!');
-    } catch (e) { alert(e.error || 'Erro.'); }
-  });
-
-  _el('newPunishmentBtn')?.addEventListener('click', async () => {
-    const input = _el('newPunishmentLabel');
-    const label = input?.value.trim();
-    if (!label) { alert('Informe a consequência.'); return; }
-    const map = {
-      'aviso formal': 'AVISO_FORMAL',
-      'perda da pick 1º rodada': 'PERDA_PICK_1R', 'perda da pick 1a rodada': 'PERDA_PICK_1R',
-      'perda de pick específica': 'PERDA_PICK_ESPECIFICA', 'perda de pick especifica': 'PERDA_PICK_ESPECIFICA',
-      'trades bloqueadas por uma temporada': 'BAN_TRADES', 'trades sem picks': 'BAN_TRADES_PICKS',
-      'sem poder usar fa na temporada': 'BAN_FREE_AGENCY',
-      'rotacao automatica': 'ROTACAO_AUTOMATICA', 'rotação automatica': 'ROTACAO_AUTOMATICA', 'rotação automática': 'ROTACAO_AUTOMATICA'
-    };
-    const effectType = map[label.toLowerCase()] || 'AVISO_FORMAL';
-    try {
-      await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({
-        action: 'add_type', label, effect_type: effectType,
-        requires_pick: effectType === 'PERDA_PICK_ESPECIFICA',
-        requires_scope: ['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA'].includes(effectType)
-      })});
-      if (input) input.value = '';
-      await _loadCatalog();
-      _notify('success', 'Consequência cadastrada!');
-    } catch (e) { alert(e.error || 'Erro.'); }
-  });
-
+  /* NAO EXISTE MAIS "cadastrar motivo"/"cadastrar consequencia" (23/09/2026).
+     A lista de consequencias so vale se existir codigo que cumpra cada uma:
+     efeito cadastrado pela tela virava rotulo que nao fazia nada, e o mapa
+     de nome->efeito adivinhava pelo texto digitado, caindo em "aviso formal"
+     sempre que o nome nao batia. Motivo tambem nao precisa mais: o motivo
+     agora e a INFRACAO do quadro do edital. As consequencias vivem em
+     PUNICAO_EFEITOS, em backend/punicoes_catalogo.php. */
   await Promise.all([_loadCatalog(), _loadLeagues(preselectedLeague)]);
   // A liga já vem escolhida quando se chega pelo admin; na página solta,
   // a primeira da lista. Sem isso o quadro e as ativas abrem vazios e

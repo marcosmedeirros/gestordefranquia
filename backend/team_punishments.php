@@ -17,13 +17,21 @@
 /**
  * Os tipos que moram em team_punishments mas NÃO são punição.
  *
- * A tabela guarda duas coisas diferentes: castigo de verdade (perder pick,
- * banimento de trade) e recado (aviso formal, aviso de trade do FBA SERASA).
- * Recado é alerta, não pena — não pode entrar no contador de punições do time
- * nem no feed, senão um time que só levou dois toques aparece com a mesma
- * ficha de quem perdeu pick de 1ª rodada.
+ * Sobrou um só: o AVISO_TRADE, o FBA SERASA. Ele é automático — o sistema
+ * anota sozinho quem deixou proposta sem resposta —, sai às centenas e tem
+ * contador próprio na tela de times. Somar isso ao contador de punições
+ * faria todo mundo parecer fichado.
+ *
+ * O AVISO_FORMAL SAIU DESTA LISTA (23/09/2026). Ele estava aqui pelo mesmo
+ * raciocínio — "recado é alerta, não pena" —, mas o efeito na prática era
+ * outro: advertência formal é o 1º degrau do quadro do edital, e ficando
+ * fora do contador, do feed e do histórico do time ela não aparecia em
+ * lugar nenhum do app. Advertência que ninguém vê não adverte. A lista de
+ * punições mostra o rótulo de cada uma, então quem lê continua distinguindo
+ * uma advertência de uma pick perdida — o que faltava era a advertência
+ * existir na tela.
  */
-const PUNICAO_TIPOS_DE_AVISO = ['AVISO_TRADE', 'AVISO_FORMAL'];
+const PUNICAO_TIPOS_DE_AVISO = ['AVISO_TRADE'];
 
 /**
  * O pedaço de WHERE que tira os avisos da conta. O alias é o da tabela na

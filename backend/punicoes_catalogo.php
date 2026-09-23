@@ -33,6 +33,29 @@ require_once __DIR__ . '/db.php';
    ───────────────────────────────────────────────────────────────────── */
 
 /**
+ * Os efeitos `aplica` que o CAMINHO AVULSO sabe cumprir.
+ *
+ * A punição avulsa (o caso omisso, fora do quadro) tem uma implementação mais
+ * curta que a do quadro: ela mexe nas colunas de ban em `teams`, marca pick e
+ * gasta o ciclo de trocas — e nada além disso. Oferecer ali um efeito que só
+ * o quadro executa (perder FBA Points, recuar no draft) devolveria um rótulo
+ * que não faz nada, que é justamente o problema que a lista digitada à mão
+ * criou. Efeito `registra` não entra aqui porque registro é honesto por
+ * definição: a tela diz "quem executa é você".
+ *
+ * @see api/punicoes.php, ação 'add'
+ */
+const PUNICAO_AVULSA_APLICA = [
+    'BAN_TRADES',
+    'BAN_TRADES_PICKS',
+    'BAN_FREE_AGENCY',
+    'ROTACAO_AUTOMATICA',
+    'PERDA_PICK_1R',
+    'PERDA_PICK_ESPECIFICA',
+    'CICLO_SEM_TROCA',
+];
+
+/**
  * `aplica`  o sistema cumpre sozinho — bloqueia, tira, pula.
  * `registra` fica no histórico e aparece na tag do time, mas quem executa é
  *            gente (suspender do WhatsApp, excluir da liga, cobrar multa).
@@ -67,6 +90,18 @@ const PUNICAO_EFEITOS = [
         'label' => 'Perde trocas do ciclo',
         'modo' => 'aplica', 'duracao' => 'periodo', 'valor' => 'quantas trocas',
         'tag' => 'Trocas cortadas',
+    ],
+    /* CICLO SEM TROCA: gasta de uma vez TODAS as trocas do ciclo.
+       Não é o BAN_TRADES com outro nome. O ban é uma coluna à parte
+       (teams.ban_trades_until_cycle) que precisa ser posta e tirada na data
+       certa; este consome o saldo do ciclo — põe trades_used no máximo da
+       liga —, então acaba sozinho quando o ciclo vira e o contador zera
+       (trades.php já faz isso na virada). E aparece onde o GM olha: o
+       contador de trocas dele fica em 10/10, não num aviso escondido. */
+    'CICLO_SEM_TROCA' => [
+        'label' => 'Ciclo sem troca (zera as trocas do ciclo)',
+        'modo' => 'aplica', 'duracao' => 'periodo', 'valor' => null,
+        'tag' => 'Ciclo sem troca',
     ],
     'PERDA_PICK_1R' => [
         'label' => 'Perde a própria pick de 1ª rodada',

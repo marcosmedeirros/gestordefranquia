@@ -106,14 +106,11 @@ function ensurePunishmentsCatalog(PDO $pdo): void
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-        $pdo->exec("CREATE TABLE IF NOT EXISTS punishment_types (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            label VARCHAR(120) NOT NULL UNIQUE,
-            effect_type VARCHAR(50) NOT NULL,
-            requires_pick TINYINT(1) NOT NULL DEFAULT 0,
-            requires_scope TINYINT(1) NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        /* `punishment_types` não é mais criada nem semeada aqui: a lista de
+           consequências passou a sair de PUNICAO_EFEITOS (ver a ação
+           'catalog'). A tabela continua no banco com o que os admins
+           digitaram, só não é lida por ninguém — apagar linha de histórico
+           não é trabalho de um deploy. */
     } catch (Exception $e) {
         return;
     }
@@ -128,24 +125,6 @@ function ensurePunishmentsCatalog(PDO $pdo): void
         try {
             $stmt = $pdo->prepare('INSERT IGNORE INTO punishment_motives (label) VALUES (?)');
             $stmt->execute([$motive]);
-        } catch (Exception $e) {}
-    }
-
-    $defaultTypes = [
-        ['Aviso formal', 'AVISO_FORMAL', 0, 0],
-        ['Aviso de trade (SERASA)', 'AVISO_TRADE', 0, 0],
-        ['Perda da Pick 1º rodada', 'PERDA_PICK_1R', 0, 0],
-        ['Perda de pick especifica', 'PERDA_PICK_ESPECIFICA', 1, 0],
-        ['Trades bloqueadas por uma temporada', 'BAN_TRADES', 0, 1],
-        ['Trades sem picks', 'BAN_TRADES_PICKS', 0, 1],
-        ['Sem poder usar FA na temporada', 'BAN_FREE_AGENCY', 0, 1],
-        ['Rotacao automatica', 'ROTACAO_AUTOMATICA', 0, 1]
-    ];
-
-    foreach ($defaultTypes as $typeRow) {
-        try {
-            $stmt = $pdo->prepare('INSERT IGNORE INTO punishment_types (label, effect_type, requires_pick, requires_scope) VALUES (?, ?, ?, ?)');
-            $stmt->execute($typeRow);
         } catch (Exception $e) {}
     }
 }
@@ -191,23 +170,21 @@ require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
 punicaoGarantirEsquema($pdo);
 punicaoMigrarLegado($pdo);
 
-$allowedTypes = [
-    'AVISO_FORMAL',
-    'PERDA_PICK_1R',
-    'PERDA_PICK_ESPECIFICA',
-    'BAN_TRADES',
-    'BAN_TRADES_PICKS',
-    'BAN_FREE_AGENCY',
-    'ROTACAO_AUTOMATICA',
-    'TETO_MINUTOS',
-    'REDISTRIBUICAO_MINUTOS',
-    'ANULACAO_TRADE',
-    'ANULACAO_FA',
-    'DROP_OBRIGATORIO',
-    'CORRECAO_ROSTER',
-    'INATIVIDADE_REGISTRADA',
-    'EXCLUSAO_LIGA'
-];
+/* O QUE A AVULSA ACEITA GRAVAR.
+   É a mesma lista que a tela oferece (ver a ação 'catalog'), mais os nomes
+   antigos que já existem em team_punishments — o revert de uma punição de
+   2026 lê o effect_type dela, e tirar o nome daqui travaria o revert. */
+$allowedTypes = array_values(array_unique(array_merge(
+    PUNICAO_AVULSA_APLICA,
+    array_keys(array_filter(PUNICAO_EFEITOS, fn($i) => $i['modo'] === 'registra')),
+    ['AVISO_FORMAL'],
+)));
+
+/* A lista era escrita à mão aqui, e cinco nomes dela nunca existiram em
+   PUNICAO_EFEITOS — REDISTRIBUICAO_MINUTOS, ANULACAO_FA, DROP_OBRIGATORIO,
+   CORRECAO_ROSTER, INATIVIDADE_REGISTRADA: a API aceitava, e o efeito não
+   tinha implementação nem rótulo em lugar nenhum. Derivar da fonte é o que
+   impede a lista de descolar do motor outra vez. */
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
@@ -218,11 +195,36 @@ if ($method === 'GET') {
             $motives = [];
         }
 
-        try {
-            $types = $pdo->query('SELECT id, label, effect_type, requires_pick, requires_scope FROM punishment_types ORDER BY label ASC')->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $types = [];
+        /* AS CONSEQUÊNCIAS SAEM DO CÓDIGO, NÃO DA TABELA `punishment_types`.
+           Aquela tabela virou depósito do antigo "Cadastrar consequência":
+           14 das 18 linhas eram rótulos digitados à mão — "Impedido de trocar
+           pelo restante do ciclo (2 temporadas)", "Leilão top 3 + Ciclo Ban +
+           Perda 1st + Limitação de minutagem" — e TODAS caíam em AVISO_FORMAL,
+           porque o mapa nome→efeito do front adivinhava pelo texto e usava
+           AVISO_FORMAL como padrão. O admin escolhia uma pena detalhada e o
+           sistema gravava um aviso que não fazia nada. É por isso que "aviso
+           formal não aparecia no app": ele era o depósito de tudo.
+
+           Consequência só vale se existir código que a cumpra, e quem tem
+           código é PUNICAO_EFEITOS. A lista agora é essa, filtrada pelo que o
+           caminho avulso aceita. @see backend/punicoes_catalogo.php */
+        $types = [];
+        foreach (PUNICAO_EFEITOS as $nome => $info) {
+            // Só o que a avulsa cumpre, mais tudo que ela apenas registra.
+            if ($info['modo'] === 'aplica' && !in_array($nome, PUNICAO_AVULSA_APLICA, true)) continue;
+            $types[] = [
+                'id'             => $nome,
+                'label'          => $info['label'],
+                'effect_type'    => $nome,
+                'requires_pick'  => $nome === 'PERDA_PICK_ESPECIFICA' ? 1 : 0,
+                // Pena que corre no tempo precisa saber até quando; a que
+                // acontece de uma vez, não. O "ciclo sem troca" já traz o
+                // alcance no nome, então também não pergunta.
+                'requires_scope' => ($info['duracao'] === 'periodo' && $nome !== 'CICLO_SEM_TROCA') ? 1 : 0,
+                'modo'           => $info['modo'],
+            ];
         }
+        usort($types, fn($a, $b) => strcoll($a['label'], $b['label']));
 
         echo json_encode(['success' => true, 'motives' => $motives, 'types' => $types]);
         exit;
@@ -485,7 +487,7 @@ if ($method === 'POST') {
             /* Marcada como já cumprida, nada é cobrado: a pick não cai, o
                saldo não mexe. O que corre no tempo (ban, rotação) já fica
                fora sozinho — punicaoEfeitosAtivos ignora a linha. */
-            foreach ($jaCumprida ? [] : $efeitos as $e) {
+            foreach ($jaCumprida ? [] : $efeitos as $i => $e) {
                 if ($e['efeito'] === 'PERDA_PICK_1R') {
                     $r = punicaoPerderPick($pdo, $teamId, $punicaoId);
                     if (!$r['ok']) $avisos[] = $r['motivo'];
@@ -501,6 +503,22 @@ if ($method === 'POST') {
                     $pdo->prepare('UPDATE teams SET moedas = GREATEST(0, COALESCE(moedas,0) - ?) WHERE id = ?')
                         ->execute([(int)$e['valor'], $teamId]);
                 }
+                /* CICLO SEM TROCA gasta o saldo de trocas do ciclo. Quantas
+                   foram tiradas volta pro efeito, porque o revert precisa
+                   devolver exatamente isso — o time podia já ter gasto
+                   algumas antes, e devolver o limite daria troca de graça. */
+                if ($e['efeito'] === 'CICLO_SEM_TROCA') {
+                    $r = punicaoZerarTrocasDoCiclo($pdo, $teamId);
+                    if (!$r['ok'] || $r['motivo']) $avisos[] = $r['motivo'];
+                    $efeitos[$i]['valor'] = $r['tiradas'];
+                    $regravar = true;
+                }
+            }
+            /* Só reescreve quando algum efeito mudou de valor na aplicação —
+               é uma volta ao banco por punição, e só esta pena precisa. */
+            if (!empty($regravar)) {
+                $pdo->prepare('UPDATE team_punishments SET efeitos_json = ? WHERE id = ?')
+                    ->execute([json_encode($efeitos, JSON_UNESCAPED_UNICODE), $punicaoId]);
             }
             if ($jaCumprida) {
                 $avisos[] = 'Registrada como já cumprida: nada foi cobrado do time.';
@@ -519,7 +537,10 @@ if ($method === 'POST') {
         exit;
     }
 
-    if (!in_array($action, ['add', 'add_motive', 'add_type', 'revert', 'reset_league'], true)) {
+    /* 'add_motive' e 'add_type' sairam em 23/09/2026 junto com os painéis
+       de cadastro: consequência só existe se houver código que a cumpra, e
+       motivo agora é a infração do quadro. @see backend/punicoes_catalogo.php */
+    if (!in_array($action, ['add', 'revert', 'reset_league'], true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Ação inválida']);
         exit;
@@ -544,44 +565,6 @@ if ($method === 'POST') {
         exit;
     }
 
-    if ($action === 'add_motive') {
-        $label = trim($body['label'] ?? '');
-        if ($label === '') {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Motivo obrigatório']);
-            exit;
-        }
-        try {
-            $stmt = $pdo->prepare('INSERT INTO punishment_motives (label) VALUES (?)');
-            $stmt->execute([$label]);
-            echo json_encode(['success' => true]);
-        } catch (Exception $e) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Erro ao salvar motivo']);
-        }
-        exit;
-    }
-
-    if ($action === 'add_type') {
-        $label = trim($body['label'] ?? '');
-        $effectType = strtoupper(trim($body['effect_type'] ?? ''));
-        $requiresPick = !empty($body['requires_pick']) ? 1 : 0;
-        $requiresScope = !empty($body['requires_scope']) ? 1 : 0;
-        if ($label === '' || $effectType === '') {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Punição e efeito obrigatórios']);
-            exit;
-        }
-        try {
-            $stmt = $pdo->prepare('INSERT INTO punishment_types (label, effect_type, requires_pick, requires_scope) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$label, $effectType, $requiresPick, $requiresScope]);
-            echo json_encode(['success' => true]);
-        } catch (Exception $e) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Erro ao salvar punição']);
-        }
-        exit;
-    }
 
     if ($action === 'revert') {
         $punishmentId = (int)($body['punishment_id'] ?? 0);
@@ -644,6 +627,20 @@ if ($method === 'POST') {
             if ($effectType === 'BAN_TRADES') {
                 $stmt = $pdo->prepare('UPDATE teams SET ban_trades_until_cycle = NULL WHERE id = ? AND ban_trades_until_cycle = ?');
                 $stmt->execute([$teamId, $pun['ban_until_cycle']]);
+            }
+
+            /* CICLO SEM TROCA: devolve o que ELA tirou, lido do efeitos_json.
+               Devolver o limite inteiro daria troca de graça pra quem já
+               havia gastado algumas antes da punição. */
+            if ($effectType === 'CICLO_SEM_TROCA') {
+                require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
+                $tiradas = 0;
+                foreach ((array)json_decode((string)($pun['efeitos_json'] ?? ''), true) as $e) {
+                    if (strtoupper((string)($e['efeito'] ?? '')) === 'CICLO_SEM_TROCA') {
+                        $tiradas = (int)($e['valor'] ?? 0);
+                    }
+                }
+                punicaoDevolverTrocasDoCiclo($pdo, $teamId, $tiradas);
             }
             if ($effectType === 'BAN_TRADES_PICKS') {
                 $stmt = $pdo->prepare('UPDATE teams SET ban_trades_picks_until_cycle = NULL WHERE id = ? AND ban_trades_picks_until_cycle = ?');
@@ -753,6 +750,15 @@ if ($method === 'POST') {
                 $stmt = $pdo->prepare('UPDATE teams SET auto_rotation_until_cycle = ? WHERE id = ?');
                 $stmt->execute([$banUntil, $teamId]);
             }
+            /* CICLO SEM TROCA: gasta o saldo de trocas do ciclo. Quantas
+               foram tiradas vira o `valor` do efeito logo abaixo — é de lá
+               que o revert lê pra devolver exatamente isso, e não o limite
+               inteiro. Não dá pra gravar no INSERT: o efeitos_json é
+               reescrito depois dele, e a gravação de lá é que vale. */
+            if ($effectType === 'CICLO_SEM_TROCA') {
+                require_once dirname(__DIR__) . '/backend/punicoes_regras.php';
+                $trocasTiradas = punicaoZerarTrocasDoCiclo($pdo, $teamId)['tiradas'];
+            }
         }
 
         // Registrar punição
@@ -803,7 +809,9 @@ if ($method === 'POST') {
         $ehPeriodo = (PUNICAO_EFEITOS[$effectType]['duracao'] ?? 'evento') === 'periodo';
         $efeitoUnico = [[
             'efeito'   => $effectType,
-            'valor'    => isset($body['valor']) ? (int)$body['valor'] : null,
+            // O "ciclo sem troca" põe aqui quantas trocas tirou; o resto usa
+            // o valor que veio do corpo (multa, teto de minutos).
+            'valor'    => $trocasTiradas ?? (isset($body['valor']) ? (int)$body['valor'] : null),
             'vigencia' => $ehPeriodo ? $vig['vigencia'] : 'EVENTO',
             'desde'    => $ehPeriodo ? $vig['desde'] : null,
             'ate'      => $ehPeriodo ? $vig['ate'] : null,

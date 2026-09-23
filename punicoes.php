@@ -517,37 +517,6 @@ try {
                         </div>
                     </div>
 
-                    <!-- Cadastrar motivo -->
-                    <div class="panel mb-3">
-                        <div class="panel-head">
-                            <span class="panel-head-title"><i class="bi bi-tag-fill"></i> Cadastrar motivo</span>
-                        </div>
-                        <div class="panel-body">
-                            <div class="mb-3">
-                                <label class="form-label">Novo motivo</label>
-                                <input type="text" id="newMotiveLabel" class="form-control" placeholder="Ex: Diretrizes erradas">
-                            </div>
-                            <button class="btn-submit-outline" id="newMotiveBtn">
-                                <i class="bi bi-plus-circle"></i> Salvar motivo
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Cadastrar consequência -->
-                    <div class="panel">
-                        <div class="panel-head">
-                            <span class="panel-head-title"><i class="bi bi-lightning-fill"></i> Cadastrar consequência</span>
-                        </div>
-                        <div class="panel-body">
-                            <div class="mb-3">
-                                <label class="form-label">Nova consequência</label>
-                                <input type="text" id="newPunishmentLabel" class="form-control" placeholder="Ex: Perda de pick específica">
-                            </div>
-                            <button class="btn-submit-outline" id="newPunishmentBtn">
-                                <i class="bi bi-plus-circle"></i> Salvar consequência
-                            </button>
-                        </div>
-                    </div>
 
                 </div>
 

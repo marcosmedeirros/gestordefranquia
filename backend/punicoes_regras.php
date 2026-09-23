@@ -507,6 +507,60 @@ function punicaoPerderPick(PDO $pdo, int $teamId, int $punicaoId, ?int $pickId =
     }
 }
 
+/**
+ * CICLO SEM TROCA: gasta todas as trocas que o time ainda tinha no ciclo.
+ *
+ * O limite por ciclo é `league_settings.max_trades` e o gasto é
+ * `teams.trades_used` — a mesma dupla que a tela de Trades usa pra dizer
+ * "3/10". Pôr o gasto no limite deixa o time em 10/10: ele vê o motivo no
+ * lugar onde ia tentar trocar, e a pena morre sozinha quando o ciclo vira,
+ * porque a virada zera o contador (trades.php).
+ *
+ * Devolve quantas trocas foram tiradas, pro histórico poder desfazer.
+ */
+function punicaoZerarTrocasDoCiclo(PDO $pdo, int $teamId): array
+{
+    try {
+        $st = $pdo->prepare('SELECT t.trades_used, COALESCE(ls.max_trades, 10) AS maximo
+                               FROM teams t
+                          LEFT JOIN league_settings ls ON ls.league = t.league
+                              WHERE t.id = ?');
+        $st->execute([$teamId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return ['ok' => false, 'tiradas' => 0, 'motivo' => 'time não encontrado'];
+
+        $usadas = (int)($r['trades_used'] ?? 0);
+        $maximo = (int)$r['maximo'];
+        // Já sem trocas: não é erro, e não há o que tirar. Dizer isso evita
+        // que o revert depois devolva trocas que a punição não tirou.
+        $tiradas = max(0, $maximo - $usadas);
+        if ($tiradas === 0) return ['ok' => true, 'tiradas' => 0, 'motivo' => 'o time já estava sem trocas no ciclo'];
+
+        $pdo->prepare('UPDATE teams SET trades_used = ? WHERE id = ?')->execute([$maximo, $teamId]);
+        return ['ok' => true, 'tiradas' => $tiradas, 'motivo' => ''];
+    } catch (Throwable $e) {
+        error_log('[punicoes] zerar trocas do ciclo: ' . $e->getMessage());
+        return ['ok' => false, 'tiradas' => 0, 'motivo' => 'erro ao zerar as trocas do ciclo'];
+    }
+}
+
+/**
+ * Devolve as trocas que o "ciclo sem troca" tirou.
+ *
+ * Só o que ELA tirou, nunca o limite inteiro: o time podia já ter gasto
+ * trocas antes da punição, e devolver tudo daria troca de graça.
+ */
+function punicaoDevolverTrocasDoCiclo(PDO $pdo, int $teamId, int $tiradas): void
+{
+    if ($tiradas <= 0) return;
+    try {
+        $pdo->prepare('UPDATE teams SET trades_used = GREATEST(0, COALESCE(trades_used,0) - ?) WHERE id = ?')
+            ->execute([$tiradas, $teamId]);
+    } catch (Throwable $e) {
+        error_log('[punicoes] devolver trocas do ciclo: ' . $e->getMessage());
+    }
+}
+
 /** Devolve a pick quando a punição é revertida. */
 function punicaoDevolverPicks(PDO $pdo, int $punicaoId): int
 {
