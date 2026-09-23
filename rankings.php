@@ -763,10 +763,13 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         updateActiveButton(liga);
         document.getElementById('wppManual').style.display = 'none';
 
-        // Na primeira abertura, mostra o bloco em andamento e a visão por
-        // bloco: é onde a liga está, e é a pergunta que a pessoa traz.
+        /* QUAL TABELA A LIGA ABRE vem do servidor (B.aba_padrao), porque é
+           propriedade da liga: a ROOKIE é jogada em Sprints e abre na Sprint;
+           na ELITE o ciclo é uma janela a mais sobre a classificação que
+           sempre foi a principal, e ela abre na geral. O bloco pré-selecionado
+           é o que está em andamento, que é o que a pessoa traz na cabeça. */
         if (!_blocoSel[liga]) _blocoSel[liga] = B.ciclo_atual;
-        if (!_blocoAba[liga]) _blocoAba[liga] = 'bloco';
+        if (!_blocoAba[liga]) _blocoAba[liga] = B.aba_padrao || 'bloco';
 
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
             ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -847,6 +850,24 @@ $seasonDisplayYear = (string)$currentSeasonYear;
               `${faltam > 0 ? ` · faltam ${faltam} pra fechar` : ''}` +
               `${B.premio ? ` · R$ ${B.premio} pra quem ganhar` : ' · zera no fim do bloco'}`;
 
+        /* A ORDEM DAS ABAS segue a liga: a primeira é a que ela abre. Deixar
+           "Por Ciclo" na frente com a geral aberta faria a aba ativa ser a
+           segunda, e a leitura da esquerda pra direita diria o contrário do
+           que a tela mostra. */
+        const abaGeralPrimeiro = (B.aba_padrao || 'bloco') === 'geral';
+        const abaBloco = `<button type="button" class="ct-aba ${aba === 'bloco' ? 'on' : ''}"
+                      onclick="abrirBloco('${liga}',${sel})">Por ${esc(B.rotulo)}</button>`;
+        const abaGeral = `<button type="button" class="ct-aba ${aba === 'geral' ? 'on' : ''}"
+                      onclick="abrirGeral('${liga}')">Classificação geral</button>`;
+
+        /* OS CARDS DE CAMPEÃO só aparecem com o bloco escolhido nas ligas que
+           abrem na geral — na ELITE, hoje. Lá eles respondem "quem ganhou cada
+           ciclo", que é outra pergunta que a da tabela aberta: em cima da
+           classificação geral eles empurravam a tabela pra baixo e ainda
+           sugeriam que a tabela era do ciclo do card destacado. Na ROOKIE
+           ficam sempre, porque lá a Sprint É a liga. */
+        const cardsAqui = !abaGeralPrimeiro || aba === 'bloco';
+
         document.getElementById('rankingContainer').innerHTML = `
             <div class="ct-topo">
               <div>
@@ -856,13 +877,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
               <div class="ct-agora">T${B.temporada_atual}</div>
             </div>
 
-            <div class="ct-slots">${slots}</div>
+            ${cardsAqui ? `<div class="ct-slots">${slots}</div>` : ''}
 
             <div class="ct-abas">
-              <button type="button" class="ct-aba ${aba === 'bloco' ? 'on' : ''}"
-                      onclick="abrirBloco('${liga}',${sel})">Por ${esc(B.rotulo)}</button>
-              <button type="button" class="ct-aba ${aba === 'geral' ? 'on' : ''}"
-                      onclick="abrirGeral('${liga}')">Classificação geral</button>
+              ${abaGeralPrimeiro ? abaGeral : abaBloco}
+              ${abaGeralPrimeiro ? abaBloco : abaGeral}
             </div>
 
             <div class="table-card" style="margin-top:12px">

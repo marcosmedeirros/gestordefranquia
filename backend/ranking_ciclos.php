@@ -32,6 +32,13 @@
  *   premio    quanto vale o bloco em reais, ou null quando não há prêmio
  *   corte_gm  a pontuação conta só a partir de quando o GM atual assumiu?
  *   sobe_geral quantos sobem pela classificação geral no fim da edição (0 = nenhum)
+ *   aba_padrao qual tabela a liga abre: 'geral' ou 'bloco'
+ *
+ * A aba_padrao é 'geral' na ELITE e 'bloco' na ROOKIE porque é o que cada
+ * liga é: a ROOKIE é jogada em Sprints — a Sprint é que vale os R$ 40 e a
+ * vaga —, e na ELITE o ciclo é uma janela a mais sobre a tabela que sempre
+ * foi a principal. Quando a ELITE deixou de ter botão próprio e passou a
+ * abrir aqui, abrir no ciclo escondia a classificação que todo mundo procura.
  *
  * O sobe_geral é 4 na ROOKIE e 0 na ELITE porque subir é regra da ROOKIE: a
  * Sprint alimenta a lista de desistência e a geral sobe os 4 primeiros
@@ -50,8 +57,8 @@
  * foi o que pediram.
  */
 const CICLO_CONFIG = [
-    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false, 'sobe_geral' => 0],
-    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true,  'sobe_geral' => 4],
+    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false, 'sobe_geral' => 0, 'aba_padrao' => 'geral'],
+    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true,  'sobe_geral' => 4, 'aba_padrao' => 'bloco'],
 ];
 
 /* Mantidas porque rankings.php as usa. A ELITE continua sendo a liga padrão de
@@ -693,6 +700,7 @@ function cicloPacoteDaLiga(PDO $pdo, string $liga): array
         'liga'            => strtoupper(trim($liga)),
         'rotulo'          => $cfg['rotulo'],
         'genero'          => $cfg['genero'] ?? 'm',
+        'aba_padrao'      => $cfg['aba_padrao'] ?? 'bloco',
         'tamanho'         => $cfg['tamanho'],
         'premio'          => $cfg['premio'],
         'temporada_atual' => cicloTemporadaAtual($pdo, $liga),
