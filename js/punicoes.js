@@ -66,6 +66,44 @@ function _renderDuracoes() {
     `<option value="${k}">${_escapeHtml(v)}</option>`).join('');
 }
 
+/**
+ * A ESCADA DA INFRAÇÃO: o que ela custa na 1ª, na 2ª, na 3ª.
+ *
+ * Sai do quadro que já veio do servidor (`action=quadro` manda os degraus com
+ * o texto pronto), então não custa requisição nenhuma e aparece no instante
+ * em que a infração é escolhida — antes disso o admin escolhia no escuro e só
+ * via a pena depois de também escolher o time.
+ *
+ * Com o time escolhido, o degrau dele fica marcado; sem time, a escada
+ * aparece inteira, que é a pergunta "quanto custa essa infração".
+ */
+function _escadaHtml(infracaoId, ocorrenciaAtual) {
+  const inf = _quadro.find(i => Number(i.id) === Number(infracaoId));
+  const degraus = inf?.degraus || [];
+  if (!degraus.length) return '';
+
+  const ord = n => ['1ª', '2ª', '3ª', '4ª', '5ª'][n - 1] || `${n}ª`;
+  const maior = Math.max(...degraus.map(d => Number(d.ocorrencia)));
+  const oc = Number(ocorrenciaAtual || 0);
+
+  return `<div class="escada">
+      <div class="escada-h">O quadro pra essa infração</div>
+      ${degraus.map(d => {
+        const n = Number(d.ocorrencia);
+        // Ocorrência 0 é a pena que não escala: o edital escreve "já na 1ª
+        // ocorrência", e a mesma coisa vale sempre.
+        const rotulo = n === 0 ? 'sempre' : ord(n);
+        /* Passou do último degrau, o último é o que vale — é o que
+           punicaoProximoDegrau faz, e a marca tem que dizer o mesmo. */
+        const aqui = oc > 0 && (n === 0 || n === oc || (oc > maior && n === maior));
+        return `<div class="escada-l${aqui ? ' aqui' : ''}">
+            <span class="escada-oc">${rotulo}</span>
+            <span>${_escapeHtml(d.texto || '')}</span>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
 /** A prévia do que vai acontecer, buscada no servidor (é ele quem conta). */
 async function _carregarPrevia(teamId, infracaoId) {
   const box = _el('punicaoPrevia');
@@ -74,7 +112,16 @@ async function _carregarPrevia(teamId, infracaoId) {
   if (btn) btn.disabled = true;
   if (!box) return;
 
-  if (!teamId || !infracaoId) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  if (!infracaoId) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  /* SEM TIME AINDA, mas já dá pra mostrar a pena: a escada é da infração, não
+     do time. O que depende do time é só em qual degrau ele está. */
+  if (!teamId) {
+    box.style.display = '';
+    box.innerHTML = _escadaHtml(infracaoId, 0)
+      + '<div class="previa-nada">Escolha o time pra saber em que degrau ele está.</div>';
+    return;
+  }
 
   box.style.display = '';
   box.innerHTML = '<div class="previa-nada">Conferindo o histórico do time…</div>';
@@ -113,7 +160,8 @@ async function _carregarPrevia(teamId, infracaoId) {
       <span style="opacity:.75;font-weight:600;text-transform:none;letter-spacing:0">· ${reincid}</span>
     </div>
     ${efeitos || '<div class="previa-nada">Esta infração não tem consequência no quadro.</div>'}
-    ${avisos.length ? `<div class="previa-aviso">${avisos.join('<br>')}</div>` : ''}`;
+    ${avisos.length ? `<div class="previa-aviso">${avisos.join('<br>')}</div>` : ''}
+    ${_escadaHtml(infracaoId, d.ocorrencia)}`;
 
   if (btn) btn.disabled = !(d.efeitos || []).length;
 }

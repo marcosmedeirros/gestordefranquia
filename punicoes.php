@@ -236,6 +236,27 @@ try {
             font-size: 12px; color: var(--text-2); line-height: 1.5;
         }
         .previa-nada { font-size: 13px; color: var(--text-2); }
+        /* A escada do quadro: uma linha por ocorrência, com o degrau do time
+           marcado. Tabela e não cards — é uma lista de pares curtos, e caixa
+           em volta de cada linha esconderia a progressão, que é o que importa
+           ler aqui. */
+        .escada { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-md); }
+        .escada-h {
+            font-size: 9.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+            color: var(--text-3); margin-bottom: 6px;
+        }
+        .escada-l {
+            display: flex; gap: 8px; align-items: baseline; padding: 3px 0;
+            font-size: 12px; color: var(--text-2); line-height: 1.35;
+        }
+        .escada-oc {
+            flex-shrink: 0; min-width: 46px; font-weight: 800; font-size: 10.5px;
+            color: var(--text-3); text-transform: uppercase; letter-spacing: .03em;
+        }
+        /* O degrau que vale agora: é a única linha que muda de cor, senão a
+           marcação some no meio de quatro linhas iguais. */
+        .escada-l.aqui { color: var(--text); font-weight: 600; }
+        .escada-l.aqui .escada-oc { color: #f59e0b; }
         /* O check "já cumpriu": caixa e texto na mesma linha clicável, com a
            explicação embaixo — sem ela ninguém sabe se marcar pune ou não. */
         .chk-cumprida {
