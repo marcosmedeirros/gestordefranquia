@@ -792,7 +792,10 @@ if ($method === 'GET') {
                         t.city as team_city, t.name as team_name, t.photo_url as team_photo,
                         ot.city as original_city, ot.name as original_name,
                         tf.city as traded_from_city, tf.name as traded_from_name,
-                        dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                        dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr,
+                        /* As letrinhas e a idade da classe, quando ela veio do CSV do jogo.
+                           Nulas na classe cadastrada na mao. @see backend/draft_class_csv.php */
+                        dp.age as player_age, dp.notas as player_notas
                  FROM draft_order do
                  INNER JOIN teams t ON do.team_id = t.id
                  INNER JOIN teams ot ON do.original_team_id = ot.id
@@ -981,7 +984,10 @@ if ($method === 'GET') {
                                 t.city as team_city, t.name as team_name, t.photo_url as team_photo,
                                 ot.city as original_city, ot.name as original_name,
                                 tf.city as traded_from_city, tf.name as traded_from_name,
-                                dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                                dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr,
+                        /* As letrinhas e a idade da classe, quando ela veio do CSV do jogo.
+                           Nulas na classe cadastrada na mao. @see backend/draft_class_csv.php */
+                        dp.age as player_age, dp.notas as player_notas
                          FROM draft_order do
                          INNER JOIN teams t ON do.team_id = t.id
                          INNER JOIN teams ot ON do.original_team_id = ot.id

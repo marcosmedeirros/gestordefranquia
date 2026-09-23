@@ -340,6 +340,41 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
     .pick-result-name { font-size: 11px; font-weight: 700; color: var(--green); }
     .pick-result-meta { font-size: 10px; color: var(--text-2); margin-top: 2px; }
+    /* AS LETRINHAS. Grade de cinco por linha, duas linhas pras dez notas:
+       em coluna única viravam dez linhas e o card do pick triplicava de
+       altura; numa linha só não cabem em 375px. A sigla vem em cima, menor,
+       porque a letra é o que se lê de relance — a sigla é só pra saber qual
+       atributo é. */
+    /* O resultado final: uma linha por pick. Grade e não tabela porque a
+       quarta coluna (as letrinhas) precisa sumir no celular, e coluna de
+       tabela que some deixa o cabeçalho mentindo. */
+    .res-lista { display:flex; flex-direction:column; }
+    .res-linha { display:grid; grid-template-columns:52px minmax(0,1fr) minmax(0,1.2fr) 200px;
+      gap:10px; align-items:center; padding:7px 4px; border-bottom:1px solid var(--border); }
+    .res-linha:last-child { border-bottom:0; }
+    .res-num { font-family:'Oswald',sans-serif; font-size:11px; font-weight:700; color:var(--text-3); }
+    .res-time { font-size:12px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .res-jog { min-width:0; }
+    /* Só o <b> do NOME é bloco. Sem o ">" este seletor pegava também o <b>
+       do OVR, que vive dentro do <small>, e o número quebrava pra uma linha
+       própria — "SF ·" numa linha, "83" na outra. */
+    .res-jog > b { display:block; font-size:12.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .res-jog small { font-size:10px; color:var(--text-2); }
+    .res-notas .nota-grid { margin-top:0; gap:2px; }
+    /* No celular as letrinhas descem pra linha de baixo, ocupando a largura
+       toda: em 200px de coluna elas ficariam ilegíveis. */
+    @media (max-width:700px){
+      .res-linha { grid-template-columns:48px minmax(0,1fr) minmax(0,1fr); }
+      .res-notas { grid-column:1 / -1; }
+    }
+
+    .nota-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; margin-top:6px; }
+    .nota-atr { display:flex; flex-direction:column; align-items:center; gap:1px;
+      background:var(--panel-3); border-radius:4px; padding:3px 2px;
+      font-size:10px; font-weight:800; color:var(--text); line-height:1; }
+    .nota-atr i { font-style:normal; font-size:7px; font-weight:700; color:var(--text-3);
+      letter-spacing:.02em; text-transform:uppercase; }
+    @media (max-width:420px){ .nota-grid { grid-template-columns:repeat(5,1fr); gap:2px; } }
 
     .pick-waiting {
       background: var(--panel-3);
@@ -1213,6 +1248,37 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <button class="btn-ghost-sm" onclick="toggleHistoryView()"><i class="bi bi-clock-history"></i> Ver todos os drafts</button>
         </div>
       `;
+
+      /* O DRAFT INTEIRO NUMA LISTA, na ordem em que as escolhas saíram.
+         Acabada a revelação, a pergunta muda: durante o draft se olha a
+         próxima pick, e depois se quer o resultado do começo ao fim — e isso
+         não se lê rolando trinta cards de duas rodadas. Uma linha por pick,
+         com OVR, idade e as letrinhas quando a classe tem. */
+      const feitas = picks
+        .filter(p => p.picked_player_id)
+        .sort((a, b) => (a.round - b.round) || (a.pick_position - b.pick_position));
+      if (feitas.length) {
+        html += `
+          <div class="panel" style="margin-bottom:20px">
+            <div class="panel-head">
+              <span class="panel-title"><i class="bi bi-list-ol"></i> Resultado do draft</span>
+              <span style="font-size:11px;color:var(--text-3)">${feitas.length} escolhas, na ordem</span>
+            </div>
+            <div class="res-lista">
+              ${feitas.map(p => `
+                <div class="res-linha">
+                  <span class="res-num">R${p.round}·${p.pick_position}</span>
+                  <span class="res-time">${esc(`${p.city || ''} ${p.name || ''}`.trim() || 'Time')}</span>
+                  <span class="res-jog">
+                    <b>${esc(p.player_name || '—')}</b>
+                    <small>${fichaDoJogador(p)}</small>
+                  </span>
+                  <span class="res-notas">${notasHtml(p.player_notas)}</span>
+                </div>`).join('')}
+            </div>
+          </div>
+        `;
+      }
     }
 
     // My turn banner
@@ -1540,6 +1606,42 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
    * 43". O número do banco continua mandando na lógica (é ele que casa com a
    * vaga); aqui só muda o que aparece escrito.
    */
+  /* ─── A FICHA DO PROSPECTO ──────────────────────────────────────────────
+     Posição, OVR e idade numa linha, e as letrinhas embaixo — mas SÓ o que a
+     classe tem. Classe cadastrada na mão não traz nada disso (entra com 60 e
+     18 anos, sem notas), e mostrar "60 · 18a" pra ela seria inventar
+     avaliação: aquele 60 é valor de preenchimento. Por isso o OVR e a idade
+     só aparecem quando há letrinhas, que é o sinal de que a classe veio do
+     CSV do jogo. @see backend/draft_class_csv.php */
+  const ORDEM_NOTAS = ['IN','MID','3PT','POST D','PER D','PLAY','REB','ATHL','IQ','POT'];
+
+  function temNotas(pick){
+    return !!String(pick?.player_notas || '').trim();
+  }
+
+  function fichaDoJogador(pick){
+    const partes = [];
+    if (pick.player_position) partes.push(esc(pick.player_position));
+    if (temNotas(pick)) {
+      if (pick.player_ovr) partes.push(`<b>${parseInt(pick.player_ovr, 10)}</b> OVR`);
+      if (pick.player_age)  partes.push(`${parseInt(pick.player_age, 10)}a`);
+    }
+    return partes.join(' · ');
+  }
+
+  /* As notas na ORDEM DO JOGO, que é a da tela de onde o CSV sai. Usar a
+     ordem do JSON deixaria cada jogador com as colunas em outra sequência,
+     porque o JSON guarda na ordem em que foi escrito. */
+  function notasHtml(json){
+    if (!json) return '';
+    let n;
+    try { n = JSON.parse(json); } catch { return ''; }
+    if (!n || typeof n !== 'object') return '';
+    const itens = ORDEM_NOTAS.filter(k => n[k]).map(k =>
+      `<span class="nota-atr" title="${esc(k)}"><i>${esc(k)}</i>${esc(n[k])}</span>`);
+    return itens.length ? `<div class="nota-grid">${itens.join('')}</div>` : '';
+  }
+
   function renderPickCard(pick, session, numeroExibido) {
     const numero = numeroExibido || pick.pick_position;
     const isCurrent  = session.status === 'in_progress' &&
@@ -1625,7 +1727,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         ` : isCompleted ? `
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name)}</div>
-            <div class="pick-result-meta">${esc(pick.player_position)}</div>
+            <div class="pick-result-meta">${fichaDoJogador(pick)}</div>
+            ${notasHtml(pick.player_notas)}
           </div>
         ` : round2Aberta ? `
           <div class="pick-waiting" style="flex-direction:column;gap:6px">
@@ -2233,7 +2336,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         ${isCompleted ? `
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name || 'Jogador Desconhecido')}</div>
-            ${pick.player_position ? `<div class="pick-result-meta">${esc(pick.player_position)}</div>` : ''}
+            ${pick.player_position ? `<div class="pick-result-meta">${fichaDoJogador(pick)}</div>` : ''}
+            ${notasHtml(pick.player_notas)}
           </div>
         ` : `
           <div class="pick-waiting">
