@@ -3264,6 +3264,12 @@ if ($method === 'POST') {
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_templates (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(120) NOT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (id INT AUTO_INCREMENT PRIMARY KEY, template_id INT NOT NULL, name VARCHAR(120) NOT NULL, position VARCHAR(20) NOT NULL, ovr INT NOT NULL, age INT NOT NULL, INDEX idx_dctp_tpl (template_id), CONSTRAINT fk_dctp_tpl2 FOREIGN KEY (template_id) REFERENCES draft_class_templates(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             try { $pdo->exec("ALTER TABLE draft_class_template_players ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
+            /* A coluna das letrinhas, pelo mesmo motivo da de cima: os INSERTs
+               daqui gravam `notas`. Sem esta linha a gravação falhava e o
+               catch devolvia só "Erro interno do servidor" — foi o que fez o
+               substituir não substituir. @see backend/draft_class_csv.php */
+            require_once dirname(__DIR__) . '/backend/draft_class_csv.php';
+            draftCsvGarantirColunas($pdo);
             $body = $data ?? [];
             $subAction = $body['sub'] ?? '';
             // Ordem é opcional em todo lugar — sem valor definido, pick_hint fica NULL
@@ -3343,7 +3349,13 @@ if ($method === 'POST') {
                     foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), ($p["notas"] ?? null) ?: null]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'inserted' => count($players)]);
-                } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }
+                } catch (Exception $e) {
+                    // O motivo ia pro vazio: "Erro interno do servidor" numa
+                    // tela de import não diz se foi coluna, permissão ou dado.
+                    $pdo->rollBack();
+                    error_log('[admin/classe replace_players] ' . $e->getMessage());
+                    echo json_encode(['success' => false, 'error' => 'Erro ao substituir os jogadores da classe.']);
+                }
             } elseif ($subAction === 'delete') {
                 $tplId = (int)($body['template_id'] ?? 0);
                 if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
