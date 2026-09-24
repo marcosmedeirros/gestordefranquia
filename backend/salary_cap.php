@@ -847,7 +847,13 @@ function capCabeNoTime(PDO $pdo, int $teamId, int $ovr): array
     rsort($comEle);
     $somaNova = array_sum(array_slice($comEle, 0, CAP_TOP_N));
 
-    $capMax = capBaseEFloorDaLiga($pdo, $league)['base'];
+    /* O CAP + ENTRA NO TETO, como entra em todo o resto.
+       Sem ele aqui, um time da NEXT com lenda elegível via o dashboard dizer
+       "faixa 780–819, você tem 817" e a Free Agency dizer que não cabe mais
+       ninguém — porque esta conta parava em 816 e dava espaço negativo. Duas
+       telas, dois tetos, e o GM sem saber em qual acreditar.
+       @see restrictedCapBonus, em backend/helpers.php */
+    $capMax = capBaseEFloorDaLiga($pdo, $league)['base'] + restrictedCapBonus($pdo, $teamId);
     $custo  = $somaNova - $somaAtual;
     $espaco = $capMax - $somaAtual;
     // Custo zero é o reserva que não entra no top: não mexe no cap, então
