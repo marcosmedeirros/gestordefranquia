@@ -547,9 +547,10 @@ function isLoyalPlayer(player) {
   return Number(player?.was_traded ?? 1) === 0;
 }
 
-// Elegível ao bônus de cap (nome destacado): leal + OVR>=90 + draftado pelo
-// draft da própria temporada — mesma régua em toda liga (cap_bonus_eligible
-// vem calculado do servidor por markLoyaltyEligibility).
+// Elegível ao bônus de cap (nome destacado): leal, draftado pela própria
+// franquia e acima do piso de OVR da LIGA — 90 na RISE, 92 na NEXT, que
+// também não conta lenda nem Draft Inicial. A régua toda mora no servidor
+// (markLoyaltyEligibility), e chega aqui pronta em cap_bonus_eligible.
 function isFranchiseEligible(player) {
   return Number(player?.cap_bonus_eligible) === 1;
 }
@@ -585,17 +586,20 @@ function lendaTagHtml(player) {
     : '';
 }
 
-// O CAP +: +2 de teto por jogador elegível, contando no máximo dois. Na NEXT,
-// quem está em 95+ vale +3; na RISE vale +2 igual, e a lenda não entra na
-// conta (a elegibilidade vem do servidor em cap_bonus_eligible, que já aplica
-// essa diferença).
+// O CAP +: bônus de teto por jogador elegível, com a régua de cada liga.
+// Na RISE, +2 por elegível de 90+, até dois. Na NEXT, +4 por UM elegível de
+// 92+ — lenda e Draft Inicial não contam lá. Quem é elegível vem do servidor
+// em cap_bonus_eligible, que já aplica essas diferenças; aqui só entram
+// quantos contam e quanto cada um vale.
 //
 // ESTA TABELA TEM QUE SER A MESMA de RESTRICTED_REGRAS em backend/helpers.php.
 // Se as duas contas divergirem, a tela mostra um teto e o servidor valida por
 // outro, e o GM leva bloqueio numa jogada que a tela dizia caber.
 const RESTRICTED_REGRAS = {
-  NEXT: { padrao: 2, estrela: 3 },
-  RISE: { padrao: 2, estrela: 2 },
+  // A NEXT foi enxugada em 24/09/2026: um jogador só, 92+, valendo +4. Lenda e
+  // Draft Inicial não contam — isso o servidor resolve em cap_bonus_eligible.
+  NEXT: { padrao: 4, estrela: 4, max_jogadores: 1 },
+  RISE: { padrao: 2, estrela: 2, max_jogadores: 2 },
 };
 const RESTRICTED_BONUS_OVR_ESTRELA = 95;
 const RESTRICTED_BONUS_MAX_JOGADORES = 2;
@@ -610,11 +614,15 @@ function getRestrictedRegra() {
 
 function getRestrictedBonus(players) {
   const regra = getRestrictedRegra();
+  // Quantos contam é da liga: na NEXT é um só. Sem isto a tela somaria dois e
+  // prometeria um teto que o servidor não dá.
+  const quantos = Number.isFinite(regra.max_jogadores)
+    ? regra.max_jogadores : RESTRICTED_BONUS_MAX_JOGADORES;
   return players
     .filter(isFranchiseEligible)
     .map(p => Number(p.ovr) || 0)
-    .sort((a, b) => b - a)                    // os dois melhores, não os dois primeiros
-    .slice(0, RESTRICTED_BONUS_MAX_JOGADORES)
+    .sort((a, b) => b - a)                    // os melhores, não os primeiros
+    .slice(0, quantos)
     .reduce((soma, ovr) => soma + (ovr >= RESTRICTED_BONUS_OVR_ESTRELA
       ? regra.estrela : regra.padrao), 0);
 }
@@ -1127,7 +1135,18 @@ function updateRosterStats() {
   // Banner de aviso — jogadores Restricted OVR Cap
   const bannerEl = document.getElementById('franchise-bonus-banner');
   if (bannerEl) {
-    const eligible = allPlayers.filter(isFranchiseEligible);
+    /* SÓ QUEM CONTA APARECE NO BANNER.
+       Ele listava todos os elegíveis, e o bônus soma no máximo `quantos` —
+       um só na NEXT. Com dois nomes ao lado de um bônus de um, a conta
+       parecia errada; os melhores por OVR são os que valem, mesma escolha
+       que getRestrictedBonus faz. */
+    const regraBanner = getRestrictedRegra();
+    const contamNoBanner = Number.isFinite(regraBanner.max_jogadores)
+      ? regraBanner.max_jogadores : RESTRICTED_BONUS_MAX_JOGADORES;
+    const eligible = allPlayers
+      .filter(isFranchiseEligible)
+      .sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0))
+      .slice(0, contamNoBanner);
     // Restricted OVR Cap é das ligas por soma de OVR; na ELITE o que vale é o Cap Flex.
     if (eligible.length > 0 && !window.__SALARY_CAP__) {
       const names = eligible.map(p => `<strong>${p.name}</strong> (${p.ovr} OVR)`).join(', ');

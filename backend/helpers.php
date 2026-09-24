@@ -477,6 +477,26 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         } catch (Exception $e) {}
     }
 
+    /* OS NOMES DO DRAFT INICIAL, em lote e só quando alguma liga em jogo pede.
+       A NEXT não conta quem veio da fundação, e há nome que existe nos dois
+       pools — sem esta lista, esse jogador passaria como se tivesse saído do
+       draft normal. Uma consulta, não uma por jogador. */
+    $nomesDoInicial = [];
+    $precisaInicial = false;
+    foreach ($ligaPorTime as $lg) {
+        if (!restrictedRegraCampo(restrictedRegraDaLiga($lg), 'conta_draft_inicial', true)) {
+            $precisaInicial = true;
+            break;
+        }
+    }
+    if ($precisaInicial) {
+        try {
+            foreach ($pdo->query("SELECT DISTINCT name FROM initdraft_pool")->fetchAll(PDO::FETCH_COLUMN) as $n) {
+                $nomesDoInicial[(string)$n] = true;
+            }
+        } catch (Exception $e) { /* liga sem draft inicial: a tabela pode não existir */ }
+    }
+
     // Busca em lote por id — funciona mesmo quando quem chamou não incluiu
     // loyal_override no SELECT (a maioria dos ~8 pontos que usam essa função).
     $overrides = [];
@@ -496,9 +516,27 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
 
     foreach ($players as &$p) {
         $notTraded = (int)($p['was_traded'] ?? 0) === 0;
-        $highOvr = (int)($p['ovr'] ?? 0) >= 90;
+
+        /* A LIGA DELE, UMA VEZ SÓ — daqui pra baixo três perguntas dependem
+           dela: o piso de OVR, se a lenda conta e se o Draft Inicial conta. */
+        $ligaDele  = $ligaPorTime[(int)($p['team_id'] ?? 0)] ?? '';
+        $regraDele = restrictedRegraDaLiga($ligaDele);
+
+        /* O PISO DE OVR É DA LIGA, não mais 90 fixo: a NEXT subiu pra 92 em
+           24/09/2026. Com o 90 cravado aqui, a tela marcaria de "elegível" um
+           91 que o servidor não conta, e o GM veria um teto que não existe. */
+        $pisoOvr = (int)restrictedRegraCampo($regraDele, 'ovr_minimo', RESTRICTED_BONUS_OVR_MINIMO);
+        $highOvr = (int)($p['ovr'] ?? 0) >= $pisoOvr;
+
         $key = ($p['team_id'] ?? 0) . '|' . ($p['name'] ?? '');
         $fromNormalDraft = isset($seasonDraftPairs[$key]);
+        // Mesma exclusão de restrictedEligibleOvrs: onde o Draft Inicial não
+        // conta, quem está naquele pool não vira elegível nem no destaque da
+        // tela — as duas contas têm que dizer a mesma coisa.
+        if ($fromNormalDraft && !restrictedRegraCampo($regraDele, 'conta_draft_inicial', true)
+            && isset($nomesDoInicial[(string)($p['name'] ?? '')])) {
+            $fromNormalDraft = false;
+        }
         $autoLoyal = $notTraded && $fromNormalDraft;
 
         // Mesmo um override "leal" não sobrevive a uma troca — lealdade sempre
@@ -514,8 +552,6 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         $ehLenda = array_key_exists($pid, $lendas)
             ? $lendas[$pid]
             : (int)($p['is_lenda'] ?? 0) === 1;
-        $ligaDele = $ligaPorTime[(int)($p['team_id'] ?? 0)] ?? '';
-        $regraDele = restrictedRegraDaLiga($ligaDele);
         // Fora de RISE/NEXT (ELITE, ROOKIE) a lenda continua contando: lá quem
         // manda é o salary_cap.php, e o campo serve só pro destaque na tela.
         $lendaConta = $regraDele === null ? true : $regraDele['conta_lenda'];
@@ -536,9 +572,12 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
 }
 
 /* ── O CAP + DA RISE E DA NEXT ────────────────────────────────────────
-   +2 de teto por jogador elegível, +3 se ele for 95 ou mais, contando no
-   máximo dois jogadores — ou seja, de +2 a +6. Regra definida pelo Marcos em
-   22/09/2026.
+   Bônus de teto por jogador elegível, com a régua de cada liga em
+   RESTRICTED_REGRAS logo abaixo. Hoje:
+
+     RISE  +2 por elegível de 90 ou mais, até dois jogadores (+2 a +4).
+     NEXT  +4 por um elegível de 92 ou mais, UM por time — e nem lenda nem
+           quem veio do Draft Inicial conta. Enxugada em 24/09/2026.
 
    ANTES ERA OUTRA COISA, e a diferença é grande: o bônus era por TIME, não por
    jogador. Um elegível dava +2 e três elegíveis davam os mesmos +2; pra chegar
@@ -547,7 +586,10 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
    papel desde que foi escrito.
 
    A ELITE não usa isto — lá o benefício é em milhões, no Cap Flex
-   (backend/salary_cap.php), que também para em dois jogadores. */
+   (backend/salary_cap.php), que também para em dois jogadores.
+
+   As constantes abaixo são a RESERVA: valem pra liga cujo bloco de régua não
+   declare o campo. Quem manda é a régua da liga. */
 const RESTRICTED_BONUS_OVR_MINIMO = 90;
 const RESTRICTED_BONUS_OVR_ESTRELA = 95;
 const RESTRICTED_BONUS_MAX_JOGADORES = 2;
@@ -559,17 +601,42 @@ const RESTRICTED_BONUS_MAX_JOGADORES = 2;
  * mais restrita. Deixar as duas aqui, uma embaixo da outra, é o que evita a
  * regra virar um emaranhado de "if liga === RISE" espalhado pelo arquivo.
  *
- *   padrao       quanto vale um elegível de 90 a 94
- *   estrela      quanto vale um elegível de 95+
- *   conta_lenda  a lenda fiel entra na conta?
+ *   padrao               quanto vale um elegível abaixo da faixa de estrela
+ *   estrela              quanto vale um elegível de 95+
+ *   conta_lenda          a lenda fiel entra na conta?
+ *   ovr_minimo           OVR a partir do qual o jogador é elegível
+ *   max_jogadores        quantos contam por time
+ *   conta_draft_inicial  quem veio da fundação da liga entra?
  *
  * Na RISE padrao e estrela são iguais de propósito: lá o OVR acima de 95 não
  * vale mais nada, e é assim que a liga quis.
  */
 const RESTRICTED_REGRAS = [
-    'NEXT' => ['padrao' => 2, 'estrela' => 3, 'conta_lenda' => true],
-    'RISE' => ['padrao' => 2, 'estrela' => 2, 'conta_lenda' => false],
+    /* A NEXT foi enxugada em 24/09/2026, a pedido do Marcos: sobrou UMA regra.
+       Um jogador só por time, 92 ou mais, valendo +4 — e nem lenda nem quem
+       veio do Draft Inicial entra. O que o bônus premia lá agora é o craque
+       que a franquia achou no draft normal e segurou; tudo o que chegou pronto
+       na fundação da liga, ou pelo draft de lendas, deixou de contar.
+
+       A faixa 95+ sumiu junto: padrão e estrela são o mesmo 4, porque a régua
+       nova é "passou de 92, vale 4", sem degrau acima disso. */
+    'NEXT' => ['padrao' => 4, 'estrela' => 4, 'conta_lenda' => false,
+               'ovr_minimo' => 92, 'max_jogadores' => 1, 'conta_draft_inicial' => false],
+    'RISE' => ['padrao' => 2, 'estrela' => 2, 'conta_lenda' => false,
+               'ovr_minimo' => 90, 'max_jogadores' => 2, 'conta_draft_inicial' => true],
 ];
+
+/**
+ * Um campo da régua da liga, com o padrão antigo como reserva.
+ *
+ * As réguas ganharam campos depois de existirem, e nem toda liga precisa de
+ * todos. Lendo por aqui, uma régua futura que não declare `max_jogadores`
+ * continua valendo dois em vez de virar zero.
+ */
+function restrictedRegraCampo(?array $regra, string $campo, int|bool $reserva): int|bool
+{
+    return $regra !== null && array_key_exists($campo, $regra) ? $regra[$campo] : $reserva;
+}
 
 /**
  * A LIGA USA LEALDADE E LENDA?
@@ -633,12 +700,24 @@ function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
             ? '(COALESCE(p.is_lenda, 0) = 1 OR ' . $doDraft . ')'
             : $doDraft;
 
+        /* O DRAFT INICIAL FORA, ONDE A LIGA PEDIU.
+           Exigir draft_pool já deixa de fora quase todo mundo que veio da
+           fundação — o Draft Inicial mora em initdraft_pool, que é outra
+           tabela. Mas há nome que aparece nas duas, e nesse caso o jogador
+           passava como se tivesse saído do draft normal. Onde a régua diz que
+           o inicial não conta, ele é excluído pelo nome, explicitamente. */
+        $foraDoInicial = restrictedRegraCampo($regra, 'conta_draft_inicial', true)
+            ? ''
+            : ' AND NOT EXISTS (SELECT 1 FROM initdraft_pool ip WHERE ip.name = p.name)';
+
+        $ovrMinimo = (int)restrictedRegraCampo($regra, 'ovr_minimo', RESTRICTED_BONUS_OVR_MINIMO);
+
         $stmt = $pdo->prepare('
             SELECT p.ovr FROM players p
             WHERE p.team_id = ?
-            AND p.ovr >= ' . RESTRICTED_BONUS_OVR_MINIMO . '
+            AND p.ovr >= ' . $ovrMinimo . '
             AND COALESCE(p.was_traded, 0) = 0
-            AND ' . $quemConta . '
+            AND ' . $quemConta . $foraDoInicial . '
             ORDER BY p.ovr DESC
         ');
         $stmt->execute([$teamId, $teamId]);
@@ -677,8 +756,12 @@ function restrictedCapBonus(PDO $pdo, int $teamId): int
     if (!$ovrs) return 0;
 
     $liga = restrictedLigaDoTime($pdo, $teamId);
+    // Quantos contam é da liga: a NEXT leva um só desde 24/09/2026.
+    $quantos = (int)restrictedRegraCampo(
+        restrictedRegraDaLiga($liga), 'max_jogadores', RESTRICTED_BONUS_MAX_JOGADORES);
+
     $total = 0;
-    foreach (array_slice($ovrs, 0, RESTRICTED_BONUS_MAX_JOGADORES) as $ovr) {
+    foreach (array_slice($ovrs, 0, $quantos) as $ovr) {
         $total += restrictedBonusDoOvr($ovr, $liga);
     }
     return $total;
