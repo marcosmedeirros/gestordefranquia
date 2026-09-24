@@ -1844,7 +1844,7 @@ if ($method === 'GET') {
                 } elseif ($subAction === 'players') {
                     $tplId = (int)($_GET['template_id'] ?? 0);
                     if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
-                    $stmt = $pdo->prepare("SELECT id, name, position, ovr, age, pick_hint FROM draft_class_template_players WHERE template_id=? ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
+                    $stmt = $pdo->prepare("SELECT id, name, position, ovr, age, pick_hint, notas FROM draft_class_template_players WHERE template_id=? ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
                     $stmt->execute([$tplId]);
                     echo json_encode(['success' => true, 'players' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
                 }

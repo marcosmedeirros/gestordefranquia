@@ -685,6 +685,44 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .chip-ovr { display:inline-block; font-family:'Oswald',sans-serif; font-size:15px;
       font-weight:700; color:var(--text); line-height:1; vertical-align:middle; }
     .chip-idade { font-size:10px; color:var(--text-3); font-weight:600; margin-left:3px; vertical-align:middle; }
+
+    /* ── A LISTA DO POOL ──────────────────────────────────────────────
+       Uma linha por jogador, com as dez notas em colunas alinhadas. O
+       cabeçalho repete as siglas uma vez em cima, em vez de uma vez por
+       jogador — é o que faz a coluna ser lida de cima a baixo. */
+    .pool-lista { display:flex; flex-direction:column; }
+    .pool-cab, .pool-linha {
+      display:grid; grid-template-columns:34px minmax(0,1fr) 46px 48px 250px;
+      gap:8px; align-items:center; padding:6px 8px;
+    }
+    .pool-cab { font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+      color:var(--text-3); border-bottom:1px solid var(--border); position:sticky; top:0;
+      background:var(--panel); z-index:1; }
+    .pool-linha { border-bottom:1px solid var(--border); font-size:12.5px; }
+    .pool-linha:hover { background:var(--panel-2); }
+    .pool-linha.drafted { opacity:.45; }
+    .pool-ord { font-family:'Oswald',sans-serif; font-weight:700; color:var(--text-3); text-align:center; font-size:11px; }
+    .pool-nome { display:flex; align-items:center; gap:6px; min-width:0; font-weight:600; }
+    .pool-nome > .player-chip-pos { flex-shrink:0; }
+    .pool-tag { font-size:9px; font-weight:800; color:var(--red); text-transform:uppercase; }
+    .pool-ovr { text-align:center; }
+    .pool-ovr b { font-family:'Oswald',sans-serif; font-size:15px; color:var(--text); }
+    .pool-idade { text-align:center; font-size:11px; color:var(--text-3); }
+    /* As dez colunas de nota, iguais no cabeçalho e na linha — é o que
+       mantém a sigla em cima da letra certa. */
+    .pool-notas { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; }
+    .pool-notas i { font-style:normal; text-align:center; font-weight:800; font-size:10.5px;
+      color:var(--text); background:var(--panel-3); border-radius:3px; padding:2px 0;
+      white-space:nowrap; overflow:hidden; }
+    .pool-cab .pool-notas i { font-size:7.5px; font-weight:700; color:var(--text-3); background:none; }
+    .pool-notas i.vaga { background:none; }
+    /* No celular as notas descem pra segunda linha, ocupando a largura toda:
+       dez colunas em 375px ao lado do nome não sobra nada pra nenhum dos dois. */
+    @media (max-width:760px){
+      .pool-cab { display:none; }
+      .pool-linha { grid-template-columns:30px minmax(0,1fr) 40px 40px; }
+      .pool-notas { grid-column:1 / -1; }
+    }
     .player-chip-ovr { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(34,197,94,.1); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
     .player-chip-age { font-size: 11px; color: var(--text-2); margin-top: 6px; }
     /* Número da ordem (pick_hint) — destacado, sempre no mesmo canto, mesma
@@ -1856,25 +1894,43 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>';
       return;
     }
-    container.innerHTML = players.map(p => {
-      const drafted = p.draft_status === 'drafted';
-      const clickable = allowPick && !drafted;
-      return `
-      <div class="player-chip${drafted ? ' drafted' : ''}" ${clickable ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${clickable ? 'cursor:pointer' : ''}">
-        ${p.pick_hint ? `<span class="player-chip-order">${p.pick_hint}</span>` : ''}
-        <div class="player-chip-name">${esc(p.name)}</div>
-        <div><span class="player-chip-pos">${esc(p.position)}</span>${
-          /* OVR em destaque e a idade ao lado — só quando a classe tem as
-             letrinhas. Sem elas o OVR é o 60 de preenchimento, e mostrá-lo
-             em destaque faria o GM comparar prospectos por um número que é
-             igual pra todos. @see fichaDoJogador */
-          p.notas ? `<span class="chip-ovr">${parseInt(p.ovr,10)}</span>
-                     <span class="chip-idade">${parseInt(p.age,10)}a</span>` : ''}</div>
-        ${notasHtml(p.notas)}
-        ${drafted ? `<div class="player-chip-drafted-tag">Draftado</div>` : ''}
-      </div>
-    `;
-    }).join('');
+    /* LISTA, NÃO GRADE DE CARDS. Com OVR, idade e dez notas por jogador, o
+       card virou um bloco alto e cabiam três na tela — e a pergunta aqui é
+       comparar um prospecto com o outro, que é justamente o que a grade
+       impede. Em lista, cada linha é um jogador e as colunas de nota ficam
+       alinhadas de cima a baixo: dá pra correr o olho por uma coluna só. */
+    const temLetras = players.some(p => p.notas);
+    container.className = 'pool-lista';
+    container.innerHTML = `
+      ${temLetras ? `<div class="pool-cab">
+        <span class="pool-ord">#</span><span class="pool-nome">Jogador</span>
+        <span class="pool-ovr">OVR</span><span class="pool-idade">Idade</span>
+        <span class="pool-notas">${ORDEM_NOTAS.map(k => `<i title="${esc(k)}">${esc(({'POST D':'PST','PER D':'PER'})[k] || k)}</i>`).join('')}</span>
+      </div>` : ''}
+      ${players.map(p => {
+        const drafted = p.draft_status === 'drafted';
+        const clickable = allowPick && !drafted;
+        return `
+        <div class="pool-linha${drafted ? ' drafted' : ''}"
+             ${clickable ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''}
+             style="${clickable ? 'cursor:pointer' : ''}">
+          <span class="pool-ord">${p.pick_hint || ''}</span>
+          <span class="pool-nome">${esc(p.name)}<span class="player-chip-pos">${esc(p.position)}</span>${
+            drafted ? '<span class="pool-tag">Draftado</span>' : ''}</span>
+          <span class="pool-ovr">${p.notas ? `<b>${parseInt(p.ovr,10)}</b>` : '—'}</span>
+          <span class="pool-idade">${p.notas ? parseInt(p.age,10) + 'a' : '—'}</span>
+          <span class="pool-notas">${notasCelulas(p.notas)}</span>
+        </div>`;
+      }).join('')}`;
+  }
+
+  /* As dez notas como células soltas, pra encaixarem na mesma grade da linha
+     — o notasHtml() monta a caixinha com sigla em cima, que serve no card e
+     repetiria a sigla em cada linha da lista. */
+  function notasCelulas(json){
+    let n = null;
+    try { n = json ? JSON.parse(json) : null; } catch { n = null; }
+    return ORDEM_NOTAS.map(k => `<i class="${n && n[k] ? '' : 'vaga'}">${n && n[k] ? esc(n[k]) : ''}</i>`).join('');
   }
 
   let bigBoardPlayersList = [];

@@ -11530,7 +11530,9 @@ async function _adminDraftUseClassFromBank(draftSessionId, league) {
   if (!tplId) { showAlert('warning', 'Selecione uma classe do banco'); return; }
   try {
     const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
-    _draftImportRows = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null }));
+    // notas vao junto: sem elas o pool nasce sem as letrinhas e a tela do
+    // draft nao tem o que mostrar.
+    _draftImportRows = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null, notas: p.notas ?? null }));
     if (!_draftImportRows.length) { showAlert('warning', 'Classe sem jogadores'); return; }
     document.getElementById('draftImportCount').textContent = _draftImportRows.length;
     document.getElementById('draftImportTable').innerHTML = `

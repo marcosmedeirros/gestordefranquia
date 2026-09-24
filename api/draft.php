@@ -2916,7 +2916,7 @@ if ($method === 'POST') {
             $seasonId = (int)$session['season_id'];
             $inserted = 0;
             $errors = [];
-            $stmtInsert = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status) VALUES (?, ?, ?, ?, ?, ?, "available")');
+            $stmtInsert = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, notas, draft_status) VALUES (?, ?, ?, ?, ?, ?, ?, "available")');
 
             foreach ($players as $i => $p) {
                 $pName     = trim((string)($p['name'] ?? ''));
@@ -2932,7 +2932,10 @@ if ($method === 'POST') {
                 }
 
                 try {
-                    $stmtInsert->execute([$seasonId, $pName, $pPosition, $pAge, $pOvr, $pHint]);
+                    /* As letrinhas vem junto quando a origem tem: sem isto o pool nascia
+                           sem elas e a tela do draft nao tinha o que mostrar. */
+                        $stmtInsert->execute([$seasonId, $pName, $pPosition, $pAge, $pOvr, $pHint,
+                                              ($p['notas'] ?? null) ?: null]);
                     $inserted++;
                 } catch (Exception $ex) {
                     $errors[] = 'Linha ' . ($i + 2) . ': ' . $ex->getMessage();
