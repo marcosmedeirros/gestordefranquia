@@ -703,6 +703,50 @@ function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
     return $capMax + restrictedCapBonus($pdo, $teamId);
 }
 
+/**
+ * A FAIXA DE CAP DO TIME, PELA LIGA DELE.
+ *
+ * Existe porque `$config['app']['cap_min'/'cap_max']` é um par ÚNICO no
+ * config.php (618–648), de quando a FBA tinha uma liga só. Quem lia de lá
+ * comparava o elenco da NEXT contra a faixa de outra liga: mudar 780–816 na
+ * Administração não mexia em nada, porque o número conferido nunca vinha do
+ * banco. A faixa por liga mora em `league_settings`, e é daqui que ela sai.
+ *
+ * Time sem liga, ou liga sem faixa configurada, cai no config — é o
+ * comportamento de antes, pra nenhuma liga ficar sem régua nenhuma.
+ *
+ * @return array{min:int,max:int}
+ */
+function capFaixaDoTime(PDO $pdo, int $teamId): array
+{
+    static $cache = [];
+    if (array_key_exists($teamId, $cache)) return $cache[$teamId];
+
+    $liga = restrictedLigaDoTime($pdo, $teamId);
+    $min = 0;
+    $max = 0;
+    if ($liga !== '') {
+        try {
+            $st = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+            $st->execute([$liga]);
+            if ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+                $min = (int)($row['cap_min'] ?? 0);
+                $max = (int)($row['cap_max'] ?? 0);
+            }
+        } catch (Throwable $e) {
+            error_log('[capFaixaDoTime] ' . $e->getMessage());
+        }
+    }
+
+    if ($min <= 0 || $max <= 0) {
+        $cfg = loadConfig();
+        $min = $min > 0 ? $min : (int)($cfg['app']['cap_min'] ?? 0);
+        $max = $max > 0 ? $max : (int)($cfg['app']['cap_max'] ?? 0);
+    }
+
+    return $cache[$teamId] = ['min' => $min, 'max' => $max];
+}
+
 function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
 {
     $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N);

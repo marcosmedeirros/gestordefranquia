@@ -666,7 +666,11 @@ if ($method === 'POST') {
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
     $warnings = [];
-    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
+    /* A faixa vem da LIGA DO TIME, não do config: o par do config.php é único
+       (618–648) e comparava a NEXT com a régua de outra liga — mudar a faixa na
+       Administração não mexia neste aviso. @see capFaixaDoTime */
+    $faixa = capFaixaDoTime($pdo, $teamId);
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, $faixa['max']);
     if ($prospectiveCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $capMaxAdjusted . ').';
     }
@@ -675,9 +679,9 @@ if ($method === 'POST') {
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade, $loyalOverrideOnAdd]);
 
     $newCap = topOvrCap($pdo, $teamId);
-    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
-    if ($newCap < $config['app']['cap_min']) {
-        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, $faixa['max']);
+    if ($newCap < $faixa['min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $faixa['min'] . ').';
     }
     if ($newCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
@@ -959,9 +963,11 @@ if ($method === 'PUT') {
     marcarElencoAtualizado($pdo, (int)$player['team_id']);
 
     $newCap = topOvrCap($pdo, (int)$player['team_id']);
-    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], (int)$config['app']['cap_max']);
-    if ($newCap < $config['app']['cap_min']) {
-        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    // Mesma régua do POST: a faixa é a da liga do time. @see capFaixaDoTime
+    $faixa = capFaixaDoTime($pdo, (int)$player['team_id']);
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], $faixa['max']);
+    if ($newCap < $faixa['min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $faixa['min'] . ').';
     }
     if ($newCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
