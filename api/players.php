@@ -671,7 +671,7 @@ if ($method === 'POST') {
        Administração não mexia neste aviso. @see capFaixaDoTime */
     $faixa = capFaixaDoTime($pdo, $teamId);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, $faixa['max']);
-    if ($prospectiveCap > $capMaxAdjusted) {
+    if ($faixa['soma_ovr'] && $prospectiveCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $capMaxAdjusted . ').';
     }
 
@@ -680,10 +680,10 @@ if ($method === 'POST') {
 
     $newCap = topOvrCap($pdo, $teamId);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, $faixa['max']);
-    if ($newCap < $faixa['min']) {
+    if ($faixa['soma_ovr'] && $newCap < $faixa['min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $faixa['min'] . ').';
     }
-    if ($newCap > $capMaxAdjusted) {
+    if ($faixa['soma_ovr'] && $newCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
     }
 
@@ -966,10 +966,10 @@ if ($method === 'PUT') {
     // Mesma régua do POST: a faixa é a da liga do time. @see capFaixaDoTime
     $faixa = capFaixaDoTime($pdo, (int)$player['team_id']);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], $faixa['max']);
-    if ($newCap < $faixa['min']) {
+    if ($faixa['soma_ovr'] && $newCap < $faixa['min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $faixa['min'] . ').';
     }
-    if ($newCap > $capMaxAdjusted) {
+    if ($faixa['soma_ovr'] && $newCap > $capMaxAdjusted) {
         $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
     }
     jsonResponse(200, [

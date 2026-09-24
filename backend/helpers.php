@@ -715,7 +715,11 @@ function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
  * Time sem liga, ou liga sem faixa configurada, cai no config — é o
  * comportamento de antes, pra nenhuma liga ficar sem régua nenhuma.
  *
- * @return array{min:int,max:int}
+ * `soma_ovr` diz se a faixa pode ser comparada com a soma de OVR do elenco.
+ * Na ELITE não pode: lá a faixa é de FOLHA (90–150M) e a soma do top-10 passa
+ * de 800 — o aviso sairia sempre, dizendo "808 de 150".
+ *
+ * @return array{min:int,max:int,modo:string,soma_ovr:bool}
  */
 function capFaixaDoTime(PDO $pdo, int $teamId): array
 {
@@ -725,13 +729,15 @@ function capFaixaDoTime(PDO $pdo, int $teamId): array
     $liga = restrictedLigaDoTime($pdo, $teamId);
     $min = 0;
     $max = 0;
+    $modo = 'ovr_sum';
     if ($liga !== '') {
         try {
-            $st = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+            $st = $pdo->prepare('SELECT cap_min, cap_max, cap_mode FROM league_settings WHERE league = ?');
             $st->execute([$liga]);
             if ($row = $st->fetch(PDO::FETCH_ASSOC)) {
-                $min = (int)($row['cap_min'] ?? 0);
-                $max = (int)($row['cap_max'] ?? 0);
+                $min  = (int)($row['cap_min'] ?? 0);
+                $max  = (int)($row['cap_max'] ?? 0);
+                $modo = (string)($row['cap_mode'] ?? 'ovr_sum');
             }
         } catch (Throwable $e) {
             error_log('[capFaixaDoTime] ' . $e->getMessage());
@@ -744,7 +750,12 @@ function capFaixaDoTime(PDO $pdo, int $teamId): array
         $max = $max > 0 ? $max : (int)($cfg['app']['cap_max'] ?? 0);
     }
 
-    return $cache[$teamId] = ['min' => $min, 'max' => $max];
+    return $cache[$teamId] = [
+        'min'      => $min,
+        'max'      => $max,
+        'modo'     => $modo,
+        'soma_ovr' => $modo !== 'salary',
+    ];
 }
 
 function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
