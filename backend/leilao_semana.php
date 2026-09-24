@@ -294,6 +294,18 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
     if ((int)$time['user_id'] !== $userId)         return $falha('Esse time não é seu.');
     if (strtoupper((string)$time['league']) !== $liga) return $falha('Você só dá lance na sua liga.');
 
+    /* RODÍZIO: quem foi jogo da semana na semana passada fica de fora desta.
+       Mesma regra dos slots de tela, e a recusa mora AQUI e não só na tela —
+       esconder o campo não impede um POST. @see leilaoSemanaJogoAnterior */
+    if (leilaoSemanaJogouNaAnterior($pdo, $liga, $teamId, $temporada)) {
+        $ant = leilaoSemanaJogoAnterior($pdo, $liga, $temporada);
+        $adversario = $teamId === ($ant['time1_id'] ?? 0)
+            ? ($ant['time2_nome'] ?? '') : ($ant['time1_nome'] ?? '');
+        return $falha('Seu time foi o jogo da semana passada'
+            . ($adversario !== '' ? ' (contra ' . $adversario . ')' : '')
+            . ' — fica de fora desta pra girar a fila. Na semana que vem você pode voltar.');
+    }
+
     $lances = leilaoSemanaLances($pdo, $liga, $temporada);
     $minimo = leilaoSemanaMinimo($lances, $teamId);
 
@@ -423,6 +435,16 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
             fn($f) => $curto((int)$f['team_id']) . ' (' . number_format((int)$f['valor'], 0, ',', '.') . ')',
             array_slice($fila, 0, 4)
         )) . (count($fila) > 4 ? ' e mais ' . (count($fila) - 4) : '') . '_';
+    }
+
+    /* QUEM ESTÁ DE FORA ESTA SEMANA, dito no grupo. Sem isto o GM do jogo
+       passado tenta dar lance e só descobre o rodízio na recusa — e o resto
+       da liga não entende por que dois times sumiram da disputa. */
+    $ant = leilaoSemanaJogoAnterior($pdo, $liga, $temporada);
+    if ($ant && ($ant['time1_nome'] !== '' || $ant['time2_nome'] !== '')) {
+        $fora = array_values(array_filter([$ant['time1_nome'], $ant['time2_nome']], fn($n) => $n !== ''));
+        $l[] = '';
+        $l[] = '_Fora desta semana (jogaram a passada): ' . implode(' e ', $fora) . '_';
     }
 
     return implode("\n", $l);
@@ -569,6 +591,65 @@ function leilaoSemanaUltimoFechado(PDO $pdo, string $liga, int $temporada): ?arr
     }
 }
 
+
+/**
+ * O JOGO DA SEMANA PASSADA, pra valer o rodízio.
+ *
+ * Mesma regra dos slots de tela (slotsTelaComprouNaAnterior): quem esteve na
+ * vitrine na semana passada fica de fora desta. Sem isso, dois times com
+ * saldo grande compravam o jogo toda semana e o resto da liga nunca aparecia
+ * — o leilão vira uma assinatura em vez de uma disputa.
+ *
+ * Fica de fora UMA semana e volta na seguinte: é o que gira a fila sem travar
+ * ninguém por muito tempo.
+ *
+ * Lê o histórico e não os lances, porque os lances são APAGADOS no
+ * fechamento; o histórico é justamente o que sobrevive pra dizer qual jogo
+ * foi escolhido. Pega o último fechado ANTES da temporada de agora — durante
+ * a semana corrente o registro da atual ainda não existe, e depois de fechar
+ * ele não pode bloquear quem acabou de ser escolhido para a própria semana.
+ *
+ * @return array{time1_id:int, time2_id:int, time1_nome:string, time2_nome:string, temporada:int}|null
+ */
+function leilaoSemanaJogoAnterior(PDO $pdo, string $liga, int $temporadaAtual): ?array
+{
+    leilaoSemanaTabela($pdo);
+    if ($temporadaAtual <= 0) return null;
+    try {
+        $st = $pdo->prepare("SELECT h.time1_id, h.time2_id, h.temporada,
+                                    COALESCE(t1.name, h.time1_nome) AS time1_nome,
+                                    COALESCE(t2.name, h.time2_nome) AS time2_nome
+                               FROM leilao_semana_historico h
+                          LEFT JOIN teams t1 ON t1.id = h.time1_id
+                          LEFT JOIN teams t2 ON t2.id = h.time2_id
+                              WHERE h.league = ? AND h.temporada < ?
+                           ORDER BY h.temporada DESC, h.id DESC LIMIT 1");
+        $st->execute([strtoupper(trim($liga)), $temporadaAtual]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return null;
+        return [
+            'time1_id'   => (int)($r['time1_id'] ?? 0),
+            'time2_id'   => (int)($r['time2_id'] ?? 0),
+            'time1_nome' => (string)($r['time1_nome'] ?? ''),
+            'time2_nome' => (string)($r['time2_nome'] ?? ''),
+            'temporada'  => (int)($r['temporada'] ?? 0),
+        ];
+    } catch (Throwable $e) {
+        // Falha de leitura não vira bloqueio: melhor deixar dar lance do que
+        // recusar por um erro de banco. Mesma escolha dos slots.
+        error_log('[leilao-semana] jogo anterior: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** O time jogou o jogo da semana passada? */
+function leilaoSemanaJogouNaAnterior(PDO $pdo, string $liga, int $teamId, int $temporadaAtual): bool
+{
+    if ($teamId <= 0) return false;
+    $ant = leilaoSemanaJogoAnterior($pdo, $liga, $temporadaAtual);
+    if (!$ant) return false;
+    return $teamId === $ant['time1_id'] || $teamId === $ant['time2_id'];
+}
 /** Quanto já está retido de um time, pra cobrar só a diferença. */
 function leilaoSemanaRetidoDoTime(array $lances, int $teamId): int
 {
@@ -604,10 +685,27 @@ function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
         }
     }
 
+    /* O RODÍZIO CHEGA NA TELA, e não só na recusa do lance: quem está de fora
+       desta semana precisa ler isso ANTES de escolher um valor e apertar o
+       botão. Mesma escolha dos slots, onde o motivo do bloqueio vai junto do
+       estado da venda. */
+    $jogoAnterior = leilaoSemanaJogoAnterior($pdo, $liga, $temporada);
+    $deFora = false;
+    if ($userId > 0 && $jogoAnterior) {
+        $st = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
+        $st->execute([$userId, $liga]);
+        $meuTime = (int)($st->fetchColumn() ?: 0);
+        $deFora = $meuTime > 0
+            && ($meuTime === $jogoAnterior['time1_id'] || $meuTime === $jogoAnterior['time2_id']);
+    }
+
     return [
         'liga'      => $liga,
         'temporada' => $temporada,
         'fechado'   => $fechado,
+        // Quem jogou na semana passada, e se ESTE GM é um deles.
+        'anterior'  => $jogoAnterior,
+        'de_fora'   => $deFora,
         'podio'     => array_slice($lances, 0, LEILAO_SEMANA_VAGAS),
         'fila'      => array_slice($lances, LEILAO_SEMANA_VAGAS),
         // Pra quem já tem lance, o mínimo mostrado tem que ser um valor que o
