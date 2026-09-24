@@ -16,6 +16,14 @@ require_once __DIR__ . '/../backend/pick_protection.php';
 require_once __DIR__ . '/../backend/draft_fa.php';
 require_once __DIR__ . '/../backend/picks_usadas.php';  // pick escolhida cancela troca pendente
 require_once __DIR__ . '/../backend/loteria_grupos.php';
+/* A COLUNA `notas` TEM QUE EXISTIR ANTES DAS CONSULTAS.
+   Os SELECTs deste arquivo passaram a pedir dp.notas (as letrinhas da classe),
+   e quem cria a coluna é draftCsvGarantirColunas() — chamada só pelo
+   importador de classe. Em produção o importador ainda não tinha rodado, então
+   a coluna não existia e TODA consulta do draft morria com "Unknown column
+   'dp.notas'": a tela do draft inteira caiu em 1054. Garantir aqui é o mesmo
+   padrão do punicaoGarantirEsquema, e é idempotente. */
+require_once __DIR__ . '/../backend/draft_class_csv.php';
 
 header('Content-Type: application/json');
 
@@ -48,6 +56,9 @@ $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE draft_pool ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
+// A coluna das letrinhas, pelo mesmo motivo da de cima: os SELECTs deste
+// arquivo pedem dp.notas. @see backend/draft_class_csv.php
+draftCsvGarantirColunas($pdo);
 // Relógio da 1ª rodada, agendado pelo admin — antes desse horário (ou se nunca definido),
 // autopick continua só o de 30min/fila de sempre; depois dele, vira 5min + fallback pela
 // ordem geral (ver ensureRound2DeadlineSet acima pro mesmo padrão aplicado à 2ª rodada).
