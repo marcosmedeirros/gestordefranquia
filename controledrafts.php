@@ -482,6 +482,18 @@ function renderClasses() {
       <div class="sub" style="margin-top:8px">
         Cria a classe vazia nesta liga. Depois use <b>Importar</b> na linha dela pra trazer os jogadores.
       </div>
+      <?php /* O MODELO DO CSV fica aqui, junto do "Importar": é onde a dúvida
+               aparece. O arquivo é gerado pelo servidor a partir das mesmas
+               constantes que o leitor usa — modelo escrito à mão na tela
+               envelhece calado quando o jogo muda a lista de atributos. */ ?>
+      <div class="sub" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <a class="btn ghost sm" href="/api/controledrafts.php?action=modelo_csv&league=${encodeURIComponent(ligaAtual)}"
+           download><i class="bi bi-download"></i>Baixar modelo do CSV</a>
+        <span style="margin-left:8px">
+          Colunas: <b>NAME</b> (só ela é obrigatória), POS, AGE, RATING e as dez notas.
+          <b>A ordem das linhas é a ordem do draft.</b> Sem RATING/AGE, o jogador entra com 60 e 18 anos.
+        </span>
+      </div>
     </div>
 
     ${e.classes_sem_liga.length ? `

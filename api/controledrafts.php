@@ -655,6 +655,34 @@ try {
         exit;
     }
 
+    /**
+     * O MODELO DE CSV pra importar a classe.
+     *
+     * Montado a partir das MESMAS constantes que o leitor usa
+     * (DRAFT_CSV_NOTAS), e não escrito à mão aqui: modelo copiado à mão é
+     * modelo que envelhece calado — o jogo muda a lista de atributos, o
+     * leitor acompanha pela constante e o arquivo que a tela oferece
+     * continuaria com as colunas antigas.
+     *
+     * Vai com BOM porque o Excel em português abre UTF-8 sem BOM com os
+     * acentos quebrados, e é no Excel que esse arquivo vai ser preenchido.
+     */
+    if ($acao === 'modelo_csv') {
+        require_once __DIR__ . '/../backend/draft_class_csv.php';
+        $cab = array_merge(['NAME', 'POS', 'AGE', 'RATING'], DRAFT_CSV_NOTAS);
+        $linhas = [
+            implode(',', $cab),
+            // Uma linha completa e uma só com o obrigatório: as duas são
+            // válidas, e ver isso evita a pergunta "posso deixar em branco?".
+            'C. Flagg,SF,19,83,B,B-,B+,A-,A,B-,B-,A-,B+,A+',
+            'Jogador Sem Nota,PG,,,,,,,,,,,,',
+        ];
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="modelo-classe-draft.csv"');
+        echo "\xEF\xBB\xBF" . implode("\r\n", $linhas) . "\r\n";
+        exit;
+    }
+
     /** Os jogadores de uma classe, pra conferir na tela. */
     if ($acao === 'jogadores_da_classe') {
         cdGarantirSchema($pdo);
