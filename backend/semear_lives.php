@@ -42,9 +42,9 @@ require_once __DIR__ . '/calendario.php';
  * primeiro dia da arte. Isso importa: é a primeira linha que ancora o ciclo
  * (ver inicioDoCiclo).
  *
- * O sábado da ROOKIE tem dois horários possíveis no calendário oficial
+ * A live da ROOKIE tem dois horários possíveis no calendário oficial
  * ("11h OU 14h"). Fica às 11h com a observação, porque marcar os dois criaria
- * duas lives por sábado — e escalar gente pras duas quando só uma acontece é
+ * duas lives no mesmo dia — e escalar gente pras duas quando só uma acontece é
  * pior que o horário ser ajustado na semana.
  */
 function agendaDaGrade(): array
@@ -76,8 +76,12 @@ function agendaDaGrade(): array
         ['RISE',   3, null,    'fa_abre',  'Free Agency',     null],
         ['RISE',   4, '22:00', 'outro',    'Bloqueio do painel de diretrizes', null],
 
-        // ── ROOKIE: sábado a sexta ─────────────────────────────────────
-        ['ROOKIE', 6, '11:00', 'live',     'ROOKIE',          'Regular + Offs, tudo na mesma live. Pode ser às 11h ou às 14h — confirmar na semana.'],
+        // ── ROOKIE: domingo a sábado ───────────────────────────────────
+        // A live passou do sábado pro DOMINGO em 24/09/2026, a pedido do
+        // Marcos. Havia uma live de domingo já cadastrada à mão no
+        // calendário, e com esta linha ainda no sábado a ROOKIE aparecia com
+        // DUAS lives por semana — a de sábado 11h e a de domingo 11h.
+        ['ROOKIE', 0, '11:00', 'live',     'ROOKIE',          'Regular + Offs, tudo na mesma live. Pode ser às 11h ou às 14h — confirmar na semana.'],
         ['ROOKIE', 0, null,    'draft',    'Draft + Progression', null],
         ['ROOKIE', 1, null,    'dl_abre',  'Período de trocas — dia 1', null],
         ['ROOKIE', 2, null,    'dl_abre',  'Período de trocas — dia 2', null],
@@ -128,7 +132,7 @@ function inicioDoCiclo(string $liga): string
         'ELITE'  => '2026-08-26',   // quarta — o jogo da regular
         'NEXT'   => '2026-08-31',   // segunda
         'RISE'   => '2026-09-04',   // sexta
-        'ROOKIE' => '2026-09-05',   // sábado
+        'ROOKIE' => '2026-09-06',   // domingo — o jogo da regular, desde 24/09/2026
         default  => '2026-08-31',
     };
 }

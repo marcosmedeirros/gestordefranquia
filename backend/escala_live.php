@@ -60,12 +60,12 @@ function escalaSemanaDe(?string $data = null): string
  * A semana do calendário vira no domingo, e isso deixava a primeira live a
  * um dia de distância: a NEXT joga na segunda, então a chamada abria no
  * domingo pra uma live no dia seguinte. Um corte fixo mais cedo resolveria
- * pra NEXT e atrasaria a ROOKIE, que só joga no sábado.
+ * pra NEXT e atrasaria a ROOKIE, que joga no fim de semana.
  *
  * Então o corte é de cada liga: assim que a ÚLTIMA live da liga na semana
  * termina, aquela semana acabou pra ela e a chamada já é da seguinte. A
  * ELITE joga quarta e quinta — na quinta à noite ela vira, e sobram cinco
- * dias pra montar a próxima. A NEXT vira na terça, a ROOKIE no sábado. Cada
+ * dias pra montar a próxima. A NEXT vira na terça, a ROOKIE no domingo. Cada
  * uma no seu ritmo, sem uma atrapalhar a outra.
  *
  * O fim da live: o do evento, quando existe. Sem ele, o início mais quatro
