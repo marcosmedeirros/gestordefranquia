@@ -258,20 +258,47 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
  *        aplicar o corte lá apagaria o campeão de uma competição que
  *        aconteceu — justamente a que dá a promoção.
  */
-function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, bool $cortarPorGm = false): array
+/**
+ * A TABELA DE UMA JANELA DE TEMPORADAS, com a liga INTEIRA dentro.
+ *
+ * As duas tabelas do ranking — a do bloco e a geral — faziam esta mesma
+ * consulta, uma em cada função, mudando só o BETWEEN. Agora é uma só.
+ *
+ * E ela parte de `teams`, não de `team_season_points`. Partindo dos pontos,
+ * quem ainda não pontuou NESTA sprint não tem linha lá e sumia da tabela
+ * inteira: a ELITE tem 32 times e o ranking mostrava 30, faltando Miami
+ * Sunsets e Colorado Goats — os dois com histórico em sprints antigas e nada
+ * na atual. Um time sem ponto é um time com zero ponto, não um time que não
+ * existe; a última colocação também é informação.
+ *
+ * Os TÍTULOS saem de playoff_results, e não de team_season_points: lá só há
+ * pontuação, e pontos de playoff não dizem quem foi campeão — um vice pontua.
+ * Essa tabela também sobrevive ao reset de sprint, ao contrário de
+ * team_ranking_points, que é apagada nele.
+ *
+ * A liga vai por PARÂMETRO em toda comparação, nunca `s2.league = tsp.league`:
+ * as duas colunas têm collation diferente (uca1400 numa, unicode noutra) e
+ * compará-las derruba a consulta com erro 1267, de mistura ilegal de
+ * collations — a tabela inteira vinha vazia, em todas as ligas.
+ *
+ * @param int $de  primeira temporada da janela (inclusive)
+ * @param int $ate última temporada da janela (inclusive)
+ */
+function cicloLinhasDaJanela(PDO $pdo, string $liga, int $de, int $ate): array
 {
     $liga = strtoupper(trim($liga));
-    [$de, $ate] = cicloIntervalo($pdo, $ciclo, $liga);
     try {
-        // MESMO recorte da aba da liga (get_points_history em
-        // api/history-points.php): temporadas da sprint ATIVA, ligadas por
-        // season_id. Filtrar por tsp.season_number — que é uma cópia guardada
-        // na linha de pontos — fazia a janela pegar temporadas diferentes das
-        // que a aba da liga soma, e os dois números divergiam sem explicação.
-        //
-        // A única diferença pra ela é o BETWEEN: aqui só as do bloco.
+        $st = $pdo->prepare("SELECT id FROM sprints
+                              WHERE league = ? AND status = 'active'
+                           ORDER BY id DESC LIMIT 1");
+        $st->execute([$liga]);
+        $sprintId = (int)($st->fetchColumn() ?: 0);
+        // Sem sprint ativa não há janela: devolver a liga toda zerada seria
+        // inventar uma disputa que não começou.
+        if (!$sprintId) return [];
+
         $st = $pdo->prepare("
-            SELECT tsp.team_id,
+            SELECT t.id AS team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
                    /* A alcunha separada: dentro de uma liga ela identifica o time sozinha,
                       e quem escreve pro WhatsApp precisa da lista curta. Cortar a cidade
@@ -279,41 +306,46 @@ function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, boo
                       Empire' virava 'Diego Empire' e 'St. Louis Archers', 'Louis Archers'. */
                    COALESCE(NULLIF(TRIM(t.name),''), TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')))) AS alcunha,
                    t.photo_url,
-                   SUM(tsp.points)                 AS pontos,
-                   COUNT(DISTINCT s.season_number) AS temporadas,
-                   /* Os TÍTULOS da janela saem de playoff_results, e não de
-                      team_season_points: lá só há pontuação, e pontos de
-                      playoff não dizem quem foi campeão — um vice pontua. Esta
-                      tabela também sobrevive ao reset de sprint, ao contrário
-                      de team_ranking_points, que é apagada nele. */
-                   /* A liga vem por PARÂMETRO, e não de `s2.league =
-                      tsp.league`: as duas colunas têm collation diferente
-                      (uca1400 numa, unicode noutra) e compará-las derruba a
-                      consulta com erro 1267, de mistura ilegal de collations —
-                      a tabela inteira vinha vazia, em todas as ligas. */
+                   COALESCE(p.pontos, 0)     AS pontos,
+                   COALESCE(p.temporadas, 0) AS temporadas,
                    (SELECT COUNT(*) FROM playoff_results pr
                      JOIN seasons s2 ON s2.id = pr.season_id
-                    WHERE pr.team_id = tsp.team_id
+                    WHERE pr.team_id = t.id
                       AND pr.position = 'champion'
                       AND s2.league = ?
                       AND s2.season_number BETWEEN ? AND ?
-                      AND s2.sprint_id = s.sprint_id) AS titulos
-            FROM team_season_points tsp
-            JOIN seasons s ON s.id = tsp.season_id
-            LEFT JOIN teams t ON t.id = tsp.team_id
-            WHERE tsp.league = ?
-              AND s.season_number BETWEEN ? AND ?
-              AND s.sprint_id = (SELECT id FROM sprints
-                                 WHERE league = ? AND status = 'active'
-                                 ORDER BY id DESC LIMIT 1)
-            GROUP BY tsp.team_id, time, t.photo_url, s.sprint_id
-            ORDER BY pontos DESC, titulos DESC, time ASC");
-        $st->execute([$liga, $de, $ate, $liga, $de, $ate, $liga]);
-        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+                      AND s2.sprint_id = ?) AS titulos
+              FROM teams t
+              LEFT JOIN (
+                    SELECT tsp.team_id,
+                           SUM(tsp.points)                 AS pontos,
+                           COUNT(DISTINCT s.season_number) AS temporadas
+                      FROM team_season_points tsp
+                      JOIN seasons s ON s.id = tsp.season_id
+                     WHERE tsp.league = ?
+                       AND s.season_number BETWEEN ? AND ?
+                       AND s.sprint_id = ?
+                  GROUP BY tsp.team_id
+              ) p ON p.team_id = t.id
+             WHERE t.league = ?
+          ORDER BY pontos DESC, titulos DESC, time ASC");
+        $st->execute([$liga, $de, $ate, $sprintId, $liga, $de, $ate, $sprintId, $liga]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        error_log('[ciclos] classificacao: ' . $e->getMessage());
+        error_log('[ciclos] janela: ' . $e->getMessage());
         return [];
     }
+}
+
+function cicloClassificacao(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA, bool $cortarPorGm = false): array
+{
+    $liga = strtoupper(trim($liga));
+    [$de, $ate] = cicloIntervalo($pdo, $ciclo, $liga);
+
+    // MESMO recorte da aba da liga (get_points_history em
+    // api/history-points.php): temporadas da sprint ATIVA, ligadas por
+    // season_id. A única diferença pra geral é o BETWEEN: aqui só as do bloco.
+    $linhas = cicloLinhasDaJanela($pdo, $liga, $de, $ate);
 
     if ($cortarPorGm) $linhas = cicloAplicarCorte($pdo, $liga, $linhas, $de, $ate);
 
@@ -404,43 +436,7 @@ function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
     $ultimo = $cfg['blocos'] * $cfg['tamanho'];
     $liga = strtoupper(trim($liga));
 
-    try {
-        $st = $pdo->prepare("
-            SELECT tsp.team_id,
-                   TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
-                   /* A alcunha separada: dentro de uma liga ela identifica o time sozinha,
-                      e quem escreve pro WhatsApp precisa da lista curta. Cortar a cidade
-                      do nome completo por contagem de palavras não funciona — 'San Diego
-                      Empire' virava 'Diego Empire' e 'St. Louis Archers', 'Louis Archers'. */
-                   COALESCE(NULLIF(TRIM(t.name),''), TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')))) AS alcunha,
-                   t.photo_url,
-                   SUM(tsp.points)                 AS pontos,
-                   COUNT(DISTINCT s.season_number) AS temporadas,
-                   /* Liga por parâmetro — ver a nota em cicloClassificacao
-                      sobre o choque de collation. */
-                   (SELECT COUNT(*) FROM playoff_results pr
-                     JOIN seasons s2 ON s2.id = pr.season_id
-                    WHERE pr.team_id = tsp.team_id
-                      AND pr.position = 'champion'
-                      AND s2.league = ?
-                      AND s2.season_number BETWEEN 1 AND ?
-                      AND s2.sprint_id = s.sprint_id) AS titulos
-            FROM team_season_points tsp
-            JOIN seasons s ON s.id = tsp.season_id
-            LEFT JOIN teams t ON t.id = tsp.team_id
-            WHERE tsp.league = ?
-              AND s.season_number BETWEEN 1 AND ?
-              AND s.sprint_id = (SELECT id FROM sprints
-                                 WHERE league = ? AND status = 'active'
-                                 ORDER BY id DESC LIMIT 1)
-            GROUP BY tsp.team_id, time, t.photo_url, s.sprint_id
-            ORDER BY pontos DESC, titulos DESC, time ASC");
-        $st->execute([$liga, $ultimo, $liga, $ultimo, $liga]);
-        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) {
-        error_log('[ciclos] geral: ' . $e->getMessage());
-        return [];
-    }
+    $linhas = cicloLinhasDaJanela($pdo, $liga, 1, $ultimo);
 
     /* A GERAL É A DISPUTA VIVA, então ela conta só o que o GM atual fez: quem
        subiu pra Rise saiu da briga, e deixar os pontos dele na tabela daria ao
