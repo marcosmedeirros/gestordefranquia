@@ -29,7 +29,7 @@ const LOTERIA_GRUPOS_META = [
     1 => ['label' => '3 piores recordes',              'balls' => 2],
     2 => ['label' => 'Melhores fora do play-in',       'balls' => 3],
     3 => ['label' => 'Eliminados no play-in',          'balls' => 2],
-    4 => ['label' => 'Derrotados no 7x8',              'balls' => 1],
+    4 => ['label' => 'Perdeu Jogo 2 Playin',              'balls' => 1],
 ];
 
 /**

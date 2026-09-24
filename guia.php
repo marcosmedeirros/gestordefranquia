@@ -419,7 +419,7 @@ html{scroll-behavior:smooth}
             <tr><td>3 piores recordes</td><td>16%</td><td>28%</td></tr>
             <tr><td><strong>4º ao 10º pior</strong> (fora do play-in)</td><td><strong>24%</strong></td><td><strong>39%</strong></td></tr>
             <tr><td>Eliminados no play-in</td><td>16%</td><td>28%</td></tr>
-            <tr><td>Derrotados no 7x8</td><td>8%</td><td>15%</td></tr>
+            <tr><td>Perdeu Jogo 2 Playin</td><td>8%</td><td>15%</td></tr>
           </tbody>
         </table>
       </div>

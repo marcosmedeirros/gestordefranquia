@@ -312,7 +312,7 @@ html{scroll-behavior:smooth}
           <tr><td>3 piores recordes</td><td>2</td><td>16% / 28%</td></tr>
           <tr><td>4º ao 10º pior (fora do play-in)</td><td>3</td><td><strong>24% / 39%</strong> — a maior chance</td></tr>
           <tr><td>Eliminados no play-in</td><td>2</td><td>16% / 28%</td></tr>
-          <tr><td>Derrotados no 7x8</td><td>1</td><td>8% / 15% — a menor chance</td></tr>
+          <tr><td>Perdeu Jogo 2 Playin</td><td>1</td><td>8% / 15% — a menor chance</td></tr>
         </tbody>
       </table>
     </div>

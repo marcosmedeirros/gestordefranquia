@@ -1378,7 +1378,7 @@ function projLoteriaTexto(PDO $pdo, string $ligaPedida, string $ligaGrupo): stri
             $l[] = '  ' . ($g['nomes'][$t] ?? '?') . ' (G' . ($g['grupo_de'][$t] ?? '?') . ', ' . ($g['bolinhas'][$t] ?? 0) . '): '
                  . $pct($g['top1'][$t]) . ' / ' . $pct($g['top3'][$t]) . ' / ' . $pct($g['top5'][$t]);
         }
-        $l[] = '- Grupos: G1 os 3 piores (2 bolinhas), G2 os melhores fora do play-in (3), G3 eliminados no play-in (2), G4 derrotados no 7x8 (1).'
+        $l[] = '- Grupos: G1 os 3 piores (2 bolinhas), G2 os melhores fora do play-in (3), G3 eliminados no play-in (2), G4 quem perdeu o Jogo 2 do Play-in (1).'
              . (!$g['declarado'] ? ' O admin ainda não marcou quem caiu no play-in: por enquanto o 9º e o 10º de cada conferência estão no G3 e o G4 está vazio — as chances mudam quando ele marcar.' : '');
         $l[] = 'COMO LER: no desenho da FBA os 3 piores têm MENOS chance que o miolo (2 bolinhas contra 3) — é regra, não erro. '
              . 'Palpite de top 1 é chute: a urna decide.';
@@ -1413,6 +1413,6 @@ function projLoteriaTexto(PDO $pdo, string $ligaPedida, string $ligaGrupo): stri
     $l[] = '- Mais cotados (fica fora dos playoffs · 1ª escolha · top 3): ' . implode(' · ', array_map(
         fn($t) => $times[$t]['nome'] . ' ' . projPct($fora[$t] / $M) . ' · ' . $pct($soma1[$t] / $M) . ' · ' . $pct($soma3[$t] / $M), $top)) . '.';
     $l[] = 'COMO LER: projeção, não a urna. Na FBA os 3 piores levam 2 bolinhas e o miolo 3, então o favorito ao top 1 costuma ser '
-         . 'um time fraco que NÃO é dos 3 piores. Quem cai no play-in e no 7x8 depende de jogo e não entra. Palpite é chute.';
+         . 'um time fraco que NÃO é dos 3 piores. Quem cai no play-in e no Jogo 2 depende de jogo e não entra. Palpite é chute.';
     return implode("\n", $l);
 }

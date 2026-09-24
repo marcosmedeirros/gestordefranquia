@@ -804,7 +804,7 @@ body.bc-complete .podium{display:grid}
       • <strong>3 piores recordes da liga</strong> — 2 bolinhas · 16% Top 3 / 28% Top 5<br>
       • <strong>4º ao 10º pior recorde (fora do play-in)</strong> — 3 bolinhas · 24% / 39% (a <em>maior</em> chance)<br>
       • <strong>Eliminados no play-in (9º e 10º de cada conferência)</strong> — 2 bolinhas · 16% / 28%<br>
-      • <strong>Derrotados no 7x8 (os 2 menos ruins)</strong> — 1 bolinha · 8% / 15% (a <em>menor</em> chance)<br>
+      • <strong>Perdeu Jogo 2 Playin (os 2 menos ruins)</strong> — 1 bolinha · 8% / 15% (a <em>menor</em> chance)<br>
       Assim o pior time deixa de ser o favorito à Pick 1 — quem tentou competir até o fim é mais premiado.</div>
     </details>
     <details>
