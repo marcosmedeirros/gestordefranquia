@@ -683,37 +683,6 @@ body.bc-complete .podium{display:grid}
     </div>
     <?php endif; ?>
 
-    <div class="section-title"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
-    <div class="panel">
-      <div style="overflow-x:auto">
-        <table class="balls-table" id="ballsTable">
-          <thead><tr><th>Time</th><th>Grupo</th><th>Bolinhas</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
-          <tbody id="ballsBody"></tbody>
-        </table>
-      </div>
-      <div id="ballsRodape" class="balls-rodape"></div>
-    </div>
-
-    <?php /* A MATRIZ. Top 3 e Top 5 respondem "com que chance eu pego uma
-             escolha boa", mas somam 300% e 500% entre os times — três e cinco
-             escolhas sendo distribuídas. Quem procura um total de 100% não
-             acha, e conclui que a conta está errada. Aqui cada linha soma
-             100% (o time termina em alguma pick) e cada coluna também (a pick
-             vai pra alguém). */ ?>
-    <div class="section-title" id="matrizTitulo" style="display:none">
-      <i class="bi bi-grid-3x3"></i> Chance de cair em cada escolha<i class="bi bi-question-circle info-hint" title="Cada linha é um time e soma 100%: ele termina em alguma das escolhas. Cada coluna é uma escolha e também soma 100%: ela vai pra alguém. As diferenças de 0,1 são arredondamento."></i>
-    </div>
-    <div class="panel" id="matrizPainel" style="display:none">
-      <div style="overflow-x:auto">
-        <table class="balls-table matriz-table" id="matrizTable">
-          <thead id="matrizHead"></thead>
-          <tbody id="matrizBody"></tbody>
-          <tfoot id="matrizFoot"></tfoot>
-        </table>
-      </div>
-      <div class="balls-rodape" id="matrizRodape"></div>
-    </div>
-
     <?php /* O PALCO É DE TODOS; OS BOTÕES, NÃO.
              A cerimônia acontece uma vez por ano e a liga inteira quer ver.
              Enquanto o palco existia só pra quem conduz, o resto olhava uma
@@ -761,6 +730,45 @@ body.bc-complete .podium{display:grid}
       <div class="section-title"><i class="bi bi-shield-exclamation"></i> Ajustes anti-tanking aplicados</div>
       <div class="panel"><div class="adjustments" id="adjustmentsList"></div></div>
     </div>
+
+    <?php /* AS DUAS TABELAS DE CHANCE FICAM NO FIM, e isso é escolha.
+             Elas são a consulta de quem quer conferir a conta; o que a liga
+             inteira abre a página pra ver é a bolinha saindo. Em cima delas,
+             a cerimônia nascia meia tela abaixo e quem chegava pelo celular
+             via duas tabelas de dezesseis linhas antes do palco. Continuam
+             disponíveis desde antes do sorteio — só deixaram de ser a
+             primeira coisa. */ ?>
+    <div class="section-title"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Ficam disponíveis desde antes do sorteio, pra todos saberem as probabilidades."></i></div>
+    <div class="panel">
+      <div style="overflow-x:auto">
+        <table class="balls-table" id="ballsTable">
+          <thead><tr><th>Time</th><th>Grupo</th><th>Bolinhas</th><th class="num">Pos</th><th class="num">Nº 1</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
+          <tbody id="ballsBody"></tbody>
+        </table>
+      </div>
+      <div id="ballsRodape" class="balls-rodape"></div>
+    </div>
+
+    <?php /* A MATRIZ. Top 3 e Top 5 respondem "com que chance eu pego uma
+             escolha boa", mas somam 300% e 500% entre os times — três e cinco
+             escolhas sendo distribuídas. Quem procura um total de 100% não
+             acha, e conclui que a conta está errada. Aqui cada linha soma
+             100% (o time termina em alguma pick) e cada coluna também (a pick
+             vai pra alguém). */ ?>
+    <div class="section-title" id="matrizTitulo" style="display:none">
+      <i class="bi bi-grid-3x3"></i> Chance de cair em cada escolha<i class="bi bi-question-circle info-hint" title="Cada linha é um time e soma 100%: ele termina em alguma das escolhas. Cada coluna é uma escolha e também soma 100%: ela vai pra alguém. As diferenças de 0,1 são arredondamento."></i>
+    </div>
+    <div class="panel" id="matrizPainel" style="display:none">
+      <div style="overflow-x:auto">
+        <table class="balls-table matriz-table" id="matrizTable">
+          <thead id="matrizHead"></thead>
+          <tbody id="matrizBody"></tbody>
+          <tfoot id="matrizFoot"></tfoot>
+        </table>
+      </div>
+      <div class="balls-rodape" id="matrizRodape"></div>
+    </div>
+
 
     <?php /* SÓ O REVELAR. Não há botão de confirmar nem de sortear: a ordem
              já está definida desde o salvar da temporada regular, e é gravada
