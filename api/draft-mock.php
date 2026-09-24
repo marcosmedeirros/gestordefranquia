@@ -19,6 +19,12 @@ try { requireAuth(); } catch (Exception $e) {
 $user = getUserSession();
 $pdo  = db();
 
+/* A coluna `notas` antes de qualquer consulta: o SELECT da fila pede
+   dp.notas. Foi assim que eu derrubei a tela do draft hoje — consulta
+   pedindo coluna que só outro arquivo criava. @see backend/draft_class_csv.php */
+require_once __DIR__ . '/../backend/draft_class_csv.php';
+draftCsvGarantirColunas($pdo);
+
 // Garante tabelas e coluna
 $pdo->exec("CREATE TABLE IF NOT EXISTS draft_mock_queue (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,6 +87,9 @@ switch ($action) {
             SELECT mq.id, mq.player_id, mq.priority,
                    dp.name as player_name, dp.position as player_position,
                    dp.ovr as player_ovr, dp.age as player_age,
+                   /* As letrinhas: a fila do mock e onde o GM compara
+                      prospecto com prospecto. @see draft_class_csv */
+                   dp.notas as player_notas,
                    dp.draft_status,
                    t.name AS drafted_by
             FROM draft_mock_queue mq

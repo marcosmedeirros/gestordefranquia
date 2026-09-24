@@ -372,7 +372,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .nota-atr { display:flex; flex-direction:column; align-items:center; gap:1px;
       background:var(--panel-3); border-radius:4px; padding:3px 2px;
       font-size:10px; font-weight:800; color:var(--text); line-height:1; }
-    .nota-atr i { font-style:normal; font-size:7px; font-weight:700; color:var(--text-3);
+    .nota-atr i { font-style:normal; white-space:nowrap; font-size:7px; font-weight:700; color:var(--text-3);
       letter-spacing:.02em; text-transform:uppercase; }
     @media (max-width:420px){ .nota-grid { grid-template-columns:repeat(5,1fr); gap:2px; } }
 
@@ -679,6 +679,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .pref-x:hover { color: var(--red); }
     .player-chip-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
     .player-chip-pos { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); margin-right: 4px; }
+    /* O OVR EM DESTAQUE: é o número por onde o GM separa um prospecto do
+       outro, então é o maior e o mais claro do chip — maior que a posição e
+       que a idade, que são contexto. */
+    .chip-ovr { display:inline-block; font-family:'Oswald',sans-serif; font-size:15px;
+      font-weight:700; color:var(--text); line-height:1; vertical-align:middle; }
+    .chip-idade { font-size:10px; color:var(--text-3); font-weight:600; margin-left:3px; vertical-align:middle; }
     .player-chip-ovr { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(34,197,94,.1); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
     .player-chip-age { font-size: 11px; color: var(--text-2); margin-top: 6px; }
     /* Número da ordem (pick_hint) — destacado, sempre no mesmo canto, mesma
@@ -1637,8 +1643,13 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     let n;
     try { n = JSON.parse(json); } catch { return ''; }
     if (!n || typeof n !== 'object') return '';
+    /* "POST D" e "PER D" quebravam em duas linhas na célula e empurravam a
+       letra pra baixo, deixando essas duas colunas mais altas que as outras
+       oito. Abreviadas na sigla, com o nome inteiro no title — a sigla é só
+       pra saber qual atributo é, a letra é o que se lê. */
+    const SIGLA = { 'POST D': 'PST', 'PER D': 'PER' };
     const itens = ORDEM_NOTAS.filter(k => n[k]).map(k =>
-      `<span class="nota-atr" title="${esc(k)}"><i>${esc(k)}</i>${esc(n[k])}</span>`);
+      `<span class="nota-atr" title="${esc(k)}"><i>${esc(SIGLA[k] || k)}</i>${esc(n[k])}</span>`);
     return itens.length ? `<div class="nota-grid">${itens.join('')}</div>` : '';
   }
 
@@ -1852,7 +1863,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="player-chip${drafted ? ' drafted' : ''}" ${clickable ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${clickable ? 'cursor:pointer' : ''}">
         ${p.pick_hint ? `<span class="player-chip-order">${p.pick_hint}</span>` : ''}
         <div class="player-chip-name">${esc(p.name)}</div>
-        <div><span class="player-chip-pos">${esc(p.position)}</span></div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span>${
+          /* OVR em destaque e a idade ao lado — só quando a classe tem as
+             letrinhas. Sem elas o OVR é o 60 de preenchimento, e mostrá-lo
+             em destaque faria o GM comparar prospectos por um número que é
+             igual pra todos. @see fichaDoJogador */
+          p.notas ? `<span class="chip-ovr">${parseInt(p.ovr,10)}</span>
+                     <span class="chip-idade">${parseInt(p.age,10)}a</span>` : ''}</div>
+        ${notasHtml(p.notas)}
         ${drafted ? `<div class="player-chip-drafted-tag">Draftado</div>` : ''}
       </div>
     `;
@@ -2557,7 +2575,10 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
       <div class="mock-queue-item${saiu ? ' saiu' : ''}">
         <span class="mock-queue-num">${saiu ? '<i class="bi bi-x-circle"></i>' : ordem}</span>
         <span class="mock-queue-name">${esc(item.player_name)}</span>
-        <span class="mock-queue-meta">${saiu ? quem : esc(item.player_position)}</span>
+        <span class="mock-queue-meta">${saiu ? quem
+          : esc(item.player_position) + (item.player_notas
+              ? ` · <b style="color:var(--text)">${parseInt(item.player_ovr,10)}</b> · ${parseInt(item.player_age,10)}a`
+              : '')}</span>
         <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
       </div>`;
     }).join('')
@@ -2599,7 +2620,10 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
     container.innerHTML = players.map(p => `
       <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${esc(p.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', '${esc(p.position.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${p.ovr})" style="cursor:pointer">
         <div class="player-chip-name">${esc(p.name)}</div>
-        <div><span class="player-chip-pos">${esc(p.position)}</span></div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span>${
+          p.notas ? `<span class="chip-ovr">${parseInt(p.ovr,10)}</span>
+                     <span class="chip-idade">${parseInt(p.age,10)}a</span>` : ''}</div>
+        ${notasHtml(p.notas)}
       </div>`).join('');
   }
 
