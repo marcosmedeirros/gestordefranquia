@@ -25,8 +25,14 @@
  *   4. A contagem entra em $totalProblemas e no $porArea do resumo.
  *
  * QUANDO NÃO OFERECER BOTÃO: se o conserto depende de uma decisão que o código
- * não pode tomar (refazer uma loteria, escolher qual de duas temporadas vale),
- * o bloco explica e para por aí. Adivinhar ali muda histórico de liga.
+ * não pode tomar (escolher qual de duas temporadas vale, por exemplo), o
+ * bloco explica e para por aí. Adivinhar ali muda histórico de liga.
+ *
+ * Refazer a loteria era o outro exemplo desta lista e hoje tem botão — mas a
+ * regra não mudou, e é por isso que ele é diferente dos outros: o código não
+ * escolhe a ordem nova, ele sorteia. A decisão ("a urna estava errada") é de
+ * quem aperta, e por isso aquele botão pede a palavra digitada, reconfere que
+ * ninguém escolheu ainda e guarda a ordem antiga antes de qualquer DELETE.
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
@@ -188,6 +194,46 @@ function devTemporadasPresas(PDO $pdo): array
                          ORDER BY s.league, s.season_number")->fetchAll(PDO::FETCH_ASSOC);
 }
 
+/**
+ * As loterias já sorteadas e travadas, com o estado de cada uma.
+ *
+ * Só lê. A pergunta "dá pra refazer?" mora em loteriaPodeRefazer(), que é a
+ * mesma que a ação reconfere antes de gravar.
+ */
+function devLoteriasTravadas(PDO $pdo): array
+{
+    require_once __DIR__ . '/backend/loteria_grupos.php';
+    loteriaGarantirTravada($pdo);
+    $out = [];
+    try {
+        $st = $pdo->query("SELECT t.season_id, t.league, t.ordem, t.criado_em, s.season_number
+                             FROM loteria_ordem_travada t
+                        LEFT JOIN seasons s ON s.id = t.season_id
+                         ORDER BY t.criado_em DESC");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            /* SÓ A CONTAGEM SAI DAQUI, nunca a ordem.
+               Esta tela é do dono, mas a ordem travada não pode existir em
+               tela nenhuma antes da revelação — é a regra que faz a cerimônia
+               valer alguma coisa. Devolvendo só quantos times entraram, não
+               há como o HTML vazar sem querer o que ainda não saiu. */
+            $ordem = json_decode((string)$r['ordem'], true) ?: [];
+            $check = loteriaPodeRefazer($pdo, (int)$r['season_id']);
+            $out[] = [
+                'season_id'  => (int)$r['season_id'],
+                'liga'       => (string)$r['league'],
+                'temporada'  => $r['season_number'] !== null ? (int)$r['season_number'] : null,
+                'criado_em'  => (string)$r['criado_em'],
+                'times'      => count($ordem),
+                'pode'       => (bool)$check['pode'],
+                'motivo'     => (string)$check['motivo'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[dev/loterias] ' . $e->getMessage());
+    }
+    return $out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CORREÇÕES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,6 +305,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $aviso = ['ok', "Envios de imagem da $liga zerados: $n time(s) voltaram a ter os envios da temporada."];
             }
 
+        } elseif ($acao === 'refazer_loteria') {
+            /* O ÚNICO BOTÃO AQUI QUE REESCREVE HISTÓRICO DE LIGA.
+               O cabeçalho deste arquivo diz pra não oferecer botão quando o
+               conserto depende de uma decisão que o código não pode tomar —
+               e refazer uma loteria é o exemplo que está escrito lá. Ele
+               continua valendo: quem decide é quem aperta, e por isso este
+               botão pede a palavra digitada em vez de um clique, reconfere
+               tudo antes de gravar e guarda a ordem antiga no histórico.
+               O código não escolhe nada: ele sorteia. */
+            $seasonId = (int)($_POST['season_id'] ?? 0);
+            $palavra = strtoupper(trim((string)($_POST['confirmacao'] ?? '')));
+            if ($palavra !== 'REFAZER') {
+                throw new RuntimeException('Digite REFAZER no campo pra confirmar. Nada foi alterado.');
+            }
+            $alvo = null;
+            foreach (devLoteriasTravadas($pdo) as $l) if ($l['season_id'] === $seasonId) $alvo = $l;
+            if (!$alvo)        throw new RuntimeException("A temporada $seasonId não está na lista — recarregue a página.");
+            if (!$alvo['pode']) throw new RuntimeException('Não dá pra refazer: ' . $alvo['motivo']);
+
+            require_once __DIR__ . '/backend/loteria_grupos.php';
+            $r = loteriaRefazerSorteio($pdo, $seasonId,
+                    'Refeito em ' . date('d/m/Y H:i') . ' pelo painel de correções');
+            if (!$r['ok']) throw new RuntimeException($r['erro']);
+
+            /* A MENSAGEM NÃO DIZ QUEM PEGOU O QUÊ — nem o primeiro colocado.
+               A ordem nova nasce travada e só existe pra quem revela; um
+               "agora o campeão é o X" aqui seria o mesmo vazamento que a
+               cerimônia existe pra evitar. Só a contagem sai. */
+            $aviso = ['ok', "Loteria da {$alvo['liga']} refeita. A ordem antiga foi guardada no histórico, "
+                . "a transmissão e a ordem no draft foram limpas, e a cerimônia recomeça do zero. "
+                . "A nova urna tem " . count($r['ordem_nova']) . " times. "
+                . "Ninguém vê a ordem nova até a revelação — ela está travada, como sempre."];
+
         } elseif ($acao !== '') {
             throw new RuntimeException('Ação desconhecida.');
         }
@@ -274,6 +353,7 @@ $anosVazios = devAnosVazios($pdo, $LIGAS);
 $clonadas   = devStatsClonadas($pdo);
 $linhaUnica = devLinhaUnicaRepetida($pdo);
 $tempDup    = devTemporadasPresas($pdo);
+$loterias   = devLoteriasTravadas($pdo);
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
@@ -628,6 +708,73 @@ foreach ($LIGAS as $lg) {
       <?php endif; ?>
     </div>
   <?php endforeach; ?>
+</div>
+
+<?php
+/*
+ * REFAZER A LOTERIA — o botão mais perigoso desta página.
+ *
+ * A ordem do draft é sorteada e TRAVADA no salvar da temporada regular, e
+ * dali em diante nada a muda: nem corrigir grupo, nem mexer nas chances. Isso
+ * é de propósito — sem a trava, dava pra sortear de novo até sair uma ordem
+ * do agrado de quem conduz, e a cerimônia não valeria nada.
+ *
+ * O caso em que refazer é a coisa certa é quando a urna estava errada na hora
+ * do sorteio. Foi o que houve na T5 da ELITE: Buffalo Blues e San Diego
+ * Empire perderam o Jogo 2 do play-in e deviam entrar com 1 bolinha cada,
+ * mas entraram com 2 — a urna rodou com 41 quando o certo eram 39, e os dois
+ * tiveram o dobro da chance de pegar a #1 (4,9% contra 2,6%). A correção dos
+ * grupos veio depois da urna já fechada, então ela não mudou a ordem.
+ *
+ * O botão não decide nada: ele sorteia de novo, com as bolinhas de hoje.
+ */
+?>
+<div class="pg">
+  <div class="pg-nome"><i class="bi bi-dice-5"></i> Loterias sorteadas</div>
+  <div class="pg-ver" style="margin-bottom:12px">
+    A ordem de cada loteria fica travada desde o salvar da temporada regular, e nada depois disso a muda.
+    Refazer só existe pra quando a <b>urna estava errada na hora do sorteio</b> — bolinha a mais ou a menos
+    em algum time. Sortear de novo por qualquer outro motivo é escolher o resultado até gostar dele.
+    <br><br>
+    A ordem antiga vai pro histórico antes de qualquer coisa, e a nova <b>nasce travada</b>: ninguém vê nada
+    até a revelação, nem aqui nesta tela.
+  </div>
+
+  <?php if (!$loterias): ?>
+    <div class="item">Nenhuma loteria travada — nenhuma temporada teve a ordem sorteada ainda.</div>
+  <?php else: ?>
+    <?php foreach ($loterias as $l): ?>
+      <div class="item">
+        <span class="liga"><?= h($l['liga']) ?></span>
+        <?= $l['temporada'] !== null ? 'Temporada ' . (int)$l['temporada'] : 'temporada ' . (int)$l['season_id'] ?>
+        — <?= (int)$l['times'] ?> times na urna, sorteada em
+        <?= h(date('d/m/Y H:i', strtotime($l['criado_em']))) ?>.
+
+        <?php if (!$l['pode']): ?>
+          <div class="pg-ver" style="margin-top:8px">
+            <b>Não dá pra refazer:</b> <?= h($l['motivo']) ?>
+            A ordem antiga já produziu efeito fora dela — sortear de novo deixaria o banco contando duas histórias.
+          </div>
+        <?php else: ?>
+          <div class="pg-ver" style="margin-top:8px">
+            Refazer vai: guardar esta ordem no histórico, sortear outra com as bolinhas de hoje,
+            apagar a transmissão e limpar a ordem já aplicada ao draft. A cerimônia recomeça do zero
+            e o mock volta a mostrar projeção até a nova sair.
+          </div>
+          <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"
+                onsubmit="return confirm(<?= htmlspecialchars(json_encode(
+                  "Refazer a loteria da {$l['liga']}?\n\nA ordem atual vai pro histórico e some da tela. "
+                  . "A cerimônia inteira precisa ser reconduzida."), ENT_QUOTES) ?>)">
+            <input type="hidden" name="acao" value="refazer_loteria">
+            <input type="hidden" name="season_id" value="<?= (int)$l['season_id'] ?>">
+            <input type="text" name="confirmacao" placeholder="digite REFAZER" autocomplete="off"
+                   style="padding:7px 10px;border-radius:8px;min-width:0;max-width:100%;width:150px">
+            <button type="submit">Refazer o sorteio da <?= h($l['liga']) ?></button>
+          </form>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+  <?php endif; ?>
 </div>
 
 <?php

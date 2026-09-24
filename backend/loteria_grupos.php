@@ -908,3 +908,172 @@ function loteriaOrdemTravada(PDO $pdo, int $seasonId): ?array
         return null;
     }
 }
+
+/**
+ * O HISTÓRICO DAS ORDENS SORTEADAS.
+ *
+ * `loteria_ordem_travada` guarda uma linha por temporada e é apagada quando o
+ * sorteio é refeito. Sem este histórico, refazer perderia pra sempre a ordem
+ * anterior — e ela é o registro de uma cerimônia que a liga inteira assistiu.
+ */
+function loteriaGarantirHistorico(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS loteria_ordem_historico (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            season_id INT NOT NULL,
+            league VARCHAR(20) NOT NULL,
+            ordem TEXT NOT NULL,
+            draft_order_json LONGTEXT NULL,
+            motivo VARCHAR(255) NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_season (season_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('[loteria/historico] esquema: ' . $e->getMessage());
+    }
+}
+
+/**
+ * PODE REFAZER O SORTEIO DESTA TEMPORADA?
+ *
+ * Refazer só é seguro enquanto a ordem não virou fato consumado. Depois que
+ * alguém escolhe um jogador, ou que uma proteção muda o dono de uma pick, a
+ * ordem antiga já produziu efeito fora dela — e sortear de novo deixaria o
+ * banco contando duas histórias.
+ *
+ * @return array{pode:bool, motivo:string, sessao:?array}
+ */
+function loteriaPodeRefazer(PDO $pdo, int $seasonId): array
+{
+    $naoPode = fn(string $m, ?array $s = null) => ['pode' => false, 'motivo' => $m, 'sessao' => $s];
+
+    try {
+        $st = $pdo->prepare("SELECT id, league, season_id, status, total_rounds
+                               FROM draft_sessions WHERE season_id = ?
+                              ORDER BY created_at DESC LIMIT 1");
+        $st->execute([$seasonId]);
+        $sessao = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sessao) return $naoPode('Esta temporada não tem sessão de draft.');
+
+        if (($sessao['status'] ?? '') !== 'setup') {
+            return $naoPode('O draft já saiu de "setup" (está ' . $sessao['status'] . ').', $sessao);
+        }
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM draft_order
+                              WHERE draft_session_id = ? AND picked_player_id IS NOT NULL");
+        $st->execute([(int)$sessao['id']]);
+        $escolhidas = (int)$st->fetchColumn();
+        if ($escolhidas > 0) {
+            return $naoPode("Já há $escolhidas escolha(s) feita(s) neste draft.", $sessao);
+        }
+
+        /* PROTEÇÃO RESOLVIDA É MUDANÇA DE DONO GRAVADA EM `picks`.
+           protecaoResolverNoDraft só olha protegidas com
+           protection_resolvida_em IS NULL, então as já resolvidas não seriam
+           reavaliadas pela ordem nova: ficariam decididas por uma ordem que
+           deixou de existir. @see backend/pick_protection.php */
+        require_once __DIR__ . '/draft_swaps.php';
+        $ano = draftAnoDasPicks($pdo, $seasonId);
+        if ($ano > 0) {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM picks
+                                  WHERE season_year = ? AND round = '1'
+                                    AND protection_resolvida_em IS NOT NULL");
+            $st->execute([$ano]);
+            $resolvidas = (int)$st->fetchColumn();
+            if ($resolvidas > 0) {
+                return $naoPode("$resolvidas proteção(ões) já foram resolvidas por esta ordem e mudaram dono de pick.", $sessao);
+            }
+        }
+
+        return ['pode' => true, 'motivo' => '', 'sessao' => $sessao];
+    } catch (Throwable $e) {
+        error_log('[loteria/pode-refazer] ' . $e->getMessage());
+        return $naoPode('Erro ao conferir: ' . $e->getMessage());
+    }
+}
+
+/**
+ * REFAZ O SORTEIO DA TEMPORADA.
+ *
+ * Guarda a ordem atual no histórico, apaga a travada e sorteia de novo — com
+ * as bolinhas de HOJE, que é justamente o motivo de refazer: a urna da T5 da
+ * ELITE rodou com 41 bolinhas porque Blues e Empire entraram com 2 em vez de
+ * 1, e a correção dos grupos veio depois de a urna estar fechada.
+ *
+ * Também limpa a transmissão e a ordem já aplicada ao draft, pra cerimônia
+ * recomeçar do zero e o mock voltar a dizer "projeção" até a nova sair.
+ *
+ * `$exigirDiferente` repete o sorteio se cair exatamente na ordem anterior:
+ * refazer pra chegar na mesma lista não é refazer, é confundir quem assiste.
+ *
+ * @return array{ok:bool, erro:string, ordem_antiga:array, ordem_nova:array, tentativas:int}
+ */
+function loteriaRefazerSorteio(PDO $pdo, int $seasonId, string $motivo = '', bool $exigirDiferente = true): array
+{
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'ordem_antiga' => [],
+                               'ordem_nova' => [], 'tentativas' => 0];
+
+    $check = loteriaPodeRefazer($pdo, $seasonId);
+    if (!$check['pode']) return $falha($check['motivo']);
+    $sessao = $check['sessao'];
+    $liga   = strtoupper(trim((string)($sessao['league'] ?? '')));
+
+    loteriaGarantirTravada($pdo);
+    loteriaGarantirHistorico($pdo);
+
+    $ordemAntiga = loteriaOrdemTravada($pdo, $seasonId) ?? [];
+
+    try {
+        // O draft_order de hoje vai junto do backup: é o que a ordem antiga
+        // produziu depois de dono, swap e proteção — reconstruir isso na mão
+        // depois seria impossível.
+        $st = $pdo->prepare("SELECT round, pick_position, team_id, original_team_id, traded_from_team_id
+                               FROM draft_order WHERE draft_session_id = ?
+                              ORDER BY round, pick_position");
+        $st->execute([(int)$sessao['id']]);
+        $draftOrderAntigo = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        $pdo->prepare("INSERT INTO loteria_ordem_historico
+                       (season_id, league, ordem, draft_order_json, motivo)
+                       VALUES (?,?,?,?,?)")
+            ->execute([$seasonId, $liga, json_encode($ordemAntiga),
+                       json_encode($draftOrderAntigo), $motivo !== '' ? $motivo : null]);
+    } catch (Throwable $e) {
+        // Sem backup não se mexe: o registro da cerimônia antiga é a única
+        // coisa aqui que não dá pra recriar.
+        return $falha('Não deu pra guardar o backup da ordem atual: ' . $e->getMessage());
+    }
+
+    $tentativas = 0;
+    $ordemNova = [];
+    try {
+        do {
+            $tentativas++;
+            $pdo->prepare("DELETE FROM loteria_ordem_travada WHERE season_id = ?")->execute([$seasonId]);
+            loteriaTravarOrdem($pdo, $seasonId, $liga);
+            $ordemNova = loteriaOrdemTravada($pdo, $seasonId) ?? [];
+            if (!$ordemNova) return $falha('O sorteio não produziu ordem nenhuma — confira a classificação da temporada.');
+            $igual = $ordemAntiga && $ordemNova === $ordemAntiga;
+        } while ($exigirDiferente && $igual && $tentativas < 20);
+
+        /* A CERIMÔNIA VOLTA AO COMEÇO.
+           A transmissão guarda a ordem antiga e quais posições já saíram; a
+           `draft_order` guarda a ordem antiga já aplicada. Deixando as duas,
+           a tela da loteria continuaria revelando a lista velha e o mock do
+           draft mostraria a ordem que acabou de ser descartada. */
+        $pdo->prepare("DELETE FROM lottery_broadcast WHERE draft_session_id = ?")
+            ->execute([(int)$sessao['id']]);
+        $pdo->prepare("DELETE FROM draft_order WHERE draft_session_id = ?")
+            ->execute([(int)$sessao['id']]);
+
+        return ['ok' => true, 'erro' => '', 'ordem_antiga' => $ordemAntiga,
+                'ordem_nova' => $ordemNova, 'tentativas' => $tentativas];
+    } catch (Throwable $e) {
+        error_log('[loteria/refazer] ' . $e->getMessage());
+        return $falha('Erro ao refazer: ' . $e->getMessage());
+    }
+}
