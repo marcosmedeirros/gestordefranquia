@@ -2237,10 +2237,10 @@ function montarOrdemGeral() {
                     name="geral_rank_${primeiro + i}" style="border-radius:10px;flex:1 1 auto;min-width:0"
                     onchange="_updateStandingsUnique('geral'); _atualizar7x8OrdemGeral(); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
             <label class="d-flex align-items-center gap-1 mb-0 text-nowrap" style="flex:0 0 auto;cursor:pointer;font-size:12px;color:var(--text-3)"
-                   title="Marque os dois times que perderam o jogo 7x8 — eles entram na loteria com 1 bolinha, a menor chance">
+                   title="Marque os times que perderam o Jogo 2 do Play-in — eles entram na loteria com 1 bolinha, a menor chance">
                 <input type="checkbox" class="form-check-input mt-0" name="geral_7x8_${primeiro + i}"
                        ${marcado ? 'checked' : ''} onchange="_regPtsSaveCache();">
-                Perdeu o 7x8
+                Perdeu Jogo 2 Playin
             </label>
         </div>`;
     }).join('');
@@ -2539,7 +2539,7 @@ async function loadTeamsForStandings(league) {
                     A classificação completa, do <b>1º ao último</b>. Ela define as <b>moedas da FA</b>
                     (quanto pior, mais moedas), a <b>ordem das picks</b> de quem não vai pra loteria
                     (quanto melhor, mais tarde escolhe) e os grupos de bolinhas da <b>loteria</b>.
-                    "Perdeu o 7x8" só vale pra quem ficou fora dos playoffs.
+                    "Perdeu Jogo 2 Playin" só vale pra quem ficou fora dos playoffs.
                 </div>
                 <div id="ordemGeralSlots"></div>
             </div>`;
