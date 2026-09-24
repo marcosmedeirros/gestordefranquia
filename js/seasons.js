@@ -1609,6 +1609,19 @@ async function salvarTemporadaRegular(seasonId, league) {
         return;
     }
 
+    /* SEM OS DOIS DO JOGO 2, NÃO SALVA.
+       É este clique que sorteia e tranca a ordem do draft, e o grupo 4 é o
+       único que o sistema não deduz sozinho. Salvar sem marcar deixa os dois
+       times com uma bolinha a mais do que deviam, e a ordem sai errada sem
+       ninguém perceber — corrigir depois não reabre o sorteio. O servidor
+       recusa do mesmo jeito; aqui é só pra o aviso chegar antes do envio. */
+    const perdedores7x8 = _coletarPerdedores7x8();
+    if (perdedores7x8.length !== 2) {
+        showAlert('warning', `Marque os DOIS times que perderam o Jogo 2 do play-in — marcados: ${perdedores7x8.length} de 2. `
+            + 'É o que define quem entra na loteria com 1 bolinha, e a ordem do draft é sorteada neste salvamento.');
+        return;
+    }
+
     // O CHAVEAMENTO NASCE ANTES DO ENVIO, e isto não é detalhe de ordem.
     //
     // Ele era gerado depois da resposta da API, então o rascunho subia com
@@ -1652,7 +1665,8 @@ async function salvarTemporadaRegular(seasonId, league) {
                 ordem_geral_posicoes: _coletarOrdemGeralPosicoes(),
                 // Os dois times que perderam o 7x8. É o único grupo que não
                 // se deduz de posição nenhuma; o resto a loteria monta.
-                perdedores_7x8: _coletarPerdedores7x8(),
+                // Já conferido lá em cima: são exatamente dois.
+                perdedores_7x8: perdedores7x8,
                 // Só os estendidos DESTA etapa — o Finals MVP é da etapa 2 e
                 // não pode ser apagado por um salvamento de campanha.
                 extended_awards: league === 'ELITE' ? _regPtsCollectExtended('regular') : [],
@@ -2156,6 +2170,27 @@ function _atualizar7x8OrdemGeral() {
         const label = chk.closest('label');
         if (label) label.style.opacity = bloqueia ? '0.35' : '';
     });
+    _atualizarContador7x8();
+}
+
+/**
+ * "Marcados: 1 de 2" em cima da lista.
+ *
+ * São 30 linhas; sem o contador, descobrir que faltou marcar um só acontece
+ * no erro do salvamento, depois de toda a classificação preenchida. E como é
+ * o salvamento que sorteia e tranca a ordem do draft, marcar errado aqui é um
+ * erro que não dá pra desfazer depois.
+ */
+function _atualizarContador7x8() {
+    const box = document.getElementById('contador7x8');
+    if (!box) return;
+    const n = _coletarPerdedores7x8().length;
+    const ok = n === 2;
+    box.style.color = ok ? 'var(--green, #22c55e)' : 'var(--amber, #f59e0b)';
+    box.innerHTML = ok
+        ? '<i class="bi bi-check-circle-fill me-1"></i>Perdedores do Jogo 2 do play-in: <b>2 de 2</b>.'
+        : `<i class="bi bi-exclamation-triangle-fill me-1"></i>Marque os <b>dois</b> times que perderam o Jogo 2 do play-in — `
+          + `marcados: <b>${n} de 2</b>. Sem isso a loteria sorteia com bolinha a mais, e a ordem é trancada neste salvamento.`;
 }
 
 /** Quem ocupa as 8 primeiras vagas de alguma conferência. */
@@ -2239,7 +2274,7 @@ function montarOrdemGeral() {
             <label class="d-flex align-items-center gap-1 mb-0 text-nowrap" style="flex:0 0 auto;cursor:pointer;font-size:12px;color:var(--text-3)"
                    title="Marque os times que perderam o Jogo 2 do Play-in — eles entram na loteria com 1 bolinha, a menor chance">
                 <input type="checkbox" class="form-check-input mt-0" name="geral_7x8_${primeiro + i}"
-                       ${marcado ? 'checked' : ''} onchange="_regPtsSaveCache();">
+                       ${marcado ? 'checked' : ''} onchange="_atualizarContador7x8(); _regPtsSaveCache();">
                 Perdeu Jogo 2 Playin
             </label>
         </div>`;
@@ -2541,6 +2576,7 @@ async function loadTeamsForStandings(league) {
                     (quanto melhor, mais tarde escolhe) e os grupos de bolinhas da <b>loteria</b>.
                     "Perdeu Jogo 2 Playin" só vale pra quem ficou fora dos playoffs.
                 </div>
+                <div id="contador7x8" class="small mb-2"></div>
                 <div id="ordemGeralSlots"></div>
             </div>`;
         montarOrdemGeral();

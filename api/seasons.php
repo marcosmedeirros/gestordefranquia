@@ -2341,6 +2341,43 @@ try {
                 throw new Exception('Um time aparece em mais de uma posição. Revise a classificação.');
             }
 
+            /* OS DOIS DO JOGO 2 DO PLAY-IN SÃO OBRIGATÓRIOS.
+               É este clique que fecha a urna da loteria (ver loteriaTravarOrdem
+               no fim do handler), e o grupo 4 é o único que o sistema não tem
+               como deduzir — ter perdido aquele jogo é resultado, não posição.
+               Salvando sem marcar, os dois times ficam no grupo automático com
+               uma bolinha a mais do que deviam e a ordem é sorteada errada;
+               corrigir depois não reabre o sorteio. Foi exatamente o que
+               aconteceu na T5 da ELITE.
+
+               A checagem é aqui e não só na tela: esconder o botão não protege
+               nada, e este endpoint é o que grava. */
+            $perdedores7x8 = array_values(array_unique(array_filter(array_map('intval',
+                (isset($input['perdedores_7x8']) && is_array($input['perdedores_7x8']))
+                    ? $input['perdedores_7x8'] : []
+            ), fn($t) => $t > 0)));
+
+            $classificados = array_map('intval', array_merge(
+                array_slice($stdLeste, 0, 8), array_slice($stdOeste, 0, 8)
+            ));
+            $stTimes = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
+            $stTimes->execute([$leagueR]);
+            // Liga pequena demais pra ter dois times fora não pode ser travada
+            // por uma exigência que ela não tem como cumprir.
+            $foraDosPlayoffs = (int)$stTimes->fetchColumn() - count(array_unique($classificados));
+
+            if ($foraDosPlayoffs >= 2 && count($perdedores7x8) !== 2) {
+                throw new Exception(
+                    'Marque os DOIS times que perderam o Jogo 2 do play-in (marcados: '
+                    . count($perdedores7x8) . ' de 2). É o que define quem entra na loteria com '
+                    . '1 bolinha, e a ordem do draft é sorteada neste salvamento — depois não dá pra refazer.'
+                );
+            }
+            $intrusos = array_intersect($perdedores7x8, $classificados);
+            if ($intrusos) {
+                throw new Exception('Time classificado aos playoffs não pode ser marcado como derrotado no Jogo 2 do play-in. Revise a marcação.');
+            }
+
             // DDL fora da transação: no MySQL um CREATE/ALTER comita sozinho.
             $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2561,9 +2598,10 @@ try {
                     if (!$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'lottery_group'")->fetch()) {
                         $pdo->exec("ALTER TABLE season_standings ADD COLUMN lottery_group INT NULL AFTER overall_position");
                     }
-                    $perdedores = array_values(array_unique(array_map('intval',
-                        is_array($input['perdedores_7x8']) ? $input['perdedores_7x8'] : [])));
-                    $perdedores = array_values(array_filter($perdedores, fn($t) => $t > 0));
+                    // Já lido e validado lá em cima, antes da transação abrir —
+                    // é o mesmo valor, e refazer o parse aqui abriria espaço
+                    // pras duas leituras discordarem.
+                    $perdedores = $perdedores7x8;
 
                     // Desmarcar é tão importante quanto marcar: quem saiu da
                     // lista precisa perder o rótulo, e só quem tinha o 4.
