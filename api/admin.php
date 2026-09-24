@@ -3305,8 +3305,8 @@ if ($method === 'POST') {
                                 ->execute([$tplId, $ligaNova]);
                         } catch (Throwable $e) { error_log('[admin/classe liga] ' . $e->getMessage()); }
                     }
-                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
-                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint, notas) VALUES (?,?,?,?,?,?,?)");
+                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), ($p["notas"] ?? null) ?: null]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
                 } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }
@@ -3318,8 +3318,10 @@ if ($method === 'POST') {
             } elseif ($subAction === 'add_player') {
                 $tplId = (int)($body['template_id'] ?? 0); $p = $body['player'] ?? [];
                 if (!$tplId || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
-                $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]);
+                $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint, notas) VALUES (?,?,?,?,?,?,?)");
+                // Jogador adicionado na mão não tem letrinhas — e não deve ter:
+                // elas vêm do CSV do jogo. @see backend/draft_class_csv.php
+                $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), null]);
                 echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
             } elseif ($subAction === 'update_player') {
                 $pid = (int)($body['player_id'] ?? 0); $p = $body['player'] ?? [];
@@ -3337,8 +3339,8 @@ if ($method === 'POST') {
                 $pdo->beginTransaction();
                 try {
                     $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id=?")->execute([$tplId]);
-                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
-                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint, notas) VALUES (?,?,?,?,?,?,?)");
+                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), ($p["notas"] ?? null) ?: null]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'inserted' => count($players)]);
                 } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }

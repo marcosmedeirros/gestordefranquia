@@ -683,6 +683,33 @@ try {
         exit;
     }
 
+    /**
+     * LÊ UM CSV E DEVOLVE AS LINHAS, sem gravar nada.
+     *
+     * Existe pra que a tela de "Editar Classe" do admin.php pare de ter o
+     * parser dela: ela tinha um terceiro leitor do mesmo arquivo, que exigia
+     * as colunas `name/position/ovr/age` e recusava o export do jogo
+     * (`NAME/POS/AGE/RATING`) com "CSV inválido". Três leitores, três
+     * formatos aceitos, e o arquivo certo sendo rejeitado em dois deles.
+     *
+     * Agora quem interpreta é sempre draftCsvLer(). Esta ação é só a porta
+     * pra quem precisa VER antes de gravar.
+     */
+    if ($acao === 'ler_csv') {
+        require_once __DIR__ . '/../backend/draft_class_csv.php';
+        $texto = (string)(cdCorpo()['csv'] ?? '');
+        if (trim($texto) === '') cdErro(400, 'Nenhum arquivo recebido.');
+        $lido = draftCsvLer($texto);
+        if ($lido['erros']) cdErro(400, implode(' ', $lido['erros']));
+        echo json_encode([
+            'success'   => true,
+            'players'   => $lido['jogadores'],
+            'ignoradas' => $lido['ignoradas'],
+            'com_notas' => count(array_filter($lido['jogadores'], fn($j) => !empty($j['notas']))),
+        ]);
+        exit;
+    }
+
     /** Os jogadores de uma classe, pra conferir na tela. */
     if ($acao === 'jogadores_da_classe') {
         cdGarantirSchema($pdo);

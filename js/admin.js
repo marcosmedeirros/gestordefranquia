@@ -11572,46 +11572,16 @@ function _adminDraftFileSelected(input, draftSessionId, league) {
   if (file) _adminDraftParseCSV(file, draftSessionId, league);
 }
 
-function _adminDraftParseCSV(file, draftSessionId, league) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const text = e.target.result;
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) { showAlert('warning', 'Arquivo vazio ou sem dados.'); return; }
-
-    // Detectar separador (vírgula ou ponto-e-vírgula)
-    const sep = lines[0].includes(';') ? ';' : ',';
-    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
-
-    const nameIdx = headers.indexOf('name');
-    const posIdx  = headers.indexOf('position');
-    const ovrIdx  = headers.indexOf('ovr');
-    const ageIdx  = headers.indexOf('age');
-    const hintIdx = headers.indexOf('ordem') >= 0 ? headers.indexOf('ordem') : headers.indexOf('pick_hint');
-
-    if (nameIdx < 0 || posIdx < 0 || ovrIdx < 0 || ageIdx < 0) {
-      showAlert('danger', 'Cabeçalho inválido. Esperado: name, position, ovr, age');
-      return;
-    }
-
-    _draftImportRows = [];
+/* O QUARTO leitor deste mesmo arquivo — e o último a sair. Ele também exigia
+   name/position/ovr/age e recusava o export do jogo. Agora quem lê é o
+   servidor, igual aos outros três. @see backend/draft_class_csv.php */
+async function _adminDraftParseCSV(file, draftSessionId, league) {
+  const rows = await _dcLerCSVNoServidor(file);
+  if (!rows) return;
+  {
     const errRows = [];
+    _draftImportRows = rows;
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g, ''));
-      const name = cols[nameIdx] || '';
-      const pos  = (cols[posIdx] || '').toUpperCase();
-      const ovr  = parseInt(cols[ovrIdx], 10);
-      const age  = parseInt(cols[ageIdx], 10);
-      const hintRaw = hintIdx >= 0 ? cols[hintIdx] : '';
-      const pick_hint = hintRaw && parseInt(hintRaw, 10) > 0 ? parseInt(hintRaw, 10) : null;
-
-      if (!name || !pos || isNaN(ovr) || isNaN(age) || ovr <= 0 || age <= 0) {
-        errRows.push(i + 1);
-        continue;
-      }
-      _draftImportRows.push({ name, position: pos, ovr, age, pick_hint });
-    }
 
     const preview = document.getElementById('draftImportPreview');
     const countEl = document.getElementById('draftImportCount');
@@ -11655,8 +11625,7 @@ function _adminDraftParseCSV(file, draftSessionId, league) {
 
     preview.style.display = 'block';
     document.getElementById('draftImportDropzone').style.display = 'none';
-  };
-  reader.readAsText(file, 'UTF-8');
+  }
 }
 
 async function _adminDraftConfirmImport(draftSessionId, league) {
@@ -11893,18 +11862,17 @@ let _dcNewClassRows = [];
 
 function _dcNewClassFileDrop(e) { e.preventDefault(); document.getElementById('_dcNewClassDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcNewClassParseFile(f); }
 function _dcNewClassFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcNewClassParseFile(f); }
-function _dcNewClassParseFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = _dcParseCSV(e.target.result);
-    if (!rows || !rows.length) { showAlert('danger','CSV inválido ou sem dados. Colunas: name, position, ovr, age'); return; }
+/* O leitor e um so: _dcLerCSVNoServidor. @see backend/draft_class_csv.php */
+async function _dcNewClassParseFile(file) {
+  const rows = await _dcLerCSVNoServidor(file);
+  if (!rows) return;
+  {
     _dcNewClassRows = rows;
     document.getElementById('_dcNewClassCount').textContent = rows.length;
     document.getElementById('_dcNewClassTable').innerHTML = _dcPreviewTable(rows);
     document.getElementById('_dcNewClassPreview').style.display = 'block';
     document.getElementById('_dcNewClassDropzone').style.display = 'none';
-  };
-  reader.readAsText(file,'UTF-8');
+  }
 }
 
 async function _dcSaveNewClassWithCSV() {
@@ -12131,25 +12099,39 @@ function _draftClassReplaceCSVModal(templateId) {
   document.body.appendChild(modal);
 }
 
-function _dcParseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return null;
-  const sep = lines[0].includes(';') ? ';' : ',';
-  const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g,''));
-  const ni = headers.indexOf('name'), pi = headers.indexOf('position'), oi = headers.indexOf('ovr'), ai = headers.indexOf('age');
-  const hi = headers.indexOf('ordem') >= 0 ? headers.indexOf('ordem') : headers.indexOf('pick_hint');
-  if (ni<0||pi<0||oi<0||ai<0) return null;
-  const rows = [];
-  for (let i=1;i<lines.length;i++) {
-    const cols = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g,''));
-    const name = cols[ni]||'', pos = (cols[pi]||'').toUpperCase(), ovr=parseInt(cols[oi],10), age=parseInt(cols[ai],10);
-    if (!name||!pos||isNaN(ovr)||isNaN(age)||ovr<=0||age<=0) continue;
-    const hintRaw = hi >= 0 ? cols[hi] : '';
-    const pick_hint = hintRaw && parseInt(hintRaw, 10) > 0 ? parseInt(hintRaw, 10) : null;
-    rows.push({ name, position:pos, ovr, age, pick_hint });
+/**
+ * Lê o CSV NO SERVIDOR e devolve as linhas, ou null se recusou.
+ *
+ * Um leitor só pro site inteiro: draftCsvLer(), em
+ * backend/draft_class_csv.php. Havia três aqui, cada um exigindo um
+ * cabeçalho diferente, e o export do jogo (NAME/POS/AGE/RATING) era recusado
+ * em dois deles com "Cabeçalho inválido" — o arquivo estava certo e a tela
+ * dizia que não.
+ *
+ * Mostra o aviso do próprio servidor, que diz QUAL cabeçalho ele leu, e avisa
+ * quando o arquivo veio sem as letrinhas (aba errada do jogo).
+ */
+async function _dcLerCSVNoServidor(file) {
+  let texto;
+  try { texto = await file.text(); }
+  catch (e) { showAlert('danger','Não deu pra ler o arquivo.'); return null; }
+  try {
+    const d = await api('controledrafts.php?action=ler_csv&league=' +
+      encodeURIComponent(appState.currentLeague || ''), {
+      method: 'POST', body: JSON.stringify({ csv: texto })
+    });
+    const rows = d.players || [];
+    if (!rows.length) { showAlert('danger','Nenhuma linha de jogador no arquivo.'); return null; }
+    showAlert(d.com_notas ? 'success' : 'warning',
+      d.com_notas ? `${rows.length} jogadores, ${d.com_notas} com as letrinhas.`
+                  : `${rows.length} jogadores, nenhum com letrinhas — o arquivo não trouxe as colunas de atributo.`);
+    return rows;
+  } catch (e) {
+    showAlert('danger', e?.error || 'CSV recusado.');
+    return null;
   }
-  return rows;
 }
+
 
 function _dcPreviewTable(rows) {
   return `<table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -12174,18 +12156,16 @@ function _dcPreviewTable(rows) {
 
 function _dcImportDrop(e) { e.preventDefault(); document.getElementById('_dcImportDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcImportParseFile(f); }
 function _dcImportFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcImportParseFile(f); }
-function _dcImportParseFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = _dcParseCSV(e.target.result);
-    if (!rows) { showAlert('danger','Cabeçalho inválido. Esperado: name, position, ovr, age'); return; }
+async function _dcImportParseFile(file) {
+  const rows = await _dcLerCSVNoServidor(file);
+  if (!rows) return;
+  {
     _dcImportRows = rows;
     document.getElementById('_dcImportCount').textContent = rows.length;
     document.getElementById('_dcImportTable').innerHTML = _dcPreviewTable(rows);
     document.getElementById('_dcImportPreview').style.display = 'block';
     document.getElementById('_dcImportDropzone').style.display = 'none';
-  };
-  reader.readAsText(file,'UTF-8');
+  }
 }
 
 async function _dcImportConfirm() {
@@ -12209,18 +12189,14 @@ async function _dcImportConfirm() {
 
 function _dcReplaceFileDrop(e) { e.preventDefault(); document.getElementById('_dcReplaceDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcReplaceParseFile(f); }
 function _dcReplaceFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcReplaceParseFile(f); }
-function _dcReplaceParseFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = _dcParseCSV(e.target.result);
-    if (!rows) { showAlert('danger','Cabeçalho inválido'); return; }
-    _dcImportRows = rows;
-    document.getElementById('_dcReplaceCount').textContent = rows.length;
-    document.getElementById('_dcReplaceTable').innerHTML = _dcPreviewTable(rows);
-    document.getElementById('_dcReplacePreview').style.display = 'block';
-    document.getElementById('_dcReplaceDropzone').style.display = 'none';
-  };
-  reader.readAsText(file,'UTF-8');
+async function _dcReplaceParseFile(file) {
+  const rows = await _dcLerCSVNoServidor(file);
+  if (!rows) return;
+  _dcImportRows = rows;
+  document.getElementById('_dcReplaceCount').textContent = rows.length;
+  document.getElementById('_dcReplaceTable').innerHTML = _dcPreviewTable(rows);
+  document.getElementById('_dcReplacePreview').style.display = 'block';
+  document.getElementById('_dcReplaceDropzone').style.display = 'none';
 }
 
 async function _dcReplaceConfirm() {
