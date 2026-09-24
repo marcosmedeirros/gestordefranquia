@@ -691,13 +691,31 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        cabeçalho repete as siglas uma vez em cima, em vez de uma vez por
        jogador — é o que faz a coluna ser lida de cima a baixo. */
     .pool-lista { display:flex; flex-direction:column; }
+    /* O cabeçalho carrega 20px de tampa em cima (ver .pool-cab logo abaixo),
+       e sem isto a faixa desceria esses 20px inteiros, ficando solta no meio
+       da modal. -12px come a folga da linha de cima ("Todos os jogadores, em
+       ordem", margin-bottom:12px) e devolve a faixa pra perto dela, sem
+       cobrir o texto. Só entra quando há cabeçalho — classe sem letrinhas
+       não tem faixa nenhuma pra compensar. */
+    .pool-lista.com-cab { margin-top:-12px; }
     .pool-cab, .pool-linha {
       display:grid; grid-template-columns:34px minmax(0,1fr) 46px 48px 250px;
       gap:8px; align-items:center; padding:6px 8px;
     }
-    .pool-cab { font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-      color:var(--text-3); border-bottom:1px solid var(--border); position:sticky; top:0;
-      background:var(--panel); z-index:1; }
+    /* O cabeçalho é uma FAIXA, não mais uma linha pálida igual às outras: com
+       fundo próprio e borda mais forte ele se separa da primeira linha, e
+       como fica grudado no topo enquanto a lista rola, o fundo precisa ser
+       opaco pra jogador nenhum passar por dentro das siglas.
+
+       E É DAQUI QUE VINHA O "CABEÇALHO ESTRANHO": sticky mede o topo do
+       CONTEÚDO, não o da caixa, e a .modal-body tem 20px de padding. Com
+       top:0 a faixa grudava 20px abaixo da borda, e nessa fresta passava
+       meia linha de jogador boiando acima do cabeçalho. top:-20px sobe a
+       faixa até a borda e os 20px a mais de padding em cima são a tampa da
+       fresta — a .pool-lista.com-cab desconta esses 20px quando parada. */
+    .pool-cab { font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+      color:var(--text-3); border-bottom:1px solid var(--border-md); position:sticky; top:-20px;
+      background:var(--panel-2); z-index:2; padding:29px 8px 9px; }
     .pool-linha { border-bottom:1px solid var(--border); font-size:12.5px; }
     .pool-linha:hover { background:var(--panel-2); }
     .pool-linha.drafted { opacity:.45; }
@@ -714,12 +732,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .pool-notas i { font-style:normal; text-align:center; font-weight:800; font-size:10.5px;
       color:var(--text); background:var(--panel-3); border-radius:3px; padding:2px 0;
       white-space:nowrap; overflow:hidden; }
-    .pool-cab .pool-notas i { font-size:7.5px; font-weight:700; color:var(--text-3); background:none; }
+    .pool-cab .pool-notas i { font-size:8.5px; font-weight:800; letter-spacing:0;
+      color:var(--text-3); background:none; padding:0; }
     .pool-notas i.vaga { background:none; }
     /* No celular as notas descem pra segunda linha, ocupando a largura toda:
        dez colunas em 375px ao lado do nome não sobra nada pra nenhum dos dois. */
     @media (max-width:760px){
       .pool-cab { display:none; }
+      .pool-lista.com-cab { margin-top:0; }
       .pool-linha { grid-template-columns:30px minmax(0,1fr) 40px 40px; }
       .pool-notas { grid-column:1 / -1; }
     }
@@ -1565,7 +1585,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           : '—'}</div>
         <div class="mock-player">
           <div class="mock-player-name">${esc(j.name)}</div>
-          <div class="mock-player-pos">${esc(j.position || '')}</div>
+          <div class="mock-player-pos">${esc(j.position || '')}${
+            /* OVR e idade só quando a classe veio do CSV: sem ela o 60/18 é
+               preenchimento, e destacá-lo faria comparar por número igual. */
+            j.notas ? `<span class="chip-ovr">${parseInt(j.ovr,10)}</span><span class="chip-idade">${parseInt(j.age,10)}a</span>` : ''}</div>
+          ${notasHtml(j.notas)}
         </div>
         <div class="mock-team">
           ${p ? `
@@ -1595,9 +1619,15 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     body.className = '';
     body.innerHTML = `
       <div class="info-note" style="margin-bottom:14px">
-        <strong>Projeção.</strong> A ordem dos times vem do power ranking — o mais fraco na
-        frente. A ordem de verdade só sai depois da loteria. Quem aparece é o
-        <b>dono da pick hoje</b>${proj.some(p => p.trocada)
+        ${/* Depois da loteria confirmada isto deixa de ser palpite: a ordem é
+             a sorteada. Continuar chamando de "projeção" faria o GM achar que
+             ainda pode mudar. */
+          d.ordem_real
+            ? `<strong>Ordem do draft.</strong> A loteria já saiu — esta é a ordem em que as escolhas
+               vão acontecer.`
+            : `<strong>Projeção.</strong> A ordem dos times vem do power ranking — o mais fraco na
+               frente. A ordem de verdade só sai depois da loteria.`}
+        Quem aparece é o <b>dono da pick hoje</b>${proj.some(p => p.trocada)
           ? ', com o time de origem no "via"' : ''}${proj.some(p => (p.selos || []).length)
           ? ', e as condições de swap e proteção estão marcadas' : ''}.
       </div>
@@ -1658,6 +1688,13 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
      só aparecem quando há letrinhas, que é o sinal de que a classe veio do
      CSV do jogo. @see backend/draft_class_csv.php */
   const ORDEM_NOTAS = ['IN','MID','3PT','POST D','PER D','PLAY','REB','ATHL','IQ','POT'];
+  /* As siglas do cabeçalho, no máximo três letras: a coluna de nota tem 23px
+     e "PLAY"/"ATHL" passavam disso por um fio — o overflow:hidden comia a
+     última letra e o cabeçalho ficava com palavra picada. O nome inteiro
+     segue no title. Um mapa só, usado no card e na lista, pra sigla não
+     divergir entre as duas telas. */
+  const SIGLA_NOTAS = { 'POST D':'PST', 'PER D':'PER', 'PLAY':'PLY', 'ATHL':'ATH' };
+  const siglaNota = k => SIGLA_NOTAS[k] || k;
 
   function temNotas(pick){
     return !!String(pick?.player_notas || '').trim();
@@ -1684,10 +1721,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     /* "POST D" e "PER D" quebravam em duas linhas na célula e empurravam a
        letra pra baixo, deixando essas duas colunas mais altas que as outras
        oito. Abreviadas na sigla, com o nome inteiro no title — a sigla é só
-       pra saber qual atributo é, a letra é o que se lê. */
-    const SIGLA = { 'POST D': 'PST', 'PER D': 'PER' };
+       pra saber qual atributo é, a letra é o que se lê. @see SIGLA_NOTAS */
     const itens = ORDEM_NOTAS.filter(k => n[k]).map(k =>
-      `<span class="nota-atr" title="${esc(k)}"><i>${esc(SIGLA[k] || k)}</i>${esc(n[k])}</span>`);
+      `<span class="nota-atr" title="${esc(k)}"><i>${esc(siglaNota(k))}</i>${esc(n[k])}</span>`);
     return itens.length ? `<div class="nota-grid">${itens.join('')}</div>` : '';
   }
 
@@ -1891,6 +1927,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const countEl = document.getElementById(countElId);
     if (countEl) countEl.textContent = players.length;
     if (!players.length) {
+      /* Sem a limpeza a lista guardava o .com-cab da busca anterior e o
+         "nenhum jogador" subia 20px, encostando na linha de cima. */
+      container.className = 'pool-lista';
       container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>';
       return;
     }
@@ -1900,12 +1939,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        impede. Em lista, cada linha é um jogador e as colunas de nota ficam
        alinhadas de cima a baixo: dá pra correr o olho por uma coluna só. */
     const temLetras = players.some(p => p.notas);
-    container.className = 'pool-lista';
+    container.className = 'pool-lista' + (temLetras ? ' com-cab' : '');
     container.innerHTML = `
       ${temLetras ? `<div class="pool-cab">
         <span class="pool-ord">#</span><span class="pool-nome">Jogador</span>
         <span class="pool-ovr">OVR</span><span class="pool-idade">Idade</span>
-        <span class="pool-notas">${ORDEM_NOTAS.map(k => `<i title="${esc(k)}">${esc(({'POST D':'PST','PER D':'PER'})[k] || k)}</i>`).join('')}</span>
+        <span class="pool-notas">${ORDEM_NOTAS.map(k => `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
       </div>` : ''}
       ${players.map(p => {
         const drafted = p.draft_status === 'drafted';

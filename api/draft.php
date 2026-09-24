@@ -654,7 +654,11 @@ if ($method === 'GET') {
             // cadastro; quem não tem vai pro fim, por nome, pra lista nunca
             // sair embaralhada de um carregamento pro outro.
             $stmt = $pdo->prepare(
-                "SELECT id, name, position, pick_hint
+                /* OVR, idade e notas entram aqui desde que a classe passou a
+                   vir do CSV do jogo: antes todo calouro era 60/18 e mostrar
+                   isso era inventar informação. Agora o número é real, e é o
+                   que o GM usa pra comparar um prospecto com outro. */
+                "SELECT id, name, position, pick_hint, ovr, age, notas
                  FROM draft_pool WHERE season_id = ?
                  ORDER BY COALESCE(pick_hint, 999999) ASC, name ASC"
             );
@@ -665,15 +669,75 @@ if ($method === 'GET') {
                     'ordem'    => $i + 1,
                     'name'     => $p['name'],
                     'position' => $p['position'],
+                    /* Estes três estavam sendo buscados e jogados fora aqui:
+                       a consulta acima já pedia ovr/age/notas, mas a linha
+                       montada só levava nome e posição — por isso o mock
+                       continuava sem OVR e sem letrinha por mais que a classe
+                       tivesse. A tela só mostra quando há `notas`. */
+                    'ovr'      => $p['ovr'],
+                    'age'      => $p['age'],
+                    'notas'    => $p['notas'],
                 ];
             }
 
-            // A ordem projetada: power ranking de trás pra frente.
+            /* A ORDEM DE VERDADE, QUANDO ELA JÁ EXISTE.
+               Depois que a loteria é revelada e confirmada, a ordem vira
+               linha em `draft_order` — e a partir daí a projeção pelo power
+               ranking está errada: ela mostra quem seria, não quem é. O mock
+               passa a seguir a ordem sorteada, que é a que vai acontecer.
+
+               Sem loteria confirmada, continua a projeção de sempre: power
+               ranking de trás pra frente, o mais fraco na frente.
+
+               A ordem é guardada POR RODADA, e é assim que ela é lida: a 2ª
+               rodada pode não repetir a 1ª (swap, pick movida), e o laço lá
+               embaixo pede a lista da rodada que está montando. */
+            $ordemReal = [];
+            try {
+                /* original_team_id, NÃO team_id: a linha guarda os dois — de
+                   quem é o SLOT (o que a loteria sorteou) e quem é o dono da
+                   pick hoje. Daqui pra baixo o dono sai do mapa $dono, montado
+                   da tabela `picks`, que é a fonte viva de trade e swap; se a
+                   ordem já viesse com o dono, o mapa remapearia por cima e o
+                   "via" apontaria pro time errado. */
+                $stOr = $pdo->prepare('SELECT round,
+                                              COALESCE(NULLIF(original_team_id,0), team_id) AS slot_team_id
+                                         FROM draft_order
+                                        WHERE draft_session_id = ?
+                                     ORDER BY round ASC, pick_position ASC');
+                $stOr->execute([(int)$sessao['id']]);
+                foreach ($stOr->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    if (!(int)$r['slot_team_id']) continue;
+                    $ordemReal[(int)$r['round']][] = (int)$r['slot_team_id'];
+                }
+            } catch (Throwable $e) {
+                error_log('[draft/mock] ordem real: ' . $e->getMessage());
+            }
+
             require_once __DIR__ . '/../backend/power_ranking.php';
             $forca = fbaPowerRanking($pdo, $league);
             $projecao = [];
             if ($forca) {
-                $doDraft = array_reverse($forca);
+                /* `draft_order` guarda só o id do time, e daqui pra baixo o
+                   laço lê $t['team_name'], $t['team_photo'] e companhia. Então
+                   a ordem sorteada é traduzida nas MESMAS linhas do power
+                   ranking, na ordem dela — id que não estiver no ranking (time
+                   removido da liga, por exemplo) fica de fora em vez de virar
+                   uma linha pela metade. Sem loteria confirmada, segue a
+                   projeção de sempre: ranking de trás pra frente. */
+                $porId = [];
+                foreach ($forca as $t) $porId[(int)$t['team_id']] = $t;
+
+                $projetado = array_reverse($forca);
+                $ordemDaRodada = function (int $rodada) use ($ordemReal, $porId, $projetado): array {
+                    $ids = $ordemReal[$rodada] ?? [];
+                    if (!$ids) return $projetado;
+                    $linhas = [];
+                    foreach ($ids as $tid) {
+                        if (isset($porId[$tid])) $linhas[] = $porId[$tid];
+                    }
+                    return $linhas ?: $projetado;
+                };
 
                 // Dono atual de cada pick desta temporada, por rodada. A chave
                 // é o time de ORIGEM: é a pick "do" time, mesmo estando com
@@ -738,7 +802,7 @@ if ($method === 'GET') {
                 // sem time nenhum ao lado.
                 $totalRodadas = max(1, min(2, (int)($sessao['total_rounds'] ?? 2)));
                 for ($rodada = 1; $rodada <= $totalRodadas; $rodada++) {
-                    foreach ($doDraft as $i => $t) {
+                    foreach ($ordemDaRodada($rodada) as $i => $t) {
                         $d = $dono[(string)$rodada][$t['team_id']] ?? null;
                         $projecao[] = [
                             'pick'          => count($projecao) + 1,
@@ -763,7 +827,10 @@ if ($method === 'GET') {
             }
 
             echo json_encode(['success' => true, 'session' => $sessao,
-                              'pool' => $pool, 'projecao' => $projecao]);
+                              'pool' => $pool, 'projecao' => $projecao,
+                              // A tela troca o aviso: projeção x ordem sorteada.
+                              // Vale a 1ª rodada — é a que a loteria define.
+                              'ordem_real' => !empty($ordemReal[1])]);
             break;
 
         // Buscar ordem de draft e status das picks
