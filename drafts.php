@@ -575,7 +575,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     /* Mock do draft (status "configurando"): a classe na ordem, com o time
        que pegaria cada pick. */
     .mock-list { display: flex; flex-direction: column; gap: 6px; }
-    .mock-row {
+    .mock-row, .mock-cab {
       display: grid;
       grid-template-columns: 46px 1fr 1fr;
       align-items: center;
@@ -585,10 +585,33 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       border: 1px solid var(--border);
       border-radius: 8px;
     }
+    /* COM AS LETRINHAS A LINHA VIRA TABELA.
+       Com `1fr` pro jogador, a grade 5x2 de notas esticava pra metade da
+       largura da página: dez caixas enormes e quase vazias, cada pick com
+       120px de altura, e um buraco entre elas e o time. Quatro escolhas por
+       tela. Em colunas de largura fixa a nota ocupa o que ela é — uma letra —,
+       a linha cai pra ~40px, e as dez colunas ficam alinhadas de cima a
+       baixo, que é o que deixa comparar prospecto com prospecto. */
+    .mock-list.com-notas .mock-row,
+    .mock-list.com-notas .mock-cab {
+      grid-template-columns: 46px minmax(120px,.92fr) 44px 40px 290px minmax(140px,1fr);
+      gap: 10px;
+    }
+    .mock-cab {
+      background: none; border: none; padding-top: 0; padding-bottom: 4px;
+      font-size: 9px; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-3);
+    }
+    .mock-cab .mock-time-lbl { text-align: right; }
     .mock-pick {
       font-weight: 800; font-size: 13px; color: var(--amber);
       font-variant-numeric: tabular-nums;
     }
+    .mock-player { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .mock-player > .player-chip-pos { flex-shrink: 0; }
+    .mock-ovr { text-align: center; }
+    .mock-ovr b { font-family: 'Oswald', sans-serif; font-size: 17px; color: var(--text); }
+    .mock-idade { text-align: center; font-size: 11px; color: var(--text-3); }
     /* A rodada só aparece quando não é a 1ª — na 1ª o "R1" em toda linha
        seria ruído, já que é o caso normal. */
     .mock-pick-r {
@@ -622,6 +645,22 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .mock-team-logo { order: 1; width: 22px; height: 22px; }
       .mock-team-txt  { order: 2; text-align: left; }
       .mock-selos     { justify-content: flex-start; }
+    }
+    /* Dez colunas de nota ao lado do nome E do time não cabem num tablet, e
+       muito menos num celular: elas descem pra faixa própria, com o resto da
+       linha em cima. O cabeçalho sai junto — sem as colunas alinhadas ele não
+       rotula mais nada. */
+    @media (max-width: 900px) {
+      .mock-list.com-notas .mock-cab { display: none; }
+      .mock-list.com-notas .mock-row {
+        grid-template-columns: 42px minmax(0,1fr) 44px 40px;
+        row-gap: 6px;
+      }
+      .mock-list.com-notas .mock-row .pool-notas { grid-column: 1 / -1; }
+      .mock-list.com-notas .mock-team { grid-column: 1 / -1; justify-content: flex-start; }
+      .mock-list.com-notas .mock-team-logo { order: 1; width: 22px; height: 22px; }
+      .mock-list.com-notas .mock-team-txt  { order: 2; text-align: left; }
+      .mock-list.com-notas .mock-selos     { justify-content: flex-start; }
     }
     .info-note.blue {
       background: rgba(59,130,246,.08);
@@ -1543,13 +1582,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   /**
    * O mock de antes da loteria: a classe na ordem, e quem pegaria cada pick.
    *
-   * A ordem dos times é PROJEÇÃO — sai do power ranking de trás pra frente,
-   * como o 2K faz antes do sorteio. Está escrito na tela justamente pra
-   * ninguém confundir com a ordem de verdade, que só nasce da campanha.
+   * A ordem dos times é projeção ENQUANTO a loteria não saiu — power ranking
+   * de trás pra frente, como o 2K faz antes do sorteio. Depois que ela sai, a
+   * ordem passa a vir de `draft_order` e o aviso no topo muda: deixa de ser
+   * palpite e vira a ordem em que as escolhas vão acontecer (`ordem_real`).
    *
-   * Do calouro só saem ordem, nome e posição. OVR e idade ficam de fora
-   * porque todo mundo entra no pool com o mesmo 60/18 — mostrar esses
-   * números seria inventar uma informação que ainda não existe.
+   * OVR, idade e letrinhas só aparecem quando a classe veio do CSV do jogo.
+   * Classe cadastrada na mão entra com 60/18 e sem notas, e destacar aquele
+   * 60 faria comparar prospectos por um número de preenchimento.
    */
   async function loadSetupPreview() {
     const body  = document.getElementById('setupPreviewBody');
@@ -1576,6 +1616,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     if (count) count.textContent = `${pool.length} calouros`;
 
+    /* A grade da linha muda inteira conforme a classe tenha ou não letrinhas,
+       então a pergunta é feita uma vez só, aqui, e vale pro cabeçalho e pras
+       linhas — decidir por linha deixaria umas com seis colunas e outras com
+       três na mesma lista. */
+    const temNotasNoPool = pool.some(j => j.notas);
+
     const linha = (j, p) => `
       <div class="mock-row">
         <div class="mock-pick">${p
@@ -1584,13 +1630,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               : '#' + p.pick_na_rodada)
           : '—'}</div>
         <div class="mock-player">
-          <div class="mock-player-name">${esc(j.name)}</div>
-          <div class="mock-player-pos">${esc(j.position || '')}${
-            /* OVR e idade só quando a classe veio do CSV: sem ela o 60/18 é
-               preenchimento, e destacá-lo faria comparar por número igual. */
-            j.notas ? `<span class="chip-ovr">${parseInt(j.ovr,10)}</span><span class="chip-idade">${parseInt(j.age,10)}a</span>` : ''}</div>
-          ${notasHtml(j.notas)}
+          <span class="mock-player-name">${esc(j.name)}</span>
+          ${j.position ? `<span class="player-chip-pos">${esc(j.position)}</span>` : ''}
         </div>
+        ${/* OVR e idade só quando a classe veio do CSV: sem ela o 60/18 é
+             preenchimento, e destacá-lo faria comparar por número igual.
+             Sem notas as três colunas nem existem na grade — ver
+             .mock-list.com-notas. */
+          j.notas ? `
+        <div class="mock-ovr"><b>${parseInt(j.ovr, 10)}</b></div>
+        <div class="mock-idade">${parseInt(j.age, 10)}a</div>
+        <span class="pool-notas">${notasCelulas(j.notas)}</span>` : ''}
         <div class="mock-team">
           ${p ? `
             <img class="mock-team-logo" src="${esc(p.dono_logo || '/img/default-team.png')}"
@@ -1631,7 +1681,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           ? ', com o time de origem no "via"' : ''}${proj.some(p => (p.selos || []).length)
           ? ', e as condições de swap e proteção estão marcadas' : ''}.
       </div>
-      <div class="mock-list">
+      <div class="mock-list${temNotasNoPool ? ' com-notas' : ''}">
+        ${temNotasNoPool ? `
+        <div class="mock-cab">
+          <span></span><span>Jogador</span><span>OVR</span><span>Idade</span>
+          <span class="pool-notas">${ORDEM_NOTAS.map(k =>
+            `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
+          <span class="mock-time-lbl">Time</span>
+        </div>` : ''}
         ${pool.map((j, i) => linha(j, proj[i] || null)).join('')}
       </div>
     `;
