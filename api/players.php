@@ -475,10 +475,16 @@ if ($method === 'POST') {
             $stGl->execute([$teamId]);
             $gleagueExtra = (int)$stGl->fetchColumn();
         } catch (Throwable $e) { /* coluna nasce na primeira compra na loja */ }
-        $vagasGL = (defined('GLEAGUE_VAGAS') ? GLEAGUE_VAGAS : 2) + $gleagueExtra;
+        // Fora da ELITE não há vaga nenhuma, por mais que a loja tenha vendido.
+        $vagasGL = ligaUsaGLeague(restrictedLigaDoTime($pdo, $teamId))
+            ? (defined('GLEAGUE_VAGAS') ? GLEAGUE_VAGAS : 2) + $gleagueExtra
+            : 0;
         $naGL = array_keys(array_filter($final, fn($r) => $r === 'G-League'));
         foreach ($pedidas as $pid => $role) {
             if ($role !== 'G-League' || $elenco[$pid]['role'] === 'G-League') continue;
+            if ($vagasGL <= 0) {
+                jsonResponse(409, ['error' => 'A G-League é exclusiva da ELITE. Use Banco ou Outro.']);
+            }
             if (count($naGL) > $vagasGL) {
                 jsonResponse(409, ['error' => "Limite de G-League atingido (máximo {$vagasGL})."]);
             }
@@ -655,10 +661,15 @@ if ($method === 'POST') {
         jsonResponse(409, ['error' => "Já tem um {$position} titular: {$ocupante}. "
             . 'O quinteto é uma posição de cada — mande ele pro banco antes.']);
     }
+    /* G-LEAGUE SÓ NA ELITE. A trava tem que estar aqui e não só no select:
+       a página esconde a opção, mas um POST direto passava. @see ligaUsaGLeague */
+    if ($role === 'G-League' && !ligaUsaGLeague(restrictedLigaDoTime($pdo, $teamId))) {
+        jsonResponse(409, ['error' => 'A G-League é exclusiva da ELITE. Use Banco ou Outro.']);
+    }
     if ($role === 'G-League' && $gleagueCount >= 2) {
         jsonResponse(409, ['error' => 'Limite de G-League atingido (máximo 2).']);
     }
-    
+
     // Validar elegibilidade para G-League
     if ($role === 'G-League' && $age >= 25) {
         jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
@@ -821,10 +832,14 @@ if ($method === 'PUT') {
         if ($role === 'Titular' && $titularCount >= 5) {
             jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
         }
+        // Mesma trava do cadastro: G-League é exclusiva da ELITE.
+        if ($role === 'G-League' && !ligaUsaGLeague(restrictedLigaDoTime($pdo, $teamId))) {
+            jsonResponse(409, ['error' => 'A G-League é exclusiva da ELITE. Use Banco ou Outro.']);
+        }
         if ($role === 'G-League' && $gleagueCount >= 2) {
             jsonResponse(409, ['error' => 'Limite de G-League atingido (máximo 2).']);
         }
-        
+
         // Validar elegibilidade para G-League
         if ($role === 'G-League' && $age >= 25) {
             jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);

@@ -1103,11 +1103,17 @@ if ($teamId) {
                     </div>
                     <div class="field" style="grid-column: span 4;">
                         <label for="edit-role">Função</label>
+                        <?php /* O MESMO GATE DOS OUTROS DOIS SELECTS desta
+                                 página: G-League é só da ELITE. Este ficou de
+                                 fora quando a trava foi posta nos outros, e
+                                 era por ele que o GM de outra liga ainda
+                                 mandava jogador pra G-League — pela edição,
+                                 em vez do cadastro. */ ?>
                         <select id="edit-role" required>
                             <option value="Titular">Titular</option>
                             <option value="Banco">Banco</option>
                             <option value="Outro">Outro</option>
-                            <option value="G-League">G-League</option>
+                            <?php if ($isElite): ?><option value="G-League">G-League</option><?php endif; ?>
                         </select>
                     </div>
                     <div style="grid-column: span 6; display:flex; align-items:center; gap:10px; padding-top:6px;">

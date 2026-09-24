@@ -654,6 +654,25 @@ function ligaUsaLealdade(string $league): bool
     return !str_starts_with(strtoupper(trim($league)), 'ROOKIE');
 }
 
+/**
+ * A liga tem G-LEAGUE? Só a ELITE, desde 24/09/2026.
+ *
+ * As telas já escondiam a G-League fora da ELITE, mas cada uma por conta
+ * própria — e uma delas (o select de EDIÇÃO do my-roster) tinha ficado sem a
+ * trava, então dava pra mandar jogador pra lá pela edição em vez do cadastro.
+ * Dez jogadores de RISE e ROOKIE estavam nesse estado.
+ *
+ * E não era só cosmético: quem está marcado como G-League fica FORA da
+ * rotação de minutos (ver sugerirMinutos, em api/tactics.php). Numa liga sem
+ * G-League, esse jogador sumia do rodízio sem o GM ter como saber por quê.
+ *
+ * Com a pergunta num lugar só, tela e servidor respondem igual.
+ */
+function ligaUsaGLeague(?string $league): bool
+{
+    return strtoupper(trim((string)$league)) === 'ELITE';
+}
+
 /** A régua da liga, ou null se a liga não usa Cap + (ELITE e ROOKIE). */
 function restrictedRegraDaLiga(string $league): ?array
 {
