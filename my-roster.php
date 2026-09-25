@@ -117,7 +117,7 @@ $maxTradesCopy   = 3;
 $teamCapCopy     = 0;
 if ($teamId) {
     try {
-        $s = $pdo->prepare("SELECT id,name,position,role,ovr,age,player_tag,player_tag_color,player_tag_copy FROM players WHERE team_id=? ORDER BY ovr DESC,name ASC");
+        $s = $pdo->prepare("SELECT id,name,position,secondary_position,role,ovr,age,player_tag,player_tag_color,player_tag_copy FROM players WHERE team_id=? ORDER BY ovr DESC,name ASC");
         $s->execute([$teamId]);
         $allPlayersCopy = $s->fetchAll(PDO::FETCH_ASSOC);
     } catch(Exception $e) {
@@ -1436,6 +1436,17 @@ if ($teamId) {
         const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
         const fmtLine   = (label, p) => p ? `${label}: ${nomeDe(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
         const fmtPlayer = p => `${p.position}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
+        /* O BANCO SAI COM AS DUAS POSICOES ("SG/SF"), igual ao /time.
+           Quem lê a cópia decide troca em cima dela, e saber que o reserva
+           cobre duas vagas muda a leitura do elenco. Só o banco: os titulares
+           já saem pelo lugar em que foram escalados, e Others/G-League não
+           entram em rotação. */
+        const posDupla = p => {
+            const pri = String(p.position || '').toUpperCase();
+            const sec = String(p.secondary_position || '').toUpperCase();
+            return (!sec || sec === pri) ? (pri || '--') : `${pri}/${sec}`;
+        };
+        const fmtBench = p => `${posDupla(p)}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
         const isElite   = (_teamMeta.league||'').toUpperCase() === 'ELITE';
 
         _rosterData.filter(p => p.role === 'Titular').forEach(p => {
@@ -1450,7 +1461,7 @@ if ($teamId) {
             ? _teamMeta.customHeader.trim().split('\n')
             : [`*${_teamMeta.name}*`, _teamMeta.userName];
 
-        const lines = [...headerLines, '', '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '', '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), ''];
+        const lines = [...headerLines, '', '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '', '_Bench_', ...(bench.length ? bench.map(fmtBench) : ['-']), ''];
 
         if (mode === 'team') {
             lines.push('_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '');

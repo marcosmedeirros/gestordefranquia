@@ -2350,6 +2350,17 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
         const fmtLine = (label, p) => p ? `${label}: ${nomeDe(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
         const fmtPlayer = p => `${p.position}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
+        /* O BANCO SAI COM AS DUAS POSICOES ("SG/SF"), igual ao /time.
+           Quem lê a cópia decide troca em cima dela, e saber que o reserva
+           cobre duas vagas muda a leitura do elenco. Só o banco: os titulares
+           já saem pelo lugar em que foram escalados, e Others/G-League não
+           entram em rotação. */
+        const posDupla = p => {
+            const pri = String(p.position || '').toUpperCase();
+            const sec = String(p.secondary_position || '').toUpperCase();
+            return (!sec || sec === pri) ? (pri || '--') : `${pri}/${sec}`;
+        };
+        const fmtBench = p => `${posDupla(p)}: ${nomeDe(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
 
         // Lugar na quadra: a secundária quando o GM escalou ele ali, senão a principal.
         const lugarDe = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
@@ -2373,7 +2384,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const lines = [
             ...headerLines, '',
             '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '',
-            '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), '',
+            '_Bench_', ...(bench.length ? bench.map(fmtBench) : ['-']), '',
             '_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '',
         ];
         if (isElite) lines.push('_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '');
