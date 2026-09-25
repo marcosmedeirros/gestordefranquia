@@ -1741,7 +1741,11 @@ function getNotifCatalog(): array {
         'waiver'      => ['label' => 'Waivers',           'icon' => 'bi-clock-history',       'desc' => 'Jogador entrando nos waivers e resultado do seu claim.'],
         'free_agency' => ['label' => 'Free Agency',       'icon' => 'bi-coin',                'desc' => 'Abertura da janela e resultado dos seus pedidos.'],
         'tatica'      => ['label' => 'Tática',            'icon' => 'bi-clipboard2-pulse',    'desc' => 'Aviso quando a janela de edição da tática abre e fecha.'],
-        'cap'         => ['label' => 'CAP da liga',       'icon' => 'bi-graph-up-arrow',      'desc' => 'Recálculo do teto salarial da sua liga.'],
+        /* O canal 'cap' saiu em 25/09/2026: o recálculo deixou de avisar
+           sozinho — nem push, nem mensagem no Gameplay —, e quem anuncia a
+           faixa nova é a administração. Deixar a opção ligável seria oferecer
+           um aviso que ninguém mais manda. Preferências antigas com "cap"
+           desligado continuam válidas e simplesmente não acham par aqui. */
         'eventos'     => ['label' => 'Roletas e sorteios','icon' => 'bi-shuffle',             'desc' => 'Roletas, draft de lendas e drafts aleatórios.'],
         'games'       => ['label' => 'Games',             'icon' => 'bi-controller',          'desc' => 'Desafios recebidos nos games, como o Starting5x5.'],
     ];

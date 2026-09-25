@@ -297,91 +297,17 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber, bool $
         'alvo_max'  => $alvoMax,
         'segurou'   => $temCapAtual && ($alvoMin !== $newMin || $alvoMax !== $newMax),
     ];
-    notificarRecalculoCapDaLiga($pdo, $resumo);
+    /* O CAP NÃO SE ANUNCIA SOZINHO — quem anuncia é a administração.
+       Aqui saíam dois avisos automáticos no mesmo recálculo: um push pra todo
+       usuário da liga e uma mensagem no Gameplay. Os dois disparavam antes de
+       alguém conferir o número, e foi assim que a liga soube de um CAP que
+       ninguém tinha mandado calcular. A conta continua a mesma; o que sai dela
+       agora é só o resumo, pra quem apertou o botão ler e decidir o que falar.
+       Decisão do Marcos em 25/09/2026. */
 
     return $resumo;
 }
 
-/** Avisa por push todo mundo da liga que o CAP mudou. Best-effort. */
-function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
-{
-    $pushFile = __DIR__ . '/push.php';
-    if (!file_exists($pushFile)) return;
-    require_once $pushFile;
-
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE league = ?");
-        $stmt->execute([$resumo['league']]);
-        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    } catch (Throwable $e) {
-        error_log('notificarRecalculoCapDaLiga (usuários): ' . $e->getMessage());
-        return;
-    }
-
-    $unidade = $resumo['cap_mode'] === 'salary' ? 'M' : '';
-    $payload = [
-        'title' => "📊 Novo CAP da {$resumo['league']}",
-        'body'  => "Temporada {$resumo['season_number']}: CAP agora é {$resumo['cap_min']}{$unidade}–{$resumo['cap_max']}{$unidade} (média {$resumo['avg']}{$unidade} entre os times).",
-        'url'   => '/dashboard.php',
-    ];
-    foreach ($userIds as $uid) {
-        try {
-            sendPushToUser($pdo, (int)$uid, $payload, 'cap');
-        } catch (Throwable $e) {
-            error_log('notificarRecalculoCapDaLiga (push user_id=' . $uid . '): ' . $e->getMessage());
-        }
-    }
-
-    capAvisarGrupoDoRecalculo($pdo, $resumo);
-}
-
-/**
- * O CAP NOVO NO GAMEPLAY DA LIGA.
- *
- * O push já existia, mas push é aviso de quem está com o app instalado e com
- * a permissão ligada — e a faixa do CAP é a régua que decide quem pode fechar
- * troca hoje à noite. Quem não soube que ela mudou monta elenco contra um
- * número que não existe mais.
- *
- * Quantos times ficaram fora da faixa vai junto: é o que transforma o aviso em
- * ação, porque quem está fora tem que se ajustar.
- */
-function capAvisarGrupoDoRecalculo(PDO $pdo, array $resumo): void
-{
-    try {
-        require_once __DIR__ . '/whatsapp.php';
-        require_once __DIR__ . '/leilao_bot.php';   // botGrupoDaCerimonia()
-
-        $liga = strtoupper((string)($resumo['league'] ?? ''));
-        if ($liga === '') return;
-
-        $grupo = botGrupoDaCerimonia($pdo, $liga);
-        if (!$grupo) return;
-
-        $un = ($resumo['cap_mode'] ?? '') === 'salary' ? 'M' : '';
-        $fora = [];
-        if (!empty($resumo['teams_above'])) $fora[] = (int)$resumo['teams_above'] . ' acima';
-        if (!empty($resumo['teams_below'])) $fora[] = (int)$resumo['teams_below'] . ' abaixo';
-
-        /* UMA LINHA DE RODAPÉ, no formato que ele pediu: de onde veio e quem
-           ficou fora. A média saiu — ela explica a conta, e quem lê no grupo
-           quer o número que vale e quem tem que se mexer. */
-        $rodape = [];
-        if (!empty($resumo['antes_min']) && !empty($resumo['antes_max'])) {
-            $rodape[] = "Era {$resumo['antes_min']}–{$resumo['antes_max']}{$un}";
-        }
-        $rodape[] = $fora ? implode(' e ', $fora) . ' da faixa' : 'todo mundo dentro da faixa';
-
-        $txt = "📊 *NOVO CAP DEFINIDO — {$liga}*\n\n"
-             . "Cap máximo: *{$resumo['cap_max']}{$un}*\n"
-             . "Cap mínimo: *{$resumo['cap_min']}{$un}*\n\n"
-             . '_' . implode(' | ', $rodape) . '_';
-
-        whatsappEnfileirar($pdo, $grupo, $txt, true, 'cap');
-    } catch (Throwable $e) {
-        error_log('[cap] aviso no grupo: ' . $e->getMessage());
-    }
-}
 
 /**
  * O CAP NÃO SE MEXE MAIS SOZINHO.
