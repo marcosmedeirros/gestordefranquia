@@ -110,7 +110,7 @@ function draftAutopickJogador(PDO $pdo, array $session, int $teamId): ?array
     if (!$relogioArmado) return null;
 
     // O maior entre os dois: uma pick que já estava aberta há horas ganha
-    // 5 minutos frescos a partir da hora marcada, em vez de estourar na hora.
+    // o prazo inteiro a partir da hora marcada, em vez de estourar na hora.
     $referencia = max($inicioPick, $inicioRelogio);
     if (($agora - $referencia) < DRAFT_AUTOPICK_PRAZO_CURTO) return null;
 

@@ -1311,7 +1311,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
     const showRound2Team = session.status === 'in_progress' && session.current_round == 2 && userTeamId;
     // Relógio da 1ª rodada (admin agenda em js/admin.js): antes da hora marcada, só um aviso
-    // informativo; depois dela, uma contagem regressiva de 5min pra pick atual (o backend já
+    // informativo; depois dela, uma contagem regressiva do prazo da pick atual (o backend já
     // faz o autopick pela ordem geral se ninguém escolher a tempo — isso aqui é só exibição).
     const round1ClockInfo = (session.status === 'in_progress' && Number(session.current_round) === 1 && session.round1_clock_start_at)
       ? getRound1ClockInfo(session)
@@ -1483,7 +1483,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (!round1ClockInfo.armed) {
         const d = new Date(round1ClockInfo.clockStartMs);
         const dateLabel = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        round1ClockHtml = `<div style="font-size:12px;color:var(--text-2);margin-bottom:12px"><i class="bi bi-clock"></i> Escolhas livres até ${dateLabel} — depois disso, 5min por pick.</div>`;
+        // O número sai do prazo de verdade, não escrito na mão: era aqui que
+        // a tela prometia 5 minutos enquanto o autopick dava 3.
+        const minPorPick = Math.round(round1PrazoSeg(session) / 60);
+        round1ClockHtml = `<div style="font-size:12px;color:var(--text-2);margin-bottom:12px"><i class="bi bi-clock"></i> Escolhas livres até ${dateLabel} — depois disso, ${minPorPick}min por pick.</div>`;
       } else {
         round1ClockHtml = `<div id="round1ClockCountdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>`;
       }
@@ -1694,17 +1697,31 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     `;
   }
 
-  // Calcula, a partir da sessão, se o relógio da 1ª rodada já está armado e (se sim) o
-  // instante em que a pick atual estoura — mesma fórmula usada no backend
-  // (check_autopick/runAutopickForSession): maior entre início da pick e a hora marcada,
-  // mais 5 minutos.
+  /* O relógio da 1ª rodada: se já está armado e quando a pick atual estoura.
+     Mesma fórmula do backend — maior entre o início da pick e a hora marcada.
+
+     O PRAZO VEM DO SERVIDOR (round1_pick_prazo_seg). Aqui estavam 5 minutos
+     escritos na mão enquanto o autopick usava 3: a contagem na tela chegava a
+     2:00 restantes com o jogador já escolhido. Quem manda é a constante do
+     backend; este número é só o fallback de uma resposta antiga em cache. */
+  const ROUND1_PRAZO_PADRAO_SEG = 180;
+  function round1PrazoSeg(session) {
+    const s = Number(session && session.round1_pick_prazo_seg);
+    return Number.isFinite(s) && s > 0 ? s : ROUND1_PRAZO_PADRAO_SEG;
+  }
   function getRound1ClockInfo(session) {
     const clockStartMs = new Date(String(session.round1_clock_start_at).replace(' ', 'T')).getTime();
     const armed = Date.now() >= clockStartMs;
     if (!armed) return { armed: false, clockStartMs };
     if (!session.current_pick_started_at) return { armed: true, deadlineMs: null };
     const pickStartedMs = new Date(String(session.current_pick_started_at).replace(' ', 'T')).getTime();
-    return { armed: true, deadlineMs: Math.max(pickStartedMs, clockStartMs) + 5 * 60 * 1000 };
+    /* O deadline que o SERVIDOR calculou ganha do meu: ele já resolveu o
+       max() com o relógio dele, e é o mesmo instante que o autopick vai usar.
+       Só caio na conta local quando a resposta não trouxe o campo. */
+    if (Number(session.round1_pick_deadline_ts) > 0) {
+      return { armed: true, deadlineMs: Number(session.round1_pick_deadline_ts) * 1000 };
+    }
+    return { armed: true, deadlineMs: Math.max(pickStartedMs, clockStartMs) + round1PrazoSeg(session) * 1000 };
   }
 
   let round1CountdownInterval = null;

@@ -60,7 +60,7 @@ try { $pdo->exec("ALTER TABLE draft_pool ADD COLUMN pick_hint INT NULL"); } catc
 // arquivo pedem dp.notas. @see backend/draft_class_csv.php
 draftCsvGarantirColunas($pdo);
 // Relógio da 1ª rodada, agendado pelo admin — antes desse horário (ou se nunca definido),
-// autopick continua só o de 30min/fila de sempre; depois dele, vira 5min + fallback pela
+// autopick continua só o de 30min/fila de sempre; depois dele, vira o prazo curto + fallback pela
 // ordem geral (ver ensureRound2DeadlineSet acima pro mesmo padrão aplicado à 2ª rodada).
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN round1_clock_start_at DATETIME NULL"); } catch (Exception $e) {}
 // 2ª rodada: mock por pick (substitui o antigo sistema de "ofertas" draft_round2_offers,
@@ -593,14 +593,26 @@ if ($method === 'GET') {
             if ($draft && !empty($draft['current_pick_started_at'])) {
                 $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
             }
-            // Relógio da 1ª rodada (round1_clock_start_at): só devolve o prazo calculado da
-            // pick atual (5min) quando o relógio já estiver armado — mesma fórmula usada em
-            // check_autopick/runAutopickForSession (maior entre início da pick e hora marcada).
+            /* Relógio da 1ª rodada: o prazo da pick atual, quando o relógio já
+               está armado. Fórmula igual à do autopick — maior entre o início
+               da pick e a hora marcada.
+
+               O PRAZO VEM DA CONSTANTE, e isso não é detalhe: aqui estava 300
+               cravado (5 min) enquanto o autopick usa
+               DRAFT_AUTOPICK_PRAZO_CURTO, que é 180. A tela contava cinco
+               minutos e o jogador era escolhido aos três — o GM via "faltam 2
+               minutos" com a pick já resolvida. Os dois números agora saem do
+               mesmo lugar, e o front recebe o prazo junto pra não recalcular
+               com um valor próprio. */
+            require_once dirname(__DIR__) . '/backend/draft_autopick.php';
+            if ($draft) {
+                $draft['round1_pick_prazo_seg'] = DRAFT_AUTOPICK_PRAZO_CURTO;
+            }
             if ($draft && !empty($draft['round1_clock_start_at'])) {
                 $clockStartTs = strtotime($draft['round1_clock_start_at']);
                 if (time() >= $clockStartTs && !empty($draft['current_pick_started_at'])) {
                     $effectiveStart = max(strtotime($draft['current_pick_started_at']), $clockStartTs);
-                    $draft['round1_pick_deadline_ts'] = $effectiveStart + 300;
+                    $draft['round1_pick_deadline_ts'] = $effectiveStart + DRAFT_AUTOPICK_PRAZO_CURTO;
                 }
             }
 
@@ -3746,7 +3758,7 @@ if ($method === 'POST') {
             break;
 
         // ADMIN: agenda (ou limpa, se vier vazio) o relógio da 1ª rodada — a partir dessa
-        // data/hora, a pick atual passa a ter 5min (fallback pela ordem geral se a fila
+        // data/hora, a pick atual passa a ter o prazo curto (fallback pela ordem geral se a fila
         // pessoal do time não resolver), em vez do prazo de 30min de sempre.
         case 'set_round1_clock':
             if (!$isAdmin) {
