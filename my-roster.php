@@ -1122,8 +1122,8 @@ if ($teamId) {
                             <label class="form-check-label" for="edit-available">Disponível para troca</label>
                         </div>
                     </div>
-                    <?php /* Uma lenda por franquia. Marcar outro jogador tira o anterior
-                             automaticamente (o servidor resolve isso, ver set_lenda). */ ?>
+                    <?php /* O time pode ter mais de uma lenda: as do Draft de Lendas são
+                             negociáveis, e quem troca por outra fica com as duas (ver set_lenda). */ ?>
                     <div style="grid-column: span 12; border-top:1px solid var(--border); padding-top:14px; margin-top:4px;">
                         <div class="form-check" style="margin:0;">
                             <input class="form-check-input" type="checkbox" id="edit-lenda">
@@ -1132,7 +1132,7 @@ if ($teamId) {
                             </label>
                         </div>
                         <div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5;">
-                            Só um jogador por time. O nome fica dourado com a tag LENDA.
+                            O nome fica dourado com a tag LENDA. O time pode ter mais de uma, somando as que adquiriu em troca.
                             <?php if ($isElite ?? false): ?>
                             <b style="color:var(--text-2)">No cap da ELITE ele passa a valer no mínimo 40M</b> — de OVR 95 pra cima volta a tabela normal.
                             <?php endif; ?>
