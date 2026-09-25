@@ -2223,7 +2223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
 
         echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         // Genérico pra quem lê (pode ser erro de SQL), mas registrado: sem
         // isto, uma trade que falha ao ser forçada some sem deixar rastro e
         // não há por onde começar a investigar.
@@ -3010,7 +3010,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         sendMultiTradePush($pdo, (int)$tradeId);
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao criar troca múltipla']);
     }
@@ -3621,7 +3621,7 @@ if ($method === 'POST') {
         sendTradePush($pdo, (int)$tradeId, 'trade_created');
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         // Sem este log, uma proposta recusada virava "Erro ao criar trade" sem
         // deixar rastro nenhum — impossível descobrir o motivo em produção.
@@ -3720,7 +3720,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
         $pdo->commit();
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[trades/editar_multipla] ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
@@ -4001,15 +4001,15 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
             exit;
         }
 
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Ação inválida']);
     } catch (PDOException $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
     }
@@ -4386,7 +4386,7 @@ if ($method === 'PUT') {
         sendTradePush($pdo, (int)$tradeId, $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled'));
         echo json_encode(['success' => true]);
     } catch (PDOException $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[trade_accept] ' . $e->getMessage());
         if (str_contains($e->getMessage(), 'uniq_pick')) {
             http_response_code(400);
@@ -4396,7 +4396,7 @@ if ($method === 'PUT') {
             echo json_encode(['success' => false, 'error' => 'Erro ao processar trade']);
         }
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         error_log('[trade_accept] ' . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Erro ao processar trade']);

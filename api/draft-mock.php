@@ -139,7 +139,7 @@ switch ($action) {
             $pdo->commit();
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
             echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
         }
         break;

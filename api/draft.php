@@ -344,7 +344,7 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
     $stmt->execute([$draftSessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$session || $session['status'] !== 'in_progress' || (int)$session['current_round'] !== 2) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         return;
     }
 
@@ -436,7 +436,7 @@ function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = fa
         draftEncerrarSessao($pdo, (int)$draftSessionId);
         $pdo->commit();
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('resolveRound2MocksIfDue: ' . $e->getMessage());
     }
 }
@@ -1390,7 +1390,7 @@ if ($method === 'POST') {
 
                 echo json_encode(['success' => true, 'message' => 'Time adicionado']);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
@@ -1464,7 +1464,7 @@ if ($method === 'POST') {
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Sessão excluída']);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
@@ -2694,7 +2694,7 @@ if ($method === 'POST') {
                                   'ajustes' => $sinc, 'protecoes' => $protecoes,
                                   'eventos' => $eventos]);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 error_log('[draft/apply_order] ' . $e->getMessage());
                 echo json_encode(['success' => false, 'error' => 'Erro ao definir ordem']);
             }
@@ -2809,7 +2809,7 @@ if ($method === 'POST') {
                     try { notifyNextPick($pdo, (int)$toTeamId, (int)$pick['round'], (int)$pick['pick_position']); } catch (Exception $e) {}
                 }
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao trocar pick']);
             }
             break;
@@ -3202,7 +3202,7 @@ if ($method === 'POST') {
                     try { notifyNextPick($pdo, $nextTeamId, (int)$next['round'], (int)$next['pick_position']); } catch (Exception $e) {}
                 }
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick']);
             }
             break;
@@ -3280,7 +3280,7 @@ if ($method === 'POST') {
                                          WHERE id = ? AND draft_status = "available"');
                 $tomou->execute([$timeId, $numeroCorrido, $playerId]);
                 if ($tomou->rowCount() === 0) {
-                    $pdo->rollBack();
+                    if ($pdo->inTransaction()) $pdo->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Alguém pegou esse jogador primeiro.']);
                     exit;
                 }
@@ -3291,7 +3291,7 @@ if ($method === 'POST') {
                                          WHERE id = ? AND picked_player_id IS NULL');
                 $ocupa->execute([$playerId, $draftOrderId]);
                 if ($ocupa->rowCount() === 0) {
-                    $pdo->rollBack();
+                    if ($pdo->inTransaction()) $pdo->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Esta escolha já foi feita']);
                     exit;
                 }
@@ -3574,7 +3574,7 @@ if ($method === 'POST') {
                     try { notifyNextPick($pdo, $nextTeamId, (int)$nextRound, (int)$nextPick); } catch (Exception $e) {}
                 }
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
@@ -3601,7 +3601,7 @@ if ($method === 'POST') {
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Draft resetado']);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao resetar']);
             }
             break;
@@ -3708,7 +3708,7 @@ if ($method === 'POST') {
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => "{$pick['pool_name']} devolvido ao pool."]);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
