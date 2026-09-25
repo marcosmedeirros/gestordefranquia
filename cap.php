@@ -79,6 +79,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .stat-value{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;color:var(--text);line-height:1}
 .stat-value.amber{color:var(--amber)}.stat-value.green{color:var(--green)}.stat-value.red{color:#ef4444}
 .stat-sub{font-size:11px;color:var(--text-2)}
+.stat-sub .flex-quem{color:var(--text);font-weight:600}
+.stat-sub .flex-vagas{display:block;margin-top:2px;color:var(--text-3)}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
 .roster-table{width:100%;border-collapse:collapse;font-size:13px}
 .roster-table th{padding:8px 10px;text-align:left;color:var(--text-3);font-weight:600;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
@@ -368,10 +370,23 @@ async function loadCap(){
     if (regraBase) regraBase.textContent = s.cap_base + 'M';
     if (regraPiso) regraPiso.textContent = s.cap_floor + 'M';
 
+    // DE ONDE VEM O CAP FLEX. O total sozinho ("+11M") nao diz quem gerou, e
+    // era a duvida de todo GM. Sobrenome basta: e como se chama jogador de
+    // basquete e cabe no card, que mostra no maximo cap_flex_max_players nomes.
+    const flexContam = (s.roster || []).filter(p => p.cap_flex_counted);
+    const flexQuem = flexContam
+      .map(p => `${esc(String(p.name || '').trim().split(/\s+/).pop())} +${p.cap_flex_value}M`)
+      .join(' · ');
+    // Sobrenome pode ser generico ("Johnson"), entao o nome inteiro fica no title.
+    const flexQuemFull = flexContam
+      .map(p => `${esc(p.name)} +${p.cap_flex_value}M`).join(' · ');
+    const flexVagas = `${s.cap_flex_used_slots}/${s.cap_flex_max_players} vagas`
+      + (s.cap_flex_eligible_count > s.cap_flex_max_players ? ` · ${s.cap_flex_eligible_count} elegíveis` : '');
+
     document.getElementById('statsGrid').innerHTML = [
       statCard('Cap Base', s.cap_base + 'M', '', '', 'O teto que a liga definiu, igual pra toda franquia — antes do Cap Flex.'),
       statCard('Cap Flex', '+' + s.cap_flex_total + 'M',
-        `${s.cap_flex_used_slots}/${s.cap_flex_max_players} vagas` + (s.cap_flex_eligible_count > s.cap_flex_max_players ? ` · ${s.cap_flex_eligible_count} elegíveis` : ''),
+        flexQuem ? `<span class="flex-quem" title="${flexQuemFull}">${flexQuem}</span><span class="flex-vagas">${flexVagas}</span>` : flexVagas,
         '', `O benefício do jogador leal: vale para no máximo ${s.cap_flex_max_players} jogadores, até +16M no time. Havendo mais elegíveis, contam os de maior valor.`),
       statCard('Cap Máximo', s.cap_max + 'M', '', 'hi-amber', 'Cap Base + Cap Flex — o teto real de folha salarial da sua franquia.'),
       statCard('Folha Salarial', s.payroll + 'M', '', s.payroll > s.cap_max ? 'hi-red' : '', 'Soma do salário total (base + bônus de prêmio) de todo o elenco.'),
