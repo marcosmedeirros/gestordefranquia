@@ -890,10 +890,16 @@ function renderPlayers(players) {
     if (aVal < bVal) return currentSort.ascending ? -1 : 1;
     if (aVal > bVal) return currentSort.ascending ? 1 : -1;
 
-    // Em caso de empate por função, ordenar por posição de armador a pivô
-    if (currentSort.field === 'role' && a.role === 'Titular' && b.role === 'Titular') {
-      // pelo lugar na quadra: a secundária quando o GM escalou ele ali (lineup_slot)
-      const lugar = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
+    // Empate por função: de armador a pivô. Valia só pro quinteto, e o banco
+    // saía por OVR — com os pivôs espalhados no meio da lista.
+    if (currentSort.field === 'role' && a.role === b.role && (a.role === 'Titular' || a.role === 'Banco')) {
+      // Titular vai pelo lugar em que foi escalado (lineup_slot); o banco não
+      // tem vaga na quadra, então vale a posição principal dele.
+      const lugar = p => {
+        if (p.role !== 'Titular') return String(p.position || '').toUpperCase();
+        const l = String(p.lineup_slot || '').toUpperCase();
+        return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position;
+      };
       const aPos = starterPositionOrder[lugar(a)] ?? 999;
       const bPos = starterPositionOrder[lugar(b)] ?? 999;
       if (aPos !== bPos) {

@@ -2365,7 +2365,15 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         // Lugar na quadra: a secundária quando o GM escalou ele ali, senão a principal.
         const lugarDe = p => { const l = String(p.lineup_slot || '').toUpperCase(); return (l && (l === p.position || l === String(p.secondary_position || '').toUpperCase())) ? l : p.position; };
         rosterData.filter(p => p.role === 'Titular').forEach(p => { const l = lugarDe(p); if (positions.includes(l) && !startersMap[l]) startersMap[l] = p; });
-        const bench   = rosterData.filter(p => p.role === 'Banco');
+        /* O BANCO SAI DE ARMADOR A PIVO, nao por OVR: quem le a copia procura
+           quem cobre cada vaga, e a lista por OVR espalha os pivos no meio.
+           Vale a posicao PRINCIPAL; o OVR so desempata dentro dela. */
+        const ORDEM_POS = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+        const ordemBanco = (a, b) => {
+            const o = p => ORDEM_POS[String(p.position || '').toUpperCase()] ?? 99;
+            return (o(a) - o(b)) || (Number(b.ovr || 0) - Number(a.ovr || 0));
+        };
+        const bench   = rosterData.filter(p => p.role === 'Banco').sort(ordemBanco);
         const others  = rosterData.filter(p => p.role === 'Outro');
         const gleague = rosterData.filter(p => (p.role||'').toLowerCase() === 'g-league');
         const isElite = (teamMeta.league||'').toUpperCase() === 'ELITE';

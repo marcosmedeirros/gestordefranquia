@@ -804,6 +804,9 @@ function wcColLugar(PDO $pdo): string
  * quando é passada — a outra posição dele entra depois da barra, e assim a
  * linha diz as duas coisas: onde ele está jogando e onde mais ele joga.
  */
+/** De armador a pivô — a ordem em que o banco é listado. */
+const WC_ORDEM_POSICOES = ['PG' => 0, 'SG' => 1, 'SF' => 2, 'PF' => 3, 'C' => 4];
+
 function wcPosicoesDoJogador(array $p, string $vaga = ''): string
 {
     $principal = strtoupper(trim((string)($p['position'] ?? '')));
@@ -950,8 +953,9 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
         // titular que perdeu a vaga pra um companheiro de mesma posição —
         // duas coisas diferentes na mesma lista.
         //
-        // Sem ordem de posição aqui: vale o OVR, na ordem em que o elenco
-        // já vem do SELECT.
+        // DE ARMADOR A PIVÔ, não por OVR: quem lê procura "quem cobre o garrafão",
+        // e uma lista por OVR espalha os pivôs no meio. A posição PRINCIPAL manda
+        // (a secundária ainda sai no rótulo, "PF/C"); OVR só desempata dentro dela.
         //
         // Quem está marcado como Banco mas subiu ao quinteto (acontece quando
         // a posição não tem titular) sai daqui: o quinteto já mostrou ele, e
@@ -963,6 +967,11 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
         $banco = array_values(array_filter($elenco,
             fn($p) => strcasecmp(trim((string)($p['role'] ?? '')), 'Banco') === 0
                    && !in_array($p['name'], $noQuinteto, true)));
+
+        usort($banco, function (array $a, array $b): int {
+            $ord = fn(array $p): int => WC_ORDEM_POSICOES[strtoupper(trim((string)($p['position'] ?? '')))] ?? 99;
+            return ($ord($a) <=> $ord($b)) ?: ((int)($b['ovr'] ?? 0) <=> (int)($a['ovr'] ?? 0));
+        });
 
         if ($banco) {
             $txt .= "\n*Banco:* (" . count($banco) . ")\n";
