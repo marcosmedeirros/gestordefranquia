@@ -363,7 +363,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <!-- Posições: as mesmas do Meu Elenco -->
     <div class="panel">
       <div class="section-title"><i class="bi bi-person-lines-fill"></i> Posições dos jogadores
-        <span class="hint">Titulares e reservas. É a mesma posição do Meu Elenco — mudou aqui, muda lá.</span>
+        <span class="hint">Todo o elenco. É a mesma posição do Meu Elenco — mudou aqui, muda lá.</span>
       </div>
       <div class="pos-lista" id="posLista"></div>
     </div>
@@ -657,10 +657,19 @@ function montarGleague() {
    (Os "minutos previstos" saíram desta tela a pedido da liga.) */
 const POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 
+/* O ELENCO INTEIRO, e não só Titular e Banco.
+   O filtro deixava de fora quem está como "Outro" — justamente o jogador fora
+   da rotação, que é quem o GM mais precisa posicionar antes de girar o time.
+   Ele não aparecia em lugar nenhum desta tela, e a única saída que sobrava era
+   escrever na caixa de observações.
+   E era isso que fazia a lista parecer travada: ela nunca dependeu do campo
+   "jogadores na rotação", e sim de quantos são Titular ou Banco — cinco
+   titulares e quatro reservas dão nove, mexendo o número que mexer. */
 function elencoComPosicao() {
-  const ordem = { Titular: 0, Banco: 1 };
-  return ELENCO.filter(p => p.role === 'Titular' || p.role === 'Banco')
-    .sort((a, b) => (ordem[a.role] - ordem[b.role]) || (Number(b.ovr) - Number(a.ovr)));
+  const ordem = { Titular: 0, Banco: 1, Outro: 2, 'G-League': 3 };
+  const posDe = (p) => (p.role in ordem) ? ordem[p.role] : 2;
+  return ELENCO.slice()
+    .sort((a, b) => (posDe(a) - posDe(b)) || (Number(b.ovr) - Number(a.ovr)));
 }
 
 function renderPosicoes() {
@@ -668,7 +677,7 @@ function renderPosicoes() {
   if (!box) return;
   const lista = elencoComPosicao();
   if (!lista.length) {
-    box.innerHTML = '<span style="color:var(--text-3);font-size:12px">Nenhum titular ou reserva no elenco.</span>';
+    box.innerHTML = '<span style="color:var(--text-3);font-size:12px">Nenhum jogador no elenco.</span>';
     return;
   }
   const opcoes = (atual, comVazio) => (comVazio ? '<option value="">—</option>' : '')
