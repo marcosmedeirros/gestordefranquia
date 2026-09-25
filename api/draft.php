@@ -590,9 +590,13 @@ if ($method === 'GET') {
             if ($draft) {
                 $draft['ano_das_picks'] = draftAnoDasPicks($pdo, (int)$draft['season_id']);
             }
-            if ($draft && !empty($draft['current_pick_started_at'])) {
-                $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
-            }
+            /* O DRAFT TEM UM RELÓGIO SÓ: o do bot — 3 minutos por pick na 1ª
+               rodada (round1_pick_deadline_ts, logo abaixo) e os 20 minutos de
+               mock na 2ª. Aqui saía também um pick_deadline_ts de 30 minutos
+               que só alimentava um cronômetro no painel do admin: um segundo
+               número, contando outra coisa, na mesma pick. Removido em
+               25/09/2026 a pedido do Marcos. O painel trata a ausência do
+               campo sozinho — o timer simplesmente não aparece. */
             /* Relógio da 1ª rodada: o prazo da pick atual, quando o relógio já
                está armado. Fórmula igual à do autopick — maior entre o início
                da pick e a hora marcada.

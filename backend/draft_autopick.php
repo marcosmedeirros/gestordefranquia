@@ -37,8 +37,13 @@ const DRAFT_AUTOPICK_MAX_CASCATA = 120;
  * alguém perceber que é a vez dele" — é o tempo de escolher sabendo que é.
  */
 const DRAFT_AUTOPICK_PRAZO_CURTO = 180;    // 3 min
-/** Prazo antes de o admin armar o relógio da 1ª rodada. */
-const DRAFT_AUTOPICK_PRAZO_LONGO = 1800;   // 30 min
+
+/* NÃO EXISTE PRAZO LONGO. Havia um DRAFT_AUTOPICK_PRAZO_LONGO de 30 minutos
+   aqui, declarado e nunca lido: antes do relógio armar ninguém é escolhido
+   por prazo nenhum (ver o passo 2 de draftAutopickEscolha) — quem escolhe
+   sozinho ali é só a fila do mock, e na hora. Removido em 25/09/2026 junto
+   com o cronômetro de 30 min do painel do admin, que era o único lugar onde
+   esse número ainda aparecia pra alguém. */
 
 /**
  * Garante as colunas de relógio. Idempotente e silenciosa.
