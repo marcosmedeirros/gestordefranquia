@@ -2179,6 +2179,24 @@ function getSerasaScore(int $avisos): array {
                 return `<span title="${motivo}${premio}" style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:${fundo};color:${cor};border:1px solid ${borda};font-variant-numeric:tabular-nums;flex-shrink:0">${p.salary}M</span>`;
             };
 
+            /* QUANTO ELE DÁ DE TETO A MAIS.
+               O card de Cap Flex mostrava só o total do time ("+11M"), e a
+               pergunta era sempre de quem vinha. Aqui sai no jogador: quem
+               gera aparece com "Flex +8M". Quem qualifica mas ficou fora das
+               vagas aparece apagado, pra não parecer que está somando. */
+            const chipFlex = (p) => {
+                const v = Number(p.cap_flex_value || 0);
+                if (!v) return '';
+                const conta = !!p.cap_flex_counted;
+                const cor   = conta ? '#a855f7' : 'var(--text-3)';
+                const fundo = conta ? 'rgba(168,85,247,.12)' : 'var(--panel-3)';
+                const borda = conta ? 'rgba(168,85,247,.32)' : 'var(--border)';
+                const dica  = conta
+                    ? `Adiciona +${v}M ao Cap Máximo do time.`
+                    : `Qualifica para Cap Flex, mas o time já preencheu as vagas com jogadores de valor maior — este não soma.`;
+                return `<span title="${dica}" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${fundo};color:${cor};border:1px solid ${borda};white-space:nowrap;flex-shrink:0${conta?'':';opacity:.65'}">Flex +${v}M</span>`;
+            };
+
             /* QUANTO ELE CUSTA A MAIS, E POR QUÊ.
                O salário já vem com o bônus somado, e olhando o número ninguém
                sabia que 5M dali eram do MVP do ano passado. O chip mostra o
@@ -2208,7 +2226,7 @@ function getSerasaScore(int $avisos): array {
                         const isLoyal = Number(p.is_loyal ?? (Number(p.was_traded ?? 1) === 0 ? 1 : 0)) === 1;
                         const nameColor = isCapBonus ? (p.player_tag_color || '#f59e0b') : '';
                         const badge = isLoyal
-                            ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 6px;margin-left:4px">Leal</span>'
+                            ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 6px;flex-shrink:0;white-space:nowrap">Leal</span>'
                             : '';
                         return `
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 6px 6px;border-bottom:1px solid var(--border)">
@@ -2217,11 +2235,15 @@ function getSerasaScore(int $avisos): array {
                                  style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"
                                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true&size=64'">
                             <div style="min-width:0">
-                                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis${nameColor?';color:'+nameColor:''}">${p.name}${badge}</div>
+                                <div style="display:flex;align-items:center;gap:4px;min-width:0">
+                                    <span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis${nameColor?';color:'+nameColor:''}">${p.name}</span>
+                                    ${badge}
+                                </div>
                                 <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
                             </div>
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
+                            ${chipFlex(p)}
                             ${chipBonus(p)}
                             ${chipSalario(p)}
                             <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>

@@ -848,6 +848,11 @@ if ($method === 'GET') {
                         'base_salary'     => (int)$r['base_salary'],
                         'is_rookie_scale' => (bool)$r['is_rookie_scale'],
                         'is_lenda'        => (bool)$r['is_lenda'],
+                        // Quanto ESTE jogador adiciona ao teto do time. Ja vinha
+                        // calculado no resumo; so nao era repassado, e a modal do
+                        // time mostrava o total sem dizer de quem vinha.
+                        'cap_flex_value'   => (int)$r['cap_flex_value'],
+                        'cap_flex_counted' => (bool)$r['cap_flex_counted'],
                     ];
                 }
                 $resumoSalarial = [
