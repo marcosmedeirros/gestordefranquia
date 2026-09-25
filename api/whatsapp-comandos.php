@@ -787,6 +787,42 @@ function wcColLugar(PDO $pdo): string
     return ensurePlayerLineupSlotColumn($pdo) ? ', lineup_slot' : '';
 }
 
+/**
+ * As posições do jogador pro /time: "PG/SG" quando ele joga nas duas.
+ *
+ * O elenco já guarda a secundária (players.secondary_position) e ela decide
+ * coisa de verdade — é por ela que um SF fecha o PF no quinteto. Na mensagem
+ * do grupo, porém, só a principal aparecia, e quem lia não tinha como saber
+ * que o reserva cobre dois lugares.
+ *
+ * Secundária igual à principal, ou vazia, não vira barra: "PG/PG" não diz
+ * nada. Sem posição nenhuma continua "--", que é o que a lista já usava.
+ *
+ * No QUINTETO a linha é sobre a vaga, não sobre o jogador: quem fecha o PF
+ * aparece como PF mesmo sendo SF de origem. Por isso $vaga vem primeiro
+ * quando é passada — a outra posição dele entra depois da barra, e assim a
+ * linha diz as duas coisas: onde ele está jogando e onde mais ele joga.
+ */
+function wcPosicoesDoJogador(array $p, string $vaga = ''): string
+{
+    $principal = strtoupper(trim((string)($p['position'] ?? '')));
+    $segunda   = strtoupper(trim((string)($p['secondary_position'] ?? '')));
+    $vaga      = strtoupper(trim($vaga));
+
+    if ($vaga !== '') {
+        // A outra posição do jogador é a que não é a vaga que ele ocupa.
+        $outra = '';
+        foreach ([$principal, $segunda] as $x) {
+            if ($x !== '' && $x !== $vaga) { $outra = $x; break; }
+        }
+        return $outra !== '' ? $vaga . '/' . $outra : $vaga;
+    }
+
+    if ($principal === '') return $segunda !== '' ? $segunda : '--';
+    if ($segunda === '' || $segunda === $principal) return $principal;
+    return $principal . '/' . $segunda;
+}
+
 function wcQuintetoTitular(array $elenco): array
 {
     $vagas = ['PG' => null, 'SG' => null, 'SF' => null, 'PF' => null, 'C' => null];
@@ -904,7 +940,7 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
         $txt .= "\n*Quinteto titular:*\n";
         foreach ($quinteto as $vaga => $p) {
             $txt .= $p
-                ? "{$vaga}: {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n"
+                ? wcPosicoesDoJogador($p, $vaga) . ": {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n"
                 : "{$vaga}: _sem jogador na posição_\n";
         }
 
@@ -930,8 +966,8 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $li
         if ($banco) {
             $txt .= "\n*Banco:* (" . count($banco) . ")\n";
             foreach ($banco as $p) {
-                $pos = strtoupper(trim((string)($p['position'] ?? ''))) ?: '--';
-                $txt .= "{$pos}: {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n";
+                // "PG/SG" quando ele joga nas duas. @see wcPosicoesDoJogador
+                $txt .= wcPosicoesDoJogador($p) . ": {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n";
             }
         }
     }
