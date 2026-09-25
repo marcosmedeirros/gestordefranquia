@@ -5923,7 +5923,7 @@ async function carregarCapTabela(league) {
       </div>`;
 
     const listaLendas = !lendas.length
-      ? `<div style="font-size:11px;color:var(--text-3)">Nenhuma lenda marcada ainda. Cada franquia pode marcar uma.</div>`
+      ? `<div style="font-size:11px;color:var(--text-3)">Nenhuma lenda marcada ainda.</div>`
       : `<div style="display:flex;flex-direction:column;gap:6px">
           ${lendas.map(l => `
             <div style="display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:7px 10px;flex-wrap:wrap">
@@ -6834,7 +6834,7 @@ ${usaLealdade ? `<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246
 <div class="form-check form-switch">
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerLenda" ${Number(p.is_lenda) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerLenda" style="color:#f5c542;font-weight:700">⭐ Lenda da franquia</label></div>
-<small class="text-light-gray d-block mt-1">Uma por time — marcar aqui tira a marca do jogador anterior. Nome fica dourado com a tag LENDA${appState.currentTeam.league === 'ELITE' ? ', e no cap ele passa a valer no mínimo 40M (de OVR 95 pra cima volta a tabela)' : ''}.</small></div>` : ''}
+<small class="text-light-gray d-block mt-1">O time pode ter mais de uma, somando as que adquiriu em troca. Nome fica dourado com a tag LENDA${appState.currentTeam.league === 'ELITE' ? ', e no cap ele passa a valer no mínimo 40M (de OVR 95 pra cima volta a tabela)' : ''}.</small></div>` : ''}
 <div class="mb-3"><label class="form-label text-light-gray">Transferir</label>
 <select class="form-select bg-dark text-white border-orange" id="editPlayerTeam"><option value="">Manter no time</option></select></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -6888,7 +6888,7 @@ async function savePlayerEdit(playerId) {
     await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify(data) });
 
     // A lenda vai por ação própria: ela precisa tirar a marca do jogador anterior
-    // do time na mesma transação (só pode haver uma por franquia).
+    // do time — cada lenda é marcada por conta própria, e o time pode ter várias.
     const lendaChk = document.getElementById('editPlayerLenda');
     if (lendaChk) {
       await api('team.php', {

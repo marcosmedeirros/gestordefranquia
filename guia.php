@@ -488,7 +488,7 @@ html{scroll-behavior:smooth}
     <div class="nota amber">
       <p>Um jogador pode ser <strong>leal e lenda ao mesmo tempo</strong>, e as duas tags aparecem. O benefício de cap é um só — o <strong>Cap Flex</strong> —, e a lenda que nunca foi trocada gera ele como qualquer jogador leal.</p>
     </div>
-    <p>Quem marca é o GM, no próprio elenco. Escolha com cuidado: é uma por time.</p>
+    <p>Quem marca é o GM, no próprio elenco. Cada franquia escolhe a sua no Draft de Lendas, mas elas são negociáveis — quem trocar por outra fica com as duas marcadas.</p>
   </section>
 
   <!-- ═══════════════ 6. ACOMPANHAR A LIGA ═══════════════ -->

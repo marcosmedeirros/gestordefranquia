@@ -1571,8 +1571,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
 
-      // A lenda vai por uma ação própria, e não junto do PUT: ela precisa tirar a
-      // marca do jogador anterior do time na mesma transação (só pode haver uma).
+      // A lenda vai por uma ação própria, e não junto do PUT: ela mexe no cap e
+      // tem regra de permissão própria. O time pode ter mais de uma marcada.
       // Só chama quando o valor mudou, pra não gravar à toa a cada edição.
       const lendaChk = document.getElementById('edit-lenda');
       if (lendaChk) {

@@ -416,7 +416,7 @@ async function loadCap(){
         <td class="num">${p.ovr}</td>
         <td class="num">${p.base_salary}M</td>
         <td>
-          ${p.is_lenda ? '<span class="tag lenda" title="Lenda da franquia: uma por time. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Nunca trocada, ela gera Cap Flex como qualquer jogador leal.">LENDA</span>' : ''}
+          ${p.is_lenda ? '<span class="tag lenda" title="Lenda: o time pode ter mais de uma, somando as que adquiriu em troca. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Nunca trocada, ela gera Cap Flex como qualquer jogador leal.">LENDA</span>' : ''}
           ${p.is_rookie_scale ? '<span class="tag rookie" title="Salário definido pela Rookie Scale (posição do pick), não pela tabela de OVR, por ser a temporada de estreia.">Rookie Scale</span>' : ''}
           ${p.cap_flex_eligible ? (p.cap_flex_counted
             ? `<span class="tag flex" title="${p.is_lenda ? 'Lenda que nunca foi trocada' : 'Ainda está no time que o draftou'} e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`

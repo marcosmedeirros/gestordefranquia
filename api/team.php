@@ -1012,11 +1012,15 @@ if ($method === 'POST') {
     $body = readJsonBody();
 
     /**
-     * ── set_lenda: marca (ou desmarca) a LENDA da franquia ──────────────────
+     * ── set_lenda: marca (ou desmarca) uma LENDA ──────────────────
      *
-     * Um jogador por time. Marcar outro tira o anterior na mesma transação —
-     * senão um duplo clique, ou dois GMs do mesmo time, deixariam dois marcados
-     * e o cap contaria 40M duas vezes.
+     * MAIS DE UMA POR TIME. Cada franquia escolhe uma no Draft de Lendas, mas
+     * elas são negociáveis: quem trocou por outra fica com as duas, e o Baltimore
+     * (Hakeem próprio + Harden vindo do Bed-Stuy) é o caso que forçou a mudança.
+     * Antes isto zerava o time inteiro antes de marcar, então marcar a segunda
+     * apagava a primeira — e o time perdia o Cap Flex que a primeira gerava.
+     *
+     * Marcar/desmarcar mexe SÓ no jogador informado.
      *
      * Quem pode: o GM no próprio elenco, e o admin em qualquer time das ligas
      * que ele administra. A tag vale 40M no teto, então não é cosmética.
@@ -1046,14 +1050,9 @@ if ($method === 'POST') {
         }
 
         try {
-            $pdo->beginTransaction();
-            // Zera o time inteiro antes de marcar: garante o "uma por franquia"
-            // sem depender de o estado anterior estar consistente.
-            $pdo->prepare('UPDATE players SET is_lenda = 0 WHERE team_id = ?')->execute([(int)$alvo['team_id']]);
-            if ($ligar) {
-                $pdo->prepare('UPDATE players SET is_lenda = 1 WHERE id = ?')->execute([$playerId]);
-            }
-            $pdo->commit();
+            // Só este jogador: as outras lendas do time continuam marcadas.
+            $pdo->prepare('UPDATE players SET is_lenda = ? WHERE id = ?')
+                ->execute([$ligar ? 1 : 0, $playerId]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             error_log('[set_lenda] ' . $e->getMessage());
@@ -1074,7 +1073,7 @@ if ($method === 'POST') {
         }
 
         jsonResponse(200, [
-            'message' => $ligar ? $alvo['name'] . ' agora é a lenda da franquia.' : 'Tag de lenda removida.',
+            'message' => $ligar ? $alvo['name'] . ' agora é lenda.' : 'Tag de lenda removida.',
             'is_lenda' => $ligar,
             'cap' => $cap ? [
                 'payroll'   => (int)$cap['payroll'],
