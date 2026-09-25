@@ -580,6 +580,7 @@ function wcAjuda(): string
         . "/tblock _time_ — quem o time pôs no trade block
 
 "
+        . "/tblock _PG_ — os PG de 78+ no trade block da liga (conta a secundária)\n"
         . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
         . "/meutime — seu elenco\n"
         . "/meucap — sua folha e o espaço no cap\n"
@@ -2550,10 +2551,93 @@ function wcMeuTradeBlock(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
     return $erro ?: wcTradeBlock($pdo, $t);
 }
 
-/** O trade block de um time pelo nome. */
-function wcTradeBlockDeTime(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+/**
+ * O TRADE BLOCK DA LIGA NUMA POSIÇÃO — "/tblock PG".
+ *
+ * A pergunta de quem procura reforço não é "o que o Lakers tem?", é "quem tem
+ * armador disponível?". Sem isto só dava pra responder abrindo time por time.
+ *
+ * Conta a SECUNDÁRIA junto: um SF/PG está disponível pra quem procura armador,
+ * e deixá-lo de fora esconderia metade do mercado. Quem entra pela secundária
+ * aparece como "SF/PG", então dá pra ver que não é a posição principal dele.
+ *
+ * Fica na liga de quem perguntou: trade block é mercado, e mercado de outra
+ * liga não serve pra fechar troca nenhuma.
+ *
+ * E só de WC_TBLOCK_OVR_MIN pra cima. A liga inteira numa posição passa de
+ * quarenta nomes, e a lista vira uma parede no grupo — quem procura reforço
+ * não está atrás do décimo armador disponível.
+ */
+const WC_TBLOCK_OVR_MIN = 78;
+
+function wcTradeBlockPorPosicao(PDO $pdo, string $posicao, string $liga): string
 {
-    if ($termo === '') return 'Use assim: /tblock lakers';
+    $pos = strtoupper(trim($posicao));
+    $ovr = wcColunaOvr($pdo);
+
+    $st = $pdo->prepare("SELECT p.name, p.position, p.secondary_position, {$ovr} AS ovr, p.age,
+                                TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time
+                           FROM players p
+                           JOIN teams t ON t.id = p.team_id
+                          WHERE t.league = ?
+                            AND p.available_for_trade = 1
+                            AND {$ovr} >= " . WC_TBLOCK_OVR_MIN . "
+                            AND (UPPER(TRIM(p.position)) = ? OR UPPER(TRIM(COALESCE(p.secondary_position,''))) = ?)
+                       ORDER BY {$ovr} DESC, p.name ASC");
+    $st->execute([$liga, $pos, $pos]);
+    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$jogadores) {
+        return "*Trade Block {$liga} — {$pos}*\n\nNinguém de "
+             . WC_TBLOCK_OVR_MIN . "+ nessa posição no trade block agora.";
+    }
+
+    $txt = "*Trade Block {$liga} — {$pos}*\n_" . count($jogadores) . ' jogador'
+         . (count($jogadores) === 1 ? '' : 'es') . ' de ' . WC_TBLOCK_OVR_MIN . "+_\n\n";
+    foreach ($jogadores as $p) {
+        $sec  = trim((string)($p['secondary_position'] ?? ''));
+        $dupla = $p['position'] . ($sec !== '' && $sec !== $p['position'] ? '/' . $sec : '');
+        $txt .= "{$dupla}: {$p['name']} {$p['ovr']} | {$p['age']}y — _{$p['time']}_\n";
+    }
+    return rtrim($txt);
+}
+
+/**
+ * O trade block de um time pelo nome — ou de uma POSIÇÃO na liga inteira.
+ *
+ * "PG", "SG", "SF", "PF" e "C" nunca são nome de time, então o argumento
+ * decide sozinho qual das duas perguntas foi feita e ninguém precisa decorar
+ * um segundo comando.
+ */
+function wcTradeBlockDeTime(PDO $pdo, string $termo, ?string $ligaDoGrupo, string $deQuem = ''): string
+{
+    $termo = trim($termo);
+    if ($termo === '') return 'Use assim: */tblock lakers* pra um time, ou */tblock PG* pra uma posição.';
+
+    if (in_array(strtoupper($termo), ['PG', 'SG', 'SF', 'PF', 'C'], true)) {
+        /* A liga sai do grupo; no privado, do time de quem perguntou. Sem liga
+           não dá pra responder: o trade block da ELITE não ajuda quem joga na
+           RISE, e juntar as quatro daria uma lista que ninguém pode usar. */
+        $liga = strtoupper(trim((string)($ligaDoGrupo ?? '')));
+        if ($liga === '' && $deQuem !== '') {
+            [$t, $erroTime] = wcTimeDeQuemPerguntou($pdo, $deQuem, null);
+            if (!$erroTime && $t) $liga = strtoupper(trim((string)$t['league']));
+        }
+        if ($liga === '') {
+            return 'Não descobri sua liga. Pergunte no grupo dela, ou use */tblock ELITE PG*.';
+        }
+        return wcTradeBlockPorPosicao($pdo, $termo, $liga);
+    }
+
+    /* "ELITE PG" e afins: a liga na frente da posição, pra quem pergunta no
+       privado ou quer a de outra liga. */
+    $partes = preg_split('/\s+/', strtoupper($termo));
+    if (count($partes) === 2
+        && in_array($partes[0], ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)
+        && in_array($partes[1], ['PG', 'SG', 'SF', 'PF', 'C'], true)) {
+        return wcTradeBlockPorPosicao($pdo, $partes[1], $partes[0]);
+    }
+
     [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
     return $erro ?: wcTradeBlock($pdo, $t);
 }
@@ -4872,7 +4956,9 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
 
             case 'tblock':
             case 'tradeblock':
-                return wcTradeBlockDeTime($pdo, $arg, $ligaDoGrupo);
+                // Aceita time ("lakers") ou posição ("PG"). O $deQuem descobre
+                // a liga quando a pergunta vem no privado, sem grupo.
+                return wcTradeBlockDeTime($pdo, $arg, $ligaDoGrupo, $deQuem);
 
             case 'minhaspicks':
             case 'meuspicks':
