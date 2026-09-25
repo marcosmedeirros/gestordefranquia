@@ -597,7 +597,11 @@ function mcpMoverJogador(PDO $pdo, string $jogador, string $para, string $motivo
         throw new McpErro("{$destino['nome']} já tem $quantos jogadores (o limite é " . ELENCO_MAX . '). Dispense alguém antes.');
     }
 
-    $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?")
+    /* was_traded JUNTO, como o api/trades.php faz. Sem isto o jogador mudava
+       de dono continuando "leal" — e lealdade é justamente ter ficado no time
+       que o formou. O Oscar Robertson saiu do Cleveland por aqui e seguiu
+       gerando 8M de Cap Flex pro San Jose, que nunca o formou. */
+    $pdo->prepare("UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ?")
         ->execute([(int)$destino['id'], (int)$p['id']]);
 
     return "{$p['name']} ({$p['ovr']} ovr): " . (string)($p['time'] ?? 'sem time') . " -> {$destino['nome']} "

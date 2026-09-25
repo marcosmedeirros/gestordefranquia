@@ -565,7 +565,19 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
             continue;
         }
 
-        $p['is_loyal'] = $isLoyal ? 1 : 0;
+        /* A LENDA FIEL É LEAL, e essa linha era a que faltava dizer isso.
+           $lendaFiel ja existia aqui, mas so entrava no cap_bonus_eligible —
+           entao a lenda gerava os 8M de Cap Flex e mesmo assim aparecia sem a
+           tag "Leal", porque o salary_cap.php olha is_lenda direto e esta conta
+           nao olhava. O Kirilenko (Anchorage) e o Garnett (Chicago Dope) eram
+           os dois casos: lendas nunca trocadas com override manual de "nao
+           leal", contando teto e sem o selo.
+
+           Trocou, acabou: $lendaFiel ja exige $notTraded, entao lenda trocada
+           nao volta a ser leal por aqui. E $lendaConta mantem isto na ELITE —
+           na RISE e na NEXT a lenda nao conta, e na ROOKIE o bloco acima ja
+           zerou tudo antes de chegar aqui. */
+        $p['is_loyal'] = ($isLoyal || $lendaFiel) ? 1 : 0;
         $p['cap_bonus_eligible'] = (($isLoyal || $lendaFiel) && $highOvr) ? 1 : 0;
     }
     unset($p);
