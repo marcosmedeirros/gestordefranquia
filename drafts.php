@@ -1867,10 +1867,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             <div class="pick-result-meta">Escolha perdida por punição</div>
           </div>
         ` : isCompleted ? `
+          <?php /* SEM AS LETRINHAS AQUI. O card da escolha responde "quem
+                   saiu", e trinta e dois deles com uma grade de dez notas
+                   cada viram um paredão — a informação que importa na hora é
+                   nome e OVR. As letras seguem na lista do "Resultado do
+                   draft" e no Ver Jogadores, que são as telas de comparar. */ ?>
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name)}</div>
             <div class="pick-result-meta">${fichaDoJogador(pick)}</div>
-            ${notasHtml(pick.player_notas)}
           </div>
         ` : round2Aberta ? `
           <div class="pick-waiting" style="flex-direction:column;gap:6px">
@@ -2504,10 +2508,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
         ${isCompleted ? `
+          <?php /* Mesma escolha do card do draft ao vivo: nome e OVR, sem a
+                   grade de notas. @see renderPickCard */ ?>
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name || 'Jogador Desconhecido')}</div>
             ${pick.player_position ? `<div class="pick-result-meta">${fichaDoJogador(pick)}</div>` : ''}
-            ${notasHtml(pick.player_notas)}
           </div>
         ` : `
           <div class="pick-waiting">
