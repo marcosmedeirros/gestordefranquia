@@ -2575,8 +2575,14 @@ function wcTradeBlockPorPosicao(PDO $pdo, string $posicao, string $liga): string
     $pos = strtoupper(trim($posicao));
     $ovr = wcColunaOvr($pdo);
 
+    /* SÓ A ALCUNHA DO TIME, sem a cidade: dentro de uma liga ela identifica o
+       time sozinha, e "Los Angeles Celestials" numa lista de dezenove nomes só
+       empurra a linha pra segunda fila no celular. Sai da coluna `name`, e não
+       de cortar o nome completo por palavra — "San Diego Empire" viraria
+       "Diego Empire". COALESCE cobre o time sem alcunha cadastrada. */
     $st = $pdo->prepare("SELECT p.name, p.position, p.secondary_position, {$ovr} AS ovr, p.age,
-                                TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time
+                                COALESCE(NULLIF(TRIM(t.name),''),
+                                         TRIM(CONCAT(COALESCE(t.city,''),' ',t.name))) AS time
                            FROM players p
                            JOIN teams t ON t.id = p.team_id
                           WHERE t.league = ?
@@ -2594,12 +2600,17 @@ function wcTradeBlockPorPosicao(PDO $pdo, string $posicao, string $liga): string
 
     $txt = "*Trade Block {$liga} — {$pos}*\n_" . count($jogadores) . ' jogador'
          . (count($jogadores) === 1 ? '' : 'es') . ' de ' . WC_TBLOCK_OVR_MIN . "+_\n\n";
+    /* UMA LINHA EM BRANCO ENTRE OS JOGADORES. São dezenove nomes seguidos, e
+       no WhatsApp o bloco colado vira parede — com o respiro dá pra correr o
+       olho e parar em quem interessa. O nome em negrito é a âncora dessa
+       leitura: é por ele que se procura, não pela posição. */
+    $linhas = [];
     foreach ($jogadores as $p) {
         $sec  = trim((string)($p['secondary_position'] ?? ''));
         $dupla = $p['position'] . ($sec !== '' && $sec !== $p['position'] ? '/' . $sec : '');
-        $txt .= "{$dupla}: {$p['name']} {$p['ovr']} | {$p['age']}y — _{$p['time']}_\n";
+        $linhas[] = "{$dupla}: *{$p['name']}* {$p['ovr']} | {$p['age']}y — _{$p['time']}_";
     }
-    return rtrim($txt);
+    return rtrim($txt . implode("\n\n", $linhas));
 }
 
 /**
