@@ -153,7 +153,22 @@ function capPreviaDoRecalculo(PDO $pdo, string $league): ?array
  * @param bool $apenasCalcular não grava nada e não avisa ninguém — só devolve
  *                             a conta. É o que a prévia usa.
  */
-function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber, bool $apenasCalcular = false): ?array
+/**
+ * As únicas origens que podem GRAVAR um cap novo.
+ *
+ * O CAP não muda sozinho. Ele já mudou: a conta rodava nas temporadas 3, 5,
+ * 7… no momento em que o último time salvava o elenco, e virou botão por
+ * causa disso. Mesmo assim a faixa da ELITE foi reescrita em 25/09/2026 às
+ * 08:39 sem ninguém ter apertado nada que eu tenha conseguido rastrear — não
+ * há log de quem dispara.
+ *
+ * Então a porta passou a ser nominal: quem grava se identifica. Chamada sem
+ * origem conhecida não grava e deixa a PILHA no log de erro — se sobrou algum
+ * gatilho que eu não achei, ele para aqui e aparece com nome e linha.
+ */
+const LEAGUE_CAP_ORIGENS = ['admin', 'bot-admin'];
+
+function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber, bool $apenasCalcular = false, string $origem = ''): ?array
 {
     ensureLeagueCapAutoTables($pdo);
 
@@ -245,6 +260,21 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber, bool $
             'segurou' => $temCapAtual && ($alvoMin !== $newMin || $alvoMax !== $newMax),
             'teams_total' => count($values), 'teams_above' => $acima, 'teams_below' => $abaixo,
         ];
+    }
+
+    /* A PORTA. Daqui pra baixo grava — e só passa quem se identificou.
+       @see LEAGUE_CAP_ORIGENS */
+    if (!in_array($origem, LEAGUE_CAP_ORIGENS, true)) {
+        $pilha = [];
+        foreach (array_slice(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS), 0, 6) as $q) {
+            $pilha[] = ($q['function'] ?? '?') . '() em '
+                     . basename((string)($q['file'] ?? '?')) . ':' . ($q['line'] ?? '?');
+        }
+        error_log('[league_cap] GRAVACAO RECUSADA: origem "' . $origem . '" nao autorizada'
+                . ' | liga ' . $league . ' T' . $seasonNumber
+                . ' | faixa que seria gravada ' . $newMin . '-' . $newMax
+                . ' | pilha: ' . implode(' <- ', $pilha));
+        return null;
     }
 
     $pdo->prepare("UPDATE league_settings SET cap_min = ?, cap_max = ?, cap_auto_last_season = ? WHERE league = ?")
@@ -383,7 +413,7 @@ function maybeAutoRecalcularCapDaLiga(PDO $pdo, string $league, int $seasonId, i
  * temporada" e "não deu pra tirar a média" voltam os dois como null, e o
  * admin precisa saber qual dos dois é.
  */
-function recalcularCapAgora(PDO $pdo, string $league): array
+function recalcularCapAgora(PDO $pdo, string $league, string $origem = ''): array
 {
     /* A TEMPORADA DA SPRINT ATIVA, e não a de maior número no banco.
        Pegando o maior season_number da liga, a ELITE caía na temporada 20 da
@@ -410,7 +440,7 @@ function recalcularCapAgora(PDO $pdo, string $league): array
         return ['ok' => false, 'erro' => 'Esta liga não tem temporada cadastrada.', 'resumo' => null];
     }
 
-    $resumo = recalcularCapDaLiga($pdo, $league, (int)$temp['season_number']);
+    $resumo = recalcularCapDaLiga($pdo, $league, (int)$temp['season_number'], false, $origem);
     if (!$resumo) {
         return ['ok' => false, 'erro' => 'Não há times com elenco suficiente pra tirar a média.', 'resumo' => null];
     }

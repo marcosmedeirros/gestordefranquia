@@ -2935,7 +2935,8 @@ if ($method === 'POST') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
-            $r = recalcularCapAgora($pdo, $league);
+            // A origem vai nominal: sem ela o recálculo não grava. @see LEAGUE_CAP_ORIGENS
+            $r = recalcularCapAgora($pdo, $league, 'admin');
             if (!$r['ok']) {
                 http_response_code(409);
                 echo json_encode(['success' => false, 'error' => $r['erro']]);

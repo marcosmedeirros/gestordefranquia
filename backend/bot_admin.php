@@ -444,7 +444,8 @@ function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): strin
 
         case 'cap':
             require_once __DIR__ . '/league_cap.php';
-            $r = recalcularCapAgora($pdo, $liga);
+            // Origem nominal: o /ok do admin no grupo. @see LEAGUE_CAP_ORIGENS
+            $r = recalcularCapAgora($pdo, $liga, 'bot-admin');
             if (!$r['ok']) return '❌ ' . ($r['erro'] ?? 'Não deu pra recalcular.');
             $s = $r['resumo'];
             $atu = $s['atualizados'] ?? null;
