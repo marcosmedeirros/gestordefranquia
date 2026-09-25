@@ -832,8 +832,12 @@ if ($method === 'PUT') {
         if ($role === 'Titular' && $titularCount >= 5) {
             jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
         }
-        // Mesma trava do cadastro: G-League é exclusiva da ELITE.
-        if ($role === 'G-League' && !ligaUsaGLeague(restrictedLigaDoTime($pdo, $teamId))) {
+        /* Mesma trava do cadastro: G-League é exclusiva da ELITE.
+           O time vem de $player['team_id'] e NÃO de $teamId: naquele nome não
+           há nada nesta rota, e com 0 a liga voltava vazia — aí a trava
+           recusava todo mundo, ELITE inclusive. Era por isso que o jogador
+           escolhido pra G-League simplesmente não ia. */
+        if ($role === 'G-League' && !ligaUsaGLeague(restrictedLigaDoTime($pdo, (int)$player['team_id']))) {
             jsonResponse(409, ['error' => 'A G-League é exclusiva da ELITE. Use Banco ou Outro.']);
         }
         if ($role === 'G-League' && $gleagueCount >= 2) {
