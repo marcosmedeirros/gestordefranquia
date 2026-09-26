@@ -14,9 +14,17 @@ function db(): PDO
 
     $config = loadConfig();
     $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', $config['db']['host'], $config['db']['name'], $config['db']['charset']);
-    $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
+
+    /* SUPERLOG: a conexão anota em arquivo cada INSERT/UPDATE/DELETE que passa
+       por ela (backend/superlog.php). Em arquivo, e não numa tabela, porque em
+       26/09/2026 o banco inteiro foi apagado — uma tabela de auditoria teria
+       ido junto. Se o arquivo não puder ser escrito, o superlog se cala e nada
+       aqui muda. */
+    require_once __DIR__ . '/superlog.php';
+    $pdo = new SuperlogPDO($dsn, $config['db']['user'], $config['db']['pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_STATEMENT_CLASS => [SuperlogStatement::class, []],
     ]);
 
     // Definir timezone no MySQL também
@@ -75,11 +83,15 @@ function dbRevive(PDO $pdo): PDO
 
     try {
         $c   = loadConfig()['db'];
-        $novo = new PDO(
+        // A conexão reaberta também anota: um log com buraco toda vez que a
+        // conexão cai não serviria pra reconstruir nada.
+        require_once __DIR__ . '/superlog.php';
+        $novo = new SuperlogPDO(
             sprintf('mysql:host=%s;dbname=%s;charset=%s', $c['host'], $c['name'], $c['charset']),
             $c['user'], $c['pass'],
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+             PDO::ATTR_STATEMENT_CLASS => [SuperlogStatement::class, []]]
         );
         $novo->exec("SET time_zone = '-03:00'");
         try { $novo->exec('SET SESSION wait_timeout = 300, SESSION interactive_timeout = 300'); }
