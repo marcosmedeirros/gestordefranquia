@@ -300,3 +300,59 @@ function revisaoPainel(PDO $pdo): array
     }
     return $out;
 }
+
+/**
+ * BUSCA NA LIGA INTEIRA — jogador e pick, respondendo "onde isso está".
+ *
+ * É a pergunta que mais aparece no grupo: "cadê o fulano?" e "quem ficou com
+ * a minha 1ª de 2025?". Filtrar os cards não responde, porque quem pergunta
+ * justamente não sabe em qual time olhar.
+ */
+function revisaoBuscar(PDO $pdo, string $termo, int $limite = 25): array
+{
+    $termo = trim($termo);
+    if (mb_strlen($termo) < 2) return ['jogadores' => [], 'picks' => []];
+    $like = '%' . $termo . '%';
+
+    $st = $pdo->prepare("SELECT p.id, p.name, p.ovr, p.age, p.position, p.secondary_position, p.role,
+                                p.team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) time
+                           FROM players p JOIN teams t ON t.id = p.team_id
+                          WHERE t.league = ? AND p.name LIKE ?
+                       ORDER BY p.ovr DESC LIMIT $limite");
+    $st->execute([revisaoLiga(), $like]);
+    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    /* A pick é procurada pelo ano ou pelo time de origem, que é como as
+       pessoas falam dela: "a 1ª de 2025 do Pererês". */
+    $ano = preg_match('/\b(20\d{2})\b/', $termo, $m) ? (int)$m[1] : null;
+    $sql = "SELECT p.id, p.season_year, p.round, p.swap_type, p.team_id,
+                   TRIM(CONCAT(COALESCE(o.city,''),' ',o.name)) origem,
+                   TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) dono
+              FROM picks p
+              JOIN teams o ON o.id = p.original_team_id
+              JOIN teams t ON t.id = p.team_id
+             WHERE t.league = :liga AND ("
+         . ($ano ? "p.season_year = :ano OR " : "")
+         . "CONCAT(COALESCE(o.city,''),' ',o.name) LIKE :busca)
+          ORDER BY p.season_year, p.round LIMIT $limite";
+    $st = $pdo->prepare($sql);
+    $par = ['liga' => revisaoLiga(), 'busca' => $like];
+    if ($ano) $par['ano'] = $ano;
+    $st->execute($par);
+
+    return ['jogadores' => $jogadores, 'picks' => $st->fetchAll(PDO::FETCH_ASSOC)];
+}
+
+/** Free agents da liga, pro "adicionar jogador" não exigir digitar tudo. */
+function revisaoFreeAgents(PDO $pdo, string $termo = '', int $limite = 40): array
+{
+    $sql = "SELECT id, name, age, position, secondary_position, overall, original_team_name
+              FROM free_agents
+             WHERE league = ? AND status = 'available'";
+    $par = [revisaoLiga()];
+    if (trim($termo) !== '') { $sql .= " AND name LIKE ?"; $par[] = '%' . trim($termo) . '%'; }
+    $sql .= " ORDER BY overall DESC, name LIMIT $limite";
+    $st = $pdo->prepare($sql);
+    $st->execute($par);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}

@@ -110,6 +110,91 @@ if ($metodo === 'GET' && $acao === 'tudo') {
     exit;
 }
 
+// ─── GET buscar: onde está tal jogador / tal pick, na liga inteira ───────
+if ($metodo === 'GET' && $acao === 'buscar') {
+    $r = revisaoBuscar($pdo, (string)($_GET['q'] ?? ''));
+    echo json_encode(['success' => true] + $r, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ─── GET free_agents: quem está livre, pro "adicionar jogador" ───────────
+if ($metodo === 'GET' && $acao === 'free_agents') {
+    echo json_encode(['success' => true, 'fa' => revisaoFreeAgents($pdo, (string)($_GET['q'] ?? ''))],
+                     JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ─── POST add_fa: traz um free agent pro time ────────────────────────────
+if ($metodo === 'POST' && $acao === 'add_fa') {
+    $faId   = (int)($corpo['fa_id'] ?? 0);
+    $destino = (int)($corpo['to_team_id'] ?? 0);
+    if (!$faId) falha('Escolha o jogador.');
+    exigirDaLiga($pdo, $destino, 'time');
+    exigirMinhaPonta($ehAdmin, $meuTimeId, [$destino]);
+
+    $st = $pdo->prepare("SELECT * FROM free_agents WHERE id = ? AND status = 'available'");
+    $st->execute([$faId]);
+    $fa = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$fa) falha('Esse jogador não está mais livre.', 404);
+
+    $pdo->beginTransaction();
+    try {
+        /* was_traded = 1 porque ele não foi draftado por este time: entrar
+           pela free agency não pode virar lealdade no Cap Flex. */
+        $ins = $pdo->prepare("INSERT INTO players (team_id, was_traded, is_lenda, name, age,
+                                 seasons_in_league, position, secondary_position, role,
+                                 available_for_trade, ovr, created_at)
+                              VALUES (?,1,0,?,?,0,?,?,'Banco',0,?,NOW())");
+        $ins->execute([$destino, $fa['name'], (int)$fa['age'], $fa['position'],
+                       $fa['secondary_position'] ?: null, (int)$fa['overall']]);
+        $pdo->prepare("UPDATE free_agents SET status = 'signed' WHERE id = ?")->execute([$faId]);
+        revisaoRegistrar($pdo, $destino, $userId, 'add_fa',
+            sprintf('%s (%s %s) da free agency -> %s', $fa['name'], $fa['overall'],
+                    $fa['position'], revisaoNomeTime($pdo, $destino)));
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[revisao add_fa] ' . $e->getMessage());
+        falha('Não consegui adicionar. Tente de novo.', 500);
+    }
+    echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ─── POST criar_jogador: o que não está em lugar nenhum do app ───────────
+if ($metodo === 'POST' && $acao === 'criar_jogador') {
+    $destino = (int)($corpo['to_team_id'] ?? 0);
+    exigirDaLiga($pdo, $destino, 'time');
+    exigirMinhaPonta($ehAdmin, $meuTimeId, [$destino]);
+
+    $nome = trim((string)($corpo['name'] ?? ''));
+    $pos  = strtoupper(trim((string)($corpo['position'] ?? '')));
+    $sec  = strtoupper(trim((string)($corpo['secondary_position'] ?? '')));
+    $ovr  = (int)($corpo['ovr'] ?? 0);
+    $idade = (int)($corpo['age'] ?? 0);
+
+    if (mb_strlen($nome) < 2)                       falha('Escreva o nome do jogador.');
+    if (!in_array($pos, ['PG','SG','SF','PF','C'], true)) falha('Escolha a posição.');
+    if ($sec !== '' && !in_array($sec, ['PG','SG','SF','PF','C'], true)) falha('Posição secundária inválida.');
+    if ($ovr < 40 || $ovr > 99)                     falha('O OVR tem que estar entre 40 e 99.');
+    if ($idade < 16 || $idade > 45)                 falha('A idade tem que estar entre 16 e 45.');
+
+    $ja = $pdo->prepare("SELECT p.id FROM players p JOIN teams t ON t.id = p.team_id
+                          WHERE p.name = ? AND t.league = ?");
+    $ja->execute([$nome, revisaoLiga()]);
+    if ($ja->fetchColumn()) falha('Já existe um jogador com esse nome na liga. Mova ele em vez de criar outro.');
+
+    $pdo->prepare("INSERT INTO players (team_id, was_traded, is_lenda, name, age, seasons_in_league,
+                      position, secondary_position, role, available_for_trade, ovr, created_at)
+                   VALUES (?,1,0,?,?,0,?,?,'Banco',0,?,NOW())")
+        ->execute([$destino, $nome, $idade, $pos, $sec !== '' ? $sec : null, $ovr]);
+    revisaoRegistrar($pdo, $destino, $userId, 'criar_jogador',
+        sprintf('%s (%s %s, %sa) criado em %s', $nome, $ovr, $pos, $idade, revisaoNomeTime($pdo, $destino)));
+
+    echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ─── GET picks_time: as picks de outro time, pra "pegar de X" ────────────
 if ($metodo === 'GET' && $acao === 'picks_time') {
     $teamId = (int)($_GET['team_id'] ?? 0);
@@ -242,12 +327,15 @@ if ($metodo === 'POST' && $acao === 'mover_pick') {
     exigirDaLiga($pdo, $dono, 'dono da pick');
     exigirMinhaPonta($ehAdmin, $meuTimeId, [$dono, $destino]);
 
-    /* Pick em swap anda junto com o par e com o rótulo SB/SW; mover só um
-       lado deixa o par quebrado, e quem arruma depois sou eu no SQL. */
-    if (!empty($pk['swap_type'])) {
-        falha('Essa pick está num swap (' . $pk['swap_type'] . '). Fale com o admin — mover só um lado quebra o par.');
-    }
-
+    /*
+     * PICK EM SWAP TAMBÉM ANDA. Isto era um bloqueio, e estava errado: o
+     * direito do swap é negociável como qualquer pick, e recusar só empurrava
+     * o GM pro admin (onde o Dias tentou em 26/09 e também não conseguiu).
+     *
+     * O que não pode mudar é o PAR: só o dono se move, enquanto swap_type e
+     * swap_pair_pick_id ficam onde estão. Mexer no rótulo SB/SW aqui é que
+     * quebraria o par, e é isso que segue fora do alcance da tela.
+     */
     $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?')->execute([$destino, $pickId]);
     revisaoRegistrar($pdo, $dono, $userId, 'mover_pick',
         sprintf('%s R%s (%s) %s -> %s', $pk['season_year'], $pk['round'], $pk['origem'],
