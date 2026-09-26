@@ -99,9 +99,9 @@ if (!function_exists('sbActive')) {
         <a href="/statsjogadores.php"<?= sbActive('statsjogadores.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Stats</a>
         <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
         <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
-<?php /* Conferência de off-season: só aparece pra quem é da liga em revisão
-         (e pro admin), porque fora dela o link só levaria a um aviso. */ ?>
-        <?php if (($team['league'] ?? '') === 'NEXT' || !empty($__sbIsAdmin)): ?>
+<?php /* Conferência de off-season: só pras ligas que estão conferindo (e pro
+         admin), porque fora delas o link só levaria a uma tela vazia. */ ?>
+        <?php if (in_array($team['league'] ?? '', ['NEXT', 'ELITE'], true) || !empty($__sbIsAdmin)): ?>
         <a href="/revisao.php"<?= sbActive('revisao.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-check"></i> Conferência</a>
         <?php endif; ?>
 <?php /* Mercado saiu do menu em 31/08/2026: ninguém usava. A página segue de
@@ -147,6 +147,7 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
         <a href="/admin.php"<?= sbActive('admin.php', $__sbCurrent) ?>><i class="bi bi-shield-lock-fill"></i> Admin</a>
+        <a href="/logs.php"<?= sbActive('logs.php', $__sbCurrent) ?>><i class="bi bi-journal-text"></i> Log do sistema</a>
         <?php foreach ($__sbOtherInitDrafts as $__lg => $__sess): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
         <?php endforeach; ?>

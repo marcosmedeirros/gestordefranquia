@@ -32,6 +32,14 @@ $acao   = $_GET['action'] ?? '';
 $metodo = $_SERVER['REQUEST_METHOD'];
 $corpo  = $metodo === 'POST' ? (json_decode(file_get_contents('php://input'), true) ?: []) : [];
 
+/*
+ * QUAL LIGA ESTA REQUISIÇÃO CONFERE. Vem do pedido (a tela manda em toda
+ * chamada), e cai na liga do próprio GM quando não vier — senão um GM da
+ * ELITE abriria a tela e levaria um "não é da NEXT" sem entender por quê.
+ */
+$ligaPedida = $_GET['liga'] ?? $corpo['liga'] ?? ($meu['league'] ?? null);
+revisaoLiga($ligaPedida);
+
 function falha(string $msg, int $codigo = 400): never
 {
     http_response_code($codigo);
@@ -50,7 +58,7 @@ function ligaDoTime(PDO $pdo, int $teamId): string
 function exigirDaLiga(PDO $pdo, int $teamId, string $rotulo): void
 {
     if ($teamId <= 0) falha("Escolha o $rotulo.");
-    if (ligaDoTime($pdo, $teamId) !== REVISAO_LIGA) falha("O $rotulo não é da " . REVISAO_LIGA . '.');
+    if (ligaDoTime($pdo, $teamId) !== revisaoLiga()) falha("O $rotulo não é da " . revisaoLiga() . '.');
 }
 
 /**
@@ -157,7 +165,7 @@ if ($metodo === 'POST' && $acao === 'dispensar') {
     $sid = null;
     try {
         $s = $pdo->prepare("SELECT id FROM seasons WHERE league = ? ORDER BY year DESC LIMIT 1");
-        $s->execute([REVISAO_LIGA]);
+        $s->execute([revisaoLiga()]);
         $sid = $s->fetchColumn() ?: null;
     } catch (Throwable $e) { /* free agency aguenta sem season_id */ }
 
@@ -168,7 +176,7 @@ if ($metodo === 'POST' && $acao === 'dispensar') {
                           season_id, is_retirement, created_at)
                        VALUES (?,?,?,?,?,0,'available',?,?,?,NOW(),?,0,NOW())")
             ->execute([$p['name'], $p['age'], $p['position'], $p['secondary_position'] ?: null,
-                       $p['ovr'], REVISAO_LIGA, $origem, revisaoNomeTime($pdo, $origem), $sid]);
+                       $p['ovr'], revisaoLiga(), $origem, revisaoNomeTime($pdo, $origem), $sid]);
         $pdo->prepare('DELETE FROM players WHERE id = ?')->execute([$playerId]);
         revisaoRegistrar($pdo, $origem, $userId, 'dispensar',
             sprintf('%s (%s %s) -> free agency', $p['name'], $p['ovr'], $p['position']));

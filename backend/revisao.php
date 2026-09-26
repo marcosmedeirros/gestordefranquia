@@ -13,7 +13,36 @@
 
 require_once __DIR__ . '/db.php';
 
-const REVISAO_LIGA = 'NEXT';
+/** As ligas que têm conferência aberta. A tela troca entre elas por aba. */
+const REVISAO_LIGAS = ['NEXT', 'ELITE'];
+
+/**
+ * A liga que esta requisição está conferindo.
+ *
+ * Nasceu como constante fixa em 'NEXT' e virou isto quando a ELITE também
+ * precisou da tela. Fica num estático em vez de sair passando a liga por
+ * quinze assinaturas — cada requisição olha uma liga só.
+ */
+function revisaoLiga(?string $nova = null): string
+{
+    static $liga = 'NEXT';
+    if ($nova !== null) {
+        $up = strtoupper(trim($nova));
+        if (in_array($up, REVISAO_LIGAS, true)) $liga = $up;
+    }
+    return $liga;
+}
+
+/** O cap da ELITE é folha salarial; o das outras, soma de OVR. */
+function revisaoUsaSalario(PDO $pdo, ?string $liga = null): bool
+{
+    $liga = $liga ?: revisaoLiga();
+    static $cache = [];
+    if (isset($cache[$liga])) return $cache[$liga];
+    $st = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
+    $st->execute([$liga]);
+    return $cache[$liga] = (strtolower((string)$st->fetchColumn()) === 'salary');
+}
 
 /**
  * JANELA ABERTA — qualquer GM da liga mexe em qualquer time.
@@ -88,7 +117,7 @@ function revisaoTimes(PDO $pdo): array
     $st = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',name)) nome
                            FROM teams WHERE league = ?
                        ORDER BY TRIM(CONCAT(COALESCE(city,''),' ',name))");
-    $st->execute([REVISAO_LIGA]);
+    $st->execute([revisaoLiga()]);
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -120,7 +149,7 @@ function revisaoAnoAtual(PDO $pdo): int
                               WHERE s.league = ?
                                 AND (s.status IS NULL OR s.status NOT IN ('completed'))
                            ORDER BY s.created_at DESC LIMIT 1");
-        $st->execute([REVISAO_LIGA]);
+        $st->execute([revisaoLiga()]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if ($r && isset($r['start_year'], $r['season_number'])) {
             return $ano = (int)$r['start_year'] + (int)$r['season_number'] - 1;
@@ -159,7 +188,7 @@ function revisaoTudo(PDO $pdo): array
                       LEFT JOIN users u ON u.id = t.user_id
                           WHERE t.league = ?
                        ORDER BY TRIM(CONCAT(COALESCE(t.city,''),' ',t.name))");
-    $st->execute([REVISAO_LIGA]);
+    $st->execute([revisaoLiga()]);
 
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
@@ -173,15 +202,32 @@ function revisaoTudo(PDO $pdo): array
         $out[] = $t;
     }
     return ['cap_min' => $faixa['min'], 'cap_max' => $faixa['max'],
+            'liga' => revisaoLiga(), 'ligas' => REVISAO_LIGAS,
+            'unidade' => revisaoUsaSalario($pdo) ? 'M' : '',
             'ano' => revisaoAnoAtual($pdo), 'times' => $out];
 }
 
 /**
- * O cap da NEXT é a soma do OVR dos CAP_TOP_N melhores — não do elenco todo.
- * Repetido aqui de propósito: helpers.php nem sempre está carregado na API.
+ * O CAP DO TIME, na régua da liga dele.
+ *
+ * ELITE: folha salarial já com o Cap Flex descontado — a mesma conta que a
+ * tela de Salário Cap mostra, tirada de getTeamCapSummary().
+ * Nas outras: soma do OVR dos CAP_TOP_N melhores, não do elenco todo. Essa
+ * parte está repetida aqui de propósito, porque helpers.php nem sempre está
+ * carregado na API.
  */
 function revisaoCap(PDO $pdo, int $teamId): int
 {
+    if (revisaoUsaSalario($pdo)) {
+        try {
+            require_once __DIR__ . '/salary_cap.php';
+            $s = getTeamCapSummary($pdo, $teamId);
+            return (int)($s['payroll_after_flex'] ?? $s['payroll'] ?? 0);
+        } catch (Throwable $e) {
+            error_log('[revisaoCap salario] ' . $e->getMessage());
+            return 0;
+        }
+    }
     $n = defined('CAP_TOP_N') ? (int)CAP_TOP_N : 10;
     $st = $pdo->prepare("SELECT COALESCE(SUM(ovr),0) FROM
                           (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT $n) x");
@@ -192,7 +238,7 @@ function revisaoCap(PDO $pdo, int $teamId): int
 function revisaoFaixaCap(PDO $pdo): array
 {
     $st = $pdo->prepare("SELECT cap_min, cap_max FROM league_settings WHERE league = ?");
-    $st->execute([REVISAO_LIGA]);
+    $st->execute([revisaoLiga()]);
     $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
     return ['min' => (int)($r['cap_min'] ?? 0), 'max' => (int)($r['cap_max'] ?? 0)];
 }
@@ -210,8 +256,10 @@ function revisaoPendencias(PDO $pdo, int $teamId): array
     if ($qtd > 15) $lista[] = ($qtd - 15) . ' jogador' . ($qtd - 15 > 1 ? 'es' : '') . ' a mais (máximo 15)';
     if ($qtd < 13) $lista[] = 'falta' . (13 - $qtd > 1 ? 'm' : '') . ' ' . (13 - $qtd)
                             . ' jogador' . (13 - $qtd > 1 ? 'es' : '') . ' (mínimo 13)';
-    if ($faixa['max'] && $cap > $faixa['max']) $lista[] = ($cap - $faixa['max']) . ' de cap acima do teto de ' . $faixa['max'];
-    if ($faixa['min'] && $cap < $faixa['min']) $lista[] = ($faixa['min'] - $cap) . ' de cap abaixo do piso de ' . $faixa['min'];
+    // Na ELITE o número é dinheiro e precisa do M; na NEXT é soma de OVR e não tem unidade.
+    $u = revisaoUsaSalario($pdo) ? 'M' : '';
+    if ($faixa['max'] && $cap > $faixa['max']) $lista[] = ($cap - $faixa['max']) . $u . ' de cap acima do teto de ' . $faixa['max'] . $u;
+    if ($faixa['min'] && $cap < $faixa['min']) $lista[] = ($faixa['min'] - $cap) . $u . ' de cap abaixo do piso de ' . $faixa['min'] . $u;
     return ['qtd' => $qtd, 'cap' => $cap, 'faixa' => $faixa, 'itens' => $lista];
 }
 
@@ -237,7 +285,7 @@ function revisaoPainel(PDO $pdo): array
                       LEFT JOIN users u ON u.id = t.user_id
                           WHERE t.league = ?
                        ORDER BY TRIM(CONCAT(COALESCE(t.city,''),' ',t.name))");
-    $st->execute([REVISAO_LIGA]);
+    $st->execute([revisaoLiga()]);
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
         $cap = revisaoCap($pdo, (int)$t['id']);

@@ -23,6 +23,11 @@ revisaoGarantirTabelas($pdo);
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
+
+/* A liga da tela: a escolhida na aba, ou a do próprio GM quando ele abre
+   direto. Quem não tem time cai na primeira da lista. */
+revisaoLiga($_GET['liga'] ?? ($team['league'] ?? null));
+$ligaAtual = revisaoLiga();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -65,6 +70,13 @@ $team = $stmtTeam->fetch() ?: null;
   <?php include __DIR__ . '/includes/shell-css.php'; ?>
   <style>
     .rv-wrap{display:flex;flex-direction:column;gap:14px;max-width:1120px}
+
+    /* Abas de liga: cada uma confere a sua, com regra de cap diferente. */
+    .rv-abas{display:flex;gap:4px;border-bottom:1px solid var(--border-md,#2a2a31)}
+    .rv-aba{padding:9px 20px;font-size:13.5px;font-weight:700;color:var(--text-2,#9aa);
+      text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.02em}
+    .rv-aba:hover{color:var(--text,#fff)}
+    .rv-aba.on{color:var(--red,#fc0025);border-bottom-color:var(--red,#fc0025)}
 
     .rv-topo{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
       padding:15px 17px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
@@ -176,9 +188,16 @@ $team = $stmtTeam->fetch() ?: null;
       <div class="content">
         <div class="rv-wrap">
 
+          <div class="rv-abas">
+            <?php foreach (REVISAO_LIGAS as $lg): ?>
+              <a href="/revisao.php?liga=<?= urlencode($lg) ?>"
+                 class="rv-aba<?= $lg === $ligaAtual ? ' on' : '' ?>"><?= htmlspecialchars($lg) ?></a>
+            <?php endforeach; ?>
+          </div>
+
           <div class="rv-topo">
             <div>
-              <h2>Confira os elencos e as picks da <?= htmlspecialchars(REVISAO_LIGA) ?></h2>
+              <h2>Confira os elencos e as picks da <?= htmlspecialchars($ligaAtual) ?></h2>
               <p>
                 Todos os times estão abertos: se um jogador seu está no time errado, mova daqui mesmo.
                 Picks do ano em curso pra frente. Cada movimento fica registrado com o seu nome.
@@ -242,10 +261,21 @@ $team = $stmtTeam->fetch() ?: null;
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+  const LIGA = <?= json_encode($ligaAtual) ?>;
   let DADOS = null, FILTRO = 'todos', ABERTOS = new Set(), mvAlvo = null, dpAlvo = null;
 
+  /* A liga vai em toda chamada — no GET pela querystring, no POST pelo corpo.
+     Sem isso a API cairia na liga do GM e um admin da ELITE conferindo a NEXT
+     receberia "o time não é da ELITE" em cada movimento. */
   async function api(url, opts) {
-    const r = await fetch('/api/revisao.php' + url, opts);
+    const sep = url.includes('?') ? '&' : '?';
+    const u = '/api/revisao.php' + url + sep + 'liga=' + encodeURIComponent(LIGA);
+    if (opts && opts.body) {
+      const corpo = JSON.parse(opts.body);
+      corpo.liga = LIGA;
+      opts = { ...opts, body: JSON.stringify(corpo) };
+    }
+    const r = await fetch(u, opts);
     const d = await r.json().catch(() => ({}));
     if (!r.ok || d.success === false) throw new Error(d.error || 'Erro na requisição');
     return d;
@@ -313,7 +343,7 @@ $team = $stmtTeam->fetch() ?: null;
         </span>
         <span class="tm-nums">
           <span class="tm-n${jogAlerta}"><b>${t.qtd}</b><span>Jog</span></span>
-          <span class="tm-n${capAlerta}"><b>${t.cap}</b><span>Cap</span></span>
+          <span class="tm-n${capAlerta}"><b>${t.cap}${DADOS.unidade}</b><span>Cap</span></span>
         </span>
         ${selo}
       </summary>
