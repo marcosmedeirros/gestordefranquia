@@ -38,6 +38,32 @@ $team = $stmtTeam->fetch() ?: null;
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
+    /* Os tokens do app. shell-css.php depende deles já estarem de pé — sem
+       este bloco a barra lateral ocupa a largura toda, que é exatamente o
+       aviso que está no topo daquele arquivo. */
+    :root{
+      --red:#fc0025;
+      --red-2:color-mix(in srgb, var(--red) 85%, white);
+      --red-soft:color-mix(in srgb, var(--red) 10%, transparent);
+      --red-glow:color-mix(in srgb, var(--red) 18%, transparent);
+      --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
+      --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10);
+      --border-red:color-mix(in srgb, var(--red) 22%, transparent);
+      --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
+      --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6;
+      --sidebar-w:260px;
+      --font:'Montserrat',sans-serif;
+      --radius:14px; --radius-sm:10px; --radius-xs:6px;
+      --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
+    }
+    :root[data-theme="light"]{
+      --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
+      --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5b6172; --text-3:#6b7080;
+    }
+  </style>
+  <?php /* Barra lateral, topbar, main — o mesmo shell das outras telas. */ ?>
+  <?php include __DIR__ . '/includes/shell-css.php'; ?>
+  <style>
     .rv-wrap{display:flex;flex-direction:column;gap:14px;max-width:1120px}
 
     .rv-topo{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
