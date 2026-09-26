@@ -30,10 +30,29 @@ const SUPERLOG_DIAS    = 7;      // quantos dias de histórico ficam de pé
 const SUPERLOG_MAX_MB  = 40;     // teto por arquivo diário
 const SUPERLOG_MAX_VAL = 300;    // corte de cada parâmetro, em caracteres
 
-/** Tabelas que não valem uma linha de log: giram muito e não reconstroem nada. */
+/**
+ * Tabelas que não valem uma linha de log: giram muito e não reconstroem nada.
+ *
+ * A segunda leva saiu de medir o log real em produção. Nos primeiros 13
+ * minutos ele juntou 218KB, e quase tudo era batimento de infraestrutura —
+ * `whatsapp_config` 306 vezes (o bot se reportando), `whatsapp_grupos_vistos`
+ * 232, `draft_relogio_tick` 105, `leilao_bot_fila` 78. Nesse ritmo daria uns
+ * 24MB por dia de coisa que não ajuda a refazer troca nenhuma, e esta
+ * hospedagem já derrubou o site por disco cheio.
+ *
+ * O que fica de fora daqui é o que reconstrói a liga: players, picks, teams,
+ * trades, free_agents, draft_*, league_settings.
+ */
 const SUPERLOG_IGNORAR = [
-    'sessions', 'php_sessions', 'cache', 'whatsapp_fila', 'whatsapp_log',
-    'superlog', 'revisao_log', 'bot_heartbeat', 'user_sessions', 'login_attempts',
+    // sessão e infra
+    'sessions', 'php_sessions', 'cache', 'user_sessions', 'login_attempts',
+    'superlog', 'bot_heartbeat', 'push_subscriptions',
+    // o próprio log da conferência já vive no banco com o mesmo conteúdo
+    'revisao_log',
+    // batimento: escrevem sem parar e não guardam estado que se perca
+    'whatsapp_fila', 'whatsapp_log', 'whatsapp_config', 'whatsapp_grupos_vistos',
+    'whatsapp_msgs_vistas', 'draft_relogio_tick', 'leilao_bot_fila',
+    'tactic_edit_windows',
 ];
 
 /** Campos cujo valor nunca entra no arquivo. */
