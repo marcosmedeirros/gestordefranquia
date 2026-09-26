@@ -53,10 +53,14 @@ function exigirDaLiga(PDO $pdo, int $teamId, string $rotulo): void
     if (ligaDoTime($pdo, $teamId) !== REVISAO_LIGA) falha("O $rotulo não é da " . REVISAO_LIGA . '.');
 }
 
-/** Sem ser admin, o time do GM tem que estar numa das pontas. */
+/**
+ * Quem pode mexer. Com REVISAO_ABERTA ligada, qualquer GM da liga mexe em
+ * qualquer time — é a janela de regularização, e tudo fica no revisao_log.
+ * Fechada, volta a regra normal: admin em tudo, GM só onde o time dele entra.
+ */
 function exigirMinhaPonta(bool $ehAdmin, int $meuTimeId, array $pontas): void
 {
-    if ($ehAdmin) return;
+    if (REVISAO_ABERTA || $ehAdmin) return;
     if (!$meuTimeId || !in_array($meuTimeId, array_map('intval', $pontas), true)) {
         falha('Você só pode mexer em algo que passa pelo seu time.', 403);
     }
@@ -84,6 +88,17 @@ if ($metodo === 'GET' && $acao === 'estado') {
         'ok_em'      => revisaoEstaOk($pdo, $teamId),
         'times'      => revisaoTimes($pdo),
     ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ─── GET tudo: a liga inteira numa tacada, pra tela de todos os times ────
+if ($metodo === 'GET' && $acao === 'tudo') {
+    $d = revisaoTudo($pdo);
+    $d['success']   = true;
+    $d['meu_time']  = $meuTimeId;
+    $d['eh_admin']  = $ehAdmin;
+    $d['aberta']    = REVISAO_ABERTA;
+    echo json_encode($d, JSON_UNESCAPED_UNICODE);
     exit;
 }
 

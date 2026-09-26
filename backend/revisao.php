@@ -15,6 +15,19 @@ require_once __DIR__ . '/db.php';
 
 const REVISAO_LIGA = 'NEXT';
 
+/**
+ * JANELA ABERTA — qualquer GM da liga mexe em qualquer time.
+ *
+ * Decidido pelo dono em 26/09/2026: enquanto os elencos e as picks não
+ * estiverem todos de pé, prender cada um ao próprio time só atrasa, porque
+ * boa parte das correções é "esse jogador é meu mas está no time do fulano".
+ * Todo movimento fica no revisao_log com o nome de quem fez.
+ *
+ * Pra fechar a janela quando terminar: trocar para false. A tela volta a
+ * deixar cada GM só no próprio time e o admin continua com tudo.
+ */
+const REVISAO_ABERTA = true;
+
 /** As duas tabelas nascem sozinhas — não existe migration pra isto ainda. */
 function revisaoGarantirTabelas(PDO $pdo): void
 {
@@ -88,18 +101,79 @@ function revisaoElenco(PDO $pdo, int $teamId): array
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
+/**
+ * O ANO DA TEMPORADA EM CURSO. Serve pra cortar as picks antigas: pick de
+ * draft que já passou só polui a tela de conferência.
+ *
+ * Mesma conta de trades.php — start_year do sprint mais o número da
+ * temporada. Quando não dá pra calcular, devolve 0 e a tela mostra tudo,
+ * que é melhor que esconder pick de verdade por causa de config faltando.
+ */
+function revisaoAnoAtual(PDO $pdo): int
+{
+    static $ano = null;
+    if ($ano !== null) return $ano;
+    try {
+        $st = $pdo->prepare("SELECT s.season_number, s.year, sp.start_year
+                               FROM seasons s
+                          LEFT JOIN sprints sp ON sp.id = s.sprint_id
+                              WHERE s.league = ?
+                                AND (s.status IS NULL OR s.status NOT IN ('completed'))
+                           ORDER BY s.created_at DESC LIMIT 1");
+        $st->execute([REVISAO_LIGA]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if ($r && isset($r['start_year'], $r['season_number'])) {
+            return $ano = (int)$r['start_year'] + (int)$r['season_number'] - 1;
+        }
+        if ($r && !empty($r['year'])) return $ano = (int)$r['year'];
+    } catch (Throwable $e) {
+        error_log('[revisaoAnoAtual] ' . $e->getMessage());
+    }
+    return $ano = 0;
+}
+
 function revisaoPicks(PDO $pdo, int $teamId): array
 {
+    $ano = revisaoAnoAtual($pdo);
+    $filtro = $ano > 0 ? ' AND p.season_year >= ' . $ano : '';
     $st = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type,
                                 p.original_team_id,
                                 TRIM(CONCAT(COALESCE(o.city,''),' ',o.name)) origem
                            FROM picks p
                            JOIN teams o ON o.id = p.original_team_id
-                          WHERE p.team_id = ?
+                          WHERE p.team_id = ?$filtro
                        ORDER BY p.season_year, p.round,
                                 TRIM(CONCAT(COALESCE(o.city,''),' ',o.name))");
     $st->execute([$teamId]);
     return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Tudo de uma vez: os times da liga, cada um com elenco, picks e situação. */
+function revisaoTudo(PDO $pdo): array
+{
+    $faixa = revisaoFaixaCap($pdo);
+    $st = $pdo->prepare("SELECT t.id, TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) nome,
+                                u.name AS gm,
+                                (SELECT confirmado_em FROM revisao_ok WHERE team_id = t.id) ok_em
+                           FROM teams t
+                      LEFT JOIN users u ON u.id = t.user_id
+                          WHERE t.league = ?
+                       ORDER BY TRIM(CONCAT(COALESCE(t.city,''),' ',t.name))");
+    $st->execute([REVISAO_LIGA]);
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $id = (int)$t['id'];
+        $p  = revisaoPendencias($pdo, $id);
+        $t['elenco']     = revisaoElenco($pdo, $id);
+        $t['picks']      = revisaoPicks($pdo, $id);
+        $t['qtd']        = $p['qtd'];
+        $t['cap']        = $p['cap'];
+        $t['pendencias'] = $p['itens'];
+        $out[] = $t;
+    }
+    return ['cap_min' => $faixa['min'], 'cap_max' => $faixa['max'],
+            'ano' => revisaoAnoAtual($pdo), 'times' => $out];
 }
 
 /**

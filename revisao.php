@@ -1,10 +1,14 @@
 <?php
 /**
- * CONFERÊNCIA DE OFF-SEASON — a tela do GM.
+ * CONFERÊNCIA DE OFF-SEASON — a liga inteira numa tela só.
  *
- * Mostra o elenco e as picks do time dele com o que está fora da regra em
- * destaque, deixa arrumar ali mesmo (mover, dispensar, mandar ou puxar pick)
- * e termina no botão "Meu time está OK". Ver backend/revisao.php pra história.
+ * Nasceu em 26/09/2026, depois que o banco caiu e ~34h de trocas voltaram a
+ * ser reconstruídas a partir do que cada GM lembrava no WhatsApp. O gargalo
+ * não foi aplicar: foi descobrir o que estava errado, time por time.
+ *
+ * Aqui estão os 30 times abertos, com elenco e picks (do ano em curso pra
+ * frente), e qualquer GM arruma qualquer um enquanto a janela está aberta
+ * (REVISAO_ABERTA, em backend/revisao.php). Cada time termina no "Time OK".
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
@@ -18,16 +22,7 @@ revisaoGarantirTabelas($pdo);
 
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
-$team    = $stmtTeam->fetch() ?: null;
-$teamId  = $team['id'] ?? null;
-$ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
-
-// Admin pode abrir o time de qualquer um pra ajudar.
-$verTime = $teamId ? (int)$teamId : 0;
-if ($ehAdmin && !empty($_GET['time'])) $verTime = (int)$_GET['time'];
-
-$daLiga = $team && ($team['league'] ?? '') === REVISAO_LIGA;
-if ($ehAdmin && $verTime) $daLiga = true;
+$team = $stmtTeam->fetch() ?: null;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -43,75 +38,88 @@ if ($ehAdmin && $verTime) $daLiga = true;
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
-    .rv-wrap{display:flex;flex-direction:column;gap:18px;max-width:1040px}
+    .rv-wrap{display:flex;flex-direction:column;gap:14px;max-width:1120px}
 
-    /* ── faixa de situação ─────────────────────────────────────── */
-    .rv-status{border-radius:12px;padding:16px 18px;border:1px solid var(--border-md,#2a2a31);
-      background:var(--panel,#0e0e12);display:flex;flex-wrap:wrap;gap:16px;align-items:center;
-      justify-content:space-between}
-    .rv-status.ruim{border-color:#7a2020;background:color-mix(in srgb,#fc0025 8%,var(--panel,#0e0e12))}
-    .rv-status.bom{border-color:#1f6b38;background:color-mix(in srgb,#2fd06a 8%,var(--panel,#0e0e12))}
-    .rv-status h2{font-size:17px;font-weight:700;margin:0 0 4px}
-    .rv-status p{margin:0;font-size:13.5px;color:var(--text-2,#9aa)}
-    .rv-nums{display:flex;gap:22px;flex-wrap:wrap}
-    .rv-num b{display:block;font-size:22px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
-    .rv-num span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2,#9aa)}
-    .rv-num.alerta b{color:#ff5a6e}
+    .rv-topo{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
+      padding:15px 17px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+    .rv-topo h2{margin:0 0 3px;font-size:16px;font-weight:700}
+    .rv-topo p{margin:0;font-size:13px;color:var(--text-2,#9aa);max-width:62ch}
+    .rv-prog{display:flex;align-items:baseline;gap:8px}
+    .rv-prog b{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+    .rv-prog span{font-size:12px;color:var(--text-2,#9aa)}
 
-    .rv-pend{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
-    .rv-pend li{font-size:13.5px;color:#ff8a97;display:flex;gap:7px;align-items:flex-start}
-    .rv-pend li i{margin-top:2px}
+    .rv-filtros{display:flex;flex-wrap:wrap;gap:7px}
+    .rv-pill{background:var(--panel-2,#16161a);color:var(--text-2,#9aa);border:1px solid var(--border-md,#2a2a31);
+      border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+    .rv-pill:hover{color:var(--text,#fff)}
+    .rv-pill.on{background:var(--red,#fc0025);border-color:var(--red,#fc0025);color:#fff}
+    .rv-busca{flex:1;min-width:170px;background:var(--panel-2,#16161a);border:1px solid var(--border-md,#2a2a31);
+      color:var(--text,#fff);border-radius:999px;padding:6px 15px;font-size:13px;font-family:inherit}
 
-    /* ── blocos ────────────────────────────────────────────────── */
-    .rv-box{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
+    /* ── card de time ──────────────────────────────────────────── */
+    .tm{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
       overflow:hidden}
-    .rv-box > header{padding:13px 16px;border-bottom:1px solid var(--border-md,#2a2a31);
-      display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-    .rv-box > header h3{margin:0;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-    .rv-box > header .cnt{font-size:12.5px;color:var(--text-2,#9aa)}
+    .tm.ok{border-color:#1f6b38}
+    .tm.torto{border-color:#7a2020}
+    .tm > summary{padding:13px 16px;cursor:pointer;display:flex;align-items:center;gap:13px;
+      list-style:none;flex-wrap:wrap}
+    .tm > summary::-webkit-details-marker{display:none}
+    .tm > summary:hover{background:var(--panel-2,#16161a)}
+    .tm-seta{color:var(--text-2,#9aa);transition:transform .15s}
+    .tm[open] .tm-seta{transform:rotate(90deg)}
+    .tm-nome{flex:1;min-width:150px}
+    .tm-nome b{display:block;font-size:15px;font-weight:700}
+    .tm-nome small{color:var(--text-2,#9aa);font-size:12px}
+    .tm-nums{display:flex;gap:16px;align-items:center}
+    .tm-n{text-align:right}
+    .tm-n b{display:block;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+    .tm-n span{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-2,#9aa)}
+    .tm-n.alerta b{color:#ff5a6e}
+    .tm-sel{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+    .tm-sel.ok{background:color-mix(in srgb,#2fd06a 16%,transparent);color:#4ade80}
+    .tm-sel.torto{background:color-mix(in srgb,#fc0025 14%,transparent);color:#ff8a97}
+    .tm-sel.pend{background:var(--panel-2,#16161a);color:var(--text-2,#9aa)}
 
-    .rv-linha{display:flex;align-items:center;gap:12px;padding:10px 16px;
-      border-bottom:1px solid var(--border,#1c1c22)}
-    .rv-linha:last-child{border-bottom:0}
-    .rv-linha:hover{background:var(--panel-2,#16161a)}
-    .rv-ovr{font-weight:800;font-size:15px;min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
-    .rv-nome{flex:1;min-width:0}
-    .rv-nome b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;
-      text-overflow:ellipsis}
-    .rv-nome small{color:var(--text-2,#9aa);font-size:12px}
-    .rv-acoes{display:flex;gap:6px;flex-shrink:0}
-    .rv-mini{background:var(--panel-2,#16161a);border:1px solid var(--border-md,#2a2a31);
-      color:var(--text-2,#9aa);border-radius:7px;padding:5px 10px;font-size:12.5px;font-weight:600;
-      cursor:pointer;font-family:inherit;white-space:nowrap}
-    .rv-mini:hover{color:#fff;border-color:var(--red,#fc0025)}
-    .rv-mini.perigo:hover{color:#ff5a6e;border-color:#7a2020}
-    .rv-tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-      padding:1px 6px;border-radius:4px;background:var(--panel-2,#16161a);color:var(--text-2,#9aa)}
+    .tm-corpo{border-top:1px solid var(--border-md,#2a2a31);padding:0}
+    .tm-cols{display:grid;grid-template-columns:1fr 340px;gap:0}
+    .tm-cols > div{padding:12px 16px}
+    .tm-cols > div:first-child{border-right:1px solid var(--border,#1c1c22)}
+    .tm-h{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--text-2,#9aa);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 
-    .rv-vazio{padding:22px 16px;text-align:center;color:var(--text-2,#9aa);font-size:13.5px}
+    .ln{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#1c1c22)}
+    .ln:last-child{border-bottom:0}
+    .ln-ovr{font-weight:800;font-size:14px;min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
+    .ln-nome{flex:1;min-width:0}
+    .ln-nome b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ln-nome small{color:var(--text-2,#9aa);font-size:11.5px}
+    .ln-acoes{display:flex;gap:5px;flex-shrink:0}
+    .mini{background:var(--panel-2,#16161a);border:1px solid var(--border-md,#2a2a31);color:var(--text-2,#9aa);
+      border-radius:6px;padding:3px 9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;
+      white-space:nowrap}
+    .mini:hover{color:#fff;border-color:var(--red,#fc0025)}
+    .mini.perigo:hover{color:#ff5a6e;border-color:#7a2020}
+    .mini.verde{border-color:#1f6b38;color:#4ade80}
+    .mini.verde:hover{background:#1f9d4d;color:#fff;border-color:#1f9d4d}
+    .tag{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:0 5px;
+      border-radius:3px;background:var(--panel-2,#16161a);color:var(--text-2,#9aa)}
+    .vazio{color:var(--text-2,#9aa);font-size:12.5px;padding:8px 0}
 
-    /* ── confirmar ─────────────────────────────────────────────── */
-    .rv-fim{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
-      padding:18px;border:1px dashed var(--border-md,#2a2a31);border-radius:12px}
-    .rv-ok-btn{background:#1f9d4d;border:0;color:#fff;border-radius:9px;padding:12px 22px;
-      font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;gap:9px;align-items:center}
-    .rv-ok-btn:hover{background:#25b95c}
-    .rv-ok-btn:disabled{opacity:.45;cursor:not-allowed}
+    .tm-pend{padding:9px 16px;background:color-mix(in srgb,#fc0025 7%,transparent);
+      border-top:1px solid var(--border,#1c1c22);font-size:12.5px;color:#ff8a97;
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tm-rodape{padding:11px 16px;border-top:1px solid var(--border,#1c1c22);display:flex;
+      justify-content:flex-end;gap:8px;flex-wrap:wrap;align-items:center}
 
-    /* ── painel do admin ───────────────────────────────────────── */
-    .rv-painel{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));padding:14px 16px}
-    .rv-card{border:1px solid var(--border-md,#2a2a31);border-radius:9px;padding:10px 12px;
-      background:var(--panel-2,#16161a);font-size:13px}
-    .rv-card.ok{border-color:#1f6b38}
-    .rv-card.torto{border-color:#7a2020}
-    .rv-card b{display:block;font-size:13.5px;margin-bottom:3px}
-    .rv-card span{color:var(--text-2,#9aa);font-size:12px}
-    .rv-card .pr{color:#ff8a97;font-size:12px}
-
-    @media (max-width:640px){
-      .rv-linha{flex-wrap:wrap}
-      .rv-acoes{width:100%;justify-content:flex-end}
-      .rv-status{flex-direction:column;align-items:flex-start}
+    @media (max-width:820px){
+      .tm-cols{grid-template-columns:1fr}
+      .tm-cols > div:first-child{border-right:0;border-bottom:1px solid var(--border,#1c1c22)}
+    }
+    @media (max-width:560px){
+      .tm > summary{gap:9px}
+      .tm-nums{width:100%;justify-content:flex-start;gap:20px}
+      .ln{flex-wrap:wrap}
+      .ln-acoes{width:100%;justify-content:flex-end}
     }
   </style>
 </head>
@@ -129,78 +137,34 @@ if ($ehAdmin && $verTime) $daLiga = true;
       </div>
 
       <div class="content">
-        <?php if (!$daLiga): ?>
-          <div class="rv-box"><div class="rv-vazio">
-            <i class="bi bi-info-circle" style="font-size:22px;display:block;margin-bottom:8px"></i>
-            A conferência está aberta só para a <b><?= htmlspecialchars(REVISAO_LIGA) ?></b> por enquanto.
-          </div></div>
-        <?php else: ?>
-
         <div class="rv-wrap">
 
-          <?php if ($ehAdmin): ?>
-          <div class="rv-box">
-            <header>
-              <h3><i class="bi bi-people me-2"></i>Quem já confirmou</h3>
-              <span class="cnt" id="pnResumo">carregando…</span>
-            </header>
-            <div class="rv-painel" id="pnGrid"></div>
-          </div>
-          <?php endif; ?>
-
-          <!-- situação do time -->
-          <div class="rv-status" id="rvStatus">
+          <div class="rv-topo">
             <div>
-              <h2 id="rvNome">—</h2>
-              <p id="rvFrase">Carregando o time…</p>
-              <ul class="rv-pend" id="rvPend"></ul>
+              <h2>Confira os elencos e as picks da <?= htmlspecialchars(REVISAO_LIGA) ?></h2>
+              <p>
+                Todos os times estão abertos: se um jogador seu está no time errado, mova daqui mesmo.
+                Picks do ano em curso pra frente. Cada movimento fica registrado com o seu nome.
+              </p>
             </div>
-            <div class="rv-nums">
-              <div class="rv-num" id="nJog"><b>—</b><span>Jogadores</span></div>
-              <div class="rv-num" id="nCap"><b>—</b><span>Cap (10 melhores)</span></div>
-            </div>
+            <div class="rv-prog"><b id="pgN">—</b><span id="pgT">de 30 confirmados</span></div>
           </div>
 
-          <!-- elenco -->
-          <div class="rv-box">
-            <header>
-              <h3><i class="bi bi-person-lines-fill me-2"></i>Elenco</h3>
-              <span class="cnt" id="cntElenco"></span>
-            </header>
-            <div id="rvElenco"><div class="rv-vazio">Carregando…</div></div>
+          <div class="rv-filtros">
+            <input class="rv-busca" id="busca" placeholder="Buscar time ou jogador…" oninput="desenhar()">
+            <button class="rv-pill on" data-f="todos" onclick="filtro(this)">Todos</button>
+            <button class="rv-pill" data-f="torto" onclick="filtro(this)">Irregulares</button>
+            <button class="rv-pill" data-f="pend" onclick="filtro(this)">Falta confirmar</button>
+            <button class="rv-pill" data-f="ok" onclick="filtro(this)">Confirmados</button>
           </div>
 
-          <!-- picks -->
-          <div class="rv-box">
-            <header>
-              <h3><i class="bi bi-calendar-check me-2"></i>Picks</h3>
-              <button class="rv-mini" onclick="abrirPuxar()">
-                <i class="bi bi-box-arrow-in-down"></i> Pegar pick de outro time
-              </button>
-            </header>
-            <div id="rvPicks"><div class="rv-vazio">Carregando…</div></div>
-          </div>
-
-          <!-- confirmar -->
-          <div class="rv-fim">
-            <div>
-              <div style="font-weight:700;font-size:15px" id="okTitulo">Está tudo certo?</div>
-              <div style="font-size:13px;color:var(--text-2,#9aa)" id="okAjuda">
-                Confirme só quando o elenco e as picks estiverem do jeito que ficaram na off-season.
-              </div>
-            </div>
-            <button class="rv-ok-btn" id="btnOk" onclick="confirmarOk()">
-              <i class="bi bi-check2-circle"></i> Meu time está OK
-            </button>
-          </div>
-
+          <div id="lista"><div class="vazio" style="padding:26px;text-align:center">Carregando a liga…</div></div>
         </div>
-        <?php endif; ?>
       </div>
     </main>
   </div>
 
-  <!-- modal: mover jogador / mandar pick -->
+  <!-- modal: mover jogador / enviar pick -->
   <div class="modal fade" id="mvModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -221,24 +185,19 @@ if ($ehAdmin && $verTime) $daLiga = true;
     </div>
   </div>
 
-  <!-- modal: pegar pick de outro time -->
-  <div class="modal fade" id="pxModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+  <!-- modal: dispensar -->
+  <div class="modal fade" id="dpModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Pegar pick de outro time</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title">Dispensar</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <label class="form-label" style="font-size:13px;font-weight:600">De qual time</label>
-          <select class="form-select mb-3" id="pxTime" onchange="carregarPicksDe()"></select>
-          <label class="form-label" style="font-size:13px;font-weight:600">Qual pick</label>
-          <select class="form-select" id="pxPick"><option value="">Escolha o time primeiro</option></select>
-          <div class="alert alert-danger mt-3" id="pxErro" style="display:none;font-size:13px"></div>
+          <p id="dpTexto" style="font-size:14px;margin:0"></p>
+          <div class="alert alert-danger mt-3" id="dpErro" style="display:none;font-size:13px"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-r secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn-r primary" onclick="puxarPick()">Trazer pra mim</button>
+          <button type="button" class="btn-r primary" id="dpConfirma">Dispensar</button>
         </div>
       </div>
     </div>
@@ -246,10 +205,7 @@ if ($ehAdmin && $verTime) $daLiga = true;
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  const TIME_ID = <?= (int)$verTime ?>;
-  const EH_ADMIN = <?= $ehAdmin ? 'true' : 'false' ?>;
-  let EST = null;          // último estado carregado
-  let mvAlvo = null;       // o que o modal de mover está movendo
+  let DADOS = null, FILTRO = 'todos', ABERTOS = new Set(), mvAlvo = null, dpAlvo = null;
 
   async function api(url, opts) {
     const r = await fetch('/api/revisao.php' + url, opts);
@@ -258,105 +214,135 @@ if ($ehAdmin && $verTime) $daLiga = true;
     return d;
   }
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const atr = s => esc(s).replace(/'/g, '&#39;');
 
-  // ── carregar e desenhar ────────────────────────────────────────
-  async function carregar() {
-    const d = await api('?action=estado' + (TIME_ID ? '&team_id=' + TIME_ID : ''));
-    EST = d;
-    document.getElementById('rvNome').textContent = d.nome;
-
-    const st = document.getElementById('rvStatus');
-    const pend = document.getElementById('rvPend');
-    st.classList.remove('bom', 'ruim');
-    pend.innerHTML = '';
-
-    if (d.pendencias.length) {
-      st.classList.add('ruim');
-      document.getElementById('rvFrase').textContent = 'O time está fora das regras:';
-      pend.innerHTML = d.pendencias.map(p =>
-        `<li><i class="bi bi-exclamation-triangle-fill"></i>${esc(p)}</li>`).join('');
-    } else if (d.ok_em) {
-      st.classList.add('bom');
-      document.getElementById('rvFrase').textContent =
-        'Confirmado em ' + d.ok_em.replace('T', ' ').slice(0, 16) + '.';
-    } else {
-      st.classList.add('bom');
-      document.getElementById('rvFrase').textContent =
-        'Dentro das regras. Falta você confirmar que o elenco e as picks estão certos.';
-    }
-
-    const nj = document.getElementById('nJog');
-    nj.querySelector('b').textContent = d.qtd;
-    nj.classList.toggle('alerta', d.qtd > 15 || d.qtd < 13);
-    const nc = document.getElementById('nCap');
-    nc.querySelector('b').textContent = d.cap;
-    nc.querySelector('span').textContent = `Cap · teto ${d.cap_max}`;
-    nc.classList.toggle('alerta', d.cap > d.cap_max || d.cap < d.cap_min);
-
-    // elenco
-    document.getElementById('cntElenco').textContent = d.qtd + ' jogadores';
-    document.getElementById('rvElenco').innerHTML = d.elenco.length ? d.elenco.map(p => `
-      <div class="rv-linha">
-        <span class="rv-ovr">${p.ovr}</span>
-        <span class="rv-nome">
-          <b>${esc(p.name)}</b>
-          <small>${esc(p.position)}${p.secondary_position ? ' / ' + esc(p.secondary_position) : ''}
-            · ${p.age}a · <span class="rv-tag">${esc(p.role)}</span></small>
-        </span>
-        <span class="rv-acoes">
-          <button class="rv-mini" onclick="abrirMover('jogador',${p.id},'${esc(p.name).replace(/'/g, "\\'")}')">Mover</button>
-          <button class="rv-mini perigo" onclick="dispensar(${p.id},'${esc(p.name).replace(/'/g, "\\'")}')">Dispensar</button>
-        </span>
-      </div>`).join('') : '<div class="rv-vazio">Sem jogadores.</div>';
-
-    // picks
-    document.getElementById('rvPicks').innerHTML = d.picks.length ? d.picks.map(k => `
-      <div class="rv-linha">
-        <span class="rv-nome">
-          <b>${k.season_year} · ${k.round}ª rodada</b>
-          <small>${esc(k.origem)}${k.swap_type ? ' · <span class="rv-tag">swap ' + esc(k.swap_type) + '</span>' : ''}</small>
-        </span>
-        <span class="rv-acoes">
-          <button class="rv-mini" onclick="abrirMover('pick',${k.id},'${k.season_year} · ${k.round}ª (${esc(k.origem).replace(/'/g, "\\'")})')">Enviar</button>
-        </span>
-      </div>`).join('') : '<div class="rv-vazio">Sem picks.</div>';
-
-    // botão de confirmar
-    const btn = document.getElementById('btnOk');
-    if (d.ok_em) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="bi bi-check2-all"></i> Time confirmado';
-      document.getElementById('okTitulo').textContent = 'Confirmado';
-      document.getElementById('okAjuda').textContent =
-        'Se mexer em algo depois disso, a confirmação cai e você precisa confirmar de novo.';
-    } else {
-      btn.disabled = d.pendencias.length > 0;
-      btn.innerHTML = '<i class="bi bi-check2-circle"></i> Meu time está OK';
-      document.getElementById('okTitulo').textContent =
-        d.pendencias.length ? 'Arrume as pendências acima' : 'Está tudo certo?';
-      document.getElementById('okAjuda').textContent = d.pendencias.length
-        ? 'O botão libera quando o elenco e o cap estiverem dentro da regra.'
-        : 'Confirme só quando o elenco e as picks estiverem do jeito que ficaram na off-season.';
-    }
+  async function carregar(manterAbertos = true) {
+    if (!manterAbertos) ABERTOS.clear();
+    DADOS = await api('?action=tudo');
+    desenhar();
   }
 
-  // ── ações ──────────────────────────────────────────────────────
-  function abrirMover(tipo, id, rotulo) {
-    mvAlvo = { tipo, id };
-    document.getElementById('mvTitulo').textContent =
-      tipo === 'jogador' ? 'Mover jogador' : 'Enviar pick';
+  function filtro(btn) {
+    document.querySelectorAll('.rv-pill').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    FILTRO = btn.dataset.f;
+    desenhar();
+  }
+
+  function desenhar() {
+    if (!DADOS) return;
+    const q = (document.getElementById('busca').value || '').trim().toLowerCase();
+    const ok = DADOS.times.filter(t => t.ok_em).length;
+    document.getElementById('pgN').textContent = ok;
+    document.getElementById('pgT').textContent = `de ${DADOS.times.length} confirmados`;
+
+    const lista = DADOS.times.filter(t => {
+      if (FILTRO === 'ok' && !t.ok_em) return false;
+      if (FILTRO === 'pend' && t.ok_em) return false;
+      if (FILTRO === 'torto' && !t.pendencias.length) return false;
+      if (!q) return true;
+      return t.nome.toLowerCase().includes(q)
+          || (t.gm || '').toLowerCase().includes(q)
+          || t.elenco.some(p => p.name.toLowerCase().includes(q));
+    });
+
+    document.getElementById('lista').innerHTML = lista.length
+      ? lista.map(cardTime).join('')
+      : '<div class="vazio" style="padding:26px;text-align:center">Nenhum time com esse filtro.</div>';
+  }
+
+  function cardTime(t) {
+    const estado = t.pendencias.length ? 'torto' : (t.ok_em ? 'ok' : 'pend');
+    const selo = estado === 'ok'
+      ? '<span class="tm-sel ok"><i class="bi bi-check2-circle"></i> Confirmado</span>'
+      : (estado === 'torto'
+          ? '<span class="tm-sel torto">Irregular</span>'
+          : '<span class="tm-sel pend">Falta confirmar</span>');
+    const capAlerta = (t.cap > DADOS.cap_max || t.cap < DADOS.cap_min) ? ' alerta' : '';
+    const jogAlerta = (t.qtd > 15 || t.qtd < 13) ? ' alerta' : '';
+
+    return `
+    <details class="tm ${estado}" data-id="${t.id}"${ABERTOS.has(t.id) ? ' open' : ''}
+             ontoggle="ABERTOS[this.open?'add':'delete'](${t.id})">
+      <summary>
+        <i class="bi bi-chevron-right tm-seta"></i>
+        <span class="tm-nome">
+          <b>${esc(t.nome)}</b>
+          <small>${t.gm ? esc(t.gm) : 'sem GM'}</small>
+        </span>
+        <span class="tm-nums">
+          <span class="tm-n${jogAlerta}"><b>${t.qtd}</b><span>Jog</span></span>
+          <span class="tm-n${capAlerta}"><b>${t.cap}</b><span>Cap</span></span>
+        </span>
+        ${selo}
+      </summary>
+
+      <div class="tm-corpo">
+        ${t.pendencias.length ? `<div class="tm-pend">
+            <i class="bi bi-exclamation-triangle-fill"></i>${esc(t.pendencias.join(' · '))}
+          </div>` : ''}
+
+        <div class="tm-cols">
+          <div>
+            <div class="tm-h"><span>Elenco</span><span>${t.qtd} jogadores</span></div>
+            ${t.elenco.length ? t.elenco.map(p => `
+              <div class="ln">
+                <span class="ln-ovr">${p.ovr}</span>
+                <span class="ln-nome">
+                  <b>${esc(p.name)}</b>
+                  <small>${esc(p.position)}${p.secondary_position ? ' / ' + esc(p.secondary_position) : ''}
+                    · ${p.age}a · <span class="tag">${esc(p.role)}</span></small>
+                </span>
+                <span class="ln-acoes">
+                  <button class="mini" onclick="abrirMover('jogador',${p.id},${t.id},'${atr(p.name)}')">Mover</button>
+                  <button class="mini perigo" onclick="abrirDispensa(${p.id},'${atr(p.name)}','${atr(t.nome)}')">Dispensar</button>
+                </span>
+              </div>`).join('') : '<div class="vazio">Sem jogadores.</div>'}
+          </div>
+
+          <div>
+            <div class="tm-h"><span>Picks${DADOS.ano ? ' · de ' + DADOS.ano + ' em diante' : ''}</span>
+              <span>${t.picks.length}</span></div>
+            ${t.picks.length ? t.picks.map(k => `
+              <div class="ln">
+                <span class="ln-nome">
+                  <b>${k.season_year} · ${k.round}ª rodada</b>
+                  <small>${esc(k.origem)}${k.swap_type ? ' · <span class="tag">swap ' + esc(k.swap_type) + '</span>' : ''}</small>
+                </span>
+                <span class="ln-acoes">
+                  <button class="mini" onclick="abrirMover('pick',${k.id},${t.id},'${k.season_year} · ${k.round}ª (${atr(k.origem)})')">Enviar</button>
+                </span>
+              </div>`).join('') : '<div class="vazio">Sem picks daqui pra frente.</div>'}
+          </div>
+        </div>
+
+        <div class="tm-rodape">
+          ${t.ok_em
+            ? `<span style="font-size:12.5px;color:#4ade80">Confirmado em ${esc(String(t.ok_em).replace('T',' ').slice(0,16))}</span>`
+            : (t.pendencias.length
+                ? '<span style="font-size:12.5px;color:var(--text-2,#9aa)">Arrume as pendências pra poder confirmar.</span>'
+                : `<button class="mini verde" onclick="confirmarTime(${t.id})">
+                     <i class="bi bi-check2-circle"></i> Time OK</button>`)}
+        </div>
+      </div>
+    </details>`;
+  }
+
+  // ── mover ──────────────────────────────────────────────────────
+  function abrirMover(tipo, id, origemId, rotulo) {
+    mvAlvo = { tipo, id, origemId };
+    document.getElementById('mvTitulo').textContent = tipo === 'jogador' ? 'Mover jogador' : 'Enviar pick';
     document.getElementById('mvOque').textContent =
       (tipo === 'jogador' ? 'Mandando ' : 'Mandando a pick ') + rotulo + ' para:';
     document.getElementById('mvErro').style.display = 'none';
-    const sel = document.getElementById('mvTime');
-    sel.innerHTML = EST.times.filter(t => Number(t.id) !== Number(EST.team_id))
+    document.getElementById('mvTime').innerHTML = DADOS.times
+      .filter(t => Number(t.id) !== Number(origemId))
       .map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('');
     new bootstrap.Modal(document.getElementById('mvModal')).show();
   }
 
   document.getElementById('mvConfirma').addEventListener('click', async () => {
-    const btn = document.getElementById('mvConfirma');
-    const err = document.getElementById('mvErro');
+    const btn = document.getElementById('mvConfirma'), err = document.getElementById('mvErro');
     const destino = Number(document.getElementById('mvTime').value);
     btn.disabled = true;
     try {
@@ -367,107 +353,54 @@ if ($ehAdmin && $verTime) $daLiga = true;
       await api('?action=' + acao, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
       });
+      ABERTOS.add(destino);
       bootstrap.Modal.getInstance(document.getElementById('mvModal')).hide();
       await carregar();
-      if (EH_ADMIN) carregarPainel();
-    } catch (e) {
-      err.textContent = e.message; err.style.display = 'block';
-    } finally { btn.disabled = false; }
+    } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+    finally { btn.disabled = false; }
   });
 
-  async function dispensar(id, nome) {
-    /* Dispensa não volta atrás: o jogador cai na free agency e some do elenco. */
-    if (!window.fbaConfirm) {
-      if (!confirmarSimples(nome)) return;
-    } else if (!await window.fbaConfirm(`Dispensar ${nome}? Ele vai pra free agency.`)) return;
+  // ── dispensar ──────────────────────────────────────────────────
+  function abrirDispensa(id, nome, time) {
+    dpAlvo = id;
+    document.getElementById('dpTexto').innerHTML =
+      `<b>${esc(nome)}</b> sai do ${esc(time)} e vai pra free agency. Isso não volta atrás.`;
+    document.getElementById('dpErro').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('dpModal')).show();
+  }
+
+  document.getElementById('dpConfirma').addEventListener('click', async () => {
+    const btn = document.getElementById('dpConfirma'), err = document.getElementById('dpErro');
+    btn.disabled = true;
     try {
       await api('?action=dispensar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ player_id: id }),
+        body: JSON.stringify({ player_id: dpAlvo }),
       });
+      bootstrap.Modal.getInstance(document.getElementById('dpModal')).hide();
       await carregar();
-      if (EH_ADMIN) carregarPainel();
-    } catch (e) { alertaSimples(e.message); }
-  }
-
-  function confirmarSimples(nome) { return window.confirm(`Dispensar ${nome}? Ele vai pra free agency.`); }
-  function alertaSimples(msg) { window.fbaAlert ? window.fbaAlert(msg) : window.alert(msg); }
-
-  function abrirPuxar() {
-    document.getElementById('pxErro').style.display = 'none';
-    document.getElementById('pxPick').innerHTML = '<option value="">Escolha o time primeiro</option>';
-    document.getElementById('pxTime').innerHTML =
-      '<option value="">Escolha…</option>' +
-      EST.times.filter(t => Number(t.id) !== Number(EST.team_id))
-        .map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('');
-    new bootstrap.Modal(document.getElementById('pxModal')).show();
-  }
-
-  async function carregarPicksDe() {
-    const id = document.getElementById('pxTime').value;
-    const sel = document.getElementById('pxPick');
-    if (!id) { sel.innerHTML = '<option value="">Escolha o time primeiro</option>'; return; }
-    sel.innerHTML = '<option value="">Carregando…</option>';
-    try {
-      const d = await api('?action=picks_time&team_id=' + id);
-      sel.innerHTML = d.picks.length
-        ? '<option value="">Escolha a pick</option>' + d.picks.map(k =>
-            `<option value="${k.id}"${k.swap_type ? ' disabled' : ''}>${k.season_year} · ${k.round}ª (${esc(k.origem)})${k.swap_type ? ' — em swap' : ''}</option>`).join('')
-        : '<option value="">Esse time não tem picks</option>';
-    } catch (e) { sel.innerHTML = '<option value="">Erro ao carregar</option>'; }
-  }
-
-  async function puxarPick() {
-    const err = document.getElementById('pxErro');
-    const pick = Number(document.getElementById('pxPick').value);
-    if (!pick) { err.textContent = 'Escolha a pick.'; err.style.display = 'block'; return; }
-    try {
-      await api('?action=mover_pick', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pick_id: pick, to_team_id: EST.team_id }),
-      });
-      bootstrap.Modal.getInstance(document.getElementById('pxModal')).hide();
-      await carregar();
-      if (EH_ADMIN) carregarPainel();
     } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
-  }
+    finally { btn.disabled = false; }
+  });
 
-  async function confirmarOk() {
-    const btn = document.getElementById('btnOk');
-    btn.disabled = true;
+  // ── confirmar ──────────────────────────────────────────────────
+  async function confirmarTime(id) {
     try {
       await api('?action=ok', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: EST.team_id }),
+        body: JSON.stringify({ team_id: id }),
       });
       await carregar();
-      if (EH_ADMIN) carregarPainel();
-    } catch (e) { alertaSimples(e.message); btn.disabled = false; }
+    } catch (e) {
+      const t = DADOS.times.find(x => Number(x.id) === Number(id));
+      alert(e.message + (t ? '\n\n' + t.nome : ''));
+    }
   }
 
-  // ── painel do admin ────────────────────────────────────────────
-  async function carregarPainel() {
-    try {
-      const d = await api('?action=painel');
-      const ok = d.times.filter(t => t.ok_em).length;
-      document.getElementById('pnResumo').textContent = `${ok} de ${d.times.length} confirmaram`;
-      document.getElementById('pnGrid').innerHTML = d.times.map(t => `
-        <a class="rv-card ${t.ok_em ? 'ok' : (t.problemas.length ? 'torto' : '')}"
-           href="/revisao.php?time=${t.id}" style="text-decoration:none;color:inherit;display:block">
-          <b>${esc(t.nome)}</b>
-          <span>${t.qtd} jog · cap ${t.cap}${t.gm ? ' · ' + esc(t.gm) : ''}</span>
-          ${t.ok_em ? '<div style="color:#4ade80;font-size:12px;margin-top:3px"><i class="bi bi-check2-circle"></i> confirmado</div>'
-                    : (t.problemas.length ? `<div class="pr">${esc(t.problemas.join(' · '))}</div>` : '')}
-        </a>`).join('');
-    } catch (e) { document.getElementById('pnResumo').textContent = 'erro ao carregar'; }
-  }
-
-  <?php if ($daLiga): ?>
   carregar().catch(e => {
-    document.getElementById('rvFrase').textContent = e.message;
+    document.getElementById('lista').innerHTML =
+      `<div class="vazio" style="padding:26px;text-align:center">${esc(e.message)}</div>`;
   });
-  <?php if ($ehAdmin): ?>carregarPainel();<?php endif; ?>
-  <?php endif; ?>
   </script>
 </body>
 </html>
