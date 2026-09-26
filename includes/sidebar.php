@@ -99,6 +99,11 @@ if (!function_exists('sbActive')) {
         <a href="/statsjogadores.php"<?= sbActive('statsjogadores.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Stats</a>
         <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
         <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
+<?php /* Conferência de off-season: só aparece pra quem é da liga em revisão
+         (e pro admin), porque fora dela o link só levaria a um aviso. */ ?>
+        <?php if (($team['league'] ?? '') === 'NEXT' || !empty($__sbIsAdmin)): ?>
+        <a href="/revisao.php"<?= sbActive('revisao.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-check"></i> Conferência</a>
+        <?php endif; ?>
 <?php /* Mercado saiu do menu em 31/08/2026: ninguém usava. A página segue de
          pé em /mercado.php — o que sumiu foi o atalho, não o acesso. */ ?>
         <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
