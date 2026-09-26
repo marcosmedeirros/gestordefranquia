@@ -86,6 +86,11 @@ $team = $stmtTeam->fetch() ?: null;
     .tm{border:1px solid var(--border-md,#2a2a31);border-radius:12px;background:var(--panel,#0e0e12);
       overflow:hidden}
     .tm.ok{border-color:#1f6b38}
+    /* Time confirmado fica verde na linha inteira, pra dar pra varrer a lista
+       de cima a baixo e ver quem falta sem abrir nada. */
+    .tm.ok > summary{background:color-mix(in srgb,#2fd06a 9%,transparent)}
+    .tm.ok > summary:hover{background:color-mix(in srgb,#2fd06a 14%,transparent)}
+    .tm.ok .tm-nome b{color:#8ee9a8}
     .tm.torto{border-color:#7a2020}
     .tm > summary{padding:13px 16px;cursor:pointer;display:flex;align-items:center;gap:13px;
       list-style:none;flex-wrap:wrap}
@@ -105,6 +110,12 @@ $team = $stmtTeam->fetch() ?: null;
     .tm-sel.ok{background:color-mix(in srgb,#2fd06a 16%,transparent);color:#4ade80}
     .tm-sel.torto{background:color-mix(in srgb,#fc0025 14%,transparent);color:#ff8a97}
     .tm-sel.pend{background:var(--panel-2,#16161a);color:var(--text-2,#9aa)}
+    /* O OK mora na própria linha do time: dar o certo não deveria exigir
+       abrir o card e rolar até o fim. */
+    .tm-ok-btn{background:transparent;border:1px solid #1f6b38;color:#4ade80;border-radius:999px;
+      padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+      display:inline-flex;align-items:center;gap:6px}
+    .tm-ok-btn:hover{background:#1f9d4d;border-color:#1f9d4d;color:#fff}
 
     .tm-corpo{border-top:1px solid var(--border-md,#2a2a31);padding:0}
     .tm-cols{display:grid;grid-template-columns:1fr 340px;gap:0}
@@ -279,11 +290,15 @@ $team = $stmtTeam->fetch() ?: null;
 
   function cardTime(t) {
     const estado = t.pendencias.length ? 'torto' : (t.ok_em ? 'ok' : 'pend');
+    /* O OK fica na linha. Dentro de um <summary> o clique abriria o card,
+       por isso o stopPropagation/preventDefault no onclick. */
     const selo = estado === 'ok'
       ? '<span class="tm-sel ok"><i class="bi bi-check2-circle"></i> Confirmado</span>'
       : (estado === 'torto'
           ? '<span class="tm-sel torto">Irregular</span>'
-          : '<span class="tm-sel pend">Falta confirmar</span>');
+          : `<button class="tm-ok-btn" title="Marcar que este time está certo"
+                     onclick="event.preventDefault();event.stopPropagation();confirmarTime(${t.id})">
+               <i class="bi bi-check2"></i> OK</button>`);
     const capAlerta = (t.cap > DADOS.cap_max || t.cap < DADOS.cap_min) ? ' alerta' : '';
     const jogAlerta = (t.qtd > 15 || t.qtd < 13) ? ' alerta' : '';
 
@@ -348,7 +363,7 @@ $team = $stmtTeam->fetch() ?: null;
             : (t.pendencias.length
                 ? '<span style="font-size:12.5px;color:var(--text-2,#9aa)">Arrume as pendências pra poder confirmar.</span>'
                 : `<button class="mini verde" onclick="confirmarTime(${t.id})">
-                     <i class="bi bi-check2-circle"></i> Time OK</button>`)}
+                     <i class="bi bi-check2-circle"></i> Está certo, pode confirmar</button>`)}
         </div>
       </div>
     </details>`;
