@@ -131,10 +131,19 @@ function superlogQuem(): array
     ];
 }
 
-/** O registro em si. Silencioso por projeto: log não pode quebrar o app. */
-function superlogRegistrar(string $sql, array $params = []): void
+/**
+ * O registro em si. Silencioso por projeto: log não pode quebrar o app.
+ *
+ * $linhas é quantas linhas a query mexeu de verdade. Quem passa 0 não entra:
+ * o app roda um punhado de `INSERT IGNORE` de garantia de schema em toda
+ * requisição (tactic_edit_windows e parentes), e sem este corte o arquivo
+ * enche de escrita que não mudou nada — justamente o que não ajuda a
+ * reconstruir coisa alguma.
+ */
+function superlogRegistrar(string $sql, array $params = [], ?int $linhas = null): void
 {
     try {
+        if ($linhas === 0) return;
         if (!superlogEhEscrita($sql)) return;
         $tabela = superlogTabela($sql);
         if ($tabela !== '' && in_array($tabela, SUPERLOG_IGNORAR, true)) return;
@@ -152,6 +161,7 @@ function superlogRegistrar(string $sql, array $params = []): void
             'tb'  => $tabela,
             'u'   => $quem['u'],
             's'   => $quem['s'],
+            'n'   => $linhas,
             'sql' => preg_replace('/\s+/', ' ', trim($sql)),
             'p'   => superlogLimpaParams($sql, $params),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -194,7 +204,9 @@ class SuperlogStatement extends PDOStatement
     public function execute($params = null): bool
     {
         $ok = parent::execute($params);
-        superlogRegistrar($this->queryString, is_array($params) ? $params : $this->ligados);
+        $n = null;
+        try { $n = $this->rowCount(); } catch (Throwable $e) { /* driver sem contagem */ }
+        superlogRegistrar($this->queryString, is_array($params) ? $params : $this->ligados, $n);
         return $ok;
     }
 }
@@ -206,7 +218,7 @@ class SuperlogPDO extends PDO
     public function exec($statement)
     {
         $r = parent::exec($statement);
-        superlogRegistrar((string)$statement);
+        superlogRegistrar((string)$statement, [], is_int($r) ? $r : null);
         return $r;
     }
 }
