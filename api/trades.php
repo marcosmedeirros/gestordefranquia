@@ -502,6 +502,117 @@ function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league 
     return $rodape !== '' ? $texto . "\n\n" . $rodape : $texto;
 }
 
+/**
+ * ANUNCIA UMA MULTI-TRADE NO GRUPO — de pé sozinha.
+ *
+ * O aviso morava dentro de sendMultiTradeWebhook, depois do POST pro n8n. Só
+ * que aquela função existe pra falar com webhook: ela desiste cedo em vários
+ * pontos (trade que não achou, JOIN que não casou) e faz uma chamada HTTP de
+ * até 9 segundos ANTES de chegar no WhatsApp. Qualquer tropeço lá em cima
+ * levava o anúncio junto, em silêncio — foi o que aconteceu com a multi-trade
+ * #679 em 26/09/2026, de três times e com um 85 dentro.
+ *
+ * Aqui o anúncio não depende de webhook nenhum: monta o que precisa, aplica o
+ * corte de OVR e manda. E devolve o motivo quando não manda, porque "não saiu
+ * e ninguém sabe por quê" foi exatamente o problema.
+ *
+ * @return array{anunciou:bool, motivo:string}
+ */
+function anunciarMultiTradeNoGrupo(PDO $pdo, int $tradeId): array
+{
+    require_once dirname(__DIR__) . '/backend/whatsapp.php';
+
+    $st = $pdo->prepare('SELECT id, league FROM multi_trades WHERE id = ?');
+    $st->execute([$tradeId]);
+    $trade = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$trade) return ['anunciou' => false, 'motivo' => 'trade não encontrada'];
+    $liga = (string)$trade['league'];
+
+    /* LEFT JOIN em users: o time entra no texto mesmo sem dono cadastrado.
+       Com INNER, um time sem GM sumia do anúncio inteiro. */
+    $st = $pdo->prepare("SELECT t.id, t.city, t.name
+                           FROM multi_trade_teams mtt
+                           JOIN teams t ON t.id = mtt.team_id
+                          WHERE mtt.trade_id = ?");
+    $st->execute([$tradeId]);
+    $teams = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $teams[] = [
+            'id'      => (int)$t['id'],
+            'name'    => trim(($t['city'] ?? '') . ' ' . ($t['name'] ?? '')),
+            'apelido' => trim((string)($t['name'] ?? '')),
+        ];
+    }
+    if (count($teams) < 2) return ['anunciou' => false, 'motivo' => 'menos de 2 times'];
+
+    $ovrCol = playerOvrColumn($pdo);
+    $st = $pdo->prepare("SELECT i.from_team_id, i.to_team_id, i.pick_id,
+                                i.player_id, i.player_name, i.player_position, i.player_ovr,
+                                p.name AS p_name, p.position AS p_pos, p.{$ovrCol} AS p_ovr,
+                                pk.season_year, pk.round, pk.swap_type, pk.protection,
+                                pk.protection_resultado, pk.original_team_id,
+                                ot.city AS o_city, ot.name AS o_name
+                           FROM multi_trade_items i
+                      LEFT JOIN players p  ON p.id  = i.player_id
+                      LEFT JOIN picks   pk ON pk.id = i.pick_id
+                      LEFT JOIN teams   ot ON ot.id = pk.original_team_id
+                          WHERE i.trade_id = ?");
+    $st->execute([$tradeId]);
+
+    $items = [];
+    $maiorOvr = 0;
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
+        $player = null;
+        if (!empty($i['player_id']) || !empty($i['player_name'])) {
+            /* O snapshot do item ganha do cadastro quando o jogador já saiu do
+               app (dispensado depois da troca): sem ele o anúncio perderia o
+               nome e, pior, o OVR que decide se a trade é anunciável. */
+            $ovr = (int)($i['p_ovr'] ?? 0) ?: (int)($i['player_ovr'] ?? 0);
+            $player = [
+                'name'     => $i['p_name'] ?? $i['player_name'] ?? 'Jogador',
+                'ovr'      => $ovr,
+                'position' => $i['p_pos'] ?? $i['player_position'] ?? null,
+            ];
+            if ($ovr > $maiorOvr) $maiorOvr = $ovr;
+        }
+        $pick = null;
+        if (!empty($i['pick_id'])) {
+            $pick = [
+                'id'                   => (int)$i['pick_id'],
+                'season_year'          => $i['season_year'] ?? null,
+                'round'                => $i['round'] ?? null,
+                'original_team'        => trim(($i['o_city'] ?? '') . ' ' . ($i['o_name'] ?? '')),
+                'original_apelido'     => $i['o_name'] ?? null,
+                'original_team_id'     => (int)($i['original_team_id'] ?? 0),
+                'swap_type'            => $i['swap_type'] ?? null,
+                'protection'           => $i['protection'] ?? null,
+                'protection_resultado' => $i['protection_resultado'] ?? null,
+            ];
+        }
+        if (!$player && !$pick) continue;
+        $items[] = [
+            'from_team_id' => (int)$i['from_team_id'],
+            'to_team_id'   => (int)$i['to_team_id'],
+            'player'       => $player,
+            'pick'         => $pick,
+        ];
+    }
+    if (!$items) return ['anunciou' => false, 'motivo' => 'sem itens'];
+
+    if ($maiorOvr < TRADE_WHATS_OVR_MIN) {
+        return ['anunciou' => false,
+                'motivo' => "maior OVR {$maiorOvr}, abaixo do corte de " . TRADE_WHATS_OVR_MIN];
+    }
+
+    $texto = montarTextoMultiTradeWhats(
+        $teams,
+        multiTradeItensComContextoDeDraft($pdo, $items, $liga),
+        $liga
+    );
+    whatsappParaGrupoPrincipal($pdo, $texto, 'trade');
+    return ['anunciou' => true, 'motivo' => "maior OVR {$maiorOvr}"];
+}
+
 function sendMultiTradePush(PDO $pdo, int $tradeId): void
 {
     $pushFile = dirname(__DIR__) . '/backend/push.php';
@@ -757,25 +868,10 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 error_log('[n8n-multi-trade-webhook] error: ' . $e->getMessage());
             }
 
-            // Grupo do WhatsApp. A multi-trade não mandava nada aqui — só a
-            // trade de dois times avisava, então negociação de três ou mais
-            // times, que é justamente a mais comentada, passava batida.
-            try {
-                require_once dirname(__DIR__) . '/backend/whatsapp.php';
-                whatsappParaGrupoPrincipal(
-                    $pdo,
-                    // Mesmo enrich da trade de dois times: a pick precisa do
-                    // número da escolha antes de virar texto.
-                    montarTextoMultiTradeWhats(
-                        $payloadTeams,
-                        multiTradeItensComContextoDeDraft($pdo, $payloadItems, (string)$trade['league']),
-                        (string)$trade['league']
-                    ),
-                    'trade'
-                );
-            } catch (\Throwable $e) {
-                error_log('[whatsapp-multi-trade] ' . $e->getMessage());
-            }
+            // O anúncio no grupo saiu daqui em 26/09/2026: ver
+            // anunciarMultiTradeNoGrupo(), que os dois caminhos de aceite
+            // chamam direto. Ficar pendurado depois do POST pro n8n fazia o
+            // aviso morrer junto com qualquer tropeço do webhook.
 
             // A timeline do X, agrupada por quem RECEBE. Trade de três times
             // agrupada por quem envia obriga a cruzar os blocos pra saber o
@@ -2092,48 +2188,18 @@ $team = $stmtTeam->fetch();
 $teamId = $team['id'] ?? null;
 
 /*
- * GET ft_teams — os times da liga do próprio GM, pro modal de "Fiz essa
- * trade". Existe porque a lista que o admin usa vive no admin.php, fechado
- * pra quem não é admin.
- */
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'ft_teams') {
-    $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
-    $st->execute([$user['id']]);
-    $liga = $st->fetchColumn();
-    if (!$liga) {
-        echo json_encode(['success' => true, 'league' => null, 'teams' => []]);
-        exit;
-    }
-    $st = $pdo->prepare("SELECT id, city, name FROM teams WHERE league = ?
-                          ORDER BY TRIM(CONCAT(COALESCE(city,''),' ',name))");
-    $st->execute([$liga]);
-    echo json_encode([
-        'success'  => true,
-        'league'   => $liga,
-        'my_team'  => $teamId ? (int)$teamId : null,
-        'teams'    => $st->fetchAll(PDO::FETCH_ASSOC),
-    ]);
-    exit;
-}
-
-/*
  * POST force_trade — executa a troca na hora, sem aceite.
  *
- * QUEM PODE: o admin em qualquer troca, e o GM naquelas em que o time dele
- * está. É o "Fiz essa trade": o combinado acontece no grupo e alguém precisa
- * registrar, senão o elenco do app fica mentindo até um admin ter tempo.
- *
- * O GM não pode montar troca entre dois times que não são dele — seria mexer
- * no elenco alheio sem ninguém aceitar nada.
+ * QUEM PODE: só admin. Chegou a aceitar o GM enquanto existiu o botão "Fiz
+ * essa trade" na página de trades; o botão saiu em 26/09/2026 e o gate voltou
+ * com ele, porque endpoint que executa troca sem aceite não deve ficar aberto
+ * sem nenhuma tela que o use. Quem precisa registrar troca já combinada faz
+ * pela Conferência (/revisao.php), que também guarda quem mexeu.
  */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_trade') {
-    $ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
-    $corpoFt = json_decode(file_get_contents('php://input'), true) ?? [];
-    $timesFt = array_map('intval', $corpoFt['teams'] ?? []);
-    if (!$ehAdmin && (!$teamId || !in_array((int)$teamId, $timesFt, true))) {
+    if (!hasAdminAccess($pdo, (int)$user['id'])) {
         http_response_code(403);
-        echo json_encode(['success' => false,
-            'error' => 'Você só pode registrar uma troca em que o seu time está.']);
+        echo json_encode(['success' => false, 'error' => 'Sem permissão']);
         exit;
     }
 
@@ -2257,7 +2323,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
         // deixa de descrever algo possível.
         rascunhosLimparFurados($pdo);
 
-        try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); } catch (Exception $e) {}
+        /* Throwable, não Exception: um Error aqui (TypeError e parentes) não é
+           Exception, escapava do catch e derrubava a requisição DEPOIS do
+           commit — a troca ficava feita e a resposta nunca chegava. */
+        try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); }
+        catch (\Throwable $e) { error_log('[multi-trade-webhook force] ' . $e->getMessage()); }
+
+        try {
+            $an = anunciarMultiTradeNoGrupo($pdo, $forceTradeId);
+            if (!$an['anunciou']) error_log("[anuncio-trade] #{$forceTradeId} nao anunciada: {$an['motivo']}");
+        } catch (\Throwable $e) { error_log('[anuncio-trade force] ' . $e->getMessage()); }
 
         echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
     } catch (Exception $e) {
@@ -4022,8 +4097,17 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 rascunhosLimparFurados($pdo);   // os ativos trocaram de time
                 try {
                     sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
-                } catch (Exception $e) {
-                    error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+                } catch (\Throwable $e) {
+                    error_log('[multi-trade-webhook] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+                }
+
+                /* O anúncio no grupo é chamado aqui, e não de dentro do
+                   webhook: é o aceite que o torna notícia, não o n8n. */
+                try {
+                    $an = anunciarMultiTradeNoGrupo($pdo, (int)$tradeId);
+                    if (!$an['anunciou']) error_log("[anuncio-trade] #{$tradeId} nao anunciada: {$an['motivo']}");
+                } catch (\Throwable $e) {
+                    error_log('[anuncio-trade] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
                 }
                 echo json_encode(['success' => true, 'status' => 'accepted']);
                 exit;
