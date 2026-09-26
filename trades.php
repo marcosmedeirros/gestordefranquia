@@ -500,6 +500,13 @@ try {
             </button>
             <?php endif; ?>
           <?php endif; ?>
+          <?php if ($teamId): ?>
+          <!-- A troca combinada no grupo precisa entrar no app na hora: sem isto
+               o elenco fica mentindo ate um admin ter tempo de registrar. -->
+          <button class="btn-r secondary" type="button" onclick="abrirFizTrade()">
+            <i class="bi bi-check2-circle"></i>Fiz essa trade
+          </button>
+          <?php endif; ?>
           <a href="/trade-simulator.php" class="btn-r primary" style="text-decoration:none">
             <i class="bi bi-sliders"></i>Trade Machine<?= $__podeEnviar ? '' : ' (simular)' ?>
           </a>
@@ -889,6 +896,201 @@ try {
       document.body.removeChild(ta);
       setTimeout(restore, 2000);
     });
+  }
+  </script>
+
+  <!-- ── "Fiz essa trade": registra no app o que ja foi combinado ──────────
+       Usa o mesmo force_trade do admin, que executa sem aceite. A API so
+       aceita do GM quando o time dele esta na troca. -->
+  <div class="modal fade" id="fizTradeModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-check2-circle me-2" style="color:var(--red)"></i>Fiz essa trade</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning" style="font-size:13px">
+            Isto <b>executa a troca na hora</b>, sem ninguém precisar aceitar. Use para registrar
+            o que já foi combinado. O seu time precisa estar na troca.
+          </div>
+
+          <label class="form-label" style="font-size:13px;font-weight:600">Times envolvidos</label>
+          <div id="fzTeamsGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+          <div id="fzTeamsStatus" class="text-muted" style="font-size:12px;margin-bottom:16px"></div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <label class="form-label mb-0" style="font-size:13px;font-weight:600">O que muda de mãos</label>
+            <button type="button" class="btn-r secondary sm" onclick="fzAddItem()">
+              <i class="bi bi-plus-lg"></i>Adicionar item
+            </button>
+          </div>
+          <div id="fzItems"></div>
+          <div id="fzItemsVazio" class="text-muted" style="font-size:12px;margin-bottom:16px">
+            Escolha os times acima e adicione um item por jogador ou pick.
+          </div>
+
+          <label class="form-label" style="font-size:13px;font-weight:600">Observação (opcional)</label>
+          <textarea class="form-control" id="fzNotes" rows="2" placeholder="Ex.: combinado no grupo em 26/09"></textarea>
+          <div id="fzErro" class="alert alert-danger mt-3" style="display:none;font-size:13px"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-r secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn-r primary" id="fzSubmit" onclick="fzSubmit()">
+            <i class="bi bi-check2-circle"></i>Registrar troca
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* Estado do "Fiz essa trade". Os ativos vêm de players.php/picks.php, que o
+     GM já acessa; só a lista de times precisou de endpoint novo (ft_teams). */
+  const _fz = { teams: [], myTeam: null, league: null, assets: { players: {}, picks: {} }, n: 0 };
+
+  async function _fzApi(url, opts) {
+    const r = await fetch('/api/' + url, opts);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.success === false) throw new Error(d.error || 'Erro na requisição');
+    return d;
+  }
+
+  async function abrirFizTrade() {
+    const el = document.getElementById('fizTradeModal');
+    new bootstrap.Modal(el).show();
+    document.getElementById('fzItems').innerHTML = '';
+    document.getElementById('fzErro').style.display = 'none';
+    _fz.assets = { players: {}, picks: {} };
+    _fz.n = 0;
+    const grid = document.getElementById('fzTeamsGrid');
+    grid.innerHTML = '<div class="text-muted" style="font-size:13px">Carregando times...</div>';
+    try {
+      const d = await _fzApi('trades.php?action=ft_teams');
+      _fz.teams = d.teams || []; _fz.myTeam = d.my_team; _fz.league = d.league;
+      grid.innerHTML = _fz.teams.map(t => {
+        const nome = (t.city ? t.city + ' ' : '') + t.name;
+        const meu = String(t.id) === String(_fz.myTeam);
+        return `<label style="display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid ${meu ? 'var(--border-red)' : 'var(--border)'};border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px">
+          <input type="checkbox" value="${t.id}" ${meu ? 'checked' : ''} onchange="fzTeamsChanged()" style="width:14px;height:14px">
+          ${nome}${meu ? ' <span style="color:var(--red);font-size:11px">(seu)</span>' : ''}
+        </label>`;
+      }).join('');
+      document.getElementById('fzTeamsStatus').textContent =
+        `${_fz.teams.length} times na ${_fz.league} — o seu já vem marcado`;
+    } catch (e) {
+      grid.innerHTML = `<div class="alert alert-danger" style="font-size:13px">${e.message}</div>`;
+    }
+  }
+
+  function fzSelecionados() {
+    return [...document.querySelectorAll('#fzTeamsGrid input:checked')].map(i => Number(i.value));
+  }
+  function fzNome(id) {
+    const t = _fz.teams.find(x => String(x.id) === String(id));
+    return t ? ((t.city ? t.city + ' ' : '') + t.name) : '#' + id;
+  }
+  function fzTeamsChanged() {
+    document.getElementById('fzItems').innerHTML = '';
+    _fz.assets = { players: {}, picks: {} };
+  }
+
+  async function _fzAtivos(teamId, tipo) {
+    if (_fz.assets[tipo][teamId]) return _fz.assets[tipo][teamId];
+    try {
+      const d = await _fzApi(tipo === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}`);
+      const lista = tipo === 'players' ? (d.players || []) : (d.picks || []);
+      _fz.assets[tipo][teamId] = lista;
+      return lista;
+    } catch (e) { return []; }
+  }
+
+  function fzAddItem() {
+    const times = fzSelecionados();
+    if (times.length < 2) {
+      const er = document.getElementById('fzErro');
+      er.textContent = 'Marque pelo menos 2 times antes de adicionar itens.';
+      er.style.display = 'block';
+      return;
+    }
+    document.getElementById('fzErro').style.display = 'none';
+    document.getElementById('fzItemsVazio').style.display = 'none';
+    const id = ++_fz.n;
+    const opts = times.map(t => `<option value="${t}">${fzNome(t)}</option>`).join('');
+    const div = document.createElement('div');
+    div.className = 'fz-row';
+    div.dataset.id = id;
+    div.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px';
+    div.innerHTML = `
+      <select class="form-select form-select-sm fz-de" style="max-width:170px" onchange="fzCarregarAtivos(${id})">
+        <option value="">De (time)</option>${opts}
+      </select>
+      <select class="form-select form-select-sm fz-tipo" style="max-width:110px" onchange="fzCarregarAtivos(${id})">
+        <option value="players">Jogador</option><option value="picks">Pick</option>
+      </select>
+      <select class="form-select form-select-sm fz-item" style="flex:1;min-width:180px">
+        <option value="">— escolha o time de origem —</option>
+      </select>
+      <select class="form-select form-select-sm fz-para" style="max-width:170px">
+        <option value="">Para (time)</option>${opts}
+      </select>
+      <button type="button" class="btn-r secondary sm" onclick="this.closest('.fz-row').remove()"><i class="bi bi-trash"></i></button>`;
+    document.getElementById('fzItems').appendChild(div);
+  }
+
+  async function fzCarregarAtivos(id) {
+    const row = document.querySelector(`.fz-row[data-id="${id}"]`);
+    if (!row) return;
+    const de = row.querySelector('.fz-de').value;
+    const tipo = row.querySelector('.fz-tipo').value;
+    const sel = row.querySelector('.fz-item');
+    if (!de) { sel.innerHTML = '<option value="">— escolha o time de origem —</option>'; return; }
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    const lista = await _fzAtivos(de, tipo);
+    if (!lista.length) { sel.innerHTML = `<option value="">Nada disponível</option>`; return; }
+    sel.innerHTML = '<option value="">Escolha</option>' + lista.map(x => tipo === 'players'
+      ? `<option value="${x.id}">${x.name} (${x.position || '?'} · ${x.ovr ?? '?'})</option>`
+      : `<option value="${x.id}">${x.season_year} · ${x.round}ª rodada</option>`).join('');
+  }
+
+  async function fzSubmit() {
+    const er = document.getElementById('fzErro');
+    er.style.display = 'none';
+    const times = fzSelecionados();
+    if (times.length < 2) { er.textContent = 'Marque pelo menos 2 times.'; er.style.display = 'block'; return; }
+    if (_fz.myTeam && !times.includes(Number(_fz.myTeam))) {
+      er.textContent = 'O seu time precisa estar na troca.'; er.style.display = 'block'; return;
+    }
+    const itens = [];
+    document.querySelectorAll('#fzItems .fz-row').forEach(row => {
+      const de = row.querySelector('.fz-de').value;
+      const para = row.querySelector('.fz-para').value;
+      const tipo = row.querySelector('.fz-tipo').value;
+      const item = row.querySelector('.fz-item').value;
+      if (!de || !para || !item || de === para) return;
+      itens.push(tipo === 'players'
+        ? { from_team_id: Number(de), to_team_id: Number(para), player_id: Number(item) }
+        : { from_team_id: Number(de), to_team_id: Number(para), pick_id: Number(item) });
+    });
+    if (!itens.length) { er.textContent = 'Adicione pelo menos um item válido (de, ativo e para).'; er.style.display = 'block'; return; }
+
+    const btn = document.getElementById('fzSubmit');
+    btn.disabled = true; btn.innerHTML = 'Registrando...';
+    try {
+      await _fzApi('trades.php?action=force_trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          league: _fz.league, teams: times, items: itens,
+          notes: document.getElementById('fzNotes').value.trim(),
+        }),
+      });
+      bootstrap.Modal.getInstance(document.getElementById('fizTradeModal'))?.hide();
+      location.reload();
+    } catch (e) {
+      er.textContent = e.message; er.style.display = 'block';
+      btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-circle"></i>Registrar troca';
+    }
   }
   </script>
 </body>

@@ -2091,11 +2091,49 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 $teamId = $team['id'] ?? null;
 
-// POST - Force Trade (admin only, executa imediatamente sem aceite)
+/*
+ * GET ft_teams — os times da liga do próprio GM, pro modal de "Fiz essa
+ * trade". Existe porque a lista que o admin usa vive no admin.php, fechado
+ * pra quem não é admin.
+ */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'ft_teams') {
+    $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+    $st->execute([$user['id']]);
+    $liga = $st->fetchColumn();
+    if (!$liga) {
+        echo json_encode(['success' => true, 'league' => null, 'teams' => []]);
+        exit;
+    }
+    $st = $pdo->prepare("SELECT id, city, name FROM teams WHERE league = ?
+                          ORDER BY TRIM(CONCAT(COALESCE(city,''),' ',name))");
+    $st->execute([$liga]);
+    echo json_encode([
+        'success'  => true,
+        'league'   => $liga,
+        'my_team'  => $teamId ? (int)$teamId : null,
+        'teams'    => $st->fetchAll(PDO::FETCH_ASSOC),
+    ]);
+    exit;
+}
+
+/*
+ * POST force_trade — executa a troca na hora, sem aceite.
+ *
+ * QUEM PODE: o admin em qualquer troca, e o GM naquelas em que o time dele
+ * está. É o "Fiz essa trade": o combinado acontece no grupo e alguém precisa
+ * registrar, senão o elenco do app fica mentindo até um admin ter tempo.
+ *
+ * O GM não pode montar troca entre dois times que não são dele — seria mexer
+ * no elenco alheio sem ninguém aceitar nada.
+ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_trade') {
-    if (!hasAdminAccess($pdo, (int)$user['id'])) {
+    $ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
+    $corpoFt = json_decode(file_get_contents('php://input'), true) ?? [];
+    $timesFt = array_map('intval', $corpoFt['teams'] ?? []);
+    if (!$ehAdmin && (!$teamId || !in_array((int)$teamId, $timesFt, true))) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'Sem permissão']);
+        echo json_encode(['success' => false,
+            'error' => 'Você só pode registrar uma troca em que o seu time está.']);
         exit;
     }
 
