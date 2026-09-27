@@ -139,6 +139,12 @@ $ligaAtual = revisaoLiga();
       padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
       display:inline-flex;align-items:center;gap:6px}
     .tm-ok-btn:hover{background:#1f9d4d;border-color:#1f9d4d;color:#fff}
+    /* O selo verde tambem clica, pra desfazer. Vira vermelho no hover porque
+       e isso que o clique vai fazer — o verde ali seria promessa errada. */
+    .tm-sel.tm-toggle{border:1px solid transparent;cursor:pointer;font-family:inherit}
+    .tm-sel.tm-toggle:hover{background:color-mix(in srgb,#fc0025 16%,transparent);
+      color:#ff8a97;border-color:#7a2020}
+    .tm-sel.tm-toggle:hover i::before{content:"\F659"}   /* check vira x */
 
     .tm-corpo{border-top:1px solid var(--border-md,#2a2a31);padding:0}
     .tm-cols{display:grid;grid-template-columns:1fr 340px;gap:0}
@@ -510,8 +516,12 @@ $ligaAtual = revisaoLiga();
     /* Time irregular também confirma: a tela pergunta se o elenco e as picks
        estão certos, não se o cap está fechado. A pendência segue à vista na
        faixa vermelha do card, só deixou de travar o botão. */
+    /* O selo é o mesmo botão nos dois estados: clicou confirma, clicou de novo
+       desfaz. Quem confirmou por engano volta atrás sem sair da tela. */
     const selo = estado === 'ok'
-      ? '<span class="tm-sel ok"><i class="bi bi-check2-circle"></i> Confirmado</span>'
+      ? `<button class="tm-sel ok tm-toggle" title="Clique pra desfazer a confirmação"
+                 onclick="event.preventDefault();event.stopPropagation();confirmarTime(${t.id})">
+           <i class="bi bi-check2-circle"></i> Confirmado</button>`
       : `<button class="tm-ok-btn" title="Marcar que o elenco e as picks deste time estão certos"
                  onclick="event.preventDefault();event.stopPropagation();confirmarTime(${t.id})">
            <i class="bi bi-check2"></i> OK</button>`;
@@ -580,7 +590,9 @@ $ligaAtual = revisaoLiga();
 
         <div class="tm-rodape">
           ${t.ok_em
-            ? `<span style="font-size:12.5px;color:#4ade80">Confirmado em ${esc(String(t.ok_em).replace('T',' ').slice(0,16))}</span>`
+            ? `<span style="font-size:12.5px;color:#4ade80;margin-right:auto">Confirmado em ${esc(String(t.ok_em).replace('T',' ').slice(0,16))}</span>
+               <button class="mini" onclick="confirmarTime(${t.id})">
+                 <i class="bi bi-arrow-counterclockwise"></i> Desfazer confirmação</button>`
             : `${t.pendencias.length
                   ? '<span style="font-size:12.5px;color:var(--text-2,#9aa);margin-right:auto">O cap e o tamanho do elenco se resolvem na free agency — isso não impede confirmar.</span>'
                   : ''}

@@ -229,6 +229,24 @@ if ($metodo === 'POST' && $acao === 'ok') {
      * A pendência continua aparecendo em vermelho na linha do time; o que
      * mudou é que ela deixou de ser impedimento.
      */
+    /*
+     * É UM INTERRUPTOR: clicou confirma, clicou de novo desfaz.
+     *
+     * Sem isso, quem confirmasse por engano — ou percebesse o erro depois —
+     * ficava com o time trancado em verde e sem jeito de voltar atrás pela
+     * tela. A confirmação é uma afirmação do GM, e ele tem que poder retirar.
+     */
+    $jaEstava = revisaoEstaOk($pdo, $teamId);
+
+    if ($jaEstava) {
+        $pdo->prepare('DELETE FROM revisao_ok WHERE team_id = ?')->execute([$teamId]);
+        $pdo->prepare('INSERT INTO revisao_log (team_id, user_id, acao, detalhe, criado_em)
+                       VALUES (?,?,?,?,NOW())')
+            ->execute([$teamId, $userId, 'ok_desfeito', 'confirmação retirada']);
+        echo json_encode(['success' => true, 'ok_em' => null], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     $pdo->prepare('INSERT INTO revisao_ok (team_id, user_id, confirmado_em) VALUES (?,?,NOW())
                    ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), confirmado_em = NOW()')
         ->execute([$teamId, $userId]);
