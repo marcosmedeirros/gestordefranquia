@@ -386,6 +386,20 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
     $lances = leilaoSemanaLances($pdo, $liga, $temporada);
     $l = ['🏀 *JOGO DA SEMANA — ' . $liga . '*', ''];
 
+    /* QUEM ESTÁ DE FORA ESTA SEMANA, dito no grupo. Sem isto o GM do jogo
+       passado tenta dar lance e só descobre o rodízio na recusa — e o resto
+       da liga não entende por que dois times sumiram da disputa.
+
+       Fica aqui em cima, e não só no fim da lista de lances, porque é
+       justamente ANTES do primeiro lance que a informação vale: o leilão que
+       abre vazio era o único que não dizia quem não pode entrar. */
+    $foraDaSemana = '';
+    $ant = leilaoSemanaJogoAnterior($pdo, $liga, $temporada);
+    if ($ant && ($ant['time1_nome'] !== '' || $ant['time2_nome'] !== '')) {
+        $fora = array_values(array_filter([$ant['time1_nome'], $ant['time2_nome']], fn($n) => $n !== ''));
+        $foraDaSemana = '_Fora desta semana (jogaram a passada): ' . implode(' e ', $fora) . '_';
+    }
+
     if (!$lances) {
         // SEM LANCE PODE SER DUAS COISAS BEM DIFERENTES: a semana ainda não
         // começou, ou o leilão já foi fechado e o jogo está definido. Dizer
@@ -404,6 +418,7 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
         $l[] = '';
         $l[] = 'O primeiro lance define o jogo. Mínimo: *'
              . LEILAO_SEMANA_MINIMO . '* FBA Points, na loja do /games.';
+        if ($foraDaSemana !== '') { $l[] = ''; $l[] = $foraDaSemana; }
         return implode("\n", $l);
     }
 
@@ -437,15 +452,7 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
         )) . (count($fila) > 4 ? ' e mais ' . (count($fila) - 4) : '') . '_';
     }
 
-    /* QUEM ESTÁ DE FORA ESTA SEMANA, dito no grupo. Sem isto o GM do jogo
-       passado tenta dar lance e só descobre o rodízio na recusa — e o resto
-       da liga não entende por que dois times sumiram da disputa. */
-    $ant = leilaoSemanaJogoAnterior($pdo, $liga, $temporada);
-    if ($ant && ($ant['time1_nome'] !== '' || $ant['time2_nome'] !== '')) {
-        $fora = array_values(array_filter([$ant['time1_nome'], $ant['time2_nome']], fn($n) => $n !== ''));
-        $l[] = '';
-        $l[] = '_Fora desta semana (jogaram a passada): ' . implode(' e ', $fora) . '_';
-    }
+    if ($foraDaSemana !== '') { $l[] = ''; $l[] = $foraDaSemana; }
 
     return implode("\n", $l);
 }
