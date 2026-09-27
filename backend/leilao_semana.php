@@ -429,6 +429,19 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
         return (string)($st->fetchColumn() ?: '?');
     };
 
+    /* O JOGO JÁ COMPRADO VEM ANTES DO LEILÃO SEGUINTE.
+       Quando a semana fecha e o leilão da próxima já recebeu lance, as duas
+       coisas existem ao mesmo tempo — e sem dizer qual é qual a mensagem
+       mostrava o pódio da PRÓXIMA como se fosse o jogo de hoje. No dia da
+       live isso manda a liga assistir ao confronto errado. */
+    $jaFechado = leilaoSemanaUltimoFechado($pdo, $liga, $temporada);
+    if ($jaFechado) {
+        $l[] = '✅ Jogo desta semana: *' . $jaFechado['time1_nome']
+             . ($jaFechado['time2_nome'] ? ' × ' . $jaFechado['time2_nome'] : '') . '*';
+        $l[] = '';
+        $l[] = '⏭ *Leilão do próximo jogo, já aberto:*';
+    }
+
     $a = $lances[0];
     $b = $lances[1] ?? null;
 
@@ -452,7 +465,14 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
         )) . (count($fila) > 4 ? ' e mais ' . (count($fila) - 4) : '') . '_';
     }
 
-    if ($foraDaSemana !== '') { $l[] = ''; $l[] = $foraDaSemana; }
+    if ($foraDaSemana !== '') {
+        $l[] = '';
+        // Com o jogo da semana já fechado, quem está de fora está de fora do
+        // PRÓXIMO — e foi jogando agora que ficou.
+        $l[] = $jaFechado
+            ? str_replace('Fora desta semana (jogaram a passada):', 'Fora do próximo (jogam este):', $foraDaSemana)
+            : $foraDaSemana;
+    }
 
     return implode("\n", $l);
 }
