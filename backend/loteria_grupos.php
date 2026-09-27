@@ -830,6 +830,17 @@ function loteriaGarantirTravada(PDO $pdo): void
             ordem TEXT NOT NULL,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        /* AS BOLINHAS QUE A URNA USOU, guardadas junto com o resultado dela.
+           A urna fecha no salvar da classificação e nada depois a muda. Só que
+           a TELA recalcula as chances ao vivo, do banco — então marcar um
+           grupo depois muda o que a liga lê sem mudar o que foi sorteado, e as
+           duas versões convivem sem ninguém notar. Guardando aqui o retrato do
+           que a urna usou, dá pra comparar com o de agora e parar quando
+           divergirem. @see loteriaUrnaDivergente */
+        try { $pdo->exec("ALTER TABLE loteria_ordem_travada ADD COLUMN bolinhas TEXT NULL AFTER ordem"); }
+        catch (Throwable $e) { /* já existe */ }
+
         $ok = true;
     } catch (Throwable $e) {
         error_log('[loteria/travada] esquema: ' . $e->getMessage());
@@ -883,14 +894,73 @@ function loteriaTravarOrdem(PDO $pdo, int $seasonId, string $liga): void
         $ordem = loteriaSortearDaUrna($g['bolinhas']);
         if (!$ordem) return;
 
-        $pdo->prepare("INSERT IGNORE INTO loteria_ordem_travada (season_id, league, ordem) VALUES (?,?,?)")
-            ->execute([$seasonId, strtoupper(trim($liga)), json_encode($ordem)]);
+        /* Guarda o retrato das bolinhas junto: é ele que denuncia, depois, se
+           alguém mexeu num grupo achando que mudava o sorteio. */
+        $bolinhas = [];
+        foreach ($g['bolinhas'] as $tid => $b) $bolinhas[(string)(int)$tid] = (int)$b;
+        ksort($bolinhas);
+
+        $pdo->prepare("INSERT IGNORE INTO loteria_ordem_travada (season_id, league, ordem, bolinhas) VALUES (?,?,?,?)")
+            ->execute([$seasonId, strtoupper(trim($liga)), json_encode($ordem), json_encode($bolinhas)]);
     } catch (Throwable $e) {
         error_log('[loteria/travada] gravar: ' . $e->getMessage());
     }
 }
 
 /** A ordem travada de uma temporada, ou null. Só a cerimônia chama. */
+/**
+ * A URNA DE HOJE AINDA É A QUE FOI SORTEADA?
+ *
+ * A urna fecha no salvar da classificação e nada depois a muda — corrigir
+ * posição, marcar um grupo, refazer as chances. Mas a TELA recalcula as
+ * chances ao vivo, do banco, e o /loteria do bot também. Quem marca um grupo
+ * depois de a urna fechar passa a ler uma coisa e a sortear outra, e as duas
+ * versões convivem caladas.
+ *
+ * Em 27/09/2026 isso custou caro na ROOKIE: a classificação foi regravada
+ * depois de a urna fechar, a tela passou a mostrar bolinhas que o sorteio não
+ * tinha usado, e a liga anulou um sorteio que estava correto por causa da
+ * divergência entre os dois números.
+ *
+ * Compara o retrato guardado com o de agora e devolve o que mudou, time a
+ * time. Lista vazia = a urna descreve o que está no banco.
+ *
+ * @return array<int, array{antes:int, agora:int}>  [team_id => bolinhas]
+ */
+function loteriaUrnaDivergente(PDO $pdo, int $seasonId, array $bolinhasAgora): array
+{
+    if ($seasonId <= 0) return [];
+    try {
+        loteriaGarantirTravada($pdo);
+        $st = $pdo->prepare("SELECT bolinhas FROM loteria_ordem_travada WHERE season_id = ?");
+        $st->execute([$seasonId]);
+        $json = $st->fetchColumn();
+        // Urna antiga, fechada antes desta coluna existir: não dá pra comparar,
+        // e inventar divergência travaria sorteio que sempre esteve certo.
+        if (!$json) return [];
+
+        $antes = json_decode((string)$json, true);
+        if (!is_array($antes) || !$antes) return [];
+
+        $dif = [];
+        foreach ($antes as $tid => $b) {
+            $tid = (int)$tid;
+            $agora = (int)($bolinhasAgora[$tid] ?? 0);
+            if ($agora !== (int)$b) $dif[$tid] = ['antes' => (int)$b, 'agora' => $agora];
+        }
+        foreach ($bolinhasAgora as $tid => $b) {
+            $tid = (int)$tid;
+            if (!array_key_exists((string)$tid, $antes) && !isset($dif[$tid])) {
+                $dif[$tid] = ['antes' => 0, 'agora' => (int)$b];
+            }
+        }
+        return $dif;
+    } catch (Throwable $e) {
+        error_log('[loteria/urna] comparar: ' . $e->getMessage());
+        return [];
+    }
+}
+
 function loteriaOrdemTravada(PDO $pdo, int $seasonId): ?array
 {
     if ($seasonId <= 0) return null;

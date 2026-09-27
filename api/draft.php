@@ -1941,6 +1941,41 @@ if ($method === 'POST') {
                 }
             }
 
+            /* A URNA TEM QUE DESCREVER O QUE ESTÁ NO BANCO.
+             *
+             * A urna fecha no salvar da classificação e nada depois a muda.
+             * Só que a tela e o /loteria recalculam as chances ao vivo — então
+             * quem marca um grupo DEPOIS passa a ler uma coisa e a sortear
+             * outra, e as duas versões convivem sem ninguém notar.
+             *
+             * Foi o que custou caro na ROOKIE em 27/09/2026: a classificação
+             * foi regravada depois de a urna fechar, a tela passou a mostrar
+             * bolinhas que o sorteio nunca usou, e a liga anulou um sorteio
+             * que estava certo por causa dessa diferença.
+             *
+             * Aqui o sorteio para e diz exatamente quem mudou. Quem quiser a
+             * urna nova apaga a travada desta temporada e salva de novo; o que
+             * não pode é revelar por uma urna que a tela já não descreve.
+             */
+            if (!$apenasPreview && !$simulacao) {
+                $divergentes = loteriaUrnaDivergente($pdo, (int)$lotterySession['season_id'], $balls);
+                if ($divergentes) {
+                    $linhas = [];
+                    foreach (array_slice($divergentes, 0, 6, true) as $tidDiv => $d) {
+                        $linhas[] = ($teamNames[$tidDiv] ?? ('#' . $tidDiv))
+                                  . ": a urna usou {$d['antes']}, hoje seriam {$d['agora']}";
+                    }
+                    echo json_encode(['success' => false,
+                        'error' => 'Loteria não sorteada: as bolinhas mudaram depois que a urna foi fechada. '
+                                 . implode('; ', $linhas)
+                                 . (count($divergentes) > 6 ? '; e mais ' . (count($divergentes) - 6) : '')
+                                 . '. A urna é fechada quando a classificação é salva e não muda depois — '
+                                 . 'mexer em grupo agora altera só o que a tela mostra, não o sorteio. '
+                                 . 'Para valer a urna nova, refaça o salvamento da classificação.']);
+                    exit;
+                }
+            }
+
             // Sorteio ponderado SEM reposição para TODAS as posições da loteria (não só o top-4).
             $pool = $balls;
             foreach ($jaSaiu as $tidFixo) unset($pool[$tidFixo]);   // fora da urna
