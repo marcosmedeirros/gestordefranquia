@@ -1698,6 +1698,53 @@ if ($method === 'POST') {
 
             $playoffTeamIds = array_map(fn($r) => (int)$r['team_id'], $playoffRows);
 
+            /* SEM A ORDEM GERAL, O SORTEIO NÃO ACONTECE.
+             *
+             * A ordem geral é o único jeito de comparar um time do Leste com
+             * um do Oeste: os dois têm um 14º, e só ela diz qual dos dois fez
+             * a campanha pior. Sem ela os grupos de bolinhas saem da posição
+             * dentro da conferência — um resultado plausível e errado.
+             *
+             * Foi o que aconteceu na ROOKIE em 27/09/2026. Lançar a pontuação
+             * da temporada apagou a ordem declarada (corrigido em
+             * api/seasons.php), o sorteio rodou assim mesmo e pôs o Milwaukee,
+             * 27º geral, entre os três piores no lugar do New Orleans, 29º. A
+             * loteria foi ao ar e quem achou o erro foi um GM, pela tela.
+             *
+             * Aquela correção impede o apagamento. Esta impede o resto: se a
+             * ordem sumir por qualquer outro caminho, o sorteio PARA e diz o
+             * que falta, em vez de inventar uma ordem a partir do que sobrou.
+             * Um erro que aparece é um erro que se conserta; este não aparecia.
+             *
+             * Cobra só de quem está na loteria: quem foi ao playoff não tem
+             * ordem geral e não precisa ter. E vale só no sorteio de verdade —
+             * prévia e simulação seguem livres, que é onde o admin descobre o
+             * que ainda falta preencher.
+             *
+             * Temporada que ninguém jogou fica de fora: lá a loteria é limpa
+             * de propósito, todo mundo é elegível e não há campanha nenhuma
+             * pra ordenar. Cobrar ordem geral ali travaria um sorteio correto.
+             */
+            if (!$apenasPreview && !$simulacao && !$semCampanha) {
+                $semOrdemGeral = [];
+                foreach ($eligible as $rowEleg) {
+                    if (($rowEleg['overall_position'] ?? null) === null) {
+                        $semOrdemGeral[] = (string)($rowEleg['team_name'] ?? ('#' . $rowEleg['team_id']));
+                    }
+                }
+                if ($semOrdemGeral) {
+                    $quantos = count($semOrdemGeral);
+                    $lista = implode(', ', array_slice($semOrdemGeral, 0, 6))
+                           . ($quantos > 6 ? ' e mais ' . ($quantos - 6) : '');
+                    echo json_encode(['success' => false,
+                        'error' => "Loteria não sorteada: {$quantos} time(s) da loteria estão sem a ordem geral da "
+                                 . "campanha ({$lista}). Sem ela não dá pra saber quem foi pior entre as duas "
+                                 . "conferências, e os grupos de bolinhas sairiam errados. Abra o card Pontuação, "
+                                 . "confira a ordem dos que ficaram fora do playoff, salve, e sorteie de novo."]);
+                    exit;
+                }
+            }
+
             /* ORDEM PROVISÓRIA DA PRÉVIA.
                O admin reordena o quadro na tela da loteria e precisa ver o
                efeito nos grupos antes de gravar — mover um time do 4º pro 2º
