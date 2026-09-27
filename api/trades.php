@@ -246,17 +246,48 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
         ],
     ];
 
-    postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
-
-    // N8N webhook e grupo do WhatsApp — só em trade_accepted com jogador 82+
+    /* O AVISO DO GRUPO NÃO ESPERA POST NENHUM.
+       Estava atrás de dois POSTs HTTP de até 9s cada, e script que morre no
+       meio leva o aviso junto sem deixar erro — foi assim que a quádrupla #691
+       não saiu no The Pathetic em 27/09/2026. Enfileirar custa milissegundos,
+       então vem primeiro; os webhooks, que são para fora, vêm depois e podem
+       falhar à vontade. */
+    $has80 = false;
     if ($event === 'trade_accepted') {
-        $allPlayers = array_merge($fromPlayers, $toPlayers);
-        $has80 = false;
-        foreach ($allPlayers as $p) {
+        foreach (array_merge($fromPlayers, $toPlayers) as $p) {
             if ((int)($p['ovr'] ?? 0) >= TRADE_WHATS_OVR_MIN) { $has80 = true; break; }
         }
-        if ($has80) {
-            try {
+    }
+
+    // Grupo do WhatsApp — o mesmo pras quatro ligas, com a tag da liga no
+    // texto. Só entra trade com jogador 82+, pra não encher o grupo com troca
+    // de reserva.
+    if ($has80) {
+        try {
+            require_once dirname(__DIR__) . '/backend/whatsapp.php';
+            // As picks passam pelo mesmo enrich dos cards antes de virar
+            // texto: sem isso elas chegam sem `draft_pick_number` e o
+            // rótulo cai no "R1 2026" mesmo com a ordem já sorteada.
+            $ligaTrade = (string)$trade['league'];
+            whatsappParaGrupoPrincipal(
+                $pdo,
+                montarTextoTradeWhats(
+                    $payload, $fromPlayers, $toPlayers,
+                    enrichPickListWithDraftContext($pdo, $fromPicks, $ligaTrade),
+                    enrichPickListWithDraftContext($pdo, $toPicks, $ligaTrade),
+                    $ligaTrade
+                ),
+                'trade'
+            );
+        } catch (\Throwable $e) {
+            error_log('[whatsapp-trade] ' . $e->getMessage());
+        }
+    }
+
+    postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
+
+    if ($has80) {
+        try {
                 $stmtWh = $pdo->prepare('SELECT n8n_webhook_url FROM league_settings WHERE league = ?');
                 $stmtWh->execute([$trade['league']]);
                 $n8nUrl = $stmtWh->fetchColumn() ?: null;
@@ -277,29 +308,6 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 }
             } catch (\Throwable $e) {
                 error_log('[n8n-trade-webhook] error: ' . $e->getMessage());
-            }
-
-            // Grupo do WhatsApp — o mesmo pras quatro ligas, com a tag da liga
-            // no texto. Só entra trade com jogador 82+, pra não encher o grupo
-            // com troca de reserva.
-            try {
-                require_once dirname(__DIR__) . '/backend/whatsapp.php';
-                // As picks passam pelo mesmo enrich dos cards antes de virar
-                // texto: sem isso elas chegam sem `draft_pick_number` e o
-                // rótulo cai no "R1 2026" mesmo com a ordem já sorteada.
-                $ligaTrade = (string)$trade['league'];
-                whatsappParaGrupoPrincipal(
-                    $pdo,
-                    montarTextoTradeWhats(
-                        $payload, $fromPlayers, $toPlayers,
-                        enrichPickListWithDraftContext($pdo, $fromPicks, $ligaTrade),
-                        enrichPickListWithDraftContext($pdo, $toPicks, $ligaTrade),
-                        $ligaTrade
-                    ),
-                    'trade'
-                );
-            } catch (\Throwable $e) {
-                error_log('[whatsapp-trade] ' . $e->getMessage());
             }
 
             // A timeline do X. Régua mais alta que a do grupo (X_OVR_MIN_TRADE
@@ -325,7 +333,6 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 error_log('[x-trade] ' . $e->getMessage());
             }
         }
-    }
 }
 
 /**
@@ -609,7 +616,23 @@ function anunciarMultiTradeNoGrupo(PDO $pdo, int $tradeId): array
         multiTradeItensComContextoDeDraft($pdo, $items, $liga),
         $liga
     );
-    whatsappParaGrupoPrincipal($pdo, $texto, 'trade');
+
+    /* ENFILEIRA E PRONTO — quem entrega é o worker.
+       Aqui não se chama whatsappParaGrupoPrincipal() por duas razões. Ela
+       desiste calada quando o bot está desligado ou o grupo não está
+       cadastrado, e esta função dizia "anunciei" do mesmo jeito; e ela ainda
+       tenta esvaziar a fila na hora, o que é HTTP para fora — coisa que não
+       pode acontecer dentro da transação da troca. O INSERT sozinho custa
+       milissegundos e é o que precisa ser atômico com a trade. */
+    if (!whatsappAtivo($pdo)) {
+        return ['anunciou' => false, 'motivo' => 'bot desligado'];
+    }
+    $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+    if ($grupo === '') {
+        return ['anunciou' => false, 'motivo' => 'grupo principal não cadastrado'];
+    }
+
+    whatsappEnfileirar($pdo, $grupo, $texto, true, 'trade');
     return ['anunciou' => true, 'motivo' => "maior OVR {$maiorOvr}"];
 }
 
@@ -4124,27 +4147,37 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
 
                 $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $tradeId]);
-                $pdo->commit();
-                rascunhosLimparFurados($pdo);   // os ativos trocaram de time
 
                 /*
-                 * O ANÚNCIO VEM PRIMEIRO, ANTES DE QUALQUER CHAMADA DE FORA.
+                 * O ANÚNCIO ENTRA NA MESMA TRANSAÇÃO DA TROCA.
                  *
-                 * Ele já esteve depois dos webhooks e a trade #736 (RISE, três
-                 * times, 13 itens, um 87 dentro) não saiu no grupo em
-                 * 26/09/2026 — enquanto trades de dois times no mesmo horário
-                 * saíam. O que existe entre o commit e o anúncio são dois POSTs
-                 * HTTP de até 9s cada e o post no X; quando isso estoura o
-                 * tempo de execução, o PHP mata o script e o aviso morre junto,
-                 * sem erro nenhum. Só enfileirar no banco custa milissegundos,
-                 * então é o que roda primeiro.
+                 * Já esteve logo depois do commit, o que não bastou: em
+                 * 27/09/2026, 12:49:58, a quádrupla #691 executou inteira — os
+                 * sete ativos e os quatro contadores estão no superlog — e o
+                 * anúncio não saiu nem deixou erro. Entre o commit e ele havia
+                 * uma chamada a mais; o script morreu ali, e um script que
+                 * morre depois do commit deixa a troca feita e o grupo sem
+                 * saber. Não dá pra confiar em nada que aconteça depois.
+                 *
+                 * Dentro da transação são os dois ou nenhum: a troca que o app
+                 * aplicou é a troca que o The Pathetic viu. É só um INSERT na
+                 * fila — a entrega quem faz é o worker, depois.
                  */
                 try {
                     $an = anunciarMultiTradeNoGrupo($pdo, (int)$tradeId);
                     if (!$an['anunciou']) error_log("[anuncio-trade] #{$tradeId} nao anunciada: {$an['motivo']}");
                 } catch (\Throwable $e) {
+                    // Anúncio não derruba troca: o negócio vale mesmo sem aviso.
                     error_log('[anuncio-trade] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
                 }
+
+                $pdo->commit();
+                rascunhosLimparFurados($pdo);   // os ativos trocaram de time
+
+                // O anúncio já foi enfileirado junto com a troca, lá em cima.
+                // Aqui só se empurra a fila, que é HTTP e pode morrer à vontade.
+                try { whatsappEsvaziarUmaVez($pdo); }
+                catch (\Throwable $e) { error_log('[anuncio-trade] fila: ' . $e->getMessage()); }
 
                 try {
                     sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
