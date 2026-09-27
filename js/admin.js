@@ -5078,8 +5078,15 @@ async function showTrades() {
         });
       }
       if (item.pick_id) {
+        /* PICK QUE NÃO EXISTE MAIS. O item guarda o pick_id, mas a pick pode
+           ter sido apagada depois — aí ano, rodada e time vêm vazios e o
+           rótulo saía como "· ª rodada ()", que não diz nada a ninguém.
+           Sem os dados, o que dá pra afirmar é o número dela. */
         const roundNumber = parseInt(item.round, 10);
-        const roundLabel = Number.isNaN(roundNumber) ? `${item.round}ª rodada` : `${roundNumber}ª rodada`;
+        if (!item.season_year && Number.isNaN(roundNumber)) {
+          return `Pick #${item.pick_id} (não está mais no app)`;
+        }
+        const roundLabel = Number.isNaN(roundNumber) ? 'rodada indefinida' : `${roundNumber}ª rodada`;
         const seasonLabel = item.season_year ? `${item.season_year}` : 'Temporada indefinida';
         const originalTeam = `${item.original_team_city || ''} ${item.original_team_name || ''}`.trim() || 'Time indefinido';
         return `${seasonLabel} ${roundLabel} - ${originalTeam}`;
@@ -5090,6 +5097,14 @@ async function showTrades() {
     const renderMultiTradeCard = (tr) => {
       const statusColor = { pending: '#f59e0b', accepted: '#22c55e', cancelled: '#64748b' }[tr.status] || '#64748b';
       const statusLabel = { pending: 'Pendente', accepted: 'Aceita', cancelled: 'Cancelada' }[tr.status] || tr.status;
+
+      /* REGISTRO RETROATIVO NÃO É TRADE NEGOCIADA, E NÃO SE REVERTE.
+         São as trocas da off-season reconstruídas depois que o banco caiu em
+         26/09/2026: os elencos já estavam certos e o cadastro não moveu
+         ninguém. Reverter um deles mandaria jogador de volta por uma troca
+         que o app nunca executou — e bagunçaria o elenco de verdade. Por isso
+         o card muda de nome e perde o botão. */
+      const ehRetroativo = String(tr.notes || '').startsWith('Registro retroativo');
 
       const teamMap = {};
       (tr.teams || []).forEach(team => {
@@ -5128,7 +5143,7 @@ async function showTrades() {
       return `<div class="pun-card${isAccepted ? ' pun-card-reverted' : ''}" data-trade-id="${tr.id}" style="margin-bottom:10px">
   <div class="pun-card-head">
     <div>
-      <div class="pun-card-title">Trade múltipla <span style="font-size:11px;font-weight:400;color:var(--text-3)">${leagueLabel}</span></div>
+      <div class="pun-card-title">${ehRetroativo ? 'Registro de off-season' : 'Trade múltipla'} <span style="font-size:11px;font-weight:400;color:var(--text-3)">${leagueLabel}</span></div>
       <div class="pun-card-sub">${teamsLine}</div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
@@ -5138,11 +5153,14 @@ async function showTrades() {
         <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked, true)" style="width:14px;height:14px;cursor:pointer">
         Game
       </label>
-      ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
+      ${tr.status === 'accepted' && !ehRetroativo ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
     </div>
   </div>
+  ${ehRetroativo ? `<div style="margin-top:8px;font-size:11.5px;color:#fbbf24;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:6px 9px">
+    <i class="bi bi-clock-history me-1"></i>Registro do que já tinha acontecido — o app não moveu ninguém por aqui, e por isso não há o que reverter.
+  </div>` : ''}
   <div style="margin-top:10px">${itemsHtml}</div>
-  ${tr.notes ? `<div class="pun-card-meta" style="margin-top:8px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
+  ${tr.notes && !ehRetroativo ? `<div class="pun-card-meta" style="margin-top:8px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
   <div class="pun-card-meta">${new Date(tr.created_at).toLocaleString('pt-BR')}</div>
 </div>`;
     };

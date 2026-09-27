@@ -145,9 +145,15 @@ const formatTradePickDisplay = (pick) => {
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || null);
 
-  let display = (pickNumber && isCurrentDraft)
-    ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
-    : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
+  /* PICK APAGADA. O item da trade guarda o pick_id, mas a pick em si pode não
+     existir mais — e aí ano, rodada e time vêm vazios. São 860 itens assim,
+     herdados de quando o banco foi restaurado. "Pick ? R?" não diz nada; o
+     número dela pelo menos permite procurar. */
+  let display = (!hasYearRound && !originalTeam && pick.pick_id)
+    ? `Pick #${pick.pick_id} (não está mais no app)`
+    : (pickNumber && isCurrentDraft)
+      ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
+      : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
 
   // Escapa a parte textual (nome de time pode ter caractere especial) ANTES
   // de colar o selo — todo chamador desta função escapava a string INTEIRA
