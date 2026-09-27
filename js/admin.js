@@ -5173,24 +5173,35 @@ async function showTrades() {
       const statusLabel = { pending: 'Pendente', accepted: 'Aceita', rejected: 'Recusada', cancelled: 'Cancelada', countered: 'Counter' }[tr.status] || tr.status;
       const isAccepted = Number(tr.is_in_game || 0) === 1;
 
+      /* LEILÃO USA O MESMO CARD, com uma tag.
+         Ele move jogador e pick sem passar por `trades`, então nunca aparecia
+         aqui — e esta tela é onde o admin marca o que já reproduziu no jogo.
+         Cancelar e Reverter ficam de fora: o leilão tem a reversão dele, na
+         tela do leilão, e um "Reverter" aqui chamaria a rotina errada. */
+      const ehLeilao = !!tr.is_leilao;
+      const tagLeilao = ehLeilao
+        ? '<span class="pun-badge" style="background:rgba(168,85,247,.15);color:#c084fc;border-color:rgba(168,85,247,.35)"><i class="bi bi-hammer me-1"></i>Leilão</span>'
+        : '';
+
       const offerHtml = renderTradeAssets(tr.offer_players || [], tr.offer_picks || []);
       const requestHtml = renderTradeAssets(tr.request_players || [], tr.request_picks || []);
 
-      return `<div class="pun-card${isAccepted ? ' pun-card-reverted' : ''}" data-trade-id="${tr.id}" style="margin-bottom:10px">
+      return `<div class="pun-card${isAccepted ? ' pun-card-reverted' : ''}" data-trade-id="${ehLeilao ? 'leilao-' : ''}${tr.id}" style="margin-bottom:10px">
   <div class="pun-card-head">
     <div>
       <div class="pun-card-title">${tr.from_city} ${tr.from_name} <i class="bi bi-arrow-right" style="color:var(--red);margin:0 4px"></i> ${tr.to_city} ${tr.to_name}</div>
       <div class="pun-card-sub">${tr.from_league || '-'} · ${new Date(tr.created_at).toLocaleDateString('pt-BR')}</div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
+      ${tagLeilao}
       <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);cursor:pointer">
-        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked, false)" style="width:14px;height:14px;cursor:pointer">
+        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked, false, ${ehLeilao})" style="width:14px;height:14px;cursor:pointer">
         Game
       </label>
-      ${tr.status === 'pending' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
-      ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}
-      ${tr.revert_lote ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="undoRevertTrade(${tr.id})" title="Reverteram sem querer? A troca volta a valer.">Desfazer reversão</button>` : ''}
+      ${!ehLeilao && tr.status === 'pending' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
+      ${!ehLeilao && tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}
+      ${!ehLeilao && tr.revert_lote ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="undoRevertTrade(${tr.id})" title="Reverteram sem querer? A troca volta a valer.">Desfazer reversão</button>` : ''}
     </div>
   </div>
   ${tr.notes ? `<div class="pun-card-meta" style="margin-top:6px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
@@ -5496,15 +5507,18 @@ async function deleteHallOfFameEntry(id) {
   }
 }
 
-async function toggleAdminTradeAccept(tradeId, checked, isMulti) {
-  const card = document.querySelector(`[data-trade-id="${tradeId}"]`);
+async function toggleAdminTradeAccept(tradeId, checked, isMulti, isLeilao) {
+  // Três tabelas com sequências próprias: o id sozinho não identifica o card,
+  // e o leilão carrega o prefixo pra não pegar a trade de mesmo número.
+  const card = document.querySelector(`[data-trade-id="${isLeilao ? 'leilao-' : ''}${tradeId}"]`);
   if (card) {
     card.classList.toggle('is-accepted', checked);
   }
   try {
     await api('admin.php?action=trade_in_game', {
       method: 'PUT',
-      body: JSON.stringify({ trade_id: tradeId, is_in_game: checked ? 1 : 0, is_multi: !!isMulti })
+      body: JSON.stringify({ trade_id: tradeId, is_in_game: checked ? 1 : 0,
+                             is_multi: !!isMulti, is_leilao: !!isLeilao })
     });
   } catch (e) {
     if (card) {

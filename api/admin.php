@@ -1778,8 +1778,145 @@ if ($method === 'GET') {
                 unset($trade);
             }
 
-            if (!empty($multiTrades)) {
-                $trades = array_merge($trades, $multiTrades);
+            /* OS LEILÕES ENTRAM NA MESMA LISTA.
+               O leilão move jogador e pick direto, sem passar por `trades` —
+               então ele nunca aparecia aqui, e esta tela é onde o admin
+               confere o que falta reproduzir no jogo. Um negócio que a liga
+               fez e o painel não mostra é um negócio que ninguém executa.
+
+               Vira o formato da troca de dois times (o card já sabe desenhar
+               esse), com `is_leilao` só pra pôr a tag e tirar os botões que
+               não valem aqui: o leilão tem reversão própria, na tela dele. */
+            $leiloes = [];
+            if (in_array($status, ['all', 'accepted'], true) && tableExists($pdo, 'leilao_jogadores')) {
+                if (!columnExists($pdo, 'leilao_jogadores', 'is_in_game')) {
+                    try { $pdo->exec('ALTER TABLE leilao_jogadores ADD COLUMN is_in_game TINYINT(1) NOT NULL DEFAULT 0'); }
+                    catch (Throwable $e) { error_log('[admin/trades] is_in_game leilao: ' . $e->getMessage()); }
+                }
+
+                $lCond   = ["lj.status = 'finalizado'", 'lj.proposta_aceita_id IS NOT NULL'];
+                $lParams = [];
+
+                if ($league) {
+                    $lCond[]   = 'lg.name = ?';
+                    $lParams[] = $league;
+                } elseif (!$isGlobalAdminApi) {
+                    $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
+                    $lCond[] = "lg.name IN ($ph)";
+                    foreach ($apiAdminLeagues as $al) { $lParams[] = $al; }
+                }
+                if ($teamId > 0) {
+                    $lCond[]   = '(lj.team_id = ? OR lp.team_id = ?)';
+                    $lParams[] = $teamId;
+                    $lParams[] = $teamId;
+                }
+                if ($seasonYear) {
+                    $lCond[]   = 'YEAR(lj.data_fim) = ?';
+                    $lParams[] = (int)$seasonYear;
+                }
+                if ($playerBusca !== '') {
+                    /* Casa pelo leiloado e por tudo que andou junto: a
+                       pergunta desta tela é "por onde esse jogador passou", e
+                       num leilão ele tanto pode ser o leiloado quanto parte do
+                       pagamento. */
+                    $lCond[] = "(pl.name LIKE ? OR lj.temp_name LIKE ?
+                                 OR EXISTS (SELECT 1 FROM leilao_proposta_jogadores lpj
+                                              JOIN players p3 ON p3.id = lpj.player_id
+                                             WHERE lpj.proposta_id = lj.proposta_aceita_id AND p3.name LIKE ?)
+                                 OR EXISTS (SELECT 1 FROM leilao_proposta_extra_players lpe
+                                              JOIN players p4 ON p4.id = lpe.player_id
+                                             WHERE lpe.proposta_id = lj.proposta_aceita_id AND p4.name LIKE ?))";
+                    for ($i = 0; $i < 4; $i++) $lParams[] = '%' . $playerBusca . '%';
+                }
+
+                $ovrCol = playerOvrColumn($pdo);
+                $stmtL  = $pdo->prepare("
+                    SELECT lj.id, lj.player_id, lj.data_fim, lj.proposta_aceita_id,
+                           COALESCE(lj.is_in_game, 0) AS is_in_game,
+                           lj.temp_name, lj.temp_position, lj.temp_age, lj.temp_ovr,
+                           pl.name AS jogador_nome, pl.position AS jogador_pos,
+                           pl.age AS jogador_idade, pl.{$ovrCol} AS jogador_ovr,
+                           lg.name AS liga,
+                           vt.city AS from_city, vt.name AS from_name,
+                           ct.city AS to_city, ct.name AS to_name,
+                           lw.pick_id AS leiloado_pick_id, lw.leiloado_texto
+                      FROM leilao_jogadores lj
+                      JOIN leilao_propostas lp ON lp.id = lj.proposta_aceita_id
+                      LEFT JOIN leagues lg ON lg.id = lj.league_id
+                      LEFT JOIN players pl ON pl.id = lj.player_id
+                      LEFT JOIN teams vt ON vt.id = lj.team_id
+                      LEFT JOIN teams ct ON ct.id = lp.team_id
+                      LEFT JOIN leilao_whats lw ON lw.leilao_id = lj.id
+                     WHERE " . implode(' AND ', $lCond) . "
+                     ORDER BY lj.data_fim DESC");
+                $stmtL->execute($lParams);
+                $linhas = $stmtL->fetchAll(PDO::FETCH_ASSOC);
+
+                $lePlayers = function (string $tabela, int $propostaId) use ($pdo, $ovrCol): array {
+                    $st = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} AS ovr
+                                           FROM {$tabela} x JOIN players p ON p.id = x.player_id
+                                          WHERE x.proposta_id = ?");
+                    $st->execute([$propostaId]);
+                    return $st->fetchAll(PDO::FETCH_ASSOC);
+                };
+                $lePicks = function (string $tabela, int $propostaId) use ($pdo): array {
+                    $st = $pdo->prepare("SELECT pk.*, t.city, t.name AS team_name
+                                           FROM {$tabela} x JOIN picks pk ON pk.id = x.pick_id
+                                           JOIN teams t ON pk.original_team_id = t.id
+                                          WHERE x.proposta_id = ?");
+                    $st->execute([$propostaId]);
+                    return $st->fetchAll(PDO::FETCH_ASSOC);
+                };
+                $stPickSolta = $pdo->prepare('SELECT pk.*, t.city, t.name AS team_name
+                                                FROM picks pk JOIN teams t ON pk.original_team_id = t.id
+                                               WHERE pk.id = ?');
+
+                foreach ($linhas as $l) {
+                    $prop = (int)$l['proposta_aceita_id'];
+
+                    /* O VENDEDOR MANDA o leiloado (jogador, ou a escolha do
+                       draft quando o leilão foi de pick) e o que ele pôs
+                       junto. O leiloado pode ter sido criado só pro leilão
+                       (is_temp_player), e aí o nome está em temp_name. */
+                    $ofertaJog  = [];
+                    $ofertaPick = [];
+                    if (!empty($l['leiloado_pick_id'])) {
+                        $stPickSolta->execute([(int)$l['leiloado_pick_id']]);
+                        if ($pk = $stPickSolta->fetch(PDO::FETCH_ASSOC)) $ofertaPick[] = $pk;
+                    } elseif ($l['jogador_nome'] || $l['temp_name']) {
+                        $ofertaJog[] = [
+                            'id'       => $l['player_id'],
+                            'name'     => $l['jogador_nome'] ?: $l['temp_name'],
+                            'position' => $l['jogador_pos'] ?: $l['temp_position'],
+                            'age'      => $l['jogador_idade'] ?: $l['temp_age'],
+                            'ovr'      => $l['jogador_ovr'] ?: $l['temp_ovr'],
+                        ];
+                    }
+                    $ofertaJog  = array_merge($ofertaJog, $lePlayers('leilao_proposta_extra_players', $prop));
+                    $ofertaPick = array_merge($ofertaPick, $lePicks('leilao_proposta_extra_picks', $prop));
+
+                    $leiloes[] = [
+                        'id'              => (int)$l['id'],
+                        'is_leilao'       => true,
+                        'status'          => 'accepted',
+                        'is_in_game'      => (int)$l['is_in_game'],
+                        'created_at'      => $l['data_fim'],
+                        'from_city'       => $l['from_city'],
+                        'from_name'       => $l['from_name'],
+                        'from_league'     => $l['liga'],
+                        'to_city'         => $l['to_city'],
+                        'to_name'         => $l['to_name'],
+                        'notes'           => $l['leiloado_texto'] ?: null,
+                        'offer_players'   => $ofertaJog,
+                        'offer_picks'     => $ofertaPick,
+                        'request_players' => $lePlayers('leilao_proposta_jogadores', $prop),
+                        'request_picks'   => $lePicks('leilao_proposta_picks', $prop),
+                    ];
+                }
+            }
+
+            if (!empty($multiTrades) || !empty($leiloes)) {
+                $trades = array_merge($trades, $multiTrades, $leiloes);
                 usort($trades, static function ($a, $b) {
                     return strtotime($b['created_at']) <=> strtotime($a['created_at']);
                 });
@@ -2500,7 +2637,17 @@ if ($method === 'PUT') {
                 exit;
             }
 
-            if ($isMultiFlag === true) {
+            /* Leilão é uma TERCEIRA tabela, e os ids de `leilao_jogadores`
+               colidem com os das outras duas — por isso o front manda o tipo
+               explícito, como já fazia com a múltipla. */
+            $ehLeilao = !empty($data['is_leilao']);
+
+            if ($ehLeilao) {
+                $s = $pdo->prepare('SELECT lg.name FROM leilao_jogadores lj
+                                      LEFT JOIN leagues lg ON lg.id = lj.league_id WHERE lj.id = ?');
+                $s->execute([$tradeId]);
+                $tigLeague = $s->fetchColumn();
+            } elseif ($isMultiFlag === true) {
                 $tigLeague = false;
                 if (tableExists($pdo, 'multi_trades')) {
                     $s = $pdo->prepare('SELECT COALESCE(mt.league, ct.league) AS league FROM multi_trades mt JOIN teams ct ON ct.id = mt.created_by_team_id WHERE mt.id = ?');
@@ -2529,7 +2676,12 @@ if ($method === 'PUT') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $tigLeague);
 
-            if ($isMultiFlag === true) {
+            if ($ehLeilao) {
+                if (!columnExists($pdo, 'leilao_jogadores', 'is_in_game')) {
+                    $pdo->exec('ALTER TABLE leilao_jogadores ADD COLUMN is_in_game TINYINT(1) NOT NULL DEFAULT 0');
+                }
+                $pdo->prepare('UPDATE leilao_jogadores SET is_in_game = ? WHERE id = ?')->execute([$isInGame ? 1 : 0, $tradeId]);
+            } elseif ($isMultiFlag === true) {
                 $pdo->prepare('UPDATE multi_trades SET is_in_game = ? WHERE id = ?')->execute([$isInGame ? 1 : 0, $tradeId]);
             } elseif ($isMultiFlag === false) {
                 $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?')->execute([$isInGame ? 1 : 0, $tradeId]);
