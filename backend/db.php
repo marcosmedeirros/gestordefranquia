@@ -21,11 +21,38 @@ function db(): PDO
        ido junto. Se o arquivo não puder ser escrito, o superlog se cala e nada
        aqui muda. */
     require_once __DIR__ . '/superlog.php';
-    $pdo = new SuperlogPDO($dsn, $config['db']['user'], $config['db']['pass'], [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_STATEMENT_CLASS => [SuperlogStatement::class, []],
-    ]);
+
+    /* O MYSQL DESTA HOSPEDAGEM PISCA, E QUEM VÊ É O GM.
+       Em 27/09/2026, 12:41:54, o serviço reiniciou: o socket sumiu por cinco
+       segundos e voltou às 12:42. Nesses cinco segundos toda página do site
+       morreu com "SQLSTATE[HY000] [2002] No such file or directory" — stack
+       trace na cara de quem estava fazendo a FA, com o caminho do servidor
+       junto.
+
+       Três tentativas com meio segundo entre elas cobrem uma piscada dessas
+       sem que ninguém perceba. Não cobrem banco fora de verdade, e nem devem:
+       aí a página cai de uma vez, com a mensagem de baixo. */
+    $pdo = null;
+    $ultimoErro = null;
+    for ($tentativa = 1; $tentativa <= 3; $tentativa++) {
+        try {
+            $pdo = new SuperlogPDO($dsn, $config['db']['user'], $config['db']['pass'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_STATEMENT_CLASS => [SuperlogStatement::class, []],
+            ]);
+            if ($tentativa > 1) error_log("[db] conectou na tentativa {$tentativa}");
+            break;
+        } catch (PDOException $e) {
+            $ultimoErro = $e;
+            if ($tentativa < 3) usleep(500000);
+        }
+    }
+
+    if (!$pdo instanceof PDO) {
+        error_log('[db] sem banco apos 3 tentativas: ' . ($ultimoErro ? $ultimoErro->getMessage() : '?'));
+        dbForaDoAr();
+    }
 
     // Definir timezone no MySQL também
     $pdo->exec("SET time_zone = '-03:00'");
@@ -59,6 +86,58 @@ function db(): PDO
     }
 
     return $pdo;
+}
+
+/**
+ * O banco não respondeu: encerra a requisição com cara de gente.
+ *
+ * O que havia antes era o fatal cru do PHP — stack trace, o caminho
+ * /home/u289267434/... e nenhuma indicação do que fazer. Quem viu foi um GM no
+ * meio da free agency, no celular.
+ *
+ * 503 e não 500: é indisponibilidade temporária, e é o que os robôs devem
+ * entender. Na linha de comando não engole nada — script que roda sem banco
+ * tem que estourar, senão a falha vira silêncio no cron.
+ */
+function dbForaDoAr(): void
+{
+    if (PHP_SAPI === 'cli') {
+        throw new RuntimeException('Banco indisponível (3 tentativas).');
+    }
+
+    if (!headers_sent()) {
+        http_response_code(503);
+        header('Retry-After: 30');
+    }
+
+    $uri  = (string)($_SERVER['REQUEST_URI'] ?? '');
+    $ehApi = str_contains($uri, '/api/')
+        || str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')
+        || strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+    if ($ehApi) {
+        if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error' => 'Banco de dados indisponível no momento. Tente de novo em instantes.'],
+            JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if (!headers_sent()) header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">'
+       . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+       . '<title>FBA — um instante</title><style>'
+       . 'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;'
+       . 'background:#0f1115;color:#e8eaf0;font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;padding:24px}'
+       . 'main{max-width:30rem;text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}'
+       . 'p{margin:0 0 1.5rem;color:#a7adbb}'
+       . 'a{display:inline-block;padding:.7rem 1.4rem;border-radius:.5rem;background:#3b6ef5;color:#fff;'
+       . 'text-decoration:none;font-weight:600}</style></head><body><main>'
+       . '<h1>O banco piscou</h1>'
+       . '<p>O servidor da liga ficou fora do ar por alguns segundos. '
+       . 'Não foi nada que você fez, e nada do que estava fazendo se perdeu.</p>'
+       . '<a href="' . htmlspecialchars($uri !== '' ? $uri : '/', ENT_QUOTES) . '">Tentar de novo</a>'
+       . '</main></body></html>';
+    exit;
 }
 
 /**
