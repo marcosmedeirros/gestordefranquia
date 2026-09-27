@@ -683,7 +683,8 @@ function wcSemClube(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
     try {
         $st = $pdo->prepare("
             SELECT x.name, x.age, x.position, x.secondary_position, x.ovr AS ovr,
-                   x.league, x.expires_at, CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS saiu_de
+                   x.league, x.expires_at, x.player_id, x.team_id AS saiu_de_id,
+                   CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS saiu_de
               FROM waiver_retention x
               LEFT JOIN teams t ON t.id = x.team_id
              WHERE x.status = 'open' AND x.expires_at > NOW() AND x.name LIKE ?
@@ -701,7 +702,8 @@ function wcSemClube(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
     try {
         $st = $pdo->prepare("
             SELECT x.name, x.age, x.position, x.secondary_position, x.overall AS ovr,
-                   x.league, x.min_bid, x.original_team_name AS saiu_de
+                   x.league, x.min_bid, x.original_team_id AS saiu_de_id,
+                   x.original_team_name AS saiu_de
               FROM free_agents x
              WHERE x.status = 'available' AND x.name LIKE ?
              ORDER BY {$ordem}, x.overall DESC
@@ -718,8 +720,82 @@ function wcSemClube(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
     return $linhas;
 }
 
+/**
+ * O passado de quem está sem clube: as letras e a última temporada.
+ *
+ * Nem waiver nem free agency guardam skill — quem sai do elenco sai da tabela
+ * `players` e leva as colunas com ele. Mas o `player_season_log` fica: é o
+ * retrato que o snapshot de fim de temporada tira de cada jogador, com OVR,
+ * idade e as dez letras. Então a ficha do dispensado é montada de lá, e por
+ * isso ela diz de que temporada as letras são — são o último retrato, não o
+ * estado de agora.
+ *
+ * O caminho até o log depende de onde ele está:
+ *   waiver      → guarda player_id, é ligação direta.
+ *   free agency → não guarda; casa por nome + liga + time de origem, que é o
+ *                 bastante pra separar dois homônimos em divisões diferentes
+ *                 (existe um Brook Lopez na ELITE e outro na NEXT).
+ */
+function wcSemClubeHistorico(PDO $pdo, array $p): array
+{
+    $vazio = ['skills' => [], 'letras' => [], 'stats' => null, 'temporada' => null];
+
+    try {
+        $pid = (int)($p['player_id'] ?? 0);
+        $log = null;
+
+        if ($pid > 0) {
+            $st = $pdo->prepare("SELECT * FROM player_season_log WHERE player_id = ?
+                                  ORDER BY season_number DESC, id DESC LIMIT 1");
+            $st->execute([$pid]);
+            $log = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        if (!$log) {
+            $sql = "SELECT * FROM player_season_log
+                     WHERE player_name = ? AND league = ?";
+            $par = [$p['name'], $p['league']];
+            if (!empty($p['saiu_de_id'])) { $sql .= " AND team_id = ?"; $par[] = (int)$p['saiu_de_id']; }
+            $sql .= " ORDER BY season_number DESC, id DESC LIMIT 1";
+            $st = $pdo->prepare($sql);
+            $st->execute($par);
+            $log = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            // Sem o time de origem no log (foi trocado antes de ser dispensado):
+            // o nome dentro da divisão já é desempate suficiente.
+            if (!$log && !empty($p['saiu_de_id'])) {
+                $st = $pdo->prepare("SELECT * FROM player_season_log
+                                      WHERE player_name = ? AND league = ?
+                                      ORDER BY season_number DESC, id DESC LIMIT 1");
+                $st->execute([$p['name'], $p['league']]);
+                $log = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
+        }
+
+        if (!$log) return $vazio;
+        if ($pid <= 0) $pid = (int)($log['player_id'] ?? 0);
+
+        /* `letras` são as colunas cruas do log: o sistema_proficiencia lê
+           skill_* direto, do mesmo jeito que leria a linha de `players`. */
+        $letras = [];
+        foreach (array_keys(WC_SKILLS) as $col) {
+            if (isset($log[$col]) && $log[$col] !== '') $letras[$col] = $log[$col];
+        }
+
+        return [
+            'skills'    => wcSkillsDoJogador($log),
+            'letras'    => $letras,
+            'stats'     => $pid > 0 ? wcStatsDoJogador($pdo, $pid) : null,
+            'temporada' => $log['season_number'] ?? null,
+        ];
+    } catch (Throwable $e) {
+        error_log('wcSemClubeHistorico: ' . $e->getMessage());
+        return $vazio;
+    }
+}
+
 /** A ficha de quem está sem clube. `$comClube` são as ligas onde ele TEM time. */
-function wcFichaSemClube(array $linhas, string $termo, array $comClube = []): string
+function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube = []): string
 {
     $nota = $comClube
         ? "\n\n_esse nome também tem time na " . implode(', ', $comClube) . "_"
@@ -751,13 +827,47 @@ function wcFichaSemClube(array $linhas, string $termo, array $comClube = []): st
         $ate = null;
         try { $ate = new DateTime((string)$p['expires_at']); } catch (Throwable $e) { }
         $txt .= "\n⏳ *No waiver*" . ($ate ? ' até ' . $ate->format('d/m H:i') : '')
-              . " — depois disso cai no free agency.";
+              . " — depois disso cai no free agency.\n";
     } else {
         $txt .= "\n🆓 *No free agency*";
         if (!empty($p['min_bid'])) $txt .= ' — lance mínimo *' . (int)$p['min_bid'] . '*';
+        $txt .= "\n";
     }
 
-    return $txt . $nota;
+    /* Números e letras do último retrato que existe dele. @see wcSemClubeHistorico */
+    $h = wcSemClubeHistorico($pdo, $p);
+
+    if ($h['stats']) {
+        $s = $h['stats'];
+        $txt .= "\n📊 *Última temporada*\n"
+              . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
+              . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
+              . ($s['fg_pct'] !== null ? ' · ' . wcNum($s['fg_pct']) . '% fg' : '')
+              . ' em ' . (int)$s['games'] . " jogos\n";
+    }
+
+    if ($h['skills']) {
+        // A temporada entra no rótulo: são as letras do último snapshot dele, e
+        // quem lê "Skills" numa ficha de dispensado merece saber de quando é.
+        $txt .= "\n⭐ *Skills*" . ($h['temporada'] ? ' _(T' . (int)$h['temporada'] . ')_' : '') . "\n";
+        $pares = array_chunk(array_map(
+            fn($k, $v) => $k . ' *' . $v . '*',
+            array_keys($h['skills']), $h['skills']
+        ), 2);
+        foreach ($pares as $par) $txt .= implode('  ·  ', $par) . "\n";
+
+        try {
+            require_once dirname(__DIR__) . '/backend/sistema_proficiencia.php';
+            if ($melhor = sistemaMelhorDoJogador($p + $h['letras'])) {
+                $txt .= "\n🎯 Melhor sistema: *{$melhor['nome']}* "
+                      . sistemaEstrelasTexto($melhor['estrelas']) . "\n";
+            }
+        } catch (Throwable $e) {
+            error_log('wcFichaSemClube (sistema): ' . $e->getMessage());
+        }
+    }
+
+    return rtrim($txt) . $nota;
 }
 
 function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
@@ -790,20 +900,28 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 
     if (!$achados && !$semClube) return "Não achei jogador com \"{$termo}\".";
 
-    // O mesmo jogador existe na ELITE e na ROOKIE — sem desempate, toda
-    // busca no Chat Off Geral virava "Achei 2 com lebron".
-    $todos    = $achados;
-    $achados  = $achados ? wcSoDaLiga($achados, $ligaDoGrupo) : [];
-    $notaLiga = wcNotaOutrasLigas($todos, $achados);
+    /* O mesmo jogador existe na ELITE e na ROOKIE — sem desempate, toda busca
+       no Chat Off Geral virava "Achei 2 com lebron". É a conta do wcSoDaLiga,
+       feita aqui porque as DUAS fontes entram nela: o dispensado da NEXT que
+       ainda tem time na ELITE precisa que a NEXT ganhe o desempate, senão a
+       resposta no grupo da NEXT é o time errado — e foi o que aconteceu
+       enquanto só quem tinha clube era consultado. */
+    $todos      = $achados;
+    $ordemLigas = array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref])));
+    $daLiga     = fn(array $rows, string $div) => array_values(array_filter($rows, fn($r) => ($r['league'] ?? '') === $div));
 
-    /* Os sem clube entram na MESMA busca, na divisão que sobrou do desempate:
-       quem pergunta por um nome quer os dois lados, e o homônimo dispensado
-       ficava invisível só porque alguém com clube casou com o nome primeiro.
-       Quando não há ninguém com clube, vale a liga do grupo — e, se nem nela
-       tem, mostra o que existe em vez de responder "não achei". */
-    $ligaAlvo = $achados ? (string)($achados[0]['league'] ?? $pref) : $pref;
-    $livres   = array_values(array_filter($semClube, fn($r) => ($r['league'] ?? '') === $ligaAlvo));
-    if (!$achados && !$livres) $livres = $semClube;
+    $achados = $livres = [];
+    foreach ($ordemLigas as $div) {
+        if ($daLiga($todos, $div) || $daLiga($semClube, $div)) {
+            $achados = $daLiga($todos, $div);
+            $livres  = $daLiga($semClube, $div);
+            break;
+        }
+    }
+    // Nenhuma divisão conhecida: devolve como veio em vez de zerar a busca.
+    if (!$achados && !$livres) { $achados = $todos; $livres = $semClube; }
+
+    $notaLiga = wcNotaOutrasLigas($todos, $achados);
 
     // Vários: lista enxuta, senão a mensagem vira parede de texto no grupo.
     if (count($achados) + count($livres) > 1) {
@@ -822,7 +940,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 
     // Só o sem clube casou: a ficha é a dele.
     if (!$achados) {
-        return wcFichaSemClube($livres, $termo,
+        return wcFichaSemClube($pdo, $livres, $termo,
             array_values(array_unique(array_column($todos, 'league'))));
     }
 
