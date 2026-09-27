@@ -500,7 +500,11 @@ $ligaAtual = revisaoLiga();
   }
 
   function cardTime(t) {
-    const estado = t.pendencias.length ? 'torto' : (t.ok_em ? 'ok' : 'pend');
+    /* CONFIRMADO GANHA DE IRREGULAR. Nesta ordem: com a pendência testada
+       primeiro, um time irregular nunca chegava a olhar o ok_em — gravava a
+       confirmação e voltava vermelho com o botão OK de novo, como se o clique
+       não tivesse feito nada. A pendência continua visível na faixa do card. */
+    const estado = t.ok_em ? 'ok' : (t.pendencias.length ? 'torto' : 'pend');
     /* O OK fica na linha. Dentro de um <summary> o clique abriria o card,
        por isso o stopPropagation/preventDefault no onclick. */
     /* Time irregular também confirma: a tela pergunta se o elenco e as picks
