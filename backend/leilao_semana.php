@@ -495,16 +495,33 @@ function leilaoSemanaFecharSePassouDaHora(PDO $pdo, string $liga): bool
         if (leilaoSemanaUltimoFechado($pdo, $liga, $temporada)) return false;
         // Sem lance nenhum, fechar só apagaria um leilão vazio e travaria a
         // semana inteira — deixa aberto até alguém dar o primeiro lance.
-        if (!leilaoSemanaLances($pdo, $liga, $temporada)) return false;
+        $lances = leilaoSemanaLances($pdo, $liga, $temporada);
+        if (!$lances) return false;
 
         require_once __DIR__ . '/slots_tela.php';
         $live = slotsTelaProximaRegular($pdo, $liga);
         if (!$live) return false;
 
         $tz    = new DateTimeZone('America/Sao_Paulo');
+        $agora = new DateTimeImmutable('now', $tz);
         $prazo = new DateTimeImmutable(substr((string)$live['inicio'], 0, 10) . ' '
                                        . SLOTS_TELA_HORA_ABERTURA, $tz);
-        if (new DateTimeImmutable('now', $tz) < $prazo) return false;
+        if ($agora < $prazo) return false;
+
+        /* MEIO JOGO NÃO É JOGO.
+           Com um lance só, o fechamento grava "Fulano × (vaga aberta)" e apaga
+           os lances — a semana acaba sem confronto e sem como voltar atrás. Já
+           bastava o prazo apertado; um leilão reaberto depois do meio-dia
+           fechava no primeiro lance que entrasse, dando a semana a quem
+           clicasse primeiro.
+
+           Então, faltando o segundo lance, o fechamento espera até a live
+           começar de verdade. Aí fecha com o que houver: um jogo com uma vaga
+           aberta ainda é melhor do que a live sem jogo nenhum. */
+        if (count($lances) < LEILAO_SEMANA_VAGAS) {
+            $comeco = new DateTimeImmutable((string)$live['inicio'], $tz);
+            if ($agora < $comeco) return false;
+        }
 
         $r = leilaoSemanaFechar($pdo, $liga, 0);
         return !empty($r['ok']);
