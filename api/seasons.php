@@ -2752,6 +2752,10 @@ try {
 
             // Garantir tabela de classificação (posição final de TODOS os times por temporada).
             // DDL causa commit implícito no MySQL, então roda antes de beginTransaction.
+            // As colunas da loteria entram aqui pelo mesmo motivo: o guard que as
+            // preserva mais abaixo faz SELECT nelas, e num banco sem elas a
+            // consulta quebraria o lançamento inteiro.
+            loteriaGarantirColunas($pdo);
             $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 season_id INT NOT NULL,
@@ -2859,6 +2863,29 @@ try {
             $standingsLeste = (isset($input['standings_leste']) && is_array($input['standings_leste'])) ? $input['standings_leste'] : [];
             $standingsOeste = (isset($input['standings_oeste']) && is_array($input['standings_oeste'])) ? $input['standings_oeste'] : [];
             if ($standingsLeste || $standingsOeste) {
+                /* O QUE A LOTERIA DECLAROU NÃO PODE MORRER AQUI.
+                 *
+                 * Este DELETE recria as linhas só com posição e conferência, e
+                 * leva junto três colunas que ninguém consegue recalcular:
+                 * overall_position, draft_tail_position e lottery_group. Elas
+                 * são declaração do admin, não resultado de jogo.
+                 *
+                 * Em 27/09/2026 isso apagou a loteria da ROOKIE. Às 19:55 os
+                 * grupos foram marcados — Minnesota e Toronto no G4, com uma
+                 * bolinha cada; às 19:57 a pontuação da temporada foi lançada,
+                 * este bloco rodou, e às 20:08 o sorteio saiu com os dois
+                 * valendo duas bolinhas. Não houve erro em lugar nenhum: com o
+                 * grupo vazio o sistema deduz que os dois só caíram no
+                 * play-in, e a urna fica errada em silêncio.
+                 *
+                 * O salvamento da classificação já guardava e devolvia essas
+                 * colunas; aqui faltava. Mesmo cuidado, mesma razão.
+                 */
+                $stmtGuardaPtos = $pdo->prepare("SELECT team_id, overall_position, draft_tail_position, lottery_group
+                                                   FROM season_standings WHERE season_id = ?");
+                $stmtGuardaPtos->execute([$seasonId]);
+                $ajustesLoteriaPtos = $stmtGuardaPtos->fetchAll(PDO::FETCH_ASSOC);
+
                 $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
                 $stmtStanding = $pdo->prepare("INSERT INTO season_standings (season_id, team_id, position, conference) VALUES (?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE position = VALUES(position), conference = VALUES(conference)");
@@ -2875,6 +2902,22 @@ try {
                 };
                 $insertStandings($standingsLeste, 'LESTE');
                 $insertStandings($standingsOeste, 'OESTE');
+
+                // Devolve o que a loteria declarou às linhas recém-criadas.
+                if ($ajustesLoteriaPtos) {
+                    $stmtVoltaPtos = $pdo->prepare("UPDATE season_standings
+                                                       SET overall_position = ?, draft_tail_position = ?, lottery_group = ?
+                                                     WHERE season_id = ? AND team_id = ?");
+                    foreach ($ajustesLoteriaPtos as $ant) {
+                        if ($ant['overall_position'] === null
+                            && $ant['draft_tail_position'] === null
+                            && $ant['lottery_group'] === null) continue;
+                        $stmtVoltaPtos->execute([
+                            $ant['overall_position'], $ant['draft_tail_position'], $ant['lottery_group'],
+                            $seasonId, (int)$ant['team_id'],
+                        ]);
+                    }
+                }
             }
 
             // Prêmios estendidos (só ELITE). Aqui vêm os SEIS tipos: o Finals
