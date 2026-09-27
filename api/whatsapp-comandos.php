@@ -787,32 +787,43 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
        sem isso o dispensado da ELITE respondia com o time dele na ROOKIE). */
     $semClube = wcSemClube($pdo, $termo, $ligaDoGrupo);
     $pref     = wcLigaPreferida($ligaDoGrupo);
-    $temNaPref = fn(array $rows) => (bool)array_filter($rows, fn($r) => ($r['league'] ?? '') === $pref);
 
-    if (!$achados || (!$temNaPref($achados) && $temNaPref($semClube))) {
-        if (!$semClube) return "Não achei jogador com \"{$termo}\".";
-        $daPref = array_values(array_filter($semClube, fn($r) => ($r['league'] ?? '') === $pref));
-        return wcFichaSemClube(
-            $daPref ?: $semClube,
-            $termo,
-            array_values(array_unique(array_column($achados, 'league')))
-        );
-    }
+    if (!$achados && !$semClube) return "Não achei jogador com \"{$termo}\".";
 
     // O mesmo jogador existe na ELITE e na ROOKIE — sem desempate, toda
     // busca no Chat Off Geral virava "Achei 2 com lebron".
     $todos    = $achados;
-    $achados  = wcSoDaLiga($achados, $ligaDoGrupo);
+    $achados  = $achados ? wcSoDaLiga($achados, $ligaDoGrupo) : [];
     $notaLiga = wcNotaOutrasLigas($todos, $achados);
 
+    /* Os sem clube entram na MESMA busca, na divisão que sobrou do desempate:
+       quem pergunta por um nome quer os dois lados, e o homônimo dispensado
+       ficava invisível só porque alguém com clube casou com o nome primeiro.
+       Quando não há ninguém com clube, vale a liga do grupo — e, se nem nela
+       tem, mostra o que existe em vez de responder "não achei". */
+    $ligaAlvo = $achados ? (string)($achados[0]['league'] ?? $pref) : $pref;
+    $livres   = array_values(array_filter($semClube, fn($r) => ($r['league'] ?? '') === $ligaAlvo));
+    if (!$achados && !$livres) $livres = $semClube;
+
     // Vários: lista enxuta, senão a mensagem vira parede de texto no grupo.
-    if (count($achados) > 1) {
+    if (count($achados) + count($livres) > 1) {
         $linhas = array_map(function ($p) {
             return '• *' . $p['name'] . '* — ' . $p['ovr'] . ' OVR, '
                 . $p['position'] . ', ' . $p['age'] . ' anos — '
                 . wcNomeDoTime($p) . ' (' . $p['league'] . ')';
         }, $achados);
-        return "Achei " . count($achados) . " com \"{$termo}\":\n" . implode("\n", $linhas) . $notaLiga;
+        foreach ($livres as $p) {
+            $linhas[] = '• *' . $p['name'] . '* — ' . (int)$p['ovr'] . ' OVR, '
+                . $p['position'] . ', ' . (int)$p['age'] . ' anos — *Sem Clube* ('
+                . $p['league'] . ($p['onde'] === 'waiver' ? ', no waiver' : ', free agency') . ')';
+        }
+        return "Achei " . count($linhas) . " com \"{$termo}\":\n" . implode("\n", $linhas) . $notaLiga;
+    }
+
+    // Só o sem clube casou: a ficha é a dele.
+    if (!$achados) {
+        return wcFichaSemClube($livres, $termo,
+            array_values(array_unique(array_column($todos, 'league'))));
     }
 
     $p = $achados[0];
