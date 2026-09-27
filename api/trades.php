@@ -3924,6 +3924,34 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
         }
 
         if ($action === 'accepted') {
+            /*
+             * UMA TROCA SÓ ACONTECE UMA VEZ.
+             *
+             * O aceite individual já era idempotente (o WHERE accepted_at IS
+             * NULL), mas o bloco que EXECUTA a troca rodava sempre que todos
+             * tivessem aceitado — e "todos aceitaram" continua verdade depois
+             * que a troca acabou. Então cada clique a mais no botão refazia
+             * tudo: transferia os ativos de novo e somava mais um no contador
+             * de cada time.
+             *
+             * Medido na trade #736 (RISE, três times) em 26/09/2026: três
+             * execuções às 22:18:16, 22:18:23 e 22:19:40, e os três times
+             * saíram com +3 no contador em vez de +1. Mover o mesmo jogador
+             * pro mesmo destino três vezes não muda o elenco, o que fez o
+             * defeito passar despercebido — mas o contador conta.
+             *
+             * FOR UPDATE porque dois cliques podem chegar juntos: sem o
+             * bloqueio de linha, os dois leriam "pending" e os dois entrariam.
+             */
+            $stLock = $pdo->prepare('SELECT status FROM multi_trades WHERE id = ? FOR UPDATE');
+            $stLock->execute([$tradeId]);
+            $statusAgora = (string)($stLock->fetchColumn() ?: '');
+            if ($statusAgora === 'accepted') {
+                $pdo->commit();
+                echo json_encode(['success' => true, 'status' => 'accepted', 'ja_aplicada' => true]);
+                exit;
+            }
+
             $stmtAccept = $pdo->prepare('UPDATE multi_trade_teams SET accepted_at = NOW() WHERE trade_id = ? AND team_id = ? AND accepted_at IS NULL');
             $stmtAccept->execute([$tradeId, $teamId]);
 
