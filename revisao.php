@@ -503,13 +503,14 @@ $ligaAtual = revisaoLiga();
     const estado = t.pendencias.length ? 'torto' : (t.ok_em ? 'ok' : 'pend');
     /* O OK fica na linha. Dentro de um <summary> o clique abriria o card,
        por isso o stopPropagation/preventDefault no onclick. */
+    /* Time irregular também confirma: a tela pergunta se o elenco e as picks
+       estão certos, não se o cap está fechado. A pendência segue à vista na
+       faixa vermelha do card, só deixou de travar o botão. */
     const selo = estado === 'ok'
       ? '<span class="tm-sel ok"><i class="bi bi-check2-circle"></i> Confirmado</span>'
-      : (estado === 'torto'
-          ? '<span class="tm-sel torto">Irregular</span>'
-          : `<button class="tm-ok-btn" title="Marcar que este time está certo"
-                     onclick="event.preventDefault();event.stopPropagation();confirmarTime(${t.id})">
-               <i class="bi bi-check2"></i> OK</button>`);
+      : `<button class="tm-ok-btn" title="Marcar que o elenco e as picks deste time estão certos"
+                 onclick="event.preventDefault();event.stopPropagation();confirmarTime(${t.id})">
+           <i class="bi bi-check2"></i> OK</button>`;
     const capAlerta = (t.cap > DADOS.cap_max || t.cap < DADOS.cap_min) ? ' alerta' : '';
     const jogAlerta = (t.qtd > 15 || t.qtd < 13) ? ' alerta' : '';
 
@@ -576,10 +577,11 @@ $ligaAtual = revisaoLiga();
         <div class="tm-rodape">
           ${t.ok_em
             ? `<span style="font-size:12.5px;color:#4ade80">Confirmado em ${esc(String(t.ok_em).replace('T',' ').slice(0,16))}</span>`
-            : (t.pendencias.length
-                ? '<span style="font-size:12.5px;color:var(--text-2,#9aa)">Arrume as pendências pra poder confirmar.</span>'
-                : `<button class="mini verde" onclick="confirmarTime(${t.id})">
-                     <i class="bi bi-check2-circle"></i> Está certo, pode confirmar</button>`)}
+            : `${t.pendencias.length
+                  ? '<span style="font-size:12.5px;color:var(--text-2,#9aa);margin-right:auto">O cap e o tamanho do elenco se resolvem na free agency — isso não impede confirmar.</span>'
+                  : ''}
+               <button class="mini verde" onclick="confirmarTime(${t.id})">
+                 <i class="bi bi-check2-circle"></i> Está certo, pode confirmar</button>`}
         </div>
       </div>
     </details>`;

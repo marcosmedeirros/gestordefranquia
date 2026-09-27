@@ -216,12 +216,19 @@ if ($metodo === 'POST' && $acao === 'ok') {
     exigirDaLiga($pdo, $teamId, 'time');
     exigirMinhaPonta($ehAdmin, $meuTimeId, [$teamId]);
 
-    /* Confirmar com o time fora das regras só esconderia o problema. */
-    $p = revisaoPendencias($pdo, $teamId);
-    if ($p['itens']) {
-        falha('O time ainda está irregular: ' . implode(' · ', $p['itens']));
-    }
-
+    /*
+     * TIME IRREGULAR TAMBÉM CONFIRMA.
+     *
+     * Isto recusava quem estivesse fora do cap ou do tamanho de elenco. Na
+     * prática travava a conferência inteira: na ELITE, 23 dos 32 times estavam
+     * irregulares, dez deles só por ter 16 jogadores em vez de 15 — e nenhum
+     * conseguia dizer sequer que o elenco estava correto. São duas perguntas
+     * diferentes, e a tela só faz a primeira: "os jogadores e as picks estão
+     * certos?". O cap se resolve na free agency.
+     *
+     * A pendência continua aparecendo em vermelho na linha do time; o que
+     * mudou é que ela deixou de ser impedimento.
+     */
     $pdo->prepare('INSERT INTO revisao_ok (team_id, user_id, confirmado_em) VALUES (?,?,NOW())
                    ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), confirmado_em = NOW()')
         ->execute([$teamId, $userId]);
