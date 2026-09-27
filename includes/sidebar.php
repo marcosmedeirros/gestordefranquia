@@ -99,11 +99,10 @@ if (!function_exists('sbActive')) {
         <a href="/statsjogadores.php"<?= sbActive('statsjogadores.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Stats</a>
         <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
         <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
-<?php /* Conferência de off-season: só pras ligas que estão conferindo (e pro
-         admin), porque fora delas o link só levaria a uma tela vazia. */ ?>
-        <?php if (in_array($team['league'] ?? '', ['NEXT', 'ELITE'], true) || !empty($__sbIsAdmin)): ?>
-        <a href="/revisao.php"<?= sbActive('revisao.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-check"></i> Conferência</a>
-        <?php endif; ?>
+<?php /* A Conferência saiu do menu em 26/09/2026, depois que a NEXT fechou os
+         30 times. A página segue de pé em /revisao.php — o que sumiu foi o
+         atalho, não o acesso; é só mandar o link quando a próxima liga for
+         conferir. Mesma decisão que o Mercado teve em 31/08. */ ?>
 <?php /* Mercado saiu do menu em 31/08/2026: ninguém usava. A página segue de
          pé em /mercado.php — o que sumiu foi o atalho, não o acesso. */ ?>
         <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
