@@ -616,14 +616,28 @@ function leilaoSemanaJogoAnterior(PDO $pdo, string $liga, int $temporadaAtual): 
     leilaoSemanaTabela($pdo);
     if ($temporadaAtual <= 0) return null;
     try {
+        /*
+         * O ÚLTIMO JOGO FECHADO, E NÃO "O DA TEMPORADA ANTERIOR".
+         *
+         * O filtro era `temporada < atual`, o que só funciona enquanto o
+         * número da temporada anda junto com a semana. Na ROOKIE não andou: a
+         * temporada 5 começou em 19/09 e seguiu aberta, então o jogo fechado
+         * em 26/09 também ficou gravado como temporada 5. A consulta antiga
+         * pulava esse e devolvia o de 19/09 — o Portland, que tinha acabado de
+         * jogar, ficava livre, e o bloqueio caía em quem já estava de fora.
+         *
+         * O que a regra quer dizer é "quem jogou da última vez". Então é o
+         * último registro fechado, e o `<=` deixa passar o jogo da própria
+         * temporada corrente.
+         */
         $st = $pdo->prepare("SELECT h.time1_id, h.time2_id, h.temporada,
                                     COALESCE(t1.name, h.time1_nome) AS time1_nome,
                                     COALESCE(t2.name, h.time2_nome) AS time2_nome
                                FROM leilao_semana_historico h
                           LEFT JOIN teams t1 ON t1.id = h.time1_id
                           LEFT JOIN teams t2 ON t2.id = h.time2_id
-                              WHERE h.league = ? AND h.temporada < ?
-                           ORDER BY h.temporada DESC, h.id DESC LIMIT 1");
+                              WHERE h.league = ? AND h.temporada <= ?
+                           ORDER BY h.fechado_em DESC, h.id DESC LIMIT 1");
         $st->execute([strtoupper(trim($liga)), $temporadaAtual]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) return null;

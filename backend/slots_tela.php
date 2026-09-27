@@ -159,7 +159,34 @@ function slotsTelaLiveAnterior(PDO $pdo, string $liga, string $inicioLiveAtual):
         // próxima da live de agora.
         $anterior = substr($ini, 0, 10);
     }
-    return $anterior;
+    if ($anterior !== null) return $anterior;
+
+    /*
+     * O CALENDÁRIO NÃO ACHOU, MAS A VENDA ACHA.
+     *
+     * A série do calendário só conhece ocorrências a partir da data em que
+     * começa. Quando a live muda de dia — a ROOKIE saiu de sábado 11h pra
+     * domingo 17h em 27/09/2026 — a série nova não tem passado, a antiga sai
+     * do ar, e a regra do rodízio parava de bloquear qualquer um: Heat,
+     * Mavericks, Kings e Lakers apareceram na tela duas semanas seguidas.
+     *
+     * Então, sem live anterior no calendário, vale a última data em que
+     * alguém comprou vaga. É por isso que o corte de dez dias importa: a
+     * intenção é "a semana passada", não "a última vez que vendeu alguma
+     * coisa" — sem o limite, uma liga parada há um mês bloquearia gente por
+     * uma tela antiga.
+     */
+    try {
+        $st = $pdo->prepare("SELECT MAX(data_live) FROM slots_tela
+                              WHERE league = ? AND data_live < ? AND data_live >= ?");
+        $st->execute([strtoupper(trim($liga)), $atual->format('Y-m-d'),
+                      $atual->modify('-10 days')->format('Y-m-d')]);
+        $v = $st->fetchColumn();
+        return $v ? substr((string)$v, 0, 10) : null;
+    } catch (Throwable $e) {
+        error_log('[slots-tela] live anterior pela venda: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**
