@@ -71,11 +71,19 @@ function superlogPasta(): ?string
     if ($tentou) return $pasta;
     $tentou = true;
 
-    $candidatos = [];
-    $home = getenv('HOME') ?: null;
-    if ($home) $candidatos[] = rtrim($home, '/') . '/superlog';
-    $candidatos[] = dirname(__DIR__, 2) . '/superlog';   // irmão do public_html
-    $candidatos[] = sys_get_temp_dir() . '/fba-superlog';
+    /*
+     * UMA PASTA SÓ, E SEM DEPENDER DE $HOME.
+     *
+     * A primeira versão tentava $HOME antes: no SSH isso resolve pra
+     * /home/<user>/superlog, e no PHP do site $HOME não existe, então caía no
+     * irmão do public_html. O resultado foram DOIS logs — o do app com 2,7MB
+     * num lugar e o dos meus scripts com 108KB no outro — e eu procurei a
+     * trade #736 na pasta errada achando que o log tinha falhado.
+     *
+     * Agora o caminho sai de __DIR__, que é o mesmo nos dois contextos: fora do
+     * public_html (a web não serve) e do lado do código.
+     */
+    $candidatos = [dirname(__DIR__, 2) . '/superlog', sys_get_temp_dir() . '/fba-superlog'];
 
     foreach ($candidatos as $c) {
         if (is_dir($c) && is_writable($c)) return $pasta = $c;

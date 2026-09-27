@@ -2323,16 +2323,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
         // deixa de descrever algo possível.
         rascunhosLimparFurados($pdo);
 
+        /* Primeiro o anúncio, pelo mesmo motivo do outro caminho de aceite:
+           o que vem depois são chamadas HTTP que podem estourar o tempo de
+           execução e levar o aviso junto. */
+        try {
+            $an = anunciarMultiTradeNoGrupo($pdo, $forceTradeId);
+            if (!$an['anunciou']) error_log("[anuncio-trade] #{$forceTradeId} nao anunciada: {$an['motivo']}");
+        } catch (\Throwable $e) { error_log('[anuncio-trade force] ' . $e->getMessage()); }
+
         /* Throwable, não Exception: um Error aqui (TypeError e parentes) não é
            Exception, escapava do catch e derrubava a requisição DEPOIS do
            commit — a troca ficava feita e a resposta nunca chegava. */
         try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); }
         catch (\Throwable $e) { error_log('[multi-trade-webhook force] ' . $e->getMessage()); }
-
-        try {
-            $an = anunciarMultiTradeNoGrupo($pdo, $forceTradeId);
-            if (!$an['anunciou']) error_log("[anuncio-trade] #{$forceTradeId} nao anunciada: {$an['motivo']}");
-        } catch (\Throwable $e) { error_log('[anuncio-trade force] ' . $e->getMessage()); }
 
         echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
     } catch (Exception $e) {
@@ -4095,19 +4098,30 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $tradeId]);
                 $pdo->commit();
                 rascunhosLimparFurados($pdo);   // os ativos trocaram de time
-                try {
-                    sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
-                } catch (\Throwable $e) {
-                    error_log('[multi-trade-webhook] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
-                }
 
-                /* O anúncio no grupo é chamado aqui, e não de dentro do
-                   webhook: é o aceite que o torna notícia, não o n8n. */
+                /*
+                 * O ANÚNCIO VEM PRIMEIRO, ANTES DE QUALQUER CHAMADA DE FORA.
+                 *
+                 * Ele já esteve depois dos webhooks e a trade #736 (RISE, três
+                 * times, 13 itens, um 87 dentro) não saiu no grupo em
+                 * 26/09/2026 — enquanto trades de dois times no mesmo horário
+                 * saíam. O que existe entre o commit e o anúncio são dois POSTs
+                 * HTTP de até 9s cada e o post no X; quando isso estoura o
+                 * tempo de execução, o PHP mata o script e o aviso morre junto,
+                 * sem erro nenhum. Só enfileirar no banco custa milissegundos,
+                 * então é o que roda primeiro.
+                 */
                 try {
                     $an = anunciarMultiTradeNoGrupo($pdo, (int)$tradeId);
                     if (!$an['anunciou']) error_log("[anuncio-trade] #{$tradeId} nao anunciada: {$an['motivo']}");
                 } catch (\Throwable $e) {
                     error_log('[anuncio-trade] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+                }
+
+                try {
+                    sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
+                } catch (\Throwable $e) {
+                    error_log('[multi-trade-webhook] trade_id=' . $tradeId . ' msg=' . $e->getMessage());
                 }
                 echo json_encode(['success' => true, 'status' => 'accepted']);
                 exit;
