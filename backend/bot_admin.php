@@ -474,8 +474,84 @@ function botAdminExecutar(PDO $pdo, string $acao, array $ligasPermitidas): strin
 
         case 'relogio':
             return botAdminIniciarRelogio($pdo, $liga);
+
+        case 'leilao':
+            require_once __DIR__ . '/leilao_whats.php';
+            return lwAbrirLeilaoPeloAdmin($pdo, $liga, (int)($partes[2] ?? 0));
     }
     return 'Não sei mais o que era pra fazer.';
+}
+
+/**
+ * /leilao <jogador> no grupo de admin — manda qualquer um pro leilão.
+ *
+ * O leilão do GM (no privado do bot) só aceita jogador 85+, ou 83+ com até 23
+ * anos, e ainda cobra um slot comprado na loja. As duas regras contêm o GM, e
+ * nenhuma delas faz sentido quando é a liga que decidiu leiloar alguém — foi o
+ * que o administrativo pediu. Aqui não há requisito nem slot: qualquer jogador
+ * de qualquer time da liga vai.
+ *
+ * Passa pelo /ok como todo comando de admin que escreve, e por um motivo a
+ * mais do que os outros: a abertura marca o grupo Gameplay inteiro. Um nome
+ * digitado pela metade que casou com o jogador errado não tem como ser
+ * desmarcado depois. A confirmação mostra QUEM foi achado, com time e ficha,
+ * antes de qualquer coisa sair.
+ *
+ * O id do jogador vai guardado no código, não o nome: o /ok leiloa exatamente
+ * quem apareceu na confirmação, e não o que uma segunda busca acharia.
+ */
+function botAdminPedirLeilao(PDO $pdo, string $arg, array $ligasPermitidas,
+                             ?string $ligaDoGrupo, string $grupoJid, string $quem): string
+{
+    $nome = trim($arg);
+    if ($nome === '') {
+        return "Use assim: */leilao Nome do Jogador*\n\n"
+             . "Vai a leilão sem exigir OVR nem slot. Só um leilão por liga de cada vez.";
+    }
+
+    require_once __DIR__ . '/leilao_whats.php';
+
+    /* A liga do grupo primeiro, depois as outras que a pessoa administra: o
+       grupo de admin de uma liga é o caso normal, e o grupo geral do
+       administrativo — sem liga — é o que sobra. */
+    $ordem = [];
+    if ($ligaDoGrupo && in_array(strtoupper($ligaDoGrupo), $ligasPermitidas, true)) {
+        $ordem[] = strtoupper($ligaDoGrupo);
+    }
+    foreach ($ligasPermitidas as $l) if (!in_array($l, $ordem, true)) $ordem[] = $l;
+
+    $achados = [];
+    $erros   = [];
+    foreach ($ordem as $liga) {
+        [$p, $erro] = lwAcharJogadorNaLiga($pdo, $liga, $nome);
+        if ($p) { $achados[$liga] = $p; }
+        elseif ($erro && !str_starts_with($erro, 'não achei')) { $erros[] = "*{$liga}*: {$erro}"; }
+    }
+
+    // Ambiguidade dentro de uma liga é erro de quem digitou, e o texto já diz
+    // o que fazer. Vale mais do que "não achei".
+    if ($erros) return "❌ " . implode("\n\n", $erros);
+
+    if (!$achados) {
+        return "❌ Não achei \"{$nome}\" em nenhum time d" .
+               (count($ordem) === 1 ? "a *{$ordem[0]}*" : 'as ligas que você administra') . '.';
+    }
+
+    if (count($achados) > 1) {
+        $linhas = [];
+        foreach ($achados as $liga => $p) {
+            $linhas[] = "• *{$liga}*: {$p['name']} ({$p['ovr']} OVR, {$p['time_nome']})";
+        }
+        return "\"{$nome}\" existe em mais de uma liga:\n" . implode("\n", $linhas)
+             . "\n\nDá o comando no grupo de admin da liga certa.";
+    }
+
+    $liga = array_key_first($achados);
+    $p    = $achados[$liga];
+    $time = trim(trim((string)$p['time_cidade']) . ' ' . trim((string)$p['time_nome']));
+
+    return botAdminPedirConfirmacao($pdo, $grupoJid, $quem, "leilao|{$liga}|{$p['id']}",
+        "Leiloar {$p['name']} ({$p['ovr']} OVR, {$p['age']}a) do {$time} na {$liga} — 20 min, sem slot");
 }
 
 // ── As ações ────────────────────────────────────────────────────────────

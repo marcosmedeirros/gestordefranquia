@@ -641,6 +641,117 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
         if ($st->fetchColumn()) return "❌ {$p['name']} já está num leilão ativo no app.";
     }
 
+    return lwPorNoAr($pdo, $t, $p, $pk, $rotulo, $linha, true);
+}
+
+/**
+ * Acha um jogador em QUALQUER time da liga, pelo nome.
+ *
+ * O irmão do lwAcharJogadorDoTime, sem a parte do "seu elenco": aqui quem
+ * pergunta é o admin, e o jogador pode ser de qualquer um. Mesma régua de nome
+ * (lwNomeCasa) e mesma tolerância ao formato "PG: Fulano 89/21y", que é o que
+ * o bot posta e o que as pessoas copiam.
+ *
+ * Devolve [jogador|null, erro|null]; o jogador vem com o time junto.
+ */
+function lwAcharJogadorNaLiga(PDO $pdo, string $liga, string $texto): array
+{
+    $limpo = trim(preg_replace('/^[A-Z]{1,2}\s*:\s*/i', '', trim($texto)));
+    $limpo = trim(preg_replace('/\s+\d{2}\s*\/\s*\d{2}\s*y?$/i', '', $limpo));
+    if ($limpo === '') return [null, 'faltou o nome do jogador'];
+
+    $st = $pdo->prepare("SELECT p.id, p.name, p.position, p.ovr, p.age, p.team_id,
+                                t.name AS time_nome, t.city AS time_cidade, t.league, t.user_id
+                           FROM players p
+                           JOIN teams t ON t.id = p.team_id
+                          WHERE t.league = ? AND p.name LIKE ?
+                          ORDER BY p.ovr DESC
+                          LIMIT 40");
+    $st->execute([$liga, '%' . $limpo . '%']);
+    $achados = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $exatos = array_values(array_filter($achados,
+        fn($p) => mb_strtolower(trim($limpo)) === mb_strtolower(trim($p['name']))));
+    if (count($exatos) === 1) return [$exatos[0], null];
+
+    $parecidos = array_values(array_filter($achados, fn($p) => lwNomeCasa($limpo, $p['name'])));
+    if (count($parecidos) === 1) return [$parecidos[0], null];
+
+    if (count($parecidos) > 1 || count($exatos) > 1) {
+        $lista = array_map(fn($p) => $p['name'] . ' (' . $p['time_nome'] . ', ' . (int)$p['ovr'] . ')',
+                           $exatos ?: $parecidos);
+        return [null, "\"{$limpo}\" bate com mais de um na {$liga}:\n• " . implode("\n• ", $lista)
+                    . "\n\nEscreve o nome completo."];
+    }
+    return [null, "não achei \"{$limpo}\" em nenhum time da {$liga}"];
+}
+
+/**
+ * /leilao <jogador> no grupo de admin — vai a leilão, e ponto.
+ *
+ * O caminho do GM (lwAbrirLeilao) cobra duas coisas que aqui não fazem
+ * sentido: o jogador tem que ser 85+ (ou 83+ com até 23 anos) e o dono tem que
+ * ter comprado um slot na loja. As duas existem pra conter o GM, não o
+ * administrativo — quando a liga decide leiloar alguém, a decisão já foi
+ * tomada e o slot de um time qualquer não tem nada a ver com ela.
+ *
+ * O que continua valendo não é requisito do jogador, é limite do sistema: um
+ * leilão aberto por liga de cada vez, porque é a liga que diz de qual leilão é
+ * o /oferta que chega no privado. Dois abertos ao mesmo tempo mandariam a
+ * proposta pro leilão errado.
+ *
+ * Quem responde as propostas continua sendo o dono do jogador, e é ele que o
+ * bot promove no Gameplay — o admin abre, não vende.
+ */
+function lwAbrirLeilaoPeloAdmin(PDO $pdo, string $liga, int $playerId): string
+{
+    lwGarantirTabelas($pdo);
+
+    $st = $pdo->prepare("SELECT p.id, p.name, p.position, p.ovr, p.age, p.team_id,
+                                t.name AS time_nome, t.city AS time_cidade, t.league, t.user_id
+                           FROM players p JOIN teams t ON t.id = p.team_id
+                          WHERE p.id = ? LIMIT 1");
+    $st->execute([$playerId]);
+    $p = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$p) return "❌ Esse jogador não existe mais.";
+    if ((string)$p['league'] !== $liga) return "❌ {$p['name']} não está mais na {$liga}.";
+
+    $st = $pdo->prepare("SELECT 1 FROM leilao_jogadores WHERE player_id = ? AND status = 'ativo' LIMIT 1");
+    $st->execute([(int)$p['id']]);
+    if ($st->fetchColumn()) return "❌ {$p['name']} já está num leilão ativo no app.";
+
+    $aberto = lwLeilaoAbertoDaLiga($pdo, $liga);
+    if ($aberto) {
+        return "⏳ Já tem leilão rolando na {$liga} ({$aberto['jogador']}, do {$aberto['vendedor_nome']}). "
+             . "Fecha em até " . lwMinutosRestantes($aberto) . " min.";
+    }
+
+    $t = [
+        'id'      => (int)$p['team_id'],
+        'name'    => trim(trim((string)$p['time_cidade']) . ' ' . trim((string)$p['time_nome'])),
+        'league'  => $liga,
+        'user_id' => (int)$p['user_id'],
+    ];
+
+    return lwPorNoAr($pdo, $t, $p, null, (string)$p['name'], lwLinhaJogador($p), false);
+}
+
+/**
+ * Põe o leilão no ar: a transação, o anúncio no Gameplay e o cargo do dono.
+ *
+ * Miolo comum de quem chama. O GM abre o dele pelo privado (lwAbrirLeilao, com
+ * as regras de quem pode ir a leilão e o slot da loja); o admin abre o de
+ * qualquer time pelo grupo de admin (lwAbrirLeilaoPeloAdmin, sem nenhuma das
+ * duas). Daqui pra baixo os dois casos são idênticos, e é por isso que isto
+ * virou uma função só: o anúncio que marca o grupo inteiro e a promoção do
+ * dono são exatamente o que não se quer ver divergindo entre dois caminhos.
+ *
+ * `$exigeSlot` false não gasta slot nem cobra um — o leilão que o admin abre é
+ * decisão da liga, não compra do GM.
+ */
+function lwPorNoAr(PDO $pdo, array $t, ?array $p, ?array $pk, string $rotulo, string $linha, bool $exigeSlot): string
+{
+    $liga  = (string)$t['league'];
     $grupo = botGrupoDaCerimonia($pdo, $liga);
     if (!$grupo) return "Não achei o grupo Gameplay da {$liga} cadastrado no bot. Fala com um admin.";
 
@@ -650,13 +761,15 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
     $pdo->beginTransaction();
     try {
         // Trava os slots do dono: dois /leilao ao mesmo tempo não gastam o mesmo.
-        $st = $pdo->prepare("SELECT id FROM loja_inventario
-                              WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL FOR UPDATE");
-        $st->execute([(int)$t['user_id']]);
-        $slots = count($st->fetchAll(PDO::FETCH_COLUMN));
-        if ($slots < 1) {
-            $pdo->rollBack();
-            return "❌ Você não tem slot de leilão. Compra na loja do site e tenta de novo.";
+        if ($exigeSlot) {
+            $st = $pdo->prepare("SELECT id FROM loja_inventario
+                                  WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL FOR UPDATE");
+            $st->execute([(int)$t['user_id']]);
+            $slots = count($st->fetchAll(PDO::FETCH_COLUMN));
+            if ($slots < 1) {
+                $pdo->rollBack();
+                return "❌ Você não tem slot de leilão. Compra na loja do site e tenta de novo.";
+            }
         }
         // Recheca com a trava: outro leilão pode ter aberto nesse meio-tempo.
         $st = $pdo->prepare("SELECT id FROM leilao_whats WHERE status IN ('aberto','encerrando') AND liga = ? FOR UPDATE");
@@ -719,6 +832,11 @@ function lwAbrirLeilao(PDO $pdo, array $times, string $nome): string
         }
     } catch (Throwable $e) {
         error_log('[leilao_whats] promover dono: ' . $e->getMessage());
+    }
+
+    if (!$exigeSlot) {
+        return "✅ Leilão de *{$rotulo}* ({$t['name']}) aberto e anunciado no Gameplay da {$liga}.\n\n"
+             . "Nenhum slot foi cobrado. Quem responde as propostas é o {$t['name']} — ele já foi promovido no grupo.";
     }
 
     return "✅ Leilão de *{$rotulo}* aberto e anunciado no Gameplay da {$liga}.\n\n"

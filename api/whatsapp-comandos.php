@@ -5359,6 +5359,22 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                 return botAdminPedirConfirmacao($pdo, $grupoJid, $deQuem, "relogio|{$ligaAlvo}",
                     "Ligar o relógio do draft da {$ligaAlvo} AGORA — 3 min por pick, e o bot chama a vez no Gameplay");
 
+            /* /leilao NO GRUPO é coisa de admin — no privado do bot ele é o do
+               GM, com as regras dele, e quem trata aquele é o webhook.
+               "/leilao aceitar" e "/leilao recusar" continuam sendo decisão do
+               dono sobre a proposta da vez, e passam direto. */
+            case 'leilao':
+            case 'leilão':
+                if (in_array(mb_strtolower(trim($arg)), ['aceitar', 'aceito', 'recusar', 'recuso'], true)) {
+                    require_once __DIR__ . '/../backend/leilao_whats.php';
+                    return lwDecidirNoGrupo($pdo, str_starts_with(mb_strtolower(trim($arg)), 'aceit') ? 'aceitar' : 'recusar',
+                                            $deQuem, $grupoJid);
+                }
+                require_once __DIR__ . '/../backend/bot_admin.php';
+                $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
+                if (!$ligasAdm) return null;
+                return botAdminPedirLeilao($pdo, $arg, $ligasAdm, $ligaDoGrupo, $grupoJid, $deQuem);
+
             case 'ok':
             case 'confirmar':
                 require_once __DIR__ . '/../backend/bot_admin.php';
