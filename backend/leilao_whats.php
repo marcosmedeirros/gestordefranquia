@@ -678,9 +678,14 @@ function lwAcharJogadorNaLiga(PDO $pdo, string $liga, string $texto): array
     if (count($parecidos) === 1) return [$parecidos[0], null];
 
     if (count($parecidos) > 1 || count($exatos) > 1) {
+        // "Williams" bate com doze na ELITE: a lista inteira é parede de texto
+        // no grupo, e quem digitou já entende o recado nos primeiros.
+        $todos = $exatos ?: $parecidos;
         $lista = array_map(fn($p) => $p['name'] . ' (' . $p['time_nome'] . ', ' . (int)$p['ovr'] . ')',
-                           $exatos ?: $parecidos);
-        return [null, "\"{$limpo}\" bate com mais de um na {$liga}:\n• " . implode("\n• ", $lista)
+                           array_slice($todos, 0, 6));
+        $sobra = count($todos) - count($lista);
+        return [null, "\"{$limpo}\" bate com " . count($todos) . " na {$liga}:\n• " . implode("\n• ", $lista)
+                    . ($sobra > 0 ? "\n• _e mais {$sobra}_" : '')
                     . "\n\nEscreve o nome completo."];
     }
     return [null, "não achei \"{$limpo}\" em nenhum time da {$liga}"];
