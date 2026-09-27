@@ -659,6 +659,107 @@ function wcAjuda(): string
  * tê-la escrita aqui era a terceira cópia dela.
  */
 
+/**
+ * O jogador que ninguém tem: waiver e free agency, na ordem em que ele sai.
+ *
+ * Quem é dispensado deixa de existir em `players` — vai pra waiver_retention
+ * por 48h e depois pro free_agents. Até aqui o /jogador procurava só em
+ * `players`, então o dispensado respondia "não achei", que no grupo lê como
+ * "esse jogador não existe" e não como "esse jogador está livre". Quem
+ * pergunta pelo nome de um dispensado quer exatamente a resposta que faltava:
+ * ele está sem clube, e onde pegar.
+ *
+ * As duas tabelas guardam a ficha à mão (nome, idade, OVR), sem skills nem
+ * lançamento de temporada — o jogador que voltar pra um elenco nasce de novo
+ * em `players`. Por isso a ficha de sem clube é curta: é o que existe.
+ */
+function wcSemClube(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
+{
+    $ordem  = wcOrdemLiga($ligaDoGrupo, 'x');
+    $linhas = [];
+    $like   = '%' . $termo . '%';
+
+    // Waiver primeiro: ainda dá pra reivindicar, e isso tem prazo.
+    try {
+        $st = $pdo->prepare("
+            SELECT x.name, x.age, x.position, x.secondary_position, x.ovr AS ovr,
+                   x.league, x.expires_at, CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS saiu_de
+              FROM waiver_retention x
+              LEFT JOIN teams t ON t.id = x.team_id
+             WHERE x.status = 'open' AND x.expires_at > NOW() AND x.name LIKE ?
+             ORDER BY {$ordem}, x.ovr DESC
+             LIMIT 8");
+        $st->execute([$like]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $r['onde'] = 'waiver';
+            $linhas[]  = $r;
+        }
+    } catch (Throwable $e) {
+        error_log('wcSemClube (waiver): ' . $e->getMessage());
+    }
+
+    try {
+        $st = $pdo->prepare("
+            SELECT x.name, x.age, x.position, x.secondary_position, x.overall AS ovr,
+                   x.league, x.min_bid, x.original_team_name AS saiu_de
+              FROM free_agents x
+             WHERE x.status = 'available' AND x.name LIKE ?
+             ORDER BY {$ordem}, x.overall DESC
+             LIMIT 8");
+        $st->execute([$like]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $r['onde'] = 'fa';
+            $linhas[]  = $r;
+        }
+    } catch (Throwable $e) {
+        error_log('wcSemClube (free agency): ' . $e->getMessage());
+    }
+
+    return $linhas;
+}
+
+/** A ficha de quem está sem clube. `$comClube` são as ligas onde ele TEM time. */
+function wcFichaSemClube(array $linhas, string $termo, array $comClube = []): string
+{
+    $nota = $comClube
+        ? "\n\n_esse nome também tem time na " . implode(', ', $comClube) . "_"
+        : '';
+
+    if (count($linhas) > 1) {
+        $l = array_map(function ($p) {
+            return '• *' . $p['name'] . '* — ' . (int)$p['ovr'] . ' OVR, '
+                . $p['position'] . ', ' . (int)$p['age'] . ' anos — Sem Clube ('
+                . $p['league'] . ($p['onde'] === 'waiver' ? ', no waiver' : '') . ')';
+        }, $linhas);
+        return "Achei " . count($linhas) . " sem clube com \"{$termo}\":\n"
+             . implode("\n", $l) . $nota;
+    }
+
+    $p   = $linhas[0];
+    $pos = $p['position'] . (!empty($p['secondary_position']) ? '/' . $p['secondary_position'] : '');
+    $txt = "*{$p['name']}*\n"
+         . "*Sem Clube* — {$p['league']}\n\n"
+         . 'OVR: *' . (int)$p['ovr'] . "*\n"
+         . "Posição: {$pos}\n"
+         . 'Idade: ' . (int)$p['age'] . " anos\n";
+
+    if (trim((string)($p['saiu_de'] ?? '')) !== '') {
+        $txt .= 'Saiu do ' . trim((string)$p['saiu_de']) . "\n";
+    }
+
+    if ($p['onde'] === 'waiver') {
+        $ate = null;
+        try { $ate = new DateTime((string)$p['expires_at']); } catch (Throwable $e) { }
+        $txt .= "\n⏳ *No waiver*" . ($ate ? ' até ' . $ate->format('d/m H:i') : '')
+              . " — depois disso cai no free agency.";
+    } else {
+        $txt .= "\n🆓 *No free agency*";
+        if (!empty($p['min_bid'])) $txt .= ' — lance mínimo *' . (int)$p['min_bid'] . '*';
+    }
+
+    return $txt . $nota;
+}
+
 function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     if ($termo === '') return "Use assim: /jogador lebron";
@@ -680,7 +781,23 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     $st->execute(['%' . $termo . '%']);
     $achados = $st->fetchAll(PDO::FETCH_ASSOC);
 
-    if (!$achados) return "Não achei jogador com \"{$termo}\".";
+    /* SEM CLUBE — @see wcSemClube. A liga do grupo decide quem responde: numa
+       divisão onde o cara foi dispensado, "Sem Clube" é a resposta certa mesmo
+       que ele tenha time em outra (a ROOKIE reaproveita jogador da ELITE, e
+       sem isso o dispensado da ELITE respondia com o time dele na ROOKIE). */
+    $semClube = wcSemClube($pdo, $termo, $ligaDoGrupo);
+    $pref     = wcLigaPreferida($ligaDoGrupo);
+    $temNaPref = fn(array $rows) => (bool)array_filter($rows, fn($r) => ($r['league'] ?? '') === $pref);
+
+    if (!$achados || (!$temNaPref($achados) && $temNaPref($semClube))) {
+        if (!$semClube) return "Não achei jogador com \"{$termo}\".";
+        $daPref = array_values(array_filter($semClube, fn($r) => ($r['league'] ?? '') === $pref));
+        return wcFichaSemClube(
+            $daPref ?: $semClube,
+            $termo,
+            array_values(array_unique(array_column($achados, 'league')))
+        );
+    }
 
     // O mesmo jogador existe na ELITE e na ROOKIE — sem desempate, toda
     // busca no Chat Off Geral virava "Achei 2 com lebron".
