@@ -95,6 +95,7 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'deles'  => (int)($v['deles'] ?? 0),
                 'novos'  => array_values($a['novos']),
                 'notas'  => futCarreiraAoVivoNotas($estado),
+                'numeros' => $v['numeros'] ?? null,
                 'fim'    => (bool)$a['fim'],
             ], JSON_UNESCAPED_UNICODE);
             exit;
