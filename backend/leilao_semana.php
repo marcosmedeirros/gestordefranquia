@@ -191,13 +191,23 @@ function leilaoSemanaMinimo(array $lances, int $ignorarTeam = 0): int
     // Ninguém deu lance: vale o piso.
     if (!$lances) return LEILAO_SEMANA_MINIMO;
 
-    // Com UM lance só, o pódio ainda tem vaga — mas o mínimo continua sendo
-    // aquele lance mais o passo. Antes eu devolvia o piso aqui, e o segundo
-    // time podia repetir os mesmos 150: dois lances iguais, e o desempate
-    // caindo em quem clicou primeiro, que é exatamente o que o leilão
-    // deveria evitar.
-    $ultimoDoPodio = $lances[min(count($lances), LEILAO_SEMANA_VAGAS) - 1]['valor'] ?? 0;
-    $minimo = max(LEILAO_SEMANA_MINIMO, (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO);
+    /* ENQUANTO SOBRA VAGA NO PÓDIO, ENTRAR CUSTA O PISO.
+       Num pódio de dois com um lance só, a segunda vaga está vazia: quem
+       chega não disputa nada com o líder, só ocupa o que ninguém quis. Pedir
+       pra cobrir o primeiro era transformar uma vaga livre em disputa — com
+       5.000 na mesa, o segundo time precisava de 5.005 pra ocupar um lugar
+       que estava aberto por 1.000.
+
+       A trava que existe de verdade é outra e continua logo abaixo: dois
+       lances não podem ser iguais. Era ela que eu queria quando apertei isto
+       aqui, e ela sozinha já resolve — o segundo time paga o piso, e se o
+       piso estiver ocupado sobe um degrau. */
+    if (count($lances) < LEILAO_SEMANA_VAGAS) {
+        $minimo = LEILAO_SEMANA_MINIMO;
+    } else {
+        $ultimoDoPodio = $lances[LEILAO_SEMANA_VAGAS - 1]['valor'] ?? 0;
+        $minimo = max(LEILAO_SEMANA_MINIMO, (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO);
+    }
 
     // O passo pode cair em cima de um lance que já existe — com 160, 155 e
     // 150 na mesa, o segundo do pódio mais cinco dá justamente os 160 do
