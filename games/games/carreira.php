@@ -588,6 +588,53 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   .chave-rot{width:100%}
 }
 
+/* ── O campo ao vivo ────────────────────────────────── */
+.viv-campo-caixa{position:relative;margin:14px auto 0;max-width:330px}
+.viv-campo-caixa .campo{margin:0 auto}
+.viv-campo-caixa .camisa{transition:transform .2s}
+.viv-campo-caixa .camisa .bola{transition:box-shadow .25s,border-color .25s,background .25s}
+
+/* A camisa de quem acabou de aparecer no lance */
+.camisa.pulsou{z-index:5}
+.camisa.pulsou .bola{border-color:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.25)}
+.camisa.gol .bola{border-color:var(--verde-claro);
+  box-shadow:0 0 0 7px rgba(34,197,94,.45);animation:bateu .5s ease}
+.camisa.cartao .bola{border-color:var(--amarelo);box-shadow:0 0 0 5px rgba(245,158,11,.4)}
+.camisa.expulso .bola{border-color:#ef4444;box-shadow:0 0 0 5px rgba(239,68,68,.45);opacity:.55}
+@keyframes bateu{0%{transform:scale(1)}45%{transform:scale(1.45)}100%{transform:scale(1)}}
+
+/* A faixa do último lance, sobre o campo */
+.viv-agora{position:absolute;left:0;right:0;bottom:8px;margin:0 8px;padding:8px 11px;
+  border-radius:10px;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);
+  border:1px solid rgba(255,255,255,.14);font-size:12px;line-height:1.35;
+  opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s;pointer-events:none}
+.viv-agora.aparece{opacity:1;transform:none}
+.viv-agora b{font-weight:800}
+.viv-agora .min{font-weight:800;color:var(--verde-claro);margin-right:5px}
+
+/* O GOL toma a tela por um segundo e meio */
+.viv-gol{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;border-radius:14px;background:rgba(21,128,61,.92);
+  color:#fff;opacity:0;pointer-events:none;transition:opacity .2s;z-index:6}
+.viv-gol.aparece{opacity:1;animation:gritou .6s ease}
+.viv-gol.deles{background:rgba(127,29,29,.92)}
+.viv-gol .grande{font-size:38px;font-weight:900;letter-spacing:-1.5px;line-height:1}
+.viv-gol .quem{font-size:15px;font-weight:800}
+.viv-gol .quando{font-size:12px;opacity:.85}
+@keyframes gritou{0%{transform:scale(.7)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+/* Quem está pressionando agora */
+.viv-pressao{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:700}
+.viv-pressao .trilho{flex:1;height:5px;border-radius:999px;background:var(--panel3);overflow:hidden}
+.viv-pressao .trilho i{display:block;height:100%;background:var(--verde);width:50%;
+  transition:width .6s ease}
+
+@media (max-width:520px){
+  .viv-campo-caixa{max-width:100%}
+  .viv-gol .grande{font-size:30px}
+}
+
 /* ── Os números da partida ──────────────────────────── */
 .viv-num-linha{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:9px;
   font-size:11.5px;margin-bottom:7px}
@@ -1028,6 +1075,25 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
       <div class="viv-barra"><span id="barraTempo"></span></div>
 
+      <div class="viv-campo-caixa">
+        <div class="campo" id="campoVivo">
+          <div class="linha-meio"></div><div class="circulo"></div>
+          <div class="area cima"></div><div class="area baixo"></div>
+        </div>
+        <div class="viv-agora" id="lanceAgora"></div>
+        <div class="viv-gol" id="telaGol">
+          <div class="grande">GOL!</div>
+          <div class="quem" id="golQuem"></div>
+          <div class="quando" id="golQuando"></div>
+        </div>
+      </div>
+
+      <div class="viv-pressao">
+        <span id="pressaoEu">Você</span>
+        <span class="trilho"><i id="pressaoBarra"></i></span>
+        <span id="pressaoEle">Eles</span>
+      </div>
+
       <div class="viv-acoes">
         <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
         <button class="btn sec" id="btPausar" hidden><i class="bi bi-pause-fill"></i> Pausar</button>
@@ -1169,13 +1235,89 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
                (e.meu ? '' : ' <i>(eles)</i>');
       }
 
-      function mostraLance(e) {
+      // ── O campo ao vivo ────────────────────────────────────────
+      var campoVivo = document.getElementById('campoVivo');
+      var lanceAgora = document.getElementById('lanceAgora');
+      var telaGol = document.getElementById('telaGol');
+      var pressaoBarra = document.getElementById('pressaoBarra');
+      var camisaPorNome = {};
+      var timerAgora = null, timerGol = null;
+
+      /* O CAMPO É O MESMO DESENHO DA ESCALAÇÃO, com os dados que o painel de
+         substituição já sabia entregar. Redesenhado a cada troca, senão a
+         camisa continuaria com o nome de quem saiu. */
+      function desenhaCampo(dados) {
+        if (!dados || !dados.vagas) return;
+        campoVivo.innerHTML =
+          '<div class="linha-meio"></div><div class="circulo"></div>' +
+          '<div class="area cima"></div><div class="area baixo"></div>' +
+          dados.vagas.map(function (v) {
+            return '<div class="camisa" data-nome="' + v.nome + '"' +
+                   ' style="left:' + v.x + '%;top:' + v.y + '%">' +
+                   '<div class="bola">' + (v.ovr || '—') + '</div>' +
+                   '<div class="nom">' + (v.nome || '—') + '</div>' +
+                   '<div class="vg">' + v.pos + '</div></div>';
+          }).join('');
+        camisaPorNome = {};
+        campoVivo.querySelectorAll('.camisa').forEach(function (c) {
+          if (c.dataset.nome) camisaPorNome[c.dataset.nome] = c;
+        });
+      }
+
+      function carregaCampo() {
+        fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+          .then(function (r) { return r.json(); })
+          .then(desenhaCampo)
+          .catch(function () {});
+      }
+
+      /* A CAMISA REAGE. É o que liga a narração ao campo: sem isso o lance é
+         uma linha de texto que podia ser de qualquer jogo. */
+      function acendeCamisa(e) {
+        if (!e.meu) return;
+        var c = camisaPorNome[e.jogador];
+        if (!c) return;
+        var classe = e.tipo === 'gol' ? 'gol'
+                   : (e.tipo === 'vermelho' ? 'expulso'
+                   : (e.tipo === 'amarelo' ? 'cartao' : 'pulsou'));
+        c.classList.add(classe);
+        if (classe === 'expulso') return;          // expulso fica apagado
+        setTimeout(function () { c.classList.remove(classe); },
+                   classe === 'gol' ? 1600 : (classe === 'cartao' ? 1400 : 900));
+      }
+
+      /* O LANCE DA VEZ, grande, em cima do campo — quem está assistindo olha
+         pro campo, e não pra lista que cresce embaixo. */
+      function faixaDoLance(e) {
+        lanceAgora.innerHTML = '<span class="min">' + e.minuto + "'</span>" + textoDoLance(e);
+        lanceAgora.classList.add('aparece');
+        clearTimeout(timerAgora);
+        timerAgora = setTimeout(function () { lanceAgora.classList.remove('aparece'); }, 2600);
+      }
+
+      function gritaGol(e) {
+        telaGol.className = 'viv-gol aparece' + (e.meu ? '' : ' deles');
+        telaGol.querySelector('.grande').textContent = e.meu ? 'GOL!' : 'GOL DELES';
+        document.getElementById('golQuem').textContent = e.jogador;
+        document.getElementById('golQuando').textContent = e.minuto + "'" +
+          (e.assistente ? ' · assistência de ' + e.assistente : '');
+        clearTimeout(timerGol);
+        timerGol = setTimeout(function () { telaGol.classList.remove('aparece'); }, 1900);
+      }
+
+      function mostraLance(e, aoVivo) {
         if (vazia) { vazia.remove(); vazia = null; }
         var d = document.createElement('div');
         d.className = 'viv-lance' + (e.meu ? ' nosso' : '');
         d.innerHTML = '<span class="viv-lance-min">' + e.minuto + "'</span>" +
                       '<span class="viv-lance-txt">' + textoDoLance(e) + '</span>';
         narr.prepend(d);
+
+        if (aoVivo === false) return;              // lance antigo, sem festa
+        faixaDoLance(e);
+        acendeCamisa(e);
+        if (e.tipo === 'gol') gritaGol(e);
+        if (e.tipo === 'troca') carregaCampo();
       }
 
       function mostraNotas(mapa) {
@@ -1206,6 +1348,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       }
       function mostraNumeros(n) {
         if (!n || !caixaNumeros) return;
+        if (pressaoBarra) pressaoBarra.style.width = n.posse + '%';
         caixaNumeros.innerHTML =
           linhaNumero('posse de bola', n.posse + '%', (100 - n.posse) + '%')
             .replace(/width:NaN%/g, 'width:' + n.posse + '%')
@@ -1467,12 +1610,13 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       });
 
 
+      carregaCampo();
       pintaRelogio();
       mostraNumeros(<?= json_encode($vivo['numeros'] ?? null) ?>);
       if (minuto >= 90) acabou();
       <?php if (!empty($vivo['eventos'])): ?>
         <?= 'var jaVistos = ' . json_encode(array_values($vivo['eventos']), JSON_UNESCAPED_UNICODE) . ';' ?>
-        jaVistos.forEach(mostraLance);
+        jaVistos.forEach(function (e) { mostraLance(e, false); });
       <?php endif; ?>
     })();
     </script>
