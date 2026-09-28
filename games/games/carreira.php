@@ -305,10 +305,32 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
         'entrou'  => $entrou,
     ];
 
+    /* AS VAGAS COM AS COORDENADAS: é o mesmo desenho de campo da escalação, e
+       elas vêm do esquema, não de uma cópia — se alguém mexer no 4-3-3, o
+       campo da substituição acompanha sozinho. */
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $vagas = FUT_ESQUEMAS[$esquema]['vagas'] ?? FUT_ESQUEMAS['4-4-2']['vagas'];
+    $emCampoPorVaga = [];
+    foreach ($vagas as $iv => $vg) {
+        $j = $emCampo[$iv] ?? null;
+        $emCampoPorVaga[] = [
+            'vaga'    => $iv,
+            'pos'     => $vg[0],
+            'x'       => $vg[1],
+            'y'       => $vg[2],
+            'nome'    => $j['nome'] ?? '',
+            'ovr'     => $j ? futOvrNaVaga($j, $vg[0]) : 0,
+            'energia' => $j ? (int)($j['energia'] ?? 100) : 0,
+            'entrou'  => $j ? isset($entraram[$j['nome']]) : false,
+        ];
+    }
+
     echo json_encode([
-        'campo'  => array_values(array_map(fn($j) => $ficha($j, isset($entraram[$j['nome']])), $emCampo)),
-        'banco'  => array_values(array_map(fn($j) => $ficha($j), $banco)),
-        'restam' => FUT_AOVIVO_TROCAS - count($v['trocas'] ?? []),
+        'esquema' => $esquema,
+        'vagas'   => $emCampoPorVaga,
+        'campo'   => array_values(array_map(fn($j) => $ficha($j, isset($entraram[$j['nome']])), $emCampo)),
+        'banco'   => array_values(array_map(fn($j) => $ficha($j), $banco)),
+        'restam'  => FUT_AOVIVO_TROCAS - count($v['trocas'] ?? []),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -576,6 +598,14 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .viv-num-barra i.ele{background:var(--borda2)}
 .viv-num-rot{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;
   text-align:center;margin-top:2px}
+
+/* ── O campo dentro do popup de substituição ────────── */
+.campo-troca{max-width:100%;margin:0 auto 4px}
+.campo-troca .camisa{cursor:pointer}
+.campo-troca .camisa.alvo .bola{border-color:var(--verde-claro);box-shadow:0 0 0 4px rgba(34,197,94,.45)}
+.campo-troca .camisa.trocado .bola{border-color:var(--amarelo);box-shadow:0 0 0 3px rgba(245,158,11,.35)}
+.troca-banco{flex-direction:row;flex-wrap:wrap;max-height:26vh}
+.troca-banco .troca-op{width:auto}
 
 /* ── O painel de substituição ───────────────────────── */
 .troca-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
@@ -1034,23 +1064,14 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     <div class="fundo-popup" id="popTroca" hidden>
       <div class="popup">
         <h4><i class="bi bi-arrow-left-right"></i> Substituição</h4>
-        <p class="popup-sub">Escolha quem sai e quem entra. Vale do minuto seguinte —
-           e quem sai não volta mais nesta partida.</p>
-        <div class="troca-cols">
-          <div>
-            <h5>Sai</h5>
-            <div class="troca-lista" id="listaSai"></div>
-          </div>
-          <div>
-            <h5>Entra</h5>
-            <div class="troca-lista" id="listaEntra"></div>
-          </div>
-        </div>
+        <p class="popup-sub">Arraste quem está no banco até a camisa de quem sai.
+           No celular, toque num e depois no outro. Vale do minuto seguinte, e quem sai não volta.</p>
+        <div class="campo campo-troca" id="campoTroca"></div>
+        <h5 style="margin:12px 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3)">Banco</h5>
+        <div class="troca-lista troca-banco" id="listaEntra"></div>
         <div class="troca-restam" id="trocaRestam"></div>
         <div class="popup-acoes">
-          <button type="button" class="btn sec" data-fechar>Cancelar</button>
-          <button type="button" class="btn" id="btConfirmarTroca" disabled>
-            <i class="bi bi-check-lg"></i> Fazer a troca</button>
+          <button type="button" class="btn" data-fechar>Pronto</button>
         </div>
       </div>
     </div>
@@ -1325,44 +1346,102 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
       // ── A substituição ─────────────────────────────────────────
       var popTroca = document.getElementById('popTroca');
-      var listaSai = document.getElementById('listaSai');
+      var campoTroca = document.getElementById('campoTroca');
       var listaEntra = document.getElementById('listaEntra');
-      var btConfirmar = document.getElementById('btConfirmarTroca');
       var btTrocarConta = document.getElementById('btTrocarConta');
       var trocaRestam = document.getElementById('trocaRestam');
-      var escolhaSai = null, escolhaEntra = null, rolavaAntes = false;
+      var escolhaEntra = null, rolavaAntes = false;
 
+      /* O CAMPO DA SUBSTITUIÇÃO é o mesmo da escalação: as camisas nas
+         coordenadas do esquema, e o banco embaixo. Arrastar um do banco até a
+         camisa é a substituição — e no celular, que não arrasta, toca-se num e
+         depois no outro. */
       function pintaOpcoes(dados) {
-        listaSai.innerHTML = dados.campo.map(function (j) {
-          return '<button type="button" class="troca-op" data-nome="' + j.nome + '"' +
-                 (j.entrou ? ' disabled title="Acabou de entrar"' : '') + '>' +
-                 '<span class="o">' + j.ovr + '</span><span class="nm">' + j.nome + '</span>' +
-                 '<span class="en">' + j.energia + '</span></button>';
-        }).join('') || '<div style="color:var(--txt3);font-size:12px">Ninguém em campo.</div>';
+        campoTroca.innerHTML =
+          '<div class="linha-meio"></div><div class="circulo"></div>' +
+          '<div class="area cima"></div><div class="area baixo"></div>' +
+          dados.vagas.map(function (v) {
+            return '<div class="camisa alvo-troca' + (v.entrou ? ' trocado' : '') + '"' +
+                   ' data-nome="' + v.nome + '" data-entrou="' + (v.entrou ? 1 : 0) + '"' +
+                   ' style="left:' + v.x + '%;top:' + v.y + '%" tabindex="0" role="button"' +
+                   ' title="' + v.nome + (v.entrou ? ' (acabou de entrar)' : '') + '">' +
+                   '<div class="bola">' + (v.ovr || '—') + '</div>' +
+                   '<div class="nom">' + (v.nome || '—') + '</div>' +
+                   '<div class="vg">' + v.pos + '</div></div>';
+          }).join('');
 
         listaEntra.innerHTML = dados.banco.map(function (j) {
-          return '<button type="button" class="troca-op" data-nome="' + j.nome + '">' +
+          return '<button type="button" class="troca-op" draggable="true" data-nome="' + j.nome + '">' +
                  '<span class="o">' + j.ovr + '</span><span class="nm">' + j.nome + '</span>' +
                  '<span class="en">' + j.energia + '</span></button>';
         }).join('') || '<div style="color:var(--txt3);font-size:12px">Banco vazio.</div>';
 
-        trocaRestam.textContent = dados.restam + ' substituição(ões) restante(s)';
-        escolhaSai = escolhaEntra = null;
-        btConfirmar.disabled = true;
+        trocaRestam.textContent = dados.restam > 0
+          ? dados.restam + ' substituição(ões) restante(s)'
+          : 'Acabaram as substituições.';
+        escolhaEntra = null;
+        ligaCampo();
       }
 
-      function ligaEscolha(lista, qual) {
-        lista.addEventListener('click', function (e) {
-          var b = e.target.closest('.troca-op');
-          if (!b || b.disabled) return;
-          lista.querySelectorAll('.troca-op').forEach(function (x) { x.classList.remove('sel'); });
-          b.classList.add('sel');
-          if (qual === 'sai') escolhaSai = b.dataset.nome; else escolhaEntra = b.dataset.nome;
-          btConfirmar.disabled = !(escolhaSai && escolhaEntra);
+      function limpaSel() {
+        listaEntra.querySelectorAll('.troca-op').forEach(function (x) { x.classList.remove('sel'); });
+        campoTroca.querySelectorAll('.camisa').forEach(function (x) { x.classList.remove('alvo'); });
+      }
+
+      function fazTroca(sai, entra) {
+        if (!sai || !entra) return;
+        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(
+          {acao: 'aovivo_substituir', sai: sai, entra: entra})})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { trocaRestam.textContent = d.erro; return; }
+            btTrocarConta.textContent = '(' + d.restam + ')';
+            mostraLance({minuto: minuto, tipo: 'troca', meu: true, jogador: entra, sai: sai});
+            escolhaEntra = null;
+            // Recarrega o campo com o time já mexido.
+            fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+              .then(function (r) { return r.json(); }).then(pintaOpcoes);
+          });
+      }
+
+      function ligaCampo() {
+        campoTroca.querySelectorAll('.camisa').forEach(function (c) {
+          c.addEventListener('click', function () {
+            if (!escolhaEntra) return;
+            if (c.dataset.entrou === '1') { trocaRestam.textContent = c.dataset.nome + ' acabou de entrar.'; return; }
+            fazTroca(c.dataset.nome, escolhaEntra);
+            limpaSel();
+          });
+          c.addEventListener('dragover', function (e) { e.preventDefault(); c.classList.add('alvo'); });
+          c.addEventListener('dragleave', function () { c.classList.remove('alvo'); });
+          c.addEventListener('drop', function (e) {
+            e.preventDefault();
+            c.classList.remove('alvo');
+            var quem = e.dataTransfer.getData('text/plain') || escolhaEntra;
+            if (c.dataset.entrou === '1') { trocaRestam.textContent = c.dataset.nome + ' acabou de entrar.'; return; }
+            fazTroca(c.dataset.nome, quem);
+            limpaSel();
+          });
         });
       }
-      ligaEscolha(listaSai, 'sai');
-      ligaEscolha(listaEntra, 'entra');
+
+      listaEntra.addEventListener('click', function (e) {
+        var b = e.target.closest('.troca-op');
+        if (!b) return;
+        limpaSel();
+        b.classList.add('sel');
+        escolhaEntra = b.dataset.nome;
+        trocaRestam.textContent = 'Agora toque em quem sai.';
+      });
+      listaEntra.addEventListener('dragstart', function (e) {
+        var b = e.target.closest('.troca-op');
+        if (!b) return;
+        escolhaEntra = b.dataset.nome;
+        b.classList.add('sel');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', b.dataset.nome);
+      });
+      listaEntra.addEventListener('dragend', limpaSel);
 
       function abreTroca(doIntervalo) {
         rolavaAntes = doIntervalo ? false : rolando;
@@ -1387,21 +1466,6 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         }
       });
 
-      btConfirmar.addEventListener('click', function () {
-        if (!escolhaSai || !escolhaEntra) return;
-        btConfirmar.disabled = true;
-        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(
-          {acao: 'aovivo_substituir', sai: escolhaSai, entra: escolhaEntra})})
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            if (!d.ok) { trocaRestam.textContent = d.erro; btConfirmar.disabled = false; return; }
-            btTrocarConta.textContent = '(' + d.restam + ')';
-            mostraLance({minuto: minuto, tipo: 'troca', meu: true,
-                         jogador: escolhaEntra, sai: escolhaSai});
-            popTroca.hidden = true;
-            if (rolavaAntes) toca();
-          });
-      });
 
       pintaRelogio();
       mostraNumeros(<?= json_encode($vivo['numeros'] ?? null) ?>);
