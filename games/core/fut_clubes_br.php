@@ -46,6 +46,74 @@ const FUT_REGIONAIS = [
 ];
 
 /**
+ * OS ESCUDOS QUE O CATÁLOGO DO COPERO NÃO TRAZ.
+ *
+ * O catálogo mundial já vem com o escudo dos grandes, mas quem entrou pelo
+ * FUT_CLUBES_BR_EXTRA — a Série D inteira e boa parte da B e da C — não tinha
+ * nenhum, e aparecia como duas letras num quadrado cinza. Numa tabela de 42
+ * times da Série D isso é uma coluna inteira de quadrados iguais.
+ *
+ * DUAS PROCEDÊNCIAS, de propósito. Os caminhos relativos são os arquivos que o
+ * dono da liga escolheu e o projeto serve; as URLs vêm da mesma base que já
+ * abastece o catálogo do Copero. Quem lê não precisa saber a diferença: quem
+ * resolve é futEscudoDoClube.
+ *
+ * O QUE AINDA FALTA está listado no fim. Não é esquecimento: são clubes que a
+ * base não conhece, e mais quatro em que ela devolveu o homônimo errado — o
+ * Rio Branco de Americana não é o do Acre nem o do Paraná, e a Portuguesa do
+ * Rio voltou como um clube de Mato Grosso. Escudo errado é pior que escudo
+ * nenhum, então esses esperam vir à mão.
+ */
+const FUT_ESCUDOS = [
+    // ── Arquivos do projeto ──────────────────────────────────────
+    'Amazonas'             => 'img/escudos/amazonas.png',
+    'Athletic-MG'          => 'img/escudos/athletic-mg.png',
+    'Atlético-GO'         => 'img/escudos/atletico-go.png',
+    'Botafogo-SP'          => 'img/escudos/botafogo-sp.png',
+    'CRB'                  => 'img/escudos/crb.png',
+    'CSA'                  => 'img/escudos/csa.png',
+    'Ferroviária'         => 'img/escudos/ferroviaria.png',
+    'Guarani'              => 'img/escudos/guarani.png',
+    'Manaus'               => 'img/escudos/manaus.png',
+    'Maringá'             => 'img/escudos/maringa.png',
+    'Náutico'             => 'img/escudos/nautico.png',
+    'Operário-PR'         => 'img/escudos/operario-pr.png',
+    'Ponte Preta'          => 'img/escudos/ponte-preta.png',
+    'Portuguesa'           => 'img/escudos/portuguesa.png',
+    'Sampaio Corrêa'      => 'img/escudos/sampaio-correa.png',
+    'Santa Cruz'           => 'img/escudos/santa-cruz.webp',
+    'São Bernardo'        => 'img/escudos/sao-bernardo.png',
+    'Tombense'             => 'img/escudos/tombense.png',
+    'Vitória'             => 'img/escudos/vitoria.png',
+
+    // ── Da base que o catálogo do Copero já usa ──────────────────
+    'Altos'                => 'https://r2.thesportsdb.com/images/media/team/badge/x9cimn1740845897.png',
+    'Andraus'              => 'https://r2.thesportsdb.com/images/media/team/badge/6pgio61754136794.png',
+    'Azuriz'               => 'https://r2.thesportsdb.com/images/media/team/badge/sy5amu1688106820.png',
+    'Bangu'                => 'https://r2.thesportsdb.com/images/media/team/badge/3yrwfp1625417293.png',
+    'Brasiliense'          => 'https://r2.thesportsdb.com/images/media/team/badge/8fd41g1593454003.png',
+    'Caldense'             => 'https://r2.thesportsdb.com/images/media/team/badge/6yl2if1625417413.png',
+    'Cianorte'             => 'https://r2.thesportsdb.com/images/media/team/badge/410zld1714066552.png',
+    'Democrata'            => 'https://r2.thesportsdb.com/images/media/team/badge/swogcm1713439321.png',
+    'FC Cascavel'          => 'https://r2.thesportsdb.com/images/media/team/badge/7mm0n41678204210.png',
+    'Ferroviário'         => 'https://r2.thesportsdb.com/images/media/team/badge/c806qa1768450356.png',
+    'Gama'                 => 'https://r2.thesportsdb.com/images/media/team/badge/dkcdrr1625418083.png',
+    'Humaitá'             => 'https://r2.thesportsdb.com/images/media/team/badge/p1el131642707555.png',
+    'Inter de Limeira'     => 'https://r2.thesportsdb.com/images/media/team/badge/26em5b1772177092.png',
+    'Itabirito'            => 'https://r2.thesportsdb.com/images/media/team/badge/8y553y1733806140.png',
+    'Juazeirense'          => 'https://r2.thesportsdb.com/images/media/team/badge/68c36e1767026288.png',
+    'Madureira'            => 'https://r2.thesportsdb.com/images/media/team/badge/oy3gbu1737510151.png',
+    'Maricá'              => 'https://r2.thesportsdb.com/images/media/team/badge/09p7jm1733808424.png',
+    'Noroeste'             => 'https://r2.thesportsdb.com/images/media/team/badge/zgkcd81754137165.png',
+    'Nova Iguaçu'         => 'https://r2.thesportsdb.com/images/media/team/badge/7fc7co1740846884.png',
+    'Nova Mutum'           => 'https://r2.thesportsdb.com/images/media/team/badge/qtywlj1625422457.png',
+    'Patrocinense'         => 'https://r2.thesportsdb.com/images/media/team/badge/m39wdh1736676574.png',
+    'Porto Velho'          => 'https://r2.thesportsdb.com/images/media/team/badge/jzt3wf1708233908.png',
+    'Pouso Alegre'         => 'https://r2.thesportsdb.com/images/media/team/badge/7kazoj1679129032.png',
+    'Santo André'         => 'https://r2.thesportsdb.com/images/media/team/badge/t5flg01678205839.png',
+];
+
+/**
  * Os clubes que NÃO estão no catálogo do Copero.
  *
  * Os das Séries A e B que já existem lá não se repetem aqui — quem junta os
@@ -218,12 +286,33 @@ function futClubesDoBrasil(): array
     /* ONDE HÁ ELENCO REAL, ELE MANDA na força. O número do catálogo continua
        servindo pra quem não tem lista — e é ele que gera o elenco fictício
        desses clubes, então não pode sair daqui. */
+    // O escudo de quem não tem no catálogo do Copero (@see FUT_ESCUDOS).
+    foreach ($out as $nome => $c) {
+        $out[$nome]['escudo'] = futEscudoDoClube($nome, (string)($c['escudo'] ?? ''));
+    }
+
     foreach ($out as $nome => $c) {
         $real = futForcaDoElencoReal($nome);
         if ($real !== null) $out[$nome]['forca'] = $real;
     }
 
     return $out;
+}
+
+/**
+ * O ESCUDO DE UM CLUBE, venha ele de onde vier.
+ *
+ * O caminho relativo é resolvido a partir de games/, que é onde a tela mora.
+ * Assim FUT_ESCUDOS guarda 'img/escudos/bangu.png' e não um caminho absoluto
+ * que quebraria se o jogo mudar de pasta.
+ */
+function futEscudoDoClube(string $nome, string $doCatalogo = ''): string
+{
+    $meu = FUT_ESCUDOS[$nome] ?? '';
+    if ($meu !== '') {
+        return str_starts_with($meu, 'http') ? $meu : '../' . $meu;
+    }
+    return $doCatalogo;
 }
 
 /** Os clubes de uma divisão nacional. */
