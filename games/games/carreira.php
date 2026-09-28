@@ -279,9 +279,64 @@ a{color:inherit}
 .btn.peq{padding:6px 11px;font-size:12px;border-radius:8px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 
-input[type=text],input[type=number],select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borda2);
+input[type=text],input[type=number],input[type=search],select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borda2);
   background:var(--panel3);color:var(--txt);font-size:14px}
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
+
+/* ── Começar a carreira ─────────────────────────────── */
+.hero{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
+  border-radius:14px;padding:18px 16px;margin-bottom:12px}
+.hero h2{font-size:22px;font-weight:900;letter-spacing:-.7px;margin-bottom:6px}
+.hero p{margin:0;color:var(--txt2);font-size:13.5px;max-width:62ch}
+.passos{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap}
+.passo{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt2)}
+.passo i{color:var(--verde-claro);font-size:14px}
+
+.campo-busca{margin-bottom:12px}
+.conta{margin-left:auto;font-size:11px;color:var(--txt3);font-weight:600;letter-spacing:.3px}
+
+.divisao + .divisao{margin-top:16px}
+.divisao-cab{display:flex;align-items:baseline;gap:8px;padding-bottom:7px;margin-bottom:9px;
+  border-bottom:1px solid var(--borda)}
+.divisao-cab b{font-size:12.5px;font-weight:800;letter-spacing:-.2px}
+.divisao-cab span{font-size:11px;color:var(--txt3)}
+
+.grade-clubes{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:8px}
+.clube-op{display:block;cursor:pointer;position:relative}
+.clube-op input{position:absolute;opacity:0;width:0;height:0}
+.clube-op-in{display:flex;flex-direction:column;gap:7px;height:100%;padding:10px 11px;border-radius:11px;
+  border:1px solid var(--borda);background:var(--panel3);transition:border-color .12s,background .12s}
+.clube-op:hover .clube-op-in{border-color:var(--borda2)}
+.clube-op input:focus-visible + .clube-op-in{outline:2px solid var(--verde-claro);outline-offset:2px}
+.clube-op input:checked + .clube-op-in{border-color:var(--verde);background:rgba(34,197,94,.09)}
+.clube-op-cab{display:flex;align-items:center;gap:9px;min-width:0}
+.clube-op-txt{min-width:0;flex:1}
+.clube-op-nome{display:block;font-weight:800;font-size:13.5px;letter-spacing:-.3px;line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clube-op-sub{display:block;font-size:11px;color:var(--txt3);margin-top:1px}
+.clube-op-forca{font-size:15px;font-weight:900;letter-spacing:-.5px;font-variant-numeric:tabular-nums;
+  color:var(--txt2);flex-shrink:0}
+.clube-op input:checked + .clube-op-in .clube-op-forca{color:var(--verde-claro)}
+.clube-op-meta{display:flex;gap:6px;align-items:flex-start;font-size:11px;color:var(--txt2);
+  padding-top:7px;border-top:1px solid var(--borda);line-height:1.35}
+.clube-op-meta i{color:var(--amarelo);font-size:11px;margin-top:1px;flex-shrink:0}
+
+.barra-comecar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 14px;margin:14px -14px -80px;background:var(--panel2);border-top:1px solid var(--borda)}
+.barra-comecar .escolhido{font-size:13px;color:var(--txt2);flex:1;min-width:140px}
+.barra-comecar .escolhido b{color:var(--txt)}
+.sem-resultado{padding:18px 4px;color:var(--txt3);font-size:13px;text-align:center}
+
+@media (max-width:520px){
+  .hero{padding:15px 14px}
+  .hero h2{font-size:19px}
+  .grade-clubes{grid-template-columns:1fr 1fr;gap:7px}
+  .clube-op-in{padding:9px}
+  .clube-op-nome{font-size:12.5px}
+  .clube-op-meta{font-size:10.5px}
+  .barra-comecar .btn{width:100%}
+}
+@media (max-width:360px){ .grade-clubes{grid-template-columns:1fr} }
 
 /* ── Tabelas ────────────────────────────────────────── */
 .rolar{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
@@ -436,32 +491,124 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   </div>
 
 <?php elseif (!$estado): ?>
-  <?php $disponiveis = futClubesParaComecar(10); ?>
-  <div class="bloco">
-    <h3><i class="bi bi-flag-fill"></i> Começar a carreira</h3>
-    <p style="color:var(--txt2);margin:0 0 14px;font-size:13px">
-      Você começa sem currículo, então os grandes ainda não te atendem. Cumpra as metas,
-      ganhe reputação, e os clubes maiores vêm atrás.
-    </p>
-    <?php if ($erro): ?><div class="msg err"><i class="bi bi-exclamation-triangle"></i><?= h($erro) ?></div><?php endif; ?>
-    <form method="post">
-      <input type="hidden" name="acao" value="comecar">
-      <div style="margin-bottom:12px">
-        <label for="tecnico">Seu nome</label>
-        <input type="text" id="tecnico" name="tecnico" maxlength="40" placeholder="Como você quer ser chamado" required>
-      </div>
-      <div style="margin-bottom:14px">
-        <label for="clube">Clube</label>
-        <select id="clube" name="clube" required>
-          <?php foreach ($disponiveis as $nome => $c): ?>
-            <option value="<?= h($nome) ?>"><?= h($nome) ?> — <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?>, força <?= (int)$c['forca'] ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <button class="btn" type="submit"><i class="bi bi-play-fill"></i> Assumir o clube</button>
-    </form>
+  <?php
+    /* OS CLUBES AGRUPADOS POR DIVISÃO. Eram 64 num <select>, uma lista de
+       nomes onde escolher o primeiro clube da carreira — que é a decisão que
+       define as próximas temporadas — dava o mesmo trabalho que escolher um
+       item de menu. Em card dá pra ver o escudo, a força e, principalmente, o
+       que a diretoria vai cobrar: é isso que separa assumir um clube de
+       assumir outro. */
+    $disponiveis = futClubesParaComecar(10);
+    $porDivisao = [];
+    foreach ($disponiveis as $nome => $c) $porDivisao[$c['div']][$nome] = $c;
+    ksort($porDivisao);
+  ?>
+  <div class="hero">
+    <h2>Comece de baixo</h2>
+    <p>Você ainda não tem currículo, então os grandes não te atendem. Cumpra a meta que a
+       diretoria cobra, ganhe reputação, e os convites melhores aparecem sozinhos.</p>
+    <div class="passos">
+      <span class="passo"><i class="bi bi-1-circle-fill"></i> Escolha um clube</span>
+      <span class="passo"><i class="bi bi-2-circle-fill"></i> Cumpra a meta da temporada</span>
+      <span class="passo"><i class="bi bi-3-circle-fill"></i> Suba de divisão</span>
+    </div>
   </div>
 
+  <?php if ($erro): ?><div class="msg err"><i class="bi bi-exclamation-triangle"></i><?= h($erro) ?></div><?php endif; ?>
+
+  <form method="post" id="fmComecar">
+    <input type="hidden" name="acao" value="comecar">
+
+    <div class="bloco">
+      <h3><i class="bi bi-person-badge"></i> Seu nome</h3>
+      <input type="text" id="tecnico" name="tecnico" maxlength="40"
+             placeholder="Como você quer ser chamado na beira do campo" required>
+    </div>
+
+    <div class="bloco">
+      <h3><i class="bi bi-shield-fill"></i> O clube
+        <span class="conta"><?= count($disponiveis) ?> disponíveis</span></h3>
+      <input type="search" id="buscaClube" class="campo-busca" autocomplete="off"
+             placeholder="Buscar por clube ou estado">
+
+      <div id="listaClubes">
+      <?php foreach ($porDivisao as $div => $lista): ?>
+        <div class="divisao">
+          <div class="divisao-cab">
+            <b><?= h(futCarreiraRotuloDaDivisao((string)$div)) ?></b>
+            <span><?= count($lista) ?> clube<?= count($lista) === 1 ? '' : 's' ?></span>
+          </div>
+          <div class="grade-clubes">
+            <?php foreach ($lista as $nome => $c): ?>
+              <?php $meta = futMetaDaTemporada($c); ?>
+              <label class="clube-op" data-busca="<?= h(mb_strtolower($nome . ' ' . ($c['uf'] ?? ''))) ?>">
+                <input type="radio" name="clube" value="<?= h($nome) ?>"
+                       data-nome="<?= h($nome) ?>" data-meta="<?= h($meta['texto']) ?>">
+                <span class="clube-op-in">
+                  <span class="clube-op-cab">
+                    <?= escudo($c, 28) ?>
+                    <span class="clube-op-txt">
+                      <span class="clube-op-nome"><?= h($nome) ?></span>
+                      <span class="clube-op-sub"><?= h($c['uf'] ?? '') ?> · força</span>
+                    </span>
+                    <span class="clube-op-forca"><?= (int)$c['forca'] ?></span>
+                  </span>
+                  <span class="clube-op-meta">
+                    <i class="bi bi-bullseye"></i><?= h($meta['texto']) ?>
+                  </span>
+                </span>
+              </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+      </div>
+      <div class="sem-resultado" id="semResultado" hidden>Nenhum clube com esse nome.</div>
+    </div>
+
+    <div class="barra-comecar">
+      <div class="escolhido" id="escolhido">Escolha um clube para começar.</div>
+      <button class="btn" type="submit" id="btComecar" disabled>
+        <i class="bi bi-play-fill"></i> Assumir o clube
+      </button>
+    </div>
+  </form>
+
+  <script>
+  (function () {
+    var form = document.getElementById('fmComecar');
+    if (!form) return;
+    var bt = document.getElementById('btComecar');
+    var aviso = document.getElementById('escolhido');
+    var busca = document.getElementById('buscaClube');
+    var vazio = document.getElementById('semResultado');
+
+    form.addEventListener('change', function (e) {
+      var r = e.target;
+      if (!r || r.name !== 'clube') return;
+      bt.disabled = false;
+      aviso.innerHTML = 'Você vai assumir o <b>' + r.dataset.nome + '</b> — ' + r.dataset.meta + '.';
+    });
+
+    /* A busca é local: com 64 clubes, achar o seu time não pode custar uma
+       ida ao servidor. Esconde o cabeçalho da divisão que ficou sem ninguém. */
+    busca.addEventListener('input', function () {
+      var termo = busca.value.trim().toLowerCase();
+      var achou = 0;
+      document.querySelectorAll('.divisao').forEach(function (bloco) {
+        var visiveis = 0;
+        bloco.querySelectorAll('.clube-op').forEach(function (op) {
+          var bate = !termo || op.dataset.busca.indexOf(termo) !== -1;
+          op.hidden = !bate;
+          if (bate) visiveis++;
+        });
+        bloco.hidden = visiveis === 0;
+        achou += visiveis;
+      });
+      vazio.hidden = achou > 0;
+    });
+  })();
+  </script>
 <?php else: ?>
   <?php
     $campNac = futCarreiraCampanha($estado, futCarreiraNomeDaDivisao($clubesTodos[$estado['clube']]['div'] ?? ''));
