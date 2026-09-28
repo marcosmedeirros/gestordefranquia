@@ -557,6 +557,206 @@ function futCarreiraJogarProxima(array $estado): array
 
     return ['fim' => false, 'jogo' => $resultado, 'estado' => $estado];
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   A PARTIDA AO VIVO
+
+   Jogar era clicar num botão e ler o placar: o jogo inteiro acontecia entre
+   dois carregamentos de página, e a escalação que você montou com cuidado
+   valia tanto quanto o esquema que você nunca olhou. Agora o relógio anda, os
+   lances chegam no minuto em que acontecem, e dá pra parar no meio e mexer.
+
+   O QUE FAZ A PAUSA VALER é o motor por pedaços (@see futSimularTrecho): cada
+   trecho é simulado com a força e a estratégia do momento, então trocar o time
+   aos 60 muda os trinta minutos que faltam — e não muda nada do que já passou.
+
+   O ADVERSÁRIO NÃO MORA NO SAVE. O elenco dele é regerado a cada trecho, e sai
+   igual porque futElencoNoJogo e futCondicaoSimulada são determinísticos pelo
+   nome do clube e pela rodada. Guardar 25 jogadores do rival no save só pra
+   durar 90 minutos engordaria o arquivo de todo mundo.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Quantos minutos de jogo cada pedaço simula. */
+const FUT_AOVIVO_PASSO = 5;
+
+/**
+ * O adversário da partida em andamento, montado do zero.
+ *
+ * @return array ['clube','elenco','escalados','esquema','forca']
+ */
+function futAoVivoAdversario(array $estado, string $adversario, int $rodada): array
+{
+    $clubes = futClubesDoBrasil();
+    $c = $clubes[$adversario] ?? ['nome' => $adversario, 'forca' => 50, 'div' => '', 'uf' => '', 'escudo' => ''];
+
+    $elenco = futCondicaoSimulada(
+        futElencoNoJogo($estado, $c['nome'], (int)$c['forca']), $c['nome'], $rodada);
+    $esquema = array_keys(FUT_ESQUEMAS)[crc32($c['nome']) % count(FUT_ESQUEMAS)];
+    $escalados = futEscalarAutomatico($elenco, $esquema);
+
+    return ['clube' => $c, 'elenco' => $elenco, 'escalados' => $escalados,
+            'esquema' => $esquema, 'forca' => futForcaEscalada($escalados, $esquema)];
+}
+
+/**
+ * APITA O INÍCIO: prepara a partida que está no topo do calendário.
+ *
+ * @return array ['ok'=>bool,'erro'=>string,'estado'=>array]
+ */
+function futCarreiraAoVivoIniciar(array $estado): array
+{
+    if (!empty($estado['aovivo'])) return ['ok' => true, 'erro' => '', 'estado' => $estado];
+
+    $cal = $estado['calendario'] ?? [];
+    $i = (int)($estado['rodada'] ?? 0);
+    if ($i >= count($cal)) return ['ok' => false, 'erro' => 'A temporada acabou.', 'estado' => $estado];
+
+    $j = $cal[$i];
+    $adv = futAoVivoAdversario($estado, $j['adversario'], $i);
+
+    $estado['aovivo'] = [
+        'indice'      => $i,
+        'minuto'      => 0,
+        'meus'        => 0,
+        'deles'       => 0,
+        'eventos'     => [],
+        'cartoes'     => [],
+        'gols'        => [],
+        'jogaram'     => [],
+        'comp'        => $j['comp'],
+        'fase'        => $j['fase'] ?? '',
+        'rodada'      => $j['rodada'] ?? 0,
+        'liga_rodada' => $j['liga_rodada'] ?? 0,
+        'adversario'  => $j['adversario'],
+        'casa'        => (bool)$j['casa'],
+        'forca_adv'   => $adv['forca'],
+    ];
+
+    return ['ok' => true, 'erro' => '', 'estado' => $estado];
+}
+
+/**
+ * ANDA COM O RELÓGIO até o minuto pedido, simulando o que acontece no caminho.
+ *
+ * @return array ['ok'=>bool,'estado'=>array,'novos'=>array,'fim'=>bool]
+ */
+function futCarreiraAoVivoAvancar(array $estado, int $ate): array
+{
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return ['ok' => false, 'estado' => $estado, 'novos' => [], 'fim' => true];
+
+    $de = (int)$v['minuto'] + 1;
+    $ate = min(90, max($de, $ate));
+    if ($de > 90) return ['ok' => true, 'estado' => $estado, 'novos' => [], 'fim' => true];
+
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $meus = futCarreiraEscalacaoAtual($estado);
+    $forcaMeu = futForcaEscalada($meus, $esquema);
+    $adv = futAoVivoAdversario($estado, (string)$v['adversario'], (int)$v['indice']);
+
+    $t = futSimularTrecho($meus, $adv['escalados'], $forcaMeu, (int)$v['forca_adv'],
+                          (bool)$v['casa'], $de, $ate, $estado['estrategia'] ?? []);
+
+    $v['minuto']  = $ate;
+    $v['meus']   += $t['meus'];
+    $v['deles']  += $t['deles'];
+    $v['eventos'] = array_merge($v['eventos'], $t['eventos']);
+    $v['cartoes'] = array_merge($v['cartoes'], $t['cartoes']);
+    $v['gols']    = array_merge($v['gols'], $t['gols']);
+
+    /* QUEM PISOU EM CAMPO cansa no fim, mesmo que tenha saído no meio. A lista
+       é de nomes porque a escalação pode mudar de um trecho pro outro. */
+    foreach ($meus as $x) $v['jogaram'][$x['nome']] = true;
+
+    $estado['aovivo'] = $v;
+    return ['ok' => true, 'estado' => $estado, 'novos' => $t['eventos'], 'fim' => $ate >= 90];
+}
+
+/** As notas de agora, para a tela mostrar enquanto a bola rola. */
+function futCarreiraAoVivoNotas(array $estado): array
+{
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return [];
+    return futNotasDaPartida(futCarreiraEscalacaoAtual($estado), $v['gols'],
+                             $v['cartoes'], (int)$v['meus'], (int)$v['deles']);
+}
+
+/**
+ * APITA O FIM: cobra o preço da partida e guarda o resultado.
+ *
+ * É o mesmo fechamento de futCarreiraJogarProxima — estatística, suspensão,
+ * cansaço e o resumo que a tela lê depois. O que muda é de onde vêm os gols.
+ *
+ * @return array ['ok'=>bool,'jogo'=>array|null,'estado'=>array]
+ */
+function futCarreiraAoVivoFechar(array $estado): array
+{
+    $v = $estado['aovivo'] ?? null;
+    if (!$v || (int)$v['minuto'] < 90) {
+        return ['ok' => false, 'jogo' => null, 'estado' => $estado];
+    }
+
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $meus = futCarreiraEscalacaoAtual($estado);
+
+    /* Todo mundo que entrou em campo na partida, e não só quem estava lá no
+       apito final: é quem vai cansar e quem ganha jogo na estatística. */
+    $porNome = [];
+    foreach ($estado['elenco'] ?? [] as $x) $porNome[$x['nome']] = $x;
+    $participaram = [];
+    foreach (array_keys($v['jogaram']) as $nome) {
+        if (isset($porNome[$nome])) $participaram[] = $porNome[$nome];
+    }
+    if (!$participaram) $participaram = $meus;
+
+    $p = [
+        'meus'    => (int)$v['meus'],
+        'deles'   => (int)$v['deles'],
+        'eventos' => $v['eventos'],
+        'gols'    => $v['gols'],
+        'cartoes' => $v['cartoes'],
+        'notas'   => futNotasDaPartida($participaram, $v['gols'], $v['cartoes'],
+                                       (int)$v['meus'], (int)$v['deles']),
+    ];
+
+    $estado['stats'] = futAcumularEstatisticas($estado['stats'] ?? [], $participaram, $p);
+    $estado['suspensos'] = futAtualizarSuspensoes($estado['suspensos'] ?? [], $estado['stats'], $p);
+    $estado['stats'] = futZerarAmarelos($estado['stats']);
+
+    $desg = futAplicarDesgaste($estado['elenco'], $participaram, $p['meus'], $p['deles']);
+    $estado['elenco'] = $desg['elenco'];
+    $avisos = $desg['noticias'];
+
+    if ($avisos || $estado['suspensos']) $estado['escalacao'] = [];
+
+    $resultado = [
+        'comp'        => $v['comp'],
+        'liga_rodada' => $v['liga_rodada'],
+        'adversario'  => $v['adversario'],
+        'casa'        => $v['casa'],
+        'meus'        => $p['meus'],
+        'deles'       => $p['deles'],
+        'rodada'      => $v['rodada'],
+        'fase'        => $v['fase'],
+        'eventos'     => $p['eventos'],
+        'escalacao'   => array_map(fn($x) => ['nome' => $x['nome'], 'pos' => $x['pos'],
+                                              'ovr' => $x['ovr'], 'nota' => $p['notas'][$x['nome']] ?? 6.0], $participaram),
+        'avisos'      => $avisos,
+    ];
+
+    $estado['resultados'][] = $resultado;
+    $estado['rodada'] = (int)$v['indice'] + 1;
+    unset($estado['aovivo']);
+
+    $n = count($estado['resultados']);
+    if ($n > FUT_JOGOS_COM_RESUMO) {
+        for ($k = 0; $k < $n - FUT_JOGOS_COM_RESUMO; $k++) {
+            unset($estado['resultados'][$k]['eventos'], $estado['resultados'][$k]['escalacao']);
+        }
+    }
+
+    return ['ok' => true, 'jogo' => $resultado, 'estado' => $estado];
+}
+
 /** A campanha do clube numa competição: J, V, E, D, pontos. */
 function futCarreiraCampanha(array $estado, ?string $comp = null): array
 {

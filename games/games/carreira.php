@@ -57,17 +57,73 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             futCarreiraSalvar($pdo, $idUsuario, $estado);
         }
 
+        /* JOGAR É ENTRAR EM CAMPO. O botão que simulava cinco partidas de uma
+           vez saiu: ele existia porque a partida era um clique e um placar, e
+           ninguém quer dar cinquenta cliques iguais. Agora a partida é a tela
+           onde o jogo acontece, e pular cinco delas seria pular o jogo. */
         elseif ($estado && $acao === 'jogar') {
-            /* Quantas partidas de uma vez. O "jogar a rodada" de uma em uma é o
-               ritmo do jogo, mas ninguém quer clicar 50 vezes pra ver o fim do
-               ano — por isso existe o pular pra frente. */
-            $quantas = max(1, min(50, (int)($_POST['quantas'] ?? 1)));
-            for ($i = 0; $i < $quantas; $i++) {
-                $r = futCarreiraJogarProxima($estado);
-                if ($r['fim']) { $estado['fase'] = 'fim'; break; }
+            $r = futCarreiraAoVivoIniciar($estado);
+            if (!$r['ok']) {
+                $estado['fase'] = 'fim';
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+            } else {
                 $estado = $r['estado'];
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+                header('Location: ?aba=partida');
+                exit;
             }
+        }
+
+        /* O RELÓGIO ANDANDO. Responde JSON porque quem chama é o cronômetro da
+           tela, e recarregar a página a cada cinco minutos de jogo acabaria
+           com a partida ao vivo. */
+        elseif ($estado && $acao === 'aovivo_avancar') {
+            header('Content-Type: application/json; charset=utf-8');
+            if (empty($estado['aovivo'])) {
+                echo json_encode(['ok' => false, 'erro' => 'Não há partida em andamento.']);
+                exit;
+            }
+            $ate = (int)($_POST['ate'] ?? 0);
+            $a = futCarreiraAoVivoAvancar($estado, $ate);
+            $estado = $a['estado'];
             futCarreiraSalvar($pdo, $idUsuario, $estado);
+            $v = $estado['aovivo'] ?? [];
+            echo json_encode([
+                'ok'     => true,
+                'minuto' => (int)($v['minuto'] ?? 0),
+                'meus'   => (int)($v['meus'] ?? 0),
+                'deles'  => (int)($v['deles'] ?? 0),
+                'novos'  => array_values($a['novos']),
+                'notas'  => futCarreiraAoVivoNotas($estado),
+                'fim'    => (bool)$a['fim'],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        /* A PAUSA VALENDO: o técnico mexe e o resto do jogo sente. */
+        elseif ($estado && $acao === 'aovivo_estrategia') {
+            header('Content-Type: application/json; charset=utf-8');
+            $postura  = (string)($_POST['postura'] ?? 'neutro');
+            $marcacao = (string)($_POST['marcacao'] ?? 'normal');
+            if (!isset(FUT_POSTURAS[$postura]))  $postura = 'neutro';
+            if (!isset(FUT_MARCACOES[$marcacao])) $marcacao = 'normal';
+            $estado['estrategia'] = ['postura' => $postura, 'marcacao' => $marcacao];
+            futCarreiraSalvar($pdo, $idUsuario, $estado);
+            echo json_encode(['ok' => true, 'postura' => $postura, 'marcacao' => $marcacao]);
+            exit;
+        }
+
+        elseif ($estado && $acao === 'aovivo_fechar') {
+            $f = futCarreiraAoVivoFechar($estado);
+            if ($f['ok']) {
+                $estado = $f['estado'];
+                if ((int)($estado['rodada'] ?? 0) >= count($estado['calendario'] ?? [])) {
+                    $estado['fase'] = 'fim';
+                }
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+            }
+            header('Location: ?');
+            exit;
         }
 
         elseif ($estado && $acao === 'fechar_temporada') {
@@ -282,6 +338,82 @@ a{color:inherit}
 input[type=text],input[type=number],input[type=search],select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borda2);
   background:var(--panel3);color:var(--txt);font-size:14px}
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
+
+/* ── Partida ao vivo ────────────────────────────────── */
+.campo{background:linear-gradient(160deg,#0f2417,#0a1a10 55%,var(--panel));border:1px solid var(--borda);
+  border-radius:16px;padding:16px 14px;margin-bottom:12px}
+.campo-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--txt2)}
+.campo-comp{display:flex;align-items:center;gap:7px;min-width:0}
+.campo-comp b{color:var(--txt);font-weight:700}
+.relogio{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  background:rgba(0,0,0,.35);border:1px solid var(--borda);font-variant-numeric:tabular-nums;
+  font-weight:800;font-size:13px;color:var(--txt)}
+.relogio .bolinha{width:7px;height:7px;border-radius:50%;background:var(--verde-claro)}
+.relogio.rolando .bolinha{animation:pulso 1.1s ease-in-out infinite}
+.relogio.parado .bolinha{background:var(--amarelo);animation:none}
+@keyframes pulso{0%,100%{opacity:1}50%{opacity:.25}}
+
+.placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:16px 0 4px}
+.placar-time{display:flex;align-items:center;gap:9px;min-width:0}
+.placar-time.dir{flex-direction:row-reverse;text-align:right}
+.placar-nome{font-weight:800;font-size:14.5px;letter-spacing:-.3px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.placar-num{font-size:40px;font-weight:900;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
+.placar-x{font-size:15px;color:var(--txt3);font-weight:800;padding:0 2px}
+.campo-barra{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:14px}
+.campo-barra span{display:block;height:100%;background:var(--verde);width:0;transition:width .45s linear}
+
+.campo-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+.narracao{display:flex;flex-direction:column;gap:7px;max-height:290px;overflow-y:auto}
+.lance{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:10px;
+  background:var(--panel3);border:1px solid var(--borda);animation:entra .35s ease}
+.lance.nosso{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}
+.lance-min{font-size:11px;font-weight:800;color:var(--txt3);min-width:26px;font-variant-numeric:tabular-nums;
+  padding-top:1px}
+.lance-txt{font-size:12.5px;min-width:0}
+.lance-txt b{font-weight:800}
+.lance-txt i{color:var(--txt3);font-style:normal;font-size:11.5px}
+@keyframes entra{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.narracao-vazia{color:var(--txt3);font-size:12.5px;padding:8px 2px}
+
+.notas-vivo{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.nota-linha{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:9px;background:var(--panel3);
+  border:1px solid var(--borda);font-size:12px}
+.nota-linha .n{margin-left:auto;font-weight:900;font-variant-numeric:tabular-nums;font-size:12.5px}
+.nota-linha .n.boa{color:var(--verde-claro)}
+.nota-linha .n.ruim{color:#fca5a5}
+.nota-linha .p{font-size:10px;color:var(--txt3);font-weight:700}
+
+/* ── Popup do jogo (nunca o do navegador) ───────────── */
+.fundo-popup{position:fixed;inset:0;background:rgba(0,0,0,.66);backdrop-filter:blur(3px);z-index:60;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.fundo-popup[hidden]{display:none}
+.popup{width:100%;max-width:440px;max-height:86vh;overflow-y:auto;background:var(--panel);
+  border:1px solid var(--borda2);border-radius:15px;padding:16px;animation:sobe .18s ease}
+@keyframes sobe{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.popup h4{margin:0 0 4px;font-size:15px;font-weight:900;letter-spacing:-.4px;display:flex;align-items:center;gap:8px}
+.popup h4 i{color:var(--verde-claro)}
+.popup-sub{color:var(--txt2);font-size:12.5px;margin:0 0 14px}
+.popup-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+
+.opcoes{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.opcoes-rot{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;
+  font-weight:700;margin-bottom:2px}
+.opcao{display:block;cursor:pointer;position:relative}
+.opcao input{position:absolute;opacity:0;width:0;height:0}
+.opcao span{display:block;padding:9px 11px;border-radius:10px;border:1px solid var(--borda);
+  background:var(--panel3);font-size:12.5px}
+.opcao span b{display:block;font-weight:800;font-size:13px;margin-bottom:1px}
+.opcao span i{font-style:normal;color:var(--txt3);font-size:11.5px}
+.opcao input:checked + span{border-color:var(--verde);background:rgba(34,197,94,.10)}
+
+@media (max-width:520px){
+  .placar-num{font-size:32px}
+  .placar-nome{font-size:13px}
+  .notas-vivo{grid-template-columns:1fr 1fr}
+  .campo-acoes .btn{flex:1}
+}
 
 /* ── Começar a carreira ─────────────────────────────── */
 .hero{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
@@ -616,7 +748,245 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     $folha = futFolhaDoElenco($estado['elenco']);
   ?>
 
-  <div class="clube-card">
+  <?php
+    /* EM CAMPO A TELA É SÓ A PARTIDA: o cartão do clube e as abas saem da
+       frente, porque durante o jogo não há mais nada pra fazer. */
+    $emCampo = ($aba === 'partida' && !empty($estado['aovivo']));
+    $vivo = $estado['aovivo'] ?? null;
+  ?>
+
+  <?php if ($emCampo): ?>
+    <?php
+      $advC = $clubesTodos[$vivo['adversario']] ?? ['nome' => $vivo['adversario']];
+      $euC  = $clubesTodos[$estado['clube']] ?? ['nome' => $estado['clube']];
+      $casa = (bool)$vivo['casa'];
+      $estr = $estado['estrategia'] ?? ['postura' => 'neutro', 'marcacao' => 'normal'];
+    ?>
+    <div class="campo">
+      <div class="campo-topo">
+        <span class="campo-comp">
+          <i class="bi bi-trophy"></i> <b><?= h($vivo['comp']) ?></b>
+          <?= $vivo['fase'] ? '· ' . h($vivo['fase']) : '' ?>
+          · <?= $casa ? 'em casa' : 'fora' ?>
+        </span>
+        <span class="relogio parado" id="relogio"><span class="bolinha"></span><b id="rlMin">0</b>'</span>
+      </div>
+
+      <div class="placar">
+        <div class="placar-time">
+          <?= escudo($casa ? $euC : $advC, 30) ?>
+          <span class="placar-nome"><?= h($casa ? $estado['clube'] : $vivo['adversario']) ?></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="placar-num" id="plCasa"><?= (int)($casa ? $vivo['meus'] : $vivo['deles']) ?></span>
+          <span class="placar-x">×</span>
+          <span class="placar-num" id="plFora"><?= (int)($casa ? $vivo['deles'] : $vivo['meus']) ?></span>
+        </div>
+        <div class="placar-time dir">
+          <?= escudo($casa ? $advC : $euC, 30) ?>
+          <span class="placar-nome"><?= h($casa ? $vivo['adversario'] : $estado['clube']) ?></span>
+        </div>
+      </div>
+
+      <div class="campo-barra"><span id="barraTempo"></span></div>
+
+      <div class="campo-acoes">
+        <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
+        <button class="btn sec" id="btPausar" hidden><i class="bi bi-pause-fill"></i> Pausar</button>
+        <button class="btn sec" id="btEstrategia"><i class="bi bi-sliders"></i> Estratégia</button>
+        <form method="post" id="fmFechar" hidden>
+          <input type="hidden" name="acao" value="aovivo_fechar">
+          <button class="btn" type="submit"><i class="bi bi-flag-fill"></i> Encerrar e ver o resumo</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="bloco">
+      <h3><i class="bi bi-broadcast"></i> Narração</h3>
+      <div class="narracao" id="narracao">
+        <?php if (empty($vivo['eventos'])): ?>
+          <div class="narracao-vazia" id="narracaoVazia">Os times entram em campo. Aperte começar.</div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <div class="bloco">
+      <h3><i class="bi bi-star-fill"></i> Notas ao vivo</h3>
+      <div class="notas-vivo" id="notasVivo"></div>
+    </div>
+
+    <?php // ── O popup de estratégia ─────────────────────────────── ?>
+    <div class="fundo-popup" id="popEstrategia" hidden>
+      <div class="popup">
+        <h4><i class="bi bi-sliders"></i> Como o time vai jogar</h4>
+        <p class="popup-sub">Vale do minuto seguinte em diante — o que já passou não muda.</p>
+        <form id="fmEstrategia">
+          <div class="opcoes">
+            <div class="opcoes-rot">Postura</div>
+            <?php foreach (FUT_POSTURAS as $k => $o): ?>
+              <label class="opcao">
+                <input type="radio" name="postura" value="<?= h($k) ?>"
+                       <?= ($estr['postura'] ?? 'neutro') === $k ? 'checked' : '' ?>>
+                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <div class="opcoes">
+            <div class="opcoes-rot">Marcação</div>
+            <?php foreach (FUT_MARCACOES as $k => $o): ?>
+              <label class="opcao">
+                <input type="radio" name="marcacao" value="<?= h($k) ?>"
+                       <?= ($estr['marcacao'] ?? 'normal') === $k ? 'checked' : '' ?>>
+                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <div class="popup-acoes">
+            <button type="button" class="btn sec" data-fechar>Cancelar</button>
+            <button type="submit" class="btn"><i class="bi bi-check-lg"></i> Confirmar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+    (function () {
+      var PASSO = <?= FUT_AOVIVO_PASSO ?>;        // minutos de jogo por pedaço
+      var RITMO = 1500;                            // ms de verdade por pedaço
+      var minuto = <?= (int)$vivo['minuto'] ?>;
+      var rolando = false, ocupado = false, timer = null;
+
+      var rel = document.getElementById('relogio'), rlMin = document.getElementById('rlMin');
+      var plCasa = document.getElementById('plCasa'), plFora = document.getElementById('plFora');
+      var barra = document.getElementById('barraTempo'), narr = document.getElementById('narracao');
+      var vazia = document.getElementById('narracaoVazia'), notas = document.getElementById('notasVivo');
+      var btJogar = document.getElementById('btJogar'), btPausar = document.getElementById('btPausar');
+      var fmFechar = document.getElementById('fmFechar');
+      var casa = <?= $casa ? 'true' : 'false' ?>;
+
+      function pintaRelogio() {
+        rlMin.textContent = minuto;
+        barra.style.width = Math.min(100, minuto / 90 * 100) + '%';
+        rel.className = 'relogio ' + (rolando ? 'rolando' : 'parado');
+      }
+
+      function textoDoLance(e) {
+        if (e.tipo === 'gol') {
+          return '<b>GOL' + (e.meu ? '' : ' DELES') + '!</b> ' + e.jogador +
+                 (e.assistente ? ' <i>assist. ' + e.assistente + '</i>' : '');
+        }
+        if (e.tipo === 'vermelho') {
+          return '<b>Vermelho</b> para ' + e.jogador + (e.segundo ? ' <i>(segundo amarelo)</i>' : '');
+        }
+        return 'Amarelo para ' + e.jogador;
+      }
+
+      function mostraLance(e) {
+        if (vazia) { vazia.remove(); vazia = null; }
+        var d = document.createElement('div');
+        d.className = 'lance' + (e.meu ? ' nosso' : '');
+        d.innerHTML = '<span class="lance-min">' + e.minuto + "'</span>" +
+                      '<span class="lance-txt">' + textoDoLance(e) + '</span>';
+        narr.prepend(d);
+      }
+
+      function mostraNotas(mapa) {
+        if (!mapa) return;
+        var nomes = Object.keys(mapa);
+        if (!nomes.length) return;
+        notas.innerHTML = nomes.map(function (n) {
+          var v = Number(mapa[n]).toFixed(1).replace('.', ',');
+          var cls = mapa[n] >= 7 ? 'boa' : (mapa[n] < 5.5 ? 'ruim' : '');
+          return '<div class="nota-linha"><span>' + n + '</span>' +
+                 '<span class="n ' + cls + '">' + v + '</span></div>';
+        }).join('');
+      }
+
+      function acabou() {
+        rolando = false;
+        clearInterval(timer);
+        btJogar.hidden = true; btPausar.hidden = true;
+        fmFechar.hidden = false;
+        rel.className = 'relogio parado';
+        rlMin.textContent = '90';
+      }
+
+      function avanca() {
+        if (ocupado || !rolando) return;
+        ocupado = true;
+        var body = new URLSearchParams({acao: 'aovivo_avancar', ate: String(Math.min(90, minuto + PASSO))});
+        fetch(location.pathname, {method: 'POST', body: body, headers: {'X-Requested-With': 'fetch'}})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            ocupado = false;
+            if (!d.ok) { acabou(); return; }
+            minuto = d.minuto;
+            plCasa.textContent = casa ? d.meus : d.deles;
+            plFora.textContent = casa ? d.deles : d.meus;
+            (d.novos || []).forEach(mostraLance);
+            mostraNotas(d.notas);
+            pintaRelogio();
+            if (d.fim) acabou();
+          })
+          .catch(function () { ocupado = false; pausa(); });
+      }
+
+      function toca() {
+        rolando = true;
+        btJogar.hidden = true; btPausar.hidden = false;
+        pintaRelogio();
+        avanca();
+        clearInterval(timer);
+        timer = setInterval(avanca, RITMO);
+      }
+      function pausa() {
+        rolando = false;
+        clearInterval(timer);
+        btJogar.hidden = false; btPausar.hidden = true;
+        btJogar.innerHTML = '<i class="bi bi-play-fill"></i> Continuar';
+        pintaRelogio();
+      }
+
+      btJogar.addEventListener('click', toca);
+      btPausar.addEventListener('click', pausa);
+
+      // ── O popup de estratégia ──────────────────────────────────
+      var pop = document.getElementById('popEstrategia');
+      var voltaARolar = false;
+      document.getElementById('btEstrategia').addEventListener('click', function () {
+        voltaARolar = rolando;
+        if (rolando) pausa();
+        pop.hidden = false;
+      });
+      pop.addEventListener('click', function (e) {
+        if (e.target === pop || e.target.hasAttribute('data-fechar')) {
+          pop.hidden = true;
+          if (voltaARolar) toca();
+        }
+      });
+      document.getElementById('fmEstrategia').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var f = new FormData(e.target);
+        f.append('acao', 'aovivo_estrategia');
+        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(f)})
+          .then(function (r) { return r.json(); })
+          .then(function () {
+            pop.hidden = true;
+            if (voltaARolar) toca();
+          });
+      });
+
+      pintaRelogio();
+      if (minuto >= 90) acabou();
+      <?php if (!empty($vivo['eventos'])): ?>
+        <?= 'var jaVistos = ' . json_encode(array_values($vivo['eventos']), JSON_UNESCAPED_UNICODE) . ';' ?>
+        jaVistos.forEach(mostraLance);
+      <?php endif; ?>
+    })();
+    </script>
+  <?php endif; ?>
+
+  <div class="clube-card" <?= $emCampo ? 'hidden' : '' ?>>
     <div class="clube-topo">
       <?= escudo($clubesTodos[$estado['clube']] ?? ['nome' => $estado['clube']], 42) ?>
       <div style="min-width:0">
@@ -713,7 +1083,19 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     </div>
   <?php endif; ?>
 
-  <div class="abas">
+  <?php if (!$emCampo && !empty($estado['aovivo'])): ?>
+    <?php $v2 = $estado['aovivo']; ?>
+    <div class="bloco" style="border-color:rgba(34,197,94,.45)">
+      <h3><i class="bi bi-broadcast"></i> Tem jogo rolando</h3>
+      <p style="color:var(--txt2);font-size:13px;margin:0 0 11px">
+        <?= h($estado['clube']) ?> <?= (int)$v2['meus'] ?> × <?= (int)$v2['deles'] ?>
+        <?= h($v2['adversario']) ?>, aos <?= (int)$v2['minuto'] ?> minutos.
+      </p>
+      <a class="btn" href="?aba=partida"><i class="bi bi-arrow-right"></i> Voltar ao jogo</a>
+    </div>
+  <?php endif; ?>
+
+  <div class="abas" <?= $emCampo ? 'hidden' : '' ?>>
     <?php foreach (['jogo' => 'Partidas', 'escalacao' => 'Escalação', 'elenco' => 'Elenco',
                     'stats' => 'Números', 'tabela' => 'Tabela', 'mercado' => 'Mercado',
                     'carreira' => 'Carreira'] as $k => $rot): ?>
@@ -861,19 +1243,12 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               </div>
             </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <form method="post" style="display:inline">
-              <input type="hidden" name="acao" value="jogar"><input type="hidden" name="quantas" value="1">
-              <button class="btn"><i class="bi bi-play-fill"></i> Jogar</button>
+              <input type="hidden" name="acao" value="jogar">
+              <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
             </form>
-            <form method="post" style="display:inline">
-              <input type="hidden" name="acao" value="jogar"><input type="hidden" name="quantas" value="5">
-              <button class="btn sec"><i class="bi bi-fast-forward-fill"></i> Jogar 5</button>
-            </form>
-            <form method="post" style="display:inline">
-              <input type="hidden" name="acao" value="jogar"><input type="hidden" name="quantas" value="50">
-              <button class="btn sec"><i class="bi bi-skip-end-fill"></i> Até o fim</button>
-            </form>
+            <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
           </div>
           <div style="margin-top:10px;font-size:12px;color:var(--txt3)">
             Jogo <?= (int)$estado['rodada'] + 1 ?> de <?= count($estado['calendario'] ?? []) ?>
