@@ -284,6 +284,9 @@ if ($estado && ($estado['fase'] ?? '') === 'temporada') {
   --amarelo:#f59e0b; --azul:#3b82f6;
 }
 *{box-sizing:border-box}
+/* O atributo hidden precisa vencer os display:flex e inline-flex deste
+   arquivo. Sem isto, esconder as abas ou um botao nao escondia nada. */
+[hidden]{display:none !important}
 body{margin:0;background:var(--bg);color:var(--txt);font-family:'Inter',system-ui,-apple-system,sans-serif;
   font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 #app{max-width:1100px;margin:0 auto;padding:16px 14px 80px}
@@ -1902,7 +1905,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       <?php endif; ?>
     </div>
   <?php // ── ABA: CARREIRA ──────────────────────────────────────────── ?>
-  <?php else: ?>
+  <?php elseif (!$emCampo): ?>
     <div class="bloco">
       <h3><i class="bi bi-person-badge"></i> <?= h($estado['tecnico']['nome']) ?></h3>
       <div class="fichas" style="grid-template-columns:repeat(3,1fr)">
