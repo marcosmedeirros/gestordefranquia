@@ -244,13 +244,15 @@ function futCarreiraMeuClube(array $estado): array
 {
     $clubes = futClubesDoBrasil();
     $c = $clubes[$estado['clube']] ?? ['nome' => $estado['clube'], 'forca' => 50, 'div' => '', 'uf' => '', 'escudo' => ''];
-    /* A minha força também é a de campo, e não a média do elenco: é ela que
-       vai pro mesmo futPlacar que mede os rivais (@see futCarreiraForcaEmCampo). */
-    $esquema = $estado['esquema'] ?? '4-4-2';
-    $escalados = futCarreiraEscalacaoAtual($estado);
-    $c['forca'] = $escalados
-        ? futForcaEscalada($escalados, $esquema)
-        : futForcaDoElenco($estado['elenco'] ?? []);
+    /* A FORÇA DO ELENCO, e não a de campo.
+       As duas existem e servem a perguntas diferentes: "quanto vale este
+       clube" é elenco, "quanto ele rende hoje" é campo. Quando esta função
+       devolvia a de campo, a resposta oscilava com o cansaço — e como ela é a
+       régua que o mercado usa pra saber se um jogador topa vir, um garoto
+       recusava o convite na quarta-feira e aceitava no domingo, sem nada ter
+       mudado no clube. Quem precisa da força de campo pede por ela
+       (@see futCarreiraForcaEmCampo, usada na tabela). */
+    $c['forca'] = futForcaDoElenco($estado['elenco'] ?? []);
     return $c;
 }
 
@@ -263,8 +265,17 @@ function futCarreiraTimes(array $clubes, array $estado): array
     $meu = $estado['clube'] ?? '';
     $rodada = (int)($estado['rodada'] ?? 0);
     $out = [];
+    $esquema = $estado['esquema'] ?? '4-4-2';
     foreach ($clubes as $c) {
-        if ($c['nome'] === $meu) { $out[] = futCarreiraMeuClube($estado); continue; }
+        if ($c['nome'] === $meu) {
+            /* NA TABELA, A MINHA FORÇA É A DE CAMPO — é ela que enfrenta a dos
+               rivais no mesmo futPlacar. Fora daqui vale a do elenco. */
+            $eu = futCarreiraMeuClube($estado);
+            $escalados = futCarreiraEscalacaoAtual($estado);
+            if ($escalados) $eu['forca'] = futForcaEscalada($escalados, $esquema);
+            $out[] = $eu;
+            continue;
+        }
         $c['forca'] = futCarreiraForcaEmCampo($estado, $c['nome'], (int)$c['forca'], $rodada);
         $out[] = $c;
     }
