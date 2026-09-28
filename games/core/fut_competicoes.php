@@ -524,8 +524,23 @@ function futSimularTemporada(array $anoPassado = []): array
         if (!in_array($nome, $liberta, true)) $sula[] = $nome;
     }
 
-    $paraLiberta = array_map(fn($n) => $clubes[$n], $liberta);
-    $paraSula    = array_map(fn($n) => $clubes[$n], $sula);
+    /* O CAMPEÃO DA COPA DO BRASIL PODE SER DE QUALQUER DIVISÃO.
+       $clubes é a tabela do Brasileirão, então só tem os vinte da Série A — e
+       a vaga do campeão da Copa entra na lista por nome. Quando esse campeão
+       era de fora da Série A (um Ceará da Série B, por exemplo), o nome não
+       achava dono aqui e virava null: a Libertadores começava com um time
+       vazio e a fase de grupos morria com erro fatal, derrubando a simulação
+       do mundo inteiro naquela temporada.
+
+       Acontecia em uma temporada a cada sete, e a Copa do Brasil é justamente
+       a competição que junta as quatro divisões — o campeão de fora da elite
+       não é exceção, é o caso comum. */
+    $todos = futClubesDoBrasil();
+    $acharClube = function (string $n) use ($clubes, $todos): ?array {
+        return $clubes[$n] ?? $todos[$n] ?? null;
+    };
+    $paraLiberta = array_values(array_filter(array_map($acharClube, $liberta)));
+    $paraSula    = array_values(array_filter(array_map($acharClube, $sula)));
     $conmebol = futVagasConmebol();
     $t['liberta'] = futSimularContinental('liberta', $paraLiberta, $conmebol['liberta']);
     $t['sula']    = futSimularContinental('sula', $paraSula, $conmebol['sula']);
