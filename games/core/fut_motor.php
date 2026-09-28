@@ -81,7 +81,15 @@ function futPoisson(float $lambda): int
  *                    neutro passa false)
  * @return array ['casa' => int, 'fora' => int]
  */
-function futPlacar(int $forcaCasa, int $forcaFora, bool $mando = true): array
+/**
+ * @param float $fracao a fatia da partida que está sendo jogada (1.0 = os 90
+ *        minutos). POISSON É ADITIVO: simular 90 minutos com λ dá exatamente a
+ *        mesma distribuição que simular dois trechos de 45 com λ/2 cada. É por
+ *        isso que dá pra parar a partida no meio, deixar o técnico mexer no
+ *        time e seguir — sem que o placar do jogo fatiado fique diferente do
+ *        placar de quem jogou tudo de uma vez.
+ */
+function futPlacar(int $forcaCasa, int $forcaFora, bool $mando = true, float $fracao = 1.0): array
 {
     $c = max(1, min(100, $forcaCasa)) + ($mando ? FUT_MANDO : 0);
     $f = max(1, min(100, $forcaFora));
@@ -96,7 +104,7 @@ function futPlacar(int $forcaCasa, int $forcaFora, bool $mando = true): array
     /* Jogo entre times fortes tem mais gol que jogo entre times fracos, mas a
        variação é contida: o piso é 85% da média e o teto 115%. */
     $nivel = (($c + $f) / 2) / FUT_NIVEL_CENTRO;
-    $totalEsperado = FUT_GOLS_MEDIA_JOGO * max(0.85, min(1.15, $nivel));
+    $totalEsperado = FUT_GOLS_MEDIA_JOGO * max(0.85, min(1.15, $nivel)) * max(0.0, $fracao);
 
     return [
         'casa' => futPoisson($totalEsperado * $fatiaCasa),

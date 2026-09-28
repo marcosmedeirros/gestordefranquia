@@ -86,15 +86,16 @@ function futPesoDoJogador(array $j, array $tabela): float
  * Gols são um pouco mais comuns no fim de cada tempo — time cansado, espaço
  * aberto. Minutos repetidos são evitados pra não sair "dois gols aos 34".
  */
-function futMinutosDeGol(int $quantos): array
+function futMinutosDeGol(int $quantos, int $de = 1, int $ate = 90): array
 {
+    if ($ate < $de) $ate = $de;
     $minutos = [];
     $tentativas = 0;
     while (count($minutos) < $quantos && $tentativas < $quantos * 20) {
         $tentativas++;
-        $m = mt_rand(1, 90);
+        $m = mt_rand($de, $ate);
         // Um empurrãozinho pro fim dos tempos: sorteia de novo e fica com o maior.
-        if (mt_rand(0, 100) < 35) $m = max($m, mt_rand(1, 90));
+        if (mt_rand(0, 100) < 35) $m = max($m, mt_rand($de, $ate));
         if (in_array($m, $minutos, true)) continue;
         $minutos[] = $m;
     }
@@ -137,11 +138,12 @@ function futAutoresDosGols(array $escalados, int $gols): array
 }
 
 /** Sorteia os cartões de um time. */
-function futCartoesDoTime(array $escalados): array
+function futCartoesDoTime(array $escalados, float $fracao = 1.0, int $de = 8, int $ate = 90): array
 {
     if (!$escalados) return [];
+    if ($ate < $de) $ate = $de;
 
-    $quantos = futPoisson(FUT_CARTOES_MEDIA);
+    $quantos = futPoisson(FUT_CARTOES_MEDIA * max(0.0, $fracao));
     $pesos = [];
     foreach ($escalados as $j) $pesos[] = [$j, futPesoDoJogador($j, FUT_PESO_CARTAO)];
 
@@ -161,7 +163,7 @@ function futCartoesDoTime(array $escalados): array
         $tipo = ($vermelhoDireto || $segundo) ? 'vermelho' : 'amarelo';
         if ($tipo === 'amarelo') $amarelosDe[$nome] = true;
 
-        $cartoes[] = ['jogador' => $j, 'tipo' => $tipo, 'segundo' => $segundo, 'minuto' => mt_rand(8, 90)];
+        $cartoes[] = ['jogador' => $j, 'tipo' => $tipo, 'segundo' => $segundo, 'minuto' => mt_rand($de, $ate)];
 
         if ($tipo === 'vermelho') {
             // Expulso não leva mais cartão: sai do sorteio.
@@ -238,6 +240,128 @@ function futNotasDaPartida(array $escalados, array $gols, array $cartoes, int $g
  * @return array ['meus'=>int,'deles'=>int,'eventos'=>[...],'notas'=>[...],
  *                'gols'=>[...],'cartoes'=>[...]]
  */
+/**
+ * AS DUAS ALAVANCAS DO TÉCNICO DURANTE O JOGO.
+ *
+ * POSTURA mexe no quanto o jogo abre. Ofensiva sobe o nível dos dois lados —
+ * você cria mais e concede mais, o que favorece quem já é melhor e é a aposta
+ * certa quando você precisa do gol. Defensiva faz o contrário: trava o jogo,
+ * que é o que o time pior quer, porque num jogo de poucos gols o azar pesa
+ * menos que a diferença de elenco.
+ *
+ * MARCAÇÃO troca cartão por qualidade do adversário. Marcar forte tira dois
+ * pontos da força dele e traz mais cartão pro seu lado; marcar leve devolve o
+ * jogo pra ele e limpa a súmula. Pendurado em véspera de decisão é exatamente
+ * onde isso decide.
+ *
+ * Os números são pequenos de propósito: estratégia deve inclinar a partida,
+ * não decidi-la. Quem ganha jogo é elenco.
+ *
+ * @return array ['meu','dele','cartoes'] — ajuste de força dos dois lados e o
+ *         multiplicador de cartões do seu time.
+ */
+function futEfeitoDaEstrategia(array $estrategia): array
+{
+    $postura  = (string)($estrategia['postura'] ?? 'neutro');
+    $marcacao = (string)($estrategia['marcacao'] ?? 'normal');
+
+    /* O QUE MUDA É O VOLUME DE JOGO, não a força. Somar pontos nos dois lados
+       não fazia nada: futPlacar tira a fatia de cada um da RAZÃO entre as
+       forças, e o total de gols do nível médio, que é limitado a uma faixa
+       estreita — os dois ficavam quase iguais. Mexer no total esperado é o que
+       abre e fecha a partida de verdade. */
+    [$meu, $dele, $gols] = match ($postura) {
+        'ofensiva'  => [2, 3, 1.25],
+        'defensiva' => [-2, -4, 0.78],
+        default     => [0, 0, 1.0],
+    };
+
+    $cartoes = 1.0;
+    switch ($marcacao) {
+        case 'forte': $dele -= 2; $cartoes = 1.6; break;
+        case 'leve':  $dele += 1; $cartoes = 0.6; break;
+    }
+
+    return ['meu' => $meu, 'dele' => $dele, 'cartoes' => $cartoes, 'gols' => $gols];
+}
+
+/** As posturas e marcações que a tela oferece, com o nome que o técnico lê. */
+const FUT_POSTURAS = [
+    'ofensiva'  => ['nome' => 'Ofensiva',  'desc' => 'Joga aberto: cria mais e concede mais.'],
+    'neutro'    => ['nome' => 'Equilibrada', 'desc' => 'Sem inclinar o jogo pra nenhum lado.'],
+    'defensiva' => ['nome' => 'Defensiva', 'desc' => 'Trava o jogo. É a arma de quem é pior.'],
+];
+const FUT_MARCACOES = [
+    'forte'  => ['nome' => 'Forte',  'desc' => 'Pressiona: tira qualidade dele e enche a súmula.'],
+    'normal' => ['nome' => 'Normal', 'desc' => 'Marcação padrão.'],
+    'leve'   => ['nome' => 'Leve',   'desc' => 'Evita cartão, dá mais espaço pra ele.'],
+];
+
+/**
+ * SIMULA UM PEDAÇO DA PARTIDA, do minuto $de ao minuto $ate.
+ *
+ * É o que permite a partida ao vivo: o relógio anda, o técnico pausa, mexe no
+ * time, e o pedaço seguinte é simulado com a força nova. Sem isto a pausa era
+ * decorativa — a partida inteira já estava decidida antes do apito inicial, e
+ * trocar o time no intervalo não mudava nada.
+ *
+ * Cada trecho recebe a fatia de gols que lhe cabe pelo tempo (@see futPlacar),
+ * então a soma dos pedaços tem a mesma calibração do jogo inteiro.
+ *
+ * As notas NÃO saem daqui: elas dependem do jogo todo (gols, cartões e o
+ * resultado final), e quem as calcula no fim é futNotasDaPartida.
+ *
+ * @return array ['meus','deles','eventos','gols','cartoes']
+ */
+function futSimularTrecho(array $meus, array $deles, int $forcaMeu, int $forcaDele,
+                          bool $casa, int $de, int $ate, array $estrategia = []): array
+{
+    $de = max(1, $de);
+    $ate = min(90, max($de, $ate));
+    $fracao = ($ate - $de + 1) / 90;
+
+    $ef = futEfeitoDaEstrategia($estrategia);
+    $forcaMeu  = max(1, $forcaMeu + $ef['meu']);
+    $forcaDele = max(1, $forcaDele + $ef['dele']);
+
+    $fGols = $fracao * $ef['gols'];
+    $p = $casa ? futPlacar($forcaMeu, $forcaDele, true, $fGols)
+               : futPlacar($forcaDele, $forcaMeu, true, $fGols);
+    $golsMeus  = $casa ? $p['casa'] : $p['fora'];
+    $golsDeles = $casa ? $p['fora'] : $p['casa'];
+
+    $meusGols  = futAutoresDosGols($meus, $golsMeus);
+    $delesGols = futAutoresDosGols($deles, $golsDeles);
+    $meusCart  = futCartoesDoTime($meus, $fracao * $ef['cartoes'], max(8, $de), $ate);
+
+    $eventos = [];
+    $minutosMeus  = futMinutosDeGol(count($meusGols), $de, $ate);
+    $minutosDeles = futMinutosDeGol(count($delesGols), $de, $ate);
+
+    foreach ($meusGols as $i => $g) {
+        $eventos[] = ['minuto' => $minutosMeus[$i] ?? mt_rand($de, $ate),
+                      'tipo' => 'gol', 'meu' => true,
+                      'jogador' => $g['autor']['nome'], 'pos' => $g['autor']['pos'],
+                      'assistente' => $g['assistente']['nome'] ?? null];
+    }
+    foreach ($delesGols as $i => $g) {
+        $eventos[] = ['minuto' => $minutosDeles[$i] ?? mt_rand($de, $ate),
+                      'tipo' => 'gol', 'meu' => false,
+                      'jogador' => $g['autor']['nome'], 'pos' => $g['autor']['pos'],
+                      'assistente' => $g['assistente']['nome'] ?? null];
+    }
+    foreach ($meusCart as $c) {
+        $eventos[] = ['minuto' => $c['minuto'],
+                      'tipo' => $c['tipo'] === 'vermelho' ? 'vermelho' : 'amarelo',
+                      'meu' => true, 'jogador' => $c['jogador']['nome'],
+                      'pos' => $c['jogador']['pos'], 'segundo' => $c['segundo']];
+    }
+    usort($eventos, fn($a, $b) => $a['minuto'] <=> $b['minuto']);
+
+    return ['meus' => $golsMeus, 'deles' => $golsDeles, 'eventos' => $eventos,
+            'gols' => $meusGols, 'cartoes' => $meusCart];
+}
+
 function futSimularPartida(array $meus, array $deles, int $forcaMeu, int $forcaDele, bool $casa): array
 {
     // O PLACAR SAI DO MOTOR CALIBRADO — ver a explicação no topo do arquivo.
