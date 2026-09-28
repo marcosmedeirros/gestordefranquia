@@ -552,6 +552,12 @@ function futCarreiraJogarProxima(array $estado): array
         'avisos'      => $avisosDaPartida,
     ];
 
+    /* COPA DECIDE AQUI: quem perdeu não tem mais jogo nela. */
+    $mm = futCarreiraResolverMataMata($estado, $resultado);
+    $estado = $mm['estado'];
+    $resultado['passou'] = $mm['passou'];
+    $resultado['penaltis'] = $mm['penaltis'];
+
     $estado['resultados'][] = $resultado;
     $estado['rodada'] = $i + 1;
 
@@ -849,6 +855,11 @@ function futCarreiraAoVivoFechar(array $estado): array
         'avisos'      => $avisos,
     ];
 
+    $mm = futCarreiraResolverMataMata($estado, $resultado);
+    $estado = $mm['estado'];
+    $resultado['passou'] = $mm['passou'];
+    $resultado['penaltis'] = $mm['penaltis'];
+
     $estado['resultados'][] = $resultado;
     $estado['rodada'] = (int)$v['indice'] + 1;
     unset($estado['aovivo']);
@@ -861,6 +872,73 @@ function futCarreiraAoVivoFechar(array $estado): array
     }
 
     return ['ok' => true, 'jogo' => $resultado, 'estado' => $estado];
+}
+
+/**
+ * AS COMPETIÇÕES EM QUE PERDER SIGNIFICA IR PRA CASA.
+ *
+ * A copa regional não entra: lá a fase que o jogo simula é de grupos, e grupo
+ * não elimina no jogo — classifica no fim.
+ */
+function futCarreiraEhMataMata(string $comp, string $fase): bool
+{
+    if (!in_array($comp, ['Copa do Brasil', 'Libertadores', 'Sul-Americana'], true)) return false;
+    return stripos($fase, 'grupo') === false;
+}
+
+/**
+ * DECIDE SE O CLUBE SEGUE NA COPA, E TIRA O RESTO DO CALENDÁRIO SE NÃO SEGUIR.
+ *
+ * A COPA NÃO ELIMINAVA NINGUÉM. O calendário nascia com as seis fases da Copa
+ * do Brasil e as seis eram jogadas, ganhasse ou perdesse — medindo três
+ * carreiras, todas as três jogaram a final, e duas delas depois de terem
+ * perdido na segunda fase. Isso não é uma copa, é uma lista de seis jogos
+ * avulsos com nomes bonitos.
+ *
+ * EMPATE VAI PROS PÊNALTIS, como em mata-mata de jogo único. O placar do tempo
+ * normal continua sendo o que a tabela e a estatística enxergam; os pênaltis
+ * só decidem quem passa.
+ *
+ * @return array ['estado'=>array, 'passou'=>bool, 'penaltis'=>bool]
+ */
+function futCarreiraResolverMataMata(array $estado, array $resultado): array
+{
+    $comp = (string)($resultado['comp'] ?? '');
+    $fase = (string)($resultado['fase'] ?? '');
+    if (!futCarreiraEhMataMata($comp, $fase)) {
+        return ['estado' => $estado, 'passou' => true, 'penaltis' => false];
+    }
+
+    $meus = (int)$resultado['meus'];
+    $deles = (int)$resultado['deles'];
+    $penaltis = false;
+
+    if ($meus > $deles) {
+        $passou = true;
+    } elseif ($meus < $deles) {
+        $passou = false;
+    } else {
+        $penaltis = true;
+        $clubes = futClubesDoBrasil();
+        $minha = (int)futCarreiraMeuClube($estado)['forca'];
+        $dele = (int)($clubes[$resultado['adversario']]['forca'] ?? 50);
+        $passou = futPenaltis($minha, $dele);
+    }
+
+    if (!$passou) {
+        /* ELIMINADO: o que sobrava dessa copa no calendário some. Os jogos
+           passados ficam — eles são a campanha, e é deles que o chaveamento
+           conta até onde o clube foi. */
+        $i = (int)($estado['rodada'] ?? 0);
+        $novo = [];
+        foreach ($estado['calendario'] ?? [] as $k => $j) {
+            if ($k > $i && ($j['comp'] ?? '') === $comp) continue;
+            $novo[] = $j;
+        }
+        $estado['calendario'] = $novo;
+    }
+
+    return ['estado' => $estado, 'passou' => $passou, 'penaltis' => $penaltis];
 }
 
 /** A campanha do clube numa competição: J, V, E, D, pontos. */

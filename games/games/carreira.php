@@ -539,6 +539,32 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .nota-linha .n.ruim{color:#fca5a5}
 .nota-linha .p{font-size:10px;color:var(--txt3);font-weight:700}
 
+/* ── O caminho na copa ──────────────────────────────── */
+.chave{display:flex;flex-direction:column;gap:8px}
+.chave-fase{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;
+  border:1px solid var(--borda);background:var(--panel3);position:relative}
+.chave-fase.venceu{border-color:rgba(34,197,94,.32);background:rgba(34,197,94,.06)}
+.chave-fase.caiu{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06)}
+.chave-fase.futura{opacity:.5;border-style:dashed}
+.chave-fase + .chave-fase::before{content:'';position:absolute;left:26px;top:-9px;width:2px;height:9px;
+  background:var(--borda)}
+.chave-rot{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);
+  font-weight:700;width:86px;flex-shrink:0}
+.chave-adv{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:13px;font-weight:700}
+.chave-adv span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chave-placar{font-weight:900;font-variant-numeric:tabular-nums;font-size:14px;flex-shrink:0}
+.chave-marca{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  padding:2px 8px;border-radius:999px;flex-shrink:0}
+.chave-marca.ok{background:rgba(34,197,94,.16);color:var(--verde-claro)}
+.chave-marca.fim{background:rgba(239,68,68,.16);color:#fca5a5}
+.chave-marca.tac{background:var(--panel);color:var(--txt3)}
+.chave-titulo{margin-top:10px;padding:11px;border-radius:11px;text-align:center;font-weight:900;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.32);color:var(--amarelo)}
+@media (max-width:520px){
+  .chave-fase{flex-wrap:wrap;gap:7px}
+  .chave-rot{width:100%}
+}
+
 /* ── Os números da partida ──────────────────────────── */
 .viv-num-linha{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:9px;
   font-size:11.5px;margin-bottom:7px}
@@ -2293,10 +2319,60 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         </div>
 
         <?php if (!$info['tabela']): ?>
-          <div class="vazio">
-            <?= h($compSel) ?> é mata-mata: quem perde vai pra casa, então não há classificação.
-            Os jogos aparecem abaixo.
-          </div>
+          <?php
+            /* O CAMINHO ATÉ A FINAL. Mata-mata não tem classificação, e a
+               lista de jogos não conta a história: o que importa numa copa é
+               até onde você foi e quem te tirou. As fases que ainda estão no
+               calendário entram como "a jogar" — some quando o clube cai,
+               porque a eliminação tira os jogos seguintes dali. */
+            $caminho = [];
+            foreach ($estado['resultados'] ?? [] as $r) {
+              if (($r['comp'] ?? '') !== $compSel) continue;
+              $caminho[] = ['fase' => (string)($r['fase'] ?? ''), 'adv' => $r['adversario'],
+                            'meus' => (int)$r['meus'], 'deles' => (int)$r['deles'],
+                            'jogado' => true, 'passou' => !empty($r['passou']),
+                            'penaltis' => !empty($r['penaltis'])];
+            }
+            foreach ($estado['calendario'] ?? [] as $k => $j) {
+              if (($j['comp'] ?? '') !== $compSel || $k < (int)$estado['rodada']) continue;
+              $caminho[] = ['fase' => (string)($j['fase'] ?? ''), 'adv' => $j['adversario'],
+                            'jogado' => false];
+            }
+            $campeao = $caminho && end($caminho)['jogado']
+                    && end($caminho)['passou'] && stripos(end($caminho)['fase'], 'final') !== false
+                    && stripos(end($caminho)['fase'], 'semi') === false;
+          ?>
+          <?php if (!$caminho): ?>
+            <div class="vazio">O clube ainda não entrou nesta competição.</div>
+          <?php else: ?>
+            <div class="chave">
+              <?php foreach ($caminho as $p): ?>
+                <?php
+                  $cls = !$p['jogado'] ? 'futura' : ($p['passou'] ? 'venceu' : 'caiu');
+                ?>
+                <div class="chave-fase <?= $cls ?>">
+                  <span class="chave-rot"><?= h($p['fase']) ?></span>
+                  <span class="chave-adv">
+                    <?= escudo($clubesTodos[$p['adv']] ?? ['nome' => $p['adv']], 22) ?>
+                    <span><?= h($p['adv']) ?></span>
+                  </span>
+                  <?php if ($p['jogado']): ?>
+                    <span class="chave-placar"><?= $p['meus'] ?>–<?= $p['deles'] ?></span>
+                    <span class="chave-marca <?= $p['passou'] ? 'ok' : 'fim' ?>">
+                      <?= $p['passou'] ? 'passou' : 'eliminado' ?>
+                      <?= $p['penaltis'] ? ' nos pênaltis' : '' ?>
+                    </span>
+                  <?php else: ?>
+                    <span class="chave-marca tac">a jogar</span>
+                  <?php endif; ?>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <?php if ($campeao): ?>
+              <div class="chave-titulo"><i class="bi bi-trophy-fill"></i>
+                Campeão d<?= stripos($compSel, 'copa') === 0 ? 'a' : 'o' ?> <?= h($compSel) ?></div>
+            <?php endif; ?>
+          <?php endif; ?>
         <?php elseif (!$tab): ?>
           <div class="vazio">A tabela aparece depois da primeira rodada.</div>
         <?php else: ?>
