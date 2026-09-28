@@ -315,6 +315,14 @@ function futLancesDoTrecho(array $escalados, float $fracao, float $fatia,
         if ($tipo === 'defendeu') $noAlvo++;
         $eventos[] = ['minuto' => mt_rand($de, $ate), 'tipo' => $tipo, 'meu' => $meu,
                       'jogador' => $j['nome'], 'pos' => $j['pos']];
+
+        /* QUEM ACABOU DE CHUTAR CEDE A VEZ. O peso de gol é concentrado no
+           atacante, então sem isto o mesmo nome aparecia três, quatro vezes
+           seguidas na narração — "Lucca finalizou por cima" aos 87, aos 87 e
+           aos 88. Ele volta ao sorteio, só não monopoliza o bloco. */
+        foreach ($pesos as $k => $x) {
+            if ($x[0]['nome'] === $j['nome']) $pesos[$k][1] = $x[1] * 0.25;
+        }
     }
 
     /* A FALTA PERIGOSA É DO OUTRO LADO: quem comete é o adversário, e quem

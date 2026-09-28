@@ -1229,14 +1229,46 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       /* CADA LANCE TEM A SUA FRASE. O gol e o cartão já estavam aqui; o resto
          é o que faltava pro relógio parar de andar no vazio — em catorze das
          dezoito atualizações não acontecia nada. */
+      /* CADA LANCE TEM VÁRIAS FRASES. Com uma só, a narração de um jogo com
+         vinte finalizações vira a mesma linha repetida vinte vezes, e o que
+         devia parecer futebol parece um log. A escolha é pelo minuto, então o
+         mesmo lance sai sempre com a mesma frase se a página recarregar. */
       var LANCES = {
-        fora:     {ico: 'bi-arrow-up-right',   txt: function (e) { return e.jogador + ' finalizou por cima'; }},
-        defendeu: {ico: 'bi-hand-index-thumb', txt: function (e) { return e.jogador + ' chutou, o goleiro defendeu'; }},
-        trave:    {ico: 'bi-exclamation-lg',   txt: function (e) { return '<b>Na trave!</b> ' + e.jogador + ' quase'; }},
-        bloqueou: {ico: 'bi-shield',           txt: function (e) { return 'A defesa bloqueou o chute de ' + e.jogador; }},
-        falta:    {ico: 'bi-flag',             txt: function (e) { return 'Falta perigosa, ' + e.jogador + ' na bola'; }},
-        troca:    {ico: 'bi-arrow-left-right', txt: function (e) { return '<b>Substituição:</b> sai ' + e.sai + ', entra ' + e.jogador; }}
+        fora: {ico: 'bi-arrow-up-right', txt: [
+          function (n) { return n + ' finalizou por cima'; },
+          function (n) { return n + ' chutou pra fora'; },
+          function (n) { return n + ' mandou longe do gol'; },
+          function (n) { return n + ' arriscou de fora da área e errou o alvo'; },
+          function (n) { return 'Tentou ' + n + ', pela linha de fundo'; }
+        ]},
+        defendeu: {ico: 'bi-hand-index-thumb', txt: [
+          function (n) { return n + ' chutou, o goleiro defendeu'; },
+          function (n) { return 'Boa defesa no chute de ' + n; },
+          function (n) { return n + ' obrigou o goleiro a trabalhar'; },
+          function (n) { return 'O goleiro espalmou a finalização de ' + n; }
+        ]},
+        trave: {ico: 'bi-exclamation-lg', txt: [
+          function (n) { return '<b>Na trave!</b> ' + n + ' quase'; },
+          function (n) { return '<b>No travessão!</b> A bola voltou no chute de ' + n; },
+          function (n) { return '<b>Que azar!</b> ' + n + ' acertou o poste'; }
+        ]},
+        bloqueou: {ico: 'bi-shield', txt: [
+          function (n) { return 'A defesa bloqueou o chute de ' + n; },
+          function (n) { return n + ' chutou, o zagueiro travou'; },
+          function (n) { return 'Desviaram a finalização de ' + n; }
+        ]},
+        falta: {ico: 'bi-flag', txt: [
+          function (n) { return 'Falta perigosa, ' + n + ' na bola'; },
+          function (n) { return 'Falta na entrada da área — ' + n + ' vai cobrar'; },
+          function (n) { return n + ' sofreu falta em posição boa'; }
+        ]},
+        troca: {ico: 'bi-arrow-left-right', txt: null}   // tem texto próprio
       };
+
+      function fraseDoLance(l, e) {
+        var qual = l.txt[(e.minuto + (e.jogador || '').length) % l.txt.length];
+        return qual(e.jogador);
+      }
 
       function textoDoLance(e) {
         if (e.tipo === 'gol') {
@@ -1248,9 +1280,13 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         }
         if (e.tipo === 'amarelo') return 'Amarelo para ' + e.jogador;
 
+        if (e.tipo === 'troca') {
+          return '<i class="bi bi-arrow-left-right"></i> <b>Substituição:</b> sai ' +
+                 e.sai + ', entra ' + e.jogador;
+        }
         var l = LANCES[e.tipo];
-        if (!l) return e.jogador || '';
-        return '<i class="bi ' + l.ico + '"></i> ' + l.txt(e) +
+        if (!l || !l.txt) return e.jogador || '';
+        return '<i class="bi ' + l.ico + '"></i> ' + fraseDoLance(l, e) +
                (e.meu ? '' : ' <i>(eles)</i>');
       }
 
