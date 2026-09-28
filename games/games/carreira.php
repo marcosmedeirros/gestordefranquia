@@ -1864,6 +1864,9 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             <td class="num"><?= h(futDinheiro($v)) ?></td>
             <td class="num"><?= h(futDinheiro($s)) ?></td>
             <td class="num">
+              <?php if (!empty($j['emprestado_de'])): ?>
+                <span style="font-size:11px;color:var(--txt3)">volta pro <?= h($j['emprestado_de']) ?></span>
+              <?php else: ?>
               <form method="post" style="display:inline">
                 <input type="hidden" name="acao" value="vender">
                 <input type="hidden" name="aba" value="elenco">
@@ -1872,6 +1875,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
                 <input type="hidden" name="comprador" value="um clube interessado">
                 <button class="btn sec peq" type="submit">Vender</button>
               </form>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>

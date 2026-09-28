@@ -1504,6 +1504,12 @@ function futCarreiraVender(array $estado, string $jogador, float $oferta, string
     $achou = false;
     foreach ($estado['elenco'] as $i => $j) {
         if ($j['nome'] !== $jogador) continue;
+        /* EMPRESTADO NÃO SE VENDE: o passe é de outro clube. A tela já
+           esconde o botão, mas quem manda o POST na mão passaria por ela. */
+        if (!empty($j['emprestado_de'])) {
+            return ['ok' => false, 'estado' => $estado,
+                    'motivo' => $jogador . ' está emprestado pelo ' . $j['emprestado_de'] . ' — o passe não é seu.'];
+        }
         unset($estado['elenco'][$i]);
         $achou = true;
         break;
