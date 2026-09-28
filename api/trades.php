@@ -553,9 +553,15 @@ function anunciarMultiTradeNoGrupo(PDO $pdo, int $tradeId): array
     if (count($teams) < 2) return ['anunciou' => false, 'motivo' => 'menos de 2 times'];
 
     $ovrCol = playerOvrColumn($pdo);
+    /* A IDADE ENTRA AQUI. O rótulo do jogador já sabia mostrá-la — é a mesma
+       função que a troca de dois times usa, e lá sai "Mike Conley (87/27y PG)".
+       Na múltipla ela nunca era buscada, então o rótulo caía no ramo sem idade
+       e o anúncio saía "Ebuka Okorie (77 PG)". */
     $st = $pdo->prepare("SELECT i.from_team_id, i.to_team_id, i.pick_id,
                                 i.player_id, i.player_name, i.player_position, i.player_ovr,
+                                i.player_age,
                                 p.name AS p_name, p.position AS p_pos, p.{$ovrCol} AS p_ovr,
+                                p.age AS p_age,
                                 pk.season_year, pk.round, pk.swap_type, pk.protection,
                                 pk.protection_resultado, pk.original_team_id,
                                 ot.city AS o_city, ot.name AS o_name
@@ -579,6 +585,8 @@ function anunciarMultiTradeNoGrupo(PDO $pdo, int $tradeId): array
                 'name'     => $i['p_name'] ?? $i['player_name'] ?? 'Jogador',
                 'ovr'      => $ovr,
                 'position' => $i['p_pos'] ?? $i['player_position'] ?? null,
+                // O cadastro manda; o snapshot cobre quem já saiu do app.
+                'age'      => (int)($i['p_age'] ?? 0) ?: (int)($i['player_age'] ?? 0),
             ];
             if ($ovr > $maiorOvr) $maiorOvr = $ovr;
         }
