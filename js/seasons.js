@@ -2272,10 +2272,10 @@ function montarOrdemGeral() {
                     name="geral_rank_${primeiro + i}" style="border-radius:10px;flex:1 1 auto;min-width:0"
                     onchange="_updateStandingsUnique('geral'); _atualizar7x8OrdemGeral(); _regPtsSaveCache();">${opts(timeDaLinha)}</select>
             <label class="d-flex align-items-center gap-1 mb-0 text-nowrap" style="flex:0 0 auto;cursor:pointer;font-size:12px;color:var(--text-3)"
-                   title="Marque os times que perderam o Jogo 2 do Play-in — eles entram na loteria com 1 bolinha, a menor chance">
+                   title="Marque os times que perderam o Jogo 2 do Play-in — ou, quando não houve play-in, os dois que ficaram em 9º nas conferências. Eles entram na loteria com 1 bolinha, a menor chance">
                 <input type="checkbox" class="form-check-input mt-0" name="geral_7x8_${primeiro + i}"
                        ${marcado ? 'checked' : ''} onchange="_atualizarContador7x8(); _regPtsSaveCache();">
-                Perdeu Jogo 2 Playin
+                Perdeu jogo 2 playin/9
             </label>
         </div>`;
     }).join('');
@@ -2574,7 +2574,8 @@ async function loadTeamsForStandings(league) {
                     A classificação completa, do <b>1º ao último</b>. Ela define as <b>moedas da FA</b>
                     (quanto pior, mais moedas), a <b>ordem das picks</b> de quem não vai pra loteria
                     (quanto melhor, mais tarde escolhe) e os grupos de bolinhas da <b>loteria</b>.
-                    "Perdeu Jogo 2 Playin" só vale pra quem ficou fora dos playoffs.
+                    "Perdeu jogo 2 playin/9" só vale pra quem ficou fora dos playoffs — e, na temporada
+                    sem play-in, são os dois times que ficaram em 9º nas conferências.
                 </div>
                 <div id="contador7x8" class="small mb-2"></div>
                 <div id="ordemGeralSlots"></div>
