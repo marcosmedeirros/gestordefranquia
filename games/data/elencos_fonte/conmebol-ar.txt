@@ -1,0 +1,391 @@
+# ELENCOS DOS CLUBES ARGENTINOS — fonte enviada pelo dono do jogo em 27/09/2026.
+#
+# Formato de cada linha:  POS Nome idade OVR [Titular|Reserva]
+# Linha que começa com "# CLUBE:" abre o elenco de um clube.
+#
+# As posições aqui são as da planilha (LE, LD, MC, PE, PD); quem traduz pras
+# sete do jogo é games/core/fut_importar_ovr.php.
+
+# CLUBE: River Plate
+GOL | Franco Armani | 39 | 85 | Titular
+ZAG | Paulo Díaz | 29 | 87 | Titular
+ZAG | Germán Pezzella | 34 | 86 | Titular
+LE | Marcos Acuña | 34 | 88 | Titular
+LD | Fabricio Bustos | 29 | 85 | Titular
+VOL | Matías Kranevitter | 32 | 84 | Titular
+MC | Rodrigo Aliendro | 33 | 85 | Titular
+MEI | Franco Mastantuono | 18 | 86 | Titular
+MEI | Claudio Echeverri | 20 | 87 | Titular
+ATA | Facundo Colidio | 24 | 85 | Titular
+ATA | Miguel Borja | 31 | 88 | Titular
+GOL | Jeremías Ledesma | 31 | 80 | Reserva
+MEI | Maximiliano Meza | 31 | 81 | Reserva
+ATA | Pablo Solari | 23 | 82 | Reserva
+
+# CLUBE: Boca Juniors
+GOL | Sergio Romero | 39 | 84 | Titular
+ZAG | Marcos Rojo | 34 | 85 | Titular
+ZAG | Cristian Lema | 33 | 83 | Titular
+LE | Lautaro Blanco | 25 | 84 | Titular
+LD | Luis Advíncula | 34 | 85 | Titular
+VOL | Pol Fernández | 32 | 83 | Titular
+MC | Cristian Medina | 23 | 86 | Titular
+MEI | Kevin Zenón | 22 | 85 | Titular
+PE | Exequiel Zeballos | 22 | 84 | Titular
+ATA | Miguel Merentiel | 28 | 86 | Titular
+ATA | Edinson Cavani | 39 | 87 | Titular
+GOL | Leandro Brey | 21 | 78 | Reserva
+ZAG | Nicolás Figal | 30 | 80 | Reserva
+ATA | Milton Giménez | 25 | 79 | Reserva
+
+# CLUBE: Racing
+GOL | Gabriel Arias | 38 | 82 | Titular
+ZAG | Marco Di Cesare | 22 | 80 | Titular
+ZAG | Agustín Basso | 29 | 81 | Titular
+LE | Gabriel Rojas | 28 | 79 | Titular
+LD | Gastón Martirena | 24 | 79 | Titular
+VOL | Juan Nardoni | 21 | 80 | Titular
+MC | Agustín Almendra | 24 | 81 | Titular
+MEI | Juan Quintero | 31 | 84 | Titular
+PE | Maximiliano Salas | 26 | 80 | Titular
+ATA | Roger Martínez | 30 | 83 | Titular
+ATA | Adrián Martínez | 31 | 85 | Titular
+GOL | Facundo Cambeses | 27 | 75 | Reserva
+ZAG | Leonardo Sigali | 37 | 76 | Reserva
+PD | Santiago Solari | 27 | 76 | Reserva
+
+# CLUBE: Estudiantes
+GOL | Matías Mansilla | 28 | 80 | Titular
+ZAG | Federico Fernández | 35 | 81 | Titular
+ZAG | Luciano Lollo | 37 | 79 | Titular
+LE | Gastón Benedetti | 23 | 78 | Titular
+LD | Eric Meza | 25 | 77 | Titular
+VOL | Santiago Ascacíbar | 27 | 83 | Titular
+MC | Enzo Pérez | 38 | 82 | Titular
+MEI | José Sosa | 39 | 81 | Titular
+PE | Pablo Piatti | 35 | 80 | Titular
+PD | Tiago Palacios | 23 | 79 | Titular
+ATA | Guido Carrillo | 33 | 82 | Titular
+GOL | Fabricio Iacovich | 22 | 72 | Reserva
+ZAG | Mauro Boselli | 39 | 74 | Reserva
+ATA | Edwuin Cetré | 26 | 74 | Reserva
+
+# CLUBE: San Lorenzo
+GOL | Facundo Altamirano | 28 | 78 | Titular
+ZAG | Jhohan Romaña | 25 | 79 | Titular
+ZAG | Gastón Campi | 33 | 77 | Titular
+LE | Malcom Braida | 27 | 80 | Titular
+LD | Gonzalo Luján | 23 | 76 | Titular
+VOL | Elián Irala | 20 | 78 | Titular
+MC | Eric Remedi | 29 | 77 | Titular
+MEI | Iker Muniain | 33 | 82 | Titular
+PE | Nahuel Barrios | 26 | 79 | Titular
+PD | Iván Leguizamón | 22 | 76 | Titular
+ATA | Alexis Cuello | 24 | 78 | Titular
+GOL | Gastón Gómez | 28 | 70 | Reserva
+ZAG | Nicolás Hernández | 26 | 72 | Reserva
+ATA | Andrés Vombergar | 29 | 73 | Reserva
+
+# CLUBE: Independiente
+GOL | Rodrigo Rey | 33 | 81 | Titular
+ZAG | Joaquín Laso | 34 | 77 | Titular
+ZAG | Kevin Lomónaco | 22 | 78 | Titular
+LE | Damián Pérez | 35 | 76 | Titular
+LD | Federico Vera | 26 | 79 | Titular
+VOL | Iván Marcone | 34 | 80 | Titular
+MC | David Martínez | 20 | 77 | Titular
+MEI | Lucas González | 24 | 78 | Titular
+PE | Santiago Montiel | 23 | 76 | Titular
+PD | Javier Vallejo | 20 | 75 | Titular
+ATA | Gabriel Ávalos | 33 | 80 | Titular
+GOL | Diego Segovia | 24 | 69 | Reserva
+ZAG | Juan Fedorco | 23 | 72 | Reserva
+ATA | Santiago Hidalgo | 19 | 71 | Reserva
+
+# CLUBE: Talleres
+GOL | Guido Herrera | 32 | 82 | Titular
+ZAG | Matías Catalán | 31 | 81 | Titular
+ZAG | Juan Portillo | 24 | 79 | Titular
+LE | Miguel Navarro | 25 | 78 | Titular
+LD | Gastón Benavídez | 28 | 80 | Titular
+VOL | Ulises Ortegoza | 27 | 78 | Titular
+MC | Marcos Portillo | 24 | 77 | Titular
+MEI | Rubén Botta | 34 | 81 | Titular
+PE | Valentín Depietri | 23 | 76 | Titular
+PD | Sebastián Palacios | 32 | 77 | Titular
+ATA | Federico Girotti | 25 | 80 | Titular
+GOL | Lautaro Morales | 24 | 71 | Reserva
+ZAG | Lucas Suárez | 29 | 72 | Reserva
+ATA | Cristian Tarragona | 33 | 73 | Reserva
+
+# CLUBE: Vélez Sarsfield
+GOL | Tomás Marchiori | 29 | 79 | Titular
+ZAG | Emanuel Mammana | 28 | 78 | Titular
+ZAG | Valentín Gómez | 21 | 79 | Titular
+LE | Elías Gómez | 30 | 77 | Titular
+LD | Joaquín García | 23 | 76 | Titular
+VOL | Christian Ordoñez | 20 | 78 | Titular
+MC | Agustín Bouzat | 30 | 77 | Titular
+MEI | Claudio Aquino | 32 | 81 | Titular
+PD | Francisco Pizzini | 30 | 78 | Titular
+PE | Thiago Fernández | 20 | 79 | Titular
+ATA | Braian Romero | 33 | 80 | Titular
+GOL | Lautaro Garzón | 21 | 68 | Reserva
+ZAG | Patricio Pernicone | 23 | 69 | Reserva
+MEI | Matías Pellegrini | 24 | 72 | Reserva
+
+# CLUBE: Rosario Central
+GOL | Jorge Broun | 38 | 79 | Titular
+ZAG | Facundo Mallo | 29 | 78 | Titular
+ZAG | Carlos Quintana | 36 | 77 | Titular
+LE | Agustín Sández | 23 | 76 | Titular
+LD | Emanuel Coronel | 27 | 76 | Titular
+VOL | Franco Ibarra | 23 | 77 | Titular
+MC | Mauricio Martínez | 31 | 78 | Titular
+MEI | Ignacio Malcorra | 37 | 80 | Titular
+PE | Jaminton Campaz | 24 | 81 | Titular
+PD | Maximiliano Lovera | 25 | 75 | Titular
+ATA | Marco Ruben | 37 | 79 | Titular
+GOL | Axel Werner | 28 | 70 | Reserva
+ZAG | Juan Giménez | 18 | 71 | Reserva
+ATA | Enzo Copetti | 28 | 72 | Reserva
+
+# CLUBE: Newell's
+GOL | Lucas Hoyos | 35 | 77 | Titular
+ZAG | Gustavo Velázquez | 33 | 78 | Titular
+ZAG | Saúl Salcedo | 27 | 76 | Titular
+LE | Ángelo Martino | 26 | 75 | Titular
+LD | Armando Méndez | 28 | 76 | Titular
+VOL | Julián Fernández | 29 | 77 | Titular
+MC | Éver Banega | 36 | 80 | Titular
+MEI | Matko Miljevic | 23 | 75 | Titular
+PE | Francisco González | 23 | 74 | Titular
+PD | Fernando Cardozo | 23 | 74 | Titular
+ATA | Ignacio Ramírez | 27 | 78 | Titular
+GOL | Ramiro Macagno | 27 | 69 | Reserva
+LE | Leonel Vangioni | 37 | 70 | Reserva
+ATA | Juan Manuel Garcia | 31 | 71 | Reserva
+
+# CLUBE: Lanús
+GOL | Nahuel Losada | 31 | 77 | Titular
+ZAG | Carlos Izquierdoz | 35 | 76 | Titular
+ZAG | Ezequiel Muñoz | 33 | 75 | Titular
+LE | Julio Soler | 19 | 76 | Titular
+LD | Juan Cáceres | 24 | 74 | Titular
+VOL | Felipe Peña Biafore | 23 | 77 | Titular
+MC | Luciano Boggio | 25 | 75 | Titular
+MEI | Marcelino Moreno | 30 | 78 | Titular
+PD | Eduardo Salvio | 34 | 76 | Titular
+PE | Lautaro Acosta | 36 | 74 | Titular
+ATA | Walter Bou | 31 | 78 | Titular
+GOL | Alan Aguerre | 33 | 66 | Reserva
+VOL | Gonzalo Pérez | 23 | 68 | Reserva
+ATA | Leandro Díaz | 32 | 69 | Reserva
+
+# CLUBE: Argentinos Juniors
+GOL | Diego Rodríguez | 35 | 76 | Titular
+ZAG | Jonatan Galván | 32 | 75 | Titular
+ZAG | Francisco Álvarez | 24 | 74 | Titular
+LE | Román Vega | 20 | 73 | Titular
+LD | Thiago Santamaría | 21 | 74 | Titular
+VOL | Ariel Gamarra | 21 | 75 | Titular
+MC | Nicolás Oroz | 30 | 76 | Titular
+MEI | Alan Lescano | 23 | 77 | Titular
+PE | Emiliano Viveros | 21 | 73 | Titular
+PD | José Herrera | 20 | 74 | Titular
+ATA | Maximiliano Romero | 25 | 76 | Titular
+GOL | Gonzalo Siri | 20 | 65 | Reserva
+LE | Sebastián Prieto | 31 | 67 | Reserva
+ATA | Gastón Verón | 23 | 68 | Reserva
+
+# CLUBE: Belgrano
+GOL | Ignacio Chicco | 28 | 75 | Titular
+ZAG | Mariano Troilo | 21 | 73 | Titular
+ZAG | Alejandro Baldi | 23 | 72 | Titular
+LE | Rafael Delgado | 34 | 74 | Titular
+LD | Juan Barinaga | 23 | 75 | Titular
+VOL | Facundo Quignon | 31 | 74 | Titular
+MC | Esteban Rolón | 29 | 73 | Titular
+MEI | Francisco Metilli | 27 | 76 | Titular
+PE | Bryan Reyna | 26 | 75 | Titular
+PD | Pablo Velázquez | 24 | 73 | Titular
+ATA | Franco Jara | 36 | 77 | Titular
+GOL | Juan Espínola | 29 | 65 | Reserva
+ZAG | Nicolás Meriano | 23 | 67 | Reserva
+ATA | Matías Suárez | 36 | 68 | Reserva
+
+# CLUBE: Huracán
+GOL | Hernán Galíndez | 37 | 77 | Titular
+ZAG | Fabio Pereyra | 34 | 75 | Titular
+ZAG | Lucas Carrizo | 27 | 74 | Titular
+LE | Guillermo Benítez | 30 | 73 | Titular
+LD | Hernán De la Fuente | 27 | 72 | Titular
+VOL | Rodrigo Echeverría | 29 | 76 | Titular
+MC | Williams Alarcón | 23 | 75 | Titular
+MEI | Héctor Fértoli | 29 | 74 | Titular
+PE | Rodrigo Cabral | 24 | 74 | Titular
+PD | Walter Mazzantti | 28 | 75 | Titular
+ATA | Ignacio Pussetto | 28 | 76 | Titular
+GOL | Sebastián Meza | 24 | 65 | Reserva
+ZAG | Fernando Tobio | 34 | 67 | Reserva
+ATA | Ramón Ábila | 34 | 68 | Reserva
+
+# CLUBE: Defensa y Justicia
+GOL | Cristopher Fiermarin | 26 | 74 | Titular
+ZAG | Santiago Ramos Mingo | 22 | 75 | Titular
+ZAG | Emanuel Aguilera | 35 | 73 | Titular
+LE | Alexis Soto | 31 | 76 | Titular
+LD | Nicolás Tripichio | 28 | 75 | Titular
+VOL | Kevin Gutiérrez | 27 | 76 | Titular
+MC | Julián López | 24 | 73 | Titular
+MEI | Rodrigo Bogarín | 27 | 74 | Titular
+PE | Matías Palavecino | 26 | 73 | Titular
+PD | Facundo Portillo | 21 | 72 | Titular
+ATA | Abiel Osorio | 22 | 74 | Titular
+GOL | Enrique Bologna | 42 | 66 | Reserva
+LD | Ezequiel Cannavo | 22 | 65 | Reserva
+ATA | Andrés Herrera | 25 | 68 | Reserva
+
+# CLUBE: Godoy Cruz
+GOL | Franco Petroli | 26 | 75 | Titular
+ZAG | Pier Barrios | 34 | 74 | Titular
+ZAG | Federico Rasmussen | 32 | 73 | Titular
+LE | Elías Pereyra | 25 | 72 | Titular
+LD | Lucas Arce | 27 | 74 | Titular
+VOL | Bruno Leyes | 22 | 73 | Titular
+MC | Nicolás Fernández | 24 | 75 | Titular
+MEI | Vicente Poggi | 22 | 72 | Titular
+PE | Juan Cejas | 26 | 73 | Titular
+PD | Facundo Altamira | 23 | 74 | Titular
+ATA | Martín Pino | 26 | 73 | Titular
+GOL | Roberto Ramírez | 28 | 64 | Reserva
+ZAG | Braian Salvareschi | 25 | 65 | Reserva
+ATA | Salomón Rodríguez | 24 | 67 | Reserva
+
+# CLUBE: Gimnasia La Plata
+GOL | Marcos Ledesma | 27 | 74 | Titular
+ZAG | Leonardo Morales | 33 | 73 | Titular
+ZAG | Yonathan Cabral | 32 | 72 | Titular
+LE | Nicolás Colazo | 34 | 71 | Titular
+LD | Juan Pintado | 27 | 73 | Titular
+VOL | Matías Miranda | 24 | 72 | Titular
+MC | Pablo De Blasis | 36 | 75 | Titular
+MEI | Lucas Castro | 35 | 73 | Titular
+PE | Benjamín Domínguez | 20 | 74 | Titular
+PD | Matías Abaldo | 20 | 72 | Titular
+ATA | Rodrigo Castillo | 25 | 74 | Titular
+GOL | Nelson Insfrán | 29 | 62 | Reserva
+ZAG | Juan Cortazzo | 20 | 63 | Reserva
+ATA | Ivo Mammini | 21 | 66 | Reserva
+
+# CLUBE: Banfield
+GOL | Facundo Sanguinetti | 23 | 74 | Titular
+ZAG | Alejandro Maciel | 27 | 73 | Titular
+ZAG | Gabriel Maldonado | 21 | 71 | Titular
+LE | Emanuel Insúa | 33 | 72 | Titular
+LD | Ezequiel Bonifacio | 30 | 71 | Titular
+VOL | Cristian Núñez | 24 | 72 | Titular
+MC | Ezequiel Cañete | 25 | 73 | Titular
+MEI | Matías González | 22 | 72 | Titular
+PE | Juan Pablo Álvarez | 28 | 74 | Titular
+PD | Ignacio Galván | 21 | 72 | Titular
+ATA | Bruno Sepúlveda | 31 | 75 | Titular
+GOL | Facundo Faccioli | 22 | 62 | Reserva
+ZAG | Mateo Iribarren | 20 | 64 | Reserva
+MC | Jesús Roldán | 21 | 65 | Reserva
+
+# CLUBE: Unión Santa Fe
+GOL | Thiago Cardozo | 28 | 73 | Titular
+ZAG | Nicolás Paz | 21 | 72 | Titular
+ZAG | Franco Pardo | 27 | 71 | Titular
+LE | Claudio Corvalán | 35 | 74 | Titular
+LD | Lautaro Vargas | 20 | 72 | Titular
+VOL | Joaquín Mosqueira | 19 | 73 | Titular
+MC | Mauro Pittón | 29 | 71 | Titular
+MEI | Mauro Luna Diale | 25 | 74 | Titular
+PE | Adrián Balboa | 30 | 72 | Titular
+PD | Nicolás Orsini | 29 | 71 | Titular
+ATA | Gonzalo Morales | 21 | 73 | Titular
+GOL | Nicolás Campisi | 27 | 61 | Reserva
+ZAG | Valentín Fascendini | 21 | 62 | Reserva
+ATA | Jerónimo Dómina | 18 | 65 | Reserva
+
+# CLUBE: Tigre
+GOL | Felipe Zenobio | 24 | 72 | Titular
+ZAG | Brian Leizza | 24 | 71 | Titular
+ZAG | Augusto Nardelli | 23 | 70 | Titular
+LE | Sebastián Marchese | 21 | 71 | Titular
+LD | Martín Ortega | 25 | 72 | Titular
+VOL | Agustín Cardozo | 27 | 73 | Titular
+MC | Martín Garay | 25 | 71 | Titular
+MEI | Gonzalo Maroni | 25 | 74 | Titular
+PE | Ezequiel Forclaz | 21 | 72 | Titular
+PD | Tomás Galván | 24 | 73 | Titular
+ATA | Camilo Monelli | 20 | 72 | Titular
+GOL | Matías Tagliamonte | 26 | 61 | Reserva
+ZAG | Kevin Lomonaco | 22 | 63 | Reserva
+ATA | Leandro Contín | 28 | 65 | Reserva
+
+# CLUBE: Barracas Central
+GOL | Sebastián Moyano | 34 | 71 | Titular
+ZAG | Nicolás Capraro | 26 | 70 | Titular
+ZAG | Gonzalo Sánchez | 24 | 69 | Titular
+LE | Nicolás Tolosa | 23 | 70 | Titular
+LD | Facundo Mater | 26 | 72 | Titular
+VOL | Rodrigo Herrera | 24 | 71 | Titular
+MC | Siro Rosané | 24 | 70 | Titular
+MEI | Iván Tapia | 25 | 73 | Titular
+PE | Maximiliano Zalazar | 23 | 71 | Titular
+PD | Lucas Iacobellis | 21 | 69 | Titular
+ATA | Alexis Domínguez | 27 | 72 | Titular
+GOL | Rafael Ferrario | 24 | 60 | Reserva
+MC | Dardo Velarte | 22 | 62 | Reserva
+ATA | Daniel Juárez | 22 | 64 | Reserva
+
+# CLUBE: Instituto
+GOL | Manuel Roffo | 24 | 72 | Titular
+ZAG | Fernando Alarcón | 34 | 73 | Titular
+ZAG | Miguel Brizuela | 27 | 70 | Titular
+LE | Jonathan Bay | 31 | 69 | Titular
+LD | Giuliano Cerato | 26 | 71 | Titular
+VOL | Gastón Lodico | 26 | 73 | Titular
+MC | Nicolás Dubersarsky | 19 | 69 | Titular
+MEI | Damián Puebla | 21 | 72 | Titular
+PE | Jonas Acevedo | 27 | 70 | Titular
+PD | Ignacio Russo | 23 | 71 | Titular
+ATA | Facundo Suárez | 29 | 72 | Titular
+GOL | Joaquín Papaleo | 30 | 60 | Reserva
+ZAG | Gonzalo Requena | 21 | 62 | Reserva
+ATA | Gregorio Rodríguez | 24 | 64 | Reserva
+
+# CLUBE: Platense
+GOL | Juan Cozzani | 25 | 72 | Titular
+ZAG | Ignacio Vázquez | 27 | 71 | Titular
+ZAG | Gastón Suso | 33 | 70 | Titular
+LE | Sasha Marcich | 26 | 71 | Titular
+LD | Bautista Barros Schelotto | 24 | 69 | Titular
+VOL | Leonel Picco | 25 | 71 | Titular
+MC | Fernando Juárez | 26 | 70 | Titular
+MEI | Iván Gómez | 27 | 72 | Titular
+PE | Agustín Ocampo | 26 | 71 | Titular
+PD | Guido Mainero | 29 | 70 | Titular
+ATA | Mateo Pellegrino | 22 | 73 | Titular
+GOL | Ramiro Desábato | 23 | 60 | Reserva
+LD | Juan Saborido | 25 | 62 | Reserva
+ATA | Facundo Quiroga | 21 | 64 | Reserva
+
+# CLUBE: Central Córdoba
+GOL | Luis Ingolotti | 24 | 70 | Titular
+ZAG | Federico Abascia | 25 | 71 | Titular
+ZAG | Yonatthan Valdez | 23 | 69 | Titular
+LE | Andrés Meli | 21 | 70 | Titular
+LD | Fernando Torrent | 32 | 69 | Titular
+VOL | Kevin Vega | 21 | 71 | Titular
+MC | José Florentín | 28 | 72 | Titular
+MEI | Rodrigo Atencio | 21 | 71 | Titular
+PE | Matías Godoy | 22 | 70 | Titular
+PD | Elías Cabrera | 21 | 71 | Titular
+ATA | Tomás Varaldo | 22 | 72 | Titular
+GOL | Julián Bursich | 22 | 60 | Reserva
+ZAG | Yonathan Rak | 30 | 62 | Reserva
+ATA | Ramón Angulo | 21 | 64 | Reserva

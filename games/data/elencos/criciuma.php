@@ -1,0 +1,32 @@
+<?php
+/**
+ * ELENCO REAL — Criciúma.
+ *
+ * Gerado por games/core/fut_importar_ovr.php a partir de
+ * games/data/elencos_fonte/. NÃO EDITE À MÃO: mexa na fonte e rode o
+ * importador de novo, senão a próxima importação apaga a mudança.
+ *
+ * O overall veio pronto da fonte — foi gerado em cima da força do clube,
+ * e recalcular aqui só afastaria o elenco dela.
+ */
+
+return [
+    ['nome' => 'Gustavo', 'pos' => 'GOL', 'ovr' => 62, 'idade' => 33, 'num' => 1, 'potencial' => 62, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Rodrigo', 'pos' => 'ZAG', 'ovr' => 61, 'idade' => 38, 'num' => 2, 'potencial' => 61, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Tobias Figueiredo', 'pos' => 'ZAG', 'ovr' => 60, 'idade' => 34, 'num' => 3, 'potencial' => 60, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Marcelo Hermes', 'pos' => 'LAT', 'ovr' => 62, 'idade' => 31, 'num' => 4, 'potencial' => 62, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Claudinho', 'pos' => 'LAT', 'ovr' => 60, 'idade' => 25, 'num' => 5, 'potencial' => 64, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Barreto', 'pos' => 'VOL', 'ovr' => 60, 'idade' => 30, 'num' => 6, 'potencial' => 60, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Higor Meritão', 'pos' => 'MEI', 'ovr' => 60, 'idade' => 32, 'num' => 7, 'potencial' => 60, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Marquinhos Gabriel', 'pos' => 'MEI', 'ovr' => 61, 'idade' => 36, 'num' => 8, 'potencial' => 61, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Matheusinho', 'pos' => 'PON', 'ovr' => 61, 'idade' => 28, 'num' => 9, 'potencial' => 62, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Arthur Caíke', 'pos' => 'PON', 'ovr' => 60, 'idade' => 34, 'num' => 10, 'potencial' => 60, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Yannick Bolasie', 'pos' => 'ATA', 'ovr' => 62, 'idade' => 37, 'num' => 11, 'potencial' => 62, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Alisson', 'pos' => 'GOL', 'ovr' => 57, 'idade' => 31, 'num' => 12, 'potencial' => 57, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Wilker Ángel', 'pos' => 'ZAG', 'ovr' => 59, 'idade' => 33, 'num' => 13, 'potencial' => 59, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Jonathan', 'pos' => 'LAT', 'ovr' => 58, 'idade' => 34, 'num' => 14, 'potencial' => 58, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Newton', 'pos' => 'VOL', 'ovr' => 59, 'idade' => 26, 'num' => 15, 'potencial' => 62, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Ronald', 'pos' => 'MEI', 'ovr' => 59, 'idade' => 29, 'num' => 16, 'potencial' => 60, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Allano', 'pos' => 'PON', 'ovr' => 59, 'idade' => 31, 'num' => 17, 'potencial' => 59, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Felipe Vizeu', 'pos' => 'ATA', 'ovr' => 60, 'idade' => 29, 'num' => 18, 'potencial' => 61, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+];
