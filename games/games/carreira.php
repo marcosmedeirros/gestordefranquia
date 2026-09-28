@@ -454,7 +454,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <label for="clube">Clube</label>
         <select id="clube" name="clube" required>
           <?php foreach ($disponiveis as $nome => $c): ?>
-            <option value="<?= h($nome) ?>"><?= h($nome) ?> — <?= h($c['div'] ?: 'estadual') ?>, força <?= (int)$c['forca'] ?></option>
+            <option value="<?= h($nome) ?>"><?= h($nome) ?> — <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?>, força <?= (int)$c['forca'] ?></option>
           <?php endforeach; ?>
         </select>
       </div>
@@ -476,7 +476,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <div class="clube-nome"><?= h($estado['clube']) ?></div>
         <div class="clube-sub">
           <?= h($estado['tecnico']['nome']) ?> ·
-          <?= h($clubesTodos[$estado['clube']]['div'] ?? 'estadual') ?> ·
+          <?= h(futCarreiraRotuloDaDivisao((string)($clubesTodos[$estado['clube']]['div'] ?? ''))) ?> ·
           temporada <?= (int)$estado['temporada'] ?> (<?= (int)$estado['ano'] ?>)
         </div>
       </div>
@@ -590,7 +590,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               <div style="min-width:0;flex:1">
                 <div style="font-weight:800"><?= h($pr['nome']) ?></div>
                 <div style="font-size:11.5px;color:var(--txt2)">
-                  <?= h($pr['div'] ?: 'estadual') ?> · força <?= (int)$pr['forca'] ?>
+                  <?= h(futCarreiraRotuloDaDivisao((string)$pr['div'])) ?> · força <?= (int)$pr['forca'] ?>
                 </div>
               </div>
               <form method="post" onsubmit="return confirm('Assumir o <?= h($pr['nome']) ?>? Você deixa o <?= h($estado['clube']) ?>.')">
@@ -672,7 +672,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               <div style="min-width:0;flex:1">
                 <div style="font-weight:800"><?= h($nome) ?></div>
                 <div style="font-size:11.5px;color:var(--txt2)">
-                  <?= h($c['div'] ?: 'estadual') ?> · força <?= (int)$c['forca'] ?>
+                  <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?> · força <?= (int)$c['forca'] ?>
                   · técnico atual: <?= h(futTecnicoDoClube($nome, (int)$estado['temporada'], $estado['trocas_tecnico'] ?? [])) ?>
                 </div>
               </div>
@@ -1243,8 +1243,12 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       /* O mercado varre a sua divisão e a de baixo: é de onde o clube compra
          de verdade. Varrer os 98 clubes deixaria a lista lenta e cheia de nome
          que não interessa a ninguém. */
-      $ordem = ['BR1' => ['BR1', 'BR2'], 'BR2' => ['BR2', 'BR3'], 'BR3' => ['BR3', '']];
-      $divs = $ordem[$div] ?? ['BR3', ''];
+      /* A Série D fechou o fundo da escada: antes o clube da Série C varria a
+         divisão de baixo procurando quem não tinha divisão nenhuma, e desde que
+         esses 42 clubes viraram a Série D essa busca não achava mais ninguém. */
+      $ordem = ['BR1' => ['BR1', 'BR2'], 'BR2' => ['BR2', 'BR3'],
+                'BR3' => ['BR3', 'BR4'], 'BR4' => ['BR4']];
+      $divs = $ordem[$div] ?? ['BR4'];
       $fonte = [];
       foreach ($divs as $d) {
         foreach ($clubesTodos as $c) if (($c['div'] ?? '') === $d && $c['nome'] !== $estado['clube']) $fonte[] = $c;

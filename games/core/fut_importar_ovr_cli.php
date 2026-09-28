@@ -20,7 +20,7 @@ $catalogo = [];
 foreach (COPERO_CLUBES as $c) $catalogo[$c[0]] = (int)$c[2];
 foreach (FUT_CLUBES_BR_EXTRA as $c) $catalogo[$c[0]] = (int)$c[3];
 
-$total = 0; $fora = []; $semCatalogo = [];
+$total = 0; $fora = []; $semCatalogo = []; $colidem = [];
 foreach (array_merge(glob($fonte . '/conmebol-*.txt'), glob($fonte . '/br-ovr.txt')) as $arq) {
     $clubes = futOvrLerTexto(file_get_contents($arq));
     echo "\n=== " . basename($arq) . ' — ' . count($clubes) . " clubes ===\n";
@@ -35,9 +35,10 @@ foreach (array_merge(glob($fonte . '/conmebol-*.txt'), glob($fonte . '/br-ovr.tx
         if ($alvo === null) $semCatalogo[] = $nome;
         elseif (abs($dif) > 2) $fora[] = "{$nome}: elenco {$forca}, catálogo {$alvo}";
 
+        $atropelado = $oficial === null ? null : futOvrClubeAtropelado($oficial);
+        if ($atropelado !== null) { $colidem[] = $atropelado; }
         if (!$sóConferir && $alvo !== null) {
-            $r = futOvrGravar($oficial, $lista);
-            $total++;
+            if ($atropelado === null) { futOvrGravar($oficial, $lista); $total++; }
         }
         printf("  %-26s %2d jog   força %2d   catálogo %s%s\n",
             $nome, count($lista), $forca, $alvo ?? '—',

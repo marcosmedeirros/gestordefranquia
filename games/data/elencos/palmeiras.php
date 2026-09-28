@@ -11,7 +11,7 @@
  */
 
 return [
-    ['nome' => 'Weverton', 'pos' => 'GOL', 'ovr' => 85, 'idade' => 38, 'num' => 1, 'potencial' => 85, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
+    ['nome' => 'Weverton', 'pos' => 'GOL', 'ovr' => 82, 'idade' => 38, 'num' => 1, 'potencial' => 82, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
     ['nome' => 'Gustavo Gómez', 'pos' => 'ZAG', 'ovr' => 86, 'idade' => 33, 'num' => 2, 'potencial' => 86, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
     ['nome' => 'Murilo', 'pos' => 'ZAG', 'ovr' => 86, 'idade' => 29, 'num' => 3, 'potencial' => 87, 'energia' => 100, 'moral' => 75, 'lesao' => 0],
     ['nome' => 'Joaquín Piquerez', 'pos' => 'LAT', 'ovr' => 85, 'idade' => 28, 'num' => 4, 'potencial' => 86, 'energia' => 100, 'moral' => 75, 'lesao' => 0],

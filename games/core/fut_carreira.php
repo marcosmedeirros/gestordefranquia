@@ -42,6 +42,8 @@ const FUT_ELENCO_MAXIMO = 30;
 const FUT_PREMIACAO = [
     'Brasileirão Série A' => ['campeao' => 45, 'vice' => 22, 'top4' => 12, 'top8' => 6],
     'Brasileirão Série B' => ['campeao' => 12, 'vice' => 8,  'top4' => 5,  'top8' => 2],
+    'Brasileirão Série C' => ['campeao' => 5,  'vice' => 3,  'top4' => 2,  'top8' => 1],
+    'Brasileirão Série D' => ['campeao' => 3,  'vice' => 2,  'top4' => 1,  'top8' => 0],
     'Copa do Brasil'       => ['campeao' => 40, 'vice' => 18, 'top4' => 8,  'top8' => 4],
     'Libertadores'         => ['campeao' => 90, 'vice' => 40, 'top4' => 20, 'top8' => 10],
     'Sul-Americana'        => ['campeao' => 30, 'vice' => 14, 'top4' => 7,  'top8' => 3],
@@ -64,25 +66,61 @@ const FUT_PREMIACAO = [
 function futMetaDaTemporada(array $clube): array
 {
     $div = $clube['div'] ?? '';
-    $forca = (int)($clube['forca'] ?? 50);
+    $nome = $clube['nome'] ?? '';
 
-    if ($div === 'BR1') {
-        if ($forca >= 84) return ['texto' => 'Terminar entre os 4 primeiros da Série A', 'tipo' => 'posicao', 'alvo' => 4];
-        if ($forca >= 78) return ['texto' => 'Vaga na Libertadores (top 6)',             'tipo' => 'posicao', 'alvo' => 6];
-        if ($forca >= 74) return ['texto' => 'Terminar na primeira metade da tabela',    'tipo' => 'posicao', 'alvo' => 10];
-        return ['texto' => 'Escapar do rebaixamento', 'tipo' => 'posicao', 'alvo' => 16];
+    /* Sem divisão nenhuma: rede de segurança pra quem adicionar um clube novo
+       ao catálogo e esquecer a divisão. O estadual é o que sobra pra medir. */
+    if ($div === '') {
+        $forca = (int)($clube['forca'] ?? 50);
+        if ($forca >= 44) return ['texto' => 'Chegar à semifinal do estadual', 'tipo' => 'estadual', 'alvo' => 4];
+        return ['texto' => 'Chegar às quartas do estadual', 'tipo' => 'estadual', 'alvo' => 8];
     }
-    if ($div === 'BR2') {
-        if ($forca >= 64) return ['texto' => 'Subir para a Série A', 'tipo' => 'posicao', 'alvo' => 4];
-        return ['texto' => 'Terminar entre os 8 primeiros da Série B', 'tipo' => 'posicao', 'alvo' => 8];
+
+    /* ONDE O CLUBE ESTÁ NA FILA DA DIVISÃO — é daqui que a cobrança sai.
+       Antes eram faixas de força escritas à mão, uma por divisão, e cada vez
+       que a escala dos elencos mudava as faixas ficavam desencontradas: o
+       melhor clube da Série D, com a maior força da divisão, recebia "acesso"
+       e cumpria zero vezes em vinte temporadas, enquanto o pior da Série A
+       recebia "escapar do rebaixamento" e também não cumpria. Ranqueando, a
+       régua acompanha o catálogo sozinha. */
+    $divisao = futClubesDaDivisao($div);
+    uasort($divisao, fn($a, $b) => (int)$b['forca'] <=> (int)$a['forca']);
+    $total = count($divisao);
+    $lugar = 1;
+    foreach (array_keys($divisao) as $k => $n) {
+        if ($n === $nome) { $lugar = $k + 1; break; }
     }
-    if ($div === 'BR3') {
-        return ['texto' => 'Brigar pelo acesso à Série B', 'tipo' => 'posicao', 'alvo' => 4];
+    if ($total < 4) return ['texto' => 'Terminar entre os 2 primeiros', 'tipo' => 'posicao', 'alvo' => 2];
+
+    /* A DIRETORIA COBRA UM POUCO MAIS DO QUE O ELENCO ENTREGA — mas só um
+       pouco. Três posições acima do lugar natural do clube é o bastante pra a
+       meta exigir uma boa temporada sem exigir um milagre; o técnico cumpre em
+       pouco mais da metade dos anos, que é o ponto onde o emprego vale algo e
+       a demissão continua sendo um risco de verdade. */
+    /* A margem acompanha o tamanho da divisão, e o topo tem piso: nem a
+       diretoria do Palmeiras exige o título todo ano — exige briga por ele. */
+    $margem = max(2, (int)round($total * 0.12));
+    $pisoTopo = max(2, (int)round($total * 0.15));
+    $alvo = max($pisoTopo, min($total - 2, $lugar - $margem));
+
+    // ── E o texto, que é o que o jogador lê ──────────────────────────
+    $acesso = ['BR2' => 'Série A', 'BR3' => 'Série B', 'BR4' => 'Série C'];
+    if ($alvo === 1) {
+        $texto = $div === 'BR1' ? 'Ser campeão brasileiro' : 'Ser campeão da divisão';
+    } elseif ($div === 'BR1' && $alvo <= 4) {
+        $texto = 'Terminar entre os ' . $alvo . ' primeiros da Série A';
+    } elseif ($div === 'BR1' && $alvo <= 6) {
+        $texto = 'Vaga na Libertadores (top ' . $alvo . ')';
+    } elseif ($div !== 'BR1' && $alvo <= 4) {
+        $texto = 'Subir para a ' . ($acesso[$div] ?? 'divisão de cima');
+    } elseif ($alvo >= $total - $margem) {
+        $texto = $div === 'BR4' ? 'Não terminar na lanterna' : 'Escapar do rebaixamento';
+    } else {
+        $texto = 'Terminar entre os ' . $alvo . ' primeiros';
     }
-    // Clube que só joga estadual: a meta é o estadual mesmo.
-    return ['texto' => 'Chegar à semifinal do estadual', 'tipo' => 'estadual', 'alvo' => 4];
+
+    return ['texto' => $texto, 'tipo' => 'posicao', 'alvo' => $alvo];
 }
-
 /**
  * Os clubes onde dá pra COMEÇAR uma carreira.
  *
@@ -206,7 +244,13 @@ function futCarreiraMeuClube(array $estado): array
 {
     $clubes = futClubesDoBrasil();
     $c = $clubes[$estado['clube']] ?? ['nome' => $estado['clube'], 'forca' => 50, 'div' => '', 'uf' => '', 'escudo' => ''];
-    $c['forca'] = futForcaDoElenco($estado['elenco'] ?? []);
+    /* A minha força também é a de campo, e não a média do elenco: é ela que
+       vai pro mesmo futPlacar que mede os rivais (@see futCarreiraForcaEmCampo). */
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $escalados = futCarreiraEscalacaoAtual($estado);
+    $c['forca'] = $escalados
+        ? futForcaEscalada($escalados, $esquema)
+        : futForcaDoElenco($estado['elenco'] ?? []);
     return $c;
 }
 
@@ -216,15 +260,46 @@ function futCarreiraMeuClube(array $estado): array
  */
 function futCarreiraTimes(array $clubes, array $estado): array
 {
-    $saidas = $estado['saidas'] ?? [];
     $meu = $estado['clube'] ?? '';
+    $rodada = (int)($estado['rodada'] ?? 0);
     $out = [];
     foreach ($clubes as $c) {
         if ($c['nome'] === $meu) { $out[] = futCarreiraMeuClube($estado); continue; }
-        $c['forca'] = futForcaDoElenco(futElencoNoJogo($estado, $c['nome'], (int)$c['forca']));
+        $c['forca'] = futCarreiraForcaEmCampo($estado, $c['nome'], (int)$c['forca'], $rodada);
         $out[] = $c;
     }
     return $out;
+}
+
+/**
+ * A FORÇA COM QUE UM CLUBE DO MUNDO ENTRA EM CAMPO nesta altura do ano.
+ *
+ * A MESMA RÉGUA DOS DOIS LADOS. A tabela media o rival pela média do elenco
+ * dele — força cheia, sempre — enquanto o time do jogador entra pela força
+ * escalada, que desconta o esquema, o improviso, o cansaço e a moral. A
+ * campanha do jogador saía então de um jogo e a dos rivais de outro: o clube
+ * mais forte da Série D terminava em último com a maior força da divisão.
+ *
+ * Aqui o rival passa pelas mesmas três funções que o time do jogador —
+ * condição, escalação e futForcaEscalada —, então os pontos que ele faz valem
+ * o mesmo que os do jogador.
+ *
+ * Guarda em memória por clube e rodada: a tabela da Série D pede isto 42 vezes
+ * por tela, e gerar elenco e escalar não é de graça.
+ */
+function futCarreiraForcaEmCampo(array $estado, string $clube, int $forcaCatalogo, int $rodada): int
+{
+    static $cache = [];
+    $chave = $clube . '|' . $forcaCatalogo . '|' . $rodada . '|' . count($estado['saidas'][$clube] ?? []);
+    if (isset($cache[$chave])) return $cache[$chave];
+
+    $elenco = futCondicaoSimulada(
+        futElencoNoJogo($estado, $clube, $forcaCatalogo), $clube, $rodada);
+    $esquema = array_keys(FUT_ESQUEMAS)[crc32($clube) % count(FUT_ESQUEMAS)];
+    $forca = futForcaEscalada(futEscalarAutomatico($elenco, $esquema), $esquema);
+
+    if (count($cache) > 4000) $cache = [];   // o save vira outro a cada temporada
+    return $cache[$chave] = $forca;
 }
 
 /**
@@ -236,6 +311,7 @@ function futCarreiraNomeDaDivisao(string $div): string
         'BR1' => 'Brasileirão Série A',
         'BR2' => 'Brasileirão Série B',
         'BR3' => 'Brasileirão Série C',
+        'BR4' => 'Brasileirão Série D',
         default => '',
     };
 }
@@ -259,7 +335,27 @@ function futCarreiraCalendarioDaLiga(string $div): array
 {
     $ids = array_keys(futClubesDaDivisao($div));
     sort($ids);   // ordem fixa: é o que torna o round-robin reproduzível
-    return futCalendario($ids);
+    // A Série D tem 42 clubes: turno e returno ali dariam 82 rodadas.
+    return futCalendario($ids, $div !== 'BR4');
+}
+
+/**
+ * O NOME CURTO da divisão, para a tela.
+ *
+ * futCarreiraNomeDaDivisao devolve "Brasileirão Série C", que é o nome da
+ * competição e fica comprido no meio de uma linha de clube. Aqui sai só
+ * "Série C" — e, principalmente, sai um nome: a tela mostrava o código cru do
+ * catálogo, então o jogador lia "BR3" na lista de clubes.
+ */
+function futCarreiraRotuloDaDivisao(string $div): string
+{
+    return match ($div) {
+        'BR1' => 'Série A',
+        'BR2' => 'Série B',
+        'BR3' => 'Série C',
+        'BR4' => 'Série D',
+        default => 'estadual',
+    };
 }
 
 /**
@@ -402,12 +498,18 @@ function futCarreiraJogarProxima(array $estado): array
 
     // O adversário escala sozinho, no esquema que o catálogo dele pedir.
     $advClube = $clubes[$j['adversario']] ?? ['nome' => $j['adversario'], 'forca' => 50, 'div' => '', 'uf' => ''];
-    $advTime = futCarreiraTimes([$advClube], $estado)[0];
     $elencoAdv = futElencoNoJogo($estado, $advClube['nome'], (int)$advClube['forca']);
+    $elencoAdv = futCondicaoSimulada($elencoAdv, $advClube['nome'], $i);
     $esquemaAdv = array_keys(FUT_ESQUEMAS)[crc32($advClube['nome']) % count(FUT_ESQUEMAS)];
     $deles = futEscalarAutomatico($elencoAdv, $esquemaAdv);
 
-    $p = futSimularPartida($meus, $deles, $forcaMeu, (int)$advTime['forca'], (bool)$j['casa']);
+    /* A FORÇA DOS DOIS LADOS SAI DA MESMA FUNÇÃO. Antes o jogador entrava com
+       futForcaEscalada — que desconta cansaço, moral e improviso — e o rival
+       com a média nominal do elenco dele. Eram duas réguas diferentes na mesma
+       partida, e a pior era sempre a do jogador (@see futCondicaoSimulada). */
+    $forcaAdv = futForcaEscalada($deles, $esquemaAdv);
+
+    $p = futSimularPartida($meus, $deles, $forcaMeu, $forcaAdv, (bool)$j['casa']);
 
     // ── O que a partida deixou: estatística, cartão, suspensão ───────
     $estado['stats'] = futAcumularEstatisticas($estado['stats'] ?? [], $meus, $p);
@@ -485,6 +587,79 @@ function futCarreiraCampanha(array $estado, ?string $comp = null): array
  * diferente a cada vez, e o jogador concluiria (com razão) que o jogo inventa
  * os números.
  */
+/**
+ * A TABELA DO ESTADUAL, pelo mesmo molde da nacional.
+ *
+ * Existe porque a meta de quem não tem divisão nacional é o estadual, e até
+ * aqui ela não tinha como ser avaliada: o fechamento comparava a colocação na
+ * LIGA, que pra esses clubes é null, e null nunca passa em comparação nenhuma.
+ * O resultado era que os 42 clubes só-estaduais reprovavam em toda temporada e
+ * o técnico era demitido na segunda, sempre — jogasse bem ou mal.
+ *
+ * O estadual é turno único entre os clubes do estado. Os jogos do técnico
+ * entram como aconteceram; o resto é simulado com a mesma semente da tabela
+ * nacional, pra tabela não dançar entre dois F5.
+ */
+function futCarreiraTabelaEstadual(array $estado): array
+{
+    $clubes = futClubesDoBrasil();
+    $eu = $clubes[$estado['clube']] ?? null;
+    $uf = $eu['uf'] ?? '';
+    if ($uf === '' || !isset(FUT_ESTADUAIS[$uf])) return [];
+
+    $comp  = FUT_ESTADUAIS[$uf];
+    $times = futCarreiraTimes(futClubesDoEstado($uf), $estado);
+    $porNome = [];
+    foreach ($times as $t) $porNome[$t['nome']] = $t;
+    if (count($porNome) < 2) return [];
+
+    // O que o técnico já jogou no estadual, do jeito que terminou.
+    $meus = [];
+    foreach ($estado['resultados'] ?? [] as $r) {
+        if (($r['comp'] ?? '') !== $comp) continue;
+        $meus[] = $r;
+    }
+    if (!$meus) return [];
+
+    mt_srand(crc32($estado['clube'] . '|estadual|t' . ($estado['temporada'] ?? 0) . '|' . count($meus)));
+
+    $resultados = [];
+    $jogados = [];
+    foreach ($meus as $r) {
+        $resultados[] = $r['casa']
+            ? ['casa' => $estado['clube'], 'fora' => $r['adversario'], 'gc' => $r['meus'], 'gf' => $r['deles']]
+            : ['casa' => $r['adversario'], 'fora' => $estado['clube'], 'gc' => $r['deles'], 'gf' => $r['meus']];
+        $jogados[$r['adversario']] = true;
+    }
+
+    /* Os jogos entre os OUTROS clubes do estado, pra tabela ter sentido: sem
+       eles o técnico apareceria sozinho com pontos e todo o resto zerado. */
+    $nomes = array_keys($porNome);
+    foreach ($nomes as $i => $casa) {
+        foreach (array_slice($nomes, $i + 1) as $fora) {
+            if ($casa === $estado['clube'] || $fora === $estado['clube']) continue;
+            $p = futPlacar($porNome[$casa]['forca'], $porNome[$fora]['forca']);
+            $resultados[] = ['casa' => $casa, 'fora' => $fora, 'gc' => $p['casa'], 'gf' => $p['fora']];
+        }
+    }
+    mt_srand();
+
+    return futClassificacao($nomes, $resultados);
+}
+
+/** Onde o técnico terminou no estadual. Null quando o clube não disputa um. */
+function futCarreiraPosicaoNoEstadual(array $estado): ?int
+{
+    $tab = futCarreiraTabelaEstadual($estado);
+    if (!$tab) return null;
+    $pos = 0;
+    foreach (array_keys($tab) as $nome) {
+        $pos++;
+        if ($nome === $estado['clube']) return $pos;
+    }
+    return null;
+}
+
 function futCarreiraTabelaNacional(array $estado): array
 {
     $clubes = futClubesDoBrasil();
@@ -573,9 +748,17 @@ function futCarreiraFecharTemporada(array $estado): array
 
     $estado['caixa'] = round($estado['caixa'] + $receita + $premio - $folha, 2);
 
-    // ── A meta foi cumprida? ─────────────────────────────────────────
+    /* ── A meta foi cumprida? ─────────────────────────────────────────
+       A colocação que vale depende do TIPO da meta. Isso era ignorado: a conta
+       olhava sempre a liga nacional, e clube sem divisão não tem uma — a
+       comparação com null reprovava todo mundo, todo ano, e o técnico era
+       demitido na segunda temporada jogasse como jogasse. São 42 dos 98
+       clubes, vários deles entre os que o jogo oferece pra começar. */
     $meta = $estado['meta'] ?? futMetaDaTemporada($clube);
-    $cumpriu = $posicao !== null && $posicao <= (int)($meta['alvo'] ?? 99);
+    $posicaoDaMeta = ($meta['tipo'] ?? '') === 'estadual'
+        ? futCarreiraPosicaoNoEstadual($estado)
+        : $posicao;
+    $cumpriu = $posicaoDaMeta !== null && $posicaoDaMeta <= (int)($meta['alvo'] ?? 99);
 
     // ── Reputação e emprego ──────────────────────────────────────────
     $rep = (int)($estado['tecnico']['reputacao'] ?? 10);

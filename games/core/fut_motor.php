@@ -117,7 +117,7 @@ function futPlacar(int $forcaCasa, int $forcaFora, bool $mando = true): array
  *
  * @return array lista de rodadas; cada rodada é uma lista de [casa, fora]
  */
-function futCalendario(array $clubeIds): array
+function futCalendario(array $clubeIds, bool $returno = true): array
 {
     $ids = array_values($clubeIds);
     $bye = null;
@@ -147,6 +147,10 @@ function futCalendario(array $clubeIds): array
     }
 
     // ── Returno: os mesmos jogos com o mando invertido ───────────────
+    /* Liga muito cheia joga só o turno. Com 42 clubes o returno levava a
+       temporada a 82 rodadas — mais que o dobro de uma Série A —, e o jogador
+       passava o ano inteiro num clube da quarta divisão. */
+    if (!$returno) return $rodadas;
     $turno = $rodadas;
     foreach ($turno as $jogos) {
         $rodadas[] = array_map(fn($j) => [$j[1], $j[0]], $jogos);

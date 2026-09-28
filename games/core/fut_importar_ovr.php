@@ -209,6 +209,36 @@ function futOvrNomeDoClube(string $trecho): string
 }
 
 /**
+ * DOIS CLUBES, UM ARQUIVO SÓ.
+ *
+ * O elenco real é achado pelo slug do nome (@see futElencoDoClube), e o slug
+ * come o acento: "Guaraní", do Paraguai, e "Guarani", de Campinas, viram os
+ * dois `guarani`. Quem importasse por último ficaria com o arquivo — e o outro
+ * clube passaria a jogar com o elenco alheio, sem nada indicando isso. Foi o
+ * que aconteceu na primeira importação: o paraguaio ficou com o elenco de
+ * Campinas e a força do arquivo virou a do paraguaio.
+ *
+ * Enquanto a busca for por nome não há como os dois terem elenco real. O
+ * brasileiro fica com ele: este é um jogo de carreira no Brasil, onde o
+ * Guarani disputa Série C, Paulista e Copa do Brasil, enquanto o paraguaio só
+ * aparece se cair no grupo da Libertadores. O outro joga com elenco gerado a
+ * partir da força dele, que é o que todo clube sem arquivo já faz.
+ *
+ * @return string|null o nome do clube que NÃO deve receber arquivo
+ */
+function futOvrClubeAtropelado(string $clube): ?string
+{
+    $slug = futSlugDoClube($clube);
+    $brasileiros = [];
+    foreach (FUT_CLUBES_BR_EXTRA as $c) $brasileiros[futSlugDoClube($c[0])] = $c[0];
+
+    // Só é conflito quando os dois nomes existem e são DIFERENTES: Santos e
+    // Paysandu aparecem nos dois catálogos, mas são o mesmo clube.
+    if (!isset($brasileiros[$slug]) || $brasileiros[$slug] === $clube) return null;
+    return $clube;   // o de fora perde o arquivo pro brasileiro de mesmo slug
+}
+
+/**
  * Grava o elenco de um clube em games/data/elencos/<slug>.php.
  *
  * @return array{slug:string, jogadores:int, forca:int}
@@ -267,6 +297,28 @@ const FUT_OVR_TETO_CLUBE = 85;   // a força do Flamengo e do Palmeiras
 const FUT_OVR_TETO_JOGADOR = 89; // ninguém passa disto, em clube nenhum
 const FUT_OVR_PISO_ESCALA = 35;  // abaixo daqui nada encolhe
 
+/**
+ * O TETO DE QUEM JÁ PASSOU DOS 35.
+ *
+ * O elenco gerado tem curva de carreira (@see futCurvaDaIdade) e o real não:
+ * o overall dele vem pronto da fonte. Sem um teto aqui, o deslocamento que
+ * alinha o elenco à força do clube sobe o veterano junto com o resto — foi
+ * assim que o Weverton, 38 anos, terminou com 85 no Palmeiras.
+ *
+ * Não é questão de parecer estranho. O valor de mercado despenca com a idade,
+ * então um craque velho é o melhor do elenco custando quase nada, e o jogo
+ * inteiro vira garimpar quarentões subvalorizados. É a mesma razão que fez a
+ * curva existir no elenco gerado.
+ */
+const FUT_OVR_TETO_IDADE = [36 => 85, 37 => 84, 38 => 82, 39 => 80, 40 => 78];
+
+function futOvrTetoDaIdade(int $idade): int
+{
+    if ($idade < 36) return FUT_OVR_TETO_JOGADOR;
+    if ($idade >= 40) return FUT_OVR_TETO_IDADE[40];
+    return FUT_OVR_TETO_IDADE[$idade];
+}
+
 function futOvrForcaAlvo(int $forcaCatalogo): int
 {
     if ($forcaCatalogo <= FUT_OVR_PISO_ESCALA) return $forcaCatalogo;
@@ -295,13 +347,22 @@ function futOvrForcaAlvo(int $forcaCatalogo): int
  */
 function futOvrAjustarParaForca(array $lista, int $alvo): array
 {
-    for ($volta = 0; $volta < 4; $volta++) {
+    /* Mais voltas do que parece necessário porque os tetos travam gente no
+       caminho: quando o veterano para no limite da idade, o elenco fica abaixo
+       do alvo e a volta seguinte sobe o resto pra compensar. Sem isso o clube
+       terminaria mais fraco do que o catálogo diz só por ter um quarentão. */
+    for ($volta = 0; $volta < 12; $volta++) {
         $delta = $alvo - futForcaDoElenco($lista);
         if ($delta === 0) break;
+        $mudou = false;
         foreach ($lista as &$j) {
-            $j['ovr'] = (int)max(25, min(FUT_OVR_TETO_JOGADOR, $j['ovr'] + $delta));
+            $teto = futOvrTetoDaIdade((int)$j['idade']);
+            $novo = (int)max(25, min($teto, $j['ovr'] + $delta));
+            if ($novo !== $j['ovr']) { $j['ovr'] = $novo; $mudou = true; }
         }
         unset($j);
+        // Todo mundo no teto (ou no piso): insistir não muda mais nada.
+        if (!$mudou) break;
     }
     return $lista;
 }

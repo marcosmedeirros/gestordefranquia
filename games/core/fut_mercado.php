@@ -155,7 +155,7 @@ function futSalarioDe(int $ovr, int $idade): float
  * B corta a receita a um terço, e é isso que faz o rebaixamento doer de
  * verdade no jogo, em vez de ser só uma tabela diferente no ano seguinte.
  */
-const FUT_MULT_DIVISAO = ['BR1' => 1.0, 'BR2' => 0.32, 'BR3' => 0.11];
+const FUT_MULT_DIVISAO = ['BR1' => 1.0, 'BR2' => 0.32, 'BR3' => 0.11, 'BR4' => 0.10];
 const FUT_MULT_SEM_DIVISAO = 0.15;   // sem isto a receita nao cobria nem a folha minima
 
 /**

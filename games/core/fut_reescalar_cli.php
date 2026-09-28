@@ -31,10 +31,17 @@ foreach (glob(__DIR__ . '/../data/elencos/*.php') as $arq) {
     $lista = require $arq;
     if (!is_array($lista) || !$lista) continue;
 
-    // Do slug de volta pro nome: é o único caminho, o arquivo não guarda o nome.
+    /* Do slug de volta pro nome: é o único caminho, o arquivo não guarda o
+       nome. Quando dois clubes compartilham o slug — "Guaraní" do Paraguai e
+       "Guarani" de Campinas —, o dono do arquivo é o brasileiro, a mesma regra
+       que o importador usa (@see futOvrClubeAtropelado). Sem isto o elenco de
+       Campinas era reescalado para a força do paraguaio. */
     $nome = null;
     foreach (array_keys($catalogo) as $cand) {
-        if (futSlugDoClube($cand) === $slug) { $nome = $cand; break; }
+        if (futSlugDoClube($cand) !== $slug) continue;
+        if (futOvrClubeAtropelado($cand) !== null) continue;   // esse perde o arquivo
+        $nome = $cand;
+        break;
     }
     if ($nome === null) { $semCatalogo[] = $slug; continue; }
 
