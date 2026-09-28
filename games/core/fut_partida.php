@@ -138,17 +138,30 @@ function futAutoresDosGols(array $escalados, int $gols): array
 }
 
 /** Sorteia os cartões de um time. */
-function futCartoesDoTime(array $escalados, float $fracao = 1.0, int $de = 8, int $ate = 90): array
+/**
+ * @param array $jaAmarelados nomes que JÁ levaram amarelo nesta partida. A
+ *        partida ao vivo é simulada em pedaços, e sem passar isto adiante cada
+ *        pedaço começava com a súmula limpa: o mesmo jogador levava amarelo aos
+ *        10 e aos 66 e seguia em campo, quando o segundo amarelo é vermelho.
+ */
+function futCartoesDoTime(array $escalados, float $fracao = 1.0, int $de = 8, int $ate = 90,
+                          array $jaAmarelados = []): array
 {
     if (!$escalados) return [];
     if ($ate < $de) $ate = $de;
 
     $quantos = futPoisson(FUT_CARTOES_MEDIA * max(0.0, $fracao));
     $pesos = [];
-    foreach ($escalados as $j) $pesos[] = [$j, futPesoDoJogador($j, FUT_PESO_CARTAO)];
+    foreach ($escalados as $j) {
+        $peso = futPesoDoJogador($j, FUT_PESO_CARTAO);
+        // Pendurado se cuida, inclusive o que se pendurou num pedaço anterior.
+        if (in_array($j['nome'], $jaAmarelados, true)) $peso *= 0.10;
+        $pesos[] = [$j, $peso];
+    }
 
     $cartoes = [];
     $amarelosDe = [];
+    foreach ($jaAmarelados as $n) $amarelosDe[$n] = true;
     for ($i = 0; $i < $quantos; $i++) {
         $j = futSorteioPonderado($pesos);
         if (!$j) continue;
@@ -314,7 +327,8 @@ const FUT_MARCACOES = [
  * @return array ['meus','deles','eventos','gols','cartoes']
  */
 function futSimularTrecho(array $meus, array $deles, int $forcaMeu, int $forcaDele,
-                          bool $casa, int $de, int $ate, array $estrategia = []): array
+                          bool $casa, int $de, int $ate, array $estrategia = [],
+                          array $jaAmarelados = []): array
 {
     $de = max(1, $de);
     $ate = min(90, max($de, $ate));
@@ -332,7 +346,7 @@ function futSimularTrecho(array $meus, array $deles, int $forcaMeu, int $forcaDe
 
     $meusGols  = futAutoresDosGols($meus, $golsMeus);
     $delesGols = futAutoresDosGols($deles, $golsDeles);
-    $meusCart  = futCartoesDoTime($meus, $fracao * $ef['cartoes'], max(8, $de), $ate);
+    $meusCart  = futCartoesDoTime($meus, $fracao * $ef['cartoes'], max(8, $de), $ate, $jaAmarelados);
 
     $eventos = [];
     $minutosMeus  = futMinutosDeGol(count($meusGols), $de, $ate);

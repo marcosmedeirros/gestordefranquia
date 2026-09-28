@@ -653,8 +653,15 @@ function futCarreiraAoVivoAvancar(array $estado, int $ate): array
     $forcaMeu = futForcaEscalada($meus, $esquema);
     $adv = futAoVivoAdversario($estado, (string)$v['adversario'], (int)$v['indice']);
 
+    /* A SÚMULA ATRAVESSA OS PEDAÇOS. Quem já levou amarelo hoje leva o
+       vermelho no próximo, como em qualquer jogo. */
+    $pendurados = [];
+    foreach ($v['cartoes'] as $c) {
+        if (($c['tipo'] ?? '') === 'amarelo') $pendurados[] = $c['jogador']['nome'];
+    }
+
     $t = futSimularTrecho($meus, $adv['escalados'], $forcaMeu, (int)$v['forca_adv'],
-                          (bool)$v['casa'], $de, $ate, $estado['estrategia'] ?? []);
+                          (bool)$v['casa'], $de, $ate, $estado['estrategia'] ?? [], $pendurados);
 
     $v['minuto']  = $ate;
     $v['meus']   += $t['meus'];
