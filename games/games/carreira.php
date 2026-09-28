@@ -588,6 +588,19 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   .chave-rot{width:100%}
 }
 
+/* ── O jogo numa tela só ────────────────────────────── */
+.viv-mesa{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:14px;
+  align-items:start;margin-top:14px}
+.viv-mesa .viv-campo-caixa{margin:0}
+.viv-lado{display:flex;flex-direction:column;gap:12px;min-width:0}
+.viv-lado .bloco{margin-bottom:0}
+.viv-lado .viv-narracao{max-height:330px}
+@media (max-width:840px){
+  .viv-mesa{grid-template-columns:1fr}
+  .viv-mesa .viv-campo-caixa{margin:0 auto}
+  .viv-lado .viv-narracao{max-height:250px}
+}
+
 /* ── O campo ao vivo ────────────────────────────────── */
 .viv-campo-caixa{position:relative;margin:14px auto 0;max-width:330px}
 .viv-campo-caixa .campo{margin:0 auto}
@@ -1075,6 +1088,8 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
       <div class="viv-barra"><span id="barraTempo"></span></div>
 
+      <div class="viv-mesa">
+      <div>
       <div class="viv-campo-caixa">
         <div class="campo" id="campoVivo">
           <div class="linha-meio"></div><div class="circulo"></div>
@@ -1093,6 +1108,23 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <span class="trilho"><i id="pressaoBarra"></i></span>
         <span id="pressaoEle">Eles</span>
       </div>
+      </div><?php // fecha a coluna do campo ?>
+
+      <div class="viv-lado">
+        <div class="bloco">
+          <h3><i class="bi bi-broadcast"></i> Narração</h3>
+          <div class="viv-narracao" id="viv-narracao">
+            <?php if (empty($vivo['eventos'])): ?>
+              <div class="viv-narracao-vazia" id="narracaoVazia">Os times entram em campo. Aperte começar.</div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="bloco">
+          <h3><i class="bi bi-bar-chart-fill"></i> Números da partida</h3>
+          <div id="numerosVivo"></div>
+        </div>
+      </div>
+      </div><?php // fecha .viv-mesa ?>
 
       <div class="viv-acoes">
         <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
@@ -1107,19 +1139,6 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       </div>
     </div>
 
-    <div class="bloco">
-      <h3><i class="bi bi-broadcast"></i> Narração</h3>
-      <div class="viv-narracao" id="viv-narracao">
-        <?php if (empty($vivo['eventos'])): ?>
-          <div class="viv-narracao-vazia" id="narracaoVazia">Os times entram em viv. Aperte começar.</div>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <div class="bloco">
-      <h3><i class="bi bi-bar-chart-fill"></i> Números da partida</h3>
-      <div id="numerosVivo"></div>
-    </div>
 
     <div class="bloco">
       <h3><i class="bi bi-star-fill"></i> Notas ao vivo</h3>
