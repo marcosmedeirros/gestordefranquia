@@ -340,11 +340,11 @@ input[type=text],input[type=number],input[type=search],select{width:100%;padding
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
 
 /* ── Partida ao vivo ────────────────────────────────── */
-.campo{background:linear-gradient(160deg,#0f2417,#0a1a10 55%,var(--panel));border:1px solid var(--borda);
+.viv{background:linear-gradient(160deg,#0f2417,#0a1a10 55%,var(--panel));border:1px solid var(--borda);
   border-radius:16px;padding:16px 14px;margin-bottom:12px}
-.campo-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--txt2)}
-.campo-comp{display:flex;align-items:center;gap:7px;min-width:0}
-.campo-comp b{color:var(--txt);font-weight:700}
+.viv-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--txt2)}
+.viv-comp{display:flex;align-items:center;gap:7px;min-width:0}
+.viv-comp b{color:var(--txt);font-weight:700}
 .relogio{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
   background:rgba(0,0,0,.35);border:1px solid var(--borda);font-variant-numeric:tabular-nums;
   font-weight:800;font-size:13px;color:var(--txt)}
@@ -353,29 +353,29 @@ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weig
 .relogio.parado .bolinha{background:var(--amarelo);animation:none}
 @keyframes pulso{0%,100%{opacity:1}50%{opacity:.25}}
 
-.placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:16px 0 4px}
-.placar-time{display:flex;align-items:center;gap:9px;min-width:0}
-.placar-time.dir{flex-direction:row-reverse;text-align:right}
-.placar-nome{font-weight:800;font-size:14.5px;letter-spacing:-.3px;overflow:hidden;
+.viv-placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:16px 0 4px}
+.viv-time{display:flex;align-items:center;gap:9px;min-width:0}
+.viv-time.dir{flex-direction:row-reverse;text-align:right}
+.viv-nome{font-weight:800;font-size:14.5px;letter-spacing:-.3px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.placar-num{font-size:40px;font-weight:900;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
-.placar-x{font-size:15px;color:var(--txt3);font-weight:800;padding:0 2px}
-.campo-barra{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:14px}
-.campo-barra span{display:block;height:100%;background:var(--verde);width:0;transition:width .45s linear}
+.viv-num{font-size:40px;font-weight:900;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
+.viv-x{font-size:15px;color:var(--txt3);font-weight:800;padding:0 2px}
+.viv-barra{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:14px}
+.viv-barra span{display:block;height:100%;background:var(--verde);width:0;transition:width .45s linear}
 
-.campo-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.viv-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
-.narracao{display:flex;flex-direction:column;gap:7px;max-height:290px;overflow-y:auto}
-.lance{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:10px;
+.viv-narracao{display:flex;flex-direction:column;gap:7px;max-height:290px;overflow-y:auto}
+.viv-lance{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:10px;
   background:var(--panel3);border:1px solid var(--borda);animation:entra .35s ease}
-.lance.nosso{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}
-.lance-min{font-size:11px;font-weight:800;color:var(--txt3);min-width:26px;font-variant-numeric:tabular-nums;
+.viv-lance.nosso{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}
+.viv-lance-min{font-size:11px;font-weight:800;color:var(--txt3);min-width:26px;font-variant-numeric:tabular-nums;
   padding-top:1px}
-.lance-txt{font-size:12.5px;min-width:0}
-.lance-txt b{font-weight:800}
-.lance-txt i{color:var(--txt3);font-style:normal;font-size:11.5px}
+.viv-lance-txt{font-size:12.5px;min-width:0}
+.viv-lance-txt b{font-weight:800}
+.viv-lance-txt i{color:var(--txt3);font-style:normal;font-size:11.5px}
 @keyframes entra{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
-.narracao-vazia{color:var(--txt3);font-size:12.5px;padding:8px 2px}
+.viv-narracao-vazia{color:var(--txt3);font-size:12.5px;padding:8px 2px}
 
 .notas-vivo{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .nota-linha{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:9px;background:var(--panel3);
@@ -409,10 +409,10 @@ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weig
 .opcao input:checked + span{border-color:var(--verde);background:rgba(34,197,94,.10)}
 
 @media (max-width:520px){
-  .placar-num{font-size:32px}
-  .placar-nome{font-size:13px}
+  .viv-num{font-size:32px}
+  .viv-nome{font-size:13px}
   .notas-vivo{grid-template-columns:1fr 1fr}
-  .campo-acoes .btn{flex:1}
+  .viv-acoes .btn{flex:1}
 }
 
 /* ── Começar a carreira ─────────────────────────────── */
@@ -762,9 +762,9 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       $casa = (bool)$vivo['casa'];
       $estr = $estado['estrategia'] ?? ['postura' => 'neutro', 'marcacao' => 'normal'];
     ?>
-    <div class="campo">
-      <div class="campo-topo">
-        <span class="campo-comp">
+    <div class="viv">
+      <div class="viv-topo">
+        <span class="viv-comp">
           <i class="bi bi-trophy"></i> <b><?= h($vivo['comp']) ?></b>
           <?= $vivo['fase'] ? '· ' . h($vivo['fase']) : '' ?>
           · <?= $casa ? 'em casa' : 'fora' ?>
@@ -772,25 +772,25 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <span class="relogio parado" id="relogio"><span class="bolinha"></span><b id="rlMin">0</b>'</span>
       </div>
 
-      <div class="placar">
-        <div class="placar-time">
+      <div class="viv-placar">
+        <div class="viv-time">
           <?= escudo($casa ? $euC : $advC, 30) ?>
-          <span class="placar-nome"><?= h($casa ? $estado['clube'] : $vivo['adversario']) ?></span>
+          <span class="viv-nome"><?= h($casa ? $estado['clube'] : $vivo['adversario']) ?></span>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <span class="placar-num" id="plCasa"><?= (int)($casa ? $vivo['meus'] : $vivo['deles']) ?></span>
-          <span class="placar-x">×</span>
-          <span class="placar-num" id="plFora"><?= (int)($casa ? $vivo['deles'] : $vivo['meus']) ?></span>
+          <span class="viv-num" id="plCasa"><?= (int)($casa ? $vivo['meus'] : $vivo['deles']) ?></span>
+          <span class="viv-x">×</span>
+          <span class="viv-num" id="plFora"><?= (int)($casa ? $vivo['deles'] : $vivo['meus']) ?></span>
         </div>
-        <div class="placar-time dir">
+        <div class="viv-time dir">
           <?= escudo($casa ? $advC : $euC, 30) ?>
-          <span class="placar-nome"><?= h($casa ? $vivo['adversario'] : $estado['clube']) ?></span>
+          <span class="viv-nome"><?= h($casa ? $vivo['adversario'] : $estado['clube']) ?></span>
         </div>
       </div>
 
-      <div class="campo-barra"><span id="barraTempo"></span></div>
+      <div class="viv-barra"><span id="barraTempo"></span></div>
 
-      <div class="campo-acoes">
+      <div class="viv-acoes">
         <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
         <button class="btn sec" id="btPausar" hidden><i class="bi bi-pause-fill"></i> Pausar</button>
         <button class="btn sec" id="btEstrategia"><i class="bi bi-sliders"></i> Estratégia</button>
@@ -803,9 +803,9 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
     <div class="bloco">
       <h3><i class="bi bi-broadcast"></i> Narração</h3>
-      <div class="narracao" id="narracao">
+      <div class="viv-narracao" id="viv-narracao">
         <?php if (empty($vivo['eventos'])): ?>
-          <div class="narracao-vazia" id="narracaoVazia">Os times entram em campo. Aperte começar.</div>
+          <div class="viv-narracao-vazia" id="narracaoVazia">Os times entram em viv. Aperte começar.</div>
         <?php endif; ?>
       </div>
     </div>
@@ -858,7 +858,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
       var rel = document.getElementById('relogio'), rlMin = document.getElementById('rlMin');
       var plCasa = document.getElementById('plCasa'), plFora = document.getElementById('plFora');
-      var barra = document.getElementById('barraTempo'), narr = document.getElementById('narracao');
+      var barra = document.getElementById('barraTempo'), narr = document.getElementById('viv-narracao');
       var vazia = document.getElementById('narracaoVazia'), notas = document.getElementById('notasVivo');
       var btJogar = document.getElementById('btJogar'), btPausar = document.getElementById('btPausar');
       var fmFechar = document.getElementById('fmFechar');
@@ -884,9 +884,9 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       function mostraLance(e) {
         if (vazia) { vazia.remove(); vazia = null; }
         var d = document.createElement('div');
-        d.className = 'lance' + (e.meu ? ' nosso' : '');
-        d.innerHTML = '<span class="lance-min">' + e.minuto + "'</span>" +
-                      '<span class="lance-txt">' + textoDoLance(e) + '</span>';
+        d.className = 'viv-lance' + (e.meu ? ' nosso' : '');
+        d.innerHTML = '<span class="viv-lance-min">' + e.minuto + "'</span>" +
+                      '<span class="viv-lance-txt">' + textoDoLance(e) + '</span>';
         narr.prepend(d);
       }
 
