@@ -250,14 +250,70 @@ $clubesTodos = futClubesDoBrasil();
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 /** O escudo do clube, ou um monograma quando não há imagem. */
+/**
+ * AS INICIAIS QUE VÃO NO EMBLEMA.
+ *
+ * Duas letras que a pessoa reconheça: as iniciais das duas primeiras palavras
+ * quando o nome tem mais de uma ("Nova Mutum" vira NM), e as duas primeiras
+ * letras quando é só uma ("Bangu" vira BA). Palavra curta de ligação não
+ * conta, senão "União Beltrão" viraria UB e "Águia de Marabá", AD.
+ */
+function iniciaisDoClube(string $nome): string
+{
+    $limpo = trim(preg_replace('/[^\p{L}\p{N}\s-]/u', ' ', $nome));
+    $partes = preg_split('/[\s-]+/u', $limpo, -1, PREG_SPLIT_NO_EMPTY) ?: [$nome];
+    $partes = array_values(array_filter($partes,
+        fn($p) => !in_array(mb_strtolower($p), ['de', 'do', 'da', 'dos', 'das', 'e'], true)));
+    if (!$partes) $partes = [$nome];
+
+    if (count($partes) >= 2) {
+        return mb_strtoupper(mb_substr($partes[0], 0, 1) . mb_substr($partes[1], 0, 1));
+    }
+    return mb_strtoupper(mb_substr($partes[0], 0, 2));
+}
+
+/**
+ * UM EMBLEMA DESENHADO para o clube que não tem escudo.
+ *
+ * Sessenta e um dos noventa e oito clubes não têm escudo no catálogo, e eles
+ * apareciam como duas letras num quadrado cinza igual ao de todos os outros —
+ * numa tabela de quarenta e dois times da Série D, isso é uma coluna de
+ * quadrados idênticos. O jogo não hospeda escudo de clube nenhum, então a
+ * saída é desenhar um: um brasão com as cores tiradas do próprio nome, que
+ * sai sempre igual pro mesmo clube e sempre diferente do vizinho.
+ */
+function escudoGerado(string $nome, int $tam): string
+{
+    $semente = crc32($nome);
+    $matiz   = $semente % 360;
+    $matiz2  = ($matiz + 25 + ($semente >> 8) % 60) % 360;
+
+    $c1 = 'hsl(' . $matiz . ',52%,38%)';
+    $c2 = 'hsl(' . $matiz2 . ',58%,22%)';
+    $faixa = 'hsl(' . $matiz . ',45%,72%)';
+    $id = 'e' . dechex($semente);
+    $ini = h(iniciaisDoClube($nome));
+
+    return '<svg width="' . $tam . '" height="' . $tam . '" viewBox="0 0 40 44" role="img"'
+         . ' aria-label="' . h($nome) . '" style="flex-shrink:0;display:block">'
+         . '<defs><linearGradient id="' . $id . '" x1="0" y1="0" x2="0" y2="1">'
+         . '<stop offset="0" stop-color="' . $c1 . '"/><stop offset="1" stop-color="' . $c2 . '"/>'
+         . '</linearGradient></defs>'
+         . '<path d="M20 1 L38 6 V22 C38 32 30 39 20 43 C10 39 2 32 2 22 V6 Z"'
+         . ' fill="url(#' . $id . ')" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/>'
+         . '<path d="M2 17 L38 17 V22 L2 22 Z" fill="' . $faixa . '" opacity=".28"/>'
+         . '<text x="20" y="27" text-anchor="middle" font-family="Inter,system-ui,sans-serif"'
+         . ' font-size="15" font-weight="800" fill="#fff" opacity=".95">' . $ini . '</text>'
+         . '</svg>';
+}
+
 function escudo(array $c, int $tam = 26): string
 {
     $url = $c['escudo'] ?? '';
     if ($url !== '') {
         return '<img src="' . h($url) . '" alt="" width="' . $tam . '" height="' . $tam . '" loading="lazy" style="object-fit:contain;flex-shrink:0">';
     }
-    $ini = mb_strtoupper(mb_substr($c['nome'] ?? '?', 0, 2));
-    return '<span class="mono" style="width:' . $tam . 'px;height:' . $tam . 'px;font-size:' . round($tam * 0.38) . 'px">' . h($ini) . '</span>';
+    return escudoGerado((string)($c['nome'] ?? '?'), $tam);
 }
 
 $proximo = null;
@@ -341,6 +397,24 @@ a{color:inherit}
 input[type=text],input[type=number],input[type=search],select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borda2);
   background:var(--panel3);color:var(--txt);font-size:14px}
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
+
+/* ── Fichas de clube e de jogador ───────────────────── */
+.ficha-topo{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.ficha-topo .nome{font-size:22px;font-weight:900;letter-spacing:-.7px;line-height:1.1}
+.ficha-topo .sub{font-size:12.5px;color:var(--txt2);margin-top:2px}
+.voltar-linha{margin-bottom:12px}
+.voltar-linha a{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--txt2);
+  text-decoration:none}
+.voltar-linha a:hover{color:var(--verde-claro)}
+.elo{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+  background:var(--panel3);border:1px solid var(--borda);font-size:11px;font-weight:700;color:var(--txt2)}
+a.link-jogo{color:inherit;text-decoration:none;border-bottom:1px dotted var(--borda2)}
+a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
+.barra-skill{display:flex;align-items:center;gap:9px;padding:5px 0}
+.barra-skill .r{font-size:11.5px;color:var(--txt2);width:96px;flex-shrink:0}
+.barra-skill .t{flex:1;height:6px;border-radius:999px;background:var(--panel3);overflow:hidden}
+.barra-skill .t span{display:block;height:100%;background:var(--verde);border-radius:999px}
+.barra-skill .v{font-size:11.5px;font-weight:800;width:28px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* ── Partida ao vivo ────────────────────────────────── */
 .viv{background:linear-gradient(160deg,#0f2417,#0a1a10 55%,var(--panel));border:1px solid var(--borda);
@@ -1362,7 +1436,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             $cls = $j['ovr'] >= 80 ? 'b' : ($j['ovr'] >= 70 ? 'm' : '');
         ?>
           <tr>
-            <td><?= h($j['nome']) ?></td>
+            <td><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=elenco"><?= h($j['nome']) ?></a></td>
             <td><span class="tagpos"><?= h($j['pos']) ?></span></td>
             <td class="num"><span class="ovr <?= $cls ?>"><?= (int)$j['ovr'] ?></span></td>
             <td class="num"><?= (int)$j['idade'] ?></td>
@@ -1795,7 +1869,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               $clsPos = ($temAcesso && $i <= 4) ? 'sobe' : (($temQueda && $i > $total - 4) ? 'cai' : ''); ?>
               <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
                 <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
-                <td><?= h($nome) ?></td>
+                <td><a class="link-jogo" href="?aba=clube&amp;nome=<?= urlencode($nome) ?>&amp;de=tabela"><?= h($nome) ?></a></td>
                 <td class="num"><strong><?= (int)$l['p'] ?></strong></td>
                 <td class="num"><?= (int)$l['j'] ?></td>
                 <td class="num"><?= (int)$l['v'] ?></td>
@@ -1833,6 +1907,178 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         </div>
       <?php endif; ?>
     <?php endif; ?>
+  <?php // ── PÁGINA: CLUBE ──────────────────────────────────────────── ?>
+  <?php elseif ($aba === 'clube'): ?>
+    <?php
+      $alvo = (string)($_GET['nome'] ?? '');
+      $c = $clubesTodos[$alvo] ?? null;
+    ?>
+    <?php if (!$c): ?>
+      <div class="bloco"><div class="vazio">Não achei esse clube.</div></div>
+    <?php else: ?>
+      <?php
+        $meu = $alvo === $estado['clube'];
+        /* O ELENCO QUE ELE TEM HOJE, e não o do catálogo: quem você comprou
+           dele já saiu, e quem você vendeu já está lá. */
+        $elencoDele = $meu ? $estado['elenco']
+                           : futElencoNoJogo($estado, $alvo, (int)$c['forca']);
+        usort($elencoDele, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
+        $forcaDele = futForcaDoElenco($elencoDele);
+        $metaDele = futMetaDaTemporada($c);
+
+        // O que já rolou entre vocês nesta temporada.
+        $confrontos = array_values(array_filter($estado['resultados'] ?? [],
+                      fn($r) => ($r['adversario'] ?? '') === $alvo));
+      ?>
+      <div class="voltar-linha"><a href="?aba=<?= h((string)($_GET['de'] ?? 'tabela')) ?>">
+        <i class="bi bi-arrow-left"></i> Voltar</a></div>
+
+      <div class="bloco">
+        <div class="ficha-topo">
+          <?= escudo($c, 56) ?>
+          <div style="min-width:0">
+            <div class="nome"><?= h($alvo) ?><?= $meu ? ' <span class="elo">seu clube</span>' : '' ?></div>
+            <div class="sub">
+              <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?>
+              <?= !empty($c['uf']) ? '· ' . h($c['uf']) : '' ?>
+              <?= !empty($c['regiao']) && isset(FUT_REGIONAIS[$c['regiao']]) ? '· ' . h(FUT_REGIONAIS[$c['regiao']]) : '' ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="fichas">
+          <div class="ficha"><div class="v"><?= (int)$forcaDele ?></div><div class="r">força</div></div>
+          <div class="ficha"><div class="v"><?= count($elencoDele) ?></div><div class="r">jogadores</div></div>
+          <div class="ficha"><div class="v"><?= h(futDinheiro(futFolhaDoElenco($elencoDele))) ?></div><div class="r">folha</div></div>
+          <div class="ficha"><div class="v"><?= h(futDinheiro(futReceitaAnual((int)$c['forca'], (string)$c['div']))) ?></div><div class="r">receita/ano</div></div>
+        </div>
+
+        <div class="meta-linha"><i class="bi bi-bullseye"></i>
+          <span>A diretoria dele cobra: <strong><?= h($metaDele['texto']) ?></strong></span></div>
+      </div>
+
+      <?php if ($confrontos): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-arrow-left-right"></i> Vocês já se enfrentaram</h3>
+          <div class="rolar"><table>
+            <thead><tr><th>Competição</th><th>Onde</th><th class="num">Placar</th></tr></thead>
+            <tbody>
+              <?php foreach (array_reverse($confrontos) as $r): ?>
+                <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
+                <tr>
+                  <td><?= h($r['comp']) ?></td>
+                  <td><?= $r['casa'] ? 'casa' : 'fora' ?></td>
+                  <td class="num"><span class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></span></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table></div>
+        </div>
+      <?php endif; ?>
+
+      <div class="bloco">
+        <h3><i class="bi bi-people-fill"></i> Elenco</h3>
+        <div class="rolar"><table>
+          <thead><tr><th>Jogador</th><th>Pos</th><th class="num">OVR</th><th class="num">Idade</th>
+            <th class="num">Vale</th></tr></thead>
+          <tbody>
+            <?php foreach ($elencoDele as $j): ?>
+              <tr>
+                <td><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;clube=<?= urlencode($alvo) ?>&amp;de=clube"><?= h($j['nome']) ?></a></td>
+                <td><span class="tagpos"><?= h($j['pos']) ?></span></td>
+                <td class="num"><?= (int)$j['ovr'] ?></td>
+                <td class="num"><?= (int)$j['idade'] ?></td>
+                <td class="num"><?= h(futDinheiro(futValorDeMercado((int)$j['ovr'], (int)$j['idade']))) ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table></div>
+      </div>
+    <?php endif; ?>
+
+  <?php // ── PÁGINA: JOGADOR ────────────────────────────────────────── ?>
+  <?php elseif ($aba === 'jogador'): ?>
+    <?php
+      $nomeJ = (string)($_GET['nome'] ?? '');
+      $clubeJ = (string)($_GET['clube'] ?? $estado['clube']);
+
+      $lista = $clubeJ === $estado['clube']
+             ? $estado['elenco']
+             : futElencoNoJogo($estado, $clubeJ, (int)($clubesTodos[$clubeJ]['forca'] ?? 50));
+      $j = null;
+      foreach ($lista as $x) if ($x['nome'] === $nomeJ) { $j = $x; break; }
+    ?>
+    <?php if (!$j): ?>
+      <div class="bloco"><div class="vazio">Não achei esse jogador no <?= h($clubeJ) ?>.</div></div>
+    <?php else: ?>
+      <?php
+        $meuJogador = $clubeJ === $estado['clube'];
+        $st = $estado['stats'][$nomeJ] ?? null;
+        $valor = futValorDeMercado((int)$j['ovr'], (int)$j['idade']);
+        $salario = futSalarioDe((int)$j['ovr'], (int)$j['idade']);
+        $ovrHoje = futOvrComCondicao($j);
+      ?>
+      <div class="voltar-linha"><a href="?aba=<?= h((string)($_GET['de'] ?? 'elenco')) ?>">
+        <i class="bi bi-arrow-left"></i> Voltar</a></div>
+
+      <div class="bloco">
+        <div class="ficha-topo">
+          <?= escudo($clubesTodos[$clubeJ] ?? ['nome' => $clubeJ], 48) ?>
+          <div style="min-width:0">
+            <div class="nome"><?= h($nomeJ) ?></div>
+            <div class="sub">
+              <span class="tagpos"><?= h($j['pos']) ?></span>
+              <?= (int)$j['idade'] ?> anos ·
+              <a class="link-jogo" href="?aba=clube&amp;nome=<?= urlencode($clubeJ) ?>&amp;de=elenco"><?= h($clubeJ) ?></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="fichas">
+          <div class="ficha"><div class="v"><?= (int)$j['ovr'] ?></div><div class="r">OVR</div></div>
+          <div class="ficha"><div class="v"><?= $ovrHoje ?></div><div class="r">hoje em campo</div></div>
+          <div class="ficha"><div class="v"><?= h(futDinheiro($valor)) ?></div><div class="r">vale</div></div>
+          <div class="ficha"><div class="v"><?= h(futDinheiro($salario)) ?></div><div class="r">salário/ano</div></div>
+        </div>
+
+        <?php if ($meuJogador): ?>
+          <div style="margin-top:14px">
+            <div class="barra-skill"><span class="r">Energia</span>
+              <span class="t"><span style="width:<?= (int)($j['energia'] ?? 100) ?>%"></span></span>
+              <span class="v"><?= (int)($j['energia'] ?? 100) ?></span></div>
+            <div class="barra-skill"><span class="r">Moral</span>
+              <span class="t"><span style="width:<?= (int)($j['moral'] ?? 75) ?>%"></span></span>
+              <span class="v"><?= (int)($j['moral'] ?? 75) ?></span></div>
+          </div>
+          <?php if ((int)($j['lesao'] ?? 0) > 0): ?>
+            <div class="msg err" style="margin-top:12px"><i class="bi bi-bandaid"></i>
+              Machucado: fica fora por <?= (int)$j['lesao'] ?> jogo(s).</div>
+          <?php endif; ?>
+          <?php if (isset($estado['suspensos'][$nomeJ])): ?>
+            <div class="msg err" style="margin-top:8px"><i class="bi bi-slash-circle"></i>
+              Suspenso por <?= (int)$estado['suspensos'][$nomeJ] ?> jogo(s).</div>
+          <?php endif; ?>
+        <?php endif; ?>
+      </div>
+
+      <?php if ($st): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-graph-up"></i> Na temporada</h3>
+          <div class="fichas" style="grid-template-columns:repeat(5,1fr)">
+            <div class="ficha"><div class="v"><?= (int)$st['jogos'] ?></div><div class="r">jogos</div></div>
+            <div class="ficha"><div class="v"><?= (int)$st['gols'] ?></div><div class="r">gols</div></div>
+            <div class="ficha"><div class="v"><?= (int)$st['assist'] ?></div><div class="r">assist.</div></div>
+            <div class="ficha"><div class="v"><?= (int)$st['amarelos'] ?>/<?= (int)$st['vermelhos'] ?></div><div class="r">cartões</div></div>
+            <div class="ficha"><div class="v"><?= $st['jogos'] > 0
+              ? number_format($st['soma_notas'] / $st['jogos'], 1, ',', '') : '—' ?></div>
+              <div class="r">nota média</div></div>
+          </div>
+        </div>
+      <?php elseif ($meuJogador): ?>
+        <div class="bloco"><div class="vazio">Ainda não entrou em campo nesta temporada.</div></div>
+      <?php endif; ?>
+    <?php endif; ?>
+
   <?php // ── ABA: MERCADO ───────────────────────────────────────────── ?>
   <?php elseif ($aba === 'mercado'): ?>
     <?php
@@ -1944,7 +2190,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             $podePagar = $m['pedido'] <= (float)$estado['caixa']; ?>
             <tr>
               <td>
-                <?= h($m['nome']) ?>
+                <a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($m['nome']) ?>&amp;clube=<?= urlencode($m['clube']) ?>&amp;de=mercado"><?= h($m['nome']) ?></a>
                 <?php if (!empty($m['a_venda'])): ?>
                   <span class="selo-venda">à venda</span>
                 <?php endif; ?>
