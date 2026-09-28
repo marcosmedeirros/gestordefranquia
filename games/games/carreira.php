@@ -177,6 +177,16 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!isset(FUT_ESQUEMAS[$esquema])) $esquema = '4-4-2';
             $estado['esquema'] = $esquema;
 
+            /* POSTURA E MARCAÇÃO VÊM NO MESMO FORMULÁRIO. Elas nasceram dentro
+               da partida, onde servem pra reagir ao jogo — mas a escolha de
+               como o time entra em campo é de véspera, e é aqui que o técnico
+               monta o time. */
+            $postura  = (string)($_POST['postura'] ?? 'neutro');
+            $marcacao = (string)($_POST['marcacao'] ?? 'normal');
+            if (!isset(FUT_POSTURAS[$postura]))   $postura = 'neutro';
+            if (!isset(FUT_MARCACOES[$marcacao])) $marcacao = 'normal';
+            $estado['estrategia'] = ['postura' => $postura, 'marcacao' => $marcacao];
+
             $mapa = $_POST['vaga'] ?? [];
             if (is_array($mapa) && $mapa) {
                 $fora = array_keys($estado['suspensos'] ?? []);
@@ -242,7 +252,9 @@ if (!$relatorio && !empty($_SESSION['fut_relatorio'])) {
     unset($_SESSION['fut_relatorio']);
 }
 
-$aba = (string)($_GET['aba'] ?? 'jogo');
+/* A ENTRADA É O INÍCIO. Quem abre o jogo quer ver como o clube está e
+   entrar em campo, não uma lista de resultados. */
+$aba = (string)($_GET['aba'] ?? 'inicio');
 $meuClube = $estado ? futCarreiraMeuClube($estado) : null;
 $clubesTodos = futClubesDoBrasil();
 
@@ -368,6 +380,43 @@ a{color:inherit}
 input[type=text],input[type=number],input[type=search],select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--borda2);
   background:var(--panel3);color:var(--txt);font-size:14px}
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
+
+/* ── Aba de início ──────────────────────────────────── */
+.proximo{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
+  border-radius:14px;padding:16px 14px;margin-bottom:12px}
+.proximo-rot{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--txt3);
+  font-weight:700;margin-bottom:9px}
+.proximo-jogo{display:flex;align-items:center;gap:12px;margin-bottom:13px;flex-wrap:wrap}
+.proximo-nome{font-size:18px;font-weight:900;letter-spacing:-.5px;line-height:1.15}
+.proximo-sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.proximo-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.proximo-acoes .btn{font-size:15px;padding:12px 20px}
+.proximo-conta{font-size:11.5px;color:var(--txt3);margin-top:10px}
+
+.resumo-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.mini-lista{display:flex;flex-direction:column;gap:6px}
+.mini-linha{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0;
+  border-bottom:1px solid var(--borda)}
+.mini-linha:last-child{border-bottom:0}
+.mini-linha .esq{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-linha .dir{font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+
+/* ── Campo e banco lado a lado ──────────────────────── */
+.escalar-lado{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
+.escalar-lado > .banco{margin-bottom:0}
+.banco-vert .banco-lista{flex-direction:column;flex-wrap:nowrap;gap:5px;
+  max-height:520px;overflow-y:auto;padding-right:2px}
+.banco-vert .reserva{width:100%}
+.banco-vert .reserva .r-nome{max-width:none;flex:1}
+@media (max-width:840px){
+  .escalar-lado{grid-template-columns:1fr}
+  .banco-vert .banco-lista{flex-direction:row;flex-wrap:wrap;max-height:none}
+  .banco-vert .reserva{width:auto}
+}
+
+/* ── Estratégia fora da partida ─────────────────────── */
+.estrategia-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){ .estrategia-cols{grid-template-columns:1fr} }
 
 /* ── Fichas de clube e de jogador ───────────────────── */
 .ficha-topo{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
@@ -1142,15 +1191,162 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   <?php endif; ?>
 
   <div class="abas" <?= $emCampo ? 'hidden' : '' ?>>
-    <?php foreach (['jogo' => 'Partidas', 'escalacao' => 'Escalação', 'elenco' => 'Elenco',
+    <?php foreach (['inicio' => 'Início', 'jogo' => 'Partidas', 'escalacao' => 'Escalação', 'elenco' => 'Elenco',
                     'stats' => 'Números', 'tabela' => 'Tabela', 'mercado' => 'Mercado',
                     'carreira' => 'Carreira'] as $k => $rot): ?>
       <a href="?aba=<?= $k ?>" class="<?= $aba === $k ? 'on' : '' ?>"><?= h($rot) ?></a>
     <?php endforeach; ?>
   </div>
 
+  <?php // ── ABA: INÍCIO ────────────────────────────────────────────── ?>
+  <?php if ($aba === 'inicio'): ?>
+    <?php
+      /* O ESTADO DO CLUBE NUMA TELA. Antes o técnico precisava passar por
+         quatro abas pra saber onde estava: a posição na Tabela, o elenco no
+         Elenco, o artilheiro nos Números e o próximo jogo em Partidas. */
+      $comps = futCarreiraCompeticoesDoAno($estado);
+      $divEu = $clubesTodos[$estado['clube']]['div'] ?? '';
+      $compNac = futCarreiraNomeDaDivisao($divEu);
+      $tabNac = $compNac !== '' ? futCarreiraTabelaDaCompeticao($estado, $compNac) : [];
+
+      // Os cinco melhores do elenco, que é o que o técnico olha primeiro.
+      $melhores = $estado['elenco'] ?? [];
+      usort($melhores, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
+      $melhores = array_slice($melhores, 0, 5);
+
+      // Quem mais fez gol, e quem está fora.
+      $art = [];
+      foreach ($estado['stats'] ?? [] as $nome => $st) {
+        if ((int)$st['gols'] > 0) $art[$nome] = (int)$st['gols'];
+      }
+      arsort($art);
+      $art = array_slice($art, 0, 5, true);
+      $fora = futIndisponiveis($estado['elenco'] ?? [], $estado['suspensos'] ?? []);
+      $ultimos = array_slice(array_reverse($estado['resultados'] ?? []), 0, 5);
+    ?>
+
+    <?php if (($estado['fase'] ?? '') === 'temporada' && $proximo): ?>
+      <div class="proximo">
+        <div class="proximo-rot">Próxima partida</div>
+        <div class="proximo-jogo">
+          <?= escudo($clubesTodos[$proximo['adversario']] ?? ['nome' => $proximo['adversario']], 44) ?>
+          <div style="min-width:0">
+            <div class="proximo-nome"><?= h($proximo['adversario']) ?></div>
+            <div class="proximo-sub">
+              <?= h($proximo['comp']) ?><?= $proximo['fase'] ? ' · ' . h($proximo['fase']) : '' ?>
+              · <?= $proximo['casa'] ? 'em casa' : 'fora' ?>
+            </div>
+          </div>
+        </div>
+        <div class="proximo-acoes">
+          <form method="post" style="display:inline">
+            <input type="hidden" name="acao" value="jogar">
+            <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
+          </form>
+          <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
+        </div>
+        <div class="proximo-conta">
+          Jogo <?= (int)$estado['rodada'] + 1 ?> de <?= count($estado['calendario'] ?? []) ?> na temporada
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <div class="resumo-grade">
+      <?php if ($tabNac): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-table"></i> <?= h(futCarreiraRotuloDaDivisao((string)$divEu)) ?></h3>
+          <div class="mini-lista">
+            <?php
+              $pos = 0; $i = 0;
+              foreach (array_keys($tabNac) as $n) { $i++; if ($n === $estado['clube']) $pos = $i; }
+              $ini = max(0, $pos - 3); $trecho = array_slice($tabNac, $ini, 5, true);
+              $k = $ini;
+            ?>
+            <?php foreach ($trecho as $nome => $l): $k++; ?>
+              <div class="mini-linha" style="<?= $nome === $estado['clube'] ? 'color:var(--verde-claro);font-weight:700' : '' ?>">
+                <span class="pos"><?= $k ?></span>
+                <span class="esq"><?= h($nome) ?></span>
+                <span class="dir"><?= (int)$l['p'] ?> pts</span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <div style="margin-top:9px"><a class="btn sec peq" href="?aba=tabela" style="text-decoration:none">Ver a tabela</a></div>
+        </div>
+      <?php endif; ?>
+
+      <div class="bloco">
+        <h3><i class="bi bi-trophy"></i> As competições do ano</h3>
+        <div class="mini-lista">
+          <?php foreach ($comps as $c => $d): ?>
+            <?php $camp = futCarreiraCampanha($estado, $c); ?>
+            <div class="mini-linha">
+              <span class="esq"><?= h($c) ?></span>
+              <span class="dir"><?= (int)$camp['v'] ?>V <?= (int)$camp['e'] ?>E <?= (int)$camp['d'] ?>D</span>
+            </div>
+          <?php endforeach; ?>
+          <?php if (!$comps): ?><div style="color:var(--txt3);font-size:12.5px">A temporada ainda não começou.</div><?php endif; ?>
+        </div>
+      </div>
+
+      <div class="bloco">
+        <h3><i class="bi bi-star-fill"></i> Os melhores do elenco</h3>
+        <div class="mini-lista">
+          <?php foreach ($melhores as $j): ?>
+            <div class="mini-linha">
+              <span class="tagpos"><?= h($j['pos']) ?></span>
+              <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
+              <span class="dir"><?= (int)$j['ovr'] ?></span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <?php if ($art): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-bullseye"></i> Quem está fazendo gol</h3>
+          <div class="mini-lista">
+            <?php foreach ($art as $nome => $g): ?>
+              <div class="mini-linha">
+                <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($nome) ?>&amp;de=inicio"><?= h($nome) ?></a></span>
+                <span class="dir"><?= (int)$g ?> gol<?= $g === 1 ? '' : 's' ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($fora): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-bandaid"></i> Fora da próxima</h3>
+          <div class="mini-lista">
+            <?php foreach ($fora as $nome => $d): ?>
+              <div class="mini-linha">
+                <span class="esq"><?= h($nome) ?></span>
+                <span class="dir" style="color:#fca5a5"><?= h($d['motivo']) ?> · <?= (int)$d['jogos'] ?>j</span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($ultimos): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-clock-history"></i> Últimos resultados</h3>
+          <div class="mini-lista">
+            <?php foreach ($ultimos as $r): ?>
+              <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
+              <div class="mini-linha">
+                <span class="esq"><?= h($r['adversario']) ?></span>
+                <span class="dir"><span class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></span></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div>
+
   <?php // ── ABA: PARTIDAS ──────────────────────────────────────────── ?>
-  <?php if ($aba === 'jogo'): ?>
+  <?php elseif ($aba === 'jogo'): ?>
     <?php if (($estado['fase'] ?? '') === 'mercado'): ?>
       <?php if (!empty($estado['propostas'])): ?>
         <div class="bloco" style="border-color:rgba(34,197,94,.4)">
@@ -1490,6 +1686,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <span>Toque num jogador e depois no outro pra trocar. No computador, dá pra arrastar.</span>
         </div>
 
+        <div class="escalar-lado">
         <div class="campo" id="campo">
           <div class="linha-meio"></div><div class="circulo"></div>
           <div class="area cima"></div><div class="area baixo"></div>
@@ -1508,10 +1705,10 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <input type="hidden" name="_" value="1">
         </div>
 
-        <div class="banco">
+        <div class="banco banco-vert">
           <div class="banco-titulo">
             <i class="bi bi-people"></i> Banco
-            <span style="color:var(--txt3);font-weight:400">— arraste ou toque pra trocar</span>
+            <span style="color:var(--txt3);font-weight:400">— arraste ou toque</span>
           </div>
           <div class="banco-lista" id="banco">
             <?php foreach ($reservas as $j): ?>
@@ -1528,6 +1725,36 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             <?php if (!$reservas): ?>
               <div style="color:var(--txt3);font-size:12px;padding:6px">Ninguém no banco.</div>
             <?php endif; ?>
+          </div>
+        </div>
+        </div><?php // fecha .escalar-lado ?>
+
+        <?php // ── COMO O TIME ENTRA EM CAMPO ────────────────────────── ?>
+        <?php $estrAtual = $estado['estrategia'] ?? ['postura' => 'neutro', 'marcacao' => 'normal']; ?>
+        <div class="banco-titulo" style="margin-top:14px">
+          <i class="bi bi-sliders"></i> Como o time entra em campo
+          <span style="color:var(--txt3);font-weight:400">— dá pra mudar durante a partida</span>
+        </div>
+        <div class="estrategia-cols" style="margin-bottom:12px">
+          <div class="opcoes" style="margin-bottom:0">
+            <div class="opcoes-rot">Postura</div>
+            <?php foreach (FUT_POSTURAS as $k => $o): ?>
+              <label class="opcao">
+                <input type="radio" name="postura" value="<?= h($k) ?>"
+                       <?= ($estrAtual['postura'] ?? 'neutro') === $k ? 'checked' : '' ?>>
+                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <div class="opcoes" style="margin-bottom:0">
+            <div class="opcoes-rot">Marcação</div>
+            <?php foreach (FUT_MARCACOES as $k => $o): ?>
+              <label class="opcao">
+                <input type="radio" name="marcacao" value="<?= h($k) ?>"
+                       <?= ($estrAtual['marcacao'] ?? 'normal') === $k ? 'checked' : '' ?>>
+                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
+              </label>
+            <?php endforeach; ?>
           </div>
         </div>
 
