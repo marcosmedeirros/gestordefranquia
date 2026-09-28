@@ -113,6 +113,24 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        elseif ($estado && $acao === 'aovivo_substituir') {
+            header('Content-Type: application/json; charset=utf-8');
+            $r = futCarreiraAoVivoSubstituir($estado, (string)($_POST['sai'] ?? ''),
+                                                       (string)($_POST['entra'] ?? ''));
+            if ($r['ok']) {
+                $estado = $r['estado'];
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+            }
+            $v = $estado['aovivo'] ?? [];
+            echo json_encode([
+                'ok'     => $r['ok'],
+                'erro'   => $r['erro'],
+                'trocas' => count($v['trocas'] ?? []),
+                'restam' => FUT_AOVIVO_TROCAS - count($v['trocas'] ?? []),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         elseif ($estado && $acao === 'aovivo_fechar') {
             $f = futCarreiraAoVivoFechar($estado);
             if ($f['ok']) {
@@ -255,6 +273,36 @@ if (!$relatorio && !empty($_SESSION['fut_relatorio'])) {
 /* A ENTRADA É O INÍCIO. Quem abre o jogo quer ver como o clube está e
    entrar em campo, não uma lista de resultados. */
 $aba = (string)($_GET['aba'] ?? 'inicio');
+
+/* O PAINEL DE SUBSTITUIÇÃO PERGUNTA QUEM ESTÁ EM CAMPO. Responde JSON e sai
+   antes do HTML: é o mesmo motivo do avanço do relógio — recarregar a página
+   pra abrir o painel pararia a partida. */
+if ($estado && ($_GET['json'] ?? '') === 'troca') {
+    header('Content-Type: application/json; charset=utf-8');
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) { echo json_encode(['campo' => [], 'banco' => [], 'restam' => 0]); exit; }
+
+    $entraram = [];
+    foreach ($v['trocas'] ?? [] as $t) $entraram[$t['entra']] = true;
+
+    $emCampo = futCarreiraEscalacaoAtual($estado);
+    $fora = array_keys($estado['suspensos'] ?? []);
+    $banco = futReservas($estado['elenco'], $emCampo, $fora);
+
+    $ficha = fn(array $j, bool $entrou = false) => [
+        'nome'    => $j['nome'],
+        'ovr'     => (int)$j['ovr'],
+        'energia' => (int)($j['energia'] ?? 100),
+        'entrou'  => $entrou,
+    ];
+
+    echo json_encode([
+        'campo'  => array_values(array_map(fn($j) => $ficha($j, isset($entraram[$j['nome']])), $emCampo)),
+        'banco'  => array_values(array_map(fn($j) => $ficha($j), $banco)),
+        'restam' => FUT_AOVIVO_TROCAS - count($v['trocas'] ?? []),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 $meuClube = $estado ? futCarreiraMeuClube($estado) : null;
 $clubesTodos = futClubesDoBrasil();
 
@@ -481,6 +529,34 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .nota-linha .n.boa{color:var(--verde-claro)}
 .nota-linha .n.ruim{color:#fca5a5}
 .nota-linha .p{font-size:10px;color:var(--txt3);font-weight:700}
+
+/* ── Os números da partida ──────────────────────────── */
+.viv-num-linha{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:9px;
+  font-size:11.5px;margin-bottom:7px}
+.viv-num-linha .n{font-weight:800;font-variant-numeric:tabular-nums;text-align:center}
+.viv-num-barra{height:5px;border-radius:999px;background:var(--panel3);overflow:hidden;display:flex}
+.viv-num-barra i{display:block;height:100%}
+.viv-num-barra i.eu{background:var(--verde)}
+.viv-num-barra i.ele{background:var(--borda2)}
+.viv-num-rot{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;
+  text-align:center;margin-top:2px}
+
+/* ── O painel de substituição ───────────────────────── */
+.troca-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.troca-cols h5{margin:0 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--txt3);font-weight:700}
+.troca-lista{display:flex;flex-direction:column;gap:5px;max-height:44vh;overflow-y:auto}
+.troca-op{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:9px;
+  border:1px solid var(--borda);background:var(--panel3);font-size:12px;cursor:pointer;
+  text-align:left;width:100%;color:inherit}
+.troca-op:hover{border-color:var(--borda2)}
+.troca-op.sel{border-color:var(--verde);background:rgba(34,197,94,.10)}
+.troca-op:disabled{opacity:.4;cursor:not-allowed}
+.troca-op .o{font-weight:900;min-width:22px;font-variant-numeric:tabular-nums}
+.troca-op .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.troca-op .en{font-size:10px;font-weight:800;padding:1px 5px;border-radius:5px;background:var(--panel)}
+.troca-restam{font-size:11.5px;color:var(--txt3);text-align:center;margin-top:2px}
+@media (max-width:520px){ .troca-cols{grid-template-columns:1fr} .troca-lista{max-height:26vh} }
 
 /* ── Popup do jogo (nunca o do navegador) ───────────── */
 .fundo-popup{position:fixed;inset:0;background:rgba(0,0,0,.66);backdrop-filter:blur(3px);z-index:60;
@@ -890,6 +966,8 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
         <button class="btn sec" id="btPausar" hidden><i class="bi bi-pause-fill"></i> Pausar</button>
         <button class="btn sec" id="btEstrategia"><i class="bi bi-sliders"></i> Estratégia</button>
+        <button class="btn sec" id="btTrocar"><i class="bi bi-arrow-left-right"></i> Substituir
+          <span id="btTrocarConta">(<?= FUT_AOVIVO_TROCAS - count($vivo['trocas'] ?? []) ?>)</span></button>
         <form method="post" id="fmFechar" hidden>
           <input type="hidden" name="acao" value="aovivo_fechar">
           <button class="btn" type="submit"><i class="bi bi-flag-fill"></i> Encerrar e ver o resumo</button>
@@ -907,8 +985,38 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     </div>
 
     <div class="bloco">
+      <h3><i class="bi bi-bar-chart-fill"></i> Números da partida</h3>
+      <div id="numerosVivo"></div>
+    </div>
+
+    <div class="bloco">
       <h3><i class="bi bi-star-fill"></i> Notas ao vivo</h3>
       <div class="notas-vivo" id="notasVivo"></div>
+    </div>
+
+    <?php // ── O popup de substituição ───────────────────────────── ?>
+    <div class="fundo-popup" id="popTroca" hidden>
+      <div class="popup">
+        <h4><i class="bi bi-arrow-left-right"></i> Substituição</h4>
+        <p class="popup-sub">Escolha quem sai e quem entra. Vale do minuto seguinte —
+           e quem sai não volta mais nesta partida.</p>
+        <div class="troca-cols">
+          <div>
+            <h5>Sai</h5>
+            <div class="troca-lista" id="listaSai"></div>
+          </div>
+          <div>
+            <h5>Entra</h5>
+            <div class="troca-lista" id="listaEntra"></div>
+          </div>
+        </div>
+        <div class="troca-restam" id="trocaRestam"></div>
+        <div class="popup-acoes">
+          <button type="button" class="btn sec" data-fechar>Cancelar</button>
+          <button type="button" class="btn" id="btConfirmarTroca" disabled>
+            <i class="bi bi-check-lg"></i> Fazer a troca</button>
+        </div>
+      </div>
     </div>
 
     <?php // ── O popup de estratégia ─────────────────────────────── ?>
@@ -966,6 +1074,18 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         rel.className = 'relogio ' + (rolando ? 'rolando' : 'parado');
       }
 
+      /* CADA LANCE TEM A SUA FRASE. O gol e o cartão já estavam aqui; o resto
+         é o que faltava pro relógio parar de andar no vazio — em catorze das
+         dezoito atualizações não acontecia nada. */
+      var LANCES = {
+        fora:     {ico: 'bi-arrow-up-right',   txt: function (e) { return e.jogador + ' finalizou por cima'; }},
+        defendeu: {ico: 'bi-hand-index-thumb', txt: function (e) { return e.jogador + ' chutou, o goleiro defendeu'; }},
+        trave:    {ico: 'bi-exclamation-lg',   txt: function (e) { return '<b>Na trave!</b> ' + e.jogador + ' quase'; }},
+        bloqueou: {ico: 'bi-shield',           txt: function (e) { return 'A defesa bloqueou o chute de ' + e.jogador; }},
+        falta:    {ico: 'bi-flag',             txt: function (e) { return 'Falta perigosa, ' + e.jogador + ' na bola'; }},
+        troca:    {ico: 'bi-arrow-left-right', txt: function (e) { return '<b>Substituição:</b> sai ' + e.sai + ', entra ' + e.jogador; }}
+      };
+
       function textoDoLance(e) {
         if (e.tipo === 'gol') {
           return '<b>GOL' + (e.meu ? '' : ' DELES') + '!</b> ' + e.jogador +
@@ -974,7 +1094,12 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         if (e.tipo === 'vermelho') {
           return '<b>Vermelho</b> para ' + e.jogador + (e.segundo ? ' <i>(segundo amarelo)</i>' : '');
         }
-        return 'Amarelo para ' + e.jogador;
+        if (e.tipo === 'amarelo') return 'Amarelo para ' + e.jogador;
+
+        var l = LANCES[e.tipo];
+        if (!l) return e.jogador || '';
+        return '<i class="bi ' + l.ico + '"></i> ' + l.txt(e) +
+               (e.meu ? '' : ' <i>(eles)</i>');
       }
 
       function mostraLance(e) {
@@ -996,6 +1121,36 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           return '<div class="nota-linha"><span>' + n + '</span>' +
                  '<span class="n ' + cls + '">' + v + '</span></div>';
         }).join('');
+      }
+
+      var caixaNumeros = document.getElementById('numerosVivo');
+      function linhaNumero(rot, meu, dele) {
+        var t = (meu + dele) || 1;
+        return '<div>' +
+          '<div class="viv-num-linha">' +
+            '<span class="n">' + meu + '</span>' +
+            '<span class="viv-num-barra">' +
+              '<i class="eu" style="width:' + (meu / t * 100) + '%"></i>' +
+              '<i class="ele" style="width:' + (dele / t * 100) + '%"></i>' +
+            '</span>' +
+            '<span class="n">' + dele + '</span>' +
+          '</div>' +
+          '<div class="viv-num-rot">' + rot + '</div></div>';
+      }
+      function mostraNumeros(n) {
+        if (!n || !caixaNumeros) return;
+        caixaNumeros.innerHTML =
+          linhaNumero('posse de bola', n.posse + '%', (100 - n.posse) + '%')
+            .replace(/width:NaN%/g, 'width:' + n.posse + '%')
+          + linhaNumero('finalizações', n.chutes, n.chutes_deles)
+          + linhaNumero('no alvo', n.no_alvo, n.no_alvo_deles);
+        /* A barra da posse não sai da soma como as outras (é porcentagem, não
+           contagem), então ela é desenhada na mão. */
+        var barras = caixaNumeros.querySelectorAll('.viv-num-barra');
+        if (barras[0]) {
+          barras[0].children[0].style.width = n.posse + '%';
+          barras[0].children[1].style.width = (100 - n.posse) + '%';
+        }
       }
 
       function acabou() {
@@ -1021,6 +1176,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             plFora.textContent = casa ? d.deles : d.meus;
             (d.novos || []).forEach(mostraLance);
             mostraNotas(d.notas);
+            mostraNumeros(d.numeros);
             pintaRelogio();
             if (d.fim) acabou();
           })
@@ -1072,7 +1228,80 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           });
       });
 
+      // ── A substituição ─────────────────────────────────────────
+      var popTroca = document.getElementById('popTroca');
+      var listaSai = document.getElementById('listaSai');
+      var listaEntra = document.getElementById('listaEntra');
+      var btConfirmar = document.getElementById('btConfirmarTroca');
+      var btTrocarConta = document.getElementById('btTrocarConta');
+      var trocaRestam = document.getElementById('trocaRestam');
+      var escolhaSai = null, escolhaEntra = null, rolavaAntes = false;
+
+      function pintaOpcoes(dados) {
+        listaSai.innerHTML = dados.campo.map(function (j) {
+          return '<button type="button" class="troca-op" data-nome="' + j.nome + '"' +
+                 (j.entrou ? ' disabled title="Acabou de entrar"' : '') + '>' +
+                 '<span class="o">' + j.ovr + '</span><span class="nm">' + j.nome + '</span>' +
+                 '<span class="en">' + j.energia + '</span></button>';
+        }).join('') || '<div style="color:var(--txt3);font-size:12px">Ninguém em campo.</div>';
+
+        listaEntra.innerHTML = dados.banco.map(function (j) {
+          return '<button type="button" class="troca-op" data-nome="' + j.nome + '">' +
+                 '<span class="o">' + j.ovr + '</span><span class="nm">' + j.nome + '</span>' +
+                 '<span class="en">' + j.energia + '</span></button>';
+        }).join('') || '<div style="color:var(--txt3);font-size:12px">Banco vazio.</div>';
+
+        trocaRestam.textContent = dados.restam + ' substituição(ões) restante(s)';
+        escolhaSai = escolhaEntra = null;
+        btConfirmar.disabled = true;
+      }
+
+      function ligaEscolha(lista, qual) {
+        lista.addEventListener('click', function (e) {
+          var b = e.target.closest('.troca-op');
+          if (!b || b.disabled) return;
+          lista.querySelectorAll('.troca-op').forEach(function (x) { x.classList.remove('sel'); });
+          b.classList.add('sel');
+          if (qual === 'sai') escolhaSai = b.dataset.nome; else escolhaEntra = b.dataset.nome;
+          btConfirmar.disabled = !(escolhaSai && escolhaEntra);
+        });
+      }
+      ligaEscolha(listaSai, 'sai');
+      ligaEscolha(listaEntra, 'entra');
+
+      document.getElementById('btTrocar').addEventListener('click', function () {
+        rolavaAntes = rolando;
+        if (rolando) pausa();
+        fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+          .then(function (r) { return r.json(); })
+          .then(function (d) { pintaOpcoes(d); popTroca.hidden = false; });
+      });
+
+      popTroca.addEventListener('click', function (e) {
+        if (e.target === popTroca || e.target.hasAttribute('data-fechar')) {
+          popTroca.hidden = true;
+          if (rolavaAntes) toca();
+        }
+      });
+
+      btConfirmar.addEventListener('click', function () {
+        if (!escolhaSai || !escolhaEntra) return;
+        btConfirmar.disabled = true;
+        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(
+          {acao: 'aovivo_substituir', sai: escolhaSai, entra: escolhaEntra})})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { trocaRestam.textContent = d.erro; btConfirmar.disabled = false; return; }
+            btTrocarConta.textContent = '(' + d.restam + ')';
+            mostraLance({minuto: minuto, tipo: 'troca', meu: true,
+                         jogador: escolhaEntra, sai: escolhaSai});
+            popTroca.hidden = true;
+            if (rolavaAntes) toca();
+          });
+      });
+
       pintaRelogio();
+      mostraNumeros(<?= json_encode($vivo['numeros'] ?? null) ?>);
       if (minuto >= 90) acabou();
       <?php if (!empty($vivo['eventos'])): ?>
         <?= 'var jaVistos = ' . json_encode(array_values($vivo['eventos']), JSON_UNESCAPED_UNICODE) . ';' ?>

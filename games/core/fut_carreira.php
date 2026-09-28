@@ -622,6 +622,9 @@ function futCarreiraAoVivoIniciar(array $estado): array
         'cartoes'     => [],
         'gols'        => [],
         'jogaram'     => [],
+        'trocas'      => [],   // as substituições já feitas (máximo cinco)
+        'numeros'     => ['posse' => 50, 'chutes' => 0, 'chutes_deles' => 0,
+                          'no_alvo' => 0, 'no_alvo_deles' => 0, 'trechos' => 0],
         'comp'        => $j['comp'],
         'fase'        => $j['fase'] ?? '',
         'rodada'      => $j['rodada'] ?? 0,
@@ -674,8 +677,93 @@ function futCarreiraAoVivoAvancar(array $estado, int $ate): array
        é de nomes porque a escalação pode mudar de um trecho pro outro. */
     foreach ($meus as $x) $v['jogaram'][$x['nome']] = true;
 
+    /* AS ESTATÍSTICAS SOMAM; a posse é média dos trechos, porque ela é uma
+       porcentagem e somar porcentagem não quer dizer nada. */
+    $n = $t['numeros'] ?? [];
+    $ant = $v['numeros'] ?? ['posse' => 50, 'chutes' => 0, 'chutes_deles' => 0,
+                             'no_alvo' => 0, 'no_alvo_deles' => 0, 'trechos' => 0];
+    $trechos = (int)$ant['trechos'] + 1;
+    $v['numeros'] = [
+        'posse'         => (int)round((($ant['posse'] * (int)$ant['trechos']) + (int)($n['posse'] ?? 50)) / $trechos),
+        'chutes'        => (int)$ant['chutes'] + (int)($n['chutes'] ?? 0),
+        'chutes_deles'  => (int)$ant['chutes_deles'] + (int)($n['chutes_deles'] ?? 0),
+        'no_alvo'       => (int)$ant['no_alvo'] + (int)($n['no_alvo'] ?? 0),
+        'no_alvo_deles' => (int)$ant['no_alvo_deles'] + (int)($n['no_alvo_deles'] ?? 0),
+        'trechos'       => $trechos,
+    ];
+
     $estado['aovivo'] = $v;
     return ['ok' => true, 'estado' => $estado, 'novos' => $t['eventos'], 'fim' => $ate >= 90];
+}
+
+/** Quantas substituições cabem numa partida. */
+const FUT_AOVIVO_TROCAS = 5;
+
+/**
+ * TROCA UM JOGADOR NO MEIO DA PARTIDA.
+ *
+ * É a decisão mais clássica do futebol e a única que faltava na pausa. Vale do
+ * minuto seguinte em diante, como a estratégia: o trecho que já foi simulado
+ * não volta atrás (@see futSimularTrecho).
+ *
+ * QUEM SAI NÃO VOLTA, e por isso a conta de trocas é a lista de quem saiu —
+ * não um contador solto que uma segunda janela poderia furar.
+ *
+ * @return array ['ok'=>bool,'erro'=>string,'estado'=>array]
+ */
+function futCarreiraAoVivoSubstituir(array $estado, string $sai, string $entra): array
+{
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'estado' => $estado];
+
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return $falha('Não há partida em andamento.');
+    if ((int)$v['minuto'] >= 90) return $falha('A partida acabou.');
+    if (count($v['trocas'] ?? []) >= FUT_AOVIVO_TROCAS) {
+        return $falha('Você já fez as ' . FUT_AOVIVO_TROCAS . ' substituições.');
+    }
+
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $escalados = futCarreiraEscalacaoAtual($estado);
+
+    $vaga = null;
+    foreach ($escalados as $iv => $j) {
+        if ($j['nome'] === $sai) { $vaga = $iv; break; }
+    }
+    if ($vaga === null) return $falha($sais = $sai . ' não está em campo.');
+
+    foreach ($v['trocas'] ?? [] as $t) {
+        if (($t['entra'] ?? '') === $sai) {
+            return $falha($sai . ' acabou de entrar — tire outro.');
+        }
+    }
+
+    // Quem entra tem que estar no banco, inteiro e disponível.
+    $reservas = futReservas($estado['elenco'], $escalados, array_keys($estado['suspensos'] ?? []));
+    $achou = null;
+    foreach ($reservas as $r) if ($r['nome'] === $entra) { $achou = $r; break; }
+    if (!$achou) return $falha($entra . ' não está disponível no banco.');
+
+    /* A ESCALAÇÃO SALVA É UM MAPA DE VAGA PRA NOME. Quando o técnico nunca
+       mexeu, ela está vazia e o time é o automático — então ela é montada
+       aqui a partir de quem está em campo, senão a troca se perderia. */
+    $mapa = $estado['escalacao'] ?? [];
+    if (!$mapa) {
+        foreach ($escalados as $iv => $j) $mapa[$iv] = $j['nome'];
+    }
+    $mapa[$vaga] = $entra;
+
+    $val = futValidarEscalacao($mapa, $estado['elenco'], $esquema,
+                               array_keys($estado['suspensos'] ?? []));
+    if (!$val['ok']) return $falha($val['erro']);
+
+    $estado['escalacao'] = $mapa;
+    $v['trocas'][] = ['minuto' => (int)$v['minuto'], 'sai' => $sai, 'entra' => $entra];
+    $v['eventos'][] = ['minuto' => (int)$v['minuto'], 'tipo' => 'troca', 'meu' => true,
+                       'jogador' => $entra, 'sai' => $sai,
+                       'pos' => $achou['pos'] ?? ''];
+    $estado['aovivo'] = $v;
+
+    return ['ok' => true, 'erro' => '', 'estado' => $estado];
 }
 
 /** As notas de agora, para a tela mostrar enquanto a bola rola. */

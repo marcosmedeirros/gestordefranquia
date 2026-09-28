@@ -254,6 +254,84 @@ function futNotasDaPartida(array $escalados, array $gols, array $cartoes, int $g
  *                'gols'=>[...],'cartoes'=>[...]]
  */
 /**
+ * QUANTAS FINALIZAÇÕES UM JOGO TEM, somando os dois times.
+ *
+ * O placar sai de futPlacar e não muda por causa disto — as finalizações são
+ * DERIVADAS dele: dos chutes de cada lado, alguns já viraram gol, e o resto é
+ * o que a narração conta. Um jogo de futebol tem umas duas dúzias de
+ * finalizações e dois gols, e era justamente o meio disso que faltava.
+ */
+const FUT_FINALIZACOES_JOGO = 23;
+
+/** O que acontece com um chute que não foi gol, em partes de cem. */
+/* A trave é rara de propósito: com sete em cem dos chutes sem gol dava
+   uma e meia por partida, e bola na trave que acontece todo jogo deixa de ser
+   o lance que faz o estádio inteiro levar a mão à cabeça. */
+const FUT_DESTINO_DO_CHUTE = ['fora' => 57, 'defendeu' => 36, 'trave' => 2, 'bloqueou' => 5];
+
+/** Faltas por jogo, de cada lado — as que valem menção. */
+const FUT_FALTAS_PERIGOSAS_JOGO = 3.2;
+
+/**
+ * OS LANCES QUE NÃO MUDAM O PLACAR.
+ *
+ * A partida ao vivo tinha dezoito atualizações de relógio e só quatro eventos
+ * no jogo inteiro: os gols e os cartões. Em catorze delas o relógio andava e
+ * não acontecia nada, o que faz uma tela de cronômetro, não de futebol.
+ *
+ * Aqui saem a chance perdida, a defesa do goleiro, a bola na trave, o chute
+ * bloqueado e a falta perigosa. Nenhum deles mexe no resultado — quem decide
+ * o placar continua sendo futPlacar, e isso é de propósito: a narração conta
+ * o jogo que o motor já decidiu, em vez de virar um segundo motor com regra
+ * própria.
+ *
+ * @param int $gols os gols que o time fez no trecho: eles JÁ são finalização,
+ *        então saem da conta pra não dobrar o número de chutes.
+ * @return array lista de eventos e o total de finalizações do trecho
+ */
+function futLancesDoTrecho(array $escalados, float $fracao, float $fatia,
+                           int $gols, bool $meu, int $de, int $ate): array
+{
+    if (!$escalados || $fracao <= 0) return ['eventos' => [], 'chutes' => $gols, 'no_alvo' => $gols];
+
+    $esperado = FUT_FINALIZACOES_JOGO * $fracao * $fatia;
+    $chutes = max($gols, futPoisson($esperado));
+    $semGol = $chutes - $gols;
+
+    $pesos = [];
+    foreach ($escalados as $j) $pesos[] = [$j, futPesoDoJogador($j, FUT_PESO_GOL)];
+
+    $eventos = [];
+    $noAlvo = $gols;
+    $sorteio = [];
+    foreach (FUT_DESTINO_DO_CHUTE as $tipo => $peso) {
+        for ($i = 0; $i < $peso; $i++) $sorteio[] = $tipo;
+    }
+
+    for ($i = 0; $i < $semGol; $i++) {
+        $j = futSorteioPonderado($pesos);
+        if (!$j) break;
+        $tipo = $sorteio[mt_rand(0, count($sorteio) - 1)];
+        if ($tipo === 'defendeu') $noAlvo++;
+        $eventos[] = ['minuto' => mt_rand($de, $ate), 'tipo' => $tipo, 'meu' => $meu,
+                      'jogador' => $j['nome'], 'pos' => $j['pos']];
+    }
+
+    /* A FALTA PERIGOSA É DO OUTRO LADO: quem comete é o adversário, e quem
+       cobra é o time. Como só temos o elenco de um dos lados por vez, ela
+       entra como lance do time que vai bater. */
+    $faltas = futPoisson(FUT_FALTAS_PERIGOSAS_JOGO * $fracao * $fatia);
+    for ($i = 0; $i < $faltas; $i++) {
+        $j = futSorteioPonderado($pesos);
+        if (!$j) break;
+        $eventos[] = ['minuto' => mt_rand($de, $ate), 'tipo' => 'falta', 'meu' => $meu,
+                      'jogador' => $j['nome'], 'pos' => $j['pos']];
+    }
+
+    return ['eventos' => $eventos, 'chutes' => $chutes, 'no_alvo' => $noAlvo];
+}
+
+/**
  * AS DUAS ALAVANCAS DO TÉCNICO DURANTE O JOGO.
  *
  * POSTURA mexe no quanto o jogo abre. Ofensiva sobe o nível dos dois lados —
@@ -370,10 +448,28 @@ function futSimularTrecho(array $meus, array $deles, int $forcaMeu, int $forcaDe
                       'meu' => true, 'jogador' => $c['jogador']['nome'],
                       'pos' => $c['jogador']['pos'], 'segundo' => $c['segundo']];
     }
+
+    /* E O RESTO DO JOGO. A fatia de cada lado sai da força: quem é melhor
+       chuta mais, como já acontece com o gol. */
+    $fMeu  = max(1, $forcaMeu);
+    $fDele = max(1, $forcaDele);
+    $fatiaMinha = $fMeu / ($fMeu + $fDele);
+
+    $lancesMeus  = futLancesDoTrecho($meus,  $fGols, $fatiaMinha,      $golsMeus,  true,  $de, $ate);
+    $lancesDeles = futLancesDoTrecho($deles, $fGols, 1 - $fatiaMinha,  $golsDeles, false, $de, $ate);
+    $eventos = array_merge($eventos, $lancesMeus['eventos'], $lancesDeles['eventos']);
+
     usort($eventos, fn($a, $b) => $a['minuto'] <=> $b['minuto']);
 
     return ['meus' => $golsMeus, 'deles' => $golsDeles, 'eventos' => $eventos,
-            'gols' => $meusGols, 'cartoes' => $meusCart];
+            'gols' => $meusGols, 'cartoes' => $meusCart,
+            'numeros' => [
+                'posse'         => (int)round($fatiaMinha * 100),
+                'chutes'        => $lancesMeus['chutes'],
+                'chutes_deles'  => $lancesDeles['chutes'],
+                'no_alvo'       => $lancesMeus['no_alvo'],
+                'no_alvo_deles' => $lancesDeles['no_alvo'],
+            ]];
 }
 
 function futSimularPartida(array $meus, array $deles, int $forcaMeu, int $forcaDele, bool $casa): array
