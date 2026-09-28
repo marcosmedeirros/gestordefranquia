@@ -272,48 +272,14 @@ function iniciaisDoClube(string $nome): string
     return mb_strtoupper(mb_substr($partes[0], 0, 2));
 }
 
-/**
- * UM EMBLEMA DESENHADO para o clube que não tem escudo.
- *
- * Sessenta e um dos noventa e oito clubes não têm escudo no catálogo, e eles
- * apareciam como duas letras num quadrado cinza igual ao de todos os outros —
- * numa tabela de quarenta e dois times da Série D, isso é uma coluna de
- * quadrados idênticos. O jogo não hospeda escudo de clube nenhum, então a
- * saída é desenhar um: um brasão com as cores tiradas do próprio nome, que
- * sai sempre igual pro mesmo clube e sempre diferente do vizinho.
- */
-function escudoGerado(string $nome, int $tam): string
-{
-    $semente = crc32($nome);
-    $matiz   = $semente % 360;
-    $matiz2  = ($matiz + 25 + ($semente >> 8) % 60) % 360;
-
-    $c1 = 'hsl(' . $matiz . ',52%,38%)';
-    $c2 = 'hsl(' . $matiz2 . ',58%,22%)';
-    $faixa = 'hsl(' . $matiz . ',45%,72%)';
-    $id = 'e' . dechex($semente);
-    $ini = h(iniciaisDoClube($nome));
-
-    return '<svg width="' . $tam . '" height="' . $tam . '" viewBox="0 0 40 44" role="img"'
-         . ' aria-label="' . h($nome) . '" style="flex-shrink:0;display:block">'
-         . '<defs><linearGradient id="' . $id . '" x1="0" y1="0" x2="0" y2="1">'
-         . '<stop offset="0" stop-color="' . $c1 . '"/><stop offset="1" stop-color="' . $c2 . '"/>'
-         . '</linearGradient></defs>'
-         . '<path d="M20 1 L38 6 V22 C38 32 30 39 20 43 C10 39 2 32 2 22 V6 Z"'
-         . ' fill="url(#' . $id . ')" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/>'
-         . '<path d="M2 17 L38 17 V22 L2 22 Z" fill="' . $faixa . '" opacity=".28"/>'
-         . '<text x="20" y="27" text-anchor="middle" font-family="Inter,system-ui,sans-serif"'
-         . ' font-size="15" font-weight="800" fill="#fff" opacity=".95">' . $ini . '</text>'
-         . '</svg>';
-}
-
 function escudo(array $c, int $tam = 26): string
 {
     $url = $c['escudo'] ?? '';
     if ($url !== '') {
         return '<img src="' . h($url) . '" alt="" width="' . $tam . '" height="' . $tam . '" loading="lazy" style="object-fit:contain;flex-shrink:0">';
     }
-    return escudoGerado((string)($c['nome'] ?? '?'), $tam);
+    $ini = iniciaisDoClube((string)($c['nome'] ?? '?'));
+    return '<span class="mono" style="width:' . $tam . 'px;height:' . $tam . 'px;font-size:' . round($tam * 0.38) . 'px">' . h($ini) . '</span>';
 }
 
 $proximo = null;
