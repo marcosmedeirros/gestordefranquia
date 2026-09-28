@@ -210,6 +210,34 @@ function futSaldoAnual(int $forca, string $div, array $elenco): float
     return round(futReceitaAnual($forca, $div) - futFolhaDoElenco($elenco), 2);
 }
 
+/** Até que idade um jogador é "jovem" pro empréstimo. */
+const FUT_EMPRESTIMO_IDADE = 21;
+
+/** Quantos emprestados um elenco aguenta ao mesmo tempo. */
+const FUT_EMPRESTIMO_MAXIMO = 3;
+
+/** Quantas vezes o mesmo jogador pode ser emprestado na carreira dele. */
+const FUT_EMPRESTIMO_POR_JOGADOR = 3;
+
+/**
+ * O CLUBE TOPA EMPRESTAR ESSE JOGADOR?
+ *
+ * Ninguém empresta o craque. Empresta-se o garoto que precisa jogar e o
+ * reserva que não entra — e é exatamente isso que faz o empréstimo ser a
+ * forma de um clube pequeno montar elenco sem dinheiro: ele leva quem, no
+ * clube grande, está parado.
+ *
+ * O POSTO É A MESMA RÉGUA DO MERCADO (@see futPostosDoElenco): 1 é o melhor
+ * do elenco. Titular não sai por empréstimo nem sendo jovem, porque aí a
+ * conta de quem é imprescindível seria só a idade.
+ */
+function futPodeSerEmprestado(array $jogador, int $posto): bool
+{
+    if ($posto <= 11) return false;                       // é titular, não sai
+    if ((int)($jogador['idade'] ?? 25) <= FUT_EMPRESTIMO_IDADE) return true;
+    return $posto >= 15;                                   // nem titular nem reserva imediato
+}
+
 /**
  * O JOGADOR ESTÁ NA LISTA DE TRANSFERÊNCIAS?
  *
@@ -437,7 +465,8 @@ function futMercadoDisponivel(array $clubes, float $meuCaixa, int $limite = 60, 
             if ($pedido > $meuCaixa * 2.5) continue;
 
             $lista[] = [
-                'a_venda' => $aVenda,
+                'a_venda'    => $aVenda,
+                'emprestavel' => futPodeSerEmprestado($j, $posto),
                 'nome'    => $j['nome'],
                 'pos'     => $j['pos'],
                 'ovr'     => (int)$j['ovr'],

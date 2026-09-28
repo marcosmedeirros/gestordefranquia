@@ -238,6 +238,14 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             else $erro = $r['motivo'];
         }
 
+        elseif ($estado && $acao === 'emprestar') {
+            $r = futCarreiraPedirEmprestado($estado, (string)($_POST['clube_dono'] ?? ''),
+                                                      (string)($_POST['jogador'] ?? ''));
+            $estado = $r['estado'];
+            if ($r['ok']) { $aviso = $r['motivo']; futCarreiraSalvar($pdo, $idUsuario, $estado); }
+            else $erro = $r['motivo'];
+        }
+
         elseif ($estado && $acao === 'vender') {
             $r = futCarreiraVender($estado, (string)($_POST['jogador'] ?? ''),
                                    (float)($_POST['oferta'] ?? 0), (string)($_POST['comprador'] ?? 'um clube'));
@@ -1833,7 +1841,13 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             $cls = $j['ovr'] >= 80 ? 'b' : ($j['ovr'] >= 70 ? 'm' : '');
         ?>
           <tr>
-            <td><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=elenco"><?= h($j['nome']) ?></a></td>
+            <td>
+              <a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=elenco"><?= h($j['nome']) ?></a>
+              <?php if (!empty($j['emprestado_de'])): ?>
+                <span class="selo-venda" style="background:rgba(96,165,250,.14);color:#93c5fd;border-color:rgba(96,165,250,.32)"
+                      title="Volta pro <?= h($j['emprestado_de']) ?> no fim da temporada">emprestado</span>
+              <?php endif; ?>
+            </td>
             <td><span class="tagpos"><?= h($j['pos']) ?></span></td>
             <td class="num"><span class="ovr <?= $cls ?>"><?= (int)$j['ovr'] ?></span></td>
             <td class="num"><?= (int)$j['idade'] ?></td>
@@ -2516,9 +2530,14 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
          que não interessa a ninguém. */
       /* A Série D fechou o fundo da escada: antes o clube da Série C varria a
          divisão de baixo procurando quem não tinha divisão nenhuma, e desde que
-         esses 42 clubes viraram a Série D essa busca não achava mais ninguém. */
-      $ordem = ['BR1' => ['BR1', 'BR2'], 'BR2' => ['BR2', 'BR3'],
-                'BR3' => ['BR3', 'BR4'], 'BR4' => ['BR4']];
+         esses 42 clubes viraram a Série D essa busca não achava mais ninguém.
+
+         E A DIVISÃO DE CIMA ENTROU POR CAUSA DO EMPRÉSTIMO. Comprar, o clube
+         pequeno compra embaixo; pedir emprestado, ele pede em cima — é lá que
+         estão os garotos que não jogam. Sem essa linha, o empréstimo só
+         alcançaria quem ele já podia comprar. */
+      $ordem = ['BR1' => ['BR1', 'BR2'], 'BR2' => ['BR1', 'BR2', 'BR3'],
+                'BR3' => ['BR2', 'BR3', 'BR4'], 'BR4' => ['BR3', 'BR4']];
       $divs = $ordem[$div] ?? ['BR4'];
       $fonte = [];
       foreach ($divs as $d) {
@@ -2540,6 +2559,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         if ($fPos !== '' && $m['pos'] !== $fPos) return false;
         if ($soVenda && empty($m['a_venda'])) return false;
         if ($soCabe && $m['pedido'] > (float)$estado['caixa']) return false;
+        if (!empty($_GET['emp']) && empty($m['emprestavel'])) return false;
         return true;
       });
 
@@ -2558,6 +2578,17 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         Caixa: <strong><?= h(futDinheiro((float)$estado['caixa'])) ?></strong>.
         Quem está <span style="color:var(--verde-claro);font-weight:700">à venda</span> sai perto do preço de tabela.
         Quem o clube não quer vender custa bem mais caro.
+      </div>
+      <?php
+        $emprestadosAgora = 0;
+        foreach ($estado['elenco'] as $j) if (!empty($j['emprestado_de'])) $emprestadosAgora++;
+      ?>
+      <div style="font-size:12px;color:var(--txt2);margin-bottom:12px">
+        <i class="bi bi-box-arrow-in-down" style="color:var(--verde-claro)"></i>
+        <strong>Empréstimo</strong> não custa passe — você paga só o salário, e ele volta no fim
+        da temporada. Só sai quem não é titular no clube dele, e cabem
+        <?= FUT_EMPRESTIMO_MAXIMO ?> no elenco
+        (<?= $emprestadosAgora ?> agora).
       </div>
 
       <form method="get" style="margin-bottom:12px">
@@ -2594,6 +2625,10 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer">
             <input type="checkbox" name="cabe" value="1" <?= $soCabe ? 'checked' : '' ?> style="width:auto">
             só o que cabe no caixa
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer">
+            <input type="checkbox" name="emp" value="1" <?= !empty($_GET['emp']) ? 'checked' : '' ?> style="width:auto">
+            só quem dá pra pegar emprestado
           </label>
           <button class="btn peq" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
           <?php if ($busca !== '' || $fPos !== '' || $soVenda || $soCabe): ?>
@@ -2638,6 +2673,16 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
                   <input type="hidden" name="oferta" value="<?= $m['pedido'] ?>">
                   <button class="btn peq" type="submit" <?= $podePagar ? '' : 'disabled' ?>>Comprar</button>
                 </form>
+                <?php if (!empty($m['emprestavel'])): ?>
+                  <form method="post" style="display:inline">
+                    <input type="hidden" name="acao" value="emprestar">
+                    <input type="hidden" name="aba" value="mercado">
+                    <input type="hidden" name="clube_dono" value="<?= h($m['clube']) ?>">
+                    <input type="hidden" name="jogador" value="<?= h($m['nome']) ?>">
+                    <button class="btn sec peq" type="submit" title="Sem custo de passe: você paga só o salário, e ele volta no fim da temporada">
+                      <i class="bi bi-box-arrow-in-down"></i> Emprestado</button>
+                  </form>
+                <?php endif; ?>
               </td>
             </tr>
           <?php endforeach; ?>

@@ -1238,6 +1238,13 @@ function futCarreiraFecharTemporada(array $estado): array
     $estado['stats'] = [];
     $estado['suspensos'] = [];
 
+    /* OS EMPRESTADOS VOLTAM PRA CASA ANTES DE TUDO. Se ficassem, o ano
+       seguinte os trataria como seus: eles envelheceriam no seu elenco e o
+       clube dono nunca os veria de volta. */
+    $dev = futCarreiraDevolverEmprestados($estado);
+    $estado = $dev['estado'];
+    $relatorio['devolvidos'] = $dev['devolvidos'];
+
     // ── O ELENCO ATRAVESSA O ANO: evolui, envelhece, aposenta, renova ──
     $forcaCat = (int)($clubes[$estado['clube']]['forca'] ?? 50);
     $ano = futPassarAnoNoElenco($estado['elenco'], $statsDoAno, $estado['clube'], $forcaCat, (int)$estado['ano']);
@@ -1319,6 +1326,112 @@ function futCarreiraTrocarDeClube(array $estado, string $novoClube): array
  *
  * @return array ['ok'=>bool, 'motivo'=>string, 'estado'=>array]
  */
+/**
+ * PEDE UM JOGADOR EMPRESTADO até o fim da temporada.
+ *
+ * É como clube pequeno monta elenco: não custa passe, só a folha — e devolve
+ * no fim do ano. O que segura o abuso são três travas: o clube dono só
+ * empresta quem não é titular (@see futPodeSerEmprestado), o seu elenco
+ * comporta três emprestados ao mesmo tempo, e o mesmo jogador não pode ser
+ * emprestado mais de três vezes na carreira.
+ *
+ * @return array ['ok'=>bool,'motivo'=>string,'estado'=>array]
+ */
+function futCarreiraPedirEmprestado(array $estado, string $clubeDono, string $jogador): array
+{
+    $falha = fn(string $m) => ['ok' => false, 'motivo' => $m, 'estado' => $estado];
+
+    $clubes = futClubesDoBrasil();
+    $dono = $clubes[$clubeDono] ?? null;
+    if (!$dono) return $falha('Clube desconhecido.');
+    if ($clubeDono === ($estado['clube'] ?? '')) return $falha('Esse jogador já é seu.');
+
+    if (count($estado['elenco']) >= FUT_ELENCO_MAXIMO) {
+        return $falha('Seu elenco está cheio (' . FUT_ELENCO_MAXIMO . ' jogadores).');
+    }
+
+    $jaEmprestados = 0;
+    foreach ($estado['elenco'] as $j) if (!empty($j['emprestado_de'])) $jaEmprestados++;
+    if ($jaEmprestados >= FUT_EMPRESTIMO_MAXIMO) {
+        return $falha('Você já tem ' . FUT_EMPRESTIMO_MAXIMO . ' jogadores emprestados.');
+    }
+
+    $elencoDele = futElencoDoClube($clubeDono, (int)$dono['forca']);
+    $foram = $estado['saidas'][$clubeDono] ?? [];
+    $elencoDele = array_values(array_filter($elencoDele, fn($j) => !in_array($j['nome'], $foram, true)));
+
+    $alvo = null;
+    foreach ($elencoDele as $j) if ($j['nome'] === $jogador) { $alvo = $j; break; }
+    if (!$alvo) return $falha('Esse jogador não está mais no clube.');
+
+    $postos = futPostosDoElenco($elencoDele);
+    $posto = $postos[$alvo['nome']] ?? 25;
+    if (!futPodeSerEmprestado($alvo, $posto)) {
+        return $falha('O ' . $clubeDono . ' não empresta ' . $alvo['nome'] . ' — ele é titular lá.');
+    }
+
+    /* QUANTAS VEZES ESSE JOGADOR JÁ RODOU. Fica gravado no histórico do save,
+       e não no jogador, porque ele volta pro clube dono no fim do ano e o
+       objeto some do seu elenco. */
+    $vezes = (int)($estado['emprestimos'][$alvo['nome']] ?? 0);
+    if ($vezes >= FUT_EMPRESTIMO_POR_JOGADOR) {
+        return $falha($alvo['nome'] . ' já foi emprestado ' . $vezes . ' vezes — não pode de novo.');
+    }
+
+    /* O JOGADOR PRECISA QUERER — e o garoto quer muito mais.
+       Empréstimo é pra jogar: quem tem vinte anos e não entra desce de
+       divisão sem pensar duas vezes, porque minuto em campo vale mais que a
+       camisa. O reserva de trinta e sete não desce, e é por isso que a
+       margem dele é curta. Com uma margem só, o clube pequeno não conseguia
+       ninguém e o empréstimo virava enfeite. */
+    $meu = futCarreiraMeuClube($estado);
+    $jovem = (int)$alvo['idade'] <= FUT_EMPRESTIMO_IDADE;
+    $margem = $jovem ? 26 : 8;
+    if ((int)$meu['forca'] + $margem < (int)$alvo['ovr']) {
+        return $falha($alvo['nome'] . ($jovem
+            ? ' quer jogar, mas não num clube tão abaixo do dele.'
+            : ' não vê o seu clube como um passo à frente.'));
+    }
+
+    $estado['saidas'][$clubeDono][] = $alvo['nome'];
+    $alvo['num'] = 0;
+    $alvo['energia'] = 100;
+    $alvo['moral'] = 85;          // chega animado: veio pra jogar
+    $alvo['lesao'] = 0;
+    $alvo['emprestado_de'] = $clubeDono;
+    $estado['elenco'][] = $alvo;
+    $estado['elenco'] = futRenumerar($estado['elenco']);
+    $estado['emprestimos'][$alvo['nome']] = $vezes + 1;
+
+    return ['ok' => true, 'estado' => $estado,
+            'motivo' => $alvo['nome'] . ' chegou por empréstimo do ' . $clubeDono
+                      . ', até o fim da temporada.'];
+}
+
+/**
+ * DEVOLVE QUEM ESTAVA EMPRESTADO. Chamado na virada da temporada.
+ *
+ * @return array ['estado'=>array,'devolvidos'=>array]
+ */
+function futCarreiraDevolverEmprestados(array $estado): array
+{
+    $devolvidos = [];
+    $fica = [];
+    foreach ($estado['elenco'] ?? [] as $j) {
+        if (empty($j['emprestado_de'])) { $fica[] = $j; continue; }
+        $devolvidos[] = $j['nome'] . ' voltou para o ' . $j['emprestado_de'];
+
+        /* O DONO O RECEBE DE VOLTA: tirar o nome de 'saidas' é o que faz ele
+           reaparecer no elenco do clube dele. Sem isto, o jogador sumiria do
+           jogo — saiu de lá e não está mais aqui. */
+        $lista = $estado['saidas'][$j['emprestado_de']] ?? [];
+        $estado['saidas'][$j['emprestado_de']] = array_values(
+            array_filter($lista, fn($n) => $n !== $j['nome']));
+    }
+    $estado['elenco'] = futRenumerar($fica);
+    return ['estado' => $estado, 'devolvidos' => $devolvidos];
+}
+
 function futCarreiraComprar(array $estado, string $clubeVendedor, string $jogador, float $oferta): array
 {
     $clubes = futClubesDoBrasil();
