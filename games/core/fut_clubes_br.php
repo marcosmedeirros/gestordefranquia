@@ -98,6 +98,11 @@ const FUT_ESCUDOS = [
     'Villa Nova-MG'        => 'img/escudos/villa-nova-mg.webp',
     'Água Santa'          => 'img/escudos/agua-santa.png',
     'Águia de Marabá'    => 'img/escudos/aguia-de-maraba.png',
+    'Portuguesa-RJ'        => 'img/escudos/portuguesa-rj.png',
+    'Rio Branco-AC'        => 'img/escudos/rio-branco-ac.png',
+    'Rio Branco-PR'        => 'img/escudos/rio-branco-pr.png',
+    'Sampaio Corrêa-RJ'   => 'img/escudos/sampaio-correa-rj.png',
+    'Uberlândia'          => 'img/escudos/uberlandia.png',
 
     // ── Da base que o catálogo do Copero já usa ──────────────────
     'Altos'                => 'https://r2.thesportsdb.com/images/media/team/badge/x9cimn1740845897.png',
