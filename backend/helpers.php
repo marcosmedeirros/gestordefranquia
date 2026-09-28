@@ -577,6 +577,22 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
            nao volta a ser leal por aqui. E $lendaConta mantem isto na ELITE —
            na RISE e na NEXT a lenda nao conta, e na ROOKIE o bloco acima ja
            zerou tudo antes de chegar aqui. */
+        /* ONDE A LENDA NÃO CONTA, ELA NÃO É LEAL — nem com o check manual.
+           O override de lealdade é um "sim" escrito à mão pelo admin, e ele
+           passava por cima da régua da liga: na RISE, onde lenda não gera
+           bônus nenhum, sete lendas apareciam com o selo "Leal" e os GMs
+           cobraram, com razão. O selo ali prometia um teto que o servidor não
+           ia dar, porque restrictedEligibleOvrs já ignora lenda na RISE.
+
+           Só a lenda entra nesta trava. O override continua valendo pra
+           jogador normal, que é pra isso que ele existe: consertar um caso
+           que a regra automática não enxerga. */
+        if ($ehLenda && !$lendaConta) {
+            $p['is_loyal'] = 0;
+            $p['cap_bonus_eligible'] = 0;
+            continue;
+        }
+
         $p['is_loyal'] = ($isLoyal || $lendaFiel) ? 1 : 0;
         $p['cap_bonus_eligible'] = (($isLoyal || $lendaFiel) && $highOvr) ? 1 : 0;
     }
