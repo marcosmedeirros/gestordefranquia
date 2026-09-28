@@ -85,6 +85,19 @@ const FUT_ESCUDOS = [
     'São Bernardo'        => 'img/escudos/sao-bernardo.png',
     'Tombense'             => 'img/escudos/tombense.png',
     'Vitória'             => 'img/escudos/vitoria.png',
+    'América-RN'          => 'img/escudos/america-rn.png',
+    'Boavista-RJ'          => 'img/escudos/boavista-rj.png',
+    'Paraná'              => 'img/escudos/parana.png',
+    'Sergipe'              => 'img/escudos/sergipe.png',
+    'Sousa'                => 'img/escudos/sousa.png',
+    'São Joseense'        => 'img/escudos/sao-joseense.png',
+    'São Raimundo-RR'     => 'img/escudos/sao-raimundo-rr.png',
+    'Trem'                 => 'img/escudos/trem.png',
+    'Treze'                => 'img/escudos/treze.webp',
+    'Velo Clube'           => 'img/escudos/velo-clube.webp',
+    'Villa Nova-MG'        => 'img/escudos/villa-nova-mg.webp',
+    'Água Santa'          => 'img/escudos/agua-santa.png',
+    'Águia de Marabá'    => 'img/escudos/aguia-de-maraba.png',
 
     // ── Da base que o catálogo do Copero já usa ──────────────────
     'Altos'                => 'https://r2.thesportsdb.com/images/media/team/badge/x9cimn1740845897.png',
@@ -174,7 +187,7 @@ const FUT_CLUBES_BR_EXTRA = [
     ['Azuriz',             'BR4', 'PR', 41, ''],
     ['FC Cascavel',        'BR4', 'PR', 45, ''],
     ['Rio Branco-PR',      'BR4', 'PR', 38, ''],
-    ['União Beltrão',      'BR4', 'PR', 39, ''],
+    ['Paraná',             'BR4', 'PR', 39, ''],
     ['São Joseense',       'BR4', 'PR', 40, ''],
     ['Andraus',            'BR4', 'PR', 36, ''],
 
