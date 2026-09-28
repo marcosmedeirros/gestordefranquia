@@ -649,7 +649,6 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     </div>
   </div>
 
-  <?php if ($erro): ?><div class="msg err"><i class="bi bi-exclamation-triangle"></i><?= h($erro) ?></div><?php endif; ?>
 
   <form method="post" id="fmComecar">
     <input type="hidden" name="acao" value="comecar">
@@ -1017,8 +1016,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
     </div>
   </div>
 
-  <?php if ($erro): ?><div class="msg err"><i class="bi bi-exclamation-triangle"></i><?= h($erro) ?></div><?php endif; ?>
-  <?php if ($aviso): ?><div class="msg ok"><i class="bi bi-check-circle"></i><?= h($aviso) ?></div><?php endif; ?>
+  <?php /* O recado do jogo vem em popup do jogo — ver o fim do arquivo. */ ?>
 
   <?php if ($relatorio): ?>
     <div class="bloco" style="border-color:<?= $relatorio['demitido'] ? 'rgba(239,68,68,.4)' : 'rgba(34,197,94,.4)' ?>">
@@ -1125,7 +1123,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
                   <?= h(futCarreiraRotuloDaDivisao((string)$pr['div'])) ?> · força <?= (int)$pr['forca'] ?>
                 </div>
               </div>
-              <form method="post" onsubmit="return confirm('Assumir o <?= h($pr['nome']) ?>? Você deixa o <?= h($estado['clube']) ?>.')">
+              <form method="post" data-confirmar="Assumir o <?= h($pr['nome']) ?>? Você deixa o <?= h($estado['clube']) ?>." data-confirmar-ok="Assumir">
                 <input type="hidden" name="acao" value="trocar_clube">
                 <input type="hidden" name="clube" value="<?= h($pr['nome']) ?>">
                 <button class="btn peq" type="submit">Aceitar</button>
@@ -1217,7 +1215,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <?php endforeach; ?>
         <?php endif; ?>
         <form method="post" style="margin-top:12px"
-              onsubmit="return confirm('Apagar esta carreira e começar outra do zero?')">
+              data-confirmar="Apagar esta carreira e começar outra do zero? Não dá pra desfazer." data-confirmar-ok="Apagar tudo" data-confirmar-perigo="1">
           <input type="hidden" name="acao" value="recomecar">
           <button class="btn sec peq"><i class="bi bi-arrow-repeat"></i> Apagar e começar do zero</button>
         </form>
@@ -2022,7 +2020,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       <p style="color:var(--txt2);font-size:13px;margin:0 0 12px">
         Apaga esta carreira e começa outra do zero. Não dá pra desfazer.
       </p>
-      <form method="post" onsubmit="return confirm('Apagar esta carreira e começar outra?')">
+      <form method="post" data-confirmar="Apagar esta carreira e começar outra? Não dá pra desfazer." data-confirmar-ok="Apagar tudo" data-confirmar-perigo="1">
         <input type="hidden" name="acao" value="recomecar">
         <button class="btn sec" type="submit">Apagar e recomeçar</button>
       </form>
@@ -2031,6 +2029,78 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
 <?php endif; ?>
 
+<?php // ── O RECADO DO JOGO ───────────────────────────────────────── ?>
+<?php if ($erro || $aviso): ?>
+  <div class="fundo-popup" id="popMsg">
+    <div class="popup">
+      <h4>
+        <i class="bi bi-<?= $erro ? 'exclamation-triangle-fill' : 'check-circle-fill' ?>"
+           style="color:<?= $erro ? 'var(--amarelo)' : 'var(--verde-claro)' ?>"></i>
+        <?= $erro ? 'Não deu' : 'Feito' ?>
+      </h4>
+      <p class="popup-sub" style="margin-bottom:0"><?= h($erro ?: $aviso) ?></p>
+      <div class="popup-acoes">
+        <button type="button" class="btn" data-fechar>Entendi</button>
+      </div>
+    </div>
+  </div>
+<?php endif; ?>
+
+<?php // ── A CONFIRMAÇÃO ──────────────────────────────────────────── ?>
+<div class="fundo-popup" id="popConfirmar" hidden>
+  <div class="popup">
+    <h4><i class="bi bi-question-circle-fill"></i> <span id="pcTitulo">Confirmar</span></h4>
+    <p class="popup-sub" id="pcTexto" style="margin-bottom:0"></p>
+    <div class="popup-acoes">
+      <button type="button" class="btn sec" data-fechar>Cancelar</button>
+      <button type="button" class="btn" id="pcOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* NUNCA O CONFIRM DO NAVEGADOR. A caixa do Chrome não tem a cara do jogo,
+   não dá pra escrever direito nela e some no meio da tela sem contexto. */
+(function () {
+  function fechavel(pop) {
+    pop.addEventListener('click', function (e) {
+      if (e.target === pop || e.target.hasAttribute('data-fechar')) pop.hidden = true;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !pop.hidden) pop.hidden = true;
+    });
+  }
+
+  var msg = document.getElementById('popMsg');
+  if (msg) fechavel(msg);
+
+  var pc = document.getElementById('popConfirmar');
+  var pcTexto = document.getElementById('pcTexto');
+  var pcOk = document.getElementById('pcOk');
+  var pendente = null;
+  fechavel(pc);
+
+  document.querySelectorAll('form[data-confirmar]').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      if (f.dataset.confirmado === '1') return;      // já passou pelo popup
+      e.preventDefault();
+      pendente = f;
+      pcTexto.textContent = f.dataset.confirmar;
+      pcOk.textContent = f.dataset.confirmarOk || 'Confirmar';
+      pcOk.style.background = f.dataset.confirmarPerigo ? '#b91c1c' : '';
+      pcOk.style.borderColor = f.dataset.confirmarPerigo ? '#b91c1c' : '';
+      pc.hidden = false;
+    });
+  });
+
+  pcOk.addEventListener('click', function () {
+    if (!pendente) return;
+    pendente.dataset.confirmado = '1';
+    pc.hidden = true;
+    pendente.submit();
+  });
+})();
+</script>
 </div>
 </body>
 </html>
