@@ -276,7 +276,12 @@ function escudo(array $c, int $tam = 26): string
 {
     $url = $c['escudo'] ?? '';
     if ($url !== '') {
-        return '<img src="' . h($url) . '" alt="" width="' . $tam . '" height="' . $tam . '" loading="lazy" style="object-fit:contain;flex-shrink:0">';
+        /* SEM loading="lazy". Escudo pesa dois ou três KB, então adiar não
+           economiza nada — e o adiamento tem custo: onde alguma extensão do
+           navegador mexe no layout, o Chrome decide que a imagem está fora da
+           tela e não carrega nenhuma. O cabeçalho do clube e a ficha ficavam
+           com o escudo em branco por causa disso. */
+        return '<img src="' . h($url) . '" alt="" width="' . $tam . '" height="' . $tam . '" style="object-fit:contain;flex-shrink:0">';
     }
     $ini = iniciaisDoClube((string)($c['nome'] ?? '?'));
     return '<span class="mono" style="width:' . $tam . 'px;height:' . $tam . 'px;font-size:' . round($tam * 0.38) . 'px">' . h($ini) . '</span>';
