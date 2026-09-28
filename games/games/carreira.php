@@ -1733,39 +1733,108 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
   <?php // ── ABA: TABELA ────────────────────────────────────────────── ?>
   <?php elseif ($aba === 'tabela'): ?>
-    <?php $tab = futCarreiraTabelaNacional($estado); ?>
-    <div class="bloco">
-      <h3><i class="bi bi-table"></i> <?= h(futCarreiraNomeDaDivisao($clubesTodos[$estado['clube']]['div'] ?? '') ?: 'Classificação') ?></h3>
-      <?php if (!$tab): ?>
-        <div class="vazio">A tabela aparece depois da primeira rodada do nacional.</div>
-      <?php else: ?>
-        <div class="rolar"><table>
-          <thead><tr><th></th><th>Clube</th><th class="num">P</th><th class="num">J</th>
-            <th class="num">V</th><th class="num">E</th><th class="num">D</th><th class="num">SG</th></tr></thead>
-          <tbody>
-          <?php
-            /* DA SÉRIE D NINGUÉM CAI — ela é o fundo da escada. Marcar os
-               quatro últimos de vermelho ali seria inventar uma Série E. */
-            $divTab = $clubesTodos[$estado['clube']]['div'] ?? '';
-            $temQueda = $divTab !== 'BR4';
-            $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
-            $clsPos = $i <= 4 ? 'sobe' : (($temQueda && $i > $total - 4) ? 'cai' : ''); ?>
-            <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
-              <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
-              <td><?= h($nome) ?></td>
-              <td class="num"><strong><?= (int)$l['p'] ?></strong></td>
-              <td class="num"><?= (int)$l['j'] ?></td>
-              <td class="num"><?= (int)$l['v'] ?></td>
-              <td class="num"><?= (int)$l['e'] ?></td>
-              <td class="num"><?= (int)$l['d'] ?></td>
-              <td class="num"><?= $l['sg'] > 0 ? '+' : '' ?><?= (int)$l['sg'] ?></td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table></div>
-      <?php endif; ?>
-    </div>
+    <?php
+      /* TODAS AS COMPETIÇÕES DO ANO, e não só o nacional. O técnico disputa
+         três ou quatro ao mesmo tempo — estadual, nacional, copa regional e
+         Copa do Brasil —, e a tabela de uma só contava um terço da temporada. */
+      $comps = futCarreiraCompeticoesDoAno($estado);
+      $divAtual = $clubesTodos[$estado['clube']]['div'] ?? '';
+      $padrao = futCarreiraNomeDaDivisao($divAtual);
+      if (!isset($comps[$padrao])) $padrao = (string)(array_key_first($comps) ?? '');
+      $compSel = (string)($_GET['comp'] ?? $padrao);
+      if (!isset($comps[$compSel])) $compSel = $padrao;
+      $info = $comps[$compSel] ?? ['jogos' => 0, 'jogados' => 0, 'tabela' => false];
+      $tab = $info['tabela'] ? futCarreiraTabelaDaCompeticao($estado, $compSel) : [];
+      $camp = futCarreiraCampanha($estado, $compSel);
+    ?>
+    <?php if (!$comps): ?>
+      <div class="bloco"><div class="vazio">A temporada ainda não começou.</div></div>
+    <?php else: ?>
+      <div class="bloco">
+        <h3><i class="bi bi-table"></i> Classificação</h3>
 
+        <form method="get" style="margin-bottom:12px">
+          <input type="hidden" name="aba" value="tabela">
+          <label for="comp">Competição</label>
+          <select id="comp" name="comp" onchange="this.form.submit()">
+            <?php foreach ($comps as $c => $d): ?>
+              <option value="<?= h($c) ?>" <?= $c === $compSel ? 'selected' : '' ?>>
+                <?= h($c) ?> — <?= (int)$d['jogados'] ?> de <?= (int)$d['jogos'] ?> jogos
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <noscript><button class="btn peq" type="submit" style="margin-top:8px">Ver</button></noscript>
+        </form>
+
+        <div class="fichas" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">
+          <div class="ficha"><div class="v"><?= (int)$camp['j'] ?></div><div class="r">jogos</div></div>
+          <div class="ficha"><div class="v"><?= (int)$camp['v'] ?></div><div class="r">vitórias</div></div>
+          <div class="ficha"><div class="v"><?= (int)$camp['e'] ?></div><div class="r">empates</div></div>
+          <div class="ficha"><div class="v"><?= (int)$camp['d'] ?></div><div class="r">derrotas</div></div>
+          <div class="ficha"><div class="v"><?= (int)$camp['gp'] ?>–<?= (int)$camp['gc'] ?></div><div class="r">gols</div></div>
+        </div>
+
+        <?php if (!$info['tabela']): ?>
+          <div class="vazio">
+            <?= h($compSel) ?> é mata-mata: quem perde vai pra casa, então não há classificação.
+            Os jogos aparecem abaixo.
+          </div>
+        <?php elseif (!$tab): ?>
+          <div class="vazio">A tabela aparece depois da primeira rodada.</div>
+        <?php else: ?>
+          <div class="rolar"><table>
+            <thead><tr><th></th><th>Clube</th><th class="num">P</th><th class="num">J</th>
+              <th class="num">V</th><th class="num">E</th><th class="num">D</th><th class="num">SG</th></tr></thead>
+            <tbody>
+            <?php
+              /* DA SÉRIE D NINGUÉM CAI — ela é o fundo da escada. E só o
+                 nacional tem acesso e queda: num estadual ou numa copa
+                 regional, pintar as pontas seria inventar regra. */
+              $ehNacional = $compSel === futCarreiraNomeDaDivisao($divAtual) && $divAtual !== '';
+              $temQueda = $ehNacional && $divAtual !== 'BR4';
+              $temAcesso = $ehNacional && $divAtual !== 'BR1';
+              $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
+              $clsPos = ($temAcesso && $i <= 4) ? 'sobe' : (($temQueda && $i > $total - 4) ? 'cai' : ''); ?>
+              <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
+                <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
+                <td><?= h($nome) ?></td>
+                <td class="num"><strong><?= (int)$l['p'] ?></strong></td>
+                <td class="num"><?= (int)$l['j'] ?></td>
+                <td class="num"><?= (int)$l['v'] ?></td>
+                <td class="num"><?= (int)$l['e'] ?></td>
+                <td class="num"><?= (int)$l['d'] ?></td>
+                <td class="num"><?= $l['sg'] > 0 ? '+' : '' ?><?= (int)$l['sg'] ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table></div>
+        <?php endif; ?>
+      </div>
+
+      <?php
+        $jogosComp = array_values(array_filter($estado['resultados'] ?? [],
+                                  fn($r) => ($r['comp'] ?? '') === $compSel));
+      ?>
+      <?php if ($jogosComp): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-list-ol"></i> Jogos em <?= h($compSel) ?></h3>
+          <div class="rolar"><table>
+            <thead><tr><th>Adversário</th><th>Onde</th><th>Fase</th><th class="num">Placar</th></tr></thead>
+            <tbody>
+              <?php foreach (array_reverse($jogosComp) as $r): ?>
+                <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
+                <tr>
+                  <td><?= h($r['adversario']) ?></td>
+                  <td><?= $r['casa'] ? 'casa' : 'fora' ?></td>
+                  <td><?= h($r['fase'] ?? '') ?></td>
+                  <td class="num"><span class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></span></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table></div>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
   <?php // ── ABA: MERCADO ───────────────────────────────────────────── ?>
   <?php elseif ($aba === 'mercado'): ?>
     <?php

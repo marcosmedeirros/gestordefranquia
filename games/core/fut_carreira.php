@@ -854,6 +854,126 @@ function futCarreiraTabelaEstadual(array $estado): array
     return futClassificacao($nomes, $resultados);
 }
 
+/**
+ * A TABELA DE UM GRUPO DE CLUBES, com os jogos do técnico como aconteceram.
+ *
+ * É o miolo que o estadual e a copa regional compartilham: pega quem disputa,
+ * usa os resultados de verdade do técnico e simula os jogos entre os outros
+ * pra tabela ter sentido — sem isso ele apareceria sozinho com pontos e todo
+ * o resto zerado.
+ */
+function futCarreiraTabelaDeGrupo(array $estado, array $clubes, string $comp): array
+{
+    $times = futCarreiraTimes($clubes, $estado);
+    $porNome = [];
+    foreach ($times as $t) $porNome[$t['nome']] = $t;
+    if (count($porNome) < 2) return [];
+
+    $meus = [];
+    foreach ($estado['resultados'] ?? [] as $r) {
+        if (($r['comp'] ?? '') !== $comp) continue;
+        $meus[] = $r;
+    }
+    if (!$meus) return [];
+
+    mt_srand(crc32($estado['clube'] . '|' . $comp . '|t' . ($estado['temporada'] ?? 0) . '|' . count($meus)));
+
+    $resultados = [];
+    foreach ($meus as $r) {
+        $resultados[] = $r['casa']
+            ? ['casa' => $estado['clube'], 'fora' => $r['adversario'], 'gc' => $r['meus'], 'gf' => $r['deles']]
+            : ['casa' => $r['adversario'], 'fora' => $estado['clube'], 'gc' => $r['deles'], 'gf' => $r['meus']];
+    }
+
+    $nomes = array_keys($porNome);
+    foreach ($nomes as $i => $casa) {
+        foreach (array_slice($nomes, $i + 1) as $fora) {
+            if ($casa === $estado['clube'] || $fora === $estado['clube']) continue;
+            $p = futPlacar($porNome[$casa]['forca'], $porNome[$fora]['forca']);
+            $resultados[] = ['casa' => $casa, 'fora' => $fora, 'gc' => $p['casa'], 'gf' => $p['fora']];
+        }
+    }
+    mt_srand();
+
+    return futClassificacao($nomes, $resultados);
+}
+
+/**
+ * AS COMPETIÇÕES DO ANO, na ordem em que aparecem no calendário.
+ *
+ * Sai do calendário e não dos resultados: o técnico quer ver a tabela da
+ * competição que vai jogar amanhã, e não só a das que já começaram.
+ *
+ * @return array [nome da competição => ['jogos'=>int,'jogados'=>int,'tabela'=>bool]]
+ */
+function futCarreiraCompeticoesDoAno(array $estado): array
+{
+    $out = [];
+    foreach ($estado['calendario'] ?? [] as $j) {
+        $c = (string)$j['comp'];
+        if (!isset($out[$c])) $out[$c] = ['jogos' => 0, 'jogados' => 0, 'tabela' => false];
+        $out[$c]['jogos']++;
+    }
+    foreach ($estado['resultados'] ?? [] as $r) {
+        $c = (string)($r['comp'] ?? '');
+        if (!isset($out[$c])) $out[$c] = ['jogos' => 0, 'jogados' => 0, 'tabela' => false];
+        $out[$c]['jogados']++;
+    }
+
+    /* QUEM TEM TABELA é quem joga todo mundo contra todo mundo: o nacional, o
+       estadual e a copa regional na fase de grupos. Mata-mata não tem
+       classificação, e inventar uma seria mentir pro técnico. */
+    $clubes = futClubesDoBrasil();
+    $eu = $clubes[$estado['clube']] ?? [];
+    $comTabela = [];
+    $div = $eu['div'] ?? '';
+    if ($div !== '') $comTabela[] = futCarreiraNomeDaDivisao($div);
+    $uf = $eu['uf'] ?? '';
+    if ($uf !== '' && isset(FUT_ESTADUAIS[$uf])) $comTabela[] = FUT_ESTADUAIS[$uf];
+    $regiao = $eu['regiao'] ?? '';
+    if ($regiao !== '' && isset(FUT_REGIONAIS[$regiao])) $comTabela[] = FUT_REGIONAIS[$regiao];
+
+    foreach ($out as $c => $d) $out[$c]['tabela'] = in_array($c, $comTabela, true);
+    return $out;
+}
+
+/**
+ * A tabela de uma competição qualquer do ano, ou [] quando ela não tem tabela.
+ */
+function futCarreiraTabelaDaCompeticao(array $estado, string $comp): array
+{
+    $clubes = futClubesDoBrasil();
+    $eu = $clubes[$estado['clube']] ?? [];
+
+    $div = $eu['div'] ?? '';
+    if ($div !== '' && $comp === futCarreiraNomeDaDivisao($div)) {
+        return futCarreiraTabelaNacional($estado);
+    }
+
+    $uf = $eu['uf'] ?? '';
+    if ($uf !== '' && isset(FUT_ESTADUAIS[$uf]) && $comp === FUT_ESTADUAIS[$uf]) {
+        return futCarreiraTabelaDeGrupo($estado, futClubesDoEstado($uf), $comp);
+    }
+
+    $regiao = $eu['regiao'] ?? '';
+    if ($regiao !== '' && isset(FUT_REGIONAIS[$regiao]) && $comp === FUT_REGIONAIS[$regiao]) {
+        /* Na copa regional o clube joga seis adversários, não a região toda.
+           A tabela é do grupo dele: ele e quem ele enfrentou. */
+        $grupo = [$eu];
+        $vistos = [$estado['clube'] => true];
+        foreach ($estado['calendario'] ?? [] as $j) {
+            if (($j['comp'] ?? '') !== $comp) continue;
+            $n = (string)$j['adversario'];
+            if (isset($vistos[$n]) || !isset($clubes[$n])) continue;
+            $vistos[$n] = true;
+            $grupo[] = $clubes[$n];
+        }
+        return futCarreiraTabelaDeGrupo($estado, $grupo, $comp);
+    }
+
+    return [];
+}
+
 /** Onde o técnico terminou no estadual. Null quando o clube não disputa um. */
 function futCarreiraPosicaoNoEstadual(array $estado): ?int
 {
