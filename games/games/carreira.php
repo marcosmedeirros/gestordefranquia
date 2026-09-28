@@ -502,6 +502,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .relogio{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
   background:rgba(0,0,0,.35);border:1px solid var(--borda);font-variant-numeric:tabular-nums;
   font-weight:800;font-size:13px;color:var(--txt)}
+.viv-tempo{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:700;margin-right:8px}
 .relogio .bolinha{width:7px;height:7px;border-radius:50%;background:var(--verde-claro)}
 .relogio.rolando .bolinha{animation:pulso 1.1s ease-in-out infinite}
 .relogio.parado .bolinha{background:var(--amarelo);animation:none}
@@ -976,7 +977,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <?= $vivo['fase'] ? '· ' . h($vivo['fase']) : '' ?>
           · <?= $casa ? 'em casa' : 'fora' ?>
         </span>
-        <span class="relogio parado" id="relogio"><span class="bolinha"></span><b id="rlMin">0</b>'</span>
+        <span class="viv-tempo" id="rlEtiqueta">1º tempo</span><span class="relogio parado" id="relogio"><span class="bolinha"></span><b id="rlMin">0</b>'</span>
       </div>
 
       <div class="viv-placar">
@@ -1090,10 +1091,14 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
     <script>
     (function () {
-      var PASSO = <?= FUT_AOVIVO_PASSO ?>;        // minutos de jogo por pedaço
-      var RITMO = 1500;                            // ms de verdade por pedaço
+      var PASSO = <?= FUT_AOVIVO_PASSO ?>;   // minutos que o servidor simula por vez
+      var TIQUE = 420;                        // ms de verdade por minuto de jogo
+      var INTERVALO = 45;                     // onde o juiz manda pro vestiário
       var minuto = <?= (int)$vivo['minuto'] ?>;
+      var carregado = minuto;                 // até que minuto o servidor já simulou
       var rolando = false, ocupado = false, timer = null;
+      var fila = [];                          // lances à espera do relógio chegar
+      var jaTeveIntervalo = minuto >= INTERVALO;
 
       var rel = document.getElementById('relogio'), rlMin = document.getElementById('rlMin');
       var plCasa = document.getElementById('plCasa'), plFora = document.getElementById('plFora');
@@ -1107,6 +1112,12 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         rlMin.textContent = minuto;
         barra.style.width = Math.min(100, minuto / 90 * 100) + '%';
         rel.className = 'relogio ' + (rolando ? 'rolando' : 'parado');
+        var etq = document.getElementById('rlEtiqueta');
+        if (etq) {
+          etq.textContent = minuto >= 90 ? 'fim de jogo'
+                          : (minuto === INTERVALO && !rolando ? 'intervalo'
+                          : (minuto > INTERVALO ? '2º tempo' : '1º tempo'));
+        }
       }
 
       /* CADA LANCE TEM A SUA FRASE. O gol e o cartão já estavam aqui; o resto
@@ -1197,34 +1208,83 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         rlMin.textContent = '90';
       }
 
-      function avanca() {
-        if (ocupado || !rolando) return;
+      /* PEDE O PRÓXIMO PEDAÇO ANTES DE PRECISAR DELE. Enquanto o relógio toca
+         os cinco minutos que já estão na mão, o seguinte já vem vindo — é isso
+         que faz o relógio não travar de cinco em cinco. */
+      function buscaMais() {
+        if (ocupado || carregado >= 90) return;
         ocupado = true;
-        var body = new URLSearchParams({acao: 'aovivo_avancar', ate: String(Math.min(90, minuto + PASSO))});
-        fetch(location.pathname, {method: 'POST', body: body, headers: {'X-Requested-With': 'fetch'}})
+        var ate = Math.min(90, carregado + PASSO);
+        fetch(location.pathname, {method: 'POST', headers: {'X-Requested-With': 'fetch'},
+              body: new URLSearchParams({acao: 'aovivo_avancar', ate: String(ate)})})
           .then(function (r) { return r.json(); })
           .then(function (d) {
             ocupado = false;
             if (!d.ok) { acabou(); return; }
-            minuto = d.minuto;
-            plCasa.textContent = casa ? d.meus : d.deles;
-            plFora.textContent = casa ? d.deles : d.meus;
-            (d.novos || []).forEach(mostraLance);
-            mostraNotas(d.notas);
-            mostraNumeros(d.numeros);
-            pintaRelogio();
-            if (d.fim) acabou();
+            carregado = d.minuto;
+            placarFinal = {meus: d.meus, deles: d.deles};
+            notasFinais = d.notas;
+            numerosFinais = d.numeros;
+            (d.novos || []).forEach(function (e) { fila.push(e); });
+            fila.sort(function (a, b) { return a.minuto - b.minuto; });
           })
           .catch(function () { ocupado = false; pausa(); });
+      }
+
+      var placarFinal = {meus: <?= (int)$vivo['meus'] ?>, deles: <?= (int)$vivo['deles'] ?>};
+      var notasFinais = null, numerosFinais = null;
+      var golsMostrados = {meus: placarFinal.meus, deles: placarFinal.deles};
+
+      /* O RELÓGIO ANDA UM MINUTO POR VEZ e solta o que estava marcado pra
+         aquele minuto. O placar sobe junto com o gol, e não antes dele: ver o
+         2 a 1 aparecer três minutos antes do lance que fez o gol estragava a
+         única coisa que a partida ao vivo tem pra dar, que é a surpresa. */
+      function tique() {
+        if (!rolando) return;
+
+        if (minuto >= carregado) {
+          buscaMais();
+          if (minuto >= 90) { acabou(); }
+          return;                       // esperando o servidor: o relógio segura
+        }
+
+        minuto++;
+        while (fila.length && fila[0].minuto <= minuto) {
+          var e = fila.shift();
+          mostraLance(e);
+          if (e.tipo === 'gol') {
+            if (e.meu) golsMostrados.meus++; else golsMostrados.deles++;
+            plCasa.textContent = casa ? golsMostrados.meus : golsMostrados.deles;
+            plFora.textContent = casa ? golsMostrados.deles : golsMostrados.meus;
+          }
+        }
+        pintaRelogio();
+        if (notasFinais) mostraNotas(notasFinais);
+        if (numerosFinais) mostraNumeros(numerosFinais);
+
+        // Faltando pouco pro fim do que está carregado, já pede o próximo.
+        if (carregado - minuto <= 2) buscaMais();
+
+        if (minuto >= INTERVALO && !jaTeveIntervalo) { jaTeveIntervalo = true; apitaIntervalo(); }
+        if (minuto >= 90 && carregado >= 90 && !fila.length) acabou();
+      }
+
+      /* O INTERVALO. É onde o técnico mexe no time de verdade, então a partida
+         para sozinha e o campo abre — sem isso a pausa dependia do jogador
+         lembrar de apertar o botão no meio de um relógio correndo. */
+      function apitaIntervalo() {
+        pausa();
+        btJogar.innerHTML = '<i class="bi bi-play-fill"></i> Começar o segundo tempo';
+        abreTroca(true);
       }
 
       function toca() {
         rolando = true;
         btJogar.hidden = true; btPausar.hidden = false;
         pintaRelogio();
-        avanca();
+        buscaMais();
         clearInterval(timer);
-        timer = setInterval(avanca, RITMO);
+        timer = setInterval(tique, TIQUE);
       }
       function pausa() {
         rolando = false;
@@ -1304,13 +1364,21 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       ligaEscolha(listaSai, 'sai');
       ligaEscolha(listaEntra, 'entra');
 
-      document.getElementById('btTrocar').addEventListener('click', function () {
-        rolavaAntes = rolando;
+      function abreTroca(doIntervalo) {
+        rolavaAntes = doIntervalo ? false : rolando;
         if (rolando) pausa();
         fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
           .then(function (r) { return r.json(); })
-          .then(function (d) { pintaOpcoes(d); popTroca.hidden = false; });
-      });
+          .then(function (d) {
+            pintaOpcoes(d);
+            var tit = popTroca.querySelector('h4');
+            if (tit) tit.innerHTML = doIntervalo
+              ? '<i class="bi bi-cup-hot"></i> Intervalo'
+              : '<i class="bi bi-arrow-left-right"></i> Substituição';
+            popTroca.hidden = false;
+          });
+      }
+      document.getElementById('btTrocar').addEventListener('click', function () { abreTroca(false); });
 
       popTroca.addEventListener('click', function (e) {
         if (e.target === popTroca || e.target.hasAttribute('data-fechar')) {
