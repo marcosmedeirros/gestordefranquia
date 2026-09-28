@@ -1218,8 +1218,13 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <thead><tr><th></th><th>Clube</th><th class="num">P</th><th class="num">J</th>
             <th class="num">V</th><th class="num">E</th><th class="num">D</th><th class="num">SG</th></tr></thead>
           <tbody>
-          <?php $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
-            $clsPos = $i <= 4 ? 'sobe' : ($i > $total - 4 ? 'cai' : ''); ?>
+          <?php
+            /* DA SÉRIE D NINGUÉM CAI — ela é o fundo da escada. Marcar os
+               quatro últimos de vermelho ali seria inventar uma Série E. */
+            $divTab = $clubesTodos[$estado['clube']]['div'] ?? '';
+            $temQueda = $divTab !== 'BR4';
+            $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
+            $clsPos = $i <= 4 ? 'sobe' : (($temQueda && $i > $total - 4) ? 'cai' : ''); ?>
             <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
               <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
               <td><?= h($nome) ?></td>
