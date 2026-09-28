@@ -310,6 +310,19 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       background: rgba(245,158,11,.06);
     }
     .pick-card.punida .pick-team { text-decoration: line-through; color: var(--text-2); }
+    /* A PUNIÇÃO QUE NÃO TIRA A ESCOLHA. Perder a pick e cair posições são
+       coisas diferentes: a de cima tem o selo PUNIDO e o draft pula a vez; a
+       daqui é só um aviso no card, porque o time escolhe normalmente, mais
+       tarde. Sem distinguir as duas, o GM veria "PUNIDO" e acharia que ficou
+       sem a escolha. */
+    .pick-nota {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9.5px; font-weight: 800; letter-spacing: .04em;
+      color: #f59e0b; background: rgba(245,158,11,.12);
+      border: 1px solid rgba(245,158,11,.32); border-radius: 999px;
+      padding: 2px 7px; margin-bottom: 4px;
+    }
+
     .pick-punida {
       font-weight: 800; letter-spacing: .06em; font-size: 13px; color: #f59e0b;
       display: flex; align-items: center; gap: 5px;
@@ -1878,6 +1891,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         </div>
         <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
+        ${pick.notes ? `<div class="pick-nota"><i class="bi bi-exclamation-triangle-fill"></i> ${esc(pick.notes)}</div>` : ''}
         ${punida ? `
           <div class="pick-result">
             <div class="pick-punida"><i class="bi bi-slash-circle"></i> PUNIDO</div>
@@ -2524,6 +2538,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         </div>
         <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
+        ${pick.notes ? `<div class="pick-nota"><i class="bi bi-exclamation-triangle-fill"></i> ${esc(pick.notes)}</div>` : ''}
         ${isCompleted ? `
           <?php /* Mesma escolha do card do draft ao vivo: nome e OVR, sem a
                    grade de notas. @see renderPickCard */ ?>
