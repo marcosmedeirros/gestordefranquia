@@ -3030,13 +3030,86 @@ function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
 }
 
 /**
+ * AS ESCOLHAS DO DRAFT QUE ESTÁ ACONTECENDO AGORA, de uma liga.
+ *
+ * "R1 2021 (Kubanacans)" no /trocas é verdade e não ajuda: quem lê quer saber
+ * QUAL escolha é aquela, e a resposta — a quinta — está a duas telas de
+ * distância. Enquanto o draft está rolando ela é a informação da troca; depois
+ * que ele acaba, o rótulo antigo volta a ser o certo.
+ *
+ * A CHAVE É (RODADA, TIME DE ORIGEM), e não o dono de agora: a pick pode ter
+ * sido trocada de novo depois desta troca, e aí o dono não diz mais nada. A
+ * origem não muda nunca, e dentro de um draft ela é única por rodada
+ * (conferido: zero duplicatas na sessão aberta).
+ *
+ * O ANO SAI DE draftAnoDasPicks — a mesma função que a loteria e a troca de
+ * picks usam. Sem ele, a R1 do Kubanacans de 2022, 2023 e 2024 casaria com a
+ * mesma linha do draft_order e toda pick futura daquele time viraria
+ * "escolha 5".
+ *
+ * @return array{ano:int, mapa:array<string,int>} mapa["rodada:origem"] => posição
+ */
+function wcEscolhasDoDraftAtual(PDO $pdo, ?string $liga): array
+{
+    static $cache = [];
+    $vazio = ['ano' => 0, 'mapa' => []];
+
+    $liga = strtoupper(trim((string)$liga));
+    if ($liga === '') return $vazio;
+    if (isset($cache[$liga])) return $cache[$liga];
+
+    try {
+        $st = $pdo->prepare("SELECT ds.id, ds.season_id
+                               FROM draft_sessions ds
+                               JOIN seasons s ON s.id = ds.season_id
+                              WHERE s.league = ? AND ds.status = 'in_progress'
+                           ORDER BY ds.id DESC LIMIT 1");
+        $st->execute([$liga]);
+        $sessao = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sessao) return $cache[$liga] = $vazio;
+
+        $ano = draftAnoDasPicks($pdo, (int)$sessao['season_id']);
+        if ($ano <= 0) return $cache[$liga] = $vazio;
+
+        $st = $pdo->prepare("SELECT round, pick_position, original_team_id
+                               FROM draft_order WHERE draft_session_id = ?");
+        $st->execute([(int)$sessao['id']]);
+
+        $mapa = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
+            $mapa[(int)$o['round'] . ':' . (int)$o['original_team_id']] = (int)$o['pick_position'];
+        }
+        return $cache[$liga] = ['ano' => $ano, 'mapa' => $mapa];
+    } catch (Throwable $e) {
+        // Sem o número, a troca ainda aparece com o rótulo de sempre.
+        error_log('wcEscolhasDoDraftAtual: ' . $e->getMessage());
+        return $cache[$liga] = $vazio;
+    }
+}
+
+/**
+ * O número da escolha, ou null quando a pick não é do draft que está rolando.
+ *
+ * O rótulo leva a rodada junto ("Escolha 5 · R2") porque a posição recomeça
+ * do 1 na segunda rodada — "escolha 5" sozinho seria duas picks diferentes.
+ */
+function wcRotuloDaEscolha(PDO $pdo, ?string $liga, $round, $seasonYear, $origemId): ?string
+{
+    $d = wcEscolhasDoDraftAtual($pdo, $liga);
+    if ($d['ano'] <= 0 || (int)$seasonYear !== $d['ano']) return null;
+
+    $n = $d['mapa'][(int)$round . ':' . (int)$origemId] ?? null;
+    return $n === null ? null : 'Escolha ' . $n . ' · R' . (int)$round;
+}
+
+/**
  * Itens de uma troca 1x1 no formato do /trocas: um por linha, jogador com
  * "(OVR/IDADEy POS)" e pick como "R1 2030 (Time)" — o time de origem só
  * quando a pick não é de quem está mandando.
  *
  * @return array{0:string[],1:string[]} [o que o "de" envia, o que o "para" envia]
  */
-function wcLinhasDaTroca(PDO $pdo, int $tradeId, int $deId, int $paraId): array
+function wcLinhasDaTroca(PDO $pdo, int $tradeId, int $deId, int $paraId, ?string $liga = null): array
 {
     static $st = null;
     if ($st === null) {
@@ -3056,7 +3129,10 @@ function wcLinhasDaTroca(PDO $pdo, int $tradeId, int $deId, int $paraId): array
                    . ' ' . (string)($i['player_position'] ?? ''));
             $rot = $i['player_name'] . ($ficha !== '' ? " ({$ficha})" : '');
         } elseif ($i['pick_id']) {
-            $rot = $i['round'] ? 'R' . $i['round'] . ($i['season_year'] ? ' ' . $i['season_year'] : '') : 'uma pick';
+            /* SE A PICK É DO DRAFT DE AGORA, o número dela é a notícia.
+               @see wcRotuloDaEscolha */
+            $rot = wcRotuloDaEscolha($pdo, $liga, $i['round'], $i['season_year'], $i['original_team_id'])
+                ?? ($i['round'] ? 'R' . $i['round'] . ($i['season_year'] ? ' ' . $i['season_year'] : '') : 'uma pick');
             if ($i['original_team_id'] && (int)$i['original_team_id'] !== $manda && $i['origem']) {
                 $rot .= " ({$i['origem']})";
             }
@@ -3076,7 +3152,7 @@ function wcLinhasDaTroca(PDO $pdo, int $tradeId, int $deId, int $paraId): array
  * item já sabe pra que time vai, não tem lado "de"). A coluna que liga o
  * item à troca é `trade_id` — não existe `multi_trade_id` na tabela.
  */
-function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
+function wcItensMultiPorTime(PDO $pdo, int $multiTradeId, ?string $liga = null): array
 {
     $ovr = wcColunaOvr($pdo);
     static $st = null;
@@ -3086,7 +3162,7 @@ function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
                    COALESCE(p.name, mi.player_name) AS nome,
                    COALESCE(p.{$ovr}, mi.player_ovr) AS ovr,
                    mi.player_age,
-                   pk.season_year, pk.round,
+                   pk.season_year, pk.round, pk.original_team_id,
                    dt.city AS dc, dt.name AS dn
             FROM multi_trade_items mi
             LEFT JOIN players p ON p.id = mi.player_id
@@ -3105,7 +3181,9 @@ function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
             $ficha = $i['ovr'] ? $i['ovr'] . ($i['player_age'] ? '/' . $i['player_age'] . 'y' : '') : '';
             $porTime[$destino][] = $i['nome'] . ($ficha !== '' ? " ({$ficha})" : '');
         } elseif (!empty($i['pick_id']) || !empty($i['season_year'])) {
-            $porTime[$destino][] = trim(($i['season_year'] ? $i['season_year'] . ' ' : '') . ($i['round'] ? $i['round'] . 'ª' : 'pick'));
+            // Mesma regra da troca 1x1 — @see wcRotuloDaEscolha.
+            $porTime[$destino][] = wcRotuloDaEscolha($pdo, $liga, $i['round'], $i['season_year'], $i['original_team_id'])
+                ?? trim(($i['season_year'] ? $i['season_year'] . ' ' : '') . ($i['round'] ? $i['round'] . 'ª' : 'pick'));
         }
     }
     return $porTime;
@@ -3389,7 +3467,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
         $sufixoLiga = ($liga || $time) ? '' : ' _' . $t['league'] . '_';
 
         if ($t['tipo'] === 'multi') {
-            $porTime = wcItensMultiPorTime($pdo, (int)$t['id']);
+            $porTime = wcItensMultiPorTime($pdo, (int)$t['id'], (string)($t['league'] ?? ''));
             $txt .= "\n*Troca de " . count($porTime) . " times*{$sufixoLiga}\n";
             foreach ($porTime as $time => $itens) {
                 $txt .= "{$time} recebe:\n" . ($itens ? implode("\n", $itens) : 'nada') . "\n\n";
@@ -3398,7 +3476,8 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
             continue;
         }
 
-        [$vai, $vem] = wcLinhasDaTroca($pdo, (int)$t['id'], (int)$t['from_team_id'], (int)$t['to_team_id']);
+        [$vai, $vem] = wcLinhasDaTroca($pdo, (int)$t['id'], (int)$t['from_team_id'],
+                                      (int)$t['to_team_id'], (string)($t['league'] ?? ''));
         $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
         $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
 
