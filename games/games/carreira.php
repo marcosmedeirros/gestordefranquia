@@ -1021,6 +1021,42 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .fim-craque{margin-top:10px;text-align:left}
 .popup-fim .popup-acoes{justify-content:center}
 .popup-fim .popup-acoes .btn{flex:1}
+/* ── A estante de taças e o ano a ano ───────────────── */
+.estante{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.taca{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:11px;
+  border:1px solid var(--borda);background:var(--panel3)}
+.taca-n{font-size:20px;font-weight:900;color:var(--amarelo);min-width:26px;text-align:center;
+  font-variant-numeric:tabular-nums}
+.taca-nome{font-weight:800;font-size:13px;line-height:1.2}
+.taca-anos{font-size:10.5px;color:var(--txt3);font-variant-numeric:tabular-nums;margin-top:2px}
+
+.ano{border:1px solid var(--borda);border-radius:12px;padding:10px 11px;margin-bottom:9px;
+  background:var(--panel3)}
+.ano-topo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px}
+.ano-topo b{font-size:16px;font-weight:900;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.ano-clube{font-size:12.5px;font-weight:700;color:var(--txt2)}
+.ano-meta{margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;padding:2px 7px;border-radius:999px;border:1px solid var(--borda2)}
+.ano-meta.ok{color:var(--verde-claro);border-color:rgba(34,197,94,.4)}
+.ano-meta.nao{color:#fca5a5;border-color:rgba(239,68,68,.35)}
+.ano-comp{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:4px 8px;
+  align-items:center;padding:5px 2px;font-size:12.5px;color:inherit;text-decoration:none;
+  border-top:1px solid var(--borda)}
+.ano-comp > i{color:var(--txt3);font-size:13px;text-align:center}
+.ano-comp.venceu > i{color:var(--amarelo)}
+.ac-nome{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ano-comp.venceu .ac-nome{color:var(--amarelo)}
+.ac-fecho{font-size:11.5px;color:var(--txt2);white-space:nowrap}
+.ac-camp{grid-column:2/4;font-size:10.5px;color:var(--txt3);font-variant-numeric:tabular-nums}
+.ano-art{margin-top:7px;padding-top:6px;border-top:1px solid var(--borda);
+  font-size:11px;color:var(--txt3)}
+.ano-art i{color:var(--acento)}
+@media (min-width:560px){
+  /* Com espaço, o fecho e a campanha ficam na mesma linha do nome — a leitura
+     vira uma coluna de "onde parei" em vez de um parágrafo por competição. */
+  .ano-comp{grid-template-columns:16px minmax(0,1fr) auto auto;gap:10px}
+  .ac-camp{grid-column:auto;min-width:86px;text-align:right}
+}
 /* ── Começar a carreira ─────────────────────────────── */
 .hero{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
   border-radius:14px;padding:18px 16px;margin-bottom:12px}
@@ -4228,36 +4264,93 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       </div>
     </div>
 
-    <?php if (!empty($estado['titulos'])): ?>
+    <?php
+      /* A ESTANTE DE TAÇAS, AGRUPADA. Uma lista de "Brasileirão Série A 2026 /
+         Brasileirão Série A 2028 / Copa do Brasil 2028" conta a mesma coisa em
+         mais linhas e esconde o que interessa, que é quantas vezes. */
+      $estante = [];
+      foreach ($estado['titulos'] ?? [] as $t) {
+        $ano = '';
+        if (preg_match('/^(.*) (\d{4})$/u', (string)$t, $m)) { $t = $m[1]; $ano = $m[2]; }
+        $estante[$t][] = $ano;
+      }
+      uasort($estante, fn($a, $b) => count($b) <=> count($a));
+    ?>
+    <?php if ($estante): ?>
       <div class="bloco">
         <h3><i class="bi bi-trophy-fill"></i> Títulos</h3>
-        <?php foreach ($estado['titulos'] as $t): ?>
-          <div style="padding:6px 0;border-bottom:1px solid var(--borda)"><?= h($t) ?></div>
-        <?php endforeach; ?>
+        <div class="estante">
+          <?php foreach ($estante as $nome => $anos): ?>
+            <div class="taca">
+              <span class="taca-n"><?= count($anos) ?></span>
+              <div style="flex:1;min-width:0">
+                <div class="taca-nome"><?= h($nome) ?></div>
+                <div class="taca-anos"><?= h(implode(' · ', array_filter($anos))) ?></div>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
       </div>
     <?php endif; ?>
 
     <div class="bloco">
-      <h3><i class="bi bi-clock-history"></i> Histórico</h3>
+      <h3><i class="bi bi-clock-history"></i> Temporada a temporada</h3>
       <?php if (empty($estado['historico'])): ?>
         <div class="vazio">Sua primeira temporada ainda está em andamento.</div>
       <?php else: ?>
-        <div class="rolar"><table>
-          <thead><tr><th>Ano</th><th>Clube</th><th>Competição</th><th class="num">Pos</th><th>Meta</th></tr></thead>
-          <tbody>
-          <?php foreach (array_reverse($estado['historico']) as $hst): ?>
-            <tr>
-              <td><?= (int)$hst['ano'] ?></td>
-              <td><?= h($hst['clube']) ?></td>
-              <td style="font-size:12px;color:var(--txt2)"><?= h($hst['comp'] ?: '—') ?></td>
-              <td class="num"><?= $hst['posicao'] ? $hst['posicao'] . 'º' : '—' ?></td>
-              <td><?= $hst['cumpriu']
-                    ? '<span style="color:var(--verde-claro)">cumprida</span>'
-                    : '<span style="color:#fca5a5">falhou</span>' ?></td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table></div>
+        <?php /* UM CARTÃO POR ANO, e dentro dele TODAS as competições. A tabela
+             antiga tinha uma linha por temporada com a posição no nacional, e
+             o resto do ano — o estadual, a copa, a continental — simplesmente
+             não existia: quem chegou à final da Copa do Brasil terminava o ano
+             sem registro nenhum de que aquilo aconteceu. */ ?>
+        <?php foreach (array_reverse($estado['historico']) as $hst): ?>
+          <div class="ano">
+            <div class="ano-topo">
+              <b><?= (int)$hst['ano'] ?></b>
+              <span class="ano-clube"><?= h($hst['clube']) ?></span>
+              <span class="ano-meta <?= $hst['cumpriu'] ? 'ok' : 'nao' ?>">
+                meta <?= $hst['cumpriu'] ? 'cumprida' : 'não cumprida' ?></span>
+            </div>
+
+            <?php if (!empty($hst['competicoes'])): ?>
+              <?php foreach ($hst['competicoes'] as $c): ?>
+                <?php $venceu = ($c['fecho'] ?? '') === 'campeao'; ?>
+                <?php /* SEM LINK PRA PÁGINA DA COMPETIÇÃO: aquela página é a do ano
+                     CORRENTE. Clicar no Carioca de 2026 e cair na tabela do
+                     Carioca de 2029 seria mostrar um dado que não é o que a
+                     linha diz. */ ?>
+                <div class="ano-comp<?= $venceu ? ' venceu' : '' ?>">
+                  <i class="bi bi-<?= $venceu ? 'trophy-fill' : 'dot' ?>"></i>
+                  <span class="ac-nome"><?= h($c['comp']) ?></span>
+                  <span class="ac-fecho"><?= h(futCarreiraTextoDoFecho($c)) ?></span>
+                  <span class="ac-camp"><?= (int)$c['campanha']['j'] ?>J
+                    <?= (int)$c['campanha']['v'] ?>V
+                    <?= (int)$c['campanha']['e'] ?>E
+                    <?= (int)$c['campanha']['d'] ?>D</span>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <?php /* CARREIRA ANTIGA: as temporadas fechadas antes desta tela
+                   só guardaram a liga nacional, e inventar o resto seria pior
+                   do que mostrar o que existe. */ ?>
+              <div class="ano-comp">
+                <i class="bi bi-dot"></i>
+                <span class="ac-nome"><?= h($hst['comp'] ?: 'Temporada') ?></span>
+                <span class="ac-fecho"><?= $hst['posicao'] ? (int)$hst['posicao'] . 'º lugar' : '—' ?></span>
+                <span class="ac-camp"><?= (int)($hst['campanha']['j'] ?? 0) ?>J</span>
+              </div>
+            <?php endif; ?>
+
+            <?php if (!empty($hst['artilheiros'])): ?>
+              <div class="ano-art">
+                <i class="bi bi-bullseye"></i>
+                <?php $ps = []; foreach ($hst['artilheiros'] as $a)
+                        $ps[] = h($a['nome']) . ' ' . (int)$a['gols']; ?>
+                <?= implode(' · ', $ps) ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
       <?php endif; ?>
     </div>
 

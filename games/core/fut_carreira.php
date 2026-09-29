@@ -1638,6 +1638,107 @@ function futCarreiraMinhaPosicao(array $estado): ?int
 }
 
 /**
+ * COMO ACABOU CADA COMPETIÇÃO DO ANO.
+ *
+ * O histórico guardava só a liga nacional. Só que o ano tem cinco ou seis
+ * competições — o estadual, a copa, a continental —, e no dia 31 de dezembro
+ * todas elas eram apagadas junto com o calendário. Quem chegou à final da
+ * Copa do Brasil e perdeu nos pênaltis terminava a temporada sem nenhum
+ * registro de que aquilo tinha acontecido; na temporada seguinte, a carreira
+ * era uma tabela de posições no Brasileirão e mais nada.
+ *
+ * ── DE ONDE SAI O FECHO ──────────────────────────────────────────────
+ *
+ * Mata-mata: o ÚLTIMO jogo daquela copa conta tudo. Se foi a final e o clube
+ * passou, é título; se foi a final e não passou, é vice; qualquer outra fase é
+ * onde ele caiu. O 'passou' já está gravado no resultado, e é ele que vale —
+ * olhar só o placar diria "empate" numa eliminação nos pênaltis.
+ *
+ * Pontos corridos: a posição na tabela da competição. Grupo (continental e
+ * copa regional) devolve posição também, mas marcada como grupo: primeiro
+ * lugar num grupo de quatro não é título de nada.
+ *
+ * @return array lista de ['comp','tipo','posicao','fase','fecho','campanha']
+ */
+function futCarreiraFechoDoAno(array $estado): array
+{
+    $meu = (string)($estado['clube'] ?? '');
+    $out = [];
+
+    foreach (futCarreiraCompeticoesDoAno($estado) as $comp => $d) {
+        /* SÓ ENTRA O QUE FOI JOGADO. Uma competição que ficou inteira no
+           calendário sem uma partida disputada não é campanha nenhuma. */
+        if ($comp === '' || (int)($d['jogados'] ?? 0) === 0) continue;
+
+        $linha = ['comp' => $comp, 'tipo' => 'mata', 'posicao' => null,
+                  'fase' => '', 'fecho' => 'jogou',
+                  'campanha' => futCarreiraCampanha($estado, $comp)];
+
+        $ultimo = null;
+        foreach ($estado['resultados'] ?? [] as $r) {
+            if ((string)($r['comp'] ?? '') === $comp) $ultimo = $r;
+        }
+        $faseFinal = (string)($ultimo['fase'] ?? '');
+
+        if ($ultimo !== null && futCarreiraEhMataMata($comp, $faseFinal)) {
+            $linha['fase'] = $faseFinal;
+            $passou = !empty($ultimo['passou']);
+            if ($faseFinal === 'Final') $linha['fecho'] = $passou ? 'campeao' : 'vice';
+            else                        $linha['fecho'] = 'eliminado';
+        } elseif (!empty($d['tabela'])) {
+            $tab = futCarreiraTabelaDaCompeticao($estado, $comp);
+            $pos = 0;
+            foreach (array_keys($tab) as $nome) {
+                $pos++;
+                if ($nome === $meu) { $linha['posicao'] = $pos; break; }
+            }
+            $emGrupo = in_array($comp, FUT_CONTINENTAIS_EU, true)
+                    || in_array($comp, FUT_REGIONAIS, true);
+            $linha['tipo'] = $emGrupo ? 'grupo' : 'liga';
+            $linha['fecho'] = ($linha['tipo'] === 'liga' && $linha['posicao'] === 1)
+                ? 'campeao' : 'posicao';
+        } else {
+            /* Sem tabela e sem mata-mata resolvido: a única coisa honesta a
+               dizer é em que fase o clube estava quando o ano acabou. */
+            $linha['fase'] = $faseFinal;
+        }
+
+        $out[] = $linha;
+    }
+
+    return $out;
+}
+
+/**
+ * O FECHO EM PALAVRAS, num lugar só.
+ *
+ * A mesma frase aparece no relatório de fim de ano e na aba Carreira; escrita
+ * duas vezes, ela ia divergir na primeira mudança.
+ */
+function futCarreiraTextoDoFecho(array $linha): string
+{
+    $pos = $linha['posicao'] ?? null;
+    switch ($linha['fecho'] ?? '') {
+        case 'campeao':   return 'Campeão';
+        case 'vice':      return 'Vice-campeão';
+        case 'eliminado': return 'Caiu ' . futArtigoDaFase((string)$linha['fase']);
+        case 'posicao':
+            if ($pos === null) return '—';
+            $onde = ($linha['tipo'] ?? '') === 'grupo' ? 'º no grupo' : 'º lugar';
+            return $pos . $onde;
+    }
+    return ($linha['fase'] ?? '') !== '' ? (string)$linha['fase'] : 'Disputou';
+}
+
+/** "nas Quartas", "na Semifinal" — a preposição que a fase pede. */
+function futArtigoDaFase(string $fase): string
+{
+    $plural = ['Oitavas', 'Quartas'];
+    if (in_array($fase, $plural, true)) return 'nas ' . $fase;
+    return 'na ' . $fase;
+}
+
+/**
  * FECHA A TEMPORADA: paga a folha, distribui premiação, julga a meta e decide
  * se o técnico continua no emprego.
  *
@@ -1699,20 +1800,33 @@ function futCarreiraFecharTemporada(array $estado): array
     $estado['falhas'] = $falhas;
     $demitido = $falhas >= 2;
 
+    /* ── OS TÍTULOS DO ANO, TODOS ELES ────────────────────────────────
+       Antes só a liga nacional dava taça: ganhar a Copa do Brasil ou o
+       estadual não deixava marca nenhuma na carreira. Grupo não conta —
+       primeiro lugar num grupo de quatro não é campeonato. */
+    $fecho = futCarreiraFechoDoAno($estado);
     $titulo = null;
-    if ($posicao === 1 && $comp !== '') {
-        $titulo = $comp . ' ' . $estado['ano'];
-        $estado['titulos'][] = $titulo;
+    $titulosDoAno = [];
+    foreach ($fecho as $f) {
+        if (($f['fecho'] ?? '') !== 'campeao') continue;
+        $t = $f['comp'] . ' ' . $estado['ano'];
+        $titulosDoAno[] = $t;
+        $estado['titulos'][] = $t;
+        // O 'titulo' antigo é o da liga nacional: quem lê o relatório espera
+        // essa linha, e mudar o significado dela quebraria a tela de fim de ano.
+        if ($f['comp'] === $comp) $titulo = $t;
     }
 
     $estado['historico'][] = [
-        'ano'      => $estado['ano'],
-        'clube'    => $estado['clube'],
-        'comp'     => $comp,
-        'posicao'  => $posicao,
-        'campanha' => futCarreiraCampanha($estado, $comp ?: null),
-        'cumpriu'  => $cumpriu,
-        'titulo'   => $titulo,
+        'ano'         => $estado['ano'],
+        'clube'       => $estado['clube'],
+        'comp'        => $comp,
+        'posicao'     => $posicao,
+        'campanha'    => futCarreiraCampanha($estado, $comp ?: null),
+        'cumpriu'     => $cumpriu,
+        'titulo'      => $titulo,
+        'competicoes' => $fecho,
+        'titulos'     => $titulosDoAno,
     ];
 
     $relatorio = [
@@ -1727,6 +1841,8 @@ function futCarreiraFecharTemporada(array $estado): array
         'demitido'  => $demitido,
         'reputacao' => $rep,
         'titulo'    => $titulo,
+        'competicoes' => $fecho,
+        'titulos'     => $titulosDoAno,
     ];
 
     // ── O ano vira ───────────────────────────────────────────────────

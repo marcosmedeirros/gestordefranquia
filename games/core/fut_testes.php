@@ -567,6 +567,96 @@ ok('esquema que não existe é recusado',
 $estF['aovivo']['minuto'] = 90;
 ok('esquema não muda com a partida acabada',
    futCarreiraAoVivoFormacao($estF, '4-3-3')['ok'] === false);
+/* ── O ANO INTEIRO SOBREVIVE À VIRADA ────────────────────────────────
+   O histórico guardava só a liga nacional; o estadual e a copa eram
+   apagados junto com o calendário. Um ano fechado tem que devolver TODAS
+   as competições que foram jogadas, e nenhuma que não foi. */
+$estH = futCarreiraNova('Tester', 'Flamengo');
+$estH['calendario'] = futCarreiraMontarCalendario($estH);
+$estH['fase'] = 'temporada';
+$guardaH = 0;
+while ((int)$estH['rodada'] < count($estH['calendario']) && $guardaH++ < 300) {
+    $rH = futCarreiraJogarProxima($estH);
+    if (!empty($rH['fim'])) break;
+    $estH = $rH['estado'];
+}
+
+$fecho = futCarreiraFechoDoAno($estH);
+$nomes = array_column($fecho, 'comp');
+ok('o ano devolve todas as competições jogadas',
+   count($fecho) >= 3 && in_array('Copa do Brasil', $nomes, true),
+   implode(', ', $nomes));
+
+/* A SOMA TEM QUE FECHAR. Se uma competição sumisse (ou entrasse duas
+   vezes), os jogos não bateriam com o que foi disputado de verdade. */
+$somaJogos = 0;
+foreach ($fecho as $f) $somaJogos += (int)$f['campanha']['j'];
+ok('a campanha de cada competição soma o ano todo',
+   $somaJogos === count($estH['resultados']),
+   $somaJogos . ' de ' . count($estH['resultados']));
+
+ok('nenhuma competição entra sem jogo disputado',
+   count(array_filter($fecho, fn($f) => (int)$f['campanha']['j'] === 0)) === 0);
+
+/* O FECHO SEMPRE TEM PALAVRA. Uma linha em branco no histórico é pior do
+   que não ter a linha: parece dado perdido. */
+$semTexto = array_filter($fecho, fn($f) => trim(futCarreiraTextoDoFecho($f)) === '');
+ok('todo fecho vira frase', count($semTexto) === 0);
+
+/* A liga nacional aparece com posição, e ela bate com a que o fechamento
+   da temporada usa pra julgar a meta — são a mesma tabela. */
+$liga = null;
+foreach ($fecho as $f) if (($f['tipo'] ?? '') === 'liga' && $f['comp'] === 'Brasileirão Série A') $liga = $f;
+ok('a posição do nacional bate com a da meta',
+   $liga !== null && $liga['posicao'] === futCarreiraMinhaPosicao($estH),
+   'histórico ' . ($liga['posicao'] ?? '—') . ', meta ' . (futCarreiraMinhaPosicao($estH) ?? '—'));
+
+/* ── AS PALAVRAS DO FECHO ────────────────────────────────────────── */
+ok('campeão é campeão',
+   futCarreiraTextoDoFecho(['fecho' => 'campeao', 'fase' => 'Final']) === 'Campeão');
+ok('perder a final é vice',
+   futCarreiraTextoDoFecho(['fecho' => 'vice', 'fase' => 'Final']) === 'Vice-campeão');
+ok('a eliminação diz a fase',
+   futCarreiraTextoDoFecho(['fecho' => 'eliminado', 'fase' => 'Quartas']) === 'Caiu nas Quartas');
+ok('a semifinal pede outro artigo',
+   futCarreiraTextoDoFecho(['fecho' => 'eliminado', 'fase' => 'Semifinal']) === 'Caiu na Semifinal');
+ok('grupo não vira lugar de campeonato',
+   futCarreiraTextoDoFecho(['fecho' => 'posicao', 'tipo' => 'grupo', 'posicao' => 1]) === '1º no grupo');
+
+/* ── GANHAR A COPA DEIXA MARCA ───────────────────────────────────────
+   Só a liga nacional dava taça: quem ganhava a Copa do Brasil ou o
+   estadual terminava o ano com a estante vazia. O título da copa é
+   forçado aqui na mão (o último jogo dela vira uma final vencida) porque
+   depender da sorte de uma temporada faria o teste passar em um ano e
+   falhar no outro sem nada ter mudado. */
+$estT = $estH;
+$estT['titulos'] = [];
+$estT['historico'] = [];
+for ($k = count($estT['resultados']) - 1; $k >= 0; $k--) {
+    if (($estT['resultados'][$k]['comp'] ?? '') !== 'Copa do Brasil') continue;
+    $estT['resultados'][$k]['fase'] = 'Final';
+    $estT['resultados'][$k]['passou'] = true;
+    break;
+}
+
+$fechoT = futCarreiraFechoDoAno($estT);
+$copaT = null;
+foreach ($fechoT as $f) if ($f['comp'] === 'Copa do Brasil') $copaT = $f;
+ok('vencer a final é título de copa',
+   ($copaT['fecho'] ?? '') === 'campeao', futCarreiraTextoDoFecho($copaT ?? []));
+
+$anoT = (int)$estT['ano'];
+$fT = futCarreiraFecharTemporada($estT);
+ok('a taça da copa entra na estante',
+   in_array('Copa do Brasil ' . $anoT, $fT['estado']['titulos'], true),
+   implode(' | ', $fT['estado']['titulos']) ?: 'estante vazia');
+
+/* E o histórico do ano guarda a mesma lista, pra aba Carreira não ter que
+   recalcular nada — os jogos daquele ano já foram apagados. */
+$ultimoT = end($fT['estado']['historico']);
+ok('o ano guarda as competições e as taças',
+   count($ultimoT['competicoes'] ?? []) === count($fechoT)
+   && in_array('Copa do Brasil ' . $anoT, $ultimoT['titulos'] ?? [], true));
 // ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
