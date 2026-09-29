@@ -359,8 +359,13 @@ foreach ($eu as $nome => $c) {
 ok('todo clube europeu tem elenco', $semElenco === [], implode(', ', array_slice($semElenco, 0, 4)));
 ok('ninguém passa de 89 de overall', $foraDaEscala === [], implode(', ', array_slice($foraDaEscala, 0, 4)));
 
+/* O ESTICAMENTO DAS LIGAS EUROPEIAS NÃO PODE SAIR DA RÉGUA (@see
+   FUT_EUROPA_ESTICA). Em cima, nenhum clube pode passar do teto de jogador —
+   um clube de força 90 precisaria de titular de 90, que não existe no jogo.
+   Embaixo, o pior europeu não pode cair abaixo da Série B brasileira: o
+   Nacional da Madeira é ruim pra Liga Portugal, não é um time de Série C. */
 $forcas = array_column($eu, 'forca');
-ok('a força europeia cabe na régua do Brasil', max($forcas) <= 90 && min($forcas) >= 60,
+ok('o esticamento não jogou ninguém fora da régua', max($forcas) <= 89 && min($forcas) >= 55,
    min($forcas) . ' a ' . max($forcas));
 
 /* UMA TEMPORADA EUROPEIA INTEIRA. O Porto tem as três competições do ano —

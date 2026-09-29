@@ -179,6 +179,45 @@ const FUT_EUROPA_POSICOES = [
 /** Quantos jogadores cada clube leva pro jogo. */
 const FUT_EUROPA_ELENCO = 25;
 
+/**
+ * QUANTO A FORÇA DE CADA LIGA É ESTICADA PRA BAIXO — e por quê.
+ *
+ * A base entrega uma Premier League que vai de 75 a 85 e uma Liga Portugal de
+ * 67 a 80. Dez, treze pontos de diferença entre o primeiro e o último. O
+ * Brasileirão do jogo vai de 67 a 85: DEZOITO. Ou seja, a base diz que a
+ * Premier é mais equilibrada que o Brasileirão, e ela não é — é o contrário.
+ *
+ * Isso não é detalhe de número: medindo trinta temporadas de cada liga só com
+ * a máquina, o Manchester City terminava em 6,3º em média e entre os quatro
+ * primeiros em metade dos anos. Numa tabela assim o técnico não reconhece o
+ * campeonato que está dirigindo — e foi o que apareceu na primeira tela de
+ * classificação portuguesa: Rio Ave e Farense em cima, Benfica em nono.
+ *
+ * ── O QUE ESTE NÚMERO CONSERTA, E O QUE ELE NÃO CONSERTA ─────────────
+ *
+ * A MÉDIA DE PONTOS DO CAMPEÃO CONTINUA BRASILEIRA. O campeão inglês de
+ * verdade faz 86 pontos; aqui ele faz uns 72, e esticar mais não resolve —
+ * medido, k=2,6 só levou a 75. O teto é do motor: FUT_EXPOENTE está calibrado
+ * no Brasileirão (@see fut_motor.php), onde o campeão faz 73 mesmo, e mudá-lo
+ * pra caber a Premier desafinaria o jogo inteiro, que é brasileiro de origem.
+ *
+ * O QUE ELE CONSERTA É QUEM FICA EM CIMA, que é o que se vê na tela. A régua é
+ * a do próprio jogo: na Série A, o Palmeiras termina em 3,5º na média e entre
+ * os quatro em 75% das temporadas. É esse o alvo pras seis ligas europeias, e
+ * 1,6 é onde a média delas encosta nele.
+ *
+ * A ÂNCORA É O CLUBE MAIS FORTE DA LIGA, e o estica só empurra os de baixo:
+ * puxar o topo pra cima esbarraria no teto de 89 por jogador — um clube de
+ * força 90 precisaria de titular de 90, que o dono do jogo não quer.
+ */
+const FUT_EUROPA_ESTICA = 1.6;
+
+/** A força-alvo de um clube, dado o mais forte da liga dele. */
+function futEuropaForcaEsticada(int $crua, int $topoDaLiga): int
+{
+    return (int)round($topoDaLiga - ($topoDaLiga - $crua) * FUT_EUROPA_ESTICA);
+}
+
 /** O nome do clube como o jogo vai mostrar. */
 function futEuropaNomeDoClube(string $daBase): string
 {

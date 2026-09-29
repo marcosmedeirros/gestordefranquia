@@ -44,9 +44,20 @@ $semEscudo = [];
 $completados = [];
 $colisoes = [];
 
-foreach (FUT_EUROPA_LIGAS as $ligaCsv => $meta) {
+/* ── PRIMEIRA PASSADA: montar os elencos e medir a força crua ─────────
+   Duas passadas porque a âncora do esticamento é o CLUBE MAIS FORTE DA LIGA
+   (@see FUT_EUROPA_ESTICA), e ele só se conhece depois de medir todos. */
+$elencos = [];
+$topoDaLiga = [];
+foreach (FUT_EUROPA_LIGAS as $meta) {
     $div = $meta['div'];
     foreach ($dados[$div] ?? [] as $clube => $jogadores) {
+        /* NOME REPETIDO É PERDA SILENCIOSA DE ELENCO: o catálogo é indexado
+           por nome e o arquivo de elenco é achado pelo slug, então dois clubes
+           com o mesmo nome viram um só e o segundo passa a jogar com o elenco
+           do primeiro sem nada na tela indicando isso. */
+        if (isset($brasileiros[$clube])) { $colisoes[] = $clube; continue; }
+
         $elenco = futEuropaAplicarTetos(futEuropaEscolherElenco($jogadores));
 
         /* Quem vem curto da base é completado pelo gerador, e a força medida
@@ -57,12 +68,22 @@ foreach (FUT_EUROPA_LIGAS as $ligaCsv => $meta) {
             $elenco = futEuropaCompletarElenco($elenco, $clube, futForcaDoElenco($elenco));
         }
 
-        /* NOME REPETIDO É PERDA SILENCIOSA DE ELENCO: o catálogo é indexado
-           por nome e o arquivo de elenco é achado pelo slug, então dois clubes
-           com o mesmo nome viram um só e o segundo passa a jogar com o elenco
-           do primeiro sem nada na tela indicando isso. */
-        if (isset($brasileiros[$clube])) { $colisoes[] = $clube; continue; }
+        $crua = futForcaDoElenco($elenco);
+        $elencos[$div][$clube] = ['elenco' => $elenco, 'crua' => $crua];
+        $topoDaLiga[$div] = max($topoDaLiga[$div] ?? 0, $crua);
+    }
+}
 
+// ── SEGUNDA PASSADA: esticar e gravar ────────────────────────────────
+foreach (FUT_EUROPA_LIGAS as $meta) {
+    $div = $meta['div'];
+    foreach ($elencos[$div] ?? [] as $clube => $d) {
+        $alvo = futEuropaForcaEsticada($d['crua'], $topoDaLiga[$div]);
+        $elenco = futOvrAjustarParaForca($d['elenco'], $alvo);
+
+        /* A FORÇA VEM DE MEDIR O ELENCO DE NOVO, e não do alvo: o
+           deslocamento esbarra em piso e em teto de idade, e escrever o alvo
+           no catálogo faria ele divergir do elenco que está no arquivo. */
         $forca = futForcaDoElenco($elenco);
         if (($escudos[$clube] ?? '') === '') $semEscudo[] = $clube;
 
