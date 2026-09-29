@@ -134,8 +134,9 @@ const FUT_ESCUDOS = [
        Estes tres tinham escudo, mas em SVG — que o navegador desenha e o
        extrator de cores nao le, entao o clube ficava com o verde padrao em
        vez da cor dele. O PNG resolve os dois de uma vez.
-       O Botafogo-PB e o Mainz 05 continuam em SVG de proposito: a busca so
-       achou PNG do Botafogo DO RIO, que e outro clube. */
+       O Botafogo-PB e o Mainz 05 nao estao aqui: a busca so achou PNG do
+       Botafogo DO RIO, que e outro clube, entao esses dois vieram a mao e
+       estao em games/img/escudos/ (@see futEscudoDoClube). */
     'Nottingham Forest'     => 'https://r2.thesportsdb.com/images/media/team/badge/1i2kvh1719918076.png',
     'Midtjylland'           => 'https://r2.thesportsdb.com/images/media/team/badge/s5bpcr1755712262.png',
     'AGF'                   => 'https://r2.thesportsdb.com/images/media/team/badge/vxuuts1473535487.png',
