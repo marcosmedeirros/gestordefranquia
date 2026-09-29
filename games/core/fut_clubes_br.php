@@ -390,6 +390,27 @@ function futEscudoDoClube(string $nome, string $doCatalogo = ''): string
     if ($meu !== '') {
         return str_starts_with($meu, 'http') ? $meu : '../' . $meu;
     }
+
+    /* ── O ARQUIVO SOLTO NA PASTA VALE SOZINHO ────────────────────────
+       Escudo que falta hoje e escudo que alguem vai baixar amanha. Exigir
+       que cada um venha acompanhado de uma linha em FUT_ESCUDOS faz o
+       trabalho ser sempre em dois lugares, e e onde a metade que falta
+       acontece — o arquivo entra e ninguem lembra do cadastro.
+       Aqui basta salvar games/img/escudos/<slug>.png com o slug do clube
+       (@see futSlugDoClube): 'AZ' vira az.png, 'Nacional da Madeira' vira
+       nacional-da-madeira.png.
+       A pasta e lida UMA VEZ por requisicao. Perguntar is_file() por clube
+       seriam 270 idas ao disco em cada tela. */
+    static $naPasta = null;
+    if ($naPasta === null) {
+        $naPasta = [];
+        foreach (glob(__DIR__ . '/../img/escudos/*.{png,jpg,jpeg,webp,svg}', GLOB_BRACE) ?: [] as $f) {
+            $naPasta[pathinfo($f, PATHINFO_FILENAME)] = basename($f);
+        }
+    }
+    $slug = futSlugDoClube($nome);
+    if (isset($naPasta[$slug])) return '../img/escudos/' . $naPasta[$slug];
+
     return $doCatalogo;
 }
 
