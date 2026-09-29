@@ -331,7 +331,10 @@ ok('a Libertadores tem 32 na fase de grupos', $nGrupos === 32, "$nGrupos clubes"
 secao('Europa');
 
 $eu = futClubesDaEuropa();
-ok('114 clubes europeus', count($eu) === 114, count($eu) . ' clubes');
+$daLiga = array_filter($eu, fn($c) => $c['div'] !== FUT_DIV_CONVIDADO);
+$convidados = array_filter($eu, fn($c) => $c['div'] === FUT_DIV_CONVIDADO);
+ok('114 clubes nas seis ligas', count($daLiga) === 114, count($daLiga) . ' clubes');
+ok('58 convidados das continentais', count($convidados) === 58, count($convidados) . ' clubes');
 
 $tamanhos = [];
 foreach (FUT_LIGAS_EU as $div => $m) $tamanhos[$m['nome']] = count(futClubesDaLigaEu($div));
@@ -344,7 +347,7 @@ ok('cada liga com 18 ou 20 clubes',
    jogar com o elenco do outro, em silêncio e pra sempre. */
 $repetidos = array_intersect(array_keys($eu), array_keys(futClubesDoBrasil()));
 ok('nenhum nome repetido entre Brasil e Europa', $repetidos === [], implode(', ', $repetidos));
-ok('o mundo tem 212 clubes', count(futClubesDoJogo()) === 212, count(futClubesDoJogo()) . ' clubes');
+ok('o mundo tem 270 clubes', count(futClubesDoJogo()) === 270, count(futClubesDoJogo()) . ' clubes');
 
 $semElenco = [];
 $foraDaEscala = [];
@@ -403,6 +406,46 @@ ok('o ano europeu fecha e paga premiação', $f['relatorio']['posicao'] !== null
    $f['relatorio']['posicao'] . 'º, receita ' . $f['relatorio']['receita']);
 ok('a temporada 2 monta calendário de novo',
    count(futCarreiraMontarCalendario($f['estado'])) > 30);
+
+/* ── AS TRÊS CONTINENTAIS ────────────────────────────────────────────
+   Cada uma precisa de gente suficiente pra sortear um grupo de quatro e mais
+   quatro fases de mata-mata sem repetir adversário. */
+$porComp = [];
+foreach ($eu as $nome => $c) {
+    $v = futContinentalDoClube($c);
+    if ($v !== '') $porComp[$v][] = $nome;
+}
+foreach (FUT_CONTINENTAIS_EU as $comp) {
+    ok('a ' . $comp . ' tem clube que chegue', count($porComp[$comp] ?? []) >= 12,
+       count($porComp[$comp] ?? []) . ' clubes');
+}
+ok('nenhum clube disputa duas continentais',
+   count(array_merge(...array_values($porComp))) === count(array_unique(array_merge(...array_values($porComp)))));
+
+/* TODO CONVIDADO JOGA ALGUMA COISA. Eles só existem pra isso — um convidado
+   sem competição é um elenco de 25 jogadores que nunca entra em campo. */
+$paradas = array_filter($convidados, fn($c) => futContinentalDoClube($c) === '');
+ok('todo convidado entra numa continental', $paradas === [],
+   implode(', ', array_slice(array_keys($paradas), 0, 4)));
+
+/* E NENHUM DELES PODE TE CONTRATAR: não há liga pra eles no jogo, então
+   aceitar o convite deixaria o técnico com um ano sem calendário. */
+$ofertaveis = array_filter(futClubesParaComecar(100), fn($c) => ($c['div'] ?? '') === FUT_DIV_CONVIDADO);
+ok('convidado não aparece pra escolher no começo', $ofertaveis === [],
+   implode(', ', array_slice(array_keys($ofertaveis), 0, 4)));
+
+$estRico = futCarreiraNova('Teste', 'Vitória de Guimarães');
+$estRico['tecnico']['reputacao'] = 100;
+$props = futPropostasDeEmprego($estRico, futClubesDoJogo(), 8);
+$ruins = array_filter($props, fn($p) => ($p['div'] ?? '') === FUT_DIV_CONVIDADO);
+ok('convidado não manda proposta de emprego', $ruins === [], count($ruins) . ' propostas');
+
+/* UM TÉCNICO EM SÉTIMO NA PREMIER JOGA A CONFERENCE. É o caso que a
+   competição nova existe pra cobrir, e o que prova que a vaga dela não
+   ficou só com os convidados. */
+$naConference = array_filter($daLiga, fn($c) => futContinentalDoClube($c) === 'Conference League');
+ok('as seis ligas também dão vaga na Conference', count($naConference) >= 6,
+   count($naConference) . ' clubes');
 
 // ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";

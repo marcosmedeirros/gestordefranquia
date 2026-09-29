@@ -59,6 +59,7 @@ const FUT_PREMIACAO = [
        nacional, como na vida — é ela que sustenta o elenco do clube grande. */
     'Champions League'     => ['campeao' => 140, 'vice' => 70, 'top4' => 40, 'top8' => 24],
     'Liga Europa'          => ['campeao' => 45,  'vice' => 22, 'top4' => 12, 'top8' => 7],
+    'Conference League'    => ['campeao' => 18,  'vice' => 9,  'top4' => 5,  'top8' => 3],
     'Premier League'       => ['campeao' => 160, 'vice' => 90, 'top4' => 55, 'top8' => 28],
     'La Liga'              => ['campeao' => 110, 'vice' => 60, 'top4' => 35, 'top8' => 18],
     'Serie A'              => ['campeao' => 95,  'vice' => 52, 'top4' => 30, 'top8' => 15],
@@ -182,6 +183,8 @@ function futClubesParaComecar(int $reputacao): array
 
     $out = [];
     foreach (futClubesDoJogo() as $c) {
+        // Mesma razão das propostas: clube sem campeonato não tem temporada.
+        if (($c['div'] ?? '') === FUT_DIV_CONVIDADO) continue;
         if ($c['forca'] > $tetoForca) continue;
         $out[$c['nome']] = $c;
     }

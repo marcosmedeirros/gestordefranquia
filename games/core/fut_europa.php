@@ -22,9 +22,24 @@
  * passa a se classificar, que é exatamente o que o técnico está tentando fazer.
  */
 
-require_once __DIR__ . '/fut_clubes_eu.php';
+/* O catálogo é GERADO (fut_importar_europa_cli.php), e o importador carrega
+   este arquivo pra saber o vocabulário — FUT_DIV_CONVIDADO mora aqui. Num
+   clone que ainda não rodou a importação o catálogo não existe, e o jogo tem
+   que subir assim mesmo, só sem a Europa. */
+if (is_file(__DIR__ . '/fut_clubes_eu.php')) require_once __DIR__ . '/fut_clubes_eu.php';
 require_once __DIR__ . '/fut_clubes_br.php';
 require_once __DIR__ . '/fut_elencos.php';
+
+/**
+ * O CÓDIGO DE QUEM SÓ EXISTE PRA JOGAR A CONTINENTAL.
+ *
+ * Não é uma liga: é a marca de "clube sem campeonato neste jogo". O Ajax, o
+ * Celtic e o Galatasaray estão aqui pra a Champions ter cara de Champions, mas
+ * a Eredivisie não é disputada — então eles nunca aparecem onde se escolhe
+ * clube pra dirigir, nem mandam proposta. Aceitar uma deixaria o técnico com
+ * um ano inteiro sem calendário.
+ */
+const FUT_DIV_CONVIDADO = 'EUX';
 
 /**
  * AS SEIS LIGAS: a copa nacional de cada uma e quantas vagas ela dá.
@@ -37,22 +52,38 @@ require_once __DIR__ . '/fut_elencos.php';
 const FUT_LIGAS_EU = [
     'EN1' => ['rebaixa' => 3, 'nome' => 'Premier League', 'curto' => 'Premier League', 'pais' => 'ENG',
               'paisNome' => 'Inglaterra', 'copa' => 'FA Cup',
-              'champions' => 4, 'europa' => 2],
+              'champions' => 4, 'europa' => 2, 'conference' => 1],
     'ES1' => ['rebaixa' => 3, 'nome' => 'La Liga',        'curto' => 'La Liga',        'pais' => 'ESP',
               'paisNome' => 'Espanha',    'copa' => 'Copa del Rey',
-              'champions' => 4, 'europa' => 2],
+              'champions' => 4, 'europa' => 2, 'conference' => 1],
     'IT1' => ['rebaixa' => 3, 'nome' => 'Serie A',        'curto' => 'Serie A',        'pais' => 'ITA',
               'paisNome' => 'Itália',     'copa' => 'Coppa Italia',
-              'champions' => 4, 'europa' => 2],
+              'champions' => 4, 'europa' => 2, 'conference' => 1],
     'DE1' => ['rebaixa' => 2, 'nome' => 'Bundesliga',     'curto' => 'Bundesliga',     'pais' => 'GER',
               'paisNome' => 'Alemanha',   'copa' => 'DFB-Pokal',
-              'champions' => 4, 'europa' => 2],
+              'champions' => 4, 'europa' => 2, 'conference' => 1],
     'FR1' => ['rebaixa' => 2, 'nome' => 'Ligue 1',        'curto' => 'Ligue 1',        'pais' => 'FRA',
               'paisNome' => 'França',     'copa' => 'Copa da França',
-              'champions' => 3, 'europa' => 2],
+              'champions' => 3, 'europa' => 2, 'conference' => 1],
     'PT1' => ['rebaixa' => 2, 'nome' => 'Liga Portugal',  'curto' => 'Liga Portugal',  'pais' => 'POR',
               'paisNome' => 'Portugal',   'copa' => 'Taça de Portugal',
-              'champions' => 2, 'europa' => 2],
+              'champions' => 2, 'europa' => 2, 'conference' => 2],
+];
+
+/**
+ * OS PAÍSES DOS CONVIDADOS — os que entram só pelas continentais.
+ *
+ * Eles não têm liga no jogo (@see FUT_DIV_CONVIDADO), então a vaga continental
+ * deles não pode sair de tabela nenhuma: sai da ordem de força DENTRO DO PAÍS,
+ * que é como funciona mesmo — o campeão holandês vai pra Champions, o segundo
+ * pra Liga Europa, o resto pra Conference.
+ */
+const FUT_PAISES_CONVIDADOS = [
+    'NED' => 'Holanda',  'TUR' => 'Turquia',    'BEL' => 'Bélgica',    'AUT' => 'Áustria',
+    'SCO' => 'Escócia',  'GRE' => 'Grécia',     'DEN' => 'Dinamarca',  'NOR' => 'Noruega',
+    'SWE' => 'Suécia',   'POL' => 'Polônia',    'ROU' => 'Romênia',    'CZE' => 'Chéquia',
+    'UKR' => 'Ucrânia',  'CRO' => 'Croácia',    'HUN' => 'Hungria',    'CYP' => 'Chipre',
+    'AZE' => 'Azerbaijão', 'FIN' => 'Finlândia',
 ];
 
 /**
@@ -65,8 +96,14 @@ const FUT_LIGAS_EU = [
  * tabela europeia herdava a regra brasileira e marcava quatro.
  */
 
-/** As duas continentais, da maior pra menor. */
-const FUT_CONTINENTAIS_EU = ['Champions League', 'Liga Europa'];
+/**
+ * AS TRÊS CONTINENTAIS, da maior pra menor — e a ordem importa.
+ *
+ * É por esta ordem que o convidado cai na competição dele: primeiro do país
+ * vai pra primeira da lista, segundo pra segunda, do terceiro em diante pra
+ * última. Trocar a ordem aqui troca o sorteio inteiro.
+ */
+const FUT_CONTINENTAIS_EU = ['Champions League', 'Liga Europa', 'Conference League'];
 
 /**
  * OS CLUBES EUROPEUS, no mesmo formato dos brasileiros.
@@ -175,13 +212,38 @@ function futPostoNaLiga(string $div, string $clube): int
 function futContinentalDoClube(array $clube): string
 {
     $div = (string)($clube['div'] ?? '');
+
+    /* O CONVIDADO NÃO TEM LIGA NO JOGO, então a fila dele é a do país: o
+       primeiro holandês na Champions, o segundo na Liga Europa, do terceiro
+       em diante na Conference. Nenhum deles fica de fora — eles só existem
+       pra jogar isto. */
+    if ($div === FUT_DIV_CONVIDADO) {
+        $posto = futPostoNoPais((string)($clube['pais'] ?? ''), (string)($clube['nome'] ?? ''));
+        return FUT_CONTINENTAIS_EU[min($posto, count(FUT_CONTINENTAIS_EU)) - 1];
+    }
+
     $meta = FUT_LIGAS_EU[$div] ?? null;
     if (!$meta) return '';
 
     $posto = futPostoNaLiga($div, (string)($clube['nome'] ?? ''));
     if ($posto <= $meta['champions']) return 'Champions League';
     if ($posto <= $meta['champions'] + $meta['europa']) return 'Liga Europa';
+    if ($posto <= $meta['champions'] + $meta['europa'] + $meta['conference']) return 'Conference League';
     return '';
+}
+
+/** A ordem de força de um convidado dentro do país dele — 1 é o mais forte. */
+function futPostoNoPais(string $pais, string $clube): int
+{
+    static $filas = [];
+    if (!isset($filas[$pais])) {
+        $doPais = array_filter(futClubesDaEuropa(),
+            fn($c) => $c['div'] === FUT_DIV_CONVIDADO && $c['pais'] === $pais);
+        uasort($doPais, fn($a, $b) => [-$a['forca'], $a['nome']] <=> [-$b['forca'], $b['nome']]);
+        $filas[$pais] = array_flip(array_keys($doPais));
+    }
+    if (!isset($filas[$pais][$clube])) return count($filas[$pais]) ?: 1;
+    return $filas[$pais][$clube] + 1;
 }
 
 /**
@@ -331,22 +393,23 @@ function futCopasDeMataMata(): array
 }
 
 /**
- * AS FAIXAS PINTADAS DA CLASSIFICAÇÃO: quantos sobem e quantos caem.
+ * AS FAIXAS PINTADAS DA CLASSIFICAÇÃO.
  *
  * Uma função pros dois mundos porque a tabela é a mesma tela. No Brasil,
  * "verde" é acesso à divisão de cima e a Série D não tem queda; na Europa não
- * existe divisão de cima no jogo — o verde lá é a vaga continental, que é o
- * prêmio de terminar em cima, e é o que a diretoria cobra.
+ * existe divisão de cima no jogo — o verde lá é a Champions, e o tom mais
+ * fraco é o resto da Europa (Liga Europa e Conference), que rende menos e por
+ * isso não pode ser a mesma cor.
  *
- * @return array{0:int,1:int} [quantos no verde, quantos no vermelho]
+ * @return array{0:int,1:int,2:int} [verde, até onde vai o tom fraco, vermelho]
  */
 function futZonasDaTabela(string $div): array
 {
     if (isset(FUT_LIGAS_EU[$div])) {
         $m = FUT_LIGAS_EU[$div];
-        return [$m['champions'] + $m['europa'], $m['rebaixa']];
+        return [$m['champions'], $m['champions'] + $m['europa'] + $m['conference'], $m['rebaixa']];
     }
-    return [$div === 'BR1' ? 0 : 4, $div === 'BR4' ? 0 : 4];
+    return [$div === 'BR1' ? 0 : 4, 0, $div === 'BR4' ? 0 : 4];
 }
 
 /** O nome da liga nacional europeia, ou '' se a divisão não for de lá. */

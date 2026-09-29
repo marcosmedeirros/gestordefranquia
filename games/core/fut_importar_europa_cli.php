@@ -94,6 +94,27 @@ foreach (FUT_EUROPA_LIGAS as $meta) {
     }
 }
 
+/* ── OS CONVIDADOS ────────────────────────────────────────────────────
+   Entram sem esticamento, e de propósito: o esticamento serve pra abrir a
+   distância dentro de um campeonato, e estes não disputam campeonato nenhum
+   no jogo. Eles já chegam selecionados — são os primeiros do país deles —,
+   então a faixa que eles ocupam (uns 65 a 80) é a que deve ser mesmo. */
+foreach (futEuropaLerConvidados($csv) as $clube => $d) {
+    if (isset($brasileiros[$clube]) || isset($catalogo[$clube])) { $colisoes[] = $clube; continue; }
+
+    $elenco = $d['elenco'];
+    if (count($elenco) < FUT_EUROPA_ELENCO_MINIMO) {
+        $completados[$clube] = count($elenco);
+        $elenco = futEuropaCompletarElenco($elenco, $clube, futForcaDoElenco($elenco));
+    }
+    if (($escudos[$clube] ?? '') === '') $semEscudo[] = $clube;
+
+    $catalogo[$clube] = ['nome' => $clube, 'div' => FUT_DIV_CONVIDADO, 'pais' => $d['pais'],
+                         'forca' => futForcaDoElenco($elenco), 'escudo' => $escudos[$clube] ?? ''];
+
+    if ($gravar) futOvrGravar($clube, $elenco);
+}
+
 // ── O catálogo ───────────────────────────────────────────────────────
 uasort($catalogo, function ($a, $b) {
     return [$a['div'], -$a['forca']] <=> [$b['div'], -$b['forca']];
@@ -104,7 +125,7 @@ $ligaAtual = '';
 foreach ($catalogo as $c) {
     if ($c['div'] !== $ligaAtual) {
         $ligaAtual = $c['div'];
-        $nome = '';
+        $nome = $ligaAtual === FUT_DIV_CONVIDADO ? 'Os convidados das continentais' : '';
         foreach (FUT_EUROPA_LIGAS as $m) if ($m['div'] === $ligaAtual) $nome = $m['nome'];
         $linhas[] = ($linhas ? "\n" : '') . '    // ── ' . $nome . ' ─────────────────────────────';
     }

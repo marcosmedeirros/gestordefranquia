@@ -36,6 +36,7 @@
 
 require_once __DIR__ . '/fut_elencos.php';
 require_once __DIR__ . '/fut_importar_ovr.php';
+require_once __DIR__ . '/fut_europa.php';   // FUT_DIV_CONVIDADO mora lá, com o resto do vocabulário
 
 /**
  * As seis ligas, com o nome que elas têm na base de origem.
@@ -51,6 +52,50 @@ const FUT_EUROPA_LIGAS = [
     'Bundesliga'         => ['div' => 'DE1', 'nome' => 'Bundesliga',     'pais' => 'GER', 'paisNome' => 'Alemanha'],
     "Ligue 1 McDonald's" => ['div' => 'FR1', 'nome' => 'Ligue 1',        'pais' => 'FRA', 'paisNome' => 'França'],
     'Liga Portugal'      => ['div' => 'PT1', 'nome' => 'Liga Portugal',  'pais' => 'POR', 'paisNome' => 'Portugal'],
+];
+
+/**
+ * OS CONVIDADOS: o resto da Europa que disputa as continentais.
+ *
+ * As três competições europeias precisam de 96 clubes e as seis ligas do jogo
+ * têm 114 no total — daria pra preencher só com elas, e era o que acontecia.
+ * O problema é que uma Champions sorteada entre Premier, La Liga e Serie A não
+ * é uma Champions: é um torneio das seis ligas. Faltavam o Ajax, o Celtic, o
+ * Galatasaray, o Shakhtar — os clubes que dão à competição a cara de Europa.
+ *
+ * ── POR QUE SÓ OS PRIMEIROS DE CADA PAÍS ─────────────────────────────
+ *
+ * A base tem a Eredivisie inteira, a Ekstraklasa inteira, dezesseis suecos. Só
+ * que o décimo da Suécia não joga a Conference, e trazê-lo seria encher o
+ * catálogo — e o mercado, e a lista de propostas — de clube que nunca entra em
+ * campo. O número de cada país é quantas vagas europeias ele tem de verdade:
+ * a Holanda leva cinco, o Chipre leva um.
+ *
+ * Os países com pouca coisa na base (Grécia, Chéquia, Ucrânia, Croácia) já
+ * chegam assim justamente porque são os clubes europeus deles — a base só
+ * incluiu quem joga fora.
+ *
+ * [liga na base => [quantos levar, código, país]]
+ */
+const FUT_EUROPA_CONVIDADOS = [
+    'Eredivisie'           => [5, 'NED', 'Holanda'],
+    'Trendyol Süper Lig'   => [5, 'TUR', 'Turquia'],
+    '1A Pro League'        => [5, 'BEL', 'Bélgica'],
+    'Ö. Bundesliga'        => [4, 'AUT', 'Áustria'],
+    'Scottish Prem'        => [4, 'SCO', 'Escócia'],
+    'Hellas Liga'          => [4, 'GRE', 'Grécia'],
+    '3F Superliga'         => [4, 'DEN', 'Dinamarca'],
+    'Eliteserien'          => [4, 'NOR', 'Noruega'],
+    'Allsvenskan'          => [4, 'SWE', 'Suécia'],
+    'PKO BP Ekstraklasa'   => [4, 'POL', 'Polônia'],
+    'SUPERLIGA'            => [4, 'ROU', 'Romênia'],
+    'Česká Liga'           => [3, 'CZE', 'Chéquia'],
+    'Ukrayina Liha'        => [2, 'UKR', 'Ucrânia'],
+    'Liga Hrvatska'        => [2, 'CRO', 'Croácia'],
+    'Magyar Liga'          => [1, 'HUN', 'Hungria'],
+    'Liga Cyprus'          => [1, 'CYP', 'Chipre'],
+    'Liga Azerbaijan'      => [1, 'AZE', 'Azerbaijão'],
+    'Finnliiga'            => [1, 'FIN', 'Finlândia'],
 ];
 
 /**
@@ -157,6 +202,66 @@ const FUT_EUROPA_NOMES = [
        outro, em silêncio. O português ganha o sobrenome porque é ele que está
        chegando — o brasileiro já está no jogo e em telas antigas. */
     'Nacional'        => 'Nacional da Madeira',
+
+    /* ── Os convidados ────────────────────────────────────────────
+       Aqui a limpeza é quase toda de sigla de sociedade — FC, SK, IF, BK,
+       KAA —, que o torcedor não fala e que numa tabela de classificação só
+       come a largura da coluna. Onde o nome da cidade é conhecido em
+       português (Praga, Kiev, Copenhague), vale o português: a tela é
+       brasileira. */
+
+    // Holanda e Bélgica
+    'FC Twente'         => 'Twente',
+    'RSC Anderlecht'    => 'Anderlecht',
+    'Royal Antwerp FC'  => 'Royal Antwerp',
+    'R. Union St.-G.'   => 'Union Saint-Gilloise',
+    'KRC Genk'          => 'Genk',
+    'KAA Gent'          => 'Gent',
+
+    // Áustria e Escócia
+    'RB Salzburg'       => 'RB Salzburgo',
+    'SK Sturm Graz'     => 'Sturm Graz',
+    'SK Rapid'          => 'Rapid Viena',
+    'FK Austria Wien'   => 'Austria Viena',
+
+    // Grécia
+    'AEK Athens'        => 'AEK Atenas',
+    'Olympiacos FC'     => 'Olympiacos',
+    'PAOK FC'           => 'PAOK',
+
+    // Escandinávia
+    'F.C. København'    => 'Copenhague',
+    'FC Midtjylland'    => 'Midtjylland',
+    'Brøndby IF'        => 'Brøndby',
+    'FC Nordsjælland'   => 'Nordsjælland',
+    'FK Bodø/Glimt'     => 'Bodø/Glimt',
+    'Molde FK'          => 'Molde',
+    'Rosenborg BK'      => 'Rosenborg',
+    'Viking FK'         => 'Viking',
+    'Lillestrøm SK'     => 'Lillestrøm',
+    'Malmö FF'          => 'Malmö',
+    'BK Häcken'         => 'Häcken',
+    'Djurgårdens IF'    => 'Djurgården',
+    'IF Elfsborg'       => 'Elfsborg',
+    'HJK Helsinki'      => 'HJK',
+
+    // Leste europeu
+    'Sparta Praha'      => 'Sparta Praga',
+    'Slavia Praha'      => 'Slavia Praga',
+    'Viktoria Plzeň'    => 'Viktoria Plzen',
+    'Shakhtar Donetsk'  => 'Shakhtar',
+    'Dynamo Kyiv'       => 'Dínamo Kiev',
+    'Dinamo Zagreb'     => 'Dínamo Zagreb',
+    'Ferencvárosi TC'   => 'Ferencváros',
+    'Legia Warszawa'    => 'Legia',
+    'Lech Poznań'       => 'Lech Poznan',
+    'Pogoń Szczecin'    => 'Pogon Szczecin',
+    'Śląsk Wrocław'     => 'Slask Wroclaw',
+    'Univ. Craiova'     => 'Universitatea Craiova',
+    'FC Rapid 1923'     => 'Rapid Bucareste',
+    'CFR 1907 Cluj'     => 'CFR Cluj',
+    'APOEL FC'          => 'APOEL',
+    'Qarabağ FK'        => 'Qarabag',
 ];
 
 /**
@@ -266,6 +371,60 @@ function futEuropaLerCsv(string $caminho): array
         ];
     }
     fclose($h);
+    return $out;
+}
+
+/**
+ * LÊ OS CONVIDADOS: o resto da Europa, já cortado no número de vagas do país.
+ *
+ * O corte acontece AQUI e não na hora de gravar porque quem sobra não tem uso
+ * nenhum adiante — não há liga pra eles no jogo. Guardar dezesseis suecos pra
+ * descartar doze depois só espalharia o critério por dois arquivos.
+ *
+ * @return array [clube => ['elenco'=>lista, 'pais'=>cod, 'paisNome'=>string]]
+ */
+function futEuropaLerConvidados(string $caminho): array
+{
+    $h = fopen($caminho, 'r');
+    if (!$h) throw new RuntimeException('Não abriu o arquivo: ' . $caminho);
+    $cab = fgetcsv($h);
+    $idx = array_flip(array_map('trim', $cab));
+
+    $porLiga = [];
+    while (($l = fgetcsv($h)) !== false) {
+        $liga = trim((string)($l[$idx['League']] ?? ''));
+        if (!isset(FUT_EUROPA_CONVIDADOS[$liga])) continue;
+
+        $pos = futEuropaPosicao((string)($l[$idx['Position']] ?? ''));
+        if ($pos === null) continue;
+
+        $clube = trim((string)($l[$idx['Team']] ?? ''));
+        if ($clube === '') continue;
+
+        $porLiga[$liga][futEuropaNomeDoClube($clube)][] = [
+            'nome'  => trim((string)$l[$idx['Name']]),
+            'pos'   => $pos,
+            'ovr'   => (int)$l[$idx['OVR']],
+            'idade' => (int)$l[$idx['Age']],
+        ];
+    }
+    fclose($h);
+
+    $out = [];
+    foreach (FUT_EUROPA_CONVIDADOS as $liga => [$quantos, $pais, $paisNome]) {
+        $clubes = [];
+        foreach ($porLiga[$liga] ?? [] as $nome => $js) {
+            $elenco = futEuropaAplicarTetos(futEuropaEscolherElenco($js));
+            $clubes[$nome] = ['elenco' => $elenco, 'forca' => futForcaDoElenco($elenco),
+                              'pais' => $pais, 'paisNome' => $paisNome];
+        }
+        /* OS MAIS FORTES DO PAÍS SÃO OS QUE VÃO, porque são eles que se
+           classificam. Desempate pelo nome pra a escolha não mudar entre uma
+           importação e outra. */
+        uasort($clubes, fn($a, $b) => [-$a['forca'], $a['elenco'][0]['nome']]
+                                  <=> [-$b['forca'], $b['elenco'][0]['nome']]);
+        foreach (array_slice($clubes, 0, $quantos, true) as $nome => $d) $out[$nome] = $d;
+    }
     return $out;
 }
 

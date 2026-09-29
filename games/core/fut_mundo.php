@@ -183,6 +183,11 @@ function futPropostasDeEmprego(array $estado, array $clubes, int $quantas = 3): 
     $candidatos = [];
     foreach ($clubes as $c) {
         if ($c['nome'] === $meuNome) continue;
+        /* O CONVIDADO NÃO CONTRATA NINGUÉM. Ajax, Celtic e Galatasaray estão
+           no jogo pra a Champions ter cara de Champions, mas a liga deles não
+           é disputada aqui: aceitar o convite deixaria o técnico com um ano
+           sem calendário. */
+        if (($c['div'] ?? '') === FUT_DIV_CONVIDADO) continue;
         if ((int)$c['forca'] > $teto) continue;
         if ((int)$c['forca'] <= $minhaForca + 1) continue;   // só convite pra subir
         $candidatos[] = $c;

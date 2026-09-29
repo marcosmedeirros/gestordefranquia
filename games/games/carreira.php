@@ -923,6 +923,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .pos{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;
   background:var(--panel3);font-size:11px;font-weight:800;color:var(--txt2)}
 .pos.sobe{background:rgba(34,197,94,.20);color:var(--verde-claro)}
+/* A FAIXA DE BAIXO DA EUROPA — Liga Europa e Conference. Não pode ser o
+   mesmo verde da Champions: são vagas de valor muito diferente, e pintar as
+   sete primeiras da mesma cor diria que terminar em sétimo é o mesmo que
+   terminar em primeiro. */
+.pos.euro{background:rgba(59,130,246,.18);color:#93c5fd}
 .pos.cai{background:rgba(239,68,68,.18);color:#fca5a5}
 
 .ovr{display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:2px 6px;border-radius:6px;
@@ -2887,9 +2892,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                  sobem e quantos caem depende da liga — a Série D não rebaixa
                  ninguém e a Bundesliga rebaixa dois (@see futZonasDaTabela). */
               $ehNacional = $compSel === futCarreiraNomeDaDivisao($divAtual) && $divAtual !== '';
-              [$nSobe, $nCai] = $ehNacional ? futZonasDaTabela($divAtual) : [0, 0];
+              [$nSobe, $nEuro, $nCai] = $ehNacional ? futZonasDaTabela($divAtual) : [0, 0, 0];
               $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
-              $clsPos = ($i <= $nSobe) ? 'sobe' : (($nCai && $i > $total - $nCai) ? 'cai' : ''); ?>
+              $clsPos = ($i <= $nSobe) ? 'sobe'
+                      : (($i <= $nEuro) ? 'euro'
+                      : (($nCai && $i > $total - $nCai) ? 'cai' : '')); ?>
               <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
                 <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
                 <td><a class="link-jogo clube-cel" href="?aba=clube&amp;nome=<?= urlencode($nome) ?>&amp;de=tabela"><?php
