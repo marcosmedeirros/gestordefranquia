@@ -23,6 +23,7 @@
 session_start();
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../core/fut_carreira.php';
+require_once __DIR__ . '/../core/fut_busca.php';
 /* As cores de cada clube. Opcional de propósito: o jogo roda inteiro sem elas
    (cai no verde padrão), e quem clona o projeto sem rodar o extrator não fica
    com uma tela quebrada. */
@@ -306,6 +307,16 @@ if ($aba === 'jogo') $aba = 'inicio';
 /* O PAINEL DE SUBSTITUIÇÃO PERGUNTA QUEM ESTÁ EM CAMPO. Responde JSON e sai
    antes do HTML: é o mesmo motivo do avanço do relógio — recarregar a página
    pra abrir o painel pararia a partida. */
+/* A BUSCA RESPONDE EM JSON E SAI ANTES DO HTML. Ela é chamada a cada pausa na
+   digitação: devolver a página inteira por tecla seria mandar 70 KB pra
+   preencher uma lista de seis linhas. */
+if ($estado && ($_GET['json'] ?? '') === 'busca') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(futCarreiraBuscar($estado, (string)($_GET['q'] ?? '')),
+                     JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($estado && ($_GET['json'] ?? '') === 'troca') {
     header('Content-Type: application/json; charset=utf-8');
     $v = $estado['aovivo'] ?? null;
@@ -499,7 +510,44 @@ a{color:inherit}
   background:var(--panel3);border:1px solid var(--borda);font-weight:800;color:var(--txt2);flex-shrink:0}
 
 /* ── Topo ───────────────────────────────────────────── */
-.topo{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+/* ── A barra de cima ─────────────────────────────────────────────────
+   Grudada no alto: as duas ações que se quer a qualquer momento não podem
+   depender de rolar até elas. O fundo é opaco porque o conteúdo passa por
+   baixo — barra translúcida sobre tabela vira sopa. */
+.topo{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;
+  margin:0 -14px 14px;padding:10px 14px;flex-wrap:wrap;background:var(--bg);
+  border-bottom:1px solid transparent;transition:border-color .2s}
+.topo.rolou{border-bottom-color:var(--borda)}
+.topo.com-busca .marca{margin-right:2px}
+
+.busca-caixa{position:relative;flex:1;min-width:180px;display:flex;align-items:center}
+.busca-caixa > .bi{position:absolute;left:11px;color:var(--txt3);font-size:13px;pointer-events:none}
+.busca-caixa input{width:100%;padding:8px 12px 8px 32px;border-radius:10px;
+  border:1px solid var(--borda);background:var(--panel);color:var(--txt);font-size:13px}
+.busca-caixa input:focus{outline:none;border-color:var(--acento)}
+.busca-caixa input::-webkit-search-cancel-button{filter:invert(.6)}
+
+/* A lista flutua: empurrar o conteúdo pra baixo a cada tecla faria a página
+   pular enquanto se digita. */
+.busca-lista{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;
+  background:var(--panel2);border:1px solid var(--borda2);border-radius:12px;
+  box-shadow:0 12px 28px rgba(0,0,0,.5);overflow:hidden;max-height:60vh;overflow-y:auto}
+.busca-grupo{font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--txt3);padding:9px 12px 4px}
+.busca-item{display:flex;align-items:center;gap:9px;padding:8px 12px;font-size:13px;
+  color:inherit;text-decoration:none;cursor:pointer}
+.busca-item:hover,.busca-item.sel{background:color-mix(in srgb, var(--acento) 14%, transparent)}
+.busca-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.busca-item .det{font-size:11px;color:var(--txt3);flex-shrink:0}
+.busca-vazio{padding:12px;font-size:12.5px;color:var(--txt3)}
+.topo-jogar{margin:0;flex-shrink:0}
+
+@media (max-width:560px){
+  /* No celular a busca desce pra própria linha: espremida ao lado da marca e
+     do botão, sobrava espaço pra três letras. */
+  .topo{gap:8px}
+  .busca-caixa{order:3;flex-basis:100%;min-width:0}
+}
 .marca{display:flex;align-items:center;gap:9px;font-weight:900;font-size:17px;letter-spacing:-.6px}
 .marca i{color:var(--acento)}
 .voltar{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;
@@ -1162,9 +1210,46 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 <body>
 <div id="app">
 
-  <div class="topo">
+  <?php
+    /* ── O TOPO É A BARRA DE FERRAMENTAS ──────────────────────────────
+       Duas coisas que se quer a qualquer momento e de qualquer aba: entrar no
+       próximo jogo e achar alguém. Estavam as duas enterradas — o jogo só no
+       card do Início, depois de rolar; a busca não existia. Aqui elas grudam
+       no alto da tela e seguem a rolagem.
+
+       Durante a partida a barra some junto com o resto: lá não há "próximo
+       jogo" nem motivo pra procurar ninguém. */
+    /* NAO reusa $emCampo: ele so nasce la embaixo, depois desta barra, e o
+       mesmo nome guarda OUTRA COISA dentro do tratador de POST (a escalacao
+       atual, uma lista). Duas variaveis com o mesmo nome e sentidos diferentes
+       no mesmo arquivo e o tipo de coisa que passa despercebida ate o dia em
+       que passa. */
+    $naPartida   = ($aba === 'partida' && !empty($estado['aovivo']));
+    $mostraBarra = $estado && !$naPartida;
+    $podeJogar   = $mostraBarra && ($estado['fase'] ?? '') === 'temporada' && $proximo;
+  ?>
+  <div class="topo <?= $mostraBarra ? 'com-busca' : '' ?>">
     <a href="../games.php" class="voltar" title="Voltar"><i class="bi bi-arrow-left"></i></a>
     <div class="marca"><i class="bi bi-trophy-fill"></i> Carreira</div>
+
+    <?php if ($mostraBarra): ?>
+      <div class="busca-caixa">
+        <i class="bi bi-search"></i>
+        <input type="search" id="buscaGeral" autocomplete="off" spellcheck="false"
+               placeholder="Buscar jogador, clube ou competição"
+               aria-label="Buscar jogador, clube ou competição">
+        <div class="busca-lista" id="buscaLista" hidden></div>
+      </div>
+
+      <?php if ($podeJogar): ?>
+        <form method="post" class="topo-jogar">
+          <input type="hidden" name="acao" value="jogar">
+          <button class="btn peq" title="<?= h($proximo['adversario']) ?> · <?= h($proximo['comp']) ?>">
+            <i class="bi bi-play-fill"></i> Jogar
+          </button>
+        </form>
+      <?php endif; ?>
+    <?php endif; ?>
   </div>
 
 <?php if ($idUsuario <= 0): ?>
@@ -2413,7 +2498,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         <div class="proximo-acoes">
           <form method="post" style="display:inline">
             <input type="hidden" name="acao" value="jogar">
-            <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
+            <button class="btn"><i class="bi bi-play-fill"></i> Jogar</button>
           </form>
           <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
         </div>
@@ -2561,111 +2646,15 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       <?php endif; ?>
     </div>
 
-      <?php $ultimo = null; foreach (array_reverse($estado['resultados'] ?? []) as $rr) { if (!empty($rr['eventos'])) { $ultimo = $rr; break; } } ?>
-      <?php if ($ultimo): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-file-text"></i> Resumo da última partida</h3>
-          <div class="resumo-topo">
-            <div class="resumo-time">
-              <?= escudo($clubesTodos[$estado['clube']] ?? ['nome' => $estado['clube']], 30) ?>
-              <span><?= h($estado['clube']) ?></span>
-            </div>
-            <div class="resumo-placar"><?= (int)$ultimo['meus'] ?> <span>–</span> <?= (int)$ultimo['deles'] ?></div>
-            <div class="resumo-time dir">
-              <span><?= h($ultimo['adversario']) ?></span>
-              <?= escudo($clubesTodos[$ultimo['adversario']] ?? ['nome' => $ultimo['adversario']], 30) ?>
-            </div>
-          </div>
-          <div style="text-align:center;font-size:11.5px;color:var(--txt3);margin-bottom:12px">
-            <?= h($ultimo['comp']) ?> · <?= h($ultimo['fase'] ?? '') ?> · <?= $ultimo['casa'] ? 'em casa' : 'fora' ?>
-          </div>
-
-          <?php if (empty($ultimo['eventos'])): ?>
-            <div class="vazio">Jogo sem lances marcantes.</div>
-          <?php endif; ?>
-          <?php foreach ($ultimo['eventos'] as $ev): ?>
-            <div class="lance <?= $ev['meu'] ? '' : 'deles' ?>">
-              <span class="min"><?= (int)$ev['minuto'] ?>'</span>
-              <?php if ($ev['tipo'] === 'gol'): ?>
-                <i class="bi bi-dribbble" style="color:var(--acento)"></i>
-                <span class="quem"><?= h($ev['jogador']) ?></span>
-                <?php if (!empty($ev['assistente'])): ?>
-                  <span class="det">assist. <?= h($ev['assistente']) ?></span>
-                <?php endif; ?>
-              <?php elseif ($ev['tipo'] === 'amarelo'): ?>
-                <span class="cartao ama"></span>
-                <span class="quem"><?= h($ev['jogador']) ?></span>
-              <?php else: ?>
-                <span class="cartao ver"></span>
-                <span class="quem"><?= h($ev['jogador']) ?></span>
-                <?php if (!empty($ev['segundo'])): ?><span class="det">segundo amarelo</span><?php endif; ?>
-              <?php endif; ?>
-            </div>
-          <?php endforeach; ?>
-
-          <?php if (!empty($ultimo['escalacao'])): ?>
-            <?php
-              /* AS NOTAS SAEM DE TRÁS DO "VER MAIS". Elas estavam num
-                 <details> fechado, e a pergunta que o técnico faz depois do
-                 jogo é justamente essa — quem foi bem. Esconder a resposta
-                 atrás de um clique pra economizar dez linhas de tela era
-                 economizar no lugar errado.
-
-                 O GOL E O CARTÃO VÊM DOS EVENTOS, e não de um campo novo no
-                 save: a lista de lances já diz quem fez o quê, e derivar daqui
-                 evita gravar a mesma informação duas vezes (que é como as
-                 duas acabam discordando uma da outra). */
-              $marcas = [];
-              foreach ($ultimo['eventos'] ?? [] as $ev) {
-                if (empty($ev['meu']) || empty($ev['jogador'])) continue;
-                $n = $ev['jogador'];
-                if ($ev['tipo'] === 'gol') $marcas[$n]['gols'] = ($marcas[$n]['gols'] ?? 0) + 1;
-                elseif ($ev['tipo'] === 'amarelo') $marcas[$n]['cartao'] = 'ama';
-                elseif ($ev['tipo'] === 'vermelho') $marcas[$n]['cartao'] = 'ver';
-                if (!empty($ev['assistente'])) {
-                  $a = $ev['assistente'];
-                  $marcas[$a]['assist'] = ($marcas[$a]['assist'] ?? 0) + 1;
-                }
-              }
-              $esc = $ultimo['escalacao'];
-              usort($esc, fn($a, $b) => $b['nota'] <=> $a['nota']);
-              $craque = $esc[0] ?? null;
-            ?>
-            <div class="opcoes-rot" style="margin-top:14px">Como cada um foi</div>
-            <?php if ($craque): ?>
-              <div class="craque">
-                <i class="bi bi-star-fill"></i>
-                <div style="min-width:0;flex:1">
-                  <div class="craque-nome"><?= h($craque['nome']) ?></div>
-                  <div class="craque-sub">melhor em campo · <?= h($craque['pos']) ?></div>
-                </div>
-                <span class="nota alta"><?= number_format((float)$craque['nota'], 1, ',', '.') ?></span>
-              </div>
-            <?php endif; ?>
-            <div class="esc-vivo" style="margin-top:8px">
-              <?php foreach ($esc as $j): ?>
-                <?php $m = $marcas[$j['nome']] ?? []; ?>
-                <div class="esc-linha">
-                  <span class="tagpos"><?= h($j['pos']) ?></span>
-                  <span class="nm"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
-                  <span class="mk">
-                    <?php for ($g = 0; $g < (int)($m['gols'] ?? 0); $g++): ?>
-                      <i class="bi bi-dribbble" title="gol"></i>
-                    <?php endfor; ?>
-                    <?php for ($g = 0; $g < (int)($m['assist'] ?? 0); $g++): ?>
-                      <i class="bi bi-bullseye" title="assistência" style="color:var(--txt3)"></i>
-                    <?php endfor; ?>
-                    <?php if (!empty($m['cartao'])): ?>
-                      <span class="cartao <?= h($m['cartao']) ?>"></span>
-                    <?php endif; ?>
-                  </span>
-                  <span class="n <?= $j['nota'] >= 7 ? 'boa' : ($j['nota'] < 5.5 ? 'ruim' : '') ?>"><?= number_format((float)$j['nota'], 1, ',', '.') ?></span>
-                </div>
-              <?php endforeach; ?>
-            </div>
-          <?php endif; ?>
-        </div>
-      <?php endif; ?>
+      <?php /* O RESUMO DA ULTIMA PARTIDA SAIU (29/09/2026, a pedido).
+           Ele desenhava cada lance da partida, e desenhava errado: o markup
+           tratava 'gol' e 'amarelo' e mandava TODO O RESTO pro ramo do cartao
+           vermelho — entao chute pra fora, defesa, bola na trave, bloqueio e
+           falta viravam expulsao na tela. Um jogo normal aparecia com doze
+           expulsoes nos primeiros trinta minutos.
+           O motor sempre esteve certo (0,07 vermelho por jogo); quem errava
+           era o desenho. As notas de cada um, que moravam aqui, continuam na
+           coluna 'Em campo' durante a partida e na aba Numeros. */ ?>
 
 
     <?php endif; ?>
@@ -3371,6 +3360,174 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       <?php endif; ?>
     <?php endif; ?>
   <?php // ── PÁGINA: CLUBE ──────────────────────────────────────────── ?>
+  <?php // ── PÁGINA: COMPETIÇÃO ─────────────────────────────────────── ?>
+  <?php elseif ($aba === 'competicao'): ?>
+    <?php
+      $comp = (string)($_GET['nome'] ?? '');
+      $info = futTodasAsCompeticoes()[$comp] ?? null;
+    ?>
+    <div class="voltar-linha"><a href="?aba=<?= h((string)($_GET['de'] ?? 'inicio')) ?>">
+      <i class="bi bi-arrow-left"></i> Voltar</a></div>
+
+    <?php if (!$info): ?>
+      <div class="bloco"><div class="vazio">Não achei essa competição.</div></div>
+    <?php else: ?>
+      <?php
+        $div     = (string)$info['div'];
+        $minhas  = futCarreiraCompeticoesDoAno($estado);
+        $euJogo  = isset($minhas[$comp]);
+        /* A TABELA DE QUALQUER LIGA, inclusive as que o técnico não disputa —
+           é o ponto da página. Copa não tem tabela: mata-mata classifica
+           eliminando, e inventar uma seria mentir. */
+        $tab     = $div !== '' ? futCarreiraTabelaDeQualquerLiga($estado, $div) : [];
+        $campanha = $euJogo ? futCarreiraCampanha($estado, $comp) : null;
+      ?>
+
+      <div class="bloco">
+        <div class="ficha-topo">
+          <span class="mono" style="width:44px;height:44px;font-size:17px"><i class="bi bi-trophy"></i></span>
+          <div style="min-width:0">
+            <div class="ficha-nome"><?= h($comp) ?></div>
+            <div class="ficha-sub">
+              <?= h(ucfirst($info['tipo'])) ?>
+              <?php if ($div !== ''): ?> · <?= count(futClubesDaDivisaoDoJogo($div)) ?> clubes<?php endif; ?>
+              <?php if ($euJogo): ?> · <span style="color:var(--acento)">você disputa</span><?php endif; ?>
+            </div>
+          </div>
+        </div>
+
+        <?php if ($campanha): ?>
+          <div class="fichas" style="grid-template-columns:repeat(4,1fr)">
+            <div class="ficha"><div class="v"><?= (int)$campanha['j'] ?></div><div class="r">jogos</div></div>
+            <div class="ficha"><div class="v"><?= (int)$campanha['v'] ?></div><div class="r">vitórias</div></div>
+            <div class="ficha"><div class="v"><?= (int)$campanha['e'] ?></div><div class="r">empates</div></div>
+            <div class="ficha"><div class="v"><?= (int)$campanha['d'] ?></div><div class="r">derrotas</div></div>
+          </div>
+        <?php endif; ?>
+      </div>
+
+      <?php if ($tab): ?>
+        <?php
+          [$zVerde, $zEuro, $zCai] = futZonasDaTabela($div);
+          $totalT = count($tab);
+        ?>
+        <div class="bloco">
+          <h3><i class="bi bi-table"></i> Classificação</h3>
+          <div class="rolar"><table>
+            <thead><tr><th></th><th>Clube</th><th class="num">P</th><th class="num">J</th>
+              <th class="num">V</th><th class="num">E</th><th class="num">D</th><th class="num">SG</th></tr></thead>
+            <tbody>
+            <?php $i = 0; foreach ($tab as $nome => $l): $i++;
+              $cz = $i <= $zVerde ? 'sobe' : ($i <= $zEuro ? 'euro' : (($zCai && $i > $totalT - $zCai) ? 'cai' : '')); ?>
+              <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
+                <td><span class="pos <?= $cz ?>"><?= $i ?></span></td>
+                <td><a class="link-jogo clube-cel" href="?aba=clube&amp;nome=<?= urlencode($nome) ?>&amp;de=inicio"><?php
+                  echo escudo($clubesTodos[$nome] ?? ['nome' => $nome], 18); ?><span><?= h($nome) ?></span></a></td>
+                <td class="num"><strong><?= (int)$l['p'] ?></strong></td>
+                <td class="num"><?= (int)$l['j'] ?></td>
+                <td class="num"><?= (int)$l['v'] ?></td>
+                <td class="num"><?= (int)$l['e'] ?></td>
+                <td class="num"><?= (int)$l['d'] ?></td>
+                <td class="num"><?= $l['sg'] > 0 ? '+' : '' ?><?= (int)$l['sg'] ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table></div>
+          <?php if (!$euJogo): ?>
+            <div class="destaque-nota">
+              Esta liga corre junto com a sua: ela está na mesma altura do ano em que você está na
+              sua — se você jogou metade do seu campeonato, ela também jogou metade do dela.
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <?php $dest = futCarreiraDestaquesDaCompeticao($estado, $comp, 8, $tab); ?>
+        <?php if ($dest['artilheiros'] || $dest['goleiros']): ?>
+          <div class="bloco">
+            <h3><i class="bi bi-award"></i> Destaques</h3>
+            <div class="destaques">
+              <?php if ($dest['artilheiros']): ?>
+                <div>
+                  <div class="opcoes-rot">Artilheiros</div>
+                  <div class="destaque-lista">
+                    <?php foreach ($dest['artilheiros'] as $k => $a): ?>
+                      <div class="destaque-linha <?= $a['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                        <span class="p"><?= $k + 1 ?></span>
+                        <span class="n"><?= h($a['nome']) ?></span>
+                        <span class="c"><?= h($a['clube']) ?></span>
+                        <span class="v"><?= (int)$a['gols'] ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+              <?php endif; ?>
+              <?php if ($dest['garcons']): ?>
+                <div>
+                  <div class="opcoes-rot">Assistências</div>
+                  <div class="destaque-lista">
+                    <?php foreach ($dest['garcons'] as $k => $a): ?>
+                      <div class="destaque-linha <?= $a['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                        <span class="p"><?= $k + 1 ?></span>
+                        <span class="n"><?= h($a['nome']) ?></span>
+                        <span class="c"><?= h($a['clube']) ?></span>
+                        <span class="v"><?= (int)$a['assist'] ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+              <?php endif; ?>
+              <?php if ($dest['goleiros']): ?>
+                <div>
+                  <div class="opcoes-rot">Goleiros menos vencidos</div>
+                  <div class="destaque-lista">
+                    <?php foreach ($dest['goleiros'] as $k => $g): ?>
+                      <div class="destaque-linha <?= $g['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                        <span class="p"><?= $k + 1 ?></span>
+                        <span class="n"><?= h($g['nome']) ?></span>
+                        <span class="c"><?= h($g['clube']) ?></span>
+                        <span class="v"><?= number_format((float)$g['media'], 2, ',', '') ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endif; ?>
+
+      <?php elseif ($euJogo): ?>
+        <?php
+          $jogosComp = array_values(array_filter($estado['resultados'] ?? [],
+                       fn($r) => ($r['comp'] ?? '') === $comp));
+        ?>
+        <div class="bloco">
+          <h3><i class="bi bi-diagram-2"></i> Seu caminho</h3>
+          <?php if (!$jogosComp): ?>
+            <div class="vazio">Você ainda não jogou nada nesta competição.</div>
+          <?php endif; ?>
+          <?php foreach ($jogosComp as $r): ?>
+            <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
+            <div class="partida">
+              <?= escudo($clubesTodos[$r['adversario']] ?? ['nome' => $r['adversario']], 24) ?>
+              <div style="min-width:0">
+                <div class="comp"><?= h($r['fase'] ?? '') ?> · <?= $r['casa'] ? 'casa' : 'fora' ?></div>
+                <div class="adv"><?= h($r['adversario']) ?></div>
+              </div>
+              <div class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+
+      <?php else: ?>
+        <div class="bloco">
+          <div class="vazio">
+            <?= h($comp) ?> é mata-mata, e mata-mata não tem classificação —
+            quem perde vai pra casa. Como você não disputa esta, não há campanha pra mostrar.
+          </div>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
+
   <?php elseif ($aba === 'clube'): ?>
     <?php
       $alvo = (string)($_GET['nome'] ?? '');
@@ -3894,5 +4051,124 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 })();
 </script>
 </div>
+<script>
+/* ── A BUSCA DO TOPO ──────────────────────────────────────────────────
+ *
+ * Uma consulta por PAUSA na digitação, não por tecla: quem escreve "flamengo"
+ * dispararia oito idas ao servidor, e as sete primeiras seriam jogadas fora.
+ * Duzentos e cinquenta milésimos é o intervalo em que a mão para entre uma
+ * palavra e a próxima.
+ *
+ * E a resposta que chega ATRASADA é descartada. Sem isso, digitar rápido pode
+ * terminar mostrando o resultado de "fla" depois do de "flamengo" — a lista
+ * fica com o que já não se quer, e parece que a busca errou.
+ */
+(function () {
+  var campo = document.getElementById('buscaGeral');
+  var lista = document.getElementById('buscaLista');
+  if (!campo || !lista) return;
+
+  var timer = null, pedido = 0, itens = [], marcado = -1;
+
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+
+  function fechar() { lista.hidden = true; itens = []; marcado = -1; }
+
+  function desenhar(d) {
+    var html = '';
+    itens = [];
+
+    function grupo(rotulo, linhas) {
+      if (!linhas.length) return;
+      html += '<div class="busca-grupo">' + rotulo + '</div>' + linhas.join('');
+    }
+
+    grupo('Competições', (d.competicoes || []).map(function (c) {
+      itens.push('?aba=competicao&nome=' + encodeURIComponent(c.nome));
+      return '<a class="busca-item" href="?aba=competicao&nome=' + encodeURIComponent(c.nome) + '">'
+           + '<i class="bi bi-trophy"></i><span class="nm">' + esc(c.nome) + '</span>'
+           + '<span class="det">' + esc(c.tipo) + '</span></a>';
+    }));
+
+    grupo('Clubes', (d.clubes || []).map(function (c) {
+      itens.push('?aba=clube&nome=' + encodeURIComponent(c.nome) + '&de=inicio');
+      var cara = c.escudo
+        ? '<img src="' + esc(c.escudo) + '" alt="" width="20" height="20" style="object-fit:contain">'
+        : '<i class="bi bi-shield"></i>';
+      return '<a class="busca-item" href="?aba=clube&nome=' + encodeURIComponent(c.nome) + '&de=inicio">'
+           + cara + '<span class="nm">' + esc(c.nome) + '</span>'
+           + '<span class="det">' + esc(c.liga || c.onde) + '</span></a>';
+    }));
+
+    grupo('Jogadores', (d.jogadores || []).map(function (j) {
+      var u = '?aba=jogador&nome=' + encodeURIComponent(j.nome)
+            + '&clube=' + encodeURIComponent(j.clube) + '&de=inicio';
+      itens.push(u);
+      return '<a class="busca-item" href="' + u + '">'
+           + '<span class="tagpos">' + esc(j.pos) + '</span>'
+           + '<span class="nm">' + esc(j.nome) + '</span>'
+           + '<span class="det">' + esc(j.clube) + ' · ' + j.ovr + '</span></a>';
+    }));
+
+    if (!html) html = '<div class="busca-vazio">Nada com esse nome.</div>';
+    lista.innerHTML = html;
+    lista.hidden = false;
+    marcado = -1;
+  }
+
+  function buscar() {
+    var q = campo.value.trim();
+    if (q.length < 2) { fechar(); return; }
+    var meu = ++pedido;
+    fetch(location.pathname + '?json=busca&q=' + encodeURIComponent(q),
+          { headers: { 'X-Requested-With': 'fetch' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (meu === pedido) desenhar(d); })
+      .catch(function () { if (meu === pedido) fechar(); });
+  }
+
+  campo.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(buscar, 250);
+  });
+  campo.addEventListener('focus', function () { if (itens.length) lista.hidden = false; });
+
+  /* Setas e Enter: quem busca com o teclado não quer tirar a mão dele pra
+     pegar o mouse no fim. */
+  campo.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { fechar(); campo.blur(); return; }
+    if (!itens.length || lista.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      marcado += (e.key === 'ArrowDown' ? 1 : -1);
+      if (marcado < 0) marcado = itens.length - 1;
+      if (marcado >= itens.length) marcado = 0;
+      var todos = lista.querySelectorAll('.busca-item');
+      todos.forEach(function (a, i) { a.classList.toggle('sel', i === marcado); });
+      todos[marcado]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && marcado >= 0) {
+      e.preventDefault();
+      location.href = itens[marcado];
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.busca-caixa')) fechar();
+  });
+
+  /* A barra só ganha o fio de baixo quando há conteúdo passando por trás —
+     parada no topo, uma linha solta atravessando a tela não separa nada. */
+  var topo = document.querySelector('.topo');
+  if (topo) {
+    var marcarRolagem = function () { topo.classList.toggle('rolou', window.scrollY > 4); };
+    marcarRolagem();
+    window.addEventListener('scroll', marcarRolagem, { passive: true });
+  }
+})();
+</script>
 </body>
 </html>

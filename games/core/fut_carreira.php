@@ -1325,9 +1325,13 @@ function futCarreiraTabelaDaCompeticao(array $estado, string $comp): array
  *
  * @return array ['artilheiros','garcons','goleiros','notas']
  */
-function futCarreiraDestaquesDaCompeticao(array $estado, string $comp, int $quantos = 8): array
+function futCarreiraDestaquesDaCompeticao(array $estado, string $comp, int $quantos = 8, ?array $tabela = null): array
 {
-    $tab = futCarreiraTabelaDaCompeticao($estado, $comp);
+    /* A TABELA PODE VIR DE FORA. A página de competição mostra ligas que o
+       técnico não disputa, e pra essas futCarreiraTabelaDaCompeticao não tem
+       resposta — ela só sabe das competições do calendário dele. Quem já tem a
+       classificação na mão passa ela aqui e ganha os artilheiros de graça. */
+    $tab = $tabela ?? futCarreiraTabelaDaCompeticao($estado, $comp);
     if (!$tab) return ['artilheiros' => [], 'garcons' => [], 'goleiros' => [], 'notas' => []];
 
     $clubes = futClubesDoJogo();
@@ -1507,6 +1511,59 @@ function futCarreiraTabelaNacional(array $estado): array
  *
  * @return array lista de ['casa','fora','gc','gf'] — vazia fora da liga nacional
  */
+/**
+ * A TABELA DE UMA LIGA QUE NÃO É A SUA.
+ *
+ * Existe porque dirigir na Série B e não ter como olhar a Premier é estranho:
+ * o jogo tem 270 clubes em doze campeonatos, e até agora só um deles existia
+ * pra quem estava jogando.
+ *
+ * ── ATÉ QUE RODADA ELA ESTÁ ──────────────────────────────────────────
+ *
+ * As outras ligas não têm "quantos jogos o técnico fez" pra servir de âncora.
+ * A régua é a FRAÇÃO DO ANO: se você está na rodada 19 de 38, a Premier
+ * aparece na 19 de 38 também, e a Bundesliga, que tem 34, aparece na 17. O ano
+ * anda junto pra todo mundo, que é o que a pessoa espera de um calendário.
+ *
+ * A semente sai da divisão e da rodada, então a tabela não muda entre dois F5
+ * — e anda sozinha quando a sua temporada anda.
+ */
+function futCarreiraTabelaDeQualquerLiga(array $estado, string $div): array
+{
+    $clubes = futClubesDoJogo();
+    $meuDiv = (string)($clubes[$estado['clube'] ?? '']['div'] ?? '');
+    if ($div === '' ) return [];
+    if ($div === $meuDiv) return futCarreiraTabelaNacional($estado);
+
+    $daLiga = futClubesDaDivisaoDoJogo($div);
+    if (count($daLiga) < 2) return [];
+
+    $cal = futCarreiraCalendarioDaLiga($div);
+    $total = count($cal);
+    if ($total < 1) return [];
+
+    $meuTotal = max(1, count(futCarreiraCalendarioDaLiga($meuDiv)));
+    $ate = (int)round((futCarreiraLigaSimulada($estado)['ate'] / $meuTotal) * $total);
+    if ($ate <= 0) return [];
+
+    $porNome = [];
+    foreach (futCarreiraTimes($daLiga, $estado) as $t) $porNome[$t['nome']] = $t;
+
+    mt_srand(crc32($div . '|t' . ($estado['temporada'] ?? 0) . '|r' . $ate));
+    $res = [];
+    foreach ($cal as $n => $jogos) {
+        if ($n + 1 > $ate) break;
+        foreach ($jogos as [$casa, $fora]) {
+            if (!isset($porNome[$casa], $porNome[$fora])) continue;
+            $p = futPlacar($porNome[$casa]['forca'], $porNome[$fora]['forca']);
+            $res[] = ['casa' => $casa, 'fora' => $fora, 'gc' => $p['casa'], 'gf' => $p['fora']];
+        }
+    }
+    mt_srand();
+
+    return futClassificacao(array_keys($porNome), $res);
+}
+
 function futCarreiraOutrosJogosDaRodada(array $estado, ?int $rodada = null): array
 {
     $liga = futCarreiraLigaSimulada($estado);

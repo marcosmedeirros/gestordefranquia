@@ -469,6 +469,64 @@ ok('as seis ligas também dão vaga na Conference', count($naConference) >= 6,
    count($naConference) . ' clubes');
 
 // ═════════════════════════════════════════════════════════════════════
+secao('Busca e competições');
+
+require_once __DIR__ . '/fut_busca.php';
+
+$comps = futTodasAsCompeticoes();
+ok('o jogo conhece mais de 25 competições', count($comps) >= 25, count($comps) . ' competições');
+ok('as seis ligas europeias estão na lista',
+   count(array_filter(FUT_LIGAS_EU, fn($m) => isset($comps[$m['nome']]))) === 6);
+ok('as seis copas nacionais também',
+   count(array_filter(FUT_LIGAS_EU, fn($m) => isset($comps[$m['copa']]))) === 6);
+
+$estB = futCarreiraNova('Teste', 'Athletic-MG');
+$estB['calendario'] = futCarreiraMontarCalendario($estB);
+for ($i = 0; $i < 12; $i++) { $r = futCarreiraJogarProxima($estB); if ($r['fim']) break; $estB = $r['estado']; }
+
+/* ACENTO NÃO PODE ATRAPALHAR: ninguém digita o circunflexo do Grêmio. */
+$r = futCarreiraBuscar($estB, 'gremio');
+ok('busca sem acento acha o Grêmio',
+   in_array('Grêmio', array_column($r['clubes'], 'nome'), true));
+
+$r = futCarreiraBuscar($estB, 'a');
+ok('uma letra não busca nada', $r === ['competicoes' => [], 'clubes' => [], 'jogadores' => []]);
+
+$r = futCarreiraBuscar($estB, 'porto');
+ok('quem começa com o termo vem primeiro',
+   ($r['clubes'][0]['nome'] ?? '') === 'Porto',
+   implode(', ', array_column($r['clubes'], 'nome')));
+
+$r = futCarreiraBuscar($estB, 'neymar');
+ok('acha jogador pelo nome', ($r['jogadores'][0]['clube'] ?? '') === 'Santos',
+   ($r['jogadores'][0]['nome'] ?? '—') . ' no ' . ($r['jogadores'][0]['clube'] ?? '—'));
+
+/* ── A TABELA DE UMA LIGA QUE NÃO É A SUA ────────────────────────────
+   O ponto da página de competição: dirigir na Série B e poder olhar a
+   Premier. E o ano tem que andar junto — uma liga parada na rodada 1
+   enquanto a outra está na 20 denunciaria que ela não existe de verdade. */
+$minhaTab = futCarreiraTabelaNacional($estB);
+$rodadaMinha = $minhaTab ? (int)reset($minhaTab)['j'] : 0;
+ok('a minha liga andou', $rodadaMinha > 0, "rodada $rodadaMinha");
+
+foreach (['EN1', 'ES1', 'PT1'] as $div) {
+    $t = futCarreiraTabelaDeQualquerLiga($estB, $div);
+    $jogos = $t ? array_column($t, 'j') : [];
+    ok("a tabela da $div existe e é justa",
+       $t && min($jogos) === max($jogos) && count($t) === count(futClubesDaDivisaoDoJogo($div)),
+       count($t) . ' clubes, rodada ' . ($jogos ? $jogos[0] : 0));
+}
+
+/* A MESMA TABELA DUAS VEZES TEM QUE SER A MESMA: ela é sorteada, e se a
+   semente escorregasse o líder mudaria a cada F5. */
+ok('a tabela de outra liga não muda entre dois F5',
+   futCarreiraTabelaDeQualquerLiga($estB, 'EN1') === futCarreiraTabelaDeQualquerLiga($estB, 'EN1'));
+
+/* Copa não tem tabela, e isso é resposta e não falha. */
+ok('copa não devolve classificação',
+   futCarreiraTabelaDeQualquerLiga($estB, '') === []);
+
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);
