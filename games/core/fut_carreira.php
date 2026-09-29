@@ -171,9 +171,9 @@ function futMetaDaTemporada(array $clube): array
  * carreira do jogo — se você já começa no melhor time, não sobra pra onde
  * subir. A régua é a reputação: 0 abre os pequenos, e cada título abre mais.
  */
-function futClubesParaComecar(int $reputacao): array
+function futClubesParaComecar(int $reputacao, ?int $teto = null): array
 {
-    $tetoForca = match (true) {
+    $tetoForca = $teto ?? match (true) {
         $reputacao >= 80 => 100,   // pode dirigir qualquer um
         $reputacao >= 60 => 84,
         $reputacao >= 40 => 78,
@@ -188,6 +188,69 @@ function futClubesParaComecar(int $reputacao): array
         if ($c['forca'] > $tetoForca) continue;
         $out[$c['nome']] = $c;
     }
+    uasort($out, fn($a, $b) => $b['forca'] <=> $a['forca']);
+    return $out;
+}
+
+/** Quantos clubes procuram um técnico sem currículo. */
+const FUT_CONVITES_ESTREIA = 5;
+
+/**
+ * OS CLUBES QUE TE PROCURAM quando a carreira começa sem emprego.
+ *
+ * É a outra porta de entrada do jogo, e ela existe porque as duas escolhas
+ * dizem coisas diferentes sobre quem está jogando: quem ESCOLHE o clube quer
+ * dirigir um time específico — o dele, o da cidade, o que tem um elenco que
+ * ele gosta —, e quem começa DESEMPREGADO quer o começo de carreira de
+ * verdade, em que o técnico pega o que aparecer.
+ *
+ * ── A TROCA É CONTROLE POR ALCANCE ───────────────────────────────────
+ *
+ * Escolher dá 60 e tantos clubes pra olhar, e todos dentro do que um técnico
+ * sem nome consegue. Esperar convite dá CINCO, sem poder trocar — mas a régua
+ * sobe um degrau, porque clube que procura técnico está com pressa e olha um
+ * pouco acima do que deveria. Sem esse degrau a segunda porta seria a primeira
+ * com menos opções, ou seja, pior sem compensação nenhuma.
+ *
+ * OS CINCO NÃO SÃO OS CINCO MAIORES. Eles são espalhados pela faixa toda, pra
+ * a escolha ser entre um clube maior com cobrança pesada e um projeto
+ * tranquilo — que é a decisão que interessa. Pegar os cinco do topo daria
+ * cinco versões do mesmo convite.
+ *
+ * A SEMENTE É FIXA por jogador: recarregar a página não troca os convites.
+ * Isso é regra de jogo, não detalhe técnico — se desse pra sortear de novo,
+ * a escolha viraria insistir até sair o clube que se queria, e aí valia mais
+ * ter escolhido.
+ *
+ * @return array nome => clube, do mais forte pro mais fraco
+ */
+function futConvitesDeEstreia(int $semente): array
+{
+    /* SESSENTA E TRES, e nao o degrau seguinte da reputacao. O degrau (68)
+       abre a Europa inteira de uma vez — o clube mais fraco de la e 59 —, e
+       um estreante recebendo convite da Ligue 1 apaga a subida que o resto
+       do jogo constroi. Em 63 a lista e brasileira com uma ponta de
+       Portugal: a surpresa existe e a escada continua de pe. */
+    $lista = array_values(futClubesParaComecar(0, 63));
+    if (count($lista) <= FUT_CONVITES_ESTREIA) {
+        $out = [];
+        foreach ($lista as $c) $out[$c['nome']] = $c;
+        return $out;
+    }
+
+    /* A lista já vem ordenada por força. Cortada em cinco fatias, cada convite
+       sai de uma delas — o primeiro de cima, o último de baixo. */
+    $fatia = count($lista) / FUT_CONVITES_ESTREIA;
+    mt_srand($semente);
+    $out = [];
+    for ($i = 0; $i < FUT_CONVITES_ESTREIA; $i++) {
+        $ini = (int)floor($i * $fatia);
+        $fim = (int)floor(($i + 1) * $fatia) - 1;
+        $c = $lista[mt_rand($ini, max($ini, $fim))];
+        $out[$c['nome']] = $c;
+    }
+    mt_srand();
+
     uasort($out, fn($a, $b) => $b['forca'] <=> $a['forca']);
     return $out;
 }

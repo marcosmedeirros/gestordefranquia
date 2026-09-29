@@ -46,7 +46,16 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($acao === 'comecar') {
             $tecnico = trim((string)($_POST['tecnico'] ?? '')) ?: 'Técnico';
             $clube = (string)($_POST['clube'] ?? '');
-            $disponiveis = futClubesParaComecar(10);
+
+            /* DUAS PORTAS, DUAS LISTAS. Quem escolheu "desempregado" só pode
+               fechar com um dos cinco que apareceram pra ele — e é por isso
+               que a conferência tem que ser feita aqui, e não só escondendo o
+               outro grupo na tela: o formulário é do navegador, e trocar o
+               valor de um radio é a coisa mais fácil do mundo. */
+            $disponiveis = ($_POST['modo'] ?? '') === 'convites'
+                ? futConvitesDeEstreia(crc32('estreia|' . $idUsuario))
+                : futClubesParaComecar(10);
+
             if (!isset($disponiveis[$clube])) {
                 $erro = 'Esse clube não está disponível para quem está começando.';
             } else {
@@ -769,11 +778,13 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .viv-mesa .viv-campo-caixa{margin:0}
 .viv-lado{display:flex;flex-direction:column;gap:12px;min-width:0}
 .viv-lado .bloco{margin-bottom:0}
-.viv-lado .esc-vivo{max-height:330px;overflow-y:auto}
+/* SEM ROLAGEM INTERNA. São onze linhas e elas cabem — a barrinha dentro
+   do bloco escondia meio time e obrigava a rolar dentro de uma coluna que
+   já rola junto com a página. */
+.viv-lado .esc-vivo{max-height:none}
 @media (max-width:840px){
   .viv-mesa{grid-template-columns:1fr}
   .viv-mesa .viv-campo-caixa{margin:0 auto}
-  .viv-lado .esc-vivo{max-height:250px}
 }
 
 /* ── O campo ao vivo ────────────────────────────────── */
@@ -920,9 +931,23 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .clube-op-nome{display:block;font-weight:800;font-size:13.5px;letter-spacing:-.3px;line-height:1.2;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clube-op-sub{display:block;font-size:11px;color:var(--txt3);margin-top:1px}
-.clube-op-forca{font-size:15px;font-weight:900;letter-spacing:-.5px;font-variant-numeric:tabular-nums;
-  color:var(--txt2);flex-shrink:0}
-.clube-op input:checked + .clube-op-in .clube-op-forca{color:var(--verde-claro)}
+
+/* ── As duas portas de entrada ───────────────────────────────────────
+   Dois cartões grandes e não um par de radios miúdos: é a primeira decisão
+   do jogo e ela precisa parecer uma decisão. O texto de baixo existe porque
+   sem ele as duas opções pareceriam a mesma coisa com nomes diferentes. */
+.portas{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.porta input{position:absolute;opacity:0;pointer-events:none}
+.porta-in{display:block;padding:13px 14px;border-radius:12px;border:1px solid var(--borda);
+  background:var(--panel2);cursor:pointer;height:100%;transition:border-color .15s,background .15s}
+.porta:hover .porta-in{border-color:var(--borda2)}
+.porta input:checked + .porta-in{border-color:var(--acento);
+  background:color-mix(in srgb, var(--acento) 10%, var(--panel2))}
+.porta input:focus-visible + .porta-in{outline:2px solid var(--acento);outline-offset:2px}
+.porta-in > .bi{font-size:17px;color:var(--acento)}
+.porta-tit{display:block;font-weight:800;font-size:14px;margin-top:5px}
+.porta-sub{display:block;font-size:11.5px;color:var(--txt2);margin-top:3px;line-height:1.45}
+.porta-nota{font-size:11.5px;color:var(--txt3);margin:0 0 10px;line-height:1.45}
 .clube-op-meta{display:flex;gap:6px;align-items:flex-start;font-size:11px;color:var(--txt2);
   padding-top:7px;border-top:1px solid var(--borda);line-height:1.35}
 .clube-op-meta i{color:var(--amarelo);font-size:11px;margin-top:1px;flex-shrink:0}
@@ -977,6 +1002,14 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .ovr.b{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.35);color:var(--verde-claro)}
 .ovr.m{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:var(--amarelo)}
 .tagpos{font-size:10px;font-weight:800;color:var(--txt3);letter-spacing:.4px}
+/* Cabeçalho que ordena. Precisa PARECER clicável antes de alguém tentar —
+   por isso o sublinhado pontilhado, que some quando a coluna está ativa
+   (aí a seta já diz o que está acontecendo). */
+.th-ord{display:inline-flex;align-items:center;gap:3px;text-decoration:none;color:inherit;
+  border-bottom:1px dotted var(--borda2);cursor:pointer}
+.th-ord:hover{color:var(--txt2)}
+.th-ord.on{color:var(--acento);border-bottom-color:transparent}
+.th-ord .bi{font-size:9px}
 /* Escudo e nome na mesma célula, alinhados pela base do texto. */
 .clube-cel{display:inline-flex;align-items:center;gap:8px;border-bottom:0}
 .clube-cel span{border-bottom:1px solid transparent}
@@ -1074,6 +1107,23 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .camisa.sel .bola{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35),0 2px 8px rgba(0,0,0,.5);
   transform:scale(1.12)}
 .camisa.alvo .bola{border-color:var(--verde-claro);box-shadow:0 0 0 4px rgba(34,197,94,.4)}
+
+/* ── Onde o jogador escolhido cabe ───────────────────────────────────
+   O anel pulsando é forte de propósito na posição dele e discreto nas que
+   servem: a diferença entre as duas faixas tem que dar pra ver de relance,
+   senão viram a mesma informação. O tracejado da segunda faixa diz
+   "improviso barato" sem precisar de legenda. */
+.slot.cabe .bola{border-color:#fff;box-shadow:0 0 0 3px var(--acento),0 0 14px 2px rgba(255,255,255,.25)}
+.slot.serve .bola{border-style:dashed;border-color:color-mix(in srgb, var(--acento) 70%, #ffffff);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--acento) 45%, transparent)}
+.slot.cabe .nom,.slot.serve .nom{color:#fff}
+@media (prefers-reduced-motion:no-preference){
+  .slot.cabe .bola{animation:cabePulsa 1.4s ease-in-out infinite}
+}
+@keyframes cabePulsa{
+  0%,100%{box-shadow:0 0 0 3px var(--acento),0 0 14px 2px rgba(255,255,255,.25)}
+  50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--acento) 35%, transparent),0 0 18px 3px rgba(255,255,255,.3)}
+}
 .camisa .bola{transition:transform .12s,box-shadow .12s,border-color .12s}
 
 .banco{margin-bottom:12px}
@@ -1138,6 +1188,10 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
     $porDivisao = [];
     foreach ($disponiveis as $nome => $c) $porDivisao[$c['div']][$nome] = $c;
     ksort($porDivisao);
+
+    /* Os cinco que procuram um técnico sem nome. A semente é do usuário, então
+       recarregar a página não troca os convites — ver futConvitesDeEstreia. */
+    $convites = futConvitesDeEstreia(crc32('estreia|' . $idUsuario));
   ?>
   <div class="hero">
     <h2>Comece de baixo</h2>
@@ -1146,7 +1200,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
        até a Premier League, a La Liga, a Serie A, a Bundesliga, a Ligue 1 e a Liga Portugal,
        que estão no jogo e esperam por currículo.</p>
     <div class="passos">
-      <span class="passo"><i class="bi bi-1-circle-fill"></i> Escolha um clube</span>
+      <span class="passo"><i class="bi bi-1-circle-fill"></i> Assuma um clube</span>
       <span class="passo"><i class="bi bi-2-circle-fill"></i> Cumpra a meta da temporada</span>
       <span class="passo"><i class="bi bi-3-circle-fill"></i> Suba de divisão</span>
       <span class="passo"><i class="bi bi-4-circle-fill"></i> Atravesse o Atlântico</span>
@@ -1164,6 +1218,58 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
     </div>
 
     <div class="bloco">
+      <h3><i class="bi bi-signpost-split"></i> Como você quer começar</h3>
+      <div class="portas">
+        <label class="porta">
+          <input type="radio" name="modo" value="lista" checked>
+          <span class="porta-in">
+            <i class="bi bi-hand-index-thumb"></i>
+            <span class="porta-tit">Eu escolho o clube</span>
+            <span class="porta-sub">Os <?= count($disponiveis) ?> times que aceitam um técnico sem
+              currículo. Você olha um por um e decide.</span>
+          </span>
+        </label>
+        <label class="porta">
+          <input type="radio" name="modo" value="convites">
+          <span class="porta-in">
+            <i class="bi bi-telephone"></i>
+            <span class="porta-tit">Começo desempregado</span>
+            <span class="porta-sub"><?= count($convites) ?> clubes te procuram, e só eles. Menos
+              escolha — mas quem liga primeiro costuma mirar um pouco mais alto.</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="bloco" id="caixaConvites" hidden>
+      <h3><i class="bi bi-telephone-fill"></i> Quem te procurou</h3>
+      <p class="porta-nota">Foram esses que ligaram. Recarregar a página não muda a lista —
+         num começo de carreira o técnico pega o que aparece.</p>
+      <div class="grade-clubes">
+        <?php foreach ($convites as $nome => $c): ?>
+          <?php $meta = futMetaDaTemporada($c); ?>
+          <label class="clube-op">
+            <input type="radio" name="clube" value="<?= h($nome) ?>" disabled
+                   data-nome="<?= h($nome) ?>" data-meta="<?= h($meta['texto']) ?>">
+            <span class="clube-op-in">
+              <span class="clube-op-cab">
+                <?= escudo($c, 28) ?>
+                <span class="clube-op-txt">
+                  <span class="clube-op-nome"><?= h($nome) ?></span>
+                  <span class="clube-op-sub"><?= h($c['uf'] ?: futPaisDoClube($c)) ?>
+                    · <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?></span>
+                </span>
+              </span>
+              <span class="clube-op-meta">
+                <i class="bi bi-bullseye"></i><?= h($meta['texto']) ?>
+              </span>
+            </span>
+          </label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="bloco" id="caixaLista">
       <h3><i class="bi bi-shield-fill"></i> O clube
         <span class="conta"><?= count($disponiveis) ?> disponíveis</span></h3>
       <input type="search" id="buscaClube" class="campo-busca" autocomplete="off"
@@ -1186,10 +1292,14 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                   <span class="clube-op-cab">
                     <?= escudo($c, 28) ?>
                     <span class="clube-op-txt">
+                      <?php /* A FORÇA SAIU DAQUI. Ela transformava a escolha
+                                do primeiro clube numa conta: todo mundo pegava
+                                o maior número da lista e pronto. Sem ela sobra
+                                o que devia pesar — o escudo, de onde o clube é,
+                                e o que a diretoria vai cobrar logo abaixo. */ ?>
                       <span class="clube-op-nome"><?= h($nome) ?></span>
-                      <span class="clube-op-sub"><?= h($c['uf'] ?: futPaisDoClube($c)) ?> · força</span>
+                      <span class="clube-op-sub"><?= h($c['uf'] ?: futPaisDoClube($c)) ?></span>
                     </span>
-                    <span class="clube-op-forca"><?= (int)$c['forca'] ?></span>
                   </span>
                   <span class="clube-op-meta">
                     <i class="bi bi-bullseye"></i><?= h($meta['texto']) ?>
@@ -1221,12 +1331,38 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
     var busca = document.getElementById('buscaClube');
     var vazio = document.getElementById('semResultado');
 
+    var caixaLista = document.getElementById('caixaLista');
+    var caixaConvites = document.getElementById('caixaConvites');
+
+    /* ── A PORTA ESCOLHIDA MANDA NO FORMULÁRIO ───────────────────────
+       Esconder a outra lista não basta: um radio escondido continua sendo
+       enviado se estiver marcado, e o jogador que clicasse num clube da
+       lista e depois trocasse pra "desempregado" mandaria os dois. Por isso
+       a lista que sai fica DESABILITADA — campo desabilitado não viaja — e a
+       escolha anterior é desmarcada junto. */
+    function trocarPorta() {
+      var porConvite = form.querySelector('input[name=modo]:checked').value === 'convites';
+      caixaLista.hidden = porConvite;
+      caixaConvites.hidden = !porConvite;
+
+      form.querySelectorAll('input[name=clube]').forEach(function (r) {
+        var meu = porConvite === !!r.closest('#caixaConvites');
+        r.disabled = !meu;
+        if (!meu) r.checked = false;
+      });
+
+      bt.disabled = !form.querySelector('input[name=clube]:checked');
+      if (bt.disabled) aviso.textContent = 'Escolha um clube para começar.';
+    }
+
     form.addEventListener('change', function (e) {
       var r = e.target;
+      if (r && r.name === 'modo') { trocarPorta(); return; }
       if (!r || r.name !== 'clube') return;
       bt.disabled = false;
       aviso.innerHTML = 'Você vai assumir o <b>' + r.dataset.nome + '</b> — ' + r.dataset.meta + '.';
     });
+    trocarPorta();
 
     /* A busca é local: com 64 clubes, achar o seu time não pode custar uma
        ida ao servidor. Esconde o cabeçalho da divisão que ficou sem ninguém. */
@@ -2108,7 +2244,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
               <div style="min-width:0;flex:1">
                 <div style="font-weight:800"><?= h($pr['nome']) ?></div>
                 <div style="font-size:11.5px;color:var(--txt2)">
-                  <?= h(futCarreiraRotuloDaDivisao((string)$pr['div'])) ?> · força <?= (int)$pr['forca'] ?>
+                  <?= h(futCarreiraRotuloDaDivisao((string)$pr['div'])) ?>
                 </div>
               </div>
               <form method="post" data-confirmar="Assumir o <?= h($pr['nome']) ?>? Você deixa o <?= h($estado['clube']) ?>." data-confirmar-ok="Assumir">
@@ -2192,7 +2328,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
               <div style="min-width:0;flex:1">
                 <div style="font-weight:800"><?= h($nome) ?></div>
                 <div style="font-size:11.5px;color:var(--txt2)">
-                  <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?> · força <?= (int)$c['forca'] ?>
+                  <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?>
                   · técnico atual: <?= h(futTecnicoDoClube($nome, (int)$estado['temporada'], $estado['trocas_tecnico'] ?? [])) ?>
                 </div>
               </div>
@@ -2677,7 +2813,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
             <?php foreach ($reservas as $j): ?>
               <div class="reserva slot" data-vaga="" data-nome="<?= h($j['nome']) ?>"
                    data-pos="<?= h($j['pos']) ?>" draggable="true" tabindex="0" role="button"
-                   aria-label="<?= h($j['nome']) ?>, <?= h($j['pos']) ?>, força <?= (int)$j['ovr'] ?>">
+                   aria-label="<?= h($j['nome']) ?>, <?= h($j['pos']) ?>, overall <?= (int)$j['ovr'] ?>">
                 <span class="r-ovr"><?= (int)$j['ovr'] ?></span>
                 <span class="r-nome"><?= h($j['nome']) ?></span>
                 <span class="r-pos"><?= h($j['pos']) ?></span>
@@ -2813,8 +2949,31 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         document.getElementById('forcaCampo').textContent = Math.round(soma / Math.max(0.001, pesos));
       }
 
+      /* ── ONDE ESSE JOGADOR CABE ──────────────────────────────────────
+         A tabela de afinidade já sabia o custo de cada improviso, mas só
+         contava depois — o número da camisa mudava DEPOIS de arrastar. Quem
+         não decorou a tabela tinha que tentar pra descobrir, e desfazer.
+
+         Três faixas, porque o futebol tem três: a posição dele (custo zero),
+         a que dá pra jogar sem estragar (até quatro de perda — lateral de
+         ponta, volante de meia) e o improviso de verdade. A terceira não
+         ganha marca nenhuma de propósito: marcar tudo é o mesmo que não
+         marcar nada. */
+      function marcarVagas(slot) {
+        const j = JOGADORES[slot.dataset.nome];
+        campo.querySelectorAll('.slot').forEach(s => {
+          s.classList.remove('cabe', 'serve');
+          if (!j || s === slot) return;
+          const perda = (AFIN[s.dataset.pos] && AFIN[s.dataset.pos][j.pos] !== undefined)
+                      ? AFIN[s.dataset.pos][j.pos] : 12;
+          if (perda === 0) s.classList.add('cabe');
+          else if (perda <= 4) s.classList.add('serve');
+        });
+      }
+
       function limparSelecao() {
         document.querySelectorAll('.slot.sel').forEach(s => s.classList.remove('sel'));
+        campo.querySelectorAll('.cabe, .serve').forEach(s => s.classList.remove('cabe', 'serve'));
         selecionado = null;
       }
 
@@ -2850,6 +3009,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           if (!slot.dataset.nome) return;       // não dá pra pegar o vazio
           selecionado = slot;
           slot.classList.add('sel');
+          marcarVagas(slot);
           return;
         }
         if (selecionado === slot) { limparSelecao(); return; }
@@ -2867,6 +3027,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           if (!slot.dataset.nome) { e.preventDefault(); return; }
           selecionado = slot;
           slot.classList.add('sel');
+          marcarVagas(slot);
           e.dataTransfer.effectAllowed = 'move';
           // Sem isto o Firefox ignora o arrasto.
           e.dataTransfer.setData('text/plain', slot.dataset.nome);
@@ -3249,8 +3410,13 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         </div>
 
         <div class="fichas">
-          <div class="ficha"><div class="v"><?= (int)$forcaDele ?></div><div class="r">força</div></div>
+          <?php /* A ficha da força do OUTRO clube saiu: o elenco está logo
+                   abaixo, com overall jogador por jogador, e é de lá que se
+                   tira se o time é bom — que é uma leitura, não um número
+                   pronto. A do clube do técnico continua: aquela é a dele,
+                   e é o que ele move comprando e vendendo. */ ?>
           <div class="ficha"><div class="v"><?= count($elencoDele) ?></div><div class="r">jogadores</div></div>
+          <div class="ficha"><div class="v"><?= (int)round(array_sum(array_column($elencoDele, 'idade')) / max(1, count($elencoDele))) ?></div><div class="r">idade média</div></div>
           <div class="ficha"><div class="v"><?= h(futDinheiro(futFolhaDoElenco($elencoDele))) ?></div><div class="r">folha</div></div>
           <div class="ficha"><div class="v"><?= h(futDinheiro(futReceitaAnual((int)$c['forca'], (string)$c['div']))) ?></div><div class="r">receita/ano</div></div>
         </div>
@@ -3423,12 +3589,47 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         return true;
       });
 
-      usort($filtrada, function ($a, $b) use ($ordenar) {
-        if ($ordenar === 'preco')  return $a['pedido'] <=> $b['pedido'];
-        if ($ordenar === 'idade')  return $a['idade'] <=> $b['idade'];
-        if ($ordenar === 'valor')  return ($a['pedido'] / max(0.01, $a['valor'])) <=> ($b['pedido'] / max(0.01, $b['valor']));
-        return $b['ovr'] <=> $a['ovr'];
+      /* ── ORDENAR PELA COLUNA ─────────────────────────────────────────
+         Cada coluna tem um sentido NATURAL: overall e valor começam do
+         maior, idade e preço do menor. É o que a pessoa quer no primeiro
+         clique — ninguém abre o mercado procurando o jogador mais caro ou o
+         mais velho. Clicar de novo inverte, e aí o segundo clique responde a
+         outra pergunta ("quem é o veterano barato?"). */
+      $ordemNatural = ['ovr' => 'desc', 'idade' => 'asc', 'preco' => 'asc',
+                       'vale' => 'desc', 'nome' => 'asc', 'negocio' => 'asc'];
+      if (!isset($ordemNatural[$ordenar])) $ordenar = 'ovr';
+      $dir = ($_GET['dir'] ?? '') === 'asc' || ($_GET['dir'] ?? '') === 'desc'
+           ? (string)$_GET['dir'] : $ordemNatural[$ordenar];
+
+      $chave = function (array $m) use ($ordenar) {
+        return match ($ordenar) {
+          'preco'   => $m['pedido'],
+          'idade'   => $m['idade'],
+          'vale'    => $m['valor'],
+          'nome'    => mb_strtolower($m['nome']),
+          // "Melhor negócio" é quanto ele pede sobre quanto vale: quanto
+          // menor a razão, mais barato ele está saindo.
+          'negocio' => $m['pedido'] / max(0.01, $m['valor']),
+          default   => $m['ovr'],
+        };
+      };
+      usort($filtrada, function ($a, $b) use ($chave, $dir) {
+        $r = $chave($a) <=> $chave($b);
+        return $dir === 'desc' ? -$r : $r;
       });
+
+      /* O link de cada cabeçalho: mantém os filtros, troca a coluna e, se já
+         for a coluna atual, vira o sentido. */
+      $linkOrdem = function (string $col) use ($ordenar, $dir, $ordemNatural) {
+        $q = $_GET;
+        $q['ord'] = $col;
+        $q['dir'] = $ordenar === $col
+            ? ($dir === 'asc' ? 'desc' : 'asc')
+            : $ordemNatural[$col];
+        return '?' . http_build_query($q);
+      };
+      $setaOrdem = fn(string $col) => $ordenar !== $col ? ''
+          : ' <i class="bi bi-caret-' . ($dir === 'asc' ? 'up' : 'down') . '-fill"></i>';
       $total = count($filtrada);
       $filtrada = array_slice($filtrada, 0, 60);
     ?>
@@ -3470,10 +3671,14 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <div style="flex:1;min-width:120px">
             <label for="ord">Ordenar por</label>
             <select id="ord" name="ord">
-              <option value="ovr"   <?= $ordenar === 'ovr' ? 'selected' : '' ?>>melhor OVR</option>
-              <option value="preco" <?= $ordenar === 'preco' ? 'selected' : '' ?>>mais barato</option>
-              <option value="idade" <?= $ordenar === 'idade' ? 'selected' : '' ?>>mais novo</option>
-              <option value="valor" <?= $ordenar === 'valor' ? 'selected' : '' ?>>melhor negócio</option>
+              <?php /* Quatro das cinco opções viraram cabeçalho de coluna; só
+                        "melhor negócio" fica aqui, porque ela não é uma
+                        coluna — é a razão entre duas. */ ?>
+              <option value="ovr"     <?= $ordenar === 'ovr' ? 'selected' : '' ?>>melhor OVR</option>
+              <option value="preco"   <?= $ordenar === 'preco' ? 'selected' : '' ?>>mais barato</option>
+              <option value="idade"   <?= $ordenar === 'idade' ? 'selected' : '' ?>>mais novo</option>
+              <option value="vale"    <?= $ordenar === 'vale' ? 'selected' : '' ?>>mais valioso</option>
+              <option value="negocio" <?= $ordenar === 'negocio' ? 'selected' : '' ?>>melhor negócio</option>
             </select>
           </div>
         </div>
@@ -3505,8 +3710,16 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         <div class="vazio">Ninguém encontrado com esses filtros.</div>
       <?php else: ?>
         <div class="rolar"><table>
-          <thead><tr><th>Jogador</th><th>Pos</th><th class="num">OVR</th><th class="num">Idade</th>
-            <th>Clube</th><th class="num">Vale</th><th class="num">Pede</th><th></th></tr></thead>
+          <thead><tr>
+            <th><a class="th-ord <?= $ordenar === 'nome' ? 'on' : '' ?>" href="<?= h($linkOrdem('nome')) ?>">Jogador<?= $setaOrdem('nome') ?></a></th>
+            <th>Pos</th>
+            <th class="num"><a class="th-ord <?= $ordenar === 'ovr' ? 'on' : '' ?>" href="<?= h($linkOrdem('ovr')) ?>">OVR<?= $setaOrdem('ovr') ?></a></th>
+            <th class="num"><a class="th-ord <?= $ordenar === 'idade' ? 'on' : '' ?>" href="<?= h($linkOrdem('idade')) ?>">Idade<?= $setaOrdem('idade') ?></a></th>
+            <th>Clube</th>
+            <th class="num"><a class="th-ord <?= $ordenar === 'vale' ? 'on' : '' ?>" href="<?= h($linkOrdem('vale')) ?>">Vale<?= $setaOrdem('vale') ?></a></th>
+            <th class="num"><a class="th-ord <?= $ordenar === 'preco' ? 'on' : '' ?>" href="<?= h($linkOrdem('preco')) ?>">Pede<?= $setaOrdem('preco') ?></a></th>
+            <th></th>
+          </tr></thead>
           <tbody>
           <?php foreach ($filtrada as $m):
             $cls = $m['ovr'] >= 80 ? 'b' : ($m['ovr'] >= 70 ? 'm' : '');
