@@ -31,6 +31,13 @@
  * tem aparece como monograma das iniciais.
  */
 
+/* ESTE ARQUIVO SEMPRE PRECISOU DO fut_elencos — futForcaDoElencoReal e
+   futEscudoDoClube chamam futSlugDoClube — e funcionava por sorte: quem
+   carregava os dois sempre carregava o outro antes. Carregar fut_clubes_br
+   sozinho estourava. A ida e volta entre os dois e circular e nao tem
+   problema: os dois so declaram coisas no topo, nao chamam nada. */
+require_once __DIR__ . '/fut_elencos.php';
+
 /** Os estaduais que o jogo disputa. */
 const FUT_ESTADUAIS = [
     'SP' => 'Campeonato Paulista',
