@@ -287,6 +287,13 @@ if (!$relatorio && !empty($_SESSION['fut_relatorio'])) {
    entrar em campo, não uma lista de resultados. */
 $aba = (string)($_GET['aba'] ?? 'inicio');
 
+/* A ABA "PARTIDAS" VIROU O INÍCIO. Ela mostrava a próxima partida, o resumo
+   da última e os resultados — tudo que o painel já mostra, uma aba adiante.
+   O apelido fica porque link antigo, botão gravado no POST e F5 de quem
+   estava nela continuam chegando com aba=jogo, e cair numa tela vazia seria
+   pior do que a aba repetida que existia antes. */
+if ($aba === 'jogo') $aba = 'inicio';
+
 /* O PAINEL DE SUBSTITUIÇÃO PERGUNTA QUEM ESTÁ EM CAMPO. Responde JSON e sai
    antes do HTML: é o mesmo motivo do avanço do relógio — recarregar a página
    pra abrir o painel pararia a partida. */
@@ -597,6 +604,16 @@ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weig
 .mini-linha:last-child{border-bottom:0}
 .mini-linha .esq{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mini-linha .dir{font-weight:800;font-variant-numeric:tabular-nums;flex-shrink:0}
+/* ── O JOGO DA RODADA ───────────────────────────────────────────────
+   Duas colunas espelhadas com o placar no meio, porque e assim que a
+   rodada e lida: o mandante puxado pra direita, o visitante pra esquerda,
+   e os placares alinhados numa coluna so. Nome longo encolhe em vez de
+   empurrar o placar de lugar — a coluna do meio tem que ficar parada. */
+.jogo-rodada{gap:7px;font-size:12px}
+.jogo-rodada .lado{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jogo-rodada .lado.dir{text-align:right}
+.jogo-rodada .pl{flex-shrink:0;font-weight:800;font-variant-numeric:tabular-nums;
+  background:var(--panel3);border-radius:6px;padding:1px 7px;font-size:11.5px}
 
 /* ── Campo e banco lado a lado ──────────────────────── */
 .escalar-lado{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
@@ -660,7 +677,33 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 
 .viv-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
-.viv-narracao{display:flex;flex-direction:column;gap:7px;max-height:290px;overflow-y:auto}
+/* ── A escalação ao vivo ─────────────────────────────────────────────
+   Quatro colunas de larguras fixas nas pontas e elástica no meio: a nota
+   fica sempre na mesma coluna, então dá pra varrer a lista de cima a baixo
+   só olhando a direita. Sem isso, cada nome de tamanho diferente empurraria
+   a nota pra um lugar. */
+.esc-vivo{display:flex;flex-direction:column;gap:1px}
+.esc-linha{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:12.5px}
+.esc-linha:nth-child(odd){background:rgba(255,255,255,.028)}
+.esc-linha .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.esc-linha .mk{display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
+.esc-linha .mk .bi{color:var(--acento);font-size:11px}
+.esc-linha .n{width:30px;text-align:right;font-weight:900;font-variant-numeric:tabular-nums;
+  flex-shrink:0;color:var(--txt3)}
+.esc-linha .n.boa{color:var(--verde-claro)}
+.esc-linha .n.ruim{color:#fca5a5}
+/* Quem levou vermelho sai do jogo — a linha continua ali, apagada, porque
+   some-la faria parecer que ele nunca entrou. */
+.esc-linha.fora{opacity:.45}
+/* O melhor em campo ganha uma linha própria acima da lista: é o resumo do
+   resumo, e é a primeira coisa que se quer saber depois do apito. */
+.craque{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;
+  background:color-mix(in srgb, var(--acento) 12%, var(--panel3));background:var(--panel3);
+  background:color-mix(in srgb, var(--acento) 12%, var(--panel3));margin-top:8px}
+.craque > .bi{color:var(--amarelo);font-size:16px}
+.craque-nome{font-weight:800;font-size:14px}
+.craque-sub{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+
 .viv-lance{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border-radius:10px;
   background:var(--panel3);border:1px solid var(--borda);animation:entra .35s ease}
 .viv-lance.nosso{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}
@@ -670,7 +713,6 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .viv-lance-txt b{font-weight:800}
 .viv-lance-txt i{color:var(--txt3);font-style:normal;font-size:11.5px}
 @keyframes entra{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
-.viv-narracao-vazia{color:var(--txt3);font-size:12.5px;padding:8px 2px}
 
 .notas-vivo{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .nota-linha{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:9px;background:var(--panel3);
@@ -727,11 +769,11 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .viv-mesa .viv-campo-caixa{margin:0}
 .viv-lado{display:flex;flex-direction:column;gap:12px;min-width:0}
 .viv-lado .bloco{margin-bottom:0}
-.viv-lado .viv-narracao{max-height:330px}
+.viv-lado .esc-vivo{max-height:330px;overflow-y:auto}
 @media (max-width:840px){
   .viv-mesa{grid-template-columns:1fr}
   .viv-mesa .viv-campo-caixa{margin:0 auto}
-  .viv-lado .viv-narracao{max-height:250px}
+  .viv-lado .esc-vivo{max-height:250px}
 }
 
 /* ── O campo ao vivo ────────────────────────────────── */
@@ -1277,12 +1319,55 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       </div><?php // fecha a coluna do campo ?>
 
       <div class="viv-lado">
+        <?php
+          /* ── QUEM ESTÁ EM CAMPO, COM NOTA ───────────────────────────
+             Aqui ficava a narração: uma lista de frases que rolava pra cima
+             e que ninguém lia, porque o lance já acontece no campo logo ao
+             lado — a camisa acende, o placar vira, o "GOL!" toma a tela. O
+             que faltava era o oposto: o boletim. Quem está jogando, quem
+             está indo bem, quem fez gol e quem está pendurado — a informação
+             que muda a decisão de substituir.
+
+             AS MARCAS VÃO PRO JAVASCRIPT TAMBÉM (marcasVivo). A lista é
+             redesenhada a cada troca, e sem elas o gol do camisa 9 sumiria
+             da tela no minuto em que entrasse alguém no lugar do lateral. */
+          /* A NOTA TAMBEM VEM DO SERVIDOR. Quem recarrega a pagina no meio da
+             partida ja jogou trinta minutos: mostrar um traco ate o relogio
+             andar de novo faria a tela parecer que o jogo nao comecou. */
+          $notasVivo = futCarreiraAoVivoNotas($estado);
+          $marcasVivo = [];
+          foreach ($vivo['gols'] ?? [] as $g) {
+            $n = $g['autor']['nome'] ?? '';
+            if ($n === '') continue;
+            $marcasVivo[$n]['gols'] = ($marcasVivo[$n]['gols'] ?? 0) + 1;
+          }
+          foreach ($vivo['cartoes'] ?? [] as $c) {
+            $n = $c['jogador']['nome'] ?? '';
+            if ($n === '') continue;
+            $marcasVivo[$n]['cartao'] = ($c['tipo'] ?? '') === 'vermelho' ? 'ver' : 'ama';
+          }
+        ?>
         <div class="bloco">
-          <h3><i class="bi bi-broadcast"></i> Narração</h3>
-          <div class="viv-narracao" id="viv-narracao">
-            <?php if (empty($vivo['eventos'])): ?>
-              <div class="viv-narracao-vazia" id="narracaoVazia">Os times entram em campo. Aperte começar.</div>
-            <?php endif; ?>
+          <h3><i class="bi bi-list-check"></i> Em campo</h3>
+          <div class="esc-vivo" id="escalacaoVivo">
+            <?php foreach (futCarreiraEscalacaoAtual($estado) as $j): ?>
+              <?php $m = $marcasVivo[$j['nome']] ?? []; ?>
+              <div class="esc-linha" data-nome="<?= h($j['nome']) ?>">
+                <span class="tagpos"><?= h($j['pos']) ?></span>
+                <span class="nm"><?= h($j['nome']) ?></span>
+                <span class="mk">
+                  <?php for ($g = 0; $g < (int)($m['gols'] ?? 0); $g++): ?>
+                    <i class="bi bi-dribbble"></i>
+                  <?php endfor; ?>
+                  <?php if (!empty($m['cartao'])): ?>
+                    <span class="cartao <?= h($m['cartao']) ?>"></span>
+                  <?php endif; ?>
+                </span>
+                <?php $nt = $notasVivo[$j['nome']] ?? null; ?>
+                <span class="n <?= $nt === null ? '' : ($nt >= 7 ? 'boa' : ($nt < 5.5 ? 'ruim' : '')) ?>"><?=
+                  $nt === null ? '—' : number_format((float)$nt, 1, ',', '') ?></span>
+              </div>
+            <?php endforeach; ?>
           </div>
         </div>
         <div class="bloco">
@@ -1306,10 +1391,6 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
     </div>
 
 
-    <div class="bloco">
-      <h3><i class="bi bi-star-fill"></i> Notas ao vivo</h3>
-      <div class="notas-vivo" id="notasVivo"></div>
-    </div>
 
     <?php // ── O popup de substituição ───────────────────────────── ?>
     <div class="fundo-popup" id="popTroca" hidden>
@@ -1374,8 +1455,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 
       var rel = document.getElementById('relogio'), rlMin = document.getElementById('rlMin');
       var plCasa = document.getElementById('plCasa'), plFora = document.getElementById('plFora');
-      var barra = document.getElementById('barraTempo'), narr = document.getElementById('viv-narracao');
-      var vazia = document.getElementById('narracaoVazia'), notas = document.getElementById('notasVivo');
+      var barra = document.getElementById('barraTempo');
+      var escCaixa = document.getElementById('escalacaoVivo');
+      var marcasVivo = <?= json_encode($marcasVivo ?: new stdClass(), JSON_UNESCAPED_UNICODE) ?>;
       var btJogar = document.getElementById('btJogar'), btPausar = document.getElementById('btPausar');
       var fmFechar = document.getElementById('fmFechar');
       var casa = <?= $casa ? 'true' : 'false' ?>;
@@ -1483,6 +1565,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         campoVivo.querySelectorAll('.camisa').forEach(function (c) {
           if (c.dataset.nome) camisaPorNome[c.dataset.nome] = c;
         });
+        desenhaEscalacao(dados);
       }
 
       function carregaCampo() {
@@ -1526,14 +1609,14 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         timerGol = setTimeout(function () { telaGol.classList.remove('aparece'); }, 1900);
       }
 
+      /* O LANCE NÃO VIRA MAIS LINHA DE TEXTO. A lista que rolava aqui saiu —
+         o lance acontece no campo, que está do lado: a camisa acende, a faixa
+         aparece embaixo, o "GOL!" toma a tela, e a escalação ganha a marca.
+         A função continua sendo o ponto único por onde todo lance passa, que
+         é o que faz a reprise (aoVivo === false) acertar o estado sem repetir
+         a festa. */
       function mostraLance(e, aoVivo) {
-        if (vazia) { vazia.remove(); vazia = null; }
-        var d = document.createElement('div');
-        d.className = 'viv-lance' + (e.meu ? ' nosso' : '');
-        d.innerHTML = '<span class="viv-lance-min">' + e.minuto + "'</span>" +
-                      '<span class="viv-lance-txt">' + textoDoLance(e) + '</span>';
-        narr.prepend(d);
-
+        marcaJogador(e);
         if (aoVivo === false) return;              // lance antigo, sem festa
         faixaDoLance(e);
         acendeCamisa(e);
@@ -1541,16 +1624,56 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         if (e.tipo === 'troca') carregaCampo();
       }
 
+      /* A NOTA CAI NA LINHA DE QUEM JÁ ESTÁ NA TELA, em vez de redesenhar a
+         lista inteira. Redesenhar a cada avanço do relógio perderia a ordem
+         (que é a da escalação, não a da nota) e piscaria a cada cinco
+         minutos de jogo. */
       function mostraNotas(mapa) {
-        if (!mapa) return;
-        var nomes = Object.keys(mapa);
-        if (!nomes.length) return;
-        notas.innerHTML = nomes.map(function (n) {
-          var v = Number(mapa[n]).toFixed(1).replace('.', ',');
-          var cls = mapa[n] >= 7 ? 'boa' : (mapa[n] < 5.5 ? 'ruim' : '');
-          return '<div class="nota-linha"><span>' + n + '</span>' +
-                 '<span class="n ' + cls + '">' + v + '</span></div>';
+        if (!mapa || !escCaixa) return;
+        escCaixa.querySelectorAll('.esc-linha').forEach(function (l) {
+          var v = mapa[l.dataset.nome];
+          var c = l.querySelector('.n');
+          if (v === undefined || !c) return;
+          c.textContent = Number(v).toFixed(1).replace('.', ',');
+          c.className = 'n ' + (v >= 7 ? 'boa' : (v < 5.5 ? 'ruim' : ''));
+        });
+      }
+
+      /* Gol e cartão viram marca na linha do jogador. */
+      function marcaJogador(e) {
+        if (!e.meu || !e.jogador) return;
+        var m = marcasVivo[e.jogador] || (marcasVivo[e.jogador] = {});
+        if (e.tipo === 'gol') m.gols = (m.gols || 0) + 1;
+        else if (e.tipo === 'amarelo') m.cartao = 'ama';
+        else if (e.tipo === 'vermelho') m.cartao = 'ver';
+        else return;
+        pintaMarcas();
+      }
+
+      function pintaMarcas() {
+        if (!escCaixa) return;
+        escCaixa.querySelectorAll('.esc-linha').forEach(function (l) {
+          var m = marcasVivo[l.dataset.nome] || {};
+          var alvo = l.querySelector('.mk');
+          if (!alvo) return;
+          var html = '';
+          for (var i = 0; i < (m.gols || 0); i++) html += '<i class="bi bi-dribbble"></i>';
+          if (m.cartao) html += '<span class="cartao ' + m.cartao + '"></span>';
+          alvo.innerHTML = html;
+          l.classList.toggle('fora', m.cartao === 'ver');
+        });
+      }
+
+      /* A lista acompanha as trocas: mesmos dados do campo, mesma ordem. */
+      function desenhaEscalacao(dados) {
+        if (!dados || !dados.vagas || !escCaixa) return;
+        escCaixa.innerHTML = dados.vagas.map(function (v) {
+          return '<div class="esc-linha" data-nome="' + v.nome + '">' +
+                 '<span class="tagpos">' + v.pos + '</span>' +
+                 '<span class="nm">' + v.nome + '</span>' +
+                 '<span class="mk"></span><span class="n">—</span></div>';
         }).join('');
+        pintaMarcas();
       }
 
       var caixaNumeros = document.getElementById('numerosVivo');
@@ -1961,162 +2084,16 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
   <?php endif; ?>
 
   <div class="abas" <?= $emCampo ? 'hidden' : '' ?>>
-    <?php foreach (['inicio' => 'Início', 'jogo' => 'Partidas', 'escalacao' => 'Escalação', 'elenco' => 'Elenco',
+    <?php foreach (['inicio' => 'Início', 'escalacao' => 'Escalação', 'elenco' => 'Elenco',
                     'stats' => 'Números', 'tabela' => 'Tabela', 'mercado' => 'Mercado',
                     'carreira' => 'Carreira'] as $k => $rot): ?>
       <a href="?aba=<?= $k ?>" class="<?= $aba === $k ? 'on' : '' ?>"><?= h($rot) ?></a>
     <?php endforeach; ?>
   </div>
 
-  <?php // ── ABA: INÍCIO ────────────────────────────────────────────── ?>
+  <?php // ── ABA: INÍCIO — o painel do clube ────────────────────────── ?>
   <?php if ($aba === 'inicio'): ?>
-    <?php
-      /* O ESTADO DO CLUBE NUMA TELA. Antes o técnico precisava passar por
-         quatro abas pra saber onde estava: a posição na Tabela, o elenco no
-         Elenco, o artilheiro nos Números e o próximo jogo em Partidas. */
-      $comps = futCarreiraCompeticoesDoAno($estado);
-      $divEu = $clubesTodos[$estado['clube']]['div'] ?? '';
-      $compNac = futCarreiraNomeDaDivisao($divEu);
-      $tabNac = $compNac !== '' ? futCarreiraTabelaDaCompeticao($estado, $compNac) : [];
 
-      // Os cinco melhores do elenco, que é o que o técnico olha primeiro.
-      $melhores = $estado['elenco'] ?? [];
-      usort($melhores, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
-      $melhores = array_slice($melhores, 0, 5);
-
-      // Quem mais fez gol, e quem está fora.
-      $art = [];
-      foreach ($estado['stats'] ?? [] as $nome => $st) {
-        if ((int)$st['gols'] > 0) $art[$nome] = (int)$st['gols'];
-      }
-      arsort($art);
-      $art = array_slice($art, 0, 5, true);
-      $fora = futIndisponiveis($estado['elenco'] ?? [], $estado['suspensos'] ?? []);
-      $ultimos = array_slice(array_reverse($estado['resultados'] ?? []), 0, 5);
-    ?>
-
-    <?php if (($estado['fase'] ?? '') === 'temporada' && $proximo): ?>
-      <div class="proximo">
-        <div class="proximo-rot">Próxima partida</div>
-        <div class="proximo-jogo">
-          <?= escudo($clubesTodos[$proximo['adversario']] ?? ['nome' => $proximo['adversario']], 44) ?>
-          <div style="min-width:0">
-            <div class="proximo-nome"><?= h($proximo['adversario']) ?></div>
-            <div class="proximo-sub">
-              <?= h($proximo['comp']) ?><?= $proximo['fase'] ? ' · ' . h($proximo['fase']) : '' ?>
-              · <?= $proximo['casa'] ? 'em casa' : 'fora' ?>
-            </div>
-          </div>
-        </div>
-        <div class="proximo-acoes">
-          <form method="post" style="display:inline">
-            <input type="hidden" name="acao" value="jogar">
-            <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
-          </form>
-          <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
-        </div>
-        <div class="proximo-conta">
-          Jogo <?= (int)$estado['rodada'] + 1 ?> de <?= count($estado['calendario'] ?? []) ?> na temporada
-        </div>
-      </div>
-    <?php endif; ?>
-
-    <div class="resumo-grade">
-      <?php if ($tabNac): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-table"></i> <?= h(futCarreiraRotuloDaDivisao((string)$divEu)) ?></h3>
-          <div class="mini-lista">
-            <?php
-              $pos = 0; $i = 0;
-              foreach (array_keys($tabNac) as $n) { $i++; if ($n === $estado['clube']) $pos = $i; }
-              $ini = max(0, $pos - 3); $trecho = array_slice($tabNac, $ini, 5, true);
-              $k = $ini;
-            ?>
-            <?php foreach ($trecho as $nome => $l): $k++; ?>
-              <div class="mini-linha" style="<?= $nome === $estado['clube'] ? 'color:var(--acento);font-weight:700' : '' ?>">
-                <span class="pos"><?= $k ?></span>
-                <span class="esq"><?= h($nome) ?></span>
-                <span class="dir"><?= (int)$l['p'] ?> pts</span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-          <div style="margin-top:9px"><a class="btn sec peq" href="?aba=tabela" style="text-decoration:none">Ver a tabela</a></div>
-        </div>
-      <?php endif; ?>
-
-      <div class="bloco">
-        <h3><i class="bi bi-trophy"></i> As competições do ano</h3>
-        <div class="mini-lista">
-          <?php foreach ($comps as $c => $d): ?>
-            <?php $camp = futCarreiraCampanha($estado, $c); ?>
-            <div class="mini-linha">
-              <span class="esq"><?= h($c) ?></span>
-              <span class="dir"><?= (int)$camp['v'] ?>V <?= (int)$camp['e'] ?>E <?= (int)$camp['d'] ?>D</span>
-            </div>
-          <?php endforeach; ?>
-          <?php if (!$comps): ?><div style="color:var(--txt3);font-size:12.5px">A temporada ainda não começou.</div><?php endif; ?>
-        </div>
-      </div>
-
-      <div class="bloco">
-        <h3><i class="bi bi-star-fill"></i> Os melhores do elenco</h3>
-        <div class="mini-lista">
-          <?php foreach ($melhores as $j): ?>
-            <div class="mini-linha">
-              <span class="tagpos"><?= h($j['pos']) ?></span>
-              <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
-              <span class="dir"><?= (int)$j['ovr'] ?></span>
-            </div>
-          <?php endforeach; ?>
-        </div>
-      </div>
-
-      <?php if ($art): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-bullseye"></i> Quem está fazendo gol</h3>
-          <div class="mini-lista">
-            <?php foreach ($art as $nome => $g): ?>
-              <div class="mini-linha">
-                <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($nome) ?>&amp;de=inicio"><?= h($nome) ?></a></span>
-                <span class="dir"><?= (int)$g ?> gol<?= $g === 1 ? '' : 's' ?></span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <?php if ($fora): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-bandaid"></i> Fora da próxima</h3>
-          <div class="mini-lista">
-            <?php foreach ($fora as $nome => $d): ?>
-              <div class="mini-linha">
-                <span class="esq"><?= h($nome) ?></span>
-                <span class="dir" style="color:#fca5a5"><?= h($d['motivo']) ?> · <?= (int)$d['jogos'] ?>j</span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <?php if ($ultimos): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-clock-history"></i> Últimos resultados</h3>
-          <div class="mini-lista">
-            <?php foreach ($ultimos as $r): ?>
-              <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
-              <div class="mini-linha">
-                <span class="esq"><?= h($r['adversario']) ?></span>
-                <span class="dir"><span class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></span></span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      <?php endif; ?>
-    </div>
-
-  <?php // ── ABA: PARTIDAS ──────────────────────────────────────────── ?>
-  <?php elseif ($aba === 'jogo'): ?>
     <?php if (($estado['fase'] ?? '') === 'mercado'): ?>
       <?php if (!empty($estado['propostas'])): ?>
         <div class="bloco" style="border-color:rgba(34,197,94,.4)">
@@ -2176,6 +2153,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         </form>
       </div>
 
+
     <?php elseif (($estado['fase'] ?? '') === 'fim'): ?>
       <div class="bloco">
         <h3><i class="bi bi-flag"></i> Temporada encerrada</h3>
@@ -2186,6 +2164,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <button class="btn"><i class="bi bi-calendar-check"></i> Fechar a temporada</button>
         </form>
       </div>
+
 
     <?php elseif (($estado['fase'] ?? '') === 'desempregado'): ?>
       <?php
@@ -2242,31 +2221,209 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       <?php endif; ?>
 
     <?php else: ?>
-      <?php if ($proximo): ?>
-        <div class="bloco">
-          <h3><i class="bi bi-calendar-event"></i> Próxima partida</h3>
-          <div style="display:flex;align-items:center;gap:11px;margin-bottom:12px">
-            <?= escudo($clubesTodos[$proximo['adversario']] ?? ['nome' => $proximo['adversario']], 34) ?>
-            <div style="min-width:0">
-              <div style="font-weight:800;font-size:15px"><?= h($proximo['adversario']) ?></div>
-              <div style="font-size:11.5px;color:var(--txt2)">
-                <?= h($proximo['comp']) ?> · <?= h($proximo['fase'] ?? '') ?> ·
-                <?= $proximo['casa'] ? 'em casa' : 'fora' ?>
-              </div>
+    <?php
+      /* O ESTADO DO CLUBE NUMA TELA. Antes o técnico precisava passar por
+         quatro abas pra saber onde estava: a posição na Tabela, o elenco no
+         Elenco, o artilheiro nos Números e o próximo jogo em Partidas. */
+      $comps = futCarreiraCompeticoesDoAno($estado);
+      $divEu = $clubesTodos[$estado['clube']]['div'] ?? '';
+      $compNac = futCarreiraNomeDaDivisao($divEu);
+      $tabNac = $compNac !== '' ? futCarreiraTabelaDaCompeticao($estado, $compNac) : [];
+
+      /* AS NOTAS VÊM ANTES DO OVERALL. O overall está a um clique daqui, na
+         aba Elenco, e não muda de uma semana pra outra; a nota é o que diz
+         quem está jogando bem AGORA, e não aparece em nenhum outro lugar da
+         tela. Antes da primeira partida não existe nota nenhuma, e aí o
+         overall volta a ser a resposta. */
+      $porNota = [];
+      foreach ($estado['stats'] ?? [] as $nome => $st) {
+        $j = (int)($st['jogos'] ?? 0);
+        if ($j < 2) continue;                      // um jogo não faz média
+        $porNota[] = ['nome' => $nome, 'pos' => $st['pos'] ?? '', 'jogos' => $j,
+                      'media' => round((float)($st['soma_notas'] ?? 0) / $j, 2)];
+      }
+      usort($porNota, fn($a, $b) => $b['media'] <=> $a['media']);
+      $porNota = array_slice($porNota, 0, 5);
+
+      $melhores = $estado['elenco'] ?? [];
+      usort($melhores, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
+      $melhores = array_slice($melhores, 0, 5);
+
+      // Quem mais fez gol, e quem está fora.
+      $art = [];
+      foreach ($estado['stats'] ?? [] as $nome => $st) {
+        if ((int)$st['gols'] > 0) $art[$nome] = (int)$st['gols'];
+      }
+      arsort($art);
+      $art = array_slice($art, 0, 5, true);
+      $fora = futIndisponiveis($estado['elenco'] ?? [], $estado['suspensos'] ?? []);
+      $ultimos = array_slice(array_reverse($estado['resultados'] ?? []), 0, 5);
+      $outros = futCarreiraOutrosJogosDaRodada($estado);
+    ?>
+
+    <?php if (($estado['fase'] ?? '') === 'temporada' && $proximo): ?>
+      <div class="proximo">
+        <div class="proximo-rot">Próxima partida</div>
+        <div class="proximo-jogo">
+          <?= escudo($clubesTodos[$proximo['adversario']] ?? ['nome' => $proximo['adversario']], 44) ?>
+          <div style="min-width:0">
+            <div class="proximo-nome"><?= h($proximo['adversario']) ?></div>
+            <div class="proximo-sub">
+              <?= h($proximo['comp']) ?><?= $proximo['fase'] ? ' · ' . h($proximo['fase']) : '' ?>
+              · <?= $proximo['casa'] ? 'em casa' : 'fora' ?>
             </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <form method="post" style="display:inline">
-              <input type="hidden" name="acao" value="jogar">
-              <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
-            </form>
-            <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
+        </div>
+        <div class="proximo-acoes">
+          <form method="post" style="display:inline">
+            <input type="hidden" name="acao" value="jogar">
+            <button class="btn"><i class="bi bi-play-fill"></i> Entrar em campo</button>
+          </form>
+          <a class="btn sec" href="?aba=escalacao"><i class="bi bi-diagram-3"></i> Escalação</a>
+        </div>
+        <div class="proximo-conta">
+          Jogo <?= (int)$estado['rodada'] + 1 ?> de <?= count($estado['calendario'] ?? []) ?> na temporada
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <div class="resumo-grade">
+      <?php if ($tabNac): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-table"></i> <?= h(futCarreiraRotuloDaDivisao((string)$divEu)) ?></h3>
+          <div class="mini-lista">
+            <?php
+              /* A JANELA ACOMPANHA O CLUBE: quatro acima e três abaixo dele.
+                 Cinco linhas fixas a partir do topo diziam quem é o líder e
+                 não diziam o que o técnico precisa — se ele está subindo ou
+                 caindo, e de quem. Perto das pontas a janela encosta na borda
+                 em vez de sair da tabela. */
+              $pos = 0; $i = 0;
+              foreach (array_keys($tabNac) as $n) { $i++; if ($n === $estado['clube']) $pos = $i; }
+              $janela = 8;
+              $ini = max(0, min(count($tabNac) - $janela, $pos - 5));
+              $trecho = array_slice($tabNac, $ini, $janela, true);
+              [$zVerde, $zEuro, $zCai] = futZonasDaTabela((string)$divEu);
+              $total = count($tabNac);
+              $k = $ini;
+            ?>
+            <?php foreach ($trecho as $nome => $l): $k++; ?>
+              <?php $cz = $k <= $zVerde ? 'sobe' : ($k <= $zEuro ? 'euro' : (($zCai && $k > $total - $zCai) ? 'cai' : '')); ?>
+              <div class="mini-linha" style="<?= $nome === $estado['clube'] ? 'color:var(--acento);font-weight:700' : '' ?>">
+                <span class="pos <?= $cz ?>"><?= $k ?></span>
+                <?= escudo($clubesTodos[$nome] ?? ['nome' => $nome], 16) ?>
+                <span class="esq"><?= h($nome) ?></span>
+                <span class="dir"><?= (int)$l['p'] ?> pts</span>
+              </div>
+            <?php endforeach; ?>
           </div>
-          <div style="margin-top:10px;font-size:12px;color:var(--txt3)">
-            Jogo <?= (int)$estado['rodada'] + 1 ?> de <?= count($estado['calendario'] ?? []) ?>
+          <div style="margin-top:9px"><a class="btn sec peq" href="?aba=tabela" style="text-decoration:none">Ver a tabela</a></div>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($outros): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-calendar3"></i> Os outros jogos da rodada</h3>
+          <div class="mini-lista">
+            <?php foreach ($outros as $j): ?>
+              <div class="mini-linha jogo-rodada">
+                <span class="lado dir"><?= h($j['casa']) ?></span>
+                <?= escudo($clubesTodos[$j['casa']] ?? ['nome' => $j['casa']], 16) ?>
+                <span class="pl"><?= (int)$j['gc'] ?>–<?= (int)$j['gf'] ?></span>
+                <?= escudo($clubesTodos[$j['fora']] ?? ['nome' => $j['fora']], 16) ?>
+                <span class="lado"><?= h($j['fora']) ?></span>
+              </div>
+            <?php endforeach; ?>
           </div>
         </div>
       <?php endif; ?>
+
+      <div class="bloco">
+        <h3><i class="bi bi-trophy"></i> As competições do ano</h3>
+        <div class="mini-lista">
+          <?php foreach ($comps as $c => $d): ?>
+            <?php $camp = futCarreiraCampanha($estado, $c); ?>
+            <div class="mini-linha">
+              <span class="esq"><?= h($c) ?></span>
+              <span class="dir"><?= (int)$camp['v'] ?>V <?= (int)$camp['e'] ?>E <?= (int)$camp['d'] ?>D</span>
+            </div>
+          <?php endforeach; ?>
+          <?php if (!$comps): ?><div style="color:var(--txt3);font-size:12.5px">A temporada ainda não começou.</div><?php endif; ?>
+        </div>
+      </div>
+
+      <div class="bloco">
+        <h3><i class="bi bi-star-fill"></i> <?= $porNota ? 'Quem está jogando melhor' : 'Os melhores do elenco' ?></h3>
+        <div class="mini-lista">
+          <?php if ($porNota): ?>
+            <?php foreach ($porNota as $j): ?>
+              <div class="mini-linha">
+                <span class="tagpos"><?= h($j['pos']) ?></span>
+                <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
+                <span class="dir"><span class="nota <?= $j['media'] >= 7.5 ? 'alta' : ($j['media'] < 5.5 ? 'baixa' : '') ?>"><?= number_format($j['media'], 2, ',', '') ?></span></span>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <?php foreach ($melhores as $j): ?>
+              <div class="mini-linha">
+                <span class="tagpos"><?= h($j['pos']) ?></span>
+                <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
+                <span class="dir"><?= (int)$j['ovr'] ?></span>
+              </div>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <?php if ($art): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-bullseye"></i> Quem está fazendo gol</h3>
+          <div class="mini-lista">
+            <?php foreach ($art as $nome => $g): ?>
+              <div class="mini-linha">
+                <span class="esq"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($nome) ?>&amp;de=inicio"><?= h($nome) ?></a></span>
+                <span class="dir"><?= (int)$g ?> gol<?= $g === 1 ? '' : 's' ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <div class="bloco">
+        <h3><i class="bi bi-person-dash"></i> Desfalques</h3>
+        <div class="mini-lista">
+          <?php if (!$fora): ?>
+            <div style="color:var(--txt3);font-size:12.5px">Elenco inteiro à disposição.</div>
+          <?php endif; ?>
+          <?php foreach ($fora as $nome => $d): ?>
+            <?php $susp = $d['motivo'] === 'suspensão'; ?>
+            <div class="mini-linha">
+              <i class="bi <?= $susp ? 'bi-card-text' : 'bi-bandaid' ?>"
+                 style="color:<?= $susp ? 'var(--amarelo)' : '#fca5a5' ?>;font-size:12px"></i>
+              <span class="esq"><?= h($nome) ?></span>
+              <span class="dir" style="color:<?= $susp ? 'var(--amarelo)' : '#fca5a5' ?>">
+                <?= h($d['motivo']) ?> · <?= (int)$d['jogos'] ?>j</span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <?php if ($ultimos): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-clock-history"></i> Últimos resultados</h3>
+          <div class="mini-lista">
+            <?php foreach ($ultimos as $r): ?>
+              <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
+              <div class="mini-linha">
+                <?= escudo($clubesTodos[$r['adversario']] ?? ['nome' => $r['adversario']], 16) ?>
+                <span class="esq"><?= h($r['adversario']) ?></span>
+                <span class="dir"><span class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></span></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div>
 
       <?php $ultimo = null; foreach (array_reverse($estado['resultados'] ?? []) as $rr) { if (!empty($rr['eventos'])) { $ultimo = $rr; break; } } ?>
       <?php if ($ultimo): ?>
@@ -2311,45 +2468,71 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <?php endforeach; ?>
 
           <?php if (!empty($ultimo['escalacao'])): ?>
-            <details style="margin-top:12px">
-              <summary style="cursor:pointer;font-size:12.5px;color:var(--txt2);font-weight:700">Notas dos jogadores</summary>
-              <div class="rolar" style="margin-top:8px"><table>
-                <thead><tr><th>Jogador</th><th>Pos</th><th class="num">OVR</th><th class="num">Nota</th></tr></thead>
-                <tbody>
-                <?php $esc = $ultimo['escalacao']; usort($esc, fn($a,$b) => $b['nota'] <=> $a['nota']); ?>
-                <?php foreach ($esc as $j): ?>
-                  <tr>
-                    <td><?= h($j['nome']) ?></td>
-                    <td><span class="tagpos"><?= h($j['pos']) ?></span></td>
-                    <td class="num"><?= (int)$j['ovr'] ?></td>
-                    <td class="num"><span class="nota <?= $j['nota'] >= 7.5 ? 'alta' : ($j['nota'] < 5.5 ? 'baixa' : '') ?>"><?= number_format((float)$j['nota'], 1, ',', '.') ?></span></td>
-                  </tr>
-                <?php endforeach; ?>
-                </tbody>
-              </table></div>
-            </details>
+            <?php
+              /* AS NOTAS SAEM DE TRÁS DO "VER MAIS". Elas estavam num
+                 <details> fechado, e a pergunta que o técnico faz depois do
+                 jogo é justamente essa — quem foi bem. Esconder a resposta
+                 atrás de um clique pra economizar dez linhas de tela era
+                 economizar no lugar errado.
+
+                 O GOL E O CARTÃO VÊM DOS EVENTOS, e não de um campo novo no
+                 save: a lista de lances já diz quem fez o quê, e derivar daqui
+                 evita gravar a mesma informação duas vezes (que é como as
+                 duas acabam discordando uma da outra). */
+              $marcas = [];
+              foreach ($ultimo['eventos'] ?? [] as $ev) {
+                if (empty($ev['meu']) || empty($ev['jogador'])) continue;
+                $n = $ev['jogador'];
+                if ($ev['tipo'] === 'gol') $marcas[$n]['gols'] = ($marcas[$n]['gols'] ?? 0) + 1;
+                elseif ($ev['tipo'] === 'amarelo') $marcas[$n]['cartao'] = 'ama';
+                elseif ($ev['tipo'] === 'vermelho') $marcas[$n]['cartao'] = 'ver';
+                if (!empty($ev['assistente'])) {
+                  $a = $ev['assistente'];
+                  $marcas[$a]['assist'] = ($marcas[$a]['assist'] ?? 0) + 1;
+                }
+              }
+              $esc = $ultimo['escalacao'];
+              usort($esc, fn($a, $b) => $b['nota'] <=> $a['nota']);
+              $craque = $esc[0] ?? null;
+            ?>
+            <div class="opcoes-rot" style="margin-top:14px">Como cada um foi</div>
+            <?php if ($craque): ?>
+              <div class="craque">
+                <i class="bi bi-star-fill"></i>
+                <div style="min-width:0;flex:1">
+                  <div class="craque-nome"><?= h($craque['nome']) ?></div>
+                  <div class="craque-sub">melhor em campo · <?= h($craque['pos']) ?></div>
+                </div>
+                <span class="nota alta"><?= number_format((float)$craque['nota'], 1, ',', '.') ?></span>
+              </div>
+            <?php endif; ?>
+            <div class="esc-vivo" style="margin-top:8px">
+              <?php foreach ($esc as $j): ?>
+                <?php $m = $marcas[$j['nome']] ?? []; ?>
+                <div class="esc-linha">
+                  <span class="tagpos"><?= h($j['pos']) ?></span>
+                  <span class="nm"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($j['nome']) ?>&amp;de=inicio"><?= h($j['nome']) ?></a></span>
+                  <span class="mk">
+                    <?php for ($g = 0; $g < (int)($m['gols'] ?? 0); $g++): ?>
+                      <i class="bi bi-dribbble" title="gol"></i>
+                    <?php endfor; ?>
+                    <?php for ($g = 0; $g < (int)($m['assist'] ?? 0); $g++): ?>
+                      <i class="bi bi-bullseye" title="assistência" style="color:var(--txt3)"></i>
+                    <?php endfor; ?>
+                    <?php if (!empty($m['cartao'])): ?>
+                      <span class="cartao <?= h($m['cartao']) ?>"></span>
+                    <?php endif; ?>
+                  </span>
+                  <span class="n <?= $j['nota'] >= 7 ? 'boa' : ($j['nota'] < 5.5 ? 'ruim' : '') ?>"><?= number_format((float)$j['nota'], 1, ',', '.') ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
           <?php endif; ?>
         </div>
       <?php endif; ?>
 
-      <div class="bloco">
-        <h3><i class="bi bi-list-ul"></i> Últimos resultados</h3>
-        <?php $ult = array_reverse(array_slice($estado['resultados'] ?? [], -12)); ?>
-        <?php if (!$ult): ?><div class="vazio">Nenhum jogo ainda.</div><?php endif; ?>
-        <?php foreach ($ult as $r): ?>
-          <?php $cls = $r['meus'] > $r['deles'] ? 'v' : ($r['meus'] < $r['deles'] ? 'd' : ''); ?>
-          <div class="partida">
-            <?= escudo($clubesTodos[$r['adversario']] ?? ['nome' => $r['adversario']], 24) ?>
-            <div style="min-width:0">
-              <div class="comp"><?= h($r['comp']) ?> · <?= $r['casa'] ? 'casa' : 'fora' ?></div>
-              <div class="adv"><?= h($r['adversario']) ?></div>
-            </div>
-            <div class="placar <?= $cls ?>"><?= (int)$r['meus'] ?>–<?= (int)$r['deles'] ?></div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
 
+    <?php endif; ?>
   <?php // ── ABA: ELENCO ────────────────────────────────────────────── ?>
   <?php elseif ($aba === 'elenco'): ?>
     <div class="bloco">

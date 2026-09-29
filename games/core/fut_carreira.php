@@ -1359,11 +1359,29 @@ function futCarreiraPosicaoNoEstadual(array $estado): ?int
     return null;
 }
 
-function futCarreiraTabelaNacional(array $estado): array
+/**
+ * A LIGA NACIONAL INTEIRA ATÉ ONDE O JOGADOR CHEGOU, rodada por rodada.
+ *
+ * É a fonte única dos jogos da máquina. Antes esta conta vivia dentro de
+ * futCarreiraTabelaNacional, e quando a tela passou a querer também "os outros
+ * jogos da rodada" havia duas escolhas: repetir a simulação (e mostrar na
+ * rodada um placar diferente do que a tabela somou) ou tirar a conta daqui.
+ * Tirar foi o certo — placar que não bate com a tabela é a pior espécie de
+ * bug, porque o jogador vê os dois e não sabe em qual acreditar.
+ *
+ * A SEMENTE É FIXA e depende da rodada atual, então a rodada 3 sai igual toda
+ * vez que a tela abrir — e muda quando o ano avança, porque aí tudo é
+ * resimulado junto.
+ *
+ * @return array ['porRodada'=>[n => lista], 'todos'=>lista, 'ate'=>int, 'times'=>array]
+ */
+function futCarreiraLigaSimulada(array $estado): array
 {
+    $vazio = ['porRodada' => [], 'todos' => [], 'ate' => 0, 'times' => []];
+
     $clubes = futClubesDoJogo();
     $div = $clubes[$estado['clube']]['div'] ?? '';
-    if ($div === '') return [];
+    if ($div === '') return $vazio;
 
     $comp = futCarreiraNomeDaDivisao($div);
     $times = futCarreiraTimes(futClubesDaDivisaoDoJogo($div), $estado);
@@ -1378,11 +1396,12 @@ function futCarreiraTabelaNacional(array $estado): array
         $ateRodada = max($ateRodada, (int)($r['liga_rodada'] ?? 0));
         $meus[(int)($r['liga_rodada'] ?? 0)] = $r;
     }
-    if ($ateRodada <= 0) return [];
+    if ($ateRodada <= 0) return $vazio;
 
     mt_srand(crc32($estado['clube'] . '|t' . $estado['temporada'] . '|r' . $ateRodada));
 
-    $resultados = [];
+    $porRodada = [];
+    $todos = [];
     foreach (futCarreiraCalendarioDaLiga($div) as $n => $jogos) {
         $rodada = $n + 1;
         if ($rodada > $ateRodada) break;
@@ -1392,18 +1411,47 @@ function futCarreiraTabelaNacional(array $estado): array
             // O jogo do jogador entra como foi de verdade.
             if (($casa === $estado['clube'] || $fora === $estado['clube']) && isset($meus[$rodada])) {
                 $r = $meus[$rodada];
-                $resultados[] = $r['casa']
+                $jogo = $r['casa']
                     ? ['casa' => $estado['clube'], 'fora' => $r['adversario'], 'gc' => $r['meus'], 'gf' => $r['deles']]
                     : ['casa' => $r['adversario'], 'fora' => $estado['clube'], 'gc' => $r['deles'], 'gf' => $r['meus']];
-                continue;
+            } else {
+                $p = futPlacar($porNome[$casa]['forca'], $porNome[$fora]['forca']);
+                $jogo = ['casa' => $casa, 'fora' => $fora, 'gc' => $p['casa'], 'gf' => $p['fora']];
             }
-            $p = futPlacar($porNome[$casa]['forca'], $porNome[$fora]['forca']);
-            $resultados[] = ['casa' => $casa, 'fora' => $fora, 'gc' => $p['casa'], 'gf' => $p['fora']];
+            $porRodada[$rodada][] = $jogo;
+            $todos[] = $jogo;
         }
     }
     mt_srand();   // devolve o sorteio ao estado normal
 
-    return futClassificacao(array_keys($porNome), $resultados);
+    return ['porRodada' => $porRodada, 'todos' => $todos, 'ate' => $ateRodada,
+            'times' => array_keys($porNome)];
+}
+
+function futCarreiraTabelaNacional(array $estado): array
+{
+    $liga = futCarreiraLigaSimulada($estado);
+    if (!$liga['todos']) return [];
+    return futClassificacao($liga['times'], $liga['todos']);
+}
+
+/**
+ * OS OUTROS JOGOS DA RODADA em que o clube do jogador jogou por último.
+ *
+ * O jogo dele sai da lista de propósito: ele acabou de ver aquele placar com
+ * lance a lance, e repeti-lo aqui gastaria uma linha pra não dizer nada. O que
+ * interessa é o que os rivais fizeram enquanto isso.
+ *
+ * @return array lista de ['casa','fora','gc','gf'] — vazia fora da liga nacional
+ */
+function futCarreiraOutrosJogosDaRodada(array $estado, ?int $rodada = null): array
+{
+    $liga = futCarreiraLigaSimulada($estado);
+    $n = $rodada ?? $liga['ate'];
+    $meu = (string)($estado['clube'] ?? '');
+
+    return array_values(array_filter($liga['porRodada'][$n] ?? [],
+        fn($j) => $j['casa'] !== $meu && $j['fora'] !== $meu));
 }
 /** A posição do clube do jogador na tabela nacional (1 = líder). */
 function futCarreiraMinhaPosicao(array $estado): ?int
