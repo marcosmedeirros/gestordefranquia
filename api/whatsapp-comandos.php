@@ -660,7 +660,7 @@ function wcAjuda(): string
  */
 
 /**
- * O jogador que ninguém tem: waiver e free agency, na ordem em que ele sai.
+ * O jogador que ninguém tem, enquanto ele ainda pode ser reivindicado.
  *
  * Quem é dispensado deixa de existir em `players` — vai pra waiver_retention
  * por 48h e depois pro free_agents. Até aqui o /jogador procurava só em
@@ -669,52 +669,52 @@ function wcAjuda(): string
  * pergunta pelo nome de um dispensado quer exatamente a resposta que faltava:
  * ele está sem clube, e onde pegar.
  *
- * As duas tabelas guardam a ficha à mão (nome, idade, OVR), sem skills nem
- * lançamento de temporada — o jogador que voltar pra um elenco nasce de novo
- * em `players`. Por isso a ficha de sem clube é curta: é o que existe.
+ * A tabela guarda a ficha à mão (nome, idade, OVR), sem skills nem lançamento
+ * de temporada — o jogador que voltar pra um elenco nasce de novo em
+ * `players`. Por isso a ficha de sem clube é curta: é o que existe.
  */
+/**
+ * A ÚNICA DISPENSA QUE A BUSCA MOSTRA.
+ *
+ * Sem clube era de todas as divisões e incluía a free agency inteira, e o
+ * resultado era ruído: buscar "diop" no grupo devolvia o DeSagana Diop do
+ * Orlando Magic E um segundo DeSagana Diop de 62 OVR parado na free agency da
+ * ROOKIE. Dois jogadores com o mesmo nome, e só um deles é uma pergunta que
+ * alguém fez.
+ *
+ * A dispensa da ELITE fica porque ela é a única com PRAZO: o jogador está no
+ * waiver, dá pra reivindicar, e saber disso muda o que o GM faz hoje. Free
+ * agency não tem prazo e as outras divisões não reivindicam — listar as duas
+ * é encher a resposta com nomes que ninguém vai buscar.
+ */
+const WC_DISPENSA_DIVISAO = 'ELITE';
+
 function wcSemClube(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
 {
-    $ordem  = wcOrdemLiga($ligaDoGrupo, 'x');
     $linhas = [];
-    $like   = '%' . $termo . '%';
 
-    // Waiver primeiro: ainda dá pra reivindicar, e isso tem prazo.
     try {
+        /* SÓ O WAIVER ABERTO DA ELITE. A divisão está na consulta e não num
+           filtro depois porque o LIMIT 8 é do banco: filtrando aqui, oito
+           dispensados da ROOKIE empurrariam o da ELITE pra fora do resultado
+           antes de o PHP ver. */
         $st = $pdo->prepare("
             SELECT x.name, x.age, x.position, x.secondary_position, x.ovr AS ovr,
                    x.league, x.expires_at, x.player_id, x.team_id AS saiu_de_id,
                    CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS saiu_de
               FROM waiver_retention x
               LEFT JOIN teams t ON t.id = x.team_id
-             WHERE x.status = 'open' AND x.expires_at > NOW() AND x.name LIKE ?
-             ORDER BY {$ordem}, x.ovr DESC
+             WHERE x.status = 'open' AND x.expires_at > NOW()
+               AND x.league = ? AND x.name LIKE ?
+             ORDER BY x.ovr DESC
              LIMIT 8");
-        $st->execute([$like]);
+        $st->execute([WC_DISPENSA_DIVISAO, '%' . $termo . '%']);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $r['onde'] = 'waiver';
             $linhas[]  = $r;
         }
     } catch (Throwable $e) {
         error_log('wcSemClube (waiver): ' . $e->getMessage());
-    }
-
-    try {
-        $st = $pdo->prepare("
-            SELECT x.name, x.age, x.position, x.secondary_position, x.overall AS ovr,
-                   x.league, x.min_bid, x.original_team_id AS saiu_de_id,
-                   x.original_team_name AS saiu_de
-              FROM free_agents x
-             WHERE x.status = 'available' AND x.name LIKE ?
-             ORDER BY {$ordem}, x.overall DESC
-             LIMIT 8");
-        $st->execute([$like]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $r['onde'] = 'fa';
-            $linhas[]  = $r;
-        }
-    } catch (Throwable $e) {
-        error_log('wcSemClube (free agency): ' . $e->getMessage());
     }
 
     return $linhas;
@@ -805,7 +805,7 @@ function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube
         $l = array_map(function ($p) {
             return '• *' . $p['name'] . '* — ' . (int)$p['ovr'] . ' OVR, '
                 . $p['position'] . ', ' . (int)$p['age'] . ' anos — Sem Clube ('
-                . $p['league'] . ($p['onde'] === 'waiver' ? ', no waiver' : '') . ')';
+                . $p['league'] . ', no waiver)';
         }, $linhas);
         return "Achei " . count($linhas) . " sem clube com \"{$termo}\":\n"
              . implode("\n", $l) . $nota;
@@ -823,16 +823,13 @@ function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube
         $txt .= 'Saiu do ' . trim((string)$p['saiu_de']) . "\n";
     }
 
-    if ($p['onde'] === 'waiver') {
-        $ate = null;
-        try { $ate = new DateTime((string)$p['expires_at']); } catch (Throwable $e) { }
-        $txt .= "\n⏳ *No waiver*" . ($ate ? ' até ' . $ate->format('d/m H:i') : '')
-              . " — depois disso cai no free agency.\n";
-    } else {
-        $txt .= "\n🆓 *No free agency*";
-        if (!empty($p['min_bid'])) $txt .= ' — lance mínimo *' . (int)$p['min_bid'] . '*';
-        $txt .= "\n";
-    }
+    /* O RAMO DA FREE AGENCY SAIU JUNTO COM A CONSULTA DELA: aqui só chega
+       quem está no waiver aberto da ELITE, e um 'else' que nunca roda é
+       pior que não existir — ele promete um caso que a busca não tem. */
+    $ate = null;
+    try { $ate = new DateTime((string)$p['expires_at']); } catch (Throwable $e) { }
+    $txt .= "\n⏳ *No waiver*" . ($ate ? ' até ' . $ate->format('d/m H:i') : '')
+          . " — depois disso cai no free agency.\n";
 
     /* Números e letras do último retrato que existe dele. @see wcSemClubeHistorico */
     $h = wcSemClubeHistorico($pdo, $p);
@@ -931,9 +928,10 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
                 . wcNomeDoTime($p) . ' (' . $p['league'] . ')';
         }, $achados);
         foreach ($livres as $p) {
+            // Só vem waiver da ELITE por aqui — @see wcSemClube.
             $linhas[] = '• *' . $p['name'] . '* — ' . (int)$p['ovr'] . ' OVR, '
                 . $p['position'] . ', ' . (int)$p['age'] . ' anos — *Sem Clube* ('
-                . $p['league'] . ($p['onde'] === 'waiver' ? ', no waiver' : ', free agency') . ')';
+                . $p['league'] . ', no waiver)';
         }
         return "Achei " . count($linhas) . " com \"{$termo}\":\n" . implode("\n", $linhas) . $notaLiga;
     }
