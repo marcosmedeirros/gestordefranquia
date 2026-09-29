@@ -1808,19 +1808,21 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                            o card é sobre QUAL é o jogo da semana. Quem quiser
                            a lista inteira pede /jogosemana no grupo. */ ?>
 
-                  <?php /* DE FORA PELO RODÍZIO: quem foi o jogo da semana passada
-                           lê isso no lugar do formulário. Mostrar o campo e
-                           recusar depois do clique faz a pessoa escolher um
-                           valor à toa — e o servidor recusa de qualquer jeito.
-                           @see leilaoSemanaJogouNaAnterior */ ?>
+                  <?php /* DE FORA PELO RODÍZIO: quem já foi jogo da semana lê isso
+                           no lugar do formulário. Mostrar o campo e recusar
+                           depois do clique faz a pessoa escolher um valor à
+                           toa — e o servidor recusa de qualquer jeito. O PRAZO
+                           vem junto: "não pode" sem data se lê como bug.
+                           @see leilaoSemanaQuarentenaDoTime */ ?>
                   <?php if ($ehMinha && $d['temporada'] > 0 && $team && !$f && !empty($d['de_fora'])): ?>
                     <div class="lj-meu fora">
-                      Seu time foi o <b>jogo da semana passada</b><?php
-                        $ant = $d['anterior'] ?? null;
-                        $adv = $ant ? ((int)$team['id'] === (int)$ant['time1_id'] ? $ant['time2_nome'] : $ant['time1_nome']) : '';
+                      Seu time já foi <b>jogo da semana</b><?php
+                        $q = $d['quarentena'] ?? null;
+                        $jg = $q['jogo'] ?? null;
+                        $adv = $jg ? ((int)$team['id'] === (int)$jg['time1_id'] ? $jg['time2_nome'] : $jg['time1_nome']) : '';
                         if ($adv !== '') echo ' (contra ' . htmlspecialchars($adv) . ')';
-                      ?> — esta semana ele fica de fora, pra girar a fila.
-                      Na próxima você volta a dar lance.
+                      ?> — é um por mês, então ele volta
+                      <?= htmlspecialchars(leilaoSemanaQuandoVolta((int)($q['faltam'] ?? 1))) ?>.
                     </div>
                   <?php elseif ($ehMinha && $d['temporada'] > 0 && $team && !$f): ?>
                     <?php if ($d['meu']): ?>
