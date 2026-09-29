@@ -562,6 +562,21 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .nota-linha .n.ruim{color:#fca5a5}
 .nota-linha .p{font-size:10px;color:var(--txt3);font-weight:700}
 
+/* ── Os destaques da competição ─────────────────────── */
+.destaques{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.destaque-lista{display:flex;flex-direction:column;gap:5px}
+.destaque-linha{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:6px 0;
+  border-bottom:1px solid var(--borda)}
+.destaque-linha:last-child{border-bottom:0}
+.destaque-linha .p{width:16px;font-weight:800;color:var(--txt3);font-size:11px;flex-shrink:0}
+.destaque-linha .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destaque-linha .c{font-size:10.5px;color:var(--txt3);max-width:92px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.destaque-linha .v{font-weight:900;font-variant-numeric:tabular-nums;flex-shrink:0;min-width:34px;
+  text-align:right}
+.destaque-linha.eu{color:var(--verde-claro)}
+.destaque-nota{font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.4}
+
 /* ── O caminho na copa ──────────────────────────────── */
 .chave{display:flex;flex-direction:column;gap:8px}
 .chave-fase{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;
@@ -2740,6 +2755,91 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         $jogosComp = array_values(array_filter($estado['resultados'] ?? [],
                                   fn($r) => ($r['comp'] ?? '') === $compSel));
       ?>
+      <?php
+        /* OS DESTAQUES SÓ FAZEM SENTIDO ONDE HÁ TABELA. Numa copa de
+           mata-mata cada clube joga um punhado de partidas e o artilheiro
+           sairia de três jogos — número que não diz nada. */
+        $dest = $info['tabela'] ? futCarreiraDestaquesDaCompeticao($estado, $compSel) : null;
+      ?>
+      <?php if ($dest && ($dest['artilheiros'] || $dest['goleiros'])): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-award"></i> Destaques d<?= stripos($compSel, 'copa') === 0 ? 'a' : 'o' ?> <?= h($compSel) ?></h3>
+          <div class="destaques">
+
+            <?php if ($dest['artilheiros']): ?>
+              <div>
+                <div class="opcoes-rot">Artilheiros</div>
+                <div class="destaque-lista">
+                  <?php foreach ($dest['artilheiros'] as $i => $a): ?>
+                    <div class="destaque-linha <?= $a['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                      <span class="p"><?= $i + 1 ?></span>
+                      <span class="n"><?= h($a['nome']) ?></span>
+                      <span class="c"><?= h($a['clube']) ?></span>
+                      <span class="v"><?= (int)$a['gols'] ?></span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($dest['garcons']): ?>
+              <div>
+                <div class="opcoes-rot">Assistências</div>
+                <div class="destaque-lista">
+                  <?php foreach ($dest['garcons'] as $i => $a): ?>
+                    <div class="destaque-linha <?= $a['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                      <span class="p"><?= $i + 1 ?></span>
+                      <span class="n"><?= h($a['nome']) ?></span>
+                      <span class="c"><?= h($a['clube']) ?></span>
+                      <span class="v"><?= (int)$a['assist'] ?></span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($dest['goleiros']): ?>
+              <div>
+                <div class="opcoes-rot">Goleiros menos vencidos</div>
+                <div class="destaque-lista">
+                  <?php foreach ($dest['goleiros'] as $i => $g): ?>
+                    <div class="destaque-linha <?= $g['clube'] === $estado['clube'] ? 'eu' : '' ?>">
+                      <span class="p"><?= $i + 1 ?></span>
+                      <span class="n"><?= h($g['nome']) ?></span>
+                      <span class="c"><?= h($g['clube']) ?></span>
+                      <span class="v" title="<?= (int)$g['sofridos'] ?> gols em <?= (int)$g['jogos'] ?> jogos">
+                        <?= number_format((float)$g['media'], 2, ',', '') ?></span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($dest['notas']): ?>
+              <div>
+                <div class="opcoes-rot">Melhores notas · seu elenco</div>
+                <div class="destaque-lista">
+                  <?php foreach ($dest['notas'] as $i => $n): ?>
+                    <div class="destaque-linha eu">
+                      <span class="p"><?= $i + 1 ?></span>
+                      <span class="n"><a class="link-jogo" href="?aba=jogador&amp;nome=<?= urlencode($n['nome']) ?>&amp;de=tabela"><?= h($n['nome']) ?></a></span>
+                      <span class="c"><?= (int)$n['jogos'] ?> jogos</span>
+                      <span class="v"><?= number_format((float)$n['media'], 2, ',', '') ?></span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+          </div>
+          <div class="destaque-nota">
+            Gols e assistências saem da mesma tabela acima — são os gols que cada clube fez,
+            distribuídos entre quem joga nele. A nota vem de partida disputada, então a lista
+            de notas é a do seu elenco: os outros clubes não jogam partida, têm placar.
+          </div>
+        </div>
+      <?php endif; ?>
+
       <?php if ($jogosComp): ?>
         <div class="bloco">
           <h3><i class="bi bi-list-ol"></i> Jogos em <?= h($compSel) ?></h3>

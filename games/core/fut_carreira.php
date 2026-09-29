@@ -1151,6 +1151,109 @@ function futCarreiraTabelaDaCompeticao(array $estado, string $comp): array
     return [];
 }
 
+/**
+ * OS DESTAQUES DE UMA COMPETIÇÃO: artilheiros, garçons e goleiros.
+ *
+ * A pergunta "quem é o artilheiro do Brasileirão" não tinha resposta: a
+ * estatística do jogo só existe pro elenco do técnico, porque só ele joga de
+ * verdade. Os outros 19 clubes existiam como uma linha na tabela.
+ *
+ * NADA AQUI É INVENTADO. Os gols já estão decididos — são os da tabela, que a
+ * mesma futCarreiraTabelaDaCompeticao calculou. O que esta função faz é dizer
+ * QUEM os fez, distribuindo os gols de cada clube entre os jogadores do elenco
+ * dele com os mesmos pesos por posição da partida de verdade (o atacante faz
+ * mais que o zagueiro). A semente sai do clube e da competição, então a lista
+ * não muda a cada vez que a tela abre.
+ *
+ * O GOLEIRO É O ÚNICO QUE NÃO PRECISA DE SORTEIO: gols sofridos é coluna da
+ * tabela. "Menos vencido" é fato, e é como o futebol elege goleiro mesmo.
+ *
+ * @return array ['artilheiros','garcons','goleiros','notas']
+ */
+function futCarreiraDestaquesDaCompeticao(array $estado, string $comp, int $quantos = 8): array
+{
+    $tab = futCarreiraTabelaDaCompeticao($estado, $comp);
+    if (!$tab) return ['artilheiros' => [], 'garcons' => [], 'goleiros' => [], 'notas' => []];
+
+    $clubes = futClubesDoBrasil();
+    $meu = (string)($estado['clube'] ?? '');
+
+    $gols = [];
+    $assist = [];
+    $goleiros = [];
+
+    foreach ($tab as $nome => $linha) {
+        $c = $clubes[$nome] ?? null;
+        if (!$c) continue;
+
+        /* O ELENCO DELE, do mesmo jeito que a tabela o enxergou. No meu clube
+           é o elenco de verdade — inclusive quem eu comprei no meio do ano. */
+        $elenco = $nome === $meu
+            ? ($estado['elenco'] ?? [])
+            : futElencoNoJogo($estado, $nome, (int)$c['forca']);
+        if (!$elenco) continue;
+
+        $esquema = $nome === $meu
+            ? ($estado['esquema'] ?? '4-4-2')
+            : array_keys(FUT_ESQUEMAS)[crc32($nome) % count(FUT_ESQUEMAS)];
+        $escalados = futEscalarAutomatico($elenco, $esquema);
+        if (!$escalados) continue;
+
+        // Os gols daquele clube, distribuídos entre quem joga nele.
+        mt_srand(crc32($nome . '|art|' . $comp . '|t' . ($estado['temporada'] ?? 0) . '|' . (int)$linha['gp']));
+        foreach (futAutoresDosGols($escalados, (int)$linha['gp']) as $g) {
+            $a = $g['autor']['nome'];
+            if (!isset($gols[$a])) {
+                $gols[$a] = ['nome' => $a, 'pos' => $g['autor']['pos'], 'clube' => $nome, 'gols' => 0];
+            }
+            $gols[$a]['gols']++;
+
+            if ($g['assistente']) {
+                $b = $g['assistente']['nome'];
+                if (!isset($assist[$b])) {
+                    $assist[$b] = ['nome' => $b, 'pos' => $g['assistente']['pos'], 'clube' => $nome, 'assist' => 0];
+                }
+                $assist[$b]['assist']++;
+            }
+        }
+        mt_srand();
+
+        // O goleiro do time e o que ele levou. Sem sorteio: a tabela já sabe.
+        foreach ($escalados as $j) {
+            if (($j['pos'] ?? '') !== 'GOL') continue;
+            $jogos = max(1, (int)$linha['j']);
+            $goleiros[] = ['nome' => $j['nome'], 'clube' => $nome, 'ovr' => (int)$j['ovr'],
+                           'sofridos' => (int)$linha['gc'], 'jogos' => $jogos,
+                           'media' => round((int)$linha['gc'] / $jogos, 2)];
+            break;
+        }
+    }
+
+    usort($gols, fn($a, $b) => $b['gols'] <=> $a['gols']);
+    usort($assist, fn($a, $b) => $b['assist'] <=> $a['assist']);
+    usort($goleiros, fn($a, $b) => [$a['media'], -$a['ovr']] <=> [$b['media'], -$b['ovr']]);
+
+    /* AS NOTAS SÃO SÓ DO SEU ELENCO, e isso é honesto: nota vem de partida
+       jogada, e os outros clubes não jogaram nenhuma — a tabela deles é
+       placar simulado, não boletim. Inventar nota pros 19 restantes seria
+       encher a tela de número que não existe. */
+    $notas = [];
+    foreach ($estado['stats'] ?? [] as $nome => $st) {
+        $j = (int)($st['jogos'] ?? 0);
+        if ($j < 3) continue;                       // menos de três jogos não faz média
+        $notas[] = ['nome' => $nome, 'pos' => $st['pos'] ?? '', 'jogos' => $j,
+                    'media' => round((float)$st['soma_notas'] / $j, 2)];
+    }
+    usort($notas, fn($a, $b) => $b['media'] <=> $a['media']);
+
+    return [
+        'artilheiros' => array_slice(array_values($gols), 0, $quantos),
+        'garcons'     => array_slice(array_values($assist), 0, $quantos),
+        'goleiros'    => array_slice($goleiros, 0, $quantos),
+        'notas'       => array_slice($notas, 0, $quantos),
+    ];
+}
+
 /** Onde o técnico terminou no estadual. Null quando o clube não disputa um. */
 function futCarreiraPosicaoNoEstadual(array $estado): ?int
 {
