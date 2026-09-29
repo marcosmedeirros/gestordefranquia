@@ -53,15 +53,18 @@ const LEILAO_SEMANA_PASSO = 5;
  * times com caixa grande revezavam entre si — o Chicago Bulls foi jogo da
  * semana em 12/09 e de novo em 19/09 na ROOKIE.
  *
- * Agora é QUATRO, que numa liga de um jogo por semana dá uma vez por mês.
- * Quem jogou fica de fora dos quatro seguintes e só volta no quinto.
+ * Agora são TRÊS. Numa liga de um jogo por semana isso é uma vez por mês, e a
+ * conta só fecha porque O JOGO JOGADO CONTA COMO O PRIMEIRO: jogou na semana
+ * 1, fica de fora da 2, da 3 e da 4, e volta na 5 — quatro semanas entre uma
+ * participação e a outra. Com quatro de quarentena seriam cinco semanas, que é
+ * mais do que um mês e mais do que a liga anunciou.
  *
  * A CONTA É DE JOGOS FECHADOS, não de dias de calendário: se uma semana
  * passar sem leilão, ela não gasta quarentena de ninguém. A regra que o jogo
- * promete é "só volta depois que outros quatro jogos aconteceram", e é essa
- * que dá pra cumprir sem depender de a liga fechar toda semana.
+ * promete é "só volta depois que outros três jogos aconteceram", e é essa que
+ * dá pra cumprir sem depender de a liga fechar toda semana.
  */
-const LEILAO_SEMANA_QUARENTENA = 4;
+const LEILAO_SEMANA_QUARENTENA = 3;
 
 const LEILAO_SEMANA_VAGAS = 2;
 
@@ -322,7 +325,7 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
     if ((int)$time['user_id'] !== $userId)         return $falha('Esse time não é seu.');
     if (strtoupper((string)$time['league']) !== $liga) return $falha('Você só dá lance na sua liga.');
 
-    /* RODÍZIO: quem foi jogo da semana fica de fora dos quatro seguintes.
+    /* RODÍZIO: quem foi jogo da semana fica de fora dos três seguintes.
        A recusa mora AQUI e não só na tela — esconder o campo não impede um
        POST. @see leilaoSemanaQuarentenaDoTime */
     $q = leilaoSemanaQuarentenaDoTime($pdo, $liga, $teamId, $temporada);
