@@ -328,6 +328,78 @@ foreach ($t['liberta']['grupos'] as $g) $nGrupos += count($g);
 ok('a Libertadores tem 32 na fase de grupos', $nGrupos === 32, "$nGrupos clubes");
 
 // ═════════════════════════════════════════════════════════════════════
+secao('Europa');
+
+$eu = futClubesDaEuropa();
+ok('114 clubes europeus', count($eu) === 114, count($eu) . ' clubes');
+
+$tamanhos = [];
+foreach (FUT_LIGAS_EU as $div => $m) $tamanhos[$m['nome']] = count(futClubesDaLigaEu($div));
+ok('cada liga com 18 ou 20 clubes',
+   count(array_filter($tamanhos, fn($n) => $n !== 18 && $n !== 20)) === 0,
+   implode(', ', array_map(fn($k, $v) => "$k $v", array_keys($tamanhos), $tamanhos)));
+
+/* NENHUM CLUBE EUROPEU PODE COLIDIR COM UM BRASILEIRO. O catálogo é indexado
+   por nome e o elenco é achado pelo slug: um nome repetido faria um clube
+   jogar com o elenco do outro, em silêncio e pra sempre. */
+$repetidos = array_intersect(array_keys($eu), array_keys(futClubesDoBrasil()));
+ok('nenhum nome repetido entre Brasil e Europa', $repetidos === [], implode(', ', $repetidos));
+ok('o mundo tem 212 clubes', count(futClubesDoJogo()) === 212, count(futClubesDoJogo()) . ' clubes');
+
+$semElenco = [];
+$foraDaEscala = [];
+foreach ($eu as $nome => $c) {
+    $elenco = futElencoDoClube($nome, (int)$c['forca']);
+    if (count($elenco) < 16) { $semElenco[] = $nome; continue; }
+    foreach ($elenco as $j) {
+        // 89 é FUT_OVR_TETO_JOGADOR, que mora no importador e não é carregado aqui.
+        if ((int)$j['ovr'] > 89) $foraDaEscala[] = $j['nome'] . ' ' . $j['ovr'];
+    }
+}
+ok('todo clube europeu tem elenco', $semElenco === [], implode(', ', array_slice($semElenco, 0, 4)));
+ok('ninguém passa de 89 de overall', $foraDaEscala === [], implode(', ', array_slice($foraDaEscala, 0, 4)));
+
+$forcas = array_column($eu, 'forca');
+ok('a força europeia cabe na régua do Brasil', max($forcas) <= 90 && min($forcas) >= 60,
+   min($forcas) . ' a ' . max($forcas));
+
+/* UMA TEMPORADA EUROPEIA INTEIRA. O Porto tem as três competições do ano —
+   liga, copa nacional e continental —, que é o caso completo. */
+$est = futCarreiraNova('Teste', 'Porto');
+$est['calendario'] = futCarreiraMontarCalendario($est);
+$comps = array_unique(array_column($est['calendario'], 'comp'));
+ok('o ano europeu tem liga, copa e continental', count($comps) === 3, implode(', ', $comps));
+ok('nenhum estadual na Europa',
+   !array_intersect($comps, array_values(FUT_ESTADUAIS)) && !array_intersect($comps, array_values(FUT_REGIONAIS)));
+
+while (true) { $r = futCarreiraJogarProxima($est); if ($r['fim']) break; $est = $r['estado']; }
+
+$tab = futCarreiraTabelaDaCompeticao($est, 'Liga Portugal');
+$jogos = array_column($tab, 'j');
+ok('a liga portuguesa fecha com todo mundo em 34',
+   $jogos && min($jogos) === 34 && max($jogos) === 34, ($jogos ? min($jogos) . '-' . max($jogos) : 'sem tabela'));
+
+$grupo = futCarreiraTabelaDaCompeticao($est, 'Champions League');
+ok('o grupo da Champions tem 4 clubes', count($grupo) === 4, count($grupo) . ' clubes');
+ok('o grupo conta só os 6 jogos da fase de grupos',
+   $grupo && max(array_column($grupo, 'j')) <= 6, 'máximo ' . ($grupo ? max(array_column($grupo, 'j')) : 0));
+
+/* A COPA TEM QUE ELIMINAR. Foi o bug da Copa do Brasil: o clube jogava as seis
+   fases ganhasse ou perdesse. As copas novas usam o mesmo caminho, então este
+   teste é o que garante que elas entraram na lista certa. */
+$daCopa = array_filter($est['resultados'], fn($r) => ($r['comp'] ?? '') === 'Taça de Portugal');
+$perdeu = false;
+foreach ($daCopa as $r) if ((int)$r['meus'] < (int)$r['deles']) $perdeu = true;
+ok('a copa nacional elimina quem perde',
+   !$perdeu || count($daCopa) <= 4, count($daCopa) . ' jogos na Taça');
+
+$f = futCarreiraFecharTemporada($est);
+ok('o ano europeu fecha e paga premiação', $f['relatorio']['posicao'] !== null,
+   $f['relatorio']['posicao'] . 'º, receita ' . $f['relatorio']['receita']);
+ok('a temporada 2 monta calendário de novo',
+   count(futCarreiraMontarCalendario($f['estado'])) > 30);
+
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);

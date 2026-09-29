@@ -156,6 +156,24 @@ function futSalarioDe(int $ovr, int $idade): float
  * verdade no jogo, em vez de ser só uma tabela diferente no ano seguinte.
  */
 const FUT_MULT_DIVISAO = ['BR1' => 1.0, 'BR2' => 0.32, 'BR3' => 0.11, 'BR4' => 0.10];
+
+/**
+ * E A EUROPA, onde o dinheiro e de outra ordem.
+ *
+ * A Premier fatura varias vezes o Brasileirao, e isso nao e detalhe: e o que
+ * faz dirigir la ser outro jogo. A folha tambem e varias vezes maior — os
+ * elencos de 80 de overall custam caro —, entao o multiplicador nao e dinheiro
+ * de graca: e a escala em que aquele campeonato funciona. Sem ele, o
+ * Manchester City fecharia o ano no vermelho com a receita de um clube da
+ * Serie A brasileira.
+ *
+ * A Liga Portugal fica ABAIXO do Brasileirao de proposito, e e verdade: la o
+ * clube grande vive de vender pra Inglaterra, que e exatamente o aperto que o
+ * tecnico do Porto tem que administrar no jogo.
+ */
+const FUT_MULT_LIGA_EU = [
+    'EN1' => 3.0, 'ES1' => 2.0, 'DE1' => 1.9, 'IT1' => 1.8, 'FR1' => 1.3, 'PT1' => 0.55,
+];
 const FUT_MULT_SEM_DIVISAO = 0.15;   // sem isto a receita nao cobria nem a folha minima
 
 /**
@@ -173,7 +191,7 @@ const FUT_MULT_SEM_DIVISAO = 0.15;   // sem isto a receita nao cobria nem a folh
  */
 function futReceitaAnual(int $forca, string $div): float
 {
-    $mult = FUT_MULT_DIVISAO[$div] ?? FUT_MULT_SEM_DIVISAO;
+    $mult = FUT_MULT_DIVISAO[$div] ?? FUT_MULT_LIGA_EU[$div] ?? FUT_MULT_SEM_DIVISAO;
     // A força entra ao cubo pela mesma razão que no valor: separa de verdade.
     $base = pow(max(30, $forca) / 70, 3.4) * 100;
     return round($base * $mult, 2);

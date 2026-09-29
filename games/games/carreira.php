@@ -335,7 +335,7 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
     exit;
 }
 $meuClube = $estado ? futCarreiraMeuClube($estado) : null;
-$clubesTodos = futClubesDoBrasil();
+$clubesTodos = futClubesDoJogo();
 
 /** Escapa pra HTML. */
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -986,7 +986,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
           <div class="grade-clubes">
             <?php foreach ($lista as $nome => $c): ?>
               <?php $meta = futMetaDaTemporada($c); ?>
-              <label class="clube-op" data-busca="<?= h(mb_strtolower($nome . ' ' . ($c['uf'] ?? ''))) ?>">
+              <label class="clube-op" data-busca="<?= h(mb_strtolower($nome . ' ' . ($c['uf'] ?: futPaisDoClube($c)))) ?>">
                 <input type="radio" name="clube" value="<?= h($nome) ?>"
                        data-nome="<?= h($nome) ?>" data-meta="<?= h($meta['texto']) ?>">
                 <span class="clube-op-in">
@@ -994,7 +994,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
                     <?= escudo($c, 28) ?>
                     <span class="clube-op-txt">
                       <span class="clube-op-nome"><?= h($nome) ?></span>
-                      <span class="clube-op-sub"><?= h($c['uf'] ?? '') ?> · força</span>
+                      <span class="clube-op-sub"><?= h($c['uf'] ?: futPaisDoClube($c)) ?> · força</span>
                     </span>
                     <span class="clube-op-forca"><?= (int)$c['forca'] ?></span>
                   </span>
@@ -2716,7 +2716,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             </div>
             <?php if ($campeao): ?>
               <div class="chave-titulo"><i class="bi bi-trophy-fill"></i>
-                Campeão d<?= stripos($compSel, 'copa') === 0 ? 'a' : 'o' ?> <?= h($compSel) ?></div>
+                Campeão d<?= futArtigoDaCompeticao($compSel) ?> <?= h($compSel) ?></div>
             <?php endif; ?>
           <?php endif; ?>
         <?php elseif (!$tab): ?>
@@ -2763,7 +2763,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
       ?>
       <?php if ($dest && ($dest['artilheiros'] || $dest['goleiros'])): ?>
         <div class="bloco">
-          <h3><i class="bi bi-award"></i> Destaques d<?= stripos($compSel, 'copa') === 0 ? 'a' : 'o' ?> <?= h($compSel) ?></h3>
+          <h3><i class="bi bi-award"></i> Destaques d<?= futArtigoDaCompeticao($compSel) ?> <?= h($compSel) ?></h3>
           <div class="destaques">
 
             <?php if ($dest['artilheiros']): ?>

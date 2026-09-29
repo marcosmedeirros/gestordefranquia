@@ -24,6 +24,7 @@ require_once __DIR__ . '/fut_mercado.php';
 require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao e fut_condicao
 require_once __DIR__ . '/fut_evolucao.php';
 require_once __DIR__ . '/fut_mundo.php';
+require_once __DIR__ . '/fut_europa.php';   // as seis ligas europeias
 
 /** A versão do save. Se o formato mudar, é por aqui que a migração começa. */
 const FUT_SAVE_VERSAO = 1;
@@ -50,6 +51,26 @@ const FUT_PREMIACAO = [
     'Copa do Nordeste'     => ['campeao' => 8,  'vice' => 4,  'top4' => 2,  'top8' => 1],
     'Copa Verde'           => ['campeao' => 5,  'vice' => 2,  'top4' => 1,  'top8' => 0],
     'estadual'             => ['campeao' => 6,  'vice' => 3,  'top4' => 1,  'top8' => 0],
+
+    /* ── A EUROPA ─────────────────────────────────────────────────────
+       Os números são maiores porque o dinheiro lá é maior, e é isso que faz
+       dirigir na Premier ser outro jogo: a mesma campanha rende o triplo, e a
+       folha também custa o triplo. A Champions paga mais que qualquer liga
+       nacional, como na vida — é ela que sustenta o elenco do clube grande. */
+    'Champions League'     => ['campeao' => 140, 'vice' => 70, 'top4' => 40, 'top8' => 24],
+    'Liga Europa'          => ['campeao' => 45,  'vice' => 22, 'top4' => 12, 'top8' => 7],
+    'Premier League'       => ['campeao' => 160, 'vice' => 90, 'top4' => 55, 'top8' => 28],
+    'La Liga'              => ['campeao' => 110, 'vice' => 60, 'top4' => 35, 'top8' => 18],
+    'Serie A'              => ['campeao' => 95,  'vice' => 52, 'top4' => 30, 'top8' => 15],
+    'Bundesliga'           => ['campeao' => 100, 'vice' => 55, 'top4' => 32, 'top8' => 16],
+    'Ligue 1'              => ['campeao' => 70,  'vice' => 38, 'top4' => 22, 'top8' => 11],
+    'Liga Portugal'        => ['campeao' => 30,  'vice' => 16, 'top4' => 9,  'top8' => 4],
+    'FA Cup'               => ['campeao' => 35,  'vice' => 16, 'top4' => 8,  'top8' => 4],
+    'Copa del Rey'         => ['campeao' => 25,  'vice' => 12, 'top4' => 6,  'top8' => 3],
+    'Coppa Italia'         => ['campeao' => 22,  'vice' => 10, 'top4' => 5,  'top8' => 3],
+    'DFB-Pokal'            => ['campeao' => 24,  'vice' => 11, 'top4' => 6,  'top8' => 3],
+    'Copa da França'       => ['campeao' => 16,  'vice' => 8,  'top4' => 4,  'top8' => 2],
+    'Taça de Portugal'     => ['campeao' => 8,   'vice' => 4,  'top4' => 2,  'top8' => 1],
 ];
 
 /**
@@ -83,7 +104,7 @@ function futMetaDaTemporada(array $clube): array
        e cumpria zero vezes em vinte temporadas, enquanto o pior da Série A
        recebia "escapar do rebaixamento" e também não cumpria. Ranqueando, a
        régua acompanha o catálogo sozinha. */
-    $divisao = futClubesDaDivisao($div);
+    $divisao = futClubesDaDivisaoDoJogo($div);
     uasort($divisao, fn($a, $b) => (int)$b['forca'] <=> (int)$a['forca']);
     $total = count($divisao);
     $lugar = 1;
@@ -103,8 +124,29 @@ function futMetaDaTemporada(array $clube): array
     $pisoTopo = max(2, (int)round($total * 0.15));
     $alvo = max($pisoTopo, min($total - 2, $lugar - $margem));
 
+    /* ── O TEXTO NA EUROPA ────────────────────────────────────────────
+       Lá não existe "subir para a Série A": o degrau de cima é a vaga
+       continental, e o número dela muda por liga — quarto lugar na Premier é
+       Champions, quarto em Portugal não é nem Liga Europa. Cobrar "top 4" sem
+       dizer o que ele vale esconde justamente a diferença entre as ligas. */
+    if (isset(FUT_LIGAS_EU[$div])) {
+        $m = FUT_LIGAS_EU[$div];
+        if ($alvo === 1) {
+            $texto = 'Ser campeão da ' . $m['nome'];
+        } elseif ($alvo <= $m['champions']) {
+            $texto = 'Vaga na Champions (top ' . $alvo . ')';
+        } elseif ($alvo <= $m['champions'] + $m['europa']) {
+            $texto = 'Vaga na Liga Europa (top ' . $alvo . ')';
+        } elseif ($alvo >= $total - $margem) {
+            $texto = 'Escapar do rebaixamento';
+        } else {
+            $texto = 'Terminar entre os ' . $alvo . ' primeiros';
+        }
+        return ['texto' => $texto, 'tipo' => 'posicao', 'alvo' => $alvo];
+    }
+
     // ── E o texto, que é o que o jogador lê ──────────────────────────
-    $acesso = ['BR2' => 'Série A', 'BR3' => 'Série B', 'BR4' => 'Série C'];
+    $acesso =['BR2' => 'Série A', 'BR3' => 'Série B', 'BR4' => 'Série C'];
     if ($alvo === 1) {
         $texto = $div === 'BR1' ? 'Ser campeão brasileiro' : 'Ser campeão da divisão';
     } elseif ($div === 'BR1' && $alvo <= 4) {
@@ -139,7 +181,7 @@ function futClubesParaComecar(int $reputacao): array
     };
 
     $out = [];
-    foreach (futClubesDoBrasil() as $c) {
+    foreach (futClubesDoJogo() as $c) {
         if ($c['forca'] > $tetoForca) continue;
         $out[$c['nome']] = $c;
     }
@@ -198,7 +240,7 @@ function futCarreiraApagar(PDO $pdo, int $userId): void
  */
 function futCarreiraNova(string $nomeTecnico, string $nomeClube, int $ano = 2026): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $clube = $clubes[$nomeClube] ?? null;
     if (!$clube) throw new InvalidArgumentException("Clube desconhecido: $nomeClube");
 
@@ -242,7 +284,7 @@ function futCarreiraNova(string $nomeTecnico, string $nomeClube, int $ano = 2026
  */
 function futCarreiraMeuClube(array $estado): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $c = $clubes[$estado['clube']] ?? ['nome' => $estado['clube'], 'forca' => 50, 'div' => '', 'uf' => '', 'escudo' => ''];
     /* A FORÇA DO ELENCO, e não a de campo.
        As duas existem e servem a perguntas diferentes: "quanto vale este
@@ -323,7 +365,7 @@ function futCarreiraNomeDaDivisao(string $div): string
         'BR2' => 'Brasileirão Série B',
         'BR3' => 'Brasileirão Série C',
         'BR4' => 'Brasileirão Série D',
-        default => '',
+        default => futNomeDaLigaEu($div),
     };
 }
 
@@ -344,7 +386,7 @@ function futCarreiraNomeDaDivisao(string $div): string
  */
 function futCarreiraCalendarioDaLiga(string $div): array
 {
-    $ids = array_keys(futClubesDaDivisao($div));
+    $ids = array_keys(futClubesDaDivisaoDoJogo($div));
     sort($ids);   // ordem fixa: é o que torna o round-robin reproduzível
     // A Série D tem 42 clubes: turno e returno ali dariam 82 rodadas.
     return futCalendario($ids, $div !== 'BR4');
@@ -365,7 +407,9 @@ function futCarreiraRotuloDaDivisao(string $div): string
         'BR2' => 'Série B',
         'BR3' => 'Série C',
         'BR4' => 'Série D',
-        default => 'estadual',
+        /* Clube europeu devolve o nome da liga; brasileiro sem divisão devolve
+           'estadual', que é o que ele de fato disputa. */
+        default => futRotuloDaLigaEu($div) ?: 'estadual',
     };
 }
 
@@ -383,9 +427,20 @@ function futCarreiraRotuloDaDivisao(string $div): string
 function futCarreiraMontarCalendario(array $estado): array
 {
     $meu = $estado['clube'];
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $eu = $clubes[$meu] ?? null;
     if (!$eu) return [];
+
+    /* ── A EUROPA TEM OUTRO ANO ───────────────────────────────────────
+       Lá não há estadual nem copa regional, e há uma continental pra quem se
+       classificou. O formato inteiro é outro, então ele é montado à parte
+       (@see fut_europa.php) — só a numeração das rodadas é comum aos dois. */
+    if (futEhClubeEuropeu($meu)) {
+        $cal = futCalendarioEuropeu($estado, $clubes, $eu);
+        foreach ($cal as $i => &$j) $j['rodada'] = $i + 1;
+        unset($j);
+        return $cal;
+    }
 
     $abertura = [];   // o começo do ano: estadual e regional
     $miolo = [];      // o resto: nacional e Copa do Brasil
@@ -501,7 +556,7 @@ function futCarreiraJogarProxima(array $estado): array
     if ($i >= count($cal)) return ['fim' => true, 'jogo' => null, 'estado' => $estado];
 
     $j = $cal[$i];
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $esquema = $estado['esquema'] ?? '4-4-2';
 
     $meus = futCarreiraEscalacaoAtual($estado);
@@ -602,7 +657,7 @@ const FUT_AOVIVO_PASSO = 5;
  */
 function futAoVivoAdversario(array $estado, string $adversario, int $rodada): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $c = $clubes[$adversario] ?? ['nome' => $adversario, 'forca' => 50, 'div' => '', 'uf' => '', 'escudo' => ''];
 
     $elenco = futCondicaoSimulada(
@@ -882,7 +937,7 @@ function futCarreiraAoVivoFechar(array $estado): array
  */
 function futCarreiraEhMataMata(string $comp, string $fase): bool
 {
-    if (!in_array($comp, ['Copa do Brasil', 'Libertadores', 'Sul-Americana'], true)) return false;
+    if (!in_array($comp, futCopasDeMataMata(), true)) return false;
     return stripos($fase, 'grupo') === false;
 }
 
@@ -919,7 +974,7 @@ function futCarreiraResolverMataMata(array $estado, array $resultado): array
         $passou = false;
     } else {
         $penaltis = true;
-        $clubes = futClubesDoBrasil();
+        $clubes = futClubesDoJogo();
         $minha = (int)futCarreiraMeuClube($estado)['forca'];
         $dele = (int)($clubes[$resultado['adversario']]['forca'] ?? 50);
         $passou = futPenaltis($minha, $dele);
@@ -986,7 +1041,7 @@ function futCarreiraCampanha(array $estado, ?string $comp = null): array
  */
 function futCarreiraTabelaEstadual(array $estado): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $eu = $clubes[$estado['clube']] ?? null;
     $uf = $eu['uf'] ?? '';
     if ($uf === '' || !isset(FUT_ESTADUAIS[$uf])) return [];
@@ -1001,6 +1056,10 @@ function futCarreiraTabelaEstadual(array $estado): array
     $meus = [];
     foreach ($estado['resultados'] ?? [] as $r) {
         if (($r['comp'] ?? '') !== $comp) continue;
+        /* NA CONTINENTAL A MESMA COMPETIÇÃO TEM GRUPO E MATA-MATA. Sem este
+           filtro as oitavas entrariam na classificação do grupo, e o clube
+           apareceria com oito jogos numa tabela de seis. */
+        if ($soFase !== '' && ($r['fase'] ?? '') !== $soFase) continue;
         $meus[] = $r;
     }
     if (!$meus) return [];
@@ -1039,7 +1098,7 @@ function futCarreiraTabelaEstadual(array $estado): array
  * pra tabela ter sentido — sem isso ele apareceria sozinho com pontos e todo
  * o resto zerado.
  */
-function futCarreiraTabelaDeGrupo(array $estado, array $clubes, string $comp): array
+function futCarreiraTabelaDeGrupo(array $estado, array $clubes, string $comp, string $soFase = ''): array
 {
     $times = futCarreiraTimes($clubes, $estado);
     $porNome = [];
@@ -1049,6 +1108,10 @@ function futCarreiraTabelaDeGrupo(array $estado, array $clubes, string $comp): a
     $meus = [];
     foreach ($estado['resultados'] ?? [] as $r) {
         if (($r['comp'] ?? '') !== $comp) continue;
+        /* NA CONTINENTAL A MESMA COMPETIÇÃO TEM GRUPO E MATA-MATA. Sem este
+           filtro as oitavas entrariam na classificação do grupo, e o clube
+           apareceria com oito jogos numa tabela de seis. */
+        if ($soFase !== '' && ($r['fase'] ?? '') !== $soFase) continue;
         $meus[] = $r;
     }
     if (!$meus) return [];
@@ -1100,7 +1163,7 @@ function futCarreiraCompeticoesDoAno(array $estado): array
     /* QUEM TEM TABELA é quem joga todo mundo contra todo mundo: o nacional, o
        estadual e a copa regional na fase de grupos. Mata-mata não tem
        classificação, e inventar uma seria mentir pro técnico. */
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $eu = $clubes[$estado['clube']] ?? [];
     $comTabela = [];
     $div = $eu['div'] ?? '';
@@ -1109,6 +1172,15 @@ function futCarreiraCompeticoesDoAno(array $estado): array
     if ($uf !== '' && isset(FUT_ESTADUAIS[$uf])) $comTabela[] = FUT_ESTADUAIS[$uf];
     $regiao = $eu['regiao'] ?? '';
     if ($regiao !== '' && isset(FUT_REGIONAIS[$regiao])) $comTabela[] = FUT_REGIONAIS[$regiao];
+
+    /* A continental só tem tabela SE o clube chegou a jogar a fase de grupos.
+       Quem entrou direto no mata-mata (ou nem se classificou) não tem grupo, e
+       mostrar uma classificação vazia é pior do que não mostrar nenhuma. */
+    foreach ($estado['calendario'] ?? [] as $j) {
+        if (($j['fase'] ?? '') !== 'Fase de grupos') continue;
+        if (!in_array($j['comp'], FUT_CONTINENTAIS_EU, true)) continue;
+        $comTabela[] = $j['comp'];
+    }
 
     foreach ($out as $c => $d) $out[$c]['tabela'] = in_array($c, $comTabela, true);
     return $out;
@@ -1119,12 +1191,29 @@ function futCarreiraCompeticoesDoAno(array $estado): array
  */
 function futCarreiraTabelaDaCompeticao(array $estado, string $comp): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $eu = $clubes[$estado['clube']] ?? [];
 
     $div = $eu['div'] ?? '';
     if ($div !== '' && $comp === futCarreiraNomeDaDivisao($div)) {
         return futCarreiraTabelaNacional($estado);
+    }
+
+    /* A CONTINENTAL: a tabela é a do grupo do clube — ele e os três que caíram
+       com ele —, e só conta os seis jogos da fase de grupos. */
+    if (in_array($comp, FUT_CONTINENTAIS_EU, true)) {
+        $grupo = [$eu];
+        $vistos = [$estado['clube'] => true];
+        foreach ($estado['calendario'] ?? [] as $j) {
+            if (($j['comp'] ?? '') !== $comp || ($j['fase'] ?? '') !== 'Fase de grupos') continue;
+            $n = (string)$j['adversario'];
+            if (isset($vistos[$n]) || !isset($clubes[$n])) continue;
+            $vistos[$n] = true;
+            $grupo[] = $clubes[$n];
+        }
+        return count($grupo) > 1
+            ? futCarreiraTabelaDeGrupo($estado, $grupo, $comp, 'Fase de grupos')
+            : [];
     }
 
     $uf = $eu['uf'] ?? '';
@@ -1175,7 +1264,7 @@ function futCarreiraDestaquesDaCompeticao(array $estado, string $comp, int $quan
     $tab = futCarreiraTabelaDaCompeticao($estado, $comp);
     if (!$tab) return ['artilheiros' => [], 'garcons' => [], 'goleiros' => [], 'notas' => []];
 
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $meu = (string)($estado['clube'] ?? '');
 
     $gols = [];
@@ -1269,12 +1358,12 @@ function futCarreiraPosicaoNoEstadual(array $estado): ?int
 
 function futCarreiraTabelaNacional(array $estado): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $div = $clubes[$estado['clube']]['div'] ?? '';
     if ($div === '') return [];
 
     $comp = futCarreiraNomeDaDivisao($div);
-    $times = futCarreiraTimes(futClubesDaDivisao($div), $estado);
+    $times = futCarreiraTimes(futClubesDaDivisaoDoJogo($div), $estado);
     $porNome = [];
     foreach ($times as $t) $porNome[$t['nome']] = $t;
 
@@ -1335,7 +1424,7 @@ function futCarreiraMinhaPosicao(array $estado): ?int
 function futCarreiraFecharTemporada(array $estado): array
 {
     $clube = futCarreiraMeuClube($estado);
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $div = $clubes[$estado['clube']]['div'] ?? '';
 
     $receita = futReceitaAnual((int)($clubes[$estado['clube']]['forca'] ?? 50), $div);
@@ -1343,7 +1432,12 @@ function futCarreiraFecharTemporada(array $estado): array
     $posicao = futCarreiraMinhaPosicao($estado);
 
     // ── Premiação pela campanha no nacional ──────────────────────────
-    $comp = $div === 'BR1' ? 'Brasileirão Série A' : ($div === 'BR2' ? 'Brasileirão Série B' : '');
+    /* A COMPETIÇÃO QUE JULGA O ANO é a liga nacional do clube. No Brasil só a
+       A e a B pagam premiação; na Europa todas as seis pagam, e é por isso que
+       lá um ano mediano ainda fecha no azul. */
+    $comp = in_array($div, ['BR1', 'BR2'], true) || isset(FUT_LIGAS_EU[$div])
+        ? futCarreiraNomeDaDivisao($div)
+        : '';
     $premio = 0;
     if ($comp !== '' && $posicao !== null && isset(FUT_PREMIACAO[$comp])) {
         $t = FUT_PREMIACAO[$comp];
@@ -1487,7 +1581,7 @@ function futCarreiraFecharTemporada(array $estado): array
  */
 function futCarreiraTrocarDeClube(array $estado, string $novoClube): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $c = $clubes[$novoClube] ?? null;
     if (!$c) return ['ok' => false, 'motivo' => 'Clube desconhecido.', 'estado' => $estado];
 
@@ -1533,7 +1627,7 @@ function futCarreiraPedirEmprestado(array $estado, string $clubeDono, string $jo
 {
     $falha = fn(string $m) => ['ok' => false, 'motivo' => $m, 'estado' => $estado];
 
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $dono = $clubes[$clubeDono] ?? null;
     if (!$dono) return $falha('Clube desconhecido.');
     if ($clubeDono === ($estado['clube'] ?? '')) return $falha('Esse jogador já é seu.');
@@ -1626,7 +1720,7 @@ function futCarreiraDevolverEmprestados(array $estado): array
 
 function futCarreiraComprar(array $estado, string $clubeVendedor, string $jogador, float $oferta): array
 {
-    $clubes = futClubesDoBrasil();
+    $clubes = futClubesDoJogo();
     $vendedor = $clubes[$clubeVendedor] ?? null;
     if (!$vendedor) return ['ok' => false, 'motivo' => 'Clube desconhecido.', 'estado' => $estado];
 
