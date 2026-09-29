@@ -408,10 +408,44 @@ function futEscudoDoClube(string $nome, string $doCatalogo = ''): string
             $naPasta[pathinfo($f, PATHINFO_FILENAME)] = basename($f);
         }
     }
-    $slug = futSlugDoClube($nome);
-    if (isset($naPasta[$slug])) return '../img/escudos/' . $naPasta[$slug];
+
+    /* DUAS GRAFIAS SERVEM. futSlugDoClube nao conhece o 'o' cortado do sueco
+       nem o 's' com cedilha do turco, entao 'Malmo' vira 'malm' e 'Besiktas'
+       vira 'be-ikta' — nomes que ninguem adivinha na hora de salvar o arquivo.
+       Mexer no slug renomearia os 114 arquivos de elenco que ja nascem com
+       ele; aceitar as duas grafias custa uma linha e resolve pra quem esta do
+       lado de fora. */
+    foreach ([futSlugDoClube($nome), futSlugSolto($nome)] as $slug) {
+        if ($slug !== '' && isset($naPasta[$slug])) return '../img/escudos/' . $naPasta[$slug];
+    }
 
     return $doCatalogo;
+}
+
+/**
+ * O NOME VIRADO ARQUIVO, com a mao mais larga que futSlugDoClube.
+ *
+ * Serve so pra ACHAR escudo solto na pasta (@see futEscudoDoClube), e nunca
+ * pra gravar nada: o slug oficial continua sendo o outro, porque e ele que ja
+ * nomeia os 114 arquivos de elenco. Aqui a lista de acentos e maior, e um
+ * caractere desconhecido some em vez de virar hifen — que e o que faz
+ * 'malmo.png' e 'besiktas.png' funcionarem.
+ */
+function futSlugSolto(string $nome): string
+{
+    $s = strtr(mb_strtolower($nome, 'UTF-8'), [
+        'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','ă'=>'a',
+        'é'=>'e','ê'=>'e','è'=>'e','ë'=>'e','ě'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i','ı'=>'i',
+        'ó'=>'o','ô'=>'o','õ'=>'o','ò'=>'o','ö'=>'o','ø'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+        'ç'=>'c','ć'=>'c','č'=>'c','ñ'=>'n','ń'=>'n','ý'=>'y',
+        'ż'=>'z','ź'=>'z','ž'=>'z','ł'=>'l','ś'=>'s','š'=>'s',
+        'ş'=>'s','ș'=>'s','ř'=>'r','ğ'=>'g','ț'=>'t','đ'=>'d',
+        'æ'=>'ae','ß'=>'ss',
+    ]);
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim((string)$s, '-');
 }
 
 /** Os clubes de uma divisão nacional. */
