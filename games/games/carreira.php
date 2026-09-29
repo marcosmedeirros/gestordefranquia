@@ -54,8 +54,8 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                outro grupo na tela: o formulário é do navegador, e trocar o
                valor de um radio é a coisa mais fácil do mundo. */
             $disponiveis = ($_POST['modo'] ?? '') === 'convites'
-                ? futConvitesDeEstreia(crc32('estreia|' . $idUsuario))
-                : futClubesParaComecar(10);
+                ? futConvitesDeEstreia(futSementeDeEstreia($idUsuario, (int)($_POST['sorteio'] ?? 0)))
+                : futClubesParaEscolher();
 
             if (!isset($disponiveis[$clube])) {
                 $erro = 'Esse clube não está disponível para quem está começando.';
@@ -335,6 +335,18 @@ if ($aba === 'jogo') $aba = 'inicio';
 /* A BUSCA RESPONDE EM JSON E SAI ANTES DO HTML. Ela é chamada a cada pausa na
    digitação: devolver a página inteira por tecla seria mandar 70 KB pra
    preencher uma lista de seis linhas. */
+/* SORTEAR DE NOVO sem recarregar: o nome que o jogador já digitou fica onde
+   está, e a lista troca embaixo dele. */
+if ($idUsuario > 0 && !$estado && ($_GET['json'] ?? '') === 'convites') {
+    $n = max(0, min(999, (int)($_GET['sorteio'] ?? 0)));
+    $cs = futConvitesDeEstreia(futSementeDeEstreia($idUsuario, $n));
+    $html = '';
+    foreach ($cs as $nomeC => $c) $html .= cartaoDeConvite($nomeC, $c);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['sorteio' => $n, 'html' => $html], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($estado && ($_GET['json'] ?? '') === 'busca') {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(futCarreiraBuscar($estado, (string)($_GET['q'] ?? '')),
@@ -458,6 +470,31 @@ function textoSobre(string $hex): string
     $canal = fn(float $c) => ($c /= 255) <= 0.04045 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
     $lum = 0.2126 * $canal($r) + 0.7152 * $canal($g) + 0.0722 * $canal($b);
     return $lum > 0.42 ? '#07100a' : '#ffffff';
+}
+
+/**
+ * O CARTÃO DE UM CLUBE QUE TE PROCUROU.
+ *
+ * Mora numa função porque a lista nasce duas vezes: quando a página abre e
+ * quando o jogador manda sortear de novo. Escrita nos dois lugares, ela ia
+ * divergir na primeira mudança — e o jeito de descobrir seria o cartão
+ * sorteado ficar diferente do cartão de abertura.
+ */
+function cartaoDeConvite(string $nome, array $c): string
+{
+    $meta = futMetaDaTemporada($c);
+    return '<label class="clube-op">'
+      . '<input type="radio" name="clube" value="' . h($nome) . '" disabled'
+      . ' data-nome="' . h($nome) . '" data-meta="' . h($meta['texto']) . '">'
+      . '<span class="clube-op-in"><span class="clube-op-cab">'
+      . escudo($c, 28)
+      . '<span class="clube-op-txt">'
+      . '<span class="clube-op-nome">' . h($nome) . '</span>'
+      . '<span class="clube-op-sub">' . h($c['uf'] ?: futPaisDoClube($c))
+      . ' · ' . h(futCarreiraRotuloDaDivisao((string)$c['div'])) . '</span>'
+      . '</span></span>'
+      . '<span class="clube-op-meta"><i class="bi bi-bullseye"></i>' . h($meta['texto']) . '</span>'
+      . '</span></label>';
 }
 
 function escudo(array $c, int $tam = 26): string
@@ -1407,26 +1444,32 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
        item de menu. Em card dá pra ver o escudo, a força e, principalmente, o
        que a diretoria vai cobrar: é isso que separa assumir um clube de
        assumir outro. */
-    $disponiveis = futClubesParaComecar(10);
+    $disponiveis = futClubesParaEscolher();
     $porDivisao = [];
     foreach ($disponiveis as $nome => $c) $porDivisao[$c['div']][$nome] = $c;
     ksort($porDivisao);
 
-    /* Os cinco que procuram um técnico sem nome. A semente é do usuário, então
-       recarregar a página não troca os convites — ver futConvitesDeEstreia. */
-    $convites = futConvitesDeEstreia(crc32('estreia|' . $idUsuario));
+    /* Os cinco que procuram um técnico sem nome. O número do sorteio entra na
+       semente: recarregar a página não muda nada, e só o botão muda. */
+    $sorteio = max(0, min(999, (int)($_GET['sorteio'] ?? 0)));
+    $convites = futConvitesDeEstreia(futSementeDeEstreia($idUsuario, $sorteio));
   ?>
+  <?php /* O TEXTO DIZIA "os grandes não te atendem", e desde que a lista abriu
+       isso virou mentira: o Real Madrid está lá, a duas rolagens daqui. Um
+       jogo que descreve errado a própria tela ensina a não ler o que ele
+       escreve. Então ele passa a dizer a verdade — dá pra começar em
+       qualquer um, e começar por cima é abrir mão da parte que é subir. */ ?>
   <div class="hero">
-    <h2>Comece de baixo</h2>
-    <p>Você ainda não tem currículo, então os grandes não te atendem. Cumpra a meta que a
-       diretoria cobra, ganhe reputação, e os convites melhores aparecem sozinhos —
-       até a Premier League, a La Liga, a Serie A, a Bundesliga, a Ligue 1 e a Liga Portugal,
-       que estão no jogo e esperam por currículo.</p>
+    <h2>Escolha onde começar</h2>
+    <p>Todo clube do jogo aceita você, do time da Série D ao Real Madrid — mas assumir
+       um grande é assumir a cobrança de um grande, e quem começa no topo troca a
+       carreira inteira por uma temporada. Do outro lado, cinco clubes ligam sozinhos:
+       é o começo de quem pega o que aparece.</p>
     <div class="passos">
       <span class="passo"><i class="bi bi-1-circle-fill"></i> Assuma um clube</span>
       <span class="passo"><i class="bi bi-2-circle-fill"></i> Cumpra a meta da temporada</span>
-      <span class="passo"><i class="bi bi-3-circle-fill"></i> Suba de divisão</span>
-      <span class="passo"><i class="bi bi-4-circle-fill"></i> Atravesse o Atlântico</span>
+      <span class="passo"><i class="bi bi-3-circle-fill"></i> Ganhe reputação</span>
+      <span class="passo"><i class="bi bi-4-circle-fill"></i> Escolha o próximo clube</span>
     </div>
   </div>
 
@@ -1448,8 +1491,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <span class="porta-in">
             <i class="bi bi-hand-index-thumb"></i>
             <span class="porta-tit">Eu escolho o clube</span>
-            <span class="porta-sub">Os <?= count($disponiveis) ?> times que aceitam um técnico sem
-              currículo. Você olha um por um e decide.</span>
+            <span class="porta-sub">Todos os <?= count($disponiveis) ?> clubes do jogo, do Brasil à
+              Europa. Começar no topo é pular a subida — e a subida é metade do jogo.</span>
           </span>
         </label>
         <label class="porta">
@@ -1457,37 +1500,29 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <span class="porta-in">
             <i class="bi bi-telephone"></i>
             <span class="porta-tit">Começo desempregado</span>
-            <span class="porta-sub"><?= count($convites) ?> clubes te procuram, e só eles. Menos
-              escolha — mas quem liga primeiro costuma mirar um pouco mais alto.</span>
+            <span class="porta-sub"><?= count($convites) ?> clubes te procuram, e só eles. Dá pra
+              pedir outra leva, mas não pra escolher a dedo.</span>
           </span>
         </label>
       </div>
     </div>
 
     <div class="bloco" id="caixaConvites" hidden>
-      <h3><i class="bi bi-telephone-fill"></i> Quem te procurou</h3>
-      <p class="porta-nota">Foram esses que ligaram. Recarregar a página não muda a lista —
-         num começo de carreira o técnico pega o que aparece.</p>
-      <div class="grade-clubes">
+      <h3><i class="bi bi-telephone-fill"></i> Quem te procurou
+        <button type="button" class="btn sec peq" id="btSortear">
+          <i class="bi bi-shuffle"></i> Outra leva</button></h3>
+      <?php /* DÁ PRA PEDIR OUTRA LEVA. Antes a lista era fixa por jogador, pra
+           a porta do desemprego não virar "insistir até sair o clube que eu
+           queria" — mas isso valia quando escolher dava só os 63 times de
+           baixo. Agora escolher dá o jogo inteiro, então sortear de novo não
+           alcança nada que a outra porta já não dê: sobrou a graça do sorteio,
+           e um sorteio de uma vez só é um seletor pior. */ ?>
+      <p class="porta-nota">Foram esses que ligaram. Recarregar a página não muda a lista;
+         o botão aí em cima chama outros cinco.</p>
+      <input type="hidden" name="sorteio" id="sorteio" value="<?= (int)$sorteio ?>">
+      <div class="grade-clubes" id="gradeConvites">
         <?php foreach ($convites as $nome => $c): ?>
-          <?php $meta = futMetaDaTemporada($c); ?>
-          <label class="clube-op">
-            <input type="radio" name="clube" value="<?= h($nome) ?>" disabled
-                   data-nome="<?= h($nome) ?>" data-meta="<?= h($meta['texto']) ?>">
-            <span class="clube-op-in">
-              <span class="clube-op-cab">
-                <?= escudo($c, 28) ?>
-                <span class="clube-op-txt">
-                  <span class="clube-op-nome"><?= h($nome) ?></span>
-                  <span class="clube-op-sub"><?= h($c['uf'] ?: futPaisDoClube($c)) ?>
-                    · <?= h(futCarreiraRotuloDaDivisao((string)$c['div'])) ?></span>
-                </span>
-              </span>
-              <span class="clube-op-meta">
-                <i class="bi bi-bullseye"></i><?= h($meta['texto']) ?>
-              </span>
-            </span>
-          </label>
+          <?= cartaoDeConvite($nome, $c) ?>
         <?php endforeach; ?>
       </div>
     </div>
@@ -1503,7 +1538,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         <div class="divisao">
           <div class="divisao-cab">
             <b><?= h(futCarreiraRotuloDaDivisao((string)$div)) ?></b>
-            <span><?= count($lista) ?> clube<?= count($lista) === 1 ? '' : 's' ?></span>
+            <?php /* A conta é redesenhada pela busca: "La Liga · 20 clubes" com
+                 dois cartões na tela é a tela desmentindo a si mesma. */ ?>
+            <span data-conta><?= count($lista) ?> clube<?= count($lista) === 1 ? '' : 's' ?></span>
           </div>
           <div class="grade-clubes">
             <?php foreach ($lista as $nome => $c): ?>
@@ -1587,8 +1624,33 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
     });
     trocarPorta();
 
-    /* A busca é local: com 64 clubes, achar o seu time não pode custar uma
-       ida ao servidor. Esconde o cabeçalho da divisão que ficou sem ninguém. */
+    /* ── OUTRA LEVA ──────────────────────────────────────────────────
+       Troca só os cartões: o nome que a pessoa já digitou continua no lugar,
+       e o campo escondido guarda qual sorteio está na tela — é ele que o
+       servidor confere na hora de fechar, senão daria pra mandar um clube de
+       uma leva que nunca apareceu. */
+    var btSortear = document.getElementById('btSortear');
+    var grade = document.getElementById('gradeConvites');
+    var campoSorteio = document.getElementById('sorteio');
+    if (btSortear) {
+      btSortear.addEventListener('click', function () {
+        var n = (parseInt(campoSorteio.value, 10) || 0) + 1;
+        btSortear.disabled = true;
+        fetch(location.pathname + '?json=convites&sorteio=' + n)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            grade.innerHTML = d.html;
+            campoSorteio.value = d.sorteio;
+            trocarPorta();          // os radios novos nascem no estado certo
+          })
+          .catch(function () {})
+          .then(function () { btSortear.disabled = false; });
+      });
+    }
+
+    /* A busca é local: achar o seu time no meio do jogo inteiro não pode
+       custar uma ida ao servidor. Esconde o cabeçalho da divisão que ficou
+       sem ninguém. */
     busca.addEventListener('input', function () {
       var termo = busca.value.trim().toLowerCase();
       var achou = 0;
@@ -1599,6 +1661,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           op.hidden = !bate;
           if (bate) visiveis++;
         });
+        var conta = bloco.querySelector('[data-conta]');
+        if (conta) conta.textContent = visiveis + (visiveis === 1 ? ' clube' : ' clubes');
         bloco.hidden = visiveis === 0;
         achou += visiveis;
       });

@@ -567,6 +567,53 @@ ok('esquema que não existe é recusado',
 $estF['aovivo']['minuto'] = 90;
 ok('esquema não muda com a partida acabada',
    futCarreiraAoVivoFormacao($estF, '4-3-3')['ok'] === false);
+/* ── AS DUAS PORTAS DE ENTRADA ───────────────────────────────────────
+   Escolher dá o jogo inteiro; o convite dá cinco sorteados. O que não
+   pode entrar em nenhuma das duas é clube sem campeonato: os convidados
+   das continentais existem pra ter quem enfrentar, não pra dirigir. */
+$todosP = futClubesParaEscolher();
+$divsP = [];
+foreach ($todosP as $c) $divsP[$c['div']] = ($divsP[$c['div']] ?? 0) + 1;
+
+ok('escolher abre as dez divisões do jogo', count($divsP) === 10, implode(', ', array_keys($divsP)));
+ok('as seis ligas europeias estão na porta de entrada',
+   count(array_intersect(array_keys(FUT_LIGAS_EU), array_keys($divsP))) === count(FUT_LIGAS_EU));
+ok('clube sem campeonato não é oferecido',
+   count(array_filter($todosP, fn($c) => ($c['div'] ?? '') === FUT_DIV_CONVIDADO)) === 0);
+
+/* O MAIOR CLUBE DO JOGO ESTÁ NA LISTA — era isso que o teto de 63 barrava. */
+$maisForte = 0;
+foreach ($todosP as $c) $maisForte = max($maisForte, (int)$c['forca']);
+ok('dá pra escolher o clube mais forte do jogo', $maisForte >= 85, 'força máxima ' . $maisForte);
+
+/* ── O SORTEIO DE ESTREIA ────────────────────────────────────────────
+   Mesma leva pra mesma semente (recarregar a página não muda nada) e
+   leva diferente quando o jogador pede outra. */
+$leva0 = array_keys(futConvitesDeEstreia(futSementeDeEstreia(7, 0)));
+ok('a mesma leva sai igual duas vezes',
+   $leva0 === array_keys(futConvitesDeEstreia(futSementeDeEstreia(7, 0))),
+   implode(', ', $leva0));
+
+$iguais = 0;
+for ($k = 1; $k <= 6; $k++) {
+    if (array_keys(futConvitesDeEstreia(futSementeDeEstreia(7, $k))) === $leva0) $iguais++;
+}
+ok('pedir outra leva muda a leva', $iguais <= 1, $iguais . ' de 6 saíram iguais');
+
+/* E dois jogadores diferentes não recebem a mesma ligação. */
+ok('cada jogador tem a sua leva',
+   array_keys(futConvitesDeEstreia(futSementeDeEstreia(7, 0)))
+   !== array_keys(futConvitesDeEstreia(futSementeDeEstreia(8, 0))));
+
+/* A leva continua sendo de começo de carreira: sortear de novo não pode
+   ser um atalho pro topo, senão a porta da sorte vira a porta boa. */
+$forteDaLeva = 0;
+for ($k = 0; $k <= 8; $k++) {
+    foreach (futConvitesDeEstreia(futSementeDeEstreia(7, $k)) as $c) {
+        $forteDaLeva = max($forteDaLeva, (int)$c['forca']);
+    }
+}
+ok('o convite nunca passa do teto de estreia', $forteDaLeva <= 63, 'mais forte convidado: ' . $forteDaLeva);
 /* ── INVERTER DOIS QUE JÁ ESTÃO EM CAMPO ─────────────────────────────
    Passar o lateral pra zaga era a única mexida que o jogo não deixava
    fazer: dava pra trocar de esquema e pra substituir, mas o lugar de cada

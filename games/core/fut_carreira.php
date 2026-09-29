@@ -192,8 +192,42 @@ function futClubesParaComecar(int $reputacao, ?int $teto = null): array
     return $out;
 }
 
+/**
+ * TODOS OS CLUBES QUE TÊM CAMPEONATO — a lista de quem ESCOLHE o clube.
+ *
+ * A porta do "eu escolho" mostrava só os 63 que um técnico sem currículo
+ * conseguiria: a mesma régua de reputação que vale pro resto da carreira.
+ * Ela foi aberta de propósito. Quem escolhe o primeiro clube está dizendo
+ * qual time quer dirigir — o dele, o da cidade, o Real Madrid —, e recusar
+ * isso na tela de abertura não protege nada: o jogo não tem placar global
+ * pra defender, e quem quiser começar no Bayern só estaria adiando.
+ *
+ * O PREÇO ESTÁ NO JOGO, NÃO NA LISTA. Assumir um grande é assumir a meta de
+ * um grande: o Bayern cobra título, e não cumprir demite igual. Subir de
+ * currículo é metade da graça, e quem pula essa metade escolheu pular.
+ *
+ * FICAM DE FORA os 58 convidados das continentais (FUT_DIV_CONVIDADO): esses
+ * não têm liga nenhuma no jogo, então não têm temporada pra dirigir.
+ */
+function futClubesParaEscolher(): array
+{
+    return futClubesParaComecar(0, 100);
+}
+
 /** Quantos clubes procuram um técnico sem currículo. */
 const FUT_CONVITES_ESTREIA = 5;
+
+/**
+ * A SEMENTE DE UM SORTEIO DE ESTREIA.
+ *
+ * Num lugar só porque a tela, o endpoint do botão e a conferência do POST
+ * têm que chegar todos na mesma lista — se divergissem, o jogador veria
+ * cinco clubes e o servidor recusaria os cinco.
+ */
+function futSementeDeEstreia(int $idUsuario, int $sorteio): int
+{
+    return crc32('estreia|' . $idUsuario . '|' . max(0, $sorteio));
+}
 
 /**
  * OS CLUBES QUE TE PROCURAM quando a carreira começa sem emprego.
@@ -206,21 +240,23 @@ const FUT_CONVITES_ESTREIA = 5;
  *
  * ── A TROCA É CONTROLE POR ALCANCE ───────────────────────────────────
  *
- * Escolher dá 60 e tantos clubes pra olhar, e todos dentro do que um técnico
- * sem nome consegue. Esperar convite dá CINCO, sem poder trocar — mas a régua
- * sobe um degrau, porque clube que procura técnico está com pressa e olha um
- * pouco acima do que deveria. Sem esse degrau a segunda porta seria a primeira
- * com menos opções, ou seja, pior sem compensação nenhuma.
+ * Escolher dá o jogo inteiro pra olhar, um por um. Esperar convite dá CINCO,
+ * sorteados na faixa de quem aceita um técnico sem nome — é o começo de
+ * carreira de verdade, em que não se escolhe onde começar. As duas portas
+ * não competem: uma é a vontade, a outra é a sorte.
  *
  * OS CINCO NÃO SÃO OS CINCO MAIORES. Eles são espalhados pela faixa toda, pra
  * a escolha ser entre um clube maior com cobrança pesada e um projeto
  * tranquilo — que é a decisão que interessa. Pegar os cinco do topo daria
  * cinco versões do mesmo convite.
  *
- * A SEMENTE É FIXA por jogador: recarregar a página não troca os convites.
- * Isso é regra de jogo, não detalhe técnico — se desse pra sortear de novo,
- * a escolha viraria insistir até sair o clube que se queria, e aí valia mais
- * ter escolhido.
+ * A SEMENTE VEM DE FORA, e o número do sorteio entra nela: recarregar a
+ * página não muda nada, e só o botão "outra leva" muda. Isso já foi o
+ * contrário — a lista era fixa por jogador, pra esta porta não virar
+ * "insistir até sair o clube que eu queria". A trava caiu junto com o teto
+ * da outra porta: agora quem escolhe escolhe entre TODOS os clubes, então
+ * sortear de novo não alcança nada que a outra porta já não dê de graça.
+ * Sobrou a graça do sorteio, e um sorteio de uma vez só é um seletor pior.
  *
  * @return array nome => clube, do mais forte pro mais fraco
  */
