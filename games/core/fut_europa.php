@@ -35,25 +35,35 @@ require_once __DIR__ . '/fut_elencos.php';
  * Liverpool, e é a diferença entre dirigir numa liga grande e numa pequena.
  */
 const FUT_LIGAS_EU = [
-    'EN1' => ['nome' => 'Premier League', 'curto' => 'Premier League', 'pais' => 'ENG',
+    'EN1' => ['rebaixa' => 3, 'nome' => 'Premier League', 'curto' => 'Premier League', 'pais' => 'ENG',
               'paisNome' => 'Inglaterra', 'copa' => 'FA Cup',
               'champions' => 4, 'europa' => 2],
-    'ES1' => ['nome' => 'La Liga',        'curto' => 'La Liga',        'pais' => 'ESP',
+    'ES1' => ['rebaixa' => 3, 'nome' => 'La Liga',        'curto' => 'La Liga',        'pais' => 'ESP',
               'paisNome' => 'Espanha',    'copa' => 'Copa del Rey',
               'champions' => 4, 'europa' => 2],
-    'IT1' => ['nome' => 'Serie A',        'curto' => 'Serie A',        'pais' => 'ITA',
+    'IT1' => ['rebaixa' => 3, 'nome' => 'Serie A',        'curto' => 'Serie A',        'pais' => 'ITA',
               'paisNome' => 'Itália',     'copa' => 'Coppa Italia',
               'champions' => 4, 'europa' => 2],
-    'DE1' => ['nome' => 'Bundesliga',     'curto' => 'Bundesliga',     'pais' => 'GER',
+    'DE1' => ['rebaixa' => 2, 'nome' => 'Bundesliga',     'curto' => 'Bundesliga',     'pais' => 'GER',
               'paisNome' => 'Alemanha',   'copa' => 'DFB-Pokal',
               'champions' => 4, 'europa' => 2],
-    'FR1' => ['nome' => 'Ligue 1',        'curto' => 'Ligue 1',        'pais' => 'FRA',
+    'FR1' => ['rebaixa' => 2, 'nome' => 'Ligue 1',        'curto' => 'Ligue 1',        'pais' => 'FRA',
               'paisNome' => 'França',     'copa' => 'Copa da França',
               'champions' => 3, 'europa' => 2],
-    'PT1' => ['nome' => 'Liga Portugal',  'curto' => 'Liga Portugal',  'pais' => 'POR',
+    'PT1' => ['rebaixa' => 2, 'nome' => 'Liga Portugal',  'curto' => 'Liga Portugal',  'pais' => 'POR',
               'paisNome' => 'Portugal',   'copa' => 'Taça de Portugal',
               'champions' => 2, 'europa' => 2],
 ];
+
+/**
+ * `rebaixa` é quantos caem no fim do ano. Não é um número redondo por liga
+ * porque não é redondo na vida: Inglaterra, Espanha e Itália rebaixam três
+ * direto; Alemanha, França e Portugal rebaixam dois e mandam o antepenúltimo
+ * pra um playoff que o jogo não disputa — então aqui eles rebaixam dois.
+ *
+ * A tela usa isso pra pintar a zona vermelha da classificação. Sem ele, a
+ * tabela europeia herdava a regra brasileira e marcava quatro.
+ */
 
 /** As duas continentais, da maior pra menor. */
 const FUT_CONTINENTAIS_EU = ['Champions League', 'Liga Europa'];
@@ -318,6 +328,25 @@ function futCopasDeMataMata(): array
     $out = ['Copa do Brasil', 'Libertadores', 'Sul-Americana'];
     foreach (FUT_LIGAS_EU as $m) $out[] = $m['copa'];
     return $cache = array_merge($out, FUT_CONTINENTAIS_EU);
+}
+
+/**
+ * AS FAIXAS PINTADAS DA CLASSIFICAÇÃO: quantos sobem e quantos caem.
+ *
+ * Uma função pros dois mundos porque a tabela é a mesma tela. No Brasil,
+ * "verde" é acesso à divisão de cima e a Série D não tem queda; na Europa não
+ * existe divisão de cima no jogo — o verde lá é a vaga continental, que é o
+ * prêmio de terminar em cima, e é o que a diretoria cobra.
+ *
+ * @return array{0:int,1:int} [quantos no verde, quantos no vermelho]
+ */
+function futZonasDaTabela(string $div): array
+{
+    if (isset(FUT_LIGAS_EU[$div])) {
+        $m = FUT_LIGAS_EU[$div];
+        return [$m['champions'] + $m['europa'], $m['rebaixa']];
+    }
+    return [$div === 'BR1' ? 0 : 4, $div === 'BR4' ? 0 : 4];
 }
 
 /** O nome da liga nacional europeia, ou '' se a divisão não for de lá. */

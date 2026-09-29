@@ -23,6 +23,10 @@
 session_start();
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../core/fut_carreira.php';
+/* As cores de cada clube. Opcional de propósito: o jogo roda inteiro sem elas
+   (cai no verde padrão), e quem clona o projeto sem rodar o extrator não fica
+   com uma tela quebrada. */
+if (is_file(__DIR__ . '/../core/fut_cores.php')) require_once __DIR__ . '/../core/fut_cores.php';
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 $pdo = db();
@@ -363,6 +367,43 @@ function iniciaisDoClube(string $nome): string
     return mb_strtoupper(mb_substr($partes[0], 0, 2));
 }
 
+/**
+ * AS DUAS CORES DO CLUBE, pra tela vestir a camisa dele.
+ *
+ * Elas saem do escudo (@see games/core/fut_importar_cores_cli.php) e não de
+ * uma lista escrita à mão — com 212 clubes, a lista seria 212 chances de errar
+ * a cor de um clube que o dono do jogo conhece de cor.
+ *
+ * O VERDE PADRÃO NÃO É ERRO. Clube sem escudo não tem cor extraída, e cair no
+ * verde do jogo é melhor do que sortear um matiz: cor errada é pior do que cor
+ * genérica, porque cor errada parece uma afirmação.
+ *
+ * @return array{0:string,1:string} [sotaque, fundo]
+ */
+function coresDoClube(string $nome): array
+{
+    if ($nome !== '' && defined('FUT_CORES_CLUBE') && isset(FUT_CORES_CLUBE[$nome])) {
+        return FUT_CORES_CLUBE[$nome];
+    }
+    return ['#22c55e', '#0d4f27'];
+}
+
+/**
+ * PRETO OU BRANCO EM CIMA DA COR DO CLUBE.
+ *
+ * O botão principal é preenchido com o sotaque, e o sotaque vai de amarelo
+ * (Dortmund) a azul-escuro. Uma cor de texto fixa erra metade dos clubes: em
+ * cima do amarelo, branco some; em cima do azul, preto some. A conta é a
+ * luminância relativa do W3C, a mesma que decide contraste acessível.
+ */
+function textoSobre(string $hex): string
+{
+    [$r, $g, $b] = array_map('hexdec', str_split(ltrim($hex, '#'), 2));
+    $canal = fn(float $c) => ($c /= 255) <= 0.04045 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+    $lum = 0.2126 * $canal($r) + 0.7152 * $canal($g) + 0.0722 * $canal($b);
+    return $lum > 0.42 ? '#07100a' : '#ffffff';
+}
+
 function escudo(array $c, int $tam = 26): string
 {
     $url = $c['escudo'] ?? '';
@@ -392,15 +433,37 @@ if ($estado && ($estado['fase'] ?? '') === 'temporada') {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Carreira — Técnico de Futebol</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<?php $corDoClube = coresDoClube((string)($estado['clube'] ?? '')); ?>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
+/* O CLUBE PINTA A PÁGINA — ver coresDoClube(). Vem antes do resto do
+   estilo pra qualquer regra abaixo poder usar, e depois do :root padrão
+   não: é o :root padrão que define o valor de reserva. */
 :root{
-  --bg:#0a0a0c; --panel:#131316; --panel2:#1a1a1f; --panel3:#212127;
-  --borda:#26262d; --borda2:#33333c;
-  --txt:#f4f4f5; --txt2:#a1a1aa; --txt3:#71717a;
+  /* O CINZA TEM VIÉS FRIO, e isso é escolha: o cinza neutro puro é o cinza de
+     painel administrativo, e era exatamente o que a tela parecia. Um sopro de
+     azul no preto dá a noite de estádio sem custar contraste. */
+  --bg:#07090c; --panel:#101318; --panel2:#151921; --panel3:#1c212a;
+  --borda:#232834; --borda2:#313746;
+  --txt:#f2f4f7; --txt2:#98a1b0; --txt3:#68707e;
   --verde:#16a34a; --verde-claro:#22c55e; --vermelho:#ef4444;
   --amarelo:#f59e0b; --azul:#3b82f6;
+
+  /* ── O SOTAQUE É DO CLUBE ──────────────────────────────────────────
+     Estes três são reescritos no #app com as cores do escudo do clube que
+     você dirige (@see fut_cores.php). Dirigir o Porto deixa a tela azul e
+     dirigir o Flamengo deixa vermelha — é a coisa que mais separa "jogo" de
+     "painel", e a que faltava.
+
+     O VERDE CONTINUA SENDO O VERDE DO RESULTADO. Vitória, overall bom e nota
+     alta seguem verdes em clube nenhum: se eles virassem a cor do clube, o
+     técnico do Flamengo leria a tabela com vitória vermelha. */
+  --acento:#22c55e; --acento-2:#0d4f27; --acento-rgb:34,197,94;
+
+  --display:'Barlow Condensed','Inter',system-ui,sans-serif;
 }
+<?php /* As duas cores do escudo do clube que você dirige. */ ?>
+:root{--acento:<?= h($corDoClube[0]) ?>;--acento-2:<?= h($corDoClube[1]) ?>;--acento-txt:<?= h(textoSobre($corDoClube[0])) ?>}
 *{box-sizing:border-box}
 /* O atributo hidden precisa vencer os display:flex e inline-flex deste
    arquivo. Sem isto, esconder as abas ou um botao nao escondia nada. */
@@ -409,6 +472,10 @@ body{margin:0;background:var(--bg);color:var(--txt);font-family:'Inter',system-u
   font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 #app{max-width:1100px;margin:0 auto;padding:16px 14px 80px}
 h1,h2,h3{margin:0;letter-spacing:-.4px}
+/* NÚMERO EM COLUNA PRECISA DE LARGURA FIXA. Sem isto a tabela de
+   classificação treme a cada rodada: o 1 é mais estreito que o 8, e as
+   colunas de pontos e saldo dançam de linha pra linha. */
+table,.num,.ficha .v,.placar,.ovr,.nota{font-variant-numeric:tabular-nums}
 button,input,select{font-family:inherit}
 a{color:inherit}
 
@@ -418,41 +485,92 @@ a{color:inherit}
 /* ── Topo ───────────────────────────────────────────── */
 .topo{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .marca{display:flex;align-items:center;gap:9px;font-weight:900;font-size:17px;letter-spacing:-.6px}
-.marca i{color:var(--verde-claro)}
+.marca i{color:var(--acento)}
 .voltar{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;
   border:1px solid var(--borda);background:transparent;color:var(--txt2);text-decoration:none;flex-shrink:0}
-.voltar:hover{border-color:var(--verde);color:var(--verde-claro)}
+.voltar:hover{border-color:var(--acento);color:var(--acento)}
 
-/* ── Cartão do clube ────────────────────────────────── */
-.clube-card{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
-  border-radius:14px;padding:14px;margin-bottom:14px}
-.clube-topo{display:flex;align-items:center;gap:12px}
-.clube-nome{font-size:19px;font-weight:900;letter-spacing:-.5px;line-height:1.15}
-.clube-sub{font-size:12px;color:var(--txt2)}
-.fichas{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
-.ficha{background:var(--panel3);border:1px solid var(--borda);border-radius:10px;padding:8px 9px;text-align:center}
-.ficha .v{font-size:16px;font-weight:900;letter-spacing:-.5px;line-height:1.1}
-.ficha .r{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+/* ── A FAIXA DO CLUBE ───────────────────────────────────────────────
+   Era um retângulo cinza com o escudo de 42px e quatro caixinhas iguais —
+   o mesmo cartão que qualquer painel de qualquer coisa tem. Agora ele veste
+   a camisa: a segunda cor do escudo faz o fundo, a primeira faz o filete de
+   cima, e o próprio escudo entra gigante e apagado no canto, como a parede
+   de um vestiário. As listras são as do gramado recém-cortado, a 2% de
+   opacidade — só o bastante pra a superfície não ser chapada. */
+.clube-card{position:relative;overflow:hidden;border:1px solid var(--borda);
+  border-radius:16px;padding:16px;margin-bottom:14px;
+  background:linear-gradient(150deg, var(--acento-2), var(--panel));
+  background:
+    radial-gradient(120% 140% at 88% 0%, color-mix(in srgb, var(--acento-2) 62%, transparent) 0%, transparent 62%),
+    repeating-linear-gradient(112deg, rgba(255,255,255,.022) 0 26px, transparent 26px 52px),
+    linear-gradient(150deg, var(--panel2), var(--panel))}
+.clube-card::before{content:'';position:absolute;inset:0 0 auto;height:3px;
+  background:var(--acento);
+  background:linear-gradient(90deg, var(--acento), color-mix(in srgb, var(--acento) 30%, transparent))}
+.clube-marca{position:absolute;right:-26px;top:50%;transform:translateY(-50%);
+  width:190px;height:190px;opacity:.07;pointer-events:none;object-fit:contain;filter:grayscale(.2)}
+.clube-topo{display:flex;align-items:center;gap:13px;position:relative}
+.clube-nome{font-family:var(--display);font-size:33px;font-weight:700;letter-spacing:.2px;
+  line-height:.98;text-transform:uppercase}
+.clube-sub{font-size:12px;color:var(--txt2);margin-top:2px}
+
+/* AS QUATRO FICHAS SEM CAIXA. Quatro retângulos com borda ao lado de um
+   cartão com borda dentro de uma página de cartões com borda é onde a
+   hierarquia morre. Aqui elas são separadas por um fio e o número é que
+   carrega o peso. */
+.fichas{display:grid;grid-template-columns:repeat(4,1fr);margin-top:14px;position:relative;
+  border-top:1px solid var(--borda);padding-top:12px}
+.ficha{padding:0 10px;text-align:left;border-left:1px solid var(--borda)}
+.ficha:first-child{border-left:0;padding-left:0}
+.ficha .v{font-family:var(--display);font-size:27px;font-weight:700;letter-spacing:0;line-height:1}
+.ficha .r{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.7px;margin-top:1px;
+  font-weight:700}
+@media (max-width:560px){
+  .clube-nome{font-size:27px}
+  .ficha .v{font-size:22px}
+  .clube-marca{width:140px;right:-34px}
+}
 .meta-linha{margin-top:10px;padding:9px 11px;border-radius:9px;background:rgba(245,158,11,.10);
   border:1px solid rgba(245,158,11,.28);font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
 .meta-linha i{color:var(--amarelo);margin-top:1px}
 
 /* ── Abas ───────────────────────────────────────────── */
-.abas{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-.abas a{flex:0 0 auto;padding:8px 14px;border-radius:9px;border:1px solid var(--borda);background:var(--panel);
-  color:var(--txt2);text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap}
-.abas a.on{background:var(--verde);border-color:var(--verde);color:#fff}
+/* ── AS ABAS ────────────────────────────────────────────────────────
+   Eram oito pílulas cinzas numa faixa com barra de rolagem à mostra — no
+   celular, a barra ocupava tanto quanto as abas. Agora é uma régua: o item
+   ativo é marcado por baixo, na cor do clube, e a rolagem continua existindo
+   sem aparecer. O véu na direita é o que avisa que há mais abas adiante, que
+   é o trabalho que a barra fazia feio. */
+.abas{position:relative;display:flex;gap:2px;margin-bottom:16px;overflow-x:auto;
+  border-bottom:1px solid var(--borda);-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent)}
+.abas::-webkit-scrollbar{display:none}
+.abas a{flex:0 0 auto;padding:9px 13px 10px;color:var(--txt3);text-decoration:none;
+  font-size:13px;font-weight:700;white-space:nowrap;border-bottom:2px solid transparent;
+  margin-bottom:-1px;transition:color .15s}
+.abas a:hover{color:var(--txt)}
+.abas a.on{color:var(--txt);border-bottom-color:var(--acento)}
 
 /* ── Blocos ─────────────────────────────────────────── */
-.bloco{background:var(--panel);border:1px solid var(--borda);border-radius:13px;padding:14px;margin-bottom:12px}
+.bloco{background:var(--panel);border:1px solid var(--borda);border-radius:14px;padding:15px;margin-bottom:12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
 .bloco h3{font-size:14px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:7px}
-.bloco h3 i{color:var(--verde-claro)}
+.bloco h3 i{color:var(--acento)}
+/* O TÍTULO DO BLOCO EM CONDENSADA E CAIXA ALTA. Em Inter 14 semibold ele
+   tinha exatamente o mesmo peso visual que o conteúdo abaixo, e a tela virava
+   uma coluna de texto sem degraus. */
+.bloco h3{font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--txt)}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border-radius:10px;
-  border:1px solid var(--verde);background:var(--verde);color:#fff;font-weight:800;font-size:14px;cursor:pointer}
-.btn:hover{background:var(--verde-claro)}
-.btn.sec{background:transparent;color:var(--txt2);border-color:var(--borda2)}
-.btn.sec:hover{color:var(--txt);border-color:var(--txt3)}
+  border:0;background:var(--acento);color:var(--acento-txt);font-weight:800;font-size:14px;cursor:pointer;
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset}
+.btn:hover{filter:brightness(1.12)}
+/* O BOTAO SECUNDARIO PRECISA DA BORDA DE VOLTA. O principal perdeu a dele
+   quando passou a ser preenchido com a cor do clube, e o secundario so
+   trocava a COR da borda — ficou sem contorno nenhum, um texto solto. */
+.btn.sec{background:transparent;color:var(--txt2);border:1px solid var(--borda2);box-shadow:none}
+.btn.sec:hover{color:var(--txt);border-color:var(--txt3);filter:none}
 .btn.peq{padding:6px 11px;font-size:12px;border-radius:8px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 
@@ -504,11 +622,11 @@ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weig
 .voltar-linha{margin-bottom:12px}
 .voltar-linha a{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--txt2);
   text-decoration:none}
-.voltar-linha a:hover{color:var(--verde-claro)}
+.voltar-linha a:hover{color:var(--acento)}
 .elo{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
   background:var(--panel3);border:1px solid var(--borda);font-size:11px;font-weight:700;color:var(--txt2)}
 a.link-jogo{color:inherit;text-decoration:none;border-bottom:1px dotted var(--borda2)}
-a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
+a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .barra-skill{display:flex;align-items:center;gap:9px;padding:5px 0}
 .barra-skill .r{font-size:11.5px;color:var(--txt2);width:96px;flex-shrink:0}
 .barra-skill .t{flex:1;height:6px;border-radius:999px;background:var(--panel3);overflow:hidden}
@@ -525,7 +643,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   background:rgba(0,0,0,.35);border:1px solid var(--borda);font-variant-numeric:tabular-nums;
   font-weight:800;font-size:13px;color:var(--txt)}
 .viv-tempo{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:700;margin-right:8px}
-.relogio .bolinha{width:7px;height:7px;border-radius:50%;background:var(--verde-claro)}
+.relogio .bolinha{width:7px;height:7px;border-radius:50%;background:var(--acento)}
 .relogio.rolando .bolinha{animation:pulso 1.1s ease-in-out infinite}
 .relogio.parado .bolinha{background:var(--amarelo);animation:none}
 @keyframes pulso{0%,100%{opacity:1}50%{opacity:.25}}
@@ -538,7 +656,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .viv-num{font-size:40px;font-weight:900;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
 .viv-x{font-size:15px;color:var(--txt3);font-weight:800;padding:0 2px}
 .viv-barra{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:14px}
-.viv-barra span{display:block;height:100%;background:var(--verde);width:0;transition:width .45s linear}
+.viv-barra span{display:block;height:100%;background:var(--acento);width:0;transition:width .45s linear}
 
 .viv-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
@@ -574,7 +692,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
 .destaque-linha .v{font-weight:900;font-variant-numeric:tabular-nums;flex-shrink:0;min-width:34px;
   text-align:right}
-.destaque-linha.eu{color:var(--verde-claro)}
+.destaque-linha.eu{color:var(--acento)}
 .destaque-nota{font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.4}
 
 /* ── O caminho na copa ──────────────────────────────── */
@@ -625,7 +743,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 /* A camisa de quem acabou de aparecer no lance */
 .camisa.pulsou{z-index:5}
 .camisa.pulsou .bola{border-color:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.25)}
-.camisa.gol .bola{border-color:var(--verde-claro);
+.camisa.gol .bola{border-color:#ffffff;box-shadow:0 0 0 3px rgba(34,197,94,.75);
   box-shadow:0 0 0 7px rgba(34,197,94,.45);animation:bateu .5s ease}
 .camisa.cartao .bola{border-color:var(--amarelo);box-shadow:0 0 0 5px rgba(245,158,11,.4)}
 .camisa.expulso .bola{border-color:#ef4444;box-shadow:0 0 0 5px rgba(239,68,68,.45);opacity:.55}
@@ -638,7 +756,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s;pointer-events:none}
 .viv-agora.aparece{opacity:1;transform:none}
 .viv-agora b{font-weight:800}
-.viv-agora .min{font-weight:800;color:var(--verde-claro);margin-right:5px}
+.viv-agora .min{font-weight:800;color:var(--acento);margin-right:5px}
 
 /* O GOL toma a tela por um segundo e meio */
 .viv-gol{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
@@ -655,7 +773,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .viv-pressao{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:10.5px;
   text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);font-weight:700}
 .viv-pressao .trilho{flex:1;height:5px;border-radius:999px;background:var(--panel3);overflow:hidden}
-.viv-pressao .trilho i{display:block;height:100%;background:var(--verde);width:50%;
+.viv-pressao .trilho i{display:block;height:100%;background:var(--acento);width:50%;
   transition:width .6s ease}
 
 @media (max-width:520px){
@@ -669,7 +787,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .viv-num-linha .n{font-weight:800;font-variant-numeric:tabular-nums;text-align:center}
 .viv-num-barra{height:5px;border-radius:999px;background:var(--panel3);overflow:hidden;display:flex}
 .viv-num-barra i{display:block;height:100%}
-.viv-num-barra i.eu{background:var(--verde)}
+.viv-num-barra i.eu{background:var(--acento)}
 .viv-num-barra i.ele{background:var(--borda2)}
 .viv-num-rot{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;
   text-align:center;margin-top:2px}
@@ -707,7 +825,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
   border:1px solid var(--borda2);border-radius:15px;padding:16px;animation:sobe .18s ease}
 @keyframes sobe{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 .popup h4{margin:0 0 4px;font-size:15px;font-weight:900;letter-spacing:-.4px;display:flex;align-items:center;gap:8px}
-.popup h4 i{color:var(--verde-claro)}
+.popup h4 i{color:var(--acento)}
 .popup-sub{color:var(--txt2);font-size:12.5px;margin:0 0 14px}
 .popup-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
 
@@ -736,7 +854,7 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 .hero p{margin:0;color:var(--txt2);font-size:13.5px;max-width:62ch}
 .passos{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap}
 .passo{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt2)}
-.passo i{color:var(--verde-claro);font-size:14px}
+.passo i{color:var(--acento);font-size:14px}
 
 .campo-busca{margin-bottom:12px}
 .conta{margin-left:auto;font-size:11px;color:var(--txt3);font-weight:600;letter-spacing:.3px}
@@ -787,12 +905,21 @@ a.link-jogo:hover{color:var(--verde-claro);border-bottom-color:var(--verde)}
 /* ── Tabelas ────────────────────────────────────────── */
 .rolar{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:460px}
-th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);
-  padding:6px 7px;border-bottom:1px solid var(--borda);font-weight:700;white-space:nowrap}
-td{padding:7px;border-bottom:1px solid var(--borda);white-space:nowrap}
-tr:last-child td{border-bottom:0}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--txt3);
+  padding:7px;border-bottom:1px solid var(--borda2);font-weight:700;white-space:nowrap}
+/* ZEBRA NO LUGAR DE UM FIO POR LINHA. Numa tabela de 20 clubes, vinte fios da
+   mesma cor viram grade — e grade é o que faz uma tabela parecer planilha. A
+   faixa alternada separa igual e não desenha nada. */
+td{padding:7px;border:0;white-space:nowrap}
+tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
+tbody tr:hover td{background:rgba(255,255,255,.045)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
+/* A LINHA DO SEU CLUBE NA COR DO SEU CLUBE — era verde em toda carreira, o
+   que deixava o técnico do Porto com a própria linha destoando da página. */
+tr.eu td,tbody tr.eu:nth-child(even) td{
+  background:rgba(255,255,255,.07);
+  background:color-mix(in srgb, var(--acento) 13%, transparent);font-weight:700}
+tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .pos{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;
   background:var(--panel3);font-size:11px;font-weight:800;color:var(--txt2)}
 .pos.sobe{background:rgba(34,197,94,.20);color:var(--verde-claro)}
@@ -803,6 +930,10 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 .ovr.b{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.35);color:var(--verde-claro)}
 .ovr.m{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:var(--amarelo)}
 .tagpos{font-size:10px;font-weight:800;color:var(--txt3);letter-spacing:.4px}
+/* Escudo e nome na mesma célula, alinhados pela base do texto. */
+.clube-cel{display:inline-flex;align-items:center;gap:8px;border-bottom:0}
+.clube-cel span{border-bottom:1px solid transparent}
+.clube-cel:hover span{border-bottom-color:var(--acento)}
 
 /* ── Resultado da partida ───────────────────────────── */
 .partida{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--borda)}
@@ -860,11 +991,19 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 .campo .area.baixo{bottom:0;border-bottom:0}
 .camisa{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;
   gap:2px;width:60px;text-align:center}
-.camisa .bola{width:30px;height:30px;border-radius:50%;background:var(--panel);border:2px solid rgba(255,255,255,.55);
+/* A BOLA COM A COR DO CLUBE. Onze círculos cinza-escuros sobre o gramado é
+   um diagrama; onze círculos azuis é o Porto entrando em campo. O contorno
+   claro segura a leitura do número em cima de qualquer cor — inclusive nas
+   camisas claras, onde o fundo do círculo fica mais escuro que o sotaque. */
+.camisa .bola{width:30px;height:30px;border-radius:50%;
+  background:var(--acento);border:2px solid rgba(255,255,255,.55);
+  background:color-mix(in srgb, var(--acento) 78%, #04070d);
+  border:2px solid color-mix(in srgb, var(--acento) 55%, #ffffff);
   display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:#fff;
   box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .camisa .bola.improv{border-color:#fbbf24;background:#78350f}
 .camisa .bola.vazio{border-style:dashed;opacity:.55}
+.camisa .bola{color:var(--acento-txt)}
 .camisa .nom{font-size:9.5px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9);
   line-height:1.15;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .camisa .vg{font-size:8px;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.3px}
@@ -881,7 +1020,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 /* ── Banco e escalação interativa ───────────────────── */
 .dica-drag{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;margin-bottom:10px;
   background:var(--panel3);border:1px solid var(--borda);font-size:12px;color:var(--txt2)}
-.dica-drag i{color:var(--verde-claro)}
+.dica-drag i{color:var(--acento)}
 .slot{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .slot:active{cursor:grabbing}
 .slot:focus-visible{outline:2px solid var(--verde-claro);outline-offset:2px}
@@ -892,7 +1031,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 
 .banco{margin-bottom:12px}
 .banco-titulo{font-size:12px;font-weight:800;margin-bottom:7px;display:flex;align-items:center;gap:6px}
-.banco-titulo i{color:var(--verde-claro)}
+.banco-titulo i{color:var(--acento)}
 .banco-lista{display:flex;flex-wrap:wrap;gap:6px}
 .reserva{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:9px;
   background:var(--panel3);border:1px solid var(--borda);font-size:12px}
@@ -909,12 +1048,16 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
 .btn.pulsa{animation:pulsa 1.1s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.btn.pulsa{animation:none}}
 
-/* ── Celular ────────────────────────────────────────── */
+/* ── Celular ────────────────────────────────────────────────────────
+   AS QUATRO FICHAS VIRAM 2x2, e aí o fio da esquerda que separa colunas
+   passa a cortar no lugar errado: a terceira ficha começa uma linha nova e
+   herdava o fio como se fosse vizinha da segunda. Aqui a grade tem folga
+   vertical e só a coluna da direita leva fio. */
 @media (max-width:560px){
   #app{padding:12px 12px 80px}
-  .fichas{grid-template-columns:repeat(2,1fr)}
-  .clube-nome{font-size:17px}
-  .ficha .v{font-size:15px}
+  .fichas{grid-template-columns:repeat(2,1fr);row-gap:12px}
+  .ficha{padding-left:12px}
+  .ficha:nth-child(odd){border-left:0;padding-left:0}
   table{min-width:420px}
 }
 </style>
@@ -952,11 +1095,14 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   <div class="hero">
     <h2>Comece de baixo</h2>
     <p>Você ainda não tem currículo, então os grandes não te atendem. Cumpra a meta que a
-       diretoria cobra, ganhe reputação, e os convites melhores aparecem sozinhos.</p>
+       diretoria cobra, ganhe reputação, e os convites melhores aparecem sozinhos —
+       até a Premier League, a La Liga, a Serie A, a Bundesliga, a Ligue 1 e a Liga Portugal,
+       que estão no jogo e esperam por currículo.</p>
     <div class="passos">
       <span class="passo"><i class="bi bi-1-circle-fill"></i> Escolha um clube</span>
       <span class="passo"><i class="bi bi-2-circle-fill"></i> Cumpra a meta da temporada</span>
       <span class="passo"><i class="bi bi-3-circle-fill"></i> Suba de divisão</span>
+      <span class="passo"><i class="bi bi-4-circle-fill"></i> Atravesse o Atlântico</span>
     </div>
   </div>
 
@@ -1693,6 +1839,15 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
   <?php endif; ?>
 
   <div class="clube-card" <?= $emCampo ? 'hidden' : '' ?>>
+    <?php
+      /* O ESCUDO GRANDE E APAGADO NO CANTO. É decoração, e por isso sai do
+         fluxo e não tem alt: quem usa leitor de tela já ouviu o nome do clube
+         na linha abaixo, e repetir o escudo só atrapalharia. */
+      $escudoUrl = (string)($clubesTodos[$estado['clube']]['escudo'] ?? '');
+    ?>
+    <?php if ($escudoUrl !== ''): ?>
+      <img class="clube-marca" src="<?= h($escudoUrl) ?>" alt="" aria-hidden="true">
+    <?php endif; ?>
     <div class="clube-topo">
       <?= escudo($clubesTodos[$estado['clube']] ?? ['nome' => $estado['clube']], 42) ?>
       <div style="min-width:0">
@@ -1873,7 +2028,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               $k = $ini;
             ?>
             <?php foreach ($trecho as $nome => $l): $k++; ?>
-              <div class="mini-linha" style="<?= $nome === $estado['clube'] ? 'color:var(--verde-claro);font-weight:700' : '' ?>">
+              <div class="mini-linha" style="<?= $nome === $estado['clube'] ? 'color:var(--acento);font-weight:700' : '' ?>">
                 <span class="pos"><?= $k ?></span>
                 <span class="esq"><?= h($nome) ?></span>
                 <span class="dir"><?= (int)$l['p'] ?> pts</span>
@@ -2134,7 +2289,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
             <div class="lance <?= $ev['meu'] ? '' : 'deles' ?>">
               <span class="min"><?= (int)$ev['minuto'] ?>'</span>
               <?php if ($ev['tipo'] === 'gol'): ?>
-                <i class="bi bi-dribbble" style="color:var(--verde-claro)"></i>
+                <i class="bi bi-dribbble" style="color:var(--acento)"></i>
                 <span class="quem"><?= h($ev['jogador']) ?></span>
                 <?php if (!empty($ev['assistente'])): ?>
                   <span class="det">assist. <?= h($ev['assistente']) ?></span>
@@ -2727,17 +2882,21 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
               <th class="num">V</th><th class="num">E</th><th class="num">D</th><th class="num">SG</th></tr></thead>
             <tbody>
             <?php
-              /* DA SÉRIE D NINGUÉM CAI — ela é o fundo da escada. E só o
-                 nacional tem acesso e queda: num estadual ou numa copa
-                 regional, pintar as pontas seria inventar regra. */
+              /* SÓ O NACIONAL TEM ZONA PINTADA: num estadual ou numa copa
+                 regional, pintar as pontas seria inventar regra. Quantos
+                 sobem e quantos caem depende da liga — a Série D não rebaixa
+                 ninguém e a Bundesliga rebaixa dois (@see futZonasDaTabela). */
               $ehNacional = $compSel === futCarreiraNomeDaDivisao($divAtual) && $divAtual !== '';
-              $temQueda = $ehNacional && $divAtual !== 'BR4';
-              $temAcesso = $ehNacional && $divAtual !== 'BR1';
+              [$nSobe, $nCai] = $ehNacional ? futZonasDaTabela($divAtual) : [0, 0];
               $i = 0; $total = count($tab); foreach ($tab as $nome => $l): $i++;
-              $clsPos = ($temAcesso && $i <= 4) ? 'sobe' : (($temQueda && $i > $total - 4) ? 'cai' : ''); ?>
+              $clsPos = ($i <= $nSobe) ? 'sobe' : (($nCai && $i > $total - $nCai) ? 'cai' : ''); ?>
               <tr class="<?= $nome === $estado['clube'] ? 'eu' : '' ?>">
                 <td><span class="pos <?= $clsPos ?>"><?= $i ?></span></td>
-                <td><a class="link-jogo" href="?aba=clube&amp;nome=<?= urlencode($nome) ?>&amp;de=tabela"><?= h($nome) ?></a></td>
+                <td><a class="link-jogo clube-cel" href="?aba=clube&amp;nome=<?= urlencode($nome) ?>&amp;de=tabela"><?php
+                  /* O ESCUDO NA TABELA. Vinte nomes numa coluna é uma lista de
+                     texto; vinte escudos é uma classificação, e o técnico acha
+                     o time dele sem ler. */
+                  echo escudo($clubesTodos[$nome] ?? ['nome' => $nome], 18); ?><span><?= h($nome) ?></span></a></td>
                 <td class="num"><strong><?= (int)$l['p'] ?></strong></td>
                 <td class="num"><?= (int)$l['j'] ?></td>
                 <td class="num"><?= (int)$l['v'] ?></td>
@@ -3095,7 +3254,7 @@ tr.eu td{background:rgba(34,197,94,.10);font-weight:700}
         foreach ($estado['elenco'] as $j) if (!empty($j['emprestado_de'])) $emprestadosAgora++;
       ?>
       <div style="font-size:12px;color:var(--txt2);margin-bottom:12px">
-        <i class="bi bi-box-arrow-in-down" style="color:var(--verde-claro)"></i>
+        <i class="bi bi-box-arrow-in-down" style="color:var(--acento)"></i>
         <strong>Empréstimo</strong> não custa passe — você paga só o salário, e ele volta no fim
         da temporada. Só sai quem não é titular no clube dele, e cabem
         <?= FUT_EMPRESTIMO_MAXIMO ?> no elenco
