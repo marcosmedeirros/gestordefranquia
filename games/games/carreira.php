@@ -128,6 +128,18 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        elseif ($estado && $acao === 'aovivo_inverter') {
+            header('Content-Type: application/json; charset=utf-8');
+            $r = futCarreiraAoVivoInverter($estado, (string)($_POST['a'] ?? ''), (string)($_POST['b'] ?? ''));
+            if ($r['ok']) {
+                $estado = $r['estado'];
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+            }
+            echo json_encode(['ok' => $r['ok'], 'erro' => $r['erro'], 'forca' => $r['forca']],
+                             JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         elseif ($estado && $acao === 'aovivo_formacao') {
             header('Content-Type: application/json; charset=utf-8');
             $r = futCarreiraAoVivoFormacao($estado, (string)($_POST['esquema'] ?? ''));
@@ -558,6 +570,10 @@ a{color:inherit}
 .busca-item .det{font-size:11px;color:var(--txt3);flex-shrink:0}
 .busca-vazio{padding:12px;font-size:12.5px;color:var(--txt3)}
 .topo-jogar{margin:0;flex-shrink:0}
+/* Na partida o botão fica onde a busca ficava, e ocupa a sobra da barra. */
+.topo-jogo{margin-left:auto;display:flex;gap:7px}
+.topo-jogo .btn{white-space:nowrap}
+@media (max-width:520px){ .so-largo{display:none} }
 
 @media (max-width:560px){
   /* No celular a busca desce pra própria linha: espremida ao lado da marca e
@@ -749,7 +765,6 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 .viv-barra{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:14px}
 .viv-barra span{display:block;height:100%;background:var(--acento);width:0;transition:width .45s linear}
 
-.viv-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
 /* ── A escalação ao vivo ─────────────────────────────────────────────
    Quatro colunas de larguras fixas nas pontas e elástica no meio: a nota
@@ -964,7 +979,6 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
   .viv-num{font-size:32px}
   .viv-nome{font-size:13px}
   .notas-vivo{grid-template-columns:1fr 1fr}
-  .viv-acoes .btn{flex:1}
 }
 
 /* ── A prancheta: campo e banco lado a lado ─────────── */
@@ -1326,8 +1340,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
        card do Início, depois de rolar; a busca não existia. Aqui elas grudam
        no alto da tela e seguem a rolagem.
 
-       Durante a partida a barra some junto com o resto: lá não há "próximo
-       jogo" nem motivo pra procurar ninguém. */
+       DURANTE A PARTIDA a busca e o Jogar saem — não há "próximo jogo" nem
+       motivo pra procurar ninguém —, e o lugar deles fica com o Pausar. É o
+       mesmo botão de antes, só que aqui em cima ele não foge com a rolagem:
+       parar o jogo é a única coisa que se quer poder fazer a qualquer
+       momento, e ela estava embaixo de um campo inteiro. */
     /* NAO reusa $emCampo: ele so nasce la embaixo, depois desta barra, e o
        mesmo nome guarda OUTRA COISA dentro do tratador de POST (a escalacao
        atual, uma lista). Duas variaveis com o mesmo nome e sentidos diferentes
@@ -1358,6 +1375,18 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           </button>
         </form>
       <?php endif; ?>
+
+    <?php elseif ($naPartida): ?>
+      <div class="topo-jogo">
+        <?php /* No celular a barra tem o escudo, o nome e este botão; o que
+             cabe é "Pausar". O resto da frase explica o que o botão faz e é
+             a primeira coisa a sair — esconder a palavra inteira deixaria um
+             ícone de pausa sozinho, que não diz que dá pra mexer no time. */ ?>
+        <button class="btn peq" id="btPausar"><i class="bi bi-pause-fill"></i>
+          Pausar<span class="so-largo"> e mexer no time</span></button>
+        <button class="btn peq" id="btVoltar" hidden><i class="bi bi-play-fill"></i>
+          Continuar</button>
+      </div>
     <?php endif; ?>
   </div>
 
@@ -1707,16 +1736,13 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       </div>
       </div><?php // fecha .viv-mesa ?>
 
-      <?php /* ── UM BOTÃO SÓ ─────────────────────────────────────────
-           Eram quatro — Começar, Pausar, Estratégia e Substituir — e os três
-           últimos faziam a mesma coisa antes de fazer a sua: parar o jogo.
-           Pausar É abrir a prancheta, porque não existe motivo pra parar a
-           partida que não seja mexer no time. E "Começar" sumiu: quem clicou
-           em Jogar na tela anterior já disse que quer jogar. */ ?>
-      <div class="viv-acoes">
-        <button class="btn" id="btPausar"><i class="bi bi-pause-fill"></i> Pausar e mexer no time</button>
-        <button class="btn" id="btVoltar" hidden><i class="bi bi-play-fill"></i> Continuar</button>
-      </div>
+      <?php /* UM BOTÃO SÓ, E ELE MORA LÁ EM CIMA. Eram quatro — Começar,
+           Pausar, Estratégia e Substituir — e os três últimos faziam a mesma
+           coisa antes de fazer a sua: parar o jogo. Pausar É abrir a
+           prancheta, porque não existe motivo pra parar a partida que não seja
+           mexer no time. O botão subiu pra barra do topo (procure por
+           .topo-jogo): aqui embaixo ele saía da tela assim que a pessoa rolava
+           pra olhar as notas, que é justamente quando se decide trocar. */ ?>
     </div>
 
 
@@ -1737,6 +1763,14 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <div class="mesa-campo">
             <div class="campo campo-troca" id="campoTroca"></div>
             <div class="troca-restam" id="trocaRestam"></div>
+            <?php /* A DICA FICA FIXA, e não some no primeiro toque: são dois
+                 gestos parecidos com resultados diferentes, e quem não souber
+                 que arrastar um titular em cima de outro inverte os dois nunca
+                 vai descobrir sozinho. */ ?>
+            <div class="mesa-nota" style="text-align:center">
+              Arraste do banco até a camisa pra substituir, ou de uma camisa
+              até outra pra inverter os dois de posição. No celular, toque num e depois no outro.
+            </div>
           </div>
 
           <div class="mesa-lado">
@@ -2377,24 +2411,53 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           });
       }
 
+      /* INVERTER NÃO GASTA SUBSTITUIÇÃO — são os mesmos onze, em lugares
+         diferentes. O que muda é a força: o lateral na zaga rende menos, e é
+         isso que a linha de baixo passa a dizer. */
+      function inverte(a, b) {
+        if (!a || !b || a === b) return;
+        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(
+          {acao: 'aovivo_inverter', a: a, b: b})})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { trocaRestam.textContent = d.erro; return; }
+            carregaCampo();
+            recarregaPrancheta().then(function () {
+              trocaRestam.textContent = a + ' e ' + b + ' trocaram de posição — força em campo ' + d.forca + '.';
+            });
+          })
+          .catch(function () {});
+      }
+
       function ligaCampo() {
         campoTroca.querySelectorAll('.camisa').forEach(function (c) {
-          /* TOCAR NUM TITULAR SEM NINGUÉM ESCOLHIDO É DIZER QUEM SAI. Antes
-             este clique não fazia nada, e o jogo só entendia o caminho que
-             começava no banco — no celular isso obrigava a decorar a ordem. */
+          /* TOCAR NUM TITULAR MARCA ELE, E O SEGUNDO TOQUE DECIDE O QUÊ:
+             no banco é substituição, em outro titular é INVERSÃO de posição.
+             São a mesma pergunta — "quem fica no lugar dele?" — e por isso
+             são o mesmo gesto; quem responde é onde o dedo cai. */
           c.addEventListener('click', function () {
-            if (!podeSair(c)) return;
-            if (escolhaEntra) { fazTroca(c.dataset.nome, escolhaEntra); limpaSel(); return; }
+            if (escolhaEntra) {
+              if (!podeSair(c)) return;
+              fazTroca(c.dataset.nome, escolhaEntra); limpaSel(); return;
+            }
+            if (escolhaSai && escolhaSai !== c.dataset.nome) {
+              inverte(escolhaSai, c.dataset.nome); limpaSel(); return;
+            }
             var jaEra = c.classList.contains('sel');
             limpaSel();
-            if (jaEra) { escolhaSai = null; return; }
+            escolhaSai = null;
+            if (jaEra) return;
             c.classList.add('sel');
             escolhaSai = c.dataset.nome;
-            trocaRestam.textContent = 'Agora toque em quem entra, no banco.';
+            trocaRestam.textContent = c.dataset.entrou === '1'
+              ? 'Toque em outro titular pra inverter os dois de posição.'
+              : 'Toque em quem entra, no banco — ou em outro titular pra inverter os dois.';
           });
 
+          /* Arrastar um titular vale mesmo pra quem acabou de entrar: ele não
+             pode SAIR, mas pode mudar de lugar — e recusar o arrasto aqui
+             tiraria dele a única mexida que ainda faz sentido. */
           c.addEventListener('dragstart', function (e) {
-            if (!podeSair(c)) { e.preventDefault(); return; }
             escolhaSai = c.dataset.nome;
             escolhaEntra = null;
             c.classList.add('sel');
@@ -2403,20 +2466,22 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           });
           c.addEventListener('dragend', limpaSel);
 
-          /* A camisa só é alvo pra quem vem do banco: arrastar um titular pra
-             cima de outro titular não é substituição nenhuma. */
+          /* A CAMISA ACEITA OS DOIS: quem vem do banco entra no lugar dela,
+             quem vem do campo inverte de posição com ela. */
           c.addEventListener('dragover', function (e) {
-            if (!escolhaEntra) return;
+            if (!escolhaEntra && !escolhaSai) return;
+            if (escolhaSai === c.dataset.nome) return;   // não cai em si mesmo
             e.preventDefault(); c.classList.add('alvo');
           });
           c.addEventListener('dragleave', function () { c.classList.remove('alvo'); });
           c.addEventListener('drop', function (e) {
             e.preventDefault();
             c.classList.remove('alvo');
-            var quem = escolhaEntra || e.dataTransfer.getData('text/plain');
-            if (!escolhaEntra) return;          // veio do campo: não é troca
-            if (!podeSair(c)) return;
-            fazTroca(c.dataset.nome, quem);
+            if (escolhaEntra) {
+              if (podeSair(c)) fazTroca(c.dataset.nome, escolhaEntra);
+            } else if (escolhaSai && escolhaSai !== c.dataset.nome) {
+              inverte(escolhaSai, c.dataset.nome);
+            }
             limpaSel();
           });
         });
@@ -2469,9 +2534,12 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 
       /* Recarrega só o conteúdo da prancheta, sem abrir nem fechar nada: é o
          que a troca de formação precisa pra o campo mostrar o time novo. */
+      /* DEVOLVE A PROMESSA porque quem chama às vezes tem um recado pra dar
+         DEPOIS: pintaOpcoes reescreve a linha de baixo, e um aviso escrito
+         antes dela sumia antes de ser lido. */
       function recarregaPrancheta() {
-        if (popTroca.hidden) return;
-        fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+        if (popTroca.hidden) return Promise.resolve();
+        return fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
           .then(function (r) { return r.json(); })
           .then(pintaOpcoes)
           .catch(function () {});

@@ -904,7 +904,6 @@ function futCarreiraAoVivoSubstituir(array $estado, string $sai, string $entra):
     return ['ok' => true, 'erro' => '', 'estado' => $estado];
 }
 
-/** As notas de agora, para a tela mostrar enquanto a bola rola. */
 /**
  * TROCA A FORMAÇÃO COM A BOLA ROLANDO.
  *
@@ -956,6 +955,58 @@ function futCarreiraAoVivoFormacao(array $estado, string $esquema): array
             'forca' => futForcaEscalada($novo, $esquema)];
 }
 
+/**
+ * INVERTE DOIS QUE JÁ ESTÃO EM CAMPO.
+ *
+ * Passar o lateral pra zaga, botar o volante na frente, inverter as pontas:
+ * o técnico mexe nisso o tempo todo, e era a única mexida que o jogo não
+ * deixava fazer. Dava pra trocar de esquema e dava pra substituir, mas o
+ * lugar de cada um dentro do esquema estava congelado desde o apito inicial.
+ *
+ * ── NÃO É SUBSTITUIÇÃO, PELA MESMA RAZÃO DA FORMAÇÃO ─────────────────
+ *
+ * Continuam os mesmos onze; o que muda é onde dois deles ficam. Ninguém entra
+ * e ninguém sai, então não há o que gastar. O preço está na afinidade: o
+ * lateral na zaga rende menos (@see FUT_AFINIDADE), e é essa perda que
+ * devolvemos em 'forca' pra tela poder mostrar o que a troca custou.
+ *
+ * NÃO HÁ TRAVA DE POSIÇÃO — nem aqui nem na escalação. Goleiro na ponta é
+ * legal e é péssimo, e essa é a resposta certa: o jogo cobra pela conta, não
+ * proíbe pela regra.
+ *
+ * @return array ['ok'=>bool, 'erro'=>string, 'estado'=>array, 'forca'=>int]
+ */
+function futCarreiraAoVivoInverter(array $estado, string $a, string $b): array
+{
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'estado' => $estado, 'forca' => 0];
+
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return $falha('Não há partida em andamento.');
+    if ((int)$v['minuto'] >= 90) return $falha('A partida acabou.');
+    if ($a === '' || $b === '' || $a === $b) return $falha('Escolha dois jogadores diferentes.');
+
+    $esquema = $estado['esquema'] ?? '4-4-2';
+    $emCampo = futCarreiraEscalacaoAtual($estado);
+
+    $ia = $ib = null;
+    foreach ($emCampo as $vaga => $j) {
+        if ($j['nome'] === $a) $ia = $vaga;
+        if ($j['nome'] === $b) $ib = $vaga;
+    }
+    if ($ia === null || $ib === null) return $falha('Os dois precisam estar em campo.');
+
+    $novo = $emCampo;
+    $novo[$ia] = $emCampo[$ib];
+    $novo[$ib] = $emCampo[$ia];
+
+    $estado['escalacao'] = [];
+    foreach ($novo as $vaga => $j) $estado['escalacao'][$vaga] = $j['nome'];
+
+    return ['ok' => true, 'erro' => '', 'estado' => $estado,
+            'forca' => futForcaEscalada($novo, $esquema)];
+}
+
+/** As notas de agora, para a tela mostrar enquanto a bola rola. */
 function futCarreiraAoVivoNotas(array $estado): array
 {
     $v = $estado['aovivo'] ?? null;

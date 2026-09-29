@@ -567,6 +567,60 @@ ok('esquema que não existe é recusado',
 $estF['aovivo']['minuto'] = 90;
 ok('esquema não muda com a partida acabada',
    futCarreiraAoVivoFormacao($estF, '4-3-3')['ok'] === false);
+/* ── INVERTER DOIS QUE JÁ ESTÃO EM CAMPO ─────────────────────────────
+   Passar o lateral pra zaga era a única mexida que o jogo não deixava
+   fazer: dava pra trocar de esquema e pra substituir, mas o lugar de cada
+   um dentro do esquema estava congelado desde o apito inicial. */
+$estI = futCarreiraNova('Tester', 'Flamengo');
+$estI['calendario'] = futCarreiraMontarCalendario($estI);
+$estI['fase'] = 'temporada';
+$estI = futCarreiraAoVivoIniciar($estI)['estado'];
+$estI = futCarreiraAoVivoAvancar($estI, 20)['estado'];
+
+$campoI = futCarreiraEscalacaoAtual($estI);
+$vagasI = array_keys($campoI);
+$umI  = $campoI[$vagasI[1]]['nome'];
+$doisI = $campoI[$vagasI[2]]['nome'];
+
+$rI = futCarreiraAoVivoInverter($estI, $umI, $doisI);
+ok('inverter dois titulares dá certo', $rI['ok'], $rI['erro'] ?: $umI . ' x ' . $doisI);
+
+$depoisI = futCarreiraEscalacaoAtual($rI['estado']);
+ok('os dois trocaram de vaga',
+   ($depoisI[$vagasI[1]]['nome'] ?? '') === $doisI && ($depoisI[$vagasI[2]]['nome'] ?? '') === $umI);
+
+ok('inverter mantém os mesmos onze',
+   count($depoisI) === 11
+   && array_diff(array_column($depoisI, 'nome'), array_column($campoI, 'nome')) === []);
+
+ok('inverter não gasta substituição',
+   count($rI['estado']['aovivo']['trocas'] ?? []) === 0);
+
+/* NINGUÉM DO BANCO ENTRA POR AQUI. Se entrasse, a inversão viraria uma
+   substituição de graça e as cinco do regulamento não significariam nada. */
+$banco = futReservas($estI['elenco'], $campoI);
+ok('quem está no banco não entra invertendo',
+   futCarreiraAoVivoInverter($estI, $umI, $banco[0]['nome'])['ok'] === false,
+   $banco[0]['nome'] . ' está fora de campo');
+
+ok('inverter alguém com ele mesmo é recusado',
+   futCarreiraAoVivoInverter($estI, $umI, $umI)['ok'] === false);
+
+/* Depois do apito não se mexe mais, igual ao esquema. */
+$estI90 = $estI;
+$estI90['aovivo']['minuto'] = 90;
+ok('não se inverte com a partida acabada',
+   futCarreiraAoVivoInverter($estI90, $umI, $doisI)['ok'] === false);
+
+/* O PREÇO ESTÁ NA AFINIDADE: o jogo não proíbe o lateral na zaga, ele
+   cobra. Colocar o goleiro na linha tem que derrubar a força. */
+$golI = $campoI[$vagasI[0]]['nome'];
+$atacI = $campoI[$vagasI[10]]['nome'];
+$forcaAntes = futForcaEscalada($campoI, $estI['esquema']);
+$rGol = futCarreiraAoVivoInverter($estI, $golI, $atacI);
+ok('goleiro na linha custa caro',
+   $rGol['ok'] && $rGol['forca'] < $forcaAntes,
+   'de ' . $forcaAntes . ' pra ' . $rGol['forca']);
 /* ── O ANO INTEIRO SOBREVIVE À VIRADA ────────────────────────────────
    O histórico guardava só a liga nacional; o estadual e a copa eram
    apagados junto com o calendário. Um ano fechado tem que devolver TODAS
