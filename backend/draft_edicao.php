@@ -259,3 +259,80 @@ function draftPoolCompleto(PDO $pdo, int $sessionId): array
     $st->execute([$sessionId]);
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
+
+/**
+ * CRIA UM JOGADOR NOVO NO POOL DAQUELE DRAFT.
+ *
+ * O corretor de draft só sabia mexer em quem já estava no pool, e o caso que
+ * falta é o oposto: a pick ficou em aberto porque o jogador escolhido NUNCA
+ * foi cadastrado. Sem isto, o admin tinha que sair da tela, ir cadastrar o
+ * jogador em outro lugar e voltar — e, no meio do caminho, perder qual pick
+ * estava corrigindo.
+ *
+ * O JOGADOR NASCE DISPONÍVEL, e não já colocado na pick. Quem chama decide o
+ * que fazer com ele em seguida (@see draftMoverJogadorParaPick): assim criar
+ * por engano não estraga uma escolha, só deixa um nome sobrando no pool.
+ *
+ * A TEMPORADA VEM DA SESSÃO, nunca do formulário. O pool é por temporada, e um
+ * season_id vindo da tela poria o jogador no draft do ano errado — onde ele
+ * apareceria pra ser escolhido num draft que já acabou.
+ *
+ * @return array{success:bool,error:?string,player:?array}
+ */
+function draftCriarJogadorNoPool(PDO $pdo, int $sessionId, array $dados): array
+{
+    $erro = fn(string $m) => ['success' => false, 'error' => $m, 'player' => null];
+
+    /* O BANCO PODE RECUSAR, e recusa virando excecao: sem este try o admin
+       levava uma tela de erro do PHP no lugar de uma mensagem. O resto deste
+       arquivo ja trata assim. */
+    try {
+        $st = $pdo->prepare('SELECT season_id FROM draft_sessions WHERE id = ?');
+        $st->execute([$sessionId]);
+        $seasonId = (int)($st->fetchColumn() ?: 0);
+    } catch (Throwable $e) {
+        error_log('[draft] criar jogador, sessao: ' . $e->getMessage());
+        return $erro('Nao deu pra ler o draft agora.');
+    }
+    if (!$seasonId) return $erro('Draft não encontrado.');
+
+    $nome = trim((string)($dados['name'] ?? ''));
+    if ($nome === '') return $erro('O nome é obrigatório.');
+    if (mb_strlen($nome) > 120) $nome = mb_substr($nome, 0, 120);
+
+    $posicoes = ['PG', 'SG', 'SF', 'PF', 'C'];
+    $pos = strtoupper(trim((string)($dados['position'] ?? '')));
+    if (!in_array($pos, $posicoes, true)) return $erro('Posição inválida.');
+
+    $pos2 = strtoupper(trim((string)($dados['secondary_position'] ?? '')));
+    if ($pos2 === '' || $pos2 === $pos || !in_array($pos2, $posicoes, true)) $pos2 = null;
+
+    $idade = (int)($dados['age'] ?? 0);
+    $ovr   = (int)($dados['ovr'] ?? 0);
+    if ($idade < 16 || $idade > 45) return $erro('Idade fora da faixa (16 a 45).');
+    if ($ovr < 1 || $ovr > 99)      return $erro('Overall fora da faixa (1 a 99).');
+
+    /* NOME REPETIDO NO MESMO POOL É QUASE SEMPRE CLIQUE DUPLO. Dois jogadores
+       com o mesmo nome no mesmo draft deixam a lista impossível de usar — a
+       tela mostra nome, posição e overall, e nada distingue os dois. */
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM draft_pool WHERE season_id = ? AND name = ?');
+        $st->execute([$seasonId, $nome]);
+        if ((int)$st->fetchColumn() > 0) return $erro('Já existe um "' . $nome . '" no pool deste draft.');
+
+        $st = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, secondary_position,
+                                                     age, ovr, draft_status)
+                             VALUES (?, ?, ?, ?, ?, ?, "available")');
+        $st->execute([$seasonId, $nome, $pos, $pos2, $idade, $ovr]);
+        $novoId = (int)$pdo->lastInsertId();
+    } catch (Throwable $e) {
+        error_log('[draft] criar jogador: ' . $e->getMessage());
+        return $erro('Nao deu pra criar o jogador agora.');
+    }
+
+    return ['success' => true, 'error' => null, 'player' => [
+        'id' => $novoId, 'name' => $nome, 'position' => $pos,
+        'secondary_position' => $pos2, 'age' => $idade, 'ovr' => $ovr,
+        'draft_status' => 'available', 'time_atual' => null,
+    ]];
+}

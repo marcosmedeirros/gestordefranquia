@@ -4022,6 +4022,34 @@ if ($method === 'POST') {
             break;
         }
 
+        /* O caso que faltava na correção de draft: a pick ficou em aberto
+           porque o jogador escolhido NUNCA foi cadastrado. Sem esta ação o
+           admin tinha que sair da tela, cadastrar em outro lugar e voltar —
+           perdendo no caminho qual pick estava corrigindo. */
+        case 'draft_criar_jogador': {
+            $league    = strtoupper((string)($data['league'] ?? ''));
+            $sessionId = (int)($data['session_id'] ?? 0);
+            if (!in_array($league, $validLeagues, true) || !$sessionId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Parâmetros inválidos']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            require_once dirname(__DIR__) . '/backend/draft_edicao.php';
+
+            /* A SESSÃO TEM QUE SER DESTA LIGA. O escopo acima só conferiu a
+               liga que veio no corpo; sem esta segunda trava, um session_id de
+               outra liga criaria jogador no pool dela. */
+            if (!draftOrdemCompleta($pdo, $sessionId, $league)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Esse draft não é desta liga.']);
+                exit;
+            }
+
+            echo json_encode(draftCriarJogadorNoPool($pdo, $sessionId, $data));
+            break;
+        }
+
         case 'coins_by_standings':
             // Distribui moedas automaticamente pela classificação da temporada.
             // Fórmula: moedas = base + (rank-1) * passo. Por padrão o melhor colocado

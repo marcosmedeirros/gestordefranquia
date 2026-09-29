@@ -8702,6 +8702,33 @@ async function quickTapasAdminChange(teamId, operation) {
   }
 }
 
+/**
+ * "23/09 às 14:07", e "há 3 dias" quando já passou de ontem.
+ *
+ * A DATA SOZINHA NÃO RESPONDE A PERGUNTA que o admin faz olhando a fila, que
+ * é "isso está parado há quanto tempo?". A data diz quando entrou; o "há 3
+ * dias" diz que alguém está esperando. As duas juntas ocupam uma linha e
+ * evitam a conta de cabeça.
+ *
+ * O MySQL devolve "2026-09-23 14:07:12", que o Safari não aceita em new Date
+ * sem o T — daí a troca do espaço.
+ */
+function _quandoPedido(iso) {
+  if (!iso) return '';
+  const d = new Date(String(iso).replace(' ', 'T'));
+  if (isNaN(d)) return '';
+
+  const dois = n => String(n).padStart(2, '0');
+  const quando = `${dois(d.getDate())}/${dois(d.getMonth() + 1)} às ${dois(d.getHours())}:${dois(d.getMinutes())}`;
+
+  const horas = Math.floor((Date.now() - d.getTime()) / 36e5);
+  let ha = '';
+  if (horas >= 24)     ha = ` · há ${Math.floor(horas / 24)} dia${Math.floor(horas / 24) > 1 ? 's' : ''}`;
+  else if (horas >= 1) ha = ` · há ${horas}h`;
+
+  return quando + ha;
+}
+
 async function loadTapasData() {
   const container = document.getElementById('tapasContainer');
   if (!container) return;
@@ -8740,6 +8767,9 @@ async function loadTapasData() {
                 ${escapeHtml(r.team_city)} ${escapeHtml(r.team_name)}
                 &bull; ${escapeHtml(r.owner_name)}
                 &bull; ${escapeHtml(r.player_position)} OVR ${r.player_ovr}
+              </div>
+              <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;opacity:.85">
+                <i class="bi bi-clock"></i> pedido em ${_quandoPedido(r.created_at)}
               </div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
@@ -11071,6 +11101,59 @@ function _escolherJogadorParaPick(pickId, timeNome, pickPos, round) {
           </div>
           <div class="modal-body">
             <input type="text" class="form-control mb-2" id="_buscaJogadorDraft" placeholder="Buscar jogador…" autocomplete="off">
+
+            <!-- O CADASTRO NASCE FECHADO. Noventa e nove por cento das vezes o
+                 jogador já está no pool e o que se quer é a busca; abrir um
+                 formulário de cinco campos por cima dela atrapalharia o caso
+                 comum pra servir o raro. -->
+            <button type="button" class="btn-ghost w-100 mb-2" id="_btNovoJogadorDraft"
+                    style="padding:6px 10px;font-size:12.5px">
+              <i class="bi bi-plus-circle me-1"></i>Adicionar novo jogador ao pool
+            </button>
+
+            <div id="_formNovoJogadorDraft" class="mb-3" hidden
+                 style="border:1px solid var(--border);border-radius:10px;padding:10px">
+              <div class="row g-2">
+                <div class="col-12">
+                  <input type="text" class="form-control form-control-sm" id="_njNome"
+                         placeholder="Nome do jogador" maxlength="120" autocomplete="off">
+                </div>
+                <div class="col-6">
+                  <select class="form-select form-select-sm" id="_njPos">
+                    <option value="">Posição…</option>
+                    <option>PG</option><option>SG</option><option>SF</option>
+                    <option>PF</option><option>C</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <select class="form-select form-select-sm" id="_njPos2">
+                    <option value="">2ª posição (opcional)</option>
+                    <option>PG</option><option>SG</option><option>SF</option>
+                    <option>PF</option><option>C</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control form-control-sm" id="_njIdade"
+                         placeholder="Idade" min="16" max="45">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control form-control-sm" id="_njOvr"
+                         placeholder="OVR" min="1" max="99">
+                </div>
+                <div class="col-12 d-flex gap-2">
+                  <button type="button" class="btn-primary flex-grow-1" id="_btSalvarNovoJogador"
+                          style="padding:6px 10px;font-size:12.5px">
+                    Criar e pôr nesta escolha
+                  </button>
+                  <button type="button" class="btn-ghost" id="_btCancelarNovoJogador"
+                          style="padding:6px 10px;font-size:12.5px">Cancelar</button>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:7px">
+                Ele entra no pool desta temporada de draft e vai direto pra esta pick.
+              </div>
+            </div>
+
             <div id="_listaJogadorDraft">
               <div style="font-size:11.5px;font-weight:800;color:var(--text-3);margin:6px 0">DISPONÍVEIS (${livres.length})</div>
               ${livres.map(linha).join('') || '<p style="color:var(--text-3);font-size:12.5px">Nenhum livre.</p>'}
@@ -11084,12 +11167,78 @@ function _escolherJogadorParaPick(pickId, timeNome, pickPos, round) {
 
   const modal = new bootstrap.Modal(document.getElementById('_modalEscolhaDraft'));
   modal.show();
+
+  /* O formulário aparece e some no lugar do botão, e a lista some junto: com
+     as duas coisas na tela o modal fica alto demais pra rolar no celular. */
+  const caixaNovo = document.getElementById('_formNovoJogadorDraft');
+  const btNovo    = document.getElementById('_btNovoJogadorDraft');
+  const lista     = document.getElementById('_listaJogadorDraft');
+  const busca     = document.getElementById('_buscaJogadorDraft');
+  const mostrarCadastro = (ligado) => {
+    caixaNovo.hidden = !ligado;
+    btNovo.hidden = ligado;
+    lista.hidden = ligado;
+    busca.hidden = ligado;
+    if (ligado) document.getElementById('_njNome').focus();
+  };
+  btNovo.addEventListener('click', () => mostrarCadastro(true));
+  document.getElementById('_btCancelarNovoJogador').addEventListener('click', () => mostrarCadastro(false));
+  document.getElementById('_btSalvarNovoJogador')
+          .addEventListener('click', () => _criarJogadorNoPool(pickId));
+
   document.getElementById('_buscaJogadorDraft').addEventListener('input', e => {
     const t = e.target.value.trim().toLowerCase();
     document.querySelectorAll('#_listaJogadorDraft button').forEach(b => {
       b.style.display = !t || b.innerText.toLowerCase().includes(t) ? '' : 'none';
     });
   });
+}
+
+/**
+ * Cria o jogador no pool e já o põe na pick que estava aberta.
+ *
+ * SÃO DUAS CHAMADAS, e de propósito: o backend cria o jogador DISPONÍVEL e a
+ * colocação na pick é a mesma rotina que já existia. Fazer tudo numa ação só
+ * duplicaria a regra de "tirar de onde estava, pôr aqui, mexer no elenco" —
+ * que é justamente a parte difícil e já testada.
+ */
+async function _criarJogadorNoPool(pickId) {
+  if (!_draftAberto) return;
+  const bt = document.getElementById('_btSalvarNovoJogador');
+  const dados = {
+    action: 'draft_criar_jogador',
+    league: _draftAberto.league,
+    session_id: _draftAberto.sessionId,
+    name: document.getElementById('_njNome').value.trim(),
+    position: document.getElementById('_njPos').value,
+    secondary_position: document.getElementById('_njPos2').value,
+    age: Number(document.getElementById('_njIdade').value),
+    ovr: Number(document.getElementById('_njOvr').value),
+  };
+
+  // O servidor confere tudo de novo; isto aqui é só pra não gastar uma ida.
+  if (!dados.name)     return showAlert('warning', 'Falta o nome do jogador.');
+  if (!dados.position) return showAlert('warning', 'Falta a posição.');
+  if (!(dados.age >= 16 && dados.age <= 45)) return showAlert('warning', 'Idade entre 16 e 45.');
+  if (!(dados.ovr >= 1 && dados.ovr <= 99))  return showAlert('warning', 'Overall entre 1 e 99.');
+
+  bt.disabled = true;
+  try {
+    const r = await api('admin.php?action=draft_criar_jogador',
+                        { method: 'POST', body: JSON.stringify(dados) });
+    if (!r.player?.id) throw { error: r.error || 'O jogador não foi criado.' };
+
+    await api('admin.php?action=draft_mover_jogador', { method: 'POST', body: JSON.stringify({
+      action: 'draft_mover_jogador', league: _draftAberto.league,
+      session_id: _draftAberto.sessionId, pick_id: pickId, player_id: r.player.id })});
+
+    bootstrap.Modal.getInstance(document.getElementById('_modalEscolhaDraft'))?.hide();
+    showAlert('success', `${dados.name} criado e posto nesta escolha.`);
+    _abrirDraftPassado(_draftAberto.sessionId, _draftAberto.league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao criar o jogador');
+    bt.disabled = false;
+  }
 }
 
 /** Executa a troca e volta pra ordem já atualizada. */
