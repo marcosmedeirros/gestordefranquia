@@ -905,6 +905,57 @@ function futCarreiraAoVivoSubstituir(array $estado, string $sai, string $entra):
 }
 
 /** As notas de agora, para a tela mostrar enquanto a bola rola. */
+/**
+ * TROCA A FORMAÇÃO COM A BOLA ROLANDO.
+ *
+ * Mudar de 4-4-2 pra 4-3-3 aos 60 é uma das duas ou três coisas que um técnico
+ * de verdade faz num jogo, e era a única que o jogo não deixava: o esquema só
+ * podia ser escolhido antes de entrar em campo.
+ *
+ * ── NÃO É SUBSTITUIÇÃO, E POR ISSO NÃO GASTA UMA ─────────────────────
+ *
+ * Os ONZE CONTINUAM OS MESMOS — o que muda é onde cada um fica. Por isso o
+ * reescalonamento recebe só quem está em campo, e não o elenco: passar o
+ * elenco inteiro faria o lateral reserva "entrar" sem substituição nenhuma,
+ * que é trapaça com cara de recurso.
+ *
+ * Quem estava improvisado pode acabar melhor ou pior de lugar, e é essa a
+ * decisão: o 4-3-3 pede ponta de verdade, e quem não tem paga o preço.
+ *
+ * @return array ['ok'=>bool, 'erro'=>string, 'estado'=>array, 'forca'=>int]
+ */
+function futCarreiraAoVivoFormacao(array $estado, string $esquema): array
+{
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'estado' => $estado, 'forca' => 0];
+
+    if (!isset(FUT_ESQUEMAS[$esquema])) return $falha('Esquema desconhecido.');
+
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return $falha('Não há partida em andamento.');
+    if ((int)$v['minuto'] >= 90) return $falha('A partida acabou.');
+    if (($estado['esquema'] ?? '') === $esquema) {
+        return ['ok' => true, 'erro' => '', 'estado' => $estado,
+                'forca' => futForcaEscalada(futCarreiraEscalacaoAtual($estado), $esquema)];
+    }
+
+    $emCampo = futCarreiraEscalacaoAtual($estado);
+    if (count($emCampo) < 11) return $falha('Time incompleto em campo.');
+
+    /* SÓ OS ONZE ENTRAM NO SORTEIO das vagas novas. E `fora` fica vazio de
+       propósito: quem está em campo já passou pela conferência de suspensão e
+       lesão quando entrou — reaplicá-la aqui tiraria do time quem se machucou
+       DURANTE a partida, o que seria uma substituição disfarçada. */
+    $novo = futEscalarAutomatico(array_values($emCampo), $esquema);
+    if (count($novo) < 11) return $falha('Esses onze não preenchem o ' . $esquema . '.');
+
+    $estado['esquema'] = $esquema;
+    $estado['escalacao'] = [];
+    foreach ($novo as $iv => $j) $estado['escalacao'][$iv] = $j['nome'];
+
+    return ['ok' => true, 'erro' => '', 'estado' => $estado,
+            'forca' => futForcaEscalada($novo, $esquema)];
+}
+
 function futCarreiraAoVivoNotas(array $estado): array
 {
     $v = $estado['aovivo'] ?? null;

@@ -526,6 +526,47 @@ ok('a tabela de outra liga não muda entre dois F5',
 ok('copa não devolve classificação',
    futCarreiraTabelaDeQualquerLiga($estB, '') === []);
 
+/* ── MUDAR DE ESQUEMA NO MEIO DA PARTIDA ─────────────────────────────
+   É a coisa que mais parece substituição sem ser: os onze continuam os
+   mesmos, só trocam de lugar. Se o reescalonamento recebesse o elenco em
+   vez dos onze em campo, o lateral reserva entraria de graça — cinco
+   substituições viravam infinitas, e ninguém perceberia pela tela. */
+$estF = futCarreiraNova('Tester', 'Flamengo');
+$estF['calendario'] = futCarreiraMontarCalendario($estF);
+$estF['fase'] = 'temporada';
+$estF = futCarreiraAoVivoIniciar($estF)['estado'];
+$estF = futCarreiraAoVivoAvancar($estF, 20)['estado'];
+
+$antes = futCarreiraEscalacaoAtual($estF);
+$nomesAntes = array_map(fn($j) => $j['nome'], $antes);
+sort($nomesAntes);
+
+$troquei = 0;
+foreach (['4-3-3', '3-5-2', '5-3-2', '4-4-2'] as $esq) {
+    $r = futCarreiraAoVivoFormacao($estF, $esq);
+    if (!$r['ok']) { ok("o $esq aceita os mesmos onze", false, $r['erro']); continue; }
+    $estF = $r['estado'];
+    $agora = futCarreiraEscalacaoAtual($estF);
+    $nomesAgora = array_map(fn($j) => $j['nome'], $agora);
+    sort($nomesAgora);
+    ok("mudar pro $esq mantém os mesmos onze",
+       count($agora) === 11 && $nomesAgora === $nomesAntes,
+       count($agora) . ' em campo, força ' . $r['forca']);
+    $troquei++;
+}
+
+ok('trocar de esquema não gasta substituição',
+   count($estF['aovivo']['trocas'] ?? []) === 0,
+   $troquei . ' trocas de esquema, ' . count($estF['aovivo']['trocas'] ?? []) . ' substituição(ões)');
+
+ok('esquema que não existe é recusado',
+   futCarreiraAoVivoFormacao($estF, '9-0-1')['ok'] === false);
+
+/* Depois do apito não se mexe mais: o resultado já está fechado, e deixar
+   mudar aqui só serviria pra mexer numa força que não vai mais ser usada. */
+$estF['aovivo']['minuto'] = 90;
+ok('esquema não muda com a partida acabada',
+   futCarreiraAoVivoFormacao($estF, '4-3-3')['ok'] === false);
 // ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);

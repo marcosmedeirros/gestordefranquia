@@ -128,6 +128,19 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        elseif ($estado && $acao === 'aovivo_formacao') {
+            header('Content-Type: application/json; charset=utf-8');
+            $r = futCarreiraAoVivoFormacao($estado, (string)($_POST['esquema'] ?? ''));
+            if ($r['ok']) {
+                $estado = $r['estado'];
+                futCarreiraSalvar($pdo, $idUsuario, $estado);
+            }
+            echo json_encode(['ok' => $r['ok'], 'erro' => $r['erro'],
+                              'esquema' => $estado['esquema'] ?? '', 'forca' => $r['forca']],
+                             JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         elseif ($estado && $acao === 'aovivo_substituir') {
             header('Content-Type: application/json; charset=utf-8');
             $r = futCarreiraAoVivoSubstituir($estado, (string)($_POST['sai'] ?? ''),
@@ -329,8 +342,12 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
     $fora = array_keys($estado['suspensos'] ?? []);
     $banco = futReservas($estado['elenco'], $emCampo, $fora);
 
+    /* A POSICAO VAI JUNTO: o banco da prancheta passou a ser o mesmo cartao
+       do banco da escalacao, e la a posicao aparece. Sem ela, o cartao ficava
+       com um buraco no meio. */
     $ficha = fn(array $j, bool $entrou = false) => [
         'nome'    => $j['nome'],
+        'pos'     => (string)($j['pos'] ?? ''),
         'ovr'     => (int)$j['ovr'],
         'energia' => (int)($j['energia'] ?? 100),
         'entrou'  => $entrou,
@@ -896,7 +913,9 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
 /* ── O campo dentro do popup de substituição ────────── */
 .campo-troca{max-width:100%;margin:0 auto 4px}
 .campo-troca .camisa{cursor:pointer}
+.campo-troca .camisa{cursor:grab}
 .campo-troca .camisa.alvo .bola{border-color:var(--verde-claro);box-shadow:0 0 0 4px rgba(34,197,94,.45)}
+.campo-troca .camisa.sel .bola{border-color:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.32)}
 .campo-troca .camisa.trocado .bola{border-color:var(--amarelo);box-shadow:0 0 0 3px rgba(245,158,11,.35)}
 .troca-banco{flex-direction:row;flex-wrap:wrap;max-height:26vh}
 .troca-banco .troca-op{width:auto}
@@ -948,6 +967,60 @@ a.link-jogo:hover{color:var(--acento);border-bottom-color:var(--acento)}
   .viv-acoes .btn{flex:1}
 }
 
+/* ── A prancheta: campo e banco lado a lado ─────────── */
+.popup-mesa{max-width:820px}
+.mesa{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,260px);gap:14px;align-items:start;margin-top:12px}
+.mesa-campo{min-width:0}
+.mesa-lado{display:flex;flex-direction:column;gap:12px;min-width:0}
+.mesa-bloco{min-width:0}
+.mesa-bloco .troca-banco{flex-direction:column;flex-wrap:nowrap;max-height:30vh;overflow-y:auto}
+.mesa-bloco .troca-banco .reserva{width:100%;cursor:grab}
+.mesa-bloco .troca-banco .reserva .r-nome{flex:1;max-width:none}
+.mesa-select{width:100%;padding:8px 9px;border-radius:9px;border:1px solid var(--borda);
+  background:var(--panel3);color:inherit;font-size:12.5px;font-weight:700}
+.mesa-chips{display:flex;gap:5px;flex-wrap:wrap}
+.mesa-chip{flex:1;min-width:64px;padding:7px 6px;border-radius:9px;border:1px solid var(--borda);
+  background:var(--panel3);color:var(--txt2);font-size:11.5px;font-weight:800;cursor:pointer}
+.mesa-chip:hover{border-color:var(--borda2);color:var(--txt)}
+.mesa-chip.on{border-color:var(--verde);background:rgba(34,197,94,.12);color:var(--verde-claro)}
+.mesa-nota{font-size:10.5px;color:var(--txt3);margin-top:5px;line-height:1.35}
+/* O JEITO DE VOLTAR AO JOGO NÃO ROLA PRA FORA DA TELA. No celular a
+   prancheta inteira é uma coluna só, e o botão ficava lá embaixo depois de
+   trinta reservas — quem abria no intervalo tinha que caçar a saída. */
+.popup-mesa .popup-acoes{position:sticky;bottom:-16px;margin:16px -16px -16px;padding:12px 16px 16px;
+  background:linear-gradient(180deg,rgba(0,0,0,0),var(--panel) 30%)}
+@media (max-width:760px){
+  .popup-mesa .popup-acoes .btn{flex:1}
+  /* No celular não existe "ao lado": o campo vem primeiro e o banco logo
+     embaixo dele, com o resto da prancheta em seguida. */
+  .mesa{grid-template-columns:1fr}
+  .mesa-bloco .troca-banco{flex-direction:row;flex-wrap:wrap;max-height:22vh}
+  .mesa-bloco .troca-banco .reserva{width:auto}
+}
+
+/* ── O resumo do apito final ────────────────────────── */
+.popup-fim{max-width:420px;text-align:center}
+.fim-veredito{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.2px;
+  color:var(--txt3)}
+.fim-veredito.v{color:var(--verde-claro)}
+.fim-veredito.d{color:#fca5a5}
+.fim-placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:10px 0 2px}
+.fim-placar > b{font-size:30px;font-weight:900;letter-spacing:-1px;font-variant-numeric:tabular-nums;
+  white-space:nowrap}
+.fim-time{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.fim-time span{font-size:11.5px;font-weight:700;color:var(--txt2);line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fim-comp{font-size:11px;color:var(--txt3);margin-bottom:12px}
+.fim-comp i{color:var(--amarelo)}
+.fim-numeros{display:flex;flex-direction:column;gap:5px;text-align:left}
+.fim-linha{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:8px;
+  padding:6px 9px;border-radius:9px;background:var(--panel3);font-size:11.5px}
+.fim-linha span{font-weight:900;font-variant-numeric:tabular-nums;text-align:center}
+.fim-linha i{font-style:normal;color:var(--txt3);text-align:center;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.4px}
+.fim-craque{margin-top:10px;text-align:left}
+.popup-fim .popup-acoes{justify-content:center}
+.popup-fim .popup-acoes .btn{flex:1}
 /* ── Começar a carreira ─────────────────────────────── */
 .hero{background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--borda);
   border-radius:14px;padding:18px 16px;margin-bottom:12px}
@@ -1598,67 +1671,124 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       </div>
       </div><?php // fecha .viv-mesa ?>
 
+      <?php /* ── UM BOTÃO SÓ ─────────────────────────────────────────
+           Eram quatro — Começar, Pausar, Estratégia e Substituir — e os três
+           últimos faziam a mesma coisa antes de fazer a sua: parar o jogo.
+           Pausar É abrir a prancheta, porque não existe motivo pra parar a
+           partida que não seja mexer no time. E "Começar" sumiu: quem clicou
+           em Jogar na tela anterior já disse que quer jogar. */ ?>
       <div class="viv-acoes">
-        <button class="btn" id="btJogar"><i class="bi bi-play-fill"></i> Começar</button>
-        <button class="btn sec" id="btPausar" hidden><i class="bi bi-pause-fill"></i> Pausar</button>
-        <button class="btn sec" id="btEstrategia"><i class="bi bi-sliders"></i> Estratégia</button>
-        <button class="btn sec" id="btTrocar"><i class="bi bi-arrow-left-right"></i> Substituir
-          <span id="btTrocarConta">(<?= FUT_AOVIVO_TROCAS - count($vivo['trocas'] ?? []) ?>)</span></button>
-        <form method="post" id="fmFechar" hidden>
-          <input type="hidden" name="acao" value="aovivo_fechar">
-          <button class="btn" type="submit"><i class="bi bi-flag-fill"></i> Encerrar e ver o resumo</button>
-        </form>
+        <button class="btn" id="btPausar"><i class="bi bi-pause-fill"></i> Pausar e mexer no time</button>
+        <button class="btn" id="btVoltar" hidden><i class="bi bi-play-fill"></i> Continuar</button>
       </div>
     </div>
 
 
 
-    <?php // ── O popup de substituição ───────────────────────────── ?>
+    <?php /* ── A PRANCHETA ──────────────────────────────────────────
+         Campo e banco LADO A LADO, e não um embaixo do outro: substituir é
+         comparar quem está em campo com quem está sentado, e com o banco
+         embaixo da dobra a comparação virava rolar pra cima e pra baixo.
+
+         A estratégia e a formação vêm junto porque são a mesma decisão — o
+         técnico para o jogo uma vez e resolve tudo. Três popups pra três
+         partes da mesma prancheta era o desenho antigo. */ ?>
     <div class="fundo-popup" id="popTroca" hidden>
-      <div class="popup">
-        <h4><i class="bi bi-arrow-left-right"></i> Substituição</h4>
-        <p class="popup-sub">Arraste quem está no banco até a camisa de quem sai.
-           No celular, toque num e depois no outro. Vale do minuto seguinte, e quem sai não volta.</p>
-        <div class="campo campo-troca" id="campoTroca"></div>
-        <h5 style="margin:12px 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3)">Banco</h5>
-        <div class="troca-lista troca-banco" id="listaEntra"></div>
-        <div class="troca-restam" id="trocaRestam"></div>
+      <div class="popup popup-mesa">
+        <h4><i class="bi bi-clipboard2-pulse"></i> <span id="mesaTitulo">Prancheta</span></h4>
+
+        <div class="mesa">
+          <div class="mesa-campo">
+            <div class="campo campo-troca" id="campoTroca"></div>
+            <div class="troca-restam" id="trocaRestam"></div>
+          </div>
+
+          <div class="mesa-lado">
+            <div class="mesa-bloco">
+              <div class="opcoes-rot">Banco — arraste até quem sai</div>
+              <div class="troca-lista troca-banco" id="listaEntra"></div>
+            </div>
+
+            <div class="mesa-bloco">
+              <div class="opcoes-rot">Formação</div>
+              <select id="mesaEsquema" class="mesa-select">
+                <?php foreach (FUT_ESQUEMAS as $k => $e): ?>
+                  <option value="<?= h($k) ?>" <?= ($estado['esquema'] ?? '4-4-2') === $k ? 'selected' : '' ?>>
+                    <?= h($e['nome']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <div class="mesa-nota" id="mesaEsquemaNota">Mudar de esquema não gasta substituição — os mesmos onze trocam de lugar.</div>
+            </div>
+
+            <div class="mesa-bloco">
+              <div class="opcoes-rot">Postura</div>
+              <div class="mesa-chips" data-campo="postura">
+                <?php foreach (FUT_POSTURAS as $k => $o): ?>
+                  <button type="button" class="mesa-chip <?= ($estr['postura'] ?? 'neutro') === $k ? 'on' : '' ?>"
+                          data-valor="<?= h($k) ?>" title="<?= h($o['desc']) ?>"><?= h($o['nome']) ?></button>
+                <?php endforeach; ?>
+              </div>
+            </div>
+
+            <div class="mesa-bloco">
+              <div class="opcoes-rot">Marcação</div>
+              <div class="mesa-chips" data-campo="marcacao">
+                <?php foreach (FUT_MARCACOES as $k => $o): ?>
+                  <button type="button" class="mesa-chip <?= ($estr['marcacao'] ?? 'normal') === $k ? 'on' : '' ?>"
+                          data-valor="<?= h($k) ?>" title="<?= h($o['desc']) ?>"><?= h($o['nome']) ?></button>
+                <?php endforeach; ?>
+              </div>
+              <div class="mesa-nota">Vale do minuto seguinte em diante — o que já passou não muda.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="popup-acoes">
-          <button type="button" class="btn" data-fechar>Pronto</button>
+          <button type="button" class="btn" data-fechar><i class="bi bi-play-fill"></i> Voltar ao jogo</button>
         </div>
       </div>
     </div>
 
-    <?php // ── O popup de estratégia ─────────────────────────────── ?>
-    <div class="fundo-popup" id="popEstrategia" hidden>
-      <div class="popup">
-        <h4><i class="bi bi-sliders"></i> Como o time vai jogar</h4>
-        <p class="popup-sub">Vale do minuto seguinte em diante — o que já passou não muda.</p>
-        <form id="fmEstrategia">
-          <div class="opcoes">
-            <div class="opcoes-rot">Postura</div>
-            <?php foreach (FUT_POSTURAS as $k => $o): ?>
-              <label class="opcao">
-                <input type="radio" name="postura" value="<?= h($k) ?>"
-                       <?= ($estr['postura'] ?? 'neutro') === $k ? 'checked' : '' ?>>
-                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
-              </label>
-            <?php endforeach; ?>
+    <?php /* O popup de estratégia sumiu: postura e marcação viraram
+         duas fileiras de botões dentro da prancheta, e aplicam no
+         clique. Um popup por cima de outro pra escolher duas coisas
+         era caminho demais pra uma decisão de meio segundo. */ ?>
+
+    <?php /* ── O APITO FINAL ────────────────────────────────────────
+         O jogo acabou e não há mais nada pra decidir, então o resumo vem
+         sozinho — antes era um botão "Encerrar e ver o resumo" que deixava
+         a partida parada esperando alguém achá-lo. Placar, veredito, os
+         números e o melhor em campo, porque é isso que se quer saber
+         depois do apito e é o que sumia junto com a tela da partida.
+
+         "Avançar" é o único caminho adiante, e ele fecha a partida de
+         verdade (aovivo_fechar grava o resultado e volta pra tela inicial). */ ?>
+    <div class="fundo-popup" id="popFim" hidden>
+      <div class="popup popup-fim">
+        <div class="fim-veredito" data-fim-veredito>Fim de jogo</div>
+
+        <div class="fim-placar">
+          <div class="fim-time">
+            <?= escudo($casa ? $euC : $advC, 34) ?>
+            <span><?= h($casa ? $estado['clube'] : $vivo['adversario']) ?></span>
           </div>
-          <div class="opcoes">
-            <div class="opcoes-rot">Marcação</div>
-            <?php foreach (FUT_MARCACOES as $k => $o): ?>
-              <label class="opcao">
-                <input type="radio" name="marcacao" value="<?= h($k) ?>"
-                       <?= ($estr['marcacao'] ?? 'normal') === $k ? 'checked' : '' ?>>
-                <span><b><?= h($o['nome']) ?></b><i><?= h($o['desc']) ?></i></span>
-              </label>
-            <?php endforeach; ?>
+          <b data-fim-placar>0 – 0</b>
+          <div class="fim-time dir">
+            <?= escudo($casa ? $advC : $euC, 34) ?>
+            <span><?= h($casa ? $vivo['adversario'] : $estado['clube']) ?></span>
           </div>
-          <div class="popup-acoes">
-            <button type="button" class="btn sec" data-fechar>Cancelar</button>
-            <button type="submit" class="btn"><i class="bi bi-check-lg"></i> Confirmar</button>
-          </div>
+        </div>
+
+        <div class="fim-comp">
+          <i class="bi bi-trophy"></i> <?= h($vivo['comp']) ?><?= $vivo['fase'] ? ' · ' . h($vivo['fase']) : '' ?>
+        </div>
+
+        <div class="fim-numeros" data-fim-numeros></div>
+        <div class="craque fim-craque" data-fim-craque hidden></div>
+
+        <form method="post" class="popup-acoes">
+          <input type="hidden" name="acao" value="aovivo_fechar">
+          <button class="btn" type="submit">Avançar <i class="bi bi-arrow-right"></i></button>
         </form>
       </div>
     </div>
@@ -1679,8 +1809,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       var barra = document.getElementById('barraTempo');
       var escCaixa = document.getElementById('escalacaoVivo');
       var marcasVivo = <?= json_encode($marcasVivo ?: new stdClass(), JSON_UNESCAPED_UNICODE) ?>;
-      var btJogar = document.getElementById('btJogar'), btPausar = document.getElementById('btPausar');
-      var fmFechar = document.getElementById('fmFechar');
+      var btPausar = document.getElementById('btPausar');
+      var btVoltar = document.getElementById('btVoltar');
       var casa = <?= $casa ? 'true' : 'false' ?>;
 
       function pintaRelogio() {
@@ -1928,13 +2058,63 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         }
       }
 
+      /* ── O APITO FINAL ───────────────────────────────────────────────
+         Antes aparecia um botão "Encerrar e ver o resumo" e a partida ficava
+         parada esperando alguém achá-lo. Agora o resumo vem sozinho: o jogo
+         acabou, não há mais nada pra decidir, e o único caminho adiante é
+         seguir. */
+      var jaAcabou = false;
       function acabou() {
         rolando = false;
         clearInterval(timer);
-        btJogar.hidden = true; btPausar.hidden = true;
-        fmFechar.hidden = false;
+        btPausar.hidden = true;
+        btVoltar.hidden = true;
         rel.className = 'relogio parado';
         rlMin.textContent = '90';
+        if (jaAcabou) return;
+        jaAcabou = true;
+        setTimeout(mostraFimDeJogo, 700);   // deixa o último lance respirar
+      }
+
+      function mostraFimDeJogo() {
+        var pop = document.getElementById('popFim');
+        if (!pop) return;
+        var meus = golsMostrados.meus, deles = golsMostrados.deles;
+        pop.querySelector('[data-fim-placar]').textContent =
+          (casa ? meus : deles) + ' – ' + (casa ? deles : meus);
+        var veredito = meus > deles ? 'Vitória' : (meus < deles ? 'Derrota' : 'Empate');
+        var caixa = pop.querySelector('[data-fim-veredito]');
+        caixa.textContent = veredito;
+        caixa.className = 'fim-veredito ' + (meus > deles ? 'v' : (meus < deles ? 'd' : ''));
+
+        var n = numerosFinais;
+        var linhas = pop.querySelector('[data-fim-numeros]');
+        linhas.innerHTML = n ? [
+          ['Posse de bola', n.posse + '%', (100 - n.posse) + '%'],
+          ['Finalizações', n.chutes, n.chutes_deles],
+          ['No alvo', n.no_alvo, n.no_alvo_deles]
+        ].map(function (l) {
+          return '<div class="fim-linha"><span>' + l[1] + '</span><i>' + l[0] + '</i><span>' + l[2] + '</span></div>';
+        }).join('') : '';
+
+        /* O MELHOR EM CAMPO é o que se quer saber depois do apito, e é o
+           único jeito de as notas não sumirem junto com a tela da partida. */
+        var craque = null;
+        if (notasFinais) {
+          Object.keys(notasFinais).forEach(function (nome) {
+            if (!craque || notasFinais[nome] > craque.nota) craque = {nome: nome, nota: notasFinais[nome]};
+          });
+        }
+        var cx = pop.querySelector('[data-fim-craque]');
+        cx.innerHTML = craque
+          ? '<i class="bi bi-star-fill"></i><div style="flex:1;min-width:0">'
+            + '<div class="craque-nome">' + craque.nome + '</div>'
+            + '<div class="craque-sub">melhor em campo</div></div>'
+            + '<span class="nota alta">' + craque.nota.toFixed(1).replace('.', ',') + '</span>'
+          : '';
+        cx.hidden = !craque;
+
+        pop.hidden = false;
       }
 
       /* PEDE O PRÓXIMO PEDAÇO ANTES DE PRECISAR DELE. Enquanto o relógio toca
@@ -1961,7 +2141,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       }
 
       var placarFinal = {meus: <?= (int)$vivo['meus'] ?>, deles: <?= (int)$vivo['deles'] ?>};
-      var notasFinais = null, numerosFinais = null;
+      /* JA VEM PREENCHIDO DO SERVIDOR: quem recarrega a pagina com a partida
+         no fim nao passa mais pelo buscaMais, e sem isso o resumo do apito
+         final abria sem numeros e sem melhor em campo. */
+      var notasFinais = <?= json_encode($notasVivo ?: null, JSON_UNESCAPED_UNICODE) ?>;
+      var numerosFinais = <?= json_encode($vivo['numeros'] ?? null) ?>;
       var golsMostrados = {meus: placarFinal.meus, deles: placarFinal.deles};
 
       /* O RELÓGIO ANDA UM MINUTO POR VEZ e solta o que estava marcado pra
@@ -2003,13 +2187,13 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
          lembrar de apertar o botão no meio de um relógio correndo. */
       function apitaIntervalo() {
         pausa();
-        btJogar.innerHTML = '<i class="bi bi-play-fill"></i> Começar o segundo tempo';
         abreTroca(true);
       }
 
       function toca() {
+        if (jaAcabou) return;
         rolando = true;
-        btJogar.hidden = true; btPausar.hidden = false;
+        btPausar.hidden = false; btVoltar.hidden = true;
         pintaRelogio();
         buscaMais();
         clearInterval(timer);
@@ -2018,47 +2202,77 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       function pausa() {
         rolando = false;
         clearInterval(timer);
-        btJogar.hidden = false; btPausar.hidden = true;
-        btJogar.innerHTML = '<i class="bi bi-play-fill"></i> Continuar';
+        if (!jaAcabou) { btPausar.hidden = true; btVoltar.hidden = false; }
         pintaRelogio();
       }
 
-      btJogar.addEventListener('click', toca);
-      btPausar.addEventListener('click', pausa);
+      /* PAUSAR É ABRIR A PRANCHETA. Não existe motivo pra parar a partida que
+         não seja mexer no time — e quando existia um botão só de pausa, ele
+         parava o jogo e deixava a pessoa olhando pra tela parada. */
+      btPausar.addEventListener('click', function () { abreTroca(false); });
+      btVoltar.addEventListener('click', toca);
 
-      // ── O popup de estratégia ──────────────────────────────────
-      var pop = document.getElementById('popEstrategia');
-      var voltaARolar = false;
-      document.getElementById('btEstrategia').addEventListener('click', function () {
-        voltaARolar = rolando;
-        if (rolando) pausa();
-        pop.hidden = false;
+      /* ── ESTRATÉGIA E FORMAÇÃO, DENTRO DA PRANCHETA ─────────────────
+         As duas aplicam NO CLIQUE, sem botão de confirmar. Um "Confirmar"
+         só faria sentido se desse pra desistir no meio, e não dá: postura e
+         marcação são uma escolha entre três, e formação entre cinco — não há
+         estado intermediário pra abandonar. */
+      function mandaEstrategia() {
+        var d = {acao: 'aovivo_estrategia'};
+        document.querySelectorAll('.mesa-chips').forEach(function (g) {
+          var on = g.querySelector('.mesa-chip.on');
+          d[g.dataset.campo] = on ? on.dataset.valor : '';
+        });
+        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(d)})
+          .catch(function () {});
+      }
+
+      document.querySelectorAll('.mesa-chips').forEach(function (grupo) {
+        grupo.addEventListener('click', function (e) {
+          var b = e.target.closest('.mesa-chip');
+          if (!b) return;
+          grupo.querySelectorAll('.mesa-chip').forEach(function (x) { x.classList.remove('on'); });
+          b.classList.add('on');
+          mandaEstrategia();
+        });
       });
-      pop.addEventListener('click', function (e) {
-        if (e.target === pop || e.target.hasAttribute('data-fechar')) {
-          pop.hidden = true;
-          if (voltaARolar) toca();
-        }
-      });
-      document.getElementById('fmEstrategia').addEventListener('submit', function (e) {
-        e.preventDefault();
-        var f = new FormData(e.target);
-        f.append('acao', 'aovivo_estrategia');
-        fetch(location.pathname, {method: 'POST', body: new URLSearchParams(f)})
-          .then(function (r) { return r.json(); })
-          .then(function () {
-            pop.hidden = true;
-            if (voltaARolar) toca();
-          });
-      });
+
+      var selEsquema = document.getElementById('mesaEsquema');
+      var notaEsquema = document.getElementById('mesaEsquemaNota');
+      if (selEsquema) {
+        selEsquema.addEventListener('change', function () {
+          var antes = selEsquema.dataset.valia || selEsquema.value;
+          fetch(location.pathname, {method: 'POST', body: new URLSearchParams(
+            {acao: 'aovivo_formacao', esquema: selEsquema.value})})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (!d.ok) {
+                // O servidor recusou: a tela não pode ficar dizendo que mudou.
+                selEsquema.value = antes;
+                notaEsquema.textContent = d.erro || 'Não deu pra mudar o esquema.';
+                return;
+              }
+              selEsquema.dataset.valia = selEsquema.value;
+              notaEsquema.textContent = 'Agora em ' + d.esquema + ' — força em campo ' + d.forca + '.';
+              // O campo da prancheta e o campo de trás mostram o time novo.
+              recarregaPrancheta();
+              carregaCampo();
+            })
+            .catch(function () { selEsquema.value = antes; });
+        });
+        selEsquema.dataset.valia = selEsquema.value;
+      }
 
       // ── A substituição ─────────────────────────────────────────
       var popTroca = document.getElementById('popTroca');
       var campoTroca = document.getElementById('campoTroca');
       var listaEntra = document.getElementById('listaEntra');
-      var btTrocarConta = document.getElementById('btTrocarConta');
       var trocaRestam = document.getElementById('trocaRestam');
-      var escolhaEntra = null, rolavaAntes = false;
+      /* AS DUAS PONTAS DA TROCA. O gesto tem dois sentidos porque a cabeça
+         tem dois: às vezes se pensa "quero o Luiz Araújo em campo" e às vezes
+         "o Samuel Lino não está dando conta". Quem começa pelo banco arrasta
+         pra camisa; quem começa pelo titular arrasta pro banco. */
+      var escolhaEntra = null, escolhaSai = null;
 
       /* O CAMPO DA SUBSTITUIÇÃO é o mesmo da escalação: as camisas nas
          coordenadas do esquema, e o banco embaixo. Arrastar um do banco até a
@@ -2070,6 +2284,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           '<div class="area cima"></div><div class="area baixo"></div>' +
           dados.vagas.map(function (v) {
             return '<div class="camisa alvo-troca' + (v.entrou ? ' trocado' : '') + '"' +
+                   ' draggable="' + (v.entrou ? 'false' : 'true') + '"' +
                    ' data-nome="' + v.nome + '" data-entrou="' + (v.entrou ? 1 : 0) + '"' +
                    ' style="left:' + v.x + '%;top:' + v.y + '%" tabindex="0" role="button"' +
                    ' title="' + v.nome + (v.entrou ? ' (acabou de entrar)' : '') + '">' +
@@ -2078,22 +2293,37 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                    '<div class="vg">' + v.pos + '</div></div>';
           }).join('');
 
+        /* O BANCO É O MESMO CARTÃO DA ESCALAÇÃO (.reserva): overall, nome,
+           posição e energia, na mesma ordem e com o mesmo desenho. Eram duas
+           telas pra fazer a mesma coisa — escolher quem entra — e cada uma com
+           um cartão diferente, então a mão tinha que reaprender. */
         listaEntra.innerHTML = dados.banco.map(function (j) {
-          return '<button type="button" class="troca-op" draggable="true" data-nome="' + j.nome + '">' +
-                 '<span class="o">' + j.ovr + '</span><span class="nm">' + j.nome + '</span>' +
-                 '<span class="en">' + j.energia + '</span></button>';
+          var en = j.energia >= 80 ? 'verde' : (j.energia >= 55 ? 'amarelo' : 'vermelho');
+          return '<button type="button" class="reserva troca-op" draggable="true" data-nome="' + j.nome + '">' +
+                 '<span class="r-ovr">' + j.ovr + '</span>' +
+                 '<span class="r-nome">' + j.nome + '</span>' +
+                 '<span class="r-pos">' + (j.pos || '') + '</span>' +
+                 '<span class="r-en ' + en + '">' + j.energia + '</span></button>';
         }).join('') || '<div style="color:var(--txt3);font-size:12px">Banco vazio.</div>';
 
         trocaRestam.textContent = dados.restam > 0
           ? dados.restam + ' substituição(ões) restante(s)'
           : 'Acabaram as substituições.';
-        escolhaEntra = null;
+        escolhaEntra = null; escolhaSai = null;
         ligaCampo();
       }
 
       function limpaSel() {
-        listaEntra.querySelectorAll('.troca-op').forEach(function (x) { x.classList.remove('sel'); });
-        campoTroca.querySelectorAll('.camisa').forEach(function (x) { x.classList.remove('alvo'); });
+        listaEntra.querySelectorAll('.troca-op').forEach(function (x) { x.classList.remove('sel', 'alvo'); });
+        campoTroca.querySelectorAll('.camisa').forEach(function (x) { x.classList.remove('alvo', 'sel'); });
+      }
+
+      /* Quem acabou de entrar não sai de novo, e dizer isso na hora do gesto
+         evita um POST que o servidor ia recusar de qualquer jeito. */
+      function podeSair(c) {
+        if (c.dataset.entrou !== '1') return true;
+        trocaRestam.textContent = c.dataset.nome + ' acabou de entrar.';
+        return false;
       }
 
       function fazTroca(sai, entra) {
@@ -2103,9 +2333,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (!d.ok) { trocaRestam.textContent = d.erro; return; }
-            btTrocarConta.textContent = '(' + d.restam + ')';
             mostraLance({minuto: minuto, tipo: 'troca', meu: true, jogador: entra, sai: sai});
-            escolhaEntra = null;
+            escolhaEntra = null; escolhaSai = null;
             // Recarrega o campo com o time já mexido.
             fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
               .then(function (r) { return r.json(); }).then(pintaOpcoes);
@@ -2114,19 +2343,43 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 
       function ligaCampo() {
         campoTroca.querySelectorAll('.camisa').forEach(function (c) {
+          /* TOCAR NUM TITULAR SEM NINGUÉM ESCOLHIDO É DIZER QUEM SAI. Antes
+             este clique não fazia nada, e o jogo só entendia o caminho que
+             começava no banco — no celular isso obrigava a decorar a ordem. */
           c.addEventListener('click', function () {
-            if (!escolhaEntra) return;
-            if (c.dataset.entrou === '1') { trocaRestam.textContent = c.dataset.nome + ' acabou de entrar.'; return; }
-            fazTroca(c.dataset.nome, escolhaEntra);
+            if (!podeSair(c)) return;
+            if (escolhaEntra) { fazTroca(c.dataset.nome, escolhaEntra); limpaSel(); return; }
+            var jaEra = c.classList.contains('sel');
             limpaSel();
+            if (jaEra) { escolhaSai = null; return; }
+            c.classList.add('sel');
+            escolhaSai = c.dataset.nome;
+            trocaRestam.textContent = 'Agora toque em quem entra, no banco.';
           });
-          c.addEventListener('dragover', function (e) { e.preventDefault(); c.classList.add('alvo'); });
+
+          c.addEventListener('dragstart', function (e) {
+            if (!podeSair(c)) { e.preventDefault(); return; }
+            escolhaSai = c.dataset.nome;
+            escolhaEntra = null;
+            c.classList.add('sel');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', c.dataset.nome);
+          });
+          c.addEventListener('dragend', limpaSel);
+
+          /* A camisa só é alvo pra quem vem do banco: arrastar um titular pra
+             cima de outro titular não é substituição nenhuma. */
+          c.addEventListener('dragover', function (e) {
+            if (!escolhaEntra) return;
+            e.preventDefault(); c.classList.add('alvo');
+          });
           c.addEventListener('dragleave', function () { c.classList.remove('alvo'); });
           c.addEventListener('drop', function (e) {
             e.preventDefault();
             c.classList.remove('alvo');
-            var quem = e.dataTransfer.getData('text/plain') || escolhaEntra;
-            if (c.dataset.entrou === '1') { trocaRestam.textContent = c.dataset.nome + ' acabou de entrar.'; return; }
+            var quem = escolhaEntra || e.dataTransfer.getData('text/plain');
+            if (!escolhaEntra) return;          // veio do campo: não é troca
+            if (!podeSair(c)) return;
             fazTroca(c.dataset.nome, quem);
             limpaSel();
           });
@@ -2136,6 +2389,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       listaEntra.addEventListener('click', function (e) {
         var b = e.target.closest('.troca-op');
         if (!b) return;
+        // Se um titular já está marcado, este toque fecha a substituição.
+        if (escolhaSai) { fazTroca(escolhaSai, b.dataset.nome); limpaSel(); return; }
         limpaSel();
         b.classList.add('sel');
         escolhaEntra = b.dataset.nome;
@@ -2145,38 +2400,80 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         var b = e.target.closest('.troca-op');
         if (!b) return;
         escolhaEntra = b.dataset.nome;
+        escolhaSai = null;
         b.classList.add('sel');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', b.dataset.nome);
       });
       listaEntra.addEventListener('dragend', limpaSel);
 
+      /* ── O CAMINHO DE VOLTA: DO CAMPO PRO BANCO ─────────────────────
+         Arrastar o titular até o reserva é o mesmo gesto do contrário, e a
+         mão que já tirou um jogador da escalação arrastando espera que
+         funcione aqui também. Sem isso, metade dos arrastos não fazia nada e
+         não dizia por quê. */
+      listaEntra.addEventListener('dragover', function (e) {
+        if (!escolhaSai) return;
+        e.preventDefault();
+        var b = e.target.closest('.troca-op');
+        if (b) b.classList.add('alvo');
+      });
+      listaEntra.addEventListener('dragleave', function (e) {
+        var b = e.target.closest('.troca-op');
+        if (b) b.classList.remove('alvo');
+      });
+      listaEntra.addEventListener('drop', function (e) {
+        if (!escolhaSai) return;
+        e.preventDefault();
+        var b = e.target.closest('.troca-op');
+        if (!b) return;
+        fazTroca(escolhaSai, b.dataset.nome);
+        limpaSel();
+      });
+
+      /* Recarrega só o conteúdo da prancheta, sem abrir nem fechar nada: é o
+         que a troca de formação precisa pra o campo mostrar o time novo. */
+      function recarregaPrancheta() {
+        if (popTroca.hidden) return;
+        fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+          .then(function (r) { return r.json(); })
+          .then(pintaOpcoes)
+          .catch(function () {});
+      }
+
       function abreTroca(doIntervalo) {
-        rolavaAntes = doIntervalo ? false : rolando;
+        if (jaAcabou) return;
         if (rolando) pausa();
+        var tit = document.getElementById('mesaTitulo');
+        if (tit) tit.textContent = doIntervalo ? 'Intervalo' : 'Pausado aos ' + minuto + "'";
         fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
           .then(function (r) { return r.json(); })
           .then(function (d) {
             pintaOpcoes(d);
-            var tit = popTroca.querySelector('h4');
-            if (tit) tit.innerHTML = doIntervalo
-              ? '<i class="bi bi-cup-hot"></i> Intervalo'
-              : '<i class="bi bi-arrow-left-right"></i> Substituição';
             popTroca.hidden = false;
-          });
+          })
+          .catch(function () { popTroca.hidden = false; });
       }
-      document.getElementById('btTrocar').addEventListener('click', function () { abreTroca(false); });
 
+      /* FECHAR A PRANCHETA É VOLTAR A JOGAR — inclusive saindo do intervalo,
+         que antes deixava a partida parada esperando mais um clique. Abrir
+         pausa, fechar toca: são os dois lados do mesmo gesto, e não sobra
+         estado nenhum em que a pessoa fica olhando pro relógio parado sem
+         saber o que apertar. */
       popTroca.addEventListener('click', function (e) {
-        if (e.target === popTroca || e.target.hasAttribute('data-fechar')) {
-          popTroca.hidden = true;
-          if (rolavaAntes) toca();
-        }
+        if (e.target !== popTroca && !e.target.hasAttribute('data-fechar')) return;
+        popTroca.hidden = true;
+        if (!jaAcabou) toca();
       });
 
 
       carregaCampo();
       pintaRelogio();
+      /* COMEÇA RODANDO. Quem clicou em "Jogar" na tela anterior já disse o que
+         queria; pedir mais um clique em "Começar" era uma porta a mais entre a
+         decisão e o jogo. Quem chega aqui com a partida já no fim cai direto
+         no resumo, sem relógio andando à toa. */
+      setTimeout(function () { if (!jaAcabou && minuto < 90) toca(); }, 350);
       mostraNumeros(<?= json_encode($vivo['numeros'] ?? null) ?>);
       if (minuto >= 90) acabou();
       <?php if (!empty($vivo['eventos'])): ?>
