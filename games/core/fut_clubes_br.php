@@ -130,6 +130,16 @@ const FUT_ESCUDOS = [
     'Pouso Alegre'         => 'https://r2.thesportsdb.com/images/media/team/badge/7kazoj1679129032.png',
     'Santo André'         => 'https://r2.thesportsdb.com/images/media/team/badge/t5flg01678205839.png',
 
+    /* ── TROCAS DE SVG POR PNG ───────────────────────────────────
+       Estes tres tinham escudo, mas em SVG — que o navegador desenha e o
+       extrator de cores nao le, entao o clube ficava com o verde padrao em
+       vez da cor dele. O PNG resolve os dois de uma vez.
+       O Botafogo-PB e o Mainz 05 continuam em SVG de proposito: a busca so
+       achou PNG do Botafogo DO RIO, que e outro clube. */
+    'Nottingham Forest'     => 'https://r2.thesportsdb.com/images/media/team/badge/1i2kvh1719918076.png',
+    'Midtjylland'           => 'https://r2.thesportsdb.com/images/media/team/badge/s5bpcr1755712262.png',
+    'AGF'                   => 'https://r2.thesportsdb.com/images/media/team/badge/vxuuts1473535487.png',
+
     /* ── A EUROPA QUE FALTAVA ────────────────────────────────────
        Achados por games/core/fut_buscar_escudos_cli.php, que casa PELO
        PAÍS e não pelo nome: "Nacional" existe na Madeira, no Amazonas e
