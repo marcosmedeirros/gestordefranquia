@@ -38,7 +38,28 @@ secao('Catálogo e elencos');
 $br = futClubesDoBrasil();
 ok('98 clubes brasileiros', count($br) === 98, count($br) . ' clubes');
 ok('Série A com 20', count(futClubesDaDivisao('BR1')) === 20);
-ok('Série B com 20', count(futClubesDaDivisao('BR2')) === 20);
+
+/* ── A SÉRIE B TEM 21 E A C TEM 15, E ISSO NÃO É BUG ──────────────────
+   O jogo alinhou a Série A à temporada de 2026: três desceram e três
+   subiram, mas o Remo veio da C — então a B ganhou três e perdeu dois.
+   Fechar em vinte exigiria dizer qual clube da B caiu, e essa lista não
+   existe em fonte nenhuma aberta.
+
+   O que o teste cobra, então, é o que o jogador sente: NINGUÉM PODE JOGAR
+   MAIS RODADAS QUE O VIZINHO. Com número ímpar entra o "bye", e é
+   justamente aí que uma tabela injusta passaria despercebida. */
+foreach (['BR1', 'BR2', 'BR3', 'BR4'] as $div) {
+    $porClube = [];
+    foreach (futCarreiraCalendarioDaLiga($div) as $rodada) {
+        foreach ($rodada as [$casa, $fora]) {
+            $porClube[$casa] = ($porClube[$casa] ?? 0) + 1;
+            $porClube[$fora] = ($porClube[$fora] ?? 0) + 1;
+        }
+    }
+    ok("todo clube da $div joga o mesmo tanto",
+       $porClube && min($porClube) === max($porClube),
+       count($porClube) . ' clubes, ' . ($porClube ? min($porClube) . '-' . max($porClube) : '?') . ' jogos');
+}
 
 $nomes = array_keys($br);
 ok('nenhum clube repetido', count($nomes) === count(array_unique($nomes)));

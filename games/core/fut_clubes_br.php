@@ -209,6 +209,28 @@ const FUT_ESCUDOS = [
  * [nome, divisão, UF, força, região]
  */
 const FUT_CLUBES_BR_EXTRA = [
+    /* ── QUEM SUBIU E QUEM CAIU ──────────────────────────────────────
+       O catálogo do Copero é da temporada passada, e o jogo começa em 2026:
+       Fortaleza, Cuiabá e Juventude caíram, e Chapecoense, Coritiba e Remo
+       subiram. Conferido na API pública do Cartola, que só existe pra Série A
+       e lista exatamente esses vinte.
+
+       A SÉRIE B FICA COM VINTE E UM e a C com quinze, e isso é de propósito.
+       Os três que desceram entram na B, e só dois saíram dela — o Remo veio da
+       C. Fechar em vinte exigiria dizer qual clube da B caiu pra C, e essa
+       lista eu não tenho: seria chute vestido de dado. O calendário aguenta
+       número ímpar (quem sobra folga na rodada), então a conta fecha torta e
+       honesta até a fonte de verdade chegar.
+
+       A força escrita aqui só vale pra clube sem elenco real; quem tem
+       arquivo tira a força dele (@see futForcaDoElencoReal). */
+    ['Chapecoense',        'BR1', 'SC', 64, ''],
+    ['Coritiba',           'BR1', 'PR', 66, ''],
+    ['Remo',               'BR1', 'PA', 55, 'N'],
+    ['Fortaleza',          'BR2', 'CE', 79, 'NE'],
+    ['Cuiabá',             'BR2', 'MT', 72, 'N'],
+    ['Juventude',          'BR2', 'RS', 74, ''],
+
     // ── Completam a Série A ──────────────────────────────────────────
     ['Vitória',            'BR1', 'BA', 76, 'NE'],
     ['Santos',             'BR1', 'SP', 76, ''],      // sobe da B do catálogo
