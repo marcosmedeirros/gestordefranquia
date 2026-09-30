@@ -222,8 +222,11 @@ a{color:inherit}
 .recado{font-size:12.5px;color:#fca5a5;margin-top:9px;min-height:17px}
 
 /* ── O TOP 5 ────────────────────────────────────────────────────────── */
-.top5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-.top5 .pos{position:absolute;bottom:6px;left:6px;width:21px;height:21px;border-radius:6px;
+/* O TOP TEM DEZ e a grade não pode fixar cinco colunas: numa tela estreita
+   elas espremem o pôster até ele não valer mais como capa. Auto-fill põe
+   quantas couberem, que é o mesmo comportamento da grade do catálogo. */
+.top-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.top-lista .pos{position:absolute;bottom:6px;left:6px;width:21px;height:21px;border-radius:6px;
   background:var(--imdb);color:#111;font-size:11px;font-weight:900;
   display:flex;align-items:center;justify-content:center}
 
@@ -237,7 +240,6 @@ a{color:inherit}
 
 @media (max-width:560px){
   .fichas{grid-template-columns:repeat(2,1fr);row-gap:14px}
-  .top5{grid-template-columns:repeat(3,1fr)}
   .grade{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
   .pop-topo{flex-direction:column}
   .pop-capa{width:100%;max-width:170px;margin:0 auto}
@@ -335,9 +337,9 @@ a{color:inherit}
     <div class="bloco">
       <h3><i class="bi bi-star-fill"></i> Top <?= SERIES_TOP ?></h3>
       <?php if (!$perfil['top']): ?>
-        <div class="vazio">Abra uma série que você já assistiu e toque na estrela.</div>
+        <div class="vazio">Abra uma série que você já assistiu e toque em Top <?= SERIES_TOP ?>.</div>
       <?php else: ?>
-        <div class="top5"><?php foreach ($perfil['top'] as $s) echo cartaoDeSerie($s, true); ?></div>
+        <div class="top-lista"><?php foreach ($perfil['top'] as $s) echo cartaoDeSerie($s, true); ?></div>
       <?php endif; ?>
     </div>
 
@@ -446,7 +448,10 @@ function cartaoDeSerie(array $s, bool $comPosicao = false): string
     <div class="recado" id="fRecado"></div>
 
     <div class="pop-acoes">
-      <button class="btn fav" id="fFav"><i class="bi bi-star"></i> <span>Favorita</span></button>
+      <?php /* O BOTÃO DIZ O DESTINO, não o sentimento: "Favorita" não contava
+           que existe uma lista, nem que ela tem tamanho. */ ?>
+      <button class="btn fav" id="fFav"><i class="bi bi-star"></i>
+        <span>Top <?= SERIES_TOP ?></span></button>
       <button class="btn pri" data-fechar>Pronto</button>
     </div>
   </div>
@@ -457,6 +462,7 @@ function cartaoDeSerie(array $s, bool $comPosicao = false): string
   var POSTER = <?= json_encode(SERIES_IMG_BASE . SERIES_POSTER_G) ?>;
   var ESTADOS = <?= json_encode(SERIES_ESTADOS, JSON_UNESCAPED_UNICODE) ?>;
   var ICONE = {assistida: 'check-lg', assistindo: 'play-fill', quero: 'bookmark-fill'};
+  var TOP = <?= SERIES_TOP ?>;
 
   var pop = document.getElementById('popSerie');
   var grade = document.getElementById('grade');
@@ -607,7 +613,8 @@ function cartaoDeSerie(array $s, bool $comPosicao = false): string
     var fav = $('fFav');
     fav.classList.toggle('on', !!s.favorita);
     fav.querySelector('i').className = s.favorita ? 'bi bi-star-fill' : 'bi bi-star';
-    fav.querySelector('span').textContent = s.favorita ? 'No seu top (' + s.favorita + 'º)' : 'Favorita';
+    fav.querySelector('span').textContent = s.favorita
+      ? s.favorita + 'º no seu top' : 'Top ' + TOP;
     $('fRecado').textContent = '';
   }
 

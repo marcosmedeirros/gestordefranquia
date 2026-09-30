@@ -30,8 +30,17 @@ const SERIES_IMG_BASE = 'https://image.tmdb.org/t/p/';
 const SERIES_POSTER    = 'w342';    // o tamanho da grade
 const SERIES_POSTER_G  = 'w500';    // o da ficha aberta
 
-/** Quantas favoritas cabem no perfil. */
-const SERIES_TOP = 5;
+/**
+ * QUANTAS CABEM NO TOP DO PERFIL.
+ *
+ * Nasceu 5 e virou 10 em 30/09/2026. Cinco é pouco pra quem assiste muito:
+ * o top virava a lista das cinco intocáveis e nunca mudava, e uma lista que
+ * não muda ninguém volta pra ver.
+ *
+ * Todo lugar que fala do top lê daqui — o rótulo do botão, a recusa quando
+ * enche, o título no perfil. Mudar de novo é mudar este número.
+ */
+const SERIES_TOP = 10;
 
 /** O mínimo de votos no IMDb pra entrar na vitrine. @see seriesBuscar */
 const SERIES_VITRINE_VOTOS = 1000;
