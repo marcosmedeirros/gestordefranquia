@@ -217,8 +217,12 @@ a{color:inherit}
 /* ── A BARRA DAS MÍDIAS ─────────────────────────────────────────────
    Ela é o que diz que o Clube é maior que séries. As desligadas ficam
    visíveis e apagadas: promessa em cinza, não em link que abre nada. */
-.midias{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;
-  padding-bottom:2px}
+/* CENTRALIZADAS, mas com SAFE: as duas barras rolam de lado quando não cabem,
+   e centro puro num container que rola empurra o começo pra fora do alcance
+   — no celular a primeira aba ficaria inacessível. `safe center` centraliza
+   quando sobra espaço e volta pro começo quando falta. */
+.midias{display:flex;justify-content:safe center;gap:6px;margin-bottom:14px;
+  overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .midias::-webkit-scrollbar{display:none}
 .midias a,.midias span{display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:11px;
   font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;
@@ -229,7 +233,8 @@ a{color:inherit}
 .midias span .breve{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
   padding:1px 5px;border-radius:5px;background:var(--panel3);color:var(--txt3)}
 
-.abas{display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none}
+.abas{display:flex;justify-content:safe center;gap:4px;margin-bottom:16px;
+  overflow-x:auto;scrollbar-width:none}
 .abas::-webkit-scrollbar{display:none}
 .abas a{padding:8px 13px;border-radius:10px;font-size:13px;font-weight:700;color:var(--txt2);
   text-decoration:none;white-space:nowrap}
