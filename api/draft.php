@@ -3028,6 +3028,10 @@ if ($method === 'POST') {
             $position = strtoupper(trim((string)($data['position'] ?? '')));
             $age = (int)($data['age'] ?? 0);
             $ovr = (int)($data['ovr'] ?? 0);
+            /* A ORDEM É OPCIONAL: sem ela o jogador entra solto e cai no fim do
+               board, atrás de quem tem posição — que é o certo pra quem só quer
+               pôr mais um nome no pool. */
+            $ordemPedida = ($data['pick_hint'] ?? '') !== '' ? max(1, (int)$data['pick_hint']) : null;
 
             if (!$draftSessionId || $name === '' || $position === '' || $age <= 0 || $ovr <= 0) {
                 echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
@@ -3042,16 +3046,28 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmt = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status) VALUES (?, ?, ?, ?, ?, "available")');
-            $stmt->execute([
-                (int)$session['season_id'],
-                $name,
-                $position,
-                $age,
-                $ovr
-            ]);
+            $seasonId = (int)$session['season_id'];
 
-            echo json_encode(['success' => true, 'message' => 'Jogador adicionado ao draft!']);
+            require_once __DIR__ . '/../backend/draft_ordem.php';
+            $pdo->beginTransaction();
+            try {
+                /* A VAGA SE ABRE ANTES DO INSERT. Na ordem contrária o novo
+                   entra, vira "mais um no lugar 1" e o empurrão não sabe mais
+                   quem estava lá antes — os dois desceriam juntos. */
+                if ($ordemPedida !== null) draftOrdemAbrirVaga($pdo, 'pool', $seasonId, $ordemPedida);
+
+                $stmt = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status) VALUES (?, ?, ?, ?, ?, ?, "available")');
+                $stmt->execute([$seasonId, $name, $position, $age, $ovr, $ordemPedida]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[draft] add_draft_player: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Não deu pra adicionar o jogador.']);
+                exit;
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Jogador adicionado ao draft!',
+                              'ordem' => $ordemPedida]);
             break;
 
         // ADMIN: Importar jogadores em lote via CSV

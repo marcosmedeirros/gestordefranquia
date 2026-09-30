@@ -11546,6 +11546,12 @@ async function _adminDraftAddPlayerModal(draftSessionId, seasonId, league) {
             <label style="font-size:11px;color:var(--text-3)">Idade</label>
             <input id="draftPlayerAge" type="number" min="18" max="45" class="form-control form-control-sm" placeholder="22">
           </div>
+          <div class="col-12">
+            <label style="font-size:11px;color:var(--text-3)">Ordem no board <span style="color:var(--text-3);opacity:.7">(opcional)</span></label>
+            <input id="draftPlayerOrdem" type="number" min="1" class="form-control form-control-sm" placeholder="1 = primeiro da lista"
+                   title="Vazio: entra solto, no fim do board. Com número: entra nessa posição e quem estava nela desce uma casa.">
+            <div style="font-size:10.5px;color:var(--text-3);margin-top:4px">Quem estiver nesse lugar desce uma casa.</div>
+          </div>
         </div>
         <div class="d-flex gap-2 justify-content-end">
           <button class="btn-ghost" onclick="document.getElementById('adminDraftPlayerModal').remove()">Cancelar</button>
@@ -11564,13 +11570,19 @@ async function _adminDraftSubmitPlayer(draftSessionId, league) {
   const position = (document.getElementById('draftPlayerPos')?.value.trim() || '').toUpperCase();
   const ovr = parseInt(document.getElementById('draftPlayerOvr')?.value || '0');
   const age = parseInt(document.getElementById('draftPlayerAge')?.value || '0');
+  const ordemRaw = document.getElementById('draftPlayerOrdem')?.value.trim();
+  const pickHint = ordemRaw ? parseInt(ordemRaw, 10) : null;
 
-  if (!name || !position || !ovr || !age) { showAlert('warning', 'Preencha todos os campos.'); return; }
+  // A ordem fica FORA desta checagem: ela é opcional, e exigir preenchimento
+  // obrigaria a inventar um número pra quem só quer pôr mais um nome no pool.
+  if (!name || !position || !ovr || !age) { showAlert('warning', 'Preencha nome, posição, OVR e idade.'); return; }
 
   try {
-    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'add_draft_player', draft_session_id: draftSessionId, name, position, ovr, age }) });
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'add_draft_player', draft_session_id: draftSessionId, name, position, ovr, age, pick_hint: pickHint }) });
     document.getElementById('adminDraftPlayerModal')?.remove();
-    showAlert('success', 'Jogador adicionado ao pool!');
+    showAlert('success', pickHint
+      ? `${name} entrou como ${pickHint}º do board.`
+      : `${name} entrou no pool, sem ordem definida.`);
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao adicionar jogador');
