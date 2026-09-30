@@ -400,14 +400,24 @@ $qInicial    = (string)($_GET['q'] ?? '');
 /* ── O RECADO DE UMA LINHA ──────────────────────────────────────────
    Curto de propósito: o lugar dele é embaixo do pôster, ao lado de outros
    vinte. Resenha de três parágrafos ninguém leria. */
-.caixa-recado{display:flex;gap:8px;align-items:flex-start}
-.caixa-recado textarea{flex:1;min-height:58px;resize:vertical;padding:9px 11px;border-radius:11px;
-  border:1px solid var(--borda);background:var(--panel3);color:var(--txt);
-  font:13px/1.45 Inter,system-ui,sans-serif}
+/* LARGURA CHEIA, e não `flex:1`. O campo era um flex item dentro de uma div
+   que NÃO era flex container: o flex:1 não valia nada e o <textarea> caía no
+   tamanho padrão dele (20 colunas, ~170px), espremido ao lado do botão. */
+.caixa-recado textarea{display:block;width:100%;min-height:62px;padding:10px 12px;
+  border-radius:11px;border:1px solid var(--borda);background:var(--panel3);color:var(--txt);
+  font:13px/1.45 Inter,system-ui,sans-serif;
+  /* Cresce sozinho conforme a pessoa escreve (o JS ajusta a altura), então
+     não precisa da alça de arrastar nem de barra de rolagem — as duas
+     apareciam num campo de duas linhas e davam cara de formulário quebrado. */
+  resize:none;overflow:hidden}
 .caixa-recado textarea:focus{outline:none;border-color:var(--acento)}
 .caixa-recado textarea:disabled{opacity:.4}
-.sobra{font-size:10.5px;color:var(--txt3);font-variant-numeric:tabular-nums;margin-top:4px;
-  text-align:right}
+.pe-recado{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:5px;font-size:10.5px;color:var(--txt3);min-height:15px}
+.sobra{font-variant-numeric:tabular-nums}
+.situacao{display:inline-flex;align-items:center;gap:5px}
+.situacao.ok{color:var(--fba-txt)}
+.situacao.ruim{color:#ef4444;font-weight:600}
 
 /* ── O QUE A LIGA DIZ ───────────────────────────────────────────────── */
 .diz{display:flex;flex-direction:column;gap:9px}
@@ -1127,13 +1137,17 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
          decepção de quem esperava 10 e euforia de quem esperava 5 — e é essa
          frase que faz a lista da liga valer a leitura. */ ?>
     <div class="rot" id="fRotRecado">Seu recado</div>
+    <?php /* SEM BOTÃO DE SALVAR: ele salva sozinho quando a pessoa para de
+         digitar. Um recado de uma linha não merece um passo a mais, e botão
+         de salvar é justamente o passo que se esquece — quem escrevia e
+         fechava a ficha perdia o que tinha escrito sem nem saber. */ ?>
     <div class="caixa-recado">
-      <div style="flex:1;min-width:0">
-        <textarea id="fRecadoTxt" maxlength="280" rows="2"
-                  placeholder="Uma linha sobre ela — o que te pegou, o que te irritou."></textarea>
-        <div class="sobra"><span id="fSobra">280</span> sobrando</div>
+      <textarea id="fRecadoTxt" maxlength="280" rows="2"
+                placeholder="Uma linha sobre ela — o que te pegou, o que te irritou."></textarea>
+      <div class="pe-recado">
+        <span class="situacao" id="fSituacao"></span>
+        <span><span id="fSobra">280</span> sobrando</span>
       </div>
-      <button class="btn" id="fSalvaRecado"><i class="bi bi-check-lg"></i> Salvar</button>
     </div>
 
     <div class="rot">O que a liga diz <span class="conta" id="fQuantos"></span></div>
@@ -1285,6 +1299,7 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
   });
 
   function abrir(id) {
+    salvarRecado();          // grava o da ficha anterior antes de trocar
     fetch(location.pathname + '?json=serie&id=' + id)
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -1338,9 +1353,12 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     var txt = $('fRecadoTxt');
     txt.value = s.meu_recado || '';
     txt.disabled = !podeAvaliar;
-    $('fSalvaRecado').disabled = !podeAvaliar;
+    /* O que já está no banco. É com ele que o autosave compara pra não
+       mandar requisição quando a pessoa só abriu a ficha e fechou. */
+    recadoNoBanco = txt.value;
     $('fRotRecado').textContent = podeAvaliar
       ? 'Seu recado' : 'Seu recado — marque como assistida pra poder escrever';
+    situacao('');
     contarSobra();
 
     pintarQuem();
@@ -1406,6 +1424,9 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
       if (!d.estado || d.estado === 'quero') {
         atual.minha_nota = null; atual.meu_recado = null; atual.favorita = null;
       }
+      /* pintar() relê o campo do que está em `atual`, e é ele que acerta o
+         recadoNoBanco — sem passar por aqui, o autosave acharia que o texto
+         apagado pelo servidor ainda estava lá. */
       recarregarQuem();
       pintar(); recarregarGrade();
     });
@@ -1424,31 +1445,93 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     });
   });
 
-  /* ── O recado ───────────────────────────────────────────────────────── */
+  /* ── O RECADO, QUE SALVA SOZINHO ─────────────────────────────────────
+     Botão de salvar é o passo que se esquece: quem escrevia a frase e
+     fechava a ficha perdia tudo sem nem perceber que tinha perdido. Agora
+     ele grava quando a pessoa para de digitar, e a linha embaixo diz em que
+     pé está — sem isso, "salvou sozinho" é promessa que não dá pra conferir. */
   var caixa = $('fRecadoTxt');
-  caixa.addEventListener('input', contarSobra);
+  var relogioRecado = null;
+  var recadoNoBanco = '';
+
+  caixa.addEventListener('input', function () {
+    contarSobra();
+    if (caixa.disabled) return;
+    situacao('');
+    /* 900ms: menos que isso manda requisição no meio de uma palavra; muito
+       mais e a pessoa fecha a ficha antes de o texto sair. O blur e o fechar
+       cobrem o resto, então nada depende só do relógio. */
+    clearTimeout(relogioRecado);
+    relogioRecado = setTimeout(salvarRecado, 900);
+  });
+  caixa.addEventListener('blur', salvarRecado);
+
   function contarSobra() {
     $('fSobra').textContent = Math.max(0, LIMITE_RECADO - caixa.value.length);
+    /* Cresce com o texto. O campo nasce com duas linhas porque é o tamanho de
+       um recado; quem escrever quatro não deve ter que rolar dentro de uma
+       caixinha. */
+    caixa.style.height = 'auto';
+    /* A BORDA ENTRA NA CONTA. Com box-sizing:border-box o `height` inclui
+       padding e borda, mas o scrollHeight só inclui o padding — sem somar os
+       2px das duas bordas, a última linha ficava cortada por baixo. */
+    var borda = caixa.offsetHeight - caixa.clientHeight;
+    caixa.style.height = Math.min(caixa.scrollHeight + borda, 200) + 'px';
   }
 
-  $('fSalvaRecado').addEventListener('click', function () {
-    if (!atual) return;
-    var b = this;
-    b.disabled = true;
+  function situacao(como, texto) {
+    var e = $('fSituacao');
+    e.className = 'situacao' + (como === 'ok' ? ' ok' : (como === 'ruim' ? ' ruim' : ''));
+    e.innerHTML = como === 'salvando' ? '<i class="bi bi-arrow-repeat"></i> salvando…'
+                : como === 'ok'       ? '<i class="bi bi-check-lg"></i> salvo'
+                : como === 'ruim'     ? escapa(texto || 'não deu pra salvar')
+                : '';
+  }
+
+  function salvarRecado() {
+    clearTimeout(relogioRecado);
+    if (!atual || caixa.disabled) return;
+
+    var texto = caixa.value;
+    if (texto === recadoNoBanco) return;      // nada mudou desde a última vez
+
+    /* De QUAL série é este texto. Entre mandar e voltar a pessoa pode ter
+       aberto outra ficha, e aí o recado dela não pode receber a confirmação
+       do anterior. */
+    var deQual = atual.id;
+    situacao('salvando');
+
     fetch(location.pathname, {
       method: 'POST',
-      body: new URLSearchParams({acao: 'comentar', serie: atual.id, texto: caixa.value})
+      /* keepalive: fechar a ficha pode recarregar a página no mesmo instante,
+         e uma requisição comum morreria com a navegação. Com ele o navegador
+         entrega mesmo assim — é a diferença entre "quase sempre salva" e
+         "salva". */
+      keepalive: true,
+      body: new URLSearchParams({acao: 'comentar', serie: deQual, texto: texto})
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        b.disabled = false;
-        if (!d.ok) { $('fRecado').textContent = d.erro || 'Não deu.'; return; }
-        $('fRecado').textContent = '';
+        if (!d.ok) { situacao('ruim', d.erro); return; }
+        mexi = true;
+        if (!atual || atual.id != deQual) return;   // já trocou de ficha
+        recadoNoBanco = texto;
         atual.meu_recado = d.comentario;
-        recarregarQuem();
+        situacao('ok');
+        /* A minha linha em "o que a liga diz" muda junto. Remendar o array
+           aqui em vez de perguntar de novo economiza uma ida ao servidor a
+           cada pausa na digitação — e é um campo só, que eu acabei de
+           mandar. Se por algum motivo eu não estiver na lista, aí sim vale
+           perguntar. */
+        var minha = null;
+        for (var i = 0; i < quem.length; i++) {
+          if (Number(quem[i].user_id) === EU) { minha = quem[i]; break; }
+        }
+        if (minha) { minha.comentario = d.comentario; pintarQuem(); }
+        else recarregarQuem();
       })
-      .catch(function () { b.disabled = false; $('fRecado').textContent = 'Sem resposta do servidor.'; });
-  });
+      .catch(function () { situacao('ruim', 'sem resposta do servidor'); });
+  }
 
   /* A lista da liga fica velha assim que eu mexo na minha linha. Em vez de
      remendar o array na mão — e arriscar mostrar uma coisa e o banco ter
@@ -1500,6 +1583,10 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     if (!pop.hidden) fechar();
   });
   function fechar() {
+    /* O QUE ESTÁ NO CAMPO VAI ANTES DE FECHAR. Sem isto, quem digitasse e
+       fechasse em menos de um segundo perdia a frase — que é justamente o
+       problema que o autosave veio resolver. */
+    salvarRecado();
     pop.hidden = true;
     atual = null;
     quem = [];
@@ -1508,7 +1595,7 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
        fechar, sem precisar apertar F5 — e só recarrega se de fato mexeu. */
     if (!grade && mexi) location.reload();
   }
-  ['fEstados', 'fNotas', 'fFav', 'fSalvaRecado'].forEach(function (id) {
+  ['fEstados', 'fNotas', 'fFav'].forEach(function (id) {
     $(id).addEventListener('click', function () { mexi = true; });
   });
 
