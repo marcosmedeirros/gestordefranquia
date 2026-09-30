@@ -32,12 +32,24 @@
  * @see games/games/series.php        o endereço antigo, que só redireciona
  */
 
-session_start();
+require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/series.php';
+require_once __DIR__ . '/backend/observador.php';
 
-$idUsuario = (int)($_SESSION['user_id'] ?? 0);
-$pdo = db();
+/* PÁGINA DO APP, e não mais uma tela solta de /games: entra pelo login da FBA
+   como qualquer outra, com menu lateral e a cor que a pessoa escolheu. Quem
+   não está logado vai pro login — não existe mais a tela de "precisa entrar"
+   dentro do Clube, porque ela contava a mesma coisa duas vezes. */
+requireAuth();
+
+$user = getUserSession();
+$pdo  = db();
+/* O cartão do time no menu. Vem por timeDaTela pra respeitar o modo
+   observador, igual às outras telas. */
+$team = timeDaTela($pdo, (int)$user['id']);
+
+$idUsuario = (int)$user['id'];
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
@@ -178,37 +190,75 @@ $qInicial    = (string)($_GET['q'] ?? '');
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Clube FBA</title>
+<link rel="manifest" href="/manifest.json?v=3">
+<meta name="theme-color" content="#fc0025">
+<link rel="icon" type="image/png" href="/img/fba-logo.png?v=3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800;900&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
+/* ── OS TOKENS DO APP ────────────────────────────────────────────────
+   Os mesmos do calendário, do cap e das outras telas internas: é o que faz
+   o menu lateral e a topbar aparecerem do jeito certo, e o que traz o tema
+   claro de graça. */
 :root{
-  --bg:#08090c; --panel:#111318; --panel2:#171a21; --panel3:#1e222b;
-  --borda:#252a35; --borda2:#333a49;
-  --txt:#f2f4f7; --txt2:#98a1b0; --txt3:#68707e;
-  /* O ROXO É DO CLUBE. Os jogos da casa são verdes e vermelhos de quadra;
-     o Clube não é esporte, e a cor separa a página na hora. */
-  --acento:#a855f7; --acento-2:#4c1d95;
+  --red:#fc0025;
+  --red-2:color-mix(in srgb, var(--red) 85%, white);
+  --red-soft:color-mix(in srgb, var(--red) 10%, transparent);
+  --red-glow:color-mix(in srgb, var(--red) 18%, transparent);
+  --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
+  --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10);
+  --border-red:color-mix(in srgb, var(--red) 22%, transparent);
+  --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
+  --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6;
+  --sidebar-w:260px;
+  --font:'Montserrat',sans-serif;
+  --radius:14px; --radius-sm:10px; --radius-xs:6px;
+  --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
+}
+:root[data-theme="light"]{
+  --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
+  --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5b6172; --text-3:#6b7080;
+}
+</style>
+
+<?php /* Barra lateral, topbar, main e hero — o mesmo shell das outras telas. */ ?>
+<?php include __DIR__ . '/includes/shell-css.php'; ?>
+
+<style>
+/* ── OS NOMES ANTIGOS DO CLUBE, APONTANDO PRO APP ────────────────────
+   A tela nasceu com paleta própria (--txt, --borda, --acento...) porque era
+   um jogo do /games e vivia sozinha. Agora que ela é página do app, quem
+   manda são os tokens de cima — e este bloco é a ponte, num lugar só, em vez
+   de trezentas trocas espalhadas pelo arquivo.
+
+   O QUE ISSO GANHA: --acento passa a ser --red, que é a variável que o
+   includes/accent-color.php sobrescreve com a cor que a PESSOA escolheu. O
+   roxo era do Clube; agora o detalhe é de quem está olhando. E o tema claro
+   passa a funcionar aqui também, porque os tokens trocam com ele. */
+:root{
+  --panel2:var(--panel-2); --panel3:var(--panel-3);
+  --borda:var(--border); --borda2:var(--border-md);
+  --txt:var(--text); --txt2:var(--text-2); --txt3:var(--text-3);
+  --acento:var(--red);
+  --acento-2:color-mix(in srgb, var(--red) 45%, #000);
+  /* Estas duas NÃO seguem a pessoa: o dourado é a marca do IMDb e o verde é
+     a nota da liga. Se virassem a cor escolhida, as três notas da ficha
+     ficariam iguais e a ficha perderia justamente o que ela conta. */
   --imdb:#f5c518; --fba:#22c55e;
   --display:'Barlow Condensed','Inter',system-ui,sans-serif;
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 Inter,system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased}
-a{color:inherit}
-#app{max-width:1180px;margin:0 auto;padding:14px 14px 90px}
-
-.topo{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;
-  margin:0 -14px 12px;padding:10px 14px;background:var(--bg);flex-wrap:wrap;
-  border-bottom:1px solid transparent;transition:border-color .2s}
-.topo.rolou{border-bottom-color:var(--borda)}
-.voltar{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-  border-radius:10px;border:1px solid var(--borda);background:var(--panel);text-decoration:none;flex-shrink:0}
-.marca{font-family:var(--display);font-size:21px;font-weight:700;letter-spacing:.3px;
-  display:flex;align-items:center;gap:8px;white-space:nowrap}
-.marca i{color:var(--acento)}
-.busca{position:relative;flex:1;min-width:190px;display:flex;align-items:center}
+/* O conteúdo do Clube fala Inter; o menu e a topbar seguem na Montserrat
+   das outras telas, pra não virar uma página com duas caras. */
+.content{font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.5}
+#app{max-width:1180px;margin:0 auto;padding:0 0 40px}
+/* A BUSCA MORA NO HERO. A página tinha barra própria — voltar, marca e busca
+   — porque era tela solta de /games. Com o menu lateral, voltar e marca
+   viraram repetição do que já está na esquerda; sobrou a busca. */
+.busca{position:relative;display:flex;align-items:center;width:min(340px,100%);
+  flex-shrink:0}
 .busca > .bi{position:absolute;left:11px;color:var(--txt3);font-size:13px;pointer-events:none}
 .busca input{width:100%;padding:9px 12px 9px 33px;border-radius:11px;border:1px solid var(--borda);
   background:var(--panel);color:var(--txt);font-size:13.5px}
@@ -228,7 +278,7 @@ a{color:inherit}
   font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;
   border:1px solid var(--borda);background:var(--panel);color:var(--txt2)}
 .midias a:hover{border-color:var(--borda2);color:var(--txt)}
-.midias a.on{border-color:var(--acento);background:rgba(168,85,247,.14);color:var(--acento)}
+.midias a.on{border-color:var(--acento);background:color-mix(in srgb,var(--acento) 14%,transparent);color:var(--acento)}
 .midias span{opacity:.4;cursor:default}
 .midias span .breve{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
   padding:1px 5px;border-radius:5px;background:var(--panel3);color:var(--txt3)}
@@ -285,7 +335,9 @@ a{color:inherit}
 
 /* ── O POPUP DO JOGO, nunca o do navegador ──────────────────────────
    Vale pra tudo: a ficha da série, a confirmação e o recado de erro. */
-.fundo{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:60;
+/* ACIMA DO MENU LATERAL (z-index 300) e da topbar. Com o 60 de antes, a
+   ficha abria POR BAIXO da barra da esquerda no desktop. */
+.fundo{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:400;
   display:flex;align-items:center;justify-content:center;padding:16px}
 .fundo[hidden]{display:none}
 .pop{width:100%;max-width:640px;max-height:88vh;overflow-y:auto;background:var(--panel);
@@ -317,7 +369,7 @@ a{color:inherit}
   background:var(--panel3);color:var(--txt2);font-size:12px;font-weight:700;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:5px}
 .est:hover{border-color:var(--borda2);color:var(--txt)}
-.est.on{border-color:var(--acento);background:rgba(168,85,247,.14);color:var(--acento)}
+.est.on{border-color:var(--acento);background:color-mix(in srgb,var(--acento) 14%,transparent);color:var(--acento)}
 .notinhas{display:flex;gap:4px;flex-wrap:wrap}
 .notinha{width:34px;height:34px;border-radius:9px;border:1px solid var(--borda);
   background:var(--panel3);color:var(--txt2);font-size:12.5px;font-weight:800;cursor:pointer}
@@ -331,7 +383,9 @@ a{color:inherit}
 .btn.fav.on{background:var(--imdb);border-color:var(--imdb);color:#111}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .pop-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
-.recado{font-size:12.5px;color:#fca5a5;margin-top:9px;min-height:17px}
+/* #ef4444 e nao um vermelho claro: o recado de erro tambem aparece no tema
+   claro, onde rosa-palido em fundo branco nao se le. */
+.recado{font-size:12.5px;color:#ef4444;font-weight:600;margin-top:9px;min-height:17px}
 
 /* ── O RECADO DE UMA LINHA ──────────────────────────────────────────
    Curto de propósito: o lugar dele é embaixo do pôster, ao lado de outros
@@ -359,7 +413,7 @@ a{color:inherit}
 .nota-pino{padding:1px 7px;border-radius:6px;font-size:11.5px;font-weight:900;
   background:var(--acento);color:#fff;font-variant-numeric:tabular-nums}
 .diz-txt{font-size:13px;color:var(--txt2);line-height:1.45;margin-top:4px}
-.diz-eu{border-color:var(--acento-2);background:rgba(168,85,247,.08)}
+.diz-eu{border-color:var(--acento-2);background:color-mix(in srgb,var(--acento) 9%,transparent)}
 
 /* ── O TOP DO PERFIL ────────────────────────────────────────────────── */
 /* O TOP TEM DEZ e a grade não pode fixar cinco colunas: numa tela estreita
@@ -406,7 +460,7 @@ a{color:inherit}
 .ordena{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px}
 .ordena a{padding:5px 10px;border-radius:8px;font-size:11.5px;font-weight:700;
   text-decoration:none;color:var(--txt3);border:1px solid var(--borda);background:var(--panel3)}
-.ordena a.on{color:var(--acento);border-color:var(--acento);background:rgba(168,85,247,.12)}
+.ordena a.on{color:var(--acento);border-color:var(--acento);background:color-mix(in srgb,var(--acento) 12%,transparent)}
 .linha-serie{display:flex;align-items:center;gap:11px;padding:9px 0;width:100%;
   border:0;border-bottom:1px solid var(--borda);background:none;color:inherit;
   text-align:left;font:inherit;cursor:pointer}
@@ -459,7 +513,7 @@ a{color:inherit}
   font-size:12.5px;font-weight:700;text-decoration:none;color:var(--txt2);
   border:1px solid var(--borda);background:var(--panel3)}
 .filtros a:hover{border-color:var(--borda2);color:var(--txt)}
-.filtros a.on{border-color:var(--acento);background:rgba(168,85,247,.14);color:var(--acento)}
+.filtros a.on{border-color:var(--acento);background:color-mix(in srgb,var(--acento) 14%,transparent);color:var(--acento)}
 .filtros .qt{font-size:10.5px;font-weight:800;padding:0 5px;border-radius:5px;
   background:rgba(0,0,0,.3);color:var(--txt3);font-variant-numeric:tabular-nums}
 .filtros a.on .qt{color:var(--acento)}
@@ -479,7 +533,7 @@ a{color:inherit}
 .ac-s{font-size:11.5px;color:var(--txt3);display:flex;gap:8px;flex-wrap:wrap;
   align-items:center;margin-top:3px}
 .ac-s .pino.assistida{color:var(--fba);border-color:rgba(34,197,94,.35)}
-.ac-s .pino.assistindo{color:var(--acento);border-color:rgba(168,85,247,.4)}
+.ac-s .pino.assistindo{color:var(--acento);border-color:color-mix(in srgb,var(--acento) 40%,transparent)}
 .ac-s .pino.top{color:var(--imdb);border-color:rgba(245,197,24,.4)}
 .ac-r{color:var(--txt2);font-style:italic;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;max-width:100%}
@@ -501,12 +555,17 @@ a{color:inherit}
 .pop.pergunta p{color:var(--txt2);font-size:13.5px;margin:0;line-height:1.5}
 .btn.perigo{background:#ef4444;border-color:#ef4444;color:#fff}
 
+@media (max-width:992px){
+  /* No celular o hero empilha, e a busca passa a ocupar a linha inteira —
+     meia largura ao lado de um título que quebrou em duas linhas era um
+     campo estreito demais pra digitar nome de série. */
+  .busca{width:100%}
+}
 @media (max-width:560px){
   .fichas{grid-template-columns:repeat(2,1fr);row-gap:14px}
   .grade{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
   .pop-topo{flex-direction:column}
   .pop-capa{width:100%;max-width:170px;margin:0 auto}
-  .marca{font-size:19px}
   .cab-pessoa .nm{font-size:22px}
   /* No celular o recado empurraria a nota e o X pra fora da linha. Ele
      continua na ficha, que é onde se escreve. */
@@ -518,15 +577,29 @@ a{color:inherit}
   .ac-t,.linha-serie .ls-t{white-space:normal;display:-webkit-box;
     -webkit-line-clamp:2;-webkit-box-orient:vertical}
 }
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>
 <body>
-<div id="app">
 
-  <div class="topo">
-    <a href="/dashboard.php" class="voltar" title="Voltar"><i class="bi bi-arrow-left"></i></a>
-    <div class="marca"><i class="bi bi-collection-fill"></i> Clube FBA</div>
-    <?php if ($idUsuario > 0 && $midia === 'series' && $catalogo > 0): ?>
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
+<div class="sb-overlay" id="sbOverlay"></div>
+
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+  <div class="topbar-title">FBA <em>Clube</em></div>
+</header>
+
+<main class="main">
+  <div class="dash-hero">
+    <div>
+      <div class="dash-eyebrow">Clube FBA</div>
+      <h1 class="dash-title"><?= h(CLUBE_MIDIAS[$midia]['rot']) ?></h1>
+      <p class="dash-sub">O que a liga anda vendo, lendo e ouvindo.</p>
+    </div>
+    <?php if ($midia === 'series' && $catalogo > 0): ?>
+      <?php /* A BUSCA FICA NO CABEÇALHO, ao lado do título: é a primeira
+           coisa que se faz num catálogo de mil e seiscentas séries. */ ?>
       <div class="busca">
         <i class="bi bi-search"></i>
         <input type="search" id="busca" autocomplete="off" spellcheck="false"
@@ -536,6 +609,8 @@ a{color:inherit}
     <?php endif; ?>
   </div>
 
+<div class="content">
+<div id="app">
   <?php /* A BARRA DAS MÍDIAS VEM ANTES DE TUDO, inclusive antes do aviso de
        login: ela é o que explica o que esta página é. */ ?>
   <div class="midias">
@@ -561,15 +636,6 @@ a{color:inherit}
       <p style="margin-top:14px"><a class="btn pri" href="?midia=series">
         <i class="bi bi-projector-fill"></i> Ir pras séries</a></p>
     </div>
-  </div>
-
-<?php elseif ($idUsuario <= 0): ?>
-  <div class="bloco">
-    <h3><i class="bi bi-person-lock"></i> Precisa entrar</h3>
-    <p style="color:var(--txt2);margin:0 0 13px">
-      O que você marca fica salvo na sua conta — entre na FBA pra começar o seu diário.
-    </p>
-    <a class="btn pri" href="/login.php"><i class="bi bi-box-arrow-in-right"></i> Entrar</a>
   </div>
 
 <?php elseif ($catalogo === 0): ?>
@@ -905,7 +971,9 @@ a{color:inherit}
     </div>
   <?php endif; ?>
 <?php endif; ?>
-</div>
+</div><!-- #app -->
+</div><!-- .content -->
+</main>
 
 <?php
 /**
@@ -1531,10 +1599,11 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     }
   });
 
-  var topo = document.querySelector('.topo');
-  addEventListener('scroll', function () { topo.classList.toggle('rolou', scrollY > 4); }, {passive: true});
 })();
 </script>
 <?php endif; ?>
+
+<?php /* O botão de menu do celular. É o mesmo script de todas as telas. */ ?>
+<script src="/js/sidebar.js"></script>
 </body>
 </html>
