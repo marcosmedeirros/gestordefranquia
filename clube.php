@@ -512,6 +512,11 @@ a{color:inherit}
      continua na ficha, que é onde se escreve. */
   .ac-r{display:none}
   .ac-um{gap:9px}
+  /* TÍTULO EM DUAS LINHAS no lugar do "…". Numa linha só, a reticência
+     comia sempre o ano — que vem depois do título — e às vezes metade do
+     nome. Duas linhas cabem de sobra e não empurram nada. */
+  .ac-t,.linha-serie .ls-t{white-space:normal;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical}
 }
 </style>
 </head>
