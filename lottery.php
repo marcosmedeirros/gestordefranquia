@@ -362,23 +362,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .liga-vinda i{color:var(--red)}
 .liga-vinda b{color:var(--text)}
 .liga-vinda a{margin-left:auto;color:var(--text-3);font-size:12px}
-/* Dezessete colunas de números: tudo encolhe, e a coluna do time gruda na
-   esquerda pra não sumir quando a tabela rola de lado. */
-.matriz-table{font-size:10px;min-width:840px}
-.matriz-table th,.matriz-table td{padding:4px 5px;white-space:nowrap}
-.matriz-table .celula{text-align:right;font-family:'Oswald',sans-serif;font-variant-numeric:tabular-nums;color:var(--text-2)}
-.matriz-table .time-col{position:sticky;left:0;z-index:2;background:var(--panel);max-width:150px;overflow:hidden;text-overflow:ellipsis}
-.matriz-table thead th{position:sticky;top:0;background:var(--panel);z-index:1}
-.matriz-table thead th.time-col{z-index:3}
-.matriz-table .total-col{border-left:1px solid var(--border);color:var(--text-1);font-weight:700}
-.matriz-table tfoot td{border-top:1px solid var(--border);color:var(--text-1);font-weight:700;font-size:10px}
-/* Quanto mais escura a célula, maior a chance — a matriz inteira é número,
-   e sem isso o olho não acha onde cada grupo se concentra. */
-.matriz-table .q1{background:rgba(16,185,129,.06)}
-.matriz-table .q2{background:rgba(16,185,129,.14)}
-.matriz-table .q3{background:rgba(16,185,129,.24);color:var(--text-1)}
-.matriz-table .q4{background:rgba(16,185,129,.38);color:#fff}
-.matriz-table .zero{color:var(--text-3);opacity:.35}
 /* UMA COR POR GRUPO. São quatro grupos com quatro chances diferentes, e a
    tabela inteira em cinza obriga a ler o rótulo linha a linha pra saber
    quem está com quem. A cor identifica o grupo, não a qualidade dele. */
@@ -749,26 +732,17 @@ body.bc-complete .podium{display:grid}
       <div id="ballsRodape" class="balls-rodape"></div>
     </div>
 
-    <?php /* A MATRIZ. Top 3 e Top 5 respondem "com que chance eu pego uma
-             escolha boa", mas somam 300% e 500% entre os times — três e cinco
-             escolhas sendo distribuídas. Quem procura um total de 100% não
-             acha, e conclui que a conta está errada. Aqui cada linha soma
-             100% (o time termina em alguma pick) e cada coluna também (a pick
-             vai pra alguém). */ ?>
-    <div class="section-title" id="matrizTitulo" style="display:none">
-      <i class="bi bi-grid-3x3"></i> Chance de cair em cada escolha<i class="bi bi-question-circle info-hint" title="Cada linha é um time e soma 100%: ele termina em alguma das escolhas. Cada coluna é uma escolha e também soma 100%: ela vai pra alguém. As diferenças de 0,1 são arredondamento."></i>
-    </div>
-    <div class="panel" id="matrizPainel" style="display:none">
-      <div style="overflow-x:auto">
-        <table class="balls-table matriz-table" id="matrizTable">
-          <thead id="matrizHead"></thead>
-          <tbody id="matrizBody"></tbody>
-          <tfoot id="matrizFoot"></tfoot>
-        </table>
-      </div>
-      <div class="balls-rodape" id="matrizRodape"></div>
-    </div>
+    <?php /* A MATRIZ DE "chance de cair em cada escolha" SAIU em 30/09/2026,
+             a pedido dele. Era uma tabela de dezesseis linhas por dezesseis
+             colunas com duas casas decimais em cada célula — informação
+             correta e ilegível, que num celular virava um borrão que se
+             arrasta de lado. O que a liga pergunta antes do sorteio é
+             "qual a minha chance da 1", e isso a tabela das bolinhas
+             responde em Nº 1, Top 3 e Top 5.
 
+             O servidor CONTINUA mandando `matriz` no payload: ela é a mesma
+             conta que alimenta o simulador (api/loteria-simulador.php), e
+             não custa nada a mais aqui. @see loteriaMatriz */ ?>
 
     <?php /* SÓ O REVELAR. Não há botão de confirmar nem de sortear: a ordem
              já está definida desde o salvar da temporada regular, e é gravada
@@ -1089,15 +1063,6 @@ async function salvarOrdem(){
   }
 }
 
-/**
- * A MATRIZ: cada time contra cada escolha.
- *
- * Sai da simulação do sorteio, com o piso de proteção incluído — por isso os
- * 3 piores aparecem zerados nas quatro últimas colunas e acumulados na 12ª.
- * Os totais são somados dos valores EXIBIDOS, não recalculados: se der 99,9
- * ou 100,1 é o arredondamento das casas mostradas, e escondê-lo com um 100,0
- * fixo seria mentir sobre a conta que está na tela.
- */
 /* AS BOLINHAS DESENHADAS.
    O número diz a mesma coisa, mas é vendo três bolinhas contra uma que se
    entende o modelo sem ler a regra — e a loteria existe pra ser entendida
@@ -1106,63 +1071,6 @@ function bolinhasDe(n, grupo){
   return '<span class="bolinhas">'
     + `<span class="bolinha cor-g${grupo}"></span>`.repeat(Math.max(0, n))
     + '</span>';
-}
-
-function renderMatriz(data){
-  const titulo = $('matrizTitulo'), painel = $('matrizPainel');
-  if (!titulo || !painel) return;
-  const m = data.matriz;
-  if (!m || !data.balls || !data.balls.length) {
-    titulo.style.display = 'none'; painel.style.display = 'none';
-    return;
-  }
-  titulo.style.display = ''; painel.style.display = '';
-
-  const nPicks = data.balls.length;
-  const picks = Array.from({length: nPicks}, (_, i) => i + 1);
-
-  $('matrizHead').innerHTML = `<tr>
-    <th class="time-col">Time</th>
-    ${picks.map(p => `<th class="num">${p}</th>`).join('')}
-    <th class="num total-col">Total</th>
-  </tr>`;
-
-  // Faixas pela maior célula da tabela — uma escala fixa deixaria a matriz
-  // toda clara quando as chances são baixas e espalhadas.
-  let maior = 0;
-  data.balls.forEach(b => picks.forEach(p => { const v = (m[b.team_id] || {})[p] || 0; if (v > maior) maior = v; }));
-  const faixa = (v) => {
-    if (!v) return 'zero';
-    const r = v / (maior || 1);
-    return r > .55 ? 'q4' : r > .3 ? 'q3' : r > .12 ? 'q2' : 'q1';
-  };
-
-  $('matrizBody').innerHTML = data.balls.map(b => {
-    const linha = m[b.team_id] || {};
-    const total = picks.reduce((a, p) => a + (linha[p] || 0), 0);
-    return `<tr>
-      <td class="time-col" title="${esc(b.group_label || '')}">${esc(b.team_name)}</td>
-      ${picks.map(p => {
-        const v = linha[p] || 0;
-        return `<td class="celula ${faixa(v)}">${v ? v.toFixed(2) : '—'}</td>`;
-      }).join('')}
-      <td class="celula total-col">${total.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
-
-  $('matrizFoot').innerHTML = `<tr>
-    <td class="time-col">Soma da escolha</td>
-    ${picks.map(p => {
-      const s = data.balls.reduce((a, b) => a + ((m[b.team_id] || {})[p] || 0), 0);
-      return `<td class="celula">${s.toFixed(2)}</td>`;
-    }).join('')}
-    <td class="celula total-col">—</td>
-  </tr>`;
-
-  $('matrizRodape').innerHTML = 'Cada <b>linha</b> fecha 100%: o time termina em alguma escolha. '
-    + 'Cada <b>coluna</b> também: a escolha vai pra alguém. '
-    + 'Os 3 piores ficam vazios da 13ª em diante porque o piso não deixa eles caírem além da 12ª — '
-    + 'é daí que vem a coluna 12 tão alta deles.';
 }
 
 /**
@@ -1273,7 +1181,6 @@ function setupBoardAndOdds(data){
       <td class="num">${b.top5_pct}%</td>
     </tr>
   `).join('');
-  renderMatriz(data);
   const rodape = $('ballsRodape');
   if (rodape) rodape.innerHTML = totalBolas
     ? `<b>${totalBolas} bolinhas</b> na urna. A coluna <b>Nº 1</b> é a única que soma 100% entre os times — `
@@ -1293,8 +1200,7 @@ function setupBoardAndOdds(data){
 
   /* A URNA E O PALCO SÓ EXISTEM PRA QUEM CONDUZ.
      Quem não administra recebe a página sem esses elementos, e o resto
-     desta função continua valendo pra ele — as chances, a matriz e o
-     quadro. Sem esta guarda, o primeiro innerHTML num elemento que não
+     desta função continua valendo pra ele — as chances e o quadro. Sem esta guarda, o primeiro innerHTML num elemento que não
      existe interrompia a montagem no meio e o quadro ficava vazio. */
   const temPalco = !!$('revealStage');
 
