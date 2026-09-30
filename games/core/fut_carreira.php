@@ -589,7 +589,13 @@ function futCarreiraMontarCalendario(array $estado): array
     }
 
     // ── A Copa do Brasil: mata-mata até cair ─────────────────────────
-    $todos = array_keys($clubes);
+    /* SÓ CLUBE BRASILEIRO. Isto era `array_keys($clubes)`, o catálogo
+       inteiro — e funcionava enquanto o catálogo era só o Brasil. Quando
+       a Europa entrou, a Copa do Brasil passou a sortear Real Madrid,
+       Porto e os 58 convidados das continentais: o Humaitá, da Série D,
+       estreava contra o Porto. futClubesDoBrasil() são os 98 das quatro
+       séries, que é exatamente quem disputa a Copa. */
+    $todos = array_keys(futClubesDoBrasil());
     shuffle($todos);
     $advCopa = array_values(array_diff(array_slice($todos, 0, 10), [$meu]));
     $fases = ['Primeira fase', 'Segunda fase', 'Oitavas', 'Quartas', 'Semifinal', 'Final'];

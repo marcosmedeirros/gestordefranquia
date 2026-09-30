@@ -3172,7 +3172,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
               <?php if (!empty($j['emprestado_de'])): ?>
                 <span style="font-size:11px;color:var(--txt3)">volta pro <?= h($j['emprestado_de']) ?></span>
               <?php else: ?>
-              <form method="post" style="display:inline">
+              <form method="post" style="display:inline"
+                    data-confirmar="Vender <?= h($j['nome']) ?> por <?= h(futDinheiro($v)) ?>? Ele sai do elenco agora, e não dá pra voltar atrás."
+                    data-confirmar-ok="Vender" data-confirmar-perigo="1">
                 <input type="hidden" name="acao" value="vender">
                 <input type="hidden" name="aba" value="elenco">
                 <input type="hidden" name="jogador" value="<?= h($j['nome']) ?>">
@@ -4360,7 +4362,16 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
               <td class="num" style="color:var(--txt3)"><?= h(futDinheiro($m['valor'])) ?></td>
               <td class="num"><strong><?= h(futDinheiro($m['pedido'])) ?></strong></td>
               <td class="num">
-                <form method="post" style="display:inline">
+                <?php /* DINHEIRO SAINDO PEDE CONFIRMAÇÃO, e o popup é o do jogo
+                     (form[data-confirmar] → #popConfirmar), nunca o do
+                     navegador. Comprar era um clique só, no meio de uma
+                     tabela de vinte linhas, com os botões de comprar e de
+                     pedir emprestado colados: errar a linha custava o caixa
+                     do ano. O valor vai escrito na pergunta porque é o que a
+                     pessoa precisa conferir antes de dizer sim. */ ?>
+                <form method="post" style="display:inline"
+                      data-confirmar="Comprar <?= h($m['nome']) ?> do <?= h($m['clube']) ?> por <?= h(futDinheiro($m['pedido'])) ?>? Sai do caixa na hora."
+                      data-confirmar-ok="Comprar">
                   <input type="hidden" name="acao" value="comprar">
                   <input type="hidden" name="aba" value="mercado">
                   <input type="hidden" name="clube_vendedor" value="<?= h($m['clube']) ?>">
@@ -4369,7 +4380,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                   <button class="btn peq" type="submit" <?= $podePagar ? '' : 'disabled' ?>>Comprar</button>
                 </form>
                 <?php if (!empty($m['emprestavel'])): ?>
-                  <form method="post" style="display:inline">
+                  <form method="post" style="display:inline"
+                        data-confirmar="Pedir <?= h($m['nome']) ?> emprestado ao <?= h($m['clube']) ?>? Você não paga passe, só o salário — e ele volta pro clube dele no fim da temporada."
+                        data-confirmar-ok="Pedir emprestado">
                     <input type="hidden" name="acao" value="emprestar">
                     <input type="hidden" name="aba" value="mercado">
                     <input type="hidden" name="clube_dono" value="<?= h($m['clube']) ?>">

@@ -567,6 +567,50 @@ ok('esquema que não existe é recusado',
 $estF['aovivo']['minuto'] = 90;
 ok('esquema não muda com a partida acabada',
    futCarreiraAoVivoFormacao($estF, '4-3-3')['ok'] === false);
+/* ── CADA COMPETIÇÃO COM OS CLUBES DELA ──────────────────────────────
+   A Copa do Brasil sorteava adversário no catálogo INTEIRO. Funcionava
+   enquanto o catálogo era só o Brasil; quando a Europa entrou, o Humaitá
+   da Série D estreava contra o Porto e o Palmeiras pegava o Sevilla.
+   Ninguém viu por semanas, porque o calendário nunca é olhado inteiro. */
+$paisDoClube = function (string $nome) {
+    $c = futClubesDoJogo()[$nome] ?? null;
+    if (!$c) return '??';
+    $div = (string)($c['div'] ?? '');
+    if ($div === FUT_DIV_CONVIDADO) return 'CONVIDADO';
+    if (isset(FUT_LIGAS_EU[$div])) return $div;
+    return ($c['uf'] ?? '') !== '' ? 'BR' : '??';
+};
+
+$forasteiros = [];
+foreach (['Palmeiras', 'Náutico', 'Humaitá', 'Manchester City', 'Benfica'] as $clubeTeste) {
+    $estC = futCarreiraNova('Tester', $clubeTeste);
+    $estC['calendario'] = futCarreiraMontarCalendario($estC);
+    $meuPais = $paisDoClube($clubeTeste);
+
+    foreach ($estC['calendario'] as $j) {
+        // Continental mistura país de propósito — é o que ela é.
+        if (in_array($j['comp'], FUT_CONTINENTAIS_EU, true)) continue;
+        $p = $paisDoClube((string)$j['adversario']);
+        if ($p !== $meuPais) {
+            $forasteiros[] = $clubeTeste . ' / ' . $j['comp'] . ': ' . $j['adversario'] . " ({$p})";
+        }
+    }
+}
+ok('nenhum clube joga competição de outro país',
+   $forasteiros === [], $forasteiros ? implode(' · ', array_slice($forasteiros, 0, 3)) : '5 clubes conferidos');
+
+/* E o convidado das continentais não entra em competição nacional nenhuma:
+   ele existe pra ter quem enfrentar na Champions, não tem liga. */
+$estCopa = futCarreiraNova('Tester', 'Flamengo');
+$estCopa['calendario'] = futCarreiraMontarCalendario($estCopa);
+$naCopa = [];
+foreach ($estCopa['calendario'] as $j) {
+    if ($j['comp'] === 'Copa do Brasil') $naCopa[] = (string)$j['adversario'];
+}
+$brasileiros = futClubesDoBrasil();
+ok('a Copa do Brasil só tem clube brasileiro',
+   $naCopa && count(array_diff($naCopa, array_keys($brasileiros))) === 0,
+   count($naCopa) . ' adversários');
 /* ── AS DUAS PORTAS DE ENTRADA ───────────────────────────────────────
    Escolher dá o jogo inteiro; o convite dá cinco sorteados. O que não
    pode entrar em nenhuma das duas é clube sem campeonato: os convidados
