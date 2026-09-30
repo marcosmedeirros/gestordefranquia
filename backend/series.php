@@ -578,8 +578,13 @@ function seriesRankingDaLiga(PDO $pdo, string $tipo, int $quantos = 10): array
                   FROM series s
                  WHERE s.votos_fba >= " . SERIES_RANKING_MIN . "
               ORDER BY s.nota_fba DESC, s.votos_fba DESC";
-    } elseif ($tipo === 'vistas' || $tipo === 'querem') {
-        $estado = $tipo === 'vistas' ? 'assistida' : 'quero';
+    } elseif (isset(['vistas' => 'assistida', 'querem' => 'quero',
+                     'vendo' => 'assistindo'][$tipo])) {
+        /* 'vendo' entrou pelo bot (/seriesmomento): "o que a liga está
+           assistindo AGORA" é outra pergunta que "o que a liga já viu" — uma
+           diz o assunto da semana, a outra o acervo. */
+        $estado = ['vistas' => 'assistida', 'querem' => 'quero',
+                   'vendo' => 'assistindo'][$tipo];
         $sql = "SELECT s.*, COUNT(*) AS valor, COUNT(*) AS quantos
                   FROM series_usuario u JOIN series s ON s.id = u.serie_id
                  WHERE u.estado = " . $pdo->quote($estado) . "

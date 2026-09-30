@@ -639,6 +639,11 @@ function wcAjuda(): string
 "
         . "/apostas — os eventos abertos pra palpitar, e o prazo de cada um\n"
         . "/guia — o guia do GM\n\n"
+        /* O Clube leva UMA linha no /ajuda, e não as seis. A lista é lida
+           pela liga inteira, e seis linhas de um assunto que não é basquete
+           empurrariam o resto pra fora. O /clube é que é o menu dele. */
+        . "*Clube FBA* _(séries, e o que mais vier)_\n"
+        . "/clube — o que dá pra ver e marcar por aqui\n\n"
         // /quizaqui existe e continua funcionando, mas fica FORA desta lista:
         // é comando de organização, usado uma vez pra apontar onde o quiz sai.
         // Numa ajuda que a liga inteira lê, ele só gera "o que é isso?".
@@ -2761,6 +2766,43 @@ function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): 
         return [null, "Você tem time em mais de uma liga ({$lista}). Use o comando com o nome do time."];
     }
     return [$times[0], null];
+}
+
+/**
+ * QUEM PERGUNTOU, pelo telefone — a pessoa, e não o time dela.
+ *
+ * O wcTimeDeQuemPerguntou casa telefone com TIME, e é o certo pros comandos
+ * de basquete: não existe /meucap sem elenco. O Clube não é da liga de
+ * basquete — ele é da casa — e alguém pode marcar série sem nunca ter tido
+ * time. Exigir elenco ali seria inventar uma regra que o Clube não tem.
+ *
+ * O resto é igual, de propósito: mesmo recorte de dígitos, mesma recusa no
+ * @lid, mesma função de casar (wcAcharPeloTelefone), pra a pessoa não receber
+ * duas explicações diferentes pro mesmo telefone.
+ *
+ * @return array{0: ?array, 1: ?string} o usuário, ou o motivo de não achar
+ */
+function wcUsuarioDeQuemPerguntou(PDO $pdo, string $deQuem): array
+{
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) {
+        return [null, 'Não consegui identificar seu número por aqui.'];
+    }
+    if (str_contains($deQuem, '@lid')) {
+        return [null, "O WhatsApp não está me passando seu número neste grupo "
+                    . "(manda um id interno no lugar), então não sei quem é você."];
+    }
+
+    $todos = $pdo->query("SELECT id, name, phone FROM users
+                           WHERE phone IS NOT NULL AND phone <> ''")->fetchAll(PDO::FETCH_ASSOC);
+    $achados = wcAcharPeloTelefone($todos, $digitos);
+
+    if (!$achados) {
+        return [null, "Não achei seu cadastro pelo telefone (o WhatsApp me mandou um número "
+                    . "terminado em " . substr($digitos, -4) . "). Confere se ESSE número está "
+                    . "no seu perfil no site."];
+    }
+    return [$achados[0], null];
 }
 
 /**
@@ -5045,6 +5087,63 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'palpites':
                 require_once __DIR__ . '/../backend/apostas.php';
                 return apostasTextoParcial($pdo);
+
+            /* ── O CLUBE FBA ──────────────────────────────────────────
+               O catálogo mora em backend/clube_bot.php. Ele fica fora
+               deste arquivo porque o Clube vai ganhar módulos (livros,
+               filmes, música) e cada um traz um punhado de comandos —
+               juntos aqui virariam mais mil linhas no meio da liga de
+               basquete, que não tem nada a ver com eles. */
+            case 'clube':
+            case 'clubefba':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbMenu();
+
+            case 'topseries':
+            case 'topserie':
+            case 'topséries':
+            case 'melhoresseries':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbTopSeries($pdo);
+
+            case 'seriesmomento':
+            case 'sériesmomento':
+            case 'seriemomento':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbSeriesMomento($pdo);
+
+            case 'seriesfila':
+            case 'filaseries':
+            case 'queroverseries':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbSeriesFila($pdo);
+
+            /* As variações são as que ele escreveu e as que a mão erra:
+               singular, plural e com acento. Comando que não responde
+               por causa de um "s" vira "o bot tá quebrado" no grupo. */
+            case 'minhasseries':
+            case 'minhasserie':
+            case 'minhaserie':
+            case 'minhasséries':
+            case 'meusclube':
+            case 'meuclube': {
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                [$u, $erroU] = wcUsuarioDeQuemPerguntou($pdo, $deQuem);
+                if (!$u) return $erroU . "\n\nSuas séries ficam em " . CB_LINK;
+                return cbMinhasSeries($pdo, (int)$u['id'], (string)$u['name']);
+            }
+
+            case 'seriesde':
+            case 'sériesde':
+            case 'seriegm':
+            case 'seriesgm':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbSeriesDe($pdo, $arg);
+
+            case 'serie':
+            case 'série':
+                require_once __DIR__ . '/../backend/clube_bot.php';
+                return cbSerie($pdo, $arg);
 
             case 'jogador':
             case 'player':
