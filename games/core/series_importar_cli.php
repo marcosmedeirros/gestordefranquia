@@ -32,6 +32,9 @@
 
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../../backend/series.php';
+/* A conversa com o TMDB e a leitura do arquivo do IMDb moram aqui desde que
+   a busca sob demanda passou a precisar delas também. @see backend/series_tmdb.php */
+require_once __DIR__ . '/../../backend/series_tmdb.php';
 
 /* ─── argumentos ────────────────────────────────────────────────────────── */
 $chave   = '';
@@ -56,7 +59,10 @@ foreach ($argv as $a) {
    onde ela deve viver pra valer. config.local.php está no .gitignore e não
    aparece em histórico de shell nem em lista de processos, que é onde um
    --chave= fica exposto pra quem mais estiver na máquina. */
-if ($chave === '') $chave = trim((string)getenv('TMDB_API_KEY'));
+/* O que veio na linha de comando manda e vale pra todas as chamadas daqui
+   pra frente; sem isso, seriesTmdb() ia buscar a chave do config e ignorar
+   o --chave= que a pessoa acabou de digitar. */
+$chave = seriesTmdbChave($chave !== '' ? $chave : null);
 if ($chave === '') {
     require_once __DIR__ . '/../../backend/helpers.php';
     $cfg = loadConfig();
@@ -73,101 +79,6 @@ if ($chave === '') {
 }
 
 /* ─── o carteiro ────────────────────────────────────────────────────────── */
-
-/**
- * Uma chamada ao TMDB, com paciência.
- *
- * O TMDB derruba quem aperta demais (429). Em vez de morrer, espera e tenta de
- * novo — uma importação de duas mil séries que cai na página 80 e perde tudo
- * seria pior do que uma que demora mais.
- */
-function tmdb(string $caminho, array $query, string $chave): ?array
-{
-    $query['api_key'] = $chave;
-    $url = 'https://api.themoviedb.org/3' . $caminho . '?' . http_build_query($query);
-
-    for ($tentativa = 1; $tentativa <= 5; $tentativa++) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-        ]);
-        $corpo = curl_exec($ch);
-        $http  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($http === 200) {
-            $j = json_decode((string)$corpo, true);
-            return is_array($j) ? $j : null;
-        }
-        if ($http === 401) {
-            fwrite(STDERR, "\nChave recusada pelo TMDB (401). Confira em Configurações → API.\n");
-            exit(1);
-        }
-        if ($http === 404) return null;         // série que sumiu do catálogo
-        sleep($tentativa);                       // 429 e erro de rede: espera e insiste
-    }
-    return null;
-}
-
-/**
- * AS NOTAS DO IMDB, do arquivo público — só das séries que interessam.
- *
- * O ARQUIVO NÃO CABE NA MEMÓRIA. São 1,6 milhão de títulos (filme, episódio,
- * curta, tudo), e guardar todos num array do PHP estoura meio giga antes de
- * chegar ao fim. Como o catálogo daqui tem duas mil séries, a linha que não é
- * de nenhuma delas é lida e jogada fora na hora: o que sobra na memória são as
- * duas mil, e não as um milhão e seiscentas.
- *
- * É por isso que esta função roda DEPOIS de o catálogo estar montado, e não
- * antes — só aí se sabe quais ids procurar.
- *
- * Baixa uma vez e guarda no temporário por um dia: o arquivo muda uma vez por
- * dia, e rebaixar a cada teste é desperdício.
- *
- * @param array $queridos imdb_id => true, os únicos que serão guardados
- * @return array imdb_id => ['nota' => float, 'votos' => int]
- */
-function imdbNotas(array $queridos): array
-{
-    if (!$queridos) return [];
-    $cache = sys_get_temp_dir() . '/imdb_title_ratings.tsv.gz';
-
-    if (!is_file($cache) || (time() - filemtime($cache)) > 86400) {
-        echo "baixando as notas do IMDb (~7 MB)...\n";
-        $ch = curl_init('https://datasets.imdbws.com/title.ratings.tsv.gz');
-        $fp = fopen($cache, 'wb');
-        curl_setopt_array($ch, [CURLOPT_FILE => $fp, CURLOPT_TIMEOUT => 180, CURLOPT_FOLLOWLOCATION => true]);
-        $ok = curl_exec($ch);
-        $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        fclose($fp);
-        if (!$ok || $http !== 200) {
-            @unlink($cache);
-            fwrite(STDERR, "não deu pra baixar as notas do IMDb (HTTP {$http}).\n"
-                . "A importação segue sem elas — dá pra rodar de novo depois.\n");
-            return [];
-        }
-    }
-
-    $fh = gzopen($cache, 'rb');
-    if (!$fh) return [];
-    gzgets($fh);                                  // cabeçalho
-    $out = [];
-    $faltam = count($queridos);
-    while ($faltam > 0 && ($linha = gzgets($fh)) !== false) {
-        $t = strpos($linha, "\t");
-        if ($t === false) continue;
-        $id = substr($linha, 0, $t);
-        if (!isset($queridos[$id])) continue;   // 99,9% das linhas morrem aqui
-        [, $nota, $votos] = explode("\t", rtrim($linha, "\n")) + [null, null, null];
-        $out[$id] = ['nota' => (float)$nota, 'votos' => (int)$votos];
-        $faltam--;
-    }
-    gzclose($fh);
-    return $out;
-}
 
 /* ─── junta o catálogo ──────────────────────────────────────────────────── */
 
@@ -186,7 +97,7 @@ echo "TMDB: lendo {$paginas} página(s) de séries populares e bem avaliadas...\
 $ids = [];
 foreach (['/tv/popular', '/tv/top_rated'] as $lista) {
     for ($p = 1; $p <= $paginas; $p++) {
-        $r = tmdb($lista, ['language' => $idioma, 'page' => $p], $chave);
+        $r = seriesTmdb($lista, ['language' => $idioma, 'page' => $p]);
         if (!$r || empty($r['results'])) break;
         foreach ($r['results'] as $s) if (!empty($s['id'])) $ids[(int)$s['id']] = true;
         if ($p >= (int)($r['total_pages'] ?? 1)) break;
@@ -217,7 +128,7 @@ $queridos = [];      // os imdb_id que o arquivo do IMDb precisa devolver
 $porImdb  = [];      // imdb_id => título, só pra amostra no fim
 
 foreach ($ids as $i => $tmdbId) {
-    $d = tmdb("/tv/{$tmdbId}", ['language' => $idioma, 'append_to_response' => 'external_ids'], $chave);
+    $d = seriesTmdb("/tv/{$tmdbId}", ['language' => $idioma, 'append_to_response' => 'external_ids']);
     if (!$d || empty($d['name'])) continue;
 
     $imdbId = trim((string)($d['external_ids']['imdb_id'] ?? ''));
@@ -271,7 +182,7 @@ if ($gravar) {
         $upSin = $pdo->prepare("UPDATE series SET sinopse = ? WHERE tmdb_id = ?");
         $achadas = 0;
         foreach ($orfas as $tid) {
-            $en = tmdb("/tv/{$tid}", ['language' => 'en-US'], $chave);
+            $en = seriesTmdb("/tv/{$tid}", ['language' => 'en-US']);
             $txt = trim((string)($en['overview'] ?? ''));
             if ($txt === '') continue;
             $upSin->execute([$txt, (int)$tid]);
@@ -283,7 +194,7 @@ if ($gravar) {
 
 /* ─── agora sim, as notas ───────────────────────────────────────────────── */
 
-$notasImdb = $soSinopses ? [] : imdbNotas($queridos);
+$notasImdb = $soSinopses ? [] : seriesNotasImdb($queridos);
 if (!$soSinopses) {
     echo "\nIMDb: " . count($notasImdb) . " de " . count($queridos) . " séries têm nota.\n";
 }

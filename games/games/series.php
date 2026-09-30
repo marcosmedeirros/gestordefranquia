@@ -58,6 +58,21 @@ if ($idUsuario > 0 && isset($_GET['json'])) {
                          JSON_UNESCAPED_UNICODE);
         exit;
     }
+    /* ── A BUSCA QUE VAI ALÉM DO CATÁLOGO ─────────────────────────────
+       Separada da busca local de propósito. A local responde na hora e é o
+       caso de quase toda tecla digitada; esta fala com o TMDB e pode levar
+       dois segundos. Juntas num endpoint só, toda busca pagaria o preço da
+       minoria — e a tela não teria como avisar que está procurando fora.
+
+       A página só chega aqui quando a local devolveu pouca coisa. */
+    if ($_GET['json'] === 'busca_fora') {
+        require_once __DIR__ . '/../../backend/series_tmdb.php';
+        $termo = (string)($_GET['q'] ?? '');
+        $novas = seriesProcurarNoTmdb($pdo, $termo);
+        echo json_encode(['novas' => $novas, 'series' => seriesBuscar($pdo, $termo, $idUsuario)],
+                         JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     if ($_GET['json'] === 'serie') {
         echo json_encode(['serie' => seriesUma($pdo, (int)($_GET['id'] ?? 0), $idUsuario)],
                          JSON_UNESCAPED_UNICODE);
@@ -280,6 +295,8 @@ a{color:inherit}
     <div class="bloco">
       <h3><i class="bi bi-collection-play-fill"></i> <span id="tituloGrade">Mais populares</span></h3>
       <div class="grade" id="grade"></div>
+      <div class="vazio" id="gradeFora" hidden><i class="bi bi-arrow-repeat"></i>
+        Procurando fora do catálogo…</div>
       <div class="vazio" id="gradeVazia" hidden>Nenhuma série com esse nome.</div>
     </div>
 
@@ -486,18 +503,48 @@ function cartaoDeSerie(array $s, bool $comPosicao = false): string
     });
   }
 
+  /* O CATÁLOGO TEM FUNDO FALSO. O importador trouxe as mil e seiscentas mais
+     conhecidas; quem procurar a série obscura que só ele assiste não acharia.
+     Então: a busca local responde na hora e, se veio pouca coisa, a página
+     pergunta ao TMDB — e a partir daí aquela série existe pra liga inteira.
+
+     O limite é POUCO, não ZERO: quem digita "dark" acha um punhado de coisas
+     com "dark" no nome e mesmo assim quer a série alemã. */
+  var MINIMO_LOCAL = 5;
+  var buscaEmCurso = 0;
+
   function carregarGrade() {
     if (!grade) return;
     var q = busca ? busca.value.trim() : '';
+    var meuTurno = ++buscaEmCurso;
+
     fetch(location.pathname + '?json=busca&q=' + encodeURIComponent(q))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var lista = d.series || [];
-        grade.innerHTML = lista.map(cartao).join('');
-        $('gradeVazia').hidden = lista.length > 0;
-        $('tituloGrade').textContent = q ? 'Resultados de "' + q + '"' : 'Mais populares';
+        if (meuTurno !== buscaEmCurso) return;    // já digitaram outra coisa
+        var lista = pintarLista(d.series || [], q);
+
+        if (q.length >= 3 && lista.length < MINIMO_LOCAL) {
+          $('gradeFora').hidden = false;
+          $('gradeVazia').hidden = true;
+          fetch(location.pathname + '?json=busca_fora&q=' + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (d2) {
+              if (meuTurno !== buscaEmCurso) return;
+              $('gradeFora').hidden = true;
+              pintarLista(d2.series || [], q);
+            })
+            .catch(function () { $('gradeFora').hidden = true; });
+        }
       })
       .catch(function () {});
+  }
+
+  function pintarLista(lista, q) {
+    grade.innerHTML = lista.map(cartao).join('');
+    $('gradeVazia').hidden = lista.length > 0;
+    $('tituloGrade').textContent = q ? 'Resultados de "' + q + '"' : 'Mais populares';
+    return lista;
   }
   if (grade) carregarGrade();
 
