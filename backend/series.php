@@ -33,6 +33,9 @@ const SERIES_POSTER_G  = 'w500';    // o da ficha aberta
 /** Quantas favoritas cabem no perfil. */
 const SERIES_TOP = 5;
 
+/** O mínimo de votos no IMDb pra entrar na vitrine. @see seriesBuscar */
+const SERIES_VITRINE_VOTOS = 1000;
+
 /** Os três estados, na ordem em que uma série anda na vida da pessoa. */
 const SERIES_ESTADOS = [
     'quero'      => 'Quero ver',
@@ -135,11 +138,12 @@ function seriesBuscar(PDO $pdo, string $termo, int $userId, int $limite = 60): a
 
     $sql = "SELECT s.*, u.estado, u.nota AS minha_nota, u.favorita
               FROM series s
-         LEFT JOIN series_usuario u ON u.serie_id = s.id AND u.user_id = ?";
+         LEFT JOIN series_usuario u ON u.serie_id = s.id AND u.user_id = ?
+             WHERE 1 = 1";
     $par = [$userId];
 
     if ($termo !== '') {
-        $sql .= " WHERE s.titulo LIKE ? OR s.titulo_original LIKE ?";
+        $sql .= " AND (s.titulo LIKE ? OR s.titulo_original LIKE ?)";
         $par[] = '%' . $termo . '%';
         $par[] = '%' . $termo . '%';
         /* QUEM COMEÇA COM O TERMO VEM PRIMEIRO. Buscar "the" com a ordem de
@@ -148,7 +152,19 @@ function seriesBuscar(PDO $pdo, string $termo, int $userId, int $limite = 60): a
         $sql .= " ORDER BY (s.titulo LIKE ?) DESC, s.popularidade DESC";
         $par[] = $termo . '%';
     } else {
-        $sql .= " ORDER BY s.popularidade DESC";
+        /* A VITRINE NÃO É A LISTA CRUA DE POPULARES.
+           "Popularidade" no TMDB é atividade, não qualidade: quem abria o jogo
+           via Tonight Show, Tagesschau e Late Show antes de qualquer série —
+           programa diário de dez mil episódios ganha de Breaking Bad todo dia.
+           Fora disso sobra o que a pessoa veio procurar.
+
+           Talk e jornal saem da PRIMEIRA TELA, não do catálogo: quem quiser o
+           Daily Show acha buscando pelo nome. E o mínimo de votos no IMDb tira
+           a série que ninguém viu — não é censura de nota, é sinal de que
+           existe público. */
+        $sql .= " AND s.generos NOT LIKE '%Talk%' AND s.generos NOT LIKE '%News%'
+                  AND COALESCE(s.votos_imdb, 0) >= " . SERIES_VITRINE_VOTOS . "
+                  ORDER BY s.popularidade DESC";
     }
     $sql .= " LIMIT " . max(1, min(200, $limite));
 

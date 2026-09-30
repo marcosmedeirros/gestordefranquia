@@ -37,12 +37,17 @@ require_once __DIR__ . '/../../backend/series.php';
 $chave   = '';
 $paginas = 100;          // 20 séries por página → 100 páginas ≈ 2.000 séries
 $gravar  = false;
+$soSinopses = false;
 $idioma  = 'pt-BR';
 
 foreach ($argv as $a) {
     if (preg_match('/^--chave=(.+)$/', $a, $m))    $chave   = trim($m[1]);
     if (preg_match('/^--paginas=(\d+)$/', $a, $m)) $paginas = max(1, min(500, (int)$m[1]));
     if ($a === '--gravar')                          $gravar  = true;
+    /* SÓ AS SINOPSES: repassar o catálogo inteiro pra preencher trezentas
+       sinopses custa 1.600 chamadas e sete minutos. Este atalho pula direto
+       pra elas, e serve pra rodar de novo quando o TMDB traduzir mais. */
+    if ($a === '--so-sinopses')                     $soSinopses = true;
     if (preg_match('/^--idioma=(.+)$/', $a, $m))    $idioma  = trim($m[1]);
 }
 
@@ -166,6 +171,13 @@ function imdbNotas(array $queridos): array
 
 /* ─── junta o catálogo ──────────────────────────────────────────────────── */
 
+$pdo = db();
+seriesGarantirTabelas($pdo);
+
+/* O atalho pula a leitura do catálogo e cai direto nas sinopses. */
+if ($soSinopses) { $gravar = true; $ids = []; $queridos = []; $porImdb = [];
+                   $gravadas = $semPoster = 0; goto sinopses; }
+
 echo "TMDB: lendo {$paginas} página(s) de séries populares e bem avaliadas...\n";
 
 /* AS DUAS LISTAS JUNTAS. "Popular" traz o que está no ar agora e "top rated"
@@ -185,9 +197,6 @@ $ids = array_keys($ids);
 echo "TMDB: " . count($ids) . " séries distintas.\n";
 
 /* ─── a ficha de cada uma ───────────────────────────────────────────────── */
-
-$pdo = db();
-seriesGarantirTabelas($pdo);
 
 $ins = $pdo->prepare(
     "INSERT INTO series (tmdb_id, imdb_id, titulo, titulo_original, ano_inicio, ano_fim,
@@ -245,10 +254,39 @@ foreach ($ids as $i => $tmdbId) {
     if (($i + 1) % 100 === 0) echo "  " . ($i + 1) . " de " . count($ids) . "...\n";
 }
 
+sinopses:
+/* ─── a sinopse que o português não tinha ───────────────────────────────── */
+
+/* NEM TODA SÉRIE FOI TRADUZIDA. O TMDB devolve a sinopse vazia quando não há
+   versão em português, e uma em cada cinco fichas abria com "sem sinopse no
+   catálogo" — inclusive séries grandes. Inglês é melhor que nada, e é o que o
+   próprio TMDB mostra nesse caso.
+
+   Só pra quem ficou sem: são ~300 chamadas a mais, e não 1.600. */
+if ($gravar) {
+    $st = $pdo->query("SELECT tmdb_id FROM series WHERE sinopse IS NULL OR sinopse = ''");
+    $orfas = $st->fetchAll(PDO::FETCH_COLUMN);
+    if ($orfas) {
+        echo "\nsinopse: " . count($orfas) . " sem português, buscando em inglês...\n";
+        $upSin = $pdo->prepare("UPDATE series SET sinopse = ? WHERE tmdb_id = ?");
+        $achadas = 0;
+        foreach ($orfas as $tid) {
+            $en = tmdb("/tv/{$tid}", ['language' => 'en-US'], $chave);
+            $txt = trim((string)($en['overview'] ?? ''));
+            if ($txt === '') continue;
+            $upSin->execute([$txt, (int)$tid]);
+            $achadas++;
+        }
+        echo "sinopse: " . $achadas . " preenchidas em inglês.\n";
+    }
+}
+
 /* ─── agora sim, as notas ───────────────────────────────────────────────── */
 
-$notasImdb = imdbNotas($queridos);
-echo "\nIMDb: " . count($notasImdb) . " de " . count($queridos) . " séries têm nota.\n";
+$notasImdb = $soSinopses ? [] : imdbNotas($queridos);
+if (!$soSinopses) {
+    echo "\nIMDb: " . count($notasImdb) . " de " . count($queridos) . " séries têm nota.\n";
+}
 
 if ($gravar && $notasImdb) {
     $up = $pdo->prepare("UPDATE series SET nota_imdb = ?, votos_imdb = ? WHERE imdb_id = ?");
