@@ -95,15 +95,22 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao  = (string)($_POST['acao'] ?? '');
     $serie = (int)($_POST['serie'] ?? 0);
 
+    /* MARCAR E AVALIAR JÁ VOLTAM COM A LISTA DA LIGA.
+
+       Antes a tela dava a nota e logo em seguida pedia a ficha inteira só
+       pra redesenhar "o que a liga diz" — duas viagens pro que cabe numa.
+       A consulta é pequena e o servidor já está com o banco na mão aqui. */
     if ($acao === 'marcar') {
         echo json_encode(seriesMarcar($pdo, $idUsuario, $serie, (string)($_POST['estado'] ?? ''))
-            + ['perfil' => seriesPerfil($pdo, $idUsuario)], JSON_UNESCAPED_UNICODE);
+            + ['perfil' => seriesPerfil($pdo, $idUsuario),
+               'quem'   => seriesQuemMarcou($pdo, $serie)], JSON_UNESCAPED_UNICODE);
         exit;
     }
     if ($acao === 'avaliar') {
         $n = $_POST['nota'] === '' ? null : (int)$_POST['nota'];
         echo json_encode(seriesAvaliar($pdo, $idUsuario, $serie, $n)
-            + ['perfil' => seriesPerfil($pdo, $idUsuario)], JSON_UNESCAPED_UNICODE);
+            + ['perfil' => seriesPerfil($pdo, $idUsuario),
+               'quem'   => seriesQuemMarcou($pdo, $serie)], JSON_UNESCAPED_UNICODE);
         exit;
     }
     if ($acao === 'favoritar') {
@@ -119,8 +126,8 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if ($acao === 'comentar') {
-        echo json_encode(seriesComentar($pdo, $idUsuario, $serie, (string)($_POST['texto'] ?? '')),
-                         JSON_UNESCAPED_UNICODE);
+        echo json_encode(seriesComentar($pdo, $idUsuario, $serie, (string)($_POST['texto'] ?? ''))
+            + ['quem' => seriesQuemMarcou($pdo, $serie)], JSON_UNESCAPED_UNICODE);
         exit;
     }
     echo json_encode(['ok' => false, 'erro' => 'Ação desconhecida.']);
@@ -1231,7 +1238,9 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
   if (busca && grade) {
     busca.addEventListener('input', function () {
       clearTimeout(relogio);
-      relogio = setTimeout(carregarGrade, 220);
+      /* `true` = pode sair pro TMDB. Só a digitação de uma pessoa abre essa
+         porta; nenhuma atualização automática de tela passa por aqui. */
+      relogio = setTimeout(function () { carregarGrade(true); }, 220);
     });
   } else if (busca) {
     /* FORA DO CATÁLOGO A BUSCA VIRA UM ATALHO. A caixa fica no topo em todas
@@ -1254,7 +1263,18 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
   var MINIMO_LOCAL = 5;
   var buscaEmCurso = 0;
 
-  function carregarGrade() {
+  /* OS TERMOS QUE JÁ FORAM PERGUNTADOS AO TMDB nesta visita. Apagar uma
+     letra e escrever de novo repetia a ida à internet inteira pra trazer
+     exatamente o que ela já tinha trazido. */
+  var jaProcurouFora = {};
+
+  /**
+   * @param {boolean} podeSairFora só a digitação de uma pessoa abre a porta
+   *   do TMDB. Marcar, avaliar e favoritar redesenham a grade e NÃO passam
+   *   por lá: a série que acabou de ser marcada já está no catálogo — foi de
+   *   lá que ela abriu — e a viagem custava segundos por nada.
+   */
+  function carregarGrade(podeSairFora) {
     if (!grade) return;
     var q = busca ? busca.value.trim() : '';
     var meuTurno = ++buscaEmCurso;
@@ -1265,7 +1285,8 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
         if (meuTurno !== buscaEmCurso) return;    // já digitaram outra coisa
         var lista = pintarLista(d.series || [], q);
 
-        if (q.length >= 3 && lista.length < MINIMO_LOCAL) {
+        if (podeSairFora && !jaProcurouFora[q] && q.length >= 3 && lista.length < MINIMO_LOCAL) {
+          jaProcurouFora[q] = true;
           $('gradeFora').hidden = false;
           $('gradeVazia').hidden = true;
           fetch(location.pathname + '?json=busca_fora&q=' + encodeURIComponent(q))
@@ -1287,7 +1308,9 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     $('tituloGrade').textContent = q ? 'Resultados de "' + q + '"' : 'Mais populares';
     return lista;
   }
-  if (grade) carregarGrade();
+  /* A primeira carga sai do catálogo local e pronto: se a página abriu com
+     um termo na URL que acha pouco, quem quiser o TMDB digita uma letra. */
+  if (grade) carregarGrade(<?= $qInicial !== '' ? 'true' : 'false' ?>);
 
   /* ── Abrir a ficha ──────────────────────────────────────────────────
      Qualquer coisa com data-serie abre: o cartão da grade, a linha do
@@ -1427,8 +1450,8 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
       /* pintar() relê o campo do que está em `atual`, e é ele que acerta o
          recadoNoBanco — sem passar por aqui, o autosave acharia que o texto
          apagado pelo servidor ainda estava lá. */
-      recarregarQuem();
-      pintar(); recarregarGrade();
+      if (d.quem) quem = d.quem;
+      pintar(); atualizarCartao();
     });
   });
 
@@ -1440,8 +1463,8 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
       atual.minha_nota = d.nota;
       atual.nota_fba = d.media;
       atual.votos_fba = d.votos;
-      recarregarQuem();
-      pintar(); recarregarGrade();
+      if (d.quem) quem = d.quem;
+      pintar(); atualizarCartao();
     });
   });
 
@@ -1523,32 +1546,9 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
            cada pausa na digitação — e é um campo só, que eu acabei de
            mandar. Se por algum motivo eu não estiver na lista, aí sim vale
            perguntar. */
-        var minha = null;
-        for (var i = 0; i < quem.length; i++) {
-          if (Number(quem[i].user_id) === EU) { minha = quem[i]; break; }
-        }
-        if (minha) { minha.comentario = d.comentario; pintarQuem(); }
-        else recarregarQuem();
+        if (d.quem) { quem = d.quem; pintarQuem(); }
       })
       .catch(function () { situacao('ruim', 'sem resposta do servidor'); });
-  }
-
-  /* A lista da liga fica velha assim que eu mexo na minha linha. Em vez de
-     remendar o array na mão — e arriscar mostrar uma coisa e o banco ter
-     outra — pergunta de novo, que é uma consulta pequena. */
-  function recarregarQuem() {
-    if (!atual) return;
-    fetch(location.pathname + '?json=serie&id=' + atual.id)
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d.serie || !atual || d.serie.id != atual.id) return;
-        quem = d.quem || [];
-        atual.nota_fba = d.serie.nota_fba;
-        atual.votos_fba = d.serie.votos_fba;
-        pintarQuem();
-        $('fFba').textContent = umaCasa(num(atual.nota_fba));
-      })
-      .catch(function () {});
   }
 
   document.getElementById('fFav').addEventListener('click', function () {
@@ -1560,7 +1560,22 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     });
   });
 
-  function recarregarGrade() { if (grade) carregarGrade(); }
+  /**
+   * SÓ O CARTÃO QUE MUDOU.
+   *
+   * Dar uma nota disparava a busca inteira de novo — e, com um termo que
+   * acha pouco no catálogo, isso ia até o TMDB. Quatro requisições, uma
+   * delas de segundos, pra trocar um número num pôster. O que muda no
+   * cartão é o selo de estado e a nota, e os dois estão em `atual`.
+   */
+  function atualizarCartao() {
+    if (!grade || !atual) return;
+    var velho = grade.querySelector('.card[data-serie="' + atual.id + '"]');
+    if (!velho) return;
+    var molde = document.createElement('div');
+    molde.innerHTML = cartao(atual);
+    velho.replaceWith(molde.firstChild);
+  }
 
   /* O perfil muda a cada marca, e o número no topo do perfil não pode mentir
      até o próximo F5. */

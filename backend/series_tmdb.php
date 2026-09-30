@@ -197,6 +197,26 @@ function seriesImportarDoTmdb(PDO $pdo, array $tmdbIds): int
     if (!$tmdbIds) return 0;
 
     seriesGarantirTabelas($pdo);
+
+    /* O QUE JÁ ESTÁ NO CATÁLOGO NÃO SE BUSCA DE NOVO.
+     *
+     * Cada id destes é uma chamada ao TMDB, e uma busca por "office" devolve
+     * oito resultados dos quais sete já estão aqui há semanas — sete viagens
+     * à internet pra regravar exatamente o mesmo registro, com a pessoa
+     * olhando a tela parada. O que interessa numa busca sob demanda é o que
+     * FALTA; o resto a consulta local já mostrou antes desta função rodar.
+     *
+     * Quem quiser atualizar o catálogo inteiro tem o importador de linha de
+     * comando, que é o lugar certo pra isso.
+     */
+    $temAqui = [];
+    $st = $pdo->query("SELECT tmdb_id FROM series WHERE tmdb_id IN ("
+                      . implode(',', array_map('intval', $tmdbIds)) . ")");
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) $temAqui[(int)$id] = true;
+
+    $tmdbIds = array_values(array_filter($tmdbIds, fn($id) => !isset($temAqui[$id])));
+    if (!$tmdbIds) return 0;
+
     $ins = seriesPreparaGravacao($pdo);
 
     $queridos = [];
@@ -221,10 +241,24 @@ function seriesImportarDoTmdb(PDO $pdo, array $tmdbIds): int
         $feitas++;
     }
 
+    /* SÓ VARRE O ARQUIVO DO IMDB SE ALGUMA FICOU SEM NOTA.
+     *
+     * A varredura é de 1,7 milhão de linhas. É rápida (0,3s medido), mas é
+     * 0,3s que a pessoa espera olhando a tela — e na maioria das buscas as
+     * séries que entraram já saíram daqui com nota da vez anterior, ou nem
+     * têm imdb_id. Perguntar ao banco quais faltam custa uma consulta.
+     */
     if ($queridos) {
-        $notas = seriesNotasImdb($queridos);
-        $up = $pdo->prepare("UPDATE series SET nota_imdb = ?, votos_imdb = ? WHERE imdb_id = ?");
-        foreach ($notas as $imdb => $n) $up->execute([$n['nota'], $n['votos'], $imdb]);
+        $st = $pdo->query("SELECT imdb_id FROM series
+                            WHERE nota_imdb IS NULL AND imdb_id IN ("
+                          . implode(',', array_map([$pdo, 'quote'], array_keys($queridos))) . ")");
+        $faltam = array_fill_keys($st->fetchAll(PDO::FETCH_COLUMN), true);
+
+        if ($faltam) {
+            $notas = seriesNotasImdb($faltam);
+            $up = $pdo->prepare("UPDATE series SET nota_imdb = ?, votos_imdb = ? WHERE imdb_id = ?");
+            foreach ($notas as $imdb => $n) $up->execute([$n['nota'], $n['votos'], $imdb]);
+        }
     }
 
     return $feitas;
@@ -239,7 +273,7 @@ function seriesImportarDoTmdb(PDO $pdo, array $tmdbIds): int
  *
  * @return int quantas séries novas entraram
  */
-function seriesProcurarNoTmdb(PDO $pdo, string $termo, int $quantos = 8): int
+function seriesProcurarNoTmdb(PDO $pdo, string $termo, int $quantos = 5): int
 {
     $termo = trim($termo);
     if (mb_strlen($termo) < 3) return 0;
@@ -249,7 +283,11 @@ function seriesProcurarNoTmdb(PDO $pdo, string $termo, int $quantos = 8): int
 
     /* SÓ O QUE TEM CARA DE SÉRIE DE VERDADE. A busca do TMDB devolve muito
        registro solto sem pôster e sem data — entrariam no catálogo pra nunca
-       serem marcados por ninguém e atrapalhar a próxima busca. */
+       serem marcados por ninguém e atrapalhar a próxima busca.
+
+       CINCO E NÃO OITO: cada um é uma chamada à internet com a pessoa
+       esperando, e quem procura uma série pelo nome quer AQUELA — a oitava
+       resposta de uma busca por título nunca é a certa. */
     $ids = [];
     foreach ($r['results'] as $s) {
         if (empty($s['id']) || empty($s['poster_path'])) continue;
