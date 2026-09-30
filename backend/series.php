@@ -108,6 +108,17 @@ function seriesGarantirTabelas(PDO $pdo): void
         KEY idx_serie (serie_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    /* O RECADO CHEGOU DEPOIS. A tabela já existia em produção com gente
+       marcando série, então ele entra por ALTER e não no CREATE — quem já tem
+       o banco montado não perde nada, e quem monta agora recebe igual. */
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM series_usuario LIKE 'comentario'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE series_usuario ADD COLUMN comentario VARCHAR(280) NULL AFTER nota");
+        }
+    } catch (Throwable $e) {
+        error_log('[series] coluna comentario: ' . $e->getMessage());
+    }
+
     $ok = true;
 }
 
@@ -145,7 +156,7 @@ function seriesBuscar(PDO $pdo, string $termo, int $userId, int $limite = 60): a
     seriesGarantirTabelas($pdo);
     $termo = trim($termo);
 
-    $sql = "SELECT s.*, u.estado, u.nota AS minha_nota, u.favorita
+    $sql = "SELECT s.*, u.estado, u.nota AS minha_nota, u.comentario AS meu_recado, u.favorita
               FROM series s
          LEFT JOIN series_usuario u ON u.serie_id = s.id AND u.user_id = ?
              WHERE 1 = 1";
@@ -186,7 +197,8 @@ function seriesBuscar(PDO $pdo, string $termo, int $userId, int $limite = 60): a
 function seriesUma(PDO $pdo, int $serieId, int $userId): ?array
 {
     seriesGarantirTabelas($pdo);
-    $st = $pdo->prepare("SELECT s.*, u.estado, u.nota AS minha_nota, u.favorita
+    $st = $pdo->prepare("SELECT s.*, u.estado, u.nota AS minha_nota, u.comentario AS meu_recado,
+                                u.favorita
                            FROM series s
                       LEFT JOIN series_usuario u ON u.serie_id = s.id AND u.user_id = ?
                           WHERE s.id = ?");
@@ -231,7 +243,7 @@ function seriesMarcar(PDO $pdo, int $userId, int $serieId, string $estado): arra
     $pdo->prepare("INSERT INTO series_usuario (user_id, serie_id, estado)
                    VALUES (?, ?, ?)
                    ON DUPLICATE KEY UPDATE estado = VALUES(estado)"
-                   . ($limpa ? ", nota = NULL, favorita = NULL" : ""))
+                   . ($limpa ? ", nota = NULL, comentario = NULL, favorita = NULL" : ""))
         ->execute([$userId, $serieId, $estado]);
 
     if ($limpa) seriesRecalcularMedia($pdo, $serieId);
@@ -420,9 +432,9 @@ function seriesMinhas(PDO $pdo, int $userId, string $estado): array
 function seriesMovimentoDaLiga(PDO $pdo, int $quantos = 20): array
 {
     seriesGarantirTabelas($pdo);
-    $st = $pdo->prepare("SELECT u.estado, u.nota, u.atualizado_em,
+    $st = $pdo->prepare("SELECT u.estado, u.nota, u.comentario, u.atualizado_em,
                                 s.id, s.titulo, s.poster, s.ano_inicio,
-                                COALESCE(us.name, 'Alguém') AS quem
+                                u.user_id, us.photo_url, COALESCE(us.name, 'Alguém') AS quem
                            FROM series_usuario u
                            JOIN series s ON s.id = u.serie_id
                       LEFT JOIN users us ON us.id = u.user_id
@@ -430,6 +442,241 @@ function seriesMovimentoDaLiga(PDO $pdo, int $quantos = 20): array
                           LIMIT " . max(1, min(60, $quantos)));
     $st->execute();
     return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * TIRAR A SÉRIE DO MEU ACERVO — o X da lista.
+ *
+ * Diferente de trocar de categoria: isto apaga a linha, e com ela a nota, o
+ * recado e a vaga no top. Existe porque marcar é um clique e errar o clique
+ * também: sem o X, a série que entrou por engano ficava pra sempre na conta de
+ * "quero ver" e estragava o número do perfil.
+ *
+ * NÃO MEXE NA SÉRIE, só na minha linha — o catálogo é de todo mundo.
+ *
+ * A média da liga é recalculada porque a minha nota saiu do bolo.
+ */
+function seriesTirar(PDO $pdo, int $userId, int $serieId): array
+{
+    seriesGarantirTabelas($pdo);
+
+    $st = $pdo->prepare("DELETE FROM series_usuario WHERE user_id = ? AND serie_id = ?");
+    $st->execute([$userId, $serieId]);
+    if ($st->rowCount() === 0) return ['ok' => false, 'erro' => 'Essa série não estava no seu perfil.'];
+
+    /* O top não pode ficar com buraco no meio depois que a 3ª saiu. */
+    seriesArrumarTop($pdo, $userId);
+    seriesRecalcularMedia($pdo, $serieId);
+
+    return ['ok' => true, 'tirada' => $serieId];
+}
+
+/**
+ * O MEU ACERVO, do jeito que eu quiser olhar.
+ *
+ * É a tela de gerenciar: filtra por categoria, procura pelo nome e ordena.
+ * Sem isto, quem marcou duzentas séries só tinha três grades gigantes em
+ * ordem de "mexi por último" — dava pra ver, não dava pra achar.
+ *
+ * ORDENAR POR NOTA É O PEDIDO MAIS ÓBVIO e o mais chato de fazer na mão: a
+ * pergunta "qual eu dei 10?" não tem resposta numa grade de pôster.
+ *
+ * @param string $estado '' = todas as categorias
+ * @param string $ordem  recentes | nota | notaasc | titulo | imdb
+ */
+function seriesMeuAcervo(PDO $pdo, int $userId, string $estado = '', string $termo = '',
+                         string $ordem = 'recentes'): array
+{
+    seriesGarantirTabelas($pdo);
+
+    $sql = "SELECT s.*, u.estado, u.nota AS minha_nota, u.comentario AS meu_recado,
+                   u.favorita, u.atualizado_em AS mexi_em
+              FROM series_usuario u JOIN series s ON s.id = u.serie_id
+             WHERE u.user_id = ?";
+    $par = [$userId];
+
+    if (isset(SERIES_ESTADOS[$estado])) { $sql .= " AND u.estado = ?"; $par[] = $estado; }
+
+    $termo = trim($termo);
+    if ($termo !== '') {
+        $sql .= " AND (s.titulo LIKE ? OR s.titulo_original LIKE ?)";
+        $par[] = '%' . $termo . '%';
+        $par[] = '%' . $termo . '%';
+    }
+
+    /* SEM NOTA VAI PRO FIM nas duas ordens de nota, inclusive na crescente:
+       quem pede "por nota" quer ver notas, e trinta traços no topo seriam o
+       contrário do que ele pediu. */
+    $por = [
+        'recentes' => 'u.atualizado_em DESC',
+        'nota'     => 'u.nota IS NULL, u.nota DESC, s.titulo',
+        'notaasc'  => 'u.nota IS NULL, u.nota ASC, s.titulo',
+        'titulo'   => 's.titulo ASC',
+        'imdb'     => 's.nota_imdb IS NULL, s.nota_imdb DESC',
+    ][$ordem] ?? 'u.atualizado_em DESC';
+
+    $st = $pdo->prepare($sql . " ORDER BY " . $por);
+    $st->execute($par);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * O RECADO DE UMA LINHA.
+ *
+ * Nota é um número e número não conta por que. "8" pode ser decepção de quem
+ * esperava 10 e euforia de quem esperava 5 — e é essa frase que faz a lista da
+ * liga valer a leitura.
+ *
+ * CURTO DE PROPÓSITO (280): o lugar disso é embaixo do pôster, ao lado de
+ * outros vinte; resenha de três parágrafos empurraria o resto da página pra
+ * fora e ninguém leria nenhuma.
+ *
+ * Mesma regra da nota: só quem assistiu (ou está assistindo) fala.
+ */
+function seriesComentar(PDO $pdo, int $userId, int $serieId, string $texto): array
+{
+    seriesGarantirTabelas($pdo);
+
+    $st = $pdo->prepare("SELECT estado FROM series_usuario WHERE user_id = ? AND serie_id = ?");
+    $st->execute([$userId, $serieId]);
+    $estado = $st->fetchColumn();
+
+    if (!$estado || $estado === 'quero') {
+        return ['ok' => false, 'erro' => 'Marque como assistida (ou assistindo) pra poder comentar.'];
+    }
+
+    $texto = trim(preg_replace('/\s+/u', ' ', $texto));
+    if (mb_strlen($texto) > 280) $texto = mb_substr($texto, 0, 280);
+
+    $pdo->prepare("UPDATE series_usuario SET comentario = ? WHERE user_id = ? AND serie_id = ?")
+        ->execute([$texto !== '' ? $texto : null, $userId, $serieId]);
+
+    return ['ok' => true, 'comentario' => $texto !== '' ? $texto : null];
+}
+
+/** Quantas notas uma série precisa pra entrar no ranking da liga. */
+const SERIES_RANKING_MIN = 2;
+
+/**
+ * OS RANKINGS DA LIGA.
+ *
+ * 'nota'   — as mais bem avaliadas AQUI, não no IMDb. É a lista que só existe
+ *            por causa da liga, e a razão de o jogo não ser um caderno.
+ * 'vistas' — as que mais gente assistiu. Diz o que é assunto.
+ * 'querem' — as que mais gente quer ver. Diz o que vai ser assunto.
+ *
+ * O MÍNIMO DE DUAS NOTAS no ranking de nota existe porque uma nota só não é
+ * média de ninguém: a série que um GM deu 10 lideraria pra sempre, e o topo
+ * viraria a lista de quem avaliou primeiro.
+ */
+function seriesRankingDaLiga(PDO $pdo, string $tipo, int $quantos = 10): array
+{
+    seriesGarantirTabelas($pdo);
+
+    if ($tipo === 'nota') {
+        $sql = "SELECT s.*, s.nota_fba AS valor, s.votos_fba AS quantos
+                  FROM series s
+                 WHERE s.votos_fba >= " . SERIES_RANKING_MIN . "
+              ORDER BY s.nota_fba DESC, s.votos_fba DESC";
+    } elseif ($tipo === 'vistas' || $tipo === 'querem') {
+        $estado = $tipo === 'vistas' ? 'assistida' : 'quero';
+        $sql = "SELECT s.*, COUNT(*) AS valor, COUNT(*) AS quantos
+                  FROM series_usuario u JOIN series s ON s.id = u.serie_id
+                 WHERE u.estado = " . $pdo->quote($estado) . "
+              GROUP BY s.id
+              ORDER BY valor DESC, s.nota_fba DESC";
+    } else {
+        return [];
+    }
+
+    return $pdo->query($sql . " LIMIT " . max(1, min(50, $quantos)))->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * QUEM DA LIGA JÁ MEXEU NUMA SÉRIE — com a nota e o recado.
+ *
+ * É o que transforma a ficha de uma página de catálogo numa conversa. Quem
+ * avaliou vem primeiro: nota com frase é o que se quer ler, e quem só marcou
+ * "quero ver" não tem nada a dizer ainda.
+ */
+function seriesQuemMarcou(PDO $pdo, int $serieId): array
+{
+    seriesGarantirTabelas($pdo);
+    $st = $pdo->prepare("SELECT u.user_id, u.estado, u.nota, u.comentario, u.atualizado_em,
+                                COALESCE(us.name, 'Alguém') AS nome, us.photo_url, us.league
+                           FROM series_usuario u
+                      LEFT JOIN users us ON us.id = u.user_id
+                          WHERE u.serie_id = ?
+                       ORDER BY (u.comentario IS NOT NULL) DESC, (u.nota IS NOT NULL) DESC,
+                                u.atualizado_em DESC");
+    $st->execute([$serieId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * AS PESSOAS DO CLUBE, pra procurar pelo nome.
+ *
+ * Só quem já marcou alguma coisa: a lista de todos os GMs da FBA seria em
+ * quase toda linha um perfil vazio, e um perfil vazio não é um destino.
+ */
+function seriesPessoas(PDO $pdo, string $termo = '', int $limite = 40): array
+{
+    seriesGarantirTabelas($pdo);
+
+    $sql = "SELECT us.id, COALESCE(us.name, 'Alguém') AS nome, us.photo_url, us.league,
+                   SUM(u.estado = 'assistida') AS assistidas,
+                   SUM(u.estado = 'assistindo') AS assistindo,
+                   SUM(u.estado = 'quero') AS quero,
+                   ROUND(AVG(u.nota), 1) AS nota_media
+              FROM series_usuario u
+              JOIN users us ON us.id = u.user_id";
+    $par = [];
+    if (trim($termo) !== '') { $sql .= " WHERE us.name LIKE ?"; $par[] = '%' . trim($termo) . '%'; }
+    $sql .= " GROUP BY us.id, us.name, us.photo_url, us.league
+              ORDER BY assistidas DESC, us.name
+              LIMIT " . max(1, min(100, $limite));
+
+    $st = $pdo->prepare($sql);
+    $st->execute($par);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** O nome e a foto de alguém, pro cabeçalho do perfil dele. */
+function seriesQuemE(PDO $pdo, int $userId): ?array
+{
+    $st = $pdo->prepare("SELECT id, COALESCE(name, 'Alguém') AS nome, photo_url, league
+                           FROM users WHERE id = ?");
+    $st->execute([$userId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * TODAS AS SÉRIES QUE A LIGA TOCOU, com quantas pessoas e a média.
+ *
+ * O catálogo tem mil e seiscentas e a liga marcou algumas dezenas; listar as
+ * mil e seiscentas aqui seria repetir o catálogo com outro nome. O que esta
+ * página tem de próprio é justamente o recorte: o que ALGUÉM daqui viu.
+ */
+function seriesQueALigaTocou(PDO $pdo, string $ordem = 'movimento', int $limite = 60): array
+{
+    seriesGarantirTabelas($pdo);
+
+    $por = [
+        'movimento' => 'ultimo DESC',
+        'nota'      => 's.nota_fba DESC, pessoas DESC',
+        'pessoas'   => 'pessoas DESC, s.nota_fba DESC',
+        'titulo'    => 's.titulo ASC',
+    ][$ordem] ?? 'ultimo DESC';
+
+    return $pdo->query(
+        "SELECT s.*, COUNT(*) AS pessoas,
+                SUM(u.nota IS NOT NULL) AS avaliacoes,
+                SUM(u.comentario IS NOT NULL) AS recados,
+                MAX(u.atualizado_em) AS ultimo
+           FROM series_usuario u JOIN series s ON s.id = u.serie_id
+       GROUP BY s.id
+       ORDER BY {$por}
+          LIMIT " . max(1, min(200, $limite)))->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /** Quantas séries o catálogo tem — a página usa pra saber se já importou. */

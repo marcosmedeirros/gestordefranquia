@@ -577,10 +577,10 @@ $jogosLivres = [
     // por isso também vem por `href`. Primeiro da grade: é o jogo da temporada.
     ['href' => '/fantasy.php', 'nome' => 'Fantasy FBA',
      'sub'  => 'Escale e dispute ligas', 'icone' => 'bi-stars', 'cor' => '#fc0025'],
-    /* SÉRIES NÃO ESTÁ AQUI DE PROPÓSITO. Ele roda em
-       /games/games/series.php e por enquanto é só por link, enquanto o
-       catálogo e as regras assentam com quem ele convidar. Entra na grade
-       quando ele mandar — é uma linha. */
+    /* SÉRIES SAIU DO GAMES em 30/09/2026 e virou o Clube FBA (/clube.php),
+       com item próprio no menu lateral. Não volta como card daqui: o Games é
+       partida — entra, joga, sai com placar — e o Clube é acervo, que só faz
+       sentido voltando depois pra ver o que os outros marcaram. */
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',

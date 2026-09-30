@@ -124,7 +124,11 @@ if (!function_exists('sbActive')) {
         <div class="sb-section">Liga</div>
         <a href="/tabela.php"<?= sbActive('tabela.php', $__sbCurrent) ?>><i class="bi bi-table"></i> Tabela</a>
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-        <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
+        <?php /* O TIMELINE SAIU DAQUI em 30/09/2026 e o Clube entrou no lugar.
+           A tela continua de pé em /timeline.php, só não tem mais item no
+           menu: o lugar dela na seção Liga passou a valer mais pro Clube,
+           que é onde a galera está marcando coisa. */ ?>
+        <a href="/clube.php"<?= sbActive('clube.php', $__sbCurrent) ?>><i class="bi bi-collection-fill"></i> Clube FBA</a>
         <?php /* Voltou ao menu em 24/08/2026: com a escala das lives entrando
            no calendário, ele deixou de ser só datas da liga e passou a ser
            onde a pessoa vê que foi escalada. */ ?>
