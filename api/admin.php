@@ -3503,21 +3503,66 @@ if ($method === 'POST') {
             } elseif ($subAction === 'add_player') {
                 $tplId = (int)($body['template_id'] ?? 0); $p = $body['player'] ?? [];
                 if (!$tplId || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint, notas) VALUES (?,?,?,?,?,?,?)");
-                // Jogador adicionado na mão não tem letrinhas — e não deve ter:
-                // elas vêm do CSV do jogo. @see backend/draft_class_csv.php
-                $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), null]);
-                echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
+                require_once dirname(__DIR__) . '/backend/draft_class_ordem.php';
+                $ordemPedida = $readPickHint($p);
+                $pdo->beginTransaction();
+                try {
+                    /* A VAGA SE ABRE ANTES DO INSERT. Na ordem contrária o novo
+                       entra, vira "mais um no lugar 3" e o empurrão não sabe mais
+                       quem estava lá antes — os dois desceriam juntos. */
+                    if ($ordemPedida !== null) draftClasseAbrirVaga($pdo, $tplId, $ordemPedida);
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint, notas) VALUES (?,?,?,?,?,?,?)");
+                    // Jogador adicionado na mão não tem letrinhas — e não deve ter:
+                    // elas vêm do CSV do jogo. @see backend/draft_class_csv.php
+                    $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $ordemPedida, null]);
+                    $novoId = (int)$pdo->lastInsertId();
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    error_log('[draft/classe] add_player: ' . $e->getMessage());
+                    echo json_encode(['success' => false, 'error' => 'Não deu pra adicionar o jogador.']);
+                    break;
+                }
+                /* A ORDEM INTEIRA VOLTA JUNTO: um empurrão mexe em vários de uma
+                   vez, e devolver só o novo deixaria os outros com o número velho
+                   na tela até o próximo F5. */
+                echo json_encode(['success' => true, 'id' => $novoId,
+                                  'ordem' => draftClasseOrdemAtual($pdo, $tplId)]);
             } elseif ($subAction === 'update_player') {
                 $pid = (int)($body['player_id'] ?? 0); $p = $body['player'] ?? [];
                 if (!$pid || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=?,pick_hint=? WHERE id=?")->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), $pid]);
-                echo json_encode(['success' => true]);
+                require_once dirname(__DIR__) . '/backend/draft_class_ordem.php';
+                [$tplId, $ordemAtual] = draftClasseTemplateDoJogador($pdo, $pid);
+                $ordemNova = $readPickHint($p);
+                $pdo->beginTransaction();
+                try {
+                    /* O UPDATE NÃO TOCA NO pick_hint: quem mexe nele é o
+                       draftClasseMover, que precisa comparar o lugar velho com o
+                       novo pra saber pra que lado os outros andam. Gravar aqui
+                       apagaria o "de onde ele veio". */
+                    $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=? WHERE id=?")
+                        ->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $pid]);
+                    if ($tplId) draftClasseMover($pdo, $tplId, $pid, $ordemAtual, $ordemNova);
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    error_log('[draft/classe] update_player: ' . $e->getMessage());
+                    echo json_encode(['success' => false, 'error' => 'Não deu pra salvar o jogador.']);
+                    break;
+                }
+                echo json_encode(['success' => true,
+                                  'ordem' => $tplId ? draftClasseOrdemAtual($pdo, $tplId) : null]);
             } elseif ($subAction === 'delete_player') {
                 $pid = (int)($body['player_id'] ?? 0);
                 if (!$pid) { echo json_encode(['success' => false, 'error' => 'player_id obrigatório']); break; }
+                /* APAGAR TAMBÉM ABRE BURACO na ordem — quem tirava o 3 da
+                   lista deixava 1, 2, 4, 5 pra trás. Mesma regra da saída. */
+                require_once dirname(__DIR__) . '/backend/draft_class_ordem.php';
+                [$tplId, $ordemDele] = draftClasseTemplateDoJogador($pdo, $pid);
                 $pdo->prepare("DELETE FROM draft_class_template_players WHERE id=?")->execute([$pid]);
-                echo json_encode(['success' => true]);
+                if ($tplId && $ordemDele !== null) draftClasseFecharVaga($pdo, $tplId, $ordemDele);
+                echo json_encode(['success' => true,
+                                  'ordem' => $tplId ? draftClasseOrdemAtual($pdo, $tplId) : null]);
             } elseif ($subAction === 'replace_players') {
                 $tplId = (int)($body['template_id'] ?? 0); $players = $body['players'] ?? [];
                 if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }

@@ -12042,7 +12042,9 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
               </select>
               <input type="number" id="_dcNewOvr" class="form-control form-control-sm" placeholder="OVR" min="1" max="99" style="flex:1;min-width:60px">
               <input type="number" id="_dcNewAge" class="form-control form-control-sm" placeholder="Idade" min="18" max="45" style="flex:1;min-width:60px">
-              <input type="number" id="_dcNewOrdem" class="form-control form-control-sm" placeholder="Ordem (opcional)" min="1" style="flex:1;min-width:90px">
+              <input type="number" id="_dcNewOrdem" class="form-control form-control-sm" placeholder="Ordem (opcional)" min="1"
+                     title="Vazio: entra sem ordem, no fim. Com número: entra nessa posição e quem estava nela desce uma casa."
+                     style="flex:1;min-width:90px">
               <button class="btn-ghost" style="color:#22c55e;white-space:nowrap" onclick="_dcAddPlayer()"><i class="bi bi-plus-lg me-1"></i>Add</button>
             </div>
           </div>
@@ -12130,6 +12132,27 @@ function _dcRenderPlayerList() {
   </table>`;
 }
 
+/**
+ * A ORDEM QUE O SERVIDOR DEVOLVEU, aplicada na lista da tela.
+ *
+ * Escolher a posição 3 não mexe só em quem entrou: o 3 vira 4, o 4 vira 5.
+ * Por isso o servidor manda a ordem INTEIRA de volta e a tela reescreve todo
+ * mundo — remendar só a linha clicada deixaria as outras mentindo o número
+ * antigo até alguém apertar F5.
+ */
+function _dcAplicarOrdem(ordem) {
+  if (!ordem) return;
+  _dcEditPlayers.forEach(p => {
+    const v = ordem[String(p.id)];
+    if (v !== undefined) p.pick_hint = (v === null) ? null : Number(v);
+  });
+  // A mesma ordenação do servidor: sem ordem vai pro fim, e lá o OVR manda.
+  _dcEditPlayers.sort((a, b) =>
+    ((a.pick_hint ?? 999999) - (b.pick_hint ?? 999999)) || ((b.ovr || 0) - (a.ovr || 0)));
+  const lista = document.getElementById('_dcPlayerList');
+  if (lista) lista.innerHTML = _dcRenderPlayerList();
+}
+
 function _dcEditPlayerField(playerId, field, value) {
   const p = _dcEditPlayers.find(x => x.id == playerId);
   if (!p) return;
@@ -12142,7 +12165,13 @@ function _dcEditPlayerField(playerId, field, value) {
   api('admin.php?action=draft_class_bank', {
     method: 'POST',
     body: JSON.stringify({ sub: 'update_player', player_id: playerId, player: { name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null } })
-  }).catch(e => showAlert('danger', e.error || 'Erro ao atualizar'));
+  })
+    .then(r => {
+      /* Só a ordem redesenha a tabela. Fazer isso a cada nome digitado
+         tiraria o foco de quem está preenchendo a linha de baixo. */
+      if (field === 'pick_hint') _dcAplicarOrdem(r?.ordem);
+    })
+    .catch(e => showAlert('danger', e.error || 'Erro ao atualizar'));
 }
 
 async function _dcAddPlayer() {
@@ -12159,11 +12188,16 @@ async function _dcAddPlayer() {
       body: JSON.stringify({ sub: 'add_player', template_id: _dcEditTemplateId, player: { name, position: pos, ovr, age, pick_hint: pickHint } })
     });
     _dcEditPlayers.push({ id: res.id, name, position: pos, ovr, age, pick_hint: pickHint });
-    document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
+    _dcAplicarOrdem(res.ordem);
+    if (!res.ordem) document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
     document.getElementById('_dcNewName').value = '';
     document.getElementById('_dcNewOvr').value = '';
     document.getElementById('_dcNewAge').value = '';
-    document.getElementById('_dcNewOrdem').value = '';
+    /* A ORDEM NÃO SE APAGA. Quem está montando o topo da classe digita 1, 2,
+       3 seguidos — e limpar o campo obrigava a redigitar a cada jogador. */
+    const campoOrdem = document.getElementById('_dcNewOrdem');
+    if (campoOrdem && pickHint !== null) campoOrdem.value = pickHint + 1;
+    document.getElementById('_dcNewName').focus();
     showAlert('success', 'Jogador adicionado!');
   } catch(e) { showAlert('danger', e.error || 'Erro'); }
 }
@@ -12171,9 +12205,15 @@ async function _dcAddPlayer() {
 async function _dcDeletePlayer(playerId) {
   if (!await confirmarSite('Remover este jogador da classe?')) return;
   try {
-    await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete_player', player_id: playerId }) });
-    _dcEditPlayers = _dcEditPlayers.filter(p => p.id !== playerId);
-    document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
+    const r = await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete_player', player_id: playerId }) });
+    /* Number() nos dois lados: o id vem NÚMERO quando o jogador acabou de
+       ser criado e TEXTO quando veio do banco na abertura do modal. Com !==
+       estrito, apagar alguém carregado do banco não tirava ele da tela — ele
+       sumia do servidor e ficava na lista até o F5. */
+    _dcEditPlayers = _dcEditPlayers.filter(p => Number(p.id) !== Number(playerId));
+    // Tirar alguém do meio faz os de baixo subirem; a ordem volta pronta.
+    if (r?.ordem) _dcAplicarOrdem(r.ordem);
+    else document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
   } catch(e) { showAlert('danger', e.error || 'Erro'); }
 }
 
