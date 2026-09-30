@@ -104,12 +104,19 @@ function cbTopSeries(PDO $pdo): string
              . "_Dê as suas no Clube FBA._";
     }
 
+    /* SEM O IMDB AQUI (decisão dele, 30/09/2026). Esta lista é a nota da
+       liga, e a do IMDb ao lado convidava a comparar as duas — o que muda o
+       assunto: a conversa passa a ser "o mundo deu menos" em vez de "a
+       galera daqui gostou". Na ficha (/serie) as três notas continuam juntas,
+       porque lá comparar é exatamente o ponto.
+
+       Na fila (/seriesfila) ela FICA: ninguém daqui assistiu ainda, então a
+       do IMDb é a única nota que existe pra dizer se vale a pena. */
     $txt = "*Top séries da FBA*\n_Nota da liga, com " . SERIES_RANKING_MIN . " avaliações ou mais_\n\n";
     foreach ($lista as $i => $s) {
         $txt .= ($i + 1) . "º *" . $s['titulo'] . "*" . cbAno($s) . "\n"
               . "   FBA " . cbNota($s['nota_fba']) . " _(" . (int)$s['votos_fba'] . " nota"
-              . ((int)$s['votos_fba'] === 1 ? '' : 's') . ")_"
-              . ($s['nota_imdb'] !== null ? " • IMDb " . cbNota($s['nota_imdb']) : '') . "\n";
+              . ((int)$s['votos_fba'] === 1 ? '' : 's') . ")_\n";
     }
     return rtrim($txt);
 }
