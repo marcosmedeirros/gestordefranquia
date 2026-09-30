@@ -98,6 +98,7 @@ function draftCsvLer(string $conteudo): array
 
     $jogadores = [];
     $vistos = [];
+    $cortados = [];
     foreach (array_slice($linhas, 1) as $n => $linha) {
         $col = str_getcsv($linha, $sep);
         $nome = $pegar($col, 'NAME');
@@ -108,6 +109,18 @@ function draftCsvLer(string $conteudo): array
         $k = mb_strtolower($nome);
         if (isset($vistos[$k])) { $erros[] = "Linha " . ($n + 2) . ": \"{$nome}\" aparece mais de uma vez."; continue; }
         $vistos[$k] = true;
+
+        /* PRIMEIRO NOME CORTADO NÃO ENTRA. "L. James" é o que o export do
+           jogo escreve quando a coluna é estreita, e o que chega no banco é
+           o que os GMs leem pelo resto da carreira daquele jogador — na
+           urna do draft, no elenco, no /trocas do grupo. A classe da ELITE
+           que entrou assim precisou ser desabreviada jogador por jogador
+           depois, cruzando com outras ligas pra descobrir de quem era cada
+           sobrenome, e cinco nunca deram pra resolver.
+
+           Recusar na porta é o único momento em que o conserto é barato:
+           quem tem o arquivo troca a coluna e importa de novo. */
+        if (preg_match('/^\p{L}\.\s/u', $nome)) { $cortados[] = $nome; continue; }
 
         $ovrTxt = $pegar($col, 'RATING') !== '' ? $pegar($col, 'RATING') : $pegar($col, 'OVR');
         $idaTxt = $pegar($col, 'AGE');
@@ -131,6 +144,12 @@ function draftCsvLer(string $conteudo): array
         ];
     }
 
+    if ($cortados) {
+        $mostra = array_slice($cortados, 0, 6);
+        $erros[] = count($cortados) . ' nome(s) vêm com o primeiro nome abreviado ('
+                 . implode(', ', $mostra) . (count($cortados) > count($mostra) ? ', …' : '')
+                 . '). Exporte de novo com o nome inteiro — "LeBron James", não "L. James".';
+    }
     if (!$jogadores) $erros[] = 'Nenhuma linha de jogador com NAME preenchido.';
     return ['jogadores' => $jogadores, 'erros' => $erros, 'ignoradas' => array_values(array_unique($ignoradas))];
 }
