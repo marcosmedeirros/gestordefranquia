@@ -577,10 +577,10 @@ $jogosLivres = [
     // por isso também vem por `href`. Primeiro da grade: é o jogo da temporada.
     ['href' => '/fantasy.php', 'nome' => 'Fantasy FBA',
      'sub'  => 'Escale e dispute ligas', 'icone' => 'bi-stars', 'cor' => '#fc0025'],
-    // Séries: o diário de quem assiste. Fica junto dos jogos de carreira
-    // porque é o mesmo tipo de jogo — não tem fim, tem acervo.
-    ['href' => '/games/games/series.php', 'nome' => 'Séries',
-     'sub'  => 'Marque, avalie e compare', 'icone' => 'bi-projector-fill', 'cor' => '#a855f7'],
+    /* SÉRIES NÃO ESTÁ AQUI DE PROPÓSITO. Ele roda em
+       /games/games/series.php e por enquanto é só por link, enquanto o
+       catálogo e as regras assentam com quem ele convidar. Entra na grade
+       quando ele mandar — é uma linha. */
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',
