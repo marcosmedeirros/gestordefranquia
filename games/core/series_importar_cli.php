@@ -46,13 +46,24 @@ foreach ($argv as $a) {
     if (preg_match('/^--idioma=(.+)$/', $a, $m))    $idioma  = trim($m[1]);
 }
 
+/* A CHAVE, NA ORDEM EM QUE FAZ SENTIDO PROCURAR: o que veio na linha de
+   comando manda, depois o ambiente, e por último o config local — que é
+   onde ela deve viver pra valer. config.local.php está no .gitignore e não
+   aparece em histórico de shell nem em lista de processos, que é onde um
+   --chave= fica exposto pra quem mais estiver na máquina. */
 if ($chave === '') $chave = trim((string)getenv('TMDB_API_KEY'));
+if ($chave === '') {
+    require_once __DIR__ . '/../../backend/helpers.php';
+    $cfg = loadConfig();
+    $chave = trim((string)($cfg['tmdb']['api_key'] ?? ''));
+}
 if ($chave === '') {
     fwrite(STDERR, "Falta a chave do TMDB.\n\n"
         . "  1. crie a conta grátis em https://www.themoviedb.org/signup\n"
         . "  2. pegue a chave em Configurações → API\n"
         . "  3. rode: php games/core/series_importar_cli.php --chave=SUA_CHAVE\n\n"
-        . "Dá pra guardar em TMDB_API_KEY no ambiente e omitir --chave.\n");
+        . "Ou ponha em backend/config.local.php e rode sem --chave:\n"
+        . "  'tmdb' => ['api_key' => 'SUA_CHAVE'],\n");
     exit(1);
 }
 
