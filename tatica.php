@@ -973,7 +973,15 @@ async function gravar({ silencioso = false } = {}) {
     }
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     statusSalvamento('ok', 'Salvo às ' + hora);
-    if (TATICAS[SLOT]) TATICAS[SLOT].saved = true;
+
+    /* A CÓPIA EM MEMÓRIA TAMBÉM PRECISA SABER QUE SALVOU.
+       mostrarSlot() repinta o formulário a partir de TATICAS[slot].data, e
+       sem esta linha a cópia ficava com o conteúdo de antes: trocar de
+       tática e voltar mostrava tudo em branco, como se o salvar não
+       tivesse pegado. O banco estava certo o tempo todo. */
+    if (!TATICAS[SLOT]) TATICAS[SLOT] = { label: SLOT_LABELS[SLOT] };
+    if (d.data) TATICAS[SLOT].data = d.data;
+    TATICAS[SLOT].saved = true;
     document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.classList.add('saved');
     sujo = false;
     if (!silencioso) msg('ok', `<strong>${esc(SLOT_LABELS[SLOT])}</strong> salva.`);

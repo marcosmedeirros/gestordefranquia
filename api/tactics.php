@@ -1128,7 +1128,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         taticaDesmarcarSeMudou($pdo, $teamId);
 
-        echo json_encode(['success' => true]);
+        /* DEVOLVE O QUE FICOU GRAVADO, no mesmo formato do `get`.
+         *
+         * A tela guarda as três táticas em memória e repinta o formulário a
+         * partir dessa cópia toda vez que se troca de aba. O save só dizia
+         * "success" — a cópia continuava com o conteúdo de antes, e ir pra
+         * outra tática e voltar mostrava a tática VAZIA, como se o salvar não
+         * tivesse funcionado. O banco sempre esteve certo; a tela é que
+         * mentia, e um F5 desfazia o susto.
+         *
+         * Vem do banco e não do que o navegador mandou porque o servidor
+         * normaliza: rotação fora da faixa é aparada, titular que não é do
+         * elenco vira nulo, modelo técnico que a liga não oferece é recusado.
+         * Ecoar o payload deixaria a tela mostrando o que ela pediu em vez do
+         * que valeu.
+         */
+        $stSalvo = $pdo->prepare('SELECT * FROM team_tactics WHERE team_id = ? AND slot = ?');
+        $stSalvo->execute([$teamId, $slot]);
+        $linhaSalva = $stSalvo->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        echo json_encode([
+            'success' => true,
+            'slot'    => $slot,
+            'data'    => $linhaSalva
+                ? array_intersect_key($linhaSalva, array_flip(TATICA_CAMPOS))
+                : null,
+        ]);
         exit;
     }
 
