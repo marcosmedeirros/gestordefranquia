@@ -222,6 +222,9 @@ $qInicial    = (string)($_GET['q'] ?? '');
   --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
   --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5b6172; --text-3:#6b7080;
 }
+/* 4,6 e 4,3 de contraste no lugar de 1,39 e 1,94 — e continuam lendo como
+   "dourado do IMDb" e "verde da liga", que é o que o número precisa dizer. */
+:root[data-theme="light"]{ --imdb-txt:#a16207; --fba-txt:#15803d; }
 </style>
 
 <?php /* Barra lateral, topbar, main e hero — o mesmo shell das outras telas. */ ?>
@@ -246,8 +249,15 @@ $qInicial    = (string)($_GET['q'] ?? '');
   --acento-2:color-mix(in srgb, var(--red) 45%, #000);
   /* Estas duas NÃO seguem a pessoa: o dourado é a marca do IMDb e o verde é
      a nota da liga. Se virassem a cor escolhida, as três notas da ficha
-     ficariam iguais e a ficha perderia justamente o que ela conta. */
+     ficariam iguais e a ficha perderia justamente o que ela conta.
+
+     MAS CADA UMA TEM DUAS VERSÕES, e não é capricho: o mesmo dourado que
+     brilha no selo sobre o pôster (fundo preto) dá 1,39 de contraste como
+     TEXTO num painel claro — some. As `-txt` são as que pousam em painel e
+     escurecem no tema claro; as outras só aparecem sobre imagem ou como
+     fundo, onde o tom vivo é o certo. */
   --imdb:#f5c518; --fba:#22c55e;
+  --imdb-txt:var(--imdb); --fba-txt:var(--fba);
   --display:'Barlow Condensed','Inter',system-ui,sans-serif;
 }
 /* O conteúdo do Clube fala Inter; o menu e a topbar seguem na Montserrat
@@ -357,8 +367,8 @@ $qInicial    = (string)($_GET['q'] ?? '');
   border:1px solid var(--borda);text-align:center}
 .nota-caixa .n{font-family:var(--display);font-size:22px;font-weight:700;line-height:1}
 .nota-caixa .r{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.nota-caixa.imdb .n{color:var(--imdb)}
-.nota-caixa.fba .n{color:var(--fba)}
+.nota-caixa.imdb .n{color:var(--imdb-txt)}
+.nota-caixa.fba .n{color:var(--fba-txt)}
 .nota-caixa.eu .n{color:var(--acento)}
 
 .rot{font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;
@@ -452,9 +462,9 @@ $qInicial    = (string)($_GET['q'] ?? '');
   font-variant-numeric:tabular-nums}
 .rk .rk-v small{font-family:Inter;font-size:9.5px;font-weight:700;color:var(--txt3);
   text-transform:uppercase;letter-spacing:.4px;margin-left:2px}
-.rk.nota .rk-v{color:var(--fba)}
+.rk.nota .rk-v{color:var(--fba-txt)}
 .rk.vistas .rk-v{color:var(--acento)}
-.rk.querem .rk-v{color:var(--imdb)}
+.rk.querem .rk-v{color:var(--imdb-txt)}
 
 /* ── A LISTA DE TUDO QUE A LIGA VIU ─────────────────────────────────── */
 .ordena{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px}
@@ -476,7 +486,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .linha-serie:hover .ls-t{color:var(--acento)}
 .linha-serie .ls-s{font-size:11.5px;color:var(--txt3);display:flex;gap:9px;flex-wrap:wrap;margin-top:2px}
 .linha-serie .ls-s i{font-size:10px}
-.linha-serie .ls-n{font-family:var(--display);font-size:22px;font-weight:700;color:var(--fba);
+.linha-serie .ls-n{font-family:var(--display);font-size:22px;font-weight:700;color:var(--fba-txt);
   flex-shrink:0;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
 
 /* ── AS PESSOAS DO CLUBE ────────────────────────────────────────────── */
@@ -532,9 +542,9 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .ac-t span{color:var(--txt3);font-weight:600;font-size:11.5px}
 .ac-s{font-size:11.5px;color:var(--txt3);display:flex;gap:8px;flex-wrap:wrap;
   align-items:center;margin-top:3px}
-.ac-s .pino.assistida{color:var(--fba);border-color:rgba(34,197,94,.35)}
+.ac-s .pino.assistida{color:var(--fba-txt);border-color:rgba(34,197,94,.35)}
 .ac-s .pino.assistindo{color:var(--acento);border-color:color-mix(in srgb,var(--acento) 40%,transparent)}
-.ac-s .pino.top{color:var(--imdb);border-color:rgba(245,197,24,.4)}
+.ac-s .pino.top{color:var(--imdb-txt);border-color:rgba(245,197,24,.4)}
 .ac-r{color:var(--txt2);font-style:italic;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;max-width:100%}
 .ac-n{flex-shrink:0;width:58px;padding:7px 6px;border-radius:9px;border:1px solid var(--borda);
@@ -542,7 +552,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
   text-align:center;cursor:pointer}
 .ac-n:focus{outline:none;border-color:var(--acento)}
 .ac-n:disabled{opacity:.35;cursor:not-allowed}
-.ac-n.deu{border-color:var(--fba);color:var(--fba)}
+.ac-n.deu{border-color:var(--fba-txt);color:var(--fba-txt)}
 .ac-x{flex-shrink:0;width:32px;height:32px;border-radius:9px;border:1px solid var(--borda);
   background:var(--panel3);color:var(--txt3);cursor:pointer;display:flex;
   align-items:center;justify-content:center;font-size:13px}
@@ -754,7 +764,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
                     <span class="pino top"><i class="bi bi-star-fill"></i> <?= (int)$s['favorita'] ?>º</span>
                   <?php endif; ?>
                   <?php if ($s['nota_imdb'] !== null): ?>
-                    <span style="color:var(--imdb)"><i class="bi bi-star-fill"></i>
+                    <span style="color:var(--imdb-txt)"><i class="bi bi-star-fill"></i>
                       <?= h(number_format((float)$s['nota_imdb'], 1, ',', '')) ?></span>
                   <?php endif; ?>
                   <?php if (!empty($s['meu_recado'])): ?>
@@ -958,7 +968,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
                     <?= (int)$s['recados'] === 1 ? 'recado' : 'recados' ?></span>
                 <?php endif; ?>
                 <?php if ($s['nota_imdb'] !== null): ?>
-                  <span style="color:var(--imdb)"><i class="bi bi-star-fill"></i>
+                  <span style="color:var(--imdb-txt)"><i class="bi bi-star-fill"></i>
                     <?= h(number_format((float)$s['nota_imdb'], 1, ',', '')) ?> IMDb</span>
                 <?php endif; ?>
               </span>
@@ -1603,7 +1613,12 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
 </script>
 <?php endif; ?>
 
-<?php /* O botão de menu do celular. É o mesmo script de todas as telas. */ ?>
+<?php /* O botão de menu do celular e o de tema, os mesmos de todas as telas.
+     O tema.js FALTAVA: o botão "Modo claro" nasce no sidebar.php e quem o
+     faz funcionar é este arquivo. Sem ele a página lia o tema salvo ao
+     carregar — então quem tinha trocado em outra tela via o claro aqui —
+     mas clicar no botão DENTRO do Clube não fazia nada. */ ?>
 <script src="/js/sidebar.js"></script>
+<script src="/js/tema.js"></script>
 </body>
 </html>
