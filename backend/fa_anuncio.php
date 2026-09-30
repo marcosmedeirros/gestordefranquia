@@ -15,6 +15,88 @@
 require_once __DIR__ . '/helpers.php';   // ELENCO_MAX, usado nos motivos
 
 /**
+ * A coluna que marca o que já foi pro Gameplay.
+ *
+ * Nasceu depois da tabela, então entra por ALTER — e o erro de "já existe" é
+ * o caso normal, não uma falha.
+ */
+function faGarantirColunaAnuncio(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM fa_requests LIKE 'anunciado_em'")->fetch()) {
+            $pdo->exec("ALTER TABLE fa_requests ADD COLUMN anunciado_em DATETIME NULL");
+        }
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('[fa/anuncio] coluna: ' . $e->getMessage());
+    }
+}
+
+/**
+ * TUDO QUE JÁ FOI RESOLVIDO E AINDA NÃO FOI ANUNCIADO.
+ *
+ * O anúncio saía só com o que AQUELE clique resolveu, e por isso saiu errado
+ * na RISE: o admin aprovou sete propostas uma a uma e depois apertou
+ * "Resolver FA" — que só encontrou o Markkanen ainda aberto. A mensagem no
+ * Gameplay listou o Markkanen e mais nada, como se a FA inteira tivesse dado
+ * em nada.
+ *
+ * Aprovar um a um é o caminho normal do admin e nunca vai anunciar sozinho
+ * (seriam sete mensagens no grupo). Então quem anuncia tem que olhar pro que
+ * ficou pendente de aviso, e não pro que acabou de acontecer.
+ *
+ * @return array{contratados:array[], sem_vencedor:string[], ids:int[]}
+ */
+function faPendenteDeAnuncio(PDO $pdo, string $league): array
+{
+    faGarantirColunaAnuncio($pdo);
+
+    $st = $pdo->prepare("
+        SELECT r.id, r.player_name, r.position, r.ovr, r.status,
+               TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
+               (SELECT o.amount FROM fa_request_offers o
+                 WHERE o.request_id = r.id AND o.status = 'accepted'
+              ORDER BY o.amount DESC LIMIT 1) AS valor
+          FROM fa_requests r
+     LEFT JOIN teams t ON t.id = r.winner_team_id
+         WHERE r.league = ? AND r.resolved_at IS NOT NULL AND r.anunciado_em IS NULL
+      ORDER BY r.status, (SELECT o.amount FROM fa_request_offers o
+                           WHERE o.request_id = r.id AND o.status = 'accepted'
+                        ORDER BY o.amount DESC LIMIT 1) DESC, r.id");
+    $st->execute([$league]);
+
+    $ehElite = strtoupper($league) === 'ELITE';
+    $contratados = []; $sem = []; $ids = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $ids[] = (int)$r['id'];
+        if ($r['status'] === 'assigned') {
+            $contratados[] = [
+                'jogador' => $r['player_name'], 'posicao' => $r['position'],
+                'ovr' => (int)$r['ovr'], 'time' => $r['time'],
+                'valor' => (int)$r['valor'], 'elite' => $ehElite,
+            ];
+        } else {
+            $sem[] = $r['player_name'];
+        }
+    }
+    return ['contratados' => $contratados, 'sem_vencedor' => $sem, 'ids' => $ids];
+}
+
+/** Carimba o que acabou de ir pro grupo, pra não sair duas vezes. */
+function faMarcarAnunciados(PDO $pdo, array $ids): void
+{
+    if (!$ids) return;
+    faGarantirColunaAnuncio($pdo);
+    try {
+        $pdo->exec("UPDATE fa_requests SET anunciado_em = NOW() WHERE id IN ("
+                   . implode(',', array_map('intval', $ids)) . ")");
+    } catch (Throwable $e) {
+        error_log('[fa/anuncio] marcar: ' . $e->getMessage());
+    }
+}
+/**
  * O TEXTO DO ANÚNCIO DA FREE AGENCY.
  *
  * Separado de quem envia de propósito: aqui não há grupo, fila nem WhatsApp —

@@ -2085,20 +2085,33 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
  */
 function faAnunciarResolucao(PDO $pdo, string $league, array $res): bool
 {
-    $detalhes = $res['detalhes'] ?? [];
-    $sem = $res['sem_vencedor'] ?? [];
-    /* Os recusados entram na conta do "vale a pena avisar": uma resolução em
-       que ninguém levou nada MAS dois times esbarraram no elenco cheio é
-       notícia — foi o caso que fez esta seção existir. */
-    if (!$detalhes && !$sem && empty($res['recusados_det'])) return false;
+    require_once __DIR__ . '/../backend/fa_anuncio.php';
+
+    /* O QUE VAI NO AVISO NÃO É O QUE ESTE CLIQUE FEZ.
+     *
+     * É tudo que já foi resolvido e ainda não foi anunciado — porque aprovar
+     * proposta um a um é o caminho normal do admin e não dispara mensagem
+     * nenhuma (seriam sete no grupo). Só os motivos das recusas vêm da
+     * rodada: eles existem na memória de quem tentou atribuir, e não no
+     * banco. */
+    $pendente = faPendenteDeAnuncio($pdo, $league);
+    $res['detalhes']     = $pendente['contratados'];
+    $res['sem_vencedor'] = $pendente['sem_vencedor'];
+
+    if (!$pendente['contratados'] && !$pendente['sem_vencedor'] && empty($res['recusados_det'])) {
+        return false;
+    }
     try {
         require_once __DIR__ . '/../backend/leilao_bot.php';   // botGrupoDaCerimonia + whatsapp
         $grupo = botGrupoDaCerimonia($pdo, $league);
         if (!$grupo) return false;
 
-        require_once __DIR__ . '/../backend/fa_anuncio.php';
         $txt = faTextoDaResolucao($league, $res);
-        return whatsappEnfileirar($pdo, (string)$grupo, $txt, true, 'manual');
+        $foi = whatsappEnfileirar($pdo, (string)$grupo, $txt, true, 'manual');
+        /* Carimba SÓ se entrou na fila: falhando, o próximo "Resolver FA"
+           tenta de novo com os mesmos jogadores, em vez de engolir o aviso. */
+        if ($foi) faMarcarAnunciados($pdo, $pendente['ids']);
+        return $foi;
     } catch (Throwable $e) {
         error_log('[fa/anunciar] ' . $e->getMessage());
         return false;
