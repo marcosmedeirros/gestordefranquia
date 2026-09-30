@@ -604,3 +604,74 @@ if (!function_exists('gleagueGarantirColunaExtra')) {
         }
     }
 }
+
+if (!function_exists('adminAjustarBadges')) {
+    /**
+     * AJUSTA O SALDO DE BADGES DE UM GM, pela aba Games do Admin.
+     *
+     * NÃO EXISTE CONTADOR DE BADGES. O saldo sempre foi uma conta: linhas de
+     * `badge` no inventário que ainda não foram aplicadas (@see
+     * api/tapas.php badgesCompradas). Guardar um número à parte
+     * desencontraria dele no primeiro ajuste — e o desencontro apareceria só
+     * na hora em que o GM pedisse uma badge que o sistema acha que ele tem.
+     * Então ajustar o saldo é mexer nas linhas.
+     *
+     * PRA CIMA: entram linhas com `preco_pago = 0`. Zero e não o preço do
+     * catálogo porque ele não pagou — quem lê o inventário depois precisa
+     * conseguir separar o que foi comprado do que foi dado.
+     *
+     * PRA BAIXO: as linhas saem marcadas como usadas, e NUNCA apagadas. Uma
+     * badge comprada custou pontos ao GM; apagar a linha sumiria com o
+     * registro da compra. O `obs` diz quem tirou e quando, que é o que
+     * transforma "sumiu uma badge" em pergunta com resposta.
+     *
+     * A ORDEM DE QUEM SAI NÃO É QUALQUER UMA: primeiro as que o admin deu
+     * (preco_pago = 0), da mais nova pra mais velha. Corrigir um "dei 5 sem
+     * querer" não pode queimar a badge que a pessoa comprou com 3.000 pontos.
+     *
+     * @param  int $alvo   quantas badges não usadas o GM deve ficar tendo
+     * @param  int $quem   o admin que está mexendo, pro registro
+     * @return int o saldo depois do ajuste (o que a tela deve mostrar)
+     */
+    function adminAjustarBadges(PDO $pdo, int $userId, int $alvo, int $quem): int
+    {
+        lojaGarantirTabela($pdo);
+        $alvo = max(0, $alvo);
+
+        $conta = $pdo->prepare("SELECT COUNT(*) FROM loja_inventario
+                                 WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL");
+        $conta->execute([$userId]);
+        $tem = (int)$conta->fetchColumn();
+
+        if ($alvo === $tem) return $tem;
+
+        $marca = 'ajuste do admin #' . $quem . ' em ' . date('d/m/Y H:i');
+
+        if ($alvo > $tem) {
+            $ins = $pdo->prepare("INSERT INTO loja_inventario (id_usuario, item_key, preco_pago, obs)
+                                  VALUES (?, 'badge', 0, ?)");
+            for ($i = 0; $i < $alvo - $tem; $i++) $ins->execute([$userId, $marca]);
+            return $alvo;
+        }
+
+        /* Sai o excedente: as dadas pelo admin primeiro, e dentro de cada
+           grupo a mais nova antes — desfazer o último gesto é o que quase
+           sempre se quer. */
+        $quais = $pdo->prepare("SELECT id FROM loja_inventario
+                                 WHERE id_usuario = ? AND item_key = 'badge' AND usado_em IS NULL
+                              ORDER BY (preco_pago > 0), id DESC
+                                 LIMIT " . (int)($tem - $alvo));
+        $quais->execute([$userId]);
+        $ids = $quais->fetchAll(PDO::FETCH_COLUMN);
+        if (!$ids) return $tem;
+
+        $pdo->prepare("UPDATE loja_inventario
+                          SET usado_em = NOW(), atendido_em = NOW(), atendido_por = ?,
+                              obs = CONCAT(COALESCE(obs, ''), IF(obs IS NULL OR obs = '', '', ' | '),
+                                           'retirada no ', ?)
+                        WHERE id IN (" . implode(',', array_map('intval', $ids)) . ")")
+            ->execute([$quem, $marca]);
+
+        return $alvo;
+    }
+}

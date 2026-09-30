@@ -860,7 +860,7 @@ function _filtrarGamesUsers(termo) {
 }
 
 /**
- * A lista de GMs com moedas e FBA Points.
+ * A lista de GMs com moedas, FBA Points e badges.
  *
  * Era uma tabela de sete colunas dentro de .table-responsive. No celular ela
  * não cabia: o campo de moedas ficava espremido a ponto de cortar o número
@@ -906,6 +906,13 @@ function _renderGamesUsers(users) {
                  value="${Number(u.fba_points) || 0}" id="gu-fba-${u.id}">
         </label>
 
+        <label class="gu-campo">
+          <span class="gu-lab">Badges</span>
+          <input type="number" min="0" inputmode="numeric" class="gu-input"
+                 title="Badges compradas e ainda não aplicadas"
+                 value="${Number(u.badges) || 0}" id="gu-badges-${u.id}">
+        </label>
+
         <div class="gu-campo gu-mini">
           <span class="gu-lab">Acertos</span>
           <b class="gu-num">${Number(u.acertos_eventos) || 0}</b>
@@ -931,7 +938,7 @@ function _renderGamesUsers(users) {
   wrap.innerHTML = `
     <div class="gu-list">
       <div class="gu-head">
-        <span>GM</span><span>Moedas</span><span>FBA Points</span>
+        <span>GM</span><span>Moedas</span><span>FBA Points</span><span>Badges</span>
         <span>Acertos</span><span>Admin Games</span><span></span>
       </div>
       ${linhas}
@@ -940,7 +947,8 @@ function _renderGamesUsers(users) {
 async function _salvarGamesSaldo(userId, btn) {
   const pontos = parseInt(document.getElementById(`gu-pontos-${userId}`)?.value, 10);
   const fba    = parseInt(document.getElementById(`gu-fba-${userId}`)?.value, 10);
-  if (isNaN(pontos) || isNaN(fba) || pontos < 0 || fba < 0) {
+  const badges = parseInt(document.getElementById(`gu-badges-${userId}`)?.value, 10);
+  if (isNaN(pontos) || isNaN(fba) || isNaN(badges) || pontos < 0 || fba < 0 || badges < 0) {
     showAlert('warning', 'Informe valores válidos (zero ou mais).');
     return;
   }
@@ -948,12 +956,24 @@ async function _salvarGamesSaldo(userId, btn) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
   try {
-    await api('admin.php?action=games_user_saldo', {
+    // O servidor DEVOLVE o saldo de badges que ficou valendo, e a tela usa
+    // ele em vez do número digitado: badge não é um contador, é a conta das
+    // linhas do inventário, e é o servidor que sabe quantas de fato saíram.
+    const resp = await api('admin.php?action=games_user_saldo', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, pontos, fba_points: fba })
+      body: JSON.stringify({ user_id: userId, pontos, fba_points: fba, badges })
     });
+    const valeu = Number(resp?.badges);
     const cached = _gamesUsersCache.find(u => Number(u.id) === Number(userId));
     if (cached) { cached.pontos = pontos; cached.fba_points = fba; }
+    // Só escreve o campo quando o servidor CONFIRMOU o número. Sem esta
+    // trava, um ajuste que falhou no servidor deixava a tela mostrando o que
+    // foi digitado — e o admin ia embora achando que tinha salvo.
+    if (Number.isFinite(valeu)) {
+      const campoBadges = document.getElementById(`gu-badges-${userId}`);
+      if (campoBadges) campoBadges.value = valeu;
+      if (cached) cached.badges = valeu;
+    }
     // Volta com rótulo: o botão agora é largo e escrito, e trocar por um
     // ícone solto deixava a linha com cara de quebrada depois de salvar.
     btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Salvo';

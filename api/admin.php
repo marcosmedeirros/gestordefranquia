@@ -1131,6 +1131,15 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
                 exit;
             }
+            /* A COLUNA DE BADGES SAI DO INVENTÁRIO, e não de um contador: o
+               saldo do GM sempre foi "quantas badges ele comprou e ainda não
+               foram aplicadas". Um número guardado à parte desencontraria do
+               que ele comprou no primeiro ajuste. @see api/tapas.php
+               badgesCompradas() — é a mesma conta, escrita como subconsulta
+               porque aqui são todos os GMs de uma vez. */
+            require_once __DIR__ . '/../backend/loja.php';
+            lojaGarantirTabela($pdo);
+
             $busca = trim((string)($_GET['q'] ?? ''));
             $sqlGU = "
                 SELECT u.id, u.name, u.email, u.league, u.user_type,
@@ -1138,6 +1147,10 @@ if ($method === 'GET') {
                        COALESCE(g.fba_points, 0) AS fba_points,
                        COALESCE(g.acertos_eventos, 0) AS acertos_eventos,
                        COALESCE(g.is_admin, 0) AS games_admin,
+                       (SELECT COUNT(*) FROM loja_inventario li
+                         WHERE li.id_usuario = u.id
+                           AND li.item_key = 'badge'
+                           AND li.usado_em IS NULL) AS badges,
                        (g.id IS NOT NULL) AS tem_perfil
                 FROM users u
                 LEFT JOIN games_usuarios g ON g.id = u.id
@@ -3138,7 +3151,8 @@ if ($method === 'POST') {
             $alvoId = (int)($data['user_id'] ?? 0);
             $pontos = isset($data['pontos']) ? (int)$data['pontos'] : null;
             $fbaPts = isset($data['fba_points']) ? (int)$data['fba_points'] : null;
-            if ($alvoId <= 0 || ($pontos === null && $fbaPts === null)) {
+            $badges = isset($data['badges']) ? max(0, (int)$data['badges']) : null;
+            if ($alvoId <= 0 || ($pontos === null && $fbaPts === null && $badges === null)) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
                 exit;
@@ -3154,9 +3168,21 @@ if ($method === 'POST') {
                 $vals = [];
                 if ($pontos !== null) { $sets[] = 'pontos = ?';     $vals[] = max(0, $pontos); }
                 if ($fbaPts !== null) { $sets[] = 'fba_points = ?'; $vals[] = max(0, $fbaPts); }
-                $vals[] = $alvoId;
-                $pdo->prepare('UPDATE games_usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
-                echo json_encode(['success' => true]);
+                if ($sets) {
+                    $vals[] = $alvoId;
+                    $pdo->prepare('UPDATE games_usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?')
+                        ->execute($vals);
+                }
+
+                if ($badges !== null) {
+                    /* O require mora AQUI e não no topo do arquivo: cada case
+                       é uma requisição, e sem ele adminAjustarBadges não existe
+                       neste pedido — o UPDATE de moedas passava e o ajuste de
+                       badge morria no catch, salvando metade calado. */
+                    require_once __DIR__ . '/../backend/loja.php';
+                    $badges = adminAjustarBadges($pdo, $alvoId, $badges, (int)$user['id']);
+                }
+                echo json_encode(['success' => true, 'badges' => $badges]);
             } catch (Throwable $e) {
                 error_log('[games_user_saldo] ' . $e->getMessage());
                 http_response_code(400);

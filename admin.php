@@ -716,7 +716,9 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             .gu-list { gap: 0; }
             .gu-head, .gu-row {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) 118px 118px 78px 104px 108px;
+                /* Entrou Badges: sem a coluna a mais, o campo caia numa
+                   segunda linha e desalinhava a grade inteira. */
+                grid-template-columns: minmax(0, 1fr) 104px 104px 88px 74px 100px 100px;
                 gap: 14px; align-items: center;
             }
             .gu-head {
