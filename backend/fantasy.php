@@ -8,11 +8,11 @@
  *               os times lançam as estatísticas da temporada.
  *   encerrada → pontos finais, preços novos, patrimônio atualizado e moedas pagas.
  *
- * Quem fecha e encerra é o admin, na própria página. O mercado não pode fechar
- * sozinho pelo calendário: a temporada é simulada fora do site, e não existe
- * marco de "começou a temporada regular". A única trava automática é a
- * classificação — com ela definida, a temporada já foi jogada, e escalar
- * depois disso seria escalar sabendo o resultado.
+ * Quem encerra é o admin, na própria página. O mercado fecha sozinho de duas
+ * maneiras: na QUARTA AO MEIO-DIA, que é o prazo da liga, e quando a
+ * classificação sai — com ela definida a temporada já foi jogada, e escalar
+ * depois disso seria escalar sabendo o resultado. O admin continua podendo
+ * fechar antes e reabrir, na mão.
  *
  * PONTUAÇÃO: como o Cartola (gol 8, assistência 5), cada jogada vale um
  * número fixo, aplicado ao jogo médio da temporada, proporcional aos jogos.
@@ -22,6 +22,51 @@
 require_once __DIR__ . '/db.php';
 
 const FAN_LIGA = 'ELITE';
+
+/**
+ * O PRAZO DO MERCADO: quarta-feira, meio-dia.
+ *
+ * Antes o mercado só fechava na mão ou quando a classificação saía, e a
+ * classificação sai depois de a temporada ter sido jogada — quem esquecesse de
+ * fechar deixava todo mundo escalar até o último minuto, às vezes já sabendo
+ * como a rodada estava indo.
+ *
+ * Fecha sozinho, e sem cron: a conta roda quando alguém abre o fantasy ou
+ * tenta escalar. É o mesmo desenho do leilão do jogo da semana
+ * (@see leilaoSemanaFecharSePassouDaHora) e pela mesma razão — cron é mais uma
+ * coisa pra configurar e esquecer.
+ */
+const FAN_FECHA_DIA  = 3;        // ISO-8601: 1 = segunda, 3 = quarta
+const FAN_FECHA_HORA = '12:00';
+const FAN_FUSO       = 'America/Sao_Paulo';
+
+/**
+ * A quarta ao meio-dia que fecha uma rodada aberta em tal momento.
+ *
+ * É a PRIMEIRA quarta ao meio-dia a partir da abertura, e não "a quarta desta
+ * semana": rodada que abre numa quarta às 14h não pode fechar duas horas
+ * antes, no passado — ela vai pra quarta seguinte.
+ */
+function fanPrazoDoMercado(string $abertaEm): DateTimeImmutable
+{
+    $tz    = new DateTimeZone(FAN_FUSO);
+    $abriu = new DateTimeImmutable($abertaEm, $tz);
+    [$h, $m] = array_map('intval', explode(':', FAN_FECHA_HORA));
+
+    $prazo = $abriu->setTime($h, $m);
+    for ($i = 0; $i < 8; $i++) {
+        if ((int)$prazo->format('N') === FAN_FECHA_DIA && $prazo >= $abriu) return $prazo;
+        $prazo = $prazo->modify('+1 day')->setTime($h, $m);
+    }
+    return $prazo;
+}
+
+/** Já passou da quarta ao meio-dia? */
+function fanPassouDoPrazo(string $abertaEm): bool
+{
+    return new DateTimeImmutable('now', new DateTimeZone(FAN_FUSO))
+        >= fanPrazoDoMercado($abertaEm);
+}
 // Patrimônio inicial. Na T1 o quinteto dos mais caros custava F$ 114 e, com o
 // 6º homem, o time ideal passa de F$ 135: com 100 ainda não cabe todo mundo,
 // mas sobra espaço pra um reserva que muda a rodada (com 75 o 6º virava enfeite).
@@ -312,9 +357,13 @@ function fanRodadaAtual(PDO $pdo): ?array
     }
 
     if ($pendente['status'] === 'aberta') {
+        /* DUAS TRAVAS, e basta uma. A classificação diz que a temporada já
+           foi jogada; o relógio diz que o prazo da liga venceu. Quem chegar
+           primeiro fecha. @see fanPrazoDoMercado */
         $st = $pdo->prepare("SELECT 1 FROM season_standings WHERE season_id = ? LIMIT 1");
         $st->execute([(int)$pendente['season_id']]);
-        if ($st->fetchColumn()) {
+        $fecha = (bool)$st->fetchColumn() || fanPassouDoPrazo((string)$pendente['aberta_em']);
+        if ($fecha) {
             $pdo->prepare("UPDATE fantasy_rodadas SET status = 'fechada', fechada_em = NOW() WHERE id = ? AND status = 'aberta'")
                 ->execute([(int)$pendente['id']]);
             $pendente['status'] = 'fechada';
@@ -572,6 +621,10 @@ function fanEstado(PDO $pdo, array $user, bool $ehAdmin): array
         'rodada' => [
             'id' => $rid, 'temporada' => (int)$rodada['season_number'], 'status' => $rodada['status'],
             'base_temporada' => $numAnterior, 'times_com_stats' => $comStats,
+            /* O PRAZO NA TELA, e não só no código: mercado que fecha na hora
+               marcada sem avisar a hora é mercado que fecha de surpresa. */
+            'prazo' => $rodada['status'] === 'aberta'
+                ? fanPrazoDoMercado((string)$rodada['aberta_em'])->format('d/m H:i') : null,
             'escalados' => (int)$pdo->query("SELECT COUNT(*) FROM fantasy_escalacoes WHERE rodada_id = {$rid}")->fetchColumn(),
         ],
         'cartola' => ['nome' => $cartola['nome_time'], 'patrimonio' => (float)$cartola['patrimonio']],

@@ -528,7 +528,7 @@ function status() {
   const d = S.dados, r = d.rodada;
   if (!r) { $('status').innerHTML = '<span class="txt">Nenhuma rodada ainda — a primeira abre com a próxima temporada da ELITE.</span>'; return; }
   const txt = {
-    aberta: `Rodada T${r.temporada} · preços pela T${r.base_temporada ?? '—'} · ${r.escalados} time${r.escalados === 1 ? '' : 's'} escalado${r.escalados === 1 ? '' : 's'}`,
+    aberta: `Rodada T${r.temporada} · fecha ${r.prazo ?? 'quarta 12h'} · ${r.escalados} time${r.escalados === 1 ? '' : 's'} escalado${r.escalados === 1 ? '' : 's'}`,
     fechada: `Rodada T${r.temporada} em andamento · parciais com ${r.times_com_stats} de 32 times lançados`,
     encerrada: `Rodada T${r.temporada} encerrada · a próxima abre com a T${r.temporada + 1}`,
   }[r.status];
@@ -879,7 +879,7 @@ function regras() {
     <p><b>6º homem (obrigatório):</b> além dos cinco, você escala um reserva de qualquer posição (o preço entra na conta) — sem ele a escalação não salva. Se ele pontuar mais que o <b>pior titular</b>, entra no lugar dele — sem herdar o bônus de capitão.</p>
     <p><b>Prêmio da rodada, em FBA Points:</b> ${premios.slice(0, 3).map(([p, m]) => `${p}º ${m}`).join(' · ')} · 4º ao 10º ${premios[3]?.[1] ?? 0}. Só o ranking da rodada paga — o ranking geral, o por liga da FBA e as ligas de pontos corridos valem pela disputa.</p>
     <p><b>Ligas e copas:</b> na aba Ranking você cria ligas e chama os amigos pelo convite (até ${S.dados.max_ligas || 3} por pessoa). Liga de <b>pontos corridos</b> é grátis: quem cria escolhe de 1 a 20 rodadas e, no fim, quem somou mais é o campeão. <b>Copa</b> é mata-mata de <b>8 ou 16 times</b> e começa sozinha quando completa — passa quem fizer mais pontos na rodada, empate vai pro maior patrimônio — e pode cobrar entrada em moedas: o campeão leva o pote todo.</p>
-    <p style="color:var(--text-3)">O mercado fecha antes de a temporada ser jogada. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;
+    <p style="color:var(--text-3)"><b>O mercado fecha na quarta-feira, meio-dia.</b> Se a classificação da temporada sair antes disso, fecha na hora — escalar sabendo o resultado não valeria. Os pontos aparecem como parciais conforme os times lançam as estatísticas, e a rodada é encerrada pelo admin.</p>`;
 }
 
 /* OS ESCALADOS SEM PONTUAÇÃO, pro admin conferir antes de recalcular. Usa o
