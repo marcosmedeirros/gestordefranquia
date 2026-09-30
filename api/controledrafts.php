@@ -270,6 +270,22 @@ function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId, string $liga = 
     $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$jogadores) return 0;
 
+    /* CLASSE VELHA COM NOME CORTADO NÃO VIRA POOL. A trava do CSV pega o
+       arquivo novo, mas as classes que já estão salvas passariam por baixo
+       dela: aplicar uma delas numa temporada devolve "L. James" pro draft
+       como se nada tivesse acontecido. @see draftNomeCortado */
+    $cortados = [];
+    foreach ($jogadores as $j) if (draftNomeCortado((string)$j['name'])) $cortados[] = $j['name'];
+    if ($cortados) {
+        /* 409 e não 500: o código 409 diz ao tratador lá embaixo que esta
+           é uma recusa com motivo, e o motivo tem que chegar na tela —
+           "erro interno" mandaria o admin procurar no log uma coisa que
+           ele resolve em dez segundos se souber quais nomes são. */
+        throw new RuntimeException('Esta classe ainda tem nome abreviado. '
+            . draftAvisoNomeCortado($cortados)
+            . ' Conserte na tela da classe antes de aplicar.', 409);
+    }
+
     $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, notas, draft_status)
                           VALUES (?,?,?,?,?,?,?,'available')");
     foreach ($jogadores as $j) {
@@ -944,6 +960,15 @@ try {
     cdErro(400, 'Ação desconhecida.');
 } catch (Throwable $e) {
     error_log('[controledrafts] ' . $acao . ': ' . $e->getMessage());
+    /* RECUSA COM MOTIVO passa reto. O 409 é o combinado: quem joga esse
+       código está dizendo "isto não é defeito, é o pedido que não vale, e
+       a frase explica por quê". O resto continua virando erro interno,
+       porque mensagem de exceção de verdade não é pra rosto de usuário. */
+    if ($e->getCode() === 409) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Erro interno. O admin foi avisado no log.']);
 }

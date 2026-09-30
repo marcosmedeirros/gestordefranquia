@@ -20,6 +20,36 @@
 /** As colunas de nota, na ORDEM em que o jogo mostra — é a ordem da tela. */
 const DRAFT_CSV_NOTAS = ['IN','MID','3PT','POST D','PER D','PLAY','REB','ATHL','IQ','POT'];
 
+/**
+ * O NOME ESTÁ CORTADO? ("L. James" em vez de "LeBron James")
+ *
+ * É o que o export do jogo escreve quando a coluna é estreita, e o que chega
+ * no banco é o que os GMs leem pelo resto da carreira daquele jogador — na
+ * urna do draft, no elenco, no /trocas do grupo.
+ *
+ * A classe 2025 da ELITE entrou assim e precisou ser desabreviada jogador por
+ * jogador depois, cruzando com outras ligas pra descobrir de quem era cada
+ * sobrenome; dois nunca deram pra resolver e continuam abreviados, porque nada
+ * no app diz quem é o "A. Cardinal" de 23 anos. Recusar na porta é o único
+ * momento em que o conserto é barato.
+ *
+ * LETRA-PONTO-ESPAÇO é o corte. "V.J. Edgecombe" e "B.H. Born" passam: ali não
+ * há espaço depois do primeiro ponto, e são os nomes dos caras.
+ */
+function draftNomeCortado(string $nome): bool
+{
+    return (bool)preg_match('/^\p{L}\.\s/u', trim($nome));
+}
+
+/** A frase da recusa, igual em toda porta por onde a classe entra. */
+function draftAvisoNomeCortado(array $nomes): string
+{
+    $mostra = array_slice($nomes, 0, 6);
+    return count($nomes) . ' nome(s) vêm com o primeiro nome abreviado ('
+         . implode(', ', $mostra) . (count($nomes) > count($mostra) ? ', …' : '')
+         . '). Use o nome inteiro — "LeBron James", não "L. James".';
+}
+
 /** Sem RATING e sem AGE no arquivo, o jogador entra assim. */
 const DRAFT_CSV_OVR_PADRAO  = 60;
 const DRAFT_CSV_IDADE_PADRAO = 18;
@@ -120,7 +150,7 @@ function draftCsvLer(string $conteudo): array
 
            Recusar na porta é o único momento em que o conserto é barato:
            quem tem o arquivo troca a coluna e importa de novo. */
-        if (preg_match('/^\p{L}\.\s/u', $nome)) { $cortados[] = $nome; continue; }
+        if (draftNomeCortado($nome)) { $cortados[] = $nome; continue; }
 
         $ovrTxt = $pegar($col, 'RATING') !== '' ? $pegar($col, 'RATING') : $pegar($col, 'OVR');
         $idaTxt = $pegar($col, 'AGE');
@@ -144,12 +174,7 @@ function draftCsvLer(string $conteudo): array
         ];
     }
 
-    if ($cortados) {
-        $mostra = array_slice($cortados, 0, 6);
-        $erros[] = count($cortados) . ' nome(s) vêm com o primeiro nome abreviado ('
-                 . implode(', ', $mostra) . (count($cortados) > count($mostra) ? ', …' : '')
-                 . '). Exporte de novo com o nome inteiro — "LeBron James", não "L. James".';
-    }
+    if ($cortados) $erros[] = draftAvisoNomeCortado($cortados) . ' Exporte o arquivo de novo.';
     if (!$jogadores) $erros[] = 'Nenhuma linha de jogador com NAME preenchido.';
     return ['jogadores' => $jogadores, 'erros' => $erros, 'ignoradas' => array_values(array_unique($ignoradas))];
 }

@@ -298,6 +298,13 @@ function draftCriarJogadorNoPool(PDO $pdo, int $sessionId, array $dados): array
 
     $nome = trim((string)($dados['name'] ?? ''));
     if ($nome === '') return $erro('O nome é obrigatório.');
+    /* Cadastro à mão segue a mesma régua do CSV: quem digita "L. James" na
+       pressa cria exatamente o problema que o arquivo criava, e sai igual
+       de caro depois. @see backend/draft_class_csv.php */
+    require_once __DIR__ . '/draft_class_csv.php';
+    if (draftNomeCortado($nome)) {
+        return $erro('Escreva o nome inteiro — "LeBron James", não "L. James".');
+    }
     if (mb_strlen($nome) > 120) $nome = mb_substr($nome, 0, 120);
 
     $posicoes = ['PG', 'SG', 'SF', 'PF', 'C'];

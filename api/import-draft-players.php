@@ -104,6 +104,17 @@ try {
             throw new Exception('Nenhum jogador válido encontrado no arquivo');
         }
         
+        /* Nome cortado não entra por aqui também — a tela nova manda o CSV
+           pro draftCsvLer(), mas esta rota continua de pé pra quem tem a
+           antiga em cache, e uma porta destrancada basta pra o problema
+           voltar. @see backend/draft_class_csv.php */
+        require_once __DIR__ . '/../backend/draft_class_csv.php';
+        $cortados = [];
+        foreach ($players as $player) {
+            if (draftNomeCortado((string)$player['name'])) $cortados[] = $player['name'];
+        }
+        if ($cortados) throw new Exception(draftAvisoNomeCortado($cortados));
+
         // Verificar duplicatas antes de inserir
         $duplicates = [];
         foreach ($players as $player) {
