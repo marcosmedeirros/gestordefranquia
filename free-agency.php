@@ -648,7 +648,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div>
                 <div class="page-eyebrow">Liga &mdash; <?= $currentSeasonYear ?></div>
                 <h1 class="page-title">Free Agency</h1>
-                <p class="page-sub">Envie lances para contratar jogadores dispensados</p>
+                <p class="page-sub">Envie lances pelos jogadores que a liga solicitou</p>
             </div>
             <?php if ($is_admin): ?>
             <button class="btn-ghost-red" type="button" id="faViewApprovedBtn">
@@ -719,11 +719,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <!-- ─── Tab: Free Agency ───────────────────── -->
             <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
 
-                <!-- Dispensados nesta temporada -->
+                <!-- OS SOLICITADOS. Dispensado NÃO entra aqui: ele tem a tela de
+                     Dispensas, com prazo próprio pra reivindicar. Duas filas pro
+                     mesmo jogador faziam quem desse lance no lugar errado perder a
+                     vez sem entender por quê. -->
                 <div class="panel" id="dispPanel">
                     <div class="panel-header">
                         <div>
-                            <div class="panel-title">Dispensados nesta temporada</div>
+                            <div class="panel-title">Jogadores solicitados</div>
                             <div class="panel-sub" id="dispSub">Carregando...</div>
                         </div>
                         <div class="disp-filtros">
@@ -745,7 +748,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                  botão, ao lado da busca que a pessoa acabou de usar sem achar. -->
                             <button type="button" class="btn-red" id="btnJogadorNaoEsta"
                                     style="padding:8px 14px;font-size:12.5px;white-space:nowrap">
-                                <i class="bi bi-person-plus"></i> Jogador não está
+                                <i class="bi bi-person-plus"></i> Solicitar Jogador
                             </button>
                         </div>
                     </div>
@@ -943,7 +946,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
      MODALS (legacy hidden)
 ══════════════════════════════════════ -->
 
-<!-- Modal: pedir um jogador que não está na lista -->
+<!-- Modal: solicitar um jogador que não está em lista nenhuma -->
 <!-- CORRIGIR A FICHA DE UM DISPENSADO.
      O cadastro é de quando ele entrou na fila; dentro do 2K ele continuou
      evoluindo. Sem isto o GM cadastrava um segundo jogador com o mesmo nome, e
@@ -994,7 +997,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i> Jogador não está na lista</h5>
+                <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i> Solicitar jogador</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="faNewRequestForm">

@@ -118,14 +118,14 @@ async function carregarDispensadosDaTemporada() {
     const painel = document.getElementById('dispPanel');
     if (!painel) return;
     try {
-        const d = await fetch('api/free-agency.php?action=dispensados').then(r => r.json());
+        const d = await fetch('api/free-agency.php?action=pedidos').then(r => r.json());
         dispTemporada = d?.jogadores || [];
         const ano = d?.temporada?.year;
         const sub = document.getElementById('dispSub');
         if (sub) {
             sub.textContent = dispTemporada.length
-                ? `${dispTemporada.length} jogador${dispTemporada.length === 1 ? '' : 'es'} sem time${ano ? ' na temporada ' + ano : ''} — dispensado de temporada passada não aparece, pode já ter se aposentado.`
-                : `Ninguém foi dispensado${ano ? ' na temporada ' + ano : ' nesta temporada'} ainda.`;
+                ? `${dispTemporada.length} jogador${dispTemporada.length === 1 ? '' : 'es'} que a liga pediu${ano ? ' na temporada ' + ano : ''} — qualquer time pode disputar.`
+                : 'Ninguém foi solicitado ainda. Use o botão Solicitar Jogador pra pedir alguém que não está em lista nenhuma.';
         }
     } catch (e) {
         dispTemporada = [];
@@ -155,7 +155,7 @@ function renderDispensadosDaTemporada() {
         (!soCabe || j.cap_cabe !== false));
 
     if (!lista.length) {
-        alvo.innerHTML = `<p class="empty-state">${dispTemporada.length ? 'Nenhum dispensado com esses filtros.' : 'Nenhum jogador dispensado nesta temporada.'}</p>`;
+        alvo.innerHTML = `<p class="empty-state">${dispTemporada.length ? 'Nenhum solicitado com esses filtros.' : 'Ninguém foi solicitado ainda.'}</p>`;
         return;
     }
 
@@ -1326,7 +1326,7 @@ function faPodeAtualizar() {
 async function faConferirMudancas() {
     if (!faPodeAtualizar()) return;
     try {
-        const r = await fetch('api/free-agency.php?action=dispensados_versao');
+        const r = await fetch('api/free-agency.php?action=pedidos_versao');
         const d = await r.json();
         const v = d?.v ?? '';
         if (!v) return;                       // servidor não soube dizer: fica quieto

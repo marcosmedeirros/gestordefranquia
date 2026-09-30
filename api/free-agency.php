@@ -707,11 +707,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'cap_espaco':
             capEspacoDoTime($pdo, $team_id);
             break;
+        /* `dispensados` é o nome velho: a lista mostrava os dispensados da
+           temporada e os pedidos juntos. Hoje ela é só dos pedidos, e o nome
+           certo é `pedidos` — o antigo segue atendendo porque uma aba aberta
+           com o JS em cache chamaria ele. */
+        case 'pedidos':
         case 'dispensados':
-            listDispensadosDaTemporada($pdo, getLeagueFromRequest($valid_leagues, $team_league), $team_id);
+            listPedidosDaFreeAgency($pdo, getLeagueFromRequest($valid_leagues, $team_league), $team_id);
             break;
+        case 'pedidos_versao':
         case 'dispensados_versao':
-            versaoDaListaDeDispensados($pdo, getLeagueFromRequest($valid_leagues, $team_league));
+            versaoDaListaDePedidos($pdo, getLeagueFromRequest($valid_leagues, $team_league));
             break;
         case 'fa_signings_count':
             if (!$is_admin) {
@@ -2192,54 +2198,33 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
  * Vem com o custo no cap de quem está olhando, pra lista já dizer o que
  * cabe, e com a proposta que o time já tenha feito pelo mesmo nome.
  */
-function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): void
+/**
+ * OS JOGADORES SOLICITADOS — e só eles.
+ *
+ * Esta lista já foi "os dispensados da temporada + os pedidos". Deixou de ser
+ * em 30/09/2026, a pedido dele: dispensado tem fila própria (a tela de
+ * Dispensas, onde se reivindica dentro do prazo), e mostrá-lo aqui também
+ * dava duas filas pro mesmo jogador — quem desse lance no lugar errado
+ * perdia a vez sem entender por quê.
+ *
+ * Aqui fica só o que alguém pediu pelo botão "Solicitar Jogador": jogador que
+ * não está em lista nenhuma e que a liga vai disputar do zero.
+ *
+ * Eles continuam vindo marcados com `pedido = 1`. Hoje isso é sempre verdade,
+ * mas a tela usa o campo pra escolher o caminho do lance (fa_request_offers,
+ * e não free_agent_offers) — tirar o campo seria mexer nessa escolha de graça.
+ */
+function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
 {
     if (!$league) {
         jsonSuccess(['temporada' => null, 'jogadores' => []]);
     }
 
+    /* A temporada não filtra nada aqui — pedido aberto é pedido aberto. Ela
+       vem junto só porque o subtítulo da tela mostra o ano. */
     $temporada = resolveCurrentSeason($pdo, $league);
-    if (!$temporada['id']) {
-        jsonSuccess(['temporada' => null, 'jogadores' => []]);
-    }
 
-    $ovrCol = freeAgentOvrColumn($pdo);
-    $secCol = freeAgentSecondaryColumn($pdo);
-    $sec = $secCol ? "fa.{$secCol}" : 'NULL';
-    // is_retirement e season_id são colunas novas em bases antigas.
-    $aposentou = columnExists($pdo, 'free_agents', 'is_retirement') ? ' AND COALESCE(fa.is_retirement, 0) = 0' : '';
-    if (!columnExists($pdo, 'free_agents', 'season_id')) {
-        jsonSuccess(['temporada' => $temporada, 'jogadores' => []]);
-    }
-
-    $st = $pdo->prepare("
-        SELECT fa.id, fa.name, fa.age, fa.position, {$sec} AS secondary_position,
-               fa.{$ovrCol} AS ovr, fa.original_team_name, fa.waived_at,
-               -- Quantos lances o jogador ja recebeu. E o que decide se ele
-               -- ainda pode ser apagado: com proposta na mesa, apagar apagaria
-               -- a disputa de outro GM junto.
-               (SELECT COUNT(*) FROM free_agent_offers o
-                 WHERE o.free_agent_id = fa.id AND o.status = 'pending') AS propostas
-        FROM free_agents fa
-        WHERE fa.league = ?
-          AND fa.season_id = ?
-          AND (fa.status = 'available' OR fa.status IS NULL){$aposentou}
-        ORDER BY fa.{$ovrCol} DESC, fa.name ASC");
-    $st->execute([$league, $temporada['id']]);
-    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
-
-    /*
-     * OS PEDIDOS ABERTOS ENTRAM NA MESMA LISTA.
-     *
-     * Quem pede um jogador que não está na lista cria uma linha em
-     * `fa_requests` — e ela não aparecia em lugar nenhum pros outros GMs. Na
-     * prática o jogador existia só pra quem pediu: ninguém mais sabia que
-     * dava pra disputar, e a "disputa" era um lance só.
-     *
-     * Eles vêm marcados com `pedido = 1` porque o lance segue por outro
-     * caminho (fa_request_offers, não free_agent_offers) — a tela precisa
-     * saber qual dos dois usar.
-     */
+    $jogadores = [];
     try {
         $stR = $pdo->prepare("
             SELECT r.id, r.player_name AS name, r.age, r.position, r.secondary_position, r.ovr,
@@ -2252,20 +2237,14 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
             WHERE r.league = ? AND r.status = 'open'
             ORDER BY r.ovr DESC, r.player_name ASC");
         $stR->execute([$league]);
-        $jaNaLista = array_map(fn($j) => normalizeFaPlayerName($j['name']), $jogadores);
         foreach ($stR->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            // Se o mesmo nome já está entre os dispensados, o pedido é o
-            // duplicado — mostrar os dois seria oferecer duas filas pro mesmo
-            // jogador.
-            if (in_array(normalizeFaPlayerName($r['name']), $jaNaLista, true)) continue;
             $r['pedido'] = 1;
             $r['propostas'] = (int)$r['propostas'];
             $jogadores[] = $r;
         }
     } catch (Throwable $e) {
-        error_log('[fa/dispensados] pedidos: ' . $e->getMessage());
+        error_log('[fa/pedidos] ' . $e->getMessage());
     }
-
     // Proposta que o time já fez, casada pelo nome normalizado — é assim que
     // o fluxo de pedido agrupa, então é assim que ele reconhece o que é seu.
     $jaPedi = [];
@@ -2279,10 +2258,6 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
             foreach ($stP->fetchAll(PDO::FETCH_ASSOC) as $r) $jaPedi[$r['normalized_name']] = (int)$r['amount'];
         } catch (Throwable $e) {}
     }
-
-    // Depois de juntar as duas origens, a ordem tem que valer pra lista toda.
-    usort($jogadores, fn($a, $b) => ((int)$b['ovr'] <=> (int)$a['ovr'])
-        ?: strcasecmp((string)$a['name'], (string)$b['name']));
 
     foreach ($jogadores as &$j) {
         $j['ovr'] = (int)$j['ovr'];
@@ -3068,25 +3043,29 @@ function corrigirFichaPedido(PDO $pdo, int $id, ?int $ovr, ?int $age, ?string $n
  * segundos custaria dezenas de linhas com cap calculado por GM, o tempo todo,
  * pra quase sempre devolver exatamente o que a tela já tinha.
  */
-function versaoDaListaDeDispensados(PDO $pdo, ?string $league): void
+/**
+ * A IMPRESSÃO DIGITAL DA LISTA, pra tela saber quando recarregar sozinha.
+ *
+ * Olhava pra `free_agents` porque a lista era de dispensados. Agora é de
+ * pedidos, e ficar de olho na tabela errada dava o pior dos dois: recarregava
+ * à toa quando alguém era dispensado, e NÃO recarregava quando entrava um
+ * pedido novo — que é justamente o que a tela precisa mostrar na hora.
+ */
+function versaoDaListaDePedidos(PDO $pdo, ?string $league): void
 {
     if (!$league) jsonSuccess(['v' => '']);
 
-    $temporada = resolveCurrentSeason($pdo, $league);
-    if (!$temporada['id']) jsonSuccess(['v' => '']);
-    if (!columnExists($pdo, 'free_agents', 'season_id')) jsonSuccess(['v' => '']);
-
-    $ovrCol = freeAgentOvrColumn($pdo);
     try {
         /* GROUP_CONCAT ordenado: a mesma lista tem que dar sempre o mesmo hash,
            e sem o ORDER BY interno a ordem das linhas pode variar. */
         $st = $pdo->prepare("
-            SELECT MD5(GROUP_CONCAT(CONCAT_WS('|', fa.id, fa.name, fa.{$ovrCol}, fa.age,
-                                              COALESCE(fa.status, 'available'))
-                        ORDER BY fa.id SEPARATOR ';')) AS v
-            FROM free_agents fa
-            WHERE fa.league = ? AND fa.season_id = ?");
-        $st->execute([$league, $temporada['id']]);
+            SELECT MD5(GROUP_CONCAT(CONCAT_WS('|', r.id, r.player_name, r.ovr, r.age, r.status,
+                                              (SELECT COUNT(*) FROM fa_request_offers o
+                                                WHERE o.request_id = r.id AND o.status = 'pending'))
+                        ORDER BY r.id SEPARATOR ';')) AS v
+            FROM fa_requests r
+            WHERE r.league = ? AND r.status = 'open'");
+        $st->execute([$league]);
         jsonSuccess(['v' => (string)($st->fetchColumn() ?: '')]);
     } catch (Throwable $e) {
         // Falhando, a tela cai no recarregamento por tempo — que é o que ela
@@ -3095,7 +3074,6 @@ function versaoDaListaDeDispensados(PDO $pdo, ?string $league): void
         jsonSuccess(['v' => '']);
     }
 }
-
 /**
  * TIRAR UM JOGADOR DA FILA DA FREE AGENCY.
  *
