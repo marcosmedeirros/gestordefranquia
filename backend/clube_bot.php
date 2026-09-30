@@ -32,8 +32,16 @@
 
 require_once __DIR__ . '/series.php';
 
-/** O endereço que todo texto do Clube fecha convidando. */
-const CB_LINK = 'https://fbabrasil.com.br/clube.php';
+/* NENHUM COMANDO MANDA LINK (decisão dele, 30/09/2026).
+
+   Cada resposta fechava com o endereço do Clube. No grupo, sete comandos
+   repetindo a mesma URL viram assinatura de propaganda: a linha some da
+   leitura e ainda faz o WhatsApp abrir a pré-visualização do site embaixo
+   de toda resposta, empurrando a conversa pra cima.
+
+   Quem está no grupo já sabe onde o Clube fica — quem não sabe pergunta, e
+   aí o link vem de uma pessoa, que é quando ele é lido. A divulgação leva o
+   endereço; o bot responde o que perguntaram e cala. */
 
 /**
  * Quantos itens cabem numa lista do WhatsApp.
@@ -76,8 +84,7 @@ function cbMenu(): string
          . "/seriesmomento — o que a galera está assistindo agora\n"
          . "/seriesfila — as que mais gente quer ver\n"
          . "/serie _nome_ — a ficha, com o que a liga disse\n"
-         . "/seriesde _nome do GM_ — o diário de alguém\n\n"
-         . "Marcar, dar nota e escrever: " . CB_LINK;
+         . "/seriesde _nome do GM_ — o diário de alguém";
 }
 
 /**
@@ -94,7 +101,7 @@ function cbTopSeries(PDO $pdo): string
         return "*Top séries da FBA*\n\n"
              . "Ainda não tem série com " . SERIES_RANKING_MIN . " notas da liga — "
              . "uma nota só não é média de ninguém.\n\n"
-             . "Dê as suas em " . CB_LINK;
+             . "_Dê as suas no Clube FBA._";
     }
 
     $txt = "*Top séries da FBA*\n_Nota da liga, com " . SERIES_RANKING_MIN . " avaliações ou mais_\n\n";
@@ -104,7 +111,7 @@ function cbTopSeries(PDO $pdo): string
               . ((int)$s['votos_fba'] === 1 ? '' : 's') . ")_"
               . ($s['nota_imdb'] !== null ? " • IMDb " . cbNota($s['nota_imdb']) : '') . "\n";
     }
-    return $txt . "\n" . CB_LINK;
+    return rtrim($txt);
 }
 
 /**
@@ -126,15 +133,15 @@ function cbSeriesMomento(PDO $pdo): string
                   . "   " . (int)$s['valor'] . ((int)$s['valor'] === 1 ? ' pessoa' : ' pessoas')
                   . ($s['nota_fba'] !== null ? " • FBA " . cbNota($s['nota_fba']) : '') . "\n";
         }
-        return $txt . "\n" . CB_LINK;
+        return rtrim($txt);
     }
 
     $fila = seriesRankingDaLiga($pdo, 'querem', CB_QUANTOS);
     if (!$fila) {
-        return "*No momento na FBA*\n\nNinguém marcou nada ainda. Seja o primeiro: " . CB_LINK;
+        return "*No momento na FBA*\n\nNinguém marcou nada ainda. _Seja o primeiro no Clube FBA._";
     }
     return "*No momento na FBA*\n_Ninguém está no meio de nenhuma. Na fila:_\n\n"
-         . cbLinhasDaFila($fila) . "\n" . CB_LINK;
+         . rtrim(cbLinhasDaFila($fila));
 }
 
 /** As que mais gente quer ver — a fila da liga. */
@@ -142,10 +149,10 @@ function cbSeriesFila(PDO $pdo): string
 {
     $fila = seriesRankingDaLiga($pdo, 'querem', CB_QUANTOS);
     if (!$fila) {
-        return "*A fila da FBA*\n\nNinguém pôs nada na fila ainda: " . CB_LINK;
+        return "*A fila da FBA*\n\nNinguém pôs nada na fila ainda. _Comece no Clube FBA._";
     }
     return "*A fila da FBA*\n_As que mais gente quer ver_\n\n"
-         . cbLinhasDaFila($fila) . "\n" . CB_LINK;
+         . rtrim(cbLinhasDaFila($fila));
 }
 
 /** As linhas da fila, que saem em dois comandos e precisam sair iguais. */
@@ -174,8 +181,7 @@ function cbMinhasSeries(PDO $pdo, int $userId, string $nome): string
 
     if ($total === 0) {
         return "*Suas séries — {$nome}*\n\n"
-             . "Você ainda não marcou nada no Clube.\n\n"
-             . "Comece em " . CB_LINK;
+             . "Você ainda não marcou nada no Clube FBA.";
     }
 
     $txt = "*Suas séries — {$nome}*\n"
@@ -194,7 +200,7 @@ function cbMinhasSeries(PDO $pdo, int $userId, string $nome): string
                   . ($s['minha_nota'] ? " — *" . (int)$s['minha_nota'] . "*" : '') . "\n";
         }
     }
-    return $txt . "\n" . CB_LINK;
+    return rtrim($txt);
 }
 
 /**
@@ -215,8 +221,7 @@ function cbSeriesDe(PDO $pdo, string $termo): string
 
     $gente = seriesPessoas($pdo, $termo, 6);
     if (!$gente) {
-        return "Não achei ninguém com \"{$termo}\" que tenha marcado série.\n\n"
-             . "Quem está no Clube: " . CB_LINK . "?midia=series&aba=pessoas";
+        return "Não achei ninguém com \"{$termo}\" que tenha marcado série.";
     }
     if (count($gente) > 1) {
         $nomes = implode(', ', array_column($gente, 'nome'));
@@ -242,7 +247,7 @@ function cbSeriesDe(PDO $pdo, string $termo): string
                   . ($s['minha_nota'] ? " — *" . (int)$s['minha_nota'] . "*" : '') . "\n";
         }
     }
-    return $txt . "\n" . CB_LINK . "?midia=series&aba=pessoas&u=" . (int)$g['id'];
+    return rtrim($txt);
 }
 
 /**
@@ -285,7 +290,7 @@ function cbSerie(PDO $pdo, string $termo): string
 
     if (!$s) {
         return "Não achei \"{$termo}\" no catálogo.\n\n"
-             . "_A busca do site vai além dele e traz do TMDB:_ " . CB_LINK;
+             . "_A busca do Clube FBA vai além dele e traz do TMDB._";
     }
 
     $txt = "*" . $s['titulo'] . "*" . cbAno($s) . "\n";
@@ -310,5 +315,5 @@ function cbSerie(PDO $pdo, string $termo): string
             $txt .= "_e mais " . (count($quem) - CB_QUANTOS) . "._\n";
         }
     }
-    return $txt . "\n" . CB_LINK;
+    return rtrim($txt);
 }

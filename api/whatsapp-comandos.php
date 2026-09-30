@@ -5129,7 +5129,7 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'meuclube': {
                 require_once __DIR__ . '/../backend/clube_bot.php';
                 [$u, $erroU] = wcUsuarioDeQuemPerguntou($pdo, $deQuem);
-                if (!$u) return $erroU . "\n\nSuas séries ficam em " . CB_LINK;
+                if (!$u) return $erroU;
                 return cbMinhasSeries($pdo, (int)$u['id'], (string)$u['name']);
             }
 
