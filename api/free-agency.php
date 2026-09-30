@@ -2010,7 +2010,8 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
  * Os jogadores de maior lance são resolvidos primeiro: um time com uma vaga
  * sobrando leva o que ele mais quis pagar, não o que calhou de vir antes.
  *
- * @return array{contratados:string[], sem_vencedor:string[], recusados:string[]}
+ * @return array{contratados:string[], sem_vencedor:string[], recusados:string[],
+ *               recusados_det:array[], detalhes:array[]}
  */
 function faResolverLiga(PDO $pdo, string $league, int $adminId): array
 {
@@ -2043,7 +2044,7 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
     $recusarResto  = $pdo->prepare("UPDATE fa_request_offers SET status = 'rejected' WHERE request_id = ? AND status = 'pending'");
     $fecharPedido  = $pdo->prepare("UPDATE fa_requests SET status = 'rejected', resolved_at = NOW() WHERE id = ? AND status = 'open'");
 
-    $contratados = []; $semVencedor = []; $recusados = []; $detalhes = [];
+    $contratados = []; $semVencedor = []; $recusados = []; $recusadosDet = []; $detalhes = [];
     foreach ($pedidos as $rid => $p) {
         $levou = false;
         foreach (faOrdenarPropostas($pdo, $p['ofertas'], $league) as $o) {
@@ -2054,7 +2055,13 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
             $r = faAtribuirOferta($pdo, (int)$o['id'], $adminId);
             if ($r['ok']) { $contratados[] = $r['message']; $detalhes[] = $r; $levou = true; break; }
             $recusarOferta->execute([$o['id']]);
+            /* O motivo vai ESTRUTURADO além da frase pronta: o anúncio no
+               Gameplay monta a linha do jeito dele, e a mensagem de erro já
+               começa com o nome do time — concatenar as duas repetia o nome
+               duas vezes na mesma linha. */
             $recusados[] = "{$p['nome']} — {$o['team_name']}: {$r['erro']}";
+            $recusadosDet[] = ['jogador' => $p['nome'], 'time' => $o['team_name'],
+                               'valor' => (int)$o['amount'], 'motivo' => $r['erro']];
         }
         if (!$levou) {
             $recusarResto->execute([$rid]);
@@ -2063,7 +2070,7 @@ function faResolverLiga(PDO $pdo, string $league, int $adminId): array
         }
     }
     return ['contratados' => $contratados, 'sem_vencedor' => $semVencedor, 'recusados' => $recusados,
-            'detalhes' => $detalhes];
+            'recusados_det' => $recusadosDet, 'detalhes' => $detalhes];
 }
 
 /**
@@ -2080,23 +2087,17 @@ function faAnunciarResolucao(PDO $pdo, string $league, array $res): bool
 {
     $detalhes = $res['detalhes'] ?? [];
     $sem = $res['sem_vencedor'] ?? [];
-    if (!$detalhes && !$sem) return false;
+    /* Os recusados entram na conta do "vale a pena avisar": uma resolução em
+       que ninguém levou nada MAS dois times esbarraram no elenco cheio é
+       notícia — foi o caso que fez esta seção existir. */
+    if (!$detalhes && !$sem && empty($res['recusados_det'])) return false;
     try {
         require_once __DIR__ . '/../backend/leilao_bot.php';   // botGrupoDaCerimonia + whatsapp
         $grupo = botGrupoDaCerimonia($pdo, $league);
         if (!$grupo) return false;
 
-        $txt = "🆓 *FREE AGENCY · {$league} — RESOLVIDA*";
-        if ($detalhes) {
-            $txt .= "\n\n✅ *Contratações*";
-            foreach ($detalhes as $d) {
-                $valor = $d['elite'] ? "{$d['valor']}M" : ($d['valor'] === 1 ? '1 moeda' : "{$d['valor']} moedas");
-                $txt .= "\n• {$d['jogador']} ({$d['posicao']}, {$d['ovr']}) → *{$d['time']}* · {$valor}";
-            }
-        }
-        if ($sem) {
-            $txt .= "\n\n❌ *Sem lance válido:* " . implode(', ', $sem);
-        }
+        require_once __DIR__ . '/../backend/fa_anuncio.php';
+        $txt = faTextoDaResolucao($league, $res);
         return whatsappEnfileirar($pdo, (string)$grupo, $txt, true, 'manual');
     } catch (Throwable $e) {
         error_log('[fa/anunciar] ' . $e->getMessage());
