@@ -570,10 +570,18 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .ac-n:focus{outline:none;border-color:var(--acento)}
 .ac-n:disabled{opacity:.35;cursor:not-allowed}
 .ac-n.deu{border-color:var(--fba-txt);color:var(--fba-txt)}
-.ac-x{flex-shrink:0;width:32px;height:32px;border-radius:9px;border:1px solid var(--borda);
-  background:var(--panel3);color:var(--txt3);cursor:pointer;display:flex;
-  align-items:center;justify-content:center;font-size:13px}
+/* Os dois botões da ponta têm o mesmo tamanho de propósito: são um par de
+   ações da linha, e um maior que o outro pediria pra ser clicado primeiro. */
+.ac-top,.ac-x{flex-shrink:0;width:32px;height:32px;border-radius:9px;
+  border:1px solid var(--borda);background:var(--panel3);color:var(--txt3);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:13px}
 .ac-x:hover{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.1)}
+.ac-top:hover{border-color:var(--imdb);color:var(--imdb)}
+/* DOURADA QUANDO ESTÁ NO TOP — a mesma cor da posição no perfil e do botão
+   na ficha, pra ser a mesma coisa nos três lugares. */
+.ac-top.on{border-color:var(--imdb);background:var(--imdb);color:#111}
+.ac-top:disabled{opacity:.3;cursor:not-allowed}
+.ac-top:disabled:hover{border-color:var(--borda);color:var(--txt3)}
 
 /* O POPUP DE CONFIRMAR é o do jogo, nunca o confirm() do navegador. */
 .pop.pergunta{max-width:400px}
@@ -777,9 +785,11 @@ $qInicial    = (string)($_GET['q'] ?? '');
                                          !empty($s['em_exibicao']))) ?></span></div>
                 <div class="ac-s">
                   <span class="pino <?= h($s['estado']) ?>"><?= h(SERIES_ESTADOS[$s['estado']] ?? '') ?></span>
-                  <?php if (!empty($s['favorita'])): ?>
-                    <span class="pino top"><i class="bi bi-star-fill"></i> <?= (int)$s['favorita'] ?>º</span>
-                  <?php endif; ?>
+                  <?php /* O pino existe SEMPRE, escondido quando ela não está no
+                       top: pôr e tirar acontece sem recarregar a página, e o JS
+                       precisa de um lugar fixo pra escrever a posição. */ ?>
+                  <span class="pino top"<?= empty($s['favorita']) ? ' hidden' : '' ?>>
+                    <i class="bi bi-star-fill"></i> <?= (int)$s['favorita'] ?>º</span>
                   <?php if ($s['nota_imdb'] !== null): ?>
                     <span style="color:var(--imdb-txt)"><i class="bi bi-star-fill"></i>
                       <?= h(number_format((float)$s['nota_imdb'], 1, ',', '')) ?></span>
@@ -801,6 +811,16 @@ $qInicial    = (string)($_GET['q'] ?? '');
                   <option value="<?= $n ?>"<?= (int)$s['minha_nota'] === $n ? ' selected' : '' ?>><?= $n ?></option>
                 <?php endfor; ?>
               </select>
+              <?php /* A ESTRELA MORAVA SÓ NA FICHA. Pra montar o top era abrir
+                   dez séries, uma a uma — e é justamente aqui, na lista das
+                   assistidas ordenada por nota, que dá pra escolher as dez. */ ?>
+              <button class="ac-top<?= !empty($s['favorita']) ? ' on' : '' ?>"
+                      data-top="<?= (int)$s['id'] ?>"
+                      <?= $s['estado'] !== 'assistida'
+                          ? 'disabled title="Só série assistida entra no top"'
+                          : 'title="' . (!empty($s['favorita']) ? 'Tirar do' : 'Pôr no')
+                            . ' Top ' . SERIES_TOP . '"' ?>>
+                <i class="bi bi-star<?= !empty($s['favorita']) ? '-fill' : '' ?>"></i></button>
               <button class="ac-x" data-tirar="<?= (int)$s['id'] ?>"
                       data-titulo="<?= h($s['titulo']) ?>"
                       title="Tirar do meu perfil" aria-label="Tirar do meu perfil">
@@ -1072,13 +1092,14 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
 
     <div class="bloco">
       <h3><i class="bi bi-star-fill"></i> Top <?= SERIES_TOP ?></h3>
-      <?php if (!$perfil['top']): ?>
-        <div class="vazio"><?= $meu
-            ? 'Abra uma série que você já assistiu e toque em Top ' . SERIES_TOP . '.'
-            : 'Não montou o top ainda.' ?></div>
-      <?php else: ?>
-        <div class="top-lista"><?php foreach ($perfil['top'] as $s) echo cartaoDeSerie($s, true); ?></div>
-      <?php endif; ?>
+      <?php /* A grade e o aviso existem OS DOIS, um escondido: a estrela do
+           acervo põe e tira sem recarregar, e o JS precisa dos dois lugares
+           prontos pra trocar qual aparece. */ ?>
+      <div class="vazio" id="topVazio"<?= $perfil['top'] ? ' hidden' : '' ?>><?= $meu
+          ? 'Toque na estrela de uma série assistida, aqui embaixo ou na ficha.'
+          : 'Não montou o top ainda.' ?></div>
+      <div class="top-lista" id="topLista"<?= $perfil['top'] ? '' : ' hidden' ?>><?php
+        foreach ($perfil['top'] as $s) echo cartaoDeSerie($s, true); ?></div>
     </div>
 
     <?php if (!$meu): ?>
@@ -1213,7 +1234,7 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
   /* ── O cartão, igual ao do PHP ──────────────────────────────────────
      Ele nasce nos dois lados: no servidor, pras grades que já vêm prontas, e
      aqui, pra busca que troca a grade sem recarregar. */
-  function cartao(s) {
+  function cartao(s, comPosicao) {
     var capa = s.poster
       ? '<img src="' + POSTER.replace('w500', 'w342') + s.poster + '" alt="" loading="lazy">'
       : '<span class="vazia"><i class="bi bi-tv"></i></span>';
@@ -1222,10 +1243,11 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
     var est = s.estado
       ? '<span class="marca-estado ' + s.estado + '"><i class="bi bi-' + (ICONE[s.estado] || 'dot') + '"></i></span>' : '';
     var minha = s.minha_nota ? '<span class="minha-nota">' + s.minha_nota + '</span>' : '';
+    var pos = (comPosicao && s.favorita) ? '<span class="pos">' + s.favorita + '</span>' : '';
     var ano = s.ano_inicio ? (s.em_exibicao == 1 ? s.ano_inicio + '–'
              : (s.ano_fim && s.ano_fim != s.ano_inicio ? s.ano_inicio + '–' + s.ano_fim : s.ano_inicio)) : '';
     return '<button class="card" data-serie="' + s.id + '"><span class="capa">'
-         + capa + selo + est + minha + '</span>'
+         + capa + selo + est + minha + pos + '</span>'
          + '<span class="c-tit">' + escapa(s.titulo) + '</span>'
          + '<span class="c-ano">' + ano + '</span></button>';
   }
@@ -1644,6 +1666,62 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
         })
         .catch(function () { sel.disabled = false; avisar('Sem resposta', 'O servidor não respondeu.'); });
     });
+
+    /* ── A ESTRELA DA LINHA ──────────────────────────────────────────
+       Tirar uma do meio do top faz as de baixo subirem, então NÃO dá pra
+       remendar só a linha clicada: o servidor devolve o perfil inteiro, e é
+       dele que as posições de todas as linhas são reescritas. Sem isso, tirar
+       a 3ª deixaria 4º, 5º… mentindo na tela até o próximo F5. */
+    acervo.addEventListener('click', function (e) {
+      var b = e.target.closest('.ac-top');
+      if (!b || b.disabled) return;
+      e.stopPropagation();                      // não abre a ficha junto
+      b.disabled = true;
+      fetch(location.pathname, {
+        method: 'POST',
+        body: new URLSearchParams({acao: 'favoritar', serie: b.dataset.top})
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          b.disabled = false;
+          if (!d.ok) { avisar('Não deu', d.erro || 'Tente de novo.'); return; }
+          pintarTopDoAcervo(d.perfil);
+        })
+        .catch(function () { b.disabled = false; avisar('Sem resposta', 'O servidor não respondeu.'); });
+    });
+
+    /**
+     * Reescreve estrela e posição de TODAS as linhas — e a grade do topo da
+     * página, que é a mesma informação vista de outro jeito. Duas telas do
+     * mesmo top, uma delas desatualizada, é pior que não ter a segunda.
+     */
+    function pintarTopDoAcervo(perfil) {
+      if (!perfil) return;
+      var onde = {};
+      (perfil.top || []).forEach(function (s) { onde[s.id] = s.favorita; });
+
+      var lista = $('topLista'), aviso = $('topVazio');
+      if (lista) {
+        lista.innerHTML = (perfil.top || []).map(function (s) { return cartao(s, true); }).join('');
+        lista.hidden = !(perfil.top || []).length;
+        if (aviso) aviso.hidden = !lista.hidden;
+      }
+
+      [].forEach.call(acervo.querySelectorAll('.ac-um'), function (linha) {
+        var pos = onde[linha.dataset.linha];
+        var pino = linha.querySelector('.pino.top');
+        var bot  = linha.querySelector('.ac-top');
+        if (pino) {
+          pino.hidden = !pos;
+          if (pos) pino.innerHTML = '<i class="bi bi-star-fill"></i> ' + pos + 'º';
+        }
+        if (bot && !bot.disabled) {
+          bot.classList.toggle('on', !!pos);
+          bot.querySelector('i').className = 'bi bi-star' + (pos ? '-fill' : '');
+          bot.title = (pos ? 'Tirar do' : 'Pôr no') + ' Top ' + TOP;
+        }
+      });
+    }
 
     acervo.addEventListener('click', function (e) {
       var x = e.target.closest('.ac-x');
