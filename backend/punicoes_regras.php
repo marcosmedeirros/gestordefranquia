@@ -561,6 +561,117 @@ function punicaoDevolverTrocasDoCiclo(PDO $pdo, int $teamId, int $tiradas): void
     }
 }
 
+/**
+ * A PENA FOI CUMPRIDA? ENTÃO BAIXA.
+ *
+ * `ja_cumprida` nunca era posto por ninguém: só o admin marcava, na hora de
+ * cadastrar, quando a pena tinha sido paga fora do sistema. Depois disso a
+ * punição ficava aberta pra sempre — o time seguia na lista de efeitos ativos
+ * cumprindo uma pena que já tinha pago, e punicaoCobrarPicksPendentes,
+ * quando for ligada, voltaria a cobrar de quem não devia mais nada.
+ *
+ * ── SÓ BAIXA SE NÃO SOBROU NADA CORRENDO ─────────────────────────────
+ *
+ * Uma punição pode ter mais de um efeito, e o edital dá penas mistas: perde a
+ * pick E fica um ciclo sem trocar. Baixar a punição inteira porque a pick foi
+ * paga soltaria o trade ban antes da hora, que é perdão, não correção.
+ *
+ * O que segura são os efeitos que o SISTEMA aplica e que CORREM NO TEMPO
+ * (modo 'aplica' + duração 'periodo'). Os de 'registra' — teto de minutos,
+ * leilão compulsório, suspensão de canais — nunca foram executados aqui: ficam
+ * no papel pra organização cumprir, e esperar por eles deixaria a punição
+ * aberta pra sempre esperando um sinal que nunca chega.
+ */
+function punicaoBaixarSeNadaSobrou(PDO $pdo, int $punicaoId): bool
+{
+    if (!punicaoGarantirEsquema($pdo)) return false;
+    try {
+        $st = $pdo->prepare('SELECT tp.id, tp.team_id, tp.efeitos_json, tp.vigencia,
+                                    tp.vigencia_desde, tp.vigencia_ate, t.league
+                               FROM team_punishments tp
+                               JOIN teams t ON t.id = tp.team_id
+                              WHERE tp.id = ? AND tp.reverted_at IS NULL AND tp.ja_cumprida = 0');
+        $st->execute([$punicaoId]);
+        $p = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$p) return false;
+
+        $m = punicaoMomentoDaLiga($pdo, (string)$p['league']);
+        foreach ((array)json_decode((string)$p['efeitos_json'], true) as $e) {
+            if (!is_array($e)) continue;
+            $info = punicaoEfeitoInfo((string)($e['efeito'] ?? ''));
+            if (!$info || $info['modo'] !== 'aplica' || $info['duracao'] !== 'periodo') continue;
+
+            $vig   = $e['vigencia'] ?? $p['vigencia'];
+            $ate   = array_key_exists('ate', $e) ? $e['ate'] : $p['vigencia_ate'];
+            $desde = array_key_exists('desde', $e) ? $e['desde'] : $p['vigencia_desde'];
+            if (punicaoVigente($vig, $ate === null ? null : (int)$ate,
+                               $m['temporada'], $m['ciclo'], $desde === null ? null : (int)$desde)) {
+                return false;   // ainda tem pena correndo: a punição continua de pé
+            }
+        }
+
+        $pdo->prepare('UPDATE team_punishments SET ja_cumprida = 1 WHERE id = ?')->execute([$punicaoId]);
+        return true;
+    } catch (Throwable $e) {
+        error_log('[punicoes] baixar punição ' . $punicaoId . ': ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * AS PENAS DE PICK QUE ESTE DRAFT ACABOU DE CUMPRIR.
+ *
+ * Roda quando a sessão encerra. A vaga punida passou sem ninguém escolher
+ * nela: a pena foi paga, e é este o único momento em que dá pra afirmar isso
+ * — antes do fim, o draft ainda pode ser desfeito ou a punição revertida.
+ *
+ * VAGA COM JOGADOR ESCOLHIDO NÃO CONTA. Se a punição caiu depois de o time já
+ * ter usado a vaga, ele escolheu e a pena não foi cumprida ali.
+ *
+ * A ponte entre a vaga e a punição é (rodada, time de origem) + o ano da
+ * classe — a mesma que draftMarcarVagasPunidas usa no caminho de ida, e pela
+ * mesma razão: a vaga não guarda o id da pick.
+ */
+function punicaoBaixarPicksCumpridas(PDO $pdo, int $draftSessionId): int
+{
+    if (!punicaoGarantirEsquema($pdo)) return 0;
+    try {
+        require_once __DIR__ . '/draft_swaps.php';   // draftAnoDasPicks
+
+        $st = $pdo->prepare('SELECT season_id FROM draft_sessions WHERE id = ?');
+        $st->execute([$draftSessionId]);
+        $seasonId = (int)($st->fetchColumn() ?: 0);
+        if (!$seasonId) return 0;
+
+        $ano = draftAnoDasPicks($pdo, $seasonId);
+        if ($ano <= 0) return 0;
+
+        $st = $pdo->prepare('SELECT DISTINCT round, original_team_id FROM draft_order
+                              WHERE draft_session_id = ? AND COALESCE(punida,0) = 1
+                                AND picked_player_id IS NULL');
+        $st->execute([$draftSessionId]);
+        $vagas = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$vagas) return 0;
+
+        $achar = $pdo->prepare("SELECT punicao_id FROM picks
+                                 WHERE round = ? AND original_team_id = ?
+                                   AND CAST(season_year AS UNSIGNED) = ?
+                                   AND punicao_id IS NOT NULL");
+        $baixadas = [];
+        foreach ($vagas as $v) {
+            $achar->execute([(string)$v['round'], (int)$v['original_team_id'], $ano]);
+            foreach ($achar->fetchAll(PDO::FETCH_COLUMN) as $pid) {
+                if (isset($baixadas[(int)$pid])) continue;
+                if (punicaoBaixarSeNadaSobrou($pdo, (int)$pid)) $baixadas[(int)$pid] = true;
+            }
+        }
+        return count($baixadas);
+    } catch (Throwable $e) {
+        error_log('[punicoes] baixar picks cumpridas do draft ' . $draftSessionId . ': ' . $e->getMessage());
+        return 0;
+    }
+}
+
 /** Devolve a pick quando a punição é revertida. */
 function punicaoDevolverPicks(PDO $pdo, int $punicaoId): int
 {

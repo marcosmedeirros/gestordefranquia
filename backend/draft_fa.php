@@ -228,6 +228,19 @@ function draftEncerrarSessao(PDO $pdo, int $draftSessionId): array
 {
     $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
         ->execute([$draftSessionId]);
+
+    /* A VAGA PUNIDA PASSOU: a pena foi paga, e é aqui que ela se dá por
+       cumprida. Sem isso a punição ficava aberta pra sempre — o time seguia
+       na lista de efeitos ativos por uma pena que já tinha pago.
+       @see punicaoBaixarPicksCumpridas */
+    try {
+        require_once __DIR__ . '/punicoes_regras.php';
+        punicaoBaixarPicksCumpridas($pdo, $draftSessionId);
+    } catch (Throwable $e) {
+        // Nunca derruba o encerramento: a baixa é registro, o draft é o jogo.
+        error_log('[draftEncerrarSessao] baixar punições: ' . $e->getMessage());
+    }
+
     return draftSobrasParaWaiver($pdo, $draftSessionId);
 }
 

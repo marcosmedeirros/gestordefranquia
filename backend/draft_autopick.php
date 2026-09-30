@@ -206,6 +206,15 @@ function draftAutopickGravar(PDO $pdo, array $session, array $pick, array $jogad
         if (!empty($encerrouAgora)) {
             require_once __DIR__ . '/draft_fa.php';
             draftSobrasParaWaiver($pdo, $sessionId);
+            /* E a baixa das penas de pick, pela mesma razão do waiver: este
+               caminho encerra a sessão por fora de draftEncerrarSessao() e
+               perderia tudo que ela faz depois de marcar completed. */
+            try {
+                require_once __DIR__ . '/punicoes_regras.php';
+                punicaoBaixarPicksCumpridas($pdo, $sessionId);
+            } catch (Throwable $e) {
+                error_log('[autopick] baixar punições: ' . $e->getMessage());
+            }
         }
         return [
             'ok' => true,
