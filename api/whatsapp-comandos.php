@@ -5094,6 +5094,27 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                filmes, música) e cada um traz um punhado de comandos —
                juntos aqui virariam mais mil linhas no meio da liga de
                basquete, que não tem nada a ver com eles. */
+            /* AINDA DESLIGADOS. Com TB_LIGADO em false os dois devolvem null,
+               que neste roteador quer dizer "não é comando meu" — o bot fica
+               calado e nada denuncia que eles existem. A liga ainda vai
+               decidir se quer. @see backend/tatica_bot.php */
+            case 'tatica':
+            case 'tática':
+                require_once __DIR__ . '/../backend/tatica_bot.php';
+                if (!tbLigado()) return null;
+                if ($arg === '') return 'Use assim: /tatica coyotes';
+                [$tT, $erroT] = wcResolverTime($pdo, $arg, $ligaDoGrupo);
+                if ($erroT) return $erroT;
+                return tbResponder($pdo, $tT);
+
+            case 'minhatatica':
+            case 'minhatática':
+                require_once __DIR__ . '/../backend/tatica_bot.php';
+                if (!tbLigado()) return null;
+                [$tM, $erroM] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+                if (!$tM) return $erroM;
+                return tbResponder($pdo, $tM);
+
             case 'clube':
             case 'clubefba':
                 require_once __DIR__ . '/../backend/clube_bot.php';
