@@ -61,12 +61,16 @@ function ceTimesDaLiga(PDO $pdo, string $liga): array
                (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id) AS jogadores,
                (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id
                    AND (p.skill_in IS NULL OR p.skill_in = '')) AS sem_letras,
+               (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id
+                   AND (p.position IS NULL OR p.position = '')) AS sem_posicao,
                (SELECT COUNT(*) FROM player_season_stats s
                  WHERE s.team_id = t.id AND s.season_id = ?) AS com_stats,
                (SELECT MAX(a.criado_em) FROM atualizacoes_terceiros a
                  WHERE a.team_id = t.id AND a.tipo = 'skills' AND a.revertido_em IS NULL) AS csv_letras_em,
                (SELECT MAX(a.criado_em) FROM atualizacoes_terceiros a
                  WHERE a.team_id = t.id AND a.tipo = 'stats' AND a.revertido_em IS NULL) AS csv_stats_em,
+               (SELECT MAX(a.criado_em) FROM atualizacoes_terceiros a
+                 WHERE a.team_id = t.id AND a.tipo = 'posicoes' AND a.revertido_em IS NULL) AS csv_posicoes_em,
                t.roster_updated_at
           FROM teams t
      LEFT JOIN users u ON u.id = t.user_id
@@ -88,12 +92,14 @@ function ceTimesDaLiga(PDO $pdo, string $liga): array
             'gm'         => $t['gm'] ?: 'sem GM',
             'jogadores'  => (int)$t['jogadores'],
             'sem_letras' => (int)$t['sem_letras'],
+            'sem_posicao'=> (int)$t['sem_posicao'],
             'com_stats'  => (int)$t['com_stats'],
             // A data que aparece no card: o último envio por CSV daquele tipo,
             // e na falta dele a última mexida no elenco. Sem data nenhuma, o
             // time nunca foi tocado — e é esse que o admin está procurando.
             'letras_em'  => $t['csv_letras_em'] ?: $t['roster_updated_at'],
             'stats_em'   => $t['csv_stats_em'],
+            'posicoes_em'=> $t['csv_posicoes_em'] ?: $t['roster_updated_at'],
         ];
     }
 
@@ -123,7 +129,7 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
     $colsSkill = implode(', ', array_map(fn($c) => "p.{$c}", array_keys(ATUALIZACAO_SKILLS)));
     $colsStat  = implode(', ', array_map(fn($c) => "s.{$c}", array_keys(ATUALIZACAO_STATS)));
 
-    $sql = "SELECT p.id, p.name, p.position, p.ovr, p.team_id,
+    $sql = "SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time,
                    {$colsSkill}, {$colsStat}, s.id AS tem_stats
               FROM players p
@@ -141,6 +147,7 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $j = ['id' => (int)$r['id'], 'name' => $r['name'], 'position' => $r['position'],
+              'secondary_position' => $r['secondary_position'],
               'ovr' => (int)$r['ovr'], 'team_id' => (int)$r['team_id'], 'time' => $r['time']];
         foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $j[$c] = (string)($r[$c] ?? '');
         foreach (array_keys(ATUALIZACAO_STATS) as $c) {
@@ -166,7 +173,7 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
 function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $linhas, bool $ehAdmin = true, ?int $temporadaId = null): array
 {
     $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'times' => [], 'ignorados' => 0, 'vazios' => 0, 'moedas' => 0];
-    if (!in_array($tipo, ['letras', 'stats'], true)) return $falha('Tipo inválido.');
+    if (!in_array($tipo, ['letras', 'stats', 'posicoes'], true)) return $falha('Tipo inválido.');
     if (!$linhas) return $falha('Nada pra gravar.');
 
     // DDL antes da transação: ALTER TABLE faz commit implícito no MySQL, e
@@ -193,6 +200,10 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
             [$valido, $vals, $erro] = atualizacaoValidarSkills($linha);
             if (!$valido) return $falha($daLiga[$pid]['name'] . ': ' . $erro);
             if (!$vals) { $vazios++; continue; }
+        } elseif ($tipo === 'posicoes') {
+            [$valido, $vals, $erro] = atualizacaoValidarPosicoes($linha);
+            if (!$valido) return $falha($daLiga[$pid]['name'] . ': ' . $erro);
+            if (!$vals) { $vazios++; continue; }
         } else {
             [$valido, $vals, $erro] = atualizacaoValidarStats($linha);
             if (!$valido) {
@@ -216,7 +227,9 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
     $fotos = [];
     foreach (array_keys($porTime) as $tid) $fotos[$tid] = atualizacaoFoto($pdo, $tid);
 
-    $tipoRegistro = $tipo === 'letras' ? 'skills' : 'stats';
+    /* 'letras' é o nome na tela; 'skills' é o nome no histórico, de antes. Os
+       outros dois se chamam igual nos dois lugares. */
+    $tipoRegistro = ['letras' => 'skills', 'stats' => 'stats', 'posicoes' => 'posicoes'][$tipo];
     $resumo = [];
 
     /* QUEM RECEBE, time a time (ver ATUALIZACAO_MOEDAS_POR_TIME):
@@ -249,6 +262,10 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
         if ($tipo === 'letras') {
             $sets = implode(', ', array_map(fn($c) => "{$c} = :{$c}", array_keys(ATUALIZACAO_SKILLS)));
             $up = $pdo->prepare("UPDATE players SET {$sets} WHERE id = :id AND team_id = :tid");
+        } elseif ($tipo === 'posicoes') {
+            $up = $pdo->prepare('UPDATE players SET position = :position,
+                                        secondary_position = :secondary_position
+                                  WHERE id = :id AND team_id = :tid');
         } else {
             $cols = array_keys(ATUALIZACAO_STATS);
             $up = $pdo->prepare("INSERT INTO player_season_stats
@@ -272,6 +289,25 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
                     $p = ['id' => $pid, 'tid' => $tid];
                     foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $p[$c] = $vals[$c] ?? ($atual[$c] ?? null);
                     $up->execute($p);
+                } elseif ($tipo === 'posicoes') {
+                    /* Coluna em branco mantém a que está lá — mesma regra das
+                       letras, e o motivo é o mesmo: o CSV é baixado num
+                       momento e enviado em outro. */
+                    $atual = null;
+                    foreach ($fotos[$tid]['skills'] as $f) if ((int)$f['id'] === $pid) { $atual = $f; break; }
+                    $pri = array_key_exists('position', $vals)
+                        ? $vals['position'] : ($atual['position'] ?? null);
+                    $sec = array_key_exists('secondary_position', $vals)
+                        ? $vals['secondary_position'] : ($atual['secondary_position'] ?? null);
+                    /* A secundária some quando vira igual à principal. O
+                       validador só compara quando as duas vêm na mesma linha;
+                       aqui a principal pode ter vindo do banco, e "PG/PG"
+                       escaparia. */
+                    if ($sec !== null && $pri !== null && strtoupper((string)$sec) === strtoupper((string)$pri)) {
+                        $sec = null;
+                    }
+                    $up->execute(['id' => $pid, 'tid' => $tid,
+                                  'position' => $pri, 'secondary_position' => $sec]);
                 } else {
                     $up->execute(array_merge($vals, [
                         'pid' => $pid, 'tid' => $tid, 'liga' => $liga,

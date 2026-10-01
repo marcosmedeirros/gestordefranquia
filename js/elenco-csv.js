@@ -104,5 +104,23 @@
       NAO_MEXA(o.comTime) + '\n' + PEDE_ARQUIVO + '--- MODELO ---\n' + modelo;
   }
 
-  window.ElencoCSV = { escapar, paraTexto, baixar, ler, copiar, promptLetras, promptStats };
+  /**
+   * As posições a partir do print do elenco.
+   *
+   * Mais curto que os outros dois de propósito: aqui não há escala de notas
+   * nem coluna que se confunde com outra. O único recado que precisa ser dado
+   * é o do traço — sem ele não existe jeito de TIRAR a secundária pela
+   * planilha, porque a coluna vazia já quer dizer "não mexi".
+   */
+  function promptPosicoes(modelo, o = {}) {
+    return 'Preencha este CSV com as posições de jogadores de basquete a partir da imagem que vou anexar.\n\n' +
+      'POS é a posição principal e POS2 a secundária. Use só: PG, SG, SF, PF ou C.\n' +
+      'Jogador de uma posição só: deixe POS2 em branco.\n' +
+      'Para TIRAR uma secundária que já existe, escreva um traço (-) em POS2.\n' +
+      'Coluna em branco quer dizer "não mexi nessa" — o site mantém o que já estava.\n' +
+      NAO_MEXA(o.comTime) + '\n' + PEDE_ARQUIVO + '--- MODELO ---\n' + modelo;
+  }
+
+  window.ElencoCSV = { escapar, paraTexto, baixar, ler, copiar,
+                       promptLetras, promptStats, promptPosicoes };
 })();

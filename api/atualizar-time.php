@@ -375,6 +375,23 @@ if ($acao === 'reverter') {
                 $up->execute($p);
             }
         }
+        if ($reg['tipo'] === 'posicoes' && !empty($foto['skills'])) {
+            /* A foto de posições vem na mesma lista das letras — é a mesma
+               tabela, lida no mesmo instante. Só a principal e a secundária
+               voltam: OVR, idade e letras não foram tocados por este envio, e
+               devolvê-los seria desfazer o que outra pessoa fez no meio. */
+            $up = $pdo->prepare("UPDATE players SET position = :position,
+                                        secondary_position = :secondary_position
+                                  WHERE id = :id");
+            foreach ($foto['skills'] as $f) {
+                if (!array_key_exists('position', $f)) continue;   // foto antiga, sem posição
+                $up->execute([
+                    'id' => (int)$f['id'],
+                    'position' => $f['position'] ?? null,
+                    'secondary_position' => $f['secondary_position'] ?? null,
+                ]);
+            }
+        }
         if ($reg['tipo'] === 'stats') {
             // Sem foto de stats significa que não havia linha: apaga as que
             // o envio criou, em vez de deixar número que ninguém pôs.

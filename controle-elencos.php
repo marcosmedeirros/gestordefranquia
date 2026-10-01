@@ -46,7 +46,7 @@ $ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida
 // Veio do card "Editar Stats" da aba de uma liga: a tela fica só nela, sem
 // abas pras outras — cada liga tem a sua página.
 if (in_array($pedida, $minhasLigas, true)) $minhasLigas = [$pedida];
-$tipoInicial = ($_GET['tipo'] ?? '') === 'letras' ? 'letras' : 'stats';
+$tipoInicial = in_array($_GET['tipo'] ?? '', ['letras', 'posicoes'], true) ? $_GET['tipo'] : 'stats';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -216,6 +216,7 @@ td.mudou s{display:block;font-size:9.5px;color:var(--text-3);font-weight:500}
     <div class="seletor" id="seletor">
       <button type="button" data-tipo="stats"><i class="bi bi-bar-chart-fill"></i> Estatísticas</button>
       <button type="button" data-tipo="letras"><i class="bi bi-sliders"></i> Letras</button>
+      <button type="button" data-tipo="posicoes"><i class="bi bi-person-bounding-box"></i> Posições</button>
     </div>
   </div>
 
@@ -265,6 +266,8 @@ const LIGAS  = <?= json_encode(array_values($minhasLigas)) ?>;
 // uma lista escrita aqui envelheceria sozinha.
 const SKILLS = <?= json_encode(ATUALIZACAO_SKILLS, JSON_UNESCAPED_UNICODE) ?>;
 const STATS  = <?= json_encode(ATUALIZACAO_STATS, JSON_UNESCAPED_UNICODE) ?>;
+const POSICOES = <?= json_encode(ATUALIZACAO_POSICOES, JSON_UNESCAPED_UNICODE) ?>;
+const POS_VALIDAS = <?= json_encode(ATUALIZACAO_POSICOES_VALIDAS) ?>;
 const NOTAS  = <?= json_encode(ATUALIZACAO_NOTAS) ?>;
 const API    = '/api/controle-elencos.php';
 
@@ -284,10 +287,14 @@ async function getJSON(url, opc) {
   return d;
 }
 
+/* O nome de cada tipo, numa linha só: ele aparece no título do modal, no
+   aviso de CSV trocado e no botão de enviar. */
+const ROTULO = { stats: 'Estatísticas', letras: 'Letras', posicoes: 'Posições' };
+
 function colunas() {
-  return tipo === 'letras'
-    ? Object.entries(SKILLS).map(([c, rot]) => ({ c, rot }))
-    : Object.entries(STATS).map(([c, o]) => ({ c, rot: o.rot, max: o.max }));
+  if (tipo === 'letras')   return Object.entries(SKILLS).map(([c, rot]) => ({ c, rot }));
+  if (tipo === 'posicoes') return Object.entries(POSICOES).map(([c, rot]) => ({ c, rot }));
+  return Object.entries(STATS).map(([c, o]) => ({ c, rot: o.rot, max: o.max }));
 }
 
 function lembrarNaUrl() {
@@ -338,6 +345,14 @@ function situacao(t) {
     if (t.sem_letras === 0) return { cls: 'ok', txt: 'letras completas', pendente: false };
     if (comLetras >= bastam) return { cls: 'ok', txt: `${comLetras}/${t.jogadores} com letras`, pendente: false };
     return { cls: 'falta', txt: `${t.sem_letras} sem letras`, pendente: true };
+  }
+  if (tipo === 'posicoes') {
+    /* AQUI NÃO VALE O MÍNIMO DE SETE. Letra e estatística um time pode ter
+       pela metade — o fim do banco não joga. Posição todo jogador tem, e
+       jogador sem posição não entra em escalação nenhuma: ou está completo
+       ou está faltando. */
+    if (t.sem_posicao === 0) return { cls: 'ok', txt: 'todos com posição', pendente: false };
+    return { cls: 'falta', txt: `${t.sem_posicao} sem posição`, pendente: true };
   }
   if (!temporada) return { cls: 'cinza', txt: 'sem temporada', pendente: false };
   if (t.com_stats === 0) return { cls: 'falta', txt: 'nada lançado', pendente: true };
@@ -390,7 +405,7 @@ function renderGrade() {
       </div>
       <div class="tcard-pe">
         <span class="chip ${s.cls}">${s.txt}</span>
-        <span class="tcard-data">${dataCurta(tipo === 'letras' ? t.letras_em : t.stats_em)}</span>
+        <span class="tcard-data">${dataCurta({letras: t.letras_em, stats: t.stats_em, posicoes: t.posicoes_em}[tipo])}</span>
       </div>
     </button>`;
   }).join('');
@@ -416,7 +431,7 @@ async function abrirModal(escopo, timeId) {
   const t = times.find(x => x.id === timeId);
   modal.nome = escopo === 'liga' ? `Liga ${liga} inteira` : (t ? t.nome : 'Time');
 
-  $('mTitulo').textContent = `${modal.nome} — ${tipo === 'letras' ? 'Letras' : 'Estatísticas'}`;
+  $('mTitulo').textContent = `${modal.nome} — ${ROTULO[tipo]}`;
   $('mSub').textContent = escopo === 'liga'
     ? 'O modelo traz todos os jogadores da liga, com a coluna do time.'
     : (t ? `${t.gm} · ${t.jogadores} jogadores` : '');
@@ -523,7 +538,9 @@ $('mModelo').addEventListener('click', () => {
 $('mPrompt').addEventListener('click', e => {
   const texto = ElencoCSV.paraTexto(modeloLinhas());
   const o = { comTime: modal.escopo === 'liga', notas: NOTAS, comOvrIdade: false };
-  ElencoCSV.copiar(tipo === 'letras' ? ElencoCSV.promptLetras(texto, o) : ElencoCSV.promptStats(texto, o), e.currentTarget);
+  const monta = { letras: ElencoCSV.promptLetras, stats: ElencoCSV.promptStats,
+                  posicoes: ElencoCSV.promptPosicoes }[tipo];
+  ElencoCSV.copiar(monta(texto, o), e.currentTarget);
 });
 
 /* ── Importar ──────────────────────────────────────────────────────── */
@@ -548,7 +565,7 @@ function importar(texto) {
   const indice = cols.map(col => ({ ...col, i: cab.indexOf(col.rot.toLowerCase()) })).filter(col => col.i >= 0);
   if (!indice.length) {
     aviso('err', `Não achei nenhuma coluna de ${tipo === 'letras' ? 'letras' : 'estatística'}. `
-      + `Confira se o arquivo é de <b>${tipo === 'letras' ? 'Letras' : 'Estatísticas'}</b> — o seletor no topo decide o tipo.`);
+      + `Confira se o arquivo é de <b>${ROTULO[tipo]}</b> — o seletor no topo decide o tipo.`);
     return;
   }
 

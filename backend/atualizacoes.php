@@ -45,6 +45,21 @@ const ATUALIZACAO_SKILLS = [
 /** Notas aceitas. Qualquer coisa fora disso é recusada, não convertida. */
 const ATUALIZACAO_NOTAS = ['A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];
 
+/** As cinco posições do jogo. Qualquer coisa fora disso é recusada. */
+const ATUALIZACAO_POSICOES_VALIDAS = ['PG', 'SG', 'SF', 'PF', 'C'];
+
+/**
+ * As duas colunas de posição, na ordem em que aparecem no CSV.
+ *
+ * A secundária é opcional e some quando vem igual à principal — "C/C" não é
+ * posição dupla, é o mesmo valor escrito duas vezes, e era o que o banco
+ * acumulava quando ninguém limpava o campo.
+ */
+const ATUALIZACAO_POSICOES = [
+    'position'           => 'POS',
+    'secondary_position' => 'POS2',
+];
+
 /** Colunas de estatística e o teto plausível de cada uma. */
 const ATUALIZACAO_STATS = [
     'games'  => ['rot' => 'Jogos', 'max' => 120],
@@ -229,7 +244,11 @@ function atualizacaoFoto(PDO $pdo, int $teamId): array
     $colsSkill = implode(', ', array_keys(ATUALIZACAO_SKILLS));
     $foto = ['skills' => [], 'stats' => []];
 
-    $st = $pdo->prepare("SELECT id, name, ovr, age, {$colsSkill} FROM players WHERE team_id = ?");
+    /* A posição entra na foto junto das letras: é da mesma tabela e do mesmo
+       envio, e sem ela o "desfazer" de um lançamento de posições não teria
+       pra onde voltar. */
+    $st = $pdo->prepare("SELECT id, name, ovr, age, position, secondary_position, {$colsSkill}
+                           FROM players WHERE team_id = ?");
     $st->execute([$teamId]);
     $foto['skills'] = $st->fetchAll(PDO::FETCH_ASSOC);
 
@@ -253,6 +272,51 @@ function atualizacaoFoto(PDO $pdo, int $teamId): array
  * errado, e adivinhar o que a pessoa quis dizer é o caminho pra gravar
  * número inventado no elenco de outro GM.
  */
+/**
+ * As posições de uma linha, já prontas pro banco — ou o motivo da recusa.
+ *
+ * EM BRANCO NÃO MEXE, como no resto desta tela: o CSV é baixado num momento e
+ * enviado em outro, e coluna vazia tem que significar "não toquei nisso" e
+ * nunca "apaga o que está lá".
+ *
+ * Pra TIRAR a secundária existe o traço: "-" grava NULL. Sem ele não haveria
+ * jeito de desfazer um "PG/SG" pela planilha, porque vazio já quer dizer
+ * outra coisa.
+ *
+ * @return array{0: bool, 1: array, 2: string}
+ */
+function atualizacaoValidarPosicoes(array $linha): array
+{
+    $vals = [];
+
+    $pri = strtoupper(trim((string)($linha['position'] ?? '')));
+    if ($pri !== '') {
+        if (!in_array($pri, ATUALIZACAO_POSICOES_VALIDAS, true)) {
+            return [false, [], "posição inválida: {$pri} (use PG, SG, SF, PF ou C)"];
+        }
+        $vals['position'] = $pri;
+    }
+
+    $sec = strtoupper(trim((string)($linha['secondary_position'] ?? '')));
+    if ($sec === '-' || $sec === '—') {
+        $vals['secondary_position'] = null;          // o jeito de apagar
+    } elseif ($sec !== '') {
+        if (!in_array($sec, ATUALIZACAO_POSICOES_VALIDAS, true)) {
+            return [false, [], "posição secundária inválida: {$sec} (use PG, SG, SF, PF, C ou - pra tirar)"];
+        }
+        /* Secundária igual à principal não é posição dupla. Compara com a
+           principal que veio na MESMA linha quando ela veio; senão quem
+           compara é o gravador, que conhece a do banco. */
+        if (isset($vals['position']) && $sec === $vals['position']) {
+            $vals['secondary_position'] = null;
+        } else {
+            $vals['secondary_position'] = $sec;
+        }
+    }
+
+    return [true, $vals, ''];
+}
+
 function atualizacaoValidarSkills(array $linha): array
 {
     $vals = [];
