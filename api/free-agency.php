@@ -1839,7 +1839,48 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
 {
     $r = faAtribuirOferta($pdo, (int)($body['offer_id'] ?? 0), $adminId);
     if (!$r['ok']) jsonError($r['erro'], $r['status'] ?? 400);
-    jsonSuccess(['message' => $r['message']]);
+
+    /* AVISA NA HORA, uma mensagem por aprovação.
+     *
+     * O aviso mora AQUI e não dentro do faAtribuirOferta porque a resolução
+     * em lote chama a mesma função em série — ali sairiam sete mensagens
+     * seguidas e mais o resumo, dizendo a mesma coisa duas vezes. Este é o
+     * caminho de quem aprova um de cada vez, e é dele que o grupo quer saber
+     * na hora. */
+    $r['anunciado'] = faAnunciarContratacao($pdo, $r);
+    jsonSuccess(['message' => $r['message'], 'anunciado' => $r['anunciado']]);
+}
+
+/**
+ * Manda a contratação avulsa pro Gameplay e marca o pedido como anunciado.
+ *
+ * O CARIMBO É O QUE IMPEDE A REPETIÇÃO: sem ele, o "Resolver FA" do fim
+ * juntaria este jogador de novo no resumo — o grupo leria a mesma
+ * contratação duas vezes. Carimba só se a mensagem entrou na fila; falhando,
+ * ela ainda sai no resumo, que é melhor que sumir.
+ *
+ * Nunca derruba a aprovação: o jogador já mudou de time quando chega aqui, e
+ * um erro de WhatsApp não pode desfazer isso nem virar erro na tela do admin.
+ */
+function faAnunciarContratacao(PDO $pdo, array $r): bool
+{
+    $league = strtoupper(trim((string)($r['league'] ?? '')));
+    if ($league === '') return false;
+    try {
+        require_once __DIR__ . '/../backend/leilao_bot.php';   // botGrupoDaCerimonia + whatsapp
+        require_once __DIR__ . '/../backend/fa_anuncio.php';
+
+        $grupo = botGrupoDaCerimonia($pdo, $league);
+        if (!$grupo) return false;
+
+        $foi = whatsappEnfileirar($pdo, (string)$grupo,
+                                  faTextoDaContratacao($league, $r), true, 'manual');
+        if ($foi && !empty($r['request_id'])) faMarcarAnunciados($pdo, [(int)$r['request_id']]);
+        return $foi;
+    } catch (Throwable $e) {
+        error_log('[fa/anunciar-um] ' . $e->getMessage());
+        return false;
+    }
 }
 
 /**
@@ -1989,7 +2030,9 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
                 'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name']),
                 // Pro anúncio no Gameplay (faAnunciarResolucao).
                 'jogador' => $offer['player_name'], 'posicao' => $offer['position'], 'ovr' => (int)$offer['ovr'],
-                'time' => $nomeTime, 'valor' => (int)$offer['amount'], 'elite' => $ehElite];
+                'time' => $nomeTime, 'valor' => (int)$offer['amount'], 'elite' => $ehElite,
+                // Pro aviso avulso de quem aprova uma proposta de cada vez.
+                'league' => $offer['league'], 'request_id' => (int)$offer['request_id']];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[fa/atribuir] ' . $e->getMessage());

@@ -106,6 +106,33 @@ function faMarcarAnunciados(PDO $pdo, array $ids): void
     }
 }
 /**
+ * O VALOR ESCRITO, do jeito que a liga lê.
+ *
+ * Na ELITE o lance é salário em milhões; nas outras é moeda. O mesmo número
+ * quer dizer coisas diferentes, e escrever "50" seco deixaria a conta ambígua
+ * em metade das ligas.
+ */
+function faValorEscrito(int $valor, bool $ehElite): string
+{
+    if ($ehElite) return "{$valor}M";
+    return $valor === 1 ? '1 moeda' : "{$valor} moedas";
+}
+
+/**
+ * O AVISO DE UMA CONTRATAÇÃO SÓ, na hora em que o admin aprova.
+ *
+ * Uma linha e pronto: isto sai no meio da conversa do Gameplay, uma vez por
+ * aprovação, e um bloco de cinco linhas por jogador viraria parede. Quem tem
+ * lugar pra detalhe é o resumo do fim (faTextoDaResolucao).
+ */
+function faTextoDaContratacao(string $league, array $d): string
+{
+    $valor = faValorEscrito((int)$d['valor'], strtoupper($league) === 'ELITE');
+    return "🆓 *FREE AGENCY · {$league}*\n"
+         . "✅ *{$d['jogador']}* ({$d['posicao']}, {$d['ovr']}) → *{$d['time']}* · {$valor}";
+}
+
+/**
  * O TEXTO DO ANÚNCIO DA FREE AGENCY.
  *
  * Separado de quem envia de propósito: aqui não há grupo, fila nem WhatsApp —
@@ -123,9 +150,7 @@ function faTextoDaResolucao(string $league, array $res): string
     if ($detalhes) {
         $txt .= "\n\n✅ *Contratações*";
         foreach ($detalhes as $d) {
-            $valor = !empty($d['elite'])
-                ? "{$d['valor']}M"
-                : ((int)$d['valor'] === 1 ? '1 moeda' : "{$d['valor']} moedas");
+            $valor = faValorEscrito((int)$d['valor'], !empty($d['elite']));
             $txt .= "\n• {$d['jogador']} ({$d['posicao']}, {$d['ovr']}) → *{$d['time']}* · {$valor}";
         }
     }
