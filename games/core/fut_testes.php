@@ -940,6 +940,64 @@ ok('a revelação não repete o craque', ($prB['revelacao']['nome'] ?? null) ===
 $prC = futCarreiraPremiosDaTemporada(['clube' => 'Clube Inventado FC', 'elenco' => [], 'stats' => []]);
 ok('sem temporada, sem prêmio', $prC['craque'] === null && $prC['revelacao'] === null);
 // ═════════════════════════════════════════════════════════════════════
+secao('A imprensa');
+
+/* A manchete só sai quando há história. Rodada comum não vira papel. */
+$resComum = ['adversario' => 'Oponente FC', 'meus' => 1, 'deles' => 1,
+             'eventos' => [], 'escalacao' => []];
+$estIm = ['clube' => 'Meu Clube', 'resultados' => [$resComum], 'stats' => [], 'imprensa' => []];
+$estIm = futCarreiraImprensa($estIm, $resComum);
+ok('empate comum não vira manchete', ($estIm['imprensa'] ?? []) === []);
+
+/* Goleada feita, goleada sofrida. */
+$resGol = ['adversario' => 'Oponente FC', 'meus' => 4, 'deles' => 0, 'eventos' => [], 'escalacao' => []];
+$e1 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => [$resGol], 'stats' => []], $resGol);
+ok('goleada vira manchete boa',
+   count($e1['imprensa']) >= 1 && $e1['imprensa'][0]['tom'] === 'boa',
+   $e1['imprensa'][0]['texto'] ?? 'nada');
+$resVex = ['adversario' => 'Oponente FC', 'meus' => 0, 'deles' => 5, 'eventos' => [], 'escalacao' => []];
+$e2 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => [$resVex], 'stats' => []], $resVex);
+ok('vexame vira manchete ruim', ($e2['imprensa'][0]['tom'] ?? '') === 'ruim',
+   $e2['imprensa'][0]['texto'] ?? 'nada');
+
+/* Hat-trick e marco do artilheiro na mesma noite — e o teto de três. */
+$golDele = fn(int $min) => ['tipo' => 'gol', 'meu' => true, 'minuto' => $min,
+                            'jogador' => 'Matador', 'pos' => 'ATA', 'assistente' => null];
+$resHat = ['adversario' => 'Oponente FC', 'meus' => 3, 'deles' => 0,
+           'eventos' => [$golDele(10), $golDele(40), $golDele(80)],
+           'escalacao' => [['nome' => 'Matador', 'pos' => 'ATA', 'ovr' => 80, 'nota' => 9.5]]];
+$e3 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => [$resHat],
+                           'stats' => ['Matador' => ['gols' => 10]]], $resHat);
+$textos = array_map(fn($m) => $m['texto'], $e3['imprensa']);
+ok('hat-trick vira manchete', (bool)preg_grep('/faz três/u', $textos), implode(' | ', $textos));
+ok('no máximo três manchetes por partida', count($e3['imprensa']) <= 3,
+   count($e3['imprensa']) . ' manchetes');
+
+/* Invencibilidade no marco exato — e silêncio fora dele. */
+$vitoria = ['adversario' => 'Oponente FC', 'meus' => 1, 'deles' => 0, 'eventos' => [], 'escalacao' => []];
+$cinco = array_fill(0, 5, $vitoria);
+$e4 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => $cinco, 'stats' => []], $vitoria);
+ok('5 jogos sem perder vira manchete',
+   (bool)preg_grep('/5 jogos sem perder/u', array_map(fn($m) => $m['texto'], $e4['imprensa'])));
+$seis = array_fill(0, 6, $vitoria);
+$e5 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => $seis, 'stats' => []], $vitoria);
+ok('6 jogos sem perder fica quieto', ($e5['imprensa'] ?? []) === []);
+
+/* A crise anuncia a terceira derrota, não todas. */
+$derrota = ['adversario' => 'Oponente FC', 'meus' => 0, 'deles' => 1, 'eventos' => [], 'escalacao' => []];
+$e6 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => array_fill(0, 3, $derrota), 'stats' => []], $derrota);
+ok('terceira derrota seguida é crise',
+   (bool)preg_grep('/3ª derrota/u', array_map(fn($m) => $m['texto'], $e6['imprensa'])));
+$e7 = futCarreiraImprensa(['clube' => 'Meu Clube', 'resultados' => array_fill(0, 4, $derrota), 'stats' => []], $derrota);
+ok('a quarta não repete o enterro', ($e7['imprensa'] ?? []) === []);
+
+/* O mural não cresce pra sempre. */
+$cheio = ['clube' => 'Meu Clube', 'resultados' => [$resGol], 'stats' => [],
+          'imprensa' => array_fill(0, 12, ['texto' => 'velha', 'tom' => 'boa', 'jogo' => 1])];
+$e8 = futCarreiraImprensa($cheio, $resGol);
+ok('o mural guarda no máximo 12', count($e8['imprensa']) === 12);
+ok('a manchete nova entra na frente', $e8['imprensa'][0]['texto'] !== 'velha');
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);

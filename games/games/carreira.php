@@ -3280,6 +3280,21 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           </div>
         </div>
       <?php endif; ?>
+
+      <?php if (!empty($estado['imprensa'])): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-newspaper"></i> Imprensa</h3>
+          <div class="mini-lista">
+            <?php foreach (array_slice($estado['imprensa'], 0, 6) as $m): ?>
+              <div class="noticia" style="display:flex;gap:7px;align-items:baseline">
+                <i class="bi bi-<?= ($m['tom'] ?? '') === 'ruim' ? 'arrow-down-right' : 'arrow-up-right' ?>"
+                   style="font-size:11px;color:<?= ($m['tom'] ?? '') === 'ruim' ? '#fca5a5' : 'var(--verde-claro)' ?>"></i>
+                <span style="flex:1"><?= h($m['texto']) ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
 
       <?php /* O RESUMO DA ULTIMA PARTIDA SAIU (29/09/2026, a pedido).

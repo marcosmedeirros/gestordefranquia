@@ -723,6 +723,7 @@ function futCarreiraJogarProxima(array $estado): array
     $resultado['penaltis'] = $mm['penaltis'];
 
     $estado['resultados'][] = $resultado;
+    $estado = futCarreiraImprensa($estado, $resultado);
     $estado['rodada'] = $i + 1;
 
     /* OS LANCES SÓ FICAM NOS ÚLTIMOS JOGOS. Uma temporada tem 50 partidas, e
@@ -737,6 +738,101 @@ function futCarreiraJogarProxima(array $estado): array
     }
 
     return ['fim' => false, 'jogo' => $resultado, 'estado' => $estado];
+}
+
+/**
+ * A IMPRENSA DA CARREIRA.
+ *
+ * O jogo guardava o placar e jogava fora a história: uma sequência de dez
+ * jogos sem perder valia o mesmo que nenhuma, e um hat-trick morria no
+ * resumo da partida. A manchete é o jogo contando a própria história de
+ * volta — e só sai quando há história: rodada comum não vira papel.
+ *
+ * O QUE VIRA MANCHETE (no máximo três por partida, pra goleada com
+ * hat-trick não virar um jornal inteiro):
+ *
+ *   · hat-trick (e "quatro gols", que é mais raro ainda)
+ *   · goleada, feita ou sofrida — diferença de três ou mais
+ *   · atuação de gala: nota 9 ou mais de alguém do seu time
+ *   · marco de invencibilidade: 5, 10, 15... jogos sem perder
+ *   · crise: a terceira e a quinta derrota seguidas (anunciar TODA derrota
+ *     da sequência seria chutar cachorro morto)
+ *   · marco do artilheiro: 10, 15, 20, 25, 30 gols na temporada
+ *
+ * A lista fica em $estado['imprensa'], mais nova primeiro, no máximo doze:
+ * é um mural, não um arquivo — o que interessa a longo prazo já está em
+ * stats e no histórico.
+ */
+function futCarreiraImprensa(array $estado, array $resultado): array
+{
+    $clube = (string)($estado['clube'] ?? '');
+    $adv = (string)($resultado['adversario'] ?? '');
+    $meus = (int)($resultado['meus'] ?? 0);
+    $deles = (int)($resultado['deles'] ?? 0);
+    $novas = [];
+
+    // ── Hat-trick ────────────────────────────────────────────────────
+    $golsDeCada = [];
+    foreach ($resultado['eventos'] ?? [] as $e) {
+        if (($e['tipo'] ?? '') === 'gol' && !empty($e['meu'])) {
+            $golsDeCada[$e['jogador']] = ($golsDeCada[$e['jogador']] ?? 0) + 1;
+        }
+    }
+    foreach ($golsDeCada as $nome => $g) {
+        if ($g === 3) $novas[] = ['texto' => sprintf('%s faz três contra o %s.', $nome, $adv), 'tom' => 'boa'];
+        elseif ($g >= 4) $novas[] = ['texto' => sprintf('Noite histórica: %s marca %d vezes contra o %s.', $nome, $g, $adv), 'tom' => 'boa'];
+    }
+
+    // ── Goleada ──────────────────────────────────────────────────────
+    if ($meus - $deles >= 3) {
+        $novas[] = ['texto' => sprintf('%s atropela o %s: %d a %d.', $clube, $adv, $meus, $deles), 'tom' => 'boa'];
+    } elseif ($deles - $meus >= 3) {
+        $novas[] = ['texto' => sprintf('Vexame: %s passa o trator no %s, %d a %d.', $adv, $clube, $deles, $meus), 'tom' => 'ruim'];
+    }
+
+    // ── Atuação de gala ──────────────────────────────────────────────
+    $gala = null;
+    foreach ($resultado['escalacao'] ?? [] as $x) {
+        $nt = (float)($x['nota'] ?? 0);
+        if ($nt >= 9.0 && (!$gala || $nt > $gala['nota'])) $gala = ['nome' => $x['nome'], 'nota' => $nt];
+    }
+    if ($gala) {
+        $novas[] = ['texto' => sprintf('Atuação de gala: %s sai de campo com nota %s.',
+            $gala['nome'], number_format($gala['nota'], 1, ',', '')), 'tom' => 'boa'];
+    }
+
+    // ── Sequências, contadas do rabo da lista de resultados ──────────
+    $semPerder = 0; $derrotas = 0;
+    foreach (array_reverse($estado['resultados'] ?? []) as $r) {
+        if ((int)$r['meus'] < (int)$r['deles']) break;
+        $semPerder++;
+    }
+    foreach (array_reverse($estado['resultados'] ?? []) as $r) {
+        if ((int)$r['meus'] >= (int)$r['deles']) break;
+        $derrotas++;
+    }
+    if ($semPerder >= 5 && $semPerder % 5 === 0) {
+        $novas[] = ['texto' => sprintf('%s chega a %d jogos sem perder.', $clube, $semPerder), 'tom' => 'boa'];
+    }
+    if ($derrotas === 3 || $derrotas === 5) {
+        $novas[] = ['texto' => sprintf('Crise no %s: %dª derrota seguida.', $clube, $derrotas), 'tom' => 'ruim'];
+    }
+
+    // ── O marco do artilheiro ────────────────────────────────────────
+    foreach ($golsDeCada as $nome => $g) {
+        $total = (int)($estado['stats'][$nome]['gols'] ?? 0);
+        if (in_array($total, [10, 15, 20, 25, 30], true)) {
+            $novas[] = ['texto' => sprintf('%s chega a %d gols na temporada.', $nome, $total), 'tom' => 'boa'];
+            break;   // um marco por rodada chega
+        }
+    }
+
+    if (!$novas) return $estado;
+
+    $rodada = count($estado['resultados'] ?? []);
+    $entrada = array_map(fn($m) => $m + ['jogo' => $rodada], array_slice($novas, 0, 3));
+    $estado['imprensa'] = array_slice(array_merge($entrada, $estado['imprensa'] ?? []), 0, 12);
+    return $estado;
 }
 /* ═══════════════════════════════════════════════════════════════════════
    A PARTIDA AO VIVO
@@ -1199,6 +1295,7 @@ function futCarreiraAoVivoFechar(array $estado): array
     $resultado['penaltis'] = $mm['penaltis'];
 
     $estado['resultados'][] = $resultado;
+    $estado = futCarreiraImprensa($estado, $resultado);
     $estado['rodada'] = (int)$v['indice'] + 1;
     unset($estado['aovivo']);
 
@@ -2223,6 +2320,10 @@ function futCarreiraFecharTemporada(array $estado): array
     $noticias = array_merge($noticias, $danca['noticias']);
 
     $estado['noticias'] = array_slice($noticias, 0, 40);
+
+    /* O MURAL DA IMPRENSA É DA TEMPORADA: "20 gols no ano" e "10 jogos sem
+       perder" não atravessam o réveillon. O ano novo começa de mural limpo. */
+    $estado['imprensa'] = [];
 
     /* AS PROPOSTAS SÓ APARECEM PRA QUEM NÃO FOI DEMITIDO. Quem levou o bilhete
        azul escolhe clube na tela de desempregado, que é outra lista e outra
