@@ -607,9 +607,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        baixo, que é o que deixa comparar prospecto com prospecto. */
     .mock-list.com-notas .mock-row,
     .mock-list.com-notas .mock-cab {
-      /* 29px por coluna de nota — o que os 290px davam quando eram dez. */
-      grid-template-columns: 46px minmax(120px,.92fr) 44px 40px
-                             calc(29px * var(--notas-cols,10)) minmax(140px,1fr);
+      grid-template-columns: 46px minmax(120px,.92fr) 44px 40px 290px minmax(140px,1fr);
       gap: 10px;
     }
     .mock-cab {
@@ -753,9 +751,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        não tem faixa nenhuma pra compensar. */
     .pool-lista.com-cab { margin-top:-12px; }
     .pool-cab, .pool-linha {
-      display:grid;
-      /* 25px por coluna de nota — o que os 250px davam quando eram dez. */
-      grid-template-columns:34px minmax(0,1fr) 46px 48px calc(25px * var(--notas-cols,10));
+      display:grid; grid-template-columns:34px minmax(0,1fr) 46px 48px 250px;
       gap:8px; align-items:center; padding:6px 8px;
     }
     /* O cabeçalho é uma FAIXA, não mais uma linha pálida igual às outras: com
@@ -782,21 +778,24 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .pool-ovr { text-align:center; }
     .pool-ovr b { font-family:'Oswald',sans-serif; font-size:15px; color:var(--text); }
     .pool-idade { text-align:center; font-size:11px; color:var(--text-3); }
-    /* AS COLUNAS SÃO AS QUE EXISTEM, não as dez do catálogo.
+    /* AS DEZ COLUNAS SEMPRE, iguais no cabeçalho e na linha — é o que mantém
+       a sigla em cima da letra certa.
 
-       A tela de prospectos do jogo não traz todos os dez atributos — a
-       classe de 1986 veio sem ATHL e sem POT —, e com a grade fixa em dez
-       essas duas viravam buraco em TODA linha: dez siglas no cabeçalho, oito
-       letras embaixo e dois vãos no meio que pareciam dado faltando. Quem
-       monta a lista conta quantos atributos existem e põe o número em
-       --notas-cols; a grade segue ele. */
-    .pool-notas { display:grid; grid-template-columns:repeat(var(--notas-cols,10),1fr); gap:2px; }
+       A tela de prospectos do jogo não traz todos os dez atributos (a classe
+       de 1986 veio sem ATHL e sem POT), e a célula vazia virava um vão no
+       meio da linha que parecia defeito. A coluna fica: quem não tem nota
+       escreve "?", que diz a mesma coisa que o OVR "??" — o atributo existe,
+       o número é que ninguém mediu. */
+    .pool-notas { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; }
     .pool-notas i { font-style:normal; text-align:center; font-weight:800; font-size:10.5px;
       color:var(--text); background:var(--panel-3); border-radius:3px; padding:2px 0;
       white-space:nowrap; overflow:hidden; }
     .pool-cab .pool-notas i { font-size:8.5px; font-weight:800; letter-spacing:0;
       color:var(--text-3); background:none; padding:0; }
-    .pool-notas i.vaga { background:none; }
+    /* SEM NOTA, MAS COM COLUNA: o "?" fica apagado e sem a caixinha, pra não
+       competir com as letras de verdade ao lado — está ali pra dizer que
+       aquele atributo não veio no arquivo, não pra ser lido como nota. */
+    .pool-notas i.vaga { background:none; color:var(--text-3); font-weight:600; }
     /* No celular as notas descem pra segunda linha, ocupando a largura toda:
        dez colunas em 375px ao lado do nome não sobra nada pra nenhum dos dois. */
     @media (max-width:760px){
@@ -1647,7 +1646,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        linhas — decidir por linha deixaria umas com seis colunas e outras com
        três na mesma lista. */
     const temNotasNoPool = pool.some(j => j.notas);
-    const colsMock = colunasDeNota(pool, 'notas');
 
     const linha = (j, p) => `
       <div class="mock-row">
@@ -1667,7 +1665,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           j.notas ? `
         <div class="mock-ovr"><b>${ovrTexto(j.ovr)}</b></div>
         <div class="mock-idade">${parseInt(j.age, 10)}a</div>
-        <span class="pool-notas">${notasCelulas(j.notas, colsMock)}</span>` : ''}
+        <span class="pool-notas">${notasCelulas(j.notas)}</span>` : ''}
         <div class="mock-team">
           ${p ? `
             <img class="mock-team-logo" src="${esc(p.dono_logo || '/img/default-team.png')}"
@@ -1708,12 +1706,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           ? ', com o time de origem no "via"' : ''}${proj.some(p => (p.selos || []).length)
           ? ', e as condições de swap e proteção estão marcadas' : ''}.
       </div>
-      <div class="mock-list${temNotasNoPool ? ' com-notas' : ''}"
-           style="--notas-cols:${colsMock.length}">
+      <div class="mock-list${temNotasNoPool ? ' com-notas' : ''}">
         ${temNotasNoPool ? `
         <div class="mock-cab">
           <span></span><span>Jogador</span><span>OVR</span><span>Idade</span>
-          <span class="pool-notas">${colsMock.map(k =>
+          <span class="pool-notas">${ORDEM_NOTAS.map(k =>
             `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
           <span class="mock-time-lbl">Time</span>
         </div>` : ''}
@@ -1819,28 +1816,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   function temNotas(pick){
     return !!String(pick?.player_notas || '').trim();
-  }
-
-  /**
-   * QUAIS ATRIBUTOS ESSA LEVA TEM DE VERDADE, na ordem do jogo.
-   *
-   * Olha a leva inteira, não jogador por jogador: a coluna só existe se
-   * ALGUÉM tem aquela nota, e aí ela existe pra todos — senão cada linha
-   * teria um número de colunas e a sigla do cabeçalho deixaria de ficar em
-   * cima da letra certa, que é a única razão de a lista ser uma grade.
-   */
-  function colunasDeNota(lista, campo){
-    campo = campo || 'notas';
-    const tem = new Set();
-    (lista || []).forEach(p => {
-      let n = null;
-      try { n = JSON.parse(p && p[campo] ? p[campo] : 'null'); } catch (e) { n = null; }
-      if (n) ORDEM_NOTAS.forEach(k => { if (n[k]) tem.add(k); });
-    });
-    const achadas = ORDEM_NOTAS.filter(k => tem.has(k));
-    // Nenhuma nota em lugar nenhum: devolve as dez, que é o que a grade
-    // usava antes — assim a largura não colapsa numa lista sem letrinha.
-    return achadas.length ? achadas : ORDEM_NOTAS;
   }
 
   function fichaDoJogador(pick){
@@ -2087,14 +2062,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        impede. Em lista, cada linha é um jogador e as colunas de nota ficam
        alinhadas de cima a baixo: dá pra correr o olho por uma coluna só. */
     const temLetras = players.some(p => p.notas);
-    const colsPool = colunasDeNota(players, 'notas');
     container.className = 'pool-lista' + (temLetras ? ' com-cab' : '');
-    container.style.setProperty('--notas-cols', colsPool.length);
     container.innerHTML = `
       ${temLetras ? `<div class="pool-cab">
         <span class="pool-ord">#</span><span class="pool-nome">Jogador</span>
         <span class="pool-ovr">OVR</span><span class="pool-idade">Idade</span>
-        <span class="pool-notas">${colsPool.map(k => `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
+        <span class="pool-notas">${ORDEM_NOTAS.map(k => `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
       </div>` : ''}
       ${players.map(p => {
         const drafted = p.draft_status === 'drafted';
@@ -2108,7 +2081,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             drafted ? '<span class="pool-tag">Draftado</span>' : ''}</span>
           <span class="pool-ovr">${p.notas ? `<b>${ovrTexto(p.ovr)}</b>` : '—'}</span>
           <span class="pool-idade">${p.notas ? parseInt(p.age,10) + 'a' : '—'}</span>
-          <span class="pool-notas">${notasCelulas(p.notas, colsPool)}</span>
+          <span class="pool-notas">${notasCelulas(p.notas)}</span>
         </div>`;
       }).join('')}`;
   }
@@ -2116,11 +2089,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   /* As dez notas como células soltas, pra encaixarem na mesma grade da linha
      — o notasHtml() monta a caixinha com sigla em cima, que serve no card e
      repetiria a sigla em cada linha da lista. */
-  function notasCelulas(json, colunas){
+  function notasCelulas(json){
     let n = null;
     try { n = json ? JSON.parse(json) : null; } catch { n = null; }
-    return (colunas || ORDEM_NOTAS)
-      .map(k => `<i class="${n && n[k] ? '' : 'vaga'}">${n && n[k] ? esc(n[k]) : ''}</i>`).join('');
+    /* A COLUNA SEM NOTA ESCREVE "?". Vazia, ela virava um vão no meio da
+       linha que parecia defeito de layout; o "?" diz que o atributo existe
+       e o arquivo é que não trouxe. @see .pool-notas i.vaga */
+    return ORDEM_NOTAS
+      .map(k => `<i class="${n && n[k] ? '' : 'vaga'}">${n && n[k] ? esc(n[k]) : '?'}</i>`).join('');
   }
 
   let bigBoardPlayersList = [];
