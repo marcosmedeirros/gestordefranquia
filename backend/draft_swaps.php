@@ -861,6 +861,35 @@ function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int 
    diz qual é o par é quem administra.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/**
+ * TIRA UMA PICK DE QUALQUER SWAP — e leva o par junto.
+ *
+ * SWAP SÓ EXISTE EM PAR. Limpar um lado só deixa o outro apontando pra uma
+ * pick que não é mais swap: ela fica travada (swap_locked = 1) mostrando
+ * "SB · Melhor" contra ninguém, a ordem do draft ignora porque o par não
+ * confirma, e o próximo swap dela é recusado com "pick já está travada" sem
+ * que exista swap algum.
+ *
+ * A tela do admin já fazia isso certo. Faltava nos outros dois caminhos que
+ * desfazem swap — mover pick pela ferramenta e reverter troca —, e foi de um
+ * deles que saiu a órfã 6741→6791 encontrada em 01/10/2026.
+ *
+ * Limpa pelo PONTEIRO (`swap_pair_pick_id = ?`) e não pelo par lido antes:
+ * assim pega qualquer órfã que já esteja pendurada nesta pick, mesmo que ela
+ * própria já não aponte de volta.
+ */
+function swapDesfazerDaPick(PDO $pdo, int $pickId): void
+{
+    if ($pickId < 1) return;
+    try {
+        $limpa = 'UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL ';
+        $pdo->prepare($limpa . 'WHERE swap_pair_pick_id = ?')->execute([$pickId]);
+        $pdo->prepare($limpa . 'WHERE id = ?')->execute([$pickId]);
+    } catch (Throwable $e) {
+        error_log('[swap] desfazer da pick: ' . $e->getMessage());
+    }
+}
+
 /** O tipo oposto num par de swap. */
 function swapTipoOposto(string $tipo): string
 {

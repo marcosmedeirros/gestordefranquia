@@ -571,10 +571,14 @@ function mcpMoverPick(PDO $pdo, int $pickId, string $para, string $motivo): stri
         throw new McpErro('Pick da ' . $pick['league'] . ' não pode ir pra um time da ' . $destino['league'] . '.');
     }
 
-    // Mesmo UPDATE da reversão de troca do admin: o swap morre junto, porque
-    // ele descreve um acerto entre os dois times antigos.
-    $pdo->prepare("UPDATE picks SET team_id = ?, last_owner_team_id = ?,
-                          swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
+    /* O SWAP MORRE JUNTO, porque ele descreve um acerto entre os dois times
+       antigos — mas morre NOS DOIS LADOS. Limpar só esta pick deixava a do
+       par apontando pra uma que não é mais swap: travada, exibida como
+       "SB · Melhor" contra ninguém, e recusando qualquer swap novo. */
+    require_once __DIR__ . '/draft_swaps.php';
+    swapDesfazerDaPick($pdo, $pickId);
+
+    $pdo->prepare("UPDATE picks SET team_id = ?, last_owner_team_id = ?
                     WHERE id = ? AND team_id = ?")
         ->execute([(int)$destino['id'], (int)$pick['team_id'], $pickId, (int)$pick['team_id']]);
 

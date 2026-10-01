@@ -28,6 +28,8 @@
  * um ativo, de onde saiu, pra onde foi, e quando.
  */
 
+require_once __DIR__ . '/draft_swaps.php';   // swapDesfazerDaPick
+
 require_once __DIR__ . '/helpers.php';
 
 /** Quantas trocas a cascata pode arrastar antes de desistir e pedir a mão. */
@@ -391,14 +393,14 @@ function trRevUma(PDO $pdo, string $tipo, int $id): array
                 $r['erros'][] = "Pick #{$it['pick_id']} não existe mais";
                 $r['ok'] = false;
             } elseif ((int)$pk['team_id'] === $destino) {
-                $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = NULL,
-                                      swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
-                                WHERE id = ?')
+                /* O swap sai dos DOIS lados: a pick do par pode não estar
+                   nesta troca, e sozinha ela vira trava sem swap. */
+                swapDesfazerDaPick($pdo, (int)$it['pick_id']);
+                $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = NULL WHERE id = ?')
                     ->execute([$origem, (int)$it['pick_id']]);
                 $r['picks'][] = "{$pk['season_year']} R{$pk['round']}";
             } elseif ((int)$pk['team_id'] === $origem) {
-                $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?')
-                    ->execute([(int)$it['pick_id']]);
+                swapDesfazerDaPick($pdo, (int)$it['pick_id']);
                 $r['picks'][] = "{$pk['season_year']} R{$pk['round']} (já estava lá)";
             } else {
                 $r['erros'][] = "Pick {$pk['season_year']} R{$pk['round']} não está no time desta troca";
