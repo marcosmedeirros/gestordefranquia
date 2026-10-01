@@ -843,7 +843,7 @@ function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube
         $s = $h['stats'];
         $txt .= "\n📊 *Última temporada*\n"
               . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
-              . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
+              . wcNum($s['stl_pg']) . ' STL · ' . wcNum($s['blk_pg']) . ' BLK · ' . wcNum($s['min_pg']) . ' min'
               . ($s['fg_pct'] !== null ? ' · ' . wcNum($s['fg_pct']) . '% fg' : '')
               . ' em ' . (int)$s['games'] . " jogos\n";
     }
@@ -985,7 +985,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         // O número fica, porque diz DE QUANDO é o dado.
         $txt .= "\n📊 *Última temporada*\n"
               . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
-              . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
+              . wcNum($s['stl_pg']) . ' STL · ' . wcNum($s['blk_pg']) . ' BLK · ' . wcNum($s['min_pg']) . ' min'
               . ($s['fg_pct'] !== null ? ' · ' . wcNum($s['fg_pct']) . '% fg' : '')
               . ' em ' . (int)$s['games'] . " jogos\n";
     }
