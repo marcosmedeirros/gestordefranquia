@@ -1695,7 +1695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                preencher a largura, em vez de deixar um buraco de grid. -->
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${[['PTS', st.pts], ['REB', st.reb], ['AST', st.ast], ['FG%', st.fg],
-               ['MIN', st.min], ['ROU', st.stl], ['TOC', st.blk]]
+               ['MIN', st.min], ['STL', st.stl], ['BLK', st.blk]]
               .map(([r, v]) => `<div style="flex:1 1 calc(25% - 6px);min-width:58px;background:var(--panel-2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:10px;padding:9px 4px;text-align:center">
                    <div style="font-size:16px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums">${num(v)}${r === 'FG%' && v !== null && v !== undefined ? '%' : ''}</div>
                    <div style="font-size:9.5px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-top:2px">${r}</div>

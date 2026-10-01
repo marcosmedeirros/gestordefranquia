@@ -67,14 +67,22 @@ const ATUALIZACAO_STATS = [
     'pts_pg' => ['rot' => 'PTS',   'max' => 60],
     'reb_pg' => ['rot' => 'REB',   'max' => 30],
     'ast_pg' => ['rot' => 'AST',   'max' => 25],
-    /* ROU e TOC saem das colunas STL e BLK do print — NÃO da coluna TO, que é
-       turnover (bolas perdidas) e não é lançada em lugar nenhum. TO e TOC são
-       quase a mesma sigla, e é assim que armador aparece com 8,8 tocos.
+    /* STL E BLK SÃO O NOME DA COLUNA NO PRINT, e é de propósito que o rótulo
+       daqui seja igual ao de lá: enquanto eram ROU e TOC, quem preenchia
+       tinha que traduzir de cabeça — e TOC e TO são quase a mesma sigla, o
+       que fazia armador aparecer com 8,8 tocos. Sem tradução não há o que
+       confundir. TO (turnover) continua não entrando em lugar nenhum.
+
+       'antes' é o rótulo velho, e ele existe só pra LEITURA: planilha salva
+       com o cabeçalho ROU/TOC continua sendo aceita. Sem isso a coluna
+       simplesmente não seria encontrada no arquivo antigo — e o import não
+       reclama de coluna que falta, ele ignora, que é o pior jeito de quebrar.
+
        Os tetos são o que separa engano de dado: 12 aceitava o turnover de
        qualquer um, 5 e 6 recusam. O recorde da NBA é 3,7 roubos e 5,6 tocos —
        sobra folga pra jogador real. */
-    'stl_pg' => ['rot' => 'ROU',   'max' => 5],
-    'blk_pg' => ['rot' => 'TOC',   'max' => 6],
+    'stl_pg' => ['rot' => 'STL',   'antes' => 'ROU', 'max' => 5],
+    'blk_pg' => ['rot' => 'BLK',   'antes' => 'TOC', 'max' => 6],
     /* FG% em percentual (57.3). Aceita a fração do jogo (.573) e vazio vira
        NULL, não 0 — ver statsFgPct() em backend/stats_temporada.php. */
     'fg_pct' => ['rot' => 'FG%',   'max' => 100],

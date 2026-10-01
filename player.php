@@ -586,7 +586,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="tab-pane" id="pane-estatisticas">
     <?php $c = $statsCarreira; ?>
     <div class="st-cards">
-      <?php foreach ([['PTS','pts_pg'],['REB','reb_pg'],['AST','ast_pg'],['ROU','stl_pg'],['TOC','blk_pg'],['MIN','min_pg']] as [$lbl,$k]): ?>
+      <?php foreach ([['PTS','pts_pg'],['REB','reb_pg'],['AST','ast_pg'],['STL','stl_pg'],['BLK','blk_pg'],['MIN','min_pg']] as [$lbl,$k]): ?>
         <div class="st-card">
           <div class="st-v"><?= fmtPg($c[$k]) ?></div>
           <div class="st-l"><?= $lbl ?> <span>por jogo</span></div>

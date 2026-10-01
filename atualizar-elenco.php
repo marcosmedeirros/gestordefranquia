@@ -362,7 +362,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             <tr>
               <th>Jogador</th><th style="width:66px">Jogos</th><th style="width:66px">MIN</th>
               <th style="width:66px">PTS</th><th style="width:66px">REB</th><th style="width:66px">AST</th>
-              <th style="width:66px">ROU</th><th style="width:66px">TOC</th><th style="width:70px" title="Aproveitamento de arremessos (FG%). Pode digitar 57.3 ou .573, como aparece no jogo.">FG%</th>
+              <th style="width:66px" title="Roubadas — a coluna STL do print">STL</th><th style="width:66px" title="Tocos — a coluna BLK do print, NUNCA a TO">BLK</th><th style="width:70px" title="Aproveitamento de arremessos (FG%). Pode digitar 57.3 ou .573, como aparece no jogo.">FG%</th>
             </tr>
           </thead>
           <tbody>
@@ -420,7 +420,10 @@ const ELENCO = <?= json_encode(array_map(fn($p) => ['id' => (int)$p['id'], 'name
 // {skill_in: 'IN', skill_mid: 'MID', ...} — mesma fonte que monta a tabela de atributos no servidor.
 const SKILL_KEYS_JS = <?= json_encode($SKILL_KEYS) ?>;
 const NOTAS_JS = <?= json_encode(array_values(array_filter($NOTAS, fn($n) => $n !== ''))) ?>;
-const STATS_KEYS_JS = { games: 'Jogos', min_pg: 'MIN', pts_pg: 'PTS', reb_pg: 'REB', ast_pg: 'AST', stl_pg: 'ROU', blk_pg: 'TOC', fg_pct: 'FG%' };
+const STATS_KEYS_JS = { games: 'Jogos', min_pg: 'MIN', pts_pg: 'PTS', reb_pg: 'REB', ast_pg: 'AST', stl_pg: 'STL', blk_pg: 'BLK', fg_pct: 'FG%' };
+/* Os rótulos de antes, só pra LEITURA: CSV salvo com ROU/TOC continua
+   entrando. @see ATUALIZACAO_STATS em backend/atualizacoes.php */
+const STATS_ANTES_JS = { stl_pg: 'ROU', blk_pg: 'TOC' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -554,6 +557,7 @@ function importarEstatisticasCSV(file) {
     if (idxId === -1) { msg($('msgImportEstatisticas'), 'err', 'O CSV precisa ter uma coluna "id" — baixe o modelo e não apague essa coluna.'); return; }
     const labelParaChave = {};
     Object.entries(STATS_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
+    Object.entries(STATS_ANTES_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
     // Os tetos do servidor (ATUALIZACAO_STATS). Fora da faixa é recusado, não
     // cortado: cortar 50 assistências em 25 só troca um número errado por outro.
     const limites = { games: [0, 120], min_pg: [0, 48], pts_pg: [0, 60], reb_pg: [0, 30], ast_pg: [0, 25], stl_pg: [0, 5], blk_pg: [0, 6], fg_pct: [0, 100] };

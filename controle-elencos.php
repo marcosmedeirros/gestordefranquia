@@ -294,7 +294,7 @@ const ROTULO = { stats: 'Estatísticas', letras: 'Letras', posicoes: 'Posições
 function colunas() {
   if (tipo === 'letras')   return Object.entries(SKILLS).map(([c, rot]) => ({ c, rot }));
   if (tipo === 'posicoes') return Object.entries(POSICOES).map(([c, rot]) => ({ c, rot }));
-  return Object.entries(STATS).map(([c, o]) => ({ c, rot: o.rot, max: o.max }));
+  return Object.entries(STATS).map(([c, o]) => ({ c, rot: o.rot, antes: o.antes, max: o.max }));
 }
 
 function lembrarNaUrl() {
@@ -562,7 +562,16 @@ function importar(texto) {
   if (iId < 0) { aviso('err', 'Falta a coluna <b>id</b>. Baixe o modelo desta tela e não apague essa coluna.'); return; }
 
   const cols = colunas();
-  const indice = cols.map(col => ({ ...col, i: cab.indexOf(col.rot.toLowerCase()) })).filter(col => col.i >= 0);
+  /* O CABEÇALHO VELHO AINDA ABRE A PORTA. Quando ROU e TOC viraram STL e
+     BLK, as planilhas já preenchidas continuaram existindo — e como este
+     casamento é por NOME, a coluna antiga deixaria de ser achada e o import
+     seguiria em frente sem ela, em silêncio. @see ATUALIZACAO_STATS.antes */
+  const acharCol = (cab, col) => {
+    let i = cab.indexOf(String(col.rot).toLowerCase());
+    if (i < 0 && col.antes) i = cab.indexOf(String(col.antes).toLowerCase());
+    return i;
+  };
+  const indice = cols.map(col => ({ ...col, i: acharCol(cab, col) })).filter(col => col.i >= 0);
   if (!indice.length) {
     aviso('err', `Não achei nenhuma coluna de ${tipo === 'letras' ? 'letras' : 'estatística'}. `
       + `Confira se o arquivo é de <b>${ROTULO[tipo]}</b> — o seletor no topo decide o tipo.`);

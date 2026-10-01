@@ -94,12 +94,13 @@
   function promptStats(modelo, o = {}) {
     return 'Preencha este CSV com estatísticas (médias por jogo) de jogadores de basquete a partir da imagem que vou anexar.\n\n' +
       'O print mostra a tela "Per Game" do jogo. As colunas do CSV correspondem assim:\n' +
-      'Jogos = GP · MIN = MIN · PTS = PTS · REB = REB · AST = AST · ROU = STL (roubadas) · TOC = BLK (tocos) · FG% = FG%.\n' +
+      'Jogos = GP · MIN = MIN · PTS = PTS · REB = REB · AST = AST · STL = STL (roubadas) · BLK = BLK (tocos) · FG% = FG%.\n' +
       'FG% é o aproveitamento de arremessos: copie como aparece (.573) — o site converte pra 57,3%.\n\n' +
-      // TO e TOC são quase a mesma sigla, e a IA pega a coluna errada sozinha:
-      // é assim que armador aparece com 8,8 tocos. Dizer só "TOC = tocos" já
-      // se mostrou insuficiente.
-      'ATENÇÃO: a coluna TOC vem de BLK, NUNCA da coluna TO. No print, TO é turnover ' +
+      // TO e BLK ficam lado a lado no print, e a IA pega a coluna errada
+      // sozinha: é assim que armador aparece com 8,8 tocos. O aviso fica
+      // mesmo agora que o rótulo é BLK — a troca de coluna é por vizinhança,
+      // não só por sigla parecida.
+      'ATENÇÃO: a coluna BLK é a dos tocos, NUNCA a coluna TO. No print, TO é turnover ' +
       '(bolas perdidas) e NÃO entra em lugar nenhum. Ignore TO, GS, FLS, 3P% e FT%.\n\n' +
       NAO_MEXA(o.comTime) + '\n' + PEDE_ARQUIVO + '--- MODELO ---\n' + modelo;
   }

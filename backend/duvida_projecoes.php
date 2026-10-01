@@ -532,7 +532,7 @@ function projJogadorTexto(PDO $pdo, string $textoJogador, string $ligaGrupo): st
     $ajIdade = $calc['ajIdade'];
     $idade = (int)$j['age'];
 
-    $cols = ['min_pg' => 'MIN', 'pts_pg' => 'PTS', 'reb_pg' => 'REB', 'ast_pg' => 'AST', 'stl_pg' => 'ROU', 'blk_pg' => 'TOC'];
+    $cols = ['min_pg' => 'MIN', 'pts_pg' => 'PTS', 'reb_pg' => 'REB', 'ast_pg' => 'AST', 'stl_pg' => 'STL', 'blk_pg' => 'BLK'];
     $linhas = [];
     foreach ($cols as $c => $rot) {
         $proj = $calc['proj'][$c];
