@@ -668,7 +668,8 @@ function futCarreiraJogarProxima(array $estado): array
     $esquema = $estado['esquema'] ?? '4-4-2';
 
     $meus = futCarreiraEscalacaoAtual($estado);
-    $forcaMeu = futForcaEscalada($meus, $esquema);
+    $treino = futCarreiraTreino($estado);
+    $forcaMeu = futForcaEscalada($meus, $esquema) + futTreinoBonusForca($treino['foco']);
 
     // O adversário escala sozinho, no esquema que o catálogo dele pedir.
     $advClube = $clubes[$j['adversario']] ?? ['nome' => $j['adversario'], 'forca' => 50, 'div' => '', 'uf' => ''];
@@ -691,7 +692,7 @@ function futCarreiraJogarProxima(array $estado): array
     $estado['stats'] = futZerarAmarelos($estado['stats']);
 
     // ── E o que ela custou: cansaço, moral e lesão ───────────────────
-    $desg = futAplicarDesgaste($estado['elenco'], $meus, $p['meus'], $p['deles']);
+    $desg = futAplicarDesgaste($estado['elenco'], $meus, $p['meus'], $p['deles'], [], $treino['foco']);
     $estado['elenco'] = $desg['elenco'];
     $avisosDaPartida = $desg['noticias'];
 
@@ -833,7 +834,8 @@ function futCarreiraAoVivoAvancar(array $estado, int $ate): array
 
     $esquema = $estado['esquema'] ?? '4-4-2';
     $meus = futCarreiraEscalacaoAtual($estado);
-    $forcaMeu = futForcaEscalada($meus, $esquema);
+    $forcaMeu = futForcaEscalada($meus, $esquema)
+              + futTreinoBonusForca(futCarreiraTreino($estado)['foco']);
     $adv = futAoVivoAdversario($estado, (string)$v['adversario'], (int)$v['indice']);
 
     /* A SÚMULA ATRAVESSA OS PEDAÇOS. Quem já levou amarelo hoje leva o
@@ -1169,7 +1171,8 @@ function futCarreiraAoVivoFechar(array $estado): array
        quem jogou os 90 — e é a mesma conta que a prancheta mostrou durante
        a partida. */
     $desg = futAplicarDesgaste($estado['elenco'], $participaram, $p['meus'], $p['deles'],
-                               futCarreiraAoVivoMinutos($estado));
+                               futCarreiraAoVivoMinutos($estado),
+                               futCarreiraTreino($estado)['foco']);
     $estado['elenco'] = $desg['elenco'];
     $avisos = $desg['noticias'];
 
@@ -1801,6 +1804,69 @@ function futCarreiraMinhaPosicao(array $estado): ?int
 }
 
 /**
+ * O FOCO DO TREINO que está valendo (e os destaques vivos).
+ *
+ * Os destaques são conferidos na LEITURA e não só na gravação: o menino pode
+ * ter sido vendido, emprestado ou feito aniversário desde que foi marcado, e
+ * um destaque que não está mais no elenco evoluindo no fim do ano seria
+ * evolução de fantasma.
+ */
+function futCarreiraTreino(array $estado): array
+{
+    $t = $estado['treino'] ?? [];
+    $foco = in_array($t['foco'] ?? '', FUT_TREINO_FOCOS, true) ? $t['foco'] : 'equilibrado';
+
+    $porNome = [];
+    foreach ($estado['elenco'] ?? [] as $j) $porNome[$j['nome']] = $j;
+
+    /* SEM O FOCO EM FORMAÇÃO, destaque não colhe. Os nomes ficam gravados —
+       voltar pro foco reativa a lista —, mas se evoluíssem com qualquer foco,
+       "formação" não escolheria nada e viraria enfeite no menu. */
+    $destaques = [];
+    if ($foco === 'formacao') {
+        foreach ((array)($t['destaques'] ?? []) as $nome) {
+            $j = $porNome[$nome] ?? null;
+            if (!$j || (int)$j['idade'] > FUT_TREINO_DESTAQUE_IDADE) continue;
+            $destaques[] = $nome;
+            if (count($destaques) >= FUT_TREINO_DESTAQUES_MAX) break;
+        }
+    }
+    return ['foco' => $foco, 'destaques' => $destaques];
+}
+
+/**
+ * MUDA O TREINO. Recusa o que a tela nem deveria oferecer — foco inventado,
+ * destaque que não é do elenco, veterano — porque o POST não é a tela.
+ *
+ * @return array ['ok'=>bool,'erro'=>string,'estado'=>array]
+ */
+function futCarreiraDefinirTreino(array $estado, string $foco, array $destaques): array
+{
+    $falha = fn(string $e) => ['ok' => false, 'erro' => $e, 'estado' => $estado];
+    if (!in_array($foco, FUT_TREINO_FOCOS, true)) return $falha('Esse foco de treino não existe.');
+
+    $porNome = [];
+    foreach ($estado['elenco'] ?? [] as $j) $porNome[$j['nome']] = $j;
+
+    $limpos = [];
+    foreach ($destaques as $nome) {
+        $nome = trim((string)$nome);
+        if ($nome === '' || isset($limpos[$nome])) continue;
+        $j = $porNome[$nome] ?? null;
+        if (!$j) return $falha($nome . ' não está no seu elenco.');
+        if ((int)$j['idade'] > FUT_TREINO_DESTAQUE_IDADE) {
+            return $falha($nome . ' já tem ' . (int)$j['idade'] . ' anos — destaque do treino é pra quem tem até '
+                        . FUT_TREINO_DESTAQUE_IDADE . '.');
+        }
+        $limpos[$nome] = true;
+        if (count($limpos) >= FUT_TREINO_DESTAQUES_MAX) break;
+    }
+
+    $estado['treino'] = ['foco' => $foco, 'destaques' => array_keys($limpos)];
+    return ['ok' => true, 'erro' => '', 'estado' => $estado];
+}
+
+/**
  * COMO ACABOU CADA COMPETIÇÃO DO ANO.
  *
  * O histórico guardava só a liga nacional. Só que o ano tem cinco ou seis
@@ -2034,7 +2100,11 @@ function futCarreiraFecharTemporada(array $estado): array
 
     // ── O ELENCO ATRAVESSA O ANO: evolui, envelhece, aposenta, renova ──
     $forcaCat = (int)($clubes[$estado['clube']]['forca'] ?? 50);
-    $ano = futPassarAnoNoElenco($estado['elenco'], $statsDoAno, $estado['clube'], $forcaCat, (int)$estado['ano']);
+    /* Os destaques do treino colhem aqui: o ano inteiro de trabalho em cima
+       deles vira o degrau a mais da evolução. A lista sai de futCarreiraTreino,
+       que já descartou quem foi vendido ou envelheceu no meio do caminho. */
+    $ano = futPassarAnoNoElenco($estado['elenco'], $statsDoAno, $estado['clube'], $forcaCat, (int)$estado['ano'],
+                                futCarreiraTreino($estado)['destaques']);
     $estado['elenco'] = futDescansoDeFimDeAno($ano['elenco']);
     $estado['escalacao'] = [];   // o elenco mudou; reescala na pré-temporada
 

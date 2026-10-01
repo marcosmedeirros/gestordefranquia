@@ -803,6 +803,101 @@ ok('o ano guarda as competições e as taças',
    count($ultimoT['competicoes'] ?? []) === count($fechoT)
    && in_array('Copa do Brasil ' . $anoT, $ultimoT['titulos'] ?? [], true));
 // ═════════════════════════════════════════════════════════════════════
+secao('O treino da semana');
+
+/* O contrato do treino é a contrapartida: todo foco que dá, cobra. Estes
+   testes garantem as três pontas do triângulo — e que o jogo de quem ignora
+   o treino continua exatamente o jogo de antes. */
+
+ok('equilibrado não mexe na força', futTreinoBonusForca('equilibrado') === 0);
+ok('intensidade dá +1 de força', futTreinoBonusForca('intensidade') === 1);
+ok('recuperação tira 1 de força', futTreinoBonusForca('recuperacao') === -1);
+ok('formação não mexe na força', futTreinoBonusForca('formacao') === 0);
+
+$elencoTr = [
+    ['nome' => 'Joga 90', 'pos' => 'ATA', 'ovr' => 70, 'idade' => 25, 'energia' => 80, 'moral' => 70, 'lesao' => 0],
+    ['nome' => 'Descansa', 'pos' => 'MEI', 'ovr' => 70, 'idade' => 25, 'energia' => 60, 'moral' => 70, 'lesao' => 0],
+];
+$escTr = [$elencoTr[0]];
+
+$dEq = futAplicarDesgaste($elencoTr, $escTr, 1, 0, [], 'equilibrado');
+$dIn = futAplicarDesgaste($elencoTr, $escTr, 1, 0, [], 'intensidade');
+$dRe = futAplicarDesgaste($elencoTr, $escTr, 1, 0, [], 'recuperacao');
+$en = function (array $d, string $nome): int {
+    foreach ($d['elenco'] as $j) if ($j['nome'] === $nome) return (int)$j['energia'];
+    return -1;
+};
+
+ok('equilibrado cobra os 17 de sempre',
+   $en($dEq, 'Joga 90') === 80 - FUT_ENERGIA_POR_JOGO, 'ficou com ' . $en($dEq, 'Joga 90'));
+ok('intensidade cobra 20 pelos 90 minutos',
+   $en($dIn, 'Joga 90') === 80 - FUT_TREINO_DESGASTE_INTENSO, 'ficou com ' . $en($dIn, 'Joga 90'));
+ok('recuperação não muda o custo de quem jogou',
+   $en($dRe, 'Joga 90') === 80 - FUT_ENERGIA_POR_JOGO);
+ok('recuperação descansa mais quem não jogou',
+   $en($dRe, 'Descansa') === min(100, 60 + FUT_ENERGIA_DESCANSO + FUT_TREINO_DESCANSO_EXTRA),
+   'ficou com ' . $en($dRe, 'Descansa'));
+ok('sem recuperação o descanso é o de sempre',
+   $en($dEq, 'Descansa') === min(100, 60 + FUT_ENERGIA_DESCANSO));
+
+/* A intensidade escala por minuto como o desgaste normal: quem entrou aos
+   80 não paga o jogo inteiro nem no treino pesado. */
+$dMin = futAplicarDesgaste($elencoTr, $escTr, 1, 0, ['Joga 90' => 10], 'intensidade');
+$custoDez = 80 - $en($dMin, 'Joga 90');
+ok('intensidade também cobra por minuto', $custoDez >= 1 && $custoDez <= 4, 'custou ' . $custoDez);
+
+/* ── O setter recusa o que a tela não deveria oferecer ───────────── */
+$estTr = ['elenco' => [
+    ['nome' => 'Menino A', 'pos' => 'ATA', 'ovr' => 62, 'idade' => 18, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+    ['nome' => 'Menino B', 'pos' => 'MEI', 'ovr' => 64, 'idade' => 21, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+    ['nome' => 'Veterano', 'pos' => 'ZAG', 'ovr' => 74, 'idade' => 30, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+]];
+
+$rTr = futCarreiraDefinirTreino($estTr, 'formacao', ['Menino A', 'Menino B']);
+ok('marcar dois meninos dá certo', $rTr['ok'], $rTr['erro']);
+ok('os dois ficam gravados', ($rTr['estado']['treino']['destaques'] ?? []) === ['Menino A', 'Menino B']);
+
+ok('foco inventado é recusado', !futCarreiraDefinirTreino($estTr, 'pesado', [])['ok']);
+ok('destaque de fora do elenco é recusado',
+   !futCarreiraDefinirTreino($estTr, 'formacao', ['Ninguém'])['ok']);
+ok('veterano não vira destaque',
+   !futCarreiraDefinirTreino($estTr, 'formacao', ['Veterano'])['ok']);
+
+/* A leitura só devolve destaque com o foco em formação — senão "formação"
+   não escolheria nada e viraria enfeite no menu. */
+$lido = futCarreiraTreino($rTr['estado']);
+ok('com formação, os destaques valem', $lido['destaques'] === ['Menino A', 'Menino B']);
+$rSai = futCarreiraDefinirTreino($rTr['estado'], 'intensidade', ['Menino A', 'Menino B']);
+ok('fora da formação, destaque não colhe',
+   futCarreiraTreino($rSai['estado'])['destaques'] === []);
+$semTreino = futCarreiraTreino(['elenco' => []]);
+ok('sem treino gravado, o padrão é equilibrado', $semTreino['foco'] === 'equilibrado');
+
+/* ── O destaque evolui a mais no fim do ano ──────────────────────────
+   Mesmo jogador, mesmo ano, com e sem a marca: a diferença tem que aparecer
+   na média de muitas viradas — um ano só é sorteio. */
+$somaCom = 0; $somaSem = 0; $n = 60;
+for ($i = 0; $i < $n; $i++) {
+    mt_srand(1000 + $i);
+    $jov = ['nome' => 'Menino ' . $i, 'pos' => 'MEI', 'ovr' => 60, 'idade' => 18,
+            'energia' => 100, 'moral' => 70, 'lesao' => 0];
+    $somaCom += (int)futEvoluirJogador($jov, [], true)['ovr'];
+    mt_srand(1000 + $i);
+    $somaSem += (int)futEvoluirJogador($jov, [], false)['ovr'];
+}
+$ganho = ($somaCom - $somaSem) / $n;
+ok('o destaque cresce mais que o irmão gêmeo', $ganho > 0.5 && $ganho <= 1.2,
+   sprintf('+%.2f de diferença média', $ganho));
+
+/* O veterano marcado por engano não ganha nada: o degrau é de formação. */
+mt_srand(7);
+$velhoCom = futEvoluirJogador(['nome' => 'V', 'pos' => 'ZAG', 'ovr' => 74, 'idade' => 30,
+                               'energia' => 100, 'moral' => 70, 'lesao' => 0], [], true);
+mt_srand(7);
+$velhoSem = futEvoluirJogador(['nome' => 'V', 'pos' => 'ZAG', 'ovr' => 74, 'idade' => 30,
+                               'energia' => 100, 'moral' => 70, 'lesao' => 0], [], false);
+ok('destaque não rejuvenesce veterano', $velhoCom['ovr'] === $velhoSem['ovr']);
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);

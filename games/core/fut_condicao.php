@@ -38,6 +38,39 @@ const FUT_MORAL_NORMAL = 75;
 const FUT_MORAL_VOLTA = 0.25;
 const FUT_MORAL_MINIMA = 20;
 
+/**
+ * ── O TREINO DA SEMANA ───────────────────────────────────────────────
+ *
+ * Entre uma partida e outra o técnico não tinha decisão nenhuma além da
+ * escalação. O treino é a decisão que faltava, e cada foco é um acordo com
+ * contrapartida — sem contrapartida seria só um botão de bônus, e botão de
+ * bônus todo mundo deixa ligado e esquece:
+ *
+ *   equilibrado  o jogo de sempre. É o padrão: quem ignora o treino joga
+ *                exatamente o jogo que jogava antes de ele existir.
+ *   recuperacao  o elenco descansa mais (+6 por rodada), mas entra em campo
+ *                menos afiado (-1 de força). É o foco de calendário cheio.
+ *   intensidade  +1 de força em campo, mas a partida desgasta mais (20 em
+ *                vez de 17 pelos 90 minutos). O foco de decisão — e quem o
+ *                deixa ligado a temporada inteira mói o próprio elenco.
+ *   formacao     sem efeito no jogo de hoje: até dois meninos de 22 ou menos
+ *                viram "destaques do treino" e evoluem a mais no fim do ano.
+ *                É plantar em vez de colher.
+ */
+const FUT_TREINO_FOCOS = ['equilibrado', 'recuperacao', 'intensidade', 'formacao'];
+const FUT_TREINO_DESCANSO_EXTRA = 6;
+const FUT_TREINO_DESGASTE_INTENSO = 20;   // o jogo inteiro custa isto, não 17
+const FUT_TREINO_DESTAQUES_MAX = 2;
+const FUT_TREINO_DESTAQUE_IDADE = 22;     // com quantos anos ainda se é "menino"
+
+/** O quanto o foco atual soma (ou tira) da força em campo. */
+function futTreinoBonusForca(string $foco): int
+{
+    if ($foco === 'intensidade') return 1;
+    if ($foco === 'recuperacao') return -1;
+    return 0;
+}
+
 /** A faixa de energia em que o jogador rende 100%. */
 const FUT_ENERGIA_PLENA = 80;
 
@@ -108,7 +141,7 @@ function futIndisponiveis(array $elenco, array $suspensos = []): array
  * @return array ['elenco'=>array, 'noticias'=>array]
  */
 function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $golsContra,
-                            array $minutos = []): array
+                            array $minutos = [], string $treino = ''): array
 {
     $jogaram = [];
     foreach ($escalados as $j) $jogaram[$j['nome']] = true;
@@ -140,7 +173,13 @@ function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $
                partida simulada de uma vez, onde não existe substituição. O
                ao vivo manda os minutos de verdade. */
             $min = isset($minutos[$nome]) ? (int)$minutos[$nome] : 90;
-            $j['energia'] = max(FUT_ENERGIA_MINIMA, $j['energia'] - futDesgasteDeMinutos($min));
+            $custo = futDesgasteDeMinutos($min);
+            /* O treino intenso cobra na mesma moeda: a MESMA proporção por
+               minuto, só que partindo de 20 e não de 17. */
+            if ($treino === 'intensidade') {
+                $custo = (int)ceil($custo * FUT_TREINO_DESGASTE_INTENSO / FUT_ENERGIA_POR_JOGO);
+            }
+            $j['energia'] = max(FUT_ENERGIA_MINIMA, $j['energia'] - $custo);
 
             // ── A lesão acontece pra quem está em campo ──────────────
             if ((mt_rand(0, 1000) / 10) < FUT_CHANCE_LESAO) {
@@ -154,7 +193,9 @@ function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $
                 $noticias[] = sprintf('%s se machucou e fica fora por %d jogo(s).', $nome, $j['lesao']);
             }
         } else {
-            $j['energia'] = min(100, $j['energia'] + FUT_ENERGIA_DESCANSO);
+            $descanso = FUT_ENERGIA_DESCANSO
+                      + ($treino === 'recuperacao' ? FUT_TREINO_DESCANSO_EXTRA : 0);
+            $j['energia'] = min(100, $j['energia'] + $descanso);
         }
 
         $j['moral'] += $porResultado;

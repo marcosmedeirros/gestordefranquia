@@ -83,7 +83,7 @@ function futPotencialDe(array $j): int
  *
  * @param array $stats estatística da temporada do jogador (pode vir vazia)
  */
-function futEvoluirJogador(array $j, array $stats = []): array
+function futEvoluirJogador(array $j, array $stats = [], bool $destaqueDoTreino = false): array
 {
     $idadeAntes = (int)$j['idade'];
     $idadeDepois = $idadeAntes + 1;
@@ -105,6 +105,15 @@ function futEvoluirJogador(array $j, array $stats = []): array
            pronto aos 18 — o que apaga justamente a espera que torna a base
            interessante. */
         $delta += min(6, max(1, (int)round($espaco * 0.25)));
+    }
+
+    /* ── 2,5. O TREINO EM CIMA DELE ──────────────────────────────────
+       O destaque do treino ganha um degrau a mais — mas só quem ainda tem
+       espaço pra crescer e idade de formação. Marcar um veterano de 30 não
+       faz nada, e a tela nem deixa. O teto do potencial segue valendo:
+       treino acelera a chegada, não muda o destino. */
+    if ($destaqueDoTreino && $espaco > 0 && $idadeDepois <= FUT_TREINO_DESTAQUE_IDADE + 1) {
+        $delta += 1;
     }
 
     // ── 3. A temporada que ele fez ───────────────────────────────────
@@ -196,7 +205,8 @@ function futJogadorDaBase(string $clube, int $forcaClube, int $ano, int $indice)
  *
  * @return array ['elenco'=>array, 'aposentados'=>array, 'novos'=>array, 'evolucao'=>array]
  */
-function futPassarAnoNoElenco(array $elenco, array $stats, string $clube, int $forcaClube, int $ano): array
+function futPassarAnoNoElenco(array $elenco, array $stats, string $clube, int $forcaClube, int $ano,
+                              array $destaquesDoTreino = []): array
 {
     $novoElenco = [];
     $aposentados = [];
@@ -204,7 +214,8 @@ function futPassarAnoNoElenco(array $elenco, array $stats, string $clube, int $f
 
     foreach ($elenco as $j) {
         $antes = (int)$j['ovr'];
-        $j = futEvoluirJogador($j, $stats[$j['nome']] ?? []);
+        $j = futEvoluirJogador($j, $stats[$j['nome']] ?? [],
+                               in_array($j['nome'], $destaquesDoTreino, true));
 
         if (futVaiAposentar($j)) {
             $aposentados[] = $j;

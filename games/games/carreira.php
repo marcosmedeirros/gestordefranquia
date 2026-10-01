@@ -293,6 +293,15 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             else $erro = $r['motivo'];
         }
 
+        elseif ($estado && $acao === 'treino') {
+            $r = futCarreiraDefinirTreino($estado, (string)($_POST['foco'] ?? ''),
+                                          array_filter([(string)($_POST['destaque1'] ?? ''),
+                                                        (string)($_POST['destaque2'] ?? '')]));
+            $estado = $r['estado'];
+            if ($r['ok']) { $aviso = 'Treino da semana ajustado.'; futCarreiraSalvar($pdo, $idUsuario, $estado); }
+            else $erro = $r['erro'];
+        }
+
         elseif ($acao === 'recomecar') {
             futCarreiraApagar($pdo, $idUsuario);
             $estado = null;
@@ -1339,6 +1348,21 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .proposta{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--borda)}
 .proposta:last-of-type{border-bottom:0}
 .noticia{font-size:12.5px;color:var(--txt2);padding:3px 0;line-height:1.45}
+
+/* ── O treino da semana ───────────────────────────────────────────── */
+.treino-focos{display:flex;flex-wrap:wrap;gap:6px}
+.treino-focos label{cursor:pointer}
+.treino-focos input{position:absolute;opacity:0;pointer-events:none}
+.treino-chip{display:inline-block;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;
+  border:1px solid var(--borda);color:var(--txt2);background:rgba(255,255,255,.03);transition:.15s}
+.treino-focos input:checked+.treino-chip{border-color:var(--acento);color:var(--acento);
+  background:color-mix(in srgb, var(--acento) 12%, transparent)}
+.treino-focos input:focus-visible+.treino-chip{outline:2px solid var(--acento);outline-offset:2px}
+.treino-dica{font-size:12px;color:var(--txt2);line-height:1.45;margin:8px 0 0;min-height:34px}
+.treino-jovens{display:none;margin-top:8px;gap:6px;flex-direction:column}
+.treino-jovens.on{display:flex}
+.treino-jovens select{width:100%;padding:7px 9px;border-radius:9px;border:1px solid var(--borda);
+  background:var(--painel2, rgba(255,255,255,.04));color:var(--txt);font-size:12.5px}
 
 /* ── Banco e escalação interativa ───────────────────── */
 .dica-drag{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;margin-bottom:10px;
@@ -3143,6 +3167,74 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <?php endforeach; ?>
         </div>
       </div>
+
+      <?php
+        /* O TREINO DA SEMANA. A única decisão entre uma partida e outra era a
+           escalação; o treino é a segunda. Cada foco tem contrapartida — o
+           texto de cada um está no motor, em fut_condicao.php. */
+        $treinoAtual = futCarreiraTreino($estado);
+        $marcados = (array)($estado['treino']['destaques'] ?? []);
+        $jovens = array_values(array_filter($estado['elenco'] ?? [],
+                    fn($j) => (int)$j['idade'] <= FUT_TREINO_DESTAQUE_IDADE));
+        usort($jovens, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
+        $dicasTreino = [
+          'equilibrado' => 'O treino de sempre. Nenhum bônus, nenhum custo.',
+          'recuperacao' => 'O elenco descansa mais entre as rodadas (+' . FUT_TREINO_DESCANSO_EXTRA
+                         . ' de energia), mas entra em campo menos afiado (−1 de força).',
+          'intensidade' => '+1 de força em campo, mas a partida desgasta mais ('
+                         . FUT_TREINO_DESGASTE_INTENSO . ' em vez de ' . FUT_ENERGIA_POR_JOGO
+                         . ' pelos 90 minutos). Pra decisão, não pra temporada inteira.',
+          'formacao'    => 'Sem efeito no jogo de hoje: até ' . FUT_TREINO_DESTAQUES_MAX
+                         . ' jogadores de ' . FUT_TREINO_DESTAQUE_IDADE
+                         . ' anos ou menos viram destaques e evoluem a mais no fim do ano.',
+        ];
+      ?>
+      <div class="bloco">
+        <h3><i class="bi bi-cone-striped"></i> Treino da semana</h3>
+        <form method="post" id="form-treino">
+          <input type="hidden" name="acao" value="treino">
+          <div class="treino-focos">
+            <?php foreach (['equilibrado' => 'Equilibrado', 'recuperacao' => 'Recuperação',
+                            'intensidade' => 'Intensidade', 'formacao' => 'Formação'] as $k => $rot): ?>
+              <label>
+                <input type="radio" name="foco" value="<?= $k ?>" <?= $treinoAtual['foco'] === $k ? 'checked' : '' ?>>
+                <span class="treino-chip"><?= $rot ?></span>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <p class="treino-dica" id="treino-dica"><?= h($dicasTreino[$treinoAtual['foco']]) ?></p>
+          <div class="treino-jovens <?= $treinoAtual['foco'] === 'formacao' ? 'on' : '' ?>" id="treino-jovens">
+            <?php for ($d = 1; $d <= FUT_TREINO_DESTAQUES_MAX; $d++): ?>
+              <select name="destaque<?= $d ?>">
+                <option value="">— destaque <?= $d ?> —</option>
+                <?php foreach ($jovens as $j): ?>
+                  <option value="<?= h($j['nome']) ?>" <?= ($marcados[$d - 1] ?? '') === $j['nome'] ? 'selected' : '' ?>>
+                    <?= h($j['nome']) ?> · <?= h($j['pos']) ?> · <?= (int)$j['ovr'] ?> OVR · <?= (int)$j['idade'] ?> anos
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            <?php endfor; ?>
+            <?php if (!$jovens): ?>
+              <div style="color:var(--txt3);font-size:12px">Ninguém com até <?= FUT_TREINO_DESTAQUE_IDADE ?> anos no elenco.</div>
+            <?php endif; ?>
+          </div>
+          <button class="btn sec peq" type="submit" style="margin-top:10px">
+            <i class="bi bi-check2"></i> Aplicar treino
+          </button>
+        </form>
+      </div>
+      <script>
+        (function () {
+          var form = document.getElementById('form-treino');
+          if (!form) return;
+          var dicas = <?= json_encode($dicasTreino, JSON_UNESCAPED_UNICODE) ?>;
+          form.addEventListener('change', function (e) {
+            if (e.target.name !== 'foco') return;
+            document.getElementById('treino-dica').textContent = dicas[e.target.value] || '';
+            document.getElementById('treino-jovens').classList.toggle('on', e.target.value === 'formacao');
+          });
+        })();
+      </script>
 
       <?php if ($ultimos): ?>
         <div class="bloco">
