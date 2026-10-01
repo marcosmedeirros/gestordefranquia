@@ -12325,7 +12325,8 @@ function _draftClassImportModal() {
           <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">Nome da classe</label>
           <input type="text" id="_dcImportName" class="form-control" placeholder="Ex: Draft 2040">
         </div>
-        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+        ${_dcTextoDoModelo()}
+        <div style="margin-bottom:10px">${_dcBotaoDoModelo()}</div>
         <div id="_dcImportDropzone"
           style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:12px"
           onclick="document.getElementById('_dcImportFile').click()"
@@ -12351,9 +12352,22 @@ function _draftClassImportModal() {
   document.body.appendChild(modal);
 }
 
+/**
+ * SUBSTITUIR TUDO — e o aviso diz EM QUAL classe.
+ *
+ * Ele dizia só "apagará todos os jogadores da classe": qual classe, o modal
+ * não falava. Quem clicou em Editar na linha de cima por engano via o mesmo
+ * aviso que veria na linha certa, confirmava, e a classe errada era
+ * substituída sem nada na tela desmentindo. Foi assim que a classe de 1985
+ * recebeu o arquivo de 1986 e perdeu o que tinha — não há como desfazer um
+ * substituir, então o único lugar onde isso se evita é aqui, antes.
+ */
 function _draftClassReplaceCSVModal(templateId) {
   _dcImportRows = [];
   _dcEditTemplateId = templateId;
+  // O nome e o tamanho vêm da tela de edição, que é de onde este modal abre.
+  const _dcNome = (document.getElementById('_dcNameInput')?.value || '').trim();
+  const _dcQuantos = _dcEditPlayers.length;
   const existing = document.getElementById('_dcReplaceModal');
   if (existing) existing.remove();
 
@@ -12367,7 +12381,10 @@ function _draftClassReplaceCSVModal(templateId) {
         <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_dcReplaceModal').remove()"><i class="bi bi-x-lg"></i></button>
       </div>
       <div style="padding:16px 18px">
-        <div class="alert alert-warning mb-3" style="font-size:12px"><i class="bi bi-exclamation-triangle me-1"></i>Isso <strong>apagará todos os jogadores</strong> da classe e substituirá pelo CSV.</div>
+        <div class="alert alert-warning mb-3" style="font-size:12px"><i class="bi bi-exclamation-triangle me-1"></i>
+          Isso <strong>apaga ${_dcQuantos ? 'os ' + _dcQuantos + ' jogadores' : 'todos os jogadores'}</strong> da classe
+          ${_dcNome ? '<strong style="color:var(--text)">' + escapeHtml(_dcNome) + '</strong>' : 'selecionada'}
+          e põe no lugar os do CSV. Não dá pra desfazer.</div>
         ${_dcTextoDoModelo()}
         <div style="margin-bottom:10px">${_dcBotaoDoModelo()}</div>
         <div id="_dcReplaceDropzone"
