@@ -998,6 +998,125 @@ $e8 = futCarreiraImprensa($cheio, $resGol);
 ok('o mural guarda no máximo 12', count($e8['imprensa']) === 12);
 ok('a manchete nova entra na frente', $e8['imprensa'][0]['texto'] !== 'velha');
 // ═════════════════════════════════════════════════════════════════════
+secao('Propostas pelos seus jogadores');
+
+/* Um elenco de 18 (acima do mínimo) com um craque no meio, pra os sorteios
+   terem de onde escolher sem esbarrar na trava do tamanho. */
+$elencoOf = [];
+for ($i = 0; $i < 18; $i++) {
+    $elencoOf[] = ['nome' => 'Jogador ' . $i, 'pos' => 'MEI', 'ovr' => 68, 'idade' => 24,
+                   'energia' => 100, 'moral' => 75, 'lesao' => 0];
+}
+$elencoOf[0] = ['nome' => 'Craque', 'pos' => 'ATA', 'ovr' => 84, 'idade' => 25,
+                'energia' => 100, 'moral' => 75, 'lesao' => 0];
+
+$baseOf = ['clube' => 'Flamengo', 'fase' => 'temporada', 'rodada' => 10, 'caixa' => 50.0,
+           'elenco' => $elencoOf, 'stats' => [], 'ofertas' => [], 'mensagens' => [],
+           'resultados' => [], 'imprensa' => [], 'entradas' => [], 'saidas' => [], 'escalacao' => []];
+
+/* ── O craque atrai mais que o mediano ────────────────────────────── */
+$pesoCraque = futOfertaPeso($elencoOf[0], []);
+$pesoComum  = futOfertaPeso($elencoOf[1], []);
+ok('o craque atrai muito mais olhares', $pesoCraque > $pesoComum * 4,
+   $pesoCraque . ' contra ' . $pesoComum);
+
+$emFase = futOfertaPeso($elencoOf[1], ['Jogador 1' => ['jogos' => 10, 'soma_notas' => 75.0]]);
+ok('quem está em boa fase atrai mais', $emFase > $pesoComum, $emFase . ' contra ' . $pesoComum);
+
+/* ── A proposta nasce com prazo e com um comprador que cabe ───────── */
+$achou = null;
+for ($i = 0; $i < 400 && !$achou; $i++) {
+    $r = futOfertasGerar($baseOf);
+    if (!empty($r['ofertas'])) $achou = $r;
+}
+ok('alguém acaba batendo na porta', $achou !== null);
+if ($achou) {
+    $of = $achou['ofertas'][0];
+    ok('a proposta tem prazo de rodada',
+       (int)$of['expira'] === 10 + FUT_OFERTA_VALIDADE, 'expira em ' . $of['expira']);
+    ok('o alvo é do elenco',
+       in_array($of['jogador'], array_column($elencoOf, 'nome'), true), $of['jogador']);
+    ok('o comprador não é o próprio clube', $of['clube'] !== 'Flamengo');
+    ok('o valor fica perto do de mercado',
+       $of['valor'] >= $of['mercado'] * 0.8 && $of['valor'] <= $of['mercado'] * 1.5,
+       sprintf('%.2f por %.2f de mercado', $of['valor'], $of['mercado']));
+    ok('a proposta vira recado', (bool)preg_grep('/ofereceu/u', $achou['mensagens']));
+}
+
+/* ── Fora da temporada ninguém liga ───────────────────────────────── */
+$noMercado = $baseOf; $noMercado['fase'] = 'mercado';
+$quieto = true;
+for ($i = 0; $i < 200; $i++) if (futOfertasGerar($noMercado)['ofertas']) { $quieto = false; break; }
+ok('na fase de mercado não chega proposta', $quieto);
+
+/* ── O teto de propostas na mesa ──────────────────────────────────── */
+$cheio = $baseOf;
+$cheio['ofertas'] = array_fill(0, FUT_OFERTAS_MAX,
+    ['clube' => 'X', 'jogador' => 'Y', 'pos' => 'MEI', 'ovr' => 70,
+     'valor' => 1.0, 'mercado' => 1.0, 'expira' => 99]);
+ok('com a mesa cheia, ninguém mais liga',
+   count(futOfertasGerar($cheio)['ofertas']) === FUT_OFERTAS_MAX);
+
+/* ── O prazo vence ────────────────────────────────────────────────── */
+$vencendo = $baseOf;
+$vencendo['ofertas'] = [['clube' => 'Palmeiras', 'jogador' => 'Craque', 'pos' => 'ATA', 'ovr' => 84,
+                         'valor' => 50.0, 'mercado' => 40.0, 'expira' => 10]];
+$venceu = futOfertasExpirar($vencendo);
+ok('proposta vencida sai da mesa', $venceu['ofertas'] === []);
+ok('e o clube avisa que desistiu', (bool)preg_grep('/desistiu/u', $venceu['mensagens']));
+
+$aindaVale = $vencendo;
+$aindaVale['ofertas'][0]['expira'] = 11;
+ok('proposta no prazo continua de pé', count(futOfertasExpirar($aindaVale)['ofertas']) === 1);
+
+/* ── Aceitar ──────────────────────────────────────────────────────── */
+$comOferta = $baseOf;
+$comOferta['ofertas'] = [['clube' => 'Palmeiras', 'jogador' => 'Craque', 'pos' => 'ATA', 'ovr' => 84,
+                          'valor' => 50.0, 'mercado' => 40.0, 'expira' => 13]];
+$ace = futOfertaAceitar($comOferta, 0);
+ok('aceitar dá certo', $ace['ok'], $ace['motivo']);
+ok('o dinheiro entra no caixa', abs($ace['estado']['caixa'] - 100.0) < 0.01, (string)$ace['estado']['caixa']);
+ok('o jogador sai do elenco',
+   !in_array('Craque', array_column($ace['estado']['elenco'], 'nome'), true));
+ok('o comprador fica com ele de verdade',
+   ($ace['estado']['entradas']['Palmeiras'][0]['nome'] ?? '') === 'Craque');
+ok('a mesa fica vazia depois de aceitar', $ace['estado']['ofertas'] === []);
+ok('a venda vira manchete',
+   (bool)preg_grep('/rumo ao Palmeiras/u', array_column($ace['estado']['imprensa'], 'texto')));
+
+/* Elenco no mínimo não vende: o time ficaria sem gente. */
+$noMinimo = $comOferta;
+$noMinimo['elenco'] = array_slice($elencoOf, 0, FUT_ELENCO_MINIMO);
+$rMin = futOfertaAceitar($noMinimo, 0);
+ok('no mínimo do elenco, não dá pra vender', !$rMin['ok'], $rMin['motivo']);
+
+/* ── Recusar ──────────────────────────────────────────────────────── */
+$recTentadora = futOfertaRecusar($comOferta, 0);   // 50 por 40 = 1,25x... abaixo do corte
+ok('recusar tira da mesa', $recTentadora['estado']['ofertas'] === []);
+
+$moralDe = function (array $est, string $nome): int {
+    foreach ($est['elenco'] as $j) if ($j['nome'] === $nome) return (int)$j['moral'];
+    return -1;
+};
+$ok125 = $moralDe($recTentadora['estado'], 'Craque');
+ok('proposta comum recusada não mexe na moral', $ok125 === 75, 'moral ' . $ok125);
+
+$bemAcima = $comOferta;
+$bemAcima['ofertas'][0]['valor'] = 40.0 * FUT_OFERTA_TENTADORA + 1;
+$rec2 = futOfertaRecusar($bemAcima, 0);
+$moral2 = $moralDe($rec2['estado'], 'Craque');
+ok('segurar quem queria ir custa moral', $moral2 === 75 - FUT_OFERTA_MORAL_SEGURADO, 'moral ' . $moral2);
+ok('e ele deixa isso registrado', (bool)preg_grep('/segurado/u', $rec2['estado']['mensagens']));
+
+/* ── Proposta órfã (o jogador saiu por outro caminho) ─────────────── */
+$orfa = $comOferta;
+$orfa['elenco'] = array_values(array_filter($elencoOf, fn($j) => $j['nome'] !== 'Craque'));
+$rOrfa = futOfertaAceitar($orfa, 0);
+ok('proposta por quem não está mais no elenco é recusada com jeito', !$rOrfa['ok'], $rOrfa['motivo']);
+ok('e ela some da mesa', $rOrfa['estado']['ofertas'] === []);
+
+ok('índice que não existe não explode', !futOfertaAceitar($baseOf, 7)['ok']);
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);

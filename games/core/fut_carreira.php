@@ -24,6 +24,7 @@ require_once __DIR__ . '/fut_mercado.php';
 require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao e fut_condicao
 require_once __DIR__ . '/fut_evolucao.php';
 require_once __DIR__ . '/fut_mundo.php';
+require_once __DIR__ . '/fut_ofertas.php';   // propostas pelos seus jogadores
 require_once __DIR__ . '/fut_europa.php';   // as seis ligas europeias
 
 /** A versão do save. Se o formato mudar, é por aqui que a migração começa. */
@@ -725,6 +726,7 @@ function futCarreiraJogarProxima(array $estado): array
     $estado['resultados'][] = $resultado;
     $estado = futCarreiraImprensa($estado, $resultado);
     $estado['rodada'] = $i + 1;
+    $estado = futOfertasDaRodada($estado);
 
     /* OS LANCES SÓ FICAM NOS ÚLTIMOS JOGOS. Uma temporada tem 50 partidas, e
        guardar lances e notas de todas engordaria o save a cada clique sem que
@@ -1298,6 +1300,7 @@ function futCarreiraAoVivoFechar(array $estado): array
     $estado = futCarreiraImprensa($estado, $resultado);
     $estado['rodada'] = (int)$v['indice'] + 1;
     unset($estado['aovivo']);
+    $estado = futOfertasDaRodada($estado);
 
     $n = count($estado['resultados']);
     if ($n > FUT_JOGOS_COM_RESUMO) {
@@ -2320,6 +2323,8 @@ function futCarreiraFecharTemporada(array $estado): array
     $noticias = array_merge($noticias, $danca['noticias']);
 
     $estado['noticias'] = array_slice($noticias, 0, 40);
+
+    $estado['ofertas'] = [];   // proposta tem prazo em rodada; o ano novo não tem as rodadas do velho
 
     /* O MURAL DA IMPRENSA É DA TEMPORADA: "20 gols no ano" e "10 jogos sem
        perder" não atravessam o réveillon. O ano novo começa de mural limpo. */

@@ -302,6 +302,18 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             else $erro = $r['erro'];
         }
 
+        elseif ($estado && ($acao === 'oferta_aceitar' || $acao === 'oferta_recusar')) {
+            $i = (int)($_POST['oferta'] ?? -1);
+            $r = $acao === 'oferta_aceitar'
+                ? futOfertaAceitar($estado, $i)
+                : futOfertaRecusar($estado, $i);
+            $estado = $r['estado'];
+            /* Recusar também grava: a proposta sai da mesa e a moral pode ter
+               mudado. Sem o save, um F5 traria a proposta de volta. */
+            futCarreiraSalvar($pdo, $idUsuario, $estado);
+            if ($r['ok']) $aviso = $r['motivo']; else $erro = $r['motivo'];
+        }
+
         elseif ($acao === 'recomecar') {
             futCarreiraApagar($pdo, $idUsuario);
             $estado = null;
@@ -752,6 +764,23 @@ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weig
 .proximo-conta{font-size:11.5px;color:var(--txt3);margin-top:10px}
 
 .resumo-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+/* A COLUNA DE 230px NÃO SERVE PRA TUDO. O bloco das propostas tem escudo,
+   nome, valor, prazo e dois botões na mesma linha — espremido nela, o nome
+   do jogador quebrava em três linhas e os botões ficavam um sobre o outro.
+   Ele atravessa a grade inteira. */
+.resumo-grade .largo{grid-column:1 / -1}
+.oferta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 0;border-bottom:1px solid var(--borda)}
+.oferta:last-of-type{border-bottom:0}
+.oferta .quem{min-width:160px;flex:1}
+.oferta .acoes{display:flex;gap:6px;margin-left:auto}
+@media (max-width:520px){
+  /* No celular os botões descem pra linha própria e ocupam a largura toda —
+     alvo de dedo, não de mouse. */
+  .oferta .acoes{margin-left:0;width:100%}
+  .oferta .acoes form{flex:1}
+  .oferta .acoes .btn{width:100%;justify-content:center}
+}
 .mini-lista{display:flex;flex-direction:column;gap:6px}
 .mini-linha{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0;
   border-bottom:1px solid var(--borda)}
@@ -3196,6 +3225,61 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           <?php endforeach; ?>
         </div>
       </div>
+
+      <?php if (!empty($estado['ofertas'])): ?>
+        <?php
+          /* AS PROPOSTAS PELOS SEUS JOGADORES. Primeiro bloco da grade de
+             propósito: é a única coisa aqui com PRAZO, e o resto da tela
+             continua lá depois que a rodada passar — a proposta não. */
+        ?>
+        <div class="bloco largo" style="border-color:rgba(245,158,11,.45)">
+          <h3><i class="bi bi-telephone-inbound-fill"></i> Querem seus jogadores</h3>
+          <?php foreach ($estado['ofertas'] as $i => $of): ?>
+            <?php
+              $faltam = (int)$of['expira'] - (int)$estado['rodada'];
+              $mercado = (float)($of['mercado'] ?? 0);
+              $acima = $mercado > 0 ? ((float)$of['valor'] / $mercado - 1) * 100 : 0;
+            ?>
+            <div class="oferta">
+              <?= escudo($clubesTodos[$of['clube']] ?? ['nome' => $of['clube']], 32) ?>
+              <div class="quem">
+                <div style="font-weight:800">
+                  <?= h($of['jogador']) ?>
+                  <span class="tagpos" style="margin-left:4px"><?= h($of['pos']) ?></span>
+                  <span style="color:var(--txt3);font-weight:400">· <?= (int)$of['ovr'] ?></span>
+                </div>
+                <div style="font-size:11.5px;color:var(--txt2)">
+                  <?= h($of['clube']) ?> oferece <strong style="color:var(--verde-claro)"><?= h(futDinheiro((float)$of['valor'])) ?></strong>
+                  <?php if ($mercado > 0): ?>
+                    <span style="color:<?= $acima >= 0 ? 'var(--verde-claro)' : '#fca5a5' ?>">
+                      (<?= $acima >= 0 ? '+' : '' ?><?= number_format($acima, 0, ',', '') ?>% do valor)</span>
+                  <?php endif; ?>
+                </div>
+                <div style="font-size:11px;color:<?= $faltam <= 1 ? 'var(--amarelo)' : 'var(--txt3)' ?>">
+                  <i class="bi bi-hourglass-split"></i>
+                  <?= $faltam <= 1 ? 'vence depois da próxima partida' : 'vale por mais ' . $faltam . ' jogos' ?>
+                </div>
+              </div>
+              <div class="acoes">
+                <form method="post" style="display:inline"
+                      data-confirmar="Vender <?= h($of['jogador']) ?> ao <?= h($of['clube']) ?> por <?= h(futDinheiro((float)$of['valor'])) ?>? Ele sai do elenco na hora."
+                      data-confirmar-ok="Vender">
+                  <input type="hidden" name="acao" value="oferta_aceitar">
+                  <input type="hidden" name="oferta" value="<?= $i ?>">
+                  <button class="btn peq" type="submit">Aceitar</button>
+                </form>
+                <form method="post" style="display:inline"
+                      data-confirmar="Recusar a proposta do <?= h($of['clube']) ?>? Se ela for bem acima do que ele vale, o jogador não vai gostar."
+                      data-confirmar-ok="Recusar">
+                  <input type="hidden" name="acao" value="oferta_recusar">
+                  <input type="hidden" name="oferta" value="<?= $i ?>">
+                  <button class="btn sec peq" type="submit">Recusar</button>
+                </form>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
       <?php
         /* O TREINO DA SEMANA. A única decisão entre uma partida e outra era a
