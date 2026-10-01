@@ -2784,6 +2784,35 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         <tr><td>Folha salarial</td><td class="num">−<?= h(futDinheiro($relatorio['folha'])) ?></td></tr>
         <tr><td><strong>Caixa agora</strong></td><td class="num"><strong><?= h(futDinheiro($relatorio['caixa'])) ?></strong></td></tr>
       </tbody></table></div>
+      <?php $pr = $relatorio['premios'] ?? null; ?>
+      <?php if ($pr && ($pr['craque'] || $pr['revelacao'] || !empty($pr['liga']['artilheiro']))): ?>
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:800;margin-bottom:5px"><i class="bi bi-award-fill"></i> Prêmios da temporada</div>
+          <?php if ($pr['craque']): ?>
+            <div style="font-size:12.5px">· <span style="color:var(--amarelo);font-weight:700">Craque do time:</span>
+              <?= h($pr['craque']['nome']) ?> — nota <?= number_format($pr['craque']['media'], 2, ',', '') ?>
+              em <?= (int)$pr['craque']['jogos'] ?> jogos</div>
+          <?php endif; ?>
+          <?php if ($pr['revelacao']): ?>
+            <div style="font-size:12.5px">· <span style="color:var(--verde-claro);font-weight:700">Revelação:</span>
+              <?= h($pr['revelacao']['nome']) ?>, <?= (int)$pr['revelacao']['idade'] ?> anos —
+              nota <?= number_format($pr['revelacao']['media'], 2, ',', '') ?></div>
+          <?php endif; ?>
+          <?php if (!empty($pr['liga']['artilheiro'])): $la = $pr['liga']['artilheiro']; ?>
+            <div style="font-size:12.5px;color:var(--txt2)">· Artilheiro do <?= h($pr['liga']['comp']) ?>:
+              <?= h($la['nome']) ?> (<?= h($la['clube']) ?>), <?= (int)$la['gols'] ?> gols</div>
+          <?php endif; ?>
+          <?php if (!empty($pr['liga']['garcom'])): $lg = $pr['liga']['garcom']; ?>
+            <div style="font-size:12.5px;color:var(--txt2)">· Garçom do <?= h($pr['liga']['comp']) ?>:
+              <?= h($lg['nome']) ?> (<?= h($lg['clube']) ?>), <?= (int)$lg['assist'] ?> assistências</div>
+          <?php endif; ?>
+          <?php if (!empty($pr['liga']['goleiro'])): $lk = $pr['liga']['goleiro']; ?>
+            <div style="font-size:12.5px;color:var(--txt2)">· Luva de ouro:
+              <?= h($lk['nome']) ?> (<?= h($lk['clube']) ?>), <?= number_format($lk['media'], 2, ',', '') ?> gols sofridos por jogo</div>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
       <?php if (!empty($relatorio['aposentados'])): ?>
         <div style="margin-top:12px">
           <div style="font-size:12px;font-weight:800;margin-bottom:5px"><i class="bi bi-door-closed"></i> Penduraram as chuteiras</div>
@@ -4634,6 +4663,21 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                 <?php $ps = []; foreach ($hst['artilheiros'] as $a)
                         $ps[] = h($a['nome']) . ' ' . (int)$a['gols']; ?>
                 <?= implode(' · ', $ps) ?>
+              </div>
+            <?php endif; ?>
+
+            <?php $hp = $hst['premios'] ?? null; ?>
+            <?php if ($hp && ($hp['craque'] || $hp['revelacao'])): ?>
+              <div class="ano-art">
+                <i class="bi bi-award-fill" style="color:var(--amarelo)"></i>
+                <?php $pp = [];
+                  if ($hp['craque'])
+                      $pp[] = 'craque: ' . h($hp['craque']['nome'])
+                            . ' (' . number_format($hp['craque']['media'], 2, ',', '') . ')';
+                  if ($hp['revelacao'])
+                      $pp[] = 'revelação: ' . h($hp['revelacao']['nome']);
+                ?>
+                <?= implode(' · ', $pp) ?>
               </div>
             <?php endif; ?>
           </div>

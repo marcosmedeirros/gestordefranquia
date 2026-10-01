@@ -898,6 +898,48 @@ $velhoSem = futEvoluirJogador(['nome' => 'V', 'pos' => 'ZAG', 'ovr' => 74, 'idad
                                'energia' => 100, 'moral' => 70, 'lesao' => 0], [], false);
 ok('destaque não rejuvenesce veterano', $velhoCom['ovr'] === $velhoSem['ovr']);
 // ═════════════════════════════════════════════════════════════════════
+secao('Os prêmios da temporada');
+
+/* Craque e revelação saem da nota do próprio elenco — a única nota que
+   existe. O craque precisa de metade dos jogos, e a revelação nunca é o
+   próprio craque: prêmio repetido no mesmo nome é tela vazia. */
+$estPr = [
+    'clube' => 'Clube Inventado FC',     // sem divisão: a parte da liga sai vazia
+    'elenco' => [
+        ['nome' => 'Veterano Bom', 'pos' => 'MEI', 'ovr' => 78, 'idade' => 29, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+        ['nome' => 'Menino Bom', 'pos' => 'ATA', 'ovr' => 70, 'idade' => 19, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+        ['nome' => 'Faz Pouco', 'pos' => 'ZAG', 'ovr' => 72, 'idade' => 24, 'energia' => 100, 'moral' => 70, 'lesao' => 0],
+    ],
+    'stats' => [
+        'Veterano Bom' => ['pos' => 'MEI', 'jogos' => 30, 'soma_notas' => 225.0, 'gols' => 8, 'assist' => 10],  // 7,50
+        'Menino Bom'   => ['pos' => 'ATA', 'jogos' => 28, 'soma_notas' => 201.6, 'gols' => 15, 'assist' => 4],  // 7,20
+        'Faz Pouco'    => ['pos' => 'ZAG', 'jogos' => 4,  'soma_notas' => 38.0,  'gols' => 0, 'assist' => 0],   // 9,50, mas 4 jogos
+    ],
+];
+
+$prA = futCarreiraPremiosDaTemporada($estPr);
+ok('o craque é a melhor média com jogo de verdade',
+   ($prA['craque']['nome'] ?? '') === 'Veterano Bom', $prA['craque']['nome'] ?? 'ninguém');
+ok('nota alta em quatro jogos não ganha prêmio',
+   ($prA['craque']['nome'] ?? '') !== 'Faz Pouco');
+ok('a revelação é o melhor com até 21 anos',
+   ($prA['revelacao']['nome'] ?? '') === 'Menino Bom', $prA['revelacao']['nome'] ?? 'ninguém');
+ok('clube sem divisão não tem prêmio de liga', $prA['liga']['artilheiro'] === null);
+
+/* Quando o menino É o melhor do time, ele leva o craque — e a revelação vai
+   pro segundo jovem ou fica vazia, nunca duplica. */
+$estPr2 = $estPr;
+$estPr2['stats']['Menino Bom']['soma_notas'] = 240.8;   // 8,60: agora é o melhor
+$prB = futCarreiraPremiosDaTemporada($estPr2);
+ok('o menino craque leva o prêmio grande',
+   ($prB['craque']['nome'] ?? '') === 'Menino Bom');
+ok('a revelação não repete o craque', ($prB['revelacao']['nome'] ?? null) === null,
+   $prB['revelacao']['nome'] ?? 'vazia, como deve');
+
+/* Temporada sem stats (fechou sem jogar): nada explode, nada é inventado. */
+$prC = futCarreiraPremiosDaTemporada(['clube' => 'Clube Inventado FC', 'elenco' => [], 'stats' => []]);
+ok('sem temporada, sem prêmio', $prC['craque'] === null && $prC['revelacao'] === null);
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);

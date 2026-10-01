@@ -1630,6 +1630,69 @@ function futCarreiraDestaquesDaCompeticao(array $estado, string $comp, int $quan
     ];
 }
 
+/**
+ * OS PRÊMIOS DO FIM DA TEMPORADA.
+ *
+ * Dois palcos, duas réguas:
+ *
+ *   LIGA — artilheiro, garçom e luva de ouro da competição nacional, tirados
+ *   de futCarreiraDestaquesDaCompeticao, a mesma conta determinística que a
+ *   página da competição mostra o ano todo. O prêmio só oficializa.
+ *
+ *   CLUBE — craque e revelação saem da NOTA, e nota só existe pro seu elenco:
+ *   os outros clubes não jogaram partida nenhuma, só placar. Premiar o craque
+ *   da liga por nota seria inventar número — o do clube é honesto.
+ *
+ * O craque precisa de metade dos jogos do ano: nota 8 em três partidas não
+ * ganha de nota 7,2 em trinta. A revelação é o melhor com até 21 anos, e o
+ * craque não leva as duas — prêmio repetido no mesmo nome é tela vazia.
+ */
+const FUT_PREMIO_REVELACAO_IDADE = 21;
+
+function futCarreiraPremiosDaTemporada(array $estado): array
+{
+    $clubes = futClubesDoJogo();
+    $div = (string)($clubes[$estado['clube']]['div'] ?? '');
+    $comp = $div !== '' ? futCarreiraNomeDaDivisao($div) : '';
+
+    $liga = ['comp' => $comp, 'artilheiro' => null, 'garcom' => null, 'goleiro' => null];
+    if ($comp !== '') {
+        $d = futCarreiraDestaquesDaCompeticao($estado, $comp, 1);
+        $liga['artilheiro'] = $d['artilheiros'][0] ?? null;
+        $liga['garcom']     = $d['garcons'][0] ?? null;
+        $liga['goleiro']    = $d['goleiros'][0] ?? null;
+    }
+
+    $maxJogos = 0;
+    foreach ($estado['stats'] ?? [] as $st) $maxJogos = max($maxJogos, (int)($st['jogos'] ?? 0));
+    $minimo = max(3, (int)ceil($maxJogos / 2));
+
+    $idade = [];
+    foreach ($estado['elenco'] ?? [] as $j) $idade[$j['nome']] = (int)$j['idade'];
+
+    $linhas = [];
+    foreach ($estado['stats'] ?? [] as $nome => $st) {
+        $jg = (int)($st['jogos'] ?? 0);
+        if ($jg < $minimo) continue;
+        $linhas[] = ['nome' => $nome, 'pos' => (string)($st['pos'] ?? ''), 'jogos' => $jg,
+                     'media' => round((float)($st['soma_notas'] ?? 0) / $jg, 2),
+                     'gols' => (int)($st['gols'] ?? 0), 'assist' => (int)($st['assist'] ?? 0),
+                     'idade' => $idade[$nome] ?? 99];
+    }
+    usort($linhas, fn($a, $b) => [$b['media'], $b['jogos']] <=> [$a['media'], $a['jogos']]);
+
+    $craque = $linhas[0] ?? null;
+    $revelacao = null;
+    foreach ($linhas as $l) {
+        if ($l['idade'] > FUT_PREMIO_REVELACAO_IDADE) continue;
+        if ($craque && $l['nome'] === $craque['nome']) continue;
+        $revelacao = $l;
+        break;
+    }
+
+    return ['liga' => $liga, 'craque' => $craque, 'revelacao' => $revelacao];
+}
+
 /** Onde o técnico terminou no estadual. Null quando o clube não disputa um. */
 function futCarreiraPosicaoNoEstadual(array $estado): ?int
 {
@@ -2074,6 +2137,12 @@ function futCarreiraFecharTemporada(array $estado): array
         'titulos'     => $titulosDoAno,
     ];
 
+    /* OS PRÊMIOS SAEM ANTES DA VIRADA, com o calendário e as stats ainda
+       vivos: o artilheiro da liga é recontado da tabela, e dez linhas abaixo
+       a tabela não existe mais. O craque e a revelação ganham moral: o troféu
+       tem que valer alguma coisa dentro do jogo, não só na tela. */
+    $premios = futCarreiraPremiosDaTemporada($estado);
+
     // ── O ano vira ───────────────────────────────────────────────────
     $estado['ano']++;
     $estado['temporada']++;
@@ -2088,6 +2157,16 @@ function futCarreiraFecharTemporada(array $estado): array
     $statsDoAno = $estado['stats'] ?? [];
     $art = futArtilharia($statsDoAno, 3);
     $estado['historico'][count($estado['historico']) - 1]['artilheiros'] = $art;
+
+    $estado['historico'][count($estado['historico']) - 1]['premios'] = $premios;
+    $relatorio['premios'] = $premios;
+    $premiados = array_filter([$premios['craque']['nome'] ?? null, $premios['revelacao']['nome'] ?? null]);
+    foreach ($estado['elenco'] as &$jp) {
+        if (in_array($jp['nome'], $premiados, true)) {
+            $jp['moral'] = min(100, (int)($jp['moral'] ?? 70) + 8);
+        }
+    }
+    unset($jp);
     $estado['stats'] = [];
     $estado['suspensos'] = [];
 
@@ -2114,6 +2193,19 @@ function futCarreiraFecharTemporada(array $estado): array
 
     // ── E O MUNDO ANDA JUNTO ───────────────────────────────────────────
     $noticias = [];
+    if (!empty($premios['liga']['artilheiro'])) {
+        $la = $premios['liga']['artilheiro'];
+        $noticias[] = sprintf('%s (%s) é o artilheiro do %s com %d gols.',
+            $la['nome'], $la['clube'], $premios['liga']['comp'], (int)$la['gols']);
+    }
+    if (!empty($premios['craque'])) {
+        $noticias[] = sprintf('%s foi eleito o craque do %s na temporada (nota %.2f).',
+            $premios['craque']['nome'], $estado['clube'], $premios['craque']['media']);
+    }
+    if (!empty($premios['revelacao'])) {
+        $noticias[] = sprintf('%s, %d anos, é a revelação do %s.',
+            $premios['revelacao']['nome'], (int)$premios['revelacao']['idade'], $estado['clube']);
+    }
     foreach ($ano['aposentados'] as $a) {
         $noticias[] = sprintf('%s pendurou as chuteiras aos %d anos.', $a['nome'], (int)$a['idade']);
     }
