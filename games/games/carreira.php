@@ -3320,7 +3320,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
       <div class="rolar"><table>
         <thead><tr>
           <th>Jogador</th><th>Pos</th><th class="num">OVR</th><th class="num">Idade</th>
-          <th>Condição</th><th class="num">Valor</th><th class="num">Salário</th><th></th>
+          <th>Condição</th><th class="num">Moral</th><th class="num">Valor</th><th class="num">Salário</th><th></th>
         </tr></thead>
         <tbody>
         <?php
@@ -3352,6 +3352,15 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                 <span class="cond <?= h($en['cor']) ?>"><?= h($en['txt']) ?></span>
               <?php endif; ?>
             </td>
+            <?php
+              /* A MORAL NA TABELA. Ela sempre mexeu na força em campo
+                 (@see futForcaEmCampo) e sempre foi invisível fora da página
+                 do jogador — o técnico descobria o time desmoralizado só
+                 pelo rendimento, que é a pior forma de descobrir. */
+              $ml = (int)($j['moral'] ?? 75);
+              $mCor = $ml >= 85 ? 'var(--verde-claro)' : ($ml < 60 ? '#fca5a5' : 'var(--txt2)');
+            ?>
+            <td class="num" style="color:<?= $mCor ?>;font-weight:<?= $ml >= 85 || $ml < 60 ? '700' : '400' ?>"><?= $ml ?></td>
             <td class="num"><?= h(futDinheiro($v)) ?></td>
             <td class="num"><?= h(futDinheiro($s)) ?></td>
             <td class="num">
