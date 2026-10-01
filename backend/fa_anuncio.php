@@ -27,6 +27,15 @@ function faGarantirColunaAnuncio(PDO $pdo): void
     try {
         if (!$pdo->query("SHOW COLUMNS FROM fa_requests LIKE 'anunciado_em'")->fetch()) {
             $pdo->exec("ALTER TABLE fa_requests ADD COLUMN anunciado_em DATETIME NULL");
+            /* O PASSADO JÁ NASCE ANUNCIADO.
+
+               Sem esta linha, o primeiro "Resolver FA" depois do deploy acharia
+               novecentos pedidos resolvidos e sem carimbo, e despejaria meses de
+               histórico no Gameplay — testando local, a lista já veio com um
+               pedido de agosto junto. O carimbo vai com o resolved_at, que é
+               quando aquilo de fato aconteceu. */
+            $pdo->exec("UPDATE fa_requests SET anunciado_em = resolved_at
+                         WHERE resolved_at IS NOT NULL AND anunciado_em IS NULL");
         }
         $ok = true;
     } catch (Throwable $e) {
