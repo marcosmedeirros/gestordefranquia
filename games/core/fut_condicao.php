@@ -107,7 +107,8 @@ function futIndisponiveis(array $elenco, array $suspensos = []): array
  * @param array $escalados quem entrou em campo
  * @return array ['elenco'=>array, 'noticias'=>array]
  */
-function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $golsContra): array
+function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $golsContra,
+                            array $minutos = []): array
 {
     $jogaram = [];
     foreach ($escalados as $j) $jogaram[$j['nome']] = true;
@@ -135,7 +136,11 @@ function futAplicarDesgaste(array $elenco, array $escalados, int $golsPro, int $
         }
 
         if (isset($jogaram[$nome])) {
-            $j['energia'] = max(FUT_ENERGIA_MINIMA, $j['energia'] - FUT_ENERGIA_POR_JOGO);
+            /* SEM A LISTA DE MINUTOS, todo mundo jogou 90 — é o caso da
+               partida simulada de uma vez, onde não existe substituição. O
+               ao vivo manda os minutos de verdade. */
+            $min = isset($minutos[$nome]) ? (int)$minutos[$nome] : 90;
+            $j['energia'] = max(FUT_ENERGIA_MINIMA, $j['energia'] - futDesgasteDeMinutos($min));
 
             // ── A lesão acontece pra quem está em campo ──────────────
             if ((mt_rand(0, 1000) / 10) < FUT_CHANCE_LESAO) {
@@ -234,6 +239,46 @@ function futGarantirCondicao(array $elenco): array
 }
 
 /** Uma palavra pro estado de energia, pra tela não mostrar só um número. */
+/**
+ * O CANSAÇO DE QUEM JOGOU UM PEDAÇO DA PARTIDA.
+ *
+ * Noventa minutos custam FUT_ENERGIA_POR_JOGO; trinta custam um terço disso.
+ *
+ * ANTES ERA TUDO IGUAL: quem entrava aos 85 pagava o mesmo que quem jogou a
+ * partida inteira. Isso punia exatamente o gesto que o cansaço existe pra
+ * provocar — mexer no time. O técnico que rodava o elenco gastava DOIS
+ * jogadores por partida em vez de um, e a conta ficava pior pra quem fazia
+ * certo.
+ *
+ * Mínimo de 1 pra quem pisou em campo: entrar nos acréscimos cansa pouco, mas
+ * não cansa zero, e arredondar pra baixo faria o técnico trocar aos 89 de
+ * graça, toda rodada.
+ */
+function futDesgasteDeMinutos(int $minutos): int
+{
+    if ($minutos <= 0) return 0;
+    $minutos = min(90, $minutos);
+    return max(1, (int)round(FUT_ENERGIA_POR_JOGO * $minutos / 90));
+}
+
+/**
+ * A ENERGIA QUE O JOGADOR TEM AGORA, no meio da partida.
+ *
+ * Existe pra tela: o número que aparecia na prancheta era o de ANTES do apito
+ * inicial e não se mexia o jogo todo, então o técnico decidia a substituição
+ * olhando pra um dado parado. Quem está em campo desde o começo tem que
+ * aparecer mais gasto aos 70 do que aos 10 — é essa leitura que faz a troca
+ * ser uma decisão e não um palpite.
+ *
+ * É a MESMA conta que o apito final cobra (futDesgasteDeMinutos), de propósito:
+ * se a tela mostrasse uma coisa durante o jogo e o fim cobrasse outra, o
+ * número viraria enfeite.
+ */
+function futEnergiaAgora(int $energiaInicial, int $minutos): int
+{
+    return max(FUT_ENERGIA_MINIMA, $energiaInicial - futDesgasteDeMinutos($minutos));
+}
+
 function futTextoEnergia(int $e): array
 {
     if ($e >= 85) return ['txt' => 'inteiro', 'cor' => 'verde'];

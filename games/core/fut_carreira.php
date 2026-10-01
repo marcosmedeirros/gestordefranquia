@@ -1049,6 +1049,72 @@ function futCarreiraAoVivoInverter(array $estado, string $a, string $b): array
 }
 
 /** As notas de agora, para a tela mostrar enquanto a bola rola. */
+/**
+ * QUANTOS MINUTOS CADA UM JOGOU até agora.
+ *
+ * Quem começou jogando conta do apito inicial; quem entrou, do minuto da
+ * troca; quem saiu, até o minuto em que saiu. A fonte é a lista de
+ * substituições, que já guarda o minuto de cada uma — não existe um segundo
+ * registro pra desencontrar deste.
+ *
+ * SAI UM NOME QUE NÃO ESTÁ MAIS EM CAMPO? Sai sim, e é de propósito: o apito
+ * final cobra o cansaço de quem PISOU em campo, inclusive de quem saiu no
+ * intervalo, e precisa saber por quantos minutos.
+ *
+ * @return array<string,int> nome => minutos
+ */
+function futCarreiraAoVivoMinutos(array $estado): array
+{
+    $v = $estado['aovivo'] ?? null;
+    if (!$v) return [];
+
+    $agora = min(90, max(0, (int)($v['minuto'] ?? 0)));
+    $entrou = [];       // nome => minuto em que entrou
+    $saiu   = [];       // nome => minuto em que saiu
+
+    /* Quem está em campo AGORA e não entrou por troca começou jogando. A
+       escalação atual já reflete as trocas, então ela sozinha não distingue
+       titular de quem entrou — por isso a lista de trocas vem primeiro. */
+    foreach ($v['trocas'] ?? [] as $t) {
+        $m = (int)($t['minuto'] ?? 0);
+        if (!empty($t['entra'])) $entrou[$t['entra']] = $m;
+        if (!empty($t['sai']))   $saiu[$t['sai']]     = $m;
+    }
+
+    $minutos = [];
+    foreach (array_keys($v['jogaram'] ?? []) as $nome) {
+        $de  = $entrou[$nome] ?? 0;
+        $ate = $saiu[$nome] ?? $agora;
+        $minutos[$nome] = max(0, min(90, $ate) - $de);
+    }
+
+    /* Quem está em campo mas ainda não entrou na lista `jogaram` (ela só é
+       preenchida quando o relógio anda) conta a partir de onde entrou. */
+    foreach (futCarreiraEscalacaoAtual($estado) as $j) {
+        if (isset($minutos[$j['nome']])) continue;
+        $minutos[$j['nome']] = max(0, $agora - ($entrou[$j['nome']] ?? 0));
+    }
+
+    return $minutos;
+}
+
+/**
+ * A ENERGIA DE CADA UM AGORA, já descontado o que a partida gastou.
+ *
+ * @return array<string,int> nome => energia
+ */
+function futCarreiraAoVivoEnergias(array $estado): array
+{
+    $minutos = futCarreiraAoVivoMinutos($estado);
+    $fora = [];
+    foreach ($estado['elenco'] ?? [] as $j) {
+        $fora[$j['nome']] = isset($minutos[$j['nome']])
+            ? futEnergiaAgora((int)($j['energia'] ?? 100), (int)$minutos[$j['nome']])
+            : (int)($j['energia'] ?? 100);
+    }
+    return $fora;
+}
+
 function futCarreiraAoVivoNotas(array $estado): array
 {
     $v = $estado['aovivo'] ?? null;
@@ -1099,7 +1165,11 @@ function futCarreiraAoVivoFechar(array $estado): array
     $estado['suspensos'] = futAtualizarSuspensoes($estado['suspensos'] ?? [], $estado['stats'], $p);
     $estado['stats'] = futZerarAmarelos($estado['stats']);
 
-    $desg = futAplicarDesgaste($estado['elenco'], $participaram, $p['meus'], $p['deles']);
+    /* Os minutos vão junto: quem entrou aos 80 não pode pagar o mesmo que
+       quem jogou os 90 — e é a mesma conta que a prancheta mostrou durante
+       a partida. */
+    $desg = futAplicarDesgaste($estado['elenco'], $participaram, $p['meus'], $p['deles'],
+                               futCarreiraAoVivoMinutos($estado));
     $estado['elenco'] = $desg['elenco'];
     $avisos = $desg['noticias'];
 

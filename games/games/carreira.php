@@ -366,6 +366,22 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
     $fora = array_keys($estado['suspensos'] ?? []);
     $banco = futReservas($estado['elenco'], $emCampo, $fora);
 
+    /* A NOTA E A ENERGIA DE AGORA. A prancheta é onde a substituição é
+       decidida, e até aqui ela mostrava só o overall — o mesmo número do
+       começo do jogo. Quem está mal e quem está gasto são as duas perguntas
+       que a troca responde, e nenhuma das duas estava na tela. */
+    /* O RELÓGIO DA TELA, E NÃO O DO SERVIDOR. O servidor simula em blocos de
+       cinco minutos e fica adiantado: no intervalo ele já está no 50 enquanto
+       a tela marca 45. Sem isto a prancheta dizia "50 min em campo" embaixo
+       de um relógio parado nos 45. */
+    $ate = isset($_GET['min']) ? max(0, min(90, (int)$_GET['min'])) : null;
+    $visto = $estado;
+    if ($ate !== null) $visto['aovivo']['minuto'] = min((int)($v['minuto'] ?? 0), $ate);
+
+    $notas = futCarreiraAoVivoNotas($estado);
+    $energias = futCarreiraAoVivoEnergias($visto);
+    $minutos = futCarreiraAoVivoMinutos($visto);
+
     /* A POSICAO VAI JUNTO: o banco da prancheta passou a ser o mesmo cartao
        do banco da escalacao, e la a posicao aparece. Sem ela, o cartao ficava
        com um buraco no meio. */
@@ -373,7 +389,7 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
         'nome'    => $j['nome'],
         'pos'     => (string)($j['pos'] ?? ''),
         'ovr'     => (int)$j['ovr'],
-        'energia' => (int)($j['energia'] ?? 100),
+        'energia' => $energias[$j['nome']] ?? (int)($j['energia'] ?? 100),
         'entrou'  => $entrou,
     ];
 
@@ -392,7 +408,9 @@ if ($estado && ($_GET['json'] ?? '') === 'troca') {
             'y'       => $vg[2],
             'nome'    => $j['nome'] ?? '',
             'ovr'     => $j ? futOvrNaVaga($j, $vg[0]) : 0,
-            'energia' => $j ? (int)($j['energia'] ?? 100) : 0,
+            'energia' => $j ? ($energias[$j['nome']] ?? (int)($j['energia'] ?? 100)) : 0,
+            'nota'    => $j ? ($notas[$j['nome']] ?? null) : null,
+            'minutos' => $j ? (int)($minutos[$j['nome']] ?? 0) : 0,
             'entrou'  => $j ? isset($entraram[$j['nome']]) : false,
         ];
     }
@@ -1295,6 +1313,23 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .camisa .nom{font-size:9.5px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9);
   line-height:1.15;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .camisa .vg{font-size:8px;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.3px}
+/* ── A NOTA E A ENERGIA NA CAMISA (só na prancheta) ────────────────
+   A nota fica colada na bola, como um selo: é o número que decide a
+   substituição e tem que ser lido no mesmo olhar do overall. A energia é
+   barra e não número porque onze números soltos num campo viram ruído —
+   o que se procura ali é a barra curta, não o valor exato (esse está no
+   title, pra quem quiser conferir). */
+.camisa .nt{position:absolute;top:-4px;right:-2px;min-width:20px;padding:0 3px;
+  border-radius:6px;font-size:9.5px;font-weight:900;line-height:14px;
+  background:#0b0f16;border:1px solid rgba(255,255,255,.35);color:#fff}
+.camisa .nt.verde{color:#86efac;border-color:rgba(34,197,94,.6)}
+.camisa .nt.amarelo{color:#fcd34d;border-color:rgba(245,158,11,.6)}
+.camisa .nt.vermelho{color:#fca5a5;border-color:rgba(239,68,68,.6)}
+.camisa .en{width:34px;height:4px;border-radius:999px;background:rgba(0,0,0,.55);
+  overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.5)}
+.camisa .en i{display:block;height:100%;border-radius:999px;background:var(--verde-claro)}
+.camisa .en.amarelo i{background:var(--amarelo)}
+.camisa .en.vermelho i{background:var(--vermelho)}
 
 .cond{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:800;
   padding:2px 7px;border-radius:6px;background:var(--panel3);border:1px solid var(--borda)}
@@ -2417,14 +2452,29 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
           '<div class="linha-meio"></div><div class="circulo"></div>' +
           '<div class="area cima"></div><div class="area baixo"></div>' +
           dados.vagas.map(function (v) {
+            /* A NOTA E A ENERGIA NA CAMISA. São as duas perguntas da
+               substituição — "quem está mal" e "quem está gasto" — e até aqui
+               a prancheta só mostrava o overall, que é o mesmo do começo do
+               jogo e não ajuda a decidir nada. */
+            var en = v.energia >= 80 ? 'verde' : (v.energia >= 55 ? 'amarelo' : 'vermelho');
+            var nt = v.nota === null || v.nota === undefined ? '' : Number(v.nota).toFixed(1).replace('.', ',');
+            var corNota = v.nota >= 7 ? 'verde' : (v.nota >= 5.5 ? 'amarelo' : 'vermelho');
+            var dica = v.nome + (v.entrou ? ' (acabou de entrar)' : '')
+                     + (nt ? ' · nota ' + nt : '')
+                     + ' · energia ' + v.energia
+                     + (v.minutos ? ' · ' + v.minutos + ' min em campo' : '');
             return '<div class="camisa alvo-troca' + (v.entrou ? ' trocado' : '') + '"' +
                    ' draggable="' + (v.entrou ? 'false' : 'true') + '"' +
                    ' data-nome="' + v.nome + '" data-entrou="' + (v.entrou ? 1 : 0) + '"' +
                    ' style="left:' + v.x + '%;top:' + v.y + '%" tabindex="0" role="button"' +
-                   ' title="' + v.nome + (v.entrou ? ' (acabou de entrar)' : '') + '">' +
+                   ' title="' + dica + '">' +
                    '<div class="bola">' + (v.ovr || '—') + '</div>' +
+                   (nt ? '<div class="nt ' + corNota + '">' + nt + '</div>' : '') +
                    '<div class="nom">' + (v.nome || '—') + '</div>' +
-                   '<div class="vg">' + v.pos + '</div></div>';
+                   '<div class="vg">' + v.pos + '</div>' +
+                   (v.nome ? '<div class="en ' + en + '"><i style="width:' +
+                             Math.max(0, Math.min(100, v.energia)) + '%"></i></div>' : '') +
+                   '</div>';
           }).join('');
 
         /* O BANCO É O MESMO CARTÃO DA ESCALAÇÃO (.reserva): overall, nome,
@@ -2614,7 +2664,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
         if (rolando) pausa();
         var tit = document.getElementById('mesaTitulo');
         if (tit) tit.textContent = doIntervalo ? 'Intervalo' : 'Pausado aos ' + minuto + "'";
-        fetch(location.pathname + '?aba=partida&json=troca', {headers: {'X-Requested-With': 'fetch'}})
+        fetch(location.pathname + '?aba=partida&json=troca&min=' + minuto, {headers: {'X-Requested-With': 'fetch'}})
           .then(function (r) { return r.json(); })
           .then(function (d) {
             pintaOpcoes(d);
