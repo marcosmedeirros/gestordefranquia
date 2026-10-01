@@ -11908,7 +11908,12 @@ async function _adminDraftUseClassBank(draftSid, seasonId, league) {
 
   try {
     const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
-    const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null }));
+    /* AS LETRINHAS VÃO JUNTO. Este map era o único dos dois que as deixava
+       pra trás: a classe entrava no pool com nome, posição, OVR e idade, e o
+       card do prospecto no draft ficava sem nota nenhuma pra mostrar — o
+       arquivo tinha sido importado e metade do conteúdo dele ficava parada
+       no banco de classes. O servidor sempre aceitou a coluna. */
+    const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null, notas: p.notas ?? null }));
     if (!players.length) { showAlert('warning', 'Classe sem jogadores'); return; }
 
     if (!await confirmarSite(`Importar ${players.length} jogadores da classe para o pool? Os jogadores já existentes no pool serão mantidos.`)) return;
