@@ -25,6 +25,7 @@ require_once __DIR__ . '/fut_partida.php';   // traz junto fut_escalacao e fut_c
 require_once __DIR__ . '/fut_evolucao.php';
 require_once __DIR__ . '/fut_mundo.php';
 require_once __DIR__ . '/fut_ofertas.php';   // propostas pelos seus jogadores
+require_once __DIR__ . '/fut_desafios.php';  // os três objetivos da temporada
 require_once __DIR__ . '/fut_europa.php';   // as seis ligas europeias
 
 /** A versão do save. Se o formato mudar, é por aqui que a migração começa. */
@@ -319,9 +320,23 @@ function futCarreiraCarregar(PDO $pdo, int $userId): ?array
 }
 
 /** Grava o save. */
+/** Quantas linhas da caixa de entrada sobrevivem a um save. */
+const FUT_MENSAGENS_MAX = 40;
+
 function futCarreiraSalvar(PDO $pdo, int $userId, array $estado): void
 {
     if ($userId <= 0) return;
+
+    /* A CAIXA DE ENTRADA TEM FUNDO. `mensagens` nunca foi cortada: cada compra,
+       venda, proposta e desafio empilhava uma linha que ficava no save pra
+       sempre, e em vinte temporadas isso sozinho passava do teto que o teste
+       de tamanho cobra. São as 40 últimas — é um registro do que acabou de
+       acontecer, não o diário da carreira, que mora no histórico. */
+    if (isset($estado['mensagens']) && is_array($estado['mensagens'])
+        && count($estado['mensagens']) > FUT_MENSAGENS_MAX) {
+        $estado['mensagens'] = array_slice($estado['mensagens'], -FUT_MENSAGENS_MAX);
+    }
+
     futCarreiraGarantirTabela($pdo);
     $st = $pdo->prepare("INSERT INTO fut_carreira (user_id, save, atualizado)
                          VALUES (?, ?, NOW())
@@ -727,6 +742,7 @@ function futCarreiraJogarProxima(array $estado): array
     $estado = futCarreiraImprensa($estado, $resultado);
     $estado['rodada'] = $i + 1;
     $estado = futOfertasDaRodada($estado);
+    $estado = futDesafiosConferir($estado)['estado'];
 
     /* OS LANCES SÓ FICAM NOS ÚLTIMOS JOGOS. Uma temporada tem 50 partidas, e
        guardar lances e notas de todas engordaria o save a cada clique sem que
@@ -1301,6 +1317,7 @@ function futCarreiraAoVivoFechar(array $estado): array
     $estado['rodada'] = (int)$v['indice'] + 1;
     unset($estado['aovivo']);
     $estado = futOfertasDaRodada($estado);
+    $estado = futDesafiosConferir($estado)['estado'];
 
     $n = count($estado['resultados']);
     if ($n > FUT_JOGOS_COM_RESUMO) {
@@ -2324,11 +2341,28 @@ function futCarreiraFecharTemporada(array $estado): array
 
     $estado['noticias'] = array_slice($noticias, 0, 40);
 
+    /* Última conferência com a temporada ainda inteira: o desafio batido na
+       rodada final tem que pagar antes de os resultados serem apagados. */
+    $estado = futDesafiosConferir($estado)['estado'];
+
     $estado['ofertas'] = [];   // proposta tem prazo em rodada; o ano novo não tem as rodadas do velho
 
     /* O MURAL DA IMPRENSA É DA TEMPORADA: "20 gols no ano" e "10 jogos sem
        perder" não atravessam o réveillon. O ano novo começa de mural limpo. */
     $estado['imprensa'] = [];
+
+    /* DESAFIOS NOVOS PRO ANO NOVO, e o marco da venda zerado junto: tanto o
+       progresso quanto o prêmio são da temporada. O sorteio usa a temporada
+       como semente, então aqui ele já devolve outros três. */
+    $estado['desafios'] = [];
+    $estado['marcos'] = [];
+
+    /* E a caixa de entrada vira a página junto. @see FUT_MENSAGENS_MAX — o
+       corte também existe no save, mas quem fecha vinte temporadas seguidas
+       sem passar por ele (o teste de tamanho faz isso) precisa dele aqui. */
+    if (count($estado['mensagens'] ?? []) > FUT_MENSAGENS_MAX) {
+        $estado['mensagens'] = array_slice($estado['mensagens'], -FUT_MENSAGENS_MAX);
+    }
 
     /* AS PROPOSTAS SÓ APARECEM PRA QUEM NÃO FOI DEMITIDO. Quem levou o bilhete
        azul escolhe clube na tela de desempregado, que é outra lista e outra
@@ -2564,6 +2598,7 @@ function futCarreiraVender(array $estado, string $jogador, float $oferta, string
     $estado['escalacao'] = [];   // vendeu alguém: a escalação velha não vale mais
     $estado['caixa'] = round($estado['caixa'] + $oferta, 2);
     $estado['mensagens'][] = sprintf('%s foi vendido ao %s por %.2f mi.', $jogador, $comprador, $oferta);
+    $estado = futDesafioRegistrarVenda($estado, $oferta);
 
     return ['ok' => true, 'motivo' => 'Venda fechada.', 'estado' => $estado];
 }

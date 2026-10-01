@@ -205,6 +205,7 @@ function futOfertaAceitar(array $estado, int $i): array
 
     // O comprador fica com ele de verdade — @see o cabeçalho deste arquivo.
     $estado['entradas'][$o['clube']][] = $saiu;
+    $estado = futDesafioRegistrarVenda($estado, (float)$o['valor']);
 
     $estado['mensagens'][] = sprintf('%s foi vendido ao %s por %s.',
         $o['jogador'], $o['clube'], futDinheiro((float)$o['valor']));

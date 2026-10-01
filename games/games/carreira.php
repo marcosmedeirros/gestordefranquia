@@ -289,6 +289,8 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = futCarreiraVender($estado, (string)($_POST['jogador'] ?? ''),
                                    (float)($_POST['oferta'] ?? 0), (string)($_POST['comprador'] ?? 'um clube'));
             $estado = $r['estado'];
+            // Vender pela aba Mercado conta igual: @see o aceitar de proposta.
+            if ($r['ok']) $estado = futDesafiosConferir($estado)['estado'];
             if ($r['ok']) { $aviso = $r['motivo']; futCarreiraSalvar($pdo, $idUsuario, $estado); }
             else $erro = $r['motivo'];
         }
@@ -308,6 +310,10 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? futOfertaAceitar($estado, $i)
                 : futOfertaRecusar($estado, $i);
             $estado = $r['estado'];
+            /* A VENDA PODE BATER UM DESAFIO, e ela acontece entre rodadas — se
+               a conferência só rodasse depois da próxima partida, a barra
+               ficaria cheia na tela com o prêmio ainda por pagar. */
+            $estado = futDesafiosConferir($estado)['estado'];
             /* Recusar também grava: a proposta sai da mesa e a moral pode ter
                mudado. Sem o save, um F5 traria a proposta de volta. */
             futCarreiraSalvar($pdo, $idUsuario, $estado);
@@ -1377,6 +1383,20 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
 .proposta{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--borda)}
 .proposta:last-of-type{border-bottom:0}
 .noticia{font-size:12.5px;color:var(--txt2);padding:3px 0;line-height:1.45}
+
+/* ── Os desafios da temporada ─────────────────────────────────────── */
+.desafio{padding:8px 0;border-bottom:1px solid var(--borda)}
+.desafio:last-of-type{border-bottom:0}
+.desafio .topo{display:flex;align-items:baseline;gap:6px;font-size:12.5px}
+.desafio .topo .txt{flex:1;min-width:0}
+.desafio .topo .num{color:var(--txt3);font-size:11.5px;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.desafio .barra{height:4px;border-radius:99px;background:rgba(255,255,255,.08);margin:6px 0 4px;overflow:hidden}
+.desafio .barra i{display:block;height:100%;background:var(--acento);border-radius:99px;transition:width .3s}
+.desafio .premio{font-size:11px;color:var(--txt2)}
+.desafio.feito .topo .txt{color:var(--verde-claro)}
+.desafio.feito .barra i{background:var(--verde-claro)}
+.desafio.feito .premio{color:var(--verde-claro)}
 
 /* ── O treino da semana ───────────────────────────────────────────── */
 .treino-focos{display:flex;flex-wrap:wrap;gap:6px}
@@ -3275,6 +3295,34 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--acento)}
                   <input type="hidden" name="oferta" value="<?= $i ?>">
                   <button class="btn sec peq" type="submit">Recusar</button>
                 </form>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php
+        /* OS DESAFIOS. Três por temporada, sorteados pelo clube e pelo ano —
+           a mesma tela reaberta mostra os mesmos três. O progresso é
+           recalculado do estado a cada carregamento, nunca guardado. */
+        $desafios = futCarreiraDesafios($estado);
+      ?>
+      <?php if ($desafios): ?>
+        <div class="bloco">
+          <h3><i class="bi bi-flag-fill"></i> Desafios da temporada</h3>
+          <?php foreach ($desafios as $d): ?>
+            <?php $pct = $d['alvo'] > 0 ? round($d['progresso'] / $d['alvo'] * 100) : 0; ?>
+            <div class="desafio <?= $d['feito'] ? 'feito' : '' ?>">
+              <div class="topo">
+                <i class="bi bi-<?= $d['feito'] ? 'check-circle-fill' : 'circle' ?>"
+                   style="font-size:11px;color:<?= $d['feito'] ? 'var(--verde-claro)' : 'var(--txt3)' ?>"></i>
+                <span class="txt"><?= h($d['texto']) ?></span>
+                <span class="num"><?= (int)$d['progresso'] ?>/<?= (int)$d['alvo'] ?></span>
+              </div>
+              <div class="barra"><i style="width:<?= max(0, min(100, $pct)) ?>%"></i></div>
+              <div class="premio">
+                <i class="bi bi-gift"></i> <?= h(futDesafioTextoDoPremio($d['premio'])) ?>
+                <?= $d['feito'] ? ' · recebido' : '' ?>
               </div>
             </div>
           <?php endforeach; ?>

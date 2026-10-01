@@ -1117,6 +1117,146 @@ ok('e ela some da mesa', $rOrfa['estado']['ofertas'] === []);
 
 ok('índice que não existe não explode', !futOfertaAceitar($baseOf, 7)['ok']);
 // ═════════════════════════════════════════════════════════════════════
+secao('Desafios da temporada');
+
+$vit = fn(int $a, int $b) => ['adversario' => 'X', 'meus' => $a, 'deles' => $b,
+                              'comp' => 'Brasileirão Série A', 'casa' => true,
+                              'rodada' => 1, 'fase' => ''];
+
+$baseD = ['clube' => 'Flamengo', 'temporada' => 1, 'caixa' => 50.0,
+          'tecnico' => ['reputacao' => 20],
+          'elenco' => [
+              ['nome' => 'Garoto', 'pos' => 'ATA', 'ovr' => 70, 'idade' => 19,
+               'energia' => 100, 'moral' => 70, 'lesao' => 0],
+              ['nome' => 'Veterano', 'pos' => 'ZAG', 'ovr' => 75, 'idade' => 31,
+               'energia' => 100, 'moral' => 70, 'lesao' => 0],
+          ],
+          'stats' => [], 'resultados' => [], 'mensagens' => [], 'imprensa' => [],
+          'desafios' => [], 'marcos' => []];
+
+/* ── O sorteio é sempre o mesmo pro mesmo clube e temporada ───────── */
+$d1 = futDesafiosSortear($baseD);
+$d2 = futDesafiosSortear($baseD);
+ok('o sorteio não muda a cada leitura', array_column($d1, 'id') === array_column($d2, 'id'),
+   implode(', ', array_column($d1, 'id')));
+ok('são três desafios', count($d1) === FUT_DESAFIOS_POR_ANO);
+
+$outroAno = $baseD; $outroAno['temporada'] = 2;
+ok('o ano seguinte traz outros',
+   array_column(futDesafiosSortear($outroAno), 'id') !== array_column($d1, 'id'));
+
+$outroClube = $baseD; $outroClube['clube'] = 'Santos';
+ok('outro clube sorteia diferente',
+   array_column(futDesafiosSortear($outroClube), 'id') !== array_column($d1, 'id'));
+
+/* ── Save sem nada gravado já mostra os três ──────────────────────── */
+$lidos = futCarreiraDesafios($baseD);
+ok('save antigo ganha os três na leitura', count($lidos) === FUT_DESAFIOS_POR_ANO);
+ok('cada um vem com texto, alvo e prêmio',
+   $lidos[0]['texto'] !== '' && $lidos[0]['alvo'] > 0 && !empty($lidos[0]['premio']['tipo']),
+   $lidos[0]['texto']);
+ok('ninguém nasce feito', !$lidos[0]['feito'] && !$lidos[0]['batido']);
+
+/* ── As contas de cada desafio ────────────────────────────────────── */
+$seq = $baseD;
+$seq['resultados'] = [$vit(1,0), $vit(2,2), $vit(3,1), $vit(0,1), $vit(1,0), $vit(1,0)];
+ok('a sequência sem perder é a MAIOR, não a atual',
+   futDesafioSequenciaSemPerder($seq) === 3, (string)futDesafioSequenciaSemPerder($seq));
+
+$gols = $baseD;
+$gols['stats'] = ['Garoto' => ['gols' => 11, 'jogos' => 20], 'Veterano' => ['gols' => 3, 'jogos' => 20]];
+ok('o artilheiro é o maior do elenco', futDesafioMaiorArtilheiro($gols) === 11);
+
+$semSofrer = $baseD;
+$semSofrer['resultados'] = [$vit(1,0), $vit(0,0), $vit(2,1), $vit(3,0)];
+ok('conta os jogos sem sofrer gol', futDesafioJogosSemSofrer($semSofrer) === 3);
+
+$golead = $baseD;
+$golead['resultados'] = [$vit(3,0), $vit(4,1), $vit(2,0), $vit(5,1)];
+ok('goleada é 3 ou mais de diferença', futDesafioGoleadas($golead) === 3);
+
+$garotos = $baseD;
+$garotos['stats'] = ['Garoto' => ['jogos' => 14], 'Veterano' => ['jogos' => 30]];
+ok('só os de até 21 contam nos jogos dos garotos', futDesafioJogosDosGarotos($garotos) === 14);
+
+$venda = futDesafioRegistrarVenda($baseD, 18.0);
+$venda = futDesafioRegistrarVenda($venda, 31.5);
+$venda = futDesafioRegistrarVenda($venda, 9.0);
+ok('o marco guarda a MAIOR venda', futDesafioMaiorVenda($venda) === 31);
+
+/* ── O prêmio paga, e paga uma vez só ─────────────────────────────── */
+$catD = futDesafiosCatalogo();
+$comDesafio = function (string $id, array $est) use ($catD): array {
+    $est['desafios'] = [['id' => $id, 'feito' => false]];
+    return $est;
+};
+
+$pagaD = $comDesafio('artilheiro', $gols);
+$pagaD['stats']['Garoto']['gols'] = $catD['artilheiro']['alvo'];
+$caixaAntes = $pagaD['caixa'];
+$r1 = futDesafiosConferir($pagaD);
+ok('o desafio batido paga', count($r1['pagos']) === 1, $r1['pagos'][0]['texto'] ?? 'nada');
+ok('o dinheiro entra no caixa',
+   abs($r1['estado']['caixa'] - ($caixaAntes + $catD['artilheiro']['premio']['valor'])) < 0.01,
+   (string)$r1['estado']['caixa']);
+ok('fica marcado como feito', !empty($r1['estado']['desafios'][0]['feito']));
+ok('vira recado', (bool)preg_grep('/Desafio cumprido/u', $r1['estado']['mensagens']));
+ok('vira manchete',
+   (bool)preg_grep('/cumpriu o desafio/u', array_column($r1['estado']['imprensa'], 'texto')));
+
+$r2 = futDesafiosConferir($r1['estado']);
+ok('não paga duas vezes', $r2['pagos'] === []);
+ok('e o caixa não mexe de novo', abs($r2['estado']['caixa'] - $r1['estado']['caixa']) < 0.01);
+
+/* Reputação e moral também são pagas. */
+$rep = $comDesafio('atropelo', $golead);
+$rRep = futDesafiosConferir($rep);
+ok('prêmio de reputação sobe a reputação',
+   (int)$rRep['estado']['tecnico']['reputacao'] === 20 + $catD['atropelo']['premio']['valor'],
+   (string)$rRep['estado']['tecnico']['reputacao']);
+
+$mor = $comDesafio('negociante', futDesafioRegistrarVenda($baseD, 25.0));
+$rMor = futDesafiosConferir($mor);
+ok('prêmio de moral sobe a moral de todo o elenco',
+   (int)$rMor['estado']['elenco'][0]['moral'] === 70 + $catD['negociante']['premio']['valor']
+   && (int)$rMor['estado']['elenco'][1]['moral'] === 70 + $catD['negociante']['premio']['valor']);
+
+/* ── Quem não bateu não recebe ────────────────────────────────────── */
+$longe = $comDesafio('invencivel', $baseD);
+$rLonge = futDesafiosConferir($longe);
+ok('sem bater o alvo, nada cai', $rLonge['pagos'] === []);
+ok('e o progresso aparece parado em zero',
+   futCarreiraDesafios($longe)[0]['progresso'] === 0);
+
+/* O progresso nunca passa do alvo na tela — barra de 140% seria mentira. */
+$estourado = $comDesafio('artilheiro', $gols);
+$estourado['stats']['Garoto']['gols'] = 99;
+ok('o progresso mostrado para no alvo',
+   futCarreiraDesafios($estourado)[0]['progresso'] === $catD['artilheiro']['alvo']);
+
+/* Desafio de um catálogo antigo some em silêncio em vez de quebrar a tela. */
+$fantasma = $baseD;
+$fantasma['desafios'] = [['id' => 'desafio_que_nao_existe_mais', 'feito' => false]];
+ok('desafio de catálogo velho não quebra nada', futCarreiraDesafios($fantasma) === []);
+
+ok('o prêmio vira frase', futDesafioTextoDoPremio(['tipo' => 'reputacao', 'valor' => 5]) === '+5 de reputação');
+
+/* O PRÊMIO NÃO PODE PAGAR PRA SEMPRE. Save com `desafios` em [] (que é como
+   o ano novo e o save novo ficam) precisa sortear e GRAVAR o feito — senão
+   nada marca nada e a conferência da rodada seguinte paga tudo de novo. */
+$vazio = futDesafioRegistrarVenda($baseD, 25.0);
+$vazio['desafios'] = [];   // lista vazia, não ausente
+$v1 = futDesafiosConferir($vazio);
+$pagouAlgo = count($v1['pagos']);
+ok('com a lista vazia, o sorteio acontece e o feito é gravado',
+   !empty($v1['estado']['desafios']), count($v1['estado']['desafios'] ?? []) . ' desafios');
+$v2 = futDesafiosConferir($v1['estado']);
+ok('e a rodada seguinte não paga tudo de novo', $v2['pagos'] === [],
+   $pagouAlgo . ' na primeira, ' . count($v2['pagos']) . ' na segunda');
+ok('nem o caixa nem a moral andam na segunda',
+   abs($v2['estado']['caixa'] - $v1['estado']['caixa']) < 0.01
+   && (int)$v2['estado']['elenco'][0]['moral'] === (int)$v1['estado']['elenco'][0]['moral']);
+// ═════════════════════════════════════════════════════════════════════
 echo "\n" . str_repeat('═', 60) . "\n";
 printf("%d testes, %d falha(s)\n", $total, $falhas);
 exit($falhas > 0 ? 1 : 0);
