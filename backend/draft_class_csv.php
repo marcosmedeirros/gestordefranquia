@@ -68,12 +68,30 @@ function draftCsvGarantirColunas(PDO $pdo): void
     }
 }
 
+/**
+ * A MESMA COLUNA COM OUTRO NOME.
+ *
+ * A tela de prospectos do jogo não usa os mesmos rótulos do arquivo que ele
+ * exporta: lá é INS, INS D e PLMK onde o export escreve IN, POST D e PLAY.
+ * Quem monta a classe copiando da tela mandava as letrinhas com esses nomes,
+ * e elas eram descartadas em silêncio — a classe entrava sem nota nenhuma e
+ * nada na tela dizia por quê.
+ */
+const DRAFT_CSV_SINONIMOS = [
+    'INS'   => 'IN',        // Inside Scoring
+    'INS D' => 'POST D',    // Inside Defense
+    'PLMK'  => 'PLAY',      // Playmaking
+];
+
 /** 'post d' e 'POST  D' são a mesma coluna: compara sem acento, caixa nem espaço. */
 function draftCsvChave(string $s): string
 {
     $s = strtoupper(trim($s));
-    $s = str_replace(["\xEF\xBB\xBF", '.', '_'], '', $s);   // BOM e pontuação solta
-    return preg_replace('/\s+/', ' ', $s);
+    /* Fora TUDO que não é letra, número ou espaço: o BOM, a pontuação solta e
+       a setinha de ordenação que a tela cola junto do título ("▼OVR"). */
+    $s = preg_replace('/[^A-Z0-9 ]+/', '', $s);
+    $s = trim(preg_replace('/\s+/', ' ', $s));
+    return DRAFT_CSV_SINONIMOS[$s] ?? $s;
 }
 
 /**

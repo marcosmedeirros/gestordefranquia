@@ -11647,15 +11647,51 @@ async function _adminDraftSubmitPick(draftSessionId, pickId, league) {
 
 // ── Draft CSV Import ────────────────────────────────────────────────────────
 
+/**
+ * O MODELO DO CSV — um só, porque o leitor é um só.
+ *
+ * Ele descrevia `name,position,ovr,age,ordem`, que é o cabeçalho de antes de
+ * draftCsvLer() passar a entender o export do jogo. Duas coisas estavam
+ * erradas nisso: as letrinhas não apareciam em lugar nenhum (quem baixava o
+ * modelo montava a classe sem elas), e a coluna `ordem` não existe mais — a
+ * ordem do board é a ordem das LINHAS do arquivo.
+ *
+ * A segunda linha vem com RATING em branco de propósito: é o caso de quem
+ * copia da tela de prospectos, onde o overall aparece como letra e não como
+ * número. Sem RATING o jogador entra com 60.
+ */
 function _adminDraftDownloadTemplate() {
-  const csv = 'name,position,ovr,age,ordem\nLeBron James,SF,97,39,1\nStephen Curry,PG,96,36,2\n';
+  const csv =
+    'NAME,POS,AGE,RATING,IN,MID,3PT,POST D,PER D,PLAY,REB,ATHL,IQ,POT\n' +
+    'LeBron James,SF,22,78,A-,B+,B,B+,A-,A,B+,A,A-,A+\n' +
+    'Stephen Curry,PG,21,,C+,A,A+,D,C,A-,D+,B-,A-,A\n';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'draft_pool_modelo.csv';
+  a.download = 'classe_de_draft_modelo.csv';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** O que o arquivo precisa ter — a mesma frase em toda porta por onde ele entra. */
+function _dcTextoDoModelo() {
+  return `<p style="font-size:12px;color:var(--text-3);margin:0 0 10px;line-height:1.5">
+      Só <strong style="color:var(--text)">NAME</strong> é obrigatório. Sem
+      <strong style="color:var(--text)">RATING</strong> o jogador entra com OVR 60; sem
+      <strong style="color:var(--text)">AGE</strong>, 18 anos. As letrinhas
+      (IN, MID, 3PT, POST D…) entram junto se estiverem no arquivo, e a
+      <strong style="color:var(--text)">ordem das linhas</strong> vira a ordem do board.
+    </p>`;
+}
+
+/** O botão que baixa o modelo. Sem tamanho próprio: ele anda ao lado do botão
+ *  de importar, e dois btn-ghost de alturas diferentes na mesma linha ficam
+ *  desencontrados. */
+function _dcBotaoDoModelo() {
+  return `<button class="btn-ghost" style="white-space:nowrap" onclick="_adminDraftDownloadTemplate()">
+      <i class="bi bi-download me-1"></i>Baixar modelo
+    </button>`;
 }
 
 function _adminDraftImportModal(draftSessionId, seasonId, league) {
@@ -12013,11 +12049,11 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
 
         ${!templateId ? `
         <div style="border-top:1px solid var(--border);padding-top:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Ou crie com CSV</div>
-            <button class="btn-ghost" style="padding:2px 8px;font-size:11px" onclick="_adminDraftDownloadTemplate()"><i class="bi bi-download me-1"></i>Baixar modelo</button>
+            ${_dcBotaoDoModelo()}
           </div>
-          <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+          ${_dcTextoDoModelo()}
           <div id="_dcNewClassDropzone"
             style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:20px;text-align:center;cursor:pointer;transition:border-color .2s"
             onclick="document.getElementById('_dcNewClassFile').click()"
@@ -12066,9 +12102,13 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
             // Numa classe vazia, "substituir tudo" descreve mal o que o botão
             // faz — e é o caminho de quem criou primeiro pra importar depois.
             players.length ? 'Substituir todos via CSV:' : 'Importe os jogadores desta classe:'}</div>
-          <button class="btn-ghost" style="${players.length ? '' : 'color:#a855f7'}" onclick="_draftClassReplaceCSVModal(${templateId})">
-            <i class="bi bi-upload me-1"></i>${players.length ? 'Importar CSV (substituir tudo)' : 'Importar jogadores por CSV'}
-          </button>
+          <div class="d-flex gap-2 flex-wrap align-items-center" style="margin-bottom:10px">
+            <button class="btn-ghost" style="${players.length ? '' : 'color:#a855f7'}" onclick="_draftClassReplaceCSVModal(${templateId})">
+              <i class="bi bi-upload me-1"></i>${players.length ? 'Importar CSV (substituir tudo)' : 'Importar jogadores por CSV'}
+            </button>
+            ${_dcBotaoDoModelo()}
+          </div>
+          ${_dcTextoDoModelo()}
         </div>`}
       </div>
     </div>`;
@@ -12328,7 +12368,8 @@ function _draftClassReplaceCSVModal(templateId) {
       </div>
       <div style="padding:16px 18px">
         <div class="alert alert-warning mb-3" style="font-size:12px"><i class="bi bi-exclamation-triangle me-1"></i>Isso <strong>apagará todos os jogadores</strong> da classe e substituirá pelo CSV.</div>
-        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+        ${_dcTextoDoModelo()}
+        <div style="margin-bottom:10px">${_dcBotaoDoModelo()}</div>
         <div id="_dcReplaceDropzone"
           style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:border-color .2s"
           onclick="document.getElementById('_dcReplaceFile').click()"
