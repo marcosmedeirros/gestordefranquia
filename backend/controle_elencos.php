@@ -71,7 +71,12 @@ function ceTimesDaLiga(PDO $pdo, string $liga): array
           FROM teams t
      LEFT JOIN users u ON u.id = t.user_id
          WHERE t.league = ?
-      ORDER BY t.city, t.name");
+      /* PELO NOME DO TIME, não pela cidade: a liga conhece os times por
+         'Coyotes' e 'Valleys', e quem procura um aqui procura por esse
+         nome. Ordenar por cidade jogava o Las Vegas Coyotes pro meio da
+         letra L, onde ninguém ia olhar. A cidade fica como desempate, pros
+         dois times que repetirem o nome. */
+      ORDER BY t.name, t.city");
     $st->execute([(int)($alvo['id'] ?? 0), $liga]);
 
     $times = [];
@@ -127,7 +132,8 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
              WHERE t.league = ?";
     $args = [(int)($alvo['id'] ?? 0), $liga];
     if ($teamId) { $sql .= ' AND t.id = ?'; $args[] = $teamId; }
-    $sql .= ' ORDER BY t.city, t.name, p.ovr DESC, p.name';
+    // Mesma ordem da lista de times acima: nome do time primeiro.
+    $sql .= ' ORDER BY t.name, t.city, p.ovr DESC, p.name';
 
     $st = $pdo->prepare($sql);
     $st->execute($args);
