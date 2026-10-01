@@ -607,7 +607,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        baixo, que é o que deixa comparar prospecto com prospecto. */
     .mock-list.com-notas .mock-row,
     .mock-list.com-notas .mock-cab {
-      grid-template-columns: 46px minmax(120px,.92fr) 44px 40px 290px minmax(140px,1fr);
+      /* 29px por coluna de nota — o que os 290px davam quando eram dez. */
+      grid-template-columns: 46px minmax(120px,.92fr) 44px 40px
+                             calc(29px * var(--notas-cols,10)) minmax(140px,1fr);
       gap: 10px;
     }
     .mock-cab {
@@ -751,7 +753,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        não tem faixa nenhuma pra compensar. */
     .pool-lista.com-cab { margin-top:-12px; }
     .pool-cab, .pool-linha {
-      display:grid; grid-template-columns:34px minmax(0,1fr) 46px 48px 250px;
+      display:grid;
+      /* 25px por coluna de nota — o que os 250px davam quando eram dez. */
+      grid-template-columns:34px minmax(0,1fr) 46px 48px calc(25px * var(--notas-cols,10));
       gap:8px; align-items:center; padding:6px 8px;
     }
     /* O cabeçalho é uma FAIXA, não mais uma linha pálida igual às outras: com
@@ -778,9 +782,15 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .pool-ovr { text-align:center; }
     .pool-ovr b { font-family:'Oswald',sans-serif; font-size:15px; color:var(--text); }
     .pool-idade { text-align:center; font-size:11px; color:var(--text-3); }
-    /* As dez colunas de nota, iguais no cabeçalho e na linha — é o que
-       mantém a sigla em cima da letra certa. */
-    .pool-notas { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; }
+    /* AS COLUNAS SÃO AS QUE EXISTEM, não as dez do catálogo.
+
+       A tela de prospectos do jogo não traz todos os dez atributos — a
+       classe de 1986 veio sem ATHL e sem POT —, e com a grade fixa em dez
+       essas duas viravam buraco em TODA linha: dez siglas no cabeçalho, oito
+       letras embaixo e dois vãos no meio que pareciam dado faltando. Quem
+       monta a lista conta quantos atributos existem e põe o número em
+       --notas-cols; a grade segue ele. */
+    .pool-notas { display:grid; grid-template-columns:repeat(var(--notas-cols,10),1fr); gap:2px; }
     .pool-notas i { font-style:normal; text-align:center; font-weight:800; font-size:10.5px;
       color:var(--text); background:var(--panel-3); border-radius:3px; padding:2px 0;
       white-space:nowrap; overflow:hidden; }
@@ -1637,6 +1647,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        linhas — decidir por linha deixaria umas com seis colunas e outras com
        três na mesma lista. */
     const temNotasNoPool = pool.some(j => j.notas);
+    const colsMock = colunasDeNota(pool, 'notas');
 
     const linha = (j, p) => `
       <div class="mock-row">
@@ -1654,9 +1665,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
              Sem notas as três colunas nem existem na grade — ver
              .mock-list.com-notas. */
           j.notas ? `
-        <div class="mock-ovr"><b>${parseInt(j.ovr, 10)}</b></div>
+        <div class="mock-ovr"><b>${ovrTexto(j.ovr)}</b></div>
         <div class="mock-idade">${parseInt(j.age, 10)}a</div>
-        <span class="pool-notas">${notasCelulas(j.notas)}</span>` : ''}
+        <span class="pool-notas">${notasCelulas(j.notas, colsMock)}</span>` : ''}
         <div class="mock-team">
           ${p ? `
             <img class="mock-team-logo" src="${esc(p.dono_logo || '/img/default-team.png')}"
@@ -1697,11 +1708,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           ? ', com o time de origem no "via"' : ''}${proj.some(p => (p.selos || []).length)
           ? ', e as condições de swap e proteção estão marcadas' : ''}.
       </div>
-      <div class="mock-list${temNotasNoPool ? ' com-notas' : ''}">
+      <div class="mock-list${temNotasNoPool ? ' com-notas' : ''}"
+           style="--notas-cols:${colsMock.length}">
         ${temNotasNoPool ? `
         <div class="mock-cab">
           <span></span><span>Jogador</span><span>OVR</span><span>Idade</span>
-          <span class="pool-notas">${ORDEM_NOTAS.map(k =>
+          <span class="pool-notas">${colsMock.map(k =>
             `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
           <span class="mock-time-lbl">Time</span>
         </div>` : ''}
@@ -1783,15 +1795,59 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   const SIGLA_NOTAS = { 'POST D':'PST', 'PER D':'PER', 'PLAY':'PLY', 'ATHL':'ATH' };
   const siglaNota = k => SIGLA_NOTAS[k] || k;
 
+  /**
+   * O OVR 60 É "NÃO SEI", E NÃO SESSENTA.
+   *
+   * 60 é o número que o sistema grava quando o arquivo da classe não traz
+   * RATING — e a tela de prospectos do jogo não traz: lá o overall é uma
+   * letra. Escrever "60" apresenta um palpite como se fosse medida, e pior,
+   * um palpite que se parece com nota baixa: numa lista de calouros todos em
+   * 60, o número só fazia o olho comparar quem é igual.
+   *
+   * "??" diz a verdade — ninguém mediu isso — e deixa a comparação onde ela
+   * existe de verdade, que são as letrinhas por atributo ao lado.
+   *
+   * O preço é o calouro que de fato vale 60 também aparecer com ??. Vale:
+   * nesta base 60 é o padrão de "sem avaliação", não um overall que alguém
+   * tenha escolhido. @see DRAFT_CSV_OVR_PADRAO e CD_OVR_CALOURO
+   */
+  const OVR_SEM_MEDIDA = 60;
+  function ovrTexto(v){
+    const n = parseInt(v, 10);
+    return (!n || n === OVR_SEM_MEDIDA) ? '??' : String(n);
+  }
+
   function temNotas(pick){
     return !!String(pick?.player_notas || '').trim();
+  }
+
+  /**
+   * QUAIS ATRIBUTOS ESSA LEVA TEM DE VERDADE, na ordem do jogo.
+   *
+   * Olha a leva inteira, não jogador por jogador: a coluna só existe se
+   * ALGUÉM tem aquela nota, e aí ela existe pra todos — senão cada linha
+   * teria um número de colunas e a sigla do cabeçalho deixaria de ficar em
+   * cima da letra certa, que é a única razão de a lista ser uma grade.
+   */
+  function colunasDeNota(lista, campo){
+    campo = campo || 'notas';
+    const tem = new Set();
+    (lista || []).forEach(p => {
+      let n = null;
+      try { n = JSON.parse(p && p[campo] ? p[campo] : 'null'); } catch (e) { n = null; }
+      if (n) ORDEM_NOTAS.forEach(k => { if (n[k]) tem.add(k); });
+    });
+    const achadas = ORDEM_NOTAS.filter(k => tem.has(k));
+    // Nenhuma nota em lugar nenhum: devolve as dez, que é o que a grade
+    // usava antes — assim a largura não colapsa numa lista sem letrinha.
+    return achadas.length ? achadas : ORDEM_NOTAS;
   }
 
   function fichaDoJogador(pick){
     const partes = [];
     if (pick.player_position) partes.push(esc(pick.player_position));
     if (temNotas(pick)) {
-      if (pick.player_ovr) partes.push(`<b>${parseInt(pick.player_ovr, 10)}</b> OVR`);
+      if (pick.player_ovr) partes.push(`<b>${ovrTexto(pick.player_ovr)}</b> OVR`);
       if (pick.player_age)  partes.push(`${parseInt(pick.player_age, 10)}a`);
     }
     return partes.join(' · ');
@@ -2031,12 +2087,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
        impede. Em lista, cada linha é um jogador e as colunas de nota ficam
        alinhadas de cima a baixo: dá pra correr o olho por uma coluna só. */
     const temLetras = players.some(p => p.notas);
+    const colsPool = colunasDeNota(players, 'notas');
     container.className = 'pool-lista' + (temLetras ? ' com-cab' : '');
+    container.style.setProperty('--notas-cols', colsPool.length);
     container.innerHTML = `
       ${temLetras ? `<div class="pool-cab">
         <span class="pool-ord">#</span><span class="pool-nome">Jogador</span>
         <span class="pool-ovr">OVR</span><span class="pool-idade">Idade</span>
-        <span class="pool-notas">${ORDEM_NOTAS.map(k => `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
+        <span class="pool-notas">${colsPool.map(k => `<i title="${esc(k)}">${esc(siglaNota(k))}</i>`).join('')}</span>
       </div>` : ''}
       ${players.map(p => {
         const drafted = p.draft_status === 'drafted';
@@ -2048,9 +2106,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span class="pool-ord">${p.pick_hint || ''}</span>
           <span class="pool-nome">${esc(p.name)}<span class="player-chip-pos">${esc(p.position)}</span>${
             drafted ? '<span class="pool-tag">Draftado</span>' : ''}</span>
-          <span class="pool-ovr">${p.notas ? `<b>${parseInt(p.ovr,10)}</b>` : '—'}</span>
+          <span class="pool-ovr">${p.notas ? `<b>${ovrTexto(p.ovr)}</b>` : '—'}</span>
           <span class="pool-idade">${p.notas ? parseInt(p.age,10) + 'a' : '—'}</span>
-          <span class="pool-notas">${notasCelulas(p.notas)}</span>
+          <span class="pool-notas">${notasCelulas(p.notas, colsPool)}</span>
         </div>`;
       }).join('')}`;
   }
@@ -2058,10 +2116,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   /* As dez notas como células soltas, pra encaixarem na mesma grade da linha
      — o notasHtml() monta a caixinha com sigla em cima, que serve no card e
      repetiria a sigla em cada linha da lista. */
-  function notasCelulas(json){
+  function notasCelulas(json, colunas){
     let n = null;
     try { n = json ? JSON.parse(json) : null; } catch { n = null; }
-    return ORDEM_NOTAS.map(k => `<i class="${n && n[k] ? '' : 'vaga'}">${n && n[k] ? esc(n[k]) : ''}</i>`).join('');
+    return (colunas || ORDEM_NOTAS)
+      .map(k => `<i class="${n && n[k] ? '' : 'vaga'}">${n && n[k] ? esc(n[k]) : ''}</i>`).join('');
   }
 
   let bigBoardPlayersList = [];
@@ -2766,7 +2825,7 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
         <span class="mock-queue-name">${esc(item.player_name)}</span>
         <span class="mock-queue-meta">${saiu ? quem
           : esc(item.player_position) + (item.player_notas
-              ? ` · <b style="color:var(--text)">${parseInt(item.player_ovr,10)}</b> · ${parseInt(item.player_age,10)}a`
+              ? ` · <b style="color:var(--text)">${ovrTexto(item.player_ovr)}</b> · ${parseInt(item.player_age,10)}a`
               : '')}</span>
         <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
       </div>`;
@@ -2810,7 +2869,7 @@ ${jogadorAtualDaPick} volta pro pool e fica disponivel pra outra pick.`
       <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${esc(p.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', '${esc(p.position.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${p.ovr})" style="cursor:pointer">
         <div class="player-chip-name">${esc(p.name)}</div>
         <div><span class="player-chip-pos">${esc(p.position)}</span>${
-          p.notas ? `<span class="chip-ovr">${parseInt(p.ovr,10)}</span>
+          p.notas ? `<span class="chip-ovr">${ovrTexto(p.ovr)}</span>
                      <span class="chip-idade">${parseInt(p.age,10)}a</span>` : ''}</div>
         ${notasHtml(p.notas)}
       </div>`).join('');
