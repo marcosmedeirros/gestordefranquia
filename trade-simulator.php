@@ -1121,11 +1121,53 @@ function populateTeamSelect(key, teamsList) {
 }
 
 // ── Team loading ──────────────────────────────────────────────────────────────
+/**
+ * TIROU O TIME DA MESA, CAI TUDO QUE ERA DELE.
+ *
+ * Cada item guarda o SLOT de origem (fromKey), não o id do time. Quando o
+ * slot troca de time, o que os outros painéis recebiam "dele" passa a
+ * apontar pra um clube que nunca entrou nessa conversa — e o estrago era
+ * duplo: na tela os itens sumiam, mas na conta de salário continuavam
+ * valendo. Era por isso que a regra dos 120% acusava milhões que não
+ * apareciam em lugar nenhum ("está enviando 21M" com 12M na mesa).
+ *
+ * Some tudo que envolve este slot, nos dois sentidos: o que ele recebia e o
+ * que ele dava. Numa troca de dois times isso zera a mesa inteira, como tem
+ * que ser; numa de três, o acordo entre os outros dois continua de pé —
+ * derrubar aquilo também seria punir quem não mudou nada.
+ *
+ * Desmarcar o tradedOf de quem cedeu é parte do serviço, igual ao
+ * removeItem: sem isso o jogador que voltou pra casa continuava riscado no
+ * elenco de origem e não dava pra oferecer de novo.
+ */
+function limparVinculosDoSlot(key) {
+  const soltar = item => {
+    if (item.type === 'player' && teams[item.fromKey]) teams[item.fromKey].tradedOut.delete(item.id);
+  };
+  activeSlots.forEach(k => {
+    if (!receives[k]) return;
+    const fica = [];
+    receives[k].forEach(i => {
+      if (k === key || i.fromKey === key) soltar(i); else fica.push(i);
+    });
+    receives[k] = fica;
+  });
+  receives[key] = [];
+}
+
 async function loadTeam(key, teamId) {
+  /* Só quando MUDA de verdade: escolher o mesmo time de novo não é motivo
+     pra desmontar o que já estava montado, e o boot chama isto com o slot
+     ainda vazio (aí não há vínculo nenhum pra derrubar). */
+  const anterior = teams[key] ? String(teams[key].id) : null;
+  if (anterior !== null && anterior !== String(teamId || '')) limparVinculosDoSlot(key);
+
   if (!teamId) {
     teams[key] = null;
     receives[key] = [];
-    renderPanel(key);
+    /* Todos os painéis, não só este: o que caiu junto estava na mesa dos
+       outros, e redesenhar só o daqui deixaria o item fantasma na tela. */
+    activeSlots.forEach(k => renderPanel(k));
     recalc();
     return;
   }
@@ -1153,7 +1195,10 @@ async function loadTeam(key, teamId) {
   };
   receives[key] = [];
   aplicarPreselecoes(key);
-  renderPanel(key);
+  /* TODOS os painéis, não só este. O que caiu junto com o time antigo
+     estava na mesa dos OUTROS, e redesenhar só o daqui deixava o item
+     fantasma na tela — fora do estado, mas visível. */
+  activeSlots.forEach(k => renderPanel(k));
   // Atualiza todos os seletores para excluir times já escolhidos
   if (window._allTeams) {
     activeSlots.forEach(k => {
