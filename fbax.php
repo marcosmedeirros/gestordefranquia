@@ -96,7 +96,59 @@ if ($team_id) {
            antigo tinha grid de fotos justamente porque era de outro formato. */
         .fx-col { max-width: 600px; margin: 0 auto; }
 
-        .fx-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+        /* A barra de cima: filtros à esquerda, sino à direita. */
+        .fx-barra { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+        .fx-chips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+
+        /* O SINO. Fica na barra e não no menu lateral porque o aviso é desta
+           tela: quem está lendo o feed é quem quer saber que foi respondido. */
+        .fx-sino { position: relative; flex: none; width: 38px; height: 34px; border-radius: 999px;
+            background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 15px; transition: all var(--t) var(--ease); }
+        .fx-sino:hover { border-color: var(--border-md); color: var(--text); }
+        .fx-sino.tem { color: var(--red); border-color: var(--border-red); }
+        .fx-sino-n { position: absolute; top: -5px; right: -4px; min-width: 17px; height: 17px;
+            padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff;
+            font-size: 10px; font-weight: 800; line-height: 17px; font-variant-numeric: tabular-nums; }
+
+        /* Um aviso da lista. A linha inteira é clicável — abrir a conversa é
+           a única coisa que se quer fazer com ele. */
+        .fx-aviso { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+            padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-top: 0;
+            color: var(--text); font-family: var(--font); cursor: pointer; }
+        .fx-aviso:first-of-type { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+        .fx-aviso:last-of-type { border-radius: 0 0 var(--radius) var(--radius); }
+        /* Opaco de propósito: var(--red-soft) é translúcido e, com o painel
+           por cima da página, o conteúdo de trás aparecia através do aviso. */
+        .fx-aviso.novo { background: color-mix(in srgb, var(--red) 10%, var(--panel)); }
+        .fx-aviso:hover { background: var(--panel-2); }
+        .fx-aviso i.ico { font-size: 15px; color: var(--red); line-height: 1.3; }
+        .fx-aviso-txt { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.45; }
+        .fx-aviso-txt b { font-weight: 700; }
+        .fx-aviso-txt small { display: block; color: var(--text-3); font-size: 12px; margin-top: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fx-aviso-quando { flex: none; color: var(--text-3); font-size: 11.5px; }
+
+        /* O time marcado no texto. Só pinta: não existe página de um time só
+           pra onde mandar, e um link que não leva a lugar nenhum frustra mais
+           do que a cor resolve. */
+        .fx-mencao { color: var(--red); font-weight: 600; }
+
+        /* A lista que completa o @. Posição fixa, como o menu do repost: ela
+           nasce colada no campo e o campo pode estar dentro de um modal. */
+        .fx-mencoes { position: fixed; z-index: 500; display: none; min-width: 220px; max-width: 320px;
+            max-height: 240px; overflow-y: auto; background: var(--panel-2);
+            border: 1px solid var(--border-md); border-radius: var(--radius-sm); padding: 4px;
+            box-shadow: 0 12px 28px rgba(0,0,0,.5); }
+        .fx-mencoes.show { display: block; }
+        .fx-mencao-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px;
+            border: 0; background: transparent; color: var(--text); font-family: var(--font);
+            font-size: 13px; text-align: left; cursor: pointer; border-radius: 7px; }
+        .fx-mencao-item:hover, .fx-mencao-item.sel { background: var(--panel-3); }
+        .fx-mencao-item img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex: none; }
+        .fx-mencao-item .arroba { color: var(--text-3); font-size: 12px; }
+        .fx-mencao-item .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fx-chip { padding: 6px 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border);
             color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all var(--t) var(--ease); }
         .fx-chip:hover { border-color: var(--border-md); color: var(--text); }
@@ -231,12 +283,17 @@ if ($team_id) {
 
         <div class="content">
             <div class="fx-col">
-                <div class="fx-chips" id="fxChips">
-                    <button class="fx-chip active" data-league="">Todas</button>
-                    <button class="fx-chip" data-league="ELITE">ELITE</button>
-                    <button class="fx-chip" data-league="NEXT">NEXT</button>
-                    <button class="fx-chip" data-league="RISE">RISE</button>
-                    <button class="fx-chip" data-league="ROOKIE">ROOKIE</button>
+                <div class="fx-barra">
+                    <div class="fx-chips" id="fxChips">
+                        <button class="fx-chip active" data-league="">Todas</button>
+                        <button class="fx-chip" data-league="ELITE">ELITE</button>
+                        <button class="fx-chip" data-league="NEXT">NEXT</button>
+                        <button class="fx-chip" data-league="RISE">RISE</button>
+                        <button class="fx-chip" data-league="ROOKIE">ROOKIE</button>
+                    </div>
+                    <button type="button" class="fx-sino" id="fxSino" title="Seus avisos">
+                        <i class="bi bi-bell"></i><span class="fx-sino-n" id="fxSinoN" hidden>0</span>
+                    </button>
                 </div>
 
                 <div class="fx-box" id="fxCompositor" style="display:none">
@@ -287,6 +344,19 @@ if ($team_id) {
         </div>
     </div>
 </div>
+
+<div class="fx-modal" id="fxAvisos">
+    <div class="fx-modal-cx">
+        <div class="fx-modal-topo">
+            <button type="button" class="fx-voltar" id="fxAvisosFechar"><i class="bi bi-arrow-left"></i></button>
+            <strong style="font-size:15px">Seus avisos</strong>
+            <button type="button" class="fx-chip" id="fxAvisosLer" style="margin-left:auto">Marcar tudo como lido</button>
+        </div>
+        <div id="fxAvisosLista"></div>
+    </div>
+</div>
+
+<div class="fx-mencoes" id="fxMencoes"></div>
 
 <div class="fx-modal" id="fxModal">
     <div class="fx-modal-cx">

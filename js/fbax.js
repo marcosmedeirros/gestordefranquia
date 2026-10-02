@@ -16,6 +16,9 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let liga = '';
+  // Os times da liga, pra completar o @ e pra acender a menção já escrita.
+  const PORSLUG = new Map();
+  let TIMES = [];
   let meuTime = 0;
   let posso = false;
   let fotoBase64 = '';
@@ -36,6 +39,17 @@
     return t.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   }
 
+  /* O TEXTO COM OS TIMES ACESOS. Escapa primeiro e marca depois, nessa ordem:
+     ao contrário, o nome do time entraria no HTML antes de ser escapado e um
+     time chamado "<b>" viraria tag. Só acende @ que casa com time existente —
+     o resto continua texto, inclusive e-mail colado no meio da frase. */
+  function textoRico(s) {
+    return esc(s).replace(/@([A-Za-z0-9]{2,40})/g, (todo, bruto) => {
+      const t = PORSLUG.get(bruto.toLowerCase());
+      return t ? `<span class="fx-mencao" title="${esc(t.nome)}">@${esc(t.curto)}</span>` : todo;
+    });
+  }
+
   const escudo = (p) => p.team_photo
     ? `<img class="avatar" src="${esc(p.team_photo)}" alt="" onerror="this.style.visibility='hidden'">`
     : `<div class="avatar"></div>`;
@@ -51,7 +65,7 @@
         ${pequeno ? '' : `<span class="fx-gm">· ${esc(p.author_name)}</span>`}
         <span class="fx-quando">· ${quando(p.created_at)}</span>
       </div>
-      ${p.texto ? `<div class="fx-texto">${esc(p.texto)}</div>` : ''}
+      ${p.texto ? `<div class="fx-texto">${textoRico(p.texto)}</div>` : ''}
       ${p.photo_url ? `<div class="fx-foto"><img src="${esc(p.photo_url)}" alt="" loading="lazy"></div>` : ''}`;
   }
 
@@ -108,6 +122,155 @@
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Deu erro aqui.');
     return d;
+  }
+
+  // ── Marcar um time: @ e a lista que completa ──────────────────────
+  let mcAlvo = null;      // o campo em que se está escrevendo
+  let mcInicio = -1;      // onde começa o @ que está sendo digitado
+  let mcItens = [];
+  let mcSel = 0;
+
+  async function carregarTimes() {
+    try {
+      const d = await api('GET', null, '?action=times');
+      TIMES = d.times || [];
+      // Nome repetido: o primeiro fica com o @, igual ao servidor.
+      TIMES.forEach((t) => { if (!PORSLUG.has(t.slug)) PORSLUG.set(t.slug, t); });
+    } catch (e) { /* sem a lista, @ fica sendo texto comum e nada quebra */ }
+  }
+
+  /* O @ QUE ESTÁ SENDO ESCRITO AGORA, se houver. Tem que começar palavra: sem
+     isso, um e-mail no meio do texto abriria a lista a cada tecla. */
+  function termoDoCursor(ta) {
+    const pos = ta.selectionStart;
+    const m = ta.value.slice(0, pos).match(/@([A-Za-z0-9]*)$/);
+    if (!m) return null;
+    const inicio = pos - m[0].length;
+    if (inicio > 0 && /[A-Za-z0-9@]/.test(ta.value[inicio - 1])) return null;
+    return { inicio, termo: m[1].toLowerCase() };
+  }
+
+  function fecharMencao() {
+    $('fxMencoes').classList.remove('show');
+    mcAlvo = null; mcItens = []; mcInicio = -1;
+  }
+
+  function desenharMencoes() {
+    $('fxMencoes').innerHTML = mcItens.map((t, i) => `
+      <button type="button" class="fx-mencao-item${i === mcSel ? ' sel' : ''}" data-slug="${esc(t.slug)}">
+        ${t.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.style.visibility='hidden'">` : ''}
+        <span class="nome">${esc(t.curto)}</span>
+        <span class="arroba">@${esc(t.slug)}</span>
+      </button>`).join('');
+  }
+
+  function aoDigitar(ta) {
+    const alvo = termoDoCursor(ta);
+    if (!alvo || !TIMES.length) return fecharMencao();
+
+    /* Primeiro o que COMEÇA com o que foi digitado, depois o que contém: quem
+       escreve "void" quer os Voidmakers no topo, e não um time qualquer que
+       tenha "void" no meio do nome. */
+    const t = alvo.termo;
+    const comeca = TIMES.filter((x) => x.slug.startsWith(t));
+    // O "contém" só a partir de duas letras: com uma, meia liga entra na
+    // lista por ter aquela letra em algum lugar do nome.
+    const contem = t.length > 1 ? TIMES.filter((x) => !x.slug.startsWith(t) && x.slug.includes(t)) : [];
+    mcItens = comeca.concat(contem).slice(0, 8);
+    if (!mcItens.length) return fecharMencao();
+
+    mcAlvo = ta; mcInicio = alvo.inicio; mcSel = 0;
+    desenharMencoes();
+    const cx = $('fxMencoes');
+    cx.classList.add('show');
+    /* Ancorada no campo, e não no cursor: medir o caret dentro de um textarea
+       exige clonar o campo inteiro num espelho invisível, e aqui o campo é
+       pequeno o bastante pra lista embaixo dele apontar pro lugar certo. */
+    const r = ta.getBoundingClientRect();
+    const alt = cx.offsetHeight;
+    cx.style.top = (r.bottom + alt + 8 > window.innerHeight ? Math.max(8, r.top - alt - 6) : r.bottom + 6) + 'px';
+    cx.style.left = Math.max(8, Math.min(r.left, window.innerWidth - cx.offsetWidth - 8)) + 'px';
+  }
+
+  function escolherMencao(slug) {
+    const ta = mcAlvo;
+    if (!ta || mcInicio < 0) return;
+    const pos = ta.selectionStart;
+    const marca = '@' + slug + ' ';
+    ta.value = ta.value.slice(0, mcInicio) + marca + ta.value.slice(pos);
+    const cursor = mcInicio + marca.length;
+    fecharMencao();
+    ta.focus();
+    ta.setSelectionRange(cursor, cursor);
+    // Avisa quem mede o contador e a altura do campo.
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /* Enter escolhe enquanto a lista está aberta, e só então: fora dela, Enter
+     é quebra de linha, que é o que se espera de um campo de texto. */
+  function teclaMencao(e) {
+    if (!mcItens.length || !$('fxMencoes').classList.contains('show')) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      mcSel = (mcSel + (e.key === 'ArrowDown' ? 1 : mcItens.length - 1)) % mcItens.length;
+      desenharMencoes();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      escolherMencao(mcItens[mcSel].slug);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      fecharMencao();
+    }
+  }
+
+  /** Liga o completar num campo: serve pro compositor, a resposta e a citação. */
+  function ligarMencao(ta) {
+    if (!ta || ta.dataset.mencao) return;
+    ta.dataset.mencao = '1';
+    ta.addEventListener('input', () => aoDigitar(ta));
+    ta.addEventListener('keydown', teclaMencao);
+    ta.addEventListener('click', () => aoDigitar(ta));
+    // Atraso no blur: o clique num item tira o foco do campo ANTES de o
+    // clique chegar na lista, e fechar na hora engoliria a escolha.
+    ta.addEventListener('blur', () => setTimeout(fecharMencao, 180));
+  }
+
+  // ── Os avisos ─────────────────────────────────────────────────────
+  const FRASE = {
+    resposta: 'respondeu você',
+    citacao:  'citou seu post',
+    mencao:   'marcou seu time',
+  };
+
+  function pintarSino(n) {
+    const b = $('fxSinoN');
+    b.hidden = !n;
+    b.textContent = n > 99 ? '99+' : n;
+    $('fxSino').classList.toggle('tem', !!n);
+  }
+
+  async function carregarAvisos(abrir) {
+    try {
+      const d = await api('GET', null, '?action=avisos');
+      pintarSino(d.nao_lidos || 0);
+      if (!abrir) return;
+      const lista = d.avisos || [];
+      $('fxAvisosLista').innerHTML = lista.length
+        ? lista.map((a) => `
+            <button type="button" class="fx-aviso${a.lido ? '' : ' novo'}"
+                    data-aviso="${a.id}" data-post="${a.abrir_id}">
+              <i class="ico bi bi-${a.tipo === 'mencao' ? 'at' : a.tipo === 'citacao' ? 'chat-quote' : 'chat'}"></i>
+              <span class="fx-aviso-txt">
+                <b>${esc(a.de_time || 'Alguém')}</b> ${FRASE[a.tipo] || 'falou com você'}
+                <small>${esc((a.texto || '').slice(0, 90)) || 'sem texto'}</small>
+              </span>
+              <span class="fx-aviso-quando">${quando(a.created_at)}</span>
+            </button>`).join('')
+        : '<div class="fx-vazio">Nada por enquanto. Quando alguém te responder ou marcar seu time, aparece aqui.</div>';
+      $('fxAvisos').classList.add('show');
+    } catch (e) {
+      if (abrir) $('fxAvisosLista').innerHTML = `<div class="fx-vazio">${esc(e.message)}</div>`;
+    }
   }
 
   // ── O feed ────────────────────────────────────────────────────────
@@ -302,6 +465,7 @@
 
       const ta = $('fxResposta');
       if (ta) {
+        ligarMencao(ta);
         ta.addEventListener('input', () => {
           const resta = MAX - ta.value.length;
           $('fxContaResp').textContent = resta;
@@ -335,6 +499,8 @@
     });
 
     $('fxTexto').addEventListener('input', medirTexto);
+    ligarMencao($('fxTexto'));
+    ligarMencao($('fxCitarTexto'));
     $('fxBtnFoto').addEventListener('click', () => $('fxArquivo').click());
     $('fxArquivo').addEventListener('change', (e) => lerFoto(e.target.files[0]));
     $('fxTirarFoto').addEventListener('click', () => {
@@ -379,6 +545,41 @@
     });
     $('fxModal').addEventListener('click', (e) => { if (e.target === $('fxModal')) fecharThread(); });
 
+    $('fxMencoes').addEventListener('mousedown', (e) => {
+      // mousedown, e não click: o click só chegaria depois do blur do campo.
+      const b = e.target.closest('[data-slug]');
+      if (!b) return;
+      e.preventDefault();
+      escolherMencao(b.dataset.slug);
+    });
+    window.addEventListener('scroll', fecharMencao, true);
+    /* Clique fora fecha, como no menu do repost. O blur do campo já daria
+       conta no uso normal, mas a lista é posicionada em pixel fixo: deixá-la
+       flutuando sobre outra coisa da tela é pior que fechar à toa. */
+    document.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('#fxMencoes') && e.target !== mcAlvo) fecharMencao();
+    }, true);
+
+    $('fxSino').addEventListener('click', () => carregarAvisos(true));
+    $('fxAvisosFechar').addEventListener('click', () => $('fxAvisos').classList.remove('show'));
+    $('fxAvisos').addEventListener('click', (e) => { if (e.target === $('fxAvisos')) $('fxAvisos').classList.remove('show'); });
+    $('fxAvisosLer').addEventListener('click', async () => {
+      await api('POST', { action: 'avisos_lidos' });
+      pintarSino(0);
+      $('fxAvisosLista').querySelectorAll('.fx-aviso.novo').forEach((x) => x.classList.remove('novo'));
+    });
+    $('fxAvisosLista').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-post]');
+      if (!b) return;
+      /* Marca lido ANTES de abrir: se a thread falhar, o aviso foi visto do
+         mesmo jeito — ele diz "tem coisa nova", não "tarefa pendente". */
+      try { await api('POST', { action: 'avisos_lidos', aviso_id: +b.dataset.aviso }); } catch (err) {}
+      b.classList.remove('novo');
+      pintarSino($('fxAvisosLista').querySelectorAll('.fx-aviso.novo').length);
+      $('fxAvisos').classList.remove('show');
+      abrirThread(+b.dataset.post);
+    });
+
     /* Um ouvinte só, no documento: o feed é reescrito a cada carga e pendurar
        listener em cada botão vazaria um por post a cada rolagem. */
     document.addEventListener('click', async (e) => {
@@ -402,6 +603,11 @@
       }
     });
 
-    carregar(false);
+    /* OS TIMES VÊM ANTES DO FEED. O post é desenhado uma vez só; sem a
+       lista em mãos na hora de desenhar, a menção sairia como texto cru e
+       não acenderia nunca mais. Os avisos vão em paralelo — eles não
+       mudam nada do que já está na tela. */
+    carregarTimes().then(() => carregar(false));
+    carregarAvisos(false);
   });
 })();

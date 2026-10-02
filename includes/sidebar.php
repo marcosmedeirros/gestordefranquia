@@ -16,7 +16,30 @@ $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
 ?>
 <script src="/js/popups.js?v=<?= @filemtime(dirname(__DIR__) . '/js/popups.js') ?: 1 ?>"></script>
 <?php
+/* O CSS DO BADGE MORA AQUI, e não numa folha de estilo: o visual do menu é
+   repetido dentro de cada página do site, então uma regra nova teria que ser
+   colada em dezenas de arquivos. Este include é o único lugar por onde o menu
+   passa inteiro. */
+?>
+<style>
+    .sb-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
+        border-radius: 999px; background: var(--red, #e11d48); color: #fff;
+        font-size: 10px; font-weight: 800; line-height: 18px; text-align: center;
+        font-variant-numeric: tabular-nums; }
+</style>
+<?php
 $__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
+
+/* Avisos do FBAX no menu. A conta é um COUNT num índice e devolve zero diante
+   de qualquer erro — este arquivo entra em TODA página do site, e um badge
+   não vale derrubar o menu de ninguém. */
+$__sbFbax = 0;
+try {
+    require_once __DIR__ . '/../backend/fbax_avisos.php';
+    $__sbFbax = fbaxAvisosNaoLidos($pdo, (int)($user['id'] ?? 0));
+} catch (Throwable $e) {
+    $__sbFbax = 0;
+}
 // Observar liga é só do admin geral — admin de liga já vê a própria liga
 // inteira, "ver outra liga" não é dele.
 $__sbIsGlobalAdmin = !empty($user['id']) && hasGlobalAdminAccess($pdo, (int)$user['id']);
@@ -129,10 +152,19 @@ if (!function_exists('sbActive')) {
            menu: o lugar dela na seção Liga passou a valer mais pro Clube,
            que é onde a galera está marcando coisa. */ ?>
         <a href="/clube.php"<?= sbActive('clube.php', $__sbCurrent) ?>><i class="bi bi-collection-fill"></i> Clube FBA</a>
-        <?php /* FBAX (/fbax.php): o Timeline refeito em formato de Twitter,
-           em 02/10/2026. SEM ITEM NO MENU por enquanto, a pedido dele —
-           acesso só por link direto, igual ao Draft de Lendas. A tela velha
-           segue de pé em /timeline.php, também fora do menu. */ ?>
+        <?php /* FBAX (/fbax.php): o Timeline refeito em formato de Twitter, em
+           02/10/2026. Entrou no menu no mesmo dia: enquanto o acesso dependia
+           de alguém lembrar o endereço, a tela não ia virar hábito de
+           ninguém. A tela velha segue de pé em /timeline.php, fora do menu. */ ?>
+        <a href="/fbax.php"<?= sbActive('fbax.php', $__sbCurrent) ?>>
+            <i class="bi bi-chat-square-text-fill"></i> FBAX
+            <?php if ($__sbFbax): /* O número é só o que é SEU: resposta ao seu
+                     post e marcação do seu time. Contar post novo da liga
+                     deixaria o badge sempre aceso, e badge sempre aceso é
+                     badge que ninguém olha. */ ?>
+            <span class="sb-badge"><?= $__sbFbax > 99 ? '99+' : (int)$__sbFbax ?></span>
+            <?php endif; ?>
+        </a>
         <?php /* Voltou ao menu em 24/08/2026: com a escala das lives entrando
            no calendário, ele deixou de ser só datas da liga e passou a ser
            onde a pessoa vê que foi escalada. */ ?>

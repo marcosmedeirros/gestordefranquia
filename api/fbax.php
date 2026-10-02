@@ -17,6 +17,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/fbax.php';
+require_once __DIR__ . '/../backend/fbax_avisos.php';
 
 $pdo = db();
 $user = getUserSession();
@@ -60,6 +61,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ]);
     }
 
+    /* A LISTA DE TIMES VAI INTEIRA, UMA VEZ. São 122 e a tela precisa dela
+       em dois momentos que não podem esperar servidor: completar o @ na
+       tecla, e desenhar a menção já marcada em cada post do feed. */
+    if ($acao === 'times') {
+        jsonResponse(200, ['success' => true, 'times' => array_map(
+            fn($t) => ['id' => $t['id'], 'slug' => $t['slug'], 'nome' => $t['nome'],
+                      'curto' => $t['curto'], 'liga' => $t['liga'], 'logo' => $t['logo']],
+            fbaxTimesParaMencao($pdo))]);
+    }
+
+    if ($acao === 'avisos') {
+        jsonResponse(200, [
+            'success'   => true,
+            'avisos'    => fbaxAvisosLista($pdo, $userId),
+            'nao_lidos' => fbaxAvisosNaoLidos($pdo, $userId),
+        ]);
+    }
+
     jsonResponse(400, ['error' => 'Ação inválida']);
 }
 
@@ -73,6 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($body['post_id'] ?? 0);
         if (!$id) jsonResponse(422, ['error' => 'post_id é obrigatório']);
         jsonResponse(200, ['success' => true] + fbaxCurtir($pdo, $id, $userId));
+    }
+
+    if ($acao === 'avisos_lidos') {
+        fbaxAvisosMarcarLidos($pdo, $userId, (int)($body['aviso_id'] ?? 0));
+        jsonResponse(200, ['success' => true, 'nao_lidos' => fbaxAvisosNaoLidos($pdo, $userId)]);
     }
 
     if ($acao === 'apagar') {
@@ -102,6 +126,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $acao === 'repostar'  ? $alvo : null
         );
         if (!$r['ok']) jsonResponse(422, ['error' => $r['erro']]);
+
+        /* QUEM FOI MENCIONADO OU RESPONDIDO FICA SABENDO. Depois do post
+           gravado e fora de transação: avisar é consequência, e um erro aqui
+           não pode derrubar a publicação que a pessoa pediu. Repost seco não
+           entra — passa id 0 e sai sem fazer nada. */
+        if ($r['id']) {
+            fbaxAvisarDoPost($pdo, $r['id'], $userId, $myTeamId, (string)($body['texto'] ?? ''),
+                             $acao === 'responder' ? $alvo : null,
+                             $acao === 'repostar'  ? $alvo : null);
+        }
 
         /* Devolve o post pronto pra tela encaixar sem recarregar o feed — menos
            um ida-e-volta, e a rolagem de quem está lendo não salta. O repost
