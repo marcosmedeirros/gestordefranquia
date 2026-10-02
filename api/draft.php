@@ -2819,6 +2819,26 @@ if ($method === 'POST') {
                 exit;
             }
 
+            /* VAGA SOB SWAP NÃO SE TROCA AQUI. O dono dela é recalculado a
+               cada leitura da ordem, então a troca manual era desfeita no
+               primeiro F5 — depois de a tela ter dito que deu certo. Melhor
+               recusar dizendo por quê: o conserto é desfazer o swap na pick,
+               não renomear o dono da vaga. @see draftSwapDaVaga */
+            require_once __DIR__ . '/../backend/draft_swaps.php';
+            $swapDaVaga = draftSwapDaVaga($pdo, (int)$draftSessionId, $pick);
+            if ($swapDaVaga) {
+                $nomes = draftNomesDosTimes($pdo, [$swapDaVaga['dono_melhor'], $swapDaVaga['dono_pior']]);
+                echo json_encode(['success' => false, 'error' =>
+                    'Essa vaga é decidida por um swap entre as escolhas '
+                    . $swapDaVaga['pos_melhor'] . ' e ' . $swapDaVaga['pos_pior'] . ': '
+                    . ($nomes[$swapDaVaga['dono_melhor']] ?? 'quem tem o SB') . ' fica com a '
+                    . $swapDaVaga['pos_melhor'] . ' e '
+                    . ($nomes[$swapDaVaga['dono_pior']] ?? 'quem tem o SW') . ' com a '
+                    . $swapDaVaga['pos_pior'] . '. '
+                    . 'Trocar o dono aqui seria desfeito sozinho — mexa no swap da pick.']);
+                exit;
+            }
+
             $fromTeamId = (int)$pick['team_id'];
             $toTeamId = (int)$toTeamId;
             if ($fromTeamId === $toTeamId) {

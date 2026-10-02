@@ -465,6 +465,69 @@ function draftVagaDasPicks(PDO $pdo, int $draftSessionId, bool $ocultarNaoRevela
  *
  * Devolve ['donos' => n, 'swaps' => n] com quantas vagas cada passo mexeu.
  */
+/**
+ * ESTA VAGA TEM DONO DECIDIDO POR SWAP?
+ *
+ * Existe porque trocar o dono na mão não sobrevive a um swap: a vaga de quem
+ * está num par é recalculada em toda leitura da ordem (@see
+ * draftSincronizarOrdem), e a troca manual era desfeita no primeiro F5 — com
+ * a tela tendo dito "Pick trocada com sucesso!" um segundo antes. Quem usa
+ * não tinha como saber que o swap é que mandava ali.
+ *
+ * Devolve null quando a vaga é livre. Quando não é, devolve com o que a tela
+ * precisa pra explicar: as duas posições do par e quem fica com cada uma.
+ *
+ * @return array{pos_sb:int,pos_sw:int,dono_melhor:int,dono_pior:int}|null
+ */
+function draftSwapDaVaga(PDO $pdo, int $draftSessionId, array $vaga): ?array
+{
+    if ((int)$vaga['round'] !== 1) return null;   // swap é só de 1ª rodada
+
+    $st = $pdo->prepare('SELECT season_id FROM draft_sessions WHERE id = ?');
+    $st->execute([$draftSessionId]);
+    $seasonId = (int)($st->fetchColumn() ?: 0);
+    if ($seasonId <= 0) return null;
+
+    $ano = draftAnoDasPicks($pdo, $seasonId);
+    if ($ano <= 0) return null;
+
+    [$porOrigem, $porId, ] = draftPicksPorOrigem($pdo, $ano);
+    $minha = $porOrigem[1][(int)$vaga['original_team_id']] ?? null;
+    if (!$minha) return null;
+
+    $tipo = strtoupper(trim((string)($minha['swap_type'] ?? '')));
+    if ($tipo !== 'SB' && $tipo !== 'SW') return null;
+
+    /* O par tem que apontar de volta e ser do outro lado — a mesma conferência
+       da sincronização. Meio-swap pendurado não governa vaga nenhuma, e aí a
+       troca manual É legítima. */
+    $par = $porId[(int)($minha['swap_pair_pick_id'] ?? 0)] ?? null;
+    $tipoPar = $par ? strtoupper(trim((string)($par['swap_type'] ?? ''))) : '';
+    if (!$par || (int)$par['round'] !== 1
+        || (int)($par['swap_pair_pick_id'] ?? 0) !== (int)$minha['id']
+        || $tipoPar === $tipo || ($tipoPar !== 'SB' && $tipoPar !== 'SW')) {
+        return null;
+    }
+
+    $st = $pdo->prepare('SELECT original_team_id, pick_position FROM draft_order
+                          WHERE draft_session_id = ? AND round = 1
+                            AND original_team_id IN (?, ?)');
+    $st->execute([$draftSessionId, (int)$minha['original_team_id'], (int)$par['original_team_id']]);
+    $vagas = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $v) $vagas[(int)$v['original_team_id']] = (int)$v['pick_position'];
+    if (count($vagas) < 2) return null;            // um dos times não está neste draft
+
+    $sb = $tipo === 'SB' ? $minha : $par;
+    $sw = $tipo === 'SB' ? $par : $minha;
+
+    $posSb = $vagas[(int)$sb['original_team_id']];
+    $posSw = $vagas[(int)$sw['original_team_id']];
+    $melhor = min($posSb, $posSw);                 // quem tem SB fica com a menor
+
+    return ['pos_melhor' => $melhor, 'pos_pior' => max($posSb, $posSw),
+            'dono_melhor' => (int)$sb['team_id'], 'dono_pior' => (int)$sw['team_id']];
+}
+
 function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
 {
     $st = $pdo->prepare('SELECT id, season_id, league FROM draft_sessions WHERE id = ?');
