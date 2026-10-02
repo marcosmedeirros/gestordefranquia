@@ -136,8 +136,26 @@ switch ($action) {
                 $pdo->prepare("INSERT INTO draft_mock_queue (team_id, draft_session_id, player_id, priority) VALUES (?, ?, ?, ?)")
                     ->execute([$teamId, $draftSessionId, $playerId, $idx + 1]);
             }
+
+            /* MONTOU A FILA, O MOCK LIGA SOZINHO (02/10/2026).
+
+               Salvar a fila e ligar a chave eram dois botões, e muita gente
+               fazia só o primeiro: montava a lista inteira, saía da tela
+               achando que estava resolvido, e no dia do draft não escolhia
+               nada. Pior na 2ª rodada, onde não existe escolher ao vivo — a
+               fila não era herdada e a pick ia pro colo do admin.
+
+               Quem põe jogador na fila está dizendo o que quer; exigir um
+               segundo clique pra isso valer era uma pegadinha. Esvaziar a
+               lista desliga de volta: sem ninguém pra escolher, deixar a
+               chave acesa prometeria uma escolha que não existe. */
+            $pdo->prepare("INSERT INTO draft_mock_settings (team_id, draft_session_id, is_active)
+                           VALUES (?, ?, ?)
+                           ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)")
+                ->execute([$teamId, $draftSessionId, $playerIds ? 1 : 0]);
+
             $pdo->commit();
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'is_active' => (bool)$playerIds]);
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
