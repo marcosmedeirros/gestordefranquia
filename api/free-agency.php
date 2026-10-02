@@ -2203,16 +2203,21 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
 
     // Fluxo novo: fa_request_offers -> fa_requests.ovr
     try {
-        $st = $pdo->prepare('SELECT o.id, r.ovr
+        $st = $pdo->prepare('SELECT o.id, o.request_id, r.ovr
                              FROM fa_request_offers o
                              JOIN fa_requests r ON r.id = o.request_id
                              WHERE o.team_id = ? AND o.status = "pending" AND r.status = "open"');
         $st->execute([$teamId]);
+        $mexidos = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
             if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
             $pdo->prepare('UPDATE fa_request_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
+            $mexidos[(int)$o['request_id']] = true;
             $caidas++;
         }
+        /* Se este era o único lance, o pedido fica sem ninguém disputando —
+           e aí ele some junto, em vez de esperar o Resolver FA. */
+        foreach (array_keys($mexidos) as $rid) faApagarPedidoSemLance($pdo, $rid);
     } catch (Throwable $e) { error_log('cancelarPropostasSemEspacoNoCap (novo): ' . $e->getMessage()); }
 
     // Fluxo antigo: free_agent_offers -> free_agents.<coluna de ovr>
@@ -2447,6 +2452,46 @@ function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): 
     jsonSuccess();
 }
 
+/**
+ * PEDIDO SEM NENHUM LANCE NÃO FICA NA LISTA.
+ *
+ * O card de pedido existe pra abrigar uma disputa — tanto que quem pede é
+ * obrigado a dar o primeiro lance. Quando o último lance sai, cancelado pelo
+ * GM ou derrubado pelo cap, não sobrou ninguém querendo o jogador, e o card
+ * vira enfeite: ocupa a lista pedindo alguém que a liga já esqueceu, até o
+ * próximo "Resolver FA" passar por ele.
+ *
+ * Conta só o que está PENDENTE, porque lance cancelado é lance que não existe
+ * mais. Era justamente aí que estava o furo: cinco pedidos da ELITE ficaram
+ * parados desde 28/09 porque o cap derrubou as propostas, as linhas ficaram
+ * como 'canceled', e o COUNT(*) sem filtro continuava achando que havia
+ * disputa viva.
+ *
+ * Pedido com lance aceito ou já resolvido não passa por aqui: virou história.
+ *
+ * @return bool Se o pedido foi apagado.
+ */
+function faApagarPedidoSemLance(PDO $pdo, int $requestId): bool
+{
+    if ($requestId <= 0) return false;
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM fa_request_offers
+                          WHERE request_id = ? AND status IN ("pending", "accepted")');
+    $st->execute([$requestId]);
+    if ((int)$st->fetchColumn() > 0) return false;
+
+    // Só pedido aberto. Assinado ou recusado é histórico, e a FK tem CASCADE —
+    // apagar aqui levaria junto o registro de quem levou o jogador.
+    $st = $pdo->prepare('DELETE FROM fa_requests WHERE id = ? AND status = "open"');
+    $st->execute([$requestId]);
+    if (!$st->rowCount()) return false;
+
+    // Redundante onde a FK existe (ON DELETE CASCADE), necessário onde ela não
+    // foi criada — a tabela nasceu sem restrição em instalação antiga.
+    $pdo->prepare('DELETE FROM fa_request_offers WHERE request_id = ?')->execute([$requestId]);
+    return true;
+}
+
 function cancelNewFaOffer(PDO $pdo, array $body, ?int $teamId): void
 {
     if (!$teamId) {
@@ -2470,13 +2515,7 @@ function cancelNewFaOffer(PDO $pdo, array $body, ?int $teamId): void
         $stmtDel = $pdo->prepare('DELETE FROM fa_request_offers WHERE id = ?');
         $stmtDel->execute([$offerId]);
 
-        $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM fa_request_offers WHERE request_id = ?');
-        $stmtCount->execute([(int)$requestId]);
-        $remaining = (int)$stmtCount->fetchColumn();
-        if ($remaining === 0) {
-            $stmtReq = $pdo->prepare('DELETE FROM fa_requests WHERE id = ?');
-            $stmtReq->execute([(int)$requestId]);
-        }
+        faApagarPedidoSemLance($pdo, (int)$requestId);
         $pdo->commit();
         jsonSuccess();
     } catch (Exception $e) {

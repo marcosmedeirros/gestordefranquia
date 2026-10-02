@@ -1093,6 +1093,12 @@ window.excluirPropostaNovaFA = async function(offerId) {
             return;
         }
         carregarMinhasPropostasNovaFA();
+        /* E A LISTA DE SOLICITADOS JUNTO. Tirar o lance mexe no card do
+           outro painel — o contador cai, o nome de quem pediu some quando
+           era o lance dele, e o pedido inteiro desaparece se ninguém mais
+           estava disputando. Sem este redesenho o GM cancelava e via tudo
+           exatamente como estava, achando que não tinha pegado. */
+        if (typeof carregarDispensadosDaTemporada === 'function') carregarDispensadosDaTemporada();
         if (isAdmin) {
             carregarSolicitacoesNovaFA();
         }
