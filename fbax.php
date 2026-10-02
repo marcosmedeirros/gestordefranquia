@@ -161,6 +161,19 @@ if ($team_id) {
         .fx-acao.on.repostar { color: var(--green); }
         .fx-acao.apagar:hover { color: var(--red); }
 
+        /* O menu do repost. Dois caminhos a partir do mesmo botão, como no
+           Twitter: repostar seco é um clique, citar abre o compositor. Dois
+           botões soltos na barra de ações deixariam cinco ícones por post. */
+        .fx-menu { position: fixed; z-index: 450; background: var(--panel); border: 1px solid var(--border-md);
+            border-radius: var(--radius-sm); padding: 6px; min-width: 212px; display: none;
+            box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+        .fx-menu.show { display: block; }
+        .fx-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px;
+            background: transparent; border: 0; border-radius: var(--radius-xs); color: var(--text);
+            font-family: var(--font); font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: left; }
+        .fx-menu button:hover { background: var(--panel-3); }
+        .fx-menu button i { color: var(--text-2); }
+
         .fx-vazio { text-align: center; padding: 40px 16px; color: var(--text-3); font-size: 13.5px; }
         .fx-mais { width: 100%; margin-top: 14px; padding: 10px; border-radius: var(--radius-sm);
             background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2);
@@ -245,6 +258,34 @@ if ($team_id) {
             </div>
         </div>
     </main>
+</div>
+
+<div class="fx-menu" id="fxMenuRepost">
+    <button type="button" data-rp="seco"><i class="bi bi-arrow-repeat"></i><span id="fxRpSecoTxt">Repostar</span></button>
+    <button type="button" data-rp="citar"><i class="bi bi-pencil-square"></i>Citar com comentário</button>
+</div>
+
+<div class="fx-modal" id="fxCitar">
+    <div class="fx-modal-cx">
+        <div class="fx-modal-topo">
+            <button type="button" class="fx-voltar" id="fxCitarFechar"><i class="bi bi-x-lg"></i></button>
+            <strong style="font-size:15px">Citar post</strong>
+        </div>
+        <div class="fx-box">
+            <textarea id="fxCitarTexto" placeholder="Diga alguma coisa sobre isso…" maxlength="600"></textarea>
+            <div class="fx-previa" id="fxCitarPrevia" style="display:none">
+                <img id="fxCitarPreviaImg" alt="">
+                <button type="button" id="fxCitarTirarFoto" title="Tirar a foto"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div id="fxCitarAlvo"></div>
+            <div class="fx-box-pe">
+                <button type="button" class="fx-icone" id="fxCitarBtnFoto" title="Adicionar foto"><i class="bi bi-image"></i></button>
+                <input type="file" id="fxCitarArquivo" accept="image/*" style="display:none">
+                <span class="fx-conta" id="fxCitarConta">600</span>
+                <button type="button" class="fx-enviar" id="fxCitarEnviar">Postar</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="fx-modal" id="fxModal">

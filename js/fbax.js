@@ -201,11 +201,12 @@
       return;
     }
 
+    /* O REPOST ABRE O MENU, não reposta direto: a partir daqui saem dois
+       caminhos (seco e citado) e o botão sozinho só dava um. O texto da
+       primeira opção vira "Desfazer" quando já está reposto, pra o menu
+       dizer o que vai acontecer em vez de o usuário descobrir clicando. */
     if (acao === 'repostar') {
-      const d = await api('POST', { action: 'repostar', post_id: id });
-      // Repostar muda contador em dois lugares (o post e o repost), então aqui
-      // vale recarregar — é o único caso em que a lista muda de tamanho.
-      if (d.desfez || d.post) { ultimaData = null; await carregar(false); }
+      abrirMenuRepost(id, elemento, elemento.classList.contains('on'));
       return;
     }
 
@@ -219,6 +220,66 @@
     }
 
     if (acao === 'responder') abrirThread(id);
+  }
+
+  // ── Repostar: seco ou citando ─────────────────────────────────────
+  let alvoRepost = 0;
+  let fotoCitar = '';
+
+  function abrirMenuRepost(id, botao, jaRepostou) {
+    alvoRepost = id;
+    $('fxRpSecoTxt').textContent = jaRepostou ? 'Desfazer repost' : 'Repostar';
+    const m = $('fxMenuRepost');
+    const r = botao.getBoundingClientRect();
+    m.classList.add('show');
+    /* Mede DEPOIS de mostrar e sobe quando não cabe embaixo: no último post
+       da tela o menu nascia metade fora da janela. */
+    const alt = m.offsetHeight;
+    m.style.top = (r.bottom + alt + 8 > window.innerHeight ? r.top - alt - 6 : r.bottom + 6) + 'px';
+    m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
+  }
+
+  const fecharMenuRepost = () => $('fxMenuRepost').classList.remove('show');
+
+  async function repostarSeco() {
+    fecharMenuRepost();
+    const d = await api('POST', { action: 'repostar', post_id: alvoRepost });
+    // Repostar muda contador em dois lugares (o post e o repost), então aqui
+    // vale recarregar — é o único caso em que a lista muda de tamanho.
+    if (d.desfez || d.post) { ultimaData = null; await carregar(false); }
+  }
+
+  async function abrirCitar() {
+    fecharMenuRepost();
+    fotoCitar = '';
+    $('fxCitarTexto').value = '';
+    $('fxCitarPrevia').style.display = 'none';
+    $('fxCitarArquivo').value = '';
+    $('fxCitarConta').textContent = MAX;
+    /* O POST CITADO FICA À VISTA enquanto se escreve. Citar sem ver o que
+       se cita é como responder de memória. */
+    $('fxCitarAlvo').innerHTML = '<div class="fx-citado">Carregando…</div>';
+    $('fxCitar').classList.add('show');
+    $('fxCitarTexto').focus();
+    try {
+      const d = await api('GET', null, `?action=thread&id=${alvoRepost}`);
+      $('fxCitarAlvo').innerHTML = `<div class="fx-citado">${miolo(d.post, true)}</div>`;
+    } catch (e) {
+      $('fxCitarAlvo').innerHTML = `<div class="fx-citado"><span class="fx-sumiu">${esc(e.message)}</span></div>`;
+    }
+  }
+
+  async function enviarCitacao() {
+    const btn = $('fxCitarEnviar');
+    const texto = $('fxCitarTexto').value;
+    if (texto.trim() === '' && !fotoCitar) return;
+    btn.disabled = true;
+    try {
+      await api('POST', { action: 'repostar', post_id: alvoRepost, texto, photo_base64: fotoCitar });
+      $('fxCitar').classList.remove('show');
+      ultimaData = null;
+      await carregar(false);
+    } catch (e) { alert(e.message); } finally { btn.disabled = false; }
   }
 
   // ── A thread ──────────────────────────────────────────────────────
@@ -282,6 +343,40 @@
     $('fxPostar').addEventListener('click', postar);
     $('fxMais').addEventListener('click', () => carregar(true));
     $('fxFechar').addEventListener('click', fecharThread);
+
+    // ── O menu do repost e o compositor da citação ──────────────────
+    $('fxMenuRepost').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rp]');
+      if (!b) return;
+      (b.dataset.rp === 'seco' ? repostarSeco() : abrirCitar()).catch?.((err) => alert(err.message));
+    });
+    // Clique fora e rolagem fecham o menu: ele é posicionado em pixel fixo,
+    // então rolar sem fechar o deixaria flutuando longe do botão.
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#fxMenuRepost') && !e.target.closest('.fx-acao.repostar')) fecharMenuRepost();
+    }, true);
+    window.addEventListener('scroll', fecharMenuRepost, true);
+
+    $('fxCitarFechar').addEventListener('click', () => $('fxCitar').classList.remove('show'));
+    $('fxCitar').addEventListener('click', (e) => { if (e.target === $('fxCitar')) $('fxCitar').classList.remove('show'); });
+    $('fxCitarEnviar').addEventListener('click', enviarCitacao);
+    $('fxCitarBtnFoto').addEventListener('click', () => $('fxCitarArquivo').click());
+    $('fxCitarArquivo').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const fr = new FileReader();
+      fr.onload = () => { fotoCitar = String(fr.result); $('fxCitarPreviaImg').src = fotoCitar; $('fxCitarPrevia').style.display = ''; };
+      fr.readAsDataURL(f);
+    });
+    $('fxCitarTirarFoto').addEventListener('click', () => {
+      fotoCitar = ''; $('fxCitarPrevia').style.display = 'none'; $('fxCitarArquivo').value = '';
+    });
+    $('fxCitarTexto').addEventListener('input', () => {
+      const ta = $('fxCitarTexto');
+      $('fxCitarConta').textContent = MAX - ta.value.length;
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight + (ta.offsetHeight - ta.clientHeight)) + 'px';
+    });
     $('fxModal').addEventListener('click', (e) => { if (e.target === $('fxModal')) fecharThread(); });
 
     /* Um ouvinte só, no documento: o feed é reescrito a cada carga e pendurar
