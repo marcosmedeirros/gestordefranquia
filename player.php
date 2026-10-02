@@ -86,10 +86,20 @@ try {
     $stmtSt = $pdo->prepare("
         SELECT ps.season_number, s.year, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
                ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.fg_pct, ps.source,
-               CONCAT(t.city,' ',t.name) AS team_name
+               CONCAT(t.city,' ',t.name) AS team_name,
+               psl.position AS pos_na_temporada
         FROM player_season_stats ps
         LEFT JOIN seasons s ON s.id = ps.season_id
         LEFT JOIN teams   t ON t.id = ps.team_id
+        /* A POSIÇÃO É A DAQUELE ANO, não a de hoje. `players.position` é o
+           presente e já mudou desde então — o Derrick Coleman jogou de C no
+           Bed-Stuy e virou PF no Green Bay, e repetir o PF nas três linhas
+           apagaria justamente o que a tabela existe pra contar. O retrato
+           por temporada mora em player_season_log; casa por season_id, e
+           não pelo time, porque o time do retrato pode ser outro (o log é
+           tirado num instante, a estatística é do ano inteiro). */
+        LEFT JOIN player_season_log psl
+               ON psl.player_id = ps.player_id AND psl.season_id = ps.season_id
         WHERE ps.player_id = ?
         ORDER BY ps.season_number ASC, ps.id ASC
     ");
@@ -609,9 +619,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div style="overflow-x:auto">
         <table class="tbl">
           <thead><tr>
-            <th>Temporada</th><th>Time</th><th class="num">J</th><th class="num">MIN</th>
+            <th>Temporada</th><th>Time</th><th class="num">Pos</th>
+            <th class="num">J</th><th class="num">MIN</th>
             <th class="num">PTS</th><th class="num">REB</th><th class="num">AST</th>
-            <th class="num">ROU</th><th class="num">TOC</th><th class="num">FG%</th>
+            <th class="num">STL</th><th class="num">BLK</th><th class="num">FG%</th>
           </tr></thead>
           <tbody>
           <?php
@@ -627,6 +638,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             <tr>
               <td>T<?= (int)$l['season_number'] ?><?= $l['year'] ? ' <span style="color:var(--text-3);font-size:11px">(' . (int)$l['year'] . ')</span>' : '' ?></td>
               <td><?= htmlspecialchars($l['team_name'] ?: '—') ?></td>
+              <td class="num"><?= htmlspecialchars($l['pos_na_temporada'] ?: '—') ?></td>
               <td class="num"><?= (int)$l['games'] ?></td>
               <td class="num"><?= fmtPg($l['min_pg']) ?></td>
               <?php foreach (['pts_pg','reb_pg','ast_pg','stl_pg','blk_pg'] as $k):
@@ -641,7 +653,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <?php if (count($statsSeasons) > 1): ?>
           <tfoot>
             <tr class="st-total">
-              <td colspan="2">Carreira</td>
+              <td colspan="3">Carreira</td>
               <td class="num"><?= (int)$c['games'] ?></td>
               <td class="num"><?= fmtPg($c['min_pg']) ?></td>
               <td class="num"><?= fmtPg($c['pts_pg']) ?></td>
