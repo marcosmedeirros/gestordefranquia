@@ -42,6 +42,24 @@ const FBAX_PAGINA = 20;
 const FBAX_TEXTO_MAX = 600;
 
 /**
+ * A ESTREIA. O que é de antes desta data não aparece no FBAX.
+ *
+ * A parede é a mesma do Timeline, e o acervo que veio junto é de outro
+ * jogo: 54 posts, todos com foto, nenhuma resposta, nenhum repost — a
+ * gramática de Instagram que não pegou. Quem abrisse o FBAX veria aquilo
+ * como se fosse a conversa da liga, e aprenderia o formato errado logo na
+ * primeira tela.
+ *
+ * Corte próprio e não o FEED_DATA_CORTE porque são duas decisões
+ * diferentes: aquele é do feed do dashboard, e mexer nele pra limpar esta
+ * tela mudaria a outra de carona.
+ *
+ * Nada é apagado: os posts continuam no banco, e um link direto ainda abre
+ * a thread. O que muda é o que a linha do tempo mostra.
+ */
+const FBAX_DATA_CORTE = '2026-10-02 00:00:00';
+
+/**
  * As duas colunas novas em `team_posts`.
  *
  * ALTER guardado em função, como o resto da casa: a tabela nasce em
@@ -157,8 +175,8 @@ function fbaxFeed(PDO $pdo, int $userId, int $myTeamId, ?string $league = null,
 
     if ($league) { $sql .= " AND tm.league = ?"; $params[] = $league; }
     if ($before) { $sql .= " AND tp.created_at < ?"; $params[] = $before; }
-    // Mesmo corte do feed antigo: o FBAX herda a parede, não a arqueologia.
-    $sql .= " AND tp.created_at >= ?"; $params[] = FEED_DATA_CORTE;
+    // O FBAX herda a parede, não a arqueologia. @see FBAX_DATA_CORTE
+    $sql .= " AND tp.created_at >= ?"; $params[] = FBAX_DATA_CORTE;
     $sql .= " ORDER BY tp.created_at DESC LIMIT " . (int)$limit;
 
     $st = $pdo->prepare($sql);
