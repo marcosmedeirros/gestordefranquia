@@ -2290,28 +2290,15 @@ function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
     try {
         $stR = $pdo->prepare("
             SELECT r.id, r.player_name AS name, r.age, r.position, r.secondary_position, r.ovr,
-                   /* O NOME DE QUEM PEDIU SÓ ENQUANTO ELE ESTÁ NA DISPUTA.
-                      Pedir um jogador já vem com lance junto, então quem pediu
-                      e não tem mais lance pendente é quem CANCELOU. O card
-                      continuava dizendo 'pedido por Detroit' depois de o
-                      Detroit desistir, e quem lia entendia que ele ainda
-                      queria o jogador — inclusive o próprio GM, que veio
-                      perguntar por que o pedido dele não sumia.
-
-                      O pedido em si fica: outros times já deram lance, e
-                      derrubá-lo apagaria a disputa deles. O que sai é só o
-                      nome, e aí o card vira 'pedido', sem dono. */
-                   CASE WHEN EXISTS (SELECT 1 FROM fa_request_offers oc
-                                      WHERE oc.request_id = r.id
-                                        AND oc.team_id = r.created_by_team_id
-                                        AND oc.status = 'pending')
-                        THEN TRIM(CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')))
-                        END AS original_team_name,
+                   /* QUEM PEDIU NÃO VEM. O card não mostra mais dono nenhum:
+                      pedir já obriga a dar lance, e o nome ficava cobrando de
+                      um GM uma intenção que ele podia ter cancelado minutos
+                      depois. Sem leitor, a coluna só gastava um EXISTS por
+                      linha — e o JOIN com teams some junto. */
                    r.created_at AS waived_at,
                    (SELECT COUNT(*) FROM fa_request_offers o
                      WHERE o.request_id = r.id AND o.status = 'pending') AS propostas
             FROM fa_requests r
-            LEFT JOIN teams t ON t.id = r.created_by_team_id
             WHERE r.league = ? AND r.status = 'open'
             ORDER BY r.ovr DESC, r.player_name ASC");
         $stR->execute([$league]);

@@ -414,9 +414,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         /* ── Fields ────────────────────────────────────── */
         .field { display: flex; flex-direction: column; gap: 6px; }
         .field label { font-size: 11px; color: var(--text-2); letter-spacing: .1em; text-transform: uppercase; font-weight: 600; }
+        /* LARGURA DA COLUNA, NÃO DO CONTEÚDO. Sem width, o input usa o
+           tamanho intrínseco (uns 20 caracteres) e simplesmente transborda
+           a coluna em que está: no celular ele saía 9px pra fora do modal, e
+           num campo estreito a idade "34" aparecia cortada como "3". O
+           min-width solta o piso que o flex do .field respeitaria. */
         .field input,
         .field select,
         .field textarea {
+            width: 100%; min-width: 0;
             background: var(--panel-2); border: 1px solid var(--border);
             border-radius: 10px; padding: 10px 12px; color: var(--text);
             font-size: 14px; font-family: var(--font);
@@ -1035,7 +1041,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                  duplicado e um jogador cadastrado duas vezes. -->
                             <div id="faNomeAviso" hidden style="margin-top:8px"></div>
                         </div>
-                        <div class="field" style="grid-column: span 2;">
+                        <div class="field" style="grid-column: span 3;">
                             <label for="faNewPosition">Posição</label>
                             <select id="faNewPosition">
                                 <option value="PG">PG</option>
@@ -1045,22 +1051,26 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <option value="C">C</option>
                             </select>
                         </div>
-                        <div class="field" style="grid-column: span 2;">
+                        <div class="field" style="grid-column: span 3;">
                             <label for="faNewSecondary">Pos. Secundária</label>
                             <input type="text" id="faNewSecondary" placeholder="Opcional">
                         </div>
-                        <div class="field" style="grid-column: span 1;">
+                        <!-- DUAS COLUNAS, E NÃO UMA. Numa coluna de doze o campo
+                             ficava com ~60px: com a setinha do number sobrando
+                             dentro, "34" aparecia como "3" e "80" como "8" — o GM
+                             lia uma idade e um OVR que não eram os do jogador. -->
+                        <div class="field" style="grid-column: span 2;">
                             <label for="faNewAge">Idade</label>
                             <input type="number" id="faNewAge" value="24" min="18" max="45">
                         </div>
-                        <div class="field" style="grid-column: span 1;">
+                        <div class="field" style="grid-column: span 2;">
                             <label for="faNewOvr">OVR</label>
                             <input type="number" id="faNewOvr" value="70" min="40" max="99">
                         </div>
 
                         <!-- O lance é o campo que decide a disputa e vinha do tamanho de um
                              campo de idade, com o rótulo quebrando em duas linhas. -->
-                        <div class="field" style="grid-column: span 3;">
+                        <div class="field" style="grid-column: span 4;">
                             <label for="faNewOffer"><?= $fa_salario ? 'Salário do lance (M)' : 'Moedas do lance' ?></label>
                             <input type="number" id="faNewOffer" value="1" min="1"<?= $fa_salario && $fa_maximo ? ' max="' . (int)$fa_maximo . '"' : '' ?>
                                    class="input-lance" inputmode="numeric">
@@ -1070,7 +1080,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <div class="field" style="grid-column: span 3;">
+                        <div class="field" style="grid-column: span 4;">
                             <label for="faNewPriority">Prioridade</label>
                             <select id="faNewPriority">
                                 <option value="1">🟢 Alta</option>
@@ -1079,12 +1089,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </select>
                         </div>
 
-                        <div style="grid-column: span 6;" id="faCapAviso" hidden>
+                        <!-- Faixa inteira: com meia largura o aviso subia pro lado
+                             do campo de lance e a leitura virava um ziguezague. -->
+                        <div style="grid-column: span 12;" id="faCapAviso" hidden>
                             <div class="hint-box" id="faCapBox">
                                 <p id="faCapTexto"></p>
                             </div>
                         </div>
-                        <div style="grid-column: span 6;">
+                        <div style="grid-column: span 12;">
                             <div class="hint-box">
                                 <p><strong>Atenção:</strong> Informe o nome exatamente como aparece no vídeo
                                 (ex: LeBron James, não L. James). Se o jogador já existir na FA, sua proposta

@@ -177,11 +177,12 @@ function renderDispensadosDaTemporada() {
             : j.minha_proposta != null
                 ? `<button class="disp-btn tem-proposta" ${attr}="${j.id}">Sua: ${j.minha_proposta}</button>`
                 : `<button class="disp-btn" ${attr}="${j.id}">Propor</button>`;
-        // "pedido por" no lugar de "ex-": ele não foi dispensado por ninguém,
-        // alguém pediu que ele entrasse na fila.
-        const marca = j.pedido
-            ? ` · <span style="color:var(--amber)">pedido${j.original_team_name ? ' por ' + escHtml(j.original_team_name) : ''}</span>`
-            : origem;
+        /* PEDIDO NÃO LEVA ETIQUETA NENHUMA. Dizia "pedido" em todo card desta
+           lista — que é inteira de pedidos — e quando havia dono dizia "pedido
+           por Fulano", cobrando de um GM uma intenção que ele podia já ter
+           cancelado. O "ex-" continua, pro dia em que dispensado voltar a
+           dividir esta lista: aí a origem diz de onde o jogador saiu. */
+        const marca = j.pedido ? '' : origem;
         /* Quantos já deram lance nele. Fica junto do nome porque é o que diz se
            vale a pena disputar — e é o mesmo número que decide se ainda dá pra
            apagar o card. */
