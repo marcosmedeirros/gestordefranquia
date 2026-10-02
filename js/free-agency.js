@@ -199,7 +199,7 @@ function renderDispensadosDaTemporada() {
         return `<div class="disp-card ${naoCabe ? 'nao-cabe' : ''}">
             <div class="disp-pos">${escHtml(posTxt || '?')}</div>
             <div class="disp-meio">
-                <div class="disp-nome" title="${escHtml(j.name)}">${escHtml(j.name)}${selo}</div>
+                <div class="disp-nome" title="${escHtml(j.name)}"><span class="disp-nome-txt">${escHtml(j.name)}</span>${selo}</div>
                 <div class="disp-sub">${j.age} anos${custo ? ' · ' + custo : ''}${marca}</div>
             </div>
             <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>

@@ -342,10 +342,16 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             font-size: 11px; font-weight: 700; color: var(--text-2); letter-spacing: .02em;
         }
         .disp-meio { min-width: 0; flex: 1; }
+        /* O NOME TRUNCA, O SELO NÃO. O contador de lances ficava DENTRO do
+           elemento que corta com reticência, então nome comprido comia o
+           número — "Brad Miller…" aparecia sem as 2 propostas que ele tinha,
+           justamente a informação que diz se vale disputar. Agora a linha é
+           flex: só o texto encolhe. */
         .disp-nome {
+            display: flex; align-items: center; min-width: 0;
             font-weight: 600; font-size: 13.5px; color: var(--text);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .disp-nome-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .disp-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
         .disp-sub .custo-nao-cabe { color: var(--red); }
         .disp-ovr { flex: none; text-align: center; min-width: 30px; }
@@ -359,6 +365,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         /* O número de lances fica colado no nome e com a cor do app: é o que
            diz, de relance, quem já virou disputa. */
         .disp-ofertas { display: inline-flex; align-items: center; justify-content: center;
+                        flex-shrink: 0;
                         min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
                         border-radius: 999px; background: var(--red); color: #fff;
                         font-size: 10.5px; font-weight: 800; line-height: 1;
@@ -386,6 +393,22 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             .disp-grid { grid-template-columns: minmax(0, 1fr); }
             .disp-filtros { width: 100%; }
             .disp-filtros input { flex: 1; min-width: 0; }
+            /* NO CELULAR O NOME QUEBRA EM VEZ DE SUMIR. Numa coluna so
+               sobram ~130px pra linha do nome, e "Brad Miller Nome Bem
+               Comprido" virava "Brad ...", que nao identifica ninguem. Em
+               duas linhas cabe, e o selo de lances sobe pro topo pra
+               acompanhar a primeira delas. */
+            .disp-nome { align-items: flex-start; }
+            .disp-nome-txt { white-space: normal; display: -webkit-box;
+                             -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+                             line-height: 1.25; }
+            /* E AS ACOES DESCEM PRA SEGUNDA LINHA. Seis coisas lado a lado
+               (posicao, nome, OVR, lixeira, lapis e o Propor) sobrava uns
+               130px pro nome: ate quebrando em duas, so dava "Brad
+               Miller...". A base do meio e larga o bastante pra empurrar a
+               primeira acao pra linha de baixo, e elas se juntam a direita. */
+            .disp-card { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+            .disp-meio { flex: 1 1 calc(100% - 100px); }
         }
 
         /* ── Fields ────────────────────────────────────── */
