@@ -290,6 +290,38 @@ if (!function_exists('snapshotTradeItemsForPlayer')) {
     }
 }
 
+/**
+ * A FICHA DE UM JOGADOR EM TEXTO, igualzinha à do bot.
+ *
+ * O botão de copiar da tela de Jogadores levava só "Nome - 90 | 31y", que
+ * não serve pra colar em lugar nenhum. Agora leva a ficha inteira — e é a
+ * MESMA função que responde o /jogador no WhatsApp (@see wcFichaDoJogador),
+ * pra as duas não divergirem com o tempo.
+ */
+if ($method === 'GET' && ($_GET['action'] ?? '') === 'ficha') {
+    $pid = (int)($_GET['id'] ?? 0);
+    if ($pid <= 0) { http_response_code(400); echo json_encode(['error' => 'id obrigatório']); exit; }
+
+    require_once __DIR__ . '/whatsapp-comandos.php';
+    $ovrCol = wcColunaOvr($pdo);
+    $st = $pdo->prepare("
+        SELECT p.id, p.name, p.age, p.height, p.position, p.secondary_position, p.{$ovrCol} AS ovr,
+               p.badges_count, p.badge_name,
+               p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
+               p.drafted_season_number,
+               " . wcColunasSkill('p') . ",
+               t.city, t.mascot, t.name AS team_name, t.league
+        FROM players p JOIN teams t ON t.id = p.team_id
+        WHERE p.id = ?
+    ");
+    $st->execute([$pid]);
+    $jog = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$jog) { http_response_code(404); echo json_encode(['error' => 'Jogador não encontrado']); exit; }
+
+    echo json_encode(['ficha' => wcFichaDoJogador($pdo, $jog)], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
     

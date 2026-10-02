@@ -1045,15 +1045,39 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return 'ovr-base';
 	}
 
-	function copyPlayerSummary(btn) {
-		const text = `${btn.dataset.copyName} - ${btn.dataset.copyOvr} | ${btn.dataset.copyAge}y`;
-		navigator.clipboard.writeText(text).then(() => {
-			const icon = btn.querySelector('i');
-			if (icon) {
-				icon.className = 'bi bi-clipboard-check';
-				setTimeout(() => icon.className = 'bi bi-clipboard', 1500);
+	/* COPIA A FICHA INTEIRA, a mesma que o /jogador responde no WhatsApp.
+	   Levava só "Nome - 90 | 31y", que não dá pra colar em lugar nenhum —
+	   quem queria mandar o jogador no grupo tinha que pedir pro bot. O texto
+	   vem do servidor de propósito: remontá-lo aqui daria duas fichas que
+	   divergem na primeira mudança. */
+	async function copyPlayerSummary(btn) {
+		const icon = btn.querySelector('i');
+		const curto = `${btn.dataset.copyName} - ${btn.dataset.copyOvr} | ${btn.dataset.copyAge}y`;
+		const marcar = (classe) => {
+			if (!icon) return;
+			icon.className = classe;
+			setTimeout(() => icon.className = 'bi bi-clipboard', 1500);
+		};
+
+		let texto = curto;
+		try {
+			const id = btn.dataset.copyId;
+			if (id) {
+				const r = await fetch(`/api/players.php?action=ficha&id=${encodeURIComponent(id)}`);
+				const d = await r.json();
+				if (d && d.ficha) texto = d.ficha;
 			}
-		});
+		} catch (e) {
+			/* Sem rede, ou endpoint fora: copia o resumo curto em vez de não
+			   copiar nada. O botão tem que fazer alguma coisa sempre. */
+		}
+
+		try {
+			await navigator.clipboard.writeText(texto);
+			marcar('bi bi-clipboard-check');
+		} catch (e) {
+			marcar('bi bi-clipboard-x');
+		}
 	}
 
 	const SKILL_GRADE_FIELDS = [
@@ -1227,7 +1251,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						${favStarHtml(p.id)}
 						${compareBtnHtml(p.id)}
 						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
-						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
+						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-id="${p.id}" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 						<a class="mpl-btn trade" href="${linkProporTrade(p)}"><i class="bi bi-arrow-left-right"></i></a>
 					</div>
 				</div>
@@ -1332,7 +1356,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 									${favStarHtml(p.id)}
 									${compareBtnHtml(p.id)}
 									<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})" title="Detalhes"><i class="bi bi-info-circle"></i></button>
-									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
+									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-id="${p.id}" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 									<a class="btn-trade-action" href="${linkProporTrade(p)}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i></a>
 									</div>
 								</td>

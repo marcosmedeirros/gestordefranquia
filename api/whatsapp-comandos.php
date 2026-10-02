@@ -947,7 +947,25 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
             array_values(array_unique(array_column($todos, 'league'))));
     }
 
-    $p = $achados[0];
+    return wcFichaDoJogador($pdo, $achados[0], $notaLiga);
+}
+
+/**
+ * A FICHA COMPLETA DE UM JOGADOR, em texto de WhatsApp.
+ *
+ * Morava dentro do wcJogador, que é quem resolve o nome digitado. Saiu de
+ * lá porque a tela de Jogadores quer a MESMA ficha no botão de copiar, e
+ * reescrevê-la em JavaScript daria duas fichas que divergem na primeira
+ * mudança — foi assim que o /cap e o dashboard já discordaram do CAP.
+ *
+ * Recebe o jogador JÁ RESOLVIDO: quem chama é que sabe como achou (busca
+ * por nome no bot, id na tela).
+ *
+ * $notaLiga é o rodapé "também existe na ROOKIE", que só o bot calcula —
+ * na tela o jogador veio por id e não há ambiguidade pra avisar.
+ */
+function wcFichaDoJogador(PDO $pdo, array $p, string $notaLiga = ''): string
+{
     $pos = $p['position'] . ($p['secondary_position'] ? '/' . $p['secondary_position'] : '');
     $txt = "*{$p['name']}*" . (!empty($p['is_lenda']) ? ' 👑 LENDA' : '') . "\n"
         . wcNomeDoTime($p) . " — {$p['league']}\n\n"
