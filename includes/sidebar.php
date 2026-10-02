@@ -129,6 +129,12 @@ if (!function_exists('sbActive')) {
            menu: o lugar dela na seção Liga passou a valer mais pro Clube,
            que é onde a galera está marcando coisa. */ ?>
         <a href="/clube.php"<?= sbActive('clube.php', $__sbCurrent) ?>><i class="bi bi-collection-fill"></i> Clube FBA</a>
+        <?php /* O FBAX é o Timeline refeito em 02/10/2026: o formato de
+           Instagram (grid de foto, story, foto quase obrigatória) não pegou,
+           porque numa liga o que a galera quer fazer é FALAR. Virou feed de
+           texto com resposta e repost, e voltou pro menu com nome próprio.
+           A tela velha segue de pé em /timeline.php, fora do menu. */ ?>
+        <a href="/fbax.php"<?= sbActive('fbax.php', $__sbCurrent) ?>><i class="bi bi-chat-square-text-fill"></i> FBAX</a>
         <?php /* Voltou ao menu em 24/08/2026: com a escala das lives entrando
            no calendário, ele deixou de ser só datas da liga e passou a ser
            onde a pessoa vê que foi escalada. */ ?>
