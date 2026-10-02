@@ -490,9 +490,16 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         }
     }
     if ($precisaInicial) {
+        /* POR LIGA, não num saco só. @see a mesma correção em
+           restrictedEligibleOvrs — as duas contas têm que dizer a mesma
+           coisa, e um saco único de nomes faria a tela barrar o jogador de
+           uma liga por causa do xará da fundação de outra. */
         try {
-            foreach ($pdo->query("SELECT DISTINCT name FROM initdraft_pool")->fetchAll(PDO::FETCH_COLUMN) as $n) {
-                $nomesDoInicial[(string)$n] = true;
+            $st = $pdo->query("SELECT s.league, ip.name
+                                 FROM initdraft_pool ip
+                                 JOIN seasons s ON s.id = ip.season_id");
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $nomesDoInicial[strtoupper(trim((string)$r['league']))][(string)$r['name']] = true;
             }
         } catch (Exception $e) { /* liga sem draft inicial: a tabela pode não existir */ }
     }
@@ -534,7 +541,7 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         // conta, quem está naquele pool não vira elegível nem no destaque da
         // tela — as duas contas têm que dizer a mesma coisa.
         if ($fromNormalDraft && !restrictedRegraCampo($regraDele, 'conta_draft_inicial', true)
-            && isset($nomesDoInicial[(string)($p['name'] ?? '')])) {
+            && isset($nomesDoInicial[$ligaDele][(string)($p['name'] ?? '')])) {
             $fromNormalDraft = false;
         }
         $autoLoyal = $notTraded && $fromNormalDraft;
@@ -753,9 +760,20 @@ function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
            tabela. Mas há nome que aparece nas duas, e nesse caso o jogador
            passava como se tivesse saído do draft normal. Onde a régua diz que
            o inicial não conta, ele é excluído pelo nome, explicitamente. */
+        /* O DRAFT INICIAL QUE EXCLUI É O DA PRÓPRIA LIGA.
+
+           Sem o filtro de liga, bastava um xará ter entrado na fundação de
+           QUALQUER outra liga pra o jogador perder o bônus — e os times das
+           quatro ligas são povoados pelos mesmos jogadores da NBA, então
+           xará é a regra, não a exceção. Foi o que aconteceu com o Deandre
+           Ayton do Swisheros (NEXT): ele saiu do draft NORMAL da NEXT, que é
+           exatamente o que a régua quer premiar, e era barrado por causa de
+           um Ayton que entrou na fundação da RISE. */
         $foraDoInicial = restrictedRegraCampo($regra, 'conta_draft_inicial', true)
             ? ''
-            : ' AND NOT EXISTS (SELECT 1 FROM initdraft_pool ip WHERE ip.name = p.name)';
+            : ' AND NOT EXISTS (SELECT 1 FROM initdraft_pool ip
+                                  JOIN seasons si ON si.id = ip.season_id
+                                 WHERE ip.name = p.name AND si.league = ?)';
 
         $ovrMinimo = (int)restrictedRegraCampo($regra, 'ovr_minimo', RESTRICTED_BONUS_OVR_MINIMO);
 
@@ -767,7 +785,9 @@ function restrictedEligibleOvrs(PDO $pdo, int $teamId): array
             AND ' . $quemConta . $foraDoInicial . '
             ORDER BY p.ovr DESC
         ');
-        $stmt->execute([$teamId, $teamId]);
+        $args = [$teamId, $teamId];
+        if ($foraDoInicial !== '') $args[] = $league;
+        $stmt->execute($args);
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) {
         return [];
