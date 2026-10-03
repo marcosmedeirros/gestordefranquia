@@ -4619,7 +4619,10 @@ function srchMovePlayer(playerId) {
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
 <h5 class="modal-title text-white">Mover ${escapeHtml(p.name)}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
 <div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Time de destino</label>
-<select class="form-select bg-dark text-white border-orange" id="srchMovePlayerTeam"><option value="">Carregando...</option></select></div></div>
+<select class="form-select bg-dark text-white border-orange" id="srchMovePlayerTeam"><option value="">Carregando...</option></select></div>
+<div class="form-check"><input class="form-check-input" type="checkbox" id="srchMoveEhTroca" checked>
+<label class="form-check-label text-light-gray" for="srchMoveEhTroca">Isto é uma troca</label>
+<small class="d-block text-light-gray" style="opacity:.75">Marcado, o jogador passa a contar como trocado — e perde a lealdade, como em qualquer negociação. Desmarque só quando estiver corrigindo um cadastro que nasceu no time errado.</small></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="_applySrchMovePlayer(${playerId})">Mover</button></div></div></div>`;
   document.body.appendChild(modal);
@@ -4641,7 +4644,11 @@ async function _applySrchMovePlayer(playerId) {
   const teamId = parseInt(document.getElementById('srchMovePlayerTeam')?.value);
   if (!teamId) { alert('Selecione o time destino!'); return; }
   try {
-    await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify({ player_id: playerId, team_id: teamId }) });
+    /* A troca carimba o jogador; a correção de cadastro, não. Sem este campo o
+       servidor assume troca, que é o que mover um jogador quase sempre é. */
+    const ehTroca = document.getElementById('srchMoveEhTroca')?.checked !== false;
+    await api('admin.php?action=player', { method: 'PUT',
+      body: JSON.stringify({ player_id: playerId, team_id: teamId, was_traded: ehTroca ? 1 : 0 }) });
     const m = document.querySelector('.modal.show');
     bootstrap.Modal.getInstance(m)?.hide();
     showAlert('success', 'Jogador movido!');

@@ -2491,6 +2491,14 @@ if ($method === 'PUT') {
             $age      = $data['age'] ?? null;
             $isFranchisePlayer = array_key_exists('is_franchise_player', $data) ? $data['is_franchise_player'] : null;
             $loyalOverride = array_key_exists('loyal_override', $data) ? $data['loyal_override'] : null;
+            /* MUDAR DE TIME É SER TROCADO — e é o admin quem diz quando não é.
+               Sem isto, um jogador movido por aqui chegava no time novo como se
+               sempre tivesse estado lá: "nunca trocado". Na ELITE isso é
+               dinheiro, porque lenda nunca trocada gera +8M de Cap Flex e o
+               selo "Leal" — o time ganhava um teto que a regra não dá. Quando
+               o movimento é correção de cadastro (jogador que nasceu no time
+               errado), quem chama manda was_traded = 0 e nada é marcado. */
+            $wasTradedPedido = array_key_exists('was_traded', $data) ? (int)$data['was_traded'] : null;
 
             if (!$playerId) {
                 http_response_code(400);
@@ -2529,6 +2537,22 @@ if ($method === 'PUT') {
                 requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $destTeamLeague);
                 $updates[] = 'team_id = ?';
                 $params[]  = $newTeamId;
+
+                /* Só quando o time MUDA de verdade: salvar a ficha sem tocar no
+                   time manda o mesmo team_id de volta, e marcar ali carimbaria
+                   de "trocado" quem nunca saiu do lugar. */
+                $stAtual = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
+                $stAtual->execute([$playerId]);
+                $timeDeAgora = (int)($stAtual->fetchColumn() ?: 0);
+                if ($timeDeAgora !== $newTeamId && $wasTradedPedido !== 0) {
+                    $updates[] = 'was_traded = 1';
+                }
+            }
+            /* Fora do movimento, o admin ainda pode desfazer o carimbo na mão:
+               é a saída pra quem foi movido por engano antes desta trava. */
+            if ($wasTradedPedido !== null && $teamId === null) {
+                $updates[] = 'was_traded = ?';
+                $params[]  = $wasTradedPedido === 1 ? 1 : 0;
             }
             if ($nome !== null) {
                 // Nome vazio apagaria a identidade do jogador em toda a base

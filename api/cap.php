@@ -124,10 +124,16 @@ if ($action === 'simulate_trade') {
 
     $pdo->beginTransaction();
     try {
+        /* A SIMULAÇÃO TEM QUE MARCAR O TROCADO, igual à troca de verdade
+           (api/trades.php). Sem isso a lenda mudava de time ainda como "nunca
+           trocada" e o teto simulado do time que a recebe vinha +8M maior do
+           que o teto que ele teria depois de fechar o negócio — a conta
+           prometia um espaço que ia sumir assim que a troca saísse. */
         $mover = function (array $ids, int $destino) use ($pdo) {
             if (!$ids) return;
             $in = implode(',', array_fill(0, count($ids), '?'));
-            $pdo->prepare("UPDATE players SET team_id = ? WHERE id IN ($in)")->execute([$destino, ...$ids]);
+            $pdo->prepare("UPDATE players SET team_id = ?, was_traded = 1 WHERE id IN ($in)")
+                ->execute([$destino, ...$ids]);
         };
         $mover($sendA, $teamB);
         $mover($sendB, $teamA);
