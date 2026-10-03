@@ -2463,10 +2463,22 @@ function _executarTrocaLeilao($pdo, $proposta, ?array $overrideItems = null) {
     }
 
     $winnerTeamId = $proposta['team_id'];
-    // Quem MUDA de time chega no banco. Sem isso o jogador carregava o papel
-    // do time anterior e um titular arrematado virava o sexto do quinteto do
-    // vencedor. Mesma regra da trade, do draft, da FA e do waiver.
-    $transferStmt = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
+    /* Quem MUDA de time chega no banco. Sem isso o jogador carregava o papel
+       do time anterior e um titular arrematado virava o sexto do quinteto do
+       vencedor. Mesma regra da trade, do draft, da FA e do waiver.
+
+       E CHEGA MARCADO COMO TROCADO, igual à trade. Arrematar é negociar: quem
+       foi comprado num leilão não é jogador que a franquia formou e segurou.
+       Sem este carimbo a lenda arrematada chegava "nunca trocada" no vencedor
+       e levava junto os +8M de Cap Flex e o selo "Leal" — foi o que aconteceu
+       com o Shaquile O'Neal, que saiu do Miami Sunsets e seguia leal no Los
+       Angeles Celestials. Vale pros três sentidos desta função: o leiloado
+       indo pro vencedor, o que o vencedor ofereceu indo pro vendedor, e os
+       extras — todos mudaram de dono por negociação.
+
+       A REVERSÃO não passa por aqui, e é de propósito: lá o jogador volta pra
+       casa, e carimbar quem voltou seria mentir na outra direção. */
+    $transferStmt = $pdo->prepare("UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ?");
 
     // Se for jogador criado especificamente para o leilao, criar no time vencedor agora
     if (empty($proposta['player_id']) && !empty($proposta['is_temp_player'])) {

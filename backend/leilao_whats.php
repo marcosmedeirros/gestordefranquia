@@ -1931,8 +1931,11 @@ function lwExecutarTroca(PDO $pdo, array $lw, array $vencedor): void
     $pdo->prepare("UPDATE leilao_jogadores SET status = 'finalizado', proposta_aceita_id = ?, data_fim = NOW() WHERE id = ?")
         ->execute([$propostaId, $leilaoId]);
 
-    // Quem muda de time chega no banco, como na trade, no draft e na FA.
-    $mover = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
+    /* Quem muda de time chega no banco, como na trade, no draft e na FA — e
+       marcado como trocado, pelo mesmo motivo que em api/leilao.php: arrematar
+       é negociar, e lealdade é ter ficado. Este caminho é o leilão fechado
+       pelo WhatsApp e move os mesmos itens que o da tela. */
+    $mover = $pdo->prepare("UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ?");
     if (!empty($lw['pick_id'])) {
         $pdo->prepare("UPDATE picks SET team_id = ? WHERE id = ?")->execute([$winner, (int)$lw['pick_id']]);
     } else {
