@@ -191,11 +191,47 @@ function cicloFechado(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): bool
     // numeração reiniciando, "temporada 5" existe em toda sprint, e pegar a
     // de outra daria por fechado um bloco que nem começou.
     foreach (cicloTemporadasDaSprint($pdo, $liga) as $t) {
-        if ((int)$t['season_number'] === $ate) {
-            return strtolower((string)($t['status'] ?? '')) === 'completed';
-        }
+        if ((int)$t['season_number'] !== $ate) continue;
+        if (strtolower((string)($t['status'] ?? '')) === 'completed') return true;
+
+        /* TEMPORADA COM CAMPEÃO TAMBÉM FECHOU O BLOCO. O status só vira
+           'completed' quando o admin avança a temporada, e entre o fim de uma
+           e a abertura da outra pode passar um dia — nesse intervalo o bloco
+           já estava decidido mas aparecia "em andamento", e, pior, levava o
+           corte de GM de quem assumiu nesse meio-tempo, reescrevendo um
+           resultado que já era. Campeão lançado é o fim do jogo. */
+        return cicloTemporadaTemCampeao($pdo, $liga, $ate);
     }
     return false;
+}
+
+/** A temporada da sprint atual já teve campeão lançado? */
+function cicloTemporadaTemCampeao(PDO $pdo, string $liga, int $seasonNumber): bool
+{
+    static $cache = [];
+    $liga = strtoupper(trim($liga));
+    $chave = $liga . '|' . $seasonNumber;
+    if (isset($cache[$chave])) return $cache[$chave];
+
+    $cache[$chave] = false;
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $sprint = sprintAtualDaLiga($pdo, $liga);
+        if (!$sprint) return false;
+
+        /* Pelo season_id da sprint corrente, e não pelo número: a numeração
+           recomeça a cada sprint, e casar só por número pegaria a temporada
+           homônima de outra. */
+        $st = $pdo->prepare("SELECT COUNT(*) FROM season_history sh
+                               JOIN seasons s ON s.id = sh.season_id
+                              WHERE s.sprint_id = ? AND s.season_number = ?
+                                AND sh.champion_team_id IS NOT NULL");
+        $st->execute([(int)$sprint['id'], $seasonNumber]);
+        $cache[$chave] = (int)$st->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        error_log('[ciclos] temporada com campeao: ' . $e->getMessage());
+    }
+    return $cache[$chave];
 }
 
 /**
