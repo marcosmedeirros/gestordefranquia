@@ -211,6 +211,15 @@ function cicloFechado(PDO $pdo, int $ciclo, string $liga = CICLO_LIGA): bool
  * temporada sai de `seasons.created_at` — é a última temporada que já havia
  * começado quando a troca aconteceu.
  *
+ * TEMPORADA JÁ PONTUADA NÃO ENTRA NO CORTE. "A última que havia começado" vale
+ * enquanto ela ainda está em jogo; quando o GM assume depois de a temporada ter
+ * sido lançada, ele não jogou nada dela e o corte tem que cair na seguinte.
+ * Sem isso, trocar o GM entre o fim de uma temporada e a abertura da próxima
+ * apagava do time uma temporada inteira que o antigo tinha jogado: foi o que
+ * aconteceu com o Chicago Bulls em 04/10/2026 — campeão da Sprint 2 com 40
+ * pontos, aparecia em quarto com 16 porque o GM subiu pra RISE vinte minutos
+ * depois de a temporada 6 ser pontuada.
+ *
  * @return array [team_id => primeira temporada que conta]
  */
 function cicloCortesDeGm(PDO $pdo, string $liga): array
@@ -222,7 +231,7 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
     $cache[$liga] = [];
     try {
         $st = $pdo->prepare("
-            SELECT h.team_id,
+            SELECT h.team_id, h.criado_em,
                    (SELECT MAX(se.season_number) FROM seasons se
                      WHERE se.league = ? AND se.created_at <= h.criado_em) AS temporada
               FROM team_gm_historico h
@@ -232,11 +241,28 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
                AND h.criado_em = (SELECT MAX(h2.criado_em) FROM team_gm_historico h2
                                    WHERE h2.team_id = h.team_id AND h2.user_id_novo IS NOT NULL)");
         $st->execute([$liga, $liga]);
+
+        /* Aquela temporada já tinha pontuação lançada quando a troca
+           aconteceu? Uma consulta por time que trocou — são três ou quatro na
+           liga inteira, e o alvo é um índice de (team_id, season_id). */
+        $jaPontuada = $pdo->prepare("
+            SELECT COUNT(*) FROM team_season_points tsp
+              JOIN seasons s ON s.id = tsp.season_id
+             WHERE tsp.team_id = ? AND s.league = ? AND s.season_number = ?
+               AND tsp.created_at <= ?");
+
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $t = (int)($r['temporada'] ?? 0);
             // Troca antes da primeira temporada não corta nada: o GM está lá
             // desde o começo, mesmo que o registro exista.
-            if ($t > 1) $cache[$liga][(int)$r['team_id']] = $t;
+            if ($t <= 1) continue;
+
+            $jaPontuada->execute([(int)$r['team_id'], $liga, $t, $r['criado_em']]);
+            // Pontuada antes da troca: a temporada foi do GM anterior inteira,
+            // e o novo começa a contar na próxima.
+            if ((int)$jaPontuada->fetchColumn() > 0) $t++;
+
+            $cache[$liga][(int)$r['team_id']] = $t;
         }
     } catch (Throwable $e) {
         error_log('[ciclos] cortes de gm: ' . $e->getMessage());
