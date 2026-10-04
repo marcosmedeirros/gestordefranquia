@@ -56,9 +56,18 @@
  * desligado até alguém pedir — ligar sozinho mudaria a aba ELITE 5T, que não
  * foi o que pediram.
  */
+/* O geral_desde_sempre diz o que a aba "Classificação geral" soma: a liga
+   inteira, de todas as sprints, ou só a sprint ativa.
+
+   Ligado na ROOKIE porque é o que a liga é: as Sprints de 3 temporadas são os
+   capítulos, e a geral é a história da franquia desde que ela entrou — foi o
+   que ele pediu em 04/10/2026. Desligado na ELITE, que tem duas sprints no
+   banco com a numeração reiniciando: lá a geral sempre mostrou a sprint
+   corrente, ninguém reclamou, e somar as duas dobraria a tabela do dia pra
+   noite (204 pontos onde hoje se lê 44). */
 const CICLO_CONFIG = [
-    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false, 'sobe_geral' => 0, 'aba_padrao' => 'geral'],
-    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true,  'sobe_geral' => 4, 'aba_padrao' => 'bloco'],
+    'ELITE'  => ['tamanho' => 5, 'blocos' => 5, 'rotulo' => 'Ciclo',  'genero' => 'm', 'premio' => null, 'corte_gm' => false, 'sobe_geral' => 0, 'aba_padrao' => 'geral', 'geral_desde_sempre' => false],
+    'ROOKIE' => ['tamanho' => 3, 'blocos' => 5, 'rotulo' => 'Sprint', 'genero' => 'f', 'premio' => 40,   'corte_gm' => true,  'sobe_geral' => 4, 'aba_padrao' => 'bloco', 'geral_desde_sempre' => true],
 ];
 
 /* Mantidas porque rankings.php as usa. A ELITE continua sendo a liga padrão de
@@ -359,18 +368,28 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
  * @param int $de  primeira temporada da janela (inclusive)
  * @param int $ate última temporada da janela (inclusive)
  */
-function cicloLinhasDaJanela(PDO $pdo, string $liga, int $de, int $ate): array
+function cicloLinhasDaJanela(PDO $pdo, string $liga, int $de, int $ate, bool $desdeSempre = false): array
 {
     $liga = strtoupper(trim($liga));
     try {
-        $st = $pdo->prepare("SELECT id FROM sprints
-                              WHERE league = ? AND status = 'active'
-                           ORDER BY id DESC LIMIT 1");
-        $st->execute([$liga]);
-        $sprintId = (int)($st->fetchColumn() ?: 0);
-        // Sem sprint ativa não há janela: devolver a liga toda zerada seria
-        // inventar uma disputa que não começou.
-        if (!$sprintId) return [];
+        /* DESDE SEMPRE ignora a sprint e a janela: a classificação geral da
+           liga soma TUDO que já foi jogado, de qualquer sprint. Os blocos
+           continuam presos à sprint ativa, que é o que eles são. */
+        $sprintId = 0;
+        if (!$desdeSempre) {
+            $st = $pdo->prepare("SELECT id FROM sprints
+                                  WHERE league = ? AND status = 'active'
+                               ORDER BY id DESC LIMIT 1");
+            $st->execute([$liga]);
+            $sprintId = (int)($st->fetchColumn() ?: 0);
+            // Sem sprint ativa não há janela: devolver a liga toda zerada seria
+            // inventar uma disputa que não começou.
+            if (!$sprintId) return [];
+        }
+        $filtroSprint = $desdeSempre ? '' : ' AND s.sprint_id = ?';
+        $filtroSprintT = $desdeSempre ? '' : ' AND s2.sprint_id = ?';
+        $filtroJanela  = $desdeSempre ? '' : ' AND s.season_number BETWEEN ? AND ?';
+        $filtroJanelaT = $desdeSempre ? '' : ' AND s2.season_number BETWEEN ? AND ?';
 
         $st = $pdo->prepare("
             SELECT t.id AS team_id,
@@ -388,23 +407,24 @@ function cicloLinhasDaJanela(PDO $pdo, string $liga, int $de, int $ate): array
                     WHERE pr.team_id = t.id
                       AND pr.position = 'champion'
                       AND s2.league = ?
-                      AND s2.season_number BETWEEN ? AND ?
-                      AND s2.sprint_id = ?) AS titulos
+                      {$filtroJanelaT}{$filtroSprintT}) AS titulos
               FROM teams t
               LEFT JOIN (
                     SELECT tsp.team_id,
-                           SUM(tsp.points)                 AS pontos,
-                           COUNT(DISTINCT s.season_number) AS temporadas
+                           SUM(tsp.points)        AS pontos,
+                           COUNT(DISTINCT s.id)   AS temporadas
                       FROM team_season_points tsp
                       JOIN seasons s ON s.id = tsp.season_id
                      WHERE tsp.league = ?
-                       AND s.season_number BETWEEN ? AND ?
-                       AND s.sprint_id = ?
+                       {$filtroJanela}{$filtroSprint}
                   GROUP BY tsp.team_id
               ) p ON p.team_id = t.id
              WHERE t.league = ?
           ORDER BY pontos DESC, titulos DESC, time ASC");
-        $st->execute([$liga, $de, $ate, $sprintId, $liga, $de, $ate, $sprintId, $liga]);
+        $args = $desdeSempre
+            ? [$liga, $liga, $liga]
+            : [$liga, $de, $ate, $sprintId, $liga, $de, $ate, $sprintId, $liga];
+        $st->execute($args);
         return $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('[ciclos] janela: ' . $e->getMessage());
@@ -507,11 +527,14 @@ function cicloAplicarCorte(PDO $pdo, string $liga, array $linhas, int $de, int $
 function cicloClassificacaoGeral(PDO $pdo, string $liga = CICLO_LIGA): array
 {
     $cfg = cicloConfig($liga);
-    // O bloco 1 até o último cobre a sprint inteira: é a janela da geral.
-    $ultimo = $cfg['blocos'] * $cfg['tamanho'];
     $liga = strtoupper(trim($liga));
 
-    $linhas = cicloLinhasDaJanela($pdo, $liga, 1, $ultimo);
+    /* DESDE SEMPRE OU SÓ A SPRINT: é regra da liga. Na ROOKIE a geral é a
+       história da franquia — tudo que ela já pontuou, de qualquer sprint. Na
+       ELITE ela continua sendo a sprint corrente. @see CICLO_CONFIG */
+    $desdeSempre = !empty($cfg['geral_desde_sempre']);
+    $ultimo = $desdeSempre ? 9999 : $cfg['blocos'] * $cfg['tamanho'];
+    $linhas = cicloLinhasDaJanela($pdo, $liga, 1, $ultimo, $desdeSempre);
 
     /* A GERAL É A DISPUTA VIVA, então ela conta só o que o GM atual fez: quem
        subiu pra Rise saiu da briga, e deixar os pontos dele na tabela daria ao
@@ -767,13 +790,21 @@ function cicloPontosPorTemporada(PDO $pdo, string $liga): array
     $vazio = ['temporadas' => [], 'pontos' => []];
 
     try {
-        require_once __DIR__ . '/helpers.php';
-        $sprint = sprintAtualDaLiga($pdo, $liga);
-        if (!$sprint) return $vazio;
-
-        $st = $pdo->prepare("SELECT id, season_number, year FROM seasons
-                              WHERE sprint_id = ? ORDER BY season_number ASC");
-        $st->execute([(int)$sprint['id']]);
+        /* AS MESMAS TEMPORADAS QUE A GERAL SOMA — senão o editor mostraria um
+           total que a tabela não tem. Na ROOKIE é a liga inteira; onde a geral
+           é só da sprint, o editor também é. */
+        if (!empty(cicloConfig($liga)['geral_desde_sempre'])) {
+            $st = $pdo->prepare("SELECT id, season_number, year FROM seasons
+                                  WHERE league = ? ORDER BY year ASC, season_number ASC");
+            $st->execute([$liga]);
+        } else {
+            require_once __DIR__ . '/helpers.php';
+            $sprint = sprintAtualDaLiga($pdo, $liga);
+            if (!$sprint) return $vazio;
+            $st = $pdo->prepare("SELECT id, season_number, year FROM seasons
+                                  WHERE sprint_id = ? ORDER BY season_number ASC");
+            $st->execute([(int)$sprint['id']]);
+        }
         $temporadas = array_map(fn($r) => [
             'season_id' => (int)$r['id'],
             'numero'    => (int)$r['season_number'],

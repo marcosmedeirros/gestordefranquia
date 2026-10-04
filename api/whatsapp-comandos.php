@@ -1403,8 +1403,14 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $l
  * no dia seguinte à virada não quer ouvir que a temporada nova ainda não tem
  * classificação.
  *
- * A fonte é teams.ranking_points, a mesma da página de Rankings — os dois
- * lugares precisam dizer o mesmo número.
+ * A FONTE É A MESMA DA TELA, e isso muda por liga. Onde a liga joga por bloco
+ * (ELITE e ROOKIE), a classificação é a soma das temporadas com o corte de GM
+ * — e é de lá que o número sai. Nas outras continua sendo teams.ranking_points,
+ * que é o que a página mostra nelas.
+ *
+ * Antes era sempre teams.ranking_points, e na ROOKIE isso dava OUTRA tabela:
+ * o grupo lia um ranking no bot e via outro no site, com times em ordem
+ * diferente. Um ranking que diverge de si mesmo não serve pra nada.
  */
 /**
  * /rankingsprint — a SPRINT ATUAL da liga, com a tabela dela.
@@ -1545,6 +1551,24 @@ function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
+    /* Liga de bloco: a conta é a da tela, não a coluna acumulada. */
+    try {
+        require_once __DIR__ . '/../backend/ranking_ciclos.php';
+        if (in_array($liga, cicloLigas(), true)) {
+            $linhas = array_map(fn($l) => [
+                'city'    => '',
+                'name'    => $l['alcunha'] ?? $l['time'],
+                'mascot'  => '',
+                'pontos'  => (int)$l['pontos'],
+                'titulos' => (int)$l['titulos'],
+            ], cicloClassificacaoGeral($pdo, $liga));
+            return wcRankingTexto($liga, $linhas);
+        }
+    } catch (Throwable $e) {
+        error_log('[wcRankingPontos] bloco: ' . $e->getMessage());
+        // Cai no caminho antigo: ranking velho é melhor que erro no grupo.
+    }
+
     try {
         $temTitulos = (bool)$pdo->query("SHOW COLUMNS FROM teams LIKE 'ranking_titles'")->fetch();
         $colTitulos = $temTitulos ? 'COALESCE(t.ranking_titles,0)' : '0';
@@ -1561,6 +1585,12 @@ function wcRankingPontos(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         return "Não deu pra ler o ranking da {$liga} agora.";
     }
 
+    return wcRankingTexto($liga, $linhas);
+}
+
+/** O desenho da lista — os dois caminhos do /ranking escrevem igual. */
+function wcRankingTexto(string $liga, array $linhas): string
+{
     if (!$linhas) return "A {$liga} não tem times cadastrados.";
     // Ninguém pontuou ainda: dizer "1º com 0" pra liga inteira seria um
     // ranking que não ranqueia nada.
