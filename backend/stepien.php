@@ -72,6 +72,28 @@ function stepienAnosDaLiga(PDO $pdo, string $league): array
             $draftados = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
             $anos = array_values(array_diff($anos, $draftados));
         }
+
+        /* O DRAFT QUE ESTÁ ACONTECENDO TAMBÉM SAI. A regra protege o futuro —
+           ficar dois anos seguidos sem poder escolher. O ano do draft em
+           andamento não é futuro: a pick está na mesa, e trocá-la é abrir mão
+           de uma escolha de agora, não cavar um buraco lá na frente.
+
+           Sem isto, quem tentasse negociar a própria pick DO DRAFT EM CURSO
+           era barrado porque o ano seguinte também estava vazio: a Yan Rule
+           somava um ano que já virou chamada no grupo com um que ainda nem
+           chegou. Foi o que travou a troca do Jefferson na ROOKIE em
+           04/10/2026, com 2031 (o draft rolando) e 2032.
+
+           O corte de cima, das picks usadas, não cobre este caso: ele só
+           enxerga a pick DEPOIS de escolhida, e aqui a vez ainda não chegou. */
+        require_once __DIR__ . '/draft_swaps.php';
+        $st = $pdo->prepare("SELECT ds.season_id FROM draft_sessions ds
+                               WHERE ds.league = ? AND ds.status = 'in_progress'");
+        $st->execute([$league]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $seasonId) {
+            $anoEmJogo = draftAnoDasPicks($pdo, (int)$seasonId);
+            if ($anoEmJogo > 0) $anos = array_values(array_diff($anos, [$anoEmJogo]));
+        }
     } catch (Throwable $e) {
         error_log('[stepien] anos: ' . $e->getMessage());
         $anos = [];
