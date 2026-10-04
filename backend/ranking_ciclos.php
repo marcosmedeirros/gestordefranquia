@@ -737,6 +737,55 @@ function cicloFilaDeSubida(PDO $pdo, string $liga = CICLO_LIGA): array
 }
 
 /**
+ * AS TEMPORADAS DA SPRINT E O QUE CADA TIME FEZ EM CADA UMA.
+ *
+ * É o que o Editar Ranking precisa nas ligas de bloco. A classificação delas
+ * é a SOMA das temporadas, e soma não se edita: o que se corrige é a parcela.
+ * Sem isto, o editor mexia num total acumulado que estas ligas não mostram em
+ * lugar nenhum — o admin salvava e a tabela continuava igual.
+ *
+ * Só as temporadas da sprint ATIVA, que são as que entram na conta da tela.
+ *
+ * @return array{temporadas: array<int, array>, pontos: array<int, array<int,int>>}
+ */
+function cicloPontosPorTemporada(PDO $pdo, string $liga): array
+{
+    $liga = strtoupper(trim($liga));
+    $vazio = ['temporadas' => [], 'pontos' => []];
+
+    try {
+        require_once __DIR__ . '/helpers.php';
+        $sprint = sprintAtualDaLiga($pdo, $liga);
+        if (!$sprint) return $vazio;
+
+        $st = $pdo->prepare("SELECT id, season_number, year FROM seasons
+                              WHERE sprint_id = ? ORDER BY season_number ASC");
+        $st->execute([(int)$sprint['id']]);
+        $temporadas = array_map(fn($r) => [
+            'season_id' => (int)$r['id'],
+            'numero'    => (int)$r['season_number'],
+            'ano'       => (int)$r['year'],
+        ], $st->fetchAll(PDO::FETCH_ASSOC));
+        if (!$temporadas) return $vazio;
+
+        $ids = array_column($temporadas, 'season_id');
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        $st  = $pdo->prepare("SELECT season_id, team_id, points FROM team_season_points
+                               WHERE season_id IN ($ph)");
+        $st->execute($ids);
+
+        $pontos = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $pontos[(int)$r['season_id']][(int)$r['team_id']] = (int)$r['points'];
+        }
+        return ['temporadas' => $temporadas, 'pontos' => $pontos];
+    } catch (Throwable $e) {
+        error_log('[ciclos] pontos por temporada: ' . $e->getMessage());
+        return $vazio;
+    }
+}
+
+/**
  * Tudo que a tela precisa de uma liga, num pacote.
  *
  * Existe pra que rankings.php não precise chamar seis funções e montar o
