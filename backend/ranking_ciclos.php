@@ -859,6 +859,8 @@ function cicloPacoteDaLiga(PDO $pdo, string $liga): array
         'rotulo'          => $cfg['rotulo'],
         'genero'          => $cfg['genero'] ?? 'm',
         'aba_padrao'      => $cfg['aba_padrao'] ?? 'bloco',
+        // A tela escreve o subtítulo da geral a partir disto.
+        'geral_desde_sempre' => !empty($cfg['geral_desde_sempre']),
         'tamanho'         => $cfg['tamanho'],
         'premio'          => $cfg['premio'],
         'temporada_atual' => cicloTemporadaAtual($pdo, $liga),

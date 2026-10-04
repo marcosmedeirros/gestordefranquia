@@ -958,8 +958,13 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             ? 'Classificação geral'
             : `${esc(B.rotulo)} ${blocoSel.ciclo}`;
         currentRankingRotulo = aba === 'geral' ? 'geral' : `${B.rotulo} ${blocoSel.ciclo}`;
+        /* A geral soma a liga inteira numa (ROOKIE) e só a sprint corrente
+           noutra (ELITE) — o subtítulo diz qual das duas, senão ele promete um
+           recorte que a tabela não usa. @see CICLO_CONFIG */
         const sub = aba === 'geral'
-            ? `Todas as temporadas da sprint somadas · continua valendo normalmente`
+            ? (B.geral_desde_sempre
+                ? `Tudo que cada franquia já pontuou na liga · todas as ${esc(B.rotulo.toLowerCase())}s somadas`
+                : `Todas as temporadas da sprint somadas · continua valendo normalmente`)
             : `${blocoSel.de === blocoSel.ate ? `Temporada ${blocoSel.de}` : `Temporadas ${blocoSel.de} a ${blocoSel.ate}`}` +
               `${faltam > 0 ? ` · faltam ${faltam} pra fechar` : ''}` +
               `${B.premio ? ` · R$ ${B.premio} pra quem ganhar` : ' · zera no fim do bloco'}`;
