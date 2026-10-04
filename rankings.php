@@ -576,6 +576,15 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" style="padding: 0;">
+                    <?php /* O AVISO DAS LIGAS DE BLOCO. Esta tela edita um total
+                       acumulado (teams.ranking_points), e a ELITE e a ROOKIE não
+                       mostram esse número: a classificação delas soma a pontuação
+                       de CADA temporada. Sem o aviso, o admin edita, salva, não vê
+                       nada mudar e conclui que a tela está quebrada. */ ?>
+                    <div id="editRankingAviso" style="display:none; margin:14px 16px 0; padding:12px 14px;
+                         border:1px solid var(--border); border-left:3px solid var(--amber, #f59e0b);
+                         border-radius:10px; background:var(--panel-2); font-size:12.5px;
+                         line-height:1.55; color:var(--text-2)"></div>
                     <div id="editRankingLoading" class="text-center py-4"><div class="spinner"></div></div>
                     
                     <div class="table-responsive" id="editRankingTableWrap" style="display:none;">
@@ -1300,6 +1309,24 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             const data = await resp.json();
             if (!data.success) throw new Error(data.error || 'Falha ao carregar ranking');
             
+            /* A liga joga por bloco? Então o que a tela dela mostra não sai
+               daqui, e quem abriu precisa saber antes de digitar. */
+            const aviso = document.getElementById('editRankingAviso');
+            const B = BLOCOS[currentLeague];
+            if (aviso) {
+                if (B) {
+                    const rot = (B.rotulo || 'bloco');
+                    aviso.innerHTML = `<strong style="color:var(--text)">Aqui não é onde se muda a tabela da ${esc(currentLeague)}.</strong><br>
+                        A classificação desta liga soma a <strong>pontuação de cada temporada</strong> —
+                        por ${esc(rot.toLowerCase())} e na geral. Os números abaixo são um total acumulado
+                        à parte, e salvar aqui não muda nada do que aparece na tela.<br>
+                        Pra corrigir pontuação, vá em <em>Admin → Pontuação por Time</em> e edite a temporada.`;
+                    aviso.style.display = 'block';
+                } else {
+                    aviso.style.display = 'none';
+                }
+            }
+
             const rows = data.ranking[currentLeague] || [];
             if (!rows.length) {
                 editEmpty.style.display = 'block';
