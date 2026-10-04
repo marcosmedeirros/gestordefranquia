@@ -585,13 +585,6 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                          border:1px solid var(--border); border-left:3px solid var(--amber, #f59e0b);
                          border-radius:10px; background:var(--panel-2); font-size:12.5px;
                          line-height:1.55; color:var(--text-2)"></div>
-                    <?php /* Só nas ligas de bloco: ali a coluna editável é a
-                       pontuação DAQUELA temporada, e não um total. */ ?>
-                    <div id="editRankingTemporadaBox" style="display:none; margin:12px 16px 0;">
-                        <label style="font-size:11px; font-weight:700; letter-spacing:.08em;
-                               text-transform:uppercase; color:var(--text-3); display:block; margin-bottom:5px;">Temporada</label>
-                        <select id="editRankingTemporada" class="minimal-input" style="width:100%; max-width:280px;"></select>
-                    </div>
                     <div id="editRankingLoading" class="text-center py-4"><div class="spinner"></div></div>
                     
                     <div class="table-responsive" id="editRankingTableWrap" style="display:none;">
@@ -1330,59 +1323,56 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao carregar ranking');
             
             /* ── A LIGA JOGA POR BLOCO? ────────────────────────────────
-               Então a classificação dela é a SOMA das temporadas, e soma não
-               se edita: o editor passa a mexer na parcela, com a temporada
-               escolhida num seletor, e mostra o total ao lado pra o número
-               bater com o que está na tela. */
+               Então o que se edita aqui é o TOTAL da classificação geral — o
+               mesmo número que a tabela mostra. O servidor acomoda a diferença
+               nas temporadas, que é onde ele mora. */
             const B = BLOCOS[currentLeague];
             const T = EDIT_TEMPORADAS[currentLeague];
             editPorTemporada = !!(B && T && T.temporadas && T.temporadas.length);
 
             const aviso = document.getElementById('editRankingAviso');
-            const boxT  = document.getElementById('editRankingTemporadaBox');
-            const selT  = document.getElementById('editRankingTemporada');
 
             if (editPorTemporada) {
-                const rot = (B.rotulo || 'bloco').toLowerCase();
-                aviso.innerHTML = `A classificação da ${esc(currentLeague)} é a <strong>soma das temporadas</strong>
-                    — por ${esc(rot)} e na geral. Então aqui se corrige <strong>uma temporada de cada vez</strong>,
-                    e o total ao lado é o mesmo que aparece na tabela.`;
+                /* Quem tem corte de GM aparece MENOR na tabela do que aqui: a
+                   tela esconde o que o GM anterior fez, e o editor mostra o que
+                   está gravado. Sem dizer isso, o número "errado" vira bug. */
+                const comCorte = Object.keys(T.cortes || {}).length;
+                aviso.innerHTML = `Os pontos abaixo são o <strong>total da classificação geral</strong> desta sprint.
+                    Salvando, o acerto entra nas temporadas mais recentes.`
+                    + (comCorte ? `<br><span style="color:var(--text-3)">Time que trocou de GM aparece com menos
+                        pontos na tabela do que aqui — lá a conta começa de quando o GM atual assumiu.</span>` : '');
                 aviso.style.display = 'block';
-                selT.innerHTML = T.temporadas.map(t =>
-                    `<option value="${t.season_id}">Temporada ${t.numero} · ${t.ano}</option>`).join('');
-                // Abre na última, que é quase sempre a que se quer corrigir.
-                selT.value = String(T.temporadas[T.temporadas.length - 1].season_id);
-                boxT.style.display = 'block';
-                document.getElementById('editColTitulos').textContent = 'Total na sprint';
-                document.getElementById('editColPontos').textContent = 'Pontos na temporada';
+                document.getElementById('editColTitulos').textContent = 'Títulos';
+                document.getElementById('editColPontos').textContent = 'Total na sprint';
             } else {
                 aviso.style.display = 'none';
-                boxT.style.display = 'none';
                 document.getElementById('editColTitulos').textContent = 'Títulos';
                 document.getElementById('editColPontos').textContent = 'Pontos';
             }
 
             const rows = editPorTemporada
-                ? (B.geral || []).map(l => ({ team_id: l.team_id, team_name: l.time, total: l.pontos }))
+                ? (B.geral || []).map(l => ({
+                    team_id: l.team_id,
+                    team_name: l.time,
+                    total_titles: l.titulos || 0,
+                    total_points: (T.totais || {})[l.team_id] || 0,
+                  }))
                 : (data.ranking[currentLeague] || []);
             if (!rows.length) {
                 editEmpty.style.display = 'block';
                 return;
             }
 
-            if (editPorTemporada) {
-                desenharLinhasDaTemporada(rows, Number(selT.value));
-                selT.onchange = () => desenharLinhasDaTemporada(rows, Number(selT.value));
-            } else {
-                rows.forEach(row => {
-                    editBody.innerHTML += `
-                    <tr data-team-id="${row.team_id}">
-                        <td style="font-weight: 600; font-size: 13px;">${esc(row.team_name)}</td>
-                        <td><input type="number" class="minimal-input js-edit-titles" value="${row.total_titles || 0}" min="0"></td>
-                        <td><input type="number" class="minimal-input js-edit-points" value="${row.total_points || 0}" min="0"></td>
-                    </tr>`;
-                });
-            }
+            rows.forEach(row => {
+                editBody.innerHTML += `
+                <tr data-team-id="${row.team_id}">
+                    <td style="font-weight: 600; font-size: 13px;">${esc(row.team_name)}</td>
+                    <td>${editPorTemporada
+                        ? `<div style="text-align:center;font-weight:700;color:var(--text-2)">${row.total_titles || 0}</div>`
+                        : `<input type="number" class="minimal-input js-edit-titles" value="${row.total_titles || 0}" min="0">`}</td>
+                    <td><input type="number" class="minimal-input js-edit-points" value="${row.total_points || 0}" min="0"></td>
+                </tr>`;
+            });
             editWrap.style.display = 'block';
         } catch (e) {
             editEmpty.textContent = 'Erro ao carregar ranking para edição.';
@@ -1392,30 +1382,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         }
     });
 
-    /* O total fica como texto e a parcela como campo: o total é derivado, e
-       um campo que não se pode digitar convida a digitar. */
-    function desenharLinhasDaTemporada(rows, seasonId) {
-        const porTime = (EDIT_TEMPORADAS[currentLeague]?.pontos || {})[seasonId] || {};
-        editBody.innerHTML = rows.map(row => `
-            <tr data-team-id="${row.team_id}">
-                <td style="font-weight: 600; font-size: 13px;">${esc(row.team_name)}</td>
-                <td style="text-align:center; font-weight:700; color:var(--text-2)">${row.total ?? 0}</td>
-                <td><input type="number" class="minimal-input js-edit-points"
-                           value="${porTime[row.team_id] ?? 0}" min="0"></td>
-            </tr>`).join('');
-    }
-
     btnSaveRanking?.addEventListener('click', async () => {
         const rows = Array.from(editBody.querySelectorAll('tr[data-team-id]'));
 
-        /* DOIS CAMINHOS, dois endpoints. Nas ligas de bloco o que se grava é a
-           pontuação daquela temporada (edit_season_points, que também acerta o
-           acumulado pelo delta); nas outras, o total de sempre. */
+        /* DOIS CAMINHOS, dois endpoints. Nas ligas de bloco o total é a soma
+           das temporadas, e quem acomoda a diferença nelas é o servidor; nas
+           outras, grava-se o acumulado de sempre. */
         const corpo = editPorTemporada
             ? {
-                action: 'edit_season_points',
+                action: 'save_sprint_total',
                 league: currentLeague,
-                season_id: Number(document.getElementById('editRankingTemporada').value),
                 team_points: rows.map(tr => ({
                     team_id: parseInt(tr.getAttribute('data-team-id'), 10),
                     points: parseInt(tr.querySelector('.js-edit-points')?.value || '0', 10)

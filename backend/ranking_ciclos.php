@@ -788,10 +788,17 @@ function cicloPontosPorTemporada(PDO $pdo, string $liga): array
         $st->execute($ids);
 
         $pontos = [];
+        $totais = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $pontos[(int)$r['season_id']][(int)$r['team_id']] = (int)$r['points'];
+            $totais[(int)$r['team_id']] = ($totais[(int)$r['team_id']] ?? 0) + (int)$r['points'];
         }
-        return ['temporadas' => $temporadas, 'pontos' => $pontos];
+        /* O TOTAL CRU, sem o corte de GM. É o que o editor mostra e grava: a
+           soma cortada é uma leitura da tabela, e editar por cima dela daria
+           ao time os pontos de um GM que a regra tirou de propósito. Quem tem
+           corte aparece menor na tela do que aqui, e o editor avisa. */
+        return ['temporadas' => $temporadas, 'pontos' => $pontos, 'totais' => $totais,
+                'cortes' => cicloCortesDeGm($pdo, $liga)];
     } catch (Throwable $e) {
         error_log('[ciclos] pontos por temporada: ' . $e->getMessage());
         return $vazio;

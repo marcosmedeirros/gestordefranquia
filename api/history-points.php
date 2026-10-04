@@ -52,7 +52,7 @@ if (!$user) {
 }
 
 // Verificar se é admin para ações protegidas
-$adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals', 'edit_season_points', 'delete_season_points'];
+$adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals', 'edit_season_points', 'delete_season_points', 'save_sprint_total'];
 if (in_array($action, $adminActions)) {
     if (!hasAdminAccess($pdo, (int)$user['id'])) {
         http_response_code(403);
@@ -960,6 +960,95 @@ try {
             }
             echo json_encode(['success' => true, 'seasons' => $log]);
             break;
+
+        /* O TOTAL DA SPRINT, EDITADO DIRETO.
+           A classificação das ligas de bloco é a soma das temporadas, e era só
+           isso que dava pra editar — uma a uma. Mas quem abre o editor quer
+           acertar o número que está vendo, não procurar em qual temporada ele
+           nasceu. Aqui o admin digita o total e o servidor acomoda a diferença
+           nas temporadas, da mais recente pra trás.
+
+           DA MAIS RECENTE PRA TRÁS porque é onde o acerto incomoda menos: as
+           sprints antigas já estão fechadas e premiadas, e mexer nelas mudaria
+           um campeão decidido. Descendo, nada fica negativo — o que não cabe
+           numa temporada desce pra anterior, e zerar o total zera todas. */
+        case 'save_sprint_total': {
+            $data   = is_array($jsonPayload) ? $jsonPayload : null;
+            $league = strtoupper(trim((string)($data['league'] ?? '')));
+            $alvos  = $data['team_points'] ?? [];
+            if (!in_array($league, ['ELITE','NEXT','RISE','ROOKIE'], true)) throw new Exception('Liga inválida');
+
+            require_once __DIR__ . '/../backend/ranking_ciclos.php';
+            $pacote = cicloPontosPorTemporada($pdo, $league);
+            $temporadas = $pacote['temporadas'] ?? [];
+            if (!$temporadas) throw new Exception('Esta liga não tem temporadas na sprint atual.');
+
+            // Da mais recente pra mais antiga.
+            $ordem = array_reverse(array_column($temporadas, 'season_id'));
+            $porId = [];
+            foreach ($temporadas as $t) $porId[$t['season_id']] = $t;
+
+            $hasRankCol = teamColumnExists($pdo, 'ranking_points');
+            $pdo->beginTransaction();
+            try {
+                $stNome  = $pdo->prepare("SELECT CONCAT(city,' ',name) AS n FROM teams WHERE id = ?");
+                $stUp    = $pdo->prepare("
+                    INSERT INTO team_season_points (team_id, team_name, league, season_id, sprint_number, season_number, points)
+                    VALUES (?,?,?,?,?,?,?)
+                    ON DUPLICATE KEY UPDATE points = VALUES(points), team_name = VALUES(team_name), updated_at = NOW()");
+                $stRank  = $hasRankCol
+                    ? $pdo->prepare("UPDATE teams SET ranking_points = GREATEST(0, ?) WHERE id = ?")
+                    : null;
+
+                $sprintNumero = 0;
+                try {
+                    $stSp = $pdo->prepare("SELECT sprint_number FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+                    $stSp->execute([$league]);
+                    $sprintNumero = (int)($stSp->fetchColumn() ?: 0);
+                } catch (Throwable $e) { /* fica 0 */ }
+
+                foreach ($alvos as $tp) {
+                    $teamId = (int)($tp['team_id'] ?? 0);
+                    $novo   = max(0, (int)($tp['points'] ?? 0));
+                    if ($teamId <= 0) continue;
+
+                    $atualPorTemporada = [];
+                    foreach ($ordem as $sid) $atualPorTemporada[$sid] = (int)($pacote['pontos'][$sid][$teamId] ?? 0);
+                    $atual = array_sum($atualPorTemporada);
+                    if ($atual === $novo) continue;
+
+                    $falta = $novo - $atual;
+                    if ($falta > 0) {
+                        // Sobra vai inteira na temporada mais recente.
+                        $atualPorTemporada[$ordem[0]] += $falta;
+                    } else {
+                        // Desconta descendo, sem deixar nenhuma negativa.
+                        $tirar = -$falta;
+                        foreach ($ordem as $sid) {
+                            if ($tirar <= 0) break;
+                            $corte = min($tirar, $atualPorTemporada[$sid]);
+                            $atualPorTemporada[$sid] -= $corte;
+                            $tirar -= $corte;
+                        }
+                    }
+
+                    $stNome->execute([$teamId]);
+                    $nome = (string)($stNome->fetchColumn() ?: '');
+                    foreach ($atualPorTemporada as $sid => $pts) {
+                        $stUp->execute([$teamId, $nome, $league, $sid, $sprintNumero,
+                                        (int)($porId[$sid]['numero'] ?? 0), $pts]);
+                    }
+                    if ($stRank) $stRank->execute([$novo, $teamId]);
+                }
+                $pdo->commit();
+                echo json_encode(['success' => true]);
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[history-points] save_sprint_total: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Não foi possível salvar o total.']);
+            }
+            break;
+        }
 
         case 'edit_season_points':
             // Admin bypasses season_points_lock to correct existing points
