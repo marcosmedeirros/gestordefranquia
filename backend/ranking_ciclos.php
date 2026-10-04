@@ -247,6 +247,13 @@ function cicloTemporadaTemCampeao(PDO $pdo, string $liga, int $seasonNumber): bo
  * temporada sai de `seasons.created_at` — é a última temporada que já havia
  * começado quando a troca aconteceu.
  *
+ * SAIR JÁ CORTA, sem esperar quem entra. O que zera a conta é a cadeira
+ * mudar de dono, e ela muda no instante em que o GM sobe de liga — não no dia
+ * em que o substituto aparece. Antes só a chegada contava, e um time que
+ * ficou dias sem GM seguia exibindo os pontos de quem já tinha subido: foi o
+ * caso do San Antonio Spurs, que apareceu em segundo na geral da ROOKIE com
+ * os 26 pontos de um GM que não estava mais lá.
+ *
  * TEMPORADA JÁ PONTUADA NÃO ENTRA NO CORTE. "A última que havia começado" vale
  * enquanto ela ainda está em jogo; quando o GM assume depois de a temporada ter
  * sido lançada, ele não jogou nada dela e o corte tem que cair na seguinte.
@@ -266,6 +273,10 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
 
     $cache[$liga] = [];
     try {
+        /* O MAIS RECENTE DE CADA TIME, entrada ou saída. Em PHP, e não com um
+           MAX() correlacionado: são poucas linhas por liga, e assim o
+           desempate (mesma data, dois registros) fica explícito — vale o de
+           id maior, que é o que foi gravado depois. */
         $st = $pdo->prepare("
             SELECT h.team_id, h.criado_em,
                    (SELECT MAX(se.season_number) FROM seasons se
@@ -273,9 +284,7 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
               FROM team_gm_historico h
               JOIN teams t ON t.id = h.team_id
              WHERE t.league = ?
-               AND h.user_id_novo IS NOT NULL
-               AND h.criado_em = (SELECT MAX(h2.criado_em) FROM team_gm_historico h2
-                                   WHERE h2.team_id = h.team_id AND h2.user_id_novo IS NOT NULL)");
+             ORDER BY h.team_id, h.criado_em ASC, h.id ASC");
         $st->execute([$liga, $liga]);
 
         /* Aquela temporada já tinha pontuação lançada quando a troca
@@ -287,7 +296,11 @@ function cicloCortesDeGm(PDO $pdo, string $liga): array
              WHERE tsp.team_id = ? AND s.league = ? AND s.season_number = ?
                AND tsp.created_at <= ?");
 
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        // A ordenação acima deixa o mais recente por último: ele sobrescreve.
+        $ultimo = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $ultimo[(int)$r['team_id']] = $r;
+
+        foreach ($ultimo as $r) {
             $t = (int)($r['temporada'] ?? 0);
             // Troca antes da primeira temporada não corta nada: o GM está lá
             // desde o começo, mesmo que o registro exista.
