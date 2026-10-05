@@ -635,7 +635,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
 
             $overview[] = [
-                'team' => ['id' => (int)$t['id'], 'name' => trim($t['city'] . ' ' . $t['name'])],
+                /* A ALCUNHA SEPARADA: é por ela que a fila ordena e é ela que
+                   a tela destaca. Quem está copiando tática pro 2K procura
+                   "Coyotes", não "Las Vegas". */
+                'team' => ['id' => (int)$t['id'],
+                           'name' => trim($t['city'] . ' ' . $t['name']),
+                           'nick' => trim((string)$t['name']),
+                           'city' => trim((string)$t['city'])],
                 'active_tactic' => $tatica,
                 // Fora da fase de playoffs os dois saem nulos, e a tela trata
                 // todo mundo igual — que é como era antes.
@@ -646,10 +652,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         // ── A ORDEM DA LISTA ────────────────────────────────────────────
         //
-        // Alfabética pelo nome COMPLETO — que é o que aparece na tela. A
-        // consulta ordena por (city, name), e isso não é a mesma coisa:
-        // basta um time com a cidade em branco pra ele saltar pro topo, o
-        // que fazia a lista parecer fora de ordem sem motivo aparente.
+        // Alfabética pela ALCUNHA do time — Coyotes, Parfums —, e não pelo
+        // nome completo, que ordena pela cidade. Ninguém procura um time da
+        // liga por "Las Vegas": na fila de copiar tática pro 2K, o que a
+        // pessoa tem na cabeça é o nome da franquia. A consulta ordena por
+        // (city, name) e isso não serve nem como empate.
         //
         // E quem já está marcado como "feito no jogo" vai pro FIM. Esta tela
         // é uma fila de trabalho: o admin desce copiando tática por tática, e
@@ -692,7 +699,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             if ($fa !== $fb) return $fa ? 1 : -1;
             // strnatcmp e não strcmp: sem ele, um time com número no nome
             // ordenaria "10" antes de "2".
-            return strnatcmp($ordenavel($a['team']['name']), $ordenavel($b['team']['name']));
+            return strnatcmp($ordenavel($a['team']['nick'] ?: $a['team']['name']),
+                             $ordenavel($b['team']['nick'] ?: $b['team']['name']));
         });
 
         echo json_encode([

@@ -944,7 +944,7 @@ if ($method === 'GET') {
                 exit;
             }
 
-            $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city ASC, name ASC');
+            $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY name ASC, city ASC');
             $stmt->execute([$league]);
             $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

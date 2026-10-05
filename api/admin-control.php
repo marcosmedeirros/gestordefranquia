@@ -51,7 +51,7 @@ $seasonId = $seasonId ? (int)$seasonId : null;
 
 $draftDone = draftConcluidoNaTemporada($pdo, $seasonId);
 
-$stTeams = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS nm FROM teams WHERE league = ? ORDER BY city, name");
+$stTeams = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS nm FROM teams WHERE league = ? ORDER BY name, city");
 $stTeams->execute([$league]);
 $teams = $stTeams->fetchAll(PDO::FETCH_ASSOC);
 

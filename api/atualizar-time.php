@@ -65,7 +65,7 @@ if ($acao === 'elegiveis') {
                   AND (p.skill_in IS NULL OR p.skill_in = '')) AS sem_skills
         FROM teams t LEFT JOIN users u ON u.id = t.user_id
         WHERE t.league = ? AND t.id <> ?
-        ORDER BY sem_skills DESC, t.city, t.name");
+        ORDER BY sem_skills DESC, t.name, t.city");
     $st->execute([$minhaLiga, (int)($meuTime['id'] ?? 0)]);
 
     $times = [];

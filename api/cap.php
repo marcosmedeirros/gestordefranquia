@@ -78,7 +78,7 @@ if (in_array($action, ['teams', 'simulate_trade'], true)) {
 
 // Times da ELITE, para escolher os dois lados da simulação de troca.
 if ($action === 'teams') {
-    $st = $pdo->query("SELECT id, CONCAT(city,' ',name) AS name FROM teams WHERE league = 'ELITE' ORDER BY city, name");
+    $st = $pdo->query("SELECT id, CONCAT(city,' ',name) AS name FROM teams WHERE league = 'ELITE' ORDER BY teams.name, teams.city");
     echo json_encode(['success' => true, 'teams' => $st->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }

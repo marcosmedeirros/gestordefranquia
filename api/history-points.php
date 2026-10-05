@@ -486,7 +486,7 @@ try {
                 FROM teams t
                 LEFT JOIN team_season_points tsp ON t.id = tsp.team_id AND tsp.season_id = ?
                 WHERE t.league = ?
-                ORDER BY t.city, t.name
+                ORDER BY t.name, t.city
             ");
             $stmt->execute([$seasonId, $league]);
             $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1244,7 +1244,7 @@ try {
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
                 $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name, t.photo_url
-                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.name, t.city";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
             } elseif ($hasTeamRankingPoints) {
@@ -1268,7 +1268,7 @@ try {
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
                 $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_titles, owner_name
-                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.name, t.city";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
             } else {
@@ -1296,7 +1296,7 @@ try {
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
                 $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name
-                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.name, t.city";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
             }

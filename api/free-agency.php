@@ -1277,6 +1277,20 @@ function listWaivers(PDO $pdo, string $league): void
         : ($temStatus ? "CASE WHEN fa.status = 'signed' THEN 'contratado' ELSE 'na free agency' END" : "'na free agency'");
     $origemTeamFa = columnExists($pdo, 'free_agents', 'original_team_id') ? 'fa.original_team_id' : 'NULL';
 
+    /* A ALCUNHA DO TIME, separada da cidade. A tela do admin agrupa as
+       dispensas por franquia e ordena por ela — e ordenar pelo nome completo
+       ordena pela CIDADE: "Las Vegas Coyotes" cai no L e "Houston Parfums" no
+       H, que não é como ninguém procura um time na liga.
+
+       Vem do banco e não de um corte do nome completo: "Bed-Stuy Alley Dogs"
+       não tem como ser partido por contagem de palavras.
+
+       LEFT JOIN porque free_agents guarda o nome como TEXTO, de um time que
+       pode nem existir mais; sem o id ou sem a linha, a tela cai no nome
+       inteiro, que é o que ela sempre mostrou. */
+    $alcunhaJoin = $origemTeamFa !== 'NULL' ? 'LEFT JOIN teams ot ON ot.id = fa.original_team_id' : '';
+    $alcunhaFa   = $origemTeamFa !== 'NULL' ? 'ot.name' : 'NULL';
+
     /* PRA ONDE ELE FOI. "Contratado" sem dizer por quem obriga o admin a
        procurar o jogador no elenco de trinta times pra descobrir o que a linha
        já sabe. */
@@ -1286,11 +1300,12 @@ function listWaivers(PDO $pdo, string $league): void
         : 'NULL';
 
     $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$origemTeamFa} AS original_team_id,
+                                  {$alcunhaFa} AS original_team_nick,
                                   fa.waived_at, {$anoExpr} AS season_year, {$numExpr} AS season_number,
                                   {$sidExpr} AS season_id,
                                   'free_agent' AS origem, {$situacaoFa} AS situacao,
                                   {$destinoFa} AS destino
-                             FROM free_agents fa {$seasonJoin} {$destinoJoin}
+                             FROM free_agents fa {$seasonJoin} {$destinoJoin} {$alcunhaJoin}
                             WHERE {$where}
                             ORDER BY fa.waived_at DESC
                             LIMIT 400");
@@ -1304,6 +1319,7 @@ function listWaivers(PDO $pdo, string $league): void
         // dispensado por ninguém e não conta pra nenhum time.
         $st = $pdo->prepare("SELECT w.id, w.name, w.team_id AS original_team_id,
                                     TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS original_team_name,
+                                    t.name AS original_team_nick,
                                     w.waived_at, w.status,
                                     'waiver' AS origem,
                                     TRIM(CONCAT(COALESCE(c.city,''),' ',COALESCE(c.name,''))) AS destino

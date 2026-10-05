@@ -529,7 +529,7 @@ if ($method === 'GET') {
             $jovens = [];
             if (!empty($_GET['times'])) {
                 $stT = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
-                                      FROM teams WHERE league = ? ORDER BY city, name");
+                                      FROM teams WHERE league = ? ORDER BY name, city");
                 $stT->execute([$ligaCap]);
                 // A pick de cada calouro — o número que explica o salário dele.
                 $stPick = $pdo->prepare("SELECT draft_round, draft_pick_position FROM players WHERE id = ?");
@@ -787,7 +787,7 @@ if ($method === 'GET') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
-            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.city, t.name');
+            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.name, t.city');
             $stmtTeams->execute([$league]);
             $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
             if (!$teams) {
@@ -871,7 +871,7 @@ if ($method === 'GET') {
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
-            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM teams t WHERE t.league = ? ORDER BY t.city, t.name');
+            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM teams t WHERE t.league = ? ORDER BY t.name, t.city');
             $stmtTeams->execute([$league]);
             $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
             if (!$teams) {
@@ -1369,16 +1369,16 @@ if ($method === 'GET') {
             
             if ($league) {
                 requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
-                $query .= " WHERE t.league = ? ORDER BY t.city, t.name";
+                $query .= " WHERE t.league = ? ORDER BY t.name, t.city";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute([$league]);
             } elseif (!$isGlobalAdminApi) {
                 $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
-                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.city, t.name";
+                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.name, t.city";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute($apiAdminLeagues);
             } else {
-                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.city, t.name";
+                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.name, t.city";
                 $stmt = $pdo->query($query);
             }
 
@@ -1497,11 +1497,11 @@ if ($method === 'GET') {
             ";
 
             if ($league && in_array($league, $validLeagues, true)) {
-                $query .= " WHERE t.league = ? ORDER BY t.tapas DESC, t.city, t.name";
+                $query .= " WHERE t.league = ? ORDER BY t.tapas DESC, t.name, t.city";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute([$league]);
             } else {
-                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.tapas DESC, t.city, t.name";
+                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.tapas DESC, t.name, t.city";
                 $stmt = $pdo->query($query);
             }
 
@@ -2042,16 +2042,16 @@ if ($method === 'GET') {
             
             if ($league && in_array($league, $validLeagues, true)) {
                 requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
-                $query .= " WHERE t.league = ? ORDER BY t.moedas DESC, t.city, t.name";
+                $query .= " WHERE t.league = ? ORDER BY t.moedas DESC, t.name, t.city";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute([$league]);
             } elseif (!$isGlobalAdminApi) {
                 $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
-                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.city, t.name";
+                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.name, t.city";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute($apiAdminLeagues);
             } else {
-                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.city, t.name";
+                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.name, t.city";
                 $stmt = $pdo->query($query);
             }
 

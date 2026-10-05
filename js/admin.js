@@ -7821,11 +7821,12 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
 
     if (!at) {
       return `
-        <div class="tac-item${clsFora}">
+        <div class="tac-item${clsFora}" data-nick="${escapeHtml((t.team.nick || t.team.name || '').toLowerCase())}">
           <div class="tac-head" style="cursor:default">
             <i class="bi bi-dash-circle" style="color:var(--text-3)"></i>
             ${selo}
-            <span class="tac-nome">${escapeHtml(t.team.name)}</span>
+            <span class="tac-nome">${escapeHtml(t.team.nick || t.team.name)}</span>
+            ${t.team.city ? `<span class="tac-cidade">${escapeHtml(t.team.city)}</span>` : ''}
             <span class="tac-vazio">Nenhuma tática ativa</span>
           </div>
         </div>`;
@@ -7865,11 +7866,12 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
       <div class="tac-obs ${observacao.mudou ? 'mudou' : ''}">${escapeHtml(String(observacao.valor))}</div>` : '';
 
     return `
-      <div class="tac-item${clsFora}" id="tac-item-${tid}">
+      <div class="tac-item${clsFora}" id="tac-item-${tid}" data-nick="${escapeHtml((t.team.nick || t.team.name || '').toLowerCase())}">
         <div class="tac-head" onclick="_tacToggle(${tid})">
           <i class="bi bi-chevron-right tac-seta" id="tac-seta-${tid}"></i>
           ${selo}
-          <span class="tac-nome${mudouNoOffs ? ' mudou-offs' : ''}">${escapeHtml(t.team.name)}</span>
+          <span class="tac-nome${mudouNoOffs ? ' mudou-offs' : ''}">${escapeHtml(t.team.nick || t.team.name)}</span>
+          ${t.team.city ? `<span class="tac-cidade">${escapeHtml(t.team.city)}</span>` : ''}
           <span class="pun-badge" style="background:#14b8a620;color:#14b8a6;border-color:#14b8a640">${escapeHtml(at.slot_label)}</span>
           ${mudancas > 0 ? `<span class="tac-mudou-badge">${mudancas} ${mudancas === 1 ? 'mudança' : 'mudanças'}</span>` : ''}
           <span class="tac-data">${at.updated_at ? formatDirectiveTimestampAdmin(at.updated_at) : '—'}</span>
@@ -7959,7 +7961,12 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
       .tac-head:hover { background:var(--panel-3); }
       .tac-seta { color:var(--text-3); font-size:12px; transition:transform .18s; flex-shrink:0; }
       .tac-seta.aberto { transform:rotate(90deg); }
-      .tac-nome { font-size:13.5px; font-weight:700; flex:1; min-width:140px; }
+      .tac-nome { font-size:13.5px; font-weight:700; min-width:110px; }
+      /* A cidade continua a vista, em tom menor: ela desempata homonimo e
+         explica por que a lista esta nesta ordem. O flex saiu do nome e veio
+         pra ca pra os dois ocuparem a mesma faixa de antes. */
+      .tac-cidade { font-size:11.5px; color:var(--text-3); flex:1; min-width:0;
+                    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       /* Mexeu na tática depois do fim da regular: montou pros playoffs. */
       .tac-nome.mudou-offs { color:#ef4444; }
       .tac-seed { flex:none; min-width:26px; text-align:center; font-size:10.5px; font-weight:800;
@@ -8009,6 +8016,32 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
   `;
 }
 
+/**
+ * Recoloca os cards na ordem da fila: o que falta primeiro, por nome.
+ *
+ * É a mesma régua do servidor (api/tactics.php) aplicada sem recarregar. Marcar
+ * "feito" tira o time da frente na hora, que é o que faz esta tela ser uma
+ * fila de trabalho — desmarcar devolve ele ao lugar alfabético.
+ *
+ * Antes o card ficava onde estava até o próximo carregamento, pra não sumir
+ * debaixo do cursor de quem acabou de clicar. Só que o clique É o fim do
+ * trabalho naquele time: depois dele, o card parado no meio da lista é
+ * justamente o que atrapalha a achar o próximo.
+ */
+function _tacReordenar() {
+  const lista = document.querySelector('.tac-lista');
+  if (!lista) return;
+  const itens = [...lista.querySelectorAll(':scope > .tac-item')];
+  if (itens.length < 2) return;
+
+  const feito = (el) => el.querySelector('.tac-feito input')?.checked ? 1 : 0;
+  itens
+    .slice()
+    .sort((a, b) => (feito(a) - feito(b))
+                 || (a.dataset.nick || '').localeCompare(b.dataset.nick || '', 'pt-BR', { sensitivity: 'base' }))
+    .forEach(el => lista.appendChild(el));
+}
+
 function _tacToggle(teamId) {
   document.getElementById(`tac-corpo-${teamId}`)?.classList.toggle('aberto');
   document.getElementById(`tac-seta-${teamId}`)?.classList.toggle('aberto');
@@ -8031,6 +8064,7 @@ async function _tacFeito(teamId, feito, el) {
       const base = item?.querySelector('.tac-base');
       if (base) base.innerHTML = `<i class="bi bi-clock-history"></i> Comparando com o que foi aplicado no último "Feito no jogo" (${escapeHtml(new Date().toLocaleString('pt-BR'))}).`;
     }
+    _tacReordenar();
   } catch (e) {
     el.checked = !feito;
     showAlert('danger', e.error || e.message || 'Não consegui salvar.');
@@ -9336,14 +9370,19 @@ function renderDispensasTable() {
     return;
   }
 
-  // Group by team, sort teams alphabetically
+  /* AGRUPA POR FRANQUIA E ORDENA PELO NOME DELA, não pela cidade. Ordenar o
+     nome completo é ordenar por cidade: "Las Vegas Coyotes" ia pro L e
+     "Houston Parfums" pro H, e ninguém procura time assim na liga. A alcunha
+     vem do banco (original_team_nick) — cortar a cidade por contagem de
+     palavras quebra em "Bed-Stuy Alley Dogs". */
   const byTeam = {};
   filtered.forEach(w => {
     const team = w.original_team_name || 'Sem time';
-    if (!byTeam[team]) byTeam[team] = [];
-    byTeam[team].push(w);
+    if (!byTeam[team]) byTeam[team] = { nick: w.original_team_nick || team, linhas: [] };
+    byTeam[team].linhas.push(w);
   });
-  const sortedTeams = Object.keys(byTeam).sort();
+  const sortedTeams = Object.keys(byTeam).sort((a, b) =>
+    byTeam[a].nick.localeCompare(byTeam[b].nick, 'pt-BR', { sensitivity: 'base' }));
 
   let html = `<div class="panel">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -9351,11 +9390,16 @@ function renderDispensasTable() {
     </div>`;
 
   sortedTeams.forEach(team => {
-    const players = byTeam[team].sort((a, b) => new Date(b.waived_at) - new Date(a.waived_at));
+    const nick = byTeam[team].nick;
+    const players = byTeam[team].linhas.sort((a, b) => new Date(b.waived_at) - new Date(a.waived_at));
+    // A cidade continua à vista, em tom menor: ela desempata homônimo e
+    // explica por que a lista está nesta ordem.
+    const cidade = team.endsWith(nick) ? team.slice(0, team.length - nick.length).trim() : '';
     html += `
       <div class="mb-4">
         <div class="d-flex align-items-center gap-2 mb-2">
-          <span style="font-weight:700;font-size:14px;color:var(--red)"><i class="bi bi-shield-fill me-1"></i>${escapeHtml(team)}</span>
+          <span style="font-weight:700;font-size:14px;color:var(--red)"><i class="bi bi-shield-fill me-1"></i>${escapeHtml(nick)}</span>
+          ${cidade ? `<span style="font-size:11.5px;color:var(--text-3)">${escapeHtml(cidade)}</span>` : ''}
           <span class="badge bg-secondary">${players.length}</span>
         </div>
         <div>

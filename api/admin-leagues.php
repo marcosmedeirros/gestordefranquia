@@ -28,7 +28,7 @@ if ($method === 'GET') {
         $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0];
 
         // Times da liga
-        $stmtTeams = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city, name');
+        $stmtTeams = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY name, city');
         $stmtTeams->execute([$league]);
         $teams = [];
         while ($t = $stmtTeams->fetch(PDO::FETCH_ASSOC)) {

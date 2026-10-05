@@ -28,7 +28,7 @@ if ($method === 'GET') {
     $stmtS->execute([$league]);
     $seasons = $stmtS->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtT = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS name FROM teams WHERE league = ? ORDER BY city, name");
+    $stmtT = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS name FROM teams WHERE league = ? ORDER BY teams.name, teams.city");
     $stmtT->execute([$league]);
     $teams = $stmtT->fetchAll(PDO::FETCH_ASSOC);
 
