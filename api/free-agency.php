@@ -2292,7 +2292,8 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
                              WHERE o.team_id = ? AND o.status = 'pending'");
         $st->execute([$teamId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
-            if (faLanceCabe($pdo, $teamId, (int)$o['amount'])['cabe']) continue;
+            // Dispensado pesa pela TABELA: é o salário que ele vai assinar.
+            if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
             $caidas++;
         }
@@ -2716,27 +2717,31 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     }
 
     /*
-     * NA ELITE O LANCE É SALÁRIO, NÃO MOEDA — regra da liga, 30/08/2026.
+     * NA ELITE O LANCE É EM MILHÕES, NÃO EM MOEDA — regra da liga, 30/08/2026.
+     * "Acabaram as moedinhas na ELITE": o time oferece milhões e o teto é a
+     * média salarial da liga. Nas outras três o lance continua em moedas.
      *
-     * "Acabaram as moedinhas na ELITE": o time oferece milhões, o teto é a
-     * média salarial da liga, e o que ele ofereceu vira o salário do jogador
-     * no primeiro ano. Nas outras três nada muda — lá o lance continua em
-     * moedas, que é a régua que elas têm.
+     * MAS AQUI ELE NÃO VIRA SALÁRIO (regra de 05/10/2026). O dispensado assina
+     * pela TABELA de OVR, como qualquer outro; o lance serve pra decidir quem
+     * leva. É o contrário da Free Agency, onde o lance É o salário do ano
+     * (@see requestPlayer e FA_LANCE_MINIMO_ELITE).
+     *
+     * Por isso o que precisa caber na folha é o salário de tabela, e não o
+     * lance: conferir o lance deixaria passar um 95 arrematado por 3M que
+     * entra custando 44M e estoura o cap no dia seguinte.
      */
     if (faCapAplica($pdo, (int)$teamId)) {
-        if ($amount < FA_LANCE_MINIMO_ELITE) {
-            jsonError('O lance mínimo da Free Agency é ' . FA_LANCE_MINIMO_ELITE . 'M.');
-        }
         $teto = capMediaSalarialDaLiga($pdo, (string)$teamLeague);
         if ($teto > 0 && $amount > $teto) {
             jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');
         }
 
-        // O que pesa no cap é o LANCE, não a tabela por OVR: é ele que vira o
-        // salário. Sem isto o time daria 7M num jogador com 2M de espaço.
-        $espaco = faEspacoNoCap($pdo, (int)$teamId);
-        if ($espaco !== null && $amount > $espaco) {
-            jsonError('Você tem ' . $espaco . 'M de espaço no cap, e o lance é de ' . $amount . 'M.');
+        $ovrDoAlvo = (int)($player[freeAgentOvrColumn($pdo)] ?? $player['ovr'] ?? 0);
+        $fit = faCap($pdo, (int)$teamId, $ovrDoAlvo);
+        if (!$fit['cabe']) {
+            jsonError('Um jogador de ' . $ovrDoAlvo . ' OVR custa '
+                . capValorEscrito($fit['custo'], $fit['unidade']) . ' na folha, e '
+                . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
         }
     } elseif ($teamCoins < $amount) {
         jsonError('Moedas insuficientes');
@@ -2865,15 +2870,14 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $values[] = 0;
         }
 
-        /* NA ELITE O LANCE VIRA O SALÁRIO DO PRIMEIRO ANO.
-           Depois dele o jogador passa a receber pela tabela de OVR, como
-           todo mundo — a coluna é zerada na virada da temporada. */
+        /* O DISPENSADO ENTRA PELA TABELA, NÃO PELO LANCE — regra da liga,
+           05/10/2026. O lance decidiu quem levou; o salário é o do OVR dele,
+           como o de qualquer outro. Sem contract_salary gravado,
+           getPlayerBaseSalary cai na tabela sozinho.
+
+           Na Free Agency é o contrário: lá o lance vira o salário do ano e só
+           na virada volta pra tabela (@see faAtribuirOferta). */
         $ehElite = faCapAplica($pdo, (int)$offer['team_id']);
-        if ($ehElite && (int)$offer['amount'] > 0) {
-            capGarantirColunaContrato($pdo);
-            $columns[] = 'contract_salary';
-            $values[]  = (int)$offer['amount'];
-        }
 
         $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
