@@ -73,6 +73,38 @@ function faLigaDoTime(PDO $pdo, ?int $teamId): string
  * há cap aqui": custo e espaço nulos, cabe sempre. O front-end já trata
  * espaço nulo escondendo o aviso inteiro — foi escrito assim desde o começo.
  */
+/**
+ * O PISO DO LANCE NA ELITE, em milhões.
+ *
+ * Regra da liga, 05/10/2026: o lance da Free Agency deixou de ser amarrado à
+ * tabela de OVR e passou a ser livre, com este mínimo. Um craque pode aceitar
+ * pouco e um reserva pode custar caro — o que vale é o que o time ofereceu, e
+ * vale por um ano (o contrato zera na virada, e o jogador volta pra tabela).
+ */
+const FA_LANCE_MINIMO_ELITE = 2;
+
+/**
+ * O lance cabe na folha do time?
+ *
+ * A pergunta ERA pelo OVR: "um jogador de 93 custa 35M, você tem 35M?". Só
+ * que na ELITE quem paga é o LANCE, não a tabela — e era essa troca que
+ * faltava. Um time com 5M de espaço não conseguia oferecer 4M por um craque
+ * que aceitaria, porque a conta olhava os 35M da tabela.
+ *
+ * O caminho do jogador dispensado já fazia certo desde 30/08/2026; o do
+ * pedido ("jogador não está na lista") continuou no OVR. Agora os dois dizem
+ * a mesma coisa.
+ */
+function faLanceCabe(PDO $pdo, ?int $teamId, int $lance): array
+{
+    if (!faCapAplica($pdo, $teamId)) {
+        return ['espaco' => null, 'cabe' => true, 'unidade' => 'M'];
+    }
+    $espaco = faEspacoNoCap($pdo, (int)$teamId);
+    if ($espaco === null) return ['espaco' => null, 'cabe' => true, 'unidade' => 'M'];
+    return ['espaco' => (int)$espaco, 'cabe' => $lance <= max(0, (int)$espaco), 'unidade' => 'M'];
+}
+
 function faCap(PDO $pdo, ?int $teamId, int $ovr): array
 {
     if (!faCapAplica($pdo, $teamId)) {
@@ -1779,6 +1811,9 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
        limita é o teto da média salarial e o espaço no cap — não a moedinha,
        que lá não existe mais. */
     if (faCapAplica($pdo, (int)$teamId)) {
+        if ($amount < FA_LANCE_MINIMO_ELITE) {
+            jsonError('O lance mínimo da Free Agency é ' . FA_LANCE_MINIMO_ELITE . 'M.');
+        }
         $teto = capMediaSalarialDaLiga($pdo, (string)$teamLeague);
         if ($teto > 0 && $amount > $teto) {
             jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');
@@ -1791,11 +1826,12 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
         jsonError('Moedas insuficientes');
     }
 
-    // O OVR é o que define o custo no cap, então dá pra saber na hora se o
-    // contrato cabe. Cada proposta é medida sozinha — o time pode sondar
-    // dois de 40M com 60M de espaço; quem cai é a segunda, se ele ganhar a
-    // primeira (ver cancelarPropostasSemEspacoNoCap).
-    $fit = faCap($pdo, (int)$teamId, $ovr);
+    /* FORA DA ELITE o cap é soma de OVR, e aí quem pesa É o jogador: lá a
+       pergunta continua sendo se ele cabe. Na ELITE quem pesa é o lance, e
+       ele já foi conferido contra o espaço logo acima. */
+    $fit = faCapAplica($pdo, (int)$teamId)
+        ? ['cabe' => true, 'custo' => null, 'espaco' => null, 'unidade' => 'M']
+        : faCap($pdo, (int)$teamId, $ovr);
     if (!$fit['cabe']) {
         jsonError('Um jogador de ' . $ovr . ' OVR custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
                 . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
@@ -1955,13 +1991,23 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
         return ['ok' => false, 'erro' => "{$nomeTime} está com o elenco cheio (" . ELENCO_MAX . ' jogadores)'];
     }
 
-    // O espaço pode ter sumido entre a proposta e a aprovação — o time pode
-    // ter assinado outro no meio do caminho.
-    $fit = faCap($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
-    if (!$fit['cabe']) {
-        return ['ok' => false, 'erro' => $offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
-                . ' e o cap de ' . $nomeTime . ' não cobre: '
-                . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.'];
+    /* O espaço pode ter sumido entre a proposta e a aprovação — o time pode
+       ter assinado outro no meio do caminho. Na ELITE o que se confere é o
+       LANCE contra o espaço; fora dela, o peso do jogador na soma de OVR. */
+    if (faCapAplica($pdo, (int)$offer['team_id'])) {
+        $fit = faLanceCabe($pdo, (int)$offer['team_id'], (int)$offer['amount']);
+        if (!$fit['cabe']) {
+            return ['ok' => false, 'erro' => 'O lance de ' . (int)$offer['amount'] . 'M por '
+                    . $offer['player_name'] . ' não cabe mais na folha de ' . $nomeTime . ': '
+                    . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.'];
+        }
+    } else {
+        $fit = faCap($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
+        if (!$fit['cabe']) {
+            return ['ok' => false, 'erro' => $offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                    . ' e o cap de ' . $nomeTime . ' não cobre: '
+                    . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.'];
+        }
     }
 
     $pdo->beginTransaction();
@@ -2226,7 +2272,8 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
         $st->execute([$teamId]);
         $mexidos = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
-            if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            // Pelo LANCE: é ele que vira salário. @see faLanceCabe
+            if (faLanceCabe($pdo, $teamId, (int)$o['amount'])['cabe']) continue;
             $pdo->prepare('UPDATE fa_request_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
             $mexidos[(int)$o['request_id']] = true;
             $caidas++;
@@ -2245,7 +2292,7 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
                              WHERE o.team_id = ? AND o.status = 'pending'");
         $st->execute([$teamId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
-            if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            if (faLanceCabe($pdo, $teamId, (int)$o['amount'])['cabe']) continue;
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
             $caidas++;
         }
@@ -2345,7 +2392,13 @@ function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
         $j['age'] = (int)$j['age'];
         $j['pedido'] = !empty($j['pedido']) ? 1 : 0;
         $j['propostas'] = (int)($j['propostas'] ?? 0);
-        $fit = $teamId ? faCap($pdo, $teamId, $j['ovr']) : null;
+        /* NA ELITE O CARD NAO DIZ MAIS QUANTO O JOGADOR CUSTA — porque nao
+           ha mais custo fixo: desde 05/10/2026 o lance e livre a partir de
+           2M, e quem ocupa a folha e o que o time ofereceu. Dizer "custa 35M"
+           pela tabela de OVR seria anunciar um preco que ninguem paga, e o
+           "nao cabe" barraria um lance que cabe. O espaco continua a vista no
+           formulario do lance. Fora da ELITE nada muda: la o peso E o jogador. */
+        $fit = ($teamId && !faCapAplica($pdo, $teamId)) ? faCap($pdo, $teamId, $j['ovr']) : null;
         $j['cap_custo']   = $fit['custo'] ?? null;
         $j['cap_cabe']    = $fit['cabe'] ?? true;
         $j['cap_unidade'] = $fit['unidade'] ?? 'M';
@@ -2376,6 +2429,8 @@ function capEspacoDoTime(PDO $pdo, ?int $teamId): void
         'espaco'        => $base['espaco'],
         'unidade'       => $base['unidade'],
         'modo'          => $base['modo'],
+        // O piso do lance vai junto pra tela avisar antes de o GM enviar.
+        'lance_minimo'  => FA_LANCE_MINIMO_ELITE,
         'custo_por_ovr' => $tabela,
     ]);
 }
@@ -2431,6 +2486,9 @@ function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): 
     // Editar a proposta passa pela mesma régua de criá-la: na ELITE, teto da
     // média salarial e espaço no cap; nas outras, moeda.
     if (faCapAplica($pdo, (int)$teamId)) {
+        if ($amount < FA_LANCE_MINIMO_ELITE) {
+            jsonError('O lance mínimo da Free Agency é ' . FA_LANCE_MINIMO_ELITE . 'M.');
+        }
         $ligaDoTime = faLigaDoTime($pdo, (int)$teamId);
         $teto = capMediaSalarialDaLiga($pdo, $ligaDoTime);
         if ($teto > 0 && $amount > $teto) {
@@ -2666,6 +2724,9 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
      * moedas, que é a régua que elas têm.
      */
     if (faCapAplica($pdo, (int)$teamId)) {
+        if ($amount < FA_LANCE_MINIMO_ELITE) {
+            jsonError('O lance mínimo da Free Agency é ' . FA_LANCE_MINIMO_ELITE . 'M.');
+        }
         $teto = capMediaSalarialDaLiga($pdo, (string)$teamLeague);
         if ($teto > 0 && $amount > $teto) {
             jsonError('O lance máximo da Free Agency é ' . $teto . 'M — a média salarial da liga.');

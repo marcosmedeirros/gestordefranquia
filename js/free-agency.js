@@ -387,7 +387,13 @@ async function carregarCapDoMeuTime() {
 }
 
 /**
- * Diz quanto o jogador digitado custaria e trava o envio se não couber.
+ * Diz se o que está sendo pedido cabe na folha, e trava o envio se não couber.
+ *
+ * DUAS PERGUNTAS DIFERENTES, uma por liga. Na ELITE o que ocupa espaço é o
+ * LANCE — desde 05/10/2026 ele é livre a partir do mínimo, e um craque que
+ * aceita pouco custa pouco. Nas ligas de soma de OVR quem pesa é o jogador, e
+ * aí a pergunta continua sendo o OVR dele.
+ *
  * Sem dado de cap, some da tela — melhor nada do que um número inventado.
  */
 function atualizarAvisoDeCap() {
@@ -396,25 +402,44 @@ function atualizarAvisoDeCap() {
     const botao = document.getElementById('faNewSubmitBtn');
     if (!caixa || !texto) return;
 
-    const ovr = parseInt(document.getElementById('faNewOvr')?.value, 10);
-    if (!capDoMeuTime || !Number.isFinite(ovr)) {
-        caixa.hidden = true;
-        if (botao) { botao.disabled = false; botao.style.opacity = ''; }
-        return;
-    }
+    const liberar = () => { caixa.hidden = true; if (botao) { botao.disabled = false; botao.style.opacity = ''; } };
+    if (!capDoMeuTime) return liberar();
 
     const u = capDoMeuTime.unidade || 'M';
-    const custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
     const espaco = capDoMeuTime.espaco;
-    const cabe = custo <= Math.max(0, espaco);
+    const salario = capDoMeuTime.modo === 'salary';
+
+    let cabe, frase;
+
+    if (salario) {
+        const lance = parseInt(document.getElementById('faNewOffer')?.value, 10);
+        const minimo = Number(capDoMeuTime.lance_minimo || 0);
+        if (!Number.isFinite(lance) || espaco == null) return liberar();
+
+        if (lance < minimo) {
+            cabe = false;
+            frase = `<strong>O lance mínimo é ${fmtCap(minimo, u)}.</strong>`;
+        } else {
+            cabe = lance <= Math.max(0, espaco);
+            frase = cabe
+                ? `O lance de <strong>${fmtCap(lance, u)}</strong> vira o salário dele no primeiro ano. E ${fraseDeEspaco(espaco, u)}.`
+                : `<strong>O lance não cabe na sua folha.</strong> Você ofereceu ${fmtCap(lance, u)} e ${fraseDeEspaco(espaco, u)}.`;
+        }
+    } else {
+        const ovr = parseInt(document.getElementById('faNewOvr')?.value, 10);
+        if (!Number.isFinite(ovr)) return liberar();
+        const custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
+        cabe = custo <= Math.max(0, espaco);
+        const oCusto = custo === 0
+            ? 'não mexe no seu cap'
+            : `custa <strong>${fmtCap(custo, u)}</strong> no seu cap`;
+        frase = cabe
+            ? `Um jogador de <strong>${ovr} OVR</strong> ${oCusto}. E ${fraseDeEspaco(espaco, u)}.`
+            : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR ${oCusto}, e ${fraseDeEspaco(espaco, u)}. Libere espaço ou mire num OVR menor.`;
+    }
 
     caixa.hidden = false;
-    const oCusto = custo === 0
-        ? 'não mexe no seu cap'
-        : `custa <strong>${fmtCap(custo, u)}</strong> no seu cap`;
-    texto.innerHTML = cabe
-        ? `Um jogador de <strong>${ovr} OVR</strong> ${oCusto}. E ${fraseDeEspaco(espaco, u)}.`
-        : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR ${oCusto}, e ${fraseDeEspaco(espaco, u)}. Libere espaço ou mire num OVR menor.`;
+    texto.innerHTML = frase;
     texto.style.color = cabe ? '' : 'var(--red)';
     if (botao) {
         botao.disabled = !cabe;
@@ -439,6 +464,8 @@ function initNewFreeAgency() {
     }
 
     document.getElementById('faNewOvr')?.addEventListener('input', atualizarAvisoDeCap);
+    // Na ELITE quem decide se cabe é o LANCE, então o aviso segue este campo.
+    document.getElementById('faNewOffer')?.addEventListener('input', atualizarAvisoDeCap);
     // O pedido virou modal: o botão fica junto da busca que a pessoa acabou
     // de usar sem achar o jogador.
     document.getElementById('btnJogadorNaoEsta')?.addEventListener('click', () => abrirPedido(null));
