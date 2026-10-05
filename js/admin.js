@@ -7934,6 +7934,9 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>
         ${faseOffs ? `<span class="tac-fase"><i class="bi bi-trophy-fill"></i> Playoffs</span>` : ''}
+        <button class="btn-ghost btn-sm tac-todos" id="tacTodos" onclick="_tacTodos()">
+          <i class="bi bi-chevron-expand"></i><span>Abrir todas</span>
+        </button>
       </div>
       ${faseOffs ? `
       <div class="tac-aviso-offs">
@@ -7955,6 +7958,9 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
     ${_taticaPainelModelos(modelos)}
 
     <style>
+      /* Encostado na direita do cabeçalho: é um atalho da lista inteira, e
+         não mais um filtro — fica longe dos controles de cada linha. */
+      .tac-todos { margin-left:auto; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
       .tac-lista { display:flex; flex-direction:column; gap:7px; }
       .tac-item { border:1px solid var(--border); border-radius:10px; background:var(--panel-2); overflow:hidden; }
       .tac-head { display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer; flex-wrap:wrap; }
@@ -8042,9 +8048,43 @@ function _tacReordenar() {
     .forEach(el => lista.appendChild(el));
 }
 
+/**
+ * Abre ou fecha todos os times de uma vez.
+ *
+ * O rótulo segue o que o clique VAI fazer, e não o estado de agora: com
+ * trinta cards e alguns abertos na mão, "fechar" enquanto a maioria está
+ * fechada confundiria. A régua é simples — se sobrou algum fechado, o botão
+ * abre; só quando todos estão abertos é que ele vira "Fechar todas".
+ */
+function _tacTodos() {
+  const corpos = [...document.querySelectorAll('.tac-lista .tac-corpo')];
+  if (!corpos.length) return;
+
+  const abrir = corpos.some(c => !c.classList.contains('aberto'));
+  corpos.forEach(c => c.classList.toggle('aberto', abrir));
+  // A seta é irmã do corpo, num pai comum: o id carrega o mesmo team.
+  corpos.forEach(c => {
+    const seta = document.getElementById('tac-seta-' + c.id.replace('tac-corpo-', ''));
+    seta?.classList.toggle('aberto', abrir);
+  });
+
+  _tacTodosRotulo();
+}
+
+/** Mantém o texto do botão falando do próximo clique. */
+function _tacTodosRotulo() {
+  const btn = document.getElementById('tacTodos');
+  if (!btn) return;
+  const corpos = [...document.querySelectorAll('.tac-lista .tac-corpo')];
+  const todosAbertos = corpos.length > 0 && corpos.every(c => c.classList.contains('aberto'));
+  btn.querySelector('span').textContent = todosAbertos ? 'Fechar todas' : 'Abrir todas';
+  btn.querySelector('i').className = todosAbertos ? 'bi bi-chevron-contract' : 'bi bi-chevron-expand';
+}
+
 function _tacToggle(teamId) {
   document.getElementById(`tac-corpo-${teamId}`)?.classList.toggle('aberto');
   document.getElementById(`tac-seta-${teamId}`)?.classList.toggle('aberto');
+  _tacTodosRotulo();
 }
 
 async function _tacFeito(teamId, feito, el) {
