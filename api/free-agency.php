@@ -9,7 +9,8 @@ require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/loja.php';   // waiverGarantirColunaExtra()
 require_once __DIR__ . '/../backend/push.php';
-require_once __DIR__ . '/../backend/salary_cap.php'; // capCabeNoTime()
+require_once __DIR__ . '/../backend/salary_cap.php';
+require_once __DIR__ . '/../backend/historico_jogador.php';   // o passado volta com o jogador // capCabeNoTime()
 
 /**
  * O CAP SÓ VALE NA ELITE — na Free Agency.
@@ -1768,6 +1769,8 @@ function adminFaChangeTeam(PDO $pdo, array $body, int $adminId): void
         if (columnExists($pdo,'players','available_for_trade')) { $cols[]='available_for_trade'; $vals[]=0; }
         $ph = implode(',', array_fill(0, count($cols), '?'));
         $pdo->prepare('INSERT INTO players ('.implode(',',$cols).") VALUES ({$ph})")->execute($vals);
+        historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$req['player_name'],
+                                  historicoLigaDoTime($pdo, (int)$newTeamId));
 
         $pdo->prepare('UPDATE fa_requests SET winner_team_id = ? WHERE id = ?')
             ->execute([$newTeamId, $requestId]);
@@ -2051,6 +2054,12 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
         $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
         $stmtInsert->execute($values);
+
+        /* O PASSADO DELE VOLTA JUNTO. Dispensar apaga a linha em `players`, e
+           contratar cria outra — sem isto o jogador reaparece na liga com
+           "0 temporadas", como aconteceu com o Zach Randolph. */
+        historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$offer['player_name'],
+                                  historicoLigaDoTime($pdo, (int)$offer['team_id']));
 
         /* "Acabaram as moedinhas na ELITE": lá o lance é folha salarial, e
            descontar moeda cobraria duas vezes pela mesma contratação. Nas
@@ -2882,6 +2891,10 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
         $stmtInsert->execute($values);
+
+        // O passado dele volta junto. @see historicoReligarDoJogador
+        historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$offer['player_name'],
+                                  historicoLigaDoTime($pdo, (int)$offer['team_id']));
 
         /* "Acabaram as moedinhas na ELITE": lá o lance é folha salarial, e
            descontar moeda cobraria duas vezes pela mesma contratação. Nas
