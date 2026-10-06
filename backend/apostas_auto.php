@@ -43,6 +43,7 @@
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/apostas.php';   // apostasPrazoEmTexto()
 
 /** O prêmio fixo por acerto, igual ao do admin à mão (@see admin-apostas.php). */
 const APOSTA_PREMIO = 75;
@@ -675,6 +676,7 @@ function apostasAutoGravarCatalogo(PDO $pdo, array $catalogo, string $liga, int 
         if (!$aplicar) {
             $r['criadas'][] = ['liga' => $liga, 'fase' => $fase, 'prazo' => $prazo,
                                'nome' => $a['nome'], 'tipo' => $a['tipo'],
+                               'status' => !empty($a['revisar']) ? 'rascunho' : 'aberta',
                                'opcoes' => array_column($a['opcoes'], 'desc')];
             continue;
         }
@@ -709,6 +711,7 @@ function apostasAutoGravarCatalogo(PDO $pdo, array $catalogo, string $liga, int 
             $pdo->commit();
             $r['criadas'][] = ['id' => $eid, 'liga' => $liga, 'fase' => $fase,
                                'prazo' => $prazo, 'nome' => $a['nome'], 'tipo' => $a['tipo'],
+                               'status' => $status,
                                'opcoes' => array_column($a['opcoes'], 'desc')];
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -770,6 +773,118 @@ function apostasAutoCriarPlayoffs(PDO $pdo, string $liga, int $seasonId,
     ));
     apostasAutoGravarCatalogo($pdo, $catalogo, $liga, (int)$temporada['id'], $prazo, 'playoffs', $aplicar, $r);
     return $r;
+}
+
+/* ═══════════════════════════ O GRUPO ════════════════════════════════ */
+
+/**
+ * Avisa o grupo principal que abriu aposta, marcando todo mundo.
+ *
+ * COM @TODOS DE PROPÓSITO, e só aqui e no pagamento: aposta tem prazo, e quem
+ * só lê o grupo à noite perde a janela. É o mesmo motivo de o aviso sair
+ * quando abre e quando paga, e não a cada palpite — marcar a liga três vezes
+ * por dia é o caminho mais curto pra todo mundo silenciar o grupo.
+ *
+ * Rascunho não entra: ele não está aberto pra ninguém ainda. Quando a revisão
+ * (ou a carência) o abrir, ele sai no aviso daquele momento.
+ *
+ * @param array $criadas O que apostasAutoCriar/CriarPlayoffs devolveu.
+ */
+function apostasAutoAvisarAbertas(PDO $pdo, array $criadas): bool
+{
+    $txt = apostasAutoTextoAbertas($criadas);
+    return $txt === '' ? false : apostasAutoMandarProGrupo($pdo, $txt);
+}
+
+/** O texto do aviso de abertura. Separado do envio pra poder ser conferido. */
+function apostasAutoTextoAbertas(array $criadas): string
+{
+    $abertas = array_values(array_filter($criadas,
+        fn($c) => ($c['status'] ?? 'aberta') === 'aberta'));
+    if (!$abertas) return '';
+
+    $porLiga = [];
+    foreach ($abertas as $c) $porLiga[$c['liga']][] = $c['nome'];
+
+    $l = ['🎯 *APOSTAS ABERTAS*', ''];
+    foreach ($porLiga as $liga => $nomes) {
+        $l[] = '*' . $liga . '* — ' . count($nomes) . ' aposta' . (count($nomes) === 1 ? '' : 's');
+        /* Até dez nomes. Num dia de playoff são dezoito, e a lista inteira
+           vira uma parede que ninguém lê — o que importa é saber que abriu e
+           quantas são. */
+        foreach (array_slice($nomes, 0, 10) as $n) $l[] = '• ' . $n;
+        if (count($nomes) > 10) $l[] = '_e mais ' . (count($nomes) - 10) . '_';
+        $l[] = '';
+    }
+    $prazo = $abertas[0]['prazo'] ?? '';
+    if ($prazo !== '') {
+        /* O texto do prazo já vem conjugado ("falta 1 dia", "faltam 2h"), e
+           um "fecham" na frente faz "fecham falta 1 dia". */
+        $l[] = '⏰ _' . apostasPrazoEmTexto($prazo) . ' pra palpitar_';
+        $l[] = '';
+    }
+    $l[] = '_Palpite na aba Apostas do /games._';
+
+    return implode("\n", $l);
+}
+
+/** Avisa o grupo do que foi pago, marcando todo mundo. */
+function apostasAutoAvisarPagas(PDO $pdo, array $pagas): bool
+{
+    $txt = apostasAutoTextoPagas($pagas);
+    return $txt === '' ? false : apostasAutoMandarProGrupo($pdo, $txt);
+}
+
+/** O texto do aviso de pagamento. Separado do envio pra poder ser conferido. */
+function apostasAutoTextoPagas(array $pagas): string
+{
+    if (!$pagas) return '';
+
+    $l = ['🏁 *APOSTAS PAGAS*', ''];
+    foreach ($pagas as $i => $p) {
+        if ($i > 0) $l[] = '';
+        $l[] = '*' . $p['evt']['nome'] . '*';
+        $l[] = '✅ ' . ($p['vencedor'] ?? '—');
+        $q = (int)($p['quantos'] ?? 0);
+        /* Zero acertos é informação, não erro: dizer "ninguém acertou" é
+           melhor que omitir a aposta e deixar quem palpitou sem resposta. */
+        $l[] = $q > 0
+            ? '_' . $q . ' acertaram — +' . APOSTA_PREMIO . ' FBA Points cada_'
+            : '_ninguém acertou_';
+    }
+    $l[] = '';
+    $l[] = '_Veja tudo na aba Apostas do /games._';
+
+    return implode("\n", $l);
+}
+
+/**
+ * Põe o texto na fila do grupo principal com @todos.
+ *
+ * Engole a falha: avisar é consequência de abrir e de pagar, não parte. Um
+ * WhatsApp fora do ar não pode fazer o cron parar no meio nem deixar aposta
+ * sem pagar.
+ */
+function apostasAutoMandarProGrupo(PDO $pdo, string $texto): bool
+{
+    try {
+        require_once __DIR__ . '/whatsapp.php';
+        if (!function_exists('whatsappParaGrupoPrincipal')) return false;
+        whatsappParaGrupoPrincipal($pdo, $texto, 'apostas', true);
+        return true;
+    } catch (Throwable $e) {
+        error_log('[apostas_auto] avisar grupo: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** O texto de uma opção, pelo id — o aviso diz o que venceu, não um número. */
+function apostasAutoDescricaoDaOpcao(array $opcoes, int $opcaoId): string
+{
+    foreach ($opcoes as $o) {
+        if ((int)$o['id'] === $opcaoId) return (string)$o['descricao'];
+    }
+    return '';
 }
 
 /* ═══════════════════════════ RESOLVER ═══════════════════════════════ */
@@ -1109,14 +1224,16 @@ function apostasAutoResolver(PDO $pdo, bool $aplicar = false): array
             continue;
         }
         if (!$aplicar) {
-            $r['pagas'][] = ['evt' => $e, 'op' => $v['op'], 'motivo' => $v['motivo'], 'quantos' => null];
+            $r['pagas'][] = ['evt' => $e, 'op' => $v['op'], 'motivo' => $v['motivo'], 'quantos' => null,
+                             'vencedor' => apostasAutoDescricaoDaOpcao($opcoes, (int)$v['op'])];
             continue;
         }
         $n = apostasAutoPagar($pdo, (int)$e['id'], (int)$v['op']);
         if ($n < 0) { $r['fila'][] = ['evt' => $e, 'motivo' => 'erro ao pagar']; continue; }
         $pdo->prepare('UPDATE apostas_auto_fila SET resolvido_em = NOW() WHERE evento_id = ?')
             ->execute([(int)$e['id']]);
-        $r['pagas'][] = ['evt' => $e, 'op' => $v['op'], 'motivo' => $v['motivo'], 'quantos' => $n];
+        $r['pagas'][] = ['evt' => $e, 'op' => $v['op'], 'motivo' => $v['motivo'], 'quantos' => $n,
+                         'vencedor' => apostasAutoDescricaoDaOpcao($opcoes, (int)$v['op'])];
     }
     return $r;
 }

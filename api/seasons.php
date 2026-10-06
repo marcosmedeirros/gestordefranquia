@@ -2699,6 +2699,9 @@ try {
                     if ($apst['criadas']) {
                         error_log('[seasons/apostas] ' . count($apst['criadas'])
                                 . ' apostas de playoff criadas para ' . $leagueR . ' #' . $seasonId);
+                        // O grupo é avisado com @todos: o chaveamento acabou
+                        // de sair e as apostas fecham antes da simulação.
+                        apostasAutoAvisarAbertas($pdo, $apst['criadas']);
                     }
                     foreach ($apst['erros'] as $erroAposta) {
                         error_log('[seasons/apostas] ' . $erroAposta);

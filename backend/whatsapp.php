@@ -853,7 +853,8 @@ function whatsappParaUsuario(PDO $pdo, int $userId, string $texto, ?string $tipo
  * Manda no grupo principal — o mesmo pra liga inteira, com a tag da liga no
  * texto. É por onde saem as trades grandes e as novas versões do The Pathetic.
  */
-function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = null): void
+function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = null,
+                                    bool $mencionarTodos = false): void
 {
     // whatsappAtivo em vez de whatsappConfig: enfileirar não depende das
     // credenciais da Evolution, que só o worker local usa.
@@ -862,7 +863,11 @@ function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = nul
     $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
     if ($grupo === '') return;
 
-    whatsappEnfileirar($pdo, $grupo, $texto, true, $tipo);
+    /* O @todos é OPCIONAL e o padrão é não marcar. Quem chamava esta função
+       antes continua sem marcar ninguém — marcar a liga inteira é para o que
+       tem hora pra acabar (aposta abrindo, aposta paga), não para toda
+       notícia que passa pelo grupo. */
+    whatsappEnfileirar($pdo, $grupo, $texto, true, $tipo, null, null, null, null, $mencionarTodos);
     whatsappEsvaziarUmaVez($pdo);
 }
 

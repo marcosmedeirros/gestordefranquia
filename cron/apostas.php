@@ -71,6 +71,10 @@ if ($acao === 'criar') {
     foreach ($r['erros'] as $e)   $log("  ERRO {$e}");
     $log("total: " . count($r['criadas']) . " criadas ({$abertas} abertas, {$rascunhos} em rascunho)");
 
+    if ($aplicar && apostasAutoAvisarAbertas($pdo, $r['criadas'])) {
+        $log('grupo avisado das abertas, com @todos');
+    }
+
     /* AVISA O DONO DA LIGA, porque rascunho que ninguém vê não é revisado.
        Só quando há rascunho: mensagem diária sem motivo vira ruído e deixa de
        ser lida, que é o jeito de um aviso parar de funcionar. */
@@ -108,6 +112,19 @@ foreach ($tardio['criadas'] as $c) {
 $pend = apostasAutoPublicarPendentes($pdo, 180, $aplicar);
 foreach ($pend as $p) $log("  publicado rascunho #{$p['id']} {$p['liga']} {$p['nome']}");
 
+/* O RASCUNHO QUE ABRIU AGORA TAMBÉM É NOTÍCIA. Ele não saiu no aviso das
+   12:05 porque ainda não estava aberto; se não sair aqui, a liga nunca fica
+   sabendo que o MVP entrou em jogo. Junta com o que o jogo da semana atrasado
+   criou, pra ser uma mensagem só e não duas seguidas. */
+$novas = array_merge(
+    array_map(fn($p) => ['liga' => $p['liga'], 'nome' => $p['nome'],
+                         'prazo' => $p['data_limite'], 'status' => 'aberta'], $pend),
+    $tardio['criadas']
+);
+if ($aplicar && apostasAutoAvisarAbertas($pdo, $novas)) {
+    $log('grupo avisado das que abriram agora, com @todos');
+}
+
 $r = apostasAutoResolver($pdo, $aplicar);
 foreach ($r['pagas'] as $x) {
     $q = $x['quantos'] === null ? 'simulado' : "{$x['quantos']} pessoas";
@@ -118,6 +135,10 @@ foreach ($r['fila'] as $x) {
 }
 $log('total: ' . count($r['pagas']) . ' pagas, ' . count($r['esperando'])
    . ' esperando resultado, ' . count($r['fila']) . ' na fila');
+
+if ($aplicar && apostasAutoAvisarPagas($pdo, $r['pagas'])) {
+    $log('grupo avisado das pagas, com @todos');
+}
 
 /* A FILA É AVISADA UMA VEZ POR APOSTA, não a cada dez minutos: a mesma
    pendência repetida seis vezes por hora é o que faz alguém silenciar o bot. */
