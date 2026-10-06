@@ -12,6 +12,7 @@
  */
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';   // ELENCO_MAX
+require_once __DIR__ . '/historico_jogador.php'; // o passado volta com o jogador
 
 function faCol(PDO $pdo, string $table, string $col): bool
 {
@@ -71,6 +72,12 @@ function faAssign(PDO $pdo, array $req, array $offer): void
     if (faCol($pdo, 'players', 'available_for_trade')) { $cols[] = 'available_for_trade';  $vals[] = 0; }
     $ph = implode(',', array_fill(0, count($cols), '?'));
     $pdo->prepare("INSERT INTO players (" . implode(',', $cols) . ") VALUES ($ph)")->execute($vals);
+
+    /* O PASSADO DELE VOLTA JUNTO. O INSERT acima grava seasons_in_league = 0
+       de propósito, porque daqui não se sabe nada do jogador; quem sabe é o
+       log, e é ele que corrige o contador. @see historicoReligarDoJogador */
+    historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$req['player_name'],
+                              historicoLigaDoTime($pdo, $teamId));
 
     $pdo->prepare("UPDATE teams SET moedas = COALESCE(moedas,0) - ? WHERE id = ?")->execute([$amount, $teamId]);
     if (faCol($pdo, 'teams', 'fa_signings_used')) {

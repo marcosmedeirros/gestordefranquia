@@ -9,6 +9,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/salary_cap.php'; // conta do cap na proposta
+require_once __DIR__ . '/../backend/historico_jogador.php'; // o passado volta com o jogador
 require_once __DIR__ . '/../backend/leilao_bot.php'; // proposta pelo WhatsApp
 require_once __DIR__ . '/../backend/leilao_decisao.php'; // aceitar/recusar — o bot usa as mesmas
 
@@ -2494,6 +2495,12 @@ function _executarTrocaLeilao($pdo, $proposta, ?array $overrideItems = null) {
             $proposta['temp_ovr']
         ]);
         $proposta['player_id'] = $pdo->lastInsertId();
+
+        /* O PASSADO DELE VOLTA JUNTO. Foi por um leilão que o Shaquile O'Neal
+           trocou de time, e é por aqui que um dispensado volta à liga com nome
+           novo de linha e id novo. @see historicoReligarDoJogador */
+        historicoReligarDoJogador($pdo, (int)$proposta['player_id'], (string)$proposta['temp_name'],
+                                  historicoLigaDoTime($pdo, (int)$winnerTeamId));
         $pdo->prepare("UPDATE leilao_jogadores SET player_id = ?, team_id = ? WHERE id = ?")
             ->execute([$proposta['player_id'], $winnerTeamId, $proposta['leilao_id']]);
     }

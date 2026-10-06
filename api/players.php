@@ -6,6 +6,7 @@ require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/loja.php';   // waiverLimiteDoTime()
 require_once __DIR__ . '/../backend/altura.php'; // alturaNormalizar()
+require_once __DIR__ . '/../backend/historico_jogador.php'; // o passado volta com o jogador
 
 $pdo = db();
 $config = loadConfig();
@@ -720,6 +721,10 @@ if ($method === 'POST') {
 
     $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade, loyal_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade, $loyalOverrideOnAdd]);
+
+    // O passado dele volta junto. @see historicoReligarDoJogador
+    historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), $name,
+                              historicoLigaDoTime($pdo, $teamId));
 
     $newCap = topOvrCap($pdo, $teamId);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, $faixa['max']);

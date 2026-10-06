@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/backend/helpers.php';
 require_once dirname(__DIR__) . '/backend/league_cap.php';
 // Tabela OVR→salário e a regra da lenda, usadas pelo painel de conferência do cap.
 require_once dirname(__DIR__) . '/backend/salary_cap.php';
+require_once dirname(__DIR__) . '/backend/historico_jogador.php'; // o passado volta com o jogador
 require_once dirname(__DIR__) . '/backend/nba_sync.php';
 
 $user = getUserSession();
@@ -3791,6 +3792,13 @@ if ($method === 'POST') {
             }
 
             $newPlayerId = $pdo->lastInsertId();
+
+            /* O PASSADO DELE VOLTA JUNTO. Cadastrar à mão é o caminho que o
+               admin usa pra devolver à liga quem foi dispensado, e sem isto o
+               jogador reaparece com zero temporada. @see historicoReligarDoJogador */
+            historicoReligarDoJogador($pdo, (int)$newPlayerId, (string)$name,
+                                      historicoLigaDoTime($pdo, (int)$teamId));
+
             echo json_encode(['success' => true, 'player_id' => $newPlayerId]);
             break;
 

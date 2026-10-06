@@ -12,6 +12,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/salary_cap.php';
 require_once __DIR__ . '/push.php';
+require_once __DIR__ . '/historico_jogador.php'; // o passado volta com o jogador
 
 const WAIVER_HOURS = 12;
 
@@ -372,6 +373,12 @@ function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
         $teamId, $w['name'], $w['age'], $w['position'], $w['secondary_position'], (int)$w['ovr'],
         (int)$w['seasons_in_league'], $w['drafted_by_team_id'], $w['draft_round'], $w['draft_pick_position'],
     ]);
+
+    /* O PASSADO DELE VOLTA JUNTO. A fila do waiver carrega o contador de
+       temporadas, mas não as estatísticas nem as notas — e o id aqui é novo,
+       então o histórico do antigo ficaria órfão. @see historicoReligarDoJogador */
+    historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$w['name'],
+                              historicoLigaDoTime($pdo, $teamId));
 }
 
 /**
@@ -627,6 +634,10 @@ function desfazerDispensa(PDO $pdo, string $origem, int $registroId): array
         $marcas = implode(', ', array_fill(0, count($cols), '?'));
         $pdo->prepare("INSERT INTO players ({$campos}) VALUES ({$marcas})")->execute(array_values($cols));
         $novoId = (int)$pdo->lastInsertId();
+
+        // O passado dele volta junto. @see historicoReligarDoJogador
+        historicoReligarDoJogador($pdo, $novoId, (string)$nome,
+                                  historicoLigaDoTime($pdo, (int)$timeId));
 
         if ($origem === 'waiver') $pdo->prepare('DELETE FROM waiver_retention WHERE id = ?')->execute([$registroId]);
         else                      $pdo->prepare('DELETE FROM free_agents WHERE id = ?')->execute([$registroId]);

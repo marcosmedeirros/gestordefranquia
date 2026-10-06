@@ -12,6 +12,7 @@ require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/revisao.php';
+require_once __DIR__ . '/../backend/historico_jogador.php'; // o passado volta com o jogador
 
 header('Content-Type: application/json; charset=utf-8');
 requireAuth();
@@ -147,6 +148,11 @@ if ($metodo === 'POST' && $acao === 'add_fa') {
                               VALUES (?,1,0,?,?,0,?,?,'Banco',0,?,NOW())");
         $ins->execute([$destino, $fa['name'], (int)$fa['age'], $fa['position'],
                        $fa['secondary_position'] ?: null, (int)$fa['overall']]);
+        /* O PASSADO DELE VOLTA JUNTO. O INSERT acima grava seasons_in_league = 0
+           porque a ficha de free agent não guarda isso. @see historicoReligarDoJogador */
+        historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$fa['name'],
+                                  historicoLigaDoTime($pdo, (int)$destino));
+
         $pdo->prepare("UPDATE free_agents SET status = 'signed' WHERE id = ?")->execute([$faId]);
         revisaoRegistrar($pdo, $destino, $userId, 'add_fa',
             sprintf('%s (%s %s) da free agency -> %s', $fa['name'], $fa['overall'],
@@ -188,6 +194,13 @@ if ($metodo === 'POST' && $acao === 'criar_jogador') {
                       position, secondary_position, role, available_for_trade, ovr, created_at)
                    VALUES (?,1,0,?,?,0,?,?,'Banco',0,?,NOW())")
         ->execute([$destino, $nome, $idade, $pos, $sec !== '' ? $sec : null, $ovr]);
+
+    /* O passado dele volta junto. A trava acima barra nome repetido entre quem
+       está vivo na liga — quem foi dispensado não tem linha em `players`, passa
+       por aqui, e é justamente ele que tem histórico órfão esperando.
+       @see historicoReligarDoJogador */
+    historicoReligarDoJogador($pdo, (int)$pdo->lastInsertId(), (string)$nome,
+                              historicoLigaDoTime($pdo, (int)$destino));
     revisaoRegistrar($pdo, $destino, $userId, 'criar_jogador',
         sprintf('%s (%s %s, %sa) criado em %s', $nome, $ovr, $pos, $idade, revisaoNomeTime($pdo, $destino)));
 
