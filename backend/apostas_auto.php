@@ -392,6 +392,44 @@ function apostasAutoDoBanco(PDO $pdo, int $seasonId, int $quantos = 4): array
     return array_values(array_filter(array_column($st->fetchAll(PDO::FETCH_ASSOC), 'nome')));
 }
 
+/**
+ * O jogo da semana daquela liga, se o leilão já fechou HOJE.
+ *
+ * O confronto não se adivinha: ele é arrematado em `leilao_semana_historico`,
+ * e o fechamento sai meio-dia (os registros batem — 12:00:01, 12:00:02,
+ * 12:00:12). Por isso a criação das apostas roda 12:05 e não 11h, como era no
+ * primeiro desenho: às 11h o jogo ainda não existe.
+ *
+ * SÓ VALE O QUE FECHOU HOJE. Sem esse corte, num dia em que o leilão atrasou
+ * a aposta sairia com o confronto da SEMANA PASSADA — dois times que não vão
+ * se enfrentar, e um pagamento que nunca casaria. Não achar nada é resposta
+ * boa: a aposta não é criada agora e o cron de dez em dez minutos tenta de
+ * novo mais tarde.
+ *
+ * O nome curto vem de `teams`; o do histórico traz a cidade junto ("Chicago
+ * Rail Foxes"), e no resto das apostas o time é "Rail Foxes".
+ */
+function apostasAutoJogoDaSemana(PDO $pdo, string $liga): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT h.id, h.time1_id, h.time2_id, h.vencedor_team_id,
+                                    COALESCE(TRIM(t1.name), h.time1_nome) AS time1,
+                                    COALESCE(TRIM(t2.name), h.time2_nome) AS time2
+                               FROM leilao_semana_historico h
+                          LEFT JOIN teams t1 ON t1.id = h.time1_id
+                          LEFT JOIN teams t2 ON t2.id = h.time2_id
+                              WHERE h.league = ? AND DATE(h.fechado_em) = CURDATE()
+                                AND h.time1_id IS NOT NULL AND h.time2_id IS NOT NULL
+                           ORDER BY h.id DESC LIMIT 1");
+        $st->execute([strtoupper(trim($liga))]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        /* A tabela é do Games e pode não existir num banco enxuto. */
+        error_log('[apostas_auto] jogo da semana ' . $liga . ': ' . $e->getMessage());
+        return null;
+    }
+}
+
 /** Os times mais fortes de uma conferência, pela classificação da temporada. */
 function apostasAutoTopTimes(PDO $pdo, int $seasonId, ?string $conferencia, int $quantos): array
 {
@@ -424,6 +462,24 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
     $paraClassificacao = apostasAutoTopTimes($pdo, $seasonId, 'OESTE', 1) ? $seasonId : (int)($antId ?: $seasonId);
 
     $apostas = [];
+
+    /* O JOGO DA SEMANA VALE NAS DUAS FASES: o leilão dele roda toda semana,
+       independente de a liga estar na temporada regular ou no playoff. Entra
+       primeiro porque é a aposta do dia que a liga mais comenta. */
+    if ($jogo = apostasAutoJogoDaSemana($pdo, $liga)) {
+        $apostas[] = [
+            'nome' => 'Quem vence o jogo da semana?',
+            'tipo' => 'jogo_semana',
+            /* O id do confronto, e não só a liga: o pagamento tem que ler o
+               vencedor DAQUELE jogo. Guardar só a liga faria a aposta da
+               semana passada ser resolvida pelo jogo da semana seguinte. */
+            'tipo_ref' => (string)$jogo['id'],
+            'opcoes' => [
+                ['desc' => $jogo['time1'], 'ref_tipo' => 'time', 'ref_id' => (int)$jogo['time1_id']],
+                ['desc' => $jogo['time2'], 'ref_tipo' => 'time', 'ref_id' => (int)$jogo['time2_id']],
+            ],
+        ];
+    }
 
     if ($fase === 'regular') {
         foreach (['LESTE', 'OESTE'] as $conf) {
@@ -541,10 +597,15 @@ function apostasAutoOpcoesPosicao(): array
 /**
  * Cria as apostas de uma data.
  *
- * @param bool $aplicar false só descreve, sem gravar nada.
+ * @param bool  $aplicar false só descreve, sem gravar nada.
+ * @param array|null $somenteTipos Limita a estes tipos. O cron de pagamento
+ *        usa com ['jogo_semana'] pra cobrir o leilão que fechou atrasado —
+ *        limitado de propósito, porque recriar o catálogo inteiro de dez em
+ *        dez minutos ressuscitaria a aposta que o admin apagou de propósito.
  * @return array{criadas:array, puladas:array, erros:array}
  */
-function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false): array
+function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false,
+                          ?array $somenteTipos = null): array
 {
     apostasAutoEstrutura($pdo);
     $r = ['criadas' => [], 'puladas' => [], 'erros' => []];
@@ -558,63 +619,156 @@ function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false): array
         $prazo = $data . ' ' . $dia['hora'];
         $catalogo = apostasAutoCatalogo($pdo, $dia['liga'], $dia['fase'], $temporada);
 
-        foreach ($catalogo as $a) {
-            /* A TRAVA CONTRA DUPLICATA, que é o erro que mais apareceu à mão.
-               Uma aposta por (liga, temporada, tipo, tipo_ref) — rodar o cron
-               duas vezes, ou rodar depois de alguém ter criado à mão com a
-               automação ligada, não gera a segunda. */
-            $ja = $pdo->prepare("SELECT id FROM eventos
-                                  WHERE liga = ? AND season_id = ? AND tipo = ?
-                                    AND COALESCE(tipo_ref, '') = COALESCE(?, '') LIMIT 1");
-            $ja->execute([$dia['liga'], (int)$temporada['id'], $a['tipo'], $a['tipo_ref']]);
-            if ($id = $ja->fetchColumn()) {
-                $r['puladas'][] = "{$dia['liga']} {$a['nome']} (já existe, #{$id})";
-                continue;
+        /* NUM DIA DE PLAYOFF O CRON SÓ FAZ O JOGO DA SEMANA. O chaveamento
+           vem da classificação, e às 12:05 ela ainda é a da temporada
+           ANTERIOR — quem a torna definitiva é o registro da temporada
+           regular, que o admin faz quando bem entende. Criar aqui sairia com
+           os confrontos do ano passado, e a trava contra duplicata depois
+           impediria o registro de corrigir.
+
+           Então quem cria aposta de playoff é apostasAutoCriarPlayoffs, no
+           momento do registro, para as quatro ligas. Isso também cobre a RISE
+           (Regular e Playoffs na mesma sexta, que o dia não distingue) e a
+           ROOKIE (sem entrada de Playoffs no calendário).
+
+           O jogo da semana fica, porque depende do leilão de meio-dia e não
+           da classificação: a ELITE, por exemplo, tem o leilão na quarta e o
+           playoff na quinta. */
+        if ($dia['fase'] === 'playoffs') {
+            $catalogo = array_values(array_filter($catalogo, fn($a) => $a['tipo'] === 'jogo_semana'));
+        }
+
+        if ($somenteTipos !== null) {
+            $catalogo = array_values(array_filter($catalogo,
+                fn($a) => in_array($a['tipo'], $somenteTipos, true)));
+        }
+        apostasAutoGravarCatalogo($pdo, $catalogo, $dia['liga'], (int)$temporada['id'],
+                                  $prazo, $dia['fase'], $aplicar, $r);
+    }
+    return $r;
+}
+
+/**
+ * Grava um catálogo já montado, pulando o que já existe.
+ *
+ * Separado de apostasAutoCriar porque há duas portas de entrada: o cron do dia
+ * e o registro da classificação (@see apostasAutoCriarPlayoffs). Duas cópias
+ * desta gravação divergiriam, e é justamente aqui que mora a trava contra
+ * duplicata.
+ */
+function apostasAutoGravarCatalogo(PDO $pdo, array $catalogo, string $liga, int $seasonId,
+                                   string $prazo, string $fase, bool $aplicar, array &$r): void
+{
+    foreach ($catalogo as $a) {
+        /* A TRAVA CONTRA DUPLICATA, que é o erro que mais apareceu à mão.
+           Uma aposta por (liga, temporada, tipo, tipo_ref) — rodar o cron
+           duas vezes, ou rodar depois de alguém ter criado à mão com a
+           automação ligada, não gera a segunda. */
+        $ja = $pdo->prepare("SELECT id FROM eventos
+                              WHERE liga = ? AND season_id = ? AND tipo = ?
+                                AND COALESCE(tipo_ref, '') = COALESCE(?, '') LIMIT 1");
+        $ja->execute([$liga, $seasonId, $a['tipo'], $a['tipo_ref']]);
+        if ($id = $ja->fetchColumn()) {
+            $r['puladas'][] = "{$liga} {$a['nome']} (já existe, #{$id})";
+            continue;
+        }
+        if (!$aplicar) {
+            $r['criadas'][] = ['liga' => $liga, 'fase' => $fase, 'prazo' => $prazo,
+                               'nome' => $a['nome'], 'tipo' => $a['tipo'],
+                               'opcoes' => array_column($a['opcoes'], 'desc')];
+            continue;
+        }
+        try {
+            $pdo->beginTransaction();
+            /* APOSTA DE PALPITE NASCE RASCUNHO; o resto nasce aberta.
+               Medido em 06/10/2026 nas 48 temporadas já fechadas: a lista
+               feita à mão acerta o vencedor em 64% das vezes (MVP 73%,
+               ROY 79%) e a melhor regra automática em 29%. O robô não
+               chega perto do olho de quem acompanha a simulação — então
+               ele deixa o palpite pronto como sugestão e espera revisão,
+               em vez de abrir uma aposta em que o "Outro" ganha quase
+               sempre e todo mundo aposta só nele.
+               Rascunho não aparece pra liga: a tela do jogador e o texto
+               do WhatsApp filtram status 'aberta'. E não fica preso —
+               apostasAutoPublicarPendentes abre depois do prazo de
+               carência, pra que o dia nunca fique sem aposta. */
+            $status = !empty($a['revisar']) ? 'rascunho' : 'aberta';
+            $ins = $pdo->prepare("INSERT INTO eventos
+                (nome, data_limite, status, liga, season_id, tipo, tipo_ref, auto, criado_em_auto)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())");
+            $ins->execute([$a['nome'], $prazo, $status, $liga, $seasonId,
+                           $a['tipo'], $a['tipo_ref']]);
+            $eid = (int)$pdo->lastInsertId();
+            $op = $pdo->prepare("INSERT INTO opcoes
+                (evento_id, descricao, odd, odd_inicial, ref_tipo, ref_id, ref_txt)
+                VALUES (?, ?, 1.00, 1.00, ?, ?, ?)");
+            foreach ($a['opcoes'] as $o) {
+                $op->execute([$eid, $o['desc'], $o['ref_tipo'] ?? null,
+                              $o['ref_id'] ?? null, $o['ref_txt'] ?? null]);
             }
-            if (!$aplicar) {
-                $r['criadas'][] = ['liga' => $dia['liga'], 'fase' => $dia['fase'], 'prazo' => $prazo,
-                                   'nome' => $a['nome'], 'tipo' => $a['tipo'],
-                                   'opcoes' => array_column($a['opcoes'], 'desc')];
-                continue;
-            }
-            try {
-                $pdo->beginTransaction();
-                /* APOSTA DE PALPITE NASCE RASCUNHO; o resto nasce aberta.
-                   Medido em 06/10/2026 nas 48 temporadas já fechadas: a lista
-                   feita à mão acerta o vencedor em 64% das vezes (MVP 73%,
-                   ROY 79%) e a melhor regra automática em 29%. O robô não
-                   chega perto do olho de quem acompanha a simulação — então
-                   ele deixa o palpite pronto como sugestão e espera revisão,
-                   em vez de abrir uma aposta em que o "Outro" ganha quase
-                   sempre e todo mundo aposta só nele.
-                   Rascunho não aparece pra liga: a tela do jogador e o texto
-                   do WhatsApp filtram status 'aberta'. E não fica preso —
-                   apostasAutoPublicarPendentes abre depois do prazo de
-                   carência, pra que o dia nunca fique sem aposta. */
-                $status = !empty($a['revisar']) ? 'rascunho' : 'aberta';
-                $ins = $pdo->prepare("INSERT INTO eventos
-                    (nome, data_limite, status, liga, season_id, tipo, tipo_ref, auto, criado_em_auto)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())");
-                $ins->execute([$a['nome'], $prazo, $status, $dia['liga'], (int)$temporada['id'],
-                               $a['tipo'], $a['tipo_ref']]);
-                $eid = (int)$pdo->lastInsertId();
-                $op = $pdo->prepare("INSERT INTO opcoes
-                    (evento_id, descricao, odd, odd_inicial, ref_tipo, ref_id, ref_txt)
-                    VALUES (?, ?, 1.00, 1.00, ?, ?, ?)");
-                foreach ($a['opcoes'] as $o) {
-                    $op->execute([$eid, $o['desc'], $o['ref_tipo'] ?? null,
-                                  $o['ref_id'] ?? null, $o['ref_txt'] ?? null]);
-                }
-                $pdo->commit();
-                $r['criadas'][] = ['id' => $eid, 'liga' => $dia['liga'], 'fase' => $dia['fase'],
-                                   'prazo' => $prazo, 'nome' => $a['nome'], 'tipo' => $a['tipo'],
-                                   'opcoes' => array_column($a['opcoes'], 'desc')];
-            } catch (Throwable $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
-                $r['erros'][] = "{$dia['liga']} {$a['nome']}: " . $e->getMessage();
-            }
+            $pdo->commit();
+            $r['criadas'][] = ['id' => $eid, 'liga' => $liga, 'fase' => $fase,
+                               'prazo' => $prazo, 'nome' => $a['nome'], 'tipo' => $a['tipo'],
+                               'opcoes' => array_column($a['opcoes'], 'desc')];
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $r['erros'][] = "{$liga} {$a['nome']}: " . $e->getMessage();
+        }
+}
+}
+
+/**
+ * Cria as apostas de playoff de uma liga assim que a classificação fecha.
+ *
+ * ── POR QUE NÃO ESPERAR O DIA ────────────────────────────────────────
+ *
+ * O calendário não serve para todas: a RISE tem Regular e Playoffs na MESMA
+ * sexta, então o dia não distingue as duas, e a ROOKIE não tem entrada de
+ * Playoffs nenhuma — pelo calendário ela nunca teria aposta de playoff.
+ *
+ * Mas existe um instante melhor que o dia: quando a classificação da temporada
+ * regular é registrada (o primeiro salvamento, o mesmo que fecha a urna da
+ * loteria). É aí que as posições viram definitivas, e é delas que sai o
+ * cruzamento 1x8, 2x7, 3x6, 4x5. Antes disso o chaveamento seria chute; depois
+ * disso ele é fato.
+ *
+ * @param string|null $prazo Quando a aposta fecha; o padrão é daqui a 3h.
+ */
+function apostasAutoCriarPlayoffs(PDO $pdo, string $liga, int $seasonId,
+                                  bool $aplicar = false, ?string $prazo = null): array
+{
+    apostasAutoEstrutura($pdo);
+    $liga = strtoupper(trim($liga));
+    $r = ['criadas' => [], 'puladas' => [], 'erros' => []];
+
+    $st = $pdo->prepare('SELECT id, season_number FROM seasons WHERE id = ? AND league = ?');
+    $st->execute([$seasonId, $liga]);
+    $temporada = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$temporada) {
+        $r['erros'][] = "temporada {$seasonId} não é da {$liga}";
+        return $r;
+    }
+
+    if ($prazo === null) {
+        /* A HORA DO PLAYOFF, quando o calendário a tem e ela ainda não passou
+           hoje; três horas daqui quando não tem. O prazo só precisa cair
+           antes da simulação e depois de agora — prazo no passado nasceria
+           fechado, e a liga veria uma aposta em que não dá pra apostar. */
+        $prazo = date('Y-m-d H:i:s', time() + 3 * 3600);
+        foreach (apostasAutoDiaDaLiga($pdo, date('Y-m-d')) as $dia) {
+            if ($dia['liga'] !== $liga || $dia['fase'] !== 'playoffs') continue;
+            $candidato = date('Y-m-d') . ' ' . $dia['hora'];
+            if (strtotime($candidato) > time()) $prazo = $candidato;
         }
     }
+
+    $catalogo = array_values(array_filter(
+        apostasAutoCatalogo($pdo, $liga, 'playoffs', $temporada),
+        /* O jogo da semana entra pelo cron do dia, não por aqui: ele depende
+           do leilão de meio-dia e não da classificação. */
+        fn($a) => $a['tipo'] !== 'jogo_semana'
+    ));
+    apostasAutoGravarCatalogo($pdo, $catalogo, $liga, (int)$temporada['id'], $prazo, 'playoffs', $aplicar, $r);
     return $r;
 }
 
@@ -703,6 +857,21 @@ function apostasAutoVencedor(PDO $pdo, array $evt, array $opcoes): array
         $time = $st->fetchColumn();
         if ($time === false) return ['op' => null, 'motivo' => 'a temporada ainda não tem classificação'];
         return apostasAutoCasaTime($opcoes, (int)$time);
+    }
+
+    /* ── Jogo da semana ──────────────────────────────────────────── */
+    if ($tipo === 'jogo_semana') {
+        $st = $pdo->prepare('SELECT vencedor_team_id FROM leilao_semana_historico WHERE id = ?');
+        $st->execute([(int)$evt['tipo_ref']]);
+        $venc = $st->fetchColumn();
+        if ($venc === false) return ['op' => null, 'motivo' => 'não achei esse jogo da semana'];
+        /* Vencedor em branco é jogo que ainda não foi declarado no painel —
+           espera, não problema. O leilão fecha ao meio-dia e o resultado só
+           entra depois da simulação. */
+        if ($venc === null || (int)$venc === 0) {
+            return ['op' => null, 'motivo' => 'o jogo da semana ainda não tem vencedor declarado'];
+        }
+        return apostasAutoCasaTime($opcoes, (int)$venc);
     }
 
     /* ── Confronto de playoff ────────────────────────────────────── */

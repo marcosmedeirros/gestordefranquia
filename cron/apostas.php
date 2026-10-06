@@ -4,13 +4,16 @@
  *
  * Agendar na Hostinger DUAS entradas:
  *
- *   0 14 * * *     /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php criar
+ *   5 15 * * *     /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php criar
  *   (barra)10 * *  /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php pagar
  *
  * A segunda é "a cada 10 minutos, todo dia" — escrita por extenso porque a
  * barra seguida de asterisco fecharia este bloco de comentário.
  *
- * As horas são UTC, que é o fuso do servidor: 14:00 lá são 11:00 em Brasília.
+ * As horas são UTC, que é o fuso do servidor: 15:05 lá são 12:05 em Brasília.
+ * E é 12:05, e não 11h como no primeiro desenho, porque o LEILÃO DO JOGO DA
+ * SEMANA fecha meio-dia: às 11h o confronto ainda não existe, e a aposta dele
+ * sairia com os times da semana passada ou não sairia.
  *
  * ── POR QUE DUAS ─────────────────────────────────────────────────────
  *
@@ -91,6 +94,17 @@ if ($acao === 'criar') {
 }
 
 /* ── PAGAR ──────────────────────────────────────────────────────────── */
+
+/* O JOGO DA SEMANA QUE CHEGOU ATRASADO. O leilão fecha meio-dia e a criação
+   roda 12:05, mas já houve fechamento às 12:02 — e um fechamento manual pode
+   sair bem mais tarde. Esta passada completa só essa aposta, se ela faltar.
+   Só ela: recriar o catálogo inteiro de dez em dez minutos ressuscitaria a
+   aposta que o admin apagou de propósito. */
+$tardio = apostasAutoCriar($pdo, date('Y-m-d'), $aplicar, ['jogo_semana']);
+foreach ($tardio['criadas'] as $c) {
+    $log("  jogo da semana criado depois: {$c['liga']} " . implode(' x ', $c['opcoes']));
+}
+
 $pend = apostasAutoPublicarPendentes($pdo, 180, $aplicar);
 foreach ($pend as $p) $log("  publicado rascunho #{$p['id']} {$p['liga']} {$p['nome']}");
 

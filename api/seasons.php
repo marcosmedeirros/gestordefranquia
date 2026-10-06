@@ -2676,6 +2676,38 @@ try {
                 error_log('[seasons/loteria] travar ordem: ' . $e->getMessage());
             }
 
+            /* AS APOSTAS DO PLAYOFF NASCEM AQUI, e não no cron do dia.
+               O chaveamento sai da classificação (1x8, 2x7, 3x6, 4x5), e é
+               ESTE salvamento que a torna definitiva — antes dele seria chute.
+               O calendário não resolveria: a RISE tem Regular e Playoffs na
+               mesma sexta, então o dia não distingue as duas, e a ROOKIE não
+               tem entrada de Playoffs nenhuma.
+
+               SÓ NA PRIMEIRA VEZ. Numa correção a classificação muda, mas a
+               aposta já pode ter palpite de meia liga dentro — recriar não
+               recria (a trava é por liga+temporada+tipo), e trocar os times
+               por baixo de quem já apostou seria pior que deixar o admin
+               ajustar à mão.
+
+               Fora da transação e engolindo o erro, igual à urna acima: se
+               isto falhar, a classificação salva continua salva. Aposta é
+               consequência do registro, não parte dele. */
+            if (!$ehCorrecao) {
+                try {
+                    require_once dirname(__DIR__) . '/backend/apostas_auto.php';
+                    $apst = apostasAutoCriarPlayoffs($pdo, (string)$leagueR, $seasonId, true);
+                    if ($apst['criadas']) {
+                        error_log('[seasons/apostas] ' . count($apst['criadas'])
+                                . ' apostas de playoff criadas para ' . $leagueR . ' #' . $seasonId);
+                    }
+                    foreach ($apst['erros'] as $erroAposta) {
+                        error_log('[seasons/apostas] ' . $erroAposta);
+                    }
+                } catch (Throwable $e) {
+                    error_log('[seasons/apostas] criar playoffs: ' . $e->getMessage());
+                }
+            }
+
             echo json_encode([
                 'success'   => true,
                 'correcao'  => $ehCorrecao,
