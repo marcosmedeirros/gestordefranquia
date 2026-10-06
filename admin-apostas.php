@@ -486,6 +486,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 .evt-footer{padding:12px 16px}
 .result-row{display:flex;gap:8px;align-items:center}
+/* O aviso de sugestão do robô e o botão de abrir dividem a linha no desktop.
+   No celular não cabem: o aviso quebrava em duas linhas ao lado do botão e
+   os dois ficavam espremidos. Abaixo de 540px o aviso ocupa a linha inteira
+   e o botão desce inteiro embaixo. */
+.aviso-robo{color:#f0b429;font-size:.85rem;line-height:1.3}
+@media (max-width:540px){
+  .result-row:has(.aviso-robo){flex-wrap:wrap}
+  .aviso-robo{flex:1 0 100%}
+  .result-row:has(.aviso-robo) .btn-close-evt{width:100%;justify-content:center}
+}
 .f-select{flex:1;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);
           padding:8px 11px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;
           transition:border-color var(--t) var(--ease)}
@@ -759,7 +769,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
                 data-confirmar="Abrir essa aposta para a liga com as opções que estão aí?">
             <input type="hidden" name="acao" value="publicar_evento">
             <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-            <span class="text-warning me-2">
+            <span class="aviso-robo">
               <i class="bi bi-robot"></i> sugestão do robô — troque os nomes se quiser
             </span>
             <button type="submit" class="btn-close-evt">
