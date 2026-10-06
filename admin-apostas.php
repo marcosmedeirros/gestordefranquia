@@ -99,6 +99,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
+    if (isset($_POST['acao']) && $_POST['acao'] == 'publicar_evento') {
+        /* Abre pra liga uma aposta que o robô deixou em rascunho. Só sai de
+           rascunho por aqui ou pela carência do cron, e nos dois casos o prazo
+           tem que estar no futuro: publicar aposta de prazo vencido põe na
+           tela do jogador algo em que ele não consegue apostar. */
+        $id_evento = (int)($_POST['id_evento'] ?? 0);
+        try {
+            $st = $pdo->prepare("SELECT data_limite FROM eventos WHERE id = ? AND status = 'rascunho'");
+            $st->execute([$id_evento]);
+            $prazo = $st->fetchColumn();
+            if ($prazo === false) {
+                $mensagem = 'Essa aposta não está em rascunho.';
+                $mensagemType = 'warning';
+            } elseif (strtotime((string)$prazo) <= time()) {
+                $mensagem = 'O prazo dessa aposta já passou — ajuste a data antes de abrir.';
+                $mensagemType = 'warning';
+            } else {
+                $pdo->prepare("UPDATE eventos SET status = 'aberta' WHERE id = ? AND status = 'rascunho'")
+                    ->execute([$id_evento]);
+                $mensagem = 'Aposta aberta para a liga!';
+            }
+        } catch (Exception $e) {
+            $mensagem = 'Erro: ' . $e->getMessage();
+            $mensagemType = 'danger';
+        }
+    }
+
     if (isset($_POST['acao']) && $_POST['acao'] == 'encerrar_evento') {
         $id_evento         = $_POST['id_evento'];
         $vencedor_opcao_id = $_POST['vencedor_opcao_id'];
@@ -172,7 +199,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$filtro_status = (isset($_GET['status']) && $_GET['status'] == 'encerrada') ? 'encerrada' : 'aberta';
+/* 'rascunho' é a aba das apostas que o robô montou e estão esperando revisão.
+   A tela do jogador filtra status 'aberta', então rascunho não vaza pra liga —
+   mas sem uma aba aqui ninguém as veria, e elas abririam sozinhas na carência
+   com o palpite automático, que acerta metade do que a mão acerta.
+   @see backend/apostas_auto.php */
+$statusValidos = ['aberta', 'encerrada', 'rascunho'];
+$filtro_status = in_array($_GET['status'] ?? '', $statusValidos, true) ? $_GET['status'] : 'aberta';
 $stmtEventos = $pdo->prepare("SELECT * FROM eventos WHERE status=? ORDER BY data_limite ASC");
 $stmtEventos->execute([$filtro_status]);
 $eventos = $stmtEventos->fetchAll(PDO::FETCH_ASSOC);
@@ -188,6 +221,10 @@ foreach ($eventos as $key => $evt) {
 
 $totalAbertas   = $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='aberta'")->fetchColumn();
 $totalEncerradas= $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='encerrada'")->fetchColumn();
+/* A coluna `status` é varchar e aceita qualquer coisa, mas 'rascunho' só
+   existe depois que backend/apostas_auto.php rodou — num banco que nunca
+   rodou o cron a conta volta zero e a aba nem aparece. */
+$totalRascunhos = (int)$pdo->query("SELECT COUNT(*) FROM eventos WHERE status='rascunho'")->fetchColumn();
 $totalPalpites  = $pdo->query("SELECT COUNT(*) FROM palpites")->fetchColumn();
 
 $acTeams = [];
@@ -651,6 +688,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="tab-bar">
           <a href="?status=aberta"    class="tab-btn <?= $filtro_status==='aberta'    ?'active':'' ?>"><i class="bi bi-unlock me-1"></i>Abertas</a>
           <a href="?status=encerrada" class="tab-btn <?= $filtro_status==='encerrada' ?'active':'' ?>"><i class="bi bi-lock me-1"></i>Encerradas</a>
+          <?php if ($totalRascunhos > 0): ?>
+          <a href="?status=rascunho" class="tab-btn <?= $filtro_status==='rascunho' ?'active':'' ?>"><i class="bi bi-pencil me-1"></i>Esperando palpite <span class="badge bg-warning text-dark"><?= (int)$totalRascunhos ?></span></a>
+          <?php endif; ?>
         </div>
         <div class="search-bar">
           <i class="bi bi-search"></i>
@@ -663,7 +703,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <?php if (empty($eventos)): ?>
       <div class="empty-state">
         <i class="bi bi-inbox"></i>
-        <p>Nenhuma aposta <?= $filtro_status === 'aberta' ? 'aberta' : 'encerrada' ?> no momento.</p>
+        <p>Nenhuma aposta <?= $filtro_status === 'aberta' ? 'aberta' : ($filtro_status === 'rascunho' ? 'esperando palpite' : 'encerrada') ?> no momento.</p>
       </div>
       <?php endif; ?>
 
@@ -712,7 +752,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         </div>
 
         <div class="evt-footer">
-          <?php if ($evt['status']==='aberta'): ?>
+          <?php if ($evt['status']==='rascunho'): ?>
+          <!-- O robô montou e está esperando palpite melhor. Editar as opções é
+               o botão de sempre, logo acima; aqui só se abre pra liga. -->
+          <form method="POST" class="result-row"
+                data-confirmar="Abrir essa aposta para a liga com as opções que estão aí?">
+            <input type="hidden" name="acao" value="publicar_evento">
+            <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+            <span class="text-warning me-2">
+              <i class="bi bi-robot"></i> sugestão do robô — troque os nomes se quiser
+            </span>
+            <button type="submit" class="btn-close-evt">
+              <i class="bi bi-unlock-fill"></i> Abrir para a liga
+            </button>
+          </form>
+          <?php elseif ($evt['status']==='aberta'): ?>
           <form method="POST" class="result-row"
                 data-confirmar="Encerrar aposta e pagar usuários? (+75 FBA Points por acerto)">
             <input type="hidden" name="acao" value="encerrar_evento">
