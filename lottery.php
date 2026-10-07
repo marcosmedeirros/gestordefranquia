@@ -1534,13 +1534,32 @@ async function acompanharCerimonia(){
     const primeiraVez = acompanhandoEm === null;
     acompanhandoEm = d.em;
 
+    /* RECONSTRUIR O QUADRO É PRA QUANDO A ORDEM MUDA, NÃO A CADA OLHADA.
+       `setupBoardAndOdds` zera o `revealed` e redesenha tudo — rodando a cada
+       três segundos, o quadro voltava ao "Aguardando" e repopulava na frente
+       de quem assistia. Era o "glitch visual, meio que voltando".
+
+       A comparação é VAGA A VAGA, e só onde os DOIS lados já conhecem o dono.
+       Para quem assiste, a vaga ainda na urna chega sem `team_id` — comparar a
+       ordem inteira acusaria mudança a cada revelação, que é justamente o que
+       não se quer. Vaga que ganhou dono é revelação; vaga que TROCOU de dono é
+       re-sorteio, e aí sim o quadro tem que ser refeito. */
+    const antes = result.order || [];
+    const donoAntes = {};
+    antes.forEach(o => { if (o.team_id) donoAntes[o.position] = o.team_id; });
+    const mudouAOrdem = antes.length !== d.ordem.length
+      || d.ordem.some(o => o.team_id && donoAntes[o.position] && donoAntes[o.position] !== o.team_id);
+
     // A ordem sorteada substitui a prévia: daqui pra frente o quadro é
     // resultado, não retrato da campanha.
     result = Object.assign({}, result, { order: d.ordem, adjustments: d.ajustes, preview: false });
     const jaVistas = new Set(revealed);
-    setupBoardAndOdds(result);
-    revealQueue = d.ordem.filter(o => o.source !== 'playoff')
-                         .map(o => o.position).sort((a, b) => b - a);
+
+    if (primeiraVez || mudouAOrdem) {
+      setupBoardAndOdds(result);
+      revealQueue = d.ordem.filter(o => o.source !== 'playoff')
+                           .map(o => o.position).sort((a, b) => b - a);
+    }
 
     /* Quem chega no meio recebe tudo de uma vez, sem encenação: a bolinha
        girando dezesseis vezes seguidas não é cerimônia, é espera. O que
@@ -1608,10 +1627,54 @@ async function revealNext(){
  * preenchido: é o caso de quem abre a página no meio da cerimônia, que não
  * ganharia nada assistindo a dezesseis giros seguidos de uma vez.
  */
+/**
+ * PÕE A ESCOLHA NO QUADRO, SEM ENCENAR NADA.
+ *
+ * É o caminho de quem chega no meio da cerimônia e de quem recebe uma
+ * atualização: o que já saiu precisa estar no quadro, mas não pode sair de
+ * novo do globo. Antes isto passava pelo `land()` com `comEncenacao=false`,
+ * e esse `false` só pulava as bolinhas girando — o resto do show (flash,
+ * partículas, "Subiu 3 posições", o palco inteiro) disparava igual, uma vez
+ * por escolha já revelada, em sequência. Era o "sorteou e fica sorteando de
+ * novo": a cerimônia inteira reencenada a cada três segundos.
+ *
+ * Aqui não se toca no palco. Só a urna e o quadro, que é o que o estado
+ * precisa dizer.
+ */
+function fixarNoQuadro(pos){
+  if (revealed.has(pos)) return;
+  const entry = (result.order || []).find(o => o.position === pos);
+  if (!entry) return;
+  revealQueue = revealQueue.filter(p => p !== pos);
+
+  const tile = $('bowl-' + (entry.origin_team_id || entry.team_id));
+  if (tile) tile.remove();                 // sem a saidinha: ninguém viu entrar
+  updateBowlCount(revealQueue.length);
+
+  const d = entry.delta || 0;
+  const slot = $('board-slot-' + pos);
+  const teamSlot = $('board-team-' + pos);
+  const tagSlot = $('board-tag-' + pos);
+  const logoSlot = $('board-logo-' + pos);
+  if (slot) slot.classList.remove('pending');
+  if (logoSlot) { logoSlot.src = entry.photo_url || LOGO_FALLBACK; logoSlot.style.visibility = 'visible'; }
+  if (teamSlot) {
+    teamSlot.classList.remove('q');
+    const badge = d > 0 ? ` <span class="board-move up">▲${d}</span>` : (d < 0 ? ` <span class="board-move down">▼${Math.abs(d)}</span>` : '');
+    teamSlot.innerHTML = esc(entry.team_name) + (entry.is_swap ? ' ' + viaTag(entry) : '') + badge;
+  }
+  if (tagSlot) tagSlot.style.visibility = 'visible';
+
+  revealed.add(pos);
+  updateRevealButton();
+}
+
 function aplicarRevelacao(pos, comEncenacao){
   if (revealed.has(pos)) return;
   const entry = (result.order || []).find(o => o.position === pos);
   if (!entry) return;
+  /* Sem encenação é só estado: não passa pelo palco nem mexe em `busy`. */
+  if (!comEncenacao) { fixarNoQuadro(pos); return; }
   busy = true;
   revealQueue = revealQueue.filter(p => p !== pos);
   const btn = $('btnReveal');
@@ -1640,8 +1703,7 @@ function aplicarRevelacao(pos, comEncenacao){
   logoEl.style.display = 'none';
 
   // Todas as bolinhas que ainda estão na urna, com a sorteada entre elas.
-  if (comEncenacao) spinBalls([entry].concat(decoys), entry, land);
-  else land();
+  spinBalls([entry].concat(decoys), entry, land);
 
   function land(){
     logoEl.style.display = '';

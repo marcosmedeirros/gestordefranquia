@@ -188,7 +188,20 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
 
         /* Só as últimas 12 horas: uma cerimônia dura minutos, e a loteria da
            temporada seguinte tem que poder anunciar as mesmas posições sem
-           esbarrar no que foi dito meses atrás. */
+           esbarrar no que foi dito meses atrás.
+
+           O ÍNDICE É O QUE FAZ ESSA CONSULTA CABER NA CERIMÔNIA. Os dois LIKE
+           começam com curinga, então eles nunca usam índice — sem um caminho
+           por `tipo` e `created_at`, isto era `type: ALL` em 33 mil linhas, uma
+           varredura inteira por pick revelada (~30ms em 07/10/2026, e a fila
+           só cresce). Com o índice, os LIKE passam a filtrar só as mensagens
+           de loteria das últimas 12h, que são algumas dezenas. */
+        static $indice = false;
+        if (!$indice) {
+            try { $pdo->exec('CREATE INDEX idx_wf_tipo_data ON whatsapp_fila (tipo, created_at)'); }
+            catch (Throwable $e) { /* já existe */ }
+            $indice = true;
+        }
         $jaSaiu = $pdo->prepare("SELECT 1 FROM whatsapp_fila
                                   WHERE tipo = 'loteria'
                                     AND texto LIKE ? AND texto LIKE ?
