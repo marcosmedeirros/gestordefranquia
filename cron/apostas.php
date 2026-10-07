@@ -64,8 +64,10 @@ if ($acao === 'criar') {
     $abertas = $rascunhos = 0;
     foreach ($r['criadas'] as $c) {
         $log(sprintf('  %-7s %-34s %s', $c['liga'], $c['nome'], implode(' | ', $c['opcoes'])));
-        /* O catálogo marca as de palpite como revisar; aqui só se conta. */
-        in_array($c['tipo'], ['mvp', 'mip', 'dpoy', 'roy', '6th_man'], true) ? $rascunhos++ : $abertas++;
+        /* Conta pelo STATUS, não pelo tipo. Desde 07/10/2026 as de prêmio
+           também nascem abertas — contar pelo tipo mandaria o aviso de
+           "esperando seus palpites" com a aposta já aberta pra liga. */
+        ($c['status'] ?? 'aberta') === 'rascunho' ? $rascunhos++ : $abertas++;
     }
     foreach ($r['puladas'] as $p) $log("  (pulada) {$p}");
     foreach ($r['erros'] as $e)   $log("  ERRO {$e}");

@@ -493,12 +493,19 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
             $apostas[] = ['nome' => "Quem vai ser o seed1 - {$conf}?", 'tipo' => 'seed1',
                           'tipo_ref' => $conf, 'opcoes' => $ops];
         }
+        /* AS DE PRÊMIO NASCEM ABERTAS, COM A SUGESTÃO DO ROBÔ — decisão da
+           liga em 07/10/2026, no primeiro dia do cron: "pode criar os
+           jogadores mesmo, qualquer coisa eu arrumo na hora". O desenho
+           anterior as deixava em rascunho esperando revisão (a lista à mão
+           acerta 64% contra 29% da sugestão), mas o custo de um dia sem
+           aposta pesou mais que o palpite mediano — e editar opção ou
+           corrigir vencedor continua a um clique. O mecanismo de rascunho
+           ('revisar' => true) segue existindo pra quem precisar dele. */
         $premios = ['mvp' => 'MVP', 'mip' => 'MIP', 'dpoy' => 'DPOY',
                     'roy' => 'ROY', '6th_man' => '6º homem'];
         foreach ($premios as $tipo => $rotulo) {
             $apostas[] = ['nome' => "Quem vai ser o {$rotulo}?", 'tipo' => $tipo, 'tipo_ref' => null,
-                          'opcoes' => apostasAutoCandidatos($pdo, $liga, $tipo, $antId, $seasonId),
-                          'revisar' => true];
+                          'opcoes' => apostasAutoCandidatos($pdo, $liga, $tipo, $antId, $seasonId)];
         }
         // Especiais que o próprio banco responde depois.
         $apostas[] = ['nome' => 'O MVP vai ser de que posição?', 'tipo' => 'pos_mvp', 'tipo_ref' => null,
