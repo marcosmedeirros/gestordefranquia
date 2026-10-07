@@ -371,6 +371,15 @@ function clubeSemanaTabelas(PDO $pdo): void
         if ($col('clube_semana_ciclos', 'genero_escolhido') === false) {
             $pdo->exec("ALTER TABLE clube_semana_ciclos ADD COLUMN genero_escolhido VARCHAR(60) NULL");
         }
+        /* JANELAS PRÓPRIAS, pra rodada avulsa. Normalmente ficam nulas e o
+           ciclo obedece o relógio da âncora (9h / 13h / 20h); preenchidas,
+           elas mandam. Nasceram na estreia do clube (07/10/2026): a primeira
+           segunda do mês já tinha passado, e sem isto o livro só estrearia
+           em novembro. @see clubeSemanaAbrirAvulsa */
+        if ($col('clube_semana_ciclos', 'vira_em') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_ciclos
+                        ADD COLUMN vira_em DATETIME NULL, ADD COLUMN fecha_em DATETIME NULL");
+        }
         if ($col('clube_semana_opcoes', 'etapa') === false) {
             $pdo->exec("ALTER TABLE clube_semana_opcoes
                         ADD COLUMN etapa ENUM('genero','obra') NOT NULL DEFAULT 'obra' AFTER ciclo_id");
@@ -510,9 +519,18 @@ function clubeSemanaGirar(PDO $pdo): void
             /* 2. A enquete desta segunda nasce SÓ dentro da janela: antes das
                9h não existe, e depois das 20h já era — semana sem ninguém na
                janela é semana sem escolha nova, o que é só a verdade. */
-            $st = $pdo->prepare("SELECT id, status FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?");
+            $st = $pdo->prepare("SELECT id, status, vira_em, fecha_em FROM clube_semana_ciclos
+                                  WHERE tipo = ? AND semana = ?");
             $st->execute([$tipo, $ancora]);
             $ciclo = $st->fetch(PDO::FETCH_ASSOC);
+
+            /* Ciclo com janela própria manda no relógio da âncora: é o que
+               faz a rodada avulsa não ser fechada no mesmo instante em que
+               nasce, já que as horas da âncora dela ficaram no passado. */
+            if ($ciclo && $ciclo['fecha_em']) {
+                $vira  = $ciclo['vira_em'] ? strtotime((string)$ciclo['vira_em']) : $vira;
+                $fecha = strtotime((string)$ciclo['fecha_em']);
+            }
 
             if (!$ciclo && $agora >= $abre && $agora < $fecha) {
                 if ($tipo === 'livro') {
@@ -553,6 +571,51 @@ function clubeSemanaGirar(PDO $pdo): void
         } catch (Throwable $e) {
             error_log('[clube-semana] girar ' . $tipo . ': ' . $e->getMessage());
         }
+    }
+}
+
+/**
+ * Abre uma rodada FORA do calendário, com janelas próprias.
+ *
+ * Existe pra estreia e pra exceção combinada — na estreia do clube
+ * (07/10/2026) a primeira segunda do mês já tinha passado, e sem isto o
+ * livro só sairia em novembro. Não é um bypass do rito: a rodada ocupa a
+ * âncora vigente, então a próxima nasce no dia certo, sozinha, como sempre.
+ *
+ * @param string $vira  quando a etapa do gênero fecha (só o livro usa)
+ * @param string $fecha quando a rodada fecha e o escolhido sai
+ * @return bool false quando já existe rodada nessa âncora — não se abre
+ *         duas, senão a liga vota em duas listas ao mesmo tempo.
+ */
+function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fecha): bool
+{
+    clubeSemanaTabelas($pdo);
+    if (!isset(CLUBE_SEMANA_TIPOS[$tipo])) return false;
+    $ancora = clubeSemanaAncora($tipo);
+    try {
+        $st = $pdo->prepare('SELECT id FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?');
+        $st->execute([$tipo, $ancora]);
+        if ($st->fetchColumn()) return false;
+
+        $status = $tipo === 'livro' ? 'genero' : 'votacao';
+        $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status, vira_em, fecha_em)
+                       VALUES (?,?,?,?,?)")
+            ->execute([$tipo, $ancora, $status, $vira, $fecha]);
+        $cid = (int)$pdo->lastInsertId();
+
+        if ($tipo === 'livro') {
+            $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor)
+                                 VALUES (?, 'genero', ?, '')");
+            foreach (array_keys(CLUBE_LIVROS) as $g) $op->execute([$cid, $g]);
+        } else {
+            $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor, ano)
+                                 VALUES (?, 'obra', ?, ?, ?)");
+            foreach (clubeSemanaSortear($pdo, $tipo) as $o) $op->execute([$cid, $o[0], $o[1], $o[2]]);
+        }
+        return true;
+    } catch (Throwable $e) {
+        error_log('[clube-semana] avulsa ' . $tipo . ': ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -641,13 +704,19 @@ function clubeSemanaCartaz(PDO $pdo, string $tipo, int $userId): ?array
  */
 function clubeSemanaEnquete(PDO $pdo, string $tipo, int $userId): ?array
 {
-    $st = $pdo->prepare("SELECT id, semana, status, genero_escolhido FROM clube_semana_ciclos
+    $st = $pdo->prepare("SELECT id, semana, status, genero_escolhido, vira_em, fecha_em
+                           FROM clube_semana_ciclos
                           WHERE tipo = ? AND semana = ? AND status <> 'definido'");
     $st->execute([$tipo, clubeSemanaAncora($tipo)]);
     $v = $st->fetch(PDO::FETCH_ASSOC);
     if (!$v) return null;
 
     $v['etapa'] = $v['status'] === 'genero' ? 'genero' : 'obra';
+    /* As HORAS REAIS desta rodada, pra tela não prometer 13h/20h numa rodada
+       avulsa que fecha noutra hora. */
+    $v['hora_vira']  = $v['vira_em']  ? date('H\hi', strtotime((string)$v['vira_em']))  : CLUBE_SEMANA_VIRA . 'h';
+    $v['hora_fecha'] = $v['fecha_em'] ? date('H\hi', strtotime((string)$v['fecha_em'])) : CLUBE_SEMANA_FECHA . 'h';
+    foreach (['hora_vira', 'hora_fecha'] as $k) $v[$k] = str_replace('h00', 'h', $v[$k]);
     $st = $pdo->prepare("SELECT o.id, o.titulo, o.autor, o.ano, COUNT(vt.id) votos
                            FROM clube_semana_opcoes o
                        LEFT JOIN clube_semana_votos vt ON vt.opcao_id = o.id AND vt.etapa = o.etapa
