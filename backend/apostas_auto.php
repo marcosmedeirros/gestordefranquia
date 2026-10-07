@@ -878,6 +878,95 @@ function apostasAutoMandarProGrupo(PDO $pdo, string $texto): bool
     }
 }
 
+/**
+ * Paga as apostas de série FEITAS À MÃO cujo resultado o banco já sabe.
+ *
+ * O resolvedor normal só toca no que o robô criou (`auto = 1`), porque é lá
+ * que existem liga, tipo e referência. Mas o dia de playoff de 06/10/2026
+ * deixou dezoito apostas manuais vencidas esperando encerramento um a um —
+ * e as de quartas carregam, nas duas opções, os nomes exatos dos times.
+ *
+ * A adoção paga SÓ o caso sem ambiguidade, e cada exigência abaixo barra um
+ * erro real:
+ *   · título de série (quartas/semi/final/campeão) — sem isso, "Qual
+ *     franquia terá mais vitórias?" com dois times que também se enfrentaram
+ *     num mata-mata seria paga com a resposta da pergunta errada;
+ *   · exatamente DUAS opções, e as duas batendo com nome de time — opção
+ *     "Oeste 1" não é time, e aposta de três opções não é série;
+ *   · UM único confronto decidido com exatamente esse par, e só na temporada
+ *     de playoff mais recente da liga — o mesmo par pode ter se enfrentado
+ *     na edição passada, e aposta velha não se paga com resultado novo.
+ * Qualquer coisa fora disso fica como sempre foi: na mão do admin.
+ */
+function apostasAutoAdotarManuais(PDO $pdo, bool $aplicar = false): array
+{
+    $pagas = [];
+    try {
+        $evts = $pdo->query("SELECT e.id, e.nome FROM eventos e
+                              WHERE e.status = 'aberta' AND COALESCE(e.auto, 0) = 0
+                                AND e.data_limite < NOW()
+                           ORDER BY e.id")->fetchAll(PDO::FETCH_ASSOC);
+        if (!$evts) return [];
+
+        $ops = $pdo->prepare('SELECT id, descricao FROM opcoes WHERE evento_id = ? ORDER BY id');
+        /* O confronto: os dois nomes, em qualquer ordem, na temporada de
+           playoff mais recente da liga dentro da sprint ativa. */
+        $serie = $pdo->prepare("
+            SELECT ps.id, ps.winner_team_id, TRIM(tw.name) vencedor_nome
+              FROM playoff_series ps
+              JOIN seasons se ON se.id = ps.season_id
+              JOIN sprints sp ON sp.id = se.sprint_id AND sp.status = 'active'
+              JOIN teams ta ON ta.id = ps.team_a_id
+              JOIN teams tb ON tb.id = ps.team_b_id
+         LEFT JOIN teams tw ON tw.id = ps.winner_team_id
+             WHERE ((TRIM(ta.name) = ? AND TRIM(tb.name) = ?)
+                 OR (TRIM(ta.name) = ? AND TRIM(tb.name) = ?))
+               AND ps.season_id = (
+                   SELECT MAX(ps2.season_id) FROM playoff_series ps2
+                     JOIN seasons se2 ON se2.id = ps2.season_id
+                     JOIN sprints sp2 ON sp2.id = se2.sprint_id AND sp2.status = 'active'
+                    WHERE se2.league = se.league)");
+
+        foreach ($evts as $e) {
+            if (!preg_match('/quartas|semi|final|campe/iu', (string)$e['nome'])) continue;
+            $ops->execute([(int)$e['id']]);
+            $opcoes = $ops->fetchAll(PDO::FETCH_ASSOC);
+            if (count($opcoes) !== 2) continue;
+
+            $d1 = trim((string)$opcoes[0]['descricao']);
+            $d2 = trim((string)$opcoes[1]['descricao']);
+            if ($d1 === '' || $d2 === '' || $d1 === $d2) continue;
+
+            $serie->execute([$d1, $d2, $d2, $d1]);
+            $achadas = $serie->fetchAll(PDO::FETCH_ASSOC);
+            if (count($achadas) !== 1) continue;                 // zero ou ambíguo: fica pro admin
+            if (!$achadas[0]['winner_team_id']) continue;        // série ainda sem vencedor
+
+            $vencNome = (string)$achadas[0]['vencedor_nome'];
+            $opVenc = null;
+            foreach ($opcoes as $o) {
+                if (trim((string)$o['descricao']) === $vencNome) $opVenc = (int)$o['id'];
+            }
+            if ($opVenc === null) continue;
+
+            if (!$aplicar) {
+                $pagas[] = ['evt' => $e, 'op' => $opVenc, 'quantos' => null,
+                            'vencedor' => $vencNome, 'motivo' => 'série decidida (aposta manual adotada)'];
+                continue;
+            }
+            $n = apostasAutoPagar($pdo, (int)$e['id'], $opVenc);
+            if ($n < 0) continue;
+            $pagas[] = ['evt' => $e, 'op' => $opVenc, 'quantos' => $n,
+                        'vencedor' => $vencNome, 'motivo' => 'série decidida (aposta manual adotada)'];
+        }
+    } catch (Throwable $e) {
+        /* Adoção é cortesia: falhar aqui não pode derrubar o pagamento das
+           apostas do robô, que rodam logo depois no mesmo passe. */
+        error_log('[apostas_auto] adotar manuais: ' . $e->getMessage());
+    }
+    return $pagas;
+}
+
 /** O texto de uma opção, pelo id — o aviso diz o que venceu, não um número. */
 function apostasAutoDescricaoDaOpcao(array $opcoes, int $opcaoId): string
 {
@@ -1196,6 +1285,10 @@ function apostasAutoResolver(PDO $pdo, bool $aplicar = false): array
 {
     apostasAutoEstrutura($pdo);
     $r = ['pagas' => [], 'esperando' => [], 'fila' => []];
+
+    /* Primeiro as manuais adotáveis, depois as do robô: as duas entram no
+       mesmo aviso de "APOSTAS PAGAS". @see apostasAutoAdotarManuais */
+    foreach (apostasAutoAdotarManuais($pdo, $aplicar) as $paga) $r['pagas'][] = $paga;
 
     $evts = $pdo->query("SELECT id, nome, liga, season_id, tipo, tipo_ref
                            FROM eventos

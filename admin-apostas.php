@@ -77,6 +77,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
+    if (isset($_POST['acao']) && $_POST['acao'] == 'pagar_pendentes') {
+        /* O MESMO PASSE DO CRON DE 10 EM 10 MINUTOS, pelo dedo: abre rascunho
+           que passou da carência, paga o que o banco já sabe — inclusive
+           aposta manual de série adotada — e avisa o grupo com @todos.
+           Só paga o que é certo; o que não casa fica na fila e continua aqui
+           na tela pra você encerrar à mão. */
+        try {
+            require_once __DIR__ . '/backend/apostas_auto.php';
+            apostasAutoPublicarPendentes($pdo, 180, true);
+            $rPag = apostasAutoResolver($pdo, true);
+            if ($rPag['pagas']) {
+                apostasAutoAvisarPagas($pdo, $rPag['pagas']);
+                $somaAcertos = array_sum(array_map(fn($p) => (int)($p['quantos'] ?? 0), $rPag['pagas']));
+                $mensagem = count($rPag['pagas']) . ' aposta(s) paga(s), '
+                    . $somaAcertos . ' acerto(s) premiado(s) — o grupo foi avisado.';
+            } else {
+                $mensagem = 'Nada pra pagar agora: '
+                    . count($rPag['esperando']) . ' esperando resultado'
+                    . ($rPag['fila'] ? ' e ' . count($rPag['fila']) . ' na fila pra resolver à mão' : '')
+                    . '.';
+                $mensagemType = 'info';
+            }
+        } catch (Throwable $e) {
+            $mensagem = 'Erro ao pagar pendentes: ' . $e->getMessage();
+            $mensagemType = 'danger';
+        }
+    }
+
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_evento') {
         $nome_evento  = trim($_POST['nome_evento']);
         $data_limite  = $_POST['data_limite'];
@@ -616,6 +644,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
                 <input type="hidden" name="acao" value="criar_do_dia">
                 <button type="submit" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px">
                     <i class="bi bi-robot"></i> Criar apostas do dia
+                </button>
+            </form>
+            <form method="POST" style="margin:0"
+                  data-confirmar="Pagar agora tudo que o banco já sabe resolver? Inclui apostas de série criadas à mão. Só paga o que é certo — o resto fica pra você.">
+                <input type="hidden" name="acao" value="pagar_pendentes">
+                <button type="submit" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px">
+                    <i class="bi bi-cash-coin"></i> Pagar pendentes
                 </button>
             </form>
         </div>
