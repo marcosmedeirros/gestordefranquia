@@ -36,6 +36,47 @@ $mensagem = "";
 $mensagemType = "success";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['acao']) && $_POST['acao'] == 'criar_do_dia') {
+        /* O MESMO TRABALHO DO CRON DAS 12:05, pelo dedo. Existe pro dia em
+           que o cron falhar — hospedagem fora do ar na hora, entrada removida
+           sem querer — não pra substituí-lo. Clicar com o cron vivo não
+           duplica nada: a trava por (liga, temporada, tipo) é a mesma, e o
+           botão só diz "já existiam".
+           O aviso no grupo com @todos também sai daqui, porque aposta criada
+           sem ninguém saber é aposta que ninguém faz. */
+        try {
+            require_once __DIR__ . '/backend/apostas_auto.php';
+            $rDia = apostasAutoCriar($pdo, date('Y-m-d'), true);
+            $abertasDia = array_values(array_filter($rDia['criadas'],
+                fn($c) => ($c['status'] ?? 'aberta') === 'aberta'));
+            $rascunhosDia = count($rDia['criadas']) - count($abertasDia);
+
+            if ($rDia['criadas']) {
+                apostasAutoAvisarAbertas($pdo, $rDia['criadas']);
+                $mensagem = count($abertasDia) . ' aposta(s) aberta(s)'
+                    . ($rascunhosDia > 0 ? " e {$rascunhosDia} esperando seus palpites na aba ao lado" : '')
+                    . ($abertasDia ? ' — o grupo foi avisado.' : '.');
+            } elseif ($rDia['puladas']) {
+                $mensagem = 'As apostas de hoje já existiam (' . count($rDia['puladas'])
+                    . ') — nada foi criado de novo.';
+                $mensagemType = 'info';
+            } else {
+                /* Sem liga no calendário hoje, ou dia de playoff (que nasce no
+                   registro da classificação): não é falha, é o desenho. */
+                $mensagem = 'Nada pra criar hoje: ou nenhuma liga joga, ou é dia de playoff '
+                    . '(as de playoff nascem quando você registra a classificação).';
+                $mensagemType = 'info';
+            }
+            foreach ($rDia['erros'] as $eDia) {
+                $mensagem .= ' ERRO: ' . $eDia;
+                $mensagemType = 'warning';
+            }
+        } catch (Throwable $e) {
+            $mensagem = 'Erro ao criar as apostas do dia: ' . $e->getMessage();
+            $mensagemType = 'danger';
+        }
+    }
+
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_evento') {
         $nome_evento  = trim($_POST['nome_evento']);
         $data_limite  = $_POST['data_limite'];
@@ -564,10 +605,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="page-eyebrow">Admin · Games</div>
         <h1 class="page-title"><i class="bi bi-graph-up-arrow"></i> Controle de Apostas</h1>
         <p class="page-sub">Crie eventos, acompanhe os palpites e encerre pagando quem acertou.</p>
-        <div style="margin-top:12px">
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
             <a href="/admin.php" style="display:inline-flex;align-items:center;gap:7px;text-decoration:none;background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px">
                 <i class="bi bi-arrow-left"></i> Voltar ao Admin
             </a>
+            <!-- O plano B do cron das 12:05. Clicar com tudo em dia não
+                 duplica: a trava por liga+temporada+tipo é a mesma. -->
+            <form method="POST" style="margin:0"
+                  data-confirmar="Criar as apostas de hoje agora? É o mesmo que o robô faz às 12:05 — se já existirem, nada é duplicado.">
+                <input type="hidden" name="acao" value="criar_do_dia">
+                <button type="submit" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px">
+                    <i class="bi bi-robot"></i> Criar apostas do dia
+                </button>
+            </form>
         </div>
     </div>
 
