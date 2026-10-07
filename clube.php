@@ -63,6 +63,131 @@ function clubeAvatar(?string $foto): string
 }
 
 /**
+ * UM "DA SEMANA" COMPLETO: o cartaz com a timeline de notas, a enquete de
+ * segunda e o ranking da aba. É o mesmo bloco pra Música, Filmes e Clube do
+ * Livro — três cópias disso divergiriam na primeira semana.
+ */
+function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
+{
+    $d = clubeSemanaEstadoDoTipo($pdo, $tipo, $idUsuario);
+    $i = $d['info']; $c = $d['cartaz']; $v = $d['enquete']; $rk = $d['ranking'];
+    $plural = ['album' => 'álbuns', 'filme' => 'filmes', 'livro' => 'livros'][$tipo];
+    ?>
+    <div class="bloco">
+      <h3 style="margin:0 0 10px"><i class="bi bi-<?= $i['ico'] ?>"></i> <?= h($i['rot']) ?></h3>
+
+      <?php if ($c): ?>
+        <div class="cartaz-rot">Em cartaz · semana de <?= date('d/m', strtotime($c['semana'])) ?><?=
+            $tipo === 'livro' && $c['genero_escolhido'] ? ' · ' . h($c['genero_escolhido']) : '' ?></div>
+        <div class="cartaz-tit"><?= h($c['titulo']) ?></div>
+        <div class="cartaz-sub"><?= h($c['autor']) ?><?= $c['ano'] ? ' · ' . (int)$c['ano'] : '' ?></div>
+        <?php if ($c['media'] !== null): ?>
+          <div class="cartaz-med"><b><?= h($c['media']) ?></b>
+            média da liga · <?= count($c['opinioes']) ?> na timeline</div>
+        <?php endif; ?>
+
+        <form class="opina" method="POST">
+          <input type="hidden" name="acao" value="semana_opinar">
+          <input type="hidden" name="ciclo" value="<?= (int)$c['ciclo'] ?>">
+          <textarea name="texto" maxlength="1200"
+            placeholder="Deu tempo de <?= h($i['verbo']) ?>? Nota e comentário entram na timeline."><?= h($c['minha']['texto'] ?? '') ?></textarea>
+          <div class="opina-l">
+            <select name="nota" aria-label="Sua nota">
+              <option value="">sem nota</option>
+              <?php for ($n = 10; $n >= 0; $n--): ?>
+                <option value="<?= $n ?>" <?= $c['minha'] && $c['minha']['nota'] !== null && (int)$c['minha']['nota'] === $n ? 'selected' : '' ?>><?= $n ?></option>
+              <?php endfor; ?>
+            </select>
+            <button type="submit" class="btn pri"><?= $c['minha'] ? 'Atualizar' : 'Entrar na timeline' ?></button>
+          </div>
+        </form>
+
+        <?php if ($c['opinioes']): ?>
+          <div class="opi">
+            <?php foreach ($c['opinioes'] as $op): ?>
+              <div class="opi-um">
+                <img src="<?= h(clubeAvatar($op['photo_url'])) ?>" alt="">
+                <div>
+                  <div class="opi-cab"><b><?= h($op['name']) ?></b>
+                    <?php if ($op['nota'] !== null): ?><span class="opi-nota"><?= (int)$op['nota'] ?></span><?php endif; ?>
+                  </div>
+                  <?php if (trim((string)$op['texto']) !== ''): ?>
+                    <div class="opi-txt"><?= h($op['texto']) ?></div>
+                  <?php endif; ?>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      <?php else: ?>
+        <p style="color:var(--txt2);font-size:13.5px;margin:0">
+          O primeiro sai <b>segunda às 20h</b>, escolhido pelo voto da liga.</p>
+      <?php endif; ?>
+
+      <?php if ($v): ?>
+        <div class="sem-h4"><?= $v['etapa'] === 'genero'
+            ? 'Enquete de hoje — que gênero o clube lê esta semana?'
+            : 'Enquete de hoje' . ($tipo === 'livro' && $v['genero_escolhido'] ? ' — ' . h($v['genero_escolhido']) : '') ?></div>
+        <div class="sem-prazo"><?= $v['etapa'] === 'genero' ? 'o gênero fecha às 13h; os livros, às 20h'
+              : 'fecha hoje às 20h' ?>
+          · <?= (int)$v['total'] ?> voto<?= (int)$v['total'] === 1 ? '' : 's' ?><?=
+            $v['meu'] ? ' · o seu está marcado' : '' ?></div>
+        <div class="vops">
+          <?php foreach ($v['opcoes'] as $o):
+              $pct = $v['total'] > 0 ? round(100 * $o['votos'] / $v['total']) : 0; ?>
+            <form method="POST">
+              <input type="hidden" name="acao" value="semana_votar">
+              <input type="hidden" name="ciclo" value="<?= (int)$v['id'] ?>">
+              <input type="hidden" name="opcao" value="<?= (int)$o['id'] ?>">
+              <button type="submit" class="vop <?= (int)$v['meu'] === (int)$o['id'] ? 'on' : '' ?>"
+                      style="--pct:<?= $pct ?>%">
+                <i class="vop-bar"></i>
+                <span class="vop-tit"><?= h($o['titulo']) ?>
+                  <?php if (trim((string)$o['autor']) !== ''): ?>
+                    <small><?= h($o['autor']) ?><?= $o['ano'] ? ' · ' . (int)$o['ano'] : '' ?></small>
+                  <?php endif; ?></span>
+                <span class="vop-n"><?= (int)$o['votos'] ?></span>
+              </button>
+            </form>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <div class="sem-h4">Próxima enquete</div>
+        <p style="color:var(--txt3);font-size:12.5px;margin:0">
+          <?= $tipo === 'livro'
+              ? 'Segunda-feira: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o da semana.'
+              : 'Segunda-feira, das 9h às 20h. Às 20h a enquete fecha e sai o da semana.' ?></p>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($rk['top']): ?>
+      <div class="bloco" style="margin-top:14px">
+        <h3 style="margin:0 0 10px"><i class="bi bi-trophy-fill"></i> Top 5 <?= h($plural) ?> da liga</h3>
+        <div class="estante">
+          <?php foreach ($rk['top'] as $n => $r): ?>
+            <div class="estante-um">
+              <span><b><?= $n + 1 ?>º</b> <?= h($r['titulo']) ?> <small>— <?= h($r['autor']) ?></small></span>
+              <small><b><?= h($r['media']) ?></b> · <?= (int)$r['notas'] ?> nota<?= (int)$r['notas'] === 1 ? '' : 's' ?></small>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if ($rk['piores']): ?>
+          <div class="sem-h4">Os piores, com carinho</div>
+          <div class="estante">
+            <?php foreach ($rk['piores'] as $r): ?>
+              <div class="estante-um">
+                <span>💀 <?= h($r['titulo']) ?> <small>— <?= h($r['autor']) ?></small></span>
+                <small><b><?= h($r['media']) ?></b> · <?= (int)$r['notas'] ?> nota<?= (int)$r['notas'] === 1 ? '' : 's' ?></small>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <?php
+}
+
+/**
  * AS MÍDIAS DO CLUBE.
  *
  * `ok` é o que separa aba de promessa. Ligar uma é trocar false por true
@@ -70,19 +195,17 @@ function clubeAvatar(?string $foto): string
  */
 const CLUBE_MIDIAS = [
     'series' => ['rot' => 'Séries',         'ico' => 'projector-fill',    'ok' => true],
-    /* DA SEMANA (07/10/2026, ideia da Agata): o álbum e o filme que a liga
-       escolhe junto, um por semana. Não é a aba Filmes nem a Música — essas
-       seguem prometidas como catálogo; aqui é clube, com votação e opinião. */
-    'semana' => ['rot' => 'Da Semana',      'ico' => 'calendar-week',     'ok' => true],
-    /* O CLUBE DO LIVRO só aparece na barra pra quem entrou: é a regra da
-       casa dele ("uma aba que só aparece para quem clicou lá que queria").
-       O convite fica na aba Da Semana. */
+    /* MÚSICA E FILMES são o "da semana" de cada uma (07/10/2026, segunda
+       versão do desenho — a primeira tinha uma aba "Da Semana" com os dois
+       juntos e durou uma tarde): enquete toda segunda das 9h às 20h, o mais
+       votado vira o da semana, timeline de notas e o ranking da aba. */
+    'musica' => ['rot' => 'Música',         'ico' => 'music-note-beamed', 'ok' => true],
+    'filmes' => ['rot' => 'Filmes',         'ico' => 'film',              'ok' => true],
+    /* O CLUBE DO LIVRO só aparece na barra pra quem entrou ("uma aba que só
+       aparece para quem clicou lá que queria"). O convite fica nas abas de
+       Música e Filmes. Lá a segunda tem duas etapas: gênero de manhã,
+       livros do gênero à tarde. */
     'livro'  => ['rot' => 'Clube do Livro', 'ico' => 'book-half',         'ok' => true],
-    'livros' => ['rot' => 'Livros', 'ico' => 'book-fill',         'ok' => false],
-    'filmes' => ['rot' => 'Filmes', 'ico' => 'film',              'ok' => false],
-    /* 'Música' saiu da barra em 07/10/2026, a pedido: o álbum da semana já é
-       a música do Clube, e prometer uma segunda aba do mesmo assunto só
-       confundia. Se um dia nascer um catálogo de música, volta aqui. */
 ];
 
 /**
@@ -95,6 +218,9 @@ const CLUBE_MIDIAS = [
 const CLUBE_VERBO = ['quero' => 'quer ver', 'assistindo' => 'está vendo', 'assistida' => 'assistiu'];
 
 $midia = (string)($_GET['midia'] ?? 'series');
+/* A aba "Da Semana" durou uma tarde (07/10/2026): quem guardou o link cai
+   na Música, que herdou o álbum da semana. */
+if ($midia === 'semana') $midia = 'musica';
 if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
     if (!isset(CLUBE_MIDIAS[$midia])) $midia = 'series';
 }
@@ -104,19 +230,24 @@ if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
    POST, grava, redireciona. O JSON fica pras séries, onde quem marca cinco
    coisas seguidas não pode recarregar a página a cada clique. */
 $acoesForm = ['semana_votar', 'semana_opinar', 'livro_entrar', 'livro_sair', 'livro_votar',
-              'livro_resenhar', 'livro_definir', 'livro_enquete', 'livro_enquete_fechar'];
+              'livro_enquete', 'livro_enquete_fechar'];
 $ehAdminClube = (($user['user_type'] ?? '') === 'admin');
 if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
         && in_array((string)($_POST['acao'] ?? ''), $acoesForm, true)) {
     $acao = (string)$_POST['acao'];
-    $volta = '?midia=semana';
+    $volta = '?midia=musica';
 
     if ($acao === 'semana_votar') {
-        clubeSemanaVotar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), (int)($_POST['opcao'] ?? 0));
+        /* O votar devolve o TIPO do ciclo, e é dele que sai a aba de volta:
+           confiar num campo do formulário deixaria o redirect na mão de quem
+           edita HTML. */
+        $tipo = clubeSemanaVotar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), (int)($_POST['opcao'] ?? 0));
+        if ($tipo !== null) $volta = '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
     } elseif ($acao === 'semana_opinar') {
         $nota = ($_POST['nota'] ?? '') === '' ? null : (int)$_POST['nota'];
-        clubeSemanaOpinar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), $nota,
-                          (string)($_POST['texto'] ?? ''));
+        $tipo = clubeSemanaOpinar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), $nota,
+                                  (string)($_POST['texto'] ?? ''));
+        if ($tipo !== null) $volta = '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
     } elseif ($acao === 'livro_entrar') {
         clubeLivroEntrar($pdo, $idUsuario);
         $volta = '?midia=livro';
@@ -128,13 +259,6 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
         $volta = '?midia=livro';
         if ($acao === 'livro_votar') {
             clubeLivroVotar($pdo, $idUsuario, (int)($_POST['enquete'] ?? 0), (int)($_POST['opcao'] ?? 0));
-        } elseif ($acao === 'livro_resenhar') {
-            $nota = ($_POST['nota'] ?? '') === '' ? null : (int)$_POST['nota'];
-            clubeLivroResenhar($pdo, $idUsuario, (int)($_POST['livro'] ?? 0), $nota,
-                               (string)($_POST['texto'] ?? ''));
-        } elseif ($acao === 'livro_definir' && $ehAdminClube) {
-            clubeLivroDefinir($pdo, $idUsuario, (string)($_POST['titulo'] ?? ''),
-                              (string)($_POST['autor'] ?? ''), (string)($_POST['descricao'] ?? ''));
         } elseif ($acao === 'livro_enquete' && $ehAdminClube) {
             clubeLivroCriarEnquete($pdo, $idUsuario, (string)($_POST['pergunta'] ?? ''),
                                    preg_split('/\r?\n/', (string)($_POST['opcoes'] ?? '')),
@@ -782,99 +906,16 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php endforeach; ?>
   </div>
 
-<?php if ($midia === 'semana'): ?>
-  <?php /* ── DA SEMANA: o álbum e o filme que a liga escolhe junto ───── */
-  $semana = clubeSemanaEstado($pdo, $idUsuario); ?>
-  <div class="sem-cols">
-    <?php foreach ($semana as $tipo => $d): $i = $d['info']; ?>
-      <div class="bloco">
-        <h3 style="margin:0 0 10px"><i class="bi bi-<?= $i['ico'] ?>"></i> <?= h($i['rot']) ?></h3>
-
-        <?php if ($c = $d['cartaz']): ?>
-          <div class="cartaz-rot">Em cartaz · semana de
-            <?= date('d/m', strtotime($c['semana'])) ?> a
-            <?= date('d/m', strtotime($c['semana'] . ' +6 day')) ?></div>
-          <div class="cartaz-tit"><?= h($c['titulo']) ?></div>
-          <div class="cartaz-sub"><?= h($c['autor']) ?><?= $c['ano'] ? ' · ' . (int)$c['ano'] : '' ?></div>
-          <?php if ($c['media'] !== null): ?>
-            <div class="cartaz-med"><b><?= h($c['media']) ?></b>
-              média da liga · <?= count($c['opinioes']) ?> opini<?= count($c['opinioes']) === 1 ? 'ão' : 'ões' ?></div>
-          <?php endif; ?>
-
-          <form class="opina" method="POST">
-            <input type="hidden" name="acao" value="semana_opinar">
-            <input type="hidden" name="ciclo" value="<?= (int)$c['ciclo'] ?>">
-            <textarea name="texto" maxlength="1200"
-              placeholder="Deu tempo de <?= h($i['verbo']) ?>? Conta o que achou."><?= h($c['minha']['texto'] ?? '') ?></textarea>
-            <div class="opina-l">
-              <select name="nota" aria-label="Sua nota">
-                <option value="">sem nota</option>
-                <?php for ($n = 10; $n >= 0; $n--): ?>
-                  <option value="<?= $n ?>" <?= ($c['minha']['nota'] ?? '') !== '' && $c['minha'] && (int)$c['minha']['nota'] === $n && $c['minha']['nota'] !== null ? 'selected' : '' ?>><?= $n ?></option>
-                <?php endfor; ?>
-              </select>
-              <button type="submit" class="btn pri">
-                <?= $c['minha'] ? 'Atualizar opinião' : 'Salvar opinião' ?></button>
-            </div>
-          </form>
-
-          <?php if ($c['opinioes']): ?>
-            <div class="opi">
-              <?php foreach ($c['opinioes'] as $op): ?>
-                <div class="opi-um">
-                  <img src="<?= h(clubeAvatar($op['photo_url'])) ?>" alt="">
-                  <div>
-                    <div class="opi-cab"><b><?= h($op['name']) ?></b>
-                      <?php if ($op['nota'] !== null): ?><span class="opi-nota"><?= (int)$op['nota'] ?></span><?php endif; ?>
-                    </div>
-                    <?php if (trim((string)$op['texto']) !== ''): ?>
-                      <div class="opi-txt"><?= h($op['texto']) ?></div>
-                    <?php endif; ?>
-                  </div>
-                </div>
-              <?php endforeach; ?>
-            </div>
-          <?php endif; ?>
-
-        <?php else: ?>
-          <p style="color:var(--txt2);font-size:13.5px;margin:0">
-            O primeiro sai <b>domingo</b>, escolhido pelo voto — a votação já
-            está aberta aqui embaixo.</p>
-        <?php endif; ?>
-
-        <?php if ($v = $d['votacao']): ?>
-          <div class="sem-h4">Votação — semana de <?= date('d/m', strtotime($v['semana'])) ?></div>
-          <div class="sem-prazo">decide domingo (<?= date('d/m', strtotime($v['semana'])) ?>)
-            · <?= (int)$v['total'] ?> voto<?= (int)$v['total'] === 1 ? '' : 's' ?>
-            <?= $v['meu'] ? '· o seu está marcado' : '· dá pra trocar até lá' ?></div>
-          <div class="vops">
-            <?php foreach ($v['opcoes'] as $o):
-                $pct = $v['total'] > 0 ? round(100 * $o['votos'] / $v['total']) : 0; ?>
-              <form method="POST">
-                <input type="hidden" name="acao" value="semana_votar">
-                <input type="hidden" name="ciclo" value="<?= (int)$v['id'] ?>">
-                <input type="hidden" name="opcao" value="<?= (int)$o['id'] ?>">
-                <button type="submit" class="vop <?= (int)$v['meu'] === (int)$o['id'] ? 'on' : '' ?>"
-                        style="--pct:<?= $pct ?>%">
-                  <i class="vop-bar"></i>
-                  <span class="vop-tit"><?= h($o['titulo']) ?>
-                    <small><?= h($o['autor']) ?><?= $o['ano'] ? ' · ' . (int)$o['ano'] : '' ?></small></span>
-                  <span class="vop-n"><?= (int)$o['votos'] ?></span>
-                </button>
-              </form>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
-      </div>
-    <?php endforeach; ?>
-  </div>
+<?php if ($midia === 'musica' || $midia === 'filmes'): ?>
+  <?php /* ── MÚSICA E FILMES: o da semana de cada uma ─────────────────── */ ?>
+  <?php clubeBlocoSemana($pdo, $midia === 'musica' ? 'album' : 'filme', $idUsuario); ?>
 
   <?php if (!$souDoLivro): ?>
-    <?php /* O convite é daqui: a aba do livro só existe pra quem aceitou. */ ?>
+    <?php /* O convite do livro mora aqui: a aba dele só existe pra quem aceitou. */ ?>
     <div class="bloco convite" style="margin-top:14px">
-      <p><b><i class="bi bi-book-half"></i> Clube do Livro</b> — um livro por mês,
-        resenhas de quem leu, e enquetes pra escolher o rumo. A aba só aparece
-        pra quem entra.</p>
+      <p><b><i class="bi bi-book-half"></i> Clube do Livro</b> — um livro por semana,
+        gênero de manhã e livros à tarde toda segunda, timeline de notas. A aba
+        só aparece pra quem entra.</p>
       <form method="POST" style="margin:0">
         <input type="hidden" name="acao" value="livro_entrar">
         <button type="submit" class="btn pri"><i class="bi bi-plus-lg"></i> Quero participar</button>
@@ -889,8 +930,9 @@ $qInicial    = (string)($_GET['q'] ?? '');
       <div class="breve-caixa">
         <i class="bi bi-book-half"></i>
         <h2>Clube do Livro</h2>
-        <p>Um livro por mês, resenhas de quem leu, enquetes pra escolher o rumo.
-           A aba passa a ser sua quando você entra.</p>
+        <p>Um livro por semana: toda segunda, o gênero de manhã e os livros dele
+           à tarde. Timeline de notas, ranking, e a aba passa a ser sua quando
+           você entra.</p>
         <form method="POST" style="margin-top:14px">
           <input type="hidden" name="acao" value="livro_entrar">
           <button type="submit" class="btn pri"><i class="bi bi-plus-lg"></i> Quero participar</button>
@@ -898,67 +940,10 @@ $qInicial    = (string)($_GET['q'] ?? '');
       </div>
     </div>
   <?php else:
-    $livroAtual = clubeLivroAtual($pdo, $idUsuario);
     $enquetesLivro = clubeLivroEnquetes($pdo, $idUsuario);
-    $estante = clubeLivroPassados($pdo);
     $membrosLivro = clubeLivroMembros($pdo); ?>
 
-    <?php if ($livroAtual): ?>
-      <div class="bloco">
-        <div class="cartaz-rot">O livro do momento</div>
-        <div class="cartaz-tit"><?= h($livroAtual['titulo']) ?></div>
-        <div class="cartaz-sub"><?= h($livroAtual['autor']) ?></div>
-        <?php if (trim((string)$livroAtual['descricao']) !== ''): ?>
-          <p style="color:var(--txt2);font-size:13.5px;margin:10px 0 0;white-space:pre-wrap"><?= h($livroAtual['descricao']) ?></p>
-        <?php endif; ?>
-        <?php if ($livroAtual['media'] !== null): ?>
-          <div class="cartaz-med"><b><?= h($livroAtual['media']) ?></b>
-            média do clube · <?= count($livroAtual['resenhas']) ?> resenha<?= count($livroAtual['resenhas']) === 1 ? '' : 's' ?></div>
-        <?php endif; ?>
-
-        <form class="opina" method="POST">
-          <input type="hidden" name="acao" value="livro_resenhar">
-          <input type="hidden" name="livro" value="<?= (int)$livroAtual['id'] ?>">
-          <textarea name="texto" maxlength="3000"
-            placeholder="Sua resenha — sem spoiler marcado é falta técnica."><?= h($livroAtual['minha']['texto'] ?? '') ?></textarea>
-          <div class="opina-l">
-            <select name="nota" aria-label="Sua nota">
-              <option value="">sem nota</option>
-              <?php for ($n = 10; $n >= 0; $n--): ?>
-                <option value="<?= $n ?>" <?= $livroAtual['minha'] && $livroAtual['minha']['nota'] !== null && (int)$livroAtual['minha']['nota'] === $n ? 'selected' : '' ?>><?= $n ?></option>
-              <?php endfor; ?>
-            </select>
-            <button type="submit" class="btn pri">
-              <?= $livroAtual['minha'] ? 'Atualizar resenha' : 'Publicar resenha' ?></button>
-          </div>
-        </form>
-
-        <?php if ($livroAtual['resenhas']): ?>
-          <div class="opi">
-            <?php foreach ($livroAtual['resenhas'] as $r): ?>
-              <div class="opi-um">
-                <img src="<?= h(clubeAvatar($r['photo_url'])) ?>" alt="">
-                <div>
-                  <div class="opi-cab"><b><?= h($r['name']) ?></b>
-                    <?php if ($r['nota'] !== null): ?><span class="opi-nota"><?= (int)$r['nota'] ?></span><?php endif; ?>
-                  </div>
-                  <?php if (trim((string)$r['texto']) !== ''): ?>
-                    <div class="opi-txt"><?= h($r['texto']) ?></div>
-                  <?php endif; ?>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
-      </div>
-    <?php else: ?>
-      <div class="bloco">
-        <h3 style="margin:0 0 6px"><i class="bi bi-hourglass-split"></i> O primeiro livro está sendo escolhido</h3>
-        <p style="color:var(--txt2);font-size:13.5px;margin:0">
-          Enquanto isso, as enquetes aqui embaixo são o leme: é delas que sai
-          o que o clube vai ler.</p>
-      </div>
-    <?php endif; ?>
+    <?php clubeBlocoSemana($pdo, 'livro', $idUsuario); ?>
 
     <?php foreach ($enquetesLivro as $e): ?>
       <div class="bloco" style="margin-top:14px">
@@ -1001,20 +986,6 @@ $qInicial    = (string)($_GET['q'] ?? '');
       </div>
     <?php endforeach; ?>
 
-    <?php if ($estante): ?>
-      <div class="bloco" style="margin-top:14px">
-        <h3 style="margin:0 0 10px"><i class="bi bi-bookshelf"></i> O que o clube já leu</h3>
-        <div class="estante">
-          <?php foreach ($estante as $l): ?>
-            <div class="estante-um">
-              <span><?= h($l['titulo']) ?> <small>— <?= h($l['autor']) ?></small></span>
-              <small><?= $l['media'] !== null ? 'média ' . h($l['media']) : 'sem notas' ?></small>
-            </div>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    <?php endif; ?>
-
     <div class="bloco" style="margin-top:14px">
       <h3 style="margin:0 0 10px"><i class="bi bi-people-fill"></i> Quem está no clube
         <span style="color:var(--txt3);font-weight:400;font-size:13px">· <?= count($membrosLivro) ?></span></h3>
@@ -1031,27 +1002,15 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php if ($ehAdminClube): ?>
       <div class="bloco" style="margin-top:14px">
         <h3 style="margin:0 0 10px"><i class="bi bi-sliders"></i> Direção do clube</h3>
-        <div class="sem-cols">
-          <form class="adm-form" method="POST">
-            <input type="hidden" name="acao" value="livro_definir">
-            <div class="sem-h4" style="margin-top:0">Definir o livro do momento</div>
-            <input type="text" name="titulo" placeholder="Título" required maxlength="200">
-            <input type="text" name="autor" placeholder="Autor(a)" required maxlength="160">
-            <textarea name="descricao" maxlength="2000"
-              placeholder="Por que esse livro? (opcional)"></textarea>
-            <div><button type="submit" class="btn pri"
-              data-confirmar="Definir esse livro? O atual, se houver, vai pra estante dos lidos.">Definir livro</button></div>
-          </form>
-          <form class="adm-form" method="POST">
-            <input type="hidden" name="acao" value="livro_enquete">
-            <div class="sem-h4" style="margin-top:0">Nova enquete</div>
-            <input type="text" name="pergunta" placeholder="Pergunta" required maxlength="200">
-            <textarea name="opcoes" required placeholder="Uma opção por linha"></textarea>
-            <label style="font-size:13px;color:var(--txt2)">
-              <input type="checkbox" name="multi" value="1"> cada pessoa pode marcar várias</label>
-            <div><button type="submit" class="btn pri">Criar enquete</button></div>
-          </form>
-        </div>
+        <form class="adm-form" method="POST" style="max-width:480px">
+          <input type="hidden" name="acao" value="livro_enquete">
+          <div class="sem-h4" style="margin-top:0">Nova enquete avulsa</div>
+          <input type="text" name="pergunta" placeholder="Pergunta" required maxlength="200">
+          <textarea name="opcoes" required placeholder="Uma opção por linha"></textarea>
+          <label style="font-size:13px;color:var(--txt2)">
+            <input type="checkbox" name="multi" value="1"> cada pessoa pode marcar várias</label>
+          <div><button type="submit" class="btn pri">Criar enquete</button></div>
+        </form>
       </div>
     <?php endif; ?>
 
@@ -1059,7 +1018,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
       <div class="sair-livro">
         <form method="POST" style="margin:0">
           <input type="hidden" name="acao" value="livro_sair">
-          <button type="submit">sair do clube do livro (as resenhas ficam; voltar recupera tudo)</button>
+          <button type="submit">sair do clube do livro (notas e votos ficam; voltar recupera tudo)</button>
         </form>
       </div>
     <?php endif; ?>

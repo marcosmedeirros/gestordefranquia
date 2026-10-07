@@ -1,37 +1,36 @@
 <?php
 /**
- * ── DA SEMANA: O ÁLBUM E O FILME QUE A LIGA ESCOLHE JUNTO ────────────
+ * ── O DA SEMANA DO CLUBE: ÁLBUM, FILME E LIVRO ───────────────────────
  *
- * A ideia é da Agata (07/10/2026): uma aba com o álbum da semana e o filme
- * da semana. Dez opções tiradas das listas de melhores, a liga vota, e quem
- * vence vira o programa da semana — todo mundo tem sete dias pra ouvir e
- * ver, e deixar a opinião registrada.
+ * Desenho fechado com o Marcos em 07/10/2026, na segunda versão (a
+ * primeira, do mesmo dia, votava a semana inteira e tinha uma aba própria
+ * "Da Semana" — durou uma tarde):
  *
- * ── O RELÓGIO É O DOMINGO, E NINGUÉM PRECISA APERTAR NADA ────────────
+ *   · cada mídia mora NA PRÓPRIA ABA: o álbum na Música, o filme na
+ *     Filmes, o livro no Clube do Livro;
+ *   · a enquete é TODA SEGUNDA, das 9h às 20h. Às 20h ela fecha sozinha e
+ *     o mais votado vira o da semana;
+ *   · no livro a segunda tem duas etapas: de manhã (9h–13h) vota-se o
+ *     GÊNERO, à tarde (13h–20h) os livros do gênero vencedor;
+ *   · o escolhido ganha uma timeline: cada pessoa deixa nota e
+ *     comentário, e a média fica na obra pra sempre;
+ *   · cada aba tem o ranking — top 5 melhores e os 2 piores — das obras
+ *     já escolhidas, pela média da liga.
  *
- * "Todo domingo a gente abre o ranking." Então o ciclo é esse:
+ * ── O RELÓGIO É PREGUIÇOSO, COMO TUDO AQUI ───────────────────────────
  *
- *   · a votação da semana N abre no domingo da semana N-1 e fica aberta a
- *     semana inteira — mais gente vota, e votar também é parte da graça;
- *   · no domingo seguinte ela se decide sozinha, o vencedor vira "o da
- *     semana", e a votação da próxima abre no mesmo instante.
- *
- * Sempre há uma escolha em cartaz e uma votação aberta. A virada é
- * PREGUIÇOSA, no primeiro acesso depois do domingo — mesmo desenho do
- * leilão do jogo da semana, e pelo mesmo motivo: cron pra isso é mais uma
- * coisa pra esquecer de agendar.
- *
- * Na primeira semana de vida não existe "em cartaz" (ninguém votou ainda):
- * a tela mostra só as votações e diz que o primeiro vencedor sai domingo.
- * É melhor do que estrear com um sorteio que ninguém escolheu.
+ * Nenhum cron: as viradas acontecem no primeiro acesso depois da hora,
+ * igual ao leilão do jogo da semana. A enquete só NASCE dentro da janela
+ * de segunda — se ninguém abrir o Clube entre 9h e 20h de uma segunda,
+ * aquela semana fica sem escolha nova, o que é honesto: não havia ninguém
+ * pra votar. O cartaz vigente segue sendo o último escolhido.
  *
  * ── DE ONDE SAEM AS OPÇÕES ───────────────────────────────────────────
  *
- * De listas fixas aqui embaixo, montadas do cânone (Rolling Stone, IMDb,
- * e uma dose proposital de Brasil). Dez por semana, sem repetir o que já
- * concorreu — e quando o estoque de inéditos acabar, volta a concorrer
- * quem nunca venceu. Vencedor não concorre de novo nunca: o clube é pra
- * conhecer coisa nova, não pra reeleger o óbvio.
+ * Listas fixas aqui embaixo (cânone + Brasil). Dez por enquete, inéditas
+ * primeiro; quando as inéditas acabam, volta quem nunca venceu. Vencedor
+ * não concorre de novo — o clube é pra conhecer coisa nova. Os livros são
+ * por gênero, e a etapa da manhã decide de qual estante a da tarde tira.
  */
 
 require_once __DIR__ . '/db.php';
@@ -184,12 +183,127 @@ const CLUBE_FILMES = [
     ['Tudo em Todo Lugar ao Mesmo Tempo', 'Daniels', 2022],
 ];
 
-const CLUBE_SEMANA_OPCOES = 10;
+/**
+ * Livros por gênero: a etapa da manhã escolhe a estante, a da tarde o
+ * livro. As chaves são as opções da enquete de gênero — mexeu numa, mexeu
+ * nas duas.
+ */
+const CLUBE_LIVROS = [
+    'Romance' => [
+        ['Orgulho e Preconceito', 'Jane Austen'],
+        ['O Morro dos Ventos Uivantes', 'Emily Brontë'],
+        ['Como Eu Era Antes de Você', 'Jojo Moyes'],
+        ['A Culpa é das Estrelas', 'John Green'],
+        ['Normal People', 'Sally Rooney'],
+        ['Eleanor & Park', 'Rainbow Rowell'],
+        ['Red, White & Royal Blue', 'Casey McQuiston'],
+        ['É Assim que Acaba', 'Colleen Hoover'],
+    ],
+    'Fantasia' => [
+        ['O Hobbit', 'J.R.R. Tolkien'],
+        ['O Nome do Vento', 'Patrick Rothfuss'],
+        ['Harry Potter e a Pedra Filosofal', 'J.K. Rowling'],
+        ['A Guerra dos Tronos', 'George R.R. Martin'],
+        ['Percy Jackson e o Ladrão de Raios', 'Rick Riordan'],
+        ['Trono de Vidro', 'Sarah J. Maas'],
+        ['O Oceano no Fim do Caminho', 'Neil Gaiman'],
+        ['Mistborn: O Império Final', 'Brandon Sanderson'],
+        ['A Cor da Magia', 'Terry Pratchett'],
+    ],
+    'Ficção científica' => [
+        ['Duna', 'Frank Herbert'],
+        ['Fundação', 'Isaac Asimov'],
+        ['1984', 'George Orwell'],
+        ['Admirável Mundo Novo', 'Aldous Huxley'],
+        ['O Guia do Mochileiro das Galáxias', 'Douglas Adams'],
+        ['Neuromancer', 'William Gibson'],
+        ['O Problema dos Três Corpos', 'Cixin Liu'],
+        ['Perdido em Marte', 'Andy Weir'],
+        ['Jogo do Exterminador', 'Orson Scott Card'],
+    ],
+    'Mistério e suspense' => [
+        ['E Não Sobrou Nenhum', 'Agatha Christie'],
+        ['O Assassinato de Roger Ackroyd', 'Agatha Christie'],
+        ['Garota Exemplar', 'Gillian Flynn'],
+        ['A Garota no Trem', 'Paula Hawkins'],
+        ['O Código Da Vinci', 'Dan Brown'],
+        ['A Paciente Silenciosa', 'Alex Michaelides'],
+        ['Entre Facas e Segredos: O Mistério de Sherlock', 'Arthur Conan Doyle'],
+        ['O Homem de Giz', 'C.J. Tudor'],
+    ],
+    'Terror' => [
+        ['O Iluminado', 'Stephen King'],
+        ['It: A Coisa', 'Stephen King'],
+        ['Drácula', 'Bram Stoker'],
+        ['Frankenstein', 'Mary Shelley'],
+        ['O Exorcista', 'William Peter Blatty'],
+        ['A Assombração da Casa da Colina', 'Shirley Jackson'],
+        ['Coraline', 'Neil Gaiman'],
+        ['Misery', 'Stephen King'],
+    ],
+    'Drama' => [
+        ['A Menina que Roubava Livros', 'Markus Zusak'],
+        ['O Caçador de Pipas', 'Khaled Hosseini'],
+        ['Um Homem Chamado Ove', 'Fredrik Backman'],
+        ['As Vantagens de Ser Invisível', 'Stephen Chbosky'],
+        ['Flores para Algernon', 'Daniel Keyes'],
+        ['O Sol é Para Todos', 'Harper Lee'],
+        ['Pequenas Grandes Mentiras', 'Liane Moriarty'],
+        ['Torto Arado', 'Itamar Vieira Junior'],
+    ],
+    'Clássicos' => [
+        ['Dom Casmurro', 'Machado de Assis'],
+        ['Memórias Póstumas de Brás Cubas', 'Machado de Assis'],
+        ['Grande Sertão: Veredas', 'João Guimarães Rosa'],
+        ['Vidas Secas', 'Graciliano Ramos'],
+        ['O Pequeno Príncipe', 'Antoine de Saint-Exupéry'],
+        ['Crime e Castigo', 'Fiódor Dostoiévski'],
+        ['O Grande Gatsby', 'F. Scott Fitzgerald'],
+        ['Cem Anos de Solidão', 'Gabriel García Márquez'],
+        ['A Hora da Estrela', 'Clarice Lispector'],
+    ],
+    'Biografia e não-ficção' => [
+        ['Sapiens', 'Yuval Noah Harari'],
+        ['Em Busca de Sentido', 'Viktor Frankl'],
+        ['A Loja de Tudo', 'Brad Stone'],
+        ['Steve Jobs', 'Walter Isaacson'],
+        ['Eu Sou Malala', 'Malala Yousafzai'],
+        ['Shoe Dog', 'Phil Knight'],
+        ['O Diário de Anne Frank', 'Anne Frank'],
+        ['Quarto de Despejo', 'Carolina Maria de Jesus'],
+    ],
+    'Quadrinhos e mangás' => [
+        ['Watchmen', 'Alan Moore'],
+        ['Batman: O Cavaleiro das Trevas', 'Frank Miller'],
+        ['Sandman: Prelúdios e Noturnos', 'Neil Gaiman'],
+        ['Maus', 'Art Spiegelman'],
+        ['Persépolis', 'Marjane Satrapi'],
+        ['Akira Vol. 1', 'Katsuhiro Otomo'],
+        ['Berserk Vol. 1', 'Kentaro Miura'],
+        ['Turma da Mônica: Laços', 'Vitor e Lu Cafaggi'],
+    ],
+    'Desenvolvimento pessoal' => [
+        ['Hábitos Atômicos', 'James Clear'],
+        ['O Poder do Hábito', 'Charles Duhigg'],
+        ['Mindset', 'Carol S. Dweck'],
+        ['Essencialismo', 'Greg McKeown'],
+        ['Rápido e Devagar', 'Daniel Kahneman'],
+        ['A Sutil Arte de Ligar o F*da-se', 'Mark Manson'],
+        ['Pai Rico, Pai Pobre', 'Robert Kiyosaki'],
+        ['Comece pelo Porquê', 'Simon Sinek'],
+    ],
+];
 
-/** O rótulo de cada tipo, do jeito que a tela fala. */
+const CLUBE_SEMANA_OPCOES = 10;
+const CLUBE_SEMANA_ABRE   = 9;    // segunda, 9h: a enquete nasce
+const CLUBE_SEMANA_VIRA   = 13;   // segunda, 13h: no livro, o gênero fecha
+const CLUBE_SEMANA_FECHA  = 20;   // segunda, 20h: tudo fecha e o da semana sai
+
+/** O rótulo de cada tipo, do jeito que a tela fala. A `midia` é a aba dele. */
 const CLUBE_SEMANA_TIPOS = [
-    'album' => ['rot' => 'Álbum da semana', 'ico' => 'vinyl-fill',  'verbo' => 'ouvir',   'por' => 'de'],
-    'filme' => ['rot' => 'Filme da semana', 'ico' => 'film',        'verbo' => 'assistir', 'por' => 'de'],
+    'album' => ['rot' => 'Álbum da semana', 'ico' => 'vinyl-fill', 'verbo' => 'ouvir',    'midia' => 'musica'],
+    'filme' => ['rot' => 'Filme da semana', 'ico' => 'film',       'verbo' => 'assistir', 'midia' => 'filmes'],
+    'livro' => ['rot' => 'Livro da semana', 'ico' => 'book-half',  'verbo' => 'ler',      'midia' => 'livro'],
 ];
 
 function clubeSemanaTabelas(PDO $pdo): void
@@ -198,9 +312,10 @@ function clubeSemanaTabelas(PDO $pdo): void
     if ($feito) return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS clube_semana_ciclos (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        tipo ENUM('album','filme') NOT NULL,
+        tipo ENUM('album','filme','livro') NOT NULL,
         semana DATE NOT NULL,
-        status ENUM('votacao','definido') NOT NULL DEFAULT 'votacao',
+        status ENUM('genero','votacao','definido') NOT NULL DEFAULT 'votacao',
+        genero_escolhido VARCHAR(60) NULL,
         vencedor_opcao_id INT NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_tipo_semana (tipo, semana)
@@ -208,6 +323,7 @@ function clubeSemanaTabelas(PDO $pdo): void
     $pdo->exec("CREATE TABLE IF NOT EXISTS clube_semana_opcoes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ciclo_id INT NOT NULL,
+        etapa ENUM('genero','obra') NOT NULL DEFAULT 'obra',
         titulo VARCHAR(160) NOT NULL,
         autor VARCHAR(160) NOT NULL,
         ano SMALLINT NULL,
@@ -216,10 +332,11 @@ function clubeSemanaTabelas(PDO $pdo): void
     $pdo->exec("CREATE TABLE IF NOT EXISTS clube_semana_votos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ciclo_id INT NOT NULL,
+        etapa ENUM('genero','obra') NOT NULL DEFAULT 'obra',
         opcao_id INT NOT NULL,
         user_id INT NOT NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_um_voto (ciclo_id, user_id)
+        UNIQUE KEY uq_voto (ciclo_id, etapa, user_id)
     ) DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS clube_semana_opinioes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -231,29 +348,72 @@ function clubeSemanaTabelas(PDO $pdo): void
         atualizado_em DATETIME NULL,
         UNIQUE KEY uq_uma_opiniao (ciclo_id, user_id)
     ) DEFAULT CHARSET=utf8mb4");
+
+    /* A PRIMEIRA VERSÃO (manhã de 07/10) criou as tabelas sem livro, sem
+       etapa e com a semana ancorada no domingo. Os ajustes abaixo levam um
+       banco daquela manhã pra cá; num banco novo não fazem nada. Cada um é
+       guardado por consulta ao information_schema porque MODIFY de enum
+       reconstrói a tabela — rodar todo request seria pagar essa conta à toa. */
+    try {
+        $col = fn(string $t, string $c) => $pdo->query(
+            "SELECT COLUMN_TYPE FROM information_schema.columns
+              WHERE table_schema = DATABASE() AND table_name = '{$t}' AND column_name = '{$c}'"
+        )->fetchColumn();
+
+        if (strpos((string)$col('clube_semana_ciclos', 'tipo'), 'livro') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_ciclos
+                        MODIFY tipo ENUM('album','filme','livro') NOT NULL");
+        }
+        if (strpos((string)$col('clube_semana_ciclos', 'status'), 'genero') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_ciclos
+                        MODIFY status ENUM('genero','votacao','definido') NOT NULL DEFAULT 'votacao'");
+        }
+        if ($col('clube_semana_ciclos', 'genero_escolhido') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_ciclos ADD COLUMN genero_escolhido VARCHAR(60) NULL");
+        }
+        if ($col('clube_semana_opcoes', 'etapa') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_opcoes
+                        ADD COLUMN etapa ENUM('genero','obra') NOT NULL DEFAULT 'obra' AFTER ciclo_id");
+        }
+        if ($col('clube_semana_votos', 'etapa') === false) {
+            $pdo->exec("ALTER TABLE clube_semana_votos
+                        ADD COLUMN etapa ENUM('genero','obra') NOT NULL DEFAULT 'obra' AFTER ciclo_id");
+            $pdo->exec("ALTER TABLE clube_semana_votos DROP INDEX uq_um_voto");
+            $pdo->exec("ALTER TABLE clube_semana_votos ADD UNIQUE KEY uq_voto (ciclo_id, etapa, user_id)");
+        }
+    } catch (Throwable $e) {
+        error_log('[clube-semana] migrar: ' . $e->getMessage());
+    }
     $feito = true;
 }
 
-/** O domingo da semana corrente (+n semanas). Semana aqui começa no domingo. */
-function clubeSemanaDomingo(int $mais = 0): string
+/** A segunda-feira da semana corrente. A semana do clube vai de segunda a domingo. */
+function clubeSemanaSegunda(): string
 {
-    $hoje = new DateTime('today', new DateTimeZone('America/Sao_Paulo'));
-    $dow = (int)$hoje->format('w');            // 0 = domingo
-    $hoje->modify("-{$dow} day");
-    if ($mais !== 0) $hoje->modify(($mais > 0 ? '+' : '') . ($mais * 7) . ' day');
+    /* Nasce do MESMO relógio que as janelas comparam: se viesse de
+       `new DateTime('today')`, o relógio congelado dos testes moveria as
+       janelas mas não a semana, e nenhuma segunda-feira seria simulável. */
+    $hoje = new DateTime('@' . clubeSemanaAgora());
+    $hoje->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+    $hoje->setTime(0, 0);
+    $hoje->modify('-' . (((int)$hoje->format('N')) - 1) . ' day');
     return $hoje->format('Y-m-d');
 }
 
+/** Agora, em segundos — separado pra os testes poderem congelar o relógio. */
+function clubeSemanaAgora(): int
+{
+    return isset($GLOBALS['CLUBE_SEMANA_AGORA']) ? (int)$GLOBALS['CLUBE_SEMANA_AGORA'] : time();
+}
+
 /**
- * Sorteia as opções de um ciclo novo: inéditas primeiro, e quando o estoque
- * de inéditas acabar, volta quem concorreu e não venceu. Vencedor nunca.
+ * Sorteia as opções de álbum/filme: inéditas primeiro, depois quem nunca
+ * venceu. Vencedor não volta nunca.
  */
 function clubeSemanaSortear(PDO $pdo, string $tipo): array
 {
     $seed = $tipo === 'album' ? CLUBE_ALBUNS : CLUBE_FILMES;
-
-    $st = $pdo->prepare("SELECT o.titulo,
-                                MAX(o.id = c.vencedor_opcao_id) venceu
+    $st = $pdo->prepare("SELECT o.titulo, MAX(o.id = c.vencedor_opcao_id) venceu
                            FROM clube_semana_opcoes o
                            JOIN clube_semana_ciclos c ON c.id = o.ciclo_id
                           WHERE c.tipo = ? GROUP BY o.titulo");
@@ -264,47 +424,98 @@ function clubeSemanaSortear(PDO $pdo, string $tipo): array
     $ineditas = []; $repescagem = [];
     foreach ($seed as $s) {
         $k = mb_strtolower($s[0]);
-        if (!isset($ja[$k]))      $ineditas[] = $s;
-        elseif (!$ja[$k])         $repescagem[] = $s;
+        if (!isset($ja[$k]))  $ineditas[] = $s;
+        elseif (!$ja[$k])     $repescagem[] = $s;
     }
     shuffle($ineditas);
     shuffle($repescagem);
     return array_slice(array_merge($ineditas, $repescagem), 0, CLUBE_SEMANA_OPCOES);
 }
 
+/** Os livros de um gênero que ainda não venceram, embaralhados. */
+function clubeSemanaLivrosDoGenero(PDO $pdo, string $genero): array
+{
+    $estante = CLUBE_LIVROS[$genero] ?? [];
+    $st = $pdo->prepare("SELECT o.titulo FROM clube_semana_opcoes o
+                           JOIN clube_semana_ciclos c ON c.id = o.ciclo_id
+                                AND c.vencedor_opcao_id = o.id
+                          WHERE c.tipo = 'livro'");
+    $st->execute();
+    $vencidos = array_map('mb_strtolower', $st->fetchAll(PDO::FETCH_COLUMN));
+    $pool = array_values(array_filter($estante,
+        fn($l) => !in_array(mb_strtolower($l[0]), $vencidos, true)));
+    if (!$pool) $pool = $estante;   // estante inteira já lida: melhor repetir que travar
+    shuffle($pool);
+    return array_slice($pool, 0, CLUBE_SEMANA_OPCOES);
+}
+
 /**
- * Garante o relógio: decide o ciclo cuja semana chegou e abre a votação da
- * semana seguinte. Chamada em todo carregamento da aba; barata quando não
- * há nada a fazer.
+ * O relógio: cria a enquete de segunda dentro da janela, vira o gênero do
+ * livro às 13h e fecha tudo às 20h. Preguiçoso — roda no acesso.
  */
 function clubeSemanaGirar(PDO $pdo): void
 {
     clubeSemanaTabelas($pdo);
-    $semanaQueVem = clubeSemanaDomingo(1);
+    $agora = clubeSemanaAgora();
+    $segunda = clubeSemanaSegunda();
+    $abre  = strtotime($segunda . ' ' . CLUBE_SEMANA_ABRE . ':00:00');
+    $vira  = strtotime($segunda . ' ' . CLUBE_SEMANA_VIRA . ':00:00');
+    $fecha = strtotime($segunda . ' ' . CLUBE_SEMANA_FECHA . ':00:00');
 
     foreach (array_keys(CLUBE_SEMANA_TIPOS) as $tipo) {
         try {
-            /* 1. Votação vencida se decide: todo ciclo de semana <= atual que
-               ainda está em votação virou "da semana" (ou já passou). */
-            $st = $pdo->prepare("SELECT id FROM clube_semana_ciclos
-                                  WHERE tipo = ? AND status = 'votacao' AND semana <= ?");
-            $st->execute([$tipo, clubeSemanaDomingo(0)]);
-            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $cicloId) {
-                clubeSemanaDecidir($pdo, (int)$cicloId);
+            /* 1. Enquete atrasada de semana passada fecha, aconteça o que
+               acontecer: o da semana não pode ficar preso no limbo. */
+            $st = $pdo->prepare("SELECT id, status, genero_escolhido FROM clube_semana_ciclos
+                                  WHERE tipo = ? AND status <> 'definido' AND semana < ?");
+            $st->execute([$tipo, $segunda]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $velho) {
+                if ($velho['status'] === 'genero') clubeSemanaVirarGenero($pdo, (int)$velho['id']);
+                clubeSemanaDecidir($pdo, (int)$velho['id']);
             }
 
-            /* 2. A votação da semana que vem existe. */
-            $st = $pdo->prepare("SELECT id FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?");
-            $st->execute([$tipo, $semanaQueVem]);
-            if (!$st->fetchColumn()) {
-                $opcoes = clubeSemanaSortear($pdo, $tipo);
-                if (!$opcoes) continue;        // estoque zerado: nada a abrir
-                $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana) VALUES (?, ?)")
-                    ->execute([$tipo, $semanaQueVem]);
-                $cicloId = (int)$pdo->lastInsertId();
-                $ins = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, titulo, autor, ano)
-                                      VALUES (?,?,?,?)");
-                foreach ($opcoes as $o) $ins->execute([$cicloId, $o[0], $o[1], $o[2]]);
+            /* 2. A enquete desta segunda nasce SÓ dentro da janela: antes das
+               9h não existe, e depois das 20h já era — semana sem ninguém na
+               janela é semana sem escolha nova, o que é só a verdade. */
+            $st = $pdo->prepare("SELECT id, status FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?");
+            $st->execute([$tipo, $segunda]);
+            $ciclo = $st->fetch(PDO::FETCH_ASSOC);
+
+            if (!$ciclo && $agora >= $abre && $agora < $fecha) {
+                if ($tipo === 'livro') {
+                    /* No livro a manhã é do gênero. Quem só chegar à tarde
+                       ainda abre a enquete, mas ela nasce virando na hora. */
+                    $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status)
+                                   VALUES ('livro', ?, 'genero')")->execute([$segunda]);
+                    $cid = (int)$pdo->lastInsertId();
+                    $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor)
+                                         VALUES (?, 'genero', ?, '')");
+                    foreach (array_keys(CLUBE_LIVROS) as $g) $op->execute([$cid, $g]);
+                    $ciclo = ['id' => $cid, 'status' => 'genero'];
+                } else {
+                    $opcoes = clubeSemanaSortear($pdo, $tipo);
+                    if ($opcoes) {
+                        $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status)
+                                       VALUES (?, ?, 'votacao')")->execute([$tipo, $segunda]);
+                        $cid = (int)$pdo->lastInsertId();
+                        $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor, ano)
+                                             VALUES (?, 'obra', ?, ?, ?)");
+                        foreach ($opcoes as $o) $op->execute([$cid, $o[0], $o[1], $o[2]]);
+                        $ciclo = ['id' => $cid, 'status' => 'votacao'];
+                    }
+                }
+            }
+
+            if (!$ciclo) continue;
+
+            /* 3. As viradas do dia: gênero fecha às 13h, tudo fecha às 20h. */
+            if ($ciclo['status'] === 'genero' && $agora >= $vira) {
+                clubeSemanaVirarGenero($pdo, (int)$ciclo['id']);
+                $ciclo['status'] = 'votacao';
+            }
+            if ($ciclo['status'] !== 'definido' && $agora >= $fecha) {
+                if ($ciclo['status'] === 'genero') clubeSemanaVirarGenero($pdo, (int)$ciclo['id']);
+                clubeSemanaDecidir($pdo, (int)$ciclo['id']);
             }
         } catch (Throwable $e) {
             error_log('[clube-semana] girar ' . $tipo . ': ' . $e->getMessage());
@@ -312,41 +523,61 @@ function clubeSemanaGirar(PDO $pdo): void
     }
 }
 
-/** Fecha uma votação: mais votos vence; empate decide pelo que entrou antes. */
+/** Fecha a etapa do gênero: o mais votado define a estante da tarde. */
+function clubeSemanaVirarGenero(PDO $pdo, int $cicloId): void
+{
+    $st = $pdo->prepare("SELECT o.titulo FROM clube_semana_opcoes o
+                     LEFT JOIN clube_semana_votos v ON v.opcao_id = o.id AND v.etapa = 'genero'
+                         WHERE o.ciclo_id = ? AND o.etapa = 'genero'
+                      GROUP BY o.id ORDER BY COUNT(v.id) DESC, o.id ASC LIMIT 1");
+    $st->execute([$cicloId]);
+    $genero = (string)($st->fetchColumn() ?: '');
+    if ($genero === '') return;
+
+    $livros = clubeSemanaLivrosDoGenero($pdo, $genero);
+    $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor)
+                         VALUES (?, 'obra', ?, ?)");
+    foreach ($livros as $l) $op->execute([$cicloId, $l[0], $l[1]]);
+    $pdo->prepare("UPDATE clube_semana_ciclos SET status = 'votacao', genero_escolhido = ?
+                    WHERE id = ? AND status = 'genero'")->execute([$genero, $cicloId]);
+}
+
+/** Fecha a enquete: mais votos vence; empate fica com quem entrou antes. */
 function clubeSemanaDecidir(PDO $pdo, int $cicloId): void
 {
     $st = $pdo->prepare("SELECT o.id FROM clube_semana_opcoes o
-                     LEFT JOIN clube_semana_votos v ON v.opcao_id = o.id
-                         WHERE o.ciclo_id = ?
+                     LEFT JOIN clube_semana_votos v ON v.opcao_id = o.id AND v.etapa = 'obra'
+                         WHERE o.ciclo_id = ? AND o.etapa = 'obra'
                       GROUP BY o.id ORDER BY COUNT(v.id) DESC, o.id ASC LIMIT 1");
     $st->execute([$cicloId]);
     $vencedora = $st->fetchColumn();
-    if ($vencedora === false) return;
+    if ($vencedora === false) {
+        /* Livro cuja tarde nunca chegou a existir: fecha vazio mesmo, sem
+           vencedor — semana sem livro, em vez de um livro que ninguém votou. */
+        $pdo->prepare("UPDATE clube_semana_ciclos SET status = 'definido'
+                        WHERE id = ? AND status <> 'definido'")->execute([$cicloId]);
+        return;
+    }
     $pdo->prepare("UPDATE clube_semana_ciclos SET status = 'definido', vencedor_opcao_id = ?
-                    WHERE id = ? AND status = 'votacao'")->execute([(int)$vencedora, $cicloId]);
+                    WHERE id = ? AND status <> 'definido'")->execute([(int)$vencedora, $cicloId]);
 }
 
-/**
- * Tudo que a aba precisa, por tipo: o que está em cartaz e a votação aberta.
- */
-function clubeSemanaEstado(PDO $pdo, int $userId): array
+/** Tudo que a aba de um tipo precisa: cartaz, enquete do dia e ranking. */
+function clubeSemanaEstadoDoTipo(PDO $pdo, string $tipo, int $userId): array
 {
     clubeSemanaGirar($pdo);
-    $out = [];
-    foreach (CLUBE_SEMANA_TIPOS as $tipo => $info) {
-        $out[$tipo] = [
-            'info'    => $info,
-            'cartaz'  => clubeSemanaCartaz($pdo, $tipo, $userId),
-            'votacao' => clubeSemanaVotacao($pdo, $tipo, $userId),
-        ];
-    }
-    return $out;
+    return [
+        'info'    => CLUBE_SEMANA_TIPOS[$tipo],
+        'cartaz'  => clubeSemanaCartaz($pdo, $tipo, $userId),
+        'enquete' => clubeSemanaEnquete($pdo, $tipo, $userId),
+        'ranking' => clubeSemanaRanking($pdo, $tipo),
+    ];
 }
 
-/** O escolhido da semana corrente, com as opiniões — ou null na 1ª semana. */
+/** O escolhido mais recente, com a timeline de opiniões e a média. */
 function clubeSemanaCartaz(PDO $pdo, string $tipo, int $userId): ?array
 {
-    $st = $pdo->prepare("SELECT c.id ciclo, c.semana, o.titulo, o.autor, o.ano
+    $st = $pdo->prepare("SELECT c.id ciclo, c.semana, c.genero_escolhido, o.titulo, o.autor, o.ano
                            FROM clube_semana_ciclos c
                            JOIN clube_semana_opcoes o ON o.id = c.vencedor_opcao_id
                           WHERE c.tipo = ? AND c.status = 'definido'
@@ -371,69 +602,104 @@ function clubeSemanaCartaz(PDO $pdo, string $tipo, int $userId): ?array
     return $c;
 }
 
-/** A votação aberta do tipo, com contagem e o meu voto. */
-function clubeSemanaVotacao(PDO $pdo, string $tipo, int $userId): ?array
+/**
+ * A enquete de hoje, se estiver de pé. `etapa` diz o que se vota agora:
+ * no livro de manhã é o gênero; no resto (e no livro à tarde), a obra.
+ */
+function clubeSemanaEnquete(PDO $pdo, string $tipo, int $userId): ?array
 {
-    $st = $pdo->prepare("SELECT id, semana FROM clube_semana_ciclos
-                          WHERE tipo = ? AND status = 'votacao'
-                       ORDER BY semana ASC LIMIT 1");
-    $st->execute([$tipo]);
+    $st = $pdo->prepare("SELECT id, semana, status, genero_escolhido FROM clube_semana_ciclos
+                          WHERE tipo = ? AND semana = ? AND status <> 'definido'");
+    $st->execute([$tipo, clubeSemanaSegunda()]);
     $v = $st->fetch(PDO::FETCH_ASSOC);
     if (!$v) return null;
 
+    $v['etapa'] = $v['status'] === 'genero' ? 'genero' : 'obra';
     $st = $pdo->prepare("SELECT o.id, o.titulo, o.autor, o.ano, COUNT(vt.id) votos
                            FROM clube_semana_opcoes o
-                       LEFT JOIN clube_semana_votos vt ON vt.opcao_id = o.id
-                          WHERE o.ciclo_id = ? GROUP BY o.id ORDER BY o.id");
-    $st->execute([(int)$v['id']]);
+                       LEFT JOIN clube_semana_votos vt ON vt.opcao_id = o.id AND vt.etapa = o.etapa
+                          WHERE o.ciclo_id = ? AND o.etapa = ?
+                       GROUP BY o.id ORDER BY o.id");
+    $st->execute([(int)$v['id'], $v['etapa']]);
     $v['opcoes'] = $st->fetchAll(PDO::FETCH_ASSOC);
     $v['total'] = array_sum(array_column($v['opcoes'], 'votos'));
 
-    $st = $pdo->prepare('SELECT opcao_id FROM clube_semana_votos WHERE ciclo_id = ? AND user_id = ?');
-    $st->execute([(int)$v['id'], $userId]);
+    $st = $pdo->prepare('SELECT opcao_id FROM clube_semana_votos
+                          WHERE ciclo_id = ? AND etapa = ? AND user_id = ?');
+    $st->execute([(int)$v['id'], $v['etapa'], $userId]);
     $v['meu'] = (int)($st->fetchColumn() ?: 0);
     return $v;
 }
 
-/** Vota (ou troca o voto) numa votação aberta. */
-function clubeSemanaVotar(PDO $pdo, int $userId, int $cicloId, int $opcaoId): bool
+/**
+ * O ranking da aba: top 5 pela média, e os 2 piores. Só conta obra que já
+ * recebeu nota, e os piores não repetem quem está no topo — com pouca
+ * amostra seria a mesma lista duas vezes.
+ */
+function clubeSemanaRanking(PDO $pdo, string $tipo): array
+{
+    $st = $pdo->prepare("SELECT o.titulo, o.autor, ROUND(AVG(op.nota), 1) media, COUNT(op.nota) notas
+                           FROM clube_semana_ciclos c
+                           JOIN clube_semana_opcoes o ON o.id = c.vencedor_opcao_id
+                           JOIN clube_semana_opinioes op ON op.ciclo_id = c.id AND op.nota IS NOT NULL
+                          WHERE c.tipo = ? AND c.status = 'definido'
+                       GROUP BY c.id ORDER BY media DESC, notas DESC");
+    $st->execute([$tipo]);
+    $todos = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $top = array_slice($todos, 0, 5);
+    $resto = array_slice($todos, 5);
+    $piores = array_slice(array_reverse($resto), 0, 2);
+    return ['top' => $top, 'piores' => $piores];
+}
+
+/** Vota (ou troca o voto) na etapa aberta da enquete do dia. */
+function clubeSemanaVotar(PDO $pdo, int $userId, int $cicloId, int $opcaoId): ?string
 {
     clubeSemanaTabelas($pdo);
     try {
-        $st = $pdo->prepare("SELECT 1 FROM clube_semana_ciclos c
+        $st = $pdo->prepare("SELECT c.tipo, c.status, o.etapa FROM clube_semana_ciclos c
                               JOIN clube_semana_opcoes o ON o.ciclo_id = c.id AND o.id = ?
-                             WHERE c.id = ? AND c.status = 'votacao'");
+                             WHERE c.id = ? AND c.status <> 'definido'");
         $st->execute([$opcaoId, $cicloId]);
-        if (!$st->fetchColumn()) return false;
-        $pdo->prepare("INSERT INTO clube_semana_votos (ciclo_id, opcao_id, user_id) VALUES (?,?,?)
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return null;
+        /* A opção tem que ser da etapa ABERTA: voto em gênero depois das 13h
+           (ou em livro antes delas) é formulário velho na tela — ignora. */
+        $etapaAberta = $r['status'] === 'genero' ? 'genero' : 'obra';
+        if ($r['etapa'] !== $etapaAberta) return null;
+
+        $pdo->prepare("INSERT INTO clube_semana_votos (ciclo_id, etapa, opcao_id, user_id)
+                       VALUES (?,?,?,?)
                        ON DUPLICATE KEY UPDATE opcao_id = VALUES(opcao_id), criado_em = NOW()")
-            ->execute([$cicloId, $opcaoId, $userId]);
-        return true;
+            ->execute([$cicloId, $etapaAberta, $opcaoId, $userId]);
+        return (string)$r['tipo'];
     } catch (Throwable $e) {
         error_log('[clube-semana] votar: ' . $e->getMessage());
-        return false;
+        return null;
     }
 }
 
-/** Registra (ou atualiza) a opinião sobre um escolhido. */
-function clubeSemanaOpinar(PDO $pdo, int $userId, int $cicloId, ?int $nota, string $texto): bool
+/** Registra (ou atualiza) nota e comentário na timeline de um escolhido. */
+function clubeSemanaOpinar(PDO $pdo, int $userId, int $cicloId, ?int $nota, string $texto): ?string
 {
     clubeSemanaTabelas($pdo);
     $texto = trim(mb_substr($texto, 0, 1200));
     if ($nota !== null) $nota = max(0, min(10, $nota));
-    if ($texto === '' && $nota === null) return false;
+    if ($texto === '' && $nota === null) return null;
     try {
-        $st = $pdo->prepare("SELECT 1 FROM clube_semana_ciclos WHERE id = ? AND status = 'definido'");
+        $st = $pdo->prepare("SELECT tipo FROM clube_semana_ciclos WHERE id = ? AND status = 'definido'");
         $st->execute([$cicloId]);
-        if (!$st->fetchColumn()) return false;
+        $tipo = $st->fetchColumn();
+        if ($tipo === false) return null;
         $pdo->prepare("INSERT INTO clube_semana_opinioes (ciclo_id, user_id, nota, texto)
                        VALUES (?,?,?,?)
                        ON DUPLICATE KEY UPDATE nota = VALUES(nota), texto = VALUES(texto),
                                                atualizado_em = NOW()")
             ->execute([$cicloId, $userId, $nota, $texto !== '' ? $texto : null]);
-        return true;
+        return (string)$tipo;
     } catch (Throwable $e) {
         error_log('[clube-semana] opinar: ' . $e->getMessage());
-        return false;
+        return null;
     }
 }
