@@ -80,7 +80,9 @@ const CLUBE_MIDIAS = [
     'livro'  => ['rot' => 'Clube do Livro', 'ico' => 'book-half',         'ok' => true],
     'livros' => ['rot' => 'Livros', 'ico' => 'book-fill',         'ok' => false],
     'filmes' => ['rot' => 'Filmes', 'ico' => 'film',              'ok' => false],
-    'musica' => ['rot' => 'Música', 'ico' => 'music-note-beamed', 'ok' => false],
+    /* 'Música' saiu da barra em 07/10/2026, a pedido: o álbum da semana já é
+       a música do Clube, e prometer uma segunda aba do mesmo assunto só
+       confundia. Se um dia nascer um catálogo de música, volta aqui. */
 ];
 
 /**
