@@ -77,7 +77,9 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
       <h3 style="margin:0 0 10px"><i class="bi bi-<?= $i['ico'] ?>"></i> <?= h($i['rot']) ?></h3>
 
       <?php if ($c): ?>
-        <div class="cartaz-rot">Em cartaz · semana de <?= date('d/m', strtotime($c['semana'])) ?><?=
+        <div class="cartaz-rot">Em cartaz · <?= $tipo === 'livro'
+            ? 'o livro de ' . h(clubeSemanaMes($c['semana']))
+            : 'semana de ' . date('d/m', strtotime($c['semana'])) ?><?=
             $tipo === 'livro' && $c['genero_escolhido'] ? ' · ' . h($c['genero_escolhido']) : '' ?></div>
         <div class="cartaz-tit"><?= h($c['titulo']) ?></div>
         <div class="cartaz-sub"><?= h($c['autor']) ?><?= $c['ano'] ? ' · ' . (int)$c['ano'] : '' ?></div>
@@ -155,7 +157,7 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         <div class="sem-h4">Próxima enquete</div>
         <p style="color:var(--txt3);font-size:12.5px;margin:0">
           <?= $tipo === 'livro'
-              ? 'Segunda-feira: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o da semana.'
+              ? 'Na primeira segunda do mês: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o livro, que vale o mês inteiro.'
               : 'Segunda-feira, das 9h às 20h. Às 20h a enquete fecha e sai o da semana.' ?></p>
       <?php endif; ?>
     </div>
@@ -913,8 +915,8 @@ $qInicial    = (string)($_GET['q'] ?? '');
   <?php if (!$souDoLivro): ?>
     <?php /* O convite do livro mora aqui: a aba dele só existe pra quem aceitou. */ ?>
     <div class="bloco convite" style="margin-top:14px">
-      <p><b><i class="bi bi-book-half"></i> Clube do Livro</b> — um livro por semana,
-        gênero de manhã e livros à tarde toda segunda, timeline de notas. A aba
+      <p><b><i class="bi bi-book-half"></i> Clube do Livro</b> — um livro por mês, escolhido
+        na primeira segunda (gênero de manhã, livros à tarde), timeline de notas. A aba
         só aparece pra quem entra.</p>
       <form method="POST" style="margin:0">
         <input type="hidden" name="acao" value="livro_entrar">
@@ -930,9 +932,9 @@ $qInicial    = (string)($_GET['q'] ?? '');
       <div class="breve-caixa">
         <i class="bi bi-book-half"></i>
         <h2>Clube do Livro</h2>
-        <p>Um livro por semana: toda segunda, o gênero de manhã e os livros dele
-           à tarde. Timeline de notas, ranking, e a aba passa a ser sua quando
-           você entra.</p>
+        <p>Um livro por mês, escolhido na primeira segunda: o gênero de manhã e os
+           livros dele à tarde. Timeline de notas, ranking, e a aba passa a ser
+           sua quando você entra.</p>
         <form method="POST" style="margin-top:14px">
           <input type="hidden" name="acao" value="livro_entrar">
           <button type="submit" class="btn pri"><i class="bi bi-plus-lg"></i> Quero participar</button>

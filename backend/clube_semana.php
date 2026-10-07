@@ -303,7 +303,7 @@ const CLUBE_SEMANA_FECHA  = 20;   // segunda, 20h: tudo fecha e o da semana sai
 const CLUBE_SEMANA_TIPOS = [
     'album' => ['rot' => 'Álbum da semana', 'ico' => 'vinyl-fill', 'verbo' => 'ouvir',    'midia' => 'musica'],
     'filme' => ['rot' => 'Filme da semana', 'ico' => 'film',       'verbo' => 'assistir', 'midia' => 'filmes'],
-    'livro' => ['rot' => 'Livro da semana', 'ico' => 'book-half',  'verbo' => 'ler',      'midia' => 'livro'],
+    'livro' => ['rot' => 'Livro do mês',    'ico' => 'book-half',  'verbo' => 'ler',      'midia' => 'livro'],
 ];
 
 function clubeSemanaTabelas(PDO $pdo): void
@@ -407,6 +407,35 @@ function clubeSemanaAgora(): int
 }
 
 /**
+ * A âncora do ciclo de um tipo: a segunda da semana pra álbum e filme, e a
+ * PRIMEIRA SEGUNDA DO MÊS pro livro — o livro é mensal (pedido do Marcos,
+ * 07/10/2026): ninguém lê um livro em sete dias, e o clube viraria fila de
+ * livro não lido. A mecânica da segunda não muda, só a frequência: gênero
+ * de manhã, livros à tarde, 20h fecha — uma vez por mês.
+ *
+ * Devolve a última âncora que JÁ CHEGOU: nos primeiros dias de um mês que
+ * começa no meio da semana, o ciclo vigente ainda é o do mês passado.
+ */
+function clubeSemanaAncora(string $tipo): string
+{
+    if ($tipo !== 'livro') return clubeSemanaSegunda();
+    $hoje = new DateTime('@' . clubeSemanaAgora());
+    $hoje->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+    $hoje->setTime(0, 0);
+    $m = (clone $hoje)->modify('first monday of this month');
+    if ($m > $hoje) $m = (clone $hoje)->modify('first monday of last month');
+    return $m->format('Y-m-d');
+}
+
+/** O nome do mês de uma data, pro cartaz do livro falar "outubro". */
+function clubeSemanaMes(string $ymd): string
+{
+    $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+              'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    return $meses[(int)date('n', strtotime($ymd))] ?? '';
+}
+
+/**
  * Sorteia as opções de álbum/filme: inéditas primeiro, depois quem nunca
  * venceu. Vencedor não volta nunca.
  */
@@ -457,18 +486,22 @@ function clubeSemanaGirar(PDO $pdo): void
 {
     clubeSemanaTabelas($pdo);
     $agora = clubeSemanaAgora();
-    $segunda = clubeSemanaSegunda();
-    $abre  = strtotime($segunda . ' ' . CLUBE_SEMANA_ABRE . ':00:00');
-    $vira  = strtotime($segunda . ' ' . CLUBE_SEMANA_VIRA . ':00:00');
-    $fecha = strtotime($segunda . ' ' . CLUBE_SEMANA_FECHA . ':00:00');
 
     foreach (array_keys(CLUBE_SEMANA_TIPOS) as $tipo) {
+        /* Cada tipo tem a sua âncora: a segunda da semana, ou a primeira
+           segunda do mês no livro. As janelas do dia nascem dela — numa
+           segunda que não é a âncora do livro, a janela dele já passou e
+           nada nasce, que é exatamente o mensal funcionando. */
+        $ancora = clubeSemanaAncora($tipo);
+        $abre  = strtotime($ancora . ' ' . CLUBE_SEMANA_ABRE . ':00:00');
+        $vira  = strtotime($ancora . ' ' . CLUBE_SEMANA_VIRA . ':00:00');
+        $fecha = strtotime($ancora . ' ' . CLUBE_SEMANA_FECHA . ':00:00');
         try {
-            /* 1. Enquete atrasada de semana passada fecha, aconteça o que
-               acontecer: o da semana não pode ficar preso no limbo. */
+            /* 1. Enquete atrasada de ciclo passado fecha, aconteça o que
+               acontecer: o escolhido não pode ficar preso no limbo. */
             $st = $pdo->prepare("SELECT id, status, genero_escolhido FROM clube_semana_ciclos
                                   WHERE tipo = ? AND status <> 'definido' AND semana < ?");
-            $st->execute([$tipo, $segunda]);
+            $st->execute([$tipo, $ancora]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $velho) {
                 if ($velho['status'] === 'genero') clubeSemanaVirarGenero($pdo, (int)$velho['id']);
                 clubeSemanaDecidir($pdo, (int)$velho['id']);
@@ -478,7 +511,7 @@ function clubeSemanaGirar(PDO $pdo): void
                9h não existe, e depois das 20h já era — semana sem ninguém na
                janela é semana sem escolha nova, o que é só a verdade. */
             $st = $pdo->prepare("SELECT id, status FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?");
-            $st->execute([$tipo, $segunda]);
+            $st->execute([$tipo, $ancora]);
             $ciclo = $st->fetch(PDO::FETCH_ASSOC);
 
             if (!$ciclo && $agora >= $abre && $agora < $fecha) {
@@ -486,7 +519,7 @@ function clubeSemanaGirar(PDO $pdo): void
                     /* No livro a manhã é do gênero. Quem só chegar à tarde
                        ainda abre a enquete, mas ela nasce virando na hora. */
                     $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status)
-                                   VALUES ('livro', ?, 'genero')")->execute([$segunda]);
+                                   VALUES ('livro', ?, 'genero')")->execute([$ancora]);
                     $cid = (int)$pdo->lastInsertId();
                     $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor)
                                          VALUES (?, 'genero', ?, '')");
@@ -496,7 +529,7 @@ function clubeSemanaGirar(PDO $pdo): void
                     $opcoes = clubeSemanaSortear($pdo, $tipo);
                     if ($opcoes) {
                         $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status)
-                                       VALUES (?, ?, 'votacao')")->execute([$tipo, $segunda]);
+                                       VALUES (?, ?, 'votacao')")->execute([$tipo, $ancora]);
                         $cid = (int)$pdo->lastInsertId();
                         $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor, ano)
                                              VALUES (?, 'obra', ?, ?, ?)");
@@ -610,7 +643,7 @@ function clubeSemanaEnquete(PDO $pdo, string $tipo, int $userId): ?array
 {
     $st = $pdo->prepare("SELECT id, semana, status, genero_escolhido FROM clube_semana_ciclos
                           WHERE tipo = ? AND semana = ? AND status <> 'definido'");
-    $st->execute([$tipo, clubeSemanaSegunda()]);
+    $st->execute([$tipo, clubeSemanaAncora($tipo)]);
     $v = $st->fetch(PDO::FETCH_ASSOC);
     if (!$v) return null;
 
