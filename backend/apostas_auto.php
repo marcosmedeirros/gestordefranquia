@@ -760,15 +760,24 @@ function apostasAutoCriarPlayoffs(PDO $pdo, string $liga, int $seasonId,
     }
 
     if ($prazo === null) {
-        /* A HORA DO PLAYOFF, quando o calendário a tem e ela ainda não passou
-           hoje; três horas daqui quando não tem. O prazo só precisa cair
-           antes da simulação e depois de agora — prazo no passado nasceria
-           fechado, e a liga veria uma aposta em que não dá pra apostar. */
+        /* A PRÓXIMA HORA DE PLAYOFF DA LIGA, olhando uma semana pra frente —
+           e não só o dia de hoje, que foi o primeiro desenho e encurtava a
+           janela à toa: a classificação da ELITE é registrada na noite de
+           quarta, o playoff dela é quinta 19h, e procurar só no calendário de
+           quarta não achava nada. A aposta caía no "agora + 3h" e fechava de
+           madrugada, um dia antes dos jogos.
+
+           Sem entrada de playoff no calendário (ROOKIE), ficam as 3 horas
+           mesmo — lá a regular e o playoff são registrados juntos, e janela
+           curta é o que há. */
         $prazo = date('Y-m-d H:i:s', time() + 3 * 3600);
-        foreach (apostasAutoDiaDaLiga($pdo, date('Y-m-d')) as $dia) {
-            if ($dia['liga'] !== $liga || $dia['fase'] !== 'playoffs') continue;
-            $candidato = date('Y-m-d') . ' ' . $dia['hora'];
-            if (strtotime($candidato) > time()) $prazo = $candidato;
+        for ($d = 0; $d <= 7; $d++) {
+            $dia = date('Y-m-d', strtotime("+{$d} day"));
+            foreach (apostasAutoDiaDaLiga($pdo, $dia) as $entrada) {
+                if ($entrada['liga'] !== $liga || $entrada['fase'] !== 'playoffs') continue;
+                $candidato = $dia . ' ' . $entrada['hora'];
+                if (strtotime($candidato) > time()) { $prazo = $candidato; break 2; }
+            }
         }
     }
 
