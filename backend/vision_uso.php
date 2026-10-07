@@ -10,8 +10,14 @@
  * O problema (16/09/2026): a liga define os playoffs e registra a pontuação,
  * e é nessa hora que o GM quer mandar as estatísticas da temporada — mas a
  * temporada ainda é a mesma, os envios dela já foram gastos e o upload fica
- * bloqueado até o admin avançar. Agora o registro da pontuação final zera o
- * contador da liga, e a Central de correções tem um botão pra zerar na mão.
+ * bloqueado até o admin avançar. O registro passou a zerar o contador, e a
+ * Central de correções ganhou um botão pra zerar na mão.
+ *
+ * Em 07/10/2026 o zerar ANDOU PRA TRÁS, do registro da pontuação final (a
+ * etapa 2) pro registro da temporada regular (o primeiro botão, o mesmo que
+ * fecha a urna da loteria). A etapa 2 ainda chegava tarde: é ao registrar a
+ * regular que o GM começa a mandar as estatísticas, e ele topava com o limite
+ * no meio do trabalho. @see api/seasons.php, case save_temporada_regular
  */
 
 /** A temporada em que o contador está correndo: a última em aberto da liga. */
@@ -55,16 +61,16 @@ function visionZerarEnvios(PDO $pdo, string $liga, ?int $teamId = null): int
 }
 
 /**
- * Zera ao registrar a pontuação final — só no PRIMEIRO registro da temporada.
+ * Zera ao registrar a TEMPORADA REGULAR — só na primeira vez da temporada.
  *
  * O mesmo botão serve pra corrigir um registro, e cada correção devolveria os
- * envios de novo: um admin arrumando um vice duas vezes dava oito envios a
- * todo mundo. A marca em vision_envios_zerados garante uma vez por temporada;
- * zerar de novo, se precisar, é pela Central de correções.
+ * envios de novo: um admin arrumando a classificação duas vezes dava oito
+ * envios a todo mundo. A marca em vision_envios_zerados garante uma vez por
+ * temporada; zerar de novo, se precisar, é pela Central de correções.
  *
  * @return int|null times zerados, ou null quando essa temporada já tinha zerado
  */
-function visionZerarNoRegistroDaPontuacao(PDO $pdo, string $liga, int $seasonId): ?int
+function visionZerarNoRegistroDaRegular(PDO $pdo, string $liga, int $seasonId): ?int
 {
     $pdo->exec("CREATE TABLE IF NOT EXISTS vision_envios_zerados (
         season_id INT NOT NULL PRIMARY KEY,

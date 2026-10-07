@@ -2676,6 +2676,29 @@ try {
                 error_log('[seasons/loteria] travar ordem: ' . $e->getMessage());
             }
 
+            /* OS ENVIOS DE IMAGEM VOLTAM A ZERO AQUI, no primeiro botão.
+               Ficavam no registro da pontuação final (a etapa 2), e isso
+               chegava tarde: é ao registrar a regular que o GM quer mandar as
+               estatísticas da temporada, e os envios dela já tinham sido
+               gastos durante o ano — o upload ficava travado no meio do
+               trabalho. Em 07/10/2026 o Marcos pediu no primeiro botão.
+
+               Chamado SEMPRE, inclusive numa correção: quem decide é a marca
+               em `vision_envios_zerados`, que garante uma vez por temporada.
+               Condicionar ao `$ehCorrecao` seria pior — se a primeira chamada
+               falhasse, nenhuma correção tentaria de novo.
+               @see backend/vision_uso.php */
+            try {
+                require_once dirname(__DIR__) . '/backend/vision_uso.php';
+                $zerados = visionZerarNoRegistroDaRegular($pdo, (string)$leagueR, (int)$seasonId);
+                if ($zerados !== null) {
+                    error_log("[save_temporada_regular] envios de imagem zerados na {$leagueR}: {$zerados} time(s)");
+                }
+            } catch (Throwable $e) {
+                // Acessório: não pode derrubar uma classificação já gravada.
+                error_log('[save_temporada_regular] zerar envios de imagem: ' . $e->getMessage());
+            }
+
             /* AS APOSTAS DO PLAYOFF NASCEM AQUI, e não no cron do dia.
                O chaveamento sai da classificação (1x8, 2x7, 3x6, 4x5), e é
                ESTE salvamento que a torna definitiva — antes dele seria chute.
@@ -2977,19 +3000,9 @@ try {
                 $pdo->prepare("DELETE FROM season_registro_rascunho WHERE season_id = ?")->execute([$seasonId]);
             } catch (Throwable $ignored) {}
 
-            /* OS ENVIOS DE IMAGEM VOLTAM A ZERO. Com a pontuação registrada, o
-               GM quer mandar as estatísticas da temporada inteira — e os
-               envios dela já tinham sido gastos durante a temporada, travando
-               o upload até alguém avançar. Só no primeiro registro: corrigir
-               não devolve envio de novo. Ver backend/vision_uso.php. */
-            try {
-                require_once __DIR__ . '/../backend/vision_uso.php';
-                $zerados = visionZerarNoRegistroDaPontuacao($pdo, (string)$league2, (int)$seasonId);
-                if ($zerados !== null) error_log("[register_pontuacao] envios de imagem zerados na {$league2}: {$zerados} time(s)");
-            } catch (Throwable $e) {
-                // Acessório: não pode derrubar um registro que já foi gravado.
-                error_log('[register_pontuacao] zerar envios de imagem: ' . $e->getMessage());
-            }
+            /* Os envios de imagem já voltaram a zero no PRIMEIRO botão, lá no
+               registro da temporada regular — quando o GM de fato precisa
+               deles. @see save_temporada_regular */
             echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
             break;
 
