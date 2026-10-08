@@ -227,7 +227,36 @@ function draftFutTransferencias(): array
     if ($t !== null) return $t;
     $arq = __DIR__ . '/../data/draftfut_transferencias.php';
     $t = is_file($arq) ? (array)require $arq : [];
-    return $t;
+    /* A LISTA À MÃO GANHA DA VARREDURA. A fonte erra, e quem lê o baralho e
+       conhece a liga vê o erro antes de qualquer teste meu — o Antony estava
+       marcado no Manchester United e o Marcos apontou que ele está no Betis.
+       Pôr a correção aqui, e não dentro do arquivo gerado, é o que faz a
+       próxima varredura não desfazê-la. */
+    return $t = DFUT_CLUBE_MAO + $t;
+}
+
+/**
+ * Os clubes corrigidos à mão, por quem conhece a liga.
+ *
+ * Mesma ideia de DFUT_NACAO_MAO: dado curado, declarado como curado, e com
+ * precedência sobre o que a varredura automática achou.
+ */
+const DFUT_CLUBE_MAO = [
+    'Manchester United|Antony' => 'Real Betis',
+];
+
+/**
+ * As fotos que entraram à mão, pra cartas que a fonte não acha.
+ *
+ * @see games/data/draftfut_fotos_locais.php
+ */
+function draftFutFotosLocais(): array
+{
+    static $f = null;
+    if ($f !== null) return $f;
+    $arq = __DIR__ . '/../data/draftfut_fotos_locais.php';
+    $f = is_file($arq) ? (array)require $arq : [];
+    return $f;
 }
 
 /**

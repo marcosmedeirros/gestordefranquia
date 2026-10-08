@@ -246,6 +246,7 @@ function draftFutBaralho(): array
        São 321 clubes com elenco real, de sobra pra um draft de onze. */
     $extra  = draftFutExtras();
     $trocas = draftFutTransferencias();
+    $locais = draftFutFotosLocais();
 
     /* Liga e escudo por clube, pra a carta de quem trocou nascer já com os do
        clube novo. Sai do mesmo catálogo, então não há segunda fonte. */
@@ -289,7 +290,15 @@ function draftFutBaralho(): array
                 'liga'   => $lg,
                 'escudo' => $esc,
                 'nac'    => draftFutNacao($nome, $nm, $ex),
-                'foto'   => (string)($ex['foto'] ?? ''),
+                /* A FOTO DA FONTE VEM PRIMEIRO; a que entrou à mão cobre o
+                   buraco. A chave da local é CLUBE|NOME, e procura-se pelos
+                   DOIS clubes — o de origem e o de destino —, porque o
+                   arquivo pode ter sido gerado antes ou depois da
+                   transferência. Procurar só por um fez o Vitinho ficar sem
+                   cara: a foto dele foi gravada como "Al Ettifaq|Vitinho" e
+                   a busca perguntava por "Botafogo|Vitinho". */
+                'foto'   => (string)($ex['foto'] ?? '')
+                            ?: (string)($locais[$nome . '|' . $nm] ?? $locais[$clube . '|' . $nm] ?? ''),
             ];
         }
     }
