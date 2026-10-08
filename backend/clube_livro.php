@@ -126,8 +126,14 @@ function clubeLivroMembros(PDO $pdo): array
 function clubeLivroEnquetes(PDO $pdo, int $userId): array
 {
     clubeLivroTabelas($pdo);
+    /* SO AS ABERTAS. Pedido do Marcos (08/10/2026): "apos escolher o livro
+       ou musica, fecha as enquetes, nao mostra mais elas, so o do livro
+       atual". A enquete encerrada ficava na tela com o resultado, e a aba
+       virava um empilhado de votacoes velhas em cima do que importa, que e
+       o livro de agora. O historico nao se perde: os votos continuam no
+       banco, so nao disputam a tela. */
     $enquetes = $pdo->query("SELECT id, pergunta, multi, status FROM clube_livro_enquetes
-                          ORDER BY status = 'aberta' DESC, id DESC LIMIT 8")
+                              WHERE status = 'aberta' ORDER BY id DESC LIMIT 8")
                     ->fetchAll(PDO::FETCH_ASSOC);
     $ops = $pdo->prepare("SELECT o.id, o.texto, COUNT(v.id) votos
                             FROM clube_livro_enquete_opcoes o

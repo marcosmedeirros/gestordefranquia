@@ -604,16 +604,29 @@ function clubeSemanaGirar(PDO $pdo): void
  * livro só sairia em novembro. Não é um bypass do rito: a rodada ocupa a
  * âncora vigente, então a próxima nasce no dia certo, sozinha, como sempre.
  *
- * @param string $vira  quando a etapa do gênero fecha (só o livro usa)
- * @param string $fecha quando a rodada fecha e o escolhido sai
+ * ── ANTECIPAR A RODADA QUE AINDA VEM ─────────────────────────────────
+ *
+ * Com `$ancora`, a rodada nasce já na sexta que vem em vez da âncora
+ * vigente, e é isso que faz "começar agora" ser ANTECIPAR e não DUPLICAR:
+ * ocupando a âncora de sexta, o `clubeSemanaGirar` das 9h encontra a rodada
+ * de pé e não cria outra. Com a âncora vigente aconteceria o contrário —
+ * uma rodada hoje e outra amanhã, a liga votando em duas listas.
+ *
+ * Pedido do Marcos (08/10/2026): "que comece a partir de agora as votações
+ * e nao as 9h de amanha".
+ *
+ * @param string  $vira   quando a etapa do gênero fecha (só o livro usa)
+ * @param string  $fecha  quando a rodada fecha e o escolhido sai
+ * @param ?string $ancora a sexta que a rodada ocupa; null usa a vigente
  * @return bool false quando já existe rodada nessa âncora — não se abre
  *         duas, senão a liga vota em duas listas ao mesmo tempo.
  */
-function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fecha): bool
+function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fecha,
+                                ?string $ancora = null): bool
 {
     clubeSemanaTabelas($pdo);
     if (!isset(CLUBE_SEMANA_TIPOS[$tipo])) return false;
-    $ancora = clubeSemanaAncora($tipo);
+    $ancora = $ancora ?: clubeSemanaAncora($tipo);
     try {
         $st = $pdo->prepare('SELECT id FROM clube_semana_ciclos WHERE tipo = ? AND semana = ?');
         $st->execute([$tipo, $ancora]);
@@ -731,6 +744,21 @@ function clubeSemanaEnquete(PDO $pdo, string $tipo, int $userId): ?array
                           WHERE tipo = ? AND semana = ? AND status <> 'definido'");
     $st->execute([$tipo, clubeSemanaAncora($tipo)]);
     $v = $st->fetch(PDO::FETCH_ASSOC);
+
+    /* A RODADA ANTECIPADA AINDA NÃO É DA ÂNCORA DE HOJE — ela ocupa a sexta
+       que vem. Procurar só pela âncora a deixaria invisível justamente nas
+       horas que ela ganhou: quem abrisse o Clube não veria enquete nenhuma
+       até as 9h, que é a hora que ela existe pra adiantar. Quem manda aqui é
+       o relógio DELA: janela própria aberta, rodada de pé. */
+    if (!$v) {
+        $st = $pdo->prepare("SELECT id, semana, status, genero_escolhido, vira_em, fecha_em
+                               FROM clube_semana_ciclos
+                              WHERE tipo = ? AND status <> 'definido'
+                                AND fecha_em IS NOT NULL AND fecha_em > FROM_UNIXTIME(?)
+                           ORDER BY semana ASC LIMIT 1");
+        $st->execute([$tipo, clubeSemanaAgora()]);
+        $v = $st->fetch(PDO::FETCH_ASSOC);
+    }
     if (!$v) return null;
 
     $v['etapa'] = $v['status'] === 'genero' ? 'genero' : 'obra';
