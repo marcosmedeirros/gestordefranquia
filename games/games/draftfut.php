@@ -30,6 +30,7 @@ error_reporting(E_ALL);
 
 require '../core/conexao.php';
 require_once __DIR__ . '/../core/draftfut_partida.php';
+require_once __DIR__ . '/../core/draftfut_duelo.php';
 require_once __DIR__ . '/draftfut_carta.php';
 
 if (!isset($_SESSION['user_id'])) { header('Location: /login.php'); exit; }
@@ -76,21 +77,6 @@ function dfTabelas(PDO $pdo): void
 }
 dfTabelas($pdo);
 
-/** O saldo de moedas de quem está jogando. */
-function dfMoedas(PDO $pdo, int $uid): int
-{
-    $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
-    $st->execute([$uid]);
-    return (int)$st->fetchColumn();
-}
-
-/** Mexe no saldo. Negativo cobra, positivo paga. Nunca deixa abaixo de zero. */
-function dfMoedasMexer(PDO $pdo, int $uid, int $delta): void
-{
-    $pdo->prepare('UPDATE games_usuarios SET pontos = GREATEST(0, pontos + ?) WHERE id = ?')
-        ->execute([$delta, $uid]);
-}
-
 $msg = null; $erro = null;
 $d = &$_SESSION['draftfut'];
 
@@ -104,9 +90,108 @@ if (!isset($_SESSION['draftfut_formacoes'])) {
 }
 $formacoesNaMesa = draftFutFormacoesSorteadas((int)$_SESSION['draftfut_formacoes']);
 
+/* ── O DUELO EM QUE ESTE GM ESTÁ ──────────────────────────────────────
+   Carregado antes das ações porque quase toda ação depende dele: começar um
+   draft dentro do duelo não cobra entrada (a aposta já saiu), e terminar não
+   joga contra a máquina, fecha o lado e espera o outro. */
+dfdTabelas($pdo);
+$duelo = dfdMeuDuelo($pdo, $user_id);
+
+/* O duelo que acabou continua na tela de CADA UM dos dois até fechar. A
+   marca é no banco, por lado (@see dfdResultadoPendente): guardá-la na sessão
+   mostrava o placar só pra quem disparou a partida, e pro outro GM o duelo
+   simplesmente sumia. */
+$dueloFim = $duelo ? null : dfdResultadoPendente($pdo, $user_id);
+
+/* Qual tela o GM pediu: o salão, o modo bot ou o multiplayer. */
+$vista = (string)($_GET['v'] ?? $_POST['v'] ?? '');
+
 /* ═══════════════════════════ AÇÕES ══════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string)($_POST['acao'] ?? '');
+
+    /* ── CRIAR DUELO ─────────────────────────────────────────────────
+       A aposta sai AGORA, não no fim: cobrar só no fim deixaria o perdedor
+       sem saldo e a dívida sem cobrança. O esquema é sorteado por duelo, e a
+       semente guardada — é ela que faz os dois verem a mesma partida e
+       receberem a mesma mão de cinco esquemas. */
+    if ($acao === 'duelo_criar') {
+        $aposta = (int)($_POST['aposta'] ?? 0);
+        if ($duelo) {
+            $erro = 'Você já está num duelo. Termine ou cancele antes de abrir outro.';
+        } elseif (!in_array($aposta, DFD_APOSTAS, true)) {
+            $erro = 'Aposta inválida.';
+        } elseif (dfMoedas($pdo, $user_id) < $aposta) {
+            $erro = 'Você não tem ' . $aposta . ' moedas pra essa aposta.';
+        } else {
+            try {
+                $codigo = dfdGerarCodigo($pdo);
+                $pdo->beginTransaction();
+                $pdo->prepare('INSERT INTO draftfut_duelos (codigo, id_criador, aposta, semente)
+                               VALUES (?,?,?,?)')
+                    ->execute([$codigo, $user_id, $aposta, random_int(1, 2000000000)]);
+                dfMoedasMexer($pdo, $user_id, -$aposta);
+                $pdo->commit();
+                $duelo = dfdPorCodigo($pdo, $codigo);
+                $msg = 'Duelo aberto! Manda o código ' . $codigo . ' pro seu adversário.';
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $erro = 'Não consegui abrir o duelo. Tente de novo.';
+                error_log('[draftfut] criar duelo: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /* ── ENTRAR NUM DUELO ───────────────────────────────────────────── */
+    if ($acao === 'duelo_entrar') {
+        $cod = strtoupper(trim((string)($_POST['codigo'] ?? '')));
+        $alvo = $cod === '' ? null : dfdPorCodigo($pdo, $cod);
+        if ($duelo) {
+            $erro = 'Você já está num duelo.';
+        } elseif (!$alvo) {
+            $erro = 'Não achei duelo com esse código.';
+        } elseif ((int)$alvo['id_criador'] === $user_id) {
+            $erro = 'Esse duelo é o seu — manda o código pra outra pessoa.';
+        } elseif ($alvo['id_desafiado'] !== null) {
+            $erro = 'Esse duelo já tem adversário.';
+        } elseif (dfMoedas($pdo, $user_id) < (int)$alvo['aposta']) {
+            $erro = 'A aposta desse duelo é ' . (int)$alvo['aposta'] . ' moedas e você não tem.';
+        } else {
+            $pdo->beginTransaction();
+            try {
+                /* A TRANCA É O UPDATE CONDICIONAL: dois GMs digitando o mesmo
+                   código ao mesmo tempo entram aqui juntos, e só um sai com
+                   linha afetada. Sem isso, os dois pagariam a aposta e um
+                   ficaria de fora do duelo que pagou. */
+                $up = $pdo->prepare("UPDATE draftfut_duelos
+                                        SET id_desafiado = ?, status = 'montando', entrou_em = NOW()
+                                      WHERE id = ? AND id_desafiado IS NULL");
+                $up->execute([$user_id, (int)$alvo['id']]);
+                if ($up->rowCount() !== 1) throw new RuntimeException('duelo tomado');
+                dfMoedasMexer($pdo, $user_id, -(int)$alvo['aposta']);
+                $pdo->commit();
+                $duelo = dfdPorCodigo($pdo, $cod);
+                $msg = 'Você entrou no duelo! Monte o seu time.';
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                $erro = 'Alguém entrou nesse duelo antes de você.';
+            }
+        }
+    }
+
+    if ($acao === 'duelo_cancelar' && $duelo) {
+        if (dfdCancelar($pdo, $duelo, $user_id)) {
+            $duelo = null; $d = null;
+            $msg = 'Duelo cancelado e aposta devolvida.';
+        } else {
+            $erro = 'Esse duelo já tem adversário — não dá mais pra cancelar.';
+        }
+    }
+
+    if ($acao === 'duelo_fechar' && $dueloFim) {
+        dfdMarcarVisto($pdo, (int)$dueloFim['id'], dfdLado($dueloFim, $user_id));
+        $dueloFim = null;
+    }
 
     if ($acao === 'comecar') {
         $formacao = (string)($_POST['formacao'] ?? '');
@@ -115,13 +200,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            da mão que a pessoa recebeu. */
         if (!in_array($formacao, $formacoesNaMesa, true)) {
             $erro = 'Formação inválida.';
-        } elseif (dfMoedas($pdo, $user_id) < DF_ENTRADA) {
+        } elseif (!$duelo && dfMoedas($pdo, $user_id) < DF_ENTRADA) {
             $erro = 'Você precisa de ' . DF_ENTRADA . ' moedas pra entrar no draft.';
         } else {
-            dfMoedasMexer($pdo, $user_id, -DF_ENTRADA);
+            /* DENTRO DO DUELO A ENTRADA NÃO É COBRADA: a aposta já saiu quando
+               o duelo foi aberto ou aceito. Cobrar de novo seria cobrar duas
+               vezes pela mesma partida. */
+            if (!$duelo) dfMoedasMexer($pdo, $user_id, -DF_ENTRADA);
             $d = ['formacao' => $formacao, 'time' => array_fill(0, DFUT_TOTAL, null),
-                  'usados' => [], 'aberta' => null, 'opcoes' => null, 'resultado' => null];
-            $msg = 'Boa sorte! Entrada de ' . DF_ENTRADA . ' moedas paga.';
+                  'usados' => [], 'aberta' => null, 'opcoes' => null, 'resultado' => null,
+                  'duelo' => $duelo ? (int)$duelo['id'] : null];
+            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
+            $msg = $duelo
+                ? 'Monte o seu time. O adversário monta o dele quando puder.'
+                : 'Boa sorte! Entrada de ' . DF_ENTRADA . ' moedas paga.';
         }
     }
 
@@ -145,6 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $c = $d['opcoes'][$i];
             $d['time'][$d['aberta']] = $c;
             $d['usados'][] = $c['nome'];
+            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
             $d['aberta'] = null;
             $d['opcoes'] = null;
         }
@@ -165,6 +258,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($a >= 0 && $b >= 0 && $a < DFUT_TOTAL && $b < DFUT_TOTAL && $a !== $b
             && !empty($d['time'][$a]) && !empty($d['time'][$b])) {
             $tmp = $d['time'][$a]; $d['time'][$a] = $d['time'][$b]; $d['time'][$b] = $tmp;
+            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
+        }
+    }
+
+    /* ── FECHAR O LADO DO DUELO ──────────────────────────────────────
+       No duelo não se "joga": grava-se o time e espera. A partida roda
+       sozinha quando o segundo lado fecha (@see dfdRodarSeDerPra), com a
+       semente do duelo — é isso que faz os dois verem a mesma narração. */
+    if ($acao === 'duelo_jogar' && $d && $duelo && draftFutCampoCheio($d)) {
+        $nome = trim((string)($_POST['nome'] ?? ''));
+        if ($nome === '') $nome = 'Time de ' . ($_SESSION['user_name'] ?? 'GM');
+        dfdFinalizarLado($pdo, $duelo, $user_id, mb_substr($nome, 0, 60), $d);
+        $st = $pdo->prepare('SELECT * FROM draftfut_duelos WHERE id = ?');
+        $st->execute([(int)$duelo['id']]);
+        $duelo = $st->fetch(PDO::FETCH_ASSOC) ?: $duelo;
+        $duelo = dfdRodarSeDerPra($pdo, $duelo);
+        $d = null;
+        if ($duelo['status'] === 'concluido') {
+            $dueloFim = $duelo; $duelo = null;
+            $msg = 'Os dois times ficaram prontos — a partida saiu!';
+        } else {
+            $msg = 'Time guardado. Falta o adversário terminar o dele.';
         }
     }
 
@@ -245,6 +360,17 @@ function draftFutCampoCheio(array $d): bool
     return true;
 }
 
+/* O DRAFT DO DUELO VOLTA DO BANCO quando a sessão não o tem: é o que
+   permite fechar o navegador no meio e voltar onde parou — sem isso, "cada um
+   monta no seu tempo" só valeria enquanto a aba ficasse aberta. */
+if ($duelo && !$d) {
+    $meuLado = dfdLado($duelo, $user_id);
+    if (!(int)$duelo['pronto_' . $meuLado]) {
+        $guardado = dfdLerDraft($duelo, $meuLado);
+        if ($guardado && !empty($guardado['formacao'])) $d = $guardado;
+    }
+}
+
 $moedas = dfMoedas($pdo, $user_id);
 
 /* ── A TELA "TIME PRONTO" ESTAVA INALCANÇÁVEL ────────────────────────
@@ -303,6 +429,86 @@ a{color:inherit}
 .btn:hover{border-color:var(--vermelho)}
 .btn.pri{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── O SALÃO, O MULTIPLAYER E O DUELO ────────────────────────────── */
+.salao-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.salao-topo h2{margin:0}
+.salao-h3{margin:18px 0 6px;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.4px}
+
+.modos{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
+.modo-card{display:flex;flex-direction:column;gap:5px;background:var(--panel2);
+  border:1px solid var(--borda);border-radius:12px;padding:16px;text-decoration:none;color:var(--txt);
+  transition:border-color .15s,transform .15s}
+.modo-card:hover{border-color:var(--vermelho);transform:translateY(-2px)}
+.modo-card i{font-size:22px;color:var(--amarelo)}
+.modo-card b{font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.5px}
+.modo-card small{color:var(--txt3);font-size:11.5px;line-height:1.4}
+
+.apostas{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:9px}
+.aposta-card{background:var(--panel2);border:1px solid var(--borda);border-radius:11px;padding:12px 8px;
+  cursor:pointer;font:inherit;color:var(--txt);display:flex;flex-direction:column;gap:1px;align-items:center}
+.aposta-card:hover:not(:disabled){border-color:var(--amarelo)}
+.aposta-card:disabled{opacity:.4;cursor:not-allowed}
+.aposta-card b{font-family:'Oswald',sans-serif;font-size:21px;color:var(--amarelo)}
+.aposta-card small{color:var(--txt3);font-size:10.5px}
+
+.entrar-cod{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.entrar-cod input{background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
+  color:var(--txt);padding:11px 14px;font:inherit;font-size:19px;font-family:'Oswald',sans-serif;
+  letter-spacing:4px;text-transform:uppercase;width:160px;text-align:center}
+
+.codigo-caixa{display:flex;flex-direction:column;align-items:center;gap:4px;padding:20px 14px;
+  background:var(--panel3);border:1px dashed var(--borda2);border-radius:14px}
+.codigo-caixa .cod{font-family:'Oswald',sans-serif;font-size:40px;letter-spacing:9px;
+  color:var(--amarelo);line-height:1}
+.codigo-caixa .cod-sub{color:var(--txt3);font-size:12.5px}
+.duelo-acoes{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+
+.duelo-lados{display:flex;align-items:center;gap:12px;margin-top:6px}
+.dlado{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--borda);border-radius:11px;
+  padding:11px 13px;display:flex;flex-direction:column;gap:2px}
+.dlado.ok{border-color:var(--verde);background:rgba(34,197,94,.08)}
+.dlado b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlado small{color:var(--txt3);font-size:11.5px}
+.dvs{font-family:'Oswald',sans-serif;font-size:17px;color:var(--txt3);flex:0 0 auto}
+
+.duelo-fim{display:flex;flex-direction:column;align-items:center;gap:5px;padding:22px 14px;
+  border-radius:14px;border:1px solid var(--borda2);background:var(--panel3)}
+.duelo-fim.ganhou{border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.1)}
+.duelo-fim.perdeu{border-color:rgba(252,0,37,.4);background:rgba(252,0,37,.08)}
+.duelo-fim .df-rot{font-family:'Oswald',sans-serif;font-size:17px;letter-spacing:.5px}
+.duelo-fim .df-placar{font-family:'Oswald',sans-serif;font-size:46px;line-height:1}
+.duelo-fim .df-placar i{color:var(--txt3);font-style:normal;font-size:28px}
+.duelo-fim .df-times{color:var(--txt2);font-size:13px;text-align:center}
+.duelo-fim .df-times i{color:var(--txt3);font-style:normal}
+.duelo-fim .df-premio{margin-top:3px;font-weight:700;font-size:13px;color:var(--amarelo)}
+
+.rank-lista{display:flex;flex-direction:column;gap:5px}
+.rank-l{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;
+  background:var(--panel2);border:1px solid var(--borda);border-radius:9px;padding:8px 11px;font-size:13px}
+.rank-l.eu{border-color:var(--vermelho);background:rgba(252,0,37,.07)}
+.rank-l .rk-pos{text-align:center;font-weight:800;color:var(--txt3);font-size:12px}
+.rank-l:nth-child(1) .rk-pos{color:#f5c542}
+.rank-l .rk-gm{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-l .rk-nums{color:var(--txt2);font-size:12px;white-space:nowrap}
+.rank-l .rk-nums b{color:var(--verde);font-size:14px}
+.rank-l .rk-nums small{color:var(--txt3);margin-left:6px}
+
+.confrontos{display:flex;flex-direction:column;gap:5px}
+.conf-l{display:grid;grid-template-columns:1fr auto 1fr auto;gap:10px;align-items:center;
+  background:var(--panel2);border:1px solid var(--borda);border-radius:9px;padding:8px 11px;font-size:12.5px}
+.conf-l .cf-time{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt2)}
+.conf-l .cf-time:last-of-type{text-align:right}
+.conf-l .cf-time.venceu{color:var(--txt);font-weight:700}
+.conf-l .cf-time small{color:var(--txt3);margin-left:5px}
+.conf-l .cf-placar{font-family:'Oswald',sans-serif;font-size:16px;white-space:nowrap}
+.conf-l .cf-placar i{color:var(--txt3);font-style:normal;font-size:12px}
+.conf-l .cf-peso{font-size:11px;color:var(--txt3);font-weight:700}
+@media (max-width:620px){
+  .conf-l{grid-template-columns:1fr auto 1fr;row-gap:2px}
+  .conf-l .cf-peso{display:none}
+  .entrar-cod input{width:100%}
+}
 
 /* Formações */
 .forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -576,13 +782,51 @@ a{color:inherit}
 <?php if ($msg): ?><div class="aviso ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($erro): ?><div class="aviso err"><?= e($erro) ?></div><?php endif; ?>
 
-<?php if (!$d): ?>
-  <?php /* ── 1. ESCOLHER A FORMAÇÃO ─────────────────────────────── */ ?>
+<?php if ($dueloFim): ?>
+  <?php /* ── O DUELO QUE ACABOU ─────────────────────────────────── */ ?>
+  <?php include __DIR__ . '/draftfut_duelo_tela.php'; ?>
+
+<?php elseif (!$d && $duelo): ?>
+  <?php /* ── DENTRO DE UM DUELO, SEM TIME MONTADO ────────────────
+         A tela do duelo diz onde ele está, e a escolha de esquema aparece
+         embaixo quando ainda dá pra montar. */ ?>
+  <?php include __DIR__ . '/draftfut_duelo_tela.php'; ?>
+  <?php if (!(int)$duelo['pronto_' . dfdLado($duelo, $user_id)]): ?>
+    <div class="bloco">
+      <h2>Escolha a formação</h2>
+      <p class="sub">Depois de começar você não troca mais — e as cinco cartas de cada
+         vaga dependem dela. Neste duelo a entrada já foi paga na aposta.</p>
+      <div class="forms">
+        <?php foreach ($formacoesNaMesa as $nome): $vagas = DFUT_FORMACOES[$nome]; ?>
+          <form method="POST">
+            <input type="hidden" name="acao" value="comecar">
+            <input type="hidden" name="formacao" value="<?= e($nome) ?>">
+            <button class="form-card" type="submit">
+              <b><?= e($nome) ?></b>
+              <small><?= e(implode(' · ', array_slice(array_unique(array_column($vagas, 0)), 0, 5))) ?></small>
+            </button>
+          </form>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
+<?php elseif (!$d && $vista !== 'bot'): ?>
+  <?php /* ── O SALÃO: modos, ranking e confrontos ────────────────── */ ?>
+  <?php include __DIR__ . '/draftfut_salao.php'; ?>
+
+<?php elseif (!$d): ?>
+  <?php /* ── 1. ESCOLHER A FORMAÇÃO (modo bot) ──────────────────── */ ?>
   <div class="bloco">
-    <h2>Escolha a formação</h2>
-    <p class="sub">Depois de começar você não troca mais — e as cinco cartas de cada vaga
-       dependem dela. Entrada: <b><?= DF_ENTRADA ?> moedas</b>. Vitória paga
+    <div class="salao-topo">
+      <h2>Contra o bot</h2>
+      <a class="btn" href="?"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+    <p class="sub">Entrada: <b><?= DF_ENTRADA ?> moedas</b>. Vitória paga
        <b><?= DF_VITORIA ?></b>, empate <b><?= DF_EMPATE ?></b>.</p>
+    <h3 class="salao-h3">Escolha a formação</h3>
+    <p class="sub">Cinco esquemas sorteados de treze. Depois de começar você não troca
+       mais — e as cinco cartas de cada vaga dependem dele.</p>
     <div class="forms">
       <?php foreach ($formacoesNaMesa as $nome): $vagas = DFUT_FORMACOES[$nome]; ?>
         <form method="POST">
@@ -653,93 +897,43 @@ a{color:inherit}
       <div class="num"><b><?= $quim['total'] ?><small style="opacity:.5">/33</small></b><small>Química</small></div>
       <div class="num"><b><?= e($d['formacao']) ?></b><small>Formação</small></div>
     </div>
-    <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <input type="hidden" name="acao" value="jogar">
-      <input type="text" name="nome" maxlength="60" placeholder="Nome do seu time" required
-             style="background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
-                    color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;flex:1;min-width:180px">
-      <button class="btn pri" type="submit" name="modo" value="maquina">
-        <i class="bi bi-cpu"></i> Contra a máquina</button>
-      <button class="btn" type="submit" name="modo" value="pvp">
-        <i class="bi bi-people-fill"></i> Contra outro GM</button>
-    </form>
-    <p class="sub" style="margin:10px 0 0;font-size:12px">
-      Sem nenhum time de GM na sua faixa de força, o jogo cai na máquina — e avisa.</p>
+    <?php if (!empty($d['duelo'])): ?>
+      <?php /* NO DUELO NÃO SE ESCOLHE ADVERSÁRIO: ele já está do outro lado.
+               Fechar aqui guarda o time e espera — a partida sai sozinha
+               quando o segundo terminar. */ ?>
+      <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="hidden" name="acao" value="duelo_jogar">
+        <input type="text" name="nome" maxlength="60" placeholder="Nome do seu time" required
+               style="background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
+                      color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;flex:1;min-width:180px">
+        <button class="btn pri" type="submit">
+          <i class="bi bi-check2-circle"></i> Time pronto pro duelo</button>
+      </form>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">
+        Depois disso não dá pra mexer no time. A partida roda quando o adversário
+        terminar o dele.</p>
+    <?php else: ?>
+      <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="hidden" name="acao" value="jogar">
+        <input type="text" name="nome" maxlength="60" placeholder="Nome do seu time" required
+               style="background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
+                      color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;flex:1;min-width:180px">
+        <button class="btn pri" type="submit" name="modo" value="maquina">
+          <i class="bi bi-cpu"></i> Contra o bot</button>
+        <button class="btn" type="submit" name="modo" value="pvp">
+          <i class="bi bi-people-fill"></i> Contra time salvo</button>
+      </form>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">
+        Sem nenhum time de GM na sua faixa de força, o jogo cai no bot — e avisa.
+        Pra duelar com alguém de verdade, use o <a href="?v=multi">multiplayer</a>.</p>
+    <?php endif; ?>
   </div>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>
 
 <?php else:
-  $r = $d['resultado']; $p = $r['partida']; ?>
-  <div class="bloco">
-    <h2>Partida</h2>
-    <div class="relogio" id="relogio">0'</div>
-    <div class="placar">
-      <div class="t"><b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?>/<?= DFUT_VAGAS * 3 ?></small></div>
-      <?php /* O PLACAR COMEÇA EM 0x0 E ANDA COM A NARRAÇÃO. Ele vinha pronto,
-           com os lances contando depois o que já estava escrito em cima —
-           era ler a última página antes do livro. Agora o gol aparece no
-           minuto em que acontece. */ ?>
-      <div class="g"><span id="gc">0</span> <span style="color:var(--txt3)">x</span> <span id="gf">0</span></div>
-      <div class="t"><b><?= e($r['adv']['nome']) ?></b><small>força <?= $r['adv']['forca'] ?>
-        · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'máquina' ?></small></div>
-    </div>
-    <div class="narra" id="narra"></div>
-    <div id="fecho" style="display:none">
-      <div style="text-align:center;margin:14px 0">
-        <?php if ($r['premio'] > 0): ?>
-          <span class="aviso ok" style="display:inline-block"><i class="bi bi-coin"></i>
-            +<?= $r['premio'] ?> moedas</span>
-        <?php else: ?>
-          <span class="aviso err" style="display:inline-block">Sem prêmio dessa vez.</span>
-        <?php endif; ?>
-      </div>
-      <form method="POST" style="text-align:center"><input type="hidden" name="acao" value="novo">
-        <button class="btn pri" type="submit"><i class="bi bi-arrow-repeat"></i> Novo draft</button></form>
-    </div>
-    <div style="margin-top:14px;text-align:center">
-      <button class="btn" type="button" id="pular">Pular pro fim</button>
-    </div>
-  </div>
-  <?php include __DIR__ . '/draftfut_campo.php'; ?>
-  <script>
-  /* A PARTIDA PASSA, ELA NÃO É LIDA. O relógio anda, o placar vira no
-     minuto do gol e o prêmio só aparece no apito final — quem está vendo
-     não sabe o resultado até ele acontecer. "Pular pro fim" existe pra
-     quem já viu essa parte. */
-  const LANCES = <?= json_encode($p['lances'], JSON_UNESCAPED_UNICODE) ?>;
-  const alvo = document.getElementById('narra');
-  const elGc = document.getElementById('gc'), elGf = document.getElementById('gf');
-  const elRel = document.getElementById('relogio'), elG = document.querySelector('.placar .g');
-  let i = 0, timer = null;
-
-  function desenha(l, animar){
-    const d = document.createElement('div');
-    d.className = 'lance ' + l.tipo;
-    if (!animar) d.style.animation = 'none';
-    d.innerHTML = `<span class="m">${l.min}'</span><span>${l.texto}</span>`;
-    alvo.appendChild(d);
-    alvo.scrollTop = alvo.scrollHeight;
-
-    elRel.textContent = l.min + "'";
-    if (l.casa !== undefined) {
-      const virou = elGc.textContent != l.casa || elGf.textContent != l.fora;
-      elGc.textContent = l.casa; elGf.textContent = l.fora;
-      if (virou && animar) { elG.classList.add('pulsa'); setTimeout(() => elG.classList.remove('pulsa'), 240); }
-    }
-    if (l.tipo === 'fim') document.getElementById('fecho').style.display = '';
-  }
-
-  function passo(){
-    if (i >= LANCES.length) { clearInterval(timer); return; }
-    desenha(LANCES[i++], true);
-  }
-  timer = setInterval(passo, 850);
-  passo();
-  document.getElementById('pular').onclick = () => {
-    clearInterval(timer);
-    while (i < LANCES.length) desenha(LANCES[i++], false);
-  };
-  </script>
+  $r = $d['resultado']; $p = $r['partida'];
+  include __DIR__ . '/draftfut_narracao.php';
+  include __DIR__ . '/draftfut_campo.php'; ?>
 <?php endif; ?>
 </div>
 <script>

@@ -53,11 +53,15 @@ const DFUTP_LANCES  = 18;
  * @param int   $semente  mesma semente, mesma partida
  * @return array ['placar'=>[a,b], 'lances'=>[...], 'estat'=>[...]]
  */
-function draftFutPartida(array $casa, array $fora, int $semente): array
+function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = null): array
 {
     mt_srand($semente);
 
-    $fCasa = (int)$casa['forca'] + DFUTP_MANDO;
+    /* O MANDO É OPCIONAL, e no duelo por código ele é ZERO. O padrão vale
+       contra o bot, onde o GM joga em casa e o adversário é gerado. Entre dois
+       GMs não há casa: quem criou o duelo não pode ganhar três pontos de força
+       por ter clicado primeiro. */
+    $fCasa = (int)$casa['forca'] + ($mando ?? DFUTP_MANDO);
     $fFora = (int)$fora['forca'];
 
     /* A FATIA DE CADA UM NOS LANCES sai da diferença de força. O divisor é
