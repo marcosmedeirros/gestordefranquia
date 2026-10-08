@@ -28,7 +28,26 @@ function requireAuth() {
         require_once __DIR__ . '/link_preview.php';
         responderPreviewSeRobo();
 
-        header('Location: /login.php');
+        /* ── O LINK LEVA PRA ONDE ELE APONTA ─────────────────────────
+           Quem recebe um link do grupo e não está logado caía no login e,
+           depois de entrar, no dashboard — a página que ele queria ficava
+           pra trás, e o link virava "entra aí e procura". O login já sabe
+           voltar pra um destino (@see js/login.js, safeNextUrl); faltava
+           alguém dizer qual é.
+
+           Só o caminho interno vai junto, e só em GET: POST não se repete
+           depois do login, e mandar "//host" como destino é o jeito
+           clássico de usar o login de um site pra jogar alguém em outro. */
+        $destino = '';
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+            $uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+            if ($uri !== '' && $uri[0] === '/'
+                && strncmp($uri, '//', 2) !== 0 && strncmp($uri, '/\\', 2) !== 0
+                && strpos($uri, '/login.php') !== 0) {
+                $destino = '?next=' . rawurlencode($uri);
+            }
+        }
+        header('Location: /login.php' . $destino);
         exit;
     }
     

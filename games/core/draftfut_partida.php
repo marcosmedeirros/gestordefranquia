@@ -234,15 +234,26 @@ function draftFutTextoLance(string $a, string $time): string
  * sorteado do baralho inteiro seria fraco demais ou impossível, e nos dois
  * casos o jogo acaba na primeira partida. Assim o draft bem montado sempre
  * encara alguém à altura, e o mérito vem de jogar, não de ter tido sorte.
+ *
+ * ── NINGUÉM JOGA DOS DOIS LADOS ──────────────────────────────────────
+ *
+ * `$jaEmCampo` são os nomes do time de quem está jogando. Sem isso o bot
+ * sorteava do baralho inteiro e podia escalar exatamente a mesma carta: a
+ * tela das escalações mostrou o Emiliano Martínez no gol dos dois times, com
+ * a mesma foto e o mesmo OVR, o que é um erro visível de um lado ao outro da
+ * mesma página. Dentro do próprio time isso já era impedido por `$usados`;
+ * faltava o outro lado.
  */
-function draftFutAdversarioDaMaquina(int $forcaAlvo, int $semente): array
+function draftFutAdversarioDaMaquina(int $forcaAlvo, int $semente, array $jaEmCampo = []): array
 {
     mt_srand($semente ^ 0x5EED);
     $alvo = $forcaAlvo + mt_rand(-3, 3);
     $formacao = array_rand(DFUT_FORMACOES);
     $vagas = DFUT_FORMACOES[$formacao];
 
-    $time = []; $usados = [];
+    /* Os nomes de lá entram como se já tivessem sido usados aqui — é
+       exatamente o que `$usados` quer dizer pro sorteio. */
+    $time = []; $usados = array_values(array_filter($jaEmCampo));
     foreach ($vagas as $i => [$rot, $pos]) {
         $ops = draftFutOpcoes($pos, $usados, max(50, $alvo - 6), min(99, $alvo + 6));
         if (!$ops) { $time[$i] = null; continue; }

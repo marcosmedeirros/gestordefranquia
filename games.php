@@ -606,6 +606,14 @@ $jogosLivres = [
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',
      'sub'  => 'Uma carreira no basquete', 'icone' => 'bi-dribbble', 'cor' => '#f97316'],
+    /* O FBA DRAFT ENTRA NA GRADE em 08/10/2026. Ele nasceu só por link —
+       "não coloca lá ainda, somente por link", 07/10 — enquanto as cartas, a
+       química e o duelo não estavam de pé. Agora estão, e o jogo tem o que
+       segurar quem chega pela lista: 5.500 cartas, duelo por link e um salão
+       com ranking. Vem por `href` porque é página inteira em /games/games/ e
+       não passa pelo carregador index.php?game=. */
+    ['href' => '/games/games/draftfut.php', 'nome' => 'FBA Draft',
+     'sub'  => 'Monte o time e duele', 'icone' => 'bi-dribbble', 'cor' => '#16a34a'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',

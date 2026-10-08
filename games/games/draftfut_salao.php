@@ -58,17 +58,35 @@
        aposta e um link não pode gastar moeda de ninguém sozinho. */
     $codDoLink = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['cod'] ?? '')));
     $codDoLink = mb_substr($codDoLink, 0, 8);
+
+    /* O LINK É PÚBLICO E CIRCULA NO GRUPO, então quem chega em terceiro é
+       caso normal, não erro de uso. O servidor já barra — a tranca é um
+       UPDATE com `id_desafiado IS NULL`, e ninguém é cobrado —, mas descobrir
+       isso só depois de clicar em "Entrar" é descobrir tarde. Aqui a tela diz
+       antes, e o botão nem aparece. */
+    $dueloDoLink = $codDoLink !== '' ? dfdPorCodigo($pdo, $codDoLink) : null;
+    $linkCheio   = $codDoLink !== '' && (!$dueloDoLink || $dueloDoLink['id_desafiado'] !== null);
     ?>
     <h3 class="salao-h3">Entrar com um código</h3>
-    <?php if ($codDoLink !== ''): ?>
-      <p class="sub" style="margin:0 0 8px">Você abriu um convite de duelo. Confira o
-         código e confirme pra entrar — a aposta sai só agora.</p>
+    <?php if ($linkCheio): ?>
+      <p class="sub" style="margin:0 0 8px;color:#ff5c7a">
+        <i class="bi bi-lock-fill"></i>
+        <?= $dueloDoLink ? 'Esse duelo já tem adversário' : 'Esse código não existe mais' ?> —
+        chegou alguém antes. Abra um seu aí em cima, ou peça outro código.</p>
+    <?php elseif ($codDoLink !== ''): ?>
+      <p class="sub" style="margin:0 0 8px">Você abriu um convite de duelo
+        <?php if (!empty($dueloDoLink['aposta'])): ?>
+          de <b><?= (int)$dueloDoLink['aposta'] ?> moedas</b>
+        <?php endif; ?>. Confirme pra entrar — a aposta sai só agora.</p>
     <?php endif; ?>
     <form method="POST" class="entrar-cod">
       <input type="hidden" name="acao" value="duelo_entrar">
+      <?php /* Código de duelo cheio não volta pro campo: deixá-lo ali convida
+               a clicar de novo no que já foi recusado. */ ?>
       <input type="text" name="codigo" maxlength="8" placeholder="A1B2C3" required
-             autocomplete="off" spellcheck="false" value="<?= e($codDoLink) ?>"
-             <?= $codDoLink === '' ? 'autofocus' : '' ?>>
+             autocomplete="off" spellcheck="false"
+             value="<?= e($linkCheio ? '' : $codDoLink) ?>"
+             <?= $codDoLink === '' || $linkCheio ? 'autofocus' : '' ?>>
       <button class="btn pri" type="submit"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
     </form>
     <p class="sub" style="margin-top:8px;font-size:12px">O código tem seis letras e números,

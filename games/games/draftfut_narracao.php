@@ -87,6 +87,12 @@ if (!isset($r, $p) || empty($p['lances'])) return;
       <button class="btn" type="button" id="pular">Pular pro fim</button>
     </div>
   </div>
+
+  <?php /* AS DUAS ESCALAÇÕES ficam logo abaixo do relógio, visíveis
+           enquanto a partida corre — é esse o ponto: ler o lance e achar
+           o nome na carta. @see draftfut_escalacoes.php */ ?>
+  <?php include __DIR__ . '/draftfut_escalacoes.php'; ?>
+
   <script>
   /* A PARTIDA PASSA, ELA NÃO É LIDA. O relógio anda, o placar vira no
      minuto do gol e o prêmio só aparece no apito final — quem está vendo
@@ -117,6 +123,9 @@ if (!isset($r, $p) || empty($p['lances'])) return;
       /* "Pular pro fim" no fim não leva a lugar nenhum. */
       var pc = document.getElementById('pularCaixa');
       if (pc) pc.style.display = 'none';
+      /* O quadro do placar do duelo esperou o apito pra aparecer. */
+      var df = document.getElementById('dueloFimCaixa');
+      if (df) df.style.display = '';
     }
   }
 

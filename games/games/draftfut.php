@@ -399,7 +399,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $modo = 'maquina';
         $advId = null;
         $semente = random_int(1, 2000000000);
-        $adv = draftFutAdversarioDaMaquina($forca, $semente);
+        /* O bot não repete quem já está no meu time. @see a função */
+        $adv = draftFutAdversarioDaMaquina($forca, $semente,
+                                           array_column(array_filter($time), 'nome'));
 
         $p = draftFutPartida(['nome' => $nome, 'formacao' => $formacao, 'time' => $time, 'forca' => $forca],
                              $adv, $semente);
@@ -421,7 +423,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            'premio' => $premio, 'forca' => $forca, 'quimica' => $quim, 'nome' => $nome,
                            /* O escudo da franquia do GM de um lado, o do clube do bot
                               do outro (@see dfdEscudoDoTime, draftFutAdversarioDaMaquina). */
-                           'escudo' => dfdEscudoDoTime($pdo, $user_id)];
+                           'escudo' => dfdEscudoDoTime($pdo, $user_id),
+                           /* O TIME INTEIRO VAI JUNTO, dos dois lados: é o que
+                              permite mostrar as escalações enquanto a partida
+                              corre. O adversário já vem completo em $adv. */
+                           'formacao' => $formacao, 'time' => $time];
     }
 
     /* ── DESISTIR DO DRAFT ───────────────────────────────────────────
@@ -846,6 +852,31 @@ a{color:inherit}
 /* O ESCUDO NO PLACAR. Tamanho fixo e `contain` porque os escudos vêm de
    fontes diferentes — PNG quadrado da thesportsdb, SVG da NBA, foto que o
    GM subiu — e sem isso cada time teria um tamanho de cabeça. */
+/* AS DUAS ESCALACOES. Duas colunas no desktop, uma embaixo da outra no
+   telefone — e as cartas numa grade que se adapta, porque a defesa tem
+   quatro e o ataque pode ter um. Largura minima de 62px: menor que isso
+   a carta mini perde o nome. */
+/* A BARRA DO PROGRESSO de cada lado no duelo. Fininha de propósito: ela
+   acompanha o número que está escrito ali do lado, não substitui. */
+.dbarra{display:block;height:4px;border-radius:3px;background:var(--panel3);
+  margin-top:7px;overflow:hidden}
+.dbarra i{display:block;height:100%;background:var(--amarelo);border-radius:3px;
+  transition:width .3s}
+.escalacoes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.esc-lado{background:var(--panel2);border:1px solid var(--borda);border-radius:13px;padding:12px}
+.esc-topo{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.esc-topo b{font-size:13.5px}
+.esc-topo small{color:var(--txt3);font-size:11.5px}
+.esc-esc{width:26px;height:26px;object-fit:contain;flex:0 0 auto}
+.esc-setor{color:var(--txt3);font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;
+  margin:10px 0 5px;font-weight:700}
+.esc-setor:first-of-type{margin-top:0}
+.esc-cartas{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:7px}
+.esc-carta{display:block;position:relative;aspect-ratio:.72}
+@media (max-width:620px){
+  .escalacoes{grid-template-columns:1fr;gap:12px}
+  .esc-cartas{grid-template-columns:repeat(auto-fill,minmax(56px,1fr))}
+}
 .pl-esc{width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px;
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
 .pl-mono{display:block;width:34px;height:34px;margin:0 auto 5px;border-radius:50%;
