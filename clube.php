@@ -131,7 +131,8 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
             ? 'Enquete de hoje — que gênero o clube lê esta semana?'
             : 'Enquete de hoje' . ($tipo === 'livro' && $v['genero_escolhido'] ? ' — ' . h($v['genero_escolhido']) : '') ?></div>
         <div class="sem-prazo"><?= $v['etapa'] === 'genero'
-              ? 'o gênero fecha às ' . h($v['hora_vira']) . '; os livros, às ' . h($v['hora_fecha'])
+              ? 'o gênero fecha ' . h($v['dia_fecha'] ?? 'hoje') . ' às ' . h($v['hora_vira'])
+                . '; os livros, às ' . h($v['hora_fecha'])
               : 'fecha ' . h($v['dia_fecha'] ?? 'hoje') . ' às ' . h($v['hora_fecha']) ?>
           · <?= (int)$v['total'] ?> voto<?= (int)$v['total'] === 1 ? '' : 's' ?><?=
             $v['meu'] ? ' · o seu está marcado' : '' ?></div>
