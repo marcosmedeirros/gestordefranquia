@@ -319,20 +319,31 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
         }
     }
 
-    /* O TIME DA SEMANA é mais comum que a lenda e mexe menos: pega UMA das
-       cartas comuns que sobraram e devolve ela de preto, com DFUT_TOTW_BONUS
-       a mais. Não entra onde já tem Ícone ou Herói — carta especial não vira
-       outra carta especial. */
-    if (mt_rand(1, 100) <= DFUT_TIPOS['totw']['peso']) {
-        $comuns = [];
-        foreach ($escolhidas as $k => $c) {
-            if (draftFutQuimicaDoTipo($c) === 'normal' && empty($c['tipo'])) $comuns[] = $k;
-        }
-        if ($comuns) {
-            $k = $comuns[mt_rand(0, count($comuns) - 1)];
-            $escolhidas[$k]['tipo'] = 'totw';
-            $escolhidas[$k]['ovr'] += DFUT_TOTW_BONUS;
-        }
+    /* ── AS COLEÇÕES ─────────────────────────────────────────────────
+       São mais comuns que a lenda e mexem menos: pegam UMA das cartas comuns
+       que sobraram e devolvem ela com outro desenho e um bônus de OVR. Só uma
+       por sorteio, e nunca por cima de Ícone ou Herói — carta especial não
+       vira outra carta especial.
+
+       Ordem importa: o Futuro é mais raro, então tenta primeiro. Se tentasse
+       depois, o Time da Semana já teria ocupado a vaga quase sempre. */
+    $comuns = [];
+    foreach ($escolhidas as $k => $c) {
+        if (draftFutQuimicaDoTipo($c) === 'normal' && empty($c['tipo'])) $comuns[] = $k;
+    }
+    $promo = null;
+    if ($comuns && mt_rand(1, 100) <= DFUT_TIPOS['futuro']['peso']) {
+        $jovens = array_values(array_filter($comuns,
+            fn($k) => (int)($escolhidas[$k]['idade'] ?? 99) <= DFUT_FUTURO_IDADE));
+        if ($jovens) $promo = [$jovens[mt_rand(0, count($jovens) - 1)], 'futuro', DFUT_FUTURO_BONUS];
+    }
+    if ($promo === null && $comuns && mt_rand(1, 100) <= DFUT_TIPOS['totw']['peso']) {
+        $promo = [$comuns[mt_rand(0, count($comuns) - 1)], 'totw', DFUT_TOTW_BONUS];
+    }
+    if ($promo !== null) {
+        [$k, $tipo, $bonus] = $promo;
+        $escolhidas[$k]['tipo'] = $tipo;
+        $escolhidas[$k]['ovr'] += $bonus;
     }
 
     usort($escolhidas, fn($a, $b) => $b['ovr'] <=> $a['ovr']);

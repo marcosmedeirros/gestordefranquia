@@ -328,6 +328,10 @@ a{color:inherit}
 .dfc-ouro{--dfc-bg:linear-gradient(157deg,#f7dd84 0%,#d6ab38 46%,#8a6316 100%);
   --dfc-tx:#2b2005;--dfc-bd:rgba(255,238,176,.8);--dfc-ac:#3a2a06;--dfc-lin:rgba(0,0,0,.24)}
 /* ÍCONE é branco-prata com brilho no alto, como o do EA FC. */
+/* FUTURO: o ciano da promoção de garoto, com o fio claro em cima. */
+.dfc-futuro{--dfc-bg:linear-gradient(157deg,#5ef0e0 0%,#15a9c9 44%,#0b3d78 100%);
+  --dfc-tx:#04222e;--dfc-bd:rgba(180,255,250,.8);--dfc-ac:#04222e;--dfc-lin:rgba(0,0,0,.22)}
+.dfc-futuro .dfc-selo{background:#04222e;color:#5ef0e0}
 /* TIME DA SEMANA: o preto da promoção, com fio dourado. */
 .dfc-totw{--dfc-bg:linear-gradient(157deg,#3a3f46 0%,#1b1e23 44%,#0a0c0e 100%);
   --dfc-tx:#f3f6f9;--dfc-bd:rgba(245,197,24,.62);--dfc-ac:#f5c518;--dfc-lin:rgba(255,255,255,.14)}
@@ -338,9 +342,13 @@ a{color:inherit}
 .dfc-heroi{--dfc-bg:linear-gradient(152deg,#ff2f7d 0%,#bd1684 44%,#4a0f61 100%);
   --dfc-tx:#fff;--dfc-bd:rgba(255,150,200,.75);--dfc-ac:#ffe14d;--dfc-lin:rgba(0,0,0,.3)}
 
-.dfc-selo{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:3;
-  font-size:8px;font-weight:900;letter-spacing:1.5px;padding:2px 10px 3px;
-  border-radius:0 0 8px 8px;background:#10151a;color:#fff}
+/* A TARJA DA COLEÇÃO VAI DE PONTA A PONTA. Como fitinha centrada, "TIME DA
+   SEMANA" crescia até cobrir a bandeira; de ponta a ponta ela não disputa
+   espaço com nada, e `dfc-selado` abre a altura dela lá em cima. */
+.dfc-selo{position:absolute;top:0;left:0;right:0;z-index:3;text-align:center;
+  font-size:8px;font-weight:900;letter-spacing:1.4px;padding:3px 5px 4px;
+  background:#10151a;color:#fff}
+.dfc-selado{padding-top:22px}
 .dfc-heroi .dfc-selo{background:#ffe14d;color:#49093a}
 .dfc-selo-mini{position:absolute;top:0;right:0;z-index:3;width:0;height:0;
   border-top:13px solid var(--dfc-ac);border-left:13px solid transparent}
@@ -569,7 +577,7 @@ a{color:inherit}
             <input type="hidden" name="acao" value="escolher">
             <input type="hidden" name="carta" value="<?= $i ?>">
             <button class="carta-btn" type="submit" style="animation-delay:<?= $i * 70 ?>ms"
-                    title="<?= e($c['nome']) ?> — <?= e($c['clube']) ?> · <?= e(draftFutPais($c['liga'])) ?><?= $c['nac'] ? ' · ' . e($c['nac']) : '' ?>">
+                    title="<?= e($c['nome']) ?> — <?= e($c['clube']) ?> · <?= e(draftFutPais($c['liga'])) ?><?= !empty($c['nac']) ? ' · ' . e($c['nac']) : '' ?>">
               <?= dfutCartaHtml($c, ['quimica' => $qCarta,
                                      'rotulo'  => draftFutRotuloDaVaga($d['formacao'], $aberta),
                                      'fora'    => $c['pos'] !== $natural]) ?>

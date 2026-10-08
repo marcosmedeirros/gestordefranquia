@@ -36,7 +36,8 @@ const DFUT_TIPOS = [
     'bronze' => ['rot' => 'Bronze', 'quimica' => 'normal', 'peso' => 0],
     'prata'  => ['rot' => 'Prata',  'quimica' => 'normal', 'peso' => 0],
     'ouro'   => ['rot' => 'Ouro',   'quimica' => 'normal', 'peso' => 0],
-    'totw'   => ['rot' => 'TIME DA SEMANA', 'quimica' => 'normal', 'peso' => 16],
+    'totw'   => ['rot' => 'TIME DA SEMANA', 'quimica' => 'normal', 'peso' => 14],
+    'futuro' => ['rot' => 'FUTURO', 'quimica' => 'normal', 'peso' => 25],
     'icone'  => ['rot' => 'ÍCONE',  'quimica' => 'icone',  'peso' => 5],
     'heroi'  => ['rot' => 'HERÓI',  'quimica' => 'heroi',  'peso' => 7],
 ];
@@ -54,6 +55,21 @@ const DFUT_TIPOS = [
  * preta ser disputada.
  */
 const DFUT_TOTW_BONUS = 2;
+
+/**
+ * ── A SEGUNDA COLEÇÃO: FUTURO ────────────────────────────────────────
+ *
+ * O Future Stars do EA FC: o garoto com a carta que ele ainda vai ter. Entra
+ * aqui pelo mesmo motivo do Time da Semana — é promoção feita de DADO QUE JÁ
+ * EXISTE. A idade está em todo elenco de games/data/elencos/, então "quem tem
+ * 21 anos ou menos" é consulta, não chute.
+ *
+ * O bônus é maior que o do Time da Semana porque a carta é mais rara e o
+ * jogador é pior de base: sem isso, "Futuro" seria um selo bonito numa carta
+ * que ninguém escolheria.
+ */
+const DFUT_FUTURO_IDADE = 22;
+const DFUT_FUTURO_BONUS = 3;
 
 /**
  * O tipo de uma carta comum, pelo OVR — a régua de sempre do FIFA.

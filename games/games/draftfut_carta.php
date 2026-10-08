@@ -48,13 +48,16 @@ function dfutCartaHtml(array $c, array $o = []): string
        nome de camisa, "Lewandowski". O nome inteiro fica no `title`. */
     $nome = $mini ? draftFutNomeCamisa((string)$c['nome']) : draftFutNomeCurto((string)$c['nome']);
 
-    $cls = 'dfc dfc-' . $tipo . ($mini ? ' dfc-mini' : '') . ($fora ? ' dfc-fora' : '');
+    /* `dfc-selado` abre espaço no alto pra tarja da coleção. Sem isso a
+       tarja comprida ("TIME DA SEMANA") subia por cima da bandeira. */
+    $selo = $esp || in_array($tipo, ['totw', 'futuro'], true);
+    $cls = 'dfc dfc-' . $tipo . ($mini ? ' dfc-mini' : '') . ($fora ? ' dfc-fora' : '')
+         . ($selo && !$mini ? ' dfc-selado' : '');
 
     $h  = '<span class="' . $cls . '">';
 
     /* O selo só aparece em carta especial: Ouro escrito em toda carta de ouro
        é ruído, ÍCONE escrito numa só é informação. */
-    $selo = $esp || $tipo === 'totw';   // o Time da Semana também se anuncia
     if ($selo && !$mini) $h .= '<span class="dfc-selo">' . e($rot) . '</span>';
     if ($selo && $mini)  $h .= '<span class="dfc-selo-mini"></span>';
 
