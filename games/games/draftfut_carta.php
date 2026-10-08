@@ -33,6 +33,11 @@
  *                       'fora'     => true quando está fora de posição
  *                       'mini'     => true pro campinho
  */
+/* ESCUDO, BANDEIRA E FOTO VÊM DE FORA (thesportsdb, flagcdn) e um dia saem
+   do ar. Quando sai, a imagem some em vez de virar ícone quebrado — a carta
+   sem foto já tem o que mostrar no lugar. O projeto já faz isso no boxnba. */
+const DFC_SOME = 'onerror="this.style.display=\'none\'"';
+
 function dfutCartaHtml(array $c, array $o = []): string
 {
     $tipo = draftFutTipo($c);
@@ -70,11 +75,11 @@ function dfutCartaHtml(array $c, array $o = []): string
     $h .=   '<span class="dfc-insig">';
     if ($bandeira !== '') {
         $h .= '<img class="dfc-band" src="' . e($bandeira) . '" alt="' . e((string)$c['nac']) . '" '
-            . 'title="' . e((string)$c['nac']) . '" loading="lazy">';
+            . 'title="' . e((string)$c['nac']) . '" loading="lazy" ' . DFC_SOME . '>';
     }
     if (!empty($c['escudo'])) {
         $h .= '<img class="dfc-esc" src="' . e((string)$c['escudo']) . '" alt="" '
-            . 'title="' . e((string)$c['clube']) . '" loading="lazy">';
+            . 'title="' . e((string)$c['clube']) . '" loading="lazy" ' . DFC_SOME . '>';
     }
     $h .=   '</span>';
     $h .= '</span>';
@@ -83,9 +88,9 @@ function dfutCartaHtml(array $c, array $o = []): string
           cheia em vez de ter um buraco onde devia ter gente. ── */
     $h .= '<span class="dfc-retrato">';
     if (!empty($c['foto'])) {
-        $h .= '<img class="dfc-foto" src="' . e((string)$c['foto']) . '" alt="" loading="lazy">';
+        $h .= '<img class="dfc-foto" src="' . e((string)$c['foto']) . '" alt="" loading="lazy" ' . DFC_SOME . '>';
     } elseif (!empty($c['escudo'])) {
-        $h .= '<img class="dfc-marca" src="' . e((string)$c['escudo']) . '" alt="" loading="lazy">';
+        $h .= '<img class="dfc-marca" src="' . e((string)$c['escudo']) . '" alt="" loading="lazy" ' . DFC_SOME . '>';
     } else {
         $h .= '<span class="dfc-mono">' . e(mb_substr((string)$c['nome'], 0, 1)) . '</span>';
     }
