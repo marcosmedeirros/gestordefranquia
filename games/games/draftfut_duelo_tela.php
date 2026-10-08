@@ -73,6 +73,14 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
           'premio'  => $venci ? (int)$dl['aposta'] * 2 : 0,
           'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: 'Desafiado'),
                         'forca' => (int)$dl['forca_desafiado']],
+          /* A REVANCHE SÓ EXISTE AQUI, no duelo: contra o bot não há com quem
+             jogar de novo — é só abrir outro draft. `chamou` conta se o
+             adversário já clicou, pro botão dizer "aceitar" em vez de pedir
+             uma coisa que já está pedida. */
+          'revanche' => ['duelo'  => (int)$dl['id'],
+                         'aposta' => (int)$dl['aposta'],
+                         'chamou' => !empty($convite)
+                                     && (int)$convite['id_criador'] === (int)$dl['id_' . $outroLado]],
       ];
       include __DIR__ . '/draftfut_narracao.php';
   endif;

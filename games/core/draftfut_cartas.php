@@ -124,7 +124,7 @@ const DFUT_PAIS_ISO = [
     'Montenegro' => 'me', 'North Macedonia' => 'mk', 'Albania' => 'al', 'Kosovo' => 'xk',
     'Greece' => 'gr', 'Turkey' => 'tr', 'Russia' => 'ru', 'Ukraine' => 'ua',
     'Belarus' => 'by', 'Georgia' => 'ge', 'Armenia' => 'am', 'Israel' => 'il',
-    'Morocco' => 'ma', 'Algeria' => 'dz', 'Tunisia' => 'tn', 'Egypt' => 'eg',
+    'Mozambique' => 'mz', 'Morocco' => 'ma', 'Algeria' => 'dz', 'Tunisia' => 'tn', 'Egypt' => 'eg',
     'Senegal' => 'sn', 'Ivory Coast' => 'ci', "Cote d'Ivoire" => 'ci', 'Ghana' => 'gh',
     'Nigeria' => 'ng', 'Cameroon' => 'cm', 'Mali' => 'ml', 'Guinea' => 'gn',
     'Burkina Faso' => 'bf', 'DR Congo' => 'cd', 'Congo' => 'cg', 'Gabon' => 'ga',
@@ -176,9 +176,34 @@ function draftFutChaveNome(string $n): string
     return trim(preg_replace('/\s+/', ' ', (string)$n));
 }
 
+/**
+ * O MESMO PAÍS ESCRITO DE OUTRO JEITO.
+ *
+ * A fonte devolve "The Netherlands", e o mapa de bandeiras tem "Netherlands":
+ * resultado, VINTE E TRÊS holandeses sem bandeira na carta, e ninguém reclamou
+ * até o Marcos notar no Malen. Mozambique e Macedonia faltavam no mapa.
+ *
+ * Normalizar aqui, e não na importação, é de propósito: o nome que a fonte
+ * deu fica guardado como veio, e a tradução é só pra desenhar.
+ */
+const DFUT_PAIS_ALIAS = [
+    'The Netherlands'  => 'Netherlands',
+    'Holland'          => 'Netherlands',
+    'The Gambia'       => 'Gambia',
+    'Korea Republic'   => 'South Korea',
+    'Republic of Ireland' => 'Ireland',
+    "Côte d'Ivoire"    => 'Ivory Coast',
+    'Czechia'          => 'Czech Republic',
+    'Macedonia'        => 'North Macedonia',
+    'USA'              => 'United States',
+    'Bosnia-Herzegovina' => 'Bosnia and Herzegovina',
+    'DR Congo'         => 'DR Congo',
+];
+
 /** A URL da bandeirinha, ou '' quando o país não é conhecido. */
 function draftFutBandeira(string $nacao): string
 {
+    $nacao = DFUT_PAIS_ALIAS[$nacao] ?? $nacao;
     $iso = DFUT_PAIS_ISO[$nacao] ?? '';
     return $iso === '' ? '' : "https://flagcdn.com/w40/{$iso}.png";
 }
@@ -242,7 +267,27 @@ function draftFutTransferencias(): array
  * precedência sobre o que a varredura automática achou.
  */
 const DFUT_CLUBE_MAO = [
-    'Manchester United|Antony' => 'Real Betis',
+    'Manchester United|Antony'    => 'Real Betis',
+    'Manchester City|Savinho'     => 'Tottenham',
+    'Liverpool|Andrew Robertson'  => 'Tottenham',
+];
+
+/**
+ * ── QUEM NÃO ENTRA NO BARALHO ────────────────────────────────────────
+ *
+ * Os elencos em games/data/elencos/ são uma foto de um momento, e às vezes a
+ * vida muda depois dela. Diogo Jota morreu, e uma carta dele saindo num
+ * pacote não é homenagem — é um susto pra quem gostava dele.
+ *
+ * A chave é CLUBE|NOME porque nome se repete: há um "Jota" no Rennes e um
+ * "Jota Silva" no Nottingham, que são outras pessoas e continuam no jogo.
+ * Tirar por nome solto levaria os três.
+ *
+ * Isto não mexe em games/data/elencos/, que é do jogo de carreira — a
+ * exclusão vale só no draft. @see draftFutBaralho
+ */
+const DFUT_FORA = [
+    'Liverpool|Diogo Jota' => true,
 ];
 
 /**

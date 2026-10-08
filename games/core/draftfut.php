@@ -322,6 +322,11 @@ function draftFutBaralho(): array
             $pos = strtoupper(trim((string)($j['pos'] ?? '')));
             if (!isset(DFUT_COBRE[$pos])) continue;
             $nm = (string)$j['nome'];
+
+            /* QUEM SAIU DO BARALHO SAI AQUI, antes de virar carta — pela
+               chave do clube de ORIGEM, que é a do elenco. @see DFUT_FORA */
+            if (isset(DFUT_FORA[$nome . '|' . $nm])) continue;
+
             $ex = $extra[$nome][$nm] ?? null;
 
             /* O OVR é calculado com a liga de ORIGEM, antes da troca: é ela

@@ -105,6 +105,29 @@
     <?php endif; ?>
   </div>
 
+  <?php $topForca = []; try { $topForca = dfdTopForca($pdo, 5); } catch (Throwable $e) { error_log('[draftfut] top forca: ' . $e->getMessage()); } ?>
+  <div class="bloco">
+    <h2><i class="bi bi-lightning-charge-fill" style="color:var(--amarelo)"></i> Times mais fortes</h2>
+    <p class="sub">Os cinco melhores drafts já montados, de qualquer modo — contra o bot
+       ou em duelo.</p>
+    <?php if (!$topForca): ?>
+      <p class="sub" style="margin:0">Nenhum time montado ainda.</p>
+    <?php else: ?>
+      <div class="rank-lista">
+        <?php foreach ($topForca as $i => $t): ?>
+          <div class="rank-l<?= (int)$t['uid'] === $user_id ? ' eu' : '' ?>">
+            <span class="rk-pos"><?= $i + 1 ?></span>
+            <span class="rk-gm"><?= e((string)($t['nome'] ?: 'Time sem nome')) ?></span>
+            <span class="rk-nums">
+              <b><?= (int)$t['forca'] ?></b> força · <?= (int)$t['quimica'] ?> quím.
+              <small><?= $t['modo'] === 'duelo' ? 'duelo' : 'bot' ?></small>
+            </span>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </div>
+
   <div class="bloco">
     <h2><i class="bi bi-fire" style="color:var(--vermelho)"></i> Maiores confrontos</h2>
     <p class="sub">Os duelos de força somada mais alta — um 1x0 entre dois times de 90

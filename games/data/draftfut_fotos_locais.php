@@ -13,9 +13,9 @@
  */
 return array (
   'Al Ettifaq|Vitinho' => '/games/img/draftfut/al-ettifaq-vitinho.png',
-  'Arsenal|Benjamin White' => '/games/img/draftfut/arsenal-benjamin-white.jpeg',
+  'Arsenal|Benjamin White' => '/games/img/draftfut/arsenal-benjamin-white.png',
   'Atlético-MG|Victor Hugo' => '/games/img/draftfut/atletico-mg-victor-hugo.png',
-  'Barcelona|Gavi' => '/games/img/draftfut/barcelona-gavi.jpeg',
+  'Barcelona|Gavi' => '/games/img/draftfut/barcelona-gavi.png',
   'Chelsea|Wesley Fofana' => '/games/img/draftfut/chelsea-wesley-fofana.png',
   'Corinthians|André' => '/games/img/draftfut/corinthians-andre.png',
   'Flamengo|Pedro' => '/games/img/draftfut/flamengo-pedro.png',
@@ -27,7 +27,7 @@ return array (
   'Grêmio|Tetê' => '/games/img/draftfut/gremio-tete.png',
   'Inter de Milão|Carlos Augusto' => '/games/img/draftfut/inter-de-milao-carlos-augusto.png',
   'Lazio|Valentin Castellanos' => '/games/img/draftfut/lazio-valentin-castellanos.png',
-  'Manchester City|Rodri' => '/games/img/draftfut/manchester-city-rodri.jpeg',
+  'Manchester City|Rodri' => '/games/img/draftfut/manchester-city-rodri.png',
   'Manchester United|Antony' => '/games/img/draftfut/manchester-united-antony.png',
   'Palmeiras|Arias' => '/games/img/draftfut/palmeiras-arias.png',
   'Palmeiras|Flaco López' => '/games/img/draftfut/palmeiras-flaco-lopez.png',

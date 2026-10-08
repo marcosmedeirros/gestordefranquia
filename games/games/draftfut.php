@@ -103,8 +103,18 @@ $duelo = dfdMeuDuelo($pdo, $user_id);
    simplesmente sumia. */
 $dueloFim = $duelo ? null : dfdResultadoPendente($pdo, $user_id);
 
+/* CONVITE DE REVANCHE: o outro já pediu, e aqui ele aparece como convite.
+   A aposta de quem foi chamado só sai quando ele aceita — descontar de quem
+   não clicou em nada é cobrar sem pedir. */
+$convite = $duelo ? null : dfdConvitePendente($pdo, $user_id);
+
 /* Qual tela o GM pediu: o salão, o modo bot ou o multiplayer. */
 $vista = (string)($_GET['v'] ?? $_POST['v'] ?? '');
+
+/* O NOME DO TIME VEM DA FRANQUIA DO GM ("Las Vegas Coyotes"), não de um campo
+   pra digitar. Digitar o nome do próprio time a cada draft é trabalho sem
+   graça — e abria espaço pra um "asdf" aparecer no ranking da liga. */
+$nomeDoTime = dfdNomeDoTime($pdo, $user_id, (string)($_SESSION['user_name'] ?? ''));
 
 /* ═══════════════════════════ AÇÕES ══════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -176,6 +186,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 $erro = 'Alguém entrou nesse duelo antes de você.';
             }
+        }
+    }
+
+    /* ── PEDIR REVANCHE ─────────────────────────────────────────────── */
+    /* Saldo lido aqui, e não o $moedas lá embaixo: ele só é calculado depois
+       das ações, e comparar aposta com um valor que ainda não existe deixava
+       passar qualquer convite. */
+    $moedasAgora = dfMoedas($pdo, $user_id);
+
+    if ($acao === 'duelo_revanche') {
+        $antes = null;
+        $id = (int)($_POST['duelo'] ?? 0);
+        if ($id) {
+            $st = $pdo->prepare('SELECT * FROM draftfut_duelos WHERE id = ?');
+            $st->execute([$id]);
+            $antes = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+        if (!$antes) {
+            $erro = 'Não achei o duelo pra revanche.';
+        } elseif (($novo = dfdRevanche($pdo, $antes, $user_id)) === null) {
+            $erro = 'Não deu pra abrir a revanche — confira se você tem a aposta '
+                  . 'e se nenhum dos dois está em outro duelo.';
+        } else {
+            /* O resultado antigo fica visto: a revanche é a página seguinte. */
+            dfdMarcarVisto($pdo, (int)$antes['id'], dfdLado($antes, $user_id));
+            $duelo = $novo; $dueloFim = null; $convite = null; $d = null;
+            /* Se o outro já tinha clicado, este clique FECHOU a dupla e o
+               duelo já está de pé — a mensagem tem que dizer isso, e não
+               mandar esperar alguém que já está montando o time. */
+            $msg = $novo['status'] === 'montando'
+                 ? 'Revanche fechada! Os dois querem — monte o seu time.'
+                 : 'Revanche aberta por ' . (int)$novo['aposta'] . ' moedas. '
+                   . 'Seu adversário já foi avisado.';
+        }
+    }
+
+    /* ── ACEITAR A REVANCHE ─────────────────────────────────────────── */
+    if ($acao === 'duelo_aceitar') {
+        if (!$convite) {
+            $erro = 'Esse convite não está mais de pé.';
+        } elseif ($moedasAgora < (int)$convite['aposta']) {
+            $erro = 'A revanche é por ' . (int)$convite['aposta'] . ' moedas e você não tem.';
+        } elseif (($novo = dfdEntrarNoConvite($pdo, $convite, $user_id)) === null) {
+            $erro = 'Esse convite não está mais de pé.';
+        } else {
+            /* O placar anterior fica visto: a partida nova é a página seguinte. */
+            if ($dueloFim) {
+                dfdMarcarVisto($pdo, (int)$dueloFim['id'], dfdLado($dueloFim, $user_id));
+                $dueloFim = null;
+            }
+            $duelo = $novo; $convite = null; $d = null;
+            $msg = 'Revanche fechada! Monte o seu time.';
+        }
+    }
+
+    /* ── RECUSAR ────────────────────────────────────────────────────── */
+    if ($acao === 'duelo_recusar' && $convite) {
+        /* Recusar devolve a aposta de quem chamou: ele pagou por uma partida
+           que não vai acontecer. */
+        $pdo->beginTransaction();
+        try {
+            $up = $pdo->prepare("DELETE FROM draftfut_duelos
+                                  WHERE id = ? AND status = 'aguardando' AND id_desafiado IS NULL");
+            $up->execute([(int)$convite['id']]);
+            if ($up->rowCount() === 1) {
+                dfMoedasMexer($pdo, (int)$convite['id_criador'], (int)$convite['aposta']);
+            }
+            $pdo->commit();
+            $convite = null;
+            $msg = 'Convite recusado. A aposta voltou pra quem chamou.';
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            $erro = 'Não consegui recusar. Recarregue a página.';
         }
     }
 
@@ -267,9 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
        sozinha quando o segundo lado fecha (@see dfdRodarSeDerPra), com a
        semente do duelo — é isso que faz os dois verem a mesma narração. */
     if ($acao === 'duelo_jogar' && $d && $duelo && draftFutCampoCheio($d)) {
-        $nome = trim((string)($_POST['nome'] ?? ''));
-        if ($nome === '') $nome = 'Time de ' . ($_SESSION['user_name'] ?? 'GM');
-        dfdFinalizarLado($pdo, $duelo, $user_id, mb_substr($nome, 0, 60), $d);
+        dfdFinalizarLado($pdo, $duelo, $user_id, $nomeDoTime, $d);
         $st = $pdo->prepare('SELECT * FROM draftfut_duelos WHERE id = ?');
         $st->execute([(int)$duelo['id']]);
         $duelo = $st->fetch(PDO::FETCH_ASSOC) ?: $duelo;
@@ -289,7 +370,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $forca = draftFutForcaDoTime($formacao, $time);
         $quim  = draftFutQuimica($formacao, $time)['total'];
 
-        $nome = trim((string)($_POST['nome'] ?? '')) ?: 'Time de ' . $user_id;
+        /* O NOME VEM DA FRANQUIA, não de um campo digitado. @see dfdNomeDoTime */
+        $nome = $nomeDoTime;
         $pdo->prepare('INSERT INTO draftfut_times (id_usuario, nome, formacao, time_json, forca, quimica)
                        VALUES (?,?,?,?,?,?)')
             ->execute([$user_id, mb_substr($nome, 0, 60), $formacao,
@@ -386,7 +468,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'novo') {
         /* Mão nova de esquemas junto com o draft novo. */
-        $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000); $d = null; }
+        $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000); $d = null;
+
+        /* ONDE O BOTÃO LARGA A PESSOA. Os dois botões do fim de jogo
+           mandavam o mesmo 'novo' e caíam os dois no salão: quem clicava
+           em "Novo draft" tinha que achar o caminho de volta sozinho.
+           Agora quem pede draft novo cai na escolha de esquema. */
+        if (($_POST['v'] ?? '') === 'bot') {
+            header('Location: /games/games/draftfut.php?v=bot');
+            exit;
+        }
+    }
 
     header('Location: /games/games/draftfut.php' . ($msg ? '?m=' . urlencode($msg) : ($erro ? '?e=' . urlencode($erro) : '')));
     exit;
@@ -414,6 +506,7 @@ if ($duelo && !$d) {
 }
 
 $moedas = dfMoedas($pdo, $user_id);
+
 
 /* ── A TELA "TIME PRONTO" ESTAVA INALCANÇÁVEL ────────────────────────
    `$emDraft` vinha antes de `$pronto` na cadeia de `elseif` lá embaixo e
@@ -482,6 +575,7 @@ a{color:inherit}
 .pop-acoes{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap}
 
 /* Desistir fica longe dos botões de jogar, e discreto: é saída, não ação. */
+.fim-acoes{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
 .desistir{display:flex;justify-content:center;margin:-4px 0 16px}
 .desistir button{background:none;border:0;color:var(--txt3);font:inherit;font-size:12.5px;
   cursor:pointer;padding:6px 10px;border-radius:8px;display:inline-flex;align-items:center;gap:6px}
@@ -565,6 +659,11 @@ a{color:inherit}
   .conf-l{grid-template-columns:1fr auto 1fr;row-gap:2px}
   .conf-l .cf-peso{display:none}
   .entrar-cod input{width:100%}
+  /* NOME EM CIMA, NÚMEROS EMBAIXO. Lado a lado num telefone sobrava meia
+     linha pro nome, e "Las Vegas Coyotes" virava "Las Vegas C..." — o
+     ranking existe justamente pra ler o nome de quem fez. */
+  .rank-l{grid-template-columns:26px 1fr}
+  .rank-l .rk-nums{grid-column:2;white-space:normal}
 }
 
 /* Formações */
@@ -726,6 +825,10 @@ a{color:inherit}
   padding:7px 10px;border-radius:8px;background:var(--panel2);border-left:3px solid var(--borda2);
   opacity:0;transform:translateY(6px);animation:ent .25s forwards}
 @keyframes ent{to{opacity:1;transform:none}}
+/* O lance que entra SEM animação (o "Pular pro fim" joga todos de uma vez)
+   precisa aparecer por conta própria: a regra acima nasce em opacity:0 e
+   quem tirava a opacidade era justamente a animação desligada. */
+.lance.pronto{opacity:1;transform:none;animation:none}
 .lance .m{font-family:'Oswald',sans-serif;color:var(--txt3);font-size:13px}
 .lance.gol{border-left-color:var(--verde);background:rgba(34,197,94,.1);font-weight:700}
 .lance.defesa{border-left-color:var(--azul)}
@@ -841,6 +944,35 @@ a{color:inherit}
 <div class="wrap">
 <?php if ($msg): ?><div class="aviso ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($erro): ?><div class="aviso err"><?= e($erro) ?></div><?php endif; ?>
+
+<?php if ($convite): ?>
+  <?php /* ── CONVITE DE REVANCHE ────────────────────────────────────
+         Aparece antes de qualquer outra tela: é uma decisão esperando, e
+         esconder isso num canto faria o outro GM esperar sem saber por quê. */ ?>
+  <div class="bloco">
+    <h2>Revanche!</h2>
+    <p class="sub"><b><?= e(dfdNomeDoTime($pdo, (int)$convite['id_criador'])) ?></b> quer
+       jogar de novo, pela mesma aposta de <b><?= (int)$convite['aposta'] ?> moedas</b>.</p>
+    <div class="fim-acoes" style="justify-content:flex-start">
+      <form method="POST" style="margin:0">
+        <input type="hidden" name="acao" value="duelo_aceitar">
+        <button class="btn pri" type="submit" <?= $moedas < (int)$convite['aposta'] ? 'disabled' : '' ?>>
+          <i class="bi bi-check2-circle"></i> Aceitar por <?= (int)$convite['aposta'] ?></button>
+      </form>
+      <form method="POST" style="margin:0"
+            data-confirmar="Recusar a revanche? A aposta volta pra quem chamou."
+            data-confirmar-ok="Recusar">
+        <input type="hidden" name="acao" value="duelo_recusar">
+        <button class="btn" type="submit"><i class="bi bi-x-lg"></i> Recusar</button>
+      </form>
+    </div>
+    <?php if ($moedas < (int)$convite['aposta']): ?>
+      <p class="sub" style="margin:12px 0 0;color:#ff5c7a">Você tem <?= $moedas ?> moedas
+         e a revanche é por <?= (int)$convite['aposta'] ?>.</p>
+    <?php endif; ?>
+  </div>
+
+<?php endif; ?>
 
 <?php if ($dueloFim): ?>
   <?php /* ── O DUELO QUE ACABOU ─────────────────────────────────── */ ?>
@@ -961,6 +1093,7 @@ a{color:inherit}
       <div class="num"><b><?= draftFutForcaDoTime($d['formacao'], $d['time']) ?></b><small>Força</small></div>
       <div class="num"><b><?= $quim['total'] ?><small style="opacity:.5">/33</small></b><small>Química</small></div>
       <div class="num"><b><?= e($d['formacao']) ?></b><small>Formação</small></div>
+      <div class="num" style="flex:1 1 180px"><b style="font-size:15px"><?= e($nomeDoTime) ?></b><small>Seu time</small></div>
     </div>
     <?php if (!empty($d['duelo'])): ?>
       <?php /* NO DUELO NÃO SE ESCOLHE ADVERSÁRIO: ele já está do outro lado.
@@ -968,9 +1101,6 @@ a{color:inherit}
                quando o segundo terminar. */ ?>
       <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <input type="hidden" name="acao" value="duelo_jogar">
-        <input type="text" name="nome" maxlength="60" placeholder="Nome do seu time" required
-               style="background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
-                      color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;flex:1;min-width:180px">
         <button class="btn pri" type="submit">
           <i class="bi bi-check2-circle"></i> Time pronto pro duelo</button>
       </form>
@@ -980,9 +1110,6 @@ a{color:inherit}
     <?php else: ?>
       <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <input type="hidden" name="acao" value="jogar">
-        <input type="text" name="nome" maxlength="60" placeholder="Nome do seu time" required
-               style="background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
-                      color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;flex:1;min-width:180px">
         <button class="btn pri" type="submit" name="modo" value="maquina">
           <i class="bi bi-cpu"></i> Contra o bot</button>
         <button class="btn" type="submit" name="modo" value="pvp">

@@ -140,6 +140,30 @@ function nomeCasa(string $a, string $b): bool
     return $dentro($pa, $pb) || $dentro($pb, $pa);
 }
 
+/* ── CONFERE AS FOTOS LOCAIS ANTES DE QUALQUER COISA ─────────────────
+   Mapa apontando pra arquivo que não existe é bug SILENCIOSO: a carta tem
+   `onerror` e esconde a imagem quebrada, então a foto simplesmente não
+   aparece e nada reclama. Aconteceu em 08/10/2026 — o script que tirou o
+   fundo converteu três JPEG em PNG e o mapa continuou pedindo .jpeg. O
+   Marcos viu antes de qualquer teste meu, porque teste meu não havia. */
+$locais = draftFutFotosLocais();
+$quebrados = [];
+foreach ($locais as $chave => $caminho) {
+    if (!is_file(__DIR__ . '/../..' . $caminho)) $quebrados[$chave] = $caminho;
+}
+if ($quebrados) {
+    fwrite(STDOUT, count($quebrados) . " FOTO(S) LOCAL(IS) COM CAMINHO QUEBRADO:
+");
+    foreach ($quebrados as $k => $c) fwrite(STDOUT, "  $k -> $c
+");
+    fwrite(STDOUT, "Conserte games/data/draftfut_fotos_locais.php antes de seguir.
+
+");
+} else {
+    fwrite(STDOUT, count($locais) . " fotos locais, todas no disco
+");
+}
+
 /* As cartas do baralho que ainda não têm foto. */
 $dados = is_file($DESTINO) ? (array)require $DESTINO : [];
 

@@ -25,6 +25,12 @@ if (!isset($r, $p) || empty($p['lances'])) return;
         · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'máquina' ?></small></div>
     </div>
     <div class="narra" id="narra"></div>
+    <?php /* ── O QUE FAZER DEPOIS DO APITO ──────────────────────────────
+         Pedido do Marcos (08/10/2026): "apos finalizar o jogo o Pular pro fim
+         some e vira Voltar pra tela inicial ou novo draft". Faz sentido: no
+         fim, "pular" não leva a lugar nenhum — o botão que sobra tem que ser
+         uma saída. Os dois ficam escondidos até o fim e trocam de lugar com o
+         "Pular", que é escondido pelo mesmo JavaScript. */ ?>
     <div id="fecho" style="display:none">
       <div style="text-align:center;margin:14px 0">
         <?php if ($r['premio'] > 0): ?>
@@ -34,10 +40,32 @@ if (!isset($r, $p) || empty($p['lances'])) return;
           <span class="aviso err" style="display:inline-block">Sem prêmio dessa vez.</span>
         <?php endif; ?>
       </div>
-      <form method="POST" style="text-align:center"><input type="hidden" name="acao" value="novo">
-        <button class="btn pri" type="submit"><i class="bi bi-arrow-repeat"></i> Novo draft</button></form>
+      <div class="fim-acoes">
+        <?php if (!empty($r['revanche'])): ?>
+          <?php /* REVANCHE: só no duelo. Um clique de cada um e a partida
+                   nasce com a MESMA aposta, sem código e sem link — se o
+                   outro já clicou, este clique entra no duelo dele. */ ?>
+          <form method="POST" style="margin:0">
+            <input type="hidden" name="acao" value="duelo_revanche">
+            <input type="hidden" name="duelo" value="<?= (int)$r['revanche']['duelo'] ?>">
+            <button class="btn pri" type="submit">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              <?php if (!empty($r['revanche']['chamou'])): ?>
+                Aceitar a revanche (<?= (int)$r['revanche']['aposta'] ?> moedas)
+              <?php else: ?>
+                Revanche por <?= (int)$r['revanche']['aposta'] ?> moedas
+              <?php endif; ?></button>
+          </form>
+        <?php else: ?>
+          <form method="POST" style="margin:0"><input type="hidden" name="acao" value="novo">
+            <input type="hidden" name="v" value="bot">
+            <button class="btn pri" type="submit"><i class="bi bi-arrow-repeat"></i> Novo draft</button></form>
+        <?php endif; ?>
+        <form method="POST" style="margin:0"><input type="hidden" name="acao" value="novo">
+          <button class="btn" type="submit"><i class="bi bi-house"></i> Voltar pra tela inicial</button></form>
+      </div>
     </div>
-    <div style="margin-top:14px;text-align:center">
+    <div id="pularCaixa" style="margin-top:14px;text-align:center">
       <button class="btn" type="button" id="pular">Pular pro fim</button>
     </div>
   </div>
@@ -55,7 +83,7 @@ if (!isset($r, $p) || empty($p['lances'])) return;
   function desenha(l, animar){
     const d = document.createElement('div');
     d.className = 'lance ' + l.tipo;
-    if (!animar) d.style.animation = 'none';
+    if (!animar) d.classList.add('pronto');
     d.innerHTML = `<span class="m">${l.min}'</span><span>${l.texto}</span>`;
     alvo.appendChild(d);
     alvo.scrollTop = alvo.scrollHeight;
@@ -66,7 +94,12 @@ if (!isset($r, $p) || empty($p['lances'])) return;
       elGc.textContent = l.casa; elGf.textContent = l.fora;
       if (virou && animar) { elG.classList.add('pulsa'); setTimeout(() => elG.classList.remove('pulsa'), 240); }
     }
-    if (l.tipo === 'fim') document.getElementById('fecho').style.display = '';
+    if (l.tipo === 'fim') {
+      document.getElementById('fecho').style.display = '';
+      /* "Pular pro fim" no fim não leva a lugar nenhum. */
+      var pc = document.getElementById('pularCaixa');
+      if (pc) pc.style.display = 'none';
+    }
   }
 
   function passo(){

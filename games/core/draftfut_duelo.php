@@ -59,6 +59,9 @@ function dfdTabelas(PDO $pdo): void
            é a única que funciona pros dois. */
         visto_criador TINYINT(1) NOT NULL DEFAULT 0,
         visto_desafiado TINYINT(1) NOT NULL DEFAULT 0,
+        /* Numa revanche, quem é chamado — ele entra sem código, mas a aposta
+           dele só sai quando abrir o jogo. */
+        convidado INT NULL,
         forca_criador INT NULL,
         forca_desafiado INT NULL,
         quimica_criador INT NULL,
@@ -75,6 +78,15 @@ function dfdTabelas(PDO $pdo): void
         INDEX idx_dfd_desafiado (id_desafiado),
         INDEX idx_dfd_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM draftfut_duelos LIKE 'convidado'")->fetch()) {
+            $pdo->exec('ALTER TABLE draftfut_duelos ADD COLUMN convidado INT NULL');
+            $pdo->exec('ALTER TABLE draftfut_duelos ADD INDEX idx_dfd_convidado (convidado)');
+        }
+    } catch (PDOException $e) {
+        error_log('[draftfut-duelo] migração convidado: ' . $e->getMessage());
+    }
+
     /* Migração aditiva: duelo que já existia ganha as colunas sem perder nada. */
     try {
         if (!$pdo->query("SHOW COLUMNS FROM draftfut_duelos LIKE 'visto_criador'")->fetch()) {
@@ -334,6 +346,175 @@ function dfdDesistir(PDO $pdo, array $duelo, int $uid): bool
         error_log('[draftfut-duelo] desistir: ' . $e->getMessage());
         return false;
     }
+}
+
+/**
+ * REVANCHE: um duelo novo com a MESMA aposta e os MESMOS dois.
+ *
+ * Pedido do Marcos (08/10/2026): "se for confronto contra um time ao vivo, de
+ * a opção de revanche, pra recriar os mesmos valores e tudo".
+ *
+ * SEM CÓDIGO, SEM LINK: "se os dois que acabaram de se enfrentar clicarem,
+ * cria a partida dnv, sem precisar de link" (Marcos, 08/10/2026). Então esta
+ * função faz as duas pontas. O primeiro a clicar abre o duelo com o outro já
+ * marcado como convidado; o segundo clique cai aqui de novo, encontra esse
+ * duelo esperando por ele e simplesmente ENTRA. Dar "não deu pra abrir" pro
+ * segundo seria o pior dos mundos: os dois querem jogar e ninguém joga.
+ *
+ * A aposta de cada um sai no clique de cada um — a de quem pediu na hora, a
+ * do outro quando ele entra. Descontar moeda de quem não clicou em nada é
+ * cobrar sem pedir, então até o segundo clique o duelo fica 'aguardando' e
+ * aparece na tela dele como convite.
+ *
+ * @return array|null o duelo (novo ou o que ele acabou de entrar), ou null
+ *         quando não deu (sem saldo, duelo em andamento, ou o anterior não
+ *         era um duelo entre os dois).
+ */
+function dfdRevanche(PDO $pdo, array $anterior, int $uid): ?array
+{
+    if ($anterior['status'] !== 'concluido') return null;
+    if ($anterior['id_desafiado'] === null) return null;
+    if ((int)$anterior['id_criador'] !== $uid && (int)$anterior['id_desafiado'] !== $uid) return null;
+    if (dfdMeuDuelo($pdo, $uid)) return null;         // um duelo por vez
+
+    $aposta = (int)$anterior['aposta'];
+    if (dfMoedas($pdo, $uid) < $aposta) return null;
+
+    $outro = (int)$anterior['id_criador'] === $uid
+        ? (int)$anterior['id_desafiado']
+        : (int)$anterior['id_criador'];
+
+    /* ── O OUTRO JÁ PEDIU? ENTÃO É SÓ ENTRAR ─────────────────────────
+       Este é o segundo dos dois cliques. O duelo existe, está esperando por
+       mim, e o que falta é a minha aposta. */
+    $st = $pdo->prepare("SELECT * FROM draftfut_duelos
+                          WHERE status = 'aguardando' AND id_desafiado IS NULL
+                            AND id_criador = ? AND convidado = ?
+                       ORDER BY id DESC LIMIT 1");
+    $st->execute([$outro, $uid]);
+    if ($pendente = $st->fetch(PDO::FETCH_ASSOC)) {
+        return dfdEntrarNoConvite($pdo, $pendente, $uid);
+    }
+
+    /* O outro não pode estar metido noutro duelo, senão a revanche nasceria
+       presa esperando alguém que já está jogando. */
+    if (dfdMeuDuelo($pdo, $outro)) return null;
+
+    $pdo->beginTransaction();
+    try {
+        $codigo = dfdGerarCodigo($pdo);
+        $pdo->prepare('INSERT INTO draftfut_duelos (codigo, id_criador, aposta, semente, convidado)
+                       VALUES (?,?,?,?,?)')
+            ->execute([$codigo, $uid, $aposta, random_int(1, 2000000000), $outro]);
+        dfMoedasMexer($pdo, $uid, -$aposta);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[draftfut-duelo] revanche: ' . $e->getMessage());
+        return null;
+    }
+    return dfdPorCodigo($pdo, $codigo);
+}
+
+/**
+ * ENTRAR NUM CONVITE DE REVANCHE.
+ *
+ * A tranca é a de sempre: quem conseguir mudar a linha é quem paga. Dois
+ * cliques ao mesmo tempo (o botão e a página recarregando, por exemplo) não
+ * podem virar duas cobranças.
+ */
+function dfdEntrarNoConvite(PDO $pdo, array $convite, int $uid): ?array
+{
+    $aposta = (int)$convite['aposta'];
+    if (dfMoedas($pdo, $uid) < $aposta) return null;
+    if (dfdMeuDuelo($pdo, $uid)) return null;
+
+    $pdo->beginTransaction();
+    try {
+        $up = $pdo->prepare("UPDATE draftfut_duelos
+                                SET id_desafiado = ?, status = 'montando', entrou_em = NOW()
+                              WHERE id = ? AND id_desafiado IS NULL AND convidado = ?");
+        $up->execute([$uid, (int)$convite['id'], $uid]);
+        if ($up->rowCount() !== 1) { $pdo->rollBack(); return null; }
+        dfMoedasMexer($pdo, $uid, -$aposta);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[draftfut-duelo] entrar no convite: ' . $e->getMessage());
+        return null;
+    }
+    return dfdPorCodigo($pdo, (string)$convite['codigo']);
+}
+
+/** O convite de revanche aberto pra este GM, se houver. */
+function dfdConvitePendente(PDO $pdo, int $uid): ?array
+{
+    dfdTabelas($pdo);
+    $st = $pdo->prepare("SELECT * FROM draftfut_duelos
+                          WHERE status = 'aguardando' AND id_desafiado IS NULL AND convidado = ?
+                       ORDER BY id DESC LIMIT 1");
+    $st->execute([$uid]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * O NOME DA FRANQUIA DO GM, pro time do draft nascer com ele.
+ *
+ * Pedido do Marcos (08/10/2026): "o nome do time é pra pegar o nome do time no
+ * jogo mesmo, tipo Las Vegas Coyotes". Antes a pessoa digitava, e digitar o
+ * nome do próprio time a cada draft é trabalho sem graça — e abria espaço pra
+ * um time chamado "asdf" aparecer no ranking da liga.
+ *
+ * Cidade mais nome, que é como a liga escreve. Quem não tem franquia — ROOKIE
+ * antes do sorteio de marca — usa o próprio nome, porque um time sem nome
+ * nenhum no ranking é pior que um time com o nome do dono.
+ */
+function dfdNomeDoTime(PDO $pdo, int $uid, string $fallback = ''): string
+{
+    try {
+        $st = $pdo->prepare('SELECT city, name FROM teams WHERE user_id = ? LIMIT 1');
+        $st->execute([$uid]);
+        $t = $st->fetch(PDO::FETCH_ASSOC);
+        if ($t) {
+            $nome = trim(trim((string)$t['city']) . ' ' . trim((string)$t['name']));
+            if ($nome !== '') return mb_substr($nome, 0, 60);
+        }
+    } catch (Throwable $e) {
+        error_log('[draftfut-duelo] nome do time: ' . $e->getMessage());
+    }
+    $f = trim($fallback);
+    return $f !== '' ? mb_substr('Time de ' . $f, 0, 60) : 'Time sem nome';
+}
+
+/**
+ * Os times mais FORTES já montados, de qualquer modo.
+ *
+ * Duas fontes porque um time montado num duelo nunca entra em
+ * draftfut_times: ele vive na linha do duelo. Juntar é o que responde "qual
+ * foi o melhor draft que alguém fez", que é a pergunta.
+ */
+function dfdTopForca(PDO $pdo, int $limite = 5): array
+{
+    dfdTabelas($pdo);
+    $linhas = [];
+
+    foreach ($pdo->query("SELECT t.nome, t.forca, t.quimica, t.formacao, t.id_usuario uid, 'bot' modo
+                            FROM draftfut_times t ORDER BY t.forca DESC LIMIT 40") as $r) {
+        $linhas[] = $r;
+    }
+    foreach ($pdo->query("SELECT nome_criador nome, forca_criador forca, quimica_criador quimica,
+                                 id_criador uid, 'duelo' modo
+                            FROM draftfut_duelos
+                           WHERE status = 'concluido' AND forca_criador IS NOT NULL
+                        ORDER BY forca_criador DESC LIMIT 40") as $r) { $linhas[] = $r + ['formacao' => '']; }
+    foreach ($pdo->query("SELECT nome_desafiado nome, forca_desafiado forca, quimica_desafiado quimica,
+                                 id_desafiado uid, 'duelo' modo
+                            FROM draftfut_duelos
+                           WHERE status = 'concluido' AND forca_desafiado IS NOT NULL
+                        ORDER BY forca_desafiado DESC LIMIT 40") as $r) { $linhas[] = $r + ['formacao' => '']; }
+
+    usort($linhas, fn($a, $b) => [(int)$b['forca'], (int)$b['quimica']] <=> [(int)$a['forca'], (int)$a['quimica']]);
+    return array_slice($linhas, 0, $limite);
 }
 
 /**
