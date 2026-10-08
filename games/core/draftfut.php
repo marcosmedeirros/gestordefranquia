@@ -616,6 +616,64 @@ function draftFutQuimica(string $formacao, array $time): array
 }
 
 /**
+ * A QUÍMICA QUE O RESERVA TERIA SE SUBISSE.
+ *
+ * Pedido do Marcos (08/10/2026): "nos bancarios, coloca a quimica que eles
+ * ficariam se entrassem no time titular".
+ *
+ * O banco continua sem pontuar — isso é regra do EA FC e não mudou. O que
+ * muda é que dá pra ver o que a troca renderia ANTES de fazer. Sem isso a
+ * escolha era às cegas: subia o reserva, olhava o número, descia de novo.
+ *
+ * É o MELHOR caso, e de propósito. Pra cada titular já escolhido a função
+ * simula a troca de verdade — o reserva entra naquela vaga, o titular desce
+ * pro banco — e guarda a maior química que o reserva alcança. Melhor caso
+ * porque é exatamente a pergunta que a pessoa está fazendo ("vale a pena
+ * subir este?"), e porque entrar fora de posição zera: quando não há lugar
+ * pra ele no esquema, a própria conta devolve 0 sem precisar de exceção.
+ *
+ * Só entra vaga JÁ PREENCHIDA. O jogo não deixa trocar com vaga vazia
+ * (@see a ação `trocar` em games/games/draftfut.php), e prometer a química
+ * de uma troca impossível seria pior que não dizer nada.
+ *
+ * @return array<int, array{q:int, vaga:int, naPos:bool}> por slot de banco
+ */
+function draftFutQuimicaDoBanco(string $formacao, array $time): array
+{
+    $prev = [];
+    for ($b = DFUT_VAGAS; $b < DFUT_TOTAL; $b++) {
+        if (empty($time[$b])) continue;
+        $pos = (string)$time[$b]['pos'];
+
+        $melhorQ = null; $melhorVaga = null; $melhorNaPos = false;
+        for ($i = 0; $i < DFUT_VAGAS; $i++) {
+            if (empty($time[$i])) continue;
+
+            $sim = $time;
+            $sim[$i] = $time[$b];
+            $sim[$b] = $time[$i];
+            $q = (int)(draftFutQuimica($formacao, $sim)['jogadores'][$i] ?? 0);
+            $naPos = $pos === draftFutPosDaVaga($formacao, $i);
+
+            /* EMPATE DESEMPATA PELA POSIÇÃO CERTA. Sem isso, um reserva que
+               tira 0 em toda parte acabava apontando a primeira vaga testada
+               — e o aviso dizia "entra como GOL no lugar do Courtois", que é
+               uma troca que ninguém faria. Com o desempate, o 0 ou aponta a
+               vaga de verdade dele ou admite que não existe uma. */
+            if ($melhorQ === null
+                || $q > $melhorQ
+                || ($q === $melhorQ && $naPos && !$melhorNaPos)) {
+                $melhorQ = $q; $melhorVaga = $i; $melhorNaPos = $naPos;
+            }
+        }
+        if ($melhorQ !== null) {
+            $prev[$b] = ['q' => $melhorQ, 'vaga' => $melhorVaga, 'naPos' => $melhorNaPos];
+        }
+    }
+    return $prev;
+}
+
+/**
  * A força do time em campo: OVR ajustado pela química e pela posição.
  *
  * É AQUI QUE A QUÍMICA VIRA PLACAR. O time entra com a média dos OVRs, menos

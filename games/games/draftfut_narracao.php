@@ -22,7 +22,7 @@ if (!isset($r, $p) || empty($p['lances'])) return;
            minuto em que acontece. */ ?>
       <div class="g"><span id="gc">0</span> <span style="color:var(--txt3)">x</span> <span id="gf">0</span></div>
       <div class="t"><b><?= e($r['adv']['nome']) ?></b><small>força <?= $r['adv']['forca'] ?>
-        · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'máquina' ?></small></div>
+        · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'bot' ?></small></div>
     </div>
     <div class="narra" id="narra"></div>
     <?php /* ── O QUE FAZER DEPOIS DO APITO ──────────────────────────────

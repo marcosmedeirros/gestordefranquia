@@ -38,11 +38,11 @@ const DFUT_LENDAS = [
     ['Ronaldinho Gaúcho',   'MEI', 93, 'Barcelona',         'ES1', 'icone'],
     ['Romário',             'ATA', 92, 'Barcelona',         'ES1', 'icone'],
     ['Rivaldo',             'MEI', 91, 'Barcelona',         'ES1', 'heroi'],
-    ['Kaká',                'MEI', 91, 'Milan',             'IT1', 'heroi'],
+    ['Kaká',                'MEI', 91, 'AC Milan',          'IT1', 'heroi'],
     ['Zico',                'MEI', 92, 'Flamengo',          'BR1', 'icone'],
     ['Sócrates',            'MEI', 90, 'Corinthians',       'BR1', 'heroi'],
     ['Roberto Carlos',      'LAT', 91, 'Real Madrid',       'ES1', 'icone'],
-    ['Cafu',                'LAT', 90, 'Milan',             'IT1', 'heroi'],
+    ['Cafu',                'LAT', 90, 'AC Milan',          'IT1', 'heroi'],
     ['Carlos Alberto Torres','LAT', 90, 'Santos',           'BR1', 'icone'],
     ['Taffarel',            'GOL', 89, 'Galatasaray',       'TR1', 'heroi'],
     ['Falcão',              'VOL', 90, 'Roma',              'IT1', 'heroi'],
@@ -54,7 +54,7 @@ const DFUT_LENDAS = [
     ['Gabriel Batistuta',   'ATA', 90, 'Fiorentina',        'IT1', 'heroi'],
     ['Juan Román Riquelme', 'MEI', 90, 'Boca Juniors',      'AR1', 'heroi'],
     ['Daniel Passarella',   'ZAG', 89, 'River Plate',       'AR1', 'heroi'],
-    ['Iván Zamorano',       'ATA', 88, 'Inter',             'IT1', 'heroi'],
+    ['Iván Zamorano',       'ATA', 88, 'Inter de Milão',    'IT1', 'heroi'],
     ['Enzo Francescoli',    'MEI', 89, 'River Plate',       'AR1', 'heroi'],
 
     // ── Europa ───────────────────────────────────────────────────────
@@ -63,9 +63,9 @@ const DFUT_LENDAS = [
     ['Franz Beckenbauer',   'ZAG', 92, 'Bayern de Munique', 'DE1', 'icone'],
     ['Zinedine Zidane',     'MEI', 93, 'Real Madrid',       'ES1', 'icone'],
     ['Michel Platini',      'MEI', 92, 'Juventus',          'IT1', 'icone'],
-    ['Marco van Basten',    'ATA', 92, 'Milan',             'IT1', 'icone'],
-    ['Paolo Maldini',       'ZAG', 92, 'Milan',             'IT1', 'icone'],
-    ['Franco Baresi',       'ZAG', 91, 'Milan',             'IT1', 'heroi'],
+    ['Marco van Basten',    'ATA', 92, 'AC Milan',          'IT1', 'icone'],
+    ['Paolo Maldini',       'ZAG', 92, 'AC Milan',          'IT1', 'icone'],
+    ['Franco Baresi',       'ZAG', 91, 'AC Milan',          'IT1', 'heroi'],
     ['Lev Yashin',          'GOL', 92, 'Dínamo Moscou',     'RU1', 'icone'],
     ['Gianluigi Buffon',    'GOL', 91, 'Juventus',          'IT1', 'heroi'],
     ['Iker Casillas',       'GOL', 90, 'Real Madrid',       'ES1', 'heroi'],
@@ -79,7 +79,7 @@ const DFUT_LENDAS = [
     ['Thierry Henry',       'ATA', 91, 'Arsenal',           'EN1', 'icone'],
     ['Ryan Giggs',          'PON', 89, 'Manchester United', 'EN1', 'heroi'],
     ['Andrea Pirlo',        'VOL', 90, 'Juventus',          'IT1', 'heroi'],
-    ['Zlatan Ibrahimović',  'ATA', 90, 'Milan',             'IT1', 'heroi'],
+    ['Zlatan Ibrahimović',  'ATA', 90, 'AC Milan',          'IT1', 'heroi'],
 ];
 
 /**
@@ -127,6 +127,14 @@ function draftFutLendas(): array
     $escudoDe = [];
     foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) $escudoDe[$nome] = $escudo;
 
+    /* AS FOTOS, quando existem. Pedido do Marcos (08/10/2026): "consegue
+       pegar as fotos dos icones e herois, todos esses que nao tem". São 36
+       das 44 — oito a fonte não tem sob nome nenhum, e essas continuam com o
+       escudo em marca d'água. @see draftfut_lendas_fotos_cli.php */
+    $fotos = [];
+    $arq = __DIR__ . '/../data/draftfut_fotos_lendas.php';
+    if (is_file($arq)) $fotos = (array)require $arq;
+
     $cartas = [];
     foreach (DFUT_LENDAS as [$nome, $pos, $ovr, $clube, $liga, $tipo]) {
         $cartas[] = [
@@ -146,6 +154,11 @@ function draftFutLendas(): array
                punhado de cartas, não em cinco mil. As comuns pegam a nação
                de verdade, da API. */
             'nac'    => DFUT_LENDA_NACAO[$nome] ?? '',
+            'foto'     => (string)($fotos[$nome]['src'] ?? ''),
+            /* 'recorte' é o PNG sem fundo; 'retrato' é a foto quadrada que a
+               fonte tem de quem jogou antes do recorte existir. A carta
+               desenha cada um de um jeito — ver .dfc-foto-retrato. */
+            'fotoTipo' => (string)($fotos[$nome]['tipo'] ?? ''),
         ];
     }
     return $cartas;

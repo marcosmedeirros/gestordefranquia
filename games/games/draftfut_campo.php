@@ -12,6 +12,8 @@
  */
 $F = $d['formacao'];
 $coords = DFUT_CAMPO[$F] ?? [];
+/* O que cada reserva renderia subindo. @see draftFutQuimicaDoBanco */
+$quimBanco = draftFutQuimicaDoBanco($F, $d['time']);
 ?>
 <div class="bloco">
   <div class="campo-topo">
@@ -46,8 +48,11 @@ $coords = DFUT_CAMPO[$F] ?? [];
       <p><b>Fora de posição zera.</b> Quem não está na posição dele fica com 0 — e
          ainda sai da contagem dos outros, então atrapalha o time todo, não só a
          si mesmo. É a carta com a borda vermelha.</p>
-      <p><b>O banco não tem química</b>, porque não está em campo. O reserva ganha
-         a dele no instante em que sobe pro time.</p>
+      <p><b>O banco não soma química</b>, porque não está em campo — o total do time
+         é só dos onze. O losango <b class="azulzinho">azul</b> embaixo do reserva é
+         uma prévia: quanto ele teria <b>se subisse</b>, já contando o titular que
+         sairia pra abrir a vaga. É sempre o melhor lugar pra ele; se der 0, é
+         porque no seu esquema ele só entraria fora de posição.</p>
       <p><b>Ícone tem 3 sempre</b> na posição certa, conta dois pra nação dele e um
          pra toda liga. <b>Herói</b> também tem 3, conta um pra nação e dois pra
          liga dele. As cartas de coleção (Time da Semana, Futuro) pontuam como
@@ -80,6 +85,11 @@ $coords = DFUT_CAMPO[$F] ?? [];
   </div>
 
   <h3 class="banco-tit">Banco <span><?= count(array_filter(array_slice($d['time'] + array_fill(0, DFUT_TOTAL, null), DFUT_VAGAS))) ?>/<?= DFUT_BANCO ?></span></h3>
+  <?php if ($quimBanco): ?>
+    <p class="sub banco-sub">Os losangos <b class="azulzinho">azuis</b> são a química que o
+       reserva teria <b>se subisse</b> — no lugar em que ele rende mais. Ela não entra no
+       total do time enquanto ele estiver no banco.</p>
+  <?php endif; ?>
   <div class="banco">
     <?php for ($i = DFUT_VAGAS; $i < DFUT_TOTAL; $i++):
       $c = $d['time'][$i] ?? null;
@@ -88,12 +98,21 @@ $coords = DFUT_CAMPO[$F] ?? [];
            data-vaga="<?= $i ?>" data-tem="<?= $c ? 1 : 0 ?>"
            <?= $c ? 'title="' . e($c['nome']) . ' — ' . e($c['clube']) . '"' : '' ?>>
         <?php if ($c): ?>
-          <?php /* O BANCO NÃO TEM QUÍMICA, e não mostra losango nenhum: no EA
-                   FC só pontua quem está em campo, e inventar nota aqui faria
-                   a pessoa escalar reserva atrás de um número que não existe.
-                   Ele ganha a química no instante em que sobe pro time — o
-                   motor recalcula o time inteiro a cada troca. */ ?>
           <span class="slot-carta"><?= dfutCartaHtml($c, ['mini' => true, 'rotulo' => $c['pos']]) ?></span>
+          <?php /* O BANCO CONTINUA SEM PONTUAR — no EA FC só vale quem está em
+                   campo, e o total do time não mexe. O que o losango azul diz é
+                   outra coisa: quanto ele VALERIA subindo. Antes a pessoa tinha
+                   que subir o cara, olhar o número e descer de novo. */
+            $pv = $quimBanco[$i] ?? null;
+            if ($pv !== null):
+              $alvo = $d['time'][$pv['vaga']] ?? null;
+              $tit  = $pv['naPos'] && $alvo
+                    ? 'Se subir: química ' . $pv['q'] . ' de 3 — como '
+                      . draftFutRotuloDaVaga($F, $pv['vaga']) . ', no lugar de ' . $alvo['nome']
+                    : 'Não há vaga de ' . $c['pos'] . ' no ' . $F . ': ele só entraria fora '
+                      . 'de posição, e fora de posição a química zera'; ?>
+            <?= dfutQuimicaHtml($pv['q'], true, $tit, true) ?>
+          <?php endif; ?>
         <?php else: ?>
           <?php /* Sem setor escrito: a vaga de banco aceita qualquer posição,
                    e prometer "ZAG" aqui entregaria o pacote antes de abrir. */ ?>

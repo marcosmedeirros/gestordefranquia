@@ -378,27 +378,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        json_encode($time, JSON_UNESCAPED_UNICODE), $forca, $quim]);
         $meuId = (int)$pdo->lastInsertId();
 
-        /* O ADVERSÁRIO: o time de outro GM quando existe algum de força
-           parecida, senão a máquina. Assim o PvP acontece sem ninguém
-           precisar estar online — o time do outro já está salvo. */
-        $modo = (string)($_POST['modo'] ?? 'maquina');
-        $adv = null; $advId = null;
-        if ($modo === 'pvp') {
-            $st = $pdo->prepare('SELECT * FROM draftfut_times
-                                  WHERE id_usuario <> ? AND ABS(forca - ?) <= 6
-                               ORDER BY RAND() LIMIT 1');
-            $st->execute([$user_id, $forca]);
-            if ($r = $st->fetch(PDO::FETCH_ASSOC)) {
-                $advId = (int)$r['id'];
-                $adv = ['nome' => $r['nome'], 'formacao' => $r['formacao'],
-                        'time' => json_decode($r['time_json'], true), 'forca' => (int)$r['forca']];
-            }
-        }
+        /* O ADVERSÁRIO É SEMPRE A MÁQUINA, e um time novo a cada partida.
+           Havia um modo que sorteava o time salvo de outro GM: ele mexia no
+           cartel de alguém que não clicou em nada, e repetia de pior jeito o
+           que o duelo faz direito. Saiu a pedido do Marcos (08/10/2026). */
+        $modo = 'maquina';
+        $advId = null;
         $semente = random_int(1, 2000000000);
-        if (!$adv) {
-            $adv = draftFutAdversarioDaMaquina($forca, $semente);
-            $modo = 'maquina';
-        }
+        $adv = draftFutAdversarioDaMaquina($forca, $semente);
 
         $p = draftFutPartida(['nome' => $nome, 'formacao' => $formacao, 'time' => $time, 'forca' => $forca],
                              $adv, $semente);
@@ -410,10 +397,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $col = $p['placar'][0] > $p['placar'][1] ? 'vitorias'
              : ($p['placar'][0] === $p['placar'][1] ? 'empates' : 'derrotas');
         $pdo->prepare("UPDATE draftfut_times SET $col = $col + 1 WHERE id = ?")->execute([$meuId]);
-        if ($advId) {
-            $inv = $col === 'vitorias' ? 'derrotas' : ($col === 'derrotas' ? 'vitorias' : 'empates');
-            $pdo->prepare("UPDATE draftfut_times SET $inv = $inv + 1 WHERE id = ?")->execute([$advId]);
-        }
 
         $pdo->prepare('INSERT INTO draftfut_partidas (time_casa, time_fora, fora_json, semente, gols_casa, gols_fora, moedas)
                        VALUES (?,?,?,?,?,?,?)')
@@ -748,6 +731,19 @@ a{color:inherit}
   min-height:0;overflow:hidden}
 .dfc-foto{max-width:112%;max-height:100%;object-fit:contain;
   filter:drop-shadow(0 4px 7px rgba(0,0,0,.45))}
+/* RETRATO QUADRADO VIRA MEDALHÃO. O recorte das lendas recentes é PNG sem
+   fundo e entra inteiro; as antigas só existem como foto de estúdio ou de
+   estádio, e coladas cruas seriam um azulejo no meio do dourado. Redondo,
+   com a borda apagando pro nada, o fundo some e sobra o rosto. */
+.dfc-foto-retrato{max-width:72%;max-height:88%;object-fit:cover;aspect-ratio:1;
+  /* O CORTE SOBE. Foto de arquivo costuma vir em pé, de corpo inteiro, e um
+     medalhão centrado nela enquadra a barriga. Puxando pro alto, pega o
+     rosto; em foto quadrada não corta nada e isto não faz diferença. */
+  object-position:center 18%;
+  border-radius:50%;align-self:center;
+  -webkit-mask-image:radial-gradient(circle at 50% 50%, #000 58%, transparent 74%);
+  mask-image:radial-gradient(circle at 50% 50%, #000 58%, transparent 74%)}
+.dfc-mini .dfc-foto-retrato{max-width:78%;max-height:78%}
 /* Sem foto o escudo vira marca d'água: carta cheia em vez de buraco. */
 .dfc-marca{max-width:66%;max-height:86%;object-fit:contain;opacity:.28;align-self:center}
 .dfc-mono{font-family:'Oswald',sans-serif;font-size:44px;line-height:1;opacity:.34;align-self:center}
@@ -773,6 +769,12 @@ a{color:inherit}
   background:none;box-shadow:inset 0 0 0 1.5px var(--txt3);opacity:.5}
 .dfq i.on{opacity:1;background:var(--verde);box-shadow:0 0 7px rgba(34,197,94,.45)}
 .dfq-mini{gap:3px;margin-top:3px}
+/* A PRÉVIA DO BANCO EM AZUL. Verde é química que já está valendo; o
+   reserva ainda não vale nada pro time, e dois números da mesma cor
+   convidariam a somar o banco no total. */
+.dfq-prev i.on{background:var(--azul);box-shadow:0 0 7px rgba(59,130,246,.4)}
+.azulzinho{color:var(--azul)}
+.banco-sub{margin:-2px 0 10px;font-size:12.5px}
 
 /* A explicação da química */
 .quim-ajuda{margin:0 0 12px;border:1px solid var(--borda);border-radius:10px;
@@ -1088,7 +1090,7 @@ a{color:inherit}
 <?php elseif ($pronto): ?>
   <div class="bloco">
     <h2>Time pronto</h2>
-    <p class="sub">Dá o nome e escolhe o adversário.</p>
+    <p class="sub">Confere o time e manda jogar.</p>
     <div class="nums">
       <div class="num"><b><?= draftFutForcaDoTime($d['formacao'], $d['time']) ?></b><small>Força</small></div>
       <div class="num"><b><?= $quim['total'] ?><small style="opacity:.5">/33</small></b><small>Química</small></div>
@@ -1108,16 +1110,21 @@ a{color:inherit}
         Depois disso não dá pra mexer no time. A partida roda quando o adversário
         terminar o dele.</p>
     <?php else: ?>
+      <?php /* UM BOTÃO SÓ. Existia um "contra time salvo" que sorteava o time
+               de outro GM com força parecida — e marcava derrota no cartel
+               dele sem ele saber de nada. Pedido do Marcos (08/10/2026):
+               "acho que nao precisa, pode ser somente contra o bot, que é um
+               time aleatorio". Com o duelo de verdade no multiplayer, jogar
+               contra o time parado de alguém não era nem uma coisa nem
+               outra. */ ?>
       <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <input type="hidden" name="acao" value="jogar">
-        <button class="btn pri" type="submit" name="modo" value="maquina">
-          <i class="bi bi-cpu"></i> Contra o bot</button>
-        <button class="btn" type="submit" name="modo" value="pvp">
-          <i class="bi bi-people-fill"></i> Contra time salvo</button>
+        <button class="btn pri" type="submit">
+          <i class="bi bi-cpu"></i> Jogar contra o bot</button>
       </form>
       <p class="sub" style="margin:10px 0 0;font-size:12px">
-        Sem nenhum time de GM na sua faixa de força, o jogo cai no bot — e avisa.
-        Pra duelar com alguém de verdade, use o <a href="?v=multi">multiplayer</a>.</p>
+        O bot monta um time aleatório na sua faixa de força. Pra jogar contra um GM
+        de verdade, use o <a href="?v=multi">multiplayer</a>.</p>
     <?php endif; ?>
   </div>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>

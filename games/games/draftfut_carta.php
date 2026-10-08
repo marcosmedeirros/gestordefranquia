@@ -88,7 +88,12 @@ function dfutCartaHtml(array $c, array $o = []): string
           cheia em vez de ter um buraco onde devia ter gente. ── */
     $h .= '<span class="dfc-retrato">';
     if (!empty($c['foto'])) {
-        $h .= '<img class="dfc-foto" src="' . e((string)$c['foto']) . '" alt="" loading="lazy" ' . DFC_SOME . '>';
+        /* O RETRATO NÃO É RECORTE. As lendas mais antigas só existem na
+           fonte como foto quadrada, com fundo de estádio; coladas inteiras
+           viram um azulejo no meio do dourado. A classe extra arredonda e
+           apaga a borda, e o que sobra é o rosto. */
+        $clsFoto = 'dfc-foto' . (($c['fotoTipo'] ?? '') === 'retrato' ? ' dfc-foto-retrato' : '');
+        $h .= '<img class="' . $clsFoto . '" src="' . e((string)$c['foto']) . '" alt="" loading="lazy" ' . DFC_SOME . '>';
     } elseif (!empty($c['escudo'])) {
         $h .= '<img class="dfc-marca" src="' . e((string)$c['escudo']) . '" alt="" loading="lazy" ' . DFC_SOME . '>';
     } else {
@@ -115,15 +120,20 @@ function dfutCartaHtml(array $c, array $o = []): string
 /**
  * Os três losangos da química, pra ficarem EMBAIXO da carta.
  *
- * $q null não desenha nada — é o caso do banco, que no EA FC não pontua.
- * Desenhar zero ali faria o reserva parecer um titular ruim em vez de um
- * jogador que simplesmente não está em campo.
+ * $q null não desenha nada. O banco passa um número com $prev ligado: é a
+ * prévia do que o reserva valeria subindo, e sai azul justamente pra não
+ * ser lida como química valendo (@see draftFutQuimicaDoBanco).
  */
-function dfutQuimicaHtml(?int $q, bool $mini = false): string
+function dfutQuimicaHtml(?int $q, bool $mini = false, ?string $titulo = null, bool $prev = false): string
 {
     if ($q === null) return '';
     $q = max(0, min(3, $q));
-    $h = '<span class="dfq' . ($mini ? ' dfq-mini' : '') . '" title="Química: ' . $q . ' de 3">';
+    /* `prev` é a química que ainda não vale — a do reserva, se ele subir.
+       Ela sai azul em vez de verde, porque um número igualzinho ao dos
+       titulares faria a pessoa somar o banco no total do time. */
+    $cls = 'dfq' . ($mini ? ' dfq-mini' : '') . ($prev ? ' dfq-prev' : '');
+    $h = '<span class="' . $cls . '" title="'
+       . htmlspecialchars($titulo ?? ('Química: ' . $q . ' de 3'), ENT_QUOTES, 'UTF-8') . '">';
     for ($k = 1; $k <= 3; $k++) $h .= '<i class="' . ($k <= $q ? 'on' : '') . '"></i>';
     return $h . '</span>';
 }

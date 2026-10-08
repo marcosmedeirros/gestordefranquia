@@ -63,7 +63,8 @@
       <a class="modo-card" href="?v=bot">
         <i class="bi bi-cpu"></i>
         <b>Contra o bot</b>
-        <small>Entrada <?= DF_ENTRADA ?> moedas · vitória paga <?= DF_VITORIA ?>, empate <?= DF_EMPATE ?></small>
+        <small>Time aleatório na sua faixa de força · entrada <?= DF_ENTRADA ?> moedas,
+                   vitória paga <?= DF_VITORIA ?> e empate <?= DF_EMPATE ?></small>
       </a>
       <a class="modo-card" href="?v=multi">
         <i class="bi bi-people-fill"></i>
