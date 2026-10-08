@@ -54,6 +54,16 @@ $DESTINO = __DIR__ . '/../data/draftfut_transferencias.php';
 $limite = 0;
 foreach ($argv as $a) if (preg_match('/^--n=(\d+)$/', $a, $m)) $limite = (int)$m[1];
 
+/**
+ * --revisar: confere de novo quem já foi dado como "não mudou".
+ *
+ * Precisou existir quando a trava do `strStatus` caiu: ela tinha marcado
+ * como "sem mudança" gente que havia trocado de clube de verdade, e sem
+ * isto a correção não alcançaria essas cartas. Quem já tem troca gravada não
+ * é mexido — só os vazios voltam pra fila.
+ */
+$revisar = in_array('--revisar', $argv, true);
+
 function pegaClube(string $url): ?array
 {
     for ($i = 0; $i < 3; $i++) {
@@ -102,7 +112,8 @@ $cartas = [];
 foreach (draftFutBaralho() as $c) {
     if ($c['ovr'] < DFUT_OVR_MIN) continue;
     if (($c['nac'] ?? '') === '') continue;            // sem nação não há tranca
-    if (array_key_exists($c['clube'] . '|' . $c['nome'], $trocas)) continue;
+    $jaVisto = $trocas[$c['clube'] . '|' . $c['nome']] ?? null;
+    if ($jaVisto !== null && ($jaVisto !== '' || !$revisar)) continue;
     $cartas[] = $c;
 }
 usort($cartas, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
@@ -138,11 +149,18 @@ foreach ($cartas as $c) {
         if (!nomeCasaClube((string)($x['strPlayer'] ?? ''), $c['nome'])) continue;
         if (trim((string)($x['strNationality'] ?? '')) !== $c['nac']) continue;
 
-        /* Trava 2: só registro ATIVO. "Free Agent" com nome de clube junto é
-           registro que se contradiz — foi o caso do Salah. */
-        $status = trim((string)($x['strStatus'] ?? ''));
-        if (strcasecmp($status, 'Active') !== 0) break;
+        /* NÃO FILTRA POR `strStatus`, e esta linha é a cicatriz do porquê.
+           A primeira versão exigia "Active" por achar que "Free Agent" com
+           nome de clube junto era registro se contradizendo — o caso do
+           Salah, que vinha "Free Agent / Trabzonspor" enquanto a foto dele
+           mostrava a camisa do Liverpool. O Marcos corrigiu: o Salah ESTÁ no
+           Trabzonspor. A fonte estava certa, a foto é que era velha, e a
+           trava estava derrubando transferência de verdade.
 
+           Fica a lição pro resto deste arquivo: a camisa da foto não prova
+           clube, porque a foto pode ser anterior à transferência. Quem
+           protege aqui é o nome + a nacionalidade + o clube existir no
+           catálogo, e é só isso. */
         $daFonte = (string)($x['strTeam'] ?? '');
         if ($daFonte === '') break;
         if (draftFutClubeBate($daFonte, [$c['clube'], DFUT_CLUBE_API[$c['clube']] ?? $c['clube']])) break;
