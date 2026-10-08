@@ -296,11 +296,13 @@ const DFUT_NACAO_MAO = [
     'Atlético-MG|Victor Hugo'        => 'Brazil',
     'Palmeiras|Flaco López'          => 'Argentina',
 
-    /* FICAM DE FORA, DE PROPÓSITO: "Arias" do Palmeiras, "Bastos" e "Pedro
-       Henrique" do Fortaleza. Não consigo dizer de quem são essas três cartas
-       com certeza, e chutar o país pelo jeito do nome é exatamente o erro que
-       esta lista existe pra não cometer. Ficam sem nação, e a química trata:
-       jogador sem nação não faz elo de nação com ninguém. */
+    /* AS TRÊS QUE EU NÃO SABIA, ditas pelo Marcos em 08/10/2026. Elas tinham
+       ficado em branco de propósito — chutar o país pelo jeito do nome é o
+       erro que esta lista existe pra não cometer —, e quem sabia era o dono
+       da liga. O "Bastos" é o angolano mesmo, que era a dúvida maior. */
+    'Palmeiras|Arias'                => 'Colombia',
+    'Fortaleza|Bastos'               => 'Angola',
+    'Fortaleza|Pedro Henrique'       => 'Brazil',
 ];
 
 /**
