@@ -909,6 +909,16 @@ return array (
       'nac' => 'England',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ov5tp61789117724.png',
     ),
+    'Ederson' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/xhlait1769179027.png',
+    ),
+    'Savinho' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/oithl71789397602.png',
+    ),
   ),
   'Liverpool' => 
   array (
@@ -1010,7 +1020,12 @@ return array (
     'Konstantinos Tsimikas' => 
     array (
       'nac' => 'Greece',
-      'foto' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ml41he1788591692.png',
+    ),
+    'Luis Díaz' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/emmcyf1756408968.png',
     ),
   ),
   'Arsenal' => 
@@ -1105,6 +1120,21 @@ return array (
       'nac' => 'Poland',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/s9vp9d1694204099.png',
     ),
+    'Gabriel' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/nvp3jz1788606720.png',
+    ),
+    'Jorginho' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/fvtteu1750921284.png',
+    ),
+    'Neto' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/btjx5u1766833062.png',
+    ),
   ),
   'Manchester United' => 
   array (
@@ -1197,6 +1227,11 @@ return array (
     array (
       'nac' => 'England',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/cqc0oh1789120518.png',
+    ),
+    'Casemiro' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ydr3j41766826524.png',
     ),
   ),
   'Chelsea' => 
@@ -1389,6 +1424,11 @@ return array (
       'nac' => 'Wales',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/u9bi5v1788879132.png',
     ),
+    'Reguilón' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ao2s001773999307.png',
+    ),
   ),
   'Newcastle' => 
   array (
@@ -1461,6 +1501,11 @@ return array (
     array (
       'nac' => 'England',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/58tgz91789128617.png',
+    ),
+    'Bruno Guimarães' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/trty041786916932.png',
     ),
   ),
   'Aston Villa' => 
@@ -1868,6 +1913,11 @@ return array (
       'nac' => 'Brazil',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/lhg9vv1788114231.png',
     ),
+    'Carvajal' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/k510z81733653425.png',
+    ),
   ),
   'Barcelona' => 
   array (
@@ -1946,6 +1996,11 @@ return array (
       'nac' => 'Spain',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/54v6h91766238031.png',
     ),
+    'Pedri' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/82xtuu1726509836.png',
+    ),
   ),
   'Real Betis' => 
   array (
@@ -1996,6 +2051,11 @@ return array (
     array (
       'nac' => 'Serbia',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/8uupl01762860130.png',
+    ),
+    'Suso' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/72cj9g1787239394.png',
     ),
   ),
   'Valencia' => 
@@ -2141,6 +2201,11 @@ return array (
       'nac' => 'Brazil',
       'foto' => '',
     ),
+    'Yann Aurel Bisseck' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/4unlga1759408810.png',
+    ),
   ),
   'Juventus' => 
   array (
@@ -2223,6 +2288,11 @@ return array (
     array (
       'nac' => 'France',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/z7zq751759225259.png',
+    ),
+    'Michele Di Gregorio' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/fgvi9t1759222392.png',
     ),
   ),
   'AC Milan' => 
@@ -2307,6 +2377,21 @@ return array (
       'nac' => 'Italy',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/bxxjy81758892492.png',
     ),
+    'Theo Hernández' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/4d3g7j1675234242.png',
+    ),
+    'Rafael Leão' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/tlgrvf1758892567.png',
+    ),
+    'Morata' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/5cci4b1764278358.png',
+    ),
   ),
   'Napoli' => 
   array (
@@ -2384,6 +2469,11 @@ return array (
     array (
       'nac' => 'Italy',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/i9aw1q1762288549.png',
+    ),
+    'André-Franck Zambo Anguissa' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/bedkjv1762288303.png',
     ),
   ),
   'Roma' => 
@@ -2751,6 +2841,11 @@ return array (
       'nac' => 'Croatia',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/m1kqf11756416127.png',
     ),
+    'Palhinha' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/o0ii6n1757016009.png',
+    ),
   ),
   'Wolfsburg' => 
   array (
@@ -2852,6 +2947,21 @@ return array (
       'nac' => 'Brazil',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/v6nvhs1766334559.png',
     ),
+    'Marquinhos' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/7x9gtl1766335348.png',
+    ),
+    'Vitinha' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/q6mw6n1766335544.png',
+    ),
+    'Lee Kang In' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/3jhw2d1766335293.png',
+    ),
   ),
   'Monaco' => 
   array (
@@ -2869,6 +2979,11 @@ return array (
     array (
       'nac' => 'France',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/0jqkc01767799815.png',
+    ),
+    'Alexandr Golovin' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ljnuwy1766238045.png',
     ),
   ),
   'Marseille' => 
@@ -3025,6 +3140,11 @@ return array (
     array (
       'nac' => 'Portugal',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/koetaj1724749969.png',
+    ),
+    'Pepê' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/3tjamp1679049615.png',
     ),
   ),
   'Sporting CP' => 
@@ -3475,6 +3595,11 @@ return array (
       'nac' => 'Morocco',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ntqrjo1771750633.png',
     ),
+    'Grimaldo' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ddeb6b1756316030.png',
+    ),
   ),
   'Borussia Dortmund' => 
   array (
@@ -3651,6 +3776,21 @@ return array (
       'nac' => 'Brazil',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/8cl2ir1767467376.png',
     ),
+    'Reinildo' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/wekue51789383017.png',
+    ),
+    'Azpilicueta' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/fu140w1762859964.png',
+    ),
+    'Riquelme' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/ywns2y1762603075.png',
+    ),
   ),
   'RB Leipzig' => 
   array (
@@ -3817,6 +3957,11 @@ return array (
       'nac' => 'Spain',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/9jfb1f1678567636.png',
     ),
+    'De Marcos' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/wttspi1603316460.png',
+    ),
   ),
   'River Plate' => 
   array (
@@ -3965,6 +4110,11 @@ return array (
     array (
       'nac' => 'Morocco',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/aqw7ba1766151823.png',
+    ),
+    'Zubimendi' => 
+    array (
+      'nac' => '',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/to278z1788607039.png',
     ),
   ),
   'Villarreal' => 

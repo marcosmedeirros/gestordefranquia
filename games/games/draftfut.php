@@ -387,6 +387,32 @@ a{color:inherit}
   background:none;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.3}
 .dfc-quim i.on{opacity:1;background:var(--dfc-ac);box-shadow:none}
 .dfc-fora{box-shadow:inset 0 0 0 2px #ff2d55,0 6px 15px rgba(0,0,0,.4)}
+
+/* ── A QUÍMICA, FORA DA CARTA ────────────────────────────────────────
+   Era o último item do rodapé e virava enfeite do desenho. Solta embaixo,
+   ela lê como o que é: uma nota sobre o time, não sobre a figurinha. */
+.dfq{display:flex;justify-content:center;gap:5px;margin-top:7px}
+.dfq i{width:8px;height:8px;transform:rotate(45deg);border-radius:1px;
+  background:none;box-shadow:inset 0 0 0 1.5px var(--txt3);opacity:.5}
+.dfq i.on{opacity:1;background:var(--verde);box-shadow:0 0 7px rgba(34,197,94,.45)}
+.dfq-mini{gap:3px;margin-top:3px}
+
+/* A explicação da química */
+.quim-ajuda{margin:0 0 12px;border:1px solid var(--borda);border-radius:10px;
+  background:var(--panel2);overflow:hidden}
+.quim-ajuda summary{cursor:pointer;padding:9px 13px;font-size:13px;font-weight:700;
+  color:var(--txt2);list-style:none;display:flex;align-items:center;gap:7px}
+.quim-ajuda summary::-webkit-details-marker{display:none}
+.quim-ajuda summary:hover{color:var(--txt)}
+.quim-ajuda summary i{color:var(--amarelo)}
+.quim-ajuda[open] summary{border-bottom:1px solid var(--borda)}
+.qa-corpo{padding:12px 14px 14px;font-size:13px;line-height:1.55;color:var(--txt2)}
+.qa-corpo p{margin:0 0 9px}
+.qa-corpo p:last-child{margin-bottom:0}
+.qa-corpo b{color:var(--txt)}
+.qa-regras{margin:0 0 9px;padding-left:18px}
+.qa-regras li{margin-bottom:3px}
+.dfq-mini i{width:5px;height:5px;box-shadow:inset 0 0 0 1.2px rgba(255,255,255,.45)}
 .legenda-quim{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0 0;
   color:var(--txt3);font-size:11.5px;line-height:1.45}
 .legenda-quim .lq{display:inline-flex;gap:3px}
@@ -447,15 +473,18 @@ a{color:inherit}
 .area-cima{top:0;border-top:none}
 .area-baixo{bottom:0;border-bottom:none}
 
-.slot{position:absolute;transform:translate(-50%,-50%);width:68px;aspect-ratio:10/13;
+.slot{position:absolute;transform:translate(-50%,-50%);width:68px;
+  display:flex;flex-direction:column;align-items:center;
   cursor:pointer;border-radius:10px;
   transition:transform .15s,box-shadow .15s;animation:slotEnt .3s backwards}
+/* A CARTA tem a altura; os losangos ficam fora dela, embaixo. */
+.slot-carta{position:relative;display:block;width:100%;aspect-ratio:10/13}
 @keyframes slotEnt{from{opacity:0;transform:translate(-50%,-50%) scale(.6)}}
 .slot:hover{transform:translate(-50%,-50%) scale(1.12);z-index:5}
-.slot.vazio{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+.slot.vazio{justify-content:center;gap:2px;aspect-ratio:10/13;
   background:rgba(0,0,0,.44);border:1px dashed rgba(255,255,255,.34)}
-.slot.aberta{box-shadow:0 0 0 3px rgba(245,197,24,.8)}
-.slot.sel{box-shadow:0 0 0 3px rgba(59,130,246,.9)}
+.slot.aberta .slot-carta,.slot.aberta.vazio{box-shadow:0 0 0 3px rgba(245,197,24,.8);border-radius:10px}
+.slot.sel .slot-carta{box-shadow:0 0 0 3px rgba(59,130,246,.9);border-radius:10px}
 .slot .s-mais{font-size:20px;line-height:1;color:var(--txt3)}
 .slot .s-rot{font-size:8px;font-weight:800;letter-spacing:.5px;color:var(--txt3)}
 
@@ -482,7 +511,7 @@ a{color:inherit}
 .banco-tit span{color:var(--txt3);font-size:12px;font-family:'Montserrat',sans-serif}
 .banco{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 @media (min-width:620px){.banco{grid-template-columns:repeat(8,1fr)}}
-.banco-s{position:relative;transform:none;width:auto;aspect-ratio:10/13}
+.banco-s{position:relative;transform:none;width:auto}
 .banco-s:hover{transform:scale(1.07)}
 @keyframes slotEnt2{from{opacity:0;transform:scale(.7)}}
 .banco-s{animation:slotEnt2 .3s backwards}
@@ -578,9 +607,9 @@ a{color:inherit}
             <input type="hidden" name="carta" value="<?= $i ?>">
             <button class="carta-btn" type="submit" style="animation-delay:<?= $i * 70 ?>ms"
                     title="<?= e($c['nome']) ?> — <?= e($c['clube']) ?> · <?= e(draftFutPais($c['liga'])) ?><?= !empty($c['nac']) ? ' · ' . e($c['nac']) : '' ?>">
-              <?= dfutCartaHtml($c, ['quimica' => $qCarta,
-                                     'rotulo'  => draftFutRotuloDaVaga($d['formacao'], $aberta),
-                                     'fora'    => $c['pos'] !== $natural]) ?>
+              <?= dfutCartaHtml($c, ['rotulo' => draftFutRotuloDaVaga($d['formacao'], $aberta),
+                                     'fora'   => $c['pos'] !== $natural]) ?>
+              <?= dfutQuimicaHtml($qCarta) ?>
             </button>
           </form>
         <?php endforeach; ?>

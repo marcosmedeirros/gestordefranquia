@@ -96,21 +96,34 @@ function dfutCartaHtml(array $c, array $o = []): string
     }
     $h .= '</span>';
 
-    /* ── Rodapé: nome, clube e os três losangos da química ── */
+    /* ── Rodapé: nome e clube. A QUÍMICA NÃO MORA MAIS AQUI ──────
+          Pedido do Marcos (08/10/2026): "colocaria a quimica fora da
+          cartinha embaixo". Dentro do rodapé ela disputava espaço com o nome
+          e parecia enfeite da carta; embaixo, solta, ela é o que é — uma
+          leitura sobre o time, que muda quando o time muda. Quem desenha é
+          dfutQuimicaHtml(), e quem decide onde pôr é a tela. */
     $h .= '<span class="dfc-pe">';
     $h .=   '<span class="dfc-nome">' . e($nome) . '</span>';
     if (!$mini) {
         $h .= '<span class="dfc-clube">' . e((string)$c['clube']) . '</span>';
     }
-    if ($quim !== null) {
-        $q = max(0, min(3, (int)$quim));
-        $h .= '<span class="dfc-quim" title="Química: ' . $q . ' de 3">';
-        for ($k = 1; $k <= 3; $k++) {
-            $h .= '<i class="' . ($k <= $q ? 'on' : '') . '"></i>';
-        }
-        $h .= '</span>';
-    }
     $h .= '</span>';
 
+    return $h . '</span>';
+}
+
+/**
+ * Os três losangos da química, pra ficarem EMBAIXO da carta.
+ *
+ * $q null não desenha nada — é o caso do banco, que no EA FC não pontua.
+ * Desenhar zero ali faria o reserva parecer um titular ruim em vez de um
+ * jogador que simplesmente não está em campo.
+ */
+function dfutQuimicaHtml(?int $q, bool $mini = false): string
+{
+    if ($q === null) return '';
+    $q = max(0, min(3, $q));
+    $h = '<span class="dfq' . ($mini ? ' dfq-mini' : '') . '" title="Química: ' . $q . ' de 3">';
+    for ($k = 1; $k <= 3; $k++) $h .= '<i class="' . ($k <= $q ? 'on' : '') . '"></i>';
     return $h . '</span>';
 }
