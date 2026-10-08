@@ -293,6 +293,50 @@ function dfdCancelar(PDO $pdo, array $duelo, int $uid): bool
 }
 
 /**
+ * DESISTIR DO DUELO: W.O., e o adversário leva as duas apostas.
+ *
+ * Sem esta regra, desistir no meio seria um jeito de segurar a aposta do
+ * outro pra sempre — ele ficaria esperando um time que nunca vem. Por isso o
+ * duelo encerra na hora, com placar de W.O. (3x0, como manda o costume) e o
+ * pote inteiro pra quem ficou.
+ *
+ * Quem já fechou o próprio time não desiste: a partida sai sozinha quando o
+ * outro terminar, e deixar sair seria desfazer um time já entregue.
+ */
+function dfdDesistir(PDO $pdo, array $duelo, int $uid): bool
+{
+    if ($duelo['status'] === 'concluido') return false;
+    if ($duelo['id_desafiado'] === null) return false;
+    $lado = dfdLado($duelo, $uid);
+    if ((int)$duelo['pronto_' . $lado]) return false;
+
+    $outro = $lado === 'criador' ? (int)$duelo['id_desafiado'] : (int)$duelo['id_criador'];
+    $gc = $lado === 'criador' ? 0 : 3;   // o criador é sempre a casa no placar
+    $gf = $lado === 'criador' ? 3 : 0;
+
+    $pdo->beginTransaction();
+    try {
+        /* A TRANCA É A MESMA DO PAGAMENTO: só paga quem conseguiu mudar o
+           status. Desistir e o adversário fechar o time no mesmo instante
+           entram aqui juntos, e um dos dois sai sem efeito. */
+        $up = $pdo->prepare("UPDATE draftfut_duelos
+                                SET status = 'concluido', gols_criador = ?, gols_desafiado = ?,
+                                    id_vencedor = ?, concluido_em = NOW(),
+                                    visto_{$lado} = 0
+                              WHERE id = ? AND status <> 'concluido'");
+        $up->execute([$gc, $gf, $outro, (int)$duelo['id']]);
+        if ($up->rowCount() !== 1) { $pdo->rollBack(); return false; }
+        dfMoedasMexer($pdo, $outro, (int)$duelo['aposta'] * 2);
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[draftfut-duelo] desistir: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * O ranking de vitórias, somando duelo E partida contra o bot.
  *
  * Duas fontes porque são duas histórias do mesmo GM: `draftfut_times` conta o

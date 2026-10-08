@@ -342,6 +342,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            'premio' => $premio, 'forca' => $forca, 'quimica' => $quim, 'nome' => $nome];
     }
 
+    /* ── DESISTIR DO DRAFT ───────────────────────────────────────────
+       Pedido do Marcos (08/10/2026): "coloque a opção, desistir draft... o
+       desistir cancela o draft e volta pra tela inicial do jogo".
+
+       A entrada NÃO volta: ela foi paga pra jogar, e devolver faria o draft
+       virar uma roleta de graça — abre, não gostou das cartas, desiste, abre
+       de novo. A pergunta no popup diz isso antes de a pessoa clicar.
+
+       DENTRO DE UM DUELO é outra conversa, e tem três casos:
+         · ninguém entrou ainda  -> cancela e devolve a aposta;
+         · o adversário está dentro mas nenhum dos dois fechou o time, ou eu
+           ainda não fechei -> é W.O.: ele leva as duas apostas;
+         · eu já fechei o meu time -> não há o que desistir, a partida sai
+           sozinha quando ele terminar.
+       Sem a regra do W.O., desistir no meio seria um jeito de segurar a
+       aposta do outro pra sempre. */
+    if ($acao === 'desistir') {
+        if ($duelo) {
+            $meuLado = dfdLado($duelo, $user_id);
+            if ((int)$duelo['pronto_' . $meuLado]) {
+                $erro = 'Seu time já está fechado — a partida sai quando o adversário terminar.';
+            } elseif ($duelo['id_desafiado'] === null) {
+                if (dfdCancelar($pdo, $duelo, $user_id)) {
+                    $duelo = null; $d = null;
+                    $msg = 'Duelo cancelado e aposta devolvida.';
+                } else {
+                    $erro = 'Não consegui cancelar. Recarregue a página.';
+                }
+            } elseif (dfdDesistir($pdo, $duelo, $user_id)) {
+                $dueloFim = dfdResultadoPendente($pdo, $user_id);
+                $duelo = null; $d = null;
+                $msg = 'Você desistiu do duelo. A aposta foi pro seu adversário.';
+            } else {
+                $erro = 'Não consegui registrar a desistência. Recarregue a página.';
+            }
+        } else {
+            $d = null;
+            $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000);
+            $msg = 'Draft cancelado. A entrada de ' . DF_ENTRADA . ' moedas não volta.';
+        }
+    }
+
     if ($acao === 'novo') {
         /* Mão nova de esquemas junto com o draft novo. */
         $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000); $d = null; }
@@ -429,6 +471,21 @@ a{color:inherit}
 .btn:hover{border-color:var(--vermelho)}
 .btn.pri{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* O popup do jogo */
+.pop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;
+  justify-content:center;padding:20px;z-index:90}
+.pop[hidden]{display:none}
+.pop-caixa{background:var(--panel);border:1px solid var(--borda2);border-radius:14px;
+  padding:20px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.pop-caixa p{margin:0 0 16px;font-size:14px;line-height:1.5;color:var(--txt)}
+.pop-acoes{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap}
+
+/* Desistir fica longe dos botões de jogar, e discreto: é saída, não ação. */
+.desistir{display:flex;justify-content:center;margin:-4px 0 16px}
+.desistir button{background:none;border:0;color:var(--txt3);font:inherit;font-size:12.5px;
+  cursor:pointer;padding:6px 10px;border-radius:8px;display:inline-flex;align-items:center;gap:6px}
+.desistir button:hover{color:#ff5c7a;background:rgba(252,0,37,.08)}
 
 /* ── O SALÃO, O MULTIPLAYER E O DUELO ────────────────────────────── */
 .salao-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -774,7 +831,10 @@ a{color:inherit}
   <h1>FBA <span>Draft</span></h1>
   <div style="display:flex;gap:10px;align-items:center">
     <span class="saldo"><i class="bi bi-coin"></i> <?= number_format($moedas, 0, ',', '.') ?></span>
-    <a class="btn" href="/games/"><i class="bi bi-arrow-left"></i> Games</a>
+    <?php /* /games.php, que é a página dos jogos — /games/ cai no índice do
+         diretório, que não é tela de ninguém. É o mesmo link que o Copero e o
+         Dream Team usam. */ ?>
+    <a class="btn" href="/games.php"><i class="bi bi-arrow-left"></i> Games</a>
   </div>
 </div>
 
@@ -791,6 +851,10 @@ a{color:inherit}
          A tela do duelo diz onde ele está, e a escolha de esquema aparece
          embaixo quando ainda dá pra montar. */ ?>
   <?php include __DIR__ . '/draftfut_duelo_tela.php'; ?>
+  <?php /* DESISTIR TAMBÉM NO SAGUÃO: aqui é onde a pessoa está quando o
+           adversário entrou e ela ainda não começou a montar — e era
+           justamente onde o botão não aparecia. */ ?>
+  <?php include __DIR__ . '/draftfut_desistir.php'; ?>
   <?php if (!(int)$duelo['pronto_' . dfdLado($duelo, $user_id)]): ?>
     <div class="bloco">
       <h2>Escolha a formação</h2>
@@ -887,6 +951,7 @@ a{color:inherit}
     </div>
   <?php endif; ?>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>
+  <?php include __DIR__ . '/draftfut_desistir.php'; ?>
 
 <?php elseif ($pronto): ?>
   <div class="bloco">
@@ -929,6 +994,7 @@ a{color:inherit}
     <?php endif; ?>
   </div>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>
+  <?php include __DIR__ . '/draftfut_desistir.php'; ?>
 
 <?php else:
   $r = $d['resultado']; $p = $r['partida'];
@@ -972,6 +1038,55 @@ a{color:inherit}
     document.querySelectorAll('.slot.sel').forEach(o => o.classList.remove('sel'));
     s.classList.add('sel'); sel = vaga;
   }));
+})();
+</script>
+<?php /* ── O POPUP DO JOGO, NUNCA O DO NAVEGADOR ──────────────────────
+     Mesma caixa que a Carreira usa. A do Chrome não tem a cara do jogo, não
+     dá pra escrever direito nela e some no meio da tela sem contexto — e
+     desistir de um draft é exatamente a hora de a pergunta estar clara. */ ?>
+<div class="pop" id="popConfirmar" hidden>
+  <div class="pop-caixa">
+    <p id="pcTexto"></p>
+    <div class="pop-acoes">
+      <button type="button" class="btn" data-fechar>Voltar</button>
+      <button type="button" class="btn pri" id="pcOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var pc = document.getElementById('popConfirmar');
+  var pcTexto = document.getElementById('pcTexto');
+  var pcOk = document.getElementById('pcOk');
+  var pendente = null;
+  if (!pc) return;
+
+  pc.addEventListener('click', function (e) {
+    if (e.target === pc || e.target.hasAttribute('data-fechar')) pc.hidden = true;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !pc.hidden) pc.hidden = true;
+  });
+
+  document.querySelectorAll('form[data-confirmar]').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      if (f.dataset.confirmado === '1') return;
+      e.preventDefault();
+      pendente = f;
+      pcTexto.textContent = f.dataset.confirmar;
+      pcOk.textContent = f.dataset.confirmarOk || 'Confirmar';
+      pcOk.style.background = f.dataset.confirmarPerigo ? '#b91c1c' : '';
+      pcOk.style.borderColor = f.dataset.confirmarPerigo ? '#b91c1c' : '';
+      pc.hidden = false;
+    });
+  });
+
+  pcOk.addEventListener('click', function () {
+    if (!pendente) return;
+    pendente.dataset.confirmado = '1';
+    pc.hidden = true;
+    pendente.submit();
+  });
 })();
 </script>
 </body>
