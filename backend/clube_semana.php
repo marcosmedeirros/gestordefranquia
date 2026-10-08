@@ -35,6 +35,7 @@
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/clube_fontes.php';
 
 /** Álbuns: [título, artista, ano]. O cânone com sotaque. */
 const CLUBE_ALBUNS = [
@@ -456,9 +457,26 @@ function clubeSemanaMes(string $ymd): string
 /**
  * Sorteia as opções de álbum/filme: inéditas primeiro, depois quem nunca
  * venceu. Vencedor não volta nunca.
+ *
+ * ── PRIMEIRO AS APIS, DEPOIS A LISTA À MÃO ───────────────────────────
+ *
+ * O catálogo escrito aqui tem 70 álbuns e 70 filmes, e uma enquete por
+ * semana sorteando dez esgota isso em pouco mais de um ano. As fontes
+ * externas (@see clube_fontes.php) resolvem o volume; a lista continua
+ * valendo por dois motivos que não são nostalgia:
+ *
+ *   · ela é a SEMENTE dos álbuns — são os artistas dela que o Deezer é
+ *     perguntado sobre, porque pedir por gênero devolve o chart brasileiro
+ *     para qualquer gênero;
+ *   · ela é a REDE. API fora do ar, cota estourada, resposta estranha: o
+ *     sorteio cai aqui e a sexta acontece. Enquete que não nasce é semana
+ *     perdida, e isso ninguém recupera depois.
  */
 function clubeSemanaSortear(PDO $pdo, string $tipo): array
 {
+    $daApi = clubeFonteSortear($pdo, $tipo, '', CLUBE_SEMANA_OPCOES);
+    if (count($daApi) >= CLUBE_SEMANA_OPCOES) return $daApi;
+
     $seed = $tipo === 'album' ? CLUBE_ALBUNS : CLUBE_FILMES;
     $st = $pdo->prepare("SELECT o.titulo, MAX(o.id = c.vencedor_opcao_id) venceu
                            FROM clube_semana_opcoes o
@@ -479,9 +497,19 @@ function clubeSemanaSortear(PDO $pdo, string $tipo): array
     return array_slice(array_merge($ineditas, $repescagem), 0, CLUBE_SEMANA_OPCOES);
 }
 
-/** Os livros de um gênero que ainda não venceram, embaralhados. */
+/**
+ * Os livros de um gênero que ainda não venceram, embaralhados.
+ *
+ * Aqui o aperto era maior que no álbum: a estante à mão tem oito ou nove
+ * livros por gênero, e o sorteio pede dez — ou seja, o gênero inteiro
+ * aparecia toda vez, e a "enquete" era a estante inteira sem escolha
+ * nenhuma. Com o Open Library o gênero passa a ter centenas.
+ */
 function clubeSemanaLivrosDoGenero(PDO $pdo, string $genero): array
 {
+    $daApi = clubeFonteSortear($pdo, 'livro', $genero, CLUBE_SEMANA_OPCOES);
+    if (count($daApi) >= CLUBE_SEMANA_OPCOES) return $daApi;
+
     $estante = CLUBE_LIVROS[$genero] ?? [];
     $st = $pdo->prepare("SELECT o.titulo FROM clube_semana_opcoes o
                            JOIN clube_semana_ciclos c ON c.id = o.ciclo_id
