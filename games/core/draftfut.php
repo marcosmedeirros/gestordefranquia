@@ -494,7 +494,14 @@ function draftFutForcaDoTime(string $formacao, array $time): int
 {
     $vagas = DFUT_FORMACOES[$formacao] ?? [];
     $soma = 0; $n = 0;
-    foreach ($time as $i => $c) {
+    /* SÓ OS ONZE DE CAMPO. Antes o laço varria as 19 vagas, e como
+       DFUT_FORMACOES só tem onze, cada reserva caía no `?? 10` e entrava com
+       dez de desconto — o banco cheio derrubava a força do time. Pior: o
+       adversário da máquina é montado só com onze (@see
+       draftFutAdversarioDaMaquina), então quem tinha banco jogava com uma
+       força artificialmente menor que a dele. No FUT o banco não joga. */
+    for ($i = 0; $i < DFUT_VAGAS; $i++) {
+        $c = $time[$i] ?? null;
         if (!$c) continue;
         $natural = $vagas[$i][1] ?? '';
         $soma += $c['ovr'] - (DFUT_COBRE[$natural][$c['pos']] ?? 10);
@@ -502,6 +509,12 @@ function draftFutForcaDoTime(string $formacao, array $time): int
     }
     if (!$n) return 50;
     $base = $soma / $n;
+
+    /* A QUÍMICA AGORA VAI DE 0 A 33, não mais de 0 a 100 — e esta conta tinha
+       ficado pra trás na troca de régua: com (q-50)/50, a química só sabia
+       punir, porque nem o time perfeito chegava a 50. O efeito pretendido
+       sempre foi ±8% em volta do meio da escala, e é isso que está aqui. */
+    $teto = DFUT_VAGAS * 3;
     $q = draftFutQuimica($formacao, $time)['total'];
-    return (int)round($base * (1 + (($q - 50) / 50) * 0.08));
+    return (int)round($base * (1 + (($q / $teto) - 0.5) * 0.16));
 }

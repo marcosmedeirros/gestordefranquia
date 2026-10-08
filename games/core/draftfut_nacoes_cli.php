@@ -62,6 +62,29 @@ function k2(string $n): string
     return trim(preg_replace('/\s+/', ' ', strtolower(preg_replace('/[^a-z ]/i', ' ', (string)$n))));
 }
 
+/**
+ * O clube do resultado é o clube da carta?
+ *
+ * Igualdade exata deixava passar batido metade dos ingleses: a API escreve
+ * "Tottenham Hotspur", "Newcastle United", "Brighton and Hove Albion", e o
+ * catálogo do jogo escreve o nome curto. Então vale também quando um nome
+ * contém o outro — com PELO MENOS SEIS LETRAS no mais curto.
+ *
+ * O piso de seis não é enfeite: com cinco, "inter" casaria "Inter de Milão"
+ * com "Internacional", e o Lautaro viraria colorado. Seis corta esse caso e
+ * mantém "tottenham", "newcastle", "brighton".
+ */
+function clubeBate(string $kTime, array $kClubes): bool
+{
+    foreach ($kClubes as $k) {
+        if ($k === $kTime) return true;
+        $curto = mb_strlen($k) <= mb_strlen($kTime) ? $k : $kTime;
+        $longo = $curto === $k ? $kTime : $k;
+        if (mb_strlen($curto) >= 6 && str_contains($longo, $curto)) return true;
+    }
+    return false;
+}
+
 /* Como a API escreve o clube, pra conferir o resultado. A lista da primeira
    passada já tem os nomes que divergem; aqui ela é reaproveitada ao contrário. */
 $aliasClube = [];
@@ -128,7 +151,7 @@ foreach ($faltam as [$clube, $nome]) {
         if ($nac === '') continue;
 
         $kTime = k2((string)($p['strTeam'] ?? ''));
-        $peloClube = $kTime !== '' && in_array($kTime, $kClubes, true);
+        $peloClube = $kTime !== '' && clubeBate($kTime, $kClubes);
         $peloNome  = k2((string)$p['strPlayer']) === $kNome && str_contains($kNome, ' ');
 
         if ($peloClube || $peloNome) {
