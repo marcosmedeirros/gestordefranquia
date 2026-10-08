@@ -204,6 +204,41 @@ function draftFutExtras(): array
 }
 
 /**
+ * ── AS NACIONALIDADES ESCRITAS À MÃO ─────────────────────────────────
+ *
+ * A fonte não acha jogador de nome curto. "Rodri" devolve Jay Rodriguez;
+ * "Ederson", "Pedri", "Carvajal" e "Gabriel" devolvem outras pessoas, e a
+ * conferência por clube — que é o que protege o resto — derruba todos. São
+ * justamente as cartas mais altas do baralho, as que mais aparecem.
+ *
+ * Então estas vêm escritas, com a chave CLUBE|NOME pra homônimo não pegar
+ * carona. É o mesmo tratamento que o projeto já dá às lendas
+ * (@see DFUT_LENDA_NACAO): dado curado, declarado como curado, e usado só
+ * quando a fonte não respondeu. O importador sempre ganha de quem está aqui,
+ * então consertar a fonte apaga a exceção sozinho.
+ */
+const DFUT_NACAO_MAO = [
+    'Manchester City|Rodri'      => 'Spain',
+    'Manchester City|Ederson'    => 'Brazil',
+    'Arsenal|Gabriel'            => 'Brazil',
+    'Real Madrid|Carvajal'       => 'Spain',
+    'Barcelona|Pedri'            => 'Spain',
+    'AC Milan|Theo Hernández'    => 'France',
+    'AC Milan|Rafael Leão'       => 'Portugal',
+    'Liverpool|Luis Díaz'        => 'Colombia',
+    'Newcastle|Bruno Guimarães'  => 'Brazil',
+    'Arsenal|Benjamin White'     => 'England',
+];
+
+/** A nacionalidade de uma carta: a da fonte, senão a escrita à mão. */
+function draftFutNacao(string $clube, string $nome, ?array $daFonte): string
+{
+    $nac = trim((string)($daFonte['nac'] ?? ''));
+    if ($nac !== '') return $nac;
+    return DFUT_NACAO_MAO[$clube . '|' . $nome] ?? '';
+}
+
+/**
  * ── O OVR DA CARTA, CORRIGIDO PELA LIGA ──────────────────────────────
  *
  * Pedido do Marcos (07/10/2026): "diminui o ovr dos jogadores de palmeiras e

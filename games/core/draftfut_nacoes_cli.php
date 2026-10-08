@@ -94,19 +94,32 @@ function clubeBate(string $kTime, array $kClubes): bool
    passada já tem os nomes que divergem; aqui ela é reaproveitada ao contrário. */
 $aliasClube = [];
 foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) $aliasClube[$nome] = [k2($nome)];
+/* CONFERIDO CONTRA O BARALHO: metade da lista antiga tinha chave que não
+   existe no catálogo ("Milan", "Sevilha", "Sporting", "Leipzig"), porque o
+   próprio catálogo já usa o nome que a fonte usa. Alias com chave errada não
+   é inofensivo — ele dá a impressão de que o clube está coberto. Sobrou o que
+   realmente diverge, mais os que a conferência por contenção não alcança
+   porque o nome curto tem menos de seis letras (Lens, Lille, Lyon, Roma). */
 $extras = [
-    'Atlético-MG' => 'Atletico Mineiro', 'Athletico-PR' => 'Athletico Paranaense',
-    'RB Bragantino' => 'Red Bull Bragantino', 'Bayern de Munique' => 'Bayern Munich',
-    'Inter de Milão' => 'Inter Milan', 'Milan' => 'AC Milan', 'Roma' => 'AS Roma',
-    'Marselha' => 'Marseille', 'Mônaco' => 'AS Monaco', 'Colônia' => 'FC Koln',
-    'Sevilha' => 'Sevilla', 'Betis' => 'Real Betis', 'Atlético de Madrid' => 'Atletico Madrid',
-    'Sporting' => 'Sporting Lisbon', 'Porto' => 'FC Porto', 'PSV' => 'PSV Eindhoven',
-    'PSG' => 'Paris SG', 'Paris Saint-Germain' => 'Paris SG',
-    'Borussia M.gladbach' => 'Borussia Monchengladbach', 'Beşiktaş' => 'Besiktas',
-    'Fenerbahçe' => 'Fenerbahce', 'Tottenham' => 'Tottenham Hotspur',
-    'Wolverhampton' => 'Wolves', 'Newcastle' => 'Newcastle United',
-    'West Ham' => 'West Ham United', 'Brighton' => 'Brighton and Hove Albion',
-    'Leipzig' => 'RB Leipzig', 'Nottingham Forest' => 'Nottingham Forest',
+    'Atlético-MG'        => 'Atletico Mineiro',
+    'Athletico-PR'       => 'Athletico Paranaense',
+    'RB Bragantino'      => 'Red Bull Bragantino',
+    'Bayern de Munique'  => 'Bayern Munich',
+    'Inter de Milão'     => 'Inter Milan',
+    'Atlético de Madrid' => 'Atletico Madrid',
+    'Celta de Vigo'      => 'Celta Vigo',
+    'Athletic Club'      => 'Athletic Bilbao',
+    'Sporting CP'        => 'Sporting Lisbon',
+    'PSG'                => 'Paris SG',
+    'Roma'               => 'AS Roma',
+    'Lens'               => 'RC Lens',
+    'Lille'              => 'Lille OSC',
+    'Lyon'               => 'Olympique Lyonnais',
+    'Porto'              => 'FC Porto',
+    'Tottenham'          => 'Tottenham Hotspur',
+    'Newcastle'          => 'Newcastle United',
+    'West Ham'           => 'West Ham United',
+    'Brighton'           => 'Brighton and Hove Albion',
 ];
 foreach ($extras as $nosso => $deles) {
     if (isset($aliasClube[$nosso])) $aliasClube[$nosso][] = k2($deles);

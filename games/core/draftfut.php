@@ -250,7 +250,7 @@ function draftFutBaralho(): array
                 'clube'  => $nome,
                 'liga'   => $liga,
                 'escudo' => $escudo,
-                'nac'    => (string)($ex['nac'] ?? ''),
+                'nac'    => draftFutNacao($nome, $nm, $ex),
                 'foto'   => (string)($ex['foto'] ?? ''),
             ];
         }
