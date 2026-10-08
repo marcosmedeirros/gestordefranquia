@@ -2762,6 +2762,21 @@ return array (
   ),
   'PSG' => 
   array (
+    'Achraf Hakimi' => 
+    array (
+      'nac' => 'Morocco',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/oqu69c1766335243.png',
+    ),
+    'Fabián Ruiz' => 
+    array (
+      'nac' => 'Spain',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/wq4dxd1766335227.png',
+    ),
+    'Désiré Doué' => 
+    array (
+      'nac' => 'France',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/5m0p4g1766335194.png',
+    ),
     'Gianluigi Donnarumma' => 
     array (
       'nac' => 'Italy',
@@ -2772,11 +2787,6 @@ return array (
       'nac' => 'France',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/pstgy21766335175.png',
     ),
-    'Achraf Hakimi' => 
-    array (
-      'nac' => 'Morocco',
-      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/oqu69c1766335243.png',
-    ),
     'Nuno Mendes' => 
     array (
       'nac' => 'Portugal',
@@ -2786,11 +2796,6 @@ return array (
     array (
       'nac' => 'France',
       'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/2ugny71766335261.png',
-    ),
-    'Fabián Ruiz' => 
-    array (
-      'nac' => 'Spain',
-      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/wq4dxd1766335227.png',
     ),
     'Randal Kolo Muani' => 
     array (
@@ -2850,6 +2855,21 @@ return array (
   ),
   'Monaco' => 
   array (
+    'Denis Zakaria' => 
+    array (
+      'nac' => 'Switzerland',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/xh4nwr1766238364.png',
+    ),
+    'Christian Mawissa' => 
+    array (
+      'nac' => 'France',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/znr18c1766238182.png',
+    ),
+    'Edan Diop' => 
+    array (
+      'nac' => 'France',
+      'foto' => 'https://r2.thesportsdb.com/images/media/player/cutout/0jqkc01767799815.png',
+    ),
   ),
   'Marseille' => 
   array (
