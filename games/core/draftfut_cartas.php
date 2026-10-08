@@ -161,9 +161,22 @@ function draftFutExtras(): array
  * guarda (COPERO_LIGAS[$liga][4]): Premier 96, LaLiga 94, Brasileirão 86.
  * O teto da Premier fica nos 89 de hoje e os outros descem a partir dele.
  *
+ * ── A QUEDA É CURVA, E A PRIMEIRA TENTATIVA FOI RETA DEMAIS ──────────
+ *
+ * Com desconto linear de 0,45 por ponto de prestígio, o Carrascal saiu em 82
+ * e o Dembélé em 83 — ou seja, a reclamação continuava de pé. A causa é que a
+ * tabela de prestígio é apertada em cima: Premier 96 e Brasileirão 86 são dez
+ * pontos, mas no futebol a distância entre os dois topos é bem maior.
+ *
+ * Por isso o desconto cresce com a distância (expoente 1,35): as cinco
+ * grandes ficam coladas — 89, 88, 87, 87, 84 — e o resto desce de verdade,
+ * Brasileirão em 82, Portugal e Argentina em 78. Aí Carrascal fica em 79
+ * contra 82 do Dembélé, e Arrascaeta em 82, que é mais ou menos o que o
+ * próprio EA FC dá a ele.
+ *
  * O ajuste é um APERTO, não um corte: a carta é puxada em direção a 70 na
  * proporção do que a liga perdeu de teto. Cortar no teto achataria o topo de
- * cada elenco todo no mesmo número — dez brasileiros de 84 —, e é justamente
+ * cada elenco todo no mesmo número — dez brasileiros de 82 —, e é justamente
  * essa achatada que gerou o problema que estamos consertando.
  *
  * O ajuste vive SÓ NO DRAFT. Nada aqui toca games/data/elencos/, e o jogo de
@@ -172,7 +185,7 @@ function draftFutExtras(): array
 function draftFutOvrAjustado(int $ovr, string $liga): int
 {
     $nivel = (int)(COPERO_LIGAS[$liga][4] ?? 70);
-    $teto  = (int)round(89 - (96 - $nivel) * 0.45);
+    $teto  = (int)round(89 - pow(max(0, 96 - $nivel), 1.35) * 0.30);
 
     if ($teto >= 89) return $ovr;           // Premier: a régua é ela mesma.
     if ($ovr <= 70)  return $ovr;           // Embaixo ninguém mexe.
