@@ -17,12 +17,14 @@ $coords = DFUT_CAMPO[$F] ?? [];
   <div class="campo-topo">
     <h2>Campo — <?= e($F) ?></h2>
     <div class="quim-barra" title="Química do time">
-      <span class="qb-trilho"><span class="qb-fill" style="width:<?= (int)$quim['total'] ?>%"></span></span>
-      <b><?= (int)$quim['total'] ?></b>
+      <span class="qb-trilho"><span class="qb-fill"
+            style="width:<?= (int)round($quim['total'] / (DFUT_VAGAS * 3) * 100) ?>%"></span></span>
+      <b><?= (int)$quim['total'] ?><small style="opacity:.45;font-size:12px">/<?= DFUT_VAGAS * 3 ?></small></b>
     </div>
   </div>
-  <p class="sub">Clique numa posição pra abrir as cartas dela. Arraste não — toque
-     em dois jogadores pra trocá-los de lugar.</p>
+  <p class="sub">Clique numa vaga vazia pra abrir as cartas dela. Pra trocar dois de
+     lugar, toque num jogador e depois no outro — <b>os dois já têm que estar
+     escolhidos</b>.</p>
 
   <div class="campo" id="campo">
     <div class="linha-meio"></div><div class="circulo"></div>
@@ -31,17 +33,14 @@ $coords = DFUT_CAMPO[$F] ?? [];
       $c = $d['time'][$i] ?? null;
       $q = (int)($quim['jogadores'][$i] ?? 0);
       $rot = draftFutRotuloDaVaga($F, $i);
-      $nat = draftFutPosDaVaga($F, $i);
-      $cls = $q >= 70 ? 'alta' : ($q >= 45 ? 'media' : 'baixa'); ?>
-      <div class="slot <?= $c ? 'cheio' : 'vazio' ?><?= $aberta === $i ? ' aberta' : '' ?><?= !empty($c['lenda']) ? ' lenda' : '' ?>"
+      $nat = draftFutPosDaVaga($F, $i); ?>
+      <div class="slot <?= $c ? 'cheio' : 'vazio' ?><?= $aberta === $i ? ' aberta' : '' ?>"
            style="left:<?= $x ?>%;top:<?= $y ?>%"
-           data-vaga="<?= $i ?>" data-tem="<?= $c ? 1 : 0 ?>">
+           data-vaga="<?= $i ?>" data-tem="<?= $c ? 1 : 0 ?>"
+           <?= $c ? 'title="' . e($c['nome']) . ' — ' . e($c['clube']) . ' · química ' . $q . '/3"' : '' ?>>
         <?php if ($c): ?>
-          <span class="s-ovr"><?= (int)$c['ovr'] ?></span>
-          <?php if ($c['escudo']): ?><img class="s-esc" src="<?= e($c['escudo']) ?>" alt="" loading="lazy"><?php endif; ?>
-          <span class="s-nome"><?= e(draftFutNomeCurto($c['nome'])) ?></span>
-          <span class="s-rot"><?= e($rot) ?><?= $c['pos'] !== $nat ? ' ⚠' : '' ?></span>
-          <span class="s-quim <?= $cls ?>"></span>
+          <?= dfutCartaHtml($c, ['mini' => true, 'quimica' => $q, 'rotulo' => $rot,
+                                 'fora' => $c['pos'] !== $nat]) ?>
         <?php else: ?>
           <span class="s-mais">+</span>
           <span class="s-rot"><?= e($rot) ?></span>
@@ -55,12 +54,14 @@ $coords = DFUT_CAMPO[$F] ?? [];
     <?php for ($i = DFUT_VAGAS; $i < DFUT_TOTAL; $i++):
       $c = $d['time'][$i] ?? null;
       $rot = draftFutRotuloDaVaga($F, $i); ?>
-      <div class="slot banco-s <?= $c ? 'cheio' : 'vazio' ?><?= $aberta === $i ? ' aberta' : '' ?><?= !empty($c['lenda']) ? ' lenda' : '' ?>"
-           data-vaga="<?= $i ?>" data-tem="<?= $c ? 1 : 0 ?>">
+      <div class="slot banco-s <?= $c ? 'cheio' : 'vazio' ?><?= $aberta === $i ? ' aberta' : '' ?>"
+           data-vaga="<?= $i ?>" data-tem="<?= $c ? 1 : 0 ?>"
+           <?= $c ? 'title="' . e($c['nome']) . ' — ' . e($c['clube']) . '"' : '' ?>>
         <?php if ($c): ?>
-          <span class="s-ovr"><?= (int)$c['ovr'] ?></span>
-          <span class="s-nome"><?= e(draftFutNomeCurto($c['nome'])) ?></span>
-          <span class="s-rot"><?= e($c['pos']) ?></span>
+          <?php /* O BANCO NÃO TEM QUÍMICA, e não mostra losango nenhum: no EA
+                   FC só pontua quem está em campo, e inventar nota aqui faria
+                   a pessoa escalar reserva atrás de um número que não existe. */ ?>
+          <?= dfutCartaHtml($c, ['mini' => true, 'rotulo' => $c['pos']]) ?>
         <?php else: ?>
           <span class="s-mais">+</span><span class="s-rot"><?= e($rot) ?></span>
         <?php endif; ?>

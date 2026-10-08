@@ -30,6 +30,7 @@ error_reporting(E_ALL);
 
 require '../core/conexao.php';
 require_once __DIR__ . '/../core/draftfut_partida.php';
+require_once __DIR__ . '/draftfut_carta.php';
 
 if (!isset($_SESSION['user_id'])) { header('Location: /login.php'); exit; }
 $user_id = (int)$_SESSION['user_id'];
@@ -141,7 +142,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
        sozinha na hora de desenhar, então não há nada a atualizar aqui. */
     if ($acao === 'trocar' && $d && empty($d['resultado'])) {
         $a = (int)($_POST['a'] ?? -1); $b = (int)($_POST['b'] ?? -1);
-        if ($a >= 0 && $b >= 0 && $a < DFUT_TOTAL && $b < DFUT_TOTAL && $a !== $b) {
+        /* ── SÓ TROCA QUEM JÁ FOI ESCOLHIDO ──────────────────────────
+           Pedido do Marcos (07/10/2026): "so deixe trocar de posicao se ja
+           abriu a cartinha". Antes, trocar com uma vaga vazia MUDAVA O
+           JOGADOR DE LUGAR sem abrir a vaga — a pessoa ficava com um buraco
+           onde a carta tinha sido sorteada e um jogador numa vaga que ela
+           nunca pagou. A conferência é aqui no servidor, não só no clique:
+           o JS é conveniência, não tranca. */
+        if ($a >= 0 && $b >= 0 && $a < DFUT_TOTAL && $b < DFUT_TOTAL && $a !== $b
+            && !empty($d['time'][$a]) && !empty($d['time'][$b])) {
             $tmp = $d['time'][$a]; $d['time'][$a] = $d['time'][$b]; $d['time'][$b] = $tmp;
         }
     }
@@ -276,18 +285,92 @@ a{color:inherit}
 .form-card b{display:block;font-family:'Oswald',sans-serif;font-size:21px;letter-spacing:1px}
 .form-card small{color:var(--txt3);font-size:11.5px}
 
-/* Cartas */
-.cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.carta{background:linear-gradient(160deg,#2a2a33,#15151a);border:1px solid var(--borda2);
-  border-radius:14px;padding:14px 12px;text-align:center;cursor:pointer;font:inherit;color:var(--txt);
-  display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .12s}
-.carta:hover{transform:translateY(-4px);border-color:var(--amarelo)}
-.carta .ovr{font-family:'Oswald',sans-serif;font-size:30px;line-height:1;color:var(--amarelo)}
-.carta .pos{font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--txt2)}
-.carta img{width:34px;height:34px;object-fit:contain}
-.carta .nm{font-weight:700;font-size:13px;line-height:1.2}
-.carta .cl{font-size:11px;color:var(--txt3)}
-.carta .lg{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+/* ── A CARTA ──────────────────────────────────────────────────────────
+   Um desenho só, dois tamanhos: a grande na escolha, a `dfc-mini` no
+   campinho. O desenho mora em games/games/draftfut_carta.php. */
+.cartas{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:11px}
+@media (min-width:700px){.cartas{grid-template-columns:repeat(5,1fr);gap:14px}}
+
+.carta-btn{display:block;padding:0;border:0;background:none;font:inherit;color:inherit;
+  cursor:pointer;border-radius:13px;transition:transform .16s}
+.carta-btn:hover{transform:translateY(-6px)}
+.carta-btn:focus-visible{outline:2px solid var(--amarelo);outline-offset:3px}
+
+/* ALTURA FIXA, que era o bug: `aspect-ratio` mais três faixas de grade, e o
+   nome comprido é cortado em vez de empurrar a carta pra baixo. */
+.dfc{position:relative;display:grid;grid-template-rows:auto 1fr auto;
+  aspect-ratio:11/15;border-radius:13px;overflow:hidden;box-sizing:border-box;
+  padding:8px 8px 7px;text-align:left;
+  color:var(--dfc-tx);background:var(--dfc-bg);
+  box-shadow:inset 0 0 0 1px var(--dfc-bd),inset 0 1px 0 rgba(255,255,255,.3),
+             0 6px 15px rgba(0,0,0,.4)}
+.carta-btn:hover .dfc{box-shadow:inset 0 0 0 1px var(--dfc-bd),inset 0 1px 0 rgba(255,255,255,.4),
+             0 14px 26px rgba(0,0,0,.55)}
+
+/* CADA TIPO TEM O SEU DESENHO, e é só este bloco que define isso — uma
+   coleção nova é um seletor a mais aqui, nada no resto do jogo muda. */
+.dfc-bronze{--dfc-bg:linear-gradient(157deg,#a9754a 0%,#6d4725 46%,#3c2513 100%);
+  --dfc-tx:#f8e7d2;--dfc-bd:rgba(255,214,170,.55);--dfc-ac:#ffd9ad;--dfc-lin:rgba(0,0,0,.3)}
+.dfc-prata{--dfc-bg:linear-gradient(157deg,#dde5eb 0%,#929ba3 46%,#4d545a 100%);
+  --dfc-tx:#15191c;--dfc-bd:rgba(255,255,255,.75);--dfc-ac:#16202a;--dfc-lin:rgba(0,0,0,.22)}
+.dfc-ouro{--dfc-bg:linear-gradient(157deg,#f7dd84 0%,#d6ab38 46%,#8a6316 100%);
+  --dfc-tx:#2b2005;--dfc-bd:rgba(255,238,176,.8);--dfc-ac:#3a2a06;--dfc-lin:rgba(0,0,0,.24)}
+/* ÍCONE é branco-prata com brilho no alto, como o do EA FC. */
+/* TIME DA SEMANA: o preto da promoção, com fio dourado. */
+.dfc-totw{--dfc-bg:linear-gradient(157deg,#3a3f46 0%,#1b1e23 44%,#0a0c0e 100%);
+  --dfc-tx:#f3f6f9;--dfc-bd:rgba(245,197,24,.62);--dfc-ac:#f5c518;--dfc-lin:rgba(255,255,255,.14)}
+.dfc-totw .dfc-selo{background:#f5c518;color:#141414}
+.dfc-icone{--dfc-bg:radial-gradient(125% 92% at 50% -8%,#fff 0%,#eef3f7 32%,#b9c4cf 66%,#6d7883 100%);
+  --dfc-tx:#11161b;--dfc-bd:#fff;--dfc-ac:#0d1217;--dfc-lin:rgba(0,0,0,.2)}
+/* HERÓI é o rosa-roxo chapado da promoção. */
+.dfc-heroi{--dfc-bg:linear-gradient(152deg,#ff2f7d 0%,#bd1684 44%,#4a0f61 100%);
+  --dfc-tx:#fff;--dfc-bd:rgba(255,150,200,.75);--dfc-ac:#ffe14d;--dfc-lin:rgba(0,0,0,.3)}
+
+.dfc-selo{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:3;
+  font-size:8px;font-weight:900;letter-spacing:1.5px;padding:2px 10px 3px;
+  border-radius:0 0 8px 8px;background:#10151a;color:#fff}
+.dfc-heroi .dfc-selo{background:#ffe14d;color:#49093a}
+.dfc-selo-mini{position:absolute;top:0;right:0;z-index:3;width:0;height:0;
+  border-top:13px solid var(--dfc-ac);border-left:13px solid transparent}
+
+.dfc-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:4px;z-index:1}
+.dfc-id{display:flex;flex-direction:column;min-width:0}
+.dfc-ovr{font-family:'Oswald',sans-serif;font-weight:600;font-size:29px;line-height:.92;
+  letter-spacing:-.5px}
+/* A POSIÇÃO AGORA SE LÊ: era 10.5px cinza em fundo escuro, virou negrito na
+   cor da carta com espaçamento — foi reclamação direta do Marcos. */
+.dfc-pos{font-size:11px;font-weight:800;letter-spacing:1.4px;margin-top:3px;opacity:.85;
+  white-space:nowrap}
+.dfc-pos i{font-size:9px;margin-left:3px;color:#ff2d55;opacity:1}
+.dfc-insig{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+.dfc-band{width:23px;height:16px;object-fit:cover;border-radius:2px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.dfc-esc{width:23px;height:23px;object-fit:contain}
+
+.dfc-retrato{position:relative;display:flex;align-items:flex-end;justify-content:center;
+  min-height:0;overflow:hidden}
+.dfc-foto{max-width:112%;max-height:100%;object-fit:contain;
+  filter:drop-shadow(0 4px 7px rgba(0,0,0,.45))}
+/* Sem foto o escudo vira marca d'água: carta cheia em vez de buraco. */
+.dfc-marca{max-width:66%;max-height:86%;object-fit:contain;opacity:.28;align-self:center}
+.dfc-mono{font-family:'Oswald',sans-serif;font-size:44px;line-height:1;opacity:.34;align-self:center}
+
+.dfc-pe{display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:5px;
+  border-top:1px solid var(--dfc-lin);z-index:1;min-width:0}
+.dfc-nome{font-weight:800;font-size:11px;line-height:1.15;text-transform:uppercase;
+  letter-spacing:.2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dfc-clube{font-size:9px;font-weight:600;opacity:.68;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A QUÍMICA DA CARTA: três losangos, 0 a 3, a régua do EA FC. */
+.dfc-quim{display:flex;gap:3px;margin-top:1px}
+.dfc-quim i{width:6px;height:6px;transform:rotate(45deg);border-radius:1px;
+  background:none;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.3}
+.dfc-quim i.on{opacity:1;background:var(--dfc-ac);box-shadow:none}
+.dfc-fora{box-shadow:inset 0 0 0 2px #ff2d55,0 6px 15px rgba(0,0,0,.4)}
+.legenda-quim{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0 0;
+  color:var(--txt3);font-size:11.5px;line-height:1.45}
+.legenda-quim .lq{display:inline-flex;gap:3px}
+.legenda-quim .lq i{width:6px;height:6px;transform:rotate(45deg);border-radius:1px;background:var(--verde)}
 
 /* Escalação */
 .escal{display:flex;flex-direction:column;gap:6px;margin-top:4px}
@@ -344,47 +427,51 @@ a{color:inherit}
 .area-cima{top:0;border-top:none}
 .area-baixo{bottom:0;border-bottom:none}
 
-.slot{position:absolute;transform:translate(-50%,-50%);width:66px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:1px;
-  background:linear-gradient(160deg,rgba(42,42,51,.96),rgba(18,18,24,.96));
-  border:1px solid var(--borda2);border-radius:9px;padding:5px 3px;
-  transition:transform .15s,border-color .15s,box-shadow .15s;
-  animation:slotEnt .3s backwards}
+.slot{position:absolute;transform:translate(-50%,-50%);width:68px;aspect-ratio:10/13;
+  cursor:pointer;border-radius:10px;
+  transition:transform .15s,box-shadow .15s;animation:slotEnt .3s backwards}
 @keyframes slotEnt{from{opacity:0;transform:translate(-50%,-50%) scale(.6)}}
-.slot:hover{transform:translate(-50%,-50%) scale(1.09);border-color:var(--amarelo);z-index:5}
-.slot.vazio{background:rgba(0,0,0,.42);border-style:dashed;border-color:rgba(255,255,255,.3)}
-.slot.aberta{border-color:var(--amarelo);box-shadow:0 0 0 2px rgba(245,197,24,.4)}
-.slot.sel{border-color:var(--azul);box-shadow:0 0 0 2px rgba(59,130,246,.5)}
-.slot.lenda{border-color:#d4af37;background:linear-gradient(160deg,#4a3a12,#241a06)}
-.slot .s-ovr{font-family:'Oswald',sans-serif;font-size:17px;line-height:1;color:var(--amarelo)}
-.slot.lenda .s-ovr{color:#ffd966}
-.slot .s-esc{width:15px;height:15px;object-fit:contain}
-.slot .s-nome{font-size:9px;font-weight:700;line-height:1.1;text-align:center;
-  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.slot .s-rot{font-size:7.5px;font-weight:800;letter-spacing:.4px;color:var(--txt3)}
-.slot .s-mais{font-size:19px;line-height:1;color:var(--txt3)}
-.slot .s-quim{width:22px;height:3px;border-radius:99px;margin-top:1px}
-.s-quim.alta{background:var(--verde)}
-.s-quim.media{background:var(--amarelo)}
-.s-quim.baixa{background:var(--vermelho)}
+.slot:hover{transform:translate(-50%,-50%) scale(1.12);z-index:5}
+.slot.vazio{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:rgba(0,0,0,.44);border:1px dashed rgba(255,255,255,.34)}
+.slot.aberta{box-shadow:0 0 0 3px rgba(245,197,24,.8)}
+.slot.sel{box-shadow:0 0 0 3px rgba(59,130,246,.9)}
+.slot .s-mais{font-size:20px;line-height:1;color:var(--txt3)}
+.slot .s-rot{font-size:8px;font-weight:800;letter-spacing:.5px;color:var(--txt3)}
+
+/* A CARTA MINI preenche o slot. O retrato vira fundo, porque em 64px de
+   largura não cabe uma faixa só pra foto — e o que tem de ficar legível é o
+   OVR, a posição e os losangos da química. */
+.dfc-mini{position:absolute;inset:0;aspect-ratio:auto;border-radius:10px;padding:4px 4px 3px}
+.dfc-mini .dfc-retrato{position:absolute;inset:0;z-index:0;align-items:center;opacity:.55}
+.dfc-mini .dfc-foto{max-width:100%;max-height:100%}
+.dfc-mini .dfc-marca{max-width:60%;max-height:60%;opacity:.3}
+.dfc-mini .dfc-mono{font-size:26px}
+.dfc-mini .dfc-ovr{font-size:17px}
+.dfc-mini .dfc-pos{font-size:8px;letter-spacing:.6px;margin-top:1px}
+.dfc-mini .dfc-pos i{font-size:7px;margin-left:1px}
+.dfc-mini .dfc-band{width:15px;height:10px}
+.dfc-mini .dfc-esc{width:15px;height:15px}
+.dfc-mini .dfc-insig{gap:2px}
+.dfc-mini .dfc-pe{padding-top:3px;gap:2px}
+.dfc-mini .dfc-nome{font-size:8px;letter-spacing:-.25px}
+.dfc-mini .dfc-quim{gap:2.5px;margin-top:0}
+.dfc-mini .dfc-quim i{width:4.5px;height:4.5px}
 
 .banco-tit{margin:16px 0 8px;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.4px}
 .banco-tit span{color:var(--txt3);font-size:12px;font-family:'Montserrat',sans-serif}
-.banco{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:7px}
-.banco-s{position:static;transform:none;width:auto}
-.banco-s:hover{transform:scale(1.06)}
+.banco{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (min-width:620px){.banco{grid-template-columns:repeat(8,1fr)}}
+.banco-s{position:relative;transform:none;width:auto;aspect-ratio:10/13}
+.banco-s:hover{transform:scale(1.07)}
 @keyframes slotEnt2{from{opacity:0;transform:scale(.7)}}
 .banco-s{animation:slotEnt2 .3s backwards}
 
 /* Cartas: entram em cascata */
 .cartas-bloco{animation:sobe .3s}
 @keyframes sobe{from{opacity:0;transform:translateY(10px)}}
-.carta{animation:cartaEnt .35s backwards}
-@keyframes cartaEnt{from{opacity:0;transform:translateY(16px) rotateX(18deg)}}
-.carta.lenda{background:linear-gradient(160deg,#5a4616,#2a1d06);border-color:#d4af37;position:relative}
-.carta.lenda .ovr{color:#ffd966}
-.selo-lenda{position:absolute;top:7px;left:7px;font-size:8px;font-weight:800;letter-spacing:1px;
-  background:#d4af37;color:#1a1304;padding:2px 6px;border-radius:99px}
+.carta-btn{animation:cartaEnt .4s backwards}
+@keyframes cartaEnt{from{opacity:0;transform:translateY(18px) rotateX(20deg)}}
 
 /* Placar que anda com a narração */
 .placar .g{transition:transform .2s}
@@ -394,9 +481,14 @@ a{color:inherit}
 .lance.intervalo{border-left-color:var(--amarelo);background:rgba(245,197,24,.08);font-weight:700}
 @media (max-width:620px){
   .campo{max-height:none}
-  .slot{width:54px;padding:4px 2px}
-  .slot .s-ovr{font-size:15px}
-  .slot .s-nome{font-size:8px}
+  .slot{width:56px}
+  .dfc-mini{padding:3px 3px 2px}
+  .dfc-mini .dfc-ovr{font-size:14px}
+  .dfc-mini .dfc-pos{font-size:7px;letter-spacing:.3px}
+  .dfc-mini .dfc-nome{font-size:7.5px}
+  .dfc-mini .dfc-band{width:12px;height:8px}
+  .dfc-mini .dfc-esc{width:12px;height:12px}
+  .dfc-mini .dfc-quim i{width:4px;height:4px}
   .banco{grid-template-columns:repeat(4,1fr)}
 }
 @media (max-width:620px){
@@ -452,23 +544,30 @@ a{color:inherit}
       <h2>Escolha pra <?= e(draftFutRotuloDaVaga($d['formacao'], $aberta)) ?></h2>
       <p class="sub">Cinco cartas. A química muda conforme quem já está em campo.</p>
       <div class="cartas">
-        <?php foreach ($d['opcoes'] as $i => $c): ?>
+        <?php foreach ($d['opcoes'] as $i => $c):
+          /* QUANTO ESTA CARTA DARIA DE QUÍMICA AQUI — pedido do Marcos
+             ("mostre quanto de quimica cada carta ta dando"). Não é
+             estimativa: o jogo encaixa a carta na vaga aberta, roda a química
+             do time inteiro e lê o ponto dela. */
+          $simul = $d['time'];
+          $simul[$aberta] = $c;
+          $qSim = draftFutQuimica($d['formacao'], $simul);
+          $qCarta = $aberta < DFUT_VAGAS ? (int)($qSim['jogadores'][$aberta] ?? 0) : null; ?>
           <form method="POST" style="margin:0">
             <input type="hidden" name="acao" value="escolher">
             <input type="hidden" name="carta" value="<?= $i ?>">
-            <button class="carta<?= !empty($c['lenda']) ? ' lenda' : '' ?>" type="submit"
-                    style="animation-delay:<?= $i * 70 ?>ms">
-              <?php if (!empty($c['lenda'])): ?><span class="selo-lenda">LENDA</span><?php endif; ?>
-              <span class="ovr"><?= (int)$c['ovr'] ?></span>
-              <span class="pos"><?= e($c['pos']) ?><?= $c['pos'] !== $natural ? ' ⚠' : '' ?></span>
-              <?php if ($c['escudo']): ?><img src="<?= e($c['escudo']) ?>" alt="" loading="lazy"><?php endif; ?>
-              <span class="nm"><?= e($c['nome']) ?></span>
-              <span class="cl"><?= e($c['clube']) ?></span>
-              <span class="lg"><?= e($c['liga']) ?> · <?= e(draftFutPais($c['liga'])) ?></span>
+            <button class="carta-btn" type="submit" style="animation-delay:<?= $i * 70 ?>ms"
+                    title="<?= e($c['nome']) ?> — <?= e($c['clube']) ?> · <?= e(draftFutPais($c['liga'])) ?><?= $c['nac'] ? ' · ' . e($c['nac']) : '' ?>">
+              <?= dfutCartaHtml($c, ['quimica' => $qCarta,
+                                     'rotulo'  => draftFutRotuloDaVaga($d['formacao'], $aberta),
+                                     'fora'    => $c['pos'] !== $natural]) ?>
             </button>
           </form>
         <?php endforeach; ?>
       </div>
+      <p class="legenda-quim">
+        <span class="lq"><i></i><i></i><i></i></span> química que a carta dá nesta vaga —
+        mesmo clube, mesma nação, mesma liga. Máximo 3 por jogador, 33 no time.</p>
     </div>
   <?php endif; ?>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>
@@ -479,7 +578,7 @@ a{color:inherit}
     <p class="sub">Dá o nome e escolhe o adversário.</p>
     <div class="nums">
       <div class="num"><b><?= draftFutForcaDoTime($d['formacao'], $d['time']) ?></b><small>Força</small></div>
-      <div class="num"><b><?= $quim['total'] ?></b><small>Química</small></div>
+      <div class="num"><b><?= $quim['total'] ?><small style="opacity:.5">/33</small></b><small>Química</small></div>
       <div class="num"><b><?= e($d['formacao']) ?></b><small>Formação</small></div>
     </div>
     <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -596,8 +695,12 @@ a{color:inherit}
   todos.forEach(s => s.addEventListener('click', () => {
     const vaga = s.dataset.vaga, tem = s.dataset.tem === '1';
 
-    if (sel !== null && sel !== vaga) { post({acao:'trocar', a:sel, b:vaga}); return; }
     if (sel === vaga) { s.classList.remove('sel'); sel = null; return; }
+
+    /* TROCA SÓ ENTRE DOIS JÁ ESCOLHIDOS. Com um selecionado, clicar numa
+       vaga vazia não arrasta ninguém pra lá — abre a vaga, que é o que a
+       pessoa quis dizer ao clicar num "+". */
+    if (sel !== null && tem) { post({acao:'trocar', a:sel, b:vaga}); return; }
     if (!tem) { post({acao:'abrir', vaga}); return; }
 
     document.querySelectorAll('.slot.sel').forEach(o => o.classList.remove('sel'));

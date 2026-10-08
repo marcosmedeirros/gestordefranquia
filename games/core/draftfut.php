@@ -33,6 +33,7 @@
 require_once __DIR__ . '/copero_clubes.php';
 require_once __DIR__ . '/fut_elencos.php';
 require_once __DIR__ . '/draftfut_lendas.php';
+require_once __DIR__ . '/draftfut_cartas.php';
 
 /** Quantas cartas o jogo oferece por vaga. Cinco, como no FUT. */
 const DFUT_OPCOES = 5;
@@ -107,6 +108,35 @@ function draftFutNomeCurto(string $nome): string
 
     // Sobrenome longo já identifica sozinho; curto ganha a inicial na frente.
     return mb_strlen($ultimo) > 11 ? $ultimo : mb_substr($p[0], 0, 1) . '. ' . $ultimo;
+}
+
+/**
+ * O NOME DE CAMISA — o que cabe na carta pequena do campinho.
+ *
+ * `draftFutNomeCurto` devolve "V. van Dijk", que em 56 pixels sai cortado:
+ * "V. VAN DI...". Aqui é só o sobrenome, com a partícula junto — o nome das
+ * costas, que é também o que o FIFA escreve na carta.
+ *
+ * A LISTA DE EXCEÇÕES É CURTA E DECLARADA: cinco nomes em que o sobrenome não
+ * é como a pessoa é chamada. Ninguém conhece Ronaldinho por "Gaúcho" nem Xavi
+ * por "Hernández", e errar isso numa carta de lenda é errar na carta que mais
+ * aparece. Fora desses cinco, a regra do sobrenome acerta.
+ */
+const DFUT_NOME_CAMISA = [
+    'Ronaldo Fenômeno'      => 'Ronaldo',
+    'Ronaldinho Gaúcho'     => 'Ronaldinho',
+    'Carlos Alberto Torres' => 'C. Alberto',
+    'Roberto Carlos'        => 'R. Carlos',
+    'Xavi Hernández'        => 'Xavi',
+];
+
+function draftFutNomeCamisa(string $nome): string
+{
+    if (isset(DFUT_NOME_CAMISA[$nome])) return DFUT_NOME_CAMISA[$nome];
+
+    $curto = draftFutNomeCurto($nome);
+    // Tira a inicial que o nome curto põe na frente: "V. van Dijk" => "van Dijk".
+    return preg_replace('/^\p{L}\.\s+/u', '', $curto);
 }
 
 /** A posição natural de qualquer vaga, de campo ou de banco. */
@@ -203,20 +233,25 @@ function draftFutBaralho(): array
        "Tatá 91", do Al Hilal, acima de qualquer craque de verdade. Num jogo
        de cartinhas isso é o fim da graça — a carta tem que ser reconhecida.
        São 321 clubes com elenco real, de sobra pra um draft de onze. */
+    $extra = draftFutExtras();
     $cartas = [];
     foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) {
         if (!is_file(__DIR__ . '/../data/elencos/' . futSlugDoClube($nome) . '.php')) continue;
         foreach (futElencoDoClube($nome, (int)$forca) as $j) {
             $pos = strtoupper(trim((string)($j['pos'] ?? '')));
             if (!isset(DFUT_COBRE[$pos])) continue;
+            $nm = (string)$j['nome'];
+            $ex = $extra[$nome][$nm] ?? null;
             $cartas[] = [
-                'nome'   => (string)$j['nome'],
+                'nome'   => $nm,
                 'pos'    => $pos,
-                'ovr'    => (int)$j['ovr'],
+                'ovr'    => draftFutOvrAjustado((int)$j['ovr'], $liga),
                 'idade'  => (int)($j['idade'] ?? 25),
                 'clube'  => $nome,
                 'liga'   => $liga,
                 'escudo' => $escudo,
+                'nac'    => (string)($ex['nac'] ?? ''),
+                'foto'   => (string)($ex['foto'] ?? ''),
             ];
         }
     }
@@ -236,23 +271,30 @@ function draftFutBaralho(): array
  */
 function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ovrMax): array
 {
-    $pode = DFUT_COBRE[$posicaoVaga] ?? ['' => 0];
+    /* ── ABRIU CA, VEM CENTROAVANTE ──────────────────────────────────
+       Pedido do Marcos (07/10/2026): "se eu abri a posicao de CA, vem
+       jogadores que fazem CA". Antes a vaga aceitava a vizinhança toda
+       (DFUT_COBRE), e abrir um atacante devolvia meio-campistas — que já
+       nasciam fora de posição e com química zero. A vaga agora sorteia só
+       quem joga ali; DFUT_COBRE continua valendo pra quando o jogador é
+       REMANEJADO depois, que é onde a penalidade faz sentido. */
     $fora = array_flip($usados);
 
     $ovrMin = max(DFUT_OVR_MIN, $ovrMin);
 
     $elegiveis = [];
     foreach (draftFutBaralho() as $c) {
-        if (!isset($pode[$c['pos']])) continue;
+        if ($c['pos'] !== $posicaoVaga) continue;
         if (isset($fora[$c['nome']])) continue;
         if ($c['ovr'] < $ovrMin || $c['ovr'] > $ovrMax) continue;
         $elegiveis[] = $c;
     }
-    /* Faixa vazia (acontece nas pontas, com posição rara): alarga até achar
-       gente, em vez de devolver menos de cinco cartas e travar a vaga. */
+    /* Faixa vazia (acontece nas pontas, com posição rara): alarga o OVR até
+       achar gente — nunca a posição —, em vez de devolver menos de cinco
+       cartas e travar a vaga. */
     if (count($elegiveis) < DFUT_OPCOES) {
         foreach (draftFutBaralho() as $c) {
-            if (!isset($pode[$c['pos']]) || isset($fora[$c['nome']])) continue;
+            if ($c['pos'] !== $posicaoVaga || isset($fora[$c['nome']])) continue;
             if ($c['ovr'] < DFUT_OVR_MIN) continue;
             $elegiveis[] = $c;
         }
@@ -268,12 +310,28 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
     if (mt_rand(1, 100) <= DFUT_CHANCE_LENDA) {
         $lendas = [];
         foreach (draftFutLendas() as $l) {
-            if (!isset($pode[$l['pos']]) || isset($fora[$l['nome']])) continue;
+            if ($l['pos'] !== $posicaoVaga || isset($fora[$l['nome']])) continue;
             $lendas[] = $l;
         }
         if ($lendas) {
             usort($escolhidas, fn($a, $b) => $a['ovr'] <=> $b['ovr']);
             $escolhidas[0] = $lendas[mt_rand(0, count($lendas) - 1)];
+        }
+    }
+
+    /* O TIME DA SEMANA é mais comum que a lenda e mexe menos: pega UMA das
+       cartas comuns que sobraram e devolve ela de preto, com DFUT_TOTW_BONUS
+       a mais. Não entra onde já tem Ícone ou Herói — carta especial não vira
+       outra carta especial. */
+    if (mt_rand(1, 100) <= DFUT_TIPOS['totw']['peso']) {
+        $comuns = [];
+        foreach ($escolhidas as $k => $c) {
+            if (draftFutQuimicaDoTipo($c) === 'normal' && empty($c['tipo'])) $comuns[] = $k;
+        }
+        if ($comuns) {
+            $k = $comuns[mt_rand(0, count($comuns) - 1)];
+            $escolhidas[$k]['tipo'] = 'totw';
+            $escolhidas[$k]['ovr'] += DFUT_TOTW_BONUS;
         }
     }
 
@@ -302,61 +360,46 @@ function draftFutFaixa(int $vaga): array
 /* ═══════════════════════ A QUÍMICA ══════════════════════════════════ */
 
 /**
- * Os vizinhos de cada vaga numa formação: quem joga perto de quem.
+ * ── A QUÍMICA DO EA FC 25, QUE É A QUE O MARCOS PEDIU ────────────────
  *
- * Deriva da ordem da formação — cada vaga conversa com a anterior e a
- * seguinte, e o setor inteiro conversa entre si. É aproximado de propósito:
- * um mapa desenhado à mão por formação seria mais fiel e cinco vezes mais
- * fácil de esquecer de atualizar quando entrasse formação nova.
+ * A primeira versão contava vizinhos de posição — quem jogava ao lado de
+ * quem. Isso é a química do FIFA 22 pra trás; o EA FC acabou com os links
+ * posicionais. Pesquisado e confirmado: hoje o que vale é QUANTOS no time
+ * inteiro dividem clube, liga ou nação, não onde eles estão.
+ *
+ * Cada jogador vale de 0 a 3. O time vale de 0 a 33.
+ *
+ *   clube ....... 2 jogadores = 1 ponto · 4 = 2 · 7 = 3
+ *   nação ....... 2 jogadores = 1 ponto · 5 = 2 · 8 = 3
+ *   liga ........ 3 jogadores = 1 ponto · 5 = 2 · 8 = 3
+ *
+ * Os três somam, e o total de cada jogador para em 3.
+ *
+ * ── FORA DE POSIÇÃO ZERA, E NÃO CONTA PRA NINGUÉM ────────────────────
+ *
+ * Quem não está na posição preferida fica com 0 e SAI DA CONTAGEM dos
+ * outros — é assim no jogo, e é o que dá peso à decisão de encaixar o craque
+ * fora do lugar: não é só ele que perde, é o time que deixa de ter aquele
+ * elo. Por isso a contagem é feita só sobre quem está em posição.
+ *
+ * ── LENDA TEM 3 SEMPRE, E PUXA OS OUTROS ─────────────────────────────
+ *
+ * Como os Ícones: na posição certa, a lenda tem química cheia independente
+ * do resto, conta DOIS para o limiar de nação e um para toda liga. É o que
+ * faz valer a pena montar em volta dela em vez de deixá-la isolada.
  */
-function draftFutVizinhos(string $formacao, int $i): array
-{
-    $vagas = DFUT_FORMACOES[$formacao] ?? [];
-    if (!$vagas) return [];
-    $setor = fn(string $p) => match ($p) {
-        'GOL' => 0, 'ZAG', 'LAT' => 1, 'VOL', 'MEI' => 2, default => 3,
-    };
-    $meu = $setor($vagas[$i][1]);
-    $out = [];
-    foreach ($vagas as $k => $v) {
-        if ($k === $i) continue;
-        if ($setor($v[1]) === $meu || abs($k - $i) === 1) $out[] = $k;
-    }
-    return $out;
-}
 
-/** O máximo que um par de vizinhos pode render. */
-const DFUT_ELO_MAX = 10;
+/** Os limiares, na ordem [para 1 ponto, para 2, para 3]. */
+const DFUT_LIMIAR_CLUBE = [2, 4, 7];
+const DFUT_LIMIAR_NACAO = [2, 5, 8];
+const DFUT_LIMIAR_LIGA  = [3, 5, 8];
 
-/**
- * O QUE DOIS JOGADORES TÊM EM COMUM, na régua do FIFA que o Marcos pediu:
- *
- *   mesmo clube .................. 10
- *   mesma liga E mesmo país ...... 10
- *   mesma liga ................... 5
- *   mesmo país ................... 5
- *
- * ── O PAÍS AQUI É O DO CLUBE, NÃO A NACIONALIDADE ────────────────────
- *
- * Nenhum elenco do projeto traz nacionalidade — nem os reais, nem a fonte de
- * onde eles vieram. O que existe é o país da LIGA (COPERO_LIGAS), e é ele
- * que usamos. Duas consequências, as duas ditas na cara do jogador na tela:
- *
- *   · um brasileiro no Real Madrid conta como Espanha;
- *   · "mesma liga mas país diferente" não existe — liga igual implica país
- *     igual —, então esse caso da régua nunca dispara. O caso de 5 pontos
- *     que sobra é o bom: MESMO PAÍS EM LIGAS DIFERENTES, que acontece de
- *     verdade entre BR1 e BR2, EN1 e EN2, ES1 e ES2.
- *
- * Se um dia chegar nacionalidade de jogador, é esta função que muda — e só
- * ela.
- */
-function draftFutElo(array $a, array $b): int
+/** Quantos pontos uma contagem rende, dados os limiares. */
+function draftFutPontos(int $quantos, array $limiar): int
 {
-    if ($a['clube'] !== '' && $a['clube'] === $b['clube']) return 10;
-    if ($a['liga'] !== '' && $a['liga'] === $b['liga'])    return 10;   // liga ⇒ país
-    if (draftFutPais($a['liga']) !== '' &&
-        draftFutPais($a['liga']) === draftFutPais($b['liga']))          return 5;
+    if ($quantos >= $limiar[2]) return 3;
+    if ($quantos >= $limiar[1]) return 2;
+    if ($quantos >= $limiar[0]) return 1;
     return 0;
 }
 
@@ -367,53 +410,76 @@ function draftFutPais(string $liga): string
 }
 
 /**
- * A química de um time montado: 0 a 100, e a de cada jogador.
+ * A química de um time: 0 a 33 no total, 0 a 3 por jogador.
  *
- * Cada jogador começa em 40 e sobe com o que tem em comum com os vizinhos —
- * clube vale mais que liga, porque clube é mais difícil de juntar. Fora de
- * posição custa, e custa na química, não só no OVR: é o aviso de que aquele
- * encaixe tem preço em dois lugares.
- *
- * @param array $time onze cartas, na ordem das vagas da formação
+ * @return array ['total'=>int, 'jogadores'=>[i=>0..3], 'detalhe'=>[i=>[...]]]
  */
 function draftFutQuimica(string $formacao, array $time): array
 {
-    $vagas = DFUT_FORMACOES[$formacao] ?? [];
-    $porJogador = [];
-
-    foreach ($time as $i => $c) {
-        if ($i >= DFUT_VAGAS) break;        // o banco não entra na química
-        if (!$c) { $porJogador[$i] = 0; continue; }
-
-        $vizinhos = draftFutVizinhos($formacao, $i);
-        $ganho = 0;
-        foreach ($vizinhos as $v) {
-            $o = $time[$v] ?? null;
-            if (!$o) continue;
-            $ganho += draftFutElo($c, $o);
-        }
-
-        /* O GANHO É RELATIVO AO MÁXIMO DAQUELA VAGA, e não um número absoluto.
-           O goleiro tem um vizinho só; o lateral tem quatro. Somando pontos
-           fixos, o goleiro cercado do próprio clube chegava a 52 e o time
-           inteiro de um clube não passava de 73 — o teto era da posição, não
-           do que a pessoa montou. Agora cada vaga vale 0 a 100 dentro do que
-           ELA pode alcançar, e aí um time todo do mesmo clube dá 100 em
-           qualquer formação. */
-        $maximo = max(1, count($vizinhos) * DFUT_ELO_MAX);
-        $q = 40 + (int)round(60 * min(1, $ganho / $maximo));
-
-        // Fora de posição dói aqui também, e depois da conta: é desconto no
-        // resultado, não handicap na régua.
-        $natural = $vagas[$i][1] ?? '';
-        $q -= (DFUT_COBRE[$natural][$c['pos']] ?? 10) * 3;
-
-        $porJogador[$i] = max(0, min(100, $q));
+    /* ── 1. Quem está em posição? Só esses contam e só esses pontuam. ── */
+    $validos = [];
+    for ($i = 0; $i < DFUT_VAGAS; $i++) {
+        $c = $time[$i] ?? null;
+        if (!$c) continue;
+        if ($c['pos'] !== draftFutPosDaVaga($formacao, $i)) continue;
+        $validos[$i] = $c;
     }
 
-    $cheios = array_filter($porJogador, fn($v, $k) => !empty($time[$k]), ARRAY_FILTER_USE_BOTH);
-    $total = $cheios ? (int)round(array_sum($cheios) / count($cheios)) : 0;
-    return ['total' => $total, 'jogadores' => $porJogador];
+    /* ── 2. As contagens, e aqui ÍCONE E HERÓI SE SEPARAM ────────────
+       É a regra do EA FC, não enfeite: o Ícone é global — conta DOIS pro
+       limiar da nação dele e UM pra toda liga, costurando um time de ligas
+       misturadas. O Herói é de um campeonato — UM pra nação e DOIS pra liga
+       dele, premiando quem monta em volta daquela liga. */
+    $porClube = []; $porNacao = []; $porLiga = [];
+    $iconesLiga = 0;
+    foreach ($validos as $c) {
+        $kind = draftFutQuimicaDoTipo($c);
+
+        if ($c['clube'] !== '') $porClube[$c['clube']] = ($porClube[$c['clube']] ?? 0) + 1;
+
+        $nac = (string)($c['nac'] ?? '');
+        if ($nac !== '') {
+            $porNacao[$nac] = ($porNacao[$nac] ?? 0) + ($kind === 'icone' ? 2 : 1);
+        }
+
+        if ($kind === 'icone') {
+            $iconesLiga++;                  // vale um pra TODA liga
+        } elseif ($c['liga'] !== '') {
+            $porLiga[$c['liga']] = ($porLiga[$c['liga']] ?? 0) + ($kind === 'heroi' ? 2 : 1);
+        }
+    }
+
+    /* ── 3. Os pontos de cada um. ── */
+    $pontos = []; $detalhe = [];
+    for ($i = 0; $i < DFUT_VAGAS; $i++) {
+        $c = $time[$i] ?? null;
+        if (!$c) { $pontos[$i] = 0; continue; }
+
+        if (!isset($validos[$i])) {
+            // Fora de posição: zero, e já saiu das contagens lá em cima.
+            $pontos[$i] = 0;
+            $detalhe[$i] = ['fora' => true, 'clube' => 0, 'nacao' => 0, 'liga' => 0];
+            continue;
+        }
+        /* ÍCONE E HERÓI TÊM QUÍMICA CHEIA na posição certa, independente do
+           resto do time — é o que faz valer a pena montar em volta deles. */
+        $kind = draftFutQuimicaDoTipo($c);
+        if ($kind !== 'normal') {
+            $pontos[$i] = 3;
+            $detalhe[$i] = ['especial' => $kind, 'clube' => 0, 'nacao' => 0, 'liga' => 0];
+            continue;
+        }
+
+        $nac = (string)($c['nac'] ?? '');
+        $pc = draftFutPontos($porClube[$c['clube']] ?? 0, DFUT_LIMIAR_CLUBE);
+        $pn = $nac === '' ? 0 : draftFutPontos($porNacao[$nac] ?? 0, DFUT_LIMIAR_NACAO);
+        $pl = draftFutPontos(($porLiga[$c['liga']] ?? 0) + $iconesLiga, DFUT_LIMIAR_LIGA);
+
+        $pontos[$i] = min(3, $pc + $pn + $pl);
+        $detalhe[$i] = ['clube' => $pc, 'nacao' => $pn, 'liga' => $pl];
+    }
+
+    return ['total' => array_sum($pontos), 'jogadores' => $pontos, 'detalhe' => $detalhe];
 }
 
 /**

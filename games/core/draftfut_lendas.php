@@ -29,57 +29,86 @@
  * entram sem mexer no resto.
  */
 
-/** [nome, posição, OVR, clube do auge, liga do clube]. */
+/** [nome, posição, OVR, clube do auge, liga do clube, tipo]. */
 const DFUT_LENDAS = [
     // ── Brasil ───────────────────────────────────────────────────────
-    ['Pelé',                'ATA', 94, 'Santos',            'BR1'],
-    ['Garrincha',           'PON', 92, 'Botafogo',          'BR1'],
-    ['Ronaldo Fenômeno',    'ATA', 93, 'Real Madrid',       'ES1'],
-    ['Ronaldinho Gaúcho',   'MEI', 93, 'Barcelona',         'ES1'],
-    ['Romário',             'ATA', 92, 'Barcelona',         'ES1'],
-    ['Rivaldo',             'MEI', 91, 'Barcelona',         'ES1'],
-    ['Kaká',                'MEI', 91, 'Milan',             'IT1'],
-    ['Zico',                'MEI', 92, 'Flamengo',          'BR1'],
-    ['Sócrates',            'MEI', 90, 'Corinthians',       'BR1'],
-    ['Roberto Carlos',      'LAT', 91, 'Real Madrid',       'ES1'],
-    ['Cafu',                'LAT', 90, 'Milan',             'IT1'],
-    ['Carlos Alberto Torres','LAT', 90, 'Santos',           'BR1'],
-    ['Taffarel',            'GOL', 89, 'Galatasaray',       'TR1'],
-    ['Falcão',              'VOL', 90, 'Roma',              'IT1'],
+    ['Pelé',                'ATA', 94, 'Santos',            'BR1', 'icone'],
+    ['Garrincha',           'PON', 92, 'Botafogo',          'BR1', 'heroi'],
+    ['Ronaldo Fenômeno',    'ATA', 93, 'Real Madrid',       'ES1', 'icone'],
+    ['Ronaldinho Gaúcho',   'MEI', 93, 'Barcelona',         'ES1', 'icone'],
+    ['Romário',             'ATA', 92, 'Barcelona',         'ES1', 'icone'],
+    ['Rivaldo',             'MEI', 91, 'Barcelona',         'ES1', 'heroi'],
+    ['Kaká',                'MEI', 91, 'Milan',             'IT1', 'heroi'],
+    ['Zico',                'MEI', 92, 'Flamengo',          'BR1', 'icone'],
+    ['Sócrates',            'MEI', 90, 'Corinthians',       'BR1', 'heroi'],
+    ['Roberto Carlos',      'LAT', 91, 'Real Madrid',       'ES1', 'icone'],
+    ['Cafu',                'LAT', 90, 'Milan',             'IT1', 'heroi'],
+    ['Carlos Alberto Torres','LAT', 90, 'Santos',           'BR1', 'icone'],
+    ['Taffarel',            'GOL', 89, 'Galatasaray',       'TR1', 'heroi'],
+    ['Falcão',              'VOL', 90, 'Roma',              'IT1', 'heroi'],
 
     // ── Argentina e América do Sul ───────────────────────────────────
-    ['Diego Maradona',      'MEI', 94, 'Napoli',            'IT1'],
-    ['Lionel Messi',        'ATA', 94, 'Barcelona',         'ES1'],
-    ['Alfredo Di Stéfano',  'ATA', 92, 'Real Madrid',       'ES1'],
-    ['Gabriel Batistuta',   'ATA', 90, 'Fiorentina',        'IT1'],
-    ['Juan Román Riquelme', 'MEI', 90, 'Boca Juniors',      'AR1'],
-    ['Daniel Passarella',   'ZAG', 89, 'River Plate',       'AR1'],
-    ['Iván Zamorano',       'ATA', 88, 'Inter',             'IT1'],
-    ['Enzo Francescoli',    'MEI', 89, 'River Plate',       'AR1'],
+    ['Diego Maradona',      'MEI', 94, 'Napoli',            'IT1', 'icone'],
+    ['Lionel Messi',        'ATA', 94, 'Barcelona',         'ES1', 'icone'],
+    ['Alfredo Di Stéfano',  'ATA', 92, 'Real Madrid',       'ES1', 'icone'],
+    ['Gabriel Batistuta',   'ATA', 90, 'Fiorentina',        'IT1', 'heroi'],
+    ['Juan Román Riquelme', 'MEI', 90, 'Boca Juniors',      'AR1', 'heroi'],
+    ['Daniel Passarella',   'ZAG', 89, 'River Plate',       'AR1', 'heroi'],
+    ['Iván Zamorano',       'ATA', 88, 'Inter',             'IT1', 'heroi'],
+    ['Enzo Francescoli',    'MEI', 89, 'River Plate',       'AR1', 'heroi'],
 
     // ── Europa ───────────────────────────────────────────────────────
-    ['Cristiano Ronaldo',   'ATA', 93, 'Real Madrid',       'ES1'],
-    ['Johan Cruyff',        'ATA', 93, 'Ajax',              'NL1'],
-    ['Franz Beckenbauer',   'ZAG', 92, 'Bayern de Munique', 'DE1'],
-    ['Zinedine Zidane',     'MEI', 93, 'Real Madrid',       'ES1'],
-    ['Michel Platini',      'MEI', 92, 'Juventus',          'IT1'],
-    ['Marco van Basten',    'ATA', 92, 'Milan',             'IT1'],
-    ['Paolo Maldini',       'ZAG', 92, 'Milan',             'IT1'],
-    ['Franco Baresi',       'ZAG', 91, 'Milan',             'IT1'],
-    ['Lev Yashin',          'GOL', 92, 'Dínamo Moscou',     'RU1'],
-    ['Gianluigi Buffon',    'GOL', 91, 'Juventus',          'IT1'],
-    ['Iker Casillas',       'GOL', 90, 'Real Madrid',       'ES1'],
-    ['Oliver Kahn',         'GOL', 90, 'Bayern de Munique', 'DE1'],
-    ['Andrés Iniesta',      'MEI', 91, 'Barcelona',         'ES1'],
-    ['Xavi Hernández',      'MEI', 91, 'Barcelona',         'ES1'],
-    ['Lothar Matthäus',     'VOL', 90, 'Bayern de Munique', 'DE1'],
-    ['Gerd Müller',         'ATA', 91, 'Bayern de Munique', 'DE1'],
-    ['Eusébio',             'ATA', 91, 'Benfica',           'PT1'],
-    ['Luís Figo',           'PON', 90, 'Real Madrid',       'ES1'],
-    ['Thierry Henry',       'ATA', 91, 'Arsenal',           'EN1'],
-    ['Ryan Giggs',          'PON', 89, 'Manchester United', 'EN1'],
-    ['Andrea Pirlo',        'VOL', 90, 'Juventus',          'IT1'],
-    ['Zlatan Ibrahimović',  'ATA', 90, 'Milan',             'IT1'],
+    ['Cristiano Ronaldo',   'ATA', 93, 'Real Madrid',       'ES1', 'icone'],
+    ['Johan Cruyff',        'ATA', 93, 'Ajax',              'NL1', 'icone'],
+    ['Franz Beckenbauer',   'ZAG', 92, 'Bayern de Munique', 'DE1', 'icone'],
+    ['Zinedine Zidane',     'MEI', 93, 'Real Madrid',       'ES1', 'icone'],
+    ['Michel Platini',      'MEI', 92, 'Juventus',          'IT1', 'icone'],
+    ['Marco van Basten',    'ATA', 92, 'Milan',             'IT1', 'icone'],
+    ['Paolo Maldini',       'ZAG', 92, 'Milan',             'IT1', 'icone'],
+    ['Franco Baresi',       'ZAG', 91, 'Milan',             'IT1', 'heroi'],
+    ['Lev Yashin',          'GOL', 92, 'Dínamo Moscou',     'RU1', 'icone'],
+    ['Gianluigi Buffon',    'GOL', 91, 'Juventus',          'IT1', 'heroi'],
+    ['Iker Casillas',       'GOL', 90, 'Real Madrid',       'ES1', 'heroi'],
+    ['Oliver Kahn',         'GOL', 90, 'Bayern de Munique', 'DE1', 'heroi'],
+    ['Andrés Iniesta',      'MEI', 91, 'Barcelona',         'ES1', 'icone'],
+    ['Xavi Hernández',      'MEI', 91, 'Barcelona',         'ES1', 'icone'],
+    ['Lothar Matthäus',     'VOL', 90, 'Bayern de Munique', 'DE1', 'heroi'],
+    ['Gerd Müller',         'ATA', 91, 'Bayern de Munique', 'DE1', 'icone'],
+    ['Eusébio',             'ATA', 91, 'Benfica',           'PT1', 'icone'],
+    ['Luís Figo',           'PON', 90, 'Real Madrid',       'ES1', 'heroi'],
+    ['Thierry Henry',       'ATA', 91, 'Arsenal',           'EN1', 'icone'],
+    ['Ryan Giggs',          'PON', 89, 'Manchester United', 'EN1', 'heroi'],
+    ['Andrea Pirlo',        'VOL', 90, 'Juventus',          'IT1', 'heroi'],
+    ['Zlatan Ibrahimović',  'ATA', 90, 'Milan',             'IT1', 'heroi'],
+];
+
+/**
+ * A nacionalidade de cada lenda, escrita à mão.
+ *
+ * São 44 nomes que qualquer um sabe de cor, e deduzir do clube erraria
+ * justamente nos mais famosos: Di Stéfano jogou no Real, Maradona no Napoli,
+ * Ibrahimović no Milan. A química do EA FC depende de nação, então errar
+ * aqui estragaria a carta mais valiosa do baralho.
+ */
+const DFUT_LENDA_NACAO = [
+    'Pelé' => 'Brazil', 'Garrincha' => 'Brazil', 'Ronaldo Fenômeno' => 'Brazil',
+    'Ronaldinho Gaúcho' => 'Brazil', 'Romário' => 'Brazil', 'Rivaldo' => 'Brazil',
+    'Kaká' => 'Brazil', 'Zico' => 'Brazil', 'Sócrates' => 'Brazil',
+    'Roberto Carlos' => 'Brazil', 'Cafu' => 'Brazil', 'Carlos Alberto Torres' => 'Brazil',
+    'Taffarel' => 'Brazil', 'Falcão' => 'Brazil',
+    'Diego Maradona' => 'Argentina', 'Lionel Messi' => 'Argentina',
+    'Alfredo Di Stéfano' => 'Argentina', 'Gabriel Batistuta' => 'Argentina',
+    'Juan Román Riquelme' => 'Argentina', 'Daniel Passarella' => 'Argentina',
+    'Iván Zamorano' => 'Chile', 'Enzo Francescoli' => 'Uruguay',
+    'Cristiano Ronaldo' => 'Portugal', 'Luís Figo' => 'Portugal', 'Eusébio' => 'Portugal',
+    'Johan Cruyff' => 'Netherlands', 'Marco van Basten' => 'Netherlands',
+    'Franz Beckenbauer' => 'Germany', 'Lothar Matthäus' => 'Germany',
+    'Gerd Müller' => 'Germany', 'Oliver Kahn' => 'Germany',
+    'Zinedine Zidane' => 'France', 'Michel Platini' => 'France', 'Thierry Henry' => 'France',
+    'Paolo Maldini' => 'Italy', 'Franco Baresi' => 'Italy', 'Gianluigi Buffon' => 'Italy',
+    'Andrea Pirlo' => 'Italy',
+    'Lev Yashin' => 'Russia', 'Iker Casillas' => 'Spain', 'Andrés Iniesta' => 'Spain',
+    'Xavi Hernández' => 'Spain', 'Ryan Giggs' => 'Wales', 'Zlatan Ibrahimović' => 'Sweden',
 ];
 
 /**
@@ -99,7 +128,7 @@ function draftFutLendas(): array
     foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) $escudoDe[$nome] = $escudo;
 
     $cartas = [];
-    foreach (DFUT_LENDAS as [$nome, $pos, $ovr, $clube, $liga]) {
+    foreach (DFUT_LENDAS as [$nome, $pos, $ovr, $clube, $liga, $tipo]) {
         $cartas[] = [
             'nome'   => $nome,
             'pos'    => $pos,
@@ -108,7 +137,15 @@ function draftFutLendas(): array
             'clube'  => $clube,
             'liga'   => $liga,
             'escudo' => $escudoDe[$clube] ?? '',
+            'tipo'   => $tipo,          // 'icone' ou 'heroi'
             'lenda'  => true,
+            /* A NAÇÃO DA LENDA VEM DO PAÍS DO CLUBE DO AUGE, e essa é a
+               única carta em que isso é aceitável: o Pelé do Santos é
+               brasileiro de qualquer jeito. Onde erra — Di Stéfano era
+               argentino e vai contar como Espanha pelo Real —, erra num
+               punhado de cartas, não em cinco mil. As comuns pegam a nação
+               de verdade, da API. */
+            'nac'    => DFUT_LENDA_NACAO[$nome] ?? '',
         ];
     }
     return $cartas;
