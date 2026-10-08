@@ -95,7 +95,9 @@ $coords = DFUT_CAMPO[$F] ?? [];
                    motor recalcula o time inteiro a cada troca. */ ?>
           <span class="slot-carta"><?= dfutCartaHtml($c, ['mini' => true, 'rotulo' => $c['pos']]) ?></span>
         <?php else: ?>
-          <span class="s-mais">+</span><span class="s-rot"><?= e($rot) ?></span>
+          <?php /* Sem setor escrito: a vaga de banco aceita qualquer posição,
+                   e prometer "ZAG" aqui entregaria o pacote antes de abrir. */ ?>
+          <span class="s-mais">+</span><span class="s-rot">LIVRE</span>
         <?php endif; ?>
       </div>
     <?php endfor; ?>

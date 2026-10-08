@@ -588,10 +588,16 @@ a{color:inherit}
 
 <?php elseif ($emDraft): ?>
   <?php if ($aberta !== null && $d['opcoes']):
-    $natural = draftFutPosDaVaga($d['formacao'], $aberta); ?>
+    $natural = draftFutPosDaVaga($d['formacao'], $aberta);
+    /* VAGA DE BANCO NÃO TEM POSIÇÃO: vem de tudo, misturado. Então aqui não
+       se promete setor nenhum no título, e nenhuma carta nasce marcada como
+       "fora de posição" — no banco não existe lugar errado. */
+    $noBanco = $aberta >= DFUT_VAGAS; ?>
     <div class="bloco cartas-bloco">
-      <h2>Escolha pra <?= e(draftFutRotuloDaVaga($d['formacao'], $aberta)) ?></h2>
-      <p class="sub">Cinco cartas. A química muda conforme quem já está em campo.</p>
+      <h2>Escolha <?= $noBanco ? 'pro banco' : 'pra ' . e(draftFutRotuloDaVaga($d['formacao'], $aberta)) ?></h2>
+      <p class="sub"><?= $noBanco
+          ? 'Cinco cartas de qualquer posição. Reserva não pontua na química — ele ganha a dele quando sobe pro time.'
+          : 'Cinco cartas. A química muda conforme quem já está em campo.' ?></p>
       <div class="cartas">
         <?php foreach ($d['opcoes'] as $i => $c):
           /* QUANTO ESTA CARTA DARIA DE QUÍMICA AQUI — pedido do Marcos
@@ -607,16 +613,18 @@ a{color:inherit}
             <input type="hidden" name="carta" value="<?= $i ?>">
             <button class="carta-btn" type="submit" style="animation-delay:<?= $i * 70 ?>ms"
                     title="<?= e($c['nome']) ?> — <?= e($c['clube']) ?> · <?= e(draftFutPais($c['liga'])) ?><?= !empty($c['nac']) ? ' · ' . e($c['nac']) : '' ?>">
-              <?= dfutCartaHtml($c, ['rotulo' => draftFutRotuloDaVaga($d['formacao'], $aberta),
-                                     'fora'   => $c['pos'] !== $natural]) ?>
+              <?= dfutCartaHtml($c, ['rotulo' => $noBanco ? $c['pos'] : draftFutRotuloDaVaga($d['formacao'], $aberta),
+                                     'fora'   => !$noBanco && $c['pos'] !== $natural]) ?>
               <?= dfutQuimicaHtml($qCarta) ?>
             </button>
           </form>
         <?php endforeach; ?>
       </div>
+      <?php if (!$noBanco): ?>
       <p class="legenda-quim">
         <span class="lq"><i></i><i></i><i></i></span> química que a carta dá nesta vaga —
         mesmo clube, mesma nação, mesma liga. Máximo 3 por jogador, 33 no time.</p>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
   <?php include __DIR__ . '/draftfut_campo.php'; ?>

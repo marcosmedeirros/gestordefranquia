@@ -64,15 +64,20 @@ const DFUT_OVR_MIN = 75;
 const DFUT_CHANCE_LENDA = 12;
 
 /**
- * As posições do banco, na ordem em que são sorteadas.
+ * O BANCO NÃO TEM POSIÇÃO — pedido do Marcos (08/10/2026): "no banco os
+ * pacotes nao tem posicao certa, pode vir qualquer posicao e misturado, so no
+ * time titular que é seguindo a posicao".
  *
- * Um reserva por setor mais um segundo atacante: é o banco que permite trocar
- * de esquema sem ficar com buraco. Mora aqui, e não em quem desenha a tela,
- * porque o sorteio e a troca precisam concordar sobre o que cada vaga do
- * banco é — e quando eu deixei isso solto, o teste pediu oito vagas de uma
- * lista de sete e quebrou.
+ * Antes cada vaga do banco era de um setor (um goleiro, um zagueiro, um
+ * lateral...), e isso tirava a graça do pacote: abrir a vaga 12 era saber de
+ * antemão que vinha zagueiro. Agora as oito vagas sorteiam de TODO o baralho,
+ * misturado, e quem decide pra que serve cada reserva é quem monta o time.
+ *
+ * A constante fica, vazia, porque é ela que define que o banco é livre — e
+ * porque tem gente perguntando a posição de uma vaga de banco.
+ * @see draftFutPosDaVaga
  */
-const DFUT_BANCO_POS = ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'PON', 'ATA', 'ATA'];
+const DFUT_BANCO_POS = [];
 
 /**
  * ONDE CADA VAGA FICA NO GRAMADO, em % da largura e da altura.
@@ -139,18 +144,24 @@ function draftFutNomeCamisa(string $nome): string
     return preg_replace('/^\p{L}\.\s+/u', '', $curto);
 }
 
-/** A posição natural de qualquer vaga, de campo ou de banco. */
+/**
+ * A posição que uma vaga pede. VAZIO no banco, que aceita qualquer uma.
+ *
+ * Quem sorteia lê isto: string vazia quer dizer "tanto faz, sorteie do
+ * baralho inteiro" (@see draftFutOpcoes). A química não passa por aqui pro
+ * banco, porque só os onze de campo pontuam.
+ */
 function draftFutPosDaVaga(string $formacao, int $i): string
 {
     if ($i < DFUT_VAGAS) return DFUT_FORMACOES[$formacao][$i][1] ?? 'MEI';
-    return DFUT_BANCO_POS[$i - DFUT_VAGAS] ?? 'MEI';
+    return DFUT_BANCO_POS[$i - DFUT_VAGAS] ?? '';
 }
 
-/** O rótulo de qualquer vaga. O banco usa a própria posição. */
+/** O rótulo de qualquer vaga. No banco vazio não há o que prometer. */
 function draftFutRotuloDaVaga(string $formacao, int $i): string
 {
     if ($i < DFUT_VAGAS) return DFUT_FORMACOES[$formacao][$i][0] ?? '';
-    return DFUT_BANCO_POS[$i - DFUT_VAGAS] ?? '';
+    return DFUT_BANCO_POS[$i - DFUT_VAGAS] ?? 'LIVRE';
 }
 
 /**
@@ -304,14 +315,20 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
        (DFUT_COBRE), e abrir um atacante devolvia meio-campistas — que já
        nasciam fora de posição e com química zero. A vaga agora sorteia só
        quem joga ali; DFUT_COBRE continua valendo pra quando o jogador é
-       REMANEJADO depois, que é onde a penalidade faz sentido. */
-    $fora = array_flip($usados);
+       REMANEJADO depois, que é onde a penalidade faz sentido.
+
+       NO BANCO É O CONTRÁRIO: $posicaoVaga vem VAZIA e o sorteio pega o
+       baralho inteiro, misturado (pedido do Marcos, 08/10/2026). Vaga de
+       banco com setor marcado entregava a surpresa antes de abrir o pacote —
+       dava pra saber que a vaga 12 era zagueiro. */
+    $fora  = array_flip($usados);
+    $livre = $posicaoVaga === '';
 
     $ovrMin = max(DFUT_OVR_MIN, $ovrMin);
 
     $elegiveis = [];
     foreach (draftFutBaralho() as $c) {
-        if ($c['pos'] !== $posicaoVaga) continue;
+        if (!$livre && $c['pos'] !== $posicaoVaga) continue;
         if (isset($fora[$c['nome']])) continue;
         if ($c['ovr'] < $ovrMin || $c['ovr'] > $ovrMax) continue;
         $elegiveis[] = $c;
@@ -321,7 +338,8 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
        cartas e travar a vaga. */
     if (count($elegiveis) < DFUT_OPCOES) {
         foreach (draftFutBaralho() as $c) {
-            if ($c['pos'] !== $posicaoVaga || isset($fora[$c['nome']])) continue;
+            if (!$livre && $c['pos'] !== $posicaoVaga) continue;
+            if (isset($fora[$c['nome']])) continue;
             if ($c['ovr'] < DFUT_OVR_MIN) continue;
             $elegiveis[] = $c;
         }
@@ -337,7 +355,8 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
     if (mt_rand(1, 100) <= DFUT_CHANCE_LENDA) {
         $lendas = [];
         foreach (draftFutLendas() as $l) {
-            if ($l['pos'] !== $posicaoVaga || isset($fora[$l['nome']])) continue;
+            if (!$livre && $l['pos'] !== $posicaoVaga) continue;
+            if (isset($fora[$l['nome']])) continue;
             $lendas[] = $l;
         }
         if ($lendas) {
