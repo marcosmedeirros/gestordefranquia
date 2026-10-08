@@ -204,6 +204,33 @@ function draftFutExtras(): array
 }
 
 /**
+ * ── QUEM TROCOU DE CLUBE DEPOIS QUE O ELENCO FOI TIRADO ──────────────
+ *
+ * Os elencos em games/data/elencos/ são uma foto do passado, e as fotos dos
+ * jogadores denunciaram: o Isak aparecia de Liverpool numa carta do
+ * Newcastle. Esta camada corrige o CLUBE da carta — e só no draft; nada aqui
+ * toca os elencos, que são do jogo de carreira.
+ *
+ * O arquivo é gerado (@see draftfut_clubes_cli.php) e guarda também quem foi
+ * conferido e NÃO mudou, como string vazia, pra a próxima rodada não gastar
+ * a chave da fonte perguntando de novo.
+ *
+ * O OVR NÃO MUDA JUNTO, de propósito. O ajuste por liga
+ * (@see draftFutOvrAjustado) existe pra corrigir como o elenco de origem foi
+ * gerado, não pra dizer quanto vale quem joga ali — um goleiro de 88 que foi
+ * pro Fenerbahçe continua um goleiro de 88, só que agora num campeonato mais
+ * fraco. Recalcular derrubaria ele pra 74 por ter mudado de endereço.
+ */
+function draftFutTransferencias(): array
+{
+    static $t = null;
+    if ($t !== null) return $t;
+    $arq = __DIR__ . '/../data/draftfut_transferencias.php';
+    $t = is_file($arq) ? (array)require $arq : [];
+    return $t;
+}
+
+/**
  * ── AS NACIONALIDADES ESCRITAS À MÃO ─────────────────────────────────
  *
  * A fonte não acha jogador de nome curto. "Rodri" devolve Jay Rodriguez;

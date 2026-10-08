@@ -233,8 +233,15 @@ function draftFutBaralho(): array
        "Tatá 91", do Al Hilal, acima de qualquer craque de verdade. Num jogo
        de cartinhas isso é o fim da graça — a carta tem que ser reconhecida.
        São 321 clubes com elenco real, de sobra pra um draft de onze. */
-    $extra = draftFutExtras();
-    $cartas = [];
+    $extra  = draftFutExtras();
+    $trocas = draftFutTransferencias();
+
+    /* Liga e escudo por clube, pra a carta de quem trocou nascer já com os do
+       clube novo. Sai do mesmo catálogo, então não há segunda fonte. */
+    $doClube = [];
+    foreach (COPERO_CLUBES as [$n, $l, $f, $e]) $doClube[$n] = ['liga' => $l, 'escudo' => $e];
+
+    $cartas = []; $jaTem = [];
     foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) {
         if (!is_file(__DIR__ . '/../data/elencos/' . futSlugDoClube($nome) . '.php')) continue;
         foreach (futElencoDoClube($nome, (int)$forca) as $j) {
@@ -242,14 +249,34 @@ function draftFutBaralho(): array
             if (!isset(DFUT_COBRE[$pos])) continue;
             $nm = (string)$j['nome'];
             $ex = $extra[$nome][$nm] ?? null;
+
+            /* O OVR é calculado com a liga de ORIGEM, antes da troca: é ela
+               que diz como aquele elenco foi gerado. @see draftFutTransferencias */
+            $ovr = draftFutOvrAjustado((int)$j['ovr'], $liga);
+
+            $clube = $nome; $lg = $liga; $esc = $escudo;
+            $novo = (string)($trocas[$nome . '|' . $nm] ?? '');
+            if ($novo !== '' && isset($doClube[$novo])) {
+                $clube = $novo;
+                $lg    = $doClube[$novo]['liga'];
+                $esc   = $doClube[$novo]['escudo'];
+            }
+
+            /* O MESMO JOGADOR SÓ ENTRA UMA VEZ. Se ele trocou pra um clube que
+               também o lista no elenco, as duas linhas virariam duas cartas do
+               mesmo homem — e o draft deixaria escalar os dois. */
+            $id = $clube . '|' . $nm;
+            if (isset($jaTem[$id])) continue;
+            $jaTem[$id] = true;
+
             $cartas[] = [
                 'nome'   => $nm,
                 'pos'    => $pos,
-                'ovr'    => draftFutOvrAjustado((int)$j['ovr'], $liga),
+                'ovr'    => $ovr,
                 'idade'  => (int)($j['idade'] ?? 25),
-                'clube'  => $nome,
-                'liga'   => $liga,
-                'escudo' => $escudo,
+                'clube'  => $clube,
+                'liga'   => $lg,
+                'escudo' => $esc,
                 'nac'    => draftFutNacao($nome, $nm, $ex),
                 'foto'   => (string)($ex['foto'] ?? ''),
             ];
