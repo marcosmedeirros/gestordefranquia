@@ -231,8 +231,20 @@ function draftFutCampoCheio(array $d): bool
 }
 
 $moedas = dfMoedas($pdo, $user_id);
-$emDraft = $d && empty($d['resultado']);
-$pronto  = $d && draftFutCampoCheio($d) && empty($d['resultado']);
+
+/* ── A TELA "TIME PRONTO" ESTAVA INALCANÇÁVEL ────────────────────────
+   `$emDraft` vinha antes de `$pronto` na cadeia de `elseif` lá embaixo e
+   cobria todo draft em andamento — inclusive o já terminado. Resultado: a
+   pessoa preenchia as 19 vagas e ficava olhando o campinho, sem botão de
+   jogar. Achado jogando um draft inteiro por POST, não por leitura.
+
+   Pronto é com TUDO escolhido, banco incluído: o FUT Draft também faz
+   escolher os reservas, e é pra isso que eles existem aqui — entrar no time
+   por troca antes do apito. */
+$tudoCheio = $d && !empty($d['time'])
+             && count(array_filter(array_slice($d['time'], 0, DFUT_TOTAL))) >= DFUT_TOTAL;
+$emDraft = $d && empty($d['resultado']) && !$tudoCheio;
+$pronto  = $d && $tudoCheio && empty($d['resultado']);
 $fim     = $d && !empty($d['resultado']);
 $quim = $d ? draftFutQuimica($d['formacao'], $d['time']) : ['total' => 0, 'jogadores' => []];
 $aberta = $d['aberta'] ?? null;
@@ -602,7 +614,7 @@ a{color:inherit}
     <h2>Partida</h2>
     <div class="relogio" id="relogio">0'</div>
     <div class="placar">
-      <div class="t"><b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?></small></div>
+      <div class="t"><b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?>/<?= DFUT_VAGAS * 3 ?></small></div>
       <?php /* O PLACAR COMEÇA EM 0x0 E ANDA COM A NARRAÇÃO. Ele vinha pronto,
            com os lances contando depois o que já estava escrito em cima —
            era ler a última página antes do livro. Agora o gol aparece no
