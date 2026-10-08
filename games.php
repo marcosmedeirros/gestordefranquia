@@ -454,6 +454,17 @@ foreach (['termo' => 'termo_historico', 'memoria' => 'memoria_historico'] as $jo
 $diariosFeitos = count(array_filter($statusDiario, fn($v) => $v === true));
 $diariosTotal  = count($statusDiario);
 
+/**
+ * Quantos palpites é preciso ter feito pra entrar no ranking de % de acerto.
+ *
+ * Pedido do Marcos em 08/10/2026. Antes o topo era de quem tinha apostado uma
+ * vez e acertado — 100% de 1 palpite ficava à frente de 58% de 391. A conta
+ * da porcentagem continua sendo sobre os palpites JÁ RESOLVIDOS; o piso é
+ * sobre os FEITOS, que é como ele pediu e é o número que a pessoa vê no
+ * próprio perfil.
+ */
+const RANKING_PCT_MIN_PALPITES = 80;
+
 // ── Ranking ─────────────────────────────────────────────────────────────────
 // Um SELECT só traz todo mundo; a separação Geral / por liga é feita em PHP,
 // porque são os mesmos dados vistos de ângulos diferentes.
@@ -472,7 +483,8 @@ try {
                    WHERE p.id_usuario = g.id
                      AND e.status = 'encerrada'
                      AND e.vencedor_opcao_id IS NOT NULL
-               ) AS palpites_resolvidos
+               ) AS palpites_resolvidos,
+               (SELECT COUNT(*) FROM palpites p WHERE p.id_usuario = g.id) AS palpites_feitos
         FROM games_usuarios g
         JOIN users u ON u.id = g.id
     ");
@@ -488,6 +500,7 @@ try {
             'fba_points' => (int)$r['fba_points'],
             'acertos'    => $acertos,
             'resolvidos' => $resolvidos,
+            'feitos'     => (int)$r['palpites_feitos'],
             'pct'        => $resolvidos > 0 ? round($acertos * 100 / $resolvidos, 1) : null,
         ];
     }
@@ -539,7 +552,15 @@ function rankingOrdenar(array $base, string $liga, string $criterio): array {
         return $b[$criterio] <=> $a[$criterio];
     });
     if ($criterio === 'pct') {
-        $lista = array_values(array_filter($lista, fn($r) => $r['pct'] !== null));
+        /* PISO DE VOLUME NO RANKING DE PORCENTAGEM (pedido do Marcos,
+           08/10/2026). Sem ele o topo era de quem tinha apostado UMA vez e
+           acertado: dois GMs com 1 de 1 lideravam com 100%, à frente de quem
+           acerta 58% em 391 palpites. Porcentagem de amostra minúscula não é
+           pontaria, é sorte — e premiava justamente quem não joga. */
+        $lista = array_values(array_filter(
+            $lista,
+            fn($r) => $r['pct'] !== null && (int)$r['feitos'] >= RANKING_PCT_MIN_PALPITES
+        ));
     }
     return $lista;
 }
@@ -955,6 +976,8 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         padding:7px 16px; cursor:pointer; transition:all var(--t) var(--ease); }
     .rk-liga:hover { color:var(--text); }
     .rk-liga.active { background:var(--red-soft); border-color:var(--border-red); color:var(--red); }
+    .rk-regra { font-size:10.5px; font-weight:600; color:var(--text-3); letter-spacing:.2px;
+        white-space:nowrap; }
     .rk-bloco { display:none; }
     .rk-bloco.active { display:block; }
     .rk-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
@@ -1954,6 +1977,11 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                                 <i class="bi <?= $meta['icone'] ?>" style="color:<?= $meta['cor'] ?>"></i>
                                 <?= htmlspecialchars($meta['label']) ?>
                             </div>
+                            <?php if ($crit === 'pct'): ?>
+                                <?php /* A regra fica à vista: sem isto, quem ficou de fora
+                                         só vê que sumiu do ranking e não sabe por quê. */ ?>
+                                <div class="rk-regra">a partir de <?= RANKING_PCT_MIN_PALPITES ?> palpites</div>
+                            <?php endif; ?>
                         </div>
                         <div class="card-body" style="padding:8px 10px 12px">
                             <?php if (empty($lista)): ?>

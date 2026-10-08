@@ -546,20 +546,55 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
             }
         }
         $cf = ucfirst(strtolower($conf));
-        foreach ([1, 2] as $n) {
-            $apostas[] = [
-                'nome' => "Semis 0{$n} - {$conf}?", 'tipo' => 'serie', 'tipo_ref' => "r2:{$conf}:{$n}",
-                'opcoes' => [
-                    ['desc' => "{$cf} " . ($n * 2 - 1), 'ref_tipo' => 'vaga'],
-                    ['desc' => "{$cf} " . ($n * 2),     'ref_tipo' => 'vaga'],
-                ],
-            ];
+
+        /* ── A SEMI OFERECE OS TIMES QUE PODEM CHEGAR NELA ────────────
+           Pedido do Marcos (08/10/2026): "tem como colocar todos os times na
+           semi". Antes eram duas vagas de texto, "Oeste 1" e "Oeste 2" — e
+           apostar numa vaga é apostar num rótulo, não num time. Pior: vaga
+           não tem como ser paga sozinha (@see apostasAutoVencedor), então
+           toda semi virava fila pro humano.
+
+           São QUATRO opções, não oito: a semi 1 é ganhador de Quartas 01
+           contra ganhador de Quartas 04, então só os quatro times dessas duas
+           chaves podem estar nela. Oferecer os oito seria oferecer time que
+           não pode chegar ali. O mesmo guard das quartas vale aqui — sem os
+           oito classificados não dá pra saber quem alimenta cada semi. */
+        if (count($oito) === 8) {
+            /* As quartas são 1x8, 2x7, 3x6, 4x5 (índices 0-7 acima). A semi 1
+               recebe as quartas 1 e 4; a semi 2, as quartas 2 e 3. */
+            foreach ([1 => [0, 7, 3, 4], 2 => [1, 6, 2, 5]] as $n => $idx) {
+                $ops = [];
+                foreach ($idx as $i) {
+                    $ops[] = ['desc' => $oito[$i]['nome'], 'ref_tipo' => 'time',
+                              'ref_id' => (int)$oito[$i]['id']];
+                }
+                $apostas[] = ['nome' => "Semis 0{$n} - {$conf}?", 'tipo' => 'serie',
+                              'tipo_ref' => "r2:{$conf}:{$n}", 'opcoes' => $ops];
+            }
+        } else {
+            foreach ([1, 2] as $n) {
+                $apostas[] = [
+                    'nome' => "Semis 0{$n} - {$conf}?", 'tipo' => 'serie', 'tipo_ref' => "r2:{$conf}:{$n}",
+                    'opcoes' => [
+                        ['desc' => "{$cf} " . ($n * 2 - 1), 'ref_tipo' => 'vaga'],
+                        ['desc' => "{$cf} " . ($n * 2),     'ref_tipo' => 'vaga'],
+                    ],
+                ];
+            }
         }
+
+        /* A FINAL DA CONFERÊNCIA SEGUE COM AS DUAS VAGAS, por pedido do
+           Marcos no mesmo dia: "na final de conferencia em si deixa semi 01 e
+           02". Faz sentido — na final só cabem dois times, e quem eles são
+           depende de quem passou; listar os oito ali seria mentira.
+           O `ref_txt` guarda QUAL semi cada vaga é, e é isso que permite
+           pagá-la sozinha depois: o resolvedor lê as opções da aposta da
+           semi 01 pra saber se o campeão da conferência veio de lá. */
         $apostas[] = [
             'nome' => "Final {$cf}", 'tipo' => 'serie', 'tipo_ref' => "cf:{$conf}:1",
             'opcoes' => [
-                ['desc' => "Semi {$cf} 1", 'ref_tipo' => 'vaga'],
-                ['desc' => "Semi {$cf} 2", 'ref_tipo' => 'vaga'],
+                ['desc' => 'Semi 01', 'ref_tipo' => 'vaga', 'ref_txt' => "r2:{$conf}:1"],
+                ['desc' => 'Semi 02', 'ref_tipo' => 'vaga', 'ref_txt' => "r2:{$conf}:2"],
             ],
         ];
     }
@@ -1111,19 +1146,58 @@ function apostasAutoVencedor(PDO $pdo, array $evt, array $opcoes): array
            2x7, 3x6, 4x5 — e nada garante isso. A aposta já carrega os dois
            times nas opções; a série que tem esses dois é a dela, em qualquer
            ordem de gravação. */
+        /* A SÉRIE É A QUE TEM OS DOIS TIMES DENTRO DAS MINHAS OPÇÕES, e não a
+           primeira por id: casar pela ordem de gravação só funcionaria se o
+           motor gravasse exatamente 1x8, 2x7, 3x6, 4x5, e nada garante isso.
+           Na quartas são duas opções e os dois times batem exatamente; na
+           semi são quatro (@see apostasAutoCatalogo) e os dois que jogaram
+           são um subconjunto. Em qualquer dos casos a pergunta é a mesma:
+           qual série daquela fase foi disputada por times que eu ofereci. */
         $meus = [];
         foreach ($opcoes as $o) if ($o['ref_tipo'] === 'time') $meus[] = (int)$o['ref_id'];
-        if (count($meus) === 2) {
+        if (count($meus) >= 2) {
+            $candidatas = [];
             foreach ($series as $s) {
-                $par = [(int)$s['team_a_id'], (int)$s['team_b_id']];
-                sort($par); $alvo = $meus; sort($alvo);
-                if ($par !== $alvo) continue;
+                $a = (int)$s['team_a_id']; $b = (int)$s['team_b_id'];
+                if (in_array($a, $meus, true) && in_array($b, $meus, true)) $candidatas[] = $s;
+            }
+            /* Mais de uma série casando seria chaveamento fora do esperado —
+               duas semis entre os mesmos quatro times, por exemplo. Aí é
+               melhor parar e deixar pro humano do que pagar a errada. */
+            if (count($candidatas) > 1) {
+                return ['op' => null, 'motivo' => 'mais de uma série casa com essas opções'];
+            }
+            if (count($candidatas) === 1) {
+                $s = $candidatas[0];
                 if (!$s['winner_team_id']) {
                     return ['op' => null, 'motivo' => 'o confronto ainda não tem vencedor'];
                 }
                 return apostasAutoCasaTime($opcoes, (int)$s['winner_team_id']);
             }
-            return ['op' => null, 'motivo' => 'não achei a série desses dois times'];
+            return ['op' => null, 'motivo' => 'não achei a série desses times'];
+        }
+
+        /* ── FINAL DA CONFERÊNCIA: "Semi 01" ou "Semi 02" ─────────────
+           As opções são vagas, mas cada uma guarda em `ref_txt` o tipo_ref da
+           semi que a alimenta. Então dá pra responder sem adivinhar: lê as
+           opções DAQUELA aposta de semi e vê se o campeão da conferência
+           está entre os times que ela ofereceu. Não é dedução sobre o
+           chaveamento — é conferir o que foi oferecido pra liga apostar. */
+        if ($fase === 'cf' && count($series) === 1 && $series[0]['winner_team_id']) {
+            $campeao = (int)$series[0]['winner_team_id'];
+            foreach ($opcoes as $o) {
+                $ref = (string)($o['ref_txt'] ?? '');
+                if ($o['ref_tipo'] !== 'vaga' || !str_starts_with($ref, 'r2:')) continue;
+                $st = $pdo->prepare("SELECT op.ref_id FROM opcoes op
+                                       JOIN eventos ev ON ev.id = op.evento_id
+                                      WHERE ev.season_id = ? AND ev.tipo_ref = ? AND op.ref_tipo = 'time'");
+                $st->execute([$sid, $ref]);
+                $daSemi = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+                if ($daSemi && in_array($campeao, $daSemi, true)) {
+                    return ['op' => (int)$o['id'], 'motivo' => "o campeão saiu da {$o['descricao']}"];
+                }
+            }
+            return ['op' => null, 'motivo' => 'não sei de qual semi o campeão da conferência veio'];
         }
 
         /* Opções de vaga ("Oeste 1", "Campeão do Leste"): o campeão dá pra
