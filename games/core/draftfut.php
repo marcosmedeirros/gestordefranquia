@@ -341,6 +341,13 @@ function draftFutBaralho(): array
                 $esc   = $doClube[$novo]['escudo'];
             }
 
+            /* O OVR À MÃO VEM DEPOIS DA TROCA, e por isso aceita as duas
+               chaves: quem escreve a linha pensa no clube de hoje, e o elenco
+               guarda o de ontem. @see DFUT_OVR_MAO */
+            $ovr = (int)(DFUT_OVR_MAO[$nome . '|' . $nm]
+                      ?? DFUT_OVR_MAO[$clube . '|' . $nm]
+                      ?? $ovr);
+
             /* O MESMO JOGADOR SÓ ENTRA UMA VEZ. Se ele trocou pra um clube que
                também o lista no elenco, as duas linhas virariam duas cartas do
                mesmo homem — e o draft deixaria escalar os dois. */

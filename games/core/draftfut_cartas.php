@@ -270,6 +270,30 @@ const DFUT_CLUBE_MAO = [
     'Manchester United|Antony'    => 'Real Betis',
     'Manchester City|Savinho'     => 'Tottenham',
     'Liverpool|Andrew Robertson'  => 'Tottenham',
+    /* O catálogo escreve "LAFC", não "Los Angeles FC" — o nome tem que ser o
+       de lá, senão a troca é ignorada e a carta fica no clube antigo. */
+    'Tottenham|Heung Min Son'     => 'LAFC',
+];
+
+/**
+ * ── O OVR CORRIGIDO À MÃO ────────────────────────────────────────────
+ *
+ * O OVR de cada carta sai do elenco e da liga de origem (@see
+ * draftFutOvrAjustado), e isso funciona enquanto o jogador está onde o
+ * elenco diz. Quando ele muda de patamar, não: o Son saiu do Tottenham pra
+ * MLS e continuaria valendo os 86 da Premier, uma carta da MLS mais forte
+ * que meio Inglaterra. Pedido do Marcos (08/10/2026): "son ta no Los
+ * Angeles FC, da MLS, pode baixar o ovr dele pra 81".
+ *
+ * É avaliação, não dado — do mesmo tipo que os OVRs das lendas, e declarada
+ * como tal. Por isso cada linha aqui é um pedido explícito, nunca um palpite
+ * meu sobre quem anda bem ou mal na temporada.
+ *
+ * A chave aceita o clube de ORIGEM (o do elenco) ou o de DESTINO, porque
+ * quem escreve a linha pensa no clube de hoje e o arquivo guarda o de ontem.
+ */
+const DFUT_OVR_MAO = [
+    'Tottenham|Heung Min Son' => 81,
 ];
 
 /**
