@@ -675,3 +675,22 @@ function draftFutFormacoesSorteadas(int $semente): array
     return array_values(array_filter(array_keys(DFUT_FORMACOES),
         fn($n) => in_array($n, $escolhidas, true)));
 }
+/* ═════════════════════ AS MOEDAS DO DRAFT ═══════════════════════════
+   Moravam em games/games/draftfut.php, que é a tela. Subiram pro core em
+   08/10/2026 porque o duelo por código também cobra e paga, e duas cópias da
+   mesma regra de saldo é como um lado passa a pagar diferente do outro. */
+
+/** O saldo de moedas de um GM. */
+function dfMoedas(PDO $pdo, int $uid): int
+{
+    $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
+    $st->execute([$uid]);
+    return (int)$st->fetchColumn();
+}
+
+/** Mexe no saldo. Negativo cobra, positivo paga. Nunca deixa abaixo de zero. */
+function dfMoedasMexer(PDO $pdo, int $uid, int $delta): void
+{
+    $pdo->prepare('UPDATE games_usuarios SET pontos = GREATEST(0, pontos + ?) WHERE id = ?')
+        ->execute([$delta, $uid]);
+}
