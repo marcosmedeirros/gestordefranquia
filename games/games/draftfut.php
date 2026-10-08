@@ -94,13 +94,26 @@ function dfMoedasMexer(PDO $pdo, int $uid, int $delta): void
 $msg = null; $erro = null;
 $d = &$_SESSION['draftfut'];
 
+/* ── OS CINCO ESQUEMAS DA MESA ────────────────────────────────────────
+   São sorteados de DFUT_FORMACOES (treze), e a semente VIVE NA SESSÃO: a
+   tela é desenhada de novo a cada F5, e sorteando na hora a lista mudaria
+   embaixo de quem está decidindo. Mesma disciplina das cinco cartas de cada
+   vaga. A semente só troca quando um draft acaba. */
+if (!isset($_SESSION['draftfut_formacoes'])) {
+    $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000);
+}
+$formacoesNaMesa = draftFutFormacoesSorteadas((int)$_SESSION['draftfut_formacoes']);
+
 /* ═══════════════════════════ AÇÕES ══════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string)($_POST['acao'] ?? '');
 
     if ($acao === 'comecar') {
         $formacao = (string)($_POST['formacao'] ?? '');
-        if (!isset(DFUT_FORMACOES[$formacao])) {
+        /* Tem que estar entre os CINCO SORTEADOS, não só existir: senão
+           bastava mandar o nome de outro esquema no POST pra escolher fora
+           da mão que a pessoa recebeu. */
+        if (!in_array($formacao, $formacoesNaMesa, true)) {
             $erro = 'Formação inválida.';
         } elseif (dfMoedas($pdo, $user_id) < DF_ENTRADA) {
             $erro = 'Você precisa de ' . DF_ENTRADA . ' moedas pra entrar no draft.';
@@ -214,7 +227,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            'premio' => $premio, 'forca' => $forca, 'quimica' => $quim, 'nome' => $nome];
     }
 
-    if ($acao === 'novo') { $d = null; }
+    if ($acao === 'novo') {
+        /* Mão nova de esquemas junto com o draft novo. */
+        $_SESSION['draftfut_formacoes'] = random_int(1, 2000000000); $d = null; }
 
     header('Location: /games/games/draftfut.php' . ($msg ? '?m=' . urlencode($msg) : ($erro ? '?e=' . urlencode($erro) : '')));
     exit;
@@ -569,7 +584,7 @@ a{color:inherit}
        dependem dela. Entrada: <b><?= DF_ENTRADA ?> moedas</b>. Vitória paga
        <b><?= DF_VITORIA ?></b>, empate <b><?= DF_EMPATE ?></b>.</p>
     <div class="forms">
-      <?php foreach (DFUT_FORMACOES as $nome => $vagas): ?>
+      <?php foreach ($formacoesNaMesa as $nome): $vagas = DFUT_FORMACOES[$nome]; ?>
         <form method="POST">
           <input type="hidden" name="acao" value="comecar">
           <input type="hidden" name="formacao" value="<?= e($nome) ?>">

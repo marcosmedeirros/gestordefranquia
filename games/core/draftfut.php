@@ -38,6 +38,9 @@ require_once __DIR__ . '/draftfut_cartas.php';
 /** Quantas cartas o jogo oferece por vaga. Cinco, como no FUT. */
 const DFUT_OPCOES = 5;
 
+/** Quantos esquemas aparecem na abertura, sorteados de DFUT_FORMACOES. */
+const DFUT_FORMACOES_NA_MESA = 5;
+
 /** Quantas vagas um time tem, em campo e no banco. */
 const DFUT_VAGAS  = 11;
 const DFUT_BANCO  = 8;
@@ -87,11 +90,19 @@ const DFUT_BANCO_POS = [];
  * podem ter um volante e ele não fica no mesmo lugar nas duas.
  */
 const DFUT_CAMPO = [
-    '4-3-3' => [[50,88],[14,70],[36,72],[64,72],[86,70],[50,52],[28,42],[72,42],[16,18],[50,12],[84,18]],
+    '4-3-3'   => [[50,88],[14,70],[36,72],[64,72],[86,70],[50,52],[28,42],[72,42],[16,18],[50,12],[84,18]],
     '4-3-2-1' => [[50,88],[14,70],[36,72],[64,72],[86,70],[26,48],[50,46],[74,48],[30,24],[70,24],[50,10]],
-    '4-4-2' => [[50,88],[14,70],[36,72],[64,72],[86,70],[14,44],[38,46],[62,46],[86,44],[36,16],[64,16]],
-    '3-5-2' => [[50,88],[28,72],[50,74],[72,72],[10,46],[36,48],[50,38],[64,48],[90,46],[36,14],[64,14]],
-    '5-2-1-2' => [[50,88],[10,66],[30,74],[50,76],[70,74],[90,66],[36,50],[64,50],[50,34],[36,12],[64,12]],
+    '4-4-2'   => [[50,88],[14,70],[36,72],[64,72],[86,70],[14,44],[38,46],[62,46],[86,44],[36,16],[64,16]],
+    '3-5-2'   => [[50,88],[26,72],[50,70],[74,72],[10,50],[30,52],[50,36],[70,52],[90,50],[36,14],[64,14]],
+    '5-2-1-2' => [[50,88],[10,64],[30,72],[50,70],[70,72],[90,64],[36,50],[64,50],[50,32],[36,12],[64,12]],
+    '4-2-3-1' => [[50,88],[14,70],[36,72],[64,72],[86,70],[36,52],[64,52],[14,30],[50,30],[86,30],[50,10]],
+    '4-1-4-1' => [[50,88],[14,70],[36,72],[64,72],[86,70],[50,56],[14,38],[38,36],[62,36],[86,38],[50,12]],
+    '4-4-1-1' => [[50,88],[14,70],[36,72],[64,72],[86,70],[14,46],[38,48],[62,48],[86,46],[50,28],[50,10]],
+    '3-4-3'   => [[50,88],[26,72],[50,70],[74,72],[10,48],[38,50],[62,50],[90,48],[16,18],[50,12],[84,18]],
+    '3-4-1-2' => [[50,88],[26,72],[50,70],[74,72],[10,50],[38,52],[62,52],[90,50],[50,32],[36,12],[64,12]],
+    '5-3-2'   => [[50,88],[10,64],[30,72],[50,70],[70,72],[90,64],[50,50],[28,40],[72,40],[36,14],[64,14]],
+    '5-4-1'   => [[50,88],[10,64],[30,72],[50,70],[70,72],[90,64],[14,42],[38,44],[62,44],[86,42],[50,12]],
+    '4-2-2-2' => [[50,88],[14,70],[36,72],[64,72],[86,70],[36,54],[64,54],[18,32],[82,32],[38,12],[62,12]],
 ];
 
 /** O nome curto pra caber na carta do campo: "C. Ronaldo" em vez do inteiro. */
@@ -199,6 +210,57 @@ const DFUT_FORMACOES = [
     '5-2-1-2' => [
         ['GOL', 'GOL'], ['ALE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ALD', 'LAT'],
         ['VOL', 'VOL'], ['VOL', 'VOL'], ['MEI', 'MEI'],
+        ['CA', 'ATA'], ['CA', 'ATA'],
+    ],
+
+    /* ── DAQUI PRA BAIXO ENTRARAM EM 08/10/2026 ──────────────────────
+       Pedido do Marcos: "coloca pra vir esquemas taticos aleatorios, pode ter
+       varios, mas vem 5 ali no começo". Com cinco fixas, todo draft começava
+       igual; com treze no baralho e cinco sorteadas, a abertura também é uma
+       mão. Cada esquema novo precisa da linha dele em DFUT_CAMPO, senão o
+       campinho nasce sem coordenada — e é por isso que há um teste que
+       confere as duas listas uma contra a outra. */
+    '4-2-3-1' => [
+        ['GOL', 'GOL'], ['LE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['LD', 'LAT'],
+        ['VOL', 'VOL'], ['VOL', 'VOL'],
+        ['ME', 'PON'], ['MEI', 'MEI'], ['MD', 'PON'],
+        ['CA', 'ATA'],
+    ],
+    '4-1-4-1' => [
+        ['GOL', 'GOL'], ['LE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['LD', 'LAT'],
+        ['VOL', 'VOL'],
+        ['ME', 'PON'], ['MEI', 'MEI'], ['MEI', 'MEI'], ['MD', 'PON'],
+        ['CA', 'ATA'],
+    ],
+    '4-4-1-1' => [
+        ['GOL', 'GOL'], ['LE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['LD', 'LAT'],
+        ['ME', 'PON'], ['VOL', 'VOL'], ['MEI', 'MEI'], ['MD', 'PON'],
+        ['SA', 'ATA'], ['CA', 'ATA'],
+    ],
+    '3-4-3' => [
+        ['GOL', 'GOL'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'],
+        ['ALE', 'LAT'], ['VOL', 'VOL'], ['MEI', 'MEI'], ['ALD', 'LAT'],
+        ['PE', 'PON'], ['CA', 'ATA'], ['PD', 'PON'],
+    ],
+    '3-4-1-2' => [
+        ['GOL', 'GOL'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'],
+        ['ALE', 'LAT'], ['VOL', 'VOL'], ['VOL', 'VOL'], ['ALD', 'LAT'],
+        ['MEI', 'MEI'], ['CA', 'ATA'], ['CA', 'ATA'],
+    ],
+    '5-3-2' => [
+        ['GOL', 'GOL'], ['ALE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ALD', 'LAT'],
+        ['VOL', 'VOL'], ['MEI', 'MEI'], ['MEI', 'MEI'],
+        ['CA', 'ATA'], ['CA', 'ATA'],
+    ],
+    '5-4-1' => [
+        ['GOL', 'GOL'], ['ALE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['ALD', 'LAT'],
+        ['ME', 'PON'], ['VOL', 'VOL'], ['MEI', 'MEI'], ['MD', 'PON'],
+        ['CA', 'ATA'],
+    ],
+    '4-2-2-2' => [
+        ['GOL', 'GOL'], ['LE', 'LAT'], ['ZAG', 'ZAG'], ['ZAG', 'ZAG'], ['LD', 'LAT'],
+        ['VOL', 'VOL'], ['VOL', 'VOL'],
+        ['ME', 'PON'], ['MD', 'PON'],
         ['CA', 'ATA'], ['CA', 'ATA'],
     ],
 ];
@@ -583,4 +645,33 @@ function draftFutForcaDoTime(string $formacao, array $time): int
     $teto = DFUT_VAGAS * 3;
     $q = draftFutQuimica($formacao, $time)['total'];
     return (int)round($base * (1 + (($q / $teto) - 0.5) * 0.16));
+}
+
+/**
+ * Os esquemas que aparecem na abertura de um draft.
+ *
+ * Sorteia DFUT_FORMACOES_NA_MESA do baralho de formações, SEMPRE A PARTIR DE
+ * UMA SEMENTE: a tela é desenhada de novo a cada F5, e sorteando na hora a
+ * lista mudaria embaixo da pessoa enquanto ela decide. A semente nasce com o
+ * acesso e fica guardada na sessão, igual às cinco cartas de cada vaga.
+ *
+ * Devolve na ordem do catálogo, não na do sorteio: a pessoa lê cinco esquemas,
+ * não um ranking, e ordem estável é mais fácil de comparar.
+ */
+function draftFutFormacoesSorteadas(int $semente): array
+{
+    $nomes = array_keys(DFUT_FORMACOES);
+    mt_srand($semente);
+    shuffle($nomes);
+    $escolhidas = array_slice($nomes, 0, DFUT_FORMACOES_NA_MESA);
+    mt_srand();   // devolve o gerador ao acaso, senão o resto do draft fica preso à semente
+
+    /* Só esquema que tem coordenada no campinho — senão a vaga nasce sem
+       lugar na tela. Isto é cinto de segurança: o teste já confere as duas
+       listas, mas um esquema novo sem coordenada não pode chegar ao jogador. */
+    $escolhidas = array_values(array_filter($escolhidas, fn($n) => isset(DFUT_CAMPO[$n])));
+    if (!$escolhidas) $escolhidas = ['4-3-3'];
+
+    return array_values(array_filter(array_keys(DFUT_FORMACOES),
+        fn($n) => in_array($n, $escolhidas, true)));
 }
