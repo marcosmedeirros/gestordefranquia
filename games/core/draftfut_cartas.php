@@ -135,6 +135,47 @@ const DFUT_PAIS_ISO = [
     'Uzbekistan' => 'uz', 'Jordan' => 'jo', 'Syria' => 'sy', 'Lebanon' => 'lb',
 ];
 
+/**
+ * ── O NOME SEM ACENTO, PRA COMPARAR E PRA BUSCAR ─────────────────────
+ *
+ * Existe porque a saída óbvia estava errada e custou caro: os importadores
+ * usavam iconv('UTF-8', 'ASCII//TRANSLIT'), e neste PHP do Windows ele não
+ * tira o acento — ele SEPARA o acento numa marca ASCII:
+ *
+ *     Inter de Milão   =>  "Inter de Mil~ao"
+ *     Vinícius Júnior  =>  "Vin'icius J'unior"
+ *     Grêmio           =>  "Gr^emio"
+ *
+ * Como o passo seguinte troca tudo que não é letra por espaço, "Vinícius
+ * Júnior" virava a busca "vin icius j unior" e a API não achava nada. Metade
+ * dos nomes do baralho tem acento, então metade das buscas ia quebrada — e o
+ * sintoma era parecer que a API só não tinha aqueles jogadores.
+ *
+ * Aqui a troca é tabela, não transliteração: cada letra acentuada vira a
+ * letra sem acento, inclusive as que o inglês não tem (ø, ß, ğ, ş, ı, đ, ł).
+ */
+function draftFutChaveNome(string $n): string
+{
+    static $mapa = null;
+    if ($mapa === null) {
+        $de   = ['á','à','â','ã','ä','å','ā','ă','ą','ç','ć','č','é','è','ê','ë','ē','ė','ę','ě',
+                 'í','ì','î','ï','ī','į','ı','ñ','ń','ň','ó','ò','ô','õ','ö','ø','ō','ő',
+                 'ú','ù','û','ü','ū','ů','ű','ý','ÿ','š','ś','ş','ž','ź','ż','ğ','đ','ł','ß','æ','œ','þ','ð'];
+        $para = ['a','a','a','a','a','a','a','a','a','c','c','c','e','e','e','e','e','e','e','e',
+                 'i','i','i','i','i','i','i','n','n','n','o','o','o','o','o','o','o','o',
+                 'u','u','u','u','u','u','u','y','y','s','s','s','z','z','z','g','d','l','ss','ae','oe','th','d'];
+        $mapa = array_combine($de, $para);
+    }
+
+    $n = mb_strtolower($n, 'UTF-8');
+    /* O İ turco minúsculo é "i" + ponto combinante, e o ponto sozinho virava
+       espaço: "İlkay" saía "i lkay". Fora as marcas combinantes primeiro. */
+    $n = (string)preg_replace('/\p{Mn}/u', '', $n);
+    $n = strtr($n, $mapa);
+    $n = preg_replace('/[^a-z ]/', ' ', $n);
+    return trim(preg_replace('/\s+/', ' ', (string)$n));
+}
+
 /** A URL da bandeirinha, ou '' quando o país não é conhecido. */
 function draftFutBandeira(string $nacao): string
 {

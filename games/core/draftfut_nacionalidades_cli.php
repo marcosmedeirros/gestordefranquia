@@ -50,6 +50,19 @@ $DESTINO = __DIR__ . '/../data/draftfut_jogadores.php';
 $limite = 0;
 foreach ($argv as $a) if (preg_match('/^--n=(\d+)$/', $a, $m)) $limite = (int)$m[1];
 
+/**
+ * --refaz: volta em clube já visitado, em vez de pular.
+ *
+ * Precisou existir quando a chave de comparação foi consertada: a primeira
+ * rodada casou nome por iconv('ASCII//TRANSLIT'), que separa o acento numa
+ * marca ASCII, e todo nome acentuado passou batido. Os clubes já estavam
+ * gravados, então sem isto o conserto não alcançaria ninguém.
+ *
+ * O que já foi achado NÃO é jogado fora — o resultado novo entra por cima por
+ * jogador, e quem não casar de novo continua como está.
+ */
+$refaz = in_array('--refaz', $argv, true);
+
 /** O país do jogo => o país como a API escreve, pra conferir o clube achado. */
 const DFUT_API_PAIS = [
     'BRA' => 'Brazil',    'ENG' => 'England',  'ESP' => 'Spain',
@@ -86,11 +99,10 @@ function pega(string $url): ?array
     return null;
 }
 
-function chave(string $n): string
-{
-    $n = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $n);
-    return trim(strtolower(preg_replace('/[^a-z ]/i', '', (string)$n)));
-}
+/* A chave de comparação mora em draftfut_cartas.php — a daqui usava
+   iconv('ASCII//TRANSLIT'), que neste PHP separa o acento numa marca ASCII em
+   vez de tirar, e aí nome acentuado não casava com nada. */
+function chave(string $n): string { return draftFutChaveNome($n); }
 
 /**
  * Os nomes de clube que a API escreve de outro jeito.
@@ -164,7 +176,7 @@ function grava(string $destino, array $dados): void
 $achados = 0; $semTime = 0; $i = 0;
 foreach ($clubes as [$nome, $liga, $forca]) {
     $i++;
-    if (isset($dados[$nome])) { $achados += count($dados[$nome]); continue; }
+    if (!$refaz && isset($dados[$nome])) { $achados += count($dados[$nome]); continue; }
 
     $busca = DFUT_BUSCA_CLUBE[$nome] ?? $nome;
     $t = pega(API . 'searchteams.php?t=' . rawurlencode($busca));
@@ -225,7 +237,8 @@ foreach ($clubes as [$nome, $liga, $forca]) {
         if ($achou) $doClube[(string)$j['nome']] = $achou;
     }
 
-    $dados[$nome] = $doClube;
+    /* Mescla: o que ja tinha fica, e o novo entra por cima por jogador. */
+    $dados[$nome] = $doClube + ($dados[$nome] ?? []);
     $achados += count($doClube);
     grava($DESTINO, $dados);
     fwrite(STDOUT, "[$i/" . count($clubes) . "] $nome — " . count($doClube) . " casados ($achados no total)\n");

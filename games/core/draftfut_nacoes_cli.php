@@ -56,11 +56,16 @@ function p2(string $url): ?array
     return null;
 }
 
-function k2(string $n): string
-{
-    $n = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $n);
-    return trim(preg_replace('/\s+/', ' ', strtolower(preg_replace('/[^a-z ]/i', ' ', (string)$n))));
-}
+/**
+ * A chave de comparação mora em draftfut_cartas.php.
+ *
+ * Aqui ela era iconv('ASCII//TRANSLIT'), que neste PHP SEPARA o acento numa
+ * marca ASCII em vez de tirar: "Vinícius Júnior" virava a busca "vin icius j
+ * unior" e a API não achava nada. Metade do baralho tem acento no nome, então
+ * metade das buscas ia quebrada — e parecia que a API só não tinha aqueles
+ * jogadores.
+ */
+function k2(string $n): string { return draftFutChaveNome($n); }
 
 /**
  * O clube do resultado é o clube da carta?
