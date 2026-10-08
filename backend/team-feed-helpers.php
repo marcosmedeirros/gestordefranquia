@@ -89,6 +89,26 @@ function isTeamGmOrAdmin(PDO $pdo, array $user, int $teamId): bool
 }
 
 /**
+ * Início da sprint ativa da liga do time — o corte do feed do team-history.
+ *
+ * A página do time mostra só a sprint em andamento, com a mesma régua da aba
+ * Trades (api/team-stats.php): sprints.start_date da sprint 'active'. Sem
+ * sprint ativa devolve uma data no futuro, e o feed sai vazio em vez de
+ * mostrar outra sprint. O Timeline global (api/timeline.php) não usa isto.
+ */
+function feedInicioDaSprintDoTime(PDO $pdo, int $teamId): string
+{
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $st->execute([$teamId]);
+        $sprint = sprintAtualDaLiga($pdo, (string)$st->fetchColumn());
+    } catch (Throwable $e) {
+        $sprint = null;
+    }
+    return $sprint['start_date'] ?? '9999-12-31';
+}
+
+/**
  * Timeline automática: uma query pequena por tabela-fonte (todas já
  * indexadas por team_id), normalizada em PHP e ordenada por data — mais
  * simples e seguro que um UNION gigante entre tabelas bem diferentes.
@@ -96,8 +116,15 @@ function isTeamGmOrAdmin(PDO $pdo, array $user, int $teamId): bool
  * $teamId nulo = modo global (todos os times, filtro opcional de $league).
  * Cada evento sai com team_id; no modo global também traz team_name/
  * team_photo/team_league via um lookup em lote (nada de N+1 por time).
+ *
+ * $desde (só no modo de um time; é o que o feed do team-history passa, ver
+ * feedInicioDaSprintDoTime) corta cada fonte na própria data: trade pela
+ * CRIAÇÃO (created_at), igual à aba Trades — pela data do evento (updated_at)
+ * uma multi-trade da sprint passada mexida depois voltava pro feed —;
+ * punição, prêmio e playoff pelo created_at; pick pelo picked_at. Item sem
+ * data já ficava de fora pelo FEED_DATA_CORTE lá embaixo, e continua fora.
  */
-function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $before = null, ?string $league = null): array
+function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $before = null, ?string $league = null, ?string $desde = null): array
 {
     $eventos = [];
     $global = $teamId === null;
@@ -115,11 +142,11 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
                    GROUP_CONCAT(CONCAT(ti.player_name, ' (', ti.player_age, ' anos, ', ti.player_ovr, ' OVR)', IF(ti.from_team=1,' enviado',' recebido')) SEPARATOR ', ') AS itens
             FROM trades t
             JOIN trade_items ti ON ti.trade_id = t.id AND ti.player_ovr >= 80
-            WHERE t.status = 'accepted' AND (t.from_team_id = ? OR t.to_team_id = ?)
+            WHERE t.status = 'accepted' AND (t.from_team_id = ? OR t.to_team_id = ?)" . ($desde ? " AND t.created_at >= ?" : "") . "
             GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
             ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = $before ? [$teamId, $teamId, $before] : [$teamId, $teamId];
+        $params = array_merge([$teamId, $teamId], $desde ? [$desde] : [], $before ? [$before] : []);
     } else {
         $sql = "
             SELECT t.id, t.from_team_id AS team_id, COALESCE(t.updated_at, t.created_at) AS data_evt,
@@ -149,11 +176,11 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             FROM multi_trades mt
             JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id AND mtt.team_id = ?
             LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND (mti.from_team_id = ? OR mti.to_team_id = ?) AND mti.player_ovr >= 80
-            WHERE mt.status = 'accepted'" . ($before ? " AND mt.updated_at < ?" : "") . "
+            WHERE mt.status = 'accepted'" . ($before ? " AND mt.updated_at < ?" : "") . ($desde ? " AND mt.created_at >= ?" : "") . "
             GROUP BY mt.id
             ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = $before ? [$teamId, $teamId, $teamId, $teamId, $before] : [$teamId, $teamId, $teamId, $teamId];
+        $params = array_merge([$teamId, $teamId, $teamId, $teamId], $before ? [$before] : [], $desde ? [$desde] : []);
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -184,8 +211,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     // recado, não pena, e já ficam de fora dos contadores do time — o feed
     // segue a mesma régua (sqlSoPunicoes, em backend/team_punishments.php).
     if (!$global) {
-        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ?" . sqlSoPunicoes('') . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
-        $params = $before ? [$teamId, $before] : [$teamId];
+        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ?" . sqlSoPunicoes('') . ($before ? " AND created_at < ?" : "") . ($desde ? " AND created_at >= ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = array_merge([$teamId], $before ? [$before] : [], $desde ? [$desde] : []);
     } else {
         $sql = "SELECT tp.id, tp.team_id, tp.motive, tp.punishment_label, tp.type, tp.created_at, tp.reverted_at
                 FROM team_punishments tp" . ($league ? " JOIN teams tl ON tl.id = tp.team_id" : "") . "
@@ -202,8 +229,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
 
     // Prêmios da temporada
     if (!$global) {
-        $sql = "SELECT id, team_id, award_type, player_name, created_at FROM season_awards WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
-        $params = $before ? [$teamId, $before] : [$teamId];
+        $sql = "SELECT id, team_id, award_type, player_name, created_at FROM season_awards WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . ($desde ? " AND created_at >= ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = array_merge([$teamId], $before ? [$before] : [], $desde ? [$desde] : []);
     } else {
         $sql = "SELECT sa.id, sa.team_id, sa.award_type, sa.player_name, sa.created_at
                 FROM season_awards sa" . ($league ? " JOIN teams tl ON tl.id = sa.team_id" : "") . "
@@ -227,8 +254,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         'first_round' => 'Se classificou pros playoffs.',
     ];
     if (!$global) {
-        $sql = "SELECT id, team_id, position, created_at FROM playoff_results WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
-        $params = $before ? [$teamId, $before] : [$teamId];
+        $sql = "SELECT id, team_id, position, created_at FROM playoff_results WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . ($desde ? " AND created_at >= ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = array_merge([$teamId], $before ? [$before] : [], $desde ? [$desde] : []);
     } else {
         $sql = "SELECT pr.id, pr.team_id, pr.position, pr.created_at
                 FROM playoff_results pr" . ($league ? " JOIN teams tl ON tl.id = pr.team_id" : "") . "
@@ -245,8 +272,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     // Picks de draft (draft de temporada + draft inicial), nome via lookup em lote
     foreach ([['draft_order', 'draft_pool'], ['initdraft_order', 'initdraft_pool']] as [$tabOrder, $tabPool]) {
         if (!$global) {
-            $sql = "SELECT id, team_id, round, pick_position, picked_player_id, picked_at FROM {$tabOrder} WHERE team_id = ? AND picked_player_id IS NOT NULL" . ($before ? " AND picked_at < ?" : "") . " ORDER BY picked_at DESC LIMIT {$limitSql}";
-            $params = $before ? [$teamId, $before] : [$teamId];
+            $sql = "SELECT id, team_id, round, pick_position, picked_player_id, picked_at FROM {$tabOrder} WHERE team_id = ? AND picked_player_id IS NOT NULL" . ($before ? " AND picked_at < ?" : "") . ($desde ? " AND picked_at >= ?" : "") . " ORDER BY picked_at DESC LIMIT {$limitSql}";
+            $params = array_merge([$teamId], $before ? [$before] : [], $desde ? [$desde] : []);
         } else {
             $sql = "SELECT o.id, o.team_id, o.round, o.pick_position, o.picked_player_id, o.picked_at
                     FROM {$tabOrder} o" . ($league ? " JOIN teams tl ON tl.id = o.team_id" : "") . "
@@ -317,7 +344,7 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
  * opcional de $league) — sempre traz identidade do time (útil no modo
  * global; ignorada pelas telas já existentes que são team-scoped).
  */
-function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?string $before = null, ?string $league = null): array
+function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?string $before = null, ?string $league = null, ?string $desde = null): array
 {
     $sql = "SELECT tp.id, tp.team_id, tp.author_user_id, tp.texto, tp.photo_url, tp.created_at,
                    u.name AS author_name, u.photo_url AS author_photo,
@@ -332,6 +359,8 @@ function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?str
     if ($teamId !== null) { $sql .= " AND tp.team_id = ?"; $params[] = $teamId; }
     if ($league) { $sql .= " AND tm.league = ?"; $params[] = $league; }
     if ($before) { $sql .= " AND tp.created_at < ?"; $params[] = $before; }
+    // $desde: o feed do team-history só mostra a sprint ativa (ver getTeamTimeline).
+    if ($desde) { $sql .= " AND tp.created_at >= ?"; $params[] = $desde; }
     // Mesmo corte da timeline: post anterior à data não aparece mais no feed.
     $sql .= " AND tp.created_at >= ?"; $params[] = FEED_DATA_CORTE;
     // MariaDB rejeita LIMIT vinculado como parâmetro de prepared statement
@@ -349,16 +378,18 @@ function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?str
     }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
-function getActiveStories(PDO $pdo, int $teamId, int $userId): array
+function getActiveStories(PDO $pdo, int $teamId, int $userId, ?string $desde = null): array
 {
+    // Story vive 24h, então o $desde só pesa no dia em que a sprint começa:
+    // a story postada antes da virada é da sprint anterior e sai junto.
     $stmt = $pdo->prepare("
         SELECT ts.id, ts.team_id, ts.author_user_id, ts.photo_url, ts.texto, ts.created_at, ts.expira_em,
                EXISTS(SELECT 1 FROM team_story_views WHERE story_id = ts.id AND user_id = ?) AS vista_por_mim
         FROM team_stories ts
-        WHERE ts.team_id = ? AND ts.expira_em > NOW() AND ts.deleted_at IS NULL
+        WHERE ts.team_id = ? AND ts.expira_em > NOW() AND ts.deleted_at IS NULL" . ($desde ? " AND ts.created_at >= ?" : "") . "
         ORDER BY ts.created_at ASC
     ");
-    $stmt->execute([$userId, $teamId]);
+    $stmt->execute($desde ? [$userId, $teamId, $desde] : [$userId, $teamId]);
     return array_map(function ($r) {
         $r['vista_por_mim'] = (bool)$r['vista_por_mim'];
         return $r;

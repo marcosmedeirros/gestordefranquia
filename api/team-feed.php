@@ -35,25 +35,30 @@ if ($method === 'GET') {
     $teamId = (int)($_GET['team_id'] ?? 0);
     if (!$teamId) jsonResponse(422, ['error' => 'team_id é obrigatório']);
 
+    // O feed do team-history é só da sprint ativa da liga do time, como o
+    // resto da página. O mesmo corte vale nas respostas dos POSTs lá embaixo,
+    // senão postar devolveria a lista sem ele.
+    $desde = feedInicioDaSprintDoTime($pdo, $teamId);
+
     if ($action === 'estado') {
         jsonResponse(200, [
             'success' => true,
             'team_id' => $teamId,
             'can_post' => isTeamGmOrAdmin($pdo, $user, $teamId),
-            'stories' => getActiveStories($pdo, $teamId, $userId),
-            'posts' => getTeamPosts($pdo, $teamId, $userId),
-            'timeline' => getTeamTimeline($pdo, $teamId),
+            'stories' => getActiveStories($pdo, $teamId, $userId, $desde),
+            'posts' => getTeamPosts($pdo, $teamId, $userId, desde: $desde),
+            'timeline' => getTeamTimeline($pdo, $teamId, desde: $desde),
         ]);
     }
 
     if ($action === 'timeline') {
         $before = $_GET['before'] ?? null;
-        jsonResponse(200, ['success' => true, 'timeline' => getTeamTimeline($pdo, $teamId, 30, $before)]);
+        jsonResponse(200, ['success' => true, 'timeline' => getTeamTimeline($pdo, $teamId, 30, $before, desde: $desde)]);
     }
 
     if ($action === 'posts') {
         $before = $_GET['before'] ?? null;
-        jsonResponse(200, ['success' => true, 'posts' => getTeamPosts($pdo, $teamId, $userId, 20, $before)]);
+        jsonResponse(200, ['success' => true, 'posts' => getTeamPosts($pdo, $teamId, $userId, 20, $before, desde: $desde)]);
     }
 
     jsonResponse(400, ['error' => 'Ação inválida']);
@@ -77,7 +82,7 @@ if ($method === 'POST') {
         $stmt = $pdo->prepare("INSERT INTO team_posts (team_id, author_user_id, texto, photo_url) VALUES (?,?,?,?)");
         $stmt->execute([$teamId, $userId, $texto !== '' ? $texto : null, $photoUrl]);
 
-        jsonResponse(200, ['success' => true, 'posts' => getTeamPosts($pdo, $teamId, $userId)]);
+        jsonResponse(200, ['success' => true, 'posts' => getTeamPosts($pdo, $teamId, $userId, desde: feedInicioDaSprintDoTime($pdo, $teamId))]);
     }
 
     if ($action === 'curtir' || $action === 'descurtir') {
@@ -123,7 +128,7 @@ if ($method === 'POST') {
         $stmt = $pdo->prepare("INSERT INTO team_stories (team_id, author_user_id, photo_url, texto, expira_em) VALUES (?,?,?,?, NOW() + INTERVAL 24 HOUR)");
         $stmt->execute([$teamId, $userId, $photoUrl, $texto !== '' ? $texto : null]);
 
-        jsonResponse(200, ['success' => true, 'stories' => getActiveStories($pdo, $teamId, $userId)]);
+        jsonResponse(200, ['success' => true, 'stories' => getActiveStories($pdo, $teamId, $userId, feedInicioDaSprintDoTime($pdo, $teamId))]);
     }
 
     if ($action === 'excluir_story') {
