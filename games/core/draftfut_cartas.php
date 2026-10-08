@@ -218,16 +218,62 @@ function draftFutExtras(): array
  * então consertar a fonte apaga a exceção sozinho.
  */
 const DFUT_NACAO_MAO = [
-    'Manchester City|Rodri'      => 'Spain',
-    'Manchester City|Ederson'    => 'Brazil',
-    'Arsenal|Gabriel'            => 'Brazil',
-    'Real Madrid|Carvajal'       => 'Spain',
-    'Barcelona|Pedri'            => 'Spain',
-    'AC Milan|Theo Hernández'    => 'France',
-    'AC Milan|Rafael Leão'       => 'Portugal',
-    'Liverpool|Luis Díaz'        => 'Colombia',
-    'Newcastle|Bruno Guimarães'  => 'Brazil',
-    'Arsenal|Benjamin White'     => 'England',
+    // ── Os que a busca confunde com outra pessoa ─────────────────────
+    'Manchester City|Rodri'          => 'Spain',
+    'Manchester City|Ederson'        => 'Brazil',
+    'Manchester City|Savinho'        => 'Brazil',
+    'Arsenal|Gabriel'                => 'Brazil',
+    'Arsenal|Benjamin White'         => 'England',
+    'Arsenal|Jorginho'               => 'Italy',
+    'Arsenal|Neto'                   => 'Brazil',
+    'Real Madrid|Carvajal'           => 'Spain',
+    'Real Madrid|Fran García'        => 'Spain',
+    'Barcelona|Pedri'                => 'Spain',
+    'Barcelona|Gavi'                 => 'Spain',
+    'AC Milan|Theo Hernández'        => 'France',
+    'AC Milan|Rafael Leão'           => 'Portugal',
+    'AC Milan|Morata'                => 'Spain',
+    'Liverpool|Luis Díaz'            => 'Colombia',
+    'Newcastle|Bruno Guimarães'      => 'Brazil',
+    'Manchester United|Casemiro'     => 'Brazil',
+    'Manchester United|Antony'       => 'Brazil',
+    'Bayern de Munique|Palhinha'     => 'Portugal',
+    'Bayer Leverkusen|Grimaldo'      => 'Spain',
+    'PSG|Marquinhos'                 => 'Brazil',
+    'PSG|Vitinha'                    => 'Portugal',
+    'PSG|Lee Kang In'                => 'South Korea',
+    'Juventus|Danilo'                => 'Brazil',
+    'Juventus|Michele Di Gregorio'   => 'Italy',
+    'Napoli|André-Franck Zambo Anguissa' => 'Cameroon',
+    'Inter de Milão|Yann Aurel Bisseck'  => 'Germany',
+    'Roma|Mathew Ryan'               => 'Australia',
+    'Monaco|Alexandr Golovin'        => 'Russia',
+    'Porto|Pepê'                     => 'Brazil',
+    'Sevilla|Suso'                   => 'Spain',
+    'Real Sociedad|Zubimendi'        => 'Spain',
+    'Athletic Club|De Marcos'        => 'Spain',
+    'Atlético de Madrid|Reinildo'    => 'Mozambique',
+    'Atlético de Madrid|Azpilicueta' => 'Spain',
+    'Atlético de Madrid|Riquelme'    => 'Spain',
+    'Tottenham|Reguilón'             => 'Spain',
+
+    // ── Brasileiros de nome curto, nos clubes brasileiros ────────────
+    'Flamengo|Pedro'                 => 'Brazil',
+    'Botafogo|Danilo'                => 'Brazil',
+    'Botafogo|Vitinho'               => 'Brazil',
+    'Palmeiras|Mauricio'             => 'Brazil',
+    'Fluminense|Martinelli'          => 'Brazil',
+    'Fluminense|Hércules'            => 'Brazil',
+    'Grêmio|Tetê'                    => 'Brazil',
+    'São Paulo|Victor Sá'            => 'Brazil',
+    'Atlético-MG|Victor Hugo'        => 'Brazil',
+    'Palmeiras|Flaco López'          => 'Argentina',
+
+    /* FICAM DE FORA, DE PROPÓSITO: "Arias" do Palmeiras, "Bastos" e "Pedro
+       Henrique" do Fortaleza. Não consigo dizer de quem são essas três cartas
+       com certeza, e chutar o país pelo jeito do nome é exatamente o erro que
+       esta lista existe pra não cometer. Ficam sem nação, e a química trata:
+       jogador sem nação não faz elo de nação com ninguém. */
 ];
 
 /**
