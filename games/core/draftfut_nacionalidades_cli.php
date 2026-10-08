@@ -133,7 +133,7 @@ function grava(string $destino, array $dados): void
         . var_export($dados, true) . ";\n");
 }
 
-$achados = 0; $semTime = 0; $i = 0;
+$achados = 0; $semTime = 0; $i = 0; $seguidas = 0;
 foreach ($clubes as [$nome, $liga, $forca]) {
     $i++;
     if (!$refaz && isset($dados[$nome])) { $achados += count($dados[$nome]); continue; }
@@ -142,9 +142,14 @@ foreach ($clubes as [$nome, $liga, $forca]) {
     $t = pega(API . 'searchteams.php?t=' . rawurlencode($busca));
     if ($t === null) {
         /* Rede fora ou rate limit: NÃO grava nada, pra a próxima rodada
-           tentar de novo em vez de achar que o clube não tem jogador. */
-        fwrite(STDOUT, "[$i/" . count($clubes) . "] $nome — API não respondeu, fica pra depois\n");
-        sleep(5);
+           tentar de novo em vez de achar que o clube não tem jogador. E PARA
+           depois de cinco quedas seguidas: insistir numa chave bloqueada
+           queima a lista inteira sem trazer uma linha — foi o que aconteceu,
+           dezenove clubes atendidos e o resto em fila de recusa. */
+        $seguidas++;
+        fwrite(STDOUT, "[$i/" . count($clubes) . "] $nome — API não respondeu ($seguidas seguidas)\n");
+        if ($seguidas >= 5) { fwrite(STDOUT, "bloqueado; o resto fica pra outra rodada\n"); break; }
+        sleep(20);
         continue;
     }
 
@@ -177,8 +182,10 @@ foreach ($clubes as [$nome, $liga, $forca]) {
     sleep(1);
     $p = pega(API . 'lookup_all_players.php?id=' . $id);
     if ($p === null) {
-        fwrite(STDOUT, "[$i/" . count($clubes) . "] $nome — elenco não veio, fica pra depois\n");
-        sleep(5);
+        $seguidas++;
+        fwrite(STDOUT, "[$i/" . count($clubes) . "] $nome — elenco não veio ($seguidas seguidas)\n");
+        if ($seguidas >= 5) { fwrite(STDOUT, "bloqueado; o resto fica pra outra rodada\n"); break; }
+        sleep(20);
         continue;
     }
 
@@ -212,6 +219,7 @@ foreach ($clubes as [$nome, $liga, $forca]) {
     }
 
     /* Mescla: o que ja tinha fica, e o novo entra por cima por jogador. */
+    $seguidas = 0;
     $dados[$nome] = $doClube + ($dados[$nome] ?? []);
     $achados += count($doClube);
     grava($DESTINO, $dados);
