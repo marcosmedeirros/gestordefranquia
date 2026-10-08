@@ -312,7 +312,7 @@ function draftFutBaralho(): array
 
     /* Liga e escudo por clube, pra a carta de quem trocou nascer já com os do
        clube novo. Sai do mesmo catálogo, então não há segunda fonte. */
-    $doClube = [];
+    $doClube = DFUT_CLUBE_EXTRA;
     foreach (COPERO_CLUBES as [$n, $l, $f, $e]) $doClube[$n] = ['liga' => $l, 'escudo' => $e];
 
     $cartas = []; $jaTem = [];

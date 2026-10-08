@@ -15,13 +15,31 @@ if (!isset($r, $p) || empty($p['lances'])) return;
     <h2>Partida</h2>
     <div class="relogio" id="relogio">0'</div>
     <div class="placar">
-      <div class="t"><b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?>/<?= DFUT_VAGAS * 3 ?></small></div>
+      <?php /* ── O ESCUDO DE CADA LADO ──────────────────────────────────
+           Pedido do Marcos (08/10/2026): "tu tem os escudos, sendo assim,
+           use a logo do time e contra o bot, use o escudo do time que ta
+           enfrentando". Um placar com dois nomes escritos é um placar de
+           planilha; com os escudos, é um jogo. Quem não tiver escudo mostra
+           a inicial, e o lugar continua ocupado — sem buraco no meio. */
+        $dfEsc = static function (array $lado): string {
+            $u = trim((string)($lado['escudo'] ?? ''));
+            if ($u !== '') {
+                return '<img class="pl-esc" src="' . e($u) . '" alt="" loading="lazy" '
+                     . 'onerror="this.style.display=\'none\'">';
+            }
+            return '<span class="pl-mono">' . e(mb_substr((string)($lado['nome'] ?? '?'), 0, 1)) . '</span>';
+        }; ?>
+      <div class="t">
+        <?= $dfEsc($r) ?>
+        <b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?>/<?= DFUT_VAGAS * 3 ?></small></div>
       <?php /* O PLACAR COMEÇA EM 0x0 E ANDA COM A NARRAÇÃO. Ele vinha pronto,
            com os lances contando depois o que já estava escrito em cima —
            era ler a última página antes do livro. Agora o gol aparece no
            minuto em que acontece. */ ?>
       <div class="g"><span id="gc">0</span> <span style="color:var(--txt3)">x</span> <span id="gf">0</span></div>
-      <div class="t"><b><?= e($r['adv']['nome']) ?></b><small>força <?= $r['adv']['forca'] ?>
+      <div class="t">
+        <?= $dfEsc($r['adv']) ?>
+        <b><?= e($r['adv']['nome']) ?></b><small>força <?= $r['adv']['forca'] ?>
         · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'bot' ?></small></div>
     </div>
     <div class="narra" id="narra"></div>

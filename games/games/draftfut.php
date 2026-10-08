@@ -41,7 +41,11 @@ $user_id = (int)$_SESSION['user_id'];
    sair o time perfeito. O prêmio por vitória cobre a entrada com folga, e
    o empate devolve quase tudo — perder um draft bem montado num 1x1 não
    pode doer mais que não ter jogado. */
-const DF_ENTRADA = 50;
+/* ENTRADA SIMBÓLICA. Pedido do Marcos (08/10/2026): "a cobrança por partida
+   contra o bot, coloca 10 moedas apenas, simbolico". Ela não existe mais pra
+   doer, e sim pra o draft não ser de graça — sem custo nenhum vira reroll
+   até sair o time perfeito. */
+const DF_ENTRADA = 10;
 const DF_VITORIA = 150;
 const DF_EMPATE  = 40;
 
@@ -126,13 +130,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
        semente guardada — é ela que faz os dois verem a mesma partida e
        receberem a mesma mão de cinco esquemas. */
     if ($acao === 'duelo_criar') {
+        /* VALOR LIVRE, e não só os cinco atalhos. Pedido do Marcos
+           (08/10/2026): "deixe a pessoa escolher o valor, alem dos que tem
+           la, tipo valor outro e a pessoa que coloca, sem limitação". Os
+           botões ficam porque são o caminho rápido; o campo é pra quem quer
+           apostar os 1.337 que tem na conta.
+
+           O único teto é o saldo, e esse não é limitação minha: é a conta do
+           GM. O piso é 1 — aposta de zero não é aposta, e negativo seria um
+           jeito de imprimir moeda. */
         $aposta = (int)($_POST['aposta'] ?? 0);
+        $saldo  = dfMoedas($pdo, $user_id);
         if ($duelo) {
             $erro = 'Você já está num duelo. Termine ou cancele antes de abrir outro.';
-        } elseif (!in_array($aposta, DFD_APOSTAS, true)) {
-            $erro = 'Aposta inválida.';
-        } elseif (dfMoedas($pdo, $user_id) < $aposta) {
-            $erro = 'Você não tem ' . $aposta . ' moedas pra essa aposta.';
+        } elseif ($aposta < 1) {
+            $erro = 'A aposta tem que ser de pelo menos 1 moeda.';
+        } elseif ($saldo < $aposta) {
+            $erro = 'Você tem ' . $saldo . ' moedas e quis apostar ' . $aposta . '.';
         } else {
             try {
                 $codigo = dfdGerarCodigo($pdo);
@@ -404,7 +418,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        $semente, $p['placar'][0], $p['placar'][1], $premio]);
 
         $d['resultado'] = ['partida' => $p, 'adv' => $adv, 'modo' => $modo,
-                           'premio' => $premio, 'forca' => $forca, 'quimica' => $quim, 'nome' => $nome];
+                           'premio' => $premio, 'forca' => $forca, 'quimica' => $quim, 'nome' => $nome,
+                           /* O escudo da franquia do GM de um lado, o do clube do bot
+                              do outro (@see dfdEscudoDoTime, draftFutAdversarioDaMaquina). */
+                           'escudo' => dfdEscudoDoTime($pdo, $user_id)];
     }
 
     /* ── DESISTIR DO DRAFT ───────────────────────────────────────────
@@ -585,6 +602,15 @@ a{color:inherit}
 .aposta-card:disabled{opacity:.4;cursor:not-allowed}
 .aposta-card b{font-family:'Oswald',sans-serif;font-size:21px;color:var(--amarelo)}
 .aposta-card small{color:var(--txt3);font-size:10.5px}
+/* O "outro valor" ocupa a linha inteira embaixo dos atalhos: é um campo,
+   não mais um cartão, e espremido na grade de 86px não caberia o número. */
+.aposta-outro{grid-column:1/-1;display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+  background:var(--panel2);border:1px dashed var(--borda2);border-radius:11px;padding:10px 12px}
+.aposta-outro label{color:var(--txt2);font-size:12.5px;font-weight:600}
+.aposta-outro input{flex:1;min-width:100px;background:var(--panel3);border:1px solid var(--borda2);
+  border-radius:9px;color:var(--txt);padding:9px 11px;font:inherit;font-size:14px;
+  font-family:'Oswald',sans-serif}
+.aposta-outro input:focus{outline:none;border-color:var(--amarelo)}
 
 .entrar-cod{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
 .entrar-cod input{background:var(--panel3);border:1px solid var(--borda2);border-radius:10px;
@@ -817,6 +843,14 @@ a{color:inherit}
 .num small{color:var(--txt3);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 
 /* Partida */
+/* O ESCUDO NO PLACAR. Tamanho fixo e `contain` porque os escudos vêm de
+   fontes diferentes — PNG quadrado da thesportsdb, SVG da NBA, foto que o
+   GM subiu — e sem isso cada time teria um tamanho de cabeça. */
+.pl-esc{width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+.pl-mono{display:block;width:34px;height:34px;margin:0 auto 5px;border-radius:50%;
+  background:var(--panel3);color:var(--txt2);font-family:'Oswald',sans-serif;
+  font-size:18px;line-height:34px;text-align:center}
 .placar{display:flex;align-items:center;justify-content:center;gap:18px;margin:6px 0 16px;flex-wrap:wrap}
 .placar .t{text-align:center;min-width:130px}
 .placar .t b{display:block;font-size:14px}
@@ -1200,6 +1234,43 @@ a{color:inherit}
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !pc.hidden) pc.hidden = true;
+  });
+
+  /* ── COPIAR LINK E CÓDIGO ─────────────────────────────────────────
+     O caminho moderno (navigator.clipboard) só existe em página segura, e o
+     jogo roda em http no desenvolvimento e em https no ar. O caminho velho
+     (textarea + execCommand) cobre o resto, e se nem ele funcionar o texto
+     fica selecionado pra pessoa copiar na mão — nunca um silêncio.
+     O botão diz "Copiado!" por um segundo: sem resposta, a pessoa clica de
+     novo achando que falhou. */
+  document.querySelectorAll('[data-copiar]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var txt = b.getAttribute('data-copiar') || '';
+      var antes = b.innerHTML;
+      var feito = function () {
+        b.innerHTML = '<i class="bi bi-check2"></i> Copiado!';
+        setTimeout(function () { b.innerHTML = antes; }, 1400);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(txt).then(feito, velho);
+      } else { velho(); }
+
+      function velho() {
+        var ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) { feito(); }
+        else if (window.fbaAlert) { fbaAlert('Copie na mão: ' + txt); }
+        else { window.prompt('Copie na mão:', txt); }
+      }
+    });
   });
 
   document.querySelectorAll('form[data-confirmar]').forEach(function (f) {

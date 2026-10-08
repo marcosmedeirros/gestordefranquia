@@ -261,6 +261,30 @@ function draftFutTransferencias(): array
 }
 
 /**
+ * ── CLUBES DE DESTINO QUE O CATÁLOGO NÃO TEM ─────────────────────────
+ *
+ * COPERO_CLUBES é compartilhado com o jogo de carreira, onde um clube a mais
+ * entra numa tabela e ganha elenco gerado. Acrescentar o Burnley lá pra
+ * resolver uma transferência do draft mexeria num jogo que ninguém pediu pra
+ * mexer. Então o draft tem o seu próprio canto.
+ *
+ * Isto NÃO cria cartas: só os clubes com elenco em games/data/elencos/ geram
+ * jogadores (@see draftFutBaralho). O que entra aqui é apenas o destino de
+ * uma transferência — a liga e o escudo que a carta passa a usar.
+ *
+ * Sem isto, mandar alguém pra um clube de fora do catálogo é ignorado EM
+ * SILÊNCIO e a carta fica no clube antigo, parecendo que o pedido não foi
+ * feito. Foi assim que sete lendas do Milan ficaram sem escudo.
+ */
+const DFUT_CLUBE_EXTRA = [
+    /* Promovido, e por isso ausente de um catálogo que é da temporada
+       anterior. A liga é a de hoje, não a da fonte — a thesportsdb ainda o
+       lista na Championship. */
+    'Burnley' => ['liga' => 'EN1',
+                  'escudo' => 'https://r2.thesportsdb.com/images/media/team/badge/ql7nl31686893820.png'],
+];
+
+/**
  * Os clubes corrigidos à mão, por quem conhece a liga.
  *
  * Mesma ideia de DFUT_NACAO_MAO: dado curado, declarado como curado, e com
@@ -273,6 +297,7 @@ const DFUT_CLUBE_MAO = [
     /* O catálogo escreve "LAFC", não "Los Angeles FC" — o nome tem que ser o
        de lá, senão a troca é ignorada e a carta fica no clube antigo. */
     'Tottenham|Heung Min Son'     => 'LAFC',
+    'Manchester City|Kyle Walker' => 'Burnley',
 ];
 
 /**
@@ -293,7 +318,8 @@ const DFUT_CLUBE_MAO = [
  * quem escreve a linha pensa no clube de hoje e o arquivo guarda o de ontem.
  */
 const DFUT_OVR_MAO = [
-    'Tottenham|Heung Min Son' => 81,
+    'Tottenham|Heung Min Son'     => 81,
+    'Manchester City|Kyle Walker' => 80,
 ];
 
 /**

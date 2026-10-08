@@ -23,10 +23,12 @@ if (!empty($duelo)) {
         return;
     }
     if ($duelo['id_desafiado'] === null) {
-        $texto  = 'Cancelar o duelo e voltar pra tela inicial? Ninguém entrou ainda, '
-                . 'então a sua aposta de ' . (int)$duelo['aposta'] . ' moedas volta.';
-        $rotulo = 'Cancelar duelo';
-    } else {
+        /* O bloco "Duelo aberto" já tem o botão de cancelar, logo abaixo do
+           código. Repetir aqui embaixo punha dois "Cancelar duelo" na mesma
+           tela, um deles longe do que explica a consequência. */
+        return;
+    }
+    {
         $texto  = 'Desistir do duelo? Seu adversário já está dentro, então ele leva as '
                 . 'duas apostas — você perde as ' . (int)$duelo['aposta'] . ' moedas.';
         $rotulo = 'Desistir do duelo';

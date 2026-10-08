@@ -487,6 +487,45 @@ function dfdNomeDoTime(PDO $pdo, int $uid, string $fallback = ''): string
 }
 
 /**
+ * O ESCUDO DA FRANQUIA DO GM, pro time dele ter cara no placar.
+ *
+ * Mesma ideia de dfdNomeDoTime: o que a liga já sabe sobre o time entra no
+ * jogo de graça. Duas fontes, porque as ligas são diferentes — a ROOKIE usa
+ * times reais da NBA e tem o logo pelo id; as outras usam `photo_url`, que o
+ * GM sobe no cadastro.
+ *
+ * Quem não tem nenhum dos dois fica sem, e a tela desenha o monograma. Um
+ * escudo genérico igual pra todo mundo seria pior que escudo nenhum: daria a
+ * impressão de que a liga escolheu aquela marca pro time da pessoa.
+ */
+function dfdEscudoDoTime(PDO $pdo, int $uid): string
+{
+    static $cache = [];
+    if (isset($cache[$uid])) return $cache[$uid];
+
+    $url = '';
+    try {
+        $st = $pdo->prepare('SELECT photo_url, nba_team_id FROM teams WHERE user_id = ? LIMIT 1');
+        $st->execute([$uid]);
+        if ($t = $st->fetch(PDO::FETCH_ASSOC)) {
+            $url = trim((string)($t['photo_url'] ?? ''));
+            if ($url === '' && (int)($t['nba_team_id'] ?? 0) > 0) {
+                $arq = __DIR__ . '/../../backend/nba_teams.php';
+                if (is_file($arq)) {
+                    require_once $arq;
+                    if (function_exists('nbaTeamLogoUrl')) {
+                        $url = nbaTeamLogoUrl((int)$t['nba_team_id']);
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[draftfut-duelo] escudo do time: ' . $e->getMessage());
+    }
+    return $cache[$uid] = $url;
+}
+
+/**
  * Os times mais FORTES já montados, de qualquer modo.
  *
  * Duas fontes porque um time montado num duelo nunca entra em

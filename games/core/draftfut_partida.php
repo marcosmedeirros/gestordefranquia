@@ -251,13 +251,24 @@ function draftFutAdversarioDaMaquina(int $forcaAlvo, int $semente): array
         $usados[] = $c['nome'];
     }
 
-    /* O nome do time da máquina sai do clube mais repetido nele: um time com
-       cinco jogadores do Palmeiras se chamando "Adversário" seria uma
-       oportunidade jogada fora. */
+    /* O NOME DO TIME DA MÁQUINA É O CLUBE MAIS REPETIDO NELE, e só ele.
+       Pedido do Marcos (08/10/2026): "nao precisa disso de combinado, apenas
+       o nome do time. normal tipo Barcelona". Chamar de "Combinado Barcelona"
+       explicava o truque em vez de deixar o time ser um time — e quem joga
+       não precisa saber como a lista foi montada pra encarar o Barcelona.
+
+       O ESCUDO VEM JUNTO: ele já está no catálogo, então o adversário entra
+       no placar com a cara dele em vez de um nome solto. */
     $clubes = array_count_values(array_filter(array_column($time, 'clube')));
     arsort($clubes);
     $base = (string)(array_key_first($clubes) ?: 'Seleção');
 
-    return ['nome' => 'Combinado ' . $base, 'formacao' => $formacao, 'time' => $time,
+    $escudo = '';
+    foreach (COPERO_CLUBES as [$cn, $cl, $cf, $ce]) {
+        if ($cn === $base) { $escudo = (string)$ce; break; }
+    }
+
+    return ['nome' => $base, 'formacao' => $formacao, 'time' => $time,
+            'escudo' => $escudo,
             'forca' => draftFutForcaDoTime($formacao, $time)];
 }

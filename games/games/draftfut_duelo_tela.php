@@ -70,9 +70,13 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
           'forca'   => (int)$dl['forca_criador'],
           'quimica' => (int)$dl['quimica_criador'],
           'modo'    => 'pvp',
+          /* No duelo os dois lados são franquias da liga, então os dois
+             escudos saem da mesma fonte — e cada um vê o seu à esquerda. */
+          'escudo'  => dfdEscudoDoTime($pdo, $user_id),
           'premio'  => $venci ? (int)$dl['aposta'] * 2 : 0,
           'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: 'Desafiado'),
-                        'forca' => (int)$dl['forca_desafiado']],
+                        'forca' => (int)$dl['forca_desafiado'],
+                        'escudo' => dfdEscudoDoTime($pdo, (int)$dl['id_desafiado'])],
           /* A REVANCHE SÓ EXISTE AQUI, no duelo: contra o bot não há com quem
              jogar de novo — é só abrir outro draft. `chamou` conta se o
              adversário já clicou, pro botão dizer "aceitar" em vez de pedir
@@ -89,15 +93,30 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
 <?php elseif ($dl['id_desafiado'] === null): ?>
 
   <?php /* ── ABRIU E ESPERA ADVERSÁRIO ─────────────────────────────── */ ?>
+  <?php
+  /* O LINK QUE JÁ CAI NO DUELO CERTO. Ditar seis letras no grupo funciona,
+     mas mandar um link funciona melhor — e o código continua aí pra quem
+     prefere. O link NÃO entra sozinho: ele abre a tela com o código posto e
+     o adversário confirma, porque entrar custa a aposta e ninguém pode ser
+     cobrado por ter clicado num link. */
+  $dlEsquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+  $dlHost    = (string)($_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br');
+  $dlLink    = $dlEsquema . '://' . $dlHost . '/games/games/draftfut.php?v=multi&cod='
+             . rawurlencode((string)$dl['codigo']);
+  ?>
   <div class="bloco">
     <h2>Duelo aberto</h2>
-    <p class="sub">Manda este código pro seu adversário. Enquanto ele não entra, você
-       já pode montar o seu time — e pode cancelar sem perder nada.</p>
+    <p class="sub">Manda o link ou o código pro seu adversário. Enquanto ele não entra,
+       você já pode montar o seu time — e pode cancelar sem perder nada.</p>
     <div class="codigo-caixa">
       <span class="cod"><?= e((string)$dl['codigo']) ?></span>
       <span class="cod-sub">aposta de <b><?= (int)$dl['aposta'] ?></b> moedas</span>
     </div>
     <div class="duelo-acoes">
+      <button class="btn pri" type="button" data-copiar="<?= e($dlLink) ?>">
+        <i class="bi bi-link-45deg"></i> Copiar link</button>
+      <button class="btn" type="button" data-copiar="<?= e((string)$dl['codigo']) ?>">
+        <i class="bi bi-clipboard"></i> Copiar código</button>
       <form method="POST" style="margin:0">
         <input type="hidden" name="acao" value="duelo_cancelar">
         <button class="btn" type="submit" data-confirmar="Cancelar o duelo e receber a aposta de volta?">

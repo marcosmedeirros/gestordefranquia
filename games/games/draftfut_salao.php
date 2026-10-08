@@ -38,13 +38,37 @@
           </button>
         </form>
       <?php endforeach; ?>
+      <?php /* OUTRO VALOR. Os cinco atalhos resolvem o caso comum; este campo
+               resolve o resto, sem teto além do saldo. O `max` é só pra o
+               navegador avisar antes de mandar — quem decide é o servidor. */ ?>
+      <form method="POST" class="aposta-outro">
+        <input type="hidden" name="acao" value="duelo_criar">
+        <label for="apostaOutro">Outro valor</label>
+        <input type="number" id="apostaOutro" name="aposta" min="1" max="<?= (int)$moedas ?>"
+               step="1" placeholder="0" inputmode="numeric" required>
+        <button class="btn pri" type="submit"><i class="bi bi-plus-lg"></i> Abrir</button>
+      </form>
     </div>
+    <p class="sub" style="margin:8px 0 0;font-size:12px">Você tem
+       <b><?= (int)$moedas ?></b> moedas — dá pra apostar qualquer valor até isso.</p>
 
+    <?php
+    /* O CÓDIGO PODE VIR NO LINK. Quem clicou no link do adversário encontra o
+       campo já preenchido e só confirma — mas confirma, porque entrar custa a
+       aposta e um link não pode gastar moeda de ninguém sozinho. */
+    $codDoLink = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['cod'] ?? '')));
+    $codDoLink = mb_substr($codDoLink, 0, 8);
+    ?>
     <h3 class="salao-h3">Entrar com um código</h3>
+    <?php if ($codDoLink !== ''): ?>
+      <p class="sub" style="margin:0 0 8px">Você abriu um convite de duelo. Confira o
+         código e confirme pra entrar — a aposta sai só agora.</p>
+    <?php endif; ?>
     <form method="POST" class="entrar-cod">
       <input type="hidden" name="acao" value="duelo_entrar">
       <input type="text" name="codigo" maxlength="8" placeholder="A1B2C3" required
-             autocomplete="off" spellcheck="false">
+             autocomplete="off" spellcheck="false" value="<?= e($codDoLink) ?>"
+             <?= $codDoLink === '' ? 'autofocus' : '' ?>>
       <button class="btn pri" type="submit"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
     </form>
     <p class="sub" style="margin-top:8px;font-size:12px">O código tem seis letras e números,
