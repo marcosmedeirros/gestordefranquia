@@ -767,6 +767,25 @@ function clubeSemanaEnquete(PDO $pdo, string $tipo, int $userId): ?array
     $v['hora_vira']  = $v['vira_em']  ? date('H\hi', strtotime((string)$v['vira_em']))  : CLUBE_SEMANA_VIRA . 'h';
     $v['hora_fecha'] = $v['fecha_em'] ? date('H\hi', strtotime((string)$v['fecha_em'])) : CLUBE_SEMANA_FECHA . 'h';
     foreach (['hora_vira', 'hora_fecha'] as $k) $v[$k] = str_replace('h00', 'h', $v[$k]);
+
+    /* QUE DIA ELA FECHA. A tela dizia "fecha hoje às 20h" sempre, o que era
+       verdade enquanto toda rodada nascia e morria na mesma sexta. Com a
+       rodada antecipada deixou de ser: ela abre na quinta e fecha na sexta,
+       e "hoje" mandaria a liga votar com pressa de um prazo que não é o
+       dela — ou pior, desistir achando que já passou. */
+    $v['dia_fecha'] = 'hoje';
+    if ($v['fecha_em']) {
+        $hoje  = date('Y-m-d', clubeSemanaAgora());
+        $dia   = date('Y-m-d', strtotime((string)$v['fecha_em']));
+        if ($dia !== $hoje) {
+            $amanha = date('Y-m-d', strtotime($hoje . ' +1 day'));
+            $semana = ['Sun' => 'domingo', 'Mon' => 'segunda', 'Tue' => 'terça', 'Wed' => 'quarta',
+                       'Thu' => 'quinta', 'Fri' => 'sexta', 'Sat' => 'sábado'];
+            $v['dia_fecha'] = $dia === $amanha
+                ? 'amanhã'
+                : ($semana[date('D', strtotime($dia))] ?? date('d/m', strtotime($dia)));
+        }
+    }
     $st = $pdo->prepare("SELECT o.id, o.titulo, o.autor, o.ano, COUNT(vt.id) votos
                            FROM clube_semana_opcoes o
                        LEFT JOIN clube_semana_votos vt ON vt.opcao_id = o.id AND vt.etapa = o.etapa
