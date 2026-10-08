@@ -254,6 +254,13 @@ function clubeFonteAlbumRuim(string $titulo, string $tipo): bool
     /* Termos que valem com qualquer terminação: remix/remixes/remixed. */
     if (preg_match('/\b(remix|remaster|coletâ|instrumental|karaok)/iu', $titulo)) return true;
 
+    /* A MARCA DA REMASTERIZAÇÃO É O ANO ENTRE PARÊNTESES. "Free As A Bird
+       (2025 Mix)" é o mesmo disco dos Beatles com outra mixagem, e entrar
+       como novidade de 2025 seria dizer à liga que os Beatles lançaram
+       álbum ano passado. "Mix" sozinho não serve de regra: barraria
+       "Mixtape" e qualquer disco que use a palavra no nome. */
+    if (preg_match('/\(\s*\d{4}\s*(mix|version|edit)/iu', $titulo)) return true;
+
     return (bool)preg_match(
         '/\b(ao vivo|live|deluxe|edition|edição|encore|anniversary|aniversário|greatest|'
         . 'best of|hits|collection|tribute|tributo|trilha sonora|soundtrack|'
