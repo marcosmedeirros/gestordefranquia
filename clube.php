@@ -64,7 +64,7 @@ function clubeAvatar(?string $foto): string
 
 /**
  * UM "DA SEMANA" COMPLETO: o cartaz com a timeline de notas, a enquete de
- * segunda e o ranking da aba. É o mesmo bloco pra Música, Filmes e Clube do
+ * sexta e o ranking da aba. É o mesmo bloco pra Música, Filmes e Clube do
  * Livro — três cópias disso divergiriam na primeira semana.
  */
 function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
@@ -123,7 +123,7 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         <?php endif; ?>
       <?php else: ?>
         <p style="color:var(--txt2);font-size:13.5px;margin:0">
-          O primeiro sai <b>segunda às 20h</b>, escolhido pelo voto da liga.</p>
+          O primeiro sai <b>sexta às 20h</b>, escolhido pelo voto da liga.</p>
       <?php endif; ?>
 
       <?php if ($v): ?>
@@ -158,8 +158,8 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         <div class="sem-h4">Próxima enquete</div>
         <p style="color:var(--txt3);font-size:12.5px;margin:0">
           <?= $tipo === 'livro'
-              ? 'Na primeira segunda do mês: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o livro, que vale o mês inteiro.'
-              : 'Segunda-feira, das 9h às 20h. Às 20h a enquete fecha e sai o da semana.' ?></p>
+              ? 'Na primeira sexta do mês: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o livro, que vale o mês inteiro.'
+              : 'Sexta-feira, das 9h às 20h. Às 20h a enquete fecha e sai o da semana.' ?></p>
       <?php endif; ?>
     </div>
 
@@ -200,13 +200,13 @@ const CLUBE_MIDIAS = [
     'series' => ['rot' => 'Séries',         'ico' => 'projector-fill',    'ok' => true],
     /* MÚSICA E FILMES são o "da semana" de cada uma (07/10/2026, segunda
        versão do desenho — a primeira tinha uma aba "Da Semana" com os dois
-       juntos e durou uma tarde): enquete toda segunda das 9h às 20h, o mais
+       juntos e durou uma tarde): enquete toda sexta das 9h às 20h, o mais
        votado vira o da semana, timeline de notas e o ranking da aba. */
     'musica' => ['rot' => 'Música',         'ico' => 'music-note-beamed', 'ok' => true],
     'filmes' => ['rot' => 'Filmes',         'ico' => 'film',              'ok' => true],
     /* O CLUBE DO LIVRO só aparece na barra pra quem entrou ("uma aba que só
        aparece para quem clicou lá que queria"). O convite fica nas abas de
-       Música e Filmes. Lá a segunda tem duas etapas: gênero de manhã,
+       Música e Filmes. Lá a sexta tem duas etapas: gênero de manhã,
        livros do gênero à tarde. */
     'livro'  => ['rot' => 'Clube do Livro', 'ico' => 'book-half',         'ok' => true],
 ];
@@ -917,7 +917,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php /* O convite do livro mora aqui: a aba dele só existe pra quem aceitou. */ ?>
     <div class="bloco convite" style="margin-top:14px">
       <p><b><i class="bi bi-book-half"></i> Clube do Livro</b> — um livro por mês, escolhido
-        na primeira segunda (gênero de manhã, livros à tarde), timeline de notas. A aba
+        na primeira sexta (gênero de manhã, livros à tarde), timeline de notas. A aba
         só aparece pra quem entra.</p>
       <form method="POST" style="margin:0">
         <input type="hidden" name="acao" value="livro_entrar">
@@ -933,7 +933,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
       <div class="breve-caixa">
         <i class="bi bi-book-half"></i>
         <h2>Clube do Livro</h2>
-        <p>Um livro por mês, escolhido na primeira segunda: o gênero de manhã e os
+        <p>Um livro por mês, escolhido na primeira sexta: o gênero de manhã e os
            livros dele à tarde. Timeline de notas, ranking, e a aba passa a ser
            sua quando você entra.</p>
         <form method="POST" style="margin-top:14px">

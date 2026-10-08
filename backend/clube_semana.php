@@ -8,9 +8,10 @@
  *
  *   · cada mídia mora NA PRÓPRIA ABA: o álbum na Música, o filme na
  *     Filmes, o livro no Clube do Livro;
- *   · a enquete é TODA SEGUNDA, das 9h às 20h. Às 20h ela fecha sozinha e
- *     o mais votado vira o da semana;
- *   · no livro a segunda tem duas etapas: de manhã (9h–13h) vota-se o
+ *   · a enquete é TODA SEXTA, das 9h às 20h. Às 20h ela fecha sozinha e
+ *     o mais votado vira o da semana (era segunda até 08/10/2026, quando o
+ *     Marcos pediu tudo na sexta);
+ *   · no livro a sexta tem duas etapas: de manhã (9h–13h) vota-se o
  *     GÊNERO, à tarde (13h–20h) os livros do gênero vencedor;
  *   · o escolhido ganha uma timeline: cada pessoa deixa nota e
  *     comentário, e a média fica na obra pra sempre;
@@ -21,9 +22,9 @@
  *
  * Nenhum cron: as viradas acontecem no primeiro acesso depois da hora,
  * igual ao leilão do jogo da semana. A enquete só NASCE dentro da janela
- * de segunda — se ninguém abrir o Clube entre 9h e 20h de uma segunda,
- * aquela semana fica sem escolha nova, o que é honesto: não havia ninguém
- * pra votar. O cartaz vigente segue sendo o último escolhido.
+ * de sexta — se ninguém abrir o Clube entre 9h e 20h de uma sexta, aquela
+ * semana fica sem escolha nova, o que é honesto: não havia ninguém pra
+ * votar. O cartaz vigente segue sendo o último escolhido.
  *
  * ── DE ONDE SAEM AS OPÇÕES ───────────────────────────────────────────
  *
@@ -295,9 +296,9 @@ const CLUBE_LIVROS = [
 ];
 
 const CLUBE_SEMANA_OPCOES = 10;
-const CLUBE_SEMANA_ABRE   = 9;    // segunda, 9h: a enquete nasce
-const CLUBE_SEMANA_VIRA   = 13;   // segunda, 13h: no livro, o gênero fecha
-const CLUBE_SEMANA_FECHA  = 20;   // segunda, 20h: tudo fecha e o da semana sai
+const CLUBE_SEMANA_ABRE   = 9;    // sexta, 9h: a enquete nasce
+const CLUBE_SEMANA_VIRA   = 13;   // sexta, 13h: no livro, o gênero fecha
+const CLUBE_SEMANA_FECHA  = 20;   // sexta, 20h: tudo fecha e o da semana sai
 
 /** O rótulo de cada tipo, do jeito que a tela fala. A `midia` é a aba dele. */
 const CLUBE_SEMANA_TIPOS = [
@@ -396,16 +397,24 @@ function clubeSemanaTabelas(PDO $pdo): void
     $feito = true;
 }
 
-/** A segunda-feira da semana corrente. A semana do clube vai de segunda a domingo. */
-function clubeSemanaSegunda(): string
+/**
+ * A SEXTA-FEIRA do ciclo corrente. A semana do clube vai de sexta a quinta.
+ *
+ * Era segunda até 08/10/2026, quando o Marcos pediu tudo na sexta — álbum,
+ * filme e livro. A semana anda junto com a votação: o escolhido na sexta vale
+ * até a sexta seguinte, senão o "da semana" trocaria no meio do fim de semana.
+ */
+function clubeSemanaSexta(): string
 {
     /* Nasce do MESMO relógio que as janelas comparam: se viesse de
        `new DateTime('today')`, o relógio congelado dos testes moveria as
-       janelas mas não a semana, e nenhuma segunda-feira seria simulável. */
+       janelas mas não a semana, e nenhuma sexta-feira seria simulável. */
     $hoje = new DateTime('@' . clubeSemanaAgora());
     $hoje->setTimezone(new DateTimeZone('America/Sao_Paulo'));
     $hoje->setTime(0, 0);
-    $hoje->modify('-' . (((int)$hoje->format('N')) - 1) . ' day');
+    /* Volta até a última sexta. N é 1 na segunda e 5 na sexta; o +7 antes do
+       resto evita o negativo de segunda a quinta. */
+    $hoje->modify('-' . (((int)$hoje->format('N')) - 5 + 7) % 7 . ' day');
     return $hoje->format('Y-m-d');
 }
 
@@ -416,23 +425,23 @@ function clubeSemanaAgora(): int
 }
 
 /**
- * A âncora do ciclo de um tipo: a segunda da semana pra álbum e filme, e a
- * PRIMEIRA SEGUNDA DO MÊS pro livro — o livro é mensal (pedido do Marcos,
+ * A âncora do ciclo de um tipo: a sexta da semana pra álbum e filme, e a
+ * PRIMEIRA SEXTA DO MÊS pro livro — o livro é mensal (pedido do Marcos,
  * 07/10/2026): ninguém lê um livro em sete dias, e o clube viraria fila de
- * livro não lido. A mecânica da segunda não muda, só a frequência: gênero
+ * livro não lido. A mecânica da sexta não muda, só a frequência: gênero
  * de manhã, livros à tarde, 20h fecha — uma vez por mês.
  *
- * Devolve a última âncora que JÁ CHEGOU: nos primeiros dias de um mês que
- * começa no meio da semana, o ciclo vigente ainda é o do mês passado.
+ * Devolve a última âncora que JÁ CHEGOU: nos primeiros dias de um mês cuja
+ * primeira sexta ainda não chegou, o ciclo vigente ainda é o do mês passado.
  */
 function clubeSemanaAncora(string $tipo): string
 {
-    if ($tipo !== 'livro') return clubeSemanaSegunda();
+    if ($tipo !== 'livro') return clubeSemanaSexta();
     $hoje = new DateTime('@' . clubeSemanaAgora());
     $hoje->setTimezone(new DateTimeZone('America/Sao_Paulo'));
     $hoje->setTime(0, 0);
-    $m = (clone $hoje)->modify('first monday of this month');
-    if ($m > $hoje) $m = (clone $hoje)->modify('first monday of last month');
+    $m = (clone $hoje)->modify('first friday of this month');
+    if ($m > $hoje) $m = (clone $hoje)->modify('first friday of last month');
     return $m->format('Y-m-d');
 }
 
@@ -488,7 +497,7 @@ function clubeSemanaLivrosDoGenero(PDO $pdo, string $genero): array
 }
 
 /**
- * O relógio: cria a enquete de segunda dentro da janela, vira o gênero do
+ * O relógio: cria a enquete de sexta dentro da janela, vira o gênero do
  * livro às 13h e fecha tudo às 20h. Preguiçoso — roda no acesso.
  */
 function clubeSemanaGirar(PDO $pdo): void
@@ -497,26 +506,39 @@ function clubeSemanaGirar(PDO $pdo): void
     $agora = clubeSemanaAgora();
 
     foreach (array_keys(CLUBE_SEMANA_TIPOS) as $tipo) {
-        /* Cada tipo tem a sua âncora: a segunda da semana, ou a primeira
-           segunda do mês no livro. As janelas do dia nascem dela — numa
-           segunda que não é a âncora do livro, a janela dele já passou e
-           nada nasce, que é exatamente o mensal funcionando. */
+        /* Cada tipo tem a sua âncora: a sexta da semana, ou a primeira
+           sexta do mês no livro. As janelas do dia nascem dela — numa sexta
+           que não é a âncora do livro, a janela dele já passou e nada
+           nasce, que é exatamente o mensal funcionando. */
         $ancora = clubeSemanaAncora($tipo);
         $abre  = strtotime($ancora . ' ' . CLUBE_SEMANA_ABRE . ':00:00');
         $vira  = strtotime($ancora . ' ' . CLUBE_SEMANA_VIRA . ':00:00');
         $fecha = strtotime($ancora . ' ' . CLUBE_SEMANA_FECHA . ':00:00');
         try {
-            /* 1. Enquete atrasada de ciclo passado fecha, aconteça o que
-               acontecer: o escolhido não pode ficar preso no limbo. */
-            $st = $pdo->prepare("SELECT id, status, genero_escolhido FROM clube_semana_ciclos
-                                  WHERE tipo = ? AND status <> 'definido' AND semana < ?");
+            /* 1. Enquete atrasada de OUTRO ciclo fecha, aconteça o que
+               acontecer: o escolhido não pode ficar preso no limbo.
+
+               A condição era `semana < ancora`, usando a âncora como atalho
+               pra "já passou". O atalho quebrou na mudança de segunda pra
+               sexta (08/10/2026): as três enquetes abertas na segunda 05/10
+               não eram menores que a âncora daquela quinta, 02/10, e ficariam
+               presas até a sexta seguinte. Agora o que decide é o RELÓGIO
+               DELAS — a janela própria, se tiver, senão as 20h do dia da
+               âncora —, que é o que a regra sempre quis dizer. Assim também
+               uma rodada avulsa com janela no futuro não é fechada cedo. */
+            $st = $pdo->prepare("SELECT id, status, semana, fecha_em FROM clube_semana_ciclos
+                                  WHERE tipo = ? AND status <> 'definido' AND semana <> ?");
             $st->execute([$tipo, $ancora]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $velho) {
+                $fechaDele = $velho['fecha_em']
+                    ? strtotime((string)$velho['fecha_em'])
+                    : strtotime($velho['semana'] . ' ' . CLUBE_SEMANA_FECHA . ':00:00');
+                if ($agora < $fechaDele) continue;
                 if ($velho['status'] === 'genero') clubeSemanaVirarGenero($pdo, (int)$velho['id']);
                 clubeSemanaDecidir($pdo, (int)$velho['id']);
             }
 
-            /* 2. A enquete desta segunda nasce SÓ dentro da janela: antes das
+            /* 2. A enquete desta sexta nasce SÓ dentro da janela: antes das
                9h não existe, e depois das 20h já era — semana sem ninguém na
                janela é semana sem escolha nova, o que é só a verdade. */
             $st = $pdo->prepare("SELECT id, status, vira_em, fecha_em FROM clube_semana_ciclos
