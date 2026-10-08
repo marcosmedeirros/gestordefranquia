@@ -67,60 +67,20 @@ function p2(string $url): ?array
  */
 function k2(string $n): string { return draftFutChaveNome($n); }
 
-/**
- * O clube do resultado é o clube da carta?
- *
- * Igualdade exata deixava passar batido metade dos ingleses: a API escreve
- * "Tottenham Hotspur", "Newcastle United", "Brighton and Hove Albion", e o
- * catálogo do jogo escreve o nome curto. Então vale também quando um nome
- * contém o outro — com PELO MENOS SEIS LETRAS no mais curto.
- *
- * O piso de seis não é enfeite: com cinco, "inter" casaria "Inter de Milão"
- * com "Internacional", e o Lautaro viraria colorado. Seis corta esse caso e
- * mantém "tottenham", "newcastle", "brighton".
- */
+/* A conferencia de clube mora em draftfut_cartas.php — os dois
+   importadores fazem a mesma pergunta. */
 function clubeBate(string $kTime, array $kClubes): bool
 {
-    foreach ($kClubes as $k) {
-        if ($k === $kTime) return true;
-        $curto = mb_strlen($k) <= mb_strlen($kTime) ? $k : $kTime;
-        $longo = $curto === $k ? $kTime : $k;
-        if (mb_strlen($curto) >= 6 && str_contains($longo, $curto)) return true;
-    }
-    return false;
+    return draftFutClubeBate($kTime, $kClubes);
 }
 
 /* Como a API escreve o clube, pra conferir o resultado. A lista da primeira
    passada já tem os nomes que divergem; aqui ela é reaproveitada ao contrário. */
 $aliasClube = [];
 foreach (COPERO_CLUBES as [$nome, $liga, $forca, $escudo]) $aliasClube[$nome] = [k2($nome)];
-/* CONFERIDO CONTRA O BARALHO: metade da lista antiga tinha chave que não
-   existe no catálogo ("Milan", "Sevilha", "Sporting", "Leipzig"), porque o
-   próprio catálogo já usa o nome que a fonte usa. Alias com chave errada não
-   é inofensivo — ele dá a impressão de que o clube está coberto. Sobrou o que
-   realmente diverge, mais os que a conferência por contenção não alcança
-   porque o nome curto tem menos de seis letras (Lens, Lille, Lyon, Roma). */
-$extras = [
-    'Atlético-MG'        => 'Atletico Mineiro',
-    'Athletico-PR'       => 'Athletico Paranaense',
-    'RB Bragantino'      => 'Red Bull Bragantino',
-    'Bayern de Munique'  => 'Bayern Munich',
-    'Inter de Milão'     => 'Inter Milan',
-    'Atlético de Madrid' => 'Atletico Madrid',
-    'Celta de Vigo'      => 'Celta Vigo',
-    'Athletic Club'      => 'Athletic Bilbao',
-    'Sporting CP'        => 'Sporting Lisbon',
-    'PSG'                => 'Paris SG',
-    'Roma'               => 'AS Roma',
-    'Lens'               => 'RC Lens',
-    'Lille'              => 'Lille OSC',
-    'Lyon'               => 'Olympique Lyonnais',
-    'Porto'              => 'FC Porto',
-    'Tottenham'          => 'Tottenham Hotspur',
-    'Newcastle'          => 'Newcastle United',
-    'West Ham'           => 'West Ham United',
-    'Brighton'           => 'Brighton and Hove Albion',
-];
+/* A lista de apelidos mora em draftfut_cartas.php: os dois importadores
+   precisam dela, e enquanto cada um tinha a sua elas desandaram. */
+$extras = DFUT_CLUBE_API;
 foreach ($extras as $nosso => $deles) {
     if (isset($aliasClube[$nosso])) $aliasClube[$nosso][] = k2($deles);
 }

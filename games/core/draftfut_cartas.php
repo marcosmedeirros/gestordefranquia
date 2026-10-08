@@ -230,6 +230,72 @@ const DFUT_NACAO_MAO = [
     'Arsenal|Benjamin White'     => 'England',
 ];
 
+/**
+ * ── COMO A FONTE ESCREVE CADA CLUBE ──────────────────────────────────
+ *
+ * Mora aqui porque os DOIS importadores precisam dela e, enquanto cada um
+ * tinha a sua, elas desandaram: o de jogador foi corrigido, o de clube ficou
+ * com a lista velha, e dezessete clubes — Newcastle, Brighton, Inter de
+ * Milão, PSG, Monaco, Lille, Athletic Club entre eles — voltaram vazios da
+ * busca. Duas listas pra mesma pergunta viram duas respostas diferentes.
+ *
+ * Só entra quem a busca pelo nome do catálogo não acha sozinho. O resto o
+ * próprio nome resolve, ou a conferência por contenção ("Tottenham" dentro de
+ * "Tottenham Hotspur").
+ */
+const DFUT_CLUBE_API = [
+    'Atlético-MG'        => 'Atletico Mineiro',
+    'Athletico-PR'       => 'Athletico Paranaense',
+    'RB Bragantino'      => 'Red Bull Bragantino',
+    'Bayern de Munique'  => 'Bayern Munich',
+    'Inter de Milão'     => 'Inter Milan',
+    'Atlético de Madrid' => 'Atletico Madrid',
+    'Celta de Vigo'      => 'Celta Vigo',
+    'Athletic Club'      => 'Athletic Bilbao',
+    'Sporting CP'        => 'Sporting Lisbon',
+    /* "Paris SG" devolvia o Torcy e "PSG" devolvia um time de Hong Kong;
+       sem hífen a fonte acha. */
+    'PSG'                => 'Paris Saint Germain',
+    'Roma'               => 'AS Roma',
+    'Porto'              => 'FC Porto',
+    'Tottenham'          => 'Tottenham Hotspur',
+    'Newcastle'          => 'Newcastle United',
+    'West Ham'           => 'West Ham United',
+    'Brighton'           => 'Brighton and Hove Albion',
+];
+
+/**
+ * O país que a fonte dá ao clube, quando não é o país da liga.
+ *
+ * Só o Monaco: joga a Ligue 1, então o catálogo o põe na França, mas a fonte
+ * responde "Monaco". Sem esta exceção a conferência de país o derruba.
+ */
+const DFUT_CLUBE_PAIS_API = ['Monaco' => 'Monaco'];
+
+/**
+ * O clube que a fonte devolveu é o clube que pedimos?
+ *
+ * Igualdade exata deixava passar batido metade dos ingleses — a fonte escreve
+ * "Tottenham Hotspur", "Newcastle United", "Brighton and Hove Albion", e o
+ * catálogo escreve o nome curto. Então vale também quando um nome contém o
+ * outro, com PELO MENOS SEIS LETRAS no mais curto.
+ *
+ * O piso de seis não é enfeite: com cinco, "inter" casaria "Inter de Milão"
+ * com "Internacional" e o Lautaro viraria colorado.
+ */
+function draftFutClubeBate(string $daFonte, array $nossos): bool
+{
+    $a = draftFutChaveNome($daFonte);
+    foreach ($nossos as $n) {
+        $b = draftFutChaveNome($n);
+        if ($a === $b) return true;
+        $curto = mb_strlen($a) <= mb_strlen($b) ? $a : $b;
+        $longo = $curto === $a ? $b : $a;
+        if (mb_strlen($curto) >= 6 && str_contains($longo, $curto)) return true;
+    }
+    return false;
+}
+
 /** A nacionalidade de uma carta: a da fonte, senão a escrita à mão. */
 function draftFutNacao(string $clube, string $nome, ?array $daFonte): string
 {

@@ -104,46 +104,6 @@ function pega(string $url): ?array
    vez de tirar, e aí nome acentuado não casava com nada. */
 function chave(string $n): string { return draftFutChaveNome($n); }
 
-/**
- * Os nomes de clube que a API escreve de outro jeito.
- *
- * A busca por nome falha em sigla de estado ("Atlético-MG"), em patrocinador
- * no nome ("RB Bragantino") e em nome traduzido ("Bayern de Munique"). Só
- * entra aqui o que a busca não acha sozinha.
- */
-const DFUT_BUSCA_CLUBE = [
-    'Atlético-MG'        => 'Atletico Mineiro',
-    'Athletico-PR'       => 'Athletico Paranaense',
-    'RB Bragantino'      => 'Red Bull Bragantino',
-    'Bayern de Munique'  => 'Bayern Munich',
-    'Borussia M.gladbach' => 'Borussia Monchengladbach',
-    'Internacional'      => 'Internacional',
-    'Vasco da Gama'      => 'Vasco da Gama',
-    'Manchester City'    => 'Manchester City',
-    'Inter'              => 'Inter Milan',
-    'Milan'              => 'AC Milan',
-    'Roma'               => 'AS Roma',
-    'Marselha'           => 'Marseille',
-    'Mônaco'             => 'AS Monaco',
-    'Copenhague'         => 'FC Copenhagen',
-    'Colônia'            => 'FC Koln',
-    'Sevilha'            => 'Sevilla',
-    'Betis'              => 'Real Betis',
-    'Atlético de Madrid' => 'Atletico Madrid',
-    'Galatasaray'        => 'Galatasaray',
-    'Fenerbahçe'         => 'Fenerbahce',
-    'Beşiktaş'           => 'Besiktas',
-    'Juventus'           => 'Juventus',
-    'Benfica'            => 'Benfica',
-    'Sporting'           => 'Sporting Lisbon',
-    'Porto'              => 'FC Porto',
-    'Ajax'               => 'Ajax',
-    'PSV'                => 'PSV Eindhoven',
-    'Feyenoord'          => 'Feyenoord',
-    'Paris Saint-Germain' => 'Paris SG',
-    'Boca Juniors'       => 'Boca Juniors',
-    'River Plate'        => 'River Plate',
-];
 
 /* ── Os clubes que realmente alimentam o baralho ─────────────────────── */
 require_once __DIR__ . '/draftfut.php';
@@ -178,7 +138,7 @@ foreach ($clubes as [$nome, $liga, $forca]) {
     $i++;
     if (!$refaz && isset($dados[$nome])) { $achados += count($dados[$nome]); continue; }
 
-    $busca = DFUT_BUSCA_CLUBE[$nome] ?? $nome;
+    $busca = DFUT_CLUBE_API[$nome] ?? $nome;
     $t = pega(API . 'searchteams.php?t=' . rawurlencode($busca));
     if ($t === null) {
         /* Rede fora ou rate limit: NÃO grava nada, pra a próxima rodada
@@ -188,17 +148,31 @@ foreach ($clubes as [$nome, $liga, $forca]) {
         continue;
     }
 
-    /* CONFERE O PAÍS, como o buscador de escudos já faz: "Nacional" existe em
-       cinco países e "Rapid" em dois. Clube de país errado é descartado. */
-    $paisEsperado = DFUT_API_PAIS[draftFutPais($liga)] ?? '';
+    /* CONFERE O PAÍS **E O NOME**. O país sozinho não bastava: buscando
+       "Paris SG" a fonte devolveu o Torcy, que também é da França, e o
+       importador pegava o elenco do Torcy achando que era o do PSG. "Nacional"
+       existe em cinco países, mas "um time qualquer do mesmo país" existe aos
+       milhares — a tranca tem que ser as duas coisas. */
+    $paisEsperado = DFUT_CLUBE_PAIS_API[$nome] ?? (DFUT_API_PAIS[draftFutPais($liga)] ?? '');
     $id = null;
     foreach ($t['teams'] ?? [] as $cand) {
         $pais = trim((string)($cand['strCountry'] ?? ''));
         if ($paisEsperado !== '' && $pais !== $paisEsperado) continue;
+        if (!draftFutClubeBate((string)($cand['strTeam'] ?? ''), [$nome, $busca])) continue;
         $id = (string)$cand['idTeam'];
         break;
     }
-    if (!$id) { $semTime++; $dados[$nome] = []; sleep(1); continue; }
+    if (!$id) {
+        /* CLUBE QUE A API NÃO ACHA NÃO APAGA O QUE JÁ FOI ACHADO. Esta linha
+           era `$dados[$nome] = []`, e num --refaz ela zerou cinco clubes
+           inteiros — levando junto o que a busca jogador a jogador tinha
+           preenchido neles. O `[]` existe só pra marcar clube já visitado,
+           então só vale quando ainda não há nada guardado. */
+        $semTime++;
+        $dados[$nome] = $dados[$nome] ?? [];
+        sleep(1);
+        continue;
+    }
 
     sleep(1);
     $p = pega(API . 'lookup_all_players.php?id=' . $id);
