@@ -105,24 +105,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Você precisa de ' . DF_ENTRADA . ' moedas pra entrar no draft.';
         } else {
             dfMoedasMexer($pdo, $user_id, -DF_ENTRADA);
-            $d = ['formacao' => $formacao, 'vaga' => 0, 'time' => [], 'usados' => [],
-                  'opcoes' => null, 'resultado' => null];
+            $d = ['formacao' => $formacao, 'time' => array_fill(0, DFUT_TOTAL, null),
+                  'usados' => [], 'aberta' => null, 'opcoes' => null, 'resultado' => null];
             $msg = 'Boa sorte! Entrada de ' . DF_ENTRADA . ' moedas paga.';
         }
     }
 
-    if ($acao === 'escolher' && $d && $d['opcoes']) {
-        $i = (int)($_POST['carta'] ?? -1);
-        if (isset($d['opcoes'][$i])) {
-            $c = $d['opcoes'][$i];
-            $d['time'][$d['vaga']] = $c;
-            $d['usados'][] = $c['nome'];
-            $d['vaga']++;
-            $d['opcoes'] = null;          // a próxima vaga sorteia na hora de desenhar
+    /* ABRIR UMA VAGA é o que sorteia as cartas dela. O jogo não manda mais
+       a ordem: quem escolhe por onde começar é quem está jogando, como no
+       FIFA. As cartas ficam guardadas na sessão até a escolha, senão um F5
+       daria cinco cartas novas e o draft viraria roleta. */
+    if ($acao === 'abrir' && $d && empty($d['resultado'])) {
+        $v = (int)($_POST['vaga'] ?? -1);
+        if ($v >= 0 && $v < DFUT_TOTAL && empty($d['time'][$v])) {
+            $d['aberta'] = $v;
+            $preenchidas = count(array_filter($d['time']));
+            [$lo, $hi] = draftFutFaixa($preenchidas);
+            $d['opcoes'] = draftFutOpcoes(draftFutPosDaVaga($d['formacao'], $v), $d['usados'], $lo, $hi);
         }
     }
 
-    if ($acao === 'jogar' && $d && $d['vaga'] >= DFUT_VAGAS) {
+    if ($acao === 'escolher' && $d && $d['opcoes'] && $d['aberta'] !== null) {
+        $i = (int)($_POST['carta'] ?? -1);
+        if (isset($d['opcoes'][$i])) {
+            $c = $d['opcoes'][$i];
+            $d['time'][$d['aberta']] = $c;
+            $d['usados'][] = $c['nome'];
+            $d['aberta'] = null;
+            $d['opcoes'] = null;
+        }
+    }
+
+    /* TROCAR DOIS DE LUGAR — é o escalar. Vale entre campo e banco também,
+       que é como se faz substituição antes do jogo. A química é recalculada
+       sozinha na hora de desenhar, então não há nada a atualizar aqui. */
+    if ($acao === 'trocar' && $d && empty($d['resultado'])) {
+        $a = (int)($_POST['a'] ?? -1); $b = (int)($_POST['b'] ?? -1);
+        if ($a >= 0 && $b >= 0 && $a < DFUT_TOTAL && $b < DFUT_TOTAL && $a !== $b) {
+            $tmp = $d['time'][$a]; $d['time'][$a] = $d['time'][$b]; $d['time'][$b] = $tmp;
+        }
+    }
+
+    if ($acao === 'jogar' && $d && draftFutCampoCheio($d)) {
         $formacao = $d['formacao'];
         $time = $d['time'];
         $forca = draftFutForcaDoTime($formacao, $time);
@@ -190,18 +214,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $msg = $_GET['m'] ?? null;
 $erro = $_GET['e'] ?? null;
 
-/* Sorteia as opções da vaga atual, se o draft está em andamento. */
-if ($d && $d['vaga'] < DFUT_VAGAS && !$d['opcoes']) {
-    [$lo, $hi] = draftFutFaixa($d['vaga']);
-    $vaga = DFUT_FORMACOES[$d['formacao']][$d['vaga']];
-    $d['opcoes'] = draftFutOpcoes($vaga[1], $d['usados'], $lo, $hi);
+/** Os onze de campo estão todos preenchidos? É o que libera jogar. */
+function draftFutCampoCheio(array $d): bool
+{
+    for ($i = 0; $i < DFUT_VAGAS; $i++) if (empty($d['time'][$i])) return false;
+    return true;
 }
 
 $moedas = dfMoedas($pdo, $user_id);
-$emDraft = $d && $d['vaga'] < DFUT_VAGAS;
-$pronto  = $d && $d['vaga'] >= DFUT_VAGAS && empty($d['resultado']);
+$emDraft = $d && empty($d['resultado']);
+$pronto  = $d && draftFutCampoCheio($d) && empty($d['resultado']);
 $fim     = $d && !empty($d['resultado']);
-$quimParcial = $d ? draftFutQuimica($d['formacao'], $d['time']) : ['total' => 0, 'jogadores' => []];
+$quim = $d ? draftFutQuimica($d['formacao'], $d['time']) : ['total' => 0, 'jogadores' => []];
+$aberta = $d['aberta'] ?? null;
 
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -300,6 +325,80 @@ a{color:inherit}
 .lance.perdeu{border-left-color:var(--amarelo)}
 .lance.fim{border-left-color:var(--vermelho);font-weight:700}
 .lance .pl{font-family:'Oswald',sans-serif;color:var(--verde);margin-left:6px}
+/* ── O CAMPINHO ───────────────────────────────────────────────────── */
+.campo-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.quim-barra{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt2)}
+.quim-barra b{font-family:'Oswald',sans-serif;font-size:17px;color:var(--txt)}
+.qb-trilho{display:block;width:110px;height:7px;border-radius:99px;background:var(--panel3);overflow:hidden}
+.qb-fill{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--vermelho),var(--amarelo),var(--verde));
+  transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.campo{position:relative;width:100%;aspect-ratio:68/95;max-height:540px;margin:10px auto 0;
+  background:
+    repeating-linear-gradient(180deg,#16331d 0 7%,#143019 7% 14%);
+  border:2px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden}
+.linha-meio{position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(255,255,255,.18)}
+.circulo{position:absolute;left:50%;top:50%;width:26%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,.18);border-radius:50%}
+.area{position:absolute;left:22%;width:56%;height:14%;border:2px solid rgba(255,255,255,.18)}
+.area-cima{top:0;border-top:none}
+.area-baixo{bottom:0;border-bottom:none}
+
+.slot{position:absolute;transform:translate(-50%,-50%);width:66px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  background:linear-gradient(160deg,rgba(42,42,51,.96),rgba(18,18,24,.96));
+  border:1px solid var(--borda2);border-radius:9px;padding:5px 3px;
+  transition:transform .15s,border-color .15s,box-shadow .15s;
+  animation:slotEnt .3s backwards}
+@keyframes slotEnt{from{opacity:0;transform:translate(-50%,-50%) scale(.6)}}
+.slot:hover{transform:translate(-50%,-50%) scale(1.09);border-color:var(--amarelo);z-index:5}
+.slot.vazio{background:rgba(0,0,0,.42);border-style:dashed;border-color:rgba(255,255,255,.3)}
+.slot.aberta{border-color:var(--amarelo);box-shadow:0 0 0 2px rgba(245,197,24,.4)}
+.slot.sel{border-color:var(--azul);box-shadow:0 0 0 2px rgba(59,130,246,.5)}
+.slot.lenda{border-color:#d4af37;background:linear-gradient(160deg,#4a3a12,#241a06)}
+.slot .s-ovr{font-family:'Oswald',sans-serif;font-size:17px;line-height:1;color:var(--amarelo)}
+.slot.lenda .s-ovr{color:#ffd966}
+.slot .s-esc{width:15px;height:15px;object-fit:contain}
+.slot .s-nome{font-size:9px;font-weight:700;line-height:1.1;text-align:center;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .s-rot{font-size:7.5px;font-weight:800;letter-spacing:.4px;color:var(--txt3)}
+.slot .s-mais{font-size:19px;line-height:1;color:var(--txt3)}
+.slot .s-quim{width:22px;height:3px;border-radius:99px;margin-top:1px}
+.s-quim.alta{background:var(--verde)}
+.s-quim.media{background:var(--amarelo)}
+.s-quim.baixa{background:var(--vermelho)}
+
+.banco-tit{margin:16px 0 8px;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.4px}
+.banco-tit span{color:var(--txt3);font-size:12px;font-family:'Montserrat',sans-serif}
+.banco{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:7px}
+.banco-s{position:static;transform:none;width:auto}
+.banco-s:hover{transform:scale(1.06)}
+@keyframes slotEnt2{from{opacity:0;transform:scale(.7)}}
+.banco-s{animation:slotEnt2 .3s backwards}
+
+/* Cartas: entram em cascata */
+.cartas-bloco{animation:sobe .3s}
+@keyframes sobe{from{opacity:0;transform:translateY(10px)}}
+.carta{animation:cartaEnt .35s backwards}
+@keyframes cartaEnt{from{opacity:0;transform:translateY(16px) rotateX(18deg)}}
+.carta.lenda{background:linear-gradient(160deg,#5a4616,#2a1d06);border-color:#d4af37;position:relative}
+.carta.lenda .ovr{color:#ffd966}
+.selo-lenda{position:absolute;top:7px;left:7px;font-size:8px;font-weight:800;letter-spacing:1px;
+  background:#d4af37;color:#1a1304;padding:2px 6px;border-radius:99px}
+
+/* Placar que anda com a narração */
+.placar .g{transition:transform .2s}
+.placar .g.pulsa{transform:scale(1.22);color:var(--verde)}
+.relogio{text-align:center;font-family:'Oswald',sans-serif;font-size:14px;color:var(--txt3);
+  letter-spacing:1px;margin-bottom:10px}
+.lance.intervalo{border-left-color:var(--amarelo);background:rgba(245,197,24,.08);font-weight:700}
+@media (max-width:620px){
+  .campo{max-height:none}
+  .slot{width:54px;padding:4px 2px}
+  .slot .s-ovr{font-size:15px}
+  .slot .s-nome{font-size:8px}
+  .banco{grid-template-columns:repeat(4,1fr)}
+}
 @media (max-width:620px){
   .wrap{padding:12px}
   .esc-l{grid-template-columns:38px 1fr auto auto;gap:7px;font-size:12px}
@@ -347,29 +446,32 @@ a{color:inherit}
   </div>
 
 <?php elseif ($emDraft): ?>
-  <?php $vaga = DFUT_FORMACOES[$d['formacao']][$d['vaga']]; ?>
-  <div class="bloco">
-    <h2>Vaga <?= $d['vaga'] + 1 ?> de <?= DFUT_VAGAS ?> — <?= e($vaga[0]) ?></h2>
-    <p class="sub">Formação <b><?= e($d['formacao']) ?></b> · escolha uma das cinco.
-       Química parcial: <b><?= $quimParcial['total'] ?></b>.</p>
-    <div class="cartas">
-      <?php foreach ($d['opcoes'] as $i => $c): ?>
-        <form method="POST">
-          <input type="hidden" name="acao" value="escolher">
-          <input type="hidden" name="carta" value="<?= $i ?>">
-          <button class="carta" type="submit">
-            <span class="ovr"><?= (int)$c['ovr'] ?></span>
-            <span class="pos"><?= e($c['pos']) ?><?= $c['pos'] !== $vaga[1] ? ' ⚠' : '' ?></span>
-            <?php if ($c['escudo']): ?><img src="<?= e($c['escudo']) ?>" alt="" loading="lazy"><?php endif; ?>
-            <span class="nm"><?= e($c['nome']) ?></span>
-            <span class="cl"><?= e($c['clube']) ?></span>
-            <span class="lg"><?= e($c['liga']) ?></span>
-          </button>
-        </form>
-      <?php endforeach; ?>
+  <?php if ($aberta !== null && $d['opcoes']):
+    $natural = draftFutPosDaVaga($d['formacao'], $aberta); ?>
+    <div class="bloco cartas-bloco">
+      <h2>Escolha pra <?= e(draftFutRotuloDaVaga($d['formacao'], $aberta)) ?></h2>
+      <p class="sub">Cinco cartas. A química muda conforme quem já está em campo.</p>
+      <div class="cartas">
+        <?php foreach ($d['opcoes'] as $i => $c): ?>
+          <form method="POST" style="margin:0">
+            <input type="hidden" name="acao" value="escolher">
+            <input type="hidden" name="carta" value="<?= $i ?>">
+            <button class="carta<?= !empty($c['lenda']) ? ' lenda' : '' ?>" type="submit"
+                    style="animation-delay:<?= $i * 70 ?>ms">
+              <?php if (!empty($c['lenda'])): ?><span class="selo-lenda">LENDA</span><?php endif; ?>
+              <span class="ovr"><?= (int)$c['ovr'] ?></span>
+              <span class="pos"><?= e($c['pos']) ?><?= $c['pos'] !== $natural ? ' ⚠' : '' ?></span>
+              <?php if ($c['escudo']): ?><img src="<?= e($c['escudo']) ?>" alt="" loading="lazy"><?php endif; ?>
+              <span class="nm"><?= e($c['nome']) ?></span>
+              <span class="cl"><?= e($c['clube']) ?></span>
+              <span class="lg"><?= e($c['liga']) ?> · <?= e(draftFutPais($c['liga'])) ?></span>
+            </button>
+          </form>
+        <?php endforeach; ?>
+      </div>
     </div>
-  </div>
-  <?php include __DIR__ . '/draftfut_escalacao.php'; ?>
+  <?php endif; ?>
+  <?php include __DIR__ . '/draftfut_campo.php'; ?>
 
 <?php elseif ($pronto): ?>
   <div class="bloco">
@@ -377,7 +479,7 @@ a{color:inherit}
     <p class="sub">Dá o nome e escolhe o adversário.</p>
     <div class="nums">
       <div class="num"><b><?= draftFutForcaDoTime($d['formacao'], $d['time']) ?></b><small>Força</small></div>
-      <div class="num"><b><?= $quimParcial['total'] ?></b><small>Química</small></div>
+      <div class="num"><b><?= $quim['total'] ?></b><small>Química</small></div>
       <div class="num"><b><?= e($d['formacao']) ?></b><small>Formação</small></div>
     </div>
     <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -393,60 +495,115 @@ a{color:inherit}
     <p class="sub" style="margin:10px 0 0;font-size:12px">
       Sem nenhum time de GM na sua faixa de força, o jogo cai na máquina — e avisa.</p>
   </div>
-  <?php include __DIR__ . '/draftfut_escalacao.php'; ?>
+  <?php include __DIR__ . '/draftfut_campo.php'; ?>
 
 <?php else:
   $r = $d['resultado']; $p = $r['partida']; ?>
   <div class="bloco">
-    <h2>Resultado</h2>
+    <h2>Partida</h2>
+    <div class="relogio" id="relogio">0'</div>
     <div class="placar">
       <div class="t"><b><?= e($r['nome']) ?></b><small>força <?= $r['forca'] ?> · química <?= $r['quimica'] ?></small></div>
-      <div class="g"><?= $p['placar'][0] ?> <span style="color:var(--txt3)">x</span> <?= $p['placar'][1] ?></div>
+      <?php /* O PLACAR COMEÇA EM 0x0 E ANDA COM A NARRAÇÃO. Ele vinha pronto,
+           com os lances contando depois o que já estava escrito em cima —
+           era ler a última página antes do livro. Agora o gol aparece no
+           minuto em que acontece. */ ?>
+      <div class="g"><span id="gc">0</span> <span style="color:var(--txt3)">x</span> <span id="gf">0</span></div>
       <div class="t"><b><?= e($r['adv']['nome']) ?></b><small>força <?= $r['adv']['forca'] ?>
         · <?= $r['modo'] === 'pvp' ? 'outro GM' : 'máquina' ?></small></div>
     </div>
-    <div style="text-align:center;margin-bottom:14px">
-      <?php if ($r['premio'] > 0): ?>
-        <span class="aviso ok" style="display:inline-block"><i class="bi bi-coin"></i>
-          +<?= $r['premio'] ?> moedas</span>
-      <?php else: ?>
-        <span class="aviso err" style="display:inline-block">Sem prêmio dessa vez.</span>
-      <?php endif; ?>
-    </div>
     <div class="narra" id="narra"></div>
-    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-      <form method="POST"><input type="hidden" name="acao" value="novo">
+    <div id="fecho" style="display:none">
+      <div style="text-align:center;margin:14px 0">
+        <?php if ($r['premio'] > 0): ?>
+          <span class="aviso ok" style="display:inline-block"><i class="bi bi-coin"></i>
+            +<?= $r['premio'] ?> moedas</span>
+        <?php else: ?>
+          <span class="aviso err" style="display:inline-block">Sem prêmio dessa vez.</span>
+        <?php endif; ?>
+      </div>
+      <form method="POST" style="text-align:center"><input type="hidden" name="acao" value="novo">
         <button class="btn pri" type="submit"><i class="bi bi-arrow-repeat"></i> Novo draft</button></form>
-      <button class="btn" type="button" id="pular">Mostrar tudo</button>
+    </div>
+    <div style="margin-top:14px;text-align:center">
+      <button class="btn" type="button" id="pular">Pular pro fim</button>
     </div>
   </div>
-  <?php include __DIR__ . '/draftfut_escalacao.php'; ?>
+  <?php include __DIR__ . '/draftfut_campo.php'; ?>
   <script>
-  /* A NARRAÇÃO SAI NO RITMO DO JOGO, não de uma vez: a graça é acompanhar o
-     placar virar. Quem não tem paciência tem o "Mostrar tudo". */
+  /* A PARTIDA PASSA, ELA NÃO É LIDA. O relógio anda, o placar vira no
+     minuto do gol e o prêmio só aparece no apito final — quem está vendo
+     não sabe o resultado até ele acontecer. "Pular pro fim" existe pra
+     quem já viu essa parte. */
   const LANCES = <?= json_encode($p['lances'], JSON_UNESCAPED_UNICODE) ?>;
   const alvo = document.getElementById('narra');
+  const elGc = document.getElementById('gc'), elGf = document.getElementById('gf');
+  const elRel = document.getElementById('relogio'), elG = document.querySelector('.placar .g');
   let i = 0, timer = null;
-  function desenha(l){
+
+  function desenha(l, animar){
     const d = document.createElement('div');
     d.className = 'lance ' + l.tipo;
-    d.innerHTML = `<span class="m">${l.min}'</span><span>${l.texto}` +
-      (l.placar ? `<span class="pl">${l.placar}</span>` : '') + `</span>`;
+    if (!animar) d.style.animation = 'none';
+    d.innerHTML = `<span class="m">${l.min}'</span><span>${l.texto}</span>`;
     alvo.appendChild(d);
     alvo.scrollTop = alvo.scrollHeight;
+
+    elRel.textContent = l.min + "'";
+    if (l.casa !== undefined) {
+      const virou = elGc.textContent != l.casa || elGf.textContent != l.fora;
+      elGc.textContent = l.casa; elGf.textContent = l.fora;
+      if (virou && animar) { elG.classList.add('pulsa'); setTimeout(() => elG.classList.remove('pulsa'), 240); }
+    }
+    if (l.tipo === 'fim') document.getElementById('fecho').style.display = '';
   }
+
   function passo(){
     if (i >= LANCES.length) { clearInterval(timer); return; }
-    desenha(LANCES[i++]);
+    desenha(LANCES[i++], true);
   }
-  timer = setInterval(passo, 700);
+  timer = setInterval(passo, 850);
   passo();
   document.getElementById('pular').onclick = () => {
     clearInterval(timer);
-    while (i < LANCES.length) desenha(LANCES[i++]);
+    while (i < LANCES.length) desenha(LANCES[i++], false);
   };
   </script>
 <?php endif; ?>
 </div>
+<script>
+/* ── O CAMPO: clicar abre a vaga, dois cliques trocam ────────────────
+   Vaga vazia abre as cartas. Vaga cheia entra em modo "selecionada", e o
+   clique seguinte troca os dois de lugar — é assim que se escala sem
+   arrastar, que no celular nunca funciona direito. */
+(function(){
+  const campo = document.getElementById('campo');
+  if (!campo) return;
+  const todos = document.querySelectorAll('.slot');
+  let sel = null;
+
+  function post(campos){
+    const f = document.createElement('form');
+    f.method = 'POST';
+    for (const [k,v] of Object.entries(campos)) {
+      const i = document.createElement('input');
+      i.type = 'hidden'; i.name = k; i.value = v;
+      f.appendChild(i);
+    }
+    document.body.appendChild(f); f.submit();
+  }
+
+  todos.forEach(s => s.addEventListener('click', () => {
+    const vaga = s.dataset.vaga, tem = s.dataset.tem === '1';
+
+    if (sel !== null && sel !== vaga) { post({acao:'trocar', a:sel, b:vaga}); return; }
+    if (sel === vaga) { s.classList.remove('sel'); sel = null; return; }
+    if (!tem) { post({acao:'abrir', vaga}); return; }
+
+    document.querySelectorAll('.slot.sel').forEach(o => o.classList.remove('sel'));
+    s.classList.add('sel'); sel = vaga;
+  }));
+})();
+</script>
 </body>
 </html>

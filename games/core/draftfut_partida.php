@@ -79,7 +79,18 @@ function draftFutPartida(array $casa, array $fora, int $semente): array
     for ($i = 0; $i < DFUTP_LANCES; $i++) $minutos[] = mt_rand(1, DFUTP_MINUTOS);
     sort($minutos);
 
+    $intervaloPosto = false;
     foreach ($minutos as $min) {
+        /* O INTERVALO É UM LANCE, e entra na hora em que o relógio passa dos
+           45: sem ele a narração atravessa noventa minutos sem respirar, e
+           quem lê perde a noção de quanto falta. */
+        if (!$intervaloPosto && $min > 45) {
+            $lances[] = ['min' => 45, 'tipo' => 'intervalo', 'lado' => -1,
+                         'texto' => 'Fim do primeiro tempo.',
+                         'casa' => $gols[0], 'fora' => $gols[1],
+                         'placar' => $gols[0] . 'x' . $gols[1]];
+            $intervaloPosto = true;
+        }
         $atacaCasa = (mt_rand(1, 1000) / 1000) < $pesoCasa;
         $lado = $atacaCasa ? 0 : 1;
         $estat['posse'][$lado]++;
@@ -108,6 +119,7 @@ function draftFutPartida(array $casa, array $fora, int $semente): array
             $autor = draftFutSorteiaAtacante($atacante);
             $lances[] = ['min' => $min, 'tipo' => 'gol', 'lado' => $lado,
                          'texto' => draftFutTextoGol($autor, $atacante['nome']),
+                         'casa' => $gols[0], 'fora' => $gols[1],
                          'placar' => $gols[0] . 'x' . $gols[1]];
         } elseif ($r < $chanceGol * 2.6) {
             $estat['no_gol'][$lado]++;
@@ -130,7 +142,8 @@ function draftFutPartida(array $casa, array $fora, int $semente): array
     /* O apito final é um lance como os outros: quem lê a narração espera o
        fim escrito, não a lista simplesmente acabando. */
     $lances[] = ['min' => DFUTP_MINUTOS, 'tipo' => 'fim', 'lado' => -1,
-                 'texto' => 'Fim de jogo.', 'placar' => $gols[0] . 'x' . $gols[1]];
+                 'texto' => 'Fim de jogo.', 'casa' => $gols[0], 'fora' => $gols[1],
+                 'placar' => $gols[0] . 'x' . $gols[1]];
 
     $tp = max(1, $estat['posse'][0] + $estat['posse'][1]);
     $estat['posse'] = [(int)round(100 * $estat['posse'][0] / $tp),
