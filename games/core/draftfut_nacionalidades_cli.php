@@ -129,7 +129,9 @@ $dados = is_file($DESTINO) ? (array)require $DESTINO : [];
 function grava(string $destino, array $dados): void
 {
     file_put_contents($destino,
-        "<?php\n/* Gerado por games/core/draftfut_nacionalidades_cli.php — NÃO EDITE À MÃO. */\nreturn "
+        /* O MESMO cabeçalho do outro importador, senão cada rodada troca esta
+           linha e o git mostra diff onde nenhum dado mudou. */
+        "<?php\n/* Gerado por games/core/draftfut_nacionalidades_cli.php e draftfut_nacoes_cli.php — NÃO EDITE À MÃO. */\nreturn "
         . var_export($dados, true) . ";\n");
 }
 
