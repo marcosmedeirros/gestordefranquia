@@ -5,10 +5,10 @@
  * Nos grupos o bot aprende no meio da conversa, e isso tem limite: ensinar
  * vinte apelidos ou acertar o jeito de ele responder, no grupo, é poluir a
  * conversa de todo mundo. Pedido do dono da liga (15/09/2026): liberar o
- * privado pra dois contatos, que vão populando a memória e dizendo como ele
+ * privado pra quem ensina, que vai populando a memória e dizendo como ele
  * deve agir.
  *
- * SÓ ESTES DOIS, PELO ID DE USUÁRIO, e não por telefone escrito aqui: o número
+ * SÓ POR ID DE USUÁRIO, e não por telefone escrito aqui: o número
  * sai do cadastro, então trocar de chip não pede mudança de código, e nenhum
  * telefone fica no repositório.
  *
@@ -17,8 +17,19 @@
 
 require_once __DIR__ . '/duvida_conversas.php';
 
-/** users.id dos professores: Marcos Medeiros (1) e Kleberson Barreto Costa (35). */
-const DUVIDA_PROFESSORES = [1, 35];
+/**
+ * users.id de quem o bot atende no privado: hoje só o Marcos Medeiros (1).
+ *
+ * O Kleberson Barreto Costa (35) entrou junto na estreia (15/09/2026) e saiu
+ * em 09/10/2026, a pedido do Marcos: "ele nao responde mais o privado". Tirar
+ * quem parou de usar não é limpeza de estética — o privado do professor pula
+ * a checagem de grupo e deixa guardar orientação sobre COMO o bot responde, e
+ * isso não deve ficar valendo por um número que ninguém mais acompanha.
+ *
+ * O que ele já ensinou continua na memória. Nada do que foi guardado se
+ * perde por ele sair, e nem deveria: a orientação é da liga, não dele.
+ */
+const DUVIDA_PROFESSORES = [1];
 
 /** Mensagens por minuto no privado do professor antes do freio (conversa e comandos somados, como no grupo). */
 const DUVIDA_PROFESSOR_FREIO = 12;
@@ -28,8 +39,9 @@ const DUVIDA_PROFESSOR_TIPO = 'professor';
 
 /**
  * Quem pode usar TODOS os comandos (/time, /cap, /ranking...) no privado:
- * só o Marcos Medeiros (1), pedido dele em 15/09/2026. O Kleberson segue com
- * o modo professor, sem os comandos.
+ * só o Marcos Medeiros (1), pedido dele em 15/09/2026. A lista é separada da
+ * DUVIDA_PROFESSORES de propósito: ensinar o bot e mandar nele são coisas
+ * diferentes, e um professor novo não deve ganhar /cap e /moedas junto.
  */
 const DUVIDA_COMANDOS_NO_PRIVADO = [1];
 

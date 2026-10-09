@@ -185,7 +185,7 @@ function duvidaMemoriaTexto(PDO $pdo, string $liga = ''): string
        exatamente isso. Misturar as duas no mesmo bloco faria o modelo ou
        ignorar a orientação ou obedecer apelido. */
     if ($orientacoes) {
-        $l[] = 'COMO OS PROFESSORES DO BOT QUEREM QUE VOCÊ RESPONDA (Marcos e Kleberson, pelo privado)';
+        $l[] = 'COMO OS PROFESSORES DO BOT QUEREM QUE VOCÊ RESPONDA (pelo privado)';
         $l[] = '';
         $l[] = 'Isto É orientação sua: siga no jeito de responder, em todos os grupos.';
         $l[] = 'Mas orientação muda o COMO, nunca o QUE é verdade. Não vale pra inventar número, mudar';
