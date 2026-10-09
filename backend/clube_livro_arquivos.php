@@ -9,11 +9,21 @@
  * "tem em português?" e não "quantos arquivos têm". Com duas vagas nomeadas a
  * tela responde isso sem ninguém ler nome de arquivo.
  *
- * ── ONDE O ARQUIVO MORA ──────────────────────────────────────────────
+ * ── ONDE O ARQUIVO MORA: FORA DO DIRETÓRIO WEB ───────────────────────
  *
- * Em disco, fora do que o git acompanha, com nome sorteado. O nome original
- * vira só rótulo na tela: um PDF chamado "livro.pdf" e outro chamado
- * "livro.pdf" no mês seguinte se sobrescreveriam, e um nome vindo do
+ * A primeira versão guardava em uploads/clube-livro, dentro do public_html,
+ * com um .htaccess negando a pasta inteira. Testado em produção, o PDF saiu
+ * assim mesmo — HTTP 200 no endereço direto. O .htaccess estava lá e estava
+ * certo; o servidor simplesmente não o aplicou.
+ *
+ * Então os arquivos saíram de lá. Fora do public_html não existe endereço
+ * que os alcance, e isso não depende de o servidor estar configurado de um
+ * jeito ou de outro — que é a diferença entre uma trava e um pedido.
+ *
+ * Quem entrega é clube-livro-arquivo.php, que pergunta quem está pedindo.
+ *
+ * O nome em disco é sorteado. O nome original vira só rótulo na tela: dois
+ * meses seguidos com um "livro.pdf" se sobrescreveriam, e um nome vindo do
  * navegador é texto de fora — não é com ele que se monta caminho de arquivo.
  *
  * ── O QUE NÃO ENTRA ──────────────────────────────────────────────────
@@ -25,8 +35,15 @@
 
 require_once __DIR__ . '/db.php';
 
-/** Onde os arquivos ficam. Fora de /public, e fora do git. */
-const CLUBE_LIVRO_DIR = __DIR__ . '/../uploads/clube-livro';
+/**
+ * Onde os arquivos ficam.
+ *
+ * Um nível ACIMA do diretório web — em produção isso é
+ * ~/domains/fbabrasil.com.br/arquivos-clube, irmão do public_html e fora do
+ * alcance de qualquer URL. Em desenvolvimento cai no mesmo lugar relativo e
+ * funciona igual.
+ */
+const CLUBE_LIVRO_DIR = __DIR__ . '/../../arquivos-clube';
 
 /** Teto por arquivo. Livro em PDF passa fácil de 10MB; 60 cobre com folga. */
 const CLUBE_LIVRO_MAX = 60 * 1024 * 1024;
