@@ -614,6 +614,11 @@ $jogosLivres = [
        não passa pelo carregador index.php?game=. */
     ['href' => '/games/games/draftfut.php', 'nome' => 'FBA Draft',
      'sub'  => 'Monte o time e duele', 'icone' => 'bi-dribbble', 'cor' => '#16a34a'],
+    /* FBA HOOPS (08/10/2026): o Ultimate Team do basquete — doze pacotes,
+       uma temporada inteira da NBA simulada, moedas pela fase. Ao lado do
+       FBA Draft porque é o mesmo jogo no outro esporte. Página própria. */
+    ['href' => '/games/games/hoops.php', 'nome' => 'FBA Hoops',
+     'sub'  => 'Monte 12 e jogue a NBA', 'icone' => 'bi-box-seam', 'cor' => '#f97316'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
