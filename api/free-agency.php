@@ -2388,12 +2388,19 @@ function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
     $jaPedi = [];
     if ($teamId) {
         try {
-            $stP = $pdo->prepare('SELECT r.normalized_name, o.amount
+            /* A PRIORIDADE VEM JUNTO DO VALOR. Sem ela, o formulário reabria
+               com "Média" marcada por ser o `selected` do HTML, e quem tinha
+               posto Alta perdia a prioridade sem ver — do mesmo jeito que
+               perdia o valor. @see abrirPedido em js/free-agency.js */
+            $stP = $pdo->prepare('SELECT r.normalized_name, o.amount, o.priority
                                   FROM fa_request_offers o
                                   JOIN fa_requests r ON r.id = o.request_id
                                   WHERE o.team_id = ? AND o.status = "pending" AND r.status = "open"');
             $stP->execute([$teamId]);
-            foreach ($stP->fetchAll(PDO::FETCH_ASSOC) as $r) $jaPedi[$r['normalized_name']] = (int)$r['amount'];
+            foreach ($stP->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $jaPedi[$r['normalized_name']] = ['amount' => (int)$r['amount'],
+                                                 'priority' => (int)$r['priority']];
+            }
         } catch (Throwable $e) {}
     }
 
@@ -2412,7 +2419,9 @@ function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
         $j['cap_custo']   = $fit['custo'] ?? null;
         $j['cap_cabe']    = $fit['cabe'] ?? true;
         $j['cap_unidade'] = $fit['unidade'] ?? 'M';
-        $j['minha_proposta'] = $jaPedi[normalizeFaPlayerName($j['name'])] ?? null;
+        $meu = $jaPedi[normalizeFaPlayerName($j['name'])] ?? null;
+        $j['minha_proposta']   = $meu['amount'] ?? null;
+        $j['minha_prioridade'] = $meu['priority'] ?? null;
     }
     unset($j);
 

@@ -252,6 +252,31 @@ function abrirPedido(j) {
         // o jogador na fila dos outros.
         ['faNewPlayerName','faNewPosition','faNewSecondary','faNewAge','faNewOvr']
             .forEach(x => el(x).readOnly = el(x).disabled = true);
+
+        /* ── O LANCE QUE JÁ FOI DADO VOLTA AQUI ──────────────────────
+           Relatado pelo Kleber (08/10/2026): "se você clica pra ver seu
+           lance ele volta pra 1 moeda, mesmo você não tendo alterado nada".
+           E era isso mesmo: este formulário preenchia nome, posição, idade
+           e OVR, mas deixava o lance no `value="1"` do HTML e a prioridade
+           no `selected` dela, que é Média. Como o servidor agrupa pelo nome,
+           reenviar sem mexer em nada REESCREVIA a proposta — 56 moedas e
+           prioridade alta viravam 1 e média, sem aviso nenhum. Pode ter
+           custado o Blake a ele.
+
+           Com o lance de volta, reenviar sem alterar nada repete o que já
+           estava lá, que é o que a pessoa esperava desde o começo. */
+        const temLance = j.minha_proposta != null;
+        el('faNewOffer').value    = temLance ? j.minha_proposta : 1;
+        el('faNewPriority').value = String(j.minha_prioridade || 2);
+
+        /* E a tela diz o que vai acontecer: sem isto, o formulário continua
+           dizendo "Enviar proposta" pra quem está só reabrindo a dele. */
+        const btn = el('faNewSubmitBtn');
+        if (btn) {
+            btn.innerHTML = temLance
+                ? '<i class="bi bi-pencil"></i> Atualizar meu lance'
+                : '<i class="bi bi-send"></i> Enviar proposta';
+        }
     } else {
         ['faNewPlayerName','faNewPosition','faNewSecondary','faNewAge','faNewOvr']
             .forEach(x => { el(x).readOnly = false; el(x).disabled = false; });
@@ -259,6 +284,10 @@ function abrirPedido(j) {
         el('faNewSecondary').value  = '';
         el('faNewAge').value        = 24;
         el('faNewOvr').value        = 70;
+        el('faNewOffer').value      = 1;
+        el('faNewPriority').value   = '2';
+        const btnNovo = el('faNewSubmitBtn');
+        if (btnNovo) btnNovo.innerHTML = '<i class="bi bi-send"></i> Enviar proposta';
     }
     const aviso = el('faNomeAviso');
     if (aviso) { aviso.hidden = true; aviso.innerHTML = ''; }
@@ -324,7 +353,11 @@ function abrirModalDispensado(id) {
     document.getElementById('dispModalCap').innerHTML = j.cap_custo == null ? ''
         : oCusto +
           (capDoMeuTime ? `, e ${fraseDeEspaco(capDoMeuTime.espaco, u)}` : '') + '.';
+    /* O valor já voltava aqui; a prioridade não — e perder a prioridade é
+       perder a disputa do mesmo jeito que perder o valor. */
     document.getElementById('dispModalMoedas').value = j.minha_proposta ?? 1;
+    const prioDisp = document.getElementById('dispModalPrioridade');
+    if (prioDisp) prioDisp.value = String(j.minha_prioridade || 2);
     new bootstrap.Modal(document.getElementById('modalDispensado')).show();
 }
 
