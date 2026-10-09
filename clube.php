@@ -37,7 +37,8 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/series.php';
 require_once __DIR__ . '/backend/observador.php';
 require_once __DIR__ . '/backend/clube_semana.php';   // álbum e filme da semana
-require_once __DIR__ . '/backend/clube_livro.php';    // o clube do livro, só pra quem pediu
+require_once __DIR__ . '/backend/clube_livro.php';
+require_once __DIR__ . '/backend/clube_livro_arquivos.php';    // o clube do livro, só pra quem pediu
 
 /* PÁGINA DO APP, e não mais uma tela solta de /games: entra pelo login da FBA
    como qualquer outra, com menu lateral e a cor que a pessoa escolheu. Quem
@@ -69,6 +70,10 @@ function clubeAvatar(?string $foto): string
  */
 function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
 {
+    /* O bloco é função, e o admin é do arquivo: sem o global, a área de
+       administração do livro nunca apareceria. */
+    global $ehAdminClube;
+
     $d = clubeSemanaEstadoDoTipo($pdo, $tipo, $idUsuario);
     $i = $d['info']; $c = $d['cartaz']; $v = $d['enquete']; $rk = $d['ranking'];
     $plural = ['album' => 'álbuns', 'filme' => 'filmes', 'livro' => 'livros'][$tipo];
@@ -83,6 +88,52 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
             $tipo === 'livro' && $c['genero_escolhido'] ? ' · ' . h($c['genero_escolhido']) : '' ?></div>
         <div class="cartaz-tit"><?= h($c['titulo']) ?></div>
         <div class="cartaz-sub"><?= h($c['autor']) ?><?= $c['ano'] ? ' · ' . (int)$c['ano'] : '' ?></div>
+
+        <?php if ($tipo === 'livro'):
+          /* O ARQUIVO DO LIVRO, em duas línguas (pedido da Agata, 09/10/2026).
+             O link passa por clube-livro-arquivo.php e não pela pasta: o PDF
+             é de quem está lendo junto, não de quem achar o endereço. */
+          $arqs = clubeLivroArquivos($pdo, (int)$c['ciclo']);
+          if ($arqs): ?>
+          <div class="livro-arqs">
+            <?php foreach (CLUBE_LIVRO_IDIOMAS as $idi => $meta): ?>
+              <?php if (empty($arqs[$idi])) continue; ?>
+              <a class="livro-arq" target="_blank" rel="noopener"
+                 href="/clube-livro-arquivo.php?ciclo=<?= (int)$c['ciclo'] ?>&idioma=<?= h($idi) ?>">
+                <i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?>
+                <small><?= h($arqs[$idi]['nome']) ?></small></a>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($ehAdminClube): ?>
+            <form class="livro-up" method="POST" enctype="multipart/form-data">
+              <input type="hidden" name="acao" value="livro_arquivo">
+              <input type="hidden" name="ciclo" value="<?= (int)$c['ciclo'] ?>">
+              <div class="livro-up-l">
+                <?php foreach (CLUBE_LIVRO_IDIOMAS as $idi => $meta): ?>
+                  <label class="livro-up-c">
+                    <span><i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?>
+                      <?= !empty($arqs[$idi]) ? '<b>· já tem</b>' : '' ?></span>
+                    <input type="file" name="arq_<?= h($idi) ?>" accept=".pdf,.epub">
+                  </label>
+                <?php endforeach; ?>
+              </div>
+              <button type="submit" class="btn pri"><i class="bi bi-upload"></i> Subir arquivo</button>
+              <p class="livro-up-nota">PDF ou EPUB, até <?= (int)(CLUBE_LIVRO_MAX / 1048576) ?>MB cada.
+                 Só quem está no clube consegue baixar.</p>
+            </form>
+            <?php foreach ($arqs as $idi => $a): ?>
+              <form method="POST" class="livro-arq-tirar"
+                    data-confirmar="Tirar o arquivo em <?= h(CLUBE_LIVRO_IDIOMAS[$idi]['rot']) ?>?">
+                <input type="hidden" name="acao" value="livro_arquivo_tirar">
+                <input type="hidden" name="ciclo" value="<?= (int)$c['ciclo'] ?>">
+                <input type="hidden" name="idioma" value="<?= h($idi) ?>">
+                <button type="submit">tirar o <?= h(mb_strtolower(CLUBE_LIVRO_IDIOMAS[$idi]['rot'])) ?></button>
+              </form>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        <?php endif; ?>
         <?php if ($c['media'] !== null): ?>
           <div class="cartaz-med"><b><?= h($c['media']) ?></b>
             média da liga · <?= count($c['opinioes']) ?> na timeline</div>
@@ -123,7 +174,12 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         <?php endif; ?>
       <?php else: ?>
         <p style="color:var(--txt2);font-size:13.5px;margin:0">
-          O primeiro sai <b>sexta às 20h</b>, escolhido pelo voto da liga.</p>
+          <?= $tipo === 'livro'
+              /* O livro não sai mais na sexta: a lista é escolhida pelo clube e
+                 a votação é aberta à mão (@see CLUBE_SEMANA_AUTO). Prometer a
+                 sexta aqui seria marcar um encontro que não vai acontecer. */
+              ? 'O primeiro sai da votação que o clube abrir aqui.'
+              : 'O primeiro sai <b>sexta às 20h</b>, escolhido pelo voto da liga.' ?></p>
       <?php endif; ?>
 
       <?php if ($v): ?>
@@ -156,10 +212,34 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
           <?php endforeach; ?>
         </div>
       <?php else: ?>
+        <?php if ($tipo === 'livro' && $ehAdminClube):
+          /* ABRIR A VOTAÇÃO DO LIVRO À MÃO. A lista é escolhida fora — o
+             sorteio automático trouxe o livro 5 de uma saga e saiu de cena
+             por isso (@see CLUBE_SEMANA_AUTO). */ ?>
+          <div class="sem-h4">Abrir a votação do livro</div>
+          <form class="livro-abrir" method="POST">
+            <input type="hidden" name="acao" value="livro_votacao_abrir">
+            <textarea name="obras" rows="6" required
+              placeholder="Um por linha:&#10;Duna — Frank Herbert&#10;A Revolução dos Bichos — George Orwell&#10;Neuromancer — William Gibson"></textarea>
+            <div class="livro-abrir-l">
+              <label>Aberta por
+                <select name="horas">
+                  <option value="24">1 dia</option>
+                  <option value="48">2 dias</option>
+                  <option value="72" selected>3 dias</option>
+                  <option value="168">1 semana</option>
+                </select>
+              </label>
+              <button type="submit" class="btn pri"><i class="bi bi-ui-checks"></i> Abrir votação</button>
+            </div>
+            <p class="livro-up-nota">Título e autor separados por travessão. Sem autor,
+               a linha inteira vira o título.</p>
+          </form>
+        <?php endif; ?>
         <div class="sem-h4">Próxima enquete</div>
         <p style="color:var(--txt3);font-size:12.5px;margin:0">
           <?= $tipo === 'livro'
-              ? 'Na primeira sexta do mês: das 9h às 13h o gênero, das 13h às 20h os livros dele. Às 20h sai o livro, que vale o mês inteiro.'
+              ? 'O livro é escolhido pelo clube e a votação é aberta aqui quando a lista estiver pronta.'
               : 'Sexta-feira, das 9h às 20h. Às 20h a enquete fecha e sai o da semana.' ?></p>
       <?php endif; ?>
     </div>
@@ -234,7 +314,10 @@ if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
    POST, grava, redireciona. O JSON fica pras séries, onde quem marca cinco
    coisas seguidas não pode recarregar a página a cada clique. */
 $acoesForm = ['semana_votar', 'semana_opinar', 'livro_entrar', 'livro_sair', 'livro_votar',
-              'livro_enquete', 'livro_enquete_fechar'];
+              'livro_enquete', 'livro_enquete_fechar',
+              /* A enquete do livro e os arquivos dele: o livro saiu do sorteio
+                 automático em 09/10/2026 (@see CLUBE_SEMANA_AUTO). */
+              'livro_votacao_abrir', 'livro_arquivo', 'livro_arquivo_tirar'];
 $ehAdminClube = (($user['user_type'] ?? '') === 'admin');
 if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
         && in_array((string)($_POST['acao'] ?? ''), $acoesForm, true)) {
@@ -269,6 +352,36 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
                                    !empty($_POST['multi']));
         } elseif ($acao === 'livro_enquete_fechar' && $ehAdminClube) {
             clubeLivroFecharEnquete($pdo, (int)($_POST['enquete'] ?? 0));
+
+        } elseif ($acao === 'livro_votacao_abrir' && $ehAdminClube) {
+            /* A VOTAÇÃO DO LIVRO, COM A LISTA ESCOLHIDA FORA. Um título por
+               linha, no formato "Título — Autor"; sem o travessão, a linha
+               inteira vira o título, que é o que acontece com quadrinho e
+               com obra sem autor único. */
+            $linhas = preg_split('/\r?\n/', (string)($_POST['obras'] ?? ''));
+            $obras = [];
+            foreach ($linhas as $l) {
+                $l = trim($l);
+                if ($l === '') continue;
+                $p = preg_split('/\s+[—–-]\s+/u', $l, 2);
+                $obras[] = [mb_substr(trim($p[0]), 0, 190), mb_substr(trim($p[1] ?? ''), 0, 140), null];
+            }
+            $horas = max(1, min(720, (int)($_POST['horas'] ?? 24)));
+            if (count($obras) >= 2) {
+                clubeSemanaAbrirVotacaoDeLivro($pdo, $obras, $horas);
+            }
+
+        } elseif ($acao === 'livro_arquivo' && $ehAdminClube) {
+            $cid = (int)($_POST['ciclo'] ?? 0);
+            foreach (array_keys(CLUBE_LIVRO_IDIOMAS) as $idi) {
+                if (!isset($_FILES['arq_' . $idi])) continue;
+                $err = clubeLivroGuardarArquivo($pdo, $cid, $idi, $_FILES['arq_' . $idi]);
+                if ($err !== '') { $volta .= '&erro=' . rawurlencode($err); break; }
+            }
+
+        } elseif ($acao === 'livro_arquivo_tirar' && $ehAdminClube) {
+            clubeLivroApagarArquivo($pdo, (int)($_POST['ciclo'] ?? 0),
+                                    (string)($_POST['idioma'] ?? ''));
         }
     }
     header('Location: /clube.php' . $volta);
@@ -842,6 +955,34 @@ $qInicial    = (string)($_GET['q'] ?? '');
      border-radius:7px;padding:1px 7px;font-size:11.5px;font-weight:700;margin-left:6px}
 .opi-txt{font-size:13.5px;color:var(--txt);margin-top:2px;white-space:pre-wrap;word-break:break-word}
 .sem-h4{margin:16px 0 4px;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--txt3)}
+/* O ARQUIVO DO LIVRO. Os dois idiomas lado a lado, porque a pergunta de
+   quem chega e "tem em portugues?" — e com as duas vagas a tela responde
+   isso antes de a pessoa ler nome de arquivo. */
+.livro-arqs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.livro-arq{display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:9px;
+  padding:8px 12px;color:var(--text);font-size:13px;font-weight:600}
+.livro-arq:hover{border-color:var(--border-md)}
+.livro-arq small{color:var(--txt3);font-weight:400;font-size:11.5px;
+  max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.livro-up{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.livro-up-l{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.livro-up-c{flex:1;min-width:180px;display:flex;flex-direction:column;gap:5px;
+  font-size:12.5px;color:var(--text-2)}
+.livro-up-c input[type=file]{font-size:12px;color:var(--txt3)}
+.livro-up-c b{color:var(--verde,#22c55e);font-weight:600}
+.livro-up-nota{margin:8px 0 0;font-size:11.5px;color:var(--txt3)}
+.livro-arq-tirar{display:inline-block;margin:6px 8px 0 0}
+.livro-arq-tirar button{background:none;border:none;color:var(--txt3);
+  font-size:11.5px;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit}
+.livro-abrir textarea{width:100%;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);padding:10px 12px;font:inherit;font-size:13px;
+  resize:vertical;margin-bottom:10px}
+.livro-abrir-l{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.livro-abrir-l label{font-size:12.5px;color:var(--text-2);display:flex;gap:6px;align-items:center}
+.livro-abrir-l select{background:var(--panel-2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);padding:7px 10px;font:inherit;font-size:12.5px}
+
 .sem-prazo{font-size:12px;color:var(--txt3);margin-bottom:4px}
 .convite{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between}
 .convite p{margin:0;color:var(--txt2);font-size:13.5px}

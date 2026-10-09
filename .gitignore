@@ -39,6 +39,12 @@ entrar-teste.php
 /uploads/pathetic/*
 !/uploads/pathetic/.htaccess
 
+# Os arquivos do Clube do Livro: obra de outra pessoa, lida por um grupo
+# fechado. Nao tem por que viajar no repo, e o .htaccess que nega a pasta
+# inteira continua versionado — sem ele um PDF sairia direto pela web.
+/uploads/clube-livro/*
+!/uploads/clube-livro/.htaccess
+
 # Dumps do banco: 24MB de dados reais dos usuarios (e-mail, hash de senha).
 # O .htaccess ja nega .sql pela web, mas isso nao tem por que viajar no repo.
 # Como obter: LOCAL_SETUP.md.

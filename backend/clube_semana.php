@@ -302,6 +302,23 @@ const CLUBE_SEMANA_VIRA   = 13;   // sexta, 13h: no livro, o gênero fecha
 const CLUBE_SEMANA_FECHA  = 20;   // sexta, 20h: tudo fecha e o da semana sai
 
 /** O rótulo de cada tipo, do jeito que a tela fala. A `midia` é a aba dele. */
+/**
+ * OS TIPOS QUE NASCEM SOZINHOS NA SEXTA.
+ *
+ * O livro saiu daqui em 09/10/2026. A primeira rodada automática dele
+ * sorteou uma estante de Fantasia do Open Library e trouxe, entre outras
+ * coisas, o quinto livro de uma saga — "mas teve alguns q é tipo o livro 5
+ * da saga", a Agata. Livro não é álbum: ninguém entra numa série pelo meio,
+ * e um mês inteiro de leitura não se joga num sorteio.
+ *
+ * Então a decisão dela, e o Marcos confirmou: "deixa sem votação de livro,
+ * a gente vai escolher aqui e bota a votação lá". A enquete do livro passa
+ * a ser criada à mão, com a lista que elas escolheram (@see a aba Livro no
+ * clube.php). Álbum e filme continuam automáticos — ali o sorteio acerta,
+ * porque obra solta não tem ordem de leitura.
+ */
+const CLUBE_SEMANA_AUTO = ['album', 'filme'];
+
 const CLUBE_SEMANA_TIPOS = [
     'album' => ['rot' => 'Álbum da semana', 'ico' => 'vinyl-fill', 'verbo' => 'ouvir',    'midia' => 'musica'],
     'filme' => ['rot' => 'Filme da semana', 'ico' => 'film',       'verbo' => 'assistir', 'midia' => 'filmes'],
@@ -582,7 +599,13 @@ function clubeSemanaGirar(PDO $pdo): void
                 $fecha = strtotime((string)$ciclo['fecha_em']);
             }
 
-            if (!$ciclo && $agora >= $abre && $agora < $fecha) {
+            /* SÓ O QUE NASCE SOZINHO. O livro não entra: a lista dele é
+               escolhida fora e a enquete é criada à mão (@see
+               CLUBE_SEMANA_AUTO). O resto do relógio continua valendo pra
+               ele — uma rodada criada à mão fecha na hora marcada e vira o
+               livro do mês igual às outras. */
+            if (!$ciclo && $agora >= $abre && $agora < $fecha
+                    && in_array($tipo, CLUBE_SEMANA_AUTO, true)) {
                 if ($tipo === 'livro') {
                     /* No livro a manhã é do gênero. Quem só chegar à tarde
                        ainda abre a enquete, mas ela nasce virando na hora. */
@@ -678,6 +701,53 @@ function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fe
         return true;
     } catch (Throwable $e) {
         error_log('[clube-semana] avulsa ' . $tipo . ': ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * ABRE A VOTAÇÃO DO LIVRO COM UMA LISTA ESCOLHIDA À MÃO.
+ *
+ * O livro saiu do sorteio automático (@see CLUBE_SEMANA_AUTO): quem monta
+ * a lista é o clube, e esta função é por onde ela entra. Sem etapa de
+ * gênero — o gênero já foi decidido na conversa que escolheu os títulos, e
+ * repetir a pergunta aqui seria pedir à liga que referendasse o que já
+ * está feito.
+ *
+ * A âncora é a vigente, como em qualquer rodada do livro: é ela que faz a
+ * próxima nascer no mês certo.
+ *
+ * @param array $obras cada uma [titulo, autor, ano]
+ * @param int   $horas quanto tempo a votação fica aberta
+ * @return bool false quando já existe rodada no mês ou faltam opções
+ */
+function clubeSemanaAbrirVotacaoDeLivro(PDO $pdo, array $obras, int $horas = 24): bool
+{
+    clubeSemanaTabelas($pdo);
+    $obras = array_values(array_filter($obras, fn($o) => trim((string)($o[0] ?? '')) !== ''));
+    if (count($obras) < 2) return false;
+
+    $ancora = clubeSemanaAncora('livro');
+    try {
+        $st = $pdo->prepare('SELECT id FROM clube_semana_ciclos WHERE tipo = "livro" AND semana = ?');
+        $st->execute([$ancora]);
+        if ($st->fetchColumn()) return false;
+
+        $fecha = date('Y-m-d H:i:s', clubeSemanaAgora() + $horas * 3600);
+        /* Nasce em `votacao`, e não em `genero`: a etapa da manhã não existe
+           quando a lista já vem pronta. */
+        $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status, fecha_em)
+                       VALUES ('livro', ?, 'votacao', ?)")->execute([$ancora, $fecha]);
+        $cid = (int)$pdo->lastInsertId();
+        $op = $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor, ano)
+                             VALUES (?, 'obra', ?, ?, ?)");
+        foreach ($obras as $o) {
+            $op->execute([$cid, (string)$o[0], (string)($o[1] ?? ''),
+                          isset($o[2]) && $o[2] !== '' ? (int)$o[2] : null]);
+        }
+        return true;
+    } catch (Throwable $e) {
+        error_log('[clube-semana] votacao de livro: ' . $e->getMessage());
         return false;
     }
 }
