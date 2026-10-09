@@ -112,8 +112,137 @@ $dueloFim = $duelo ? null : dfdResultadoPendente($pdo, $user_id);
    não clicou em nada é cobrar sem pedir. */
 $convite = $duelo ? null : dfdConvitePendente($pdo, $user_id);
 
+/* ── O ESTADO DO DUELO, EM JSON ───────────────────────────────────
+   Pedido do Marcos (09/10/2026), com a reclamação do Vinícius em anexo:
+   "Aqui não apareceu nada / Ficou nessa tela". E era verdade — a página
+   não se mexia sozinha. A partida só roda quando ALGUÉM carrega a página
+   (@see dfdRodarSeDerPra): quem fechou o time primeiro e ficou olhando a
+   tela de espera nunca mais pedia nada ao servidor, então o jogo saía
+   pro adversário e ele continuava esperando um resultado que já existia.
+
+   Daqui a tela pergunta de poucos em poucos segundos. É um endereço
+   separado, e não um F5 automático, por dois motivos: a resposta é de um
+   quilobyte em vez de uma página inteira, e assim a contagem de cartas do
+   adversário anda na tela sem recarregar nada.
+
+   ELE TAMBÉM RODA A PARTIDA, quando os dois lados estão prontos. Sem
+   isso, dois GMs esperando ao mesmo tempo esperariam pra sempre: cada um
+   fechou o seu e ninguém mais abriu a página pra disparar o jogo. */
+if (isset($_GET['estado'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+
+    if ($duelo && (int)$duelo['pronto_criador'] && (int)$duelo['pronto_desafiado']) {
+        $duelo = dfdRodarSeDerPra($pdo, $duelo);
+        if ($duelo['status'] === 'concluido') { $dueloFim = $duelo; $duelo = null; }
+    }
+
+    $conta = static function (?array $draft): int {
+        if (!$draft || empty($draft['time'])) return 0;
+        $n = 0;
+        foreach ($draft['time'] as $c) if ($c) $n++;
+        return $n;
+    };
+
+    /* RECARREGAR quer dizer "mudou de assunto": acabou, alguém entrou,
+       alguém saiu. A tela de espera não sabe desenhar nada disso, então
+       ela sai de cena e a página volta inteira, já no estado novo.
+
+       A COMPARAÇÃO É COM A FASE QUE A TELA ESTÁ MOSTRANDO, que ela manda no
+       endereço. Sem isso, quem abriu o duelo e esperava adversário ficava
+       preso na tela do código: alguém entrava, a resposta dizia "montando",
+       e a página continuava a mesma, porque "montando" sozinho não é
+       novidade — é novidade pra quem estava em "aguardando". */
+    $faseDaTela = (string)($_GET['fase'] ?? '');
+    $responder = static function (string $fase, array $extra = []) use ($faseDaTela) {
+        echo json_encode(array_merge(
+            ['fase' => $fase, 'recarregar' => $faseDaTela !== '' && $faseDaTela !== $fase],
+            $extra
+        ), JSON_UNESCAPED_UNICODE);
+        exit;
+    };
+
+    if ($dueloFim) $responder('fim', ['recarregar' => true]);
+    if (!$duelo)   $responder('nenhum', ['recarregar' => true]);
+    if ($duelo['id_desafiado'] === null) $responder('aguardando');
+
+    $meuLadoE   = dfdLado($duelo, $user_id);
+    $outroLadoE = $meuLadoE === 'criador' ? 'desafiado' : 'criador';
+    $euProntoE  = (int)$duelo['pronto_' . $meuLadoE] === 1;
+    $eleProntoE = (int)$duelo['pronto_' . $outroLadoE] === 1;
+    $responder('montando', [
+        'total'     => DFUT_TOTAL,
+        'eu'        => $euProntoE  ? DFUT_TOTAL : $conta(dfdLerDraft($duelo, $meuLadoE)),
+        'ele'       => $eleProntoE ? DFUT_TOTAL : $conta(dfdLerDraft($duelo, $outroLadoE)),
+        'euPronto'  => $euProntoE,
+        'elePronto' => $eleProntoE,
+        'eleNome'   => (string)($duelo['nome_' . $outroLadoE] ?: 'Adversário'),
+    ]);
+}
+
 /* Qual tela o GM pediu: o salão, o modo bot ou o multiplayer. */
 $vista = (string)($_GET['v'] ?? $_POST['v'] ?? '');
+
+/* ── O LINK ENTRA SOZINHO ─────────────────────────────────────────
+   Pedido do Marcos (09/10/2026): "tem como fazer pra ao abrir o codigo ja
+   entrar". Antes o link abria a tela com o código posto e pedia um clique
+   em Entrar. Um clique a mais pra fazer o que a pessoa já tinha decidido
+   quando clicou no link.
+
+   ISTO COBRA A APOSTA NUM GET, e isso merece cuidado. As travas:
+     · só com sessão — o robô de preview do WhatsApp não tem, e por isso
+       nunca entra no duelo de ninguém ao gerar a miniatura do link;
+     · quem já está num duelo não é mexido;
+     · sem saldo, nada acontece e a tela explica;
+     · abrir o mesmo link duas vezes não cobra duas vezes — a tranca é o
+       UPDATE com `id_desafiado IS NULL`, a mesma de sempre;
+     · e, se foi clique sem querer, dá pra sair com a aposta de volta
+       enquanto nenhuma carta foi aberta (@see dfdSairSemCusto).
+   Sem essa última, um link circulando no grupo viraria moeda perdida por
+   curiosidade.
+
+   E TERMINA EM REDIRECT, não desenhando a tela aqui mesmo. Dois motivos, e
+   os dois apareceram no teste: o recado ("você entrou") é lido de `?m=` mais
+   abaixo e seria sobrescrito por null se eu só atribuísse a variável; e o
+   `cod` precisa sair do endereço, senão ele fica no histórico e volta a cada
+   F5 muito depois do duelo ter acabado. */
+$codDoLink = strtoupper(preg_replace('/[^A-Za-z0-9]/', '',
+                        (string)($_GET['cod'] ?? '')));
+if ($codDoLink !== '' && !$duelo && !$dueloFim
+        && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $alvo = dfdPorCodigo($pdo, $codDoLink);
+
+    /* O LINK EXPLICA O QUE DEU ERRADO. Sem isto, quem clicava num link velho
+       caía no salão com o código escrito no campo e nenhuma pista do motivo —
+       tinha que clicar em Entrar pra o sistema contar que a sala estava cheia.
+       O duelo tem lugar pra dois: o terceiro precisa ouvir isso de cara. */
+    if (!$alvo) {
+        header('Location: /games/games/draftfut.php?v=multi&e='
+               . urlencode('Não achei duelo com o código ' . $codDoLink . '.'));
+        exit;
+    }
+    if ($alvo['id_desafiado'] !== null && (int)$alvo['id_criador'] !== $user_id) {
+        header('Location: /games/games/draftfut.php?v=multi&e='
+               . urlencode('Esse duelo já tem adversário — o link chegou tarde.'));
+        exit;
+    }
+
+    if ($alvo['id_desafiado'] === null
+            && (int)$alvo['id_criador'] !== $user_id) {
+        if (dfMoedas($pdo, $user_id) < (int)$alvo['aposta']) {
+            header('Location: /games/games/draftfut.php?v=multi&e='
+                   . urlencode('O duelo é por ' . (int)$alvo['aposta']
+                               . ' moedas e você não tem.'));
+            exit;
+        }
+        if ($novo = dfdEntrarNoConvite($pdo, $alvo, $user_id, true)) {
+            header('Location: /games/games/draftfut.php?m='
+                   . urlencode('Você entrou no duelo por ' . (int)$novo['aposta']
+                               . ' moedas. Monte o seu time.'));
+            exit;
+        }
+    }
+}
 
 /* O NOME DO TIME VEM DA FRANQUIA DO GM ("Las Vegas Coyotes"), não de um campo
    pra digitar. Digitar o nome do próprio time a cada draft é trabalho sem
@@ -273,6 +402,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             $pdo->rollBack();
             $erro = 'Não consegui recusar. Recarregue a página.';
+        }
+    }
+
+    /* SAIR DE UM DUELO QUE NÃO COMEÇOU. É o par da entrada automática:
+       quem abriu o link sem querer sai com a aposta de volta, e o outro
+       recebe a dele também — não houve partida pra ninguém ganhar.
+       @see dfdSairSemCusto */
+    if ($acao === 'duelo_sair' && $duelo) {
+        if (dfdSairSemCusto($pdo, $duelo, $user_id)) {
+            $duelo = null; $d = null;
+            $msg = 'Você saiu do duelo e a aposta voltou — pros dois.';
+        } else {
+            $erro = 'Esse duelo já começou: agora só desistindo.';
         }
     }
 
@@ -645,6 +787,10 @@ a{color:inherit}
 .duelo-fim .df-rot{font-family:'Oswald',sans-serif;font-size:17px;letter-spacing:.5px}
 .duelo-fim .df-placar{font-family:'Oswald',sans-serif;font-size:46px;line-height:1}
 .duelo-fim .df-placar i{color:var(--txt3);font-style:normal;font-size:28px}
+/* O "x nos pênaltis" fica logo embaixo do placar grande, menor que ele: o
+   que aconteceu em campo é o título, o desempate é a legenda. */
+.duelo-fim .df-pen{font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.5px;
+  color:var(--amarelo);margin-top:-2px}
 .duelo-fim .df-times{color:var(--txt2);font-size:13px;text-align:center}
 .duelo-fim .df-times i{color:var(--txt3);font-style:normal}
 .duelo-fim .df-premio{margin-top:3px;font-weight:700;font-size:13px;color:var(--amarelo)}
@@ -862,6 +1008,14 @@ a{color:inherit}
   margin-top:7px;overflow:hidden}
 .dbarra i{display:block;height:100%;background:var(--amarelo);border-radius:3px;
   transition:width .3s}
+/* O AVISO DE QUE A TELA ESTÁ VIVA. Discreto e com a setinha girando devagar:
+   ele existe pra quem está esperando saber que não precisa dar F5, e não pra
+   chamar atenção pra si. */
+.dpulso{display:flex;align-items:center;gap:6px;justify-content:center;
+  font-size:11.5px;color:var(--txt3)}
+.dpulso i{animation:dgira 2.4s linear infinite}
+@keyframes dgira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.dpulso i{animation:none}}
 .escalacoes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .esc-lado{background:var(--panel2);border:1px solid var(--borda);border-radius:13px;padding:12px}
 .esc-topo{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
@@ -976,6 +1130,16 @@ a{color:inherit}
 .relogio{text-align:center;font-family:'Oswald',sans-serif;font-size:14px;color:var(--txt3);
   letter-spacing:1px;margin-bottom:10px}
 .lance.intervalo{border-left-color:var(--amarelo);background:rgba(245,197,24,.08);font-weight:700}
+
+/* ── A DISPUTA DE PÊNALTIS ─────────────────────────────────────────
+   Mesma régua de cor do resto da narração: verde é gol, vermelho é o que
+   dói. O erro ganha fundo porque numa disputa o pênalti perdido é o lance
+   importante — é ele que decide, não a cobrança convertida. */
+.lance.apito{border-left-color:var(--amarelo);font-weight:700}
+.lance.penaltis{border-left-color:var(--amarelo);background:rgba(245,197,24,.12);
+  font-weight:700;letter-spacing:.3px}
+.lance.pen_gol{border-left-color:var(--verde);font-weight:700}
+.lance.pen_erro{border-left-color:var(--vermelho);background:rgba(239,68,68,.1);font-weight:700}
 @media (max-width:620px){
   .campo{max-height:none}
   .slot{width:56px}

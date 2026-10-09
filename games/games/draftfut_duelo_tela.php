@@ -56,6 +56,18 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
     <div class="duelo-fim <?= $venci ? 'ganhou' : ($empatou ? 'empatou' : 'perdeu') ?>">
       <span class="df-rot"><?= $venci ? 'Você ganhou o duelo' : ($empatou ? 'Empate' : 'Você perdeu o duelo') ?></span>
       <span class="df-placar"><?= $meusGols ?> <i>x</i> <?= $deleGols ?></span>
+      <?php /* ── DECIDIU NOS PÊNALTIS ────────────────────────────────
+           O placar grande continua sendo o do tempo normal, porque foi ele
+           que aconteceu em campo: 1x1 nos pênaltis é 1x1. Quem decidiu vem
+           escrito embaixo, senão o quadro diz "Você ganhou o duelo 1 x 1" e
+           não explica como. */
+        $dfPen = (is_array($p ?? null) && !empty($p['penaltis'])) ? $p['penaltis'] : null;
+        if ($dfPen):
+          /* O motor joga com o criador em casa; a vista é de quem olha. */
+          $meusPen = $souCriador ? (int)$dfPen[0] : (int)$dfPen[1];
+          $delePen = $souCriador ? (int)$dfPen[1] : (int)$dfPen[0]; ?>
+        <span class="df-pen"><?= $meusPen ?> x <?= $delePen ?> nos pênaltis</span>
+      <?php endif; ?>
       <span class="df-times"><?= e($meuNome) ?> <i>contra</i> <?= e($eleNome) ?></span>
       <span class="df-premio">
         <?php if ($venci): ?>
@@ -125,9 +137,9 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
   <?php
   /* O LINK QUE JÁ CAI NO DUELO CERTO. Ditar seis letras no grupo funciona,
      mas mandar um link funciona melhor — e o código continua aí pra quem
-     prefere. O link NÃO entra sozinho: ele abre a tela com o código posto e
-     o adversário confirma, porque entrar custa a aposta e ninguém pode ser
-     cobrado por ter clicado num link. */
+     prefere. Desde 09/10/2026 o link ENTRA SOZINHO: quem abre já está no
+     duelo, com a aposta debitada, e pode sair sem custo enquanto nenhuma
+     carta foi aberta (@see draftfut.php, "O LINK ENTRA SOZINHO"). */
   $dlEsquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
   $dlHost    = (string)($_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br');
   $dlLink    = $dlEsquema . '://' . $dlHost . '/games/games/draftfut.php?v=multi&cod='
@@ -192,7 +204,7 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
         <?php endif; ?>
       </div>
       <span class="dvs">x</span>
-      <div class="dlado <?= $elePronto ? 'ok' : '' ?>">
+      <div class="dlado <?= $elePronto ? 'ok' : '' ?>" id="dueloEle">
         <b><?= e($eleNome) ?></b>
         <small><?= $elePronto ? 'pronto' : $eleFeito . ' de ' . DFUT_TOTAL . ' cartas' ?></small>
         <?php if (!$elePronto): ?>
@@ -216,6 +228,91 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
          <b><?= $dlFaltam($eleFeito) ?></b> cartas pra ele e
          <b><?= $dlFaltam($meuFeito) ?></b> pra você.</p>
     <?php endif; ?>
+    <p class="sub dpulso" id="dueloPulso" style="margin:10px 0 0;display:none">
+      <i class="bi bi-arrow-repeat"></i> acompanhando o adversário…</p>
   </div>
 
+<?php endif; ?>
+
+<?php if ($dl['status'] !== 'concluido'): ?>
+<script>
+/* ── A ESPERA DEIXA DE SER UMA FOTO ──────────────────────────────────
+   O Vinícius fechou o time, ficou na tela e nunca viu o jogo: a partida
+   roda quando alguém carrega a página, e ele não carregava mais nada.
+   Agora a tela pergunta de cinco em cinco segundos.
+
+   A CONTAGEM ANDA SEM RECARREGAR, e a página só volta inteira quando o
+   assunto muda de verdade (a partida saiu, alguém entrou, alguém saiu) —
+   recarregar a cada cinco segundos tiraria o texto de baixo do dedo de
+   quem está lendo, e no celular tiraria a rolagem do lugar.
+
+   O intervalo PARA quando a aba sai de foco: ninguém precisa de atualização
+   de uma tela que não está sendo vista, e deixar rodando é bateria do
+   celular de graça. Ao voltar, pergunta na hora. */
+(function () {
+  /* A TELA DIZ EM QUE FASE ELA FOI DESENHADA. Sem isso, o criador que
+     esperava adversário ficava preso: alguém entrava, o servidor
+     respondia "montando" e a tela do código continuava na frente, sem
+     nada pra mostrar que o duelo já tinha dois. */
+  const url = '?estado=1&v=multi&fase=<?= $dl['id_desafiado'] === null ? 'aguardando' : 'montando' ?>';
+  const pulso = document.getElementById('dueloPulso');
+  const alvoEle = document.getElementById('dueloEle');
+  let timer = null, parado = false;
+
+  if (pulso) pulso.style.display = '';
+
+  async function olhar() {
+    if (parado) return;
+    let j;
+    try {
+      const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+      if (!r.ok) return;
+      j = await r.json();
+    } catch (e) {
+      /* Internet oscilou: não faz nada e tenta no próximo. Avisar de
+         falha de rede numa tela de espera só assusta. */
+      return;
+    }
+    if (!j) return;
+
+    if (j.recarregar) {
+      parado = true;
+      clearInterval(timer);
+      /* O aviso diz o que mudou. "A partida saiu" num duelo em que alguém
+         só acabou de entrar seria mentira de meio segundo, mas mentira. */
+      const recado = j.fase === 'fim' ? 'a partida saiu, abrindo…'
+                   : (j.fase === 'montando' ? 'seu adversário entrou!'
+                   : 'o duelo mudou, abrindo…');
+      if (pulso) pulso.innerHTML = '<i class="bi bi-hourglass-split"></i> ' + recado;
+      /* Sem o cod na volta: ele já cumpriu o papel e ficaria no endereço
+         pra sempre, reaparecendo em cada F5 depois do duelo. */
+      window.location.replace('draftfut.php?v=multi');
+      return;
+    }
+
+    if (j.fase === 'montando' && alvoEle) {
+      const feito = Number(j.ele) || 0, total = Number(j.total) || 19;
+      alvoEle.querySelector('small').textContent = j.elePronto
+        ? 'pronto' : feito + ' de ' + total + ' cartas';
+      const barra = alvoEle.querySelector('.dbarra');
+      if (j.elePronto) {
+        /* Time fechado não tem mais o que encher: a barra sai, como sai na
+           versão que o PHP desenha (ela só existe enquanto falta carta). */
+        alvoEle.classList.add('ok');
+        if (barra) barra.remove();
+      } else if (barra) {
+        const i = barra.querySelector('i');
+        if (i) i.style.width = Math.round(feito / total * 100) + '%';
+      }
+    }
+  }
+
+  function ligar() { clearInterval(timer); timer = setInterval(olhar, 5000); }
+  ligar();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInterval(timer); }
+    else if (!parado) { olhar(); ligar(); }
+  });
+})();
+</script>
 <?php endif; ?>

@@ -108,11 +108,15 @@ if (!isset($r, $p) || empty($p['lances'])) return;
     const d = document.createElement('div');
     d.className = 'lance ' + l.tipo;
     if (!animar) d.classList.add('pronto');
-    d.innerHTML = `<span class="m">${l.min}'</span><span>${l.texto}</span>`;
+    /* NA DISPUTA O RELÓGIO NÃO ANDA MAIS. Repetir 90' em quinze linhas
+       seguidas faria parecer que a narração travou; PÊN diz o que é. */
+    const naPena = l.tipo === 'pen_gol' || l.tipo === 'pen_erro';
+    d.innerHTML = `<span class="m">${naPena ? 'PÊN' : l.min + "'"}</span><span>${l.texto}</span>`;
     alvo.appendChild(d);
     alvo.scrollTop = alvo.scrollHeight;
 
-    elRel.textContent = l.min + "'";
+    if (l.tipo === 'penaltis') elRel.textContent = 'PÊNALTIS';
+    else if (!naPena) elRel.textContent = l.min + "'";
     if (l.casa !== undefined) {
       const virou = elGc.textContent != l.casa || elGf.textContent != l.fora;
       elGc.textContent = l.casa; elGf.textContent = l.fora;

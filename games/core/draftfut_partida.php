@@ -51,9 +51,13 @@ const DFUTP_LANCES  = 18;
  * @param array $casa ['nome'=>, 'formacao'=>, 'time'=>[11 cartas], 'forca'=>]
  * @param array $fora idem
  * @param int   $semente  mesma semente, mesma partida
- * @return array ['placar'=>[a,b], 'lances'=>[...], 'estat'=>[...]]
+ * @param bool  $desempatar no duelo não existe empate: empatou, vai pros
+ *        pênaltis. Contra o bot fica false, porque lá o empate tem prêmio
+ *        próprio. @see draftFutPenaltis
+ * @return array ['placar'=>[a,b], 'lances'=>[...], 'estat'=>[...], 'penaltis'=>]
  */
-function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = null): array
+function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = null,
+                         bool $desempatar = false): array
 {
     mt_srand($semente);
 
@@ -153,7 +157,38 @@ function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = n
     $estat['posse'] = [(int)round(100 * $estat['posse'][0] / $tp),
                        100 - (int)round(100 * $estat['posse'][0] / $tp)];
 
-    return ['placar' => $gols, 'lances' => $lances, 'estat' => $estat, 'semente' => $semente];
+    /* ── NO DUELO NÃO EXISTE EMPATE ───────────────────────────────
+       Pedido do Marcos (09/10/2026), vendo um 1x1 ao vivo: "isso nunca é
+       empate, vou ter que criar os pênaltis". E empate não era raro: dos
+       seis duelos concluídos até ali, QUATRO terminaram iguais — a escala
+       de força é estreita e os times saem parecidos, então o 1x1 é o
+       resultado mais provável, não o azar.
+
+       Contra o bot o empate continua existindo: lá ele tem prêmio próprio
+       (DF_EMPATE) e serve de consolo. Aqui tem aposta dos dois lados e
+       alguém precisa levar.
+
+       Os pênaltis entram como lances normais da narração, então o relógio
+       da tela os mostra um a um, como o resto do jogo. */
+    $penaltis = null;
+    if ($desempatar && $gols[0] === $gols[1]) {
+        /* O APITO DOS 90' DEIXA DE SER O FIM. A narração abre o prêmio e os
+           botões no lance de tipo 'fim' — com a disputa vindo depois, o
+           resultado apareceria antes da primeira cobrança, que é o mesmo
+           defeito que o Marcos já tinha apontado no placar adiantado. */
+        $lances[count($lances) - 1]['tipo'] = 'apito';
+        $lances[count($lances) - 1]['texto'] = 'Fim do tempo normal: '
+                . $gols[0] . ' a ' . $gols[1] . '.';
+
+        [$penaltis, $lancesPen] = draftFutPenaltis($casa, $fora, $pesoCasa);
+        foreach ($lancesPen as $l) $lances[] = $l;
+        /* O placar do tempo normal NÃO muda: 1x1 nos pênaltis continua 1x1,
+           e quem decide o vencedor é `penaltis`. Somar as cobranças no
+           placar faria a narração contar uma partida que não aconteceu. */
+    }
+
+    return ['placar' => $gols, 'lances' => $lances, 'estat' => $estat,
+            'penaltis' => $penaltis, 'semente' => $semente];
 }
 
 /**
@@ -224,6 +259,138 @@ function draftFutTextoLance(string $a, string $time): string
           "{$a} arranca pela ponta e cruza na área.",
           "Falta perigosa pro {$time}. {$a} na cobrança.",
           "{$a} tenta o lançamento, mas a defesa corta."];
+    return $t[mt_rand(0, count($t) - 1)];
+}
+
+/**
+ * A DISPUTA DE PÊNALTIS.
+ *
+ * Cinco cobranças pra cada, e morte súbita se continuar igual. A ordem é
+ * alternada de verdade (casa, fora, casa, fora...) porque é assim que a
+ * tensão sobe: o segundo a bater sempre cobra sabendo o que o outro fez.
+ *
+ * PARA QUANDO JÁ ESTÁ DECIDIDO. Com 3x0 depois de três cobranças, as duas
+ * últimas de cada lado não são batidas — é a regra do futebol, e sem ela a
+ * narração seguiria cobrando pênalti de uma disputa que acabou.
+ *
+ * A força pesa pouco de propósito: `$pesoCasa` move a chance entre 68% e
+ * 82%, que é a faixa real de conversão. Pênalti é onde o time pior tem a
+ * melhor chance da partida, e é isso que faz valer a pena assistir.
+ *
+ * @return array [[gols casa, gols fora], lances]
+ */
+function draftFutPenaltis(array $casa, array $fora, float $pesoCasa): array
+{
+    $nomes = [(string)($casa['nome'] ?? 'Casa'), (string)($fora['nome'] ?? 'Fora')];
+
+    /* ── A ORDEM DOS BATEDORES ────────────────────────────────────────
+       Quem bate primeiro é quem o técnico mandaria: atacante na frente,
+       goleiro no fim da fila. Na primeira versão a ordem era a das vagas da
+       formação, e a vaga 1 é o GOLEIRO — a disputa abria com o goleiro
+       cobrando, que é o último recurso do futebol de verdade, não o primeiro.
+
+       Faltando gente, a fila repete: um time incompleto não trava a disputa. */
+    $ordem = ['ATA' => 1, 'PON' => 2, 'MEI' => 3, 'VOL' => 4, 'LAT' => 5, 'ZAG' => 6, 'GOL' => 9];
+    $batedores = [[], []];
+    foreach ([0 => $casa, 1 => $fora] as $i => $t) {
+        $fila = [];
+        for ($v = 0; $v < DFUT_VAGAS; $v++) {
+            $c = $t['time'][$v] ?? null;
+            if (!$c) continue;
+            $fila[] = [$ordem[$c['pos']] ?? 7, -(int)($c['ovr'] ?? 0), $v, (string)$c['nome']];
+        }
+        sort($fila);
+        foreach ($fila as $x) $batedores[$i][] = $x[3];
+        if (!$batedores[$i]) $batedores[$i] = [$nomes[$i]];
+    }
+
+    $pen = [0, 0];
+    $batidas = [0, 0];
+    $lances = [['min' => DFUTP_MINUTOS, 'tipo' => 'penaltis', 'lado' => -1,
+                'texto' => 'Empate no tempo normal. Vamos pros pênaltis!']];
+
+    /* A força pesa pouco: a conversão anda entre 68% e 82%. */
+    $chance = [0.68 + 0.14 * $pesoCasa, 0.68 + 0.14 * (1 - $pesoCasa)];
+
+    /** Uma cobrança: sorteia, soma e narra. O placar da disputa vai no texto
+     *  JÁ ATUALIZADO, e por isso ela narra na hora em que acontece — guardar
+     *  as duas cobranças de uma rodada pra narrar depois fazia o número ao
+     *  lado da cobrança perdida já mostrar o gol que ainda não tinha saído. */
+    $cobrar = function (int $lado) use (&$pen, &$batidas, &$lances, $batedores, $chance, $nomes) {
+        $fila = $batedores[$lado];
+        $quem = $fila[$batidas[$lado] % count($fila)];
+        $marcou = (mt_rand(1, 1000) / 1000) <= $chance[$lado];
+        $batidas[$lado]++;
+        if ($marcou) $pen[$lado]++;
+        $lances[] = [
+            'min'   => DFUTP_MINUTOS,
+            'tipo'  => $marcou ? 'pen_gol' : 'pen_erro',
+            'lado'  => $lado,
+            'texto' => draftFutTextoPenalti($quem, $marcou)
+                     . '  (' . $pen[0] . '-' . $pen[1] . ')',
+        ];
+    };
+
+    /** PARA QUANDO JÁ ESTÁ DECIDIDO: com 3x0 em três cobranças, as duas
+     *  últimas não são batidas. É a regra do futebol, e sem ela a narração
+     *  segue cobrando pênalti de uma disputa que acabou. */
+    $decidido = function () use (&$pen, &$batidas) {
+        $faltam = [max(0, 5 - $batidas[0]), max(0, 5 - $batidas[1])];
+        return $pen[0] > $pen[1] + $faltam[1] || $pen[1] > $pen[0] + $faltam[0];
+    };
+
+    for ($serie = 0; $serie < 5; $serie++) {
+        for ($lado = 0; $lado < 2; $lado++) {
+            if ($decidido()) break 2;
+            $cobrar($lado);
+        }
+    }
+
+    /* MORTE SÚBITA: um de cada, até alguém falhar sozinho. O teto existe
+       porque isto roda num laço e um empate eterno travaria a página. */
+    for ($extra = 0; $pen[0] === $pen[1] && $extra < 15; $extra++) {
+        $cobrar(0);
+        $cobrar(1);
+    }
+
+    /* Teto estourado com tudo igual — 15 rodadas de morte súbita, que não
+       deve acontecer nunca. Decide a moeda, porque devolver empate aqui seria
+       devolver pro duelo exatamente o que ele não aceita. */
+    if ($pen[0] === $pen[1]) $pen[mt_rand(0, 1)]++;
+
+    $vence = $pen[0] > $pen[1] ? 0 : 1;
+    $lances[] = ['min' => DFUTP_MINUTOS, 'tipo' => 'fim', 'lado' => -1,
+                 'texto' => $nomes[$vence] . ' vence nos pênaltis por '
+                           . max($pen) . ' a ' . min($pen) . '.',
+                 'placar' => $pen[0] . 'x' . $pen[1]];
+
+    return [$pen, $lances];
+}
+
+/** O texto de uma cobrança. */
+function draftFutTextoPenalti(string $quem, bool $marcou): string
+{
+    /* NOVE E OITO, não quatro e quatro. Uma disputa tem catorze cobranças
+       fáceis, e com quatro frases a mesma aparecia três vezes na mesma tela —
+       exatamente o que o comentário dos textos da partida já avisava. */
+    $gol = ["{$quem} bate no canto e marca!",
+            "{$quem} desloca o goleiro: GOL!",
+            "{$quem} cobra com categoria e converte.",
+            "{$quem} manda no meio e o goleiro já tinha caído. Gol.",
+            "{$quem} escolhe o canto esquerdo e não dá chance. Gol.",
+            "Frieza de {$quem}: espera o goleiro cair e toca do outro lado.",
+            "{$quem} bate forte, sem olhar pro goleiro. No fundo da rede!",
+            "{$quem} pega firme e a bola entra no ângulo. Gol!",
+            "{$quem} cobra no alto, perto da trave. Gol, sem defesa possível."];
+    $erro = ["{$quem} bate mal e o goleiro defende!",
+             "{$quem} manda na trave! Perdeu.",
+             "{$quem} isola por cima do gol.",
+             "O goleiro adivinha o canto e pega a de {$quem}!",
+             "{$quem} bate fraco e o goleiro segura no meio do gol!",
+             "Que defesa! {$quem} caprichou e o goleiro espalmou.",
+             "{$quem} manda no travessão. A bola sobe pra fora!",
+             "{$quem} escorrega na hora da batida e manda longe."];
+    $t = $marcou ? $gol : $erro;
     return $t[mt_rand(0, count($t) - 1)];
 }
 

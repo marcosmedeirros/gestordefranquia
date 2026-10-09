@@ -242,11 +242,25 @@ function dfdRodarSeDerPra(PDO $pdo, array $duelo): array
     $fora = ['nome' => (string)($duelo['nome_desafiado'] ?: 'Desafiado'),
              'formacao' => $dd['formacao'], 'time' => $dd['time'],
              'forca' => (int)$duelo['forca_desafiado']];
-    /* Mando zero: entre dois GMs não há casa. @see draftFutPartida */
-    $p = draftFutPartida($casa, $fora, $semente, 0);
+    /* Mando zero: entre dois GMs não há casa. E desempate ligado: aqui
+       os dois apostaram, então alguém tem que levar. @see draftFutPartida */
+    $p = draftFutPartida($casa, $fora, $semente, 0, true);
 
     [$gc, $gf] = $p['placar'];
-    $venc = $gc > $gf ? (int)$duelo['id_criador'] : ($gf > $gc ? (int)$duelo['id_desafiado'] : null);
+
+    /* QUEM GANHOU. O placar decide quando há placar; igual, decide a
+       disputa de pênaltis, que o motor já rodou e devolveu em 'penaltis'.
+       O `null` continua possível no código — se um dia o desempate for
+       desligado, o pagamento dividido abaixo ainda está certo — mas com
+       `desempatar = true` ele não acontece. */
+    $pen = $p['penaltis'] ?? null;
+    if ($gc !== $gf) {
+        $venc = $gc > $gf ? (int)$duelo['id_criador'] : (int)$duelo['id_desafiado'];
+    } elseif ($pen && $pen[0] !== $pen[1]) {
+        $venc = $pen[0] > $pen[1] ? (int)$duelo['id_criador'] : (int)$duelo['id_desafiado'];
+    } else {
+        $venc = null;
+    }
 
     $pdo->beginTransaction();
     try {
@@ -315,6 +329,70 @@ function dfdCancelar(PDO $pdo, array $duelo, int $uid): bool
  * Quem já fechou o próprio time não desiste: a partida sai sozinha quando o
  * outro terminar, e deixar sair seria desfazer um time já entregue.
  */
+/**
+ * O DUELO AINDA NÃO COMEÇOU PRA NINGUÉM?
+ *
+ * Começou quando alguém abriu a primeira carta. Antes disso não houve
+ * jogo: os dois pagaram e nenhum dos dois viu nada.
+ *
+ * Isto existe por causa do link que entra sozinho (09/10/2026). Antes era
+ * preciso clicar em "Entrar" pra pagar a aposta, e quem clicava sabia o que
+ * estava fazendo. Agora basta abrir o link — e um link circula em grupo,
+ * é clicado por curiosidade e às vezes é aberto pela pessoa errada. Sem uma
+ * saída limpa, isso vira 500 moedas perdidas num toque.
+ *
+ * Depois da primeira carta a saída volta a custar: aí já houve partida
+ * começando, e desistir é abandonar alguém que estava jogando.
+ */
+function dfdDueloVirgem(array $duelo): bool
+{
+    if ($duelo['status'] === 'concluido') return false;
+    foreach (['criador', 'desafiado'] as $lado) {
+        if ((int)($duelo['pronto_' . $lado] ?? 0)) return false;
+        $d = dfdLerDraft($duelo, $lado);
+        if (!$d) continue;
+        foreach (($d['time'] ?? []) as $c) if ($c) return false;
+    }
+    return true;
+}
+
+/**
+ * SAIR DE UM DUELO QUE NÃO COMEÇOU, com a aposta de volta pros dois.
+ *
+ * Não é desistência: ninguém abriu carta, então não há partida pra abandonar
+ * nem vencedor pra premiar. O duelo simplesmente deixa de existir, e quem
+ * criou pode abrir outro. @see dfdDueloVirgem
+ *
+ * @return bool false quando o duelo já começou — aí é dfdDesistir
+ */
+function dfdSairSemCusto(PDO $pdo, array $duelo, int $uid): bool
+{
+    if (dfdLado($duelo, $uid) === '') return false;
+    if (!dfdDueloVirgem($duelo)) return false;
+
+    $pdo->beginTransaction();
+    try {
+        /* A mesma tranca de sempre: só devolve quem conseguiu apagar a
+           linha. Dois cliques no mesmo instante não devolvem em dobro. */
+        $up = $pdo->prepare("DELETE FROM draftfut_duelos
+                              WHERE id = ? AND status <> 'concluido'");
+        $up->execute([(int)$duelo['id']]);
+        if ($up->rowCount() !== 1) { $pdo->rollBack(); return false; }
+
+        $aposta = (int)$duelo['aposta'];
+        dfMoedasMexer($pdo, (int)$duelo['id_criador'], $aposta);
+        if (!empty($duelo['id_desafiado'])) {
+            dfMoedasMexer($pdo, (int)$duelo['id_desafiado'], $aposta);
+        }
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[draftfut-duelo] sair sem custo: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function dfdDesistir(PDO $pdo, array $duelo, int $uid): bool
 {
     if ($duelo['status'] === 'concluido') return false;
@@ -423,7 +501,12 @@ function dfdRevanche(PDO $pdo, array $anterior, int $uid): ?array
  * cliques ao mesmo tempo (o botão e a página recarregando, por exemplo) não
  * podem virar duas cobranças.
  */
-function dfdEntrarNoConvite(PDO $pdo, array $convite, int $uid): ?array
+/**
+ * @param bool $porLink true quando veio do link do duelo, e não de um
+ *        convite de revanche nominal. A diferença é a trava: o convite é
+ *        endereçado (`convidado = eu`), o link é pra quem chegar primeiro.
+ */
+function dfdEntrarNoConvite(PDO $pdo, array $convite, int $uid, bool $porLink = false): ?array
 {
     $aposta = (int)$convite['aposta'];
     if (dfMoedas($pdo, $uid) < $aposta) return null;
@@ -431,10 +514,16 @@ function dfdEntrarNoConvite(PDO $pdo, array $convite, int $uid): ?array
 
     $pdo->beginTransaction();
     try {
+        /* A TRANCA É O `id_desafiado IS NULL`: quem conseguir mudar a linha
+           é quem paga, e o segundo a chegar sai sem efeito e sem cobrança.
+           Isso é o que faz abrir o link duas vezes não cobrar duas. */
+        $cond = $porLink ? '' : ' AND convidado = ?';
+        $args = [$uid, (int)$convite['id']];
+        if (!$porLink) $args[] = $uid;
         $up = $pdo->prepare("UPDATE draftfut_duelos
                                 SET id_desafiado = ?, status = 'montando', entrou_em = NOW()
-                              WHERE id = ? AND id_desafiado IS NULL AND convidado = ?");
-        $up->execute([$uid, (int)$convite['id'], $uid]);
+                              WHERE id = ? AND id_desafiado IS NULL{$cond}");
+        $up->execute($args);
         if ($up->rowCount() !== 1) { $pdo->rollBack(); return null; }
         dfMoedasMexer($pdo, $uid, -$aposta);
         $pdo->commit();
