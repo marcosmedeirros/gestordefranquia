@@ -510,6 +510,48 @@ function capAwardBonusTable(): array
 }
 
 /**
+ * ── O PRÊMIO MAIOR ABSORVE O MENOR ───────────────────────────────────
+ *
+ * Avisado pelo Lennon no gameplay e no chat off, e confirmado pelo Marcos em
+ * 09/10/2026: "o MVP não recebe bônus de All-NBA, pq o mvp já é All-NBA.
+ * Assim como o DPOY não recebe bônus de All-Defense".
+ *
+ * É a regra da liga e faz sentido na folha: quem foi MVP foi All-NBA por
+ * consequência, e somar os dois cobraria duas vezes pelo mesmo fato. O
+ * motor somava tudo — um MVP que também fosse All-NBA 1º time custava
+ * 5 + 3 = 8M a mais, quando devia custar 5M.
+ *
+ * Fica o MAIOR, e não o primeiro que aparece: na tabela de hoje o MVP (5)
+ * sempre vale mais que qualquer All-NBA (3/2/1) e o DPOY (3) mais que
+ * qualquer All-Defensivo (2/1), mas amarrar a regra a essa coincidência
+ * faria mexer num número virar um bug silencioso noutro lugar.
+ *
+ * @param array $tipos os award_type que o jogador ganhou na temporada
+ * @return array os award_type que ainda valem bônus
+ */
+function capAwardBonusesQueValem(array $tipos): array
+{
+    /* Cada par: quem absorve => quem é absorvido. */
+    $absorve = [
+        'mvp'  => ['all_nba_1', 'all_nba_2', 'all_nba_3'],
+        'dpoy' => ['all_def_1', 'all_def_2'],
+    ];
+    $valores = capAwardBonusTable();
+
+    foreach ($absorve as $maior => $menores) {
+        if (!in_array($maior, $tipos, true)) continue;
+        foreach ($menores as $menor) {
+            if (!in_array($menor, $tipos, true)) continue;
+            /* Some o de menor valor. Empate fica com o absorvedor, que é o
+               prêmio que a liga anuncia. */
+            $fora = ($valores[$menor] ?? 0) > ($valores[$maior] ?? 0) ? $maior : $menor;
+            $tipos = array_values(array_filter($tipos, fn($t) => $t !== $fora));
+        }
+    }
+    return $tipos;
+}
+
+/**
  * Bônus de prêmio: vale só pela temporada seguinte à que o prêmio foi registrado,
  * depois some. Como nada é armazenado, isso é automático — a cada chamada,
  * olhamos só os prêmios da temporada imediatamente anterior à ativa.
@@ -570,12 +612,24 @@ function getAwardBonusesByPlayerName(PDO $pdo, string $league): array
         $bonusTable = capAwardBonusTable();
         $stmtAwards = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ?");
         $stmtAwards->execute([(int)$priorSeasonId]);
+
+        /* JUNTA OS PRÊMIOS DE CADA UM ANTES DE SOMAR. A regra de absorção
+           (@see capAwardBonusesQueValem) é sobre o conjunto do jogador, não
+           sobre cada linha: só dá pra saber que um All-NBA não conta depois
+           de saber que o mesmo homem foi MVP. */
+        $premiosPorJogador = [];
         foreach ($stmtAwards->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $bonus = $bonusTable[$row['award_type']] ?? 0;
-            if ($bonus <= 0) continue;
             $key = mb_strtolower(trim((string)$row['player_name']));
             if ($key === '') continue;
-            $bonuses[$key] = ($bonuses[$key] ?? 0) + $bonus;
+            $premiosPorJogador[$key][] = (string)$row['award_type'];
+        }
+
+        foreach ($premiosPorJogador as $key => $tipos) {
+            foreach (capAwardBonusesQueValem($tipos) as $tipo) {
+                $bonus = $bonusTable[$tipo] ?? 0;
+                if ($bonus <= 0) continue;
+                $bonuses[$key] = ($bonuses[$key] ?? 0) + $bonus;
+            }
         }
     } catch (Exception $e) {
         return $bonuses;
@@ -631,16 +685,27 @@ function getAwardBonusDetailsByPlayerName(PDO $pdo, string $league): array
         $rotulos = capAwardLabels();
         $st = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ?");
         $st->execute([(int)$seasonId]);
+        /* A TELA MOSTRA O QUE A FOLHA COBRA, e não a lista de troféus: um
+           All-NBA absorvido pelo MVP aqui faria a conta não fechar com o
+           total, e a pergunta "por que este custa 5M a mais" voltaria sem
+           resposta. @see capAwardBonusesQueValem */
+        $premiosPorJogador = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $valor = $valores[$row['award_type']] ?? 0;
-            if ($valor <= 0) continue;
             $key = mb_strtolower(trim((string)$row['player_name']));
             if ($key === '') continue;
-            $detalhes[$key][] = [
-                'type'  => $row['award_type'],
-                'label' => $rotulos[$row['award_type']] ?? strtoupper((string)$row['award_type']),
-                'value' => $valor,
-            ];
+            $premiosPorJogador[$key][] = (string)$row['award_type'];
+        }
+
+        foreach ($premiosPorJogador as $key => $tipos) {
+            foreach (capAwardBonusesQueValem($tipos) as $tipo) {
+                $valor = $valores[$tipo] ?? 0;
+                if ($valor <= 0) continue;
+                $detalhes[$key][] = [
+                    'type'  => $tipo,
+                    'label' => $rotulos[$tipo] ?? strtoupper($tipo),
+                    'value' => $valor,
+                ];
+            }
         }
     } catch (Exception $e) {
         return $detalhes;
