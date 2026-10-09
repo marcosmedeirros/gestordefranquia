@@ -166,7 +166,8 @@ function hoopsAbrirPacote(int $vaga, array $usados): array
     }
 
     /* A CHANCE DO NBB — pedido do Victor (09/10/2026): 25% a mais de vir pelo
-       menos um jogador do NBB em todo pacote. São só vinte cartas num baralho
+       menos um jogador do NBB em todo pacote — 25%, e depois 15%, porque com
+       25 o NBB vinha em quase um terço dos pacotes. São só vinte cartas num baralho
        de quase 1.300; sem o empurrão, um draft inteiro passava sem ver
        nenhuma. Se o pacote ainda não tem ninguém do NBB, a pior carta dá
        lugar a um deles — dos que jogam na vaga (no banco, qualquer um). */
@@ -187,7 +188,7 @@ function hoopsAbrirPacote(int $vaga, array $usados): array
 }
 
 /** A chance extra, em %, de um pacote trazer pelo menos um jogador do NBB. */
-const HOOPS_CHANCE_NBB = 25;
+const HOOPS_CHANCE_NBB = 15;
 
 // ════════════════════════════ A QUÍMICA ═════════════════════════════
 
