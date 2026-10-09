@@ -317,6 +317,63 @@ function herdarFilaDaRodada1(PDO $pdo, int $draftSessionId, bool $soVagasVazias 
 // nessa mesma passada). Pick sem mock, ou cujo jogador já foi levado, fica em aberto — o admin
 // preenche depois pelo "Preencher pick passada", igual já é feito hoje. No final, o draft é
 // marcado concluído (rodada 2 é sempre a última).
+/**
+ * ── FECHAR A 2ª RODADA ANTES DA HORA TEM PREÇO, E ELE PRECISA ESTAR À VISTA
+ *
+ * Aconteceu duas vezes. Na primeira (NEXT) alguém clicou em "Finalizar draft"
+ * faltando 12 minutos e as 29 preferências de 11 times foram ignoradas — daí
+ * o `force` passar a resolver em vez de só encerrar. Em 09/10/2026 aconteceu
+ * de novo na ELITE: o prazo era 15:01, alguém fechou às 14:46, e 18 das 32
+ * picks ficaram vazias. Dezesseis eram de times que ainda não tinham montado
+ * mock nenhum e tinham mais quinze minutos pra isso.
+ *
+ * O botão não estava errado — ele existe pra isso. Errada era a pergunta:
+ * "Finalizar o draft agora?" não conta que o relógio ainda está correndo nem
+ * quantas picks morrem no clique. Quem responde "sim" a essa pergunta está
+ * respondendo outra.
+ *
+ * Então o servidor passa a recusar o fechamento antecipado até que venha uma
+ * confirmação que SÓ PODE SER DADA depois de ver o estrago. A trava é aqui, e
+ * não na tela, porque são dois botões em dois arquivos ("Finalizar draft" e
+ * "Resolver rodada 2") e só o servidor vê os dois.
+ *
+ * @return array|null null quando pode seguir; os números do estrago quando não
+ */
+function draftRound2Antecipado(PDO $pdo, int $draftSessionId): ?array
+{
+    $st = $pdo->prepare('SELECT round2_mock_deadline, current_round, status
+                           FROM draft_sessions WHERE id = ?');
+    $st->execute([$draftSessionId]);
+    $s = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$s || (int)$s['current_round'] !== 2 || $s['status'] !== 'in_progress') return null;
+    if (empty($s['round2_mock_deadline'])) return null;
+
+    $falta = strtotime((string)$s['round2_mock_deadline']) - time();
+    if ($falta <= 0) return null;                  // o prazo já venceu: segue
+
+    /* Vaga em aberto que não tem UMA preferência sequer é pick que morre no
+       clique — é esse o número que decide se vale fechar agora. */
+    $st = $pdo->prepare('SELECT COUNT(*) FROM draft_order o
+                          WHERE o.draft_session_id = ? AND o.round = 2
+                            AND o.picked_player_id IS NULL
+                            AND NOT EXISTS (SELECT 1 FROM draft_round2_mocks m
+                                             WHERE m.draft_order_id = o.id)');
+    $st->execute([$draftSessionId]);
+    $semMock = (int)$st->fetchColumn();
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM draft_order
+                          WHERE draft_session_id = ? AND round = 2 AND picked_player_id IS NULL');
+    $st->execute([$draftSessionId]);
+    $emAberto = (int)$st->fetchColumn();
+
+    return [
+        'faltam_min'   => (int)ceil($falta / 60),
+        'prazo'        => date('H:i', strtotime((string)$s['round2_mock_deadline'])),
+        'em_aberto'    => $emAberto,
+        'sem_mock'     => $semMock,
+    ];
+}
+
 function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = false): void {
     // Conferência barata, sem trava: quase toda chamada sai aqui.
     $stmt = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
@@ -3027,6 +3084,14 @@ if ($method === 'POST') {
              * O force=true resolve na hora e ja encerra por dentro.
              */
             if ((int)$session['current_round'] === 2 && $session['status'] === 'in_progress') {
+                /* @see draftRound2Antecipado — fechar antes da hora precisa
+                   de uma confirmação dada depois de ver o que se perde. */
+                $antec = draftRound2Antecipado($pdo, (int)$draftSessionId);
+                if ($antec && empty($data['confirmar_antecipado'])) {
+                    echo json_encode(['success' => false, 'antecipado' => $antec,
+                        'error' => 'O relógio da 2ª rodada ainda está correndo.']);
+                    exit;
+                }
                 resolveRound2MocksIfDue($pdo, (int)$draftSessionId, true);
             } else {
                 draftEncerrarSessao($pdo, (int)$draftSessionId);
@@ -3562,6 +3627,14 @@ if ($method === 'POST') {
             $draftSessionId = $data['draft_session_id'] ?? null;
             if (!$draftSessionId) {
                 echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
+            }
+            /* Mesma trava do "Finalizar draft": o botão é o mesmo tiro.
+               @see draftRound2Antecipado */
+            $antec = draftRound2Antecipado($pdo, (int)$draftSessionId);
+            if ($antec && empty($data['confirmar_antecipado'])) {
+                echo json_encode(['success' => false, 'antecipado' => $antec,
+                    'error' => 'O relógio da 2ª rodada ainda está correndo.']);
                 exit;
             }
             resolveRound2MocksIfDue($pdo, (int)$draftSessionId, true);

@@ -2326,14 +2326,44 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
    * significar que a ordem foi aplicada antes de uma troca — e nesse caso
    * reaplicar a ordem da loteria resolve.
    */
-  async function finalizeDraft() {
+  /**
+   * Finalizar o draft — e, na 2ª rodada, contar o preço antes.
+   *
+   * "Finalizar o draft agora?" é uma pergunta que não dá pra responder: ela
+   * não conta que o relógio ainda corre nem quantas picks morrem no clique.
+   * Em 09/10/2026 o prazo era 15:01, o draft fechou às 14:46 e 18 das 32
+   * picks ficaram vazias — dezesseis de times que ainda iam montar o mock.
+   *
+   * Quem decide o que perguntar é o SERVIDOR (@see draftRound2Antecipado):
+   * ele recusa o fechamento antecipado e devolve os números. Só então a
+   * segunda pergunta aparece, e aí ela é respondível.
+   */
+  async function finalizeDraft(confirmarAntecipado) {
     if (!currentDraftSession) return;
-    if (!await confirmarSite('Finalizar o draft agora?')) return;
+    if (!confirmarAntecipado && !await confirmarSite('Finalizar o draft agora?')) return;
     try {
-      const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: currentDraftSession.id }) });
+      const result = await api('draft.php', { method: 'POST', body: JSON.stringify({
+        action: 'finalize_draft', draft_session_id: currentDraftSession.id,
+        confirmar_antecipado: !!confirmarAntecipado
+      }) });
       alert(result.message || 'Draft finalizado!');
       loadDraft();
-    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+    } catch (e) {
+      const a = e && e.antecipado;
+      if (a) {
+        const perde = a.sem_mock === 1
+          ? '1 time ainda não montou mock nenhum e perde a pick'
+          : a.sem_mock + ' times ainda não montaram mock nenhum e perdem a pick';
+        const ok = await confirmarSite(
+          'O relógio da 2ª rodada vai até as ' + a.prazo + ' — ainda faltam ' +
+          a.faltam_min + (a.faltam_min === 1 ? ' minuto' : ' minutos') + '.\n\n' +
+          'Fechando agora: ' + perde + ', e ' + a.em_aberto + ' picks ficam em aberto.\n\n' +
+          'Fechar mesmo assim?');
+        if (ok) finalizeDraft(true);
+        return;
+      }
+      alert('Erro: ' + (e.error || 'Desconhecido'));
+    }
   }
 
   async function revertPick(pickId, playerName) {

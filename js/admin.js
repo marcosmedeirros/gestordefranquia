@@ -11523,24 +11523,65 @@ async function _adminSetRound2Mock(draftOrderId, league) {
   }
 }
 
-async function _adminResolveRound2Now(draftSessionId, league) {
-  if (!await confirmarSite('Resolver a 2ª rodada agora? Cada pick com mock leva o jogador (se ainda disponível); quem não tem mock fica em aberto. O draft é marcado concluído.')) return;
+/**
+ * O relógio da 2ª rodada ainda está correndo — vale fechar assim mesmo?
+ *
+ * O servidor recusa o fechamento antecipado e devolve os números em
+ * `e.antecipado` (@see draftRound2Antecipado em api/draft.php). Só com eles
+ * a pergunta é respondível: "Finalizar o draft agora?" não conta que faltam
+ * minutos nem quantas picks morrem no clique. Em 09/10/2026 o prazo era
+ * 15:01, fecharam às 14:46, e 18 das 32 picks ficaram vazias.
+ *
+ * A pergunta vive aqui porque são DOIS botões no admin ("Resolver rodada 2"
+ * e "Finalizar draft") e um terceiro em drafts.php, e todos tropeçavam na
+ * mesma pedra.
+ *
+ * @return boolean true quando o admin confirmou mesmo assim
+ */
+async function _draftConfirmarFechamentoAntecipado(e) {
+  const a = e && e.antecipado;
+  if (!a) return false;
+  const perde = a.sem_mock === 1
+    ? '1 time ainda não montou mock nenhum e perde a pick'
+    : a.sem_mock + ' times ainda não montaram mock nenhum e perdem a pick';
+  return await confirmarSite(
+    'O relógio da 2ª rodada vai até as ' + a.prazo + ' — ainda faltam ' +
+    a.faltam_min + (a.faltam_min === 1 ? ' minuto' : ' minutos') + '.\n\n' +
+    'Fechando agora: ' + perde + ', e ' + a.em_aberto + ' picks ficam em aberto.\n\n' +
+    'Fechar mesmo assim?');
+}
+
+async function _adminResolveRound2Now(draftSessionId, league, confirmado) {
+  if (!confirmado && !await confirmarSite('Resolver a 2ª rodada agora? Cada pick com mock leva o jogador (se ainda disponível); quem não tem mock fica em aberto. O draft é marcado concluído.')) return;
   try {
-    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'resolve_round2_now', draft_session_id: draftSessionId }) });
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({
+      action: 'resolve_round2_now', draft_session_id: draftSessionId,
+      confirmar_antecipado: !!confirmado }) });
     showAlert('success', result.message || 'Rodada 2 resolvida!');
     showAdminDraft(league);
   } catch(e) {
+    /* `api()` LANÇA quando o servidor responde success:false, e o throw leva
+       o corpo junto — é por isso que o aviso é tratado aqui, e não no fluxo
+       feliz. */
+    if (await _draftConfirmarFechamentoAntecipado(e)) {
+      return _adminResolveRound2Now(draftSessionId, league, true);
+    }
     showAlert('danger', e.error || 'Erro ao resolver a rodada 2');
   }
 }
 
-async function _adminDraftFinalize(draftSessionId, league) {
-  if (!await confirmarSite('Finalizar o draft? Isso marca o draft como concluído.')) return;
+async function _adminDraftFinalize(draftSessionId, league, confirmado) {
+  if (!confirmado && !await confirmarSite('Finalizar o draft? Isso marca o draft como concluído.')) return;
   try {
-    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: draftSessionId }) });
+    await api('draft.php', { method: 'POST', body: JSON.stringify({
+      action: 'finalize_draft', draft_session_id: draftSessionId,
+      confirmar_antecipado: !!confirmado }) });
     showAlert('success', 'Draft finalizado!');
     showAdminDraft(league);
   } catch(e) {
+    if (await _draftConfirmarFechamentoAntecipado(e)) {
+      return _adminDraftFinalize(draftSessionId, league, true);
+    }
     showAlert('danger', e.error || 'Erro ao finalizar draft');
   }
 }
