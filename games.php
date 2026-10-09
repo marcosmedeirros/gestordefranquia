@@ -617,6 +617,11 @@ $jogosLivres = [
        09/10/2026 e voltou a ser só por link, este fica. Página própria. */
     ['href' => '/games/games/hoops.php', 'nome' => 'FBA Hoops',
      'sub'  => 'Monte 12 e jogue a NBA', 'icone' => 'bi-box-seam', 'cor' => '#f97316'],
+    /* LENDAS DA QUADRA (09/10/2026): RPG de tabuleiro em 3D com cartas de
+       jogadores da NBA — treino contra a IA e duelo online valendo moedas.
+       Página própria, por isso vem por `href`. */
+    ['href' => '/games/games/lendas.php', 'nome' => 'Lendas da Quadra',
+     'sub'  => 'RPG de cartas e duelo', 'icone' => 'bi-shield-shaded', 'cor' => '#e0322c'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',

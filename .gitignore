@@ -46,3 +46,6 @@ bancos_local_test/*.sql
 
 # Dump comprimido vindo de producao (mesmo motivo dos .sql)
 bancos_local_test/*.sql.gz
+
+# Catálogo do Lendas da Quadra: gerado sozinho pelo servidor (lendasCatalogo()).
+games/data/lendas_catalogo.php
