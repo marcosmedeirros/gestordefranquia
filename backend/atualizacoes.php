@@ -42,6 +42,15 @@ const ATUALIZACAO_SKILLS = [
     'skill_reb' => 'REB', 'skill_athl' => 'ATHL', 'skill_iq' => 'IQ', 'skill_pot' => 'POT',
 ];
 
+/**
+ * As colunas da ficha que andam junto das letras.
+ *
+ * Numa constante porque três lugares precisam da mesma lista: o validador,
+ * o SET do UPDATE e a leitura do valor de agora. Com a lista escrita três
+ * vezes, acrescentar uma coluna um dia vira lembrar de três lugares.
+ */
+const ATUALIZACAO_FICHA = ['ovr', 'age'];
+
 /** Notas aceitas. Qualquer coisa fora disso é recusada, não convertida. */
 const ATUALIZACAO_NOTAS = ['A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];
 
@@ -293,6 +302,43 @@ function atualizacaoFoto(PDO $pdo, int $teamId): array
  *
  * @return array{0: bool, 1: array, 2: string}
  */
+/**
+ * A FICHA: OVR e idade, as faixas iguais às do Atualizar Elenco.
+ *
+ * Pedido do Marcos (09/10/2026): "no controle-elenco, deixe atualizar o ovr
+ * e idade nas letrinhas, igual é no atualizar padrão".
+ *
+ * Eles tinham sido deixados de fora do caminho do admin e dos terceiros por
+ * um motivo registrado: um CSV velho gravando OVR fez o elenco "voltar pro
+ * over anterior". O motivo continua de pé, e é por isso que CAMPO VAZIO NÃO
+ * MEXE EM NADA — um arquivo sem a coluna, ou com a célula em branco, passa
+ * sem tocar no que está no banco. O que derrubou o elenco antes não foi a
+ * coluna existir, foi ela chegar preenchida com valor velho.
+ *
+ * As faixas são as mesmas do formulário do dono (atualizar-elenco.php):
+ * fora delas é recusa, não corte — 150 de OVR é erro de digitação, e
+ * salvar 99 em silêncio esconderia o erro em vez de mostrá-lo.
+ */
+function atualizacaoValidarFicha(array $linha): array
+{
+    $vals = [];
+
+    foreach (['ovr' => [40, 99, 'OVR'], 'age' => [15, 50, 'idade']] as $col => [$min, $max, $rot]) {
+        $v = trim((string)($linha[$col] ?? ''));
+        if ($v === '') continue;                       // vazio não mexe
+        if (!preg_match('/^\d{1,3}$/', $v)) {
+            return [false, [], "{$rot} inválido: {$v}"];
+        }
+        $n = (int)$v;
+        if ($n < $min || $n > $max) {
+            return [false, [], "{$rot} fora da faixa: {$n} (entre {$min} e {$max})"];
+        }
+        $vals[$col] = $n;
+    }
+
+    return [true, $vals, ''];
+}
+
 function atualizacaoValidarPosicoes(array $linha): array
 {
     $vals = [];

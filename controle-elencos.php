@@ -265,6 +265,18 @@ const LIGAS  = <?= json_encode(array_values($minhasLigas)) ?>;
 // As colunas e as notas vêm do mesmo lugar que o servidor usa pra validar —
 // uma lista escrita aqui envelheceria sozinha.
 const SKILLS = <?= json_encode(ATUALIZACAO_SKILLS, JSON_UNESCAPED_UNICODE) ?>;
+
+/* A FICHA: OVR e idade, que andam junto das letras.
+
+   Pedido do Marcos (09/10/2026): "deixe atualizar o ovr e idade nas
+   letrinhas, igual é no atualizar padrão". As faixas são as mesmas do
+   formulário do dono (atualizar-elenco.php), e `num` é o que diz à leitura
+   do CSV que estas duas são número e não nota — sem isso elas cairiam na
+   validação A+ até F e seriam recusadas como "fora da escala". */
+const FICHA = {
+  ovr: { rot: 'OVR',    min: 40, max: 99 },
+  age: { rot: 'IDADE',  min: 15, max: 50 },
+};
 const STATS  = <?= json_encode(ATUALIZACAO_STATS, JSON_UNESCAPED_UNICODE) ?>;
 const POSICOES = <?= json_encode(ATUALIZACAO_POSICOES, JSON_UNESCAPED_UNICODE) ?>;
 const POS_VALIDAS = <?= json_encode(ATUALIZACAO_POSICOES_VALIDAS) ?>;
@@ -292,7 +304,14 @@ async function getJSON(url, opc) {
 const ROTULO = { stats: 'Estatísticas', letras: 'Letras', posicoes: 'Posições' };
 
 function colunas() {
-  if (tipo === 'letras')   return Object.entries(SKILLS).map(([c, rot]) => ({ c, rot }));
+  if (tipo === 'letras') {
+    /* OVR e idade vêm PRIMEIRO: é a ordem do print do jogo e a do
+       formulário do dono, e o CSV tem que casar com o que a pessoa vê. */
+    return [
+      ...Object.entries(FICHA).map(([c, o]) => ({ c, rot: o.rot, num: true, min: o.min, max: o.max })),
+      ...Object.entries(SKILLS).map(([c, rot]) => ({ c, rot })),
+    ];
+  }
   if (tipo === 'posicoes') return Object.entries(POSICOES).map(([c, rot]) => ({ c, rot }));
   return Object.entries(STATS).map(([c, o]) => ({ c, rot: o.rot, antes: o.antes, max: o.max }));
 }
@@ -537,7 +556,10 @@ $('mModelo').addEventListener('click', () => {
 });
 $('mPrompt').addEventListener('click', e => {
   const texto = ElencoCSV.paraTexto(modeloLinhas());
-  const o = { comTime: modal.escopo === 'liga', notas: NOTAS, comOvrIdade: false };
+  /* O prompt ja sabia pedir OVR e idade (@see promptLetras em
+     js/elenco-csv.js) — faltava esta tela querer. Agora que as duas colunas
+     estao no modelo, a IA precisa saber que deve preenche-las. */
+  const o = { comTime: modal.escopo === 'liga', notas: NOTAS, comOvrIdade: tipo === 'letras' };
   const monta = { letras: ElencoCSV.promptLetras, stats: ElencoCSV.promptStats,
                   posicoes: ElencoCSV.promptPosicoes }[tipo];
   ElencoCSV.copiar(monta(texto, o), e.currentTarget);
@@ -589,10 +611,17 @@ function importar(texto) {
 
     const rec = {};
     let mudou = false;
-    for (const { c, max, i } of indice) {
+    for (const { c, max, min, num, i } of indice) {
       const bruto = String(l[i] ?? '').trim();
       if (bruto === '') continue;                       // em branco: mantém o de agora
-      if (tipo === 'letras') {
+      if (num) {
+        /* OVR e idade são número inteiro numa faixa, e não nota. Fora da
+           faixa é ignorado como qualquer valor inválido — o servidor
+           recusa de novo na hora de gravar. */
+        const n = parseInt(bruto, 10);
+        if (isNaN(n) || n < min || n > max) { invalidos++; continue; }
+        rec[c] = n;
+      } else if (tipo === 'letras') {
         const v = bruto.toUpperCase();
         if (!NOTAS.includes(v)) { invalidos++; continue; }
         rec[c] = v;
@@ -620,7 +649,7 @@ function importar(texto) {
   }
   if (semMudanca) txt += `<br>${semMudanca} linha(s) iguais ao que já está lá.`;
   if (fora) txt += `<br>${fora} linha(s) com id que não é ${modal.escopo === 'liga' ? 'desta liga' : 'deste time'} — ignoradas.`;
-  if (invalidos) txt += `<br>${invalidos} valor(es) fora da escala ${tipo === 'letras' ? 'A+ até F' : 'aceita'} — ignorados.`;
+  if (invalidos) txt += `<br>${invalidos} valor(es) fora da escala ${tipo === 'letras' ? 'aceita (letras de A+ a F; OVR 40–99; idade 15–50)' : 'aceita'} — ignorados.`;
   aviso(n ? ((fora || invalidos) ? 'warn' : 'ok') : 'warn', txt);
 }
 

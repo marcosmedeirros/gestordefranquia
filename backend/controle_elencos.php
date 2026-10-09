@@ -129,7 +129,7 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
     $colsSkill = implode(', ', array_map(fn($c) => "p.{$c}", array_keys(ATUALIZACAO_SKILLS)));
     $colsStat  = implode(', ', array_map(fn($c) => "s.{$c}", array_keys(ATUALIZACAO_STATS)));
 
-    $sql = "SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.team_id,
+    $sql = "SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, p.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time,
                    {$colsSkill}, {$colsStat}, s.id AS tem_stats
               FROM players p
@@ -148,7 +148,8 @@ function ceJogadores(PDO $pdo, string $liga, ?int $teamId, ?int $temporadaId = n
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $j = ['id' => (int)$r['id'], 'name' => $r['name'], 'position' => $r['position'],
               'secondary_position' => $r['secondary_position'],
-              'ovr' => (int)$r['ovr'], 'team_id' => (int)$r['team_id'], 'time' => $r['time']];
+              'ovr' => (int)$r['ovr'], 'age' => (int)$r['age'],
+              'team_id' => (int)$r['team_id'], 'time' => $r['time']];
         foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $j[$c] = (string)($r[$c] ?? '');
         foreach (array_keys(ATUALIZACAO_STATS) as $c) {
             // Sem linha lançada, o campo vem vazio e não zero: "não lançado" e
@@ -199,6 +200,15 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
         if ($tipo === 'letras') {
             [$valido, $vals, $erro] = atualizacaoValidarSkills($linha);
             if (!$valido) return $falha($daLiga[$pid]['name'] . ': ' . $erro);
+
+            /* OVR E IDADE VÊM NA MESMA LINHA DAS LETRAS. São colunas de
+               `players`, como as letras, então gravam pelo mesmo caminho —
+               e, como elas, célula vazia não mexe em nada.
+               @see atualizacaoValidarFicha */
+            [$fichaOk, $ficha, $fichaErro] = atualizacaoValidarFicha($linha);
+            if (!$fichaOk) return $falha($daLiga[$pid]['name'] . ': ' . $fichaErro);
+            $vals += $ficha;
+
             if (!$vals) { $vazios++; continue; }
         } elseif ($tipo === 'posicoes') {
             [$valido, $vals, $erro] = atualizacaoValidarPosicoes($linha);
@@ -260,7 +270,11 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
     $pdo->beginTransaction();
     try {
         if ($tipo === 'letras') {
-            $sets = implode(', ', array_map(fn($c) => "{$c} = :{$c}", array_keys(ATUALIZACAO_SKILLS)));
+            /* OVR E IDADE ENTRAM NO MESMO UPDATE das letras: são colunas de
+               `players` como elas, vêm na mesma linha do CSV e seguem a mesma
+               regra de célula em branco. @see ATUALIZACAO_FICHA */
+            $colsLetras = array_merge(array_keys(ATUALIZACAO_SKILLS), ATUALIZACAO_FICHA);
+            $sets = implode(', ', array_map(fn($c) => "{$c} = :{$c}", $colsLetras));
             $up = $pdo->prepare("UPDATE players SET {$sets} WHERE id = :id AND team_id = :tid");
         } elseif ($tipo === 'posicoes') {
             $up = $pdo->prepare('UPDATE players SET position = :position,
@@ -275,6 +289,23 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
                 implode(', ', array_map(fn($c) => "{$c} = VALUES({$c})", $cols)) .
                 ", source = VALUES(source), team_id = VALUES(team_id)");
         }
+        /* O OVR E A IDADE DE AGORA, de todos os jogadores do envio.
+
+           Numa consulta só, e antes do laço: dentro dele seriam centenas de
+           idas ao banco numa liga inteira. Serve pra célula em branco manter
+           o que está lá, que é a regra de todo este caminho. */
+        $idsEnvio = [];
+        foreach ($porTime as $jogadores) foreach (array_keys($jogadores) as $pid) $idsEnvio[] = (int)$pid;
+        $fichaAtual = [];
+        if ($idsEnvio) {
+            $ph = implode(',', array_fill(0, count($idsEnvio), '?'));
+            $stF = $pdo->prepare('SELECT id, ' . implode(', ', ATUALIZACAO_FICHA)
+                                 . " FROM players WHERE id IN ({$ph})");
+            $stF->execute($idsEnvio);
+            foreach ($stF->fetchAll(PDO::FETCH_ASSOC) as $r) $fichaAtual[(int)$r['id']] = $r;
+        }
+        $fichaDeAgora = fn(int $pid, string $col) => $fichaAtual[$pid][$col] ?? null;
+
         $reg = $pdo->prepare("INSERT INTO atualizacoes_terceiros
             (team_id, league, user_id, tipo, jogadores, moedas, antes, csv, origem)
             VALUES (?,?,?,?,?,?,?,?,?)");
@@ -288,6 +319,15 @@ function ceGravar(PDO $pdo, int $adminId, string $liga, string $tipo, array $lin
                     foreach ($fotos[$tid]['skills'] as $f) if ((int)$f['id'] === $pid) { $atual = $f; break; }
                     $p = ['id' => $pid, 'tid' => $tid];
                     foreach (array_keys(ATUALIZACAO_SKILLS) as $c) $p[$c] = $vals[$c] ?? ($atual[$c] ?? null);
+
+                    /* OVR E IDADE: a mesma regra, mas o valor de agora vem do
+                       BANCO e não da foto — a foto do antes guarda letras e
+                       posição, e um null aqui apagaria o OVR de quem mandou só
+                       as letras. Era exatamente esse tipo de apagão silencioso
+                       que deixou os dois fora deste caminho até hoje. */
+                    foreach (ATUALIZACAO_FICHA as $c) {
+                        $p[$c] = $vals[$c] ?? $fichaDeAgora($pid, $c);
+                    }
                     $up->execute($p);
                 } elseif ($tipo === 'posicoes') {
                     /* Coluna em branco mantém a que está lá — mesma regra das
