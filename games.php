@@ -606,17 +606,15 @@ $jogosLivres = [
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',
      'sub'  => 'Uma carreira no basquete', 'icone' => 'bi-dribbble', 'cor' => '#f97316'],
-    /* O FBA DRAFT ENTRA NA GRADE em 08/10/2026. Ele nasceu só por link —
-       "não coloca lá ainda, somente por link", 07/10 — enquanto as cartas, a
-       química e o duelo não estavam de pé. Agora estão, e o jogo tem o que
-       segurar quem chega pela lista: 5.500 cartas, duelo por link e um salão
-       com ranking. Vem por `href` porque é página inteira em /games/games/ e
-       não passa pelo carregador index.php?game=. */
-    ['href' => '/games/games/draftfut.php', 'nome' => 'FBA Draft',
-     'sub'  => 'Monte o time e duele', 'icone' => 'bi-dribbble', 'cor' => '#16a34a'],
+    /* O FBA DRAFT CONTINUA SÓ POR LINK. Ele chegou a entrar na grade em
+       08/10/2026 e saiu no dia seguinte, a pedido do Marcos — como na
+       estreia, quem tem o endereço entra e o resto da liga não o descobre
+       passeando pela lista. Pra publicar de novo é só devolver o card aqui;
+       nada no jogo depende disto. @see games/games/draftfut.php */
     /* FBA HOOPS (08/10/2026): o Ultimate Team do basquete — doze pacotes,
-       uma temporada inteira da NBA simulada, moedas pela fase. Ao lado do
-       FBA Draft porque é o mesmo jogo no outro esporte. Página própria. */
+       uma temporada inteira da NBA simulada, moedas pela fase. É o mesmo
+       jogo do FBA Draft no outro esporte — aquele saiu da grade em
+       09/10/2026 e voltou a ser só por link, este fica. Página própria. */
     ['href' => '/games/games/hoops.php', 'nome' => 'FBA Hoops',
      'sub'  => 'Monte 12 e jogue a NBA', 'icone' => 'bi-box-seam', 'cor' => '#f97316'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
