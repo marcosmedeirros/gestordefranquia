@@ -48,7 +48,6 @@ function gamesComDobro(): array
         'pinguim'      => ['label' => 'Pinguim Run',    'desc' => 'Livre · pontuação da partida',  'icon' => 'bi-snow'],
         'acerteacesta' => ['label' => 'Lance Livre',    'desc' => 'Livre · cestas da partida',     'icon' => 'bi-basket2-fill'],
         'buildplayer'  => ['label' => 'Build Player',   'desc' => 'Livre · top 10 da história',    'icon' => 'bi-person-gear'],
-        'hoops'        => ['label' => 'FBA Hoops',      'desc' => 'Livre · fase da temporada (3/dia)', 'icon' => 'bi-box-seam'],
     ];
 }
 

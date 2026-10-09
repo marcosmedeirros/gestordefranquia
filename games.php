@@ -611,17 +611,12 @@ $jogosLivres = [
        estreia, quem tem o endereço entra e o resto da liga não o descobre
        passeando pela lista. Pra publicar de novo é só devolver o card aqui;
        nada no jogo depende disto. @see games/games/draftfut.php */
-    /* FBA HOOPS (08/10/2026): o Ultimate Team do basquete — doze pacotes,
-       uma temporada inteira da NBA simulada, moedas pela fase. É o mesmo
-       jogo do FBA Draft no outro esporte — aquele saiu da grade em
-       09/10/2026 e voltou a ser só por link, este fica. Página própria. */
-    ['href' => '/games/games/hoops.php', 'nome' => 'FBA Hoops',
-     'sub'  => 'Monte 12 e jogue a NBA', 'icone' => 'bi-box-seam', 'cor' => '#f97316'],
-    /* LENDAS DA QUADRA (09/10/2026): RPG de tabuleiro em 3D com cartas de
-       jogadores da NBA — treino contra a IA e duelo online valendo moedas.
-       Página própria, por isso vem por `href`. */
-    ['href' => '/games/games/lendas.php', 'nome' => 'Lendas da Quadra',
-     'sub'  => 'RPG de cartas e duelo', 'icone' => 'bi-shield-shaded', 'cor' => '#e0322c'],
+    /* FBA HOOPS E LENDAS DA QUADRA, POR ENQUANTO SÓ POR LINK — pedido do
+       Victor em 09/10/2026, como o FBA Draft acima: quem tem o endereço entra,
+       o resto da liga não os descobre pela lista. Pra publicar, é devolver
+       os cards; nada nos jogos depende disto.
+         /games/games/hoops.php   — o Ultimate Team do basquete
+         /games/games/lendas.php  — o RPG de tabuleiro com duelo online */
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
