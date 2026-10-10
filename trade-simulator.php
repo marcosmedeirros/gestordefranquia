@@ -741,6 +741,10 @@ const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 let CONTRA_TRADE = null;
 // A troca que esta proposta MODIFICA, quando vier do botão Modificar.
 let MODIFICAR = null;
+/* Os dois da múltipla: remontar a mesa é igual, mas o envio vai por outro
+   endereço (action=multi_trades) e o "editar" cancela a original lá. */
+let REFAZER_MULTI = null;
+let MODIFICAR_MULTI = null;
 // A troca do histórico que está sendo REFEITA. Só marca a origem: a proposta
 // sai como nova, porque a antiga já foi recusada ou cancelada.
 let REFAZER = null;
@@ -827,6 +831,32 @@ async function boot() {
    * própria e não um MODIFICAR disfarçado.
    */
   REFAZER = parseInt(par.get('refazer') || '0', 10) || null;
+
+  /* ── A MÚLTIPLA TAMBÉM VEM PRA MESA ───────────────────────────────────
+     Refazer e Editar de uma troca de 3+ times abriam o modal antigo, sem cap
+     e sem elenco ao lado. Agora caem aqui. Os ids vivem em variáveis próprias
+     porque a múltipla não compartilha nem o formato (não tem offer/request)
+     nem o caminho de envio (action=multi_trades) com a troca de dois times. */
+  REFAZER_MULTI   = parseInt(par.get('refazer_multi')   || '0', 10) || null;
+  MODIFICAR_MULTI = parseInt(par.get('modificar_multi') || '0', 10) || null;
+
+  if (REFAZER_MULTI || MODIFICAR_MULTI) {
+    const id = REFAZER_MULTI || MODIFICAR_MULTI;
+    const perdidos = await preencherDaMultipla(id);
+    const aviso = document.createElement('div');
+    aviso.className = 'contra-aviso';
+    aviso.innerHTML = perdidos < 0
+      ? `<i class="bi bi-exclamation-triangle"></i> Não achei a troca <b>#${id}</b> pra remontar. A mesa está vazia.`
+      : (MODIFICAR_MULTI
+          ? `<i class="bi bi-pencil-square"></i> Editando a troca múltipla <b>#${id}</b> — ao enviar, a anterior é cancelada.`
+          : `<i class="bi bi-arrow-clockwise"></i> Refazendo a troca múltipla <b>#${id}</b>, que não foi adiante. Ajuste o que quiser antes de enviar.`)
+        + (perdidos > 0
+            ? ` <b>${perdidos} ite${perdidos > 1 ? 'ns' : 'm'}</b> não voltou pra mesa: mudou de time desde a proposta.`
+            : '');
+    const bar = document.getElementById('capBar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(aviso, bar);
+    if (perdidos < 0) MODIFICAR_MULTI = REFAZER_MULTI = null;
+  }
 
   if (CONTRA_TRADE || MODIFICAR || REFAZER) {
     const id = CONTRA_TRADE || MODIFICAR || REFAZER;
@@ -1094,6 +1124,86 @@ async function preencherDaTroca(tradeId, inverter) {
     if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
   });
   recalc();
+}
+
+/**
+ * Remonta na mesa uma troca de 3+ TIMES.
+ *
+ * Refazer e Editar uma múltipla abriam o modal antigo da tela de trocas, e
+ * não a Trade Machine: a proposta voltava sem o cap, sem os 120%, sem o
+ * elenco ao lado — tudo que a mesa faz e o modal não. Pedido do Marcos
+ * (10/10/2026): "quando eu clico em refazer um trade multipla ou editar ela
+ * nao aparece no trade machine, precisa abrir no trade machine".
+ *
+ * Esta é a irmã de preencherDaTroca(), que só sabe de duas pontas porque a
+ * troca simples tem offer/request. Aqui não há lados: cada item diz de onde
+ * sai e pra onde vai, então a mesa é montada time a time e cada peça é posta
+ * no painel de quem recebe. É a mesma mecânica do rascunho — e os dois usam
+ * mesaAddJogador/mesaAddPick, que leem o elenco de AGORA.
+ *
+ * Item que não está mais no elenco é ignorado e contado: uma proposta velha
+ * pode ter peça já negociada, e devolvê-la à mesa seria oferecer o que não é
+ * mais seu. A faixa no topo diz quantas faltaram.
+ *
+ * @return {number} quantos itens não puderam voltar pra mesa, ou -1 se a
+ *   troca nem foi encontrada.
+ */
+async function preencherDaMultipla(tradeId) {
+  let orig = null;
+  try {
+    /* 'sent' e 'received' só listam pendentes (é de lá que vem o Editar);
+       'history' é onde mora a recusada/cancelada que o Refazer remonta. */
+    for (const tipo of ['sent', 'received', 'history']) {
+      const r = await fetch(`/api/trades.php?action=multi_trades&type=${tipo}`);
+      const d = await r.json();
+      orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));
+      if (orig) break;
+    }
+  } catch (e) { /* cai no aviso abaixo */ }
+  if (!orig) return -1;
+
+  const times = (orig.teams || []).map(t => Number(t.id)).filter(Boolean);
+  if (times.length < 2) return -1;
+
+  /* MEU TIME NO PRIMEIRO PAINEL. O painel A é o de quem está montando — é o
+     único que a mesa não deixa fechar, e é por ele que o cap da tela se
+     orienta. Sem isto, abrir a própria proposta podia pôr o criador no
+     terceiro painel. */
+  times.sort((a, b) => (a === Number(MY_TEAM_ID) ? -1 : (b === Number(MY_TEAM_ID) ? 1 : 0)));
+
+  while (activeSlots.length < times.length && activeSlots.length < MAX_TEAMS) addTeamSlot();
+
+  const porTime = {};
+  for (let i = 0; i < times.length && i < activeSlots.length; i++) {
+    const key = activeSlots[i];
+    porTime[times[i]] = key;
+    const sel = document.getElementById(`sel_${key}`);
+    if (sel) sel.value = String(times[i]);
+    await loadTeam(key, times[i]);
+  }
+
+  let perdidos = 0;
+  (orig.items || []).forEach(it => {
+    const para = porTime[Number(it.to_team_id)];
+    const de   = porTime[Number(it.from_team_id)];
+    if (!para || !de) { perdidos++; return; }
+    const ok = it.pick_id
+      ? mesaAddPick(para, de, Number(it.pick_id),
+                    { protection: it.pick_protection || null, swapRole: it.pick_swap_role || null })
+      : mesaAddJogador(para, de, Number(it.player_id));
+    if (!ok) perdidos++;
+  });
+
+  const notas = document.getElementById('tradeNotes');
+  if (notas && orig.notes) notas.value = orig.notes;
+
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
+  recalc();
+  return perdidos;
 }
 
 function populateTeamSelect(key, teamsList) {
@@ -2022,7 +2132,10 @@ async function submitMultiTrade(notes) {
   const r = await fetch('/api/trades.php?action=multi_trades', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ teams: teamIds, items, notes, swap_pairs: swapPairs }),
+    /* Editando uma múltipla: a nova nasce e a velha é cancelada na mesma
+       transação, senão as duas ficariam pendentes pedindo os mesmos nomes. */
+    body: JSON.stringify({ teams: teamIds, items, notes, swap_pairs: swapPairs,
+      ...(MODIFICAR_MULTI ? { modify_multi_trade_id: MODIFICAR_MULTI } : {}) }),
   });
   const d = await r.json();
   if (!r.ok || d.success === false) throw d;

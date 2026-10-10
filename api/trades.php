@@ -1212,6 +1212,43 @@ function ensureMultiTradeItemPickSwapColumns(PDO $pdo): void {
 
 ensureMultiTradeItemPickSwapColumns($pdo);
 
+/**
+ * RECUSAR NÃO É CANCELAR, E A MÚLTIPLA NÃO SABIA A DIFERENÇA.
+ *
+ * O status era ENUM('pending','accepted','cancelled'): recusar uma troca de
+ * 3+ times gravava 'cancelled', igualzinho a quem desistiu da própria
+ * proposta. Na tela as duas viravam "Cancelada", e ninguém descobria que a
+ * troca morreu porque ALGUÉM DISSE NÃO — nem quem disse.
+ *
+ * Pedido do Marcos (10/10/2026): "se uma trade múltipla for rejeitada, não
+ * coloque como cancelada, coloque rejeitada por time que rejeitou".
+ *
+ * A troca de dois times já tinha 'rejected' desde sempre; isto é a múltipla
+ * alcançando ela. O `rejected_by_team_id` existe porque numa múltipla a
+ * recusa pode vir de qualquer um dos participantes — sem o nome, "Rejeitada"
+ * responderia metade da pergunta.
+ */
+function ensureMultiTradeRejectedStatus(PDO $pdo): void
+{
+    if (!tableExists($pdo, 'multi_trades')) return;
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM multi_trades LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && stripos((string)($col['Type'] ?? ''), "'rejected'") === false) {
+            $pdo->exec("ALTER TABLE multi_trades
+                        MODIFY status ENUM('pending','accepted','cancelled','rejected')
+                        DEFAULT 'pending'");
+        }
+        if (!columnExists($pdo, 'multi_trades', 'rejected_by_team_id')) {
+            $pdo->exec("ALTER TABLE multi_trades
+                        ADD COLUMN rejected_by_team_id INT NULL AFTER status");
+        }
+    } catch (Exception $e) {
+        error_log('[multi-trade] status rejected: ' . $e->getMessage());
+    }
+}
+
+ensureMultiTradeRejectedStatus($pdo);
+
 // Garante coluna 'cycle' para controle de limite por ciclo de temporadas
 function ensureTradeCycleColumn(PDO $pdo): void
 {
@@ -2640,8 +2677,11 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         $conditions[] = 'mt.status = "accepted"';
         $params[] = $user['league'];
     } else {
+        /* 'rejected' entra aqui junto com as outras duas: ele é novo (antes
+           recusar gravava 'cancelled'), e sem este IN a troca recusada sumia
+           do histórico em vez de aparecer recusada. */
         $conditions[] = 'mtt.team_id = ?';
-        $conditions[] = 'mt.status IN ("accepted","cancelled")';
+        $conditions[] = 'mt.status IN ("accepted","cancelled","rejected")';
         $params[] = $teamId;
     }
 
@@ -2653,10 +2693,15 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
     }
 
     $whereClause = implode(' AND ', $conditions);
+    /* `rejected_by_name` é quem disse não. Sem o nome, a tela só saberia
+       escrever Rejeitada — e numa troca de 3+ times essa é a metade menos
+       útil da resposta. @see ensureMultiTradeRejectedStatus */
     $query = "
         SELECT mt.*,
                (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id) AS teams_total,
-               (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id AND accepted_at IS NOT NULL) AS teams_accepted
+               (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id AND accepted_at IS NOT NULL) AS teams_accepted,
+               (SELECT TRIM(CONCAT(COALESCE(rt.city,''),' ',COALESCE(rt.name,'')))
+                  FROM teams rt WHERE rt.id = mt.rejected_by_team_id) AS rejected_by_name
         FROM multi_trades mt
         JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id
         WHERE {$whereClause}
@@ -3045,6 +3090,36 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         $tradeCycle = $stmtCycle->fetchColumn();
         $tradeCycle = $tradeCycle !== false ? (int)$tradeCycle : null;
 
+        /* EDITAR UMA MÚLTIPLA É CRIAR A NOVA E CANCELAR A VELHA.
+           A troca de dois times já fazia isso por `modify_trade_id`; a
+           múltipla não tinha equivalente porque o Editar dela vivia num modal
+           que regravava a mesma linha. Agora que o Editar abre a Trade
+           Machine (@see preencherDaMultipla), o envio é sempre uma proposta
+           nova — e sem cancelar a anterior as duas ficariam pendentes lado a
+           lado, pedindo os mesmos jogadores.
+
+           Só o criador, e só enquanto ninguém aceitou: as mesmas duas travas
+           que o botão Editar já respeitava na tela. */
+        $modificaMulti = isset($data['modify_multi_trade_id']) ? (int)$data['modify_multi_trade_id'] : 0;
+        if ($modificaMulti > 0) {
+            $stOld = $pdo->prepare("SELECT created_by_team_id, status,
+                                           (SELECT COUNT(*) FROM multi_trade_teams
+                                             WHERE trade_id = ? AND accepted_at IS NOT NULL) AS aceites
+                                      FROM multi_trades WHERE id = ?");
+            $stOld->execute([$modificaMulti, $modificaMulti]);
+            $velha = $stOld->fetch(PDO::FETCH_ASSOC);
+            if (!$velha || (int)$velha['created_by_team_id'] !== (int)$teamId
+                    || ($velha['status'] ?? '') !== 'pending' || (int)$velha['aceites'] > 0) {
+                $pdo->rollBack();
+                http_response_code(409);
+                echo json_encode(['success' => false,
+                    'error' => 'Essa troca não pode mais ser editada — alguém já respondeu, ou ela não é sua.']);
+                exit;
+            }
+            $pdo->prepare("UPDATE multi_trades SET status = 'cancelled' WHERE id = ? AND status = 'pending'")
+                ->execute([$modificaMulti]);
+        }
+
         $stmtTrade = $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes, cycle) VALUES (?, ?, ?, ?)');
         $stmtTrade->execute([$league, $teamId, $notes, $tradeCycle]);
         $tradeId = (int)$pdo->lastInsertId();
@@ -3158,6 +3233,9 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
+        /* O motivo ia só pro JSON genérico e se perdia: quem investigasse
+           tinha "Erro ao criar troca múltipla" e mais nada. */
+        error_log('[multi-trade] criar: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao criar troca múltipla']);
     }
@@ -3941,8 +4019,15 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
         $pdo->beginTransaction();
 
         if ($action === 'rejected' || $action === 'cancelled') {
-            $stmtCancel = $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?');
-            $stmtCancel->execute(['cancelled', $tradeId]);
+            /* RECUSAR GRAVA 'rejected', COM O NOME DE QUEM RECUSOU.
+               Os dois casos caíam em 'cancelled' aqui, e a diferença só
+               sobrevivia no webhook — a liga via "Cancelada" nos dois. Quem
+               cancela é sempre o criador (há uma checagem acima); quem recusa
+               é qualquer um dos outros, e por isso o time vai junto.
+               @see ensureMultiTradeRejectedStatus */
+            $novoStatus = $action === 'rejected' ? 'rejected' : 'cancelled';
+            $stmtCancel = $pdo->prepare('UPDATE multi_trades SET status = ?, rejected_by_team_id = ? WHERE id = ?');
+            $stmtCancel->execute([$novoStatus, $action === 'rejected' ? $teamId : null, $tradeId]);
             $pdo->commit();
             try {
                 $event = $action === 'rejected' ? 'trade_rejected' : 'trade_cancelled';
@@ -3950,7 +4035,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
             } catch (Exception $e) {
                 error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
             }
-            echo json_encode(['success' => true, 'status' => 'cancelled']);
+            echo json_encode(['success' => true, 'status' => $novoStatus]);
             exit;
         }
 

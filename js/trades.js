@@ -1954,12 +1954,25 @@ function createMultiTradeCard(trade, type) {
   card.dataset.tradeId = trade.id;
   card.dataset.isMulti = '1';
 
+  /* RECUSADA DIZ POR QUEM. Antes recusar e cancelar gravavam o mesmo
+     'cancelled', e as duas apareciam como "Cancelada": ninguém sabia que a
+     troca morreu porque alguém disse não, muito menos quem. Numa múltipla
+     isso importa mais que na de dois times — são três ou mais candidatos.
+
+     O NOME NÃO CABE NO SELO. Pôr "Rejeitada por Rivaltown Rivals" dentro da
+     tag espremia o título ao lado: no celular, "Trade múltipla" saiu com uma
+     letra por linha. O selo fica curto e o nome desce pra linha da data, que
+     é onde há largura. */
   const statusBadge = {
     'pending':   '<span class="tag gray">Pendente</span>',
     'accepted':  '<span class="tag green">Aceita</span>',
     'rejected':  '<span class="tag red">Rejeitada</span>',
     'cancelled': '<span class="tag gray">Cancelada</span>'
   }[trade.status] || '<span class="tag gray">-</span>';
+
+  const rejeitadaPor = (trade.status === 'rejected' && trade.rejected_by_name)
+    ? `<div class="tc-date" style="color:var(--red)">recusada por ${esc(trade.rejected_by_name)}</div>`
+    : '';
 
   const teamMap = {};
   (trade.teams || []).forEach((team) => {
@@ -2006,6 +2019,7 @@ function createMultiTradeCard(trade, type) {
       <div>
         <div class="tc-title">Trade múltipla</div>
         <div class="tc-date">${_fmtTradeDate(trade.created_at, trade.status)}</div>
+        ${rejeitadaPor}
       </div>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         ${acceptanceBadge}
@@ -2053,15 +2067,19 @@ function createMultiTradeCard(trade, type) {
     `;
     actions.querySelector('.btn-r.outline').addEventListener('click', () => respondMultiTrade(trade.id, 'cancelled'));
     if (canEdit) {
-      actions.querySelector(`#editMultiBtn_${trade.id}`).addEventListener('click', () => openEditMultiTrade(trade));
+      actions.querySelector(`#editMultiBtn_${trade.id}`)
+             .addEventListener('click', () => abrirMultiNaMesa(trade.id, false));
     }
     card.appendChild(actions);
   }
 
-  /* REFAZER a múltipla. O botão existia só na troca de dois times — aqui o
-     campo pode_refazer nem era calculado, então nunca aparecia. Como o modal
-     de múltipla já sabe se montar a partir de uma troca (é o que o Editar
-     usa), refazer é abrir o mesmo modal sem o id de edição. */
+  /* REFAZER a múltipla, na Trade Machine. O botão existia só na troca de dois
+     times — aqui o campo pode_refazer nem era calculado, então nunca aparecia.
+     Depois passou a abrir o modal antigo, e era isso que o Marcos via de
+     errado em 10/10/2026: "quando eu clico em refazer um trade multipla ou
+     editar ela nao aparece no trade machine". O modal não tem cap, não tem os
+     120%, não tem o elenco ao lado — remontava a proposta no lugar onde não
+     dá pra conferir se ela passa. @see preencherDaMultipla */
   if (type === 'history' && trade.status !== 'accepted') {
     const actions = document.createElement('div');
     actions.className = 'tc-actions';
@@ -2069,7 +2087,7 @@ function createMultiTradeCard(trade, type) {
       actions.innerHTML = `<button class="btn-r secondary sm">
         <i class="bi bi-arrow-clockwise"></i>Refazer
       </button>`;
-      actions.querySelector('button').addEventListener('click', () => openEditMultiTrade(trade, true));
+      actions.querySelector('button').addEventListener('click', () => abrirMultiNaMesa(trade.id, true));
     } else {
       // Apagado com o motivo, e não escondido: sumir deixaria a pergunta
       // "por que essa não tem?" sem resposta.
@@ -2088,68 +2106,24 @@ function createMultiTradeCard(trade, type) {
 }
 
 /**
- * @param {boolean} refazer Abre a mesa com a mesma proposta, mas como uma
- *   troca NOVA. É a diferença inteira entre editar e refazer: sem o
- *   editTradeId, o envio cria em vez de substituir. A múltipla do histórico
- *   não existe mais pra ser editada — o que a pessoa quer é propor de novo.
+ * Abre uma troca de 3+ times na TRADE MACHINE, montada do jeito que estava.
+ *
+ * Era um modal dentro desta tela — e foi isso que o Marcos apontou em
+ * 10/10/2026: "quando eu clico em refazer um trade multipla ou editar ela nao
+ * aparece no trade machine, precisa abrir no trade machine". O modal remontava
+ * a proposta num lugar que não mostra cap, não checa os 120% e não tem o
+ * elenco ao lado: dava pra montar, não dava pra conferir.
+ *
+ * A mesa já sabia abrir uma troca de DOIS times (refazer/modificar) e já sabia
+ * ENVIAR uma de três ou mais. Só faltava o caminho de volta, que agora é
+ * preencherDaMultipla() lá no trade-simulator.php.
+ *
+ * @param {boolean} refazer Troca NOVA a partir de uma morta. Editar (false) é
+ *   outra coisa: a original ainda está pendente e é cancelada no envio.
  */
-async function openEditMultiTrade(trade, refazer) {
-  resetMultiTradeForm();
-
-  const modal = document.getElementById('multiTradeModal');
-  if (!modal) return;
-  if (refazer) delete modal.dataset.editTradeId;
-  else modal.dataset.editTradeId = trade.id;
-  const modalTitle = modal.querySelector('.modal-title');
-  if (modalTitle) modalTitle.innerHTML = refazer
-    ? '<i class="bi bi-arrow-clockwise me-2" style="color:var(--red)"></i>Refazer Trade Múltipla'
-    : '<i class="bi bi-pencil me-2" style="color:var(--red)"></i>Editar Trade Múltipla';
-
-  // Check team boxes for the trade's teams
-  const teamsContainer = document.getElementById('multiTradeTeamsList');
-  if (teamsContainer) {
-    (trade.teams || []).forEach((team) => {
-      const cb = teamsContainer.querySelector(`input[value="${team.id}"]`);
-      if (cb && Number(cb.value) !== Number(myTeamId)) cb.checked = true;
-    });
-    renderMultiTeamLimit();
-    updateMultiItemTeamOptions();
-  }
-
-  const notesEl = document.getElementById('multiTradeNotes');
-  if (notesEl) notesEl.value = trade.notes || '';
-
-  // Replace empty row with rows from existing items
-  const container = document.getElementById('multiTradeItems');
-  if (container) container.innerHTML = '';
-  const existingItems = trade.items || [];
-  if (existingItems.length === 0) {
-    addMultiTradeItemRow();
-  } else {
-    existingItems.forEach(() => addMultiTradeItemRow());
-    // Pre-fill row selects after a short delay (DOM needs to settle)
-    setTimeout(async () => {
-      const rows = container.querySelectorAll('.multi-trade-item-row');
-      for (let i = 0; i < existingItems.length && i < rows.length; i++) {
-        const item = existingItems[i];
-        const row = rows[i];
-        const fromSel = row.querySelector('[data-role="from-team"]');
-        const toSel   = row.querySelector('[data-role="to-team"]');
-        const typeSel = row.querySelector('[data-role="item-type"]');
-        if (fromSel && item.from_team_id) fromSel.value = item.from_team_id;
-        if (toSel   && item.to_team_id)   toSel.value   = item.to_team_id;
-        if (typeSel) {
-          typeSel.value = item.player_id ? 'player' : 'pick';
-          typeSel.dispatchEvent(new Event('change'));
-          try { await updateMultiItemOptions(row, false); } catch (e) {}
-          const itemSel = row.querySelector('[data-role="item-id"]');
-          if (itemSel) itemSel.value = item.player_id || item.pick_id || '';
-        }
-      }
-    }, 250);
-  }
-
-  bootstrap.Modal.getOrCreateInstance(modal).show();
+function abrirMultiNaMesa(tradeId, refazer) {
+  const chave = refazer ? 'refazer_multi' : 'modificar_multi';
+  window.location.href = `/trade-simulator.php?${chave}=${Number(tradeId)}`;
 }
 
 /* A "nota retroativa" (variação de OVR desde a troca) foi removida do card a

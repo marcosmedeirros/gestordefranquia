@@ -286,15 +286,23 @@ function ebCatalogo(): array
         'tradesrecusadas' => [
             'titulo' => 'Trades Recusadas', 'sub' => 'propostas rejeitadas na sprint',
             'alto' => '❌ Mais recusadas', 'baixo' => '✅ Menos recusadas', 'ordem' => 'desc',
-            // multi_trades não tem status 'rejected' (só pending/accepted/
-            // cancelled), então aqui só entram as de dois times mesmo.
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(tr.id) AS valor
+            /* AS MÚLTIPLAS ENTRAM AQUI DESDE 10/10/2026. Antes multi_trades
+               não tinha 'rejected' — recusar gravava 'cancelled' e virava
+               indistinguível de quem desistiu da própria proposta —, então a
+               conta só olhava as de dois times e saía curta pra quem negocia
+               em três. @see ensureMultiTradeRejectedStatus */
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
+                             (SELECT COUNT(*) FROM trades tr
+                               WHERE (tr.from_team_id=t.id OR tr.to_team_id=t.id)
+                                 AND tr.status='rejected'
+                                 AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active'))
+                           + (SELECT COUNT(*) FROM multi_trades mt
+                                JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id AND mtt.team_id = t.id
+                               WHERE mt.status='rejected'
+                                 AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga2 AND s.status = 'active'))
+                             AS valor
                       FROM teams t
-                      LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id)
-                                         AND tr.status='rejected'
-                                         AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active')
-                      WHERE t.league = :liga
-                      GROUP BY t.id, t.city, t.name",
+                      WHERE t.league = :liga3",
         ],
     ];
 }
@@ -331,6 +339,14 @@ function ebLinhas(PDO $pdo, array $def, string $liga): array
             if (str_contains($def['sql'], ':anopick')) {
                 require_once __DIR__ . '/helpers.php';
                 $params[':anopick'] = anoDeCorteDasPicks($pdo, $liga);
+            }
+            /* :liga2, :liga3... são a MESMA liga, com nomes diferentes.
+               Uma consulta que precisa dela em três subconsultas não pode
+               repetir o mesmo placeholder — o PDO deste projeto não emula
+               prepares, e repetir um nome dá "Invalid parameter number".
+               Numerar é mais honesto que ligar a emulação por causa disto. */
+            for ($n = 2; $n <= 5; $n++) {
+                if (str_contains($def['sql'], ':liga' . $n)) $params[':liga' . $n] = $liga;
             }
             $st = $pdo->prepare($def['sql']);
             $st->execute($params);
