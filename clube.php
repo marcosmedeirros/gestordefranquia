@@ -314,7 +314,7 @@ if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
    POST, grava, redireciona. O JSON fica pras séries, onde quem marca cinco
    coisas seguidas não pode recarregar a página a cada clique. */
 $acoesForm = ['semana_votar', 'semana_opinar', 'livro_entrar', 'livro_sair', 'livro_votar',
-              'livro_enquete', 'livro_enquete_fechar',
+              'livro_enquete', 'livro_enquete_fechar', 'livro_enquete_reabrir',
               /* A enquete do livro e os arquivos dele: o livro saiu do sorteio
                  automático em 09/10/2026 (@see CLUBE_SEMANA_AUTO). */
               'livro_votacao_abrir', 'livro_arquivo', 'livro_arquivo_tirar'];
@@ -352,6 +352,8 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
                                    !empty($_POST['multi']));
         } elseif ($acao === 'livro_enquete_fechar' && $ehAdminClube) {
             clubeLivroFecharEnquete($pdo, (int)($_POST['enquete'] ?? 0));
+        } elseif ($acao === 'livro_enquete_reabrir' && $ehAdminClube) {
+            clubeLivroReabrirEnquete($pdo, (int)($_POST['enquete'] ?? 0));
 
         } elseif ($acao === 'livro_votacao_abrir' && $ehAdminClube) {
             /* A VOTAÇÃO DO LIVRO, COM A LISTA ESCOLHIDA FORA. Um título por
@@ -1093,10 +1095,15 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php foreach ($enquetesLivro as $e): ?>
       <div class="bloco" style="margin-top:14px">
         <h3 style="margin:0 0 4px"><i class="bi bi-ui-checks"></i> <?= h($e['pergunta']) ?></h3>
+        <?php /* "N pessoas votando" numa enquete encerrada é tempo errado:
+                 ninguém está votando, o que está ali é o que votaram. */ ?>
         <div class="sem-prazo">
-          <?= $e['status'] === 'aberta' ? 'aberta' : 'encerrada' ?>
-          · <?= (int)$e['pessoas'] ?> pessoa<?= (int)$e['pessoas'] === 1 ? '' : 's' ?> votando<?=
-            $e['multi'] ? ' · marque quantos quiser' : '' ?></div>
+          <?php if ($e['status'] === 'aberta'): ?>
+            aberta · <?= (int)$e['pessoas'] ?> pessoa<?= (int)$e['pessoas'] === 1 ? '' : 's' ?> votando<?=
+              $e['multi'] ? ' · marque quantos quiser' : '' ?>
+          <?php else: ?>
+            encerrada · resultado de <?= (int)$e['pessoas'] ?> pessoa<?= (int)$e['pessoas'] === 1 ? '' : 's' ?>
+          <?php endif; ?></div>
         <div class="vops">
           <?php $tot = max(1, (int)$e['total']);
           foreach ($e['opcoes'] as $o): $pct = round(100 * $o['votos'] / $tot); ?>
@@ -1121,11 +1128,17 @@ $qInicial    = (string)($_GET['q'] ?? '');
             <?php endif; ?>
           <?php endforeach; ?>
         </div>
-        <?php if ($ehAdminClube && $e['status'] === 'aberta'): ?>
+        <?php if ($ehAdminClube): ?>
+          <?php /* ENCERRAR TEM VOLTA. Era mão única: fechar sem querer, ou
+                   fechar e descobrir que faltava gente votar, não tinha
+                   conserto pela tela. Os votos nunca saíram do banco — só a
+                   votação parava —, então reabrir continua de onde estava. */ ?>
           <form method="POST" style="margin-top:10px;text-align:right">
-            <input type="hidden" name="acao" value="livro_enquete_fechar">
+            <input type="hidden" name="acao"
+                   value="livro_enquete_<?= $e['status'] === 'aberta' ? 'fechar' : 'reabrir' ?>">
             <input type="hidden" name="enquete" value="<?= (int)$e['id'] ?>">
-            <button type="submit" class="btn">Encerrar enquete</button>
+            <button type="submit" class="btn">
+              <?= $e['status'] === 'aberta' ? 'Encerrar enquete' : 'Reabrir pra votação' ?></button>
           </form>
         <?php endif; ?>
       </div>

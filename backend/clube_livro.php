@@ -126,14 +126,31 @@ function clubeLivroMembros(PDO $pdo): array
 function clubeLivroEnquetes(PDO $pdo, int $userId): array
 {
     clubeLivroTabelas($pdo);
-    /* SO AS ABERTAS. Pedido do Marcos (08/10/2026): "apos escolher o livro
-       ou musica, fecha as enquetes, nao mostra mais elas, so o do livro
-       atual". A enquete encerrada ficava na tela com o resultado, e a aba
-       virava um empilhado de votacoes velhas em cima do que importa, que e
-       o livro de agora. O historico nao se perde: os votos continuam no
-       banco, so nao disputam a tela. */
+
+    /* ── A ENQUETE FECHADA SÓ SAI DA TELA QUANDO JÁ TEM LIVRO ─────────
+       Pedido do Marcos (08/10/2026): "APOS ESCOLHER O LIVRO ou musica, fecha
+       as enquetes, nao mostra mais elas, so o do livro atual". A aba virava
+       um empilhado de votações velhas em cima do que importa, que é o livro
+       de agora — e some mesmo, assim que o livro existe.
+
+       Eu tinha lido isso como "nunca mostrar enquete fechada", e é mais
+       largo do que o pedido. A diferença apareceu no dia seguinte, pela
+       Agata: "sumiu a enquete dos gêneros q o pessoal mais gosta". E tinha
+       sumido: alguém encerrou a enquete de gênero — 16 pessoas já tinham
+       votado, a última às 18h42 — e, SEM NENHUM LIVRO ESCOLHIDO AINDA, ela
+       saiu da tela levando junto o resultado. Que é exatamente o que o clube
+       estava construindo pra poder escolher o livro.
+
+       Então o gatilho volta a ser o do pedido: existe livro atual, a votação
+       velha sai da frente dele. Não existe, ela fica — encerrada, sem botão,
+       mostrando no que o pessoal votou. Encerrar passa a querer dizer
+       "congelei o resultado", e não "apaguei a enquete da tela". */
+    $temLivro = (bool)$pdo->query("SELECT 1 FROM clube_livro_livros
+                                    WHERE status = 'atual' LIMIT 1")->fetchColumn();
+    $onde = $temLivro ? "WHERE status = 'aberta'" : '';
     $enquetes = $pdo->query("SELECT id, pergunta, multi, status FROM clube_livro_enquetes
-                              WHERE status = 'aberta' ORDER BY id DESC LIMIT 8")
+                             {$onde}
+                             ORDER BY (status = 'aberta') DESC, id DESC LIMIT 8")
                     ->fetchAll(PDO::FETCH_ASSOC);
     $ops = $pdo->prepare("SELECT o.id, o.texto, COUNT(v.id) votos
                             FROM clube_livro_enquete_opcoes o
@@ -213,6 +230,22 @@ function clubeLivroFecharEnquete(PDO $pdo, int $enqueteId): void
 {
     clubeLivroTabelas($pdo);
     $pdo->prepare("UPDATE clube_livro_enquetes SET status = 'fechada' WHERE id = ?")
+        ->execute([$enqueteId]);
+}
+
+/**
+ * Reabre uma enquete encerrada.
+ *
+ * Fechar era o único caminho de mão única da aba: quem clicasse sem querer —
+ * ou quem fechasse e depois visse que faltava gente votar — não tinha como
+ * voltar pela tela. Os votos nunca foram apagados, só a votação é que parava;
+ * reabrir devolve o botão e continua de onde estava, sem ninguém perder o que
+ * já tinha marcado. @see clubeLivroFecharEnquete
+ */
+function clubeLivroReabrirEnquete(PDO $pdo, int $enqueteId): void
+{
+    clubeLivroTabelas($pdo);
+    $pdo->prepare("UPDATE clube_livro_enquetes SET status = 'aberta' WHERE id = ?")
         ->execute([$enqueteId]);
 }
 
