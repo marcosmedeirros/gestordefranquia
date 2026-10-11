@@ -52,27 +52,35 @@ const APOSTA_PREMIO = 75;
 const APOSTA_POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 /**
- * LIGAS EM QUE O ROBÔ NÃO ABRE APOSTA PELO CALENDÁRIO.
+ * LIGAS EM QUE O ROBÔ NÃO MEXE EM APOSTA NENHUMA.
  *
- * Pedido do Marcos (11/10/2026): "não faça as bets da rookie, foram feitas
- * manualmente, só as do playoffs que você deve fazer". Na ROOKIE a rodada de
- * apostas da temporada regular é montada à mão — vinte e uma perguntas no dia
- * 11/10, das 10h —, e o cron, que não enxerga as manuais, abriu em cima: a
- * "Quem vence o jogo da semana?" das 09h50 ficou aberta ao lado da "Jogo da
- * semana" dele, duas apostas sobre o mesmo jogo com palpites divididos.
+ * Pedido do Marcos (11/10/2026), em dois tempos. Primeiro: "não faça as bets
+ * da rookie, foram feitas manualmente, só as do playoffs que você deve
+ * fazer". Depois, no mesmo dia: "tire qualquer automação de aposta pra
+ * rookie, ela não vai ser automática, mas sim manual". Então nem os playoffs
+ * — a liga inteira passou a ser tocada à mão.
+ *
+ * O ESTRAGO QUE MOTIVOU: na ROOKIE a rodada da temporada regular é montada à
+ * mão (21 perguntas no dia 11/10, das 10h), e o cron, que não enxerga as
+ * manuais, abriu em cima — a "Quem vence o jogo da semana?" das 09h50 ficou
+ * aberta ao lado da "Jogo da semana" dele, duas apostas sobre o mesmo jogo
+ * com os palpites divididos.
  *
  * A trava contra duplicata não pegou porque ela compara (liga, temporada,
  * tipo, tipo_ref), e a aposta feita à mão no admin não grava nenhum desses
- * quatro — nasce com `liga` e `tipo` vazios. Dá pra melhorar isso, mas não
- * resolveria o pedido: mesmo sem duplicar, ele quer a lista dele e não a do
- * robô.
+ * quatro: nasce com `liga` e `tipo` vazios.
  *
- * OS PLAYOFFS CONTINUAM. Eles não passam por aqui: nascem no registro da
- * classificação (@see apostasAutoCriarPlayoffs), para as quatro ligas, e é
- * justamente a ROOKIE que mais depende daquele caminho, porque ela não tem
- * entrada de Playoffs no calendário.
+ * VALE PARA CRIAR *E* PARA PAGAR. Pagar sozinho numa liga manual é o mesmo
+ * problema pelo outro lado: o robô fecharia e creditaria uma aposta que o
+ * admin ainda estava conferindo. @see apostasAutoLigaManual
  */
 const APOSTAS_AUTO_LIGAS_MANUAIS = ['ROOKIE'];
+
+/** Esta liga é tocada à mão? @see APOSTAS_AUTO_LIGAS_MANUAIS */
+function apostasAutoLigaManual(?string $liga): bool
+{
+    return in_array(strtoupper(trim((string)$liga)), APOSTAS_AUTO_LIGAS_MANUAIS, true);
+}
 
 /* ═══════════════════════════ ESTRUTURA ═══════════════════════════════ */
 
@@ -680,7 +688,7 @@ function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false,
         /* A liga que monta a rodada à mão não recebe nada por aqui — nem o
            jogo da semana, que foi justamente o que duplicou.
            @see APOSTAS_AUTO_LIGAS_MANUAIS */
-        if (in_array($dia['liga'], APOSTAS_AUTO_LIGAS_MANUAIS, true)) {
+        if (apostasAutoLigaManual($dia['liga'])) {
             $r['puladas'][] = "{$dia['liga']}: a rodada desta liga é montada à mão"
                             . ' (os playoffs continuam automáticos)';
             continue;
@@ -817,6 +825,13 @@ function apostasAutoCriarPlayoffs(PDO $pdo, string $liga, int $seasonId,
     apostasAutoEstrutura($pdo);
     $liga = strtoupper(trim($liga));
     $r = ['criadas' => [], 'puladas' => [], 'erros' => []];
+
+    /* Liga manual não recebe nem as de playoff, que eram a última coisa que o
+       robô ainda abria nela. @see APOSTAS_AUTO_LIGAS_MANUAIS */
+    if (apostasAutoLigaManual($liga)) {
+        $r['puladas'][] = "{$liga}: as apostas desta liga são criadas à mão";
+        return $r;
+    }
 
     $st = $pdo->prepare('SELECT id, season_number FROM seasons WHERE id = ? AND league = ?');
     $st->execute([$seasonId, $liga]);
@@ -995,7 +1010,7 @@ function apostasAutoAdotarManuais(PDO $pdo, bool $aplicar = false): array
         /* O confronto: os dois nomes, em qualquer ordem, na temporada de
            playoff mais recente da liga dentro da sprint ativa. */
         $serie = $pdo->prepare("
-            SELECT ps.id, ps.winner_team_id, TRIM(tw.name) vencedor_nome
+            SELECT ps.id, ps.winner_team_id, TRIM(tw.name) vencedor_nome, se.league
               FROM playoff_series ps
               JOIN seasons se ON se.id = ps.season_id
               JOIN sprints sp ON sp.id = se.sprint_id AND sp.status = 'active'
@@ -1024,6 +1039,11 @@ function apostasAutoAdotarManuais(PDO $pdo, bool $aplicar = false): array
             $achadas = $serie->fetchAll(PDO::FETCH_ASSOC);
             if (count($achadas) !== 1) continue;                 // zero ou ambíguo: fica pro admin
             if (!$achadas[0]['winner_team_id']) continue;        // série ainda sem vencedor
+            /* A aposta feita à mão não grava a liga (nasce com o campo
+               vazio), então quem diz de que liga ela é, aqui, é a série que
+               casou com os dois nomes. Sendo de liga manual, o robô não
+               paga. @see APOSTAS_AUTO_LIGAS_MANUAIS */
+            if (apostasAutoLigaManual((string)$achadas[0]['league'])) continue;
 
             $vencNome = (string)$achadas[0]['vencedor_nome'];
             $opVenc = null;
@@ -1412,10 +1432,21 @@ function apostasAutoResolver(PDO $pdo, bool $aplicar = false): array
        mesmo aviso de "APOSTAS PAGAS". @see apostasAutoAdotarManuais */
     foreach (apostasAutoAdotarManuais($pdo, $aplicar) as $paga) $r['pagas'][] = $paga;
 
-    $evts = $pdo->query("SELECT id, nome, liga, season_id, tipo, tipo_ref
-                           FROM eventos
-                          WHERE auto = 1 AND status = 'aberta' AND tipo IS NOT NULL
-                       ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+    /* Liga manual fica fora também do pagamento. Pagar sozinho numa liga em
+       que o admin monta tudo é o mesmo problema pelo outro lado: o robô
+       fecharia e creditaria uma aposta que ainda estava sendo conferida.
+       O filtro é por `liga`, então a aposta do robô que já nasceu antes da
+       trava (a #537 da ROOKIE) também para aqui.
+       @see APOSTAS_AUTO_LIGAS_MANUAIS */
+    $manuais = APOSTAS_AUTO_LIGAS_MANUAIS;
+    $phManuais = implode(',', array_fill(0, count($manuais), '?'));
+    $stEvts = $pdo->prepare("SELECT id, nome, liga, season_id, tipo, tipo_ref
+                               FROM eventos
+                              WHERE auto = 1 AND status = 'aberta' AND tipo IS NOT NULL
+                                AND COALESCE(UPPER(TRIM(liga)), '') NOT IN ({$phManuais})
+                           ORDER BY id");
+    $stEvts->execute($manuais);
+    $evts = $stEvts->fetchAll(PDO::FETCH_ASSOC);
 
     $ops = $pdo->prepare('SELECT id, descricao, ref_tipo, ref_id, ref_txt
                             FROM opcoes WHERE evento_id = ? ORDER BY id');

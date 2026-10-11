@@ -223,6 +223,71 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
+    /* ── CANCELAR A APOSTA, MESMO COM PALPITE DENTRO ──────────────────────
+       Pedido do Marcos (11/10/2026): "dê a opção lá no painel de controle das
+       apostas de cancelar aposta, mesmo se ela tiver palpites". Até aqui o
+       painel só sabia ENCERRAR (escolhe o vencedor e paga) ou CORRIGIR o
+       vencedor — não havia como dizer "essa aposta não devia existir". E
+       passou a precisar: no dia 11/10 o robô abriu uma aposta na ROOKIE em
+       cima da que ele tinha montado à mão, as duas sobre o mesmo jogo.
+
+       PALPITE NÃO CUSTA NADA, então não há o que devolver: o `valor` do
+       palpite é sempre 1, simbólico, e nenhuma moeda sai do saldo de quem
+       aposta. O que existe é o PRÊMIO — +75 FBA Points e +1 acerto, pagos no
+       encerramento. Se a aposta já foi paga, cancelar tira isso de volta,
+       exatamente como o "Corrigir vencedor" aqui do lado já faz ao trocar o
+       vencedor antigo pelo novo.
+
+       A aposta e as opções FICAM no banco, só marcadas como canceladas: some
+       da liga sem sumir do histórico, e o nome dela continua explicando o que
+       foi cancelado. Os palpites são apagados, porque palpite de aposta
+       cancelada não conta como participação em lugar nenhum. */
+    if (isset($_POST['acao']) && $_POST['acao'] == 'cancelar_evento') {
+        $id_evento = (int)($_POST['id_evento'] ?? 0);
+        try {
+            $pdo->beginTransaction();
+            $stEv = $pdo->prepare("SELECT nome, status, vencedor_opcao_id FROM eventos WHERE id=? FOR UPDATE");
+            $stEv->execute([$id_evento]);
+            $ev = $stEv->fetch(PDO::FETCH_ASSOC);
+            if (!$ev) throw new Exception('Aposta não encontrada.');
+            if ($ev['status'] === 'cancelada') throw new Exception('Essa aposta já estava cancelada.');
+
+            $estornados = 0;
+            if ($ev['status'] === 'encerrada' && !empty($ev['vencedor_opcao_id'])) {
+                $stEst = $pdo->prepare("
+                    UPDATE games_usuarios u
+                    JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
+                    SET u.fba_points=u.fba_points-75, u.acertos_eventos=GREATEST(u.acertos_eventos-1,0)
+                ");
+                $stEst->execute([$ev['vencedor_opcao_id']]);
+                $estornados = $stEst->rowCount();
+            }
+
+            $stDel = $pdo->prepare("DELETE p FROM palpites p
+                                      JOIN opcoes o ON o.id = p.opcao_id
+                                     WHERE o.evento_id = ?");
+            $stDel->execute([$id_evento]);
+            $palpitesApagados = $stDel->rowCount();
+
+            $pdo->prepare("UPDATE eventos SET status='cancelada', vencedor_opcao_id=NULL WHERE id=?")
+                ->execute([$id_evento]);
+            $pdo->commit();
+
+            $mensagem = 'Aposta cancelada: ' . $palpitesApagados . ' palpite'
+                      . ($palpitesApagados === 1 ? '' : 's') . ' apagado'
+                      . ($palpitesApagados === 1 ? '' : 's')
+                      . ($estornados > 0
+                          ? ', e os 75 FBA Points voltaram de ' . $estornados . ' pessoa'
+                            . ($estornados === 1 ? '' : 's') . '.'
+                          : '.');
+            $mensagemType = 'info';
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $mensagem = "Erro: " . $e->getMessage();
+            $mensagemType = "danger";
+        }
+    }
+
     if (isset($_POST['acao']) && $_POST['acao'] == 'alterar_vencedor') {
         $id_evento             = $_POST['id_evento'];
         $novo_vencedor_opcao_id= $_POST['vencedor_opcao_id'];
@@ -273,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
    mas sem uma aba aqui ninguém as veria, e elas abririam sozinhas na carência
    com o palpite automático, que acerta metade do que a mão acerta.
    @see backend/apostas_auto.php */
-$statusValidos = ['aberta', 'encerrada', 'rascunho'];
+$statusValidos = ['aberta', 'encerrada', 'rascunho', 'cancelada'];
 $filtro_status = in_array($_GET['status'] ?? '', $statusValidos, true) ? $_GET['status'] : 'aberta';
 $stmtEventos = $pdo->prepare("SELECT * FROM eventos WHERE status=? ORDER BY data_limite ASC");
 $stmtEventos->execute([$filtro_status]);
@@ -294,6 +359,9 @@ $totalEncerradas= $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='encerr
    existe depois que backend/apostas_auto.php rodou — num banco que nunca
    rodou o cron a conta volta zero e a aba nem aparece. */
 $totalRascunhos = (int)$pdo->query("SELECT COUNT(*) FROM eventos WHERE status='rascunho'")->fetchColumn();
+/* Mesma ideia da aba de rascunho: num painel onde nunca se cancelou nada a
+   conta volta zero e a aba não aparece. */
+$totalCanceladas = (int)$pdo->query("SELECT COUNT(*) FROM eventos WHERE status='cancelada'")->fetchColumn();
 $totalPalpites  = $pdo->query("SELECT COUNT(*) FROM palpites")->fetchColumn();
 
 $acTeams = [];
@@ -577,6 +645,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
                border-radius:var(--radius-sm);padding:8px 15px;font-family:var(--font);font-size:12px;
                font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all var(--t) var(--ease)}
 .btn-alter-evt:hover{background:rgba(245,158,11,.2)}
+/* CANCELAR É SAÍDA, NÃO AÇÃO: discreto, e numa linha só dele acima do
+   Encerrar/Corrigir. Vermelho cheio só no hover, pra não competir com o
+   botão que a pessoa usa todo dia. */
+.cancelar-evt{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-md);
+  justify-content:space-between;gap:10px}
+.cancelar-nota{font-size:11.5px;color:var(--text-3)}
+.btn-cancel-evt{background:transparent;color:var(--text-3);border:1px solid var(--border-md);
+  border-radius:var(--radius-sm);padding:7px 12px;font-size:12.5px;font-weight:600;
+  display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn-cancel-evt:hover{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#f87171}
 
 .empty-state{text-align:center;padding:52px 20px;color:var(--text-3);background:var(--panel);
              border:1px solid var(--border);border-radius:var(--radius)}
@@ -786,6 +864,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <?php if ($totalRascunhos > 0): ?>
           <a href="?status=rascunho" class="tab-btn <?= $filtro_status==='rascunho' ?'active':'' ?>"><i class="bi bi-pencil me-1"></i>Esperando palpite <span class="badge bg-warning text-dark"><?= (int)$totalRascunhos ?></span></a>
           <?php endif; ?>
+          <?php if ($totalCanceladas > 0): ?>
+          <a href="?status=cancelada" class="tab-btn <?= $filtro_status==='cancelada' ?'active':'' ?>"><i class="bi bi-slash-circle me-1"></i>Canceladas <span class="badge bg-secondary"><?= (int)$totalCanceladas ?></span></a>
+          <?php endif; ?>
         </div>
         <div class="search-bar">
           <i class="bi bi-search"></i>
@@ -798,7 +879,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <?php if (empty($eventos)): ?>
       <div class="empty-state">
         <i class="bi bi-inbox"></i>
-        <p>Nenhuma aposta <?= $filtro_status === 'aberta' ? 'aberta' : ($filtro_status === 'rascunho' ? 'esperando palpite' : 'encerrada') ?> no momento.</p>
+        <p>Nenhuma aposta <?= ['aberta' => 'aberta', 'rascunho' => 'esperando palpite', 'cancelada' => 'cancelada', 'encerrada' => 'encerrada'][$filtro_status] ?? 'encerrada' ?> no momento.</p>
       </div>
       <?php endif; ?>
 
@@ -876,6 +957,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
               <i class="bi bi-flag-fill"></i> Encerrar
             </button>
           </form>
+          <?php elseif ($evt['status']==='cancelada'): ?>
+          <?php /* Cancelada não tem vencedor pra corrigir — e o seletor de
+                   "Corrigir" aqui levaria a repagar gente de uma aposta que
+                   não vale mais. O POST já recusa (ele exige 'encerrada'),
+                   mas o botão não devia estar na tela pra começo de conversa. */ ?>
+          <div class="result-row">
+            <span class="cancelar-nota">
+              <i class="bi bi-slash-circle"></i> Cancelada — os palpites foram apagados<?=
+                !empty($evt['vencedor_opcao_id']) ? '' : ' e nada ficou pago' ?>.
+            </span>
+          </div>
           <?php else: ?>
           <form method="POST" class="result-row"
                 data-confirmar="Corrigir vencedor vai ajustar os pontos pagos. Continuar?">
@@ -891,6 +983,37 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             </select>
             <button type="submit" class="btn-alter-evt">
               <i class="bi bi-arrow-repeat"></i> Corrigir
+            </button>
+          </form>
+          <?php endif; ?>
+
+          <?php if ($evt['status'] !== 'cancelada'):
+            /* CANCELAR FICA SEPARADO E POR ÚLTIMO, longe do Encerrar: os dois
+               terminam a aposta, mas um paga e o outro desfaz, e colados viram
+               clique errado. O texto da confirmação diz o número de palpites e
+               se há prêmio a devolver — é o que a pessoa precisa saber ANTES,
+               não depois. */
+            $qtd = (int)$evt['total_apostas_evento'];
+            $temPremio = $evt['status'] === 'encerrada' && !empty($evt['vencedor_opcao_id']);
+            $aviso = 'Cancelar esta aposta?';
+            $aviso .= $qtd > 0
+              ? ' Os ' . $qtd . ' palpite' . ($qtd === 1 ? '' : 's') . ' serão apagados'
+              : ' Ela não tem palpite nenhum';
+            $aviso .= $temPremio
+              ? ', e os 75 FBA Points pagos a quem acertou voltam atrás.'
+              : '.';
+            $aviso .= ' A aposta some da liga, mas fica no histórico.';
+          ?>
+          <form method="POST" class="result-row cancelar-evt" data-confirmar="<?= htmlspecialchars($aviso) ?>">
+            <input type="hidden" name="acao" value="cancelar_evento">
+            <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+            <span class="cancelar-nota">
+              <?= $qtd > 0
+                    ? $qtd . ' palpite' . ($qtd === 1 ? '' : 's') . ' serão apagados'
+                    : 'sem palpites' ?><?= $temPremio ? ' · o prêmio volta atrás' : '' ?>
+            </span>
+            <button type="submit" class="btn-cancel-evt">
+              <i class="bi bi-slash-circle"></i> Cancelar aposta
             </button>
           </form>
           <?php endif; ?>
