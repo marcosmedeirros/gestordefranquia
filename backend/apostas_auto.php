@@ -51,6 +51,29 @@ const APOSTA_PREMIO = 75;
 /** As cinco posições, na ordem em que a liga escreve. */
 const APOSTA_POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 
+/**
+ * LIGAS EM QUE O ROBÔ NÃO ABRE APOSTA PELO CALENDÁRIO.
+ *
+ * Pedido do Marcos (11/10/2026): "não faça as bets da rookie, foram feitas
+ * manualmente, só as do playoffs que você deve fazer". Na ROOKIE a rodada de
+ * apostas da temporada regular é montada à mão — vinte e uma perguntas no dia
+ * 11/10, das 10h —, e o cron, que não enxerga as manuais, abriu em cima: a
+ * "Quem vence o jogo da semana?" das 09h50 ficou aberta ao lado da "Jogo da
+ * semana" dele, duas apostas sobre o mesmo jogo com palpites divididos.
+ *
+ * A trava contra duplicata não pegou porque ela compara (liga, temporada,
+ * tipo, tipo_ref), e a aposta feita à mão no admin não grava nenhum desses
+ * quatro — nasce com `liga` e `tipo` vazios. Dá pra melhorar isso, mas não
+ * resolveria o pedido: mesmo sem duplicar, ele quer a lista dele e não a do
+ * robô.
+ *
+ * OS PLAYOFFS CONTINUAM. Eles não passam por aqui: nascem no registro da
+ * classificação (@see apostasAutoCriarPlayoffs), para as quatro ligas, e é
+ * justamente a ROOKIE que mais depende daquele caminho, porque ela não tem
+ * entrada de Playoffs no calendário.
+ */
+const APOSTAS_AUTO_LIGAS_MANUAIS = ['ROOKIE'];
+
 /* ═══════════════════════════ ESTRUTURA ═══════════════════════════════ */
 
 /**
@@ -654,6 +677,15 @@ function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false,
     $r = ['criadas' => [], 'puladas' => [], 'erros' => []];
 
     foreach (apostasAutoDiaDaLiga($pdo, $data) as $dia) {
+        /* A liga que monta a rodada à mão não recebe nada por aqui — nem o
+           jogo da semana, que foi justamente o que duplicou.
+           @see APOSTAS_AUTO_LIGAS_MANUAIS */
+        if (in_array($dia['liga'], APOSTAS_AUTO_LIGAS_MANUAIS, true)) {
+            $r['puladas'][] = "{$dia['liga']}: a rodada desta liga é montada à mão"
+                            . ' (os playoffs continuam automáticos)';
+            continue;
+        }
+
         $temporada = apostasAutoTemporadaAtual($pdo, $dia['liga']);
         if (!$temporada) {
             $r['erros'][] = "{$dia['liga']}: sem temporada em curso na sprint ativa";
