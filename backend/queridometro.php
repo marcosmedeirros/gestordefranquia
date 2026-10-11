@@ -3,12 +3,13 @@
  * Queridômetro da temporada, por liga — cada GM escolhe outro time pra cada
  * categoria (MVP, MIP, Fraco, Cobra, Planta), sem repetir time entre elas.
  * Um voto por time POR TEMPORADA (chave = id da temporada ativa da liga): o
- * popup só aparece uma vez por temporada e o placar zera no avanço de
- * temporada e no fim de sprint (api/seasons.php).
+ * popup só aparece uma vez por temporada e o quadro da temporada nova já
+ * nasce limpo, porque tudo aqui é filtrado pela chave.
  *
- * A chave da temporada não é só cosmética — é ela que impede um segundo voto.
- * O placar também é filtrado por ela, então mesmo se o reset falhar a
- * temporada nova já começa com o quadro limpo.
+ * A chave da temporada não é só cosmética — é ela que impede um segundo voto,
+ * e é ela que zera o placar na virada. Nada é apagado: o histórico fica, e é
+ * dele que sai a regra do intervalo (@see queridometroBloqueados) — não dá
+ * pra votar no mesmo GM em duas temporadas seguidas.
  *
  * Fica fora de api/ de propósito: api/queridometro.php e api/seasons.php
  * (que dispara o reset) usam essas funções como biblioteca compartilhada.
@@ -145,12 +146,114 @@ function queridometroTop3(PDO $pdo, string $league, ?string $seasonKey = null): 
     return $out;
 }
 
-/** Zera o placar da liga inteira — no avanço de temporada e no fim de sprint. */
+/**
+ * Zera o placar da liga — no avanço de temporada e no fim de sprint.
+ *
+ * ── ELE NÃO APAGA MAIS NADA ──────────────────────────────────────────
+ *
+ * Apagava: `DELETE FROM querido_votos WHERE league = ?`. E era um DELETE
+ * inútil, porque quem zera o quadro é a CHAVE DA TEMPORADA — o placar e o
+ * "já votou" filtram por `season_key`, então a temporada nova sempre nasce
+ * limpa, com ou sem faxina. O próprio comentário no topo deste arquivo já
+ * dizia isso.
+ *
+ * Inútil e caro: era ele que impedia a regra do intervalo de uma temporada
+ * (@see queridometroBloqueados). Sem o voto do ano passado no banco, não há
+ * como saber em quem você votou no ano passado. O pedido do Marcos
+ * (10/10/2026) — "votei no anderson pra fraco em uma, na próxima eu não
+ * posso, somente na outra" — só existe se o histórico existir.
+ *
+ * A função fica porque os dois pontos de virada a chamam (@see
+ * api/seasons.php), e porque "zerar o queridômetro" continua sendo uma
+ * intenção legítima — ela só não precisa de DELETE pra cumprir.
+ */
 function resetQueridometroDaLiga(PDO $pdo, string $league): void
 {
+    /* Nada a fazer: a virada de temporada muda a season_key e o quadro da
+       nova nasce vazio sozinho. Apagar aqui destruiria o histórico que a
+       regra do intervalo precisa ler. */
+}
+
+/**
+ * A chave da temporada ANTERIOR da liga, ou '' se não houver.
+ *
+ * A corrente é a última temporada não encerrada; a anterior é a de id
+ * imediatamente abaixo dela. Sem temporada aberta (a chave corrente cai em
+ * 'S0'), a "anterior" é simplesmente a última que existiu — é o intervalo
+ * entre ciclos, e lá o que valeu por último continua valendo.
+ */
+function queridometroSeasonKeyAnterior(PDO $pdo, string $league): string
+{
     try {
-        $pdo->prepare("DELETE FROM querido_votos WHERE league = ?")->execute([$league]);
+        $league = strtoupper($league);
+        $atual = (int)ltrim(queridometroSeasonKey($pdo, $league), 'S');
+        if ($atual > 0) {
+            $st = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND id < ? ORDER BY id DESC LIMIT 1");
+            $st->execute([$league, $atual]);
+        } else {
+            $st = $pdo->prepare("SELECT id FROM seasons WHERE league = ? ORDER BY id DESC LIMIT 1");
+            $st->execute([$league]);
+        }
+        $id = (int)($st->fetchColumn() ?: 0);
+        return $id > 0 ? 'S' . $id : '';
     } catch (Throwable $e) {
-        error_log('[resetQueridometroDaLiga] ' . $e->getMessage());
+        error_log('[queridometroSeasonKeyAnterior] ' . $e->getMessage());
+        return '';
+    }
+}
+
+/**
+ * EM QUEM ESTE GM NÃO PODE VOTAR AGORA: quem ele votou na temporada passada.
+ *
+ * Pedido do Marcos (10/10/2026): "tá dando pra votar 2 temporadas seguidas,
+ * tipo eu votei no anderson pra fraco em uma, na próxima eu não posso,
+ * somente na outra". O queridômetro vira perseguição quando o mesmo GM leva
+ * o mesmo voto do mesmo votante todo ano — e, com trinta times na liga,
+ * pular um ano não aperta ninguém: sobram vinte e nove.
+ *
+ * O bloqueio é POR TIME, não por categoria. Travar só "Anderson pra Fraco"
+ * deixaria votar "Anderson pra Cobra" no ano seguinte, que é a mesma
+ * perseguição com outro nome.
+ *
+ * @return array<int,string> id do time => nome do GM, pra tela explicar
+ */
+function queridometroBloqueados(PDO $pdo, string $league, int $teamId): array
+{
+    $anterior = queridometroSeasonKeyAnterior($pdo, $league);
+    if ($anterior === '') return [];
+    try {
+        $league = strtoupper($league);
+        $st = $pdo->prepare("SELECT DISTINCT v.voted_team_id, u.name
+                               FROM querido_votos v
+                               JOIN teams t ON t.id = v.voted_team_id
+                          LEFT JOIN users u ON u.id = t.user_id
+                              WHERE v.league = ? AND v.season_key = ? AND v.voter_team_id = ?");
+        $st->execute([$league, $anterior, $teamId]);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['voted_team_id']] = (string)($r['name'] ?? '');
+        }
+        if (!$out) return [];
+
+        /* ── A REGRA NÃO PODE TRANCAR A VOTAÇÃO ───────────────────────────
+           São cinco categorias e cinco nomes diferentes. Numa liga de trinta
+           times isso é folgado: tira cinco, sobram vinte e quatro. Numa liga
+           pequena — ou numa que esvaziou — bloquear deixaria menos candidatos
+           que categorias, e o GM abriria o popup sem conseguir fechar voto
+           nenhum, sem nada na tela explicando por quê.
+
+           Aí o intervalo cede. Ele é um freio de convívio, e um freio que
+           impede o carro de andar não serve. */
+        $stN = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ? AND id <> ?");
+        $stN->execute([$league, $teamId]);
+        $candidatos = (int)$stN->fetchColumn() - count($out);
+        if ($candidatos < count(queridometroCategorias())) return [];
+
+        return $out;
+    } catch (Throwable $e) {
+        /* Banco sem a tabela, ou consulta falhando: não travar ninguém. A
+           regra é um freio de convívio, não uma trava de integridade. */
+        error_log('[queridometroBloqueados] ' . $e->getMessage());
+        return [];
     }
 }

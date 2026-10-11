@@ -116,6 +116,7 @@ $queridoSeasonKey = '';
 $precisaVotarQuerido = false;
 $queridoTimes = [];
 $queridoTop3 = [];
+$queridoBloqueados = [];
 if ($team) {
     ensureQuerdometroTable($pdo);
     $queridoLeague = strtoupper((string)($team['league'] ?? ''));
@@ -133,6 +134,11 @@ if ($team) {
     $stmtQTimes->execute([$queridoLeague, (int)$team['id']]);
     $queridoTimes = $stmtQTimes->fetchAll(PDO::FETCH_ASSOC);
     $queridoTop3 = queridometroTop3($pdo, $queridoLeague, $queridoSeasonKey);
+    /* Quem levou o voto deste GM na temporada passada fica de fora desta —
+       um ano de intervalo por nome. @see queridometroBloqueados */
+    $queridoBloqueados = $queridoLeague !== ''
+        ? queridometroBloqueados($pdo, $queridoLeague, (int)$team['id'])
+        : [];
 }
 // A revisão de sprint é bloqueante — enquanto ela não sai da tela, o popup
 // do Queridômetro espera o próximo carregamento (mesma regra da logo/elenco acima).
@@ -1103,6 +1109,14 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .querido-cat-planta { color: var(--amber); }
         .querido-top3 { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; }
         .querido-vazio { font-size: 12px; color: var(--text-3); }
+        /* O aviso de quem está de fora da votação desta temporada. */
+        .quer-bloq-aviso {
+            display: flex; align-items: flex-start; gap: 7px;
+            background: rgba(245, 197, 24, .09);
+            border: 1px solid rgba(245, 197, 24, .28);
+            border-radius: 9px; padding: 9px 11px; margin-bottom: 14px;
+        }
+        .quer-bloq-aviso i { color: var(--amber); margin-top: 1px; flex-shrink: 0; }
         .querido-chip {
             display: flex; align-items: center; gap: 6px; background: var(--panel-3);
             border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px 4px 4px;
@@ -2719,6 +2733,19 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
     <?php if ($precisaVotarQuerido): ?>
     <p class="quer-sub">Escolha um GM diferente pra cada categoria — não dá pra repetir nem votar em você mesmo. É um voto por temporada, então escolha com calma.</p>
+    <?php if ($queridoBloqueados): ?>
+      <?php /* ── UM ANO DE INTERVALO POR NOME ────────────────────────────
+           Pedido do Marcos (10/10/2026). O aviso vem antes das listas porque
+           o nome aparece lá riscado e cinza: sem a frase aqui em cima, a
+           primeira reação é achar que bugou. */ ?>
+      <p class="quer-sub quer-bloq-aviso">
+        <i class="bi bi-hourglass-split"></i>
+        <?= count($queridoBloqueados) === 1 ? 'Um GM está' : count($queridoBloqueados) . ' GMs estão' ?>
+        de fora desta votação: você votou
+        <?= count($queridoBloqueados) === 1 ? 'nele' : 'neles' ?> na temporada passada e
+        o mesmo nome só volta a valer na próxima.
+      </p>
+    <?php endif; ?>
     <div>
       <?php foreach (queridometroCategorias() as $catKey => $catLabel): ?>
       <div class="quer-field">
@@ -2730,8 +2757,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         </label>
         <select id="quer-<?= $catKey ?>" data-cat="<?= $catKey ?>">
           <option value="">Escolha um GM...</option>
-          <?php foreach ($queridoTimes as $tt): ?>
-          <option value="<?= (int)$tt['id'] ?>"><?= htmlspecialchars((string)($tt['name'] ?? '')) ?></option>
+          <?php foreach ($queridoTimes as $tt):
+            /* O nome continua na lista, desabilitado e com o motivo ao lado.
+               Tirá-lo deixaria a pessoa procurando quem não está mais ali. */
+            $bloq = isset($queridoBloqueados[(int)$tt['id']]); ?>
+          <option value="<?= (int)$tt['id'] ?>"<?= $bloq ? ' disabled' : '' ?>><?=
+            htmlspecialchars((string)($tt['name'] ?? '')) ?><?= $bloq ? ' — votou na temporada passada' : '' ?></option>
           <?php endforeach; ?>
         </select>
       </div>

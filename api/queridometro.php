@@ -55,6 +55,15 @@ if ($method === 'GET') {
         $stmtTimes->execute([$league, $myTeamId]);
         $times = $stmtTimes->fetchAll(PDO::FETCH_ASSOC);
 
+        /* Quem este GM votou na temporada passada sai da lista com a marca —
+           e não some dela: um nome que desaparece sem explicação vira
+           "cadê o Anderson?". @see queridometroBloqueados */
+        $bloqueados = queridometroBloqueados($pdo, $league, $myTeamId);
+        foreach ($times as &$t) {
+            $t['bloqueado'] = isset($bloqueados[(int)$t['id']]);
+        }
+        unset($t);
+
         echo json_encode([
             'success'    => true,
             'league'     => $league,
@@ -62,6 +71,7 @@ if ($method === 'GET') {
             'ja_votou'   => $jaVotou,
             'categorias' => queridometroCategorias(),
             'times'      => $times,
+            'bloqueados' => array_map('intval', array_keys($bloqueados)),
             'top3'       => queridometroTop3($pdo, $league, $seasonKey),
         ]);
         exit;
@@ -87,6 +97,11 @@ if ($method === 'POST') {
         $categorias = array_keys(queridometroCategorias());
         $votos      = is_array($body['votos'] ?? null) ? $body['votos'] : [];
 
+        /* UM ANO DE INTERVALO POR GM VOTADO. A tela já desabilita esses
+           nomes; a recusa aqui é o que vale, porque o select da tela é
+           conveniência e este POST é o que grava. @see queridometroBloqueados */
+        $bloqueados = queridometroBloqueados($pdo, $league, $myTeamId);
+
         $escolhidos = [];
         foreach ($categorias as $cat) {
             $teamId = (int)($votos[$cat] ?? 0);
@@ -103,6 +118,14 @@ if ($method === 'POST') {
             if (in_array($teamId, $escolhidos, true)) {
                 http_response_code(422);
                 echo json_encode(['success' => false, 'error' => 'Não dá pra escolher o mesmo GM em duas categorias.']);
+                exit;
+            }
+            if (isset($bloqueados[$teamId])) {
+                $nome = trim($bloqueados[$teamId]) !== '' ? $bloqueados[$teamId] : 'Esse GM';
+                http_response_code(422);
+                echo json_encode(['success' => false,
+                    'error' => $nome . ' levou seu voto na temporada passada — só dá pra votar '
+                             . 'nele de novo na temporada seguinte.']);
                 exit;
             }
             $escolhidos[] = $teamId;
