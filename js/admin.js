@@ -31,7 +31,11 @@ let appState = {
   teamDetails: null,
   currentFAleague: _leagues[0] || 'ELITE',
   adminLeagueFilter: null,
-  tradeFilters: { league: 'ALL', status: 'all', teamId: '', seasonYear: '' }
+  /* `tipo` separa troca de dois times, múltipla e leilão; `pendentes` deixa
+     só o que ainda não foi reproduzido no jogo. Os dois filtram no NAVEGADOR,
+     sobre a lista que a API já mandou — não vale uma ida ao servidor pra
+     esconder card. @see showTrades */
+  tradeFilters: { league: 'ALL', status: 'all', teamId: '', seasonYear: '', tipo: 'todos', pendentes: false }
 };
 let adminFreeAgents = [];
 const freeAgencyTeamsCache = {};
@@ -4954,6 +4958,8 @@ async function showTrades() {
   const teamFilter = appState.tradeFilters.teamId || '';
   const seasonYearFilter = appState.tradeFilters.seasonYear || '';
   const playerFilter = appState.tradeFilters.player || '';
+  const tipoFilter = appState.tradeFilters.tipo || 'todos';
+  const pendentesFilter = !!appState.tradeFilters.pendentes;
 
   const leagueOptions = [
     { value: 'ALL', label: 'Todas as ligas' },
@@ -4983,6 +4989,22 @@ async function showTrades() {
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:160px" id="adminTradeTeamFilter" onchange="updateTradeFilter({ teamId: this.value })">
         <option value="">Todos os times</option>
       </select>
+      ${/* ACHAR O LEILÃO NO MEIO DE MIL E QUINHENTOS CARDS.
+            Os leilões já entravam na lista com a tag, mas misturados com as
+            trocas — e são 124 em 1513. Pedido do Marcos (12/10/2026): a
+            listagem é onde ele confere o que falta REPRODUZIR NO JOGO, e pra
+            isso precisa conseguir isolar. */''}
+      <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ tipo: this.value })">
+        <option value="todos"   ${tipoFilter === 'todos'   ? 'selected' : ''}>Trocas e leilões</option>
+        <option value="troca"   ${tipoFilter === 'troca'   ? 'selected' : ''}>Só trocas (2 times)</option>
+        <option value="multi"   ${tipoFilter === 'multi'   ? 'selected' : ''}>Só múltiplas</option>
+        <option value="leilao"  ${tipoFilter === 'leilao'  ? 'selected' : ''}>Só leilões</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${pendentesFilter ? 'checked' : ''}
+               onchange="updateTradeFilter({ pendentes: this.checked })">
+        falta fazer no jogo
+      </label>
       <div style="position:relative">
         <i class="bi bi-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-3);pointer-events:none"></i>
         <input id="adminTradePlayerFilter" type="search" placeholder="Buscar jogador…"
@@ -5059,13 +5081,27 @@ async function showTrades() {
     const trades = data.trades || [];
     const tc = document.getElementById('tradesListContainer');
 
-    const badge = document.getElementById('tradesCountBadge');
-    if (badge) badge.textContent = `(${trades.length})`;
+    /* O TIPO E O "FALTA FAZER" PENEIRAM AQUI, no navegador: a API já mandou
+       tudo, e esconder card não justifica outra viagem ao servidor. */
+    const ehDoTipo = (t) => {
+      if (tipoFilter === 'leilao') return !!t.is_leilao;
+      if (tipoFilter === 'multi')  return !!t.is_multi;
+      if (tipoFilter === 'troca')  return !t.is_leilao && !t.is_multi;
+      return true;
+    };
+    const filteredTrades = trades.filter(t =>
+      ehDoTipo(t) && (!pendentesFilter || Number(t.is_in_game || 0) !== 1));
 
-    const filteredTrades = trades;
-    
+    const badge = document.getElementById('tradesCountBadge');
+    if (badge) {
+      const nLeiloes = filteredTrades.filter(t => t.is_leilao).length;
+      badge.textContent = filteredTrades.length === trades.length
+        ? `(${trades.length}${nLeiloes ? ` · ${nLeiloes} leilões` : ''})`
+        : `(${filteredTrades.length} de ${trades.length})`;
+    }
+
     if (filteredTrades.length === 0) {
-      tc.innerHTML = '<div class="text-center py-5 text-light-gray">Nenhuma trade</div>';
+      tc.innerHTML = '<div class="text-center py-5 text-light-gray">Nada com esses filtros</div>';
       return;
     }
     
