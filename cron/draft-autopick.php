@@ -22,10 +22,11 @@ require_once __DIR__ . '/../backend/draft_relogio.php';
 $pdo = db();
 draftAutopickColunas($pdo);
 
-/* O RELÓGIO ANTES DA FILA: é ele que arma o horário das 16 horas, avisa o
-   grupo e chama o time da vez. O autopick de baixo continua rodando por
-   garantia — se o relógio falhar em alguma sessão, a escolha automática não
-   pode parar junto. */
+/* O RELÓGIO ANTES DA FILA: é ele que avisa o grupo e chama o time da vez,
+   quando há hora marcada — desde 12/10/2026 ele não arma horário nenhum
+   sozinho (@see draftRelogioSessao). O autopick de baixo continua rodando
+   por garantia: se o relógio falhar em alguma sessão, a escolha automática
+   não pode parar junto. */
 draftRelogioTick($pdo);
 
 $sessoes = $pdo->query('SELECT id FROM draft_sessions WHERE status = "in_progress"');

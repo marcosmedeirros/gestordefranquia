@@ -10860,7 +10860,7 @@ async function showAdminDraft(league) {
             ${clockRaw ? `<button class="btn-ghost" style="font-size:12px;color:#ef4444" onclick="_adminClearRound1Clock(${draft.id}, '${league}')"><i class="bi bi-x-circle me-1"></i>Remover</button>` : ''}
             <span style="font-size:11px;color:var(--text-3)">${clockRaw
               ? (clockArmed ? 'Correndo — 3min por pick, o bot chama cada time no Gameplay' : 'Marcado — o bot avisa o grupo 30min antes')
-              : 'Sem relógio: nasce sozinho 16h depois de o draft abrir'}</span>
+              : 'Sem relógio — o draft não anda sozinho: marque a hora ou comece agora'}</span>
           </div>`;
       }
 
@@ -11513,9 +11513,9 @@ async function _adminSetRound1Clock(draftSessionId, league) {
 /**
  * "Começar agora": liga o relógio neste instante.
  *
- * Pro dia em que ninguém quer esperar as 16 horas — o draft está com todo
- * mundo online e a liga quer rodar. O bot anuncia a abertura e já chama o
- * primeiro time no mesmo pulso.
+ * É um dos dois jeitos de o relógio sair do lugar (o outro é marcar a hora
+ * no campo ao lado) — desde 12/10/2026 ele não começa mais sozinho. O bot
+ * anuncia a abertura e já chama o primeiro time no mesmo pulso.
  */
 async function _adminStartRound1ClockNow(draftSessionId, league) {
   if (!await confirmarSite(
@@ -11536,7 +11536,11 @@ async function _adminStartRound1ClockNow(draftSessionId, league) {
 }
 
 async function _adminClearRound1Clock(draftSessionId, league) {
-  if (!await confirmarSite('Remover o relógio da 1ª rodada? Ele volta a nascer sozinho 16h depois de o draft abrir.')) return;
+  /* O aviso dizia que o relógio voltava a nascer sozinho em 16h. Desde
+     12/10/2026 não nasce: tirar o relógio PARA o draft até alguém marcar
+     outra hora, e quem clica precisa saber disso antes. */
+  if (!await confirmarSite('Remover o relógio da 1ª rodada?\n\nO draft fica sem relógio e NÃO começa sozinho — '
+    + 'ninguém perde a vez, mas também ninguém é chamado até você marcar uma hora nova ou começar agora.')) return;
   try {
     const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: '' }) });
     showAlert('success', result.message || 'Relógio removido');

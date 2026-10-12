@@ -32,7 +32,13 @@ require_once __DIR__ . '/draft_autopick.php';
 require_once __DIR__ . '/whatsapp.php';
 require_once __DIR__ . '/leilao_bot.php';   // botGrupoDaCerimonia()
 
-/** Quanto tempo a liga tem antes de o relógio começar a correr. */
+/**
+ * SEM USO desde 12/10/2026, e mantida só pra não quebrar quem a leia.
+ *
+ * Era a espera do relógio automático: 16 horas depois da abertura do draft e
+ * ele começava sozinho. Esse disparo saiu a pedido do Marcos — agora o
+ * relógio só anda com hora marcada pelo admin. @see draftRelogioSessao
+ */
 const DRAFT_RELOGIO_ESPERA_HORAS = 16;
 
 /**
@@ -175,28 +181,26 @@ function draftRelogioSessao(PDO $pdo, int $sessionId): void
     $liga  = (string)$s['league'];
     $agora = time();
 
-    /* 1. O RELÓGIO NASCE SOZINHO, 16 horas depois da abertura.
-          Só quando ninguém marcou nada: hora escolhida na mão (ou o botão
-          "iniciar agora") manda, e este passo não encosta nela. */
-    if (empty($s['round1_clock_start_at']) && empty($s['clock_manual_off']) && !empty($s['started_at'])) {
-        /* O PISO DAS 4 HORAS. Um draft que já estava aberto há mais de 16
-           horas quando esta regra nasceu tem "started_at + 16h" no passado, e
-           sem o piso o relógio abriria no mesmo segundo: a liga levaria o
-           anúncio de abertura e o autopick juntos, sem nunca ter ouvido o
-           aviso. Foi o que aconteceu na RISE e na ROOKIE em 20/09/2026.
+    /* ── 1. O RELÓGIO NÃO NASCE MAIS SOZINHO ──────────────────────────
+       Até 12/10/2026 este passo armava o relógio 16 horas depois da abertura
+       do draft, quando ninguém tivesse marcado hora. Pedido do Marcos nesse
+       dia: "o bot não deve mais iniciar o relógio 16 horas depois do draft
+       começar, só deve começar se o admin colocar um horário nele. Mas não
+       deve mais disparar sem colocar hora."
 
-           Ninguém perde a vez por uma regra que entrou em vigor enquanto o
-           draft corria: o relógio nunca começa a menos de um aviso de
-           distância. */
-        $quando = max(
-            strtotime((string)$s['started_at']) + DRAFT_RELOGIO_ESPERA_HORAS * 3600,
-            $agora + DRAFT_RELOGIO_AVISO_MIN * 60
-        );
-        $pdo->prepare('UPDATE draft_sessions SET round1_clock_start_at = ?, clock_auto_definido_em = NOW()
-                        WHERE id = ? AND round1_clock_start_at IS NULL')
-            ->execute([date('Y-m-d H:i:s', $quando), $sessionId]);
-        $s['round1_clock_start_at'] = date('Y-m-d H:i:s', $quando);
-    }
+       Faz sentido: o prazo automático contava do instante em que o draft foi
+       aberto, que não tem relação com a hora em que a liga combina de jogar.
+       Um draft aberto de madrugada armava o relógio pra outra madrugada, e
+       quem não estava olhando perdia a vez pro autopick por causa de uma
+       conta que ninguém escolheu.
+
+       Agora, sem `round1_clock_start_at`, o tick simplesmente não faz nada —
+       nem aviso, nem abertura, nem autopick. Quem liga é o admin, pela tela
+       do draft (hora marcada ou "Começar agora").
+
+       `clock_manual_off` fica onde está: ela existia pra segurar justamente
+       este passo, e as sessões antigas que a têm preenchida continuam
+       legíveis. Deixou de ter efeito, não de ter significado. */
     if (empty($s['round1_clock_start_at'])) return;
 
     $inicio = strtotime((string)$s['round1_clock_start_at']);

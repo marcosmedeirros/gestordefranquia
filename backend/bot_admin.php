@@ -692,9 +692,9 @@ function botAdminIniciarDraft(PDO $pdo, string $liga): string
                       SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW()
                     WHERE id = ? AND status = "setup"')->execute([(int)$d['id']]);
 
-    // O aviso da vez é do relógio (backend/draft_relogio.php), que também
-    // agenda a abertura automática 16h depois. Uma passada agora já deixa
-    // tudo armado, em vez de esperar o próximo tick.
+    /* Uma passada do relógio agora, pro caso de já haver hora marcada. Ele
+       NÃO agenda mais nada sozinho: desde 12/10/2026 o relógio só anda com
+       hora posta pelo admin. @see draftRelogioSessao */
     try {
         require_once __DIR__ . '/draft_relogio.php';
         draftRelogioSessao($pdo, (int)$d['id']);
@@ -702,8 +702,12 @@ function botAdminIniciarDraft(PDO $pdo, string $liga): string
         error_log('[bot-admin] relogio pos-inicio: ' . $e->getMessage());
     }
 
+    /* O texto dizia "o relógio abre sozinho em 16h", e isso deixou de ser
+       verdade. Prometer um horário que não vem é pior que não prometer
+       nenhum: a liga ficaria esperando o relógio, e o draft ficaria parado. */
     return "🏀 *Draft da {$liga} iniciado* (T{$d['season_number']}).\n"
-         . "_O relógio abre sozinho em 16h; /relogio começa agora._";
+         . "_O relógio só começa com hora marcada: /relogio começa agora, "
+         . "ou marque o horário na tela do draft._";
 }
 
 /** /relogio — liga o relógio de 3 min por pick na hora. */
