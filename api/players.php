@@ -291,6 +291,86 @@ if (!function_exists('snapshotTradeItemsForPlayer')) {
     }
 }
 
+if (!function_exists('cancelarTradesPendentesDoJogador')) {
+    /**
+     * DISPENSOU, AS TROCAS PENDENTES COM ELE CAEM.
+     *
+     * O caso que obrigou isto (ELITE, 11/10/2026): o St. Louis Archers tinha
+     * uma troca aberta oferecendo o Ousmane Dieng ao Las Vegas Coyotes,
+     * dispensou o jogador às 23:59:20, e o Coyotes aceitou a troca TREZE
+     * SEGUNDOS depois, às 23:59:33. A troca executou: as picks mudaram de
+     * dono, o Blake Wesley foi pro Archers — e o Dieng não foi pra lugar
+     * nenhum, porque a dispensa já tinha apagado a linha dele em `players` e
+     * o item da troca tinha ficado com `player_id` nulo (é o snapshot logo
+     * acima que zera). O Coyotes pagou e não recebeu.
+     *
+     * A troca continuava na tela do outro GM, com o nome do jogador, como se
+     * nada tivesse acontecido. Quem aceitava não tinha como saber.
+     *
+     * Então a dispensa passa a derrubar o que está pendente: uma proposta que
+     * oferece quem não é mais do time não é proposta, é armadilha. Vale pros
+     * dois lados da troca — o jogador pode estar tanto na oferta quanto no
+     * pedido —, e vale também pras múltiplas.
+     *
+     * Só mexe em `pending`: troca já aceita é história, e cancelar depois não
+     * desfaria nada (quem desfaz é o Reverter, no admin).
+     *
+     * @return array{simples:int, multiplas:int} quantas caíram de cada tipo
+     */
+    function cancelarTradesPendentesDoJogador(PDO $pdo, int $playerId, string $nome): array
+    {
+        $out = ['simples' => 0, 'multiplas' => 0];
+        if ($playerId <= 0) return $out;
+        $motivo = 'Cancelada automaticamente: ' . $nome . ' foi dispensado por quem o ofereceu.';
+
+        try {
+            if (playersTableExists($pdo, 'trades') && playersTableExists($pdo, 'trade_items')) {
+                $st = $pdo->prepare("SELECT DISTINCT t.id FROM trades t
+                                       JOIN trade_items ti ON ti.trade_id = t.id
+                                      WHERE ti.player_id = ? AND t.status = 'pending'");
+                $st->execute([$playerId]);
+                $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+                /* A nota do motivo só entra se a coluna existir — num banco
+                   sem ela, montar o SQL com o campo derrubaria a dispensa
+                   inteira por causa de um texto explicativo. */
+                $temNota = playersColumnExists($pdo, 'trades', 'response_notes');
+                $sql = $temNota
+                    ? "UPDATE trades SET status = 'cancelled',
+                              response_notes = TRIM(CONCAT(COALESCE(response_notes, ''), ' ', ?))
+                        WHERE id = ? AND status = 'pending'"
+                    : "UPDATE trades SET status = 'cancelled' WHERE id = ? AND status = 'pending'";
+                $up = $pdo->prepare($sql);
+                foreach ($ids as $tid) {
+                    $up->execute($temNota ? [$motivo, $tid] : [$tid]);
+                    $out['simples']++;
+                }
+            }
+        } catch (Exception $e) {
+            error_log('[dispensa] cancelar trades simples de ' . $playerId . ': ' . $e->getMessage());
+        }
+
+        try {
+            if (playersTableExists($pdo, 'multi_trades') && playersTableExists($pdo, 'multi_trade_items')) {
+                $st = $pdo->prepare("SELECT DISTINCT mt.id FROM multi_trades mt
+                                       JOIN multi_trade_items mi ON mi.trade_id = mt.id
+                                      WHERE mi.player_id = ? AND mt.status = 'pending'");
+                $st->execute([$playerId]);
+                foreach (array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)) as $tid) {
+                    $pdo->prepare("UPDATE multi_trades SET status = 'cancelled',
+                                          notes = CONCAT(COALESCE(notes, ''), '\n', ?)
+                                    WHERE id = ? AND status = 'pending'")
+                        ->execute([$motivo, $tid]);
+                    $out['multiplas']++;
+                }
+            }
+        } catch (Exception $e) {
+            error_log('[dispensa] cancelar múltiplas de ' . $playerId . ': ' . $e->getMessage());
+        }
+
+        return $out;
+    }
+}
+
 /**
  * A FICHA DE UM JOGADOR EM TEXTO, igualzinha à do bot.
  *
@@ -1094,6 +1174,11 @@ if ($method === 'DELETE') {
             $pdo->beginTransaction();
 
             // Aposentadoria: remove o jogador e limpa possíveis registros em free_agents
+            /* Aposentar tem o mesmo efeito da dispensa numa troca pendente —
+               o jogador some e a proposta fica oferecendo quem não existe
+               mais. Mesma cura. @see cancelarTradesPendentesDoJogador */
+            cancelarTradesPendentesDoJogador($pdo, (int)$playerId, (string)$row['name']);
+
             snapshotTradeItemsForPlayer($pdo, $row);
             $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
             $del->execute([$playerId]);
@@ -1200,6 +1285,11 @@ if ($method === 'DELETE') {
             $stmtFA->execute($values);
         }
 
+        /* ANTES do snapshot, que é quem zera o `player_id` dos itens: sem o
+           id não há como achar as trocas pendentes deste jogador.
+           @see cancelarTradesPendentesDoJogador */
+        $tradesCaidas = cancelarTradesPendentesDoJogador($pdo, (int)$playerId, (string)$row['name']);
+
         snapshotTradeItemsForPlayer($pdo, $row);
         $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
         $del->execute([$playerId]);
@@ -1219,12 +1309,24 @@ if ($method === 'DELETE') {
     $newCap = topOvrCap($pdo, (int)$row['team_id']);
     $waiversRemaining = max(0, $maxWaivers - ($row['waivers_used'] + 1));
 
+    /* Quem dispensa precisa saber que derrubou troca junto. Calar isso é o
+       que deixaria o GM descobrir pelo outro lado, quando o adversário
+       perguntasse por que a proposta sumiu.
+       @see cancelarTradesPendentesDoJogador */
+    $tradesCaidas = $tradesCaidas ?? ['simples' => 0, 'multiplas' => 0];
+    $caiu = (int)($tradesCaidas['simples'] ?? 0) + (int)($tradesCaidas['multiplas'] ?? 0);
+    $avisoTrades = $caiu > 0
+        ? ' ' . ($caiu === 1 ? 'Uma troca pendente que o oferecia foi cancelada.'
+                             : $caiu . ' trocas pendentes que o ofereciam foram canceladas.')
+        : '';
+
     jsonResponse(200, [
-        'message' => ($league === 'ELITE')
+        'message' => (($league === 'ELITE')
             ? ($row['name'] . ' foi para as Dispensas (waiver) — 12h para os times darem lance antes de virar free agent.')
-            : 'Jogador dispensado e enviado para a Free Agency.',
+            : 'Jogador dispensado e enviado para a Free Agency.') . $avisoTrades,
         'cap_top8' => $newCap,
-        'waivers_remaining' => $waiversRemaining
+        'waivers_remaining' => $waiversRemaining,
+        'trades_canceladas' => $caiu
     ]);
 }
 
