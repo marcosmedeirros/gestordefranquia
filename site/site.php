@@ -205,6 +205,47 @@ try {
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+
+/* ── O TEXTO DO GOOGLE NÃO É PRA SER LIDO POR GENTE ──────────────────
+   O conteúdo em HTML dentro do #root existe pro buscador (@see o bloco lá
+   embaixo) e o React o substitui ao montar. Só que montar leva segundos:
+   a página baixa React, ReactDOM e o Babel, e ainda compila o JSX no
+   navegador. Nesse intervalo o visitante via o texto cru, sem estilo
+   nenhum — "aparece umas letras antes de abrir o site", o Marcos em
+   13/10/2026, com o print.
+
+   Então ele nasce escondido e, no lugar, fica a marca com um pulso. Não é
+   conteúdo oculto pra enganar ninguém: é o MESMO texto que a página mostra
+   depois, e a classe `.seo-aparece` o traz de volta se o React não montar
+   (@see o fallback no fim do arquivo) — tela branca eterna seria pior que
+   o flash que isto conserta. */
+#seoHtml { display: none; }
+#seoHtml.seo-aparece { display: block; max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+
+#bootFba {
+  min-height: 70vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+}
+#bootFba .boot-marca {
+  font-family: var(--font-display, inherit); font-weight: 800;
+  font-size: clamp(26px, 6vw, 40px); letter-spacing: -.5px;
+}
+#bootFba .boot-marca span { color: var(--red); }
+#bootFba .boot-barra {
+  width: 148px; height: 3px; border-radius: 99px;
+  background: rgba(255,255,255,.12); overflow: hidden;
+}
+#bootFba .boot-barra i {
+  display: block; width: 40%; height: 100%; border-radius: 99px;
+  background: var(--red); animation: bootDesliza 1.1s ease-in-out infinite;
+}
+@keyframes bootDesliza {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #bootFba .boot-barra i { animation: none; width: 100%; opacity: .5; }
+}
 body {
   font-family: var(--font-body);
   font-size: 16px;
@@ -1004,7 +1045,14 @@ $seoTimes     = (int)($totalTeams ?? 0);
 $seoJogadores = (int)($totalActivePlayers ?? 0);
 ?>
 <div id="root">
-  <main>
+  <?php /* O que o visitante vê enquanto o React não monta: a marca, não o
+           texto do buscador. Sai junto com o resto quando o app assume. */ ?>
+  <div id="bootFba" aria-hidden="true">
+    <div class="boot-marca">FBA <span>Brasil</span></div>
+    <div class="boot-barra"><i></i></div>
+  </div>
+
+  <main id="seoHtml">
     <h1>FBA — Fantasy Basquete Brasil, a liga de NBA 2K do Brasil</h1>
     <p>
       <strong>FBA Fantasy Brasil</strong> é a primeira liga 100% brasileira de
@@ -1072,6 +1120,32 @@ window.__SITE_DATA__ = {
   totalTeams: <?= json_encode($totalTeams) ?>,
   totalActivePlayers: <?= json_encode($totalActivePlayers) ?>
 };
+
+/* ── SE O REACT NÃO MONTAR, O TEXTO VOLTA ────────────────────────────
+   O conteúdo do buscador nasce escondido pra não piscar na cara de quem
+   abre o site (@see #seoHtml no CSS). Esconder sem rede de segurança
+   trocaria um problema por outro pior: com o unpkg fora do ar, numa
+   conexão ruim ou com o JSX quebrando, a pessoa ficaria olhando a marca
+   pulsar pra sempre.
+
+   ESTE BLOCO É JAVASCRIPT COMUM, DE PROPÓSITO. A primeira versão vivia
+   dentro do <script type="text/babel"> lá embaixo, e ali ele não servia
+   pra nada: sem o Babel aquele script inteiro não roda, ou seja, o
+   fallback falhava exatamente no caso pra que foi escrito. Testei
+   removendo os <script> do unpkg e a tela ficou no "FBA Brasil" pra
+   sempre.
+
+   Oito segundos é folgado pro caminho normal (baixar React, ReactDOM e o
+   Babel, e ainda compilar o JSX) e curto pro caminho em que nada vai
+   acontecer mesmo. Se o app montou, o #seoHtml nem está mais no documento
+   e isto não faz nada. */
+setTimeout(function () {
+  var seo = document.getElementById('seoHtml');
+  if (!seo || !seo.isConnected) return;       // o React assumiu: nada a fazer
+  var boot = document.getElementById('bootFba');
+  if (boot) boot.remove();
+  seo.classList.add('seo-aparece');
+}, 8000);
 </script>
 <script type="text/babel">
 /* ============ Data ============ */
@@ -1733,6 +1807,8 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+
 </script>
 </body>
 </html>
