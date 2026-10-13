@@ -52,6 +52,31 @@ const APOSTA_PREMIO = 75;
 const APOSTA_POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 /**
+ * OS LÍDERES DA TEMPORADA REGULAR que o robô cria e PAGA sozinho.
+ *
+ * A consulta de líderes (@see apostasAutoLideres) sempre soube ordenar por
+ * assistência, rebote, roubo e toco — faltava o catálogo pedir e o
+ * pagamento reconhecer. Eram justamente as apostas que a liga montava à mão
+ * e alguém tinha que apurar no olho depois.
+ *
+ * `cestinha` é o líder de pontos com o nome histórico: é o que está gravado
+ * nas apostas antigas e renomear exigiria migrar sem ganho nenhum. Ele fica
+ * aqui pelo pagamento, mas FORA do catálogo — o Marcos pediu em 13/10/2026
+ * que essa não fosse mais criada ("não crie o de cestinha"). Pra ela voltar,
+ * basta pôr 'cestinha' em APOSTA_LIDERES_NO_CATALOGO.
+ */
+const APOSTA_LIDERES = [
+    'cestinha'    => ['coluna' => 'pts_pg', 'nome' => 'Cestinha da temporada regular'],
+    'lider_ast'   => ['coluna' => 'ast_pg', 'nome' => 'Líder de assistências da temporada regular'],
+    'lider_reb'   => ['coluna' => 'reb_pg', 'nome' => 'Líder de rebotes da temporada regular'],
+    'lider_stl'   => ['coluna' => 'stl_pg', 'nome' => 'Líder de roubos de bola da temporada regular'],
+    'lider_blk'   => ['coluna' => 'blk_pg', 'nome' => 'Líder de tocos da temporada regular'],
+];
+
+/** Quais deles o catálogo oferece. Tirar daqui para de criar, sem parar de pagar. */
+const APOSTA_LIDERES_NO_CATALOGO = ['lider_ast', 'lider_reb', 'lider_stl', 'lider_blk'];
+
+/**
  * LIGAS EM QUE O ROBÔ NÃO MEXE EM APOSTA NENHUMA.
  *
  * Pedido do Marcos (11/10/2026), em dois tempos. Primeiro: "não faça as bets
@@ -541,13 +566,24 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
         // Especiais que o próprio banco responde depois.
         $apostas[] = ['nome' => 'O MVP vai ser de que posição?', 'tipo' => 'pos_mvp', 'tipo_ref' => null,
                       'opcoes' => apostasAutoOpcoesPosicao()];
-        $cest = [];
-        foreach (apostasAutoLideres($pdo, (int)($antId ?: 0), 'pts_pg', 4) as $n) {
-            $cest[] = ['desc' => $n, 'ref_tipo' => 'jogador', 'ref_txt' => $n];
+        /* OS LÍDERES. As sugestões saem de quem liderou na temporada
+           ANTERIOR, que é o mesmo critério das outras: é palpite, não
+           resposta, e o apostador muda se quiser. Um ano em que a liga
+           ainda não tem estatística devolve lista vazia, e aí a aposta nem
+           é criada — melhor não existir que nascer só com "Outro".
+           @see APOSTA_LIDERES */
+        foreach (APOSTA_LIDERES_NO_CATALOGO as $tipoLider) {
+            $cfg = APOSTA_LIDERES[$tipoLider] ?? null;
+            if (!$cfg) continue;
+            $ops = [];
+            foreach (apostasAutoLideres($pdo, (int)($antId ?: 0), $cfg['coluna'], 4) as $n) {
+                $ops[] = ['desc' => $n, 'ref_tipo' => 'jogador', 'ref_txt' => $n];
+            }
+            if (!$ops) continue;
+            $ops[] = ['desc' => 'Outro', 'ref_tipo' => 'outro'];
+            $apostas[] = ['nome' => $cfg['nome'], 'tipo' => $tipoLider,
+                          'tipo_ref' => null, 'opcoes' => $ops];
         }
-        $cest[] = ['desc' => 'Outro', 'ref_tipo' => 'outro'];
-        $apostas[] = ['nome' => 'Cestinha da temporada regular', 'tipo' => 'cestinha', 'tipo_ref' => null,
-                      'opcoes' => $cest];
         $maisV = [];
         foreach (apostasAutoTopTimes($pdo, $paraClassificacao, null, 4) as $t) {
             $maisV[] = ['desc' => $t['nome'], 'ref_tipo' => 'time', 'ref_id' => (int)$t['id']];
@@ -1145,9 +1181,15 @@ function apostasAutoVencedor(PDO $pdo, array $evt, array $opcoes): array
         return ['op' => null, 'motivo' => "posição {$pos} não está entre as opções"];
     }
 
-    /* ── Cestinha ────────────────────────────────────────────────── */
-    if ($tipo === 'cestinha') {
-        $lider = apostasAutoLideres($pdo, $sid, 'pts_pg', 1);
+    /* ── Os líderes da temporada regular ─────────────────────────────
+       `cestinha` é o nome histórico do líder de pontos e fica como está:
+       é o que está gravado nas apostas antigas, e renomear exigiria migrar
+       sem ganho nenhum. Os outros quatro entraram em 13/10/2026 — a
+       consulta de líderes já sabia somar assistência, rebote, roubo e toco,
+       e só o pagamento não existia, então eram apostas que a liga fazia à
+       mão e alguém tinha que apurar no olho. @see APOSTA_LIDERES */
+    if (isset(APOSTA_LIDERES[$tipo])) {
+        $lider = apostasAutoLideres($pdo, $sid, APOSTA_LIDERES[$tipo]['coluna'], 1);
         if (!$lider) return ['op' => null, 'motivo' => 'a temporada ainda não tem estatística'];
         return apostasAutoCasaNome($opcoes, $lider[0]);
     }
