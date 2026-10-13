@@ -35,6 +35,35 @@ function punicaoGarantirEsquema(PDO $pdo): bool
 {
     static $ok = null;
     if ($ok !== null) return $ok;
+
+    /* ── DDL DENTRO DE TRANSAÇÃO É COMMIT IMPLÍCITO ───────────────────
+       CREATE TABLE e ALTER TABLE fecham a transação aberta no MySQL, em
+       silêncio: o que já tinha sido escrito fica gravado e o resto do
+       trabalho passa a rodar solto, então o rollBack() de um catch lá na
+       frente não desfaz mais nada.
+
+       Encontrado em 13/10/2026 e não é hipótese: o aceite de uma troca de
+       3+ times chama getTeamMaxTrades() → punicaoEfeitoAtivo() → esta
+       função, DENTRO da transação. Numa tripla que falhava no meio (uma
+       pick que já não era mais do dono), as picks anteriores ficavam
+       transferidas e a troca voltava pra "pendente" — metade executada. Dá
+       pra medir: `inTransaction()` era `true` antes do loop de limites e
+       `false` logo depois dele.
+
+       Em transação, então, esta função não cria nada: só responde se as
+       tabelas já existem. A criação acontece na primeira chamada fora de
+       transação, que é o caso normal — qualquer tela de punição, o cron, o
+       próprio admin. O mesmo cuidado que api/players.php já tomava com as
+       tabelas de waiver, pelo mesmo motivo. */
+    if ($pdo->inTransaction()) {
+        try {
+            $tem = (bool)$pdo->query("SHOW TABLES LIKE 'team_punishments'")->fetch();
+        } catch (Throwable $e) {
+            $tem = false;
+        }
+        return $tem;   // sem memorizar: fora da transação ela ainda vai criar
+    }
+
     $ok = false;
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS punicao_infracoes (

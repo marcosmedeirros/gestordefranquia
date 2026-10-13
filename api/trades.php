@@ -3063,6 +3063,46 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
             }
         }
 
+        /* ── Yan Rule / Stepien na troca de 3+ TIMES ──────────────────────
+           A conferência existia só na troca de dois times, nos dois caminhos
+           dela (propor e aceitar) — a múltipla passava direto. O Tiago
+           (Wizards, ROOKIE) achou em 12/10/2026: montou uma tripla em que o
+           Detroit Pistons dava a própria de 2033 e a de 2035, ficando sem 1ª
+           rodada em 2033 e 2034 seguidos, e o app deixou enviar.
+
+           Aqui é mais trabalhoso que na de dois times porque não há "oferta"
+           e "pedido": cada item diz de onde sai e pra onde vai, então o que
+           cada time perde e ganha é somado item a item. Mas a conta é a
+           mesma, e quem responde é a mesma função.
+           @see backend/stepien.php */
+        require_once dirname(__DIR__) . '/backend/stepien.php';
+        if (stepienLigaUsa($league)) {
+            $saemPorTime = $entramPorTime = [];
+            foreach ($validatedItems as $it) {
+                if (empty($it['pick_id'])) continue;
+                $saemPorTime[(int)$it['from_team_id']][]   = (int)$it['pick_id'];
+                $entramPorTime[(int)$it['to_team_id']][]   = (int)$it['pick_id'];
+            }
+
+            $stNomes = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',name)) AS nome
+                                        FROM teams WHERE id IN (" . implode(',', array_fill(0, count($teams), '?')) . ")");
+            $stNomes->execute($teams);
+            $nomes = [];
+            foreach ($stNomes->fetchAll(PDO::FETCH_ASSOC) as $r) $nomes[(int)$r['id']] = $r['nome'];
+
+            foreach ($teams as $tid) {
+                $tid = (int)$tid;
+                $erroStepien = stepienConferir($pdo, $league, $tid,
+                    $saemPorTime[$tid] ?? [], $entramPorTime[$tid] ?? [],
+                    $tid === (int)$teamId ? 'Seu time' : ($nomes[$tid] ?? 'Um dos times'));
+                if ($erroStepien !== null) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => $erroStepien]);
+                    exit;
+                }
+            }
+        }
+
         try {
             $swapMapMulti = normalizeSwapPairsMulti($pdo, $validatedItems, $swapPairsInput);
         } catch (Exception $e) {
@@ -4088,7 +4128,6 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                         throw new Exception('Um dos times já atingiu o limite de trades.');
                     }
                 }
-
                 $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
                 $stmtItems->execute([$tradeId]);
                 $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
@@ -4115,6 +4154,36 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
                 unset($item);
 
+                /* ── Yan Rule / Stepien, CONFERIDA DE NOVO NO ACEITE ──────
+                   A troca de dois times já fazia isso, e pelo mesmo motivo: a
+                   múltipla fica pendente enquanto os outros respondem, e nesse
+                   meio-tempo as picks de qualquer um dos participantes podem
+                   ter mudado de dono noutra troca. O que era legal na hora de
+                   propor pode não ser mais agora, e é AGORA que executa.
+                   @see backend/stepien.php */
+                require_once dirname(__DIR__) . '/backend/stepien.php';
+                if (stepienLigaUsa($league)) {
+                    $saemAceite = $entramAceite = [];
+                    foreach ($items as $it) {
+                        if (empty($it['pick_id'])) continue;
+                        $saemAceite[(int)$it['from_team_id']][] = (int)$it['pick_id'];
+                        $entramAceite[(int)$it['to_team_id']][] = (int)$it['pick_id'];
+                    }
+                    $phN = implode(',', array_fill(0, count($tradeTeams), '?'));
+                    $stN = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',name)) AS nome
+                                            FROM teams WHERE id IN ({$phN})");
+                    $stN->execute($tradeTeams);
+                    $nomesAceite = [];
+                    foreach ($stN->fetchAll(PDO::FETCH_ASSOC) as $r) $nomesAceite[(int)$r['id']] = $r['nome'];
+
+                    foreach ($tradeTeams as $tid) {
+                        $tid = (int)$tid;
+                        $erroSt = stepienConferir($pdo, $league, $tid,
+                            $saemAceite[$tid] ?? [], $entramAceite[$tid] ?? [],
+                            $nomesAceite[$tid] ?? 'Um dos times');
+                        if ($erroSt !== null) throw new Exception($erroSt);
+                    }
+                }
                 $stmtTransferPlayer = $pdo->prepare(// Quem MUDA de time chega no BANCO, nunca titular. O role vinha junto do
         // time antigo: quem era titular lá desembarcava titular aqui, e o time
         // ficava com 6 no quinteto sem ninguém ter pedido. Banco é o único
@@ -4296,12 +4365,20 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
         echo json_encode(['success' => false, 'error' => 'Ação inválida']);
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[multi-trade] aceite: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
+        error_log('[multi-trade] aceite: ' . $e->getMessage());
+        /* A MENSAGEM DA REGRA VAI PRA TELA. As Exception lançadas aqui dentro
+           são todas texto escrito pra quem está do outro lado — limite de
+           trocas, pick que já não é do dono, Yan Rule. Trocar isso por "Erro
+           ao processar troca múltipla" fazia o GM levar um erro mudo e ter
+           que perguntar no grupo. Falha de banco continua genérica: ela cai
+           no catch de PDOException logo acima. */
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
