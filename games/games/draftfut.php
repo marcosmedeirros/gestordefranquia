@@ -459,14 +459,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     /* ABRIR UMA VAGA é o que sorteia as cartas dela. O jogo não manda mais
        a ordem: quem escolhe por onde começar é quem está jogando, como no
        FIFA. As cartas ficam guardadas na sessão até a escolha, senão um F5
-       daria cinco cartas novas e o draft viraria roleta. */
+       daria cinco cartas novas e o draft viraria roleta.
+       ── O REROLL INFINITO ────────────────────────────────────────────
+       Até 13/10/2026 isto sorteava SEMPRE, e o Kleber achou: "o reroll no
+       site é infinito, só eu ficar clicando no espaço". Cada clique numa
+       vaga vazia — a mesma ou outra qualquer — pedia cinco cartas novas, e
+       quem tivesse paciência ficava clicando até sair lenda. Com 12% de
+       chance de lenda por pacote, clicar vinte vezes é praticamente garantir
+       uma; o draft inteiro deixava de ser escolha e virava persistência.
+       Agora a vaga aberta é um COMPROMISSO: enquanto houver um pacote na
+       mesa, só dá pra escolher uma das cinco. Reabrir a mesma vaga (F5,
+       clique repetido, voltar no navegador) devolve as mesmas cartas, e
+       abrir outra vaga é recusado aqui no servidor — o JS lá embaixo só
+       evita a viagem, não é a tranca. */
     if ($acao === 'abrir' && $d && empty($d['resultado'])) {
         $v = (int)($_POST['vaga'] ?? -1);
-        if ($v >= 0 && $v < DFUT_TOTAL && empty($d['time'][$v])) {
+        $naMesa = ($d['aberta'] ?? null) !== null && !empty($d['opcoes']);
+
+        if ($naMesa && $v !== (int)$d['aberta']) {
+            $erro = 'Tem um pacote aberto: escolha uma das cinco cartas antes de abrir outra vaga.';
+        } elseif (!$naMesa && $v >= 0 && $v < DFUT_TOTAL && empty($d['time'][$v])) {
             $d['aberta'] = $v;
             $preenchidas = count(array_filter($d['time']));
             [$lo, $hi] = draftFutFaixa($preenchidas);
             $d['opcoes'] = draftFutOpcoes(draftFutPosDaVaga($d['formacao'], $v), $d['usados'], $lo, $hi);
+            /* NO DUELO O PACOTE VAI PRO BANCO JUNTO. A sessão sozinha não
+               segurava: quem perdesse a sessão de propósito voltava com o
+               draft do banco e a vaga limpa pra sortear de novo. */
+            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
         }
     }
 
@@ -476,9 +496,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $c = $d['opcoes'][$i];
             $d['time'][$d['aberta']] = $c;
             $d['usados'][] = $c['nome'];
-            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
+            /* LIMPA ANTES DE GRAVAR. Salvando com a vaga ainda "aberta", o
+               duelo guardava no banco um pacote já gasto: voltando pelo
+               banco, a tela oferecia as mesmas cinco cartas de novo e a
+               escolha trocava o jogador que já estava na vaga. */
             $d['aberta'] = null;
             $d['opcoes'] = null;
+            if ($duelo) dfdSalvarDraft($pdo, (int)$duelo['id'], dfdLado($duelo, $user_id), $d);
         }
     }
 
@@ -505,7 +529,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
        No duelo não se "joga": grava-se o time e espera. A partida roda
        sozinha quando o segundo lado fecha (@see dfdRodarSeDerPra), com a
        semente do duelo — é isso que faz os dois verem a mesma narração. */
-    if ($acao === 'duelo_jogar' && $d && $duelo && draftFutCampoCheio($d)) {
+    if ($acao === 'duelo_jogar' && $d && empty($d['resultado']) && $duelo
+        && !(int)$duelo['pronto_' . dfdLado($duelo, $user_id)] && draftFutCampoCheio($d)) {
+        /* FECHAR DUAS VEZES NÃO É FECHAR DE NOVO: o lado já pronto não passa
+           daqui. Sem isso, repetir o POST pelo console reescrevia o time
+           depois de o adversário já estar olhando pra ele. */
         dfdFinalizarLado($pdo, $duelo, $user_id, $nomeDoTime, $d);
         $st = $pdo->prepare('SELECT * FROM draftfut_duelos WHERE id = ?');
         $st->execute([(int)$duelo['id']]);
@@ -520,7 +548,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($acao === 'jogar' && $d && draftFutCampoCheio($d)) {
+    /* ── UMA PARTIDA POR DRAFT ───────────────────────────────────────
+       `empty($d['resultado'])` é a tranca, e ela faltava. O botão some
+       quando a partida acaba, mas o botão nunca foi a regra: mandando
+       `acao=jogar` de novo pelo console — um fetch na mesma página, dois
+       segundos de trabalho — a mesma escalação entrava em campo outra vez,
+       com semente nova, e PAGAVA DE NOVO. Entrada de 10 moedas, vitória de
+       150, repetível à vontade: era uma impressora.
+       Achado conferindo o pedido do Marcos de 13/10/2026 ("bloqueia editar
+       os dados pelo console"), e provado no banco local — dois registros em
+       draftfut_partidas e dois prêmios para um único draft. */
+    if ($acao === 'jogar' && $d && empty($d['resultado']) && draftFutCampoCheio($d)) {
         $formacao = $d['formacao'];
         $time = $d['time'];
         $forca = draftFutForcaDoTime($formacao, $time);
@@ -1120,6 +1158,14 @@ a{color:inherit}
 
 /* Cartas: entram em cascata */
 .cartas-bloco{animation:sobe .3s}
+/* Clicou numa vaga vazia com o pacote na mesa: o bloco pisca pra dizer que
+   a escolha é aqui. Não é erro, é direção — por isso dura meio segundo e
+   não deixa marca. */
+.cartas-bloco.pisca{animation:piscaMesa .55s}
+@keyframes piscaMesa{
+  0%,100%{box-shadow:0 0 0 0 rgba(255,92,122,0)}
+  35%{box-shadow:0 0 0 3px rgba(255,92,122,.55)}}
+@media (prefers-reduced-motion:reduce){.cartas-bloco.pisca{animation:none}}
 @keyframes sobe{from{opacity:0;transform:translateY(10px)}}
 .carta-btn{animation:cartaEnt .4s backwards}
 @keyframes cartaEnt{from{opacity:0;transform:translateY(18px) rotateX(20deg)}}
@@ -1374,6 +1420,7 @@ a{color:inherit}
   const campo = document.getElementById('campo');
   if (!campo) return;
   const todos = document.querySelectorAll('.slot');
+  const mesa  = document.querySelector('.cartas-bloco');   // o pacote aberto, se houver
   let sel = null;
 
   function post(campos){
@@ -1396,7 +1443,18 @@ a{color:inherit}
        vaga vazia não arrasta ninguém pra lá — abre a vaga, que é o que a
        pessoa quis dizer ao clicar num "+". */
     if (sel !== null && tem) { post({acao:'trocar', a:sel, b:vaga}); return; }
-    if (!tem) { post({acao:'abrir', vaga}); return; }
+    if (!tem) {
+      /* COM PACOTE NA MESA, CLICAR NUMA VAGA VAZIA NÃO ABRE NADA: leva os
+         olhos de volta pras cinco cartas. O servidor já recusa (@see a ação
+         'abrir'); isto só evita a ida e volta e o susto de a página recarregar
+         com um aviso em vermelho. */
+      if (mesa) {
+        mesa.scrollIntoView({behavior:'smooth', block:'center'});
+        mesa.classList.remove('pisca'); void mesa.offsetWidth; mesa.classList.add('pisca');
+        return;
+      }
+      post({acao:'abrir', vaga}); return;
+    }
 
     document.querySelectorAll('.slot.sel').forEach(o => o.classList.remove('sel'));
     s.classList.add('sel'); sel = vaga;
