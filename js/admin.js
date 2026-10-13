@@ -6249,22 +6249,53 @@ function _cadeiraCard(v) {
       ${v.candidatos && v.candidatos.length ? `
         <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">Quem sobe para esta cadeira:</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-          <select class="form-select form-select-sm" id="cadGm_${v.id}" style="max-width:360px">
+          <!-- Trocar quem sobe reavalia a caixa de identidade: marcar com um
+               GM da NEXT e depois escolher um da ROOKIE deixaria a caixa
+               marcada numa combinação que o servidor recusa. -->
+          <select class="form-select form-select-sm" id="cadGm_${v.id}" style="max-width:360px"
+                  onchange="_cadeiraLevarId(${v.id})">
             ${Object.keys(porLiga).map(lg => `
               <optgroup label="${escapeHtml(lg)}">
                 ${porLiga[lg].map(g => `<option value="${g.user_id}">${escapeHtml(g.gm)} — ${escapeHtml(g.city || '')} ${escapeHtml(g.time_nome)}</option>`).join('')}
               </optgroup>`).join('')}
           </select>
-          <button class="btn-ghost" style="color:#22c55e;border-color:rgba(34,197,94,.35)" onclick="_cadeiraPromover(${v.id})">
-            <i class="bi bi-arrow-up-circle me-1"></i>Promover
-          </button>
         </div>
         <!-- O time continua o mesmo; só a identidade pode mudar, se o novo
              dono quiser. Em branco = fica como está. -->
+        ${/* ── LEVAR A IDENTIDADE ───────────────────────────────────────
+              Pedido do Marcos (13/10/2026): quem sobe pode trazer a cara do
+              time dele — cidade, nome e escudo — em vez de herdar a de quem
+              saiu. É TROCA: a cadeira que ele deixa fica com a identidade
+              que estava aqui, senão a liga ficaria com dois times de mesmo
+              nome. O elenco, as picks e os títulos não se movem, como nunca
+              se moveram.
+
+              Fora da ROOKIE: lá os times são as franquias reais da NBA, e
+              "Detroit Pistons" na RISE quebraria o padrão. Dali sobe só o
+              GM — a caixa aparece desmarcada e travada, com o motivo. */''}
+        <label style="display:flex;align-items:flex-start;gap:7px;margin-bottom:10px;cursor:pointer;font-size:12.5px;color:var(--text-2)">
+          <input type="checkbox" id="cadLevarId_${v.id}" style="margin-top:3px"
+                 onchange="_cadeiraLevarId(${v.id})">
+          <span>
+            <b>Levar a identidade do time dele</b> — a cadeira passa a ter a cidade,
+            o nome e o escudo de quem sobe, e a vaga que ele deixa fica com
+            ${escapeHtml(`${v.city || ''} ${v.name}`.trim())}.
+            <span id="cadLevarAviso_${v.id}" style="display:block;color:#f59e0b;font-size:11.5px;margin-top:2px"></span>
+          </span>
+        </label>
         <div class="row g-2" style="max-width:640px">
           <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadCidade_${v.id}" placeholder="Nova cidade (opcional)"></div>
           <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadNome_${v.id}" placeholder="Novo nome (opcional)"></div>
           <div class="col-12 col-md-4"><input class="form-control form-control-sm" id="cadEscudo_${v.id}" placeholder="URL do escudo (opcional)"></div>
+        </div>
+        ${/* O botão fecha o bloco porque tudo acima muda o que ele faz: quem
+              sobe, se a identidade vai junto e os três campos de cara nova.
+              Com ele colado no select, metade das opções ficava DEPOIS do
+              botão que as usa. */''}
+        <div style="margin-top:12px">
+          <button class="btn-ghost" style="color:#22c55e;border-color:rgba(34,197,94,.35)" onclick="_cadeiraPromover(${v.id})">
+            <i class="bi bi-arrow-up-circle me-1"></i>Promover
+          </button>
         </div>
       ` : `<div style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">
              Nenhum GM em liga abaixo desta — a cadeira só pode receber alguém novo.
@@ -6297,16 +6328,45 @@ async function _cadeiraLiberar() {
   } catch (e) { showAlert('danger', e.error || 'Erro'); }
 }
 
+/**
+ * A caixa de "levar a identidade" conhece a regra da ROOKIE.
+ *
+ * A trava de verdade é no servidor (@see promover_gm em api/admin.php), mas
+ * deixar marcar pra levar erro depois é fazer o admin descobrir tarde. Aqui
+ * a caixa se desmarca sozinha e diz o porquê assim que ele escolhe alguém da
+ * ROOKIE no seletor ao lado.
+ */
+function _cadeiraLevarId(teamId) {
+  const box = document.getElementById(`cadLevarId_${teamId}`);
+  const sel = document.getElementById(`cadGm_${teamId}`);
+  const aviso = document.getElementById(`cadLevarAviso_${teamId}`);
+  if (!box || !sel || !aviso) return;
+  const grupo = sel.options[sel.selectedIndex]?.parentNode;
+  const ligaDeQuemSobe = (grupo && grupo.label) ? grupo.label.toUpperCase() : '';
+  const daRookie = ligaDeQuemSobe === 'ROOKIE';
+  if (daRookie && box.checked) {
+    box.checked = false;
+    aviso.textContent = 'Saindo da ROOKIE sobe só o GM: os times de lá são franquias da NBA e o nome não acompanha.';
+  } else if (!daRookie) {
+    aviso.textContent = '';
+  }
+}
+
 async function _cadeiraPromover(teamId) {
   const userId = Number(document.getElementById(`cadGm_${teamId}`)?.value || 0);
   if (!userId) { showAlert('warning', 'Escolha quem sobe.'); return; }
   const sel = document.getElementById(`cadGm_${teamId}`);
-  if (!confirm(`Promover ${sel.options[sel.selectedIndex].textContent}?\n\nEle assume o time como está, e a cadeira dele fica aberta.`)) return;
+  const levarId = !!document.getElementById(`cadLevarId_${teamId}`)?.checked;
+  const aviso = levarId
+    ? '\n\nA identidade sobe junto: a cadeira fica com a cara do time dele, e o time que ele deixa fica com a cara desta aqui.'
+    : '\n\nEle assume o time como está, e a cadeira dele fica aberta.';
+  if (!confirm(`Promover ${sel.options[sel.selectedIndex].textContent}?${aviso}`)) return;
   try {
     const r = await api('admin.php?action=promover_gm', {
       method: 'POST',
       body: JSON.stringify({
         team_id: teamId, user_id: userId,
+        levar_identidade: levarId,
         nova_cidade: document.getElementById(`cadCidade_${teamId}`)?.value || '',
         novo_nome:   document.getElementById(`cadNome_${teamId}`)?.value || '',
         novo_escudo: document.getElementById(`cadEscudo_${teamId}`)?.value || '',

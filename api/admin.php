@@ -4400,22 +4400,76 @@ if ($method === 'POST') {
             $novoNome   = trim((string)($data['novo_nome'] ?? ''));
             $novaCidade = trim((string)($data['nova_cidade'] ?? ''));
             $novoEscudo = trim((string)($data['novo_escudo'] ?? ''));
+            $levarId    = !empty($data['levar_identidade']);
             if (!$teamId || !$userId) { echo json_encode(['success' => false, 'error' => 'Dados incompletos']); exit; }
 
             $ordem = ['ELITE' => 1, 'NEXT' => 2, 'RISE' => 3, 'ROOKIE' => 4];
 
-            $st = $pdo->prepare("SELECT id, league, user_id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome FROM teams WHERE id = ?");
+            /* A cara do destino ANTES da promoção: se a identidade subir junto,
+               é ela que desce pra cadeira que vagou. @see a troca lá embaixo. */
+            $st = $pdo->prepare("SELECT id, league, user_id, city, name, photo_url,
+                                        TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
+                                   FROM teams WHERE id = ?");
             $st->execute([$teamId]);
             $destino = $st->fetch(PDO::FETCH_ASSOC);
+            $destinoAntes = $destino;
             if (!$destino) { echo json_encode(['success' => false, 'error' => 'Time não encontrado']); exit; }
             if ($destino['user_id']) { echo json_encode(['success' => false, 'error' => 'Essa cadeira já tem GM — recarregue a tela.']); exit; }
 
             $st = $pdo->prepare("SELECT u.id, u.name, t.id AS team_id, t.league,
+                                        t.city AS city, t.name AS time_nome, t.photo_url,
                                         TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS nome
                                  FROM users u LEFT JOIN teams t ON t.user_id = u.id WHERE u.id = ?");
             $st->execute([$userId]);
             $quemSobe = $st->fetch(PDO::FETCH_ASSOC);
             if (!$quemSobe) { echo json_encode(['success' => false, 'error' => 'GM não encontrado']); exit; }
+
+            /* ── A IDENTIDADE PODE SUBIR JUNTO COM O GM ───────────────────
+               Pedido do Marcos (13/10/2026): "tem como ter a opção de levar a
+               id do time pro que ele foi (...) eu escolho se muda os dados do
+               time que subiu, substituindo o outro".
+
+               O time de destino continua sendo o time — elenco, picks, folha,
+               histórico e títulos ficam onde estão, como sempre foi. O que
+               viaja é só a CARA: cidade, nome e escudo. Quem sobe chega com a
+               própria marca em vez de herdar a de quem saiu.
+
+               MENOS SAINDO DA ROOKIE, e isso é regra, não exceção técnica:
+               os times da ROOKIE são as franquias reais da NBA (Pistons,
+               Wizards, Bucks) e as outras três ligas têm nome próprio. Levar
+               "Detroit Pistons" pra cima quebraria o padrão da liga inteira.
+               De lá sobe só o GM — foi o que o Marcos escreveu: "isso só não
+               acontece da rookie pra rise, aí é só o GM mesmo".
+
+               A TRAVA É PELA ORIGEM, não pelo par de ligas. Ele descreveu o
+               caso que acontece na prática, porque a fila sobe um degrau por
+               vez; mas a API aceita qualquer salto, e eu consegui mandar a
+               identidade da ROOKIE direto pra NEXT num teste. O que
+               desqualifica o nome é ele ser de uma franquia da NBA, e isso
+               não muda conforme o destino. */
+            $saindoDaRookie = strtoupper((string)($quemSobe['league'] ?? '')) === 'ROOKIE';
+            if ($levarId && $saindoDaRookie) {
+                echo json_encode(['success' => false,
+                    'error' => 'Saindo da ROOKIE sobe só o GM: os times de lá são franquias da NBA '
+                             . 'e o nome não acompanha. Desmarque "levar a identidade" e promova.'],
+                    JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if ($levarId && empty($quemSobe['team_id'])) {
+                echo json_encode(['success' => false,
+                    'error' => $quemSobe['name'] . ' não tem time hoje — não há identidade pra levar.'],
+                    JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            /* A identidade que ele leva vale como PADRÃO; o que o admin digitar
+               à mão continua mandando, campo a campo. Serve pro caso de subir
+               com a própria marca e aproveitar pra trocar só a cidade. */
+            if ($levarId) {
+                if ($novaCidade === '') $novaCidade = (string)($quemSobe['city'] ?? '');
+                if ($novoNome === '')   $novoNome   = (string)($quemSobe['time_nome'] ?? '');
+                if ($novoEscudo === '') $novoEscudo = (string)($quemSobe['photo_url'] ?? '');
+            }
 
             // Promoção é pra CIMA. Sem isso, um clique errado rebaixaria alguém
             // sem que a tela tivesse dito isso em lugar nenhum.
@@ -4455,6 +4509,27 @@ if ($method === 'POST') {
                     $pdo->prepare("UPDATE teams SET " . implode(', ', $troca) . " WHERE id = ?")->execute($vals);
                 }
 
+                /* ── AS DUAS CADEIRAS TROCAM DE CARA, NÃO SÓ UMA ──────────
+                   Levar a identidade pra cima sem mexer na de baixo deixaria
+                   DOIS times com o mesmo nome: o que ele assumiu e o que ele
+                   deixou, que continua existindo e vai receber outro GM. Dois
+                   "Montana Bison" em ligas diferentes confundem tabela,
+                   trade, bot e Hall.
+
+                   Então é troca: a cadeira vaga lá embaixo fica com a cara
+                   que estava aqui em cima. Nenhum nome da liga se perde, não
+                   nasce duplicata, e quem subir depois encontra uma
+                   identidade de verdade pra herdar ou trocar. */
+                if ($levarId && !empty($quemSobe['team_id'])) {
+                    $pdo->prepare("UPDATE teams SET city = ?, name = ?, photo_url = ? WHERE id = ?")
+                        ->execute([
+                            $destinoAntes['city'] ?? null,
+                            $destinoAntes['name'] ?? null,
+                            $destinoAntes['photo_url'] ?? null,
+                            (int)$quemSobe['team_id'],
+                        ]);
+                }
+
                 $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
                                VALUES (?,?,NULL,?,?,?)")
                     ->execute([$teamId, $destino['league'], $userId,
@@ -4486,9 +4561,24 @@ if ($method === 'POST') {
                 $msgHall = ' ' . $totalHall . ' registro(s) do Hall da Fama vieram junto com ele.';
             }
 
+            /* Com a identidade subindo, as duas cadeiras trocaram de cara — e
+               a mensagem precisa dizer isso com os dois nomes, senão o admin
+               recarrega a tela e não entende por que o time lá embaixo mudou
+               de nome sozinho. */
+            $msgIdentidade = '';
+            if ($levarId && !empty($quemSobe['team_id'])) {
+                $caraQueSubiu = trim(($quemSobe['city'] ?? '') . ' ' . ($quemSobe['time_nome'] ?? ''));
+                $msgIdentidade = ' A identidade subiu junto: a cadeira da ' . $destino['league']
+                               . ' agora é ' . $caraQueSubiu . ', e ' . $destinoAntes['nome']
+                               . ' desceu pra vaga da ' . $quemSobe['league'] . '.';
+            }
+
             echo json_encode(['success' => true,
-                'message' => $quemSobe['name'] . ' assumiu ' . $destino['nome'] . ' na ' . $destino['league'] . '.'
-                           . (!empty($quemSobe['nome']) ? ' A cadeira de ' . $quemSobe['nome'] . ' (' . $quemSobe['league'] . ') está aberta.' : '')
+                'message' => $quemSobe['name'] . ' assumiu ' . ($levarId ? $destinoAntes['nome'] : $destino['nome'])
+                           . ' na ' . $destino['league'] . '.'
+                           . (!empty($quemSobe['nome']) && !$levarId
+                               ? ' A cadeira de ' . $quemSobe['nome'] . ' (' . $quemSobe['league'] . ') está aberta.' : '')
+                           . $msgIdentidade
                            . $msgHall,
                 'hall' => $hall ?? null,
                 'nova_vaga' => !empty($quemSobe['team_id']) ? (int)$quemSobe['team_id'] : null],
