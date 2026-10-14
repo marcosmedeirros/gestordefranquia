@@ -718,6 +718,27 @@ function dfdConvitePendente(PDO $pdo, int $uid): ?array
  * antes do sorteio de marca — usa o próprio nome, porque um time sem nome
  * nenhum no ranking é pior que um time com o nome do dono.
  */
+/**
+ * O nome do time de um GM pelo id, caindo no NOME DELE quando não há time.
+ *
+ * É o que a tela do duelo usa pro adversário antes de ele fechar o time. Sem
+ * o fallback do nome, quem ainda não tem franquia aparecia como "Time sem
+ * nome" — o que é pior que não dizer nada, porque parece defeito.
+ */
+function dfdNomeDoTimeDeGm(PDO $pdo, int $uid): string
+{
+    if ($uid <= 0) return 'Adversário';
+    $nome = '';
+    try {
+        $st = $pdo->prepare('SELECT name FROM users WHERE id = ?');
+        $st->execute([$uid]);
+        $nome = (string)($st->fetchColumn() ?: '');
+    } catch (Throwable $e) {
+        error_log('[draftfut-duelo] nome do GM: ' . $e->getMessage());
+    }
+    return dfdNomeDoTime($pdo, $uid, $nome);
+}
+
 function dfdNomeDoTime(PDO $pdo, int $uid, string $fallback = ''): string
 {
     try {

@@ -29,11 +29,11 @@ $elePronto  = (int)$dl['pronto_' . $outroLado] === 1;
    "no draft coloca o nome do time do adversário" (Marcos, 14/10/2026).
    Agora, enquanto o nome gravado não existe, ele vem da franquia do GM, que
    é a mesma fonte que o duelo usa no fim. */
-$meuNome    = (string)($dl['nome_' . $meuLado] ?: dfdNomeDoTime($pdo, $user_id));
+$meuNome    = (string)($dl['nome_' . $meuLado] ?: dfdNomeDoTimeDeGm($pdo, $user_id));
 $eleId      = (int)($dl['id_' . $outroLado] ?? 0);
 $eleNome    = (string)($dl['nome_' . $outroLado] ?: '');
 if ($eleNome === '') {
-    $eleNome = $eleId > 0 ? dfdNomeDoTime($pdo, $eleId) : 'Adversário';
+    $eleNome = $eleId > 0 ? dfdNomeDoTimeDeGm($pdo, $eleId) : 'Adversário';
 }
 ?>
 
@@ -90,10 +90,22 @@ if ($eleNome === '') {
         <?php endif; ?>
       </span>
     </div>
-    <form method="POST" style="margin-top:14px">
-      <input type="hidden" name="acao" value="duelo_fechar">
-      <button class="btn pri" type="submit"><i class="bi bi-check2"></i> Fechar</button>
-    </form>
+    <?php /* ── UM BOTÃO SÓ PRA SAIR DAQUI ───────────────────────────
+         Eram dois fazendo a mesma coisa: este "Fechar", em cima, e o "Voltar
+         pra tela inicial" no fim da narração, que aparece no mesmo instante
+         (os dois saem do esconderijo quando a partida acaba). "É pra unificar
+         os dois, e a ação é voltar a tela inicial do jogo" — Marcos,
+         14/10/2026. Ficou o de baixo, que é onde a pessoa está olhando quando
+         o jogo termina.
+
+         AQUI ELE SÓ APARECE QUANDO NÃO HOUVE PARTIDA: num W.O. não existe
+         narração, e sem este botão a tela ficaria sem saída nenhuma. */ ?>
+    <?php if (!$temNarracao): ?>
+      <form method="POST" style="margin-top:14px">
+        <input type="hidden" name="acao" value="duelo_fechar">
+        <button class="btn pri" type="submit"><i class="bi bi-house"></i> Voltar pra tela inicial</button>
+      </form>
+    <?php endif; ?>
   </div>
 
   <?php
@@ -110,7 +122,7 @@ if ($eleNome === '') {
       $draftFora = dfdLerDraft($dl, 'desafiado');
       $r = [
           'partida' => $p,
-          'nome'    => (string)($dl['nome_criador'] ?: dfdNomeDoTime($pdo, (int)$dl['id_criador'])),
+          'nome'    => (string)($dl['nome_criador'] ?: dfdNomeDoTimeDeGm($pdo, (int)$dl['id_criador'])),
           'forca'   => (int)$dl['forca_criador'],
           'quimica' => (int)$dl['quimica_criador'],
           'modo'    => 'pvp',
@@ -124,7 +136,7 @@ if ($eleNome === '') {
           'formacao' => (string)($draftCasa['formacao'] ?? ''),
           'time'     => $draftCasa['time'] ?? null,
           'premio'  => $venci ? (int)$dl['aposta'] * 2 : 0,
-          'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: dfdNomeDoTime($pdo, (int)$dl['id_desafiado'])),
+          'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: dfdNomeDoTimeDeGm($pdo, (int)$dl['id_desafiado'])),
                         'forca' => (int)$dl['forca_desafiado'],
                         'escudo' => dfdEscudoDoTime($pdo, (int)$dl['id_desafiado']),
                         'formacao' => (string)($draftFora['formacao'] ?? ''),
