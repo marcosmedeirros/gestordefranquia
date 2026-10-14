@@ -168,13 +168,29 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         </form>
 
         <?php if ($c['opinioes']): ?>
+          <?php /* ── CADA COMENTÁRIO NO SEU CARD ──────────────────────
+               Pedido do Marcos (14/10/2026): "na parte dos comentários do
+               álbum ou do filme, ajusta pra ficar em comentários, tá tudo
+               junto, em bordas em cada comentário". Era uma lista corrida
+               separada por fio, e com nota curta em cima de nota curta virava
+               um bloco só de texto — não dava pra ver onde um acabava e o
+               outro começava. Agora cada um é um card fechado, e a seção tem
+               nome e contagem, que é o que faz a pessoa reparar que há gente
+               conversando ali. */ ?>
+          <div class="sem-h4">Comentários
+            <span class="opi-conta"><?= count($c['opinioes']) ?></span></div>
           <div class="opi">
             <?php foreach ($c['opinioes'] as $op): ?>
               <div class="opi-um">
                 <img src="<?= h(clubeAvatar($op['photo_url'])) ?>" alt="">
-                <div>
+                <div class="opi-c">
                   <div class="opi-cab"><b><?= h($op['name']) ?></b>
                     <?php if ($op['nota'] !== null): ?><span class="opi-nota"><?= (int)$op['nota'] ?></span><?php endif; ?>
+                    <?php /* Sem recado, a linha explica o silêncio em vez de
+                         deixar um card com só um nome dentro. */ ?>
+                    <?php if (trim((string)$op['texto']) === ''): ?>
+                      <span class="opi-so-nota">deu nota, sem comentário</span>
+                    <?php endif; ?>
                   </div>
                   <?php if (trim((string)$op['texto']) !== ''): ?>
                     <div class="opi-txt"><?= h($op['texto']) ?></div>
@@ -1067,18 +1083,29 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .opina .btn.pri{background:var(--c);border-color:var(--c);color:#0b0b0f;font-weight:700}
 .opina .btn.pri:hover{filter:brightness(1.07)}
 
-/* ── A TIMELINE ──────────────────────────────────────────────────────*/
-.opi{display:flex;flex-direction:column;margin-top:16px}
-.opi-um{display:flex;gap:12px;align-items:flex-start;padding:12px 2px;border-top:1px solid var(--borda)}
-.opi-um:first-child{border-top:none}
-.opi-um img{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none;margin-top:1px}
-.opi-cab{font-size:13px;color:var(--txt2);display:flex;align-items:center;gap:8px}
+/* ── OS COMENTÁRIOS ──────────────────────────────────────────────────
+   Um card fechado por pessoa, com borda: separados por fio eles viravam um
+   bloco corrido de texto, e com recados de uma linha não dava pra ver onde
+   um acabava e o outro começava. */
+.opi{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.opi-um{display:flex;gap:12px;align-items:flex-start;padding:13px 15px;border-radius:14px;
+  background:var(--panel2);border:1px solid var(--borda);
+  transition:border-color var(--t,180ms) ease}
+.opi-um:hover{border-color:color-mix(in srgb,var(--c) 30%,var(--borda))}
+.opi-um img{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;margin-top:1px}
+.opi-c{flex:1;min-width:0}
+.opi-cab{font-size:13px;color:var(--txt2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .opi-cab b{color:var(--txt);font-weight:700}
-.opi-nota{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 7px;
-  border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;
+.opi-nota{display:inline-grid;place-items:center;min-width:28px;height:23px;padding:0 8px;
+  border-radius:8px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;
   background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
-.opi-txt{font-size:13.5px;color:var(--txt2);margin-top:3px;white-space:pre-wrap;word-break:break-word;
-  line-height:1.5}
+.opi-so-nota{font-size:11.5px;color:var(--txt3)}
+.opi-txt{font-size:13.5px;color:var(--txt);margin-top:5px;white-space:pre-wrap;word-break:break-word;
+  line-height:1.55}
+/* A contagem ao lado do título da seção, pra dar escala sem virar frase. */
+.opi-conta{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 7px;
+  border-radius:999px;font-family:Inter,system-ui,sans-serif;font-size:11.5px;font-weight:800;
+  background:var(--panel3);color:var(--txt3);margin-left:7px;vertical-align:2px}
 
 /* O rótulo de seção dentro do bloco: menor que um h3 e maior que um texto. */
 .sem-h4{margin:22px 0 6px;font-family:var(--display);font-size:17px;font-weight:700;
