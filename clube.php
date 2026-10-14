@@ -635,14 +635,19 @@ $qInicial    = (string)($_GET['q'] ?? '');
    e centro puro num container que rola empurra o começo pra fora do alcance
    — no celular a primeira aba ficaria inacessível. `safe center` centraliza
    quando sobra espaço e volta pro começo quando falta. */
-.midias{display:flex;justify-content:safe center;gap:6px;margin-bottom:14px;
-  overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+/* ── UM TRILHO SÓ, E NÃO CINCO CAIXAS ────────────────────────────────
+   Cada mídia tinha a própria borda, e com a capa somaram seis molduras numa
+   tela só ("tá horrível, todo o design, com bordas", 14/10/2026). Agora é um
+   seletor: o trilho tem o fundo, os itens não têm contorno nenhum, e a
+   mídia aberta é a única com preenchimento. */
+.midias{display:flex;width:fit-content;max-width:100%;margin:0 auto 18px;gap:2px;
+  overflow-x:auto;scrollbar-width:none;background:var(--panel);border-radius:14px;padding:4px}
 .midias::-webkit-scrollbar{display:none}
-.midias a,.midias span{display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:11px;
+.midias a,.midias span{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:11px;
   font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;
-  border:1px solid var(--borda);background:var(--panel);color:var(--txt2)}
-.midias a:hover{border-color:var(--borda2);color:var(--txt)}
-.midias a.on{border-color:var(--acento);background:color-mix(in srgb,var(--acento) 14%,transparent);color:var(--acento)}
+  border:none;background:transparent;color:var(--txt2);transition:color var(--t) var(--ease)}
+.midias a:hover{color:var(--txt)}
+.midias a.on{background:color-mix(in srgb,var(--acento) 15%,transparent);color:var(--acento)}
 .midias span{opacity:.4;cursor:default}
 .midias span .breve{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
   padding:1px 5px;border-radius:5px;background:var(--panel3);color:var(--txt3)}
@@ -683,8 +688,11 @@ $qInicial    = (string)($_GET['q'] ?? '');
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .c-ano{font-size:11px;color:var(--txt3);font-variant-numeric:tabular-nums}
 
-.bloco{background:var(--panel);border:1px solid var(--borda);border-radius:14px;
-  padding:15px;margin-bottom:13px}
+/* O bloco perdeu a borda: ele já tem fundo próprio, e o contorno por cima
+   fazia cada seção parecer um formulário. Quem separa é o fundo e o respiro.
+   @see a mesma decisão na capa (includes/clube-capa.php) */
+.bloco{background:var(--panel);border:none;border-radius:18px;
+  padding:18px;margin-bottom:14px}
 .bloco h3{margin:0 0 12px;font-family:var(--display);font-size:17px;font-weight:700;
   letter-spacing:.3px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
 .bloco h3 i{color:var(--acento)}
