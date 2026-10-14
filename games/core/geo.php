@@ -387,12 +387,22 @@ function geoRua(array $lugar): ?string
     $chave = geoChaveMaps();
     if ($chave === '') return null;
 
-    return 'https://www.google.com/maps/embed/v1/streetview?' . http_build_query([
-        'key'      => $chave,
-        'location' => $lugar['lat'] . ',' . $lugar['lon'],
-        'heading'  => (int)($lugar['rua_dir'] ?? 0),
-        'pitch'    => 0,
-        'fov'      => 90,
-        'language' => 'pt-BR',
-    ]);
+    /* ── O PANORAMA EXATO, E NÃO "O MAIS PRÓXIMO" ────────────────────
+       Passando só a coordenada, quem escolhe o panorama é o Google — e ele
+       escolhe entre tudo que existe ali, inclusive foto esférica enviada por
+       gente comum. No primeiro teste, na Torre Eiffel, ele abriu numa foto
+       de um visitante em vez do Street View da rua. Dá pra jogar, mas é
+       loteria: a foto do vizinho pode estar escura, torta ou dentro de um
+       restaurante. O marcador de cobertura guarda o ID do panorama que ELE
+       viu, e é esse que abre aqui — o mesmo que foi conferido, sempre.
+       A coordenada fica junto como reserva: se o panorama for aposentado,
+       o Google cai no mais próximo em vez de mostrar tela cinza. */
+    $p = ['key' => $chave];
+    if (!empty($lugar['rua_pano'])) $p['pano'] = (string)$lugar['rua_pano'];
+    $p['location'] = $lugar['lat'] . ',' . $lugar['lon'];
+    $p['heading']  = (int)($lugar['rua_dir'] ?? 0);
+    $p['pitch']    = 0;
+    $p['fov']      = 90;
+    $p['language'] = 'pt-BR';
+    return 'https://www.google.com/maps/embed/v1/streetview?' . http_build_query($p);
 }

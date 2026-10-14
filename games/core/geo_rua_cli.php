@@ -103,9 +103,14 @@ foreach ($lugares as $i => &$l) {
         $plat = (float)($j['location']['lat'] ?? $l['lat']);
         $plon = (float)($j['location']['lng'] ?? $l['lon']);
         $l['rua_dir'] = geoRumo($plat, $plon, (float)$l['lat'], (float)$l['lon']);
+        /* O ID DO PANORAMA QUE ESTE CLI VIU. Sem ele, em partida quem escolhe
+           é o Google — e ele escolhe entre tudo que há ali, foto esférica de
+           visitante inclusive: o primeiro teste, na Torre Eiffel, abriu numa
+           foto de turista em vez do Street View da rua. @see geoRua */
+        if (!empty($j['pano_id'])) $l['rua_pano'] = (string)$j['pano_id'];
         $com++;
     } elseif ($st === 'ZERO_RESULTS') {
-        unset($l['rua'], $l['rua_dir']);
+        unset($l['rua'], $l['rua_dir'], $l['rua_pano']);
         $sem++;
     } else {
         /* REQUEST_DENIED, OVER_QUERY_LIMIT, arquivo faltando: o lugar fica
