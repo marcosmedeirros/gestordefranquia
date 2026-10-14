@@ -26,13 +26,26 @@ if (!empty($duelo)) {
         return;
     }
     if ($duelo['id_desafiado'] === null) {
-        /* O bloco "Duelo aberto" já tem o botão de cancelar, logo abaixo do
-           código. Repetir aqui embaixo punha dois "Cancelar duelo" na mesma
-           tela, um deles longe do que explica a consequência. */
-        return;
-    }
+        /* ── DUELO ABERTO E SEM NINGUÉM: DEPENDE DE ONDE A PESSOA ESTÁ ──
+           Com o quadro do duelo na tela (quando ainda não se começou a
+           montar), ele já traz o "Cancelar duelo" logo abaixo do código —
+           repetir aqui punha dois botões iguais na mesma tela.
 
-    if (dfdDueloVirgem($duelo)) {
+           MAS QUEM JÁ COMEÇOU A MONTAR não vê aquele quadro: a tela vira o
+           pacote de cartas e o campo, e este arquivo era a única saída —
+           que se escondia justamente aí. Resultado: duelo aberto, ninguém
+           entrou, time montado e NENHUM botão pra sair. O Kleber ficou preso
+           assim em 14/10/2026, com 2.000 moedas presas no duelo: "to travado
+           sempre na mesma seleção de draft, independente de qual link eu
+           acesse" — e era verdade, porque o duelo faz o draft aparecer em
+           qualquer endereço. */
+        if (empty($d)) return;
+        $texto = 'Cancelar este duelo? Ninguém entrou ainda, então as '
+               . (int)$duelo['aposta'] . ' moedas voltam pra você e o draft é desfeito.';
+        $rotulo = 'Cancelar o duelo';
+        $acaoSaida = 'duelo_cancelar';
+
+    } elseif (dfdDueloVirgem($duelo)) {
         /* NINGUÉM ABRIU CARTA AINDA, então não há partida pra abandonar e
            sair não custa nada — a aposta volta pros dois. É o par da entrada
            automática pelo link (09/10/2026): se dá pra entrar com um toque,
