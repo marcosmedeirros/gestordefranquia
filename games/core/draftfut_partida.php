@@ -41,6 +41,29 @@ require_once __DIR__ . '/draftfut.php';
 const DFUTP_GOLS_MEDIA = 2.55;
 const DFUTP_MANDO      = 3;
 
+/**
+ * ── QUANTO A FORÇA MANDA ─────────────────────────────────────────────
+ *
+ * `ESCALA` é o divisor da diferença de força: quanto menor, mais o time
+ * melhor domina os lances. `ACABAMENTO` é quanto a superioridade também
+ * melhora a conversão de cada chance.
+ *
+ * Os dois foram MEDIDOS, não chutados (3.000 partidas por confronto):
+ *
+ *            escala 24, sem acabamento   escala 12 + acabamento 0,5
+ *   97 x 78        60% V · 17% D                86% V · 4% D
+ *   90 x 78        51% V · 23% D                72% V · 11% D
+ *   85 x 80        42% V · 31% D                53% V · 24% D
+ *   80 x 80        36% V · 38% D                36% V · 38% D
+ *
+ * A régua é o pedido do Jefferson, repassado pelo Marcos (14/10/2026): "às
+ * vezes pode ter zebra, mas tem que prevalecer a força e a química". Então
+ * dezenove pontos de diferença ganham quase sempre — e "quase" é o que mantém
+ * o jogo de pé: 4% ainda é um a cada vinte e cinco.
+ */
+const DFUTP_ESCALA     = 12;
+const DFUTP_ACABAMENTO = 0.5;
+
 /** Quantos minutos a partida tem, e quantos lances perigosos ela costuma ter. */
 const DFUTP_MINUTOS = 90;
 const DFUTP_LANCES  = 18;
@@ -73,7 +96,7 @@ function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = n
        estreito: com 16, dez pontos de diferença já davam 73% da posse e o
        jogo virava treino de finalização. Com 24, dez pontos dão ~65%, que é
        um favorito claro ainda sujeito a levar susto. */
-    $vantagem = ($fCasa - $fFora) / 24;
+    $vantagem = ($fCasa - $fFora) / DFUTP_ESCALA;
     $pesoCasa = 1 / (1 + exp(-$vantagem));
 
     $lances = [];
@@ -99,24 +122,36 @@ function draftFutPartida(array $casa, array $fora, int $semente, ?int $mando = n
                          'placar' => $gols[0] . 'x' . $gols[1]];
             $intervaloPosto = true;
         }
-        $atacaCasa = (mt_rand(1, 1000) / 1000) < $pesoCasa;
+        /* mt_rand(0, 999), e não (1, 1000): com o segundo, dois times iguais
+           (peso 0,5) davam 499 lances pra um e 501 pro outro, e em 3.000
+           partidas isso virava dois pontos percentuais de vantagem pro
+           visitante — pequeno, mas sistemático, e num jogo que paga moedas
+           ninguém quer descobrir que o lado direito da tela ganha mais. */
+        $atacaCasa = (mt_rand(0, 999) / 1000) < $pesoCasa;
         $lado = $atacaCasa ? 0 : 1;
         $estat['posse'][$lado]++;
 
         $atacante = $atacaCasa ? $casa : $fora;
         $defensor = $atacaCasa ? $fora : $casa;
 
-        /* A CHANCE DE GOL POR LANCE É A MESMA PROS DOIS, e é isso que mantém
-           a média da partida onde ela foi medida. Eu a inclinava pela posse —
-           o time melhor converteria mais —, só que aí a vantagem contava duas
-           vezes: ele já tem mais lances, e cada lance dele valia mais. O total
-           de gols subia junto com o desequilíbrio (3,07 num jogo de favorito)
-           em vez de ficar na média.
+        /* ── O ACABAMENTO TAMBÉM É DO MELHOR TIME ────────────────────
+           Durante um tempo a chance de gol por lance foi a MESMA pros dois,
+           pra não deixar a vantagem contar duas vezes e inflar o placar. O
+           efeito colateral apareceu no teste do Jefferson (14/10/2026):
+           "montava time 97 e perdia pra ovr 78". E perdia mesmo — 17% das
+           vezes —, porque a superioridade só aparecia no VOLUME de chances, e
+           volume sozinho é uma vantagem que a sorte derruba num jogo de dois
+           gols e meio.
 
-           A superioridade aparece em QUANTOS lances cada um cria, que é a
-           conta logo acima. Quem domina faz mais gols porque chuta mais, não
-           porque a bola dele entra mais fácil. */
-        $chanceGol = DFUTP_GOLS_MEDIA / DFUTP_LANCES;
+           Agora ela aparece nos dois lugares, e o placar continua onde foi
+           medido porque o ajuste é NORMALIZADO: o favorito converte melhor na
+           mesma medida em que o azarão converte pior, e o divisor desfaz o
+           ganho líquido. A média segue em 2,5 gols por jogo com qualquer
+           diferença de força — só mudou de quem são. */
+        $t = 2 * $pesoCasa - 1;                      // -1 a 1: quem é melhor, e quanto
+        $meu = $lado === 0 ? $t : -$t;
+        $chanceGol = (DFUTP_GOLS_MEDIA / DFUTP_LANCES)
+                   * (1 + DFUTP_ACABAMENTO * $meu) / (1 + DFUTP_ACABAMENTO * $t * $t);
 
         $estat['chutes'][$lado]++;
         $r = mt_rand(1, 10000) / 10000;

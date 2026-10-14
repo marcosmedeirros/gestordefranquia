@@ -606,17 +606,23 @@ $jogosLivres = [
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['href' => '/games/games/thejourney.php', 'nome' => 'The Journey',
      'sub'  => 'Uma carreira no basquete', 'icone' => 'bi-dribbble', 'cor' => '#f97316'],
-    /* O FBA DRAFT CONTINUA SÓ POR LINK. Ele chegou a entrar na grade em
-       08/10/2026 e saiu no dia seguinte, a pedido do Marcos — como na
-       estreia, quem tem o endereço entra e o resto da liga não o descobre
-       passeando pela lista. Pra publicar de novo é só devolver o card aqui;
-       nada no jogo depende disto. @see games/games/draftfut.php */
-    /* FBA HOOPS E LENDAS DA QUADRA, POR ENQUANTO SÓ POR LINK — pedido do
-       Victor em 09/10/2026, como o FBA Draft acima: quem tem o endereço entra,
-       o resto da liga não os descobre pela lista. Pra publicar, é devolver
-       os cards; nada nos jogos depende disto.
-         /games/games/hoops.php   — o Ultimate Team do basquete
-         /games/games/lendas.php  — o RPG de tabuleiro com duelo online */
+    /* ── OS DOIS DRAFTS ENTRARAM NA GRADE (14/10/2026) ────────────────
+       "Adicione o jogo do draft e o do draft lá da NBA em /games, como 2
+       cards novos" (Marcos). Os dois estrearam só por link — o FBA Draft em
+       08/10 e o Hoops em 09/10, a pedido dele e do Victor — e passaram a
+       semana rodando com os GMs que receberam o endereço. Com o reroll
+       fechado e o duelo com relógio, dá pra abrir pra liga inteira.
+
+       São o mesmo jogo em dois esportes, e é por isso que ficam lado a lado:
+       cinco cartas por vaga, escolha uma. No futebol termina numa partida
+       narrada minuto a minuto, contra o bot ou contra outro GM; no basquete,
+       numa temporada inteira de 82 jogos com playoffs. */
+    ['href' => '/games/games/draftfut.php', 'nome' => 'FBA Draft',
+     'sub'  => 'Monte o time carta a carta', 'icone' => 'bi-collection-fill', 'cor' => '#10b981'],
+    ['href' => '/games/games/hoops.php', 'nome' => 'FBA Hoops',
+     'sub'  => 'Draft da NBA e uma temporada', 'icone' => 'bi-layers-fill', 'cor' => '#a855f7'],
+    /* LENDAS DA QUADRA segue só por link (pedido do Victor, 09/10/2026):
+       /games/games/lendas.php — o RPG de tabuleiro com duelo online. */
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
