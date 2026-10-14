@@ -166,6 +166,17 @@ if ($tinhaDuelo && $duelo === null) {
     $_SESSION['draftfut'] = null;
 }
 
+/* ── DRAFT ÓRFÃO DE DUELO NÃO SERVE PRA NADA ─────────────────────────
+   Um draft montado DENTRO de um duelo não pode virar partida contra o bot:
+   a entrada dele foi a aposta, não as dez moedas. Se o duelo some — foi
+   cancelado, deu W.O. no prazo, o adversário desistiu —, o que fica na
+   sessão é um time que não dá pra fechar nem pra jogar, e a pessoa volta
+   nele toda vez que abre o jogo. Então ele sai de cena aqui. O draft de
+   duelo que ainda EXISTE não é tocado: ele é lido do banco e continua. */
+if ($d && !empty($d['duelo']) && (!$duelo || (int)$duelo['id'] !== (int)$d['duelo'])) {
+    $_SESSION['draftfut'] = null;
+}
+
 /* O duelo que acabou continua na tela de CADA UM dos dois até fechar. A
    marca é no banco, por lado (@see dfdResultadoPendente): guardá-la na sessão
    mostrava o placar só pra quem disparou a partida, e pro outro GM o duelo
