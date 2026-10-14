@@ -78,11 +78,20 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
     $d = clubeSemanaEstadoDoTipo($pdo, $tipo, $idUsuario);
     $i = $d['info']; $c = $d['cartaz']; $v = $d['enquete']; $rk = $d['ranking'];
     $plural = ['album' => 'álbuns', 'filme' => 'filmes', 'livro' => 'livros'][$tipo];
+    /* A COR DA MÍDIA, as mesmas três da capa. Ela entra como variável do
+       bloco e governa ícone, barra de voto, nota e botão — é o que dá
+       identidade a cada aba sem precisar de três folhas de estilo.
+       @see includes/clube-capa.php */
+    $cor = ['album' => '#a78bfa', 'filme' => '#fbbf24', 'livro' => '#34d399'][$tipo] ?? 'var(--acento)';
     ?>
-    <div class="bloco">
-      <h3 style="margin:0 0 10px"><i class="bi bi-<?= $i['ico'] ?>"></i> <?= h($i['rot']) ?></h3>
+    <div class="bloco cs" style="--c:<?= $cor ?>">
+      <div class="cs-cab">
+        <i class="bi bi-<?= $i['ico'] ?>"></i> <?= h($i['rot']) ?>
+        <?php if ($v): ?><span class="cs-chip">votação aberta</span><?php endif; ?>
+      </div>
 
       <?php if ($c): ?>
+      <div class="cartaz">
         <div class="cartaz-rot">Em cartaz · <?= $tipo === 'livro'
             ? 'o livro de ' . h(clubeSemanaMes($c['semana']))
             : 'semana de ' . date('d/m', strtotime($c['semana'])) ?><?=
@@ -137,8 +146,9 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
         <?php endif; ?>
         <?php if ($c['media'] !== null): ?>
           <div class="cartaz-med"><b><?= h($c['media']) ?></b>
-            média da liga · <?= count($c['opinioes']) ?> na timeline</div>
+            <span>média da liga · <?= count($c['opinioes']) ?> na timeline</span></div>
         <?php endif; ?>
+      </div><?php /* .cartaz */ ?>
 
         <form class="opina" method="POST">
           <input type="hidden" name="acao" value="semana_opinar">
@@ -146,7 +156,8 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
           <textarea name="texto" maxlength="1200"
             placeholder="Deu tempo de <?= h($i['verbo']) ?>? Nota e comentário entram na timeline."><?= h($c['minha']['texto'] ?? '') ?></textarea>
           <div class="opina-l">
-            <select name="nota" aria-label="Sua nota">
+            <label for="nota<?= h($tipo) ?>">Sua nota</label>
+            <select name="nota" id="nota<?= h($tipo) ?>">
               <option value="">sem nota</option>
               <?php for ($n = 10; $n >= 0; $n--): ?>
                 <option value="<?= $n ?>" <?= $c['minha'] && $c['minha']['nota'] !== null && (int)$c['minha']['nota'] === $n ? 'selected' : '' ?>><?= $n ?></option>
@@ -246,7 +257,7 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
     </div>
 
     <?php if ($rk['top']): ?>
-      <div class="bloco" style="margin-top:14px">
+      <div class="bloco cs" style="margin-top:14px;--c:<?= $cor ?>">
         <h3 style="margin:0 0 10px"><i class="bi bi-trophy-fill"></i> Top 5 <?= h($plural) ?> da liga</h3>
         <div class="estante">
           <?php foreach ($rk['top'] as $n => $r): ?>
@@ -517,7 +528,14 @@ if ($idUsuario > 0 && isset($_GET['json'])) {
    membro chegar. */
 $souDoLivro = clubeLivroEhMembro($pdo, $idUsuario);
 
-$aba = (string)($_GET['aba'] ?? 'catalogo');
+/* ── SÉRIES ABRE NO MEU PERFIL ───────────────────────────────────────
+   Pedido do Marcos (14/10/2026): "em séries, tire catálogo, já abre em meu
+   perfil". O catálogo não sumiu — ele é o resultado da BUSCA, que mora no
+   alto da página e é como se procura uma série de verdade; o que saiu foi o
+   item na barra e o costume de a aba abrir numa grade de "mais populares"
+   que não é sobre ninguém. Quem chega agora cai no próprio acervo.
+   @see a barra de abas lá embaixo, e o link "ver o catálogo" nela */
+$aba = (string)($_GET['aba'] ?? 'perfil');
 /* A ABA "MINHAS SÉRIES" VIROU O ACERVO DO PERFIL em 30/09/2026. Eram duas
    telas pra mesma pergunta, e a do perfil ficou melhor: tem filtro, busca,
    ordem e o X. O endereço antigo continua chegando em algum lugar certo. */
@@ -971,81 +989,162 @@ $qInicial    = (string)($_GET['q'] ?? '');
    Vocabulário próprio e pequeno; o resto (bloco, abas, btn, vazio) é o da
    página. Os cartões dividem a linha no desktop e empilham no celular. */
 .sem-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px}
-.cartaz-rot{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);margin-bottom:6px}
-.cartaz-tit{font-size:22px;font-weight:800;line-height:1.15}
-.cartaz-sub{color:var(--txt2);font-size:13.5px;margin-top:3px}
-.cartaz-med{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;color:var(--txt2)}
-.cartaz-med b{font-size:16px;color:var(--txt)}
-.vops{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+/* ── AS ABAS DE MÚSICA, FILMES E LIVRO ───────────────────────────────
+   Refeitas em 14/10/2026 ("ficaram com design meio antiga") na mesma
+   linguagem da capa: sem moldura em cima de moldura, cor por mídia entrando
+   como luz e não como contorno, e tipografia fazendo a hierarquia.
+
+   `--c` é a cor da mídia e vem do `style` do bloco (@see clubeBlocoSemana).
+   O padrão existe pra nenhum pedaço nascer sem cor se alguém reaproveitar
+   uma destas classes fora do bloco. */
+/* O caminho pro catálogo, agora que ele saiu da barra: uma linha discreta
+   embaixo das abas, no lugar onde o item costumava estar. */
+.ache-serie{text-align:center;font-size:12.5px;color:var(--txt3);margin:-8px 0 16px}
+.ache-serie a{color:var(--acento);font-weight:600;text-decoration:none}
+.ache-serie a:hover{text-decoration:underline}
+
+.cs{--c:var(--acento)}
+/* Dentro de um bloco com cor própria o título larga a caixa alta e o ícone
+   vermelho do app: os dois eram o que mais datava estas três abas. */
+.cs h3{text-transform:none;font-family:var(--display);font-size:19px;letter-spacing:.3px}
+.cs h3 i{color:var(--c)}
+.cs-cab{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:11px;
+  font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--txt2)}
+.cs-cab i{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;font-size:15px;
+  background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.cs-cab .cs-chip{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.6px;
+  padding:4px 8px;border-radius:7px;text-transform:uppercase;
+  background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+
+/* O CARTAZ: o que está em cartaz agora, com o halo da mídia por trás. */
+.cartaz{position:relative;overflow:hidden;border-radius:16px;padding:20px;margin-bottom:16px;
+  background:var(--panel2)}
+.cartaz::before{content:"";position:absolute;inset:-50% 25% auto -10%;height:200px;pointer-events:none;
+  background:radial-gradient(60% 100% at 30% 0,color-mix(in srgb,var(--c) 24%,transparent),transparent 70%)}
+.cartaz > *{position:relative}
+.cartaz-rot{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);margin-bottom:8px}
+.cartaz-tit{font-family:var(--display);font-size:31px;font-weight:700;line-height:1.08;letter-spacing:.3px}
+.cartaz-sub{color:var(--txt2);font-size:14px;margin-top:4px}
+.cartaz-med{display:flex;align-items:baseline;gap:9px;margin-top:14px;font-size:12.5px;color:var(--txt3)}
+.cartaz-med b{font-family:var(--display);font-size:34px;line-height:1;color:var(--txt);
+  font-variant-numeric:tabular-nums}
+
+/* ── A VOTAÇÃO ───────────────────────────────────────────────────────
+   Sem contorno: separa pelo fundo, e a barra de votos é a cor da mídia
+   crescendo por baixo do texto. Só a escolhida ganha um anel. */
+.vops{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .vops form{margin:0}
-.vop{width:100%}
 .vop{position:relative;display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-     background:var(--panel3);border:1px solid var(--borda);border-radius:10px;
-     padding:9px 12px;cursor:pointer;color:var(--txt);font:inherit;overflow:hidden}
-.vop:hover{border-color:var(--acento)}
-.vop.on{border-color:var(--acento);box-shadow:0 0 0 1px var(--acento) inset}
-.vop-bar{position:absolute;inset:0;width:var(--pct,0%);background:var(--acento);opacity:.12;pointer-events:none}
-.vop-tit{position:relative;flex:1;min-width:0}
-.vop-tit small{display:block;color:var(--txt3);font-size:11.5px}
-.vop-n{position:relative;font-size:12px;color:var(--txt3);white-space:nowrap}
-.vop.on .vop-n{color:var(--acento);font-weight:700}
-.opina{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.opina textarea{background:var(--panel3);border:1px solid var(--borda);border-radius:10px;
-     color:var(--txt);padding:9px 11px;font:inherit;font-size:13px;resize:vertical;min-height:64px}
-.opina-l{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.opina select{background:var(--panel3);border:1px solid var(--borda);border-radius:8px;
-     color:var(--txt);padding:7px 9px;font:inherit;font-size:13px}
-.opi{display:flex;flex-direction:column;gap:10px;margin-top:12px}
-.opi-um{display:flex;gap:10px;align-items:flex-start}
-.opi-um img{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none}
-.opi-cab{font-size:12.5px;color:var(--txt2)}
-.opi-cab b{color:var(--txt)}
-.opi-nota{display:inline-block;background:var(--panel3);border:1px solid var(--borda);
-     border-radius:7px;padding:1px 7px;font-size:11.5px;font-weight:700;margin-left:6px}
-.opi-txt{font-size:13.5px;color:var(--txt);margin-top:2px;white-space:pre-wrap;word-break:break-word}
-.sem-h4{margin:16px 0 4px;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--txt3)}
-/* O ARQUIVO DO LIVRO. Os dois idiomas lado a lado, porque a pergunta de
-   quem chega e "tem em portugues?" — e com as duas vagas a tela responde
-   isso antes de a pessoa ler nome de arquivo. */
-.livro-arqs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
-.livro-arq{display:inline-flex;align-items:center;gap:7px;text-decoration:none;
-  background:var(--panel-2);border:1px solid var(--border);border-radius:9px;
-  padding:8px 12px;color:var(--text);font-size:13px;font-weight:600}
-.livro-arq:hover{border-color:var(--border-md)}
+  background:var(--panel2);border:1px solid transparent;border-radius:12px;
+  padding:11px 14px;cursor:pointer;color:var(--txt);font:inherit;font-size:13.5px;overflow:hidden;
+  transition:background var(--t,180ms) ease}
+.vop:hover{background:var(--panel3)}
+.vop.on{border-color:color-mix(in srgb,var(--c) 55%,transparent)}
+.vop-bar{position:absolute;inset:0;width:var(--pct,0%);pointer-events:none;
+  background:color-mix(in srgb,var(--c) 22%,transparent);transition:width .35s ease}
+.vop-tit{position:relative;flex:1;min-width:0;line-height:1.3}
+.vop-tit small{display:block;color:var(--txt3);font-size:11.5px;margin-top:1px}
+.vop-n{position:relative;font-size:12px;color:var(--txt3);white-space:nowrap;font-weight:700;
+  font-variant-numeric:tabular-nums}
+.vop.on .vop-n{color:var(--c)}
+
+/* ── A MINHA OPINIÃO ─────────────────────────────────────────────────
+   Era um textarea cru colado num botão vermelho. Agora é um painel só,
+   com a nota e o botão na mesma linha e a cor da mídia no botão — ele
+   pertence a esta aba, não ao app inteiro. */
+.opina{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding:16px;
+  border-radius:16px;background:var(--panel2)}
+.opina textarea{background:var(--panel);border:1px solid var(--borda);border-radius:12px;
+  color:var(--txt);padding:12px 14px;font:inherit;font-size:13.5px;resize:vertical;min-height:76px;
+  line-height:1.5}
+.opina textarea:focus{outline:none;border-color:color-mix(in srgb,var(--c) 55%,transparent)}
+.opina-l{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.opina-l label{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--txt3)}
+.opina select{background:var(--panel);border:1px solid var(--borda);border-radius:11px;
+  color:var(--txt);padding:9px 11px;font:inherit;font-size:13.5px}
+.opina select:focus{outline:none;border-color:color-mix(in srgb,var(--c) 55%,transparent)}
+.opina .btn.pri{background:var(--c);border-color:var(--c);color:#0b0b0f;font-weight:700}
+.opina .btn.pri:hover{filter:brightness(1.07)}
+
+/* ── A TIMELINE ──────────────────────────────────────────────────────*/
+.opi{display:flex;flex-direction:column;margin-top:16px}
+.opi-um{display:flex;gap:12px;align-items:flex-start;padding:12px 2px;border-top:1px solid var(--borda)}
+.opi-um:first-child{border-top:none}
+.opi-um img{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none;margin-top:1px}
+.opi-cab{font-size:13px;color:var(--txt2);display:flex;align-items:center;gap:8px}
+.opi-cab b{color:var(--txt);font-weight:700}
+.opi-nota{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 7px;
+  border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;
+  background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.opi-txt{font-size:13.5px;color:var(--txt2);margin-top:3px;white-space:pre-wrap;word-break:break-word;
+  line-height:1.5}
+
+/* O rótulo de seção dentro do bloco: menor que um h3 e maior que um texto. */
+.sem-h4{margin:22px 0 6px;font-family:var(--display);font-size:17px;font-weight:700;
+  letter-spacing:.3px;text-transform:none;color:var(--txt)}
+.sem-prazo{font-size:12.5px;color:var(--txt3);margin-bottom:6px}
+
+/* ── O ARQUIVO DO LIVRO ──────────────────────────────────────────────
+   Os dois idiomas lado a lado, porque a pergunta de quem chega é "tem em
+   português?" — e com as duas vagas a tela responde isso antes de a pessoa
+   ler nome de arquivo. */
+.livro-arqs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.livro-arq{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  background:var(--panel);border:1px solid var(--borda);border-radius:12px;
+  padding:10px 14px;color:var(--txt);font-size:13px;font-weight:600}
+.livro-arq:hover{border-color:color-mix(in srgb,var(--c) 45%,transparent)}
+.livro-arq i{color:var(--c)}
 .livro-arq small{color:var(--txt3);font-weight:400;font-size:11.5px;
   max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.livro-up{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
-.livro-up-l{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.livro-up-c{flex:1;min-width:180px;display:flex;flex-direction:column;gap:5px;
-  font-size:12.5px;color:var(--text-2)}
+.livro-up{margin-top:16px;padding:16px;border-radius:16px;background:var(--panel2)}
+.livro-up-l{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.livro-up-c{flex:1;min-width:180px;display:flex;flex-direction:column;gap:6px;
+  font-size:12.5px;color:var(--txt2)}
 .livro-up-c input[type=file]{font-size:12px;color:var(--txt3)}
-.livro-up-c b{color:var(--verde,#22c55e);font-weight:600}
-.livro-up-nota{margin:8px 0 0;font-size:11.5px;color:var(--txt3)}
-.livro-arq-tirar{display:inline-block;margin:6px 8px 0 0}
+.livro-up-c b{color:var(--c);font-weight:700}
+.livro-up-nota{margin:10px 0 0;font-size:11.5px;color:var(--txt3)}
+.livro-arq-tirar{display:inline-block;margin:8px 8px 0 0}
 .livro-arq-tirar button{background:none;border:none;color:var(--txt3);
   font-size:11.5px;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit}
-.livro-abrir textarea{width:100%;background:var(--panel-2);border:1px solid var(--border);
-  border-radius:9px;color:var(--text);padding:10px 12px;font:inherit;font-size:13px;
-  resize:vertical;margin-bottom:10px}
+.livro-abrir{margin-top:4px;padding:16px;border-radius:16px;background:var(--panel2)}
+.livro-abrir textarea{width:100%;background:var(--panel);border:1px solid var(--borda);
+  border-radius:12px;color:var(--txt);padding:12px 14px;font:inherit;font-size:13.5px;
+  resize:vertical;margin-bottom:12px;line-height:1.5;min-height:120px}
+.livro-abrir textarea:focus{outline:none;border-color:color-mix(in srgb,var(--c) 55%,transparent)}
 .livro-abrir-l{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.livro-abrir-l label{font-size:12.5px;color:var(--text-2);display:flex;gap:6px;align-items:center}
-.livro-abrir-l select{background:var(--panel-2);border:1px solid var(--border);
-  border-radius:8px;color:var(--text);padding:7px 10px;font:inherit;font-size:12.5px}
+.livro-abrir-l label{font-size:12.5px;color:var(--txt2);display:flex;gap:7px;align-items:center}
+.livro-abrir-l select{background:var(--panel);border:1px solid var(--borda);
+  border-radius:11px;color:var(--txt);padding:9px 11px;font:inherit;font-size:13px}
+.livro-abrir .btn.pri{background:var(--c);border-color:var(--c);color:#0b0b0f;font-weight:700}
 
-.sem-prazo{font-size:12px;color:var(--txt3);margin-bottom:4px}
-.convite{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between}
-.convite p{margin:0;color:var(--txt2);font-size:13.5px}
-.estante{display:flex;flex-direction:column;gap:7px}
-.estante-um{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;
-     border-bottom:1px dashed var(--borda);padding-bottom:7px}
-.estante-um small{color:var(--txt3)}
+.convite{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.convite p{margin:0;color:var(--txt2);font-size:13.5px;line-height:1.5}
+
+/* ── O RANKING DA ABA ────────────────────────────────────────────────
+   A posição vira um número grande à esquerda e a nota um bloco à direita:
+   a linha pontilhada que separava cada obra era o que mais envelhecia a
+   tela, e o alinhamento resolve a mesma coisa sem desenhar nada. */
+.estante{display:flex;flex-direction:column;gap:2px}
+.estante-um{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;
+  font-size:13.5px}
+.estante-um:nth-child(odd){background:var(--panel2)}
+.estante-um > span{flex:1;min-width:0}
+.estante-um b{font-weight:700}
+.estante-um small{color:var(--txt3);font-weight:400}
+.estante-um > small{flex:none;color:var(--txt3);font-size:12px;white-space:nowrap}
+.estante-um > small b{font-family:var(--display);font-size:19px;color:var(--c);
+  font-variant-numeric:tabular-nums;margin-right:2px}
+
 .gente-livro{display:flex;flex-wrap:wrap;gap:8px}
-.gente-livro span{display:inline-flex;align-items:center;gap:6px;background:var(--panel3);
-     border:1px solid var(--borda);border-radius:999px;padding:4px 11px 4px 5px;font-size:12.5px}
-.gente-livro img{width:22px;height:22px;border-radius:50%;object-fit:cover}
-.adm-form{display:flex;flex-direction:column;gap:8px}
-.adm-form input[type=text],.adm-form textarea{background:var(--panel3);border:1px solid var(--borda);
-     border-radius:10px;color:var(--txt);padding:9px 11px;font:inherit;font-size:13px}
+.gente-livro span{display:inline-flex;align-items:center;gap:7px;background:var(--panel2);
+  border-radius:999px;padding:5px 13px 5px 5px;font-size:12.5px}
+.gente-livro img{width:24px;height:24px;border-radius:50%;object-fit:cover}
+.adm-form{display:flex;flex-direction:column;gap:10px}
+.adm-form input[type=text],.adm-form textarea{background:var(--panel2);border:1px solid var(--borda);
+  border-radius:12px;color:var(--txt);padding:11px 13px;font:inherit;font-size:13.5px}
+.adm-form input:focus,.adm-form textarea:focus{outline:none;
+  border-color:color-mix(in srgb,var(--c) 55%,transparent)}
 .sair-livro{margin-top:18px;text-align:right}
 .sair-livro button{background:none;border:none;color:var(--txt3);font-size:12px;cursor:pointer;
      text-decoration:underline;padding:0}
@@ -1148,7 +1247,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php clubeBlocoSemana($pdo, 'livro', $idUsuario); ?>
 
     <?php foreach ($enquetesLivro as $e): ?>
-      <div class="bloco" style="margin-top:14px">
+      <div class="bloco cs" style="margin-top:14px;--c:#34d399">
         <h3 style="margin:0 0 4px"><i class="bi bi-ui-checks"></i> <?= h($e['pergunta']) ?></h3>
         <?php /* "N pessoas votando" numa enquete encerrada é tempo errado:
                  ninguém está votando, o que está ali é o que votaram. */ ?>
@@ -1199,7 +1298,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
       </div>
     <?php endforeach; ?>
 
-    <div class="bloco" style="margin-top:14px">
+    <div class="bloco cs" style="margin-top:14px;--c:#34d399">
       <h3 style="margin:0 0 10px"><i class="bi bi-people-fill"></i> Quem está no clube
         <span style="color:var(--txt3);font-weight:400;font-size:13px">· <?= count($membrosLivro) ?></span></h3>
       <div class="gente-livro">
@@ -1213,7 +1312,7 @@ $qInicial    = (string)($_GET['q'] ?? '');
     </div>
 
     <?php if ($ehAdminClube): ?>
-      <div class="bloco" style="margin-top:14px">
+      <div class="bloco cs" style="margin-top:14px;--c:#34d399">
         <h3 style="margin:0 0 10px"><i class="bi bi-sliders"></i> Direção do clube</h3>
         <form class="adm-form" method="POST" style="max-width:480px">
           <input type="hidden" name="acao" value="livro_enquete">
@@ -1267,11 +1366,20 @@ $qInicial    = (string)($_GET['q'] ?? '');
 
 <?php else: ?>
   <div class="abas">
-    <?php foreach (['catalogo' => 'Catálogo', 'perfil' => 'Meu perfil',
-                    'liga' => 'A liga', 'pessoas' => 'Pessoas'] as $k => $rot): ?>
+    <?php /* O CATÁLOGO SAIU DA BARRA e só aparece como aba quando é ele que
+         está aberto — a busca leva pra lá, e quem chegou por uma busca
+         precisa saber onde está e como voltar. @see $aba, lá em cima. */ ?>
+    <?php $abasSeries = ['perfil' => 'Meu perfil', 'liga' => 'A liga', 'pessoas' => 'Pessoas'];
+          if ($aba === 'catalogo') $abasSeries = ['catalogo' => 'Catálogo'] + $abasSeries; ?>
+    <?php foreach ($abasSeries as $k => $rot): ?>
       <a href="?midia=series&amp;aba=<?= $k ?>" class="<?= $aba === $k ? 'on' : '' ?>"><?= h($rot) ?></a>
     <?php endforeach; ?>
   </div>
+  <?php if ($aba === 'perfil'): ?>
+    <p class="ache-serie">Procurando uma série? Busque lá em cima ou
+      <a href="?midia=series&amp;aba=catalogo">abra o catálogo</a> — são
+      <?= number_format($catalogo, 0, ',', '.') ?> títulos.</p>
+  <?php endif; ?>
 
   <?php if ($aba === 'catalogo'): ?>
     <div class="bloco">
