@@ -71,6 +71,28 @@ function clubeLivroTabelas(PDO $pdo): void
         UNIQUE KEY uq_resenha (livro_id, user_id)
     ) DEFAULT CHARSET=utf8mb4");
 
+    /* ── ONDE A PESQUISA APARECE ─────────────────────────────────────
+       A enquete nasceu dentro do Clube do Livro e por isso mora nestas
+       tabelas. Com a capa do Clube (14/10/2026) ela passou a servir à liga
+       toda — "um popup que abre pro admin criar as pesquisas" —, e o que
+       separa uma coisa da outra é esta coluna: 'livro' só aparece na aba de
+       quem entrou no clube do livro, 'clube' aparece na capa pra todo mundo.
+
+       O padrão é 'livro' porque é o que as enquetes antigas são; mudar o
+       default mudaria o passado. */
+    try {
+        $tem = $pdo->query("SELECT COUNT(*) FROM information_schema.columns
+                             WHERE table_schema = DATABASE()
+                               AND table_name = 'clube_livro_enquetes'
+                               AND column_name = 'escopo'")->fetchColumn();
+        if (!$tem) {
+            $pdo->exec("ALTER TABLE clube_livro_enquetes
+                        ADD COLUMN escopo ENUM('livro','clube') NOT NULL DEFAULT 'livro'");
+        }
+    } catch (Throwable $e) {
+        error_log('[clube-livro] migrar escopo: ' . $e->getMessage());
+    }
+
     /* A ENQUETE DE GÊNERO NASCE COM O CLUBE, uma vez só. É a primeira coisa
        que a Agata pediu — sem ela a aba estrearia vazia, e ninguém volta a
        uma aba que estreou vazia. */
@@ -122,10 +144,16 @@ function clubeLivroMembros(PDO $pdo): array
                       ORDER BY m.criado_em ASC")->fetchAll(PDO::FETCH_ASSOC);
 }
 
-/** As enquetes (abertas primeiro), com contagem e os meus votos. */
-function clubeLivroEnquetes(PDO $pdo, int $userId): array
+/**
+ * As enquetes (abertas primeiro), com contagem e os meus votos.
+ *
+ * @param string $escopo 'livro' (a aba do clube do livro) ou 'clube' (a capa).
+ *               @see a coluna `escopo` em clubeLivroTabelas
+ */
+function clubeLivroEnquetes(PDO $pdo, int $userId, string $escopo = 'livro'): array
 {
     clubeLivroTabelas($pdo);
+    $escopo = $escopo === 'clube' ? 'clube' : 'livro';
 
     /* ── A ENQUETE FECHADA SÓ SAI DA TELA QUANDO JÁ TEM LIVRO ─────────
        Pedido do Marcos (08/10/2026): "APOS ESCOLHER O LIVRO ou musica, fecha
@@ -144,14 +172,20 @@ function clubeLivroEnquetes(PDO $pdo, int $userId): array
        Então o gatilho volta a ser o do pedido: existe livro atual, a votação
        velha sai da frente dele. Não existe, ela fica — encerrada, sem botão,
        mostrando no que o pessoal votou. Encerrar passa a querer dizer
-       "congelei o resultado", e não "apaguei a enquete da tela". */
-    $temLivro = (bool)$pdo->query("SELECT 1 FROM clube_livro_livros
+       "congelei o resultado", e não "apaguei a enquete da tela".
+
+       ── E ISSO É REGRA DO LIVRO, NÃO DA CAPA. Na capa não existe "o livro
+       de agora" pra tirar a votação velha da frente; lá o que manda é o
+       escopo, e a pesquisa encerrada fica mostrando o resultado até alguém
+       criar outra. */
+    $temLivro = $escopo === 'livro' && (bool)$pdo->query("SELECT 1 FROM clube_livro_livros
                                     WHERE status = 'atual' LIMIT 1")->fetchColumn();
-    $onde = $temLivro ? "WHERE status = 'aberta'" : '';
-    $enquetes = $pdo->query("SELECT id, pergunta, multi, status FROM clube_livro_enquetes
-                             {$onde}
-                             ORDER BY (status = 'aberta') DESC, id DESC LIMIT 8")
-                    ->fetchAll(PDO::FETCH_ASSOC);
+    $onde = $temLivro ? "AND status = 'aberta'" : '';
+    $st = $pdo->prepare("SELECT id, pergunta, multi, status FROM clube_livro_enquetes
+                          WHERE escopo = ? {$onde}
+                          ORDER BY (status = 'aberta') DESC, id DESC LIMIT 8");
+    $st->execute([$escopo]);
+    $enquetes = $st->fetchAll(PDO::FETCH_ASSOC);
     $ops = $pdo->prepare("SELECT o.id, o.texto, COUNT(v.id) votos
                             FROM clube_livro_enquete_opcoes o
                         LEFT JOIN clube_livro_enquete_votos v ON v.opcao_id = o.id
@@ -207,15 +241,18 @@ function clubeLivroVotar(PDO $pdo, int $userId, int $enqueteId, int $opcaoId): b
     }
 }
 
-function clubeLivroCriarEnquete(PDO $pdo, int $userId, string $pergunta, array $opcoes, bool $multi): bool
+function clubeLivroCriarEnquete(PDO $pdo, int $userId, string $pergunta, array $opcoes,
+                                bool $multi, string $escopo = 'livro'): bool
 {
     clubeLivroTabelas($pdo);
     $pergunta = trim(mb_substr($pergunta, 0, 200));
     $opcoes = array_values(array_filter(array_map(fn($o) => trim(mb_substr((string)$o, 0, 140)), $opcoes)));
     if ($pergunta === '' || count($opcoes) < 2) return false;
+    $escopo = $escopo === 'clube' ? 'clube' : 'livro';
     try {
-        $pdo->prepare('INSERT INTO clube_livro_enquetes (pergunta, multi, criado_por) VALUES (?,?,?)')
-            ->execute([$pergunta, $multi ? 1 : 0, $userId]);
+        $pdo->prepare('INSERT INTO clube_livro_enquetes (pergunta, multi, escopo, criado_por)
+                       VALUES (?,?,?,?)')
+            ->execute([$pergunta, $multi ? 1 : 0, $escopo, $userId]);
         $eid = (int)$pdo->lastInsertId();
         $op = $pdo->prepare('INSERT INTO clube_livro_enquete_opcoes (enquete_id, texto) VALUES (?,?)');
         foreach (array_slice($opcoes, 0, 20) as $o) $op->execute([$eid, $o]);
@@ -247,6 +284,41 @@ function clubeLivroReabrirEnquete(PDO $pdo, int $enqueteId): void
     clubeLivroTabelas($pdo);
     $pdo->prepare("UPDATE clube_livro_enquetes SET status = 'aberta' WHERE id = ?")
         ->execute([$enqueteId]);
+}
+
+/**
+ * ONDE UMA PESQUISA MORA — 'livro', 'clube', ou null se ela não existe.
+ *
+ * É o que decide QUEM pode votar nela. A tela do livro tranca tudo atrás de
+ * "sou membro ou sou admin", e com razão: lá dentro é o clube deles. A
+ * pesquisa da capa é da liga inteira, e usar a mesma tranca faria a caixa
+ * aparecer pra todo mundo e só funcionar pros dezessete do livro.
+ */
+function clubeLivroEnqueteEscopo(PDO $pdo, int $enqueteId): ?string
+{
+    clubeLivroTabelas($pdo);
+    $st = $pdo->prepare('SELECT escopo FROM clube_livro_enquetes WHERE id = ?');
+    $st->execute([$enqueteId]);
+    $e = $st->fetchColumn();
+    return $e === false ? null : (string)$e;
+}
+
+/**
+ * TODAS AS PESQUISAS, pro painel do admin — as duas casas na mesma lista.
+ *
+ * Sem filtro de livro atual e sem esconder encerrada: aqui é onde se
+ * administra, e administrar uma coisa que a tela esconde é adivinhação.
+ */
+function clubeLivroPesquisasDoAdmin(PDO $pdo, int $limite = 30): array
+{
+    clubeLivroTabelas($pdo);
+    $st = $pdo->query("SELECT e.id, e.pergunta, e.multi, e.status, e.escopo, e.criado_em,
+                              (SELECT COUNT(DISTINCT v.user_id) FROM clube_livro_enquete_votos v
+                                WHERE v.enquete_id = e.id) AS pessoas
+                         FROM clube_livro_enquetes e
+                     ORDER BY (e.status = 'aberta') DESC, e.id DESC
+                        LIMIT " . max(1, min(100, $limite)));
+    return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /** O livro em leitura, com resenhas, média e a minha. */

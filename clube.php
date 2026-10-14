@@ -39,6 +39,7 @@ require_once __DIR__ . '/backend/observador.php';
 require_once __DIR__ . '/backend/clube_semana.php';   // álbum e filme da semana
 require_once __DIR__ . '/backend/clube_livro.php';
 require_once __DIR__ . '/backend/clube_livro_arquivos.php';    // o clube do livro, só pra quem pediu
+require_once __DIR__ . '/backend/clube_capa.php';              // a capa que junta as quatro mídias
 
 /* PÁGINA DO APP, e não mais uma tela solta de /games: entra pelo login da FBA
    como qualquer outra, com menu lateral e a cor que a pessoa escolheu. Quem
@@ -278,6 +279,13 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
  * depois que a tela dela existir — e a ordem aqui é a ordem na barra.
  */
 const CLUBE_MIDIAS = [
+    /* ── A CAPA É A PRIMEIRA E É A PORTA ─────────────────────────────
+       Até 14/10/2026 a página abria em Séries, e o Clube inteiro dependia de
+       alguém reparar nas abas do lado. Não reparava: 43 pessoas em séries,
+       21 votando no da semana, 8 dando nota. A capa mostra as quatro de uma
+       vez e as abas viram o aprofundamento, não a descoberta.
+       @see includes/clube-capa.php */
+    'inicio' => ['rot' => 'Início',         'ico' => 'house-door-fill',   'ok' => true],
     'series' => ['rot' => 'Séries',         'ico' => 'projector-fill',    'ok' => true],
     /* MÚSICA E FILMES são o "da semana" de cada uma (07/10/2026, segunda
        versão do desenho — a primeira tinha uma aba "Da Semana" com os dois
@@ -301,12 +309,12 @@ const CLUBE_MIDIAS = [
  */
 const CLUBE_VERBO = ['quero' => 'quer ver', 'assistindo' => 'está vendo', 'assistida' => 'assistiu'];
 
-$midia = (string)($_GET['midia'] ?? 'series');
+$midia = (string)($_GET['midia'] ?? 'inicio');
 /* A aba "Da Semana" durou uma tarde (07/10/2026): quem guardou o link cai
    na Música, que herdou o álbum da semana. */
 if ($midia === 'semana') $midia = 'musica';
 if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
-    if (!isset(CLUBE_MIDIAS[$midia])) $midia = 'series';
+    if (!isset(CLUBE_MIDIAS[$midia])) $midia = 'inicio';
 }
 
 /* ── DA SEMANA E CLUBE DO LIVRO SÃO FORMULÁRIO, NÃO JSON ─────────────
@@ -315,6 +323,10 @@ if (!isset(CLUBE_MIDIAS[$midia]) || !CLUBE_MIDIAS[$midia]['ok']) {
    coisas seguidas não pode recarregar a página a cada clique. */
 $acoesForm = ['semana_votar', 'semana_opinar', 'livro_entrar', 'livro_sair', 'livro_votar',
               'livro_enquete', 'livro_enquete_fechar', 'livro_enquete_reabrir',
+              /* As pesquisas da capa: criar e administrar é do admin, votar é
+                 de qualquer um — e é por isso que elas não entram no bloco do
+                 livro, que exige ser membro. @see mais abaixo */
+              'pesquisa_criar', 'pesquisa_fechar', 'pesquisa_reabrir', 'pesquisa_votar',
               /* A enquete do livro e os arquivos dele: o livro saiu do sorteio
                  automático em 09/10/2026 (@see CLUBE_SEMANA_AUTO). */
               'livro_votacao_abrir', 'livro_arquivo', 'livro_arquivo_tirar'];
@@ -324,17 +336,44 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
     $acao = (string)$_POST['acao'];
     $volta = '?midia=musica';
 
-    if ($acao === 'semana_votar') {
+    /* ── QUEM VEIO DA CAPA VOLTA PRA CAPA ────────────────────────────
+       Votar na capa e cair na aba de Música seria tirar a pessoa do lugar
+       onde ela estava lendo as quatro mídias. O campo só diz "vim da capa";
+       o destino é escolhido aqui, e não no HTML. */
+    $daCapa = ($_POST['de'] ?? '') === 'inicio';
+
+    if ($acao === 'pesquisa_criar' && $ehAdminClube) {
+        clubeLivroCriarEnquete($pdo, $idUsuario, (string)($_POST['pergunta'] ?? ''),
+                               preg_split('/\r?\n/', (string)($_POST['opcoes'] ?? '')),
+                               !empty($_POST['multi']),
+                               (string)($_POST['escopo'] ?? 'clube'));
+        $volta = ($_POST['escopo'] ?? 'clube') === 'livro' ? '?midia=livro' : '?midia=inicio';
+    } elseif ($acao === 'pesquisa_fechar' && $ehAdminClube) {
+        clubeLivroFecharEnquete($pdo, (int)($_POST['enquete'] ?? 0));
+        $volta = '?midia=inicio';
+    } elseif ($acao === 'pesquisa_reabrir' && $ehAdminClube) {
+        clubeLivroReabrirEnquete($pdo, (int)($_POST['enquete'] ?? 0));
+        $volta = '?midia=inicio';
+    } elseif ($acao === 'pesquisa_votar') {
+        /* A PESQUISA DA CAPA É DA LIGA INTEIRA, e só ela: mandar o id de uma
+           enquete do Clube do Livro por aqui não dá acesso a nada — o escopo
+           é lido do banco, não do formulário. */
+        $enq = (int)($_POST['enquete'] ?? 0);
+        if (clubeLivroEnqueteEscopo($pdo, $enq) === 'clube') {
+            clubeLivroVotar($pdo, $idUsuario, $enq, (int)($_POST['opcao'] ?? 0));
+        }
+        $volta = '?midia=inicio';
+    } elseif ($acao === 'semana_votar') {
         /* O votar devolve o TIPO do ciclo, e é dele que sai a aba de volta:
            confiar num campo do formulário deixaria o redirect na mão de quem
            edita HTML. */
         $tipo = clubeSemanaVotar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), (int)($_POST['opcao'] ?? 0));
-        if ($tipo !== null) $volta = '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
+        if ($tipo !== null) $volta = $daCapa ? '?midia=inicio' : '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
     } elseif ($acao === 'semana_opinar') {
         $nota = ($_POST['nota'] ?? '') === '' ? null : (int)$_POST['nota'];
         $tipo = clubeSemanaOpinar($pdo, $idUsuario, (int)($_POST['ciclo'] ?? 0), $nota,
                                   (string)($_POST['texto'] ?? ''));
-        if ($tipo !== null) $volta = '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
+        if ($tipo !== null) $volta = $daCapa ? '?midia=inicio' : '?midia=' . CLUBE_SEMANA_TIPOS[$tipo]['midia'];
     } elseif ($acao === 'livro_entrar') {
         clubeLivroEntrar($pdo, $idUsuario);
         $volta = '?midia=livro';
@@ -1019,8 +1058,12 @@ $qInicial    = (string)($_GET['q'] ?? '');
   <div class="dash-hero">
     <div>
       <div class="dash-eyebrow">Clube FBA</div>
-      <h1 class="dash-title"><?= h(CLUBE_MIDIAS[$midia]['rot']) ?></h1>
-      <p class="dash-sub">O que a liga anda vendo, lendo e ouvindo.</p>
+      <?php /* NA CAPA O TÍTULO É O ASSUNTO, não o nome da aba: "Início" é o
+           rótulo certo na barra e um título vazio no alto da página. */ ?>
+      <h1 class="dash-title"><?= $midia === 'inicio' ? 'O Clube hoje' : h(CLUBE_MIDIAS[$midia]['rot']) ?></h1>
+      <p class="dash-sub"><?= $midia === 'inicio'
+          ? 'Séries, música, filmes e livros — tudo o que a liga anda vendo, lendo e ouvindo.'
+          : 'O que a liga anda vendo, lendo e ouvindo.' ?></p>
     </div>
     <?php if ($midia === 'series' && $catalogo > 0): ?>
       <?php /* A BUSCA FICA NO CABEÇALHO, ao lado do título: é a primeira
@@ -1053,7 +1096,11 @@ $qInicial    = (string)($_GET['q'] ?? '');
     <?php endforeach; ?>
   </div>
 
-<?php if ($midia === 'musica' || $midia === 'filmes'): ?>
+<?php if ($midia === 'inicio'): ?>
+  <?php /* ── A CAPA: as quatro mídias juntas ──────────────────────────── */ ?>
+  <?php include __DIR__ . '/includes/clube-capa.php'; ?>
+
+<?php elseif ($midia === 'musica' || $midia === 'filmes'): ?>
   <?php /* ── MÚSICA E FILMES: o da semana de cada uma ─────────────────── */ ?>
   <?php clubeBlocoSemana($pdo, $midia === 'musica' ? 'album' : 'filme', $idUsuario); ?>
 
