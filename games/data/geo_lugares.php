@@ -2,7 +2,7 @@
 /* Os lugares do FBA Geo — GERADO por games/core/geo_lugares_cli.php.
    Wikidata (lugar, país, coordenada) + Wikimedia Commons (foto, autor,
    licença). NÃO EDITE À MÃO: rode o CLI de novo.
-   Gerado em 14/10/2026 17:38 — 655 lugares. */
+   Gerado em 14/10/2026 20:19 — 779 lugares. */
 return array (
   0 => 
   array (
@@ -265,7 +265,7 @@ return array (
     'lon' => 77.5913,
     'img' => 'UB City.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 2.0',
   ),
   24 => 
@@ -320,7 +320,7 @@ return array (
     'lon' => 106.82694,
     'img' => 'Jakarta.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'Copyrighted free use',
   ),
   29 => 
@@ -380,6 +380,17 @@ return array (
   ),
   34 => 
   array (
+    'nome' => 'Tóquio',
+    'pais' => 'Japão',
+    'lat' => 35.68389,
+    'lon' => 139.77444,
+    'img' => 'Akiba denkigai.jpg',
+    'nivel' => 'cidade',
+    'autor' => 'Jmho',
+    'licenca' => 'CC0',
+  ),
+  35 => 
+  array (
     'nome' => 'Cidade do México',
     'pais' => 'México',
     'lat' => 19.35377,
@@ -389,7 +400,7 @@ return array (
     'autor' => 'Gobierno CDMX',
     'licenca' => 'CC0',
   ),
-  35 => 
+  36 => 
   array (
     'nome' => 'Hyderabad',
     'pais' => 'Índia',
@@ -400,7 +411,7 @@ return array (
     'autor' => 'Danloud',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  36 => 
+  37 => 
   array (
     'nome' => 'Kuala Lumpur',
     'pais' => 'Malásia',
@@ -411,7 +422,7 @@ return array (
     'autor' => 'thomasgl',
     'licenca' => 'Public domain',
   ),
-  37 => 
+  38 => 
   array (
     'nome' => 'Nova Iorque',
     'pais' => 'Estados Unidos',
@@ -422,7 +433,7 @@ return array (
     'autor' => 'Fred Hsu on en.wikipedia',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  38 => 
+  39 => 
   array (
     'nome' => 'Londres',
     'pais' => 'Reino Unido',
@@ -433,7 +444,7 @@ return array (
     'autor' => 'Ilya Grigorik',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  39 => 
+  40 => 
   array (
     'nome' => 'Hanói',
     'pais' => 'Vietname',
@@ -444,7 +455,7 @@ return array (
     'autor' => 'NKSTTSSHNVN',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  40 => 
+  41 => 
   array (
     'nome' => 'Teerão',
     'pais' => 'Irão',
@@ -455,7 +466,7 @@ return array (
     'autor' => 'Amir Pashaei',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  41 => 
+  42 => 
   array (
     'nome' => 'Veracruz',
     'pais' => 'México',
@@ -466,7 +477,7 @@ return array (
     'autor' => 'Ralf Roletschek',
     'licenca' => 'GFDL 1.2',
   ),
-  42 => 
+  43 => 
   array (
     'nome' => 'Bogotá',
     'pais' => 'Colômbia',
@@ -476,17 +487,6 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Felipe Restrepo Acosta',
     'licenca' => 'CC BY-SA 3.0',
-  ),
-  43 => 
-  array (
-    'nome' => 'Shangqiu',
-    'pais' => 'Song',
-    'lat' => 34.42592,
-    'lon' => 115.64673,
-    'img' => '20220726 Historic City of Shangqiu 01.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Windmemories',
-    'licenca' => 'CC BY-SA 4.0',
   ),
   44 => 
   array (
@@ -523,28 +523,6 @@ return array (
   ),
   47 => 
   array (
-    'nome' => 'Rangum',
-    'pais' => 'Birmânia Britânica',
-    'lat' => 16.795,
-    'lon' => 96.16,
-    'img' => '2016 Rangun, Dawny budynek Sądu Najwyższego (15).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Marcin Konsek',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  48 => 
-  array (
-    'nome' => 'Hengyang',
-    'pais' => 'Dinastia Qing',
-    'lat' => 26.89676,
-    'lon' => 112.58568,
-    'img' => 'Hengyang montage.PNG',
-    'nivel' => 'cidade',
-    'autor' => 'Dawidbernard',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  49 => 
-  array (
     'nome' => 'Chennai',
     'pais' => 'Índia',
     'lat' => 13.0825,
@@ -554,7 +532,7 @@ return array (
     'autor' => 'Saiphani02',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  50 => 
+  48 => 
   array (
     'nome' => 'Santiago',
     'pais' => 'Chile',
@@ -565,7 +543,7 @@ return array (
     'autor' => 'Omnespsx (D•ES)',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  51 => 
+  49 => 
   array (
     'nome' => 'Rio de Janeiro',
     'pais' => 'Brasil',
@@ -576,7 +554,7 @@ return array (
     'autor' => 'Rafael Rabello de Barros',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  52 => 
+  50 => 
   array (
     'nome' => 'Pune',
     'pais' => 'Índia',
@@ -587,7 +565,7 @@ return array (
     'autor' => 'Pravega',
     'licenca' => 'CC0',
   ),
-  53 => 
+  51 => 
   array (
     'nome' => 'Prayagraj',
     'pais' => 'Índia',
@@ -598,7 +576,7 @@ return array (
     'autor' => 'Vroomtrapit at English Wikipedia',
     'licenca' => 'CC0',
   ),
-  54 => 
+  52 => 
   array (
     'nome' => 'Surate',
     'pais' => 'Índia',
@@ -609,7 +587,7 @@ return array (
     'autor' => 'Hemant meena',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  55 => 
+  53 => 
   array (
     'nome' => 'Singapura',
     'pais' => 'Singapura',
@@ -620,7 +598,7 @@ return array (
     'autor' => 'Ramir Borja.',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  56 => 
+  54 => 
   array (
     'nome' => 'Ancara',
     'pais' => 'Turquia',
@@ -631,7 +609,7 @@ return array (
     'autor' => 'Jorge Franganillo from Barcelona, Spain',
     'licenca' => 'CC BY 2.0',
   ),
-  57 => 
+  55 => 
   array (
     'nome' => 'Adis Abeba',
     'pais' => 'Etiópia',
@@ -642,7 +620,7 @@ return array (
     'autor' => 'DaneyWiki',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  58 => 
+  56 => 
   array (
     'nome' => 'Banguecoque',
     'pais' => 'Tailândia',
@@ -653,51 +631,7 @@ return array (
     'autor' => 'Preecha.MJ',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  59 => 
-  array (
-    'nome' => 'Banguecoque',
-    'pais' => 'Reino de Ayutthaya',
-    'lat' => 13.75,
-    'lon' => 100.51667,
-    'img' => 'Temple of the Emerald of buddha or Wat Phra Kaew (cropped).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Preecha.MJ',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  60 => 
-  array (
-    'nome' => 'Banguecoque',
-    'pais' => 'Dinastia Konbaung',
-    'lat' => 13.75,
-    'lon' => 100.51667,
-    'img' => 'Temple of the Emerald of buddha or Wat Phra Kaew (cropped).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Preecha.MJ',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  61 => 
-  array (
-    'nome' => 'Banguecoque',
-    'pais' => 'Reino de Thonburi',
-    'lat' => 13.75,
-    'lon' => 100.51667,
-    'img' => 'Temple of the Emerald of buddha or Wat Phra Kaew (cropped).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Preecha.MJ',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  62 => 
-  array (
-    'nome' => 'Banguecoque',
-    'pais' => 'Reino de Rattanakosin',
-    'lat' => 13.75,
-    'lon' => 100.51667,
-    'img' => 'Temple of the Emerald of buddha or Wat Phra Kaew (cropped).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Preecha.MJ',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  63 => 
+  57 => 
   array (
     'nome' => 'São Petersburgo',
     'pais' => 'Rússia',
@@ -708,7 +642,7 @@ return array (
     'autor' => 'Florstein (Telegram:WikiPhoto.Space)',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  64 => 
+  58 => 
   array (
     'nome' => 'Abidjan',
     'pais' => 'Costa do Marfim',
@@ -719,7 +653,7 @@ return array (
     'autor' => 'RyansWorld',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  65 => 
+  59 => 
   array (
     'nome' => 'Nairóbi',
     'pais' => 'Quénia',
@@ -730,7 +664,7 @@ return array (
     'autor' => 'Daryona',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  66 => 
+  60 => 
   array (
     'nome' => 'Sydney',
     'pais' => 'Austrália',
@@ -741,7 +675,7 @@ return array (
     'autor' => 'W. Bulach',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  67 => 
+  61 => 
   array (
     'nome' => 'Alexandria',
     'pais' => 'Egito',
@@ -752,7 +686,7 @@ return array (
     'autor' => 'ASaber91',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  68 => 
+  62 => 
   array (
     'nome' => 'Melbourne',
     'pais' => 'Austrália',
@@ -763,7 +697,7 @@ return array (
     'autor' => 'Shkuru Afshar',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  69 => 
+  63 => 
   array (
     'nome' => 'Cartum',
     'pais' => 'Sudão',
@@ -774,7 +708,7 @@ return array (
     'autor' => 'Arwa51o ',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  70 => 
+  64 => 
   array (
     'nome' => 'Cabul',
     'pais' => 'Afeganistão',
@@ -785,7 +719,7 @@ return array (
     'autor' => 'Sven Dirks, Wien',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  71 => 
+  65 => 
   array (
     'nome' => 'City of Johannesburg Metropolitan Municipality',
     'pais' => 'África do Sul',
@@ -796,7 +730,7 @@ return array (
     'autor' => 'Evan Bench',
     'licenca' => 'CC BY 2.0',
   ),
-  72 => 
+  66 => 
   array (
     'nome' => 'Joanesburgo',
     'pais' => 'África do Sul',
@@ -807,7 +741,7 @@ return array (
     'autor' => 'Evan Bench',
     'licenca' => 'CC BY 2.0',
   ),
-  73 => 
+  67 => 
   array (
     'nome' => 'Dar es Salaam',
     'pais' => 'Tanzânia',
@@ -818,7 +752,7 @@ return array (
     'autor' => 'Muhammad Mahdi Karim',
     'licenca' => 'GFDL 1.2',
   ),
-  74 => 
+  68 => 
   array (
     'nome' => 'Jidá',
     'pais' => 'Arábia Saudita',
@@ -829,7 +763,7 @@ return array (
     'autor' => 'Saudi Press Agency (SPA)',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  75 => 
+  69 => 
   array (
     'nome' => 'Kanpur',
     'pais' => 'Índia',
@@ -840,7 +774,7 @@ return array (
     'autor' => 'Udayraj18',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  76 => 
+  70 => 
   array (
     'nome' => 'Calcutá',
     'pais' => 'Índia',
@@ -851,7 +785,7 @@ return array (
     'autor' => 'Ketanmehta4u',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  77 => 
+  71 => 
   array (
     'nome' => 'Esmirna',
     'pais' => 'Turquia',
@@ -862,7 +796,7 @@ return array (
     'autor' => 'Rafaela Ely',
     'licenca' => 'CC BY 2.0',
   ),
-  78 => 
+  72 => 
   array (
     'nome' => 'Gizé',
     'pais' => 'Egito',
@@ -873,7 +807,7 @@ return array (
     'autor' => 'Tanya Dedyukhina',
     'licenca' => 'CC BY 4.0',
   ),
-  79 => 
+  73 => 
   array (
     'nome' => 'Dong Nai',
     'pais' => 'Vietname',
@@ -884,7 +818,7 @@ return array (
     'autor' => 'Bùi Thụy Đào Nguyên',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  80 => 
+  74 => 
   array (
     'nome' => 'Kano',
     'pais' => 'Nigéria',
@@ -895,7 +829,7 @@ return array (
     'autor' => 'Shiraz Chakera',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  81 => 
+  75 => 
   array (
     'nome' => 'Bamako',
     'pais' => 'Mali',
@@ -906,7 +840,7 @@ return array (
     'autor' => 'Mark Fischer',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  82 => 
+  76 => 
   array (
     'nome' => 'Novo Taipé',
     'pais' => 'Taiwan',
@@ -917,7 +851,7 @@ return array (
     'autor' => '偷你哥(Tony Ge)',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  83 => 
+  77 => 
   array (
     'nome' => 'Amã',
     'pais' => 'Jordânia',
@@ -928,7 +862,7 @@ return array (
     'autor' => 'David Bjorgen',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  84 => 
+  78 => 
   array (
     'nome' => 'Dubai',
     'pais' => 'Emirados Árabes Unidos',
@@ -939,7 +873,7 @@ return array (
     'autor' => 'Tim Reckmann from Hamm, Deutschland',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  85 => 
+  79 => 
   array (
     'nome' => 'Kumasi',
     'pais' => 'Gana',
@@ -950,7 +884,7 @@ return array (
     'autor' => 'Maven Egote',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  86 => 
+  80 => 
   array (
     'nome' => 'Los Angeles',
     'pais' => 'Estados Unidos',
@@ -961,7 +895,7 @@ return array (
     'autor' => 'Alek Leckszas',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  87 => 
+  81 => 
   array (
     'nome' => 'Cidade do Cabo',
     'pais' => 'África do Sul',
@@ -972,7 +906,7 @@ return array (
     'autor' => 'Diego Delso',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  88 => 
+  82 => 
   array (
     'nome' => 'Yokohama',
     'pais' => 'Japão',
@@ -983,7 +917,7 @@ return array (
     'autor' => 'Takuro1202',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  89 => 
+  83 => 
   array (
     'nome' => 'Berlim',
     'pais' => 'Alemanha',
@@ -994,7 +928,7 @@ return array (
     'autor' => 'Thomas Wolf, www.foto-tw.de',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  90 => 
+  84 => 
   array (
     'nome' => 'Tripura',
     'pais' => 'Índia',
@@ -1005,7 +939,7 @@ return array (
     'autor' => 'Sharada Prasad CS',
     'licenca' => 'CC BY 2.0',
   ),
-  91 => 
+  85 => 
   array (
     'nome' => 'Bac Ninh',
     'pais' => 'Vietname',
@@ -1016,7 +950,7 @@ return array (
     'autor' => 'Chrisvomberg',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  92 => 
+  86 => 
   array (
     'nome' => 'Port Harcourt',
     'pais' => 'Nigéria',
@@ -1027,7 +961,7 @@ return array (
     'autor' => 'Kalabarian',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  93 => 
+  87 => 
   array (
     'nome' => 'Busan',
     'pais' => 'Coreia do Sul',
@@ -1038,7 +972,7 @@ return array (
     'autor' => 'by lwy',
     'licenca' => 'CC BY 2.0',
   ),
-  94 => 
+  88 => 
   array (
     'nome' => 'Lucknow',
     'pais' => 'Índia',
@@ -1049,7 +983,7 @@ return array (
     'autor' => 'Timestance',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  95 => 
+  89 => 
   array (
     'nome' => 'Chatigão',
     'pais' => 'Bangladesh',
@@ -1060,7 +994,7 @@ return array (
     'autor' => 'Fez Cap 12',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  96 => 
+  90 => 
   array (
     'nome' => 'Casablanca',
     'pais' => 'Marrocos',
@@ -1071,7 +1005,7 @@ return array (
     'autor' => 'Иерей Максим Массалитин from Rabat, Maroc',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  97 => 
+  91 => 
   array (
     'nome' => 'Can Tho',
     'pais' => 'Vietname',
@@ -1082,7 +1016,7 @@ return array (
     'autor' => 'Franzfoto',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  98 => 
+  92 => 
   array (
     'nome' => 'Faisalabad',
     'pais' => 'Paquistão',
@@ -1093,7 +1027,7 @@ return array (
     'autor' => 'Minhajian',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  99 => 
+  93 => 
   array (
     'nome' => 'Santa Cruz de la Sierra',
     'pais' => 'Bolívia',
@@ -1104,7 +1038,7 @@ return array (
     'autor' => 'Rodolfo Barriga',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  100 => 
+  94 => 
   array (
     'nome' => 'Buenos Aires',
     'pais' => 'Argentina',
@@ -1115,7 +1049,7 @@ return array (
     'autor' => 'ProtoplasmaKid',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  101 => 
+  95 => 
   array (
     'nome' => 'Vadodara',
     'pais' => 'Índia',
@@ -1126,7 +1060,7 @@ return array (
     'autor' => 'Bracknell',
     'licenca' => 'Public domain',
   ),
-  102 => 
+  96 => 
   array (
     'nome' => 'Cidade Quezon',
     'pais' => 'Filipinas',
@@ -1137,7 +1071,7 @@ return array (
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  103 => 
+  97 => 
   array (
     'nome' => 'Incheon',
     'pais' => 'Coreia do Sul',
@@ -1148,7 +1082,7 @@ return array (
     'autor' => 'JNicol',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  104 => 
+  98 => 
   array (
     'nome' => 'Taichung',
     'pais' => 'Taiwan',
@@ -1159,7 +1093,7 @@ return array (
     'autor' => 'Foxy1219(montage), 毛貓大少爺, Tiouraren, Daderot, Xc53, Maggie cchou, Peellden',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  105 => 
+  99 => 
   array (
     'nome' => 'Surabaia',
     'pais' => 'Indonésia',
@@ -1170,7 +1104,7 @@ return array (
     'autor' => 'Davidelit',
     'licenca' => 'Public domain',
   ),
-  106 => 
+  100 => 
   array (
     'nome' => 'Brasília',
     'pais' => 'Brasil',
@@ -1181,7 +1115,7 @@ return array (
     'autor' => 'Arturdiasr',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  107 => 
+  101 => 
   array (
     'nome' => 'Kuwait',
     'pais' => 'Kuwait',
@@ -1192,7 +1126,7 @@ return array (
     'autor' => 'User:Deepak',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  108 => 
+  102 => 
   array (
     'nome' => 'Sana',
     'pais' => 'Iémen',
@@ -1203,7 +1137,7 @@ return array (
     'autor' => 'ai@ce',
     'licenca' => 'CC BY 2.0',
   ),
-  109 => 
+  103 => 
   array (
     'nome' => 'Tasquente',
     'pais' => 'Usbequistão',
@@ -1214,7 +1148,7 @@ return array (
     'autor' => 'ssr (talk)',
     'licenca' => 'Public domain',
   ),
-  110 => 
+  104 => 
   array (
     'nome' => 'Kiev',
     'pais' => 'Ucrânia',
@@ -1225,7 +1159,7 @@ return array (
     'autor' => 'Francisco Anzola',
     'licenca' => 'CC BY 3.0',
   ),
-  111 => 
+  105 => 
   array (
     'nome' => 'Bursa',
     'pais' => 'Turquia',
@@ -1236,7 +1170,7 @@ return array (
     'autor' => 'see above',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  112 => 
+  106 => 
   array (
     'nome' => 'Buchimaie',
     'pais' => 'República Democrática do Congo',
@@ -1247,7 +1181,7 @@ return array (
     'autor' => 'MONUSCO/Myriam Asmani',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  113 => 
+  107 => 
   array (
     'nome' => 'Bandung',
     'pais' => 'Indonésia',
@@ -1258,7 +1192,7 @@ return array (
     'autor' => 'Yogwi21',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  114 => 
+  108 => 
   array (
     'nome' => 'Pyongyang',
     'pais' => 'Coreia do Norte',
@@ -1269,7 +1203,7 @@ return array (
     'autor' => 'Christophe95',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  115 => 
+  109 => 
   array (
     'nome' => 'San Luis Potosí',
     'pais' => 'México',
@@ -1280,7 +1214,7 @@ return array (
     'autor' => 'Microstar',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  116 => 
+  110 => 
   array (
     'nome' => 'Da Nang',
     'pais' => 'Vietname',
@@ -1291,7 +1225,7 @@ return array (
     'autor' => 'Cuong Tran',
     'licenca' => 'Public domain',
   ),
-  117 => 
+  111 => 
   array (
     'nome' => 'Omdurman',
     'pais' => 'Sudão',
@@ -1302,7 +1236,7 @@ return array (
     'autor' => 'عاصم الرشيد التوم',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  118 => 
+  112 => 
   array (
     'nome' => 'Toronto',
     'pais' => 'Canadá',
@@ -1313,7 +1247,7 @@ return array (
     'autor' => 'Jchmrt',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  119 => 
+  113 => 
   array (
     'nome' => 'Duala',
     'pais' => 'Camarões',
@@ -1324,7 +1258,7 @@ return array (
     'autor' => 'Njeimosestimah',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  120 => 
+  114 => 
   array (
     'nome' => 'Osaka',
     'pais' => 'Japão',
@@ -1335,7 +1269,7 @@ return array (
     'autor' => '663highland',
     'licenca' => 'CC BY 2.5',
   ),
-  121 => 
+  115 => 
   array (
     'nome' => 'Roma',
     'pais' => 'Itália',
@@ -1346,7 +1280,7 @@ return array (
     'autor' => 'Bert Kaufmann from Roermond, Netherlands',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  122 => 
+  116 => 
   array (
     'nome' => 'Chicago',
     'pais' => 'Estados Unidos',
@@ -1357,7 +1291,7 @@ return array (
     'autor' => 'J. Crocker',
     'licenca' => 'Attribution',
   ),
-  123 => 
+  117 => 
   array (
     'nome' => 'Brisbane',
     'pais' => 'Austrália',
@@ -1368,7 +1302,7 @@ return array (
     'autor' => 'Chris Olszewski',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  124 => 
+  118 => 
   array (
     'nome' => 'Damasco',
     'pais' => 'Síria',
@@ -1379,7 +1313,7 @@ return array (
     'autor' => 'See above.',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  125 => 
+  119 => 
   array (
     'nome' => 'Gazipur',
     'pais' => 'Bangladesh',
@@ -1390,7 +1324,7 @@ return array (
     'autor' => 'Ali Haidar Khan',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  126 => 
+  120 => 
   array (
     'nome' => 'Guaiaquil',
     'pais' => 'Equador',
@@ -1401,7 +1335,7 @@ return array (
     'autor' => 'Yyntl',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  127 => 
+  121 => 
   array (
     'nome' => 'Fortaleza',
     'pais' => 'Brasil',
@@ -1412,7 +1346,7 @@ return array (
     'autor' => 'Rafael Ramos e David Andrade',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  128 => 
+  122 => 
   array (
     'nome' => 'Ibadã',
     'pais' => 'Nigéria',
@@ -1423,7 +1357,7 @@ return array (
     'autor' => 'Lafemo 123',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  129 => 
+  123 => 
   array (
     'nome' => 'El Paso–Juárez',
     'pais' => 'Estados Unidos',
@@ -1431,21 +1365,10 @@ return array (
     'lon' => -106.48694,
     'img' => 'ElPaso-Juarez-EO.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'Public domain',
   ),
-  130 => 
-  array (
-    'nome' => 'El Paso–Juárez',
-    'pais' => 'México',
-    'lat' => 31.73944,
-    'lon' => -106.48694,
-    'img' => 'ElPaso-Juarez-EO.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'autor não informado',
-    'licenca' => 'Public domain',
-  ),
-  131 => 
+  124 => 
   array (
     'nome' => 'Medellín',
     'pais' => 'Colômbia',
@@ -1456,7 +1379,7 @@ return array (
     'autor' => 'Luis90f',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  132 => 
+  125 => 
   array (
     'nome' => 'Havana',
     'pais' => 'Cuba',
@@ -1467,7 +1390,7 @@ return array (
     'autor' => 'Christopher Michel',
     'licenca' => 'CC BY 2.0',
   ),
-  133 => 
+  126 => 
   array (
     'nome' => 'Luanda',
     'pais' => 'Angola',
@@ -1478,7 +1401,7 @@ return array (
     'autor' => 'Lars Rohwer',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  134 => 
+  127 => 
   array (
     'nome' => 'Cáli',
     'pais' => 'Colômbia',
@@ -1489,7 +1412,7 @@ return array (
     'autor' => 'Futbolero',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  135 => 
+  128 => 
   array (
     'nome' => 'Lusaca',
     'pais' => 'Zâmbia',
@@ -1500,7 +1423,7 @@ return array (
     'autor' => 'Matthew Grollnek',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  136 => 
+  129 => 
   array (
     'nome' => 'Uagadugu',
     'pais' => 'Burquina Fasso',
@@ -1511,7 +1434,7 @@ return array (
     'autor' => 'The black photographer',
     'licenca' => 'CC0',
   ),
-  137 => 
+  130 => 
   array (
     'nome' => 'Daegu',
     'pais' => 'Coreia do Sul',
@@ -1522,7 +1445,7 @@ return array (
     'autor' => 'Im Taewon',
     'licenca' => 'KOGL Type 1',
   ),
-  138 => 
+  131 => 
   array (
     'nome' => 'Taipé',
     'pais' => 'Taiwan',
@@ -1533,7 +1456,7 @@ return array (
     'autor' => 'Heeheemalu',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  139 => 
+  132 => 
   array (
     'nome' => 'Iaundé',
     'pais' => 'Camarões',
@@ -1544,7 +1467,7 @@ return array (
     'autor' => 'Bdx',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  140 => 
+  133 => 
   array (
     'nome' => 'Antália',
     'pais' => 'Turquia',
@@ -1555,7 +1478,7 @@ return array (
     'autor' => 'Lower Duden Falls.jpg:Saffron Blaze Yivli Minaret Mosque Antalya.jpg:Saffron Blaze Antalya',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  141 => 
+  134 => 
   array (
     'nome' => 'Beirute',
     'pais' => 'Líbano',
@@ -1566,7 +1489,7 @@ return array (
     'autor' => 'Yoniw',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  142 => 
+  135 => 
   array (
     'nome' => 'Salvador',
     'pais' => 'Brasil',
@@ -1574,10 +1497,10 @@ return array (
     'lon' => -38.49278,
     'img' => 'SalvadorDaBahiaPalacioRioBranco.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  143 => 
+  136 => 
   array (
     'nome' => 'Queens',
     'pais' => 'Estados Unidos',
@@ -1588,7 +1511,7 @@ return array (
     'autor' => 'Antipastarasta',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  144 => 
+  137 => 
   array (
     'nome' => 'Bekasi',
     'pais' => 'Indonésia',
@@ -1599,7 +1522,7 @@ return array (
     'autor' => 'Afrogindahood',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  145 => 
+  138 => 
   array (
     'nome' => 'Argel',
     'pais' => 'Argélia',
@@ -1610,7 +1533,7 @@ return array (
     'autor' => 'LBM1948',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  146 => 
+  139 => 
   array (
     'nome' => 'Taoyuan',
     'pais' => 'Taiwan',
@@ -1621,7 +1544,7 @@ return array (
     'autor' => 'Foxy Who \\(^∀^)/',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  147 => 
+  140 => 
   array (
     'nome' => 'Depok',
     'pais' => 'Indonésia',
@@ -1632,7 +1555,7 @@ return array (
     'autor' => 'Indrianto Eko Suwarso (ANTARA FOTO)',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  148 => 
+  141 => 
   array (
     'nome' => 'Nagoia',
     'pais' => 'Japão',
@@ -1643,7 +1566,7 @@ return array (
     'autor' => 'File:Ferris Wheel - Port of Nagoya.JPG by Gnsin File:Higashiyama botanical gardens-01.jpg ',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  149 => 
+  142 => 
   array (
     'nome' => 'Belo Horizonte',
     'pais' => 'Brasil',
@@ -1654,7 +1577,7 @@ return array (
     'autor' => 'copagov',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  150 => 
+  143 => 
   array (
     'nome' => 'Houston',
     'pais' => 'Estados Unidos',
@@ -1665,7 +1588,7 @@ return array (
     'autor' => 'Hequals2henry',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  151 => 
+  144 => 
   array (
     'nome' => 'Manaus',
     'pais' => 'Brasil',
@@ -1676,7 +1599,7 @@ return array (
     'autor' => 'See above. Compilation: Heitor Carvalho Jorge',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  152 => 
+  145 => 
   array (
     'nome' => 'Baku',
     'pais' => 'Azerbaijão',
@@ -1687,7 +1610,7 @@ return array (
     'autor' => 'Ludvig14',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  153 => 
+  146 => 
   array (
     'nome' => 'Caracas',
     'pais' => 'Venezuela',
@@ -1698,7 +1621,7 @@ return array (
     'autor' => 'Olga Berrios',
     'licenca' => 'CC BY 2.0',
   ),
-  154 => 
+  147 => 
   array (
     'nome' => 'Tangerang',
     'pais' => 'Indonésia',
@@ -1709,7 +1632,7 @@ return array (
     'autor' => 'Penggunaandro',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  155 => 
+  148 => 
   array (
     'nome' => 'Cônia',
     'pais' => 'Turquia',
@@ -1720,7 +1643,7 @@ return array (
     'autor' => 'MevlanaMuseum.jpg:OgreBot Central Konya.jpg:Quintucket Konya, tram No. 107 (01).jpg:Harold',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  156 => 
+  149 => 
   array (
     'nome' => 'Almaty',
     'pais' => 'Cazaquistão',
@@ -1731,7 +1654,7 @@ return array (
     'autor' => 'Marat Rysbekov',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  157 => 
+  150 => 
   array (
     'nome' => 'São Domingos',
     'pais' => 'República Dominicana',
@@ -1742,7 +1665,7 @@ return array (
     'autor' => 'Jjc09',
     'licenca' => 'Public domain',
   ),
-  158 => 
+  151 => 
   array (
     'nome' => 'Lomé',
     'pais' => 'Togo',
@@ -1753,7 +1676,7 @@ return array (
     'autor' => 'Hermannkass',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  159 => 
+  152 => 
   array (
     'nome' => 'Harare',
     'pais' => 'Zimbábue',
@@ -1764,7 +1687,7 @@ return array (
     'autor' => 'Radozw at Serbian Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  160 => 
+  153 => 
   array (
     'nome' => 'Brazavile',
     'pais' => 'República do Congo',
@@ -1775,7 +1698,7 @@ return array (
     'autor' => 'Prével EPOTA',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  161 => 
+  154 => 
   array (
     'nome' => 'Perth',
     'pais' => 'Austrália',
@@ -1786,7 +1709,7 @@ return array (
     'autor' => 'Samuel Wiki',
     'licenca' => 'CC BY 4.0',
   ),
-  162 => 
+  155 => 
   array (
     'nome' => 'Phnom Penh',
     'pais' => 'Camboja',
@@ -1797,7 +1720,7 @@ return array (
     'autor' => 'KY Geologist',
     'licenca' => 'CC BY 2.0',
   ),
-  163 => 
+  156 => 
   array (
     'nome' => 'Haiphong',
     'pais' => 'Vietname',
@@ -1808,7 +1731,7 @@ return array (
     'autor' => 'HoangTuanAnh',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  164 => 
+  157 => 
   array (
     'nome' => 'Mogadixo',
     'pais' => 'Somália',
@@ -1819,7 +1742,7 @@ return array (
     'autor' => 'CT Snow',
     'licenca' => 'CC BY 2.0',
   ),
-  165 => 
+  158 => 
   array (
     'nome' => 'Medan',
     'pais' => 'Indonésia',
@@ -1830,7 +1753,7 @@ return array (
     'autor' => 'Bluesatellite',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  166 => 
+  159 => 
   array (
     'nome' => 'Paris',
     'pais' => 'França',
@@ -1841,7 +1764,7 @@ return array (
     'autor' => 'Yann Caradec from Paris, France',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  167 => 
+  160 => 
   array (
     'nome' => 'Rawalpindi',
     'pais' => 'Paquistão',
@@ -1852,7 +1775,7 @@ return array (
     'autor' => 'Miiqbal',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  168 => 
+  161 => 
   array (
     'nome' => 'Viena',
     'pais' => 'Áustria',
@@ -1863,7 +1786,7 @@ return array (
     'autor' => 'Andrzej Otrębski',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  169 => 
+  162 => 
   array (
     'nome' => 'Gujranwala',
     'pais' => 'Paquistão',
@@ -1874,7 +1797,7 @@ return array (
     'autor' => 'Faraz Ishfaq Shah',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  170 => 
+  163 => 
   array (
     'nome' => 'Alepo',
     'pais' => 'Síria',
@@ -1885,7 +1808,7 @@ return array (
     'autor' => 'Vyacheslav Argenberg',
     'licenca' => 'CC BY 4.0',
   ),
-  171 => 
+  164 => 
   array (
     'nome' => 'Minsk',
     'pais' => 'Bielorrússia',
@@ -1896,7 +1819,7 @@ return array (
     'autor' => 'Zedlik',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  172 => 
+  165 => 
   array (
     'nome' => 'Xanleurfa',
     'pais' => 'Turquia',
@@ -1907,7 +1830,7 @@ return array (
     'autor' => 'Damien Halleux Radermecker',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  173 => 
+  166 => 
   array (
     'nome' => 'Kananga',
     'pais' => 'República Democrática do Congo',
@@ -1918,7 +1841,7 @@ return array (
     'autor' => 'MONUSCO/Myriam Asmani',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  174 => 
+  167 => 
   array (
     'nome' => 'Peshawar',
     'pais' => 'Paquistão',
@@ -1929,7 +1852,7 @@ return array (
     'autor' => 'Mohammed Ahmed Arsalan Khan',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  175 => 
+  168 => 
   array (
     'nome' => 'Tijuana',
     'pais' => 'México',
@@ -1940,7 +1863,7 @@ return array (
     'autor' => 'Urbaner44',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  176 => 
+  169 => 
   array (
     'nome' => 'Isfahan',
     'pais' => 'Irão',
@@ -1951,7 +1874,7 @@ return array (
     'autor' => 'Pedram forouzanfar',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  177 => 
+  170 => 
   array (
     'nome' => 'Sapporo',
     'pais' => 'Japão',
@@ -1962,7 +1885,7 @@ return array (
     'autor' => 'Hideki Uchida (セラ)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  178 => 
+  171 => 
   array (
     'nome' => 'Irbid',
     'pais' => 'Jordânia',
@@ -1973,7 +1896,7 @@ return array (
     'autor' => 'Mazim82 (talk)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  179 => 
+  172 => 
   array (
     'nome' => 'Katowice urban area',
     'pais' => 'Polónia',
@@ -1984,7 +1907,7 @@ return array (
     'autor' => 'Marek Mróz',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  180 => 
+  173 => 
   array (
     'nome' => 'Manila',
     'pais' => 'Filipinas',
@@ -1995,7 +1918,7 @@ return array (
     'autor' => 'Mike Gonzalez (TheCoffee)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  181 => 
+  174 => 
   array (
     'nome' => 'Montreal',
     'pais' => 'Canadá',
@@ -2006,7 +1929,7 @@ return array (
     'autor' => 'https://www.pxfuel.com/',
     'licenca' => 'CC0',
   ),
-  182 => 
+  175 => 
   array (
     'nome' => 'Tainan',
     'pais' => 'Taiwan',
@@ -2017,7 +1940,7 @@ return array (
     'autor' => 'Mersh',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  183 => 
+  176 => 
   array (
     'nome' => 'Multan',
     'pais' => 'Paquistão',
@@ -2028,7 +1951,7 @@ return array (
     'autor' => 'Noorhussainmultan; Bhai G16; Junaidahmadj; Thealimir; Musablali; Junaidahmadj',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  184 => 
+  177 => 
   array (
     'nome' => 'Hamburgo',
     'pais' => 'Alemanha',
@@ -2039,7 +1962,7 @@ return array (
     'autor' => 'kallerna',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  185 => 
+  178 => 
   array (
     'nome' => 'Varsóvia',
     'pais' => 'Polónia',
@@ -2050,7 +1973,7 @@ return array (
     'autor' => 'Rhododendrites',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  186 => 
+  179 => 
   array (
     'nome' => 'Cidade Davau',
     'pais' => 'Filipinas',
@@ -2061,7 +1984,7 @@ return array (
     'autor' => 'Pascalll',
     'licenca' => 'Public domain',
   ),
-  187 => 
+  180 => 
   array (
     'nome' => 'Mossul',
     'pais' => 'Iraque',
@@ -2072,7 +1995,7 @@ return array (
     'autor' => 'Puskechina',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  188 => 
+  181 => 
   array (
     'nome' => 'Lubumbashi',
     'pais' => 'República Democrática do Congo',
@@ -2083,7 +2006,7 @@ return array (
     'autor' => 'Oasisk.',
     'licenca' => 'CC BY 2.5',
   ),
-  189 => 
+  182 => 
   array (
     'nome' => 'Acra',
     'pais' => 'Gana',
@@ -2094,7 +2017,7 @@ return array (
     'autor' => 'Goldenwabbit',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  190 => 
+  183 => 
   array (
     'nome' => 'Cidade do Benim',
     'pais' => 'Nigéria',
@@ -2105,7 +2028,7 @@ return array (
     'autor' => 'Fidelis ogunseri ocsfilms',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  191 => 
+  184 => 
   array (
     'nome' => 'Curitiba',
     'pais' => 'Brasil',
@@ -2116,7 +2039,7 @@ return array (
     'autor' => 'mariordo59 from Santo Domingo, Dominican Republic',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  192 => 
+  185 => 
   array (
     'nome' => 'Adana',
     'pais' => 'Turquia',
@@ -2127,7 +2050,7 @@ return array (
     'autor' => 'Anatolianpride',
     'licenca' => 'Public domain',
   ),
-  193 => 
+  186 => 
   array (
     'nome' => 'Quito',
     'pais' => 'Equador',
@@ -2138,7 +2061,7 @@ return array (
     'autor' => 'Asamblea Nacional del Ecuador',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  194 => 
+  187 => 
   array (
     'nome' => 'Monróvia',
     'pais' => 'Libéria',
@@ -2149,7 +2072,7 @@ return array (
     'autor' => 'blk24ga',
     'licenca' => 'CC BY 3.0',
   ),
-  195 => 
+  188 => 
   array (
     'nome' => 'Garoua',
     'pais' => 'Camarões',
@@ -2160,7 +2083,7 @@ return array (
     'autor' => 'Philippe Semanaz',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  196 => 
+  189 => 
   array (
     'nome' => 'Quigali',
     'pais' => 'Ruanda',
@@ -2171,7 +2094,7 @@ return array (
     'autor' => 'Adrien K',
     'licenca' => 'CC BY 2.0',
   ),
-  197 => 
+  190 => 
   array (
     'nome' => 'Hyderabad',
     'pais' => 'Paquistão',
@@ -2182,7 +2105,7 @@ return array (
     'autor' => 'A.Savin',
     'licenca' => 'FAL',
   ),
-  198 => 
+  191 => 
   array (
     'nome' => 'Diyarbakır',
     'pais' => 'Turquia',
@@ -2193,7 +2116,7 @@ return array (
     'autor' => 'Diyarbakirmosque218.jpg:Soman Diyarbakr Western City Wall.JPG: Bjørn Christian Tørrissen S',
     'licenca' => 'CC BY 3.0',
   ),
-  199 => 
+  192 => 
   array (
     'nome' => 'Barcelona',
     'pais' => 'Espanha',
@@ -2204,7 +2127,7 @@ return array (
     'autor' => 'dronepicr',
     'licenca' => 'CC BY 2.0',
   ),
-  200 => 
+  193 => 
   array (
     'nome' => 'Caloocan',
     'pais' => 'Filipinas',
@@ -2215,7 +2138,7 @@ return array (
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  201 => 
+  194 => 
   array (
     'nome' => 'Manhattan',
     'pais' => 'Estados Unidos',
@@ -2226,7 +2149,7 @@ return array (
     'autor' => 'Anthony Quintano',
     'licenca' => 'CC BY 2.0',
   ),
-  202 => 
+  195 => 
   array (
     'nome' => 'Abuja',
     'pais' => 'Nigéria',
@@ -2237,7 +2160,7 @@ return array (
     'autor' => 'Ovinuchi Prince Ejiohuo',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  203 => 
+  196 => 
   array (
     'nome' => 'Gaziantepe',
     'pais' => 'Turquia',
@@ -2248,7 +2171,7 @@ return array (
     'autor' => 'Emz12',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  204 => 
+  197 => 
   array (
     'nome' => 'Campala',
     'pais' => 'Uganda',
@@ -2259,7 +2182,7 @@ return array (
     'autor' => 'kousek_cz',
     'licenca' => 'CC BY 3.0',
   ),
-  205 => 
+  198 => 
   array (
     'nome' => 'Budapeste',
     'pais' => 'Hungria',
@@ -2270,7 +2193,7 @@ return array (
     'autor' => 'Thomas Depenbusch (Depi) from Cologne, Germany',
     'licenca' => 'CC BY 2.0',
   ),
-  206 => 
+  199 => 
   array (
     'nome' => 'Conacri',
     'pais' => 'Guiné',
@@ -2281,7 +2204,7 @@ return array (
     'autor' => 'Alpha hmd',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  207 => 
+  200 => 
   array (
     'nome' => 'Tangerang do Sul',
     'pais' => 'Indonésia',
@@ -2292,7 +2215,7 @@ return array (
     'autor' => 'id:user:San33',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  208 => 
+  201 => 
   array (
     'nome' => 'Masvingo',
     'pais' => 'Zimbábue',
@@ -2303,7 +2226,7 @@ return array (
     'autor' => 'Original uploader was Radozw at sr.wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  209 => 
+  202 => 
   array (
     'nome' => 'Novosibirsk',
     'pais' => 'Rússia',
@@ -2314,7 +2237,7 @@ return array (
     'autor' => 'Alex Polezhaev',
     'licenca' => 'CC BY 2.0',
   ),
-  210 => 
+  203 => 
   array (
     'nome' => 'Semarang',
     'pais' => 'Indonésia',
@@ -2325,7 +2248,7 @@ return array (
     'autor' => 'Midori',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  211 => 
+  204 => 
   array (
     'nome' => 'Phoenix',
     'pais' => 'Estados Unidos',
@@ -2336,7 +2259,7 @@ return array (
     'autor' => 'Bigmikebmw',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  212 => 
+  205 => 
   array (
     'nome' => 'Filadélfia',
     'pais' => 'Estados Unidos',
@@ -2347,7 +2270,7 @@ return array (
     'autor' => '颐园居',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  213 => 
+  206 => 
   array (
     'nome' => 'Fukuoka',
     'pais' => 'Japão',
@@ -2358,7 +2281,7 @@ return array (
     'autor' => 'そらみみ',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  214 => 
+  207 => 
   array (
     'nome' => 'León de Los Aldama',
     'pais' => 'México',
@@ -2369,7 +2292,7 @@ return array (
     'autor' => 'Antuán',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  215 => 
+  208 => 
   array (
     'nome' => 'Abu Dhabi',
     'pais' => 'Emirados Árabes Unidos',
@@ -2380,7 +2303,7 @@ return array (
     'autor' => 'Валерий Дед',
     'licenca' => 'CC BY 3.0',
   ),
-  216 => 
+  209 => 
   array (
     'nome' => 'Maracaibo',
     'pais' => 'Venezuela',
@@ -2391,7 +2314,7 @@ return array (
     'autor' => 'Maracaibo_panoramica_avenida_Cecilio_Acosta.jpg: Wilfredor derivative work: Wilfredor',
     'licenca' => 'CC0',
   ),
-  217 => 
+  210 => 
   array (
     'nome' => 'Cidade do Panamá',
     'pais' => 'Panamá',
@@ -2402,7 +2325,7 @@ return array (
     'autor' => 'JAVR2020',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  218 => 
+  211 => 
   array (
     'nome' => 'Kawasaki',
     'pais' => 'Japão',
@@ -2413,7 +2336,7 @@ return array (
     'autor' => 'ペン太 Aimaimyi Tama 上野彦馬 Waka77 m-louis (flickr) Composition by Kyoww',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  219 => 
+  212 => 
   array (
     'nome' => 'Palimbão',
     'pais' => 'Indonésia',
@@ -2424,7 +2347,7 @@ return array (
     'autor' => 'Yogwi21',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  220 => 
+  213 => 
   array (
     'nome' => 'Kōbe',
     'pais' => 'Japão',
@@ -2435,7 +2358,7 @@ return array (
     'autor' => 'Martin Falbisoner',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  221 => 
+  214 => 
   array (
     'nome' => 'Córdova',
     'pais' => 'Argentina',
@@ -2446,7 +2369,7 @@ return array (
     'autor' => 'Alakasam',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  222 => 
+  215 => 
   array (
     'nome' => 'Munique',
     'pais' => 'Alemanha',
@@ -2457,7 +2380,7 @@ return array (
     'autor' => 'Thomas Wolf, www.foto-tw.de',
     'licenca' => 'CC BY-SA 3.0 de',
   ),
-  223 => 
+  216 => 
   array (
     'nome' => 'Ciudad Juárez',
     'pais' => 'México',
@@ -2468,7 +2391,7 @@ return array (
     'autor' => 'Hachiroo',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  224 => 
+  217 => 
   array (
     'nome' => 'Novo Cairo',
     'pais' => 'Egito',
@@ -2479,7 +2402,7 @@ return array (
     'autor' => 'Faris El-Gwely',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  225 => 
+  218 => 
   array (
     'nome' => 'Niamey',
     'pais' => 'Níger',
@@ -2490,7 +2413,7 @@ return array (
     'autor' => 'Roland Huziaker',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  226 => 
+  219 => 
   array (
     'nome' => 'Gwangju',
     'pais' => 'Coreia do Sul',
@@ -2501,7 +2424,7 @@ return array (
     'autor' => 'NZ 토끼들',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  227 => 
+  220 => 
   array (
     'nome' => 'Recife',
     'pais' => 'Brasil',
@@ -2512,7 +2435,7 @@ return array (
     'autor' => 'Portal da Copa/ME',
     'licenca' => 'CC BY 3.0 br',
   ),
-  228 => 
+  221 => 
   array (
     'nome' => 'Valencia',
     'pais' => 'Venezuela',
@@ -2523,7 +2446,7 @@ return array (
     'autor' => 'Ccmaracay2',
     'licenca' => 'Public domain',
   ),
-  229 => 
+  222 => 
   array (
     'nome' => 'Onitsha',
     'pais' => 'Nigéria',
@@ -2534,7 +2457,7 @@ return array (
     'autor' => 'Koutchika Lihouenou Gaspard',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  230 => 
+  223 => 
   array (
     'nome' => 'Daejeon',
     'pais' => 'Coreia do Sul',
@@ -2545,7 +2468,7 @@ return array (
     'autor' => '대전광역시 동구',
     'licenca' => 'KOGL Type 1',
   ),
-  231 => 
+  224 => 
   array (
     'nome' => 'Bronx',
     'pais' => 'Estados Unidos',
@@ -2556,7 +2479,7 @@ return array (
     'autor' => 'Gryffindor',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  232 => 
+  225 => 
   array (
     'nome' => 'Auckland',
     'pais' => 'Nova Zelândia',
@@ -2567,7 +2490,7 @@ return array (
     'autor' => 'ChewyPineapple',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  233 => 
+  226 => 
   array (
     'nome' => 'Ecaterimburgo',
     'pais' => 'Rússia',
@@ -2578,7 +2501,7 @@ return array (
     'autor' => 'Vyacheslav Bukharov',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  234 => 
+  227 => 
   array (
     'nome' => 'Quioto',
     'pais' => 'Japão',
@@ -2589,7 +2512,7 @@ return array (
     'autor' => 'Basile Morin',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  235 => 
+  228 => 
   array (
     'nome' => 'Nouakchott',
     'pais' => 'Mauritânia',
@@ -2600,7 +2523,7 @@ return array (
     'autor' => 'Laminesall96',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  236 => 
+  229 => 
   array (
     'nome' => 'Dacar',
     'pais' => 'Senegal',
@@ -2611,7 +2534,7 @@ return array (
     'autor' => 'Jeff Attaway',
     'licenca' => 'CC BY 2.0',
   ),
-  237 => 
+  230 => 
   array (
     'nome' => 'Goiânia',
     'pais' => 'Brasil',
@@ -2622,7 +2545,7 @@ return array (
     'autor' => 'Compilation by Heitor Carvalho Jorge',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  238 => 
+  231 => 
   array (
     'nome' => 'Métropole de Lyon',
     'pais' => 'França',
@@ -2633,7 +2556,7 @@ return array (
     'autor' => 'This picture belongs to Xavier Caré. Please credit : Xavier Caré / Wikimedia Commons / CC-',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  239 => 
+  232 => 
   array (
     'nome' => 'San Antonio',
     'pais' => 'Estados Unidos',
@@ -2644,7 +2567,7 @@ return array (
     'autor' => 'Zereshk',
     'licenca' => 'Public domain',
   ),
-  240 => 
+  233 => 
   array (
     'nome' => 'Mascate',
     'pais' => 'Omã',
@@ -2655,7 +2578,7 @@ return array (
     'autor' => 'Leon petrosyan',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  241 => 
+  234 => 
   array (
     'nome' => 'Carcóvia',
     'pais' => 'Ucrânia',
@@ -2666,7 +2589,7 @@ return array (
     'autor' => 'Ekaterina Polischuk',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  242 => 
+  235 => 
   array (
     'nome' => 'Pointe-Noire',
     'pais' => 'República do Congo',
@@ -2677,7 +2600,7 @@ return array (
     'autor' => 'David Stanley',
     'licenca' => 'CC BY 2.0',
   ),
-  243 => 
+  236 => 
   array (
     'nome' => 'Medina',
     'pais' => 'Arábia Saudita',
@@ -2688,7 +2611,7 @@ return array (
     'autor' => 'Bluemangoa2z at Malayalam Wikipedia',
     'licenca' => 'Public domain',
   ),
-  244 => 
+  237 => 
   array (
     'nome' => 'Praga',
     'pais' => 'Chéquia',
@@ -2699,7 +2622,7 @@ return array (
     'autor' => 'Deror_avi',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  245 => 
+  238 => 
   array (
     'nome' => 'Quang Ninh',
     'pais' => 'Vietname',
@@ -2710,7 +2633,7 @@ return array (
     'autor' => 'shi zhao',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  246 => 
+  239 => 
   array (
     'nome' => 'Ulã Bator',
     'pais' => 'Mongólia',
@@ -2721,7 +2644,7 @@ return array (
     'autor' => 'Zazaa Mongolia',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  247 => 
+  240 => 
   array (
     'nome' => 'Caiseri',
     'pais' => 'Turquia',
@@ -2732,7 +2655,7 @@ return array (
     'autor' => 'Kadir Has Stadium in Kayseri.jpg:Namuslu Kayseri-Meydan-sardic.jpg:Magnus Manske Sivas Ave',
     'licenca' => 'CC BY 3.0',
   ),
-  248 => 
+  241 => 
   array (
     'nome' => 'Porto Alegre',
     'pais' => 'Brasil',
@@ -2743,7 +2666,7 @@ return array (
     'autor' => 'TimBray',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  249 => 
+  242 => 
   array (
     'nome' => 'Adelaide',
     'pais' => 'Austrália',
@@ -2754,7 +2677,7 @@ return array (
     'autor' => 'Photograph by Doug Barber',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  250 => 
+  243 => 
   array (
     'nome' => 'San Diego',
     'pais' => 'Estados Unidos',
@@ -2765,7 +2688,7 @@ return array (
     'autor' => 'Boatguy619',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  251 => 
+  244 => 
   array (
     'nome' => 'Guadalajara',
     'pais' => 'México',
@@ -2776,7 +2699,7 @@ return array (
     'autor' => 'Isacdaavid',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  252 => 
+  245 => 
   array (
     'nome' => 'Samessum',
     'pais' => 'Turquia',
@@ -2787,7 +2710,7 @@ return array (
     'autor' => 'sami yılmaz',
     'licenca' => 'CC BY 3.0',
   ),
-  253 => 
+  246 => 
   array (
     'nome' => 'Quissangane',
     'pais' => 'República Democrática do Congo',
@@ -2798,7 +2721,7 @@ return array (
     'autor' => 'Piet Clement',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  254 => 
+  247 => 
   array (
     'nome' => 'Milão',
     'pais' => 'Itália',
@@ -2809,7 +2732,7 @@ return array (
     'autor' => 'Steffen Schmitz',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  255 => 
+  248 => 
   array (
     'nome' => 'Macáçar',
     'pais' => 'Indonésia',
@@ -2820,7 +2743,7 @@ return array (
     'autor' => 'Bluesatellite',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  256 => 
+  249 => 
   array (
     'nome' => 'Tiblíssi',
     'pais' => 'Geórgia',
@@ -2831,7 +2754,7 @@ return array (
     'autor' => 'Alexey Komarov',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  257 => 
+  250 => 
   array (
     'nome' => 'Cazã',
     'pais' => 'Rússia',
@@ -2842,7 +2765,7 @@ return array (
     'autor' => 'A.Savin, Ilya Tsvetkov, Денис Петьовка, NoPlayerUfa, TY-214, AlexTref871',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  258 => 
+  251 => 
   array (
     'nome' => 'Barranquilla',
     'pais' => 'Colômbia',
@@ -2853,7 +2776,7 @@ return array (
     'autor' => 'Mr.Jhosimar',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  259 => 
+  252 => 
   array (
     'nome' => 'Baçorá',
     'pais' => 'Iraque',
@@ -2864,7 +2787,7 @@ return array (
     'autor' => 'Aziz1005',
     'licenca' => 'CC BY-SA 2.5',
   ),
-  260 => 
+  253 => 
   array (
     'nome' => 'Saitama',
     'pais' => 'Japão',
@@ -2875,7 +2798,7 @@ return array (
     'autor' => 'PRiMENON Ocdp ブツチチ Nishikaratsu Spitfireap Composition by Tamall',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  261 => 
+  254 => 
   array (
     'nome' => 'Guarulhos',
     'pais' => 'Brasil',
@@ -2886,7 +2809,7 @@ return array (
     'autor' => 'Humanoo',
     'licenca' => 'Public domain',
   ),
-  262 => 
+  255 => 
   array (
     'nome' => 'Taguig',
     'pais' => 'Filipinas',
@@ -2897,7 +2820,7 @@ return array (
     'autor' => 'Elmer B. Domingo',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  263 => 
+  256 => 
   array (
     'nome' => 'Calgary',
     'pais' => 'Canadá',
@@ -2908,7 +2831,7 @@ return array (
     'autor' => 'Gorgo',
     'licenca' => 'Public domain',
   ),
-  264 => 
+  257 => 
   array (
     'nome' => 'Dallas',
     'pais' => 'Estados Unidos',
@@ -2919,7 +2842,7 @@ return array (
     'autor' => 'Gattacal',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  265 => 
+  258 => 
   array (
     'nome' => 'Belém',
     'pais' => 'Brasil',
@@ -2930,7 +2853,7 @@ return array (
     'autor' => 'Heitor Carvalho Jorge',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  266 => 
+  259 => 
   array (
     'nome' => 'Montevidéu',
     'pais' => 'Uruguai',
@@ -2941,7 +2864,7 @@ return array (
     'autor' => 'Coquimbo58, Gabboe, Marcos Mendizábal, Beatrizackermann, Michelle Maria, Eduardo Ruggieri,',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  267 => 
+  260 => 
   array (
     'nome' => 'Nova Iguaçu',
     'pais' => 'Brasil',
@@ -2949,10 +2872,10 @@ return array (
     'lon' => -43.45083,
     'img' => 'Novaiguacu fotonova.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  268 => 
+  261 => 
   array (
     'nome' => 'Trípoli',
     'pais' => 'Líbia',
@@ -2963,40 +2886,7 @@ return array (
     'autor' => 'Daniel and Kate Pett',
     'licenca' => 'CC BY 2.0',
   ),
-  269 => 
-  array (
-    'nome' => 'Trípoli',
-    'pais' => 'Líbia Italiana',
-    'lat' => 32.8875,
-    'lon' => 13.1875,
-    'img' => 'Marcus Aurelius Arch Tripoli Libya.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Daniel and Kate Pett',
-    'licenca' => 'CC BY 2.0',
-  ),
-  270 => 
-  array (
-    'nome' => 'Trípoli',
-    'pais' => 'Italian Tripolitania',
-    'lat' => 32.8875,
-    'lon' => 13.1875,
-    'img' => 'Marcus Aurelius Arch Tripoli Libya.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Daniel and Kate Pett',
-    'licenca' => 'CC BY 2.0',
-  ),
-  271 => 
-  array (
-    'nome' => 'Berlim Leste',
-    'pais' => 'Alemanha Oriental',
-    'lat' => 52.51861,
-    'lon' => 13.40444,
-    'img' => 'Marx-engels-platz.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Arne List',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  272 => 
+  262 => 
   array (
     'nome' => 'Tânger',
     'pais' => 'Marrocos',
@@ -3007,7 +2897,7 @@ return array (
     'autor' => 'Mike McBey',
     'licenca' => 'CC BY 2.0',
   ),
-  273 => 
+  263 => 
   array (
     'nome' => 'Antananarivo',
     'pais' => 'Madagáscar',
@@ -3018,7 +2908,7 @@ return array (
     'autor' => 'Sascha Grabow www.saschagrabow.com',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  274 => 
+  264 => 
   array (
     'nome' => 'Soweto',
     'pais' => 'África do Sul',
@@ -3029,7 +2919,7 @@ return array (
     'autor' => 'ign11',
     'licenca' => 'CC BY 2.0',
   ),
-  275 => 
+  265 => 
   array (
     'nome' => 'Zapopan',
     'pais' => 'México',
@@ -3040,7 +2930,7 @@ return array (
     'autor' => 'Another Believer',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  276 => 
+  266 => 
   array (
     'nome' => 'Baliquesir',
     'pais' => 'Turquia',
@@ -3048,10 +2938,10 @@ return array (
     'lon' => 27.88417,
     'img' => 'Balıkesir City Center Collage.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  277 => 
+  267 => 
   array (
     'nome' => 'Xarja',
     'pais' => 'Emirados Árabes Unidos',
@@ -3062,7 +2952,7 @@ return array (
     'autor' => 'Mueed Ahmed',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  278 => 
+  268 => 
   array (
     'nome' => 'Hue',
     'pais' => 'Vietname',
@@ -3073,7 +2963,7 @@ return array (
     'autor' => 'Lê Huy Hoàng Hải',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  279 => 
+  269 => 
   array (
     'nome' => 'Suwon',
     'pais' => 'Coreia do Sul',
@@ -3084,18 +2974,7 @@ return array (
     'autor' => 'Jpbarrass',
     'licenca' => 'Public domain',
   ),
-  280 => 
-  array (
-    'nome' => 'Hargeisa',
-    'pais' => 'Somalilândia',
-    'lat' => 9.56556,
-    'lon' => 44.06056,
-    'img' => 'HargeisaDrone.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Somaliland.com',
-    'licenca' => 'Public domain',
-  ),
-  281 => 
+  270 => 
   array (
     'nome' => 'Mandalay',
     'pais' => 'Myanmar',
@@ -3106,7 +2985,7 @@ return array (
     'autor' => 'Vyacheslav Argenberg',
     'licenca' => 'CC BY 4.0',
   ),
-  282 => 
+  271 => 
   array (
     'nome' => 'Sófia',
     'pais' => 'Bulgária',
@@ -3117,7 +2996,7 @@ return array (
     'autor' => 'Deensel',
     'licenca' => 'CC BY 2.0',
   ),
-  283 => 
+  272 => 
   array (
     'nome' => 'Mombaça',
     'pais' => 'Quénia',
@@ -3128,7 +3007,7 @@ return array (
     'autor' => 'Victor Ochieng',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  284 => 
+  273 => 
   array (
     'nome' => 'Níjni Novgorod',
     'pais' => 'Rússia',
@@ -3139,7 +3018,7 @@ return array (
     'autor' => 'AlexTref871',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  285 => 
+  274 => 
   array (
     'nome' => 'Hiroshima',
     'pais' => 'Japão',
@@ -3150,7 +3029,7 @@ return array (
     'autor' => 'DXR',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  286 => 
+  275 => 
   array (
     'nome' => 'Chiang Mai',
     'pais' => 'Tailândia',
@@ -3161,7 +3040,7 @@ return array (
     'autor' => 'Supanut Arunoprayote',
     'licenca' => 'CC BY 4.0',
   ),
-  287 => 
+  276 => 
   array (
     'nome' => 'Belgrado',
     'pais' => 'Sérvia',
@@ -3172,7 +3051,7 @@ return array (
     'autor' => 'Zeks127',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  288 => 
+  277 => 
   array (
     'nome' => 'Maiduguri',
     'pais' => 'Nigéria',
@@ -3183,7 +3062,7 @@ return array (
     'autor' => 'Abdlmaleeq',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  289 => 
+  278 => 
   array (
     'nome' => 'Batam',
     'pais' => 'Indonésia',
@@ -3194,7 +3073,7 @@ return array (
     'autor' => 'Jean-Luc BARRAUD',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  290 => 
+  279 => 
   array (
     'nome' => 'Rosário',
     'pais' => 'Argentina',
@@ -3205,7 +3084,7 @@ return array (
     'autor' => 'Bleff',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  291 => 
+  280 => 
   array (
     'nome' => 'Shymkent',
     'pais' => 'Cazaquistão',
@@ -3216,7 +3095,7 @@ return array (
     'autor' => 'ほっきー',
     'licenca' => 'CC0',
   ),
-  292 => 
+  281 => 
   array (
     'nome' => 'Bisqueque',
     'pais' => 'Quirguistão',
@@ -3227,7 +3106,7 @@ return array (
     'autor' => 'Aitenir',
     'licenca' => 'CC0',
   ),
-  293 => 
+  282 => 
   array (
     'nome' => 'Doha',
     'pais' => 'Catar',
@@ -3238,7 +3117,7 @@ return array (
     'autor' => 'Francisco Anzola',
     'licenca' => 'CC BY 2.0',
   ),
-  294 => 
+  283 => 
   array (
     'nome' => 'Ahvaz',
     'pais' => 'Irão',
@@ -3249,7 +3128,7 @@ return array (
     'autor' => 'Milad Hamadi',
     'licenca' => 'CC BY 4.0',
   ),
-  295 => 
+  284 => 
   array (
     'nome' => 'Malang',
     'pais' => 'Indonésia',
@@ -3260,7 +3139,7 @@ return array (
     'autor' => 'Smg820',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  296 => 
+  285 => 
   array (
     'nome' => 'Fez',
     'pais' => 'Marrocos',
@@ -3271,7 +3150,7 @@ return array (
     'autor' => 'Petar Milošević',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  297 => 
+  286 => 
   array (
     'nome' => 'Bandar Lampung',
     'pais' => 'Indonésia',
@@ -3282,7 +3161,7 @@ return array (
     'autor' => '22Kartika',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  298 => 
+  287 => 
   array (
     'nome' => 'Naypyidaw',
     'pais' => 'Myanmar',
@@ -3293,7 +3172,7 @@ return array (
     'autor' => 'Hybernator',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  299 => 
+  288 => 
   array (
     'nome' => 'Aba',
     'pais' => 'Nigéria',
@@ -3304,7 +3183,7 @@ return array (
     'autor' => 'pjotter05',
     'licenca' => 'CC BY 2.0',
   ),
-  300 => 
+  289 => 
   array (
     'nome' => 'Crasnodar',
     'pais' => 'Rússia',
@@ -3315,7 +3194,7 @@ return array (
     'autor' => 'Дагиров Умар',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  301 => 
+  290 => 
   array (
     'nome' => 'Áden',
     'pais' => 'Iémen',
@@ -3326,7 +3205,7 @@ return array (
     'autor' => 'Jialiang Gao www.peace-on-earth.org',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  302 => 
+  291 => 
   array (
     'nome' => 'Samara',
     'pais' => 'Rússia',
@@ -3337,7 +3216,7 @@ return array (
     'autor' => 'Vlad Volkov',
     'licenca' => 'CC BY 2.0',
   ),
-  303 => 
+  292 => 
   array (
     'nome' => 'Rostov do Don',
     'pais' => 'Rússia',
@@ -3348,7 +3227,7 @@ return array (
     'autor' => 'Vyacheslav Argenberg',
     'licenca' => 'CC BY 4.0',
   ),
-  304 => 
+  293 => 
   array (
     'nome' => 'Monterrei',
     'pais' => 'México',
@@ -3359,7 +3238,7 @@ return array (
     'autor' => 'Nathaniel C. Sheetz',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  305 => 
+  294 => 
   array (
     'nome' => 'Birmingham',
     'pais' => 'Reino Unido',
@@ -3370,7 +3249,7 @@ return array (
     'autor' => 'JimmyGuano',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  306 => 
+  295 => 
   array (
     'nome' => 'Maputo',
     'pais' => 'Moçambique',
@@ -3381,7 +3260,7 @@ return array (
     'autor' => 'AmigoDia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  307 => 
+  296 => 
   array (
     'nome' => 'Vã',
     'pais' => 'Turquia',
@@ -3392,7 +3271,7 @@ return array (
     'autor' => 'EvgenyGenkin',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  308 => 
+  297 => 
   array (
     'nome' => 'Ulsan',
     'pais' => 'Coreia do Sul',
@@ -3403,7 +3282,7 @@ return array (
     'autor' => 'Rhie Cudanin',
     'licenca' => 'CC BY 3.0',
   ),
-  309 => 
+  298 => 
   array (
     'nome' => 'Quilamba Quiaxi',
     'pais' => 'Angola',
@@ -3414,7 +3293,7 @@ return array (
     'autor' => 'António Jorge',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  310 => 
+  299 => 
   array (
     'nome' => 'Erevã',
     'pais' => 'Arménia',
@@ -3425,7 +3304,7 @@ return array (
     'autor' => 'Սէրուժ Ուրիշեան (Serouj Ourishian)',
     'licenca' => 'CC BY 4.0',
   ),
-  311 => 
+  300 => 
   array (
     'nome' => 'Bien Hoa',
     'pais' => 'Vietname',
@@ -3436,7 +3315,7 @@ return array (
     'autor' => 'Bùi Thụy Đào Nguyên',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  312 => 
+  301 => 
   array (
     'nome' => 'Maracay',
     'pais' => 'Venezuela',
@@ -3447,7 +3326,7 @@ return array (
     'autor' => 'User:Megasuperjorge, Flickr user J♠',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  313 => 
+  302 => 
   array (
     'nome' => 'Omsk',
     'pais' => 'Rússia',
@@ -3458,7 +3337,7 @@ return array (
     'autor' => 'Крылов Иван, Siberiano, PetarM, LittleDrakon',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  314 => 
+  303 => 
   array (
     'nome' => 'Krasnoyarsk',
     'pais' => 'Rússia',
@@ -3469,7 +3348,7 @@ return array (
     'autor' => 'Zmey Kaa Kobra',
     'licenca' => 'CC BY 2.5',
   ),
-  315 => 
+  304 => 
   array (
     'nome' => 'Jamena',
     'pais' => 'Chade',
@@ -3480,7 +3359,7 @@ return array (
     'autor' => 'Yacoub',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  316 => 
+  305 => 
   array (
     'nome' => 'Yongin',
     'pais' => 'Coreia do Sul',
@@ -3491,7 +3370,7 @@ return array (
     'autor' => 'HappyMidnight',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  317 => 
+  306 => 
   array (
     'nome' => 'Astana',
     'pais' => 'Cazaquistão',
@@ -3502,7 +3381,7 @@ return array (
     'autor' => 'Денис Гришкин',
     'licenca' => 'CC BY 4.0',
   ),
-  318 => 
+  307 => 
   array (
     'nome' => 'Goyang',
     'pais' => 'Coreia do Sul',
@@ -3513,7 +3392,7 @@ return array (
     'autor' => 'Nagyman',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  319 => 
+  308 => 
   array (
     'nome' => 'Sendai',
     'pais' => 'Japão',
@@ -3524,7 +3403,7 @@ return array (
     'autor' => 'Nryate',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  320 => 
+  309 => 
   array (
     'nome' => 'Barquisimeto',
     'pais' => 'Venezuela',
@@ -3535,7 +3414,7 @@ return array (
     'autor' => 'Noorasl18',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  321 => 
+  310 => 
   array (
     'nome' => 'Tegucigalpa',
     'pais' => 'Honduras',
@@ -3546,7 +3425,7 @@ return array (
     'autor' => 'Luis Alfredo Romero',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  322 => 
+  311 => 
   array (
     'nome' => 'Jerusalém',
     'pais' => 'Israel',
@@ -3557,18 +3436,7 @@ return array (
     'autor' => 'askii',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  323 => 
-  array (
-    'nome' => 'Jerusalém',
-    'pais' => 'Estado da Palestina',
-    'lat' => 31.77668,
-    'lon' => 35.23416,
-    'img' => 'Dome of the Rock seen from the Mount of Olives (12395649153) (cropped).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'askii',
-    'licenca' => 'CC BY-SA 2.0',
-  ),
-  324 => 
+  312 => 
   array (
     'nome' => 'Voronej',
     'pais' => 'Rússia',
@@ -3579,7 +3447,7 @@ return array (
     'autor' => 'Bychkov Denis',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  325 => 
+  313 => 
   array (
     'nome' => 'Matola',
     'pais' => 'Moçambique',
@@ -3590,7 +3458,7 @@ return array (
     'autor' => 'Teixant',
     'licenca' => 'CC BY 3.0',
   ),
-  326 => 
+  314 => 
   array (
     'nome' => 'Asgabate',
     'pais' => 'Turquemenistão',
@@ -3601,7 +3469,7 @@ return array (
     'autor' => 'Bjørn Christian Tørrissen',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  327 => 
+  315 => 
   array (
     'nome' => 'Enugu',
     'pais' => 'Nigéria',
@@ -3612,7 +3480,7 @@ return array (
     'autor' => 'Ebeleokoli',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  328 => 
+  316 => 
   array (
     'nome' => 'Santo Domingo',
     'pais' => 'Chile',
@@ -3623,7 +3491,7 @@ return array (
     'autor' => 'Carlos yo',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  329 => 
+  317 => 
   array (
     'nome' => 'Perm',
     'pais' => 'Rússia',
@@ -3634,7 +3502,7 @@ return array (
     'autor' => 'A.Savin',
     'licenca' => 'FAL',
   ),
-  330 => 
+  318 => 
   array (
     'nome' => 'Colónia',
     'pais' => 'Alemanha',
@@ -3645,7 +3513,7 @@ return array (
     'autor' => 'Thomas Wolf, www.foto-tw.de',
     'licenca' => 'CC BY-SA 3.0 de',
   ),
-  331 => 
+  319 => 
   array (
     'nome' => 'Cidade de Zamboanga',
     'pais' => 'Filipinas',
@@ -3656,7 +3524,7 @@ return array (
     'autor' => 'Appiani',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  332 => 
+  320 => 
   array (
     'nome' => 'Ottawa',
     'pais' => 'Canadá',
@@ -3667,7 +3535,7 @@ return array (
     'autor' => 'Allice Hunter',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  333 => 
+  321 => 
   array (
     'nome' => 'Islamabad',
     'pais' => 'Paquistão',
@@ -3678,7 +3546,7 @@ return array (
     'autor' => 'Tahsin Shah',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  334 => 
+  322 => 
   array (
     'nome' => 'Thủ Đức',
     'pais' => 'Vietname',
@@ -3689,7 +3557,7 @@ return array (
     'autor' => 'Syced',
     'licenca' => 'CC0',
   ),
-  335 => 
+  323 => 
   array (
     'nome' => 'Volgogrado',
     'pais' => 'Rússia',
@@ -3700,7 +3568,7 @@ return array (
     'autor' => 'AlexTref871, A.Savin, FontCity, Администрация Волгоградской области',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  336 => 
+  324 => 
   array (
     'nome' => 'Edmonton',
     'pais' => 'Canadá',
@@ -3711,7 +3579,7 @@ return array (
     'autor' => 'IQRemix',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  337 => 
+  325 => 
   array (
     'nome' => 'Odessa',
     'pais' => 'Ucrânia',
@@ -3722,7 +3590,7 @@ return array (
     'autor' => 'Natanaval, Haidamac, Posterrr, Brizhnichenko, J budissin, Alex Levitsky &amp; Dmitry Shama',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  338 => 
+  326 => 
   array (
     'nome' => 'Changwon',
     'pais' => 'Coreia do Sul',
@@ -3733,7 +3601,7 @@ return array (
     'autor' => 'Remi Cormier',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  339 => 
+  327 => 
   array (
     'nome' => 'Arequipa',
     'pais' => 'Peru',
@@ -3744,7 +3612,7 @@ return array (
     'autor' => 'Draceane',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  340 => 
+  328 => 
   array (
     'nome' => 'Chicapa',
     'pais' => 'República Democrática do Congo',
@@ -3755,7 +3623,7 @@ return array (
     'autor' => 'MONUSCO Photos',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  341 => 
+  329 => 
   array (
     'nome' => 'Hwaseong',
     'pais' => 'Coreia do Sul',
@@ -3766,7 +3634,7 @@ return array (
     'autor' => 'revi',
     'licenca' => 'CC BY 2.0 kr',
   ),
-  342 => 
+  330 => 
   array (
     'nome' => 'Marraquexe',
     'pais' => 'Marrocos',
@@ -3777,7 +3645,7 @@ return array (
     'autor' => 'Donar Reiskoffer',
     'licenca' => 'CC BY 3.0',
   ),
-  343 => 
+  331 => 
   array (
     'nome' => 'Quetta',
     'pais' => 'Paquistão',
@@ -3788,7 +3656,7 @@ return array (
     'autor' => 'Ajmalahmedkhan at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  344 => 
+  332 => 
   array (
     'nome' => 'Cidade da Guatemala',
     'pais' => 'Guatemala',
@@ -3799,7 +3667,7 @@ return array (
     'autor' => 'BladimiroAlvarado',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  345 => 
+  333 => 
   array (
     'nome' => 'Lilongué',
     'pais' => 'Malawi',
@@ -3810,7 +3678,7 @@ return array (
     'autor' => 'Brian Dell',
     'licenca' => 'Public domain',
   ),
-  346 => 
+  334 => 
   array (
     'nome' => 'Porto Príncipe',
     'pais' => 'Haiti',
@@ -3821,7 +3689,7 @@ return array (
     'autor' => 'U.S. Navy photo by Mass Communication Specialist 2nd Class Meranda Keller',
     'licenca' => 'Public domain',
   ),
-  347 => 
+  335 => 
   array (
     'nome' => 'Estocolmo',
     'pais' => 'Suécia',
@@ -3832,7 +3700,7 @@ return array (
     'autor' => 'JZ',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  348 => 
+  336 => 
   array (
     'nome' => 'Chiba',
     'pais' => 'Japão',
@@ -3843,7 +3711,7 @@ return array (
     'autor' => 'User:Xser21 User:掬茶 User:Shadow Fox User:Kentagon User:くろふね ja:利用者:Skink User:Yamato-i',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  349 => 
+  337 => 
   array (
     'nome' => 'Kirkuk',
     'pais' => 'Iraque',
@@ -3854,7 +3722,7 @@ return array (
     'autor' => 'Chad.r.hill at English Wikipedia',
     'licenca' => 'Public domain',
   ),
-  350 => 
+  338 => 
   array (
     'nome' => 'Dnipro',
     'pais' => 'Ucrânia',
@@ -3865,7 +3733,7 @@ return array (
     'autor' => 'Andrew J.Kurbiko',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  351 => 
+  339 => 
   array (
     'nome' => 'Narayanganj',
     'pais' => 'Bangladesh',
@@ -3876,7 +3744,7 @@ return array (
     'autor' => 'Nirvik12',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  352 => 
+  340 => 
   array (
     'nome' => 'Cidade de Cebu',
     'pais' => 'Filipinas',
@@ -3887,7 +3755,7 @@ return array (
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  353 => 
+  341 => 
   array (
     'nome' => 'Asmara',
     'pais' => 'Eritreia',
@@ -3898,7 +3766,7 @@ return array (
     'autor' => 'sailko',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  354 => 
+  342 => 
   array (
     'nome' => 'Freetown',
     'pais' => 'Serra Leoa',
@@ -3909,7 +3777,7 @@ return array (
     'autor' => 'David Hond',
     'licenca' => 'CC BY 2.0',
   ),
-  355 => 
+  343 => 
   array (
     'nome' => 'Seongnam',
     'pais' => 'Coreia do Sul',
@@ -3920,7 +3788,7 @@ return array (
     'autor' => '상영 전',
     'licenca' => 'CC BY 3.0',
   ),
-  356 => 
+  344 => 
   array (
     'nome' => 'Vienciana',
     'pais' => 'Laos',
@@ -3931,7 +3799,7 @@ return array (
     'autor' => 'Jakub Hałun',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  357 => 
+  345 => 
   array (
     'nome' => 'Duchambe',
     'pais' => 'Tajiquistão',
@@ -3942,7 +3810,7 @@ return array (
     'autor' => 'Kondephy',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  358 => 
+  346 => 
   array (
     'nome' => 'Kermanshah',
     'pais' => 'Irão',
@@ -3953,7 +3821,7 @@ return array (
     'autor' => 'Fars News Agency',
     'licenca' => 'CC BY 4.0',
   ),
-  359 => 
+  347 => 
   array (
     'nome' => 'Salé',
     'pais' => 'Marrocos',
@@ -3964,7 +3832,7 @@ return array (
     'autor' => 'Ismael zniber and Bertramz for Sale,BabMrisa.jpg',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  360 => 
+  348 => 
   array (
     'nome' => 'Kingston',
     'pais' => 'Jamaica',
@@ -3975,7 +3843,7 @@ return array (
     'autor' => 'The original uploader was Blofeld of SPECTRE at English Wikipedia. (Original text: W. Harr',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  361 => 
+  349 => 
   array (
     'nome' => 'Cartum do Norte',
     'pais' => 'Sudão',
@@ -3986,18 +3854,7 @@ return array (
     'autor' => 'Bertramz',
     'licenca' => 'CC BY 3.0',
   ),
-  362 => 
-  array (
-    'nome' => 'Kitakyushu',
-    'pais' => 'Japão',
-    'lat' => 33.85181,
-    'lon' => 130.84659,
-    'img' => 'Kitakyushu montage2.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'File:Riverwalk building.JPG by User:Masgatotkaca File:Kokura-jo.jpg by User:Manuel Anastác',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  363 => 
+  350 => 
   array (
     'nome' => 'Aguascalientes',
     'pais' => 'México',
@@ -4008,7 +3865,7 @@ return array (
     'autor' => 'Apsu09',
     'licenca' => 'CC BY 3.0',
   ),
-  364 => 
+  351 => 
   array (
     'nome' => 'Culna',
     'pais' => 'Bangladesh',
@@ -4019,7 +3876,7 @@ return array (
     'autor' => 'Ferdous',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  365 => 
+  352 => 
   array (
     'nome' => 'Chihuahua',
     'pais' => 'México',
@@ -4030,18 +3887,7 @@ return array (
     'autor' => 'El Sombrerero',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  366 => 
-  array (
-    'nome' => 'Amesterdão',
-    'pais' => 'Países Baixos',
-    'lat' => 52.36667,
-    'lon' => 4.88333,
-    'img' => 'Amsterdam airphoto.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Amsterdam Municipal Department for the Preservation and Restoration of Historic Buildings ',
-    'licenca' => 'Attribution',
-  ),
-  367 => 
+  353 => 
   array (
     'nome' => 'Trujillo',
     'pais' => 'Peru',
@@ -4052,7 +3898,7 @@ return array (
     'autor' => 'Laslamedas40',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  368 => 
+  354 => 
   array (
     'nome' => 'Cartagena das Índias',
     'pais' => 'Colômbia',
@@ -4063,7 +3909,7 @@ return array (
     'autor' => 'Bernard Gagnon',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  369 => 
+  355 => 
   array (
     'nome' => 'Nápoles',
     'pais' => 'Itália',
@@ -4074,7 +3920,7 @@ return array (
     'autor' => 'This Photo was taken by Wolfgang Moroder. Feel free to use my photos, but please mention m',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  370 => 
+  356 => 
   array (
     'nome' => 'Owerri',
     'pais' => 'Nigéria',
@@ -4085,7 +3931,7 @@ return array (
     'autor' => 'EMEKA OKECHUKWU',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  371 => 
+  357 => 
   array (
     'nome' => 'Bobo Dioulasso',
     'pais' => 'Burquina Fasso',
@@ -4096,7 +3942,7 @@ return array (
     'autor' => 'Maarten van der Bent',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  372 => 
+  358 => 
   array (
     'nome' => 'Lubango',
     'pais' => 'Angola',
@@ -4107,7 +3953,7 @@ return array (
     'autor' => 'Erik Cleves Kristensen',
     'licenca' => 'CC BY 2.0',
   ),
-  373 => 
+  359 => 
   array (
     'nome' => 'Dammam',
     'pais' => 'Arábia Saudita',
@@ -4118,7 +3964,7 @@ return array (
     'autor' => 'User:Abhijitvarghese',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  374 => 
+  360 => 
   array (
     'nome' => 'Donetsk',
     'pais' => 'Ucrânia',
@@ -4129,7 +3975,7 @@ return array (
     'autor' => 'Andrey Butko',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  375 => 
+  361 => 
   array (
     'nome' => 'Libreville',
     'pais' => 'Gabão',
@@ -4140,7 +3986,7 @@ return array (
     'autor' => 'Global Photographer',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  376 => 
+  362 => 
   array (
     'nome' => 'Mérida',
     'pais' => 'México',
@@ -4151,7 +3997,7 @@ return array (
     'autor' => 'the above mentioned',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  377 => 
+  363 => 
   array (
     'nome' => 'Bangui',
     'pais' => 'República Centro-Africana',
@@ -4162,7 +4008,7 @@ return array (
     'autor' => 'Alllexxxis',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  378 => 
+  364 => 
   array (
     'nome' => 'Abeokuta',
     'pais' => 'Nigéria',
@@ -4173,7 +4019,7 @@ return array (
     'autor' => 'Melvin "Buddy" Baker',
     'licenca' => 'CC BY 2.0',
   ),
-  379 => 
+  365 => 
   array (
     'nome' => 'Cancún',
     'pais' => 'México',
@@ -4184,7 +4030,7 @@ return array (
     'autor' => 'Microstar',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  380 => 
+  366 => 
   array (
     'nome' => 'Tabuk',
     'pais' => 'Arábia Saudita',
@@ -4195,7 +4041,7 @@ return array (
     'autor' => 'Atozxyz (talk)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  381 => 
+  367 => 
   array (
     'nome' => 'El Alto',
     'pais' => 'Bolívia',
@@ -4206,7 +4052,7 @@ return array (
     'autor' => 'Olga Lidia Paredes Alcoreza',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  382 => 
+  368 => 
   array (
     'nome' => 'As-Sulaymaniyah',
     'pais' => 'Iraque',
@@ -4217,7 +4063,7 @@ return array (
     'autor' => 'D. Zuppinger, uploaded by Giorces',
     'licenca' => 'CC BY 3.0',
   ),
-  383 => 
+  369 => 
   array (
     'nome' => 'Klang',
     'pais' => 'Malásia',
@@ -4228,7 +4074,7 @@ return array (
     'autor' => 'Ahmad Rithauddin from Ampang, malaysia',
     'licenca' => 'CC BY 2.0',
   ),
-  384 => 
+  370 => 
   array (
     'nome' => 'Ramadi',
     'pais' => 'Iraque',
@@ -4239,7 +4085,7 @@ return array (
     'autor' => 'Cpl. Jeremy M. Giacomino, USMC',
     'licenca' => 'Public domain',
   ),
-  385 => 
+  371 => 
   array (
     'nome' => 'Barinas',
     'pais' => 'Venezuela',
@@ -4250,7 +4096,7 @@ return array (
     'autor' => 'George Miquilena',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  386 => 
+  372 => 
   array (
     'nome' => 'Ipoh',
     'pais' => 'Malásia',
@@ -4261,7 +4107,7 @@ return array (
     'autor' => 'Adiyon84 at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  387 => 
+  373 => 
   array (
     'nome' => 'Viana',
     'pais' => 'Angola',
@@ -4272,7 +4118,18 @@ return array (
     'autor' => 'L.Willms',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  388 => 
+  374 => 
+  array (
+    'nome' => 'Saltillo',
+    'pais' => 'México',
+    'lat' => 25.42306,
+    'lon' => -100.99194,
+    'img' => 'Saltillo, mexico(3).jpg',
+    'nivel' => 'cidade',
+    'autor' => 'Flick user Sachavir',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  375 => 
   array (
     'nome' => 'Ikeja',
     'pais' => 'Nigéria',
@@ -4283,7 +4140,7 @@ return array (
     'autor' => 'T. Obi',
     'licenca' => 'CC BY 2.0',
   ),
-  389 => 
+  376 => 
   array (
     'nome' => 'Pasig',
     'pais' => 'Filipinas',
@@ -4294,7 +4151,7 @@ return array (
     'autor' => 'P199',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  390 => 
+  377 => 
   array (
     'nome' => 'Cheongju',
     'pais' => 'Coreia do Sul',
@@ -4305,7 +4162,7 @@ return array (
     'autor' => 'Hutch1225',
     'licenca' => 'Public domain',
   ),
-  391 => 
+  378 => 
   array (
     'nome' => 'Akure',
     'pais' => 'Nigéria',
@@ -4316,7 +4173,7 @@ return array (
     'autor' => 'Favouridowu',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  392 => 
+  379 => 
   array (
     'nome' => 'Arbil',
     'pais' => 'Iraque',
@@ -4327,7 +4184,7 @@ return array (
     'autor' => 'Jim Gordon',
     'licenca' => 'CC BY 2.0',
   ),
-  393 => 
+  380 => 
   array (
     'nome' => 'Catmandu',
     'pais' => 'Nepal',
@@ -4338,7 +4195,7 @@ return array (
     'autor' => 'Royonx',
     'licenca' => 'CC0',
   ),
-  394 => 
+  381 => 
   array (
     'nome' => 'Huambo',
     'pais' => 'Angola',
@@ -4349,7 +4206,7 @@ return array (
     'autor' => 'Abanul',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  395 => 
+  382 => 
   array (
     'nome' => 'Turim',
     'pais' => 'Itália',
@@ -4360,7 +4217,7 @@ return array (
     'autor' => 'Eccekevin',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  396 => 
+  383 => 
   array (
     'nome' => 'Buffalo City (Cabo Oriental)',
     'pais' => 'África do Sul',
@@ -4371,7 +4228,7 @@ return array (
     'autor' => 'East_London_Town_Hall.JPG: Original photographer and uploader was Tim giddings at en.wikip',
     'licenca' => 'Public domain',
   ),
-  397 => 
+  384 => 
   array (
     'nome' => 'Cracóvia',
     'pais' => 'Polónia',
@@ -4382,7 +4239,7 @@ return array (
     'autor' => 'XEvansGambitx',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  398 => 
+  385 => 
   array (
     'nome' => 'Orã',
     'pais' => 'Argélia',
@@ -4393,7 +4250,7 @@ return array (
     'autor' => 'Benba.d.mourad',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  399 => 
+  386 => 
   array (
     'nome' => 'Blantyre',
     'pais' => 'Malawi',
@@ -4404,7 +4261,7 @@ return array (
     'autor' => 'SMuyila',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  400 => 
+  387 => 
   array (
     'nome' => 'Johor Bahru',
     'pais' => 'Malásia',
@@ -4415,7 +4272,7 @@ return array (
     'autor' => 'Azharsofii',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  401 => 
+  388 => 
   array (
     'nome' => 'Bordeaux Métropole',
     'pais' => 'França',
@@ -4426,7 +4283,7 @@ return array (
     'autor' => 'Grand Parc - Bordeaux, France',
     'licenca' => 'CC BY 2.0',
   ),
-  402 => 
+  389 => 
   array (
     'nome' => 'George Town',
     'pais' => 'Malásia',
@@ -4437,7 +4294,7 @@ return array (
     'autor' => 'HundenvonPenang',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  403 => 
+  390 => 
   array (
     'nome' => 'Porto Said',
     'pais' => 'Egito',
@@ -4448,7 +4305,7 @@ return array (
     'autor' => 'Daniel Csörföly',
     'licenca' => 'Public domain',
   ),
-  404 => 
+  391 => 
   array (
     'nome' => 'Goma',
     'pais' => 'República Democrática do Congo',
@@ -4459,7 +4316,7 @@ return array (
     'autor' => 'Sascha Grabow www.saschagrabow.com',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  405 => 
+  392 => 
   array (
     'nome' => 'Cotonu',
     'pais' => 'Benim',
@@ -4470,7 +4327,7 @@ return array (
     'autor' => 'Adoscam',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  406 => 
+  393 => 
   array (
     'nome' => 'Hómece',
     'pais' => 'Síria',
@@ -4481,7 +4338,7 @@ return array (
     'autor' => 'No machine-readable author provided. Ss6sam6 assumed (based on copyright claims).',
     'licenca' => 'CC BY-SA 2.5',
   ),
-  407 => 
+  394 => 
   array (
     'nome' => 'Valência',
     'pais' => 'Espanha',
@@ -4492,7 +4349,7 @@ return array (
     'autor' => 'Joanbanjo',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  408 => 
+  395 => 
   array (
     'nome' => 'Hamhung',
     'pais' => 'Coreia do Norte',
@@ -4503,7 +4360,7 @@ return array (
     'autor' => 'Mario Micklisch',
     'licenca' => 'CC BY 2.0',
   ),
-  409 => 
+  396 => 
   array (
     'nome' => 'Zagreb',
     'pais' => 'Croácia',
@@ -4514,7 +4371,7 @@ return array (
     'autor' => 'Nick Savchenko from Kiev, Ukraine',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  410 => 
+  397 => 
   array (
     'nome' => 'Al Ain',
     'pais' => 'Emirados Árabes Unidos',
@@ -4525,7 +4382,7 @@ return array (
     'autor' => 'Michael Peter Glenister',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  411 => 
+  398 => 
   array (
     'nome' => 'Bahawalpur',
     'pais' => 'Paquistão',
@@ -4536,7 +4393,7 @@ return array (
     'autor' => 'Rao.anil',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  412 => 
+  399 => 
   array (
     'nome' => 'Frankfurt am Main',
     'pais' => 'Alemanha',
@@ -4547,7 +4404,7 @@ return array (
     'autor' => 'Thomas Wolf, www.foto-tw.de',
     'licenca' => 'CC BY-SA 3.0 de',
   ),
-  413 => 
+  400 => 
   array (
     'nome' => 'La Paz',
     'pais' => 'Bolívia',
@@ -4555,10 +4412,10 @@ return array (
     'lon' => -68.13333,
     'img' => 'La Paz-center.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  414 => 
+  401 => 
   array (
     'nome' => 'Maturín',
     'pais' => 'Venezuela',
@@ -4569,7 +4426,7 @@ return array (
     'autor' => 'Cesar Pérez',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  415 => 
+  402 => 
   array (
     'nome' => 'Ciudad Guayana',
     'pais' => 'Venezuela',
@@ -4580,7 +4437,7 @@ return array (
     'autor' => 'Heribert Dezeo',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  416 => 
+  403 => 
   array (
     'nome' => 'Winnipeg',
     'pais' => 'Canadá',
@@ -4591,7 +4448,7 @@ return array (
     'autor' => 'Quintin Soloviev',
     'licenca' => 'CC0',
   ),
-  417 => 
+  404 => 
   array (
     'nome' => 'Dasmariñas',
     'pais' => 'Filipinas',
@@ -4602,7 +4459,7 @@ return array (
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  418 => 
+  405 => 
   array (
     'nome' => 'Nampula',
     'pais' => 'Moçambique',
@@ -4613,7 +4470,7 @@ return array (
     'autor' => 'Gustavo Sugahara',
     'licenca' => 'CC BY 2.0',
   ),
-  419 => 
+  406 => 
   array (
     'nome' => 'Pretória',
     'pais' => 'África do Sul',
@@ -4624,7 +4481,7 @@ return array (
     'autor' => 'Petrus Potgieter, Petrus at en.wikipedia',
     'licenca' => 'Public domain',
   ),
-  420 => 
+  407 => 
   array (
     'nome' => 'Cagayan de Ouro',
     'pais' => 'Filipinas',
@@ -4635,7 +4492,7 @@ return array (
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  421 => 
+  408 => 
   array (
     'nome' => 'Bouaké',
     'pais' => 'Costa do Marfim',
@@ -4646,7 +4503,7 @@ return array (
     'autor' => 'Zenman',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  422 => 
+  409 => 
   array (
     'nome' => 'Cabinda',
     'pais' => 'Angola',
@@ -4657,7 +4514,7 @@ return array (
     'autor' => 'VOA News',
     'licenca' => 'Public domain',
   ),
-  423 => 
+  410 => 
   array (
     'nome' => 'Urmia',
     'pais' => 'Irão',
@@ -4668,7 +4525,7 @@ return array (
     'autor' => 'Anna-Freud',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  424 => 
+  411 => 
   array (
     'nome' => 'Tamale',
     'pais' => 'Gana',
@@ -4679,7 +4536,7 @@ return array (
     'autor' => 'ARC - The Alliance of Religions and Conservation',
     'licenca' => 'CC BY 2.0',
   ),
-  425 => 
+  412 => 
   array (
     'nome' => 'An-Najaf',
     'pais' => 'Iraque',
@@ -4690,7 +4547,7 @@ return array (
     'autor' => 'Toushiro',
     'licenca' => 'Public domain',
   ),
-  426 => 
+  413 => 
   array (
     'nome' => 'General Santos',
     'pais' => 'Filipinas',
@@ -4701,7 +4558,7 @@ return array (
     'autor' => 'User: (WT-shared) Naplee12 at wts wikivoyage',
     'licenca' => 'CC BY 3.0',
   ),
-  427 => 
+  414 => 
   array (
     'nome' => 'San Pedro Sula',
     'pais' => 'Honduras',
@@ -4712,7 +4569,7 @@ return array (
     'autor' => 'Micah MacAllen',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  428 => 
+  415 => 
   array (
     'nome' => 'Mississauga',
     'pais' => 'Canadá',
@@ -4723,7 +4580,7 @@ return array (
     'autor' => 'Nick de Guzman',
     'licenca' => 'CC BY 2.0',
   ),
-  429 => 
+  416 => 
   array (
     'nome' => 'Oslo',
     'pais' => 'Noruega',
@@ -4734,7 +4591,7 @@ return array (
     'autor' => 'Jonipoon',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  430 => 
+  417 => 
   array (
     'nome' => 'Lviv',
     'pais' => 'Ucrânia',
@@ -4745,7 +4602,7 @@ return array (
     'autor' => 'Lestat (Jan Mehlich)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  431 => 
+  418 => 
   array (
     'nome' => 'Suez',
     'pais' => 'Egito',
@@ -4756,7 +4613,7 @@ return array (
     'autor' => 'U. S. Navy photo by Photographer\'s Mate 3rd Class Lance H. Mayhew Jr.',
     'licenca' => 'Public domain',
   ),
-  432 => 
+  419 => 
   array (
     'nome' => 'Zaporíjia',
     'pais' => 'Ucrânia',
@@ -4767,7 +4624,7 @@ return array (
     'autor' => 'Alexey Tolmachov',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  433 => 
+  420 => 
   array (
     'nome' => 'Zanzibar',
     'pais' => 'Tanzânia',
@@ -4778,7 +4635,7 @@ return array (
     'autor' => 'Paul Brockmeyer from Chicago, USA',
     'licenca' => 'CC BY 2.0',
   ),
-  434 => 
+  421 => 
   array (
     'nome' => 'Lataquia',
     'pais' => 'Síria',
@@ -4786,10 +4643,10 @@ return array (
     'lon' => 35.77806,
     'img' => 'Latakia Collage.jpg',
     'nivel' => 'cidade',
-    'autor' => 'autor não informado',
+    'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  435 => 
+  422 => 
   array (
     'nome' => 'Subang Jaya',
     'pais' => 'Malásia',
@@ -4800,7 +4657,7 @@ return array (
     'autor' => 'Gohweiyang',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  436 => 
+  423 => 
   array (
     'nome' => 'Bucavu',
     'pais' => 'República Democrática do Congo',
@@ -4811,7 +4668,7 @@ return array (
     'autor' => 'EMMANRMS',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  437 => 
+  424 => 
   array (
     'nome' => 'Mwanza',
     'pais' => 'Tanzânia',
@@ -4822,7 +4679,7 @@ return array (
     'autor' => 'Jonathan Stonehouse',
     'licenca' => 'CC BY 2.0',
   ),
-  438 => 
+  425 => 
   array (
     'nome' => 'Parachinar',
     'pais' => 'Paquistão',
@@ -4833,7 +4690,7 @@ return array (
     'autor' => 'Mujtaba Hassan',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  439 => 
+  426 => 
   array (
     'nome' => 'Hama',
     'pais' => 'Síria',
@@ -4844,7 +4701,7 @@ return array (
     'autor' => 'Vyacheslav Argenberg',
     'licenca' => 'CC BY 4.0',
   ),
-  440 => 
+  427 => 
   array (
     'nome' => 'Helsínquia',
     'pais' => 'Finlândia',
@@ -4855,7 +4712,7 @@ return array (
     'autor' => 'Old Pionear',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  441 => 
+  428 => 
   array (
     'nome' => 'Bremen',
     'pais' => 'Alemanha',
@@ -4866,7 +4723,7 @@ return array (
     'autor' => 'Jürgen Howaldt',
     'licenca' => 'CC BY-SA 2.0 de',
   ),
-  442 => 
+  429 => 
   array (
     'nome' => 'Sinnuris',
     'pais' => 'Egito',
@@ -4877,7 +4734,7 @@ return array (
     'autor' => 'Einsamer Schütze',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  443 => 
+  430 => 
   array (
     'nome' => 'Karbala',
     'pais' => 'Iraque',
@@ -4888,7 +4745,7 @@ return array (
     'autor' => 'SFC Larry E. Johns, USA',
     'licenca' => 'Public domain',
   ),
-  444 => 
+  431 => 
   array (
     'nome' => 'San José del Monte',
     'pais' => 'Filipinas',
@@ -4899,7 +4756,7 @@ return array (
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  445 => 
+  432 => 
   array (
     'nome' => 'Sevilla',
     'pais' => 'Espanha',
@@ -4910,18 +4767,7 @@ return array (
     'autor' => 'Diliff',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  446 => 
-  array (
-    'nome' => 'Pontianak',
-    'pais' => 'Índias Orientais Holandesas',
-    'lat' => -0.08333,
-    'lon' => 109.36667,
-    'img' => 'Skyline Pontianak (2026).jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Medelam',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  447 => 
+  433 => 
   array (
     'nome' => 'Dairut',
     'pais' => 'Egito',
@@ -4932,7 +4778,7 @@ return array (
     'autor' => 'Roland Unger',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  448 => 
+  434 => 
   array (
     'nome' => 'Resht',
     'pais' => 'Irão',
@@ -4943,7 +4789,7 @@ return array (
     'autor' => 'Mostafa Yekrangi',
     'licenca' => 'CC BY 2.0',
   ),
-  449 => 
+  435 => 
   array (
     'nome' => 'Gotemburgo',
     'pais' => 'Suécia',
@@ -4954,7 +4800,7 @@ return array (
     'autor' => 'Bengt Nyman from Vaxholm, Sweden',
     'licenca' => 'CC BY 2.0',
   ),
-  450 => 
+  436 => 
   array (
     'nome' => 'Breslávia',
     'pais' => 'Polónia',
@@ -4965,7 +4811,7 @@ return array (
     'autor' => 'Hrs Poland',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  451 => 
+  437 => 
   array (
     'nome' => 'Chongjin',
     'pais' => 'Coreia do Norte',
@@ -4976,18 +4822,7 @@ return array (
     'autor' => 'Raymond K. Cunningham, Jr.',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  452 => 
-  array (
-    'nome' => 'Copenhaga',
-    'pais' => 'Dinamarca',
-    'lat' => 55.67611,
-    'lon' => 12.56889,
-    'img' => 'Copenhagen - view from Christiansborg castle.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Pudelek',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  453 => 
+  438 => 
   array (
     'nome' => 'Saragoça',
     'pais' => 'Espanha',
@@ -4998,29 +4833,7 @@ return array (
     'autor' => 'Juan Bautista Martínez del Mazo',
     'licenca' => 'Public domain',
   ),
-  454 => 
-  array (
-    'nome' => 'Saragoça',
-    'pais' => 'Reino de Leão',
-    'lat' => 41.65646,
-    'lon' => -0.87929,
-    'img' => 'Vista de Zaragoza en 1647.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Juan Bautista Martínez del Mazo',
-    'licenca' => 'Public domain',
-  ),
-  455 => 
-  array (
-    'nome' => 'Saragoça',
-    'pais' => 'Reino de Aragão',
-    'lat' => 41.65646,
-    'lon' => -0.87929,
-    'img' => 'Vista de Zaragoza en 1647.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Juan Bautista Martínez del Mazo',
-    'licenca' => 'Public domain',
-  ),
-  456 => 
+  439 => 
   array (
     'nome' => 'Bulavaio',
     'pais' => 'Zimbábue',
@@ -5031,18 +4844,7 @@ return array (
     'autor' => 'Prince Phumulani Nyoni',
     'licenca' => 'Public domain',
   ),
-  457 => 
-  array (
-    'nome' => 'Roterdão',
-    'pais' => 'Países Baixos',
-    'lat' => 51.92,
-    'lon' => 4.48,
-    'img' => 'Erasmusbrug seen from Euromast.jpg',
-    'nivel' => 'cidade',
-    'autor' => 'Mlefter',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  458 => 
+  440 => 
   array (
     'nome' => 'Villavicencio',
     'pais' => 'Colômbia',
@@ -5053,7 +4855,7 @@ return array (
     'autor' => 'David from Miami, United states',
     'licenca' => 'CC BY 2.0',
   ),
-  459 => 
+  441 => 
   array (
     'nome' => 'Vancouver',
     'pais' => 'Canadá',
@@ -5064,7 +4866,7 @@ return array (
     'autor' => 'Quintin Soloviev',
     'licenca' => 'CC BY 4.0',
   ),
-  460 => 
+  442 => 
   array (
     'nome' => 'Catia La Mar',
     'pais' => 'Venezuela',
@@ -5075,7 +4877,7 @@ return array (
     'autor' => 'Veronidae',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  461 => 
+  443 => 
   array (
     'nome' => 'Bacoor',
     'pais' => 'Filipinas',
@@ -5086,7 +4888,7 @@ return array (
     'autor' => 'P199',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  462 => 
+  444 => 
   array (
     'nome' => 'Sargodha',
     'pais' => 'Paquistão',
@@ -5097,7 +4899,7 @@ return array (
     'autor' => 'Adeelgeo',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  463 => 
+  445 => 
   array (
     'nome' => 'Bujumbura',
     'pais' => 'Burundi',
@@ -5108,7 +4910,7 @@ return array (
     'autor' => 'Edouard mhg',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  464 => 
+  446 => 
   array (
     'nome' => 'Brampton',
     'pais' => 'Canadá',
@@ -5119,7 +4921,7 @@ return array (
     'autor' => 'Trappy (talk)Trappy. Trappy at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  465 => 
+  447 => 
   array (
     'nome' => 'Łódź',
     'pais' => 'Polónia',
@@ -5130,7 +4932,7 @@ return array (
     'autor' => 'Sebastian Glapinski platinstudio',
     'licenca' => 'CC0',
   ),
-  466 => 
+  448 => 
   array (
     'nome' => 'Colombo',
     'pais' => 'Sri Lanka',
@@ -5141,7 +4943,7 @@ return array (
     'autor' => 'T Chamika',
     'licenca' => 'CC0',
   ),
-  467 => 
+  449 => 
   array (
     'nome' => 'Atenas',
     'pais' => 'Grécia',
@@ -5152,7 +4954,7 @@ return array (
     'autor' => 'Thomas Wolf, www.foto-tw.de',
     'licenca' => 'CC BY-SA 3.0 de',
   ),
-  468 => 
+  450 => 
   array (
     'nome' => 'Shah Faisal Town',
     'pais' => 'Paquistão',
@@ -5163,7 +4965,7 @@ return array (
     'autor' => 'Shahid1024',
     'licenca' => 'Public domain',
   ),
-  469 => 
+  451 => 
   array (
     'nome' => 'Petaling Jaya',
     'pais' => 'Malásia',
@@ -5174,7 +4976,7 @@ return array (
     'autor' => 'Cmglee',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  470 => 
+  452 => 
   array (
     'nome' => 'Cochabamba',
     'pais' => 'Bolívia',
@@ -5185,7 +4987,7 @@ return array (
     'autor' => 'Alfonso F. del Granado Rivero',
     'licenca' => 'CC BY-SA 2.5',
   ),
-  471 => 
+  453 => 
   array (
     'nome' => 'Bengasi',
     'pais' => 'Líbia',
@@ -5196,7 +4998,7 @@ return array (
     'autor' => 'Dennixo.',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  472 => 
+  454 => 
   array (
     'nome' => 'Palermo',
     'pais' => 'Itália',
@@ -5207,7 +5009,7 @@ return array (
     'autor' => 'Xerones',
     'licenca' => 'CC BY 2.0',
   ),
-  473 => 
+  455 => 
   array (
     'nome' => 'Glasgow',
     'pais' => 'Reino Unido',
@@ -5218,7 +5020,7 @@ return array (
     'autor' => '瑞丽江的河水',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  474 => 
+  456 => 
   array (
     'nome' => 'Namangan',
     'pais' => 'Usbequistão',
@@ -5229,7 +5031,7 @@ return array (
     'autor' => 'Ziqo',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  475 => 
+  457 => 
   array (
     'nome' => 'Kitwe',
     'pais' => 'Zâmbia',
@@ -5240,7 +5042,7 @@ return array (
     'autor' => 'Mike Rosenberg from London, England',
     'licenca' => 'CC BY 2.0',
   ),
-  476 => 
+  458 => 
   array (
     'nome' => 'Almançora',
     'pais' => 'Egito',
@@ -5251,7 +5053,7 @@ return array (
     'autor' => 'Phevos87',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  477 => 
+  459 => 
   array (
     'nome' => 'Düsseldorf',
     'pais' => 'Alemanha',
@@ -5262,7 +5064,7 @@ return array (
     'autor' => 'Kai Pilger',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  478 => 
+  460 => 
   array (
     'nome' => 'Vilnius',
     'pais' => 'Lituânia',
@@ -5273,7 +5075,7 @@ return array (
     'autor' => 'BigHead',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  479 => 
+  461 => 
   array (
     'nome' => 'Heluã',
     'pais' => 'Egito',
@@ -5284,7 +5086,7 @@ return array (
     'autor' => 'Roland Unger',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  480 => 
+  462 => 
   array (
     'nome' => 'Al Hudaydah',
     'pais' => 'Iémen',
@@ -5295,7 +5097,7 @@ return array (
     'autor' => 'MAHMOUD',
     'licenca' => 'CC BY 3.0',
   ),
-  481 => 
+  463 => 
   array (
     'nome' => 'Leipzig',
     'pais' => 'Alemanha',
@@ -5306,7 +5108,7 @@ return array (
     'autor' => 'Tuxyso',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  482 => 
+  464 => 
   array (
     'nome' => 'Ta\'izz',
     'pais' => 'Iémen',
@@ -5317,7 +5119,7 @@ return array (
     'autor' => 'ai@ce',
     'licenca' => 'CC BY 2.0',
   ),
-  483 => 
+  465 => 
   array (
     'nome' => 'Bucaramanga',
     'pais' => 'Colômbia',
@@ -5328,7 +5130,7 @@ return array (
     'autor' => 'EEIM',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  484 => 
+  466 => 
   array (
     'nome' => 'Kandahar',
     'pais' => 'Afeganistão',
@@ -5339,29 +5141,7 @@ return array (
     'autor' => 'Karla Marshall',
     'licenca' => 'Public domain',
   ),
-  485 => 
-  array (
-    'nome' => 'Serang',
-    'pais' => 'Índias Orientais Holandesas',
-    'lat' => -6.12,
-    'lon' => 106.15028,
-    'img' => 'Stasiun Serang.JPG',
-    'nivel' => 'cidade',
-    'autor' => 'Gupt24',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  486 => 
-  array (
-    'nome' => 'Serang',
-    'pais' => 'Banten Sultanate',
-    'lat' => -6.12,
-    'lon' => 106.15028,
-    'img' => 'Stasiun Serang.JPG',
-    'nivel' => 'cidade',
-    'autor' => 'Gupt24',
-    'licenca' => 'CC BY-SA 3.0',
-  ),
-  487 => 
+  467 => 
   array (
     'nome' => 'Estugarda',
     'pais' => 'Alemanha',
@@ -5372,7 +5152,7 @@ return array (
     'autor' => 'Julian Herzog (Website)',
     'licenca' => 'CC BY 4.0',
   ),
-  488 => 
+  468 => 
   array (
     'nome' => 'Kuantan',
     'pais' => 'Malásia',
@@ -5383,7 +5163,7 @@ return array (
     'autor' => 'Only Truth at English Wikipedia',
     'licenca' => 'Public domain',
   ),
-  489 => 
+  469 => 
   array (
     'nome' => 'Gold Coast',
     'pais' => 'Austrália',
@@ -5394,7 +5174,7 @@ return array (
     'autor' => 'E-CBD',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  490 => 
+  470 => 
   array (
     'nome' => 'Malanje',
     'pais' => 'Angola',
@@ -5405,7 +5185,7 @@ return array (
     'autor' => 'L.Willms',
     'licenca' => 'CC BY 3.0',
   ),
-  491 => 
+  471 => 
   array (
     'nome' => 'Kryvyi Rih',
     'pais' => 'Ucrânia',
@@ -5416,7 +5196,7 @@ return array (
     'autor' => 'Igor Kvochka',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  492 => 
+  472 => 
   array (
     'nome' => 'Djibouti',
     'pais' => 'Djibouti',
@@ -5427,7 +5207,7 @@ return array (
     'autor' => 'Skilla1st',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  493 => 
+  473 => 
   array (
     'nome' => 'Tunes',
     'pais' => 'Tunísia',
@@ -5438,7 +5218,7 @@ return array (
     'autor' => 'Citizen59 from Tunis, Tunisie',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  494 => 
+  474 => 
   array (
     'nome' => 'São Miguel de Tucumã',
     'pais' => 'Argentina',
@@ -5449,7 +5229,7 @@ return array (
     'autor' => 'jlazarte',
     'licenca' => 'Public domain',
   ),
-  495 => 
+  475 => 
   array (
     'nome' => 'Dortmund',
     'pais' => 'Alemanha',
@@ -5460,7 +5240,7 @@ return array (
     'autor' => 'Alexandra Fakiri',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  496 => 
+  476 => 
   array (
     'nome' => 'Málaga',
     'pais' => 'Espanha',
@@ -5471,7 +5251,7 @@ return array (
     'autor' => 'Viktar Palstsiuk',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  497 => 
+  477 => 
   array (
     'nome' => 'Durban',
     'pais' => 'África do Sul',
@@ -5482,7 +5262,7 @@ return array (
     'autor' => '---=XEON=---',
     'licenca' => 'CC BY 3.0',
   ),
-  498 => 
+  478 => 
   array (
     'nome' => 'Salta',
     'pais' => 'Argentina',
@@ -5493,7 +5273,7 @@ return array (
     'autor' => 'Marcos Flores (Marcos F.)',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  499 => 
+  479 => 
   array (
     'nome' => 'Mar del Plata',
     'pais' => 'Argentina',
@@ -5504,7 +5284,7 @@ return array (
     'autor' => 'Quilmeño89',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  500 => 
+  480 => 
   array (
     'nome' => 'Dublin',
     'pais' => 'Irlanda',
@@ -5515,7 +5295,7 @@ return array (
     'autor' => '瑞丽江的河水',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  501 => 
+  481 => 
   array (
     'nome' => 'Al-Mahalla Al-Kubra',
     'pais' => 'Egito',
@@ -5526,7 +5306,7 @@ return array (
     'autor' => 'Faris knight',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  502 => 
+  482 => 
   array (
     'nome' => 'Pereira',
     'pais' => 'Colômbia',
@@ -5537,7 +5317,7 @@ return array (
     'autor' => 'KeilaA',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  503 => 
+  483 => 
   array (
     'nome' => 'Gaza',
     'pais' => 'Estado da Palestina',
@@ -5548,7 +5328,7 @@ return array (
     'autor' => 'Jaber Jehad Badwan',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  504 => 
+  484 => 
   array (
     'nome' => 'Riga',
     'pais' => 'Letónia',
@@ -5559,7 +5339,18 @@ return array (
     'autor' => 'Diego Delso',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  505 => 
+  485 => 
+  array (
+    'nome' => 'Bremen',
+    'pais' => 'Alemanha',
+    'lat' => 53.07583,
+    'lon' => 8.80722,
+    'img' => 'Bremen-rathaus-dom-buergerschaft.jpg',
+    'nivel' => 'cidade',
+    'autor' => 'Klaus Grünberg',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  486 => 
   array (
     'nome' => 'Zahedan',
     'pais' => 'Irão',
@@ -5570,7 +5361,7 @@ return array (
     'autor' => 'Masoud Sheikh-Veisi',
     'licenca' => 'CC BY 4.0',
   ),
-  506 => 
+  487 => 
   array (
     'nome' => 'Mbale',
     'pais' => 'Uganda',
@@ -5581,7 +5372,7 @@ return array (
     'autor' => 'Michael Shade',
     'licenca' => 'Public domain',
   ),
-  507 => 
+  488 => 
   array (
     'nome' => 'Shah Alam',
     'pais' => 'Malásia',
@@ -5592,7 +5383,7 @@ return array (
     'autor' => 'Lerdsuwa',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  508 => 
+  489 => 
   array (
     'nome' => 'Ta’if',
     'pais' => 'Arábia Saudita',
@@ -5603,7 +5394,7 @@ return array (
     'autor' => 'عباد ديرانية',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  509 => 
+  490 => 
   array (
     'nome' => 'Porto Sudão',
     'pais' => 'Sudão',
@@ -5614,7 +5405,7 @@ return array (
     'autor' => 'Bertramz',
     'licenca' => 'CC BY 3.0',
   ),
-  510 => 
+  491 => 
   array (
     'nome' => 'Manfalut',
     'pais' => 'Egito',
@@ -5625,7 +5416,7 @@ return array (
     'autor' => 'Roland Unger',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  511 => 
+  492 => 
   array (
     'nome' => 'Quebec',
     'pais' => 'Canadá',
@@ -5636,7 +5427,7 @@ return array (
     'autor' => 'Fabian Roudra Baroi',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  512 => 
+  493 => 
   array (
     'nome' => 'Puente Alto',
     'pais' => 'Chile',
@@ -5647,7 +5438,7 @@ return array (
     'autor' => 'Autor',
     'licenca' => 'Public domain',
   ),
-  513 => 
+  494 => 
   array (
     'nome' => 'Essen',
     'pais' => 'Alemanha',
@@ -5658,7 +5449,7 @@ return array (
     'autor' => 'Drdavid41',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  514 => 
+  495 => 
   array (
     'nome' => 'Shibin el-Qanater',
     'pais' => 'Egito',
@@ -5669,7 +5460,7 @@ return array (
     'autor' => 'Hatem Moushir',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  515 => 
+  496 => 
   array (
     'nome' => 'Hamilton',
     'pais' => 'Canadá',
@@ -5680,7 +5471,7 @@ return array (
     'autor' => 'Nhl4hamilton (Rick Cordeiro)',
     'licenca' => 'Public domain',
   ),
-  516 => 
+  497 => 
   array (
     'nome' => 'Surrey',
     'pais' => 'Canadá',
@@ -5691,7 +5482,7 @@ return array (
     'autor' => 'Northwest',
     'licenca' => 'CC BY 4.0',
   ),
-  517 => 
+  498 => 
   array (
     'nome' => 'Ciudad Bolívar',
     'pais' => 'Venezuela',
@@ -5702,7 +5493,7 @@ return array (
     'autor' => 'Venecon at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  518 => 
+  499 => 
   array (
     'nome' => 'El Callao',
     'pais' => 'Peru',
@@ -5713,7 +5504,7 @@ return array (
     'autor' => 'DORM',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  519 => 
+  500 => 
   array (
     'nome' => 'Dar El Salam',
     'pais' => 'Egito',
@@ -5724,7 +5515,7 @@ return array (
     'autor' => 'Ashashyou',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  520 => 
+  501 => 
   array (
     'nome' => 'Chișinău',
     'pais' => 'Moldávia',
@@ -5735,7 +5526,7 @@ return array (
     'autor' => 'Photobank MD from Chisinau, Moldova',
     'licenca' => 'CC0',
   ),
-  521 => 
+  502 => 
   array (
     'nome' => 'Dresden',
     'pais' => 'Alemanha',
@@ -5746,7 +5537,7 @@ return array (
     'autor' => 'Bgabel',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  522 => 
+  503 => 
   array (
     'nome' => 'Benguela',
     'pais' => 'Angola',
@@ -5757,7 +5548,7 @@ return array (
     'autor' => 'F H Mira',
     'licenca' => 'CC BY-SA 2.0',
   ),
-  523 => 
+  504 => 
   array (
     'nome' => 'Al-Ubayyid',
     'pais' => 'Sudão',
@@ -5768,7 +5559,7 @@ return array (
     'autor' => 'محسن الفكي',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  524 => 
+  505 => 
   array (
     'nome' => 'Génova',
     'pais' => 'Itália',
@@ -5779,7 +5570,7 @@ return array (
     'autor' => 'patano',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  525 => 
+  506 => 
   array (
     'nome' => 'Herat',
     'pais' => 'Afeganistão',
@@ -5790,7 +5581,7 @@ return array (
     'autor' => 'Employee of the U.S. State Department',
     'licenca' => 'Public domain',
   ),
-  526 => 
+  507 => 
   array (
     'nome' => 'Hamadã',
     'pais' => 'Irão',
@@ -5801,7 +5592,7 @@ return array (
     'autor' => 'Alireza Javaheri',
     'licenca' => 'CC BY 3.0',
   ),
-  527 => 
+  508 => 
   array (
     'nome' => 'Chiclayo',
     'pais' => 'Peru',
@@ -5812,7 +5603,7 @@ return array (
     'autor' => 'LLs',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  528 => 
+  509 => 
   array (
     'nome' => 'Meknès',
     'pais' => 'Marrocos',
@@ -5823,18 +5614,7 @@ return array (
     'autor' => 'Bernard Gagnon',
     'licenca' => 'CC BY-SA 3.0',
   ),
-  529 => 
-  array (
-    'nome' => 'Haia',
-    'pais' => 'Países Baixos',
-    'lat' => 52.08,
-    'lon' => 4.31,
-    'img' => 'The Hague Montage 2021.png',
-    'nivel' => 'cidade',
-    'autor' => 'Montage by Ætoms',
-    'licenca' => 'CC BY-SA 4.0',
-  ),
-  530 => 
+  510 => 
   array (
     'nome' => 'Andijon',
     'pais' => 'Usbequistão',
@@ -5845,7 +5625,7 @@ return array (
     'autor' => 'Carpodacus',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  531 => 
+  511 => 
   array (
     'nome' => 'Poznań',
     'pais' => 'Polónia',
@@ -5856,7 +5636,7 @@ return array (
     'autor' => 'Stanisław Szewczyk',
     'licenca' => 'CC BY 3.0',
   ),
-  532 => 
+  512 => 
   array (
     'nome' => 'Samarcanda',
     'pais' => 'Usbequistão',
@@ -5867,7 +5647,7 @@ return array (
     'autor' => 'Adam Harangozó',
     'licenca' => 'CC BY-SA 4.0',
   ),
-  533 => 
+  513 => 
   array (
     'nome' => 'Ibagué',
     'pais' => 'Colômbia',
@@ -5878,7 +5658,7 @@ return array (
     'autor' => 'Ridiculopathy',
     'licenca' => 'CC0',
   ),
-  534 => 
+  514 => 
   array (
     'nome' => 'Lisboa',
     'pais' => 'Portugal',
@@ -5889,1324 +5669,2908 @@ return array (
     'autor' => 'Lacobrigo',
     'licenca' => 'CC BY-SA 4.0',
   ),
+  515 => 
+  array (
+    'nome' => 'Mirabeach',
+    'pais' => 'Itália',
+    'lat' => 44.338,
+    'lon' => 12.2635,
+    'img' => 'Mirabilandia Beach.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Lacoonte',
+    'licenca' => 'Public domain',
+  ),
+  516 => 
+  array (
+    'nome' => 'Ondaland',
+    'pais' => 'Itália',
+    'lat' => 45.4793,
+    'lon' => 8.42551,
+    'img' => 'Ondaland dall\'alto alta definizione.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Daniele Vailati M',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  517 => 
+  array (
+    'nome' => 'Alton Towers Waterpark',
+    'pais' => 'Reino Unido',
+    'lat' => 52.9851,
+    'lon' => -1.8761,
+    'img' => 'Alton Towers Waterpark1.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Andrewmc123',
+    'licenca' => 'Public domain',
+  ),
+  518 => 
+  array (
+    'nome' => 'Simhallsbadet, Malmö',
+    'pais' => 'Suécia',
+    'lat' => 55.59944,
+    'lon' => 12.99278,
+    'img' => 'Simhallsbadet, Malmö.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jorchr',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  519 => 
+  array (
+    'nome' => 'Blue Lagoon Water Park',
+    'pais' => 'Reino Unido',
+    'lat' => 51.78,
+    'lon' => -4.808,
+    'img' => 'Blue Lagoon Waterpark.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'GlennHewer',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  520 => 
+  array (
+    'nome' => 'Cardiff International Pool',
+    'pais' => 'Reino Unido',
+    'lat' => 51.44976,
+    'lon' => -3.18108,
+    'img' => 'Cardiff International Pool 002.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Seth Whales',
+    'licenca' => 'Public domain',
+  ),
+  521 => 
+  array (
+    'nome' => 'Dongshan River Water Park',
+    'pais' => 'Taiwan',
+    'lat' => 24.6723,
+    'lon' => 121.812,
+    'img' => '268, Taiwan, 宜蘭縣五結鄉協和村 - panoramio (39).jpg',
+    'nivel' => 'ponto',
+    'autor' => '徐月春',
+    'licenca' => 'CC BY 3.0',
+  ),
+  522 => 
+  array (
+    'nome' => 'Fasouri Watermania',
+    'pais' => 'Chipre',
+    'lat' => 34.65241,
+    'lon' => 32.9751,
+    'img' => 'Limassol Fassouri Watermania Water Park - panoramio (2).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'altgiperon',
+    'licenca' => 'CC BY 3.0',
+  ),
+  523 => 
+  array (
+    'nome' => 'Fyrishov',
+    'pais' => 'Suécia',
+    'lat' => 59.87083,
+    'lon' => 17.62361,
+    'img' => 'Fyrishov.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Kelbv from reading, UK',
+    'licenca' => 'CC BY 2.0',
+  ),
+  524 => 
+  array (
+    'nome' => 'Illa Fantasia',
+    'pais' => 'Espanha',
+    'lat' => 41.50384,
+    'lon' => 2.36353,
+    'img' => 'Slides.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Illa Fantasia',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  525 => 
+  array (
+    'nome' => 'Aquapark of Cerceda',
+    'pais' => 'Espanha',
+    'lat' => 42.17689,
+    'lon' => -8.47,
+    'img' => 'Aquapark Cerceda 2013.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Elisardojm',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  526 => 
+  array (
+    'nome' => 'Lago Martiánez',
+    'pais' => 'Espanha',
+    'lat' => 28.41944,
+    'lon' => -16.54361,
+    'img' => 'Lago Martianez-Monumento a las olas-Tenerife.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'freakyman from Puerto de la Cruz, Spain',
+    'licenca' => 'CC BY 2.0',
+  ),
+  527 => 
+  array (
+    'nome' => 'Luna Gal',
+    'pais' => 'Israel',
+    'lat' => 32.84769,
+    'lon' => 35.65119,
+    'img' => 'WikiAir Flight IL-13-01IMG 4820.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Tamir Bejerano',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  528 => 
+  array (
+    'nome' => 'Yamit 2000',
+    'pais' => 'Israel',
+    'lat' => 32.00289,
+    'lon' => 34.79367,
+    'img' => 'Yamit2000 1.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'רדיומן',
+    'licenca' => 'CC0',
+  ),
+  529 => 
+  array (
+    'nome' => 'Magic Mountain Water Park',
+    'pais' => 'Canadá',
+    'lat' => 46.138,
+    'lon' => -64.888,
+    'img' => 'Magic mountain water park moncton.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'I Stu_pendousmat took this picture on July 22, 2007',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  530 => 
+  array (
+    'nome' => 'Parque Marítimo César Manrique',
+    'pais' => 'Espanha',
+    'lat' => 28.45417,
+    'lon' => -16.255,
+    'img' => 'Palmetum of Santa Cruz de Tenerife 2019 046.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Photograph by Mike Peel (www.mikepeel.net).',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  531 => 
+  array (
+    'nome' => 'Portsmouth Pyramids Centre',
+    'pais' => 'Reino Unido',
+    'lat' => 50.779,
+    'lon' => -1.08539,
+    'img' => 'Portsmouth Pyramids Centre 1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Tim Sheerman-Chase',
+    'licenca' => 'CC BY 2.0',
+  ),
+  532 => 
+  array (
+    'nome' => 'Saigon Water Park',
+    'pais' => 'Vietname',
+    'lat' => 10.84064,
+    'lon' => 106.74509,
+    'img' => 'Saigon Water Park 509.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Hans Haase',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  533 => 
+  array (
+    'nome' => 'Splash Island',
+    'pais' => 'Canadá',
+    'lat' => 43.82183,
+    'lon' => -79.18268,
+    'img' => 'DSC00692 - Splash Island at the Toronto Zoo (7693742670).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Dennis G. Jarvis',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  534 => 
+  array (
+    'nome' => 'Splash Planet',
+    'pais' => 'Nova Zelândia',
+    'lat' => -39.64404,
+    'lon' => 176.86365,
+    'img' => 'Sky Castle, Splash Planet, Hastings.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Pseudopanax at English Wikipedia',
+    'licenca' => 'Public domain',
+  ),
   535 => 
   array (
-    'nome' => 'Stari Most',
-    'pais' => 'Bósnia e Herzegovina',
-    'lat' => 43.33728,
-    'lon' => 17.81503,
-    'img' => 'Mostar Old Town Panorama 2007.jpg',
+    'nome' => 'Tropicana, Weston-super-Mare',
+    'pais' => 'Reino Unido',
+    'lat' => 51.3409,
+    'lon' => -2.9828,
+    'img' => 'Tropicana frontage.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Ramirez',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Chris Sampson',
+    'licenca' => 'CC BY 2.0',
   ),
   536 => 
   array (
-    'nome' => 'Ponte da Normandia',
-    'pais' => 'França',
-    'lat' => 49.43222,
-    'lon' => 0.27389,
-    'img' => 'Sandouville - 76430 - 2024.07.04 - Johnsons - Yutong TC9 © Anthony Levrot.jpg',
+    'nome' => 'Wild Wadi',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 25.13944,
+    'lon' => 55.18917,
+    'img' => 'Wild-wadi.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Anthony Levrot',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => '',
+    'licenca' => 'CC BY 2.0',
   ),
   537 => 
   array (
-    'nome' => 'Gamla bron',
-    'pais' => 'Suécia',
-    'lat' => 63.825,
-    'lon' => 20.24917,
-    'img' => 'Gamla bron Umeå 2007-06-24.jpg',
+    'nome' => 'Livu Akvaparks',
+    'pais' => 'Letónia',
+    'lat' => 56.97417,
+    'lon' => 23.86023,
+    'img' => 'Līvu Akvaparks.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Mikael Lindmark',
-    'licenca' => 'CC BY-SA 2.5',
+    'autor' => 'Raul Cortez999',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   538 => 
   array (
-    'nome' => 'Ponte de Pedra',
-    'pais' => 'Macedónia do Norte',
-    'lat' => 41.99699,
-    'lon' => 21.43307,
-    'img' => 'Stone Bridge so Arheološkiot.jpg',
+    'nome' => 'Tropical Islands',
+    'pais' => 'Alemanha',
+    'lat' => 52.0375,
+    'lon' => 13.74861,
+    'img' => '20-05-13-Tropical-Islands-0883 1-RalfR.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Prince Roy',
-    'licenca' => 'CC BY 2.0',
+    'autor' => 'Ralf Roletschek',
+    'licenca' => 'CC BY-SA 1.0 fi',
   ),
   539 => 
   array (
-    'nome' => 'Ponte do Severn',
-    'pais' => 'Reino Unido',
-    'lat' => 51.6099,
-    'lon' => -2.64026,
-    'img' => 'Severn Bridge near to Beachley-cropped.jpg',
+    'nome' => 'Aquafan',
+    'pais' => 'Itália',
+    'lat' => 43.98694,
+    'lon' => 12.64472,
+    'img' => 'Dolphinarium at Oltremare - Riccione (Naturalistic-technological theme park).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Martin Edwards',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Terragio67',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   540 => 
   array (
-    'nome' => 'Castelo de Montsoreau',
-    'pais' => 'França',
-    'lat' => 47.2156,
-    'lon' => 0.0622,
-    'img' => 'Chateau de Montsoreau Museum of contemporary art Loire Valley France.jpg',
+    'nome' => 'Aquapark Tatralandia',
+    'pais' => 'Eslováquia',
+    'lat' => 49.106,
+    'lon' => 19.57043,
+    'img' => 'Aquapark Tatralandia (13).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Suavemarimagno',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'I would appreciate being notified if you use my work outside Wikimedia. Do not copy this i',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   541 => 
   array (
-    'nome' => 'Castelo de Neuschwanstein',
-    'pais' => 'Alemanha',
-    'lat' => 47.55749,
-    'lon' => 10.74944,
-    'img' => 'Neuschwanstein Castle 2024-02.jpg',
+    'nome' => 'Aqualandia',
+    'pais' => 'Espanha',
+    'lat' => 38.5451,
+    'lon' => -0.0924,
+    'img' => 'Aqualandia.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Wilfredor',
-    'licenca' => 'CC0',
+    'autor' => 'Julio Latorre',
+    'licenca' => 'CC BY 2.0',
   ),
   542 => 
   array (
-    'nome' => 'Torre de Londres',
-    'pais' => 'Reino Unido',
-    'lat' => 51.5082,
-    'lon' => -0.0762,
-    'img' => 'Tower of London viewed from the River Thames.jpg',
+    'nome' => 'Palmitos Park',
+    'pais' => 'Espanha',
+    'lat' => 27.83528,
+    'lon' => -15.61611,
+    'img' => 'Delfine Palmitos Park 2010.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Bob Collowan',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Felix König',
+    'licenca' => 'CC BY 3.0',
   ),
   543 => 
   array (
-    'nome' => 'Bastilha',
-    'pais' => 'França',
-    'lat' => 48.85333,
-    'lon' => 2.36917,
-    'img' => 'Bastille Exterior 1790 or 1791.jpg',
+    'nome' => 'Siam Park',
+    'pais' => 'Espanha',
+    'lat' => 28.07176,
+    'lon' => -16.72657,
+    'img' => 'Siamparkentrada1.JPG',
     'nivel' => 'ponto',
-    'autor' => 'AnonymousUnknown author',
+    'autor' => 'Mataparda',
     'licenca' => 'Public domain',
   ),
   544 => 
   array (
-    'nome' => 'Castelo de Windsor',
-    'pais' => 'Reino Unido',
-    'lat' => 51.48389,
-    'lon' => -0.60444,
-    'img' => 'Windsor Castle at Sunset - Nov 2006.jpg',
+    'nome' => 'Marineland',
+    'pais' => 'França',
+    'lat' => 43.615,
+    'lon' => 7.125,
+    'img' => 'Marineland Antibes 04.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Diliff',
-    'licenca' => 'CC BY 2.5',
+    'autor' => 'Arnaud 25 &amp; Jean Loup P',
+    'licenca' => 'Public domain',
   ),
   545 => 
   array (
-    'nome' => 'Castelo de Praga',
-    'pais' => 'Chéquia',
-    'lat' => 50.09,
-    'lon' => 14.4,
-    'img' => 'Castillo de Praga, Praga, República Checa, 2022-07-02, DD 209.jpg',
+    'nome' => 'PortAventura Caribe Aquatic Park',
+    'pais' => 'Espanha',
+    'lat' => 41.088,
+    'lon' => 1.1536,
+    'img' => 'Entrada Caribe Aquatic Park.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Diego Delso',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Wikisid',
+    'licenca' => 'CC BY 3.0',
   ),
   546 => 
   array (
-    'nome' => 'Castelo de Malbork',
-    'pais' => 'Polónia',
-    'lat' => 54.03972,
-    'lon' => 19.02778,
-    'img' => 'Panorama of Malbork Castle, part 4.jpg',
+    'nome' => 'Océade',
+    'pais' => 'Bélgica',
+    'lat' => 50.89444,
+    'lon' => 4.33694,
+    'img' => 'Océade (A008).JPG',
     'nivel' => 'ponto',
-    'autor' => 'DerHexer; derivate work: Carschten',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Jérémy-Günther-Heinz Jähnick',
+    'licenca' => 'GFDL 1.2',
   ),
   547 => 
   array (
-    'nome' => 'Castelo de Wartburg',
-    'pais' => 'Alemanha',
-    'lat' => 50.96611,
-    'lon' => 10.30639,
-    'img' => 'Thuringia Eisenach asv2020-07 img23 Wartburg Castle.jpg',
+    'nome' => 'Aqualibi',
+    'pais' => 'Bélgica',
+    'lat' => 50.69861,
+    'lon' => 4.59056,
+    'img' => 'Aqualibi (02).JPG',
     'nivel' => 'ponto',
-    'autor' => 'A.Savin',
-    'licenca' => 'FAL',
+    'autor' => 'Jérémy-Günther-Heinz Jähnick',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   548 => 
   array (
-    'nome' => 'Castelo de Edimburgo',
-    'pais' => 'Reino Unido',
-    'lat' => 55.9487,
-    'lon' => -3.20073,
-    'img' => 'Edinburgh Castle from the Grassmarket.jpg',
+    'nome' => 'Boudewijn Seapark',
+    'pais' => 'Bélgica',
+    'lat' => 51.18333,
+    'lon' => 3.21222,
+    'img' => 'Entrance Boudewjinpark.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Stephencdickson',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Immanuel Giel',
+    'licenca' => 'Public domain',
   ),
   549 => 
   array (
-    'nome' => 'Palácio Imperial de Hofburg,',
-    'pais' => 'Áustria',
-    'lat' => 48.20639,
-    'lon' => 16.36528,
-    'img' => 'Wien - Neue Hofburg.JPG',
+    'nome' => 'Legoland Malaysia',
+    'pais' => 'Malásia',
+    'lat' => 1.425,
+    'lon' => 103.62722,
+    'img' => 'Entrance Legoland Malaysia.jpg',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
-    'licenca' => 'CC BY-SA 3.0 at',
+    'autor' => 'milst1',
+    'licenca' => 'CC BY-SA 2.0',
   ),
   550 => 
   array (
-    'nome' => 'Castelo de Kronborg',
-    'pais' => 'Dinamarca',
-    'lat' => 56.03861,
-    'lon' => 12.62194,
-    'img' => 'KronborgCastle HCS.jpg',
+    'nome' => 'Les Antilles de Jonzac',
+    'pais' => 'França',
+    'lat' => 45.4389,
+    'lon' => -0.42639,
+    'img' => 'Jonzac1.1.JPG',
     'nivel' => 'ponto',
-    'autor' => 'H.C. Steensen',
+    'autor' => 'rosier',
     'licenca' => 'CC BY-SA 3.0',
   ),
   551 => 
   array (
-    'nome' => 'Castelo de Bran',
-    'pais' => 'Roménia',
-    'lat' => 45.515,
-    'lon' => 25.3671,
-    'img' => 'Bran Castle TB1.jpg',
+    'nome' => 'Oasiria',
+    'pais' => 'Marrocos',
+    'lat' => 31.58093,
+    'lon' => -8.01518,
+    'img' => 'Oasiriapiscine.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Todor Bozhinov',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Miko8786',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   552 => 
   array (
-    'nome' => 'Takht-e Sulaiman',
-    'pais' => 'Irão',
-    'lat' => 36.60472,
-    'lon' => 47.23417,
-    'img' => 'Takhte Soleyman (5).jpg',
+    'nome' => 'Zoomarine',
+    'pais' => 'Itália',
+    'lat' => 41.63361,
+    'lon' => 12.45667,
+    'img' => 'Zoomarine - panoramio (2).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Elaheabed',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'francverde',
+    'licenca' => 'CC BY 3.0',
   ),
   553 => 
   array (
-    'nome' => 'Castelo de Karlstein',
-    'pais' => 'Chéquia',
-    'lat' => 49.93955,
-    'lon' => 14.18793,
-    'img' => 'Burg Karlstein - Karlštejn - panoramio.jpg',
+    'nome' => 'Caribe Bay',
+    'pais' => 'Itália',
+    'lat' => 45.49406,
+    'lon' => 12.6011,
+    'img' => 'Lido de Jesolo, Aqualandia, panorama - panoramio.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Jürgen Regel, Marian…',
+    'autor' => 'Konrad Wąsik',
     'licenca' => 'CC BY 3.0',
   ),
   554 => 
   array (
-    'nome' => 'Castelo de Alamut',
-    'pais' => 'Irão',
-    'lat' => 36.44472,
-    'lon' => 50.58611,
-    'img' => '2008iran. Iran, Alamut Castle (2573255326).jpg',
+    'nome' => 'Dolphinarium in Donetsk',
+    'pais' => 'Ucrânia',
+    'lat' => 47.99261,
+    'lon' => 37.78805,
+    'img' => 'Парк Щербакова 026.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Ninara from Helsinki, Finland',
-    'licenca' => 'CC BY 2.0',
+    'autor' => 'Andrey Butko',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   555 => 
   array (
-    'nome' => 'Complexo do Castelo de Mir',
-    'pais' => 'Bielorrússia',
-    'lat' => 53.45127,
-    'lon' => 26.47289,
-    'img' => 'Mir Castle 2018.jpg',
+    'nome' => 'Dolphinarium in Odesa',
+    'pais' => 'Ucrânia',
+    'lat' => 46.47706,
+    'lon' => 30.76535,
+    'img' => 'Langeron Beach, Odessa, Odessa Oblast, Ukraine - panoramio (5).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Sergey Sebelev',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Дмитрий Ванькевич',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   556 => 
   array (
-    'nome' => 'Kernavė',
-    'pais' => 'Lituânia',
-    'lat' => 54.88333,
-    'lon' => 24.85,
-    'img' => 'Kernavė - Hill forts 01.jpg',
+    'nome' => 'Kharkiv Dolphinarium',
+    'pais' => 'Ucrânia',
+    'lat' => 50.0007,
+    'lon' => 36.2281,
+    'img' => 'Харьковский Дельфинарий.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Lestat (Jan Mehlich)',
+    'autor' => 'Борис Мавлютов',
     'licenca' => 'CC BY-SA 3.0',
   ),
   557 => 
   array (
-    'nome' => 'Castelo de Bratislava',
-    'pais' => 'Eslováquia',
-    'lat' => 48.14222,
-    'lon' => 17.1,
-    'img' => 'Bratislava - Burg (a).JPG',
+    'nome' => 'Kara-Dag dolphinarium',
+    'pais' => 'Ucrânia',
+    'lat' => 44.91194,
+    'lon' => 35.20167,
+    'img' => 'Karadagsk biost Nov delphinar show.JPG',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Анна Астахова',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   558 => 
   array (
-    'nome' => 'Castelo de Buda',
-    'pais' => 'Hungria',
-    'lat' => 47.49611,
-    'lon' => 19.03972,
-    'img' => '20190502 Zamek w Budapeszcie 0647 1862 DxO.jpg',
+    'nome' => 'Dolphinarium in Koktebel',
+    'pais' => 'Ucrânia',
+    'lat' => 44.965,
+    'lon' => 35.25944,
+    'img' => '2015. Коктебель 015.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Jakub Hałun',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Andrey Butko',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   559 => 
   array (
-    'nome' => 'Complexo Arquitectónico, Residencial e Cultural da Família Radziwill em Nesvizh',
-    'pais' => 'Bielorrússia',
-    'lat' => 53.22288,
-    'lon' => 26.69174,
-    'img' => 'Замак-палац у Нясьвіжы знутры.jpg',
+    'nome' => 'Théâtre de Poséidon',
+    'pais' => 'França',
+    'lat' => 49.13308,
+    'lon' => 2.57055,
+    'img' => 'Spectacle de Dauphin au Théâtre de Poséidon.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Dmitry Gerasimov',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'C\'estassez',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   560 => 
   array (
-    'nome' => 'Durham Castle',
-    'pais' => 'Reino Unido',
-    'lat' => 54.7749,
-    'lon' => -1.57558,
-    'img' => 'Durham Castle, April 2017 (14) (33459522640).jpg',
+    'nome' => 'Festa Dolphinarium',
+    'pais' => 'Bulgária',
+    'lat' => 43.21139,
+    'lon' => 27.93944,
+    'img' => 'Dolphin show Varna 2.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Carla Brain',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'INSAR',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   561 => 
   array (
-    'nome' => 'Fortaleza de Saladino',
-    'pais' => 'Síria',
-    'lat' => 35.59583,
-    'lon' => 36.05722,
-    'img' => 'Saone.jpg',
+    'nome' => 'Dolphinarium in Klaipėda',
+    'pais' => 'Lituânia',
+    'lat' => 55.71806,
+    'lon' => 21.10083,
+    'img' => 'Lietuvos juru muziejus.JPG',
     'nivel' => 'ponto',
-    'autor' => 'No machine-readable author provided. Disdero assumed (based on copyright claims).',
-    'licenca' => 'CC BY 2.5',
+    'autor' => 'Original uploader was Algirdas at lt.wikipedia',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   562 => 
   array (
-    'nome' => 'Castello Sforzesco',
-    'pais' => 'Itália',
-    'lat' => 45.47101,
-    'lon' => 9.17969,
-    'img' => '20110725 Castello Sforzesco Milan 5557.jpg',
+    'nome' => 'Batumi Dolphinarium',
+    'pais' => 'Geórgia',
+    'lat' => 41.64769,
+    'lon' => 41.62318,
+    'img' => 'Show in Batumi dolphinarium.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Jakub Hałun',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Андрей Романенко',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   563 => 
   array (
-    'nome' => 'Fortaleza de Khotyn',
-    'pais' => 'Ucrânia',
-    'lat' => 48.52194,
-    'lon' => 26.49833,
-    'img' => '73-250-0001 Khotyn Fortress RB 18.jpg',
+    'nome' => 'Kish Dolphinarium',
+    'pais' => 'Irão',
+    'lat' => 26.50528,
+    'lon' => 54.03889,
+    'img' => 'کیش-دلفیناریوم.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Rbrechko',
+    'autor' => 'خسرو حیرت نگاری',
     'licenca' => 'CC BY-SA 4.0',
   ),
   564 => 
   array (
-    'nome' => 'Castelo Real de Varsóvia',
-    'pais' => 'Polónia',
-    'lat' => 52.24778,
-    'lon' => 21.01417,
-    'img' => 'Warszawa-Zamek Królewski.jpg',
+    'nome' => 'Aquarama Barcelona',
+    'pais' => 'Espanha',
+    'lat' => 41.38512,
+    'lon' => 2.18906,
+    'img' => 'Aquarama del Zoo de Barcelona (vista general parcial).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Marcin Białek',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Víctor Gordillo Galea',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   565 => 
   array (
-    'nome' => 'Castelo de Stirling',
-    'pais' => 'Reino Unido',
-    'lat' => 56.12389,
-    'lon' => -3.94778,
-    'img' => 'Stirlingcastle.jpg',
+    'nome' => 'Milad Tower Dolphinarium',
+    'pais' => 'Irão',
+    'lat' => 35.74389,
+    'lon' => 51.37139,
+    'img' => 'Dolphin-20190421110702 IMG 8814.jpg',
     'nivel' => 'ponto',
-    'autor' => 'autor não informado',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Nasser-sadeghi',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   566 => 
   array (
-    'nome' => 'Castelo de Toompea',
-    'pais' => 'Estónia',
-    'lat' => 59.43556,
-    'lon' => 24.73722,
-    'img' => 'Toompea linnus.jpg',
+    'nome' => 'Formula Rossa',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 24.48412,
+    'lon' => 54.6093,
+    'img' => 'Formula Rossa coaster.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Ivar Leidus',
-    'licenca' => 'CC BY-SA 3.0 ee',
+    'autor' => 'Jazon88',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   567 => 
   array (
-    'nome' => 'Castelo de Riga',
-    'pais' => 'Letónia',
-    'lat' => 56.95095,
-    'lon' => 24.10064,
-    'img' => 'Riga Pils Latvia (cropped).jpg',
+    'nome' => 'Dream Catcher',
+    'pais' => 'Bélgica',
+    'lat' => 51.2011,
+    'lon' => 4.91218,
+    'img' => 'Dream catcher.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Jorge Franganillo',
-    'licenca' => 'CC BY 2.0',
+    'autor' => 'Freddo',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   568 => 
   array (
-    'nome' => 'Castelo de Vincennes',
-    'pais' => 'França',
-    'lat' => 48.84278,
-    'lon' => 2.43583,
-    'img' => 'Château de Vincennes Paris FRA 002.jpg',
+    'nome' => 'Loup Garou',
+    'pais' => 'Bélgica',
+    'lat' => 50.70066,
+    'lon' => 4.59033,
+    'img' => 'LoupGarou.jpg',
     'nivel' => 'ponto',
-    'autor' => 'ignis',
+    'autor' => 'Stefan Scheer',
     'licenca' => 'CC BY-SA 3.0',
   ),
   569 => 
   array (
-    'nome' => 'Castelo de Hermann',
-    'pais' => 'Estónia',
-    'lat' => 59.37583,
-    'lon' => 28.20139,
-    'img' => 'Narva asv2022-04 img09 Castle.jpg',
+    'nome' => 'Big Dipper',
+    'pais' => 'Reino Unido',
+    'lat' => 53.78917,
+    'lon' => -3.05694,
+    'img' => 'BigDipperHillsBPB.jpg',
     'nivel' => 'ponto',
-    'autor' => 'A.Savin',
-    'licenca' => 'FAL',
+    'autor' => 'Norms360',
+    'licenca' => 'Public domain',
   ),
   570 => 
   array (
-    'nome' => 'Fortaleza de Hohensalzburg',
-    'pais' => 'Áustria',
-    'lat' => 47.795,
-    'lon' => 13.0473,
-    'img' => 'Salzburg - Festung Hohensalzburg.JPG',
+    'nome' => 'iSpeed',
+    'pais' => 'Itália',
+    'lat' => 44.33667,
+    'lon' => 12.26167,
+    'img' => 'ISpeed02.JPG',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Freddo',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   571 => 
   array (
-    'nome' => 'Castelo de Vaduz',
-    'pais' => 'Liechtenstein',
-    'lat' => 47.13944,
-    'lon' => 9.52444,
-    'img' => 'Liechtenstein asv2022-10 img22 Vaduz Schloss.jpg',
+    'nome' => 'Galactica',
+    'pais' => 'Reino Unido',
+    'lat' => 52.9859,
+    'lon' => -1.882,
+    'img' => 'Air (Alton Towers) 01.jpg',
     'nivel' => 'ponto',
-    'autor' => 'A.Savin',
-    'licenca' => 'FAL',
+    'autor' => 'Andyfishburne',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   572 => 
   array (
-    'nome' => 'Castelo de Conwy',
-    'pais' => 'Reino Unido',
-    'lat' => 53.28015,
-    'lon' => -3.82563,
-    'img' => 'Conwy-Castle-0006.jpg',
+    'nome' => 'Space Mountain',
+    'pais' => 'França',
+    'lat' => 48.87408,
+    'lon' => 2.77927,
+    'img' => 'Ingresso Hyperspace Mountain.jpeg',
     'nivel' => 'ponto',
-    'autor' => 'Source: Llywelyn2000Derivative: User:MathKnight',
+    'autor' => 'SixthGrave',
     'licenca' => 'CC BY-SA 4.0',
   ),
   573 => 
   array (
-    'nome' => 'Castelo de Caernarfon',
-    'pais' => 'Reino Unido',
-    'lat' => 53.13931,
-    'lon' => -4.27689,
-    'img' => 'Castell Caernarfon yn y cyfnos yn 2023 - Castell Caernarfon, Gwynedd, Wales at Dusk - 2023 10.png',
+    'nome' => 'Anubis: The Ride',
+    'pais' => 'Bélgica',
+    'lat' => 51.08218,
+    'lon' => 2.59853,
+    'img' => 'AnubisTheRide1.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Llywelyn2000',
+    'autor' => 'Druyts.t',
     'licenca' => 'CC BY-SA 4.0',
   ),
   574 => 
   array (
-    'nome' => 'Castelo de Dublin',
-    'pais' => 'Irlanda',
-    'lat' => 53.34311,
-    'lon' => -6.26739,
-    'img' => 'Dublin castle.JPG',
+    'nome' => 'Rita',
+    'pais' => 'Reino Unido',
+    'lat' => 52.985,
+    'lon' => -1.89051,
+    'img' => 'Rita - Queen of Speed (Alton Towers) 03.jpg',
     'nivel' => 'ponto',
-    'autor' => 'autor não informado',
-    'licenca' => 'Public domain',
+    'autor' => 'rogerbarker2 https://www.flickr.com/photos/rogerbarker/',
+    'licenca' => 'CC BY 2.0',
   ),
   575 => 
   array (
-    'nome' => 'Kuressaare Castle',
-    'pais' => 'Estónia',
-    'lat' => 58.24689,
-    'lon' => 22.47929,
-    'img' => 'Kuressaare linnus õhust.jpg',
+    'nome' => 'Revolution',
+    'pais' => 'Reino Unido',
+    'lat' => 53.7899,
+    'lon' => -3.05514,
+    'img' => 'Bppb irn bru revolution.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Hiiumaamudeliklubi',
-    'licenca' => 'CC BY-SA 3.0 ee',
+    'autor' => 'Stefan Scheer',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   576 => 
   array (
-    'nome' => 'Swallow\'s Nest',
-    'pais' => 'Ucrânia',
-    'lat' => 44.43057,
-    'lon' => 34.12851,
-    'img' => 'Crimea South Coast 04-14 img10 Gaspra Swallows Nest.jpg',
+    'nome' => 'Cobra',
+    'pais' => 'Suíça',
+    'lat' => 47.6145,
+    'lon' => 9.05653,
+    'img' => 'Temple of cobra.jpg',
     'nivel' => 'ponto',
-    'autor' => 'A.Savin',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Kecko auf flickr.com',
+    'licenca' => 'CC BY 2.0',
   ),
   577 => 
   array (
-    'nome' => 'Castelo de Miramare',
-    'pais' => 'Itália',
-    'lat' => 45.70245,
-    'lon' => 13.71232,
-    'img' => 'Castello di Miramare (Trieste) (7).jpg',
+    'nome' => 'Fiorano GT Challenge',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 24.48641,
+    'lon' => 54.60424,
+    'img' => 'FioranoGTStation.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Michał Bulsa',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Brantiko',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   578 => 
   array (
-    'nome' => 'Castelo Gripsholm',
-    'pais' => 'Suécia',
-    'lat' => 59.25611,
-    'lon' => 17.21917,
-    'img' => 'Gripsholms slott view2.jpg',
+    'nome' => 'Tower of Terror II',
+    'pais' => 'Austrália',
+    'lat' => -27.8641,
+    'lon' => 153.317,
+    'img' => 'Tower of Terror Dreamworld.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Xauxa Håkan Svensson',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Lakeyboy at English Wikipedia',
+    'licenca' => 'Public domain',
   ),
   579 => 
   array (
-    'nome' => 'Lubart\'s Castle',
-    'pais' => 'Ucrânia',
-    'lat' => 50.73889,
-    'lon' => 25.32333,
-    'img' => 'Вежа луцького замку.jpg',
+    'nome' => 'Helix',
+    'pais' => 'Suécia',
+    'lat' => 57.69556,
+    'lon' => 11.99,
+    'img' => 'Helix, Liseberg 2014-04-26 12.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Roman Bekas',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Albin Olsson',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   580 => 
   array (
-    'nome' => 'Kamianets-Podilskyi Castle',
-    'pais' => 'Ucrânia',
-    'lat' => 48.67333,
-    'lon' => 26.5625,
-    'img' => 'Zamek w Kamieńcu Podolskim 2019.jpg',
+    'nome' => 'Shock',
+    'pais' => 'Itália',
+    'lat' => 41.76474,
+    'lon' => 12.9587,
+    'img' => '2011Shock (Rainbow MagicLand).JPG',
     'nivel' => 'ponto',
-    'autor' => 'Grzegorz Gołębiowski',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Xelacoaster',
+    'licenca' => 'CC0',
   ),
   581 => 
   array (
-    'nome' => 'Acrocorinto',
-    'pais' => 'Grécia',
-    'lat' => 37.89142,
-    'lon' => 22.87092,
-    'img' => 'Acrocorinto.jpg',
+    'nome' => 'Flying Fish',
+    'pais' => 'Reino Unido',
+    'lat' => 51.4052,
+    'lon' => -0.51392,
+    'img' => 'Thorpe Park flying fish 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'MM',
-    'licenca' => 'Public domain',
+    'autor' => 'Jeremy Thompson',
+    'licenca' => 'CC BY 2.0',
   ),
   582 => 
   array (
-    'nome' => 'Fortaleza de Akershus',
-    'pais' => 'Noruega',
-    'lat' => 59.90661,
-    'lon' => 10.73625,
-    'img' => 'OSLO-NO-02 05 ubt.jpeg',
+    'nome' => 'SuperSplash',
+    'pais' => 'Bélgica',
+    'lat' => 51.08111,
+    'lon' => 2.59806,
+    'img' => 'SuperSplash-Plopsa-DePanne.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Photo © 2005 by Tomasz Sienicki [user: tsca, mail: tomasz.sienicki at gmail.com]',
-    'licenca' => 'CC BY 2.5',
+    'autor' => 'Stefan Scheer',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   583 => 
   array (
-    'nome' => 'Trakai Island Castle',
-    'pais' => 'Lituânia',
-    'lat' => 54.6525,
-    'lon' => 24.93306,
-    'img' => 'Trakai Island Castle, 2007.jpg',
+    'nome' => 'Divertical',
+    'pais' => 'Itália',
+    'lat' => 44.33506,
+    'lon' => 12.26169,
+    'img' => 'Divertical01.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Ana',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Freddo',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   584 => 
   array (
-    'nome' => 'Castelo de Beaumaris',
-    'pais' => 'Reino Unido',
-    'lat' => 53.26491,
-    'lon' => -4.08957,
-    'img' => 'Castell Beaumaris Castle, Ynys Mon (Anglesey), Wales 44.png',
+    'nome' => 'Pulsar',
+    'pais' => 'Bélgica',
+    'lat' => 50.6988,
+    'lon' => 4.5903,
+    'img' => 'Pulsar Walibi Belgium.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Llywelyn2000',
+    'autor' => 'Nielsdpo',
     'licenca' => 'CC BY-SA 4.0',
   ),
   585 => 
   array (
-    'nome' => 'Castelo de Dover',
-    'pais' => 'Reino Unido',
-    'lat' => 51.12827,
-    'lon' => 1.3235,
-    'img' => '1 dover castle aerial panorama 2017.jpg',
+    'nome' => 'Pégase Express',
+    'pais' => 'França',
+    'lat' => 49.13333,
+    'lon' => 2.57389,
+    'img' => 'Pégase Express.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Chensiyuan',
+    'autor' => 'Trifonneke',
     'licenca' => 'CC BY-SA 4.0',
   ),
   586 => 
   array (
-    'nome' => 'Castelo de Corvin',
-    'pais' => 'Roménia',
-    'lat' => 45.7491,
-    'lon' => 22.8883,
-    'img' => 'Castelul Corvinilor HD.jpg',
+    'nome' => 'Speed',
+    'pais' => 'Polónia',
+    'lat' => 49.99897,
+    'lon' => 19.40844,
+    'img' => 'Speed Water Coaster, Energylandia - 2018 Aug 06.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Carcea Daniel',
-    'licenca' => 'CC BY-SA 3.0 ro',
+    'autor' => 'Tom a',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   587 => 
   array (
-    'nome' => 'Castelo de Kroměříž',
-    'pais' => 'Chéquia',
-    'lat' => 49.30028,
-    'lon' => 17.39306,
-    'img' => 'Kroměříž zámek 1.jpg',
+    'nome' => 'Fury',
+    'pais' => 'Bélgica',
+    'lat' => 51.19972,
+    'lon' => 4.9075,
+    'img' => 'Bobbejaanland Fury 02.jpg',
     'nivel' => 'ponto',
-    'autor' => 'VitVit',
+    'autor' => 'Rémih',
     'licenca' => 'CC BY-SA 4.0',
   ),
   588 => 
   array (
-    'nome' => 'Castel Nuovo',
-    'pais' => 'Itália',
-    'lat' => 40.83838,
-    'lon' => 14.25381,
-    'img' => 'Naples-Castel Nuovo.jpg',
+    'nome' => 'Abyssus',
+    'pais' => 'Polónia',
+    'lat' => 50.00011,
+    'lon' => 19.40083,
+    'img' => 'Energylandia - Abyssus - 26-06-2021.jpg',
     'nivel' => 'ponto',
-    'autor' => 'autor não informado',
-    'licenca' => 'CC BY-SA 2.5',
+    'autor' => 'Tom a',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   589 => 
   array (
-    'nome' => 'Konopiště Castle',
-    'pais' => 'Chéquia',
-    'lat' => 49.77944,
-    'lon' => 14.65667,
-    'img' => 'Konopiste CZ 02.jpg',
+    'nome' => 'Mystic',
+    'pais' => 'França',
+    'lat' => 45.62,
+    'lon' => 5.57167,
+    'img' => 'Mystic 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Marek Prokop from Říčany, Czech Republic',
+    'autor' => 'Martin Lewison',
     'licenca' => 'CC BY 2.0',
   ),
   590 => 
   array (
-    'nome' => 'Castelo de Warwick',
-    'pais' => 'Reino Unido',
-    'lat' => 52.2796,
-    'lon' => -1.58561,
-    'img' => 'Warwick Castle May 2016.jpg',
+    'nome' => 'The Ride to Happiness',
+    'pais' => 'Bélgica',
+    'lat' => 51.08091,
+    'lon' => 2.59887,
+    'img' => 'The-Ride-To-Happiness-Plopsa-Belgium.jpg',
     'nivel' => 'ponto',
-    'autor' => 'DeFacto',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'WouterTermaat',
+    'licenca' => 'CC0',
   ),
   591 => 
   array (
-    'nome' => 'Fort São Jorge da Mina',
-    'pais' => 'Gana',
-    'lat' => 5.08274,
-    'lon' => -1.34821,
-    'img' => 'Elmina Castle - Ghana.jpg',
+    'nome' => 'Yukon Quad',
+    'pais' => 'França',
+    'lat' => 46.50563,
+    'lon' => 3.62954,
+    'img' => 'Photo du Yukon Quad nouveauté 2018 du Pal.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Damien Halleux Radermecker',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Vivi1611',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   592 => 
   array (
-    'nome' => 'Książ',
-    'pais' => 'Polónia',
-    'lat' => 50.84222,
-    'lon' => 16.29167,
-    'img' => 'Ksiaz - zamek 01.jpg',
+    'nome' => 'Toutatis',
+    'pais' => 'França',
+    'lat' => 49.135,
+    'lon' => 2.57139,
+    'img' => 'Toutatis 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Jar.ciurus',
-    'licenca' => 'CC BY-SA 3.0 pl',
+    'autor' => 'DerIch27',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   593 => 
   array (
-    'nome' => 'Devín Castle',
-    'pais' => 'Eslováquia',
-    'lat' => 48.17389,
-    'lon' => 16.97806,
-    'img' => 'Devin02.jpg',
+    'nome' => 'Krampus Expedition',
+    'pais' => 'França',
+    'lat' => 48.26158,
+    'lon' => 4.61417,
+    'img' => 'Krampus Expédition et Alpina Blitz à Nigloland.jpg',
     'nivel' => 'ponto',
-    'autor' => 'autor não informado',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Freddo',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   594 => 
   array (
-    'nome' => 'Castelo Real de Wawel',
-    'pais' => 'Polónia',
-    'lat' => 50.0544,
-    'lon' => 19.9366,
-    'img' => 'Wawel on Wisla.JPG',
+    'nome' => 'Pikajuna',
+    'pais' => 'Finlândia',
+    'lat' => 60.1875,
+    'lon' => 24.93806,
+    'img' => 'Pikajuna.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Stanislau 93',
-    'licenca' => 'CC BY-SA 3.0 pl',
+    'autor' => 'Linnanmäki',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   595 => 
   array (
-    'nome' => 'Castelo de Kalmar',
-    'pais' => 'Suécia',
-    'lat' => 56.65806,
-    'lon' => 16.35528,
-    'img' => '00 1133 Kalmar (Schweden) - Schloss --- Kalmar (Sweden) - Castle.jpg',
+    'nome' => 'Falcons Flight',
+    'pais' => 'Arábia Saudita',
+    'lat' => 24.5875,
+    'lon' => 46.33333,
+    'img' => 'Falcon\'s Flight (Six Flags Qiddiya City) 2 (cropped).jpg',
     'nivel' => 'ponto',
-    'autor' => 'W. Bulach',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Martin Lewison',
+    'licenca' => 'CC BY 4.0',
   ),
   596 => 
   array (
-    'nome' => 'Castelo de Egeskov',
-    'pais' => 'Dinamarca',
-    'lat' => 55.17639,
-    'lon' => 10.48944,
-    'img' => 'Egeskov Slot spejling Edit 2.jpg',
+    'nome' => 'Balder',
+    'pais' => 'Suécia',
+    'lat' => 57.69333,
+    'lon' => 11.99611,
+    'img' => 'Balder rollercoaster.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Malene Thyssen',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Lennart Guldbrandsson',
+    'licenca' => 'Public domain',
   ),
   597 => 
   array (
-    'nome' => 'Palacio de la Aljafería',
-    'pais' => 'Espanha',
-    'lat' => 41.65649,
-    'lon' => -0.89708,
-    'img' => 'Aljafería Palace.jpg',
+    'nome' => 'Anaconda',
+    'pais' => 'França',
+    'lat' => 49.22802,
+    'lon' => 6.15945,
+    'img' => 'Anaconda-2.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Fernando',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Jony54',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   598 => 
   array (
-    'nome' => 'Castelo de Hochosterwitz',
-    'pais' => 'Áustria',
-    'lat' => 46.75593,
-    'lon' => 14.45241,
-    'img' => 'St. Georgen am Längsee - Burg Hochosterwitz (a).JPG',
+    'nome' => 'Tonnerre 2 Zeus',
+    'pais' => 'França',
+    'lat' => 49.13133,
+    'lon' => 2.57389,
+    'img' => 'Tonnerre de Zeus.jpg',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
+    'autor' => 'Trifonneke',
     'licenca' => 'CC BY-SA 4.0',
   ),
   599 => 
   array (
-    'nome' => 'Castelo de Liechtenstein',
-    'pais' => 'Áustria',
-    'lat' => 48.0927,
-    'lon' => 16.27036,
-    'img' => 'Maria Enzersdorf - Burg Liechtenstein (1).JPG',
+    'nome' => 'Scenic Railway Roller Coaster',
+    'pais' => 'Reino Unido',
+    'lat' => 52.5928,
+    'lon' => 1.7361,
+    'img' => 'Mountains & Arches.jpg',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Richard Mills',
+    'licenca' => 'CC BY 3.0',
   ),
   600 => 
   array (
-    'nome' => 'Castelo de Turku',
+    'nome' => 'Thunderbird',
     'pais' => 'Finlândia',
-    'lat' => 60.43528,
-    'lon' => 22.22764,
-    'img' => 'Turku Castle, Turku, Finland.jpg',
+    'lat' => 63.2305,
+    'lon' => 22.85826,
+    'img' => 'Thunderbird.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Christian David',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Mazku at Finnish Wikipedia',
+    'licenca' => 'Public domain',
   ),
   601 => 
   array (
-    'nome' => 'Castelo de São Jorge',
-    'pais' => 'Portugal',
-    'lat' => 38.71389,
-    'lon' => -9.13333,
-    'img' => 'Castelo Sao Jorge Lisboa 1.JPG',
+    'nome' => 'Hullámvasút',
+    'pais' => 'Hungria',
+    'lat' => 47.52033,
+    'lon' => 19.08546,
+    'img' => 'Hullámvasút 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'autor não informado',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Avayak',
+    'licenca' => 'Public domain',
   ),
   602 => 
   array (
-    'nome' => 'Gediminas\' Tower',
-    'pais' => 'Lituânia',
-    'lat' => 54.68676,
-    'lon' => 25.29069,
-    'img' => 'Gedimino pilis by Augustas Didzgalvis.jpg',
+    'nome' => 'Vuoristorata',
+    'pais' => 'Finlândia',
+    'lat' => 60.18881,
+    'lon' => 24.94144,
+    'img' => 'Linnanmäki roller coaster.jpg',
     'nivel' => 'ponto',
-    'autor' => 'BigHead',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'J-P Kärnä',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   603 => 
   array (
-    'nome' => 'Castelo de Haapsalu',
-    'pais' => 'Estónia',
-    'lat' => 58.94722,
-    'lon' => 23.53861,
-    'img' => 'Haapsalu Castle.jpg',
+    'nome' => 'Wiener Riesenrad',
+    'pais' => 'Áustria',
+    'lat' => 48.21683,
+    'lon' => 16.39592,
+    'img' => 'Giant Ferris Wheel Vienna from W on 2010-09-20.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Sander Säde at English Wikipedia',
-    'licenca' => 'CC BY 3.0',
+    'autor' => 'Robert F. Tobler',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   604 => 
   array (
-    'nome' => 'Margat',
-    'pais' => 'Síria',
-    'lat' => 35.15111,
-    'lon' => 35.94917,
-    'img' => 'Marqab-crusader-castle-donjon.jpg',
+    'nome' => 'Singapore Flyer',
+    'pais' => 'Singapura',
+    'lat' => 1.28939,
+    'lon' => 103.86322,
+    'img' => 'Dikaiosp 210819 6963.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Shayno',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Dikaiosp',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   605 => 
   array (
-    'nome' => 'Ljubljana Castle',
-    'pais' => 'Eslovénia',
-    'lat' => 46.04871,
-    'lon' => 14.50863,
-    'img' => 'Ljubljanski grad in Grajski grič.jpg',
+    'nome' => 'The Southern Star',
+    'pais' => 'Austrália',
+    'lat' => -37.81186,
+    'lon' => 144.9376,
+    'img' => 'Melbourne Star Observation Wheel.jpg',
     'nivel' => 'ponto',
-    'autor' => 'LjGrad',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Nichollas Harrison',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   606 => 
   array (
-    'nome' => 'Cidadela de Alepo',
-    'pais' => 'Síria',
-    'lat' => 36.19917,
-    'lon' => 37.1625,
-    'img' => 'Citadel of Aleppo.jpg',
+    'nome' => 'Wheel of Brisbane',
+    'pais' => 'Austrália',
+    'lat' => -27.4753,
+    'lon' => 153.021,
+    'img' => 'WheelofBrisbane9.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Memorino',
+    'autor' => 'Juicedpixels',
     'licenca' => 'CC BY-SA 3.0',
   ),
   607 => 
   array (
-    'nome' => 'Castelo de Savonlinna',
-    'pais' => 'Finlândia',
-    'lat' => 61.86371,
-    'lon' => 28.90124,
-    'img' => 'Savonlinna heinäkuu 2002 IMG 1635.JPG',
+    'nome' => 'Praterturm',
+    'pais' => 'Áustria',
+    'lat' => 48.2145,
+    'lon' => 16.4013,
+    'img' => 'Prater Turm 01.jpg',
     'nivel' => 'ponto',
-    'autor' => 'User:Mikko Paananen',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Peter Gugerell',
+    'licenca' => 'Public domain',
   ),
   608 => 
   array (
-    'nome' => 'Castelo de Chinon',
-    'pais' => 'França',
-    'lat' => 47.16806,
-    'lon' => 0.23611,
-    'img' => 'Château de Chinon vu de la Vienne.jpg',
+    'nome' => 'Rueda Eiffel',
+    'pais' => 'Argentina',
+    'lat' => -31.42556,
+    'lon' => -64.17694,
+    'img' => 'Rueda Eiffel.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Franck Badaire',
+    'autor' => 'Vanesa camaño',
     'licenca' => 'CC BY-SA 3.0',
   ),
   609 => 
   array (
-    'nome' => 'Castelo de Cashel',
+    'nome' => 'Wheel of Dublin',
     'pais' => 'Irlanda',
-    'lat' => 52.52,
-    'lon' => -7.89,
-    'img' => '"Ein bedeutendes Wahrzeichen der irischen Geschichte". 02.jpg',
+    'lat' => 53.3472,
+    'lon' => -6.2276,
+    'img' => 'A Visit to Dublin Docklands - The O2.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Holger Uwe Schmitt',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'William Murphy from Dublin, Ireland',
+    'licenca' => 'CC BY-SA 2.0',
   ),
   610 => 
   array (
-    'nome' => 'Castelo de Český Krumlov',
-    'pais' => 'Chéquia',
-    'lat' => 48.8125,
-    'lon' => 14.31528,
-    'img' => 'Castello (9572386406).jpg',
+    'nome' => 'Slänggungan',
+    'pais' => 'Suécia',
+    'lat' => 57.69347,
+    'lon' => 11.99398,
+    'img' => 'Slänggungan 2012-06-15.JPG',
     'nivel' => 'ponto',
-    'autor' => 'szerenka',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Albin Olsson',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   611 => 
   array (
-    'nome' => 'Pidhirtsi Castle',
-    'pais' => 'Ucrânia',
-    'lat' => 49.9431,
-    'lon' => 24.9835,
-    'img' => 'Podhorce - Zamek 01A.jpg',
+    'nome' => 'Baku Ferris Wheel',
+    'pais' => 'Azerbaijão',
+    'lat' => 40.35472,
+    'lon' => 49.83758,
+    'img' => 'Şeytan Çarxı.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Lestat (Jan Mehlich)',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Tofiq005(Tofiq Vəliyev)',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   612 => 
   array (
-    'nome' => 'Castelo de Loarre',
-    'pais' => 'Espanha',
-    'lat' => 42.32556,
-    'lon' => -0.61194,
-    'img' => 'Castillo de Loarre 2.jpg',
+    'nome' => 'Budapest Eye',
+    'pais' => 'Hungria',
+    'lat' => 47.49813,
+    'lon' => 19.05201,
+    'img' => 'Budapest, Fischer üzlet- és bérház, kilátás, 2.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Josue Mendivil',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Random photos 1989',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   613 => 
   array (
-    'nome' => 'Castelo do Ovo',
-    'pais' => 'Itália',
-    'lat' => 40.82832,
-    'lon' => 14.24766,
-    'img' => 'Castel dell\' Ovo.jpg',
+    'nome' => 'Rinkeli',
+    'pais' => 'Finlândia',
+    'lat' => 60.18791,
+    'lon' => 24.93923,
+    'img' => 'Rinkeli - Linnanmäki amusement park Helsinki Finland.jpg',
     'nivel' => 'ponto',
-    'autor' => 'PaestumPaestum',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'No machine-readable author provided. Ppntori assumed (based on copyright claims).',
+    'licenca' => 'Public domain',
   ),
   614 => 
   array (
-    'nome' => 'Smederevo Fortress',
-    'pais' => 'Sérvia',
-    'lat' => 44.66861,
-    'lon' => 20.92917,
-    'img' => 'Smederevo small town panorama 1.jpg',
+    'nome' => 'SkyWheel Helsinki',
+    'pais' => 'Finlândia',
+    'lat' => 60.16717,
+    'lon' => 24.95978,
+    'img' => 'Helsinki sky wheel.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Duja',
+    'autor' => 'Harri Ahola',
     'licenca' => 'CC BY-SA 3.0',
   ),
   615 => 
   array (
-    'nome' => 'Castelo de Pierrefonds',
-    'pais' => 'França',
-    'lat' => 49.34694,
-    'lon' => 2.98028,
-    'img' => 'Le Château de Pierrefonds.jpg',
+    'nome' => 'Batumi Wheel',
+    'pais' => 'Geórgia',
+    'lat' => 41.6559,
+    'lon' => 41.641,
+    'img' => 'Batumi Miracle Park.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Crazyswan85',
+    'autor' => 'Giorgi Balakhadze',
     'licenca' => 'CC BY-SA 4.0',
   ),
   616 => 
   array (
-    'nome' => 'Špilberk Castle',
-    'pais' => 'Chéquia',
-    'lat' => 49.19444,
-    'lon' => 16.59889,
-    'img' => 'Hrad Špilberk (Brno), Brno - střed 208, Brno.JPG',
+    'nome' => 'Ain Dubai',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 25.08011,
+    'lon' => 55.12406,
+    'img' => 'Ferris Wheel Ain Dubai in Dubai 02.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Michal Kmínek',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Paasikivi',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   617 => 
   array (
-    'nome' => 'Castelo de Bellver',
-    'pais' => 'Espanha',
-    'lat' => 39.56375,
-    'lon' => 2.61934,
-    'img' => 'Castillo de Bellver.jpg',
+    'nome' => 'Sky Dream',
+    'pais' => 'Taiwan',
+    'lat' => 24.32353,
+    'lon' => 120.69661,
+    'img' => 'Sky Dream in Lihpao Land 20170423.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Poniol60',
-    'licenca' => 'Public domain',
+    'autor' => 'LIHPAO LAND',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   618 => 
   array (
-    'nome' => 'Trenčín Castle',
-    'pais' => 'Eslováquia',
-    'lat' => 48.89417,
-    'lon' => 18.04472,
-    'img' => 'Trencin Castle 030.jpg',
+    'nome' => 'Grande Roue d\'Alger',
+    'pais' => 'Argélia',
+    'lat' => 36.73333,
+    'lon' => 3.13333,
+    'img' => 'A Saturday Night.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Ingo Mehling',
+    'autor' => 'Idir Amokrane',
     'licenca' => 'CC BY-SA 4.0',
   ),
   619 => 
   array (
-    'nome' => 'Haut-Koenigsbourg',
-    'pais' => 'França',
-    'lat' => 48.24944,
-    'lon' => 7.34417,
-    'img' => 'France Haut-Koenigsbourg aerial view (cropped).jpg',
+    'nome' => 'Amber Sky',
+    'pais' => 'Polónia',
+    'lat' => 54.35277,
+    'lon' => 18.65923,
+    'img' => 'Gdańsk, koło widokowe (39881343454).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Wrtalya',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Andrew Milligan Sumo',
+    'licenca' => 'CC BY 2.0',
   ),
   620 => 
   array (
-    'nome' => 'Forte de Christiansborg',
-    'pais' => 'Gana',
-    'lat' => 5.54689,
-    'lon' => -0.18353,
-    'img' => 'Osu Castle (also known as Fort Christiansborg or Christiansborg Castle) in Accra, Ghana.jpg',
+    'nome' => 'Tourist Wheel Fremantle',
+    'pais' => 'Austrália',
+    'lat' => -32.0584,
+    'lon' => 115.74463,
+    'img' => 'Tourist Wheel, Fremantle.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Twi inaccr',
-    'licenca' => 'CC0',
+    'autor' => 'Mitch Ames',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   621 => 
   array (
-    'nome' => 'Castelo de Montréal (Jordânia)',
-    'pais' => 'Jordânia',
-    'lat' => 30.53139,
-    'lon' => 35.56083,
-    'img' => 'Jordanien Shobak.jpg',
+    'nome' => 'Vilda Musen',
+    'pais' => 'Suécia',
+    'lat' => 59.32308,
+    'lon' => 18.09546,
+    'img' => 'Vilda Musen.JPG',
     'nivel' => 'ponto',
-    'autor' => 'H.P. Frei',
-    'licenca' => 'Copyrighted free use',
+    'autor' => 'Dag Lindgren',
+    'licenca' => 'Public domain',
   ),
   622 => 
   array (
-    'nome' => 'Castelo de Orava',
-    'pais' => 'Eslováquia',
-    'lat' => 49.26167,
-    'lon' => 19.35806,
-    'img' => 'JBZamekOrawski v2.jpg',
+    'nome' => 'Donaulände Linz',
+    'pais' => 'Áustria',
+    'lat' => 48.3131,
+    'lon' => 14.2944,
+    'img' => 'Linz Donau Donaupark Eisenbahnbrücke Donaubrücke 2014 b.jpg',
     'nivel' => 'ponto',
-    'autor' => 'The original uploader was Jurbox at Polish Wikipedia.',
-    'licenca' => 'CC BY-SA 2.5',
+    'autor' => 'Manfred Werner (Tsui)',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   623 => 
   array (
-    'nome' => 'Rozafa Fortress',
-    'pais' => 'Albânia',
-    'lat' => 42.04633,
-    'lon' => 19.493,
-    'img' => 'Rozafa Castle in July 2013 (5).JPG',
+    'nome' => 'Wilkołak',
+    'pais' => 'Polónia',
+    'lat' => 52.34886,
+    'lon' => 15.08207,
+    'img' => 'Heidi The Ride Drop.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Bdx',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Eliedion',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   624 => 
   array (
-    'nome' => 'Castelo de Hohenwerfen',
-    'pais' => 'Áustria',
-    'lat' => 47.48292,
-    'lon' => 13.18851,
-    'img' => 'Werfen - Burg Hohenwerfen (1).JPG',
+    'nome' => 'Linnunrata eXtra',
+    'pais' => 'Finlândia',
+    'lat' => 60.18772,
+    'lon' => 24.94029,
+    'img' => 'Linnunrata Linnanmäki Helsinki.JPG',
     'nivel' => 'ponto',
-    'autor' => 'C.Stadler/Bwag',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'No machine-readable author provided. Skorpion87 assumed (based on copyright claims).',
+    'licenca' => 'Public domain',
   ),
   625 => 
   array (
-    'nome' => 'Castelo de San Hilarión',
-    'pais' => 'Chipre',
-    'lat' => 35.31214,
-    'lon' => 33.28108,
-    'img' => 'Hilarion kasteel.jpg',
+    'nome' => 'Scenic Railway',
+    'pais' => 'Austrália',
+    'lat' => -37.86784,
+    'lon' => 144.97658,
+    'img' => 'Luna Park Melbourne scenic railway edit.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Dickelbers',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'No machine-readable author provided. Fir0002 assumed (based on copyright claims).',
+    'licenca' => 'CC BY-SA 2.5',
   ),
   626 => 
   array (
-    'nome' => 'Ananuri',
-    'pais' => 'Geórgia',
-    'lat' => 42.16361,
-    'lon' => 44.70389,
-    'img' => 'Ananuri Fortress 02.jpg',
+    'nome' => 'Big Dipper',
+    'pais' => 'Austrália',
+    'lat' => -33.8482,
+    'lon' => 151.21,
+    'img' => 'SLNSW 23962 Hollywood Hotel girls at Luna Park taken for Fullers Theatres Ltd.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Bernard Gagnon',
-    'licenca' => 'CC BY 4.0',
+    'autor' => 'Sam Hood',
+    'licenca' => 'Public domain',
   ),
   627 => 
   array (
-    'nome' => 'Caminhos de Santiago',
-    'pais' => 'Espanha',
-    'lat' => 42.88056,
-    'lon' => -8.54389,
-    'img' => 'Catedral de Santiago de Compostela agosto 2018 (cropped).jpg',
+    'nome' => 'Watercity',
+    'pais' => 'Grécia',
+    'lat' => 35.311,
+    'lon' => 25.25,
+    'img' => 'Watercity panorama.jpg',
     'nivel' => 'ponto',
-    'autor' => 'stephenD',
+    'autor' => 'Pkioupakis',
     'licenca' => 'CC BY-SA 4.0',
   ),
   628 => 
   array (
-    'nome' => 'Caverna de Altamira',
-    'pais' => 'Espanha',
-    'lat' => 43.37694,
-    'lon' => -4.11975,
-    'img' => 'Techo de Altamira (replica)-Museo Arqueológico Nacional.jpg',
+    'nome' => 'Wet\'n\'Wild Water World',
+    'pais' => 'Austrália',
+    'lat' => -27.9151,
+    'lon' => 153.318,
+    'img' => 'Wetnwildaqualoopcarpark.JPG',
     'nivel' => 'ponto',
-    'autor' => 'José-Manuel Benito',
-    'licenca' => 'Public domain',
+    'autor' => 'JacobLukeWood',
+    'licenca' => 'CC0',
   ),
   629 => 
   array (
-    'nome' => 'Monumento à Wikipédia',
-    'pais' => 'Polónia',
-    'lat' => 52.34931,
-    'lon' => 14.56036,
-    'img' => 'Wikipedia Monument 2.JPG',
+    'nome' => 'WhiteWater World',
+    'pais' => 'Austrália',
+    'lat' => -27.8644,
+    'lon' => 153.315,
+    'img' => 'The Bro WhiteWater World.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Nostrix',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Themeparkgc  Talk ',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   630 => 
   array (
-    'nome' => 'Túmulos dos Reis do Buganda em Kasubi',
-    'pais' => 'Uganda',
-    'lat' => 0.32917,
-    'lon' => 32.55333,
-    'img' => 'Kasubi Tombs 20250815 1.jpg',
+    'nome' => 'Wild Wild Wet',
+    'pais' => 'Singapura',
+    'lat' => 1.37722,
+    'lon' => 103.954,
+    'img' => 'Wild Wild Wet Theme Park, Singapore.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Z thomas',
-    'licenca' => 'CC BY 4.0',
+    'autor' => 'Maria Victoria Galang',
+    'licenca' => 'CC0',
   ),
   631 => 
   array (
-    'nome' => 'Catedral de Burgos',
-    'pais' => 'Espanha',
-    'lat' => 42.34081,
-    'lon' => -3.70447,
-    'img' => 'Escaleras a la Catedral -- 2023 -- Burgos, Castilla y León, España.jpg',
+    'nome' => 'Cú Chulainn',
+    'pais' => 'Irlanda',
+    'lat' => 53.54268,
+    'lon' => -6.46283,
+    'img' => 'Cú Chulainn Coaster Arial View.jpg',
     'nivel' => 'ponto',
-    'autor' => 'José Ligero Loarte',
+    'autor' => 'KillianfromTaytoPark',
     'licenca' => 'CC BY-SA 4.0',
   ),
   632 => 
   array (
-    'nome' => 'Torre de Hércules',
-    'pais' => 'Espanha',
-    'lat' => 43.38583,
-    'lon' => -8.40639,
-    'img' => 'Torre de Hércules 2023.jpg',
+    'nome' => 'Eram Zoo',
+    'pais' => 'Irão',
+    'lat' => 35.71853,
+    'lon' => 51.29358,
+    'img' => 'Tehran Zoological Garden - 3 September 2011 01.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Fernando',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Hassan Mousavi',
+    'licenca' => 'CC BY 4.0',
   ),
   633 => 
   array (
-    'nome' => 'Torre da Donzela',
-    'pais' => 'Azerbaijão',
-    'lat' => 40.36617,
-    'lon' => 49.83725,
-    'img' => 'Baku Maiden Tower 004 7736.jpg',
+    'nome' => 'Canopy Flyer',
+    'pais' => 'Singapura',
+    'lat' => 1.25344,
+    'lon' => 103.824,
+    'img' => 'Jurassic Park Canopy Flyer Universal Studios Singapore.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Ludvig14',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'verdandi_magic',
+    'licenca' => 'CC BY-SA 2.0',
   ),
   634 => 
   array (
-    'nome' => 'Estádio Panathinaiko',
-    'pais' => 'Grécia',
-    'lat' => 37.96833,
-    'lon' => 23.74111,
-    'img' => 'GR-athen-panathinaiko-stadion.jpg',
+    'nome' => 'Enchanted Airways',
+    'pais' => 'Singapura',
+    'lat' => 1.255,
+    'lon' => 103.82215,
+    'img' => 'Enchanted Airways overview at Universal Studios Singapore.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Bgabel',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Jeremy Thompson',
+    'licenca' => 'CC BY 2.0',
   ),
   635 => 
   array (
-    'nome' => 'Museu Nacional Centro de Arte Reina Sofia',
-    'pais' => 'Espanha',
-    'lat' => 40.40857,
-    'lon' => -3.694,
-    'img' => 'MNCARS 05.jpg',
+    'nome' => 'Revenge of the Mummy',
+    'pais' => 'Singapura',
+    'lat' => 1.25308,
+    'lon' => 103.82312,
+    'img' => 'Revenge of the Mummy Universal Studios Singapore.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Luis García (Zaqarbal)',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'verdandi_magic',
+    'licenca' => 'CC BY-SA 2.0',
   ),
   636 => 
   array (
-    'nome' => 'Monumento da Liberdade de Riga',
-    'pais' => 'Letónia',
-    'lat' => 56.95156,
-    'lon' => 24.11322,
-    'img' => 'Freedom Monument, Riga (09.09.2022).01.jpg',
+    'nome' => 'Formuła',
+    'pais' => 'Polónia',
+    'lat' => 49.99956,
+    'lon' => 19.40547,
+    'img' => 'Formuła (Energylandia) 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Nenea hartia',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Greger Ravik',
+    'licenca' => 'CC BY 2.0',
   ),
   637 => 
   array (
-    'nome' => 'Catedral de San Cristóbal de La Laguna',
-    'pais' => 'Espanha',
-    'lat' => 28.48889,
-    'lon' => -16.31611,
-    'img' => 'La Laguna 2022 - main facade.jpg',
+    'nome' => 'Valkyria',
+    'pais' => 'Suécia',
+    'lat' => 57.6932,
+    'lon' => 11.9953,
+    'img' => 'Valkyria-Liseberg.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Fernando',
+    'autor' => 'Befi99',
     'licenca' => 'CC BY-SA 4.0',
   ),
   638 => 
   array (
-    'nome' => 'Koutammakou',
-    'pais' => 'Togo',
-    'lat' => 10.1,
-    'lon' => 1.06667,
-    'img' => 'Togo Taberma house 02.jpg',
+    'nome' => 'Lech',
+    'pais' => 'Polónia',
+    'lat' => 50.2775,
+    'lon' => 18.99225,
+    'img' => 'Lech Coaster - Legendia - 2018.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Erik Kristensen',
-    'licenca' => 'CC BY 2.0',
+    'autor' => 'Tom a',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   639 => 
   array (
-    'nome' => 'Koutammakou',
-    'pais' => 'Benim',
-    'lat' => 10.1,
-    'lon' => 1.06667,
-    'img' => 'Togo Taberma house 02.jpg',
+    'nome' => 'Dawson Duel',
+    'pais' => 'Bélgica',
+    'lat' => 50.84747,
+    'lon' => 2.9474,
+    'img' => 'Bellewaerde - Dawson Duel (C08).JPG',
     'nivel' => 'ponto',
-    'autor' => 'Erik Kristensen',
-    'licenca' => 'CC BY 2.0',
+    'autor' => 'Jérémy-Günther-Heinz Jähnick',
+    'licenca' => 'GFDL 1.2',
   ),
   640 => 
   array (
-    'nome' => 'Mother Armenia',
-    'pais' => 'Arménia',
-    'lat' => 40.19525,
-    'lon' => 44.52482,
-    'img' => 'Մայր Հայաստան հուշարձան.jpg',
+    'nome' => 'Dragon\'s Run',
+    'pais' => 'Vietname',
+    'lat' => 20.95414,
+    'lon' => 107.04781,
+    'img' => 'LZTR (Majority) (3).JPG',
     'nivel' => 'ponto',
-    'autor' => 'Mosinyan',
+    'autor' => 'Coasterman1234',
     'licenca' => 'CC BY-SA 3.0',
   ),
   641 => 
   array (
-    'nome' => 'Memorial às Vítimas do Terror em Israel',
-    'pais' => 'Israel',
-    'lat' => 31.77499,
-    'lon' => 35.17802,
-    'img' => 'אנדרטת חללי הטרור - הר הרצל 6.jpg',
+    'nome' => 'Bitola Zoo',
+    'pais' => 'Macedónia do Norte',
+    'lat' => 41.0146,
+    'lon' => 21.3415,
+    'img' => 'ЗООБитола.JPG',
     'nivel' => 'ponto',
-    'autor' => 'פארוק',
+    'autor' => 'Guitardemon666 at Macedonian Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
   ),
   642 => 
   array (
-    'nome' => 'Palácio do Sol de Kumsusan',
-    'pais' => 'Coreia do Norte',
-    'lat' => 39.06327,
-    'lon' => 125.78905,
-    'img' => '0995 - Nordkorea 2015 - Pjöngjang - Mausoleum (22355259173).jpg',
+    'nome' => 'Nordens Ark',
+    'pais' => 'Suécia',
+    'lat' => 58.44111,
+    'lon' => 11.435,
+    'img' => '2011-07-14 Nordens Ark 002.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Uwe Brodrecht',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Chell Hill',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   643 => 
   array (
-    'nome' => 'Mausoléu de Ho Chi Minh',
-    'pais' => 'Vietname',
-    'lat' => 21.03667,
-    'lon' => 105.83472,
-    'img' => 'Lăng Bác - NKS.jpg',
+    'nome' => 'Antwerp Zoo',
+    'pais' => 'Bélgica',
+    'lat' => 51.21639,
+    'lon' => 4.42333,
+    'img' => 'Antwerpen Zoo Entrance 1.jpg',
     'nivel' => 'ponto',
-    'autor' => 'NKSTTSSHNVN',
+    'autor' => 'DRG-fan',
     'licenca' => 'CC BY-SA 4.0',
   ),
   644 => 
   array (
-    'nome' => 'Memorial Chiang Kai-shek',
-    'pais' => 'Taiwan',
-    'lat' => 25.03444,
-    'lon' => 121.52167,
-    'img' => 'Chiang Kai-shek memorial amk.jpg',
+    'nome' => 'Zoológico de Basileia',
+    'pais' => 'Suíça',
+    'lat' => 47.54734,
+    'lon' => 7.57876,
+    'img' => 'Basel 032.jpg',
     'nivel' => 'ponto',
-    'autor' => 'AngMoKio',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'TeamBurton 17:20, 5. Juni 2009 (CEST)',
+    'licenca' => 'Public domain',
   ),
   645 => 
   array (
-    'nome' => 'Padrão dos Descobrimentos',
-    'pais' => 'Portugal',
-    'lat' => 38.69368,
-    'lon' => -9.20569,
-    'img' => 'Lisbonne - Padrão dos Descobrimentos - Closeup.jpg',
+    'nome' => 'Ecoparque de Buenos Aires',
+    'pais' => 'Argentina',
+    'lat' => -34.58097,
+    'lon' => -58.42,
+    'img' => 'Zoológico de Buenos Aires (3899274421).jpg',
     'nivel' => 'ponto',
-    'autor' => 'Jean-Christophe BENOIST',
-    'licenca' => 'CC BY 4.0',
+    'autor' => 'Diego Torres Silvestre from Sao Paulo, Brazil',
+    'licenca' => 'CC BY 2.0',
   ),
   646 => 
   array (
-    'nome' => 'Spire of Dublin',
+    'nome' => 'Dublin Zoo',
     'pais' => 'Irlanda',
-    'lat' => 53.34972,
-    'lon' => -6.26028,
-    'img' => 'The Spire.jpg',
+    'lat' => 53.35389,
+    'lon' => -6.30389,
+    'img' => 'Old Entrance Lodge Dublin Zoo - geograph.org.uk - 493429.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Almbauer',
-    'licenca' => 'Public domain',
+    'autor' => 'Harold Strong',
+    'licenca' => 'CC BY-SA 2.0',
   ),
   647 => 
   array (
-    'nome' => 'Temple of Literature',
-    'pais' => 'Vietname',
-    'lat' => 21.02861,
-    'lon' => 105.83556,
-    'img' => 'Hanoi Temple of Literature.jpg',
+    'nome' => 'Kathmandu Zoo',
+    'pais' => 'Nepal',
+    'lat' => 27.67318,
+    'lon' => 85.31093,
+    'img' => 'Zoo Kathmandu Nepal (5085903803).jpg',
     'nivel' => 'ponto',
-    'autor' => 'The original uploader was Chuoibk at English Wikipedia.',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'S Pakhrin from DC, USA',
+    'licenca' => 'CC BY 2.0',
   ),
   648 => 
   array (
-    'nome' => 'Bayterek',
-    'pais' => 'Cazaquistão',
-    'lat' => 51.12833,
-    'lon' => 71.43056,
-    'img' => 'Night at Esil District, Astana (P1190721).jpg',
+    'nome' => 'Korkeasaari Zoo',
+    'pais' => 'Finlândia',
+    'lat' => 60.175,
+    'lon' => 24.98417,
+    'img' => 'Helsinki 2009 PD 0257.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Matti Blume',
-    'licenca' => 'CC BY-SA 4.0',
+    'autor' => 'Bin im Garten',
+    'licenca' => 'CC BY-SA 3.0',
   ),
   649 => 
   array (
-    'nome' => 'Coluna de Sigismundo',
-    'pais' => 'Polónia',
-    'lat' => 52.24725,
-    'lon' => 21.01339,
-    'img' => 'Kolumna Zygmunta III Wazy 2020.jpg',
+    'nome' => 'Jardim Zoológico de Lisboa',
+    'pais' => 'Portugal',
+    'lat' => 38.74325,
+    'lon' => -9.169,
+    'img' => 'Jardim Zoologico Lisboa 1.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Adrian Grycuk',
-    'licenca' => 'CC BY-SA 3.0 pl',
+    'autor' => '',
+    'licenca' => 'CC BY 2.5',
   ),
   650 => 
   array (
-    'nome' => 'Arco da Reunificação',
-    'pais' => 'Coreia do Norte',
-    'lat' => 38.96453,
-    'lon' => 125.71582,
-    'img' => 'Monument-to-National-Reunification-2014.jpg',
+    'nome' => 'Zoo Opole',
+    'pais' => 'Polónia',
+    'lat' => 50.65504,
+    'lon' => 17.92447,
+    'img' => 'PL Opole Zoo.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Bjørn Christian Tørrissen',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Kaww',
+    'licenca' => 'Public domain',
   ),
   651 => 
   array (
-    'nome' => 'Abadia de Einsiedeln',
-    'pais' => 'Suíça',
-    'lat' => 47.12667,
-    'lon' => 8.75139,
-    'img' => 'Kloster Einsiedeln 001.jpg',
+    'nome' => 'Salzburg Zoo',
+    'pais' => 'Áustria',
+    'lat' => 47.75682,
+    'lon' => 13.06408,
+    'img' => 'Nashoernersalzburg.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Markus Bernet',
-    'licenca' => 'CC BY-SA 2.5',
+    'autor' => 'papa1234',
+    'licenca' => 'CC BY 3.0',
   ),
   652 => 
   array (
-    'nome' => 'Mansu Hill Grand Monument',
-    'pais' => 'Coreia do Norte',
-    'lat' => 39.0321,
-    'lon' => 125.75306,
-    'img' => 'Mansudae Grand Monument (11338547273).jpg',
+    'nome' => 'Schmiding Zoo',
+    'pais' => 'Áustria',
+    'lat' => 48.1944,
+    'lon' => 13.9564,
+    'img' => 'Haliaeetus pelagicus Riesenseeadler-3381.jpg',
     'nivel' => 'ponto',
-    'autor' => 'Clay Gilliland',
-    'licenca' => 'CC BY-SA 2.0',
+    'autor' => 'Isiwal',
+    'licenca' => 'CC BY-SA 4.0',
   ),
   653 => 
   array (
-    'nome' => 'Mother Albania',
-    'pais' => 'Albânia',
-    'lat' => 41.30849,
-    'lon' => 19.84018,
-    'img' => 'Tirana – Mother Albania 2.jpg',
+    'nome' => 'Prague Zoo',
+    'pais' => 'Chéquia',
+    'lat' => 50.11694,
+    'lon' => 14.40611,
+    'img' => 'Zoo Praha.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Julian Nyča',
-    'licenca' => 'CC BY-SA 3.0',
+    'autor' => 'Altaipanther',
+    'licenca' => 'Public domain',
   ),
   654 => 
   array (
-    'nome' => 'Troféu de Augusto',
-    'pais' => 'França',
-    'lat' => 43.74478,
-    'lon' => 7.4018,
-    'img' => 'La Turbie BW 1.JPG',
+    'nome' => 'Zürich Zoo',
+    'pais' => 'Suíça',
+    'lat' => 47.385,
+    'lon' => 8.57306,
+    'img' => 'Zoo Zürich Kaeng Krachan Elefantenpark 2.JPG',
     'nivel' => 'ponto',
-    'autor' => 'Berthold Werner',
+    'autor' => 'Albinfo',
     'licenca' => 'CC BY-SA 3.0',
+  ),
+  655 => 
+  array (
+    'nome' => 'Zagreb Zoo',
+    'pais' => 'Croácia',
+    'lat' => 45.8221,
+    'lon' => 16.02129,
+    'img' => 'Maksimir zoo entrance.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Janjko',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  656 => 
+  array (
+    'nome' => 'Zoo de Lagos',
+    'pais' => 'Portugal',
+    'lat' => 37.14517,
+    'lon' => -8.76635,
+    'img' => 'Lagos Zoo.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Francisco Santos (user: xuaxo)',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  657 => 
+  array (
+    'nome' => 'Zoo de Servion',
+    'pais' => 'Suíça',
+    'lat' => 46.565,
+    'lon' => 6.77389,
+    'img' => 'Tigre.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jean-luc Lavanchy',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  658 => 
+  array (
+    'nome' => 'Zoo La Garenne',
+    'pais' => 'Suíça',
+    'lat' => 46.47778,
+    'lon' => 6.24306,
+    'img' => 'Zoo-La-Garenne-aerial.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Alexey M.',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  659 => 
+  array (
+    'nome' => 'Bratislava Zoo',
+    'pais' => 'Eslováquia',
+    'lat' => 48.16222,
+    'lon' => 17.07444,
+    'img' => 'Bratislava ZOO - Entrance.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Matus.antol',
+    'licenca' => 'CC BY 4.0',
+  ),
+  660 => 
+  array (
+    'nome' => 'Wrocław Zoological Garden',
+    'pais' => 'Polónia',
+    'lat' => 51.10471,
+    'lon' => 17.07075,
+    'img' => 'Wrocławskie ZOO neon fot BMaliszewska.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Barbara Maliszewska',
+    'licenca' => 'CC BY-SA 3.0 pl',
+  ),
+  661 => 
+  array (
+    'nome' => 'Osijek Zoo and Aquarium',
+    'pais' => 'Croácia',
+    'lat' => 45.56833,
+    'lon' => 18.66806,
+    'img' => 'Zoo Osijek 2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Roko Poljak',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  662 => 
+  array (
+    'nome' => 'Zoológico de Belize',
+    'pais' => 'Belize',
+    'lat' => 17.35361,
+    'lon' => -88.54972,
+    'img' => 'Spider monkey -Belize Zoo-8b.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Michael Schamis',
+    'licenca' => 'CC BY 2.0',
+  ),
+  663 => 
+  array (
+    'nome' => 'Zoológico do Parque Cultural de Miskolc',
+    'pais' => 'Hungria',
+    'lat' => 48.12398,
+    'lon' => 20.65632,
+    'img' => 'Miskolci Vadaspark főbejárat.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Tothh417',
+    'licenca' => 'CC0',
+  ),
+  664 => 
+  array (
+    'nome' => 'Haus des Meeres',
+    'pais' => 'Áustria',
+    'lat' => 48.1977,
+    'lon' => 16.3529,
+    'img' => 'Haus des Meeres 2026, Wien 3.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Thomas Ledl',
+    'licenca' => 'CC BY 4.0',
+  ),
+  665 => 
+  array (
+    'nome' => 'Tierwelt Herberstein',
+    'pais' => 'Áustria',
+    'lat' => 47.2192,
+    'lon' => 15.8125,
+    'img' => 'Tierpark Herbstein Haupteingang.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Liuthalas',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  666 => 
+  array (
+    'nome' => 'Papiliorama',
+    'pais' => 'Suíça',
+    'lat' => 46.9892,
+    'lon' => 7.20111,
+    'img' => 'Papiliorama Kerzers.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'No machine-readable author provided. Pjetter assumed (based on copyright claims).',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  667 => 
+  array (
+    'nome' => 'Schmetterlinghaus',
+    'pais' => 'Áustria',
+    'lat' => 48.2053,
+    'lon' => 16.3667,
+    'img' => 'Palmenhaus Burggarten Vienna June 2006 621.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Gryffindor',
+    'licenca' => 'CC BY 2.5',
+  ),
+  668 => 
+  array (
+    'nome' => 'Vonkaputous',
+    'pais' => 'Finlândia',
+    'lat' => 60.18742,
+    'lon' => 24.939,
+    'img' => 'Vonkaputous Linnanmäki Helsinki.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'No machine-readable author provided. Skorpion87 assumed (based on copyright claims).',
+    'licenca' => 'Public domain',
+  ),
+  669 => 
+  array (
+    'nome' => 'Coccinelle',
+    'pais' => 'Bélgica',
+    'lat' => 50.69697,
+    'lon' => 4.58707,
+    'img' => 'Walibi Belgium - Coccinelle (04).JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Jérémy-Günther-Heinz Jähnick',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  670 => 
+  array (
+    'nome' => 'Typhoon',
+    'pais' => 'Bélgica',
+    'lat' => 51.19975,
+    'lon' => 4.90552,
+    'img' => 'Eurofighter Lift.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Stefan Scheer',
+    'licenca' => 'CC BY 2.5',
+  ),
+  671 => 
+  array (
+    'nome' => 'Naypyidaw Safari Park',
+    'pais' => 'Myanmar',
+    'lat' => 19.87154,
+    'lon' => 96.25426,
+    'img' => 'Naypyidaw Safari Park.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Phyo WP',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  672 => 
+  array (
+    'nome' => 'Cumberland Wildpark',
+    'pais' => 'Áustria',
+    'lat' => 47.8068,
+    'lon' => 13.9507,
+    'img' => 'Cumberland Wildlife Park Grünau im Almtal-0821.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Isiwal',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  673 => 
+  array (
+    'nome' => 'Wildpark Bruderhaus',
+    'pais' => 'Suíça',
+    'lat' => 47.4772,
+    'lon' => 8.72619,
+    'img' => 'Mufflon Bruderhaus.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Lisa Stevens from Sutton Coldfield, UK',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  674 => 
+  array (
+    'nome' => 'Grottenbahn am Pöstlingberg',
+    'pais' => 'Áustria',
+    'lat' => 48.3233,
+    'lon' => 14.2575,
+    'img' => 'Grottenbahn-Linz-inside.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Erik Möller (Eloquence)',
+    'licenca' => 'Public domain',
+  ),
+  675 => 
+  array (
+    'nome' => 'Wildpark Ernstbrunn',
+    'pais' => 'Áustria',
+    'lat' => 48.5439,
+    'lon' => 16.3494,
+    'img' => 'GuentherZ 2015-04-04 (95) Doerfles Wildpark Ernstbrunn.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'GuentherZ',
+    'licenca' => 'CC BY 3.0',
+  ),
+  676 => 
+  array (
+    'nome' => 'Wildpark Peter und Paul',
+    'pais' => 'Suíça',
+    'lat' => 47.4486,
+    'lon' => 9.3875,
+    'img' => 'SG PuP Murmeltier 5.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Schofför',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  677 => 
+  array (
+    'nome' => 'Anaconda roller coaster',
+    'pais' => 'África do Sul',
+    'lat' => -26.2352,
+    'lon' => 28.01136,
+    'img' => 'Anaconda roller coaster.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Ashleyflashley',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  678 => 
+  array (
+    'nome' => 'Kanonen',
+    'pais' => 'Suécia',
+    'lat' => 57.69306,
+    'lon' => 11.995,
+    'img' => 'Kanonen 2011.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'This image was produced by me, David Castor (user:dcastor). The pictures I submit to the W',
+    'licenca' => 'CC0',
+  ),
+  679 => 
+  array (
+    'nome' => 'Thundercoaster',
+    'pais' => 'Noruega',
+    'lat' => 59.74724,
+    'lon' => 10.77726,
+    'img' => 'Thundercoaster.jpg',
+    'nivel' => 'ponto',
+    'autor' => '',
+    'licenca' => 'CC BY-SA 2.5',
+  ),
+  680 => 
+  array (
+    'nome' => 'Tornado',
+    'pais' => 'Finlândia',
+    'lat' => 61.50591,
+    'lon' => 23.7443,
+    'img' => 'Särkänniemi Tornado.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Miraceti',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  681 => 
+  array (
+    'nome' => 'Jetline',
+    'pais' => 'Suécia',
+    'lat' => 59.32306,
+    'lon' => 18.09556,
+    'img' => 'Jetline Gröna Lund 07 06 09.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'User: Jolleman',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  682 => 
+  array (
+    'nome' => 'Insane',
+    'pais' => 'Suécia',
+    'lat' => 59.32333,
+    'lon' => 18.09528,
+    'img' => 'Insane Gröna Lund 2011.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Ankara',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  683 => 
+  array (
+    'nome' => 'SuperSplash',
+    'pais' => 'Noruega',
+    'lat' => 59.74497,
+    'lon' => 10.77929,
+    'img' => 'Supersplash.jpg',
+    'nivel' => 'ponto',
+    'autor' => '',
+    'licenca' => 'CC BY-SA 2.5',
+  ),
+  684 => 
+  array (
+    'nome' => 'Lisebergbanan',
+    'pais' => 'Suécia',
+    'lat' => 57.69484,
+    'lon' => 11.99276,
+    'img' => 'Lisebergbanan2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'The original uploader was WillMcC at English Wikipedia.',
+    'licenca' => 'CC BY-SA 1.0',
+  ),
+  685 => 
+  array (
+    'nome' => 'Megablitz',
+    'pais' => 'Áustria',
+    'lat' => 48.2161,
+    'lon' => 16.402,
+    'img' => 'Wien 02 Prater Megablitz 01.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Gugerell',
+    'licenca' => 'CC0',
+  ),
+  686 => 
+  array (
+    'nome' => 'Zoomarine',
+    'pais' => 'Portugal',
+    'lat' => 37.12681,
+    'lon' => -8.31421,
+    'img' => 'Zoomarine Imagem aerea.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'zoomarine',
+    'licenca' => 'CC BY 3.0',
+  ),
+  687 => 
+  array (
+    'nome' => 'Aquapark Olomouc',
+    'pais' => 'Chéquia',
+    'lat' => 49.57414,
+    'lon' => 17.22244,
+    'img' => 'Aquapark Olomouc.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Kolemjdouci-OL',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  688 => 
+  array (
+    'nome' => 'Aquashow',
+    'pais' => 'Portugal',
+    'lat' => 37.09389,
+    'lon' => -8.07237,
+    'img' => 'Aquashow.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Joseolgon',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  689 => 
+  array (
+    'nome' => 'Aqualand Moravia',
+    'pais' => 'Chéquia',
+    'lat' => 48.9025,
+    'lon' => 16.5736,
+    'img' => 'Pasohlávky, Aqualand Moravia.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Palickap',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  690 => 
+  array (
+    'nome' => 'Aquapalace Praha',
+    'pais' => 'Chéquia',
+    'lat' => 50.0075,
+    'lon' => 14.57111,
+    'img' => 'Aquapalace Praha 2016 1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jirka.h23',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  691 => 
+  array (
+    'nome' => 'Waterpark Besenova',
+    'pais' => 'Eslováquia',
+    'lat' => 49.09986,
+    'lon' => 19.44563,
+    'img' => 'Besenova 004.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Thermal park Bešeňová',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  692 => 
+  array (
+    'nome' => 'Tropiclandia',
+    'pais' => 'Finlândia',
+    'lat' => 63.08778,
+    'lon' => 21.58667,
+    'img' => 'Tropiclandia 2023 facade.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Kotivalo',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  693 => 
+  array (
+    'nome' => 'Fron badeland',
+    'pais' => 'Noruega',
+    'lat' => 61.57631,
+    'lon' => 9.86158,
+    'img' => 'Fron badeland I.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jan-Tore Egge',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  694 => 
+  array (
+    'nome' => 'Wellness Kuřim',
+    'pais' => 'Chéquia',
+    'lat' => 49.3099,
+    'lon' => 16.5335,
+    'img' => 'Wellness Kurim.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Lasy',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  695 => 
+  array (
+    'nome' => 'Yerevan Water World',
+    'pais' => 'Arménia',
+    'lat' => 40.2049,
+    'lon' => 44.5582,
+    'img' => 'WaterWorld Yerevan.jpg',
+    'nivel' => 'ponto',
+    'autor' => '',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  696 => 
+  array (
+    'nome' => 'Pirbadet',
+    'pais' => 'Noruega',
+    'lat' => 63.4405,
+    'lon' => 10.4004,
+    'img' => 'Pirbadet IMG 6001.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Bjoertvedt',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  697 => 
+  array (
+    'nome' => 'Taipei Water Park',
+    'pais' => 'Taiwan',
+    'lat' => 25.0125,
+    'lon' => 121.533,
+    'img' => 'Taipei Water Park entrance 20160101.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Chi-Hung Lin',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  698 => 
+  array (
+    'nome' => 'Dushanbe aquapark',
+    'pais' => 'Tajiquistão',
+    'lat' => 38.57681,
+    'lon' => 68.73379,
+    'img' => 'Душанбинский аквапарк.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Шухрат Саъдиев',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  699 => 
+  array (
+    'nome' => 'Vichy Water Park',
+    'pais' => 'Lituânia',
+    'lat' => 54.7161,
+    'lon' => 25.2767,
+    'img' => 'Baltupiai, Vilnius, Lithuania - panoramio (1).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'VietovesLt',
+    'licenca' => 'CC BY 3.0',
+  ),
+  700 => 
+  array (
+    'nome' => 'Parque Aquático Munsu',
+    'pais' => 'Coreia do Norte',
+    'lat' => 39.03962,
+    'lon' => 125.78118,
+    'img' => 'Munsu Water Park - Pyongyang, North Korea (11511854045).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Uri Tours',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  701 => 
+  array (
+    'nome' => 'Istralandia',
+    'pais' => 'Croácia',
+    'lat' => 45.3467,
+    'lon' => 13.6171,
+    'img' => 'Istralandia 1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Istralandia',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  702 => 
+  array (
+    'nome' => 'Utopia park, Israel',
+    'pais' => 'Israel',
+    'lat' => 32.35158,
+    'lon' => 35.01482,
+    'img' => 'PikiWiki Israel 5559 Utopia Park.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'יהודית גרעין-כל Yehudit Garinkol',
+    'licenca' => 'CC BY 2.5',
+  ),
+  703 => 
+  array (
+    'nome' => 'Pasakų Park',
+    'pais' => 'Lituânia',
+    'lat' => 54.6793,
+    'lon' => 25.2013,
+    'img' => 'Pasaku parkas, Vilnius.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'ViršuLF',
+    'licenca' => 'CC0',
+  ),
+  704 => 
+  array (
+    'nome' => 'Spookers',
+    'pais' => 'Nova Zelândia',
+    'lat' => -37.1312,
+    'lon' => 174.7978,
+    'img' => 'Kingseat Hospital in 2008.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Haunt of the fatherbird',
+    'licenca' => 'CC0',
+  ),
+  705 => 
+  array (
+    'nome' => 'Kiwi Valley Farm Park',
+    'pais' => 'Nova Zelândia',
+    'lat' => -36.896,
+    'lon' => 174.6003,
+    'img' => 'Kiwi Valley Farm Park.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jesselawtonnz',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  706 => 
+  array (
+    'nome' => 'Orana Wildlife Park',
+    'pais' => 'Nova Zelândia',
+    'lat' => -43.4675,
+    'lon' => 172.4625,
+    'img' => 'Orana Wildlife Park feeding lions.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Greg Hewgill',
+    'licenca' => 'CC BY 2.0',
+  ),
+  707 => 
+  array (
+    'nome' => 'Tobotronc',
+    'pais' => 'Andorra',
+    'lat' => 42.43598,
+    'lon' => 1.51865,
+    'img' => 'Tobotronc (Naturlandia, Andorra) 02.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Jordiferrer',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  708 => 
+  array (
+    'nome' => 'wildlife park Feldkirch',
+    'pais' => 'Áustria',
+    'lat' => 47.24496,
+    'lon' => 9.59685,
+    'img' => 'Feldkirch - im tierpark - panoramio - mavromichali (3).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'mavromichali',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  709 => 
+  array (
+    'nome' => 'Wildpark Mühletäli',
+    'pais' => 'Suíça',
+    'lat' => 47.34202,
+    'lon' => 7.92258,
+    'img' => 'Wildpark Mühletäli1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Ralph Reichelt',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  710 => 
+  array (
+    'nome' => 'Kuala Lumpur Butterfly Park',
+    'pais' => 'Malásia',
+    'lat' => 3.14573,
+    'lon' => 101.689,
+    'img' => 'Kuala Lumpur Butterfly Park (5).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Gryffindor',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  711 => 
+  array (
+    'nome' => 'Banteay Srey Butterfly Centre',
+    'pais' => 'Camboja',
+    'lat' => 13.50869,
+    'lon' => 103.94096,
+    'img' => 'Dysphania sagana (3).JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Sneha Abhyankar',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  712 => 
+  array (
+    'nome' => 'Neotropical Butterfly Park',
+    'pais' => 'Suriname',
+    'lat' => 5.68722,
+    'lon' => -55.20194,
+    'img' => 'Butterfly in the Neotropical Butterfly Park (33516871536).jpg',
+    'nivel' => 'ponto',
+    'autor' => '-JvL- from Netherlands',
+    'licenca' => 'CC BY 2.0',
+  ),
+  713 => 
+  array (
+    'nome' => 'Dubai Butterfly Garden',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 25.06176,
+    'lon' => 55.24654,
+    'img' => 'VAE-dubai-butterfl-01.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Balou46',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  714 => 
+  array (
+    'nome' => 'Bobsleigh track in Mosty u Jablunkova',
+    'pais' => 'Chéquia',
+    'lat' => 49.52537,
+    'lon' => 18.76185,
+    'img' => 'Bobová dráha Mosty u Jablunkova, Jablunkovské mezihoří 01.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Fry72, Karel Frydrýšek',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  715 => 
+  array (
+    'nome' => 'Papilonia Brno',
+    'pais' => 'Chéquia',
+    'lat' => 49.1938,
+    'lon' => 16.60858,
+    'img' => 'Papilonia Brno-06.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Hugo',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  716 => 
+  array (
+    'nome' => 'Alpine slide Prosek',
+    'pais' => 'Chéquia',
+    'lat' => 50.11431,
+    'lon' => 14.48902,
+    'img' => 'Bobová dráha Prosek, dřevěná konstrukce.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'ŠJů (cs:ŠJů)',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  717 => 
+  array (
+    'nome' => 'West Lynn Garden',
+    'pais' => 'Nova Zelândia',
+    'lat' => -36.9219,
+    'lon' => 174.6696,
+    'img' => 'West Lynn Garden 20260102 112415.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Prosperosity',
+    'licenca' => 'CC BY 4.0',
+  ),
+  718 => 
+  array (
+    'nome' => 'Řeporyjská stezka',
+    'pais' => 'Chéquia',
+    'lat' => 50.03053,
+    'lon' => 14.31327,
+    'img' => 'Praha Reporyje Telovychovna plastika 5 a.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'JiriMatejicek',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  719 => 
+  array (
+    'nome' => 'Serena Waterpark',
+    'pais' => 'Finlândia',
+    'lat' => 60.32583,
+    'lon' => 24.74056,
+    'img' => 'Serenan ulkoallas panorama.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'kallerna',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  720 => 
+  array (
+    'nome' => 'Parque El Agua',
+    'pais' => 'Venezuela',
+    'lat' => 11.10925,
+    'lon' => -63.84711,
+    'img' => 'Parque El Agua 1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Marbelys Moser',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  721 => 
+  array (
+    'nome' => 'Lost World of Tambun',
+    'pais' => 'Malásia',
+    'lat' => 4.62581,
+    'lon' => 101.15517,
+    'img' => 'Lost Word of Tambun Main Entrance.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Shafika Tahir',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  722 => 
+  array (
+    'nome' => 'WaterWorld Water Park',
+    'pais' => 'Chipre',
+    'lat' => 34.98601,
+    'lon' => 33.9432,
+    'img' => 'Аквапарк Водный Мир - panoramio.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'karel291',
+    'licenca' => 'CC BY 3.0',
+  ),
+  723 => 
+  array (
+    'nome' => 'Ramayana Water Park',
+    'pais' => 'Tailândia',
+    'lat' => 12.75028,
+    'lon' => 100.96028,
+    'img' => 'RWP-Overview.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Ramayana Water Park',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  724 => 
+  array (
+    'nome' => 'Memadion',
+    'pais' => 'Israel',
+    'lat' => 32.10202,
+    'lon' => 34.82005,
+    'img' => 'Memadion008.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Ori~',
+    'licenca' => 'Attribution',
+  ),
+  725 => 
+  array (
+    'nome' => 'Aqua Paradise Water Park',
+    'pais' => 'Bulgária',
+    'lat' => 42.65626,
+    'lon' => 27.68214,
+    'img' => 'Aquapark Ravda Nesebar - panoramio.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'aristidov',
+    'licenca' => 'CC BY 3.0',
+  ),
+  726 => 
+  array (
+    'nome' => 'Aquacolors',
+    'pais' => 'Croácia',
+    'lat' => 45.1983,
+    'lon' => 13.6052,
+    'img' => 'Aquapark Aquacolors.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Pantharei.2017',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  727 => 
+  array (
+    'nome' => 'Parque Aquático de Amarante',
+    'pais' => 'Portugal',
+    'lat' => 41.24994,
+    'lon' => -8.10789,
+    'img' => 'Parque aquático de Amarante (11).jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Joseolgon',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  728 => 
+  array (
+    'nome' => 'Aquaventure',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 25.135,
+    'lon' => 55.122,
+    'img' => 'Atlantis Aquapark.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Rokaszil',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  729 => 
+  array (
+    'nome' => 'TS Wonderland Waterpark',
+    'pais' => 'Malásia',
+    'lat' => 1.48631,
+    'lon' => 103.92492,
+    'img' => 'TS Wonderland Waterpark.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Chongkian',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  730 => 
+  array (
+    'nome' => 'Austin Heights Water and Adventure Park',
+    'pais' => 'Malásia',
+    'lat' => 1.56142,
+    'lon' => 103.77497,
+    'img' => 'Austin Heights Water and Adventure Park.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Chongkian',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  731 => 
+  array (
+    'nome' => 'Aquapark Kladno',
+    'pais' => 'Chéquia',
+    'lat' => 50.13591,
+    'lon' => 14.08761,
+    'img' => 'Auqapark kd 1.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'František Müller',
+    'licenca' => 'CC BY 3.0',
+  ),
+  732 => 
+  array (
+    'nome' => 'Minsk Gorky Park Ferris Wheel',
+    'pais' => 'Bielorrússia',
+    'lat' => 53.90337,
+    'lon' => 27.5744,
+    'img' => 'Минск.Парк Горького.Колесо обозрения. - panoramio.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'botfor',
+    'licenca' => 'CC BY 3.0',
+  ),
+  733 => 
+  array (
+    'nome' => 'Obří ruské kolo',
+    'pais' => 'Chéquia',
+    'lat' => 50.10929,
+    'lon' => 14.42805,
+    'img' => 'Ruské kolo 01.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Feťour',
+    'licenca' => 'Public domain',
+  ),
+  734 => 
+  array (
+    'nome' => 'Battlestar Galactica',
+    'pais' => 'Singapura',
+    'lat' => 1.25414,
+    'lon' => 103.8223,
+    'img' => 'Battlestar Galactica at night - Universal Studios Singapore cropped.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Battlestar_Galactica_at_night_-_Universal_Studios_Singapore.jpg: Ronnie Liew derivative wo',
+    'licenca' => 'CC BY 2.0',
+  ),
+  735 => 
+  array (
+    'nome' => 'Kirnu',
+    'pais' => 'Finlândia',
+    'lat' => 60.18819,
+    'lon' => 24.93931,
+    'img' => 'Kirnu linnanmäki.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Matias Laine',
+    'licenca' => 'Public domain',
+  ),
+  736 => 
+  array (
+    'nome' => 'Diving Machine G5',
+    'pais' => 'Taiwan',
+    'lat' => 23.61797,
+    'lon' => 120.57721,
+    'img' => 'Diving Machine G5 2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Roller Coaster Philosophy, Jeremy Thompson',
+    'licenca' => 'CC BY 2.0',
+  ),
+  737 => 
+  array (
+    'nome' => 'Gravity Max',
+    'pais' => 'Taiwan',
+    'lat' => 24.3239,
+    'lon' => 120.69471,
+    'img' => 'Gravity Max1.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Martin Lewison',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  738 => 
+  array (
+    'nome' => 'Avalancha',
+    'pais' => 'Guatemala',
+    'lat' => 14.59463,
+    'lon' => -91.61339,
+    'img' => 'Avalancha Xetulul.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Mauricio Romero from Guatemala, Guatemala',
+    'licenca' => 'CC BY 2.0',
+  ),
+  739 => 
+  array (
+    'nome' => 'Insane Speed',
+    'pais' => 'Taiwan',
+    'lat' => 23.61875,
+    'lon' => 120.57581,
+    'img' => 'Insane Speed 3.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Roller Coaster Philosophy, Jeremy Thompson',
+    'licenca' => 'CC BY 2.0',
+  ),
+  740 => 
+  array (
+    'nome' => 'Ukko',
+    'pais' => 'Finlândia',
+    'lat' => 60.1892,
+    'lon' => 24.9406,
+    'img' => 'Ukko at Linnanmäki, Helsinki.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Christophe Badoux',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  741 => 
+  array (
+    'nome' => 'Speed Monster',
+    'pais' => 'Noruega',
+    'lat' => 59.74823,
+    'lon' => 10.77702,
+    'img' => 'Speedmonster2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'KJetil Bjørnsrud',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  742 => 
+  array (
+    'nome' => 'Tower of Gourze',
+    'pais' => 'Suíça',
+    'lat' => 46.51101,
+    'lon' => 6.74079,
+    'img' => 'Tour de Gourze 3.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Zadina',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  743 => 
+  array (
+    'nome' => 'Loopen',
+    'pais' => 'Noruega',
+    'lat' => 59.74929,
+    'lon' => 10.77661,
+    'img' => 'Loopen på TusenFryd.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Andreasr24',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  744 => 
+  array (
+    'nome' => 'Centro Acuático Porvenir',
+    'pais' => 'Bolívia',
+    'lat' => -16.8225,
+    'lon' => -65.355,
+    'img' => 'Rio Blanco de Porvenir.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Future Village',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  745 => 
+  array (
+    'nome' => 'Aquacentrum Pardubice',
+    'pais' => 'Chéquia',
+    'lat' => 50.03379,
+    'lon' => 15.7825,
+    'img' => 'Aquacentrum Pardubice.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Petr1888',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  746 => 
+  array (
+    'nome' => 'Aquapark Uherské Hradiště',
+    'pais' => 'Chéquia',
+    'lat' => 49.0669,
+    'lon' => 17.47319,
+    'img' => 'Uherské Hradiště, aquapark 2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Palickap',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  747 => 
+  array (
+    'nome' => 'Shefayim Water Park',
+    'pais' => 'Israel',
+    'lat' => 32.21437,
+    'lon' => 34.82057,
+    'img' => 'WikiAir IL-13-06 001.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Neukoln',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  748 => 
+  array (
+    'nome' => 'Baysports',
+    'pais' => 'Irlanda',
+    'lat' => 53.46945,
+    'lon' => -7.98691,
+    'img' => 'Baysports slipway - geograph.org.uk - 4703371.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jonathan Wilkins ',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  749 => 
+  array (
+    'nome' => 'Al Montazah Amusement and Water Park',
+    'pais' => 'Emirados Árabes Unidos',
+    'lat' => 25.343,
+    'lon' => 55.3803,
+    'img' => 'Entrance to water park at Al Montazah Park in Sharjah UAE.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Earthlingtwo',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  750 => 
+  array (
+    'nome' => 'AquaSferra',
+    'pais' => 'Ucrânia',
+    'lat' => 47.99816,
+    'lon' => 37.78801,
+    'img' => '2015. Донецк 013.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Andrey Butko',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  751 => 
+  array (
+    'nome' => 'Aqua Fresca',
+    'pais' => 'Síria',
+    'lat' => 33.67755,
+    'lon' => 36.36437,
+    'img' => 'Aqua Fresca 2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Quick-ease2020',
+    'licenca' => 'CC BY 4.0',
+  ),
+  752 => 
+  array (
+    'nome' => 'Druskininkai Aquapark',
+    'pais' => 'Lituânia',
+    'lat' => 54.02282,
+    'lon' => 23.97211,
+    'img' => 'Druskininkai Aquapark - panoramio.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'D&amp;G photo',
+    'licenca' => 'CC BY 3.0',
+  ),
+  753 => 
+  array (
+    'nome' => 'Therme București',
+    'pais' => 'Roménia',
+    'lat' => 44.60567,
+    'lon' => 26.08583,
+    'img' => 'ThermeBucuresti.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Daniele Napolitano',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  754 => 
+  array (
+    'nome' => 'Taipei Zoo',
+    'pais' => 'Taiwan',
+    'lat' => 25.0026,
+    'lon' => 121.582,
+    'img' => 'Taipei Zoo Entrance.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Yu tptw',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  755 => 
+  array (
+    'nome' => 'Valencia\'s Aquarium',
+    'pais' => 'Venezuela',
+    'lat' => 10.18902,
+    'lon' => -68.01124,
+    'img' => 'Zues u Maria.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Felix Ochoa',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  756 => 
+  array (
+    'nome' => 'Belgrade Zoo',
+    'pais' => 'Sérvia',
+    'lat' => 44.82583,
+    'lon' => 20.45333,
+    'img' => 'Белградский зоопарк, главный вход.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Новик А.Н.',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  757 => 
+  array (
+    'nome' => 'Tierpark Bern',
+    'pais' => 'Suíça',
+    'lat' => 46.9344,
+    'lon' => 7.44972,
+    'img' => 'Wisent-Wald Bern.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'TeamBurton at de.wikipedia',
+    'licenca' => 'Public domain',
+  ),
+  758 => 
+  array (
+    'nome' => 'Knie\'s Kinderzoo',
+    'pais' => 'Suíça',
+    'lat' => 47.22365,
+    'lon' => 8.82199,
+    'img' => 'Knies Kinderzoo IMG 3835.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Roland zh',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  759 => 
+  array (
+    'nome' => 'Korea Central Zoo',
+    'pais' => 'Coreia do Norte',
+    'lat' => 39.075,
+    'lon' => 125.815,
+    'img' => 'Korea Central Zoo in Pyongyang.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Alex Kühni',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  760 => 
+  array (
+    'nome' => 'Palić Zoo',
+    'pais' => 'Sérvia',
+    'lat' => 46.09896,
+    'lon' => 19.74983,
+    'img' => 'Palić 09.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Miljan Simonović',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  761 => 
+  array (
+    'nome' => 'Jurong Bird Park',
+    'pais' => 'Singapura',
+    'lat' => 1.32101,
+    'lon' => 103.70703,
+    'img' => 'Flamingo Lake, Jurong Bird Park, Oct 05.JPG',
+    'nivel' => 'ponto',
+    'autor' => '',
+    'licenca' => 'Copyrighted free use',
+  ),
+  762 => 
+  array (
+    'nome' => 'Sesame Street Spaghetti Space Chase',
+    'pais' => 'Singapura',
+    'lat' => 1.25513,
+    'lon' => 103.82136,
+    'img' => 'Sesame Street Spaghetti Space Chase station 2.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Walter Lim from Singapore, Singapore',
+    'licenca' => 'CC BY 2.0',
+  ),
+  763 => 
+  array (
+    'nome' => 'Fonghuanggu Bird and Ecology Park',
+    'pais' => 'Taiwan',
+    'lat' => 23.72889,
+    'lon' => 120.79278,
+    'img' => 'Gate of Fonghuanggu Bird and Ecology Park.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Jeffreyjhang',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  764 => 
+  array (
+    'nome' => 'Kabul Zoo',
+    'pais' => 'Afeganistão',
+    'lat' => 34.50944,
+    'lon' => 69.15528,
+    'img' => 'Kabul zoo - panoramio.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Masoud Akbari',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  765 => 
+  array (
+    'nome' => 'Naypyidaw Zoological Gardens',
+    'pais' => 'Myanmar',
+    'lat' => 19.86394,
+    'lon' => 96.25582,
+    'img' => 'Naypyidaw -- Zoo.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Hybernator',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  766 => 
+  array (
+    'nome' => 'Budapest Zoo & Botanical Garden',
+    'pais' => 'Hungria',
+    'lat' => 47.5191,
+    'lon' => 19.0783,
+    'img' => 'Hungary budapest zoo entry.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Martin Belam (currybet) from Niederalm, Austria',
+    'licenca' => 'CC BY-SA 2.0',
+  ),
+  767 => 
+  array (
+    'nome' => 'Paramaribo Zoo',
+    'pais' => 'Suriname',
+    'lat' => 5.8473,
+    'lon' => -55.15966,
+    'img' => 'Paramaribo Zoo - entree 20160926.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Otter',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  768 => 
+  array (
+    'nome' => 'Zoo Băneasa',
+    'pais' => 'Roménia',
+    'lat' => 44.5174,
+    'lon' => 26.1039,
+    'img' => 'Zoo Băneasa entry.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Tiia Monto',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  769 => 
+  array (
+    'nome' => 'Marineland of New Zealand',
+    'pais' => 'Nova Zelândia',
+    'lat' => -39.49466,
+    'lon' => 176.91916,
+    'img' => 'Entrance Marineland.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'ZoofanNZ (talk) 04:38, 3 February 2008 (UTC)',
+    'licenca' => 'Public domain',
+  ),
+  770 => 
+  array (
+    'nome' => 'Thủ Lệ Park',
+    'pais' => 'Vietname',
+    'lat' => 21.03028,
+    'lon' => 105.8075,
+    'img' => 'Công viên Thủ Lệ.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Nguyễn Thanh Quang',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  771 => 
+  array (
+    'nome' => 'Kuterevo',
+    'pais' => 'Croácia',
+    'lat' => 44.8205,
+    'lon' => 15.1388,
+    'img' => 'Braunbär, Bärenrefugium von Kuterevo, Kroatien.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Modzzak',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  772 => 
+  array (
+    'nome' => 'Zoológico de Sófia',
+    'pais' => 'Bulgária',
+    'lat' => 42.65806,
+    'lon' => 23.33194,
+    'img' => 'Pond-Sofia-Zoo.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Maymay',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  773 => 
+  array (
+    'nome' => 'Zoo Gyöngyös',
+    'pais' => 'Hungria',
+    'lat' => 47.79061,
+    'lon' => 19.91277,
+    'img' => 'Állatkert, Gyöngyös - 2014.02.28 (2).JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Derzsi Elekes Andor',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  774 => 
+  array (
+    'nome' => 'Shymkent Zoo',
+    'pais' => 'Cazaquistão',
+    'lat' => 42.37846,
+    'lon' => 69.62422,
+    'img' => 'Africa-Section-of-Zoo-Shymkent.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'TheGreatSteppe',
+    'licenca' => 'CC BY-SA 4.0',
+  ),
+  775 => 
+  array (
+    'nome' => 'Carmel Hai-Bar Nature Reserve',
+    'pais' => 'Israel',
+    'lat' => 32.74994,
+    'lon' => 34.99959,
+    'img' => 'Carmel Hai-Bar (2).JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Hanay',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  776 => 
+  array (
+    'nome' => 'Yangon Zoological Gardens',
+    'pais' => 'Myanmar',
+    'lat' => 16.79167,
+    'lon' => 96.15944,
+    'img' => 'Yangon Zoo.JPG',
+    'nivel' => 'ponto',
+    'autor' => 'Phyo WP',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  777 => 
+  array (
+    'nome' => 'National Zoological Garden of South Africa',
+    'pais' => 'África do Sul',
+    'lat' => -25.73833,
+    'lon' => 28.18917,
+    'img' => 'South Africa-Pretoria Zoo-005.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'NJR ZA',
+    'licenca' => 'CC BY-SA 3.0',
+  ),
+  778 => 
+  array (
+    'nome' => 'National Zoological Gardens of Sri Lanka',
+    'pais' => 'Sri Lanka',
+    'lat' => 6.85681,
+    'lon' => 79.87289,
+    'img' => 'Elephant dance at galleryfull.jpg',
+    'nivel' => 'ponto',
+    'autor' => 'Annesley Rozairo',
+    'licenca' => 'CC BY-SA 1.0',
   ),
 );

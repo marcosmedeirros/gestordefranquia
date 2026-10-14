@@ -112,7 +112,10 @@ function geoCreditos(array $arquivos): array
             $autor = trim(strip_tags((string)($m['Artist']['value'] ?? '')));
             $autor = preg_replace('/\s+/', ' ', $autor);
             $out[$nome] = [
-                'autor'   => mb_substr($autor !== '' ? $autor : 'autor não informado', 0, 90),
+                /* Vazio quando o Commons não diz quem fotografou: a tela some
+                   com a linha do crédito em vez de escrever um nome que
+                   ninguém conferiu. O link pro arquivo original fica. */
+                'autor'   => mb_substr($autor, 0, 90),
                 'licenca' => mb_substr(trim(strip_tags((string)($m['LicenseShortName']['value'] ?? 'Wikimedia Commons'))), 0, 40),
             ];
         }
@@ -126,7 +129,7 @@ function geoCreditos(array $arquivos): array
    skyline qualquer pode ser de meio mundo) e monumento é a rodada que todo
    mundo acerta — um jogo só de difícil cansa, um só de fácil não tem graça.
    `nivel` vai junto pra tela poder dosar. */
-$opts = getopt('', ['teto:', 'cidades:', 'pontos:', 'creditos:']);
+$opts = getopt('', ['teto:', 'cidades:', 'pontos:', 'creditos:', 'paises:']);
 $teto = max(1, (int)($opts['teto'] ?? GEO_TETO_PAIS));
 
 /** Lê uma resposta do Wikidata já salva em arquivo. @see o cabeçalho */
@@ -141,9 +144,32 @@ $deArquivo = static function (string $caminho): array {
     return $out;
 };
 
+/* ── SÓ PAÍS QUE EXISTE HOJE ─────────────────────────────────────────
+   O P17 do Wikidata guarda TODOS os países que o lugar já teve, e eles vêm
+   no mesmo saco: o primeiro teste em produção mostrou "Era Shangqiu, Song"
+   (a dinastia), e a múltipla escolha ofereceu "Líbia Italiana" como opção.
+   Banguecoque chegou a entrar quatro vezes, uma por reino antigo.
+
+   A trava seria filtrar na própria consulta — mas juntar `?pais é estado
+   soberano` com as 3.000 cidades estoura o tempo do WDQS (504). Então a
+   lista dos países de hoje vem numa consulta separada, que é pequena e
+   instantânea, e o cruzamento é feito aqui, pelo QID. Pelo RÓTULO não dava:
+   "Song" e "China" são rótulos, o QID é o que identifica. */
+$paisesOk = [];
+if (isset($opts['paises'])) {
+    $j = json_decode((string)@file_get_contents((string)$opts['paises']), true);
+    foreach ($j['results']['bindings'] ?? [] as $l) $paisesOk[(string)($l['pais']['value'] ?? '')] = true;
+} else {
+    foreach (geoSparql('SELECT ?pais WHERE { ?pais wdt:P31 wd:Q3624078 .
+                        FILTER NOT EXISTS { ?pais wdt:P576 ?fim } }') as $l) {
+        $paisesOk[(string)($l['pais'] ?? '')] = true;
+    }
+}
+echo '  ', count($paisesOk), " países soberanos de hoje\n";
+
 echo "buscando cidades no Wikidata…\n";
 $cidades = isset($opts['cidades']) ? $deArquivo((string)$opts['cidades']) : geoSparql('
-SELECT ?item ?itemLabel ?coord ?img ?paisLabel ?pop WHERE {
+SELECT ?item ?itemLabel ?coord ?img ?pais ?paisLabel ?pop WHERE {
   ?item wdt:P31/wdt:P279* wd:Q515 ;
         wdt:P625 ?coord ; wdt:P18 ?img ; wdt:P17 ?pais ; wdt:P1082 ?pop .
   FILTER(?pop > 250000)
@@ -153,7 +179,7 @@ echo '  ', count($cidades), " cidades\n";
 
 echo "buscando pontos famosos…\n";
 $pontos = isset($opts["pontos"]) ? $deArquivo((string)$opts["pontos"]) : geoSparql('
-SELECT ?item ?itemLabel ?coord ?img ?paisLabel ?visitantes WHERE {
+SELECT ?item ?itemLabel ?coord ?img ?pais ?paisLabel ?visitantes WHERE {
   ?item wdt:P31/wdt:P279* wd:Q570116 ;
         wdt:P625 ?coord ; wdt:P18 ?img ; wdt:P17 ?pais .
   OPTIONAL { ?item wdt:P1174 ?visitantes }
@@ -163,13 +189,23 @@ echo '  ', count($pontos), " pontos turísticos\n";
 
 /* Monta a lista única, com teto por país pra o jogo não virar um passeio
    pela China (499 das 2.000 primeiras cidades eram de lá). */
-$porPais = []; $lugares = []; $vistos = [];
+$porPais = []; $lugares = []; $vistos = []; $exPais = 0;
 foreach ([['cidade', $cidades], ['ponto', $pontos]] as [$nivel, $lista]) {
     foreach ($lista as $l) {
         $pais = trim($l['paisLabel'] ?? '');
         $nome = trim($l['itemLabel'] ?? '');
         if ($pais === '' || $nome === '' || preg_match('/^Q\d+$/', $nome)) continue;
-        if (isset($vistos[$nome . '|' . $pais])) continue;
+        if ($paisesOk && empty($paisesOk[trim($l['pais'] ?? '')])) { $exPais++; continue; }
+
+        /* ── UM LUGAR, UMA CARTA ─────────────────────────────────────
+           A chave era nome+país, e isso deixava passar o MESMO lugar
+           várias vezes: o Wikidata guarda os países históricos no mesmo
+           P17, então Banguecoque entrava quatro vezes (Ayutthaya, Thonburi,
+           Rattanakosin, Konbaung) e Trípoli duas. O filtro de estado
+           soberano atual na consulta já derruba a maioria, mas a chave
+           certa é o item — é ele que identifica o lugar, não o rótulo. */
+        $chave = trim($l['item'] ?? '') !== '' ? $l['item'] : $nome . '|' . $pais;
+        if (isset($vistos[$chave])) continue;
         if (($porPais[$pais] ?? 0) >= $teto) continue;
         $xy = geoPonto($l['coord'] ?? '');
         if (!$xy) continue;
@@ -186,12 +222,13 @@ foreach ([['cidade', $cidades], ['ponto', $pontos]] as [$nivel, $lista]) {
                      . 'brasao|bras[aã]o|flag|bandeira|seal|poster|cartaz|diagram|chart)\b/i',
                        str_replace(['_', '-'], ' ', $arq))) continue;
 
-        $vistos[$nome . '|' . $pais] = true;
+        $vistos[$chave] = true;
         $porPais[$pais] = ($porPais[$pais] ?? 0) + 1;
         $lugares[] = ['nome' => mb_substr($nome, 0, 80), 'pais' => mb_substr($pais, 0, 60),
                       'lat' => $xy[0], 'lon' => $xy[1], 'img' => $arq, 'nivel' => $nivel];
     }
 }
+echo '  fora por país que não existe mais: ', $exPais, "\n";
 echo 'lugares depois do teto de ', $teto, " por país: ", count($lugares), ' em ', count($porPais), " países\n";
 
 echo "buscando autor e licença no Commons…\n";
@@ -205,7 +242,7 @@ if (isset($opts['creditos'])) {
 $semCredito = 0;
 foreach ($lugares as &$l) {
     $c = $cred[$l['img']] ?? null;
-    if (!$c) { $semCredito++; $c = ['autor' => 'Wikimedia Commons', 'licenca' => 'ver no Commons']; }
+    if (!$c) { $semCredito++; $c = ['autor' => '', 'licenca' => '']; }
     $l['autor'] = $c['autor'];
     $l['licenca'] = $c['licenca'];
 }
