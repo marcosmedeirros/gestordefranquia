@@ -249,6 +249,28 @@ foreach ($lugares as &$l) {
 unset($l);
 echo '  sem crédito encontrado: ', $semCredito, "\n";
 
+/* ── O QUE JÁ SE SABIA DO STREET VIEW NÃO SE PERDE ───────────────────
+   Quem tem panorama é marcado pelo geo_rua_cli.php, que custa uma chamada
+   por lugar. Reescrever o baralho do zero apagaria tudo isso em silêncio, e
+   o jogo voltaria pras fotos sem ninguém entender por quê. O que sobreviveu
+   à nova geração carrega a marca junto — pela coordenada, que é o que
+   identifica o lugar no mundo (o nome muda de rótulo, a foto é trocada).
+   @see games/core/geo_rua_cli.php */
+$antigos = [];
+foreach ((array)@include __DIR__ . '/../data/geo_lugares.php' as $a) {
+    if (!empty($a['rua'])) $antigos[$a['lat'] . ',' . $a['lon']] = $a;
+}
+$herdou = 0;
+foreach ($lugares as &$l) {
+    $a = $antigos[$l['lat'] . ',' . $l['lon']] ?? null;
+    if (!$a) continue;
+    $l['rua'] = 1;
+    if (isset($a['rua_dir'])) $l['rua_dir'] = $a['rua_dir'];
+    $herdou++;
+}
+unset($l);
+if ($antigos) echo '  marca de Street View herdada: ', $herdou, ' de ', count($antigos), "\n";
+
 $php = "<?php\n"
      . "/* Os lugares do FBA Geo — GERADO por games/core/geo_lugares_cli.php.\n"
      . "   Wikidata (lugar, país, coordenada) + Wikimedia Commons (foto, autor,\n"

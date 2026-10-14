@@ -156,6 +156,22 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
   aspect-ratio:16/10;box-shadow:0 24px 60px rgba(0,0,0,.45)}
 .geo-palco img{width:100%;height:100%;object-fit:cover;display:block;
   animation:geoEntra .5s var(--ease)}
+.geo-palco iframe{width:100%;height:100%;border:0;display:block}
+/* COM O PANORAMA, O PALCO É MAIS ALTO: dá pra andar lá dentro, e quem anda
+   precisa de céu e chão na tela. E o HUD deixa de capturar o mouse — ele
+   flutua por cima do Street View, e arrastar em cima dele tem que girar a
+   vista, não esbarrar numa caixa invisível. */
+.geo-palco.rua{aspect-ratio:16/9}
+.geo-palco.rua .geo-hud,.geo-palco.rua .geo-pergunta{pointer-events:none}
+.geo-palco.rua .geo-hud .caixa,.geo-palco.rua .geo-hud form{pointer-events:auto}
+/* O degradê de baixo fica: é ele que faz a pergunta ser lida sobre
+   qualquer cena. Só encolhe, pra não escurecer meia rua. */
+.geo-palco.rua::after{height:30%}
+/* A placa que cobre o cartão do Google no alto à esquerda. Fica ABAIXO do
+   HUD (z-index 1 contra 2), então o que se vê é a chapa escura atrás do
+   placar — e o que não se vê é o nome do lugar. */
+.geo-palco .tapa{position:absolute;top:0;left:0;width:268px;height:62px;z-index:1;
+  background:#0b0b0f;border-radius:0 0 18px 0}
 @keyframes geoEntra{from{opacity:0;transform:scale(1.04)}}
 .geo-palco .carregando{position:absolute;inset:0;display:grid;place-items:center;
   color:var(--text-3);font-size:13px;letter-spacing:.4px}
@@ -354,12 +370,18 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
          não devolveu o autor, a linha some em vez de inventar um nome — o
          link pro arquivo original fica, e é lá que o crédito completo está. */
     $autor = trim((string)($lug['autor'] ?? ''));
-    $lic   = trim((string)($lug['licenca'] ?? '')); ?>
+    $lic   = trim((string)($lug['licenca'] ?? ''));
+    /* Quando a rodada foi panorama, a cena era do Google e não daquela foto
+       — creditar o fotógrafo do Commons aqui seria crédito errado. */
+    if (geoRua($lug)): ?>
+      <div class="geo-credito">panorama do Google Street View</div>
+    <?php else: ?>
     <div class="geo-credito">
       <?= $autor !== '' ? 'foto de ' . e($autor) . ' · ' : '' ?><?= $lic !== '' ? e($lic) . ' · ' : '' ?>
       <a target="_blank" rel="noopener"
          href="https://commons.wikimedia.org/wiki/File:<?= rawurlencode((string)$lug['img']) ?>">Wikimedia Commons</a>
     </div>
+    <?php endif; ?>
 
     <?php if (!empty($resolvida['fim'])): ?>
       <div class="geo-numeros" style="margin-top:18px">
@@ -391,12 +413,31 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
   $lug = $rodada['dados'];
   $ehMapa = $partida['modo'] === 'mapa';
   $opcoes = $ehMapa ? [] : (array)json_decode((string)$rodada['opcoes'], true);
-  $letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']; ?>
+  $letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  /* O PANORAMA QUANDO DÁ, A FOTO QUANDO NÃO DÁ. Precisa de chave da Maps
+     Embed API configurada e de o lugar ter cobertura — sem um dos dois,
+     geoRua() devolve null e a rodada é a foto do Commons de sempre. */
+  $rua = geoRua($lug); ?>
   <div style="--c:<?= $ehMapa ? 'var(--blue)' : 'var(--green)' ?>">
-    <div class="geo-palco">
-      <div class="carregando">carregando a foto…</div>
-      <img src="<?= e(geoFoto((string)$lug['img'])) ?>" alt="Onde é isso?"
-           onload="this.previousElementSibling && this.previousElementSibling.remove()">
+    <div class="geo-palco<?= $rua ? ' rua' : '' ?>">
+      <?php if ($rua): ?>
+        <?php /* O referrerpolicy não é enfeite: é ele que manda o domínio pro
+             Google, e é por domínio que a chave é restringida no console. */ ?>
+        <iframe src="<?= e($rua) ?>" title="Onde é isso?" loading="lazy" allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <?php /* ── O CANTO QUE ENTREGA A RESPOSTA ─────────────────────────
+             O Street View incorporado desenha um cartão no alto à esquerda
+             com o nome do panorama e um "Ver no Google Maps" — e clicar ali
+             abre o mapa com o lugar escrito. Num jogo de adivinhar onde é,
+             isso é o gabarito grudado na pergunta. A placa cobre esse canto;
+             o logo do Google, que é atribuição e não controle, continua no
+             pé da imagem onde o Google pede que fique. */ ?>
+        <div class="tapa"></div>
+      <?php else: ?>
+        <div class="carregando">carregando a foto…</div>
+        <img src="<?= e(geoFoto((string)$lug['img'])) ?>" alt="Onde é isso?"
+             onload="this.previousElementSibling && this.previousElementSibling.remove()">
+      <?php endif; ?>
       <div class="geo-hud">
         <div class="caixa">
           <b><?= $ehMapa ? (int)$rodada['n'] . '/' . GEO_RODADAS_MAPA : (int)$partida['acertos'] ?></b>

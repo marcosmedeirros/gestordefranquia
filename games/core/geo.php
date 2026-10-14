@@ -326,3 +326,73 @@ function geoFoto(string $arquivo, int $largura = 1100): string
     return 'https://commons.wikimedia.org/wiki/Special:FilePath/'
          . rawurlencode($arquivo) . '?width=' . $largura;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   ── O STREET VIEW: ANDAR NO LUGAR EM VEZ DE OLHAR A FOTO ────────────
+   ════════════════════════════════════════════════════════════════════
+
+   Pedido do Marcos (14/10/2026): "não tem como colocar o google maps pra
+   andar no lugar de ser só uma foto". Tem, e sem romper a regra do grátis —
+   mas por um caminho só.
+
+   O QUE É PAGO E O QUE NÃO É. O Street View que a maioria dos clones de
+   GeoGuessr usa é o da Maps JavaScript API, cobrado por panorama carregado
+   desde que o crédito mensal do Google acabou (março de 2025). A MAPS EMBED
+   API faz o mesmo panorama, navegável, dentro de um <iframe>: "o uso do Maps
+   Embed está disponível sem custos financeiros", sem limite de QPS nem de
+   chamadas por dia. É essa que o jogo usa.
+
+   O QUE ELA EXIGE: uma chave. "Para usar a API Maps Embed, é necessário
+   incluir uma chave de API em todas as solicitações" — e chave é da conta
+   do Google Cloud do Marcos, não minha. Sem chave configurada, nada quebra:
+   geoRua() devolve null e a rodada segue com a foto do Commons, como hoje.
+
+   A CHAVE VAI APARECER NO HTML, e isso é normal numa chave de Embed: quem
+   protege não é o segredo, é a restrição por referenciador (HTTP referrer)
+   no console do Google — só fbabrasil.com.br pode usá-la.
+
+   @see geo_rua_cli.php  quem marca os lugares que têm panorama
+*/
+
+/** A chave da Maps Embed API, ou string vazia se ninguém configurou. */
+function geoChaveMaps(): string
+{
+    static $k = null;
+    if ($k !== null) return $k;
+    $k = trim((string)getenv('GOOGLE_MAPS_KEY'));
+    if ($k === '') {
+        try {
+            require_once __DIR__ . '/../../backend/helpers.php';
+            $cfg = loadConfig();
+            $k = trim((string)($cfg['google']['maps_key'] ?? ''));
+        } catch (Throwable $e) {
+            $k = '';
+        }
+    }
+    return $k;
+}
+
+/**
+ * O panorama navegável deste lugar, ou null quando não dá.
+ *
+ * NÃO BASTA TER CHAVE: o lugar precisa estar marcado como coberto (`rua`).
+ * O Street View não cobre o mundo todo — e uma rodada que abre numa tela
+ * cinza dizendo "sem imagens aqui" é pior que a foto. Quem marca é o
+ * geo_rua_cli.php, consultando o metadata do Google (que também é de graça)
+ * uma vez, fora do jogo; em partida ninguém pergunta nada a ninguém.
+ */
+function geoRua(array $lugar): ?string
+{
+    if (empty($lugar['rua'])) return null;
+    $chave = geoChaveMaps();
+    if ($chave === '') return null;
+
+    return 'https://www.google.com/maps/embed/v1/streetview?' . http_build_query([
+        'key'      => $chave,
+        'location' => $lugar['lat'] . ',' . $lugar['lon'],
+        'heading'  => (int)($lugar['rua_dir'] ?? 0),
+        'pitch'    => 0,
+        'fov'      => 90,
+        'language' => 'pt-BR',
+    ]);
+}
