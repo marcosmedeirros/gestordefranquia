@@ -2,12 +2,13 @@
 /* Os lugares do FBA Geo — GERADO por games/core/geo_lugares_cli.php.
    Wikidata (lugar, país, coordenada) + Wikimedia Commons (foto, autor,
    licença). NÃO EDITE À MÃO: rode o CLI de novo.
-   Gerado em 14/10/2026 20:19 — 779 lugares. */
+   Gerado em 14/10/2026 20:58 — 779 lugares. */
 return array (
   0 => 
   array (
     'nome' => 'Chongqing',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 29.55,
     'lon' => 106.50694,
     'img' => 'Chongqing, China ESA23338300.jpeg',
@@ -19,6 +20,7 @@ return array (
   array (
     'nome' => 'Deli',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 28.66667,
     'lon' => 77.21667,
     'img' => 'Red Fort in Delhi 03-2016 img3.jpg',
@@ -30,6 +32,7 @@ return array (
   array (
     'nome' => 'Xangai',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 31.2325,
     'lon' => 121.46917,
     'img' => '20191222陆家嘴.jpg',
@@ -41,6 +44,7 @@ return array (
   array (
     'nome' => 'Pequim',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 39.90403,
     'lon' => 116.40753,
     'img' => 'Skyline of Beijing CBD with B-5906 approaching (20211016171955).jpg',
@@ -52,6 +56,7 @@ return array (
   array (
     'nome' => 'Chengdu',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 30.66,
     'lon' => 104.06333,
     'img' => '雪山下的成都市天际线 Chengdu skyline with snow capped mountains.jpg',
@@ -63,6 +68,7 @@ return array (
   array (
     'nome' => 'Região Metropolitana de Nova Iorque',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 40.80861,
     'lon' => -74.02028,
     'img' => 'A view of New York City with the Empire State Building and One World Trade Center from the Rockefeller Center.jpg',
@@ -74,6 +80,7 @@ return array (
   array (
     'nome' => 'Cantão',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 23.13,
     'lon' => 113.26,
     'img' => 'Canton Tower 20220626 (cropped).jpg',
@@ -85,6 +92,7 @@ return array (
   array (
     'nome' => 'Shenzhen',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 22.54667,
     'lon' => 114.05444,
     'img' => 'The west panorama of Shenzhen2021.jpg',
@@ -96,6 +104,7 @@ return array (
   array (
     'nome' => 'Daca',
     'pais' => 'Bangladesh',
+    'iso' => 'BGD',
     'lat' => 23.72889,
     'lon' => 90.39444,
     'img' => 'Dhaka skyline1.jpg',
@@ -107,6 +116,7 @@ return array (
   array (
     'nome' => 'Istambul',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 41.01,
     'lon' => 28.96028,
     'img' => 'Istanbul Montage 2016.png',
@@ -118,6 +128,7 @@ return array (
   array (
     'nome' => 'Bombaim',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 19.07583,
     'lon' => 72.8775,
     'img' => 'Panoramic view of Taj Palace Hotel and Taj Tower with the iconic Gateway of India in the background (cropped).jpg',
@@ -129,6 +140,7 @@ return array (
   array (
     'nome' => 'Lagos',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 6.45611,
     'lon' => 3.39361,
     'img' => 'Skywater.jpg',
@@ -140,6 +152,7 @@ return array (
   array (
     'nome' => 'Carachi',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 24.86,
     'lon' => 67.01,
     'img' => 'Karachi from above.jpg',
@@ -151,6 +164,7 @@ return array (
   array (
     'nome' => 'Quinxassa',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -4.32194,
     'lon' => 15.31194,
     'img' => 'Vue Kinshasa.jpg',
@@ -162,6 +176,7 @@ return array (
   array (
     'nome' => 'Tóquio',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.68944,
     'lon' => 139.69167,
     'img' => 'Skyscrapers of Shinjuku 2009 January (revised).jpg',
@@ -173,6 +188,7 @@ return array (
   array (
     'nome' => 'Cidade de Ho Chi Minh',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 10.77556,
     'lon' => 106.70194,
     'img' => 'Ho Chi Minh City Skyline.jpg',
@@ -184,6 +200,7 @@ return array (
   array (
     'nome' => 'Grande Manila',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.58333,
     'lon' => 121.0,
     'img' => 'Iss047e099713 lrg Manila.jpg',
@@ -195,6 +212,7 @@ return array (
   array (
     'nome' => 'Grande Buenos Aires',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -34.6083,
     'lon' => -58.3719,
     'img' => 'NASA ISS006-E-24987.jpg',
@@ -206,6 +224,7 @@ return array (
   array (
     'nome' => 'Tianjin',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 39.14667,
     'lon' => 117.20556,
     'img' => 'Tianjin, China ESA15420167.jpeg',
@@ -217,6 +236,7 @@ return array (
   array (
     'nome' => 'Moscovo',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 55.75056,
     'lon' => 37.6175,
     'img' => 'Saint Basil\'s Cathedral and the Red Square.jpg',
@@ -228,6 +248,7 @@ return array (
   array (
     'nome' => 'Xian',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 34.26111,
     'lon' => 108.94222,
     'img' => '西安钟楼2020 (1).jpg',
@@ -239,6 +260,7 @@ return array (
   array (
     'nome' => 'Suzhou',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 31.3,
     'lon' => 120.61944,
     'img' => '东方之门1.jpg',
@@ -250,6 +272,7 @@ return array (
   array (
     'nome' => 'Zhengzhou',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 34.74919,
     'lon' => 113.66051,
     'img' => '20220812 Central Business District of Zhengdong New Area.jpg',
@@ -261,6 +284,7 @@ return array (
   array (
     'nome' => 'Bangalore',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 12.97912,
     'lon' => 77.5913,
     'img' => 'UB City.jpg',
@@ -272,6 +296,7 @@ return array (
   array (
     'nome' => 'Wuhan',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 30.595,
     'lon' => 114.2975,
     'img' => '武汉黄鹤楼俯瞰.jpg',
@@ -283,6 +308,7 @@ return array (
   array (
     'nome' => 'Hangzhou',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 30.25,
     'lon' => 120.1675,
     'img' => 'Huanglong & Broken Bridge - Hangzhou City & West Lake near Broken Bridge.jpg',
@@ -294,6 +320,7 @@ return array (
   array (
     'nome' => 'Baoding',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 38.86712,
     'lon' => 115.48452,
     'img' => '保定市天际线 - 航拍 - 2025-10-24 01.jpg',
@@ -305,6 +332,7 @@ return array (
   array (
     'nome' => 'São Paulo',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -23.55039,
     'lon' => -46.63395,
     'img' => 'Sao Paulo Skyline in Brazil.jpg',
@@ -316,6 +344,7 @@ return array (
   array (
     'nome' => 'Jacarta',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.17528,
     'lon' => 106.82694,
     'img' => 'Jakarta.jpg',
@@ -327,6 +356,7 @@ return array (
   array (
     'nome' => 'Laore',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 31.54972,
     'lon' => 74.34361,
     'img' => 'Eye Of Lahore (Minar e Pakistan) evening.jpg',
@@ -338,6 +368,7 @@ return array (
   array (
     'nome' => 'Linyi',
     'pais' => 'China',
+    'iso' => 'CHN',
     'lat' => 35.10408,
     'lon' => 118.35019,
     'img' => 'Linyi montage.png',
@@ -349,6 +380,7 @@ return array (
   array (
     'nome' => 'Lima',
     'pais' => 'Peru',
+    'iso' => 'PER',
     'lat' => -12.06,
     'lon' => -77.0375,
     'img' => 'Plaza Mayor de Lima-1.jpg',
@@ -360,6 +392,7 @@ return array (
   array (
     'nome' => 'Cairo',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 30.04444,
     'lon' => 31.23583,
     'img' => 'Cairo Skyline (2020).jpg',
@@ -371,6 +404,7 @@ return array (
   array (
     'nome' => 'Seul',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.56,
     'lon' => 126.99,
     'img' => '덕수궁의 가을.jpg',
@@ -382,6 +416,7 @@ return array (
   array (
     'nome' => 'Tóquio',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.68389,
     'lon' => 139.77444,
     'img' => 'Akiba denkigai.jpg',
@@ -393,6 +428,7 @@ return array (
   array (
     'nome' => 'Cidade do México',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 19.35377,
     'lon' => -99.13589,
     'img' => 'Sobrevuelos CDMX HJ2A5091 (40386338731).jpg',
@@ -404,6 +440,7 @@ return array (
   array (
     'nome' => 'Hyderabad',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 17.36167,
     'lon' => 78.47472,
     'img' => 'Hyderabad Montage 2020.jpg',
@@ -415,6 +452,7 @@ return array (
   array (
     'nome' => 'Kuala Lumpur',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.14778,
     'lon' => 101.69528,
     'img' => 'Kuala Lumpur with Petronas Towers.jpg',
@@ -426,6 +464,7 @@ return array (
   array (
     'nome' => 'Nova Iorque',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 40.71278,
     'lon' => -74.00611,
     'img' => 'NYC Downtown Manhattan Skyline seen from Paulus Hook 2019-12-20 IMG 7347 FRD (cropped).jpg',
@@ -437,6 +476,7 @@ return array (
   array (
     'nome' => 'Londres',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 51.50722,
     'lon' => -0.1275,
     'img' => 'London Skyline (125508655).jpeg',
@@ -448,6 +488,7 @@ return array (
   array (
     'nome' => 'Hanói',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 21.0245,
     'lon' => 105.84117,
     'img' => 'Tháp Rùa - NKS.jpg',
@@ -459,6 +500,7 @@ return array (
   array (
     'nome' => 'Teerão',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 35.68889,
     'lon' => 51.38972,
     'img' => 'North of tehran.jpg',
@@ -470,6 +512,7 @@ return array (
   array (
     'nome' => 'Veracruz',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 19.19028,
     'lon' => -96.15333,
     'img' => '15-07-14-Landschaft-zwischen-Mexico-und-Golfküste-RalfR-WMA 0473.jpg',
@@ -481,6 +524,7 @@ return array (
   array (
     'nome' => 'Bogotá',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 4.60971,
     'lon' => -74.08175,
     'img' => 'Centro internacional.JPG',
@@ -492,6 +536,7 @@ return array (
   array (
     'nome' => 'Ahmedabad',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 23.02194,
     'lon' => 72.57972,
     'img' => 'Amdavad Aerial.jpg',
@@ -503,6 +548,7 @@ return array (
   array (
     'nome' => 'Riade',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 24.63833,
     'lon' => 46.715,
     'img' => 'Riyadh Skyline.jpg',
@@ -514,6 +560,7 @@ return array (
   array (
     'nome' => 'Rangum',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 16.795,
     'lon' => 96.16,
     'img' => '2016 Rangun, Dawny budynek Sądu Najwyższego (15).jpg',
@@ -525,6 +572,7 @@ return array (
   array (
     'nome' => 'Chennai',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 13.0825,
     'lon' => 80.275,
     'img' => 'Ripon Building aerial view.jpg',
@@ -536,6 +584,7 @@ return array (
   array (
     'nome' => 'Santiago',
     'pais' => 'Chile',
+    'iso' => 'CHL',
     'lat' => -33.4375,
     'lon' => -70.65,
     'img' => 'Santiago de Chile, Desde Cerro San Cristóbal (cropped).jpg',
@@ -547,6 +596,7 @@ return array (
   array (
     'nome' => 'Rio de Janeiro',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -22.91111,
     'lon' => -43.20556,
     'img' => 'Cidade Maravilhosa.jpg',
@@ -558,6 +608,7 @@ return array (
   array (
     'nome' => 'Pune',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 18.52111,
     'lon' => 73.85528,
     'img' => 'Shaniwar Wada Main Gate 01.jpg',
@@ -569,6 +620,7 @@ return array (
   array (
     'nome' => 'Prayagraj',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 25.45,
     'lon' => 81.85,
     'img' => 'Allahabad city.jpg',
@@ -580,6 +632,7 @@ return array (
   array (
     'nome' => 'Surate',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 21.205,
     'lon' => 72.84,
     'img' => 'Surat at night.JPG',
@@ -591,6 +644,7 @@ return array (
   array (
     'nome' => 'Singapura',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.3,
     'lon' => 103.8,
     'img' => 'Raffles Place.jpg',
@@ -602,6 +656,7 @@ return array (
   array (
     'nome' => 'Ancara',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 39.93576,
     'lon' => 32.83869,
     'img' => 'Ankara (16290014657).jpg',
@@ -613,6 +668,7 @@ return array (
   array (
     'nome' => 'Adis Abeba',
     'pais' => 'Etiópia',
+    'iso' => 'ETH',
     'lat' => 9.03583,
     'lon' => 38.7525,
     'img' => 'AddisView.jpg',
@@ -624,6 +680,7 @@ return array (
   array (
     'nome' => 'Banguecoque',
     'pais' => 'Tailândia',
+    'iso' => 'THA',
     'lat' => 13.75,
     'lon' => 100.51667,
     'img' => 'Temple of the Emerald of buddha or Wat Phra Kaew (cropped).jpg',
@@ -635,6 +692,7 @@ return array (
   array (
     'nome' => 'São Petersburgo',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 59.95,
     'lon' => 30.31667,
     'img' => 'Peter & Paul fortress in SPB 03.jpg',
@@ -646,6 +704,7 @@ return array (
   array (
     'nome' => 'Abidjan',
     'pais' => 'Costa do Marfim',
+    'iso' => 'CIV',
     'lat' => 5.33639,
     'lon' => -4.02667,
     'img' => 'Plateau 2010, Abidjan.jpg',
@@ -657,6 +716,7 @@ return array (
   array (
     'nome' => 'Nairóbi',
     'pais' => 'Quénia',
+    'iso' => 'KEN',
     'lat' => -1.28639,
     'lon' => 36.81722,
     'img' => 'Nairobi, view from KICC.JPG',
@@ -668,6 +728,7 @@ return array (
   array (
     'nome' => 'Sydney',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -33.86778,
     'lon' => 151.21,
     'img' => '00 3178 Sydney, Australia.jpg',
@@ -679,6 +740,7 @@ return array (
   array (
     'nome' => 'Alexandria',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 31.1975,
     'lon' => 29.8925,
     'img' => 'AlexandriaSkyline.jpg',
@@ -690,6 +752,7 @@ return array (
   array (
     'nome' => 'Melbourne',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -37.81417,
     'lon' => 144.96306,
     'img' => 'Melbourne CBD and Ceremonial Avenue (in 2024) as seen from the rooftop of Shrine of Remembrance.jpg',
@@ -701,6 +764,7 @@ return array (
   array (
     'nome' => 'Cartum',
     'pais' => 'Sudão',
+    'iso' => 'SDN',
     'lat' => 15.60308,
     'lon' => 32.52654,
     'img' => 'Elmek Nimir Bridge.jpg',
@@ -712,6 +776,7 @@ return array (
   array (
     'nome' => 'Cabul',
     'pais' => 'Afeganistão',
+    'iso' => 'AFG',
     'lat' => 34.53278,
     'lon' => 69.16583,
     'img' => 'Kabul TV Hill view.jpg',
@@ -723,6 +788,7 @@ return array (
   array (
     'nome' => 'City of Johannesburg Metropolitan Municipality',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -26.20497,
     'lon' => 28.04061,
     'img' => 'Johannesburg CBD.jpg',
@@ -734,6 +800,7 @@ return array (
   array (
     'nome' => 'Joanesburgo',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -26.20436,
     'lon' => 28.04164,
     'img' => 'Johannesburg CBD.jpg',
@@ -745,6 +812,7 @@ return array (
   array (
     'nome' => 'Dar es Salaam',
     'pais' => 'Tanzânia',
+    'iso' => 'TZA',
     'lat' => -6.81611,
     'lon' => 39.28028,
     'img' => 'Dar es Salaam before dusk.jpg',
@@ -756,6 +824,7 @@ return array (
   array (
     'nome' => 'Jidá',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 21.52917,
     'lon' => 39.16111,
     'img' => 'الواجهة البحرية في مدينة جدة غرب السعودية (2025).jpg',
@@ -767,6 +836,7 @@ return array (
   array (
     'nome' => 'Kanpur',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 26.4725,
     'lon' => 80.33111,
     'img' => 'JK Temple(Juggilal Kamlapati temple) is a temple in the Indian city of Kanpur.It is considered to be a unique blend of ancient and modern architecture.jpg',
@@ -778,6 +848,7 @@ return array (
   array (
     'nome' => 'Calcutá',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 22.5675,
     'lon' => 88.37,
     'img' => 'Ketan donate4.jpg',
@@ -789,6 +860,7 @@ return array (
   array (
     'nome' => 'Esmirna',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 38.41273,
     'lon' => 27.13838,
     'img' => 'Izmir (15383066346).jpg',
@@ -800,6 +872,7 @@ return array (
   array (
     'nome' => 'Gizé',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 29.987,
     'lon' => 31.2118,
     'img' => 'Giza Corniche.jpg',
@@ -811,6 +884,7 @@ return array (
   array (
     'nome' => 'Dong Nai',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 11.11028,
     'lon' => 107.18111,
     'img' => 'Nhà thờ chính Văn miếu Trấn Biên.jpg',
@@ -822,6 +896,7 @@ return array (
   array (
     'nome' => 'Kano',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 12.0,
     'lon' => 8.51667,
     'img' => 'KanofromDalaHill.jpg',
@@ -833,6 +908,7 @@ return array (
   array (
     'nome' => 'Bamako',
     'pais' => 'Mali',
+    'iso' => 'MLI',
     'lat' => 12.64583,
     'lon' => -7.99222,
     'img' => 'Bamako ACI 2000 Aeriel.jpg',
@@ -844,6 +920,7 @@ return array (
   array (
     'nome' => 'Novo Taipé',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 25.0125,
     'lon' => 121.465,
     'img' => 'View of Banqiao District, New Taipei, Taiwan Cityscape 2017.jpg',
@@ -855,6 +932,7 @@ return array (
   array (
     'nome' => 'Amã',
     'pais' => 'Jordânia',
+    'iso' => 'JOR',
     'lat' => 31.93098,
     'lon' => 35.92608,
     'img' => 'Amman.jpg',
@@ -866,6 +944,7 @@ return array (
   array (
     'nome' => 'Dubai',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.26972,
     'lon' => 55.30944,
     'img' => 'Dubai Skyline mit Burj Khalifa (cropped).jpg',
@@ -877,6 +956,7 @@ return array (
   array (
     'nome' => 'Kumasi',
     'pais' => 'Gana',
+    'iso' => 'GHA',
     'lat' => 6.7,
     'lon' => -1.625,
     'img' => 'Kronum Kumasi 2018-11-08 (130246).jpg',
@@ -888,6 +968,7 @@ return array (
   array (
     'nome' => 'Los Angeles',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 34.05223,
     'lon' => -118.24368,
     'img' => 'Los Angeles with Mount Baldy.jpg',
@@ -899,6 +980,7 @@ return array (
   array (
     'nome' => 'Cidade do Cabo',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -33.92528,
     'lon' => 18.42389,
     'img' => 'Ciudad del Cabo desde Cabeza de León, Sudáfrica, 2018-07-22, DD 34.jpg',
@@ -910,6 +992,7 @@ return array (
   array (
     'nome' => 'Yokohama',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.45033,
     'lon' => 139.63422,
     'img' => 'Minato-mirai from Yamashita Park at night.jpg',
@@ -921,6 +1004,7 @@ return array (
   array (
     'nome' => 'Berlim',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 52.51667,
     'lon' => 13.38333,
     'img' => 'Cityscape Berlin.jpg',
@@ -932,6 +1016,7 @@ return array (
   array (
     'nome' => 'Tripura',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 23.84,
     'lon' => 91.28,
     'img' => 'Ujjayanta palace Tripura State Museum Agartala India.jpg',
@@ -943,6 +1028,7 @@ return array (
   array (
     'nome' => 'Bac Ninh',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 21.1,
     'lon' => 106.1,
     'img' => 'Trung tâm văn hóa Kinh Bắc.jpg',
@@ -954,6 +1040,7 @@ return array (
   array (
     'nome' => 'Port Harcourt',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 4.76547,
     'lon' => 7.01632,
     'img' => 'Pitakwa.jpg',
@@ -965,6 +1052,7 @@ return array (
   array (
     'nome' => 'Busan',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 35.18,
     'lon' => 129.075,
     'img' => 'Korea-Busan-Busan Tower-01.jpg',
@@ -976,6 +1064,7 @@ return array (
   array (
     'nome' => 'Lucknow',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 26.847,
     'lon' => 80.947,
     'img' => 'Gomti river in Downtown New Lucknow.JPG',
@@ -987,6 +1076,7 @@ return array (
   array (
     'nome' => 'Chatigão',
     'pais' => 'Bangladesh',
+    'iso' => 'BGD',
     'lat' => 22.335,
     'lon' => 91.8325,
     'img' => 'Chittagong collage.png',
@@ -998,6 +1088,7 @@ return array (
   array (
     'nome' => 'Casablanca',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 33.59917,
     'lon' => -7.62,
     'img' => 'Au centre de Casablanca (8177200639).jpg',
@@ -1009,6 +1100,7 @@ return array (
   array (
     'nome' => 'Can Tho',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 10.15473,
     'lon' => 105.50054,
     'img' => 'Can Tho City - Stadt aus Sicht vom Boot.jpg',
@@ -1020,6 +1112,7 @@ return array (
   array (
     'nome' => 'Faisalabad',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 31.418,
     'lon' => 73.079,
     'img' => 'Clocktower Faisalabad, Panorama.jpg',
@@ -1031,6 +1124,7 @@ return array (
   array (
     'nome' => 'Santa Cruz de la Sierra',
     'pais' => 'Bolívia',
+    'iso' => 'BOL',
     'lat' => -17.78917,
     'lon' => -63.1975,
     'img' => 'Northern Skyline Santa Cruz.jpg',
@@ -1042,6 +1136,7 @@ return array (
   array (
     'nome' => 'Buenos Aires',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -34.59972,
     'lon' => -58.38194,
     'img' => 'Vista aérea de la Plaza del Congreso 10.jpg',
@@ -1053,6 +1148,7 @@ return array (
   array (
     'nome' => 'Vadodara',
     'pais' => 'Índia',
+    'iso' => 'IND',
     'lat' => 22.3,
     'lon' => 73.2,
     'img' => 'NyayM.jpg',
@@ -1064,6 +1160,7 @@ return array (
   array (
     'nome' => 'Cidade Quezon',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.65,
     'lon' => 121.0475,
     'img' => 'Katipunan area with Eastwood (view from SMDC Blue) (Quezon City and Marikina)(2017-09-06).jpg',
@@ -1075,6 +1172,7 @@ return array (
   array (
     'nome' => 'Incheon',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.46389,
     'lon' => 126.64861,
     'img' => 'Incheon Cityscape.jpg',
@@ -1086,6 +1184,7 @@ return array (
   array (
     'nome' => 'Taichung',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 24.14389,
     'lon' => 120.67944,
     'img' => 'Taichung montage.PNG',
@@ -1097,6 +1196,7 @@ return array (
   array (
     'nome' => 'Surabaia',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -7.24628,
     'lon' => 112.73777,
     'img' => 'Surabaya skyline.jpg',
@@ -1108,6 +1208,7 @@ return array (
   array (
     'nome' => 'Brasília',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -15.79389,
     'lon' => -47.88278,
     'img' => 'Planalto Central (cropped).jpg',
@@ -1119,6 +1220,7 @@ return array (
   array (
     'nome' => 'Kuwait',
     'pais' => 'Kuwait',
+    'iso' => 'KWT',
     'lat' => 29.375,
     'lon' => 47.98,
     'img' => 'LiberationTower.jpg',
@@ -1130,6 +1232,7 @@ return array (
   array (
     'nome' => 'Sana',
     'pais' => 'Iémen',
+    'iso' => 'YEM',
     'lat' => 15.35,
     'lon' => 44.2,
     'img' => 'San\'a03 flickr.jpg',
@@ -1141,6 +1244,7 @@ return array (
   array (
     'nome' => 'Tasquente',
     'pais' => 'Usbequistão',
+    'iso' => 'UZB',
     'lat' => 41.31111,
     'lon' => 69.27972,
     'img' => 'Aerial view of Tashkent, Uzbekistan.JPG',
@@ -1152,6 +1256,7 @@ return array (
   array (
     'nome' => 'Kiev',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 50.45,
     'lon' => 30.52361,
     'img' => 'Kyiv (234807751).jpeg',
@@ -1163,6 +1268,7 @@ return array (
   array (
     'nome' => 'Bursa',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 40.19133,
     'lon' => 29.08054,
     'img' => 'City of Bursa.jpg',
@@ -1174,6 +1280,7 @@ return array (
   array (
     'nome' => 'Buchimaie',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -6.12611,
     'lon' => 23.59972,
     'img' => 'Aéroport de Mbuji-Mayi.jpg',
@@ -1185,6 +1292,7 @@ return array (
   array (
     'nome' => 'Bandung',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.92194,
     'lon' => 107.60694,
     'img' => 'Montage of Bandung.jpg',
@@ -1196,6 +1304,7 @@ return array (
   array (
     'nome' => 'Pyongyang',
     'pais' => 'Coreia do Norte',
+    'iso' => 'PRK',
     'lat' => 39.01667,
     'lon' => 125.7475,
     'img' => 'Panoramic view from Juche Tower.jpg',
@@ -1207,6 +1316,7 @@ return array (
   array (
     'nome' => 'San Luis Potosí',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 22.14972,
     'lon' => -100.975,
     'img' => 'Montage San Luis Potosi.jpg',
@@ -1218,6 +1328,7 @@ return array (
   array (
     'nome' => 'Da Nang',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 16.06944,
     'lon' => 108.20972,
     'img' => 'Dragon bridge from above.png',
@@ -1229,6 +1340,7 @@ return array (
   array (
     'nome' => 'Omdurman',
     'pais' => 'Sudão',
+    'iso' => 'SDN',
     'lat' => 15.68352,
     'lon' => 32.46289,
     'img' => 'Omdurman Market.JPG',
@@ -1240,6 +1352,7 @@ return array (
   array (
     'nome' => 'Toronto',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 43.67028,
     'lon' => -79.38667,
     'img' => 'Sunset Toronto Skyline Panorama Crop from Snake Island.jpg',
@@ -1251,6 +1364,7 @@ return array (
   array (
     'nome' => 'Duala',
     'pais' => 'Camarões',
+    'iso' => 'CMR',
     'lat' => 4.05,
     'lon' => 9.7,
     'img' => 'Douala.JPG',
@@ -1262,6 +1376,7 @@ return array (
   array (
     'nome' => 'Osaka',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 34.69375,
     'lon' => 135.50211,
     'img' => 'Osaka Castle 02bs3200.jpg',
@@ -1273,6 +1388,7 @@ return array (
   array (
     'nome' => 'Roma',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 41.89306,
     'lon' => 12.48278,
     'img' => 'Rome Skyline (8012016319).jpg',
@@ -1284,6 +1400,7 @@ return array (
   array (
     'nome' => 'Chicago',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 41.88194,
     'lon' => -87.62778,
     'img' => '2010-02-19 3000x2000 chicago skyline.jpg',
@@ -1295,6 +1412,7 @@ return array (
   array (
     'nome' => 'Brisbane',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -27.46778,
     'lon' => 153.02778,
     'img' => 'Skyline of Brisbane from Kangaroo Point Cliffs Park, Nov 2020, 05.jpg',
@@ -1306,6 +1424,7 @@ return array (
   array (
     'nome' => 'Damasco',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 33.513,
     'lon' => 36.292,
     'img' => 'Damascus coll.jpg',
@@ -1317,6 +1436,7 @@ return array (
   array (
     'nome' => 'Gazipur',
     'pais' => 'Bangladesh',
+    'iso' => 'BGD',
     'lat' => 23.98889,
     'lon' => 90.375,
     'img' => 'Bangabandhu Safari Park Entrance.jpg',
@@ -1328,6 +1448,7 @@ return array (
   array (
     'nome' => 'Guaiaquil',
     'pais' => 'Equador',
+    'iso' => 'ECU',
     'lat' => -2.19,
     'lon' => -79.8875,
     'img' => 'Gye13.jpg',
@@ -1339,6 +1460,7 @@ return array (
   array (
     'nome' => 'Fortaleza',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -3.7275,
     'lon' => -38.5275,
     'img' => 'Praia do Mucuripe.jpg',
@@ -1350,6 +1472,7 @@ return array (
   array (
     'nome' => 'Ibadã',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 7.3775,
     'lon' => 3.90583,
     'img' => 'Aerial view of Ibadan from the top of Mapo Hall 1.jpg',
@@ -1361,6 +1484,7 @@ return array (
   array (
     'nome' => 'El Paso–Juárez',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 31.73944,
     'lon' => -106.48694,
     'img' => 'ElPaso-Juarez-EO.jpg',
@@ -1372,6 +1496,7 @@ return array (
   array (
     'nome' => 'Medellín',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 6.2502,
     'lon' => -75.56758,
     'img' => 'Panorámica de Medellín desde el Cerro El Picacho.jpg',
@@ -1383,6 +1508,7 @@ return array (
   array (
     'nome' => 'Havana',
     'pais' => 'Cuba',
+    'iso' => 'CUB',
     'lat' => 23.13667,
     'lon' => -82.35889,
     'img' => 'Cuba libre (6941395159).jpg',
@@ -1394,6 +1520,7 @@ return array (
   array (
     'nome' => 'Luanda',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -8.83833,
     'lon' => 13.23444,
     'img' => 'Luanda feb09 ost01.jpg',
@@ -1405,6 +1532,7 @@ return array (
   array (
     'nome' => 'Cáli',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 3.44,
     'lon' => -76.51972,
     'img' => 'Panorámica nocturna de Cali 2023.jpg',
@@ -1416,6 +1544,7 @@ return array (
   array (
     'nome' => 'Lusaca',
     'pais' => 'Zâmbia',
+    'iso' => 'ZMB',
     'lat' => -15.41667,
     'lon' => 28.28333,
     'img' => 'Downtown Lusaka.JPG',
@@ -1427,6 +1556,7 @@ return array (
   array (
     'nome' => 'Uagadugu',
     'pais' => 'Burquina Fasso',
+    'iso' => 'BFA',
     'lat' => 12.36861,
     'lon' => -1.5275,
     'img' => 'Monument aux héros nationaux - Ouagadougou - 2024.jpg',
@@ -1438,6 +1568,7 @@ return array (
   array (
     'nome' => 'Daegu',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 35.87167,
     'lon' => 128.60167,
     'img' => 'Daemyeong-dong, Nam-gu, Daegu.jpg',
@@ -1449,6 +1580,7 @@ return array (
   array (
     'nome' => 'Taipé',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 25.0375,
     'lon' => 121.5625,
     'img' => '20260204 Taipei, Taiwan Skyline.jpg',
@@ -1460,6 +1592,7 @@ return array (
   array (
     'nome' => 'Iaundé',
     'pais' => 'Camarões',
+    'iso' => 'CMR',
     'lat' => 3.85778,
     'lon' => 11.51806,
     'img' => 'Yaoundé view from central market (2014).JPG',
@@ -1471,6 +1604,7 @@ return array (
   array (
     'nome' => 'Antália',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 36.90812,
     'lon' => 30.69556,
     'img' => 'Antalya city.jpg',
@@ -1482,6 +1616,7 @@ return array (
   array (
     'nome' => 'Beirute',
     'pais' => 'Líbano',
+    'iso' => 'LBN',
     'lat' => 33.88694,
     'lon' => 35.51306,
     'img' => 'Beirutcity.jpg',
@@ -1493,6 +1628,7 @@ return array (
   array (
     'nome' => 'Salvador',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -12.98306,
     'lon' => -38.49278,
     'img' => 'SalvadorDaBahiaPalacioRioBranco.jpg',
@@ -1504,6 +1640,7 @@ return array (
   array (
     'nome' => 'Queens',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 40.71361,
     'lon' => -73.82806,
     'img' => 'Queens Montage 2012 1.png',
@@ -1515,6 +1652,7 @@ return array (
   array (
     'nome' => 'Bekasi',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.23333,
     'lon' => 107.0,
     'img' => 'Bekasi Station 05.jpg',
@@ -1526,6 +1664,7 @@ return array (
   array (
     'nome' => 'Argel',
     'pais' => 'Argélia',
+    'iso' => 'DZA',
     'lat' => 36.77639,
     'lon' => 3.05861,
     'img' => 'Argel 3.jpg',
@@ -1537,6 +1676,7 @@ return array (
   array (
     'nome' => 'Taoyuan',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 24.99128,
     'lon' => 121.31433,
     'img' => 'Taoyuan City - panoramio (1).jpg',
@@ -1548,6 +1688,7 @@ return array (
   array (
     'nome' => 'Depok',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.40503,
     'lon' => 106.81731,
     'img' => 'Depok Skyline.jpg',
@@ -1559,6 +1700,7 @@ return array (
   array (
     'nome' => 'Nagoia',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.18139,
     'lon' => 136.90639,
     'img' => 'Japan Nagoya.png',
@@ -1570,6 +1712,7 @@ return array (
   array (
     'nome' => 'Belo Horizonte',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -19.92806,
     'lon' => -43.94194,
     'img' => 'Belo Horizonte, Brasil horizon view.jpg',
@@ -1581,6 +1724,7 @@ return array (
   array (
     'nome' => 'Houston',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 29.76278,
     'lon' => -95.38306,
     'img' => 'Houston montage.jpg',
@@ -1592,6 +1736,7 @@ return array (
   array (
     'nome' => 'Manaus',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -3.11889,
     'lon' => -60.02167,
     'img' => 'Collage Manaus.png',
@@ -1603,6 +1748,7 @@ return array (
   array (
     'nome' => 'Baku',
     'pais' => 'Azerbaijão',
+    'iso' => 'AZE',
     'lat' => 40.36666,
     'lon' => 49.83518,
     'img' => 'Baku 004 1953c.jpg',
@@ -1614,6 +1760,7 @@ return array (
   array (
     'nome' => 'Caracas',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.50611,
     'lon' => -66.91444,
     'img' => 'Caracas desde el ávila.jpg',
@@ -1625,6 +1772,7 @@ return array (
   array (
     'nome' => 'Tangerang',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.17028,
     'lon' => 106.64028,
     'img' => 'CBD Alam Sutera.jpg',
@@ -1636,6 +1784,7 @@ return array (
   array (
     'nome' => 'Cônia',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 37.84705,
     'lon' => 32.5161,
     'img' => 'City of Konya.jpg',
@@ -1647,6 +1796,7 @@ return array (
   array (
     'nome' => 'Almaty',
     'pais' => 'Cazaquistão',
+    'iso' => 'KAZ',
     'lat' => 43.24,
     'lon' => 76.915,
     'img' => '13 Вид на Алма-Ату с горы Кок Тюбе.jpg',
@@ -1658,6 +1808,7 @@ return array (
   array (
     'nome' => 'São Domingos',
     'pais' => 'República Dominicana',
+    'iso' => 'DOM',
     'lat' => 18.4625,
     'lon' => -69.93611,
     'img' => 'Santo Domingo (Dominican Republic) taken atop Novocentro tower viewing the city to the southwest 2010.jpg',
@@ -1669,6 +1820,7 @@ return array (
   array (
     'nome' => 'Lomé',
     'pais' => 'Togo',
+    'iso' => 'TGO',
     'lat' => 6.13,
     'lon' => 1.21583,
     'img' => 'Monuments de l\'indépendance et Palais des congrès de Lomé.jpg',
@@ -1680,6 +1832,7 @@ return array (
   array (
     'nome' => 'Harare',
     'pais' => 'Zimbábue',
+    'iso' => 'ZWE',
     'lat' => -17.82917,
     'lon' => 31.05222,
     'img' => 'Harare skyline.jpg',
@@ -1691,6 +1844,7 @@ return array (
   array (
     'nome' => 'Brazavile',
     'pais' => 'República do Congo',
+    'iso' => 'COG',
     'lat' => -4.26944,
     'lon' => 15.27111,
     'img' => 'Quartier OCH.jpg',
@@ -1702,6 +1856,7 @@ return array (
   array (
     'nome' => 'Perth',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -31.95583,
     'lon' => 115.85972,
     'img' => 'Elizabeth Quay February 2016 (cropped).jpg',
@@ -1713,6 +1868,7 @@ return array (
   array (
     'nome' => 'Phnom Penh',
     'pais' => 'Camboja',
+    'iso' => 'KHM',
     'lat' => 11.56958,
     'lon' => 104.92103,
     'img' => 'Phnom Penh aerial.jpg',
@@ -1724,6 +1880,7 @@ return array (
   array (
     'nome' => 'Haiphong',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 20.8,
     'lon' => 106.66667,
     'img' => '07-HAIPHONG PORT.jpg',
@@ -1735,6 +1892,7 @@ return array (
   array (
     'nome' => 'Mogadixo',
     'pais' => 'Somália',
+    'iso' => 'SOM',
     'lat' => 2.03917,
     'lon' => 45.34194,
     'img' => 'Pictures from an armed convoy trip in Mogadishu.jpg',
@@ -1746,6 +1904,7 @@ return array (
   array (
     'nome' => 'Medan',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => 3.58944,
     'lon' => 98.67389,
     'img' => 'Medan city 2019 (cropped).jpg',
@@ -1757,6 +1916,7 @@ return array (
   array (
     'nome' => 'Paris',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 48.85667,
     'lon' => 2.35222,
     'img' => 'La Tour Eiffel vue de la Tour Saint-Jacques, Paris août 2014 (2).jpg',
@@ -1768,6 +1928,7 @@ return array (
   array (
     'nome' => 'Rawalpindi',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 33.6007,
     'lon' => 73.0679,
     'img' => 'Rawalpindi railway station 4.JPG',
@@ -1779,6 +1940,7 @@ return array (
   array (
     'nome' => 'Viena',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.20833,
     'lon' => 16.3725,
     'img' => 'Wien katedra sw Szczepana widok z wiezy 6.jpg',
@@ -1790,6 +1952,7 @@ return array (
   array (
     'nome' => 'Gujranwala',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 32.15,
     'lon' => 74.18333,
     'img' => 'Gujranwala flyover.jpg',
@@ -1801,6 +1964,7 @@ return array (
   array (
     'nome' => 'Alepo',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 36.2,
     'lon' => 37.16,
     'img' => 'Aleppo, View of the city, Syria.jpg',
@@ -1812,6 +1976,7 @@ return array (
   array (
     'nome' => 'Minsk',
     'pais' => 'Bielorrússia',
+    'iso' => 'BLR',
     'lat' => 53.90225,
     'lon' => 27.56184,
     'img' => 'Мінск. Сквер па плошчы Незалежнасці.jpg',
@@ -1823,6 +1988,7 @@ return array (
   array (
     'nome' => 'Xanleurfa',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 37.15833,
     'lon' => 38.79167,
     'img' => 'Şanlıurfa skyline.jpg',
@@ -1834,6 +2000,7 @@ return array (
   array (
     'nome' => 'Kananga',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -5.89611,
     'lon' => 22.41667,
     'img' => 'Aerial photograph of Kananga.jpg',
@@ -1845,6 +2012,7 @@ return array (
   array (
     'nome' => 'Peshawar',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 34.01444,
     'lon' => 71.5675,
     'img' => 'City center Peshawar city.jpg',
@@ -1856,6 +2024,7 @@ return array (
   array (
     'nome' => 'Tijuana',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 32.53645,
     'lon' => -117.03716,
     'img' => 'Panoramica Paseo Del Rio.jpg',
@@ -1867,6 +2036,7 @@ return array (
   array (
     'nome' => 'Isfahan',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 32.6525,
     'lon' => 51.67472,
     'img' => 'Naghshe jahan 01.jpg',
@@ -1878,6 +2048,7 @@ return array (
   array (
     'nome' => 'Sapporo',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 43.06194,
     'lon' => 141.35444,
     'img' => '札幌タワー電波塔展望台から札幌駅方面 - panoramio.jpg',
@@ -1889,6 +2060,7 @@ return array (
   array (
     'nome' => 'Irbid',
     'pais' => 'Jordânia',
+    'iso' => 'JOR',
     'lat' => 32.55556,
     'lon' => 35.85,
     'img' => 'Irbid1.jpg',
@@ -1900,6 +2072,7 @@ return array (
   array (
     'nome' => 'Katowice urban area',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 50.25,
     'lon' => 19.0,
     'img' => 'Katowice - Spodek+MCK z MŚ.jpg',
@@ -1911,6 +2084,7 @@ return array (
   array (
     'nome' => 'Manila',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.59583,
     'lon' => 120.97722,
     'img' => 'Big Manila.jpg',
@@ -1922,6 +2096,7 @@ return array (
   array (
     'nome' => 'Montreal',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 45.50334,
     'lon' => -73.58684,
     'img' => 'Montreal-canada-parc-urban.jpg',
@@ -1933,6 +2108,7 @@ return array (
   array (
     'nome' => 'Tainan',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 22.99,
     'lon' => 120.185,
     'img' => 'Downtown Tainan(2012).jpg',
@@ -1944,6 +2120,7 @@ return array (
   array (
     'nome' => 'Multan',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 30.19778,
     'lon' => 71.47111,
     'img' => 'MultanMontage.jpg',
@@ -1955,6 +2132,7 @@ return array (
   array (
     'nome' => 'Hamburgo',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 53.55,
     'lon' => 10.0,
     'img' => 'Hamburg view St. Nikolai.jpg',
@@ -1966,6 +2144,7 @@ return array (
   array (
     'nome' => 'Varsóvia',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 52.23,
     'lon' => 21.01111,
     'img' => 'Castle Square (22346p).jpg',
@@ -1977,6 +2156,7 @@ return array (
   array (
     'nome' => 'Cidade Davau',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 7.06623,
     'lon' => 125.60944,
     'img' => 'Victoria Plaza Davao.JPG',
@@ -1988,6 +2168,7 @@ return array (
   array (
     'nome' => 'Mossul',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 36.34167,
     'lon' => 43.12917,
     'img' => 'Collage of Mosul.png',
@@ -1999,6 +2180,7 @@ return array (
   array (
     'nome' => 'Lubumbashi',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -11.66417,
     'lon' => 27.48278,
     'img' => 'Downtown Lubumbashi, Democratic Republic of the Congo - 20061130.jpg',
@@ -2010,6 +2192,7 @@ return array (
   array (
     'nome' => 'Acra',
     'pais' => 'Gana',
+    'iso' => 'GHA',
     'lat' => 5.55602,
     'lon' => -0.1969,
     'img' => 'Accra town.jpg',
@@ -2021,6 +2204,7 @@ return array (
   array (
     'nome' => 'Cidade do Benim',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 6.3176,
     'lon' => 5.6145,
     'img' => 'New Benin Market, Benin City.jpg',
@@ -2032,6 +2216,7 @@ return array (
   array (
     'nome' => 'Curitiba',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -25.42972,
     'lon' => -49.27194,
     'img' => 'Curitiba Eixos e densidade 78 (24160257688).jpg',
@@ -2043,6 +2228,7 @@ return array (
   array (
     'nome' => 'Adana',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 36.98636,
     'lon' => 35.32529,
     'img' => 'Adana1.jpg',
@@ -2054,6 +2240,7 @@ return array (
   array (
     'nome' => 'Quito',
     'pais' => 'Equador',
+    'iso' => 'ECU',
     'lat' => -0.22,
     'lon' => -78.5125,
     'img' => 'FACHADA ASAMBLEA NACIONAL. QUITO, 20 DE FEBRERO 2020. 01.jpg',
@@ -2065,6 +2252,7 @@ return array (
   array (
     'nome' => 'Monróvia',
     'pais' => 'Libéria',
+    'iso' => 'LBR',
     'lat' => 6.31056,
     'lon' => -10.80472,
     'img' => 'Liberia, Africa - panoramio (256).jpg',
@@ -2076,6 +2264,7 @@ return array (
   array (
     'nome' => 'Garoua',
     'pais' => 'Camarões',
+    'iso' => 'CMR',
     'lat' => 9.3,
     'lon' => 13.4,
     'img' => 'Marche Garoua Nord Cameroon.jpg',
@@ -2087,6 +2276,7 @@ return array (
   array (
     'nome' => 'Quigali',
     'pais' => 'Ruanda',
+    'iso' => 'RWA',
     'lat' => -1.9525,
     'lon' => 30.115,
     'img' => 'Kigali2018Cropped.jpg',
@@ -2098,6 +2288,7 @@ return array (
   array (
     'nome' => 'Hyderabad',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 25.37917,
     'lon' => 68.36833,
     'img' => 'PK Hyderabad asv2020-02 img29 Pakka Qila Road.jpg',
@@ -2109,6 +2300,7 @@ return array (
   array (
     'nome' => 'Diyarbakır',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 37.91583,
     'lon' => 40.21889,
     'img' => 'City of Diyarbakır.jpg',
@@ -2120,6 +2312,7 @@ return array (
   array (
     'nome' => 'Barcelona',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 41.3825,
     'lon' => 2.17694,
     'img' => 'Aerial view of La Sagrada Familia, Barcelona, Spain (51227006134).jpg',
@@ -2131,6 +2324,7 @@ return array (
   array (
     'nome' => 'Caloocan',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.65,
     'lon' => 120.96667,
     'img' => 'Aacaloocanjf.JPG',
@@ -2142,6 +2336,7 @@ return array (
   array (
     'nome' => 'Manhattan',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 40.72833,
     'lon' => -73.99417,
     'img' => 'Above Gotham.jpg',
@@ -2153,6 +2348,7 @@ return array (
   array (
     'nome' => 'Abuja',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 9.05556,
     'lon' => 7.49139,
     'img' => 'The National Assembly Globe.jpg',
@@ -2164,6 +2360,7 @@ return array (
   array (
     'nome' => 'Gaziantepe',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 37.06278,
     'lon' => 37.37917,
     'img' => 'Gaziantepskyline.jpg',
@@ -2175,6 +2372,7 @@ return array (
   array (
     'nome' => 'Campala',
     'pais' => 'Uganda',
+    'iso' => 'UGA',
     'lat' => 0.31361,
     'lon' => 32.58111,
     'img' => 'View from 7th floor on Crane Chambers at Kampala road - panoramio.jpg',
@@ -2186,6 +2384,7 @@ return array (
   array (
     'nome' => 'Budapeste',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 47.49833,
     'lon' => 19.04083,
     'img' => 'Budapest, Hungary (explored) (14995308504).jpg',
@@ -2197,6 +2396,7 @@ return array (
   array (
     'nome' => 'Conacri',
     'pais' => 'Guiné',
+    'iso' => 'GIN',
     'lat' => 9.50917,
     'lon' => -13.71222,
     'img' => 'Un aperçu de la ville de conakry.jpg',
@@ -2208,6 +2408,7 @@ return array (
   array (
     'nome' => 'Tangerang do Sul',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.28889,
     'lon' => 106.71806,
     'img' => 'Balai Kota Tangsel.jpg',
@@ -2219,6 +2420,7 @@ return array (
   array (
     'nome' => 'Masvingo',
     'pais' => 'Zimbábue',
+    'iso' => 'ZWE',
     'lat' => -20.07444,
     'lon' => 30.83278,
     'img' => 'Masvingo21032005.jpg',
@@ -2230,6 +2432,7 @@ return array (
   array (
     'nome' => 'Novosibirsk',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 55.03333,
     'lon' => 82.91667,
     'img' => 'Novosibirsk view.jpg',
@@ -2241,6 +2444,7 @@ return array (
   array (
     'nome' => 'Semarang',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -6.99,
     'lon' => 110.4225,
     'img' => 'Becak Tugu Muda Semarang Central Java.jpg',
@@ -2252,6 +2456,7 @@ return array (
   array (
     'nome' => 'Phoenix',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 33.44833,
     'lon' => -112.07389,
     'img' => 'Phoenix, Arizona.JPG',
@@ -2263,6 +2468,7 @@ return array (
   array (
     'nome' => 'Filadélfia',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 39.95278,
     'lon' => -75.16361,
     'img' => 'Philadelphia skyline 20240528 (cropped).jpg',
@@ -2274,6 +2480,7 @@ return array (
   array (
     'nome' => 'Fukuoka',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 33.59014,
     'lon' => 130.40172,
     'img' => 'Hakata Port from Fukuoka Tower.jpg',
@@ -2285,6 +2492,7 @@ return array (
   array (
     'nome' => 'León de Los Aldama',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 21.12194,
     'lon' => -101.68333,
     'img' => 'León montage.jpg',
@@ -2296,6 +2504,7 @@ return array (
   array (
     'nome' => 'Abu Dhabi',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 24.45111,
     'lon' => 54.39694,
     'img' => 'Абу-Даби (Abu Dhabi) - panoramio (1).jpg',
@@ -2307,6 +2516,7 @@ return array (
   array (
     'nome' => 'Maracaibo',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.63333,
     'lon' => -71.63333,
     'img' => 'Maracaibo panoramica avenida Cecilio Acosta cuted.jpg',
@@ -2318,6 +2528,7 @@ return array (
   array (
     'nome' => 'Cidade do Panamá',
     'pais' => 'Panamá',
+    'iso' => 'PAN',
     'lat' => 8.97111,
     'lon' => -79.53472,
     'img' => 'Panorámica nocturna de la ciudad de Panamá.jpg',
@@ -2329,6 +2540,7 @@ return array (
   array (
     'nome' => 'Kawasaki',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.53089,
     'lon' => 139.703,
     'img' => 'Kawasaki montage.jpg',
@@ -2340,6 +2552,7 @@ return array (
   array (
     'nome' => 'Palimbão',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -2.98333,
     'lon' => 104.76444,
     'img' => 'Montage of Palembang.jpg',
@@ -2351,6 +2564,7 @@ return array (
   array (
     'nome' => 'Kōbe',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 34.69017,
     'lon' => 135.19544,
     'img' => 'Kobe Port Tower and Maritime Museum, November 2016.jpg',
@@ -2362,6 +2576,7 @@ return array (
   array (
     'nome' => 'Córdova',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -31.41667,
     'lon' => -64.18333,
     'img' => 'Montaje CBA 9.jpg',
@@ -2373,6 +2588,7 @@ return array (
   array (
     'nome' => 'Munique',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 48.1375,
     'lon' => 11.575,
     'img' => 'Stadtbild München.jpg',
@@ -2384,6 +2600,7 @@ return array (
   array (
     'nome' => 'Ciudad Juárez',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 31.6685,
     'lon' => -106.42,
     'img' => 'Juarez montage.jpg',
@@ -2395,6 +2612,7 @@ return array (
   array (
     'nome' => 'Novo Cairo',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 30.03,
     'lon' => 31.47,
     'img' => 'Madinaty.JPG',
@@ -2406,6 +2624,7 @@ return array (
   array (
     'nome' => 'Niamey',
     'pais' => 'Níger',
+    'iso' => 'NER',
     'lat' => 13.515,
     'lon' => 2.1175,
     'img' => 'Niamey from grand mosque theatre 2006.jpg',
@@ -2417,6 +2636,7 @@ return array (
   array (
     'nome' => 'Gwangju',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 35.16667,
     'lon' => 126.91667,
     'img' => '무진고성지에서 내려다본 광주광역시 시가지.jpg',
@@ -2428,6 +2648,7 @@ return array (
   array (
     'nome' => 'Recife',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -8.05389,
     'lon' => -34.88083,
     'img' => 'Recife - Início da Avenida Boa Viagem.jpg',
@@ -2439,6 +2660,7 @@ return array (
   array (
     'nome' => 'Valencia',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.16667,
     'lon' => -68.0,
     'img' => 'Valencia (Venezuela) Skyline.jpg',
@@ -2450,6 +2672,7 @@ return array (
   array (
     'nome' => 'Onitsha',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 6.13296,
     'lon' => 6.79238,
     'img' => 'Dr. Nnamdi Azikiwe of Africa. in Owelle Osowa Anya Onitsha. Anambra State. Nigeria (2).jpg',
@@ -2461,6 +2684,7 @@ return array (
   array (
     'nome' => 'Daejeon',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 36.35,
     'lon' => 127.385,
     'img' => '대전시 동구8경 식장산.jpg',
@@ -2472,6 +2696,7 @@ return array (
   array (
     'nome' => 'Bronx',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 40.84667,
     'lon' => -73.87333,
     'img' => 'Yankee Stadium 001.JPG',
@@ -2483,6 +2708,7 @@ return array (
   array (
     'nome' => 'Auckland',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -36.84917,
     'lon' => 174.76528,
     'img' => 'Auckland CBD.jpg',
@@ -2494,6 +2720,7 @@ return array (
   array (
     'nome' => 'Ecaterimburgo',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 56.83556,
     'lon' => 60.61278,
     'img' => 'Views of Yekaterinburg from Vysotsky viewpoint - 12.jpg',
@@ -2505,6 +2732,7 @@ return array (
   array (
     'nome' => 'Quioto',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.01161,
     'lon' => 135.76811,
     'img' => 'Pedestrian road with pavements, paper umbrellas and people in yukata, Higashiyama-ku, Kyoto, Japan.jpg',
@@ -2516,6 +2744,7 @@ return array (
   array (
     'nome' => 'Nouakchott',
     'pais' => 'Mauritânia',
+    'iso' => 'MRT',
     'lat' => 18.08581,
     'lon' => -15.9785,
     'img' => '15-Nouakchott-eH-R0058185.jpg',
@@ -2527,6 +2756,7 @@ return array (
   array (
     'nome' => 'Dacar',
     'pais' => 'Senegal',
+    'iso' => 'SEN',
     'lat' => 14.67256,
     'lon' => -17.432,
     'img' => 'Pointe des Almadies - Senegal.jpg',
@@ -2538,6 +2768,7 @@ return array (
   array (
     'nome' => 'Goiânia',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -16.68056,
     'lon' => -49.25639,
     'img' => 'Goiânia Collage.png',
@@ -2549,6 +2780,7 @@ return array (
   array (
     'nome' => 'Métropole de Lyon',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 45.7575,
     'lon' => 4.85397,
     'img' => 'Vue du Mont Thou.JPG',
@@ -2560,6 +2792,7 @@ return array (
   array (
     'nome' => 'San Antonio',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 29.425,
     'lon' => -98.49389,
     'img' => 'SA Montage Nima.png',
@@ -2571,6 +2804,7 @@ return array (
   array (
     'nome' => 'Mascate',
     'pais' => 'Omã',
+    'iso' => 'OMN',
     'lat' => 23.61389,
     'lon' => 58.59222,
     'img' => 'Old city of Maskat.jpg',
@@ -2582,6 +2816,7 @@ return array (
   array (
     'nome' => 'Carcóvia',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 49.9925,
     'lon' => 36.23111,
     'img' => 'Успенський собор взимку, аерофото.jpg',
@@ -2593,6 +2828,7 @@ return array (
   array (
     'nome' => 'Pointe-Noire',
     'pais' => 'República do Congo',
+    'iso' => 'COG',
     'lat' => -4.7975,
     'lon' => 11.85028,
     'img' => 'Pointe-Noire downtown.jpg',
@@ -2604,6 +2840,7 @@ return array (
   array (
     'nome' => 'Medina',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 24.47,
     'lon' => 39.61,
     'img' => 'Madeena masjid nabavi 12122008230.jpg',
@@ -2615,6 +2852,7 @@ return array (
   array (
     'nome' => 'Praga',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.0875,
     'lon' => 14.42139,
     'img' => 'Petřín Tower View IMG 3020.JPG',
@@ -2626,6 +2864,7 @@ return array (
   array (
     'nome' => 'Quang Ninh',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 21.25,
     'lon' => 107.33333,
     'img' => 'Cầu Bãi Cháy.jpg',
@@ -2637,6 +2876,7 @@ return array (
   array (
     'nome' => 'Ulã Bator',
     'pais' => 'Mongólia',
+    'iso' => 'MNG',
     'lat' => 47.92136,
     'lon' => 106.90552,
     'img' => 'UB downtown.jpg',
@@ -2648,6 +2888,7 @@ return array (
   array (
     'nome' => 'Caiseri',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 38.7225,
     'lon' => 35.4875,
     'img' => 'City of Kayseri.png',
@@ -2659,6 +2900,7 @@ return array (
   array (
     'nome' => 'Porto Alegre',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -30.03278,
     'lon' => -51.23,
     'img' => 'Aerial view of the point of Porto Alegre extending into Guaíba Lake.jpg',
@@ -2670,6 +2912,7 @@ return array (
   array (
     'nome' => 'Adelaide',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -34.9275,
     'lon' => 138.6,
     'img' => 'Adelaide DougBarber.jpg',
@@ -2681,6 +2924,7 @@ return array (
   array (
     'nome' => 'San Diego',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 32.715,
     'lon' => -117.1625,
     'img' => 'San Diego skyline 18 (cropped).jpg',
@@ -2692,6 +2936,7 @@ return array (
   array (
     'nome' => 'Guadalajara',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 20.67639,
     'lon' => -103.34222,
     'img' => 'Panorámica Guadalajara desde edificio Bansi hacia norte (cropped).jpg',
@@ -2703,6 +2948,7 @@ return array (
   array (
     'nome' => 'Samessum',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 41.28667,
     'lon' => 36.33,
     'img' => 'Samsun - panoramio (11).jpg',
@@ -2714,6 +2960,7 @@ return array (
   array (
     'nome' => 'Quissangane',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => 0.51528,
     'lon' => 25.19111,
     'img' => 'Kisangani rond-point Cathédrale et Congo Palace.jpg',
@@ -2725,6 +2972,7 @@ return array (
   array (
     'nome' => 'Milão',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 45.46694,
     'lon' => 9.19,
     'img' => 'Milano, Duomo with Milan Cathedral and Galleria Vittorio Emanuele II, 2016.jpg',
@@ -2736,6 +2984,7 @@ return array (
   array (
     'nome' => 'Macáçar',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -5.13306,
     'lon' => 119.41361,
     'img' => 'Makassar, March 2019.jpg',
@@ -2747,6 +2996,7 @@ return array (
   array (
     'nome' => 'Tiblíssi',
     'pais' => 'Geórgia',
+    'iso' => 'GEO',
     'lat' => 41.7225,
     'lon' => 44.7925,
     'img' => 'View of Tbilisi from Tabori Church 2023-10-08-2.jpg',
@@ -2758,6 +3008,7 @@ return array (
   array (
     'nome' => 'Cazã',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 55.79083,
     'lon' => 49.11444,
     'img' => 'KAZ Collage 2015.png',
@@ -2769,6 +3020,7 @@ return array (
   array (
     'nome' => 'Barranquilla',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 10.98333,
     'lon' => -74.80194,
     'img' => 'Barranquilla Montage.jpg',
@@ -2780,6 +3032,7 @@ return array (
   array (
     'nome' => 'Baçorá',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 30.515,
     'lon' => 47.81,
     'img' => 'Basra-Shatt-Al-Arab.jpg',
@@ -2791,6 +3044,7 @@ return array (
   array (
     'nome' => 'Saitama',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.86139,
     'lon' => 139.64556,
     'img' => 'Saitama city montage.jpg',
@@ -2802,6 +3056,7 @@ return array (
   array (
     'nome' => 'Guarulhos',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -23.46667,
     'lon' => -46.53333,
     'img' => 'Vista da cidade de Guarulhos (SP).JPG',
@@ -2813,6 +3068,7 @@ return array (
   array (
     'nome' => 'Taguig',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.51667,
     'lon' => 121.05,
     'img' => 'Bonifacio High Street.JPG',
@@ -2824,6 +3080,7 @@ return array (
   array (
     'nome' => 'Calgary',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 51.0475,
     'lon' => -114.0625,
     'img' => 'PengrowthSaddledomeDay.jpg',
@@ -2835,6 +3092,7 @@ return array (
   array (
     'nome' => 'Dallas',
     'pais' => 'Estados Unidos',
+    'iso' => 'USA',
     'lat' => 32.77917,
     'lon' => -96.80889,
     'img' => 'Dallas Skyline with Arts District.jpg',
@@ -2846,6 +3104,7 @@ return array (
   array (
     'nome' => 'Belém',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -1.45583,
     'lon' => -48.50389,
     'img' => 'Montagem Belém.jpg',
@@ -2857,6 +3116,7 @@ return array (
   array (
     'nome' => 'Montevidéu',
     'pais' => 'Uruguai',
+    'iso' => 'URY',
     'lat' => -34.90592,
     'lon' => -56.19131,
     'img' => 'Collage Landmarks of Montevideo.jpg',
@@ -2868,6 +3128,7 @@ return array (
   array (
     'nome' => 'Nova Iguaçu',
     'pais' => 'Brasil',
+    'iso' => 'BRA',
     'lat' => -22.75889,
     'lon' => -43.45083,
     'img' => 'Novaiguacu fotonova.jpg',
@@ -2879,6 +3140,7 @@ return array (
   array (
     'nome' => 'Trípoli',
     'pais' => 'Líbia',
+    'iso' => 'LBY',
     'lat' => 32.8875,
     'lon' => 13.1875,
     'img' => 'Marcus Aurelius Arch Tripoli Libya.jpg',
@@ -2890,6 +3152,7 @@ return array (
   array (
     'nome' => 'Tânger',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 35.76949,
     'lon' => -5.80447,
     'img' => 'Tangier - 44699733295.jpg',
@@ -2901,6 +3164,7 @@ return array (
   array (
     'nome' => 'Antananarivo',
     'pais' => 'Madagáscar',
+    'iso' => 'MDG',
     'lat' => -18.91,
     'lon' => 47.525,
     'img' => 'Lake Anosy, Central Antananarivo, Capital of Madagascar, Photo by Sascha Grabow.jpg',
@@ -2912,6 +3176,7 @@ return array (
   array (
     'nome' => 'Soweto',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -26.26778,
     'lon' => 27.85861,
     'img' => 'Rdphouses.jpg',
@@ -2923,6 +3188,7 @@ return array (
   array (
     'nome' => 'Zapopan',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 20.72083,
     'lon' => -103.39111,
     'img' => 'Zapopan, Jalisco, Mexico, 2021 - 012.jpg',
@@ -2934,6 +3200,7 @@ return array (
   array (
     'nome' => 'Baliquesir',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 39.65111,
     'lon' => 27.88417,
     'img' => 'Balıkesir City Center Collage.jpg',
@@ -2945,6 +3212,7 @@ return array (
   array (
     'nome' => 'Xarja',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.3375,
     'lon' => 55.41194,
     'img' => 'Sharjah city skyline in 2015.jpg',
@@ -2956,6 +3224,7 @@ return array (
   array (
     'nome' => 'Hue',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 16.46389,
     'lon' => 107.58667,
     'img' => 'Thành phố Huế nhìn từ trên cao (2).jpg',
@@ -2967,6 +3236,7 @@ return array (
   array (
     'nome' => 'Suwon',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.28583,
     'lon' => 127.01,
     'img' => 'Hwaseong Third North Secret Gate and Dongbuk Gangnu - 2009-03-01.JPG',
@@ -2978,6 +3248,7 @@ return array (
   array (
     'nome' => 'Mandalay',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 21.97473,
     'lon' => 96.08359,
     'img' => 'Mandalay, Moat, Myanmar.jpg',
@@ -2989,6 +3260,7 @@ return array (
   array (
     'nome' => 'Sófia',
     'pais' => 'Bulgária',
+    'iso' => 'BGR',
     'lat' => 42.69789,
     'lon' => 23.32173,
     'img' => 'Panoramic view over central Sofia and the Vitosha Mountain 2017-10-08.jpg',
@@ -3000,6 +3272,7 @@ return array (
   array (
     'nome' => 'Mombaça',
     'pais' => 'Quénia',
+    'iso' => 'KEN',
     'lat' => -4.05,
     'lon' => 39.66667,
     'img' => 'Downtown Mombasa.jpg',
@@ -3011,6 +3284,7 @@ return array (
   array (
     'nome' => 'Níjni Novgorod',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 56.32694,
     'lon' => 44.0075,
     'img' => 'Nizhny Novgorod 2025-04-29 Minin and Pozharsky square 01.jpg',
@@ -3022,6 +3296,7 @@ return array (
   array (
     'nome' => 'Hiroshima',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 34.38525,
     'lon' => 132.45531,
     'img' => 'Atomic Bomb Dome and Motoyaso River, Hiroshima, Northwest view 20190417 1.jpg',
@@ -3033,6 +3308,7 @@ return array (
   array (
     'nome' => 'Chiang Mai',
     'pais' => 'Tailândia',
+    'iso' => 'THA',
     'lat' => 18.78889,
     'lon' => 98.98333,
     'img' => 'Panoramic view of Chiang Mai City.jpg',
@@ -3044,6 +3320,7 @@ return array (
   array (
     'nome' => 'Belgrado',
     'pais' => 'Sérvia',
+    'iso' => 'SRB',
     'lat' => 44.81778,
     'lon' => 20.45694,
     'img' => 'Beograd collage.jpg',
@@ -3055,6 +3332,7 @@ return array (
   array (
     'nome' => 'Maiduguri',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 11.83333,
     'lon' => 13.15,
     'img' => 'Abdl maleeq16.jpg',
@@ -3066,6 +3344,7 @@ return array (
   array (
     'nome' => 'Batam',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => 1.13,
     'lon' => 104.05306,
     'img' => 'Vue de batam2.jpg',
@@ -3077,6 +3356,7 @@ return array (
   array (
     'nome' => 'Rosário',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -32.9575,
     'lon' => -60.63944,
     'img' => 'Montaje Rosario 01.jpg',
@@ -3088,6 +3368,7 @@ return array (
   array (
     'nome' => 'Shymkent',
     'pais' => 'Cazaquistão',
+    'iso' => 'KAZ',
     'lat' => 42.3,
     'lon' => 69.6,
     'img' => 'Shymkent independence square in 2023.jpg',
@@ -3099,6 +3380,7 @@ return array (
   array (
     'nome' => 'Bisqueque',
     'pais' => 'Quirguistão',
+    'iso' => 'KGZ',
     'lat' => 42.86667,
     'lon' => 74.56667,
     'img' => 'Bishkek City\'s business center.jpg',
@@ -3110,6 +3392,7 @@ return array (
   array (
     'nome' => 'Doha',
     'pais' => 'Catar',
+    'iso' => 'QAT',
     'lat' => 25.28611,
     'lon' => 51.52944,
     'img' => 'Doha skyline in the morning (12544910974).jpg',
@@ -3121,6 +3404,7 @@ return array (
   array (
     'nome' => 'Ahvaz',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 31.31889,
     'lon' => 48.68417,
     'img' => '1399011818071582320074684 زمین نفس می کشد.jpg',
@@ -3132,6 +3416,7 @@ return array (
   array (
     'nome' => 'Malang',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -7.96893,
     'lon' => 112.63273,
     'img' => 'Skyline Malang Barat.jpg',
@@ -3143,6 +3428,7 @@ return array (
   array (
     'nome' => 'Fez',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 34.04333,
     'lon' => -5.00333,
     'img' => 'Medina of Fes, Marocco.jpg',
@@ -3154,6 +3440,7 @@ return array (
   array (
     'nome' => 'Bandar Lampung',
     'pais' => 'Indonésia',
+    'iso' => 'IDN',
     'lat' => -5.42944,
     'lon' => 105.2625,
     'img' => 'Bandar Lampung.JPG',
@@ -3165,6 +3452,7 @@ return array (
   array (
     'nome' => 'Naypyidaw',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 19.7475,
     'lon' => 96.115,
     'img' => 'Naypyidaw -- Water Fountain Garden.JPG',
@@ -3176,6 +3464,7 @@ return array (
   array (
     'nome' => 'Aba',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 5.11667,
     'lon' => 7.36667,
     'img' => 'Aba Nigeria hotel.jpg',
@@ -3187,6 +3476,7 @@ return array (
   array (
     'nome' => 'Crasnodar',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 45.03333,
     'lon' => 38.98333,
     'img' => 'Краснодар.png',
@@ -3198,6 +3488,7 @@ return array (
   array (
     'nome' => 'Áden',
     'pais' => 'Iémen',
+    'iso' => 'YEM',
     'lat' => 12.8,
     'lon' => 45.03333,
     'img' => 'Old Town Aden Yemen.jpg',
@@ -3209,6 +3500,7 @@ return array (
   array (
     'nome' => 'Samara',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 53.18333,
     'lon' => 50.11667,
     'img' => 'Samara - Port (2008-07-13).jpg',
@@ -3220,6 +3512,7 @@ return array (
   array (
     'nome' => 'Rostov do Don',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 47.2225,
     'lon' => 39.71,
     'img' => 'Rostov-on-Don, Ростов-на-Дону 2, Russia.jpg',
@@ -3231,6 +3524,7 @@ return array (
   array (
     'nome' => 'Monterrei',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 25.68444,
     'lon' => -100.31806,
     'img' => 'Cerro de la Silla.jpg',
@@ -3242,6 +3536,7 @@ return array (
   array (
     'nome' => 'Birmingham',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 52.48,
     'lon' => -1.9025,
     'img' => 'Birmingham-Skyline-from-Edgbaston-crop.jpg',
@@ -3253,6 +3548,7 @@ return array (
   array (
     'nome' => 'Maputo',
     'pais' => 'Moçambique',
+    'iso' => 'MOZ',
     'lat' => -25.96889,
     'lon' => 32.57333,
     'img' => 'Maputo seen from southeast - October 2006.jpg',
@@ -3264,6 +3560,7 @@ return array (
   array (
     'nome' => 'Vã',
     'pais' => 'Turquia',
+    'iso' => 'TUR',
     'lat' => 38.50194,
     'lon' => 43.41667,
     'img' => 'City of Van (view from Van Kalesi).jpg',
@@ -3275,6 +3572,7 @@ return array (
   array (
     'nome' => 'Ulsan',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 35.55,
     'lon' => 129.31667,
     'img' => 'Shade Of Taehwagang (71978891).jpeg',
@@ -3286,6 +3584,7 @@ return array (
   array (
     'nome' => 'Quilamba Quiaxi',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -8.875,
     'lon' => 13.26667,
     'img' => 'António Agostinho Neto.jpg',
@@ -3297,6 +3596,7 @@ return array (
   array (
     'nome' => 'Erevã',
     'pais' => 'Arménia',
+    'iso' => 'ARM',
     'lat' => 40.18139,
     'lon' => 44.51444,
     'img' => 'Mount Ararat and the Yerevan skyline in spring (28mm).jpg',
@@ -3308,6 +3608,7 @@ return array (
   array (
     'nome' => 'Bien Hoa',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 10.95076,
     'lon' => 106.82214,
     'img' => 'Nhà thờ chính Văn miếu Trấn Biên.jpg',
@@ -3319,6 +3620,7 @@ return array (
   array (
     'nome' => 'Maracay',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.24694,
     'lon' => -67.59583,
     'img' => 'Maracay.JPG',
@@ -3330,6 +3632,7 @@ return array (
   array (
     'nome' => 'Omsk',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 54.96667,
     'lon' => 73.38333,
     'img' => 'Omsk Collage 2016.png',
@@ -3341,6 +3644,7 @@ return array (
   array (
     'nome' => 'Krasnoyarsk',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 56.00889,
     'lon' => 92.87194,
     'img' => 'Aerial view of Krasnoyarsk 1.jpg',
@@ -3352,6 +3656,7 @@ return array (
   array (
     'nome' => 'Jamena',
     'pais' => 'Chade',
+    'iso' => 'TCD',
     'lat' => 12.11,
     'lon' => 15.05,
     'img' => 'Place de la nation4 (Tchad).jpg',
@@ -3363,6 +3668,7 @@ return array (
   array (
     'nome' => 'Yongin',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.23611,
     'lon' => 127.20111,
     'img' => 'Yongin CityHall.jpg',
@@ -3374,6 +3680,7 @@ return array (
   array (
     'nome' => 'Astana',
     'pais' => 'Cazaquistão',
+    'iso' => 'KAZ',
     'lat' => 51.13333,
     'lon' => 71.43333,
     'img' => 'Trip to Astana (2015-10-24) 01.jpg',
@@ -3385,6 +3692,7 @@ return array (
   array (
     'nome' => 'Goyang',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.65639,
     'lon' => 126.835,
     'img' => 'Goyang street.jpg',
@@ -3396,6 +3704,7 @@ return array (
   array (
     'nome' => 'Sendai',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 38.26822,
     'lon' => 140.86942,
     'img' => 'SendaiCity Skylines from Mukaiyama2018.jpg',
@@ -3407,6 +3716,7 @@ return array (
   array (
     'nome' => 'Barquisimeto',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.06778,
     'lon' => -69.34669,
     'img' => 'Baqtoeste.jpg',
@@ -3418,6 +3728,7 @@ return array (
   array (
     'nome' => 'Tegucigalpa',
     'pais' => 'Honduras',
+    'iso' => 'HND',
     'lat' => 14.10578,
     'lon' => -87.20471,
     'img' => 'Centro historico de Tegucigalpa y Comayagüela.jpg',
@@ -3429,6 +3740,7 @@ return array (
   array (
     'nome' => 'Jerusalém',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 31.77668,
     'lon' => 35.23416,
     'img' => 'Dome of the Rock seen from the Mount of Olives (12395649153) (cropped).jpg',
@@ -3440,6 +3752,7 @@ return array (
   array (
     'nome' => 'Voronej',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 51.67167,
     'lon' => 39.21056,
     'img' => 'Главное здание управления ЮВЖД.jpg',
@@ -3451,6 +3764,7 @@ return array (
   array (
     'nome' => 'Matola',
     'pais' => 'Moçambique',
+    'iso' => 'MOZ',
     'lat' => -25.96667,
     'lon' => 32.46667,
     'img' => 'Antigo edifício do Conselho Municipal da Matola.jpg',
@@ -3462,6 +3776,7 @@ return array (
   array (
     'nome' => 'Asgabate',
     'pais' => 'Turquemenistão',
+    'iso' => 'TKM',
     'lat' => 37.95,
     'lon' => 58.38333,
     'img' => 'Neutrality-Road-Ashgabat-2015.JPG',
@@ -3473,6 +3788,7 @@ return array (
   array (
     'nome' => 'Enugu',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 6.44028,
     'lon' => 7.49417,
     'img' => 'Akwata Roundabout.jpg',
@@ -3484,6 +3800,7 @@ return array (
   array (
     'nome' => 'Santo Domingo',
     'pais' => 'Chile',
+    'iso' => 'CHL',
     'lat' => -33.63333,
     'lon' => -71.65,
     'img' => 'Municipalidad Santo Domingo.jpg',
@@ -3495,6 +3812,7 @@ return array (
   array (
     'nome' => 'Perm',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 58.01389,
     'lon' => 56.24889,
     'img' => 'Perm asv2019-05 img50 Gorky Park.jpg',
@@ -3506,6 +3824,7 @@ return array (
   array (
     'nome' => 'Colónia',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 50.94222,
     'lon' => 6.95778,
     'img' => 'Stadtbild Köln (50MP).jpg',
@@ -3517,6 +3836,7 @@ return array (
   array (
     'nome' => 'Cidade de Zamboanga',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 6.90417,
     'lon' => 122.07611,
     'img' => 'Zamboanga City from Garden Orchid Hotel.jpg',
@@ -3528,6 +3848,7 @@ return array (
   array (
     'nome' => 'Ottawa',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 45.42472,
     'lon' => -75.695,
     'img' => 'Ottawa Montage 2020.jpg',
@@ -3539,6 +3860,7 @@ return array (
   array (
     'nome' => 'Islamabad',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 33.69889,
     'lon' => 73.03694,
     'img' => 'King Faisal Mosque.jpg',
@@ -3550,6 +3872,7 @@ return array (
   array (
     'nome' => 'Thủ Đức',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 10.7924,
     'lon' => 106.75178,
     'img' => 'Thu Duc seen from District 1 3.jpg',
@@ -3561,6 +3884,7 @@ return array (
   array (
     'nome' => 'Volgogrado',
     'pais' => 'Rússia',
+    'iso' => 'RUS',
     'lat' => 48.70861,
     'lon' => 44.51472,
     'img' => 'Volgograd Montage 2016.png',
@@ -3572,6 +3896,7 @@ return array (
   array (
     'nome' => 'Edmonton',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 53.53333,
     'lon' => -113.5,
     'img' => 'Downtown edmonton.jpg',
@@ -3583,6 +3908,7 @@ return array (
   array (
     'nome' => 'Odessa',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 46.47747,
     'lon' => 30.73262,
     'img' => 'Odesa-Montage-2016.png',
@@ -3594,6 +3920,7 @@ return array (
   array (
     'nome' => 'Changwon',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 35.22806,
     'lon' => 128.68111,
     'img' => 'Changwon-View from Daeamsan.jpg',
@@ -3605,6 +3932,7 @@ return array (
   array (
     'nome' => 'Arequipa',
     'pais' => 'Peru',
+    'iso' => 'PER',
     'lat' => -16.39889,
     'lon' => -71.53694,
     'img' => 'Arequipa, Plaza de Armas, 2023 (10).jpg',
@@ -3616,6 +3944,7 @@ return array (
   array (
     'nome' => 'Chicapa',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -6.41667,
     'lon' => 20.8,
     'img' => 'Tshikapa, Kasai province, DR Congo – As part of its Quick Impact Project, MONUSCO has refurbished the Central Prison in Tshikapa.jpg',
@@ -3627,6 +3956,7 @@ return array (
   array (
     'nome' => 'Hwaseong',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.2,
     'lon' => 126.76667,
     'img' => '화성시청 동부출장소 001.jpg',
@@ -3638,6 +3968,7 @@ return array (
   array (
     'nome' => 'Marraquexe',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 31.62947,
     'lon' => -7.98108,
     'img' => 'Djemaa el Fna, evening.JPG',
@@ -3649,6 +3980,7 @@ return array (
   array (
     'nome' => 'Quetta',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 30.19583,
     'lon' => 67.01722,
     'img' => 'Jinnah Road, Quetta.JPG',
@@ -3660,6 +3992,7 @@ return array (
   array (
     'nome' => 'Cidade da Guatemala',
     'pais' => 'Guatemala',
+    'iso' => 'GTM',
     'lat' => 14.64167,
     'lon' => -90.51333,
     'img' => 'Buildings in Guatemala City.jpg',
@@ -3671,6 +4004,7 @@ return array (
   array (
     'nome' => 'Lilongué',
     'pais' => 'Malawi',
+    'iso' => 'MWI',
     'lat' => -13.98639,
     'lon' => 33.76806,
     'img' => 'Lilongwe Area 2.jpg',
@@ -3682,6 +4016,7 @@ return array (
   array (
     'nome' => 'Porto Príncipe',
     'pais' => 'Haiti',
+    'iso' => 'HTI',
     'lat' => 18.54694,
     'lon' => -72.34028,
     'img' => 'US Navy 100221-N-5787K-002 An aerial view of the logistical area near the port in Port-au-Prince (cropped).jpg',
@@ -3693,6 +4028,7 @@ return array (
   array (
     'nome' => 'Estocolmo',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 59.32944,
     'lon' => 18.06861,
     'img' => 'Stockholm gamlastan etc.jpg',
@@ -3704,6 +4040,7 @@ return array (
   array (
     'nome' => 'Chiba',
     'pais' => 'Japão',
+    'iso' => 'JPN',
     'lat' => 35.60728,
     'lon' => 140.10636,
     'img' => 'Chiba City montage.jpg',
@@ -3715,6 +4052,7 @@ return array (
   array (
     'nome' => 'Kirkuk',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 35.46667,
     'lon' => 44.4,
     'img' => 'Kirkuk citadel.jpg',
@@ -3726,6 +4064,7 @@ return array (
   array (
     'nome' => 'Dnipro',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 48.4675,
     'lon' => 35.04,
     'img' => 'Collage of Dnipro city images.jpg',
@@ -3737,6 +4076,7 @@ return array (
   array (
     'nome' => 'Narayanganj',
     'pais' => 'Bangladesh',
+    'iso' => 'BGD',
     'lat' => 23.61667,
     'lon' => 90.5,
     'img' => 'নারায়ণগঞ্জের পটভূমি.png',
@@ -3748,6 +4088,7 @@ return array (
   array (
     'nome' => 'Cidade de Cebu',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 10.293,
     'lon' => 123.902,
     'img' => 'Cebu downtown, capitol view from Tops Lookout (Cebu City; 09-06-2022).jpg',
@@ -3759,6 +4100,7 @@ return array (
   array (
     'nome' => 'Asmara',
     'pais' => 'Eritreia',
+    'iso' => 'ERI',
     'lat' => 15.33333,
     'lon' => 38.91667,
     'img' => 'Fiat tagliero, 09.JPG',
@@ -3770,6 +4112,7 @@ return array (
   array (
     'nome' => 'Freetown',
     'pais' => 'Serra Leoa',
+    'iso' => 'SLE',
     'lat' => 8.48722,
     'lon' => -13.23556,
     'img' => 'Freetown-aerialview.jpg',
@@ -3781,6 +4124,7 @@ return array (
   array (
     'nome' => 'Seongnam',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 37.43861,
     'lon' => 127.13778,
     'img' => 'Sangyoung Jeon (120992823 cropped).jpeg',
@@ -3792,6 +4136,7 @@ return array (
   array (
     'nome' => 'Vienciana',
     'pais' => 'Laos',
+    'iso' => 'LAO',
     'lat' => 17.98,
     'lon' => 102.63,
     'img' => '20171118 Vientiane 3220 DxO.jpg',
@@ -3803,6 +4148,7 @@ return array (
   array (
     'nome' => 'Duchambe',
     'pais' => 'Tajiquistão',
+    'iso' => 'TJK',
     'lat' => 38.57306,
     'lon' => 68.78639,
     'img' => 'Tehron Street Dushanbe.jpg',
@@ -3814,6 +4160,7 @@ return array (
   array (
     'nome' => 'Kermanshah',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 34.31667,
     'lon' => 47.06861,
     'img' => 'Kermanshah Photos M3.jpg',
@@ -3825,6 +4172,7 @@ return array (
   array (
     'nome' => 'Salé',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 34.05,
     'lon' => -6.81667,
     'img' => 'Monuments de Salé.png',
@@ -3836,6 +4184,7 @@ return array (
   array (
     'nome' => 'Kingston',
     'pais' => 'Jamaica',
+    'iso' => 'JAM',
     'lat' => 17.97139,
     'lon' => -76.79306,
     'img' => 'PortofKingston.jpg',
@@ -3847,6 +4196,7 @@ return array (
   array (
     'nome' => 'Cartum do Norte',
     'pais' => 'Sudão',
+    'iso' => 'SDN',
     'lat' => 15.63333,
     'lon' => 32.63333,
     'img' => 'Khartum north industrial.jpg',
@@ -3858,6 +4208,7 @@ return array (
   array (
     'nome' => 'Aguascalientes',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 21.88083,
     'lon' => -102.29611,
     'img' => 'Centro de Aguascalientes.jpg',
@@ -3869,6 +4220,7 @@ return array (
   array (
     'nome' => 'Culna',
     'pais' => 'Bangladesh',
+    'iso' => 'BGD',
     'lat' => 22.81667,
     'lon' => 89.55,
     'img' => 'Zero point, khulna.jpg',
@@ -3880,6 +4232,7 @@ return array (
   array (
     'nome' => 'Chihuahua',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 28.63694,
     'lon' => -106.07694,
     'img' => 'Chihuahua montage.jpg',
@@ -3891,6 +4244,7 @@ return array (
   array (
     'nome' => 'Trujillo',
     'pais' => 'Peru',
+    'iso' => 'PER',
     'lat' => -8.11194,
     'lon' => -79.02889,
     'img' => 'Trujillo Peru Collage.png',
@@ -3902,6 +4256,7 @@ return array (
   array (
     'nome' => 'Cartagena das Índias',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 10.42361,
     'lon' => -75.52528,
     'img' => 'View of Cartagena from Convento de Santa Cruz de la Popa 01.jpg',
@@ -3913,6 +4268,7 @@ return array (
   array (
     'nome' => 'Nápoles',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 40.83583,
     'lon' => 14.24861,
     'img' => 'Naples from the Castello Sant Elmo with Abbazia San Martino the port and the Vesuv.jpg',
@@ -3924,6 +4280,7 @@ return array (
   array (
     'nome' => 'Owerri',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 5.48333,
     'lon' => 7.03333,
     'img' => 'CITY SCAPE, OWERRI.jpg',
@@ -3935,6 +4292,7 @@ return array (
   array (
     'nome' => 'Bobo Dioulasso',
     'pais' => 'Burquina Fasso',
+    'iso' => 'BFA',
     'lat' => 11.18333,
     'lon' => -4.28333,
     'img' => 'Bobo-Dioulasso TownHall2.jpg',
@@ -3946,6 +4304,7 @@ return array (
   array (
     'nome' => 'Lubango',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -14.91667,
     'lon' => 13.5,
     'img' => 'Lubango.jpg',
@@ -3957,6 +4316,7 @@ return array (
   array (
     'nome' => 'Dammam',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 26.43333,
     'lon' => 50.1,
     'img' => 'Dammam medical complex 2014-01-19 22-43.jpg',
@@ -3968,6 +4328,7 @@ return array (
   array (
     'nome' => 'Donetsk',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 48.01583,
     'lon' => 37.80278,
     'img' => 'Вид из Донецкой областной администрации 003.jpg',
@@ -3979,6 +4340,7 @@ return array (
   array (
     'nome' => 'Libreville',
     'pais' => 'Gabão',
+    'iso' => 'GAB',
     'lat' => 0.40778,
     'lon' => 9.44028,
     'img' => 'Libreville1.jpg',
@@ -3990,6 +4352,7 @@ return array (
   array (
     'nome' => 'Mérida',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 20.97,
     'lon' => -89.62,
     'img' => 'Collage Merida Yucatan.jpg',
@@ -4001,6 +4364,7 @@ return array (
   array (
     'nome' => 'Bangui',
     'pais' => 'República Centro-Africana',
+    'iso' => 'CAF',
     'lat' => 4.37325,
     'lon' => 18.56283,
     'img' => 'Bangui City Centre.jpg',
@@ -4012,6 +4376,7 @@ return array (
   array (
     'nome' => 'Abeokuta',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 7.15,
     'lon' => 3.35,
     'img' => 'Abeokutafromolumorock.jpg',
@@ -4023,6 +4388,7 @@ return array (
   array (
     'nome' => 'Cancún',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 21.16142,
     'lon' => -86.82481,
     'img' => 'CancúnCollage.jpg',
@@ -4034,6 +4400,7 @@ return array (
   array (
     'nome' => 'Tabuk',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 28.39722,
     'lon' => 36.57889,
     'img' => 'Tabuk Chamber of Commerce.JPG',
@@ -4045,6 +4412,7 @@ return array (
   array (
     'nome' => 'El Alto',
     'pais' => 'Bolívia',
+    'iso' => 'BOL',
     'lat' => -16.50472,
     'lon' => -68.16333,
     'img' => 'La Ceja perspectiva.jpg',
@@ -4056,6 +4424,7 @@ return array (
   array (
     'nome' => 'As-Sulaymaniyah',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 35.55,
     'lon' => 45.43333,
     'img' => 'Sulaymaniyah1.jpg',
@@ -4067,6 +4436,7 @@ return array (
   array (
     'nome' => 'Klang',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.03333,
     'lon' => 101.45,
     'img' => 'Floating Mosque of Klang (8216640379).jpg',
@@ -4078,6 +4448,7 @@ return array (
   array (
     'nome' => 'Ramadi',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 33.42583,
     'lon' => 43.29917,
     'img' => 'Ramadi Aerial Picture - April 2008.jpeg',
@@ -4089,6 +4460,7 @@ return array (
   array (
     'nome' => 'Barinas',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 8.63333,
     'lon' => -70.21667,
     'img' => 'Barinas, Estado Barinas, Venezuela.JPG',
@@ -4100,6 +4472,7 @@ return array (
   array (
     'nome' => 'Ipoh',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 4.6,
     'lon' => 101.07,
     'img' => 'Ipoh 62.jpg',
@@ -4111,6 +4484,7 @@ return array (
   array (
     'nome' => 'Viana',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -8.91166,
     'lon' => 13.37103,
     'img' => 'Viana-Estacao-Transporte-rodoviario IMG1018.JPG',
@@ -4122,6 +4496,7 @@ return array (
   array (
     'nome' => 'Saltillo',
     'pais' => 'México',
+    'iso' => 'MEX',
     'lat' => 25.42306,
     'lon' => -100.99194,
     'img' => 'Saltillo, mexico(3).jpg',
@@ -4133,6 +4508,7 @@ return array (
   array (
     'nome' => 'Ikeja',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 6.58333,
     'lon' => 3.33333,
     'img' => '2013 airport Ikeja Lagos Nigeria 12999337914.jpg',
@@ -4144,6 +4520,7 @@ return array (
   array (
     'nome' => 'Pasig',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.5605,
     'lon' => 121.0765,
     'img' => 'Pasig City 1.jpg',
@@ -4155,6 +4532,7 @@ return array (
   array (
     'nome' => 'Cheongju',
     'pais' => 'Coreia do Sul',
+    'iso' => 'KOR',
     'lat' => 36.63722,
     'lon' => 127.48972,
     'img' => 'Cheongju Sangdangsangseong.jpg',
@@ -4166,6 +4544,7 @@ return array (
   array (
     'nome' => 'Akure',
     'pais' => 'Nigéria',
+    'iso' => 'NGA',
     'lat' => 7.25,
     'lon' => 5.195,
     'img' => 'St. Thomas Anglican Church, Akure, Ondo State.jpg',
@@ -4177,6 +4556,7 @@ return array (
   array (
     'nome' => 'Arbil',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 36.19111,
     'lon' => 44.00944,
     'img' => 'Citadel (old city) of Hewlêr (Erbil).jpg',
@@ -4188,6 +4568,7 @@ return array (
   array (
     'nome' => 'Catmandu',
     'pais' => 'Nepal',
+    'iso' => 'NPL',
     'lat' => 27.71,
     'lon' => 85.32,
     'img' => 'Kathmandu Avion 01.JPG',
@@ -4199,6 +4580,7 @@ return array (
   array (
     'nome' => 'Huambo',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -12.76667,
     'lon' => 15.73333,
     'img' => 'Huambo, Jardim da Cultura.jpg',
@@ -4210,6 +4592,7 @@ return array (
   array (
     'nome' => 'Turim',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 45.07917,
     'lon' => 7.67611,
     'img' => 'Turin Montage.png',
@@ -4221,6 +4604,7 @@ return array (
   array (
     'nome' => 'Buffalo City (Cabo Oriental)',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -32.95141,
     'lon' => 27.61164,
     'img' => 'East London Town Hall-Cropped.jpg',
@@ -4232,6 +4616,7 @@ return array (
   array (
     'nome' => 'Cracóvia',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 50.06139,
     'lon' => 19.93722,
     'img' => 'Zamek Królewski na Wawelu (1).jpg',
@@ -4243,6 +4628,7 @@ return array (
   array (
     'nome' => 'Orã',
     'pais' => 'Argélia',
+    'iso' => 'DZA',
     'lat' => 35.69694,
     'lon' => -0.63306,
     'img' => 'ORAN City & Coast.jpg',
@@ -4254,6 +4640,7 @@ return array (
   array (
     'nome' => 'Blantyre',
     'pais' => 'Malawi',
+    'iso' => 'MWI',
     'lat' => -15.78611,
     'lon' => 35.00583,
     'img' => 'Blantyre City.jpg',
@@ -4265,6 +4652,7 @@ return array (
   array (
     'nome' => 'Johor Bahru',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 1.45556,
     'lon' => 103.76111,
     'img' => 'Johor Bahru city in 2015.jpg',
@@ -4276,6 +4664,7 @@ return array (
   array (
     'nome' => 'Bordeaux Métropole',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 44.84,
     'lon' => -0.58,
     'img' => 'Bordeaux - Pont Chaban Delmas sur la Garonne.jpg',
@@ -4287,6 +4676,7 @@ return array (
   array (
     'nome' => 'George Town',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 5.4145,
     'lon' => 100.3292,
     'img' => 'Skyline of George Town, Penang at night January 2025 02-01.jpg',
@@ -4298,6 +4688,7 @@ return array (
   array (
     'nome' => 'Porto Said',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 31.2625,
     'lon' => 32.30611,
     'img' => 'PortSaidEgypt2 byDanielCsorfoly.JPG',
@@ -4309,6 +4700,7 @@ return array (
   array (
     'nome' => 'Goma',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -1.6641,
     'lon' => 29.22286,
     'img' => 'Goma, Lake Kivu, DRC (Zaire - Congo), Photo by Sascha Grabow.jpg',
@@ -4320,6 +4712,7 @@ return array (
   array (
     'nome' => 'Cotonu',
     'pais' => 'Benim',
+    'iso' => 'BEN',
     'lat' => 6.36667,
     'lon' => 2.41667,
     'img' => 'Vue panoramique quartier cadjéhoun-Cotonou au Bénin 1.jpg',
@@ -4331,6 +4724,7 @@ return array (
   array (
     'nome' => 'Hómece',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 34.73333,
     'lon' => 36.71667,
     'img' => 'Homs syria3.JPG',
@@ -4342,6 +4736,7 @@ return array (
   array (
     'nome' => 'Valência',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 39.45612,
     'lon' => -0.35457,
     'img' => 'Vista cap a l\'ajuntament des de l\'edifici Roca, València.JPG',
@@ -4353,6 +4748,7 @@ return array (
   array (
     'nome' => 'Hamhung',
     'pais' => 'Coreia do Norte',
+    'iso' => 'PRK',
     'lat' => 39.96556,
     'lon' => 127.48861,
     'img' => 'Hamhung-north-korea-september-2015.jpg',
@@ -4364,6 +4760,7 @@ return array (
   array (
     'nome' => 'Zagreb',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 45.81306,
     'lon' => 15.97722,
     'img' => 'Zagreb (29255640143).jpg',
@@ -4375,6 +4772,7 @@ return array (
   array (
     'nome' => 'Al Ain',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 24.2075,
     'lon' => 55.74472,
     'img' => 'Qasr Al Muwaiji 1.jpg',
@@ -4386,6 +4784,7 @@ return array (
   array (
     'nome' => 'Bahawalpur',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 29.39556,
     'lon' => 71.67222,
     'img' => 'CHOWK SARAIKI BAHAWALPUR.jpg',
@@ -4397,6 +4796,7 @@ return array (
   array (
     'nome' => 'Frankfurt am Main',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 50.11056,
     'lon' => 8.68222,
     'img' => 'Frankfurter Altstadt mit Skyline 2019 (100MP).jpg',
@@ -4408,6 +4808,7 @@ return array (
   array (
     'nome' => 'La Paz',
     'pais' => 'Bolívia',
+    'iso' => 'BOL',
     'lat' => -16.49583,
     'lon' => -68.13333,
     'img' => 'La Paz-center.jpg',
@@ -4419,6 +4820,7 @@ return array (
   array (
     'nome' => 'Maturín',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 9.74228,
     'lon' => -63.18889,
     'img' => 'Plaza El Estudiante de Maturin.jpg',
@@ -4430,6 +4832,7 @@ return array (
   array (
     'nome' => 'Ciudad Guayana',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 8.32238,
     'lon' => -62.68966,
     'img' => 'Panorámica aérea de ciudad Guayana.jpg',
@@ -4441,6 +4844,7 @@ return array (
   array (
     'nome' => 'Winnipeg',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 49.89556,
     'lon' => -97.13861,
     'img' => 'Winnipeg skyline (2025).jpg',
@@ -4452,6 +4856,7 @@ return array (
   array (
     'nome' => 'Dasmariñas',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.32944,
     'lon' => 120.93667,
     'img' => 'Dasmariñas skyline.JPG',
@@ -4463,6 +4868,7 @@ return array (
   array (
     'nome' => 'Nampula',
     'pais' => 'Moçambique',
+    'iso' => 'MOZ',
     'lat' => -15.11667,
     'lon' => 39.26667,
     'img' => 'Nampula Airport.jpg',
@@ -4474,6 +4880,7 @@ return array (
   array (
     'nome' => 'Pretória',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -25.74639,
     'lon' => 28.18806,
     'img' => 'Pretoria CBD1.jpg',
@@ -4485,6 +4892,7 @@ return array (
   array (
     'nome' => 'Cagayan de Ouro',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 8.48333,
     'lon' => 124.65,
     'img' => 'CDO CM Recto-Corrales skyline alt (Cagayan De Oro City; 12-08-2023).jpg',
@@ -4496,6 +4904,7 @@ return array (
   array (
     'nome' => 'Bouaké',
     'pais' => 'Costa do Marfim',
+    'iso' => 'CIV',
     'lat' => 7.68333,
     'lon' => -5.03306,
     'img' => 'Cibkechu.JPG',
@@ -4507,6 +4916,7 @@ return array (
   array (
     'nome' => 'Cabinda',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -5.56667,
     'lon' => 12.2,
     'img' => 'Cabinda VOA.png',
@@ -4518,6 +4928,7 @@ return array (
   array (
     'nome' => 'Urmia',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 37.54861,
     'lon' => 45.0675,
     'img' => 'نمایی از شهر ارومیه.jpg',
@@ -4529,6 +4940,7 @@ return array (
   array (
     'nome' => 'Tamale',
     'pais' => 'Gana',
+    'iso' => 'GHA',
     'lat' => 9.4075,
     'lon' => -0.85333,
     'img' => 'Road, Tamale.jpg',
@@ -4540,6 +4952,7 @@ return array (
   array (
     'nome' => 'An-Najaf',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 32.02895,
     'lon' => 44.33962,
     'img' => 'ImamAliMosqueNajafIraq.JPG',
@@ -4551,6 +4964,7 @@ return array (
   array (
     'nome' => 'General Santos',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 6.11667,
     'lon' => 125.16667,
     'img' => 'Gensan.jpg',
@@ -4562,6 +4976,7 @@ return array (
   array (
     'nome' => 'San Pedro Sula',
     'pais' => 'Honduras',
+    'iso' => 'HND',
     'lat' => 15.50532,
     'lon' => -88.02508,
     'img' => 'San Pedro Sula Cathedral.jpg',
@@ -4573,6 +4988,7 @@ return array (
   array (
     'nome' => 'Mississauga',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 43.6,
     'lon' => -79.65,
     'img' => 'Downtown Mississauga.jpg',
@@ -4584,6 +5000,7 @@ return array (
   array (
     'nome' => 'Oslo',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 59.91333,
     'lon' => 10.73889,
     'img' => 'Oslo newer montage 2013.png',
@@ -4595,6 +5012,7 @@ return array (
   array (
     'nome' => 'Lviv',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 49.84195,
     'lon' => 24.03159,
     'img' => 'Lwów - Widok z wieży ratuszowej 01.jpg',
@@ -4606,6 +5024,7 @@ return array (
   array (
     'nome' => 'Suez',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 29.96667,
     'lon' => 32.53333,
     'img' => 'US Navy 031013-N-6187M-001 The nuclear powered aircraft carrier USS Enterprise (CVN 65) passes an Islamic mosque on the western bank of the Suez Canal while transiting to the Red Sea.jpg',
@@ -4617,6 +5036,7 @@ return array (
   array (
     'nome' => 'Zaporíjia',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 47.85,
     'lon' => 35.1175,
     'img' => 'Над проспектом Металургів.jpg',
@@ -4628,6 +5048,7 @@ return array (
   array (
     'nome' => 'Zanzibar',
     'pais' => 'Tanzânia',
+    'iso' => 'TZA',
     'lat' => -6.16667,
     'lon' => 39.2,
     'img' => 'Stone Town, Zanzibar (1).jpg',
@@ -4639,6 +5060,7 @@ return array (
   array (
     'nome' => 'Lataquia',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 35.52,
     'lon' => 35.77806,
     'img' => 'Latakia Collage.jpg',
@@ -4650,6 +5072,7 @@ return array (
   array (
     'nome' => 'Subang Jaya',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.06444,
     'lon' => 101.59361,
     'img' => 'Subang Jaya at Dusk.jpg',
@@ -4661,6 +5084,7 @@ return array (
   array (
     'nome' => 'Bucavu',
     'pais' => 'República Democrática do Congo',
+    'iso' => 'COD',
     'lat' => -2.49083,
     'lon' => 28.84278,
     'img' => 'Bukavu centre ville.png',
@@ -4672,6 +5096,7 @@ return array (
   array (
     'nome' => 'Mwanza',
     'pais' => 'Tanzânia',
+    'iso' => 'TZA',
     'lat' => -2.51667,
     'lon' => 32.9,
     'img' => 'Mwanza from Capri Point, Tanzania.jpg',
@@ -4683,6 +5108,7 @@ return array (
   array (
     'nome' => 'Parachinar',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 33.89917,
     'lon' => 70.10083,
     'img' => 'A beautiful sunrise in parachinar.jpg',
@@ -4694,6 +5120,7 @@ return array (
   array (
     'nome' => 'Hama',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 35.135,
     'lon' => 36.75,
     'img' => 'Hama, Cityscape 2, Syria.jpg',
@@ -4705,6 +5132,7 @@ return array (
   array (
     'nome' => 'Helsínquia',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.17083,
     'lon' => 24.9375,
     'img' => 'Helsinki Lutheran Cathedral (panoraamanäköala)-2 (säätö).jpg',
@@ -4716,6 +5144,7 @@ return array (
   array (
     'nome' => 'Bremen',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 53.13333,
     'lon' => 8.73333,
     'img' => 'Haus-der-Buergerschaft-01.jpg',
@@ -4727,6 +5156,7 @@ return array (
   array (
     'nome' => 'Sinnuris',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 29.40722,
     'lon' => 30.86667,
     'img' => 'Biahmu 03.JPG',
@@ -4738,6 +5168,7 @@ return array (
   array (
     'nome' => 'Karbala',
     'pais' => 'Iraque',
+    'iso' => 'IRQ',
     'lat' => 32.61667,
     'lon' => 44.03333,
     'img' => 'Kerbela Hussein Moschee.jpg',
@@ -4749,6 +5180,7 @@ return array (
   array (
     'nome' => 'San José del Monte',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.8101,
     'lon' => 121.0475,
     'img' => 'CSJDMjf.JPG',
@@ -4760,6 +5192,7 @@ return array (
   array (
     'nome' => 'Sevilla',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 37.38621,
     'lon' => -5.99251,
     'img' => 'Plaza Virgen de los Reyes, Seville, Spain - Sep 2009.jpg',
@@ -4771,6 +5204,7 @@ return array (
   array (
     'nome' => 'Dairut',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 27.56667,
     'lon' => 30.81667,
     'img' => 'DairutDam.jpg',
@@ -4782,6 +5216,7 @@ return array (
   array (
     'nome' => 'Resht',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 37.27611,
     'lon' => 49.58861,
     'img' => 'Panorama of Rasht municipality 1.jpg',
@@ -4793,6 +5228,7 @@ return array (
   array (
     'nome' => 'Gotemburgo',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.7075,
     'lon' => 11.9675,
     'img' => 'Göteborg 2503 stitch (28573994096).jpg',
@@ -4804,6 +5240,7 @@ return array (
   array (
     'nome' => 'Breslávia',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 51.11,
     'lon' => 17.0325,
     'img' => 'Rynek Starego Miasta We Wroclawiu (152991773).jpeg',
@@ -4815,6 +5252,7 @@ return array (
   array (
     'nome' => 'Chongjin',
     'pais' => 'Coreia do Norte',
+    'iso' => 'PRK',
     'lat' => 41.78333,
     'lon' => 129.78333,
     'img' => 'Chongjin.jpg',
@@ -4826,6 +5264,7 @@ return array (
   array (
     'nome' => 'Saragoça',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 41.65646,
     'lon' => -0.87929,
     'img' => 'Vista de Zaragoza en 1647.jpg',
@@ -4837,6 +5276,7 @@ return array (
   array (
     'nome' => 'Bulavaio',
     'pais' => 'Zimbábue',
+    'iso' => 'ZWE',
     'lat' => -20.16667,
     'lon' => 28.56667,
     'img' => 'Bulawayo CBD.jpg',
@@ -4848,6 +5288,7 @@ return array (
   array (
     'nome' => 'Villavicencio',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 4.1425,
     'lon' => -73.62944,
     'img' => 'Villavicencio Colombia by David.png',
@@ -4859,6 +5300,7 @@ return array (
   array (
     'nome' => 'Vancouver',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 49.26083,
     'lon' => -123.11389,
     'img' => 'Skyline of Vancouver, Canada.jpg',
@@ -4870,6 +5312,7 @@ return array (
   array (
     'nome' => 'Catia La Mar',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.6,
     'lon' => -67.03333,
     'img' => 'Cielo y vista aereas de Catia La Mar 2012 005.jpg',
@@ -4881,6 +5324,7 @@ return array (
   array (
     'nome' => 'Bacoor',
     'pais' => 'Filipinas',
+    'iso' => 'PHL',
     'lat' => 14.46242,
     'lon' => 120.96445,
     'img' => 'Bacoor Cavite.JPG',
@@ -4892,6 +5336,7 @@ return array (
   array (
     'nome' => 'Sargodha',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 32.08361,
     'lon' => 72.67111,
     'img' => 'Mainentry Sargodha public school.jpg',
@@ -4903,6 +5348,7 @@ return array (
   array (
     'nome' => 'Bujumbura',
     'pais' => 'Burundi',
+    'iso' => 'BDI',
     'lat' => -3.3825,
     'lon' => 29.36111,
     'img' => 'BUJUMBURA MAIRIE 3.jpg',
@@ -4914,6 +5360,7 @@ return array (
   array (
     'nome' => 'Brampton',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 43.68333,
     'lon' => -79.76667,
     'img' => 'Brampton Dominion Building.jpg',
@@ -4925,6 +5372,7 @@ return array (
   array (
     'nome' => 'Łódź',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 51.75,
     'lon' => 19.46667,
     'img' => 'Łódź Fabryczna, 2017.jpg',
@@ -4936,6 +5384,7 @@ return array (
   array (
     'nome' => 'Colombo',
     'pais' => 'Sri Lanka',
+    'iso' => 'LKA',
     'lat' => 6.92667,
     'lon' => 79.86056,
     'img' => 'Colombo skyline 2024.jpg',
@@ -4947,6 +5396,7 @@ return array (
   array (
     'nome' => 'Atenas',
     'pais' => 'Grécia',
+    'iso' => 'GRC',
     'lat' => 37.98417,
     'lon' => 23.72806,
     'img' => 'Akropolis 2015.jpg',
@@ -4958,6 +5408,7 @@ return array (
   array (
     'nome' => 'Shah Faisal Town',
     'pais' => 'Paquistão',
+    'iso' => 'PAK',
     'lat' => 24.8806,
     'lon' => 67.1625,
     'img' => 'Khi alflah sty.jpg',
@@ -4969,6 +5420,7 @@ return array (
   array (
     'nome' => 'Petaling Jaya',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.10726,
     'lon' => 101.60671,
     'img' => 'RapidKL Kelana Jaya line Petaling Jaya.jpg',
@@ -4980,6 +5432,7 @@ return array (
   array (
     'nome' => 'Cochabamba',
     'pais' => 'Bolívia',
+    'iso' => 'BOL',
     'lat' => -17.39354,
     'lon' => -66.15701,
     'img' => 'Cochabamba 1988.jpg',
@@ -4991,6 +5444,7 @@ return array (
   array (
     'nome' => 'Bengasi',
     'pais' => 'Líbia',
+    'iso' => 'LBY',
     'lat' => 32.11667,
     'lon' => 20.06667,
     'img' => 'The Old Town, Benghazi, Libya.jpg',
@@ -5002,6 +5456,7 @@ return array (
   array (
     'nome' => 'Palermo',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 38.11566,
     'lon' => 13.36126,
     'img' => 'Palermo02 flickr.jpg',
@@ -5013,6 +5468,7 @@ return array (
   array (
     'nome' => 'Glasgow',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 55.86111,
     'lon' => -4.25,
     'img' => 'Glasgow - aerial - 2025-04-17 12.jpg',
@@ -5024,6 +5480,7 @@ return array (
   array (
     'nome' => 'Namangan',
     'pais' => 'Usbequistão',
+    'iso' => 'UZB',
     'lat' => 40.99528,
     'lon' => 71.6725,
     'img' => 'Moellah Kirigizmadrassa.jpg',
@@ -5035,6 +5492,7 @@ return array (
   array (
     'nome' => 'Kitwe',
     'pais' => 'Zâmbia',
+    'iso' => 'ZMB',
     'lat' => -12.82083,
     'lon' => 28.21194,
     'img' => 'Kitwe cityscape2 - Flickr.jpg',
@@ -5046,6 +5504,7 @@ return array (
   array (
     'nome' => 'Almançora',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 31.05,
     'lon' => 31.38333,
     'img' => 'Sunset in Mansoura.JPG',
@@ -5057,6 +5516,7 @@ return array (
   array (
     'nome' => 'Düsseldorf',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 51.22556,
     'lon' => 6.77667,
     'img' => 'Düsseldorf Panorama.jpg',
@@ -5068,6 +5528,7 @@ return array (
   array (
     'nome' => 'Vilnius',
     'pais' => 'Lituânia',
+    'iso' => 'LTU',
     'lat' => 54.68722,
     'lon' => 25.28,
     'img' => 'Gedimino pilis by Augustas Didzgalvis.jpg',
@@ -5079,6 +5540,7 @@ return array (
   array (
     'nome' => 'Heluã',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 29.8493,
     'lon' => 31.3327,
     'img' => 'HelwanFaruqPalace.jpg',
@@ -5090,6 +5552,7 @@ return array (
   array (
     'nome' => 'Al Hudaydah',
     'pais' => 'Iémen',
+    'iso' => 'YEM',
     'lat' => 14.80222,
     'lon' => 42.95111,
     'img' => 'الحديدة - panoramio.jpg',
@@ -5101,6 +5564,7 @@ return array (
   array (
     'nome' => 'Leipzig',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 51.34063,
     'lon' => 12.37473,
     'img' => 'Innenstadt Leipzig mit Thomaskirche von Panorama Tower 2013.jpg',
@@ -5112,6 +5576,7 @@ return array (
   array (
     'nome' => 'Ta\'izz',
     'pais' => 'Iémen',
+    'iso' => 'YEM',
     'lat' => 13.57889,
     'lon' => 44.02194,
     'img' => 'Taizz flicr02.jpg',
@@ -5123,6 +5588,7 @@ return array (
   array (
     'nome' => 'Bucaramanga',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 7.11861,
     'lon' => -73.11611,
     'img' => 'Bucaramanga v cu.JPG',
@@ -5134,6 +5600,7 @@ return array (
   array (
     'nome' => 'Kandahar',
     'pais' => 'Afeganistão',
+    'iso' => 'AFG',
     'lat' => 31.62068,
     'lon' => 65.71588,
     'img' => 'Aerial view of a section of Kandahar in 2013.jpg',
@@ -5145,6 +5612,7 @@ return array (
   array (
     'nome' => 'Estugarda',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 48.7775,
     'lon' => 9.18,
     'img' => 'Neues Schloss Schlossplatzspringbrunnen Jubiläumssäule Schlossplatz Stuttgart 2015 01.jpg',
@@ -5156,6 +5624,7 @@ return array (
   array (
     'nome' => 'Kuantan',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.81667,
     'lon' => 103.33333,
     'img' => 'Kuantan Street - Wall St.jpg',
@@ -5167,6 +5636,7 @@ return array (
   array (
     'nome' => 'Gold Coast',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -28.01667,
     'lon' => 153.4,
     'img' => 'View-from-Q1-looking-north.jpg',
@@ -5178,6 +5648,7 @@ return array (
   array (
     'nome' => 'Malanje',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -9.54015,
     'lon' => 16.34096,
     'img' => 'Malanje centro 2011-08 IMG1321.jpg',
@@ -5189,6 +5660,7 @@ return array (
   array (
     'nome' => 'Kryvyi Rih',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 47.91,
     'lon' => 33.39,
     'img' => 'Kryvyi Rih Old Town.jpg',
@@ -5200,6 +5672,7 @@ return array (
   array (
     'nome' => 'Djibouti',
     'pais' => 'Djibouti',
+    'iso' => 'DJI',
     'lat' => 11.595,
     'lon' => 43.14806,
     'img' => 'Djibouti City.jpg',
@@ -5211,6 +5684,7 @@ return array (
   array (
     'nome' => 'Tunes',
     'pais' => 'Tunísia',
+    'iso' => 'TUN',
     'lat' => 36.80083,
     'lon' => 10.18,
     'img' => 'Panoramique du centre de Tunis (3197369985) (cropped).jpg',
@@ -5222,6 +5696,7 @@ return array (
   array (
     'nome' => 'São Miguel de Tucumã',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -26.81667,
     'lon' => -65.21667,
     'img' => 'Cathedral tucuman2.JPG',
@@ -5233,6 +5708,7 @@ return array (
   array (
     'nome' => 'Dortmund',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 51.51389,
     'lon' => 7.46528,
     'img' => 'Dortmund - Altes Stadthaus, Dortmund - 20180305155944.jpg',
@@ -5244,6 +5720,7 @@ return array (
   array (
     'nome' => 'Málaga',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 36.71667,
     'lon' => -4.41667,
     'img' => 'Malaga 2023.jpg',
@@ -5255,6 +5732,7 @@ return array (
   array (
     'nome' => 'Durban',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -29.85833,
     'lon' => 31.025,
     'img' => 'Durban - panoramio - ---=XEON=---.jpg',
@@ -5266,6 +5744,7 @@ return array (
   array (
     'nome' => 'Salta',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -24.78833,
     'lon' => -65.41056,
     'img' => 'Collage Salta.PNG',
@@ -5277,6 +5756,7 @@ return array (
   array (
     'nome' => 'Mar del Plata',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -38.0,
     'lon' => -57.55,
     'img' => 'MDQMontage.jpg',
@@ -5288,6 +5768,7 @@ return array (
   array (
     'nome' => 'Dublin',
     'pais' => 'Irlanda',
+    'iso' => 'IRL',
     'lat' => 53.34972,
     'lon' => -6.26028,
     'img' => 'Dublin - aerial - 2025-07-07 01.jpg',
@@ -5299,6 +5780,7 @@ return array (
   array (
     'nome' => 'Al-Mahalla Al-Kubra',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 30.96667,
     'lon' => 31.16667,
     'img' => 'El Mahalla El Kobra gate.JPG',
@@ -5310,6 +5792,7 @@ return array (
   array (
     'nome' => 'Pereira',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 4.81444,
     'lon' => -75.69472,
     'img' => 'Alto del Nudo - Pereira.jpg',
@@ -5321,6 +5804,7 @@ return array (
   array (
     'nome' => 'Gaza',
     'pais' => 'Estado da Palestina',
+    'iso' => 'PSE',
     'lat' => 31.5075,
     'lon' => 34.45972,
     'img' => 'Images of war 23-25 from Gaza, by Jaber Badwen, IMG 6060.jpg',
@@ -5332,6 +5816,7 @@ return array (
   array (
     'nome' => 'Riga',
     'pais' => 'Letónia',
+    'iso' => 'LVA',
     'lat' => 56.9475,
     'lon' => 24.10694,
     'img' => 'Vistas desde la iglesia de San Pedro, Riga, Letonia, 2012-08-07, DD 12.JPG',
@@ -5343,6 +5828,7 @@ return array (
   array (
     'nome' => 'Bremen',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 53.07583,
     'lon' => 8.80722,
     'img' => 'Bremen-rathaus-dom-buergerschaft.jpg',
@@ -5354,6 +5840,7 @@ return array (
   array (
     'nome' => 'Zahedan',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 29.49289,
     'lon' => 60.8503,
     'img' => '22 Bahman rally in Zahedan (13961122000703636539522749653719 54271).jpg',
@@ -5365,6 +5852,7 @@ return array (
   array (
     'nome' => 'Mbale',
     'pais' => 'Uganda',
+    'iso' => 'UGA',
     'lat' => 1.07119,
     'lon' => 34.17495,
     'img' => 'Rural Mbale, Uganda - by Michael Shade.jpg',
@@ -5376,6 +5864,7 @@ return array (
   array (
     'nome' => 'Shah Alam',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.08333,
     'lon' => 101.53333,
     'img' => 'SA Blue Mosque.jpg',
@@ -5387,6 +5876,7 @@ return array (
   array (
     'nome' => 'Ta’if',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 21.26667,
     'lon' => 40.41667,
     'img' => 'الطائف من جبل الهدى1.jpg',
@@ -5398,6 +5888,7 @@ return array (
   array (
     'nome' => 'Porto Sudão',
     'pais' => 'Sudão',
+    'iso' => 'SDN',
     'lat' => 19.61583,
     'lon' => 37.21639,
     'img' => 'PortSudan center harbour.jpg',
@@ -5409,6 +5900,7 @@ return array (
   array (
     'nome' => 'Manfalut',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 27.31278,
     'lon' => 30.97028,
     'img' => 'ManfalutKashifMosqueOutside.jpg',
@@ -5420,6 +5912,7 @@ return array (
   array (
     'nome' => 'Quebec',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 46.81611,
     'lon' => -71.22417,
     'img' => 'Buildings and Roads of Old Quebec City 14.jpg',
@@ -5431,6 +5924,7 @@ return array (
   array (
     'nome' => 'Puente Alto',
     'pais' => 'Chile',
+    'iso' => 'CHL',
     'lat' => -33.61667,
     'lon' => -70.58333,
     'img' => '12. Plaza de Puente Alto.jpg',
@@ -5442,6 +5936,7 @@ return array (
   array (
     'nome' => 'Essen',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 51.45083,
     'lon' => 7.01306,
     'img' => 'Aerial view of Essen.jpg',
@@ -5453,6 +5948,7 @@ return array (
   array (
     'nome' => 'Shibin el-Qanater',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 30.31269,
     'lon' => 31.32018,
     'img' => 'El Qanater El Khayreya , photo by Hatem Moushir 67.jpg',
@@ -5464,6 +5960,7 @@ return array (
   array (
     'nome' => 'Hamilton',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 43.25667,
     'lon' => -79.86917,
     'img' => 'HamiltonOntarioSkylineD.JPG',
@@ -5475,6 +5972,7 @@ return array (
   array (
     'nome' => 'Surrey',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 49.1833,
     'lon' => -122.85,
     'img' => 'Surrey Central (2025).jpg',
@@ -5486,6 +5984,7 @@ return array (
   array (
     'nome' => 'Ciudad Bolívar',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 8.10285,
     'lon' => -63.54696,
     'img' => 'Ciudad Bolívar historical zone.jpg',
@@ -5497,6 +5996,7 @@ return array (
   array (
     'nome' => 'El Callao',
     'pais' => 'Peru',
+    'iso' => 'PER',
     'lat' => -12.05222,
     'lon' => -77.13917,
     'img' => 'Vista aérea de la Iglesia Matriz del Callao.jpg',
@@ -5508,6 +6008,7 @@ return array (
   array (
     'nome' => 'Dar El Salam',
     'pais' => 'Egito',
+    'iso' => 'EGY',
     'lat' => 29.98727,
     'lon' => 31.23712,
     'img' => 'General River transport authority 3.jpg',
@@ -5519,6 +6020,7 @@ return array (
   array (
     'nome' => 'Chișinău',
     'pais' => 'Moldávia',
+    'iso' => 'MDA',
     'lat' => 47.02278,
     'lon' => 28.83528,
     'img' => 'Arch of Triumph, Chisinau, Republic of Moldova (51160304626 cropped).jpg',
@@ -5530,6 +6032,7 @@ return array (
   array (
     'nome' => 'Dresden',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 51.04933,
     'lon' => 13.73814,
     'img' => 'DD-canaletto-blick.jpg',
@@ -5541,6 +6044,7 @@ return array (
   array (
     'nome' => 'Benguela',
     'pais' => 'Angola',
+    'iso' => 'AGO',
     'lat' => -12.55,
     'lon' => 13.41667,
     'img' => 'Igreja Benguela, Angola.jpg',
@@ -5552,6 +6056,7 @@ return array (
   array (
     'nome' => 'Al-Ubayyid',
     'pais' => 'Sudão',
+    'iso' => 'SDN',
     'lat' => 13.18333,
     'lon' => 30.21667,
     'img' => 'الأبيض1.jpg',
@@ -5563,6 +6068,7 @@ return array (
   array (
     'nome' => 'Génova',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 44.40722,
     'lon' => 8.93389,
     'img' => 'Genova panorama centro storico da villetta Di Negro.jpg',
@@ -5574,6 +6080,7 @@ return array (
   array (
     'nome' => 'Herat',
     'pais' => 'Afeganistão',
+    'iso' => 'AFG',
     'lat' => 34.34194,
     'lon' => 62.20306,
     'img' => 'View of Herat in 2009.jpg',
@@ -5585,6 +6092,7 @@ return array (
   array (
     'nome' => 'Hamadã',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 34.8,
     'lon' => 48.51667,
     'img' => 'Iran - Hamedan view from Alvand Mountain - panoramio.jpg',
@@ -5596,6 +6104,7 @@ return array (
   array (
     'nome' => 'Chiclayo',
     'pais' => 'Peru',
+    'iso' => 'PER',
     'lat' => -6.77167,
     'lon' => -79.83833,
     'img' => 'Photo montage Chiclayo.png',
@@ -5607,6 +6116,7 @@ return array (
   array (
     'nome' => 'Meknès',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 33.88333,
     'lon' => -5.55,
     'img' => 'Meknes.jpg',
@@ -5618,6 +6128,7 @@ return array (
   array (
     'nome' => 'Andijon',
     'pais' => 'Usbequistão',
+    'iso' => 'UZB',
     'lat' => 40.78333,
     'lon' => 72.35056,
     'img' => 'Devonaboy Jome Mosque in Andijan.jpg',
@@ -5629,6 +6140,7 @@ return array (
   array (
     'nome' => 'Poznań',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 52.40833,
     'lon' => 16.93361,
     'img' => 'Stare Miasto w Poznaniu.jpg',
@@ -5640,6 +6152,7 @@ return array (
   array (
     'nome' => 'Samarcanda',
     'pais' => 'Usbequistão',
+    'iso' => 'UZB',
     'lat' => 39.65472,
     'lon' => 66.97583,
     'img' => 'Sherdor madrasah 3.jpg',
@@ -5651,6 +6164,7 @@ return array (
   array (
     'nome' => 'Ibagué',
     'pais' => 'Colômbia',
+    'iso' => 'COL',
     'lat' => 4.43778,
     'lon' => -75.20056,
     'img' => 'Ibagué, Colombia.jpg',
@@ -5662,6 +6176,7 @@ return array (
   array (
     'nome' => 'Lisboa',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 38.70804,
     'lon' => -9.13902,
     'img' => 'Lisboa837.png',
@@ -5673,6 +6188,7 @@ return array (
   array (
     'nome' => 'Mirabeach',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 44.338,
     'lon' => 12.2635,
     'img' => 'Mirabilandia Beach.JPG',
@@ -5684,6 +6200,7 @@ return array (
   array (
     'nome' => 'Ondaland',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 45.4793,
     'lon' => 8.42551,
     'img' => 'Ondaland dall\'alto alta definizione.jpg',
@@ -5695,6 +6212,7 @@ return array (
   array (
     'nome' => 'Alton Towers Waterpark',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 52.9851,
     'lon' => -1.8761,
     'img' => 'Alton Towers Waterpark1.JPG',
@@ -5706,6 +6224,7 @@ return array (
   array (
     'nome' => 'Simhallsbadet, Malmö',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 55.59944,
     'lon' => 12.99278,
     'img' => 'Simhallsbadet, Malmö.jpg',
@@ -5717,6 +6236,7 @@ return array (
   array (
     'nome' => 'Blue Lagoon Water Park',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 51.78,
     'lon' => -4.808,
     'img' => 'Blue Lagoon Waterpark.jpg',
@@ -5728,6 +6248,7 @@ return array (
   array (
     'nome' => 'Cardiff International Pool',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 51.44976,
     'lon' => -3.18108,
     'img' => 'Cardiff International Pool 002.jpg',
@@ -5739,6 +6260,7 @@ return array (
   array (
     'nome' => 'Dongshan River Water Park',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 24.6723,
     'lon' => 121.812,
     'img' => '268, Taiwan, 宜蘭縣五結鄉協和村 - panoramio (39).jpg',
@@ -5750,6 +6272,7 @@ return array (
   array (
     'nome' => 'Fasouri Watermania',
     'pais' => 'Chipre',
+    'iso' => 'CYP',
     'lat' => 34.65241,
     'lon' => 32.9751,
     'img' => 'Limassol Fassouri Watermania Water Park - panoramio (2).jpg',
@@ -5761,6 +6284,7 @@ return array (
   array (
     'nome' => 'Fyrishov',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 59.87083,
     'lon' => 17.62361,
     'img' => 'Fyrishov.jpg',
@@ -5772,6 +6296,7 @@ return array (
   array (
     'nome' => 'Illa Fantasia',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 41.50384,
     'lon' => 2.36353,
     'img' => 'Slides.jpg',
@@ -5783,6 +6308,7 @@ return array (
   array (
     'nome' => 'Aquapark of Cerceda',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 42.17689,
     'lon' => -8.47,
     'img' => 'Aquapark Cerceda 2013.JPG',
@@ -5794,6 +6320,7 @@ return array (
   array (
     'nome' => 'Lago Martiánez',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 28.41944,
     'lon' => -16.54361,
     'img' => 'Lago Martianez-Monumento a las olas-Tenerife.jpg',
@@ -5805,6 +6332,7 @@ return array (
   array (
     'nome' => 'Luna Gal',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.84769,
     'lon' => 35.65119,
     'img' => 'WikiAir Flight IL-13-01IMG 4820.JPG',
@@ -5816,6 +6344,7 @@ return array (
   array (
     'nome' => 'Yamit 2000',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.00289,
     'lon' => 34.79367,
     'img' => 'Yamit2000 1.JPG',
@@ -5827,6 +6356,7 @@ return array (
   array (
     'nome' => 'Magic Mountain Water Park',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 46.138,
     'lon' => -64.888,
     'img' => 'Magic mountain water park moncton.jpg',
@@ -5838,6 +6368,7 @@ return array (
   array (
     'nome' => 'Parque Marítimo César Manrique',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 28.45417,
     'lon' => -16.255,
     'img' => 'Palmetum of Santa Cruz de Tenerife 2019 046.jpg',
@@ -5849,6 +6380,7 @@ return array (
   array (
     'nome' => 'Portsmouth Pyramids Centre',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 50.779,
     'lon' => -1.08539,
     'img' => 'Portsmouth Pyramids Centre 1.jpg',
@@ -5860,6 +6392,7 @@ return array (
   array (
     'nome' => 'Saigon Water Park',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 10.84064,
     'lon' => 106.74509,
     'img' => 'Saigon Water Park 509.jpg',
@@ -5871,6 +6404,7 @@ return array (
   array (
     'nome' => 'Splash Island',
     'pais' => 'Canadá',
+    'iso' => 'CAN',
     'lat' => 43.82183,
     'lon' => -79.18268,
     'img' => 'DSC00692 - Splash Island at the Toronto Zoo (7693742670).jpg',
@@ -5882,6 +6416,7 @@ return array (
   array (
     'nome' => 'Splash Planet',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -39.64404,
     'lon' => 176.86365,
     'img' => 'Sky Castle, Splash Planet, Hastings.jpg',
@@ -5893,6 +6428,7 @@ return array (
   array (
     'nome' => 'Tropicana, Weston-super-Mare',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 51.3409,
     'lon' => -2.9828,
     'img' => 'Tropicana frontage.jpg',
@@ -5904,6 +6440,7 @@ return array (
   array (
     'nome' => 'Wild Wadi',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.13944,
     'lon' => 55.18917,
     'img' => 'Wild-wadi.jpg',
@@ -5915,6 +6452,7 @@ return array (
   array (
     'nome' => 'Livu Akvaparks',
     'pais' => 'Letónia',
+    'iso' => 'LVA',
     'lat' => 56.97417,
     'lon' => 23.86023,
     'img' => 'Līvu Akvaparks.jpg',
@@ -5926,6 +6464,7 @@ return array (
   array (
     'nome' => 'Tropical Islands',
     'pais' => 'Alemanha',
+    'iso' => 'DEU',
     'lat' => 52.0375,
     'lon' => 13.74861,
     'img' => '20-05-13-Tropical-Islands-0883 1-RalfR.jpg',
@@ -5937,6 +6476,7 @@ return array (
   array (
     'nome' => 'Aquafan',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 43.98694,
     'lon' => 12.64472,
     'img' => 'Dolphinarium at Oltremare - Riccione (Naturalistic-technological theme park).jpg',
@@ -5948,6 +6488,7 @@ return array (
   array (
     'nome' => 'Aquapark Tatralandia',
     'pais' => 'Eslováquia',
+    'iso' => 'SVK',
     'lat' => 49.106,
     'lon' => 19.57043,
     'img' => 'Aquapark Tatralandia (13).jpg',
@@ -5959,6 +6500,7 @@ return array (
   array (
     'nome' => 'Aqualandia',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 38.5451,
     'lon' => -0.0924,
     'img' => 'Aqualandia.jpg',
@@ -5970,6 +6512,7 @@ return array (
   array (
     'nome' => 'Palmitos Park',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 27.83528,
     'lon' => -15.61611,
     'img' => 'Delfine Palmitos Park 2010.JPG',
@@ -5981,6 +6524,7 @@ return array (
   array (
     'nome' => 'Siam Park',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 28.07176,
     'lon' => -16.72657,
     'img' => 'Siamparkentrada1.JPG',
@@ -5992,6 +6536,7 @@ return array (
   array (
     'nome' => 'Marineland',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 43.615,
     'lon' => 7.125,
     'img' => 'Marineland Antibes 04.jpg',
@@ -6003,6 +6548,7 @@ return array (
   array (
     'nome' => 'PortAventura Caribe Aquatic Park',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 41.088,
     'lon' => 1.1536,
     'img' => 'Entrada Caribe Aquatic Park.JPG',
@@ -6014,6 +6560,7 @@ return array (
   array (
     'nome' => 'Océade',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.89444,
     'lon' => 4.33694,
     'img' => 'Océade (A008).JPG',
@@ -6025,6 +6572,7 @@ return array (
   array (
     'nome' => 'Aqualibi',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.69861,
     'lon' => 4.59056,
     'img' => 'Aqualibi (02).JPG',
@@ -6036,6 +6584,7 @@ return array (
   array (
     'nome' => 'Boudewijn Seapark',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.18333,
     'lon' => 3.21222,
     'img' => 'Entrance Boudewjinpark.JPG',
@@ -6047,6 +6596,7 @@ return array (
   array (
     'nome' => 'Legoland Malaysia',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 1.425,
     'lon' => 103.62722,
     'img' => 'Entrance Legoland Malaysia.jpg',
@@ -6058,6 +6608,7 @@ return array (
   array (
     'nome' => 'Les Antilles de Jonzac',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 45.4389,
     'lon' => -0.42639,
     'img' => 'Jonzac1.1.JPG',
@@ -6069,6 +6620,7 @@ return array (
   array (
     'nome' => 'Oasiria',
     'pais' => 'Marrocos',
+    'iso' => 'MAR',
     'lat' => 31.58093,
     'lon' => -8.01518,
     'img' => 'Oasiriapiscine.jpg',
@@ -6080,6 +6632,7 @@ return array (
   array (
     'nome' => 'Zoomarine',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 41.63361,
     'lon' => 12.45667,
     'img' => 'Zoomarine - panoramio (2).jpg',
@@ -6091,6 +6644,7 @@ return array (
   array (
     'nome' => 'Caribe Bay',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 45.49406,
     'lon' => 12.6011,
     'img' => 'Lido de Jesolo, Aqualandia, panorama - panoramio.jpg',
@@ -6102,6 +6656,7 @@ return array (
   array (
     'nome' => 'Dolphinarium in Donetsk',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 47.99261,
     'lon' => 37.78805,
     'img' => 'Парк Щербакова 026.jpg',
@@ -6113,6 +6668,7 @@ return array (
   array (
     'nome' => 'Dolphinarium in Odesa',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 46.47706,
     'lon' => 30.76535,
     'img' => 'Langeron Beach, Odessa, Odessa Oblast, Ukraine - panoramio (5).jpg',
@@ -6124,6 +6680,7 @@ return array (
   array (
     'nome' => 'Kharkiv Dolphinarium',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 50.0007,
     'lon' => 36.2281,
     'img' => 'Харьковский Дельфинарий.JPG',
@@ -6135,6 +6692,7 @@ return array (
   array (
     'nome' => 'Kara-Dag dolphinarium',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 44.91194,
     'lon' => 35.20167,
     'img' => 'Karadagsk biost Nov delphinar show.JPG',
@@ -6146,6 +6704,7 @@ return array (
   array (
     'nome' => 'Dolphinarium in Koktebel',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 44.965,
     'lon' => 35.25944,
     'img' => '2015. Коктебель 015.jpg',
@@ -6157,6 +6716,7 @@ return array (
   array (
     'nome' => 'Théâtre de Poséidon',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 49.13308,
     'lon' => 2.57055,
     'img' => 'Spectacle de Dauphin au Théâtre de Poséidon.JPG',
@@ -6168,6 +6728,7 @@ return array (
   array (
     'nome' => 'Festa Dolphinarium',
     'pais' => 'Bulgária',
+    'iso' => 'BGR',
     'lat' => 43.21139,
     'lon' => 27.93944,
     'img' => 'Dolphin show Varna 2.JPG',
@@ -6179,6 +6740,7 @@ return array (
   array (
     'nome' => 'Dolphinarium in Klaipėda',
     'pais' => 'Lituânia',
+    'iso' => 'LTU',
     'lat' => 55.71806,
     'lon' => 21.10083,
     'img' => 'Lietuvos juru muziejus.JPG',
@@ -6190,6 +6752,7 @@ return array (
   array (
     'nome' => 'Batumi Dolphinarium',
     'pais' => 'Geórgia',
+    'iso' => 'GEO',
     'lat' => 41.64769,
     'lon' => 41.62318,
     'img' => 'Show in Batumi dolphinarium.jpg',
@@ -6201,6 +6764,7 @@ return array (
   array (
     'nome' => 'Kish Dolphinarium',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 26.50528,
     'lon' => 54.03889,
     'img' => 'کیش-دلفیناریوم.jpg',
@@ -6212,6 +6776,7 @@ return array (
   array (
     'nome' => 'Aquarama Barcelona',
     'pais' => 'Espanha',
+    'iso' => 'ESP',
     'lat' => 41.38512,
     'lon' => 2.18906,
     'img' => 'Aquarama del Zoo de Barcelona (vista general parcial).jpg',
@@ -6223,6 +6788,7 @@ return array (
   array (
     'nome' => 'Milad Tower Dolphinarium',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 35.74389,
     'lon' => 51.37139,
     'img' => 'Dolphin-20190421110702 IMG 8814.jpg',
@@ -6234,6 +6800,7 @@ return array (
   array (
     'nome' => 'Formula Rossa',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 24.48412,
     'lon' => 54.6093,
     'img' => 'Formula Rossa coaster.jpg',
@@ -6245,6 +6812,7 @@ return array (
   array (
     'nome' => 'Dream Catcher',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.2011,
     'lon' => 4.91218,
     'img' => 'Dream catcher.JPG',
@@ -6256,6 +6824,7 @@ return array (
   array (
     'nome' => 'Loup Garou',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.70066,
     'lon' => 4.59033,
     'img' => 'LoupGarou.jpg',
@@ -6267,6 +6836,7 @@ return array (
   array (
     'nome' => 'Big Dipper',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 53.78917,
     'lon' => -3.05694,
     'img' => 'BigDipperHillsBPB.jpg',
@@ -6278,6 +6848,7 @@ return array (
   array (
     'nome' => 'iSpeed',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 44.33667,
     'lon' => 12.26167,
     'img' => 'ISpeed02.JPG',
@@ -6289,6 +6860,7 @@ return array (
   array (
     'nome' => 'Galactica',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 52.9859,
     'lon' => -1.882,
     'img' => 'Air (Alton Towers) 01.jpg',
@@ -6300,6 +6872,7 @@ return array (
   array (
     'nome' => 'Space Mountain',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 48.87408,
     'lon' => 2.77927,
     'img' => 'Ingresso Hyperspace Mountain.jpeg',
@@ -6311,6 +6884,7 @@ return array (
   array (
     'nome' => 'Anubis: The Ride',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.08218,
     'lon' => 2.59853,
     'img' => 'AnubisTheRide1.JPG',
@@ -6322,6 +6896,7 @@ return array (
   array (
     'nome' => 'Rita',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 52.985,
     'lon' => -1.89051,
     'img' => 'Rita - Queen of Speed (Alton Towers) 03.jpg',
@@ -6333,6 +6908,7 @@ return array (
   array (
     'nome' => 'Revolution',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 53.7899,
     'lon' => -3.05514,
     'img' => 'Bppb irn bru revolution.jpg',
@@ -6344,6 +6920,7 @@ return array (
   array (
     'nome' => 'Cobra',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.6145,
     'lon' => 9.05653,
     'img' => 'Temple of cobra.jpg',
@@ -6355,6 +6932,7 @@ return array (
   array (
     'nome' => 'Fiorano GT Challenge',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 24.48641,
     'lon' => 54.60424,
     'img' => 'FioranoGTStation.jpg',
@@ -6366,6 +6944,7 @@ return array (
   array (
     'nome' => 'Tower of Terror II',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -27.8641,
     'lon' => 153.317,
     'img' => 'Tower of Terror Dreamworld.jpg',
@@ -6377,6 +6956,7 @@ return array (
   array (
     'nome' => 'Helix',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.69556,
     'lon' => 11.99,
     'img' => 'Helix, Liseberg 2014-04-26 12.jpg',
@@ -6388,6 +6968,7 @@ return array (
   array (
     'nome' => 'Shock',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 41.76474,
     'lon' => 12.9587,
     'img' => '2011Shock (Rainbow MagicLand).JPG',
@@ -6399,6 +6980,7 @@ return array (
   array (
     'nome' => 'Flying Fish',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 51.4052,
     'lon' => -0.51392,
     'img' => 'Thorpe Park flying fish 1.jpg',
@@ -6410,6 +6992,7 @@ return array (
   array (
     'nome' => 'SuperSplash',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.08111,
     'lon' => 2.59806,
     'img' => 'SuperSplash-Plopsa-DePanne.jpg',
@@ -6421,6 +7004,7 @@ return array (
   array (
     'nome' => 'Divertical',
     'pais' => 'Itália',
+    'iso' => 'ITA',
     'lat' => 44.33506,
     'lon' => 12.26169,
     'img' => 'Divertical01.JPG',
@@ -6432,6 +7016,7 @@ return array (
   array (
     'nome' => 'Pulsar',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.6988,
     'lon' => 4.5903,
     'img' => 'Pulsar Walibi Belgium.jpg',
@@ -6443,6 +7028,7 @@ return array (
   array (
     'nome' => 'Pégase Express',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 49.13333,
     'lon' => 2.57389,
     'img' => 'Pégase Express.jpg',
@@ -6454,6 +7040,7 @@ return array (
   array (
     'nome' => 'Speed',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 49.99897,
     'lon' => 19.40844,
     'img' => 'Speed Water Coaster, Energylandia - 2018 Aug 06.jpg',
@@ -6465,6 +7052,7 @@ return array (
   array (
     'nome' => 'Fury',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.19972,
     'lon' => 4.9075,
     'img' => 'Bobbejaanland Fury 02.jpg',
@@ -6476,6 +7064,7 @@ return array (
   array (
     'nome' => 'Abyssus',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 50.00011,
     'lon' => 19.40083,
     'img' => 'Energylandia - Abyssus - 26-06-2021.jpg',
@@ -6487,6 +7076,7 @@ return array (
   array (
     'nome' => 'Mystic',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 45.62,
     'lon' => 5.57167,
     'img' => 'Mystic 1.jpg',
@@ -6498,6 +7088,7 @@ return array (
   array (
     'nome' => 'The Ride to Happiness',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.08091,
     'lon' => 2.59887,
     'img' => 'The-Ride-To-Happiness-Plopsa-Belgium.jpg',
@@ -6509,6 +7100,7 @@ return array (
   array (
     'nome' => 'Yukon Quad',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 46.50563,
     'lon' => 3.62954,
     'img' => 'Photo du Yukon Quad nouveauté 2018 du Pal.jpg',
@@ -6520,6 +7112,7 @@ return array (
   array (
     'nome' => 'Toutatis',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 49.135,
     'lon' => 2.57139,
     'img' => 'Toutatis 1.jpg',
@@ -6531,6 +7124,7 @@ return array (
   array (
     'nome' => 'Krampus Expedition',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 48.26158,
     'lon' => 4.61417,
     'img' => 'Krampus Expédition et Alpina Blitz à Nigloland.jpg',
@@ -6542,6 +7136,7 @@ return array (
   array (
     'nome' => 'Pikajuna',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.1875,
     'lon' => 24.93806,
     'img' => 'Pikajuna.JPG',
@@ -6553,6 +7148,7 @@ return array (
   array (
     'nome' => 'Falcons Flight',
     'pais' => 'Arábia Saudita',
+    'iso' => 'SAU',
     'lat' => 24.5875,
     'lon' => 46.33333,
     'img' => 'Falcon\'s Flight (Six Flags Qiddiya City) 2 (cropped).jpg',
@@ -6564,6 +7160,7 @@ return array (
   array (
     'nome' => 'Balder',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.69333,
     'lon' => 11.99611,
     'img' => 'Balder rollercoaster.jpg',
@@ -6575,6 +7172,7 @@ return array (
   array (
     'nome' => 'Anaconda',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 49.22802,
     'lon' => 6.15945,
     'img' => 'Anaconda-2.jpg',
@@ -6586,6 +7184,7 @@ return array (
   array (
     'nome' => 'Tonnerre 2 Zeus',
     'pais' => 'França',
+    'iso' => 'FRA',
     'lat' => 49.13133,
     'lon' => 2.57389,
     'img' => 'Tonnerre de Zeus.jpg',
@@ -6597,6 +7196,7 @@ return array (
   array (
     'nome' => 'Scenic Railway Roller Coaster',
     'pais' => 'Reino Unido',
+    'iso' => 'GBR',
     'lat' => 52.5928,
     'lon' => 1.7361,
     'img' => 'Mountains & Arches.jpg',
@@ -6608,6 +7208,7 @@ return array (
   array (
     'nome' => 'Thunderbird',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 63.2305,
     'lon' => 22.85826,
     'img' => 'Thunderbird.JPG',
@@ -6619,6 +7220,7 @@ return array (
   array (
     'nome' => 'Hullámvasút',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 47.52033,
     'lon' => 19.08546,
     'img' => 'Hullámvasút 1.jpg',
@@ -6630,6 +7232,7 @@ return array (
   array (
     'nome' => 'Vuoristorata',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.18881,
     'lon' => 24.94144,
     'img' => 'Linnanmäki roller coaster.jpg',
@@ -6641,6 +7244,7 @@ return array (
   array (
     'nome' => 'Wiener Riesenrad',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.21683,
     'lon' => 16.39592,
     'img' => 'Giant Ferris Wheel Vienna from W on 2010-09-20.jpg',
@@ -6652,6 +7256,7 @@ return array (
   array (
     'nome' => 'Singapore Flyer',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.28939,
     'lon' => 103.86322,
     'img' => 'Dikaiosp 210819 6963.jpg',
@@ -6663,6 +7268,7 @@ return array (
   array (
     'nome' => 'The Southern Star',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -37.81186,
     'lon' => 144.9376,
     'img' => 'Melbourne Star Observation Wheel.jpg',
@@ -6674,6 +7280,7 @@ return array (
   array (
     'nome' => 'Wheel of Brisbane',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -27.4753,
     'lon' => 153.021,
     'img' => 'WheelofBrisbane9.JPG',
@@ -6685,6 +7292,7 @@ return array (
   array (
     'nome' => 'Praterturm',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.2145,
     'lon' => 16.4013,
     'img' => 'Prater Turm 01.jpg',
@@ -6696,6 +7304,7 @@ return array (
   array (
     'nome' => 'Rueda Eiffel',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -31.42556,
     'lon' => -64.17694,
     'img' => 'Rueda Eiffel.JPG',
@@ -6707,6 +7316,7 @@ return array (
   array (
     'nome' => 'Wheel of Dublin',
     'pais' => 'Irlanda',
+    'iso' => 'IRL',
     'lat' => 53.3472,
     'lon' => -6.2276,
     'img' => 'A Visit to Dublin Docklands - The O2.jpg',
@@ -6718,6 +7328,7 @@ return array (
   array (
     'nome' => 'Slänggungan',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.69347,
     'lon' => 11.99398,
     'img' => 'Slänggungan 2012-06-15.JPG',
@@ -6729,6 +7340,7 @@ return array (
   array (
     'nome' => 'Baku Ferris Wheel',
     'pais' => 'Azerbaijão',
+    'iso' => 'AZE',
     'lat' => 40.35472,
     'lon' => 49.83758,
     'img' => 'Şeytan Çarxı.jpg',
@@ -6740,6 +7352,7 @@ return array (
   array (
     'nome' => 'Budapest Eye',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 47.49813,
     'lon' => 19.05201,
     'img' => 'Budapest, Fischer üzlet- és bérház, kilátás, 2.jpg',
@@ -6751,6 +7364,7 @@ return array (
   array (
     'nome' => 'Rinkeli',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.18791,
     'lon' => 24.93923,
     'img' => 'Rinkeli - Linnanmäki amusement park Helsinki Finland.jpg',
@@ -6762,6 +7376,7 @@ return array (
   array (
     'nome' => 'SkyWheel Helsinki',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.16717,
     'lon' => 24.95978,
     'img' => 'Helsinki sky wheel.jpg',
@@ -6773,6 +7388,7 @@ return array (
   array (
     'nome' => 'Batumi Wheel',
     'pais' => 'Geórgia',
+    'iso' => 'GEO',
     'lat' => 41.6559,
     'lon' => 41.641,
     'img' => 'Batumi Miracle Park.jpg',
@@ -6784,6 +7400,7 @@ return array (
   array (
     'nome' => 'Ain Dubai',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.08011,
     'lon' => 55.12406,
     'img' => 'Ferris Wheel Ain Dubai in Dubai 02.jpg',
@@ -6795,6 +7412,7 @@ return array (
   array (
     'nome' => 'Sky Dream',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 24.32353,
     'lon' => 120.69661,
     'img' => 'Sky Dream in Lihpao Land 20170423.jpg',
@@ -6806,6 +7424,7 @@ return array (
   array (
     'nome' => 'Grande Roue d\'Alger',
     'pais' => 'Argélia',
+    'iso' => 'DZA',
     'lat' => 36.73333,
     'lon' => 3.13333,
     'img' => 'A Saturday Night.jpg',
@@ -6817,6 +7436,7 @@ return array (
   array (
     'nome' => 'Amber Sky',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 54.35277,
     'lon' => 18.65923,
     'img' => 'Gdańsk, koło widokowe (39881343454).jpg',
@@ -6828,6 +7448,7 @@ return array (
   array (
     'nome' => 'Tourist Wheel Fremantle',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -32.0584,
     'lon' => 115.74463,
     'img' => 'Tourist Wheel, Fremantle.jpg',
@@ -6839,6 +7460,7 @@ return array (
   array (
     'nome' => 'Vilda Musen',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 59.32308,
     'lon' => 18.09546,
     'img' => 'Vilda Musen.JPG',
@@ -6850,6 +7472,7 @@ return array (
   array (
     'nome' => 'Donaulände Linz',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.3131,
     'lon' => 14.2944,
     'img' => 'Linz Donau Donaupark Eisenbahnbrücke Donaubrücke 2014 b.jpg',
@@ -6861,6 +7484,7 @@ return array (
   array (
     'nome' => 'Wilkołak',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 52.34886,
     'lon' => 15.08207,
     'img' => 'Heidi The Ride Drop.jpg',
@@ -6872,6 +7496,7 @@ return array (
   array (
     'nome' => 'Linnunrata eXtra',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.18772,
     'lon' => 24.94029,
     'img' => 'Linnunrata Linnanmäki Helsinki.JPG',
@@ -6883,6 +7508,7 @@ return array (
   array (
     'nome' => 'Scenic Railway',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -37.86784,
     'lon' => 144.97658,
     'img' => 'Luna Park Melbourne scenic railway edit.jpg',
@@ -6894,6 +7520,7 @@ return array (
   array (
     'nome' => 'Big Dipper',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -33.8482,
     'lon' => 151.21,
     'img' => 'SLNSW 23962 Hollywood Hotel girls at Luna Park taken for Fullers Theatres Ltd.jpg',
@@ -6905,6 +7532,7 @@ return array (
   array (
     'nome' => 'Watercity',
     'pais' => 'Grécia',
+    'iso' => 'GRC',
     'lat' => 35.311,
     'lon' => 25.25,
     'img' => 'Watercity panorama.jpg',
@@ -6916,6 +7544,7 @@ return array (
   array (
     'nome' => 'Wet\'n\'Wild Water World',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -27.9151,
     'lon' => 153.318,
     'img' => 'Wetnwildaqualoopcarpark.JPG',
@@ -6927,6 +7556,7 @@ return array (
   array (
     'nome' => 'WhiteWater World',
     'pais' => 'Austrália',
+    'iso' => 'AUS',
     'lat' => -27.8644,
     'lon' => 153.315,
     'img' => 'The Bro WhiteWater World.JPG',
@@ -6938,6 +7568,7 @@ return array (
   array (
     'nome' => 'Wild Wild Wet',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.37722,
     'lon' => 103.954,
     'img' => 'Wild Wild Wet Theme Park, Singapore.jpg',
@@ -6949,6 +7580,7 @@ return array (
   array (
     'nome' => 'Cú Chulainn',
     'pais' => 'Irlanda',
+    'iso' => 'IRL',
     'lat' => 53.54268,
     'lon' => -6.46283,
     'img' => 'Cú Chulainn Coaster Arial View.jpg',
@@ -6960,6 +7592,7 @@ return array (
   array (
     'nome' => 'Eram Zoo',
     'pais' => 'Irão',
+    'iso' => 'IRN',
     'lat' => 35.71853,
     'lon' => 51.29358,
     'img' => 'Tehran Zoological Garden - 3 September 2011 01.jpg',
@@ -6971,6 +7604,7 @@ return array (
   array (
     'nome' => 'Canopy Flyer',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.25344,
     'lon' => 103.824,
     'img' => 'Jurassic Park Canopy Flyer Universal Studios Singapore.jpg',
@@ -6982,6 +7616,7 @@ return array (
   array (
     'nome' => 'Enchanted Airways',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.255,
     'lon' => 103.82215,
     'img' => 'Enchanted Airways overview at Universal Studios Singapore.jpg',
@@ -6993,6 +7628,7 @@ return array (
   array (
     'nome' => 'Revenge of the Mummy',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.25308,
     'lon' => 103.82312,
     'img' => 'Revenge of the Mummy Universal Studios Singapore.jpg',
@@ -7004,6 +7640,7 @@ return array (
   array (
     'nome' => 'Formuła',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 49.99956,
     'lon' => 19.40547,
     'img' => 'Formuła (Energylandia) 1.jpg',
@@ -7015,6 +7652,7 @@ return array (
   array (
     'nome' => 'Valkyria',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.6932,
     'lon' => 11.9953,
     'img' => 'Valkyria-Liseberg.jpg',
@@ -7026,6 +7664,7 @@ return array (
   array (
     'nome' => 'Lech',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 50.2775,
     'lon' => 18.99225,
     'img' => 'Lech Coaster - Legendia - 2018.jpg',
@@ -7037,6 +7676,7 @@ return array (
   array (
     'nome' => 'Dawson Duel',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.84747,
     'lon' => 2.9474,
     'img' => 'Bellewaerde - Dawson Duel (C08).JPG',
@@ -7048,6 +7688,7 @@ return array (
   array (
     'nome' => 'Dragon\'s Run',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 20.95414,
     'lon' => 107.04781,
     'img' => 'LZTR (Majority) (3).JPG',
@@ -7059,6 +7700,7 @@ return array (
   array (
     'nome' => 'Bitola Zoo',
     'pais' => 'Macedónia do Norte',
+    'iso' => 'MKD',
     'lat' => 41.0146,
     'lon' => 21.3415,
     'img' => 'ЗООБитола.JPG',
@@ -7070,6 +7712,7 @@ return array (
   array (
     'nome' => 'Nordens Ark',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 58.44111,
     'lon' => 11.435,
     'img' => '2011-07-14 Nordens Ark 002.jpg',
@@ -7081,6 +7724,7 @@ return array (
   array (
     'nome' => 'Antwerp Zoo',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.21639,
     'lon' => 4.42333,
     'img' => 'Antwerpen Zoo Entrance 1.jpg',
@@ -7092,6 +7736,7 @@ return array (
   array (
     'nome' => 'Zoológico de Basileia',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.54734,
     'lon' => 7.57876,
     'img' => 'Basel 032.jpg',
@@ -7103,6 +7748,7 @@ return array (
   array (
     'nome' => 'Ecoparque de Buenos Aires',
     'pais' => 'Argentina',
+    'iso' => 'ARG',
     'lat' => -34.58097,
     'lon' => -58.42,
     'img' => 'Zoológico de Buenos Aires (3899274421).jpg',
@@ -7114,6 +7760,7 @@ return array (
   array (
     'nome' => 'Dublin Zoo',
     'pais' => 'Irlanda',
+    'iso' => 'IRL',
     'lat' => 53.35389,
     'lon' => -6.30389,
     'img' => 'Old Entrance Lodge Dublin Zoo - geograph.org.uk - 493429.jpg',
@@ -7125,6 +7772,7 @@ return array (
   array (
     'nome' => 'Kathmandu Zoo',
     'pais' => 'Nepal',
+    'iso' => 'NPL',
     'lat' => 27.67318,
     'lon' => 85.31093,
     'img' => 'Zoo Kathmandu Nepal (5085903803).jpg',
@@ -7136,6 +7784,7 @@ return array (
   array (
     'nome' => 'Korkeasaari Zoo',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.175,
     'lon' => 24.98417,
     'img' => 'Helsinki 2009 PD 0257.JPG',
@@ -7147,6 +7796,7 @@ return array (
   array (
     'nome' => 'Jardim Zoológico de Lisboa',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 38.74325,
     'lon' => -9.169,
     'img' => 'Jardim Zoologico Lisboa 1.JPG',
@@ -7158,6 +7808,7 @@ return array (
   array (
     'nome' => 'Zoo Opole',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 50.65504,
     'lon' => 17.92447,
     'img' => 'PL Opole Zoo.jpg',
@@ -7169,6 +7820,7 @@ return array (
   array (
     'nome' => 'Salzburg Zoo',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 47.75682,
     'lon' => 13.06408,
     'img' => 'Nashoernersalzburg.JPG',
@@ -7180,6 +7832,7 @@ return array (
   array (
     'nome' => 'Schmiding Zoo',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.1944,
     'lon' => 13.9564,
     'img' => 'Haliaeetus pelagicus Riesenseeadler-3381.jpg',
@@ -7191,6 +7844,7 @@ return array (
   array (
     'nome' => 'Prague Zoo',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.11694,
     'lon' => 14.40611,
     'img' => 'Zoo Praha.JPG',
@@ -7202,6 +7856,7 @@ return array (
   array (
     'nome' => 'Zürich Zoo',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.385,
     'lon' => 8.57306,
     'img' => 'Zoo Zürich Kaeng Krachan Elefantenpark 2.JPG',
@@ -7213,6 +7868,7 @@ return array (
   array (
     'nome' => 'Zagreb Zoo',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 45.8221,
     'lon' => 16.02129,
     'img' => 'Maksimir zoo entrance.jpg',
@@ -7224,6 +7880,7 @@ return array (
   array (
     'nome' => 'Zoo de Lagos',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 37.14517,
     'lon' => -8.76635,
     'img' => 'Lagos Zoo.jpg',
@@ -7235,6 +7892,7 @@ return array (
   array (
     'nome' => 'Zoo de Servion',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 46.565,
     'lon' => 6.77389,
     'img' => 'Tigre.jpg',
@@ -7246,6 +7904,7 @@ return array (
   array (
     'nome' => 'Zoo La Garenne',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 46.47778,
     'lon' => 6.24306,
     'img' => 'Zoo-La-Garenne-aerial.JPG',
@@ -7257,6 +7916,7 @@ return array (
   array (
     'nome' => 'Bratislava Zoo',
     'pais' => 'Eslováquia',
+    'iso' => 'SVK',
     'lat' => 48.16222,
     'lon' => 17.07444,
     'img' => 'Bratislava ZOO - Entrance.jpg',
@@ -7268,6 +7928,7 @@ return array (
   array (
     'nome' => 'Wrocław Zoological Garden',
     'pais' => 'Polónia',
+    'iso' => 'POL',
     'lat' => 51.10471,
     'lon' => 17.07075,
     'img' => 'Wrocławskie ZOO neon fot BMaliszewska.jpg',
@@ -7279,6 +7940,7 @@ return array (
   array (
     'nome' => 'Osijek Zoo and Aquarium',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 45.56833,
     'lon' => 18.66806,
     'img' => 'Zoo Osijek 2.jpg',
@@ -7290,6 +7952,7 @@ return array (
   array (
     'nome' => 'Zoológico de Belize',
     'pais' => 'Belize',
+    'iso' => 'BLZ',
     'lat' => 17.35361,
     'lon' => -88.54972,
     'img' => 'Spider monkey -Belize Zoo-8b.jpg',
@@ -7301,6 +7964,7 @@ return array (
   array (
     'nome' => 'Zoológico do Parque Cultural de Miskolc',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 48.12398,
     'lon' => 20.65632,
     'img' => 'Miskolci Vadaspark főbejárat.jpg',
@@ -7312,6 +7976,7 @@ return array (
   array (
     'nome' => 'Haus des Meeres',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.1977,
     'lon' => 16.3529,
     'img' => 'Haus des Meeres 2026, Wien 3.jpg',
@@ -7323,6 +7988,7 @@ return array (
   array (
     'nome' => 'Tierwelt Herberstein',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 47.2192,
     'lon' => 15.8125,
     'img' => 'Tierpark Herbstein Haupteingang.jpg',
@@ -7334,6 +8000,7 @@ return array (
   array (
     'nome' => 'Papiliorama',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 46.9892,
     'lon' => 7.20111,
     'img' => 'Papiliorama Kerzers.jpg',
@@ -7345,6 +8012,7 @@ return array (
   array (
     'nome' => 'Schmetterlinghaus',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.2053,
     'lon' => 16.3667,
     'img' => 'Palmenhaus Burggarten Vienna June 2006 621.jpg',
@@ -7356,6 +8024,7 @@ return array (
   array (
     'nome' => 'Vonkaputous',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.18742,
     'lon' => 24.939,
     'img' => 'Vonkaputous Linnanmäki Helsinki.JPG',
@@ -7367,6 +8036,7 @@ return array (
   array (
     'nome' => 'Coccinelle',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 50.69697,
     'lon' => 4.58707,
     'img' => 'Walibi Belgium - Coccinelle (04).JPG',
@@ -7378,6 +8048,7 @@ return array (
   array (
     'nome' => 'Typhoon',
     'pais' => 'Bélgica',
+    'iso' => 'BEL',
     'lat' => 51.19975,
     'lon' => 4.90552,
     'img' => 'Eurofighter Lift.jpg',
@@ -7389,6 +8060,7 @@ return array (
   array (
     'nome' => 'Naypyidaw Safari Park',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 19.87154,
     'lon' => 96.25426,
     'img' => 'Naypyidaw Safari Park.JPG',
@@ -7400,6 +8072,7 @@ return array (
   array (
     'nome' => 'Cumberland Wildpark',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 47.8068,
     'lon' => 13.9507,
     'img' => 'Cumberland Wildlife Park Grünau im Almtal-0821.jpg',
@@ -7411,6 +8084,7 @@ return array (
   array (
     'nome' => 'Wildpark Bruderhaus',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.4772,
     'lon' => 8.72619,
     'img' => 'Mufflon Bruderhaus.jpg',
@@ -7422,6 +8096,7 @@ return array (
   array (
     'nome' => 'Grottenbahn am Pöstlingberg',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.3233,
     'lon' => 14.2575,
     'img' => 'Grottenbahn-Linz-inside.jpg',
@@ -7433,6 +8108,7 @@ return array (
   array (
     'nome' => 'Wildpark Ernstbrunn',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.5439,
     'lon' => 16.3494,
     'img' => 'GuentherZ 2015-04-04 (95) Doerfles Wildpark Ernstbrunn.JPG',
@@ -7444,6 +8120,7 @@ return array (
   array (
     'nome' => 'Wildpark Peter und Paul',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.4486,
     'lon' => 9.3875,
     'img' => 'SG PuP Murmeltier 5.JPG',
@@ -7455,6 +8132,7 @@ return array (
   array (
     'nome' => 'Anaconda roller coaster',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -26.2352,
     'lon' => 28.01136,
     'img' => 'Anaconda roller coaster.jpg',
@@ -7466,6 +8144,7 @@ return array (
   array (
     'nome' => 'Kanonen',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.69306,
     'lon' => 11.995,
     'img' => 'Kanonen 2011.jpg',
@@ -7477,6 +8156,7 @@ return array (
   array (
     'nome' => 'Thundercoaster',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 59.74724,
     'lon' => 10.77726,
     'img' => 'Thundercoaster.jpg',
@@ -7488,6 +8168,7 @@ return array (
   array (
     'nome' => 'Tornado',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 61.50591,
     'lon' => 23.7443,
     'img' => 'Särkänniemi Tornado.jpg',
@@ -7499,6 +8180,7 @@ return array (
   array (
     'nome' => 'Jetline',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 59.32306,
     'lon' => 18.09556,
     'img' => 'Jetline Gröna Lund 07 06 09.JPG',
@@ -7510,6 +8192,7 @@ return array (
   array (
     'nome' => 'Insane',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 59.32333,
     'lon' => 18.09528,
     'img' => 'Insane Gröna Lund 2011.jpg',
@@ -7521,6 +8204,7 @@ return array (
   array (
     'nome' => 'SuperSplash',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 59.74497,
     'lon' => 10.77929,
     'img' => 'Supersplash.jpg',
@@ -7532,6 +8216,7 @@ return array (
   array (
     'nome' => 'Lisebergbanan',
     'pais' => 'Suécia',
+    'iso' => 'SWE',
     'lat' => 57.69484,
     'lon' => 11.99276,
     'img' => 'Lisebergbanan2.jpg',
@@ -7543,6 +8228,7 @@ return array (
   array (
     'nome' => 'Megablitz',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 48.2161,
     'lon' => 16.402,
     'img' => 'Wien 02 Prater Megablitz 01.jpg',
@@ -7554,6 +8240,7 @@ return array (
   array (
     'nome' => 'Zoomarine',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 37.12681,
     'lon' => -8.31421,
     'img' => 'Zoomarine Imagem aerea.jpg',
@@ -7565,6 +8252,7 @@ return array (
   array (
     'nome' => 'Aquapark Olomouc',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 49.57414,
     'lon' => 17.22244,
     'img' => 'Aquapark Olomouc.jpg',
@@ -7576,6 +8264,7 @@ return array (
   array (
     'nome' => 'Aquashow',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 37.09389,
     'lon' => -8.07237,
     'img' => 'Aquashow.jpg',
@@ -7587,6 +8276,7 @@ return array (
   array (
     'nome' => 'Aqualand Moravia',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 48.9025,
     'lon' => 16.5736,
     'img' => 'Pasohlávky, Aqualand Moravia.jpg',
@@ -7598,6 +8288,7 @@ return array (
   array (
     'nome' => 'Aquapalace Praha',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.0075,
     'lon' => 14.57111,
     'img' => 'Aquapalace Praha 2016 1.jpg',
@@ -7609,6 +8300,7 @@ return array (
   array (
     'nome' => 'Waterpark Besenova',
     'pais' => 'Eslováquia',
+    'iso' => 'SVK',
     'lat' => 49.09986,
     'lon' => 19.44563,
     'img' => 'Besenova 004.jpg',
@@ -7620,6 +8312,7 @@ return array (
   array (
     'nome' => 'Tropiclandia',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 63.08778,
     'lon' => 21.58667,
     'img' => 'Tropiclandia 2023 facade.jpg',
@@ -7631,6 +8324,7 @@ return array (
   array (
     'nome' => 'Fron badeland',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 61.57631,
     'lon' => 9.86158,
     'img' => 'Fron badeland I.jpg',
@@ -7642,6 +8336,7 @@ return array (
   array (
     'nome' => 'Wellness Kuřim',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 49.3099,
     'lon' => 16.5335,
     'img' => 'Wellness Kurim.jpg',
@@ -7653,6 +8348,7 @@ return array (
   array (
     'nome' => 'Yerevan Water World',
     'pais' => 'Arménia',
+    'iso' => 'ARM',
     'lat' => 40.2049,
     'lon' => 44.5582,
     'img' => 'WaterWorld Yerevan.jpg',
@@ -7664,6 +8360,7 @@ return array (
   array (
     'nome' => 'Pirbadet',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 63.4405,
     'lon' => 10.4004,
     'img' => 'Pirbadet IMG 6001.JPG',
@@ -7675,6 +8372,7 @@ return array (
   array (
     'nome' => 'Taipei Water Park',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 25.0125,
     'lon' => 121.533,
     'img' => 'Taipei Water Park entrance 20160101.jpg',
@@ -7686,6 +8384,7 @@ return array (
   array (
     'nome' => 'Dushanbe aquapark',
     'pais' => 'Tajiquistão',
+    'iso' => 'TJK',
     'lat' => 38.57681,
     'lon' => 68.73379,
     'img' => 'Душанбинский аквапарк.jpg',
@@ -7697,6 +8396,7 @@ return array (
   array (
     'nome' => 'Vichy Water Park',
     'pais' => 'Lituânia',
+    'iso' => 'LTU',
     'lat' => 54.7161,
     'lon' => 25.2767,
     'img' => 'Baltupiai, Vilnius, Lithuania - panoramio (1).jpg',
@@ -7708,6 +8408,7 @@ return array (
   array (
     'nome' => 'Parque Aquático Munsu',
     'pais' => 'Coreia do Norte',
+    'iso' => 'PRK',
     'lat' => 39.03962,
     'lon' => 125.78118,
     'img' => 'Munsu Water Park - Pyongyang, North Korea (11511854045).jpg',
@@ -7719,6 +8420,7 @@ return array (
   array (
     'nome' => 'Istralandia',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 45.3467,
     'lon' => 13.6171,
     'img' => 'Istralandia 1.jpg',
@@ -7730,6 +8432,7 @@ return array (
   array (
     'nome' => 'Utopia park, Israel',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.35158,
     'lon' => 35.01482,
     'img' => 'PikiWiki Israel 5559 Utopia Park.JPG',
@@ -7741,6 +8444,7 @@ return array (
   array (
     'nome' => 'Pasakų Park',
     'pais' => 'Lituânia',
+    'iso' => 'LTU',
     'lat' => 54.6793,
     'lon' => 25.2013,
     'img' => 'Pasaku parkas, Vilnius.jpg',
@@ -7752,6 +8456,7 @@ return array (
   array (
     'nome' => 'Spookers',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -37.1312,
     'lon' => 174.7978,
     'img' => 'Kingseat Hospital in 2008.jpg',
@@ -7763,6 +8468,7 @@ return array (
   array (
     'nome' => 'Kiwi Valley Farm Park',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -36.896,
     'lon' => 174.6003,
     'img' => 'Kiwi Valley Farm Park.jpg',
@@ -7774,6 +8480,7 @@ return array (
   array (
     'nome' => 'Orana Wildlife Park',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -43.4675,
     'lon' => 172.4625,
     'img' => 'Orana Wildlife Park feeding lions.jpg',
@@ -7785,6 +8492,7 @@ return array (
   array (
     'nome' => 'Tobotronc',
     'pais' => 'Andorra',
+    'iso' => 'AND',
     'lat' => 42.43598,
     'lon' => 1.51865,
     'img' => 'Tobotronc (Naturlandia, Andorra) 02.JPG',
@@ -7796,6 +8504,7 @@ return array (
   array (
     'nome' => 'wildlife park Feldkirch',
     'pais' => 'Áustria',
+    'iso' => 'AUT',
     'lat' => 47.24496,
     'lon' => 9.59685,
     'img' => 'Feldkirch - im tierpark - panoramio - mavromichali (3).jpg',
@@ -7807,6 +8516,7 @@ return array (
   array (
     'nome' => 'Wildpark Mühletäli',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.34202,
     'lon' => 7.92258,
     'img' => 'Wildpark Mühletäli1.jpg',
@@ -7818,6 +8528,7 @@ return array (
   array (
     'nome' => 'Kuala Lumpur Butterfly Park',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 3.14573,
     'lon' => 101.689,
     'img' => 'Kuala Lumpur Butterfly Park (5).jpg',
@@ -7829,6 +8540,7 @@ return array (
   array (
     'nome' => 'Banteay Srey Butterfly Centre',
     'pais' => 'Camboja',
+    'iso' => 'KHM',
     'lat' => 13.50869,
     'lon' => 103.94096,
     'img' => 'Dysphania sagana (3).JPG',
@@ -7840,6 +8552,7 @@ return array (
   array (
     'nome' => 'Neotropical Butterfly Park',
     'pais' => 'Suriname',
+    'iso' => 'SUR',
     'lat' => 5.68722,
     'lon' => -55.20194,
     'img' => 'Butterfly in the Neotropical Butterfly Park (33516871536).jpg',
@@ -7851,6 +8564,7 @@ return array (
   array (
     'nome' => 'Dubai Butterfly Garden',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.06176,
     'lon' => 55.24654,
     'img' => 'VAE-dubai-butterfl-01.jpg',
@@ -7862,6 +8576,7 @@ return array (
   array (
     'nome' => 'Bobsleigh track in Mosty u Jablunkova',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 49.52537,
     'lon' => 18.76185,
     'img' => 'Bobová dráha Mosty u Jablunkova, Jablunkovské mezihoří 01.jpg',
@@ -7873,6 +8588,7 @@ return array (
   array (
     'nome' => 'Papilonia Brno',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 49.1938,
     'lon' => 16.60858,
     'img' => 'Papilonia Brno-06.jpg',
@@ -7884,6 +8600,7 @@ return array (
   array (
     'nome' => 'Alpine slide Prosek',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.11431,
     'lon' => 14.48902,
     'img' => 'Bobová dráha Prosek, dřevěná konstrukce.jpg',
@@ -7895,6 +8612,7 @@ return array (
   array (
     'nome' => 'West Lynn Garden',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -36.9219,
     'lon' => 174.6696,
     'img' => 'West Lynn Garden 20260102 112415.jpg',
@@ -7906,6 +8624,7 @@ return array (
   array (
     'nome' => 'Řeporyjská stezka',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.03053,
     'lon' => 14.31327,
     'img' => 'Praha Reporyje Telovychovna plastika 5 a.jpg',
@@ -7917,6 +8636,7 @@ return array (
   array (
     'nome' => 'Serena Waterpark',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.32583,
     'lon' => 24.74056,
     'img' => 'Serenan ulkoallas panorama.jpg',
@@ -7928,6 +8648,7 @@ return array (
   array (
     'nome' => 'Parque El Agua',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 11.10925,
     'lon' => -63.84711,
     'img' => 'Parque El Agua 1.jpg',
@@ -7939,6 +8660,7 @@ return array (
   array (
     'nome' => 'Lost World of Tambun',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 4.62581,
     'lon' => 101.15517,
     'img' => 'Lost Word of Tambun Main Entrance.JPG',
@@ -7950,6 +8672,7 @@ return array (
   array (
     'nome' => 'WaterWorld Water Park',
     'pais' => 'Chipre',
+    'iso' => 'CYP',
     'lat' => 34.98601,
     'lon' => 33.9432,
     'img' => 'Аквапарк Водный Мир - panoramio.jpg',
@@ -7961,6 +8684,7 @@ return array (
   array (
     'nome' => 'Ramayana Water Park',
     'pais' => 'Tailândia',
+    'iso' => 'THA',
     'lat' => 12.75028,
     'lon' => 100.96028,
     'img' => 'RWP-Overview.jpg',
@@ -7972,6 +8696,7 @@ return array (
   array (
     'nome' => 'Memadion',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.10202,
     'lon' => 34.82005,
     'img' => 'Memadion008.jpg',
@@ -7983,6 +8708,7 @@ return array (
   array (
     'nome' => 'Aqua Paradise Water Park',
     'pais' => 'Bulgária',
+    'iso' => 'BGR',
     'lat' => 42.65626,
     'lon' => 27.68214,
     'img' => 'Aquapark Ravda Nesebar - panoramio.jpg',
@@ -7994,6 +8720,7 @@ return array (
   array (
     'nome' => 'Aquacolors',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 45.1983,
     'lon' => 13.6052,
     'img' => 'Aquapark Aquacolors.jpg',
@@ -8005,6 +8732,7 @@ return array (
   array (
     'nome' => 'Parque Aquático de Amarante',
     'pais' => 'Portugal',
+    'iso' => 'PRT',
     'lat' => 41.24994,
     'lon' => -8.10789,
     'img' => 'Parque aquático de Amarante (11).jpg',
@@ -8016,6 +8744,7 @@ return array (
   array (
     'nome' => 'Aquaventure',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.135,
     'lon' => 55.122,
     'img' => 'Atlantis Aquapark.JPG',
@@ -8027,6 +8756,7 @@ return array (
   array (
     'nome' => 'TS Wonderland Waterpark',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 1.48631,
     'lon' => 103.92492,
     'img' => 'TS Wonderland Waterpark.jpg',
@@ -8038,6 +8768,7 @@ return array (
   array (
     'nome' => 'Austin Heights Water and Adventure Park',
     'pais' => 'Malásia',
+    'iso' => 'MYS',
     'lat' => 1.56142,
     'lon' => 103.77497,
     'img' => 'Austin Heights Water and Adventure Park.JPG',
@@ -8049,6 +8780,7 @@ return array (
   array (
     'nome' => 'Aquapark Kladno',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.13591,
     'lon' => 14.08761,
     'img' => 'Auqapark kd 1.JPG',
@@ -8060,6 +8792,7 @@ return array (
   array (
     'nome' => 'Minsk Gorky Park Ferris Wheel',
     'pais' => 'Bielorrússia',
+    'iso' => 'BLR',
     'lat' => 53.90337,
     'lon' => 27.5744,
     'img' => 'Минск.Парк Горького.Колесо обозрения. - panoramio.jpg',
@@ -8071,6 +8804,7 @@ return array (
   array (
     'nome' => 'Obří ruské kolo',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.10929,
     'lon' => 14.42805,
     'img' => 'Ruské kolo 01.JPG',
@@ -8082,6 +8816,7 @@ return array (
   array (
     'nome' => 'Battlestar Galactica',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.25414,
     'lon' => 103.8223,
     'img' => 'Battlestar Galactica at night - Universal Studios Singapore cropped.jpg',
@@ -8093,6 +8828,7 @@ return array (
   array (
     'nome' => 'Kirnu',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.18819,
     'lon' => 24.93931,
     'img' => 'Kirnu linnanmäki.jpg',
@@ -8104,6 +8840,7 @@ return array (
   array (
     'nome' => 'Diving Machine G5',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 23.61797,
     'lon' => 120.57721,
     'img' => 'Diving Machine G5 2.jpg',
@@ -8115,6 +8852,7 @@ return array (
   array (
     'nome' => 'Gravity Max',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 24.3239,
     'lon' => 120.69471,
     'img' => 'Gravity Max1.jpg',
@@ -8126,6 +8864,7 @@ return array (
   array (
     'nome' => 'Avalancha',
     'pais' => 'Guatemala',
+    'iso' => 'GTM',
     'lat' => 14.59463,
     'lon' => -91.61339,
     'img' => 'Avalancha Xetulul.jpg',
@@ -8137,6 +8876,7 @@ return array (
   array (
     'nome' => 'Insane Speed',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 23.61875,
     'lon' => 120.57581,
     'img' => 'Insane Speed 3.jpg',
@@ -8148,6 +8888,7 @@ return array (
   array (
     'nome' => 'Ukko',
     'pais' => 'Finlândia',
+    'iso' => 'FIN',
     'lat' => 60.1892,
     'lon' => 24.9406,
     'img' => 'Ukko at Linnanmäki, Helsinki.JPG',
@@ -8159,6 +8900,7 @@ return array (
   array (
     'nome' => 'Speed Monster',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 59.74823,
     'lon' => 10.77702,
     'img' => 'Speedmonster2.jpg',
@@ -8170,6 +8912,7 @@ return array (
   array (
     'nome' => 'Tower of Gourze',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 46.51101,
     'lon' => 6.74079,
     'img' => 'Tour de Gourze 3.jpg',
@@ -8181,6 +8924,7 @@ return array (
   array (
     'nome' => 'Loopen',
     'pais' => 'Noruega',
+    'iso' => 'NOR',
     'lat' => 59.74929,
     'lon' => 10.77661,
     'img' => 'Loopen på TusenFryd.jpg',
@@ -8192,6 +8936,7 @@ return array (
   array (
     'nome' => 'Centro Acuático Porvenir',
     'pais' => 'Bolívia',
+    'iso' => 'BOL',
     'lat' => -16.8225,
     'lon' => -65.355,
     'img' => 'Rio Blanco de Porvenir.jpg',
@@ -8203,6 +8948,7 @@ return array (
   array (
     'nome' => 'Aquacentrum Pardubice',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 50.03379,
     'lon' => 15.7825,
     'img' => 'Aquacentrum Pardubice.jpg',
@@ -8214,6 +8960,7 @@ return array (
   array (
     'nome' => 'Aquapark Uherské Hradiště',
     'pais' => 'Chéquia',
+    'iso' => 'CZE',
     'lat' => 49.0669,
     'lon' => 17.47319,
     'img' => 'Uherské Hradiště, aquapark 2.jpg',
@@ -8225,6 +8972,7 @@ return array (
   array (
     'nome' => 'Shefayim Water Park',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.21437,
     'lon' => 34.82057,
     'img' => 'WikiAir IL-13-06 001.JPG',
@@ -8236,6 +8984,7 @@ return array (
   array (
     'nome' => 'Baysports',
     'pais' => 'Irlanda',
+    'iso' => 'IRL',
     'lat' => 53.46945,
     'lon' => -7.98691,
     'img' => 'Baysports slipway - geograph.org.uk - 4703371.jpg',
@@ -8247,6 +8996,7 @@ return array (
   array (
     'nome' => 'Al Montazah Amusement and Water Park',
     'pais' => 'Emirados Árabes Unidos',
+    'iso' => 'ARE',
     'lat' => 25.343,
     'lon' => 55.3803,
     'img' => 'Entrance to water park at Al Montazah Park in Sharjah UAE.jpg',
@@ -8258,6 +9008,7 @@ return array (
   array (
     'nome' => 'AquaSferra',
     'pais' => 'Ucrânia',
+    'iso' => 'UKR',
     'lat' => 47.99816,
     'lon' => 37.78801,
     'img' => '2015. Донецк 013.jpg',
@@ -8269,6 +9020,7 @@ return array (
   array (
     'nome' => 'Aqua Fresca',
     'pais' => 'Síria',
+    'iso' => 'SYR',
     'lat' => 33.67755,
     'lon' => 36.36437,
     'img' => 'Aqua Fresca 2.jpg',
@@ -8280,6 +9032,7 @@ return array (
   array (
     'nome' => 'Druskininkai Aquapark',
     'pais' => 'Lituânia',
+    'iso' => 'LTU',
     'lat' => 54.02282,
     'lon' => 23.97211,
     'img' => 'Druskininkai Aquapark - panoramio.jpg',
@@ -8291,6 +9044,7 @@ return array (
   array (
     'nome' => 'Therme București',
     'pais' => 'Roménia',
+    'iso' => 'ROU',
     'lat' => 44.60567,
     'lon' => 26.08583,
     'img' => 'ThermeBucuresti.jpg',
@@ -8302,6 +9056,7 @@ return array (
   array (
     'nome' => 'Taipei Zoo',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 25.0026,
     'lon' => 121.582,
     'img' => 'Taipei Zoo Entrance.jpg',
@@ -8313,6 +9068,7 @@ return array (
   array (
     'nome' => 'Valencia\'s Aquarium',
     'pais' => 'Venezuela',
+    'iso' => 'VEN',
     'lat' => 10.18902,
     'lon' => -68.01124,
     'img' => 'Zues u Maria.jpg',
@@ -8324,6 +9080,7 @@ return array (
   array (
     'nome' => 'Belgrade Zoo',
     'pais' => 'Sérvia',
+    'iso' => 'SRB',
     'lat' => 44.82583,
     'lon' => 20.45333,
     'img' => 'Белградский зоопарк, главный вход.jpg',
@@ -8335,6 +9092,7 @@ return array (
   array (
     'nome' => 'Tierpark Bern',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 46.9344,
     'lon' => 7.44972,
     'img' => 'Wisent-Wald Bern.jpg',
@@ -8346,6 +9104,7 @@ return array (
   array (
     'nome' => 'Knie\'s Kinderzoo',
     'pais' => 'Suíça',
+    'iso' => 'CHE',
     'lat' => 47.22365,
     'lon' => 8.82199,
     'img' => 'Knies Kinderzoo IMG 3835.JPG',
@@ -8357,6 +9116,7 @@ return array (
   array (
     'nome' => 'Korea Central Zoo',
     'pais' => 'Coreia do Norte',
+    'iso' => 'PRK',
     'lat' => 39.075,
     'lon' => 125.815,
     'img' => 'Korea Central Zoo in Pyongyang.jpg',
@@ -8368,6 +9128,7 @@ return array (
   array (
     'nome' => 'Palić Zoo',
     'pais' => 'Sérvia',
+    'iso' => 'SRB',
     'lat' => 46.09896,
     'lon' => 19.74983,
     'img' => 'Palić 09.jpg',
@@ -8379,6 +9140,7 @@ return array (
   array (
     'nome' => 'Jurong Bird Park',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.32101,
     'lon' => 103.70703,
     'img' => 'Flamingo Lake, Jurong Bird Park, Oct 05.JPG',
@@ -8390,6 +9152,7 @@ return array (
   array (
     'nome' => 'Sesame Street Spaghetti Space Chase',
     'pais' => 'Singapura',
+    'iso' => 'SGP',
     'lat' => 1.25513,
     'lon' => 103.82136,
     'img' => 'Sesame Street Spaghetti Space Chase station 2.jpg',
@@ -8401,6 +9164,7 @@ return array (
   array (
     'nome' => 'Fonghuanggu Bird and Ecology Park',
     'pais' => 'Taiwan',
+    'iso' => 'TWN',
     'lat' => 23.72889,
     'lon' => 120.79278,
     'img' => 'Gate of Fonghuanggu Bird and Ecology Park.jpg',
@@ -8412,6 +9176,7 @@ return array (
   array (
     'nome' => 'Kabul Zoo',
     'pais' => 'Afeganistão',
+    'iso' => 'AFG',
     'lat' => 34.50944,
     'lon' => 69.15528,
     'img' => 'Kabul zoo - panoramio.jpg',
@@ -8423,6 +9188,7 @@ return array (
   array (
     'nome' => 'Naypyidaw Zoological Gardens',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 19.86394,
     'lon' => 96.25582,
     'img' => 'Naypyidaw -- Zoo.JPG',
@@ -8434,6 +9200,7 @@ return array (
   array (
     'nome' => 'Budapest Zoo & Botanical Garden',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 47.5191,
     'lon' => 19.0783,
     'img' => 'Hungary budapest zoo entry.jpg',
@@ -8445,6 +9212,7 @@ return array (
   array (
     'nome' => 'Paramaribo Zoo',
     'pais' => 'Suriname',
+    'iso' => 'SUR',
     'lat' => 5.8473,
     'lon' => -55.15966,
     'img' => 'Paramaribo Zoo - entree 20160926.jpg',
@@ -8456,6 +9224,7 @@ return array (
   array (
     'nome' => 'Zoo Băneasa',
     'pais' => 'Roménia',
+    'iso' => 'ROU',
     'lat' => 44.5174,
     'lon' => 26.1039,
     'img' => 'Zoo Băneasa entry.jpg',
@@ -8467,6 +9236,7 @@ return array (
   array (
     'nome' => 'Marineland of New Zealand',
     'pais' => 'Nova Zelândia',
+    'iso' => 'NZL',
     'lat' => -39.49466,
     'lon' => 176.91916,
     'img' => 'Entrance Marineland.JPG',
@@ -8478,6 +9248,7 @@ return array (
   array (
     'nome' => 'Thủ Lệ Park',
     'pais' => 'Vietname',
+    'iso' => 'VNM',
     'lat' => 21.03028,
     'lon' => 105.8075,
     'img' => 'Công viên Thủ Lệ.JPG',
@@ -8489,6 +9260,7 @@ return array (
   array (
     'nome' => 'Kuterevo',
     'pais' => 'Croácia',
+    'iso' => 'HRV',
     'lat' => 44.8205,
     'lon' => 15.1388,
     'img' => 'Braunbär, Bärenrefugium von Kuterevo, Kroatien.JPG',
@@ -8500,6 +9272,7 @@ return array (
   array (
     'nome' => 'Zoológico de Sófia',
     'pais' => 'Bulgária',
+    'iso' => 'BGR',
     'lat' => 42.65806,
     'lon' => 23.33194,
     'img' => 'Pond-Sofia-Zoo.jpg',
@@ -8511,6 +9284,7 @@ return array (
   array (
     'nome' => 'Zoo Gyöngyös',
     'pais' => 'Hungria',
+    'iso' => 'HUN',
     'lat' => 47.79061,
     'lon' => 19.91277,
     'img' => 'Állatkert, Gyöngyös - 2014.02.28 (2).JPG',
@@ -8522,6 +9296,7 @@ return array (
   array (
     'nome' => 'Shymkent Zoo',
     'pais' => 'Cazaquistão',
+    'iso' => 'KAZ',
     'lat' => 42.37846,
     'lon' => 69.62422,
     'img' => 'Africa-Section-of-Zoo-Shymkent.jpg',
@@ -8533,6 +9308,7 @@ return array (
   array (
     'nome' => 'Carmel Hai-Bar Nature Reserve',
     'pais' => 'Israel',
+    'iso' => 'ISR',
     'lat' => 32.74994,
     'lon' => 34.99959,
     'img' => 'Carmel Hai-Bar (2).JPG',
@@ -8544,6 +9320,7 @@ return array (
   array (
     'nome' => 'Yangon Zoological Gardens',
     'pais' => 'Myanmar',
+    'iso' => 'MMR',
     'lat' => 16.79167,
     'lon' => 96.15944,
     'img' => 'Yangon Zoo.JPG',
@@ -8555,6 +9332,7 @@ return array (
   array (
     'nome' => 'National Zoological Garden of South Africa',
     'pais' => 'África do Sul',
+    'iso' => 'ZAF',
     'lat' => -25.73833,
     'lon' => 28.18917,
     'img' => 'South Africa-Pretoria Zoo-005.jpg',
@@ -8566,6 +9344,7 @@ return array (
   array (
     'nome' => 'National Zoological Gardens of Sri Lanka',
     'pais' => 'Sri Lanka',
+    'iso' => 'LKA',
     'lat' => 6.85681,
     'lon' => 79.87289,
     'img' => 'Elephant dance at galleryfull.jpg',

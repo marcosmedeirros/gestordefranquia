@@ -85,22 +85,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $partida   = geoPartidaAberta($pdo, $user_id);
 $rodada    = $partida ? geoRodadaAtual($pdo, (int)$partida['id']) : null;
+
+/* ── A RODADA QUE VENCEU SE FECHA SOZINHA ────────────────────────────
+   Quando o relógio zera, o navegador só recarrega a página — quem decide é
+   este trecho. Fazer assim cobre de graça o caso que um "avisa que acabou"
+   no JavaScript nunca cobriria: fechar a aba no meio da rodada e voltar meia
+   hora depois pra responder com calma. @see geoVencida */
+if ($partida && $rodada && !$resolvida && geoVencida($rodada)) {
+    $modoDaVez = (string)$partida['modo'];
+    $resolvida = geoResponder($pdo, $partida, $rodada, []);
+    $resolvida['modo'] = $modoDaVez;
+    $partida = geoPartidaAberta($pdo, $user_id);
+    $rodada  = $partida ? geoRodadaAtual($pdo, (int)$partida['id']) : null;
+}
+
 $recorde   = geoMeuRecorde($pdo, $user_id);
 $restantes = geoPremiadasRestantes($pdo, $user_id);
 $nLugares  = count(geoLugares());
 $nPaises   = count(array_unique(array_column(geoLugares(), 'pais')));
 $moedas    = (int)($pdo->query('SELECT pontos FROM games_usuarios WHERE id = ' . $user_id)->fetchColumn() ?: 0);
 
-/* O mapa só é carregado onde ele é usado: na rodada do modo mapa e no
-   resultado dela, que desenha a linha do palpite até o lugar. */
-$precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
+/* O Leaflet entra onde é usado: na rodada do mapa, no resultado dela (que
+   desenha a linha do palpite até o lugar) e agora também na rodada do modo
+   país, que virou mapa-múndi clicável. */
+$precisaMapa = ($partida && $rodada)
             || ($resolvida && ($resolvida['modo'] ?? '') === 'mapa');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+<script>
+/* O tema antes de pintar a tela, pra não piscar branco. E a marca "js", que é
+   o que deixa o mapa clicável aparecer só onde ele funciona: sem script, a
+   rodada cai nos seis botões do <noscript> e continua jogável. */
+document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';
+document.documentElement.classList.add('js');
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FBA Geo</title>
 <link rel="manifest" href="/manifest.json?v=3">
@@ -183,9 +204,10 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
   background:rgba(8,8,12,.62);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1)}
 .geo-hud .caixa b{font-family:'Barlow Condensed',Inter,sans-serif;font-size:27px;line-height:1;
   letter-spacing:.5px;color:#fff}
-.geo-hud .caixa span{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#c9c9d2}
+.geo-hud .caixa span{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#c9c9d2;
+  white-space:nowrap}
 .geo-hud form{margin-left:auto}
-.geo-sair{padding:9px 13px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+.geo-sair{white-space:nowrap;padding:9px 13px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
   background:rgba(8,8,12,.62);backdrop-filter:blur(10px);color:#e7e7ee;font:inherit;font-size:12.5px;
   font-weight:700;cursor:pointer}
 .geo-sair:hover{border-color:var(--red);color:#fff}
@@ -193,6 +215,29 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
   font-size:30px;font-weight:700;letter-spacing:.6px;color:#fff;text-shadow:0 2px 20px rgba(0,0,0,.6)}
 .geo-pergunta small{display:block;font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;
   letter-spacing:0;color:#cfcfda;text-shadow:none;margin-top:2px}
+
+/* Só aparece onde o script roda. Sem ele, o <noscript> assume. */
+html:not(.js) .so-js{display:none !important}
+
+/* ── O RELÓGIO ───────────────────────────────────────────────────────
+   Os dois últimos minutos de qualquer coisa são iguais; o que muda é o
+   último meio minuto, e aí ele pulsa em vermelho pra ninguém dizer que
+   não viu. tabular-nums porque dígito que dança incomoda mais que o
+   tempo acabando. */
+.geo-hud .relogio b{font-variant-numeric:tabular-nums}
+.geo-hud .relogio.apertou{border-color:color-mix(in srgb,var(--red) 55%,transparent)}
+.geo-hud .relogio.apertou b{color:var(--red-2);animation:geoPulsa 1s steps(2,end) infinite}
+@keyframes geoPulsa{50%{opacity:.45}}
+
+/* ── O MAPA-MÚNDI DAS OPÇÕES ─────────────────────────────────────────
+   Sem tiles: o fundo é o próprio desenho dos países. Além de ficar mais
+   limpo, tira os nomes escritos que vêm nos tiles — num jogo de adivinhar
+   país, mapa legendado é cola. */
+.leaflet-container{background:var(--panel-2)}
+.geo-pino{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  font:800 12px/1 Inter,sans-serif;color:#06202e;background:var(--c);
+  border:2px solid rgba(0,0,0,.35);cursor:pointer}
+.geo-pino.eu{background:var(--green);color:#052e16}
 
 /* ── AS OPÇÕES DE PAÍS ───────────────────────────────────────────────
    Alvo grande, número à esquerda e o nome inteiro: no celular isto é
@@ -209,6 +254,10 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
 .geo-ops button:hover{transform:translateY(-2px);border-color:var(--c);background:var(--panel-2)}
 .geo-ops button:hover i{background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c)}
 .geo-ops button:disabled{opacity:.45;transform:none;cursor:default}
+/* O escolhido, na lista e no mapa, é o mesmo verde — é o que amarra os dois
+   jeitos de responder numa escolha só. */
+.geo-ops button.eu{border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,var(--panel))}
+.geo-ops button.eu i{background:var(--green);color:#052e16}
 
 /* ── O MAPA DO PALPITE ───────────────────────────────────────────────*/
 .geo-mapa{height:min(52vh,440px);border-radius:20px;margin-top:16px;overflow:hidden;
@@ -218,7 +267,10 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
 .geo-confirmar{padding:15px 28px;border-radius:14px;border:none;cursor:pointer;font:inherit;
   font-size:15.5px;font-weight:800;background:var(--c);color:#06202e;
   transition:filter var(--t) var(--ease),opacity var(--t) var(--ease)}
-.geo-confirmar:disabled{opacity:.35;cursor:not-allowed}
+/* Desligado ele fica CINZA, e não a cor do jogo esmaecida: verde escuro com
+   letra escura por cima não se lê, e o botão parecia quebrado em vez de
+   esperando. */
+.geo-confirmar:disabled{background:var(--panel-3);color:var(--text-3);cursor:not-allowed}
 .geo-confirmar:not(:disabled):hover{filter:brightness(1.08)}
 
 /* ── O RESULTADO DA RODADA ───────────────────────────────────────────
@@ -291,6 +343,15 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
 
 @media (max-width:620px){
   .geo-palco{aspect-ratio:4/3;border-radius:18px}
+  /* TRES CAIXAS MAIS O BOTAO NAO CABEM em 390px de tela: no celular o
+     placar encolhe e o Encerrar fica so no X. O que nao pode e o relogio
+     sair da tela — ele e a informacao que muda. */
+  .geo-hud{padding:10px;gap:7px}
+  .geo-hud .caixa{padding:7px 10px;border-radius:12px}
+  .geo-hud .caixa b{font-size:21px}
+  .geo-hud .caixa span{font-size:8.5px;letter-spacing:.6px}
+  .geo-sair{padding:9px 11px}
+  .geo-sair .txt{display:none}
   .geo-pergunta{font-size:24px;left:14px;bottom:12px}
   .geo-hud{padding:12px}
   .geo-veredito{font-size:28px}
@@ -332,7 +393,11 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
      "quase lá" um palpite que caiu a 10.000 km é piada involuntária. A
      frase e a cor acompanham a distância, que é a única coisa que o modo
      mede de verdade. */
-  if (!$ehMapa) {
+  if (!empty($resolvida['estourou'])) {
+      /* Sem palpite não há distância pra mostrar: o painel diz o que era e
+         para por aí. @see geoVencida */
+      [$frase, $ico, $cor] = ['Tempo esgotado', 'hourglass-bottom', 'var(--red)'];
+  } elseif (!$ehMapa) {
       [$frase, $ico, $cor] = $resolvida['acertou']
           ? ['Acertou!', 'check-circle-fill', 'var(--green)']
           : ['Errou', 'x-circle-fill', 'var(--red)'];
@@ -350,7 +415,7 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
     </div>
     <div class="geo-era">Era <b><?= e($lug['nome']) ?></b>, <?= e($lug['pais']) ?>.</div>
 
-    <?php if ($ehMapa): ?>
+    <?php if ($ehMapa && empty($resolvida["estourou"])): ?>
       <div class="geo-numeros">
         <div><b><?= number_format((float)$resolvida['km'], 0, ',', '.') ?> km</b><span>de distância</span></div>
         <div><b><?= number_format((int)$resolvida['pontos'], 0, ',', '.') ?></b><span>pontos na rodada</span></div>
@@ -448,9 +513,17 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
             <b><?= number_format((int)$partida['pontos'], 0, ',', '.') ?></b><span>pontos</span>
           </div>
         <?php endif; ?>
+        <?php /* ── O RELÓGIO ───────────────────────────────────────────────
+             Começa de onde o SERVIDOR diz que está, não de dois minutos
+             cheios: recarregar a página não ganha tempo nenhum. Quando
+             zera, o JavaScript só recarrega — quem fecha a rodada é o PHP.
+             @see geoVencida */ ?>
+        <div class="caixa relogio" id="relogio" data-restam="<?= geoRestam($rodada) ?>">
+          <b>--:--</b><span>tempo</span>
+        </div>
         <form method="POST">
           <input type="hidden" name="acao" value="desistir">
-          <button class="geo-sair" type="submit"><i class="bi bi-x-lg"></i> Encerrar</button>
+          <button class="geo-sair" type="submit"><i class="bi bi-x-lg"></i><span class="txt"> Encerrar</span></button>
         </form>
       </div>
       <div class="geo-pergunta">
@@ -471,16 +544,58 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
         <button class="geo-confirmar" type="submit" id="btnMapa" disabled>
           <i class="bi bi-geo-alt-fill"></i> Confirmar palpite</button>
       </form>
-    <?php else: ?>
-      <div class="geo-ops">
+    <?php else:
+      /* ── O MAPA DAS OPÇÕES ─────────────────────────────────────────
+         Pedido do Marcos: "clica no país e ele fica verdinho". Os seis
+         candidatos aparecem acesos no mapa-múndi e a pessoa escolhe ali.
+
+         SÃO OS SEIS DE SEMPRE, e não o mundo inteiro, de propósito: clicar
+         em qualquer um dos 196 transformaria a maior sequência — que é o
+         ranking deste modo — numa conta de 1 em 196, e ninguém passaria de
+         dois acertos. Com os seis acesos, a dificuldade é a de antes e o
+         mapa ainda ensina onde ficam as alternativas, que é a melhor parte.
+
+         A LISTA DE BOTÕES CONTINUA EMBAIXO. País pequeno em mapa-múndi no
+         celular é alvo de um milímetro; o alfinete com a letra ajuda, o
+         botão resolve. Clicar num ou no outro é a mesma coisa.
+
+         @see games/data/paises.geo.json  os contornos (Natural Earth) */
+      $mapaOps = [];
+      foreach ($opcoes as $k => $op) {
+          $iso = geoIsoDoPais((string)$op);
+          $fp  = geoPaises()[$iso] ?? null;
+          $mapaOps[] = ['nome' => (string)$op, 'iso' => $iso, 'letra' => $letras[$k] ?? '?',
+                        'lat' => $fp['lat'] ?? null, 'lon' => $fp['lon'] ?? null];
+      } ?>
+      <div class="geo-mapa so-js" id="mapaPais"
+           data-ops='<?= e(json_encode($mapaOps, JSON_UNESCAPED_UNICODE)) ?>'></div>
+      <form method="POST" class="geo-mapa-l so-js" id="formPais">
+        <input type="hidden" name="acao" value="palpite">
+        <input type="hidden" name="pais" id="paisEscolhido">
+        <p id="dicaPais">Clique no país aceso que você acha que é — ou escolha na lista abaixo.</p>
+        <button class="geo-confirmar" type="submit" id="btnPais" disabled>
+          <i class="bi bi-flag-fill"></i> Confirmar palpite</button>
+      </form>
+      <div class="geo-ops so-js" id="listaPais">
         <?php foreach ($opcoes as $k => $op): ?>
-          <form method="POST">
-            <input type="hidden" name="acao" value="palpite">
-            <input type="hidden" name="pais" value="<?= e($op) ?>">
-            <button type="submit"><i><?= $letras[$k] ?? '?' ?></i> <?= e($op) ?></button>
-          </form>
+          <button type="button" data-pais="<?= e($op) ?>">
+            <i><?= $letras[$k] ?? '?' ?></i> <?= e($op) ?></button>
         <?php endforeach; ?>
       </div>
+      <?php /* SEM JAVASCRIPT A RODADA AINDA SE JOGA. O mapa e a lista acima
+           dependem de script; estes seis botões são formulário puro, e
+           aparecem só quando o script não subiu. */ ?>
+      <noscript>
+        <div class="geo-ops">
+          <?php foreach ($opcoes as $k => $op): ?>
+            <form method="POST">
+              <input type="hidden" name="acao" value="palpite">
+              <input type="hidden" name="pais" value="<?= e($op) ?>">
+              <button type="submit"><i><?= $letras[$k] ?? '?' ?></i> <?= e($op) ?></button>
+            </form>
+          <?php endforeach; ?>
+        </div>
+      </noscript>
     <?php endif; ?>
   </div>
 
@@ -553,6 +668,124 @@ $precisaMapa = ($partida && $rodada && $partida['modo'] === 'mapa')
 <script src="/js/popups.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/tema.js"></script>
+
+<?php if ($partida && $rodada): ?>
+<script>
+/* ── O RELÓGIO DA RODADA ─────────────────────────────────────────────
+   Ele não decide nada: desenha a contagem que o servidor mandou e, quando
+   zera, recarrega a página. Quem fecha a rodada é o PHP, que confere a hora
+   de nascimento dela no banco — mexer neste contador no console só muda o
+   número na tela. */
+(function(){
+  var el = document.getElementById('relogio');
+  if (!el) return;
+  var fim = Date.now() + (parseInt(el.dataset.restam, 10) || 0) * 1000;
+  var mostrador = el.querySelector('b'), acabou = false;
+
+  function pinta(){
+    var s = Math.max(0, Math.round((fim - Date.now()) / 1000));
+    mostrador.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    el.classList.toggle('apertou', s <= 30);
+    if (s <= 0 && !acabou) { acabou = true; location.reload(); }
+  }
+  pinta();
+  setInterval(pinta, 250);   // 250ms e não 1s: assim o segundo não "pula"
+})();
+</script>
+<?php endif; ?>
+
+<?php if ($partida && $rodada && $partida['modo'] === 'pais'): ?>
+<script>
+/* ── O MAPA-MÚNDI DAS OPÇÕES ─────────────────────────────────────────
+   Desenha o mundo apagado e acende os seis candidatos. Clicar num país
+   aceso (ou no alfinete dele, ou no botão da lista) pinta de verde e libera
+   o confirmar. Tudo isso é só escolha: quem compara o palpite com a
+   resposta é o servidor, que nem recebe o resto. */
+(function(){
+  var caixa = document.getElementById('mapaPais');
+  if (!caixa || !window.L) return;
+  var ops = JSON.parse(caixa.dataset.ops || '[]');
+  var porIso = {};
+  ops.forEach(function(o){ if (o.iso) porIso[o.iso] = o; });
+
+  var mapa = L.map('mapaPais', {
+    zoomControl: true, attributionControl: false, minZoom: 1, maxZoom: 6,
+    worldCopyJump: true
+  }).setView([22, 10], 1);
+
+  var APAGADO = {color: 'rgba(255,255,255,.14)', weight: .7, fillColor: '#1c1c21', fillOpacity: 1};
+  var ACESO   = {color: '#7dd3fc', weight: 1.4, fillColor: '#2563eb', fillOpacity: .62};
+  var MEU     = {color: '#86efac', weight: 2,   fillColor: '#22c55e', fillOpacity: .78};
+
+  var escolhido = null, formas = {}, pinos = {};
+
+  function escolher(o){
+    escolhido = o;
+    Object.keys(formas).forEach(function(iso){
+      formas[iso].setStyle(iso === o.iso ? MEU : ACESO);
+    });
+    Object.keys(pinos).forEach(function(iso){
+      var d = pinos[iso].getElement();
+      if (d) d.querySelector('.geo-pino').classList.toggle('eu', iso === o.iso);
+    });
+    document.querySelectorAll('#listaPais button').forEach(function(b){
+      b.classList.toggle('eu', b.dataset.pais === o.nome);
+    });
+    document.getElementById('paisEscolhido').value = o.nome;
+    document.getElementById('btnPais').disabled = false;
+    document.getElementById('dicaPais').textContent =
+      'Escolhido: ' + o.nome + '. Dá pra trocar até confirmar.';
+  }
+
+  /* Os contornos vêm de um arquivo só, do nosso servidor, e o navegador o
+     guarda em cache: da segunda rodada em diante o mapa é instantâneo. */
+  fetch('/games/data/paises.geo.json').then(function(r){ return r.json(); }).then(function(geo){
+    L.geoJSON(geo, {
+      style: function(f){ return porIso[f.id] ? ACESO : APAGADO; },
+      onEachFeature: function(f, camada){
+        var o = porIso[f.id];
+        if (!o) { camada.options.interactive = false; return; }
+        formas[f.id] = camada;
+        camada.bindTooltip(o.nome, {sticky: true});
+        camada.on('click', function(){ escolher(o); });
+      }
+    }).addTo(mapa);
+  }).catch(function(){
+    /* Sem os contornos ainda dá pra jogar: ficam os alfinetes e a lista. */
+    document.getElementById('dicaPais').textContent =
+      'O mapa não carregou. Escolha na lista abaixo.';
+  });
+
+  /* O ALFINETE DE CADA CANDIDATO. Não é enfeite: Togo e Singapura em
+     mapa-múndi são um ponto de um milímetro, e no celular ninguém acerta o
+     polegar neles. O alfinete é o alvo grande do país pequeno. */
+  ops.forEach(function(o){
+    if (o.lat === null || o.lon === null) return;
+    var m = L.marker([o.lat, o.lon], {
+      icon: L.divIcon({className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+        html: '<div class="geo-pino" style="--c:#38bdf8">' + o.letra + '</div>'})
+    }).addTo(mapa);
+    m.bindTooltip(o.nome, {direction: 'top'});
+    m.on('click', function(){ escolher(o); });
+    pinos[o.iso] = m;
+  });
+
+  document.querySelectorAll('#listaPais button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var o = ops.filter(function(x){ return x.nome === b.dataset.pais; })[0];
+      if (!o) return;
+      escolher(o);
+      if (o.lat !== null) mapa.panTo([o.lat, o.lon]);
+    });
+  });
+
+  /* Clique duplo no confirmar mandaria duas respostas pra mesma rodada. */
+  document.getElementById('formPais').addEventListener('submit', function(){
+    document.getElementById('btnPais').disabled = true;
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php if ($partida && $rodada && $partida['modo'] === 'mapa'): ?>
 <script>

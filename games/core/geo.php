@@ -50,6 +50,18 @@ const GEO_MOEDA_ACERTO   = 3;     // por acerto no modo país
 const GEO_MOEDA_MAPA_MIL = 1;     // por 1.000 pontos no modo mapa
 const GEO_PREMIADAS_DIA  = 3;
 
+/**
+ * ── O RELÓGIO DA RODADA ──────────────────────────────────────────────
+ *
+ * Dois minutos pra decidir (pedido do Marcos, 14/10/2026). O relógio é do
+ * SERVIDOR: a rodada nasce com hora no banco e o navegador só desenha a
+ * contagem. Relógio que vive no JavaScript é relógio que o console para.
+ *
+ * Estourou, a rodada se resolve sozinha no próximo carregamento — e por
+ * isso quem fecha a aba no meio não volta depois pra responder com calma.
+ */
+const GEO_SEGUNDOS = 120;
+
 /** Os lugares do baralho. Carregado uma vez por request. */
 function geoLugares(): array
 {
@@ -174,6 +186,45 @@ function geoRodadaAtual(PDO $pdo, int $partidaId): ?array
     return $r['dados'] ? $r : null;
 }
 
+/** Quantos segundos ainda restam nesta rodada (zero quando acabou). */
+function geoRestam(array $rodada): int
+{
+    $nasceu = strtotime((string)($rodada['criado_em'] ?? 'now')) ?: time();
+    return max(0, GEO_SEGUNDOS - (time() - $nasceu));
+}
+
+/** A rodada já passou do tempo? */
+function geoVencida(array $rodada): bool
+{
+    return geoRestam($rodada) <= 0;
+}
+
+/**
+ * Os países que o baralho usa: código ISO, nome e coordenada.
+ *
+ * É o que liga o palpite ao mapa clicável — o contorno do Natural Earth é
+ * identificado pelo ISO de três letras, e o baralho fala em nome.
+ */
+function geoPaises(): array
+{
+    static $p = null;
+    if ($p !== null) return $p;
+    $arq = __DIR__ . '/../data/geo_paises.php';
+    $p = is_file($arq) ? (array)require $arq : [];
+    return $p;
+}
+
+/** O código ISO de um país pelo nome, ou string vazia. */
+function geoIsoDoPais(string $nome): string
+{
+    static $de = null;
+    if ($de === null) {
+        $de = [];
+        foreach (geoPaises() as $iso => $x) $de[mb_strtolower((string)$x['nome'])] = $iso;
+    }
+    return $de[mb_strtolower(trim($nome))] ?? '';
+}
+
 /** A distância entre dois pontos da Terra, em quilômetros. */
 function geoDistanciaKm(float $lat1, float $lon1, float $lat2, float $lon2): float
 {
@@ -203,7 +254,18 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
     $lugar = $rodada['dados'];
     $saida = ['acertou' => false, 'km' => null, 'pontos' => 0, 'lugar' => $lugar];
 
-    if ($partida['modo'] === 'pais') {
+    /* ── PASSOU DO TEMPO, NÃO VALE ───────────────────────────────────
+       Conferido AQUI e não na tela: o relógio que o navegador desenha é
+       enfeite, e quem chega com a resposta depois da hora chega depois da
+       hora — inclusive quem recarregou a página no minuto seguinte. A
+       rodada é fechada sem palpite: zero ponto, e no modo país a série
+       acaba, que é o que aconteceria se tivesse errado. */
+    if (geoVencida($rodada)) {
+        $pdo->prepare('UPDATE geo_rodadas SET acertou = 0, pontos = 0 WHERE id = ?')
+            ->execute([(int)$rodada['id']]);
+        $saida['estourou'] = true;
+
+    } elseif ($partida['modo'] === 'pais') {
         $saida['acertou'] = isset($palpite['pais'])
             && mb_strtolower(trim((string)$palpite['pais'])) === mb_strtolower((string)$lugar['pais']);
         $saida['pontos'] = $saida['acertou'] ? 1 : 0;

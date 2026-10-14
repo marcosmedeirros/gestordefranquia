@@ -132,6 +132,11 @@ function geoCreditos(array $arquivos): array
 $opts = getopt('', ['teto:', 'cidades:', 'pontos:', 'creditos:', 'paises:']);
 $teto = max(1, (int)($opts['teto'] ?? GEO_TETO_PAIS));
 
+/** Do arquivo salvo quando há um, do Wikidata quando não há. */
+$deArquivo2 = static function (?string $caminho, string $consulta) use (&$deArquivo): array {
+    return ($caminho !== null && $caminho !== '') ? $deArquivo($caminho) : geoSparql($consulta);
+};
+
 /** Lê uma resposta do Wikidata já salva em arquivo. @see o cabeçalho */
 $deArquivo = static function (string $caminho): array {
     $j = json_decode((string)@file_get_contents($caminho), true);
@@ -154,16 +159,29 @@ $deArquivo = static function (string $caminho): array {
    soberano` com as 3.000 cidades estoura o tempo do WDQS (504). Então a
    lista dos países de hoje vem numa consulta separada, que é pequena e
    instantânea, e o cruzamento é feito aqui, pelo QID. Pelo RÓTULO não dava:
-   "Song" e "China" são rótulos, o QID é o que identifica. */
+   "Song" e "China" são rótulos, o QID é o que identifica.
+
+   E A MESMA CONSULTA TRAZ O CÓDIGO ISO DE TRÊS LETRAS e a coordenada do
+   país, que é o que liga o baralho ao mapa-múndi clicável do modo país: o
+   contorno do Natural Earth é identificado por ISO, não por nome em
+   português. @see geo_mapa_cli.php */
+$CONSULTA_PAISES = 'SELECT ?pais ?paisLabel ?iso ?coord WHERE {
+  ?pais wdt:P31 wd:Q3624078 ; wdt:P298 ?iso .
+  OPTIONAL { ?pais wdt:P625 ?coord }
+  FILTER NOT EXISTS { ?pais wdt:P576 ?fim }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "pt,en". }
+}';
 $paisesOk = [];
-if (isset($opts['paises'])) {
-    $j = json_decode((string)@file_get_contents((string)$opts['paises']), true);
-    foreach ($j['results']['bindings'] ?? [] as $l) $paisesOk[(string)($l['pais']['value'] ?? '')] = true;
-} else {
-    foreach (geoSparql('SELECT ?pais WHERE { ?pais wdt:P31 wd:Q3624078 .
-                        FILTER NOT EXISTS { ?pais wdt:P576 ?fim } }') as $l) {
-        $paisesOk[(string)($l['pais'] ?? '')] = true;
-    }
+foreach ($deArquivo2($opts['paises'] ?? null, $CONSULTA_PAISES) as $l) {
+    $q = (string)($l['pais'] ?? '');
+    if ($q === '') continue;
+    $xy = geoPonto((string)($l['coord'] ?? ''));
+    $paisesOk[$q] = [
+        'iso'  => (string)($l['iso'] ?? ''),
+        'nome' => (string)($l['paisLabel'] ?? ''),
+        'lat'  => $xy[0] ?? null,
+        'lon'  => $xy[1] ?? null,
+    ];
 }
 echo '  ', count($paisesOk), " países soberanos de hoje\n";
 
@@ -195,7 +213,8 @@ foreach ([['cidade', $cidades], ['ponto', $pontos]] as [$nivel, $lista]) {
         $pais = trim($l['paisLabel'] ?? '');
         $nome = trim($l['itemLabel'] ?? '');
         if ($pais === '' || $nome === '' || preg_match('/^Q\d+$/', $nome)) continue;
-        if ($paisesOk && empty($paisesOk[trim($l['pais'] ?? '')])) { $exPais++; continue; }
+        $fichaPais = $paisesOk[trim($l['pais'] ?? '')] ?? null;
+        if ($paisesOk && !$fichaPais) { $exPais++; continue; }
 
         /* ── UM LUGAR, UMA CARTA ─────────────────────────────────────
            A chave era nome+país, e isso deixava passar o MESMO lugar
@@ -225,6 +244,8 @@ foreach ([['cidade', $cidades], ['ponto', $pontos]] as [$nivel, $lista]) {
         $vistos[$chave] = true;
         $porPais[$pais] = ($porPais[$pais] ?? 0) + 1;
         $lugares[] = ['nome' => mb_substr($nome, 0, 80), 'pais' => mb_substr($pais, 0, 60),
+                      /* O ISO é o que o mapa clicável do modo país entende. */
+                      'iso' => (string)($fichaPais['iso'] ?? ''),
                       'lat' => $xy[0], 'lon' => $xy[1], 'img' => $arq, 'nivel' => $nivel];
     }
 }
@@ -280,3 +301,28 @@ $php = "<?php\n"
 $destino = __DIR__ . '/../data/geo_lugares.php';
 file_put_contents($destino, $php);
 echo 'gravado: ', realpath($destino), ' (', round(strlen($php) / 1024), " KB)\n";
+
+/* ── A TABELA DE PAÍSES ──────────────────────────────────────────────
+   O mapa clicável precisa saber, de cada país, o código ISO (pra achar o
+   contorno), o nome em português (pra escrever no alfinete) e a coordenada
+   (pra o alfinete ter onde pousar — San Marino e Singapura não têm contorno
+   no mapa de 1:110m, e sem alfinete seriam impossíveis de clicar).
+
+   Só entram os países que o baralho usa: guardar os 196 seria mandar pro
+   navegador 58 países que nunca vão aparecer numa rodada. */
+$usados = array_flip(array_column($lugares, 'iso'));
+$tabela = [];
+foreach ($paisesOk as $p) {
+    $iso = (string)($p['iso'] ?? '');
+    if ($iso === '' || !isset($usados[$iso])) continue;
+    $tabela[$iso] = ['nome' => $p['nome'], 'lat' => $p['lat'], 'lon' => $p['lon']];
+}
+ksort($tabela);
+$phpP = "<?php\n"
+      . "/* Os países do FBA Geo — GERADO por games/core/geo_lugares_cli.php.\n"
+      . "   Código ISO de três letras (o mesmo do contorno em paises.geo.json),\n"
+      . "   nome em português e coordenada, tudo do Wikidata. NÃO EDITE À MÃO.\n"
+      . '   Gerado em ' . date('d/m/Y H:i') . ' — ' . count($tabela) . ' países. */' . "\n"
+      . 'return ' . var_export($tabela, true) . ";\n";
+file_put_contents(__DIR__ . '/../data/geo_paises.php', $phpP);
+echo 'gravado: geo_paises.php (', count($tabela), " países)\n";
