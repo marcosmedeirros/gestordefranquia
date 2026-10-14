@@ -57,6 +57,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($acao === 'proxima') {
+        /* Redireciona em vez de só seguir: assim o F5 da rodada nova não
+           repete o POST, e o relógio dela começa a contar da página que a
+           pessoa está vendo. */
+        $p = geoPartidaAberta($pdo, $user_id);
+        if ($p) geoProxima($pdo, $p);
+        header('Location: /games/games/geo.php');
+        exit;
+    }
+
     if ($acao === 'desistir') {
         $pdo->prepare("UPDATE geo_partidas SET status = 'fim', fim_em = NOW()
                         WHERE user_id = ? AND status = 'jogando'")->execute([$user_id]);
@@ -153,6 +163,11 @@ document.documentElement.classList.add('js');
 }
 </style>
 <?php include __DIR__ . '/../../includes/shell-css.php'; ?>
+<?php /* AS BANDEIRAS ENTRAM SEMPRE (flag-icons, MIT). A folha é pequena e só
+     baixa o desenho das que a página usar. Ela já esteve junto do Leaflet,
+     dentro do "se precisa de mapa" — e aí a bandeira aparecia nas opções da
+     rodada e sumia no resultado, que é outra tela e não tem mapa. */ ?>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icons/7.5.0/css/flag-icons.min.css">
 <?php if ($precisaMapa): ?>
   <?php /* Leaflet + tiles do OpenStreetMap: os dois de graça, e a atribuição
        fica no canto do mapa, como a licença pede. */ ?>
@@ -268,6 +283,14 @@ html:not(.js) .so-js{display:none !important}
 .geo-ops button:disabled{opacity:.45;transform:none;cursor:default}
 /* O escolhido, na lista e no mapa, é o mesmo verde — é o que amarra os dois
    jeitos de responder numa escolha só. */
+/* A BANDEIRA. Tamanho fixo e canto arredondado pra todas ficarem iguais — a
+   folha do flag-icons entrega cada uma na proporção dela, e sem isto a lista
+   vira uma escada. O nome fica com o resto do espaço e corta com reticências
+   em vez de empurrar o botão. */
+.geo-ops button .fi{flex:none;width:26px;height:19.5px;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35) inset;background-size:cover}
+.geo-ops button .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leaflet-tooltip .fi{width:18px;height:13.5px;border-radius:2px;vertical-align:-2px}
 .geo-ops button.eu{border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,var(--panel))}
 .geo-ops button.eu i{background:var(--green);color:#052e16}
 
@@ -300,6 +323,8 @@ html:not(.js) .so-js{display:none !important}
 .geo-veredito i{font-size:28px}
 .geo-era{font-size:17px;margin-top:8px}
 .geo-era b{font-weight:800}
+.geo-era .fi{display:inline-block;width:24px;height:18px;border-radius:3px;vertical-align:-3px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35) inset;background-size:cover}
 .geo-numeros{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px}
 .geo-numeros div b{display:block;font-family:'Barlow Condensed',Inter,sans-serif;font-size:30px;
   line-height:1;color:var(--text)}
@@ -428,7 +453,10 @@ html:not(.js) .so-js{display:none !important}
     <div class="geo-veredito">
       <i class="bi bi-<?= $ico ?>"></i> <?= $frase ?>
     </div>
-    <div class="geo-era">Era <b><?= e($lug['nome']) ?></b>, <?= e($lug['pais']) ?>.</div>
+    <?php $bandeira = (string)(geoPaises()[(string)($lug['iso'] ?? '')]['iso2'] ?? ''); ?>
+    <div class="geo-era">Era <b><?= e($lug['nome']) ?></b>,
+      <?php if ($bandeira !== ''): ?><span class="fi fi-<?= e($bandeira) ?>"></span> <?php endif; ?>
+      <?= e($lug['pais']) ?>.</div>
 
     <?php if ($ehMapa && empty($resolvida["estourou"])): ?>
       <div class="geo-numeros">
@@ -484,8 +512,59 @@ html:not(.js) .so-js{display:none !important}
         </form>
         <a class="geo-voltar" href="/games/games/geo.php"><i class="bi bi-house"></i> Tela inicial</a>
       </div>
+    <?php else: ?>
+      <?php /* ── A PARTIDA CONTINUA, MAS QUEM ABRE A PRÓXIMA É A PESSOA ──
+           Antes a rodada seguinte já vinha montada embaixo do resultado,
+           com o relógio correndo — ou seja, o tempo de ler o que aconteceu
+           saía do tempo de pensar na próxima. Agora o resultado fica
+           sozinho, e o botão é que começa a contagem. @see geoProxima */ ?>
+      <div class="geo-fim">
+        <form method="POST" style="margin:0">
+          <input type="hidden" name="acao" value="proxima">
+          <button class="geo-confirmar" type="submit">
+            <?= $ehMapa
+                ? 'Próxima rodada <i class="bi bi-arrow-right"></i>'
+                : 'Continuar a série <i class="bi bi-arrow-right"></i>' ?></button>
+        </form>
+        <span class="geo-credito" style="margin:0">
+          <?php $faltam = GEO_RODADAS_MAPA - (int)$resolvida['feitas'];
+                $seq = (int)$resolvida['acertos_total']; ?>
+          <?= $ehMapa
+              ? ($faltam === 1 ? 'Falta a última rodada.' : "Faltam {$faltam} de " . GEO_RODADAS_MAPA . '.')
+              : ($seq === 1 ? 'Você está com 1 acerto.' : "Você está com {$seq} acertos seguidos.") ?>
+          O relógio só começa quando você clicar.</span>
+      </div>
     <?php endif; ?>
   </div>
+<?php endif; ?>
+
+<?php if ($partida && !$rodada && !$resolvida):
+  /* ── A PARTIDA FICOU PARADA ENTRE DUAS RODADAS ─────────────────────
+     Agora que a próxima só nasce com o clique, existe um estado novo: a
+     pessoa respondeu, fechou a aba e voltou depois. A partida está de pé e
+     não há rodada nenhuma — sem este bloco, a tela mostraria a entrada e o
+     jogo pareceria ter sumido com o progresso dela. */
+  $ehMapa = $partida['modo'] === 'mapa'; ?>
+  <div class="geo-result" style="--c:var(--blue)">
+    <div class="geo-veredito"><i class="bi bi-hourglass-split"></i> Partida em andamento</div>
+    <div class="geo-era">
+      <?= $ehMapa
+          ? 'Você tem <b>' . number_format((int)$partida['pontos'], 0, ',', '.') . '</b> pontos.'
+          : 'Você está em <b>' . (int)$partida['acertos'] . '</b> acertos seguidos.' ?>
+    </div>
+    <div class="geo-fim">
+      <form method="POST" style="margin:0">
+        <input type="hidden" name="acao" value="proxima">
+        <button class="geo-confirmar" type="submit">Continuar <i class="bi bi-arrow-right"></i></button>
+      </form>
+      <form method="POST" style="margin:0"
+            data-confirmar="Encerrar esta partida? O que você já fez continua valendo no ranking.">
+        <input type="hidden" name="acao" value="desistir">
+        <button class="geo-voltar" type="submit"><i class="bi bi-x-lg"></i> Encerrar</button>
+      </form>
+    </div>
+  </div>
+
 <?php endif; ?>
 
 <?php if ($partida && $rodada):
@@ -503,7 +582,12 @@ html:not(.js) .so-js{display:none !important}
       <?php if ($rua): ?>
         <?php /* O referrerpolicy não é enfeite: é ele que manda o domínio pro
              Google, e é por domínio que a chave é restringida no console. */ ?>
-        <iframe src="<?= e($rua) ?>" title="Onde é isso?" allowfullscreen
+        <?php /* SEM allowfullscreen, e não é esquecimento: em tela cheia o
+             iframe cobre a página inteira e a placa que esconde o endereço,
+             que é um elemento NOSSO e vive fora dele, fica pra trás — o
+             cartão "515 Rue de la Reine, Quebec" apareceria inteirinho. A
+             pessoa gira e anda do mesmo jeito dentro do palco. */ ?>
+        <iframe src="<?= e($rua) ?>" title="Onde é isso?"
                 referrerpolicy="strict-origin-when-cross-origin"></iframe>
         <?php /* ── O CANTO QUE ENTREGA A RESPOSTA ─────────────────────────
              O Street View incorporado desenha um cartão no alto à esquerda
@@ -515,7 +599,10 @@ html:not(.js) .so-js{display:none !important}
         <div class="tapa"></div>
       <?php else: ?>
         <div class="carregando">carregando a foto…</div>
-        <img src="<?= e(geoFoto((string)$lug['img'])) ?>" alt="Onde é isso?"
+        <?php /* A foto vem pelo número da rodada, e não pelo endereço do
+             Commons: o nome do arquivo lá é o nome do lugar.
+             @see games/games/geo_foto.php */ ?>
+        <img src="/games/games/geo_foto.php?r=<?= (int)$rodada['id'] ?>" alt="Onde é isso?"
              onload="this.previousElementSibling && this.previousElementSibling.remove()">
       <?php endif; ?>
       <div class="geo-hud">
@@ -580,6 +667,7 @@ html:not(.js) .so-js{display:none !important}
           $iso = geoIsoDoPais((string)$op);
           $fp  = geoPaises()[$iso] ?? null;
           $mapaOps[] = ['nome' => (string)$op, 'iso' => $iso, 'letra' => $letras[$k] ?? '?',
+                        'iso2' => (string)($fp['iso2'] ?? ''),
                         'lat' => $fp['lat'] ?? null, 'lon' => $fp['lon'] ?? null];
       } ?>
       <div class="geo-mapa so-js" id="mapaPais"
@@ -592,9 +680,16 @@ html:not(.js) .so-js{display:none !important}
           <i class="bi bi-flag-fill"></i> Confirmar palpite</button>
       </form>
       <div class="geo-ops so-js" id="listaPais">
-        <?php foreach ($opcoes as $k => $op): ?>
-          <button type="button" data-pais="<?= e($op) ?>">
-            <i><?= $letras[$k] ?? '?' ?></i> <?= e($op) ?></button>
+        <?php foreach ($mapaOps as $op): ?>
+          <button type="button" data-pais="<?= e($op['nome']) ?>">
+            <i><?= $op['letra'] ?></i>
+            <?php /* A bandeira é enfeite ÚTIL: ela é a cara do país, e quem
+                 não reconhece o nome às vezes reconhece a bandeira. Quando
+                 falta o código de duas letras, some sem deixar buraco. */ ?>
+            <?php if ($op['iso2'] !== ''): ?>
+              <span class="fi fi-<?= e($op['iso2']) ?>" aria-hidden="true"></span>
+            <?php endif; ?>
+            <span class="nm"><?= e($op['nome']) ?></span></button>
         <?php endforeach; ?>
       </div>
       <?php /* SEM JAVASCRIPT A RODADA AINDA SE JOGA. O mapa e a lista acima
@@ -614,8 +709,12 @@ html:not(.js) .so-js{display:none !important}
     <?php endif; ?>
   </div>
 
-<?php else:
-  /* ── A ENTRADA ────────────────────────────────────────────────────── */ ?>
+<?php elseif (!$partida):
+  /* ── A ENTRADA ──────────────────────────────────────────────────────
+     Só quando NÃO há partida de pé. Era um else solto, e com a pausa entre
+     rodadas isso passou a significar "partida em andamento mais a tela de
+     começar outra" na mesma página — dois caminhos contraditórios à vista,
+     e o segundo encerrava o primeiro sem avisar. */ ?>
   <div class="geo-nums">
     <span><b><?= number_format($nLugares, 0, ',', '.') ?></b> lugares</span>
     <span><b><?= $nPaises ?></b> países</span>
@@ -630,8 +729,8 @@ html:not(.js) .so-js{display:none !important}
       <button class="geo-modo" type="submit" style="--c:var(--green)">
         <span class="ico"><i class="bi bi-flag-fill"></i></span>
         <h3>Que país é esse?</h3>
-        <p>Seis opções por foto. Acertou, vem outra; errou, acabou. O ranking é a maior
-           sequência — e cada acerto paga <?= GEO_MOEDA_ACERTO ?> moedas.</p>
+        <p><?= GEO_OPCOES ?> opções por foto. Acertou, vem outra; errou, acabou. O ranking é a
+           maior sequência — e cada acerto paga <?= GEO_MOEDA_ACERTO ?> moedas.</p>
         <span class="rec"><b><?= (int)$recorde['pais']['a'] ?></b> seu recorde
           · <?= (int)$recorde['pais']['n'] ?> partida<?= (int)$recorde['pais']['n'] === 1 ? '' : 's' ?></span>
       </button>
@@ -643,7 +742,8 @@ html:not(.js) .so-js{display:none !important}
         <span class="ico"><i class="bi bi-geo-alt-fill"></i></span>
         <h3>Onde fica no mapa?</h3>
         <p><?= GEO_RODADAS_MAPA ?> rodadas, clicando no mapa do mundo. Quanto mais perto, mais
-           pontos: 5.000 no alvo. Cada 1.000 pontos vale <?= GEO_MOEDA_MAPA_MIL ?> moeda.</p>
+           pontos: 5.000 no alvo. Cada 100 pontos vale <?= GEO_MOEDA_MAPA_CEM ?> moeda — rodada
+           cravada paga 50.</p>
         <span class="rec"><b><?= number_format((int)$recorde['mapa']['p'], 0, ',', '.') ?></b> seu recorde
           · <?= (int)$recorde['mapa']['n'] ?> partida<?= (int)$recorde['mapa']['n'] === 1 ? '' : 's' ?></span>
       </button>
@@ -768,6 +868,12 @@ html:not(.js) .so-js{display:none !important}
 
   var escolhido = null, formas = {}, pinos = {};
 
+  /* O nome com a bandeirinha antes, pra etiqueta do mapa dizer a mesma
+     coisa que o botao da lista. */
+  function etiqueta(o){
+    return (o.iso2 ? '<span class="fi fi-' + o.iso2 + '"></span> ' : '') + o.nome;
+  }
+
   function escolher(o){
     escolhido = o;
     Object.keys(formas).forEach(function(iso){
@@ -795,7 +901,7 @@ html:not(.js) .so-js{display:none !important}
         var o = porIso[f.id];
         if (!o) { camada.options.interactive = false; return; }
         formas[f.id] = camada;
-        camada.bindTooltip(o.nome, {sticky: true});
+        camada.bindTooltip(etiqueta(o), {sticky: true});
         camada.on('click', function(){ escolher(o); });
       }
     }).addTo(mapa);
@@ -814,7 +920,7 @@ html:not(.js) .so-js{display:none !important}
       icon: L.divIcon({className: '', iconSize: [26, 26], iconAnchor: [13, 13],
         html: '<div class="geo-pino" style="--c:#38bdf8">' + o.letra + '</div>'})
     }).addTo(mapa);
-    m.bindTooltip(o.nome, {direction: 'top'});
+    m.bindTooltip(etiqueta(o), {direction: 'top'});
     m.on('click', function(){ escolher(o); });
     pinos[o.iso] = m;
   });

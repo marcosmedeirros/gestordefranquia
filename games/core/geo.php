@@ -36,7 +36,7 @@ require_once __DIR__ . '/../../backend/db.php';
 const GEO_RODADAS_MAPA = 5;
 
 /** Quantas opções de país aparecem na múltipla escolha. */
-const GEO_OPCOES = 6;
+const GEO_OPCOES = 8;
 
 /**
  * Quanto paga, e o teto do dia.
@@ -46,8 +46,11 @@ const GEO_OPCOES = 6;
  * entrando no ranking —, mas sem moeda. Sem isso, quem tem a tarde livre
  * imprime dinheiro à base de clique.
  */
-const GEO_MOEDA_ACERTO   = 3;     // por acerto no modo país
-const GEO_MOEDA_MAPA_MIL = 1;     // por 1.000 pontos no modo mapa
+const GEO_MOEDA_ACERTO   = 50;    // por acerto no modo país
+/* OS DOIS MODOS TEM QUE PAGAR PARECIDO, senao um deles vira enfeite. A
+   regua: no pais, 50 por acerto; no mapa, 1 a cada 100 pontos — ou seja,
+   50 numa rodada cravada no alvo. Partida perfeita paga 250 nos dois. */
+const GEO_MOEDA_MAPA_CEM = 1;     // por 100 pontos no modo mapa
 const GEO_PREMIADAS_DIA  = 3;
 
 /**
@@ -173,6 +176,28 @@ function geoSortearRodada(PDO $pdo, int $partidaId, int $n, string $modo): void
         ->execute([$partidaId, $n, (int)$i, $opcoes]);
 }
 
+/**
+ * Abre a próxima rodada da partida, se for a hora.
+ *
+ * É chamada pelo botão "próxima" e nada mais. As duas conferências não são
+ * zelo demais: sem a primeira, dois cliques (ou dois toques do celular que
+ * viraram dois envios) abririam duas rodadas e a partida pularia um lugar;
+ * sem a segunda, chamar a ação de fora com a rodada ainda aberta na tela
+ * trocaria a pergunta por outra até cair numa fácil.
+ */
+function geoProxima(PDO $pdo, array $partida): void
+{
+    if ($partida['status'] !== 'jogando') return;
+    if (geoRodadaAtual($pdo, (int)$partida['id'])) return;   // ainda tem rodada em pé
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM geo_rodadas WHERE partida_id = ?');
+    $st->execute([(int)$partida['id']]);
+    $feitas = (int)$st->fetchColumn();
+    if ($partida['modo'] === 'mapa' && $feitas >= GEO_RODADAS_MAPA) return;
+
+    geoSortearRodada($pdo, (int)$partida['id'], $feitas + 1, (string)$partida['modo']);
+}
+
 /** A rodada que está em pé (sem palpite), ou null. */
 function geoRodadaAtual(PDO $pdo, int $partidaId): ?array
 {
@@ -266,15 +291,29 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
         $saida['estourou'] = true;
 
     } elseif ($partida['modo'] === 'pais') {
-        $saida['acertou'] = isset($palpite['pais'])
-            && mb_strtolower(trim((string)$palpite['pais'])) === mb_strtolower((string)$lugar['pais']);
+        /* ── O PALPITE TEM QUE SER UMA DAS OPÇÕES ────────────────────
+           A conferência era só "bate com o certo?", e um palpite digitado
+           à mão valia mesmo sem estar na tela. Na prática ninguém ganharia
+           nada com isso — a resposta continuaria sendo adivinhada, e cada
+           rodada aceita um envio só —, mas pergunta de múltipla escolha que
+           aceita resposta de fora não é múltipla escolha. */
+        $dadas = (array)json_decode((string)($rodada['opcoes'] ?? '[]'), true);
+        $dito  = mb_strtolower(trim((string)($palpite['pais'] ?? '')));
+        $vale  = false;
+        foreach ($dadas as $o) if (mb_strtolower((string)$o) === $dito) { $vale = true; break; }
+
+        $saida['acertou'] = $vale && $dito === mb_strtolower((string)$lugar['pais']);
         $saida['pontos'] = $saida['acertou'] ? 1 : 0;
         $pdo->prepare('UPDATE geo_rodadas SET palpite = ?, acertou = ?, pontos = ? WHERE id = ?')
             ->execute([mb_substr((string)($palpite['pais'] ?? ''), 0, 80),
                        $saida['acertou'] ? 1 : 0, $saida['pontos'], (int)$rodada['id']]);
     } else {
-        $lat = (float)($palpite['lat'] ?? 0);
-        $lon = (float)($palpite['lon'] ?? 0);
+        /* Coordenada dentro do planeta. Quem mandar 9999 não ganha nada com
+           isso — longe é sempre pior —, mas o histórico fica com um número
+           que não existe, e a conta de distância passa a devolver valores
+           sem sentido geográfico. */
+        $lat = max(-90.0,  min(90.0,  (float)($palpite['lat'] ?? 0)));
+        $lon = max(-180.0, min(180.0, (float)($palpite['lon'] ?? 0)));
         $km  = geoDistanciaKm($lat, $lon, (float)$lugar['lat'], (float)$lugar['lon']);
         $saida['km'] = (int)round($km);
         $saida['pontos'] = geoPontosDoKm($km);
@@ -303,10 +342,14 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
         $saida['fim'] = true;
         $saida['moedas'] = $moedas;
     } else {
-        geoSortearRodada($pdo, (int)$partida['id'], (int)$soma['n'] + 1, (string)$partida['modo']);
+        /* A PRÓXIMA NÃO NASCE AQUI. Nascia, e o resultado dividia a tela com
+           uma rodada nova cujo relógio já estava correndo — a pessoa perdia
+           tempo lendo o que acabou de acontecer. Agora o resultado fica
+           sozinho e quem abre a próxima é o botão. @see geoProxima */
         $saida['fim'] = false;
     }
     $saida['acertos_total'] = (int)$soma['a'];
+    $saida['feitas']        = (int)$soma['n'];   // quantas rodadas já foram
     $saida['pontos_total']  = (int)$soma['p'];
     return $saida;
 }
@@ -326,7 +369,7 @@ function geoPagar(PDO $pdo, int $uid, string $modo, int $acertos, int $pontos): 
 
     $moedas = $modo === 'pais'
         ? $acertos * GEO_MOEDA_ACERTO
-        : (int)floor($pontos / 1000) * GEO_MOEDA_MAPA_MIL;
+        : (int)floor($pontos / 100) * GEO_MOEDA_MAPA_CEM;
     if ($moedas <= 0) return 0;
 
     try {
@@ -459,9 +502,16 @@ function geoRua(array $lugar): ?string
        viu, e é esse que abre aqui — o mesmo que foi conferido, sempre.
        A coordenada fica junto como reserva: se o panorama for aposentado,
        o Google cai no mais próximo em vez de mostrar tela cinza. */
+    /* ── A COORDENADA NÃO VAI NO ENDEREÇO ────────────────────────────
+       O `location` era a reserva pro caso de o panorama ser aposentado —
+       e era também a resposta da rodada escrita no código-fonte da página:
+       bastava abrir o inspetor, copiar "location=14.59,-91.61" e colar no
+       Google Maps. Com o ID do panorama a cena abre igual e o ID não diz
+       nada a ninguém. Sem ID — o que só acontece em lugar não conferido
+       pelo marcador —, não há rodada de rua: geoRua já devolveu null. */
     $p = ['key' => $chave];
-    if (!empty($lugar['rua_pano'])) $p['pano'] = (string)$lugar['rua_pano'];
-    $p['location'] = $lugar['lat'] . ',' . $lugar['lon'];
+    if (empty($lugar['rua_pano'])) return null;
+    $p['pano']     = (string)$lugar['rua_pano'];
     $p['heading']  = (int)($lugar['rua_dir'] ?? 0);
     $p['pitch']    = 0;
     $p['fov']      = 90;

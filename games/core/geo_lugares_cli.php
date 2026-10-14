@@ -165,8 +165,8 @@ $deArquivo = static function (string $caminho): array {
    país, que é o que liga o baralho ao mapa-múndi clicável do modo país: o
    contorno do Natural Earth é identificado por ISO, não por nome em
    português. @see geo_mapa_cli.php */
-$CONSULTA_PAISES = 'SELECT ?pais ?paisLabel ?iso ?coord WHERE {
-  ?pais wdt:P31 wd:Q3624078 ; wdt:P298 ?iso .
+$CONSULTA_PAISES = 'SELECT ?pais ?paisLabel ?iso ?iso2 ?coord WHERE {
+  ?pais wdt:P31 wd:Q3624078 ; wdt:P298 ?iso ; wdt:P297 ?iso2 .
   OPTIONAL { ?pais wdt:P625 ?coord }
   FILTER NOT EXISTS { ?pais wdt:P576 ?fim }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "pt,en". }
@@ -178,6 +178,8 @@ foreach ($deArquivo2($opts['paises'] ?? null, $CONSULTA_PAISES) as $l) {
     $xy = geoPonto((string)($l['coord'] ?? ''));
     $paisesOk[$q] = [
         'iso'  => (string)($l['iso'] ?? ''),
+        /* O de duas letras e o que a folha de bandeiras usa. */
+        'iso2' => strtolower((string)($l['iso2'] ?? '')),
         'nome' => (string)($l['paisLabel'] ?? ''),
         'lat'  => $xy[0] ?? null,
         'lon'  => $xy[1] ?? null,
@@ -315,7 +317,8 @@ $tabela = [];
 foreach ($paisesOk as $p) {
     $iso = (string)($p['iso'] ?? '');
     if ($iso === '' || !isset($usados[$iso])) continue;
-    $tabela[$iso] = ['nome' => $p['nome'], 'lat' => $p['lat'], 'lon' => $p['lon']];
+    $tabela[$iso] = ['nome' => $p['nome'], 'iso2' => $p['iso2'],
+                      'lat' => $p['lat'], 'lon' => $p['lon']];
 }
 ksort($tabela);
 $phpP = "<?php\n"
