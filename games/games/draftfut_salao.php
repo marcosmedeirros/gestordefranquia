@@ -76,6 +76,44 @@
 
 <?php else: ?>
 
+  <?php /* ── O DRAFT QUE FICOU PELA METADE ───────────────────────────
+       O draft mora na sessão e sobrevive a fechar o navegador. Antes isso
+       era invisível e tomava a tela: quem voltava ao jogo caía dentro do
+       draft antigo sem salão, sem ranking e sem saída. Agora ele é um card:
+       dá pra continuar de onde parou, e dá pra largar — a entrada não volta,
+       como em qualquer desistência, e o aviso diz isso antes do clique. */ ?>
+  <?php if (!empty($d)):
+    $cartasFeitas = count(array_filter($d['time'] ?? []));
+    $temResultado = !empty($d['resultado']); ?>
+    <div class="bloco retomar">
+      <h2><i class="bi bi-hourglass-split"></i>
+        <?= $temResultado ? 'Sua última partida' : 'Você tem um draft em andamento' ?></h2>
+      <p class="sub">
+        <?php if ($temResultado): ?>
+          O resultado ainda está aberto — veja a narração e o placar, ou comece outro draft.
+        <?php else: ?>
+          <?= (int)$cartasFeitas ?> de <?= DFUT_TOTAL ?> cartas escolhidas, no
+          <?= e((string)($d['formacao'] ?? '')) ?>. Continue de onde parou.
+        <?php endif; ?>
+      </p>
+      <div class="retomar-l">
+        <a class="btn pri" href="?v=bot">
+          <i class="bi bi-play-fill"></i> <?= $temResultado ? 'Ver o resultado' : 'Continuar o draft' ?></a>
+        <?php if (!$temResultado): ?>
+          <form method="POST" data-confirmar="Largar este draft? A entrada de <?= DF_ENTRADA ?> moedas não volta.">
+            <input type="hidden" name="acao" value="desistir">
+            <button type="submit" class="btn">Largar o draft</button>
+          </form>
+        <?php else: ?>
+          <form method="POST">
+            <input type="hidden" name="acao" value="novo">
+            <button type="submit" class="btn">Limpar e começar outro</button>
+          </form>
+        <?php endif; ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <?php /* ── O SALÃO ───────────────────────────────────────────────── */ ?>
   <div class="bloco">
     <h2>FBA Draft</h2>
@@ -132,8 +170,9 @@
   <?php $topForca = []; try { $topForca = dfdTopForca($pdo, 5); } catch (Throwable $e) { error_log('[draftfut] top forca: ' . $e->getMessage()); } ?>
   <div class="bloco">
     <h2><i class="bi bi-lightning-charge-fill" style="color:var(--amarelo)"></i> Times mais fortes</h2>
-    <p class="sub">Os cinco melhores drafts já montados, de qualquer modo — contra o bot
-       ou em duelo.</p>
+    <p class="sub">Os cinco melhores drafts montados de <?= date('d/m', strtotime(DFD_FORCA_ZERO)) ?>
+       pra cá, de qualquer modo — contra o bot ou em duelo. O ranking foi zerado quando
+       o reroll infinito de cartas foi fechado.</p>
     <?php if (!$topForca): ?>
       <p class="sub" style="margin:0">Nenhum time montado ainda.</p>
     <?php else: ?>

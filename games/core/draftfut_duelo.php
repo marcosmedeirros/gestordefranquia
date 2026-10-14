@@ -35,6 +35,40 @@ require_once __DIR__ . '/draftfut.php';
 /** Quanto se pode apostar num duelo. Fora disso, não abre. */
 const DFD_APOSTAS = [25, 50, 100, 250, 500];
 
+/**
+ * ── O RELÓGIO DO DUELO: CINCO MINUTOS PRA MONTAR ─────────────────────
+ *
+ * Pedido do Marcos (14/10/2026): "coloque tempo de 5 minutos pra montar o
+ * draft, se não a pessoa perde a partida".
+ *
+ * "Cada um monta no seu tempo" era bonito no papel e virou isto no banco: um
+ * duelo de 500 moedas aberto em 09/10, com o criador pronto e o adversário
+ * nunca mais aparecendo — cinco dias com a aposta dos dois presa e nenhum dos
+ * dois podendo abrir outro duelo, porque só se joga um por vez.
+ *
+ * O relógio começa quando o duelo FECHA (os dois dentro), e não quando ele é
+ * criado: antes disso não há com quem jogar, e quem abriu ficaria correndo
+ * contra um adversário que ainda não existe.
+ */
+const DFD_MINUTOS = 5;
+
+/**
+ * ── O ZERO DO RANKING DE FORÇA ───────────────────────────────────────
+ *
+ * "Resete o top times mais fortes, pq usaram bug pra fazer" (Marcos,
+ * 14/10/2026). O bug era o reroll infinito: clicando de novo numa vaga vazia
+ * saíam cinco cartas novas, então dava pra ficar clicando até sair lenda em
+ * todas as dezenove — e o banco mostra o resultado, times 99 de força e 33 de
+ * química, um deles gravado dez vezes em quarenta segundos.
+ *
+ * O corte é a hora em que o reroll foi fechado (commit 491ed970, 13/10/2026
+ * às 18h03). Não apago nada: as partidas, os duelos e o cartel continuam no
+ * banco e no histórico — some do RANKING o que foi montado quando dava pra
+ * burlar. Um ranking começa do zero quando as regras mudam; o passado não
+ * precisa ser apagado pra isso.
+ */
+const DFD_FORCA_ZERO = '2026-10-13 18:03:11';
+
 function dfdTabelas(PDO $pdo): void
 {
     static $feito = false;
@@ -96,6 +130,23 @@ function dfdTabelas(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('[draftfut-duelo] migração visto: ' . $e->getMessage());
+    }
+
+    /* O PRAZO (@see DFD_MINUTOS). Os duelos que já estavam montando quando
+       isto nasceu ganham cinco minutos A PARTIR DE AGORA, e não a partir de
+       quando entraram: matar retroativamente um duelo de cinco dias atrás
+       seria decidir, sem aviso, uma aposta que as duas pessoas acham que
+       ainda está de pé. Com o prazo daqui pra frente, o relógio cobra na
+       próxima vez que alguém abrir o jogo. */
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM draftfut_duelos LIKE 'monta_ate'")->fetch()) {
+            $pdo->exec('ALTER TABLE draftfut_duelos ADD COLUMN monta_ate DATETIME NULL');
+            $pdo->exec("UPDATE draftfut_duelos
+                           SET monta_ate = DATE_ADD(NOW(), INTERVAL " . DFD_MINUTOS . " MINUTE)
+                         WHERE status = 'montando' AND id_desafiado IS NOT NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('[draftfut-duelo] migração prazo: ' . $e->getMessage());
     }
     $feito = true;
 }
@@ -214,6 +265,114 @@ function dfdFinalizarLado(PDO $pdo, array $duelo, int $uid, string $nome, array 
                           quimica_{$lado} = ?, pronto_{$lado} = 1
                     WHERE id = ?")
         ->execute([$nome, json_encode($draft, JSON_UNESCAPED_UNICODE), $forca, $quim, (int)$duelo['id']]);
+}
+
+/**
+ * MARCA O PRAZO: o duelo fechou, os cinco minutos começam agora.
+ *
+ * Chamado nas duas portas de entrada — o código digitado e o link/revanche —,
+ * porque é o momento em que existe adversário. @see DFD_MINUTOS
+ */
+function dfdMarcarPrazo(PDO $pdo, int $dueloId): void
+{
+    try {
+        $pdo->prepare("UPDATE draftfut_duelos
+                          SET monta_ate = DATE_ADD(NOW(), INTERVAL " . DFD_MINUTOS . " MINUTE)
+                        WHERE id = ? AND monta_ate IS NULL")->execute([$dueloId]);
+    } catch (Throwable $e) {
+        error_log('[draftfut-duelo] marcar prazo: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Quantos segundos faltam pra fechar o time, ou null quando não há relógio
+ * correndo (duelo esperando adversário, já terminado, ou lado já pronto).
+ */
+function dfdSegundosRestantes(?array $duelo, ?string $meuLado = null): ?int
+{
+    if (!$duelo || ($duelo['status'] ?? '') !== 'montando') return null;
+    if (empty($duelo['monta_ate'])) return null;
+    if ($meuLado !== null && (int)($duelo['pronto_' . $meuLado] ?? 0) === 1) return null;
+    $falta = strtotime((string)$duelo['monta_ate']) - time();
+    return max(0, $falta);
+}
+
+/**
+ * COBRA O RELÓGIO. Devolve o duelo como ficou.
+ *
+ * É preguiçoso, como o resto desta casa: não existe cron: quem aplica o
+ * castigo é o próximo acesso — a página do jogo ou o endpoint `?estado`, que
+ * a tela de espera consulta sozinha a cada poucos segundos. Na prática, quem
+ * está olhando a contagem chegar a zero é quem dispara.
+ *
+ * Três desfechos, e o terceiro é o que evita punir os dois por um duelo que
+ * não aconteceu:
+ *   · um fechou o time, o outro não  -> W.O., e quem fechou leva as duas;
+ *   · os dois fecharam               -> não é caso de relógio, a partida roda;
+ *   · ninguém fechou                 -> o duelo some e cada um recebe a sua
+ *                                       aposta de volta. Não houve partida, e
+ *                                       cobrar de alguém seria cobrar pelo
+ *                                       que ninguém jogou.
+ */
+function dfdCobrarPrazo(PDO $pdo, ?array $duelo): ?array
+{
+    if (!$duelo || ($duelo['status'] ?? '') !== 'montando') return $duelo;
+    if (empty($duelo['monta_ate']) || empty($duelo['id_desafiado'])) return $duelo;
+    if (strtotime((string)$duelo['monta_ate']) > time()) return $duelo;
+
+    $cPronto = (int)$duelo['pronto_criador'] === 1;
+    $dPronto = (int)$duelo['pronto_desafiado'] === 1;
+    if ($cPronto && $dPronto) return $duelo;      // a partida roda sozinha
+
+    $id = (int)$duelo['id'];
+    $aposta = (int)$duelo['aposta'];
+
+    if (!$cPronto && !$dPronto) {
+        $pdo->beginTransaction();
+        try {
+            $up = $pdo->prepare("DELETE FROM draftfut_duelos WHERE id = ? AND status = 'montando'");
+            $up->execute([$id]);
+            if ($up->rowCount() !== 1) { $pdo->rollBack(); return $duelo; }
+            dfMoedasMexer($pdo, (int)$duelo['id_criador'], $aposta);
+            dfMoedasMexer($pdo, (int)$duelo['id_desafiado'], $aposta);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            error_log('[draftfut-duelo] prazo sem ninguém pronto: ' . $e->getMessage());
+            return $duelo;
+        }
+        return null;                               // o duelo deixou de existir
+    }
+
+    /* W.O.: o placar é o mesmo da desistência (3x0 pra quem fechou), porque é
+       a mesma coisa que aconteceu — um dos dois não entrou em campo. */
+    $vencedor = $cPronto ? (int)$duelo['id_criador'] : (int)$duelo['id_desafiado'];
+    $perdedor = $cPronto ? 'desafiado' : 'criador';
+    $gc = $cPronto ? 3 : 0;
+    $gf = $cPronto ? 0 : 3;
+
+    $pdo->beginTransaction();
+    try {
+        $up = $pdo->prepare("UPDATE draftfut_duelos
+                                SET status = 'concluido', gols_criador = ?, gols_desafiado = ?,
+                                    id_vencedor = ?, concluido_em = NOW(),
+                                    visto_criador = 0, visto_desafiado = 0
+                              WHERE id = ? AND status = 'montando'");
+        $up->execute([$gc, $gf, $vencedor, $id]);
+        if ($up->rowCount() !== 1) { $pdo->rollBack(); return $duelo; }
+        dfMoedasMexer($pdo, $vencedor, $aposta * 2);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('[draftfut-duelo] prazo W.O.: ' . $e->getMessage());
+        return $duelo;
+    }
+
+    $st = $pdo->prepare('SELECT * FROM draftfut_duelos WHERE id = ?');
+    $st->execute([$id]);
+    $novo = $st->fetch(PDO::FETCH_ASSOC) ?: $duelo;
+    $novo['_wo_prazo'] = $perdedor;               // pra tela saber o que contar
+    return $novo;
 }
 
 /**
@@ -521,7 +680,8 @@ function dfdEntrarNoConvite(PDO $pdo, array $convite, int $uid, bool $porLink = 
         $args = [$uid, (int)$convite['id']];
         if (!$porLink) $args[] = $uid;
         $up = $pdo->prepare("UPDATE draftfut_duelos
-                                SET id_desafiado = ?, status = 'montando', entrou_em = NOW()
+                                SET id_desafiado = ?, status = 'montando', entrou_em = NOW(),
+                                    monta_ate = DATE_ADD(NOW(), INTERVAL " . DFD_MINUTOS . " MINUTE)
                               WHERE id = ? AND id_desafiado IS NULL{$cond}");
         $up->execute($args);
         if ($up->rowCount() !== 1) { $pdo->rollBack(); return null; }
@@ -625,21 +785,31 @@ function dfdTopForca(PDO $pdo, int $limite = 5): array
 {
     dfdTabelas($pdo);
     $linhas = [];
+    $zero = DFD_FORCA_ZERO;
 
-    foreach ($pdo->query("SELECT t.nome, t.forca, t.quimica, t.formacao, t.id_usuario uid, 'bot' modo
-                            FROM draftfut_times t ORDER BY t.forca DESC LIMIT 40") as $r) {
-        $linhas[] = $r;
-    }
-    foreach ($pdo->query("SELECT nome_criador nome, forca_criador forca, quimica_criador quimica,
-                                 id_criador uid, 'duelo' modo
-                            FROM draftfut_duelos
-                           WHERE status = 'concluido' AND forca_criador IS NOT NULL
-                        ORDER BY forca_criador DESC LIMIT 40") as $r) { $linhas[] = $r + ['formacao' => '']; }
-    foreach ($pdo->query("SELECT nome_desafiado nome, forca_desafiado forca, quimica_desafiado quimica,
-                                 id_desafiado uid, 'duelo' modo
-                            FROM draftfut_duelos
-                           WHERE status = 'concluido' AND forca_desafiado IS NOT NULL
-                        ORDER BY forca_desafiado DESC LIMIT 40") as $r) { $linhas[] = $r + ['formacao' => '']; }
+    $st = $pdo->prepare("SELECT t.nome, t.forca, t.quimica, t.formacao, t.id_usuario uid, 'bot' modo
+                           FROM draftfut_times t
+                          WHERE t.criado_em >= ? ORDER BY t.forca DESC LIMIT 40");
+    $st->execute([$zero]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $linhas[] = $r;
+
+    $st = $pdo->prepare("SELECT nome_criador nome, forca_criador forca, quimica_criador quimica,
+                                id_criador uid, 'duelo' modo
+                           FROM draftfut_duelos
+                          WHERE status = 'concluido' AND forca_criador IS NOT NULL
+                            AND concluido_em >= ?
+                       ORDER BY forca_criador DESC LIMIT 40");
+    $st->execute([$zero]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $linhas[] = $r + ['formacao' => '']; }
+
+    $st = $pdo->prepare("SELECT nome_desafiado nome, forca_desafiado forca, quimica_desafiado quimica,
+                                id_desafiado uid, 'duelo' modo
+                           FROM draftfut_duelos
+                          WHERE status = 'concluido' AND forca_desafiado IS NOT NULL
+                            AND concluido_em >= ?
+                       ORDER BY forca_desafiado DESC LIMIT 40");
+    $st->execute([$zero]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $linhas[] = $r + ['formacao' => '']; }
 
     usort($linhas, fn($a, $b) => [(int)$b['forca'], (int)$b['quimica']] <=> [(int)$a['forca'], (int)$a['quimica']]);
     return array_slice($linhas, 0, $limite);

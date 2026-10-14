@@ -101,6 +101,37 @@ $formacoesNaMesa = draftFutFormacoesSorteadas((int)$_SESSION['draftfut_formacoes
 dfdTabelas($pdo);
 $duelo = dfdMeuDuelo($pdo, $user_id);
 
+/* ── O RELÓGIO COBRA AQUI, ANTES DE QUALQUER COISA ───────────────────
+   Cinco minutos pra montar (@see DFD_MINUTOS). Não há cron: quem aplica é o
+   próximo acesso — esta página ou o `?estado` que a tela de espera consulta
+   sozinha. Vem antes das ações de propósito: quem clicar em "time pronto"
+   com o prazo já estourado não deve escapar do W.O. por um segundo.
+   Devolve null quando o duelo foi desfeito por ninguém ter montado nada. */
+$avisoPrazo = '';
+/* `$tinhaDuelo` é o que separa "o duelo acabou agora" de "não havia duelo
+   nenhum" — as duas coisas chegam aqui como null, e sem esta linha quem
+   nunca entrou num duelo via o aviso de prazo estourado e perdia o draft
+   contra o bot junto, porque a sessão era limpa. Achado jogando, não lendo. */
+$tinhaDuelo = (bool)$duelo;
+$duelo = dfdCobrarPrazo($pdo, $duelo);
+if ($tinhaDuelo && $duelo === null) {
+    $avisoPrazo = 'O duelo acabou sem partida: os cinco minutos passaram e nenhum dos '
+                . 'dois fechou o time. As apostas voltaram pra cada um.';
+    $_SESSION['draftfut'] = null;
+} elseif (!empty($duelo['_wo_prazo'])) {
+    $meuLadoPrazo = dfdLado($duelo, $user_id);
+    $avisoPrazo = $duelo['_wo_prazo'] === $meuLadoPrazo
+        ? 'Os cinco minutos acabaram antes de você fechar o time — o duelo foi do adversário.'
+        : 'O adversário não fechou o time em cinco minutos. O duelo é seu.';
+    /* O duelo acabou: daqui pra frente ele é RESULTADO, não partida em
+       andamento. Deixá-lo em $duelo faria a tela pedir pra montar um time
+       pra um jogo que já tem placar. */
+    $duelo = null;
+    /* E o draft da sessão morre com ele, senão a próxima tela acha que ainda
+       há um time sendo montado neste duelo. */
+    $_SESSION['draftfut'] = null;
+}
+
 /* O duelo que acabou continua na tela de CADA UM dos dois até fechar. A
    marca é no banco, por lado (@see dfdResultadoPendente): guardá-la na sessão
    mostrava o placar só pra quem disparou a partida, e pro outro GM o duelo
@@ -177,6 +208,11 @@ if (isset($_GET['estado'])) {
         'euPronto'  => $euProntoE,
         'elePronto' => $eleProntoE,
         'eleNome'   => (string)($duelo['nome_' . $outroLadoE] ?: 'Adversário'),
+        /* O RELÓGIO VEM DO SERVIDOR, sempre. O contador da tela é só um
+           desenho: quem decide que o tempo acabou é esta resposta, e é por
+           isso que mexer no relógio do computador não ganha nada. */
+        'restam'    => dfdSegundosRestantes($duelo, $meuLadoE),
+        'restamEle' => dfdSegundosRestantes($duelo, $outroLadoE),
     ]);
 }
 
@@ -317,7 +353,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    linha afetada. Sem isso, os dois pagariam a aposta e um
                    ficaria de fora do duelo que pagou. */
                 $up = $pdo->prepare("UPDATE draftfut_duelos
-                                        SET id_desafiado = ?, status = 'montando', entrou_em = NOW()
+                                        SET id_desafiado = ?, status = 'montando', entrou_em = NOW(),
+                                            monta_ate = DATE_ADD(NOW(), INTERVAL " . DFD_MINUTOS . " MINUTE)
                                       WHERE id = ? AND id_desafiado IS NULL");
                 $up->execute([$user_id, (int)$alvo['id']]);
                 if ($up->rowCount() !== 1) throw new RuntimeException('duelo tomado');
@@ -439,6 +476,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            da mão que a pessoa recebeu. */
         if (!in_array($formacao, $formacoesNaMesa, true)) {
             $erro = 'Formação inválida.';
+        } elseif ($d && empty($d['resultado'])) {
+            /* COMEÇAR POR CIMA DE UM DRAFT EM ANDAMENTO cobrava outra entrada
+               e jogava fora as cartas já escolhidas — e dava pra chegar aqui
+               sem querer, por um botão de voltar ou um POST repetido. Quem
+               quer recomeçar larga o draft primeiro, no salão. */
+            $erro = 'Você já tem um draft em andamento. Continue ou largue ele antes de começar outro.';
         } elseif (!$duelo && dfMoedas($pdo, $user_id) < DF_ENTRADA) {
             $erro = 'Você precisa de ' . DF_ENTRADA . ' moedas pra entrar no draft.';
         } else {
@@ -666,12 +709,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: /games/games/draftfut.php' . ($msg ? '?m=' . urlencode($msg) : ($erro ? '?e=' . urlencode($erro) : '')));
+    /* ── O REDIRECT GUARDA A TELA EM QUE A PESSOA ESTAVA ─────────────
+       Todo clique do jogo termina aqui, e o destino era sempre a página sem
+       parâmetro. Isso não fazia diferença enquanto o draft guardado tomava a
+       tela sozinho; desde que ele só aparece em `?v=bot` (@see $noJogo),
+       cada carta escolhida mandaria a pessoa pro salão. Agora a vista volta
+       junto — menos no desistir, que é justamente o pedido de sair do jogo e
+       voltar pra tela inicial. */
+    $voltaVista = $acao === 'desistir' ? '' : $vista;
+    $qs = [];
+    if ($voltaVista !== '')  $qs['v'] = $voltaVista;
+    if ($msg)                $qs['m'] = $msg;
+    elseif ($erro)           $qs['e'] = $erro;
+    header('Location: /games/games/draftfut.php' . ($qs ? '?' . http_build_query($qs) : ''));
     exit;
 }
 
 $msg = $_GET['m'] ?? null;
 $erro = $_GET['e'] ?? null;
+/* O relógio tem a palavra final: o que ele decidiu é a notícia desta visita,
+   e não a mensagem que veio do clique anterior. @see dfdCobrarPrazo */
+if ($avisoPrazo !== '') { $msg = $avisoPrazo; $erro = null; }
 
 /** Os onze de campo estão todos preenchidos? É o que libera jogar. */
 function draftFutCampoCheio(array $d): bool
@@ -705,9 +763,25 @@ $moedas = dfMoedas($pdo, $user_id);
    por troca antes do apito. */
 $tudoCheio = $d && !empty($d['time'])
              && count(array_filter(array_slice($d['time'], 0, DFUT_TOTAL))) >= DFUT_TOTAL;
-$emDraft = $d && empty($d['resultado']) && !$tudoCheio;
-$pronto  = $d && $tudoCheio && empty($d['resultado']);
-$fim     = $d && !empty($d['resultado']);
+
+/* ── O DRAFT GUARDADO NÃO SEQUESTRA MAIS A PÁGINA ────────────────────
+   Pedido do Marcos (14/10/2026): "se eu entro na página fica aberto meu jogo
+   antigo, se clico voltar a tela inicial recomeça o jogo".
+
+   Era isso mesmo: bastava `$d` existir na sessão pra a tela ser o draft, em
+   qualquer endereço. Quem abria o jogo caía no meio de um draft de três dias
+   atrás, sem salão, sem ranking e sem botão de sair; e quem clicasse em
+   "Voltar" via a mesma tela de novo, porque voltar não apagava nada — o que
+   parecia que o jogo tinha recomeçado sozinho.
+
+   Agora o draft só toma a tela em `?v=bot` (ou dentro de um duelo, onde não
+   há pra onde ir). Fora dali é o salão, com um card no topo oferecendo
+   continuar de onde parou — ou largar, que também é uma saída que não
+   existia. @see draftfut_salao.php */
+$noJogo  = ($vista === 'bot') || (bool)$duelo;
+$emDraft = $d && empty($d['resultado']) && !$tudoCheio && $noJogo;
+$pronto  = $d && $tudoCheio && empty($d['resultado']) && $noJogo;
+$fim     = $d && !empty($d['resultado']) && $noJogo;
 $quim = $d ? draftFutQuimica($d['formacao'], $d['time']) : ['total' => 0, 'jogadores' => []];
 $aberta = $d['aberta'] ?? null;
 
@@ -769,6 +843,10 @@ a{color:inherit}
 
 /* ── O SALÃO, O MULTIPLAYER E O DUELO ────────────────────────────── */
 .salao-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* O card do draft que ficou pela metade, no topo do salão. */
+.retomar{border-color:rgba(255,255,255,.14)}
+.retomar-l{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.retomar-l form{margin:0}
 .salao-topo h2{margin:0}
 .salao-h3{margin:18px 0 6px;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.4px}
 
@@ -1222,6 +1300,9 @@ a{color:inherit}
 <?php if ($msg): ?><div class="aviso ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($erro): ?><div class="aviso err"><?= e($erro) ?></div><?php endif; ?>
 
+<?php /* O cronômetro do duelo, em qualquer tela de montagem. */ ?>
+<?php include __DIR__ . '/draftfut_relogio.php'; ?>
+
 <?php if ($convite): ?>
   <?php /* ── CONVITE DE REVANCHE ────────────────────────────────────
          Aparece antes de qualquer outra tela: é uma decisão esperando, e
@@ -1257,16 +1338,16 @@ a{color:inherit}
 
 <?php elseif (!$d && $duelo): ?>
   <?php /* ── DENTRO DE UM DUELO, SEM TIME MONTADO ────────────────
-         A tela do duelo diz onde ele está, e a escolha de esquema aparece
-         embaixo quando ainda dá pra montar. */ ?>
-  <?php include __DIR__ . '/draftfut_duelo_tela.php'; ?>
-  <?php /* DESISTIR TAMBÉM NO SAGUÃO: aqui é onde a pessoa está quando o
-           adversário entrou e ela ainda não começou a montar — e era
-           justamente onde o botão não aparecia. */ ?>
-  <?php include __DIR__ . '/draftfut_desistir.php'; ?>
+         A ESCOLHA DO ESQUEMA VEM PRIMEIRO. Ela estava embaixo do quadro do
+         duelo, e quem chegava pelo link caía numa tela de status com o jogo
+         escondido mais abaixo — "ao enviar o link e a pessoa clica já abre no
+         jogo, não precisar clicar em nada" (Marcos, 14/10/2026). Com cinco
+         minutos de relógio correndo, procurar onde se começa é tempo que não
+         existe mais. O quadro do duelo continua logo abaixo, pra quem quer
+         saber quem é o adversário e quanto está em jogo. */ ?>
   <?php if (!(int)$duelo['pronto_' . dfdLado($duelo, $user_id)]): ?>
     <div class="bloco">
-      <h2>Escolha a formação</h2>
+      <h2>Escolha a formação e comece</h2>
       <p class="sub">Depois de começar você não troca mais — e as cinco cartas de cada
          vaga dependem dela. Neste duelo a entrada já foi paga na aposta.</p>
       <div class="forms">
@@ -1283,9 +1364,16 @@ a{color:inherit}
       </div>
     </div>
   <?php endif; ?>
+  <?php include __DIR__ . '/draftfut_duelo_tela.php'; ?>
+  <?php /* DESISTIR TAMBÉM NO SAGUÃO: aqui é onde a pessoa está quando o
+           adversário entrou e ela ainda não começou a montar — e era
+           justamente onde o botão não aparecia. */ ?>
+  <?php include __DIR__ . '/draftfut_desistir.php'; ?>
 
-<?php elseif (!$d && $vista !== 'bot'): ?>
-  <?php /* ── O SALÃO: modos, ranking e confrontos ────────────────── */ ?>
+<?php elseif (!$noJogo): ?>
+  <?php /* ── O SALÃO: modos, ranking e confrontos ──────────────────
+         Também é aqui que cai quem tem um draft guardado e abriu o jogo pela
+         porta da frente: o salão mostra o card de continuar. @see $noJogo */ ?>
   <?php include __DIR__ . '/draftfut_salao.php'; ?>
 
 <?php elseif (!$d): ?>
