@@ -244,9 +244,25 @@ $vista = (string)($_GET['v'] ?? $_POST['v'] ?? '');
    F5 muito depois do duelo ter acabado. */
 $codDoLink = strtoupper(preg_replace('/[^A-Za-z0-9]/', '',
                         (string)($_GET['cod'] ?? '')));
-if ($codDoLink !== '' && !$duelo && !$dueloFim
+/* ── O RESULTADO VELHO NÃO BARRA MAIS O LINK NOVO ────────────────────
+   Esta condição exigia `!$dueloFim`, e o efeito aparece jogando: quem
+   terminou um duelo e não clicou em "fechar" fica com o placar pendurado na
+   tela — e, nesse estado, clicar no link de um duelo novo NÃO FAZIA NADA. A
+   aposta não saía, a pessoa caía no placar antigo sem explicação nenhuma, e
+   pra quem mandou o link parecia que ela tinha ignorado o convite. Achado
+   jogando cinco duelos seguidos no bench, não lendo o código.
+
+   Agora o link vence: o resultado pendente é marcado como visto (ele não some
+   do histórico, só sai da frente) e a entrada segue. Quem clica num convite
+   está dizendo o que quer fazer agora. */
+if ($codDoLink !== '' && !$duelo
         && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $alvo = dfdPorCodigo($pdo, $codDoLink);
+    if ($alvo && $dueloFim && $alvo['id_desafiado'] === null
+            && (int)$alvo['id_criador'] !== $user_id) {
+        dfdMarcarVisto($pdo, (int)$dueloFim['id'], dfdLado($dueloFim, $user_id));
+        $dueloFim = null;
+    }
 
     /* O LINK EXPLICA O QUE DEU ERRADO. Sem isto, quem clicava num link velho
        caía no salão com o código escrito no campo e nenhuma pista do motivo —
