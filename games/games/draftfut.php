@@ -78,6 +78,40 @@ function dfTabelas(PDO $pdo): void
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_dfp_casa (time_casa)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* ── O HASH QUE IMPEDE O MESMO TIME DE JOGAR DUAS VEZES ───────────
+       A trava de sessão não bastou (@see a ação 'jogar'), então a regra
+       passou a viver no banco: um índice ÚNICO por (usuário, hash do
+       elenco). O INSERT da segunda partida com o mesmo time simplesmente
+       não entra, e sem linha nova não há partida nem prêmio.
+
+       Os times que já existem ganham o hash calculado do time_json que está
+       lá — é o mesmo cálculo da ação 'jogar'. Onde o mesmo elenco aparece
+       repetido (as 25 partidas de hoje), só a PRIMEIRA linha fica com hash:
+       as cópias ficam com NULL, que o índice único do MySQL aceita quantas
+       vezes quiser. Assim nada é apagado — o histórico e o cartel continuam
+       lá — e mesmo assim o índice nasce sem conflito. */
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM draftfut_times LIKE 'time_hash'")->fetch()) {
+            $pdo->exec('ALTER TABLE draftfut_times ADD COLUMN time_hash CHAR(32) NULL');
+            $pdo->exec("UPDATE draftfut_times
+                           SET time_hash = MD5(CONCAT(id_usuario, '|', formacao, '|', time_json))
+                         WHERE time_hash IS NULL");
+            /* As repetidas perdem o hash (ficam NULL), e a mais antiga de
+               cada elenco guarda o dele. */
+            $pdo->exec('UPDATE draftfut_times t
+                          JOIN (SELECT id_usuario, time_hash, MIN(id) AS fica
+                                  FROM draftfut_times GROUP BY id_usuario, time_hash
+                                HAVING COUNT(*) > 1) d
+                            ON d.id_usuario = t.id_usuario AND d.time_hash = t.time_hash
+                           SET t.time_hash = NULL
+                         WHERE t.id > d.fica');
+            $pdo->exec('ALTER TABLE draftfut_times
+                        ADD UNIQUE KEY uk_df_time (id_usuario, time_hash)');
+        }
+    } catch (PDOException $e) {
+        error_log('[draftfut] migração time_hash: ' . $e->getMessage());
+    }
 }
 dfTabelas($pdo);
 
@@ -622,14 +656,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $time = $d['time'];
         $forca = draftFutForcaDoTime($formacao, $time);
         $quim  = draftFutQuimica($formacao, $time)['total'];
+        $timeJson = json_encode($time, JSON_UNESCAPED_UNICODE);
 
+        /* ── UM TIME JOGA UMA VEZ. A TRANCA É O BANCO ────────────────
+           Ontem a trava foi `empty($d['resultado'])`, que vive na SESSÃO — e
+           hoje o Kleber estava rejogando assim mesmo: 25 partidas em três
+           minutos, o mesmo elenco nas 25 (o time_json tem hash idêntico),
+           150 moedas por vitória em cada. Não consegui reproduzir pelo
+           caminho normal, e é exatamente por isso que a trava de sessão não
+           basta: ela depende de um estado que mora fora do banco e que eu
+           não controlo — basta a sessão não chegar inteira do outro lado pra
+           a tranca sumir.
+
+           Agora a pergunta é feita a quem sempre sabe a resposta: o banco já
+           viu este time? O hash do elenco é gravado junto, com índice único
+           por (usuário, hash). Se ele já jogou, o INSERT falha e a partida
+           não acontece — não importa por onde o clique veio. */
         /* O NOME VEM DA FRANQUIA, não de um campo digitado. @see dfdNomeDoTime */
         $nome = $nomeDoTime;
-        $pdo->prepare('INSERT INTO draftfut_times (id_usuario, nome, formacao, time_json, forca, quimica)
-                       VALUES (?,?,?,?,?,?)')
-            ->execute([$user_id, mb_substr($nome, 0, 60), $formacao,
-                       json_encode($time, JSON_UNESCAPED_UNICODE), $forca, $quim]);
-        $meuId = (int)$pdo->lastInsertId();
+        $timeHash = md5($user_id . '|' . $formacao . '|' . $timeJson);
+        $meuId = 0;
+        try {
+            $pdo->prepare('INSERT INTO draftfut_times (id_usuario, nome, formacao, time_json, forca, quimica, time_hash)
+                           VALUES (?,?,?,?,?,?,?)')
+                ->execute([$user_id, mb_substr($nome, 0, 60), $formacao,
+                           $timeJson, $forca, $quim, $timeHash]);
+            $meuId = (int)$pdo->lastInsertId();
+        } catch (PDOException $e) {
+            /* 23000 = o índice único barrou: este time já entrou em campo. */
+            if ($e->getCode() !== '23000') throw $e;
+            error_log('[draftfut] time repetido barrado (user ' . $user_id . ')');
+            $erro = 'Esse time já jogou. Monte outro draft pra jogar de novo.';
+            /* A tela precisa saber: sem isto ela segue oferecendo o botão de
+               jogar, e o próximo clique dá o mesmo erro. */
+            $d['usado'] = true;
+        }
+    }
+
+    /* A partida só acontece com o time recém-gravado. @see a tranca acima */
+    if ($acao === 'jogar' && !empty($meuId)) {
 
         /* O ADVERSÁRIO É SEMPRE A MÁQUINA, e um time novo a cada partida.
            Havia um modo que sorteava o time salvo de outro GM: ele mexia no
@@ -1503,15 +1568,31 @@ a{color:inherit}
 
 <?php elseif ($pronto): ?>
   <div class="bloco">
-    <h2>Time pronto</h2>
-    <p class="sub">Confere o time e manda jogar.</p>
+    <h2><?= !empty($d['usado']) ? 'Esse time já jogou' : 'Time pronto' ?></h2>
+    <p class="sub"><?= !empty($d['usado'])
+        ? 'Cada elenco entra em campo uma vez. Monte outro draft pra jogar de novo.'
+        : 'Confere o time e manda jogar.' ?></p>
     <div class="nums">
       <div class="num"><b><?= draftFutForcaDoTime($d['formacao'], $d['time']) ?></b><small>Força</small></div>
       <div class="num"><b><?= $quim['total'] ?><small style="opacity:.5">/33</small></b><small>Química</small></div>
       <div class="num"><b><?= e($d['formacao']) ?></b><small>Formação</small></div>
       <div class="num" style="flex:1 1 180px"><b style="font-size:15px"><?= e($nomeDoTime) ?></b><small>Seu time</small></div>
     </div>
-    <?php if (!empty($d['duelo'])): ?>
+    <?php if (!empty($d['usado'])): ?>
+      <?php /* O TIME JÁ ENTROU EM CAMPO (o banco barrou a repetição, @see a
+               ação 'jogar'). O botão de jogar some: deixá-lo aí só renderia
+               o mesmo erro a cada clique. */ ?>
+      <form method="POST" class="manda-jogar">
+        <input type="hidden" name="acao" value="novo">
+        <input type="hidden" name="v" value="bot">
+        <button class="btn pri grande" type="submit">
+          <i class="bi bi-arrow-repeat"></i> Montar outro draft</button>
+      </form>
+      <p class="sub manda-nota">
+        Cada elenco joga uma partida. A entrada do draft novo custa
+        <?= DF_ENTRADA ?> moedas, como sempre.</p>
+
+    <?php elseif (!empty($d['duelo'])): ?>
       <?php /* NO DUELO NÃO SE ESCOLHE ADVERSÁRIO: ele já está do outro lado.
                Fechar aqui guarda o time e espera — a partida sai sozinha
                quando o segundo terminar. */ ?>
