@@ -22,8 +22,19 @@ $meuLado    = $souCriador ? 'criador' : 'desafiado';
 $outroLado  = $souCriador ? 'desafiado' : 'criador';
 $euPronto   = (int)$dl['pronto_' . $meuLado] === 1;
 $elePronto  = (int)$dl['pronto_' . $outroLado] === 1;
-$meuNome    = (string)($dl['nome_' . $meuLado] ?: 'Seu time');
-$eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
+/* ── O ADVERSÁRIO TEM NOME DESDE O COMEÇO ────────────────────────────
+   `nome_criador` e `nome_desafiado` só são gravados quando cada um FECHA o
+   time (@see dfdFinalizarLado), então a tela de espera dizia "Adversário"
+   justamente na hora em que a pessoa quer saber contra quem está jogando —
+   "no draft coloca o nome do time do adversário" (Marcos, 14/10/2026).
+   Agora, enquanto o nome gravado não existe, ele vem da franquia do GM, que
+   é a mesma fonte que o duelo usa no fim. */
+$meuNome    = (string)($dl['nome_' . $meuLado] ?: dfdNomeDoTime($pdo, $user_id));
+$eleId      = (int)($dl['id_' . $outroLado] ?? 0);
+$eleNome    = (string)($dl['nome_' . $outroLado] ?: '');
+if ($eleNome === '') {
+    $eleNome = $eleId > 0 ? dfdNomeDoTime($pdo, $eleId) : 'Adversário';
+}
 ?>
 
 <?php if ($dl['status'] === 'concluido'): ?>
@@ -99,7 +110,7 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
       $draftFora = dfdLerDraft($dl, 'desafiado');
       $r = [
           'partida' => $p,
-          'nome'    => (string)($dl['nome_criador'] ?: 'Criador'),
+          'nome'    => (string)($dl['nome_criador'] ?: dfdNomeDoTime($pdo, (int)$dl['id_criador'])),
           'forca'   => (int)$dl['forca_criador'],
           'quimica' => (int)$dl['quimica_criador'],
           'modo'    => 'pvp',
@@ -113,7 +124,7 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
           'formacao' => (string)($draftCasa['formacao'] ?? ''),
           'time'     => $draftCasa['time'] ?? null,
           'premio'  => $venci ? (int)$dl['aposta'] * 2 : 0,
-          'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: 'Desafiado'),
+          'adv'     => ['nome' => (string)($dl['nome_desafiado'] ?: dfdNomeDoTime($pdo, (int)$dl['id_desafiado'])),
                         'forca' => (int)$dl['forca_desafiado'],
                         'escudo' => dfdEscudoDoTime($pdo, (int)$dl['id_desafiado']),
                         'formacao' => (string)($draftFora['formacao'] ?? ''),

@@ -50,3 +50,7 @@ bancos_local_test/*.sql.gz
 
 # Catálogo do Lendas da Quadra: gerado sozinho pelo servidor (lendasCatalogo()).
 games/data/lendas_catalogo.php
+
+# O baralho do FBA Draft, montado em disco pra nao refazer 5.501 cartas
+# a cada clique. Nasce sozinho e se invalida pela assinatura das fontes.
+games/data/cache/

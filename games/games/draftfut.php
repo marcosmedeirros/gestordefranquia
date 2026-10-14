@@ -961,6 +961,28 @@ a{color:inherit}
 
 /* Formações */
 .forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+
+/* ── O BOTÃO QUE MANDA JOGAR ─────────────────────────────────────────
+   Ele fechava o draft inteiro encostado na esquerda, do mesmo tamanho dos
+   outros, e era o único botão que importa naquela tela. Agora é grande e
+   fica no meio — "centralize, pra ficar mais visível" (Marcos, 14/10/2026). */
+/* ── ENQUANTO A PÁGINA VEM ───────────────────────────────────────────
+   A vaga clicada acende e pulsa; o resto do campo para de aceitar clique,
+   pra ninguém abrir duas vagas em cima da outra. Dura o que durar a volta
+   do servidor — e é o que faz o clique parecer instantâneo mesmo quando a
+   resposta leva meio segundo. */
+.dfut-indo{cursor:progress}
+.dfut-indo .slot{pointer-events:none}
+.slot.abrindo{outline:2px solid var(--amarelo);outline-offset:2px;border-radius:9px;
+  animation:slotIndo .9s ease-in-out infinite}
+@keyframes slotIndo{0%,100%{opacity:1}50%{opacity:.45}}
+.dfut-indo .carta-btn{pointer-events:none;opacity:.55}
+.dfut-indo .carta-btn.abrindo{opacity:1}
+@media (prefers-reduced-motion:reduce){.slot.abrindo{animation:none}}
+
+.manda-jogar{display:flex;justify-content:center;margin:18px 0 0}
+.btn.grande{padding:14px 30px;font-size:15.5px;font-weight:800;border-radius:13px}
+.manda-nota{margin:10px 0 0;font-size:12px;text-align:center}
 .form-card{background:var(--panel2);border:1px solid var(--borda);border-radius:12px;padding:14px;
   text-align:center;cursor:pointer;font:inherit;color:var(--txt)}
 .form-card:hover{border-color:var(--vermelho)}
@@ -970,8 +992,21 @@ a{color:inherit}
 /* ── A CARTA ──────────────────────────────────────────────────────────
    Um desenho só, dois tamanhos: a grande na escolha, a `dfc-mini` no
    campinho. O desenho mora em games/games/draftfut_carta.php. */
-.cartas{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:11px}
-@media (min-width:700px){.cartas{grid-template-columns:repeat(5,1fr);gap:14px}}
+/* ── AS CINCO CARTAS, CENTRADAS ──────────────────────────────────────
+   Era `auto-fill` com colunas de 1fr: numa tela larga as cinco esticavam
+   presas à esquerda, e no celular a última linha ficava com duas cartas
+   encostadas na borda. Agora cada carta tem largura própria e o flex
+   centraliza o conjunto — com duas, três ou cinco, elas ficam no meio.
+   Pedido do Marcos (14/10/2026): "centralize as cartas pra elas ficarem no
+   meio, veja como vai ficar no mobile". */
+.cartas{display:flex;flex-wrap:wrap;justify-content:center;gap:11px}
+.cartas > form{flex:0 0 124px;max-width:124px}
+@media (min-width:700px){
+  .cartas{gap:14px}
+  .cartas > form{flex:0 0 150px;max-width:150px}
+}
+/* Em telas bem estreitas cabem duas por linha sem espremer a carta. */
+@media (max-width:400px){.cartas{gap:9px}.cartas > form{flex:0 0 calc(50% - 5px);max-width:calc(50% - 5px)}}
 
 .carta-btn{display:block;padding:0;border:0;background:none;font:inherit;color:inherit;
   cursor:pointer;border-radius:13px;transition:transform .16s}
@@ -1480,12 +1515,12 @@ a{color:inherit}
       <?php /* NO DUELO NÃO SE ESCOLHE ADVERSÁRIO: ele já está do outro lado.
                Fechar aqui guarda o time e espera — a partida sai sozinha
                quando o segundo terminar. */ ?>
-      <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <form method="POST" class="manda-jogar">
         <input type="hidden" name="acao" value="duelo_jogar">
-        <button class="btn pri" type="submit">
+        <button class="btn pri grande" type="submit">
           <i class="bi bi-check2-circle"></i> Time pronto pro duelo</button>
       </form>
-      <p class="sub" style="margin:10px 0 0;font-size:12px">
+      <p class="sub manda-nota">
         Depois disso não dá pra mexer no time. A partida roda quando o adversário
         terminar o dele.</p>
     <?php else: ?>
@@ -1496,12 +1531,12 @@ a{color:inherit}
                time aleatorio". Com o duelo de verdade no multiplayer, jogar
                contra o time parado de alguém não era nem uma coisa nem
                outra. */ ?>
-      <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <form method="POST" class="manda-jogar">
         <input type="hidden" name="acao" value="jogar">
-        <button class="btn pri" type="submit">
+        <button class="btn pri grande" type="submit">
           <i class="bi bi-cpu"></i> Jogar contra o bot</button>
       </form>
-      <p class="sub" style="margin:10px 0 0;font-size:12px">
+      <p class="sub manda-nota">
         O bot monta um time aleatório na sua faixa de força. Pra jogar contra um GM
         de verdade, use o <a href="?v=multi">multiplayer</a>.</p>
     <?php endif; ?>
@@ -1527,7 +1562,19 @@ a{color:inherit}
   const mesa  = document.querySelector('.cartas-bloco');   // o pacote aberto, se houver
   let sel = null;
 
-  function post(campos){
+  /* ── O CLIQUE PRECISA RESPONDER NA HORA ──────────────────────────
+     Abrir uma vaga é um POST seguido do GET do redirect: duas viagens até o
+     servidor, e até a segunda chegar a tela ficava exatamente como estava —
+     "às vezes tá dando umas travadas no abrir o pacote" (Marcos,
+     14/10/2026). Metade disso era servidor (o baralho agora vem de cache);
+     a outra metade era a tela não dizer que ouviu o clique. Agora a vaga
+     acende e o campo para de aceitar cliques enquanto a página vem. */
+  let indo = false;
+  function post(campos, alvo){
+    if (indo) return;
+    indo = true;
+    document.body.classList.add('dfut-indo');
+    if (alvo) alvo.classList.add('abrindo');
     const f = document.createElement('form');
     f.method = 'POST';
     for (const [k,v] of Object.entries(campos)) {
@@ -1546,7 +1593,7 @@ a{color:inherit}
     /* TROCA SÓ ENTRE DOIS JÁ ESCOLHIDOS. Com um selecionado, clicar numa
        vaga vazia não arrasta ninguém pra lá — abre a vaga, que é o que a
        pessoa quis dizer ao clicar num "+". */
-    if (sel !== null && tem) { post({acao:'trocar', a:sel, b:vaga}); return; }
+    if (sel !== null && tem) { post({acao:'trocar', a:sel, b:vaga}, s); return; }
     if (!tem) {
       /* COM PACOTE NA MESA, CLICAR NUMA VAGA VAZIA NÃO ABRE NADA: leva os
          olhos de volta pras cinco cartas. O servidor já recusa (@see a ação
@@ -1557,12 +1604,24 @@ a{color:inherit}
         mesa.classList.remove('pisca'); void mesa.offsetWidth; mesa.classList.add('pisca');
         return;
       }
-      post({acao:'abrir', vaga}); return;
+      post({acao:'abrir', vaga}, s); return;
     }
 
     document.querySelectorAll('.slot.sel').forEach(o => o.classList.remove('sel'));
     s.classList.add('sel'); sel = vaga;
   }));
+})();
+
+/* A CARTA ESCOLHIDA TAMBÉM RESPONDE NA HORA: ela acende, as outras quatro
+   apagam e nenhuma aceita um segundo clique enquanto a página vem. Fica
+   fora do bloco do campo porque vale mesmo quando não há campo na tela. */
+(function(){
+  document.querySelectorAll('.cartas .carta-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.body.classList.add('dfut-indo');
+      b.classList.add('abrindo');
+    });
+  });
 })();
 </script>
 <?php /* ── O POPUP DO JOGO, NUNCA O DO NAVEGADOR ──────────────────────

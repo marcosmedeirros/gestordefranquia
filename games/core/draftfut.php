@@ -293,10 +293,50 @@ const DFUT_COBRE = [
  * É CARO E VALE A PENA CACHEAR: são 321 arquivos de elenco, e o draft pede
  * carta dezenas de vezes numa sessão. Monta uma vez por request e guarda.
  */
+/**
+ * ── O BARALHO FICA GUARDADO EM DISCO ─────────────────────────────────
+ *
+ * Montar as 5.501 cartas custa ~115 ms: são 321 arquivos de elenco lidos,
+ * cada jogador convertido em carta, com transferência, foto e OVR ajustado.
+ * O `static` já evitava repetir isso DENTRO de um request — só que cada
+ * clique no draft são DOIS requests (o POST e o GET do redirect), e o
+ * baralho nascia de novo nos dois. Daí as "travadas no abrir o pacote"
+ * (Marcos, 14/10/2026): um quarto de segundo de PHP antes de qualquer coisa
+ * aparecer, mais a viagem até a Hostinger.
+ *
+ * Agora o baralho pronto é serializado num arquivo e lido de volta em ~10 ms.
+ * A CHAVE É A ASSINATURA DAS FONTES: se um elenco, o catálogo de clubes, a
+ * tabela de transferências, as fotos ou este arquivo mudarem, o nome do
+ * cache muda junto e o baralho é remontado — não existe cache velho servindo
+ * carta errada. Sem permissão de escrita, o jogo segue como antes, só mais
+ * devagar; cache é otimização, não dependência.
+ */
+function draftFutBaralhoAssinatura(): string
+{
+    $partes = [
+        __DIR__ . '/draftfut.php',
+        __DIR__ . '/draftfut_cartas.php',
+        __DIR__ . '/copero_clubes.php',
+        __DIR__ . '/fut_elencos.php',
+        __DIR__ . '/../data/draftfut_transferencias.php',
+        __DIR__ . '/../data/draftfut_fotos_locais.php',
+        __DIR__ . '/../data/elencos',   // o diretório: muda ao entrar ou sair elenco
+    ];
+    $sel = '';
+    foreach ($partes as $p) $sel .= (@filemtime($p) ?: 0) . '|' . (@filesize($p) ?: 0) . ';';
+    return substr(md5($sel), 0, 12);
+}
+
 function draftFutBaralho(): array
 {
     static $cartas = null;
     if ($cartas !== null) return $cartas;
+
+    $arq = __DIR__ . '/../data/cache/baralho_' . draftFutBaralhoAssinatura() . '.ser';
+    if (is_file($arq)) {
+        $lido = @unserialize((string)@file_get_contents($arq));
+        if (is_array($lido) && $lido) { $cartas = $lido; return $cartas; }
+    }
 
     /* SÓ ELENCO REAL ENTRA NO BARALHO, e isso não é preciosismo.
        `futElencoDoClube` cai num elenco GERADO quando o clube não tem lista
@@ -375,6 +415,26 @@ function draftFutBaralho(): array
                             ?: (string)($locais[$nome . '|' . $nm] ?? $locais[$clube . '|' . $nm] ?? ''),
             ];
         }
+    }
+
+    /* GRAVA PRO PRÓXIMO REQUEST. Escreve num temporário e renomeia: dois
+       acessos ao mesmo tempo não deixam ninguém lendo meio arquivo. Falhou
+       (pasta sem permissão, disco cheio), segue a vida sem cache. */
+    try {
+        $dir = __DIR__ . '/../data/cache';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        if (is_dir($dir) && is_writable($dir)) {
+            /* O cache velho sai junto: a assinatura muda a cada mexida nos
+               elencos, e sem isto a pasta juntaria um baralho de 3 MB por
+               versão. */
+            foreach (glob($dir . '/baralho_*.ser') ?: [] as $antigo) @unlink($antigo);
+            $tmp = $arq . '.' . getmypid() . '.tmp';
+            if (@file_put_contents($tmp, serialize($cartas)) !== false) {
+                if (!@rename($tmp, $arq)) @unlink($tmp);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[draftfut] cache do baralho: ' . $e->getMessage());
     }
     return $cartas;
 }

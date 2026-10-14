@@ -79,7 +79,17 @@ if (!isset($r, $p) || empty($p['lances'])) return;
             <input type="hidden" name="v" value="bot">
             <button class="btn pri" type="submit"><i class="bi bi-arrow-repeat"></i> Novo draft</button></form>
         <?php endif; ?>
-        <form method="POST" style="margin:0"><input type="hidden" name="acao" value="novo">
+        <?php /* ── VOLTAR, NO DUELO, É FECHAR O RESULTADO ───────────────
+             O botão mandava `novo` nos dois modos, e `novo` só limpa o draft
+             da SESSÃO. No duelo o resultado mora no banco e continua
+             pendente até alguém marcá-lo como visto: a tela voltava, achava
+             o duelo terminado de novo e rodava a narração outra vez — "o
+             voltar a tela inicial está simulando o jogo dnv" (Marcos,
+             14/10/2026). Então aqui o botão é o mesmo `duelo_fechar` do
+             quadro do placar; contra o bot, onde o estado é a sessão, `novo`
+             continua certo. */ ?>
+        <form method="POST" style="margin:0">
+          <input type="hidden" name="acao" value="<?= $r['modo'] === 'pvp' ? 'duelo_fechar' : 'novo' ?>">
           <button class="btn" type="submit"><i class="bi bi-house"></i> Voltar pra tela inicial</button></form>
       </div>
     </div>
