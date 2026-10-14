@@ -4375,6 +4375,14 @@ if ($method === 'POST') {
 
             $pdo->beginTransaction();
             try {
+                /* ÚLTIMA HORA EM QUE SE SABE DE QUEM SÃO OS TÍTULOS DAQUI.
+                   Depois que a cadeira ficar vaga, o Hall não teria como
+                   distinguir o que era dele do que vai ser do próximo — e foi
+                   assim que o João herdou os quinze do Renan em 14/10/2026.
+                   @see hallCarimbarCadeira */
+                require_once __DIR__ . '/../backend/hall_gm.php';
+                hallCarimbarCadeira($pdo, $teamId, (int)$time['user_id'], (string)($time['gm'] ?? ''));
+
                 $pdo->prepare("UPDATE teams SET user_id = NULL WHERE id = ?")->execute([$teamId]);
                 $pdo->prepare("INSERT INTO team_gm_historico (team_id, league, user_id_anterior, user_id_novo, motivo, admin_id)
                                VALUES (?,?,?,NULL,?,?)")

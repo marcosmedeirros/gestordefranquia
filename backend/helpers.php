@@ -1427,6 +1427,59 @@ function ensureHallOfFameTable(PDO $pdo): void
     }
 }
 
+/**
+ * DUAS GRAFIAS DA MESMA PESSOA? — só pros registros antigos do Hall.
+ *
+ * Nasceu do bug de 14/10/2026: o João subiu da RISE pra NEXT, sentou na
+ * cadeira que era do Renan, e no Hall da Fama ficou com os 15 títulos dele.
+ * O Renan, que tinha ido pra outra cadeira, apareceu com os 6 do Daniel.
+ * A causa está logo abaixo — o registro antigo guarda o TIME, e o nome vinha
+ * de quem está sentado ali hoje.
+ *
+ * Com `hof.user_id` preenchido nada disso acontece: a pessoa é a pessoa. Mas
+ * 45 registros antigos não têm a coluna, e neles a única pista é o nome
+ * gravado. Esta função decide se o nome gravado e o do dono atual da cadeira
+ * são a mesma pessoa de nome encurtado — "Caio Esteves Motta" virou "Caio
+ * Motta" no cadastro, "Pedro Brandli Pereira Kanada Cardoso" virou "Pedro
+ * Kanada" — ou duas pessoas diferentes, que é o caso que precisa congelar.
+ *
+ * A regra: o PRIMEIRO NOME tem que bater, e mais um pedaço do nome tem que
+ * aparecer nos dois. Só o primeiro nome basta quando um dos dois é um nome
+ * solto ("Caio"), porque aí não há outro pedaço pra comparar. Partículas não
+ * contam — "da", "dos", "de" aparecem em meio mundo.
+ *
+ * Errar pra qual lado: dizendo "não é a mesma pessoa" sem ser verdade, o Hall
+ * mostra o nome antigo de alguém. Dizendo "é" sem ser, ele dá os títulos de
+ * um GM a outro — que é o bug. Na dúvida, não é.
+ */
+function hofMesmaPessoa(?string $gravado, ?string $atual): bool
+{
+    $tokens = static function (?string $n): array {
+        $n = mb_strtolower(trim((string)$n), 'UTF-8');
+        /* strtr e não iconv//TRANSLIT: neste ambiente o TRANSLIT separa o
+           acento da letra e "josé" vira "jose'", que não casa com nada. */
+        $n = strtr($n, [
+            'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','é'=>'e','ê'=>'e','è'=>'e',
+            'í'=>'i','ì'=>'i','î'=>'i','ó'=>'o','ô'=>'o','õ'=>'o','ò'=>'o','ö'=>'o',
+            'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','ç'=>'c','ñ'=>'n',
+        ]);
+        $fora = ['de','da','do','dos','das','e','di','du','del','la','van','von'];
+        $out = [];
+        foreach (preg_split('/[^a-z0-9]+/', $n, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $t) {
+            if (mb_strlen($t) < 2 || in_array($t, $fora, true)) continue;
+            $out[] = $t;
+        }
+        return $out;
+    };
+
+    $a = $tokens($gravado);
+    $b = $tokens($atual);
+    if (!$a || !$b) return false;
+    if ($a[0] !== $b[0]) return false;
+    if (count($a) === 1 || count($b) === 1) return true;
+    return (bool)array_intersect(array_slice($a, 1), array_slice($b, 1));
+}
+
 // Agrupa os registros do Hall da Fama por GM (por user_id quando disponível,
 // caindo pro nome do GM como fallback nos registros congelados/legados sem
 // vínculo de conta). Cada grupo junta os times que a pessoa teve e soma os
@@ -1435,13 +1488,25 @@ function ensureHallOfFameTable(PDO $pdo): void
 // já que um título na Elite deve pesar mais que um na Rookie.
 function getHallOfFameGrouped(PDO $pdo): array
 {
+    /* ── O TÍTULO É DA PESSOA, NÃO DA CADEIRA ────────────────────────
+       Esta consulta tinha um join só — users POR teams.user_id — e era ele o
+       bug de 14/10/2026: o nome mostrado era o de quem está sentado HOJE na
+       cadeira do registro. Quem subisse de liga e assumisse o time de outro
+       GM herdava os títulos dele na tela.
+
+       Agora são dois caminhos até a pessoa: `uh`, pelo hof.user_id, que é a
+       resposta certa quando existe; e `ud`, o dono atual da cadeira, que
+       continua aqui só pelos registros antigos sem user_id — e mesmo neles
+       só vale se for a mesma pessoa (@see hofMesmaPessoa). */
     $rows = $pdo->query("
         SELECT hof.id, hof.is_active, hof.league, hof.team_id, hof.user_id AS stored_user_id,
                hof.team_name, hof.gm_name, hof.titles,
-               t.city AS team_city, t.name AS team_name_live, u.name AS gm_name_live
+               t.city AS team_city, t.name AS team_name_live, t.user_id AS team_owner_id,
+               ud.name AS gm_name_dono, uh.name AS gm_name_hof
         FROM hall_of_fame hof
         LEFT JOIN teams t ON hof.team_id = t.id
-        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN users ud ON ud.id = t.user_id
+        LEFT JOIN users uh ON uh.id = hof.user_id
         WHERE hof.titles > 0
         ORDER BY hof.id
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -1449,18 +1514,36 @@ function getHallOfFameGrouped(PDO $pdo): array
     $groups = [];
     foreach ($rows as $row) {
         $isActive = (int)($row['is_active'] ?? 0) === 1;
-        $teamName = $isActive
+        $userId = $row['stored_user_id'] !== null ? (int)$row['stored_user_id'] : null;
+
+        /* A CADEIRA AINDA É DESTA PESSOA? É o que decide se o registro pode
+           usar o nome que está no cadastro agora ou se fica com o que foi
+           gravado. Com user_id, a conta é exata. Sem ele, sobra o nome. */
+        $daPessoa = $userId !== null
+            ? ($row['team_owner_id'] !== null && (int)$row['team_owner_id'] === $userId)
+            : hofMesmaPessoa($row['gm_name'] ?? '', $row['gm_name_dono'] ?? '');
+
+        /* O nome do time ao vivo só entra se a cadeira ainda for dela. Senão
+           vale o que ficou gravado: foi com aquele nome que ela ganhou. */
+        $teamName = ($isActive && $daPessoa)
             ? trim(($row['team_city'] ?? '') . ' ' . ($row['team_name_live'] ?? ''))
             : (string)($row['team_name'] ?? '');
         if ($teamName === '') {
             $teamName = (string)($row['team_name'] ?? '');
         }
-        $gmName = $isActive ? ($row['gm_name_live'] ?? '') : ($row['gm_name'] ?? '');
-        if (!$gmName) {
-            $gmName = $row['gm_name'] ?? '';
+
+        /* O nome do GM: o do cadastro quando se sabe QUEM é (por user_id, ou
+           por ser a mesma pessoa da cadeira); o gravado no resto. */
+        $gmName = '';
+        if ($userId !== null && !empty($row['gm_name_hof'])) {
+            $gmName = (string)$row['gm_name_hof'];
+        } elseif ($isActive && $daPessoa && !empty($row['gm_name_dono'])) {
+            $gmName = (string)$row['gm_name_dono'];
+        }
+        if ($gmName === '') {
+            $gmName = (string)($row['gm_name'] ?? '');
         }
 
-        $userId = $row['stored_user_id'] !== null ? (int)$row['stored_user_id'] : null;
         $groupKey = $userId ? ('u' . $userId) : ('n' . mb_strtolower(trim($gmName)));
         if ($groupKey === 'n') {
             $groupKey = 'row' . $row['id']; // sem nome nem user_id: nao agrupa com nada

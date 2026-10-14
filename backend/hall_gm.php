@@ -41,6 +41,49 @@ function hallGmMesmoNome(?string $a, ?string $b): bool
 }
 
 /**
+ * CARIMBA O DONO NAS LINHAS DA CADEIRA ANTES DE ELA TROCAR DE MÃO.
+ *
+ * O buraco que faltava, achado em 14/10/2026: hallSeguirGm cuida de QUEM SOBE
+ * — as linhas dele vão junto pra cadeira nova. Mas ninguém cuidava de quem
+ * JÁ TINHA SAÍDO da cadeira de destino. As linhas dele ficavam lá, com
+ * `team_id` daquele time e `user_id` vazio, e o Hall mostrava o nome de quem
+ * estivesse sentado ali no momento. Foi o que aconteceu com o João, que subiu
+ * da RISE pra NEXT e apareceu com os quinze títulos do Renan.
+ *
+ * Então, no instante em que a cadeira fica vaga — que é a última hora em que
+ * se sabe de quem eram aqueles títulos —, as linhas dela são carimbadas com o
+ * user_id do dono que está saindo. Depois disso nenhuma troca de cadeira mexe
+ * na autoria: o Hall pergunta pelo user_id, não por quem está sentado.
+ *
+ * SÓ CARIMBA O QUE É DELE: a cadeira pode ter tido três donos, e as linhas
+ * dos outros continuam sem dono — o nome gravado nelas é que vale (@see
+ * hofMesmaPessoa, em helpers.php). Carimbar tudo com o último dono seria
+ * repetir o bug, só que gravado no banco.
+ *
+ * @return int quantas linhas ganharam dono
+ */
+function hallCarimbarCadeira(PDO $pdo, int $teamId, int $userId, string $gmNome): int
+{
+    if ($teamId <= 0 || $userId <= 0) return 0;
+    $n = 0;
+    try {
+        ensureHallOfFameTable($pdo);
+        $st = $pdo->prepare('SELECT id, gm_name FROM hall_of_fame
+                              WHERE team_id = ? AND (user_id IS NULL OR user_id = 0)');
+        $st->execute([$teamId]);
+        $up = $pdo->prepare('UPDATE hall_of_fame SET user_id = ? WHERE id = ?');
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            if (!hallGmMesmoNome($l['gm_name'] ?? '', $gmNome)) continue;
+            $up->execute([$userId, (int)$l['id']]);
+            $n++;
+        }
+    } catch (Throwable $e) {
+        error_log('[hall-gm] carimbar cadeira: ' . $e->getMessage());
+    }
+    return $n;
+}
+
+/**
  * Leva os títulos do GM para a cadeira nova.
  *
  * @param int         $userId      quem mudou de time
