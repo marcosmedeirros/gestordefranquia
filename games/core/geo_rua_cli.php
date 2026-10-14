@@ -80,7 +80,7 @@ if (isset($opts['cfg'])) {
 }
 
 /* ── PASSO 3 (ou tudo de uma vez, onde o HTTPS funciona) ─────────────── */
-$com = 0; $sem = 0; $erro = 0;
+$com = 0; $sem = 0; $erro = 0; $deGente = 0;
 foreach ($lugares as $i => &$l) {
     if (isset($opts['respostas'])) {
         $arq = rtrim((string)$opts['respostas'], '/\\') . '/' . $i . '.json';
@@ -94,7 +94,25 @@ foreach ($lugares as $i => &$l) {
     $j = json_decode($corpo, true);
     $st = (string)($j['status'] ?? '');
 
-    if ($st === 'OK') {
+    /* ── SÓ O STREET VIEW DE VERDADE ─────────────────────────────────
+       O metadata responde OK tanto pro carro do Google quanto pra FOTO
+       ESFÉRICA que um visitante subiu — e de 752 pontos cobertos, 475 eram
+       foto de gente. Duas razões pra recusar essas:
+
+       1. O EMBED NÃO AS ABRE POR ID. Tela preta, controles e mais nada, que
+          foi o que apareceu no primeiro teste em produção.
+       2. MESMO ABRINDO, NÃO SERVE. O jogo é reconhecer onde se está pela
+          rua: placa, poste, carro, calçada. Foto de turista pode ser o
+          interior de um restaurante, um teto, um close de flor.
+
+       Quem é quem está no campo copyright: "© Google" no carro, o nome da
+       pessoa na foto dela. */
+    $dono = (string)($j['copyright'] ?? '');
+    if ($st === 'OK' && stripos($dono, 'Google') === false) {
+        $deGente++;
+        unset($l['rua'], $l['rua_dir'], $l['rua_pano']);
+
+    } elseif ($st === 'OK') {
         $l['rua'] = 1;
         /* PARA ONDE A CÂMERA OLHA. O panorama fica na rua e o lugar está ao
            lado dele: abrir virado pro norte mostraria um muro qualquer. O
@@ -123,7 +141,10 @@ foreach ($lugares as $i => &$l) {
 }
 unset($l);
 
-echo "com panorama: {$com}\nsem panorama: {$sem}\nnão respondidos: {$erro}\n";
+echo "com Street View do Google: {$com}\n",
+     "só com foto de visitante (recusado): {$deGente}\n",
+     "sem cobertura nenhuma: {$sem}\n",
+     "não respondidos: {$erro}\n";
 if ($com === 0) { fwrite(STDERR, "nada marcado — arquivo não foi tocado\n"); exit(1); }
 
 $php = "<?php\n"

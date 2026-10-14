@@ -164,6 +164,14 @@ document.documentElement.classList.add('js');
    O VISUAL DO JOGO. Daqui pra baixo nada é do app: é um jogo de olhar
    paisagem, então a foto manda e o resto se cala em volta dela.
    ══════════════════════════════════════════════════════════════════ */
+/* ── A BARRA DE ROLAGEM RESERVADA ────────────────────────────────────
+   Parece detalhe e era a causa da tela preta no Street View. A página
+   começa curta, o mapa carrega, ela fica alta, a barra de rolagem aparece —
+   e o palco perde uns pixels de largura. O panorama do Google mede o espaço
+   uma vez, ao abrir, e não refaz a conta: a imagem ia pro lugar errado e
+   sobrava preto. Reservando a barra desde o começo, nada muda de tamanho e
+   o problema não chega a existir. */
+html{scrollbar-gutter:stable}
 .content{font-family:Inter,system-ui,sans-serif}
 #geo{max-width:1080px;margin:0 auto;padding:0 0 48px;
   --c:var(--blue)}
@@ -182,7 +190,11 @@ document.documentElement.classList.add('js');
    precisa de céu e chão na tela. E o HUD deixa de capturar o mouse — ele
    flutua por cima do Street View, e arrastar em cima dele tem que girar a
    vista, não esbarrar numa caixa invisível. */
-.geo-palco.rua{aspect-ratio:16/9}
+/* COM PANORAMA O PALCO CRESCE. A foto é uma coisa só e cabe em qualquer
+   altura; no Street View a pessoa ANDA, e andar em 184 pixels de altura é
+   espiar por uma fresta. O mínimo em pixels existe porque proporção sozinha
+   não garante nada: numa coluna estreita, 16/9 vira uma tarja. */
+.geo-palco.rua{aspect-ratio:16/10;min-height:380px}
 .geo-palco.rua .geo-hud,.geo-palco.rua .geo-pergunta{pointer-events:none}
 .geo-palco.rua .geo-hud .caixa,.geo-palco.rua .geo-hud form{pointer-events:auto}
 /* O degradê de baixo fica: é ele que faz a pergunta ser lida sobre
@@ -191,7 +203,7 @@ document.documentElement.classList.add('js');
 /* A placa que cobre o cartão do Google no alto à esquerda. Fica ABAIXO do
    HUD (z-index 1 contra 2), então o que se vê é a chapa escura atrás do
    placar — e o que não se vê é o nome do lugar. */
-.geo-palco .tapa{position:absolute;top:0;left:0;width:268px;height:62px;z-index:1;
+.geo-palco .tapa{position:absolute;top:0;left:0;width:228px;height:100px;z-index:1;
   background:#0b0b0f;border-radius:0 0 18px 0}
 @keyframes geoEntra{from{opacity:0;transform:scale(1.04)}}
 .geo-palco .carregando{position:absolute;inset:0;display:grid;place-items:center;
@@ -343,6 +355,9 @@ html:not(.js) .so-js{display:none !important}
 
 @media (max-width:620px){
   .geo-palco{aspect-ratio:4/3;border-radius:18px}
+  /* No celular o panorama fica em pe: mais ceu e mais chao, que e o que
+     se olha pra descobrir onde se esta. */
+  .geo-palco.rua{aspect-ratio:3/4;min-height:420px}
   /* TRES CAIXAS MAIS O BOTAO NAO CABEM em 390px de tela: no celular o
      placar encolhe e o Encerrar fica so no X. O que nao pode e o relogio
      sair da tela — ele e a informacao que muda. */
@@ -488,7 +503,7 @@ html:not(.js) .so-js{display:none !important}
       <?php if ($rua): ?>
         <?php /* O referrerpolicy não é enfeite: é ele que manda o domínio pro
              Google, e é por domínio que a chave é restringida no console. */ ?>
-        <iframe src="<?= e($rua) ?>" title="Onde é isso?" loading="lazy" allowfullscreen
+        <iframe src="<?= e($rua) ?>" title="Onde é isso?" allowfullscreen
                 referrerpolicy="strict-origin-when-cross-origin"></iframe>
         <?php /* ── O CANTO QUE ENTREGA A RESPOSTA ─────────────────────────
              O Street View incorporado desenha um cartão no alto à esquerda
@@ -668,6 +683,40 @@ html:not(.js) .so-js{display:none !important}
 <script src="/js/popups.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/tema.js"></script>
+
+<?php if ($partida && $rodada && $rua): ?>
+<script>
+/* ── O PANORAMA QUANDO O PALCO MUDA DE TAMANHO ───────────────────────
+   O Street View mede o espaço uma vez, ao abrir, e desenha pra aquele
+   tamanho. Se o palco mudar depois — o celular virando de lado é o caso
+   real —, ele não refaz a conta sozinho e a imagem fica no lugar errado.
+
+   O iframe é de outro domínio, então não há como pedir nada lá dentro. O
+   que há é mudar o tamanho dele por fora: um pixel a mais e de volta faz o
+   Street View medir de novo. É um pixel dentro de um palco que esconde o
+   que passa da borda, então ninguém vê.
+
+   (A mudança mais comum — a barra de rolagem aparecendo quando o mapa
+   carrega e roubando uns pixels de largura — foi resolvida antes de
+   acontecer: o CSS reserva a barra desde o começo, com scrollbar-gutter.) */
+(function(){
+  var f = document.querySelector('.geo-palco iframe');
+  if (!f) return;
+  var marcado;
+
+  function cutuca(){
+    f.style.height = (f.clientHeight + 1) + 'px';
+    setTimeout(function(){ f.style.height = ''; }, 400);
+  }
+  function emBreve(){ clearTimeout(marcado); marcado = setTimeout(cutuca, 250); }
+
+  /* Quem é vigiado é o PALCO e quem muda é o IFRAME: vigiar o próprio
+     iframe entraria em laço, porque a mudança dispararia a si mesma. */
+  if (window.ResizeObserver) new ResizeObserver(emBreve).observe(f.parentNode);
+  window.addEventListener('orientationchange', emBreve);
+})();
+</script>
+<?php endif; ?>
 
 <?php if ($partida && $rodada): ?>
 <script>

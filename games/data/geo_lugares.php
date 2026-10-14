@@ -1,8 +1,7 @@
 <?php
-/* Os lugares do FBA Geo — GERADO por games/core/geo_lugares_cli.php.
-   Wikidata (lugar, país, coordenada) + Wikimedia Commons (foto, autor,
-   licença). NÃO EDITE À MÃO: rode o CLI de novo.
-   Gerado em 14/10/2026 20:58 — 779 lugares. */
+/* Os lugares do FBA Geo — GERADO por games/core/geo_lugares_cli.php e
+   marcado por games/core/geo_rua_cli.php. NÃO EDITE À MÃO.
+   Street View conferido em 14/10/2026 16:25 — 277 de 779 lugares têm panorama. */
 return array (
   0 => 
   array (
@@ -27,6 +26,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'A.Savin',
     'licenca' => 'FAL',
+    'rua' => 1,
+    'rua_dir' => 185,
+    'rua_pano' => 'Ks2WRszsOVkwmrNCBX8RDg',
   ),
   2 => 
   array (
@@ -75,6 +77,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'JaxsonD',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 269,
+    'rua_pano' => '2JHJWgoawviTRFkS9cjrXg',
   ),
   6 => 
   array (
@@ -135,6 +140,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'iMahesh',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 289,
+    'rua_pano' => '0HXSyZ4EwKfRQ3a4MOWb5Q',
   ),
   11 => 
   array (
@@ -147,6 +155,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ernestblinqz',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 159,
+    'rua_pano' => 'aDXO7xfNE90-20LkSgolNA',
   ),
   12 => 
   array (
@@ -207,6 +218,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Astronaut photograph ISS047-E-99713 was acquired on May 6, 2016, with a Nikon D4 digital c',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 174,
+    'rua_pano' => 'Kjis9qdMWSG1jGJNF0af1g',
   ),
   17 => 
   array (
@@ -351,6 +365,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '',
     'licenca' => 'Copyrighted free use',
+    'rua' => 1,
+    'rua_dir' => 115,
+    'rua_pano' => 'dgAl5rNTQxCc3VHKIj7Okw',
   ),
   29 => 
   array (
@@ -387,6 +404,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'JulioKuLu',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 109,
+    'rua_pano' => 'yf6ORnC52-shqrGMy7JRsQ',
   ),
   32 => 
   array (
@@ -411,6 +431,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '라성민',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 22,
+    'rua_pano' => 'dpvaRXMKSeWHh6YbjJhulw',
   ),
   34 => 
   array (
@@ -435,6 +458,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Gobierno CDMX',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 285,
+    'rua_pano' => 'gjchLrFT63O9MTQ7zsSasQ',
   ),
   36 => 
   array (
@@ -483,6 +509,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ilya Grigorik',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 221,
+    'rua_pano' => 'NPwW-V5OT4kq3WJdZogRVg',
   ),
   40 => 
   array (
@@ -519,6 +548,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ralf Roletschek',
     'licenca' => 'GFDL 1.2',
+    'rua' => 1,
+    'rua_dir' => 67,
+    'rua_pano' => 'tu9zsi9qX8EXRGIO2SqonA',
   ),
   43 => 
   array (
@@ -531,6 +563,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Felipe Restrepo Acosta',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 125,
+    'rua_pano' => 'g8gYxDHSnFmYbB7d_mBysg',
   ),
   44 => 
   array (
@@ -543,6 +578,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'JJaimin',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 198,
+    'rua_pano' => 'cJCM0X41-HNSbrHBOiQsVw',
   ),
   45 => 
   array (
@@ -603,6 +641,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Rafael Rabello de Barros',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 171,
+    'rua_pano' => 'afXkBx0bV2z4h2grsPTc1g',
   ),
   50 => 
   array (
@@ -615,6 +656,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Pravega',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 36,
+    'rua_pano' => '1P1Tf267CoNVFjGl-_q-9g',
   ),
   51 => 
   array (
@@ -627,6 +671,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Vroomtrapit at English Wikipedia',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 113,
+    'rua_pano' => 'kJ3oNahB3rAzncrK1hNMZA',
   ),
   52 => 
   array (
@@ -639,6 +686,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Hemant meena',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 255,
+    'rua_pano' => '4J7R6Kwg0b-5SL8P9x-EPA',
   ),
   53 => 
   array (
@@ -651,6 +701,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ramir Borja.',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 224,
+    'rua_pano' => '0wp2Vu8munJvEpQzuBvxrQ',
   ),
   54 => 
   array (
@@ -687,6 +740,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Preecha.MJ',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 9,
+    'rua_pano' => 'lH0HSOFv3F4PmB8FWCseSg',
   ),
   57 => 
   array (
@@ -723,6 +779,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Daryona',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 161,
+    'rua_pano' => 'Lz4-whHVErwA98oXe1lpDA',
   ),
   60 => 
   array (
@@ -795,6 +854,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Evan Bench',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 88,
+    'rua_pano' => 'Kt5rV0ZQb_X_GvoKsW8DBQ',
   ),
   66 => 
   array (
@@ -843,6 +905,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Udayraj18',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 156,
+    'rua_pano' => 'j_bHtKHZCl6Coc5NKudYIQ',
   ),
   70 => 
   array (
@@ -855,6 +920,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ketanmehta4u',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 107,
+    'rua_pano' => 'kQRda-sIZUXb7A1hs10uOw',
   ),
   71 => 
   array (
@@ -867,6 +935,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Rafaela Ely',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 334,
+    'rua_pano' => 'ybT25lCfhLHDJRuLYofW_w',
   ),
   72 => 
   array (
@@ -891,6 +962,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bùi Thụy Đào Nguyên',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 21,
+    'rua_pano' => '3dZTVi_PGCNgmUHiiBSptA',
   ),
   74 => 
   array (
@@ -903,6 +977,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Shiraz Chakera',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 204,
+    'rua_pano' => 'VVDBrWmgcU3y4QLa3UWlkQ',
   ),
   75 => 
   array (
@@ -939,6 +1016,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'David Bjorgen',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 321,
+    'rua_pano' => 'y2AkegmSxw8hcwYTsw7uEg',
   ),
   78 => 
   array (
@@ -951,6 +1031,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Tim Reckmann from Hamm, Deutschland',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 9,
+    'rua_pano' => 'fe6L2hX67_55PgNk0dyLTg',
   ),
   79 => 
   array (
@@ -963,6 +1046,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Maven Egote',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 124,
+    'rua_pano' => 'OD3AwjlkdlD9-c26YLn-iQ',
   ),
   80 => 
   array (
@@ -975,6 +1061,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Alek Leckszas',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 217,
+    'rua_pano' => 'nmLECTTs4iqWaY84Vw_hUA',
   ),
   81 => 
   array (
@@ -1035,6 +1124,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Chrisvomberg',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 341,
+    'rua_pano' => 'Ru_e4gO2b7Ob14-X2-ZESA',
   ),
   86 => 
   array (
@@ -1047,6 +1139,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Kalabarian',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 344,
+    'rua_pano' => 'PQCyU0dewmABqoiTzR2UQw',
   ),
   87 => 
   array (
@@ -1083,6 +1178,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Fez Cap 12',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 104,
+    'rua_pano' => 'sa2PRm7s25q_rBjY56wW8g',
   ),
   90 => 
   array (
@@ -1107,6 +1205,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Franzfoto',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 348,
+    'rua_pano' => 'pVNfGuXrbvjmYi3wKr92WQ',
   ),
   92 => 
   array (
@@ -1131,6 +1232,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Rodolfo Barriga',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 289,
+    'rua_pano' => 'FG88j_sJu4XYQHzt6X15Uw',
   ),
   94 => 
   array (
@@ -1143,6 +1247,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ProtoplasmaKid',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 300,
+    'rua_pano' => '9ubWPg-wIDd3-a-djuITuQ',
   ),
   95 => 
   array (
@@ -1155,6 +1262,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bracknell',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 221,
+    'rua_pano' => 'YM03hcMhH1g6MIb8xYEX1g',
   ),
   96 => 
   array (
@@ -1167,6 +1277,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 50,
+    'rua_pano' => 'Kco7fEjMge1QUQC3BN33cA',
   ),
   97 => 
   array (
@@ -1179,6 +1292,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'JNicol',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 235,
+    'rua_pano' => 'n-5aYhc8mFAsap65FVWXOA',
   ),
   98 => 
   array (
@@ -1191,6 +1307,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Foxy1219(montage), 毛貓大少爺, Tiouraren, Daderot, Xc53, Maggie cchou, Peellden',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 65,
+    'rua_pano' => 'lBuUtMsRsknB4cS3lQJdRA',
   ),
   99 => 
   array (
@@ -1215,6 +1334,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Arturdiasr',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 67,
+    'rua_pano' => 'gP7I4Tpzn9O-08NGf0fmAw',
   ),
   101 => 
   array (
@@ -1275,6 +1397,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'see above',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 171,
+    'rua_pano' => 'a8oMOaQLozCFktbCyd9MmQ',
   ),
   106 => 
   array (
@@ -1323,6 +1448,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Microstar',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 178,
+    'rua_pano' => 'vRFuvDHcwGEvBS0rKPL4hg',
   ),
   110 => 
   array (
@@ -1359,6 +1487,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Jchmrt',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 335,
+    'rua_pano' => '2DHmcOshLLiXRrxMJTbIFg',
   ),
   113 => 
   array (
@@ -1419,6 +1550,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Chris Olszewski',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 238,
+    'rua_pano' => 'd7o3_0980yiQMCfSZoeycA',
   ),
   118 => 
   array (
@@ -1443,6 +1577,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ali Haidar Khan',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 176,
+    'rua_pano' => 'aFgsR0_bWg-eAXdWdNId6Q',
   ),
   120 => 
   array (
@@ -1479,6 +1616,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Lafemo 123',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 88,
+    'rua_pano' => 'GsQ_w__k1_6VflB-a3eHHQ',
   ),
   123 => 
   array (
@@ -1503,6 +1643,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Luis90f',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 106,
+    'rua_pano' => 'b5ugR6fOwRd5grJpj_atDA',
   ),
   125 => 
   array (
@@ -1575,6 +1718,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Im Taewon',
     'licenca' => 'KOGL Type 1',
+    'rua' => 1,
+    'rua_dir' => 223,
+    'rua_pano' => 'ShSa44rClB15AvXg1Rp92g',
   ),
   131 => 
   array (
@@ -1611,6 +1757,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Lower Duden Falls.jpg:Saffron Blaze Yivli Minaret Mosque Antalya.jpg:Saffron Blaze Antalya',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 300,
+    'rua_pano' => 'vwAw3jKp4hTqazo_XNgvGQ',
   ),
   134 => 
   array (
@@ -1635,6 +1784,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 178,
+    'rua_pano' => '9c0oJWiEpSMtKFgbh3CyWg',
   ),
   136 => 
   array (
@@ -1647,6 +1799,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Antipastarasta',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 35,
+    'rua_pano' => 'NCtVKt1t9bmeVa9XN1AVMQ',
   ),
   137 => 
   array (
@@ -1659,6 +1814,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Afrogindahood',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 143,
+    'rua_pano' => 'CS7jq6O89G7e8hZVADhHvg',
   ),
   138 => 
   array (
@@ -1695,6 +1853,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Indrianto Eko Suwarso (ANTARA FOTO)',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 350,
+    'rua_pano' => 'vHn_FnRmkr275ihIg3rkKA',
   ),
   141 => 
   array (
@@ -1743,6 +1904,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'See above. Compilation: Heitor Carvalho Jorge',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 147,
+    'rua_pano' => 'CxMKZJ1ndBru2ObzFUvr3A',
   ),
   145 => 
   array (
@@ -1779,6 +1943,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Penggunaandro',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 167,
+    'rua_pano' => 'bpjo7n_LxRwKejAbrE70nQ',
   ),
   148 => 
   array (
@@ -1791,6 +1958,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'MevlanaMuseum.jpg:OgreBot Central Konya.jpg:Quintucket Konya, tram No. 107 (01).jpg:Harold',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 41,
+    'rua_pano' => '7azv1IYR3ekrviIDCSQtJw',
   ),
   149 => 
   array (
@@ -1803,6 +1973,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Marat Rysbekov',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 274,
+    'rua_pano' => 'FORnJ8Rjf6cRJ2EXI8K6Rg',
   ),
   150 => 
   array (
@@ -1863,6 +2036,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Samuel Wiki',
     'licenca' => 'CC BY 4.0',
+    'rua' => 1,
+    'rua_dir' => 271,
+    'rua_pano' => '-_dX6euNd4K_nMERS2JVtg',
   ),
   155 => 
   array (
@@ -1887,6 +2063,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'HoangTuanAnh',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 299,
+    'rua_pano' => 'BXsIrXdE2I-vCYpMM5kRhg',
   ),
   157 => 
   array (
@@ -1911,6 +2090,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bluesatellite',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 214,
+    'rua_pano' => 'vKnnmsYpRmYYJ7mtfVcwJA',
   ),
   159 => 
   array (
@@ -1995,6 +2177,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Damien Halleux Radermecker',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 115,
+    'rua_pano' => 'sIHfdv72Uk4CbPK0D38CQw',
   ),
   166 => 
   array (
@@ -2031,6 +2216,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Urbaner44',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 219,
+    'rua_pano' => 'AjoYbbxlBEydzKqoSdtaow',
   ),
   169 => 
   array (
@@ -2127,6 +2315,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Noorhussainmultan; Bhai G16; Junaidahmadj; Thealimir; Musablali; Junaidahmadj',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 170,
+    'rua_pano' => '3OMc-FfD7S4AAAAGOtzOkA',
   ),
   177 => 
   array (
@@ -2163,6 +2354,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Pascalll',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 338,
+    'rua_pano' => 'n7ILvqxAqVLmkb_--FIIbw',
   ),
   180 => 
   array (
@@ -2199,6 +2393,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Goldenwabbit',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 196,
+    'rua_pano' => 'nz7byl5BYB8JIciiF6NjFg',
   ),
   183 => 
   array (
@@ -2211,6 +2408,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Fidelis ogunseri ocsfilms',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 49,
+    'rua_pano' => 'limpl6-lWswWyj7Mu5LNWA',
   ),
   184 => 
   array (
@@ -2247,6 +2447,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Asamblea Nacional del Ecuador',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 58,
+    'rua_pano' => 'f1zDvk1qxOw0sLj4wFcCPQ',
   ),
   187 => 
   array (
@@ -2283,6 +2486,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Adrien K',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 137,
+    'rua_pano' => 'O8F4Z2qhRR69MB4-TlCbfw',
   ),
   190 => 
   array (
@@ -2307,6 +2513,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Diyarbakirmosque218.jpg:Soman Diyarbakr Western City Wall.JPG: Bjørn Christian Tørrissen S',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 41,
+    'rua_pano' => 'EPeIyBfigBGTFt0wC8fzzg',
   ),
   192 => 
   array (
@@ -2319,6 +2528,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'dronepicr',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 323,
+    'rua_pano' => '2XaQjTRtDwwuSepkXpvDTA',
   ),
   193 => 
   array (
@@ -2331,6 +2543,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 24,
+    'rua_pano' => 'PIJrvnXAxZVD97IjM6Jx5g',
   ),
   194 => 
   array (
@@ -2355,6 +2570,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ovinuchi Prince Ejiohuo',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 60,
+    'rua_pano' => 'vSQOWbbVzGQD3TSu3ivnnQ',
   ),
   196 => 
   array (
@@ -2415,6 +2633,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'id:user:San33',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 358,
+    'rua_pano' => 'q1vPBoQUf87b26MMF41lIw',
   ),
   201 => 
   array (
@@ -2439,6 +2660,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Alex Polezhaev',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 168,
+    'rua_pano' => '_vW1dDeXg2XULoQ73sHigQ',
   ),
   203 => 
   array (
@@ -2463,6 +2687,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bigmikebmw',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 254,
+    'rua_pano' => 'gSpQTEWvOpFQZ-jnLSsgXQ',
   ),
   205 => 
   array (
@@ -2499,6 +2726,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Antuán',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 193,
+    'rua_pano' => '14UhuT1PKgW14kWj1zhdrw',
   ),
   208 => 
   array (
@@ -2547,6 +2777,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ペン太 Aimaimyi Tama 上野彦馬 Waka77 m-louis (flickr) Composition by Kyoww',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 196,
+    'rua_pano' => '3dQBTVBW_eR67V_VbkyPSA',
   ),
   212 => 
   array (
@@ -2559,6 +2792,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Yogwi21',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 334,
+    'rua_pano' => 'jPcpoX2H0IQhur_wQ3xucg',
   ),
   213 => 
   array (
@@ -2583,6 +2819,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Alakasam',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 167,
+    'rua_pano' => 'EtKLICsNbFL4HG6F5dVaAQ',
   ),
   215 => 
   array (
@@ -2607,6 +2846,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Hachiroo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 277,
+    'rua_pano' => 'GlEXnIURFFY7S13M2ltwSA',
   ),
   217 => 
   array (
@@ -2643,6 +2885,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'NZ 토끼들',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 249,
+    'rua_pano' => '_Ym8L1GBkv-klTd9gbsrWQ',
   ),
   220 => 
   array (
@@ -2655,6 +2900,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Portal da Copa/ME',
     'licenca' => 'CC BY 3.0 br',
+    'rua' => 1,
+    'rua_dir' => 38,
+    'rua_pano' => 'qCC0Y3LBVEzQ_hhdyCqnUQ',
   ),
   221 => 
   array (
@@ -2679,6 +2927,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Koutchika Lihouenou Gaspard',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 127,
+    'rua_pano' => 'ejfCIrvYOQvy6iJafyQd6g',
   ),
   223 => 
   array (
@@ -2691,6 +2942,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '대전광역시 동구',
     'licenca' => 'KOGL Type 1',
+    'rua' => 1,
+    'rua_dir' => 1,
+    'rua_pano' => 'mmEuRIpDfQiCJQHDTGfWbg',
   ),
   224 => 
   array (
@@ -2703,6 +2957,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Gryffindor',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 272,
+    'rua_pano' => '55k8RGz7wzBjPdOJVXZJNA',
   ),
   225 => 
   array (
@@ -2715,6 +2972,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ChewyPineapple',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 247,
+    'rua_pano' => 'b0c1s8V28kbj-e3nqIUDsQ',
   ),
   226 => 
   array (
@@ -2763,6 +3023,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Jeff Attaway',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 95,
+    'rua_pano' => 'GUkpxnqZf3HOYq-WuXskrg',
   ),
   230 => 
   array (
@@ -2799,6 +3062,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Zereshk',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 330,
+    'rua_pano' => 'h6txfM9Ngc_Ro6v4QXc6Iw',
   ),
   233 => 
   array (
@@ -2871,6 +3137,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'shi zhao',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 9,
+    'rua_pano' => 'avE2R3eiiDFbVLN9IdtkUQ',
   ),
   239 => 
   array (
@@ -2943,6 +3212,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Isacdaavid',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 276,
+    'rua_pano' => 'mzoGk4BjTA8Ji33JlzNDKg',
   ),
   245 => 
   array (
@@ -2955,6 +3227,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'sami yılmaz',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 147,
+    'rua_pano' => 'j4PzXKw9vCK95PY5nHaPmA',
   ),
   246 => 
   array (
@@ -2991,6 +3266,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bluesatellite',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 335,
+    'rua_pano' => 'k13HPz7URDVQ7IbwoQcEUg',
   ),
   249 => 
   array (
@@ -3015,6 +3293,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'A.Savin, Ilya Tsvetkov, Денис Петьовка, NoPlayerUfa, TY-214, AlexTref871',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 342,
+    'rua_pano' => 'AgM-Fn3-cHfaYqmdcwgz9w',
   ),
   251 => 
   array (
@@ -3027,6 +3308,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Mr.Jhosimar',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 253,
+    'rua_pano' => 'w7mg9OTooNB1wO7jxNedgg',
   ),
   252 => 
   array (
@@ -3051,6 +3335,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'PRiMENON Ocdp ブツチチ Nishikaratsu Spitfireap Composition by Tamall',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 345,
+    'rua_pano' => '3Aq8eowmBBVCjRbIdJjrcg',
   ),
   254 => 
   array (
@@ -3063,6 +3350,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Humanoo',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 203,
+    'rua_pano' => 'cs_EvOvPf1KlLqI2Has3YQ',
   ),
   255 => 
   array (
@@ -3075,6 +3365,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Elmer B. Domingo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 55,
+    'rua_pano' => 'Cfl4Z1dxQSu-vMnhik7tSA',
   ),
   256 => 
   array (
@@ -3111,6 +3404,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Heitor Carvalho Jorge',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 226,
+    'rua_pano' => 'lrWFj_3mOqD5iGgb17339A',
   ),
   259 => 
   array (
@@ -3135,6 +3431,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 22,
+    'rua_pano' => 'LTZ_mzmgWaA7cqvfz3y1kg',
   ),
   261 => 
   array (
@@ -3183,6 +3482,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ign11',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 26,
+    'rua_pano' => 'O1MJSLFSY6ghxVa57XMJVg',
   ),
   265 => 
   array (
@@ -3195,6 +3497,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Another Believer',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 96,
+    'rua_pano' => '_IiyZSDSEYyzQMEDGtOVwA',
   ),
   266 => 
   array (
@@ -3207,6 +3512,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 305,
+    'rua_pano' => '9_jlGimAIKxEezzNNN_ipg',
   ),
   267 => 
   array (
@@ -3219,6 +3527,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Mueed Ahmed',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 193,
+    'rua_pano' => '5rrZl3t-Qd0mwwipX75uGQ',
   ),
   268 => 
   array (
@@ -3231,6 +3542,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Lê Huy Hoàng Hải',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 22,
+    'rua_pano' => 'L4OQXOdGpa7cZRbRDl1b8w',
   ),
   269 => 
   array (
@@ -3243,6 +3557,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Jpbarrass',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 154,
+    'rua_pano' => 'NpH6YQ3WgDFoUVN1bp92nw',
   ),
   270 => 
   array (
@@ -3279,6 +3596,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Victor Ochieng',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 176,
+    'rua_pano' => 'i3cllTKZp_8hyRt2HNWgIw',
   ),
   273 => 
   array (
@@ -3303,6 +3623,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'DXR',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 280,
+    'rua_pano' => 'UWdPSlL0FmwqarZrlof1cQ',
   ),
   275 => 
   array (
@@ -3363,6 +3686,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bleff',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 138,
+    'rua_pano' => 'ShD4GzPS57VVIO6_yxeITA',
   ),
   280 => 
   array (
@@ -3375,6 +3701,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ほっきー',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 25,
+    'rua_pano' => 'BQQ_Int6ssTpGgJ4byciew',
   ),
   281 => 
   array (
@@ -3387,6 +3716,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Aitenir',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 358,
+    'rua_pano' => 'q6YO7rXdy5PzY4QI0V1aWQ',
   ),
   282 => 
   array (
@@ -3423,6 +3755,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Smg820',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 95,
+    'rua_pano' => '0R91g4i5Q0zZRHDiiB4nzA',
   ),
   285 => 
   array (
@@ -3447,6 +3782,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '22Kartika',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 175,
+    'rua_pano' => '0vlpemiS4PUi_TvWW6gLTw',
   ),
   287 => 
   array (
@@ -3471,6 +3809,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'pjotter05',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 355,
+    'rua_pano' => 'Q1iF4uI260_gyj_x56q6xQ',
   ),
   289 => 
   array (
@@ -3483,6 +3824,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Дагиров Умар',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 15,
+    'rua_pano' => 'lU88DhgKFdywWusgY3kWnA',
   ),
   290 => 
   array (
@@ -3507,6 +3851,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Vlad Volkov',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 174,
+    'rua_pano' => 'fXNRDYONEr0tCFBWBRWhnw',
   ),
   292 => 
   array (
@@ -3531,6 +3878,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nathaniel C. Sheetz',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 252,
+    'rua_pano' => 'ic3YPrhR35-ItsyCrANdVg',
   ),
   294 => 
   array (
@@ -3543,6 +3893,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'JimmyGuano',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 272,
+    'rua_pano' => 'fQnL3AbGNCjGcF4Mdk8c3g',
   ),
   295 => 
   array (
@@ -3567,6 +3920,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'EvgenyGenkin',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 250,
+    'rua_pano' => 'RwLU76VLqfLnIr35oYM4JQ',
   ),
   297 => 
   array (
@@ -3651,6 +4007,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Zmey Kaa Kobra',
     'licenca' => 'CC BY 2.5',
+    'rua' => 1,
+    'rua_dir' => 90,
+    'rua_pano' => 'LE2E1tQnwq3S0RkZ4bwYUw',
   ),
   304 => 
   array (
@@ -3675,6 +4034,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'HappyMidnight',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 145,
+    'rua_pano' => 'Eeov6mrGU4Cjbjz-bjKMOA',
   ),
   306 => 
   array (
@@ -3687,6 +4049,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Денис Гришкин',
     'licenca' => 'CC BY 4.0',
+    'rua' => 1,
+    'rua_dir' => 203,
+    'rua_pano' => 'wcYmRKymbEA5ziHIsmNE-Q',
   ),
   307 => 
   array (
@@ -3699,6 +4064,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nagyman',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 14,
+    'rua_pano' => '3CEKHoB7IsbI2alBtNv-kA',
   ),
   308 => 
   array (
@@ -3711,6 +4079,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nryate',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 171,
+    'rua_pano' => '_oYrCnwcpyQbh48GGweFcw',
   ),
   309 => 
   array (
@@ -3759,6 +4130,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bychkov Denis',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 272,
+    'rua_pano' => 'W4-SMN7vUZs1wsFfm01KsA',
   ),
   313 => 
   array (
@@ -3795,6 +4169,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ebeleokoli',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 307,
+    'rua_pano' => 'gadRTQfW6xbg9obKkCzOjg',
   ),
   316 => 
   array (
@@ -3819,6 +4196,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'A.Savin',
     'licenca' => 'FAL',
+    'rua' => 1,
+    'rua_dir' => 144,
+    'rua_pano' => 'E7_P8tWPqOqtX6ygPh4NYA',
   ),
   318 => 
   array (
@@ -3843,6 +4223,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Appiani',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 106,
+    'rua_pano' => '5hLBy6Ji5hfMCyQpDYplQQ',
   ),
   320 => 
   array (
@@ -3891,6 +4274,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'AlexTref871, A.Savin, FontCity, Администрация Волгоградской области',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 155,
+    'rua_pano' => 'Usr0V45DUpQvuwg-s1clKw',
   ),
   324 => 
   array (
@@ -3903,6 +4289,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'IQRemix',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 269,
+    'rua_pano' => 'iHaJLUNREkJ0GK5JneWMXw',
   ),
   325 => 
   array (
@@ -3999,6 +4388,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'BladimiroAlvarado',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 89,
+    'rua_pano' => 'a4814LliRMGHQ8q5WVC3ZQ',
   ),
   333 => 
   array (
@@ -4047,6 +4439,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'User:Xser21 User:掬茶 User:Shadow Fox User:Kentagon User:くろふね ja:利用者:Skink User:Yamato-i',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 243,
+    'rua_pano' => 'z8FS-OcoUCvNXnw0K7nUYg',
   ),
   337 => 
   array (
@@ -4083,6 +4478,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nirvik12',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 159,
+    'rua_pano' => 'P39s6EPtM9-XF86rjoxxOg',
   ),
   340 => 
   array (
@@ -4095,6 +4493,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 168,
+    'rua_pano' => '92JCIcYcUpZ3Q8uz0bkSMA',
   ),
   341 => 
   array (
@@ -4131,6 +4532,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '상영 전',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 162,
+    'rua_pano' => 'lIxr1TgXOIcMqL_8QFw7hw',
   ),
   344 => 
   array (
@@ -4143,6 +4547,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Jakub Hałun',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 160,
+    'rua_pano' => 'k_7Kjw3WYih15_rjOO0lIw',
   ),
   345 => 
   array (
@@ -4227,6 +4634,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ferdous',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 287,
+    'rua_pano' => 'WRs-fC_2HfyHKhfROoNfeQ',
   ),
   352 => 
   array (
@@ -4263,6 +4673,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bernard Gagnon',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 197,
+    'rua_pano' => '8aZPaIxZHndLQilI_StKBQ',
   ),
   355 => 
   array (
@@ -4287,6 +4700,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'EMEKA OKECHUKWU',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 353,
+    'rua_pano' => 'nN1BA5mqqeuDKuFiHj_TGw',
   ),
   357 => 
   array (
@@ -4335,6 +4751,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Andrey Butko',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 290,
+    'rua_pano' => 'gaIbPbt3A3cdOWndBEOYKQ',
   ),
   361 => 
   array (
@@ -4359,6 +4778,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'the above mentioned',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 69,
+    'rua_pano' => 'aTeCrq39OrFpsDW4NDJDhw',
   ),
   363 => 
   array (
@@ -4383,6 +4805,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Melvin "Buddy" Baker',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 94,
+    'rua_pano' => 'GCg9v6pVbDiHwFnV44F9iA',
   ),
   365 => 
   array (
@@ -4419,6 +4844,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Olga Lidia Paredes Alcoreza',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 289,
+    'rua_pano' => 'tgpeNeU6jKNg8Q89lZ7DqQ',
   ),
   368 => 
   array (
@@ -4443,6 +4871,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ahmad Rithauddin from Ampang, malaysia',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 205,
+    'rua_pano' => '8Hh35v8z9LMR06VeE1DVHQ',
   ),
   370 => 
   array (
@@ -4479,6 +4910,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Adiyon84 at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 276,
+    'rua_pano' => 'bpDuC1achjVox1IsATa9Gg',
   ),
   373 => 
   array (
@@ -4503,6 +4937,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Flick user Sachavir',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 316,
+    'rua_pano' => 'Ya1WhX5hha5w_EJoYVddDQ',
   ),
   375 => 
   array (
@@ -4515,6 +4952,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'T. Obi',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 188,
+    'rua_pano' => 'QtQV_dSqTcH2MGC_gQq2Eg',
   ),
   376 => 
   array (
@@ -4527,6 +4967,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'P199',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 252,
+    'rua_pano' => 'NhrPGh6r62j0MM_Ju2WhyQ',
   ),
   377 => 
   array (
@@ -4551,6 +4994,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Favouridowu',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 232,
+    'rua_pano' => 'Z4PjJXuJk-bRt4enxbIrwg',
   ),
   379 => 
   array (
@@ -4599,6 +5045,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Eccekevin',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 46,
+    'rua_pano' => '869UjOd2RCQx2zB4XIZIIQ',
   ),
   383 => 
   array (
@@ -4659,6 +5108,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Azharsofii',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 164,
+    'rua_pano' => 'phLAF3F2mi2HFWL-XdVCBA',
   ),
   388 => 
   array (
@@ -4743,6 +5195,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Joanbanjo',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 43,
+    'rua_pano' => '6cXnnAHzFvy0sG1AIa0_SQ',
   ),
   395 => 
   array (
@@ -4863,6 +5318,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 352,
+    'rua_pano' => 'w8rl4QVFCcVjB4DrNp3nEA',
   ),
   405 => 
   array (
@@ -4899,6 +5357,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Patrickroque01',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 281,
+    'rua_pano' => 'iapMhCCiIcWXCAvOJ0YLKA',
   ),
   408 => 
   array (
@@ -4947,6 +5408,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'ARC - The Alliance of Religions and Conservation',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 358,
+    'rua_pano' => 'IDoUMgHVSdvBYiVpbBq4vA',
   ),
   412 => 
   array (
@@ -4971,6 +5435,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'User: (WT-shared) Naplee12 at wts wikivoyage',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 286,
+    'rua_pano' => '9Fzae1q1IAbKrswj3GigSQ',
   ),
   414 => 
   array (
@@ -4995,6 +5462,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nick de Guzman',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 40,
+    'rua_pano' => 'Y7kGtNiIKCxNxWqL0rv88A',
   ),
   416 => 
   array (
@@ -5079,6 +5549,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Gohweiyang',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 84,
+    'rua_pano' => 'I6-Ks0soLOjRqcfz6J76BA',
   ),
   423 => 
   array (
@@ -5139,6 +5612,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Old Pionear',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 191,
+    'rua_pano' => 'N4a06zdsjQRhqdlIaqFmFw',
   ),
   428 => 
   array (
@@ -5151,6 +5627,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Jürgen Howaldt',
     'licenca' => 'CC BY-SA 2.0 de',
+    'rua' => 1,
+    'rua_dir' => 337,
+    'rua_pano' => 'jufoW0fRgk4jCQWLy7V-3A',
   ),
   429 => 
   array (
@@ -5187,6 +5666,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ramon FVelasquez',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 88,
+    'rua_pano' => 'arEnBwWUjeR6OLvXptm3LQ',
   ),
   432 => 
   array (
@@ -5235,6 +5717,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Bengt Nyman from Vaxholm, Sweden',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 307,
+    'rua_pano' => 'DtnUud_iezbb52VkeUZOdg',
   ),
   436 => 
   array (
@@ -5271,6 +5756,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Juan Bautista Martínez del Mazo',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 317,
+    'rua_pano' => 'k_lqRq0VQdkRRfzHIDoA6A',
   ),
   439 => 
   array (
@@ -5295,6 +5783,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'David from Miami, United states',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 352,
+    'rua_pano' => 'j1vhV8_oGBDhI3IyS-ik2w',
   ),
   441 => 
   array (
@@ -5331,6 +5822,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'P199',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 159,
+    'rua_pano' => 'Kv0KOiaQ34THV2UXVykHOw',
   ),
   444 => 
   array (
@@ -5367,6 +5861,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Trappy (talk)Trappy. Trappy at English Wikipedia',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 248,
+    'rua_pano' => '5zbZbocRZmbY0AbsklxxzQ',
   ),
   447 => 
   array (
@@ -5379,6 +5876,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Sebastian Glapinski platinstudio',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 279,
+    'rua_pano' => 'Np0Po9dCxWaCqxkSUOhg-A',
   ),
   448 => 
   array (
@@ -5427,6 +5927,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Cmglee',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 63,
+    'rua_pano' => 'vPJcxBTyey1s9M_gfxOs4g',
   ),
   452 => 
   array (
@@ -5439,6 +5942,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Alfonso F. del Granado Rivero',
     'licenca' => 'CC BY-SA 2.5',
+    'rua' => 1,
+    'rua_dir' => 76,
+    'rua_pano' => 'lSaGKb74w8W9oEYoEsrZWQ',
   ),
   453 => 
   array (
@@ -5523,6 +6029,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Kai Pilger',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 318,
+    'rua_pano' => 'DHrRUXTILN_8JekODbrGqw',
   ),
   460 => 
   array (
@@ -5535,6 +6044,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'BigHead',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 117,
+    'rua_pano' => 'DN0qV6O803Tr028iAvofig',
   ),
   461 => 
   array (
@@ -5595,6 +6107,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'EEIM',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 72,
+    'rua_pano' => 'jehAp4I98uRT77LzuJWu9g',
   ),
   466 => 
   array (
@@ -5631,6 +6146,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Only Truth at English Wikipedia',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 180,
+    'rua_pano' => '5rSyaBHZSetvG0wPjMhbvQ',
   ),
   469 => 
   array (
@@ -5643,6 +6161,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'E-CBD',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 339,
+    'rua_pano' => 'iqU8bSiMcFZ_0c1pkpL_lg',
   ),
   470 => 
   array (
@@ -5703,6 +6224,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'jlazarte',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 8,
+    'rua_pano' => 'J1k-4mtAxxjNQxO1p4ylww',
   ),
   475 => 
   array (
@@ -5715,6 +6239,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Alexandra Fakiri',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 312,
+    'rua_pano' => '23euj9jXpgo1iQmtpv2CrA',
   ),
   476 => 
   array (
@@ -5739,6 +6266,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => '---=XEON=---',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 171,
+    'rua_pano' => '8q5YMGZV7gThg9yi7pKvow',
   ),
   478 => 
   array (
@@ -5763,6 +6293,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Quilmeño89',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 53,
+    'rua_pano' => 'rlxiaT8kMqjlROS6o4vlzQ',
   ),
   480 => 
   array (
@@ -5919,6 +6452,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Fabian Roudra Baroi',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 91,
+    'rua_pano' => '8Qo59tq1TUS7OY4rt3GbtA',
   ),
   493 => 
   array (
@@ -5943,6 +6479,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Drdavid41',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 266,
+    'rua_pano' => 'QuRYD3T2XDB_bUZtJr049Q',
   ),
   495 => 
   array (
@@ -5967,6 +6506,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Nhl4hamilton (Rick Cordeiro)',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 172,
+    'rua_pano' => 'jMdHtMABmNPOlKkhKbk2-A',
   ),
   497 => 
   array (
@@ -6003,6 +6545,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'DORM',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 176,
+    'rua_pano' => 'GcgvC8hsKH1NKUD_Klvn1w',
   ),
   500 => 
   array (
@@ -6171,6 +6716,9 @@ return array (
     'nivel' => 'cidade',
     'autor' => 'Ridiculopathy',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 339,
+    'rua_pano' => '_DGGYtBbYiZPJZywA_31Ww',
   ),
   514 => 
   array (
@@ -6231,6 +6779,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jorchr',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 249,
+    'rua_pano' => 'xZ63Tqg-pccAyPCsTBAHNQ',
   ),
   519 => 
   array (
@@ -6267,6 +6818,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => '徐月春',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 332,
+    'rua_pano' => 'uB3-Uik4Jp34IaHNn41mdA',
   ),
   522 => 
   array (
@@ -6303,6 +6857,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Illa Fantasia',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 141,
+    'rua_pano' => 'hmDX1XVaOJDt97oB542c6g',
   ),
   525 => 
   array (
@@ -6315,6 +6872,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Elisardojm',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 1,
+    'rua_pano' => 'ocvUE62kdX2tNA70wnHK2A',
   ),
   526 => 
   array (
@@ -6363,6 +6923,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'I Stu_pendousmat took this picture on July 22, 2007',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 307,
+    'rua_pano' => 'WbQU98HHEkRH3dTlIvhmrw',
   ),
   530 => 
   array (
@@ -6387,6 +6950,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Tim Sheerman-Chase',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 109,
+    'rua_pano' => 'hhbEG_BiFOix8GQ8Bh63Tg',
   ),
   532 => 
   array (
@@ -6399,6 +6965,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Hans Haase',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 205,
+    'rua_pano' => '83JTEtuCdnyCwA-kam8D8A',
   ),
   533 => 
   array (
@@ -6411,6 +6980,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Dennis G. Jarvis',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 51,
+    'rua_pano' => '6gU-NSaenx87_TrZYJR5hw',
   ),
   534 => 
   array (
@@ -6423,6 +6995,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Pseudopanax at English Wikipedia',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 35,
+    'rua_pano' => 'KnoI2MthyzkIJk7_YfZ74A',
   ),
   535 => 
   array (
@@ -6447,6 +7022,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => '',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 78,
+    'rua_pano' => 'BO-diDm-YrIs74aCuQRvng',
   ),
   537 => 
   array (
@@ -6459,6 +7037,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Raul Cortez999',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 132,
+    'rua_pano' => 'Ire1bkNK-2EnjmM35QRgag',
   ),
   538 => 
   array (
@@ -6495,6 +7076,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'I would appreciate being notified if you use my work outside Wikimedia. Do not copy this i',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 205,
+    'rua_pano' => 'hMcuQMViY2keym30_6pxSw',
   ),
   541 => 
   array (
@@ -6603,6 +7187,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'milst1',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 27,
+    'rua_pano' => 'O9UuwJppmZRQTU9gl5sh8Q',
   ),
   550 => 
   array (
@@ -6639,6 +7226,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'francverde',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 335,
+    'rua_pano' => 'OlEdNDDIPup4zpOo0WzBFA',
   ),
   553 => 
   array (
@@ -6723,6 +7313,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'C\'estassez',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 340,
+    'rua_pano' => '35FhcDs8XCzBh6pFdOwKvA',
   ),
   560 => 
   array (
@@ -6735,6 +7328,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'INSAR',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 287,
+    'rua_pano' => 'c87bLnbfik3zGs1V4nRysA',
   ),
   561 => 
   array (
@@ -6783,6 +7379,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Víctor Gordillo Galea',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 174,
+    'rua_pano' => 'z2crTN_aTmYW6X7SxbyfJg',
   ),
   565 => 
   array (
@@ -6819,6 +7418,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Freddo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 96,
+    'rua_pano' => 'MRa8gSQTmUDJ5-r4LVYozQ',
   ),
   568 => 
   array (
@@ -6843,6 +7445,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Norms360',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 334,
+    'rua_pano' => 'OkNmvVMmqyqWkWa831XwJw',
   ),
   570 => 
   array (
@@ -6855,6 +7460,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Freddo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 351,
+    'rua_pano' => 'pfx2IvSdaTdIC92XpNsNuw',
   ),
   571 => 
   array (
@@ -6867,6 +7475,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Andyfishburne',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 210,
+    'rua_pano' => 'TDDxTzXSXlofQMNwMlPOig',
   ),
   572 => 
   array (
@@ -6903,6 +7514,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'rogerbarker2 https://www.flickr.com/photos/rogerbarker/',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 166,
+    'rua_pano' => 'NKYNMaX3KVdD1OfzfW9pfg',
   ),
   575 => 
   array (
@@ -6915,6 +7529,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Stefan Scheer',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 269,
+    'rua_pano' => '6RY1lskp50yMHJuNS0tOSw',
   ),
   576 => 
   array (
@@ -6963,6 +7580,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Albin Olsson',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 292,
+    'rua_pano' => 'BqOjfWhkWQpMoZlk5wWAyA',
   ),
   580 => 
   array (
@@ -6975,6 +7595,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Xelacoaster',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 16,
+    'rua_pano' => 'clt2FZU2Jh_SdvnAOyfoLQ',
   ),
   581 => 
   array (
@@ -6987,6 +7610,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jeremy Thompson',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 273,
+    'rua_pano' => 'qSdCot1-faWYe6faCSFrdQ',
   ),
   582 => 
   array (
@@ -7011,6 +7637,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Freddo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 240,
+    'rua_pano' => 'jOPGbWP7NO-c7DtXUebbBQ',
   ),
   584 => 
   array (
@@ -7059,6 +7688,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Rémih',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 150,
+    'rua_pano' => 'Gilihrxra_UXD_n37Jj_CA',
   ),
   588 => 
   array (
@@ -7119,6 +7751,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'DerIch27',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 262,
+    'rua_pano' => 'oGloP-5h6ADCbOBmhkyV9Q',
   ),
   593 => 
   array (
@@ -7131,6 +7766,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Freddo',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 167,
+    'rua_pano' => 'jegKCszI-V_0DbYWoW9TLQ',
   ),
   594 => 
   array (
@@ -7167,6 +7805,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Lennart Guldbrandsson',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 106,
+    'rua_pano' => '8IpZVuUGKIhn2KbSeItXjw',
   ),
   597 => 
   array (
@@ -7179,6 +7820,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jony54',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 324,
+    'rua_pano' => '30AN6HBbo-n8BWRcYY0PFw',
   ),
   598 => 
   array (
@@ -7203,6 +7847,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Richard Mills',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 96,
+    'rua_pano' => '-aU5hQi1KrRo1Lb5VeLTbw',
   ),
   600 => 
   array (
@@ -7227,6 +7874,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Avayak',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 219,
+    'rua_pano' => 'YFUsAH6PkjqJTRP1eTMNrA',
   ),
   602 => 
   array (
@@ -7239,6 +7889,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'J-P Kärnä',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 76,
+    'rua_pano' => 'YZQzc37Q3zawW6av9pw6eg',
   ),
   603 => 
   array (
@@ -7323,6 +7976,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'William Murphy from Dublin, Ireland',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 288,
+    'rua_pano' => 'Ckdw-Y_mfRTHMI54E52jfw',
   ),
   610 => 
   array (
@@ -7335,6 +7991,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Albin Olsson',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 234,
+    'rua_pano' => 'cb-pEXUFEoqehs0vmltlng',
   ),
   611 => 
   array (
@@ -7383,6 +8042,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Harri Ahola',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 190,
+    'rua_pano' => 'MJzXAFmkoUoqtPyQsNuWUw',
   ),
   615 => 
   array (
@@ -7443,6 +8105,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Andrew Milligan Sumo',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 335,
+    'rua_pano' => 'I_X7iNwxmA9Ewtp7oKPZYw',
   ),
   620 => 
   array (
@@ -7467,6 +8132,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Dag Lindgren',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 160,
+    'rua_pano' => 'YANjX9jaMIJE8Cg-SfIyyQ',
   ),
   622 => 
   array (
@@ -7479,6 +8147,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Manfred Werner (Tsui)',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 326,
+    'rua_pano' => '4dStjah1XhX7H1rHdgtOow',
   ),
   623 => 
   array (
@@ -7527,6 +8198,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Sam Hood',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 120,
+    'rua_pano' => 'ECMLT_sTw85oQs_Grlr-ZQ',
   ),
   627 => 
   array (
@@ -7551,6 +8225,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'JacobLukeWood',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 48,
+    'rua_pano' => 'cU3WSfsvd709Qq9PRZpGZg',
   ),
   629 => 
   array (
@@ -7575,6 +8252,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Maria Victoria Galang',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 278,
+    'rua_pano' => '5b07SWGDy-I9NWbUR4O7AQ',
   ),
   631 => 
   array (
@@ -7587,6 +8267,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'KillianfromTaytoPark',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 187,
+    'rua_pano' => '9MhGBz5MTq9yeZlTV_R_yQ',
   ),
   632 => 
   array (
@@ -7611,6 +8294,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'verdandi_magic',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 236,
+    'rua_pano' => 'JgGmpQw2I_7bmdsLLPKP8g',
   ),
   634 => 
   array (
@@ -7623,6 +8309,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jeremy Thompson',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 231,
+    'rua_pano' => 'dGlrA2mdsxl291737C1d5A',
   ),
   635 => 
   array (
@@ -7683,6 +8372,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jérémy-Günther-Heinz Jähnick',
     'licenca' => 'GFDL 1.2',
+    'rua' => 1,
+    'rua_dir' => 293,
+    'rua_pano' => 'Bm3XYCeERhCRLUt28lXHlw',
   ),
   640 => 
   array (
@@ -7719,6 +8411,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Chell Hill',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 11,
+    'rua_pano' => 'ujIv9KClo2MpTIdTY2UmRQ',
   ),
   643 => 
   array (
@@ -7791,6 +8486,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Bin im Garten',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 333,
+    'rua_pano' => 'zV-osFUoyFUIbGHKcfRGOg',
   ),
   649 => 
   array (
@@ -7839,6 +8537,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Isiwal',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 346,
+    'rua_pano' => 'JmZyYeKGcffIAZxKsQjpjg',
   ),
   653 => 
   array (
@@ -7851,6 +8552,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Altaipanther',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 312,
+    'rua_pano' => 'm0_jUoV396-B42sj8_Y6yg',
   ),
   654 => 
   array (
@@ -7863,6 +8567,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Albinfo',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 7,
+    'rua_pano' => 'jqbXqNNmBLkhe2zd2GrLEg',
   ),
   655 => 
   array (
@@ -7875,6 +8582,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Janjko',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 293,
+    'rua_pano' => 'ZZ1XSeF2dtb0q73DCiu8sg',
   ),
   656 => 
   array (
@@ -7911,6 +8621,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Alexey M.',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 259,
+    'rua_pano' => 'Yx7wB074EAiA1I3hUrG3pA',
   ),
   659 => 
   array (
@@ -7923,6 +8636,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Matus.antol',
     'licenca' => 'CC BY 4.0',
+    'rua' => 1,
+    'rua_dir' => 244,
+    'rua_pano' => '4_klNH10oA5j_qTl0GLQxQ',
   ),
   660 => 
   array (
@@ -7947,6 +8663,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Roko Poljak',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 280,
+    'rua_pano' => 'll0HQcQHgSz5z9yb2Susyg',
   ),
   662 => 
   array (
@@ -7995,6 +8714,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Liuthalas',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 275,
+    'rua_pano' => 'GuC6H7Os1PeVQ6CQaoisSw',
   ),
   666 => 
   array (
@@ -8031,6 +8753,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'No machine-readable author provided. Skorpion87 assumed (based on copyright claims).',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 141,
+    'rua_pano' => 'YTS79UsnwgwnQJvB-zHfOg',
   ),
   669 => 
   array (
@@ -8055,6 +8780,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Stefan Scheer',
     'licenca' => 'CC BY 2.5',
+    'rua' => 1,
+    'rua_dir' => 149,
+    'rua_pano' => 'lBWbl3gBIl_rOXkR2kseIg',
   ),
   671 => 
   array (
@@ -8103,6 +8831,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Erik Möller (Eloquence)',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 230,
+    'rua_pano' => 'eh2lfiOGAK3R2LGXBsZE8Q',
   ),
   675 => 
   array (
@@ -8151,6 +8882,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'This image was produced by me, David Castor (user:dcastor). The pictures I submit to the W',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 343,
+    'rua_pano' => 'gQFT6DurlN15lGhcOwFiLg',
   ),
   679 => 
   array (
@@ -8163,6 +8897,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => '',
     'licenca' => 'CC BY-SA 2.5',
+    'rua' => 1,
+    'rua_dir' => 44,
+    'rua_pano' => 'ABlTVPyDUlLGJ157yDtmgA',
   ),
   680 => 
   array (
@@ -8187,6 +8924,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'User: Jolleman',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 345,
+    'rua_pano' => 'DGDBgOlBG8YA6uDiEtuUOA',
   ),
   682 => 
   array (
@@ -8211,6 +8951,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => '',
     'licenca' => 'CC BY-SA 2.5',
+    'rua' => 1,
+    'rua_dir' => 94,
+    'rua_pano' => '8UQWObD1fXqZ2kGbE3BU9Q',
   ),
   684 => 
   array (
@@ -8223,6 +8966,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'The original uploader was WillMcC at English Wikipedia.',
     'licenca' => 'CC BY-SA 1.0',
+    'rua' => 1,
+    'rua_dir' => 235,
+    'rua_pano' => 'HL7jurrttw8tLgEWzsLYIA',
   ),
   685 => 
   array (
@@ -8331,6 +9077,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jan-Tore Egge',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 120,
+    'rua_pano' => '4OaX6kJP52pqsxbB62mxGw',
   ),
   694 => 
   array (
@@ -8343,6 +9092,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Lasy',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 222,
+    'rua_pano' => 'SfsmIDlVsrsnrNJtRFRvAg',
   ),
   695 => 
   array (
@@ -8403,6 +9155,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'VietovesLt',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 313,
+    'rua_pano' => '8Cgpwt_wzpuETO1DdC4YJA',
   ),
   700 => 
   array (
@@ -8463,6 +9218,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Haunt of the fatherbird',
     'licenca' => 'CC0',
+    'rua' => 1,
+    'rua_dir' => 326,
+    'rua_pano' => 'lI2jAdoxw81bmyMm04rxmg',
   ),
   705 => 
   array (
@@ -8487,6 +9245,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Greg Hewgill',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 277,
+    'rua_pano' => '-kcxwTIBteuYBvY8B-F0HQ',
   ),
   707 => 
   array (
@@ -8523,6 +9284,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Ralph Reichelt',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 212,
+    'rua_pano' => 'AikT2dQmqEEyf-y3zbMvbg',
   ),
   710 => 
   array (
@@ -8619,6 +9383,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Prosperosity',
     'licenca' => 'CC BY 4.0',
+    'rua' => 1,
+    'rua_dir' => 252,
+    'rua_pano' => 'J9WB5cs4UN448wZ7M3Piyg',
   ),
   718 => 
   array (
@@ -8631,6 +9398,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'JiriMatejicek',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 61,
+    'rua_pano' => 'B3NenQ-0U_AjmIYi71uX_g',
   ),
   719 => 
   array (
@@ -8691,6 +9461,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Ramayana Water Park',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 229,
+    'rua_pano' => 'LI2bskcLSt9irgBaofAT7A',
   ),
   724 => 
   array (
@@ -8703,6 +9476,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Ori~',
     'licenca' => 'Attribution',
+    'rua' => 1,
+    'rua_dir' => 112,
+    'rua_pano' => 'OYEDfMFvDjgLxw7ISwUp2w',
   ),
   725 => 
   array (
@@ -8715,6 +9491,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'aristidov',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 161,
+    'rua_pano' => 'TSm_TP2-fNCk0znT_AmB1Q',
   ),
   726 => 
   array (
@@ -8739,6 +9518,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Joseolgon',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 167,
+    'rua_pano' => '0lZ84pvIZzVd0R-T6LI0iQ',
   ),
   728 => 
   array (
@@ -8751,6 +9533,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Rokaszil',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 355,
+    'rua_pano' => '2ohbmZ8U2h8SjxXd-ythkw',
   ),
   729 => 
   array (
@@ -8763,6 +9548,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Chongkian',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 271,
+    'rua_pano' => 'MrpjD2SZ0Ssmk8v7nWxVtQ',
   ),
   730 => 
   array (
@@ -8823,6 +9611,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Battlestar_Galactica_at_night_-_Universal_Studios_Singapore.jpg: Ronnie Liew derivative wo',
     'licenca' => 'CC BY 2.0',
+    'rua' => 1,
+    'rua_dir' => 53,
+    'rua_pano' => '4_4lUR9BTrVZV4xGGrriLw',
   ),
   735 => 
   array (
@@ -8835,6 +9626,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Matias Laine',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 43,
+    'rua_pano' => '0u29A6bGEm2Oo20Vw6ce3w',
   ),
   736 => 
   array (
@@ -8907,6 +9701,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'KJetil Bjørnsrud',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 73,
+    'rua_pano' => 'l8GY9WFoSgtOtDsqb3PhqQ',
   ),
   742 => 
   array (
@@ -8931,6 +9728,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Andreasr24',
     'licenca' => 'CC BY-SA 3.0',
+    'rua' => 1,
+    'rua_dir' => 293,
+    'rua_pano' => 'llMbg2mljQJSbj0mQRXJaw',
   ),
   744 => 
   array (
@@ -8991,6 +9791,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jonathan Wilkins ',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 54,
+    'rua_pano' => 'BGWjwfXB6U_lPSC0JcQW4Q',
   ),
   749 => 
   array (
@@ -9003,6 +9806,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Earthlingtwo',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 330,
+    'rua_pano' => 'Ro_fMv3odUJWFULs2oijIQ',
   ),
   750 => 
   array (
@@ -9039,6 +9845,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'D&amp;G photo',
     'licenca' => 'CC BY 3.0',
+    'rua' => 1,
+    'rua_dir' => 356,
+    'rua_pano' => '7jDvlkm-jvbc9jDsjhj76g',
   ),
   753 => 
   array (
@@ -9051,6 +9860,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Daniele Napolitano',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 171,
+    'rua_pano' => 'gbsCT0G1SMc1eokWsG2tJw',
   ),
   754 => 
   array (
@@ -9063,6 +9875,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Yu tptw',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 121,
+    'rua_pano' => 'F2_KQF59-MAoKQz-65iDyw',
   ),
   755 => 
   array (
@@ -9099,6 +9914,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'TeamBurton at de.wikipedia',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 24,
+    'rua_pano' => 'S7ZcTmSxJKPQa6gcvjj05Q',
   ),
   758 => 
   array (
@@ -9147,6 +9965,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => '',
     'licenca' => 'Copyrighted free use',
+    'rua' => 1,
+    'rua_dir' => 44,
+    'rua_pano' => '00g5iY41W6423T9o5ZkcWQ',
   ),
   762 => 
   array (
@@ -9171,6 +9992,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Jeffreyjhang',
     'licenca' => 'CC BY-SA 4.0',
+    'rua' => 1,
+    'rua_dir' => 172,
+    'rua_pano' => 'fKc-w1x_tbz9P9tEPcbXeg',
   ),
   764 => 
   array (
@@ -9207,6 +10031,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'Martin Belam (currybet) from Niederalm, Austria',
     'licenca' => 'CC BY-SA 2.0',
+    'rua' => 1,
+    'rua_dir' => 82,
+    'rua_pano' => '95hKpkMQr3DhgAyLXc3dSA',
   ),
   767 => 
   array (
@@ -9243,6 +10070,9 @@ return array (
     'nivel' => 'ponto',
     'autor' => 'ZoofanNZ (talk) 04:38, 3 February 2008 (UTC)',
     'licenca' => 'Public domain',
+    'rua' => 1,
+    'rua_dir' => 113,
+    'rua_pano' => 'pGkohKuR-GVvX-D2Lx5BKg',
   ),
   770 => 
   array (
