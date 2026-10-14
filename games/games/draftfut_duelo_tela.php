@@ -213,11 +213,20 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
       </div>
     </div>
     <?php if ($euPronto && !$elePronto): ?>
+      <?php /* O RELÓGIO DELE TAMBÉM É NOTÍCIA MINHA. Quem já fechou o time
+           não tem mais prazo correndo — mas tem uma espera, e saber que ela
+           tem fim (e qual) é a diferença entre esperar e desistir.
+           @see DFD_MINUTOS */ ?>
+      <?php $dlSobra = dfdSegundosRestantes($dl, $outroLado); ?>
       <p class="sub" style="margin:12px 0 0">Seu time está guardado.
         <?php if ($eleFeito === 0): ?>
           O adversário ainda não abriu nenhuma carta.
         <?php else: ?>
           Faltam <b><?= $dlFaltam($eleFeito) ?></b> cartas pra ele terminar.
+        <?php endif; ?>
+        <?php if ($dlSobra !== null): ?>
+          Ele tem <b id="dueloSobraEle"><?= sprintf('%d:%02d', intdiv($dlSobra, 60), $dlSobra % 60) ?></b>
+          pra fechar — passou disso, o duelo é seu.
         <?php endif; ?>
         Quando ele fechar, a partida roda e aparece aqui — pode fechar a página.</p>
     <?php elseif (!$euPronto && $elePronto): ?>
@@ -288,6 +297,15 @@ $eleNome    = (string)($dl['nome_' . $outroLado] ?: 'Adversário');
          pra sempre, reaparecendo em cada F5 depois do duelo. */
       window.location.replace('draftfut.php?v=multi');
       return;
+    }
+
+    /* O relógio do adversário anda com a resposta do servidor, que é quem
+       sabe a hora certa. Quando ele zera, a próxima resposta já vem com
+       `recarregar` e a tela se resolve sozinha. */
+    const sobraEle = document.getElementById('dueloSobraEle');
+    if (sobraEle && typeof j.restamEle === 'number') {
+      const s = Math.max(0, j.restamEle);
+      sobraEle.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     }
 
     if (j.fase === 'montando' && alvoEle) {
