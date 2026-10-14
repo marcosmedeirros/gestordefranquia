@@ -311,6 +311,21 @@ const DFUT_COBRE = [
  * carta errada. Sem permissão de escrita, o jogo segue como antes, só mais
  * devagar; cache é otimização, não dependência.
  */
+/**
+ * O OVR do EA FC por carta, gerado pelo CLI. Vazio quando o arquivo não
+ * existe — aí o baralho vive só do elenco, como viveu até 14/10/2026.
+ *
+ * @see games/core/draftfut_ovr_cli.php
+ */
+function draftFutOvrNovos(): array
+{
+    static $t = null;
+    if ($t !== null) return $t;
+    $arq = __DIR__ . '/../data/draftfut_ovr.php';
+    $t = is_file($arq) ? (array)require $arq : [];
+    return $t;
+}
+
 function draftFutBaralhoAssinatura(): string
 {
     $partes = [
@@ -320,6 +335,7 @@ function draftFutBaralhoAssinatura(): string
         __DIR__ . '/fut_elencos.php',
         __DIR__ . '/../data/draftfut_transferencias.php',
         __DIR__ . '/../data/draftfut_fotos_locais.php',
+        __DIR__ . '/../data/draftfut_ovr.php',      // o OVR do EA FC
         __DIR__ . '/../data/elencos',   // o diretório: muda ao entrar ou sair elenco
     ];
     $sel = '';
@@ -349,6 +365,7 @@ function draftFutBaralho(): array
     $extra  = draftFutExtras();
     $trocas = draftFutTransferencias();
     $locais = draftFutFotosLocais();
+    $ovrFut = draftFutOvrNovos();
 
     /* Liga e escudo por clube, pra a carta de quem trocou nascer já com os do
        clube novo. Sai do mesmo catálogo, então não há segunda fonte. */
@@ -381,11 +398,22 @@ function draftFutBaralho(): array
                 $esc   = $doClube[$novo]['escudo'];
             }
 
-            /* O OVR À MÃO VEM DEPOIS DA TROCA, e por isso aceita as duas
-               chaves: quem escreve a linha pensa no clube de hoje, e o elenco
-               guarda o de ontem. @see DFUT_OVR_MAO */
+            /* ── O OVR DO EA FC ENTRA AQUI ───────────────────────────
+               Os elencos são uma foto de 2024/25 e o draft é sobre quem é
+               bom AGORA: o Yamal estava 79, o Olise 81. Esta camada é
+               gerada do catálogo do EA FC (@see draftfut_ovr_cli.php) e vale
+               só no draft — o jogo de carreira continua lendo o elenco.
+               Quem o EA FC não conhece (o Brasileirão inteiro, por exemplo)
+               mantém o OVR de origem.
+
+               O OVR À MÃO VEM DEPOIS DA TROCA e tem a última palavra, e por
+               isso aceita as duas chaves: quem escreve a linha pensa no
+               clube de hoje, e o elenco guarda o de ontem.
+               @see DFUT_OVR_MAO */
             $ovr = (int)(DFUT_OVR_MAO[$nome . '|' . $nm]
                       ?? DFUT_OVR_MAO[$clube . '|' . $nm]
+                      ?? $ovrFut[$clube . '|' . $nm]
+                      ?? $ovrFut[$nome . '|' . $nm]
                       ?? $ovr);
 
             /* O MESMO JOGADOR SÓ ENTRA UMA VEZ. Se ele trocou pra um clube que
@@ -548,12 +576,18 @@ function draftFutOpcoes(string $posicaoVaga, array $usados, int $ovrMin, int $ov
  */
 function draftFutFaixa(int $vaga): array
 {
-    /* Os onze de campo abrem em 89 e descem até ~80; o banco vem abaixo, que
-       é o que faz o reserva parecer reserva. O piso nunca passa de
-       DFUT_OVR_MIN, então nenhuma carta do draft é pior que 75. */
+    /* Os onze de campo abrem no TETO DO BARALHO e descem até ~83; o banco vem
+       abaixo, que é o que faz o reserva parecer reserva. O piso nunca passa de
+       DFUT_OVR_MIN, então nenhuma carta do draft é pior que 75.
+
+       O teto era 89 porque o elenco de 2024/25 acabava ali. Com o OVR do EA
+       FC (@see draftFutOvrNovos) existem dez cartas de 90 e 91 — Mbappé,
+       Haaland, Yamal — e com o teto velho elas simplesmente nunca sairiam de
+       um pacote. Achado medindo o baralho depois da atualização, não no
+       papel. */
     $topo = $vaga < DFUT_VAGAS
-        ? 89 - (int)floor($vaga * 0.8)
-        : 82 - (int)floor(($vaga - DFUT_VAGAS) * 0.5);
+        ? 91 - (int)floor($vaga * 0.8)
+        : 84 - (int)floor(($vaga - DFUT_VAGAS) * 0.5);
     return [max(DFUT_OVR_MIN, $topo - 8), max(DFUT_OVR_MIN + 4, $topo)];
 }
 
