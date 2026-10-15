@@ -31,6 +31,7 @@
 require_once __DIR__ . '/../core/conexao.php';
 require_once __DIR__ . '/../../backend/observador.php';
 require_once __DIR__ . '/../core/geo.php';
+require_once __DIR__ . '/../core/geo_desafios.php';
 
 $user = getUserSession();
 $user_id = (int)$user['id'];
@@ -68,9 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($acao === 'desistir') {
-        $pdo->prepare("UPDATE geo_partidas SET status = 'fim', fim_em = NOW()
-                        WHERE user_id = ? AND status = 'jogando'")->execute([$user_id]);
-        header('Location: /games/games/geo.php?m=' . urlencode('Partida encerrada.'));
+        /* ENCERRAR PAGA O QUE JÁ FOI FEITO. @see geoEncerrar */
+        $p = geoPartidaAberta($pdo, $user_id);
+        $moedas = $p ? geoEncerrar($pdo, $p) : 0;
+        $m = $moedas > 0
+            ? "Partida encerrada. +{$moedas} moedas pelo que você já tinha feito."
+            : 'Partida encerrada.';
+        header('Location: /games/games/geo.php?m=' . urlencode($m));
         exit;
     }
 
@@ -378,6 +383,34 @@ html:not(.js) .so-js{display:none !important}
 .geo-aviso.ok{background:color-mix(in srgb,var(--green) 13%,transparent);color:var(--green)}
 .geo-aviso.err{background:color-mix(in srgb,var(--red) 13%,transparent);color:var(--red-2)}
 
+/* ── DESAFIOS ────────────────────────────────────────────────────────*/
+.geo-ganhou{display:flex;align-items:center;gap:13px;padding:14px 18px;border-radius:16px;
+  margin-bottom:12px;background:color-mix(in srgb,var(--green) 14%,var(--panel));
+  border:1px solid color-mix(in srgb,var(--green) 40%,transparent);animation:geoSobe .35s var(--ease)}
+.geo-ganhou i{font-size:24px;color:var(--green);flex:none}
+.geo-ganhou b{display:block;font-size:14.5px}
+.geo-ganhou span{font-size:12.5px;color:var(--text-2)}
+/* A conquista tem cor própria: ela é rara e não pode parecer missão. */
+.geo-ganhou.raro{background:color-mix(in srgb,#f5c518 13%,var(--panel));
+  border-color:color-mix(in srgb,#f5c518 45%,transparent)}
+.geo-ganhou.raro i{color:#f5c518}
+.geo-desafios{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));
+  gap:18px;margin-top:26px}
+.geo-bloco{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px}
+.geo-bloco h4{margin:0 0 12px;font-family:'Barlow Condensed',Inter,sans-serif;font-size:21px;
+  font-weight:700;letter-spacing:.3px}
+.geo-des{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:13.5px;
+  border-top:1px solid var(--border)}
+.geo-des:first-of-type{border-top:0}
+.geo-des i{font-size:15px;color:var(--text-3);flex:none}
+.geo-des span{flex:1;min-width:0}
+.geo-des small{display:block;font-size:11.5px;color:var(--text-3)}
+.geo-des b{font-size:12.5px;color:var(--text-2);white-space:nowrap}
+/* Feito fica riscado e some de cor — continua na lista como prova. */
+.geo-des.ok span{color:var(--text-3);text-decoration:line-through}
+.geo-des.ok i{color:var(--green)}
+.geo-des.ok b{color:var(--green)}
+
 @media (max-width:620px){
   .geo-palco{aspect-ratio:4/3;border-radius:18px}
   /* No celular o panorama fica em pe: mais ceu e mais chao, que e o que
@@ -449,6 +482,23 @@ html:not(.js) .so-js{display:none !important}
                            : ($km <= 6000 ? ['Longe',      'rulers',        'var(--amber)']
                                           : ['Outro mundo','globe-americas','var(--red)'])));
   } ?>
+  <?php /* ── O QUE A JOGADA RENDEU DE DESAFIO ────────────────────────
+       Vem ANTES do veredito, e separado dele, porque é a notícia boa: no
+       meio do painel de "errou" ela passaria batida, e conquista que ninguém
+       vê não faz ninguém voltar. @see games/core/geo_desafios.php */ ?>
+  <?php foreach (($resolvida['ganhos'] ?? []) as $g): ?>
+    <div class="geo-ganhou <?= $g['tipo'] === 'conquista' ? 'raro' : '' ?>">
+      <i class="bi bi-<?= $g['tipo'] === 'conquista' ? 'trophy-fill' : 'check2-circle' ?>"></i>
+      <div>
+        <b><?= $g['tipo'] === 'conquista' ? 'Conquista' : 'Missão do dia' ?>:
+           <?= e($g['texto']) ?></b>
+        <span><?= $g['tipo'] === 'conquista'
+            ? '+' . (int)$g['pts'] . ' FBA Points — e essa só dá uma vez na vida.'
+            : '+' . (int)$g['moedas'] . ' moedas' ?></span>
+      </div>
+    </div>
+  <?php endforeach; ?>
+
   <div class="geo-result" style="--c:<?= $cor ?>">
     <div class="geo-veredito">
       <i class="bi bi-<?= $ico ?>"></i> <?= $frase ?>
@@ -748,6 +798,39 @@ html:not(.js) .so-js{display:none !important}
           · <?= (int)$recorde['mapa']['n'] ?> partida<?= (int)$recorde['mapa']['n'] === 1 ? '' : 's' ?></span>
       </button>
     </form>
+  </div>
+
+  <?php /* ── OS DESAFIOS ──────────────────────────────────────────────
+       As três do dia primeiro, porque são as que se cumprem HOJE; as
+       conquistas embaixo, como vitrine do que ainda falta. O que já foi
+       feito continua na lista, riscado: tirar da tela apagaria a única
+       prova de que a pessoa fez. */
+  $feitos = geoMeusDesafios($pdo, $user_id);
+  $doDia  = geoMissoesDoDia(); ?>
+  <div class="geo-desafios">
+    <div class="geo-bloco">
+      <h4><i class="bi bi-calendar-check"></i> Missões de hoje</h4>
+      <?php foreach ($doDia as $k): $m = geoMissoes()[$k]; $ok = !empty($feitos[$k]); ?>
+        <div class="geo-des <?= $ok ? 'ok' : '' ?>">
+          <i class="bi bi-<?= $ok ? 'check-circle-fill' : 'circle' ?>"></i>
+          <span><?= e($m['t']) ?></span>
+          <b><?= (int)$m['moedas'] ?> moedas</b>
+        </div>
+      <?php endforeach; ?>
+      <p class="geo-credito">Trocam à meia-noite, e são as mesmas pra liga inteira.</p>
+    </div>
+
+    <div class="geo-bloco">
+      <h4><i class="bi bi-trophy"></i> Conquistas</h4>
+      <?php foreach (geoConquistas() as $k => $q): $ok = !empty($feitos[$k]); ?>
+        <div class="geo-des <?= $ok ? 'ok' : '' ?>">
+          <i class="bi bi-<?= $ok ? 'trophy-fill' : 'circle' ?>"></i>
+          <span><?= e($q['t']) ?> <small><?= e($q['d']) ?></small></span>
+          <b><?= (int)$q['pts'] ?> FBA</b>
+        </div>
+      <?php endforeach; ?>
+      <p class="geo-credito">Cada uma paga uma vez na vida, em FBA Points.</p>
+    </div>
   </div>
 
   <div class="geo-ranks">

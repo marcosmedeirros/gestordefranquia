@@ -126,8 +126,9 @@ function geoAbrirPartida(PDO $pdo, int $uid, string $modo): ?array
 {
     geoTabelas($pdo);
     $modo = $modo === 'mapa' ? 'mapa' : 'pais';
-    $pdo->prepare("UPDATE geo_partidas SET status = 'fim', fim_em = NOW()
-                    WHERE user_id = ? AND status = 'jogando'")->execute([$uid]);
+    /* A ANTERIOR SE FECHA PAGANDO. Começar outra partida é uma forma de
+       desistir, e desistir com acerto no bolso tem que valer o acerto. */
+    if ($pendurada = geoPartidaAberta($pdo, $uid)) geoEncerrar($pdo, $pendurada);
     $pdo->prepare('INSERT INTO geo_partidas (user_id, modo) VALUES (?,?)')->execute([$uid, $modo]);
     $id = (int)$pdo->lastInsertId();
     geoSortearRodada($pdo, $id, 1, $modo);
@@ -174,6 +175,41 @@ function geoSortearRodada(PDO $pdo, int $partidaId, int $n, string $modo): void
 
     $pdo->prepare('INSERT IGNORE INTO geo_rodadas (partida_id, n, lugar, opcoes) VALUES (?,?,?,?)')
         ->execute([$partidaId, $n, (int)$i, $opcoes]);
+}
+
+/**
+ * FECHA A PARTIDA E PAGA O QUE ELA VALEU.
+ *
+ * Existe porque fechar partida acontecia em três lugares — o fim natural, o
+ * botão de encerrar e o começo de uma partida nova — e só o primeiro pagava.
+ * Quem acertasse sete seguidos e clicasse em "Encerrar" via o recorde entrar
+ * no ranking e as 350 moedas sumirem: o trabalho contava pra fama e não pro
+ * bolso. Pior que perder, isso ENSINAVA a errar de propósito, porque errar
+ * era o único jeito de receber.
+ *
+ * O pagamento só sai se o UPDATE pegou a partida ainda aberta. É o que
+ * impede o duplo clique de pagar duas vezes: a segunda chamada não acha
+ * mais nada em 'jogando' e sai com zero.
+ *
+ * @return int quanto entrou na conta
+ */
+function geoEncerrar(PDO $pdo, array $partida): int
+{
+    $st = $pdo->prepare("UPDATE geo_partidas SET status = 'fim', fim_em = NOW()
+                          WHERE id = ? AND status = 'jogando'");
+    $st->execute([(int)$partida['id']]);
+    if ($st->rowCount() === 0) return 0;      // já estava fechada
+
+    $s = $pdo->prepare('SELECT COALESCE(SUM(acertou),0) a, COALESCE(SUM(pontos),0) p
+                          FROM geo_rodadas WHERE partida_id = ?');
+    $s->execute([(int)$partida['id']]);
+    $soma = $s->fetch(PDO::FETCH_ASSOC);
+
+    $moedas = geoPagar($pdo, (int)$partida['user_id'], (string)$partida['modo'],
+                       (int)$soma['a'], (int)$soma['p']);
+    $pdo->prepare('UPDATE geo_partidas SET acertos = ?, pontos = ?, moedas = ? WHERE id = ?')
+        ->execute([(int)$soma['a'], (int)$soma['p'], $moedas, (int)$partida['id']]);
+    return $moedas;
 }
 
 /**
@@ -335,12 +371,10 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
     /* Acabou? No país, ao errar. No mapa, na quinta rodada. */
     $fim = $partida['modo'] === 'pais' ? !$saida['acertou'] : (int)$soma['n'] >= GEO_RODADAS_MAPA;
     if ($fim) {
-        $moedas = geoPagar($pdo, (int)$partida['user_id'], (string)$partida['modo'],
-                           (int)$soma['a'], (int)$soma['p']);
-        $pdo->prepare("UPDATE geo_partidas SET status = 'fim', fim_em = NOW(), moedas = ? WHERE id = ?")
-            ->execute([$moedas, (int)$partida['id']]);
+        /* Pelo mesmo caminho do botão de encerrar: um lugar só que fecha e
+           paga, pra os dois nunca divergirem de novo. @see geoEncerrar */
         $saida['fim'] = true;
-        $saida['moedas'] = $moedas;
+        $saida['moedas'] = geoEncerrar($pdo, $partida);
     } else {
         /* A PRÓXIMA NÃO NASCE AQUI. Nascia, e o resultado dividia a tela com
            uma rodada nova cujo relógio já estava correndo — a pessoa perdia
@@ -350,6 +384,12 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
     }
     $saida['acertos_total'] = (int)$soma['a'];
     $saida['feitas']        = (int)$soma['n'];   // quantas rodadas já foram
+
+    /* OS DESAFIOS SÃO CONFERIDOS AQUI, depois de a rodada estar gravada: a
+       sequência e os pontos que eles olham saem do banco, não do palpite.
+       @see games/core/geo_desafios.php */
+    require_once __DIR__ . '/geo_desafios.php';
+    $saida['ganhos'] = geoConferirDesafios($pdo, $partida, $saida);
     $saida['pontos_total']  = (int)$soma['p'];
     return $saida;
 }
