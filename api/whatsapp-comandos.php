@@ -346,9 +346,24 @@ function wcSoDaLiga(array $linhas, ?string $ligaDoGrupo): array
  */
 function wcNotaOutrasLigas(array $todos, array $usados): string
 {
-    $fora = array_values(array_unique(array_diff(
-        array_column($todos, 'league'), array_column($usados, 'league'))));
-    return $fora ? "\n\n_também existe na " . implode(', ', $fora) . "_" : '';
+    $usadas = array_column($usados, 'league');
+    $fora = [];
+    foreach ($todos as $p) {
+        $liga = (string)($p['league'] ?? '');
+        if ($liga === '' || in_array($liga, $usadas, true) || isset($fora[$liga])) continue;
+        /* COM O OVR DE CADA UMA, e não só o nome da liga.
+           A ficha mostra UMA cópia do jogador, a da liga que ganhou o
+           desempate — e cada liga tem a sua, com OVR e skills próprios. Quem
+           acabou de atualizar o jogador na NEXT e perguntava no Chat Off
+           Geral recebia a cópia da ELITE, igualzinha à de antes, e concluía
+           que o bot não tinha visto a atualização. Dizendo o número de lá, a
+           diferença fica na cara: "na NEXT ele é 88" é a deixa pra perguntar
+           no grupo certo. */
+        $fora[$liga] = $liga . ' ele é ' . (int)($p['ovr'] ?? 0) . ' OVR';
+    }
+    if (!$fora) return '';
+    return "\n\n_Este é o da " . (string)($usados[0]['league'] ?? '—') . '. Na '
+         . implode('; na ', $fora) . ' — cada liga tem a sua versão dele._';
 }
 
 function wcNormalizarLiga(string $termo): ?string
