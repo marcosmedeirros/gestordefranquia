@@ -85,7 +85,7 @@ function mcpFerramentas(): array
         ],
         [
             'name' => 'tendencias',
-            'description' => 'As tendências do jogo (o que o jogador TENTA fazer: arremessar, pedir a bola, de onde chutar), de 0 a 100. Por jogador, por time ou a liga inteira. Só existem para quem já foi lançado na tela de tendencys.',
+            'description' => 'As tendências do jogo (o que o jogador TENTA fazer: arremessar, pedir a bola, de onde chutar), de 0 a 100. Por jogador, por time ou a liga inteira. Só existem para quem foi lançado na tela de tendencys, que trata de 75 OVR pra cima.',
             'inputSchema' => ['type' => 'object', 'properties' => [
                 'liga'    => $liga,
                 'jogador' => ['type' => 'string', 'description' => 'Nome ou parte do nome. Sem isto, vem o time inteiro ou a liga.'],

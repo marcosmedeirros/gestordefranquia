@@ -186,7 +186,9 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
     <div>
       <h1><i class="bi bi-sliders"></i> Tendencys da ELITE</h1>
       <p class="sub">O que cada jogador <em>tenta</em> fazer em quadra, direto do jogo. Página sem
-         link em menu nenhum e aberta só pra você — tendência é informação de bastidor.</p>
+         link em menu nenhum e aberta só pra você — tendência é informação de bastidor.<br>
+         Só entra quem tem <b><?= TEND_OVR_MINIMO ?> OVR ou mais</b>: abaixo disso é banco de fim de
+         elenco, e o print a print não compensa.</p>
     </div>
     <a class="voltar" href="/dashboard.php"><i class="bi bi-arrow-left"></i> Voltar</a>
   </div>
@@ -196,7 +198,7 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
   <?php endif; ?>
 
   <div class="numeros">
-    <div class="pilula"><b><?= count($jogadores) ?></b><span>jogadores na ELITE</span></div>
+    <div class="pilula"><b><?= count($jogadores) ?></b><span>jogadores de <?= TEND_OVR_MINIMO ?>+ OVR</span></div>
     <div class="pilula"><b><?= $comDados ?></b><span>com tendência lançada</span></div>
     <div class="pilula"><b><?= count($colunas) ?></b><span>colunas</span></div>
     <div class="pilula"><b><?= $ultima ? date('d/m H:i', strtotime($ultima)) : '—' ?></b>
@@ -205,6 +207,15 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
 
   <div class="acoes">
     <button class="btn" id="bModelo"><i class="bi bi-download"></i> Baixar modelo CSV</button>
+    <?php /* O MODELO SÓ DE QUEM FALTA. Com 473 jogadores, depois do primeiro
+         lote o arquivo cheio é quase todo trabalho já feito — e mandar 473
+         linhas pra IA pra ela preencher 40 é pedir pra ela errar as outras
+         433 de volta. O botão some quando não falta ninguém, em vez de
+         baixar um arquivo com zero linhas. */ ?>
+    <?php if ($comDados && $comDados < count($jogadores)): ?>
+      <button class="btn" id="bFaltam"><i class="bi bi-download"></i>
+        Só quem falta (<?= count($jogadores) - $comDados ?>)</button>
+    <?php endif; ?>
     <button class="btn" id="bPrompt"><i class="bi bi-clipboard"></i> Copiar prompt pra IA</button>
     <button class="btn pri" id="bSubir"><i class="bi bi-upload"></i> Subir CSV</button>
     <input class="busca" id="busca" type="search" placeholder="Procurar jogador ou time…">
@@ -253,7 +264,7 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
     <div class="dlg-corpo">
       <ol>
         <li><b>Baixe o modelo</b> — ele já vem com os <?= count($jogadores) ?> jogadores da ELITE
-            e as colunas que existem hoje.</li>
+            de <?= TEND_OVR_MINIMO ?>+ OVR e as colunas que existem hoje.</li>
         <li><b>Copie o prompt</b>, cole na IA e anexe o print da aba Tendency. Se o print tiver
             colunas que não estão no modelo, a IA pode acrescentá-las.</li>
         <li><b>Suba o .csv</b> que ela devolver.</li>
@@ -278,16 +289,24 @@ const JOGADORES = <?= json_encode(array_map(fn($j) => [
 /* O MODELO leva o valor de HOJE em cada célula, e não um arquivo vazio: assim
    a IA tem com o que comparar, e o que ela não encontrar no print continua
    valendo em vez de virar buraco. */
-function modeloLinhas() {
+const semTendencia = j => !Object.keys(j.tend).length;
+
+function modeloLinhas(soFaltam) {
+  const lista = soFaltam ? JOGADORES.filter(semTendencia) : JOGADORES;
   const linhas = [['id', 'jogador', 'time', ...COLUNAS]];
-  JOGADORES.forEach(j => {
+  lista.forEach(j => {
     linhas.push([j.id, j.nome, j.time, ...COLUNAS.map(c => j.tend[c] ?? '')]);
   });
   return linhas;
 }
 
 document.getElementById('bModelo').addEventListener('click', () => {
-  ElencoCSV.baixar('tendencias-elite.csv', modeloLinhas());
+  ElencoCSV.baixar('tendencias-elite.csv', modeloLinhas(false));
+});
+
+const bFaltam = document.getElementById('bFaltam');
+if (bFaltam) bFaltam.addEventListener('click', () => {
+  ElencoCSV.baixar('tendencias-elite-faltam.csv', modeloLinhas(true));
 });
 
 document.getElementById('bPrompt').addEventListener('click', (e) => {

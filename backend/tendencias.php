@@ -35,6 +35,19 @@ const TEND_COLUNAS_SEMENTE = [
     'T/SMID', 'T/SUSMID',
 ];
 
+/**
+ * O CORTE: só jogador de 75 OVR pra cima.
+ *
+ * A ELITE tem 473 jogadores e lançar tendência é trabalho de print em print.
+ * Abaixo de 75 é banco de fim de elenco, que quase não joga — gastar o
+ * esforço ali seria encher a tabela de linha que ninguém vai consultar.
+ *
+ * Vale pra TODO MUNDO: a tela, o modelo e a importação. Se o corte valesse
+ * só na tela, um CSV com o reserva de 68 gravaria um dado invisível, que
+ * ninguém veria pra conferir e nem pra apagar.
+ */
+const TEND_OVR_MINIMO = 75;
+
 /** Cria a tabela na primeira vez. Uma linha por jogador. */
 function tendTabela(PDO $pdo): void
 {
@@ -50,10 +63,11 @@ function tendTabela(PDO $pdo): void
 }
 
 /**
- * Os jogadores da liga com as tendências que já tiverem.
+ * Os jogadores da liga, de TEND_OVR_MINIMO pra cima, com o que já tiverem.
  *
- * Vem TODO MUNDO, inclusive quem nunca foi lançado — é a tela de quem vai
- * preencher, e esconder os vazios esconderia justamente o trabalho que falta.
+ * Dentro do corte vem todo mundo, inclusive quem nunca foi lançado — é a
+ * tela de quem vai preencher, e esconder os vazios esconderia justamente o
+ * trabalho que falta.
  *
  * @return array{jogadores:array,colunas:array}
  */
@@ -66,7 +80,7 @@ function tendJogadores(PDO $pdo, string $liga): array
                            FROM players p
                            JOIN teams t ON t.id = p.team_id
                       LEFT JOIN player_tendencies tt ON tt.player_id = p.id
-                          WHERE t.league = ?
+                          WHERE t.league = ? AND p.ovr >= " . TEND_OVR_MINIMO . "
                        ORDER BY p.ovr DESC, p.name");
     $st->execute([$liga]);
 
@@ -134,12 +148,18 @@ function tendImportar(PDO $pdo, string $liga, array $linhas): array
                 'erros' => ['O arquivo só tem as colunas de identificação — nenhuma tendência pra gravar.']];
     }
 
-    // De quem é cada id, pra recusar jogador de outra liga sem ir ao banco toda hora.
-    $st = $pdo->prepare("SELECT p.id, p.name FROM players p JOIN teams t ON t.id = p.team_id
+    /* De quem é cada id, pra recusar sem ir ao banco toda hora. Vem a liga
+       inteira, e não só os de 75+, pra poder dizer POR QUE a linha caiu:
+       "não é da ELITE" e "está abaixo de 75" são dois problemas diferentes,
+       e quem recebe "não é da ELITE" sobre um jogador que é da ELITE vai
+       procurar defeito no lugar errado. */
+    $st = $pdo->prepare("SELECT p.id, p.name, p.ovr FROM players p JOIN teams t ON t.id = p.team_id
                           WHERE t.league = ?");
     $st->execute([$liga]);
     $daLiga = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $daLiga[(int)$p['id']] = $p['name'];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $daLiga[(int)$p['id']] = ['nome' => $p['name'], 'ovr' => (int)$p['ovr']];
+    }
 
     $antes = $pdo->prepare('SELECT dados FROM player_tendencies WHERE player_id = ?');
     $grava = $pdo->prepare("INSERT INTO player_tendencies (player_id, dados) VALUES (?, ?)
@@ -156,6 +176,12 @@ function tendImportar(PDO $pdo, string $liga, array $linhas): array
             $ignorados++;
             continue;
         }
+        if ($daLiga[$id]['ovr'] < TEND_OVR_MINIMO) {
+            $erros[] = "Linha {$linhaNum}: {$daLiga[$id]['nome']} tem {$daLiga[$id]['ovr']} OVR — "
+                     . 'esta tela só trata de ' . TEND_OVR_MINIMO . ' pra cima.';
+            $ignorados++;
+            continue;
+        }
 
         $antes->execute([$id]);
         $atual = json_decode((string)($antes->fetchColumn() ?: '{}'), true);
@@ -166,7 +192,7 @@ function tendImportar(PDO $pdo, string $liga, array $linhas): array
             $v = trim((string)($l[$i] ?? ''));
             if ($v === '') continue;            // em branco = não mexi
             if (!preg_match('/^\d{1,3}$/', $v) || (int)$v > 100) {
-                $erros[] = "Linha {$linhaNum} ({$daLiga[$id]}), {$nome}: \"{$v}\" não é um número de 0 a 100.";
+                $erros[] = "Linha {$linhaNum} ({$daLiga[$id]['nome']}), {$nome}: \"{$v}\" não é um número de 0 a 100.";
                 continue;
             }
             $atual[$nome] = (int)$v;
