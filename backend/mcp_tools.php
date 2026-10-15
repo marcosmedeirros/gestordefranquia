@@ -84,6 +84,15 @@ function mcpFerramentas(): array
             ], 'required' => ['liga']],
         ],
         [
+            'name' => 'tendencias',
+            'description' => 'As tendências do jogo (o que o jogador TENTA fazer: arremessar, pedir a bola, de onde chutar), de 0 a 100. Por jogador, por time ou a liga inteira. Só existem para quem já foi lançado na tela de tendencys.',
+            'inputSchema' => ['type' => 'object', 'properties' => [
+                'liga'    => $liga,
+                'jogador' => ['type' => 'string', 'description' => 'Nome ou parte do nome. Sem isto, vem o time inteiro ou a liga.'],
+                'time'    => $time,
+            ], 'required' => ['liga']],
+        ],
+        [
             'name' => 'consulta',
             'description' => 'Um SELECT livre no banco, para o que as outras ferramentas não cobrem. Só leitura.',
             'inputSchema' => ['type' => 'object', 'properties' => [
@@ -145,6 +154,7 @@ function mcpExecutar(PDO $pdo, string $nome, array $a): string
         'trade'         => mcpTrade($pdo, (int)($a['id'] ?? 0)),
         'classificacao' => mcpClassificacao($pdo, mcpLiga($a['liga'] ?? null), isset($a['temporada']) ? (int)$a['temporada'] : null),
         'free_agency'   => mcpFreeAgency($pdo, mcpLiga($a['liga'] ?? null), (string)($a['jogador'] ?? '')),
+        'tendencias'    => mcpTendencias($pdo, mcpLiga($a['liga'] ?? null), (string)($a['jogador'] ?? ''), (string)($a['time'] ?? '')),
         'consulta'      => mcpConsulta($pdo, (string)($a['sql'] ?? '')),
         'mover_pick'    => mcpMoverPick($pdo, (int)($a['pick_id'] ?? 0), (string)($a['para'] ?? ''), (string)($a['motivo'] ?? '')),
         'mover_jogador' => mcpMoverJogador($pdo, (string)($a['jogador'] ?? ''), (string)($a['para'] ?? ''), (string)($a['motivo'] ?? '')),
@@ -524,6 +534,67 @@ function mcpSqlSemLiterais(string $sql): string
         ["''", '""'],
         $sql
     ) ?? $sql;
+}
+
+/**
+ * AS TENDÊNCIAS — por jogador, por time ou a liga toda.
+ *
+ * Elas não moram em `players`: vêm da tela de tendencys, que grava um JSON
+ * por jogador com as colunas que o CSV trouxe (@see backend/tendencias.php).
+ * Por isso a saída monta o cabeçalho a partir do que existe, e não de uma
+ * lista fixa — ferramenta que promete coluna que o banco não tem devolve
+ * vazio e parece quebrada.
+ */
+function mcpTendencias(PDO $pdo, ?string $liga, string $jogador, string $time): string
+{
+    if (!$liga) throw new McpErro('Diga a liga.');
+    require_once __DIR__ . '/tendencias.php';
+    tendTabela($pdo);
+
+    $sql = "SELECT p.name, p.position, p.age, p.ovr, CONCAT(t.city,' ',t.name) AS time,
+                   tt.dados, tt.atualizado_em
+              FROM players p
+              JOIN teams t ON t.id = p.team_id
+              JOIN player_tendencies tt ON tt.player_id = p.id
+             WHERE t.league = ?";
+    $p = [$liga];
+    if ($jogador !== '') { $sql .= " AND p.name LIKE ?"; $p[] = '%' . $jogador . '%'; }
+    if ($time !== '')    { $sql .= " AND t.id = ?";      $p[] = (int)mcpAcharTime($pdo, $time, $liga)['id']; }
+    $sql .= " ORDER BY p.ovr DESC, p.name LIMIT 60";
+
+    $st = $pdo->prepare($sql);
+    $st->execute($p);
+    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$linhas) {
+        return "Nenhuma tendência lançada" . ($jogador !== '' ? " para \"{$jogador}\"" : '')
+             . " na {$liga}. Elas entram pela tela /tendencys-elite.php.";
+    }
+
+    /* UM JOGADOR SÓ: vale a ficha em pé, uma tendência por linha — é o
+       formato que se lê. Vários: tabela, que é o formato que se compara. */
+    if (count($linhas) === 1) {
+        $j = $linhas[0];
+        $t = (array)json_decode((string)$j['dados'], true);
+        $out = "{$j['name']} — {$j['time']} ({$liga})\n"
+             . "{$j['position']} · {$j['age']} anos · {$j['ovr']} OVR\n\n";
+        foreach ($t as $k => $v) $out .= str_pad($k, 12) . $v . "\n";
+        return $out . "\nlançado em " . date('d/m/Y H:i', strtotime((string)$j['atualizado_em']));
+    }
+
+    $cols = [];
+    foreach ($linhas as $l) {
+        foreach (array_keys((array)json_decode((string)$l['dados'], true)) as $c) {
+            if (!in_array($c, $cols, true)) $cols[] = $c;
+        }
+    }
+    $out = "jogador | time | OVR | " . implode(' | ', $cols) . "\n";
+    foreach ($linhas as $l) {
+        $t = (array)json_decode((string)$l['dados'], true);
+        $out .= $l['name'] . ' | ' . $l['time'] . ' | ' . $l['ovr'] . ' | '
+              . implode(' | ', array_map(fn($c) => $t[$c] ?? '—', $cols)) . "\n";
+    }
+    return $out . "\n" . count($linhas) . ' jogador(es)'
+         . (count($linhas) === 60 ? ' (teto de 60 — filtre por time ou nome)' : '');
 }
 
 function mcpConsulta(PDO $pdo, string $sql): string

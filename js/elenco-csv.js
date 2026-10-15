@@ -122,6 +122,31 @@
       NAO_MEXA(o.comTime) + '\n' + PEDE_ARQUIVO + '--- MODELO ---\n' + modelo;
   }
 
+  /**
+   * As TENDÊNCIAS a partir do print da aba Tendency.
+   *
+   * O recado que não pode faltar é o da coluna: ao contrário das letras e das
+   * estatísticas, aqui o cabeçalho do modelo é só o começo — o jogo tem mais
+   * tendências do que cabe numa tela, e quem rolar pro lado e fotografar o
+   * resto quer que as colunas novas entrem. Por isso o prompt AUTORIZA
+   * acrescentar coluna, coisa que os outros três proíbem.
+   *
+   * O outro é a setinha: o print traz "91 ▲1" quando o número mudou na última
+   * temporada, e a IA que copia o texto cru grava 911.
+   */
+  function promptTendencias(modelo) {
+    return 'Preencha este CSV com as TENDÊNCIAS de jogadores de basquete a partir da imagem que vou anexar.\n\n' +
+      'O print é a aba "Tendency" do jogo. Cada tendência é um número inteiro de 0 a 100, ' +
+      'e o nome da coluna é o mesmo que aparece no print (T/SHOT, T/TOUCH, T/SCLOSE...).\n\n' +
+      'ATENÇÃO À SETINHA: quando o valor mudou, o jogo escreve o número seguido de uma seta ' +
+      'verde ou vermelha e a variação — "91 ▲1" ou "21 ▼-1". O que vale é SÓ o primeiro número ' +
+      '(91, 21). Não junte os dois, não traga a seta, não traga a variação.\n\n' +
+      'SE O PRINT TIVER COLUNAS QUE NÃO ESTÃO NO MODELO, acrescente-as ao CSV com o nome do ' +
+      'jogo — o site aceita colunas novas e passa a mostrá-las. Se uma coluna do modelo não ' +
+      'aparecer no print, deixe-a em branco (em branco quer dizer "não mexi"; zero quer dizer zero).\n' +
+      NAO_MEXA(true) + '\n' + PEDE_ARQUIVO + '--- MODELO ---\n' + modelo;
+  }
+
   window.ElencoCSV = { escapar, paraTexto, baixar, ler, copiar,
-                       promptLetras, promptStats, promptPosicoes };
+                       promptLetras, promptStats, promptPosicoes, promptTendencias };
 })();
