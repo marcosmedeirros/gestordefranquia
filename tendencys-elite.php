@@ -110,6 +110,9 @@ function tendCor(int $v): string
   --font:'Montserrat',system-ui,sans-serif;--num:'Oswald',sans-serif;--radius:14px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* O atributo hidden tem que ganhar de .btn{display:inline-flex} e afins —
+   senao o botao Limpar nasce visivel mesmo sem filtro ligado. */
+[hidden]{display:none !important}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;
   padding:22px 18px 60px}
 .wrap{max-width:1500px;margin:0 auto}
@@ -137,6 +140,23 @@ h1 i{color:var(--red)}
 .busca{flex:1;min-width:200px;max-width:320px;padding:10px 14px;border-radius:11px;
   border:1px solid var(--border-md);background:var(--panel-2);color:var(--text);font:inherit;font-size:13px}
 
+/* ── A BARRA DE FILTROS ────────────────────────────────────────────── */
+.filtros{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filtros select{padding:10px 13px;border-radius:11px;border:1px solid var(--border-md);
+  background:var(--panel-2);color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.filtros select:focus,.busca:focus{outline:none;border-color:var(--red)}
+/* O filtro que está pegando fica vermelho: com cinco controles lado a lado,
+   "a lista está estranha" quase sempre é um deles esquecido ligado. */
+.filtros select.ligado{border-color:var(--red);color:var(--red)}
+.btn.limpo{padding:9px 13px;font-size:12.5px}
+.conta{font-size:12.5px;color:var(--text-2);margin-left:auto}
+.conta b{color:var(--text)}
+/* NOME PRÓPRIO, e não .vazio: a célula sem tendência também se chamava
+   assim, e o padding de 28px deste aviso caía nela — quem não tinha
+   lançamento aparecia com a linha 60% mais alta que as outras. É a mesma
+   colisão de classe que já tinha acontecido com .capa no Clube. */
+.nada{padding:28px 18px;text-align:center;color:var(--text-2);font-size:13.5px}
+
 .aviso{padding:13px 16px;border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6}
 .aviso.ok{background:color-mix(in srgb,var(--green) 13%,transparent);color:var(--green)}
 .aviso.warn{background:color-mix(in srgb,var(--amber) 13%,transparent);color:var(--amber)}
@@ -148,7 +168,8 @@ h1 i{color:var(--red)}
 .tabela{overflow:auto;max-height:72vh;border:1px solid var(--border);border-radius:var(--radius);
   background:var(--panel)}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
-th,td{padding:8px 10px;font-size:12.5px;white-space:nowrap;border-bottom:1px solid var(--border)}
+th,td{padding:8px 10px;font-size:12.5px;line-height:1.3;white-space:nowrap;
+  border-bottom:1px solid var(--border);overflow:hidden}
 thead th{position:sticky;top:0;z-index:3;background:var(--panel-3);font-size:11px;letter-spacing:.4px;
   text-transform:uppercase;color:var(--text-2);font-weight:700;text-align:center}
 tbody tr:hover td{background:var(--panel-2)}
@@ -218,7 +239,44 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
     <?php endif; ?>
     <button class="btn" id="bPrompt"><i class="bi bi-clipboard"></i> Copiar prompt pra IA</button>
     <button class="btn pri" id="bSubir"><i class="bi bi-upload"></i> Subir CSV</button>
-    <input class="busca" id="busca" type="search" placeholder="Procurar jogador ou time…">
+  </div>
+
+  <?php /* ── OS FILTROS ──────────────────────────────────────────────────
+       Numa tabela de 344 linhas por dezenas de colunas, achar alguém rolando
+       é desistir no meio. Tudo acontece no navegador: os dados já estão na
+       página, então filtrar não volta ao servidor e responde enquanto se
+       digita.
+
+       O filtro de SITUAÇÃO é o que mais vale no dia a dia: "falta lançar"
+       responde a pergunta que se faz toda vez que esta tela abre — de quem
+       ainda preciso tirar print. */ ?>
+  <div class="filtros">
+    <input class="busca" id="busca" type="search" placeholder="Procurar pelo nome…" autocomplete="off">
+    <select id="fTime">
+      <option value="">Todos os times</option>
+      <?php foreach (array_values(array_unique(array_column($jogadores, 'time'))) as $t): ?>
+        <option value="<?= h($t) ?>"><?= h($t) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <select id="fPos">
+      <option value="">Todas as posições</option>
+      <?php foreach (['PG', 'SG', 'SF', 'PF', 'C'] as $p): ?>
+        <option value="<?= $p ?>"><?= $p ?></option>
+      <?php endforeach; ?>
+    </select>
+    <select id="fSit">
+      <option value="">Lançados e faltando</option>
+      <option value="falta">Falta lançar</option>
+      <option value="feito">Já lançados</option>
+    </select>
+    <select id="fOvr">
+      <option value="<?= TEND_OVR_MINIMO ?>"><?= TEND_OVR_MINIMO ?>+ OVR (todos)</option>
+      <?php foreach ([80, 85, 90, 95] as $o): ?>
+        <option value="<?= $o ?>"><?= $o ?>+ OVR</option>
+      <?php endforeach; ?>
+    </select>
+    <button class="btn limpo" id="bLimpar" hidden><i class="bi bi-x-lg"></i> Limpar</button>
+    <span class="conta" id="conta"></span>
   </div>
 
   <div class="tabela">
@@ -233,7 +291,11 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
       <tbody>
         <?php foreach ($jogadores as $j):
           $pos = $j['position'] . ($j['secondary_position'] ? '/' . $j['secondary_position'] : ''); ?>
-          <tr data-busca="<?= h(mb_strtolower($j['name'] . ' ' . $j['time'])) ?>">
+          <tr data-busca="<?= h(mb_strtolower($j['name'])) ?>"
+              data-time="<?= h($j['time']) ?>"
+              data-pos="<?= h($j['position'] . ' ' . $j['secondary_position']) ?>"
+              data-ovr="<?= (int)$j['ovr'] ?>"
+              data-sit="<?= empty($j['tend']) ? 'falta' : 'feito' ?>">
             <td class="col-jog"><?= h($j['name']) ?><small><?= h($j['time']) ?></small></td>
             <td class="num"><?= h($pos) ?></td>
             <td class="num"><?= (int)$j['age'] ?></td>
@@ -247,6 +309,11 @@ input[type=file]{font:inherit;font-size:12.5px;color:var(--text-2)}
         <?php endforeach; ?>
       </tbody>
     </table>
+    <?php /* Filtro que não acha nada precisa dizer isso: tabela só com o
+         cabeçalho parece tela quebrada. */ ?>
+    <div class="nada" id="semNada" hidden>
+      Nenhum jogador com esses filtros. <br>Experimente limpar algum deles.
+    </div>
   </div>
 
   <p class="rodape">
@@ -323,12 +390,63 @@ const dlg = document.getElementById('dlg');
 document.getElementById('bSubir').addEventListener('click', () => dlg.showModal());
 document.getElementById('bFechar').addEventListener('click', () => dlg.close());
 
-document.getElementById('busca').addEventListener('input', (e) => {
-  const q = e.target.value.trim().toLowerCase();
-  document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-    tr.style.display = !q || tr.dataset.busca.includes(q) ? '' : 'none';
+/* ── OS FILTROS ────────────────────────────────────────────────────────
+   Um filtro só: cada controle estreita o mesmo conjunto, e a conta no canto
+   diz quantos sobraram. Tudo no navegador, porque as linhas já estão aqui.
+
+   A posição casa com a SECUNDÁRIA também: um PF/C tem que aparecer quando se
+   procura C, senão o filtro mente sobre o elenco. */
+const LINHAS = [...document.querySelectorAll('#tbl tbody tr')];
+const cBusca = document.getElementById('busca');
+const cTime  = document.getElementById('fTime');
+const cPos   = document.getElementById('fPos');
+const cSit   = document.getElementById('fSit');
+const cOvr   = document.getElementById('fOvr');
+const conta  = document.getElementById('conta');
+const bLimpar = document.getElementById('bLimpar');
+const OVR_MIN = <?= TEND_OVR_MINIMO ?>;
+
+function filtrar() {
+  const q    = cBusca.value.trim().toLowerCase();
+  const time = cTime.value, pos = cPos.value, sit = cSit.value;
+  const ovr  = parseInt(cOvr.value, 10);
+  let n = 0;
+
+  LINHAS.forEach(tr => {
+    const d = tr.dataset;
+    const passa = (!q    || d.busca.includes(q))
+               && (!time || d.time === time)
+               && (!pos  || d.pos.split(' ').includes(pos))
+               && (!sit  || d.sit === sit)
+               && (+d.ovr >= ovr);
+    tr.hidden = !passa;
+    if (passa) n++;
   });
+
+  // O que está pegando fica aceso, pra ninguém caçar lista vazia à toa.
+  cTime.classList.toggle('ligado', !!time);
+  cPos.classList.toggle('ligado', !!pos);
+  cSit.classList.toggle('ligado', !!sit);
+  cOvr.classList.toggle('ligado', ovr > OVR_MIN);
+
+  const filtrando = q || time || pos || sit || ovr > OVR_MIN;
+  bLimpar.hidden = !filtrando;
+  conta.innerHTML = filtrando
+    ? `<b>${n}</b> de ${LINHAS.length} jogadores`
+    : `<b>${LINHAS.length}</b> jogadores`;
+  document.getElementById('semNada').hidden = n > 0;
+}
+
+[cBusca, cTime, cPos, cSit, cOvr].forEach(el => {
+  el.addEventListener('input', filtrar);
+  el.addEventListener('change', filtrar);
 });
+bLimpar.addEventListener('click', () => {
+  cBusca.value = ''; cTime.value = ''; cPos.value = ''; cSit.value = '';
+  cOvr.value = String(OVR_MIN);
+  filtrar(); cBusca.focus();
+});
+filtrar();
 </script>
 </body>
 </html>
