@@ -35,6 +35,7 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/observador.php';
 require_once __DIR__ . '/backend/sistema_proficiencia.php';
+require_once __DIR__ . '/backend/salary_cap.php';
 requireAuth();
 
 $user = getUserSession();
@@ -45,11 +46,76 @@ if (!$team) { header('Location: my-roster.php'); exit; }
 $teamId = (int)$team['id'];
 $liga   = strtoupper((string)$team['league']);
 
+/* ── O CAP NA MESA ───────────────────────────────────────────────────
+   Pedido do Marcos (16/10/2026): "faltou mostrar como fica o cap, pode
+   ser do lugar em quadra, pq sempre vai ser 5".
+
+   O cap da liga NÃO é um número de cinco jogadores: na ELITE é a folha
+   do elenco inteiro, nas outras é a soma dos CAP_TOP_N melhores. Nenhum
+   dos dois cabe numa mesa que mistura elenco com jogador emprestado —
+   somar o salário de quem é de outro time e chamar de "sua folha" seria
+   inventar um número.
+
+   O que a mesa mostra é o que os CINCO custam, que é a pergunta dela:
+   trocar um pivô por outro move esse número na hora. Ele é comparável
+   entre escalações justamente porque são sempre cinco. Pra não virar
+   outra coisa na cabeça de quem lê, a régua de verdade do time viaja
+   junto, no rodapé do cartão.
+
+   A unidade é a da liga: milhão na ELITE, OVR nas outras. */
+$capUsaSalario = capLigaUsaSalario($pdo, $liga);
+$capAward      = $capUsaSalario ? getAwardBonusesByPlayerName($pdo, $liga) : [];
+$capCalouro    = $capUsaSalario ? capTemporadasDeCalouro($pdo, $liga) : [];
+
+/* A RÉGUA DE VERDADE, só pra dar escala ao número dos cinco. Sai dos
+   mesmos helpers do Meu Elenco pra não divergir dele. */
+$capRegua = ['usa' => $capUsaSalario, 'un' => $capUsaSalario ? 'M' : ''];
+try {
+    if ($capUsaSalario) {
+        $sum = getTeamCapSummary($pdo, $teamId);
+        $capRegua += ['hoje' => (int)$sum['payroll'], 'min' => (int)$sum['cap_floor'], 'max' => (int)$sum['cap_max']];
+    } else {
+        $stC = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+        $stC->execute([$liga]);
+        $lim = $stC->fetch(PDO::FETCH_ASSOC) ?: [];
+        $capRegua += [
+            'hoje' => topOvrCap($pdo, $teamId),
+            'min'  => (int)($lim['cap_min'] ?? 0),
+            'max'  => capMaxWithRestrictedBonus($pdo, $teamId, (int)($lim['cap_max'] ?? 0)),
+            'topn' => CAP_TOP_N,
+        ];
+    }
+} catch (Throwable $e) {
+    /* Sem a régua o cartão ainda vale: o número dos cinco é o que a mesa
+       responde, e a escala é o complemento. */
+    error_log('[mesa-tatica] regua do cap: ' . $e->getMessage());
+}
+
+/**
+ * A foto do jogador, do mesmo jeito que o Meu Elenco monta.
+ * O retrato do cdn.nba.com é 260x190 de propósito: na quadra ele aparece
+ * com 52px, e o tamanho grande custava 209 KB por jogador.
+ * @see getPlayerPhotoUrl() em js/my-roster-v2.js
+ */
+function mesaFoto(array $p): ?string
+{
+    $f = trim((string)($p['foto_adicional'] ?? ''));
+    if ($f !== '') {
+        $f = str_replace('\\', '/', $f);
+        return preg_match('~^(data:image/|https?://)~i', $f) ? $f : '/' . ltrim($f, '/');
+    }
+    $id = (int)($p['nba_player_id'] ?? 0);
+    /* Sem foto nenhuma devolve null e a tela desenha a inicial — o
+       ui-avatars fica só pro onerror, que é quando a foto existe e não
+       carrega. */
+    return $id ? "https://cdn.nba.com/headshots/nba/latest/260x190/{$id}.png" : null;
+}
+
 /**
  * Monta a ficha que a mesa entende, com as notas por sistema já resolvidas.
  * Mesma forma pro elenco da casa e pra quem vem emprestado de outro time.
  */
-function mesaFicha(array $p, bool $deFora = false): array
+function mesaFicha(array $p, bool $deFora = false, array $cap = []): array
 {
     $notas = [];
     foreach (array_keys(sistemaNomes()) as $chave) {
@@ -66,6 +132,15 @@ function mesaFicha(array $p, bool $deFora = false): array
                  : (($p['role'] ?? '') === 'Titular' ? 'titulares'
                  : (strtolower((string)($p['role'] ?? '')) === 'g-league' ? 'outros' : 'banco')),
         'sist'  => $notas ?: null,
+        'foto'  => mesaFoto($p),
+        /* O MESMO NÚMERO DA FOLHA do card de Cap: salário base (contrato
+           assinado, piso de lenda ou tabela por OVR) mais o bônus de
+           prêmio. Fora do modo salário fica null, e a mesa soma OVR —
+           escrever 0M numa liga que não tem salário seria mentira.
+           @see getTeamCapSummary() */
+        'sal'   => empty($cap['usa']) ? null
+                 : getPlayerBaseSalary($p, $cap['calouro'] ?? [])
+                   + ($cap['award'][mb_strtolower(trim((string)$p['name']))] ?? 0),
         /* De fora = de outro time. A tela pinta em cinza e escreve de quem é:
            num rascunho que mistura elenco e cobiça, confundir os dois é o
            erro que estraga a conta. */
@@ -82,7 +157,11 @@ function mesaFicha(array $p, bool $deFora = false): array
    estavam no rascunho quando a página reabre. */
 if (isset($_GET['busca']) || isset($_GET['ids'])) {
     header('Content-Type: application/json; charset=utf-8');
+    /* As colunas de cap vêm junto porque o salário do emprestado entra no
+       mesmo número dos cinco — e sem elas getPlayerBaseSalary() cairia na
+       tabela por OVR e cobraria errado de lenda e calouro. */
     $sel = 'SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, '
+         . 'p.nba_player_id, p.foto_adicional, p.contract_salary, p.is_lenda, p.draft_round, p.draft_pick_position, p.drafted_season_number, '
          . "CONCAT(t.city,' ',t.name) AS time_dono, " . sistemaColunasSql('p')
          . ' FROM players p JOIN teams t ON t.id = p.team_id
             WHERE t.league = ? AND p.team_id <> ?';
@@ -102,7 +181,8 @@ if (isset($_GET['busca']) || isset($_GET['ids'])) {
     }
 
     $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $out[] = mesaFicha($p, true);
+    $capCtx = ['usa' => $capUsaSalario, 'award' => $capAward, 'calouro' => $capCalouro];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $out[] = mesaFicha($p, true, $capCtx);
     echo json_encode($out, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -110,12 +190,15 @@ if (isset($_GET['busca']) || isset($_GET['ids'])) {
 /* O elenco com as notas por sistema, do mesmo jeito que a Tática monta.
    @see api/tactics.php */
 $st = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, '
+                    . 'nba_player_id, foto_adicional, contract_salary, is_lenda, '
+                    . 'draft_round, draft_pick_position, drafted_season_number, '
                     . sistemaColunasSql('') . ' FROM players WHERE team_id = ? ORDER BY ovr DESC, name');
 $st->execute([$teamId]);
 /* A função de hoje decide onde o jogador NASCE no tabuleiro: abrir a mesa
    já com a escalação atual é o ponto de partida de qualquer "e se" —
    ninguém rascunha do zero. @see mesaFicha */
-$elenco = array_map(fn($p) => mesaFicha($p), $st->fetchAll(PDO::FETCH_ASSOC));
+$capCtx = ['usa' => $capUsaSalario, 'award' => $capAward, 'calouro' => $capCalouro];
+$elenco = array_map(fn($p) => mesaFicha($p, false, $capCtx), $st->fetchAll(PDO::FETCH_ASSOC));
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -170,6 +253,10 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
   padding:11px 16px;min-width:118px}
 .cart b{display:block;font-family:var(--num);font-size:23px;line-height:1}
 .cart span{font-size:11px;color:var(--text-2)}
+/* A régua do time no pé do cartão: o número grande é dos cinco, e sem
+   a escala ao lado ele não diz se é muito ou pouco. */
+.cart em{display:block;font-style:normal;font-size:10px;color:var(--text-3);
+  margin-top:3px;letter-spacing:.2px}
 .cart.alerta{border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
 .cart.alerta b{color:var(--amber)}
 
@@ -205,9 +292,22 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
 .lugar{position:absolute;transform:translate(-50%,-50%);width:92px;display:flex;
   flex-direction:column;align-items:center;gap:3px;cursor:grab;user-select:none}
 .lugar:active{cursor:grabbing}
-.lugar .bola{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;
-  background:var(--panel);border:2px solid var(--marca,var(--border-md));
+/* A BOLA É A FOTO. Era o OVR escrito dentro de um círculo, e a quadra
+   virava cinco números: dava pra ver o time, não os jogadores. O OVR
+   não sumiu — desceu pro canto da foto, que é onde ele cabe sem
+   disputar a atenção com o rosto. */
+.lugar .bola{position:relative;display:grid;place-items:center;width:52px;height:52px;
+  border-radius:50%;background:var(--panel);border:2px solid var(--marca,var(--border-md));
   font-family:var(--num);font-size:20px;line-height:1}
+.lugar .bola img{width:100%;height:100%;border-radius:50%;object-fit:cover;
+  object-position:top center;background:var(--panel-3);display:block}
+/* A inicial é o retrato de quem não tem foto: um círculo vazio não
+   diferencia ninguém. */
+.lugar .bola .ini{font-family:var(--font);font-size:19px;font-weight:700;color:var(--text-2)}
+.lugar .bola .num{position:absolute;right:-5px;bottom:-4px;min-width:21px;height:21px;
+  padding:0 3px;display:grid;place-items:center;border-radius:999px;
+  background:var(--panel);border:1.5px solid var(--marca,var(--border-md));
+  font-family:var(--num);font-size:11.5px;line-height:1;color:var(--text)}
 .lugar.vazio .bola{border-style:dashed;color:var(--text-3);font-size:11px;font-family:var(--font);
   font-weight:600}
 .lugar .quem{font-size:11.5px;font-weight:700;text-align:center;line-height:1.2;
@@ -320,6 +420,10 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
       <div class="cart"><b id="nOvr">—</b><span>OVR médio</span></div>
       <div class="cart"><b id="nIdade">—</b><span>idade média</span></div>
       <div class="cart"><b id="nAlto">—</b><span>maior OVR</span></div>
+      <div class="cart" id="cartCap" hidden>
+        <b id="nCap">—</b><span id="rotCap">cap dos 5</span>
+        <em id="reguaCap"></em>
+      </div>
       <div class="sist">
         <h4>Em que sistema esse time joga</h4>
         <div id="sistemas"><div class="vazia">Ponha cinco em quadra pra ver.</div></div>
@@ -381,6 +485,9 @@ const NOMES  = <?= json_encode(sistemaNomes(), JSON_UNESCAPED_UNICODE) ?>;
    mais fácil de a mesa e o resto do site discordarem na primeira vez que
    alguém mexesse num número. @see backend/sistema_proficiencia.php */
 const CORTES = <?= json_encode(SISTEMA_ESTRELAS, JSON_UNESCAPED_UNICODE) ?>;
+/* A régua do cap da liga: unidade, o que o time tem hoje e a faixa.
+   @see o bloco "O CAP NA MESA" no topo deste arquivo. */
+const CAP = <?= json_encode($capRegua, JSON_UNESCAPED_UNICODE) ?>;
 const ZONAS  = ['titulares', 'bancos', 'outros'].map(z => z === 'bancos' ? 'banco' : z);
 const TIME_NOME = <?= json_encode(trim($team['city'] . ' ' . $team['name']), JSON_UNESCAPED_UNICODE) ?>;
 const CHAVE_SALVA = 'fba-mesa-<?= $teamId ?>';
@@ -553,6 +660,20 @@ function tirarDaQuadra(id, zona) {
   onde[id] = zona;
 }
 
+/* O rosto dentro da bola, com o OVR pendurado no canto. Foto que não
+   carrega cai no avatar de inicial em vez de deixar um buraco — é o
+   mesmo degrau do Meu Elenco. @see mesaFoto() no PHP */
+function retrato(p) {
+  const ini = (p.nome || '?').trim().charAt(0).toUpperCase();
+  const reserva = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.nome || '?')
+                + '&background=121212&color=f17507&rounded=true&bold=true';
+  const rosto = p.foto
+    ? `<img src="${p.foto}" alt="" draggable="false" loading="lazy"
+            onerror="this.onerror=null;this.src='${reserva}'">`
+    : `<span class="ini">${ini}</span>`;
+  return rosto + `<span class="num">${p.ovr}</span>`;
+}
+
 function desenharQuadra() {
   const el = document.getElementById('quadra');
   const { ocupadas, sobra } = quintetoEmOrdem();
@@ -566,7 +687,7 @@ function desenharQuadra() {
     html += `<div class="lugar ${p ? '' : 'vazio'} ${foraDePosicao ? 'trocado' : ''} ${p && p.fora ? 'fora' : ''}"
                   data-marca="${m}" ${p ? `data-id="${p.id}" draggable="true"` : ''}
                   style="left:${x}%;top:${y}%;--marca:${cor}">
-      <span class="bola">${p ? p.ovr : m}</span>
+      <span class="bola">${p ? retrato(p) : m}</span>
       ${p ? `<span class="quem">${p.nome}</span>
              <span class="dele">${p.pos}${foraDePosicao ? ' na vaga de ' + m : ''}</span>` : ''}
     </div>`;
@@ -579,7 +700,11 @@ function desenharQuadra() {
     const extra = document.createElement('div');
     extra.className = 'vazia';
     extra.style.cssText = 'position:absolute;left:8px;right:8px;bottom:6px;text-align:center';
-    extra.textContent = 'Sem lugar no desenho: ' + sobra.map(p => p.nome).join(', ');
+    /* Tres nomes e a conta do resto: a lista inteira cresce por cima da
+       quadra e tapa os jogadores, que e justamente o que se foi olhar. */
+    const nomes = sobra.slice(0, 3).map(p => p.nome).join(', ');
+    extra.textContent = 'Sem lugar no desenho: ' + nomes
+                      + (sobra.length > 3 ? ' e mais ' + (sobra.length - 3) : '');
     el.appendChild(extra);
   }
 
@@ -619,9 +744,16 @@ function desenhar() {
     document.getElementById('c-' + z).textContent = dentro.length;
   });
 
-  const q = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
-  document.getElementById('c-titulares').textContent = q.length;
-  document.getElementById('z-titulares').classList.toggle('cheia', q.length > 5);
+  const naZona = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
+  /* QUEM CONTA SÃO OS CINCO DAS MARCAS, não todo mundo largado na zona.
+     A zona aceita mais de cinco de propósito (é rascunho), e quem sobra
+     já aparece escrito embaixo da quadra como "sem lugar no desenho" —
+     mas ele entrava na média e no sistema, e o time saía melhor ou pior
+     do que o quinteto que está em quadra. Pedido do Marcos: o sistema
+     que o time joga é o dos titulares. */
+  const q = Object.values(quintetoEmOrdem().ocupadas);
+  document.getElementById('c-titulares').textContent = naZona.length;
+  document.getElementById('z-titulares').classList.toggle('cheia', naZona.length > 5);
   document.getElementById('nQuinteto').textContent = q.length;
   const media = (arr, f) => arr.length ? (arr.reduce((s, x) => s + f(x), 0) / arr.length) : null;
   const mOvr = media(q, p => p.ovr), mIdade = media(q, p => p.idade);
@@ -635,11 +767,47 @@ function desenhar() {
     document.getElementById('nQuinteto').parentElement.classList.add('alerta');
   }
 
+  desenharCap(q);
+
   const fora = ELENCO_MESA.filter(p => p.fora).length;
   document.getElementById('bDevolver').hidden = !fora;
   document.getElementById('nFora').textContent = fora;
 
   desenharSistemas(q);
+}
+
+/* QUANTO CUSTAM OS CINCO.
+   Na ELITE é a soma dos salários; nas outras, a soma de OVR, que é a
+   moeda do cap de lá. O rodapé mostra a régua do time pra dar escala —
+   o número grande é de cinco jogadores e o cap da liga é do elenco,
+   então um nunca cabe dentro do outro: o que se compara é escalação
+   com escalação. */
+function desenharCap(q) {
+  const cart = document.getElementById('cartCap');
+  if (!CAP || !cart) return;
+  cart.hidden = false;
+  const un = CAP.un || '';
+
+  /* No modo salário, quem não tem salário na ficha não vira zero: ficaria
+     barato por falta de dado, que é o contrário do que a conta diz. */
+  const valor = p => CAP.usa ? p.sal : p.ovr;
+  const temTodos = q.every(p => valor(p) != null);
+  const soma = q.reduce((s, p) => s + (valor(p) || 0), 0);
+
+  document.getElementById('nCap').textContent = q.length ? soma + un : '—';
+  document.getElementById('rotCap').textContent = CAP.usa ? 'folha dos 5' : 'OVR dos 5';
+
+  const pe = [];
+  if (CAP.hoje != null) {
+    pe.push('time hoje ' + CAP.hoje + un
+          + (CAP.max ? ' · teto ' + CAP.max + un : ''));
+  }
+  /* Emprestado na quadra encarece (ou barateia) um número que não é do
+     seu time. Dizer isso é o mínimo pra ninguém levar o valor a sério. */
+  const deFora = q.filter(p => p.fora).length;
+  if (deFora) pe.push(deFora + ' de fora na conta');
+  if (q.length && !temTodos) pe.push('alguém sem salário na ficha');
+  document.getElementById('reguaCap').textContent = pe.join(' · ');
 }
 
 /* A MÉDIA DOS CINCO EM CADA SISTEMA. A nota de cada jogador veio pronta do
@@ -773,7 +941,10 @@ function textoDoTime() {
   const banco = ELENCO_MESA.filter(p => onde[p.id] === 'banco').sort((a, b) => b.ovr - a.ovr);
   const outros = ELENCO_MESA.filter(p => onde[p.id] === 'outros').sort((a, b) => b.ovr - a.ovr);
 
-  const q = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
+  /* Os mesmos cinco das marcas que a tela conta — quem sobrou da quadra
+     sai listado com "--" lá em cima, mas não entra na média nem no
+     sistema. @see desenhar() */
+  const q = MARCAS.map(m => ocupadas[m]).filter(Boolean);
   const med = (arr, f) => arr.length ? (arr.reduce((s, x) => s + f(x), 0) / arr.length).toFixed(1) : '-';
 
   let t = TIME_NOME + '\n\n' + (fora.length ? fora.join('\n') : '(ninguém em quadra)');
@@ -781,6 +952,13 @@ function textoDoTime() {
   if (outros.length) t += '\n\nOutros / G-League:\n' + outros.map(linha).join('\n');
   if (q.length) {
     t += '\n\nOVR médio ' + med(q, p => p.ovr) + ' · idade média ' + med(q, p => p.idade);
+    /* O custo dos cinco vai junto: é o número que a mesa passou a
+       mostrar, e quem cola o time no grupo quer discutir isso também. */
+    const valor = p => CAP.usa ? p.sal : p.ovr;
+    if (q.every(p => valor(p) != null)) {
+      t += ' · ' + (CAP.usa ? 'folha' : 'OVR') + ' dos 5 '
+         + q.reduce((sm, p) => sm + valor(p), 0) + (CAP.un || '');
+    }
     /* O sistema entra porque é o que a mesa responde e o texto, sem ele,
        seria só uma lista de nomes que qualquer um já tinha. */
     const comFicha = q.filter(p => p.sist);
