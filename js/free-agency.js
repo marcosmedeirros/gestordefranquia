@@ -242,6 +242,12 @@ function abrirPedido(j) {
     const modal = el('modalJogadorNaoEsta');
     if (!modal) return;
 
+    /* QUAL PROPOSTA ESTE FORMULÁRIO ESTÁ MEXENDO, na mesma chave que o
+       servidor manda em `propostas`. O aviso de cap precisa disso pra não
+       contar duas vezes quem está só editando o próprio lance. Cadastro
+       de jogador novo não é proposta de ninguém ainda, e vai vazio. */
+    window.__faAlvoAtual = (j && j.id) ? 'fa:' + j.id : '';
+
     if (j) {
         el('faNewPlayerName').value = j.name || '';
         el('faNewPosition').value   = j.position || 'PG';
@@ -429,6 +435,86 @@ async function carregarCapDoMeuTime() {
  *
  * Sem dado de cap, some da tela — melhor nada do que um número inventado.
  */
+/**
+ * Qual proposta o formulário está mexendo, na chave que o servidor usa.
+ * Vazio quando é cadastro de jogador novo, que ainda não é proposta de
+ * ninguém.
+ */
+function alvoDoFormulario() {
+    return window.__faAlvoAtual || '';
+}
+
+/**
+ * O TEXTO DO AVISO — "como vai ficar", que foi o pedido.
+ *
+ * Vem do grupo pelo Kleber (15/10/2026): "ficar visível em algum lugar o
+ * Cap do time dele como vai ficar e se possível a quantidade de
+ * jogadores, tipo igual mostra na trade". Ele mesmo levantou o buraco:
+ * simular um jogador de cada vez mente pra quem tem várias propostas em
+ * pé, e sugeriu contar todas. É o que esta conta faz.
+ *
+ * O AVISO DE QUE É O PIOR CASO É PARTE DA RESPOSTA, não rodapé: ninguém
+ * leva todas as propostas que faz, e sem essa frase o número assusta à
+ * toa. O que ele serve pra dizer é quanto ainda dá pra prometer sem
+ * risco de estourar.
+ */
+function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
+    const oCusto = custo === 0
+        ? 'não mexe no seu cap'
+        : `pesa <strong>${fmtCap(custo, u)}</strong>`;
+
+    const d = capDoMeuTime || {};
+    const folha = d.folha, teto = d.teto;
+    const elenco = Number(d.elenco || 0), max = Number(d.elenco_max || 15);
+
+    let t = (salario
+        ? `O lance ${oCusto} e vira o salário dele no primeiro ano.`
+        : `Esse jogador ${oCusto} no seu cap.`);
+
+    /* COMO FICA, que é a pergunta. O "de X pra Y" diz mais que o espaço
+       sozinho: quem olha quer se ver depois da contratação. */
+    if (folha != null && teto != null) {
+        /* `jaPrometido` é o conjunto das OUTRAS propostas, já sem esta —
+           quem edita um lance que existe não pode ver o antigo somado ao
+           novo. Em soma de OVR a parcela de cada um é subaditiva (o
+           segundo craque sobe menos que o primeiro), então somar os dois
+           dá um teto da conta, nunca um número menor que o real: é o
+           pior caso, que é exatamente o que a frase promete. */
+        const depois = folha + jaPrometido + custo;
+        t += outras.length
+            ? ` Levando ele e as outras, você fica em <strong>${fmtCap(depois, u)}</strong>`
+              + ` de <strong>${fmtCap(teto, u)}</strong>.`
+            : ` Com ele você fica em <strong>${fmtCap(depois, u)}</strong>`
+              + ` de <strong>${fmtCap(teto, u)}</strong>.`;
+    }
+
+    /* O elenco. Com vaga de sobra é uma informação; chegando no limite é
+       um aviso, porque proposta com elenco cheio não pode nem ser feita. */
+    const depoisElenco = elenco + 1 + outras.length;
+    if (elenco) {
+        t += ` Elenco: <strong>${elenco}</strong> hoje`
+           + (outras.length
+                ? `, <strong>${depoisElenco}</strong> se levar todas`
+                : `, <strong>${elenco + 1}</strong> com ele`)
+           + ` — o limite é ${max}.`;
+    }
+
+    if (outras.length) {
+        const nomes = outras.slice(0, 3).map(p => p.nome).join(', ')
+                    + (outras.length > 3 ? ` e mais ${outras.length - 3}` : '');
+        t += `<br><span style="color:var(--text-3)">Conta com as ${outras.length} proposta${outras.length === 1 ? '' : 's'}`
+           + ` que você já tem em pé (${nomes}). É o pior caso: só vale se você levar todas.</span>`;
+    }
+
+    if (!cabe) {
+        t = `<strong>Não cabe.</strong> ` + t
+          + `<br>Sobram <strong>${fmtCap(Math.max(0, livre), u)}</strong>`
+          + (outras.length ? ' depois do que você já prometeu' : '')
+          + '. Libere espaço, baixe o lance ou cancele uma proposta.';
+    }
+    return t;
+}
+
 function atualizarAvisoDeCap() {
     const caixa = document.getElementById('faCapAviso');
     const texto = document.getElementById('faCapTexto');
@@ -441,38 +527,44 @@ function atualizarAvisoDeCap() {
     const u = capDoMeuTime.unidade || 'M';
     const espaco = capDoMeuTime.espaco;
     const salario = capDoMeuTime.modo === 'salary';
+    if (espaco == null) return liberar();
 
-    let cabe, frase;
+    /* AS PROPOSTAS QUE JÁ ESTÃO EM PÉ ENTRAM NA CONTA.
+       Se o alvo de agora já é uma delas, o que vale é o conjunto SEM ele
+       — senão a proposta velha e a nova seriam contadas as duas, e a tela
+       diria que não cabe o lance que ela mesma já tinha aceitado. */
+    const alvo = alvoDoFormulario();
+    const outras = (capDoMeuTime.propostas || []).filter(p => p.chave !== alvo);
+    const jaPrometido = alvo && (capDoMeuTime.propostas || []).some(p => p.chave === alvo)
+        ? Number((capDoMeuTime.propostas.find(p => p.chave === alvo) || {}).sem || 0)
+        : Number(capDoMeuTime.comprometido || 0);
+    const livre = espaco - jaPrometido;
+
+    let cabe, custo, frase;
 
     if (salario) {
         const lance = parseInt(document.getElementById('faNewOffer')?.value, 10);
         const minimo = Number(capDoMeuTime.lance_minimo || 0);
-        if (!Number.isFinite(lance) || espaco == null) return liberar();
-
+        if (!Number.isFinite(lance)) return liberar();
         if (lance < minimo) {
-            cabe = false;
-            frase = `<strong>O lance mínimo é ${fmtCap(minimo, u)}.</strong>`;
-        } else {
-            cabe = lance <= Math.max(0, espaco);
-            frase = cabe
-                ? `O lance de <strong>${fmtCap(lance, u)}</strong> vira o salário dele no primeiro ano. E ${fraseDeEspaco(espaco, u)}.`
-                : `<strong>O lance não cabe na sua folha.</strong> Você ofereceu ${fmtCap(lance, u)} e ${fraseDeEspaco(espaco, u)}.`;
+            caixa.hidden = false;
+            texto.innerHTML = `<strong>O lance mínimo é ${fmtCap(minimo, u)}.</strong>`;
+            texto.style.color = 'var(--red)';
+            if (botao) { botao.disabled = true; botao.style.opacity = '.5'; }
+            return;
         }
+        /* Na ELITE o lance É o salário do primeiro ano. */
+        custo = lance;
     } else {
         const ovr = parseInt(document.getElementById('faNewOvr')?.value, 10);
         if (!Number.isFinite(ovr)) return liberar();
-        const custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
-        cabe = custo <= Math.max(0, espaco);
-        const oCusto = custo === 0
-            ? 'não mexe no seu cap'
-            : `custa <strong>${fmtCap(custo, u)}</strong> no seu cap`;
-        frase = cabe
-            ? `Um jogador de <strong>${ovr} OVR</strong> ${oCusto}. E ${fraseDeEspaco(espaco, u)}.`
-            : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR ${oCusto}, e ${fraseDeEspaco(espaco, u)}. Libere espaço ou mire num OVR menor.`;
+        /* Fora da ELITE quem pesa é o jogador, e o cap é soma de OVR. */
+        custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
     }
 
+    cabe = custo <= Math.max(0, livre);
+    texto.innerHTML = frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido });
     caixa.hidden = false;
-    texto.innerHTML = frase;
     texto.style.color = cabe ? '' : 'var(--red)';
     if (botao) {
         botao.disabled = !cabe;

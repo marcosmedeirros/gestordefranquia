@@ -2428,29 +2428,175 @@ function listPedidosDaFreeAgency(PDO $pdo, ?string $league, ?int $teamId): void
     jsonSuccess(['temporada' => $temporada, 'league' => $league, 'jogadores' => $jogadores]);
 }
 
+/**
+ * O QUE O TIME JÁ COMPROMETEU COM AS PROPOSTAS QUE ESTÃO EM PÉ.
+ *
+ * Pedido vindo do grupo pelo Kleber (15/10/2026): na hora de propor, o
+ * GM quer ver como o cap dele fica — e ele mesmo levantou o problema de
+ * simular um jogador de cada vez. Até aqui cada lance era conferido
+ * contra o espaço de HOJE, ignorando os outros lances do próprio time:
+ * com 25M de espaço dava pra ter três propostas de 20M em pé, todas
+ * aprovadas pela validação, e o estouro só aparecia quando o admin
+ * fechasse a segunda.
+ *
+ * É o PIOR CASO, não uma previsão: ninguém leva todas as propostas que
+ * faz. A tela diz isso com todas as letras — o número serve pra saber
+ * quanto ainda dá pra prometer sem risco, não quanto se vai gastar.
+ *
+ * ── O CUSTO DE CADA PROPOSTA NÃO É SEMPRE O LANCE ────────────────────
+ *
+ * Na ELITE, pedido de Free Agency: o lance É o salário do primeiro ano,
+ * então o custo é o próprio valor. Mas no DISPENSADO o lance só decide
+ * quem leva — ele assina pela tabela de OVR (regra de 05/10/2026), e um
+ * 95 arrematado por 3M entra custando 44M. Somar lances ali esconderia
+ * exatamente o estouro que esta conta existe pra mostrar.
+ *
+ * Fora da ELITE o cap é soma dos CAP_TOP_N melhores, e aí comprometido
+ * NÃO É SOMA: dois reservas de 70 podem custar zero juntos, porque
+ * nenhum entra no top. A conta certa é refazer o top com todos os
+ * candidatos dentro de uma vez e ver quanto subiu.
+ *
+ * @return array{total:int, itens:array<array{chave:string,nome:string,custo:int}>}
+ */
+function faComprometido(PDO $pdo, int $teamId, string $modo): array
+{
+    $vazio = ['total' => 0, 'itens' => []];
+    if ($teamId <= 0) return $vazio;
+
+    $ovrCol = freeAgentOvrColumn($pdo);
+    $alvos = [];   // chave => [nome, ovr, lance]
+
+    try {
+        $st = $pdo->prepare('SELECT r.id, r.player_name, r.ovr, o.amount
+                                FROM fa_request_offers o
+                                JOIN fa_requests r ON r.id = o.request_id
+                               WHERE o.team_id = ? AND o.status = "pending"
+                                 AND r.status = "open" AND o.amount > 0');
+        $st->execute([$teamId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $alvos['fa:' . (int)$r['id']] = [$r['player_name'], (int)$r['ovr'], (int)$r['amount']];
+        }
+    } catch (Throwable $e) { error_log('[fa/comprometido] pedidos: ' . $e->getMessage()); }
+
+    try {
+        $st = $pdo->prepare("SELECT fa.id, fa.name, fa.{$ovrCol} AS ovr, o.amount
+                                FROM free_agent_offers o
+                                JOIN free_agents fa ON fa.id = o.free_agent_id
+                               WHERE o.team_id = ? AND o.status = 'pending'
+                                 AND fa.status = 'open' AND o.amount > 0");
+        $st->execute([$teamId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $alvos['disp:' . (int)$r['id']] = [$r['name'], (int)$r['ovr'], (int)$r['amount']];
+        }
+    } catch (Throwable $e) { error_log('[fa/comprometido] dispensados: ' . $e->getMessage()); }
+
+    if (!$alvos) return $vazio;
+
+    /* O elenco de hoje, que é a base das duas contas. */
+    $ovrs = [];
+    if ($modo !== 'salary') {
+        try {
+            $st = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC');
+            $st->execute([$teamId]);
+            $ovrs = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        } catch (Throwable $e) { return $vazio; }
+    }
+
+    /* QUANTO CUSTA LEVAR ESTE CONJUNTO, seja ele qual for.
+       Fechada como função porque roda mais de uma vez: uma com todas e
+       uma por proposta, tirando ela da lista. É disso que a tela precisa
+       pra responder certo quando o GM EDITA um lance que já existe — sem
+       o "sem este", ela contaria a proposta velha e a nova ao mesmo
+       tempo e diria que não cabe. */
+    $custoDoConjunto = function (array $conj) use ($modo, $ovrs): int {
+        if ($modo === 'salary') {
+            $t = 0;
+            foreach ($conj as $chave => [$nome, $ovr, $lance]) {
+                /* Pedido de FA: o lance é o salário. Dispensado: tabela de OVR. */
+                $t += str_starts_with($chave, 'fa:') ? $lance : capOvrSalary($ovr);
+            }
+            return $t;
+        }
+        $antes = array_sum(array_slice($ovrs, 0, CAP_TOP_N));
+        $com = $ovrs;
+        foreach ($conj as [$nome, $ovr, $lance]) $com[] = $ovr;
+        rsort($com);
+        return array_sum(array_slice($com, 0, CAP_TOP_N)) - $antes;
+    };
+
+    $total = $custoDoConjunto($alvos);
+    $itens = [];
+    foreach ($alvos as $chave => [$nome, $ovr, $lance]) {
+        $semEle = $alvos;
+        unset($semEle[$chave]);
+        $itens[] = [
+            'chave' => $chave,
+            'nome'  => $nome,
+            /* O que ELE sozinho acrescenta ao que já estava prometido. Em
+               soma de OVR isso não é o custo dele isolado: dois reservas de
+               70 custam zero cada um sozinho e zero juntos, mas o segundo
+               craque de 90 custa menos que o primeiro. */
+            'custo' => $total - $custoDoConjunto($semEle),
+            'sem'   => $custoDoConjunto($semEle),
+        ];
+    }
+
+    return ['total' => $total, 'itens' => $itens];
+}
+
 function capEspacoDoTime(PDO $pdo, ?int $teamId): void
 {
     if (!$teamId) {
         jsonSuccess(['espaco' => null, 'unidade' => 'M', 'custo_por_ovr' => []]);
     }
-    // Fora da ELITE a resposta é "não há cap": espaço nulo. O front lê isso
-    // e esconde o aviso inteiro em vez de mostrar zero, que pareceria um time
-    // estourado.
-    if (!faCapAplica($pdo, $teamId)) {
-        jsonSuccess(['espaco' => null, 'unidade' => 'M', 'modo' => 'livre', 'custo_por_ovr' => []]);
-    }
+    /* O AVISO DE CAP VALE NAS QUATRO LIGAS.
+       Ele saía daqui com espaço nulo fora da ELITE e a tela escondia tudo
+       — mas `capCabeNoTime` sempre soube responder no modo soma de OVR, e
+       o próprio JS já tinha a ramificação pronta e morta. O GM da NEXT
+       mandava proposta sem nenhum aviso de cap até o admin recusar. */
     $base = capCabeNoTime($pdo, $teamId, 80);
     $tabela = [];
     for ($ovr = 40; $ovr <= 99; $ovr++) {
         $tabela[$ovr] = capCabeNoTime($pdo, $teamId, $ovr)['custo'];
     }
+
+    $modo = (string)($base['modo'] ?? 'salary');
+    $comp = faComprometido($pdo, (int)$teamId, $modo);
+
+    /* A FOLHA DE HOJE, pra tela poder escrever "de X vai pra Y" em vez de
+       só o espaço que sobra — era o que o Kleber pediu com "como vai
+       ficar". Na ELITE é a folha; nas outras, a soma do top. */
+    $folha = null; $teto = null;
+    try {
+        if ($modo === 'salary') {
+            $r = getTeamCapSummary($pdo, (int)$teamId);
+            $folha = (int)$r['payroll']; $teto = (int)$r['cap_max'];
+        } else {
+            $folha = topOvrCap($pdo, (int)$teamId);
+            $teto  = $folha + (int)$base['espaco'];
+        }
+    } catch (Throwable $e) { error_log('[fa/cap] folha: ' . $e->getMessage()); }
+
+    $elenco = 0;
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+        $st->execute([(int)$teamId]);
+        $elenco = (int)$st->fetchColumn();
+    } catch (Throwable $e) { error_log('[fa/cap] elenco: ' . $e->getMessage()); }
+
     jsonSuccess([
         'espaco'        => $base['espaco'],
         'unidade'       => $base['unidade'],
-        'modo'          => $base['modo'],
+        'modo'          => $modo,
         // O piso do lance vai junto pra tela avisar antes de o GM enviar.
         'lance_minimo'  => FA_LANCE_MINIMO_ELITE,
         'custo_por_ovr' => $tabela,
+        'folha'         => $folha,
+        'teto'          => $teto,
+        'elenco'        => $elenco,
+        'elenco_max'    => ELENCO_MAX,
+        'comprometido'  => $comp['total'],
+        'propostas'     => $comp['itens'],
     ]);
 }
 
