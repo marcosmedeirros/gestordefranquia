@@ -282,6 +282,12 @@ if ($teamId) {
         /* ── Main ──────────────────────────────────────── */
         .main { margin-left: var(--sidebar-w); width: calc(100% - var(--sidebar-w)); padding: 32px 40px 60px; }
         .page-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
+        /* As abas Escalação / Mesa tática. @see mesa-tatica.php */
+        .abas-elenco { display: flex; gap: 6px; margin: -6px 0 20px; border-bottom: 1px solid var(--border); }
+        .abas-elenco a { padding: 10px 18px; font-size: 13.5px; font-weight: 600; color: var(--text-2);
+            text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .abas-elenco a:hover { color: var(--text); }
+        .abas-elenco a.on { color: var(--red); border-bottom-color: var(--red); }
         .page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
         .page-title   { font-size: 32px; font-family: var(--font); margin-bottom: 6px; }
         .page-sub     { color: var(--text); font-size: 14px; }
@@ -766,6 +772,17 @@ if ($teamId) {
             </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($teamId): ?>
+        <?php /* As duas faces do elenco. A Mesa Tática é tela à parte de
+                 propósito: lá nada é salvo no time, e misturar as duas numa
+                 página só é como alguém grava sem querer o que era rascunho.
+                 @see mesa-tatica.php */ ?>
+        <nav class="abas-elenco">
+            <a href="/my-roster.php" class="on">Escalação</a>
+            <a href="/mesa-tatica.php">Mesa tática</a>
+        </nav>
+        <?php endif; ?>
 
         <?php if (!$teamId): ?>
         <div style="background:var(--panel);border:1px solid rgba(255,193,7,.3);border-radius:var(--radius);padding:20px 24px;color:#ffc107;">
