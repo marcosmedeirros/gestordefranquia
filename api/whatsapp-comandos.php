@@ -1010,6 +1010,13 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
        meio da lista. `seasons.start_date` é a data real, e é ela que sabe o
        que veio depois do quê.
 
+       A TEMPORADA EM ANDAMENTO FICA DE FORA. Pedido do Marcos
+       (16/10/2026): "a atual não deve ser contada". Ela ainda não tem
+       estatística lançada, então entrava só pra ocupar três linhas
+       dizendo "sem estatística" — e empurrava pra fora uma temporada
+       fechada, que é o que se quer ver. `seasons.status` separa as duas:
+       a de agora é a única 'draft' da liga, o resto é 'completed'.
+
        Por nome + liga, que é o que sobrevive à dispensa, com
        as estatísticas penduradas pela temporada e pelo id daquele ano — o
        mesmo nome pode ter ids diferentes ao longo da carreira. */
@@ -1021,6 +1028,7 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
                              ON ps.season_id = l.season_id AND ps.player_id = l.player_id
                       LEFT JOIN seasons s ON s.id = l.season_id
                           WHERE l.player_name = ? AND l.league = ?
+                            AND s.status = 'completed'
                        ORDER BY s.start_date ASC, l.season_number ASC, l.id ASC");
     $st->execute([$nome, $liga]);
     $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -1069,15 +1077,41 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
         }
     }
 
-    /* O resumo no pé responde de relance o que a lista responde devagar. */
-    $ovrs = array_map('intval', array_column($todas, 'ovr'));
-    $txt .= "\n" . count($todas) . ' temporada' . (count($todas) === 1 ? '' : 's')
-          . (count($todas) > count($linhas) ? ' na liga (acima, as ' . count($linhas) . ' últimas)' : '')
-          . ' · OVR de ' . min($ovrs) . ' a ' . max($ovrs);
-    $comStats = array_values(array_filter($todas, fn($l) => $l['games'] !== null));
-    if ($comStats) {
-        $pts = array_map('floatval', array_column($comStats, 'pts_pg'));
-        $txt .= ' · melhor campanha ' . wcNum(max($pts)) . ' pts';
+    /* ── A MÉDIA DA CARREIRA NO PÉ ───────────────────────────────────
+       Pedido do Marcos (16/10/2026): "coloca as médias históricas dele no
+       geral", no lugar da linha que contava temporadas e o melhor ano.
+       Faz sentido: a lista já mostra os três últimos anos um a um, e o
+       que ela não responde é o tamanho do jogador no geral.
+
+       PESADA POR JOGOS, e não a média das médias. Uma temporada de 9
+       jogos a 30 pontos não vale o mesmo que uma de 82 a 20 — somando
+       as duas médias e dividindo por dois, o ano curto mentiria pra
+       cima. Soma pts_pg × jogos e divide pelo total de jogos, que é a
+       média de verdade da carreira. */
+    $comStats = array_values(array_filter($todas, fn($l) => $l['games'] !== null && (int)$l['games'] > 0));
+    $jogos = array_sum(array_map(fn($l) => (int)$l['games'], $comStats));
+
+    $txt .= "\n*Carreira* · " . count($todas) . ' temporada' . (count($todas) === 1 ? '' : 's');
+
+    if ($jogos > 0) {
+        $media = function (string $campo) use ($comStats, $jogos) {
+            $soma = 0.0;
+            foreach ($comStats as $l) $soma += (float)$l[$campo] * (int)$l['games'];
+            return $soma / $jogos;
+        };
+        $txt .= " em {$jogos} jogos\n"
+              . wcNum($media('pts_pg')) . ' pts · ' . wcNum($media('reb_pg')) . ' reb · '
+              . wcNum($media('ast_pg')) . " ast\n"
+              . wcNum($media('stl_pg')) . ' STL · ' . wcNum($media('blk_pg')) . ' BLK · '
+              . wcNum($media('min_pg')) . ' min · ' . wcNum($media('fg_pct')) . '% fg';
+    } else {
+        /* Carreira sem nenhuma estatística lançada: dizer isso é melhor do
+           que escrever uma linha de zeros que pareceria desempenho. */
+        $txt .= ' · nenhuma estatística lançada ainda';
+    }
+
+    if (count($todas) > count($linhas)) {
+        $txt .= "\n_acima, as " . count($linhas) . ' últimas temporadas_';
     }
     return $txt;
 }
