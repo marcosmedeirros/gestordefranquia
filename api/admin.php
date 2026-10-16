@@ -1476,6 +1476,18 @@ if ($method === 'GET') {
             $stmtPicks->execute([$teamId]);
             $team['picks'] = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
+            /* O ANO DE CORTE DAS PICKS, pra tela saber o que já passou.
+               Ela usava o ano do RELÓGIO do computador, e os dois não têm
+               nada a ver: a NEXT joga 2023 com o calendário em 2026, e o
+               filtro escondia as picks de 2024 e 2025 como se já tivessem
+               acontecido. Pior, a lista mudava sozinha na virada do ano.
+
+               O corte vem de anoDeCorteDasPicks, o mesmo que as outras telas
+               de pick usam — ele sabe de draft aberto e de draft concluído,
+               coisa que uma conta nova aqui não saberia. Era justamente pra
+               isso que ele virou ponto único. */
+            $team['liga_ano'] = anoDeCorteDasPicks($pdo, (string)$team['league']);
+
             $team['cap_top8'] = topOvrCap($pdo, $teamId);
             $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$teamId);
             $team['restricted_bonus'] = restrictedCapBonus($pdo, (int)$teamId);   // a conta mora em helpers.php, e so la

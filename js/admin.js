@@ -4893,8 +4893,13 @@ async function showTeam(teamId) {
 </div>
 
 ${(() => {
-    const curYear = new Date().getFullYear();
-    const picks = (t.picks || []).filter(p => Number(p.season_year) >= curYear);
+    /* O ANO DA LIGA, e não o do relógio. A NEXT joga 2023 com o
+       calendário em 2026: filtrar pelo relógio escondia as picks de
+       2024 e 2025, que ainda vão ser usadas, e mudava a lista sozinho
+       na virada do ano. Sem o ano da liga (temporada fechada), não
+       esconde nada — mostrar demais é melhor que sumir com pick. */
+    const anoLiga = Number(t.liga_ano) || 0;
+    const picks = (t.picks || []).filter(p => !anoLiga || Number(p.season_year) >= anoLiga);
     const swapLabel = type => type === 'SW' ? 'SW · Pior' : type === 'SB' ? 'SB · Melhor' : escapeHtml(type);
     const pickRows = !picks.length
       ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
