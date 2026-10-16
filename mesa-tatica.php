@@ -360,6 +360,7 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
     </div>
 
     <div class="barra">
+      <button class="bt" id="bCopiar"><i class="bi bi-clipboard"></i> Copiar time</button>
       <button class="bt" id="bHoje"><i class="bi bi-arrow-counterclockwise"></i> Voltar ao time de hoje</button>
       <button class="bt" id="bDevolver" hidden><i class="bi bi-person-dash"></i>
         Devolver os emprestados (<span id="nFora">0</span>)</button>
@@ -381,6 +382,7 @@ const NOMES  = <?= json_encode(sistemaNomes(), JSON_UNESCAPED_UNICODE) ?>;
    alguém mexesse num número. @see backend/sistema_proficiencia.php */
 const CORTES = <?= json_encode(SISTEMA_ESTRELAS, JSON_UNESCAPED_UNICODE) ?>;
 const ZONAS  = ['titulares', 'bancos', 'outros'].map(z => z === 'bancos' ? 'banco' : z);
+const TIME_NOME = <?= json_encode(trim($team['city'] . ' ' . $team['name']), JSON_UNESCAPED_UNICODE) ?>;
 const CHAVE_SALVA = 'fba-mesa-<?= $teamId ?>';
 
 /* O estado é só "onde está cada jogador". Guardado no aparelho: rascunho é
@@ -392,6 +394,8 @@ let onde = {};
 /* ELENCO é a lista viva da mesa: nasce com o time da casa e cresce com
    quem for trazido de outro time. Por isso deixou de ser const. */
 let ELENCO_MESA = ELENCO.slice();
+/* marca da quadra -> id do jogador que o GM pôs ali à mão */
+let fixo = {};
 
 async function carregar() {
   let salvo = null;
@@ -400,6 +404,7 @@ async function carregar() {
      emprestados junto. Ler os dois evita que quem já rascunhou perca tudo. */
   const zonas = salvo && salvo.onde ? salvo.onde : (salvo || {});
   const fora  = (salvo && salvo.fora) || [];
+  fixo = (salvo && salvo.fixo) || {};
 
   if (fora.length) {
     try {
@@ -419,7 +424,7 @@ async function carregar() {
 
 function guardar() {
   const fora = ELENCO_MESA.filter(p => p.fora).map(p => p.id);
-  try { localStorage.setItem(CHAVE_SALVA, JSON.stringify({ onde, fora })); } catch (e) {}
+  try { localStorage.setItem(CHAVE_SALVA, JSON.stringify({ onde, fora, fixo })); } catch (e) {}
   marcarSalvo('rascunho guardado neste aparelho');
 }
 let tSalvo;
@@ -456,7 +461,21 @@ function cartao(p) {
   /* OS BOTÕES EXISTEM POR CAUSA DO CELULAR: arrastar com o dedo numa página
      que rola é briga perdida, e sem eles a mesa só funcionaria no PC. */
   d.querySelectorAll('.mover button').forEach(b => {
-    b.addEventListener('click', () => { onde[p.id] = b.dataset.para; desenhar(); guardar(); });
+      b.addEventListener('click', () => {
+        const para = b.dataset.para;
+        /* Pelo botão "pra quadra" ele cai na primeira marca livre; não
+           havendo nenhuma, na que combina com a posição dele, e aí quem
+           estava lá desce pro banco. */
+        if (para === 'titulares') {
+          const livre = MARCAS.find(m => !fixo[m])
+                     || String(p.pos).split('/').find(x => MARCAS.includes(x))
+                     || MARCAS[0];
+          porNaMarca(p.id, livre);
+        } else {
+          tirarDaQuadra(p.id, para);
+        }
+        desenhar(); guardar();
+      });
   });
   return d;
 }
@@ -470,19 +489,68 @@ const D = window.QuadraDesenho || {};
 const MARCAS = D.POS || ['PG','SG','SF','PF','C'];
 
 function quintetoEmOrdem() {
-  /* A ordem das marcas segue o tamanho do jogador quando dá: o maior OVR
-     não manda aqui, quem manda é onde ele costuma jogar — assim o desenho
-     abre parecido com o que a pessoa tem na cabeça, e ela corrige dali. */
+  /* QUEM O GM COLOCOU NA MARCA MANDA. O arrasto fixa o lugar (`fixo`), e só
+     o que sobra é arrumado sozinho: pela posição do jogador quando ela
+     existe, pelo que vagar quando não existe. Sem a parte fixa, arrastar o
+     pivô pra ponta não adiantava nada — o desenho recalculava tudo no frame
+     seguinte e devolvia ele pro garrafão. */
   const fila = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
   const ocupadas = {};
-  const sobra = [];
+  const pendentes = [];
+
   fila.forEach(p => {
+    const marca = Object.keys(fixo).find(m => fixo[m] === p.id);
+    if (marca && !ocupadas[marca]) ocupadas[marca] = p; else pendentes.push(p);
+  });
+  const sobra = [];
+  pendentes.forEach(p => {
     const dele = String(p.pos).split('/');
     const vaga = MARCAS.find(m => dele.includes(m) && !ocupadas[m]);
     if (vaga) ocupadas[vaga] = p; else sobra.push(p);
   });
   MARCAS.forEach(m => { if (!ocupadas[m] && sobra.length) ocupadas[m] = sobra.shift(); });
   return { ocupadas, sobra };
+}
+
+/**
+ * Põe o jogador numa marca da quadra.
+ *
+ * QUEM ESTAVA ALI VAI PRO BANCO — pedido do Marcos, e é o que faz sentido:
+ * quando se promove alguém a titular, o que saiu continua no elenco, não
+ * desaparece nem vai parar na G-League. Vale inclusive quando a troca é
+ * entre dois que já estavam em quadra: aí os dois só trocam de marca, e
+ * ninguém desce.
+ */
+function porNaMarca(id, marca) {
+  /* QUEM ESTÁ NA MARCA É QUEM O DESENHO MOSTRA ALI, e não só quem foi
+     fixado à mão: a maior parte do quinteto chega à marca pelo arranjo
+     automático, e olhar só o `fixo` fazia o titular de verdade escapar pra
+     outra marca livre em vez de descer — o contrário do que foi pedido. */
+  const atuais = quintetoEmOrdem().ocupadas;
+  const atual = atuais[marca] ? atuais[marca].id : null;
+  const marcaDeOrigem = Object.keys(atuais).find(m => atuais[m].id === id);
+  const eraTitular = onde[id] === 'titulares';
+
+  if (atual && atual !== id) {
+    if (eraTitular && marcaDeOrigem) {
+      fixo[marcaDeOrigem] = atual;      // troca de lugares, os dois seguem em quadra
+    } else {
+      onde[atual] = 'banco';            // promoção: o que estava no lugar desce
+      delete fixo[marca];
+    }
+  } else if (marcaDeOrigem && marcaDeOrigem !== marca) {
+    delete fixo[marcaDeOrigem];
+  }
+
+  onde[id] = 'titulares';
+  fixo[marca] = id;
+}
+
+/** Tira o jogador da quadra: some da marca e vai pra zona pedida. */
+function tirarDaQuadra(id, zona) {
+  const m = Object.keys(fixo).find(k => fixo[k] === id);
+  if (m) delete fixo[m];
+  onde[id] = zona;
 }
 
 function desenharQuadra() {
@@ -521,7 +589,7 @@ function desenharQuadra() {
       l.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', String(id)));
       /* Tocar no jogador da quadra manda ele pro banco: no celular é o
          gesto que substitui arrastar pra fora. */
-      l.addEventListener('click', () => { onde[id] = 'banco'; desenhar(); guardar(); });
+      l.addEventListener('click', () => { tirarDaQuadra(id, 'banco'); desenhar(); guardar(); });
     }
     l.addEventListener('dragover', e => { e.preventDefault(); l.classList.add('sobre'); });
     l.addEventListener('dragleave', () => l.classList.remove('sobre'));
@@ -529,12 +597,8 @@ function desenharQuadra() {
       e.preventDefault(); e.stopPropagation();
       l.classList.remove('sobre');
       const vindo = parseInt(e.dataTransfer.getData('text/plain'), 10);
-      if (!vindo) return;
-      /* Soltar em cima de alguém TROCA os dois — é o movimento que se
-         espera de um tabuleiro, e sem ele trocar dois titulares daria
-         três cliques. */
-      if (id && id !== vindo) onde[id] = onde[vindo] === 'titulares' ? 'titulares' : onde[vindo];
-      onde[vindo] = 'titulares';
+      if (!vindo || vindo === id) return;
+      porNaMarca(vindo, l.dataset.marca);
       desenhar(); guardar();
     });
   });
@@ -622,10 +686,12 @@ ZONAS.forEach(z => {
 });
 
 document.getElementById('bHoje').addEventListener('click', () => {
+  fixo = {};
   ELENCO_MESA.forEach(p => { onde[p.id] = p.zona; });
   desenhar(); guardar(); marcarSalvo('voltou pro time de hoje');
 });
 document.getElementById('bLimpar').addEventListener('click', () => {
+  fixo = {};
   ELENCO_MESA.forEach(p => { if (onde[p.id] === 'titulares') onde[p.id] = 'banco'; });
   desenhar(); guardar();
 });
@@ -689,6 +755,60 @@ document.getElementById('bDevolver').addEventListener('click', () => {
     if (!ELENCO_MESA.some(p => String(p.id) === String(id))) delete onde[id];
   });
   desenhar(); guardar(); marcarSalvo('emprestados devolvidos');
+});
+
+/* ── COPIAR O TIME ────────────────────────────────────────────────────
+   O formato é o que se manda no grupo: a marca da quadra, o nome, o OVR e
+   a idade. Quem veio de outro time leva o dono entre parênteses — colar um
+   rascunho no grupo sem isso é anunciar contratação que não houve. */
+function textoDoTime() {
+  const { ocupadas, sobra } = quintetoEmOrdem();
+  const linha = p => p.nome + ' ' + p.ovr + '/' + p.idade + 'y'
+                   + (p.fora ? ' (' + p.fora + ')' : '');
+
+  const fora = [];
+  MARCAS.forEach(m => { if (ocupadas[m]) fora.push(m + ': ' + linha(ocupadas[m])); });
+  sobra.forEach(p => fora.push('--: ' + linha(p)));
+
+  const banco = ELENCO_MESA.filter(p => onde[p.id] === 'banco').sort((a, b) => b.ovr - a.ovr);
+  const outros = ELENCO_MESA.filter(p => onde[p.id] === 'outros').sort((a, b) => b.ovr - a.ovr);
+
+  const q = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
+  const med = (arr, f) => arr.length ? (arr.reduce((s, x) => s + f(x), 0) / arr.length).toFixed(1) : '-';
+
+  let t = TIME_NOME + '\n\n' + (fora.length ? fora.join('\n') : '(ninguém em quadra)');
+  if (banco.length)  t += '\n\nBanco:\n'  + banco.map(linha).join('\n');
+  if (outros.length) t += '\n\nOutros / G-League:\n' + outros.map(linha).join('\n');
+  if (q.length) {
+    t += '\n\nOVR médio ' + med(q, p => p.ovr) + ' · idade média ' + med(q, p => p.idade);
+    /* O sistema entra porque é o que a mesa responde e o texto, sem ele,
+       seria só uma lista de nomes que qualquer um já tinha. */
+    const comFicha = q.filter(p => p.sist);
+    if (comFicha.length) {
+      const melhor = Object.keys(NOMES).map(k => {
+        const n = comFicha.map(p => p.sist[k]).filter(x => x != null);
+        return { nome: NOMES[k], nota: n.length ? n.reduce((a, b) => a + b, 0) / n.length : null };
+      }).filter(x => x.nota !== null).sort((a, b) => b.nota - a.nota)[0];
+      if (melhor) t += '\nSistema: ' + melhor.nome + ' (' + melhor.nota.toFixed(1) + ')';
+    }
+  }
+  return t;
+}
+
+document.getElementById('bCopiar').addEventListener('click', async (e) => {
+  const txt = textoDoTime();
+  try {
+    await navigator.clipboard.writeText(txt);
+  } catch (err) {
+    /* Área de transferência bloqueada (http, permissão): o jeito antigo
+       ainda funciona, e sem ele o botão não faria nada em metade dos casos. */
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  const b = e.currentTarget, antes = b.innerHTML;
+  b.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
+  setTimeout(() => { b.innerHTML = antes; }, 1800);
 });
 
 carregar().then(desenhar);
