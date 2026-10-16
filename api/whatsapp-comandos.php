@@ -338,33 +338,15 @@ function wcSoDaLiga(array $linhas, ?string $ligaDoGrupo): array
     // Nenhuma divisão conhecida: devolve como veio em vez de zerar a busca.
     return $linhas;
 }
-/**
- * "_também existe na ROOKIE_" — uma linha dizendo o que ficou de fora.
- *
- * Sem isto o desempate seria mudo, e quem procurava justamente o xará da
- * outra divisão acharia que o bot está errado.
- */
-function wcNotaOutrasLigas(array $todos, array $usados): string
-{
-    $usadas = array_column($usados, 'league');
-    $fora = [];
-    foreach ($todos as $p) {
-        $liga = (string)($p['league'] ?? '');
-        if ($liga === '' || in_array($liga, $usadas, true) || isset($fora[$liga])) continue;
-        /* COM O OVR DE CADA UMA, e não só o nome da liga.
-           A ficha mostra UMA cópia do jogador, a da liga que ganhou o
-           desempate — e cada liga tem a sua, com OVR e skills próprios. Quem
-           acabou de atualizar o jogador na NEXT e perguntava no Chat Off
-           Geral recebia a cópia da ELITE, igualzinha à de antes, e concluía
-           que o bot não tinha visto a atualização. Dizendo o número de lá, a
-           diferença fica na cara: "na NEXT ele é 88" é a deixa pra perguntar
-           no grupo certo. */
-        $fora[$liga] = $liga . ' ele é ' . (int)($p['ovr'] ?? 0) . ' OVR';
-    }
-    if (!$fora) return '';
-    return "\n\n_Este é o da " . (string)($usados[0]['league'] ?? '—') . '. Na '
-         . implode('; na ', $fora) . ' — cada liga tem a sua versão dele._';
-}
+/* O RODAPÉ "Este é o da ELITE. Na ROOKIE ele é 61 OVR" SAIU em 16/10/2026,
+   a pedido do Marcos. Ele existia porque a ficha mostra UMA cópia do jogador,
+   a da liga que ganhou o desempate, e quem atualizava o jogador na NEXT e
+   perguntava num grupo sem liga recebia a cópia da ELITE achando que o bot
+   não tinha visto a atualização. A linha avisava, mas aparecia em toda
+   consulta a um dos 340 nomes que existem em mais de uma liga — e nos grupos
+   que TÊM liga registrada, que são a maioria, ela respondia uma dúvida que
+   ninguém tinha. Se a confusão voltar, o caminho é avisar só no grupo sem
+   liga, não em todo mundo. */
 
 function wcNormalizarLiga(string $termo): ?string
 {
@@ -1177,8 +1159,6 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     // Nenhuma divisão conhecida: devolve como veio em vez de zerar a busca.
     if (!$achados && !$livres) { $achados = $todos; $livres = $semClube; }
 
-    $notaLiga = wcNotaOutrasLigas($todos, $achados);
-
     // Vários: lista enxuta, senão a mensagem vira parede de texto no grupo.
     if (count($achados) + count($livres) > 1) {
         $linhas = array_map(function ($p) {
@@ -1192,7 +1172,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
                 . $p['position'] . ', ' . (int)$p['age'] . ' anos — *Sem Clube* ('
                 . $p['league'] . ', no waiver)';
         }
-        return "Achei " . count($linhas) . " com \"{$termo}\":\n" . implode("\n", $linhas) . $notaLiga;
+        return "Achei " . count($linhas) . " com \"{$termo}\":\n" . implode("\n", $linhas);
     }
 
     // Só o sem clube casou: a ficha é a dele.
@@ -1201,7 +1181,7 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
             array_values(array_unique(array_column($todos, 'league'))));
     }
 
-    return wcFichaDoJogador($pdo, $achados[0], $notaLiga);
+    return wcFichaDoJogador($pdo, $achados[0]);
 }
 
 /**
@@ -1215,10 +1195,8 @@ function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
  * Recebe o jogador JÁ RESOLVIDO: quem chama é que sabe como achou (busca
  * por nome no bot, id na tela).
  *
- * $notaLiga é o rodapé "também existe na ROOKIE", que só o bot calcula —
- * na tela o jogador veio por id e não há ambiguidade pra avisar.
  */
-function wcFichaDoJogador(PDO $pdo, array $p, string $notaLiga = ''): string
+function wcFichaDoJogador(PDO $pdo, array $p): string
 {
     $pos = $p['position'] . ($p['secondary_position'] ? '/' . $p['secondary_position'] : '');
     $txt = "*{$p['name']}*" . (!empty($p['is_lenda']) ? ' 👑 LENDA' : '') . "\n"
@@ -1287,7 +1265,7 @@ function wcFichaDoJogador(PDO $pdo, array $p, string $notaLiga = ''): string
         $txt .= "\n🎯 Melhor sistema: _ROOKIE, ficha técnica ainda não preenchida_\n";
     }
 
-    return rtrim($txt) . $notaLiga;
+    return rtrim($txt);
 }
 
 /**
