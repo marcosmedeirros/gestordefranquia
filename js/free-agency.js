@@ -459,8 +459,11 @@ function alvoDoFormulario() {
  * risco de estourar.
  */
 function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
+    /* Sem o "no seu cap" aqui dentro: a frase que usa isto já põe o
+       complemento, e as duas juntas diziam "não mexe no seu cap no seu
+       cap". */
     const oCusto = custo === 0
-        ? 'não mexe no seu cap'
+        ? 'não pesa nada'
         : `pesa <strong>${fmtCap(custo, u)}</strong>`;
 
     const d = capDoMeuTime || {};
@@ -481,11 +484,14 @@ function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
            dá um teto da conta, nunca um número menor que o real: é o
            pior caso, que é exatamente o que a frase promete. */
         const depois = folha + jaPrometido + custo;
+        /* A unidade uma vez só no fim: "818 de OVR de 828 de OVR" era o
+           que saía repetindo o fmtCap nos dois números. */
+        const placar = u === 'M'
+            ? `<strong>${depois}M</strong> de <strong>${teto}M</strong>`
+            : `<strong>${depois}</strong> de <strong>${teto}</strong> de OVR`;
         t += outras.length
-            ? ` Levando ele e as outras, você fica em <strong>${fmtCap(depois, u)}</strong>`
-              + ` de <strong>${fmtCap(teto, u)}</strong>.`
-            : ` Com ele você fica em <strong>${fmtCap(depois, u)}</strong>`
-              + ` de <strong>${fmtCap(teto, u)}</strong>.`;
+            ? ` Levando ele e as outras, você fica em ${placar}.`
+            : ` Com ele você fica em ${placar}.`;
     }
 
     /* O elenco. Com vaga de sobra é uma informação; chegando no limite é
@@ -496,14 +502,24 @@ function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
            + (outras.length
                 ? `, <strong>${depoisElenco}</strong> se levar todas`
                 : `, <strong>${elenco + 1}</strong> com ele`)
-           + ` — o limite é ${max}.`;
+           + (depoisElenco > max
+                /* Passar de ${max} não é detalhe: o envio é recusado, e
+                   quem tem propostas demais em pé precisa saber disso
+                   aqui, não quando o admin fechar a segunda. */
+                ? ` — <strong style="color:var(--amber)">passa do limite de ${max}</strong>.`
+                : ` — o limite é ${max}.`);
     }
 
     if (outras.length) {
         const nomes = outras.slice(0, 3).map(p => p.nome).join(', ')
                     + (outras.length > 3 ? ` e mais ${outras.length - 3}` : '');
-        t += `<br><span style="color:var(--text-3)">Conta com as ${outras.length} proposta${outras.length === 1 ? '' : 's'}`
-           + ` que você já tem em pé (${nomes}). É o pior caso: só vale se você levar todas.</span>`;
+        t += `<br><span style="color:var(--text-3)">`
+           + (outras.length === 1
+                ? `Conta com a proposta que você já tem em pé (${nomes}).`
+                + ` É o pior caso: só vale se você levar as duas.`
+                : `Conta com as ${outras.length} propostas que você já tem em pé (${nomes}).`
+                + ` É o pior caso: só vale se você levar todas.`)
+           + `</span>`;
     }
 
     if (!cabe) {
