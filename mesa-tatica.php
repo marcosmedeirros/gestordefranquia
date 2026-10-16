@@ -43,33 +43,79 @@ $team = timeDaTela($pdo, (int)$user['id']);
 if (!$team) { header('Location: my-roster.php'); exit; }
 
 $teamId = (int)$team['id'];
+$liga   = strtoupper((string)$team['league']);
+
+/**
+ * Monta a ficha que a mesa entende, com as notas por sistema já resolvidas.
+ * Mesma forma pro elenco da casa e pra quem vem emprestado de outro time.
+ */
+function mesaFicha(array $p, bool $deFora = false): array
+{
+    $notas = [];
+    foreach (array_keys(sistemaNomes()) as $chave) {
+        $n = sistemaNotaDoJogador($p, $chave);
+        if ($n !== null) $notas[$chave] = round($n, 1);
+    }
+    return [
+        'id'    => (int)$p['id'],
+        'nome'  => $p['name'],
+        'pos'   => $p['position'] . ($p['secondary_position'] ? '/' . $p['secondary_position'] : ''),
+        'ovr'   => (int)$p['ovr'],
+        'idade' => (int)$p['age'],
+        'zona'  => $deFora ? 'banco'
+                 : (($p['role'] ?? '') === 'Titular' ? 'titulares'
+                 : (strtolower((string)($p['role'] ?? '')) === 'g-league' ? 'outros' : 'banco')),
+        'sist'  => $notas ?: null,
+        /* De fora = de outro time. A tela pinta em cinza e escreve de quem é:
+           num rascunho que mistura elenco e cobiça, confundir os dois é o
+           erro que estraga a conta. */
+        'fora'  => $deFora ? ($p['time_dono'] ?? 'outro time') : null,
+    ];
+}
+
+/* ── O EMPRÉSTIMO ────────────────────────────────────────────────────
+   Pedido do Marcos: trazer jogador de outro time pra mesa, pra desenhar o
+   time que ele QUERIA ter. Só leitura e só da mesma liga — o que entra aqui
+   não muda nada em lugar nenhum, é o mesmo rascunho de sempre.
+
+   Duas entradas: `busca` procura pelo nome e `ids` recarrega os que já
+   estavam no rascunho quando a página reabre. */
+if (isset($_GET['busca']) || isset($_GET['ids'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $sel = 'SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, '
+         . "CONCAT(t.city,' ',t.name) AS time_dono, " . sistemaColunasSql('p')
+         . ' FROM players p JOIN teams t ON t.id = p.team_id
+            WHERE t.league = ? AND p.team_id <> ?';
+
+    if (isset($_GET['ids'])) {
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string)$_GET['ids']))));
+        if (!$ids) { echo '[]'; exit; }
+        $ids = array_slice($ids, 0, 40);
+        $sel .= ' AND p.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        $st = $pdo->prepare($sel);
+        $st->execute(array_merge([$liga, $teamId], $ids));
+    } else {
+        $termo = trim((string)$_GET['busca']);
+        if (mb_strlen($termo) < 2) { echo '[]'; exit; }
+        $st = $pdo->prepare($sel . ' AND p.name LIKE ? ORDER BY p.ovr DESC, p.name LIMIT 12');
+        $st->execute([$liga, $teamId, '%' . $termo . '%']);
+    }
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $out[] = mesaFicha($p, true);
+    echo json_encode($out, JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 /* O elenco com as notas por sistema, do mesmo jeito que a Tática monta.
    @see api/tactics.php */
 $st = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, '
                     . sistemaColunasSql('') . ' FROM players WHERE team_id = ? ORDER BY ovr DESC, name');
 $st->execute([$teamId]);
-$elenco = [];
-foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
-    $notas = [];
-    foreach (array_keys(sistemaNomes()) as $chave) {
-        $n = sistemaNotaDoJogador($p, $chave);
-        if ($n !== null) $notas[$chave] = round($n, 1);
-    }
-    $elenco[] = [
-        'id'   => (int)$p['id'],
-        'nome' => $p['name'],
-        'pos'  => $p['position'] . ($p['secondary_position'] ? '/' . $p['secondary_position'] : ''),
-        'ovr'  => (int)$p['ovr'],
-        'idade'=> (int)$p['age'],
-        /* A função de hoje decide onde o jogador NASCE no tabuleiro: abrir a
-           mesa já com a escalação atual é o ponto de partida de qualquer
-           "e se" — ninguém rascunha do zero. */
-        'zona' => ($p['role'] ?? '') === 'Titular' ? 'titulares'
-                : (strtolower((string)($p['role'] ?? '')) === 'g-league' ? 'outros' : 'banco'),
-        'sist' => $notas ?: null,
-    ];
-}
+/* A função de hoje decide onde o jogador NASCE no tabuleiro: abrir a mesa
+   já com a escalação atual é o ponto de partida de qualquer "e se" —
+   ninguém rascunha do zero. @see mesaFicha */
+$elenco = array_map(fn($p) => mesaFicha($p), $st->fetchAll(PDO::FETCH_ASSOC));
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -136,9 +182,43 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
 .sist-l .est{color:#f5c518;letter-spacing:1px}
 .sist-l .nota{font-family:var(--num);color:var(--text-2);min-width:34px;text-align:right}
 
-/* ── O TABULEIRO ─────────────────────────────────────────────────────*/
-.mesa{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));
+/* ── O TABULEIRO ─────────────────────────────────────────────────────
+   A quadra pede mais largura que as listas: ela fica com quase metade e as
+   outras duas zonas dividem o resto. */
+.mesa{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr);
   gap:14px;margin-top:4px}
+@media (max-width:1100px){ .mesa{grid-template-columns:1fr 1fr} #z-titulares{grid-column:1/-1} }
+@media (max-width:700px){ .mesa{grid-template-columns:1fr} }
+
+/* ── A QUADRA ────────────────────────────────────────────────────────
+   O traçado e as marcas vêm de js/quadra-desenho.js, os mesmos do Meu
+   Elenco. O que muda é a regra: aqui o lugar não cobra posição. */
+/* Teto de largura: sozinha numa coluna larga a quadra vira um pôster e
+   empurra o resto da mesa pra fora da tela. */
+.qd-quadra{position:relative;aspect-ratio:500/470;max-width:430px;margin:0 auto;
+  border-radius:12px;overflow:hidden;
+  border:1px solid var(--border);
+  background:radial-gradient(120% 90% at 50% 100%,
+    color-mix(in srgb,var(--red) 10%,var(--panel-2)),var(--panel-2) 70%)}
+.qd-quadra svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.qd-quadra svg *{fill:none;stroke:var(--border-md);stroke-width:2;vector-effect:non-scaling-stroke}
+.lugar{position:absolute;transform:translate(-50%,-50%);width:92px;display:flex;
+  flex-direction:column;align-items:center;gap:3px;cursor:grab;user-select:none}
+.lugar:active{cursor:grabbing}
+.lugar .bola{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;
+  background:var(--panel);border:2px solid var(--marca,var(--border-md));
+  font-family:var(--num);font-size:20px;line-height:1}
+.lugar.vazio .bola{border-style:dashed;color:var(--text-3);font-size:11px;font-family:var(--font);
+  font-weight:600}
+.lugar .quem{font-size:11.5px;font-weight:700;text-align:center;line-height:1.2;
+  max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lugar .dele{font-size:10px;color:var(--text-3)}
+/* O lugar aceso enquanto se arrasta por cima: sem isso não dá pra saber
+   onde o jogador vai cair. */
+.lugar.sobre .bola{border-color:var(--red);box-shadow:0 0 0 4px var(--red-soft)}
+/* Fora de posição não é erro aqui — é a graça. Mas fica marcado, senão
+   ninguém repara que botou o pivô na ponta. */
+.lugar.trocado .dele{color:var(--amber)}
 .zona{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;
   min-height:130px;transition:border-color var(--t) var(--ease),background var(--t) var(--ease)}
 .zona.sobre{border-color:var(--red);background:var(--red-soft)}
@@ -174,6 +254,30 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
   font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .bt:hover{border-color:var(--red)}
 .salvo{font-size:12px;color:var(--text-3);align-self:center}
+
+/* ── TRAZER DE OUTRO TIME ────────────────────────────────────────────*/
+.buscar{position:relative;margin-top:16px}
+.buscar > i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:14px}
+.buscar input{width:100%;max-width:460px;padding:11px 14px 11px 38px;border-radius:12px;
+  border:1px solid var(--border-md);background:var(--panel-2);color:var(--text);font:inherit;font-size:13px}
+.buscar input:focus{outline:none;border-color:var(--red)}
+.achados{position:absolute;z-index:20;top:100%;left:0;margin-top:6px;width:100%;max-width:460px;
+  background:var(--panel);border:1px solid var(--border-md);border-radius:12px;overflow:hidden;
+  box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.achados button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;border:0;
+  background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.achados button:hover{background:var(--panel-2)}
+.achados .o{font-family:var(--num);font-size:16px;min-width:26px}
+.achados .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.achados .t small{display:block;font-size:11px;color:var(--text-3)}
+.achados .nada{padding:12px 14px;font-size:12.5px;color:var(--text-3)}
+/* ── QUEM VEIO DE FORA ───────────────────────────────────────────────
+   Cinza e sem cor nenhuma: é o jeito de a tela nunca deixar esquecer que
+   aquele jogador não é do time. */
+.pc.fora,.lugar.fora{filter:grayscale(1);opacity:.78}
+.pc.fora{border-style:dashed}
+.pc.fora .nm small::after,.lugar.fora .dele::after{content:' · emprestado';color:var(--text-3)}
+.lugar.fora .bola{border-style:dashed}
 
 @media (max-width:992px){ .abas{padding:0 16px} }
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
@@ -225,7 +329,14 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
     <div class="mesa">
       <div class="zona" id="z-titulares" data-zona="titulares">
         <h3><i class="bi bi-star-fill"></i> Em quadra <em><span id="c-titulares">0</span>/5</em></h3>
-        <div class="lista"></div>
+        <?php /* ── O CAMPINHO ──────────────────────────────────────────
+             A mesma meia quadra do Meu Elenco (js/quadra-desenho.js), mas
+             aqui os cinco lugares são só MARCAS: qualquer um cabe em
+             qualquer um deles, inclusive o armador no garrafão. A etiqueta
+             mostra a posição de verdade do jogador que está ali — é assim
+             que se enxerga, de um relance, que o time está jogando com
+             quatro alas. */ ?>
+        <div class="qd-quadra" id="quadra"></div>
       </div>
       <div class="zona" id="z-banco" data-zona="banco">
         <h3><i class="bi bi-people"></i> Banco <em><span id="c-banco">0</span></em></h3>
@@ -237,8 +348,21 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
       </div>
     </div>
 
+    <?php /* ── TRAZER DE OUTRO TIME ────────────────────────────────────
+         Pra desenhar o time que ele QUERIA ter. Quem vem de fora fica em
+         cinza e com o nome do dono embaixo: num rascunho que mistura elenco
+         e cobiça, confundir os dois é o erro que estraga a conta. */ ?>
+    <div class="buscar">
+      <i class="bi bi-search"></i>
+      <input id="qBusca" type="search" autocomplete="off"
+             placeholder="Trazer jogador de outro time da <?= h($liga) ?>…">
+      <div class="achados" id="achados" hidden></div>
+    </div>
+
     <div class="barra">
       <button class="bt" id="bHoje"><i class="bi bi-arrow-counterclockwise"></i> Voltar ao time de hoje</button>
+      <button class="bt" id="bDevolver" hidden><i class="bi bi-person-dash"></i>
+        Devolver os emprestados (<span id="nFora">0</span>)</button>
       <button class="bt" id="bLimpar"><i class="bi bi-eraser"></i> Esvaziar a quadra</button>
       <span class="salvo" id="salvo"></span>
     </div>
@@ -248,6 +372,7 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
 <script src="/js/popups.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/tema.js"></script>
+<script src="/js/quadra-desenho.js"></script>
 <script>
 const ELENCO = <?= json_encode($elenco, JSON_UNESCAPED_UNICODE) ?>;
 const NOMES  = <?= json_encode(sistemaNomes(), JSON_UNESCAPED_UNICODE) ?>;
@@ -264,19 +389,37 @@ const CHAVE_SALVA = 'fba-mesa-<?= $teamId ?>';
    "Voltar ao time de hoje" reconstrói o ponto de partida em um clique. */
 let onde = {};
 
-function carregar() {
+/* ELENCO é a lista viva da mesa: nasce com o time da casa e cresce com
+   quem for trazido de outro time. Por isso deixou de ser const. */
+let ELENCO_MESA = ELENCO.slice();
+
+async function carregar() {
   let salvo = null;
   try { salvo = JSON.parse(localStorage.getItem(CHAVE_SALVA) || 'null'); } catch (e) {}
+  /* Formato antigo do rascunho era só {id: zona}; o novo tem os
+     emprestados junto. Ler os dois evita que quem já rascunhou perca tudo. */
+  const zonas = salvo && salvo.onde ? salvo.onde : (salvo || {});
+  const fora  = (salvo && salvo.fora) || [];
+
+  if (fora.length) {
+    try {
+      const r = await fetch('?ids=' + fora.join(','));
+      const lista = await r.json();
+      lista.forEach(p => { if (!ELENCO_MESA.some(x => x.id === p.id)) ELENCO_MESA.push(p); });
+    } catch (e) { /* sem rede o rascunho abre só com o time da casa */ }
+  }
+
   onde = {};
-  ELENCO.forEach(p => {
-    const z = salvo && salvo[p.id];
+  ELENCO_MESA.forEach(p => {
+    const z = zonas[p.id];
     onde[p.id] = ZONAS.includes(z) ? z : p.zona;
   });
   if (salvo) marcarSalvo('rascunho de antes, recuperado');
 }
 
 function guardar() {
-  try { localStorage.setItem(CHAVE_SALVA, JSON.stringify(onde)); } catch (e) {}
+  const fora = ELENCO_MESA.filter(p => p.fora).map(p => p.id);
+  try { localStorage.setItem(CHAVE_SALVA, JSON.stringify({ onde, fora })); } catch (e) {}
   marcarSalvo('rascunho guardado neste aparelho');
 }
 let tSalvo;
@@ -295,11 +438,11 @@ function estrelasDe(nota) {
 
 function cartao(p) {
   const d = document.createElement('div');
-  d.className = 'pc';
+  d.className = 'pc' + (p.fora ? ' fora' : '');
   d.draggable = true;
   d.dataset.id = p.id;
   d.innerHTML = `<span class="ovr">${p.ovr}</span>
-    <span class="nm">${p.nome}<small>${p.pos} · ${p.idade} anos</small></span>
+    <span class="nm">${p.nome}<small>${p.pos} · ${p.idade} anos${p.fora ? ' · ' + p.fora : ''}</small></span>
     <span class="mover">
       <button type="button" data-para="titulares" title="Pra quadra"><i class="bi bi-star"></i></button>
       <button type="button" data-para="banco" title="Pro banco"><i class="bi bi-people"></i></button>
@@ -318,11 +461,91 @@ function cartao(p) {
   return d;
 }
 
+/* ── A QUADRA ──────────────────────────────────────────────────────────
+   Cinco marcas, e quem está "em quadra" ocupa uma delas. A marca NÃO cobra
+   posição: ela é só o lugar no desenho, e a etiqueta embaixo diz a posição
+   real de quem está ali — em laranja quando não bate, que é o sinal de que
+   o time está improvisando. */
+const D = window.QuadraDesenho || {};
+const MARCAS = D.POS || ['PG','SG','SF','PF','C'];
+
+function quintetoEmOrdem() {
+  /* A ordem das marcas segue o tamanho do jogador quando dá: o maior OVR
+     não manda aqui, quem manda é onde ele costuma jogar — assim o desenho
+     abre parecido com o que a pessoa tem na cabeça, e ela corrige dali. */
+  const fila = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
+  const ocupadas = {};
+  const sobra = [];
+  fila.forEach(p => {
+    const dele = String(p.pos).split('/');
+    const vaga = MARCAS.find(m => dele.includes(m) && !ocupadas[m]);
+    if (vaga) ocupadas[vaga] = p; else sobra.push(p);
+  });
+  MARCAS.forEach(m => { if (!ocupadas[m] && sobra.length) ocupadas[m] = sobra.shift(); });
+  return { ocupadas, sobra };
+}
+
+function desenharQuadra() {
+  const el = document.getElementById('quadra');
+  const { ocupadas, sobra } = quintetoEmOrdem();
+  let html = D.SVG || '';
+
+  MARCAS.forEach(m => {
+    const [x, y] = (D.LUGAR || {})[m] || [50, 50];
+    const p = ocupadas[m];
+    const cor = (D.CORES || {})[m] || 'var(--border-md)';
+    const foraDePosicao = p && !String(p.pos).split('/').includes(m);
+    html += `<div class="lugar ${p ? '' : 'vazio'} ${foraDePosicao ? 'trocado' : ''} ${p && p.fora ? 'fora' : ''}"
+                  data-marca="${m}" ${p ? `data-id="${p.id}" draggable="true"` : ''}
+                  style="left:${x}%;top:${y}%;--marca:${cor}">
+      <span class="bola">${p ? p.ovr : m}</span>
+      ${p ? `<span class="quem">${p.nome}</span>
+             <span class="dele">${p.pos}${foraDePosicao ? ' na vaga de ' + m : ''}</span>` : ''}
+    </div>`;
+  });
+  el.innerHTML = html;
+
+  /* Passou de cinco: o excedente não some da conta nem da tela, aparece
+     listado embaixo. Sumir seria mentir sobre o que está em quadra. */
+  if (sobra.length) {
+    const extra = document.createElement('div');
+    extra.className = 'vazia';
+    extra.style.cssText = 'position:absolute;left:8px;right:8px;bottom:6px;text-align:center';
+    extra.textContent = 'Sem lugar no desenho: ' + sobra.map(p => p.nome).join(', ');
+    el.appendChild(extra);
+  }
+
+  el.querySelectorAll('.lugar').forEach(l => {
+    const id = parseInt(l.dataset.id || '0', 10);
+    if (id) {
+      l.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', String(id)));
+      /* Tocar no jogador da quadra manda ele pro banco: no celular é o
+         gesto que substitui arrastar pra fora. */
+      l.addEventListener('click', () => { onde[id] = 'banco'; desenhar(); guardar(); });
+    }
+    l.addEventListener('dragover', e => { e.preventDefault(); l.classList.add('sobre'); });
+    l.addEventListener('dragleave', () => l.classList.remove('sobre'));
+    l.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      l.classList.remove('sobre');
+      const vindo = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (!vindo) return;
+      /* Soltar em cima de alguém TROCA os dois — é o movimento que se
+         espera de um tabuleiro, e sem ele trocar dois titulares daria
+         três cliques. */
+      if (id && id !== vindo) onde[id] = onde[vindo] === 'titulares' ? 'titulares' : onde[vindo];
+      onde[vindo] = 'titulares';
+      desenhar(); guardar();
+    });
+  });
+}
+
 function desenhar() {
-  ZONAS.forEach(z => {
+  desenharQuadra();
+  ZONAS.filter(z => z !== 'titulares').forEach(z => {
     const lista = document.querySelector('#z-' + z + ' .lista');
     lista.innerHTML = '';
-    const dentro = ELENCO.filter(p => onde[p.id] === z);
+    const dentro = ELENCO_MESA.filter(p => onde[p.id] === z);
     dentro.sort((a, b) => b.ovr - a.ovr);
     if (!dentro.length) {
       lista.innerHTML = '<div class="vazia">Arraste alguém pra cá.</div>';
@@ -332,7 +555,8 @@ function desenhar() {
     document.getElementById('c-' + z).textContent = dentro.length;
   });
 
-  const q = ELENCO.filter(p => onde[p.id] === 'titulares');
+  const q = ELENCO_MESA.filter(p => onde[p.id] === 'titulares');
+  document.getElementById('c-titulares').textContent = q.length;
   document.getElementById('z-titulares').classList.toggle('cheia', q.length > 5);
   document.getElementById('nQuinteto').textContent = q.length;
   const media = (arr, f) => arr.length ? (arr.reduce((s, x) => s + f(x), 0) / arr.length) : null;
@@ -346,6 +570,10 @@ function desenhar() {
   if (q.length && q.length !== 5) {
     document.getElementById('nQuinteto').parentElement.classList.add('alerta');
   }
+
+  const fora = ELENCO_MESA.filter(p => p.fora).length;
+  document.getElementById('bDevolver').hidden = !fora;
+  document.getElementById('nFora').textContent = fora;
 
   desenharSistemas(q);
 }
@@ -394,16 +622,76 @@ ZONAS.forEach(z => {
 });
 
 document.getElementById('bHoje').addEventListener('click', () => {
-  ELENCO.forEach(p => { onde[p.id] = p.zona; });
+  ELENCO_MESA.forEach(p => { onde[p.id] = p.zona; });
   desenhar(); guardar(); marcarSalvo('voltou pro time de hoje');
 });
 document.getElementById('bLimpar').addEventListener('click', () => {
-  ELENCO.forEach(p => { if (onde[p.id] === 'titulares') onde[p.id] = 'banco'; });
+  ELENCO_MESA.forEach(p => { if (onde[p.id] === 'titulares') onde[p.id] = 'banco'; });
   desenhar(); guardar();
 });
 
-carregar();
-desenhar();
+/* ── A BUSCA DE QUEM VEM DE FORA ──────────────────────────────────────
+   Procura pelo nome entre os outros times da liga e põe no banco da mesa.
+   Espera o dedo parar antes de perguntar ao servidor: sem isso seria uma
+   consulta por tecla digitada. */
+const qBusca  = document.getElementById('qBusca');
+const achados = document.getElementById('achados');
+let tBusca;
+
+function fecharAchados() { achados.hidden = true; achados.innerHTML = ''; }
+
+qBusca.addEventListener('input', () => {
+  clearTimeout(tBusca);
+  const termo = qBusca.value.trim();
+  if (termo.length < 2) { fecharAchados(); return; }
+  tBusca = setTimeout(async () => {
+    let lista = [];
+    try {
+      const r = await fetch('?busca=' + encodeURIComponent(termo));
+      lista = await r.json();
+    } catch (e) { return; }
+    // Quem já está na mesa sai da lista: trazer duas vezes só confundiria.
+    lista = lista.filter(p => !ELENCO_MESA.some(x => x.id === p.id));
+    achados.innerHTML = '';
+    if (!lista.length) {
+      achados.innerHTML = '<div class="nada">Ninguém com esse nome em outro time da liga.</div>';
+      achados.hidden = false;
+      return;
+    }
+    lista.forEach(p => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = '<span class="o">' + p.ovr + '</span>'
+        + '<span class="t">' + p.nome + '<small>' + p.pos + ' · ' + p.idade
+        + ' anos · ' + p.fora + '</small></span><i class="bi bi-plus-lg"></i>';
+      b.addEventListener('click', () => {
+        ELENCO_MESA.push(p);
+        onde[p.id] = 'banco';
+        qBusca.value = '';
+        fecharAchados();
+        desenhar(); guardar();
+        marcarSalvo(p.nome + ' entrou no banco da mesa');
+      });
+      achados.appendChild(b);
+    });
+    achados.hidden = false;
+  }, 280);
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.buscar')) fecharAchados();
+});
+
+/* Devolver todos de uma vez: emprestado espalhado pelo tabuleiro é chato de
+   caçar um por um quando se quer voltar a olhar o time de verdade. */
+document.getElementById('bDevolver').addEventListener('click', () => {
+  ELENCO_MESA = ELENCO_MESA.filter(p => !p.fora);
+  Object.keys(onde).forEach(id => {
+    if (!ELENCO_MESA.some(p => String(p.id) === String(id))) delete onde[id];
+  });
+  desenhar(); guardar(); marcarSalvo('emprestados devolvidos');
+});
+
+carregar().then(desenhar);
 </script>
 </body>
 </html>

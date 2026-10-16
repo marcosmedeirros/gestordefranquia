@@ -28,20 +28,15 @@
 (function () {
   'use strict';
 
-  const POS = ['PG', 'SG', 'SF', 'PF', 'C'];
-  const CORES = { PG: '#3b82f6', SG: '#06b6d4', SF: '#22c55e', PF: '#f59e0b', C: '#ef4444' };
-  // Onde cada lugar fica na meia quadra (cesta embaixo), em % da caixa.
-  const LUGAR = { PG: [50, 17], SG: [83, 38], SF: [17, 38], PF: [69, 71], C: [31, 71] };
-
-  const SVG = `<svg viewBox="0 0 500 470" preserveAspectRatio="none" aria-hidden="true">
-    <rect x="1" y="1" width="498" height="468"/>
-    <path d="M190 1 A60 60 0 0 0 310 1"/>
-    <rect x="170" y="280" width="160" height="189"/>
-    <path d="M190 280 A60 60 0 0 1 310 280"/>
-    <path d="M30 469 V350 A232 232 0 0 1 470 350 V469"/>
-    <line x1="220" y1="442" x2="280" y2="442"/>
-    <circle cx="250" cy="427" r="10"/>
-  </svg>`;
+  /* O DESENHO VEM DE FORA (js/quadra-desenho.js), porque a Mesa Tática usa a
+     mesma quadra e duas cópias do mesmo SVG divergem na primeira edição. O
+     fallback existe pra esta tela, que é crítica, não depender da ordem de
+     carregamento de um arquivo que só desenha. */
+  const D = window.QuadraDesenho || {};
+  const POS   = D.POS   || ['PG', 'SG', 'SF', 'PF', 'C'];
+  const CORES = D.CORES || { PG: '#3b82f6', SG: '#06b6d4', SF: '#22c55e', PF: '#f59e0b', C: '#ef4444' };
+  const LUGAR = D.LUGAR || { PG: [50, 17], SG: [83, 38], SF: [17, 38], PF: [69, 71], C: [31, 71] };
+  const SVG   = D.SVG   || '';
 
   let jogadores = [];
   let base = {};        // id -> função no servidor

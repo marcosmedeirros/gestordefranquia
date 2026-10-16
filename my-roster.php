@@ -1839,6 +1839,7 @@ if ($teamId) {
         } finally { botao.disabled = false; }
     });
 </script>
+<script src="<?= assetUrl('/js/quadra-desenho.js') ?>"></script>
 <script src="<?= assetUrl('/js/quadra.js') ?>"></script>
 <script src="<?= assetUrl('/js/my-roster-v2.js') ?>"></script>
 <?= cartaoScript() ?>
