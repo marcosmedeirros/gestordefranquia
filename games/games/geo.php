@@ -132,6 +132,12 @@ $partida   = geoPartidaAberta($pdo, $user_id);
    abriu valendo moeda não vira teste por trocar a URL, e quem abriu em
    teste continua em teste mesmo sem o ?teste=1 no endereço. */
 $geoTeste  = $partida ? !empty($partida["teste"]) : $geoTesteNoLink;
+/* O LINK ARMA A PRÓXIMA, mesmo com uma partida valendo em andamento.
+   Sem isto, quem recebe o endereço e já estava no meio de uma partida
+   normal via a página abrir como se nada tivesse sido pedido: o link não
+   fazia nada e não dizia por quê. A de agora termina como começou — ela é
+   de verdade e o acerto é dele —, e a seguinte nasce de teste. */
+$geoArmaTeste = $geoTeste || $geoTesteNoLink;
 $rodada    = $partida ? geoRodadaAtual($pdo, (int)$partida['id']) : null;
 
 /* ── A RODADA QUE VENCEU SE FECHA SOZINHA ────────────────────────────
@@ -489,6 +495,10 @@ html:not(.js) .so-js{display:none !important}
 
 <div class="content">
 <div id="geo">
+<?php if (!$geoTeste && $geoTesteNoLink && $partida): ?>
+<div class="geo-aviso teste">Você tem uma partida <b>valendo</b> em andamento — ela
+  segue normal e paga o que valer. A <b>próxima</b> é que será de teste.</div>
+<?php endif; ?>
 <?php if ($geoTeste): ?>
 <?php /* A FAIXA FICA A PARTIDA INTEIRA. Descobrir no fim que nada foi pago
          seria a pior hora de descobrir — ela tem que estar na tela antes do
@@ -600,7 +610,7 @@ html:not(.js) .so-js{display:none !important}
         <form method="POST" style="margin:0">
           <input type="hidden" name="acao" value="comecar">
           <input type="hidden" name="modo" value="<?= $ehMapa ? 'mapa' : 'pais' ?>">
-          <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
+          <?php if ($geoArmaTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
           <button class="geo-confirmar" type="submit"><i class="bi bi-arrow-repeat"></i> Jogar de novo</button>
         </form>
         <a class="geo-voltar" href="/games/games/geo.php"><i class="bi bi-house"></i> Tela inicial</a>
@@ -819,7 +829,7 @@ html:not(.js) .so-js{display:none !important}
     <form method="POST" style="margin:0;display:contents">
       <input type="hidden" name="acao" value="comecar">
       <input type="hidden" name="modo" value="pais">
-      <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
+      <?php if ($geoArmaTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
       <button class="geo-modo" type="submit" style="--c:var(--green)">
         <span class="ico"><i class="bi bi-flag-fill"></i></span>
         <h3>Que país é esse?</h3>
@@ -832,7 +842,7 @@ html:not(.js) .so-js{display:none !important}
     <form method="POST" style="margin:0;display:contents">
       <input type="hidden" name="acao" value="comecar">
       <input type="hidden" name="modo" value="mapa">
-      <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
+      <?php if ($geoArmaTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
       <button class="geo-modo" type="submit" style="--c:var(--blue)">
         <span class="ico"><i class="bi bi-geo-alt-fill"></i></span>
         <h3>Onde fica no mapa?</h3>
