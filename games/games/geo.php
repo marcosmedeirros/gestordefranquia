@@ -42,6 +42,29 @@ $team = timeDaTela($pdo, $user_id);
 geoTabelas($pdo);
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
+/* ── O MODO TESTE ────────────────────────────────────────────────────
+   Pedido do Marcos (16/10/2026): "coloca o geo, sem pagar nada, pra eu
+   testar" — e o teste é pra ele MANDAR O LINK pra alguém experimentar.
+
+   Quem abre /games/games/geo.php?teste=1 joga a mesma partida de
+   sempre — mesmo sorteio, mesmo relógio, mesma conferência, os desafios
+   aparecem na tela — e nada disso mexe em dinheiro: não paga moeda, não
+   marca missão nem conquista, e fica fora do ranking e do recorde. Rodar
+   o jogo de verdade é o ponto: um teste por um caminho diferente não
+   testa o jogo, testa o teste.
+
+   NÃO TEM TRAVA, e é de propósito. O modo só TIRA prêmio de quem usa,
+   então não há o que ganhar entrando por ele — e qualquer senha ou lista
+   de convidados só atrapalharia justamente o que ele serve pra fazer,
+   que é mandar o endereço pra alguém e pedir pra jogar.
+
+   O FLAG GRUDA NA PARTIDA, não na URL: cada ação aqui termina em
+   redirect, e um `?teste=1` carregado de página em página se perderia no
+   primeiro F5 — aí a pessoa terminaria valendo moeda uma partida que
+   começou valendo nada. Quem manda, depois de aberta, é a coluna.
+   @see geoAbrirPartida */
+$geoTesteNoLink = isset($_GET['teste']) && $_GET['teste'] !== '0';
+
 $msg = $_GET['m'] ?? null;
 $erro = null;
 $resolvida = null;          // a rodada que acabou de ser respondida
@@ -53,8 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string)($_POST['acao'] ?? '');
 
     if ($acao === 'comecar') {
-        geoAbrirPartida($pdo, $user_id, (string)($_POST['modo'] ?? 'pais'));
-        header('Location: /games/games/geo.php');
+        geoAbrirPartida($pdo, $user_id, (string)($_POST['modo'] ?? 'pais'),
+                        !empty($_POST['teste']));
+        /* O ?teste=1 volta na URL só pra tela continuar se anunciando; quem
+           decide se paga é a coluna da partida. */
+        header('Location: /games/games/geo.php' . (!empty($_POST['teste']) ? '?teste=1' : ''));
         exit;
     }
 
@@ -71,11 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'desistir') {
         /* ENCERRAR PAGA O QUE JÁ FOI FEITO. @see geoEncerrar */
         $p = geoPartidaAberta($pdo, $user_id);
+        $eraTeste = $p && !empty($p["teste"]);
         $moedas = $p ? geoEncerrar($pdo, $p) : 0;
         $m = $moedas > 0
             ? "Partida encerrada. +{$moedas} moedas pelo que você já tinha feito."
-            : 'Partida encerrada.';
-        header('Location: /games/games/geo.php?m=' . urlencode($m));
+            : ($eraTeste ? 'Partida de teste encerrada — nada foi pago.' : 'Partida encerrada.');
+        /* O modo volta junto: sem isso, encerrar uma partida de teste devolve
+           a pessoa pra capa normal e a próxima já valeria moeda. */
+        header('Location: /games/games/geo.php?m=' . urlencode($m) . ($eraTeste ? '&teste=1' : ''));
         exit;
     }
 
@@ -99,6 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $partida   = geoPartidaAberta($pdo, $user_id);
+/* O QUE MANDA É A PARTIDA, e o link só vale enquanto não há nenhuma: quem
+   abriu valendo moeda não vira teste por trocar a URL, e quem abriu em
+   teste continua em teste mesmo sem o ?teste=1 no endereço. */
+$geoTeste  = $partida ? !empty($partida["teste"]) : $geoTesteNoLink;
 $rodada    = $partida ? geoRodadaAtual($pdo, (int)$partida['id']) : null;
 
 /* ── A RODADA QUE VENCEU SE FECHA SOZINHA ────────────────────────────
@@ -382,6 +415,8 @@ html:not(.js) .so-js{display:none !important}
 .geo-aviso{padding:13px 17px;border-radius:14px;margin-bottom:16px;font-size:13.5px}
 .geo-aviso.ok{background:color-mix(in srgb,var(--green) 13%,transparent);color:var(--green)}
 .geo-aviso.err{background:color-mix(in srgb,var(--red) 13%,transparent);color:var(--red-2)}
+.geo-aviso.teste{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber);
+  border:1px solid color-mix(in srgb,var(--amber) 35%,transparent)}
 
 /* ── DESAFIOS ────────────────────────────────────────────────────────*/
 .geo-ganhou{display:flex;align-items:center;gap:13px;padding:14px 18px;border-radius:16px;
@@ -454,6 +489,13 @@ html:not(.js) .so-js{display:none !important}
 
 <div class="content">
 <div id="geo">
+<?php if ($geoTeste): ?>
+<?php /* A FAIXA FICA A PARTIDA INTEIRA. Descobrir no fim que nada foi pago
+         seria a pior hora de descobrir — ela tem que estar na tela antes do
+         primeiro palpite e continuar lá. */ ?>
+<div class="geo-aviso teste"><b>Partida de teste.</b> Joga igualzinho, mas não
+  paga nada: sem moeda, sem missão, e fora do ranking e do recorde.</div>
+<?php endif; ?>
 <?php if ($msg): ?><div class="geo-aviso ok"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($erro): ?><div class="geo-aviso err"><?= e($erro) ?></div><?php endif; ?>
 
@@ -558,6 +600,7 @@ html:not(.js) .so-js{display:none !important}
         <form method="POST" style="margin:0">
           <input type="hidden" name="acao" value="comecar">
           <input type="hidden" name="modo" value="<?= $ehMapa ? 'mapa' : 'pais' ?>">
+          <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
           <button class="geo-confirmar" type="submit"><i class="bi bi-arrow-repeat"></i> Jogar de novo</button>
         </form>
         <a class="geo-voltar" href="/games/games/geo.php"><i class="bi bi-house"></i> Tela inicial</a>
@@ -776,6 +819,7 @@ html:not(.js) .so-js{display:none !important}
     <form method="POST" style="margin:0;display:contents">
       <input type="hidden" name="acao" value="comecar">
       <input type="hidden" name="modo" value="pais">
+      <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
       <button class="geo-modo" type="submit" style="--c:var(--green)">
         <span class="ico"><i class="bi bi-flag-fill"></i></span>
         <h3>Que país é esse?</h3>
@@ -788,6 +832,7 @@ html:not(.js) .so-js{display:none !important}
     <form method="POST" style="margin:0;display:contents">
       <input type="hidden" name="acao" value="comecar">
       <input type="hidden" name="modo" value="mapa">
+      <?php if ($geoTeste): ?><input type="hidden" name="teste" value="1"><?php endif; ?>
       <button class="geo-modo" type="submit" style="--c:var(--blue)">
         <span class="ico"><i class="bi bi-geo-alt-fill"></i></span>
         <h3>Onde fica no mapa?</h3>

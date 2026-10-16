@@ -89,6 +89,7 @@ function geoTabelas(PDO $pdo): void
         moedas INT NOT NULL DEFAULT 0,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         fim_em DATETIME NULL,
+        teste TINYINT(1) NOT NULL DEFAULT 0,
         INDEX idx_geo_user (user_id, modo),
         INDEX idx_geo_rank (modo, acertos),
         INDEX idx_geo_dia (user_id, criado_em)
@@ -108,6 +109,16 @@ function geoTabelas(PDO $pdo): void
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uk_geo_rodada (partida_id, n)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    /* A COLUNA `teste` É NOVA, e a tabela já existe em produção desde
+       antes dela: o CREATE acima só vale pra banco limpo. Sem este
+       ALTER o jogo quebraria no primeiro INSERT. */
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM geo_partidas LIKE 'teste'")->fetch()) {
+            $pdo->exec("ALTER TABLE geo_partidas ADD COLUMN teste TINYINT(1) NOT NULL DEFAULT 0");
+        }
+    } catch (Throwable $e) {
+        error_log('[geo] coluna teste: ' . $e->getMessage());
+    }
     $feito = true;
 }
 
@@ -122,14 +133,15 @@ function geoPartidaAberta(PDO $pdo, int $uid): ?array
 }
 
 /** Abre uma partida. Fecha a anterior, se tiver ficado pendurada. */
-function geoAbrirPartida(PDO $pdo, int $uid, string $modo): ?array
+function geoAbrirPartida(PDO $pdo, int $uid, string $modo, bool $teste = false): ?array
 {
     geoTabelas($pdo);
     $modo = $modo === 'mapa' ? 'mapa' : 'pais';
     /* A ANTERIOR SE FECHA PAGANDO. Começar outra partida é uma forma de
        desistir, e desistir com acerto no bolso tem que valer o acerto. */
     if ($pendurada = geoPartidaAberta($pdo, $uid)) geoEncerrar($pdo, $pendurada);
-    $pdo->prepare('INSERT INTO geo_partidas (user_id, modo) VALUES (?,?)')->execute([$uid, $modo]);
+    $pdo->prepare('INSERT INTO geo_partidas (user_id, modo, teste) VALUES (?,?,?)')
+        ->execute([$uid, $modo, $teste ? 1 : 0]);
     $id = (int)$pdo->lastInsertId();
     geoSortearRodada($pdo, $id, 1, $modo);
     $st = $pdo->prepare('SELECT * FROM geo_partidas WHERE id = ?');
@@ -205,8 +217,14 @@ function geoEncerrar(PDO $pdo, array $partida): int
     $s->execute([(int)$partida['id']]);
     $soma = $s->fetch(PDO::FETCH_ASSOC);
 
-    $moedas = geoPagar($pdo, (int)$partida['user_id'], (string)$partida['modo'],
-                       (int)$soma['a'], (int)$soma['p']);
+    /* PARTIDA DE TESTE NÃO PAGA. Ela roda igual em tudo o mais — sorteio,
+       relógio, conferência — pra o que se está testando ser o jogo de
+       verdade, e não uma imitação dele. O que ela não faz é mexer no
+       bolso de ninguém. @see geoAbrirPartida */
+    $moedas = empty($partida['teste'])
+        ? geoPagar($pdo, (int)$partida['user_id'], (string)$partida['modo'],
+                   (int)$soma['a'], (int)$soma['p'])
+        : 0;
     $pdo->prepare('UPDATE geo_partidas SET acertos = ?, pontos = ?, moedas = ? WHERE id = ?')
         ->execute([(int)$soma['a'], (int)$soma['p'], $moedas, (int)$partida['id']]);
     return $moedas;
@@ -389,7 +407,12 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
        sequência e os pontos que eles olham saem do banco, não do palpite.
        @see games/core/geo_desafios.php */
     require_once __DIR__ . '/geo_desafios.php';
-    $saida['ganhos'] = geoConferirDesafios($pdo, $partida, $saida);
+    /* Nem missão nem conquista: o índice único (user_id, chave, dia)
+       existe pra pagar uma vez só, então marcar no teste queimaria o
+       prêmio da partida de verdade. */
+    $saida['ganhos'] = empty($partida['teste'])
+        ? geoConferirDesafios($pdo, $partida, $saida)
+        : [];
     $saida['pontos_total']  = (int)$soma['p'];
     return $saida;
 }
@@ -432,7 +455,7 @@ function geoRanking(PDO $pdo, string $modo, int $limite = 10): array
     $campo = $modo === 'mapa' ? 'pontos' : 'acertos';
     $st = $pdo->prepare("SELECT p.user_id, u.name AS gm, MAX(p.{$campo}) AS melhor, COUNT(*) AS partidas
                            FROM geo_partidas p LEFT JOIN users u ON u.id = p.user_id
-                          WHERE p.modo = ? AND p.status = 'fim'
+                          WHERE p.modo = ? AND p.status = 'fim' AND p.teste = 0
                        GROUP BY p.user_id, u.name
                        ORDER BY melhor DESC, partidas ASC
                           LIMIT " . max(1, min(50, $limite)));
@@ -445,7 +468,9 @@ function geoMeuRecorde(PDO $pdo, int $uid): array
 {
     geoTabelas($pdo);
     $st = $pdo->prepare("SELECT modo, MAX(acertos) a, MAX(pontos) p, COUNT(*) n
-                           FROM geo_partidas WHERE user_id = ? AND status = 'fim' GROUP BY modo");
+                           FROM geo_partidas
+                          WHERE user_id = ? AND status = 'fim' AND teste = 0
+                       GROUP BY modo");
     $st->execute([$uid]);
     $out = ['pais' => ['a' => 0, 'p' => 0, 'n' => 0], 'mapa' => ['a' => 0, 'p' => 0, 'n' => 0]];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
