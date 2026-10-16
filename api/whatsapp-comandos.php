@@ -1094,16 +1094,27 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     $txt .= "\n*Carreira* · " . count($todas) . ' temporada' . (count($todas) === 1 ? '' : 's');
 
     if ($jogos > 0) {
-        $media = function (string $campo) use ($comStats, $jogos) {
-            $soma = 0.0;
-            foreach ($comStats as $l) $soma += (float)$l[$campo] * (int)$l['games'];
-            return $soma / $jogos;
+        /* CADA ESTATÍSTICA TEM O SEU PRÓPRIO DIVISOR. A temporada pode ter
+           jogos lançados e o campo vazio — o Durant tem 2 das 5 sem fg_pct —
+           e dividir pelo total de jogos conta esses jogos como zero: o
+           aproveitamento dele saiu 31,8% num cara que faz 50% todo ano. Só
+           entram no divisor os jogos das temporadas que têm aquele número. */
+        $media = function (string $campo) use ($comStats) {
+            $soma = 0.0; $base = 0;
+            foreach ($comStats as $l) {
+                if ($l[$campo] === null) continue;
+                $soma += (float)$l[$campo] * (int)$l['games'];
+                $base += (int)$l['games'];
+            }
+            return $base > 0 ? $soma / $base : null;
         };
+        $fg = $media('fg_pct');
         $txt .= " em {$jogos} jogos\n"
               . wcNum($media('pts_pg')) . ' pts · ' . wcNum($media('reb_pg')) . ' reb · '
               . wcNum($media('ast_pg')) . " ast\n"
               . wcNum($media('stl_pg')) . ' STL · ' . wcNum($media('blk_pg')) . ' BLK · '
-              . wcNum($media('min_pg')) . ' min · ' . wcNum($media('fg_pct')) . '% fg';
+              . wcNum($media('min_pg')) . ' min'
+              . ($fg !== null ? ' · ' . wcNum($fg) . '% fg' : '');
     } else {
         /* Carreira sem nenhuma estatística lançada: dizer isso é melhor do
            que escrever uma linha de zeros que pareceria desempenho. */
