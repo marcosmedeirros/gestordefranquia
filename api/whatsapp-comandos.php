@@ -1000,7 +1000,17 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
         $liga = $escolha[0]['league'];
     }
 
-    /* AS TEMPORADAS. Por nome + liga, que é o que sobrevive à dispensa, com
+    /* AS TEMPORADAS, EM ORDEM DE CALENDÁRIO DE VERDADE.
+
+       A ordem era por `season_number`, e ele RECOMEÇA A CADA SPRINT: a NEXT
+       já rodou dois, e a carreira do Kevin Durant lá tem as temporadas 1 a 8
+       do sprint de agora misturadas com as 8 a 20 do anterior. Ordenando
+       assim, as três "últimas" eram 2042, 2043 e 2044 — anos de uma era que
+       acabou em julho — e a temporada de 12/10, que é a de verdade, ficava no
+       meio da lista. `seasons.start_date` é a data real, e é ela que sabe o
+       que veio depois do quê.
+
+       Por nome + liga, que é o que sobrevive à dispensa, com
        as estatísticas penduradas pela temporada e pelo id daquele ano — o
        mesmo nome pode ter ids diferentes ao longo da carreira. */
     $st = $pdo->prepare("SELECT l.season_number, l.year, l.team_name, l.ovr, l.age, l.position,
@@ -1009,8 +1019,9 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
                            FROM player_season_log l
                       LEFT JOIN player_season_stats ps
                              ON ps.season_id = l.season_id AND ps.player_id = l.player_id
+                      LEFT JOIN seasons s ON s.id = l.season_id
                           WHERE l.player_name = ? AND l.league = ?
-                       ORDER BY l.season_number ASC, l.id ASC");
+                       ORDER BY s.start_date ASC, l.season_number ASC, l.id ASC");
     $st->execute([$nome, $liga]);
     $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
 
