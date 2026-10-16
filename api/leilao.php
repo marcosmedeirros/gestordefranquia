@@ -689,6 +689,32 @@ function leilaoPodeReverter(array $l, array $it, array $picksUsadas): array
     return [!$m, $m];
 }
 
+/**
+ * De onde veio o registro deste leilão: 'whatsapp', 'manual' ou 'app'.
+ *
+ * A pergunta veio do Marcos (16/10/2026): olhando o card não dá pra saber
+ * se o leilão que ele cadastrou à mão entrou, porque na tela ele fica
+ * igualzinho a um leilão que rodou no app. Os três já estavam todos na
+ * lista — o que faltava era dizer qual é qual.
+ *
+ * Não existe coluna de origem; o que existe é rastro:
+ *
+ * - uma linha em `leilao_whats` quer dizer que o bot conduziu o leilão no
+ *   grupo;
+ * - `data_inicio` igual a `data_fim` só acontece no cadastro manual, que
+ *   insere as duas com NOW() na mesma instrução — leilão de verdade tem
+ *   duração, e as duas datas nunca batem;
+ * - o resto rodou no app.
+ *
+ * @see cadastrarLeilaoManual()
+ */
+function leilaoOrigemDoRegistro(array $l): string
+{
+    if (!empty($l['whats_id'])) return 'whatsapp';
+    if (!empty($l['data_inicio']) && $l['data_inicio'] === ($l['data_fim'] ?? null)) return 'manual';
+    return 'app';
+}
+
 function historicoTrocasLeilao(PDO $pdo, ?int $leagueId, bool $isAdmin, array $f): void
 {
     leilaoGarantirColunasReversao($pdo);
@@ -720,11 +746,14 @@ function historicoTrocasLeilao(PDO $pdo, ?int $leagueId, bool $isAdmin, array $f
         $where .= " AND l.created_at >= ?";
         $params[] = $corte;
     }
-    $st = $pdo->prepare("SELECT l.id, l.player_id, l.team_id, l.data_fim, l.created_at, l.status, l.proposta_aceita_id,
+    $st = $pdo->prepare("SELECT l.id, l.player_id, l.team_id, l.data_inicio, l.data_fim, l.created_at,
+                                l.status, l.proposta_aceita_id,
                                 l.is_temp_player, l.temp_name, l.revertido_em,
-                                lp.team_id AS winner_team_id, lp.obs
+                                lp.team_id AS winner_team_id, lp.obs,
+                                lw.id AS whats_id
                            FROM leilao_jogadores l
                       LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
+                      LEFT JOIN leilao_whats lw ON lw.leilao_id = l.id
                           WHERE {$where}
                        ORDER BY COALESCE(l.data_fim, l.created_at) DESC
                           LIMIT 300");
@@ -764,6 +793,7 @@ function historicoTrocasLeilao(PDO $pdo, ?int $leagueId, bool $isAdmin, array $f
             'comprador'        => $C,
             'vendedor_enviou'  => $vendEnviou,
             'comprador_enviou' => $compEnviou,
+            'origem'           => leilaoOrigemDoRegistro($l),
             'obs'              => ($l['obs'] && $l['obs'] !== 'Cadastro manual de leilão') ? $l['obs'] : null,
             'revertido'        => !empty($l['revertido_em']),
             'revertido_em'     => $l['revertido_em'],

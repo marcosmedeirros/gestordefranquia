@@ -2877,6 +2877,10 @@ function showWaitlistModal() {
    slots) está guardada em showLeilaoAdminAntigo, sem nada chamando. */
 let _leilaoAdminFiltros = { temporada: '', time: '', busca: '' };
 
+/* O rótulo de cada origem. 'app' tambem ganha selo: sem ele, card sem
+   selo viraria "nao sei", e e justamente a duvida que o selo resolve. */
+const LA_ORIGEM = { whatsapp: 'WhatsApp', manual: 'Cadastro manual', app: 'Leilão no app' };
+
 async function showLeilaoAdmin(league, filtros) {
   league = league || appState.currentLeague;
   appState.view = 'leilao_admin';
@@ -2917,6 +2921,11 @@ async function showLeilaoAdmin(league, filtros) {
     .la-cab { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11.5px; color:var(--text-3); margin-bottom:8px; }
     .la-tag { font-weight:800; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--red);
       background:color-mix(in srgb, var(--red) 12%, transparent); border-radius:999px; padding:2px 8px; }
+    .la-origem { font-weight:700; font-size:10px; letter-spacing:.05em; text-transform:uppercase;
+      border-radius:999px; padding:1px 8px; border:1px solid currentColor; }
+    .la-origem.whatsapp { color:#25d366; }
+    .la-origem.manual { color:#60a5fa; }
+    .la-origem.app { color:var(--text-3); }
     .la-rev { font-weight:800; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#f59e0b;
       background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); border-radius:999px; padding:1px 8px; }
     .la-lados { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:12px; align-items:start; }
@@ -2982,6 +2991,9 @@ async function showLeilaoAdmin(league, filtros) {
       <div class="la-rot">enviou</div>
       <ul class="la-itens">${itens.length ? itens.map(i => `<li>${escapeHtml(i)}</li>`).join('') : '<li>nada</li>'}</ul>
     </div>`;
+  /* De onde veio cada um. Os três sempre estiveram na lista; sem o selo,
+     o cadastrado à mão e o que rodou no app ficam idênticos, e não tinha
+     como conferir da tela se o cadastro manual entrou. */
   const cards = leiloes.map(l => {
     const dataTxt = l.data ? new Date(String(l.data).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
     const acoes = l.revertido
@@ -2993,6 +3005,7 @@ async function showLeilaoAdmin(league, filtros) {
       <div class="la-card">
         <div class="la-cab">
           <span class="la-tag">Leilão${l.temporada ? ' · ' + escapeHtml(l.temporada) : ''}</span>
+          ${LA_ORIGEM[l.origem] ? `<span class="la-origem ${l.origem}">${LA_ORIGEM[l.origem]}</span>` : ''}
           ${dataTxt ? `<span>${escapeHtml(dataTxt)}</span>` : ''}
           ${l.revertido ? '<span class="la-rev">Revertido</span>' : ''}
         </div>
