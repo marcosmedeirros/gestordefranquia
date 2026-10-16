@@ -247,6 +247,14 @@
    * Para o HTML, onde não cabe await:
    *
    *   <form ... data-confirmar="Apagar isso?">
+   *
+   * Acompanham, todos opcionais: `data-confirmar-ok` (o texto do botão),
+   * `data-confirmar-perigo` (vermelho) e `data-confirmar-titulo`.
+   *
+   * O título existe porque o perigoso herdava o do pop-up de erro, que
+   * é "Ops" — e "Ops" em cima de "Apagar esta aposta?" soa como se
+   * algo tivesse dado errado, quando ainda não aconteceu nada. Sem o
+   * atributo nada muda: quem já usa continua como estava.
    *   <button ... data-confirmar="Tem certeza?">
    *
    * Substitui o onsubmit="return confirm('...')". O padrão de sempre é
@@ -285,6 +293,7 @@
 
     window.confirmarSite(textoDoConfirmar(form), {
       perigo: form.hasAttribute('data-confirmar-perigo'),
+      titulo: form.getAttribute('data-confirmar-titulo') || undefined,
       confirmar: form.getAttribute('data-confirmar-ok') || 'Confirmar'
     }).then(function (sim) {
       if (!sim) return;
@@ -306,6 +315,7 @@
     ev.stopImmediatePropagation();
     window.confirmarSite(textoDoConfirmar(el), {
       perigo: el.hasAttribute('data-confirmar-perigo'),
+      titulo: el.getAttribute('data-confirmar-titulo') || undefined,
       confirmar: el.getAttribute('data-confirmar-ok') || 'Confirmar'
     }).then(function (sim) {
       if (!sim) return;

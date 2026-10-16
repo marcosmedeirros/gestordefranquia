@@ -288,6 +288,84 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
+    /* ── APAGAR A APOSTA DE VEZ ───────────────────────────────────────────
+       Pedido do Marcos (16/10/2026): "coloca uma lixeira, que apaga a
+       aposta sem dar resultado e nada, no lado do lápis, mesmo que tenha
+       apostas nela".
+
+       É irmã do Cancelar logo acima, e a diferença é o que sobra. O
+       cancelamento guarda a linha marcada como cancelada, porque aposta
+       que a liga chegou a jogar vira histórico e o nome dela explica o
+       que foi desfeito. Mas nem toda aposta chega a existir pra liga: a
+       duplicada que o robô abriu em cima da montada à mão, o rascunho
+       escrito errado. Essa não é histórico — é entulho, e ficava na tela
+       pra sempre com um carimbo de cancelada.
+
+       Apaga palpite, opção, a aposta e a fila do robô que apontava pra
+       ela (@see apostas_auto_fila). Não há o que devolver de palpite: ele
+       não custa moeda nenhuma. O que existe é o PRÊMIO, e se a aposta já
+       tinha sido encerrada pagando, os 75 FBA Points e o acerto voltam
+       antes — senão ficaria gente paga por uma aposta que não existe
+       mais, e nem haveria onde conferir de onde vieram os pontos.
+
+       NÃO TEM VOLTA, e por isso é a única ação do painel que pede o nome
+       da aposta digitado. */
+    if (isset($_POST['acao']) && $_POST['acao'] == 'apagar_evento') {
+        $id_evento = (int)($_POST['id_evento'] ?? 0);
+        try {
+            $pdo->beginTransaction();
+            $stEv = $pdo->prepare("SELECT nome, status, vencedor_opcao_id FROM eventos WHERE id=? FOR UPDATE");
+            $stEv->execute([$id_evento]);
+            $ev = $stEv->fetch(PDO::FETCH_ASSOC);
+            if (!$ev) throw new Exception('Aposta não encontrada — alguém já apagou.');
+
+            $estornados = 0;
+            if ($ev['status'] === 'encerrada' && !empty($ev['vencedor_opcao_id'])) {
+                $stEst = $pdo->prepare("
+                    UPDATE games_usuarios u
+                    JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
+                    SET u.fba_points=u.fba_points-75, u.acertos_eventos=GREATEST(u.acertos_eventos-1,0)
+                ");
+                $stEst->execute([$ev['vencedor_opcao_id']]);
+                $estornados = $stEst->rowCount();
+            }
+
+            /* Palpite antes de opção, opção antes da aposta: não há chave
+               estrangeira entre as três, então a ordem é por conta daqui —
+               apagar a aposta primeiro deixaria palpite órfão no banco. */
+            $stDel = $pdo->prepare("DELETE p FROM palpites p
+                                      JOIN opcoes o ON o.id = p.opcao_id
+                                     WHERE o.evento_id = ?");
+            $stDel->execute([$id_evento]);
+            $palpitesApagados = $stDel->rowCount();
+
+            $stOp = $pdo->prepare("DELETE FROM opcoes WHERE evento_id = ?");
+            $stOp->execute([$id_evento]);
+            $opcoesApagadas = $stOp->rowCount();
+
+            try { $pdo->prepare("DELETE FROM apostas_auto_fila WHERE evento_id = ?")->execute([$id_evento]); }
+            catch (Throwable $eFila) { error_log('[apostas/apagar] fila: ' . $eFila->getMessage()); }
+
+            $pdo->prepare("DELETE FROM eventos WHERE id = ?")->execute([$id_evento]);
+            $pdo->commit();
+
+            /* O NOME VAI NA MENSAGEM porque a linha sumiu da tela: sem ele,
+               "aposta apagada" não diz qual, e o painel tem dezenas. */
+            $mensagem = 'Apagada: "' . htmlspecialchars($ev['nome']) . '" — '
+                      . $palpitesApagados . ' palpite' . ($palpitesApagados === 1 ? '' : 's')
+                      . ' e ' . $opcoesApagadas . ' opç' . ($opcoesApagadas === 1 ? 'ão' : 'ões')
+                      . ($estornados > 0
+                          ? '. Os 75 FBA Points voltaram de ' . $estornados . ' pessoa'
+                            . ($estornados === 1 ? '' : 's') . '.'
+                          : '. Nada estava pago.');
+            $mensagemType = 'info';
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $mensagem = "Erro: " . $e->getMessage();
+            $mensagemType = "danger";
+        }
+    }
+
     if (isset($_POST['acao']) && $_POST['acao'] == 'alterar_vencedor') {
         $id_evento             = $_POST['id_evento'];
         $novo_vencedor_opcao_id= $_POST['vencedor_opcao_id'];
@@ -610,6 +688,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
              justify-content:center;font-size:12px;cursor:pointer;transition:all var(--t) var(--ease);background:transparent}
 .btn-sm-icon.edit{border-color:rgba(245,158,11,.25);color:#fbbf24}
 .btn-sm-icon.edit:hover{background:rgba(245,158,11,.15)}
+.btn-sm-icon.del{border-color:rgba(239,68,68,.25);color:#ef4444}
+.btn-sm-icon.del:hover{background:rgba(239,68,68,.15)}
+.del-evt{display:flex;margin:0}
 .bets-pill{background:var(--panel-3);border:1px solid var(--border);border-radius:7px;
            padding:3px 9px;font-size:11px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:4px}
 
@@ -907,6 +988,31 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
                     onclick='editarAposta(<?= json_encode($evt, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>)'>
               <i class="bi bi-pencil-square"></i>
             </button>
+            <?php /* A LIXEIRA. Apaga sem dar resultado nenhum — é pra aposta que
+                     não devia existir, não pra aposta que acabou. A confirmação
+                     vem em vermelho, diz o nome e escreve o que o botão faz por
+                     extenso: é a única ação do painel sem volta, e fica a um
+                     clique do lápis. */
+              $qtdDel = (int)$evt['total_apostas_evento'];
+              $pagoDel = $evt['status'] === 'encerrada' && !empty($evt['vencedor_opcao_id']);
+              $avisoDel = 'APAGAR de vez "' . $evt['nome'] . '"? '
+                . ($qtdDel > 0
+                    ? 'Os ' . $qtdDel . ' palpite' . ($qtdDel === 1 ? '' : 's') . ' vão junto'
+                    : 'Ela não tem palpite nenhum')
+                . ($pagoDel ? ', e os 75 FBA Points pagos voltam atrás' : '')
+                . '. Ela some da tela e do histórico, sem resultado nenhum, e não tem como desfazer. '
+                . 'Pra só tirar da liga guardando o registro, use Cancelar aposta.';
+            ?>
+            <form method="POST" class="del-evt"
+                  data-confirmar="<?= htmlspecialchars($avisoDel) ?>"
+                  data-confirmar-perigo data-confirmar-titulo="Apagar a aposta"
+                  data-confirmar-ok="Apagar de vez">
+              <input type="hidden" name="acao" value="apagar_evento">
+              <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+              <button type="submit" class="btn-sm-icon del" title="Apagar de vez">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
             <div class="bets-pill">
               <i class="bi bi-people-fill"></i><?= $evt['total_apostas_evento'] ?>
             </div>
