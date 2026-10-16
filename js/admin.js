@@ -4482,6 +4482,20 @@ function setupLeaguePlayerSearch(league) {
 // League Quick Search
 // =====================================================================
 
+/* Os anos de temporada que a API já informou. Vazio até a primeira
+   resposta: o seletor nasce só com "Todas as temp.". */
+let _tradeTemporadas = [];
+
+/** Redesenha só o seletor de temporada, sem remontar a tela toda. */
+function redesenharSeletorTemporada() {
+  const sel = document.getElementById('tradeSeasonSelect');
+  if (!sel) return;
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Todas as temp.</option>'
+    + _tradeTemporadas.map(y => `<option value="${y}">${y}</option>`).join('');
+  sel.value = atual;
+}
+
 const _leagueSearchCache = { players: [], ownedPicks: [], awayPicks: [] };
 
 function setupLeagueQuickSearch(league) {
@@ -4974,9 +4988,14 @@ async function showTrades() {
     { value: 'ROOKIE', label: 'ROOKIE' }
   ];
 
-  const _curYear = new Date().getFullYear();
-  const seasonYearOptions = [{ value: '', label: 'Todas as temp.' }];
-  for (let y = _curYear; y >= _curYear - 6; y--) seasonYearOptions.push({ value: String(y), label: String(y) });
+  /* AS TEMPORADAS SAEM DOS DADOS, e não do relógio do computador. A
+     lista era `ano atual` até `ano atual - 6` — 2026 a 2020 — enquanto
+     a ELITE joga 2033: nenhuma opção existia, e escolher qualquer uma
+     esvaziava a tela. Enquanto a primeira resposta não chega, fica só
+     "Todas as temp.", que é o estado honesto: ainda não sabemos quais
+     são. */
+  const seasonYearOptions = [{ value: '', label: 'Todas as temp.' }]
+    .concat(_tradeTemporadas.map(y => ({ value: String(y), label: String(y) })));
 
   const _tradeBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
   container.innerHTML = `
@@ -4988,7 +5007,7 @@ async function showTrades() {
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ league: this.value })">
         ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
-      <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ seasonYear: this.value })">
+      <select id="tradeSeasonSelect" style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ seasonYear: this.value })">
         ${seasonYearOptions.map(opt => `<option value="${opt.value}" ${opt.value === seasonYearFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:160px" id="adminTradeTeamFilter" onchange="updateTradeFilter({ teamId: this.value })">
@@ -5084,6 +5103,12 @@ async function showTrades() {
     }
     const data = await api(url);
     const trades = data.trades || [];
+    /* Os anos vêm da API porque só ela sabe quais existem. @see api/admin.php */
+    if (Array.isArray(data.temporadas)) {
+      const antes = JSON.stringify(_tradeTemporadas);
+      _tradeTemporadas = data.temporadas;
+      if (antes !== JSON.stringify(_tradeTemporadas)) redesenharSeletorTemporada();
+    }
     const tc = document.getElementById('tradesListContainer');
 
     /* O TIPO E O "FALTA FAZER" PENEIRAM AQUI, no navegador: a API já mandou

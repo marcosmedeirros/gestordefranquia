@@ -981,9 +981,11 @@ if ($method === 'GET') {
                 }
             } catch (Throwable $e) { /* o texto vale sem o rotulo */ }
 
-            // O CICLO e quem marca a temporada de uma troca. `trades.season_year`
-            // existe na tabela e nunca foi preenchida — esta 0 em todas as linhas,
-            // e filtrar por ela devolveria uma lista sempre vazia.
+            // O CICLO e quem recorta o que vai no texto. `trades.season_year`
+            // hoje esta preenchida nas 8.124 linhas (o comentario antigo dizia
+            // que estava zerada; foi backfillada desde entao), mas o corte aqui
+            // e por ciclo de proposito: a multi-times nao tem o ano, e as duas
+            // listas precisam sair pelo mesmo criterio pra o texto fechar.
             $ciclo = 0;
             try {
                 $stC = $pdo->prepare('SELECT MAX(current_cycle) FROM teams WHERE league = ?');
@@ -1570,6 +1572,17 @@ if ($method === 'GET') {
             $status = $_GET['status'] ?? 'all'; // all, pending, accepted, rejected, cancelled
             $league = $_GET['league'] ?? null;
             $seasonYear = $_GET['season_year'] ?? null;
+
+            /* `trades.season_year` é o ano da liga gravado na troca, e é por
+               ele que esta tela filtra. A coluna não existe em bancos mais
+               antigos (a bancada local é um deles) — sem esta checagem a
+               listagem inteira responde 500 lá, e o erro só aparece depois
+               de subir. Onde ela falta, cai na mesma conta das multi-times:
+               a temporada que estava rolando no dia. */
+            $temSeasonYear = false;
+            try {
+                $temSeasonYear = (bool)$pdo->query("SHOW COLUMNS FROM trades LIKE 'season_year'")->fetch();
+            } catch (Throwable $e) { /* sem a coluna, segue pela data */ }
             $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
             
             $conditions = [];
@@ -1597,7 +1610,18 @@ if ($method === 'GET') {
             }
 
             if ($seasonYear) {
-                $conditions[] = "YEAR(t.created_at) = ?";
+                /* A TEMPORADA DA LIGA, que está gravada na própria linha.
+                   Era `YEAR(t.created_at)`: o ano do relógio, que é 2026
+                   nas 8.124 trocas do banco, porque a liga inteira foi
+                   jogada neste ano real. Escolher 2026 trazia tudo e
+                   escolher qualquer outro ano não trazia nada — o filtro
+                   nunca separou temporada nenhuma. */
+                $conditions[] = $temSeasonYear
+                    ? 't.season_year = ?'
+                    : '? = (SELECT s2.year FROM seasons s2
+                             WHERE s2.league = from_team.league
+                               AND s2.start_date <= DATE(t.created_at)
+                          ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
                 $params[] = (int)$seasonYear;
             }
 
@@ -1725,7 +1749,15 @@ if ($method === 'GET') {
                 }
 
                 if ($seasonYear) {
-                    $multiConditions[] = 'YEAR(mt.created_at) = ?';
+                    /* A multi-times não guarda o ano — só `cycle`, e um ciclo
+                       cobre duas temporadas, então ele não serve de resposta.
+                       Sobra a data: a temporada de uma troca é a que estava
+                       rolando no dia em que ela foi feita, e `seasons.start_date`
+                       guarda esse dia. Mesma conta do leilão, logo abaixo. */
+                    $multiConditions[] = '? = (SELECT s2.year FROM seasons s2
+                                                WHERE s2.league = mt.league
+                                                  AND s2.start_date <= DATE(mt.created_at)
+                                             ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
                     $multiParams[] = (int)$seasonYear;
                 }
 
@@ -1837,7 +1869,22 @@ if ($method === 'GET') {
                     $lParams[] = $teamId;
                 }
                 if ($seasonYear) {
-                    $lCond[]   = 'YEAR(lj.data_fim) = ?';
+                    /* A TEMPORADA DA LIGA, e não o ano do calendário.
+                       Era `YEAR(lj.data_fim) = ?`, comparando o ano do
+                       relógio com o ano do jogo: as trades da ELITE estão
+                       em 2033 e todo leilão fechado tem data_fim de 2026,
+                       então bastava filtrar por temporada pra TODOS os
+                       leilões sumirem da lista — e eles só apareciam por
+                       acaso, quando ninguém filtrava.
+
+                       A temporada de um leilão é aquela que estava rolando
+                       no dia em que ele fechou, e `seasons.start_date`
+                       guarda essa data. Vale retroativo, inclusive pros
+                       leilões de temporadas já encerradas. */
+                    $lCond[]   = '? = (SELECT s2.year FROM seasons s2
+                                        WHERE s2.league = lg.name
+                                          AND s2.start_date <= DATE(lj.data_fim)
+                                     ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
                     $lParams[] = (int)$seasonYear;
                 }
                 if ($playerBusca !== '') {
@@ -1948,7 +1995,36 @@ if ($method === 'GET') {
                 });
             }
 
-            echo json_encode(['success' => true, 'trades' => $trades]);
+            /* AS TEMPORADAS QUE EXISTEM DE VERDADE, pro seletor da tela.
+               Ele montava a lista com o ano do relógio e os seis anteriores
+               — 2026 a 2020 — enquanto a ELITE joga 2033. Nenhuma das opções
+               existia nos dados, então escolher qualquer uma esvaziava a
+               lista inteira, trades e leilões junto. O filtro só "funcionava"
+               por ficar sempre em "Todas as temp.". */
+            $anos = [];
+            try {
+                /* A lista sai de `seasons`, que é o calendário da liga, unido
+                   ao que as trocas dizem de si mesmas. Só `seasons` não basta
+                   e só as trocas também não: cada liga já rodou mais de um
+                   sprint, e há leilão numa temporada que não teve troca
+                   nenhuma — a ELITE tem leilão em 2035 e 2036, anos que não
+                   aparecem em `trades`. */
+                $uniao = "SELECT year AS ano, league FROM seasons WHERE year IS NOT NULL"
+                       . ($temSeasonYear ? "
+                          UNION
+                          SELECT t2.season_year, ft2.league
+                            FROM trades t2 JOIN teams ft2 ON ft2.id = t2.from_team_id
+                           WHERE t2.season_year > 0" : '');
+                $stA = $pdo->prepare("SELECT DISTINCT ano FROM ({$uniao}) u
+                                       WHERE (? IS NULL OR u.league = ?)
+                                    ORDER BY ano DESC LIMIT 40");
+                $stA->execute([$league, $league]);
+                $anos = array_map('intval', $stA->fetchAll(PDO::FETCH_COLUMN));
+            } catch (Throwable $e) {
+                error_log('[admin/trades] temporadas: ' . $e->getMessage());
+            }
+
+            echo json_encode(['success' => true, 'trades' => $trades, 'temporadas' => $anos]);
             break;
 
         // ── Draft Class Bank ─────────────────────────────────────────────────────
