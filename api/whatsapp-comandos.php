@@ -583,6 +583,7 @@ function wcAjuda(): string
     return "*Comandos da FBA*\n\n"
         . "*Consulta*\n"
         . "/jogador _nome_ — time, idade, OVR e salário\n"
+        . "/historico _nome_ — a carreira dele, temporada por temporada\n"
         . "/comparar _um_ x _outro_ — jogadores lado a lado\n"
         // /comparartime continua funcionando, mas fica FORA da lista: e de
         // nicho, e cada linha a mais aqui custa atencao de quem so quer o basico.
@@ -887,6 +888,139 @@ function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube
     return rtrim($txt) . $nota;
 }
 
+/**
+ * /historico — a carreira do jogador na liga, temporada por temporada.
+ *
+ * O `/jogador` responde "como ele está hoje"; este responde "o que ele já
+ * fez aqui". São perguntas diferentes e a segunda não tinha resposta: pra
+ * saber se o veterano de 34 anos sempre foi assim ou caiu de produção, só
+ * olhando tela por tela.
+ *
+ * ── DE ONDE VEM CADA PEDAÇO ──────────────────────────────────────────
+ *
+ * OVR, idade e time saem do `player_season_log`, o retrato que o fim de
+ * temporada tira de cada jogador. As estatísticas saem do
+ * `player_season_stats`, que é outra tabela e nem sempre está preenchida —
+ * a linha existe mesmo sem elas, porque "jogou e ninguém lançou" é
+ * informação, e esconder a temporada faria a carreira parecer menor.
+ *
+ * ── O HISTÓRICO É DO NOME, NÃO DO ID ─────────────────────────────────
+ *
+ * Dispensa apaga a linha em `players` e quem volta nasce com id novo: um
+ * jogador com quatro passagens pela Free Agency tem o passado fatiado em
+ * quatro ids. Por isso a busca é por NOME + LIGA, que é o que sobrevive —
+ * a mesma chave que o religamento do histórico usa.
+ * @see backend/historico_jogador.php
+ */
+function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    if ($termo === '') return "Use assim: /historico lebron";
+
+    /* Quem é o jogador: a mesma resolução do /jogador, com a liga do grupo
+       desempatando — o mesmo nome existe em mais de uma divisão. */
+    $ovr = wcColunaOvr($pdo);
+    $ordem = wcOrdemLiga($ligaDoGrupo);
+    $st = $pdo->prepare("SELECT p.id, p.name, p.age, p.{$ovr} AS ovr, t.league,
+                                CONCAT(t.city,' ',t.name) AS time
+                           FROM players p JOIN teams t ON t.id = p.team_id
+                          WHERE p.name LIKE ?
+                       ORDER BY {$ordem}, p.{$ovr} DESC LIMIT 8");
+    $st->execute(['%' . $termo . '%']);
+    $achados = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    /* Sem clube também tem passado — e é justamente de quem foi dispensado
+       que se quer saber o que ele fazia. */
+    $livres = wcSemClube($pdo, $termo, $ligaDoGrupo);
+
+    if (!$achados && !$livres) {
+        /* Pode ter saído da liga de vez: o log continua lá. */
+        $st = $pdo->prepare("SELECT DISTINCT player_name, league FROM player_season_log
+                              WHERE player_name LIKE ? LIMIT 4");
+        $st->execute(['%' . $termo . '%']);
+        $antigos = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$antigos) return "Não achei jogador com \"{$termo}\".";
+        if (count($antigos) > 1) {
+            return "Achei mais de um com \"{$termo}\":\n"
+                 . implode("\n", array_map(fn($a) => '• ' . $a['player_name'] . ' (' . $a['league'] . ')', $antigos));
+        }
+        $nome = $antigos[0]['player_name'];
+        $liga = $antigos[0]['league'];
+    } else {
+        $pref = wcLigaPreferida($ligaDoGrupo);
+        $daLiga = fn(array $r, string $d) => array_values(array_filter($r, fn($x) => ($x['league'] ?? '') === $d));
+        $escolha = null;
+        foreach (array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref]))) as $div) {
+            $c = $daLiga($achados, $div) ?: $daLiga($livres, $div);
+            if ($c) { $escolha = $c; break; }
+        }
+        if (!$escolha) $escolha = $achados ?: $livres;
+
+        if (count($escolha) > 1) {
+            return "Achei " . count($escolha) . " com \"{$termo}\":\n"
+                 . implode("\n", array_map(fn($x) => '• *' . $x['name'] . '* — ' . ($x['time'] ?? 'Sem Clube')
+                                                   . ' (' . $x['league'] . ')', $escolha))
+                 . "\n\nMande o nome mais completo.";
+        }
+        $nome = $escolha[0]['name'];
+        $liga = $escolha[0]['league'];
+    }
+
+    /* AS TEMPORADAS. Por nome + liga, que é o que sobrevive à dispensa, com
+       as estatísticas penduradas pela temporada e pelo id daquele ano — o
+       mesmo nome pode ter ids diferentes ao longo da carreira. */
+    $st = $pdo->prepare("SELECT l.season_number, l.year, l.team_name, l.ovr, l.age, l.position,
+                                ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg,
+                                ps.stl_pg, ps.blk_pg, ps.fg_pct
+                           FROM player_season_log l
+                      LEFT JOIN player_season_stats ps
+                             ON ps.season_id = l.season_id AND ps.player_id = l.player_id
+                          WHERE l.player_name = ? AND l.league = ?
+                       ORDER BY l.season_number ASC, l.id ASC");
+    $st->execute([$nome, $liga]);
+    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$linhas) {
+        return "*{$nome}* ({$liga})\nAinda não tem temporada fechada na liga — o histórico "
+             . "só ganha linha quando a temporada encerra.";
+    }
+
+    $txt = "📜 *{$nome}* — {$liga}\n";
+    $time = null;
+    foreach ($linhas as $l) {
+        /* O time só aparece quando MUDA: repetir "Celestials" em oito linhas
+           seguidas gasta a largura da tela do celular e esconde o que
+           interessa, que é o número. A troca, essa sim, é notícia. */
+        $mostraTime = $l['team_name'] !== $time;
+        $time = $l['team_name'];
+
+        $txt .= "\n*" . (int)$l['year'] . "*"
+              . ($mostraTime ? ' · ' . $l['team_name'] : '')
+              . "\n" . (int)$l['ovr'] . ' OVR · ' . (int)$l['age'] . ' anos'
+              . ($l['position'] ? ' · ' . $l['position'] : '') . "\n";
+
+        if ($l['games'] !== null) {
+            $txt .= wcNum($l['pts_pg']) . ' pts · ' . wcNum($l['reb_pg']) . ' reb · '
+                  . wcNum($l['ast_pg']) . " ast\n"
+                  . wcNum($l['stl_pg']) . ' STL · ' . wcNum($l['blk_pg']) . ' BLK · '
+                  . wcNum($l['min_pg']) . ' min'
+                  . ($l['fg_pct'] !== null ? ' · ' . wcNum($l['fg_pct']) . '% fg' : '')
+                  . ' em ' . (int)$l['games'] . " jogos\n";
+        } else {
+            $txt .= "_sem estatística lançada_\n";
+        }
+    }
+
+    /* O resumo no pé responde de relance o que a lista responde devagar. */
+    $ovrs = array_map('intval', array_column($linhas, 'ovr'));
+    $txt .= "\n" . count($linhas) . ' temporada' . (count($linhas) === 1 ? '' : 's')
+          . ' · OVR de ' . min($ovrs) . ' a ' . max($ovrs);
+    $comStats = array_values(array_filter($linhas, fn($l) => $l['games'] !== null));
+    if ($comStats) {
+        $pts = array_map('floatval', array_column($comStats, 'pts_pg'));
+        $txt .= ' · melhor campanha ' . wcNum(max($pts)) . ' pts';
+    }
+    return $txt;
+}
 function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     if ($termo === '') return "Use assim: /jogador lebron";
@@ -5232,6 +5366,11 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'jogador':
             case 'player':
                 return wcJogador($pdo, $arg, $ligaDoGrupo);
+
+            case 'historico':
+            case 'histórico':
+            case 'carreira':
+                return wcHistorico($pdo, $arg, $ligaDoGrupo);
 
             case 'time':
             case 'elenco':
