@@ -249,6 +249,13 @@ function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'
    a peça, e número que sai da tela quando se rola não serve. */
 .resumo{position:sticky;top:0;z-index:5;display:flex;gap:10px;flex-wrap:wrap;
   padding:14px 0;background:var(--bg)}
+/* NO CELULAR ELE NÃO GRUDA. No monitor os cartões ocupam uma faixa
+   fina e sobra tela pra quadra embaixo — grudar é o que faz o número
+   mudar à vista enquanto se move a peça. Na tela do celular os mesmos
+   cartões empilham em três fileiras e o painel de sistema vem junto:
+   gruda metade da altura e a quadra, que é o que se foi mexer, fica
+   espremida no resto. Ali vale mais rolar. */
+@media (max-width:700px){ .resumo{position:static} }
 .cart{background:var(--panel);border:1px solid var(--border);border-radius:13px;
   padding:11px 16px;min-width:118px}
 .cart b{display:block;font-family:var(--num);font-size:23px;line-height:1}
@@ -767,7 +774,12 @@ function desenhar() {
     document.getElementById('nQuinteto').parentElement.classList.add('alerta');
   }
 
-  desenharCap(q);
+  /* O CAP CONTA QUADRA E BANCO. As médias e o sistema continuam sendo
+     dos cinco — é o quinteto que joga —, mas folha não se paga por
+     quem está em quadra: o banco custa igual. Fica de fora só o
+     Outros / G-League, que é onde se põe quem não está no elenco
+     principal. Pedido do Marcos (16/10/2026). */
+  desenharCap(ELENCO_MESA.filter(p => onde[p.id] === 'titulares' || onde[p.id] === 'banco'));
 
   const fora = ELENCO_MESA.filter(p => p.fora).length;
   document.getElementById('bDevolver').hidden = !fora;
@@ -776,12 +788,12 @@ function desenhar() {
   desenharSistemas(q);
 }
 
-/* QUANTO CUSTAM OS CINCO.
+/* QUANTO CUSTA O ELENCO DO RASCUNHO — quadra mais banco.
    Na ELITE é a soma dos salários; nas outras, a soma de OVR, que é a
-   moeda do cap de lá. O rodapé mostra a régua do time pra dar escala —
-   o número grande é de cinco jogadores e o cap da liga é do elenco,
-   então um nunca cabe dentro do outro: o que se compara é escalação
-   com escalação. */
+   moeda do cap de lá. O rodapé mostra a régua do time pra dar escala,
+   e ela continua sendo de outra coisa: o cap de verdade é do elenco
+   inteiro (G-League junto, na ELITE) e aqui pode ter jogador
+   emprestado no meio. O que se compara é rascunho com rascunho. */
 function desenharCap(q) {
   const cart = document.getElementById('cartCap');
   if (!CAP || !cart) return;
@@ -795,7 +807,11 @@ function desenharCap(q) {
   const soma = q.reduce((s, p) => s + (valor(p) || 0), 0);
 
   document.getElementById('nCap').textContent = q.length ? soma + un : '—';
-  document.getElementById('rotCap').textContent = CAP.usa ? 'folha dos 5' : 'OVR dos 5';
+  /* "de N" e não "dos 5": o número agora depende de quantos estão no
+     rascunho, e um rótulo fixo mentiria em todo banco que não tem
+     exatamente o tamanho de ontem. */
+  document.getElementById('rotCap').textContent =
+    (CAP.usa ? 'folha' : 'OVR') + ' de ' + q.length + ' (quadra + banco)';
 
   const pe = [];
   if (CAP.hoje != null) {
@@ -955,9 +971,10 @@ function textoDoTime() {
     /* O custo dos cinco vai junto: é o número que a mesa passou a
        mostrar, e quem cola o time no grupo quer discutir isso também. */
     const valor = p => CAP.usa ? p.sal : p.ovr;
-    if (q.every(p => valor(p) != null)) {
-      t += ' · ' + (CAP.usa ? 'folha' : 'OVR') + ' dos 5 '
-         + q.reduce((sm, p) => sm + valor(p), 0) + (CAP.un || '');
+    const noCap = ELENCO_MESA.filter(x => onde[x.id] === 'titulares' || onde[x.id] === 'banco');
+    if (noCap.length && noCap.every(p => valor(p) != null)) {
+      t += ' · ' + (CAP.usa ? 'folha' : 'OVR') + ' de ' + noCap.length + ' '
+         + noCap.reduce((sm, p) => sm + valor(p), 0) + (CAP.un || '');
     }
     /* O sistema entra porque é o que a mesa responde e o texto, sem ele,
        seria só uma lista de nomes que qualquer um já tinha. */
