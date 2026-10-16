@@ -109,7 +109,20 @@ if (!function_exists('lojaJaComprou')) {
      */
     function lojaJaComprou(PDO $pdo, int $userId, string $itemKey, array $lim): int
     {
-        $sql = "SELECT COUNT(*) FROM loja_inventario WHERE id_usuario = ? AND item_key = ?";
+        /* SÓ CONTA O QUE FOI COMPRADO.
+
+           Badge dada pelo admin entra no inventário como linha de
+           `preco_pago = 0` — é assim que o extrato separa o que o GM
+           pagou do que ele ganhou (@see adminAjustarBadges). A conta
+           daqui pegava as duas, e o presente queimava a cota: um GM
+           que ganhou duas badges do admin neste mês ficou sem poder
+           comprar nenhuma, tendo gasto zero ponto.
+
+           O limite é de COMPRA — "2 por mês", "compra única". Quem dá
+           badge é o admin, e ele não está sujeito à cota de ninguém:
+           se não quisesse que o GM comprasse também, não teria dado. */
+        $sql = "SELECT COUNT(*) FROM loja_inventario
+                 WHERE id_usuario = ? AND item_key = ? AND preco_pago > 0";
         if (($lim['por'] ?? '') === 'mes') {
             $sql .= " AND YEAR(comprado_em) = YEAR(NOW()) AND MONTH(comprado_em) = MONTH(NOW())";
         }
@@ -133,12 +146,15 @@ if (!function_exists('lojaLimites')) {
         $out = [];
         try {
             lojaGarantirTabela($pdo);
+            /* `preco_pago > 0` igual ao lojaJaComprou: se a tela contasse o
+               presente e o clique não, o card diria "esgotou" num item que a
+               compra aceitaria, e o GM não teria como descobrir. */
             $st = $pdo->prepare("SELECT item_key,
                                         COUNT(*) AS total,
                                         SUM(YEAR(comprado_em) = YEAR(NOW())
                                         AND MONTH(comprado_em) = MONTH(NOW())) AS no_mes
                                    FROM loja_inventario
-                                  WHERE id_usuario = ?
+                                  WHERE id_usuario = ? AND preco_pago > 0
                                   GROUP BY item_key");
             $st->execute([$userId]);
             $contagem = [];
