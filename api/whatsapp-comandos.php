@@ -912,33 +912,62 @@ function wcFichaSemClube(PDO $pdo, array $linhas, string $termo, array $comClube
  * a mesma chave que o religamento do histórico usa.
  * @see backend/historico_jogador.php
  */
+/** Quantas temporadas o /historico mostra. O resto fica no resumo do pé. */
+const WC_HISTORICO_TEMPORADAS = 3;
+
 function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     if ($termo === '') return "Use assim: /historico lebron";
 
-    /* Quem é o jogador: a mesma resolução do /jogador, com a liga do grupo
-       desempatando — o mesmo nome existe em mais de uma divisão. */
+    /* ── A LIGA DO GRUPO É TRAVA, NÃO PREFERÊNCIA ────────────────────
+       Pedido do Marcos (16/10/2026): "somente o jogador da liga que é o
+       grupo". O /jogador desempata pela liga do grupo mas cai nas outras
+       quando não acha — e aí, num grupo da NEXT, perguntar por um nome
+       que só existe na ELITE devolvia a carreira de um jogador que não é
+       aquele. Como 340 nomes existem em mais de uma liga, a resposta
+       parecia certa e era de outra pessoa.
+
+       Grupo sem liga registrada continua procurando em todas: lá não há
+       o que travar, e devolver nada seria pior. @see wcLigaPreferida */
+    $ligaTrava = strtoupper(trim((string)$ligaDoGrupo));
+    $ligaTrava = in_array($ligaTrava, WC_DIVISOES, true) ? $ligaTrava : null;
+
     $ovr = wcColunaOvr($pdo);
     $ordem = wcOrdemLiga($ligaDoGrupo);
+    $filtroLiga = $ligaTrava ? ' AND t.league = ?' : '';
+    $par = ['%' . $termo . '%'];
+    if ($ligaTrava) $par[] = $ligaTrava;
     $st = $pdo->prepare("SELECT p.id, p.name, p.age, p.{$ovr} AS ovr, t.league,
                                 CONCAT(t.city,' ',t.name) AS time
                            FROM players p JOIN teams t ON t.id = p.team_id
-                          WHERE p.name LIKE ?
+                          WHERE p.name LIKE ?{$filtroLiga}
                        ORDER BY {$ordem}, p.{$ovr} DESC LIMIT 8");
-    $st->execute(['%' . $termo . '%']);
+    $st->execute($par);
     $achados = $st->fetchAll(PDO::FETCH_ASSOC);
 
     /* Sem clube também tem passado — e é justamente de quem foi dispensado
        que se quer saber o que ele fazia. */
     $livres = wcSemClube($pdo, $termo, $ligaDoGrupo);
+    if ($ligaTrava) {
+        $livres = array_values(array_filter($livres,
+            fn($x) => strtoupper((string)($x['league'] ?? '')) === $ligaTrava));
+    }
 
     if (!$achados && !$livres) {
         /* Pode ter saído da liga de vez: o log continua lá. */
-        $st = $pdo->prepare("SELECT DISTINCT player_name, league FROM player_season_log
-                              WHERE player_name LIKE ? LIMIT 4");
-        $st->execute(['%' . $termo . '%']);
+        $sqlAnt = "SELECT DISTINCT player_name, league FROM player_season_log
+                    WHERE player_name LIKE ?" . ($ligaTrava ? ' AND league = ?' : '') . ' LIMIT 4';
+        $parAnt = ['%' . $termo . '%'];
+        if ($ligaTrava) $parAnt[] = $ligaTrava;
+        $st = $pdo->prepare($sqlAnt);
+        $st->execute($parAnt);
         $antigos = $st->fetchAll(PDO::FETCH_ASSOC);
-        if (!$antigos) return "Não achei jogador com \"{$termo}\".";
+        if (!$antigos) {
+            /* Dizer EM QUE LIGA não se achou: sem isso, quem pergunta num
+               grupo da NEXT por um jogador da ELITE lê "não existe". */
+            return "Não achei jogador com \"{$termo}\""
+                 . ($ligaTrava ? " na {$ligaTrava}." : '.');
+        }
         if (count($antigos) > 1) {
             return "Achei mais de um com \"{$termo}\":\n"
                  . implode("\n", array_map(fn($a) => '• ' . $a['player_name'] . ' (' . $a['league'] . ')', $antigos));
@@ -949,7 +978,13 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
         $pref = wcLigaPreferida($ligaDoGrupo);
         $daLiga = fn(array $r, string $d) => array_values(array_filter($r, fn($x) => ($x['league'] ?? '') === $d));
         $escolha = null;
-        foreach (array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref]))) as $div) {
+        /* Com trava, a lista a varrer é de uma liga só — as consultas já
+           vieram filtradas, e isto aqui é o que impede a varredura de
+           continuar pelas outras divisões. */
+        $ondeProcurar = $ligaTrava
+            ? [$ligaTrava]
+            : array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref])));
+        foreach ($ondeProcurar as $div) {
             $c = $daLiga($achados, $div) ?: $daLiga($livres, $div);
             if ($c) { $escolha = $c; break; }
         }
@@ -984,6 +1019,19 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
              . "só ganha linha quando a temporada encerra.";
     }
 
+    /* ── SÓ AS TRÊS ÚLTIMAS ──────────────────────────────────────────
+       Pedido do Marcos (16/10/2026). Uma carreira de nove temporadas
+       virava uma parede de texto no grupo: cada ano são três linhas, e o
+       WhatsApp corta a mensagem com um "Ler mais" que ninguém abre. As
+       três últimas são a pergunta que se faz de verdade — como ele está
+       agora e se vinha assim.
+
+       O RESUMO DO PÉ CONTINUA SENDO DA CARREIRA INTEIRA: é uma linha só
+       e é justamente o que responde "ele sempre foi isso?". Recortar
+       também o resumo esconderia o pico de quem está em queda. */
+    $todas  = $linhas;
+    $linhas = array_slice($linhas, -WC_HISTORICO_TEMPORADAS);
+
     $txt = "📜 *{$nome}* — {$liga}\n";
     $time = null;
     foreach ($linhas as $l) {
@@ -1011,10 +1059,11 @@ function wcHistorico(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     }
 
     /* O resumo no pé responde de relance o que a lista responde devagar. */
-    $ovrs = array_map('intval', array_column($linhas, 'ovr'));
-    $txt .= "\n" . count($linhas) . ' temporada' . (count($linhas) === 1 ? '' : 's')
+    $ovrs = array_map('intval', array_column($todas, 'ovr'));
+    $txt .= "\n" . count($todas) . ' temporada' . (count($todas) === 1 ? '' : 's')
+          . (count($todas) > count($linhas) ? ' na liga (acima, as ' . count($linhas) . ' últimas)' : '')
           . ' · OVR de ' . min($ovrs) . ' a ' . max($ovrs);
-    $comStats = array_values(array_filter($linhas, fn($l) => $l['games'] !== null));
+    $comStats = array_values(array_filter($todas, fn($l) => $l['games'] !== null));
     if ($comStats) {
         $pts = array_map('floatval', array_column($comStats, 'pts_pg'));
         $txt .= ' · melhor campanha ' . wcNum(max($pts)) . ' pts';
