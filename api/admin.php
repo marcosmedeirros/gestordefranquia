@@ -1619,6 +1619,8 @@ if ($method === 'GET') {
                 $conditions[] = $temSeasonYear
                     ? 't.season_year = ?'
                     : '? = (SELECT s2.year FROM seasons s2
+                              JOIN sprints sp2 ON sp2.id = s2.sprint_id
+                                              AND sp2.status = \'active\'
                              WHERE s2.league = from_team.league
                                AND s2.start_date <= DATE(t.created_at)
                           ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
@@ -1755,6 +1757,8 @@ if ($method === 'GET') {
                        rolando no dia em que ela foi feita, e `seasons.start_date`
                        guarda esse dia. Mesma conta do leilão, logo abaixo. */
                     $multiConditions[] = '? = (SELECT s2.year FROM seasons s2
+                                                 JOIN sprints sp2 ON sp2.id = s2.sprint_id
+                                                                 AND sp2.status = \'active\'
                                                 WHERE s2.league = mt.league
                                                   AND s2.start_date <= DATE(mt.created_at)
                                              ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
@@ -1882,6 +1886,8 @@ if ($method === 'GET') {
                        guarda essa data. Vale retroativo, inclusive pros
                        leilões de temporadas já encerradas. */
                     $lCond[]   = '? = (SELECT s2.year FROM seasons s2
+                                         JOIN sprints sp2 ON sp2.id = s2.sprint_id
+                                                         AND sp2.status = \'active\'
                                         WHERE s2.league = lg.name
                                           AND s2.start_date <= DATE(lj.data_fim)
                                      ORDER BY s2.start_date DESC, s2.id DESC LIMIT 1)';
@@ -2003,20 +2009,27 @@ if ($method === 'GET') {
                por ficar sempre em "Todas as temp.". */
             $anos = [];
             try {
-                /* A lista sai de `seasons`, que é o calendário da liga, unido
-                   ao que as trocas dizem de si mesmas. Só `seasons` não basta
-                   e só as trocas também não: cada liga já rodou mais de um
-                   sprint, e há leilão numa temporada que não teve troca
-                   nenhuma — a ELITE tem leilão em 2035 e 2036, anos que não
-                   aparecem em `trades`. */
-                $uniao = "SELECT year AS ano, league FROM seasons WHERE year IS NOT NULL"
-                       . ($temSeasonYear ? "
-                          UNION
-                          SELECT t2.season_year, ft2.league
-                            FROM trades t2 JOIN teams ft2 ON ft2.id = t2.from_team_id
-                           WHERE t2.season_year > 0" : '');
-                $stA = $pdo->prepare("SELECT DISTINCT ano FROM ({$uniao}) u
-                                       WHERE (? IS NULL OR u.league = ?)
+                /* SÓ O SPRINT QUE ESTÁ RODANDO.
+
+                   A lista sai de `seasons`, o calendário da liga, cortada no
+                   sprint ativo. Sem o corte ela vinha com o sprint anterior
+                   junto: a ELITE abria em 2044 e a temporada de hoje, 2033,
+                   caía na décima segunda linha.
+
+                   O corte também desfaz um empate que o ano sozinho não
+                   resolve: cada sprint recomeça a contagem, então 2033 é o
+                   nome de duas temporadas diferentes da ELITE, uma em cada
+                   sprint. Com um sprint só, o ano volta a apontar pra uma
+                   temporada de verdade.
+
+                   O que ficou pra trás continua na lista — some do filtro,
+                   não da tela. */
+                $stA = $pdo->prepare("SELECT DISTINCT s.year AS ano
+                                        FROM seasons s
+                                        JOIN sprints sp ON sp.id = s.sprint_id
+                                                       AND sp.status = 'active'
+                                       WHERE s.year IS NOT NULL
+                                         AND (? IS NULL OR s.league = ?)
                                     ORDER BY ano DESC LIMIT 40");
                 $stA->execute([$league, $league]);
                 $anos = array_map('intval', $stA->fetchAll(PDO::FETCH_COLUMN));
