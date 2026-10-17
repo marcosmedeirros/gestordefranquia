@@ -50,15 +50,57 @@ if ($chave === '') {
     exit(1);
 }
 
-/** A URL do metadata de um lugar. */
-$url = static function (array $l) use ($chave): string {
+/** A URL do metadata de uma coordenada. */
+$url = static function (float $lat, float $lon) use ($chave): string {
     return GEO_RUA_META . '?' . http_build_query([
-        'location' => $l['lat'] . ',' . $l['lon'],
+        'location' => $lat . ',' . $lon,
         'radius'   => GEO_RUA_RAIO,
         'source'   => 'outdoor',    // panorama de rua, não o interior de uma loja
         'key'      => $chave,
     ]);
 };
+
+/**
+ * ── ONDE PROCURAR O PANORAMA ────────────────────────────────────────
+ *
+ * No centro de uma cidade, o panorama MAIS PRÓXIMO quase nunca é o do
+ * carro do Google: é foto esférica que alguém subiu ali. A coordenada do
+ * Wikidata cai na praça, no monumento, no castelo — justamente onde as
+ * pessoas fotografam. Lisboa, Cidade do Cabo, Dar es Salaam e Cheongju
+ * devolvem foto de visitante em qualquer raio, e as quatro têm Street
+ * View de rua a duzentos metros dali.
+ *
+ * Foi isso que reprovou 475 dos 779 lugares: não é que não exista
+ * cobertura, é que ninguém perguntou na rua. Então a sondagem sai do
+ * ponto e abre em anéis — e para no primeiro panorama do Google que
+ * aparecer. O metadata é de graça e sem limite, então custa tempo e
+ * mais nada.
+ *
+ * Os anéis são curtos de propósito: a 1,5 km já se está em outro
+ * bairro, e o jogo é adivinhar ONDE É — abrir o panorama longe do lugar
+ * transforma a resposta certa em injustiça.
+ */
+const GEO_RUA_ANEIS = [0, 250, 600];   // metros
+const GEO_RUA_RUMOS = [0, 45, 90, 135, 180, 225, 270, 315];
+
+/** Os pontos a sondar em volta do lugar, do centro pra fora. */
+function geoRuaPontos(float $lat, float $lon): array
+{
+    $pts = [];
+    foreach (GEO_RUA_ANEIS as $m) {
+        if ($m === 0) { $pts[] = [$lat, $lon]; continue; }
+        foreach (GEO_RUA_RUMOS as $g) {
+            $r = deg2rad($g);
+            /* 111.320 m é um grau de latitude; na longitude encolhe com o
+               cosseno da latitude, senão o anel vira uma elipse perto dos
+               polos e some perto do equador. */
+            $dLat = ($m * cos($r)) / 111320;
+            $dLon = ($m * sin($r)) / (111320 * max(0.01, cos(deg2rad($lat))));
+            $pts[] = [$lat + $dLat, $lon + $dLon];
+        }
+    }
+    return $pts;
+}
 
 /* ── PASSO 1: O ARQUIVO PRO CURL ─────────────────────────────────────
    Uma resposta por arquivo, numerada pelo índice do lugar: é o que deixa o
@@ -69,8 +111,12 @@ if (isset($opts['cfg'])) {
     @mkdir($pasta, 0777, true);
     $cfg = '';
     foreach ($lugares as $i => $l) {
-        $cfg .= 'url = "' . $url($l) . "\"\n"
-              . 'output = "' . $pasta . '/' . $i . ".json\"\n";
+        /* Um arquivo por PONTO, não por lugar: o passo 3 lê na ordem e para
+           no primeiro do Google, igual ao caminho direto. */
+        foreach (geoRuaPontos((float)$l['lat'], (float)$l['lon']) as $k => [$la, $lo]) {
+            $cfg .= 'url = "' . $url($la, $lo) . "\"\n"
+                  . 'output = "' . $pasta . '/' . $i . '-' . $k . ".json\"\n";
+        }
     }
     file_put_contents($destino, $cfg);
     echo "gravado {$destino} (", count($lugares), " pedidos)\n",
@@ -82,22 +128,38 @@ if (isset($opts['cfg'])) {
 /* ── PASSO 3 (ou tudo de uma vez, onde o HTTPS funciona) ─────────────── */
 $com = 0; $sem = 0; $erro = 0; $deGente = 0;
 foreach ($lugares as $i => &$l) {
-    if (isset($opts['respostas'])) {
-        $arq = rtrim((string)$opts['respostas'], '/\\') . '/' . $i . '.json';
-        $corpo = is_file($arq) ? (string)file_get_contents($arq) : '';
-    } else {
-        $c = curl_init($url($l));
-        curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20]);
-        $corpo = (string)curl_exec($c);
-        curl_close($c);
+    /* ── A VARREDURA ────────────────────────────────────────────────
+       Do centro pra fora, parando no primeiro panorama do Google. O que
+       sobrevive ao fim do laço é a MELHOR resposta encontrada: um do
+       Google se houve algum, senão a última que veio — que serve pra
+       distinguir "só tem foto de visitante" de "não tem nada aqui", e
+       essas duas viram contadores diferentes no fim. */
+    $j = null; $st = ''; $achouGoogle = false;
+    $pontos = geoRuaPontos((float)$l['lat'], (float)$l['lon']);
+    foreach ($pontos as $k => [$la, $lo]) {
+        if (isset($opts['respostas'])) {
+            $arq = rtrim((string)$opts['respostas'], '/\\') . '/' . $i . '-' . $k . '.json';
+            $corpo = is_file($arq) ? (string)file_get_contents($arq) : '';
+        } else {
+            $c = curl_init($url($la, $lo));
+            curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20]);
+            $corpo = (string)curl_exec($c);
+            curl_close($c);
+        }
+        $try = json_decode($corpo, true);
+        $sTry = (string)($try['status'] ?? '');
+        if ($sTry === '') continue;             // ponto sem resposta: tenta o próximo
+        if ($j === null || $sTry === 'OK') { $j = $try; $st = $sTry; }
+        if ($sTry === 'OK' && stripos((string)($try['copyright'] ?? ''), 'Google') !== false) {
+            $j = $try; $st = $sTry; $achouGoogle = true;
+            break;
+        }
     }
-    $j = json_decode($corpo, true);
-    $st = (string)($j['status'] ?? '');
+    if ($j === null) { $j = []; $st = ''; }
 
     /* ── SÓ O STREET VIEW DE VERDADE ─────────────────────────────────
        O metadata responde OK tanto pro carro do Google quanto pra FOTO
-       ESFÉRICA que um visitante subiu — e de 752 pontos cobertos, 475 eram
-       foto de gente. Duas razões pra recusar essas:
+       ESFÉRICA que um visitante subiu. Duas razões pra recusar essas:
 
        1. O EMBED NÃO AS ABRE POR ID. Tela preta, controles e mais nada, que
           foi o que apareceu no primeiro teste em produção.
