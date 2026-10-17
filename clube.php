@@ -272,24 +272,36 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
                normal, este é o atalho de quando já se decidiu.
 
                Definido, o livro vira o cartaz de sempre — com resenha,
-               nota, média e o espaço pro arquivo logo acima.
+               nota e média.
+
+               O NOME E O ARQUIVO NO MESMO BOTÃO. Autor, ano e gênero saíram
+               a pedido do Marcos (17/10/2026): eram quatro campos pra uma
+               decisão que é uma só, e três deles ninguém preenchia. O que
+               sobrou é o que a tarefa precisa — qual é o livro e onde está
+               o PDF — e os dois vão juntos, porque separados viravam dois
+               passos pra uma coisa só.
                @see clubeSemanaDefinirLivro */ ?>
           <div class="sem-h4" style="margin-top:18px">Ou já definir o livro do mês</div>
-          <form class="livro-abrir" method="POST"
+          <form class="livro-abrir" method="POST" enctype="multipart/form-data"
                 data-confirmar="Definir este como o livro do mês, sem votação?">
             <input type="hidden" name="acao" value="livro_definir">
             <div class="livro-def-l">
               <input type="text" name="titulo" required maxlength="160"
-                     placeholder="Título do livro">
-              <input type="text" name="autor" maxlength="160" placeholder="Autor">
-              <input type="number" name="ano" min="1000" max="2100" placeholder="Ano">
-              <input type="text" name="genero" maxlength="60" placeholder="Gênero (opcional)">
+                     placeholder="Nome do livro">
+            </div>
+            <div class="livro-up-l">
+              <?php foreach (CLUBE_LIVRO_IDIOMAS as $idi => $meta): ?>
+                <label class="livro-up-c">
+                  <span><i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?></span>
+                  <input type="file" name="arq_<?= h($idi) ?>" accept=".pdf,.epub">
+                </label>
+              <?php endforeach; ?>
             </div>
             <button type="submit" class="btn pri">
               <i class="bi bi-bookmark-check"></i> Definir o livro do mês</button>
-            <p class="livro-up-nota">Entra direto em cartaz. Se já houver votação
-               aberta neste mês, ela para de decidir — os votos continuam
-               registrados.</p>
+            <p class="livro-up-nota">Entra direto em cartaz. O arquivo é opcional e
+               pode vir depois. Se já houver votação aberta neste mês, ela para de
+               decidir — os votos continuam registrados.</p>
           </form>
         <?php endif; ?>
         <div class="sem-h4">Próxima enquete</div>
@@ -470,15 +482,21 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
         } elseif ($acao === 'livro_definir' && $ehAdminClube) {
             /* O LIVRO ESCOLHIDO NA MÃO, sem passar por votação. Pedido da
                Agata (17/10/2026): o mês já começou e a escolha já foi
-               feita na conversa. Vira o mesmo cartaz de sempre, e o PDF
-               passa a ter onde ser pendurado.
+               feita na conversa.
                @see clubeSemanaDefinirLivro */
-            $ok = clubeSemanaDefinirLivro($pdo,
-                (string)($_POST['titulo'] ?? ''),
-                (string)($_POST['autor'] ?? ''),
-                (int)($_POST['ano'] ?? 0) ?: null,
-                (string)($_POST['genero'] ?? ''));
-            if (!$ok) $volta .= '&erro=' . rawurlencode('Informe ao menos o título do livro.');
+            $cid = clubeSemanaDefinirLivro($pdo, (string)($_POST['titulo'] ?? ''));
+            if ($cid <= 0) {
+                $volta .= '&erro=' . rawurlencode('Informe o nome do livro.');
+            } else {
+                /* O ARQUIVO VAI NO MESMO ENVIO. Ele é opcional — quem ainda
+                   não tem o PDF define o livro agora e sobe depois, pelo
+                   formulário do cartaz. @see clubeLivroGuardarArquivo */
+                foreach (array_keys(CLUBE_LIVRO_IDIOMAS) as $idi) {
+                    if (empty($_FILES['arq_' . $idi]['name'])) continue;
+                    $err = clubeLivroGuardarArquivo($pdo, $cid, $idi, $_FILES['arq_' . $idi]);
+                    if ($err !== '') { $volta .= '&erro=' . rawurlencode($err); break; }
+                }
+            }
 
         } elseif ($acao === 'livro_arquivo' && $ehAdminClube) {
             $cid = (int)($_POST['ciclo'] ?? 0);

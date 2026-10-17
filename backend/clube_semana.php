@@ -747,16 +747,16 @@ function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fe
  * encobrir uma decisão de fora da urna. A votação simplesmente deixa de
  * decidir, e quem olhar o histórico vê as duas coisas.
  *
- * @return bool false quando falta título ou o banco recusou
+ * @return int o id do ciclo do mês, ou 0 quando falta título ou o banco recusou
  */
 function clubeSemanaDefinirLivro(PDO $pdo, string $titulo, string $autor = '',
-                                 ?int $ano = null, string $genero = ''): bool
+                                 ?int $ano = null, string $genero = ''): int
 {
     clubeSemanaTabelas($pdo);
     $titulo = trim(mb_substr($titulo, 0, 160));
     $autor  = trim(mb_substr($autor, 0, 160));
     $genero = trim(mb_substr($genero, 0, 60));
-    if ($titulo === '') return false;
+    if ($titulo === '') return 0;
 
     $ancora = clubeSemanaAncora('livro');
     try {
@@ -788,11 +788,13 @@ function clubeSemanaDefinirLivro(PDO $pdo, string $titulo, string $autor = '',
         $pdo->prepare($sql)->execute($par);
 
         $pdo->commit();
-        return true;
+        /* O id volta pro chamador: e nele que o PDF enviado junto vai se
+           pendurar, sem uma segunda consulta pra descobrir qual ciclo e. */
+        return $cid;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[clube-semana] definir livro: ' . $e->getMessage());
-        return false;
+        return 0;
     }
 }
 
