@@ -1176,11 +1176,26 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .livro-arq-tirar button{background:none;border:none;color:var(--txt3);
   font-size:11.5px;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit}
 .livro-abrir{margin-top:4px;padding:16px;border-radius:16px;background:var(--panel2)}
-/* Os campos de definir o livro: numa linha que quebra sozinha, porque
-   título e autor pedem espaço e ano e gênero não. */
+/* ── OS CAMPOS DE DEFINIR O LIVRO ────────────────────────────────────
+   Numa linha que quebra sozinha: título e autor pedem espaço, ano e
+   gênero não.
+
+   O ESTILO É ESCRITO AQUI PORQUE `input` NÃO HERDA NADA. O textarea e o
+   select deste mesmo formulário já tinham a regra deles; os campos de
+   texto nasceram com a cara do navegador — caixa branca e borda cinza no
+   meio de um painel escuro. É a mesma folha do textarea logo abaixo, e os
+   dois precisam continuar iguais. */
 .livro-def-l{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.livro-def-l input{background:var(--panel);border:1px solid var(--borda);
+  border-radius:11px;color:var(--txt);padding:10px 13px;font:inherit;font-size:13.5px}
+.livro-def-l input::placeholder{color:var(--txt3)}
+.livro-def-l input:focus{outline:none;border-color:color-mix(in srgb,var(--c) 55%,transparent)}
 .livro-def-l input[type=text]{flex:1 1 180px;min-width:0}
-.livro-def-l input[type=number]{flex:0 0 92px}
+/* O ano cabe em quatro dígitos e não precisa das setinhas: elas roubam
+   espaço do número e ninguém sobe ano de um em um. */
+.livro-def-l input[type=number]{flex:0 0 96px;-moz-appearance:textfield;appearance:textfield}
+.livro-def-l input[type=number]::-webkit-outer-spin-button,
+.livro-def-l input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
 .livro-abrir textarea{width:100%;background:var(--panel);border:1px solid var(--borda);
   border-radius:12px;color:var(--txt);padding:12px 14px;font:inherit;font-size:13.5px;
