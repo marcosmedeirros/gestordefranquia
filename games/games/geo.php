@@ -287,6 +287,145 @@ html{scrollbar-gutter:stable}
 .geo-pergunta small{display:block;font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;
   letter-spacing:0;color:#cfcfda;text-shadow:none;margin-top:2px}
 
+
+/* ══════════════════════════════════════════════════════════════════
+   O MODO JOGO — a foto grande e o mapa no canto dela
+   ══════════════════════════════════════════════════════════════════
+   O desenho antigo era o do site: um cartão com a foto e, embaixo, um
+   bloco com o mapa. Pra responder era preciso rolar a tela, perder a
+   foto de vista, clicar no mapa e rolar de volta. Num jogo que é
+   comparar a paisagem com o mundo, os dois precisam estar à vista ao
+   mesmo tempo — é por isso que o GeoGuessr põe o mapa por cima da
+   imagem, e é o que esta parte faz.
+
+   TUDO AQUI DEPENDE DO `html.js`. Sem script não há mapa clicável nem
+   painel que cresce, e a página volta a ser a lista de botões em
+   coluna, que é a versão que funciona sem JavaScript. */
+/* ── DURANTE A RODADA, A PÁGINA É DA FOTO ────────────────────────────
+   A coluna do site tem 1080px e o cabeçalho "Jogos da liga / FBA Geo /
+   Olhe a foto e diga onde é no mundo" come outros 110 de altura. Os
+   dois fazem sentido numa tela de conteúdo e nenhum numa rodada: o
+   título repete o que a pessoa está fazendo, e a margem lateral só
+   diminui a paisagem que ela precisa examinar. Enquanto a rodada está
+   de pé, os dois saem — e voltam na tela de resultado e na capa, que
+   são telas de leitura. */
+html.js body.geo-jogando .dash-hero{display:none}
+html.js body.geo-jogando #geo{max-width:1500px}
+html.js .geo-jogo{position:relative}
+
+/* A FOTO OCUPA A TELA. Altura em dvh e não aspect-ratio: o que importa
+   é caber na janela junto com a barra de cima, e não manter proporção.
+   O teto em pixels evita que num monitor 4K a foto vire um painel de
+   rua a dois metros de distância. */
+html.js .geo-jogo .geo-palco{aspect-ratio:auto;height:min(74dvh,720px);min-height:0}
+html.js .geo-jogo .geo-palco.rua{aspect-ratio:auto;height:min(74dvh,720px)}
+
+/* ── O PAINEL DO CANTO ──────────────────────────────────────────────
+   Encolhido ele é um selo de mapa; com o mouse em cima vira a mesa de
+   trabalho. A transição é de largura e altura porque mudar `transform`
+   deixaria o Leaflet desenhando tiles em escala errada no meio do
+   caminho. */
+html.js .geo-painel{position:absolute;right:14px;bottom:14px;z-index:6;
+  width:min(330px,44vw);display:flex;flex-direction:column;gap:8px;
+  /* O PAINEL NÃO PASSA DA FOTO. Sem o teto ele crescia pra baixo com o
+     mapa, o botão e os seis países, saía pela borda do palco e punha
+     uma barra de rolagem no meio do jogo. */
+  max-height:calc(100% - 28px);overflow:hidden;
+  padding:8px;border-radius:18px;
+  background:rgba(8,8,12,.72);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);
+  transition:width var(--t) var(--ease),box-shadow var(--t) var(--ease)}
+html.js .geo-painel:hover,
+html.js .geo-painel:focus-within,
+html.js .geo-painel.aberto{width:min(560px,46vw);box-shadow:0 26px 70px rgba(0,0,0,.6)}
+
+/* O mapa cresce junto. Altura também em dvh pra sobrar foto por cima
+   dele em tela baixa — mapa que cobre a paisagem inteira não ajuda a
+   adivinhar a paisagem. */
+html.js .geo-painel .geo-mapa{height:min(26vh,200px);margin:0;border-radius:12px;
+  border-color:rgba(255,255,255,.12);
+  transition:height var(--t) var(--ease)}
+html.js .geo-painel:hover .geo-mapa,
+html.js .geo-painel:focus-within .geo-mapa,
+html.js .geo-painel.aberto .geo-mapa{height:min(38vh,340px)}
+
+/* A linha do botão: a dica some no painel pequeno (não cabe e não é
+   lida) e volta quando ele abre. */
+html.js .geo-painel .geo-mapa-l{margin:0;gap:8px}
+html.js .geo-painel .geo-mapa-l p{display:none;font-size:12px;color:#c9c9d2}
+html.js .geo-painel:hover .geo-mapa-l p,
+html.js .geo-painel.aberto .geo-mapa-l p{display:block}
+html.js .geo-painel .geo-confirmar{flex:1;justify-content:center}
+
+/* AS OPÇÕES DE PAÍS VIRAM DUAS COLUNAS dentro do painel, e rolam se
+   passarem da altura. Seis botões de largura inteira empurrariam o
+   mapa pra fora da tela. */
+/* A LISTA SÓ APARECE COM O PAINEL ABERTO. Fechado, o canto é o mapa e
+   mais nada — seis botões ali embaixo empurravam o painel pra fora da
+   foto. Quem prefere clicar no nome abre o painel; quem joga pelo mapa
+   nunca precisa dela. */
+html.js .geo-painel .geo-ops{display:none;grid-template-columns:1fr 1fr;gap:6px;margin:0;
+  max-height:min(22vh,170px);overflow-y:auto;overflow-x:hidden}
+html.js .geo-painel:hover .geo-ops,
+html.js .geo-painel:focus-within .geo-ops,
+html.js .geo-painel.aberto .geo-ops{display:grid}
+html.js .geo-painel .geo-ops button{min-width:0;padding:8px 10px;font-size:12.5px;
+  border-radius:11px;gap:8px;
+  background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12);color:#eaeaf2}
+html.js .geo-painel .geo-ops button:hover{background:rgba(255,255,255,.12)}
+html.js .geo-painel .geo-ops button i{width:21px;height:21px;font-size:10.5px;
+  background:rgba(255,255,255,.1);color:#c9c9d2}
+
+/* A ABA. No computador ela é só o rótulo do canto; no celular é o que
+   abre e fecha o painel, porque lá não existe "passar o mouse". */
+html.js .geo-painel-aba{display:flex;align-items:center;gap:8px;width:100%;
+  padding:7px 10px;border:0;border-radius:11px;background:transparent;
+  color:#eaeaf2;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+  text-align:left}
+html.js .geo-painel-aba .seta{margin-left:auto;font-size:11px;color:#9a9aa8;
+  transition:transform var(--t) var(--ease)}
+html.js .geo-painel.aberto .geo-painel-aba .seta{transform:rotate(180deg)}
+html.js .geo-painel-aba:hover{background:rgba(255,255,255,.07)}
+
+/* ── NO CELULAR ─────────────────────────────────────────────────────
+   O painel passa a ocupar a largura toda e nasce FECHADO: a tela é
+   pequena e a foto é a pergunta, então ela fica inteira até a pessoa
+   decidir responder. Fechado, só a aba aparece. */
+@media (max-width:820px){
+  html.js .geo-jogo .geo-palco,
+  html.js .geo-jogo .geo-palco.rua{height:min(58dvh,520px)}
+  html.js .geo-painel{left:10px;right:10px;bottom:10px;width:auto}
+  html.js .geo-painel:hover{width:auto}
+  html.js .geo-painel .geo-mapa,
+  html.js .geo-painel .geo-mapa-l,
+  html.js .geo-painel .geo-ops{display:none}
+  html.js .geo-painel.aberto .geo-mapa{display:block;height:min(38dvh,340px)}
+  html.js .geo-painel.aberto .geo-mapa-l{display:flex}
+  html.js .geo-painel.aberto .geo-ops{display:grid;max-height:30dvh}
+  html.js .geo-painel.aberto .geo-mapa-l p{display:none}
+}
+/* Quem pediu menos movimento não recebe painel que cresce sozinho: ele
+   fica no tamanho aberto e pronto. */
+@media (prefers-reduced-motion:reduce){
+  html.js .geo-painel{transition:none}
+  html.js .geo-painel .geo-mapa{transition:none}
+}
+
+/* ── A REVELAÇÃO DO RESULTADO ────────────────────────────────────────
+   A mesma foto da pergunta, agora com a resposta escrita nela. Altura
+   menor que a do palco de propósito: aqui ela não é mais o enunciado,
+   é a lembrança — o que interessa agora é o nome do lugar e os números
+   logo abaixo. */
+.geo-revela{position:relative;border-radius:16px;overflow:hidden;margin:-4px 0 14px;
+  height:min(34vh,260px);background:var(--panel-2)}
+.geo-revela img{width:100%;height:100%;object-fit:cover;display:block}
+.geo-revela::after{content:"";position:absolute;inset:auto 0 0;height:70%;
+  background:linear-gradient(to top,rgba(0,0,0,.88),transparent);pointer-events:none}
+.geo-revela .geo-veredito{position:absolute;left:16px;bottom:12px;margin:0;z-index:1;
+  text-shadow:0 2px 18px rgba(0,0,0,.7)}
+@media (max-width:820px){ .geo-revela{height:min(26vh,190px)} }
+
 /* Só aparece onde o script roda. Sem ele, o <noscript> assume. */
 html:not(.js) .so-js{display:none !important}
 
@@ -474,7 +613,7 @@ html:not(.js) .so-js{display:none !important}
 <?php include __DIR__ . '/../../includes/accent-color.php'; ?>
 </style>
 </head>
-<body>
+<body<?= ($partida && $rodada) ? ' class="geo-jogando"' : '' ?>>
 
 <?php include __DIR__ . '/../../includes/sidebar.php'; ?>
 <div class="sb-overlay" id="sbOverlay"></div>
@@ -552,8 +691,19 @@ html:not(.js) .so-js{display:none !important}
   <?php endforeach; ?>
 
   <div class="geo-result" style="--c:<?= $cor ?>">
-    <div class="geo-veredito">
-      <i class="bi bi-<?= $ico ?>"></i> <?= $frase ?>
+    <?php /* ── A REVELAÇÃO ─────────────────────────────────────────────
+         A foto volta, agora com o nome do lugar em cima dela. Antes o
+         resultado era texto puro: a pessoa olhava uma paisagem por dois
+         minutos, respondia, e a imagem sumia junto com a resposta — sem
+         chance de ligar o que ela viu ao lugar que era. É esse encontro
+         que faz a próxima rodada ser mais fácil, e é a melhor parte do
+         jogo. @see games/games/geo_foto.php */ ?>
+    <div class="geo-revela">
+      <img src="/games/games/geo_foto.php?r=<?= (int)$resolvida['rodada_id'] ?>"
+           alt="<?= e($lug['nome']) ?>" loading="lazy">
+      <div class="geo-veredito">
+        <i class="bi bi-<?= $ico ?>"></i> <?= $frase ?>
+      </div>
     </div>
     <?php $bandeira = (string)(geoPaises()[(string)($lug['iso'] ?? '')]['iso2'] ?? ''); ?>
     <div class="geo-era">Era <b><?= e($lug['nome']) ?></b>,
@@ -603,8 +753,13 @@ html:not(.js) .so-js{display:none !important}
         <div><b><?= !empty($resolvida['moedas']) ? '+' . (int)$resolvida['moedas'] : '0' ?></b><span>moedas</span></div>
       </div>
       <?php if (empty($resolvida['moedas'])): ?>
-        <p class="geo-credito">Sem moedas desta vez: o teto de <?= GEO_PREMIADAS_DIA ?> partidas
-           premiadas do dia já passou. O ranking continua valendo.</p>
+        <?php /* O MOTIVO CERTO. A frase culpava sempre o teto do dia — e
+             numa partida de teste, que nunca paga, ela dizia que o limite
+             tinha passado quando não tinha. Dois motivos diferentes, duas
+             frases. */ ?>
+        <p class="geo-credito"><?= $geoTeste
+            ? 'Partida de teste: ela não paga moeda nem entra no ranking.'
+            : 'Sem moedas desta vez: o teto de ' . GEO_PREMIADAS_DIA . ' partidas premiadas do dia já passou. O ranking continua valendo.' ?></p>
       <?php endif; ?>
       <div class="geo-fim">
         <form method="POST" style="margin:0">
@@ -680,7 +835,7 @@ html:not(.js) .so-js{display:none !important}
      Embed API configurada e de o lugar ter cobertura — sem um dos dois,
      geoRua() devolve null e a rodada é a foto do Commons de sempre. */
   $rua = geoRua($lug); ?>
-  <div style="--c:<?= $ehMapa ? 'var(--blue)' : 'var(--green)' ?>">
+  <div class="geo-jogo" style="--c:<?= $ehMapa ? 'var(--blue)' : 'var(--green)' ?>">
     <div class="geo-palco<?= $rua ? ' rua' : '' ?>">
       <?php if ($rua): ?>
         <?php /* O referrerpolicy não é enfeite: é ele que manda o domínio pro
@@ -739,6 +894,25 @@ html:not(.js) .so-js{display:none !important}
       </div>
     </div>
 
+    <?php /* ── O CANTO DO MAPA ─────────────────────────────────────────
+         Reclamação que chegou pelos GMs (16/10/2026): "não tá legal de
+         jogar". O motivo era o desenho da página — a foto era um cartão
+         e o mapa, um bloco EMBAIXO dela. Pra responder era preciso rolar
+         a tela, perder a foto de vista, clicar, e rolar de volta pra
+         conferir. Num jogo que é olhar a paisagem e apontar no mapa, os
+         dois têm que estar à vista ao mesmo tempo.
+
+         Agora é o canto do GeoGuessr: o mapa encolhido sobre a foto,
+         crescendo quando o mouse chega perto (ou no toque, no celular).
+         O botão de confirmar mora dentro dele, que é onde a mão já
+         está. @see geoPainel no script */ ?>
+    <aside class="geo-painel" id="geoPainel">
+      <button type="button" class="geo-painel-aba so-js" id="geoPainelAba"
+              aria-expanded="false" aria-controls="geoPainel">
+        <i class="bi bi-globe-americas"></i>
+        <span><?= $ehMapa ? 'Apontar no mapa' : 'Escolher o país' ?></span>
+        <i class="bi bi-chevron-up seta"></i>
+      </button>
     <?php if ($ehMapa): ?>
       <div class="geo-mapa" id="mapa"></div>
       <form method="POST" class="geo-mapa-l" id="formMapa">
@@ -810,6 +984,7 @@ html:not(.js) .so-js{display:none !important}
         </div>
       </noscript>
     <?php endif; ?>
+    </aside>
   </div>
 
 <?php elseif (!$partida):
@@ -1017,6 +1192,7 @@ html:not(.js) .so-js{display:none !important}
     Object.keys(formas).forEach(function(iso){
       formas[iso].setStyle(iso === o.iso ? MEU : ACESO);
     });
+  document.getElementById('mapaPais')._leaflet_map = mapa;
     Object.keys(pinos).forEach(function(iso){
       var d = pinos[iso].getElement();
       if (d) d.querySelector('.geo-pino').classList.toggle('eu', iso === o.iso);
@@ -1068,6 +1244,7 @@ html:not(.js) .so-js{display:none !important}
       var o = ops.filter(function(x){ return x.nome === b.dataset.pais; })[0];
       if (!o) return;
       escolher(o);
+      document.getElementById('mapaPais')._geoMexido = true;
       if (o.lat !== null) mapa.panTo([o.lat, o.lon]);
     });
   });
@@ -1087,6 +1264,9 @@ html:not(.js) .so-js{display:none !important}
    ponto (0,0), no meio do Atlântico. */
 (function(){
   var mapa = L.map('mapa', {worldCopyJump: true, minZoom: 1}).setView([18, 0], 2);
+  /* O painel do canto precisa alcançar o mapa pra remedi-lo quando
+     cresce. @see geoPainel */
+  document.getElementById('mapa')._leaflet_map = mapa;
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 12, attribution: '© OpenStreetMap'
   }).addTo(mapa);
@@ -1094,6 +1274,9 @@ html:not(.js) .so-js{display:none !important}
   var pino = null;
   mapa.on('click', function(ev){
     var p = ev.latlng.wrap();
+    /* A partir daqui a vista é da pessoa: o painel para de reenquadrar o
+       mundo quando cresce. @see geoPainel */
+    document.getElementById('mapa')._geoMexido = true;
     if (pino) pino.setLatLng(p); else pino = L.marker(p).addTo(mapa);
     document.getElementById('lat').value = p.lat.toFixed(5);
     document.getElementById('lon').value = p.lng.toFixed(5);
@@ -1128,6 +1311,57 @@ html:not(.js) .so-js{display:none !important}
     .addTo(mapa).bindTooltip(el.dataset.nome, {permanent: true, direction: 'top'});
   L.polyline([p, c], {color: '#f59e0b', weight: 2, dashArray: '6 6'}).addTo(mapa);
   mapa.fitBounds(L.latLngBounds([p, c]).pad(0.35));
+})();
+</script>
+<?php endif; ?>
+<?php if ($partida && $rodada): ?>
+<script>
+/* ── O PAINEL DO CANTO ────────────────────────────────────────────────
+   Duas coisas que o CSS sozinho não resolve.
+
+   1. A ABA, que no celular é o que abre e fecha — lá não existe passar o
+      mouse, e sem ela o mapa ficaria inalcançável.
+
+   2. O LEAFLET PRECISA SER AVISADO. Ele mede o contêiner uma vez e guarda;
+      quando o painel cresce, o mapa continua desenhado no tamanho antigo e
+      sobra cinza na metade nova, com os cliques caindo no lugar errado. O
+      `invalidateSize` é o que manda ele medir de novo, e vai no FIM da
+      transição (transitionend) pra não medir no meio do caminho. */
+(function () {
+  var painel = document.getElementById('geoPainel');
+  if (!painel) return;
+  var aba = document.getElementById('geoPainelAba');
+
+  function remedir() {
+    /* Os três ids possíveis: o mapa do palpite, o das opções de país e
+       nada (sem JS não chega aqui). Quem existir, remede. */
+    ['mapa', 'mapaPais'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || !el._leaflet_map) return;
+      var m = el._leaflet_map;
+      m.invalidateSize({ animate: false });
+      /* E REENQUADRA O MUNDO, enquanto a pessoa não apontou nada. O zoom
+         de abertura foi escolhido pro mapa largo de antes; no painel do
+         canto, e principalmente no celular, ele cai em cima da África e
+         some com metade do planeta. Depois do primeiro palpite a vista é
+         da pessoa e ninguém mexe nela. */
+      if (!el._geoMexido) m.fitBounds([[-58, -170], [78, 180]], { animate: false });
+    });
+  }
+
+  if (aba) {
+    aba.addEventListener('click', function () {
+      var aberto = painel.classList.toggle('aberto');
+      aba.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+      remedir();
+    });
+  }
+  /* No computador quem abre é o mouse, e o fim da animação é a deixa. */
+  painel.addEventListener('transitionend', function (ev) {
+    if (ev.propertyName === 'width' || ev.propertyName === 'height') remedir();
+  });
+  /* Mapa que nasce dentro de painel pequeno já nasce medido errado. */
+  window.addEventListener('load', remedir);
 })();
 </script>
 <?php endif; ?>

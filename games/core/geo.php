@@ -331,7 +331,11 @@ function geoPontosDoKm(float $km): int
 function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): array
 {
     $lugar = $rodada['dados'];
-    $saida = ['acertou' => false, 'km' => null, 'pontos' => 0, 'lugar' => $lugar];
+    /* O id da rodada vai junto porque a tela de resultado mostra a foto de
+       novo, e ela é servida pelo id — o nome do arquivo no Commons é o nome
+       do lugar. @see games/games/geo_foto.php */
+    $saida = ['acertou' => false, 'km' => null, 'pontos' => 0, 'lugar' => $lugar,
+              'rodada_id' => (int)$rodada['id']];
 
     /* ── PASSOU DO TEMPO, NÃO VALE ───────────────────────────────────
        Conferido AQUI e não na tela: o relógio que o navegador desenha é
