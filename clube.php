@@ -263,6 +263,34 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
             <p class="livro-up-nota">Título e autor separados por travessão. Sem autor,
                a linha inteira vira o título.</p>
           </form>
+
+          <?php /* ── OU JÁ DEFINIR O LIVRO ─────────────────────────────
+               Pedido da Agata (17/10/2026): "tem como já selecionar o
+               livro do mês?". Nem sempre há tempo de votar — às vezes o
+               mês começou e a escolha saiu na conversa. Fica ao lado da
+               votação, e não no lugar dela: votar continua sendo o jeito
+               normal, este é o atalho de quando já se decidiu.
+
+               Definido, o livro vira o cartaz de sempre — com resenha,
+               nota, média e o espaço pro arquivo logo acima.
+               @see clubeSemanaDefinirLivro */ ?>
+          <div class="sem-h4" style="margin-top:18px">Ou já definir o livro do mês</div>
+          <form class="livro-abrir" method="POST"
+                data-confirmar="Definir este como o livro do mês, sem votação?">
+            <input type="hidden" name="acao" value="livro_definir">
+            <div class="livro-def-l">
+              <input type="text" name="titulo" required maxlength="160"
+                     placeholder="Título do livro">
+              <input type="text" name="autor" maxlength="160" placeholder="Autor">
+              <input type="number" name="ano" min="1000" max="2100" placeholder="Ano">
+              <input type="text" name="genero" maxlength="60" placeholder="Gênero (opcional)">
+            </div>
+            <button type="submit" class="btn pri">
+              <i class="bi bi-bookmark-check"></i> Definir o livro do mês</button>
+            <p class="livro-up-nota">Entra direto em cartaz. Se já houver votação
+               aberta neste mês, ela para de decidir — os votos continuam
+               registrados.</p>
+          </form>
         <?php endif; ?>
         <div class="sem-h4">Próxima enquete</div>
         <p style="color:var(--txt3);font-size:12.5px;margin:0">
@@ -356,7 +384,7 @@ $acoesForm = ['semana_votar', 'semana_opinar', 'livro_entrar', 'livro_sair', 'li
               'pesquisa_criar', 'pesquisa_fechar', 'pesquisa_reabrir', 'pesquisa_votar',
               /* A enquete do livro e os arquivos dele: o livro saiu do sorteio
                  automático em 09/10/2026 (@see CLUBE_SEMANA_AUTO). */
-              'livro_votacao_abrir', 'livro_arquivo', 'livro_arquivo_tirar'];
+              'livro_votacao_abrir', 'livro_definir', 'livro_arquivo', 'livro_arquivo_tirar'];
 $ehAdminClube = (($user['user_type'] ?? '') === 'admin');
 if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
         && in_array((string)($_POST['acao'] ?? ''), $acoesForm, true)) {
@@ -438,6 +466,19 @@ if ($idUsuario > 0 && $_SERVER['REQUEST_METHOD'] === 'POST'
             if (count($obras) >= 2) {
                 clubeSemanaAbrirVotacaoDeLivro($pdo, $obras, $horas);
             }
+
+        } elseif ($acao === 'livro_definir' && $ehAdminClube) {
+            /* O LIVRO ESCOLHIDO NA MÃO, sem passar por votação. Pedido da
+               Agata (17/10/2026): o mês já começou e a escolha já foi
+               feita na conversa. Vira o mesmo cartaz de sempre, e o PDF
+               passa a ter onde ser pendurado.
+               @see clubeSemanaDefinirLivro */
+            $ok = clubeSemanaDefinirLivro($pdo,
+                (string)($_POST['titulo'] ?? ''),
+                (string)($_POST['autor'] ?? ''),
+                (int)($_POST['ano'] ?? 0) ?: null,
+                (string)($_POST['genero'] ?? ''));
+            if (!$ok) $volta .= '&erro=' . rawurlencode('Informe ao menos o título do livro.');
 
         } elseif ($acao === 'livro_arquivo' && $ehAdminClube) {
             $cid = (int)($_POST['ciclo'] ?? 0);
@@ -1135,6 +1176,12 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .livro-arq-tirar button{background:none;border:none;color:var(--txt3);
   font-size:11.5px;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit}
 .livro-abrir{margin-top:4px;padding:16px;border-radius:16px;background:var(--panel2)}
+/* Os campos de definir o livro: numa linha que quebra sozinha, porque
+   título e autor pedem espaço e ano e gênero não. */
+.livro-def-l{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.livro-def-l input[type=text]{flex:1 1 180px;min-width:0}
+.livro-def-l input[type=number]{flex:0 0 92px}
+
 .livro-abrir textarea{width:100%;background:var(--panel);border:1px solid var(--borda);
   border-radius:12px;color:var(--txt);padding:12px 14px;font:inherit;font-size:13.5px;
   resize:vertical;margin-bottom:12px;line-height:1.5;min-height:120px}

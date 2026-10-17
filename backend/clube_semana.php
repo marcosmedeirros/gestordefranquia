@@ -721,6 +721,81 @@ function clubeSemanaAbrirAvulsa(PDO $pdo, string $tipo, string $vira, string $fe
  * @param int   $horas quanto tempo a votação fica aberta
  * @return bool false quando já existe rodada no mês ou faltam opções
  */
+/**
+ * ── O LIVRO DO MÊS ESCOLHIDO NA MÃO ─────────────────────────────────
+ *
+ * Pedido da Agata (17/10/2026): "tem como já selecionar o livro do mês?
+ * [...] e aí na próxima fazemos votação pra durar o livro o mês todo".
+ *
+ * Até aqui o único caminho até o cartaz era a votação: abrir a lista,
+ * esperar fechar, o vencedor virar o livro. Serve quando há tempo de
+ * votar — e não serve quando o mês já começou e a escolha já foi feita
+ * na conversa, que é o caso de agora.
+ *
+ * O cartaz que a tela mostra é o ciclo com `status = definido` e um
+ * `vencedor_opcao_id`. Então definir à mão é montar exatamente isso: um
+ * ciclo do mês com UMA opção, que já nasce vencedora. Daí pra frente o
+ * livro é igual a qualquer outro — resenha, nota, média e o arquivo em
+ * PDF penduram no mesmo ciclo, sem nada saber que não houve votação.
+ *
+ * ── QUANDO JÁ EXISTE CICLO NO MÊS ───────────────────────────────────
+ *
+ * A chave é (tipo, semana), um ciclo por mês. Se já houver um — uma
+ * votação aberta, ou um livro definido que se quer trocar —, a opção
+ * nova entra nele e vira a vencedora. Os votos que já foram dados FICAM
+ * no banco: apagá-los seria sumir com o que as pessoas fizeram pra
+ * encobrir uma decisão de fora da urna. A votação simplesmente deixa de
+ * decidir, e quem olhar o histórico vê as duas coisas.
+ *
+ * @return bool false quando falta título ou o banco recusou
+ */
+function clubeSemanaDefinirLivro(PDO $pdo, string $titulo, string $autor = '',
+                                 ?int $ano = null, string $genero = ''): bool
+{
+    clubeSemanaTabelas($pdo);
+    $titulo = trim(mb_substr($titulo, 0, 160));
+    $autor  = trim(mb_substr($autor, 0, 160));
+    $genero = trim(mb_substr($genero, 0, 60));
+    if ($titulo === '') return false;
+
+    $ancora = clubeSemanaAncora('livro');
+    try {
+        $pdo->beginTransaction();
+
+        $st = $pdo->prepare('SELECT id FROM clube_semana_ciclos WHERE tipo = "livro" AND semana = ?');
+        $st->execute([$ancora]);
+        $cid = (int)($st->fetchColumn() ?: 0);
+
+        if ($cid <= 0) {
+            $pdo->prepare("INSERT INTO clube_semana_ciclos (tipo, semana, status, genero_escolhido)
+                           VALUES ('livro', ?, 'definido', ?)")
+                ->execute([$ancora, $genero !== '' ? $genero : null]);
+            $cid = (int)$pdo->lastInsertId();
+        }
+
+        $pdo->prepare("INSERT INTO clube_semana_opcoes (ciclo_id, etapa, titulo, autor, ano)
+                       VALUES (?, 'obra', ?, ?, ?)")
+            ->execute([$cid, $titulo, $autor, $ano ?: null]);
+        $opcao = (int)$pdo->lastInsertId();
+
+        /* `fecha_em` zerado junto: ciclo definido com hora de fechar faria
+           a tela anunciar votação que não existe mais. */
+        $sql = "UPDATE clube_semana_ciclos
+                   SET status = 'definido', vencedor_opcao_id = ?, fecha_em = NULL"
+             . ($genero !== '' ? ', genero_escolhido = ?' : '')
+             . ' WHERE id = ?';
+        $par = $genero !== '' ? [$opcao, $genero, $cid] : [$opcao, $cid];
+        $pdo->prepare($sql)->execute($par);
+
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[clube-semana] definir livro: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function clubeSemanaAbrirVotacaoDeLivro(PDO $pdo, array $obras, int $horas = 24): bool
 {
     clubeSemanaTabelas($pdo);
