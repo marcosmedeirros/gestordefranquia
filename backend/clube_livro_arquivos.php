@@ -48,10 +48,19 @@ const CLUBE_LIVRO_DIR = __DIR__ . '/../../arquivos-clube';
 /** Teto por arquivo. Livro em PDF passa fácil de 10MB; 60 cobre com folga. */
 const CLUBE_LIVRO_MAX = 60 * 1024 * 1024;
 
-/** As duas vagas, na ordem em que aparecem na tela. */
+/**
+ * As duas vagas, na ordem em que aparecem na tela.
+ *
+ * `nota` é o que a tela escreve ao lado do rótulo. O inglês leva
+ * "opcional" porque é isso que ele é: o livro do clube é lido em
+ * português, e a segunda vaga existe pra quando a obra é estrangeira e
+ * alguém quer o original. Sem a palavra, as duas vagas parecem duas
+ * obrigações, e quem só tem o PDF em português trava achando que falta
+ * alguma coisa.
+ */
 const CLUBE_LIVRO_IDIOMAS = [
-    'pt' => ['rot' => 'Português', 'ico' => 'bi-translate'],
-    'en' => ['rot' => 'Inglês',    'ico' => 'bi-globe'],
+    'pt' => ['rot' => 'Português', 'ico' => 'bi-translate', 'nota' => ''],
+    'en' => ['rot' => 'Inglês',    'ico' => 'bi-globe',     'nota' => 'opcional'],
 ];
 
 function clubeLivroArquivoTabela(PDO $pdo): void

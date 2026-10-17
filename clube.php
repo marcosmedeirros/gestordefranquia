@@ -124,8 +124,11 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
                 <?php foreach (CLUBE_LIVRO_IDIOMAS as $idi => $meta): ?>
                   <label class="livro-up-c">
                     <span><i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?>
+                      <?= $meta['nota'] !== '' ? '<i class="opc">· ' . h($meta['nota']) . '</i>' : '' ?>
                       <?= !empty($arqs[$idi]) ? '<b>· já tem</b>' : '' ?></span>
                     <input type="file" name="arq_<?= h($idi) ?>" accept=".pdf,.epub">
+                    <span class="livro-up-zona"><i class="bi bi-paperclip"></i>
+                      <em>Escolher arquivo</em></span>
                   </label>
                 <?php endforeach; ?>
               </div>
@@ -292,8 +295,11 @@ function clubeBlocoSemana(PDO $pdo, string $tipo, int $idUsuario): void
             <div class="livro-up-l">
               <?php foreach (CLUBE_LIVRO_IDIOMAS as $idi => $meta): ?>
                 <label class="livro-up-c">
-                  <span><i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?></span>
+                  <span><i class="bi <?= h($meta['ico']) ?>"></i> <?= h($meta['rot']) ?>
+                    <?= $meta['nota'] !== '' ? '<i class="opc">· ' . h($meta['nota']) . '</i>' : '' ?></span>
                   <input type="file" name="arq_<?= h($idi) ?>" accept=".pdf,.epub">
+                  <span class="livro-up-zona"><i class="bi bi-paperclip"></i>
+                    <em>Escolher arquivo</em></span>
                 </label>
               <?php endforeach; ?>
             </div>
@@ -1187,7 +1193,33 @@ $qInicial    = (string)($_GET['q'] ?? '');
 .livro-up-l{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .livro-up-c{flex:1;min-width:180px;display:flex;flex-direction:column;gap:6px;
   font-size:12.5px;color:var(--txt2)}
-.livro-up-c input[type=file]{font-size:12px;color:var(--txt3)}
+/* ── O CAMPO DE ARQUIVO ──────────────────────────────────────────────
+   O nativo é "Escolher arquivo · Nenhum arquivo escolhido" num botão
+   cinza de sistema: não dá pra estilizar e não combina com nada em
+   volta. Então ele fica invisível POR CIMA da zona, e não escondido
+   com display:none — assim continua recebendo o clique e o toque
+   sozinho, sem depender de script pra abrir o seletor.
+
+   Quem escreve o nome do arquivo escolhido é o script lá embaixo; sem
+   ele a zona segue dizendo "Escolher arquivo", que é verdade e não
+   atrapalha. */
+.livro-up-c{position:relative}
+.livro-up-c input[type=file]{position:absolute;inset:auto 0 0;height:40px;
+  opacity:0;cursor:pointer}
+.livro-up-zona{display:flex;align-items:center;gap:8px;height:40px;
+  padding:0 13px;border-radius:11px;border:1px dashed var(--borda);
+  background:var(--panel);color:var(--txt3);font-size:12.5px;
+  transition:border-color .15s,color .15s,background .15s}
+.livro-up-zona em{font-style:normal;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.livro-up-c:hover .livro-up-zona{border-color:color-mix(in srgb,var(--c) 45%,var(--panel2));
+  color:var(--txt2)}
+/* Com arquivo escolhido a borda fecha e acende: o tracejado é o convite
+   de "põe algo aqui", e depois de posto ele não cabe mais. */
+.livro-up-c.tem .livro-up-zona{border-style:solid;color:var(--txt);
+  border-color:color-mix(in srgb,var(--c) 60%,var(--panel2));
+  background:color-mix(in srgb,var(--c) 10%,var(--panel))}
+.livro-up-c .opc{font-style:normal;color:var(--txt3);font-size:11.5px}
 .livro-up-c b{color:var(--c);font-weight:700}
 .livro-up-nota{margin:10px 0 0;font-size:11.5px;color:var(--txt3)}
 .livro-arq-tirar{display:inline-block;margin:8px 8px 0 0}
@@ -2590,6 +2622,26 @@ function diarioDe(PDO $pdo, array $perfil, ?int $de): string
      faz funcionar é este arquivo. Sem ele a página lia o tema salvo ao
      carregar — então quem tinha trocado em outra tela via o claro aqui —
      mas clicar no botão DENTRO do Clube não fazia nada. */ ?>
+<script>
+/* ── O NOME DO ARQUIVO ESCOLHIDO ─────────────────────────────────────
+   O campo de arquivo é invisível por cima da zona tracejada, então sem
+   isto a pessoa escolhe o PDF e a tela continua dizendo "Escolher
+   arquivo" — ela não tem como saber se pegou.
+
+   Delegado no documento porque são dois formulários com as mesmas vagas
+   (o do cartaz e o de definir o livro), e o do cartaz só existe quando
+   há livro em cartaz. */
+document.addEventListener('change', function (ev) {
+  var inp = ev.target;
+  if (!inp.matches || !inp.matches('.livro-up-c input[type=file]')) return;
+  var cx = inp.closest('.livro-up-c');
+  var em = cx && cx.querySelector('.livro-up-zona em');
+  if (!em) return;
+  var arq = inp.files && inp.files[0];
+  em.textContent = arq ? arq.name : 'Escolher arquivo';
+  cx.classList.toggle('tem', !!arq);
+});
+</script>
 <script src="/js/popups.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/tema.js"></script>
