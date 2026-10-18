@@ -4182,8 +4182,11 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
             $m['espaco'] = (int)$cap['space'];
         }
 
-        $st = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE team_id = ?");
-        $st->execute([(int)$t['id']]);
+        /* Mesma régua da linha "picks na mão do outro": 1ª rodada e draft
+           que ainda vem. @see wcFiltroDePicks */
+        $f = wcFiltroDePicks($pdo, (string)($t['league'] ?? ''));
+        $st = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE team_id = ?{$f['sql']}");
+        $st->execute(array_merge([(int)$t['id']], $f['par']));
         $m['picks'] = (int)$st->fetchColumn();
 
         $m += wcTitulosNaEdicao($pdo, (int)$t['id'], (string)$t['league']);
@@ -4231,7 +4234,7 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
         . $linha('Elenco', $ma['elenco'], $mb['elenco'])
         // Elenco mais novo é vantagem: compara ao contrário.
         . $linha('Idade média', $ma['idade'], $mb['idade'], $marca($ma['idade'], $mb['idade'], false), $marca($mb['idade'], $ma['idade'], false))
-        . $linha('Picks', $ma['picks'], $mb['picks'], $marca($ma['picks'], $mb['picks']), $marca($mb['picks'], $ma['picks']));
+        . $linha('Picks 1ª rodada', $ma['picks'], $mb['picks'], $marca($ma['picks'], $mb['picks']), $marca($mb['picks'], $ma['picks']));
 
     if ($ma['lendas'] || $mb['lendas']) {
         $txt .= $linha('Lendas 👑', $ma['lendas'], $mb['lendas'], $marca($ma['lendas'], $mb['lendas']), $marca($mb['lendas'], $ma['lendas']));
@@ -4291,6 +4294,40 @@ function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
  * de quadra: trocas, quem ficou com pick de quem, e quais jogadores mudaram
  * de lado.
  */
+/**
+ * ── O QUE CONTA COMO "PICK" NUMA CONTAGEM ────────────────────────────
+ *
+ * Pedido do Marcos (18/10/2026): "só considere picks de 1 rodada, tipo
+ * time tal possui picks do outro".
+ *
+ * SEGUNDA RODADA NÃO É MOEDA. Na ELITE são 329 picks de 2ª contra 307 de
+ * 1ª: contar as duas juntas faz "o Coyotes tem 4 picks do Lions" parecer
+ * patrimônio quando pode ser quatro bilhetes de loteria. Quem negocia na
+ * liga fala em primeira rodada, e é isso que a frase tem que dizer.
+ *
+ * E PICK DE DRAFT QUE JÁ ACONTECEU NÃO É PICK. A linha não tinha corte
+ * de ano nenhum: das 307 primeiras rodadas da ELITE, 115 são de anos já
+ * passados — o bot anunciava como ativo um direito que já virou jogador
+ * ou já se perdeu. O corte sai do `anoDeCorteDasPicks`, que é o mesmo
+ * que as três telas de pick do site usam; fazer a conta aqui de outro
+ * jeito seria a quinta versão do mesmo número.
+ *
+ * @return array{sql: string, par: array} o pedaço de WHERE e o parâmetro
+ */
+function wcFiltroDePicks(PDO $pdo, ?string $liga): array
+{
+    $corte = 0;
+    try { $corte = anoDeCorteDasPicks($pdo, $liga); }
+    catch (Throwable $e) { error_log('[whatsapp-cmd] corte de picks: ' . $e->getMessage()); }
+
+    $sql = ' AND round = 1';
+    $par = [];
+    /* Sem corte conhecido a contagem segue sem ele: perder o ano é ruim,
+       mas devolver zero pick pra liga inteira é pior. */
+    if ($corte > 0) { $sql .= ' AND season_year >= ?'; $par[] = $corte; }
+    return ['sql' => $sql, 'par' => $par];
+}
+
 function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
 {
     $aId = (int)$a['id']; $bId = (int)$b['id'];
@@ -4343,11 +4380,14 @@ function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
     }
 
     try {
-        // Pick que nasceu de um e hoje está com o outro.
-        $st = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE original_team_id = ? AND team_id = ?");
-        $st->execute([$aId, $bId]);
+        // Pick de 1ª rodada que nasceu de um, hoje está com o outro e ainda
+        // vai acontecer. @see wcFiltroDePicks
+        $f = wcFiltroDePicks($pdo, (string)($a['league'] ?? ''));
+        $st = $pdo->prepare("SELECT COUNT(*) FROM picks
+                               WHERE original_team_id = ? AND team_id = ?{$f['sql']}");
+        $st->execute(array_merge([$aId, $bId], $f['par']));
         $out['picks_a_com_b'] = (int)$st->fetchColumn();
-        $st->execute([$bId, $aId]);
+        $st->execute(array_merge([$bId, $aId], $f['par']));
         $out['picks_b_com_a'] = (int)$st->fetchColumn();
     } catch (Throwable $e) {
         error_log('[whatsapp-cmd] confronto picks: ' . $e->getMessage());
@@ -4625,9 +4665,9 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
        quem veio era detalhe de outra conversa. */
 
     if ($h['picks_a_com_b'] || $h['picks_b_com_a']) {
-        $txt .= "\n🎯 *Picks na mão do outro*\n";
-        if ($h['picks_a_com_b']) $txt .= "{$nomeB} tem *{$h['picks_a_com_b']}* pick(s) do {$nomeA}\n";
-        if ($h['picks_b_com_a']) $txt .= "{$nomeA} tem *{$h['picks_b_com_a']}* pick(s) do {$nomeB}\n";
+        $txt .= "\n🎯 *Picks de 1ª na mão do outro*\n";
+        if ($h['picks_a_com_b']) $txt .= "{$nomeB} tem *{$h['picks_a_com_b']}* pick(s) de 1ª do {$nomeA}\n";
+        if ($h['picks_b_com_a']) $txt .= "{$nomeA} tem *{$h['picks_b_com_a']}* pick(s) de 1ª do {$nomeB}\n";
     }
 
     // O palpite fecha a mensagem. É o motivo de alguém pedir /confronto: o
