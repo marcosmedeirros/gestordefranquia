@@ -155,8 +155,12 @@ if ($partida && $rodada && !$resolvida && geoVencida($rodada)) {
 
 $recorde   = geoMeuRecorde($pdo, $user_id);
 $restantes = geoPremiadasRestantes($pdo, $user_id);
-$nLugares  = count(geoLugares());
-$nPaises   = count(array_unique(array_column(geoLugares(), 'pais')));
+/* OS NÚMEROS DA CAPA SÃO OS DO BARALHO QUE SORTEIA, e não os do arquivo.
+   Com o jogo só de Street View, anunciar 779 lugares e 138 países seria
+   prometer um mundo que não vem — o que cai na tela são os 552 lugares em
+   78 países que têm panorama. @see geoLugaresJogaveis */
+$nLugares  = count(geoLugaresJogaveis());
+$nPaises   = count(array_unique(array_column(geoLugaresJogaveis(), 'pais')));
 $moedas    = (int)($pdo->query('SELECT pontos FROM games_usuarios WHERE id = ' . $user_id)->fetchColumn() ?: 0);
 
 /* O Leaflet entra onde é usado: na rodada do mapa, no resultado dela (que

@@ -75,6 +75,37 @@ function geoLugares(): array
     return $l;
 }
 
+/**
+ * ── SÓ LUGAR ONDE DÁ PRA ANDAR ──────────────────────────────────────
+ *
+ * Pedido do Marcos (17/10/2026): "no geo não quero nenhum lugar com
+ * foto, somente street view pra andar".
+ *
+ * A foto parada e o panorama são dois jogos diferentes. Na foto você
+ * olha o que o fotógrafo escolheu mostrar e adivinha; no panorama você
+ * vira a cabeça, anda até a esquina, lê a placa, vê de que lado os
+ * carros andam. O segundo é o GeoGuessr, e é o que a liga quer jogar —
+ * a foto era o que dava pra fazer enquanto o Street View não entrava.
+ *
+ * AS CHAVES SÃO AS DO BARALHO INTEIRO. `geo_rodadas.lugar` guarda o
+ * índice em geoLugares(), e array_filter preserva chave: filtrar aqui
+ * não desloca índice nenhum, e as rodadas antigas continuam achando o
+ * lugar delas — inclusive as que foram foto, que seguem desenhando a
+ * foto. Trocar o baralho não reescreve o passado.
+ */
+function geoLugaresJogaveis(): array
+{
+    static $j = null;
+    if ($j !== null) return $j;
+    $j = array_filter(geoLugares(), fn($l) => !empty($l['rua_pano']));
+    /* Sem nenhum panorama — chave do Maps fora do ar, arquivo de lugares
+       não marcado — o jogo volta pro baralho inteiro em vez de não ter
+       rodada nenhuma. Tela com foto é pior que o combinado; tela vazia é
+       pior que as duas. */
+    if (!$j) $j = geoLugares();
+    return $j;
+}
+
 function geoTabelas(PDO $pdo): void
 {
     static $feito = false;
@@ -158,15 +189,22 @@ function geoAbrirPartida(PDO $pdo, int $uid, string $modo, bool $teste = false):
  */
 function geoSortearRodada(PDO $pdo, int $partidaId, int $n, string $modo): void
 {
-    $lugares = geoLugares();
-    if (!$lugares) return;
+    /* O SORTEIO SAI DO BARALHO JOGÁVEL; as opções erradas, do baralho
+       inteiro. Se os dois saíssem do mesmo lugar, os 60 países que não
+       têm panorama sumiriam também da lista de alternativas — e o jogo
+       ficaria mais estreito do que precisa. Errar entre oito países do
+       mundo todo é a graça; a cobertura do Google é limitação de quem
+       fotografa, não da pergunta. @see geoLugaresJogaveis */
+    $lugares  = geoLugares();
+    $jogaveis = geoLugaresJogaveis();
+    if (!$jogaveis) return;
 
     $st = $pdo->prepare('SELECT lugar FROM geo_rodadas WHERE partida_id = ?');
     $st->execute([$partidaId]);
     $usados = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
 
     $tentativas = 0;
-    do { $i = array_rand($lugares); $tentativas++; }
+    do { $i = array_rand($jogaveis); $tentativas++; }
     while (isset($usados[$i]) && $tentativas < 60);
 
     $opcoes = null;
