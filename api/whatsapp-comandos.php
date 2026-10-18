@@ -2452,9 +2452,29 @@ function wcResumoDeCampanha(array $campanha, int $titulos): string
  */
 function wcNotaDePower(array $comp, bool $temHistorico): float
 {
-    $pesos = $temHistorico
-        ? ['elenco' => 0.40, 'astros' => 0.15, 'idade' => 0.10, 'pontuacao' => 0.15, 'campanha' => 0.20]
-        : ['elenco' => 0.60, 'astros' => 0.25, 'idade' => 0.15, 'pontuacao' => 0.0,  'campanha' => 0.0];
+    /* ── A NOTA É DO ELENCO, E SÓ ─────────────────────────────────────
+       Pedido do Marcos (18/10/2026): "o ranking e os últimos não definem
+       muito a força, ajustar pra focar mais no elenco titular, banco e
+       os principais jogadores do time em si e deixar o resto de fora".
+
+       Ele tem razão sobre o que a conta media. Pontuação e campanha são
+       RESULTADO, não força: o time que vendeu tudo em julho continuava
+       alto por causa de um título de duas temporadas atrás, e quem
+       acabou de montar elenco pesado começava abaixo por um passado que
+       não é mais dele. Eram 35% da nota decididos por coisas que já
+       aconteceram.
+
+       A IDADE SAIU JUNTO, e por outro motivo: ela já estava dentro do
+       elenco. O wcForcaDoTime soma juventude e desconta veterania antes
+       de devolver o número, então contá-la de novo como componente
+       separado era pagar duas vezes pelo mesmo elenco jovem.
+
+       Sobram os dois que respondem "quem é mais forte hoje": o elenco
+       (titulares + os três melhores do banco, com idade dentro) e os
+       astros (o teto e quantos 85+/90+). O `$temHistorico` deixa de
+       mudar a conta — com ou sem temporada registrada, a régua é a
+       mesma. @see wcForcaDoTime, wcComponentesDoPower */
+    $pesos = ['elenco' => 0.70, 'astros' => 0.30];
 
     $total = 0.0;
     foreach ($pesos as $k => $p) $total += ($comp[$k]['nota'] ?? 50.0) * $p;
@@ -2611,12 +2631,12 @@ function wcPowerDoTime(PDO $pdo, array $time): string
     }
     if (!$eu) return wcNomeDoTime($time) . " ainda não tem quinteto montado.";
 
+    /* Os dois que entram na nota. Idade, pontuação e campanha saíram
+       junto com o peso delas: barra que não move o número é enfeite que
+       faz o leitor procurar a conta errada. @see wcNotaDePower */
     $rotulos = [
-        'elenco'    => 'Elenco',
-        'astros'    => 'Astros',
-        'idade'     => 'Idade',
-        'pontuacao' => 'Pontuação',
-        'campanha'  => 'Campanha',
+        'elenco' => 'Elenco',
+        'astros' => 'Astros',
     ];
 
     $txt = "*{$eu['nome']}*\n_Power {$liga}: "
@@ -2625,7 +2645,6 @@ function wcPowerDoTime(PDO $pdo, array $time): string
     $txt .= "\n";
 
     foreach ($rotulos as $chave => $rotulo) {
-        if (!$eu['historico'] && in_array($chave, ['pontuacao', 'campanha'], true)) continue;
         $c = $eu['comp'][$chave];
 
         // Onde ele está NESTE pedaço: a nota sozinha não diz se 72 é bom.
@@ -2636,19 +2655,20 @@ function wcPowerDoTime(PDO $pdo, array $time): string
             wcBarraDeNota((float)$c['nota']), $rotulo, (int)round($c['nota']), $c['txt'], $melhores);
     }
 
-    if (!$eu['historico']) {
-        $txt .= "\n_A liga ainda não tem temporada registrada, então a nota sai só do elenco._";
-    }
+    $txt .= "\n_A nota é do elenco de hoje: titulares, os três melhores do"
+          . " banco e os astros. Tabela e campanhas passadas não entram._";
     return rtrim($txt);
 }
 
 /**
  * /power — os mais fortes da liga do grupo, ou a ficha de um time.
  *
- * A nota junta cinco coisas: elenco (a mesma força do /confronto), astros,
- * idade, pontuação no ranking e campanha das últimas temporadas. Era só OVR
- * com tempero de idade, e isso deixava de fora justamente o que o grupo usa
- * pra discutir — quem tem craque e quem já ganhou.
+ * A nota sai de duas coisas: o ELENCO (a mesma força do /confronto —
+ * titulares, os três melhores do banco e a idade dentro) e os ASTROS (o
+ * teto de OVR e quantos 85+ e 90+). Pontuação no ranking e campanha das
+ * últimas temporadas saíram em 18/10/2026: são resultado, não força, e
+ * decidiam 35% de um número que existe pra responder quem está melhor
+ * AGORA.
  *
  * Com um nome de time no lugar da liga, abre a ficha daquele time.
  */
@@ -2672,9 +2692,10 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
 
     // A liga inteira, não um top 10: quem está em 24º também quer se achar
     // na lista, e é justamente quem mais procura.
-    $sub = $fichas[0]['historico']
-        ? 'elenco, astros, idade, pontuação e campanha'
-        : 'só o elenco — a liga ainda não tem temporada registrada';
+    /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
+       "pontuacao e campanha" seria mandar o leitor procurar peso que nao
+       existe mais. @see wcNotaDePower */
+    $sub = 'elenco e astros — titulares, banco e os craques de hoje';
     $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
     foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, true);
     return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
@@ -2796,9 +2817,10 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         array_keys($porConf)
     )));
 
-    $sub = $fichas[0]['historico']
-        ? 'elenco, astros, idade, pontuação e campanha'
-        : 'só o elenco — a liga ainda não tem temporada registrada';
+    /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
+       "pontuacao e campanha" seria mandar o leitor procurar peso que nao
+       existe mais. @see wcNotaDePower */
+    $sub = 'elenco e astros — titulares, banco e os craques de hoje';
     $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
     foreach ($ordem as $conf) {
         $lista = $porConf[$conf];
