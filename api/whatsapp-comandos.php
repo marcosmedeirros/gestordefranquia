@@ -17,6 +17,7 @@ require_once __DIR__ . '/../backend/pick_protection.php';   // condicao da pick
 require_once __DIR__ . '/../backend/draft_swaps.php';       // draftAnoDasPicks()
 require_once __DIR__ . '/../backend/playoff_series.php';
 require_once __DIR__ . '/../backend/tatica_posicoes.php';      // lugar do titular na quadra
+require_once __DIR__ . '/../backend/power_elenco.php';   // a nota do jogador alem do OVR
 
 /**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
@@ -2350,7 +2351,8 @@ function wcNota0a100(float $v): float { return max(0.0, min(100.0, $v)); }
  *
  * @param array $ctx ['maxForca','minForca','maxPontos'] — a escala da liga
  */
-function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $ctx): array
+function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $ctx,
+                              array $peCtx = []): array
 {
     $rotacao = array_values(array_filter($elenco, function ($p) {
         $r = trim((string)($p['role'] ?? ''));
@@ -2359,7 +2361,13 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
     usort($rotacao, fn($a, $b) => (int)$b['ovr'] <=> (int)$a['ovr']);
     $oito = array_slice($rotacao, 0, 8);
 
-    $ovrs = array_map(fn($p) => (int)$p['ovr'], $oito);
+    /* ASTRO NÃO É QUEM TEM OVR ALTO, é quem joga como astro. A contagem
+       passa a usar a nota do jogador — OVR corrigido pelas letras na
+       posição e pelo que ele produziu —, devolvida à escala de OVR pra
+       que "85+" e "90+" continuem querendo dizer o que a liga entende.
+       Um 91 de ficha fraca que joga pouco deixa de contar como craque;
+       um 88 que carrega o time passa a contar. @see power_elenco.php */
+    $ovrs = array_map(fn($p) => 60 + (peNotaDoJogador($p, $peCtx) / 100) * 39, $oito);
     $teto = $ovrs ? max($ovrs) : 0;
     $n90  = count(array_filter($ovrs, fn($o) => $o >= 90));
     $n85  = count(array_filter($ovrs, fn($o) => $o >= 85));
@@ -2414,8 +2422,16 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
         );
     }
 
+    /* A COERÊNCIA DO QUINTETO. Cinco craques que não se encaixam perdem
+       pra cinco bons que se encaixam, e nenhuma média de OVR mostra
+       isso. Mede duas coisas: se eles jogam o mesmo jogo (a nota do
+       melhor sistema do time) e se cobrem a quadra — três alas e nenhum
+       armador é um problema que o resto da conta não vê.
+       @see peCoerencia */
+    $coerencia = peCoerencia(wcQuintetoTitular($rotacao));
+
     return [
-        'elenco'    => ['nota' => $elencoNota, 'txt' => sprintf('ovr médio %.0f, teto %d', $mediaOvr, $teto)],
+        'elenco'    => ['nota' => $elencoNota, 'txt' => sprintf('ovr médio %.0f, teto %.0f', $mediaOvr, $teto)],
         'astros'    => ['nota' => $astrosNota, 'txt' => $n90 || $n85
                             ? trim(($n90 ? "{$n90} de 90+" : '') . ($n90 && $n85 > $n90 ? ', ' : '')
                                  . ($n85 > $n90 ? ($n85 - $n90) . ' de 85+' : ''))
@@ -2427,6 +2443,7 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
         'campanha'  => ['nota' => $campanhaNota, 'txt' => $campanha
                             ? wcResumoDeCampanha($campanha, (int)($hist['titulos'] ?? 0))
                             : 'sem temporada registrada'],
+        'coerencia' => ['nota' => $coerencia['nota'], 'txt' => $coerencia['txt']],
     ];
 }
 
@@ -2474,7 +2491,7 @@ function wcNotaDePower(array $comp, bool $temHistorico): float
        astros (o teto e quantos 85+/90+). O `$temHistorico` deixa de
        mudar a conta — com ou sem temporada registrada, a régua é a
        mesma. @see wcForcaDoTime, wcComponentesDoPower */
-    $pesos = ['elenco' => 0.70, 'astros' => 0.30];
+    $pesos = ['elenco' => 0.60, 'astros' => 0.25, 'coerencia' => 0.15];
 
     $total = 0.0;
     foreach ($pesos as $k => $p) $total += ($comp[$k]['nota'] ?? 50.0) * $p;
@@ -2499,15 +2516,38 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
 
     // Um SELECT pro elenco da liga inteira. Um por time seriam 32 idas ao
     // banco só pra montar uma mensagem.
+    /* AS LETRAS E O DESEMPENHO VÊM JUNTO. A nota de cada jogador deixou
+       de ser só o OVR (pedido do Marcos, 18/10/2026), e as duas correções
+       saem daqui: as colunas `skill_*` e a última temporada FECHADA.
+
+       A temporada é a última `completed` do sprint ativo — a que está
+       rolando tem estatística pela metade, e meia temporada julgada como
+       inteira castiga quem joga desde o começo.
+       @see backend/power_elenco.php */
     $ovrCol = wcColunaOvr($pdo);
     $lug = wcColLugar($pdo);
-    $st = $pdo->prepare("SELECT id, team_id, name, position, secondary_position{$lug}, role, age, {$ovrCol} AS ovr
-                         FROM players WHERE team_id IN (
-                             SELECT id FROM teams WHERE league = ?
-                         ) ORDER BY {$ovrCol} DESC");
+    $st = $pdo->prepare("
+        SELECT p.id, p.team_id, p.name, p.position, p.secondary_position{$lug},
+               p.role, p.age, p.{$ovrCol} AS ovr, " . sistemaColunasSql('p') . ",
+               ps.games AS pe_games, ps.pts_pg AS pe_pts, ps.reb_pg AS pe_reb,
+               ps.ast_pg AS pe_ast, ps.stl_pg AS pe_stl, ps.blk_pg AS pe_blk
+          FROM players p
+          JOIN teams t ON t.id = p.team_id
+     LEFT JOIN player_season_stats ps
+            ON ps.player_id = p.id AND ps.season_id = (
+                 SELECT s.id FROM seasons s
+                   JOIN sprints sp ON sp.id = s.sprint_id AND sp.status = 'active'
+                  WHERE s.league = t.league AND s.status = 'completed'
+               ORDER BY s.start_date DESC LIMIT 1)
+         WHERE t.league = ?
+      ORDER BY p.{$ovrCol} DESC");
     $st->execute([$liga]);
     $porTime = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $porTime[(int)$p['team_id']][] = $p;
+
+    /* O percentil de desempenho compara o jogador com a liga dele, então
+       a lista de produções é montada uma vez, aqui. */
+    $peCtx = peContextoDaLiga($porTime);
 
     /* O posto na tabela, quando a temporada já existe. Vitórias e derrotas
        saíram: elas não são cadastradas, então vinham 0-0 pra liga inteira.
@@ -2537,7 +2577,7 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
     $hist  = wcHistoricoDaLiga($pdo, $liga);
     $forcas = [];
     foreach ($times as $t) {
-        $f = wcForcaDoTime($porTime[(int)$t['id']] ?? []);
+        $f = wcForcaDoTime($porTime[(int)$t['id']] ?? [], $peCtx);
         if ($f > 0) $forcas[(int)$t['id']] = $f;
     }
     if (!$forcas) return null;
@@ -2556,7 +2596,8 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
             $porTime[$id] ?? [],
             $forcas[$id],
             $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => []],
-            $ctx
+            $ctx,
+            $peCtx
         );
         $fichas[] = [
             'id'         => $id,
@@ -2635,8 +2676,9 @@ function wcPowerDoTime(PDO $pdo, array $time): string
        junto com o peso delas: barra que não move o número é enfeite que
        faz o leitor procurar a conta errada. @see wcNotaDePower */
     $rotulos = [
-        'elenco' => 'Elenco',
-        'astros' => 'Astros',
+        'elenco'    => 'Elenco',
+        'astros'    => 'Astros',
+        'coerencia' => 'Encaixe',
     ];
 
     $txt = "*{$eu['nome']}*\n_Power {$liga}: "
@@ -2655,8 +2697,10 @@ function wcPowerDoTime(PDO $pdo, array $time): string
             wcBarraDeNota((float)$c['nota']), $rotulo, (int)round($c['nota']), $c['txt'], $melhores);
     }
 
-    $txt .= "\n_A nota é do elenco de hoje: titulares, os três melhores do"
-          . " banco e os astros. Tabela e campanhas passadas não entram._";
+    $txt .= "\n_A nota é do time de hoje. Cada jogador vale o OVR corrigido"
+          . " pelas letras na posição dele e pelo que produziu na última"
+          . " temporada; o banco quase não pesa, e tabela e campanhas"
+          . " passadas não entram._";
     return rtrim($txt);
 }
 
@@ -2695,7 +2739,7 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco e astros — titulares, banco e os craques de hoje';
+    $sub = 'elenco, astros e encaixe — o time de hoje, sem tabela nem passado';
     $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
     foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, true);
     return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
@@ -2820,7 +2864,7 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco e astros — titulares, banco e os craques de hoje';
+    $sub = 'elenco, astros e encaixe — o time de hoje, sem tabela nem passado';
     $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
     foreach ($ordem as $conf) {
         $lista = $porConf[$conf];
@@ -4329,7 +4373,7 @@ function wcNomeCurto(string $nome): string
  * Se a de lá mudar, esta tem que mudar junto — é o preço de não ter a conta
  * num lugar só.
  */
-function wcForcaDoTime(array $elenco): float
+function wcForcaDoTime(array $elenco, array $peCtx = []): float
 {
     // Só Titular e Banco. "Outro" e G-League são reserva de contrato, não
     // rotação — deixar eles contarem premiava quem tem elenco inchado, e
@@ -4343,34 +4387,51 @@ function wcForcaDoTime(array $elenco): float
     $cinco = array_values(array_filter(wcQuintetoTitular($elenco)));
     if (!$cinco) return 0.0;
 
-    $ovrs   = array_map(fn($p) => (int)$p['ovr'], $cinco);
+    /* ── O JOGADOR VALE MAIS QUE O OVR DELE ──────────────────────────
+       Pedido do Marcos (18/10/2026). A nota de cada um é o OVR corrigido
+       pelas letras NA POSIÇÃO dele e pelo que produziu na última
+       temporada fechada — um pivô 85 com rebote C- é pior pivô que um 83
+       com rebote A, e o OVR sozinho não sabia disso.
+
+       A escala continua sendo a de OVR (60 a 99) pra que o número final
+       siga comparável com o que a liga leu até ontem: a nota de 0 a 100
+       do módulo volta pra cá como "OVR equivalente".
+       @see backend/power_elenco.php */
+    $valor = fn(array $p) => 60 + (peNotaDoJogador($p, $peCtx) / 100) * 39;
+
+    $notas  = array_map($valor, $cinco);
     $idades = array_filter(array_map(fn($p) => (int)$p['age'], $cinco));
 
-    $mediaOvr   = array_sum($ovrs) / count($ovrs);
-    $tetoOvr    = max($ovrs);
+    $mediaOvr   = array_sum($notas) / count($notas);
+    $tetoOvr    = max($notas);
     $mediaIdade = $idades ? array_sum($idades) / count($idades) : 0;
 
     $juventude = $mediaIdade > 0 ? max(0, 30 - $mediaIdade) : 0;
     $castigo   = $mediaIdade > 32 ? ($mediaIdade - 32) * 1.8 : 0;
 
-    // O banco entra: com quinteto montado sozinho, dois times podiam ter os
-    // mesmos cinco na frente e elencos completamente diferentes atrás, e a
-    // régua dava empate. Pesa menos que os titulares de propósito — banco
-    // decide série, não decide quem é favorito.
-    //
-    // Só os TRÊS melhores de fora do quinteto: rotação de verdade é isso, e
-    // somar o elenco inteiro faria o 15º jogador diluir quem realmente joga.
+    /* O BANCO QUASE NÃO PESA — pedido do Marcos (18/10/2026): "o banco
+       deve pesar pouquíssimo, tipo quase nada".
+
+       Ele continua na conta, e não zerado, por um motivo só: sem nada
+       atrás, dois times com o mesmo quinteto e elencos completamente
+       diferentes empatam, e isso é visivelmente falso. Mas o peso caiu
+       de 0,5 pra 0,06 — o banco agora move décimos, que é o tamanho que
+       ele tem numa pergunta sobre quem é favorito. Antes três reservas
+       bons valiam quase um titular.
+
+       Só os TRÊS melhores de fora do quinteto: rotação de verdade é
+       isso, e somar o elenco inteiro faria o 15º diluir quem joga. */
     $idsCinco = array_flip(array_map(fn($p) => (int)$p['id'], $cinco));
     $banco = [];
     foreach ($elenco as $p) {
         if (isset($idsCinco[(int)($p['id'] ?? 0)])) continue;
-        $banco[] = (int)($p['ovr'] ?? 0);
+        $banco[] = $valor($p);
     }
     rsort($banco);
     $banco = array_slice($banco, 0, 3);
     $mediaBanco = $banco ? array_sum($banco) / count($banco) : 0;
 
-    $score = ($mediaOvr * 1.6) + ($tetoOvr * 0.6) + ($mediaBanco * 0.5)
+    $score = ($mediaOvr * 1.6) + ($tetoOvr * 0.6) + ($mediaBanco * 0.06)
            + ($juventude * 0.8) - $castigo;
     if ($tetoOvr >= 89) $score += 2.0;                        // tem franquia
     if (count($cinco) < 5) $score -= (5 - count($cinco)) * 1.2;
@@ -4484,10 +4545,29 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     // nome, lado B com o número antes — porque a comparação é entre eles, e
     // ler dois números grudados é mais rápido que caçá-los nas pontas.
     $ovrCol = wcColunaOvr($pdo);
+    /* A MESMA FICHA QUE O /power LÊ. Faltavam três coisas aqui: o `id`,
+       sem o qual o wcForcaDoTime não sabia separar o banco do quinteto e
+       simplesmente não contava banco nenhum; as letras; e a estatística
+       da última temporada fechada. Os dois comandos dizem a força do
+       mesmo time, então têm que ler o mesmo jogador.
+       @see backend/power_elenco.php */
     $elencoDe = function (int $id) use ($pdo, $ovrCol): array {
         $lug = wcColLugar($pdo);
-        $st = $pdo->prepare("SELECT name, position, secondary_position{$lug}, role, age, {$ovrCol} AS ovr
-                             FROM players WHERE team_id = ? ORDER BY {$ovrCol} DESC");
+        $st = $pdo->prepare("
+            SELECT p.id, p.name, p.position, p.secondary_position{$lug},
+                   p.role, p.age, p.{$ovrCol} AS ovr, " . sistemaColunasSql('p') . ",
+                   ps.games AS pe_games, ps.pts_pg AS pe_pts, ps.reb_pg AS pe_reb,
+                   ps.ast_pg AS pe_ast, ps.stl_pg AS pe_stl, ps.blk_pg AS pe_blk
+              FROM players p
+              JOIN teams t ON t.id = p.team_id
+         LEFT JOIN player_season_stats ps
+                ON ps.player_id = p.id AND ps.season_id = (
+                     SELECT s.id FROM seasons s
+                       JOIN sprints sp ON sp.id = s.sprint_id AND sp.status = 'active'
+                      WHERE s.league = t.league AND s.status = 'completed'
+                   ORDER BY s.start_date DESC LIMIT 1)
+             WHERE p.team_id = ?
+          ORDER BY p.{$ovrCol} DESC");
         $st->execute([$id]);
         return $st->fetchAll(PDO::FETCH_ASSOC);
     };
@@ -4553,9 +4633,14 @@ function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): stri
     // O palpite fecha a mensagem. É o motivo de alguém pedir /confronto: o
     // resto é consulta, isto é conversa. Os elencos já vieram pro mano a
     // mano — buscar de novo seriam duas consultas iguais na mesma resposta.
+    /* O contexto sai da LIGA, e não destes dois elencos: percentil tirado
+       de trinta jogadores diria outra coisa que o /power, e os dois
+       comandos precisam dar a mesma força pro mesmo time. */
+    $peCtxA = peContextoPorLiga($pdo, (string)($a['league'] ?? ''));
+    $peCtxB = peContextoPorLiga($pdo, (string)($b['league'] ?? ''));
     $txt .= wcPalpite($nomeA, $nomeB,
-                      wcForcaDoTime($elencoA),
-                      wcForcaDoTime($elencoB),
+                      wcForcaDoTime($elencoA, $peCtxA),
+                      wcForcaDoTime($elencoB, $peCtxB),
                       $duelo, $h);
 
     return $txt;
