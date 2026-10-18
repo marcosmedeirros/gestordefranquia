@@ -85,12 +85,34 @@ function peNotaDasLetras(array $p): ?float
 }
 
 /**
- * Quanto ele PRODUZIU na última temporada fechada. 0 a 100, ou null.
+ * ── TUDO VIRA PERCENTIL, E ESSA É A PARTE QUE IMPORTA ────────────────
  *
- * A produção por jogo vira um número só, e esse número vira posição na
- * liga. A escala é relativa de propósito: 18 pontos por jogo é campanha
- * excelente numa liga e média em outra, e o power ranking compara times da
- * mesma liga entre si.
+ * A primeira versão misturava os três sinais crus, e eles NÃO ESTÃO NA
+ * MESMA ESCALA. Medido na ELITE: o jogador mediano tem OVR 82 — que na
+ * régua de 60 a 99 dá 56 — e letras 76. Somar os dois empurrava todo mundo
+ * uns vinte pontos pra cima, e o efeito aparecia no fim da tabela: os três
+ * piores times da liga saíam com "astros 100", porque o corte de 85+ tinha
+ * sido calibrado pra OVR de verdade e o número inflado passava por cima
+ * dele.
+ *
+ * Posição na lista resolve: o mediano fica em 50 nos três, custe o que
+ * custar o formato de cada um. E é o jeito certo de comparar coisas de
+ * naturezas diferentes — ninguém soma letra com ponto por jogo, mas dá pra
+ * somar "melhor que 70% da liga" com "melhor que 70% da liga".
+ *
+ * Não é regra de três entre o pior e o melhor, de propósito: um jogador
+ * absurdo esticaria a escala e espremeria todo mundo no pé dela.
+ */
+function pePercentil(?float $valor, array $lista): ?float
+{
+    if ($valor === null || count($lista) < 5) return null;
+    $abaixo = 0;
+    foreach ($lista as $x) if ($x < $valor) $abaixo++;
+    return max(0.0, min(100.0, ($abaixo / count($lista)) * 100));
+}
+
+/**
+ * Quanto ele PRODUZIU na última temporada fechada, em percentil da liga.
  *
  * JOGO POUCO NÃO É CAMPANHA. Quem entrou em menos de um terço dos jogos
  * tem amostra pequena demais pra virar nota — três partidas boas não fazem
@@ -100,19 +122,7 @@ function peNotaDoDesempenho(array $p, array $ctx): ?float
 {
     $jogos = (int)($p['pe_games'] ?? 0);
     if ($jogos <= 0 || $jogos < (int)($ctx['jogosMinimos'] ?? 0)) return null;
-
-    $prod = peProducao($p);
-    if ($prod === null) return null;
-
-    $lista = $ctx['producoes'] ?? [];
-    if (count($lista) < 5) return null;     // liga sem amostra pra comparar
-
-    /* POSIÇÃO NA LISTA, e não regra de três entre o pior e o melhor: um
-       único jogador absurdo esticaria a escala e espremeria todo mundo no
-       pé dela. O percentil não se importa com o tamanho do maior. */
-    $abaixo = 0;
-    foreach ($lista as $x) if ($x < $prod) $abaixo++;
-    return max(0.0, min(100.0, ($abaixo / count($lista)) * 100));
+    return pePercentil(peProducao($p), $ctx['producoes'] ?? []);
 }
 
 /**
@@ -146,21 +156,44 @@ function peProducao(array $p): ?float
  */
 function peNotaDoJogador(array $p, array $ctx): float
 {
-    /* O OVR na escala de 0 a 100. O piso é 60 e não 0: ninguém na liga joga
-       abaixo disso, e esticar a régua até zero faria a diferença entre um 78
-       e um 92 — que é enorme em quadra — virar meio palmo de barra. */
-    $ovr = (int)($p['ovr'] ?? 0);
-    $sinais = ['ovr' => [max(0.0, min(100.0, ($ovr - 60) / 39 * 100)), 62.0]];
+    $ovr = (float)($p['ovr'] ?? 0);
+    /* Sem a lista da liga (contexto vazio), o OVR cai na régua fixa de 60 a
+       99. Não é tão bom quanto o percentil, mas é o que dá pra fazer com um
+       elenco só na mão — e continua respondendo na mesma direção. */
+    $pOvr = pePercentil($ovr, $ctx['ovrs'] ?? [])
+         ?? max(0.0, min(100.0, ($ovr - 60) / 39 * 100));
+    $sinais = [[$pOvr, 62.0]];
 
     $letras = peNotaDasLetras($p);
-    if ($letras !== null) $sinais['letras'] = [$letras, 23.0];
+    if ($letras !== null) {
+        $pLetras = pePercentil($letras, $ctx['letras'] ?? []);
+        if ($pLetras !== null) $sinais[] = [$pLetras, 23.0];
+    }
 
     $desemp = peNotaDoDesempenho($p, $ctx);
-    if ($desemp !== null) $sinais['desempenho'] = [$desemp, 15.0];
+    if ($desemp !== null) $sinais[] = [$desemp, 15.0];
 
     $soma = 0.0; $pesos = 0.0;
     foreach ($sinais as [$nota, $peso]) { $soma += $nota * $peso; $pesos += $peso; }
     return $pesos > 0 ? $soma / $pesos : 0.0;
+}
+
+/**
+ * O percentil de volta em OVR, pra conta de fora continuar lendo OVR.
+ *
+ * O resto do power ranking fala em OVR — "teto 94", "três de 85+" — e esses
+ * cortes só querem dizer alguma coisa na escala que a liga usa. Então a nota
+ * de 0 a 100 volta pro intervalo REAL de OVR da liga: o mediano sai no OVR
+ * mediano, e o corte de 85+ continua separando o que separava antes.
+ */
+function peEquivalenteOvr(float $nota, array $ctx): float
+{
+    $ovrs = $ctx['ovrs'] ?? [];
+    if (count($ovrs) < 5) return 60 + ($nota / 100) * 39;
+    $min = (float)$ovrs[0];
+    $max = (float)$ovrs[count($ovrs) - 1];
+    if ($max <= $min) return $min;
+    return $min + ($nota / 100) * ($max - $min);
 }
 
 /**
@@ -171,7 +204,7 @@ function peNotaDoJogador(array $p, array $ctx): float
  */
 function peContextoDaLiga(array $elencos): array
 {
-    $producoes = [];
+    $producoes = []; $ovrs = []; $letras = [];
     $jogosMax = 0;
     foreach ($elencos as $elenco) {
         foreach ($elenco as $p) {
@@ -185,13 +218,28 @@ function peContextoDaLiga(array $elencos): array
 
     foreach ($elencos as $elenco) {
         foreach ($elenco as $p) {
+            /* SÓ A ROTAÇÃO entra na régua. Com o elenco inteiro, o 15º homem
+               de cada time empurraria a mediana pra baixo e todo titular
+               pareceria acima da média — a comparação que interessa é entre
+               quem joga. Quando o `role` não veio na consulta, entra todo
+               mundo, que é o comportamento de quem só tem um elenco na mão. */
+            $r = trim((string)($p['role'] ?? ''));
+            if ($r !== '' && $r !== 'Titular' && $r !== 'Banco') continue;
+
+            $ovr = (int)($p['ovr'] ?? 0);
+            if ($ovr > 0) $ovrs[] = $ovr;
+
+            $l = peNotaDasLetras($p);
+            if ($l !== null) $letras[] = $l;
+
             if ((int)($p['pe_games'] ?? 0) < max(1, $minimo)) continue;
             $prod = peProducao($p);
             if ($prod !== null) $producoes[] = $prod;
         }
     }
-    sort($producoes);
-    return ['producoes' => $producoes, 'jogosMinimos' => max(1, $minimo)];
+    sort($producoes); sort($ovrs); sort($letras);
+    return ['producoes' => $producoes, 'ovrs' => $ovrs, 'letras' => $letras,
+            'jogosMinimos' => max(1, $minimo)];
 }
 
 /**
@@ -209,12 +257,15 @@ function peContextoPorLiga(PDO $pdo, string $liga): array
     if (isset($cache[$liga])) return $cache[$liga];
 
     try {
+        /* OVR e letras vêm junto: as três réguas do percentil saem da mesma
+           rotação, e uma lista pela metade daria percentil de mentira. */
         $st = $pdo->prepare("
-            SELECT ps.games AS pe_games, ps.pts_pg AS pe_pts, ps.reb_pg AS pe_reb,
+            SELECT p.ovr, p.position, p.role, " . sistemaColunasSql('p') . ",
+                   ps.games AS pe_games, ps.pts_pg AS pe_pts, ps.reb_pg AS pe_reb,
                    ps.ast_pg AS pe_ast, ps.stl_pg AS pe_stl, ps.blk_pg AS pe_blk
               FROM players p
               JOIN teams t ON t.id = p.team_id
-              JOIN player_season_stats ps
+         LEFT JOIN player_season_stats ps
                 ON ps.player_id = p.id AND ps.season_id = (
                      SELECT s.id FROM seasons s
                        JOIN sprints sp ON sp.id = s.sprint_id AND sp.status = 'active'

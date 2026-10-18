@@ -2367,7 +2367,7 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
        que "85+" e "90+" continuem querendo dizer o que a liga entende.
        Um 91 de ficha fraca que joga pouco deixa de contar como craque;
        um 88 que carrega o time passa a contar. @see power_elenco.php */
-    $ovrs = array_map(fn($p) => 60 + (peNotaDoJogador($p, $peCtx) / 100) * 39, $oito);
+    $ovrs = array_map(fn($p) => peEquivalenteOvr(peNotaDoJogador($p, $peCtx), $peCtx), $oito);
     $teto = $ovrs ? max($ovrs) : 0;
     $n90  = count(array_filter($ovrs, fn($o) => $o >= 90));
     $n85  = count(array_filter($ovrs, fn($o) => $o >= 85));
@@ -4397,7 +4397,7 @@ function wcForcaDoTime(array $elenco, array $peCtx = []): float
        siga comparável com o que a liga leu até ontem: a nota de 0 a 100
        do módulo volta pra cá como "OVR equivalente".
        @see backend/power_elenco.php */
-    $valor = fn(array $p) => 60 + (peNotaDoJogador($p, $peCtx) / 100) * 39;
+    $valor = fn(array $p) => peEquivalenteOvr(peNotaDoJogador($p, $peCtx), $peCtx);
 
     $notas  = array_map($valor, $cinco);
     $idades = array_filter(array_map(fn($p) => (int)$p['age'], $cinco));
