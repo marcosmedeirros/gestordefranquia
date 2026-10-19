@@ -1,16 +1,16 @@
 <?php
 /**
- * SUPERCOMPUTADOR FBA — quem termina o sprint em 1º, quem sobe e quem cai.
+ * SUPERCOMPUTADOR FBA — quem termina a edição em 1º, quem sobe e quem cai.
  *
- * ── A PERGUNTA É O SPRINT, NÃO A TEMPORADA (19/10/2026) ───────────────
+ * ── A PERGUNTA É O EDIÇÃO, NÃO A TEMPORADA (19/10/2026) ───────────────
  *
  * A primeira versão deste arquivo respondia "chance de título", querendo
  * dizer o campeão dos playoffs da temporada em curso. Não é essa a corrida
- * que a FBA disputa: o que vale na liga é o RANKING GERAL do sprint, somado
+ * que a FBA disputa: o que vale na liga é o RANKING GERAL da edição, somado
  * temporada a temporada, e é ele que decide quem é campeão, quem sobe e quem
  * cai. Decisão do dono da liga: "a ideia é que seja na liga geral".
  *
- * Então CAMPEÃO aqui é terminar o sprint em 1º no ranking. Vale igual nas
+ * Então CAMPEÃO aqui é terminar a edição em 1º no ranking. Vale igual nas
  * quatro ligas — inclusive na ELITE, onde não há pra onde subir e o 1º lugar
  * é o troféu. A chance de levar os playoffs de uma temporada saiu de cena.
  *
@@ -25,35 +25,35 @@
  *   - IDADE, por jogador, pela curva tirada de 22 mil pares de temporadas
  *     seguidas do mesmo jogador na FBA, com freio perto do teto de OVR e o
  *     bônus de potencial até os 24. É daqui que sai o envelhecimento do
- *     elenco ao longo do sprint — e é por isso que time velho e forte hoje
+ *     elenco ao longo da edição — e é por isso que time velho e forte hoje
  *     aparece caindo lá na frente.
  *   - O ACASO do tamanho que a liga mostrou ter, mais um sorteio de mudança
  *     de elenco (troca, draft, leilão) que cresce a cada temporada à frente.
  *   - OS PONTOS JÁ CONQUISTADOS, que são o ponto de partida, e os PONTOS
  *     AINDA EM DISPUTA, que são as temporadas que faltam × a régua oficial.
- *     Sprint acabando com alguém 40 pontos à frente é 100%, não "favorito".
+ *     Edição acabando com alguém 40 pontos à frente é 100%, não "favorito".
  *
- * ── TUDO AQUI É DA SPRINT ATUAL ───────────────────────────────────────
+ * ── TUDO AQUI É DA EDIÇÃO ATUAL ───────────────────────────────────────
  *
- * Nenhum número deste arquivo olha pra sprint passada. A temporada vem de
- * wcTemporadaAtiva, que só procura dentro da sprint com status 'active'; o
+ * Nenhum número deste arquivo olha pra edição passada. A temporada vem de
+ * wcTemporadaAtiva, que só procura dentro da edição com status 'active'; o
  * tamanho vem de league_sprint_config.max_seasons, que é o tamanho DESTA
- * sprint; as temporadas simuladas vão da de agora até a última dela; e os
+ * edição; as temporadas simuladas vão da de agora até a última dela; e os
  * times são os que estão na liga hoje.
  *
  * A base de pontos é teams.ranking_points, a mesma do /ranking, e ela é
- * zerada no reset de sprint (api/seasons.php). Conferido em produção em
- * 19/10/2026, somando team_season_points só das temporadas da sprint ativa:
+ * zerada no reset de edição (o "Resetar sprint" do Admin, api/seasons.php). Conferido em produção em
+ * 19/10/2026, somando team_season_points só das temporadas da edição ativa:
  * ELITE 752=752, NEXT 644=644, RISE 552=552 — bate exatamente, enquanto o
- * acumulado de todas as sprints seria 3576, 2766 e 1261.
+ * acumulado de todas as edições seria 3576, 2766 e 1261.
  *
  * A ROOKIE é a exceção que confirma a regra: lá teams.ranking_points (420)
- * é MENOR que a soma da sprint (736), porque a liga zera os pontos quando o
+ * é MENOR que a soma da edição (736), porque a liga zera os pontos quando o
  * GM sobe pra RISE e outro assume a cadeira (ver ranking_ciclos.php,
  * corte_gm). Está certo assim: a projeção parte do que o /ranking mostra,
  * que é o que a liga reconhece como pontuação de cada time hoje.
  *
- * A simulação vai até a ÚLTIMA temporada do sprint, não até um horizonte
+ * A simulação vai até a ÚLTIMA temporada da edição, não até um horizonte
  * arbitrário: a pergunta é sobre o fim dele, e cortar antes responderia
  * outra coisa.
  *
@@ -68,7 +68,7 @@
  *
  * A JANELA DO TIME ("Em ascensão", "Reconstrução") é leitura da curva de
  * idade, e não probabilidade: é para onde a força do elenco de hoje anda até
- * o fim do sprint, com os números do lado. Troca e draft não estão nela.
+ * o fim da edição, com os números do lado. Troca e draft não estão nela.
  */
 
 require_once __DIR__ . '/duvida_projecoes.php';
@@ -76,11 +76,11 @@ require_once __DIR__ . '/pontuacao_ranking.php';
 require_once __DIR__ . '/ranking_ciclos.php';
 
 /**
- * Quantas vezes o sprint inteiro é sorteado.
+ * Quantas vezes a edição inteiro é sorteado.
  *
  * Com 800 sorteios, uma chance perto de 20% sai com margem de ~1,4 ponto —
  * suficiente pra uma tela que arredonda em décimos, e é o que mantém o
- * cálculo da ELITE (sprint de 25 temporadas) em segundos e não em dezenas
+ * cálculo da ELITE (edição de 25 temporadas) em segundos e não em dezenas
  * deles.
  */
 const SC_SIMULACOES = 800;
@@ -91,7 +91,7 @@ const SC_ZONA = 4;
 /**
  * Teto de temporadas simuladas à frente.
  *
- * Não é escolha de produto — a projeção vai até o fim do sprint de propósito.
+ * Não é escolha de produto — a projeção vai até o fim da edição de propósito.
  * É guarda contra league_sprint_config com um número estranho, que faria a
  * página rodar até o timeout.
  */
@@ -107,7 +107,7 @@ const SC_PTS_POR_TEMPORADA = 15;
  * os mesmos, e o servidor seguia entregando o número feito pela conta velha.
  * Toda mudança daqui mexe neste número.
  */
-const SC_VERSAO = 3;
+const SC_VERSAO = 4;
 
 /* ─────────────────────────────────────────────────────────────────────
    O CACHE
@@ -172,7 +172,7 @@ function scAssinatura(PDO $pdo, string $liga, ?array $temp): string
    ───────────────────────────────────────────────────────────────────── */
 
 /**
- * Quantas temporadas tem o sprint da liga.
+ * Quantas temporadas tem a edição da liga.
  *
  * A fonte é league_sprint_config, a mesma tabela que o Admin edita. O mapa
  * abaixo é só a reserva pra base que ainda não tem a tabela — foi uma cópia
@@ -261,9 +261,9 @@ function scContextoDosTimes(PDO $pdo, string $liga): array
    ───────────────────────────────────────────────────────────────────── */
 
 /**
- * A JANELA É CURTA DE PROPÓSITO: as próximas temporadas, não o sprint todo.
+ * A JANELA É CURTA DE PROPÓSITO: as próximas temporadas, não a edição todo.
  *
- * A projeção de pontos vai até o fim do sprint porque é lá que o campeão é
+ * A projeção de pontos vai até o fim da edição porque é lá que o campeão é
  * decidido. A janela do elenco, não: medida em 15 temporadas ela diz que todo
  * time jovem tem o pico daqui a dez anos, o que é verdade pelo modelo e
  * inútil pra quem está decidindo uma troca agora.
@@ -280,7 +280,7 @@ const SC_JANELA_ANOS = 5;
  * está no auge.
  *
  * A LEITURA É EM z, E NÃO EM OVR, de propósito. Em OVR absoluto o elenco de
- * todo mundo despenca ao longo do sprint, porque no modelo ninguém contrata
+ * todo mundo despenca ao longo da edição, porque no modelo ninguém contrata
  * ninguém — mostrar "88,6 hoje, 78,9 no fim" seria vender como previsão um
  * artefato de não ter draft na conta. Contra a liga, que envelhece junto, o
  * movimento que sobra é o real.
@@ -398,7 +398,7 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
     $fase = scFaseDaTemporada($pdo, $liga, $temp, $ids);
     $n    = (int)$temp['season_number'];
 
-    /* ATÉ O FIM DO SPRINT. A última temporada dele, contada a partir da de
+    /* ATÉ O FIM DO EDIÇÃO. A última temporada dele, contada a partir da de
        agora (k = 0), é o que decide quem é campeão — cortar antes disso
        responderia outra pergunta. O teto é só guarda contra configuração
        estranha. */
@@ -533,14 +533,14 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
         // mostrar uma porta sem o outro lado.
         'tem_subida'  => $liga !== 'ELITE',
         'sobe_de_vdd' => (int)(cicloConfig($liga)['sobe_geral'] ?? 0),
-        // Sprint na última temporada e ela já registrada: não sobrou nada em
+        // Edição na última temporada e ela já registrada: não sobrou nada em
         // disputa, e a tabela vira o resultado em vez de projeção.
         'tem_disputa' => $restantes > 0 || !empty($fase['chave']),
         'temporada'   => [
             'numero'    => $n,
-            // Qual sprint, escrito: "T9/25" sozinho não diz de qual delas, e
-            // a numeração das temporadas reinicia a cada sprint nova.
-            'sprint'    => (int)($temp['sprint_number'] ?? 0),
+            // Qual edição, escrito: "T9/25" sozinho não diz de qual delas, e
+            // a numeração das temporadas reinicia a cada edição nova.
+            'edicao'    => (int)($temp['sprint_number'] ?? 0),
             'total'     => $totalTemporadas ?: null,
             'fim'       => $n + $ultimoK,
             'restantes' => $restantes,
@@ -560,7 +560,7 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
  * As frases que resumem a liga.
  *
  * O "mais aberto" é o time com a maior faixa de pontos (10%–90%): não é o
- * melhor nem o pior, é aquele cujo sprint ainda pode dar em qualquer coisa.
+ * melhor nem o pior, é aquele cuja edição ainda pode dar em qualquer coisa.
  */
 function scDestaques(array $linhas): array
 {
@@ -585,7 +585,7 @@ function scDestaques(array $linhas): array
 
     $d = [];
     if ($fav = $primeiro($porCampeao, fn($l) => $l['campeao'] > 0)) {
-        $d[] = ['rotulo' => 'Favorito da sprint', 'time' => $fav['nome'],
+        $d[] = ['rotulo' => 'Favorito da edição', 'time' => $fav['nome'],
                 'valor' => scPct($fav['campeao']), 'cor' => 'ouro'];
     }
     // Azarão: a maior chance de 1º lugar entre os que hoje estão na metade de

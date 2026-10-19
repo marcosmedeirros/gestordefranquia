@@ -951,7 +951,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .empty-state p { font-size:12px; margin:0; }
 
         /* ── SuperComputador FBA ────────────────────────────────────────
-           Três corridas do sprint lado a lado — campeão, subir e cair — cada
+           Três corridas da edição lado a lado — campeão, subir e cair — cada
            uma com o top 5 na frente e a liga inteira atrás de um clique. A
            linha de quem está olhando aparece nas duas, aberta ou fechada. */
         .sc-wrap {
@@ -970,7 +970,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         /* No claro o índigo pastel some no branco: o texto escurece, o fundo não. */
         :root[data-theme="light"] .sc-icon,
         :root[data-theme="light"] .sc-ia-tag,
-        :root[data-theme="light"] .sc-sprint-label,
+        :root[data-theme="light"] .sc-edicao-label,
         :root[data-theme="light"] .sc-copy-btn { color:#4f46e5; }
         :root[data-theme="light"] .sc-block-title,
         :root[data-theme="light"] .sc-num,
@@ -978,14 +978,14 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         :root[data-theme="light"] .sc-todos > summary,
         :root[data-theme="light"] .sc-chip .k { color:var(--sc-c,#4f46e5); }
 
-        .sc-sprint-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:9px 13px; }
-        :root[data-theme="light"] .sc-sprint-bar { background:rgba(99,102,241,.04); }
-        .sc-sprint-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
-        .sc-sprint-track { flex:1; min-width:40px; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
-        .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
-        .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); }
-        .sc-sprint-info strong { color:var(--text); }
-        @media(max-width:580px){ .sc-sprint-bar { flex-wrap:wrap; } .sc-sprint-track { order:3; flex-basis:100%; } }
+        .sc-edicao-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:9px 13px; }
+        :root[data-theme="light"] .sc-edicao-bar { background:rgba(99,102,241,.04); }
+        .sc-edicao-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
+        .sc-edicao-track { flex:1; min-width:40px; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
+        .sc-edicao-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
+        .sc-edicao-info  { font-size:11px; font-weight:700; color:var(--text-2); }
+        .sc-edicao-info strong { color:var(--text); }
+        @media(max-width:580px){ .sc-edicao-bar { flex-wrap:wrap; } .sc-edicao-track { order:3; flex-basis:100%; } }
 
         /* Os destaques: a leitura rápida antes das listas. */
         .sc-chips { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:14px; }
@@ -1520,23 +1520,23 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 $scFim = 'T' . $scT['fim'];
                 $scEuId = $meuTimePorLiga[$league] ?? 0;
 
-                /* AS TRÊS CORRIDAS DO SPRINT. Todas saem do mesmo sorteio e
+                /* AS TRÊS CORRIDAS DO EDIÇÃO. Todas saem do mesmo sorteio e
                    da mesma lista — só muda por qual coluna ela é ordenada,
                    e é por isso que os números conversam entre si. */
-                /* O SUBTÍTULO DIZ "DO RANKING DA SPRINT" DE PROPÓSITO. Antes
+                /* O SUBTÍTULO DIZ "DO RANKING DA EDIÇÃO" DE PROPÓSITO. Antes
                    ele dizia "entre os 4 primeiros na T20", que se lê como a
                    classificação daquela temporada — e não é: é a posição no
-                   ranking SOMADO da sprint inteira, com a T20 sendo só onde
+                   ranking SOMADO da edição inteira, com a T20 sendo só onde
                    a conta fecha. */
                 $scAte = "somando até a {$scFim}";
-                $scCorridas = [['campeao', 'ouro', 'bi-trophy-fill', 'Campeão da sprint',
-                                "1º no ranking da sprint, {$scAte}", '🏆']];
+                $scCorridas = [['campeao', 'ouro', 'bi-trophy-fill', 'Campeão da edição',
+                                "1º no ranking da edição, {$scAte}", '🏆']];
                 if (!empty($an['tem_subida'])) {
                     $scCorridas[] = ['cima', 'verde', 'bi-arrow-up-circle-fill', 'Chance de subir',
-                                     "entre os {$an['zona_cima']} primeiros do ranking da sprint, {$scAte}", '🟢'];
+                                     "entre os {$an['zona_cima']} primeiros do ranking da edição, {$scAte}", '🟢'];
                 }
                 $scCorridas[] = ['baixo', 'vermelho', 'bi-arrow-down-circle-fill', 'Chance de cair',
-                                 "entre os {$an['zona_baixo']} últimos do ranking da sprint, {$scAte}", '🔴'];
+                                 "entre os {$an['zona_baixo']} últimos do ranking da edição, {$scAte}", '🔴'];
 
                 // Uma linha da lista. A mesma nos três cards e nos dois
                 // estados (top 5 e lista inteira), senão elas se separam.
@@ -1569,7 +1569,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
-                SUPERCOMPUTADOR FBA · as chances da sprint
+                SUPERCOMPUTADOR FBA · as chances da edição
             </div>
             <div class="sc-wrap">
 
@@ -1577,11 +1577,11 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <div class="sc-icon"><i class="bi bi-cpu-fill"></i></div>
                     <div style="min-width:0">
                         <div class="sc-ttl">SuperComputador FBA</div>
-                        <div class="sc-sub">a sprint atual sorteada <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes · elenco, idade e os pontos já somados</div>
+                        <div class="sc-sub">a edição atual sorteada <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes · elenco, idade e os pontos já somados</div>
                     </div>
                     <div class="sc-badges">
-                        <?php if (!empty($scT['sprint'])): ?>
-                        <span class="sc-season-tag">Sprint <?= $scT['sprint'] ?></span>
+                        <?php if (!empty($scT['edicao'])): ?>
+                        <span class="sc-season-tag">Edição <?= $scT['edicao'] ?></span>
                         <?php endif; ?>
                         <?php if (!empty($scT['total'])): ?>
                         <span class="sc-season-tag">T<?= $scT['numero'] ?>/<?= $scT['total'] ?></span>
@@ -1591,12 +1591,12 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div>
 
                 <?php if (!empty($scT['total'])): $scPc = $scT['total'] > 0 ? round($scT['numero'] / $scT['total'] * 100) : 0; ?>
-                <div class="sc-sprint-bar">
-                    <span class="sc-sprint-label"><i class="bi bi-hourglass-split me-1"></i>Sprint</span>
-                    <div class="sc-sprint-track"><div class="sc-sprint-fill" style="width:<?= $scPc ?>%"></div></div>
-                    <span class="sc-sprint-info">
+                <div class="sc-edicao-bar">
+                    <span class="sc-edicao-label"><i class="bi bi-hourglass-split me-1"></i>Edição</span>
+                    <div class="sc-edicao-track"><div class="sc-edicao-fill" style="width:<?= $scPc ?>%"></div></div>
+                    <span class="sc-edicao-info">
                         <strong>T<?= $scT['numero'] ?></strong>/<?= $scT['total'] ?> ·
-                        <?= $scT['restantes'] === 0 ? 'sprint decidida'
+                        <?= $scT['restantes'] === 0 ? 'edição decidida'
                             : ($scT['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$scT['restantes']} temporadas") ?>
                         <?= $scT['em_disputa'] > 0 ? ' · até <strong>' . $scT['em_disputa'] . '</strong> pts em disputa' : '' ?>
                     </span>
@@ -1673,10 +1673,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div><!-- /sc-triple-grid -->
 
                 <p class="sc-nota">
-                    <b>Como a conta é feita.</b> A sprint atual é sorteada inteira <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes, da
+                    <b>Como a conta é feita.</b> A edição atual é sorteada inteira <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes, da
                     temporada de agora até a <?= htmlspecialchars($scFim) ?>, partindo dos pontos que cada time já tem no ranking dela
-                    — o mesmo do <i>/ranking</i>, que zera a cada sprint nova. Campeão, subir e cair são sempre a posição no
-                    ranking somado da sprint, nunca a classificação de uma temporada solta.
+                    — o mesmo do <i>/ranking</i>, que zera a cada edição nova. Campeão, subir e cair são sempre a posição no
+                    ranking somado da edição, nunca a classificação de uma temporada solta.
                     A força de cada um é o OVR ponderado dos 8 melhores do elenco — a régua que, medida na própria FBA,
                     acerta a ordem final com correlação 0,67 — e a cada temporada à frente o elenco envelhece pela curva
                     tirada de 22 mil temporadas de jogadores da liga, com o acaso do tamanho que a FBA mostrou ter.

@@ -583,7 +583,7 @@ function wcAjuda(): string
         . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
         . "/meutime — seu elenco\n"
         . "/meucap — sua folha e o espaço no cap\n"
-        . "/meuopta — as chances do seu time no sprint: campeão, subir e cair\n"
+        . "/meuopta — as chances do seu time na edição: campeão, subir e cair\n"
         . "/minhaspicks — as picks que você tem\n"
         . "/meutblock — seu trade block
 "
@@ -598,7 +598,7 @@ function wcAjuda(): string
         . "/power — o power ranking da liga (elenco, astros, idade, pontuação e campanha)\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
-        . "/opta — as chances do sprint: campeão, subir e cair\n"
+        . "/opta — as chances da edição: campeão, subir e cair\n"
         . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
@@ -2879,14 +2879,14 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
 }
 
 /**
- * /opta — as chances do sprint: campeão, subir e cair.
+ * /opta — as chances da edição: campeão, subir e cair.
  *
  * O NOME É HOMENAGEM, E A CONTA NÃO É CHUTE. A mesma simulação que desenha o
  * SuperComputador no Mundo FBA (backend/supercomputador.php) responde aqui:
- * o sprint inteiro sorteado a partir dos pontos de hoje, com os elencos
+ * a edição inteiro sorteado a partir dos pontos de hoje, com os elencos
  * envelhecendo pela curva de idade medida na própria FBA.
  *
- * CAMPEÃO É QUEM TERMINA O SPRINT EM 1º no ranking geral — não o campeão dos
+ * CAMPEÃO É QUEM TERMINA O EDIÇÃO EM 1º no ranking geral — não o campeão dos
  * playoffs de uma temporada. É a corrida que a liga disputa de verdade, e é
  * o que decide quem sobe e quem cai. Vale igual nas quatro ligas; na ELITE,
  * onde não há pra onde subir, o 1º lugar é o troféu.
@@ -2930,31 +2930,31 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         return $out;
     };
 
-    $txt = "🤖 *OPTA FBA · {$liga}*\n_" . ($t['sprint'] ? "Sprint {$t['sprint']} · " : '')
+    $txt = "🤖 *OPTA FBA · {$liga}*\n_" . ($t['edicao'] ? "Edição {$t['edicao']} · " : '')
          . "T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-         . ' · ' . ($t['restantes'] === 0 ? 'sprint decidida'
+         . ' · ' . ($t['restantes'] === 0 ? 'edição decidida'
                  : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
          . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    /* "DO RANKING DA SPRINT", e não "na T20". Escrito do outro jeito, o
+    /* "DO RANKING DA EDIÇÃO", e não "na T20". Escrito do outro jeito, o
        grupo lia como a classificação daquela temporada — e não é: é a
-       posição no ranking SOMADO da sprint inteira, com a última temporada
+       posição no ranking SOMADO da edição inteira, com a última temporada
        sendo só onde a conta fecha. */
     $ate = "somando até a {$fim}";
 
     $campeao = $top('campeao');
     if ($campeao) {
-        $txt .= "\n🏆 *Campeão da sprint* _(1º no ranking, {$ate})_\n" . $lista($campeao, 'campeao');
+        $txt .= "\n🏆 *Campeão da edição* _(1º no ranking, {$ate})_\n" . $lista($campeao, 'campeao');
     }
 
     if (!empty($p['tem_subida'])) {
         $sobe = $top('cima');
-        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} do ranking da sprint, {$ate})_\n" . $lista($sobe, 'cima');
+        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} do ranking da edição, {$ate})_\n" . $lista($sobe, 'cima');
     }
 
     $cai = $top('baixo');
     $txt .= $cai
-        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} do ranking da sprint, {$ate})_\n" . $lista($cai, 'baixo')
+        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} do ranking da edição, {$ate})_\n" . $lista($cai, 'baixo')
         : "\n🔴 *Cair* — ninguém com chance medível de terminar lá embaixo.\n";
 
     /* SÓ AS TRÊS LISTAS. Tinha aqui uma linha de destaques e um rodapé
@@ -3006,13 +3006,13 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     $casas = fn(int $k): string => $k . ($k === 1 ? ' posição' : ' posições');
 
     $txt  = "🤖 *OPTA FBA · {$nome}*\n";
-    $txt .= "_{$liga} · " . ($t['sprint'] ? "Sprint {$t['sprint']} · " : '')
+    $txt .= "_{$liga} · " . ($t['edicao'] ? "Edição {$t['edicao']} · " : '')
           . "T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-          . ' · ' . ($t['restantes'] === 0 ? 'sprint decidida'
+          . ' · ' . ($t['restantes'] === 0 ? 'edição decidida'
                   : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
           . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    $txt .= "\n🏁 *No ranking da sprint, somando até a {$fim}*\n";
+    $txt .= "\n🏁 *No ranking da edição, somando até a {$fim}*\n";
     /* O posto só sai quando a chance existe: com 0% metade da liga empata no
        mesmo lugar, e "0% — 10º de 30" lê como contradição. */
     $txt .= '• Campeão (1º no ranking): *' . scPct((float)$eu['campeao']) . '*'
@@ -3023,7 +3023,7 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     }
     $txt .= "• Cair (últimos {$p['zona_baixo']}): " . scPct((float)$eu['baixo']) . "\n";
 
-    $txt .= "\n📊 *Os pontos da sprint*\n";
+    $txt .= "\n📊 *Os pontos da edição*\n";
     $txt .= '• Hoje: ' . $ordinal((int)$eu['pos_hoje']) . " com {$eu['pts_hoje']}\n";
     $txt .= "• Projetado na {$fim}: " . $ordinal((int)$eu['pos_proj']) . " com {$eu['pts_fim']} "
           . "_(faixa {$eu['pts_lo']}–{$eu['pts_hi']})_\n";
