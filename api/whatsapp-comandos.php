@@ -3039,19 +3039,10 @@ function wcOptaDoTime(PDO $pdo, array $time): string
           . ($eu['pico'] > $t['numero'] ? " — auge na T{$eu['pico']}" : ' — o auge é agora')
           . ($eu['picks'] > 0 ? " · {$eu['picks']} picks de 1ª" : ' · sem pick de 1ª') . "\n";
 
-    /* QUEM ESTÁ NA FRENTE. Sem isso a ficha é um espelho; com isso ela vira
-       informação — o GM precisa saber de quem é a corrida que ele disputa. */
-    $favorito = null;
-    foreach ($p['times'] as $l) if ($favorito === null || $l['campeao'] > $favorito['campeao']) $favorito = $l;
-    if ($favorito && $favorito['campeao'] > 0) {
-        $txt .= (int)$favorito['id'] === (int)$eu['id']
-            ? "\n_O {$nome} é o favorito da sprint na {$liga}._"
-            : "\n_O favorito da sprint é o {$favorito['nome']}, com " . scPct((float)$favorito['campeao']) . "._";
-    }
-
-    $txt .= "\n_A conta é a mesma do /opta. A janela é a leitura da curva de idade nas próximas "
-          . "temporadas: diz pra onde o elenco de hoje anda se ninguém mexer em nada — troca e "
-          . "draft não estão nela._";
+    /* SÓ OS NÚMEROS DO TIME. Tinha aqui quem era o favorito da liga e um
+       rodapé explicando a régua; a ficha é sobre o time de quem pediu, e
+       quem quer o resto tem o /opta e o Mundo FBA, onde a régua está
+       escrita embaixo dos mesmos números. */
 
     return rtrim($txt);
 }
