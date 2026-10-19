@@ -27,8 +27,13 @@
  *     bônus de potencial até os 24. É daqui que sai o envelhecimento do
  *     elenco ao longo da edição — e é por isso que time velho e forte hoje
  *     aparece caindo lá na frente.
- *   - O ACASO do tamanho que a liga mostrou ter, mais um sorteio de mudança
- *     de elenco (troca, draft, leilão) que cresce a cada temporada à frente.
+ *   - O ACASO do tamanho que a liga mostrou ter.
+ *   - E, principalmente, A VANTAGEM DE HOJE PERDENDO VALOR: o elenco de
+ *     agora explica cada vez menos conforme as temporadas passam, na
+ *     velocidade medida na própria liga (ver SC_PERSISTENCIA). Em 5
+ *     temporadas sobram 22% dela; em 17, menos de 1%. Sem isso o melhor
+ *     elenco de hoje seria favorito até o fim da edição, por mais longe
+ *     que ela esteja.
  *   - OS PONTOS JÁ CONQUISTADOS, que são o ponto de partida, e os PONTOS
  *     AINDA EM DISPUTA, que são as temporadas que faltam × a régua oficial.
  *     Edição acabando com alguém 40 pontos à frente é 100%, não "favorito".
@@ -89,6 +94,78 @@ const SC_SIMULACOES = 800;
 const SC_ZONA = 4;
 
 /**
+ * QUANTO DA VANTAGEM DE HOJE SOBRA NA TEMPORADA SEGUINTE.
+ *
+ * Medido na FBA em 19/10/2026, sobre as 32 mil linhas do player_season_log:
+ * pega-se o elenco de uma temporada, envelhece-se ele pela curva de idade
+ * (exatamente o que a projeção faz) e compara-se com a força que o time
+ * REALMENTE teve k temporadas depois, uma liga-edição por vez.
+ *
+ *   lag 1  r = 0,725  (1.867 pares)      lag 4  r = 0,346  (1.225)
+ *   lag 2  r = 0,534  (1.653)            lag 5  r = 0,244  (1.011)
+ *   lag 3  r = 0,422  (1.439)            lag 6  r = 0,181  (797)
+ *
+ * O ρ implícito (r elevado a 1/lag) dá 0,725 / 0,731 / 0,750 / 0,767 /
+ * 0,754 / 0,752 — estável, o que é a assinatura de um decaimento
+ * exponencial. Daí o 0,74: MEIA-VIDA DE 2,3 TEMPORADAS.
+ *
+ * O QUE ISSO CORRIGE. O motor do bot assume que a vantagem de hoje vale
+ * para sempre: ele soma ruído em torno da força projetada, mas a MÉDIA
+ * continua ancorada no elenco de agora. Com 17 temporadas pela frente isso
+ * dava 57% de título ao melhor elenco da ELITE, como se trade, draft e
+ * leilão não existissem. Na FBA real, em 5 temporadas sobram 0,74^5 = 22%
+ * da vantagem, e em 17 sobra 0,6% — o time é outro.
+ *
+ * Fica aqui e não em duvida_projecoes.php porque lá o horizonte é curto
+ * (/temporada, /confronto, próximos campeões) e mexer mudaria comandos que
+ * ninguém pediu pra mudar.
+ */
+const SC_PERSISTENCIA = 0.74;
+
+/**
+ * UM PASSO DO CAMINHO DA FORÇA: de onde o time estava na temporada k-1 para
+ * onde ele vai estar na k.
+ *
+ * Substitui projForcasSorteadas, que fazia `z[k] + 0,5·√k·ruído`. Três
+ * diferenças, e as três mudam o resultado:
+ *
+ *   1. A MÉDIA ENCOLHE (ρ por temporada). Sem isso o favorito de hoje é
+ *      favorito para sempre, por mais longe que esteja o fim da edição.
+ *
+ *   2. O RUÍDO PARA DE CRESCER. Com √k ele chegava a 2,06 desvios na 17ª
+ *      temporada, o dobro da dispersão que a liga inteira tem (1,0, por
+ *      construção do z). Aqui a variância de z vale sempre 1: o time
+ *      distante é um sorteio de um time qualquer da liga — e não um sorteio
+ *      mais extremo que a liga toda.
+ *
+ *   3. A FORÇA TEM MEMÓRIA, que é o que faltava. Sorteando cada temporada
+ *      à parte, um time bom no ano 5 tinha a mesma chance de qualquer outro
+ *      de ser bom no ano 6; os pontos viravam quase moeda jogada todo ano,
+ *      a soma de todo mundo convergia pra mesma média e quem estava na
+ *      frente hoje nunca era alcançado. Na FBA o time anda em fases de
+ *      vários anos — reconstrói, sobe, decai — e são essas fases que
+ *      embaralham a tabela no fim. Com o caminho AR(1), o líder de hoje
+ *      passou de 58% para perto dos 39% que o histórico mostra.
+ *
+ * O drift é o que a curva de idade diz que muda de um ano pro outro. Ele
+ * entra antes do ρ, então também vai perdendo força — é informação sobre o
+ * elenco de hoje, e o elenco de hoje vai embora.
+ *
+ * @param array $z  a força de cada time na temporada k-1
+ */
+function scPassoDaForca(array $times, array $z, int $k): array
+{
+    $rho   = SC_PERSISTENCIA;
+    $ruido = sqrt(max(0.0, 1.0 - $rho * $rho));
+    $novo  = [];
+    foreach ($times as $id => $t) {
+        $drift = ($t['z'][$k] ?? 0.0) - ($t['z'][$k - 1] ?? 0.0);
+        $novo[$id] = $rho * (($z[$id] ?? 0.0) + $drift) + $ruido * projGauss();
+    }
+    return $novo;
+}
+
+/**
  * Teto de temporadas simuladas à frente.
  *
  * Não é escolha de produto — a projeção vai até o fim da edição de propósito.
@@ -107,7 +184,7 @@ const SC_PTS_POR_TEMPORADA = 15;
  * os mesmos, e o servidor seguia entregando o número feito pela conta velha.
  * Toda mudança daqui mexe neste número.
  */
-const SC_VERSAO = 4;
+const SC_VERSAO = 6;
 
 /* ─────────────────────────────────────────────────────────────────────
    O CACHE
@@ -447,8 +524,15 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
             }
         }
 
-        for ($k = $inicio; $k <= $ultimoK; $k++) {
-            foreach (projPontosDaTemporada(projSortearTemporada($times, projForcasSorteadas($times, $k))) as $id => $p) {
+        /* O CAMINHO É UM SÓ, DO COMEÇO AO FIM DA EDIÇÃO. Ele avança até nas
+           temporadas que não entram na conta (as já decididas), senão a
+           primeira temporada simulada herdaria a força de hoje como se
+           nenhum ano tivesse passado. */
+        $zSim = $z0;
+        for ($k = 0; $k <= $ultimoK; $k++) {
+            if ($k > 0) $zSim = scPassoDaForca($times, $zSim, $k);
+            if ($k < $inicio) continue;
+            foreach (projPontosDaTemporada(projSortearTemporada($times, $zSim)) as $id => $p) {
                 if (isset($pts[$id])) $pts[$id] += $p;
             }
         }
