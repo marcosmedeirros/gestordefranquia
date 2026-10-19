@@ -107,7 +107,7 @@ const SC_PTS_POR_TEMPORADA = 15;
  * os mesmos, e o servidor seguia entregando o número feito pela conta velha.
  * Toda mudança daqui mexe neste número.
  */
-const SC_VERSAO = 2;
+const SC_VERSAO = 3;
 
 /* ─────────────────────────────────────────────────────────────────────
    O CACHE
