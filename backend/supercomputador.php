@@ -1,66 +1,84 @@
 <?php
 /**
- * SUPERCOMPUTADOR FBA — as chances da liga, calculadas de verdade.
+ * SUPERCOMPUTADOR FBA — quem termina o sprint em 1º, quem sobe e quem cai.
  *
- * ── POR QUE ELE FOI REFEITO (19/10/2026) ──────────────────────────────
+ * ── A PERGUNTA É O SPRINT, NÃO A TEMPORADA (19/10/2026) ───────────────
  *
- * A primeira versão vivia dentro do mundo-fba.php e tinha simulação própria:
- * um "score composto" de power ranking + pontos + picks, e uma projeção que
- * somava a cada temporada futura ajustes escritos na mão ("Contending -1,5",
- * "Rebuilding +1,8", "picks × 0,3", crescimento de OVR 3,5/2,5/1,5 por faixa
- * de idade × 1,8). Nenhum desses números saiu de medição nenhuma, e o
- * resultado era uma porcentagem com cara de ciência em cima de chute.
+ * A primeira versão deste arquivo respondia "chance de título", querendo
+ * dizer o campeão dos playoffs da temporada em curso. Não é essa a corrida
+ * que a FBA disputa: o que vale na liga é o RANKING GERAL do sprint, somado
+ * temporada a temporada, e é ele que decide quem é campeão, quem sobe e quem
+ * cai. Decisão do dono da liga: "a ideia é que seja na liga geral".
  *
- * Enquanto isso o bot já tinha, em backend/duvida_projecoes.php, um motor
- * CALIBRADO contra a própria liga: a força do elenco (OVR ponderado dos 8
- * melhores) acerta a ordem final com correlação 0,67; a curva de idade saiu
- * de 22 mil pares de temporadas seguidas do mesmo jogador; o tamanho do acaso
- * foi escolhido pra simulação reproduzir a mesma correlação que a FBA teve de
- * verdade. Duas contas diferentes pra mesma pergunta — uma no site, outra no
- * WhatsApp — eram piores que nenhuma.
+ * Então CAMPEÃO aqui é terminar o sprint em 1º no ranking. Vale igual nas
+ * quatro ligas — inclusive na ELITE, onde não há pra onde subir e o 1º lugar
+ * é o troféu. A chance de levar os playoffs de uma temporada saiu de cena.
  *
- * Então o SuperComputador não tem mais conta própria. Ele chama o motor do
- * bot e organiza a resposta pra tela.
+ * ── O QUE ENTRA NA CONTA ──────────────────────────────────────────────
  *
- * ── O QUE ELE RESPONDE ────────────────────────────────────────────────
+ * A conta não é deste arquivo. Ela é do motor calibrado que o bot já usava
+ * (backend/duvida_projecoes.php), medido contra a própria liga:
  *
- *   1. CHANCE DE TÍTULO da temporada em disputa. Com a chave dos playoffs já
- *      montada, respeita as séries decididas e simula só o que falta; com a
- *      temporada ainda na regular, sorteia regular e playoffs inteiros.
- *   2. O RANKING DO SPRINT à frente: pontos projetados com faixa, chance de
- *      terminar em 1º, de terminar na zona de cima e na zona de baixo.
- *   3. A TABELA DE DADOS por trás disso — força, idade, pontos de hoje — pra
- *      ninguém ter que acreditar na porcentagem no escuro.
+ *   - FORÇA = OVR ponderado dos 8 melhores do elenco. Acerta a ordem final
+ *     com correlação 0,67 — mais que a produção lançada e mais que a posição
+ *     da temporada anterior.
+ *   - IDADE, por jogador, pela curva tirada de 22 mil pares de temporadas
+ *     seguidas do mesmo jogador na FBA, com freio perto do teto de OVR e o
+ *     bônus de potencial até os 24. É daqui que sai o envelhecimento do
+ *     elenco ao longo do sprint — e é por isso que time velho e forte hoje
+ *     aparece caindo lá na frente.
+ *   - O ACASO do tamanho que a liga mostrou ter, mais um sorteio de mudança
+ *     de elenco (troca, draft, leilão) que cresce a cada temporada à frente.
+ *   - OS PONTOS JÁ CONQUISTADOS, que são o ponto de partida, e os PONTOS
+ *     AINDA EM DISPUTA, que são as temporadas que faltam × a régua oficial.
+ *     Sprint acabando com alguém 40 pontos à frente é 100%, não "favorito".
+ *
+ * A simulação vai até a ÚLTIMA temporada do sprint, não até um horizonte
+ * arbitrário: a pergunta é sobre o fim dele, e cortar antes responderia
+ * outra coisa.
  *
  * ── O QUE ELE NÃO INVENTA ─────────────────────────────────────────────
  *
  * REBAIXAMENTO AUTOMÁTICO NÃO EXISTE NA FBA. Quem sobe e quem desce é chamada
  * de admin (api/admin.php, promoção por vaga aberta), e a única régua escrita
- * é a da ROOKIE: os 4 primeiros da classificação geral sobem no fim da edição
+ * é a da ROOKIE: os 4 primeiros da geral sobem no fim da edição
  * (ranking_ciclos.php, sobe_geral). Por isso as duas zonas são apresentadas
- * como ZONA DO RANKING — "terminar entre os primeiros" e "entre os últimos" —
- * e nunca como decreto. Da ELITE não se sobe pra lugar nenhum, então lá a
- * zona de cima nem aparece: o card de subida some e sobram título e queda.
+ * como POSIÇÃO NO RANKING, nunca como decreto. Da ELITE não se sobe, então lá
+ * o card de subida não existe.
  *
- * O HORIZONTE É CURTO DE PROPÓSITO. A ELITE tem sprint de 25 temporadas e
- * projetar até a 25ª é adivinhação: o próprio motor assume que o elenco foge
- * do previsto meio desvio por temporada, o que daqui a 20 temporadas embaralha
- * tudo. A projeção vai até SC_HORIZONTE temporadas à frente, ou até o fim do
- * sprint quando ele estiver mais perto que isso — e a tela diz qual dos dois.
+ * A JANELA DO TIME ("Em ascensão", "Reconstrução") é leitura da curva de
+ * idade, e não probabilidade: é para onde a força do elenco de hoje anda até
+ * o fim do sprint, com os números do lado. Troca e draft não estão nela.
  */
 
 require_once __DIR__ . '/duvida_projecoes.php';
 require_once __DIR__ . '/pontuacao_ranking.php';
 require_once __DIR__ . '/ranking_ciclos.php';
 
-/** Quantas vezes o sprint inteiro é sorteado. */
-const SC_SIMULACOES = 1200;
-
-/** Até quantas temporadas à frente a projeção do ranking vai. */
-const SC_HORIZONTE = 5;
+/**
+ * Quantas vezes o sprint inteiro é sorteado.
+ *
+ * Com 800 sorteios, uma chance perto de 20% sai com margem de ~1,4 ponto —
+ * suficiente pra uma tela que arredonda em décimos, e é o que mantém o
+ * cálculo da ELITE (sprint de 25 temporadas) em segundos e não em dezenas
+ * deles.
+ */
+const SC_SIMULACOES = 800;
 
 /** Tamanho das zonas do ranking (a de cima e a de baixo), em times. */
 const SC_ZONA = 4;
+
+/**
+ * Teto de temporadas simuladas à frente.
+ *
+ * Não é escolha de produto — a projeção vai até o fim do sprint de propósito.
+ * É guarda contra league_sprint_config com um número estranho, que faria a
+ * página rodar até o timeout.
+ */
+const SC_TETO_TEMPORADAS = 25;
+
+/** O máximo que uma temporada rende no ranking: 5 de posição + 10 de campeão. */
+const SC_PTS_POR_TEMPORADA = 15;
 
 /**
  * A versão do cálculo entra na chave do cache.
@@ -69,7 +87,7 @@ const SC_ZONA = 4;
  * os mesmos, e o servidor seguia entregando o número feito pela conta velha.
  * Toda mudança daqui mexe neste número.
  */
-const SC_VERSAO = 1;
+const SC_VERSAO = 2;
 
 /* ─────────────────────────────────────────────────────────────────────
    O CACHE
@@ -130,8 +148,29 @@ function scAssinatura(PDO $pdo, string $liga, ?array $temp): string
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   OS DADOS DE CONTEXTO (o que a tabela mostra ao lado da porcentagem)
+   OS DADOS DE CONTEXTO
    ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * Quantas temporadas tem o sprint da liga.
+ *
+ * A fonte é league_sprint_config, a mesma tabela que o Admin edita. O mapa
+ * abaixo é só a reserva pra base que ainda não tem a tabela — foi uma cópia
+ * fixa no código por muito tempo e só por sorte não divergiu.
+ */
+function scTotalDeTemporadas(PDO $pdo, string $liga): int
+{
+    static $mapa = null;
+    if ($mapa === null) {
+        $mapa = ['ELITE' => 25, 'NEXT' => 20, 'RISE' => 15, 'ROOKIE' => 15];
+        try {
+            foreach ($pdo->query('SELECT league, max_seasons FROM league_sprint_config') as $r) {
+                if ((int)$r['max_seasons'] > 0) $mapa[strtoupper((string)$r['league'])] = (int)$r['max_seasons'];
+            }
+        } catch (Throwable $e) {}
+    }
+    return $mapa[strtoupper(trim($liga))] ?? 0;
+}
 
 /**
  * Foto, GM, idade do elenco que forma a força e picks de 1ª rodada à frente.
@@ -141,8 +180,10 @@ function scAssinatura(PDO $pdo, string $liga, ?array $temp): string
  * anos que não joga.
  *
  * As picks entram como CONTEXTO, não como parte da conta: elas não mudam a
- * força de hoje, mudam a chance de o time ser outro daqui a dois anos, e isso
- * o motor já cobre no sorteio de mudança de elenco.
+ * força de hoje, e o que elas mudam — o time ser outro daqui a dois anos — o
+ * motor já cobre no sorteio de mudança de elenco. Aparecem na tabela porque
+ * ajudam a ler a janela: elenco velho sem pick nenhuma é outra história de
+ * elenco velho com cinco.
  */
 function scContextoDosTimes(PDO $pdo, string $liga): array
 {
@@ -181,7 +222,6 @@ function scContextoDosTimes(PDO $pdo, string $liga): array
         $ctx[$id]['idade'] = $idades ? round(array_sum($idades) / count($idades), 1) : null;
     }
 
-    // Picks de 1ª rodada que ainda vão acontecer — a mesma régua do bot.
     try {
         $corte = function_exists('anoDeCorteDasPicks') ? anoDeCorteDasPicks($pdo, $liga) : (int)date('Y');
         $st = $pdo->prepare("SELECT p.team_id, COUNT(*) n FROM picks p JOIN teams t ON t.id = p.team_id
@@ -196,25 +236,61 @@ function scContextoDosTimes(PDO $pdo, string $liga): array
     return $ctx;
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   A JANELA DO TIME — a leitura da curva de idade
+   ───────────────────────────────────────────────────────────────────── */
+
 /**
- * Quantas temporadas tem o sprint da liga.
+ * A JANELA É CURTA DE PROPÓSITO: as próximas temporadas, não o sprint todo.
  *
- * A fonte é league_sprint_config, a mesma tabela que o Admin edita. O mapa
- * abaixo é só a reserva pra base que ainda não tem a tabela — foi uma cópia
- * fixa no código por muito tempo e só por sorte não divergiu.
+ * A projeção de pontos vai até o fim do sprint porque é lá que o campeão é
+ * decidido. A janela do elenco, não: medida em 15 temporadas ela diz que todo
+ * time jovem tem o pico daqui a dez anos, o que é verdade pelo modelo e
+ * inútil pra quem está decidindo uma troca agora.
  */
-function scTotalDeTemporadas(PDO $pdo, string $liga): int
+const SC_JANELA_ANOS = 5;
+
+/**
+ * PRA ONDE O ELENCO DE HOJE ANDA nas próximas temporadas.
+ *
+ * O motor já devolve a força padronizada do time em cada temporada à frente
+ * (z[k]), que é o elenco de hoje envelhecido pela curva da FBA e medido
+ * contra a liga daquela mesma temporada. A janela é só a leitura disso:
+ * quanto o time ganha ou perde de posição relativa, e em que temporada ele
+ * está no auge.
+ *
+ * A LEITURA É EM z, E NÃO EM OVR, de propósito. Em OVR absoluto o elenco de
+ * todo mundo despenca ao longo do sprint, porque no modelo ninguém contrata
+ * ninguém — mostrar "88,6 hoje, 78,9 no fim" seria vender como previsão um
+ * artefato de não ter draft na conta. Contra a liga, que envelhece junto, o
+ * movimento que sobra é o real.
+ *
+ * NÃO É PROBABILIDADE, e o rótulo não promete nada: troca, draft e leilão
+ * não estão aqui. É o que acontece se ninguém mexer em nada — que é
+ * exatamente a pergunta de quem está decidindo se mexe.
+ *
+ * @return array ['rotulo','k_pico','z_hoje','z_fim','variacao']
+ */
+function scJanelaDoTime(array $z): array
 {
-    static $mapa = null;
-    if ($mapa === null) {
-        $mapa = ['ELITE' => 25, 'NEXT' => 20, 'RISE' => 15, 'ROOKIE' => 15];
-        try {
-            foreach ($pdo->query('SELECT league, max_seasons FROM league_sprint_config') as $r) {
-                if ((int)$r['max_seasons'] > 0) $mapa[strtoupper((string)$r['league'])] = (int)$r['max_seasons'];
-            }
-        } catch (Throwable $e) {}
-    }
-    return $mapa[strtoupper(trim($liga))] ?? 0;
+    $z = array_values($z);
+    $ate = min(count($z) - 1, SC_JANELA_ANOS);
+    $hoje = (float)($z[0] ?? 0.0);
+    $fim  = (float)($z[$ate] ?? $hoje);
+    $kPico = 0;
+    for ($k = 0; $k <= $ate; $k++) if ($z[$k] > $z[$kPico]) $kPico = $k;
+    $variacao = $fim - $hoje;
+
+    // Meio desvio é o tamanho que o motor dá a uma temporada inteira de
+    // mudança de elenco: abaixo disso o movimento não se distingue de ruído.
+    if      ($variacao >=  0.40) $rotulo = 'Em ascensão';
+    elseif  ($variacao <= -0.40) $rotulo = $hoje >= 0.40 ? 'Janela fechando' : 'Em queda';
+    elseif  ($hoje     >=  0.40) $rotulo = 'No pico';
+    elseif  ($hoje     <= -0.40) $rotulo = 'Reconstrução';
+    else                         $rotulo = 'Estável';
+
+    return ['rotulo' => $rotulo, 'k_pico' => $kPico, 'z_hoje' => round($hoje, 2),
+            'z_fim' => round($fim, 2), 'variacao' => round($variacao, 2)];
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -231,12 +307,11 @@ function scTotalDeTemporadas(PDO $pdo, string $liga): int
  * que a auditoria de 17/09 pegou na ELITE T4, e é por isso que a conta de
  * "quanto a T atual ainda deve" mora aqui e não é adivinhada.
  *
- * @return array ['fase','fixo','chave','inicio','titulo_de','fonte']
+ * @return array ['fase','fixo','chave','inicio','fonte']
  */
 function scFaseDaTemporada(PDO $pdo, string $liga, array $temp, array $ids): array
 {
     $sid = (int)$temp['id'];
-    $n   = (int)$temp['season_number'];
     $fixo = array_fill_keys($ids, 0);
 
     $registrada = false;
@@ -253,15 +328,13 @@ function scFaseDaTemporada(PDO $pdo, string $liga, array $temp, array $ids): arr
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $posAtual[(int)$r['team_id']] = (int)$r['position'];
     } catch (Throwable $e) {}
 
-    // 1) Temporada já registrada por inteiro: ela está toda no ranking e o
-    //    título em disputa é o da próxima.
+    // 1) Temporada já registrada por inteiro: ela está toda no ranking.
     if ($registrada) {
-        return ['fase' => 'encerrada', 'fixo' => $fixo, 'chave' => null,
-                'inicio' => 1, 'titulo_de' => $n + 1, 'fonte' => ''];
+        return ['fase' => 'encerrada', 'fixo' => $fixo, 'chave' => null, 'inicio' => 1, 'fonte' => ''];
     }
 
     // 2) Regular lançada, playoffs em aberto: a regular ainda deve pontos ao
-    //    ranking, e o título sai da chave que está montada.
+    //    ranking, e os playoffs saem da chave que está montada.
     if ($posAtual) {
         foreach ($posAtual as $id => $p) if (isset($fixo[$id])) $fixo[$id] += pontosPorPosicao($p);
         $chave = null; $fonte = '';
@@ -271,20 +344,19 @@ function scFaseDaTemporada(PDO $pdo, string $liga, array $temp, array $ids): arr
             $fonte = (string)$ch['fonte'];
         }
         return ['fase' => $chave ? 'playoffs' : 'entre', 'fixo' => $fixo, 'chave' => $chave,
-                'inicio' => 1, 'titulo_de' => $chave ? $n : $n + 1, 'fonte' => $fonte];
+                'inicio' => 1, 'fonte' => $fonte];
     }
 
     // 3) Regular rolando: a temporada inteira ainda vai ser jogada.
-    return ['fase' => 'regular', 'fixo' => $fixo, 'chave' => null,
-            'inicio' => 0, 'titulo_de' => $n, 'fonte' => ''];
+    return ['fase' => 'regular', 'fixo' => $fixo, 'chave' => null, 'inicio' => 0, 'fonte' => ''];
 }
 
 /**
- * O PACOTE DE UMA LIGA — é isto que a tela desenha.
+ * O PACOTE DE UMA LIGA — é isto que a tela e o /opta desenham.
  *
- * Uma simulação só responde tudo, de propósito: título, playoff e ranking
- * saem do MESMO sorteio, então os números conversam entre si. Em duas contas
- * separadas o time podia aparecer com 40% de título e 30% de playoff.
+ * Uma simulação só responde tudo, de propósito: campeão, subir e cair saem do
+ * MESMO sorteio, então os números conversam entre si. Em contas separadas o
+ * time podia aparecer com 40% de 1º lugar e 50% de ficar fora do top 4.
  */
 function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): array
 {
@@ -302,15 +374,18 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
     $ctx = scContextoDosTimes($pdo, $liga);
     if (count($ctx) < 4) return $vazio;
 
-    $ids = array_keys($ctx);
+    $ids  = array_keys($ctx);
     $fase = scFaseDaTemporada($pdo, $liga, $temp, $ids);
+    $n    = (int)$temp['season_number'];
 
-    $n = (int)$temp['season_number'];
-    // A última temporada do sprint, contada a partir da de agora (k = 0).
-    $fimDoSprint = $totalTemporadas > 0 ? max(0, $totalTemporadas - $n) : SC_HORIZONTE;
-    $inicio = (int)$fase['inicio'];
-    $ultimoK = min($fimDoSprint, $inicio + SC_HORIZONTE - 1);
-    $ateOFim = $ultimoK >= $fimDoSprint;
+    /* ATÉ O FIM DO SPRINT. A última temporada dele, contada a partir da de
+       agora (k = 0), é o que decide quem é campeão — cortar antes disso
+       responderia outra pergunta. O teto é só guarda contra configuração
+       estranha. */
+    $inicio  = (int)$fase['inicio'];
+    $ultimoK = $totalTemporadas > 0 ? max(0, $totalTemporadas - $n) : 4;
+    $ultimoK = min($ultimoK, SC_TETO_TEMPORADAS);
+    $restantes = max(0, $ultimoK - $inicio + 1);
 
     $times = projLigaNoFuturo($pdo, $liga, max($ultimoK, 0));
     if (count($times) < 4) return $vazio;
@@ -337,40 +412,24 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
 
     $N = SC_SIMULACOES;
     $zero = array_fill_keys(array_keys($times), 0);
-    $cTitulo = $zero; $cFinal = $zero; $cPlayoff = $zero; $cPrimeiro = $zero;
-    $cCima = $zero; $cBaixo = $zero; $somaPos = $zero; $somaTitulos = $zero;
+    $cCampeao = $zero; $cTop3 = $zero; $cCima = $zero; $cBaixo = $zero; $somaPos = $zero;
     $totais = array_fill_keys(array_keys($times), []);
 
     for ($s = 0; $s < $N; $s++) {
         $pts = [];
         foreach ($base as $id => $b) $pts[$id] = $b + ($fase['fixo'][$id] ?? 0);
 
-        // A temporada em disputa: ou os playoffs que já estão montados, ou ela
-        // inteira sorteada (regular + playoffs).
+        // Os playoffs que já estão montados: série decidida fica como foi, em
+        // aberto é sorteada pela força de hoje.
         if ($fase['chave']) {
-            $r = projRodarChave($fase['chave'], $serieAgora, $decididas);
-            foreach ($r['etapa'] as $id => $e) {
-                if (!isset($pts[$id])) continue;
-                $pts[$id] += pontosDePlayoff($e);
-                $cPlayoff[$id]++;
-                if ($e === 'champion' || $e === 'runner_up') $cFinal[$id]++;
-                if ($e === 'champion') { $cTitulo[$id]++; $somaTitulos[$id]++; }
+            foreach (projRodarChave($fase['chave'], $serieAgora, $decididas)['etapa'] as $id => $e) {
+                if (isset($pts[$id])) $pts[$id] += pontosDePlayoff($e);
             }
         }
 
         for ($k = $inicio; $k <= $ultimoK; $k++) {
-            $temporada = projSortearTemporada($times, projForcasSorteadas($times, $k));
-            foreach (projPontosDaTemporada($temporada) as $id => $p) {
+            foreach (projPontosDaTemporada(projSortearTemporada($times, projForcasSorteadas($times, $k))) as $id => $p) {
                 if (isset($pts[$id])) $pts[$id] += $p;
-            }
-            foreach ($temporada as $id => $t) {
-                if (!isset($pts[$id])) continue;
-                if ($t['etapa'] === 'champion') $somaTitulos[$id]++;
-                if ($k !== $inicio || $fase['chave']) continue;
-                // A primeira temporada sorteada é a que está em disputa.
-                if ($t['pos'] <= PROJ_VAGAS_PLAYOFF) $cPlayoff[$id]++;
-                if ($t['etapa'] === 'champion' || $t['etapa'] === 'runner_up') $cFinal[$id]++;
-                if ($t['etapa'] === 'champion') $cTitulo[$id]++;
             }
         }
 
@@ -383,55 +442,58 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
         foreach ($ordem as $id => $_) {
             $i++;
             $somaPos[$id] += $i;
-            if ($i === 1) $cPrimeiro[$id]++;
+            if ($i === 1) $cCampeao[$id]++;
+            if ($i <= 3) $cTop3[$id]++;
             if ($i <= $zonaCima) $cCima[$id]++;
             if ($i > $nTimes - $zonaBaixo) $cBaixo[$id]++;
         }
         foreach ($pts as $id => $p) $totais[$id][] = $p;
     }
 
-    // Posição de hoje no ranking (a mesma régua da tabela: pontos, títulos).
-    $hoje = $base;
+    // Posição de hoje no ranking.
     $posHoje = [];
-    $ordHoje = $hoje;
+    $ordHoje = $base;
     arsort($ordHoje);
     $i = 0;
     foreach ($ordHoje as $id => $_) $posHoje[$id] = ++$i;
+
+    $emDisputa = $restantes * SC_PTS_POR_TEMPORADA;
 
     $linhas = [];
     foreach ($times as $id => $t) {
         $xs = $totais[$id];
         sort($xs);
+        $janela = scJanelaDoTime($t['z']);
         $linhas[] = [
-            'id'       => $id,
-            'nome'     => $t['nome'],
-            'conf'     => $ctx[$id]['conf'] ?: ($t['conf'] !== 'Liga' ? $t['conf'] : ''),
-            'foto'     => $ctx[$id]['foto'] ?? null,
-            'gm'       => $ctx[$id]['gm'] ?? null,
-            'sem_gm'   => (bool)($ctx[$id]['sem_gm'] ?? false),
-            'forca'    => round($t['forca'][0], 1),
-            'z'        => round($t['z'][0], 2),
-            'idade'    => $ctx[$id]['idade'] ?? null,
-            'elenco'   => $ctx[$id]['elenco'] ?? 0,
-            'picks'    => $ctx[$id]['picks'] ?? 0,
-            'pts_hoje' => $hoje[$id],
-            'pos_hoje' => $posHoje[$id],
-            'titulo'   => round($cTitulo[$id]   / $N * 100, 1),
-            'final'    => round($cFinal[$id]    / $N * 100, 1),
-            'playoff'  => round($cPlayoff[$id]  / $N * 100, 1),
-            'primeiro' => round($cPrimeiro[$id] / $N * 100, 1),
-            'cima'     => round($cCima[$id]     / $N * 100, 1),
-            'baixo'    => round($cBaixo[$id]    / $N * 100, 1),
-            'titulos'  => round($somaTitulos[$id] / $N, 2),
-            'pts_fim'  => (int)round(array_sum($xs) / $N),
-            'pts_lo'   => (int)round(projQuantil($xs, 0.10)),
-            'pts_hi'   => (int)round(projQuantil($xs, 0.90)),
-            'pos_fim'  => round($somaPos[$id] / $N, 1),
+            'id'        => $id,
+            'nome'      => $t['nome'],
+            'conf'      => $ctx[$id]['conf'] ?: ($t['conf'] !== 'Liga' ? $t['conf'] : ''),
+            'foto'      => $ctx[$id]['foto'] ?? null,
+            'gm'        => $ctx[$id]['gm'] ?? null,
+            'sem_gm'    => (bool)($ctx[$id]['sem_gm'] ?? false),
+            'forca'     => round($t['forca'][0], 1),
+            'z'         => $janela['z_hoje'],
+            'variacao'  => $janela['variacao'],
+            'janela'    => $janela['rotulo'],
+            'pico'      => $n + $janela['k_pico'],
+            'idade'     => $ctx[$id]['idade'] ?? null,
+            'elenco'    => $ctx[$id]['elenco'] ?? 0,
+            'picks'     => $ctx[$id]['picks'] ?? 0,
+            'pts_hoje'  => $base[$id],
+            'pos_hoje'  => $posHoje[$id],
+            'campeao'   => round($cCampeao[$id] / $N * 100, 1),
+            'top3'      => round($cTop3[$id]    / $N * 100, 1),
+            'cima'      => round($cCima[$id]    / $N * 100, 1),
+            'baixo'     => round($cBaixo[$id]   / $N * 100, 1),
+            'pts_fim'   => (int)round(array_sum($xs) / $N),
+            'pts_lo'    => (int)round(projQuantil($xs, 0.10)),
+            'pts_hi'    => (int)round(projQuantil($xs, 0.90)),
+            'pos_media' => round($somaPos[$id] / $N, 1),
         ];
     }
 
     // Posição projetada = a ordem pela média de pontos, que é o que a tabela
-    // de fato vai mostrar. A média de posição fica como medida de dispersão.
+    // mostra. A média de posição fica guardada como medida de dispersão.
     usort($linhas, fn($a, $b) => $b['pts_fim'] <=> $a['pts_fim']);
     foreach ($linhas as $i => &$l) {
         $l['pos_proj'] = $i + 1;
@@ -447,21 +509,19 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
         'zona_cima'   => $zonaCima,
         'zona_baixo'  => $zonaBaixo,
         // Da ELITE não se sobe: é a liga de cima. Lá o card de subida nem
-        // existe — mostrar "chance de subir" pro campeão da ELITE seria
-        // oferecer uma porta que não tem do outro lado.
+        // existe — oferecer "chance de subir" ao campeão da ELITE seria
+        // mostrar uma porta sem o outro lado.
         'tem_subida'  => $liga !== 'ELITE',
-        // Sprint na última temporada, com ela já registrada: não sobrou nada
-        // pra simular. A tela mostra a tabela e cala as porcentagens em vez
-        // de encher a página de 0%.
-        'tem_titulo'  => array_sum(array_column($linhas, 'titulo')) > 0,
-        'tem_futuro'  => $ultimoK >= $inicio || !empty($fase['chave']),
         'sobe_de_vdd' => (int)(cicloConfig($liga)['sobe_geral'] ?? 0),
+        // Sprint na última temporada e ela já registrada: não sobrou nada em
+        // disputa, e a tabela vira o resultado em vez de projeção.
+        'tem_disputa' => $restantes > 0 || !empty($fase['chave']),
         'temporada'   => [
             'numero'    => $n,
             'total'     => $totalTemporadas ?: null,
-            'alvo'      => $n + $ultimoK,
-            'titulo_de' => (int)$fase['titulo_de'],
-            'ate_o_fim' => $ateOFim,
+            'fim'       => $n + $ultimoK,
+            'restantes' => $restantes,
+            'em_disputa'=> $emDisputa,
             'fase'      => $fase['fase'],
             'fonte'     => $fase['fonte'],
         ],
@@ -474,18 +534,18 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
 }
 
 /**
- * As quatro frases que resumem a liga.
+ * As frases que resumem a liga.
  *
  * O "mais aberto" é o time com a maior faixa de pontos (10%–90%): não é o
- * melhor nem o pior, é aquele cuja temporada ainda pode dar em qualquer coisa.
+ * melhor nem o pior, é aquele cujo sprint ainda pode dar em qualquer coisa.
  */
 function scDestaques(array $linhas): array
 {
     if (!$linhas) return [];
-    $porTitulo = $linhas; usort($porTitulo, fn($a, $b) => $b['titulo'] <=> $a['titulo']);
-    $porSubida = $linhas; usort($porSubida, fn($a, $b) => $b['delta'] <=> $a['delta']);
-    $porQueda  = $linhas; usort($porQueda,  fn($a, $b) => $a['delta'] <=> $b['delta']);
-    $porFaixa  = $linhas; usort($porFaixa,  fn($a, $b) => ($b['pts_hi'] - $b['pts_lo']) <=> ($a['pts_hi'] - $a['pts_lo']));
+    $porCampeao = $linhas; usort($porCampeao, fn($a, $b) => $b['campeao'] <=> $a['campeao']);
+    $porSubida  = $linhas; usort($porSubida,  fn($a, $b) => $b['delta'] <=> $a['delta']);
+    $porQueda   = $linhas; usort($porQueda,   fn($a, $b) => $a['delta'] <=> $b['delta']);
+    $porFaixa   = $linhas; usort($porFaixa,   fn($a, $b) => ($b['pts_hi'] - $b['pts_lo']) <=> ($a['pts_hi'] - $a['pts_lo']));
 
     /* UM TIME NÃO OCUPA DUAS CADEIRAS. Sem isso o mesmo nome aparecia como
        favorito, azarão e quem mais sobe ao mesmo tempo — cinco chips pra
@@ -501,16 +561,16 @@ function scDestaques(array $linhas): array
     };
 
     $d = [];
-    if ($fav = $primeiro($porTitulo, fn($l) => $l['titulo'] > 0)) {
-        $d[] = ['rotulo' => 'Favorito ao título', 'time' => $fav['nome'],
-                'valor' => scPct($fav['titulo']), 'cor' => 'ouro'];
+    if ($fav = $primeiro($porCampeao, fn($l) => $l['campeao'] > 0)) {
+        $d[] = ['rotulo' => 'Favorito ao sprint', 'time' => $fav['nome'],
+                'valor' => scPct($fav['campeao']), 'cor' => 'ouro'];
     }
-    // Azarão: o de maior chance de título entre os que hoje estão na metade
-    // de baixo do ranking. Favorito que já é 1º não é surpresa nenhuma.
+    // Azarão: a maior chance de 1º lugar entre os que hoje estão na metade de
+    // baixo do ranking. Favorito que já lidera não é surpresa nenhuma.
     $metade = (int)ceil(count($linhas) / 2);
-    if ($az = $primeiro($porTitulo, fn($l) => $l['pos_hoje'] > $metade && $l['titulo'] >= 1)) {
+    if ($az = $primeiro($porCampeao, fn($l) => $l['pos_hoje'] > $metade && $l['campeao'] >= 1)) {
         $d[] = ['rotulo' => 'Azarão', 'time' => $az['nome'],
-                'valor' => scPct($az['titulo']) . ' de título', 'cor' => 'roxo'];
+                'valor' => scPct($az['campeao']) . ' de 1º', 'cor' => 'roxo'];
     }
     if ($sb = $primeiro($porSubida, fn($l) => $l['delta'] > 0)) {
         $d[] = ['rotulo' => 'Quem mais sobe', 'time' => $sb['nome'],
@@ -538,7 +598,7 @@ function scTextoDaLista(string $emoji, string $titulo, array $linhas, string $ca
     if (!$validas) return '';
     $out = [$emoji . ' ' . mb_strtoupper($titulo) . ' — ' . $rotuloLiga];
     foreach (array_slice($validas, 0, $quantos) as $i => $l) {
-        $out[] = ($i + 1) . '. ' . $l['nome'] . ' — ' . $l[$campo] . '%';
+        $out[] = ($i + 1) . '. ' . $l['nome'] . ' — ' . scPct((float)$l[$campo]);
     }
     return implode("\n", $out);
 }

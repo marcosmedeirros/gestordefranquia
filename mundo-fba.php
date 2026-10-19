@@ -254,6 +254,17 @@ $leagueMeta  = [
 ];
 $leagueData  = [];
 
+/* O TIME DE QUEM ESTÁ OLHANDO, por liga.
+   O SuperComputador mostra o top 5 de cada corrida, e quem não está nele
+   some da tela — justamente quem mais quer se achar. Com o id em mãos, a
+   linha do GM aparece sempre, destacada, com a posição real ao lado. */
+$meuTimePorLiga = [];
+try {
+    $stMeu = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ?');
+    $stMeu->execute([$user['id']]);
+    foreach ($stMeu->fetchAll(PDO::FETCH_ASSOC) as $r) $meuTimePorLiga[strtoupper((string)$r['league'])] = (int)$r['id'];
+} catch (Exception $e) {}
+
 $capStmt = null;
 try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N . ') topn'); } catch (Exception $e) {}
 
@@ -940,9 +951,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .empty-state p { font-size:12px; margin:0; }
 
         /* ── SuperComputador FBA ────────────────────────────────────────
-           A cara do analista: índigo, que é a cor que ele já tinha, mas com
-           a hierarquia arrumada — as três listas de chance na frente, a
-           tabela de dados atrás de um accordion pra quem quiser conferir. */
+           Três corridas do sprint lado a lado — campeão, subir e cair — cada
+           uma com o top 5 na frente e a liga inteira atrás de um clique. A
+           linha de quem está olhando aparece nas duas, aberta ou fechada. */
         .sc-wrap {
             background: linear-gradient(135deg, rgba(99,102,241,.07) 0%, rgba(139,92,246,.05) 100%);
             border: 1px solid rgba(99,102,241,.22);
@@ -960,21 +971,19 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         :root[data-theme="light"] .sc-icon,
         :root[data-theme="light"] .sc-ia-tag,
         :root[data-theme="light"] .sc-sprint-label,
-        :root[data-theme="light"] .sc-dados > summary,
         :root[data-theme="light"] .sc-copy-btn { color:#4f46e5; }
         :root[data-theme="light"] .sc-block-title,
         :root[data-theme="light"] .sc-num,
         :root[data-theme="light"] .sc-pct,
+        :root[data-theme="light"] .sc-todos > summary,
         :root[data-theme="light"] .sc-chip .k { color:var(--sc-c,#4f46e5); }
 
         .sc-sprint-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:9px 13px; }
         :root[data-theme="light"] .sc-sprint-bar { background:rgba(99,102,241,.04); }
         .sc-sprint-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
-        .sc-sprint-track { flex:1; min-width:40px; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; position:relative; }
+        .sc-sprint-track { flex:1; min-width:40px; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
         .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
-        /* Onde a projeção para: o resto do sprint é areia movediça e a barra diz isso. */
-        .sc-sprint-mark  { position:absolute; top:-3px; bottom:-3px; width:2px; background:#f59e0b; border-radius:1px; }
-        .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); white-space:nowrap; }
+        .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); }
         .sc-sprint-info strong { color:var(--text); }
         @media(max-width:580px){ .sc-sprint-bar { flex-wrap:wrap; } .sc-sprint-track { order:3; flex-basis:100%; } }
 
@@ -985,63 +994,55 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-chip .k { display:block; font-size:9px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--sc-c,#818cf8); }
         .sc-chip .v { display:block; font-size:12px; font-weight:700; color:var(--text); margin-top:2px; line-height:1.25; }
         .sc-chip .n { display:block; font-size:10px; color:var(--text-2); }
-        .sc-chip.ouro      { --sc-c:#f59e0b; }
-        .sc-chip.roxo      { --sc-c:#a855f7; }
-        .sc-chip.verde     { --sc-c:#22c55e; }
-        .sc-chip.vermelho  { --sc-c:#ef4444; }
-        .sc-chip.azul      { --sc-c:#38bdf8; }
+        .sc-chip.ouro { --sc-c:#f59e0b; } .sc-chip.roxo { --sc-c:#a855f7; }
+        .sc-chip.verde { --sc-c:#22c55e; } .sc-chip.vermelho { --sc-c:#ef4444; }
+        .sc-chip.azul { --sc-c:#38bdf8; }
 
-        .sc-triple-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+        .sc-triple-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(275px,1fr)); gap:12px; }
         .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-top:2px solid var(--sc-c,#818cf8); border-radius:var(--radius-sm); padding:13px; min-width:0; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
-        .sc-block.ouro     { --sc-c:#f59e0b; }
-        .sc-block.verde    { --sc-c:#22c55e; }
-        .sc-block.vermelho { --sc-c:#ef4444; }
+        .sc-block.ouro { --sc-c:#f59e0b; } .sc-block.verde { --sc-c:#22c55e; } .sc-block.vermelho { --sc-c:#ef4444; }
         .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--sc-c,#818cf8); margin-bottom:3px; display:flex; align-items:center; gap:6px; }
         .sc-block-sub { font-size:10px; color:var(--text-3); margin-bottom:10px; }
         .sc-copy-btn { margin-left:auto; width:22px; height:22px; border-radius:6px; border:1px solid rgba(99,102,241,.25); background:rgba(99,102,241,.08); color:#818cf8; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; flex-shrink:0; transition:all .15s; }
         .sc-copy-btn:hover { background:rgba(99,102,241,.18); }
         .sc-copy-btn.copied { color:#22c55e; border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.12); }
 
-        .sc-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
+        .sc-row { display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid rgba(127,127,127,.1); border-radius:6px; }
         .sc-row:last-child { border-bottom:none; }
-        .sc-num { width:15px; font-size:11px; font-weight:800; color:var(--sc-c,#818cf8); flex-shrink:0; text-align:center; }
+        /* A linha de quem está olhando. O anel é o que a acha na lista de 32
+           sem precisar procurar o nome. */
+        .sc-row.eu { background:rgba(99,102,241,.14); box-shadow:inset 0 0 0 1px rgba(99,102,241,.45); }
+        :root[data-theme="light"] .sc-row.eu { background:rgba(99,102,241,.1); }
+        .sc-eu { flex-shrink:0; font-size:8px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; color:#818cf8; border:1px solid rgba(99,102,241,.4); border-radius:999px; padding:1px 5px; }
+        :root[data-theme="light"] .sc-eu { color:#4f46e5; }
+        .sc-num { width:20px; font-size:11px; font-weight:800; color:var(--sc-c,#818cf8); flex-shrink:0; text-align:center; }
         .sc-tlogo { width:26px; height:26px; border-radius:6px; object-fit:cover; flex-shrink:0; border:1px solid rgba(99,102,241,.18); background:var(--panel-3); }
         .sc-tinfo { flex:1; min-width:0; }
-        .sc-tname { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sc-tname { font-size:12px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px; min-width:0; }
+        .sc-tname > span:first-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .sc-tmeta { font-size:10px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .sc-prob-col { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; width:54px; }
         .sc-pct { font-size:13px; font-weight:800; color:var(--sc-c,#818cf8); line-height:1; }
         .sc-bar { width:54px; height:4px; background:rgba(127,127,127,.18); border-radius:2px; overflow:hidden; }
         .sc-bar-fill { height:100%; background:var(--sc-c,#818cf8); border-radius:2px; }
         .sc-vazio { font-size:11px; color:var(--text-3); padding:10px 0; }
+        /* "Fora do top 5, o seu está aqui" — separa sem parecer outra lista. */
+        .sc-sep { display:flex; align-items:center; gap:7px; margin:8px 0 4px; font-size:9px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--text-3); }
+        .sc-sep::before, .sc-sep::after { content:''; flex:1; height:1px; background:rgba(127,127,127,.18); }
 
-        /* A tabela de dados: fechada por padrão, porque o que a maioria quer
-           é a porcentagem — mas ela existe pra ninguém ter que acreditar no
-           número no escuro. */
-        .sc-dados { margin-top:14px; border-top:1px solid rgba(99,102,241,.14); padding-top:12px; }
-        .sc-dados > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:#818cf8; }
-        .sc-dados > summary::-webkit-details-marker { display:none; }
-        .sc-dados > summary .bi-chevron-down { margin-left:auto; transition:transform .2s; }
-        .sc-dados[open] > summary .bi-chevron-down { transform:rotate(180deg); }
-        .sc-tab-wrap { margin-top:10px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-        /* No celular a tabela nao cabe e o arrasto nao se anuncia sozinho. */
-        .sc-arrasta { display:none; font-size:10px; color:var(--text-3); margin:6px 0 0; }
-        @media(max-width:760px){ .sc-arrasta { display:block; } }
-        table.sc-tab { width:100%; border-collapse:collapse; font-size:11px; min-width:620px; }
-        table.sc-tab th { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-3); text-align:right; padding:6px 7px; border-bottom:1px solid rgba(99,102,241,.16); white-space:nowrap; }
-        table.sc-tab th:nth-child(-n+2), table.sc-tab td:nth-child(-n+2) { text-align:left; }
-        table.sc-tab td { padding:6px 7px; text-align:right; border-bottom:1px solid rgba(127,127,127,.09); color:var(--text-2); white-space:nowrap; }
-        table.sc-tab tbody tr:hover td { background:rgba(99,102,241,.06); }
-        table.sc-tab .t-pos { width:26px; font-weight:800; color:var(--text-3); }
-        table.sc-tab .t-nome { font-weight:700; color:var(--text); max-width:190px; overflow:hidden; text-overflow:ellipsis; }
-        table.sc-tab .t-nome small { display:block; font-weight:500; color:var(--text-3); font-size:9px; }
-        table.sc-tab .t-forte { color:var(--text); font-weight:700; }
-        .sc-delta-up   { color:#22c55e; font-weight:700; }
-        .sc-delta-down { color:#ef4444; font-weight:700; }
-        .sc-delta-zero { color:var(--text-3); }
-        .sc-faixa { color:var(--text-3); font-size:10px; }
-        .sc-nota { font-size:10px; line-height:1.55; color:var(--text-3); margin:10px 0 0; }
+        .sc-todos { margin-top:10px; border-top:1px solid rgba(127,127,127,.14); padding-top:9px; }
+        .sc-todos > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--sc-c,#818cf8); }
+        .sc-todos > summary::-webkit-details-marker { display:none; }
+        .sc-todos > summary .bi-chevron-down { margin-left:auto; transition:transform .2s; }
+        .sc-todos[open] > summary .bi-chevron-down { transform:rotate(180deg); }
+        .sc-todos[open] > summary .sc-abrir { display:none; }
+        .sc-todos:not([open]) > summary .sc-fechar { display:none; }
+        /* Sem altura máxima: lista rolável dentro de página rolável prende o
+           dedo no celular, e a lista inteira é justamente o que o clique pediu. */
+        .sc-lista-toda { margin-top:6px; }
+
+        .sc-nota { font-size:10px; line-height:1.55; color:var(--text-3); margin:14px 0 0; border-top:1px solid rgba(99,102,241,.14); padding-top:11px; }
         .sc-nota b { color:var(--text-2); font-weight:700; }
         /* ── Previsão da Temporada accordion ───────────────── */
         .sc-preview-confs { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
@@ -1516,30 +1517,54 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             $an = $d['analysis'] ?? [];
             if (!empty($an['tem_dados'])):
                 $scT   = $an['temporada'];
-                $scAlvo = 'T' . $scT['alvo'];
-                $scJanela = $scT['ate_o_fim'] ? "até o fim do sprint ({$scAlvo})" : "até a {$scAlvo}";
-                // As três listas saem da MESMA simulação, só ordenadas por
-                // coluna diferente — por isso os números conversam entre si.
-                $scTop = function (string $campo, int $n = 5) use ($an): array {
-                    $xs = $an['times'];
-                    usort($xs, fn($a, $b) => $b[$campo] <=> $a[$campo]);
-                    return array_values(array_filter(array_slice($xs, 0, $n), fn($l) => (float)$l[$campo] > 0));
+                $scFim = 'T' . $scT['fim'];
+                $scEuId = $meuTimePorLiga[$league] ?? 0;
+
+                /* AS TRÊS CORRIDAS DO SPRINT. Todas saem do mesmo sorteio e
+                   da mesma lista — só muda por qual coluna ela é ordenada,
+                   e é por isso que os números conversam entre si. */
+                $scCorridas = [['campeao', 'ouro', 'bi-trophy-fill', 'Campeão do sprint',
+                                "terminar a {$scFim} em 1º no ranking", '🏆']];
+                if (!empty($an['tem_subida'])) {
+                    $scCorridas[] = ['cima', 'verde', 'bi-arrow-up-circle-fill', 'Chance de subir',
+                                     "terminar entre os {$an['zona_cima']} primeiros na {$scFim}", '🟢'];
+                }
+                $scCorridas[] = ['baixo', 'vermelho', 'bi-arrow-down-circle-fill', 'Chance de cair',
+                                 "terminar entre os {$an['zona_baixo']} últimos na {$scFim}", '🔴'];
+
+                // Uma linha da lista. A mesma nos três cards e nos dois
+                // estados (top 5 e lista inteira), senão elas se separam.
+                $scLinha = function (array $l, int $pos, string $campo, float $max) use ($scEuId) {
+                    $v = (float)$l[$campo];
+                    ob_start(); ?>
+                    <div class="sc-row<?= (int)$l['id'] === $scEuId ? ' eu' : '' ?>">
+                        <div class="sc-num"><?= $pos ?></div>
+                        <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                        <div class="sc-tinfo">
+                            <div class="sc-tname">
+                                <span><?= htmlspecialchars($l['nome']) ?></span>
+                                <?php if ((int)$l['id'] === $scEuId): ?><span class="sc-eu">você</span><?php endif; ?>
+                            </div>
+                            <?php /* Abreviado porque o card é estreito e a linha trunca: o
+                                    que não couber some, e some justo no fim, onde está a
+                                    janela — a informação que explica o número. */ ?>
+                            <div class="sc-tmeta"><?= $l['pts_hoje'] ?>→<?= $l['pts_fim'] ?> pts<?=
+                                $l['idade'] !== null ? ' · ' . number_format((float)$l['idade'], 1, ',', '.') . 'a' : '' ?>
+                                · <?= htmlspecialchars($l['janela']) ?></div>
+                        </div>
+                        <div class="sc-prob-col">
+                            <div class="sc-pct"><?= scPct($v) ?></div>
+                            <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= $max > 0 ? round($v / $max * 100) : 0 ?>%"></div></div>
+                        </div>
+                    </div>
+                    <?php return ob_get_clean();
                 };
-                $scWa = function (string $emoji, string $titulo, array $linhas, string $campo) use ($meta): string {
-                    if (!$linhas) return '';
-                    $out = [$emoji . ' ' . mb_strtoupper($titulo) . ' — ' . $meta['label']];
-                    foreach ($linhas as $i => $l) $out[] = ($i + 1) . '. ' . $l['nome'] . ' — ' . scPct((float)$l[$campo]);
-                    return implode("\n", $out);
-                };
-                $scCampeao = $scTop('titulo');
-                $scCima    = !empty($an['tem_subida']) ? $scTop('cima') : [];
-                $scBaixo   = $scTop('baixo');
-                $scFases   = ['regular' => 'Temporada regular', 'playoffs' => 'Playoffs em andamento',
-                              'entre' => 'Entre temporadas', 'encerrada' => 'Temporada registrada'];
+                $scFases = ['regular' => 'Temporada regular', 'playoffs' => 'Playoffs em andamento',
+                            'entre' => 'Entre temporadas', 'encerrada' => 'Temporada registrada'];
             ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
-                SUPERCOMPUTADOR FBA · as chances da liga
+                SUPERCOMPUTADOR FBA · as chances do sprint
             </div>
             <div class="sc-wrap">
 
@@ -1547,7 +1572,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <div class="sc-icon"><i class="bi bi-cpu-fill"></i></div>
                     <div style="min-width:0">
                         <div class="sc-ttl">SuperComputador FBA</div>
-                        <div class="sc-sub"><?= number_format($an['n_sim'], 0, ',', '.') ?> sprints simulados · força do elenco + os pontos já somados</div>
+                        <div class="sc-sub">o sprint sorteado <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes · elenco, idade e os pontos já somados</div>
                     </div>
                     <div class="sc-badges">
                         <?php if (!empty($scT['total'])): ?>
@@ -1557,20 +1582,15 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
                 </div>
 
-                <?php if (!empty($scT['total'])):
-                    $scPct  = $scT['total'] > 0 ? round($scT['numero'] / $scT['total'] * 100) : 0;
-                    $scPctP = $scT['total'] > 0 ? round($scT['alvo']   / $scT['total'] * 100) : 0;
-                    $scFalta = max(0, (int)$scT['total'] - (int)$scT['numero']);
-                ?>
+                <?php if (!empty($scT['total'])): $scPc = $scT['total'] > 0 ? round($scT['numero'] / $scT['total'] * 100) : 0; ?>
                 <div class="sc-sprint-bar">
                     <span class="sc-sprint-label"><i class="bi bi-hourglass-split me-1"></i>Sprint</span>
-                    <div class="sc-sprint-track" title="A marca laranja é até onde a projeção vai">
-                        <div class="sc-sprint-fill" style="width:<?= $scPct ?>%"></div>
-                        <?php if (!$scT['ate_o_fim']): ?><div class="sc-sprint-mark" style="left:<?= $scPctP ?>%"></div><?php endif; ?>
-                    </div>
+                    <div class="sc-sprint-track"><div class="sc-sprint-fill" style="width:<?= $scPc ?>%"></div></div>
                     <span class="sc-sprint-info">
                         <strong>T<?= $scT['numero'] ?></strong>/<?= $scT['total'] ?> ·
-                        <?= $scFalta === 0 ? 'última do sprint' : ($scFalta === 1 ? 'falta 1 temporada' : "faltam {$scFalta} temporadas") ?>
+                        <?= $scT['restantes'] === 0 ? 'sprint decidido'
+                            : ($scT['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$scT['restantes']} temporadas") ?>
+                        <?= $scT['em_disputa'] > 0 ? ' · até <strong>' . $scT['em_disputa'] . '</strong> pts em disputa' : '' ?>
                     </span>
                 </div>
                 <?php endif; ?>
@@ -1588,152 +1608,79 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <?php endif; ?>
 
                 <div class="sc-triple-grid">
+                <?php foreach ($scCorridas as [$scCampo, $scCor, $scIcone, $scTitulo, $scSub, $scEmoji]):
+                    $scLista = $an['times'];
+                    usort($scLista, fn($a, $b) => $b[$scCampo] <=> $a[$scCampo]);
+                    $scMax = (float)($scLista[0][$scCampo] ?? 0);
+                    $scTop = array_slice($scLista, 0, 5);
+                    $scTop = array_values(array_filter($scTop, fn($l) => (float)$l[$scCampo] > 0));
 
-                    <div class="sc-block ouro">
-                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Chance de título
-                            <?php if ($scCampeao): ?>
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🏆', 'Chance de título', $scCampeao, 'titulo')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
+                    // Onde o time de quem está olhando caiu nesta corrida.
+                    $scEuPos = 0;
+                    foreach ($scLista as $k => $l) if ((int)$l['id'] === $scEuId) { $scEuPos = $k + 1; break; }
+
+                    $scWa = '';
+                    if ($scTop) {
+                        $linhas = [$scEmoji . ' ' . mb_strtoupper($scTitulo) . ' — ' . $meta['label']];
+                        foreach ($scTop as $k => $l) $linhas[] = ($k + 1) . '. ' . $l['nome'] . ' — ' . scPct((float)$l[$scCampo]);
+                        $scWa = implode("\n", $linhas);
+                    }
+                ?>
+                    <div class="sc-block <?= $scCor ?>">
+                        <div class="sc-block-title"><i class="bi <?= $scIcone ?>"></i> <?= htmlspecialchars($scTitulo) ?>
+                            <?php if ($scWa !== ''): ?>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
                             <?php endif; ?>
                         </div>
-                        <div class="sc-block-sub">quem levanta a taça da T<?= $scT['titulo_de'] ?></div>
-                        <?php if (!$scCampeao): ?>
-                        <div class="sc-vazio">O sprint acabou — não há temporada em disputa.</div>
-                        <?php else:
-                            $scMax = max(array_column($scCampeao, 'titulo')) ?: 1;
-                            foreach ($scCampeao as $i => $l): ?>
-                        <div class="sc-row">
-                            <div class="sc-num"><?= $i + 1 ?></div>
-                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                            <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
-                                <div class="sc-tmeta">força <?= $l['forca'] ?> · <?= scPct((float)$l['playoff']) ?> de playoff</div>
-                            </div>
-                            <div class="sc-prob-col">
-                                <div class="sc-pct"><?= scPct((float)$l['titulo']) ?></div>
-                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['titulo'] / $scMax * 100) ?>%"></div></div>
-                            </div>
-                        </div>
-                        <?php endforeach; endif; ?>
-                    </div>
+                        <div class="sc-block-sub"><?= htmlspecialchars($scSub) ?></div>
 
-                    <?php if (!empty($an['tem_subida'])): ?>
-                    <div class="sc-block verde">
-                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill"></i> Chance de subir
-                            <?php if ($scCima): ?>
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🟢', 'Chance de subir', $scCima, 'cima')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
-                            <?php endif; ?>
-                        </div>
-                        <div class="sc-block-sub">terminar entre os <?= $an['zona_cima'] ?> primeiros do ranking <?= htmlspecialchars($scJanela) ?></div>
-                        <?php if (!$scCima): ?>
-                        <div class="sc-vazio">Sem corrida pela zona de cima nesta janela.</div>
+                        <?php if (!$scTop): ?>
+                        <div class="sc-vazio">Ninguém com chance medível nesta corrida.</div>
                         <?php else:
-                            $scMax = max(array_column($scCima, 'cima')) ?: 1;
-                            foreach ($scCima as $i => $l): ?>
-                        <div class="sc-row">
-                            <div class="sc-num"><?= $i + 1 ?></div>
-                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                            <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
-                                <div class="sc-tmeta"><?= $l['pts_hoje'] ?> pts hoje · <?= $l['pts_fim'] ?> projetados</div>
-                            </div>
-                            <div class="sc-prob-col">
-                                <div class="sc-pct"><?= scPct((float)$l['cima']) ?></div>
-                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['cima'] / $scMax * 100) ?>%"></div></div>
-                            </div>
-                        </div>
-                        <?php endforeach; endif; ?>
-                    </div>
-                    <?php endif; ?>
+                            foreach ($scTop as $k => $l) echo $scLinha($l, $k + 1, $scCampo, $scMax);
+                        endif; ?>
 
-                    <div class="sc-block vermelho">
-                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill"></i> Chance de cair
-                            <?php if ($scBaixo): ?>
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🔴', 'Chance de cair', $scBaixo, 'baixo')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
-                            <?php endif; ?>
-                        </div>
-                        <div class="sc-block-sub">terminar entre os <?= $an['zona_baixo'] ?> últimos do ranking <?= htmlspecialchars($scJanela) ?></div>
-                        <?php if (!$scBaixo): ?>
-                        <div class="sc-vazio">Ninguém com chance medível de terminar lá embaixo.</div>
-                        <?php else:
-                            $scMax = max(array_column($scBaixo, 'baixo')) ?: 1;
-                            foreach ($scBaixo as $i => $l): ?>
-                        <div class="sc-row">
-                            <div class="sc-num"><?= $i + 1 ?></div>
-                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                            <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
-                                <div class="sc-tmeta"><?= $l['pts_hoje'] ?> pts hoje · <?= $l['pts_fim'] ?> projetados</div>
-                            </div>
-                            <div class="sc-prob-col">
-                                <div class="sc-pct"><?= scPct((float)$l['baixo']) ?></div>
-                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['baixo'] / $scMax * 100) ?>%"></div></div>
-                            </div>
-                        </div>
-                        <?php endforeach; endif; ?>
-                    </div>
+                        <?php /* Fora do top 5, a linha de quem está olhando vem logo
+                                abaixo — é o primeiro lugar onde ele procura. */
+                        if ($scEuPos > count($scTop)): ?>
+                        <div class="sc-sep">o seu time</div>
+                        <?= $scLinha($scLista[$scEuPos - 1], $scEuPos, $scCampo, $scMax) ?>
+                        <?php endif; ?>
 
+                        <?php if (count($scLista) > count($scTop)): ?>
+                        <details class="sc-todos">
+                            <summary>
+                                <i class="bi bi-list-ol"></i>
+                                <span class="sc-abrir">ver os <?= count($scLista) ?> times</span>
+                                <span class="sc-fechar">fechar a lista</span>
+                                <i class="bi bi-chevron-down"></i>
+                            </summary>
+                            <div class="sc-lista-toda">
+                                <?php foreach ($scLista as $k => $l) echo $scLinha($l, $k + 1, $scCampo, $scMax); ?>
+                            </div>
+                        </details>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
                 </div><!-- /sc-triple-grid -->
 
-                <details class="sc-dados">
-                    <summary>
-                        <i class="bi bi-table"></i> A tabela por trás das chances — os <?= $an['n_times'] ?> times
-                        <i class="bi bi-chevron-down"></i>
-                    </summary>
-                    <p class="sc-arrasta"><i class="bi bi-arrow-left-right"></i> arraste a tabela pro lado pra ver todas as colunas</p>
-                    <div class="sc-tab-wrap">
-                        <table class="sc-tab">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Time</th>
-                                    <th title="OVR ponderado dos 8 melhores do elenco">Força</th>
-                                    <th title="Idade média dos 8 que formam a força">Idade</th>
-                                    <th>Pts hoje</th>
-                                    <th title="Pontos projetados, com a faixa que cobre 80% das simulações"><?= htmlspecialchars($scAlvo) ?></th>
-                                    <th title="Quantas posições o time ganha ou perde no ranking">Δ</th>
-                                    <th>Título</th>
-                                    <th>Playoff</th>
-                                    <th>1º</th>
-                                    <th>Fundo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($an['times'] as $l): ?>
-                                <tr>
-                                    <td class="t-pos"><?= $l['pos_proj'] ?></td>
-                                    <td class="t-nome">
-                                        <?= htmlspecialchars($l['nome']) ?>
-                                        <small><?= $l['sem_gm'] ? 'sem GM' : htmlspecialchars($l['gm'] ?? '—') ?><?= $l['conf'] ? ' · ' . htmlspecialchars(ucfirst(mb_strtolower($l['conf'], 'UTF-8'))) : '' ?></small>
-                                    </td>
-                                    <td class="t-forte"><?= number_format($l['forca'], 1, ',', '.') ?></td>
-                                    <td><?= $l['idade'] !== null ? number_format($l['idade'], 1, ',', '.') : '—' ?></td>
-                                    <td><?= $l['pts_hoje'] ?></td>
-                                    <td class="t-forte"><?= $l['pts_fim'] ?> <span class="sc-faixa"><?= $l['pts_lo'] ?>–<?= $l['pts_hi'] ?></span></td>
-                                    <td class="<?= $l['delta'] > 0 ? 'sc-delta-up' : ($l['delta'] < 0 ? 'sc-delta-down' : 'sc-delta-zero') ?>">
-                                        <?= $l['delta'] > 0 ? '+' . $l['delta'] : ($l['delta'] < 0 ? $l['delta'] : '—') ?>
-                                    </td>
-                                    <td><?= scPct((float)$l['titulo']) ?></td>
-                                    <td><?= scPct((float)$l['playoff']) ?></td>
-                                    <td><?= scPct((float)$l['primeiro']) ?></td>
-                                    <td><?= scPct((float)$l['baixo']) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="sc-nota">
-                        <b>Como a conta é feita.</b> A força de cada time é o OVR ponderado dos 8 melhores do elenco —
-                        a régua que, medida na própria FBA, acerta a ordem final com correlação 0,67. O sprint é sorteado
-                        <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes a partir dos pontos que cada um já tem, com os elencos envelhecendo pela
-                        curva de idade tirada de 22 mil temporadas de jogadores da liga, e com o acaso do tamanho que a liga
-                        mostrou ter. A projeção vai <?= htmlspecialchars($scJanela) ?> porque mais longe que isso vira adivinhação.
-                        <?php if (!empty($scT['fonte'])): ?>Os playoffs desta temporada saem de <?= htmlspecialchars($scT['fonte']) ?>.<?php endif; ?>
-                        <br>
-                        <b>O que não entra.</b> Troca, draft e leilão só aparecem como um sorteio de mudança de elenco que cresce
-                        a cada temporada à frente. Prêmio individual e NBA Cup não contam ponto aqui.
-                        <b>Subir e cair são posição no ranking</b>, não decreto: promoção na FBA é chamada de admin.
-                    </p>
-                </details>
+                <p class="sc-nota">
+                    <b>Como a conta é feita.</b> O sprint inteiro é sorteado <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes, da
+                    temporada de agora até a <?= htmlspecialchars($scFim) ?>, partindo dos pontos que cada time já tem no ranking.
+                    A força de cada um é o OVR ponderado dos 8 melhores do elenco — a régua que, medida na própria FBA,
+                    acerta a ordem final com correlação 0,67 — e a cada temporada à frente o elenco envelhece pela curva
+                    tirada de 22 mil temporadas de jogadores da liga, com o acaso do tamanho que a FBA mostrou ter.
+                    Cada temporada sorteada vale a régua oficial: posição na conferência (1º-2º 5, 3º-4º 4, 5º-6º 3,
+                    7º-8º 2, 9º-10º 1) e playoffs (2ª rodada 1, final de conferência 3, vice 7, campeão 10).
+                    <?php if (!empty($scT['fonte'])): ?>Os playoffs desta temporada saem de <?= htmlspecialchars($scT['fonte']) ?>.<?php endif; ?>
+                    <br>
+                    <b>A janela</b> ("Em ascensão", "No pico", "Reconstrução") é a leitura da curva de idade nas próximas
+                    5 temporadas, medida contra a liga, que envelhece junto. Não é probabilidade: diz para onde o elenco
+                    de hoje anda se ninguém mexer em nada.
+                    <b>O que não entra:</b> troca, draft e leilão só aparecem como um sorteio de mudança de elenco que
+                    cresce a cada temporada; prêmio individual e NBA Cup não contam ponto aqui.
+                    <b>Subir e cair são posição no ranking</b>, não decreto: promoção na FBA é chamada de admin.
+                </p>
 
             </div><!-- /sc-wrap -->
             <?php endif; ?>

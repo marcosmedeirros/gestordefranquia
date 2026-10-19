@@ -583,7 +583,7 @@ function wcAjuda(): string
         . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
         . "/meutime — seu elenco\n"
         . "/meucap — sua folha e o espaço no cap\n"
-        . "/meuopta — as chances do seu time: título, subir e cair\n"
+        . "/meuopta — as chances do seu time no sprint: campeão, subir e cair\n"
         . "/minhaspicks — as picks que você tem\n"
         . "/meutblock — seu trade block
 "
@@ -598,7 +598,7 @@ function wcAjuda(): string
         . "/power — o power ranking da liga (elenco, astros, idade, pontuação e campanha)\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
-        . "/opta — as chances da liga: título, subir e cair\n"
+        . "/opta — as chances do sprint: campeão, subir e cair\n"
         . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
@@ -2879,20 +2879,22 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
 }
 
 /**
- * /opta — as chances da liga: título, subir e cair.
+ * /opta — as chances do sprint: campeão, subir e cair.
  *
  * O NOME É HOMENAGEM, E A CONTA NÃO É CHUTE. A mesma simulação que desenha o
  * SuperComputador no Mundo FBA (backend/supercomputador.php) responde aqui:
- * o sprint sorteado 1.200 vezes a partir dos pontos de hoje, com os elencos
+ * o sprint inteiro sorteado a partir dos pontos de hoje, com os elencos
  * envelhecendo pela curva de idade medida na própria FBA.
  *
- * Três listas, cinco times cada, porque é o que cabe numa mensagem de grupo
- * sem virar rolagem: quem leva o título, quem termina na zona de cima e quem
- * termina na zona de baixo do ranking.
+ * CAMPEÃO É QUEM TERMINA O SPRINT EM 1º no ranking geral — não o campeão dos
+ * playoffs de uma temporada. É a corrida que a liga disputa de verdade, e é
+ * o que decide quem sobe e quem cai. Vale igual nas quatro ligas; na ELITE,
+ * onde não há pra onde subir, o 1º lugar é o troféu.
  *
- * DA ELITE NÃO SE SOBE, então lá a lista do meio não aparece — o que sobra é
- * título e queda. Fingir uma "chance de subir" pra quem já está na liga de
- * cima seria inventar uma porta sem o outro lado.
+ * Três listas, cinco times cada, porque é o que cabe numa mensagem de grupo
+ * sem virar rolagem. DA ELITE NÃO SE SOBE, então lá a lista do meio não
+ * aparece — fingir uma "chance de subir" pra quem já está na liga de cima
+ * seria inventar uma porta sem o outro lado.
  */
 function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
@@ -2915,42 +2917,38 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     if (empty($p['tem_dados'])) return "A {$liga} ainda não tem temporada e elenco pra projetar.";
 
     $t = $p['temporada'];
-    $alvo = 'T' . $t['alvo'];
-    $janela = $t['ate_o_fim'] ? "até o fim do sprint ({$alvo})" : "até a {$alvo}";
+    $fim = 'T' . $t['fim'];
 
-    $linha = function (array $l, int $i, string $campo, string $extra = ''): string {
-        return $i . '. *' . $l['nome'] . '* — ' . scPct((float)$l[$campo]) . $extra . "\n";
-    };
     $top = function (string $campo) use ($p): array {
         $xs = $p['times'];
         usort($xs, fn($a, $b) => $b[$campo] <=> $a[$campo]);
         return array_values(array_filter(array_slice($xs, 0, 5), fn($l) => (float)$l[$campo] > 0));
     };
+    $lista = function (array $linhas, string $campo): string {
+        $out = '';
+        foreach ($linhas as $i => $l) $out .= ($i + 1) . '. *' . $l['nome'] . '* — ' . scPct((float)$l[$campo]) . "\n";
+        return $out;
+    };
 
     $txt = "🤖 *OPTA FBA · {$liga}*\n_T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-         . ' · ' . number_format($p['n_sim'], 0, ',', '.') . " simulações do sprint_\n";
+         . ' · ' . ($t['restantes'] === 0 ? 'sprint decidido'
+                 : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
+         . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    $campeao = $top('titulo');
+    $campeao = $top('campeao');
     if ($campeao) {
-        $txt .= "\n🏆 *Campeão da T{$t['titulo_de']}*\n";
-        foreach ($campeao as $i => $l) $txt .= $linha($l, $i + 1, 'titulo');
+        $txt .= "\n🏆 *Campeão do sprint* _(1º na {$fim})_\n" . $lista($campeao, 'campeao');
     }
 
     if (!empty($p['tem_subida'])) {
         $sobe = $top('cima');
-        if ($sobe) {
-            $txt .= "\n🟢 *Zona de cima — top {$p['zona_cima']} do ranking {$janela}*\n";
-            foreach ($sobe as $i => $l) $txt .= $linha($l, $i + 1, 'cima');
-        }
+        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} na {$fim})_\n" . $lista($sobe, 'cima');
     }
 
     $cai = $top('baixo');
-    if ($cai) {
-        $txt .= "\n🔴 *Zona de baixo — últimos {$p['zona_baixo']} do ranking {$janela}*\n";
-        foreach ($cai as $i => $l) $txt .= $linha($l, $i + 1, 'baixo');
-    } else {
-        $txt .= "\n🔴 *Zona de baixo* — ninguém com chance medível de cair pra lá.\n";
-    }
+    $txt .= $cai
+        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} na {$fim})_\n" . $lista($cai, 'baixo')
+        : "\n🔴 *Cair* — ninguém com chance medível de terminar lá embaixo.\n";
 
     if (!empty($p['destaques'])) {
         $chips = array_map(fn($d) => $d['rotulo'] . ': ' . $d['time'] . ' (' . $d['valor'] . ')', $p['destaques']);
@@ -2960,9 +2958,11 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     /* A BASE FICA JUNTO DO NÚMERO. Porcentagem sem régua no grupo vira
        discussão sobre o que o bot "acha"; com a régua escrita, a discussão
        é sobre a régua, que é a conversa que vale. */
-    $txt .= "\n_Conta: força do elenco (OVR ponderado dos 8 melhores, que acerta "
-          . "a ordem final da FBA com correlação 0,67) + os pontos já somados no ranking. "
-          . "Subir e cair são posição no ranking, não decreto — quem promove é o admin._";
+    $txt .= "\n_Conta: os pontos que cada um já tem + o sprint sorteado "
+          . number_format($p['n_sim'], 0, ',', '.') . " vezes, com a força do elenco "
+          . "(OVR ponderado dos 8 melhores, correlação 0,67 com a ordem final da FBA) "
+          . "envelhecendo pela curva de idade da liga. Subir e cair são posição no ranking, "
+          . "não decreto — quem promove é o admin._";
 
     return rtrim($txt);
 }
@@ -2971,7 +2971,7 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
  * A FICHA DO TIME NO SUPERCOMPUTADOR — /meuopta, ou /opta <time>.
  *
  * A lista responde "quem leva"; a ficha responde "e eu?". São perguntas
- * diferentes e a segunda é a que mais volta no grupo: quem se vê em 7º numa
+ * diferentes e a segunda é a que mais volta no grupo: quem se vê em 18º numa
  * lista de cinco quer saber onde está em cada corrida, não só na que perdeu.
  *
  * Tudo sai do MESMO pacote que a lista usa (scPacoteDaLiga), então a ficha
@@ -2992,67 +2992,67 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     if (!$eu) return "O {$nome} não entrou na conta — o elenco está vazio no cadastro.";
 
     $t = $p['temporada'];
-    $alvo = 'T' . $t['alvo'];
-    $janela = $t['ate_o_fim'] ? "no fim do sprint ({$alvo})" : "na {$alvo}";
+    $fim = 'T' . $t['fim'];
     $n = count($p['times']);
 
-    /* A posição em cada corrida. Sozinha, "19,8% de título" não diz se é
-       muito ou pouco; "19,8%, o 2º da liga" diz. */
-    $posto = function (string $campo, bool $maiorPrimeiro = true) use ($p, $eu): int {
+    /* A posição em cada corrida. Sozinha, "4,1% de 1º lugar" não diz se é
+       muito ou pouco; "4,1%, o 6º da liga" diz. */
+    $posto = function (string $campo) use ($p, $eu): int {
         $i = 1;
         foreach ($p['times'] as $l) {
-            if ((int)$l['id'] === (int)$eu['id']) continue;
-            if ($maiorPrimeiro ? ($l[$campo] > $eu[$campo]) : ($l[$campo] < $eu[$campo])) $i++;
+            if ((int)$l['id'] !== (int)$eu['id'] && $l[$campo] > $eu[$campo]) $i++;
         }
         return $i;
     };
     $ordinal = fn(int $i): string => $i . 'º';
+    $casas = fn(int $k): string => $k . ($k === 1 ? ' posição' : ' posições');
 
     $txt  = "🤖 *OPTA FBA · {$nome}*\n";
     $txt .= "_{$liga} · T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-          . ' · ' . number_format($p['n_sim'], 0, ',', '.') . " simulações_\n";
+          . ' · ' . ($t['restantes'] === 0 ? 'sprint decidido'
+                  : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
+          . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    $txt .= "\n🏆 *A temporada T{$t['titulo_de']}*\n";
-    if (!empty($p['tem_titulo'])) {
-        $txt .= '• Título: *' . scPct((float)$eu['titulo']) . '* — ' . $ordinal($posto('titulo')) . " de {$n}\n";
-        $txt .= '• Chegar à final: ' . scPct((float)$eu['final']) . "\n";
-        $txt .= '• Entrar nos playoffs: ' . scPct((float)$eu['playoff']) . "\n";
-    } else {
-        $txt .= "• O sprint acabou — não há temporada em disputa.\n";
-    }
-
-    $txt .= "\n📊 *No ranking*\n";
-    $txt .= "• Hoje: " . $ordinal((int)$eu['pos_hoje']) . " com {$eu['pts_hoje']} pts\n";
-    $txt .= "• Projetado {$janela}: " . $ordinal((int)$eu['pos_proj']) . " com {$eu['pts_fim']} pts "
-          . "_(faixa {$eu['pts_lo']}–{$eu['pts_hi']})_\n";
-    $casas = fn(int $k): string => $k . ($k === 1 ? ' posição' : ' posições');
-    $txt .= '• Movimento: ' . ($eu['delta'] > 0 ? 'sobe ' . $casas((int)$eu['delta'])
-                            : ($eu['delta'] < 0 ? 'cai ' . $casas(abs((int)$eu['delta']))
-                                                : 'fica onde está')) . "\n";
-    $txt .= '• Terminar em 1º: ' . scPct((float)$eu['primeiro']) . "\n";
+    $txt .= "\n🏁 *O sprint, na {$fim}*\n";
+    /* O posto só sai quando a chance existe: com 0% metade da liga empata no
+       mesmo lugar, e "0% — 10º de 30" lê como contradição. */
+    $txt .= '• Campeão (1º no ranking): *' . scPct((float)$eu['campeao']) . '*'
+          . ($eu['campeao'] > 0 ? ' — ' . $ordinal($posto('campeao')) . " de {$n}" : '') . "\n";
+    $txt .= '• Terminar no pódio: ' . scPct((float)$eu['top3']) . "\n";
     if (!empty($p['tem_subida'])) {
         $txt .= "• Subir (top {$p['zona_cima']}): " . scPct((float)$eu['cima']) . "\n";
     }
     $txt .= "• Cair (últimos {$p['zona_baixo']}): " . scPct((float)$eu['baixo']) . "\n";
 
-    $txt .= "\n💪 *O elenco por trás disso*\n";
+    $txt .= "\n📊 *Os pontos*\n";
+    $txt .= '• Hoje: ' . $ordinal((int)$eu['pos_hoje']) . " com {$eu['pts_hoje']}\n";
+    $txt .= "• Projetado na {$fim}: " . $ordinal((int)$eu['pos_proj']) . " com {$eu['pts_fim']} "
+          . "_(faixa {$eu['pts_lo']}–{$eu['pts_hi']})_\n";
+    $txt .= '• Movimento: ' . ($eu['delta'] > 0 ? 'sobe ' . $casas((int)$eu['delta'])
+                            : ($eu['delta'] < 0 ? 'cai ' . $casas(abs((int)$eu['delta']))
+                                                : 'fica onde está')) . "\n";
+
+    $txt .= "\n💪 *O elenco*\n";
     $txt .= '• Força ' . number_format((float)$eu['forca'], 1, ',', '.')
           . ' — ' . $ordinal($posto('forca')) . " de {$n}"
-          . ($eu['idade'] !== null ? ' · idade ' . number_format((float)$eu['idade'], 1, ',', '.') : '')
-          . "\n";
+          . ($eu['idade'] !== null ? ' · idade ' . number_format((float)$eu['idade'], 1, ',', '.') : '') . "\n";
+    $txt .= '• Janela: *' . $eu['janela'] . '*'
+          . ($eu['pico'] > $t['numero'] ? " — auge na T{$eu['pico']}" : ' — o auge é agora')
+          . ($eu['picks'] > 0 ? " · {$eu['picks']} picks de 1ª" : ' · sem pick de 1ª') . "\n";
 
     /* QUEM ESTÁ NA FRENTE. Sem isso a ficha é um espelho; com isso ela vira
        informação — o GM precisa saber de quem é a corrida que ele disputa. */
     $favorito = null;
-    foreach ($p['times'] as $l) if ($favorito === null || $l['titulo'] > $favorito['titulo']) $favorito = $l;
-    if ($favorito && (int)$favorito['id'] !== (int)$eu['id'] && $favorito['titulo'] > 0) {
-        $txt .= "\n_O favorito ao título é o {$favorito['nome']}, com " . scPct((float)$favorito['titulo']) . "._";
-    } elseif ($favorito && (int)$favorito['id'] === (int)$eu['id']) {
-        $txt .= "\n_O {$nome} é o favorito ao título da {$liga}._";
+    foreach ($p['times'] as $l) if ($favorito === null || $l['campeao'] > $favorito['campeao']) $favorito = $l;
+    if ($favorito && $favorito['campeao'] > 0) {
+        $txt .= (int)$favorito['id'] === (int)$eu['id']
+            ? "\n_O {$nome} é o favorito ao sprint da {$liga}._"
+            : "\n_O favorito ao sprint é o {$favorito['nome']}, com " . scPct((float)$favorito['campeao']) . "._";
     }
 
-    $txt .= "\n_A conta é a mesma do /opta: força do elenco (OVR ponderado dos 8 melhores) "
-          . "+ os pontos já somados, com o sprint sorteado " . number_format($p['n_sim'], 0, ',', '.') . " vezes._";
+    $txt .= "\n_A conta é a mesma do /opta. A janela é a leitura da curva de idade nas próximas "
+          . "temporadas: diz pra onde o elenco de hoje anda se ninguém mexer em nada — troca e "
+          . "draft não estão nela._";
 
     return rtrim($txt);
 }
