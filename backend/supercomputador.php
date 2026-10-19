@@ -217,9 +217,14 @@ function scCache(string $chave, ?array $gravar = null): ?array
  * um deles muda a assinatura e o cache cai sozinho. Sem isso o GM faria a
  * troca da vida dele e o SuperComputador seguiria mostrando o time de ontem.
  */
-function scAssinatura(PDO $pdo, string $liga, ?array $temp): string
+function scAssinatura(PDO $pdo, string $liga, ?array $temp, int $totalTemporadas = 0): string
 {
-    $partes = [SC_VERSAO, $liga, (int)($temp['id'] ?? 0), (string)($temp['status'] ?? '')];
+    /* O TAMANHO DA EDIÇÃO ENTRA AQUI. Ele decide até onde a simulação vai,
+       e mudá-lo pelo Admin (league_sprint_config.max_seasons) muda todas as
+       chances — mas nada disso toca os elencos nem os pontos, então sem ele
+       a assinatura ficava igual e o servidor seguia entregando a projeção
+       feita com o total antigo. */
+    $partes = [SC_VERSAO, $liga, (int)($temp['id'] ?? 0), (string)($temp['status'] ?? ''), $totalTemporadas];
     try {
         $st = $pdo->prepare("SELECT t.id, COALESCE(t.ranking_points,0) pts, COUNT(p.id) n,
                                     COALESCE(SUM(p.ovr),0) so, COALESCE(SUM(p.age),0) sa
@@ -465,7 +470,7 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
     $temp = wcTemporadaAtiva($pdo, $liga);
     if (!$temp) return $vazio;
 
-    $assinatura = scAssinatura($pdo, $liga, $temp);
+    $assinatura = scAssinatura($pdo, $liga, $temp, (int)$totalTemporadas);
     if ($pronto = scCache($assinatura)) return $pronto;
 
     $ctx = scContextoDosTimes($pdo, $liga);
