@@ -3,6 +3,7 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/power_ranking.php';
+require_once __DIR__ . '/backend/supercomputador.php';
 requireAuth();
 
 $user = getUserSession();
@@ -66,226 +67,6 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     if ($avgOvr >= 82) return 'Buying';
     if (($avgAge ?? 25) >= 31 || $avgOvr < 78) return 'Rebuilding';
     return 'Selling';
-}
-
-// Monta o texto de uma lista (campeão/subir/cair) pronto para colar no WhatsApp
-function waTopListText(string $emoji, string $title, array $rows, string $pctKey, string $leagueLabel): string {
-    if (empty($rows)) return '';
-    $lines = [$emoji . ' ' . $title . ' — ' . $leagueLabel];
-    foreach ($rows as $i => $r) {
-        $lines[] = ($i + 1) . '. ' . $r['team_name'] . ' — ' . $r[$pctKey] . '%';
-    }
-    return implode("\n", $lines);
-}
-
-// Simula TODAS as temporadas restantes do sprint, acumula pontos e retorna:
-// - matrix: probabilidade de cada time terminar em cada posição no RANKING FINAL do sprint
-// - avg_expected_pts: média de pontos TOTAIS (atuais + restantes) ao final do sprint
-function simulateSprintMatrix(array $teams, int $seasonsLeft, string $league, int $iterations = 350): array {
-    $n = count($teams);
-    if ($n === 0) return ['matrix' => [], 'avg_expected_pts' => []];
-
-    // Pontos já garantidos no sprint atual — ponto de partida de toda simulação,
-    // nunca começa do zero.
-    $startPts = array_map(fn($t) => (float)($t['ranking_pts'] ?? 0), $teams);
-
-    // Sem temporada restante: nada mais a decidir, resultado é 100% determinístico
-    // pela pontuação já acumulada (desempate por score de força do elenco).
-    if ($seasonsLeft <= 0) {
-        $order = range(0, $n - 1);
-        usort($order, fn($a, $b) => ($startPts[$b] <=> $startPts[$a]) ?: (($teams[$b]['score'] ?? 0) <=> ($teams[$a]['score'] ?? 0)));
-        $matrix = array_fill(0, $n, array_fill(0, $n, 0.0));
-        foreach ($order as $pos => $idx) $matrix[$idx][$pos] = 100.0;
-        return ['matrix' => $matrix, 'avg_expected_pts' => $startPts];
-    }
-
-    $counts      = array_fill(0, $n, array_fill(0, $n, 0));
-    $totalPts    = array_fill(0, $n, 0.0);
-    $baseStr     = array_map(fn($t) => max(0.01, (float)($t['composite'] ?? 1.0)), $teams);
-
-    for ($iter = 0; $iter < $iterations; $iter++) {
-        $cumPts = $startPts; // acumula a partir dos pontos já garantidos no sprint
-
-        for ($s = 1; $s <= $seasonsLeft; $s++) {
-            // Ajusta força de cada time para a season s. A projeção de qualidade (crescimento/
-            // queda de OVR por idade) é o fator PRINCIPAL; tag, picks, franquia e variância
-            // são apenas ajustes secundários, com peso bem menor.
-            $adjS = [];
-            foreach ($teams as $i => $t) {
-                $age    = (float)($t['avg_age']    ?? 26);
-                $tag    = $t['ai_tag'] ?? '';
-                $picks  = (int)  ($t['picks_count'] ?? 0);
-                $maxOvr = (float)($t['max_ovr']    ?? 80);
-
-                // Projeção de qualidade (FATOR PRINCIPAL)
-                $ovrGrowth = $age < 22 ? 3.5 : ($age < 25 ? 2.5 : ($age < 28 ? 1.5 : ($age < 31 ? 0.5 : -0.8)));
-                $qualityF  = $ovrGrowth * $s * 1.8;
-
-                // Fatores secundários
-                if ($tag === 'Contending')     $tagF = -1.5 * $s;
-                elseif ($tag === 'Buying')     $tagF = -0.6 * $s;
-                elseif ($tag === 'Selling')    $tagF =  0.9 * $s;
-                elseif ($tag === 'Rebuilding') $tagF =  1.8 * $s;
-                else                           $tagF = 0;
-
-                $picksF = min($picks * 0.3, 4.5) * (1 + $s * 0.1);
-                $franqF = $maxOvr >= 92 ? -0.3 * $s : ($maxOvr <= 78 ? 0.2 * $s : 0);
-
-                $u1 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
-                $u2 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
-                $var = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 1.5;
-
-                $adjS[$i] = max(0.01, $baseStr[$i] + $qualityF + $tagF + $picksF + $franqF + $var);
-            }
-
-            // Simula a season: performance exponencial
-            $perfs = [];
-            foreach ($adjS as $i => $str) {
-                $u = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
-                $perfs[$i] = $str * (-log($u));
-            }
-            $order = range(0, $n - 1);
-            usort($order, fn($a, $b) => $perfs[$b] <=> $perfs[$a]);
-
-            // Acumula pontos (playoff + seed)
-            foreach ($order as $pos => $idx) {
-                if ($pos === 0)     $pts = 11 + 4;
-                elseif ($pos === 1) $pts = 8  + 3;
-                elseif ($pos <= 3)  $pts = 6  + 3;
-                elseif ($pos <= 7)  $pts = 3  + 2;
-                elseif ($pos <= 15) $pts = 1;
-                else                $pts = 0;
-                $cumPts[$idx] += $pts;
-            }
-
-            // Prêmios individuais (5 × 1pt por season, distribuídos por força)
-            $adjSum = array_sum($adjS) ?: 1;
-            foreach ($adjS as $i => $str) $cumPts[$i] += ($str / $adjSum) * 5;
-
-            // NBA Cup (ELITE only): +2pts para time ≠ campeão
-            if ($league === 'ELITE') {
-                $champIdx = $order[0];
-                $cupAdj   = $adjS;
-                $cupAdj[$champIdx] *= 0.3;
-                $cupOrd = range(0, $n - 1);
-                usort($cupOrd, fn($a, $b) => $cupAdj[$b] <=> $cupAdj[$a]);
-                $cumPts[$cupOrd[0]] += 2;
-            }
-        }
-
-        // Ranking final do sprint por pontos acumulados
-        $finalOrd = range(0, $n - 1);
-        usort($finalOrd, fn($a, $b) => $cumPts[$b] <=> $cumPts[$a]);
-        foreach ($finalOrd as $pos => $idx) $counts[$idx][$pos]++;
-        foreach ($cumPts as $i => $pts) $totalPts[$i] += $pts;
-    }
-
-    return [
-        'matrix'           => array_map(fn($row) => array_map(fn($c) => round($c / $iterations * 100, 1), $row), $counts),
-        'avg_expected_pts' => array_map(fn($t) => round($t / $iterations, 1), $totalPts),
-    ];
-}
-
-function buildLeagueAnalysis(
-    array $powerRanking, array $ranking, array $picksPerTeam,
-    ?int $currentSeasonNum, ?int $totalSeasons, string $league
-): array {
-    if (empty($powerRanking)) return ['has_data' => false];
-    $n = count($powerRanking);
-    $seasonsLeft = ($totalSeasons !== null && $currentSeasonNum !== null)
-        ? max(0, $totalSeasons - $currentSeasonNum) : null;
-
-    // Mapa ranking_pts por nome de time
-    $rankPtsMap = [];
-    foreach ($ranking as $r) $rankPtsMap[$r['team_name']] = (int)($r['total_points'] ?? 0);
-
-    // Normalização dos fatores
-    $maxPow   = max(array_column($powerRanking, 'score') ?: [1]) ?: 1;
-    $maxPts   = max(array_values($rankPtsMap) ?: [1]) ?: 1;
-    $maxPicks = max(array_values($picksPerTeam) ?: [1]) ?: 1;
-
-    // Peso dinâmico: no início do sprint a qualidade/durabilidade do elenco (score) pesa mais,
-    // mas conforme as temporadas se esgotam os pontos já conquistados passam a valer mais —
-    // no fim do sprint o que importa é o que o time já garantiu, não o potencial do elenco.
-    $timeFrac = ($totalSeasons !== null && $totalSeasons > 0 && $seasonsLeft !== null)
-        ? max(0.0, min(1.0, $seasonsLeft / $totalSeasons))
-        : 1.0;
-    $wScore = 0.20 + 0.35 * $timeFrac; // 0.55 no início do sprint → 0.20 no fim
-    $wPts   = 0.75 - 0.45 * $timeFrac; // 0.30 no início → 0.75 no fim
-    $wPicks = 0.05 + 0.10 * $timeFrac; // 0.15 no início → 0.05 no fim
-
-    // Score composto: qualidade/durabilidade + pontos já conquistados + picks de 1ª rodada
-    $teams = [];
-    foreach ($powerRanking as $pr) {
-        $tid   = (int)($pr['team_id'] ?? 0);
-        $pts   = $rankPtsMap[$pr['team_name']] ?? 0;
-        $picks = $picksPerTeam[$tid] ?? 0;
-        $composite = ($pr['score'] / $maxPow) * $wScore
-                   + ($pts / $maxPts)          * $wPts
-                   + ($picks / $maxPicks)       * $wPicks;
-        $teams[] = array_merge($pr, [
-            'ranking_pts' => $pts,
-            'picks_count' => $picks,
-            'composite'   => round($composite * 100, 3),
-        ]);
-    }
-
-    // ── Simulação Monte Carlo do sprint restante ────────────────────────────────
-    // Parte SEMPRE dos pontos já conquistados no sprint atual (ranking_pts) e só
-    // soma variância para as temporadas que realmente faltam. Se não sobrar
-    // temporada, o resultado é 100% determinístico pela pontuação já travada —
-    // é assim que um time matematicamente campeão/rebaixado aparece com 100%.
-    $sprintSim = simulateSprintMatrix($teams, $seasonsLeft ?? 1, $league);
-    $rawMx     = $sprintSim['matrix']; // prob de cada time em cada posição final do sprint
-
-    $matrixRaw = [];
-    foreach ($teams as $i => $t) {
-        $matrixRaw[] = ['team' => $t, 'probs' => $rawMx[$i] ?? array_fill(0, $n, 0)];
-    }
-
-    // Campeão: probabilidade de terminar o sprint na 1ª posição
-    $champProj = [];
-    foreach ($matrixRaw as $row) {
-        $champProj[] = array_merge($row['team'], ['prob' => min(round($row['probs'][0] ?? 0, 1), 100.0)]);
-    }
-    usort($champProj, fn($a, $b) => $b['prob'] <=> $a['prob']);
-    $champProj = array_slice($champProj, 0, 10);
-
-    // Promoção / Rebaixamento — soma das probabilidades dentro da zona (top4 / bottom4)
-    $promoZoneSize = 4;
-    $releZoneSize  = 4;
-    $releStartIdx  = max($n - $releZoneSize, $promoZoneSize);
-
-    $promoProj = null;
-    if ($league !== 'ELITE') {
-        $promoProj = [];
-        foreach ($matrixRaw as $row) {
-            $p = round(array_sum(array_slice($row['probs'], 0, $promoZoneSize)), 1);
-            $promoProj[] = array_merge($row['team'], ['promo_prob' => min($p, 100.0)]);
-        }
-        usort($promoProj, fn($a, $b) => $b['promo_prob'] <=> $a['promo_prob']);
-        $promoProj = array_slice($promoProj, 0, 10);
-    }
-
-    $releProj = [];
-    foreach ($matrixRaw as $row) {
-        $p = round(array_sum(array_slice($row['probs'], $releStartIdx)), 1);
-        $releProj[] = array_merge($row['team'], ['rele_prob' => min($p, 100.0)]);
-    }
-    usort($releProj, fn($a, $b) => $b['rele_prob'] <=> $a['rele_prob']);
-    $releProj = array_slice($releProj, 0, 10);
-
-    return [
-        'has_data'       => true,
-        'champ_proj'     => $champProj,
-        'promo_proj'     => $promoProj,
-        'rele_proj'      => $releProj,
-        'team_count'     => $n,
-        'seasons_left'   => $seasonsLeft,
-        'total_seasons'  => $totalSeasons,
-        'current_season' => $currentSeasonNum,
-        'league'         => $league,
-    ];
 }
 
 function buildTop5Stats(array $starters): array {
@@ -769,18 +550,12 @@ foreach ($leagueOrder as $league) {
     foreach ($powerRanking as &$pr) $pr['conference'] = $confMap[$pr['team_id']] ?? '';
     unset($pr);
 
-    // Picks futuros por time — apenas 1ª rodada conta (2ª rodada tem valor marginal)
-    $picksPerTeam = [];
-    try {
-        // Prioriza o ano da temporada ATIVA (em andamento); só cai para a última
-        // temporada encerrada quando não há sprint em andamento no momento.
-        $pickYear = $activeSeasonYear ?? $seasonYear ?? (int)date('Y');
-        $sp2 = $pdo->prepare("SELECT p.team_id, COUNT(*) AS cnt FROM picks p JOIN teams t ON p.team_id = t.id WHERE t.league = ? AND CAST(p.season_year AS UNSIGNED) >= ? AND p.round = '1' GROUP BY p.team_id");
-        $sp2->execute([$league, $pickYear]);
-        foreach ($sp2->fetchAll(PDO::FETCH_ASSOC) as $r) $picksPerTeam[(int)$r['team_id']] = (int)$r['cnt'];
-    } catch (Exception $e) {}
-
-    $analysis      = buildLeagueAnalysis($powerRanking, $ranking, $picksPerTeam, $currentSeasonNum, $totalSeasons, $league);
+    /* O SUPERCOMPUTADOR NÃO TEM MAIS CONTA PRÓPRIA.
+       A simulação mora em backend/supercomputador.php, que chama o mesmo
+       motor calibrado que o bot usa no /opta e no /duvida. Duas contas
+       diferentes pra "quem leva o título" — uma no site, outra no WhatsApp —
+       eram piores que nenhuma. @see backend/supercomputador.php */
+    $analysis      = scPacoteDaLiga($pdo, $league, $totalSeasons);
     $seasonPreview = buildSeasonPreview($powerRanking, $teams);
     $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','analysis','seasonPreview');
 }
@@ -1164,52 +939,110 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .empty-state i { font-size:28px; display:block; margin-bottom:8px; }
         .empty-state p { font-size:12px; margin:0; }
 
-        /* ── SuperComputador FBA ────────────────────────────── */
+        /* ── SuperComputador FBA ────────────────────────────────────────
+           A cara do analista: índigo, que é a cor que ele já tinha, mas com
+           a hierarquia arrumada — as três listas de chance na frente, a
+           tabela de dados atrás de um accordion pra quem quiser conferir. */
         .sc-wrap {
             background: linear-gradient(135deg, rgba(99,102,241,.07) 0%, rgba(139,92,246,.05) 100%);
             border: 1px solid rgba(99,102,241,.22);
-            border-radius: var(--radius); padding: 20px;
+            border-radius: var(--radius); padding: 18px;
         }
-        .sc-header { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
-        .sc-icon { width:40px; height:40px; border-radius:10px; flex-shrink:0; background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3); display:flex; align-items:center; justify-content:center; font-size:20px; }
-        .sc-ttl { font-size:14px; font-weight:800; color:var(--text); }
+        @media(max-width:580px){ .sc-wrap { padding:14px 12px; } }
+        .sc-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+        .sc-icon { width:38px; height:38px; border-radius:10px; flex-shrink:0; background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3); display:flex; align-items:center; justify-content:center; font-size:18px; color:#818cf8; }
+        .sc-ttl { font-size:14px; font-weight:800; color:var(--text); letter-spacing:.3px; }
         .sc-sub { font-size:11px; color:var(--text-2); margin-top:1px; }
         .sc-badges { margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-        .sc-ia-tag { font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); color:#818cf8; }
-        .sc-season-tag { font-size:10px; font-weight:700; padding:4px 10px; border-radius:999px; background:var(--panel-3); border:1px solid var(--border-md); color:var(--text-2); }
-        .sc-sprint-bar { display:flex; align-items:center; gap:8px; margin-bottom:18px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:10px 14px; }
+        .sc-ia-tag { font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); color:#818cf8; white-space:nowrap; }
+        .sc-season-tag { font-size:10px; font-weight:700; padding:4px 10px; border-radius:999px; background:var(--panel-3); border:1px solid var(--border-md); color:var(--text-2); white-space:nowrap; }
+        /* No claro o índigo pastel some no branco: o texto escurece, o fundo não. */
+        :root[data-theme="light"] .sc-icon,
+        :root[data-theme="light"] .sc-ia-tag,
+        :root[data-theme="light"] .sc-sprint-label,
+        :root[data-theme="light"] .sc-dados > summary,
+        :root[data-theme="light"] .sc-copy-btn { color:#4f46e5; }
+        :root[data-theme="light"] .sc-block-title,
+        :root[data-theme="light"] .sc-num,
+        :root[data-theme="light"] .sc-pct,
+        :root[data-theme="light"] .sc-chip .k { color:var(--sc-c,#4f46e5); }
+
+        .sc-sprint-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:9px 13px; }
         :root[data-theme="light"] .sc-sprint-bar { background:rgba(99,102,241,.04); }
         .sc-sprint-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
-        .sc-sprint-track { flex:1; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
+        .sc-sprint-track { flex:1; min-width:40px; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; position:relative; }
         .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
+        /* Onde a projeção para: o resto do sprint é areia movediça e a barra diz isso. */
+        .sc-sprint-mark  { position:absolute; top:-3px; bottom:-3px; width:2px; background:#f59e0b; border-radius:1px; }
         .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); white-space:nowrap; }
         .sc-sprint-info strong { color:var(--text); }
-        .sc-grid { display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; }
-        @media(max-width:900px){ .sc-grid{ grid-template-columns:1fr 1fr; } }
-        @media(max-width:580px){ .sc-grid{ grid-template-columns:1fr; } }
-        .sc-triple-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-        @media(max-width:900px){ .sc-triple-grid{ grid-template-columns:1fr; } }
-        .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:14px; }
+        @media(max-width:580px){ .sc-sprint-bar { flex-wrap:wrap; } .sc-sprint-track { order:3; flex-basis:100%; } }
+
+        /* Os destaques: a leitura rápida antes das listas. */
+        .sc-chips { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:14px; }
+        .sc-chip { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-left:3px solid var(--sc-c,#818cf8); border-radius:8px; padding:8px 10px; min-width:0; }
+        :root[data-theme="light"] .sc-chip { background:rgba(99,102,241,.04); }
+        .sc-chip .k { display:block; font-size:9px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--sc-c,#818cf8); }
+        .sc-chip .v { display:block; font-size:12px; font-weight:700; color:var(--text); margin-top:2px; line-height:1.25; }
+        .sc-chip .n { display:block; font-size:10px; color:var(--text-2); }
+        .sc-chip.ouro      { --sc-c:#f59e0b; }
+        .sc-chip.roxo      { --sc-c:#a855f7; }
+        .sc-chip.verde     { --sc-c:#22c55e; }
+        .sc-chip.vermelho  { --sc-c:#ef4444; }
+        .sc-chip.azul      { --sc-c:#38bdf8; }
+
+        .sc-triple-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+        .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-top:2px solid var(--sc-c,#818cf8); border-radius:var(--radius-sm); padding:13px; min-width:0; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
-        .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+        .sc-block.ouro     { --sc-c:#f59e0b; }
+        .sc-block.verde    { --sc-c:#22c55e; }
+        .sc-block.vermelho { --sc-c:#ef4444; }
+        .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--sc-c,#818cf8); margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+        .sc-block-sub { font-size:10px; color:var(--text-3); margin-bottom:10px; }
         .sc-copy-btn { margin-left:auto; width:22px; height:22px; border-radius:6px; border:1px solid rgba(99,102,241,.25); background:rgba(99,102,241,.08); color:#818cf8; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; flex-shrink:0; transition:all .15s; }
         .sc-copy-btn:hover { background:rgba(99,102,241,.18); }
         .sc-copy-btn.copied { color:#22c55e; border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.12); }
-        .sc-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-        .sc-row:last-child { margin-bottom:0; }
-        .sc-num { width:18px; font-size:11px; font-weight:800; color:#818cf8; flex-shrink:0; text-align:center; }
-        .sc-tlogo { width:28px; height:28px; border-radius:6px; object-fit:cover; flex-shrink:0; border:1px solid rgba(99,102,241,.18); background:var(--panel-3); }
+
+        .sc-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
+        .sc-row:last-child { border-bottom:none; }
+        .sc-num { width:15px; font-size:11px; font-weight:800; color:var(--sc-c,#818cf8); flex-shrink:0; text-align:center; }
+        .sc-tlogo { width:26px; height:26px; border-radius:6px; object-fit:cover; flex-shrink:0; border:1px solid rgba(99,102,241,.18); background:var(--panel-3); }
         .sc-tinfo { flex:1; min-width:0; }
         .sc-tname { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .sc-tmeta { font-size:10px; color:var(--text-2); }
-        .sc-prob-col { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
-        .sc-pct { font-size:14px; font-weight:800; color:#818cf8; line-height:1; }
-        .sc-bar { width:52px; height:4px; background:rgba(99,102,241,.15); border-radius:2px; overflow:hidden; }
-        .sc-bar-fill { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:2px; }
-        .sc-zone-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
-        .sc-zone-row:last-child { border-bottom:none; }
-        .sc-zone-pct { font-size:13px; font-weight:800; margin-left:auto; flex-shrink:0; }
+        .sc-tmeta { font-size:10px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sc-prob-col { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; width:54px; }
+        .sc-pct { font-size:13px; font-weight:800; color:var(--sc-c,#818cf8); line-height:1; }
+        .sc-bar { width:54px; height:4px; background:rgba(127,127,127,.18); border-radius:2px; overflow:hidden; }
+        .sc-bar-fill { height:100%; background:var(--sc-c,#818cf8); border-radius:2px; }
+        .sc-vazio { font-size:11px; color:var(--text-3); padding:10px 0; }
 
+        /* A tabela de dados: fechada por padrão, porque o que a maioria quer
+           é a porcentagem — mas ela existe pra ninguém ter que acreditar no
+           número no escuro. */
+        .sc-dados { margin-top:14px; border-top:1px solid rgba(99,102,241,.14); padding-top:12px; }
+        .sc-dados > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:#818cf8; }
+        .sc-dados > summary::-webkit-details-marker { display:none; }
+        .sc-dados > summary .bi-chevron-down { margin-left:auto; transition:transform .2s; }
+        .sc-dados[open] > summary .bi-chevron-down { transform:rotate(180deg); }
+        .sc-tab-wrap { margin-top:10px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        /* No celular a tabela nao cabe e o arrasto nao se anuncia sozinho. */
+        .sc-arrasta { display:none; font-size:10px; color:var(--text-3); margin:6px 0 0; }
+        @media(max-width:760px){ .sc-arrasta { display:block; } }
+        table.sc-tab { width:100%; border-collapse:collapse; font-size:11px; min-width:620px; }
+        table.sc-tab th { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-3); text-align:right; padding:6px 7px; border-bottom:1px solid rgba(99,102,241,.16); white-space:nowrap; }
+        table.sc-tab th:nth-child(-n+2), table.sc-tab td:nth-child(-n+2) { text-align:left; }
+        table.sc-tab td { padding:6px 7px; text-align:right; border-bottom:1px solid rgba(127,127,127,.09); color:var(--text-2); white-space:nowrap; }
+        table.sc-tab tbody tr:hover td { background:rgba(99,102,241,.06); }
+        table.sc-tab .t-pos { width:26px; font-weight:800; color:var(--text-3); }
+        table.sc-tab .t-nome { font-weight:700; color:var(--text); max-width:190px; overflow:hidden; text-overflow:ellipsis; }
+        table.sc-tab .t-nome small { display:block; font-weight:500; color:var(--text-3); font-size:9px; }
+        table.sc-tab .t-forte { color:var(--text); font-weight:700; }
+        .sc-delta-up   { color:#22c55e; font-weight:700; }
+        .sc-delta-down { color:#ef4444; font-weight:700; }
+        .sc-delta-zero { color:var(--text-3); }
+        .sc-faixa { color:var(--text-3); font-size:10px; }
+        .sc-nota { font-size:10px; line-height:1.55; color:var(--text-3); margin:10px 0 0; }
+        .sc-nota b { color:var(--text-2); font-weight:700; }
         /* ── Previsão da Temporada accordion ───────────────── */
         .sc-preview-confs { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
         @media(max-width:580px){ .sc-preview-confs { grid-template-columns:1fr; } }
@@ -1678,135 +1511,229 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             <?php endif; ?>
 
 
-            <?php /* ── SuperComputador FBA ── */ ?>
-            <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])):
-                $waChamp = waTopListText('🏆', 'PROJEÇÃO CAMPEÃO', $an['champ_proj'] ?? [], 'prob', $meta['label']);
-                $waPromo = !empty($an['promo_proj']) ? waTopListText('🟢', 'TOP 10 — CHANCES DE SUBIR', $an['promo_proj'], 'promo_prob', $meta['label']) : '';
-                $waRele  = waTopListText('🔴', 'TOP 10 — CHANCES DE CAIR', $an['rele_proj'] ?? [], 'rele_prob', $meta['label']);
+            <?php /* ── SuperComputador FBA ── @see backend/supercomputador.php ── */ ?>
+            <?php
+            $an = $d['analysis'] ?? [];
+            if (!empty($an['tem_dados'])):
+                $scT   = $an['temporada'];
+                $scAlvo = 'T' . $scT['alvo'];
+                $scJanela = $scT['ate_o_fim'] ? "até o fim do sprint ({$scAlvo})" : "até a {$scAlvo}";
+                // As três listas saem da MESMA simulação, só ordenadas por
+                // coluna diferente — por isso os números conversam entre si.
+                $scTop = function (string $campo, int $n = 5) use ($an): array {
+                    $xs = $an['times'];
+                    usort($xs, fn($a, $b) => $b[$campo] <=> $a[$campo]);
+                    return array_values(array_filter(array_slice($xs, 0, $n), fn($l) => (float)$l[$campo] > 0));
+                };
+                $scWa = function (string $emoji, string $titulo, array $linhas, string $campo) use ($meta): string {
+                    if (!$linhas) return '';
+                    $out = [$emoji . ' ' . mb_strtoupper($titulo) . ' — ' . $meta['label']];
+                    foreach ($linhas as $i => $l) $out[] = ($i + 1) . '. ' . $l['nome'] . ' — ' . scPct((float)$l[$campo]);
+                    return implode("\n", $out);
+                };
+                $scCampeao = $scTop('titulo');
+                $scCima    = !empty($an['tem_subida']) ? $scTop('cima') : [];
+                $scBaixo   = $scTop('baixo');
+                $scFases   = ['regular' => 'Temporada regular', 'playoffs' => 'Playoffs em andamento',
+                              'entre' => 'Entre temporadas', 'encerrada' => 'Temporada registrada'];
             ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
-                SUPERCOMPUTADOR FBA · Análise Preditiva
+                SUPERCOMPUTADOR FBA · as chances da liga
             </div>
             <div class="sc-wrap">
-                <!-- Header -->
+
                 <div class="sc-header">
-                    <div class="sc-icon">🤖</div>
-                    <div>
+                    <div class="sc-icon"><i class="bi bi-cpu-fill"></i></div>
+                    <div style="min-width:0">
                         <div class="sc-ttl">SuperComputador FBA</div>
-                        <div class="sc-sub">Análise preditiva · Power Ranking · Elenco · Histórico</div>
+                        <div class="sc-sub"><?= number_format($an['n_sim'], 0, ',', '.') ?> sprints simulados · força do elenco + os pontos já somados</div>
                     </div>
                     <div class="sc-badges">
-                        <?php if ($an['current_season'] !== null && $an['total_seasons'] !== null): ?>
-                        <span class="sc-season-tag">T<?= $an['current_season'] ?>/<?= $an['total_seasons'] ?></span>
+                        <?php if (!empty($scT['total'])): ?>
+                        <span class="sc-season-tag">T<?= $scT['numero'] ?>/<?= $scT['total'] ?></span>
                         <?php endif; ?>
-                        <span class="sc-ia-tag"><i class="bi bi-stars me-1"></i>IA</span>
+                        <span class="sc-ia-tag"><?= htmlspecialchars($scFases[$scT['fase']] ?? 'Em curso') ?></span>
                     </div>
                 </div>
 
-                <!-- Sprint timeline -->
-                <?php if ($an['current_season'] !== null && $an['total_seasons'] !== null): ?>
-                <?php
-                    $sl  = $an['seasons_left'] ?? 0;
-                    $cur = $an['current_season'];
-                    $tot = $an['total_seasons'];
-                    $pct = $tot > 0 ? round($cur / $tot * 100) : 0;
-                    $slMsg = $sl === 0 ? '⚠️ Última temporada do sprint!' : ($sl === 1 ? '1 temporada restante' : "{$sl} temporadas restantes");
+                <?php if (!empty($scT['total'])):
+                    $scPct  = $scT['total'] > 0 ? round($scT['numero'] / $scT['total'] * 100) : 0;
+                    $scPctP = $scT['total'] > 0 ? round($scT['alvo']   / $scT['total'] * 100) : 0;
+                    $scFalta = max(0, (int)$scT['total'] - (int)$scT['numero']);
                 ?>
                 <div class="sc-sprint-bar">
                     <span class="sc-sprint-label"><i class="bi bi-hourglass-split me-1"></i>Sprint</span>
-                    <div class="sc-sprint-track"><div class="sc-sprint-fill" style="width:<?= $pct ?>%"></div></div>
-                    <span class="sc-sprint-info"><strong>T<?= $cur ?></strong>/<?= $tot ?> · <?= $slMsg ?></span>
+                    <div class="sc-sprint-track" title="A marca laranja é até onde a projeção vai">
+                        <div class="sc-sprint-fill" style="width:<?= $scPct ?>%"></div>
+                        <?php if (!$scT['ate_o_fim']): ?><div class="sc-sprint-mark" style="left:<?= $scPctP ?>%"></div><?php endif; ?>
+                    </div>
+                    <span class="sc-sprint-info">
+                        <strong>T<?= $scT['numero'] ?></strong>/<?= $scT['total'] ?> ·
+                        <?= $scFalta === 0 ? 'última do sprint' : ($scFalta === 1 ? 'falta 1 temporada' : "faltam {$scFalta} temporadas") ?>
+                    </span>
                 </div>
                 <?php endif; ?>
 
-                <!-- 3 cards lado a lado: Campeão · Sobe · Cai -->
+                <?php if (!empty($an['destaques'])): ?>
+                <div class="sc-chips">
+                    <?php foreach ($an['destaques'] as $dq): ?>
+                    <div class="sc-chip <?= htmlspecialchars($dq['cor']) ?>">
+                        <span class="k"><?= htmlspecialchars($dq['rotulo']) ?></span>
+                        <span class="v"><?= htmlspecialchars($dq['time']) ?></span>
+                        <span class="n"><?= htmlspecialchars($dq['valor']) ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+
                 <div class="sc-triple-grid">
 
-                    <!-- Projeção Campeão -->
-                    <?php if (!empty($an['champ_proj'])):
-                        $maxProb = $an['champ_proj'][0]['prob'] ?: 1; ?>
-                    <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Projeção Campeão
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waChamp) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
+                    <div class="sc-block ouro">
+                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Chance de título
+                            <?php if ($scCampeao): ?>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🏆', 'Chance de título', $scCampeao, 'titulo')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
+                            <?php endif; ?>
                         </div>
-                        <?php foreach ($an['champ_proj'] as $i => $cp):
-                            $barW = round($cp['prob'] / $maxProb * 100);
-                            $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
-                            $tagC = $tagColors[($cp['ai_tag'] ?? '')] ?? '#64748b';
-                        ?>
+                        <div class="sc-block-sub">quem levanta a taça da T<?= $scT['titulo_de'] ?></div>
+                        <?php if (!$scCampeao): ?>
+                        <div class="sc-vazio">O sprint acabou — não há temporada em disputa.</div>
+                        <?php else:
+                            $scMax = max(array_column($scCampeao, 'titulo')) ?: 1;
+                            foreach ($scCampeao as $i => $l): ?>
                         <div class="sc-row">
                             <div class="sc-num"><?= $i + 1 ?></div>
-                            <img class="sc-tlogo"
-                                 src="<?= htmlspecialchars(getTeamPhoto($cp['team_photo'] ?? null)) ?>"
-                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
                             <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($cp['team_name']) ?></div>
-                                <div class="sc-tmeta">
-                                    OVR <?= $cp['avg_ovr'] ?> · max <?= $cp['max_ovr'] ?>
-                                    <?php if ($cp['ai_tag']): ?>
-                                    <span style="color:<?= $tagC ?>;font-weight:700"> · <?= htmlspecialchars($cp['ai_tag']) ?></span>
-                                    <?php endif; ?>
-                                </div>
+                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
+                                <div class="sc-tmeta">força <?= $l['forca'] ?> · <?= scPct((float)$l['playoff']) ?> de playoff</div>
                             </div>
                             <div class="sc-prob-col">
-                                <div class="sc-pct"><?= $cp['prob'] ?>%</div>
-                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= $barW ?>%"></div></div>
+                                <div class="sc-pct"><?= scPct((float)$l['titulo']) ?></div>
+                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['titulo'] / $scMax * 100) ?>%"></div></div>
                             </div>
                         </div>
-                        <?php endforeach; ?>
+                        <?php endforeach; endif; ?>
+                    </div>
+
+                    <?php if (!empty($an['tem_subida'])): ?>
+                    <div class="sc-block verde">
+                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill"></i> Chance de subir
+                            <?php if ($scCima): ?>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🟢', 'Chance de subir', $scCima, 'cima')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
+                            <?php endif; ?>
+                        </div>
+                        <div class="sc-block-sub">terminar entre os <?= $an['zona_cima'] ?> primeiros do ranking <?= htmlspecialchars($scJanela) ?></div>
+                        <?php if (!$scCima): ?>
+                        <div class="sc-vazio">Sem corrida pela zona de cima nesta janela.</div>
+                        <?php else:
+                            $scMax = max(array_column($scCima, 'cima')) ?: 1;
+                            foreach ($scCima as $i => $l): ?>
+                        <div class="sc-row">
+                            <div class="sc-num"><?= $i + 1 ?></div>
+                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                            <div class="sc-tinfo">
+                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
+                                <div class="sc-tmeta"><?= $l['pts_hoje'] ?> pts hoje · <?= $l['pts_fim'] ?> projetados</div>
+                            </div>
+                            <div class="sc-prob-col">
+                                <div class="sc-pct"><?= scPct((float)$l['cima']) ?></div>
+                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['cima'] / $scMax * 100) ?>%"></div></div>
+                            </div>
+                        </div>
+                        <?php endforeach; endif; ?>
                     </div>
                     <?php endif; ?>
 
-                    <!-- Top 10 Chances de Subir (NEXT/RISE apenas) -->
-                    <?php if (!empty($an['promo_proj'])):
-                        $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
-                    ?>
-                    <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Top 10 — Chances de Subir</span>
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waPromo) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
+                    <div class="sc-block vermelho">
+                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill"></i> Chance de cair
+                            <?php if ($scBaixo): ?>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($scWa('🔴', 'Chance de cair', $scBaixo, 'baixo')) ?>" title="Copiar para o WhatsApp"><i class="bi bi-clipboard"></i></button>
+                            <?php endif; ?>
                         </div>
-                        <?php foreach ($an['promo_proj'] as $gi => $t):
-                            $p = $t['promo_prob'];
-                            $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
-                        ?>
-                        <div class="sc-zone-row">
-                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                        <div class="sc-block-sub">terminar entre os <?= $an['zona_baixo'] ?> últimos do ranking <?= htmlspecialchars($scJanela) ?></div>
+                        <?php if (!$scBaixo): ?>
+                        <div class="sc-vazio">Ninguém com chance medível de terminar lá embaixo.</div>
+                        <?php else:
+                            $scMax = max(array_column($scBaixo, 'baixo')) ?: 1;
+                            foreach ($scBaixo as $i => $l): ?>
+                        <div class="sc-row">
+                            <div class="sc-num"><?= $i + 1 ?></div>
+                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($l['foto'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
                             <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
-                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · <?= $t['picks_count'] ?> picks · <?= $t['ranking_pts'] ?>pts</div>
+                                <div class="sc-tname"><?= htmlspecialchars($l['nome']) ?></div>
+                                <div class="sc-tmeta"><?= $l['pts_hoje'] ?> pts hoje · <?= $l['pts_fim'] ?> projetados</div>
                             </div>
-                            <span class="sc-zone-pct" style="color:<?= $gc ?>"><?= $p ?>%</span>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- Top 10 Chances de Cair -->
-                    <?php if (!empty($an['rele_proj'])):
-                        $rC = ['#dc2626','#ef4444','#f87171','#fca5a5','#fecaca','var(--text-3)'];
-                    ?>
-                    <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Top 10 — Chances de Cair</span>
-                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waRele) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
-                        </div>
-                        <?php foreach ($an['rele_proj'] as $ri => $t):
-                            $p = $t['rele_prob'];
-                            $rc = $p >= 5 ? ($rC[min($ri,5)]) : 'var(--text-3)';
-                        ?>
-                        <div class="sc-zone-row">
-                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                            <div class="sc-tinfo">
-                                <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
-                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · <?= $t['picks_count'] ?> picks · <?= $t['ranking_pts'] ?>pts</div>
+                            <div class="sc-prob-col">
+                                <div class="sc-pct"><?= scPct((float)$l['baixo']) ?></div>
+                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= round($l['baixo'] / $scMax * 100) ?>%"></div></div>
                             </div>
-                            <span class="sc-zone-pct" style="color:<?= $rc ?>"><?= $p ?>%</span>
                         </div>
-                        <?php endforeach; ?>
+                        <?php endforeach; endif; ?>
                     </div>
-                    <?php endif; ?>
 
                 </div><!-- /sc-triple-grid -->
+
+                <details class="sc-dados">
+                    <summary>
+                        <i class="bi bi-table"></i> A tabela por trás das chances — os <?= $an['n_times'] ?> times
+                        <i class="bi bi-chevron-down"></i>
+                    </summary>
+                    <p class="sc-arrasta"><i class="bi bi-arrow-left-right"></i> arraste a tabela pro lado pra ver todas as colunas</p>
+                    <div class="sc-tab-wrap">
+                        <table class="sc-tab">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Time</th>
+                                    <th title="OVR ponderado dos 8 melhores do elenco">Força</th>
+                                    <th title="Idade média dos 8 que formam a força">Idade</th>
+                                    <th>Pts hoje</th>
+                                    <th title="Pontos projetados, com a faixa que cobre 80% das simulações"><?= htmlspecialchars($scAlvo) ?></th>
+                                    <th title="Quantas posições o time ganha ou perde no ranking">Δ</th>
+                                    <th>Título</th>
+                                    <th>Playoff</th>
+                                    <th>1º</th>
+                                    <th>Fundo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($an['times'] as $l): ?>
+                                <tr>
+                                    <td class="t-pos"><?= $l['pos_proj'] ?></td>
+                                    <td class="t-nome">
+                                        <?= htmlspecialchars($l['nome']) ?>
+                                        <small><?= $l['sem_gm'] ? 'sem GM' : htmlspecialchars($l['gm'] ?? '—') ?><?= $l['conf'] ? ' · ' . htmlspecialchars(ucfirst(mb_strtolower($l['conf'], 'UTF-8'))) : '' ?></small>
+                                    </td>
+                                    <td class="t-forte"><?= number_format($l['forca'], 1, ',', '.') ?></td>
+                                    <td><?= $l['idade'] !== null ? number_format($l['idade'], 1, ',', '.') : '—' ?></td>
+                                    <td><?= $l['pts_hoje'] ?></td>
+                                    <td class="t-forte"><?= $l['pts_fim'] ?> <span class="sc-faixa"><?= $l['pts_lo'] ?>–<?= $l['pts_hi'] ?></span></td>
+                                    <td class="<?= $l['delta'] > 0 ? 'sc-delta-up' : ($l['delta'] < 0 ? 'sc-delta-down' : 'sc-delta-zero') ?>">
+                                        <?= $l['delta'] > 0 ? '+' . $l['delta'] : ($l['delta'] < 0 ? $l['delta'] : '—') ?>
+                                    </td>
+                                    <td><?= scPct((float)$l['titulo']) ?></td>
+                                    <td><?= scPct((float)$l['playoff']) ?></td>
+                                    <td><?= scPct((float)$l['primeiro']) ?></td>
+                                    <td><?= scPct((float)$l['baixo']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="sc-nota">
+                        <b>Como a conta é feita.</b> A força de cada time é o OVR ponderado dos 8 melhores do elenco —
+                        a régua que, medida na própria FBA, acerta a ordem final com correlação 0,67. O sprint é sorteado
+                        <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes a partir dos pontos que cada um já tem, com os elencos envelhecendo pela
+                        curva de idade tirada de 22 mil temporadas de jogadores da liga, e com o acaso do tamanho que a liga
+                        mostrou ter. A projeção vai <?= htmlspecialchars($scJanela) ?> porque mais longe que isso vira adivinhação.
+                        <?php if (!empty($scT['fonte'])): ?>Os playoffs desta temporada saem de <?= htmlspecialchars($scT['fonte']) ?>.<?php endif; ?>
+                        <br>
+                        <b>O que não entra.</b> Troca, draft e leilão só aparecem como um sorteio de mudança de elenco que cresce
+                        a cada temporada à frente. Prêmio individual e NBA Cup não contam ponto aqui.
+                        <b>Subir e cair são posição no ranking</b>, não decreto: promoção na FBA é chamada de admin.
+                    </p>
+                </details>
 
             </div><!-- /sc-wrap -->
             <?php endif; ?>

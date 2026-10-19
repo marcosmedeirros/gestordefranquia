@@ -597,6 +597,7 @@ function wcAjuda(): string
         . "/power — o power ranking da liga (elenco, astros, idade, pontuação e campanha)\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
+        . "/opta — as chances da liga: título, subir e cair\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
         // liga inteira e qualquer time pode disputar, então é assunto de
@@ -2872,6 +2873,87 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         $txt .= "\n*{$titulo}*\n";
         foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false);
     }
+    return rtrim($txt);
+}
+
+/**
+ * /opta — as chances da liga: título, subir e cair.
+ *
+ * O NOME É HOMENAGEM, E A CONTA NÃO É CHUTE. A mesma simulação que desenha o
+ * SuperComputador no Mundo FBA (backend/supercomputador.php) responde aqui:
+ * o sprint sorteado 1.200 vezes a partir dos pontos de hoje, com os elencos
+ * envelhecendo pela curva de idade medida na própria FBA.
+ *
+ * Três listas, cinco times cada, porque é o que cabe numa mensagem de grupo
+ * sem virar rolagem: quem leva o título, quem termina na zona de cima e quem
+ * termina na zona de baixo do ranking.
+ *
+ * DA ELITE NÃO SE SOBE, então lá a lista do meio não aparece — o que sobra é
+ * título e queda. Fingir uma "chance de subir" pra quem já está na liga de
+ * cima seria inventar uma porta sem o outro lado.
+ */
+function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    require_once __DIR__ . '/../backend/supercomputador.php';
+
+    $termo = trim($termo);
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga && $termo !== '') return "Não reconheci \"{$termo}\" como liga. Use ELITE, NEXT, RISE ou ROOKIE.";
+    if (!$liga) return 'Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.';
+
+    $p = scPacoteDaLiga($pdo, $liga);
+    if (empty($p['tem_dados'])) return "A {$liga} ainda não tem temporada e elenco pra projetar.";
+
+    $t = $p['temporada'];
+    $alvo = 'T' . $t['alvo'];
+    $janela = $t['ate_o_fim'] ? "até o fim do sprint ({$alvo})" : "até a {$alvo}";
+
+    $linha = function (array $l, int $i, string $campo, string $extra = ''): string {
+        return $i . '. *' . $l['nome'] . '* — ' . scPct((float)$l[$campo]) . $extra . "\n";
+    };
+    $top = function (string $campo) use ($p): array {
+        $xs = $p['times'];
+        usort($xs, fn($a, $b) => $b[$campo] <=> $a[$campo]);
+        return array_values(array_filter(array_slice($xs, 0, 5), fn($l) => (float)$l[$campo] > 0));
+    };
+
+    $txt = "🤖 *OPTA FBA · {$liga}*\n_T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
+         . ' · ' . number_format($p['n_sim'], 0, ',', '.') . " simulações do sprint_\n";
+
+    $campeao = $top('titulo');
+    if ($campeao) {
+        $txt .= "\n🏆 *Campeão da T{$t['titulo_de']}*\n";
+        foreach ($campeao as $i => $l) $txt .= $linha($l, $i + 1, 'titulo');
+    }
+
+    if (!empty($p['tem_subida'])) {
+        $sobe = $top('cima');
+        if ($sobe) {
+            $txt .= "\n🟢 *Zona de cima — top {$p['zona_cima']} do ranking {$janela}*\n";
+            foreach ($sobe as $i => $l) $txt .= $linha($l, $i + 1, 'cima');
+        }
+    }
+
+    $cai = $top('baixo');
+    if ($cai) {
+        $txt .= "\n🔴 *Zona de baixo — últimos {$p['zona_baixo']} do ranking {$janela}*\n";
+        foreach ($cai as $i => $l) $txt .= $linha($l, $i + 1, 'baixo');
+    } else {
+        $txt .= "\n🔴 *Zona de baixo* — ninguém com chance medível de cair pra lá.\n";
+    }
+
+    if (!empty($p['destaques'])) {
+        $chips = array_map(fn($d) => $d['rotulo'] . ': ' . $d['time'] . ' (' . $d['valor'] . ')', $p['destaques']);
+        $txt .= "\n_" . implode(' · ', array_slice($chips, 0, 3)) . "_\n";
+    }
+
+    /* A BASE FICA JUNTO DO NÚMERO. Porcentagem sem régua no grupo vira
+       discussão sobre o que o bot "acha"; com a régua escrita, a discussão
+       é sobre a régua, que é a conversa que vale. */
+    $txt .= "\n_Conta: força do elenco (OVR ponderado dos 8 melhores, que acerta "
+          . "a ordem final da FBA com correlação 0,67) + os pontos já somados no ranking. "
+          . "Subir e cair são posição no ranking, não decreto — quem promove é o admin._";
+
     return rtrim($txt);
 }
 
@@ -5671,6 +5753,13 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'powerconf':
             case 'powerconferencia':
                 return wcPowerRankingConferencia($pdo, $arg, $ligaDoGrupo);
+
+            // O analista da liga: título, subir e cair, com a simulação do
+            // SuperComputador por trás. /opta é o apelido que pegou no grupo.
+            case 'opta':
+            case 'analista':
+            case 'chances':
+                return wcOpta($pdo, $arg, $ligaDoGrupo);
 
             case 'aceitar':
             case 'recusar':
