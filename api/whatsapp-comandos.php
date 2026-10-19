@@ -3017,9 +3017,15 @@ function wcOptaDoTime(PDO $pdo, array $time): string
        mesmo lugar, e "0% — 10º de 30" lê como contradição. */
     $txt .= '• Campeão (1º no ranking): *' . scPct((float)$eu['campeao']) . '*'
           . ($eu['campeao'] > 0 ? ' — ' . $ordinal($posto('campeao')) . " de {$n}" : '') . "\n";
-    $txt .= '• Terminar no pódio: ' . scPct((float)$eu['top3']) . "\n";
+    /* PÓDIO E SUBIDA SÃO QUASE A MESMA LINHA: top 3 contra top 4, uma posição
+       de diferença, e as duas juntas saíam com números colados ("pódio <1%,
+       subir 1%"). Fica a que a liga decide por ela — subir. Na ELITE, onde
+       não há pra onde subir, o pódio é a régua do meio que sobra entre ser
+       campeão e cair. */
     if (!empty($p['tem_subida'])) {
         $txt .= "• Subir (top {$p['zona_cima']}): " . scPct((float)$eu['cima']) . "\n";
+    } else {
+        $txt .= '• Terminar no pódio: ' . scPct((float)$eu['top3']) . "\n";
     }
     $txt .= "• Cair (últimos {$p['zona_baixo']}): " . scPct((float)$eu['baixo']) . "\n";
 
