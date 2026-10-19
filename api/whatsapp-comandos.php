@@ -3035,7 +3035,9 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     $txt .= '• Força ' . number_format((float)$eu['forca'], 1, ',', '.')
           . ' — ' . $ordinal($posto('forca')) . " de {$n}"
           . ($eu['idade'] !== null ? ' · idade ' . number_format((float)$eu['idade'], 1, ',', '.') : '') . "\n";
-    $txt .= '• Janela: *' . $eu['janela'] . '*'
+    /* Sem rotulo: o proprio valor ja diz do que se trata, e com ele a
+       linha saia "Janela: *Janela fechando*". */
+    $txt .= '• *' . $eu['janela'] . '*'
           . ($eu['pico'] > $t['numero'] ? " — auge na T{$eu['pico']}" : ' — o auge é agora')
           . ($eu['picks'] > 0 ? " · {$eu['picks']} picks de 1ª" : ' · sem pick de 1ª') . "\n";
 
