@@ -2717,18 +2717,18 @@ try {
                consequência do registro, não parte dele. */
             if (!$ehCorrecao) {
                 try {
-                    require_once dirname(__DIR__) . '/backend/apostas_auto.php';
-                    $apst = apostasAutoCriarPlayoffs($pdo, (string)$leagueR, $seasonId, true);
-                    if ($apst['criadas']) {
-                        error_log('[seasons/apostas] ' . count($apst['criadas'])
-                                . ' apostas de playoff criadas para ' . $leagueR . ' #' . $seasonId);
-                        // O grupo é avisado com @todos: o chaveamento acabou
-                        // de sair e as apostas fecham antes da simulação.
-                        apostasAutoAvisarAbertas($pdo, $apst['criadas']);
-                    }
-                    foreach ($apst['erros'] as $erroAposta) {
-                        error_log('[seasons/apostas] ' . $erroAposta);
-                    }
+                    /* AS APOSTAS DE PLAYOFF NÃO NASCEM MAIS SOZINHAS.
+                       Decisão do Marcos (19/10/2026). Eram elas a maior parte
+                       do que o robô criava — 121 das 160 — e também a maior
+                       parte do que foi cancelado depois: 15 das 90 séries e 2
+                       dos 8 seed1 viraram lixo, cada uma depois de passar pelo
+                       grupo com @todos.
+
+                       O chaveamento registrado continua sendo a deixa certa
+                       pra criar as apostas da fase — só que agora quem decide
+                       é quem registrou, no botão "Criar apostas do dia" do
+                       admin, que monta o catálogo inteiro incluindo as de
+                       playoff. @see cron/apostas.php */
                 } catch (Throwable $e) {
                     error_log('[seasons/apostas] criar playoffs: ' . $e->getMessage());
                 }

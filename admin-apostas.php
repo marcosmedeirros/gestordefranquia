@@ -37,13 +37,20 @@ $mensagemType = "success";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_do_dia') {
-        /* O MESMO TRABALHO DO CRON DAS 12:05, pelo dedo. Existe pro dia em
-           que o cron falhar — hospedagem fora do ar na hora, entrada removida
-           sem querer — não pra substituí-lo. Clicar com o cron vivo não
-           duplica nada: a trava por (liga, temporada, tipo) é a mesma, e o
-           botão só diz "já existiam".
-           O aviso no grupo com @todos também sai daqui, porque aposta criada
-           sem ninguém saber é aposta que ninguém faz. */
+        /* O ÚNICO JEITO DE CRIAR O CATÁLOGO DO DIA, desde 19/10/2026.
+           O robô parou de criar aposta sozinho — nem no cron das 12:05, nem
+           no registro do chaveamento — e este botão virou a porta, não mais o
+           plano B. Monta tudo que cabe no dia (prêmios, jogo da semana,
+           playoff quando há chaveamento) de uma vez.
+
+           Clicar duas vezes não duplica: a trava por (liga, temporada, tipo)
+           continua, e o botão só diz "já existiam".
+
+           O que nasce como RASCUNHO espera você — ninguém mais publica
+           sozinho depois de 3h. É na aba ao lado, no botão de publicar.
+
+           O aviso no grupo com @todos sai daqui, porque aposta criada sem
+           ninguém saber é aposta que ninguém faz. @see cron/apostas.php */
         try {
             require_once __DIR__ . '/backend/apostas_auto.php';
             $rDia = apostasAutoCriar($pdo, date('Y-m-d'), true);
@@ -78,14 +85,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (isset($_POST['acao']) && $_POST['acao'] == 'pagar_pendentes') {
-        /* O MESMO PASSE DO CRON DE 10 EM 10 MINUTOS, pelo dedo: abre rascunho
-           que passou da carência, paga o que o banco já sabe — inclusive
-           aposta manual de série adotada — e avisa o grupo com @todos.
-           Só paga o que é certo; o que não casa fica na fila e continua aqui
-           na tela pra você encerrar à mão. */
+        /* O MESMO PASSE DO CRON DE 10 EM 10 MINUTOS, pelo dedo: paga o que o
+           banco já sabe — inclusive aposta manual de série adotada — e avisa
+           o grupo com @todos. Só paga o que é certo; o que não casa fica na
+           fila e continua aqui na tela pra você encerrar à mão.
+
+           O apostasAutoPublicarPendentes saiu daqui em 19/10/2026: ele ABRIA
+           rascunho que passou de 3h sem revisão, e abrir aposta é criar
+           aposta. Um botão escrito "Pagar pendentes" não devia publicar nada
+           pra liga. @see cron/apostas.php */
         try {
             require_once __DIR__ . '/backend/apostas_auto.php';
-            apostasAutoPublicarPendentes($pdo, 180, true);
             $rPag = apostasAutoResolver($pdo, true);
             if ($rPag['pagas']) {
                 apostasAutoAvisarPagas($pdo, $rPag['pagas']);
@@ -169,10 +179,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (isset($_POST['acao']) && $_POST['acao'] == 'publicar_evento') {
-        /* Abre pra liga uma aposta que o robô deixou em rascunho. Só sai de
-           rascunho por aqui ou pela carência do cron, e nos dois casos o prazo
-           tem que estar no futuro: publicar aposta de prazo vencido põe na
-           tela do jogador algo em que ele não consegue apostar. */
+        /* Abre pra liga uma aposta que ficou em rascunho. ESTE É O ÚNICO
+           jeito desde 19/10/2026 — a carência de 3h que publicava sozinha
+           saiu junto com a criação automática. O prazo tem que estar no
+           futuro: publicar aposta de prazo vencido põe na tela do jogador
+           algo em que ele não consegue apostar. */
         $id_evento = (int)($_POST['id_evento'] ?? 0);
         try {
             $st = $pdo->prepare("SELECT data_limite FROM eventos WHERE id = ? AND status = 'rascunho'");
@@ -411,10 +422,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-/* 'rascunho' é a aba das apostas que o robô montou e estão esperando revisão.
-   A tela do jogador filtra status 'aberta', então rascunho não vaza pra liga —
-   mas sem uma aba aqui ninguém as veria, e elas abririam sozinhas na carência
-   com o palpite automático, que acerta metade do que a mão acerta.
+/* 'rascunho' é a aba das apostas que o catálogo montou e estão esperando
+   revisão. A tela do jogador filtra status 'aberta', então rascunho não vaza
+   pra liga — e desde 19/10/2026 ele também não abre sozinho: sem esta aba,
+   uma aposta montada aqui ficaria parada pra sempre.
    @see backend/apostas_auto.php */
 $statusValidos = ['aberta', 'encerrada', 'rascunho', 'cancelada'];
 $filtro_status = in_array($_GET['status'] ?? '', $statusValidos, true) ? $_GET['status'] : 'aberta';

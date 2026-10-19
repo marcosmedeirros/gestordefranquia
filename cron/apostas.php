@@ -1,39 +1,40 @@
 <?php
 /**
- * As apostas do dia: cria às 11h e paga conforme o card Pontuação é preenchido.
+ * O PAGAMENTO DAS APOSTAS. Só isso.
  *
- * Agendar na Hostinger DUAS entradas:
+ * Agendar na Hostinger UMA entrada:
  *
- *   5 15 * * *     /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php criar
- *   (barra)10 * *  /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php pagar
+ *   (barra)10 * *  /opt/alt/php83/usr/bin/php <caminho>/cron/apostas.php
  *
- * A segunda é "a cada 10 minutos, todo dia" — escrita por extenso porque a
- * barra seguida de asterisco fecharia este bloco de comentário.
+ * É "a cada 10 minutos, todo dia" — escrita por extenso porque a barra
+ * seguida de asterisco fecharia este bloco de comentário.
  *
- * As horas são UTC, que é o fuso do servidor: 15:05 lá são 12:05 em Brasília.
- * E é 12:05, e não 11h como no primeiro desenho, porque o LEILÃO DO JOGO DA
- * SEMANA fecha meio-dia: às 11h o confronto ainda não existe, e a aposta dele
- * sairia com os times da semana passada ou não sairia.
+ * ── O ROBÔ NÃO CRIA MAIS APOSTA ──────────────────────────────────────
  *
- * ── POR QUE DUAS ─────────────────────────────────────────────────────
+ * Decisão do Marcos (19/10/2026): "tirar a criação das apostas
+ * automática, deixar apenas o pagamento nas que tu realmente consegue
+ * fazer".
  *
- * Criar é uma vez por dia, num horário combinado com a liga. Pagar não tem
- * horário: depende de quando alguém preenche o card Pontuação, e isso acontece
- * depois da simulação, que atrasa. De dez em dez minutos o pagamento sai quase
- * junto com o resultado, sem ninguém precisar lembrar de clicar.
+ * Os números davam razão a ele: das 160 apostas que nasceram sozinhas,
+ * 29 foram CANCELADAS — 18%, e em alguns tipos um quarto. Aposta que o
+ * admin apaga é aposta que não devia ter existido, e cada uma dessas
+ * passou pelo grupo com @todos antes de ser apagada.
  *
- * O "pagar" também abre os rascunhos que ninguém revisou (carência de 3h), pra
- * que um dia em que o dono da liga não apareceu não fique sem aposta.
+ * Pagar é outra história: ali o robô não inventa nada, ele lê o
+ * resultado que alguém já registrou e credita. O que ele não consegue
+ * casar vai pra fila e espera mão humana — nunca paga no chute, porque
+ * pagar errado mexe no saldo de todo mundo.
+ *
+ * Criar virou trabalho de gente: o formulário do admin, ou o botão
+ * "Criar apostas do dia", que monta o catálogo inteiro de uma vez e
+ * continua lá pra quem quiser.
  *
  * ── RODAR DUAS VEZES NÃO DOBRA NADA ──────────────────────────────────
  *
- * A criação tem trava por (liga, temporada, tipo) e o pagamento confere o
- * status com FOR UPDATE antes de creditar. Dá pra executar à mão a qualquer
- * momento sem medo — e é assim que se testa:
+ * O pagamento confere o status com FOR UPDATE antes de creditar. Dá pra
+ * executar à mão a qualquer momento sem medo:
  *
- *   php cron/apostas.php criar --simular        descreve, não grava
- *   php cron/apostas.php pagar --simular        descreve, não paga
- *   php cron/apostas.php criar --dia=2026-10-08
+ *   php cron/apostas.php --simular     descreve, não paga
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -45,87 +46,28 @@ require_once __DIR__ . '/../backend/apostas_auto.php';
 require_once __DIR__ . '/../backend/whatsapp.php';
 
 $argvv   = $argv ?? [];
-$acao    = in_array('pagar', $argvv, true) ? 'pagar' : 'criar';
 $simular = in_array('--simular', $argvv, true);
 $aplicar = !$simular;
 
-$dia = date('Y-m-d');
-foreach ($argvv as $a) {
-    if (preg_match('/^--dia=(\d{4}-\d{2}-\d{2})$/', $a, $m)) $dia = $m[1];
-}
+/* O argumento `pagar` continua aceito e ignorado: a entrada antiga do
+   painel passa ele, e quebrar o cron por causa de uma palavra a mais
+   seria trocar um problema por outro. */
 
 $pdo = db();
 $log = function (string $t) { echo '[' . date('H:i:s') . "] {$t}\n"; };
 
-if ($acao === 'criar') {
-    $r = apostasAutoCriar($pdo, $dia, $aplicar);
-    $log(($simular ? 'SIMULANDO ' : '') . "criação de {$dia}");
-
-    $abertas = $rascunhos = 0;
-    foreach ($r['criadas'] as $c) {
-        $log(sprintf('  %-7s %-34s %s', $c['liga'], $c['nome'], implode(' | ', $c['opcoes'])));
-        /* Conta pelo STATUS, não pelo tipo. Desde 07/10/2026 as de prêmio
-           também nascem abertas — contar pelo tipo mandaria o aviso de
-           "esperando seus palpites" com a aposta já aberta pra liga. */
-        ($c['status'] ?? 'aberta') === 'rascunho' ? $rascunhos++ : $abertas++;
-    }
-    foreach ($r['puladas'] as $p) $log("  (pulada) {$p}");
-    foreach ($r['erros'] as $e)   $log("  ERRO {$e}");
-    $log("total: " . count($r['criadas']) . " criadas ({$abertas} abertas, {$rascunhos} em rascunho)");
-
-    if ($aplicar && apostasAutoAvisarAbertas($pdo, $r['criadas'])) {
-        $log('grupo avisado das abertas, com @todos');
-    }
-
-    /* AVISA O DONO DA LIGA, porque rascunho que ninguém vê não é revisado.
-       Só quando há rascunho: mensagem diária sem motivo vira ruído e deixa de
-       ser lida, que é o jeito de um aviso parar de funcionar. */
-    if ($aplicar && $rascunhos > 0) {
-        $dono = apostasAutoNumeroDoDono($pdo);
-        if ($dono !== '' && function_exists('whatsappEnfileirar')) {
-            $txt = "🎲 *Apostas do dia criadas*\n\n"
-                 . "{$abertas} já abertas e *{$rascunhos} esperando seus palpites* "
-                 . "(MVP, MIP, DPOY, ROY, 6º homem).\n\n"
-                 . "Deixei uma sugestão em cada uma, mas a sua lista acerta o dobro — "
-                 . "vale trocar os nomes.\n"
-                 . "Se eu não ouvir nada, abro com a sugestão em 3h.\n\n"
-                 . "👉 admin-apostas.php";
-            whatsappEnfileirar($pdo, $dono, $txt, false, 'apostas');
-            $log('aviso enfileirado pro dono da liga');
-        } else {
-            $log('sem número do dono configurado: aviso não enviado');
-        }
-    }
+/* `criar` não existe mais. Quem agendou a entrada das 12:05 precisa
+   apagá-la no painel — enquanto ela existir, roda isto aqui e sai. */
+if (in_array('criar', $argvv, true)) {
+    $log('o robô não cria mais aposta — só paga. Apague a entrada "criar" do painel.');
     exit(0);
 }
 
 /* ── PAGAR ──────────────────────────────────────────────────────────── */
 
-/* O JOGO DA SEMANA QUE CHEGOU ATRASADO. O leilão fecha meio-dia e a criação
-   roda 12:05, mas já houve fechamento às 12:02 — e um fechamento manual pode
-   sair bem mais tarde. Esta passada completa só essa aposta, se ela faltar.
-   Só ela: recriar o catálogo inteiro de dez em dez minutos ressuscitaria a
-   aposta que o admin apagou de propósito. */
-$tardio = apostasAutoCriar($pdo, date('Y-m-d'), $aplicar, ['jogo_semana']);
-foreach ($tardio['criadas'] as $c) {
-    $log("  jogo da semana criado depois: {$c['liga']} " . implode(' x ', $c['opcoes']));
-}
-
-$pend = apostasAutoPublicarPendentes($pdo, 180, $aplicar);
-foreach ($pend as $p) $log("  publicado rascunho #{$p['id']} {$p['liga']} {$p['nome']}");
-
-/* O RASCUNHO QUE ABRIU AGORA TAMBÉM É NOTÍCIA. Ele não saiu no aviso das
-   12:05 porque ainda não estava aberto; se não sair aqui, a liga nunca fica
-   sabendo que o MVP entrou em jogo. Junta com o que o jogo da semana atrasado
-   criou, pra ser uma mensagem só e não duas seguidas. */
-$novas = array_merge(
-    array_map(fn($p) => ['liga' => $p['liga'], 'nome' => $p['nome'],
-                         'prazo' => $p['data_limite'], 'status' => 'aberta'], $pend),
-    $tardio['criadas']
-);
-if ($aplicar && apostasAutoAvisarAbertas($pdo, $novas)) {
-    $log('grupo avisado das que abriram agora, com @todos');
-}
+/* NADA DE CRIAR AQUI. Este trecho abria o jogo da semana atrasado e
+   publicava os rascunhos que ninguém revisou depois de 3h — as duas
+   coisas são criação, e criação virou trabalho de gente. */
 
 $r = apostasAutoResolver($pdo, $aplicar);
 foreach ($r['pagas'] as $x) {
