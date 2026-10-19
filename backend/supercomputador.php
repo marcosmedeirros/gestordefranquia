@@ -33,6 +33,26 @@
  *     AINDA EM DISPUTA, que são as temporadas que faltam × a régua oficial.
  *     Sprint acabando com alguém 40 pontos à frente é 100%, não "favorito".
  *
+ * ── TUDO AQUI É DA SPRINT ATUAL ───────────────────────────────────────
+ *
+ * Nenhum número deste arquivo olha pra sprint passada. A temporada vem de
+ * wcTemporadaAtiva, que só procura dentro da sprint com status 'active'; o
+ * tamanho vem de league_sprint_config.max_seasons, que é o tamanho DESTA
+ * sprint; as temporadas simuladas vão da de agora até a última dela; e os
+ * times são os que estão na liga hoje.
+ *
+ * A base de pontos é teams.ranking_points, a mesma do /ranking, e ela é
+ * zerada no reset de sprint (api/seasons.php). Conferido em produção em
+ * 19/10/2026, somando team_season_points só das temporadas da sprint ativa:
+ * ELITE 752=752, NEXT 644=644, RISE 552=552 — bate exatamente, enquanto o
+ * acumulado de todas as sprints seria 3576, 2766 e 1261.
+ *
+ * A ROOKIE é a exceção que confirma a regra: lá teams.ranking_points (420)
+ * é MENOR que a soma da sprint (736), porque a liga zera os pontos quando o
+ * GM sobe pra RISE e outro assume a cadeira (ver ranking_ciclos.php,
+ * corte_gm). Está certo assim: a projeção parte do que o /ranking mostra,
+ * que é o que a liga reconhece como pontuação de cada time hoje.
+ *
  * A simulação vai até a ÚLTIMA temporada do sprint, não até um horizonte
  * arbitrário: a pergunta é sobre o fim dele, e cortar antes responderia
  * outra coisa.
@@ -518,6 +538,9 @@ function scPacoteDaLiga(PDO $pdo, string $liga, ?int $totalTemporadas = null): a
         'tem_disputa' => $restantes > 0 || !empty($fase['chave']),
         'temporada'   => [
             'numero'    => $n,
+            // Qual sprint, escrito: "T9/25" sozinho não diz de qual delas, e
+            // a numeração das temporadas reinicia a cada sprint nova.
+            'sprint'    => (int)($temp['sprint_number'] ?? 0),
             'total'     => $totalTemporadas ?: null,
             'fim'       => $n + $ultimoK,
             'restantes' => $restantes,
@@ -562,7 +585,7 @@ function scDestaques(array $linhas): array
 
     $d = [];
     if ($fav = $primeiro($porCampeao, fn($l) => $l['campeao'] > 0)) {
-        $d[] = ['rotulo' => 'Favorito ao sprint', 'time' => $fav['nome'],
+        $d[] = ['rotulo' => 'Favorito da sprint', 'time' => $fav['nome'],
                 'valor' => scPct($fav['campeao']), 'cor' => 'ouro'];
     }
     // Azarão: a maior chance de 1º lugar entre os que hoje estão na metade de

@@ -2930,24 +2930,31 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         return $out;
     };
 
-    $txt = "🤖 *OPTA FBA · {$liga}*\n_T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-         . ' · ' . ($t['restantes'] === 0 ? 'sprint decidido'
+    $txt = "🤖 *OPTA FBA · {$liga}*\n_" . ($t['sprint'] ? "Sprint {$t['sprint']} · " : '')
+         . "T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
+         . ' · ' . ($t['restantes'] === 0 ? 'sprint decidida'
                  : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
          . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
+    /* "DO RANKING DA SPRINT", e não "na T20". Escrito do outro jeito, o
+       grupo lia como a classificação daquela temporada — e não é: é a
+       posição no ranking SOMADO da sprint inteira, com a última temporada
+       sendo só onde a conta fecha. */
+    $ate = "somando até a {$fim}";
+
     $campeao = $top('campeao');
     if ($campeao) {
-        $txt .= "\n🏆 *Campeão do sprint* _(1º na {$fim})_\n" . $lista($campeao, 'campeao');
+        $txt .= "\n🏆 *Campeão da sprint* _(1º no ranking, {$ate})_\n" . $lista($campeao, 'campeao');
     }
 
     if (!empty($p['tem_subida'])) {
         $sobe = $top('cima');
-        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} na {$fim})_\n" . $lista($sobe, 'cima');
+        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} do ranking da sprint, {$ate})_\n" . $lista($sobe, 'cima');
     }
 
     $cai = $top('baixo');
     $txt .= $cai
-        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} na {$fim})_\n" . $lista($cai, 'baixo')
+        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} do ranking da sprint, {$ate})_\n" . $lista($cai, 'baixo')
         : "\n🔴 *Cair* — ninguém com chance medível de terminar lá embaixo.\n";
 
     if (!empty($p['destaques'])) {
@@ -2958,7 +2965,8 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     /* A BASE FICA JUNTO DO NÚMERO. Porcentagem sem régua no grupo vira
        discussão sobre o que o bot "acha"; com a régua escrita, a discussão
        é sobre a régua, que é a conversa que vale. */
-    $txt .= "\n_Conta: os pontos que cada um já tem + o sprint sorteado "
+    $txt .= "\n_Conta: os pontos que cada um já tem NESTA sprint (o mesmo do /ranking, que zera "
+          . "a cada sprint nova) + ela sorteada inteira "
           . number_format($p['n_sim'], 0, ',', '.') . " vezes, com a força do elenco "
           . "(OVR ponderado dos 8 melhores, correlação 0,67 com a ordem final da FBA) "
           . "envelhecendo pela curva de idade da liga. Subir e cair são posição no ranking, "
@@ -3008,12 +3016,13 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     $casas = fn(int $k): string => $k . ($k === 1 ? ' posição' : ' posições');
 
     $txt  = "🤖 *OPTA FBA · {$nome}*\n";
-    $txt .= "_{$liga} · T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
-          . ' · ' . ($t['restantes'] === 0 ? 'sprint decidido'
+    $txt .= "_{$liga} · " . ($t['sprint'] ? "Sprint {$t['sprint']} · " : '')
+          . "T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
+          . ' · ' . ($t['restantes'] === 0 ? 'sprint decidida'
                   : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
           . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    $txt .= "\n🏁 *O sprint, na {$fim}*\n";
+    $txt .= "\n🏁 *No ranking da sprint, somando até a {$fim}*\n";
     /* O posto só sai quando a chance existe: com 0% metade da liga empata no
        mesmo lugar, e "0% — 10º de 30" lê como contradição. */
     $txt .= '• Campeão (1º no ranking): *' . scPct((float)$eu['campeao']) . '*'
@@ -3024,7 +3033,7 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     }
     $txt .= "• Cair (últimos {$p['zona_baixo']}): " . scPct((float)$eu['baixo']) . "\n";
 
-    $txt .= "\n📊 *Os pontos*\n";
+    $txt .= "\n📊 *Os pontos da sprint*\n";
     $txt .= '• Hoje: ' . $ordinal((int)$eu['pos_hoje']) . " com {$eu['pts_hoje']}\n";
     $txt .= "• Projetado na {$fim}: " . $ordinal((int)$eu['pos_proj']) . " com {$eu['pts_fim']} "
           . "_(faixa {$eu['pts_lo']}–{$eu['pts_hi']})_\n";
@@ -3046,8 +3055,8 @@ function wcOptaDoTime(PDO $pdo, array $time): string
     foreach ($p['times'] as $l) if ($favorito === null || $l['campeao'] > $favorito['campeao']) $favorito = $l;
     if ($favorito && $favorito['campeao'] > 0) {
         $txt .= (int)$favorito['id'] === (int)$eu['id']
-            ? "\n_O {$nome} é o favorito ao sprint da {$liga}._"
-            : "\n_O favorito ao sprint é o {$favorito['nome']}, com " . scPct((float)$favorito['campeao']) . "._";
+            ? "\n_O {$nome} é o favorito da sprint na {$liga}._"
+            : "\n_O favorito da sprint é o {$favorito['nome']}, com " . scPct((float)$favorito['campeao']) . "._";
     }
 
     $txt .= "\n_A conta é a mesma do /opta. A janela é a leitura da curva de idade nas próximas "

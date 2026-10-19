@@ -1523,14 +1523,20 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 /* AS TRÊS CORRIDAS DO SPRINT. Todas saem do mesmo sorteio e
                    da mesma lista — só muda por qual coluna ela é ordenada,
                    e é por isso que os números conversam entre si. */
-                $scCorridas = [['campeao', 'ouro', 'bi-trophy-fill', 'Campeão do sprint',
-                                "terminar a {$scFim} em 1º no ranking", '🏆']];
+                /* O SUBTÍTULO DIZ "DO RANKING DA SPRINT" DE PROPÓSITO. Antes
+                   ele dizia "entre os 4 primeiros na T20", que se lê como a
+                   classificação daquela temporada — e não é: é a posição no
+                   ranking SOMADO da sprint inteira, com a T20 sendo só onde
+                   a conta fecha. */
+                $scAte = "somando até a {$scFim}";
+                $scCorridas = [['campeao', 'ouro', 'bi-trophy-fill', 'Campeão da sprint',
+                                "1º no ranking da sprint, {$scAte}", '🏆']];
                 if (!empty($an['tem_subida'])) {
                     $scCorridas[] = ['cima', 'verde', 'bi-arrow-up-circle-fill', 'Chance de subir',
-                                     "terminar entre os {$an['zona_cima']} primeiros na {$scFim}", '🟢'];
+                                     "entre os {$an['zona_cima']} primeiros do ranking da sprint, {$scAte}", '🟢'];
                 }
                 $scCorridas[] = ['baixo', 'vermelho', 'bi-arrow-down-circle-fill', 'Chance de cair',
-                                 "terminar entre os {$an['zona_baixo']} últimos na {$scFim}", '🔴'];
+                                 "entre os {$an['zona_baixo']} últimos do ranking da sprint, {$scAte}", '🔴'];
 
                 // Uma linha da lista. A mesma nos três cards e nos dois
                 // estados (top 5 e lista inteira), senão elas se separam.
@@ -1545,12 +1551,11 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                 <span><?= htmlspecialchars($l['nome']) ?></span>
                                 <?php if ((int)$l['id'] === $scEuId): ?><span class="sc-eu">você</span><?php endif; ?>
                             </div>
-                            <?php /* Abreviado porque o card é estreito e a linha trunca: o
-                                    que não couber some, e some justo no fim, onde está a
-                                    janela — a informação que explica o número. */ ?>
-                            <div class="sc-tmeta"><?= $l['pts_hoje'] ?>→<?= $l['pts_fim'] ?> pts<?=
-                                $l['idade'] !== null ? ' · ' . number_format((float)$l['idade'], 1, ',', '.') . 'a' : '' ?>
-                                · <?= htmlspecialchars($l['janela']) ?></div>
+                            <?php /* Só a projeção de pontos. Idade e janela cabiam no
+                                    desktop e truncavam no card estreito, e a linha existe
+                                    pra uma coisa: de onde o time sai e aonde ele chega.
+                                    A leitura do elenco continua inteira no /meuopta. */ ?>
+                            <div class="sc-tmeta"><?= $l['pts_hoje'] ?> → <?= $l['pts_fim'] ?> pts</div>
                         </div>
                         <div class="sc-prob-col">
                             <div class="sc-pct"><?= scPct($v) ?></div>
@@ -1564,7 +1569,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
-                SUPERCOMPUTADOR FBA · as chances do sprint
+                SUPERCOMPUTADOR FBA · as chances da sprint
             </div>
             <div class="sc-wrap">
 
@@ -1572,9 +1577,12 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <div class="sc-icon"><i class="bi bi-cpu-fill"></i></div>
                     <div style="min-width:0">
                         <div class="sc-ttl">SuperComputador FBA</div>
-                        <div class="sc-sub">o sprint sorteado <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes · elenco, idade e os pontos já somados</div>
+                        <div class="sc-sub">a sprint atual sorteada <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes · elenco, idade e os pontos já somados</div>
                     </div>
                     <div class="sc-badges">
+                        <?php if (!empty($scT['sprint'])): ?>
+                        <span class="sc-season-tag">Sprint <?= $scT['sprint'] ?></span>
+                        <?php endif; ?>
                         <?php if (!empty($scT['total'])): ?>
                         <span class="sc-season-tag">T<?= $scT['numero'] ?>/<?= $scT['total'] ?></span>
                         <?php endif; ?>
@@ -1588,7 +1596,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <div class="sc-sprint-track"><div class="sc-sprint-fill" style="width:<?= $scPc ?>%"></div></div>
                     <span class="sc-sprint-info">
                         <strong>T<?= $scT['numero'] ?></strong>/<?= $scT['total'] ?> ·
-                        <?= $scT['restantes'] === 0 ? 'sprint decidido'
+                        <?= $scT['restantes'] === 0 ? 'sprint decidida'
                             : ($scT['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$scT['restantes']} temporadas") ?>
                         <?= $scT['em_disputa'] > 0 ? ' · até <strong>' . $scT['em_disputa'] . '</strong> pts em disputa' : '' ?>
                     </span>
@@ -1665,8 +1673,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div><!-- /sc-triple-grid -->
 
                 <p class="sc-nota">
-                    <b>Como a conta é feita.</b> O sprint inteiro é sorteado <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes, da
-                    temporada de agora até a <?= htmlspecialchars($scFim) ?>, partindo dos pontos que cada time já tem no ranking.
+                    <b>Como a conta é feita.</b> A sprint atual é sorteada inteira <?= number_format($an['n_sim'], 0, ',', '.') ?> vezes, da
+                    temporada de agora até a <?= htmlspecialchars($scFim) ?>, partindo dos pontos que cada time já tem no ranking dela
+                    — o mesmo do <i>/ranking</i>, que zera a cada sprint nova. Campeão, subir e cair são sempre a posição no
+                    ranking somado da sprint, nunca a classificação de uma temporada solta.
                     A força de cada um é o OVR ponderado dos 8 melhores do elenco — a régua que, medida na própria FBA,
                     acerta a ordem final com correlação 0,67 — e a cada temporada à frente o elenco envelhece pela curva
                     tirada de 22 mil temporadas de jogadores da liga, com o acaso do tamanho que a FBA mostrou ter.
