@@ -2957,20 +2957,10 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} do ranking da sprint, {$ate})_\n" . $lista($cai, 'baixo')
         : "\n🔴 *Cair* — ninguém com chance medível de terminar lá embaixo.\n";
 
-    if (!empty($p['destaques'])) {
-        $chips = array_map(fn($d) => $d['rotulo'] . ': ' . $d['time'] . ' (' . $d['valor'] . ')', $p['destaques']);
-        $txt .= "\n_" . implode(' · ', array_slice($chips, 0, 3)) . "_\n";
-    }
-
-    /* A BASE FICA JUNTO DO NÚMERO. Porcentagem sem régua no grupo vira
-       discussão sobre o que o bot "acha"; com a régua escrita, a discussão
-       é sobre a régua, que é a conversa que vale. */
-    $txt .= "\n_Conta: os pontos que cada um já tem NESTA sprint (o mesmo do /ranking, que zera "
-          . "a cada sprint nova) + ela sorteada inteira "
-          . number_format($p['n_sim'], 0, ',', '.') . " vezes, com a força do elenco "
-          . "(OVR ponderado dos 8 melhores, correlação 0,67 com a ordem final da FBA) "
-          . "envelhecendo pela curva de idade da liga. Subir e cair são posição no ranking, "
-          . "não decreto — quem promove é o admin._";
+    /* SÓ AS TRÊS LISTAS. Tinha aqui uma linha de destaques e um rodapé
+       explicando a conta; no grupo, os dois juntos faziam a mensagem ser
+       mais explicação que resposta. A régua continua escrita no Mundo FBA,
+       embaixo dos mesmos números, e os destaques continuam lá também. */
 
     return rtrim($txt);
 }
