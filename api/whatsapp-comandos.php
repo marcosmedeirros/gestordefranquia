@@ -2917,7 +2917,6 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
     if (empty($p['tem_dados'])) return "A {$liga} ainda não tem temporada e elenco pra projetar.";
 
     $t = $p['temporada'];
-    $fim = 'T' . $t['fim'];
 
     $top = function (string $campo) use ($p): array {
         $xs = $p['times'];
@@ -2930,31 +2929,28 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
         return $out;
     };
 
-    $txt = "🤖 *OPTA FBA · {$liga}*\n_" . ($t['edicao'] ? "Edição {$t['edicao']} · " : '')
-         . "T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
+    $txt = "🤖 *OPTA FBA · {$liga}*\n_T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
          . ' · ' . ($t['restantes'] === 0 ? 'edição decidida'
-                 : ($t['restantes'] === 1 ? 'falta 1 temporada' : "faltam {$t['restantes']} temporadas"))
-         . ($t['em_disputa'] > 0 ? " · até {$t['em_disputa']} pts em disputa" : '') . "_\n";
+                 : ($t['restantes'] === 1 ? 'falta 1 temp.' : "faltam {$t['restantes']} temp."))
+         . ($t['em_disputa'] > 0 ? " · {$t['em_disputa']} pts em disputa" : '') . "_\n";
 
-    /* "DO RANKING DA EDIÇÃO", e não "na T20". Escrito do outro jeito, o
-       grupo lia como a classificação daquela temporada — e não é: é a
-       posição no ranking SOMADO da edição inteira, com a última temporada
-       sendo só onde a conta fecha. */
-    $ate = "somando até a {$fim}";
-
+    /* TÍTULO SECO. Tinha a régua entre parênteses em cada um ("1º no
+       ranking, somando até a T20"), e no grupo isso era mais texto que
+       resposta — três vezes a mesma frase numa mensagem só. A régua
+       continua escrita no Mundo FBA, embaixo dos mesmos números. */
     $campeao = $top('campeao');
     if ($campeao) {
-        $txt .= "\n🏆 *Campeão da edição* _(1º no ranking, {$ate})_\n" . $lista($campeao, 'campeao');
+        $txt .= "\n🏆 *Campeão da edição*\n" . $lista($campeao, 'campeao');
     }
 
     if (!empty($p['tem_subida'])) {
         $sobe = $top('cima');
-        if ($sobe) $txt .= "\n🟢 *Subir* _(top {$p['zona_cima']} do ranking da edição, {$ate})_\n" . $lista($sobe, 'cima');
+        if ($sobe) $txt .= "\n🟢 *Subir*\n" . $lista($sobe, 'cima');
     }
 
     $cai = $top('baixo');
     $txt .= $cai
-        ? "\n🔴 *Cair* _(últimos {$p['zona_baixo']} do ranking da edição, {$ate})_\n" . $lista($cai, 'baixo')
+        ? "\n🔴 *Cair*\n" . $lista($cai, 'baixo')
         : "\n🔴 *Cair* — ninguém com chance medível de terminar lá embaixo.\n";
 
     /* SÓ AS TRÊS LISTAS. Tinha aqui uma linha de destaques e um rodapé
