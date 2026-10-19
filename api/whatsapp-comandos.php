@@ -583,6 +583,7 @@ function wcAjuda(): string
         . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
         . "/meutime — seu elenco\n"
         . "/meucap — sua folha e o espaço no cap\n"
+        . "/meuopta — as chances do seu time: título, subir e cair\n"
         . "/minhaspicks — as picks que você tem\n"
         . "/meutblock — seu trade block
 "
@@ -598,6 +599,7 @@ function wcAjuda(): string
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/opta — as chances da liga: título, subir e cair\n"
+        . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
         // liga inteira e qualquer time pode disputar, então é assunto de
@@ -2898,7 +2900,15 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 
     $termo = trim($termo);
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
-    if (!$liga && $termo !== '') return "Não reconheci \"{$termo}\" como liga. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    /* Mesma gentileza do /power: nome de time abre a ficha daquele time. É o
+       uso mais natural do comando depois da lista — quem lê "7,2%" ao lado do
+       próprio nome quer saber de onde veio. */
+    if (!$liga && $termo !== '') {
+        [$time, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
+        if ($time) return wcOptaDoTime($pdo, $time);
+        return $erro ?: "Não reconheci \"{$termo}\" como liga nem como time.";
+    }
     if (!$liga) return 'Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.';
 
     $p = scPacoteDaLiga($pdo, $liga);
@@ -2955,6 +2965,103 @@ function wcOpta(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
           . "Subir e cair são posição no ranking, não decreto — quem promove é o admin._";
 
     return rtrim($txt);
+}
+
+/**
+ * A FICHA DO TIME NO SUPERCOMPUTADOR — /meuopta, ou /opta <time>.
+ *
+ * A lista responde "quem leva"; a ficha responde "e eu?". São perguntas
+ * diferentes e a segunda é a que mais volta no grupo: quem se vê em 7º numa
+ * lista de cinco quer saber onde está em cada corrida, não só na que perdeu.
+ *
+ * Tudo sai do MESMO pacote que a lista usa (scPacoteDaLiga), então a ficha
+ * nunca discorda do /opta — nem por arredondamento, porque é a mesma
+ * simulação lida de outro jeito.
+ */
+function wcOptaDoTime(PDO $pdo, array $time): string
+{
+    require_once __DIR__ . '/../backend/supercomputador.php';
+
+    $liga = strtoupper((string)($time['league'] ?? ''));
+    $nome = wcNomeDoTime($time);
+    $p = scPacoteDaLiga($pdo, $liga);
+    if (empty($p['tem_dados'])) return "A {$liga} ainda não tem temporada e elenco pra projetar.";
+
+    $eu = null;
+    foreach ($p['times'] as $l) if ((int)$l['id'] === (int)$time['id']) { $eu = $l; break; }
+    if (!$eu) return "O {$nome} não entrou na conta — o elenco está vazio no cadastro.";
+
+    $t = $p['temporada'];
+    $alvo = 'T' . $t['alvo'];
+    $janela = $t['ate_o_fim'] ? "no fim do sprint ({$alvo})" : "na {$alvo}";
+    $n = count($p['times']);
+
+    /* A posição em cada corrida. Sozinha, "19,8% de título" não diz se é
+       muito ou pouco; "19,8%, o 2º da liga" diz. */
+    $posto = function (string $campo, bool $maiorPrimeiro = true) use ($p, $eu): int {
+        $i = 1;
+        foreach ($p['times'] as $l) {
+            if ((int)$l['id'] === (int)$eu['id']) continue;
+            if ($maiorPrimeiro ? ($l[$campo] > $eu[$campo]) : ($l[$campo] < $eu[$campo])) $i++;
+        }
+        return $i;
+    };
+    $ordinal = fn(int $i): string => $i . 'º';
+
+    $txt  = "🤖 *OPTA FBA · {$nome}*\n";
+    $txt .= "_{$liga} · T{$t['numero']}" . ($t['total'] ? "/{$t['total']}" : '')
+          . ' · ' . number_format($p['n_sim'], 0, ',', '.') . " simulações_\n";
+
+    $txt .= "\n🏆 *A temporada T{$t['titulo_de']}*\n";
+    if (!empty($p['tem_titulo'])) {
+        $txt .= '• Título: *' . scPct((float)$eu['titulo']) . '* — ' . $ordinal($posto('titulo')) . " de {$n}\n";
+        $txt .= '• Chegar à final: ' . scPct((float)$eu['final']) . "\n";
+        $txt .= '• Entrar nos playoffs: ' . scPct((float)$eu['playoff']) . "\n";
+    } else {
+        $txt .= "• O sprint acabou — não há temporada em disputa.\n";
+    }
+
+    $txt .= "\n📊 *No ranking*\n";
+    $txt .= "• Hoje: " . $ordinal((int)$eu['pos_hoje']) . " com {$eu['pts_hoje']} pts\n";
+    $txt .= "• Projetado {$janela}: " . $ordinal((int)$eu['pos_proj']) . " com {$eu['pts_fim']} pts "
+          . "_(faixa {$eu['pts_lo']}–{$eu['pts_hi']})_\n";
+    $casas = fn(int $k): string => $k . ($k === 1 ? ' posição' : ' posições');
+    $txt .= '• Movimento: ' . ($eu['delta'] > 0 ? 'sobe ' . $casas((int)$eu['delta'])
+                            : ($eu['delta'] < 0 ? 'cai ' . $casas(abs((int)$eu['delta']))
+                                                : 'fica onde está')) . "\n";
+    $txt .= '• Terminar em 1º: ' . scPct((float)$eu['primeiro']) . "\n";
+    if (!empty($p['tem_subida'])) {
+        $txt .= "• Subir (top {$p['zona_cima']}): " . scPct((float)$eu['cima']) . "\n";
+    }
+    $txt .= "• Cair (últimos {$p['zona_baixo']}): " . scPct((float)$eu['baixo']) . "\n";
+
+    $txt .= "\n💪 *O elenco por trás disso*\n";
+    $txt .= '• Força ' . number_format((float)$eu['forca'], 1, ',', '.')
+          . ' — ' . $ordinal($posto('forca')) . " de {$n}"
+          . ($eu['idade'] !== null ? ' · idade ' . number_format((float)$eu['idade'], 1, ',', '.') : '')
+          . "\n";
+
+    /* QUEM ESTÁ NA FRENTE. Sem isso a ficha é um espelho; com isso ela vira
+       informação — o GM precisa saber de quem é a corrida que ele disputa. */
+    $favorito = null;
+    foreach ($p['times'] as $l) if ($favorito === null || $l['titulo'] > $favorito['titulo']) $favorito = $l;
+    if ($favorito && (int)$favorito['id'] !== (int)$eu['id'] && $favorito['titulo'] > 0) {
+        $txt .= "\n_O favorito ao título é o {$favorito['nome']}, com " . scPct((float)$favorito['titulo']) . "._";
+    } elseif ($favorito && (int)$favorito['id'] === (int)$eu['id']) {
+        $txt .= "\n_O {$nome} é o favorito ao título da {$liga}._";
+    }
+
+    $txt .= "\n_A conta é a mesma do /opta: força do elenco (OVR ponderado dos 8 melhores) "
+          . "+ os pontos já somados, com o sprint sorteado " . number_format($p['n_sim'], 0, ',', '.') . " vezes._";
+
+    return rtrim($txt);
+}
+
+/** /meuopta — a ficha do time de quem mandou a mensagem. */
+function wcMeuOpta(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    return $erro ?: wcOptaDoTime($pdo, $t);
 }
 
 /**
@@ -5933,6 +6040,11 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'meucap':
             case 'minhafolha':
                 return wcMeuCap($pdo, $deQuem, $ligaDoGrupo);
+
+            // As chances do próprio time, do mesmo pacote que o /opta lê.
+            case 'meuopta':
+            case 'minhaschances':
+                return wcMeuOpta($pdo, $deQuem, $ligaDoGrupo);
 
             case 'meutblock':
             case 'meutradeblock':
