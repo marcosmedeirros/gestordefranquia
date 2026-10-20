@@ -2,20 +2,24 @@
 /**
  * ── FANTASY NBA ──────────────────────────────────────────────────────
  *
- * A tela do fantasy de jogadores reais da NBA. Escala hoje, confere amanhã.
- * A conta mora em backend/fantasy_nba.php; aqui é só a tela.
+ * A casa do fantasy: escalar, ver as rodadas, as ligas e o ranking. A conta
+ * mora em backend/fantasy_nba.php; aqui é só a tela.
  *
- * ── POR QUE O MERCADO VAI EM JSON E NÃO EM HTML ──────────────────────
+ * ── A TELA NÃO SEGUE O PADRÃO DO SITE, E É DE PROPÓSITO ──────────────
  *
- * São 517 jogadores. Em HTML, com foto e botão, isso é mais de 1 MB de
- * marcação pra uma lista que a pessoa vai filtrar em dois segundos. Vai como
- * dado e o navegador desenha só o que está em tela — é o que mantém a página
- * abrindo rápido no celular, que é onde ela vai ser usada todo dia.
+ * "Não precisa seguir padrões do site, mas criar uma página de fantasy em si
+ * que fique bem legal e a pessoa acesse todo dia" (20/10/2026). Então: sem
+ * menu lateral, sem hero de dashboard, cor própria (o laranja da bola, não o
+ * vermelho da FBA) e tudo em quatro abas que cabem na largura de um celular.
  *
- * ── A CASCA É A DOS JOGOS ────────────────────────────────────────────
+ * QUATRO ABAS, QUATRO PERGUNTAS:
+ *   escalar  — "o que eu faço agora?"   (a rodada aberta, o mercado, o time)
+ *   rodadas  — "como eu fui?"           (histórico, e o time dos outros)
+ *   ligas    — "como vou contra eles?"  (as divisões da FBA e as de amigos)
+ *   ranking  — "quem manda no jogo?"    (o acumulado de todas as rodadas)
  *
- * Header com voltar e moedas, sem menu lateral — igual Copero, Hoops, Geo e
- * os outros. @see games/games/geo.php
+ * A aba vive na URL (?aba=), e não em JavaScript: assim o link de uma rodada
+ * específica pode ser colado no grupo e abre onde deve.
  */
 
 require_once __DIR__ . '/backend/auth.php';
@@ -27,40 +31,63 @@ $user    = getUserSession();
 $user_id = (int)$user['id'];
 $pdo     = db();
 fnbaTabelas($pdo);
+fnbaTabelasLigas($pdo);
 
-/* A conta de moedas do Games é a mesma dos outros jogos. */
 $pdo->prepare('INSERT IGNORE INTO games_usuarios (id, nome, pontos) VALUES (?,?,0)')
     ->execute([$user_id, $user['name'] ?? 'GM']);
 $moedas = (int)($pdo->query('SELECT pontos FROM games_usuarios WHERE id = ' . $user_id)->fetchColumn() ?: 0);
 
 $erros = [];
-$ok    = '';
-$rodada = fnbaRodadaDoDia($pdo);
+$ok    = (string)($_GET['ok'] ?? '');
+$aba   = (string)($_GET['aba'] ?? 'escalar');
+if (!in_array($aba, ['escalar', 'rodadas', 'ligas', 'ranking'], true)) $aba = 'escalar';
 
-/* ── O POST ─────────────────────────────────────────────────────────── */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'escalar') {
-    $ids     = array_map('intval', (array)($_POST['jogadores'] ?? []));
-    $capitao = (int)($_POST['capitao'] ?? 0);
-    if (!$rodada) {
-        $erros[] = 'Não há rodada hoje.';
-    } else {
-        $r = fnbaEscalar($pdo, (int)$rodada['id'], $user_id, $ids, $capitao);
-        if ($r['ok']) {
-            /* Redirect pra o F5 não reenviar a escalação. */
-            header('Location: /fantasynba.php?salvo=1');
-            exit;
-        }
+/* ── OS POSTS ───────────────────────────────────────────────────────── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $acao = (string)($_POST['acao'] ?? '');
+
+    if ($acao === 'escalar') {
+        $rid = (int)($_POST['rodada'] ?? 0);
+        $r = fnbaEscalar($pdo, $rid, $user_id,
+                         array_map('intval', (array)($_POST['jogadores'] ?? [])),
+                         (int)($_POST['capitao'] ?? 0));
+        if ($r['ok']) { header('Location: /fantasynba.php?r=' . $rid . '&ok=escalado'); exit; }
         $erros = $r['erros'];
     }
+
+    if ($acao === 'criar_liga') {
+        $r = fnbaCriarLiga($pdo, $user_id, (string)($_POST['nome'] ?? ''));
+        if ($r['ok']) { header('Location: /fantasynba.php?aba=ligas&ok=criada'); exit; }
+        $erros[] = $r['erro']; $aba = 'ligas';
+    }
+
+    if ($acao === 'entrar_liga') {
+        $r = fnbaEntrarNaLiga($pdo, $user_id, (string)($_POST['codigo'] ?? ''));
+        if ($r['ok']) { header('Location: /fantasynba.php?aba=ligas&ok=entrou'); exit; }
+        $erros[] = $r['erro']; $aba = 'ligas';
+    }
+
+    if ($acao === 'sair_liga') {
+        fnbaSairDaLiga($pdo, $user_id, (int)($_POST['liga'] ?? 0));
+        header('Location: /fantasynba.php?aba=ligas'); exit;
+    }
 }
-if (isset($_GET['salvo'])) $ok = 'Escalação salva. Boa sorte hoje!';
 
-/* ── O QUE A TELA MOSTRA ────────────────────────────────────────────── */
-$aberta     = $rodada ? fnbaAberta($rodada) : false;
-$escalacao  = $rodada ? fnbaEscalacao($pdo, (int)$rodada['id'], $user_id) : [];
-$mercado    = fnbaMercado($pdo);
+$avisos = ['escalado' => 'Escalação salva. Boa sorte!', 'criada' => 'Liga criada — mande o código pra galera.',
+           'entrou' => 'Pronto, você entrou na liga.'];
+$msgOk = $avisos[$ok] ?? '';
 
-$jogosHoje = [];
+/* ── A RODADA EM FOCO ───────────────────────────────────────────────── */
+$proximas = fnbaProximasRodadas($pdo, 6);
+$rodada   = null;
+if (!empty($_GET['r'])) $rodada = fnbaRodadaPorId($pdo, (int)$_GET['r']);
+if (!$rodada) $rodada = fnbaRodadaDoDia($pdo) ?: ($proximas[0] ?? null);
+
+$aberta    = $rodada ? fnbaAberta($rodada) : false;
+$escalacao = $rodada ? fnbaEscalacao($pdo, (int)$rodada['id'], $user_id) : [];
+$mercado   = ($aba === 'escalar') ? fnbaMercado($pdo) : [];
+
+$jogosDaRodada = [];
 if ($rodada) {
     $st = $pdo->prepare("SELECT g.*, tc.sigla AS casa, tf.sigla AS fora, tc.logo AS logo_casa, tf.logo AS logo_fora
                            FROM fnba_jogos g
@@ -68,24 +95,48 @@ if ($rodada) {
                       LEFT JOIN fnba_times tf ON tf.id = g.fora_id
                           WHERE g.rodada_id = ? ORDER BY g.inicio");
     $st->execute([(int)$rodada['id']]);
-    $jogosHoje = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $jogosDaRodada = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-/* A última rodada já apurada — é o que a pessoa volta pra ver. */
-$ultima = $pdo->query("SELECT * FROM fnba_rodadas WHERE status = 'apurada' ORDER BY dia DESC LIMIT 1")
-              ->fetch(PDO::FETCH_ASSOC) ?: null;
-$meuUltimo = null; $rankingUltimo = [];
-if ($ultima) {
-    $st = $pdo->prepare('SELECT * FROM fnba_resultados WHERE rodada_id = ? AND user_id = ?');
-    $st->execute([(int)$ultima['id'], $user_id]);
-    $meuUltimo = $st->fetch(PDO::FETCH_ASSOC) ?: null;
-    $rankingUltimo = fnbaRanking($pdo, (int)$ultima['id'], 10);
+/* ── O QUE CADA ABA PRECISA ─────────────────────────────────────────── */
+$minhasRodadas = ($aba === 'rodadas') ? fnbaMinhasRodadas($pdo, $user_id, 20) : [];
+$verRodada     = null; $verQuem = []; $verTime = []; $verDe = 0;
+if ($aba === 'rodadas' && !empty($_GET['ver'])) {
+    $verRodada = fnbaRodadaPorId($pdo, (int)$_GET['ver']);
+    if ($verRodada) {
+        $verQuem = fnbaQuemEscalou($pdo, (int)$verRodada['id']);
+        $verDe   = (int)($_GET['de'] ?? $user_id);
+        $verTime = fnbaEscalacaoDe($pdo, (int)$verRodada['id'], $verDe) ?? [];
+    }
+}
+
+$minhasLigas = ($aba === 'ligas') ? fnbaMinhasLigas($pdo, $user_id) : [];
+$minhaDiv    = fnbaDivisaoDoUsuario($pdo, $user_id);
+
+$rankAba = null; $rankLista = []; $rankTitulo = '';
+if ($aba === 'ranking' || $aba === 'ligas') {
+    $filtro = (string)($_GET['f'] ?? ($aba === 'ranking' ? 'geral' : ''));
+    if (str_starts_with($filtro, 'liga:')) {
+        $lid = (int)substr($filtro, 5);
+        $rankLista = fnbaRankingGeral($pdo, null, $lid);
+        $st = $pdo->prepare('SELECT nome FROM fnba_ligas WHERE id = ?'); $st->execute([$lid]);
+        $rankTitulo = (string)$st->fetchColumn();
+    } elseif (in_array(strtoupper($filtro), FNBA_DIVISOES, true)) {
+        $rankLista  = fnbaRankingGeral($pdo, strtoupper($filtro));
+        $rankTitulo = 'Divisão ' . strtoupper($filtro);
+    } elseif ($aba === 'ranking') {
+        $rankLista  = fnbaRankingGeral($pdo);
+        $rankTitulo = 'Geral';
+    }
+    $rankAba = $filtro;
 }
 
 $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $escalados = array_column($escalacao, 'jogador_id');
 $capAtual  = 0;
 foreach ($escalacao as $x) if ((int)$x['capitao'] === 1) $capAtual = (int)$x['jogador_id'];
+$diaSem = ['Sun'=>'Dom','Mon'=>'Seg','Tue'=>'Ter','Wed'=>'Qua','Thu'=>'Qui','Fri'=>'Sex','Sat'=>'Sáb'];
+$url = fn(array $p) => '/fantasynba.php?' . http_build_query($p);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -93,426 +144,589 @@ foreach ($escalacao as $x) if ((int)$x['capitao'] === 1) $capAtual = (int)$x['jo
 <meta charset="UTF-8">
 <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<meta name="theme-color" content="#fc0025">
+<meta name="theme-color" content="#0b0c10">
 <title>Fantasy NBA</title>
 <link rel="icon" type="image/png" href="/img/fba-logo.png?v=3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+/* ══ A CARA DO JOGO ══════════════════════════════════════════════════
+   Laranja de bola e azul de quadra, não o vermelho da FBA: aqui dentro a
+   liga é a NBA. O Barlow Condensed nos números é o que dá cara de placar. */
 :root{
-  --red:#fc0025; --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
-  --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10);
-  --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
-  --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6; --roxo:#a855f7;
-  --sidebar-w:0px;
-  --font:'Montserrat',sans-serif; --radius:14px; --radius-sm:10px;
-  --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
+  --lar:#f97316; --lar-2:#fb923c; --azul:#3b82f6; --verde:#22c55e; --ouro:#fbbf24;
+  --bg:#0b0c10; --sup:#13141a; --sup-2:#1a1c24; --sup-3:#23252f;
+  --bd:rgba(255,255,255,.07); --bd-2:rgba(255,255,255,.13);
+  --tx:#f4f5f7; --tx-2:#9ca0ab; --tx-3:#6b6f7a;
+  --r:16px; --r-s:11px; --t:180ms; --ease:cubic-bezier(.2,.8,.2,1);
+  --num:'Barlow Condensed',system-ui,sans-serif;
 }
 :root[data-theme="light"]{
-  --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
-  --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5b6172; --text-3:#6b7080;
+  --bg:#f4f6fa; --sup:#fff; --sup-2:#f1f4f9; --sup-3:#e6eaf2;
+  --bd:#e4e8f0; --bd-2:#d4dae6; --tx:#10131a; --tx-2:#5a6072; --tx-3:#767c8c;
 }
-</style>
-<?php include __DIR__ . '/includes/shell-css.php'; ?>
-<style>
-.topbar{display:flex}
-.main{padding-top:54px}
-.fn-voltar{display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:10px;
-  color:var(--text-2);background:var(--panel-2);border:1px solid var(--border-md);text-decoration:none;font-size:15px}
-.fn-voltar:hover{color:var(--text)}
-.fn-saldo{display:inline-flex;align-items:center;gap:6px;flex:none;padding:6px 12px;border-radius:999px;
-  font-size:12.5px;color:var(--text-2);background:var(--panel-2);border:1px solid var(--border-md)}
-.fn-saldo b,.fn-saldo i{color:var(--amber)}
-.dash-hero{max-width:1180px;margin-inline:auto;width:100%;box-sizing:border-box}
-#fn{max-width:1180px;margin:0 auto;padding:0 0 56px;font-family:Inter,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Inter,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:inherit}
+.num{font-family:var(--num);font-weight:800;letter-spacing:.3px}
 
-.fn-aviso{border-radius:12px;padding:12px 16px;font-size:13px;margin-bottom:14px;border:1px solid}
-.fn-aviso.ok{background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.3);color:#86efac}
-.fn-aviso.err{background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.3);color:#fca5a5}
-.fn-aviso.info{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:var(--text-2)}
+/* ── Topo ───────────────────────────────────────────────────────── */
+.topo{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--bd)}
+.topo-in{max-width:1240px;margin:0 auto;padding:11px 16px;display:flex;align-items:center;gap:12px}
+.voltar{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex:none;
+  background:var(--sup-2);border:1px solid var(--bd-2);color:var(--tx-2);text-decoration:none}
+.voltar:hover{color:var(--tx)}
+.marca{font-family:var(--num);font-size:21px;font-weight:800;letter-spacing:.5px}
+.marca b{color:var(--lar)}
+.saldo{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;
+  background:linear-gradient(135deg,rgba(251,191,36,.16),rgba(249,115,22,.1));
+  border:1px solid rgba(251,191,36,.3);font-size:13px;font-weight:700;color:var(--ouro);white-space:nowrap}
 
-/* ── A barra da rodada ───────────────────────────────────────────── */
-.fn-rodada{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);
-  border:1px solid var(--border-md);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px}
-.fn-rodada .dia{font-family:var(--font);font-weight:800;font-size:17px;color:var(--text)}
-.fn-rodada .sub{font-size:12px;color:var(--text-2)}
-.fn-prazo{margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
-  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber);
-  font-weight:700;font-size:13px;white-space:nowrap}
-.fn-prazo.fechado{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#fca5a5}
-.fn-jogos{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
-.fn-jogo{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;
-  background:var(--panel-2);border:1px solid var(--border);font-size:11px;color:var(--text-2)}
-.fn-jogo img{width:16px;height:16px;object-fit:contain}
-.fn-jogo b{color:var(--text);font-weight:700}
+/* ── Abas ───────────────────────────────────────────────────────── */
+.abas{max-width:1240px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;
+  scrollbar-width:none}
+.abas::-webkit-scrollbar{display:none}
+.abas a{flex:none;padding:13px 16px;font-size:13.5px;font-weight:700;color:var(--tx-3);
+  text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.abas a:hover{color:var(--tx-2)}
+.abas a.on{color:var(--lar);border-bottom-color:var(--lar)}
 
-/* ── O time montado ──────────────────────────────────────────────── */
-.fn-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
-@media(max-width:980px){ .fn-grid{grid-template-columns:1fr} }
-.fn-card{background:var(--panel);border:1px solid var(--border-md);border-radius:var(--radius);padding:16px}
-.fn-tit{font-family:var(--font);font-weight:800;font-size:13px;letter-spacing:.4px;text-transform:uppercase;
-  color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.fn-tit i{color:var(--red)}
-.fn-tit .cnt{margin-left:auto;font-size:11px;color:var(--text-3);font-weight:600;letter-spacing:0;text-transform:none}
+.wrap{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+.aviso{border-radius:12px;padding:12px 15px;font-size:13.5px;margin-bottom:14px;border:1px solid}
+.aviso.ok{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:#86efac}
+.aviso.err{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#fca5a5}
+.aviso.nd{background:var(--sup);border-color:var(--bd-2);color:var(--tx-2)}
 
-.fn-slots{display:flex;flex-direction:column;gap:8px}
-.fn-slot{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--panel-2);
-  border:1px dashed var(--border-md);min-height:58px}
-.fn-slot.cheio{border-style:solid;border-color:var(--border-md)}
-.fn-slot .pos{width:28px;height:28px;flex:none;border-radius:8px;display:grid;place-items:center;
-  font-weight:800;font-size:11px;background:var(--panel-3);color:var(--text-2)}
-.fn-slot.cheio .pos{background:rgba(59,130,246,.18);color:#93c5fd}
-.fn-slot img.rosto{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--panel-3);flex:none}
-.fn-slot .nm{flex:1;min-width:0}
-.fn-slot .nm b{display:block;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fn-slot .nm span{font-size:11px;color:var(--text-2)}
-.fn-slot .vazio{flex:1;font-size:12.5px;color:var(--text-3)}
-.fn-slot .preco{font-weight:800;font-size:13px;color:var(--amber);flex:none}
-.fn-acoes{display:flex;gap:4px;flex:none}
-.fn-mini{width:28px;height:28px;border-radius:8px;border:1px solid var(--border-md);background:var(--panel-3);
-  color:var(--text-2);cursor:pointer;display:grid;place-items:center;font-size:12px}
-.fn-mini:hover{color:var(--text)}
-.fn-mini.cap.on{background:rgba(245,158,11,.18);border-color:rgba(245,158,11,.4);color:var(--amber)}
+.card{background:var(--sup);border:1px solid var(--bd);border-radius:var(--r);padding:16px;min-width:0}
+.ct{font-size:12px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--tx-2);
+  margin-bottom:13px;display:flex;align-items:center;gap:8px}
+.ct i{color:var(--lar);font-size:14px}
+.ct .dir{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--tx-3)}
 
-.fn-orc{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
-.fn-orc .barra{flex:1;height:7px;border-radius:4px;background:var(--panel-3);overflow:hidden}
-.fn-orc .barra i{display:block;height:100%;background:var(--green);border-radius:4px;transition:width var(--t)}
-.fn-orc.estourou .barra i{background:var(--red)}
-.fn-orc b{font-size:13px;font-weight:800;color:var(--text);white-space:nowrap}
-.fn-orc.estourou b{color:var(--red)}
+/* ── A faixa da rodada ──────────────────────────────────────────── */
+.rodada{background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(59,130,246,.07));
+  border:1px solid rgba(249,115,22,.22);border-radius:var(--r);padding:15px 18px;margin-bottom:14px}
+.rodada .linha1{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.rodada .data{font-family:var(--num);font-size:25px;font-weight:800;line-height:1}
+.rodada .qt{font-size:12.5px;color:var(--tx-2)}
+.prazo{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:999px;
+  font-weight:700;font-size:13px;white-space:nowrap;
+  background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.32);color:#86efac}
+.prazo.fec{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#fca5a5}
+.jogos{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+.jg{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;background:rgba(0,0,0,.22);
+  border:1px solid var(--bd);font-size:11.5px;color:var(--tx-2)}
+:root[data-theme="light"] .jg{background:var(--sup-2)}
+.jg img{width:17px;height:17px;object-fit:contain}
+.jg b{color:var(--tx)}
+.jg.fim{opacity:.6}
 
-.fn-salvar{width:100%;margin-top:12px;padding:14px;border-radius:12px;border:none;cursor:pointer;
-  background:var(--red);color:#fff;font-family:var(--font);font-weight:800;font-size:14px;letter-spacing:.3px}
-.fn-salvar:disabled{opacity:.4;cursor:not-allowed}
+/* O seletor de dia */
+.dias{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.dias::-webkit-scrollbar{display:none}
+.dia{flex:none;min-width:68px;padding:9px 12px;border-radius:12px;background:var(--sup);
+  border:1px solid var(--bd);text-decoration:none;text-align:center}
+.dia span{display:block;font-size:10.5px;color:var(--tx-3);text-transform:uppercase;font-weight:700}
+.dia b{display:block;font-family:var(--num);font-size:19px;color:var(--tx-2);line-height:1.15}
+.dia.on{background:rgba(249,115,22,.14);border-color:rgba(249,115,22,.4)}
+.dia.on b,.dia.on span{color:var(--lar)}
+.dia.lock{opacity:.5}
 
-/* ── O mercado ───────────────────────────────────────────────────── */
-.fn-filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.fn-busca{flex:1;min-width:150px;padding:10px 14px;border-radius:10px;background:var(--panel-2);
-  border:1px solid var(--border-md);color:var(--text);font-size:13px;font-family:inherit}
-.fn-busca::placeholder{color:var(--text-3)}
-.fn-chip{padding:9px 14px;border-radius:10px;background:var(--panel-2);border:1px solid var(--border-md);
-  color:var(--text-2);cursor:pointer;font-size:12px;font-weight:700}
-.fn-chip.on{background:rgba(252,0,37,.14);border-color:rgba(252,0,37,.4);color:#fca5a5}
+/* ── Grade escalar ──────────────────────────────────────────────── */
+.grade{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:14px;align-items:start}
+/* minmax(0,1fr) e nao 1fr: `1fr` vale `minmax(auto,1fr)`, e o `auto` se
+   recusa a encolher abaixo do min-content do filho — com um nome de
+   jogador comprido na lista, a coluna ficava maior que a tela e a
+   pagina inteira rolava de lado no celular. */
+@media(max-width:1000px){ .grade{grid-template-columns:minmax(0,1fr)} }
 
-.fn-lista{max-height:min(62vh,620px);overflow-y:auto;display:flex;flex-direction:column;gap:6px;
-  -webkit-overflow-scrolling:touch}
-.fn-lin{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:var(--panel-2);
-  border:1px solid transparent;cursor:pointer}
-.fn-lin:hover{border-color:var(--border-md)}
-.fn-lin.dentro{background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.3)}
-.fn-lin.caro{opacity:.45}
-.fn-lin img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--panel-3);flex:none}
-.fn-lin .nm{flex:1;min-width:0}
-.fn-lin .nm b{display:block;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fn-lin .nm span{font-size:11px;color:var(--text-2)}
-.fn-lin .pos{font-size:10px;font-weight:800;padding:3px 7px;border-radius:6px;background:var(--panel-3);
-  color:var(--text-2);flex:none}
-.fn-lin .preco{font-weight:800;font-size:13px;color:var(--amber);flex:none;width:52px;text-align:right}
-.fn-vazio{padding:24px;text-align:center;color:var(--text-3);font-size:13px}
+.filtros{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px}
+.busca{flex:1;min-width:140px;padding:11px 14px;border-radius:11px;background:var(--sup-2);
+  border:1px solid var(--bd-2);color:var(--tx);font-size:13.5px;font-family:inherit}
+.busca::placeholder{color:var(--tx-3)}
+.chip{padding:10px 15px;border-radius:11px;background:var(--sup-2);border:1px solid var(--bd-2);
+  color:var(--tx-2);cursor:pointer;font-size:12.5px;font-weight:700;font-family:inherit}
+.chip.on{background:rgba(249,115,22,.16);border-color:rgba(249,115,22,.42);color:var(--lar-2)}
 
-/* ── O resultado de ontem ────────────────────────────────────────── */
-.fn-res{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--panel-2);
-  border:1px solid var(--border);margin-bottom:10px}
-.fn-res .big{font-family:var(--font);font-weight:900;font-size:26px;color:var(--green);line-height:1}
-.fn-res .lbl{font-size:11px;color:var(--text-2)}
-.fn-rank{display:flex;flex-direction:column;gap:4px}
-.fn-rank .l{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:9px;font-size:12.5px}
-.fn-rank .l:nth-child(odd){background:var(--panel-2)}
-.fn-rank .l.eu{background:rgba(252,0,37,.12);box-shadow:inset 0 0 0 1px rgba(252,0,37,.3)}
-.fn-rank .p{width:22px;font-weight:800;color:var(--text-3);flex:none}
-.fn-rank .n{flex:1;min-width:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fn-rank .v{font-weight:800;color:var(--text)}
-.fn-rank .m{font-size:11px;color:var(--amber);flex:none}
+.lista{max-height:min(60vh,600px);overflow-y:auto;display:flex;flex-direction:column;gap:5px;
+  -webkit-overflow-scrolling:touch;padding-right:3px}
+.lin{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:11px;background:var(--sup-2);
+  border:1px solid transparent;cursor:pointer;transition:border-color var(--t)}
+.lin:hover{border-color:var(--bd-2)}
+.lin.in{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.32)}
+.lin.off{opacity:.38}
+.lin img{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--sup-3);flex:none}
+.lin .i{flex:1;min-width:0}
+.lin .i b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lin .i span{font-size:11.5px;color:var(--tx-2)}
+.tag{font-size:10px;font-weight:800;padding:3px 7px;border-radius:6px;background:var(--sup-3);color:var(--tx-2);flex:none}
+.tag.G{background:rgba(59,130,246,.2);color:#93c5fd}
+.tag.F{background:rgba(34,197,94,.2);color:#86efac}
+.tag.C{background:rgba(168,85,247,.2);color:#d8b4fe}
+.vlr{font-family:var(--num);font-size:17px;color:var(--ouro);flex:none;width:52px;text-align:right}
 
-.fn-regra{font-size:11px;line-height:1.6;color:var(--text-3);margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
-.fn-regra b{color:var(--text-2)}
+.slots{display:flex;flex-direction:column;gap:7px}
+.slot{display:flex;align-items:center;gap:10px;padding:9px;border-radius:12px;background:var(--sup-2);
+  border:1px dashed var(--bd-2);min-height:56px}
+.slot.full{border-style:solid}
+.slot.cap{background:linear-gradient(135deg,rgba(251,191,36,.12),transparent);border-color:rgba(251,191,36,.35)}
+.slot img{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--sup-3);flex:none}
+.slot .i{flex:1;min-width:0}
+.slot .i b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .i span{font-size:11px;color:var(--tx-2)}
+.slot .vazio{flex:1;font-size:12.5px;color:var(--tx-3)}
+.mini{width:29px;height:29px;border-radius:9px;border:1px solid var(--bd-2);background:var(--sup-3);
+  color:var(--tx-2);cursor:pointer;display:grid;place-items:center;font-size:12px;flex:none}
+.mini:hover{color:var(--tx)}
+.mini.on{background:rgba(251,191,36,.2);border-color:rgba(251,191,36,.45);color:var(--ouro)}
+
+.orc{display:flex;align-items:center;gap:11px;margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)}
+.orc .b{flex:1;height:7px;border-radius:4px;background:var(--sup-3);overflow:hidden}
+.orc .b i{display:block;height:100%;background:linear-gradient(90deg,var(--verde),#4ade80);transition:width var(--t)}
+.orc.x .b i{background:linear-gradient(90deg,#ef4444,#f87171)}
+.orc b{font-family:var(--num);font-size:17px;white-space:nowrap}
+.orc.x b{color:#f87171}
+.salvar{width:100%;margin-top:12px;padding:15px;border-radius:12px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--lar),#ea580c);color:#fff;font-weight:800;font-size:14.5px;
+  font-family:inherit;letter-spacing:.2px}
+.salvar:disabled{opacity:.35;cursor:not-allowed;background:var(--sup-3);color:var(--tx-3)}
+
+/* ── Listas de resultado ────────────────────────────────────────── */
+.tab{display:flex;flex-direction:column;gap:3px}
+.tr{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;font-size:13.5px;
+  text-decoration:none;color:inherit}
+.tr:nth-child(odd){background:var(--sup-2)}
+.tr.eu{background:rgba(249,115,22,.13);box-shadow:inset 0 0 0 1px rgba(249,115,22,.3)}
+.tr .p{width:26px;font-family:var(--num);font-size:16px;color:var(--tx-3);flex:none}
+.tr .p.m1{color:var(--ouro)} .tr .p.m2{color:#cbd5e1} .tr .p.m3{color:#d97706}
+.tr .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.tr .n small{display:block;font-weight:400;font-size:11px;color:var(--tx-3)}
+.tr .v{font-family:var(--num);font-size:17px;flex:none}
+.tr .mo{font-size:11.5px;color:var(--ouro);flex:none}
+.vazio{padding:28px 16px;text-align:center;color:var(--tx-3);font-size:13px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:14px}
+.kpi{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:13px}
+.kpi>div{flex:1;min-width:96px}
+.kpi .k{font-family:var(--num);font-size:30px;line-height:1}
+.kpi .l{font-size:11px;color:var(--tx-2);margin-top:2px}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:999px;font-size:12.5px;
+  font-weight:700;text-decoration:none;background:var(--sup-2);border:1px solid var(--bd-2);color:var(--tx-2)}
+.pill.on{background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.4);color:var(--lar-2)}
+.pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:13px}
+
+.frm{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.frm input{flex:1;min-width:130px;padding:11px 14px;border-radius:11px;background:var(--sup-2);
+  border:1px solid var(--bd-2);color:var(--tx);font-size:13.5px;font-family:inherit}
+.frm button{padding:11px 18px;border-radius:11px;border:none;cursor:pointer;background:var(--lar);
+  color:#fff;font-weight:700;font-size:13.5px;font-family:inherit}
+.cod{font-family:var(--num);font-size:19px;letter-spacing:2px;color:var(--lar);
+  background:rgba(249,115,22,.1);padding:3px 11px;border-radius:8px;border:1px dashed rgba(249,115,22,.35)}
+
+.regra{font-size:11.5px;line-height:1.65;color:var(--tx-3);margin-top:13px;padding-top:12px;border-top:1px solid var(--bd)}
+.regra b{color:var(--tx-2)}
 </style>
 </head>
 <body>
 
-<header class="topbar">
-  <a class="fn-voltar" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
-  <div class="topbar-title">Fantasy <em>NBA</em></div>
-  <span class="fn-saldo"><i class="bi bi-coin"></i> <b><?= number_format($moedas, 0, ',', '.') ?></b></span>
+<header class="topo">
+  <div class="topo-in">
+    <a class="voltar" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
+    <div class="marca">FANTASY <b>NBA</b></div>
+    <span class="saldo"><i class="bi bi-coin"></i> <?= number_format($moedas, 0, ',', '.') ?></span>
+  </div>
+  <nav class="abas">
+    <a href="<?= $url(['aba' => 'escalar']) ?>" class="<?= $aba === 'escalar' ? 'on' : '' ?>"><i class="bi bi-clipboard-check"></i> Escalar</a>
+    <a href="<?= $url(['aba' => 'rodadas']) ?>" class="<?= $aba === 'rodadas' ? 'on' : '' ?>"><i class="bi bi-calendar3"></i> Rodadas</a>
+    <a href="<?= $url(['aba' => 'ligas']) ?>"   class="<?= $aba === 'ligas'   ? 'on' : '' ?>"><i class="bi bi-people"></i> Ligas</a>
+    <a href="<?= $url(['aba' => 'ranking']) ?>" class="<?= $aba === 'ranking' ? 'on' : '' ?>"><i class="bi bi-trophy"></i> Ranking</a>
+  </nav>
 </header>
 
-<main class="main">
-  <div class="dash-hero">
-    <div>
-      <div class="dash-eyebrow">Jogos da liga</div>
-      <h1 class="dash-title">Fantasy NBA</h1>
-      <p class="dash-sub">Escale cinco da NBA de verdade. Todo dia tem rodada.</p>
+<div class="wrap">
+
+<?php if ($msgOk): ?><div class="aviso ok"><?= $e($msgOk) ?></div><?php endif; ?>
+<?php foreach ($erros as $x): ?><div class="aviso err"><?= $e($x) ?></div><?php endforeach; ?>
+
+<?php /* ══════════════ ESCALAR ══════════════ */ ?>
+<?php if ($aba === 'escalar'): ?>
+
+  <?php if (!$rodada): ?>
+    <div class="aviso nd"><b>Nenhuma rodada no horizonte.</b> A NBA não tem jogo marcado pros próximos
+      dias, ou o calendário ainda não foi importado. Volte mais tarde.</div>
+  <?php else: ?>
+
+    <?php if (count($proximas) > 1): ?>
+    <div class="dias">
+      <?php foreach ($proximas as $p):
+        $d = new DateTimeImmutable($p['dia']);
+        $sel = (int)$p['id'] === (int)$rodada['id'];
+        $trancada = !fnbaAberta($p);
+      ?>
+        <a class="dia <?= $sel ? 'on' : '' ?> <?= $trancada ? 'lock' : '' ?>" href="<?= $url(['r' => $p['id']]) ?>">
+          <span><?= $diaSem[$d->format('D')] ?? '' ?></span>
+          <b><?= $d->format('d/m') ?></b>
+          <span><?= $trancada ? 'fechada' : (int)$p['jogos'] . ' jogos' ?></span>
+        </a>
+      <?php endforeach; ?>
     </div>
-  </div>
+    <?php endif; ?>
 
-<div class="content">
-<div id="fn">
-
-<?php if ($ok): ?><div class="fn-aviso ok"><?= $e($ok) ?></div><?php endif; ?>
-<?php foreach ($erros as $x): ?><div class="fn-aviso err"><?= $e($x) ?></div><?php endforeach; ?>
-
-<?php if (!$rodada): ?>
-  <div class="fn-aviso info"><b>Hoje não tem jogo na NBA.</b> A próxima rodada abre no próximo dia
-    com partidas — volta amanhã.</div>
-<?php else:
-  $dt = new DateTimeImmutable($rodada['dia']);
-  $diasSem = ['Sun'=>'Domingo','Mon'=>'Segunda','Tue'=>'Terça','Wed'=>'Quarta','Thu'=>'Quinta','Fri'=>'Sexta','Sat'=>'Sábado'];
-?>
-  <div class="fn-rodada">
-    <div>
-      <div class="dia"><?= $diasSem[$dt->format('D')] ?? '' ?>, <?= $dt->format('d/m') ?></div>
-      <div class="sub"><?= (int)$rodada['jogos'] ?> jogo<?= $rodada['jogos'] == 1 ? '' : 's' ?> na NBA</div>
-      <div class="fn-jogos">
-        <?php foreach ($jogosHoje as $g): ?>
-          <span class="fn-jogo">
+    <?php $d = new DateTimeImmutable($rodada['dia']); ?>
+    <div class="rodada">
+      <div class="linha1">
+        <div>
+          <div class="data"><?= $diaSem[$d->format('D')] ?? '' ?>, <?= $d->format('d/m') ?></div>
+          <div class="qt"><?= (int)$rodada['jogos'] ?> jogo<?= $rodada['jogos'] == 1 ? '' : 's' ?> na NBA</div>
+        </div>
+        <span class="prazo <?= $aberta ? '' : 'fec' ?>">
+          <i class="bi bi-<?= $aberta ? 'unlock' : 'lock-fill' ?>"></i>
+          <?= $aberta ? 'Escale até ' . substr((string)$rodada['fecha_em'], 11, 5) : 'Escalação fechada' ?>
+        </span>
+      </div>
+      <div class="jogos">
+        <?php foreach ($jogosDaRodada as $g): ?>
+          <span class="jg <?= $g['estado'] === 'post' ? 'fim' : '' ?>">
             <?php if ($g['logo_fora']): ?><img src="<?= $e($g['logo_fora']) ?>" alt=""><?php endif; ?>
-            <b><?= $e($g['fora']) ?></b> @ <b><?= $e($g['casa']) ?></b>
+            <b><?= $e($g['fora']) ?></b>
+            <?= $g['estado'] === 'post' ? (int)$g['placar_fora'] . '–' . (int)$g['placar_casa'] : '@' ?>
+            <b><?= $e($g['casa']) ?></b>
             <?php if ($g['logo_casa']): ?><img src="<?= $e($g['logo_casa']) ?>" alt=""><?php endif; ?>
-            · <?= substr((string)$g['inicio'], 11, 5) ?>
+            <?= $g['estado'] === 'post' ? '' : '· ' . substr((string)$g['inicio'], 11, 5) ?>
           </span>
         <?php endforeach; ?>
       </div>
     </div>
-    <span class="fn-prazo <?= $aberta ? '' : 'fechado' ?>">
-      <i class="bi bi-<?= $aberta ? 'clock' : 'lock-fill' ?>"></i>
-      <?= $aberta ? 'Escale até ' . substr((string)$rodada['fecha_em'], 11, 5) : 'Escalação fechada' ?>
-    </span>
-  </div>
 
-  <form method="POST" id="formEscala">
-  <input type="hidden" name="acao" value="escalar">
-  <div class="fn-grid">
-
-    <?php /* ── O MERCADO ── */ ?>
-    <div class="fn-card">
-      <div class="fn-tit"><i class="bi bi-people-fill"></i> Mercado
-        <span class="cnt" id="cntMercado"></span></div>
-      <div class="fn-filtros">
-        <input class="fn-busca" id="busca" type="search" placeholder="Buscar jogador ou time…" autocomplete="off">
-        <button type="button" class="fn-chip on" data-pos="">Todos</button>
-        <button type="button" class="fn-chip" data-pos="G">Armador</button>
-        <button type="button" class="fn-chip" data-pos="F">Ala</button>
-        <button type="button" class="fn-chip" data-pos="C">Pivô</button>
-      </div>
-      <div class="fn-lista" id="lista"></div>
-    </div>
-
-    <?php /* ── O TIME ── */ ?>
-    <div class="fn-card">
-      <div class="fn-tit"><i class="bi bi-clipboard-check-fill"></i> Seu time
-        <span class="cnt"><?= FNBA_ELENCO ?> jogadores</span></div>
-      <div class="fn-slots" id="slots"></div>
-
-      <div class="fn-orc" id="orc">
-        <div class="barra"><i id="barraOrc" style="width:0%"></i></div>
-        <b id="txtOrc">F$ 0,0 / <?= number_format(FNBA_ORCAMENTO, 0, ',', '.') ?></b>
+    <form method="POST" id="frm">
+    <input type="hidden" name="acao" value="escalar">
+    <input type="hidden" name="rodada" value="<?= (int)$rodada['id'] ?>">
+    <div class="grade">
+      <div class="card">
+        <div class="ct"><i class="bi bi-people-fill"></i> Mercado <span class="dir" id="cnt"></span></div>
+        <div class="filtros">
+          <input class="busca" id="q" type="search" placeholder="Buscar jogador ou time…" autocomplete="off">
+          <button type="button" class="chip on" data-p="">Todos</button>
+          <button type="button" class="chip" data-p="G">G</button>
+          <button type="button" class="chip" data-p="F">F</button>
+          <button type="button" class="chip" data-p="C">C</button>
+        </div>
+        <div class="lista" id="lista"></div>
       </div>
 
-      <?php if ($aberta): ?>
-        <button class="fn-salvar" id="btnSalvar" type="submit" disabled>Salvar escalação</button>
-      <?php else: ?>
-        <div class="fn-aviso info" style="margin:12px 0 0">A rodada fechou às
-          <?= substr((string)$rodada['fecha_em'], 11, 5) ?>. Volte amanhã.</div>
-      <?php endif; ?>
-
-      <p class="fn-regra">
-        <b>Como pontua:</b> ponto 1 · rebote 1,2 · assistência 1,5 · roubo 3 · toco 3 · <b>erro −1</b>.
-        O <b>capitão</b> (a estrelinha) vale o dobro.<br>
-        <b>A formação</b> é 2 armadores, 2 alas e 1 pivô, dentro de F$ <?= number_format(FNBA_ORCAMENTO, 0, ',', '.') ?>.
-        O preço sai da média da temporada passada.<br>
-        <b>Dá pra trocar</b> quantas vezes quiser até o primeiro jogo do dia.
-      </p>
+      <div class="card">
+        <div class="ct"><i class="bi bi-clipboard-check-fill"></i> Seu time <span class="dir"><?= FNBA_ELENCO ?> jogadores</span></div>
+        <div class="slots" id="slots"></div>
+        <div class="orc" id="orc">
+          <div class="b"><i id="bar" style="width:0%"></i></div>
+          <b id="txt">F$ 0,0 / <?= (int)FNBA_ORCAMENTO ?></b>
+        </div>
+        <?php if ($aberta): ?>
+          <button class="salvar" id="btn" type="submit" disabled>Salvar escalação</button>
+        <?php else: ?>
+          <div class="aviso nd" style="margin:12px 0 0">Esta rodada já fechou. Escolha outro dia acima.</div>
+        <?php endif; ?>
+        <p class="regra">
+          <b>Pontua:</b> ponto 1 · rebote 1,2 · assistência 1,5 · roubo 3 · toco 3 · <b>erro −1</b>.
+          O <b>capitão</b> (estrela) vale o dobro.<br>
+          <b>Formação:</b> 2 armadores, 2 alas, 1 pivô, dentro de F$ <?= (int)FNBA_ORCAMENTO ?>.
+          Troque quantas vezes quiser até o primeiro jogo.
+        </p>
+      </div>
     </div>
-  </div>
-  </form>
-<?php endif; ?>
+    </form>
+  <?php endif; ?>
 
-<?php if ($ultima): ?>
-  <div class="fn-card" style="margin-top:16px">
-    <div class="fn-tit"><i class="bi bi-trophy-fill"></i> Rodada de
-      <?= $e((new DateTimeImmutable($ultima['dia']))->format('d/m')) ?>
-      <span class="cnt"><?= count($rankingUltimo) ?> no top</span></div>
+<?php /* ══════════════ RODADAS ══════════════ */ ?>
+<?php elseif ($aba === 'rodadas'): ?>
 
-    <?php if ($meuUltimo): ?>
-      <div class="fn-res">
-        <div>
-          <div class="big"><?= number_format((float)$meuUltimo['pontos'], 1, ',', '.') ?></div>
-          <div class="lbl">seus pontos</div>
+  <?php if ($verRodada):
+    $d = new DateTimeImmutable($verRodada['dia']); ?>
+    <a class="pill" href="<?= $url(['aba' => 'rodadas']) ?>" style="margin-bottom:13px"><i class="bi bi-arrow-left"></i> Todas as rodadas</a>
+    <div class="grid2">
+      <div class="card">
+        <div class="ct"><i class="bi bi-list-ol"></i> <?= $d->format('d/m') ?> — quem escalou
+          <span class="dir"><?= count($verQuem) ?></span></div>
+        <div class="tab">
+          <?php foreach ($verQuem as $i => $q): ?>
+            <a class="tr <?= (int)$q['user_id'] === $verDe ? 'eu' : '' ?>"
+               href="<?= $url(['aba'=>'rodadas','ver'=>$verRodada['id'],'de'=>$q['user_id']]) ?>">
+              <span class="p <?= $i < 3 ? 'm' . ($i+1) : '' ?>"><?= $q['posicao'] ? (int)$q['posicao'] . 'º' : '–' ?></span>
+              <span class="n"><?= $e($q['nome'] ?? 'GM') ?></span>
+              <span class="v"><?= $q['pontos'] !== null ? number_format((float)$q['pontos'], 1, ',', '.') : '…' ?></span>
+            </a>
+          <?php endforeach; ?>
+          <?php if (!$verQuem): ?><div class="vazio">Ninguém escalou nessa rodada.</div><?php endif; ?>
         </div>
-        <div>
-          <div class="big" style="color:var(--text)"><?= (int)$meuUltimo['posicao'] ?>º</div>
-          <div class="lbl">sua posição</div>
-        </div>
-        <?php if ((int)$meuUltimo['moedas'] > 0): ?>
-        <div>
-          <div class="big" style="color:var(--amber)">+<?= (int)$meuUltimo['moedas'] ?></div>
-          <div class="lbl">moedas</div>
-        </div>
+      </div>
+      <div class="card">
+        <div class="ct"><i class="bi bi-person-badge"></i> O time
+          <span class="dir"><?= $verDe === $user_id ? 'seu' : 'de outro cartola' ?></span></div>
+        <?php if ($verTime === null || !$verTime): ?>
+          <div class="vazio">Sem escalação pra mostrar — ou a rodada ainda está aberta.</div>
+        <?php else: ?>
+          <div class="slots">
+            <?php foreach ($verTime as $j): ?>
+              <div class="slot full <?= (int)$j['capitao'] ? 'cap' : '' ?>">
+                <span class="tag <?= $e($j['pos']) ?>"><?= $e($j['pos']) ?></span>
+                <?php if ($j['foto']): ?><img src="<?= $e($j['foto']) ?>" alt="" loading="lazy"><?php endif; ?>
+                <span class="i"><b><?= $e($j['nome']) ?></b>
+                  <span><?= $e($j['sigla'] ?? '') ?><?= (int)$j['capitao'] ? ' · capitão (2×)' : '' ?></span></span>
+                <span class="vlr"><?= $j['fp'] !== null ? number_format((float)$j['fp'] * ((int)$j['capitao'] ? 2 : 1), 1, ',', '.') : '–' ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
         <?php endif; ?>
       </div>
-    <?php endif; ?>
+    </div>
 
-    <div class="fn-rank">
-      <?php foreach ($rankingUltimo as $i => $r): ?>
-        <div class="l <?= (int)$r['user_id'] === $user_id ? 'eu' : '' ?>">
-          <span class="p"><?= $i + 1 ?>º</span>
-          <span class="n"><?= $e($r['nome'] ?? 'GM') ?></span>
-          <?php if ((int)$r['moedas'] > 0): ?><span class="m">+<?= (int)$r['moedas'] ?></span><?php endif; ?>
-          <span class="v"><?= number_format((float)$r['pontos'], 1, ',', '.') ?></span>
+  <?php else: ?>
+    <div class="card">
+      <div class="ct"><i class="bi bi-calendar3"></i> Suas rodadas <span class="dir">clique pra ver os times</span></div>
+      <div class="tab">
+        <?php foreach ($minhasRodadas as $r):
+          $d = new DateTimeImmutable($r['dia']);
+          $jogou = $r['pontos'] !== null; ?>
+          <a class="tr" href="<?= $url(['aba'=>'rodadas','ver'=>$r['id']]) ?>">
+            <span class="p"><?= $d->format('d/m') ?></span>
+            <span class="n">
+              <?= $r['status'] === 'apurada' ? 'Encerrada' : ($r['status'] === 'fechada' ? 'Em jogo' : 'Aberta') ?>
+              <small><?= (int)$r['jogos'] ?> jogos<?= (int)$r['cartolas'] ? ' · ' . (int)$r['cartolas'] . ' cartolas' : '' ?></small>
+            </span>
+            <?php if ((int)$r['moedas'] > 0): ?><span class="mo">+<?= (int)$r['moedas'] ?></span><?php endif; ?>
+            <span class="v" style="color:<?= $jogou ? 'var(--verde)' : 'var(--tx-3)' ?>">
+              <?= $jogou ? number_format((float)$r['pontos'], 1, ',', '.') : '—' ?></span>
+            <?php if ($r['posicao']): ?><span class="mo" style="color:var(--tx-3)"><?= (int)$r['posicao'] ?>º</span><?php endif; ?>
+          </a>
+        <?php endforeach; ?>
+        <?php if (!$minhasRodadas): ?><div class="vazio">Nenhuma rodada ainda.</div><?php endif; ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
+<?php /* ══════════════ LIGAS ══════════════ */ ?>
+<?php elseif ($aba === 'ligas'): ?>
+
+  <div class="pills">
+    <?php foreach (FNBA_DIVISOES as $dv): ?>
+      <a class="pill <?= strtoupper((string)$rankAba) === $dv ? 'on' : '' ?>" href="<?= $url(['aba'=>'ligas','f'=>$dv]) ?>">
+        <i class="bi bi-shield"></i> <?= $dv ?><?= $minhaDiv === $dv ? ' (sua)' : '' ?></a>
+    <?php endforeach; ?>
+    <?php foreach ($minhasLigas as $l): ?>
+      <a class="pill <?= $rankAba === 'liga:' . $l['id'] ? 'on' : '' ?>" href="<?= $url(['aba'=>'ligas','f'=>'liga:'.$l['id']]) ?>">
+        <i class="bi bi-people-fill"></i> <?= $e($l['nome']) ?></a>
+    <?php endforeach; ?>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="ct"><i class="bi bi-bar-chart-fill"></i> <?= $rankTitulo ? $e($rankTitulo) : 'Escolha uma liga acima' ?>
+        <?php if ($rankLista): ?><span class="dir"><?= count($rankLista) ?> cartolas</span><?php endif; ?></div>
+      <?php if ($rankLista): ?>
+        <div class="tab">
+          <?php foreach ($rankLista as $i => $r): ?>
+            <div class="tr <?= (int)$r['user_id'] === $user_id ? 'eu' : '' ?>">
+              <span class="p <?= $i < 3 ? 'm' . ($i+1) : '' ?>"><?= $i + 1 ?>º</span>
+              <span class="n"><?= $e($r['nome'] ?? 'GM') ?>
+                <small><?= (int)$r['rodadas'] ?> rodadas · melhor <?= number_format((float)$r['melhor'], 1, ',', '.') ?></small></span>
+              <span class="v"><?= number_format((float)$r['total'], 1, ',', '.') ?></span>
+            </div>
+          <?php endforeach; ?>
         </div>
-      <?php endforeach; ?>
-      <?php if (!$rankingUltimo): ?><div class="fn-vazio">Ninguém escalou nessa rodada.</div><?php endif; ?>
+      <?php else: ?>
+        <div class="vazio">Escolha uma divisão ou liga acima pra ver a tabela.</div>
+      <?php endif; ?>
+    </div>
+
+    <div class="card">
+      <div class="ct"><i class="bi bi-people-fill"></i> Ligas de amigos <span class="dir">até 5</span></div>
+      <div class="tab">
+        <?php foreach ($minhasLigas as $l): ?>
+          <div class="tr">
+            <span class="n"><?= $e($l['nome']) ?>
+              <small><?= (int)$l['membros'] ?> membros<?= (int)$l['dono_id'] === $user_id ? ' · você criou' : '' ?></small></span>
+            <span class="cod"><?= $e($l['codigo']) ?></span>
+            <?php if ((int)$l['dono_id'] !== $user_id): ?>
+              <form method="POST" style="display:inline">
+                <input type="hidden" name="acao" value="sair_liga">
+                <input type="hidden" name="liga" value="<?= (int)$l['id'] ?>">
+                <button class="mini" type="submit" title="Sair da liga"><i class="bi bi-box-arrow-right"></i></button>
+              </form>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+        <?php if (!$minhasLigas): ?><div class="vazio">Você ainda não está em nenhuma liga de amigos.</div><?php endif; ?>
+      </div>
+
+      <form method="POST" class="frm">
+        <input type="hidden" name="acao" value="criar_liga">
+        <input name="nome" placeholder="Nome da liga nova" maxlength="60" required>
+        <button type="submit">Criar</button>
+      </form>
+      <form method="POST" class="frm">
+        <input type="hidden" name="acao" value="entrar_liga">
+        <input name="codigo" placeholder="Código de convite" maxlength="6" required style="text-transform:uppercase">
+        <button type="submit">Entrar</button>
+      </form>
+      <p class="regra">As <b>divisões da FBA</b> já existem sozinhas: quem tem time na ELITE disputa
+        com a ELITE, sem precisar entrar em nada. As <b>ligas de amigos</b> são suas — crie uma e mande
+        o código.</p>
     </div>
   </div>
+
+<?php /* ══════════════ RANKING ══════════════ */ ?>
+<?php else: ?>
+
+  <div class="pills">
+    <a class="pill <?= $rankAba === 'geral' ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'geral']) ?>">
+      <i class="bi bi-globe"></i> Geral</a>
+    <?php foreach (FNBA_DIVISOES as $dv): ?>
+      <a class="pill <?= strtoupper((string)$rankAba) === $dv ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>$dv]) ?>">
+        <?= $dv ?></a>
+    <?php endforeach; ?>
+  </div>
+
+  <?php
+  $meu = null; $minhaPos = 0;
+  foreach ($rankLista as $i => $r) if ((int)$r['user_id'] === $user_id) { $meu = $r; $minhaPos = $i + 1; }
+  ?>
+  <?php if ($meu): ?>
+  <div class="card" style="margin-bottom:14px">
+    <div class="kpi">
+      <div><div class="k" style="color:var(--lar)"><?= $minhaPos ?>º</div><div class="l">sua posição</div></div>
+      <div><div class="k"><?= number_format((float)$meu['total'], 1, ',', '.') ?></div><div class="l">pontos somados</div></div>
+      <div><div class="k" style="color:var(--verde)"><?= number_format((float)$meu['total'] / max(1, (int)$meu['rodadas']), 1, ',', '.') ?></div><div class="l">média por rodada</div></div>
+      <div><div class="k" style="color:var(--ouro)"><?= (int)$meu['moedas'] ?></div><div class="l">moedas ganhas</div></div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <div class="card">
+    <div class="ct"><i class="bi bi-trophy-fill"></i> <?= $e($rankTitulo ?: 'Geral') ?>
+      <span class="dir"><?= count($rankLista) ?> cartolas</span></div>
+    <div class="tab">
+      <?php foreach ($rankLista as $i => $r): ?>
+        <div class="tr <?= (int)$r['user_id'] === $user_id ? 'eu' : '' ?>">
+          <span class="p <?= $i < 3 ? 'm' . ($i+1) : '' ?>"><?= $i + 1 ?>º</span>
+          <span class="n"><?= $e($r['nome'] ?? 'GM') ?>
+            <small><?= (int)$r['rodadas'] ?> rodadas · média
+              <?= number_format((float)$r['total'] / max(1, (int)$r['rodadas']), 1, ',', '.') ?></small></span>
+          <?php if ((int)$r['moedas'] > 0): ?><span class="mo">+<?= (int)$r['moedas'] ?></span><?php endif; ?>
+          <span class="v"><?= number_format((float)$r['total'], 1, ',', '.') ?></span>
+        </div>
+      <?php endforeach; ?>
+      <?php if (!$rankLista): ?>
+        <div class="vazio">Nenhuma rodada apurada ainda. O ranking aparece depois da primeira.</div>
+      <?php endif; ?>
+    </div>
+  </div>
+
 <?php endif; ?>
 
 </div>
-</div>
-</main>
 
+<?php if ($aba === 'escalar' && $rodada): ?>
 <script src="/js/popups.js?v=<?= @filemtime(__DIR__ . '/js/popups.js') ?: 1 ?>"></script>
 <script>
-/* ── O MONTADOR DE TIME ───────────────────────────────────────────────
-   Tudo acontece aqui e só o resultado vai pro servidor — que confere de
-   novo, porque validação de tela é conveniência, não regra. @see fnbaValidar */
+/* O montador de time. Valida aqui pra avisar enquanto a pessoa monta; o
+   servidor confere de novo, porque validação de tela é conveniência e não
+   regra. @see fnbaValidar */
 (function(){
-  const MERCADO  = <?= json_encode(array_map(fn($j) => [
-        'id' => (int)$j['id'], 'n' => $j['nome'], 'p' => $j['pos'],
-        'c' => (float)$j['preco'], 'm' => (float)$j['media_fp'],
-        't' => $j['sigla'] ?? '', 'f' => $j['foto'] ?? '',
+  const M = <?= json_encode(array_map(fn($j) => [
+        'id'=>(int)$j['id'], 'n'=>$j['nome'], 'p'=>$j['pos'], 'c'=>(float)$j['preco'],
+        'm'=>(float)$j['media_fp'], 't'=>$j['sigla'] ?? '', 'f'=>$j['foto'] ?? '',
       ], $mercado), JSON_UNESCAPED_UNICODE) ?>;
-  const FORMACAO  = <?= json_encode(FNBA_FORMACAO) ?>;
-  const ORCAMENTO = <?= FNBA_ORCAMENTO ?>;
-  const ABERTA    = <?= $aberta ? 'true' : 'false' ?>;
-  const ROTULO    = {G:'Armador', F:'Ala', C:'Pivô'};
-
-  let escolhidos = <?= json_encode(array_map('intval', $escalados)) ?>;
-  let capitao    = <?= (int)$capAtual ?>;
-  let filtroPos  = '';
-  let busca      = '';
-
-  const porId = {};
-  MERCADO.forEach(j => porId[j.id] = j);
-
+  const FORM = <?= json_encode(FNBA_FORMACAO) ?>, ORC = <?= (int)FNBA_ORCAMENTO ?>,
+        N = <?= FNBA_ELENCO ?>, ABERTA = <?= $aberta ? 'true' : 'false' ?>,
+        ROT = {G:'armador', F:'ala', C:'pivô'};
+  let sel = <?= json_encode(array_map('intval', $escalados)) ?>, cap = <?= (int)$capAtual ?>,
+      fp = '', q = '';
+  const by = {}; M.forEach(j => by[j.id] = j);
   const $ = s => document.querySelector(s);
-  const lista = $('#lista'), slots = $('#slots');
+  const custo = () => sel.reduce((s,i) => s + (by[i]?.c || 0), 0);
+  const nPos = p => sel.filter(i => by[i]?.p === p).length;
+  const cabe = j => sel.includes(j.id) ||
+        (sel.length < N && nPos(j.p) < (FORM[j.p]||0) && custo() + j.c <= ORC + .001);
 
-  const custo = () => escolhidos.reduce((s, id) => s + (porId[id]?.c || 0), 0);
-  const contaPos = p => escolhidos.filter(id => porId[id]?.p === p).length;
-
-  /* Cabe mais um desta posição? É o que deixa a linha apagada no mercado
-     antes de o clique virar erro. */
-  function cabe(j){
-    if (escolhidos.includes(j.id)) return true;
-    if (escolhidos.length >= <?= FNBA_ELENCO ?>) return false;
-    if (contaPos(j.p) >= (FORMACAO[j.p] || 0)) return false;
-    return custo() + j.c <= ORCAMENTO + 0.001;
-  }
-
-  function alternar(id){
+  function toggle(id){
     if (!ABERTA) return;
-    const i = escolhidos.indexOf(id);
-    if (i >= 0) {
-      escolhidos.splice(i, 1);
-      if (capitao === id) capitao = 0;
-    } else {
-      if (!cabe(porId[id])) return;
-      escolhidos.push(id);
-      if (!capitao) capitao = id;      // o primeiro já vira capitão
-    }
-    desenhar();
+    const k = sel.indexOf(id);
+    if (k >= 0) { sel.splice(k,1); if (cap === id) cap = 0; }
+    else { if (!cabe(by[id])) return; sel.push(id); if (!cap) cap = id; }
+    tudo();
   }
-
-  function desenharSlots(){
-    const ordem = [];
-    Object.entries(FORMACAO).forEach(([pos, n]) => {
-      const desta = escolhidos.filter(id => porId[id]?.p === pos);
-      for (let k = 0; k < n; k++) ordem.push({pos, id: desta[k] || null});
+  function slots(){
+    const ord = [];
+    Object.entries(FORM).forEach(([p,n]) => {
+      const d = sel.filter(i => by[i]?.p === p);
+      for (let k=0;k<n;k++) ord.push({p, id:d[k]||null});
     });
-    slots.innerHTML = ordem.map(s => {
-      const j = s.id ? porId[s.id] : null;
-      if (!j) return `<div class="fn-slot"><span class="pos">${s.pos}</span>
-        <span class="vazio">Escolha um ${ROTULO[s.pos].toLowerCase()}</span></div>`;
-      const ehCap = capitao === j.id;
-      return `<div class="fn-slot cheio">
-        <span class="pos">${s.pos}</span>
-        ${j.f ? `<img class="rosto" src="${j.f}" alt="" loading="lazy">` : ''}
-        <span class="nm"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} méd${ehCap ? ' · <b style="color:var(--amber)">capitão</b>' : ''}</span></span>
-        <span class="preco">${j.c.toFixed(1)}</span>
-        ${ABERTA ? `<span class="fn-acoes">
-          <button type="button" class="fn-mini cap ${ehCap ? 'on' : ''}" data-cap="${j.id}" title="Capitão (dobra os pontos)"><i class="bi bi-star-fill"></i></button>
-          <button type="button" class="fn-mini" data-tira="${j.id}" title="Tirar"><i class="bi bi-x-lg"></i></button>
-        </span>` : ''}
+    $('#slots').innerHTML = ord.map(s => {
+      const j = s.id ? by[s.id] : null;
+      if (!j) return `<div class="slot"><span class="tag ${s.p}">${s.p}</span>
+        <span class="vazio">Escolha um ${ROT[s.p]}</span></div>`;
+      const c = cap === j.id;
+      return `<div class="slot full ${c?'cap':''}"><span class="tag ${j.p}">${j.p}</span>
+        ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:''}
+        <span class="i"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} méd${c?' · capitão 2×':''}</span></span>
+        <span class="vlr">${j.c.toFixed(1)}</span>
+        ${ABERTA?`<button type="button" class="mini ${c?'on':''}" data-c="${j.id}" title="Capitão"><i class="bi bi-star-fill"></i></button>
+        <button type="button" class="mini" data-x="${j.id}" title="Tirar"><i class="bi bi-x-lg"></i></button>`:''}
       </div>`;
     }).join('');
   }
-
-  function desenharMercado(){
-    const q = busca.trim().toLowerCase();
-    const vis = MERCADO.filter(j =>
-      (!filtroPos || j.p === filtroPos) &&
-      (!q || j.n.toLowerCase().includes(q) || (j.t || '').toLowerCase().includes(q)));
-    $('#cntMercado').textContent = vis.length + ' de ' + MERCADO.length;
-    if (!vis.length) { lista.innerHTML = '<div class="fn-vazio">Ninguém com esse nome.</div>'; return; }
-    /* Só os 120 primeiros: a lista é rolável e ninguém percorre 517 linhas
-       com o dedo — quem procura alguém específico usa a busca. */
-    lista.innerHTML = vis.slice(0, 120).map(j => {
-      const dentro = escolhidos.includes(j.id);
-      const bloq = !dentro && !cabe(j);
-      return `<div class="fn-lin ${dentro ? 'dentro' : ''} ${bloq ? 'caro' : ''}" data-id="${j.id}">
-        ${j.f ? `<img src="${j.f}" alt="" loading="lazy">` : '<img alt="">'}
-        <span class="pos">${j.p}</span>
-        <span class="nm"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} pts de média</span></span>
-        <span class="preco">${j.c.toFixed(1)}</span>
-      </div>`;
-    }).join('');
+  function merc(){
+    const t = q.trim().toLowerCase();
+    const v = M.filter(j => (!fp || j.p === fp) &&
+      (!t || j.n.toLowerCase().includes(t) || (j.t||'').toLowerCase().includes(t)));
+    $('#cnt').textContent = v.length + ' de ' + M.length;
+    $('#lista').innerHTML = v.length ? v.slice(0,120).map(j => {
+      const i = sel.includes(j.id);
+      return `<div class="lin ${i?'in':''} ${!i&&!cabe(j)?'off':''}" data-id="${j.id}">
+        ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:'<img alt="">'}
+        <span class="tag ${j.p}">${j.p}</span>
+        <span class="i"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} pts de média</span></span>
+        <span class="vlr">${j.c.toFixed(1)}</span></div>`;
+    }).join('') : '<div class="vazio">Ninguém com esse nome.</div>';
   }
-
-  function desenharOrcamento(){
-    const c = custo(), pc = Math.min(100, c / ORCAMENTO * 100);
-    $('#barraOrc').style.width = pc + '%';
-    $('#txtOrc').textContent = 'F$ ' + c.toFixed(1).replace('.', ',') + ' / ' + ORCAMENTO;
-    $('#orc').classList.toggle('estourou', c > ORCAMENTO + 0.001);
-    const btn = $('#btnSalvar');
-    if (btn) {
-      const completo = escolhidos.length === <?= FNBA_ELENCO ?> && c <= ORCAMENTO + 0.001 && capitao;
-      btn.disabled = !completo;
-      btn.textContent = completo ? 'Salvar escalação'
-        : `Faltam ${<?= FNBA_ELENCO ?> - escolhidos.length} jogador(es)`;
+  function orc(){
+    const c = custo();
+    $('#bar').style.width = Math.min(100, c/ORC*100) + '%';
+    $('#txt').textContent = 'F$ ' + c.toFixed(1).replace('.',',') + ' / ' + ORC;
+    $('#orc').classList.toggle('x', c > ORC + .001);
+    const b = $('#btn');
+    if (b) {
+      const pronto = sel.length === N && c <= ORC + .001 && cap;
+      b.disabled = !pronto;
+      b.textContent = pronto ? 'Salvar escalação' : `Faltam ${N - sel.length} jogador(es)`;
     }
   }
-
-  function desenhar(){
-    desenharSlots(); desenharMercado(); desenharOrcamento();
-    document.querySelectorAll('input[name="jogadores[]"],input[name="capitao"]').forEach(i => i.remove());
-    const f = $('#formEscala');
-    if (!f) return;
-    escolhidos.forEach(id => {
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = 'jogadores[]'; i.value = id; f.appendChild(i);
-    });
-    const c = document.createElement('input');
-    c.type = 'hidden'; c.name = 'capitao'; c.value = capitao; f.appendChild(c);
+  function tudo(){
+    slots(); merc(); orc();
+    const f = $('#frm');
+    f.querySelectorAll('input[name="jogadores[]"],input[name="capitao"]').forEach(i => i.remove());
+    sel.forEach(id => { const i = document.createElement('input');
+      i.type='hidden'; i.name='jogadores[]'; i.value=id; f.appendChild(i); });
+    const c = document.createElement('input'); c.type='hidden'; c.name='capitao'; c.value=cap; f.appendChild(c);
   }
-
-  lista.addEventListener('click', ev => {
-    const l = ev.target.closest('.fn-lin');
-    if (l) alternar(+l.dataset.id);
+  $('#lista').addEventListener('click', ev => {
+    const l = ev.target.closest('.lin'); if (l) toggle(+l.dataset.id);
   });
-  slots.addEventListener('click', ev => {
-    const cap = ev.target.closest('[data-cap]');
-    if (cap) { capitao = +cap.dataset.cap; desenhar(); return; }
-    const tira = ev.target.closest('[data-tira]');
-    if (tira) alternar(+tira.dataset.tira);
+  $('#slots').addEventListener('click', ev => {
+    const c = ev.target.closest('[data-c]'); if (c) { cap = +c.dataset.c; tudo(); return; }
+    const x = ev.target.closest('[data-x]'); if (x) toggle(+x.dataset.x);
   });
-  $('#busca').addEventListener('input', ev => { busca = ev.target.value; desenharMercado(); });
-  document.querySelectorAll('.fn-chip').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('.fn-chip').forEach(o => o.classList.remove('on'));
-    b.classList.add('on'); filtroPos = b.dataset.pos; desenharMercado();
+  $('#q').addEventListener('input', ev => { q = ev.target.value; merc(); });
+  document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(o => o.classList.remove('on'));
+    b.classList.add('on'); fp = b.dataset.p; merc();
   }));
-
-  desenhar();
+  tudo();
 })();
 </script>
+<?php endif; ?>
 </body>
 </html>

@@ -703,3 +703,223 @@ function fnbaMercado(PDO $pdo): array
                          WHERE j.ativo = 1
                       ORDER BY j.preco DESC, j.nome")->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   AS LIGAS E OS RANKINGS
+
+   Três recortes da mesma tabela de resultados, porque são três perguntas
+   diferentes: "como fui no geral", "como vou contra a minha divisão" e
+   "como vou contra os meus amigos". A primeira é a liga inteira, a segunda
+   sai de graça do cadastro (quem tem time na ELITE disputa com a ELITE) e a
+   terceira é a única que precisa de tabela.
+   ───────────────────────────────────────────────────────────────────── */
+
+/** As divisões da FBA, que viram liga de fantasy sem ninguém criar nada. */
+const FNBA_DIVISOES = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+function fnbaTabelasLigas(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_ligas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nome VARCHAR(60) NOT NULL,
+        codigo CHAR(6) NOT NULL,
+        dono_id INT NOT NULL,
+        criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_fnba_liga_cod (codigo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_liga_membros (
+        liga_id INT NOT NULL,
+        user_id INT NOT NULL,
+        entrou_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (liga_id, user_id),
+        KEY idx_fnba_lm_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $feito = true;
+}
+
+/** A divisão da FBA de quem joga, ou null pra quem não tem time. */
+function fnbaDivisaoDoUsuario(PDO $pdo, int $uid): ?string
+{
+    $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+    $st->execute([$uid]);
+    $l = strtoupper((string)$st->fetchColumn());
+    return in_array($l, FNBA_DIVISOES, true) ? $l : null;
+}
+
+/**
+ * O RANKING GERAL: a soma de todas as rodadas já apuradas.
+ *
+ * `rodadas` vai junto porque sem ele a tabela mente: quem entrou ontem
+ * aparece no fim com 40 pontos ao lado de quem joga há um mês, e os dois
+ * números não querem dizer a mesma coisa. Com a contagem do lado, a média
+ * fica visível e a comparação é honesta.
+ *
+ * @param string|null $divisao  limita a uma divisão da FBA
+ * @param int|null    $ligaId   limita a uma liga de amigos
+ */
+function fnbaRankingGeral(PDO $pdo, ?string $divisao = null, ?int $ligaId = null, int $limite = 100): array
+{
+    fnbaTabelas($pdo);
+    fnbaTabelasLigas($pdo);
+    $par  = [];
+    $join = '';
+    $where = [];
+    if ($ligaId) {
+        $join .= ' JOIN fnba_liga_membros lm ON lm.user_id = r.user_id AND lm.liga_id = ? ';
+        $par[] = $ligaId;
+    }
+    if ($divisao) {
+        $join .= ' JOIN teams tm ON tm.user_id = r.user_id ';
+        $where[] = 'tm.league = ?';
+        $par[]   = strtoupper($divisao);
+    }
+    $sql = "SELECT r.user_id, u.name AS nome, SUM(r.pontos) AS total, COUNT(*) AS rodadas,
+                   MAX(r.pontos) AS melhor, SUM(r.moedas) AS moedas
+              FROM fnba_resultados r
+              LEFT JOIN users u ON u.id = r.user_id
+              {$join}"
+         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+         . " GROUP BY r.user_id, u.name ORDER BY total DESC LIMIT " . max(1, $limite);
+    $st = $pdo->prepare($sql);
+    $st->execute($par);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** As ligas de amigos de alguém. */
+function fnbaMinhasLigas(PDO $pdo, int $uid): array
+{
+    fnbaTabelasLigas($pdo);
+    $st = $pdo->prepare("SELECT l.*, (SELECT COUNT(*) FROM fnba_liga_membros m WHERE m.liga_id = l.id) AS membros
+                           FROM fnba_ligas l
+                           JOIN fnba_liga_membros lm ON lm.liga_id = l.id
+                          WHERE lm.user_id = ? ORDER BY l.criada_em");
+    $st->execute([$uid]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Cria uma liga de amigos e põe o dono dentro. */
+function fnbaCriarLiga(PDO $pdo, int $uid, string $nome): array
+{
+    fnbaTabelasLigas($pdo);
+    $nome = trim($nome);
+    if (mb_strlen($nome) < 3) return ['ok' => false, 'erro' => 'O nome precisa de pelo menos 3 letras.'];
+    if (count(fnbaMinhasLigas($pdo, $uid)) >= 5) return ['ok' => false, 'erro' => 'Você já está em 5 ligas.'];
+
+    /* Sem I, O, 0 e 1: o código vai ser lido em voz alta no grupo e digitado
+       por quem está no celular. */
+    $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for ($tentativa = 0; $tentativa < 12; $tentativa++) {
+        $cod = '';
+        for ($i = 0; $i < 6; $i++) $cod .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+        try {
+            $pdo->prepare('INSERT INTO fnba_ligas (nome, codigo, dono_id) VALUES (?,?,?)')
+                ->execute([mb_substr($nome, 0, 60), $cod, $uid]);
+            $id = (int)$pdo->lastInsertId();
+            $pdo->prepare('INSERT IGNORE INTO fnba_liga_membros (liga_id, user_id) VALUES (?,?)')->execute([$id, $uid]);
+            return ['ok' => true, 'id' => $id, 'codigo' => $cod];
+        } catch (Throwable $e) {
+            continue;   // código repetido: sorteia outro
+        }
+    }
+    return ['ok' => false, 'erro' => 'Não deu pra criar agora. Tente de novo.'];
+}
+
+/** Entra numa liga pelo código. */
+function fnbaEntrarNaLiga(PDO $pdo, int $uid, string $codigo): array
+{
+    fnbaTabelasLigas($pdo);
+    $cod = strtoupper(trim($codigo));
+    $st = $pdo->prepare('SELECT * FROM fnba_ligas WHERE codigo = ?');
+    $st->execute([$cod]);
+    $liga = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$liga) return ['ok' => false, 'erro' => 'Não achei liga com esse código.'];
+    if (count(fnbaMinhasLigas($pdo, $uid)) >= 5) return ['ok' => false, 'erro' => 'Você já está em 5 ligas.'];
+    $pdo->prepare('INSERT IGNORE INTO fnba_liga_membros (liga_id, user_id) VALUES (?,?)')
+        ->execute([(int)$liga['id'], $uid]);
+    return ['ok' => true, 'nome' => $liga['nome']];
+}
+
+/** Sai de uma liga. O dono não sai: a liga é dele. */
+function fnbaSairDaLiga(PDO $pdo, int $uid, int $ligaId): bool
+{
+    fnbaTabelasLigas($pdo);
+    $st = $pdo->prepare('SELECT dono_id FROM fnba_ligas WHERE id = ?');
+    $st->execute([$ligaId]);
+    if ((int)$st->fetchColumn() === $uid) return false;
+    $pdo->prepare('DELETE FROM fnba_liga_membros WHERE liga_id = ? AND user_id = ?')->execute([$ligaId, $uid]);
+    return true;
+}
+
+/** As últimas rodadas, com o meu resultado em cada uma. */
+function fnbaMinhasRodadas(PDO $pdo, int $uid, int $limite = 20): array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare("SELECT r.*, res.pontos, res.posicao, res.moedas,
+                                (SELECT COUNT(*) FROM fnba_resultados x WHERE x.rodada_id = r.id) AS cartolas
+                           FROM fnba_rodadas r
+                      LEFT JOIN fnba_resultados res ON res.rodada_id = r.id AND res.user_id = ?
+                       ORDER BY r.dia DESC LIMIT " . max(1, $limite));
+    $st->execute([$uid]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * A escalação de QUALQUER UM numa rodada — mas só depois que ela fecha.
+ *
+ * Antes do fechamento isso seria copiar o time do vizinho, e o jogo todo é
+ * escolher sem saber o que os outros escolheram. Depois do apito vira o que
+ * mais se comenta no grupo: "quem você pôs de capitão?".
+ */
+function fnbaEscalacaoDe(PDO $pdo, int $rodadaId, int $alvoId): ?array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare('SELECT * FROM fnba_rodadas WHERE id = ?');
+    $st->execute([$rodadaId]);
+    $rodada = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$rodada || fnbaAberta($rodada)) return null;
+
+    $st = $pdo->prepare("SELECT e.*, j.nome, j.pos, j.foto, t.sigla
+                           FROM fnba_escalacoes e
+                           JOIN fnba_jogadores j ON j.id = e.jogador_id
+                      LEFT JOIN fnba_times t ON t.id = j.time_id
+                          WHERE e.rodada_id = ? AND e.user_id = ?
+                       ORDER BY e.capitao DESC, e.fp DESC");
+    $st->execute([$rodadaId, $alvoId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Quem escalou numa rodada (pra lista de "times dos outros"). */
+function fnbaQuemEscalou(PDO $pdo, int $rodadaId): array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare("SELECT e.user_id, u.name AS nome, res.pontos, res.posicao,
+                                COUNT(*) AS jogadores
+                           FROM fnba_escalacoes e
+                      LEFT JOIN users u ON u.id = e.user_id
+                      LEFT JOIN fnba_resultados res ON res.rodada_id = e.rodada_id AND res.user_id = e.user_id
+                          WHERE e.rodada_id = ?
+                       GROUP BY e.user_id, u.name, res.pontos, res.posicao
+                       ORDER BY res.pontos DESC, u.name");
+    $st->execute([$rodadaId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Uma rodada pelo id, com os jogos dela. */
+function fnbaRodadaPorId(PDO $pdo, int $id): ?array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare('SELECT * FROM fnba_rodadas WHERE id = ?');
+    $st->execute([$id]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** As próximas rodadas que já dá pra escalar (hoje e as seguintes). */
+function fnbaProximasRodadas(PDO $pdo, int $quantas = 5): array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare("SELECT * FROM fnba_rodadas WHERE dia >= CURDATE() ORDER BY dia LIMIT " . max(1, $quantas));
+    $st->execute();
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
