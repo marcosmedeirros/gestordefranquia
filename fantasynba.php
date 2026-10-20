@@ -334,9 +334,17 @@ a{color:inherit}
 :root[data-theme="light"] .vaga .nm{color:#10131a;text-shadow:0 1px 2px rgba(255,255,255,.8)}
 .vaga .sub{font-size:10px;color:rgba(255,255,255,.72);text-shadow:0 1px 3px rgba(0,0,0,.8)}
 :root[data-theme="light"] .vaga .sub{color:#4b5160;text-shadow:none}
-.vaga .estrela{position:absolute;top:-4px;right:12px;width:20px;height:20px;border-radius:50%;
-  background:var(--ouro);color:#1a1200;display:grid;place-items:center;font-size:10px}
 .vaga .folga{color:#fca5a5}
+/* Os dois botões de cada vaga preenchida. Ficam colados no retrato, com
+   alvo de 24px — o suficiente pro polegar sem cobrir a cara do jogador. */
+.vaga .acs{position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  display:none;gap:4px;z-index:3}
+.vaga.full .acs{display:flex}
+.vaga .ac{width:24px;height:24px;border-radius:50%;border:1px solid rgba(0,0,0,.4);
+  display:grid;place-items:center;font-size:10px;cursor:pointer;padding:0;
+  background:var(--sup-3);color:var(--tx-2)}
+.vaga .ac.c.on{background:var(--ouro);color:#1a1200;border-color:var(--ouro)}
+.vaga .ac.x:hover{background:#ef4444;color:#fff;border-color:#ef4444}
 
 .slots{display:flex;flex-direction:column;gap:7px}
 .slot{display:flex;align-items:center;gap:10px;padding:9px;border-radius:12px;background:var(--sup-2);
@@ -490,11 +498,15 @@ a{color:inherit}
 
       <div class="card">
         <div class="ct"><i class="bi bi-clipboard-check-fill"></i> Seu time <span class="dir"><?= FNBA_ELENCO ?> jogadores</span></div>
+        <?php /* SÓ A QUADRA. Embaixo dela havia a mesma escalação em lista —
+             a mesma informação duas vezes, e a lista empurrava o orçamento e
+             o botão de salvar pra fora da tela no celular. O que a lista
+             tinha de útil (trocar capitão, tirar alguém) virou os dois
+             botõezinhos de cada vaga. */ ?>
         <div class="quadra" id="quadra">
           <span class="arco"></span><span class="garrafa"></span>
           <span class="circ"></span><span class="cesta"></span>
         </div>
-        <div class="slots" id="slots"></div>
         <div class="orc" id="orc">
           <div class="b"><i id="bar" style="width:0%"></i></div>
           <b id="txt">F$ 0,0 / <?= (int)FNBA_ORCAMENTO ?></b>
@@ -767,29 +779,16 @@ a{color:inherit}
       d.dataset.s = s.slot;
       if (j) d.dataset.x = j.id;
       d.innerHTML = j
-        ? `<div class="cam">${j.f?`<img src="${j.f}" alt="" loading="lazy">`:j.p}</div>
-           ${cap===j.id?'<span class="estrela"><i class="bi bi-star-fill"></i></span>':''}
+        ? `${ABERTA?`<span class="acs">
+             <button type="button" class="ac c ${cap===j.id?'on':''}" data-c="${j.id}" title="Capitão (dobra)"><i class="bi bi-star-fill"></i></button>
+             <button type="button" class="ac x" data-x="${j.id}" title="Tirar"><i class="bi bi-x-lg"></i></button>
+           </span>`:''}
+           <div class="cam">${j.f?`<img src="${j.f}" alt="" loading="lazy">`:j.p}</div>
            <div class="nm">${j.n.split(' ').slice(-1)[0]}</div>
            <div class="sub ${j.joga===false?'folga':''}">${j.joga===false?'de folga':(j.contra||j.t)}</div>`
         : `<div class="cam">${s.p}</div><div class="sub">${ROT[s.p]}</div>`;
       q.appendChild(d);
     });
-  }
-  function slots(){
-    const ord = vagas();
-    $('#slots').innerHTML = ord.map(s => {
-      const j = s.id ? by[s.id] : null;
-      if (!j) return `<div class="slot"><span class="tag ${s.p}">${s.p}</span>
-        <span class="vazio">Escolha um ${ROT[s.p]}</span></div>`;
-      const c = cap === j.id;
-      return `<div class="slot full ${c?'cap':''}"><span class="tag ${j.p}">${j.p}</span>
-        ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:''}
-        <span class="i"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} méd${c?' · capitão 2×':''}</span></span>
-        <span class="vlr">${j.c.toFixed(1)}</span>
-        ${ABERTA?`<button type="button" class="mini ${c?'on':''}" data-c="${j.id}" title="Capitão"><i class="bi bi-star-fill"></i></button>
-        <button type="button" class="mini" data-x="${j.id}" title="Tirar"><i class="bi bi-x-lg"></i></button>`:''}
-      </div>`;
-    }).join('');
   }
   function merc(){
     const t = q.trim().toLowerCase();
@@ -818,7 +817,7 @@ a{color:inherit}
     }
   }
   function tudo(){
-    quadra(); slots(); merc(); orc();
+    quadra(); merc(); orc();
     const f = $('#frm');
     f.querySelectorAll('input[name="jogadores[]"],input[name="capitao"]').forEach(i => i.remove());
     sel.forEach(id => { const i = document.createElement('input');
@@ -828,17 +827,13 @@ a{color:inherit}
   $('#lista').addEventListener('click', ev => {
     const l = ev.target.closest('.lin'); if (l) toggle(+l.dataset.id);
   });
-  $('#slots').addEventListener('click', ev => {
+  /* OS DOIS BOTÕES DA VAGA. O corpo da vaga não faz nada: sem a lista
+     embaixo, um toque errado no desenho seria a única forma de desfazer a
+     escalação, e isso tem que ser deliberado — daí o X ter alvo próprio. */
+  $('#quadra').addEventListener('click', ev => {
+    if (!ABERTA) return;
     const c = ev.target.closest('[data-c]'); if (c) { cap = +c.dataset.c; tudo(); return; }
     const x = ev.target.closest('[data-x]'); if (x) toggle(+x.dataset.x);
-  });
-  /* NA QUADRA, O CLIQUE PROMOVE A CAPITÃO em vez de tirar: tirar é o botão
-     da lista logo abaixo, e um toque errado no desenho não pode desfazer a
-     escalação inteira sem aviso. */
-  $('#quadra').addEventListener('click', ev => {
-    const v = ev.target.closest('.vaga[data-x]');
-    if (!v || !ABERTA) return;
-    cap = +v.dataset.x; tudo();
   });
   $('#q').addEventListener('input', ev => { q = ev.target.value; merc(); });
   document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
