@@ -6,12 +6,18 @@
  * pela hora do dia, em vez de pedir quatro linhas no agendador da Hostinger —
  * entrada de cron é coisa que se esquece de criar, e o jogo depende desta.
  *
- *   0 * * * *  /opt/alt/php83/usr/bin/php ~/domains/fbabrasil.com.br/public_html/cron/fantasy_nba.php
+ *   0 * * * * /usr/bin/php /home/u289267434/domains/fbabrasil.com.br/public_html/cron/fantasy_nba.php
+ *
+ * É o que está agendado no hPanel desde 20/10/2026. O /usr/bin/php é o 8.2
+ * da hospedagem e serve: este arquivo e o backend usam str_contains, que é
+ * 8.0 pra cima.
  *
  * O QUE ELE FAZ, EM ORDEM:
  *
- *   1. ABRE O DIA — importa os jogos de hoje e de amanhã. Amanhã junto porque
- *      quem escala à noite quer já montar o time do dia seguinte.
+ *   1. ABRE OS DIAS — ontem, hoje, amanhã e qualquer dia com jogo pendente.
+ *      Amanhã porque quem escala à noite já quer montar o time do dia
+ *      seguinte; ONTEM porque jogo das 22:30 termina depois da meia-noite, e
+ *      sem reler aquele dia o placar nunca fecharia.
  *   2. PUXA OS BOXSCORES dos jogos que terminaram e ainda não foram lidos.
  *   3. APURA as rodadas cujos jogos acabaram todos, paga as moedas e fecha.
  *   4. REPRECIFICA o mercado uma vez por dia, de madrugada.
@@ -38,8 +44,23 @@ $log   = fn(string $m) => print('[' . date('H:i:s') . "] {$m}" . PHP_EOL);
 $log('fantasy-nba: começando');
 
 /* ── 1) OS DIAS ─────────────────────────────────────────────────────── */
-foreach ([0, 1] as $somar) {
-    $dia = $agora->modify("+{$somar} day")->format('Y-m-d');
+/* ONTEM ENTRA JUNTO, E NÃO É DETALHE. O último jogo de um dia começa 22:30 e
+   acaba perto de uma da manhã — já no dia seguinte. Importando só hoje e
+   amanhã, o placar do dia anterior nunca era relido, o estado dele ficava
+   'in' pra sempre e a rodada JAMAIS seria apurada: o passo 3 exige que todos
+   os jogos estejam 'post'. */
+$dias = [];
+foreach ([-1, 0, 1] as $somar) $dias[] = $agora->modify("{$somar} day")->format('Y-m-d');
+
+/* E qualquer outro dia que tenha jogo pendente — cobre adiamento, jogo que a
+   ESPN demora a fechar e o cron que ficou fora do ar o dia inteiro. */
+foreach ($pdo->query("SELECT DISTINCT DATE(g.inicio) AS d FROM fnba_jogos g
+                       WHERE g.estado <> 'post' AND g.inicio < NOW()
+                         AND g.inicio > NOW() - INTERVAL 7 DAY")->fetchAll(PDO::FETCH_COLUMN) as $d) {
+    $dias[] = (string)$d;
+}
+
+foreach (array_unique($dias) as $dia) {
     $r = fnbaImportarDia($pdo, $dia);
     $log($r ? "dia {$dia}: rodada #{$r['rodada_id']}, {$r['jogos']} jogos, fecha {$r['fecha_em']}"
             : "dia {$dia}: sem jogos na NBA");
