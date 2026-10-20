@@ -627,6 +627,12 @@ $jogosLivres = [
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
      'sub'  => 'Vote e decida o campeão', 'icone' => 'bi-diagram-3-fill', 'cor' => '#f59e0b'],
+    /* O FBA GEO ENTROU NA GRADE (20/10/2026). Estreou só por link em 14/10 e
+       passou a semana com quem recebeu o endereço; com o Street View no ar,
+       os lugares repetidos resolvidos e o teto de moedas por dia removido,
+       abriu pra liga inteira. */
+    ['href' => '/games/games/geo.php', 'nome' => 'FBA Geo',
+     'sub'  => 'Onde no mundo você está?', 'icone' => 'bi-globe-americas', 'cor' => '#38bdf8'],
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],

@@ -5,19 +5,23 @@
  * Aparece a foto de um lugar do mundo e você diz onde é: o país, na múltipla
  * escolha, ou o ponto no mapa. Dois modos, dois rankings (@see games/core/geo.php).
  *
- * ── A CASCA É DO SITE, O RESTO É DO JOGO ─────────────────────────────
+ * ── UM HEADER, E O RESTO É DO JOGO ───────────────────────────────────
  *
- * Pedido do Marcos (14/10/2026): "a única coisa que deve ter padrão é o menu
- * lateral com padrão do site, mas o resto pode ficar à vontade pra
- * estilizar". Então esta página entra pelo shell do app — sidebar, topbar e
- * a cor que a pessoa escolheu — e daí pra dentro tem identidade própria:
- * foto em tela cheia, chips grandes, o mapa com a linha do palpite até o
- * lugar certo. Um jogo de adivinhar paisagem não pode parecer um relatório.
+ * A página nasceu dentro do shell do app, com menu lateral — era o pedido de
+ * 14/10/2026 ("a única coisa que deve ter padrão é o menu lateral"). Em
+ * 20/10 ele mudou de ideia olhando a tela pronta, e com razão: num jogo em
+ * que a paisagem É o jogo, 260px de menu ao lado são 260px a menos de mundo.
  *
- * ── SÓ POR LINK, POR ENQUANTO ────────────────────────────────────────
+ * Ficou o que os outros jogos do /games já tinham — Copero, Hoops, Draft,
+ * Copa do Mundo: um header com por onde sair e quanto você tem. Daí pra
+ * dentro a identidade é própria, que é o que ele pediu desde o começo: foto
+ * em tela cheia, chips grandes, o mapa com a linha do palpite até o lugar.
+ * Um jogo de adivinhar paisagem não pode parecer um relatório.
  *
- * Não existe card em games.php: quem tem o endereço entra, o resto da liga
- * não o descobre passeando pela lista. Pra publicar, é só acrescentar o card.
+ * ── NA GRADE DO /games DESDE 20/10/2026 ──────────────────────────────
+ *
+ * Estreou só por link em 14/10 e passou a semana com quem recebeu o
+ * endereço. O card está em games.php, junto dos outros jogos livres.
  *
  * ── A PARTIDA É DO SERVIDOR ──────────────────────────────────────────
  *
@@ -199,7 +203,10 @@ document.documentElement.classList.add('js');
   --border-red:color-mix(in srgb, var(--red) 22%, transparent);
   --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
   --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6;
-  --sidebar-w:260px;
+  /* Zero porque esta página não tem menu lateral: o .main do
+     shell-css.php reserva esta medida à esquerda, e a topbar só
+     aparece quando ela é 0. @see a topbar do jogo, mais abaixo. */
+  --sidebar-w:0px;
   --font:'Montserrat',sans-serif;
   --radius:14px; --radius-sm:10px; --radius-xs:6px;
   --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
@@ -234,6 +241,23 @@ document.documentElement.classList.add('js');
    sobrava preto. Reservando a barra desde o começo, nada muda de tamanho e
    o problema não chega a existir. */
 html{scrollbar-gutter:stable}
+
+/* A topbar do shell nasce escondida (só aparece no celular, onde o menu
+   vira gaveta). Aqui ela é o header do jogo, então vale sempre. */
+.topbar{display:flex}
+.main{padding-top:54px}
+
+.geo-topo{gap:10px}
+.geo-sair{display:grid;place-items:center;width:34px;height:34px;flex:none;
+  border-radius:10px;color:var(--text-2);background:var(--panel-2);
+  border:1px solid var(--border-md);text-decoration:none;font-size:15px;
+  transition:color var(--t) var(--ease),border-color var(--t) var(--ease)}
+.geo-sair:hover{color:var(--text);border-color:var(--border-red)}
+.geo-saldo{display:inline-flex;align-items:center;gap:6px;flex:none;
+  padding:6px 12px;border-radius:999px;font-size:12.5px;color:var(--text-2);
+  background:var(--panel-2);border:1px solid var(--border-md)}
+.geo-saldo b{color:var(--amber);font-weight:800}
+.geo-saldo i{color:var(--amber)}
 .content{font-family:Inter,system-ui,sans-serif}
 #geo{max-width:1080px;margin:0 auto;padding:0 0 48px;
   --c:var(--blue)}
@@ -618,12 +642,20 @@ html:not(.js) .so-js{display:none !important}
 </head>
 <body<?= ($partida && $rodada) ? ' class="geo-jogando"' : '' ?>>
 
-<?php include __DIR__ . '/../../includes/sidebar.php'; ?>
-<div class="sb-overlay" id="sbOverlay"></div>
+<?php /* ── SEM MENU LATERAL ────────────────────────────────────────────
+     O Geo entrava pelo shell do app, com sidebar e topbar, e era o único
+     jogo do /games assim — Copero, Hoops, Draft e Copa do Mundo todos têm
+     header próprio com "voltar aos games". Numa tela em que a paisagem é o
+     jogo, 260px de menu ao lado é 260px a menos de mundo pra olhar.
 
-<header class="topbar">
-  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+     O que sobra é o que o jogador precisa aqui: por onde sair e quanto ele
+     tem. @see games.php (o catálogo pra onde o voltar aponta) */ ?>
+<header class="topbar geo-topo">
+  <a class="geo-sair" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
   <div class="topbar-title">FBA <em>Geo</em></div>
+  <span class="geo-saldo" title="Suas moedas">
+    <i class="bi bi-coin"></i> <b><?= number_format($moedas, 0, ',', '.') ?></b>
+  </span>
 </header>
 
 <main class="main">
@@ -1096,11 +1128,12 @@ html:not(.js) .so-js{display:none !important}
 </main>
 
 <?php /* O botão de menu do celular e o de tema, os mesmos de todas as telas. */ ?>
-<?php /* O popups.js NÃO entra aqui: o includes/sidebar.php já o carrega,
-     com ?v= na frente. Como as duas URLs são diferentes pro navegador, ele
-     baixava o arquivo duas vezes E registrava os handlers em dobro — num
-     jogo que é todo clique, handler duplicado é clique contado duas vezes. */ ?>
-<script src="/js/sidebar.js"></script>
+<?php /* O popups.js É CARREGADO AQUI, e uma vez só. Quem o trazia era o
+     includes/sidebar.php; sem o menu lateral, ele passou a ser nosso — e o
+     botão de encerrar partida depende dele (data-confirmar). O ?v= é o
+     mesmo que o resto do site usa, pra não virar um segundo arquivo no
+     cache do navegador e registrar os handlers em dobro. */ ?>
+<script src="/js/popups.js?v=<?= @filemtime(dirname(__DIR__, 2) . '/js/popups.js') ?: 1 ?>"></script>
 <script src="/js/tema.js"></script>
 
 <?php if ($partida && $rodada && $rua): ?>
