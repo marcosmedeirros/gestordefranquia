@@ -51,6 +51,15 @@ if (!in_array($aba, ['escalar', 'rodadas', 'ranking'], true)) $aba = 'escalar';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string)($_POST['acao'] ?? '');
 
+    /* FAVORITAR RESPONDE JSON E MORRE AQUI. Recarregar a página a cada
+       estrela perderia a escalação que a pessoa está montando na tela. */
+    if ($acao === 'favorito') {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true,
+            'fav' => fnbaAlternarFavorito($pdo, $user_id, (int)($_POST['jogador'] ?? 0))]);
+        exit;
+    }
+
     if ($acao === 'escalar') {
         $rid = (int)($_POST['rodada'] ?? 0);
         $r = fnbaEscalar($pdo, $rid, $user_id,
@@ -91,6 +100,7 @@ if (!$rodada) $rodada = fnbaRodadaDoDia($pdo) ?: ($proximas[0] ?? null);
 $aberta    = $rodada ? fnbaAberta($rodada) : false;
 $escalacao = $rodada ? fnbaEscalacao($pdo, (int)$rodada['id'], $user_id) : [];
 $mercado   = ($aba === 'escalar' && $rodada) ? fnbaMercado($pdo, (int)$rodada['id']) : [];
+$favoritos = ($aba === 'escalar') ? fnbaFavoritos($pdo, $user_id) : [];
 
 $jogosDaRodada = [];
 if ($rodada) {
@@ -346,6 +356,28 @@ a{color:inherit}
 .vaga .ac.c.on{background:var(--ouro);color:#1a1200;border-color:var(--ouro)}
 .vaga .ac.x:hover{background:#ef4444;color:#fff;border-color:#ef4444}
 
+/* ── O BANCO ─────────────────────────────────────────────────────────
+   O sexto homem, embaixo da quadra. Mesma vaga, outro lugar: quem olha
+   entende na hora que ele não está em quadra. */
+.banco{position:relative;margin-top:10px;padding:10px 12px;border-radius:12px;
+  background:var(--sup-2);border:1px dashed var(--bd-2);min-height:62px;
+  display:flex;align-items:center;gap:10px}
+.banco .rot{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--tx-3);writing-mode:vertical-rl;transform:rotate(180deg);flex:none}
+.banco .vaga{position:static;transform:none;width:auto;flex:1;display:flex;align-items:center;
+  gap:10px;text-align:left}
+.banco .vaga .cam{width:40px;height:40px;margin:0;flex:none}
+.banco .vaga .nm{margin-top:0;font-size:13px}
+.banco .vaga .acs{position:static;transform:none;margin-left:auto}
+.banco .txt{flex:1;min-width:0}
+.banco .vazio6{flex:1;font-size:12.5px;color:var(--tx-3)}
+
+/* A estrela de favoritar, no canto da linha do mercado. */
+.fav{width:28px;height:28px;flex:none;border-radius:8px;border:1px solid transparent;
+  background:transparent;color:var(--tx-3);cursor:pointer;display:grid;place-items:center;font-size:13px}
+.fav:hover{color:var(--tx-2);background:var(--sup-3)}
+.fav.on{color:var(--ouro)}
+
 .slots{display:flex;flex-direction:column;gap:7px}
 .slot{display:flex;align-items:center;gap:10px;padding:9px;border-radius:12px;background:var(--sup-2);
   border:1px dashed var(--bd-2);min-height:56px}
@@ -487,7 +519,8 @@ a{color:inherit}
         <div class="ct"><i class="bi bi-people-fill"></i> Mercado <span class="dir" id="cnt"></span></div>
         <div class="filtros">
           <input class="busca" id="q" type="search" placeholder="Buscar jogador ou time…" autocomplete="off">
-          <button type="button" class="chip on" id="soJoga" data-joga="1">Em quadra hoje</button>
+          <button type="button" class="chip on" data-joga="1">Em quadra hoje</button>
+          <button type="button" class="chip" data-fav="1"><i class="bi bi-star-fill"></i> Favoritos</button>
           <button type="button" class="chip" data-p="">Todos</button>
           <button type="button" class="chip" data-p="G">G</button>
           <button type="button" class="chip" data-p="F">F</button>
@@ -507,6 +540,10 @@ a{color:inherit}
           <span class="arco"></span><span class="garrafa"></span>
           <span class="circ"></span><span class="cesta"></span>
         </div>
+        <?php /* O SEXTO fica FORA da quadra de propósito: ele não é um
+             titular a mais, é o descarte. Ver os cinco em quadra e o sexto
+             no banco é a própria regra desenhada. */ ?>
+        <div class="banco" id="banco"></div>
         <div class="orc" id="orc">
           <div class="b"><i id="bar" style="width:0%"></i></div>
           <b id="txt">F$ 0,0 / <?= (int)FNBA_ORCAMENTO ?></b>
@@ -519,7 +556,9 @@ a{color:inherit}
         <p class="regra">
           <b>Pontua:</b> ponto 1 · rebote 1,2 · assistência 1,5 · roubo 3 · toco 3 · <b>erro −1</b>.
           O <b>capitão</b> (estrela) vale o dobro.<br>
-          <b>Formação:</b> 2 armadores, 2 alas, 1 pivô, dentro de F$ <?= (int)FNBA_ORCAMENTO ?>.
+          <b>Formação:</b> 2 armadores, 2 alas e 1 pivô em quadra, mais um <b>6º livre</b>,
+          dentro de F$ <?= (int)FNBA_ORCAMENTO ?>. <b>Contam os 5 melhores</b> do dia — o pior dos seis é
+          descartado, então quem não jogar não te custa a rodada.<br>
           Troque quantas vezes quiser até o primeiro jogo.
         </p>
       </div>
@@ -744,13 +783,19 @@ a{color:inherit}
         N = <?= FNBA_ELENCO ?>, ABERTA = <?= $aberta ? 'true' : 'false' ?>,
         ROT = {G:'armador', F:'ala', C:'pivô'};
   let sel = <?= json_encode(array_map('intval', $escalados)) ?>, cap = <?= (int)$capAtual ?>,
-      fp = '', q = '', soJoga = true;
+      fp = '', q = '', soJoga = true, soFav = false;
+  let favs = new Set(<?= json_encode(array_map('intval', $favoritos)) ?>);
   const by = {}; M.forEach(j => by[j.id] = j);
   const $ = s => document.querySelector(s);
   const custo = () => sel.reduce((s,i) => s + (by[i]?.c || 0), 0);
   const nPos = p => sel.filter(i => by[i]?.p === p).length;
+  /* O SEXTO É LIVRE: enquanto as cotas de posição não estiverem cheias, só
+     entra quem preenche uma delas; com as cinco fixas fechadas, entra
+     qualquer um. @see FNBA_ELENCO */
+  const cotasCheias = () => Object.entries(FORM).every(([p,n]) => nPos(p) >= n);
   const cabe = j => sel.includes(j.id) ||
-        (sel.length < N && nPos(j.p) < (FORM[j.p]||0) && custo() + j.c <= ORC + .001);
+        (sel.length < N && custo() + j.c <= ORC + .001 &&
+         (nPos(j.p) < (FORM[j.p]||0) || cotasCheias()));
 
   function toggle(id){
     if (!ABERTA) return;
@@ -761,13 +806,35 @@ a{color:inherit}
   }
   /* AS CINCO VAGAS DA QUADRA, na ordem em que elas aparecem no desenho.
      A chave (G1, F1, C…) é o que liga cada jogador ao seu lugar. */
+  /* AS CINCO DA QUADRA. Cada posição pega os seus pela ordem em que foram
+     escalados; quem sobrar da cota vira o sexto. */
   function vagas(){
-    const ord = [];
+    const ord = [], usados = [];
     Object.entries(FORM).forEach(([p,n]) => {
       const d = sel.filter(i => by[i]?.p === p);
-      for (let k=0;k<n;k++) ord.push({p, slot: n > 1 ? p + (k+1) : p, id:d[k]||null});
+      for (let k=0;k<n;k++) { ord.push({p, slot: n > 1 ? p + (k+1) : p, id:d[k]||null});
+        if (d[k]) usados.push(d[k]); }
     });
     return ord;
+  }
+  /* O SEXTO é quem não coube nas cinco vagas fixas. */
+  function sexto(){
+    const naQuadra = vagas().map(v => v.id).filter(Boolean);
+    return sel.find(id => !naQuadra.includes(id)) || null;
+  }
+  function banco(){
+    const b = document.getElementById('banco'), id = sexto(), j = id ? by[id] : null;
+    b.innerHTML = '<span class="rot">6º</span>' + (j
+      ? `<div class="vaga full${cap===j.id?' cap':''}" data-x="${j.id}">
+           <div class="cam">${j.f?`<img src="${j.f}" alt="" loading="lazy">`:j.p}</div>
+           <div class="txt"><div class="nm">${j.n}</div>
+             <div class="sub ${j.joga===false?'folga':''}">${j.joga===false?'de folga':(j.contra||j.t)} · ${j.c.toFixed(1)}</div></div>
+           ${ABERTA?`<span class="acs">
+             <button type="button" class="ac c ${cap===j.id?'on':''}" data-c="${j.id}" title="Capitão (dobra)"><i class="bi bi-star-fill"></i></button>
+             <button type="button" class="ac x" data-x="${j.id}" title="Tirar"><i class="bi bi-x-lg"></i></button>
+           </span>`:''}
+         </div>`
+      : '<span class="vazio6">O 6º é livre: qualquer posição. Contam os 5 melhores do dia.</span>');
   }
   function quadra(){
     const q = document.getElementById('quadra');
@@ -793,15 +860,18 @@ a{color:inherit}
   function merc(){
     const t = q.trim().toLowerCase();
     const v = M.filter(j => (!fp || j.p === fp) && (!soJoga || j.joga !== false) &&
+      (!soFav || favs.has(j.id)) &&
       (!t || j.n.toLowerCase().includes(t) || (j.t||'').toLowerCase().includes(t)));
-    $('#cnt').textContent = v.length + (soJoga ? ' em quadra' : ' de ' + M.length);
+    $('#cnt').textContent = v.length + (soFav ? ' favoritos' : (soJoga ? ' em quadra' : ' de ' + M.length));
     $('#lista').innerHTML = v.length ? v.slice(0,120).map(j => {
       const i = sel.includes(j.id);
       return `<div class="lin ${i?'in':''} ${!i&&!cabe(j)?'off':''}" data-id="${j.id}">
         ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:'<img alt="">'}
         <span class="tag ${j.p}">${j.p}</span>
         <span class="i"><b>${j.n}</b><span>${j.joga===false?'<b style="color:#fca5a5">de folga hoje</b>':(j.contra||j.t)} · ${j.m.toFixed(1)} méd</span></span>
-        <span class="vlr">${j.c.toFixed(1)}</span></div>`;
+        <span class="vlr">${j.c.toFixed(1)}</span>
+        <button type="button" class="fav ${favs.has(j.id)?'on':''}" data-fav="${j.id}"
+          title="Favoritar"><i class="bi bi-star${favs.has(j.id)?'-fill':''}"></i></button></div>`;
     }).join('') : '<div class="vazio">Ninguém com esse nome.</div>';
   }
   function orc(){
@@ -817,7 +887,7 @@ a{color:inherit}
     }
   }
   function tudo(){
-    quadra(); merc(); orc();
+    quadra(); banco(); merc(); orc();
     const f = $('#frm');
     f.querySelectorAll('input[name="jogadores[]"],input[name="capitao"]').forEach(i => i.remove());
     sel.forEach(id => { const i = document.createElement('input');
@@ -825,6 +895,18 @@ a{color:inherit}
     const c = document.createElement('input'); c.type='hidden'; c.name='capitao'; c.value=cap; f.appendChild(c);
   }
   $('#lista').addEventListener('click', ev => {
+    /* A estrela vem antes: ela está dentro da linha, e sem isto favoritar
+       escalaria junto. */
+    const f = ev.target.closest('[data-fav]');
+    if (f) {
+      const id = +f.dataset.fav;
+      fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'acao=favorito&jogador=' + id})
+        .then(r => r.json())
+        .then(r => { r.fav ? favs.add(id) : favs.delete(id); merc(); })
+        .catch(() => {});
+      return;
+    }
     const l = ev.target.closest('.lin'); if (l) toggle(+l.dataset.id);
   });
   /* OS DOIS BOTÕES DA VAGA. O corpo da vaga não faz nada: sem a lista
@@ -839,6 +921,7 @@ a{color:inherit}
   document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.chip').forEach(o => o.classList.remove('on'));
     b.classList.add('on');
+    soFav  = b.dataset.fav === '1';
     soJoga = b.dataset.joga === '1';
     fp = b.dataset.p || '';
     merc();

@@ -66,11 +66,28 @@ const FNBA_PONTOS = [
     'to'  => ['Erro',        -1.0],
 ];
 
-/** O que o time escalado tem que ter: 2 armadores, 2 alas, 1 pivô. */
+/** O MÍNIMO de cada posição: 2 armadores, 2 alas, 1 pivô. */
 const FNBA_FORMACAO = ['G' => 2, 'F' => 2, 'C' => 1];
 
-/** Quantos jogadores entram na escalação. */
-const FNBA_ELENCO = 5;
+/**
+ * Seis escalados, cinco pontuam.
+ *
+ * ── POR QUE O SEXTO HOMEM EXISTE ─────────────────────────────────────
+ *
+ * Na NBA titular vira DNP de última hora toda semana — load management,
+ * lesão no aquecimento, time já classificado poupando. Sem reserva, isso
+ * zera uma vaga e tira a rodada de quem não errou nada.
+ *
+ * A regra é a que o dono da liga desenhou: escala SEIS, contam os CINCO
+ * MELHORES, e o sexto é livre de posição. Ela resolve o DNP de quebra (quem
+ * não jogou fez 0 e é justamente o descartado) e, diferente de um reserva
+ * clássico, vale alguma coisa TODO dia e não só no dia azarado.
+ *
+ * O orçamento subiu junto, de 100 pra 120: em 100, o sexto viraria
+ * obrigatoriamente um jogador de 2 F$, que é o contrário de uma escolha.
+ */
+const FNBA_ELENCO  = 6;
+const FNBA_CONTAM  = 5;
 
 /** O capitão dobra. Mais que isso e a rodada vira só a escolha dele. */
 const FNBA_CAPITAO = 2.0;
@@ -79,12 +96,15 @@ const FNBA_CAPITAO = 2.0;
  * O orçamento, em F$.
  *
  * Calibrado contra a temporada 2025-26 inteira (560 jogadores, dados da
- * ESPN): com teto de 40 e 100 de orçamento, os cinco melhores da liga
- * custariam 175 — não cabem. Dá pra levar um Jokic (40) e completar com
- * quatro de 15, ou cinco medianos de 20. As duas somam perto de 160 pontos
- * de média, e é isso que faz a escolha valer: não existe time óbvio.
+ * ESPN): com teto de 40, os seis melhores da liga custariam 208 — não cabem
+ * nos 120. Dá pra levar um Jokic (40) e completar com cinco de 16, ou seis
+ * medianos de 20. É isso que faz a escolha valer: não existe time óbvio.
+ *
+ * Eram 100 para cinco; virou 120 para seis quando o sexto homem entrou.
+ * Manter 100 faria do sexto um jogador de 2 F$ obrigatório — uma vaga sem
+ * decisão nenhuma. @see FNBA_ELENCO
  */
-const FNBA_ORCAMENTO = 100.0;
+const FNBA_ORCAMENTO = 120.0;
 
 /**
  * De pontos de fantasy por jogo pra F$.
@@ -570,10 +590,13 @@ function fnbaValidar(PDO $pdo, array $ids, int $capitao): array
     if ($custo > FNBA_ORCAMENTO + 0.001) {
         $erros[] = sprintf('O time custa F$ %.1f e o orçamento é F$ %.0f.', $custo, FNBA_ORCAMENTO);
     }
-    foreach (FNBA_FORMACAO as $pos => $quantos) {
-        if ($porPos[$pos] !== $quantos) {
+    /* MÍNIMO por posição, e não número exato: o sexto homem é livre, então
+       3 armadores é uma escalação legítima — desde que os 2 alas e o pivô
+       estejam lá. @see FNBA_ELENCO */
+    foreach (FNBA_FORMACAO as $pos => $minimo) {
+        if ($porPos[$pos] < $minimo) {
             $nomes = ['G' => 'armador', 'F' => 'ala', 'C' => 'pivô'];
-            $erros[] = "A formação pede {$quantos} " . $nomes[$pos] . ($quantos > 1 ? 'es' : '')
+            $erros[] = "A formação pede pelo menos {$minimo} " . $nomes[$pos] . ($minimo > 1 ? 'es' : '')
                      . ", e você escalou {$porPos[$pos]}.";
         }
     }
@@ -657,11 +680,24 @@ function fnbaApurar(PDO $pdo, int $rodadaId): array
                  WHERE e.rodada_id = " . (int)$rodadaId . " AND s.fp IS NOT NULL");
     $pdo->prepare('UPDATE fnba_escalacoes SET fp = 0 WHERE rodada_id = ? AND fp IS NULL')->execute([$rodadaId]);
 
-    $st = $pdo->prepare("SELECT user_id, SUM(fp * IF(capitao = 1, " . FNBA_CAPITAO . ", 1)) AS pontos
-                           FROM fnba_escalacoes WHERE rodada_id = ? GROUP BY user_id
-                       ORDER BY pontos DESC");
+    /* SÓ OS CINCO MELHORES DE CADA UM. Em SQL isso viraria uma janela com
+       ROW_NUMBER, que o MariaDB desta hospedagem até entende — mas aqui são
+       seis linhas por cartola e algumas dezenas de cartolas: ler e ordenar
+       em PHP é mais claro e igualmente rápido, e deixa a regra à vista.
+       @see FNBA_CONTAM */
+    $st = $pdo->prepare("SELECT user_id, fp * IF(capitao = 1, " . FNBA_CAPITAO . ", 1) AS valor
+                           FROM fnba_escalacoes WHERE rodada_id = ?");
     $st->execute([$rodadaId]);
-    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    $porCartola = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        $porCartola[(int)$l['user_id']][] = (float)$l['valor'];
+    }
+    $linhas = [];
+    foreach ($porCartola as $uid => $valores) {
+        rsort($valores);
+        $linhas[] = ['user_id' => $uid, 'pontos' => array_sum(array_slice($valores, 0, FNBA_CONTAM))];
+    }
+    usort($linhas, fn($a, $b) => $b['pontos'] <=> $a['pontos']);
 
     $ins = $pdo->prepare("INSERT INTO fnba_resultados (rodada_id, user_id, pontos, posicao, moedas)
                           VALUES (?,?,?,?,?)
@@ -1141,4 +1177,65 @@ function fnbaCampeoesDaSemana(PDO $pdo, int $limite = 30): array
                         WHERE s.status = 'apurada'
                      ORDER BY s.inicio DESC LIMIT " . max(1, $limite));
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   OS FAVORITOS
+
+   Quem joga todo dia escala quase sempre os mesmos nomes, e caçá-los numa
+   lista de 517 (ou nos 103 que jogam hoje) é o atrito que faz a pessoa
+   desistir no terceiro dia. Favoritar é a memória dela entre as rodadas.
+
+   Fica no banco e não no navegador: quem escala no celular de manhã e
+   confere no computador à noite é a mesma pessoa.
+   ───────────────────────────────────────────────────────────────────── */
+
+function fnbaTabelasFavoritos(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_favoritos (
+        user_id INT NOT NULL,
+        jogador_id INT NOT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, jogador_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $feito = true;
+}
+
+/** Os ids favoritados por alguém. */
+function fnbaFavoritos(PDO $pdo, int $uid): array
+{
+    fnbaTabelasFavoritos($pdo);
+    $st = $pdo->prepare('SELECT jogador_id FROM fnba_favoritos WHERE user_id = ?');
+    $st->execute([$uid]);
+    return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+}
+
+/**
+ * Favorita, ou desfavorita se já era.
+ *
+ * O mesmo clique faz as duas coisas — é o que ele pediu, e é como a estrela
+ * funciona em todo lugar. Devolve o estado novo pra tela não precisar
+ * adivinhar.
+ */
+function fnbaAlternarFavorito(PDO $pdo, int $uid, int $jogadorId): bool
+{
+    fnbaTabelasFavoritos($pdo);
+    $st = $pdo->prepare('SELECT 1 FROM fnba_favoritos WHERE user_id = ? AND jogador_id = ?');
+    $st->execute([$uid, $jogadorId]);
+    if ($st->fetch()) {
+        $pdo->prepare('DELETE FROM fnba_favoritos WHERE user_id = ? AND jogador_id = ?')
+            ->execute([$uid, $jogadorId]);
+        return false;
+    }
+    /* Teto de 40: favorito demais é o mesmo que nenhum — a aba vira outra
+       lista pra procurar dentro. */
+    $st = $pdo->prepare('SELECT COUNT(*) FROM fnba_favoritos WHERE user_id = ?');
+    $st->execute([$uid]);
+    if ((int)$st->fetchColumn() >= 40) return false;
+
+    $pdo->prepare('INSERT IGNORE INTO fnba_favoritos (user_id, jogador_id) VALUES (?,?)')
+        ->execute([$uid, $jogadorId]);
+    return true;
 }
