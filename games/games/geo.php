@@ -154,7 +154,6 @@ if ($partida && $rodada && !$resolvida && geoVencida($rodada)) {
 }
 
 $recorde   = geoMeuRecorde($pdo, $user_id);
-$restantes = geoPremiadasRestantes($pdo, $user_id);
 /* OS NÚMEROS DA CAPA SÃO OS DO BARALHO QUE SORTEIA, e não os do arquivo.
    Com o jogo só de Street View, anunciar 779 lugares e 138 países seria
    prometer um mundo que não vem — o que cai na tela são os 552 lugares em
@@ -763,7 +762,7 @@ html:not(.js) .so-js{display:none !important}
              frases. */ ?>
         <p class="geo-credito"><?= $geoTeste
             ? 'Partida de teste: ela não paga moeda nem entra no ranking.'
-            : 'Sem moedas desta vez: o teto de ' . GEO_PREMIADAS_DIA . ' partidas premiadas do dia já passou. O ranking continua valendo.' ?></p>
+            : 'Sem moedas desta vez — nenhum acerto nesta partida. O ranking continua valendo.' ?></p>
       <?php endif; ?>
       <div class="geo-fim">
         <form method="POST" style="margin:0">
@@ -1001,7 +1000,7 @@ html:not(.js) .so-js{display:none !important}
     <span><b><?= number_format($nLugares, 0, ',', '.') ?></b> lugares</span>
     <span><b><?= $nPaises ?></b> países</span>
     <span><b><?= number_format($moedas, 0, ',', '.') ?></b> moedas na conta</span>
-    <span>hoje ainda valem moedas <b><?= $restantes ?></b> partida<?= $restantes === 1 ? '' : 's' ?></span>
+    <span>toda partida vale moeda, sem limite por dia</span>
   </div>
 
   <div class="geo-capa">

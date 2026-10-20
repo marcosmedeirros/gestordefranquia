@@ -59,19 +59,27 @@ const GEO_MEMORIA_LUGARES = 60;
 const GEO_MEMORIA_PAISES  = 25;
 
 /**
- * Quanto paga, e o teto do dia.
+ * Quanto paga.
  *
- * O jogo é livre e as fotos são de graça, então o que segura a economia é o
- * teto: passadas essas partidas no dia, dá pra continuar jogando — e
- * entrando no ranking —, mas sem moeda. Sem isso, quem tem a tarde livre
- * imprime dinheiro à base de clique.
+ * ── O TETO DO DIA SAIU (20/10/2026) ─────────────────────────────────
+ *
+ * Eram 3 partidas premiadas por dia; passadas elas, dava pra seguir jogando
+ * e entrando no ranking, mas sem moeda. O teto existia porque o jogo é
+ * livre: sem ele, quem tem a tarde livre imprime dinheiro à base de clique.
+ *
+ * Decisão do dono da liga: tirar o teto e CORTAR O PAGAMENTO PELA METADE no
+ * modo país (50 → 25). Uma coisa paga a outra — o freio deixou de ser o
+ * número de partidas e passou a ser o preço de cada acerto.
+ *
+ * ── OS DOIS MODOS PAGAM PARECIDO ────────────────────────────────────
+ *
+ * Senão um deles vira enfeite. No mapa, 1 moeda a cada 100 pontos: 50 numa
+ * rodada cravada no alvo, 250 na partida de 5 rodadas perfeita. No país não
+ * existe "partida perfeita" (ela vai até errar), e 25 por acerto põe os
+ * mesmos 250 numa série de 10 — que é uma série muito boa.
  */
-const GEO_MOEDA_ACERTO   = 50;    // por acerto no modo país
-/* OS DOIS MODOS TEM QUE PAGAR PARECIDO, senao um deles vira enfeite. A
-   regua: no pais, 50 por acerto; no mapa, 1 a cada 100 pontos — ou seja,
-   50 numa rodada cravada no alvo. Partida perfeita paga 250 nos dois. */
+const GEO_MOEDA_ACERTO   = 25;    // por acerto no modo país
 const GEO_MOEDA_MAPA_CEM = 1;     // por 100 pontos no modo mapa
-const GEO_PREMIADAS_DIA  = 3;
 
 /**
  * ── O RELÓGIO DA RODADA ──────────────────────────────────────────────
@@ -528,18 +536,15 @@ function geoResponder(PDO $pdo, array $partida, array $rodada, array $palpite): 
 }
 
 /**
- * Paga o que a partida valeu, respeitando o teto do dia.
+ * Paga o que a partida valeu.
  *
- * @return int quanto entrou na conta (zero quando o teto já passou)
+ * Sem teto por dia desde 20/10/2026 — o que segura a economia agora é o
+ * preço do acerto. @see GEO_MOEDA_ACERTO
+ *
+ * @return int quanto entrou na conta
  */
 function geoPagar(PDO $pdo, int $uid, string $modo, int $acertos, int $pontos): int
 {
-    $st = $pdo->prepare("SELECT COUNT(*) FROM geo_partidas
-                          WHERE user_id = ? AND status = 'fim' AND moedas > 0
-                            AND DATE(criado_em) = CURDATE()");
-    $st->execute([$uid]);
-    if ((int)$st->fetchColumn() >= GEO_PREMIADAS_DIA) return 0;
-
     $moedas = $modo === 'pais'
         ? $acertos * GEO_MOEDA_ACERTO
         : (int)floor($pontos / 100) * GEO_MOEDA_MAPA_CEM;
@@ -589,16 +594,6 @@ function geoMeuRecorde(PDO $pdo, int $uid): array
     return $out;
 }
 
-/** Quantas partidas premiadas ainda cabem hoje. */
-function geoPremiadasRestantes(PDO $pdo, int $uid): int
-{
-    geoTabelas($pdo);
-    $st = $pdo->prepare("SELECT COUNT(*) FROM geo_partidas
-                          WHERE user_id = ? AND status = 'fim' AND moedas > 0
-                            AND DATE(criado_em) = CURDATE()");
-    $st->execute([$uid]);
-    return max(0, GEO_PREMIADAS_DIA - (int)$st->fetchColumn());
-}
 
 /** A URL da foto no Commons, no tamanho pedido. */
 function geoFoto(string $arquivo, int $largura = 1100): string
