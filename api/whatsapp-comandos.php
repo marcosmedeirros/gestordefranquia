@@ -658,7 +658,7 @@ function wcAjuda(): string
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
         . "/temporada _nº_ _liga_ — resumo da temporada: campeão, prêmios, seeds e pick 1\n"
-        . "/power — o power ranking da liga (elenco, astros, idade, pontuação e campanha)\n"
+        . "/power — o power ranking da liga (elenco, astros e encaixe)\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/opta — as chances da edição: campeão, subir e cair\n"
