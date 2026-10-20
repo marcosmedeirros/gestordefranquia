@@ -20,6 +20,31 @@ require_once __DIR__ . '/../backend/tatica_posicoes.php';      // lugar do titul
 require_once __DIR__ . '/../backend/power_elenco.php';   // a nota do jogador alem do OVR
 
 /**
+ * O /duvida E A MENÇÃO AO BOT, LIGADOS OU DESLIGADOS.
+ *
+ * Desligados em 19/10/2026 a pedido do dono da liga: o /duvida parou de
+ * responder direito, e um bot que erra a resposta no grupo é pior que um bot
+ * que não responde — a liga passa a desconfiar também do que ele acerta.
+ *
+ * NADA FOI APAGADO. O wcDuvida, o duvida_professor, o edital_ia e as
+ * memórias continuam inteiros; só não há porta aberta pra eles. Religar é
+ * trocar este false por true, e as três portas voltam juntas:
+ *
+ *   - /duvida e /duvidas digitados no grupo
+ *   - marcar o bot (@) ou responder uma mensagem dele, que viram /duvida
+ *     no webhook
+ *   - o modo professor no privado, que é /duvida com outro nome
+ *
+ * A chave mora aqui, e não no webhook, porque é daqui que as três leem.
+ */
+const WC_DUVIDA_LIGADA = false;
+
+/** O que o bot responde a quem chamar o /duvida enquanto ele está desligado. */
+const WC_DUVIDA_DESLIGADA_TXT =
+    "O */duvida* está desligado por enquanto — estou sendo ajustado.\n"
+    . "Os comandos seguem todos de pé: */ajuda* mostra a lista.";
+
+/**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
  *
  * Não é cidade + mascot: são campos diferentes e, quando divergem, o mascot
@@ -612,7 +637,9 @@ function wcAjuda(): string
         . "/pontuacao — quanto vale cada conquista na temporada\n"
         // Entra na lista porque é a dúvida que mais volta no grupo, e a única
         // que hoje só se tira abrindo o PDF no celular.
-        . "/duvida _sua pergunta_ — como funciona qualquer coisa do app e da liga\n"
+        // Fora da lista enquanto estiver desligado: anunciar comando que
+        // não responde é pior que não anunciar. @see WC_DUVIDA_LIGADA
+        . (WC_DUVIDA_LIGADA ? "/duvida _sua pergunta_ — como funciona qualquer coisa do app e da liga\n" : "")
         . "/edital _pergunta_ — só o que o edital da liga diz, direto e com o artigo\n"
         . "/apostas — a parcial das apostas abertas\n"
         . "/apostasresultado — as últimas 10 apostas pagas\n"
@@ -5993,6 +6020,8 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                liga achar que são comandos diferentes. */
             case 'duvida':
             case 'duvidas':
+                // Desligado, não removido. @see WC_DUVIDA_LIGADA
+                if (!WC_DUVIDA_LIGADA) return WC_DUVIDA_DESLIGADA_TXT;
                 return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
 
             // /edital voltou, mas SECO: só o texto do edital da liga do grupo,

@@ -509,6 +509,10 @@ foreach ($mensagens as $m) {
             /* MODO PROFESSOR: os dois contatos que ensinam o bot falam com ele no
                privado sem comando nenhum (backend/duvida_professor.php). Pra
                qualquer outro número o privado segue só com /leilao. */
+            // O modo professor é o /duvida com outro nome: ensinar um modelo
+            // que não está atendendo não leva a lugar nenhum.
+            if (!WC_DUVIDA_LIGADA) continue;
+
             require_once __DIR__ . '/../backend/duvida_professor.php';
             $jidPv = lwJidDaConversaPrivada($m, $de);
             $prof = duvidaProfessorDoNumero($pdo, $jidPv);
@@ -571,6 +575,12 @@ foreach ($mensagens as $m) {
     $gatilho = 'comando';
 
     if ($texto[0] !== '/') {
+        /* Com o /duvida desligado, marcar o bot não faz nada: ele fica quieto
+           em vez de responder "estou desligado" a cada @ no meio da conversa
+           do grupo. Quem digitar /duvida recebe o aviso; quem só mencionou,
+           não queria necessariamente falar com ele. @see WC_DUVIDA_LIGADA */
+        if (!WC_DUVIDA_LIGADA) continue;
+
         if (wcMarcaramOBot($m, $texto, $idsDoBot)) {
             $gatilho = 'mencao';
         } elseif (wcResponderamAoBot($m, $idsDoBot)) {
