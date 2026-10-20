@@ -599,11 +599,11 @@ $jogosLivres = [
     ['href' => '/fantasy.php', 'nome' => 'Fantasy FBA',
      'sub'  => 'Escale e dispute ligas', 'icone' => 'bi-stars', 'cor' => '#fc0025'],
     /* O FANTASY NBA NAO TEM CARD AQUI, e e de proposito (20/10/2026): ele
-       vive so por link, em /fantasynba.php. Na grade, dois cards chamados
+       vive so por link, em /escaleai.php. Na grade, dois cards chamados
        "Fantasy" lado a lado mandariam a liga escolher entre dois jogos que
        ela ainda nao sabe que sao diferentes — e o da casa e o que conta
        ponto na ELITE. Pra publicar, e so acrescentar o card aqui.
-       @see fantasynba.php */
+       @see escaleai.php */
     /* SÉRIES SAIU DO GAMES em 30/09/2026 e virou o Clube FBA (/clube.php),
        com item próprio no menu lateral. Não volta como card daqui: o Games é
        partida — entra, joga, sai com placar — e o Clube é acervo, que só faz
