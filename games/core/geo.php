@@ -39,6 +39,26 @@ const GEO_RODADAS_MAPA = 5;
 const GEO_OPCOES = 8;
 
 /**
+ * ── O SORTEIO LEMBRA DAS PARTIDAS ANTERIORES ────────────────────────
+ *
+ * O lugar nunca repetia DENTRO da partida, mas entre uma partida e a
+ * seguinte o baralho era embaralhado do zero — e GM que joga três
+ * seguidas via o mesmo lugar de novo. Relatado pela liga em 19/10/2026.
+ *
+ * Não era azar, era a conta: no modo país o que se reconhece é o PAÍS, e
+ * países jogáveis são 78 (os 552 lugares com panorama se espremem neles).
+ * Cinco rodadas por partida, duas partidas seguidas, dez sorteios em 78
+ * países: pelo paradoxo do aniversário, ~44% de chance de repetir. Ou
+ * seja, quase uma em cada duas sessões mostrava país repetido.
+ *
+ * As duas memórias têm tamanhos diferentes porque os baralhos têm:
+ * 60 lugares de 552 ainda deixam 492 na mesa; 25 países de 78 deixam 53.
+ * Guardar mais que isso começaria a estreitar o jogo em vez de variá-lo.
+ */
+const GEO_MEMORIA_LUGARES = 60;
+const GEO_MEMORIA_PAISES  = 25;
+
+/**
  * Quanto paga, e o teto do dia.
  *
  * O jogo é livre e as fotos são de graça, então o que segura a economia é o
@@ -181,9 +201,35 @@ function geoAbrirPartida(PDO $pdo, int $uid, string $modo, bool $teste = false):
 }
 
 /**
+ * OS LUGARES QUE ESTE GM VIU POR ÚLTIMO, do mais recente pro mais antigo.
+ *
+ * Olha por JOGADOR, e não por partida: é o jogador que reclama de ver o
+ * mesmo lugar duas vezes seguidas, e pra ele a partida nova não é um
+ * começo limpo. Partida de teste entra junto — quem testou acabou de ver
+ * o lugar do mesmo jeito.
+ *
+ * @return int[] índices em geoLugares()
+ */
+function geoRodadasRecentes(PDO $pdo, int $partidaId, int $quantas): array
+{
+    $st = $pdo->prepare('SELECT user_id FROM geo_partidas WHERE id = ?');
+    $st->execute([$partidaId]);
+    $uid = (int)$st->fetchColumn();
+    if ($uid <= 0) return [];
+
+    $st = $pdo->prepare('SELECT r.lugar FROM geo_rodadas r
+                           JOIN geo_partidas p ON p.id = r.partida_id
+                          WHERE p.user_id = ?
+                       ORDER BY r.id DESC LIMIT ' . max(1, $quantas));
+    $st->execute([$uid]);
+    return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
  * Sorteia a próxima rodada e grava.
  *
- * O LUGAR NÃO REPETE DENTRO DA PARTIDA, e as opções erradas saem de perto:
+ * O LUGAR NÃO REPETE, nem dentro da partida nem nas anteriores deste GM
+ * (@see GEO_MEMORIA_LUGARES), e as opções erradas saem de perto:
  * país do mesmo continente quando dá, porque "Chile ou Noruega?" não é
  * pergunta — a graça é hesitar entre dois lugares parecidos.
  */
@@ -199,13 +245,35 @@ function geoSortearRodada(PDO $pdo, int $partidaId, int $n, string $modo): void
     $jogaveis = geoLugaresJogaveis();
     if (!$jogaveis) return;
 
-    $st = $pdo->prepare('SELECT lugar FROM geo_rodadas WHERE partida_id = ?');
-    $st->execute([$partidaId]);
-    $usados = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+    /* O QUE ESTE GM VIU POR ÚLTIMO — nesta partida e nas anteriores. As
+       rodadas desta partida são as de maior id, então entram sempre: a
+       regra velha ("não repete dentro da partida") continua valendo, e
+       agora vale pra trás também. @see GEO_MEMORIA_LUGARES */
+    $recentes = geoRodadasRecentes($pdo, $partidaId, GEO_MEMORIA_LUGARES);
+    $usados = array_flip(array_slice($recentes, 0, GEO_MEMORIA_LUGARES));
 
-    $tentativas = 0;
-    do { $i = array_rand($jogaveis); $tentativas++; }
-    while (isset($usados[$i]) && $tentativas < 60);
+    $paisesUsados = [];
+    if ($modo === 'pais') {
+        foreach (array_slice($recentes, 0, GEO_MEMORIA_PAISES) as $k) {
+            if (isset($lugares[$k])) $paisesUsados[(string)$lugares[$k]['pais']] = true;
+        }
+    }
+
+    /* SORTEIA ENTRE OS QUE SOBRARAM, em vez de tentar de novo até dar
+       certo. O laço de 60 tentativas desistia calado quando o baralho
+       estava apertado — e desistir calado é justamente repetir. */
+    $podem = [];
+    foreach ($jogaveis as $k => $l) {
+        if (isset($usados[$k])) continue;
+        if ($paisesUsados && isset($paisesUsados[(string)$l['pais']])) continue;
+        $podem[$k] = true;
+    }
+    // Baralho apertado: solta o país primeiro, o lugar só em último caso.
+    if (!$podem) {
+        foreach ($jogaveis as $k => $l) if (!isset($usados[$k])) $podem[$k] = true;
+    }
+    if (!$podem) $podem = $jogaveis;
+    $i = array_rand($podem);
 
     $opcoes = null;
     if ($modo === 'pais') {

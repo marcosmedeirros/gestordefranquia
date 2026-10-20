@@ -1,0 +1,18 @@
+# Os dados estáticos dos jogos.
+#
+# O paises.geo.json (os contornos do mapa-múndi do FBA Geo) era servido só com
+# Etag: sem Cache-Control o navegador revalidava a cada rodada, e a tela do Geo
+# recarrega inteira a cada palpite — cinco idas ao servidor por partida só pra
+# ouvir "não mudou". O arquivo é gerado fora do jogo e muda de mês em mês.
+#
+# Só .json, e só aqui: pôr application/json no .htaccess da raiz faria o
+# navegador cachear as respostas das APIs em /api/*.php, que também são JSON.
+<FilesMatch "\.json$">
+    <IfModule mod_expires.c>
+        ExpiresActive On
+        ExpiresDefault "access plus 7 days"
+    </IfModule>
+    <IfModule mod_headers.c>
+        Header set Cache-Control "public, max-age=604800"
+    </IfModule>
+</FilesMatch>

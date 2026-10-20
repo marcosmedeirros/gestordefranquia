@@ -1097,7 +1097,10 @@ html:not(.js) .so-js{display:none !important}
 </main>
 
 <?php /* O botão de menu do celular e o de tema, os mesmos de todas as telas. */ ?>
-<script src="/js/popups.js"></script>
+<?php /* O popups.js NÃO entra aqui: o includes/sidebar.php já o carrega,
+     com ?v= na frente. Como as duas URLs são diferentes pro navegador, ele
+     baixava o arquivo duas vezes E registrava os handlers em dobro — num
+     jogo que é todo clique, handler duplicado é clique contado duas vezes. */ ?>
 <script src="/js/sidebar.js"></script>
 <script src="/js/tema.js"></script>
 
@@ -1191,12 +1194,16 @@ html:not(.js) .so-js{display:none !important}
     return (o.iso2 ? '<span class="fi fi-' + o.iso2 + '"></span> ' : '') + o.nome;
   }
 
+  /* A referência fica pendurada no div assim que o mapa existe. Estava
+     dentro do escolher(), o que a criava só depois do primeiro clique:
+     quem fosse procurar o mapa antes disso não achava nada. */
+  caixa._leaflet_map = mapa;
+
   function escolher(o){
     escolhido = o;
     Object.keys(formas).forEach(function(iso){
       formas[iso].setStyle(iso === o.iso ? MEU : ACESO);
     });
-  document.getElementById('mapaPais')._leaflet_map = mapa;
     Object.keys(pinos).forEach(function(iso){
       var d = pinos[iso].getElement();
       if (d) d.querySelector('.geo-pino').classList.toggle('eu', iso === o.iso);
@@ -1249,7 +1256,12 @@ html:not(.js) .so-js{display:none !important}
       if (!o) return;
       escolher(o);
       document.getElementById('mapaPais')._geoMexido = true;
-      if (o.lat !== null) mapa.panTo([o.lat, o.lon]);
+      /* SEM ANIMAÇÃO. O panTo animado arrasta os 177 contornos do mapa
+         quadro a quadro, e isso divide a CPU com o panorama do Street View
+         que está rodando ao lado — o clique na lista ficava com um engasgo
+         visível. Ir direto não perde nada: quem clicou na lista já sabe
+         para onde está olhando. */
+      if (o.lat !== null) mapa.panTo([o.lat, o.lon], {animate: false});
     });
   });
 
