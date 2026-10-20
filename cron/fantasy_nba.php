@@ -19,7 +19,8 @@
  *      seguinte; ONTEM porque jogo das 22:30 termina depois da meia-noite, e
  *      sem reler aquele dia o placar nunca fecharia.
  *   2. PUXA OS BOXSCORES dos jogos que terminaram e ainda não foram lidos.
- *   3. APURA as rodadas cujos jogos acabaram todos, paga as moedas e fecha.
+ *   3. APURA as rodadas cujos jogos acabaram todos, paga as moedas, MOVE O
+ *      PREÇO de quem jogou (@see fnbaValorizar) e fecha.
  *   4. FECHA A SEMANA quando o domingo passa, pagando os FBA Points.
  *   5. REPRECIFICA o mercado uma vez por dia, de madrugada.
  *
@@ -99,6 +100,7 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $res = fnbaApurar($pdo, (int)$r['id']);
     $log($res['ok']
         ? "rodada {$r['dia']} apurada: {$res['cartolas']} cartolas, {$res['moedas']} moedas pagas"
+          . " · mercado: {$res['subiu']} subiram, {$res['caiu']} caíram"
         : "rodada {$r['dia']} não apurou: {$res['erro']}");
 }
 

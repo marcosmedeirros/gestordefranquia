@@ -373,6 +373,11 @@ a{color:inherit}
 .banco .vazio6{flex:1;font-size:12.5px;color:var(--tx-3)}
 
 /* A estrela de favoritar, no canto da linha do mercado. */
+/* A seta da última rodada, colada no preço: é o que conta se o jogador está
+   ficando caro ou barato sem obrigar ninguém a decorar o preço de ontem. */
+.var{display:block;font-size:10px;font-weight:700;line-height:1.1;margin-top:1px}
+.var.up{color:var(--verde)} .var.dn{color:#f87171}
+
 .fav{width:28px;height:28px;flex:none;border-radius:8px;border:1px solid transparent;
   background:transparent;color:var(--tx-3);cursor:pointer;display:grid;place-items:center;font-size:13px}
 .fav:hover{color:var(--tx-2);background:var(--sup-3)}
@@ -559,7 +564,10 @@ a{color:inherit}
           <b>Formação:</b> 2 armadores, 2 alas e 1 pivô em quadra, mais um <b>6º livre</b>,
           dentro de F$ <?= (int)FNBA_ORCAMENTO ?>. <b>Contam os 5 melhores</b> do dia — o pior dos seis é
           descartado, então quem não jogar não te custa a rodada.<br>
-          Troque quantas vezes quiser até o primeiro jogo.
+          Troque quantas vezes quiser até o primeiro jogo.<br>
+          <b>O preço se mexe:</b> quem joga acima do que o preço dele promete fica mais caro,
+          quem joga abaixo barateia — no máximo F$ 2,5 por rodada. <b>Seu orçamento é sempre
+          F$ <?= (int)FNBA_ORCAMENTO ?></b>: não cresce nem diminui com o que você faz.
         </p>
       </div>
     </div>
@@ -778,6 +786,7 @@ a{color:inherit}
         /* joga e contra decidem o que a tela mostra primeiro: numa terca de
            3 jogos, 414 dos 517 estao de folga. @see fnbaMercado */
         'joga'=>(bool)($j['joga'] ?? true), 'contra'=>$j['contra'] ?? '',
+        'v'=>(float)($j['var_ultima'] ?? 0),
       ], $mercado), JSON_UNESCAPED_UNICODE) ?>;
   const FORM = <?= json_encode(FNBA_FORMACAO) ?>, ORC = <?= (int)FNBA_ORCAMENTO ?>,
         N = <?= FNBA_ELENCO ?>, ABERTA = <?= $aberta ? 'true' : 'false' ?>,
@@ -869,7 +878,9 @@ a{color:inherit}
         ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:'<img alt="">'}
         <span class="tag ${j.p}">${j.p}</span>
         <span class="i"><b>${j.n}</b><span>${j.joga===false?'<b style="color:#fca5a5">de folga hoje</b>':(j.contra||j.t)} · ${j.m.toFixed(1)} méd</span></span>
-        <span class="vlr">${j.c.toFixed(1)}</span>
+        <span class="vlr">${j.c.toFixed(1)}
+          ${j.v ? `<span class="var ${j.v>0?'up':'dn'}">${j.v>0?'▲':'▼'}${Math.abs(j.v).toFixed(1)}</span>` : ''}
+        </span>
         <button type="button" class="fav ${favs.has(j.id)?'on':''}" data-fav="${j.id}"
           title="Favoritar"><i class="bi bi-star${favs.has(j.id)?'-fill':''}"></i></button></div>`;
     }).join('') : '<div class="vazio">Ninguém com esse nome.</div>';

@@ -120,6 +120,32 @@ const FNBA_PRECO_MAX   = 40.0;
 /** Jogos a menos que isto na temporada passada: preço do piso, sem histórico. */
 const FNBA_JOGOS_MIN = 15;
 
+/**
+ * ── A VALORIZAÇÃO ───────────────────────────────────────────────────
+ *
+ * O preço de um jogador é uma aposta do mercado: ele diz quantos pontos
+ * aquele jogador deveria fazer (preço ÷ FNBA_PRECO_FATOR). Depois de cada
+ * rodada a conta é conferida contra o que ele fez de verdade, e o preço anda
+ * na direção do erro — quem passou do esperado sobe, quem ficou abaixo cai.
+ *
+ * ANDA SÓ UM PEDAÇO DO CAMINHO (30%), e não o erro inteiro. Uma noite de 50
+ * pontos não faz de ninguém um jogador de 50 por noite; com 30%, o preço
+ * leva umas quatro ou cinco rodadas pra se mudar de lugar, que é mais ou
+ * menos o tempo em que a gente também muda de ideia sobre um jogador.
+ *
+ * A TRAVA DE 2,5 POR RODADA existe pro caso extremo: um reserva de 2 F$ que
+ * acerta 45 pontos numa noite tem erro de +42, e sem trava sairia de 2 pra
+ * 10 de uma vez — alguém que escalou por 2 veria o time estourar o orçamento
+ * no dia seguinte sem ter feito nada. Com a trava ele sobe 2,5 por noite e
+ * leva três boas atuações pra chegar lá, que é tempo de todo mundo ver.
+ *
+ * Quem NÃO JOGOU não mexe no preço: folga e lesão não são informação sobre
+ * o jogador, e desvalorizar quem está no departamento médico puniria duas
+ * vezes quem o escalou.
+ */
+const FNBA_VALORIZA   = 0.30;   // quanto do erro vira preço
+const FNBA_VAR_MAX    = 2.5;    // teto da variação por rodada, em F$
+
 /** O fuso que decide de que DIA é o jogo. */
 const FNBA_FUSO = 'America/Sao_Paulo';
 
@@ -207,12 +233,23 @@ function fnbaTabelas(PDO $pdo): void
         jogos_base INT NOT NULL DEFAULT 0,
         foto VARCHAR(255) NULL,
         ativo TINYINT(1) NOT NULL DEFAULT 1,
+        var_ultima DECIMAL(4,1) NOT NULL DEFAULT 0,
         KEY idx_fnba_j_time (time_id),
         KEY idx_fnba_j_preco (ativo, preco)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     /* UMA RODADA É UM DIA. `fecha_em` é a hora do primeiro jogo; depois dela
        a escalação está trancada. */
+    /* A coluna da valorização é nova; a tabela já existe em produção desde
+       20/10, então o CREATE acima só vale pra banco limpo. */
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM fnba_jogadores LIKE 'var_ultima'")->fetch()) {
+            $pdo->exec("ALTER TABLE fnba_jogadores ADD COLUMN var_ultima DECIMAL(4,1) NOT NULL DEFAULT 0");
+        }
+    } catch (Throwable $e) {
+        error_log('[fnba] coluna var_ultima: ' . $e->getMessage());
+    }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_rodadas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         dia DATE NOT NULL,
@@ -382,8 +419,13 @@ function fnbaImportarJogadores(PDO $pdo, ?int $temporadaBase = null): array
 
     $st = $pdo->prepare("INSERT INTO fnba_jogadores (id, nome, time_id, pos, preco, media_fp, jogos_base, foto, ativo)
                          VALUES (?,?,?,?,?,?,?,?,1)
+                         /* O PREÇO NÃO É SOBRESCRITO em quem já existe. Ele é
+                            calculado uma vez, na entrada, e daí em diante anda
+                            sozinho pela valorização — reimportar a média da
+                            temporada PASSADA todo dia apagaria tudo que a
+                            temporada atual construiu. @see fnbaValorizar */
                          ON DUPLICATE KEY UPDATE nome=VALUES(nome), time_id=VALUES(time_id), pos=VALUES(pos),
-                                                 preco=VALUES(preco), media_fp=VALUES(media_fp),
+                                                 media_fp=VALUES(media_fp),
                                                  jogos_base=VALUES(jogos_base), foto=VALUES(foto), ativo=1");
     $vistos = [];
     foreach ($times as $tid) {
@@ -538,6 +580,47 @@ function fnbaImportarBoxscore(PDO $pdo, int $jogoId): int
         }
     }
     return $n;
+}
+
+/**
+ * Move o preço de quem jogou na rodada.
+ *
+ * Roda UMA VEZ por rodada, logo depois da apuração — e é idempotente por
+ * construção: a rodada só é apurada uma vez, e esta função é chamada de
+ * dentro daquele caminho.
+ *
+ * @return array quantos subiram, quantos caíram
+ */
+function fnbaValorizar(PDO $pdo, int $rodadaId): array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare("SELECT s.jogador_id, s.fp, j.preco
+                           FROM fnba_stats s
+                           JOIN fnba_jogos g ON g.id = s.jogo_id
+                           JOIN fnba_jogadores j ON j.id = s.jogador_id
+                          WHERE g.rodada_id = ?");
+    $st->execute([$rodadaId]);
+    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$linhas) return ['subiu' => 0, 'caiu' => 0];
+
+    $upd = $pdo->prepare('UPDATE fnba_jogadores SET preco = ?, var_ultima = ? WHERE id = ?');
+    $sobe = 0; $desce = 0;
+    foreach ($linhas as $l) {
+        $preco = (float)$l['preco'];
+        /* O que o preço dele promete, na mesma régua que o criou. */
+        $esperado = $preco / FNBA_PRECO_FATOR;
+        $delta = ((float)$l['fp'] - $esperado) * FNBA_PRECO_FATOR * FNBA_VALORIZA;
+        $delta = max(-FNBA_VAR_MAX, min(FNBA_VAR_MAX, $delta));
+
+        $novo = round(max(FNBA_PRECO_MIN, min(FNBA_PRECO_MAX, $preco + $delta)), 1);
+        /* A variação gravada é a que ACONTECEU, depois do piso e do teto —
+           senão o jogador de 2,0 que "caiu 1,5" mostraria uma queda que o
+           preço dele não teve. */
+        $real = round($novo - $preco, 1);
+        $upd->execute([$novo, $real, (int)$l['jogador_id']]);
+        if ($real > 0) $sobe++; elseif ($real < 0) $desce++;
+    }
+    return ['subiu' => $sobe, 'caiu' => $desce];
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -713,7 +796,12 @@ function fnbaApurar(PDO $pdo, int $rodadaId): array
     $pdo->prepare("UPDATE fnba_rodadas SET status = 'apurada', apurada_em = NOW() WHERE id = ?")
         ->execute([$rodadaId]);
 
-    return ['ok' => true, 'cartolas' => count($linhas), 'moedas' => $pagos];
+    /* O MERCADO SE MEXE DEPOIS DE PAGAR, e não antes: o preço que vale pra
+       rodada é o que estava lá quando a pessoa escalou. @see fnbaValorizar */
+    $mercado = fnbaValorizar($pdo, $rodadaId);
+
+    return ['ok' => true, 'cartolas' => count($linhas), 'moedas' => $pagos,
+            'subiu' => $mercado['subiu'], 'caiu' => $mercado['caiu']];
 }
 
 /** O ranking de uma rodada. */
@@ -749,7 +837,7 @@ function fnbaMercado(PDO $pdo, ?int $rodadaId = null): array
 {
     fnbaTabelas($pdo);
     $lista = $pdo->query("SELECT j.id, j.nome, j.pos, j.preco, j.media_fp, j.jogos_base, j.foto,
-                                 t.sigla, t.id AS time_id
+                                 j.var_ultima, t.sigla, t.id AS time_id
                             FROM fnba_jogadores j
                        LEFT JOIN fnba_times t ON t.id = j.time_id
                            WHERE j.ativo = 1
