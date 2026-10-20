@@ -693,15 +693,53 @@ function fnbaRanking(PDO $pdo, int $rodadaId, int $limite = 50): array
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-/** O mercado: quem dá pra escalar, do mais caro ao mais barato. */
-function fnbaMercado(PDO $pdo): array
+/**
+ * O mercado: quem dá pra escalar, do mais caro ao mais barato.
+ *
+ * ── QUEM JOGA NA RODADA VEM MARCADO, E ISSO É O MAIS IMPORTANTE AQUI ──
+ *
+ * A NBA não joga com todos os times no mesmo dia. Numa terça de estreia são
+ * 3 jogos: 6 times em quadra, 103 jogadores dos 517 do mercado. Os outros
+ * 414 estão de folga — escalar um deles é zerar a vaga sem perceber, e o
+ * cartola só descobre no dia seguinte, olhando um 0,0 ao lado do melhor
+ * pivô da liga.
+ *
+ * Então a lista diz quem joga. A tela usa isso pra mostrar primeiro quem
+ * está em quadra e apagar o resto; aqui embaixo é só o dado.
+ *
+ * @param int|null $rodadaId quando vem, cada linha ganha `joga` e `contra`
+ */
+function fnbaMercado(PDO $pdo, ?int $rodadaId = null): array
 {
     fnbaTabelas($pdo);
-    return $pdo->query("SELECT j.id, j.nome, j.pos, j.preco, j.media_fp, j.jogos_base, j.foto, t.sigla, t.id AS time_id
-                          FROM fnba_jogadores j
-                     LEFT JOIN fnba_times t ON t.id = j.time_id
-                         WHERE j.ativo = 1
-                      ORDER BY j.preco DESC, j.nome")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $lista = $pdo->query("SELECT j.id, j.nome, j.pos, j.preco, j.media_fp, j.jogos_base, j.foto,
+                                 t.sigla, t.id AS time_id
+                            FROM fnba_jogadores j
+                       LEFT JOIN fnba_times t ON t.id = j.time_id
+                           WHERE j.ativo = 1
+                        ORDER BY j.preco DESC, j.nome")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (!$rodadaId) return $lista;
+
+    /* Quem enfrenta quem, pra escrever "vs DET" ao lado do nome: saber que o
+       jogador joga é metade; contra quem é o que decide entre dois iguais. */
+    $st = $pdo->prepare("SELECT g.casa_id, g.fora_id, tc.sigla AS casa, tf.sigla AS fora
+                           FROM fnba_jogos g
+                      LEFT JOIN fnba_times tc ON tc.id = g.casa_id
+                      LEFT JOIN fnba_times tf ON tf.id = g.fora_id
+                          WHERE g.rodada_id = ?");
+    $st->execute([$rodadaId]);
+    $adv = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $g) {
+        if ($g['casa_id']) $adv[(int)$g['casa_id']] = 'vs ' . $g['fora'];
+        if ($g['fora_id']) $adv[(int)$g['fora_id']] = '@ '  . $g['casa'];
+    }
+    foreach ($lista as &$j) {
+        $tid = (int)($j['time_id'] ?? 0);
+        $j['joga']   = isset($adv[$tid]);
+        $j['contra'] = $adv[$tid] ?? '';
+    }
+    unset($j);
+    return $lista;
 }
 
 /* ─────────────────────────────────────────────────────────────────────

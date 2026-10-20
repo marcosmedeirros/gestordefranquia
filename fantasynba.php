@@ -85,7 +85,7 @@ if (!$rodada) $rodada = fnbaRodadaDoDia($pdo) ?: ($proximas[0] ?? null);
 
 $aberta    = $rodada ? fnbaAberta($rodada) : false;
 $escalacao = $rodada ? fnbaEscalacao($pdo, (int)$rodada['id'], $user_id) : [];
-$mercado   = ($aba === 'escalar') ? fnbaMercado($pdo) : [];
+$mercado   = ($aba === 'escalar' && $rodada) ? fnbaMercado($pdo, (int)$rodada['id']) : [];
 
 $jogosDaRodada = [];
 if ($rodada) {
@@ -267,6 +267,56 @@ a{color:inherit}
 .tag.C{background:rgba(168,85,247,.2);color:#d8b4fe}
 .vlr{font-family:var(--num);font-size:17px;color:var(--ouro);flex:none;width:52px;text-align:right}
 
+/* ── A QUADRA ────────────────────────────────────────────────────────
+   O time montado em cima do desenho da quadra, e não só numa lista: é o
+   que faz a escalação parecer escalação. As cinco vagas ficam onde a
+   posição joga — os dois armadores no perímetro, os alas nas pontas, o
+   pivô no garrafão —, então dá pra ver o time inteiro de relance.
+
+   A quadra é meia quadra, vista de cima, desenhada em CSS puro: nenhuma
+   imagem pra carregar e ela acompanha o tema claro sem segunda versão. */
+.quadra{position:relative;width:100%;aspect-ratio:1/1.08;border-radius:14px;margin-bottom:12px;
+  background:linear-gradient(170deg,#1d1710,#241c12);
+  border:2px solid rgba(255,255,255,.14);overflow:hidden}
+:root[data-theme="light"] .quadra{background:linear-gradient(170deg,#e8d5b5,#dec7a0)}
+/* As linhas: garrafão, círculo do lance livre, arco de 3 e a cesta. */
+.quadra .garrafa{position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:34%;height:34%;border:2px solid rgba(255,255,255,.22);border-top:none}
+.quadra .circ{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);
+  width:22%;aspect-ratio:1;border:2px solid rgba(255,255,255,.22);border-radius:50%}
+.quadra .arco{position:absolute;top:-28%;left:50%;transform:translateX(-50%);
+  width:86%;aspect-ratio:1;border:2px solid rgba(255,255,255,.2);border-radius:50%;
+  border-top-color:transparent;border-left-color:transparent;border-right-color:transparent}
+.quadra .cesta{position:absolute;top:5%;left:50%;transform:translateX(-50%);
+  width:13%;height:3px;background:rgba(249,115,22,.85);border-radius:2px}
+:root[data-theme="light"] .quadra .garrafa,
+:root[data-theme="light"] .quadra .circ,
+:root[data-theme="light"] .quadra .arco{border-color:rgba(0,0,0,.2)}
+
+/* As cinco vagas. O top/left de cada uma é a posição em quadra. */
+.vaga{position:absolute;transform:translate(-50%,-50%);width:92px;text-align:center;cursor:pointer}
+.vaga[data-s="C"] {top:24%; left:50%}
+.vaga[data-s="F1"]{top:45%; left:19%}
+.vaga[data-s="F2"]{top:45%; left:81%}
+.vaga[data-s="G1"]{top:74%; left:31%}
+.vaga[data-s="G2"]{top:74%; left:69%}
+@media(max-width:420px){ .vaga{width:74px} }
+.vaga .cam{width:54px;height:54px;margin:0 auto;border-radius:50%;background:rgba(0,0,0,.45);
+  border:2px dashed rgba(255,255,255,.3);display:grid;place-items:center;overflow:hidden;
+  color:rgba(255,255,255,.5);font-family:var(--num);font-size:19px}
+:root[data-theme="light"] .vaga .cam{background:rgba(255,255,255,.6);border-color:rgba(0,0,0,.25);color:rgba(0,0,0,.4)}
+.vaga.full .cam{border-style:solid;border-color:var(--lar);background:var(--sup-2)}
+.vaga.cap .cam{border-color:var(--ouro);box-shadow:0 0 0 3px rgba(251,191,36,.25)}
+.vaga .cam img{width:100%;height:100%;object-fit:cover}
+.vaga .nm{margin-top:5px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:root[data-theme="light"] .vaga .nm{color:#10131a;text-shadow:0 1px 2px rgba(255,255,255,.8)}
+.vaga .sub{font-size:10px;color:rgba(255,255,255,.72);text-shadow:0 1px 3px rgba(0,0,0,.8)}
+:root[data-theme="light"] .vaga .sub{color:#4b5160;text-shadow:none}
+.vaga .estrela{position:absolute;top:-4px;right:12px;width:20px;height:20px;border-radius:50%;
+  background:var(--ouro);color:#1a1200;display:grid;place-items:center;font-size:10px}
+.vaga .folga{color:#fca5a5}
+
 .slots{display:flex;flex-direction:column;gap:7px}
 .slot{display:flex;align-items:center;gap:10px;padding:9px;border-radius:12px;background:var(--sup-2);
   border:1px dashed var(--bd-2);min-height:56px}
@@ -409,7 +459,8 @@ a{color:inherit}
         <div class="ct"><i class="bi bi-people-fill"></i> Mercado <span class="dir" id="cnt"></span></div>
         <div class="filtros">
           <input class="busca" id="q" type="search" placeholder="Buscar jogador ou time…" autocomplete="off">
-          <button type="button" class="chip on" data-p="">Todos</button>
+          <button type="button" class="chip on" id="soJoga" data-joga="1">Em quadra hoje</button>
+          <button type="button" class="chip" data-p="">Todos</button>
           <button type="button" class="chip" data-p="G">G</button>
           <button type="button" class="chip" data-p="F">F</button>
           <button type="button" class="chip" data-p="C">C</button>
@@ -419,6 +470,10 @@ a{color:inherit}
 
       <div class="card">
         <div class="ct"><i class="bi bi-clipboard-check-fill"></i> Seu time <span class="dir"><?= FNBA_ELENCO ?> jogadores</span></div>
+        <div class="quadra" id="quadra">
+          <span class="arco"></span><span class="garrafa"></span>
+          <span class="circ"></span><span class="cesta"></span>
+        </div>
         <div class="slots" id="slots"></div>
         <div class="orc" id="orc">
           <div class="b"><i id="bar" style="width:0%"></i></div>
@@ -638,12 +693,15 @@ a{color:inherit}
   const M = <?= json_encode(array_map(fn($j) => [
         'id'=>(int)$j['id'], 'n'=>$j['nome'], 'p'=>$j['pos'], 'c'=>(float)$j['preco'],
         'm'=>(float)$j['media_fp'], 't'=>$j['sigla'] ?? '', 'f'=>$j['foto'] ?? '',
+        /* joga e contra decidem o que a tela mostra primeiro: numa terca de
+           3 jogos, 414 dos 517 estao de folga. @see fnbaMercado */
+        'joga'=>(bool)($j['joga'] ?? true), 'contra'=>$j['contra'] ?? '',
       ], $mercado), JSON_UNESCAPED_UNICODE) ?>;
   const FORM = <?= json_encode(FNBA_FORMACAO) ?>, ORC = <?= (int)FNBA_ORCAMENTO ?>,
         N = <?= FNBA_ELENCO ?>, ABERTA = <?= $aberta ? 'true' : 'false' ?>,
         ROT = {G:'armador', F:'ala', C:'pivô'};
   let sel = <?= json_encode(array_map('intval', $escalados)) ?>, cap = <?= (int)$capAtual ?>,
-      fp = '', q = '';
+      fp = '', q = '', soJoga = true;
   const by = {}; M.forEach(j => by[j.id] = j);
   const $ = s => document.querySelector(s);
   const custo = () => sel.reduce((s,i) => s + (by[i]?.c || 0), 0);
@@ -658,12 +716,36 @@ a{color:inherit}
     else { if (!cabe(by[id])) return; sel.push(id); if (!cap) cap = id; }
     tudo();
   }
-  function slots(){
+  /* AS CINCO VAGAS DA QUADRA, na ordem em que elas aparecem no desenho.
+     A chave (G1, F1, C…) é o que liga cada jogador ao seu lugar. */
+  function vagas(){
     const ord = [];
     Object.entries(FORM).forEach(([p,n]) => {
       const d = sel.filter(i => by[i]?.p === p);
-      for (let k=0;k<n;k++) ord.push({p, id:d[k]||null});
+      for (let k=0;k<n;k++) ord.push({p, slot: n > 1 ? p + (k+1) : p, id:d[k]||null});
     });
+    return ord;
+  }
+  function quadra(){
+    const q = document.getElementById('quadra');
+    q.querySelectorAll('.vaga').forEach(v => v.remove());
+    vagas().forEach(s => {
+      const j = s.id ? by[s.id] : null;
+      const d = document.createElement('div');
+      d.className = 'vaga' + (j ? ' full' : '') + (j && cap === j.id ? ' cap' : '');
+      d.dataset.s = s.slot;
+      if (j) d.dataset.x = j.id;
+      d.innerHTML = j
+        ? `<div class="cam">${j.f?`<img src="${j.f}" alt="" loading="lazy">`:j.p}</div>
+           ${cap===j.id?'<span class="estrela"><i class="bi bi-star-fill"></i></span>':''}
+           <div class="nm">${j.n.split(' ').slice(-1)[0]}</div>
+           <div class="sub ${j.joga===false?'folga':''}">${j.joga===false?'de folga':(j.contra||j.t)}</div>`
+        : `<div class="cam">${s.p}</div><div class="sub">${ROT[s.p]}</div>`;
+      q.appendChild(d);
+    });
+  }
+  function slots(){
+    const ord = vagas();
     $('#slots').innerHTML = ord.map(s => {
       const j = s.id ? by[s.id] : null;
       if (!j) return `<div class="slot"><span class="tag ${s.p}">${s.p}</span>
@@ -680,15 +762,15 @@ a{color:inherit}
   }
   function merc(){
     const t = q.trim().toLowerCase();
-    const v = M.filter(j => (!fp || j.p === fp) &&
+    const v = M.filter(j => (!fp || j.p === fp) && (!soJoga || j.joga !== false) &&
       (!t || j.n.toLowerCase().includes(t) || (j.t||'').toLowerCase().includes(t)));
-    $('#cnt').textContent = v.length + ' de ' + M.length;
+    $('#cnt').textContent = v.length + (soJoga ? ' em quadra' : ' de ' + M.length);
     $('#lista').innerHTML = v.length ? v.slice(0,120).map(j => {
       const i = sel.includes(j.id);
       return `<div class="lin ${i?'in':''} ${!i&&!cabe(j)?'off':''}" data-id="${j.id}">
         ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:'<img alt="">'}
         <span class="tag ${j.p}">${j.p}</span>
-        <span class="i"><b>${j.n}</b><span>${j.t} · ${j.m.toFixed(1)} pts de média</span></span>
+        <span class="i"><b>${j.n}</b><span>${j.joga===false?'<b style="color:#fca5a5">de folga hoje</b>':(j.contra||j.t)} · ${j.m.toFixed(1)} méd</span></span>
         <span class="vlr">${j.c.toFixed(1)}</span></div>`;
     }).join('') : '<div class="vazio">Ninguém com esse nome.</div>';
   }
@@ -705,7 +787,7 @@ a{color:inherit}
     }
   }
   function tudo(){
-    slots(); merc(); orc();
+    quadra(); slots(); merc(); orc();
     const f = $('#frm');
     f.querySelectorAll('input[name="jogadores[]"],input[name="capitao"]').forEach(i => i.remove());
     sel.forEach(id => { const i = document.createElement('input');
@@ -719,10 +801,21 @@ a{color:inherit}
     const c = ev.target.closest('[data-c]'); if (c) { cap = +c.dataset.c; tudo(); return; }
     const x = ev.target.closest('[data-x]'); if (x) toggle(+x.dataset.x);
   });
+  /* NA QUADRA, O CLIQUE PROMOVE A CAPITÃO em vez de tirar: tirar é o botão
+     da lista logo abaixo, e um toque errado no desenho não pode desfazer a
+     escalação inteira sem aviso. */
+  $('#quadra').addEventListener('click', ev => {
+    const v = ev.target.closest('.vaga[data-x]');
+    if (!v || !ABERTA) return;
+    cap = +v.dataset.x; tudo();
+  });
   $('#q').addEventListener('input', ev => { q = ev.target.value; merc(); });
   document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.chip').forEach(o => o.classList.remove('on'));
-    b.classList.add('on'); fp = b.dataset.p; merc();
+    b.classList.add('on');
+    soJoga = b.dataset.joga === '1';
+    fp = b.dataset.p || '';
+    merc();
   }));
   tudo();
 })();
