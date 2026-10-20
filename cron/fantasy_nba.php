@@ -20,7 +20,8 @@
  *      sem reler aquele dia o placar nunca fecharia.
  *   2. PUXA OS BOXSCORES dos jogos que terminaram e ainda não foram lidos.
  *   3. APURA as rodadas cujos jogos acabaram todos, paga as moedas e fecha.
- *   4. REPRECIFICA o mercado uma vez por dia, de madrugada.
+ *   4. FECHA A SEMANA quando o domingo passa, pagando os FBA Points.
+ *   5. REPRECIFICA o mercado uma vez por dia, de madrugada.
  *
  * Tudo é idempotente: rodar duas vezes seguidas não paga ninguém duas vezes
  * (fnbaApurar sai na hora se a rodada já está apurada) nem duplica linha
@@ -101,7 +102,23 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         : "rodada {$r['dia']} não apurou: {$res['erro']}");
 }
 
-/* ── 4) O MERCADO ───────────────────────────────────────────────────── */
+/* ── 4) A SEMANA ────────────────────────────────────────────────────── */
+/* A semana vai de segunda a domingo e fecha quando o domingo ACABA, ou seja,
+   na primeira passada depois da virada. Ela paga em FBA Points, que é a
+   moeda séria da liga — por isso só fecha com todas as rodadas apuradas:
+   publicar campeão que ainda pode mudar é pior que publicar tarde.
+   @see FNBA_PREMIO_SEMANA */
+fnbaSemanaDe($pdo);                       // garante a linha da semana corrente
+foreach (fnbaSemanasPendentes($pdo) as $sem) {
+    $r = fnbaApurarSemana($pdo, (int)$sem['id']);
+    $log($r['ok']
+        ? "semana {$sem['inicio']}–{$sem['fim']}: " . (($r['ja'] ?? false)
+            ? 'já estava paga'
+            : "{$r['cartolas']} cartolas, {$r['pontos']} FBA Points pagos")
+        : "semana {$sem['inicio']}: não fechou ({$r['erro']})");
+}
+
+/* ── 5) O MERCADO ───────────────────────────────────────────────────── */
 /* Uma vez por dia, de madrugada: elenco muda com troca e corte, e o preço
    precisa acompanhar. De dia seria pior que inútil — mudar o preço no meio
    da escalação de alguém faria o time caber e deixar de caber sozinho. */

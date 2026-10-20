@@ -40,7 +40,12 @@ $moedas = (int)($pdo->query('SELECT pontos FROM games_usuarios WHERE id = ' . $u
 $erros = [];
 $ok    = (string)($_GET['ok'] ?? '');
 $aba   = (string)($_GET['aba'] ?? 'escalar');
-if (!in_array($aba, ['escalar', 'rodadas', 'ligas', 'ranking'], true)) $aba = 'escalar';
+/* LIGA E RANKING VIRARAM UMA ABA SÓ (20/10/2026): eram a mesma pergunta
+   feita duas vezes — "quem está na frente" — e a pessoa tinha que adivinhar
+   em qual das duas procurar a divisão dela. O recorte agora é um filtro
+   dentro de Ranking. `ligas` continua aceito pra não quebrar link antigo. */
+if ($aba === 'ligas') $aba = 'ranking';
+if (!in_array($aba, ['escalar', 'rodadas', 'ranking'], true)) $aba = 'escalar';
 
 /* ── OS POSTS ───────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,19 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'criar_liga') {
         $r = fnbaCriarLiga($pdo, $user_id, (string)($_POST['nome'] ?? ''));
-        if ($r['ok']) { header('Location: /fantasynba.php?aba=ligas&ok=criada'); exit; }
+        if ($r['ok']) { header('Location: /fantasynba.php?aba=ranking&ok=criada'); exit; }
         $erros[] = $r['erro']; $aba = 'ligas';
     }
 
     if ($acao === 'entrar_liga') {
         $r = fnbaEntrarNaLiga($pdo, $user_id, (string)($_POST['codigo'] ?? ''));
-        if ($r['ok']) { header('Location: /fantasynba.php?aba=ligas&ok=entrou'); exit; }
+        if ($r['ok']) { header('Location: /fantasynba.php?aba=ranking&ok=entrou'); exit; }
         $erros[] = $r['erro']; $aba = 'ligas';
     }
 
     if ($acao === 'sair_liga') {
         fnbaSairDaLiga($pdo, $user_id, (int)($_POST['liga'] ?? 0));
-        header('Location: /fantasynba.php?aba=ligas'); exit;
+        header('Location: /fantasynba.php?aba=ranking'); exit;
     }
 }
 
@@ -110,25 +115,41 @@ if ($aba === 'rodadas' && !empty($_GET['ver'])) {
     }
 }
 
-$minhasLigas = ($aba === 'ligas') ? fnbaMinhasLigas($pdo, $user_id) : [];
+$minhasLigas = ($aba === 'ranking') ? fnbaMinhasLigas($pdo, $user_id) : [];
 $minhaDiv    = fnbaDivisaoDoUsuario($pdo, $user_id);
 
-$rankAba = null; $rankLista = []; $rankTitulo = '';
-if ($aba === 'ranking' || $aba === 'ligas') {
-    $filtro = (string)($_GET['f'] ?? ($aba === 'ranking' ? 'geral' : ''));
-    if (str_starts_with($filtro, 'liga:')) {
-        $lid = (int)substr($filtro, 5);
+$rankAba = 'semana'; $rankLista = []; $rankTitulo = ''; $rankSub = ''; $campeoes = [];
+$semana  = null;
+if ($aba === 'ranking') {
+    /* A SEMANA É O PADRÃO, e não o geral: é ela que paga FBA Points e é por
+       ela que a pessoa volta. O geral vira consulta, não manchete. */
+    $rankAba = (string)($_GET['f'] ?? 'semana');
+    $semana  = fnbaSemanaDe($pdo);
+
+    if ($rankAba === 'campeoes') {
+        $campeoes   = fnbaCampeoesDaSemana($pdo, 40);
+        $rankTitulo = 'Campeões da semana';
+    } elseif (str_starts_with($rankAba, 'liga:')) {
+        $lid = (int)substr($rankAba, 5);
         $rankLista = fnbaRankingGeral($pdo, null, $lid);
         $st = $pdo->prepare('SELECT nome FROM fnba_ligas WHERE id = ?'); $st->execute([$lid]);
         $rankTitulo = (string)$st->fetchColumn();
-    } elseif (in_array(strtoupper($filtro), FNBA_DIVISOES, true)) {
-        $rankLista  = fnbaRankingGeral($pdo, strtoupper($filtro));
-        $rankTitulo = 'Divisão ' . strtoupper($filtro);
-    } elseif ($aba === 'ranking') {
+        $rankSub = 'soma de todas as rodadas';
+    } elseif (in_array(strtoupper($rankAba), FNBA_DIVISOES, true)) {
+        $rankLista  = fnbaRankingGeral($pdo, strtoupper($rankAba));
+        $rankTitulo = 'Divisão ' . strtoupper($rankAba);
+        $rankSub = 'soma de todas as rodadas';
+    } elseif ($rankAba === 'geral') {
         $rankLista  = fnbaRankingGeral($pdo);
         $rankTitulo = 'Geral';
+        $rankSub = 'soma de todas as rodadas';
+    } else {
+        $rankAba    = 'semana';
+        $rankLista  = fnbaTabelaDaSemana($pdo, $semana['inicio'], $semana['fim']);
+        $rankTitulo = 'Semana ' . (new DateTimeImmutable($semana['inicio']))->format('d/m')
+                    . ' a ' . (new DateTimeImmutable($semana['fim']))->format('d/m');
+        $rankSub = 'vale FBA Points — fecha domingo à meia-noite';
     }
-    $rankAba = $filtro;
 }
 
 $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -391,8 +412,7 @@ a{color:inherit}
   <nav class="abas">
     <a href="<?= $url(['aba' => 'escalar']) ?>" class="<?= $aba === 'escalar' ? 'on' : '' ?>"><i class="bi bi-clipboard-check"></i> Escalar</a>
     <a href="<?= $url(['aba' => 'rodadas']) ?>" class="<?= $aba === 'rodadas' ? 'on' : '' ?>"><i class="bi bi-calendar3"></i> Rodadas</a>
-    <a href="<?= $url(['aba' => 'ligas']) ?>"   class="<?= $aba === 'ligas'   ? 'on' : '' ?>"><i class="bi bi-people"></i> Ligas</a>
-    <a href="<?= $url(['aba' => 'ranking']) ?>" class="<?= $aba === 'ranking' ? 'on' : '' ?>"><i class="bi bi-trophy"></i> Ranking</a>
+    <a href="<?= $url(['aba' => 'ranking']) ?>" class="<?= $aba === 'ranking' ? 'on' : '' ?>"><i class="bi bi-trophy"></i> Ranking e ligas</a>
   </nav>
 </header>
 
@@ -562,123 +582,134 @@ a{color:inherit}
     </div>
   <?php endif; ?>
 
-<?php /* ══════════════ LIGAS ══════════════ */ ?>
-<?php elseif ($aba === 'ligas'): ?>
+<?php /* ══════════════ RANKING E LIGAS ══════════════ */ ?>
+<?php else: ?>
 
   <div class="pills">
+    <a class="pill <?= $rankAba === 'semana' ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'semana']) ?>">
+      <i class="bi bi-calendar-week"></i> Semana</a>
+    <a class="pill <?= $rankAba === 'geral' ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'geral']) ?>">
+      <i class="bi bi-globe"></i> Geral</a>
+    <a class="pill <?= $rankAba === 'campeoes' ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'campeoes']) ?>">
+      <i class="bi bi-award"></i> Campeões</a>
     <?php foreach (FNBA_DIVISOES as $dv): ?>
-      <a class="pill <?= strtoupper((string)$rankAba) === $dv ? 'on' : '' ?>" href="<?= $url(['aba'=>'ligas','f'=>$dv]) ?>">
-        <i class="bi bi-shield"></i> <?= $dv ?><?= $minhaDiv === $dv ? ' (sua)' : '' ?></a>
+      <a class="pill <?= strtoupper((string)$rankAba) === $dv ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>$dv]) ?>">
+        <?= $dv ?><?= $minhaDiv === $dv ? ' ·' : '' ?></a>
     <?php endforeach; ?>
     <?php foreach ($minhasLigas as $l): ?>
-      <a class="pill <?= $rankAba === 'liga:' . $l['id'] ? 'on' : '' ?>" href="<?= $url(['aba'=>'ligas','f'=>'liga:'.$l['id']]) ?>">
+      <a class="pill <?= $rankAba === 'liga:' . $l['id'] ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'liga:'.$l['id']]) ?>">
         <i class="bi bi-people-fill"></i> <?= $e($l['nome']) ?></a>
     <?php endforeach; ?>
   </div>
 
-  <div class="grid2">
+  <?php if ($rankAba === 'campeoes'): ?>
     <div class="card">
-      <div class="ct"><i class="bi bi-bar-chart-fill"></i> <?= $rankTitulo ? $e($rankTitulo) : 'Escolha uma liga acima' ?>
-        <?php if ($rankLista): ?><span class="dir"><?= count($rankLista) ?> cartolas</span><?php endif; ?></div>
-      <?php if ($rankLista): ?>
+      <div class="ct"><i class="bi bi-award-fill"></i> Campeões da semana
+        <span class="dir"><?= count($campeoes) ?> semanas</span></div>
+      <div class="tab">
+        <?php foreach ($campeoes as $c):
+          $ini = new DateTimeImmutable($c['inicio']); $fim = new DateTimeImmutable($c['fim']); ?>
+          <div class="tr <?= (int)$c['user_id'] === $user_id ? 'eu' : '' ?>">
+            <span class="p m1"><i class="bi bi-trophy-fill"></i></span>
+            <span class="n"><?= $e($c['nome'] ?? 'GM') ?>
+              <small><?= $ini->format('d/m') ?> a <?= $fim->format('d/m') ?> ·
+                <?= (int)$c['rodadas'] ?> rodadas · <?= (int)$c['cartolas'] ?> cartolas</small></span>
+            <span class="mo">+<?= (int)$c['fba_points'] ?> FBA</span>
+            <span class="v"><?= number_format((float)$c['pontos'], 1, ',', '.') ?></span>
+          </div>
+        <?php endforeach; ?>
+        <?php if (!$campeoes): ?>
+          <div class="vazio">Nenhuma semana fechada ainda. A primeira fecha no domingo à meia-noite.</div>
+        <?php endif; ?>
+      </div>
+      <p class="regra">Toda <b>segunda a domingo</b> é uma temporada curta. Quem somar mais pontos
+        na semana leva <b>500 FBA Points</b>; o segundo 300, o terceiro 100, e o quarto e o quinto 50.
+        É o maior prêmio recorrente da casa — pra comparar, uma aposta certa paga 75.</p>
+    </div>
+
+  <?php else: ?>
+    <?php
+    $meu = null; $minhaPos = 0;
+    foreach ($rankLista as $i2 => $r) if ((int)$r['user_id'] === $user_id) { $meu = $r; $minhaPos = $i2 + 1; }
+    $ehSemana = $rankAba === 'semana';
+    ?>
+    <?php if ($meu): ?>
+    <div class="card" style="margin-bottom:14px">
+      <div class="kpi">
+        <div><div class="k" style="color:var(--lar)"><?= $minhaPos ?>º</div><div class="l">sua posição</div></div>
+        <div><div class="k"><?= number_format((float)$meu['total'], 1, ',', '.') ?></div><div class="l">pontos</div></div>
+        <div><div class="k" style="color:var(--verde)"><?= number_format((float)$meu['total'] / max(1, (int)$meu['rodadas']), 1, ',', '.') ?></div><div class="l">média por rodada</div></div>
+        <?php if ($ehSemana && isset(FNBA_PREMIO_SEMANA[$minhaPos])): ?>
+          <div><div class="k" style="color:var(--ouro)"><?= FNBA_PREMIO_SEMANA[$minhaPos] ?></div><div class="l">FBA Points se fechar assim</div></div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="ct"><i class="bi bi-<?= $ehSemana ? 'calendar-week-fill' : 'trophy-fill' ?>"></i>
+          <?= $e($rankTitulo) ?>
+          <span class="dir"><?= $rankSub ?></span></div>
         <div class="tab">
-          <?php foreach ($rankLista as $i => $r): ?>
+          <?php foreach ($rankLista as $i2 => $r):
+            $premio = $ehSemana ? (FNBA_PREMIO_SEMANA[$i2 + 1] ?? 0) : 0; ?>
             <div class="tr <?= (int)$r['user_id'] === $user_id ? 'eu' : '' ?>">
-              <span class="p <?= $i < 3 ? 'm' . ($i+1) : '' ?>"><?= $i + 1 ?>º</span>
+              <span class="p <?= $i2 < 3 ? 'm' . ($i2+1) : '' ?>"><?= $i2 + 1 ?>º</span>
               <span class="n"><?= $e($r['nome'] ?? 'GM') ?>
-                <small><?= (int)$r['rodadas'] ?> rodadas · melhor <?= number_format((float)$r['melhor'], 1, ',', '.') ?></small></span>
+                <small><?= (int)$r['rodadas'] ?> rodada<?= $r['rodadas'] == 1 ? '' : 's' ?> ·
+                  média <?= number_format((float)$r['total'] / max(1, (int)$r['rodadas']), 1, ',', '.') ?></small></span>
+              <?php if ($premio): ?><span class="mo"><?= $premio ?> FBA</span><?php endif; ?>
               <span class="v"><?= number_format((float)$r['total'], 1, ',', '.') ?></span>
             </div>
           <?php endforeach; ?>
+          <?php if (!$rankLista): ?>
+            <div class="vazio"><?= $ehSemana
+              ? 'Ninguém pontuou nesta semana ainda. A primeira rodada apurada abre a tabela.'
+              : 'Nenhuma rodada apurada ainda.' ?></div>
+          <?php endif; ?>
         </div>
-      <?php else: ?>
-        <div class="vazio">Escolha uma divisão ou liga acima pra ver a tabela.</div>
-      <?php endif; ?>
-    </div>
-
-    <div class="card">
-      <div class="ct"><i class="bi bi-people-fill"></i> Ligas de amigos <span class="dir">até 5</span></div>
-      <div class="tab">
-        <?php foreach ($minhasLigas as $l): ?>
-          <div class="tr">
-            <span class="n"><?= $e($l['nome']) ?>
-              <small><?= (int)$l['membros'] ?> membros<?= (int)$l['dono_id'] === $user_id ? ' · você criou' : '' ?></small></span>
-            <span class="cod"><?= $e($l['codigo']) ?></span>
-            <?php if ((int)$l['dono_id'] !== $user_id): ?>
-              <form method="POST" style="display:inline">
-                <input type="hidden" name="acao" value="sair_liga">
-                <input type="hidden" name="liga" value="<?= (int)$l['id'] ?>">
-                <button class="mini" type="submit" title="Sair da liga"><i class="bi bi-box-arrow-right"></i></button>
-              </form>
-            <?php endif; ?>
-          </div>
-        <?php endforeach; ?>
-        <?php if (!$minhasLigas): ?><div class="vazio">Você ainda não está em nenhuma liga de amigos.</div><?php endif; ?>
+        <?php if ($ehSemana): ?>
+          <p class="regra">Vale de <b>segunda a domingo</b>. Fecha quando o domingo acaba e paga
+            <b>500 / 300 / 100 / 50 / 50 FBA Points</b> aos cinco primeiros.</p>
+        <?php endif; ?>
       </div>
 
-      <form method="POST" class="frm">
-        <input type="hidden" name="acao" value="criar_liga">
-        <input name="nome" placeholder="Nome da liga nova" maxlength="60" required>
-        <button type="submit">Criar</button>
-      </form>
-      <form method="POST" class="frm">
-        <input type="hidden" name="acao" value="entrar_liga">
-        <input name="codigo" placeholder="Código de convite" maxlength="6" required style="text-transform:uppercase">
-        <button type="submit">Entrar</button>
-      </form>
-      <p class="regra">As <b>divisões da FBA</b> já existem sozinhas: quem tem time na ELITE disputa
-        com a ELITE, sem precisar entrar em nada. As <b>ligas de amigos</b> são suas — crie uma e mande
-        o código.</p>
-    </div>
-  </div>
-
-<?php /* ══════════════ RANKING ══════════════ */ ?>
-<?php else: ?>
-
-  <div class="pills">
-    <a class="pill <?= $rankAba === 'geral' ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>'geral']) ?>">
-      <i class="bi bi-globe"></i> Geral</a>
-    <?php foreach (FNBA_DIVISOES as $dv): ?>
-      <a class="pill <?= strtoupper((string)$rankAba) === $dv ? 'on' : '' ?>" href="<?= $url(['aba'=>'ranking','f'=>$dv]) ?>">
-        <?= $dv ?></a>
-    <?php endforeach; ?>
-  </div>
-
-  <?php
-  $meu = null; $minhaPos = 0;
-  foreach ($rankLista as $i => $r) if ((int)$r['user_id'] === $user_id) { $meu = $r; $minhaPos = $i + 1; }
-  ?>
-  <?php if ($meu): ?>
-  <div class="card" style="margin-bottom:14px">
-    <div class="kpi">
-      <div><div class="k" style="color:var(--lar)"><?= $minhaPos ?>º</div><div class="l">sua posição</div></div>
-      <div><div class="k"><?= number_format((float)$meu['total'], 1, ',', '.') ?></div><div class="l">pontos somados</div></div>
-      <div><div class="k" style="color:var(--verde)"><?= number_format((float)$meu['total'] / max(1, (int)$meu['rodadas']), 1, ',', '.') ?></div><div class="l">média por rodada</div></div>
-      <div><div class="k" style="color:var(--ouro)"><?= (int)$meu['moedas'] ?></div><div class="l">moedas ganhas</div></div>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <div class="card">
-    <div class="ct"><i class="bi bi-trophy-fill"></i> <?= $e($rankTitulo ?: 'Geral') ?>
-      <span class="dir"><?= count($rankLista) ?> cartolas</span></div>
-    <div class="tab">
-      <?php foreach ($rankLista as $i => $r): ?>
-        <div class="tr <?= (int)$r['user_id'] === $user_id ? 'eu' : '' ?>">
-          <span class="p <?= $i < 3 ? 'm' . ($i+1) : '' ?>"><?= $i + 1 ?>º</span>
-          <span class="n"><?= $e($r['nome'] ?? 'GM') ?>
-            <small><?= (int)$r['rodadas'] ?> rodadas · média
-              <?= number_format((float)$r['total'] / max(1, (int)$r['rodadas']), 1, ',', '.') ?></small></span>
-          <?php if ((int)$r['moedas'] > 0): ?><span class="mo">+<?= (int)$r['moedas'] ?></span><?php endif; ?>
-          <span class="v"><?= number_format((float)$r['total'], 1, ',', '.') ?></span>
+      <div class="card">
+        <div class="ct"><i class="bi bi-people-fill"></i> Ligas de amigos <span class="dir">até 5</span></div>
+        <div class="tab">
+          <?php foreach ($minhasLigas as $l): ?>
+            <div class="tr">
+              <span class="n"><?= $e($l['nome']) ?>
+                <small><?= (int)$l['membros'] ?> membros<?= (int)$l['dono_id'] === $user_id ? ' · você criou' : '' ?></small></span>
+              <span class="cod"><?= $e($l['codigo']) ?></span>
+              <?php if ((int)$l['dono_id'] !== $user_id): ?>
+                <form method="POST" style="display:inline">
+                  <input type="hidden" name="acao" value="sair_liga">
+                  <input type="hidden" name="liga" value="<?= (int)$l['id'] ?>">
+                  <button class="mini" type="submit" title="Sair da liga"><i class="bi bi-box-arrow-right"></i></button>
+                </form>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+          <?php if (!$minhasLigas): ?><div class="vazio">Você ainda não está em nenhuma liga de amigos.</div><?php endif; ?>
         </div>
-      <?php endforeach; ?>
-      <?php if (!$rankLista): ?>
-        <div class="vazio">Nenhuma rodada apurada ainda. O ranking aparece depois da primeira.</div>
-      <?php endif; ?>
+        <form method="POST" class="frm">
+          <input type="hidden" name="acao" value="criar_liga">
+          <input name="nome" placeholder="Nome da liga nova" maxlength="60" required>
+          <button type="submit">Criar</button>
+        </form>
+        <form method="POST" class="frm">
+          <input type="hidden" name="acao" value="entrar_liga">
+          <input name="codigo" placeholder="Código de convite" maxlength="6" required style="text-transform:uppercase">
+          <button type="submit">Entrar</button>
+        </form>
+        <p class="regra">As <b>divisões da FBA</b> já existem sozinhas: quem tem time na ELITE disputa
+          com a ELITE, sem entrar em nada. As <b>ligas de amigos</b> são suas — crie e mande o código.
+          Os dois recortes somam todas as rodadas; só a <b>Semana</b> paga FBA Points.</p>
+      </div>
     </div>
-  </div>
-
+  <?php endif; ?>
 <?php endif; ?>
 
 </div>

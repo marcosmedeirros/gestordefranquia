@@ -961,3 +961,184 @@ function fnbaProximasRodadas(PDO $pdo, int $quantas = 5): array
     $st->execute();
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   A SEMANA
+
+   O prêmio de verdade do jogo. A rodada do dia paga moeda — troco, pra dar
+   motivo de voltar amanhã. A semana paga FBA POINTS, que é a moeda séria da
+   liga: compra badge e slot, e na loja 10 moedas viram 1 ponto. Ou seja, os
+   500 do primeiro lugar valem 5.000 moedas — 20 rodadas diárias ganhas.
+
+   É de propósito: o que faz alguém escalar todo dia não é o troço de hoje, é
+   não perder terreno na semana.
+   ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * O que cada lugar leva na semana, em FBA Points.
+ *
+ * Decisão dele em 20/10/2026. Para comparar: uma aposta certa paga 75 e uma
+ * conquista do Geo, 25 — então a semana do Fantasy é o maior prêmio
+ * recorrente da casa. É o preço de fazer a pessoa voltar sete dias seguidos.
+ */
+const FNBA_PREMIO_SEMANA = [1 => 500, 2 => 300, 3 => 100, 4 => 50, 5 => 50];
+
+function fnbaTabelasSemana(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_semanas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        inicio DATE NOT NULL,
+        fim DATE NOT NULL,
+        status ENUM('aberta','apurada') NOT NULL DEFAULT 'aberta',
+        apurada_em DATETIME NULL,
+        UNIQUE KEY uk_fnba_sem (inicio)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fnba_semana_premios (
+        semana_id INT NOT NULL,
+        user_id INT NOT NULL,
+        posicao INT NOT NULL,
+        pontos DECIMAL(8,1) NOT NULL DEFAULT 0,
+        rodadas INT NOT NULL DEFAULT 0,
+        fba_points INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (semana_id, user_id),
+        KEY idx_fnba_sp_pos (semana_id, posicao)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $feito = true;
+}
+
+/**
+ * A segunda-feira da semana de uma data.
+ *
+ * SEMANA É DE SEGUNDA A DOMINGO, como ele pediu. O fechamento acontece
+ * quando o domingo ACABA — ou seja, na virada pra segunda. Dizer "domingo
+ * 00:00" é o jeito comum de falar disso, mas às zero hora de domingo o
+ * domingo ainda não foi jogado: pagar ali deixaria um sétimo da semana de
+ * fora, justo o dia de mais jogos.
+ */
+function fnbaSegundaDa(string $dia): string
+{
+    $d = new DateTimeImmutable($dia, new DateTimeZone(FNBA_FUSO));
+    return $d->modify('monday this week')->format('Y-m-d');
+}
+
+/** A semana que contém este dia, criando a linha se ainda não existir. */
+function fnbaSemanaDe(PDO $pdo, ?string $dia = null): array
+{
+    fnbaTabelasSemana($pdo);
+    $dia ??= (new DateTimeImmutable('now', new DateTimeZone(FNBA_FUSO)))->format('Y-m-d');
+    $ini = fnbaSegundaDa($dia);
+    $fim = (new DateTimeImmutable($ini))->modify('+6 days')->format('Y-m-d');
+    $pdo->prepare('INSERT IGNORE INTO fnba_semanas (inicio, fim) VALUES (?,?)')->execute([$ini, $fim]);
+    $st = $pdo->prepare('SELECT * FROM fnba_semanas WHERE inicio = ?');
+    $st->execute([$ini]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: ['inicio' => $ini, 'fim' => $fim, 'status' => 'aberta'];
+}
+
+/**
+ * A tabela de uma semana: a soma das rodadas dela.
+ *
+ * Sai de fnba_resultados, e não de uma coluna somada à parte — número que
+ * existe em dois lugares é número que diverge no primeiro ajuste.
+ */
+function fnbaTabelaDaSemana(PDO $pdo, string $inicio, string $fim, int $limite = 100): array
+{
+    fnbaTabelas($pdo);
+    $st = $pdo->prepare("SELECT res.user_id, u.name AS nome,
+                                SUM(res.pontos) AS total, COUNT(*) AS rodadas,
+                                MAX(res.pontos) AS melhor, SUM(res.moedas) AS moedas
+                           FROM fnba_resultados res
+                           JOIN fnba_rodadas r ON r.id = res.rodada_id
+                      LEFT JOIN users u ON u.id = res.user_id
+                          WHERE r.dia BETWEEN ? AND ?
+                       GROUP BY res.user_id, u.name
+                       ORDER BY total DESC LIMIT " . max(1, $limite));
+    $st->execute([$inicio, $fim]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Fecha a semana e paga os FBA Points.
+ *
+ * Só fecha depois que o domingo passou E todas as rodadas dela foram
+ * apuradas: pagar com uma rodada em aberto é publicar um campeão que ainda
+ * pode mudar.
+ */
+function fnbaApurarSemana(PDO $pdo, int $semanaId): array
+{
+    fnbaTabelasSemana($pdo);
+    $st = $pdo->prepare('SELECT * FROM fnba_semanas WHERE id = ?');
+    $st->execute([$semanaId]);
+    $sem = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$sem) return ['ok' => false, 'erro' => 'semana não encontrada'];
+    if ($sem['status'] === 'apurada') return ['ok' => true, 'ja' => true];
+
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone(FNBA_FUSO)))->format('Y-m-d');
+    if ($hoje <= $sem['fim']) return ['ok' => false, 'erro' => 'a semana ainda não acabou'];
+
+    $st = $pdo->prepare("SELECT COUNT(*) FROM fnba_rodadas
+                          WHERE dia BETWEEN ? AND ? AND status <> 'apurada'");
+    $st->execute([$sem['inicio'], $sem['fim']]);
+    if ((int)$st->fetchColumn() > 0) return ['ok' => false, 'erro' => 'ainda tem rodada sem apurar'];
+
+    $tabela = fnbaTabelaDaSemana($pdo, $sem['inicio'], $sem['fim']);
+    if (!$tabela) {
+        $pdo->prepare("UPDATE fnba_semanas SET status = 'apurada', apurada_em = NOW() WHERE id = ?")
+            ->execute([$semanaId]);
+        return ['ok' => true, 'cartolas' => 0, 'pontos' => 0];
+    }
+
+    $ins = $pdo->prepare("INSERT INTO fnba_semana_premios (semana_id, user_id, posicao, pontos, rodadas, fba_points)
+                          VALUES (?,?,?,?,?,?)
+                          ON DUPLICATE KEY UPDATE posicao=VALUES(posicao), pontos=VALUES(pontos),
+                                                  rodadas=VALUES(rodadas), fba_points=VALUES(fba_points)");
+    $pagar = $pdo->prepare("UPDATE games_usuarios SET fba_points = COALESCE(fba_points,0) + ? WHERE id = ?");
+    $pos = 0; $pagos = 0;
+    foreach ($tabela as $l) {
+        $pos++;
+        $fbap = FNBA_PREMIO_SEMANA[$pos] ?? 0;
+        $ins->execute([$semanaId, (int)$l['user_id'], $pos, (float)$l['total'], (int)$l['rodadas'], $fbap]);
+        if ($fbap > 0) {
+            /* A conta do Games pode não existir pra quem só jogou uma rodada
+               e sumiu — sem isto o prêmio cairia no vazio. */
+            $pdo->prepare('INSERT IGNORE INTO games_usuarios (id, nome, pontos) VALUES (?,?,0)')
+                ->execute([(int)$l['user_id'], (string)($l['nome'] ?? 'GM')]);
+            $pagar->execute([$fbap, (int)$l['user_id']]);
+            $pagos += $fbap;
+        }
+    }
+    $pdo->prepare("UPDATE fnba_semanas SET status = 'apurada', apurada_em = NOW() WHERE id = ?")
+        ->execute([$semanaId]);
+    return ['ok' => true, 'cartolas' => count($tabela), 'pontos' => $pagos];
+}
+
+/** As semanas que já acabaram e ainda não foram pagas. */
+function fnbaSemanasPendentes(PDO $pdo): array
+{
+    fnbaTabelasSemana($pdo);
+    $st = $pdo->query("SELECT * FROM fnba_semanas
+                        WHERE status = 'aberta' AND fim < CURDATE()
+                     ORDER BY inicio");
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Os campeões de cada semana — a lista que ele pediu.
+ *
+ * Só o primeiro de cada uma: é a galeria, não a tabela. Quem quiser o resto
+ * abre a semana.
+ */
+function fnbaCampeoesDaSemana(PDO $pdo, int $limite = 30): array
+{
+    fnbaTabelasSemana($pdo);
+    $st = $pdo->query("SELECT s.inicio, s.fim, p.user_id, p.pontos, p.rodadas, p.fba_points,
+                              u.name AS nome,
+                              (SELECT COUNT(*) FROM fnba_semana_premios x WHERE x.semana_id = s.id) AS cartolas
+                         FROM fnba_semanas s
+                         JOIN fnba_semana_premios p ON p.semana_id = s.id AND p.posicao = 1
+                    LEFT JOIN users u ON u.id = p.user_id
+                        WHERE s.status = 'apurada'
+                     ORDER BY s.inicio DESC LIMIT " . max(1, $limite));
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
