@@ -627,7 +627,9 @@ a{color:inherit}
           descartado, então quem não jogar não te custa a rodada.<br>
           Troque quantas vezes quiser até o primeiro jogo.<br>
           <b>O preço se mexe:</b> quem joga acima do que o preço dele promete fica mais caro,
-          quem joga abaixo barateia — no máximo F$ 2,5 por rodada. <b>Seu orçamento é sempre
+          quem joga abaixo barateia — no máximo F$ 2,5 por rodada. Quem ainda não tem
+          temporada atrás de si (calouro, quem veio de fora) estreia no piso e vai
+          direto pro preço do que está fazendo, sem esse limite. <b>Seu orçamento é sempre
           F$ <?= (int)FNBA_ORCAMENTO ?></b>: não cresce nem diminui com o que você faz.
         </p>
       </div>

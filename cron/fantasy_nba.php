@@ -101,6 +101,7 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $log($res['ok']
         ? "rodada {$r['dia']} apurada: {$res['cartolas']} cartolas, {$res['moedas']} moedas pagas"
           . " · mercado: {$res['subiu']} subiram, {$res['caiu']} caíram"
+          . ($res['estreantes'] ? ", {$res['estreantes']} ainda sem histórico" : "")
         : "rodada {$r['dia']} não apurou: {$res['erro']}");
 }
 

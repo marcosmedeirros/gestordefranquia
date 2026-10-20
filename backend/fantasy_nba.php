@@ -142,6 +142,24 @@ const FNBA_JOGOS_MIN = 15;
  * Quem NÃO JOGOU não mexe no preço: folga e lesão não são informação sobre
  * o jogador, e desvalorizar quem está no departamento médico puniria duas
  * vezes quem o escalou.
+ *
+ * ── E QUEM NUNCA JOGOU? ─────────────────────────────────────────────
+ *
+ * O preço de entrada sai da média da temporada PASSADA, e calouro não tem
+ * uma: Cooper Flagg, primeira escolha do draft e titular do Dallas, nasceu
+ * valendo o piso de 2 — do lado de reservas que valem 2 porque são
+ * reservas. Caminhando de 2,5 em 2,5, ele levaria umas oito rodadas pra
+ * chegar no preço real, e nesse meio tempo escalar ele seria dinheiro de
+ * graça: ninguém precisa escolher entre o craque e o calouro se o calouro
+ * custa nada.
+ *
+ * Então, enquanto o jogador não tiver FNBA_JOGOS_MIN jogos conhecidos
+ * (somando as duas temporadas), o preço dele não ANDA: ele é refeito, a
+ * cada rodada, a partir da média do que ele está fazendo AGORA. Sem trava,
+ * porque a trava existe pra proteger um preço estabelecido de uma noite
+ * fora da curva — e aqui não há preço estabelecido pra proteger, só um
+ * palpite de que ele vale 2. Com um punhado de jogos ele entra no regime
+ * normal e passa a andar como todo mundo.
  */
 const FNBA_VALORIZA   = 0.30;   // quanto do erro vira preço
 const FNBA_VAR_MAX    = 2.5;    // teto da variação por rodada, em F$
@@ -594,7 +612,11 @@ function fnbaImportarBoxscore(PDO $pdo, int $jogoId): int
 function fnbaValorizar(PDO $pdo, int $rodadaId): array
 {
     fnbaTabelas($pdo);
-    $st = $pdo->prepare("SELECT s.jogador_id, s.fp, j.preco
+    /* media_atual/jogos_atual são o que ele fez NESTA temporada, e só
+       interessam a quem ainda não tem histórico. */
+    $st = $pdo->prepare("SELECT s.jogador_id, s.fp, j.preco, j.jogos_base,
+                                (SELECT AVG(s2.fp)   FROM fnba_stats s2 WHERE s2.jogador_id = s.jogador_id) media_atual,
+                                (SELECT COUNT(*)     FROM fnba_stats s2 WHERE s2.jogador_id = s.jogador_id) jogos_atual
                            FROM fnba_stats s
                            JOIN fnba_jogos g ON g.id = s.jogo_id
                            JOIN fnba_jogadores j ON j.id = s.jogador_id
@@ -605,14 +627,23 @@ function fnbaValorizar(PDO $pdo, int $rodadaId): array
 
     $upd = $pdo->prepare('UPDATE fnba_jogadores SET preco = ?, var_ultima = ? WHERE id = ?');
     $sobe = 0; $desce = 0;
+    $estreantes = 0;
     foreach ($linhas as $l) {
         $preco = (float)$l['preco'];
-        /* O que o preço dele promete, na mesma régua que o criou. */
-        $esperado = $preco / FNBA_PRECO_FATOR;
-        $delta = ((float)$l['fp'] - $esperado) * FNBA_PRECO_FATOR * FNBA_VALORIZA;
-        $delta = max(-FNBA_VAR_MAX, min(FNBA_VAR_MAX, $delta));
 
-        $novo = round(max(FNBA_PRECO_MIN, min(FNBA_PRECO_MAX, $preco + $delta)), 1);
+        if ((int)$l['jogos_base'] + (int)$l['jogos_atual'] < FNBA_JOGOS_MIN) {
+            /* ESTREANTE: o preço é refeito pela média desta temporada, não
+               movido a partir de um palpite que ninguém fez. */
+            $alvo = (float)$l['media_atual'] * FNBA_PRECO_FATOR;
+            $estreantes++;
+        } else {
+            /* O que o preço dele promete, na mesma régua que o criou. */
+            $esperado = $preco / FNBA_PRECO_FATOR;
+            $delta = ((float)$l['fp'] - $esperado) * FNBA_PRECO_FATOR * FNBA_VALORIZA;
+            $alvo  = $preco + max(-FNBA_VAR_MAX, min(FNBA_VAR_MAX, $delta));
+        }
+
+        $novo = round(max(FNBA_PRECO_MIN, min(FNBA_PRECO_MAX, $alvo)), 1);
         /* A variação gravada é a que ACONTECEU, depois do piso e do teto —
            senão o jogador de 2,0 que "caiu 1,5" mostraria uma queda que o
            preço dele não teve. */
@@ -620,7 +651,7 @@ function fnbaValorizar(PDO $pdo, int $rodadaId): array
         $upd->execute([$novo, $real, (int)$l['jogador_id']]);
         if ($real > 0) $sobe++; elseif ($real < 0) $desce++;
     }
-    return ['subiu' => $sobe, 'caiu' => $desce];
+    return ['subiu' => $sobe, 'caiu' => $desce, 'estreantes' => $estreantes];
 }
 
 /* ─────────────────────────────────────────────────────────────────────
