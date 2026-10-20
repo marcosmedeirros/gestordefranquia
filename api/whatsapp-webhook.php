@@ -506,44 +506,61 @@ foreach ($mensagens as $m) {
        ao banco da liga fora dos grupos cadastrados. */
     if (!str_ends_with($de, '@g.us')) {
         if (!preg_match('~^/(leil[aã]o|oferta)(\s|$)~iu', $texto)) {
-            /* MODO PROFESSOR: os dois contatos que ensinam o bot falam com ele no
-               privado sem comando nenhum (backend/duvida_professor.php). Pra
-               qualquer outro número o privado segue só com /leilao. */
-            // O modo professor é o /duvida com outro nome: ensinar um modelo
-            // que não está atendendo não leva a lugar nenhum.
-            if (!WC_DUVIDA_LIGADA) continue;
+            /* ── NO PRIVADO, SÓ COMANDO ──────────────────────────────────
+               O privado atendia /leilao e o modo professor (duvida_professor),
+               que era conversa solta. Com o /duvida desligado, conversa solta
+               não existe mais em lugar nenhum: texto sem barra aqui é ignorado
+               igual ao do grupo.
 
-            require_once __DIR__ . '/../backend/duvida_professor.php';
+               Em troca, QUALQUER GM cadastrado passou a poder usar TODOS os
+               comandos no privado — pedido do dono da liga em 20/10/2026. É o
+               mesmo atendimento do grupo, com a liga do cadastro no lugar da
+               liga do grupo.
+
+               Comando de admin não escapa por aqui: botAdminGrupoLiberado()
+               recusa na primeira linha quando o jid não é de grupo, então /ok,
+               /abrir, /fechar e o painel inteiro seguem só no grupo marcado. */
+            if ($texto === '' || $texto[0] !== '/') continue;
+
             $jidPv = lwJidDaConversaPrivada($m, $de);
-            $prof = duvidaProfessorDoNumero($pdo, $jidPv);
-            if (!$prof) continue;
 
-            $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
-                                      WHERE tipo IN (?, 'comando') AND destino = ? AND created_at > NOW() - INTERVAL 1 MINUTE");
-            $stFreio->execute([DUVIDA_PROFESSOR_TIPO, $de]);
-            if ((int)$stFreio->fetchColumn() >= DUVIDA_PROFESSOR_FREIO) continue;
+            /* Sem telefone não há cadastro, e sem cadastro não há atendimento:
+               o privado não vira consulta aberta ao banco da liga. O LID é o
+               caso em que o WhatsApp não manda o número — o silêncio aqui é
+               proposital, porque responder "não te achei" a quem está com o
+               cadastro certo manda a pessoa procurar defeito onde não tem. */
+            if (!wcEhGmCadastrado($pdo, $jidPv)) continue;
+
+            /* O TETO DO DIA, por pessoa. Conta as respostas já enfileiradas
+               pra este número hoje: uma resposta por comando atendido.
+               @see WC_PRIVADO_LIMITE_DIA */
+            $stDia = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
+                                     WHERE tipo = 'comando' AND destino = ?
+                                       AND created_at >= CURDATE()");
+            $stDia->execute([$de]);
+            $hoje = (int)$stDia->fetchColumn();
+            if ($hoje > WC_PRIVADO_LIMITE_DIA) continue;   // já avisou: silêncio
+
             if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
 
-            /* TODOS OS COMANDOS NO PRIVADO — só pra quem está em
-               DUVIDA_COMANDOS_NO_PRIVADO. É o mesmo atendimento do grupo, com a
-               liga do cadastro dele no lugar da liga do grupo. O jid do grupo
-               vai vazio: sem grupo não há quiz pra votar nem grupo pra
-               cadastrar, e o /quizaqui já recusa fora de grupo. */
-            if (duvidaComandoNoPrivado($prof, $texto)) {
-                $resposta = wcResponderComando($pdo, $texto, $prof['liga'], $jidPv, '', 'comando');
-                // No grupo o comando desconhecido fica em silêncio pra não
-                // atrapalhar a conversa; aqui a conversa é só com ele.
-                if ($resposta === null) $resposta = 'Não conheço esse comando. Manda /ajuda pra ver a lista.';
-                if ($resposta !== '') {
-                    whatsappEnfileirar($pdo, $de, $resposta, false, 'comando', null, null, $jidPv, wcNomeDoComando($texto));
-                    $respondidas++;
-                }
+            /* O aviso sai UMA VEZ. Ele próprio entra na fila como resposta, e
+               é isso que leva a conta a passar do teto — da próxima mensagem
+               em diante o `continue` acima já cala. */
+            if ($hoje === WC_PRIVADO_LIMITE_DIA) {
+                whatsappEnfileirar($pdo, $de, 'Por hoje chega: são ' . WC_PRIVADO_LIMITE_DIA
+                    . " comandos por dia aqui no privado.\nAmanhã zera. No grupo não tem esse limite.",
+                    false, 'comando', null, null, $jidPv, 'limite');
+                $respondidas++;
                 continue;
             }
 
-            $resposta = duvidaProfessorResponder($pdo, $texto, $prof, $jidPv);
+            $resposta = wcResponderComando($pdo, $texto, wcLigaDeQuemPerguntou($pdo, $jidPv),
+                                           $jidPv, '', 'comando');
+            /* No grupo o comando desconhecido fica em silêncio pra não
+               atrapalhar a conversa; aqui a conversa é só com ele. */
+            if ($resposta === null) $resposta = 'Não conheço esse comando. Manda /ajuda pra ver a lista.';
             if ($resposta !== '') {
-                whatsappEnfileirar($pdo, $de, $resposta, false, DUVIDA_PROFESSOR_TIPO, null, null, $jidPv, 'professor');
+                whatsappEnfileirar($pdo, $de, $resposta, false, 'comando', null, null, $jidPv, wcNomeDoComando($texto));
                 $respondidas++;
             }
             continue;
@@ -565,54 +582,21 @@ foreach ($mensagens as $m) {
         continue;
     }
 
-    /* TRÊS JEITOS DE FALAR COM ELE: a barra de sempre, marcar o bot, e
-       responder uma mensagem dele. Os dois últimos entram como /duvida —
-       é o comando que aceita pergunta em português.
+    /* UM JEITO SÓ DE FALAR COM ELE: a barra.
+       Marcar o bot (@) e responder uma mensagem dele entravam como /duvida —
+       o comando que aceitava pergunta em português. Com o /duvida desligado
+       (@see WC_DUVIDA_LIGADA), os dois saíram junto: conversa de grupo sem
+       barra passa direto, e ele não responde nem pra dizer que está quieto.
 
-       O gatilho fica registrado porque muda o que se entende do número de
-       uso: "o bot foi usado 300 vezes" é outra coisa quando metade vem de
-       conversa e não de comando. */
+       O gatilho continua aqui porque a coluna existe na fila e porque é o que
+       volta a distinguir conversa de comando no dia em que religarem.
+
+       O código das três portas segue inteiro — wcMarcaramOBot,
+       wcResponderamAoBot e wcLogMencaoNaoReconhecida continuam no
+       whatsapp-comandos.php, esperando. */
     $gatilho = 'comando';
 
-    if ($texto[0] !== '/') {
-        /* Com o /duvida desligado, marcar o bot não faz nada: ele fica quieto
-           em vez de responder "estou desligado" a cada @ no meio da conversa
-           do grupo. Quem digitar /duvida recebe o aviso; quem só mencionou,
-           não queria necessariamente falar com ele. @see WC_DUVIDA_LIGADA */
-        if (!WC_DUVIDA_LIGADA) continue;
-
-        if (wcMarcaramOBot($m, $texto, $idsDoBot)) {
-            $gatilho = 'mencao';
-        } elseif (wcResponderamAoBot($m, $idsDoBot)) {
-            $gatilho = 'resposta';
-        } else {
-            // Tinha "@" e não era ele? Deixa o rastro pra saber por quê —
-            // menção que não é reconhecida é indistinguível de webhook que
-            // não chegou, e as duas se consertam de jeitos diferentes.
-            wcLogMencaoNaoReconhecida($m, $texto, $idsDoBot, $de, isset($gruposPermitidos[$de]));
-            continue;   // conversa do grupo que não é com ele
-        }
-
-        /* A menção sai do texto: "@5511... quem lidera?" vira "quem lidera?".
-           Deixá-la faria o modelo tentar descobrir de quem é aquele número.
-
-           Tiro QUALQUER @número que seja ele, e não a string exata do número
-           guardado: o WhatsApp escreve a menção com ou sem o 9, e um casamento
-           literal deixaria o número na frente da pergunta. */
-        $limpo = trim(preg_replace_callback('/@(\d{8,20})/',
-            function ($mm) use ($idsDoBot) {
-                foreach ($idsDoBot as $id) if (wcMesmoNumero($mm[1], $id)) return '';
-                return $mm[0];
-            }, $texto));
-        $limpo = trim(preg_replace('/\s+/', ' ', $limpo));
-        if ($limpo === '') {
-            // Marcaram o bot e não perguntaram nada: cai no /duvida sem argumento,
-            // que é justamente a lista de exemplos do que dá pra perguntar.
-            $texto = '/duvida';
-        } else {
-            $texto = '/duvida ' . $limpo;
-        }
-    }
+    if ($texto[0] !== '/') continue;
 
     // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
     // chegasse na instância viraria consulta ao banco da liga.

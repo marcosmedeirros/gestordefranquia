@@ -20,29 +20,67 @@ require_once __DIR__ . '/../backend/tatica_posicoes.php';      // lugar do titul
 require_once __DIR__ . '/../backend/power_elenco.php';   // a nota do jogador alem do OVR
 
 /**
- * O /duvida E A MENÇÃO AO BOT, LIGADOS OU DESLIGADOS.
+ * O /duvida, A MENÇÃO E A CONVERSA — DESLIGADOS.
  *
- * Desligados em 19/10/2026 a pedido do dono da liga: o /duvida parou de
- * responder direito, e um bot que erra a resposta no grupo é pior que um bot
- * que não responde — a liga passa a desconfiar também do que ele acerta.
+ * Decisão do dono da liga em 19/10/2026, confirmada em 20/10: "o /duvida e o
+ * @ não funcionam, e nem o continuar a conversa; tire eles de qualquer
+ * lugar". O bot deixou de conversar e passou a só responder comando.
  *
- * NADA FOI APAGADO. O wcDuvida, o duvida_professor, o edital_ia e as
- * memórias continuam inteiros; só não há porta aberta pra eles. Religar é
- * trocar este false por true, e as três portas voltam juntas:
+ * As três portas que sumiram:
  *
- *   - /duvida e /duvidas digitados no grupo
- *   - marcar o bot (@) ou responder uma mensagem dele, que viram /duvida
- *     no webhook
- *   - o modo professor no privado, que é /duvida com outro nome
+ *   1. /duvida e /duvidas digitados — aqui embaixo, no switch, viram
+ *      silêncio (o mesmo de um comando que não existe).
+ *   2. marcar o bot (@) e responder uma mensagem dele — no webhook, onde os
+ *      dois viravam /duvida. Agora a conversa do grupo passa direto.
+ *   3. o modo professor no privado, que era /duvida com outro nome.
  *
- * A chave mora aqui, e não no webhook, porque é daqui que as três leem.
+ * NADA FOI APAGADO: wcDuvida, duvida_professor, edital_ia e as memórias
+ * continuam inteiros. Religar é trocar este false por true — as três portas
+ * leem daqui, e por isso a chave mora neste arquivo e não no webhook.
  */
 const WC_DUVIDA_LIGADA = false;
 
-/** O que o bot responde a quem chamar o /duvida enquanto ele está desligado. */
-const WC_DUVIDA_DESLIGADA_TXT =
-    "O */duvida* está desligado por enquanto — estou sendo ajustado.\n"
-    . "Os comandos seguem todos de pé: */ajuda* mostra a lista.";
+/**
+ * QUANTOS COMANDOS CADA UM PODE MANDAR POR DIA NO PRIVADO.
+ *
+ * O privado atendia só /leilao e o modo professor. Liberado pra todos os
+ * comandos em 20/10/2026, com teto por pessoa e por dia.
+ *
+ * O teto existe pelo número do WhatsApp, não pelo servidor: o bot fala por
+ * uma conta comum pareada (Evolution/Baileys, ver bot/VPS.md), e o que marca
+ * uma conta dessas como spam é a quantidade de CONVERSAS PRIVADAS DISTINTAS,
+ * não o total de mensagens. Hoje são ~877 comandos por dia concentrados em
+ * poucos grupos; com 120 GMs cadastrados, 20 por dia é um teto de 2.400
+ * espalhados por até 120 conversas. O limite é o que separa isso de um
+ * número sem teto nenhum.
+ */
+const WC_PRIVADO_LIMITE_DIA = 20;
+
+/**
+ * A liga de quem mandou a mensagem, pelo telefone — ou null.
+ *
+ * No grupo, a liga é a do grupo: no Chat Off da NEXT, /tabela sem argumento
+ * responde a NEXT. No privado não existe essa pista, e a do cadastro é a
+ * melhor que há. GM com time em duas ligas devolve null de propósito: aí o
+ * próprio comando pede a liga, em vez de escolher uma e responder a errada.
+ */
+function wcLigaDeQuemPerguntou(PDO $pdo, string $deQuem): ?string
+{
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) return null;
+    $times = wcAcharPeloTelefone(wcGmsComTelefone($pdo), $digitos);
+    $ligas = array_values(array_unique(array_map(
+        fn($t) => strtoupper((string)($t['league'] ?? '')), $times)));
+    return count($ligas) === 1 && $ligas[0] !== '' ? $ligas[0] : null;
+}
+
+/** Quem mandou tem cadastro de GM? (o privado só atende quem tem). */
+function wcEhGmCadastrado(PDO $pdo, string $deQuem): bool
+{
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) return false;
+    return (bool)wcAcharPeloTelefone(wcGmsComTelefone($pdo), $digitos);
+}
 
 /**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
@@ -6020,8 +6058,11 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                liga achar que são comandos diferentes. */
             case 'duvida':
             case 'duvidas':
-                // Desligado, não removido. @see WC_DUVIDA_LIGADA
-                if (!WC_DUVIDA_LIGADA) return WC_DUVIDA_DESLIGADA_TXT;
+                /* Desligado, não removido: devolve null, que é o mesmo que o
+                   switch faz com comando inexistente — silêncio no grupo, e
+                   no privado a linha de "não conheço esse comando". Quem
+                   religar pelo WC_DUVIDA_LIGADA tem a chamada logo abaixo. */
+                if (!WC_DUVIDA_LIGADA) return null;
                 return wcDuvida($pdo, $arg, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
 
             // /edital voltou, mas SECO: só o texto do edital da liga do grupo,
