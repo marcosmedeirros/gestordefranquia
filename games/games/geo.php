@@ -242,17 +242,28 @@ document.documentElement.classList.add('js');
    o problema não chega a existir. */
 html{scrollbar-gutter:stable}
 
+/* ── O CABEÇALHO ANDA JUNTO COM O CONTEÚDO ──────────────────────────
+   O #geo tem 1080px centralizados e o .dash-hero do shell ocupa a largura
+   toda. Com o menu lateral isso não aparecia: a área útil era estreita e os
+   dois batiam na mesma margem. Sem o menu, numa tela larga, o título ficava
+   grudado na esquerda e os cards no meio — dois blocos da mesma página
+   começando em lugares diferentes. */
+.dash-hero{max-width:1080px;margin-inline:auto;width:100%;box-sizing:border-box}
+
 /* A topbar do shell nasce escondida (só aparece no celular, onde o menu
    vira gaveta). Aqui ela é o header do jogo, então vale sempre. */
 .topbar{display:flex}
 .main{padding-top:54px}
 
 .geo-topo{gap:10px}
-.geo-sair{display:grid;place-items:center;width:34px;height:34px;flex:none;
+/* geo-VOLTAR e não geo-sair: `.geo-sair` já é o botão de encerrar a partida,
+   lá embaixo, e o nome repetido punha 34x34 num botão que tem texto — o
+   "Encerrar" saía pela borda da tela. */
+.geo-voltar-hub{display:grid;place-items:center;width:34px;height:34px;flex:none;
   border-radius:10px;color:var(--text-2);background:var(--panel-2);
   border:1px solid var(--border-md);text-decoration:none;font-size:15px;
   transition:color var(--t) var(--ease),border-color var(--t) var(--ease)}
-.geo-sair:hover{color:var(--text);border-color:var(--border-red)}
+.geo-voltar-hub:hover{color:var(--text);border-color:var(--border-red)}
 .geo-saldo{display:inline-flex;align-items:center;gap:6px;flex:none;
   padding:6px 12px;border-radius:999px;font-size:12.5px;color:var(--text-2);
   background:var(--panel-2);border:1px solid var(--border-md)}
@@ -651,7 +662,7 @@ html:not(.js) .so-js{display:none !important}
      O que sobra é o que o jogador precisa aqui: por onde sair e quanto ele
      tem. @see games.php (o catálogo pra onde o voltar aponta) */ ?>
 <header class="topbar geo-topo">
-  <a class="geo-sair" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
+  <a class="geo-voltar-hub" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
   <div class="topbar-title">FBA <em>Geo</em></div>
   <span class="geo-saldo" title="Suas moedas">
     <i class="bi bi-coin"></i> <b><?= number_format($moedas, 0, ',', '.') ?></b>
