@@ -598,12 +598,18 @@ $jogosLivres = [
     // por isso também vem por `href`. Primeiro da grade: é o jogo da temporada.
     ['href' => '/fantasy.php', 'nome' => 'Fantasy FBA',
      'sub'  => 'Escale e dispute ligas', 'icone' => 'bi-stars', 'cor' => '#fc0025'],
-    /* O FANTASY NBA NAO TEM CARD AQUI, e e de proposito (20/10/2026): ele
-       vive so por link, em /escaleai.php. Na grade, dois cards chamados
-       "Fantasy" lado a lado mandariam a liga escolher entre dois jogos que
-       ela ainda nao sabe que sao diferentes — e o da casa e o que conta
-       ponto na ELITE. Pra publicar, e so acrescentar o card aqui.
+    /* ── O escaleAi ENTROU NA GRADE (20/10/2026) ───────────────────────
+       Estreou só por link, e o que segurava o card era o nome: "Fantasy
+       NBA" ao lado de "Fantasy FBA" mandava a liga escolher entre dois
+       jogos que ela ainda não sabia que eram diferentes. Rebatizado, o
+       problema sumiu — e logo abaixo do Fantasy FBA é justamente onde ele
+       deve ficar, porque quem escala um é quem escala o outro.
+
+       O subtítulo diz "jogadores reais" porque é essa a diferença que
+       importa: o Fantasy FBA é com os elencos da liga, este é com a NBA.
        @see escaleai.php */
+    ['href' => '/escaleai.php', 'nome' => 'escaleAi',
+     'sub'  => 'Escale jogadores reais da NBA', 'icone' => 'bi-clipboard-check-fill', 'cor' => '#fb923c'],
     /* SÉRIES SAIU DO GAMES em 30/09/2026 e virou o Clube FBA (/clube.php),
        com item próprio no menu lateral. Não volta como card daqui: o Games é
        partida — entra, joga, sai com placar — e o Clube é acervo, que só faz
