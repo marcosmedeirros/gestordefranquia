@@ -114,6 +114,39 @@ if ($podeConduzirPedida) {
 $podeConduzirEstaLiga = $ligaAtual !== ''
     && ($isGlobalAdmin || in_array($ligaAtual, $adminLeagues, true));
 
+/* ── ENSAIO (?ensaio=1) ──────────────────────────────────────────────
+ * Reencena a ÚLTIMA loteria já transmitida da liga, com a cerimônia de
+ * verdade — este mesmo arquivo, as mesmas funções —, só que sem gravar
+ * absolutamente nada: nem a transmissão, nem as reveladas, nem a ordem no
+ * draft. Serve pra conferir a cerimônia fora de uma noite de loteria, que
+ * é quando não dá pra testar.
+ *
+ * Só para quem conduz a liga: a ordem de uma loteria encerrada já é
+ * pública, mas o botão de revelar não precisa estar na mão de todo mundo.
+ *
+ * As travas são DUAS, e de propósito: aqui o PHP não chama nenhuma rota de
+ * escrita, e lá embaixo o JS troca por função vazia tudo que escreve.
+ * Uma só bastaria; duas é o que deixa dormir tranquilo.
+ */
+$ensaio = isset($_GET['ensaio']) && $podeConduzirEstaLiga;
+$ensaioOrdem = null;
+$ensaioQuando = null;
+if ($ensaio) {
+    try {
+        $stE = $pdo->prepare("SELECT ordem, atualizado_em FROM lottery_broadcast
+                               WHERE league = ? AND reveladas <> ''
+                            ORDER BY atualizado_em DESC LIMIT 1");
+        $stE->execute([$ligaAtual]);
+        if ($linhaE = $stE->fetch(PDO::FETCH_ASSOC)) {
+            $ensaioOrdem  = json_decode((string)$linhaE['ordem'], true) ?: null;
+            $ensaioQuando = $linhaE['atualizado_em'];
+        }
+    } catch (Throwable $e) {
+        error_log('[lottery ensaio] ' . $e->getMessage());
+    }
+    if (!$ensaioOrdem) $ensaio = false;
+}
+
 $setupSessions = $ligaAtual ? $buscarSessoes([$ligaAtual]) : [];
 
 // Ordem já confirmada (via "Confirmar e aplicar ao draft") da liga aberta na
@@ -628,6 +661,17 @@ body.bc-complete .podium{display:grid}
            lido quando mais importava: se a prévia não vem, o bloco inteiro
            fica oculto e leva o aviso junto — a pessoa via a página muda e
            não tinha como saber por quê. */ ?>
+  <?php if ($ensaio): ?>
+    <?php /* A faixa é gritante de propósito: ninguém pode confundir um
+             ensaio com a cerimônia de verdade olhando a tela de longe. */ ?>
+    <div class="panel" style="border-color:var(--red);background:var(--red-soft);margin-bottom:14px">
+      <b style="color:var(--red)"><i class="bi bi-cone-striped"></i> ENSAIO</b> —
+      reencenação da loteria da <?= htmlspecialchars($ligaAtual) ?> de
+      <?= htmlspecialchars(date('d/m/Y \à\s H:i', strtotime((string)$ensaioQuando))) ?>.
+      <b>Nada aqui é gravado</b>: nem a transmissão, nem a ordem do draft. Recarregue para repetir.
+      <a href="/lottery.php" style="color:var(--red)">Sair do ensaio</a>
+    </div>
+  <?php endif; ?>
   <div id="semLoteria" class="panel" style="display:none;border-color:rgba(245,158,11,.42)">
     <i class="bi bi-info-circle" style="color:var(--amber)"></i>
     <span id="semLoteriaTexto"></span>
@@ -2096,6 +2140,37 @@ window.addEventListener('beforeunload', (e) => {
   e.preventDefault();
   e.returnValue = '';
 });
+<?php if ($ensaio): ?>
+/* ── O ENSAIO, DO LADO DO NAVEGADOR ──────────────────────────────────
+   As funções que falam com o servidor são trocadas por função vazia ANTES
+   de qualquer uma delas poder rodar. Daqui pra frente o botão Revelar
+   chama exatamente o mesmo código de sempre — aplicarRevelacao, spinBalls,
+   pintarNoPalco —, só que nada sai do navegador. */
+const ENSAIO_ORDEM = <?= json_encode($ensaioOrdem, JSON_UNESCAPED_UNICODE) ?>;
+transmitirSorteio    = async () => true;
+transmitirRevelada   = async () => true;
+acompanharCerimonia  = async () => {};
+prepare              = async () => {};
+
+(function ensaiar(){
+  result = { order: ENSAIO_ORDEM, adjustments: [], preview: false };
+  try { setupBoardAndOdds(result); } catch (e) { console.warn('[ensaio] quadro:', e); }
+  /* A fila é só de quem foi sorteado: as vagas de playoff não passam pela
+     urna. Da última pick até a #1, como na cerimônia. */
+  revealQueue = ENSAIO_ORDEM.filter(o => o.source !== 'playoff')
+                            .map(o => o.position).sort((a, b) => b - a);
+  revealed = new Set();
+  palcoMostra = null;
+  const sec = document.getElementById('resultSection');
+  if (sec) sec.style.display = 'block';
+  const aviso = document.getElementById('previaAviso');
+  if (aviso) aviso.style.display = 'none';
+  /* O Confirmar não tem o que fazer num ensaio. */
+  const conf = document.getElementById('confirmPanel');
+  if (conf) conf.style.display = 'none';
+  if (typeof updateRevealButton === 'function') updateRevealButton();
+})();
+<?php else: ?>
 carregarPrevia().then(async () => {
   /* ── A TELA LÊ O SORTEIO UMA VEZ, AO ABRIR. E SÓ. ───────────────────
      Havia aqui um `setInterval(acompanharCerimonia, 3000)`: toda página
@@ -2134,6 +2209,7 @@ carregarPrevia().then(async () => {
     prepare();
   }
 });
+<?php endif; ?>
 </script>
 </body>
 </html>
