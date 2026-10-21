@@ -31,6 +31,15 @@
 const OCR_STATS_CAMPOS = ['games', 'min_pg', 'pts_pg', 'reb_pg', 'ast_pg', 'stl_pg', 'blk_pg', 'fg_pct'];
 
 /**
+ * Quanto tempo a cascata pode gastar, no total, antes de desistir.
+ *
+ * Medido: uma leitura boa volta entre 16s e 72s, dependendo do modelo e de
+ * como anda a fila do Google. 100s dá folga pra isso e ainda deixa margem
+ * larga até os 300s em que o servidor corta.
+ */
+const OCR_STATS_ORCAMENTO = 100;
+
+/**
  * Chama o Vision. Devolve as anotações com coordenadas, ou null.
  *
  * @param string|null $erro recebe a mensagem quando falha
@@ -142,9 +151,22 @@ function ocrStatsGemini(string $imagemBase64, string $mime, string $chave, ?stri
         $modelos = array_values(array_unique($modelos));
     }
 
+    /* ── ORÇAMENTO DE TEMPO, E ELE EXISTE POR CONTA ──────────────────
+       Quatro modelos × duas tentativas × 60s dá 480s no pior caso, e o
+       servidor corta em 300 (max_execution_time no .htaccess). O pior caso
+       chegaria no GM como um erro feio de servidor depois de cinco minutos
+       olhando o botão girar. Aqui a cascata desiste antes disso e devolve
+       uma frase que explica. */
+    $limite = microtime(true) + OCR_STATS_ORCAMENTO;
+
     $ultimo = 'Gemini não respondeu.';
     foreach ($modelos as $modelo) {
       for ($tentativa = 1; $tentativa <= 2; $tentativa++) {
+        if (microtime(true) >= $limite) {
+            $erro = 'Os leitores de imagem estão demorando demais agora. Tente de novo em um minuto.';
+            error_log('[ocr_stats/gemini] orçamento de ' . OCR_STATS_ORCAMENTO . 's estourado; último: ' . $ultimo);
+            return null;
+        }
         $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/'
                       . rawurlencode($modelo) . ':generateContent');
         curl_setopt_array($ch, [
