@@ -940,7 +940,7 @@ a{color:inherit}
     $('#cnt').textContent = v.length + ' '
       + (soFav ? 'favoritos' : (soJoga ? 'em quadra' : 'de ' + M.length))
       + (fp ? ' · ' + ROTP[fp] : '');
-    $('#lista').innerHTML = v.length ? v.slice(0,120).map(j => {
+    $('#lista').innerHTML = v.length ? v.map(j => {
       const i = sel.includes(j.id);
       return `<div class="lin ${i?'in':''} ${!i&&!cabe(j)?'off':''}" data-id="${j.id}">
         ${j.f?`<img src="${j.f}" alt="" loading="lazy">`:'<img alt="">'}
@@ -996,7 +996,12 @@ a{color:inherit}
     const c = ev.target.closest('[data-c]'); if (c) { cap = +c.dataset.c; tudo(); return; }
     const x = ev.target.closest('[data-x]'); if (x) toggle(+x.dataset.x);
   });
-  $('#q').addEventListener('input', ev => { q = ev.target.value; merc(); });
+  let tq = 0;
+  $('#q').addEventListener('input', ev => {
+    q = ev.target.value;
+    clearTimeout(tq);
+    tq = setTimeout(merc, 120);
+  });
   /* CONTEXTO: um de cada vez — onde procurar. */
   document.querySelectorAll('[data-ctx]').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('[data-ctx]').forEach(o => o.classList.remove('on'));
