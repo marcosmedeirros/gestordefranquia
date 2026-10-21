@@ -668,6 +668,7 @@ function wcAjuda(): string
         // liga inteira e qualquer time pode disputar, então é assunto de
         // quem lê esta lista.
         . "/jogosemana — o jogo da semana e o lance pra tomar a vaga\n"
+        . "/escaleai — o fantasy da NBA: líderes do dia, da semana e o geral\n"
         . "/loteria — quem entra na loteria do draft e a chance de cada grupo\n"
         // Ao lado da loteria porque é a pergunta seguinte: sorteada a ordem,
         // o que se quer saber é de quem é a vez e quem já saiu.
@@ -3123,6 +3124,118 @@ function wcMeuOpta(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
     return $erro ?: wcOptaDoTime($pdo, $t);
 }
 
+/**
+ * /escaleai — o escaleAi em três listas: o dia, a semana e o geral.
+ *
+ * ── POR QUE OS TRÊS NUMA MENSAGEM SÓ ────────────────────────────────
+ *
+ * São três perguntas diferentes e todas curtas: "quem ganhou ontem",
+ * "quem está levando os FBA Points desta semana" e "quem manda no
+ * campeonato". Três comandos separados seriam três mensagens pra
+ * responder o que cabe em quinze linhas — e quem pergunta uma
+ * normalmente quer as outras duas.
+ *
+ * O CABEÇALHO É O QUE MAIS SERVE: ele diz se tem jogo hoje e até que
+ * horas dá pra escalar. O ranking é o assunto, mas o prazo é a ação.
+ *
+ * @see backend/fantasy_nba.php, de onde sai cada número
+ */
+function wcEscaleAi(PDO $pdo): string
+{
+    require_once __DIR__ . '/../backend/fantasy_nba.php';
+
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone(FNBA_FUSO)))->format('Y-m-d');
+
+    /* ── O cabeçalho: tem jogo hoje? até quando dá pra escalar? ────── */
+    $txt = "🏀 *escaleAi*\n";
+    $rodadaHoje = fnbaRodadaDoDia($pdo, $hoje);
+    if ($rodadaHoje) {
+        $n = (int)$rodadaHoje['jogos'];
+        $txt .= '_hoje: ' . $n . ($n === 1 ? ' jogo' : ' jogos');
+        $txt .= fnbaAberta($rodadaHoje)
+            ? ' · escale até ' . date('H:i', strtotime($rodadaHoje['fecha_em'])) . "_\n"
+            : " · escalação fechada_\n";
+    } else {
+        $txt .= "_hoje a NBA não joga_\n";
+    }
+
+    $dia = static function (string $d): string {
+        $sem = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+        $x = new DateTimeImmutable($d);
+        return $sem[(int)$x->format('w')] . ', ' . $x->format('d/m');
+    };
+    $pts = static fn($v): string => number_format((float)$v, 1, ',', '.');
+
+    /* A lista é sempre a mesma forma; o que muda é de onde vêm as linhas. */
+    $lista = static function (array $linhas) use ($pts): string {
+        $out = '';
+        foreach ($linhas as $i => $l) {
+            $out .= ($i + 1) . '. *' . ($l['nome'] ?? 'GM') . '* — '
+                  . $pts($l['total'] ?? $l['pontos'] ?? 0) . "\n";
+        }
+        return $out;
+    };
+
+    /* ── O dia: a última rodada JÁ APURADA ──────────────────────────
+       Não a de hoje: enquanto os jogos não acabam ela não tem pontos, e
+       um ranking de zeros não é resposta. */
+    $ult = $pdo->query("SELECT id, dia FROM fnba_rodadas WHERE status = 'apurada'
+                         ORDER BY dia DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+
+    $doDia    = $ult ? fnbaRanking($pdo, (int)$ult['id'], 5) : [];
+    $sem      = fnbaSemanaDe($pdo, $hoje);
+    $daSemana = fnbaTabelaDaSemana($pdo, $sem['inicio'], $sem['fim'], 5);
+    $geral    = fnbaRankingGeral($pdo, null, null, 5);
+
+    /* ── AS TRÊS COMEÇAM IGUAIS, E ISSO NÃO É DEFEITO ────────────────
+       Na primeira rodada da semana, dia, semana e geral são a mesma
+       lista — e vão sendo a mesma de novo toda segunda-feira. Três
+       títulos pro mesmo top 5 é triplicar a mensagem sem dizer nada
+       novo, então a repetida vira uma linha de aviso. */
+    $mesma = static function (array $a, array $b): bool {
+        if (!$a || count($a) !== count($b)) return false;
+        foreach ($a as $i => $l) {
+            if (($l['user_id'] ?? null) !== ($b[$i]['user_id'] ?? null)) return false;
+            if ((float)($l['total'] ?? $l['pontos'] ?? 0)
+                !== (float)($b[$i]['total'] ?? $b[$i]['pontos'] ?? 0)) return false;
+        }
+        return true;
+    };
+    $semanaRepete = $mesma($daSemana, $doDia);
+    $geralRepete  = $mesma($geral, $daSemana) || $mesma($geral, $doDia);
+
+    if ($doDia) {
+        $quando = $ult['dia'] === $hoje ? 'hoje' : $dia($ult['dia']);
+        $txt .= "\n🔥 *Rodada de " . $quando . "*\n" . $lista($doDia);
+    }
+
+    /* A semana é a que paga os FBA Points — por isso o intervalo no título:
+       quem chega na quinta precisa saber desde quando está contando. */
+    if ($daSemana && !$semanaRepete) {
+        $txt .= "\n📅 *Semana (" . date('d/m', strtotime($sem['inicio']))
+              . ' a ' . date('d/m', strtotime($sem['fim'])) . ")*\n" . $lista($daSemana);
+    }
+
+    if ($geral && !$geralRepete) {
+        $txt .= "\n🏆 *Geral*\n" . $lista($geral);
+    }
+
+    /* Um aviso só, cobrindo o que foi omitido. */
+    if ($doDia && $semanaRepete && $geralRepete) {
+        $txt .= "\n_Primeira rodada da semana: semana e geral são esta mesma lista._\n";
+    } elseif ($daSemana && $geralRepete && !$semanaRepete) {
+        $txt .= "\n_O geral ainda é igual ao da semana._\n";
+    }
+
+    /* Nenhuma rodada apurada: as três listas vêm vazias, e aí a mensagem
+       precisa dizer o que está faltando em vez de só não ter nada. */
+    if (!$doDia && !$daSemana && !$geral) {
+        $txt .= "\nAinda não teve rodada apurada. Os rankings aparecem depois"
+              . " que os jogos do dia terminam.\n";
+    }
+
+    return rtrim($txt) . "\n\n_fbabrasil.com.br/escaleai.php_";
+}
 /**
  * Manda o quiz do dia passar a sair NESTE grupo.
  *
@@ -5926,6 +6039,15 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'analista':
             case 'chances':
                 return wcOpta($pdo, $arg, $ligaDoGrupo);
+
+            /* O fantasy da NBA. Os dois jeitos de escrever entram: o nome
+               é uma brincadeira com "escala aí", e no grupo ele sai dos
+               dois jeitos. */
+            case 'escaleai':
+            case 'escalaai':
+            case 'escalai':
+            case 'fantasynba':
+                return wcEscaleAi($pdo);
 
             case 'aceitar':
             case 'recusar':
