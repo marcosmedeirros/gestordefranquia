@@ -250,29 +250,25 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   box-shadow:inset 0 0 42px rgba(0,0,0,.55), 0 0 0 1px var(--red-soft)}
 .ball-globe::after{content:'';position:absolute;left:14%;top:10%;width:34%;height:22%;border-radius:50%;
   background:rgba(255,255,255,.09);filter:blur(6px);pointer-events:none}
+/* ── A BOLINHA NÃO TEM ANIMAÇÃO CSS, E É DE PROPÓSITO ─────────────────
+   Ela era posicionada por keyframes com `transform: rotate() translateX(--r)
+   rotate()`, e a cerimônia trocava esse transform duas vezes no meio do
+   caminho: ao frear (`animation-duration: 3.6s !important`, que recalcula o
+   progresso do ciclo) e ao sortear (`ballDrawn`, que só tem scale e por isso
+   perdia a órbita inteira). Como transform é uma propriedade só, cada troca
+   era um teleporte. Medido: 73px em média ao frear, até 136px, num globo de
+   79px de raio — mais que o próprio raio.
+
+   Agora quem posiciona é o requestAnimationFrame em spinBalls(), integrando
+   o ângulo: a velocidade pode cair a zero e a bolinha pode caminhar até o
+   centro sem nunca pular. Medido depois: 4,2px entre quadros, que é o que
+   uma bolinha rápida anda mesmo a 60fps. */
 .lottery-ball{position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;border-radius:50%;
   background:var(--panel);border:2px solid var(--border-md);display:flex;align-items:center;justify-content:center;
-  overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.45);
-  animation-name:ballTumble;animation-timing-function:linear;animation-iteration-count:infinite;
-  transition:opacity .45s var(--ease)}
+  overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.45);will-change:transform,opacity}
 .lottery-ball img{width:30px;height:30px;object-fit:contain;pointer-events:none}
-@keyframes ballTumble{
-  from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)}
-  to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
-}
-.ball-globe.slowing .lottery-ball{opacity:.22;animation-duration:3.6s!important}
-@keyframes ballDrawn{
-  0%{transform:scale(.65);opacity:.35}
-  55%{transform:scale(2.15)}
-  100%{transform:scale(1.95);opacity:1}
-}
-.lottery-ball.drawn{z-index:5;opacity:1!important;border-color:var(--red);
-  box-shadow:0 0 0 4px var(--red-soft),0 0 34px var(--red-glow);
-  animation:ballDrawn .78s cubic-bezier(.2,1.25,.4,1) forwards!important}
-@media(prefers-reduced-motion:reduce){
-  .lottery-ball{animation:none!important}
-  .lottery-ball.drawn{animation:none!important;transform:scale(1.9)}
-}
+.lottery-ball.drawn{z-index:5;border-color:var(--red);
+  box-shadow:0 0 0 4px var(--red-soft),0 0 34px var(--red-glow)}
 
 /* Urna — quem ainda está concorrendo */
 .bowl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -908,6 +904,8 @@ function spawnParticles(symbol, color, count){
 
 let result = null;       // resposta do run_lottery
 let revealQueue = [];    // posições de loteria a revelar (da última pra #1)
+let seloDaRevelacao = 0; // @see aplicarRevelacao: pouso atrasado não pinta
+let palcoMostra = null;  // que escolha está no palco agora, pra não repintar igual
 let revealed = new Set();
 let busy = false;
 
@@ -1401,36 +1399,92 @@ const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-
  * gira todas, desacelera e "puxa" a do time sorteado. O resultado já veio
  * pronto do servidor — isto é só a encenação. Chama onDone() no fim.
  */
+const GIRO_MS   = 1400;   // rodando solto
+const FREIO_MS  = 800;    // a velocidade cai até zero, continuamente
+const VIAGEM_MS = 650;    // a sorteada caminha da órbita até o centro
+
+/**
+ * AS BOLINHAS GIRANDO.
+ *
+ * O ângulo de cada bolinha é integrado quadro a quadro (ang += vel*k*dt), e o
+ * freio é um fator `k` que vai de 1 a 0. Por construção não existe salto: a
+ * posição do quadro seguinte é sempre vizinha da do anterior. A sorteada
+ * parte de onde ela está de verdade e caminha até o centro.
+ *
+ * @see .lottery-ball no CSS, que por isso não tem animation nenhuma
+ */
 function spinBalls(pool, entry, onDone){
   const machine = $('ballMachine'), globe = $('ballGlobe');
   if (!machine || !globe || REDUCED_MOTION) { onDone(); return; }
 
-  globe.classList.remove('slowing');
-  globe.innerHTML = '';
-  machine.classList.add('on'); // precisa estar visível antes de medir o raio
+  machine.classList.add('on');   // precisa estar visível antes de medir o raio
+  globe.innerHTML = pool.map(o =>
+    `<div class="lottery-ball" id="lb-${o.team_id}">
+      <img src="${esc(o.photo_url || LOGO_FALLBACK)}" alt="" onerror="this.src='${LOGO_FALLBACK}'">
+    </div>`).join('');
 
   const raio = Math.max(Math.min(machine.clientWidth, machine.clientHeight) / 2 - 26, 20);
-  globe.innerHTML = pool.map(o => {
-    // Órbitas e velocidades diferentes por bolinha = movimento de urna, não de carrossel.
-    const r = Math.round(10 + Math.random() * raio);
-    const dur = (1.0 + Math.random() * 0.9).toFixed(2);
-    const delay = (-Math.random() * 2).toFixed(2);
-    const dir = Math.random() < 0.5 ? 'normal' : 'reverse';
-    return `<div class="lottery-ball" id="lb-${o.team_id}" style="--r:${r}px;animation-duration:${dur}s;animation-delay:${delay}s;animation-direction:${dir}">
-      <img src="${esc(o.photo_url || LOGO_FALLBACK)}" alt="" onerror="this.src='${LOGO_FALLBACK}'">
-    </div>`;
-  }).join('');
+  const bolas = pool.map(o => ({
+    el: document.getElementById('lb-' + o.team_id),
+    sorteada: o.team_id === entry.team_id,
+    r: 10 + Math.random() * raio,
+    ang: Math.random() * Math.PI * 2,
+    // rad/s, para os dois lados: órbitas e sentidos diferentes dão movimento
+    // de urna, não de carrossel.
+    vel: (1.6 + Math.random() * 1.8) * (Math.random() < .5 ? 1 : -1),
+    // um sobe-e-desce no raio, pra bolinha não parecer presa num trilho
+    bobA: 3 + Math.random() * 5, bobV: 1.2 + Math.random() * 1.6, bobF: Math.random() * 6.28,
+    x: 0, y: 0, escala: 1
+  })).filter(b => b.el);
 
-  const giro = 1600 + Math.random() * 700;
-  setTimeout(() => {
-    globe.classList.add('slowing');
-    const bola = document.getElementById('lb-' + entry.team_id);
-    if (bola) bola.classList.add('drawn');
-    setTimeout(() => {
-      machine.classList.remove('on');
-      onDone();
-    }, bola ? 820 : 200);
-  }, giro);
+  const t0 = performance.now();
+  let anterior = t0, saida = null;
+
+  function frame(agora){
+    // Aba em segundo plano devolve dt enorme; limitar evita o pulo na volta.
+    const dt = Math.min((agora - anterior) / 1000, .05);
+    anterior = agora;
+    const t = agora - t0;
+
+    let k = 1;
+    if (t > GIRO_MS) k = Math.max(0, 1 - (t - GIRO_MS) / FREIO_MS);
+    k = k * k * (3 - 2 * k);              // suaviza a entrada e a saída do freio
+
+    for (const b of bolas) {
+      b.ang += b.vel * k * dt;
+      const r = b.r + Math.sin(agora / 1000 * b.bobV + b.bobF) * b.bobA * k;
+      b.x = Math.cos(b.ang) * r;
+      b.y = Math.sin(b.ang) * r;
+    }
+
+    const tv = t - (GIRO_MS + FREIO_MS);
+    if (tv >= 0 && !saida) {
+      saida = bolas.filter(b => b.sorteada).map(b => ({ b, x0: b.x, y0: b.y }));
+      saida.forEach(s => s.b.el.classList.add('drawn'));
+    }
+    let p = 0;
+    if (saida) {
+      p = Math.min(1, tv / VIAGEM_MS);
+      const e = 1 - Math.pow(1 - p, 3);                      // desacelera chegando
+      const respiro = 1 + Math.sin(p * Math.PI) * .12;
+      saida.forEach(s => {
+        s.b.x = s.x0 * (1 - e);
+        s.b.y = s.y0 * (1 - e);
+        s.b.escala = (1 + .9 * e) * respiro;
+      });
+    }
+
+    for (const b of bolas) {
+      b.el.style.transform = `translate(${b.x.toFixed(2)}px, ${b.y.toFixed(2)}px) scale(${b.escala.toFixed(3)})`;
+      if (!b.sorteada && t > GIRO_MS) {
+        b.el.style.opacity = String(Math.max(.18, 1 - (t - GIRO_MS) / (FREIO_MS + 200) * .82));
+      }
+    }
+
+    if (saida && p >= 1) { machine.classList.remove('on'); onDone(); return; }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
 /* ─── A CERIMÔNIA AO VIVO ──────────────────────────────────────────────
@@ -1506,19 +1560,43 @@ async function transmitirRevelada(pos){
 }
 
 let acompanhandoEm = null;   // carimbo da última mudança já aplicada
-let acompanhandoFila = [];
 
-/* Quem assiste. Só entra aqui quem não conduz: pra quem conduz, o servidor
-   é o eco do que ele mesmo acabou de fazer. */
 /**
- * Pega o que está no ar e coloca na tela.
+ * Lê o sorteio e põe na tela. UMA VEZ, ao abrir a página.
  *
- * Vale pra quem assiste, de três em três segundos, E pra quem conduz, uma
- * vez ao abrir a página: a ordem sorteada não mora mais no navegador de
- * ninguém, então recarregar deixava o próprio admin diante de uma tela
- * dizendo que nada foi sorteado — com a cerimônia no ar e metade da liga
- * olhando as picks saírem.
+ * Isto já rodou de três em três segundos, pra todo mundo, e era o que
+ * fazia a cerimônia se desfazer na frente da liga. Hoje roda uma vez só:
+ * para quem assiste é o retrato do sorteio no instante em que abriu, e
+ * para quem conduz é o que devolve a cerimônia depois de um F5 — sem isto
+ * o próprio admin recarregava e encontrava uma tela dizendo que nada tinha
+ * sido sorteado, com metade da liga vendo as picks saírem.
+ *
+ * Quem quiser ver o que saiu depois disso recarrega. É o combinado, e é o
+ * que garante que duas telas nunca discordem: nenhuma delas tenta adivinhar
+ * o que a outra está fazendo.
  */
+/**
+ * Diz a quem assiste que a tela não se atualiza sozinha.
+ *
+ * Sem isto, a página parada no meio da cerimônia parece travada — e a
+ * pessoa fica olhando uma pick que já saiu faz cinco minutos sem saber
+ * que basta recarregar.
+ */
+function avisarQueEhRetrato(){
+  const alvo = $('revealStage');
+  if (!alvo || $('avisoRetrato')) return;
+  const aviso = document.createElement('div');
+  aviso.id = 'avisoRetrato';
+  aviso.className = 'reveal-hint';
+  aviso.style.cssText = 'margin-top:14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap';
+  aviso.innerHTML = '<span><i class="bi bi-camera-fill"></i> Esta tela mostra o sorteio como ele estava quando você abriu.</span>'
+    + '<button type="button" class="btn-ghost2" id="btnAtualizarRetrato">'
+    + '<i class="bi bi-arrow-clockwise"></i> Ver as próximas</button>';
+  alvo.appendChild(aviso);
+  const b = $('btnAtualizarRetrato');
+  if (b) b.addEventListener('click', () => location.reload());
+}
+
 async function acompanharCerimonia(){
   const sid = SESSAO_ID();
   if (!sid) return;
@@ -1553,24 +1631,47 @@ async function acompanharCerimonia(){
     // A ordem sorteada substitui a prévia: daqui pra frente o quadro é
     // resultado, não retrato da campanha.
     result = Object.assign({}, result, { order: d.ordem, adjustments: d.ajustes, preview: false });
-    const jaVistas = new Set(revealed);
 
-    if (primeiraVez || mudouAOrdem) {
+    /* O QUADRO NUNCA VOLTA ATRÁS. `setupBoardAndOdds` zera o `revealed` e
+       redesenha tudo como "Aguardando" — depois que a primeira pick saiu,
+       isso é o quadro desandando na frente da liga. Daqui pra frente ele só
+       é montado enquanto nada foi revelado ainda. */
+    if ((primeiraVez || mudouAOrdem) && !revealed.size) {
       setupBoardAndOdds(result);
       revealQueue = d.ordem.filter(o => o.source !== 'playoff')
                            .map(o => o.position).sort((a, b) => b - a);
     }
 
-    /* Quem chega no meio recebe tudo de uma vez, sem encenação: a bolinha
-       girando dezesseis vezes seguidas não é cerimônia, é espera. O que
-       chega DEPOIS que a pessoa já está olhando, aí sim, é revelado. */
+    /* ── QUEM ASSISTE NÃO ANIMA ───────────────────────────────────────
+       A bolinha girando é só de quem conduz. Para todo mundo mais, a
+       escolha entra no quadro já preenchida, alguns segundos depois — que
+       é o combinado: "deixa somente na que a pessoa tá sorteando, e aí
+       demora um pouco pros demais".
+
+       Isso não é só simplificação. A animação de quem assistia começava a
+       partir do relógio dele, não do de quem conduz, e duas podiam se
+       sobrepor quando chegavam juntas — era mais uma porta pro palco
+       mostrar um time embaixo do número de outro. Porta fechada. */
     d.reveladas.forEach(pos => {
-      const novaAgora = !primeiraVez && !jaVistas.has(pos);
       revealQueue = revealQueue.filter(p => p !== pos);
-      if (novaAgora) acompanhandoFila.push(pos);
-      else aplicarRevelacao(pos, false);
+      fixarNoQuadro(pos);
     });
-    escoarFilaDeQuemAssiste();
+
+    /* O palco de quem assiste mostra a última que saiu, parada, do mesmo
+       jeito que a de quem conduz fica entre um clique e outro. Sem brilho:
+       não houve sorteio aqui, houve notícia. */
+    if (!busy && d.reveladas.length) {
+      const ultima = d.reveladas[d.reveladas.length - 1];
+      const entry = (result.order || []).find(o => o.position === ultima);
+      if (entry && entry.team_name) {
+        pintarNoPalco(entry, false);
+        const rot = $('revealPickLabel');
+        if (rot) {
+          rot.textContent = revealQueue.length
+            ? 'Próxima: escolha #' + revealQueue[0] : 'Ordem completa';
+        }
+      }
+    }
 
     /* A tela sai do estado de prévia: o que está embaixo é resultado.
        Sem isso, quem conduz recarregava a página e encontrava o aviso de
@@ -1582,11 +1683,6 @@ async function acompanharCerimonia(){
   } catch (e) { /* próxima olhada tenta de novo */ }
 }
 
-function escoarFilaDeQuemAssiste(){
-  if (busy || !acompanhandoFila.length) return;
-  const pos = acompanhandoFila.shift();
-  aplicarRevelacao(pos, true);
-}
 
 async function revealNext(){
   if (busy || !revealQueue.length) return;
@@ -1681,39 +1777,38 @@ function aplicarRevelacao(pos, comEncenacao){
   if (btn) btn.disabled = true;
   $('revealStage').classList.add('armed');
 
+  /* O SEGUNDO CINTO. `busy` já impede começar duas revelações, mas se alguma
+     escapar, o pouso da antiga não pode pintar por cima da nova: ele confere
+     o selo antes de escrever qualquer coisa. */
+  const meuSelo = ++seloDaRevelacao;
+
   // decoys = times de loteria ainda não revelados (as outras bolinhas do globo)
   const decoys = result.order
     .filter(o => o.source !== 'playoff' && !revealed.has(o.position) && o.position !== pos);
 
-  const numEl = $('revealNumber'), teamEl = $('revealTeam'), confEl = $('revealConf'), moveEl = $('revealMove'), logoEl = $('revealLogo'), passedEl = $('revealPassed');
-  numEl.className = 'reveal-number on';
-  numEl.textContent = '#' + pos;
-  confEl.textContent = '';
-  moveEl.className = 'reveal-move';
-  moveEl.textContent = '';
-  passedEl.className = 'reveal-passed';
-  passedEl.innerHTML = '';
-  $('revealVia').innerHTML = '';
-  // O nome e o escudo só aparecem depois que a bolinha sai do globo. Aqui é
-  // display:none (e não visibility) para o escudo não deixar um vão de 120px
-  // entre o globo e o número da pick enquanto as bolinhas giram.
-  teamEl.className = 'reveal-team q';
-  teamEl.textContent = '';
-  logoEl.className = 'reveal-logo';
-  logoEl.style.display = 'none';
+  /* ── NADA DO RESULTADO É ESCRITO AQUI, E É O CONSERTO PRINCIPAL ──────
+     O número da pick saía neste ponto e o nome só no pouso, três segundos
+     depois. Bastava uma segunda revelação começar nesse meio pra tela ficar
+     com o número de uma pick e o time de outra — foi o "Kansas 16" da
+     loteria de 21/10, com a ordem gravada certa o tempo todo.
+
+     Agora quem fala durante o giro é só o rótulo, que é texto de estado e
+     não resultado. Número, escudo e nome nascem juntos no pouso, em
+     pintarNoPalco(), ou não nascem. */
+  const rotulo = $('revealPickLabel');
+  if (rotulo) rotulo.textContent = 'Sorteando a escolha #' + pos;
+  /* O card do anterior sai de cena só agora, quando as bolinhas começam a
+     girar — e volta preenchido com o novo. No intervalo entre uma pick e
+     outra ele fica na tela, parado. */
+  mostrarCardDoPalco(false);
 
   // Todas as bolinhas que ainda estão na urna, com a sorteada entre elas.
   spinBalls([entry].concat(decoys), entry, land);
 
   function land(){
-    logoEl.style.display = '';
-    logoEl.style.visibility = 'visible';
-    teamEl.className = 'reveal-team landed';
-    teamEl.textContent = entry.team_name;
-    confEl.textContent = entry.conference || '';
-    logoEl.src = entry.photo_url || LOGO_FALLBACK;
-    logoEl.className = 'reveal-logo pop';
-    $('revealVia').innerHTML = viaTag(entry);
+    /* Pouso de um sorteio que o palco já não mostra: não escreve. */
+    if (meuSelo !== seloDaRevelacao) return;
+    pintarNoPalco(entry, true);
 
     // ── Efeitos da revelação ──
     const stage = $('revealStage');
@@ -1722,13 +1817,9 @@ function aplicarRevelacao(pos, comEncenacao){
     void stage.offsetWidth; // reinicia animações
     stage.classList.add(isFinale ? 'finale' : 'flash');
     setTimeout(() => stage.classList.remove('flash','finale'), 1500);
-    numEl.classList.remove('punch'); void numEl.offsetWidth; numEl.classList.add('punch');
+    /* o punch do numero agora sai junto com o resto, em pintarNoPalco */
 
-    // movimento
     const d = entry.delta || 0;
-    if (d > 0) { moveEl.className = 'reveal-move up show'; moveEl.innerHTML = `<i class="bi bi-arrow-up-short"></i> Subiu ${d} ${d===1?'posição':'posições'}`; }
-    else if (d < 0) { moveEl.className = 'reveal-move down show'; moveEl.innerHTML = `<i class="bi bi-arrow-down-short"></i> Caiu ${Math.abs(d)} ${Math.abs(d)===1?'posição':'posições'}`; }
-    else { moveEl.className = 'reveal-move same show'; moveEl.innerHTML = `<i class="bi bi-dash"></i> Manteve a posição`; }
 
     // Subiu: brilho verde + partículas ▲ (mais intensas quanto maior o salto)
     if (d > 0) {
@@ -1738,14 +1829,6 @@ function aplicarRevelacao(pos, comEncenacao){
     }
     // Finale (#1): chuva dourada de estrelas
     if (isFinale) spawnParticles('★', '#f59e0b', 16);
-
-    // Quem passou na frente (só quando caiu)
-    const passed = entry.passed_by || [];
-    if (d < 0 && passed.length) {
-      passedEl.innerHTML = `<div class="reveal-passed-label"><i class="bi bi-arrow-up"></i> Ultrapassado por</div>
-        <div class="reveal-passed-teams">${passed.map(t => `<span class="reveal-passed-team">${logo(t.photo_url,'')}${esc(t.team_name)}</span>`).join('')}</div>`;
-      passedEl.className = 'reveal-passed show';
-    }
 
     /* Tira o time da urna (esvazia).
        PELO DONO DA BOLINHA, não por quem escolhe. O card nasce com o id da
@@ -1773,9 +1856,75 @@ function aplicarRevelacao(pos, comEncenacao){
     revealed.add(pos);
     busy = false;
     updateRevealButton();
-    // Quem assiste pode ter recebido mais de uma escolha enquanto esta rodava.
-    if (typeof escoarFilaDeQuemAssiste === 'function') escoarFilaDeQuemAssiste();
+
+    /* O PALCO AGORA FICA PARADO. Enquanto quem conduz comenta a pick, a
+       tela não tem mais nada a fazer: o escudo e o nome ficam onde estão
+       até o próximo clique. O rótulo é a única coisa que muda, e só uma
+       vez, pra dizer qual é a próxima. */
+    if (rotulo) {
+      rotulo.textContent = revealQueue.length
+        ? 'Próxima: escolha #' + revealQueue[0]
+        : 'Ordem completa';
+    }
   }
+}
+
+/**
+ * PINTA O RESULTADO NO PALCO — número, escudo e nome, de uma vez só.
+ *
+ * É a ÚNICA função que escreve esses três. Enquanto eles eram escritos em
+ * momentos diferentes, duas revelações sobrepostas deixavam o número de uma
+ * com o time de outra; nascendo juntos, isso deixa de ser possível.
+ */
+function pintarNoPalco(entry, comBrilho){
+  const numEl = $('revealNumber'), teamEl = $('revealTeam'), confEl = $('revealConf'),
+        moveEl = $('revealMove'), logoEl = $('revealLogo'), passedEl = $('revealPassed');
+  if (!numEl || !teamEl || !logoEl) return;
+
+  /* REPINTAR O QUE JÁ ESTÁ NA TELA É O QUE FAZIA A CERIMÔNIA "SE REFAZER".
+     Quem conduz comenta a pick por um minuto, e nesse minuto o poll bate
+     vinte vezes. Se cada uma reescrevesse o mesmo escudo, as animações de
+     entrada disparariam de novo a cada três segundos. Sem novidade, o palco
+     não é tocado. */
+  if (palcoMostra === entry.position && !comBrilho) return;
+  palcoMostra = entry.position;
+
+  mostrarCardDoPalco(true);
+  numEl.className = 'reveal-number on' + (comBrilho ? ' punch' : '');
+  numEl.textContent = '#' + entry.position;
+  logoEl.src = entry.photo_url || LOGO_FALLBACK;
+  logoEl.style.display = '';
+  logoEl.style.visibility = 'visible';
+  logoEl.className = 'reveal-logo' + (comBrilho ? ' pop' : '');
+  teamEl.className = 'reveal-team landed';
+  teamEl.textContent = entry.team_name;
+  if (confEl) confEl.textContent = entry.conference || '';
+  if ($('revealVia')) $('revealVia').innerHTML = viaTag(entry);
+
+  const d = entry.delta || 0;
+  if (moveEl) {
+    if (d > 0)      { moveEl.className = 'reveal-move up show';   moveEl.innerHTML = `<i class="bi bi-arrow-up-short"></i> Subiu ${d} ${d===1?'posição':'posições'}`; }
+    else if (d < 0) { moveEl.className = 'reveal-move down show'; moveEl.innerHTML = `<i class="bi bi-arrow-down-short"></i> Caiu ${Math.abs(d)} ${Math.abs(d)===1?'posição':'posições'}`; }
+    else            { moveEl.className = 'reveal-move same show'; moveEl.innerHTML = `<i class="bi bi-dash"></i> Manteve a posição`; }
+  }
+
+  const passed = entry.passed_by || [];
+  if (passedEl) {
+    if (d < 0 && passed.length) {
+      passedEl.innerHTML = `<div class="reveal-passed-label"><i class="bi bi-arrow-up"></i> Ultrapassado por</div>
+        <div class="reveal-passed-teams">${passed.map(t => `<span class="reveal-passed-team">${logo(t.photo_url,'')}${esc(t.team_name)}</span>`).join('')}</div>`;
+      passedEl.className = 'reveal-passed show';
+    } else {
+      passedEl.className = 'reveal-passed';
+      passedEl.innerHTML = '';
+    }
+  }
+}
+
+/** Mostra ou esconde o card inteiro do palco, sem mexer no que ele diz. */
+function mostrarCardDoPalco(visivel){
+  ['revealLogo','revealNumber','revealTeam','revealConf','revealVia','revealMove','revealPassed']
+    .forEach(id => { const el = $(id); if (el) el.style.visibility = visivel ? 'visible' : 'hidden'; });
 }
 
 /**
@@ -1948,17 +2097,27 @@ window.addEventListener('beforeunload', (e) => {
   e.returnValue = '';
 });
 carregarPrevia().then(async () => {
-  /* TODOS na mesma cerimônia, o tempo todo.
-     Ao abrir, a tela retoma o que está no ar — inclusive a de quem conduz,
-     que senão recarrega e encontra a própria cerimônia sumida. E todos
-     continuam perguntando: quando a liga tem mais de um admin, quem não
-     está sorteando acompanha igual a qualquer GM.
+  /* ── A TELA LÊ O SORTEIO UMA VEZ, AO ABRIR. E SÓ. ───────────────────
+     Havia aqui um `setInterval(acompanharCerimonia, 3000)`: toda página
+     aberta relia o sorteio de três em três segundos e redesenhava a
+     cerimônia em cima do que já estava na tela. Era de onde vinham os
+     defeitos que a liga viu em 21/10 — o quadro voltando pra "Aguardando",
+     a revelação reencenando sozinha, e o palco mostrando o número de uma
+     pick com o time de outra, porque uma atualização chegava no meio de
+     uma bolinha girando.
 
-     Três segundos é rápido o bastante pra parecer ao vivo e espaçado o
-     bastante pra dezenas de páginas abertas não virarem carga. A resposta é
-     minúscula, e a tela só é redesenhada quando o carimbo de hora muda. */
+     A troca é deliberada e foi decidida assim: "se outro usuário estiver
+     com a tela aberta, ele não tenta sincronizar nada, porque isso que dá
+     o bug; só atualiza na tela da pessoa se ela der F5". Quem assiste vê
+     um retrato do sorteio no instante em que abriu, e atualiza quando
+     quiser — o aviso logo abaixo diz isso com todas as letras.
+
+     Quem conduz continua sendo a única fonte: cada revelação dele é
+     gravada no servidor na hora (@see transmitirRevelada), e é esse
+     registro que o F5 de todo mundo lê. Nada do que a liga vê depende de
+     uma tela adivinhar o que a outra está fazendo. */
   await acompanharCerimonia();
-  setInterval(acompanharCerimonia, 3000);
+  if (!PODE_EDITAR_ORDEM) avisarQueEhRetrato();
 
   /* ABRIU, SORTEOU.
      O botão "Sortear a loteria" saiu do topo: quem entra aqui veio conduzir

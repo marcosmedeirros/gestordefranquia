@@ -2438,19 +2438,51 @@ if ($method === 'POST') {
             }
 
             garantirTabelaTransmissao($pdo);
-            // Sortear de novo substitui o que estava no ar, e zera o que já
-            // tinha sido revelado: é outra cerimônia.
-            $pdo->prepare(
-                'INSERT INTO lottery_broadcast (draft_session_id, league, ordem, ajustes, reveladas, atualizado_em)
-                 VALUES (?, ?, ?, ?, "", NOW())
-                 ON DUPLICATE KEY UPDATE ordem = VALUES(ordem), ajustes = VALUES(ajustes),
-                                         reveladas = "", atualizado_em = NOW()'
-            )->execute([
-                $sid, $ligaSessao,
-                json_encode($ordem, JSON_UNESCAPED_UNICODE),
-                json_encode($data['ajustes'] ?? [], JSON_UNESCAPED_UNICODE),
-            ]);
-            echo json_encode(['success' => true]);
+
+            /* ── ZERAR AS REVELADAS SÓ QUANDO A ORDEM MUDA DE VERDADE ─────
+               Isto zerava `reveladas` em toda chamada, e qualquer tela de
+               admin que abrisse no meio da cerimônia chamava aqui: a liga
+               estava na pick 15 e o servidor passava a dizer que nada tinha
+               saído. A ordem continuava certa — por isso o estrago aparecia
+               como tela embaralhada, não como pick errada —, mas as telas
+               perdiam o fio de onde a cerimônia estava.
+
+               Republicar a MESMA ordem não é outra cerimônia, é a mesma. Só
+               quando alguma vaga troca de dono é que a contagem recomeça. */
+            $stAtual = $pdo->prepare('SELECT ordem, reveladas FROM lottery_broadcast WHERE draft_session_id = ?');
+            $stAtual->execute([$sid]);
+            $atual = $stAtual->fetch(PDO::FETCH_ASSOC);
+
+            $donos = static function ($lista): array {
+                $m = [];
+                foreach ((array)$lista as $o) {
+                    $p = (int)($o['position'] ?? 0);
+                    if ($p) $m[$p] = (int)($o['team_id'] ?? 0);
+                }
+                ksort($m);
+                return $m;
+            };
+            $mesmaOrdem = $atual
+                && $donos(json_decode((string)$atual['ordem'], true) ?: []) === $donos($ordem);
+
+            if ($mesmaOrdem) {
+                $pdo->prepare('UPDATE lottery_broadcast SET ajustes = ?, atualizado_em = NOW()
+                                WHERE draft_session_id = ?')
+                    ->execute([json_encode($data['ajustes'] ?? [], JSON_UNESCAPED_UNICODE), $sid]);
+            } else {
+                $pdo->prepare(
+                    'INSERT INTO lottery_broadcast (draft_session_id, league, ordem, ajustes, reveladas, atualizado_em)
+                     VALUES (?, ?, ?, ?, "", NOW())
+                     ON DUPLICATE KEY UPDATE ordem = VALUES(ordem), ajustes = VALUES(ajustes),
+                                             reveladas = "", atualizado_em = NOW()'
+                )->execute([
+                    $sid, $ligaSessao,
+                    json_encode($ordem, JSON_UNESCAPED_UNICODE),
+                    json_encode($data['ajustes'] ?? [], JSON_UNESCAPED_UNICODE),
+                ]);
+            }
+            echo json_encode(['success' => true, 'mesma_ordem' => $mesmaOrdem,
+                              'reveladas_mantidas' => $mesmaOrdem ? (string)$atual['reveladas'] : '']);
             break;
         }
 
