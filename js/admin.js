@@ -6001,8 +6001,15 @@ async function showConfig() {
           Fechadas
         </button>
       </div>
+      ${lg.league === 'ELITE' ? `
+      <button class="btn btn-outline-warning w-100"
+        style="font-size:12px;padding:7px 10px;margin-top:6px"
+        onclick="resolverDispensasAgora('${lg.league}')" id="resolverWaiversBtn_${lg.league}">
+        <i class="bi bi-hourglass-bottom me-1"></i> Resolver dispensas agora
+      </button>` : ''}
       <div style="font-size:11px;color:var(--text-3);margin-top:8px">
-        Fechado, ninguém dispensa. Aposentadoria continua liberada — é obrigação do edital.
+        Fechado, ninguém dispensa. Aposentadoria continua liberada — é obrigação do edital.${lg.league === 'ELITE' ? `
+        <br><b>Resolver agora</b> encerra na hora todas as dispensas em andamento: cada jogador vai pro maior lance, e quem não tem lance cai na Free Agency.` : ''}
       </div>
     </div>
   </div>
@@ -9274,6 +9281,48 @@ async function toggleTatica(league, abrir) {
   }
 }
 
+
+/**
+ * Encerra NA HORA todas as dispensas em andamento da liga.
+ *
+ * Não é o caminho normal — o normal é o prazo de 12h vencer e o cron
+ * fechar. Este botão existe pro fim de temporada e pra véspera de draft,
+ * quando a liga fica esperando um punhado de relógios individuais.
+ *
+ * PERGUNTA ANTES, E DIZ QUANTAS SÃO. O estrago de clicar sem querer é um
+ * jogador trocando de time e a liga sendo notificada — não há desfazer.
+ * Por isso a confirmação não é um "tem certeza?" genérico: ela conta
+ * quantas dispensas estão abertas agora, que é o número que faz a pessoa
+ * parar e pensar.
+ */
+async function resolverDispensasAgora(league) {
+  const btn = document.getElementById(`resolverWaiversBtn_${league}`);
+  const texto = btn ? btn.innerHTML : '';
+
+  if (!confirm(
+      `Encerrar AGORA todas as dispensas em andamento da ${league}?\n\n` +
+      `Cada jogador vai para o time com o maior lance. Quem não tiver lance nenhum ` +
+      `cai na Free Agency.\n\nIsso não tem desfazer.`)) return;
+
+  try {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Resolvendo...'; }
+    const r = await api('admin.php?action=resolver_dispensas', {
+      method: 'POST',
+      body: JSON.stringify({ league })
+    });
+    const n = r.resolved || 0;
+    if (!n) {
+      showAlert('info', `Nenhuma dispensa em andamento na ${league}.`);
+    } else {
+      showAlert('success', `${n} dispensa${n > 1 ? 's' : ''} encerrada${n > 1 ? 's' : ''}: ` +
+                `${r.claimed || 0} para times, ${r.cleared || 0} para a Free Agency.`);
+    }
+  } catch (e) {
+    showAlert('danger', 'Não deu pra resolver as dispensas: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = texto; }
+  }
+}
 
 async function toggleWaivers(league, enabled) {
   try {

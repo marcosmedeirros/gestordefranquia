@@ -463,13 +463,38 @@ function waiverFiltrarPorEspaco(PDO $pdo, array $claims, int $ovr): array
     return $sobram;
 }
 
-function resolveExpiredWaivers(PDO $pdo): array
+/**
+ * Resolve dispensas: entrega ao maior lance, ou manda pra Free Agency.
+ *
+ * @param string|null $league  só esta liga (null = todas)
+ * @param bool        $agora   true ignora o prazo e fecha TODAS as abertas
+ *
+ * ── O `$agora` É UM BOTÃO DE ADMIN, NÃO UM ATALHO ────────────────────
+ *
+ * O caminho normal é o prazo vencer: o cron roda de hora em hora e fecha o
+ * que passou das 12h. O `$agora` existe pra encerrar a janela inteira num
+ * instante escolhido — fim de temporada, começo de draft — quando esperar
+ * o relógio de cada dispensa atrasaria a liga toda.
+ *
+ * A REGRA DE QUEM LEVA NÃO MUDA: maior lance, empate com o mais antigo, e
+ * quem não tem mais espaço no cap perde a vez. Antecipar o fim não é
+ * sortear de outro jeito — é só parar o relógio mais cedo, e quem já tinha
+ * o maior lance leva do mesmo jeito que levaria no horário.
+ */
+function resolveExpiredWaivers(PDO $pdo, ?string $league = null, bool $agora = false): array
 {
     $out = ['resolved' => 0, 'claimed' => 0, 'cleared' => 0];
 
     try {
         ensureWaiverTables($pdo);
-        $rows = $pdo->query("SELECT * FROM waiver_retention WHERE status = 'open' AND expires_at <= NOW() ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+        $sql = "SELECT * FROM waiver_retention WHERE status = 'open'";
+        $par = [];
+        if (!$agora) $sql .= " AND expires_at <= NOW()";
+        if ($league !== null && $league !== '') { $sql .= " AND league = ?"; $par[] = $league; }
+        $sql .= " ORDER BY id";
+        $st = $pdo->prepare($sql);
+        $st->execute($par);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         // Rede de segurança: isso roda a cada acesso a /api/waivers.php (via GET), então um
         // erro aqui não pode derrubar a página inteira — o cron (api/waiver-cron.php) é quem

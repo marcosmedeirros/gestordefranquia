@@ -3240,6 +3240,52 @@ if ($method === 'POST') {
         /* DESFAZER UMA DISPENSA: o jogador volta pro time e a dispensa volta
            pro saldo. A regra e as travas moram em backend/waivers.php — aqui
            é só a porta do admin. */
+        /* ── RESOLVER AS DISPENSAS AGORA ──────────────────────────────
+           Encerra num instante TODAS as dispensas abertas da liga, sem
+           esperar as 12h de cada uma: cada jogador vai pro maior lance, e
+           quem não tem lance nenhum cai na Free Agency.
+
+           Existe pro fim de temporada e pra véspera de draft, quando a
+           liga inteira fica esperando um punhado de relógios individuais
+           vencerem. A REGRA DE QUEM LEVA NÃO MUDA — maior lance, empate
+           com o mais antigo, e quem perdeu espaço no cap perde a vez.
+           Antecipar o fim não sorteia de outro jeito: só para o relógio
+           mais cedo.
+
+           É irreversível pela própria natureza (o jogador troca de time e
+           a liga é notificada), então quem chama confirma antes. */
+        case 'resolver_dispensas': {
+            require_once __DIR__ . '/../backend/waivers.php';
+            $liga = strtoupper(trim((string)($data['league'] ?? '')));
+            if ($liga === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga não informada.']);
+                break;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $liga);
+
+            $abertas = 0;
+            try {
+                $st = $pdo->prepare("SELECT COUNT(*) FROM waiver_retention WHERE status = 'open' AND league = ?");
+                $st->execute([$liga]);
+                $abertas = (int)$st->fetchColumn();
+            } catch (Throwable $e) { /* a função abaixo reporta o que conseguir */ }
+
+            $r = resolveExpiredWaivers($pdo, $liga, true);
+
+            error_log(sprintf('[resolver_dispensas] %s: %d abertas, %d resolvidas (%d p/ time, %d p/ FA) por user_id=%d',
+                $liga, $abertas, $r['resolved'], $r['claimed'], $r['cleared'], (int)$user['id']));
+
+            echo json_encode([
+                'success'  => true,
+                'abertas'  => $abertas,
+                'resolved' => $r['resolved'],
+                'claimed'  => $r['claimed'],
+                'cleared'  => $r['cleared'],
+            ]);
+            break;
+        }
+
         case 'desfazer_dispensa': {
             require_once __DIR__ . '/../backend/waivers.php';
             $origem = (string)($data['origem'] ?? 'free_agent');
