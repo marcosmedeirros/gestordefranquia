@@ -135,18 +135,23 @@ function ocrStatsGemini(string $imagemBase64, string $mime, string $chave, ?stri
         'generationConfig' => ['temperature' => 0],
     ], JSON_UNESCAPED_UNICODE);
 
-    /* ── A CADEIA, E POR QUE ELA PRECISA EXISTIR ─────────────────────
-       O plano gratuito devolve 503 "high demand" com frequência, e não só
-       num modelo: medindo em 21/10, `gemini-3.7-flash` e `gemini-3.8-flash`
-       recusaram na hora, `gemini-2.5-flash` já foi aposentado (404), e
-       `gemini-3.1-flash-lite` e `gemini-3.5-flash` atenderam. O 503 também
-       vai e volta no mesmo modelo de um minuto pro outro — daí cada um
-       levar DUAS tentativas antes de passar a vez.
+    /* ── SÓ OS "LITE", E ISSO É COTA, NÃO QUALIDADE ──────────────────
+       No plano gratuito os modelos `flash` COMPLETOS têm 20 requisições por
+       dia — medido em 21/10, quando o `gemini-3.5-flash` devolveu
+       "Quota exceeded ... limit: 20" e mandou esperar quatro horas. Vinte
+       por dia não atende uma liga de 122 times: uma tarde de atualização de
+       elenco esgota isso antes do primeiro intervalo.
 
-       O lite vem primeiro por ser rápido (3s contra 23s do flash), e o
-       flash completo cobre o caso de o lite estar fora. */
-    $modelos = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'];
-    if (defined('EDITAL_IA_MODELO_GEMINI')) {
+       Os `flash-lite` têm cota larga e seguiram respondendo no mesmo
+       instante em que o completo recusava. Então a cadeia é só de lite —
+       não porque leiam melhor, mas porque estão lá quando o GM aperta o
+       botão. Nos testes o lite acertou 48 de 48 valores, o que basta.
+
+       Mais de um lite na fila porque o 503 "high demand" vai e volta no
+       mesmo modelo de um minuto pro outro; daí também as DUAS tentativas
+       por modelo. */
+    $modelos = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
+    if (defined('EDITAL_IA_MODELO_GEMINI') && str_contains(EDITAL_IA_MODELO_GEMINI, 'lite')) {
         array_unshift($modelos, EDITAL_IA_MODELO_GEMINI);
         $modelos = array_values(array_unique($modelos));
     }

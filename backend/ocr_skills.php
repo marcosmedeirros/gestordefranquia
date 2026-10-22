@@ -74,8 +74,11 @@ function ocrSkillsGemini(string $imagemBase64, string $mime, string $chave, ?str
         'generationConfig' => ['temperature' => 0],
     ], JSON_UNESCAPED_UNICODE);
 
-    $modelos = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'];
-    if (defined('EDITAL_IA_MODELO_GEMINI')) {
+    /* Só os "lite", por cota e não por qualidade. @see ocr_stats.php, que
+       explica: os `flash` completos têm 20 requisições por dia no plano
+       gratuito, o que não atende uma tarde de atualização de elenco. */
+    $modelos = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
+    if (defined('EDITAL_IA_MODELO_GEMINI') && str_contains(EDITAL_IA_MODELO_GEMINI, 'lite')) {
         array_unshift($modelos, EDITAL_IA_MODELO_GEMINI);
         $modelos = array_values(array_unique($modelos));
     }
