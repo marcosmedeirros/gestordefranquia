@@ -299,6 +299,46 @@ function wcDigitos($v): string
 }
 
 /**
+ * ── QUEM SÓ PODE USAR COMANDO EM CERTOS LUGARES ──────────────────────
+ *
+ * Mapa de telefone → os jids onde aquele número pode falar com o bot.
+ *
+ * É uma EXCEÇÃO NOMINAL, não uma lista de permissões: quem não está no
+ * mapa não é afetado em nada, e continua atendido onde sempre foi. Por
+ * isso o mapa vive aqui, à vista, e não numa tabela — são poucos casos,
+ * cada um é uma decisão do dono da liga, e ler o arquivo é mais rápido
+ * que consultar o banco pra descobrir por que alguém não é respondido.
+ *
+ * O bloqueio é SILENCIOSO. Responder "você não pode usar o bot aqui"
+ * anunciaria a restrição ao grupo inteiro toda vez que a pessoa tentasse,
+ * o que é humilhação pública por algo que é combinação entre duas pessoas.
+ * O log registra a tentativa pra quem precisar conferir.
+ */
+const WC_SO_NESTES_LUGARES = [
+    /* Kleberson Barreto Costa (22/10/2026): só nos dois chat-offs. */
+    '5579998087450' => [
+        '120363410921432279@g.us',   // FBA Chat off ELITE
+        '120363368960030310@g.us',   // Chat-Off | Geral
+    ],
+];
+
+/**
+ * Este número pode usar comando NESTE lugar?
+ *
+ * @param string $deQuem  jid de quem falou
+ * @param string $onde    jid do grupo, ou da conversa privada
+ */
+function wcPodeUsarComandoAqui(string $deQuem, string $onde): bool
+{
+    $num = wcDigitos($deQuem);
+    if ($num === '' || !isset(WC_SO_NESTES_LUGARES[$num])) return true;
+
+    /* O privado nunca está na lista, e isso é proposital: "só nestes
+       grupos" inclui não falar com o bot reservadamente. */
+    return in_array($onde, WC_SO_NESTES_LUGARES[$num], true);
+}
+
+/**
  * Dois identificadores são a mesma pessoa?
  *
  * Compara inteiro e, não batendo, pelos últimos 8 dígitos — a mesma rede de
@@ -531,6 +571,13 @@ foreach ($mensagens as $m) {
                cadastro certo manda a pessoa procurar defeito onde não tem. */
             if (!wcEhGmCadastrado($pdo, $jidPv)) continue;
 
+            /* Quem tem lugar marcado não fala nem aqui. @see WC_SO_NESTES_LUGARES */
+            if (!wcPodeUsarComandoAqui($jidPv, $de)) {
+                error_log('[whatsapp] ' . wcDigitos($jidPv) . ' não usa comando no privado'
+                        . ' (fora dos lugares combinados)');
+                continue;
+            }
+
             /* O TETO DO DIA, por pessoa. Conta as respostas já enfileiradas
                pra este número hoje: uma resposta por comando atendido.
                @see WC_PRIVADO_LIMITE_DIA */
@@ -646,6 +693,13 @@ foreach ($mensagens as $m) {
     if (str_contains($deQuem, '@lid')) {
         error_log('[whatsapp] remetente veio só como LID (' . $deQuem . ') no grupo ' . $de
                 . ' — sem telefone, os comandos "meus" não acham o cadastro');
+    }
+
+    /* Quem tem lugar marcado. @see WC_SO_NESTES_LUGARES */
+    if (!wcPodeUsarComandoAqui($deQuem, $de)) {
+        error_log('[whatsapp] ' . wcDigitos($deQuem) . ' não usa comando em ' . $de
+                . ' (fora dos lugares combinados)');
+        continue;
     }
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
