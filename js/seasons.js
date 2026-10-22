@@ -289,6 +289,60 @@ function _ensureBracketStyles() {
     document.head.appendChild(s);
 }
 
+/**
+ * O chaveamento ainda corresponde à classificação que está na tela?
+ *
+ * ── POR QUE ISTO PRECISA EXISTIR ─────────────────────────────────────
+ *
+ * O chaveamento é gerado UMA VEZ, a partir das seeds, e depois é
+ * deliberadamente preservado: refazer apagaria as séries já preenchidas.
+ * A consequência é que, se a classificação for corrigida depois, o
+ * chaveamento continua o antigo sem dizer nada — e ninguém percebe,
+ * porque a tela mostra as duas coisas em lugares diferentes.
+ *
+ * Aconteceu na ELITE em 22/10/2026: o 3º e o 4º do Oeste estavam
+ * trocados, foram corrigidos, e o chaveamento seguiu com Parfums × Wyverns
+ * e Souks × Catrinas quando o certo era Parfums × Catrinas e Souks ×
+ * Wyverns. A GM tentou atualizar e não achou como.
+ *
+ * Aqui não se conserta nada sozinho — conserto automático apagaria
+ * resultado preenchido. Só se avisa, e o botão de regerar fica do lado.
+ *
+ * @return {null|Array} null quando está coerente; a lista de divergências
+ *                      quando não está
+ */
+function _bracketForaDeSincronia(league) {
+    if (!_bracket) return null;
+    const form = document.getElementById('formAvancarTemporada') || document.getElementById('formRegistroPontuacao');
+    const tById = seasonsState.teamsById || {};
+    if (!form || !Object.keys(tById).length) return null;
+
+    const problemas = [];
+    ['leste', 'oeste'].forEach(conf => {
+        const chave = _bracket[conf];
+        if (!chave || !Array.isArray(chave.r1)) return;
+        chave.r1.forEach(jogo => {
+            if (!jogo) return;
+            /* Cada jogo guarda as seeds que o originaram (s1 e s2). Se a
+               vaga daquela seed na tela hoje tem outro time, o chaveamento
+               é de outra classificação. */
+            [[jogo.s1, jogo.t1], [jogo.s2, jogo.t2]].forEach(([seed, time]) => {
+                if (!seed || !time) return;
+                const el = form.querySelector(`[name="${conf}_rank_${seed}"]`);
+                const agoraId = el?.value ? String(el.value) : '';
+                if (!agoraId || agoraId === String(time.id)) return;
+                const agora = tById[agoraId];
+                problemas.push({
+                    conf: conf.toUpperCase(), seed,
+                    noChaveamento: String(time.name || time.id),
+                    naClassificacao: agora ? String(agora.name || agoraId) : `#${agoraId}`,
+                });
+            });
+        });
+    });
+    return problemas.length ? problemas : null;
+}
+
 function _renderBracket(league) {
     _ensureBracketStyles();
     const container = document.getElementById('playoffBracketContainer');
@@ -395,6 +449,26 @@ function _renderBracket(league) {
     </div>
 </div>
 <div class="mt-2">
+    ${(() => {
+        const fora = _bracketForaDeSincronia(league);
+        if (!fora) return '';
+        /* Uma linha por seed trocada, com os dois nomes: é o que deixa
+           claro que não é defeito do chaveamento, e sim classificação que
+           mudou depois. */
+        const linhas = fora.map(p =>
+            `<li><b>${p.conf} ${p.seed}º</b>: o chaveamento tem <b>${p.noChaveamento}</b>, a classificação tem <b>${p.naClassificacao}</b></li>`
+        ).join('');
+        return `
+        <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:11px 13px;margin-bottom:10px">
+            <div style="font-size:12.5px;font-weight:700;color:#f59e0b;margin-bottom:6px">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>A classificação mudou depois que este chaveamento foi gerado
+            </div>
+            <ul style="font-size:12px;color:var(--text-2);margin:0 0 8px;padding-left:18px">${linhas}</ul>
+            <div style="font-size:11.5px;color:var(--text-3)">
+                Regerar monta os confrontos pela classificação de agora — e <b>apaga os resultados já marcados</b> neste chaveamento.
+            </div>
+        </div>`;
+    })()}
     <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:11px" onclick="generateBracket('${league}')">
         <i class="bi bi-arrow-clockwise me-1"></i>Regerar chaveamento
     </button>
