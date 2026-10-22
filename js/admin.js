@@ -6777,6 +6777,17 @@ async function _loadLeagueConfigInline(league) {
               idSelo: `waiversBadge_${lg.league}`, idOn: `waiversOnBtn_${lg.league}`,
               idOff: `waiversOffBtn_${lg.league}`, acao: 'toggleWaivers',
               campo: null, valor: null, alvo: 'as dispensas',
+              /* FECHAR a janela só impede novas dispensas; as que já estão
+                 rodando seguem até o prazo de 12h vencer. Este botão é o que
+                 encerra as que estão em andamento, na hora. @see
+                 resolverDispensasAgora */
+              extra: lg.league === 'ELITE' ? `
+                <button class="btn btn-sm btn-outline-warning"
+                        onclick="resolverDispensasAgora('${lg.league}')"
+                        id="resolverWaiversJanela_${lg.league}"
+                        title="Encerra na hora as dispensas em andamento: cada jogador vai pro maior lance, e quem não tem lance cai na Free Agency">
+                  <i class="bi bi-hourglass-bottom"></i> Resolver agora
+                </button>` : '',
             })}
             <!-- A tática vem de outra API (admin-control), então os botões dela
                  chegam depois. A linha e o campo de horário já nascem aqui pra
@@ -6863,6 +6874,9 @@ function janelaLinha(o) {
                 onclick="${o.acao}('${o.liga}', 1)" id="${o.idOn}">${o.rotuloOn}</button>
         <button class="btn btn-sm ${!o.aberta ? 'btn-danger' : 'btn-outline-danger'}"
                 onclick="${o.acao}('${o.liga}', 0)" id="${o.idOff}">${o.rotuloOff}</button>
+        <!-- Um terceiro botão, pra linha que precisar de uma ação própria
+             além de abrir e fechar. Hoje só as Dispensas da ELITE usam. -->
+        ${o.extra || ''}
       </div>
       ${o.campo ? agendaCampo(o.liga, o.campo, o.valor, o.alvo) : ''}
     </div>`;
@@ -9296,7 +9310,11 @@ async function toggleTatica(league, abrir) {
  * parar e pensar.
  */
 async function resolverDispensasAgora(league) {
-  const btn = document.getElementById(`resolverWaiversBtn_${league}`);
+  /* O botão existe em duas telas — nos cards do showConfig e na linha de
+     Janelas da configuração inline — e nunca nas duas ao mesmo tempo, porque
+     uma substitui a outra no container. Pega a que estiver no ar. */
+  const btn = document.getElementById(`resolverWaiversJanela_${league}`)
+           || document.getElementById(`resolverWaiversBtn_${league}`);
   const texto = btn ? btn.innerHTML : '';
 
   if (!confirm(
