@@ -294,7 +294,9 @@ function _renderBracket(league) {
     const container = document.getElementById('playoffBracketContainer');
     if (!container || !_bracket) return;
     const b = _bracket, t = seasonsState.teamsById;
-    const tn = (team) => team ? `${team.city} ${team.name}` : 'Aguardando...';
+    /* So o nome: a caixa do chaveamento tem 148px e corta com ellipsis,
+       entao a cidade comia o nome do time -- que e o que se le ali. */
+    const tn = (team) => team ? String(team.name || '') : 'Aguardando...';
     const champion = b.final?.w ? t[b.final.w] : null;
 
     const mkCard = (conf, round, idx) => {
@@ -637,7 +639,7 @@ function _showReviewPanel(seasonId, league, payload) {
 
     const teamLabel = (id) => {
         const t = allTeams.find(t => String(t.id) === String(id));
-        return t ? escapeHtml(t.city + ' ' + t.name) : `Time #${id}`;
+        return t ? escapeHtml(String(t.name || '')) : `Time #${id}`;
     };
     const inpStyle = 'width:70px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);font-size:14px;font-weight:700;text-align:center';
 
@@ -1213,8 +1215,15 @@ async function showRegistroPontuacao(league) {
     const selStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
     const lblStyle = 'font-size:12px;color:var(--text-2);margin-bottom:6px;display:block';
     const playerSelStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;opacity:.6';
+    /* Mesma régua dos outros seletores de time desta tela: só o nome, em
+       ordem alfabética. Estas opções são trocadas por `opcoesAZ` quando a
+       liga termina de carregar, mas até lá é esta lista que aparece — e uma
+       lista que muda de formato no meio do caminho confunde mais do que a
+       cidade ajudava. */
     const awardTeamOpts = '<option value="">Selecione...</option>' +
-        allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
+        [...allTeams]
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base' }))
+            .map(t => `<option value="${t.id}">${escapeHtml(String(t.name || ''))}</option>`).join('');
     const mkAwardRow = (label, teamName, playerName, nbaCup = false) => `
         <div class="col-md-6">
             <label style="${lblStyle}">${label} (Time)</label>
@@ -1524,7 +1533,7 @@ async function showRegistroPontuacao(league) {
                     const caixa  = document.getElementById(`ext-vaga-${tipo}-${i}`);
                     if (rotulo) {
                         rotulo.innerHTML = `<i class="bi bi-check-circle-fill"></i> ` +
-                            escapeHtml(t ? `${t.city} ${t.name}` : `Time #${timeId}`);
+                            escapeHtml(t ? String(t.name || '') : `Time #${timeId}`);
                     }
                     if (caixa) caixa.classList.add('ok');
                 }
@@ -2233,14 +2242,17 @@ function montarOrdemGeral() {
     const base = naTela.length ? naTela : Array.from({ length: vagas }, (_, i) => salva[i] || '');
     const guardada = base.map(v => (v && todos.includes(String(v))) ? String(v) : '');
 
-    /* EM ORDEM ALFABÉTICA, e não na ordem que o banco devolveu.
-       São 30 a 32 opções por slot, e a lista é percorrida uma vez por
-       posição: fora de ordem, cada colocação custa varrer a liga inteira com
-       o olho. `localeCompare` com pt-BR porque ordenação binária joga acento
-       pro fim — "México City Catrinas" cairia depois do Z. */
+    /* SÓ O NOME DO TIME, SEM A CIDADE, E EM ORDEM ALFABÉTICA.
+       São 30 a 32 opções por slot, percorridas uma vez por posição: fora de
+       ordem, cada colocação custa varrer a liga inteira com o olho. A cidade
+       saiu porque ela vinha primeiro e mandava na ordenação — procurar o
+       Coyotes exigia saber que ele é de Las Vegas e ir no L. Nenhum nome se
+       repete dentro de uma liga, então o nome sozinho identifica o time.
+       `localeCompare` com pt-BR porque ordenação binária joga acento pro
+       fim — "Pererês" cairia depois do Z. */
     const nomeDoTime = (id) => {
         const t = tById[String(id)] || {};
-        return `${t.city || ''} ${t.name || id}`.trim();
+        return String(t.name || id);
     };
     const todosAZ = [...todos].sort((a, b) =>
         nomeDoTime(a).localeCompare(nomeDoTime(b), 'pt-BR', { sensitivity: 'base' }));
@@ -2513,7 +2525,9 @@ async function loadTeamsForStandings(league) {
            binária joga acento pro fim do alfabeto — o México cairia depois do
            Z. Lista à parte: os slots de classificação abaixo continuam na
            ordem da conferência, que ali é o que importa. */
-        const nomeDoTime = t => `${t.city || ''} ${t.name || ''}`.trim();
+        /* Só o nome, sem a cidade, pela mesma razão da ordem geral logo
+           acima: a cidade vinha primeiro e mandava na ordenação. */
+        const nomeDoTime = t => String(t.name || '');
         const timesAZ = [...teams].sort((a, b) =>
             nomeDoTime(a).localeCompare(nomeDoTime(b), 'pt-BR', { sensitivity: 'base' }));
         const opcoesAZ = timesAZ.map(t => `<option value="${t.id}">${nomeDoTime(t)}</option>`).join('');
