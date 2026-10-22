@@ -1,6 +1,21 @@
 <?php
+/**
+ * Leitura dos atributos por foto (tela View List › Simple).
+ *
+ * DOIS MOTORES, EM CASCATA — Vision primeiro, Gemini quando ele não atende.
+ * O porquê está em backend/ocr_stats.php; o resumo é que a chave do Vision
+ * mora num projeto sem faturamento e volta BILLING_DISABLED em toda
+ * chamada. Esta tela ficou quebrada alguns dias a mais que a das
+ * estatísticas, porque a cascata saiu primeiro só pra lá.
+ *
+ * Os dois chegam no mesmo formato por caminhos diferentes: o Vision devolve
+ * palavras com coordenadas e o parseSkillTable remonta a tabela por
+ * geometria; o Gemini devolve a lista já lida.
+ */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/ocr_skills.php';
+require_once __DIR__ . '/../backend/edital_ia.php';
 requireAuth();
 
 header('Content-Type: application/json');
@@ -13,10 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $cfg = require __DIR__ . '/../backend/config.php';
 $visionKey = $cfg['app']['google_vision_key'] ?? '';
+$geminiKey = function_exists('editalIaChaveGemini') ? editalIaChaveGemini() : '';
 
-if (!$visionKey || $visionKey === 'API_KEY') {
+/* Basta UM dos dois. */
+if ((!$visionKey || $visionKey === 'API_KEY') && $geminiKey === '') {
     http_response_code(503);
-    echo json_encode(['error' => 'Google Vision API não configurada.']);
+    echo json_encode(['error' => 'Nenhum leitor de imagem está configurado no servidor.']);
     exit;
 }
 
@@ -107,46 +124,35 @@ $stmt = $pdo->prepare('SELECT p.id, p.name FROM players p WHERE p.team_id = ? OR
 $stmt->execute([$teamId]);
 $rosterPlayers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$imageData = $body['image'];
-if (strpos($imageData, 'base64,') !== false) {
-    $imageData = explode('base64,', $imageData)[1];
+[$imageData, $imageMime] = ocrStatsSepararImagem($body['image']);
+
+/* ── A CASCATA ─────────────────────────────────────────────────────── */
+$detected = null;
+$motor    = null;
+$porques  = [];
+
+if ($visionKey && $visionKey !== 'API_KEY') {
+    $anotacoes = ocrStatsVision($imageData, $visionKey, $erroVision);
+    if ($anotacoes !== null) {
+        $detected = parseSkillTable($anotacoes);
+        $motor    = 'vision';
+        /* Leu a imagem mas não achou a tabela: o Gemini merece uma chance,
+           que ele lê estrutura e o parse posicional não. */
+        if (!$detected) { $porques[] = 'Vision leu a imagem mas não achou a tabela.'; $motor = null; }
+    } else {
+        $porques[] = $erroVision;
+    }
 }
 
-$visionUrl = "https://vision.googleapis.com/v1/images:annotate?key={$visionKey}";
-$visionBody = json_encode([
-    'requests' => [[
-        'image' => ['content' => $imageData],
-        'features' => [['type' => 'TEXT_DETECTION', 'maxResults' => 2000]]
-    ]]
-]);
-
-$ch = curl_init($visionUrl);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $visionBody);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-$visionResponse = curl_exec($ch);
-$curlError = curl_error($ch);
-curl_close($ch);
-
-if ($curlError) {
-    http_response_code(502);
-    echo json_encode(['error' => 'Erro ao contactar Google Vision: ' . $curlError]);
-    exit;
+if ($detected === null && $geminiKey !== '') {
+    $detected = ocrSkillsGemini($imageData, $imageMime, $geminiKey, $erroGemini);
+    if ($detected !== null) $motor = 'gemini';
+    else $porques[] = $erroGemini;
 }
 
-$visionData = json_decode($visionResponse, true);
-
-if (!empty($visionData['error'])) {
-    http_response_code(502);
-    echo json_encode(['error' => 'Google Vision: ' . ($visionData['error']['message'] ?? 'Erro desconhecido')]);
-    exit;
-}
-
-// O Google cobra a chamada mesmo quando nao acha texto nenhum, entao o uso e
-// contado assim que a resposta chega. Contar so no sucesso deixaria uma imagem
-// ruim repetida furar o freio sem aparecer em lugar nenhum.
+// O uso e contado assim que a leitura acontece. Contar so no sucesso
+// deixaria uma imagem ruim repetida furar o freio sem aparecer em lugar
+// nenhum.
 $pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
     ON DUPLICATE KEY UPDATE count = count + 1')
     ->execute([$teamId, $seasonId]);
@@ -155,16 +161,24 @@ $pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
     ON DUPLICATE KEY UPDATE count = count + 1')
     ->execute([$ym]);
 
-$annotations = $visionData['responses'][0]['textAnnotations'] ?? [];
-if (empty($annotations)) {
-    echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => VISION_LIMIT]);
+if ($detected === null) {
+    error_log('[vision_skills] nenhum motor leu: ' . implode(' | ', array_filter($porques)));
+    http_response_code(502);
+    echo json_encode(['error' => 'Não consegui ler a imagem. Confira se o print é da tela View List › Simple e está legível.']);
     exit;
 }
 
-$detected = parseSkillTable($annotations);
+if (!$detected) {
+    echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount,
+                      'limit' => VISION_LIMIT, 'motor' => $motor]);
+    exit;
+}
 $matched  = autoMatchPlayers($detected, $rosterPlayers);
 
-echo json_encode(['detected' => $matched, 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => VISION_LIMIT]);
+// `motor` diz quem leu: serve pra saber, olhando a tela, se o Vision
+// voltou a funcionar sem precisar abrir log.
+echo json_encode(['detected' => $matched, 'roster' => $rosterPlayers, 'used' => $currentCount,
+                  'limit' => VISION_LIMIT, 'motor' => $motor]);
 
 // ─── Helpers ────────────────────────────────────────────────
 
