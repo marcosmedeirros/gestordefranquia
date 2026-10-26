@@ -17,7 +17,41 @@ $pdo      = db();
 $pdoGames = null;
 $method   = $_SERVER['REQUEST_METHOD'];
 $action   = $_GET['action'] ?? '';
-$isAdmin  = ($user['user_type'] ?? 'jogador') === 'admin';
+/* ── ADMIN GERAL E ADMIN DE LIGA ──────────────────────────────────────
+ *
+ * Isto exigia `user_type === 'admin'` nas quatro ações de administração, e
+ * com isso só o dono da liga enxergava o card de Badges: quem administra
+ * uma liga recebia "Acesso negado" na própria. Era o único card do admin
+ * com essa trava — o resto do painel já trabalha com os dois níveis.
+ *
+ * Agora o admin de liga entra, mas SÓ NA LIGA DELE: `exigirLiga()` abaixo
+ * é chamada em toda ação que lê ou escreve algo de um time, com a liga do
+ * alvo. O admin geral passa por todas.
+ */
+$isAdmin       = ($user['user_type'] ?? 'jogador') === 'admin';
+$ligasDoAdmin  = $isAdmin ? ['ELITE', 'NEXT', 'RISE', 'ROOKIE'] : getAdminLeagues($pdo, (int)$user['id']);
+$podeAdmin     = $isAdmin || !empty($ligasDoAdmin);
+
+/**
+ * A liga de um pedido de badge.
+ *
+ * O pedido guarda a liga, mas o time é a fonte da verdade: badge pedida
+ * antes de o GM mudar de liga teria o rótulo antigo, e a permissão tem que
+ * seguir onde o time está AGORA.
+ */
+function tapasLigaDoPedido(PDO $pdo, array $req): string {
+    $t = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $t->execute([(int)($req['team_id'] ?? 0)]);
+    $doTime = (string)($t->fetchColumn() ?: '');
+    return $doTime !== '' ? $doTime : (string)($req['league'] ?? '');
+}
+
+/** Barra quem não administra ESTA liga. O admin geral nunca é barrado. */
+function exigirLiga(bool $isGlobal, array $ligas, ?string $league): void {
+    if ($isGlobal) return;
+    $l = strtoupper(trim((string)$league));
+    if ($l === '' || !in_array($l, $ligas, true)) err('Acesso negado', 403);
+}
 
 function out(array $data): void { echo json_encode($data); exit; }
 function err(string $msg, int $code = 400): void {
@@ -154,8 +188,9 @@ if ($method === 'POST' && $action === 'request_tapa') {
 
 // ── GET admin_get_all ─────────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'admin_get_all') {
-    if (!$isAdmin) err('Acesso negado', 403);
+    if (!$podeAdmin) err('Acesso negado', 403);
     $league = $_GET['league'] ?? 'ELITE';
+    exigirLiga($isAdmin, $ligasDoAdmin, $league);
 
     $stmtTeams = $pdo->prepare("
         SELECT t.id, t.city, t.name, t.tapas_used,
@@ -261,12 +296,18 @@ if ($method === 'GET' && $action === 'admin_get_all') {
 
 // ── POST admin_set_tapas ──────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_set_tapas') {
-    if (!$isAdmin) err('Acesso negado', 403);
+    if (!$podeAdmin) err('Acesso negado', 403);
     $body      = json_decode(file_get_contents('php://input'), true) ?? [];
     $teamId    = (int)($body['team_id'] ?? 0);
     $amount    = (int)($body['amount'] ?? 0);
     $operation = $body['operation'] ?? 'set';
     if (!$teamId) err('Time inválido');
+
+    /* A liga sai do time, e não do pedido: quem manda o POST não escolhe
+       em que liga ele vale. */
+    $stLiga = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stLiga->execute([$teamId]);
+    exigirLiga($isAdmin, $ligasDoAdmin, (string)($stLiga->fetchColumn() ?: ''));
 
     // resolve games_user_id for this team
     $rowU = $pdo->prepare("SELECT u.games_user_id FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1");
@@ -304,7 +345,7 @@ if ($method === 'POST' && $action === 'admin_set_tapas') {
 
 // ── POST admin_approve ────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_approve') {
-    if (!$isAdmin) err('Acesso negado', 403);
+    if (!$podeAdmin) err('Acesso negado', 403);
     $body      = json_decode(file_get_contents('php://input'), true) ?? [];
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
@@ -313,6 +354,7 @@ if ($method === 'POST' && $action === 'admin_approve') {
     $stmtR->execute([$requestId]);
     $req = $stmtR->fetch(PDO::FETCH_ASSOC);
     if (!$req) err('Solicitação não encontrada ou já processada');
+    exigirLiga($isAdmin, $ligasDoAdmin, tapasLigaDoPedido($pdo, $req));
 
     $actionType = $req['action_type'] ?? 'tapa';
     $badgeName  = $req['badge_name'] ?? '';
@@ -390,10 +432,16 @@ if ($method === 'POST' && $action === 'cancel_tapa') {
 
 // ── POST admin_reject ─────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_reject') {
-    if (!$isAdmin) err('Acesso negado', 403);
+    if (!$podeAdmin) err('Acesso negado', 403);
     $body      = json_decode(file_get_contents('php://input'), true) ?? [];
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
+
+    /* Recusar também é ato de administração daquela liga. */
+    $stRej = $pdo->prepare("SELECT * FROM tapas_requests WHERE id = ?");
+    $stRej->execute([$requestId]);
+    $pedidoRej = $stRej->fetch(PDO::FETCH_ASSOC);
+    if ($pedidoRej) exigirLiga($isAdmin, $ligasDoAdmin, tapasLigaDoPedido($pdo, $pedidoRej));
 
     // Nada a devolver: a badge só sai do inventário quando o admin APLICA.
     // Recusado, o GM continua com ela e pode pedir de novo em outro jogador.
