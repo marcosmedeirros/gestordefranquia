@@ -1,0 +1,40 @@
+/* ── A MOEDA DA FBA NO LUGAR DO ÍCONE GENÉRICO ───────────────────────
+ *
+ * O app inteiro escreve `<i class="bi bi-coin">` quando fala de moedas —
+ * são 66 lugares, entre telas do site, minigames e o simulador. Trocar
+ * cada um por uma <img> seria 66 edições e 66 chances de errar o tamanho
+ * ou o alinhamento.
+ *
+ * Em vez disso, uma regra só: o glifo da fonte Bootstrap dá lugar à
+ * imagem, e todo `bi-coin` que já existe — ou que alguém escrever amanhã —
+ * passa a mostrar a moeda da liga sem precisar saber disto.
+ *
+ * ── POR QUE `1em` E NÃO UM TAMANHO FIXO ──────────────────────────────
+ *
+ * Cada lugar define o seu: o dashboard usa 10px, o saldo do cabeçalho é
+ * bem maior, e nos cards de minigame ele acompanha o título. Com `1em` a
+ * moeda herda o font-size de onde está, exatamente como o glifo fazia —
+ * nenhum ajuste por tela.
+ *
+ * O `vertical-align` repete o que a Bootstrap Icons usa nos seus próprios
+ * ícones (-0.125em), senão a moeda deita na linha de base e sobe uns
+ * pixels em relação ao texto ao lado.
+ *
+ * ── A COR DEIXA DE VALER, E ISSO É ESPERADO ──────────────────────────
+ *
+ * Vários usos pintam o ícone (`color: var(--amber)`, o dourado do saldo).
+ * A imagem tem cor própria, então esses `color` passam a não ter efeito
+ * sobre ela — continuam valendo para o número ao lado, que é o que
+ * importa. Nada quebra; o dourado só deixa de ser necessário.
+ *
+ * @see img/moeda.png — 96px, reduzida da games/moeda.png (500px, 366KB),
+ *      que é grande demais para um ícone que se repete na mesma tela.
+ */
+.bi-coin::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background: url("/img/moeda.png") center / contain no-repeat;
+    vertical-align: -0.125em;
+}

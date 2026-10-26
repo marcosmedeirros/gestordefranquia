@@ -354,7 +354,8 @@ if (isset($_GET['id'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     
-    <style>
+        <link rel="stylesheet" href="/css/moeda.css">
+<style>
         /* PADRÃƒO DARK MODE */
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
         

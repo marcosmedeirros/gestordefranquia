@@ -187,6 +187,7 @@ $url = fn(array $p) => '/escaleai.php?' . http_build_query($p);
 <title>escaleAi</title>
 <link rel="icon" type="image/png" href="/img/fba-logo.png?v=3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/css/moeda.css">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 /* ══ A CARA DO JOGO ══════════════════════════════════════════════════

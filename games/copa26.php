@@ -573,6 +573,7 @@ $pendingToday = array_values(array_filter(
 <title>Bolão Copa 2026 · FBA Games</title>
 <link rel="icon" type="image/png" href="../games/fbagames.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/css/moeda.css">
 <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>

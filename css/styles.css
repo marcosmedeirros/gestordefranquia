@@ -1,6 +1,10 @@
 /* Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 @import url('pick-cond.css');
+/* A moeda da liga no lugar do ícone genérico de moeda. Mora num arquivo
+   próprio porque os minigames não carregam este styles.css — cada um
+   linka o moeda.css direto. @see css/moeda.css */
+@import url('moeda.css');
 
 /* Corrige sobreposição do menu lateral ao conteúdo principal em telas com sidebar fixa */
 .main-content {

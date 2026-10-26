@@ -212,6 +212,7 @@ $inicial = [
 <title>Lendas da Quadra</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Montserrat:wght@500;700;800&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/css/moeda.css">
 <link rel="stylesheet" href="lendas.css?v=5">
 </head>
 <body>

@@ -233,6 +233,7 @@ function e(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 <meta name="robots" content="noindex, nofollow">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/css/moeda.css">
 <style>
 /* Mesmos tokens dos outros jogos (base: buildplayer.php / thejourney.php). */
 :root{
