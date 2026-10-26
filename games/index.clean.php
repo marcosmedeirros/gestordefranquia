@@ -895,9 +895,9 @@ try {
           <div class="bet-body">
             <div class="bet-opts<?= $is2 ? ' bet-opts-2' : '' ?>">
               <?php foreach ($evento['opcoes'] as $opcao):
-                /* `pct` e `palpites_count` existem na opção, mas aqui não se
-                   lê nenhum dos dois: aposta aberta não mostra parcial. */
                 $isPicked = $bloqueado && !empty($aposta_por_evento[$evento_id]) && (int)$aposta_por_evento[$evento_id] === (int)$opcao['id'];
+                $pct      = (int)($opcao['pct'] ?? 0);
+                $cnt      = (int)($opcao['palpites_count'] ?? 0);
               ?>
               <div class="bet-opt<?= $isPicked ? ' picked' : '' ?>">
                 <div class="bet-opt-top">
@@ -905,18 +905,22 @@ try {
                   <img class="bet-opt-img" src="<?= htmlspecialchars($opcao['img_url']) ?>" alt="" onerror="this.style.display='none'">
                   <?php endif; ?>
                   <span class="bet-opt-name"><?= htmlspecialchars($opcao['descricao']) ?></span>
+                  <?php /* ── A PARCIAL, COM A APOSTA AINDA ABERTA ───────────
+                       Saiu em 13/10/2026 e voltou em 26/10/2026 a pedido do
+                       Marcos ("volte as porcentagens dos votos pras opções").
+                       Sim, quem chega depois vê em quem os outros votaram
+                       antes de escolher — ele sabe, e prefere assim. Se um
+                       dia sair de novo, some junto a barra e o contador por
+                       opção: "9 e 1" conta a mesma história que "90% e 10%".
+                       @see backend/apostas.php apostasTextoParcial() — o
+                       mesmo número no /apostas do bot, muda-se os dois. */ ?>
+                  <span class="bet-opt-pct"><?= $total_palps > 0 ? $pct.'%' : '—' ?></span>
                 </div>
-                <?php /* ── A PARCIAL SÓ DEPOIS DE FECHAR ───────────────────
-                     Pedido do Marcos (13/10/2026): "está mostrando as
-                     porcentagens, mas não deve, somente depois de fechado".
-                     Mostrar a distribuição com a aposta aberta é entregar a
-                     resposta dos outros a quem ainda não palpitou — o palpite
-                     deixa de medir o que a pessoa acha e passa a medir o que
-                     a maioria achou primeiro. A barra e o % voltam na lista
-                     das encerradas, logo abaixo, onde já não influenciam
-                     ninguém. O contador por opção foi junto, pelo mesmo
-                     motivo: 9 e 1 conta a mesma história que 90% e 10%. */ ?>
+                <div class="bet-bar-wrap">
+                  <div class="bet-bar" style="width:<?= $pct ?>%"></div>
+                </div>
                 <div class="bet-opt-footer">
+                  <span class="bet-opt-count"><?= $cnt ?> palpite<?= $cnt !== 1 ? 's' : '' ?></span>
                   <?php if ($bloqueado): ?>
                     <?php if ($isPicked): ?>
                       <button class="bet-btn current" disabled><i class="bi bi-check-circle-fill"></i>Seu palpite</button>

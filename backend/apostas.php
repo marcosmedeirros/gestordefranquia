@@ -126,23 +126,24 @@ function apostasAbertas(PDO $pdo, int $limite = 20): array
 }
 
 /**
- * As apostas abertas, pro grupo — o /apostas do bot.
+ * A parcial das apostas abertas, pro grupo — o /apostas do bot.
  *
- * ── SEM PARCIAL ENQUANTO ESTÁ ABERTA ─────────────────────────────────
+ * Mostra a distribuição, não o placar final: enquanto o prazo não fecha, o
+ * que está escrito aqui é o que a liga ACHA, e muda a cada palpite novo.
  *
- * Até 13/10/2026 isto era uma PARCIAL: listava cada opção com a
- * porcentagem e punha a mais votada em negrito. Pedido do Marcos: "está
- * mostrando as porcentagens, mas não deve, somente depois de fechado".
+ * ── A PORCENTAGEM JÁ SAIU DAQUI UMA VEZ, E VOLTOU ────────────────────
  *
- * E ele tem razão — era o comando que mais atrapalhava a própria aposta.
- * Quem chegava depois lia no grupo em quem os outros tinham votado antes de
- * escolher, e o palpite deixava de medir o que a pessoa acha pra medir o
- * que a maioria achou primeiro. Num jogo em que acertar paga 75 pontos,
- * seguir a manada é a jogada racional, e aí a aposta inteira perde a graça.
+ * Em 13/10/2026 ela foi tirada: mostrar a parcial com a aposta aberta
+ * entrega a resposta dos outros a quem ainda não palpitou, e num jogo que
+ * paga 75 pontos seguir a manada passa a ser a jogada racional.
  *
- * O que fica: QUAIS são as opções (precisa, pra saber o que está em jogo),
- * quantas pessoas já palpitaram (não diz em quem) e o prazo. A distribuição
- * sai no /apostasresultado, depois de paga.
+ * Em 26/10/2026 o Marcos pediu de volta — "volte as porcentagens dos votos
+ * pras opções" —, e a escolha é dele: a graça de acompanhar a parcial no
+ * grupo ao vivo vale mais, pra esta liga, do que o palpite independente.
+ * Quem for mexer nisto de novo já sabe os dois lados; não é descuido.
+ *
+ * Voltou nos DOIS lugares de uma vez, aqui e no card do /games, porque
+ * consertar só um deixaria a mesma informação disponível pela outra porta.
  */
 function apostasTextoParcial(PDO $pdo): string
 {
@@ -152,23 +153,28 @@ function apostasTextoParcial(PDO $pdo): string
              . "_Quando abrir, o palpite é na aba Apostas do /games._";
     }
 
-    $l = ['🎯 *APOSTAS ABERTAS*', ''];
+    $l = ['🎯 *APOSTAS — PARCIAL*', ''];
 
     foreach ($eventos as $i => $ev) {
         if ($i > 0) $l[] = '';
         $l[] = '*' . $ev['nome'] . '*';
 
-        foreach ($ev['opcoes'] as $op) {
-            $l[] = '• ' . $op['descricao'];
+        if ((int)$ev['total'] === 0) {
+            // Sem palpite nenhum não há parcial: listar "0%" em tudo só
+            // ocupa linha. Fica o que importa, QUAIS são as opções.
+            foreach ($ev['opcoes'] as $op) $l[] = '• ' . $op['descricao'];
+            $l[] = '_ninguém palpitou ainda_';
+        } else {
+            foreach ($ev['opcoes'] as $op) {
+                // A mais votada em NEGRITO. No empate as duas ficam em
+                // negrito, porque as duas estão na frente — destacar só a
+                // primeira da lista inventaria uma liderança que não existe.
+                $ehLider = $ev['lider'] !== null && (int)$op['palpites'] === (int)$ev['lider'];
+                $linha = $op['descricao'] . ' — ' . $op['pct'] . '%';
+                $l[] = $ehLider ? '*' . $linha . '*' : $linha;
+            }
+            $l[] = '_' . $ev['total'] . ' palpite' . ($ev['total'] === 1 ? '' : 's') . '_';
         }
-
-        /* O TOTAL FICA, a distribuição não. Saber que vinte pessoas já
-           palpitaram é o empurrão pra não ficar de fora; saber em QUEM elas
-           palpitaram é a resposta da prova. */
-        $total = (int)$ev['total'];
-        $l[] = $total === 0
-            ? '_ninguém palpitou ainda_'
-            : '_' . $total . ' palpite' . ($total === 1 ? '' : 's') . ' até agora_';
 
         // O prazo é o que decide se vale correr pra palpitar.
         $prazo = apostasPrazoEmTexto((string)$ev['data_limite']);
@@ -176,7 +182,7 @@ function apostasTextoParcial(PDO $pdo): string
     }
 
     $l[] = '';
-    $l[] = '_Palpite na aba Apostas do /games. As parciais saem quando fechar._';
+    $l[] = '_Palpite na aba Apostas do /games._';
     return implode("\n", $l);
 }
 
