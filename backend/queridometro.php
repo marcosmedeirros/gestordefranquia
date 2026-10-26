@@ -217,13 +217,29 @@ function queridometroSeasonKeyAnterior(PDO $pdo, string $league): string
  *
  * @return array<int,string> id do time => nome do GM, pra tela explicar
  */
+/**
+ * Quem este GM não pode votar DE NOVO, e em QUE CATEGORIA.
+ *
+ * ── O INTERVALO É POR CATEGORIA, NÃO POR PESSOA ──────────────────────
+ *
+ * Isto devolvia só os ids dos votados, e com isso um voto em MIP tirava
+ * aquele nome das CINCO categorias do ano seguinte: quem votou no Marcos
+ * pra MIP não podia votar nele nem pra MVP. O freio existe pra evitar
+ * repetir a mesma piada com a mesma pessoa, e isso é por categoria —
+ * "o Marcos de novo como MIP", não "o Marcos de novo".
+ *
+ * Ajustado a pedido do Marcos em 26/10/2026.
+ *
+ * @return array<string,array<int,string>> categoria => [team_id => nome do GM]
+ */
 function queridometroBloqueados(PDO $pdo, string $league, int $teamId): array
 {
     $anterior = queridometroSeasonKeyAnterior($pdo, $league);
     if ($anterior === '') return [];
     try {
         $league = strtoupper($league);
-        $st = $pdo->prepare("SELECT DISTINCT v.voted_team_id, u.name
+        /* A CATEGORIA VEM JUNTO, e é o que muda tudo. */
+        $st = $pdo->prepare("SELECT DISTINCT v.category, v.voted_team_id, u.name
                                FROM querido_votos v
                                JOIN teams t ON t.id = v.voted_team_id
                           LEFT JOIN users u ON u.id = t.user_id
@@ -231,23 +247,27 @@ function queridometroBloqueados(PDO $pdo, string $league, int $teamId): array
         $st->execute([$league, $anterior, $teamId]);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $out[(int)$r['voted_team_id']] = (string)($r['name'] ?? '');
+            $cat = (string)$r['category'];
+            $out[$cat][(int)$r['voted_team_id']] = (string)($r['name'] ?? '');
         }
         if (!$out) return [];
 
         /* ── A REGRA NÃO PODE TRANCAR A VOTAÇÃO ───────────────────────────
-           São cinco categorias e cinco nomes diferentes. Numa liga de trinta
-           times isso é folgado: tira cinco, sobram vinte e quatro. Numa liga
-           pequena — ou numa que esvaziou — bloquear deixaria menos candidatos
-           que categorias, e o GM abriria o popup sem conseguir fechar voto
-           nenhum, sem nada na tela explicando por quê.
+           Agora cada categoria bloqueia UM nome — o que levou aquele voto no
+           ano passado —, então o aperto é muito menor que o de antes, quando
+           um voto em MIP tirava o nome das cinco. Ainda assim o freio cede
+           numa liga com dois ou três times, onde sobrar zero candidato numa
+           categoria deixaria o GM sem conseguir fechar o voto, sem nada na
+           tela explicando por quê.
 
-           Aí o intervalo cede. Ele é um freio de convívio, e um freio que
-           impede o carro de andar não serve. */
+           Ele é um freio de convívio, e um freio que impede o carro de andar
+           não serve. */
         $stN = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ? AND id <> ?");
         $stN->execute([$league, $teamId]);
-        $candidatos = (int)$stN->fetchColumn() - count($out);
-        if ($candidatos < count(queridometroCategorias())) return [];
+        $totalOutros = (int)$stN->fetchColumn();
+        foreach ($out as $cat => $nomes) {
+            if ($totalOutros - count($nomes) < 1) unset($out[$cat]);
+        }
 
         return $out;
     } catch (Throwable $e) {

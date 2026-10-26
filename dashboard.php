@@ -2738,12 +2738,17 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
            Pedido do Marcos (10/10/2026). O aviso vem antes das listas porque
            o nome aparece lá riscado e cinza: sem a frase aqui em cima, a
            primeira reação é achar que bugou. */ ?>
+      <?php /* O aviso fala em CATEGORIA porque é assim que o freio funciona:
+           quem levou seu voto de MIP está fora só do MIP, e segue valendo
+           nas outras quatro. Dizer "está de fora da votação", como estava
+           aqui, descrevia uma regra que não é a que roda. */
+        $qbCats = count($queridoBloqueados); ?>
       <p class="quer-sub quer-bloq-aviso">
         <i class="bi bi-hourglass-split"></i>
-        <?= count($queridoBloqueados) === 1 ? 'Um GM está' : count($queridoBloqueados) . ' GMs estão' ?>
-        de fora desta votação: você votou
-        <?= count($queridoBloqueados) === 1 ? 'nele' : 'neles' ?> na temporada passada e
-        o mesmo nome só volta a valer na próxima.
+        Em <?= $qbCats === 1 ? 'uma categoria' : $qbCats . ' categorias' ?>
+        o GM que levou seu voto na temporada passada fica de fora desta —
+        o mesmo nome na mesma categoria só volta a valer na próxima. Nas
+        outras categorias ele continua valendo.
       </p>
     <?php endif; ?>
     <div>
@@ -2760,9 +2765,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
           <?php foreach ($queridoTimes as $tt):
             /* O nome continua na lista, desabilitado e com o motivo ao lado.
                Tirá-lo deixaria a pessoa procurando quem não está mais ali. */
-            $bloq = isset($queridoBloqueados[(int)$tt['id']]); ?>
+            /* Bloqueado NESTA categoria — o mesmo nome segue livre nas
+               outras, e é por isso que a conferência leva $catKey. */
+            $bloq = isset($queridoBloqueados[$catKey][(int)$tt['id']]); ?>
           <option value="<?= (int)$tt['id'] ?>"<?= $bloq ? ' disabled' : '' ?>><?=
-            htmlspecialchars((string)($tt['name'] ?? '')) ?><?= $bloq ? ' — votou na temporada passada' : '' ?></option>
+            htmlspecialchars((string)($tt['name'] ?? '')) ?><?= $bloq ? ' — você votou nele nesta categoria' : '' ?></option>
           <?php endforeach; ?>
         </select>
       </div>

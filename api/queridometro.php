@@ -58,11 +58,14 @@ if ($method === 'GET') {
         /* Quem este GM votou na temporada passada sai da lista com a marca —
            e não some dela: um nome que desaparece sem explicação vira
            "cadê o Anderson?". @see queridometroBloqueados */
+        /* Agora é categoria => [team_id => nome]. A tela precisa saber em
+           QUAL categoria cada nome está de fora, então vai o mapa inteiro —
+           um `bloqueado` por time não diz mais o suficiente. */
         $bloqueados = queridometroBloqueados($pdo, $league, $myTeamId);
-        foreach ($times as &$t) {
-            $t['bloqueado'] = isset($bloqueados[(int)$t['id']]);
+        $bloqueadosPorCat = [];
+        foreach ($bloqueados as $cat => $nomes) {
+            $bloqueadosPorCat[$cat] = array_map('intval', array_keys($nomes));
         }
-        unset($t);
 
         echo json_encode([
             'success'    => true,
@@ -71,7 +74,8 @@ if ($method === 'GET') {
             'ja_votou'   => $jaVotou,
             'categorias' => queridometroCategorias(),
             'times'      => $times,
-            'bloqueados' => array_map('intval', array_keys($bloqueados)),
+            // categoria => ids que já levaram este voto no ano passado
+            'bloqueados' => $bloqueadosPorCat,
             'top3'       => queridometroTop3($pdo, $league, $seasonKey),
         ]);
         exit;
@@ -120,12 +124,13 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Não dá pra escolher o mesmo GM em duas categorias.']);
                 exit;
             }
-            if (isset($bloqueados[$teamId])) {
-                $nome = trim($bloqueados[$teamId]) !== '' ? $bloqueados[$teamId] : 'Esse GM';
+            if (isset($bloqueados[$cat][$teamId])) {
+                $nome = trim($bloqueados[$cat][$teamId]) !== '' ? $bloqueados[$cat][$teamId] : 'Esse GM';
                 http_response_code(422);
                 echo json_encode(['success' => false,
-                    'error' => $nome . ' levou seu voto na temporada passada — só dá pra votar '
-                             . 'nele de novo na temporada seguinte.']);
+                    'error' => $nome . ' levou seu voto de ' . (queridometroCategorias()[$cat] ?? $cat)
+                             . ' na temporada passada — nessa categoria ele só volta a valer na '
+                             . 'seguinte. Nas outras, pode votar nele normalmente.']);
                 exit;
             }
             $escolhidos[] = $teamId;
