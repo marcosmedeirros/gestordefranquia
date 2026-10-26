@@ -73,10 +73,11 @@ function stepienAnosDaLiga(PDO $pdo, string $league): array
             $anos = array_values(array_diff($anos, $draftados));
         }
 
-        /* O DRAFT QUE ESTÁ ACONTECENDO TAMBÉM SAI. A regra protege o futuro —
-           ficar dois anos seguidos sem poder escolher. O ano do draft em
-           andamento não é futuro: a pick está na mesa, e trocá-la é abrir mão
-           de uma escolha de agora, não cavar um buraco lá na frente.
+        /* O DRAFT JÁ MONTADO TAMBÉM SAI. A regra protege o futuro — ficar
+           dois anos seguidos sem poder escolher. O ano de um draft que já
+           existe não é futuro: a pick virou escolha, está na mesa, e
+           negociá-la é abrir mão de escolher AGORA, não cavar um buraco lá
+           na frente.
 
            Sem isto, quem tentasse negociar a própria pick DO DRAFT EM CURSO
            era barrado porque o ano seguinte também estava vazio: a Yan Rule
@@ -84,11 +85,19 @@ function stepienAnosDaLiga(PDO $pdo, string $league): array
            chegou. Foi o que travou a troca do Jefferson na ROOKIE em
            04/10/2026, com 2031 (o draft rolando) e 2032.
 
+           DESDE QUE A SESSÃO EXISTE, E NÃO SÓ DEPOIS DE ELA COMEÇAR. Isto
+           olhava apenas `in_progress`, e entre criar o draft e dar a
+           largada o ano voltava a contar como futuro vazio — travando as
+           trocas justamente na véspera, que é quando elas acontecem. Foi o
+           que barrou o Jefferson de novo em 24/10/2026: o draft de 2034 da
+           ROOKIE tinha sido criado às 17:31 e ainda estava em `setup`, então
+           2034 entrou na conta e fez par com 2035.
+
            O corte de cima, das picks usadas, não cobre este caso: ele só
            enxerga a pick DEPOIS de escolhida, e aqui a vez ainda não chegou. */
         require_once __DIR__ . '/draft_swaps.php';
         $st = $pdo->prepare("SELECT ds.season_id FROM draft_sessions ds
-                               WHERE ds.league = ? AND ds.status = 'in_progress'");
+                               WHERE ds.league = ? AND ds.status IN ('setup','in_progress')");
         $st->execute([$league]);
         foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $seasonId) {
             $anoEmJogo = draftAnoDasPicks($pdo, (int)$seasonId);
