@@ -27,14 +27,20 @@
  * sobre ela — continuam valendo para o número ao lado, que é o que
  * importa. Nada quebra; o dourado só deixa de ser necessário.
  *
- * @see img/moeda.png — 96px, reduzida da games/moeda.png (500px, 366KB),
- *      que é grande demais para um ícone que se repete na mesma tela.
+ * @see img/moeda-icone.png — 96px, reduzida da games/moeda.png (500px,
+ *      366KB), grande demais para um ícone que se repete na mesma tela.
+ *
+ * O SUFIXO NO NOME NÃO É CAPRICHO: /img/moeda.png já existe no servidor,
+ * solto, fora do versionamento. Um arquivo versionado com o mesmo nome
+ * trava o deploy inteiro — o git recusa o merge com "untracked working
+ * tree files would be overwritten", e nada mais sobe até alguém mexer no
+ * servidor à mão.
  */
 .bi-coin::before {
     content: "";
     display: inline-block;
     width: 1em;
     height: 1em;
-    background: url("/img/moeda.png") center / contain no-repeat;
+    background: url("/img/moeda-icone.png") center / contain no-repeat;
     vertical-align: -0.125em;
 }
