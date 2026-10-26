@@ -188,8 +188,20 @@ function lwLinhaJogador(array $p): string
     return trim(($p['position'] ?: '?') . ': ' . $p['name'] . ' ' . (int)$p['ovr'] . '/' . (int)$p['age'] . 'y');
 }
 
-function lwLinhaPick(array $pk, int $donoTeamId): string
+/**
+ * @param array<int,int> $escolhas pick_id => número, de draftEscolhasAbertasDaLiga()
+ */
+function lwLinhaPick(array $pk, int $donoTeamId, array $escolhas = []): string
 {
+    $numero = $escolhas[(int)($pk['id'] ?? 0)] ?? null;
+    if ($numero !== null) {
+        $txt = 'Escolha ' . $numero;
+        if ((int)$pk['original_team_id'] !== $donoTeamId && !empty($pk['origem'])) {
+            $txt .= ' (' . $pk['origem'] . ')';
+        }
+        return $txt;
+    }
+
     $txt = 'Pick ' . $pk['season_year'] . ' R' . $pk['round'];
     if ((int)$pk['original_team_id'] !== $donoTeamId && !empty($pk['origem'])) {
         $txt .= ' (' . $pk['origem'] . ')';
@@ -201,10 +213,14 @@ function lwLinhaPick(array $pk, int $donoTeamId): string
 /** "Lakers envia:" + os itens, no formato do Gameplay. */
 function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
 {
-    $st = $pdo->prepare("SELECT lp.team_id, t.name FROM leilao_propostas lp JOIN teams t ON t.id = lp.team_id WHERE lp.id = ?");
+    $st = $pdo->prepare("SELECT lp.team_id, t.name, t.league FROM leilao_propostas lp JOIN teams t ON t.id = lp.team_id WHERE lp.id = ?");
     $st->execute([$propostaId]);
     $cab = $st->fetch(PDO::FETCH_ASSOC);
     if (!$cab) return '';
+
+    /* Os dois lados estão na mesma liga, então a do ofertante serve pros extras. */
+    require_once __DIR__ . '/draft_swaps.php';
+    $escolhas = draftEscolhasAbertasDaLiga($pdo, (string)$cab['league']);
 
     $linhas = [];
     $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM leilao_proposta_jogadores x
@@ -212,12 +228,12 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
     $st->execute([$propostaId]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $linhas[] = '* ' . lwLinhaJogador($p);
 
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
+    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
                            FROM leilao_proposta_picks x JOIN picks pk ON pk.id = x.pick_id
                       LEFT JOIN teams o ON o.id = pk.original_team_id
                           WHERE x.proposta_id = ? ORDER BY x.id");
     $st->execute([$propostaId]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $linhas[] = '* ' . lwLinhaPick($pk, (int)$cab['team_id']);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $linhas[] = '* ' . lwLinhaPick($pk, (int)$cab['team_id'], $escolhas);
 
     $bloco = $cab['name'] . " envia:\n\n" . implode("\n", $linhas);
 
@@ -232,12 +248,12 @@ function lwBlocoDaProposta(PDO $pdo, int $propostaId): string
                            JOIN players p ON p.id = x.player_id WHERE x.proposta_id = ? ORDER BY x.id");
     $st->execute([$propostaId]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $extras[] = '* ' . lwLinhaJogador($p);
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
+    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, pk.original_team_id, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem
                            FROM leilao_proposta_extra_picks x JOIN picks pk ON pk.id = x.pick_id
                       LEFT JOIN teams o ON o.id = pk.original_team_id
                           WHERE x.proposta_id = ? ORDER BY x.id");
     $st->execute([$propostaId]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $extras[] = '* ' . lwLinhaPick($pk, (int)($vend['id'] ?? 0));
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $extras[] = '* ' . lwLinhaPick($pk, (int)($vend['id'] ?? 0), $escolhas);
     if ($extras && $vend) {
         $bloco .= "\n\n" . $vend['name'] . " manda junto:\n\n" . implode("\n", $extras);
     }
@@ -1023,15 +1039,23 @@ function lwPropostaFormatada(PDO $pdo, int $propostaId, int $lwId, string $texto
     $ctx = $st->fetch(PDO::FETCH_ASSOC);
     if (!$ctx) return null;
 
-    $pick = fn(array $pk) => 'Pick ' . (int)$pk['round'] . 'R ' . (int)$pk['season_year'] . ' (' . ($pk['origem'] ?: '?') . ')'
-                           . (!empty($pk['swap_type']) ? ' [Swap ' . strtoupper($pk['swap_type']) . ']' : '');
+    /* Mesma regra do bloco da proposta: virou escolha, sai o número. Aqui a
+       origem vai SEMPRE entre parênteses, como o resto desta função já faz. */
+    require_once __DIR__ . '/draft_swaps.php';
+    $escolhas = draftEscolhasAbertasDaLiga($pdo, (string)$ctx['liga']);
+    $pick = function (array $pk) use ($escolhas): string {
+        $numero = $escolhas[(int)($pk['id'] ?? 0)] ?? null;
+        if ($numero !== null) return 'Escolha ' . $numero . ' (' . ($pk['origem'] ?: '?') . ')';
+        return 'Pick ' . (int)$pk['round'] . 'R ' . (int)$pk['season_year'] . ' (' . ($pk['origem'] ?: '?') . ')'
+             . (!empty($pk['swap_type']) ? ' [Swap ' . strtoupper($pk['swap_type']) . ']' : '');
+    };
     $itens = function (string $tabJog, string $tabPick) use ($pdo, $propostaId, $pick): array {
         $linhas = [];
         $st = $pdo->prepare("SELECT p.name, p.position, p.ovr, p.age FROM {$tabJog} x JOIN players p ON p.id = x.player_id
                               WHERE x.proposta_id = ? ORDER BY x.id");
         $st->execute([$propostaId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $linhas[] = lwLinhaJogador($p);
-        $st = $pdo->prepare("SELECT pk.season_year, pk.round, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem FROM {$tabPick} x
+        $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, COALESCE(x.swap_type, pk.swap_type) AS swap_type, o.name AS origem FROM {$tabPick} x
                                JOIN picks pk ON pk.id = x.pick_id LEFT JOIN teams o ON o.id = pk.original_team_id
                               WHERE x.proposta_id = ? ORDER BY CAST(pk.season_year AS UNSIGNED), pk.round, x.id");
         $st->execute([$propostaId]);

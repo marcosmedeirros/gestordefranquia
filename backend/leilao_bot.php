@@ -104,6 +104,17 @@ function leilaoBotItensDaProposta(PDO $pdo, int $proposta_id): array
         $ovrCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'ovr'")->fetch() ? 'ovr' : 'overall';
     } catch (Throwable $e) {}
 
+    /* Pick que já virou escolha do draft aberto sai pelo número ("49ª
+       escolha"), não pelo ano. Mesma regra do post no Gameplay.
+       @see draftEscolhasAbertasDaLiga */
+    require_once __DIR__ . '/draft_swaps.php';
+    $st = $pdo->prepare("SELECT t.league FROM leilao_propostas lp JOIN teams t ON t.id = lp.team_id WHERE lp.id = ?");
+    $st->execute([$proposta_id]);
+    $escolhas = draftEscolhasAbertasDaLiga($pdo, (string)($st->fetchColumn() ?: ''));
+    $linhaPick = fn(array $pk) => isset($escolhas[(int)$pk['id']])
+        ? $escolhas[(int)$pk['id']] . 'ª escolha'
+        : $pk['round'] . 'ª de ' . $pk['season_year'] . ($pk['swap_type'] ? ' (' . $pk['swap_type'] . ')' : '');
+
     $itens = [];
     $st = $pdo->prepare("SELECT p.name, p.position, p.{$ovrCol} AS ovr
                          FROM leilao_proposta_jogadores lpj JOIN players p ON p.id = lpj.player_id
@@ -112,13 +123,11 @@ function leilaoBotItensDaProposta(PDO $pdo, int $proposta_id): array
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $j) {
         $itens[] = $j['name'] . ' (' . ($j['position'] ?: '?') . ' · ' . ($j['ovr'] ?: '?') . ')';
     }
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, lpp.swap_type
+    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, lpp.swap_type
                          FROM leilao_proposta_picks lpp JOIN picks pk ON pk.id = lpp.pick_id
                          WHERE lpp.proposta_id = ? ORDER BY pk.season_year, pk.round");
     $st->execute([$proposta_id]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
-        $itens[] = $pk['round'] . 'ª de ' . $pk['season_year'] . ($pk['swap_type'] ? ' (' . $pk['swap_type'] . ')' : '');
-    }
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $itens[] = $linhaPick($pk);
 
     $extras = [];
     $st = $pdo->prepare("SELECT pl.name, pl.position, pl.{$ovrCol} AS ovr
@@ -128,13 +137,11 @@ function leilaoBotItensDaProposta(PDO $pdo, int $proposta_id): array
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $j) {
         $extras[] = $j['name'] . ' (' . ($j['position'] ?: '?') . ' · ' . ($j['ovr'] ?: '?') . ')';
     }
-    $st = $pdo->prepare("SELECT pk.season_year, pk.round, ep.swap_type
+    $st = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, ep.swap_type
                          FROM leilao_proposta_extra_picks ep JOIN picks pk ON pk.id = ep.pick_id
                          WHERE ep.proposta_id = ? ORDER BY pk.season_year, pk.round");
     $st->execute([$proposta_id]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
-        $extras[] = $pk['round'] . 'ª de ' . $pk['season_year'] . ($pk['swap_type'] ? ' (' . $pk['swap_type'] . ')' : '');
-    }
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) $extras[] = $linhaPick($pk);
 
     $st = $pdo->prepare("SELECT lp.obs, CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS time_nome
                          FROM leilao_propostas lp JOIN teams t ON t.id = lp.team_id WHERE lp.id = ?");

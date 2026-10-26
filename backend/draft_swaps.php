@@ -1123,3 +1123,75 @@ function swapMeiosSwaps(PDO $pdo, ?string $league = null): array
     $st->execute($args);
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
+
+/**
+ * As picks que JÁ VIRARAM ESCOLHA do draft aberto da liga: pick_id => número.
+ *
+ * ── POR QUE O NÚMERO E NÃO O ANO ─────────────────────────────────────
+ *
+ * "Pick 2035 R2" é como a pick vive na tabela, e é o que o grupo precisa ler
+ * enquanto o draft daquele ano não existe. Mas assim que a ordem é montada
+ * essa mesma pick vira uma vaga com número — a 49ª escolha —, e aí o ano
+ * passa a ser a informação errada: quem lê "Pick 2035 R2" no meio de uma
+ * proposta tem que abrir o /draft pra descobrir que aquilo é a 49ª. Pedido
+ * do Marcos (26/10/2026): "quando for escolha do draft atual TEM QUE MOSTRAR
+ * A ESCOLHA, TIPO ESCOLHA 3, não pick 2024".
+ *
+ * "Virou escolha" é a MESMA definição da Yan Rule: existe sessão de draft da
+ * liga em `setup` ou `in_progress` cujo ano de classe bate com o da pick.
+ * Desde que a sessão existe, e não só depois da largada — entre criar o
+ * draft e dar a partida a vaga já está na mesa. @see backend/stepien.php
+ *
+ * ── DUAS COISAS FICAM DE FORA ────────────────────────────────────────
+ *
+ * Vaga JÁ ESCOLHIDA não entra: a pick virou jogador e nem deveria estar
+ * sendo oferecida — picksJaUsadas() cancela essas propostas. Se por algum
+ * caminho uma aparecer, ela sai como pick mesmo, que é o texto honesto.
+ *
+ * Posição AINDA NA URNA também não: durante a cerimônia da loteria, dizer
+ * que a pick do Mooses é a 3ª escolha entrega o sorteio antes do anúncio.
+ * Enquanto não revela, continua saindo como "Pick 2034 R1". É a mesma trava
+ * que lwPickDaPosicao() usa pra não deixar abrir leilão de escolha que ainda
+ * não saiu.
+ *
+ * Pick que não casa com vaga nenhuma — origem que não está nesta sessão —
+ * também continua saindo como pick. O mapa vem de draftVagaDasPicks(), o
+ * mesmo que a Trade Machine e a Yan Rule usam, então o que aparece como
+ * "Escolha N" é exatamente o que o resto do sistema já trata como escolha.
+ *
+ * @return array<int,int> pick_id => número corrido da escolha (1ª rodada com
+ *         32 vagas: a 1ª da 2ª rodada é a 33)
+ */
+function draftEscolhasAbertasDaLiga(PDO $pdo, string $liga): array
+{
+    static $cache = [];
+    $liga = strtoupper(trim($liga));
+    if (isset($cache[$liga])) return $cache[$liga];
+    $cache[$liga] = [];
+
+    try {
+        $st = $pdo->prepare("SELECT id FROM draft_sessions
+                              WHERE league = ? AND status IN ('setup','in_progress')");
+        $st->execute([$liga]);
+
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            $sid    = (int)$sid;
+            $naUrna = draftPosicoesNaUrna($pdo, $sid);
+
+            /* draftVagaDasPicks resolve o swap: depois de um SB/SW a vaga de
+               cada pick é a trocada, e é esse número que vale dizer. Por isso
+               o marcador [Swap] some junto com o ano — a troca já aconteceu e
+               está embutida no número; repetir "[Swap SB]" faria parecer que
+               a escolha ainda pode mudar de lugar. */
+            foreach (draftVagaDasPicks($pdo, $sid) as $pickId => $vaga) {
+                if (!empty($vaga['picked_player_id'])) continue;
+                if ((int)$vaga['round'] === 1 && isset($naUrna[(int)$vaga['pick_position']])) continue;
+                $cache[$liga][(int)$pickId] = (int)$vaga['pick_overall'];
+            }
+        }
+    } catch (Throwable $e) {
+        // Sem o mapa a linha sai como pick, que é o texto de sempre.
+        error_log('[draft] escolhas abertas da liga: ' . $e->getMessage());
+    }
+    return $cache[$liga];
+}
