@@ -209,20 +209,30 @@ if ($method === 'GET' && $action === 'admin_get_all') {
        de Badges mostrava um "Tapas: − 0 +" que não fazia nada. O que o admin
        quer ver por time é o saldo de badges: o mesmo inventário que o GM
        gasta no pedido (badgesCompradas), contado de uma vez pra liga toda. */
-    $compradasPorUser = [];
+    /* O HISTÓRICO DE COMPRAS vem do mesmo inventário, e o saldo sai dele: uma
+       consulta só, e a lista de datas nunca discorda do número. A compra é
+       do GM e não do sprint — por isso aqui não há o corte por data que os
+       pedidos têm: mês de agosto aparece mesmo com o sprint de outubro. */
+    $comprasPorUser = [];
     $userIds = array_values(array_filter(array_map(fn($t) => (int)($t['user_id'] ?? 0), $teams)));
     if ($userIds) {
         try {
             $ph = implode(',', array_fill(0, count($userIds), '?'));
-            $stInv = $pdo->prepare("SELECT id_usuario, COUNT(*) AS n FROM loja_inventario
-                                     WHERE item_key = 'badge' AND usado_em IS NULL AND id_usuario IN ($ph)
-                                     GROUP BY id_usuario");
+            $stInv = $pdo->prepare("SELECT id_usuario, comprado_em, usado_em, preco_pago FROM loja_inventario
+                                     WHERE item_key = 'badge' AND id_usuario IN ($ph)
+                                  ORDER BY comprado_em DESC, id DESC");
             $stInv->execute($userIds);
-            foreach ($stInv->fetchAll(PDO::FETCH_ASSOC) as $r) $compradasPorUser[(int)$r['id_usuario']] = (int)$r['n'];
+            foreach ($stInv->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $comprasPorUser[(int)$r['id_usuario']][] = [
+                    'comprado_em' => $r['comprado_em'], 'usado_em' => $r['usado_em'], 'preco' => (int)$r['preco_pago'],
+                ];
+            }
         } catch (Throwable $e) { error_log('[tapas/inventario] ' . $e->getMessage()); }
     }
     foreach ($teams as &$team) {
-        $team['badges_compradas'] = $compradasPorUser[(int)($team['user_id'] ?? 0)] ?? 0;
+        $compras = $comprasPorUser[(int)($team['user_id'] ?? 0)] ?? [];
+        $team['badges_compras']   = $compras;
+        $team['badges_compradas'] = count(array_filter($compras, fn($c) => empty($c['usado_em'])));
         unset($team['user_id']);
     }
     unset($team);

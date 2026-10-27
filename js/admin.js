@@ -9082,6 +9082,7 @@ async function loadTapasData() {
                       </div>
                       <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(p.badge_name || 'Badge')}</span>
                     </div>`).join('');
+              const comprasHtml = _comprasBadgesHtml(t);
               return `
                 <div style="background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;margin-bottom:8px">
                   <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;user-select:none" onclick="toggleTapasTeam(${t.id})">
@@ -9096,7 +9097,7 @@ async function loadTapasData() {
                     </div>
                     <i id="tapas-chevron-${t.id}" class="bi bi-chevron-down" style="color:var(--text-3);font-size:12px;transition:transform .2s;flex-shrink:0"></i>
                   </div>
-                  <div id="tapas-acc-${t.id}" style="display:none">${playersHtml}</div>
+                  <div id="tapas-acc-${t.id}" style="display:none">${comprasHtml}${playersHtml}</div>
                 </div>`;
             }).join('')}
       </div>
@@ -9125,6 +9126,86 @@ async function loadTapasData() {
   } catch(e) {
     container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro ao carregar: ${e.error || 'Desconhecido'}</div>`;
   }
+}
+
+/**
+ * Quando o time comprou badge: um acordeão por MÊS, e dentro dele cada compra
+ * com o dia e a hora. O mês mais recente abre sozinho — é o que o admin quer
+ * ver quando confere "quem comprou esta semana".
+ *
+ * A etiqueta diz se a badge JÁ FOI USADA (virou pedido aprovado) ou segue na
+ * reserva. Comprar e usar são datas diferentes, e a pergunta de quem olha
+ * esta lista costuma ser "comprou e não aplicou?".
+ */
+const _MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function _comprasBadgesHtml(t) {
+  const compras = t.badges_compras || [];
+  const titulo = `<div style="padding:10px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)"><i class="bi bi-bag-check"></i> Compras de badge${compras.length ? ` (${compras.length})` : ''}</div>`;
+  if (!compras.length) {
+    return `${titulo}<div style="padding:4px 16px 12px;color:var(--text-3);font-size:12px">Nenhuma badge comprada.</div>`;
+  }
+
+  const dois = n => String(n).padStart(2, '0');
+  const quando = iso => {
+    const d = new Date(String(iso).replace(' ', 'T'));   // Safari não aceita o espaço
+    return isNaN(d) ? null : d;
+  };
+
+  // A API já manda da mais nova pra mais velha; o agrupamento mantém a ordem.
+  const meses = [];
+  const porMes = {};
+  compras.forEach(c => {
+    const d = quando(c.comprado_em);
+    const chave = d ? `${d.getFullYear()}-${dois(d.getMonth() + 1)}` : 'sem-data';
+    if (!porMes[chave]) {
+      porMes[chave] = { chave, d, itens: [] };
+      meses.push(porMes[chave]);
+    }
+    porMes[chave].itens.push({ c, d });
+  });
+
+  const html = meses.map((m, i) => {
+    const id = `bm-${t.id}-${m.chave}`;
+    const nome = m.d ? `${_MESES_PT[m.d.getMonth()]} de ${m.d.getFullYear()}` : 'Sem data';
+    const naReserva = m.itens.filter(x => !x.c.usado_em).length;
+    const aberto = i === 0;
+    const linhas = m.itens.map(({ c, d }) => {
+      const dia  = d ? `${dois(d.getDate())}/${dois(d.getMonth() + 1)}` : '—';
+      const hora = d ? `${dois(d.getHours())}:${dois(d.getMinutes())}` : '';
+      const du   = c.usado_em ? quando(c.usado_em) : null;
+      const chip = c.usado_em
+        ? `<span style="font-size:10px;font-weight:700;color:var(--text-3);background:rgba(255,255,255,.06);border-radius:999px;padding:2px 8px">usada${du ? ` em ${dois(du.getDate())}/${dois(du.getMonth() + 1)}` : ''}</span>`
+        : `<span style="font-size:10px;font-weight:700;color:#a78bfa;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:999px;padding:2px 8px">na reserva</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 16px 7px 28px;border-top:1px solid rgba(255,255,255,.04);font-size:12px">
+        <span style="font-weight:700;color:var(--text);min-width:44px">${dia}</span>
+        <span style="color:var(--text-3);min-width:40px">${hora}</span>
+        <span style="flex:1"></span>
+        ${c.preco ? `<span style="color:var(--text-3);font-size:11px"><i class="bi bi-coin"></i> ${c.preco}</span>` : ''}
+        ${chip}
+      </div>`;
+    }).join('');
+
+    return `<div>
+      <div onclick="toggleBadgeMes('${id}')" style="display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;user-select:none;border-top:1px solid rgba(255,255,255,.05)">
+        <i id="${id}-chev" class="bi bi-chevron-down" style="font-size:11px;color:var(--text-3);transition:transform .2s;${aberto ? 'transform:rotate(180deg)' : ''}"></i>
+        <span style="font-size:12.5px;font-weight:700;color:var(--text)">${nome}</span>
+        <span style="font-size:11px;color:var(--text-3)">${m.itens.length} compra${m.itens.length > 1 ? 's' : ''}${naReserva ? ` · <span style="color:#a78bfa">${naReserva} na reserva</span>` : ''}</span>
+      </div>
+      <div id="${id}" style="display:${aberto ? 'block' : 'none'}">${linhas}</div>
+    </div>`;
+  }).join('');
+
+  return `${titulo}${html}`;
+}
+
+function toggleBadgeMes(id) {
+  const corpo = document.getElementById(id);
+  const chev  = document.getElementById(id + '-chev');
+  if (!corpo) return;
+  const abrir = corpo.style.display === 'none';
+  corpo.style.display = abrir ? 'block' : 'none';
+  if (chev) chev.style.transform = abrir ? 'rotate(180deg)' : '';
 }
 
 function toggleTapasTeam(teamId) {
