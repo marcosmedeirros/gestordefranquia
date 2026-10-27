@@ -1820,7 +1820,7 @@ function getShortcutCatalog(): array {
         'my-roster'        => ['label' => 'Meu Elenco',      'icon' => 'bi-person-fill',          'href' => '/my-roster.php'],
         'picks'            => ['label' => 'Picks',           'icon' => 'bi-calendar-check-fill',  'href' => '/picks.php'],
         'mercado'          => ['label' => 'Mercado',         'icon' => 'bi-shop',                 'href' => '/mercado.php'],
-        'free-agency'      => ['label' => 'Free Agency',     'icon' => 'bi-coin',                 'href' => '/free-agency.php'],
+        'free-agency'      => ['label' => 'Free Agency',     'icon' => 'bi-coin-glifo',                 'href' => '/free-agency.php'],
         'leilao'           => ['label' => 'Leilão',          'icon' => 'bi-hammer',                'href' => '/leilao.php'],
         'drafts'           => ['label' => 'Draft',           'icon' => 'bi-trophy',                'href' => '/drafts.php'],
         'tapas'            => ['label' => 'Tapas',           'icon' => 'bi-hand-index-thumb',     'href' => '/tapas.php'],
@@ -1870,7 +1870,7 @@ function getNotifCatalog(): array {
         'draft'       => ['label' => 'Draft',             'icon' => 'bi-trophy',              'desc' => 'Quando chegar a sua vez de escolher no draft.'],
         'leilao'      => ['label' => 'Leilão',            'icon' => 'bi-hammer',              'desc' => 'Leilão novo na sua liga, proposta recebida e resultado.'],
         'waiver'      => ['label' => 'Waivers',           'icon' => 'bi-clock-history',       'desc' => 'Jogador entrando nos waivers e resultado do seu claim.'],
-        'free_agency' => ['label' => 'Free Agency',       'icon' => 'bi-coin',                'desc' => 'Abertura da janela e resultado dos seus pedidos.'],
+        'free_agency' => ['label' => 'Free Agency',       'icon' => 'bi-coin-glifo',                'desc' => 'Abertura da janela e resultado dos seus pedidos.'],
         'tatica'      => ['label' => 'Tática',            'icon' => 'bi-clipboard2-pulse',    'desc' => 'Aviso quando a janela de edição da tática abre e fecha.'],
         /* O canal 'cap' saiu em 25/09/2026: o recálculo deixou de avisar
            sozinho — nem push, nem mensagem no Gameplay —, e quem anuncia a

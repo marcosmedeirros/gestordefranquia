@@ -8,7 +8,7 @@ $links = [
     ['href' => '/players.php', 'icon' => 'bi-person-lines-fill', 'label' => 'Jogadores'],
     ['href' => '/picks.php', 'icon' => 'bi-calendar-check-fill', 'label' => 'Picks'],
     ['href' => '/trades.php', 'icon' => 'bi-arrow-left-right', 'label' => 'Trades'],
-    ['href' => '/free-agency.php', 'icon' => 'bi-coin', 'label' => 'Free Agency'],
+    ['href' => '/free-agency.php', 'icon' => 'bi-coin-glifo', 'label' => 'Free Agency'],
     ['href' => '/leilao.php', 'icon' => 'bi-hammer', 'label' => 'Leilão'],
     ['href' => '/drafts.php', 'icon' => 'bi-trophy', 'label' => 'Draft'],
     ['href' => '/rankings.php', 'icon' => 'bi-bar-chart-fill', 'label' => 'Rankings'],

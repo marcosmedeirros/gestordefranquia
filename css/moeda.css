@@ -44,3 +44,12 @@
     background: url("/img/moeda-icone.png") center / contain no-repeat;
     vertical-align: -0.125em;
 }
+
+/* ── O LOGO DA FREE AGENCY NAO E A MOEDA ─────────────────────────────
+ * A Free Agency usava o glifo bi-coin como logo, e a regra acima o trocou
+ * pela moeda da liga junto com todo o resto. Ela quer o glifo de volta:
+ * `bi-coin-glifo` e o mesmo desenho da fonte Bootstrap (634), sem a imagem.
+ * Para a MOEDA de verdade, o nome continua sendo bi-coin.
+ * Esta mesma regra tambem esta inline em includes/sidebar.php, porque varias
+ * paginas com menu nao carregam este arquivo. */
+.bi-coin-glifo::before { content: "\f634"; }

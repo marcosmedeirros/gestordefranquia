@@ -475,7 +475,7 @@ $PAGINAS = [
         ['cap.php', 'Salário Cap', 'bi-cash-stack', []],
     ]],
     ['Mercado', [
-        ['free-agency.php', 'Free Agency', 'bi-coin', []],
+        ['free-agency.php', 'Free Agency', 'bi-coin-glifo', []],
         ['dispensas.php', 'Dispensas', 'bi-hourglass-split', []],
         ['leilao.php', 'Leilão', 'bi-hammer', []],
         ['mercado.php', 'Mercado', 'bi-shop', []],

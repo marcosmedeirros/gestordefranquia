@@ -193,8 +193,8 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     exigirLiga($isAdmin, $ligasDoAdmin, $league);
 
     $stmtTeams = $pdo->prepare("
-        SELECT t.id, t.city, t.name, t.tapas_used,
-               u.name AS owner_name, u.games_user_id
+        SELECT t.id, t.city, t.name, t.user_id,
+               u.name AS owner_name
         FROM teams t
         LEFT JOIN users u ON u.id = t.user_id
         WHERE t.league = ?
@@ -203,22 +203,27 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     $stmtTeams->execute([$league]);
     $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 
-    // bulk fetch tapas from games DB
-    $gamesIds = array_values(array_filter(array_map(fn($t) => (int)($t['games_user_id'] ?? 0), $teams)));
-    $gamesTapasMap = [];
-    if ($pdoGames && !empty($gamesIds)) {
-        $ph = implode(',', array_fill(0, count($gamesIds), '?'));
-        $stmtG = $pdoGames->prepare("SELECT id, COALESCE(numero_tapas,0) AS numero_tapas FROM usuarios WHERE id IN ($ph)");
-        $stmtG->execute($gamesIds);
-        foreach ($stmtG->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $gamesTapasMap[(int)$row['id']] = (int)$row['numero_tapas'];
-        }
+    /* BADGES COMPRADAS QUE O GM AINDA NÃO USOU, por time.
+       Era aqui que vinha o contador de TAPAS de cada time, lido do banco do
+       games — que saiu na fusão. Desde então o número era sempre 0, e a tela
+       de Badges mostrava um "Tapas: − 0 +" que não fazia nada. O que o admin
+       quer ver por time é o saldo de badges: o mesmo inventário que o GM
+       gasta no pedido (badgesCompradas), contado de uma vez pra liga toda. */
+    $compradasPorUser = [];
+    $userIds = array_values(array_filter(array_map(fn($t) => (int)($t['user_id'] ?? 0), $teams)));
+    if ($userIds) {
+        try {
+            $ph = implode(',', array_fill(0, count($userIds), '?'));
+            $stInv = $pdo->prepare("SELECT id_usuario, COUNT(*) AS n FROM loja_inventario
+                                     WHERE item_key = 'badge' AND usado_em IS NULL AND id_usuario IN ($ph)
+                                     GROUP BY id_usuario");
+            $stInv->execute($userIds);
+            foreach ($stInv->fetchAll(PDO::FETCH_ASSOC) as $r) $compradasPorUser[(int)$r['id_usuario']] = (int)$r['n'];
+        } catch (Throwable $e) { error_log('[tapas/inventario] ' . $e->getMessage()); }
     }
-
     foreach ($teams as &$team) {
-        $gid = (int)($team['games_user_id'] ?? 0);
-        $team['tapas'] = $gid ? ($gamesTapasMap[$gid] ?? 0) : 0;
-        unset($team['games_user_id']);
+        $team['badges_compradas'] = $compradasPorUser[(int)($team['user_id'] ?? 0)] ?? 0;
+        unset($team['user_id']);
     }
     unset($team);
 
@@ -260,21 +265,29 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     $stmtReq->execute(array_merge([$league], $paramsSprint));
     $requests = $stmtReq->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtTapped = $pdo->prepare("
+    // As badges já aplicadas neste sprint, por time — a lista que abre ao clicar no time.
+    $stmtAplicadas = $pdo->prepare("
         SELECT r.team_id, r.player_id, r.player_name, r.badge_name,
                p.position, p.ovr
         FROM tapas_requests r
         LEFT JOIN players p ON p.id = r.player_id
-        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'tapa'{$filtroSprint}
+        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'badge'{$filtroSprint}
         ORDER BY r.team_id, r.processed_at DESC
     ");
-    $stmtTapped->execute(array_merge([$league], $paramsSprint));
-    $tappedByTeam = [];
-    foreach ($stmtTapped->fetchAll(PDO::FETCH_ASSOC) as $tp) {
-        $tappedByTeam[(int)$tp['team_id']][] = $tp;
+    $stmtAplicadas->execute(array_merge([$league], $paramsSprint));
+    $aplicadasPorTime = [];
+    foreach ($stmtAplicadas->fetchAll(PDO::FETCH_ASSOC) as $ap) {
+        $aplicadasPorTime[(int)$ap['team_id']][] = $ap;
+    }
+    $pendentesPorTime = [];
+    foreach ($requests as $rq) {
+        if (($rq['action_type'] ?? '') === 'badge') {
+            $pendentesPorTime[(int)$rq['team_id']] = ($pendentesPorTime[(int)$rq['team_id']] ?? 0) + 1;
+        }
     }
     foreach ($teams as &$team) {
-        $team['tapped_players'] = $tappedByTeam[(int)$team['id']] ?? [];
+        $team['badges_aplicadas'] = $aplicadasPorTime[(int)$team['id']] ?? [];
+        $team['badges_pendentes'] = $pendentesPorTime[(int)$team['id']] ?? 0;
     }
     unset($team);
 
@@ -285,7 +298,7 @@ if ($method === 'GET' && $action === 'admin_get_all') {
         FROM tapas_requests r
         INNER JOIN teams t ON t.id = r.team_id
         LEFT JOIN players p ON p.id = r.player_id
-        WHERE r.league = ? AND r.status = 'approved'{$filtroSprint}
+        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'badge'{$filtroSprint}
         ORDER BY r.processed_at DESC
     ");
     $stmtHistory->execute(array_merge([$league], $paramsSprint));

@@ -2535,7 +2535,7 @@ function updateBreadcrumb() {
       eventos:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Eventos</li>'; return 'Eventos'; },
       punicoes:     () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Punições</li>'; return 'Punições'; },
       coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
-      tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>'; return 'Gerenciar Tapas'; },
+      tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Badges</li>'; return 'Badges'; },
       userApprovals:() => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>'; return 'Aprovar Usuários'; },
       halloffame:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>'; return 'Hall da Fama'; },
       dispensas:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>'; return 'Dispensas por Temporada'; },
@@ -6762,7 +6762,7 @@ async function _loadLeagueConfigInline(league) {
               campo: 'fechar_trades_em', valor: lg.fechar_trades_em, alvo: 'trades',
             })}
             ${janelaLinha({
-              liga: lg.league, icone: 'bi-coin', cor: 'var(--green)', nome: 'Free Agency',
+              liga: lg.league, icone: 'bi-coin-glifo', cor: 'var(--green)', nome: 'Free Agency',
               aberta: faOn, rotuloOn: 'Ativa', rotuloOff: 'Bloqueada',
               idSelo: `faBadge_${lg.league}`, idOn: `faOnBtn_${lg.league}`,
               idOff: `faOffBtn_${lg.league}`, acao: 'toggleFA',
@@ -9003,16 +9003,13 @@ async function loadTapasData() {
     const requests = data.requests || [];
     const history  = data.history  || [];
 
-    const totalTapas    = teams.reduce((s, t) => s + parseInt(t.tapas || 0), 0);
-    const totalTapasUsed = teams.reduce((s, t) => s + parseInt(t.tapas_used || 0), 0);
+    const totalCompradas = teams.reduce((s, t) => s + parseInt(t.badges_compradas || 0), 0);
+    const totalAplicadas = teams.reduce((s, t) => s + (t.badges_aplicadas || []).length, 0);
 
     const requestsHtml = requests.length === 0
       ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhuma solicitação pendente.</div>'
       : requests.map(r => {
-          const isBadge   = r.action_type === 'badge';
-          const typeChip  = isBadge
-            ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(r.badge_name || '')}</span>`
-            : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-hand-index-thumb"></i> Tapa</span>`;
+          const typeChip  = `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(r.badge_name || '')}</span>`;
           const pn = escapeHtml(r.player_name).replace(/'/g,"\\'");
           const tn = escapeHtml(r.team_city+' '+r.team_name).replace(/'/g,"\\'");
           const at = escapeHtml(r.action_type || 'tapa').replace(/'/g,"\\'");
@@ -9049,12 +9046,12 @@ async function loadTapasData() {
     container.innerHTML = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
         <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 18px;text-align:center">
-          <div style="font-size:24px;font-weight:800;color:#f97316">${totalTapas}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Disponíveis</div>
+          <div style="font-size:24px;font-weight:800;color:#a78bfa">${totalCompradas}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Compradas</div>
         </div>
         <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 18px;text-align:center">
-          <div style="font-size:24px;font-weight:800;color:var(--text-2)">${totalTapasUsed}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Usados</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text-2)">${totalAplicadas}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Aplicadas</div>
         </div>
         <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid ${requests.length ? 'rgba(245,158,11,.3)' : 'rgba(255,255,255,.07)'};border-radius:10px;padding:14px 18px;text-align:center">
           <div style="font-size:24px;font-weight:800;color:${requests.length ? '#f59e0b' : 'var(--text-3)'}">${requests.length}</div>
@@ -9073,31 +9070,29 @@ async function loadTapasData() {
         ${teams.length === 0
           ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhum time encontrado.</div>'
           : teams.map(t => {
-              const tapped = t.tapped_players || [];
-              const playersHtml = tapped.length === 0
-                ? `<div style="padding:10px 16px;color:var(--text-3);font-size:12px">Nenhum jogador tapado.</div>`
-                : tapped.map(p => `
+              const aplicadas = t.badges_aplicadas || [];
+              const playersHtml = aplicadas.length === 0
+                ? `<div style="padding:10px 16px;color:var(--text-3);font-size:12px">Nenhuma badge aplicada neste sprint.</div>`
+                : aplicadas.map(p => `
                     <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:1px solid rgba(255,255,255,.05)">
-                      <div style="width:32px;height:32px;border-radius:7px;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#f97316;flex-shrink:0">${p.ovr ?? '?'}</div>
+                      <div style="width:32px;height:32px;border-radius:7px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#a78bfa;flex-shrink:0">${p.ovr ?? '?'}</div>
                       <div style="flex:1;min-width:0">
                         <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.player_name)}</div>
                         <div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.position ?? '')} · OVR ${p.ovr ?? '?'}</div>
                       </div>
-                      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-hand-index-thumb"></i> Tapa</span>
+                      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(p.badge_name || 'Badge')}</span>
                     </div>`).join('');
               return `
                 <div style="background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;margin-bottom:8px">
                   <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;user-select:none" onclick="toggleTapasTeam(${t.id})">
                     <div style="flex:1;min-width:0">
                       <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
-                      <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)} · <span style="color:#f97316">${tapped.length} tapado(s)</span></div>
+                      <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)} · <span style="color:#a78bfa">${aplicadas.length} aplicada(s)</span></div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0" onclick="event.stopPropagation()">
-                      <span style="font-size:11px;color:var(--text-3)">Tapas:</span>
-                      <button onclick="quickTapasAdminChange(${t.id},'remove')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button>
-                      <span id="tapas-val-${t.id}" style="font-weight:800;font-size:15px;color:#f97316;min-width:24px;text-align:center">${parseInt(t.tapas || 0)}</span>
-                      <button onclick="quickTapasAdminChange(${t.id},'add')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>
-                      <span style="font-size:11px;color:var(--text-3)">usados: ${parseInt(t.tapas_used || 0)}</span>
+                    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+                      <span style="font-size:11px;color:var(--text-3)">Badges:</span>
+                      <span title="Compradas na loja e ainda não pedidas/aplicadas" style="font-weight:800;font-size:15px;color:#a78bfa;min-width:24px;text-align:center">${parseInt(t.badges_compradas || 0)}</span>
+                      ${parseInt(t.badges_pendentes || 0) > 0 ? `<span style="font-size:11px;color:#f59e0b">${parseInt(t.badges_pendentes)} pendente(s)</span>` : ''}
                     </div>
                     <i id="tapas-chevron-${t.id}" class="bi bi-chevron-down" style="color:var(--text-3);font-size:12px;transition:transform .2s;flex-shrink:0"></i>
                   </div>
@@ -9112,10 +9107,7 @@ async function loadTapasData() {
           ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhum registro encontrado.</div>'
           : `<div style="display:grid;gap:6px">
               ${history.map(h => {
-                const isBadge  = h.action_type === 'badge';
-                const typeChip = isBadge
-                  ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px;flex-shrink:0"><i class="bi bi-award"></i>${escapeHtml(h.badge_name || 'Badge')}</span>`
-                  : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px;flex-shrink:0"><i class="bi bi-hand-index-thumb"></i>Tapa</span>`;
+                const typeChip = `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px;flex-shrink:0"><i class="bi bi-award"></i>${escapeHtml(h.badge_name || 'Badge')}</span>`;
                 const date = h.processed_at ? h.processed_at.substring(0, 10) : '';
                 return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:8px">
                   <div style="width:32px;height:32px;border-radius:7px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#f97316;flex-shrink:0">${h.ovr ?? '?'}</div>

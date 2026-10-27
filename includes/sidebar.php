@@ -22,6 +22,8 @@ $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
    passa inteiro. */
 ?>
 <style>
+    /* Logo da Free Agency: o glifo da fonte, nao a moeda. @see css/moeda.css */
+    .bi-coin-glifo::before { content: "\f634"; }
     .sb-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
         border-radius: 999px; background: var(--red, #e11d48); color: #fff;
         font-size: 10px; font-weight: 800; line-height: 18px; text-align: center;
@@ -128,7 +130,7 @@ if (!function_exists('sbActive')) {
          conferir. Mesma decisão que o Mercado teve em 31/08. */ ?>
 <?php /* Mercado saiu do menu em 31/08/2026: ninguém usava. A página segue de
          pé em /mercado.php — o que sumiu foi o atalho, não o acesso. */ ?>
-        <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
+        <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin-glifo"></i> Free Agency</a>
         <a href="/leilao.php"<?= sbActive('leilao.php', $__sbCurrent) ?>><i class="bi bi-hammer"></i> Leilão</a>
         <a href="/dispensas.php"<?= sbActive('dispensas.php', $__sbCurrent) ?>><i class="bi bi-hourglass-split"></i> Dispensas</a>
         <a href="/drafts.php"<?= sbActive('drafts.php', $__sbCurrent) ?>><i class="bi bi-trophy"></i> Draft</a>
