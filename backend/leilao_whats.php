@@ -63,8 +63,11 @@ function lwLinhaLeiloado(array $lw): string
 const LW_DURACAO_MIN = 20;
 /** Fecha antes se ficar esse tempo sem proposta nova nem decisão. */
 const LW_OCIOSO_MIN = 5;
-// O dono tem este tempo pra responder a proposta da vez. Passou: conta como recusada e vai a próxima.
-const LW_RESPOSTA_SEG = 90;
+/* O dono tem este tempo pra responder a proposta da vez. Passou: conta como recusada e vai a próxima.
+   Era 90 s; subiu pra 3 min em 27/10/2026, a pedido do Marcos — 90 s era pouco pra quem estava
+   com o celular longe e levava a recusa sem ter visto a oferta. O leilão continua limitado:
+   o pior caso é a fila inteira vencendo uma a uma, e ela só anda enquanto há proposta entregue. */
+const LW_RESPOSTA_SEG = 180;
 
 const LW_IDS_LIGA = ['ELITE' => 1, 'NEXT' => 2, 'RISE' => 3, 'ROOKIE' => 4];
 
@@ -1682,7 +1685,7 @@ function lwExpirarVez(PDO $pdo, array $lw): bool
     }
 
     whatsappEnfileirar($pdo, (string)$lw['grupo_jid'],
-        "⏱ Oferta do *{$vez['time_nome']}* sem resposta do *{$vez['vendedor_nome']}* em " . LW_RESPOSTA_SEG . " s — considerada *recusada*.",
+        "⏱ Oferta do *{$vez['time_nome']}* sem resposta do *{$vez['vendedor_nome']}* em " . (LW_RESPOSTA_SEG % 60 === 0 ? (LW_RESPOSTA_SEG / 60) . " min" : LW_RESPOSTA_SEG . " s") . " — considerada *recusada*.",
         true, LEILAO_BOT_TIPO);
     return true;
 }
