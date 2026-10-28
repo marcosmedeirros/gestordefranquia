@@ -309,6 +309,34 @@ function apostasAutoLideres(PDO $pdo, int $seasonId, string $coluna, int $quanto
 function apostasAutoCandidatos(PDO $pdo, string $liga, string $premio, ?int $temporadaAnterior,
                                 ?int $temporadaAtual = null): array
 {
+    /* MIP E 6º HOMEM SÃO POSIÇÃO, NÃO NOME. Pedido do Marcos (28/10/2026):
+       "pras apostas de quem vai ser mip e 6h, ajuste pra colocar a posição e
+       não os nomes". A lista de quatro nomes nunca teve cara de palpite — o
+       MIP e o 6º homem são prêmios difíceis de prever pelo nome, e a posição
+       é uma aposta que a liga sabe fazer. As cinco posições são a lista
+       inteira, então não precisa de "Outro": alguém sempre joga numa delas.
+       @see apostasAutoVencedor, que paga pela posição do premiado. */
+    if ($premio === 'mip' || $premio === '6th_man') {
+        return apostasAutoOpcoesPosicao();
+    }
+
+    /* O ROY SAI DO DRAFT, NÃO DAS ESTATÍSTICAS. Pedido do Marcos
+       (28/10/2026): "no roy, tá vindo sempre um rookie que não é rookie,
+       ajuste pra ser sempre as 4 primeiras picks do último draft".
+       Novato é quem acabou de ser escolhido, e as quatro primeiras escolhas
+       são os favoritos naturais ao prêmio. Sem passar pela regra geral
+       abaixo, de propósito: ela abre a lista com o premiado da temporada
+       passada (que por definição já não é novato) e completa com cestinhas
+       (idem) — era daí que vinha o "rookie que não é rookie". */
+    if ($premio === 'roy') {
+        $ops = [];
+        foreach (apostasAutoPrimeirasPicks($pdo, $liga, 4) as $n) {
+            $ops[] = ['desc' => $n, 'ref_tipo' => 'jogador', 'ref_txt' => $n];
+        }
+        $ops[] = ['desc' => 'Outro', 'ref_tipo' => 'outro'];
+        return $ops;
+    }
+
     $nomes = [];
     if ($temporadaAnterior) {
         if ($p = apostasAutoPremiado($pdo, $temporadaAnterior, $premio)) $nomes[] = $p;
@@ -326,15 +354,12 @@ function apostasAutoCandidatos(PDO $pdo, string $liga, string $premio, ?int $tem
             'mvp'     => fn() => apostasAutoLideres($pdo, $temporadaAnterior, 'pts_pg', 6),
             'dpoy'    => fn() => array_merge(apostasAutoLideres($pdo, $temporadaAnterior, 'blk_pg', 3),
                                              apostasAutoLideres($pdo, $temporadaAnterior, 'stl_pg', 3)),
-            'mip'     => fn() => apostasAutoMaisCresceram($pdo, $liga, $temporadaAnterior, 6),
-            /* O ROY NÃO SAI DA TEMPORADA PASSADA, e isso foi medido: novato é
-               quem não jogou antes, então procurá-lo nas estatísticas do ano
-               anterior acertava 0 de 48 nas temporadas já fechadas. Procurando
-               pelos novatos de OVR mais alto da temporada que vai começar,
-               acerta 19 de 48. */
-            'roy'     => fn() => apostasAutoNovatos($pdo, $liga, $temporadaAtual, 6),
-            '6th_man' => fn() => apostasAutoDoBanco($pdo, $temporadaAnterior, 6),
         ];
+        /* MIP, ROY e 6º homem não passam por aqui: saem das posições e do
+           draft, no começo desta função. As consultas antigas
+           (apostasAutoMaisCresceram, apostasAutoNovatos, apostasAutoDoBanco)
+           ficam no arquivo, sem chamador, pra quem quiser voltar a sugerir
+           nomes. */
         $lista = isset($fonte[$premio]) ? $fonte[$premio]() : [];
         foreach ($lista as $n) {
             if (!in_array($n, $nomes, true)) $nomes[] = $n;
@@ -359,6 +384,47 @@ function apostasAutoCandidatos(PDO $pdo, string $liga, string $premio, ?int $tem
     }
     $ops[] = ['desc' => 'Outro', 'ref_tipo' => 'outro'];
     return $ops;
+}
+
+/**
+ * Os jogadores das primeiras escolhas do último draft da liga — o ROY.
+ *
+ * "ÚLTIMO DRAFT" É A SESSÃO MAIS RECENTE EM QUE AS PRIMEIRAS ESCOLHAS JÁ
+ * FORAM FEITAS. Não é só a de maior id: um draft recém-criado em `setup`
+ * existe e não tem ninguém escolhido, e a aposta sairia vazia. Procura-se a
+ * mais nova em que a 1ª rodada já tem as `$quantas` primeiras posições
+ * preenchidas — normalmente a do draft que acabou de fechar.
+ *
+ * O NOME VEM DE `draft_pool`, E NÃO DE `players`. `draft_order.picked_player_id`
+ * aponta pro pool do draft; o jogador só vira linha de `players` depois, e
+ * com outro id. Cruzar o id com `players` devolve um nome sem relação
+ * nenhuma — medido na ELITE: a 5ª escolha (Alex English) casava com o id de
+ * Nikola Topic, que é de outro jogador. O pool também sobrevive à dispensa:
+ * o calouro cortado continua tendo sido a 2ª escolha do draft.
+ *
+ * Devolve menos de `$quantas` nomes se o draft ainda não escolheu tanta gente.
+ *
+ * @return string[] na ordem da escolha (1ª, 2ª, ...)
+ */
+function apostasAutoPrimeirasPicks(PDO $pdo, string $liga, int $quantas = 4): array
+{
+    $quantas = max(1, $quantas);
+    $st = $pdo->prepare("SELECT ds.id FROM draft_sessions ds
+                          WHERE ds.league = ? AND ds.status IN ('completed','in_progress')
+                            AND (SELECT COUNT(*) FROM draft_order o
+                                  WHERE o.draft_session_id = ds.id AND o.round = 1
+                                    AND o.pick_position <= ? AND o.picked_player_id IS NOT NULL) >= ?
+                       ORDER BY ds.id DESC LIMIT 1");
+    $st->execute([strtoupper(trim($liga)), $quantas, $quantas]);
+    $sessao = $st->fetchColumn();
+    if ($sessao === false) return [];
+
+    $st = $pdo->prepare("SELECT dp.name FROM draft_order o
+                           JOIN draft_pool dp ON dp.id = o.picked_player_id
+                          WHERE o.draft_session_id = ? AND o.round = 1 AND o.pick_position <= ?
+                       ORDER BY o.pick_position ASC");
+    $st->execute([(int)$sessao, $quantas]);
+    return array_values(array_filter(array_map('trim', array_column($st->fetchAll(PDO::FETCH_ASSOC), 'name'))));
 }
 
 /**
@@ -487,6 +553,45 @@ function apostasAutoJogoDaSemana(PDO $pdo, string $liga): ?array
     }
 }
 
+/**
+ * Os times do topo do POWER RANKING da liga — o mesmo do /power e do /powerc.
+ *
+ * Pedido do Marcos (28/10/2026): "pro seed1 das conferências e mais vitórias,
+ * pegue o top4 dos power rankings de conferência e mais vitória do geral".
+ * Antes as opções saíam da classificação da temporada ANTERIOR, que é o
+ * retrato de um elenco que já mudou. O power ranking é o time de hoje, e é a
+ * lista que a liga já discute no grupo.
+ *
+ * A conta NÃO é refeita aqui: é wcFichasDeForca, a mesma que o bot usa, pra o
+ * palpite e o /power nunca discordarem sobre quem é o favorito. Ela mora no
+ * arquivo dos comandos do bot, que é carregado só quando precisa (é o mesmo
+ * jeito de backend/fantasy.php e backend/estatisticas_bot.php).
+ *
+ * @param ?string $conferencia 'LESTE' / 'OESTE', ou null pra liga inteira
+ * @return array<int,array{id:int,nome:string}> vazio se a liga não tem quinteto
+ *         montado — quem chama cai na classificação, como era
+ */
+function apostasAutoTopPower(PDO $pdo, string $liga, ?string $conferencia, int $quantos = 4): array
+{
+    try {
+        if (!function_exists('wcFichasDeForca')) require_once __DIR__ . '/../api/whatsapp-comandos.php';
+        $fichas = wcFichasDeForca($pdo, strtoupper(trim($liga)));
+    } catch (Throwable $e) {
+        error_log('[apostas_auto] power ranking ' . $liga . ': ' . $e->getMessage());
+        return [];
+    }
+    if (!$fichas) return [];
+
+    $saida = [];
+    foreach ($fichas as $f) {       // já vem do mais forte pro mais fraco
+        if ($conferencia !== null
+            && strtoupper(trim((string)($f['conferencia'] ?? ''))) !== strtoupper($conferencia)) continue;
+        $saida[] = ['id' => (int)$f['id'], 'nome' => (string)$f['curto']];
+        if (count($saida) >= $quantos) break;
+    }
+    return $saida;
+}
+
 /** Os times mais fortes de uma conferência, pela classificação da temporada. */
 function apostasAutoTopTimes(PDO $pdo, int $seasonId, ?string $conferencia, int $quantos): array
 {
@@ -540,7 +645,10 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
 
     if ($fase === 'regular') {
         foreach (['LESTE', 'OESTE'] as $conf) {
-            $times = apostasAutoTopTimes($pdo, $paraClassificacao, $conf, 5);
+            /* O top 4 do POWER RANKING da conferência (@see apostasAutoTopPower).
+               Sem quinteto montado cai na classificação, que é o que era. */
+            $times = apostasAutoTopPower($pdo, $liga, $conf, 4)
+                  ?: apostasAutoTopTimes($pdo, $paraClassificacao, $conf, 4);
             $ops = [];
             foreach ($times as $t) {
                 $ops[] = ['desc' => $t['nome'], 'ref_tipo' => 'time', 'ref_id' => (int)$t['id']];
@@ -560,7 +668,14 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
         $premios = ['mvp' => 'MVP', 'mip' => 'MIP', 'dpoy' => 'DPOY',
                     'roy' => 'ROY', '6th_man' => '6º homem'];
         foreach ($premios as $tipo => $rotulo) {
-            $apostas[] = ['nome' => "Quem vai ser o {$rotulo}?", 'tipo' => $tipo, 'tipo_ref' => null,
+            /* MIP e 6º homem apostam na posição, e o título diz isso — "Quem
+               vai ser o MIP?" com PG/SG/SF/PF/C nas opções confundiria. O
+               `tipo` continua 'mip' / '6th_man': é por ele que a trava
+               contra duplicata e o pagamento acham a aposta. */
+            $nome = in_array($tipo, ['mip', '6th_man'], true)
+                  ? "O {$rotulo} vai ser de que posição?"
+                  : "Quem vai ser o {$rotulo}?";
+            $apostas[] = ['nome' => $nome, 'tipo' => $tipo, 'tipo_ref' => null,
                           'opcoes' => apostasAutoCandidatos($pdo, $liga, $tipo, $antId, $seasonId)];
         }
         // Especiais que o próprio banco responde depois.
@@ -585,7 +700,10 @@ function apostasAutoCatalogo(PDO $pdo, string $liga, string $fase, array $tempor
                           'tipo_ref' => null, 'opcoes' => $ops];
         }
         $maisV = [];
-        foreach (apostasAutoTopTimes($pdo, $paraClassificacao, null, 4) as $t) {
+        /* O top 4 do POWER RANKING geral da liga (@see apostasAutoTopPower). */
+        $topPower = apostasAutoTopPower($pdo, $liga, null, 4)
+                 ?: apostasAutoTopTimes($pdo, $paraClassificacao, null, 4);
+        foreach ($topPower as $t) {
             $maisV[] = ['desc' => $t['nome'], 'ref_tipo' => 'time', 'ref_id' => (int)$t['id']];
         }
         $maisV[] = ['desc' => 'Outro', 'ref_tipo' => 'outro'];
@@ -1162,6 +1280,25 @@ function apostasAutoVencedor(PDO $pdo, array $evt, array $opcoes): array
     if (in_array($tipo, ['mvp', 'mip', 'dpoy', 'roy', '6th_man'], true)) {
         $nome = apostasAutoPremiado($pdo, $sid, $tipo);
         if ($nome === null) return ['op' => null, 'motivo' => 'o card ainda não tem esse prêmio'];
+
+        /* MIP e 6º homem criados desde 28/10/2026 apostam na POSIÇÃO. O
+           mesmo `tipo` ainda existe com NOMES nas apostas antigas, que
+           continuam abertas ou por pagar — por isso o caminho é decidido
+           pelas opções que a aposta TEM, e não pelo tipo: se há opção de
+           posição, paga pela posição do premiado; se não, paga por nome,
+           como sempre foi. */
+        $temPosicao = false;
+        foreach ($opcoes as $o) if (($o['ref_tipo'] ?? '') === 'posicao') { $temPosicao = true; break; }
+        if ($temPosicao) {
+            $pos = apostasAutoPosicaoDoJogador($pdo, $sid, $nome);
+            if ($pos === null) return ['op' => null, 'motivo' => "não achei a posição de {$nome}"];
+            foreach ($opcoes as $o) {
+                if (($o['ref_tipo'] ?? '') === 'posicao' && strtoupper((string)$o['ref_txt']) === $pos) {
+                    return ['op' => (int)$o['id'], 'motivo' => "{$nome} é {$pos}"];
+                }
+            }
+            return ['op' => null, 'motivo' => "posição {$pos} não está entre as opções"];
+        }
         return apostasAutoCasaNome($opcoes, $nome);
     }
 
