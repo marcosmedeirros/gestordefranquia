@@ -257,14 +257,103 @@ function slotsTelaGarantirAbertura(PDO $pdo): void
     static $ok = false;
     if ($ok) return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS slots_tela_abertura (
-        league     VARCHAR(10) NOT NULL,
-        data_live  DATE NOT NULL,
-        aberto_em  DATETIME NOT NULL,
-        aberto_por INT NULL,
-        criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        league      VARCHAR(10) NOT NULL,
+        data_live   DATE NOT NULL,
+        aberto_em   DATETIME NULL,
+        aberto_por  INT NULL,
+        inicio_live DATETIME NULL,
+        criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (league, data_live)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* A tabela nasceu só com a abertura na mão. Agora ela também guarda a
+       REMARCAÇÃO da live (`inicio_live`), e por isso `aberto_em` passou a
+       aceitar nulo: remarcar sem ter aberto antes é um caso normal. */
+    if (!$pdo->query("SHOW COLUMNS FROM slots_tela_abertura LIKE 'inicio_live'")->fetch()) {
+        $pdo->exec("ALTER TABLE slots_tela_abertura ADD COLUMN inicio_live DATETIME NULL");
+    }
+    $col = $pdo->query("SHOW COLUMNS FROM slots_tela_abertura LIKE 'aberto_em'")->fetch(PDO::FETCH_ASSOC);
+    if ($col && strtoupper((string)$col['Null']) === 'NO') {
+        $pdo->exec("ALTER TABLE slots_tela_abertura MODIFY COLUMN aberto_em DATETIME NULL");
+    }
     $ok = true;
+}
+
+/**
+ * A LIVE QUE MUDOU DE HORÁRIO NO DIA.
+ *
+ * O calendário guarda a live como série semanal ("toda quarta às 15h"), e
+ * mexer nela muda TODAS as semanas seguintes e a escala da live, que lê o
+ * mesmo evento. Quando a live atrasa só hoje, a venda de slots ficava
+ * fechada ("a live já começou") até 30 minutos antes de ela começar de
+ * verdade — foi o que aconteceu na ELITE em 28/10/2026, com a live marcada
+ * pra 15h e acontecendo às 15h30.
+ *
+ * Então a remarcação vale SÓ pra venda de slots daquele dia, e fica numa
+ * linha própria em vez de editar o calendário. A série continua como estava.
+ *
+ * @param array{inicio:string,data:string,titulo:string} $live da slotsTelaProximaRegular
+ * @return array igual, com `inicio` trocado e `inicio_calendario` guardando o original
+ */
+function slotsTelaAplicarRemarcacao(PDO $pdo, string $liga, array $live): array
+{
+    slotsTelaGarantirAbertura($pdo);
+    try {
+        $st = $pdo->prepare("SELECT inicio_live FROM slots_tela_abertura
+                              WHERE league = ? AND data_live = ? AND inicio_live IS NOT NULL");
+        $st->execute([strtoupper(trim($liga)), $live['data']]);
+        $novo = $st->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[slots/remarcacao] ' . $e->getMessage());
+        return $live;
+    }
+    if (!$novo) return $live;
+    $live['inicio_calendario'] = $live['inicio'];
+    $live['inicio'] = (string)$novo;
+    return $live;
+}
+
+/**
+ * Remarca o horário da live para a venda de slots. Retorna [ok, ...].
+ *
+ * Só no MESMO DIA da live (a venda e a lista são por data), e só pra um
+ * horário que ainda não passou — remarcar pra trás fecharia a venda sem
+ * ninguém ter pedido. `$hhmm` vazio desfaz a remarcação e a venda volta a
+ * seguir o calendário.
+ */
+function slotsTelaRemarcarLive(PDO $pdo, string $liga, string $hhmm, int $adminId): array
+{
+    slotsTelaGarantirAbertura($pdo);
+    $liga = strtoupper(trim($liga));
+    $live = slotsTelaProximaRegular($pdo, $liga);
+    if (!$live) return ['ok' => false, 'erro' => 'A ' . $liga . ' não tem live da temporada regular marcada.'];
+
+    $hhmm = trim($hhmm);
+    if ($hhmm === '') {
+        $pdo->prepare("UPDATE slots_tela_abertura SET inicio_live = NULL WHERE league = ? AND data_live = ?")
+            ->execute([$liga, $live['data']]);
+        // Linha vazia (sem abertura na mão e sem remarcação) não precisa ficar.
+        $pdo->prepare("DELETE FROM slots_tela_abertura
+                        WHERE league = ? AND data_live = ? AND aberto_em IS NULL AND inicio_live IS NULL")
+            ->execute([$liga, $live['data']]);
+        return ['ok' => true, 'live' => $live, 'desfeita' => true];
+    }
+
+    if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $hhmm, $m)) {
+        return ['ok' => false, 'erro' => 'Horário inválido. Use HH:MM, por exemplo 15:30.'];
+    }
+    $tz   = new DateTimeZone('America/Sao_Paulo');
+    $novo = new DateTimeImmutable($live['data'] . sprintf(' %02d:%02d:00', (int)$m[1], (int)$m[2]), $tz);
+    if ($novo <= new DateTimeImmutable('now', $tz)) {
+        return ['ok' => false, 'erro' => 'Esse horário já passou. A remarcação tem que ser pra daqui pra frente.'];
+    }
+
+    $pdo->prepare("INSERT INTO slots_tela_abertura (league, data_live, aberto_em, aberto_por, inicio_live)
+                   VALUES (?,?,NULL,?,?)
+                   ON DUPLICATE KEY UPDATE inicio_live = VALUES(inicio_live), aberto_por = VALUES(aberto_por)")
+        ->execute([$liga, $live['data'], $adminId ?: null, $novo->format('Y-m-d H:i:s')]);
+
+    return ['ok' => true, 'live' => slotsTelaAplicarRemarcacao($pdo, $liga, $live)];
 }
 
 /** O instante em que a venda desta live foi aberta na mão, se foi. */
@@ -288,6 +377,7 @@ function slotsTelaAbrirAgora(PDO $pdo, string $liga, int $adminId): array
     $liga = strtoupper(trim($liga));
     $live = slotsTelaProximaRegular($pdo, $liga);
     if (!$live) return ['ok' => false, 'erro' => 'A ' . $liga . ' não tem live da temporada regular marcada.'];
+    $live = slotsTelaAplicarRemarcacao($pdo, $liga, $live);
 
     $tz = new DateTimeZone('America/Sao_Paulo');
     $agora = new DateTimeImmutable('now', $tz);
@@ -310,7 +400,13 @@ function slotsTelaCancelarAbertura(PDO $pdo, string $liga): array
     $liga = strtoupper(trim($liga));
     $live = slotsTelaProximaRegular($pdo, $liga);
     if (!$live) return ['ok' => false, 'erro' => 'Nenhuma live à frente nesta liga.'];
-    $pdo->prepare("DELETE FROM slots_tela_abertura WHERE league = ? AND data_live = ?")
+    /* Desfaz SÓ a abertura na mão. A remarcação da live, se houver, é outra
+       decisão e fica — apagar a linha inteira reabriria o "a live já
+       começou" de uma live que na verdade ainda não começou. */
+    $pdo->prepare("UPDATE slots_tela_abertura SET aberto_em = NULL WHERE league = ? AND data_live = ?")
+        ->execute([$liga, $live['data']]);
+    $pdo->prepare("DELETE FROM slots_tela_abertura
+                    WHERE league = ? AND data_live = ? AND aberto_em IS NULL AND inicio_live IS NULL")
         ->execute([$liga, $live['data']]);
     return ['ok' => true, 'live' => $live];
 }
@@ -326,6 +422,8 @@ function slotsTelaEstado(PDO $pdo, string $liga, int $teamId = 0, ?string $agora
 
     $live = slotsTelaProximaRegular($pdo, $liga, $ref->format('Y-m-d H:i:s'));
     if (!$live) return $base;
+    // A live que atrasou no dia: vale o horário remarcado, não o do calendário.
+    $live = slotsTelaAplicarRemarcacao($pdo, $liga, $live);
 
     $inicio = new DateTimeImmutable($live['inicio'], $tz);
     $abre   = slotsTelaAberturaPadrao($inicio);

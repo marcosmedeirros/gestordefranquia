@@ -11,6 +11,9 @@
  *   GET  ?action=estado           as ligas do admin, com a próxima live de cada
  *   POST {action:'abrir',   liga} abre a venda da próxima live agora
  *   POST {action:'cancelar',liga} desfaz, e a venda volta a seguir o relógio
+ *   POST {action:'remarcar',liga,hora:'15:30'} a live de HOJE mudou de horário:
+ *        a venda passa a fechar no horário novo. `hora` vazia desfaz. Não mexe
+ *        no calendário, que é a série semanal.
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -69,6 +72,23 @@ try {
             ];
         }
         echo json_encode(['success' => true, 'ligas' => $out], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if ($acao === 'remarcar') {
+        $liga = strtoupper(trim((string)($corpo['liga'] ?? '')));
+        if (!in_array($liga, $ligas, true)) slErro(403, 'Você não administra a ' . ($liga ?: 'liga') . '.');
+        $r = slotsTelaRemarcarLive($pdo, $liga, (string)($corpo['hora'] ?? ''), (int)$user['id']);
+        if (!$r['ok']) slErro(409, $r['erro']);
+        $e = slotsTelaEstado($pdo, $liga);
+        echo json_encode([
+            'success' => true,
+            'aberta'  => $e['aberta'],
+            'motivo'  => $e['motivo'],
+            'inicio'  => $e['live']['inicio'] ?? null,
+            'hora'    => isset($e['live']['inicio']) ? slotsTelaHora($e['live']['inicio']) : null,
+            'restam'  => $e['restam'],
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
