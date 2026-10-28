@@ -12,11 +12,46 @@ require_once __DIR__ . '/whatsapp.php';
 const ABRACO_HORA = 15;   // horário de Brasília
 
 /**
+ * Os GMs que o popup do botão oferece: quem tem nome e pelo menos um time.
+ * A mesma regra do sorteio, porque é a mesma lista de quem pode receber.
+ * Quem tem time em mais de uma liga aparece uma vez, com o da liga mais alta
+ * (o que a mensagem também mostra).
+ *
+ * @return array<int,array{id:int,name:string,time:string,liga:string,tem_telefone:bool}>
+ */
+function abracoListaDeGms(PDO $pdo): array
+{
+    $linhas = $pdo->query("
+        SELECT u.id, u.name, u.phone, t.city, t.name AS team_name, t.league
+          FROM users u
+          JOIN teams t ON t.id = (SELECT t2.id FROM teams t2 WHERE t2.user_id = u.id
+                                   ORDER BY FIELD(t2.league,'ELITE','NEXT','RISE','ROOKIE'), t2.id LIMIT 1)
+         WHERE u.name IS NOT NULL AND u.name <> ''
+         ORDER BY u.name ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $out = [];
+    foreach ($linhas as $l) {
+        $out[] = [
+            'id'           => (int)$l['id'],
+            'name'         => trim((string)$l['name']),
+            'time'         => trim(trim((string)$l['city']) . ' ' . trim((string)$l['team_name'])),
+            'liga'         => (string)$l['league'],
+            'tem_telefone' => strlen(preg_replace('/\D+/', '', (string)($l['phone'] ?? ''))) >= 10,
+        ];
+    }
+    return $out;
+}
+
+/**
  * @param bool $forcar Ignora o horário E a marca do dia. É o botão do admin:
  *                     ele clicou porque quer agora, mesmo que já tenha saído.
+ * @param ?int $userId O GM escolhido no popup do botão. Null sorteia, como
+ *                     sempre foi. Só vale com $forcar: o cron das 15h nunca
+ *                     escolhe ninguém.
  * @return array ['enviado' => bool, 'motivo' => string, 'nome' => ?string, ...]
  */
-function enviarAbracoDoDia(PDO $pdo, bool $forcar = false): array
+function enviarAbracoDoDia(PDO $pdo, bool $forcar = false, ?int $userId = null): array
 {
     ensureWhatsAppTables($pdo);
 
@@ -48,12 +83,27 @@ function enviarAbracoDoDia(PDO $pdo, bool $forcar = false): array
         return ['enviado' => false, 'motivo' => 'sem_grupo'];
     }
 
+    /* GM ESCOLHIDO NO POPUP: pula o sorteio e a trava de repetição. Quem
+       escolhe à mão sabe o que quer — e se quer repetir o último, é decisão
+       dele; a trava existe pra o SORTEIO não parecer defeito. A validação é
+       a mesma do sorteio (tem nome e tem time), pra um id qualquer vindo do
+       navegador não mandar abraço pra quem não joga. */
+    $escolhido = null;
+    if ($forcar && $userId !== null && $userId > 0) {
+        $stEsc = $pdo->prepare("SELECT u.id, u.name, u.phone FROM users u
+                                 WHERE u.id = ? AND u.name IS NOT NULL AND u.name <> ''
+                                   AND EXISTS (SELECT 1 FROM teams t WHERE t.user_id = u.id)");
+        $stEsc->execute([$userId]);
+        $escolhido = $stEsc->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$escolhido) return ['enviado' => false, 'motivo' => 'gm_invalido'];
+    }
+
     // Sem GROUP BY de propósito: com ONLY_FULL_GROUP_BY ligado (padrão do MySQL
     // 5.7 pra cima) selecionar colunas do time agrupando por usuário é erro, e
     // eu não controlo a configuração da hospedagem. O EXISTS também deixa o
     // sorteio justo — GM com time em duas ligas entraria duas vezes num JOIN
     // direto e teria o dobro de chance.
-    $candidatos = $pdo->query("
+    $candidatos = $escolhido ? [$escolhido] : $pdo->query("
         SELECT u.id, u.name, u.phone
         FROM users u
         WHERE u.name IS NOT NULL AND u.name <> ''
@@ -72,7 +122,7 @@ function enviarAbracoDoDia(PDO $pdo, bool $forcar = false): array
     //
     // Pego o último abraço pelo id, não por data: depender de "onde estava
     // ontem" quebra calado se a fila for limpa ou se o cron pular um dia.
-    $idAnterior = (int)($pdo->query("SELECT user_id FROM whatsapp_fila
+    $idAnterior = $escolhido ? 0 : (int)($pdo->query("SELECT user_id FROM whatsapp_fila
                                      WHERE tipo = 'abraco' AND user_id IS NOT NULL
                                      ORDER BY id DESC LIMIT 1")->fetchColumn() ?: 0);
 

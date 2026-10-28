@@ -1177,6 +1177,18 @@ if ($method === 'GET') {
         // Manda o abraço do dia na hora, sem esperar as 15h. Mesma função do
         // cron, com forçar=true: ignora o horário e a marca do dia, porque quem
         // clicou quer agora, mesmo que já tenha saído hoje.
+        // A lista que o popup do abraço mostra quando o admin escolhe o GM.
+        case 'abraco_gms': {
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores globais.']);
+                break;
+            }
+            require_once __DIR__ . '/../backend/whatsapp_abraco.php';
+            echo json_encode(['success' => true, 'gms' => abracoListaDeGms($pdo)]);
+            break;
+        }
+
         case 'disparar_abraco': {
             if (!$isGlobalAdminApi) {
                 http_response_code(403);
@@ -1184,12 +1196,14 @@ if ($method === 'GET') {
                 break;
             }
             require_once __DIR__ . '/../backend/whatsapp_abraco.php';
-            $r = enviarAbracoDoDia($pdo, true);
+            // `user_id` vem do popup quando o admin escolhe o GM; sem ele, sorteia.
+            $r = enviarAbracoDoDia($pdo, true, isset($_GET['user_id']) ? (int)$_GET['user_id'] : null);
 
             if (!$r['enviado']) {
                 $motivos = [
                     'sem_grupo'      => 'O grupo principal do WhatsApp não está configurado.',
                     'sem_candidatos' => 'Nenhum GM com time pra sortear.',
+                    'gm_invalido'    => 'Esse GM não existe ou não tem time — escolha outro.',
                     'bot_desligado'  => 'O bot do WhatsApp está desligado — a mensagem não entrou na fila.',
                 ];
                 http_response_code(400);

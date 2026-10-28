@@ -1140,8 +1140,100 @@ async function showGestao(league) {
 /** Preenche nba_player_id de quem ainda não tem — é isso que faz a foto aparecer. */
 // Manda o abraço do dia agora, sem esperar as 15h. Confirma antes porque isto
 // posta no grupo — e o grupo tem gente de verdade.
+/**
+ * O popup do abraço: sortear ou escolher o GM. Devolve Promise com
+ * { userId } (userId null = sortear) ou null se cancelou.
+ *
+ * A lista de GMs só é buscada se a pessoa pedir "escolher" — o caso comum
+ * continua sendo um clique e uma confirmação, sem esperar rede.
+ */
+function _abracoPopup() {
+  return new Promise(resolve => {
+    document.getElementById('abracoModal')?.remove();
+    const el = document.createElement('div');
+    el.className = 'modal fade';
+    el.id = 'abracoModal';
+    el.tabIndex = -1;
+    el.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-orange">
+          <div class="modal-header border-orange">
+            <h5 class="modal-title text-white"><i class="bi bi-emoji-smile-fill me-2" style="color:#22c55e"></i>Disparar abraço</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-light-gray" style="font-size:13px">Isso posta no The Pathetic agora, mesmo que o abraço de hoje já tenha saído.</p>
+            <label class="d-flex align-items-center gap-2 mb-2" style="cursor:pointer;color:var(--text)">
+              <input type="radio" name="abracoModo" value="sorteio" checked> <span><b>Sortear</b> — qualquer GM, como no automático das 15h</span>
+            </label>
+            <label class="d-flex align-items-center gap-2" style="cursor:pointer;color:var(--text)">
+              <input type="radio" name="abracoModo" value="escolher"> <span><b>Escolher o GM</b></span>
+            </label>
+            <div id="abracoEscolha" style="display:none;margin-top:12px">
+              <select id="abracoGm" class="form-select bg-dark text-white border-secondary" disabled>
+                <option value="">Carregando…</option>
+              </select>
+              <div id="abracoAviso" class="text-light-gray" style="font-size:12px;margin-top:6px"></div>
+            </div>
+          </div>
+          <div class="modal-footer border-orange">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" id="abracoOk"><i class="bi bi-send-fill me-1"></i>Mandar abraço</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+
+    const modal = bootstrap.Modal.getOrCreateInstance(el);
+    let resposta = null;
+    let carregou = false;
+    const sel = el.querySelector('#abracoGm');
+    const aviso = el.querySelector('#abracoAviso');
+    const ok = el.querySelector('#abracoOk');
+
+    async function carregarGms() {
+      if (carregou) return;
+      carregou = true;
+      try {
+        const r = await api('admin.php?action=abraco_gms');
+        const gms = r.gms || [];
+        sel.innerHTML = '<option value="">Escolha o GM…</option>' + gms.map(g =>
+          `<option value="${g.id}" data-tel="${g.tem_telefone ? 1 : 0}">${escapeHtml(g.name)} — ${escapeHtml(g.time)} (${escapeHtml(g.liga)})</option>`
+        ).join('');
+        sel.disabled = false;
+        atualizar();   // o botão só libera depois de escolher alguém
+      } catch (e) {
+        carregou = false;
+        sel.innerHTML = '<option value="">Não consegui carregar a lista</option>';
+        aviso.textContent = e.message || 'Erro ao carregar os GMs.';
+      }
+    }
+
+    function atualizar() {
+      const escolher = el.querySelector('input[name="abracoModo"]:checked').value === 'escolher';
+      el.querySelector('#abracoEscolha').style.display = escolher ? 'block' : 'none';
+      if (escolher) carregarGms();
+      ok.disabled = escolher && !sel.value;
+      const opt = sel.selectedOptions[0];
+      aviso.textContent = escolher && opt && opt.dataset.tel === '0'
+        ? 'Sem telefone cadastrado: vai o nome puro, sem marcar.' : '';
+    }
+    el.querySelectorAll('input[name="abracoModo"]').forEach(r => r.addEventListener('change', atualizar));
+    sel.addEventListener('change', atualizar);
+
+    ok.addEventListener('click', () => {
+      const escolher = el.querySelector('input[name="abracoModo"]:checked').value === 'escolher';
+      resposta = { userId: escolher ? parseInt(sel.value, 10) || null : null };
+      modal.hide();
+    });
+    el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(resposta); });
+    modal.show();
+  });
+}
+
 async function dispararAbraco() {
-  if (!await confirmarSite('Sortear um GM e mandar o abraço no grupo agora?\n\nIsso posta no The Pathetic, mesmo que o abraço de hoje já tenha saído.')) return;
+  const escolha = await _abracoPopup();
+  if (!escolha) return;
   const btn = document.getElementById('btnAbraco');
   const original = btn ? btn.innerHTML : null;
   if (btn) {
@@ -1149,9 +1241,9 @@ async function dispararAbraco() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
   }
   try {
-    const r = await api('admin.php?action=disparar_abraco');
+    const r = await api('admin.php?action=disparar_abraco' + (escolha.userId ? `&user_id=${escolha.userId}` : ''));
     showAlert('success',
-      `Abraço sorteado: ${r.nome} (${r.time}).` +
+      `Abraço ${escolha.userId ? 'enviado' : 'sorteado'}: ${r.nome} (${r.time}).` +
       (r.com_mencao ? '' : ' Sem telefone cadastrado, então foi o nome puro, sem marcar.') +
       ' A mensagem está na fila — o bot entrega em alguns segundos.');
   } catch (e) {
