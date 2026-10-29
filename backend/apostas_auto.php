@@ -872,7 +872,24 @@ function apostasAutoCriar(PDO $pdo, string $data, bool $aplicar = false,
            da classificação: a ELITE, por exemplo, tem o leilão na quarta e o
            playoff na quinta. */
         if ($dia['fase'] === 'playoffs') {
-            $catalogo = array_values(array_filter($catalogo, fn($a) => $a['tipo'] === 'jogo_semana'));
+            /* ATUALIZADO EM 29/10/2026. O corte acima (só o jogo da semana)
+               nasceu do cron das 12:05, que rodava sozinho antes de a
+               classificação existir. O robô parou de criar sozinho em
+               19/10 e quem chama isto agora é o botão "Criar apostas do
+               dia" — alguém decidiu criar. Com o botão como única porta, o
+               corte deixava o dia de playoff sem caminho: clicava e "nada
+               acontecia", justamente no dia em que a liga mais aposta.
+
+               A condição que sobra é a que o corte protegia: o chaveamento só
+               é fato quando a classificação da temporada ATUAL está
+               registrada. Sem ela o catálogo cai na classificação do ano
+               passado e criaria confrontos de times que não vão jogar. */
+            $temClassificacao = (bool)apostasAutoTopTimes($pdo, (int)$temporada['id'], 'OESTE', 1);
+            if (!$temClassificacao) {
+                $catalogo = array_values(array_filter($catalogo, fn($a) => $a['tipo'] === 'jogo_semana'));
+                $r['erros'][] = "{$dia['liga']}: é dia de playoff, mas a classificação da temporada ainda não foi "
+                              . 'registrada — registre-a antes, senão o chaveamento sairia com os times do ano passado.';
+            }
         }
 
         if ($somenteTipos !== null) {

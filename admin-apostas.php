@@ -68,10 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     . ') — nada foi criado de novo.';
                 $mensagemType = 'info';
             } else {
-                /* Sem liga no calendário hoje, ou dia de playoff (que nasce no
-                   registro da classificação): não é falha, é o desenho. */
-                $mensagem = 'Nada pra criar hoje: ou nenhuma liga joga, ou é dia de playoff '
-                    . '(as de playoff nascem quando você registra a classificação).';
+                /* Sem liga com jogo no calendário hoje: não é falha. O dia de
+                   playoff não cai aqui mais — cria as de playoff da liga, ou
+                   avisa em `erros` o que falta. */
+                $mensagem = 'Nada pra criar hoje: nenhuma liga tem jogo marcado no calendário.';
                 $mensagemType = 'info';
             }
             foreach ($rDia['erros'] as $eDia) {
