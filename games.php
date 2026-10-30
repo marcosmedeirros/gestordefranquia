@@ -111,18 +111,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['opcao_id'])) {
             echo json_encode(['ok' => false, 'erro' => $apostaErro]);
             exit;
         }
-        /* ── A CONTA NÃO VAI MAIS NA RESPOSTA ─────────────────────────
-           Enquanto dá pra palpitar, a divisão dos votos é segredo — é o que
-           impede o palpite de virar enquete de manada. E segredo que a tela
-           esconde mas o servidor manda não é segredo: bastaria abrir o painel
-           de rede do navegador pra ver quem está na frente.
-
-           Palpite só é aceito com o prazo aberto (a conferência lá em cima),
-           então toda resposta que chega aqui é de evento aberto: não há caso
-           em que a porcentagem devesse vir junto. Ela volta no recarregar da
-           página, que é quando o prazo já fechou. */
+        /* A CONTA VOLTA NA RESPOSTA (30/10/2026, pedido do Marcos: "volte a
+           porcentagem das apostas"). Entre 29/09 e hoje a divisão dos votos
+           ficou escondida enquanto o prazo estava aberto, pra o palpite não
+           virar enquete de manada; ele decidiu que quer ver. É a mesma conta
+           do carregamento da página (apostasPercentuais), senão a soma daria
+           100 ao abrir e 101 depois de clicar. */
+        $opcoes = []; $total = 0;
+        try {
+            $stR = $pdo->prepare("
+                SELECT o.id, COUNT(p.id) AS n
+                  FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id
+                 WHERE o.evento_id = ?
+                 GROUP BY o.id ORDER BY o.id ASC
+            ");
+            $stR->execute([$apostaEvento]);
+            $linhas = $stR->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $contagem = [];
+            foreach ($linhas as $l) $contagem[(int)$l['id']] = (int)$l['n'];
+            $total = array_sum($contagem);
+            $pct   = apostasPercentuais($contagem);
+            foreach ($linhas as $i => $l) {
+                $id = (int)$l['id'];
+                $opcoes[$i] = ['id' => $id, 'pct' => $pct[$id] ?? 0, 'n' => (int)$l['n']];
+            }
+        } catch (Throwable $e) {
+            echo json_encode(['ok' => false, 'erro' => 'Não deu pra recontar os palpites.']);
+            exit;
+        }
         echo json_encode(['ok' => true, 'msg' => $apostaMsg, 'evento' => $apostaEvento,
-                          'escolhida' => $opcaoId]);
+                          'escolhida' => $opcaoId, 'total' => $total,
+                          'opcoes' => array_values($opcoes)]);
         exit;
     }
 }
@@ -1380,24 +1399,21 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                         <div class="opcoes">
                             <?php foreach ($ev['opcoes'] as $op): ?>
                             <?php
-                                /* ── A PORCENTAGEM SÓ APARECE DEPOIS DO PRAZO ──
-                                   Mostrar quem está ganhando enquanto dá pra
-                                   votar transforma o palpite numa enquete de
-                                   manada: a pessoa abre, vê 76% num nome e
-                                   marca aquele. Escondendo até o fim, o palpite
-                                   é opinião; depois do fim, o número vira o que
-                                   ele sempre devia ter sido — a revelação. */
-                                $revela = !empty($ev['fechado']);
+                                /* A porcentagem, a barra e a contagem aparecem SEMPRE,
+                                   com o prazo aberto ou fechado (30/10/2026, a pedido
+                                   do Marcos). Entre 29/09 e hoje elas só apareciam
+                                   depois do prazo, pra o palpite não virar enquete de
+                                   manada — a decisão foi desfeita de propósito. O que
+                                   o prazo fechado continua fazendo é travar o botão. */
+                                $travado = !empty($ev['fechado']);
                             ?>
                             <form method="POST" style="flex:1;min-width:150px;display:flex">
                                 <input type="hidden" name="opcao_id" value="<?= (int)$op['id'] ?>">
                                 <input type="hidden" name="ajax" value="1" disabled data-ajax-flag>
                                 <button type="submit" class="op-btn <?= (int)$ev['meu_palpite'] === (int)$op['id'] ? 'escolhida' : '' ?>"
-                                        <?= $revela ? 'disabled' : '' ?>
-                                        title="<?= $revela ? (int)$op['palpites'] . ' ' . ((int)$op['palpites'] === 1 ? 'palpite' : 'palpites') : 'O resultado dos palpites aparece quando o prazo fechar' ?>">
-                                    <?php if ($revela): ?>
+                                        <?= $travado ? 'disabled' : '' ?>
+                                        title="<?= (int)$op['palpites'] ?> <?= (int)$op['palpites'] === 1 ? 'palpite' : 'palpites' ?>">
                                     <span class="op-barra" style="width:<?= (int)$op['pct'] ?>%"></span>
-                                    <?php endif; ?>
                                     <?php
                                         $cara = null;
                                         if (!empty($op['img_url'])) {
@@ -1415,10 +1431,8 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                                          onerror="this.style.display='none'">
                                     <?php endif; ?>
                                     <span class="op-txt"><?= htmlspecialchars($op['descricao']) ?></span>
-                                    <?php if ($revela): ?>
                                     <span class="op-pct"><?= (int)$op['pct'] ?>%
                                         <small class="op-n"><?= (int)$op['palpites'] ?></small></span>
-                                    <?php endif; ?>
                                 </button>
                             </form>
                             <?php endforeach; ?>
@@ -1431,7 +1445,6 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                         <?php elseif ($ev['meu_palpite']): ?>
                         <div class="op-dica">
                             <i class="bi bi-info-circle"></i> Dá pra trocar sua escolha até o prazo acabar.
-                            Quantos foram em cada opção só aparece depois disso.
                         </div>
                         <?php endif; ?>
                     </div>
@@ -2315,17 +2328,39 @@ function trocarLigaRanking(liga) {
             const d = await r.json();
             if (!d.ok) throw new Error(d.erro || 'Não deu pra registrar.');
 
-            /* NÃO HÁ MAIS PORCENTAGEM PRA DESENHAR AQUI. Enquanto o prazo
-               está aberto ela é segredo — inclusive do navegador, que deixou
-               de recebê-la. O card só confirma a escolha; a divisão dos votos
-               aparece quando o prazo fechar e a página recarregar. */
+            // A divisão dos votos, já com o seu palpite contado. A conta vem do
+            // servidor (a mesma do carregamento) em vez de ser chutada aqui.
+            const porId = {};
+            (d.opcoes || []).forEach(o => { porId[o.id] = o; });
+            card.querySelectorAll('form').forEach(f => {
+                const id = Number(f.querySelector('[name="opcao_id"]')?.value);
+                const dados = porId[id];
+                if (!dados) return;
+                const btn = f.querySelector('.op-btn');
+                const barra = btn?.querySelector('.op-barra');
+                const pct = btn?.querySelector('.op-pct');
+                if (barra) barra.style.width = dados.pct + '%';
+                if (pct) pct.innerHTML = dados.pct + '% <small class="op-n">' + dados.n + '</small>';
+                if (btn) btn.title = dados.n + (dados.n === 1 ? ' palpite' : ' palpites');
+            });
+
+            // O total no cabeçalho: pode não existir ainda, se este era o
+            // primeiro palpite do evento.
+            let cxTotal = card.querySelector('.ev-total');
+            if (!cxTotal && d.total > 0) {
+                cxTotal = document.createElement('div');
+                cxTotal.className = 'prazo ev-total';
+                cxTotal.title = 'Total de palpites neste evento';
+                cxTotal.innerHTML = '<i class="bi bi-people-fill"></i> <span></span>';
+                card.querySelector('.card-head-dir')?.prepend(cxTotal);
+            }
+            if (cxTotal) cxTotal.querySelector('span').textContent = d.total;
 
             // A dica de "dá pra trocar" só aparece depois do primeiro palpite.
             if (!card.querySelector('.op-dica')) {
                 const dica = document.createElement('div');
                 dica.className = 'op-dica';
-                dica.innerHTML = '<i class="bi bi-info-circle"></i> Dá pra trocar sua escolha até o prazo acabar. '
-                               + 'Quantos foram em cada opção só aparece depois disso.';
+                dica.innerHTML = '<i class="bi bi-info-circle"></i> Dá pra trocar sua escolha até o prazo acabar.';
                 card.querySelector('.card-body')?.appendChild(dica);
             }
             aviso(d.msg || 'Palpite registrado.', false);
