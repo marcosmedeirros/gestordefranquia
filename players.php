@@ -483,6 +483,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		.players-toggle-btn:hover { border-color: var(--border-red); color: var(--text); }
 		.players-toggle-btn.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+		/* O select "Disponíveis para troca" mora ao lado dos toggles e tem a mesma cara deles. */
+		.players-toggle-select {
+			padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+			border: 1px solid var(--border-md); background: var(--panel-2); color: var(--text-2); cursor: pointer;
+		}
+		.players-toggle-select:hover { border-color: var(--border-red); color: var(--text); }
+		.players-toggle-select.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
 		/* ── Estrela de favorito ─────────────────────── */
 		.fav-star {
@@ -672,6 +679,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div class="panel-title" style="margin:0">Jogadores da Liga</div>
 					<div style="display:flex;gap:8px;flex-wrap:wrap">
 						<button type="button" id="semLendasBtn" class="players-toggle-btn" aria-pressed="false" title="Tira da lista os jogadores marcados como lenda"><i class="bi bi-eye-slash"></i> <span>Esconder lendas</span></button>
+						<select id="tradeFilter" class="players-toggle-select" aria-label="Filtrar por disponibilidade para troca" title="Mostra só quem o dono marcou como disponível para troca">
+							<option value="">Todos os jogadores</option>
+							<option value="trade">Disponíveis para troca</option>
+						</select>
 						<button type="button" id="favFilterBtn" class="players-toggle-btn"><i class="bi bi-star"></i> <span>Favoritos</span></button>
 						<button type="button" id="compareBtn" class="players-toggle-btn"><i class="bi bi-bar-chart-steps"></i> <span>Comparar</span></button>
 					</div>
@@ -842,6 +853,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	// "Esconder lendas": lembrado neste navegador, porque quem esconde uma vez
 	// costuma querer a lista assim sempre.
 	let semLendas = (() => { try { return localStorage.getItem('fba-jogadores-sem-lendas') === '1'; } catch (e) { return false; } })();
+	// "Disponíveis para troca": só quem o dono marcou como disponível. Não fica salvo
+	// entre visitas — uma lista que abre já cortada pela metade parece defeito.
+	let soTrade = false;
 	let compareMode = false;
 	let compareSel = []; // [{id, name, ovr}]
 
@@ -1294,6 +1308,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (capMax) params.set('cap_max', capMax);
 		if (teamId) params.set('team_id', teamId);
 		if (semLendas) params.set('sem_lendas', '1');
+		if (soTrade) params.set('available_for_trade', '1');
 		params.set('page', onlyFavorites ? 1 : currentPage);
 		params.set('per_page', onlyFavorites ? 3000 : perPage);
 
@@ -1432,6 +1447,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			carregarJogadores();
 		});
 	}
+	const tradeFilter = document.getElementById('tradeFilter');
+	if (tradeFilter) tradeFilter.addEventListener('change', () => {
+		soTrade = tradeFilter.value === 'trade';
+		tradeFilter.classList.toggle('active', soTrade);
+		currentPage = 1;
+		carregarJogadores();
+	});
 	if (favFilterBtn) favFilterBtn.addEventListener('click', () => {
 		onlyFavorites = !onlyFavorites;
 		favFilterBtn.classList.toggle('active', onlyFavorites);
