@@ -689,7 +689,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         <!-- Stats -->
         <div class="stats-strip">
             <div class="stat-pill">
-                <div class="stat-pill-icon"><i class="bi bi-<?= $fa_salario ? 'cash-coin' : 'coin' ?>"></i></div>
+                <div class="stat-pill-icon"><i class="bi bi-<?= $fa_salario ? 'cash-stack' : 'coin' ?>"></i></div>
                 <div>
                     <?php if ($fa_salario): ?>
                         <div class="stat-pill-val"><?= (int)$fa_maximo ?>M</div>

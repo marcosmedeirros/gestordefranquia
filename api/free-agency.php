@@ -2074,7 +2074,8 @@ function faAtribuirOferta(PDO $pdo, int $offerId, int $adminId): array
             $stmtSign->execute([(int)$offer['team_id']]);
         }
 
-        if (tableExists($pdo, 'team_coins_log')) {
+        // Só onde moeda foi cobrada: na ELITE não houve débito pra registrar.
+        if (!$ehElite && tableExists($pdo, 'team_coins_log')) {
             $stmtLog = $pdo->prepare('
                 INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at)
                 VALUES (?, ?, ?, ?, NOW())
@@ -3064,7 +3065,10 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $stmtSign->execute([(int)$offer['team_id']]);
         }
 
-        if (tableExists($pdo, 'team_coins_log')) {
+        /* Só registra moeda onde moeda foi cobrada. Na ELITE não houve desconto,
+           e um "-7" no extrato de moedas descreveria um débito que nunca
+           aconteceu. */
+        if (!$ehElite && tableExists($pdo, 'team_coins_log')) {
             $stmtLog = $pdo->prepare('
                 INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at)
                 VALUES (?, ?, ?, ?, NOW())
@@ -3118,6 +3122,15 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             // Elenco cheio: cancela todas as demais propostas pendentes do time
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending"')
                 ->execute([(int)$offer['team_id']]);
+        } elseif ($ehElite) {
+            /* NA ELITE O SALDO DE MOEDAS NÃO DECIDE NADA (pedido do Marcos,
+               03/11/2026: "na elite não tem mais moedas pela FA, é sempre o
+               cap que quer oferecer e a prioridade"). Este ramo comparava o
+               lance — em MILHÕES de folha — com o saldo de moedas do time e
+               cancelava as outras propostas dele quando "não sobrava": um
+               time de ELITE com poucas moedas perdia lances legítimos só por
+               isso. O que sustenta as propostas que restam é o espaço no cap,
+               e quem confere é cancelarPropostasSemEspacoNoCap, logo abaixo. */
         } elseif ($newCoins < 0) {
             // Moedas insuficientes: cancela propostas que custam mais do que sobrou
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending" AND amount > 0')
@@ -3138,7 +3151,9 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $nomeJogador = (string)$offer['player_name'];
             sendPushToTeam($pdo, (int)$offer['team_id'], [
                 'title' => '✍️ Free Agent assinado!',
-                'body'  => "{$nomeJogador} é seu por " . (int)$offer['amount'] . ' moedas.',
+                'body'  => $ehElite
+                    ? "{$nomeJogador} é seu — lance de " . (int)$offer['amount'] . 'M.'
+                    : "{$nomeJogador} é seu por " . (int)$offer['amount'] . ' moedas.',
                 'url'   => '/my-roster.php',
             ], 'free_agency');
             foreach ($perdedores as $tid) {

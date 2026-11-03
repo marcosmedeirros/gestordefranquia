@@ -373,7 +373,7 @@ async function enviarPropostaDispensado() {
     const amount = parseInt(document.getElementById('dispModalMoedas')?.value, 10);
     const priority = parseInt(document.getElementById('dispModalPrioridade')?.value, 10) || 2;
     if (!Number.isFinite(amount) || amount < 0) {
-        alert('Informe uma quantidade válida de moedas (0 ou mais).');
+        alert(faEmSalario ? 'Informe um salário válido em milhões (0 ou mais).' : 'Informe uma quantidade válida de moedas (0 ou mais).');
         return;
     }
     const botao = document.getElementById('dispModalEnviar');
@@ -712,7 +712,12 @@ async function renderAdminRequests(targetEl) {
         data.requests.forEach(group => {
             const req = group.request || {};
             const offers = Array.isArray(group.offers) ? group.offers : [];
-            const suggested = offers.find(o => o.team_coins >= o.amount && o.roster_count < 15) || offers[0] || null;
+            /* Na ELITE não há moeda na Free Agency: o lance é salário em milhões e
+               quem manda é o cap e a prioridade. O saldo de moedas só vale nas
+               outras três ligas. */
+            const faElite = String(league || '').toUpperCase() === 'ELITE';
+            const pagaOk = o => faElite || o.team_coins >= o.amount;
+            const suggested = offers.find(o => pagaOk(o) && o.roster_count < 15) || offers[0] || null;
 
             html += `<div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;margin-bottom:12px">`;
 
@@ -728,7 +733,7 @@ async function renderAdminRequests(targetEl) {
 
             html += `<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">`;
             offers.forEach(offer => {
-                const canAfford = offer.team_coins >= offer.amount;
+                const canAfford = pagaOk(offer);
                 const hasSpace  = offer.roster_count < 15;
                 const isSugg    = suggested && offer.id === suggested.id;
                 const border    = isSugg ? 'rgba(34,197,94,.4)' : 'var(--border)';
@@ -741,7 +746,7 @@ async function renderAdminRequests(targetEl) {
                         ${warnCoins}${warnRoster}
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-                        <span style="font-size:14px;font-weight:700;color:${canAfford ? 'var(--text)' : '#ef4444'}">${offer.amount} <span style="font-size:11px;font-weight:400;color:var(--text-3)">moedas</span></span>
+                        <span style="font-size:14px;font-weight:700;color:${canAfford ? 'var(--text)' : '#ef4444'}">${offer.amount}${faElite ? '' : ' '}<span style="font-size:11px;font-weight:400;color:var(--text-3)">${faElite ? 'M' : 'moedas'}</span></span>
                         ${isSugg ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:#22c55e;white-space:nowrap"><i class="bi bi-trophy-fill me-1"></i>Vencedor</span>` : ''}
                     </div>
                 </div>`;
@@ -749,9 +754,9 @@ async function renderAdminRequests(targetEl) {
             html += `</div>`;
 
             if (suggested) {
-                const ok = suggested.team_coins >= suggested.amount && suggested.roster_count < 15;
+                const ok = pagaOk(suggested) && suggested.roster_count < 15;
                 const note = ok
-                    ? `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>Sugerido: <strong>${esc(suggested.team_name)}</strong> — ${suggested.amount} moedas (P${suggested.priority})`
+                    ? `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>Sugerido: <strong>${esc(suggested.team_name)}</strong> — ${suggested.amount}${faElite ? 'M' : ' moedas'} (P${suggested.priority})`
                     : `<i class="bi bi-exclamation-triangle me-1" style="color:#f59e0b"></i>Atenção: todos os lances têm restrições. Revise antes de aprovar.`;
                 html += `<div style="font-size:12px;color:var(--text-2);padding:8px 10px;background:var(--panel-2);border-radius:7px;margin-bottom:12px">${note}</div>`;
             }
@@ -759,7 +764,7 @@ async function renderAdminRequests(targetEl) {
             html += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <select id="newFaOfferSelect-${req.id}" style="flex:1;min-width:160px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;font-family:var(--font)">
                     <option value="">Selecione...</option>
-                    ${offers.map(o => `<option value="${o.id}" ${suggested && o.id === suggested.id ? 'selected' : ''}>${esc(o.team_name)} — ${o.amount} moedas (P${o.priority})</option>`).join('')}
+                    ${offers.map(o => `<option value="${o.id}" ${suggested && o.id === suggested.id ? 'selected' : ''}>${esc(o.team_name)} — ${o.amount}${faElite ? 'M' : ' moedas'} (P${o.priority})</option>`).join('')}
                 </select>
                 <button onclick="confirmarNovaFA(${req.id})"
                     style="padding:8px 16px;background:#22c55e;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">
@@ -878,7 +883,7 @@ async function submitNewFaRequest() {
     }
 
     if (!Number.isFinite(amount) || amount < 0) {
-        alert('Informe uma quantidade válida de moedas (0 ou mais).');
+        alert(faEmSalario ? 'Informe um salário válido em milhões (0 ou mais).' : 'Informe uma quantidade válida de moedas (0 ou mais).');
         return;
     }
 
@@ -970,7 +975,7 @@ async function carregarMinhasPropostasNovaFA() {
             html += `<tr>
                 <td><strong class="text-orange">${esc(item.player_name)}</strong><div class="small text-light-gray">${esc(item.position)}${item.secondary_position ? '/' + esc(item.secondary_position) : ''}</div></td>
                 <td>${item.ovr ?? '-'}</td>
-                <td>${item.amount ?? 0} moedas ${priorityBadge(item.priority ?? 2)}</td>
+                <td>${item.amount ?? 0}${faEmSalario ? 'M' : ' moedas'} ${priorityBadge(item.priority ?? 2)}</td>
                 <td>${statusLabel}</td>
                 <td>${season}</td>
                 <td>
@@ -1090,7 +1095,12 @@ async function carregarSolicitacoesNovaFA() {
         data.requests.forEach(group => {
             const req = group.request || {};
             const offers = group.offers || [];
-            const suggested = offers.find(o => o.team_coins >= o.amount && o.roster_count < 15) || offers[0] || null;
+            /* Na ELITE não há moeda na Free Agency: o lance é salário em milhões e
+               quem manda é o cap e a prioridade. O saldo de moedas só vale nas
+               outras três ligas. */
+            const faElite = String(league || '').toUpperCase() === 'ELITE';
+            const pagaOk = o => faElite || o.team_coins >= o.amount;
+            const suggested = offers.find(o => pagaOk(o) && o.roster_count < 15) || offers[0] || null;
 
             html += `<div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;margin-bottom:12px">`;
 
@@ -1112,7 +1122,7 @@ async function carregarSolicitacoesNovaFA() {
 
             html += `<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">`;
             offers.forEach(offer => {
-                const canAfford = offer.team_coins >= offer.amount;
+                const canAfford = pagaOk(offer);
                 const hasSpace  = offer.roster_count < 15;
                 const isSugg    = suggested && offer.id === suggested.id;
                 const border    = isSugg ? 'rgba(34,197,94,.4)' : 'var(--border)';
@@ -1125,7 +1135,7 @@ async function carregarSolicitacoesNovaFA() {
                         ${warnCoins}${warnRoster}
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-                        <span style="font-size:14px;font-weight:700;color:${canAfford ? 'var(--text)' : '#ef4444'}">${offer.amount} <span style="font-size:11px;font-weight:400;color:var(--text-3)">moedas</span></span>
+                        <span style="font-size:14px;font-weight:700;color:${canAfford ? 'var(--text)' : '#ef4444'}">${offer.amount}${faElite ? '' : ' '}<span style="font-size:11px;font-weight:400;color:var(--text-3)">${faElite ? 'M' : 'moedas'}</span></span>
                         ${isSugg ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:#22c55e;white-space:nowrap"><i class="bi bi-trophy-fill me-1"></i>Vencedor</span>` : ''}
                     </div>
                 </div>`;
@@ -1133,9 +1143,9 @@ async function carregarSolicitacoesNovaFA() {
             html += `</div>`;
 
             if (suggested) {
-                const ok = suggested.team_coins >= suggested.amount && suggested.roster_count < 15;
+                const ok = pagaOk(suggested) && suggested.roster_count < 15;
                 const note = ok
-                    ? `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>Sugerido: <strong>${esc(suggested.team_name)}</strong> — ${suggested.amount} moedas (P${suggested.priority})`
+                    ? `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>Sugerido: <strong>${esc(suggested.team_name)}</strong> — ${suggested.amount}${faElite ? 'M' : ' moedas'} (P${suggested.priority})`
                     : `<i class="bi bi-exclamation-triangle me-1" style="color:#f59e0b"></i>Atenção: todos os lances têm restrições. Revise antes de aprovar.`;
                 html += `<div style="font-size:12px;color:var(--text-2);padding:8px 10px;background:var(--panel-2);border-radius:7px;margin-bottom:12px">${note}</div>`;
             }
@@ -1143,7 +1153,7 @@ async function carregarSolicitacoesNovaFA() {
             html += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <select id="faNewOfferSelect-${req.id}" style="flex:1;min-width:160px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;font-family:var(--font)">
                     <option value="">Selecione...</option>
-                    ${offers.map(o => `<option value="${o.id}" ${suggested && o.id === suggested.id ? 'selected' : ''}>${esc(o.team_name)} — ${o.amount} moedas (P${o.priority})</option>`).join('')}
+                    ${offers.map(o => `<option value="${o.id}" ${suggested && o.id === suggested.id ? 'selected' : ''}>${esc(o.team_name)} — ${o.amount}${faElite ? 'M' : ' moedas'} (P${o.priority})</option>`).join('')}
                 </select>
                 <button onclick="aprovarSolicitacaoNovaFA(${req.id})"
                     style="padding:8px 16px;background:#22c55e;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">
