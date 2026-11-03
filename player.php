@@ -416,10 +416,38 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 @media(max-width:640px){
   .content{padding:18px 16px 72px}
   .panel{padding:16px 14px}
-  .p-hero{padding:18px}
   .p-name{font-size:22px}
-  .p-ovrbox{margin-left:0}
   .skill-name{width:110px}
+
+  /* ── Celular: cabeçalho, abas, números e ações ────────────────────
+     O hero era flex-wrap: a foto ocupava uma linha, o texto outra e o OVR
+     caía sozinho embaixo, com um vazio enorme ao lado. Agora é uma grade de
+     três colunas — foto | nome e etiquetas | OVR — tudo na mesma altura. */
+  .p-hero{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:16px 14px}
+  .p-avatar{width:72px;height:72px;border-radius:16px}
+  .p-name{font-size:20px;line-height:1.15;overflow-wrap:anywhere}
+  .p-sub{font-size:12px;margin-top:5px;gap:6px}
+  .p-badges{margin-top:8px;gap:5px}
+  .p-ovrbox{margin-left:0;min-width:44px}
+  .p-ovrbox .v{font-size:34px}
+
+  /* Abas: sem barra de rolagem aparecendo, sangrando até a borda e com a
+     aba ativa sempre visível */
+  .tabs{margin:0 -16px 14px;padding:0 16px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+        scroll-snap-type:x proximity;scroll-padding:0 16px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab-btn{flex:none;scroll-snap-align:start;padding:9px 14px}
+
+  /* Números em duas colunas (eram uma, empilhando nove cartões) */
+  .grid-2{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kv{padding:10px 12px;min-width:0}
+  .kv-v{font-size:19px;overflow-wrap:anywhere}
+  .kv-v.small{font-size:14px}
+
+  /* Ações: o principal ocupa a linha toda, o resto em duas colunas iguais */
+  .p-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;padding-top:14px}
+  .p-actions .act{justify-content:center;white-space:normal;text-align:center;line-height:1.2;min-width:0}
+  .p-actions .act-primary{grid-column:1/-1}
 }
 /* Layout com menu lateral */
 .app{display:flex;min-height:100vh}
@@ -935,6 +963,10 @@ document.querySelectorAll('#tabs .tab-btn').forEach(btn => {
     btn.classList.add('active');
     const pane = document.getElementById('pane-' + btn.dataset.tab);
     if (pane) pane.classList.add('active');
+    // No celular a barra rola; traz a aba tocada pro meio (só a barra, não a página).
+    const barra = document.getElementById('tabs');
+    const dx = btn.getBoundingClientRect().left - barra.getBoundingClientRect().left;
+    barra.scrollTo({left: barra.scrollLeft + dx - (barra.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth'});
   });
 });
 

@@ -106,7 +106,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 /* Abaixo de 5 colunas os cartões ficam com 60px e o nome some. Duas linhas de
    tamanho decente lê melhor que cinco espremidas. */
 @media (max-width:900px){.q5{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:560px){.q5{grid-template-columns:repeat(2,1fr);gap:8px}}
+@media (max-width:560px){.q5{grid-template-columns:repeat(2,1fr);gap:8px}
+  /* o 5º titular ocupa a linha toda em vez de ficar sozinho numa metade */
+  .q5 > :last-child:nth-child(odd){grid-column:1/-1}}
 
 /* Banco: lista, não cartão. São dez ou mais, e cartão de foto viraria uma
    parede maior que o quinteto que ela deveria destacar. */
@@ -177,10 +179,38 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .year-table{font-size:11px}
   .row{gap:10px}
   .row-val{font-size:16px}
+
+  /* ── Celular: cabeçalho, abas e ações ─────────────────────────────
+     O hero era flex-wrap com os chips colados à direita: sobravam ~130px
+     pro nome do time, que quebrava em quatro linhas. Agora é uma grade —
+     escudo | nome na primeira linha, os números do time numa fileira própria
+     embaixo, com caixas do mesmo tamanho. Os !important são porque o display
+     e a margem dos chips vêm inline do HTML. */
+  .hero{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px}
+  .hero-name{line-height:1.15;overflow-wrap:anywhere}
+  #hero-chips{grid-column:1/-1;display:grid !important;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+              gap:8px !important;margin-left:0 !important}
+  #hero-chips:empty{display:none !important}
+  #hero-chips > div{min-width:0 !important;padding:8px 6px !important}
+
+  /* Abas: sem a barra de rolagem aparecendo, sangrando até a borda da tela
+     pra deixar claro que dá pra arrastar, e a aba ativa fica visível. */
+  .th-tabs{margin:0 -16px 14px;padding:0 16px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+           scroll-snap-type:x proximity;scroll-padding:0 16px}
+  .th-tabs::-webkit-scrollbar{display:none}
+  .th-tab{flex:none;scroll-snap-align:start;padding:9px 14px}
+
+  /* Números em duas colunas, mais compactos */
+  .stat-card{padding:11px 12px;min-width:0}
+  .stat-card .stat-value{overflow-wrap:anywhere}
+
+  /* Ações: o principal ocupa a linha toda, o resto em duas colunas iguais */
+  .t-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;padding-top:14px}
+  .t-actions .act{justify-content:center;white-space:normal;text-align:center;line-height:1.2;min-width:0}
+  .t-actions .act-primary{grid-column:1/-1}
 }
 @media(max-width:430px){
-  .stats-grid{grid-template-columns:1fr}
-  .hero{gap:14px}
+  .hero{gap:12px}
   .hero-logo{width:60px;height:60px;border-radius:14px}
   .history-acc-title{gap:8px}
   .history-acc-badge{min-width:24px;height:24px;font-size:10px}
@@ -465,7 +495,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   }
   tabs.addEventListener('click', e => {
     const btn = e.target.closest('.th-tab');
-    if (btn) apply(btn.dataset.tab);
+    if (!btn) return;
+    apply(btn.dataset.tab);
+    // No celular a barra rola; traz a aba tocada pro meio pra não ficar cortada.
+    // Só rola a própria barra (não a página inteira).
+    const dx = btn.getBoundingClientRect().left - tabs.getBoundingClientRect().left;
+    tabs.scrollTo({left: tabs.scrollLeft + dx - (tabs.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth'});
   });
   apply('geral');
 })();
