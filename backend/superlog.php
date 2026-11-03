@@ -53,6 +53,10 @@ const SUPERLOG_IGNORAR = [
     'whatsapp_fila', 'whatsapp_log', 'whatsapp_config', 'whatsapp_grupos_vistos',
     'whatsapp_msgs_vistas', 'draft_relogio_tick', 'leilao_bot_fila',
     'tactic_edit_windows',
+    // O palpite da edição é SECRETO: o log grava quem estava logado junto do SQL,
+    // e com ele o voto de cada um ficaria num arquivo por 7 dias.
+    // @see backend/previsao_edicao.php
+    'previsao_edicao_votos',
 ];
 
 /** Campos cujo valor nunca entra no arquivo. */

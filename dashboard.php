@@ -2997,5 +2997,212 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 })();
 </script>
 <?php endif; ?>
+<?php
+/* ── O PALPITE DA EDIÇÃO ─────────────────────────────────────────────────
+   Popup de uma vez só: some pra sempre quando a pessoa responde ou diz "agora
+   não". Fica por trás da revisão obrigatória de sprint (que não dá pra
+   dispensar) — as duas juntas empilhariam dois popups, e a revisão vem antes.
+   @see backend/previsao_edicao.php */
+require_once __DIR__ . '/backend/previsao_edicao.php';
+$previsao = (!$precisaRevisarSprint && $team)
+    ? previsaoPendente($pdo, (int)($user['id'] ?? 0), (string)($team['league'] ?? ''))
+    : null;
+if ($previsao):
+    $prevRotulos = [
+        'sobe' => ['titulo' => 'Vão subir', 'curto' => 'Sobem', 'icone' => 'bi-arrow-up-circle-fill',   'dica' => 'Os 4 times que você acha que sobem de liga'],
+        'cai'  => ['titulo' => 'Vão cair',  'curto' => 'Caem',  'icone' => 'bi-arrow-down-circle-fill', 'dica' => 'Os 4 times que você acha que caem de liga'],
+        'top3' => ['titulo' => 'Top 3',     'curto' => 'Top 3', 'icone' => 'bi-trophy-fill',             'dica' => 'Os 3 times que você acha que terminam no pódio'],
+    ];
+?>
+<style>
+.prev-overlay{position:fixed;inset:0;z-index:5100;background:rgba(0,0,0,.82);backdrop-filter:blur(5px);
+  display:flex;align-items:flex-start;justify-content:center;padding:20px 14px;overflow-y:auto}
+.prev-box{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--border-md);
+  border-radius:var(--radius);box-shadow:0 30px 80px -30px rgba(0,0,0,.8);margin:auto;overflow:hidden}
+.prev-head{padding:22px 22px 12px;display:flex;gap:12px;align-items:flex-start}
+.prev-icon{width:42px;height:42px;flex-shrink:0;border-radius:50%;background:var(--red-soft);color:var(--red);
+  display:flex;align-items:center;justify-content:center;font-size:19px}
+.prev-head h2{font-size:18px;font-weight:800;margin:0 0 4px}
+.prev-head p{font-size:12.5px;color:var(--text-2);line-height:1.55;margin:0}
+.prev-contagem{position:sticky;top:0;z-index:2;display:flex;gap:8px;flex-wrap:wrap;padding:10px 22px;
+  background:var(--panel);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.prev-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;
+  border:1px solid var(--border-md);color:var(--text-2);background:var(--panel-2)}
+.prev-chip.completo{color:var(--text);border-color:currentColor}
+.prev-chip[data-bloco=sobe].completo{color:#22c55e}
+.prev-chip[data-bloco=cai].completo{color:#ef4444}
+.prev-chip[data-bloco=top3].completo{color:#f5c542}
+.prev-lista{padding:6px 12px 4px}
+.prev-linha{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);
+  border:1px solid transparent}
+.prev-linha.sel-sobe{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.30)}
+.prev-linha.sel-cai{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.30)}
+.prev-linha.sel-top3{background:rgba(245,197,66,.09);border-color:rgba(245,197,66,.35)}
+.prev-linha img{width:30px;height:30px;object-fit:contain;border-radius:6px;background:var(--panel-2);flex-shrink:0}
+.prev-nome{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prev-nome small{color:var(--text-3);font-weight:600;margin-left:6px;font-size:11px}
+.prev-acoes{display:flex;gap:6px;flex-shrink:0}
+.prev-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:8px;border:1px solid var(--border-md);
+  background:var(--panel-2);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer}
+.prev-btn:hover:not(:disabled){color:var(--text);border-color:var(--text-3)}
+.prev-btn:disabled{opacity:.35;cursor:not-allowed}
+.prev-btn[data-bloco=sobe].on{background:#22c55e;border-color:#22c55e;color:#06210f}
+.prev-btn[data-bloco=cai].on{background:#ef4444;border-color:#ef4444;color:#2a0707}
+.prev-btn[data-bloco=top3].on{background:#f5c542;border-color:#f5c542;color:#2a2105}
+.prev-rodape{padding:14px 22px 18px;border-top:1px solid var(--border);background:var(--panel)}
+.prev-erro{display:none;margin-bottom:10px;padding:9px 12px;border-radius:var(--radius-sm);font-size:12.5px;
+  background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#ef4444}
+.prev-botoes{display:flex;gap:10px}
+.prev-enviar{flex:1;padding:12px 16px;border-radius:var(--radius-sm);background:var(--red);border:none;color:#fff;
+  font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer}
+.prev-enviar:disabled{opacity:.45;cursor:not-allowed}
+.prev-pular{padding:12px 16px;border-radius:var(--radius-sm);background:transparent;border:1px solid var(--border-md);
+  color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer}
+.prev-pular:hover{color:var(--text)}
+.prev-nota{margin:10px 0 0;font-size:11.5px;color:var(--text-3);line-height:1.5}
+@media (max-width:480px){
+  .prev-btn span{display:none}
+  .prev-btn{padding:7px 10px}
+  .prev-head{padding:18px 16px 10px}
+  .prev-contagem,.prev-rodape{padding-left:16px;padding-right:16px}
+}
+</style>
+
+<div class="prev-overlay" id="prevOverlay" role="dialog" aria-modal="true" aria-labelledby="prevTitulo">
+  <div class="prev-box">
+    <div class="prev-head">
+      <div class="prev-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <div>
+        <h2 id="prevTitulo">Seu palpite da edição</h2>
+        <p>Na <b><?= htmlspecialchars($previsao['liga'], ENT_QUOTES, 'UTF-8') ?></b>,
+           <?php if (isset($previsao['blocos']['top3'])): ?>
+             quem você acha que fecha no <b>top 3</b> e quem <b>cai</b>.
+           <?php elseif (isset($previsao['blocos']['cai'])): ?>
+             quem você acha que <b>sobe</b> e quem <b>cai</b>.
+           <?php else: ?>
+             quem você acha que <b>sobe</b>.
+           <?php endif; ?>
+           Marque nos botões de cada time.</p>
+      </div>
+    </div>
+
+    <div class="prev-contagem" id="prevContagem">
+      <?php foreach ($previsao['blocos'] as $b => $n): ?>
+        <span class="prev-chip" data-bloco="<?= $b ?>"><i class="bi <?= $prevRotulos[$b]['icone'] ?>"></i>
+          <?= $prevRotulos[$b]['curto'] ?> <span data-conta="<?= $b ?>">0</span>/<?= (int)$n ?></span>
+      <?php endforeach; ?>
+    </div>
+
+    <div class="prev-lista" id="prevLista"></div>
+
+    <div class="prev-rodape">
+      <div class="prev-erro" id="prevErro"></div>
+      <div class="prev-botoes">
+        <button type="button" class="prev-enviar" id="prevEnviar" disabled>Enviar palpite</button>
+        <button type="button" class="prev-pular" id="prevPular">Agora não</button>
+      </div>
+      <p class="prev-nota"><i class="bi bi-incognito"></i> <b>O voto é secreto.</b> Ninguém vê o que você escolheu, nem a organização — só o total de cada time. Isso aparece uma vez só, e um time não pode estar em dois grupos.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var D = <?= json_encode(['blocos' => $previsao['blocos'], 'times' => $previsao['times'], 'rotulos' => $prevRotulos],
+                           JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  var overlay = document.getElementById('prevOverlay');
+  var lista = document.getElementById('prevLista');
+  var enviar = document.getElementById('prevEnviar');
+  var erro = document.getElementById('prevErro');
+  var meuTime = <?= (int)($team['id'] ?? 0) ?>;
+  var escolha = {};            // time_id -> bloco
+  var blocos = Object.keys(D.blocos);
+  var limite = D.blocos;
+
+  function conta(b) { var n = 0; for (var k in escolha) if (escolha[k] === b) n++; return n; }
+
+  function atualizar() {
+    var tudo = true;
+    blocos.forEach(function (b) {
+      var n = conta(b);
+      var el = document.querySelector('[data-conta="' + b + '"]');
+      if (el) el.textContent = n;
+      var chip = document.querySelector('.prev-chip[data-bloco="' + b + '"]');
+      if (chip) chip.classList.toggle('completo', n === limite[b]);
+      if (n !== limite[b]) tudo = false;
+    });
+    lista.querySelectorAll('.prev-linha').forEach(function (li) {
+      var id = li.dataset.id, atual = escolha[id] || null;
+      li.className = 'prev-linha' + (atual ? ' sel-' + atual : '');
+      li.querySelectorAll('.prev-btn').forEach(function (btn) {
+        var b = btn.dataset.bloco, on = atual === b;
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        // Bloco cheio não aceita mais gente — só deixa tirar quem já está nele.
+        btn.disabled = !on && conta(b) >= limite[b];
+      });
+    });
+    enviar.disabled = !tudo;
+  }
+
+  D.times.forEach(function (t) {
+    var li = document.createElement('div');
+    li.className = 'prev-linha';
+    li.dataset.id = t.id;
+    var img = document.createElement('img');
+    img.src = t.escudo; img.alt = ''; img.loading = 'lazy';
+    img.onerror = function () { this.onerror = null; this.src = '/img/default-team.png'; };
+    var nome = document.createElement('div');
+    nome.className = 'prev-nome';
+    nome.textContent = t.nome;
+    if (t.id === meuTime) { var s = document.createElement('small'); s.textContent = 'seu time'; nome.appendChild(s); }
+    var acoes = document.createElement('div');
+    acoes.className = 'prev-acoes';
+    blocos.forEach(function (b) {
+      var r = D.rotulos[b];
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'prev-btn'; btn.dataset.bloco = b;
+      btn.title = r.titulo;
+      btn.innerHTML = '<i class="bi ' + r.icone + '"></i><span>' + r.curto + '</span>';
+      btn.addEventListener('click', function () {
+        // Tocar de novo no mesmo botão tira; tocar em outro troca de grupo.
+        if (escolha[t.id] === b) delete escolha[t.id]; else escolha[t.id] = b;
+        erro.style.display = 'none';
+        atualizar();
+      });
+      acoes.appendChild(btn);
+    });
+    li.appendChild(img); li.appendChild(nome); li.appendChild(acoes);
+    lista.appendChild(li);
+  });
+  atualizar();
+
+  function fechar() { overlay.parentNode && overlay.parentNode.removeChild(overlay); }
+  function falha(msg) { erro.textContent = msg; erro.style.display = 'block'; }
+
+  function post(corpo) {
+    return fetch('/api/previsao-edicao.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo)
+    }).then(function (r) { return r.json().catch(function () { return { success: false, error: 'Resposta inválida do servidor.' }; }); });
+  }
+
+  enviar.addEventListener('click', function () {
+    enviar.disabled = true;
+    var picks = {};
+    blocos.forEach(function (b) { picks[b] = []; });
+    for (var id in escolha) picks[escolha[id]].push(parseInt(id, 10));
+    post({ action: 'salvar', picks: picks }).then(function (d) {
+      if (d.success) { fechar(); return; }
+      falha(d.error || 'Não deu pra salvar agora. Tente de novo.');
+      atualizar();
+    }).catch(function () { falha('Sem conexão. Tente de novo.'); atualizar(); });
+  });
+
+  document.getElementById('prevPular').addEventListener('click', function () {
+    post({ action: 'pular' }).then(function () { fechar(); }).catch(function () { fechar(); });
+  });
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>
