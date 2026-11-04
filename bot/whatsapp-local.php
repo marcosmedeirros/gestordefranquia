@@ -114,6 +114,17 @@ while (true) {
 
     if ($erroRede)   { logar("sem conexao com o site: $erroRede"); exit(1); }
     if ($st === 401) { logar('token recusado pelo site — confira bot_token'); exit(1); }
+    if ($st === 429 || $st === 503) {
+        /* LIMITE DE TAXA DA HOSTINGER (03 e 04/11/2026). Sair daqui fazia o
+           systemd religar o worker em segundos, e cada religada é mais uma
+           requisição contra um site que acabou de dizer "devagar" — ajudava a
+           sustentar o bloqueio em vez de deixá-lo passar. Aqui ele fica quieto
+           por 45s e volta. */
+        logar("site pediu calma (HTTP $st): espero 45s");
+        sleep(45);   // dorme inteiro mesmo passando do fim da rodada: sair antes só traria a religada do systemd
+        if (time() >= $FIM_DA_RODADA) exit(0);
+        continue;
+    }
     if ($st !== 200) { logar("site respondeu HTTP $st"); exit(1); }
 
     $intervalo = max(3, min(60, (int)($resp['intervalo'] ?? 5)));

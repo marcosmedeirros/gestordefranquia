@@ -1,0 +1,17 @@
+# Relay do webhook, metade que ENVIA (ver enviar.php).
+# Instalar: sudo cp fba-webhook-enviar.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now fba-webhook-enviar
+# Log: journalctl -u fba-webhook-enviar -f
+[Unit]
+Description=FBA relay do webhook (envia ao site, em ritmo controlado)
+After=network-online.target
+
+[Service]
+User=opc
+WorkingDirectory=/home/opc/fba-bot/relay
+Environment=RELAY_SPOOL=/home/opc/fba-bot/relay/spool
+ExecStart=/usr/bin/php /home/opc/fba-bot/relay/enviar.php
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

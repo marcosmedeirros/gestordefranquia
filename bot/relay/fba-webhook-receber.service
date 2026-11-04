@@ -1,0 +1,21 @@
+# Relay do webhook, metade que RECEBE (ver receber.php).
+# Instalar: sudo cp fba-webhook-receber.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now fba-webhook-receber
+#
+# Escuta SÓ no IP da ponte do Docker (172.18.0.1, rede evolution_default): só os
+# containers enxergam. Nada disto fica exposto na internet. Se a rede do Docker for
+# recriada com outra faixa, trocar o IP aqui E a URL do webhook da Evolution.
+# No boot a ponte pode ainda não existir: o Restart tenta de novo até ela aparecer.
+[Unit]
+Description=FBA relay do webhook (recebe da Evolution)
+After=network.target docker.service
+
+[Service]
+User=opc
+WorkingDirectory=/home/opc/fba-bot/relay
+Environment=RELAY_SPOOL=/home/opc/fba-bot/relay/spool
+ExecStart=/usr/bin/php -S 172.18.0.1:9099 /home/opc/fba-bot/relay/receber.php
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
