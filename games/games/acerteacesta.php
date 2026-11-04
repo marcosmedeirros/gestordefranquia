@@ -142,7 +142,45 @@ const CESTA_MARCO_TOTAL     = 5000;
 const CESTA_MARCO_MAX       = 50000;
 const CESTA_PREMIO_PRIMEIRO = 200;
 const CESTA_PREMIO_DEMAIS   = 50;
-const CESTA_FBA_FINAL       = 250;
+/* Era 250. Subiu pra 1.500 a pedido do Marcos (04/11/2026): bater 50.000
+   cestas leva meses de partida, e o prêmio tem que pagar esse tamanho. */
+const CESTA_FBA_FINAL       = 1500;
+
+/**
+ * Avisa no The Pathetic (o grupo principal do WhatsApp) quem fechou as 50.000
+ * cestas. Chamada DEPOIS do commit: partida que falhou e voltou atrás não pode
+ * virar notícia. Qualquer erro aqui só vai pro log — o prêmio já foi pago e o
+ * jogador não tem nada a ver com a falha de um aviso.
+ *
+ * @param array<int,array{marco:int,primeiro:bool,moedas:int,fba:int}> $marcos
+ */
+function cestaAnunciarCinquentaMil(PDO $pdo, int $userId, array $marcos): void
+{
+    try {
+        foreach ($marcos as $m) {
+            if ((int)$m['marco'] < CESTA_MARCO_MAX) continue;
+
+            $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
+            $st->execute([$userId]);
+            $nome = trim((string)($st->fetchColumn() ?: 'Um jogador'));
+
+            if (!empty($m['primeiro'])) {
+                $texto = "🏀🔥 *50.000 CESTAS NO LANCE LIVRE!*\n\n"
+                       . "*{$nome}* foi o PRIMEIRO a chegar nas 50 mil cestas somadas e leva "
+                       . number_format((int)$m['fba'], 0, ',', '.') . " FBA Points. 👏\n\n"
+                       . "👉 https://fbabrasil.com.br/games.php";
+            } else {
+                $texto = "🏀 *{$nome}* também fechou as 50.000 cestas no Lance Livre. "
+                       . "A corrida pelos FBA Points já tinha dono, mas o feito é de respeito. 👏";
+            }
+
+            require_once __DIR__ . '/../../backend/whatsapp.php';
+            whatsappParaGrupoPrincipal($pdo, $texto, 'evento');
+        }
+    } catch (Throwable $e) {
+        error_log('[cesta] anunciar 50 mil: ' . $e->getMessage());
+    }
+}
 
 function cestaTabela(PDO $pdo): void
 {
@@ -480,6 +518,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $st->execute([$userId]);
             [$saldo, $fbaSaldo] = array_map('intval', $st->fetch(PDO::FETCH_NUM) ?: [0, 0]);
             $pdo->commit();
+
+            // Só depois do commit: aviso de partida que não foi gravada seria mentira.
+            cestaAnunciarCinquentaMil($pdo, $userId, $marcos);
 
             $_SESSION['cesta_run_ativa'] = false;
             $_SESSION['cesta_pagas']     = $pagas + $ganhou;
