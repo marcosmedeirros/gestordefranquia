@@ -42,6 +42,17 @@
  * a vez. O estado mora em previsao_edicao_status, uma linha por usuário.
  */
 
+/**
+ * CHAVE GERAL DO PALPITE. Desligada em 04/11/2026, a pedido do Marcos ("pode
+ * tirar a enquete de lá"): o resultado já saiu e o popup não deve mais aparecer.
+ *
+ * Desligar não apaga nada: os votos e quem respondeu continuam nas tabelas, o
+ * `?action=resultado` do admin segue funcionando, e religar é só trocar para
+ * true. O que a chave fecha é a PERGUNTA — o popup (previsaoPendente) e a
+ * gravação de voto/pulo na API.
+ */
+const PREVISAO_ATIVA = false;
+
 /** O que cada liga pergunta: bloco => quantos times. A ordem é a ordem na tela. */
 const PREVISAO_BLOCOS = [
     'ELITE'  => ['top3' => 3, 'cai' => 4],
@@ -97,6 +108,7 @@ function previsaoTimesDaLiga(PDO $pdo, string $liga): array
  */
 function previsaoPendente(PDO $pdo, int $userId, ?string $liga): ?array
 {
+    if (!PREVISAO_ATIVA) return null;
     $liga = strtoupper(trim((string)$liga));
     if ($userId <= 0 || !isset(PREVISAO_BLOCOS[$liga])) return null;
     try {

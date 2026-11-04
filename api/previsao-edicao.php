@@ -40,6 +40,9 @@ if ($acao === 'resultado') {
 
 if ($metodo !== 'POST') prevResponde(['success' => false, 'error' => 'Método inválido'], 405);
 
+// Palpite encerrado (PREVISAO_ATIVA em backend/previsao_edicao.php): nem voto nem pulo.
+if (!PREVISAO_ATIVA) prevResponde(['success' => false, 'error' => 'Este palpite foi encerrado.'], 410);
+
 $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
 $st->execute([$userId]);
 $liga = strtoupper(trim((string)($st->fetchColumn() ?: '')));
