@@ -761,7 +761,7 @@ body.bc-complete .podium{display:grid}
              via duas tabelas de dezesseis linhas antes do palco. Continuam
              disponíveis desde antes do sorteio — só deixaram de ser a
              primeira coisa. */ ?>
-    <div class="section-title"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Ficam disponíveis desde antes do sorteio, pra todos saberem as probabilidades."></i></div>
+    <?php /* "Chances da loteria (3-2-1)" ESCONDIDO em 04/11/2026, a pedido do Marcos. Fica no DOM (display:none) e não é apagado de propósito: o JS lá embaixo ainda preenche #ballsBody e #ballsRodape, e sem os elementos ele quebraria. Pra voltar a mostrar, é só tirar o style do div abaixo. */ ?><div id="chancesLoteria" style="display:none"><div class="section-title"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Ficam disponíveis desde antes do sorteio, pra todos saberem as probabilidades."></i></div>
     <div class="panel">
       <div style="overflow-x:auto">
         <table class="balls-table" id="ballsTable">
@@ -771,6 +771,8 @@ body.bc-complete .podium{display:grid}
       </div>
       <div id="ballsRodape" class="balls-rodape"></div>
     </div>
+
+    </div><?php /* fim do #chancesLoteria (escondido) */ ?>
 
     <?php /* A MATRIZ DE "chance de cair em cada escolha" SAIU em 30/09/2026,
              a pedido dele. Era uma tabela de dezesseis linhas por dezesseis
@@ -2022,6 +2024,8 @@ function avisarAplicada(ok, erro){
   const painel = $('confirmPanel');
   if (!painel) return;
   if (confirmPanelOriginal === null) confirmPanelOriginal = painel.innerHTML;
+  /* Aviso de SUCESSO removido em 04/11/2026, a pedido do Marcos ("tire isso tb"): o painel fica escondido. A FALHA continua aparecendo logo abaixo — ela avisa que a ordem não foi gravada. */
+  if (ok) { painel.style.display = 'none'; return; }
   painel.style.display = 'block';
   painel.innerHTML = ok
     ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
