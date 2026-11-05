@@ -1512,6 +1512,16 @@ const TRADES_LOCKED_MSG = 'Trocas bloqueadas no momento — aguardando a atualiz
 function bloqueioPorElencoDesatualizado(PDO $pdo, array $teamIds, ?string $league): ?string
 {
     if (!$league) return null;
+
+    /* A TRAVA POR ELENCO (backend/trava_elenco.php), 05/11/2026: estatísticas
+       de pelo menos 6 jogadores antes/durante o draft, letras de pelo menos 6
+       depois da progression. Vem ANTES do "só depois do draft" logo abaixo
+       porque vale justamente antes dele — e é uma chave por liga, desligada
+       por padrão. Falha de banco ali devolve null: nunca barra troca. */
+    require_once __DIR__ . '/../backend/trava_elenco.php';
+    $travaElenco = travaElencoBloqueio($pdo, $teamIds, $league);
+    if ($travaElenco !== null) return $travaElenco;
+
     $season = temporadaAtivaDaLiga($pdo, $league);
     if (!$season) return null;
     $seasonId = (int)$season['id'];

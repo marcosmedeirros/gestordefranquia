@@ -281,6 +281,28 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
         }
     } catch (Throwable $e) {}
 
+    // ── Trava de troca por elenco desatualizado (backend/trava_elenco.php) ──
+    // Só aparece com a chave da liga ligada. É o aviso de "por que não consigo
+    // trocar": sem ele a pessoa só descobriria ao tentar enviar a proposta.
+    try {
+        require_once __DIR__ . '/trava_elenco.php';
+        $trava = travaElencoEstadoDoTime($pdo, $teamId, $league);
+        if ($trava['bloqueado']) {
+            $falta  = max(0, $trava['precisa'] - $trava['tem']);
+            $letras = $trava['modo'] === 'letras';
+            $itens[] = [
+                'urgencia' => 'alta',
+                'icone'    => 'bi-shield-lock-fill',
+                'titulo'   => 'Você está sem poder trocar',
+                'detalhe'  => $letras
+                    ? "A progression saiu: atualize as letras de mais {$falta} jogador(es) (precisa de {$trava['precisa']}, tem {$trava['tem']})."
+                    : "Lance as estatísticas de mais {$falta} jogador(es) (precisa de {$trava['precisa']}, tem {$trava['tem']}).",
+                'url'      => '/controle-elencos.php?league=' . urlencode($league) . '&time=' . $teamId
+                            . '&tipo=' . ($letras ? 'letras' : 'stats'),
+            ];
+        }
+    } catch (Throwable $e) {}
+
     // ── Elenco fora do tamanho permitido ────────────────────────────────────
     try {
         $st = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
