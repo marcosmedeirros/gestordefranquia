@@ -15,6 +15,7 @@
  *   acao=salvar     {id, nome, lenda, nota, tshot, ttouch, temporadas:[...]}   o editor
  *   acao=reverter   {id}                 desfaz as correções do jogador
  *   acao=nova_vida  {nome}               cria um jogador na mão
+ *   acao=real       {nome, pe, ap, nota} estimativa da VIDA REAL (peak end e aposentadoria) de um nome; vazio = não sei
  *
  * As contas moram em backend/estudos_jogadores.php.
  */
@@ -56,6 +57,10 @@ $corpo = $post ? (json_decode((string)file_get_contents('php://input'), true) ?:
 try {
     if ($post) {
         $id = (int)($corpo['id'] ?? 0);
+        if ($acao === 'real') {   // estimativa da vida real, por NOME (vale pra todas as vidas dele)
+            estudosReaisSalvar($pdo, (string)($corpo['nome'] ?? ''), $corpo['pe'] ?? null, $corpo['ap'] ?? null, (string)($corpo['nota'] ?? ''));
+            estResponde(['ok' => true]);
+        }
         if ($acao === 'nova_vida') {
             $novo = estudosNovaVida($pdo, (string)($corpo['nome'] ?? ''));
             estResponde(['ok' => true, 'id' => $novo]);

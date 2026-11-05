@@ -56,7 +56,91 @@ function estudosTabelas(PDO $pdo): void
         ajuste    TEXT NULL,
         PRIMARY KEY (player_id, season_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // As estimativas da VIDA REAL, por nome (vale pra todas as vidas do mesmo nome).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS estudos_reais (
+        chave         VARCHAR(120) NOT NULL PRIMARY KEY,
+        nome          VARCHAR(120) NOT NULL,
+        peak_end      TINYINT UNSIGNED NULL,
+        aposent       TINYINT UNSIGNED NULL,
+        fonte         VARCHAR(12) NOT NULL DEFAULT 'estimativa',
+        nota          TEXT NULL,
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // A tabela de vidas já existia antes da aposentadoria: acrescenta a coluna se faltar.
+    if (!$pdo->query("SHOW COLUMNS FROM estudos_vidas LIKE 'aposent'")->fetch()) {
+        $pdo->exec("ALTER TABLE estudos_vidas ADD COLUMN aposent TINYINT UNSIGNED NULL AFTER ttouch");
+    }
     $ok = true;
+    estudosReaisSincronizar($pdo);
+}
+
+/* ── A vida real (estimativas por nome) ────────────────────────────────── */
+
+/**
+ * A chave de comparação de um nome: sem acento, sem emoji, sem pontuação, minúscula.
+ * "Shaquille O'Neal", "Shaquille O’Neal 🧃" e "shaquille oneal" dão a mesma chave. (iconv
+ * TRANSLIT não serve aqui — separa o acento em vez de tirar —, então é a tabela abaixo.)
+ */
+function estudosChaveNome(string $nome): string
+{
+    static $mapa = null;
+    $mapa ??= [
+        'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','ā'=>'a','ă'=>'a','ą'=>'a','é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','ē'=>'e','ė'=>'e','ę'=>'e','ě'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i','ī'=>'i','ı'=>'i','ó'=>'o','ò'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o','ō'=>'o','ő'=>'o','ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+        'ū'=>'u','ů'=>'u','ű'=>'u','ç'=>'c','ć'=>'c','č'=>'c','ñ'=>'n','ń'=>'n','ň'=>'n','š'=>'s','ś'=>'s','ş'=>'s','ž'=>'z','ź'=>'z','ż'=>'z','ý'=>'y','ÿ'=>'y',
+        'đ'=>'d','ď'=>'d','ł'=>'l','ľ'=>'l','ř'=>'r','ť'=>'t','ğ'=>'g',
+    ];
+    $n = strtr(mb_strtolower(trim($nome)), $mapa);
+    $n = preg_replace('/[^a-z0-9 ]+/', '', $n) ?? '';
+    return trim(preg_replace('/\s+/', ' ', $n) ?? '');
+}
+
+/**
+ * Garante que as estimativas do arquivo estudos_reais_dados.php estão na tabela — SEM sobrescrever
+ * nada (INSERT IGNORE): o que o Marcos corrigiu na tela, ou deixou em branco de propósito, fica.
+ * Só trabalha quando a tabela tem menos linhas que o arquivo (uma contagem por requisição).
+ */
+function estudosReaisSincronizar(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    $dados = require __DIR__ . '/estudos_reais_dados.php';
+    $porChave = [];
+    foreach ($dados as $nome => [$pe, $ap]) $porChave[estudosChaveNome($nome)] = [$nome, $pe, $ap];
+    $tem = (int)$pdo->query("SELECT COUNT(*) FROM estudos_reais")->fetchColumn();
+    if ($tem >= count($porChave)) return;
+    $ins = $pdo->prepare("INSERT IGNORE INTO estudos_reais (chave, nome, peak_end, aposent, fonte) VALUES (?, ?, ?, ?, 'estimativa')");
+    foreach ($porChave as $chave => [$nome, $pe, $ap]) $ins->execute([$chave, $nome, $pe, $ap]);
+}
+
+/** As estimativas da vida real, por chave de nome. @return array<string,array{nome:string,peak_end:?int,aposent:?int,fonte:string,nota:?string}> */
+function estudosReais(PDO $pdo): array
+{
+    estudosTabelas($pdo);
+    $out = [];
+    foreach ($pdo->query("SELECT chave, nome, peak_end, aposent, fonte, nota FROM estudos_reais")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[$r['chave']] = ['nome' => $r['nome'], 'peak_end' => $r['peak_end'] === null ? null : (int)$r['peak_end'],
+                             'aposent' => $r['aposent'] === null ? null : (int)$r['aposent'], 'fonte' => $r['fonte'], 'nota' => $r['nota']];
+    }
+    return $out;
+}
+
+/** Grava (ou zera) a estimativa de um nome. Vazio nos dois campos = "não sei": fica em branco e o arquivo não volta a preencher. */
+function estudosReaisSalvar(PDO $pdo, string $nome, $pe, $ap, string $nota = ''): void
+{
+    estudosTabelas($pdo);
+    $nome = trim($nome);
+    $chave = estudosChaveNome($nome);
+    if ($chave === '') throw new InvalidArgumentException('Informe o nome do jogador.');
+    $pe = estudosNumero($pe, 'Peak end real', 10, 60, true);
+    $ap = estudosNumero($ap, 'Aposentadoria real', 10, 60, true);
+    if ($pe !== null && $ap !== null && $ap < $pe) throw new InvalidArgumentException('A aposentadoria não pode ser antes do peak end.');
+    $nota = trim($nota);
+    if (mb_strlen($nota) > 1000) throw new InvalidArgumentException('Nota longa demais (1000 letras).');
+    $pdo->prepare("INSERT INTO estudos_reais (chave, nome, peak_end, aposent, fonte, nota) VALUES (?, ?, ?, ?, 'manual', ?)
+                   ON DUPLICATE KEY UPDATE nome = VALUES(nome), peak_end = VALUES(peak_end), aposent = VALUES(aposent), fonte = 'manual', nota = VALUES(nota)")
+        ->execute([$chave, mb_substr($nome, 0, 120), $pe === null ? null : (int)$pe, $ap === null ? null : (int)$ap, $nota === '' ? null : $nota]);
 }
 
 /** Os dados por jogador (favorito, excluído, nome, lenda, nota), indexados por player_id. */
@@ -109,7 +193,7 @@ function estudosReverter(PDO $pdo, int $id): void
 {
     estudosTabelas($pdo);
     $pdo->prepare("DELETE FROM estudos_temporadas WHERE player_id = ? AND manual = 0")->execute([$id]);
-    $pdo->prepare("UPDATE estudos_vidas SET nome = NULL, lenda = NULL, tshot = NULL, ttouch = NULL WHERE player_id = ?")->execute([$id]);
+    $pdo->prepare("UPDATE estudos_vidas SET nome = NULL, lenda = NULL, tshot = NULL, ttouch = NULL, aposent = NULL WHERE player_id = ?")->execute([$id]);
 }
 
 /** Cria um jogador na mão. Devolve o id (a partir de ESTUDOS_ID_MANUAL). */
@@ -226,6 +310,8 @@ function estudosSalvarVida(PDO $pdo, int $id, array $dados): void
     $ttouch = estudosNumero($dados['ttouch'] ?? null, 'T/TOUCH', 0, 99, true);
     $tshot = $tshot === null ? null : (int)$tshot;
     $ttouch = $ttouch === null ? null : (int)$ttouch;
+    $aposent = estudosNumero($dados['aposent'] ?? null, 'Aposentadoria', 10, 60, true);
+    $aposent = $aposent === null ? null : (int)$aposent;
 
     $linhas = [];
     $vistos = [];
@@ -240,8 +326,8 @@ function estudosSalvarVida(PDO $pdo, int $id, array $dados): void
     $pdo->beginTransaction();
     try {
         estudosGarantirMeta($pdo, $id);
-        $pdo->prepare("UPDATE estudos_vidas SET nome = ?, lenda = ?, tshot = ?, ttouch = ?, nota = ? WHERE player_id = ?")
-            ->execute([($nome === '' || $nome === $nomeBase) ? null : $nome, $lendaVal, $tshot, $ttouch, $nota === '' ? null : $nota, $id]);
+        $pdo->prepare("UPDATE estudos_vidas SET nome = ?, lenda = ?, tshot = ?, ttouch = ?, aposent = ?, nota = ? WHERE player_id = ?")
+            ->execute([($nome === '' || $nome === $nomeBase) ? null : $nome, $lendaVal, $tshot, $ttouch, $aposent, $nota === '' ? null : $nota, $id]);
         $pdo->prepare("DELETE FROM estudos_temporadas WHERE player_id = ?")->execute([$id]);
         $ins = $pdo->prepare("INSERT INTO estudos_temporadas (player_id, season_id, excluida, manual, ajuste) VALUES (?,?,?,?,?)");
 

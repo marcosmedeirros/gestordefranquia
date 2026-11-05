@@ -490,6 +490,45 @@ function estudosVidasPorNome(PDO $pdo, array $meta = []): array
 }
 
 /**
+ * ── APOSENTADORIA (pedido do Marcos, 06/11/2026) ─────────────────────
+ *
+ * "Quando para de jogar." O jogo NÃO registra a aposentadoria: o botão de aposentar só tira o
+ * jogador de `players` (só vale com mais de 35 anos), igual a uma dispensa, e o histórico fica. Então
+ * ela é DEDUZIDA, e marcada como provável: a vida some dos elencos, tem ESTUDOS_APOS_IDADE_MIN anos
+ * ou mais na última temporada e essa temporada é ANTES do fim do sprint dela (senão a vida só acabou
+ * porque o sprint acabou). A idade da aposentadoria é a da última temporada jogada.
+ * O que o Marcos digitar no editor (estudos_vidas.aposent) vale por cima.
+ */
+const ESTUDOS_APOS_IDADE_MIN = 36;
+
+/** A última temporada de cada (liga, sprint): é por ela que se sabe se uma vida saiu no meio do sprint. @return array<string,int> */
+function estudosFimSprints(PDO $pdo): array
+{
+    $out = [];
+    foreach ($pdo->query("SELECT league, sprint_number, MAX(season_number) t FROM player_season_log GROUP BY league, sprint_number")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[$r['league'] . '|' . (int)$r['sprint_number']] = (int)$r['t'];
+    }
+    return $out;
+}
+
+/**
+ * A aposentadoria de uma vida: [idade|null, estado]. Estados: 'manual' (o Marcos digitou), 'ativo' (ainda
+ * num elenco), 'aposentou' (deduzida, ver acima) e 'saiu' (a vida acabou e não dá pra dizer que foi aposentadoria).
+ *
+ * @param array<string,int> $fimSprint de estudosFimSprints()
+ * @return array{0:?int,1:string}
+ */
+function estudosAposentadoria(array $m, ?array $ultima, bool $naLiga, array $fimSprint, ?array $mt): array
+{
+    if ($mt && $mt['aposent'] !== null) return [(int)$mt['aposent'], 'manual'];
+    if ($naLiga) return [null, 'ativo'];
+    if (($m['n'] ?? 0) < 3 || !empty($m['festiva']) || !$ultima) return [null, 'saiu'];
+    $fim = $fimSprint[$ultima['league'] . '|' . (int)$ultima['sprint_number']] ?? null;
+    if ((int)$m['idade_fim'] >= ESTUDOS_APOS_IDADE_MIN && $fim !== null && (int)$ultima['season_number'] < $fim) return [(int)$m['idade_fim'], 'aposentou'];
+    return [null, 'saiu'];
+}
+
+/**
  * A lista de uma aba.
  *   elite     jogadores que estão hoje em times da ELITE
  *   outras    jogadores de NEXT, RISE e ROOKIE
@@ -527,6 +566,9 @@ function estudosLista(PDO $pdo, string $grupo, array $opc = []): array
     $c = estudosCarregar($pdo, $ids, null, 'resumo');   // lista: só a soma dos atributos e o POT
     $vidasNome = estudosVidasPorNome($pdo, $meta);
     $tend = estudosTendenciasChave($pdo, $meta);
+    $reais = estudosReais($pdo);
+    $fimSprint = estudosFimSprints($pdo);
+    $naLiga = array_flip(array_map('intval', $pdo->query("SELECT id FROM players")->fetchAll(PDO::FETCH_COLUMN)));
 
     // No histórico entram os do log e também quem está nos elencos sem log ainda.
     if ($selecionados !== null) $todos = $selecionados;
@@ -546,6 +588,8 @@ function estudosLista(PDO $pdo, string $grupo, array $opc = []): array
         $ultima = $temps ? $temps[count($temps) - 1] : null;
         $nome = estudosNomeEfetivo($pid, (string)($hoje['name'] ?? ($ultima['player_name'] ?? '')), $meta);
         if ($nome === '') $nome = '?';
+        [$ap, $apEstado] = estudosAposentadoria($m, $ultima, $hoje !== null || isset($naLiga[$pid]), $fimSprint, $mt);
+        $real = $reais[estudosChaveNome($nome)] ?? null;
         // O OVR do 99 festivo não é de ninguém: sem isso ele liderava a coluna OVR.
         $ovrFestivo = !$hoje && !empty($m['festiva']);
         $linhas[] = [
@@ -560,9 +604,12 @@ function estudosLista(PDO $pdo, string $grupo, array $opc = []): array
             'festiva' => !empty($m['festiva']),
             'lenda' => isset($lendas[$pid]),
             'fav'   => (int)($mt['favorito'] ?? 0) === 1,
-            'ajustada' => isset($ajustes[$pid]) || ($mt && ($mt['nome'] !== null || $mt['lenda'] !== null || $mt['tshot'] !== null || $mt['ttouch'] !== null)),
+            'ajustada' => isset($ajustes[$pid]) || ($mt && ($mt['nome'] !== null || $mt['lenda'] !== null || $mt['tshot'] !== null || $mt['ttouch'] !== null || $mt['aposent'] !== null)),
             'manual' => $pid >= ESTUDOS_ID_MANUAL,
             'nota'  => $mt && trim((string)$mt['nota']) !== '' ? (string)$mt['nota'] : null,
+            // Aposentadoria do jogo (deduzida) e as estimativas da VIDA REAL: colunas separadas, nunca misturadas.
+            'ap' => $ap, 'ap_estado' => $apEstado,
+            'pe_real' => $real['peak_end'] ?? null, 'ap_real' => $real['aposent'] ?? null,
             'vidas' => $vidasNome[mb_strtolower(trim($nome))] ?? 1,
             'tend'  => isset($tend[$pid]),
             'tshot' => $tend[$pid]['T/SHOT'] ?? null,
@@ -653,8 +700,12 @@ function estudosVida(PDO $pdo, int $id, array $opc = []): ?array
 
     $lendaAuto = !empty($hoje['is_lenda']);
     $lendaManual = $mt && $mt['lenda'] !== null ? (int)$mt['lenda'] : null;
+    [$ap, $apEstado] = estudosAposentadoria($m, $temps ? $temps[count($temps) - 1] : null, $hoje !== null, estudosFimSprints($pdo), $mt);
+    $real = estudosReais($pdo)[estudosChaveNome($nome)] ?? null;
     return [
         'id' => $id, 'nome' => $nome,
+        'ap' => $ap, 'ap_estado' => $apEstado,
+        'real' => $real ? ['nome' => $real['nome'], 'peak_end' => $real['peak_end'], 'aposent' => $real['aposent'], 'fonte' => $real['fonte'], 'nota' => $real['nota']] : null,
         'hoje' => $hoje ? ['time' => $hoje['time'], 'liga' => $hoje['liga'], 'pos' => $hoje['position'], 'idade' => (int)$hoje['age'],
                            'ovr' => (int)$hoje['ovr'], 'altura' => $hoje['height'], 'lenda' => $lendaAuto] : null,
         'meta' => [
@@ -662,7 +713,7 @@ function estudosVida(PDO $pdo, int $id, array $opc = []): ?array
             'nome_original' => $original, 'nome_corrigido' => $mt && trim((string)$mt['nome']) !== '' ? $mt['nome'] : null,
             'lenda_auto' => $lendaAuto, 'lenda_manual' => $lendaManual, 'lenda' => $lendaManual !== null ? $lendaManual === 1 : $lendaAuto,
             'nota' => $mt['nota'] ?? null, 'manual' => $id >= ESTUDOS_ID_MANUAL,
-            'tshot_manual' => $mt['tshot'] ?? null, 'ttouch_manual' => $mt['ttouch'] ?? null,
+            'tshot_manual' => $mt['tshot'] ?? null, 'ttouch_manual' => $mt['ttouch'] ?? null, 'aposent_manual' => $mt['aposent'] ?? null,
         ],
         'm' => $m, 'temporadas' => $seasons, 'removidas' => $removidas, 'curva' => estudosCurva($temps),
         'tendencias' => $tendencias, 'outras_vidas' => $outras,
@@ -721,6 +772,8 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
     $lendas = estudosLendasIds($pdo, $meta);
     $c = estudosCarregar($pdo, $ids);
     $tendencias = estudosTendenciasChave($pdo, $meta);
+    $fimSprint = estudosFimSprints($pdo);
+    $naLiga = array_flip(array_map('intval', $pdo->query("SELECT id FROM players WHERE id IN (" . implode(',', array_map('intval', $ids)) . ")")->fetchAll(PDO::FETCH_COLUMN)));
     $exato = null;
     $vidas = [];
     foreach ($ids as $pid) {
@@ -728,8 +781,10 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
         if ($exato === null) $exato = estudosNomeEfetivo($pid, (string)($temps[0]['player_name'] ?? ''), $meta);
         $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']), $opc);
         $ehLenda = isset($lendas[$pid]);
+        [$ap, $apEstado] = estudosAposentadoria($m, $temps ? $temps[count($temps) - 1] : null, isset($naLiga[$pid]), $fimSprint, $meta[$pid] ?? null);
         // Vida de 99 festivo nunca entra nas médias, qualquer que seja o mínimo de temporadas.
         $vidas[] = ['id' => $pid, 'liga' => $temps[0]['league'] ?? null, 'm' => $m, 'curva' => estudosCurva($temps),
+                    'ap' => $ap, 'ap_estado' => $apEstado,
                     'festiva' => !empty($m['festiva']), 'lenda' => $ehLenda, 'fav' => (int)($meta[$pid]['favorito'] ?? 0) === 1,
                     'tshot' => $tendencias[$pid]['T/SHOT'] ?? null, 'ttouch' => $tendencias[$pid]['T/TOUCH'] ?? null,
                     'usada' => ($m['n'] ?? 0) >= $minTemp && empty($m['festiva']) && ($comLendas || !$ehLenda)];
@@ -753,6 +808,8 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
     // As tendências vêm de fora do log: só as vidas lançadas têm, e o "Vidas" diz quantas.
     $resumo['t_shot']  = $res(array_map(fn($v) => $v['tshot'], $usadas));
     $resumo['t_touch'] = $res(array_map(fn($v) => $v['ttouch'], $usadas));
+    // Aposentadoria do jogo: só quem de fato parou (as demais vidas ainda jogam ou só acabaram com o sprint).
+    $resumo['aposentadoria'] = $res(array_map(fn($v) => $v['ap'], $usadas));
 
     // O POT na entrada, de volta em letra (a média numérica fica na dica).
     $potMedia = $resumo['pot_inicial']['media'];
@@ -785,6 +842,8 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
 
     return ['ok' => true, 'nome' => (string)$exato, 'min_temporadas' => $minTemp, 'opc' => $opc, 'com_lendas' => $comLendas,
             'lendas_fora' => count(array_filter($vidas, fn($v) => $v['lenda'])),
+            // A vida REAL do jogador (estimativa por nome): separada das médias do jogo, de propósito.
+            'real' => estudosReais($pdo)[estudosChaveNome((string)$exato)] ?? null,
             'vidas' => $vidas, 'vidas_total' => count($vidas), 'vidas_usadas' => count($usadas),
             'resumo' => $resumo, 'pot_inicial_letra' => $potLetra, 'letras_pico' => $letras,
             'curva_media' => $curva, 'variacao_anual' => $variacao];

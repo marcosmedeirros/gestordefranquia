@@ -215,6 +215,7 @@ tr.ajust td:first-child .nm .txt > span.nome::after{content:' ✎';color:var(--b
 .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--text-2);margin-top:6px}
 .leg i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 tr.fora-media td{opacity:.5}
+td.est{font-style:italic;color:#a5b4fc}
 .porvida{font-family:var(--num);letter-spacing:.3px}
 
 /* ── O popup da carreira e o editor ───────────────────────────────── */
@@ -381,6 +382,11 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       temporada só. <b>Fim</b> é o OVR da última temporada registrada e <b>Queda</b> é o pico sustentado menos o fim.<br>
       <b>Peak start</b> é a idade em que chega ao patamar de pico. <b>Peak end</b> é a idade em que <em>começou a cair</em> (configurável em
       <b>Peak</b>); "no pico" = ainda não caiu. <b>Anos pico</b> = peak end − peak start; <b>Anos até pico</b> = da entrada ao peak start.
+      <b>Aposent.</b> é a idade em que parou de jogar <em>no jogo</em>: o jogo não registra isso, então é deduzida (saiu do elenco no
+      meio do sprint com 36+ anos, o mínimo pra aposentar) e marcada com <b>?</b>; o que você digitar no editor vale por cima (✎).
+      <b>"joga"</b> = ainda num elenco. <b style="color:#a5b4fc">~Peak end real</b> e <b style="color:#a5b4fc">~Aposent. real</b> são <em>estimativas
+      pela carreira de verdade</em> (por nome): ficam em colunas à parte, nunca entram nas médias do jogo, e ficam em branco pra quem é
+      jovem ou eu não conheço — aí se espera o jogo da FBA mostrar. Corrija no editor (✎).
       <b>Entrada</b> é a idade na primeira temporada registrada. <b>POT ini</b> é o POT dessa temporada.
       <b>T/SHOT</b> e <b>T/TOUCH</b> são as tendências do jogo (0–99), só pra ELITE de 75 OVR pra cima (ou o que você digitar no editor).<br>
       Estatísticas são médias ponderadas por jogos; os picos só contam temporadas com 20 jogos ou mais.
