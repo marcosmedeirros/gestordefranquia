@@ -30,8 +30,12 @@
  * A idade às vezes repete entre temporadas (29, 29, 31) porque é lançada na
  * mão. Por isso a ordem é SEMPRE a da temporada, e a idade só rotula.
  *
- * SÓ LEITURA. Nada aqui grava no banco.
+ * Estas funções só LEEM o histórico do jogo. Favoritos, correções e lixeira vivem na
+ * camada do estudos_ajustes.php, que é aplicada POR CIMA na hora de carregar —
+ * nada daqui altera `player_season_log` nem `player_season_stats`.
  */
+
+require_once __DIR__ . '/estudos_ajustes.php';
 
 /** Temporada com menos jogos que isto não conta pra "pico de estatística". */
 const ESTUDOS_MIN_JOGOS = 20;
@@ -65,11 +69,10 @@ const ESTUDOS_SKILLS = ['skill_in' => 'IN', 'skill_mid' => 'MID', 'skill_3pt' =>
  *
  *   PEAK START  a idade em que ele chega ao patamar de pico: a primeira temporada
  *               com OVR dentro de ESTUDOS_PLATO do pico sustentado.
- *   PEAK END    a idade em que ele COMEÇA A PERDER OVR E ATRIBUTOS — e não o fim da
- *               carreira. É a primeira temporada depois do pico em que o OVR cai
- *               abaixo do pico sustentado OU a soma das letras dos atributos cai
- *               ESTUDOS_ATRIB_QUEDA degraus abaixo do melhor que ele teve; vale o
- *               que vier primeiro. Quem ainda não caiu fica sem peak end.
+ *   PEAK END    a idade em que ele COMEÇA A CAIR — e não o fim da carreira (ex.: 32, 38).
+ *               É a primeira temporada depois do pico em que o OVR cai abaixo do pico
+ *               sustentado; opcionalmente também a soma das letras dos atributos
+ *               (ver ESTUDOS_OPC_PADRAO). Quem ainda não caiu fica sem peak end.
  *   ANOS DE PICO  quantas temporadas entre um e outro.
  *   ANOS ATÉ O PICO  quantas temporadas entre a entrada na liga e o peak start.
  *
@@ -79,6 +82,32 @@ const ESTUDOS_SKILLS = ['skill_in' => 'IN', 'skill_mid' => 'MID', 'skill_3pt' =>
  */
 const ESTUDOS_PLATO = 1;
 const ESTUDOS_ATRIB_QUEDA = 2;
+
+/**
+ * As opções da definição de peak, ajustáveis na página (05/11/2026: "o peak end deve
+ * ser a idade que começou a cair"):
+ *
+ *   plato  quantos pontos abaixo do pico sustentado ainda contam como "no pico" (começo)
+ *   queda  quantos pontos ABAIXO do pico sustentado o OVR precisa estar pra contar como queda
+ *   atrib  degraus de queda na soma das letras que também contam como queda; 0 = só o OVR
+ *   ponto  'queda' = idade da PRIMEIRA temporada em queda · 'ultimo' = idade da última temporada no pico
+ *
+ * O padrão é só o OVR (atrib 0): o atributo oscila de ano pra ano e puxava o "começou a
+ * cair" pra antes da queda de verdade. Ligar `atrib` volta à regra anterior.
+ */
+const ESTUDOS_OPC_PADRAO = ['plato' => ESTUDOS_PLATO, 'queda' => 1, 'atrib' => 0, 'ponto' => 'queda'];
+
+/** Limpa as opções que vieram da tela (qualquer lixo vira o padrão). */
+function estudosOpcoes(array $in = []): array
+{
+    $o = ESTUDOS_OPC_PADRAO;
+    $n = fn($k, $min, $max) => isset($in[$k]) && is_numeric($in[$k]) ? max($min, min($max, (int)$in[$k])) : $o[$k];
+    $o['plato'] = $n('plato', 0, 3);
+    $o['queda'] = $n('queda', 1, 6);
+    $o['atrib'] = $n('atrib', 0, 6);
+    $o['ponto'] = (($in['ponto'] ?? '') === 'ultimo') ? 'ultimo' : 'queda';
+    return $o;
+}
 
 /** Os nove atributos (todas as letras menos o POT, que é teto e não habilidade). */
 const ESTUDOS_ATRIBUTOS = ['skill_in', 'skill_mid', 'skill_3pt', 'skill_post_d', 'skill_per_d', 'skill_play', 'skill_reb', 'skill_athl', 'skill_iq'];
@@ -150,30 +179,31 @@ function estudosAtribSoma(array $t): ?int
  * @param array<int,?int>     $attrs soma das letras por temporada (null = sem dado)
  * @return array{inicio:int,fim_ovr:?int,fim_atrib:?int,fim:?int}
  */
-function estudosFasePico(array $ovrs, array $attrs, int $picoSust): array
+function estudosFasePico(array $ovrs, array $attrs, int $picoSust, array $opc = []): array
 {
+    $opc = $opc + ESTUDOS_OPC_PADRAO;
     $n = count($ovrs);
     $inicio = 0;
-    foreach ($ovrs as $i => $o) { if ($o >= $picoSust - ESTUDOS_PLATO) { $inicio = $i; break; } }
+    foreach ($ovrs as $i => $o) { if ($o >= $picoSust - $opc['plato']) { $inicio = $i; break; } }
 
-    // Fim pelo OVR: a primeira temporada abaixo do pico sustentado DEPOIS da última
-    // vez que ele esteve nele.
+    // Fim pelo OVR: a primeira temporada em queda (OVR `queda` pontos abaixo do pico
+    // sustentado) DEPOIS da última vez que ele esteve nele.
     $ultimoNoPico = $inicio;
     foreach ($ovrs as $i => $o) { if ($i >= $inicio && $o >= $picoSust) $ultimoNoPico = $i; }
     $fimOvr = null;
-    for ($i = $ultimoNoPico + 1; $i < $n; $i++) { if ($ovrs[$i] < $picoSust) { $fimOvr = $i; break; } }
+    for ($i = $ultimoNoPico + 1; $i < $n; $i++) { if ($ovrs[$i] <= $picoSust - $opc['queda']) { $fimOvr = $i; break; } }
 
-    // Fim pelos atributos: a soma das letras cai ESTUDOS_ATRIB_QUEDA degraus abaixo
+    // Fim pelos atributos (só se ligado): a soma das letras cai `atrib` degraus abaixo
     // do melhor da fase de pico em diante. Precisa de pelo menos três temporadas com
     // letra, senão é ruído de lançamento manual.
     $fimAtrib = null;
     $com = array_filter($attrs, fn($a, $i) => $a !== null && $i >= $inicio, ARRAY_FILTER_USE_BOTH);
-    if (count($com) >= 3) {
+    if ($opc['atrib'] > 0 && count($com) >= 3) {
         $melhor = max($com);
         $iMelhor = $inicio;
         foreach ($com as $i => $a) { if ($a === $melhor) $iMelhor = $i; }   // a última vez no melhor
         for ($i = $iMelhor + 1; $i < $n; $i++) {
-            if ($attrs[$i] !== null && $attrs[$i] <= $melhor - ESTUDOS_ATRIB_QUEDA) { $fimAtrib = $i; break; }
+            if ($attrs[$i] !== null && $attrs[$i] <= $melhor - $opc['atrib']) { $fimAtrib = $i; break; }
         }
     }
 
@@ -194,8 +224,9 @@ function estudosVidaFestiva(array $temps): bool
  * @param array<int,array> $stats  estatísticas indexadas por season_id
  * @param array<int,array> $premios prêmios indexados por season_id => [tipo, ...]
  */
-function estudosMetricas(array $temps, array $stats = [], array $premios = []): array
+function estudosMetricas(array $temps, array $stats = [], array $premios = [], array $opc = []): array
 {
+    $opc = $opc + ESTUDOS_OPC_PADRAO;
     $n = count($temps);
     if ($n === 0) return ['n' => 0];
 
@@ -218,8 +249,11 @@ function estudosMetricas(array $temps, array $stats = [], array $premios = []): 
 
     // Peak start e peak end (ver ESTUDOS_PLATO lá em cima).
     $attrs = array_map(fn($t) => array_key_exists('attr_soma', $t) ? $t['attr_soma'] : estudosAtribSoma($t), $temps);
-    $fase = estudosFasePico($ovrs, $attrs, $picoSust);
+    $fase = estudosFasePico($ovrs, $attrs, $picoSust, $opc);
     $iFim = $fase['fim'];
+    // 'ultimo' = a idade da última temporada ainda no pico (a de antes da queda).
+    $refFim = fn(?int $i) => $i === null ? null : ($opc['ponto'] === 'ultimo' ? max($fase['inicio'], $i - 1) : $i);
+    $iFimRef = $refFim($iFim);
     $pot0 = estudosNotaNum($temps[0]['skill_pot'] ?? null);
 
     $m = [
@@ -247,10 +281,10 @@ function estudosMetricas(array $temps, array $stats = [], array $premios = []): 
         'queda'         => $picoSust - $ovrs[$n - 1],   // do pico sustentado até o fim
         'peak_start'    => $idades[$fase['inicio']],
         // A idade em que começa a perder OVR e atributos; null = ainda não caiu.
-        'peak_end'      => $iFim === null ? null : $idades[$iFim],
-        'peak_end_ovr'  => $fase['fim_ovr'] === null ? null : $idades[$fase['fim_ovr']],
-        'peak_end_atrib' => $fase['fim_atrib'] === null ? null : $idades[$fase['fim_atrib']],
-        'anos_pico'     => $iFim === null ? null : $iFim - $fase['inicio'],
+        'peak_end'      => $iFimRef === null ? null : $idades[$iFimRef],
+        'peak_end_ovr'  => $fase['fim_ovr'] === null ? null : $idades[$refFim($fase['fim_ovr'])],
+        'peak_end_atrib' => $fase['fim_atrib'] === null ? null : $idades[$refFim($fase['fim_atrib'])],
+        'anos_pico'     => $iFimRef === null ? null : $iFimRef - $fase['inicio'],
         'anos_ate_pico' => $fase['inicio'],
         'ainda_no_pico' => $iFim === null,
         'pot_ini'       => $pot0 === null ? null : estudosNumNota((float)$pot0),   // o POT na entrada, em letra
@@ -346,38 +380,46 @@ function estudosCurva(array $temps): array
  *                          cabem na memória com dez strings por linha, e a tabela só precisa disso.
  * @return array{log:array<int,array>,stats:array<int,array<int,array>>,premios:array<string,array>}
  */
-function estudosCarregar(PDO $pdo, ?array $ids = null, ?string $nome = null, string $letras = 'completo'): array
+function estudosCarregar(PDO $pdo, ?array $ids = null, ?string $nome = null, string $letras = 'completo', bool $comAjustes = true): array
 {
     $colLetras = ', skill_in, skill_mid, skill_3pt, skill_post_d, skill_per_d, skill_play, skill_reb, skill_athl, skill_iq, skill_pot';
-    $where = ''; $par = [];
-    if ($nome !== null) { $where = 'WHERE player_name = ?'; $par = [$nome]; }
-    elseif ($ids !== null) {
+    $meta = $comAjustes ? estudosMeta($pdo) : [];
+    $ajustes = $comAjustes ? estudosAjustes($pdo) : [];
+
+    // Por nome: quem tem esse nome DE VERDADE (com as correções de nome da camada do Marcos).
+    if ($nome !== null) { $ids = estudosIdsDoNome($pdo, $nome, $meta); $nome = null; }
+
+    $where = '';
+    if ($ids !== null) {
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if (!$ids) return ['log' => [], 'stats' => [], 'premios' => []];
         $where = 'WHERE player_id IN (' . implode(',', $ids) . ')';
     }
-    $st = $pdo->prepare("SELECT player_id, player_name, league, sprint_number, season_id, season_number, year,
-                                team_name, ovr, age, position{$colLetras}
-                           FROM player_season_log {$where}
-                       ORDER BY player_id, year, season_number");
-    $st->execute($par);
+    $st = $pdo->query("SELECT player_id, player_name, league, sprint_number, season_id, season_number, year,
+                              team_name, ovr, age, position{$colLetras}
+                         FROM player_season_log {$where}
+                     ORDER BY player_id, year, season_number", PDO::FETCH_ASSOC);
     $log = [];
     // Linha a linha, e já enxugando: fetchAll() seguraria as 36 mil linhas inteiras
     // na memória antes de a gente descartar qualquer coisa.
     while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+        $pid = (int)$r['player_id'];
         $r['attr_soma'] = estudosAtribSoma($r);
-        if ($letras === 'resumo') foreach (ESTUDOS_ATRIBUTOS as $col) unset($r[$col]);   // sobram a soma e o POT
-        $log[(int)$r['player_id']][] = $r;
+        // Quem tem correção guarda as letras até aplicá-la (a soma é refeita depois).
+        if ($letras === 'resumo' && !isset($ajustes[$pid])) foreach (ESTUDOS_ATRIBUTOS as $col) unset($r[$col]);   // sobram a soma e o POT
+        $log[$pid][] = $r;
     }
 
     $idsVidas = array_keys($log);
     $stats = [];
     if ($idsVidas) {
-        $in = ($ids === null && $nome === null) ? '' : 'WHERE player_id IN (' . implode(',', $idsVidas) . ')';
+        $in = ($ids === null) ? '' : 'WHERE player_id IN (' . implode(',', $idsVidas) . ')';
         $s2 = $pdo->query("SELECT player_id, season_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, fg_pct
                              FROM player_season_stats {$in} ORDER BY id");
         foreach ($s2->fetchAll(PDO::FETCH_ASSOC) as $r) $stats[(int)$r['player_id']][(int)$r['season_id']] = $r;   // a última linha vale
     }
+
+    if ($ajustes) estudosAplicarAjustes($log, $stats, $ajustes, $meta, $ids, $letras);
 
     // Prêmios são por NOME + temporada (a tabela guarda o nome, não o id).
     $premios = [];
@@ -406,7 +448,7 @@ function estudosPremiosDaVida(array $temps, array $premiosMapa): array
  *
  * @return array<int,array{'T/SHOT':?int,'T/TOUCH':?int}>
  */
-function estudosTendenciasChave(PDO $pdo): array
+function estudosTendenciasChave(PDO $pdo, array $meta = []): array
 {
     $out = [];
     try {
@@ -418,16 +460,32 @@ function estudosTendenciasChave(PDO $pdo): array
             ];
         }
     } catch (Throwable $e) { /* sem a tabela: sem tendências */ }
+    // O que o Marcos digitou vale por cima do que o jogo tem.
+    foreach ($meta as $pid => $m) {
+        if ($m['tshot'] !== null)  $out[(int)$pid]['T/SHOT']  = (int)$m['tshot'];
+        if ($m['ttouch'] !== null) $out[(int)$pid]['T/TOUCH'] = (int)$m['ttouch'];
+        if (isset($out[(int)$pid])) $out[(int)$pid] += ['T/SHOT' => null, 'T/TOUCH' => null];
+    }
     return $out;
 }
 
-/** Quantas vidas cada nome tem (todas, em todo o histórico). */
-function estudosVidasPorNome(PDO $pdo): array
+/**
+ * Quantas vidas cada nome tem (todas, em todo o histórico), com os nomes corrigidos
+ * e sem as vidas na lixeira.
+ */
+function estudosVidasPorNome(PDO $pdo, array $meta = []): array
 {
-    $out = [];
-    foreach ($pdo->query("SELECT player_name, COUNT(DISTINCT player_id) v FROM player_season_log GROUP BY player_name")->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $out[mb_strtolower(trim($r['player_name']))] = (int)$r['v'];
+    $por = [];   // pid => nome efetivo
+    foreach ($pdo->query("SELECT DISTINCT player_id, player_name FROM player_season_log")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $pid = (int)$r['player_id'];
+        if (!empty($meta[$pid]['excluido'])) continue;
+        $por[$pid] = estudosNomeEfetivo($pid, (string)$r['player_name'], $meta);
     }
+    foreach ($meta as $pid => $m) {
+        if (!isset($por[$pid]) && empty($m['excluido']) && trim((string)$m['nome']) !== '') $por[(int)$pid] = trim($m['nome']);
+    }
+    $out = [];
+    foreach ($por as $nome) { $k = mb_strtolower(trim($nome)); $out[$k] = ($out[$k] ?? 0) + 1; }
     return $out;
 }
 
@@ -436,38 +494,58 @@ function estudosVidasPorNome(PDO $pdo): array
  *   elite     jogadores que estão hoje em times da ELITE
  *   outras    jogadores de NEXT, RISE e ROOKIE
  *   historico todo mundo: quem está nos elencos e quem já saiu
+ *   favoritos quem o Marcos marcou com a estrela (de qualquer liga, ativo ou não)
+ *   lixeira   quem o Marcos excluiu dos estudos (dá pra restaurar)
  *
  * Uma linha por jogador (vida), com a situação de HOJE (time, idade, OVR) quando
- * ele ainda está num elenco, e as métricas da carreira inteira.
+ * ele ainda está num elenco, e as métricas da carreira inteira. As correções da
+ * camada do Marcos já vêm aplicadas; `ajustada` diz quem tem alguma. Lenda NÃO é
+ * filtrada aqui — a flag `lenda` vai em cada linha e a tela decide (padrão: oculta).
  */
-function estudosLista(PDO $pdo, string $grupo): array
+function estudosLista(PDO $pdo, string $grupo, array $opc = []): array
 {
+    $opc = estudosOpcoes($opc);
+    $meta = estudosMeta($pdo);
+    $ajustes = estudosAjustes($pdo);
+    $lendas = estudosLendasIds($pdo, $meta);
+
+    // Quem entra na aba, quando ela é uma seleção de ids e não de times.
+    $selecionados = null;
+    if ($grupo === 'favoritos') $selecionados = array_keys(array_filter($meta, fn($m) => (int)$m['favorito'] === 1 && (int)$m['excluido'] === 0));
+    elseif ($grupo === 'lixeira') $selecionados = array_keys(array_filter($meta, fn($m) => (int)$m['excluido'] === 1));
+
     $atuais = [];   // player_id => situação de hoje
     $sqlAtual = "SELECT p.id, p.name, p.position, p.age, p.ovr, p.height, p.is_lenda, p.seasons_in_league,
-                        p.skill_in, p.skill_mid, p.skill_3pt, p.skill_post_d, p.skill_per_d, p.skill_play,
-                        p.skill_reb, p.skill_athl, p.skill_iq, p.skill_pot,
                         t.league AS liga, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time
                    FROM players p JOIN teams t ON t.id = p.team_id";
     if ($grupo === 'elite')       $sqlAtual .= " WHERE t.league = 'ELITE'";
     elseif ($grupo === 'outras')  $sqlAtual .= " WHERE t.league IN ('NEXT','RISE','ROOKIE')";
+    elseif ($selecionados !== null) $sqlAtual .= $selecionados ? ' WHERE p.id IN (' . implode(',', array_map('intval', $selecionados)) . ')' : ' WHERE 1 = 0';
     foreach ($pdo->query($sqlAtual)->fetchAll(PDO::FETCH_ASSOC) as $p) $atuais[(int)$p['id']] = $p;
 
-    $ids = $grupo === 'historico' ? null : array_keys($atuais);
+    $ids = $grupo === 'historico' ? null : ($selecionados ?? array_keys($atuais));
     $c = estudosCarregar($pdo, $ids, null, 'resumo');   // lista: só a soma dos atributos e o POT
-    $vidasNome = estudosVidasPorNome($pdo);
-
-    $tend = estudosTendenciasChave($pdo);
+    $vidasNome = estudosVidasPorNome($pdo, $meta);
+    $tend = estudosTendenciasChave($pdo, $meta);
 
     // No histórico entram os do log e também quem está nos elencos sem log ainda.
-    $todos = $grupo === 'historico' ? array_unique(array_merge(array_keys($c['log']), array_keys($atuais))) : array_keys($atuais);
+    if ($selecionados !== null) $todos = $selecionados;
+    elseif ($grupo === 'historico') {
+        $todos = array_unique(array_merge(array_keys($c['log']), array_keys($atuais),
+                 array_keys(array_filter($meta, fn($m) => (int)$m['excluido'] === 0))));
+    } else $todos = array_keys($atuais);
 
     $linhas = [];
     foreach ($todos as $pid) {
+        $pid = (int)$pid;
+        $mt = $meta[$pid] ?? null;
+        if ($selecionados === null && $mt && (int)$mt['excluido'] === 1) continue;   // lixeira só na aba dela
         $temps = $c['log'][$pid] ?? [];
-        $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']));
+        $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']), $opc);
         $hoje = $atuais[$pid] ?? null;
         $ultima = $temps ? $temps[count($temps) - 1] : null;
-        $nome = $hoje['name'] ?? ($ultima['player_name'] ?? '?');
+        $nome = estudosNomeEfetivo($pid, (string)($hoje['name'] ?? ($ultima['player_name'] ?? '')), $meta);
+        if ($nome === '') $nome = '?';
         // O OVR do 99 festivo não é de ninguém: sem isso ele liderava a coluna OVR.
         $ovrFestivo = !$hoje && !empty($m['festiva']);
         $linhas[] = [
@@ -480,7 +558,11 @@ function estudosLista(PDO $pdo, string $grupo): array
             'idade' => isset($hoje['age']) ? (int)$hoje['age'] : ($ultima ? (int)$ultima['age'] : null),
             'ovr'   => isset($hoje['ovr']) ? (int)$hoje['ovr'] : (($ultima && !$ovrFestivo) ? (int)$ultima['ovr'] : null),
             'festiva' => !empty($m['festiva']),
-            'lenda' => !empty($hoje['is_lenda']),
+            'lenda' => isset($lendas[$pid]),
+            'fav'   => (int)($mt['favorito'] ?? 0) === 1,
+            'ajustada' => isset($ajustes[$pid]) || ($mt && ($mt['nome'] !== null || $mt['lenda'] !== null || $mt['tshot'] !== null || $mt['ttouch'] !== null)),
+            'manual' => $pid >= ESTUDOS_ID_MANUAL,
+            'nota'  => $mt && trim((string)$mt['nota']) !== '' ? (string)$mt['nota'] : null,
             'vidas' => $vidasNome[mb_strtolower(trim($nome))] ?? 1,
             'tend'  => isset($tend[$pid]),
             'tshot' => $tend[$pid]['T/SHOT'] ?? null,
@@ -492,9 +574,32 @@ function estudosLista(PDO $pdo, string $grupo): array
     return $linhas;
 }
 
-/** A carreira completa de uma vida: temporada a temporada. */
-function estudosVida(PDO $pdo, int $id): ?array
+/** Uma temporada no formato da tela (a do detalhe da vida e a do editor). */
+function estudosFormatarTemporada(array $t, ?array $s, array $premios = []): array
 {
+    $letras = [];
+    foreach (ESTUDOS_SKILLS as $col => $sigla) { $v = trim((string)($t[$col] ?? '')); $letras[$sigla] = $v !== '' ? $v : null; }
+    $f = fn($x) => ($x === null || $x === '') ? null : (float)$x;
+    return [
+        'season_id' => (int)$t['season_id'], 'temporada' => (int)$t['season_number'], 'ano' => (int)$t['year'], 'liga' => $t['league'],
+        'time' => $t['team_name'], 'idade' => (int)$t['age'], 'ovr' => (int)$t['ovr'], 'pos' => $t['position'],
+        'letras' => $letras,
+        'stats' => ($s && isset($s['games'])) ? [
+            'jogos' => (int)$s['games'], 'min' => $f($s['min_pg'] ?? null),
+            'pts' => $f($s['pts_pg'] ?? null), 'reb' => $f($s['reb_pg'] ?? null), 'ast' => $f($s['ast_pg'] ?? null),
+            'stl' => $f($s['stl_pg'] ?? null), 'blk' => $f($s['blk_pg'] ?? null), 'fg' => $f($s['fg_pct'] ?? null),
+        ] : null,
+        'premios' => $premios,
+        'ajustada' => !empty($t['aj']), 'manual' => !empty($t['man']),
+    ];
+}
+
+/** A carreira completa de uma vida: temporada a temporada. */
+function estudosVida(PDO $pdo, int $id, array $opc = []): ?array
+{
+    $opc = estudosOpcoes($opc);
+    $meta = estudosMeta($pdo);
+    $mt = $meta[$id] ?? null;
     $c = estudosCarregar($pdo, [$id]);
     $temps = $c['log'][$id] ?? [];
 
@@ -502,30 +607,25 @@ function estudosVida(PDO $pdo, int $id): ?array
                            FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?");
     $st->execute([$id]);
     $hoje = $st->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$temps && !$hoje) return null;
 
-    $nome = $hoje['name'] ?? $temps[0]['player_name'];
+    // Temporadas que existem no jogo e o Marcos tirou: voltam pelo editor.
+    $base = estudosBaseDaVida($pdo, $id);
+    if (!$temps && !$hoje && !$mt && !$base['temporadas']) return null;
+
+    $original = (string)($hoje['name'] ?? ($base['nome'] ?: ''));
+    $nome = estudosNomeEfetivo($id, $original, $meta);
     $prem = estudosPremiosDaVida($temps, $c['premios']);
-    $m = estudosMetricas($temps, $c['stats'][$id] ?? [], $prem);
+    $m = estudosMetricas($temps, $c['stats'][$id] ?? [], $prem, $opc);
 
     $seasons = [];
     foreach ($temps as $t) {
         $sid = (int)$t['season_id'];
-        $s = $c['stats'][$id][$sid] ?? null;
-        $letras = [];
-        foreach (ESTUDOS_SKILLS as $col => $sigla) { $v = trim((string)$t[$col]); $letras[$sigla] = $v !== '' ? $v : null; }
-        $seasons[] = [
-            'temporada' => (int)$t['season_number'], 'ano' => (int)$t['year'], 'liga' => $t['league'],
-            'time' => $t['team_name'], 'idade' => (int)$t['age'], 'ovr' => (int)$t['ovr'], 'pos' => $t['position'],
-            'letras' => $letras,
-            'stats' => $s ? [
-                'jogos' => (int)$s['games'], 'min' => (float)$s['min_pg'],
-                'pts' => (float)$s['pts_pg'], 'reb' => (float)$s['reb_pg'], 'ast' => (float)$s['ast_pg'],
-                'stl' => (float)$s['stl_pg'], 'blk' => (float)$s['blk_pg'],
-                'fg' => ($s['fg_pct'] === null || $s['fg_pct'] === '') ? null : (float)$s['fg_pct'],
-            ] : null,
-            'premios' => $prem[$sid] ?? [],
-        ];
+        $seasons[] = estudosFormatarTemporada($t, $c['stats'][$id][$sid] ?? null, $prem[$sid] ?? []);
+    }
+    $vivas = array_flip(array_map(fn($t) => (int)$t['season_id'], $temps));
+    $removidas = [];
+    foreach ($base['temporadas'] as $sid => $t) {
+        if (!isset($vivas[$sid])) $removidas[] = estudosFormatarTemporada($t, $base['stats'][$sid] ?? null);
     }
 
     $tendencias = null;
@@ -534,31 +634,72 @@ function estudosVida(PDO $pdo, int $id): ?array
         $q->execute([$id]);
         if ($r = $q->fetch(PDO::FETCH_ASSOC)) $tendencias = ['dados' => json_decode((string)$r['dados'], true) ?: [], 'em' => $r['atualizado_em']];
     } catch (Throwable $e) {}
+    if ($mt && ($mt['tshot'] !== null || $mt['ttouch'] !== null)) {
+        $tendencias = $tendencias ?? ['dados' => [], 'em' => null];
+        if ($mt['tshot'] !== null)  $tendencias['dados']['T/SHOT']  = (int)$mt['tshot'];
+        if ($mt['ttouch'] !== null) $tendencias['dados']['T/TOUCH'] = (int)$mt['ttouch'];
+    }
 
     $outras = [];
-    $q = $pdo->prepare("SELECT player_id, league, MIN(season_number) de, MAX(season_number) ate, COUNT(*) n, MAX(ovr) pico
-                          FROM player_season_log WHERE player_name = ? AND player_id <> ? GROUP BY player_id, league ORDER BY player_id");
-    $q->execute([$nome, $id]);
-    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) $outras[] = ['id' => (int)$r['player_id'], 'liga' => $r['league'], 'n' => (int)$r['n'], 'pico' => (int)$r['pico']];
+    $outrosIds = array_values(array_diff(estudosIdsDoNome($pdo, $nome, $meta), [$id]));
+    if ($outrosIds) {
+        $o = estudosCarregar($pdo, $outrosIds, null, 'resumo');
+        foreach ($outrosIds as $oid) {
+            $ts = $o['log'][$oid] ?? [];
+            if (!$ts) continue;
+            $outras[] = ['id' => $oid, 'liga' => $ts[0]['league'], 'n' => count($ts), 'pico' => max(array_map(fn($t) => (int)$t['ovr'], $ts))];
+        }
+    }
 
+    $lendaAuto = !empty($hoje['is_lenda']);
+    $lendaManual = $mt && $mt['lenda'] !== null ? (int)$mt['lenda'] : null;
     return [
         'id' => $id, 'nome' => $nome,
         'hoje' => $hoje ? ['time' => $hoje['time'], 'liga' => $hoje['liga'], 'pos' => $hoje['position'], 'idade' => (int)$hoje['age'],
-                           'ovr' => (int)$hoje['ovr'], 'altura' => $hoje['height'], 'lenda' => !empty($hoje['is_lenda'])] : null,
-        'm' => $m, 'temporadas' => $seasons, 'curva' => estudosCurva($temps),
+                           'ovr' => (int)$hoje['ovr'], 'altura' => $hoje['height'], 'lenda' => $lendaAuto] : null,
+        'meta' => [
+            'favorito' => (int)($mt['favorito'] ?? 0) === 1, 'excluido' => (int)($mt['excluido'] ?? 0) === 1,
+            'nome_original' => $original, 'nome_corrigido' => $mt && trim((string)$mt['nome']) !== '' ? $mt['nome'] : null,
+            'lenda_auto' => $lendaAuto, 'lenda_manual' => $lendaManual, 'lenda' => $lendaManual !== null ? $lendaManual === 1 : $lendaAuto,
+            'nota' => $mt['nota'] ?? null, 'manual' => $id >= ESTUDOS_ID_MANUAL,
+            'tshot_manual' => $mt['tshot'] ?? null, 'ttouch_manual' => $mt['ttouch'] ?? null,
+        ],
+        'm' => $m, 'temporadas' => $seasons, 'removidas' => $removidas, 'curva' => estudosCurva($temps),
         'tendencias' => $tendencias, 'outras_vidas' => $outras,
     ];
 }
 
-/** Os nomes com mais de uma vida — a lista do "estudo por nome". */
+/** Os nomes com mais de uma vida — a lista do "estudo por nome" (com as correções de nome, sem a lixeira). */
 function estudosNomes(PDO $pdo, int $minVidas = 2): array
 {
-    $st = $pdo->prepare("SELECT player_name nome, COUNT(DISTINCT player_id) vidas, COUNT(*) temporadas, MAX(ovr) pico
-                           FROM player_season_log GROUP BY player_name HAVING vidas >= ?
-                       ORDER BY vidas DESC, temporadas DESC, nome");
-    $st->execute([$minVidas]);
-    return array_map(fn($r) => ['nome' => $r['nome'], 'vidas' => (int)$r['vidas'], 'temporadas' => (int)$r['temporadas'], 'pico' => (int)$r['pico']],
-                     $st->fetchAll(PDO::FETCH_ASSOC));
+    $meta = estudosMeta($pdo);
+    $ajustes = estudosAjustes($pdo);
+    $vidas = [];   // pid => [nome, n, pico]
+    foreach ($pdo->query("SELECT player_id, player_name, COUNT(*) n, MAX(ovr) pico FROM player_season_log GROUP BY player_id, player_name")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $pid = (int)$r['player_id'];
+        if (!empty($meta[$pid]['excluido'])) continue;
+        $tiradas = count(array_filter($ajustes[$pid] ?? [], fn($a) => $a['excluida']));
+        $vidas[$pid] = [estudosNomeEfetivo($pid, (string)$r['player_name'], $meta), max(0, (int)$r['n'] - $tiradas), (int)$r['pico']];
+    }
+    foreach ($ajustes as $pid => $porTemp) {
+        foreach ($porTemp as $a) {
+            if (!$a['manual'] || !empty($meta[$pid]['excluido'])) continue;
+            $v = $vidas[$pid] ?? [estudosNomeEfetivo($pid, '', $meta), 0, 0];
+            $v[1]++; $v[2] = max($v[2], (int)($a['ajuste']['ovr'] ?? 0));
+            $vidas[$pid] = $v;
+        }
+    }
+    $por = [];   // nome minúsculo => dados
+    foreach ($vidas as [$nome, $n, $pico]) {
+        if (trim($nome) === '') continue;
+        $k = mb_strtolower(trim($nome));
+        $x = $por[$k] ?? ['nome' => trim($nome), 'vidas' => 0, 'temporadas' => 0, 'pico' => 0];
+        $x['vidas']++; $x['temporadas'] += $n; $x['pico'] = max($x['pico'], $pico);
+        $por[$k] = $x;
+    }
+    $out = array_values(array_filter($por, fn($x) => $x['vidas'] >= $minVidas));
+    usort($out, fn($a, $b) => $b['vidas'] <=> $a['vidas'] ?: $b['temporadas'] <=> $a['temporadas'] ?: strcmp($a['nome'], $b['nome']));
+    return $out;
 }
 
 /**
@@ -568,25 +709,30 @@ function estudosNomes(PDO $pdo, int $minVidas = 2): array
  * de uma temporada só é, quase sempre, uma foto isolada e não uma carreira, e
  * um 99 desses puxaria o "pico médio" pra um número que ninguém sustentou. As
  * vidas curtas continuam na lista, marcadas, só ficam fora da conta.
+ * Lendas ficam fora da conta, a menos que $comLendas (pedido do Marcos, 05/11/2026).
  */
-function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COORTE): array
+function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COORTE, array $opc = [], bool $comLendas = false): array
 {
-    // O nome exato como está no banco (a busca não diferencia maiúscula).
-    $q = $pdo->prepare("SELECT player_name FROM player_season_log WHERE LOWER(TRIM(player_name)) = LOWER(TRIM(?)) LIMIT 1");
-    $q->execute([$nome]);
-    $exato = $q->fetchColumn();
-    if ($exato === false) return ['ok' => false, 'erro' => 'Nenhum jogador com esse nome no histórico.'];
+    $opc = estudosOpcoes($opc);
+    $meta = estudosMeta($pdo);
+    $ids = estudosIdsDoNome($pdo, $nome, $meta);
+    if (!$ids) return ['ok' => false, 'erro' => 'Nenhum jogador com esse nome no histórico.'];
 
-    $c = estudosCarregar($pdo, null, (string)$exato);
-    $tendencias = estudosTendenciasChave($pdo);
+    $lendas = estudosLendasIds($pdo, $meta);
+    $c = estudosCarregar($pdo, $ids);
+    $tendencias = estudosTendenciasChave($pdo, $meta);
+    $exato = null;
     $vidas = [];
-    foreach ($c['log'] as $pid => $temps) {
-        $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']));
+    foreach ($ids as $pid) {
+        $temps = $c['log'][$pid] ?? [];
+        if ($exato === null) $exato = estudosNomeEfetivo($pid, (string)($temps[0]['player_name'] ?? ''), $meta);
+        $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']), $opc);
+        $ehLenda = isset($lendas[$pid]);
         // Vida de 99 festivo nunca entra nas médias, qualquer que seja o mínimo de temporadas.
-        $vidas[] = ['id' => $pid, 'liga' => $temps[0]['league'], 'm' => $m, 'curva' => estudosCurva($temps),
-                    'festiva' => !empty($m['festiva']),
+        $vidas[] = ['id' => $pid, 'liga' => $temps[0]['league'] ?? null, 'm' => $m, 'curva' => estudosCurva($temps),
+                    'festiva' => !empty($m['festiva']), 'lenda' => $ehLenda, 'fav' => (int)($meta[$pid]['favorito'] ?? 0) === 1,
                     'tshot' => $tendencias[$pid]['T/SHOT'] ?? null, 'ttouch' => $tendencias[$pid]['T/TOUCH'] ?? null,
-                    'usada' => $m['n'] >= $minTemp && empty($m['festiva'])];
+                    'usada' => ($m['n'] ?? 0) >= $minTemp && empty($m['festiva']) && ($comLendas || !$ehLenda)];
     }
     $usadas = array_values(array_filter($vidas, fn($v) => $v['usada']));
     $col = fn(string $k) => array_map(fn($v) => $v['m'][$k] ?? null, $usadas);
@@ -637,7 +783,8 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
     $variacao = [];
     foreach ($deltas as $idade => $ds) $variacao[] = ['de' => (int)$idade, 'para' => (int)$idade + 1, 'media' => round(array_sum($ds) / count($ds), 2), 'vidas' => count($ds)];
 
-    return ['ok' => true, 'nome' => (string)$exato, 'min_temporadas' => $minTemp,
+    return ['ok' => true, 'nome' => (string)$exato, 'min_temporadas' => $minTemp, 'opc' => $opc, 'com_lendas' => $comLendas,
+            'lendas_fora' => count(array_filter($vidas, fn($v) => $v['lenda'])),
             'vidas' => $vidas, 'vidas_total' => count($vidas), 'vidas_usadas' => count($usadas),
             'resumo' => $resumo, 'pot_inicial_letra' => $potLetra, 'letras_pico' => $letras,
             'curva_media' => $curva, 'variacao_anual' => $variacao];
