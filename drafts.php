@@ -1658,13 +1658,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span class="mock-player-name">${esc(j.name)}</span>
           ${j.position ? `<span class="player-chip-pos">${esc(j.position)}</span>` : ''}
         </div>
-        ${/* OVR e idade só quando a classe veio do CSV: sem ela o 60/18 é
+        ${/* OVR e idade só quando o jogador veio com letras: sem elas o 60/18 é
              preenchimento, e destacá-lo faria comparar por número igual.
-             Sem notas as três colunas nem existem na grade — ver
-             .mock-list.com-notas. */
-          j.notas ? `
-        <div class="mock-ovr"><b>${ovrTexto(j.ovr)}</b></div>
-        <div class="mock-idade">${parseInt(j.age, 10)}a</div>
+             Se NENHUM jogador da classe tem letras, as três colunas nem existem
+             na grade (.mock-list sem .com-notas). Mas se ALGUM tem, a grade
+             tem seis colunas e TODA linha precisa preencher as três — senão o
+             time de quem ficou sem letras escorrega pra coluna do OVR (bug de
+             05/11/2026, o jogador recém-trocado na classe da ELITE). Por isso o
+             jogador sem letras ganha traços e a faixa de "?". */
+          temNotasNoPool ? `
+        <div class="mock-ovr">${j.notas ? `<b>${ovrTexto(j.ovr)}</b>` : '<b style="color:var(--text-3)">—</b>'}</div>
+        <div class="mock-idade">${j.notas ? parseInt(j.age, 10) + 'a' : '—'}</div>
         <span class="pool-notas">${notasCelulas(j.notas)}</span>` : ''}
         <div class="mock-team">
           ${p ? `
