@@ -6900,6 +6900,15 @@ async function _loadLeagueConfigInline(league) {
               </div>
               ${agendaCampo(lg.league, 'fechar_taticas_em', lg.fechar_taticas_em, 'as táticas')}
             </div>
+            <!-- Trava de troca por elenco desatualizado (backend/trava_elenco.php).
+                 É daqui que o admin avisa "saiu a progression". O conteúdo desta
+                 linha é desenhado por renderTravaElenco (variante "janela"). -->
+            <div class="lgcfg-janela" data-trava-liga="${lg.league}" data-trava-variante="janela">
+              <div class="lgcfg-jn">
+                <i class="bi bi-shield-lock" style="color:#a855f7"></i><b>Trava por elenco</b>
+              </div>
+              <div class="lgcfg-acoes"><span class="lgcfg-selo off" style="opacity:.5">carregando</span></div>
+            </div>
           </div>
           <div id="ctrlExtra_${lg.league}" style="display:flex;gap:10px;flex-wrap:wrap"></div>
         </div>
@@ -6924,6 +6933,7 @@ async function _loadLeagueConfigInline(league) {
 
       </div>`;
     _carregarControlesExtras(league);
+    carregarTravaElenco(league);
     _conferirSwaps(league);
     // O "falta quanto" vivo: recalcula ao digitar e de minuto em minuto.
     atualizarFaltaAgenda(body);
@@ -10502,7 +10512,42 @@ async function carregarTravaElenco(league) {
   }
 }
 
+/* A linha da seção JANELAS (Trades, Free Agency, Dispensas, Táticas, Trava):
+   nome | Ligada/Desligada | "Saiu a progression" + a regra de agora. O
+   contêiner já é a grade da linha (.lgcfg-janela), então desenha as três
+   células. */
+function renderTravaElencoJanela(box, d) {
+  const liga = d.league;
+  const prog = d.modo === 'letras';
+  const bloq = (d.times || []).filter(t => t.bloqueado);
+  const regra = prog
+    ? `letras de ${d.min_jogadores}+ jogadores atualizadas depois da progression`
+    : `estatísticas de ${d.min_jogadores}+ jogadores na última temporada jogada`;
+  const quando = prog && d.progressao_em ? ` · clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))}` : '';
+  box.innerHTML = `
+    <div class="lgcfg-jn">
+      <i class="bi bi-shield-lock" style="color:#a855f7"></i><b>Trava por elenco</b>
+    </div>
+    <div class="lgcfg-acoes">
+      <button class="btn btn-sm ${d.ativa ? 'btn-success' : 'btn-outline-success'}" onclick="travaElencoAtivar('${liga}', true)">Ligada</button>
+      <button class="btn btn-sm ${!d.ativa ? 'btn-danger' : 'btn-outline-danger'}" onclick="travaElencoAtivar('${liga}', false)">Desligada</button>
+    </div>
+    <div class="lgcfg-agenda">
+      <div class="lgcfg-agenda-linha">
+        ${prog
+          ? `<button class="btn btn-sm btn-outline-secondary" style="flex:none" onclick="travaElencoDesfazerProgressao('${liga}')"
+                     title="Volta à regra das estatísticas"><i class="bi bi-arrow-counterclockwise"></i> Desfazer "saiu a progression"</button>`
+          : `<button class="btn btn-sm btn-outline-warning" style="flex:none" onclick="travaElencoProgressao('${liga}')"
+                     title="Avisa que a progression saiu: a partir daí cada time precisa atualizar as letras de ${d.min_jogadores} jogadores para trocar"><i class="bi bi-graph-up-arrow"></i> Saiu a progression</button>`}
+      </div>
+      <span class="lgcfg-falta">${regra}${quando}${bloq.length ? ` · <b>${bloq.length}</b> de ${d.times_total} times ${d.ativa ? 'sem poder trocar' : 'ficariam sem trocar'}` : ''}</span>
+      ${bloq.length ? `<details style="font-size:10.5px;color:var(--text-3)"><summary style="cursor:pointer">ver times</summary>
+        <div class="d-flex flex-wrap gap-1 mt-1">${bloq.map(t => `<span class="badge bg-secondary" title="${t.tem} de ${t.precisa}">${escapeHtml(t.nome)} · ${t.tem}/${t.precisa}</span>`).join('')}</div></details>` : ''}
+    </div>`;
+}
+
 function renderTravaElenco(box, d) {
+  if (box.dataset.travaVariante === 'janela') { renderTravaElencoJanela(box, d); return; }
   const liga = d.league;
   const prog = d.modo === 'letras';
   const bloq = (d.times || []).filter(t => t.bloqueado);
