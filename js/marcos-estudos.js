@@ -4,7 +4,8 @@
   'use strict';
 
   const API = '/api/marcos-estudos.php';
-  const POR_PAGINA = 100;
+  // Quantas linhas por página: vem do seletor (0 = todas). A rolagem é a da PÁGINA, não a da tabela.
+  const porPagina = () => { const n = parseInt($('fPorPag').value, 10); return n > 0 ? n : Infinity; };
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const semAcento = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -19,6 +20,9 @@
   /* ── Formatação ─────────────────────────────────────────────────────── */
   const num = (x, d = 1) => (x === null || x === undefined || Number.isNaN(x)) ? '—' : Number(x).toFixed(d).replace(/\.0+$/, '');
   const cOvr = x => x === null || x === undefined ? 'fraco' : x >= 90 ? 'top' : x >= 85 ? 'alto' : x < 70 ? 'fraco' : '';
+  // As letras como número (A+ = 12 ... F = 0), pra ordenar o POT na ordem certa.
+  const NOTA_NUM = { 'F': 0, 'D-': 1, 'D': 2, 'D+': 3, 'C-': 4, 'C': 5, 'C+': 6, 'B-': 7, 'B': 8, 'B+': 9, 'A-': 10, 'A': 11, 'A+': 12 };
+  const NUM_NOTA = Object.fromEntries(Object.entries(NOTA_NUM).map(([k, v]) => [v, k]));
 
   /* ── As colunas da tabela ───────────────────────────────────────────── */
   const M = l => l.m || {};
@@ -29,6 +33,14 @@
     { k: 'pico',  rot: 'Pico',       get: l => M(l).pico, cls: cOvr, flag: true },
     { k: 'pks',   rot: 'Pico sust.', get: l => M(l).pico_sust, cls: cOvr },
     { k: 'ipk',   rot: 'Idade pico', get: l => M(l).idade_pico_sust },
+    // As viradas da carreira, nas definições do Marcos (ver o rodapé): peak start é onde ele chega
+    // ao patamar de pico; peak end é a idade em que COMEÇA A PERDER OVR E ATRIBUTOS.
+    { k: 'ent',   rot: 'Entrada',    get: l => M(l).idade_ini, dica: 'Idade na 1ª temporada registrada (rookie, pra quem chegou como calouro)' },
+    { k: 'pot',   rot: 'POT ini',    get: l => M(l).pot_ini ? NOTA_NUM[M(l).pot_ini] : null, show: v => NUM_NOTA[v] ?? '—', dica: 'POT (letra) na entrada' },
+    { k: 'ps',    rot: 'Peak start', get: l => M(l).peak_start, dica: 'Idade em que chega ao patamar de pico' },
+    { k: 'pe',    rot: 'Peak end',   get: l => M(l).peak_end, dica: 'Idade em que começa a perder OVR e atributos. Vazio = ainda não caiu' },
+    { k: 'apk',   rot: 'Anos pico',  get: l => M(l).anos_pico },
+    { k: 'aap',   rot: 'Anos até pico', get: l => M(l).anos_ate_pico },
     { k: 'nt',    rot: 'Temp.',      get: l => l.festiva ? null : M(l).n },
     { k: 'a85',   rot: '85+',        get: l => M(l).anos_85 },
     { k: 'a90',   rot: '90+',        get: l => M(l).anos_90 },
@@ -45,7 +57,8 @@
     { k: 'past',  rot: 'Pico AST',   get: l => M(l).pico_ast_pg, d: 1 },
     { k: 'pfg',   rot: 'Pico FG%',   get: l => M(l).pico_fg, d: 1 },
     { k: 'pr',    rot: 'Prêm.',      get: l => M(l).premios_total },
-    { k: 'tend',  rot: 'Tend.',      get: l => l.tend ? 1 : 0, show: v => v ? '✓' : '—' },
+    { k: 'tshot', rot: 'T/SHOT',     get: l => l.tshot, dica: 'Tendência de arremessar (0 a 99). Só a ELITE de 75 OVR pra cima' },
+    { k: 'ttouch', rot: 'T/TOUCH',   get: l => l.ttouch, dica: 'Tendência de ficar com a bola (0 a 99). Só a ELITE de 75 OVR pra cima' },
     { k: 'vidas', rot: 'Vidas',      get: l => l.vidas },
   ];
 
@@ -64,6 +77,9 @@
     document.querySelectorAll('.aba').forEach(b => b.classList.toggle('on', b.dataset.aba === aba));
     $('painelLista').hidden = aba === 'nome';
     $('painelNome').hidden = aba !== 'nome';
+    // Na lista a página inteira fica larga (a tabela tem dezenas de colunas) e é ELA que rola,
+    // pro cabeçalho da tabela poder ficar fixo no topo da janela.
+    document.querySelector('.wrap').classList.toggle('larga', aba !== 'nome');
     if (aba === 'nome') {
       history.replaceState(null, '', '#nome' + (nomeParaEstudar ? '=' + encodeURIComponent(nomeParaEstudar) : ''));
       await prepararNomes();
@@ -99,7 +115,7 @@
   }
 
   /* ── Filtros ────────────────────────────────────────────────────────── */
-  ['fBusca', 'fPos', 'fLiga', 'fOvr', 'fPico', 'fCurtas', 'fStats', 'fAtivos'].forEach(id =>
+  ['fBusca', 'fPos', 'fLiga', 'fOvr', 'fPico', 'fCurtas', 'fStats', 'fAtivos', 'fPorPag'].forEach(id =>
     $(id).addEventListener('input', () => { est.pag = 0; renderTabela(); }));
   $('bLimpar').addEventListener('click', () => {
     ['fBusca', 'fPos', 'fLiga', 'fOvr', 'fPico'].forEach(id => { $(id).value = ''; });
@@ -145,6 +161,7 @@
     const todas = dados[est.aba] || [];
     visiveis = ordenar(filtrar(todas));
     const total = visiveis.length;
+    const POR_PAGINA = porPagina();
     const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
     est.pag = Math.min(est.pag, paginas - 1);
     const fatia = visiveis.slice(est.pag * POR_PAGINA, (est.pag + 1) * POR_PAGINA);
@@ -156,7 +173,7 @@
 
     $('cab').innerHTML = '<tr><th class="col-jog' + (est.ord === 'nome' ? ' ord' + (est.asc ? ' asc' : '') : '') + '" data-k="nome">Jogador</th>'
       + COLS.map(c => `<th class="${est.ord === c.k ? 'ord' + (est.asc ? ' asc' : '') : ''}" data-k="${c.k}"
-            title="${esc(c.rot)}">${esc(c.rot)}</th>`).join('') + '</tr>';
+            title="${esc(c.dica || c.rot)}">${esc(c.rot)}</th>`).join('') + '</tr>';
 
     if (!fatia.length) {
       $('corpo').innerHTML = '<tr><td class="nada" colspan="40">Nenhum jogador com esses filtros.</td></tr>';
@@ -166,7 +183,10 @@
         const celulas = COLS.map(c => {
           const v = c.get(l);
           if (c.txt) return `<td class="n">${esc(v ?? '—')}</td>`;
-          const texto = c.show ? c.show(v) : num(v, c.d ?? 0);
+          // Peak end vazio numa vida com histórico = ainda não começou a cair.
+          const aindaNoPico = c.k === 'pe' && v === null && m.ainda_no_pico;
+          const texto = aindaNoPico ? '<span title="Ainda não começou a perder OVR nem atributos">no pico</span>'
+            : c.show ? c.show(v) : num(v, c.d ?? 0);
           const flag = c.flag && m.fluke ? '<span class="flag" title="Pico de uma temporada só: o OVR não foi sustentado">⚑</span>' : '';
           return `<td class="n ${c.cls ? c.cls(v) : ''}">${texto}${flag}</td>`;
         }).join('');
@@ -180,8 +200,10 @@
       ? `<button class="btn" id="pgAnt" ${est.pag === 0 ? 'disabled' : ''}>‹ Anterior</button>
          <span>Página <b>${est.pag + 1}</b> de ${paginas}</span>
          <button class="btn" id="pgProx" ${est.pag >= paginas - 1 ? 'disabled' : ''}>Próxima ›</button>` : '';
-    $('pgAnt')?.addEventListener('click', () => { est.pag--; renderTabela(); $('tabela').parentElement.scrollTop = 0; });
-    $('pgProx')?.addEventListener('click', () => { est.pag++; renderTabela(); $('tabela').parentElement.scrollTop = 0; });
+    // A rolagem é a da página: ao trocar de página, volta pro começo da tabela.
+    const topoDaTabela = () => window.scrollTo(0, Math.max(0, $('tabela').getBoundingClientRect().top + window.scrollY - 12));
+    $('pgAnt')?.addEventListener('click', () => { est.pag--; renderTabela(); topoDaTabela(); });
+    $('pgProx')?.addEventListener('click', () => { est.pag++; renderTabela(); topoDaTabela(); });
   }
 
   $('cab').addEventListener('click', e => {
@@ -262,6 +284,10 @@
       card('Pico', num(m.pico, 0) + (m.fluke ? ' <span class="flag">⚑</span>' : ''), m.fluke ? 'pico de uma temporada' : 'idade ' + m.idade_pico),
       card('Pico sustentado', num(m.pico_sust, 0), 'idade ' + m.idade_pico_sust),
       card('Início → fim', `${m.ovr_ini} → ${m.ovr_fim}`, `${m.idade_ini} → ${m.idade_fim} anos`),
+      card('Entrada · POT', `${m.idade_ini} anos · ${m.pot_ini ?? '—'}`, 'idade de entrada · POT inicial'),
+      card('Peak start → end', `${m.peak_start} → ${m.peak_end ?? 'no pico'}`,
+        m.peak_end === null ? 'ainda não começou a cair'
+          : `${m.anos_pico} ano(s) de pico · ${m.anos_ate_pico} até o pico<br>perdeu OVR aos ${m.peak_end_ovr ?? '—'} · atributos aos ${m.peak_end_atrib ?? '—'}`),
       card('Queda', num(m.queda, 0), 'do pico sust. ao fim'),
       card('Anos 85+ / 90+', `${m.anos_85} / ${m.anos_90}`),
       card('Jogos', num(m.jogos, 0), m.temporadas_com_stats + ' temporada(s) com stats'),
@@ -291,7 +317,10 @@
     const td = v.tendencias;
     const tend = td && Object.keys(td.dados || {}).length
       ? `<div class="sec">Tendências (jogo) <small style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">· atualizadas em ${esc(String(td.em).slice(0, 10))}</small></div>
-         <div class="tend">${Object.entries(td.dados).map(([k, x]) => `<div>${esc(k)}<b>${esc(x)}</b></div>`).join('')}</div>` : '';
+         <div class="tend">${Object.entries(td.dados)
+            // T/SHOT e T/TOUCH são as duas que o Marcos acompanha: vão na frente e em destaque.
+            .sort(([a], [b]) => (['T/SHOT', 'T/TOUCH'].includes(b) ? 1 : 0) - (['T/SHOT', 'T/TOUCH'].includes(a) ? 1 : 0))
+            .map(([k, x]) => `<div class="${['T/SHOT', 'T/TOUCH'].includes(k) ? 'dest' : ''}">${esc(k)}<b>${esc(x)}</b></div>`).join('')}</div>` : '';
 
     const outras = (v.outras_vidas || []).length
       ? `<div class="sec">Outras vidas de ${esc(v.nome)}</div><div class="chips">${v.outras_vidas.map(o =>
@@ -347,6 +376,10 @@
       card('Vidas', d.vidas_total, `${d.vidas_usadas} entram nas médias (${d.min_temporadas}+ temp.)`),
       card('Pico sustentado', num(R.pico_sustentado.media), `mediana ${num(R.pico_sustentado.mediana)}`),
       card('Idade do pico', num(R.idade_do_pico.media), `de ${num(R.idade_do_pico.min, 0)} a ${num(R.idade_do_pico.max, 0)} anos`),
+      card('Peak start → end', `${num(R.peak_start.media)} → ${num(R.peak_end.media)}`, `${R.peak_end.n} de ${d.vidas_usadas} vida(s) já começaram a cair`),
+      card('Anos de pico', num(R.anos_de_pico.media), `${num(R.anos_ate_o_pico.media)} anos até chegar lá`),
+      card('Entrada · POT', `${num(R.idade_inicial.media)} · ${d.pot_inicial_letra ?? '—'}`, 'idade de entrada · POT inicial'),
+      card('T/SHOT · T/TOUCH', `${num(R.t_shot.media, 0)} · ${num(R.t_touch.media, 0)}`, `${R.t_shot.n} vida(s) com tendência lançada`),
       card('Carreira', num(R.temporadas.media) + ' temp.', `de ${num(R.temporadas.min, 0)} a ${num(R.temporadas.max, 0)}`),
       card('OVR no fim', num(R.ovr_no_fim.media), `aos ${num(R.idade_no_fim.media)} anos`),
       card('Queda do pico ao fim', num(R.queda_pico_ao_fim.media), 'em OVR'),
@@ -380,7 +413,9 @@
       const m = v.m;
       return `<tr class="${v.usada ? '' : 'fora-media'}" data-vida="${v.id}"><td>#${v.id}</td><td>${esc(v.liga)}</td><td class="n">${m.n}</td>
         <td class="n ${cOvr(m.pico)}">${m.pico}${m.fluke ? '<span class="flag" title="pico de uma temporada só">⚑</span>' : ''}</td><td class="n ${cOvr(m.pico_sust)}">${m.pico_sust}</td>
-        <td class="n">${m.idade_pico_sust}</td><td class="n">${m.ovr_fim}</td><td class="n">${m.queda}</td><td class="n">${num(m.pts_pg)}</td><td class="n">${num(m.fg)}</td>
+        <td class="n">${v.festiva ? '—' : m.peak_start}</td><td class="n">${v.festiva ? '—' : (m.peak_end ?? '<span title="ainda não começou a cair">no pico</span>')}</td>
+        <td class="n">${m.ovr_fim}</td><td class="n">${m.queda}</td><td class="n">${num(m.pts_pg)}</td><td class="n">${num(m.fg)}</td>
+        <td class="n">${num(v.tshot, 0)}</td><td class="n">${num(v.ttouch, 0)}</td>
         <td>${v.festiva ? '<span class="tag festa" title="Uma única temporada, com OVR 99: temporada festiva, fora de todas as métricas">99 festivo · fora das métricas</span>'
           : v.usada ? '' : '<span class="tag fora">fora das médias</span>'}</td></tr>`;
     }).join('');
@@ -393,6 +428,11 @@
         ${linhaResumo('Pico (OVR máximo)', R.pico, 1, 'o maior OVR, mesmo que de uma temporada só')}
         ${linhaResumo('Pico sustentado', R.pico_sustentado, 1, 'o maior OVR segurado por duas temporadas seguidas')}
         ${linhaResumo('Idade do pico sustentado', R.idade_do_pico)}
+        ${linhaResumo('Peak start (idade em que chega ao pico)', R.peak_start, 1, 'a 1ª temporada com OVR a no máximo 1 ponto do pico sustentado')}
+        ${linhaResumo('Peak end (idade em que começa a perder OVR e atributos)', R.peak_end, 1, 'só entram as vidas que já começaram a cair')}
+        ${linhaResumo('Anos de pico (peak end − peak start)', R.anos_de_pico)}
+        ${linhaResumo('Anos até o pico (da entrada ao peak start)', R.anos_ate_o_pico)}
+        ${linhaResumo('POT na entrada (A+ = 12 … F = 0)', R.pot_inicial, 1, 'o POT da 1ª temporada registrada')}
         ${linhaResumo('Temporadas na carreira', R.temporadas)}
         ${linhaResumo('Anos com OVR 85+', R.anos_85_ou_mais)}
         ${linhaResumo('Anos com OVR 90+', R.anos_90_ou_mais)}
@@ -418,6 +458,8 @@
         ${linhaResumo('STL — melhor temporada', R.pico_stl)}
         ${linhaResumo('BLK — melhor temporada', R.pico_blk)}
         ${linhaResumo('FG% — melhor temporada', R.pico_fg)}
+        ${linhaResumo('T/SHOT (tendência de arremessar, 0–99)', R.t_shot, 0, 'só quem tem tendência lançada: ELITE de 75 OVR pra cima')}
+        ${linhaResumo('T/TOUCH (tendência de ficar com a bola, 0–99)', R.t_touch, 0, 'só quem tem tendência lançada: ELITE de 75 OVR pra cima')}
       </tbody></table>
       <p class="explica" style="margin:8px 0 0">A coluna <b>Vidas</b> diz com quantas vidas cada média foi calculada — só parte das temporadas tem estatística, e o FG% some nas primeiras.</p></div>
 
@@ -431,7 +473,7 @@
       <div class="bloco">${variacao}</div>
 
       <div class="sec">As vidas (clique pra abrir a carreira)</div>
-      <div class="bloco"><table><thead><tr><th style="text-align:left">Vida</th><th>Liga</th><th>Temp.</th><th>Pico</th><th>Pico sust.</th><th>Idade pico</th><th>Fim</th><th>Queda</th><th>PTS</th><th>FG%</th><th></th></tr></thead>
+      <div class="bloco"><table><thead><tr><th style="text-align:left">Vida</th><th>Liga</th><th>Temp.</th><th>Pico</th><th>Pico sust.</th><th>Peak start</th><th>Peak end</th><th>Fim</th><th>Queda</th><th>PTS</th><th>FG%</th><th>T/SHOT</th><th>T/TOUCH</th><th></th></tr></thead>
         <tbody>${vidas}</tbody></table></div>`;
   }
 

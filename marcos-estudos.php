@@ -94,8 +94,24 @@ h1 i{color:var(--red)}
 .conta{font-size:12.5px;color:var(--text-2);margin-left:auto}
 .conta b{color:var(--text)}
 
-/* ── A tabela: rola pro lado com o jogador grudado ─────────────────── */
-.tabela{overflow:auto;max-height:70vh;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel)}
+/* ── A tabela: a rolagem é a da PÁGINA ─────────────────────────────────
+   Antes a tabela tinha uma caixa de rolagem própria (70vh), e a página só
+   ia até a metade: o resto ficava preso dentro da caixa. Agora a tabela cresce
+   até o fim e quem rola é a janela — e o cabeçalho (position:sticky) e a coluna
+   do jogador ficam presos à JANELA.
+
+   Pra isso funcionar NENHUM ancestral da tabela pode ter overflow: um overflow
+   (mesmo só o horizontal) vira o "pai da rolagem" e o sticky passa a prender na
+   caixa, e não na janela. Por isso a tabela larga estica a própria página
+   (.wrap.larga) e quem rola pro lado também é a janela; o topo, os filtros e o
+   rodapé ficam presos à esquerda (position:sticky;left:0) pra não irem embora. */
+.tabela-pagina{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel)}
+.wrap.larga{width:max-content;min-width:100%;max-width:none}
+.wrap.larga > .topo,.wrap.larga > .abas,
+.wrap.larga #painelLista > .filtros,.wrap.larga #painelLista > .pg,.wrap.larga #painelLista > .rodape{
+  position:sticky;left:0;width:calc(100vw - 36px);max-width:1560px}
+/* Caixa com rolagem só pras tabelas pequenas dentro do popup */
+.tabela{overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel)}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
 th,td{padding:8px 10px;font-size:12.5px;line-height:1.3;white-space:nowrap;border-bottom:1px solid var(--border)}
 thead th{position:sticky;top:0;z-index:3;background:var(--panel-3);font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;
@@ -172,9 +188,12 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
 .tend{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:6px}
 .tend div{background:var(--panel-3);border-radius:8px;padding:6px 9px;font-size:11px;color:var(--text-2)}
 .tend div b{display:block;font-family:var(--num);font-size:16px;color:var(--text)}
+.tend div.dest{border:1px solid color-mix(in srgb,var(--red) 45%,transparent);background:color-mix(in srgb,var(--red) 9%,transparent);color:var(--text)}
 .carga{padding:40px;text-align:center;color:var(--text-2)}
 
 @media (max-width:640px){
+  .wrap.larga > .topo,.wrap.larga > .abas,
+  .wrap.larga #painelLista > .filtros,.wrap.larga #painelLista > .pg,.wrap.larga #painelLista > .rodape{width:calc(100vw - 20px)}
   body{padding:14px 10px 50px}
   .conta{margin-left:0;width:100%}
   .busca{max-width:none}
@@ -213,15 +232,26 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       <label class="marca"><input type="checkbox" id="fStats"> só com estatística</label>
       <label class="marca" id="lAtivos"><input type="checkbox" id="fAtivos"> só quem está num elenco</label>
       <button class="btn" id="bLimpar" hidden><i class="bi bi-x-lg"></i> Limpar</button>
+      <select id="fPorPag" title="Quantas linhas mostrar de uma vez">
+        <option value="100">100 por página</option><option value="250" selected>250 por página</option>
+        <option value="500">500 por página</option><option value="0">Todas (pode pesar)</option>
+      </select>
       <button class="btn" id="bCsv"><i class="bi bi-download"></i> Baixar CSV</button>
       <span class="conta" id="conta"></span>
     </div>
-    <div class="tabela"><table id="tabela"><thead id="cab"></thead><tbody id="corpo"></tbody></table></div>
+    <div class="tabela-pagina"><table id="tabela"><thead id="cab"></thead><tbody id="corpo"></tbody></table></div>
     <div class="pg" id="paginacao"></div>
     <p class="rodape">
       <b>Pico</b> é o maior OVR que o jogador teve. <b>Pico sust.</b> é o maior OVR que ele <em>segurou por duas
       temporadas seguidas</em> — um 99 isolado entre dois 85 vira 85. O <span class="flag">⚑</span> marca o pico de uma
-      temporada só. <b>Fim</b> é o OVR da última temporada registrada e <b>Queda</b> é o pico sustentado menos o fim.
+      temporada só. <b>Fim</b> é o OVR da última temporada registrada e <b>Queda</b> é o pico sustentado menos o fim.<br>
+      <b>Peak start</b> é a idade em que ele chega ao patamar de pico (OVR a no máximo 1 ponto do pico sustentado).
+      <b>Peak end</b> é a idade em que ele <em>começa a perder OVR e atributos</em> — o que acontecer primeiro depois do
+      pico: o OVR cair abaixo do pico sustentado, ou a soma das letras dos atributos cair 2 degraus. Vazio ("no pico") =
+      ainda não caiu. <b>Anos pico</b> = peak end − peak start; <b>Anos até pico</b> = da entrada ao peak start.
+      <b>Entrada</b> é a idade na primeira temporada registrada (a de rookie, pra quem chegou como calouro). <b>POT ini</b> é
+      o POT dessa primeira temporada. <b>T/SHOT</b> e <b>T/TOUCH</b> são as tendências do jogo (0–99) e só existem pra ELITE
+      de 75 OVR pra cima.<br>
       Estatísticas são médias ponderadas por jogos; só existem pra parte das temporadas (e o FG% some nas primeiras).
       Os picos de estatística só contam temporadas com 20 jogos ou mais.<br>
       <b>99 festivo:</b> jogador com uma única temporada, de OVR 99 (são 11, todos da T20 de 2044) — foi uma temporada
