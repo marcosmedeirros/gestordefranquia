@@ -10602,17 +10602,24 @@ async function travaElencoAcao(liga, corpo, okMsg) {
 }
 
 async function travaElencoAtivar(liga, ativa) {
-  if (ativa && !confirm(`Ligar a trava de troca por elenco na ${liga}?\n\nQuem não cumprir a regra de agora deixa de conseguir enviar e aceitar troca até cumprir.`)) return;
+  // Popup do site (confirmarSite), e não o confirm() do navegador.
+  if (ativa && !await confirmarSite(
+        `Ligar a trava de troca por elenco na ${liga}?\n\nQuem não cumprir a regra de agora deixa de conseguir enviar e aceitar troca até cumprir.`,
+        { titulo: 'Ligar a trava por elenco', confirmar: 'Ligar', perigo: true })) return;
   await travaElencoAcao(liga, { action: 'ativar', ativa: !!ativa }, ativa ? `Trava ligada na ${liga}.` : `Trava desligada na ${liga}.`);
 }
 
 async function travaElencoProgressao(liga) {
-  if (!confirm(`Registrar que a progression da ${liga} já saiu?\n\nA partir de agora cada time precisa atualizar as letras de pelo menos 6 jogadores para poder trocar. O sistema guarda uma foto das letras de agora para saber quem já atualizou.`)) return;
+  if (!await confirmarSite(
+        `Registrar que a progression da ${liga} já saiu?\n\nA partir de agora cada time precisa atualizar as letras de pelo menos 6 jogadores para poder trocar. O sistema guarda uma foto das letras de agora para saber quem já atualizou.`,
+        { titulo: 'Saiu a progression', confirmar: 'Registrar' })) return;
   await travaElencoAcao(liga, { action: 'progressao' }, `Progression registrada na ${liga}.`);
 }
 
 async function travaElencoDesfazerProgressao(liga) {
-  if (!confirm(`Desfazer o "saiu a progression" da ${liga}?\n\nA liga volta à regra das estatísticas.`)) return;
+  if (!await confirmarSite(
+        `Desfazer o "saiu a progression" da ${liga}?\n\nA liga volta à regra das estatísticas.`,
+        { titulo: 'Desfazer "saiu a progression"', confirmar: 'Desfazer' })) return;
   await travaElencoAcao(liga, { action: 'desfazer_progressao' }, `Progression desfeita na ${liga}.`);
 }
 
