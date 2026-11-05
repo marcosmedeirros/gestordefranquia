@@ -118,6 +118,9 @@ tbody tr:hover .col-jog{background:var(--panel-2)}
 .tag{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-2);margin-left:5px}
 .tag.lenda{background:rgba(245,158,11,.14);color:var(--amber)}
 .tag.fora{background:rgba(255,255,255,.05);color:var(--text-3)}
+.tag.festa{background:rgba(168,85,247,.14);color:#c4b5fd}
+.aviso-festa{margin:4px 0 14px;padding:11px 14px;border-radius:11px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);
+  font-size:12.5px;line-height:1.55;color:#ddd6fe}
 .pg{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;font-size:12.5px;color:var(--text-2)}
 .nada{padding:30px 18px;text-align:center;color:var(--text-2);font-size:13.5px}
 .rodape{margin-top:14px;font-size:12px;color:var(--text-3);line-height:1.6;max-width:900px}
@@ -206,7 +209,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       <select id="fLiga"><option value="">Liga</option><option>ELITE</option><option>NEXT</option><option>RISE</option><option>ROOKIE</option></select>
       <input id="fOvr" type="number" min="1" max="99" placeholder="OVR mín.">
       <input id="fPico" type="number" min="1" max="99" placeholder="Pico sust. mín.">
-      <label class="marca"><input type="checkbox" id="fCurtas"> ocultar vidas de 1 temporada</label>
+      <label class="marca"><input type="checkbox" id="fCurtas"> ocultar vidas de 1 temporada (e 99 festivos)</label>
       <label class="marca"><input type="checkbox" id="fStats"> só com estatística</label>
       <label class="marca" id="lAtivos"><input type="checkbox" id="fAtivos"> só quem está num elenco</label>
       <button class="btn" id="bLimpar" hidden><i class="bi bi-x-lg"></i> Limpar</button>
@@ -220,7 +223,9 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       temporadas seguidas</em> — um 99 isolado entre dois 85 vira 85. O <span class="flag">⚑</span> marca o pico de uma
       temporada só. <b>Fim</b> é o OVR da última temporada registrada e <b>Queda</b> é o pico sustentado menos o fim.
       Estatísticas são médias ponderadas por jogos; só existem pra parte das temporadas (e o FG% some nas primeiras).
-      Os picos de estatística só contam temporadas com 20 jogos ou mais.
+      Os picos de estatística só contam temporadas com 20 jogos ou mais.<br>
+      <b>99 festivo:</b> jogador com uma única temporada, de OVR 99 (são 11, todos da T20 de 2044) — foi uma temporada
+      festiva, então fica <em>fora de todas as métricas</em>: aparece na lista com a marca roxa e sem números.
     </p>
   </section>
 

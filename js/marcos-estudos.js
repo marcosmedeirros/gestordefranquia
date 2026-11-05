@@ -29,7 +29,7 @@
     { k: 'pico',  rot: 'Pico',       get: l => M(l).pico, cls: cOvr, flag: true },
     { k: 'pks',   rot: 'Pico sust.', get: l => M(l).pico_sust, cls: cOvr },
     { k: 'ipk',   rot: 'Idade pico', get: l => M(l).idade_pico_sust },
-    { k: 'nt',    rot: 'Temp.',      get: l => M(l).n },
+    { k: 'nt',    rot: 'Temp.',      get: l => l.festiva ? null : M(l).n },
     { k: 'a85',   rot: '85+',        get: l => M(l).anos_85 },
     { k: 'a90',   rot: '90+',        get: l => M(l).anos_90 },
     { k: 'fim',   rot: 'Fim',        get: l => M(l).ovr_fim, cls: cOvr },
@@ -118,7 +118,7 @@
       if (liga && l.liga !== liga) return false;
       if (!Number.isNaN(ovr) && !((l.ovr ?? 0) >= ovr)) return false;
       if (!Number.isNaN(pico) && !((M(l).pico_sust ?? 0) >= pico)) return false;
-      if (curtas && M(l).n === 1) return false;
+      if (curtas && (M(l).n === 1 || l.festiva)) return false;
       if (stats && !(M(l).jogos > 0)) return false;
       if (ativos && !l.ativo) return false;
       return true;
@@ -170,7 +170,8 @@
           const flag = c.flag && m.fluke ? '<span class="flag" title="Pico de uma temporada só: o OVR não foi sustentado">⚑</span>' : '';
           return `<td class="n ${c.cls ? c.cls(v) : ''}">${texto}${flag}</td>`;
         }).join('');
-        const tags = (l.lenda ? '<span class="tag lenda">LENDA</span>' : '') + (!l.ativo ? '<span class="tag fora">fora</span>' : '');
+        const tags = (l.lenda ? '<span class="tag lenda">LENDA</span>' : '') + (!l.ativo ? '<span class="tag fora">fora</span>' : '')
+          + (l.festiva ? '<span class="tag festa" title="Uma única temporada, com OVR 99 (T20 de 2044): temporada festiva, fica fora de todas as métricas">99 festivo</span>' : '');
         return `<tr data-id="${l.id}"><td class="col-jog">${esc(l.nome)}${tags}<small>${esc(l.time || '—')}${l.liga ? ' · ' + esc(l.liga) : ''}</small></td>${celulas}</tr>`;
       }).join('');
     }
@@ -254,7 +255,9 @@
   function htmlVida(v) {
     const m = v.m || {}, h = v.hoje;
     const sub = h ? [h.time, h.liga, h.pos, h.idade + ' anos', 'OVR ' + h.ovr, h.altura].filter(Boolean).join(' · ') : 'Fora dos elencos hoje';
-    const cards = m.n ? [
+    const festiva = m.festiva
+      ? '<div class="aviso-festa"><b>99 festivo.</b> Uma única temporada, com OVR 99: foi uma temporada festiva e fica <b>fora de todas as métricas</b> e das médias. A carreira está abaixo só como registro.</div>' : '';
+    const cards = m.festiva ? '' : m.n ? [
       card('Temporadas', m.n, `T${m.temporada_ini}–T${m.temporada_fim} · ${m.times} time(s)`),
       card('Pico', num(m.pico, 0) + (m.fluke ? ' <span class="flag">⚑</span>' : ''), m.fluke ? 'pico de uma temporada' : 'idade ' + m.idade_pico),
       card('Pico sustentado', num(m.pico_sust, 0), 'idade ' + m.idade_pico_sust),
@@ -269,7 +272,7 @@
     ].join('') : '<div class="nada">Sem histórico de temporadas registrado pra este jogador.</div>';
 
     const curva = Object.entries(v.curva || {}).map(([i, o]) => [Number(i), o]);
-    const graf = curva.length > 1 ? `<div class="sec">OVR por idade</div><div class="bloco">${grafico([{ pontos: curva, cor: '#fc0025', largura: 2.4, bolas: true, raio: 3.5 }], { titulo: 'OVR por idade' })}</div>` : '';
+    const graf = (curva.length > 1 && !m.festiva) ? `<div class="sec">OVR por idade</div><div class="bloco">${grafico([{ pontos: curva, cor: '#fc0025', largura: 2.4, bolas: true, raio: 3.5 }], { titulo: 'OVR por idade' })}</div>` : '';
 
     const SKILLS = ['IN', 'MID', '3PT', 'POST D', 'PER D', 'PLAY', 'REB', 'ATHL', 'IQ', 'POT'];
     const linhas = (v.temporadas || []).map(t => {
@@ -297,7 +300,7 @@
 
     return `<div class="dlg-cab"><div><h2>${esc(v.nome)}${h && h.lenda ? '<span class="tag lenda">LENDA</span>' : ''}</h2><p>${esc(sub)}</p></div>
       <button class="fechar" aria-label="Fechar"><i class="bi bi-x-lg"></i></button></div>
-      <div class="dlg-corpo"><div class="cards">${cards}</div>${graf}${tend}${outras}${tabela}</div>`;
+      <div class="dlg-corpo">${festiva}<div class="cards">${cards}</div>${graf}${tend}${outras}${tabela}</div>`;
   }
 
   /* ── Estudo por nome ────────────────────────────────────────────────── */
@@ -378,7 +381,8 @@
       return `<tr class="${v.usada ? '' : 'fora-media'}" data-vida="${v.id}"><td>#${v.id}</td><td>${esc(v.liga)}</td><td class="n">${m.n}</td>
         <td class="n ${cOvr(m.pico)}">${m.pico}${m.fluke ? '<span class="flag" title="pico de uma temporada só">⚑</span>' : ''}</td><td class="n ${cOvr(m.pico_sust)}">${m.pico_sust}</td>
         <td class="n">${m.idade_pico_sust}</td><td class="n">${m.ovr_fim}</td><td class="n">${m.queda}</td><td class="n">${num(m.pts_pg)}</td><td class="n">${num(m.fg)}</td>
-        <td>${v.usada ? '' : '<span class="tag fora">fora das médias</span>'}</td></tr>`;
+        <td>${v.festiva ? '<span class="tag festa" title="Uma única temporada, com OVR 99: temporada festiva, fora de todas as métricas">99 festivo · fora das métricas</span>'
+          : v.usada ? '' : '<span class="tag fora">fora das médias</span>'}</td></tr>`;
     }).join('');
 
     return `<h2 style="font-size:20px;font-weight:800;margin:6px 0 2px">${esc(d.nome)}</h2>

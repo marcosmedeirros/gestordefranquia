@@ -39,6 +39,17 @@ const ESTUDOS_MIN_JOGOS = 20;
 const ESTUDOS_MIN_TEMP_COORTE = 3;
 /** Pico absoluto este tanto acima do sustentado = "pico de uma temporada". */
 const ESTUDOS_FLUKE_DIF = 3;
+/**
+ * O OVR do "99 festivo": vida de UMA temporada só, e com este OVR.
+ *
+ * Pedido do Marcos (05/11/2026): "todos os jogadores que tiveram apenas uma
+ * temporada 99 e não tiveram mais, tire das métricas essa temporada, porque ela
+ * foi festiva". São 11 vidas no banco e todas caem na mesma temporada — a T20 de
+ * 2044, a última do sprint 1. Elas continuam na base (e a carreira abre normal),
+ * mas NÃO entram em nenhuma métrica: nem nas colunas da lista, nem nas médias do
+ * estudo por nome.
+ */
+const ESTUDOS_OVR_FESTIVO = 99;
 
 /** As letras como número, pra tirar média (F = 0 ... A+ = 12). */
 const ESTUDOS_NOTAS = ['F' => 0, 'D-' => 1, 'D' => 2, 'D+' => 3, 'C-' => 4, 'C' => 5, 'C+' => 6,
@@ -93,6 +104,12 @@ function estudosResumo(array $xs): array
             'min' => $v ? min($v) : null, 'max' => $v ? max($v) : null, 'n' => count($v)];
 }
 
+/** A vida é um "99 festivo"? (uma única temporada, com OVR 99) */
+function estudosVidaFestiva(array $temps): bool
+{
+    return count($temps) === 1 && (int)$temps[0]['ovr'] === ESTUDOS_OVR_FESTIVO;
+}
+
 /**
  * As métricas de UMA vida.
  *
@@ -140,6 +157,7 @@ function estudosMetricas(array $temps, array $stats = [], array $premios = []): 
         // ou é uma vida de uma temporada só com OVR de estrela.
         'fluke'         => ($pico - $picoSust >= ESTUDOS_FLUKE_DIF) || ($n === 1 && $pico >= 95),
         'uma_temporada' => $n === 1,
+        'festiva'       => estudosVidaFestiva($temps),   // fica FORA de toda métrica (ver ESTUDOS_OVR_FESTIVO)
         'ovr_medio'     => estudosArred(array_sum($ovrs) / $n),
         'anos_85'       => count(array_filter($ovrs, fn($o) => $o >= 85)),
         'anos_90'       => count(array_filter($ovrs, fn($o) => $o >= 90)),
@@ -205,6 +223,8 @@ function estudosMetricas(array $temps, array $stats = [], array $premios = []): 
 function estudosCompacta(array $m): array
 {
     if (($m['n'] ?? 0) === 0) return ['n' => 0];
+    // O 99 festivo não mostra métrica nenhuma: a linha existe, mas vazia.
+    if (!empty($m['festiva'])) return ['n' => 0, 'festiva' => true];
     static $chaves = ['n', 'temporada_ini', 'temporada_fim', 'idade_ini', 'ovr_ini', 'ovr_fim', 'idade_fim', 'pico', 'idade_pico',
         'pico_sust', 'idade_pico_sust', 'fluke', 'uma_temporada', 'anos_85', 'anos_90', 'queda', 'times', 'jogos', 'temporadas_com_stats',
         'min', 'pts_pg', 'reb_pg', 'ast_pg', 'stl_pg', 'blk_pg', 'fg', 'pico_pts_pg', 'pico_reb_pg', 'pico_ast_pg', 'pico_stl_pg',
@@ -330,6 +350,8 @@ function estudosLista(PDO $pdo, string $grupo): array
         $hoje = $atuais[$pid] ?? null;
         $ultima = $temps ? $temps[count($temps) - 1] : null;
         $nome = $hoje['name'] ?? ($ultima['player_name'] ?? '?');
+        // O OVR do 99 festivo não é de ninguém: sem isso ele liderava a coluna OVR.
+        $ovrFestivo = !$hoje && !empty($m['festiva']);
         $linhas[] = [
             'id'    => $pid,
             'nome'  => $nome,
@@ -338,7 +360,8 @@ function estudosLista(PDO $pdo, string $grupo): array
             'time'  => $hoje['time'] ?? ($ultima['team_name'] ?? null),
             'pos'   => $hoje['position'] ?? ($ultima['position'] ?? null),
             'idade' => isset($hoje['age']) ? (int)$hoje['age'] : ($ultima ? (int)$ultima['age'] : null),
-            'ovr'   => isset($hoje['ovr']) ? (int)$hoje['ovr'] : ($ultima ? (int)$ultima['ovr'] : null),
+            'ovr'   => isset($hoje['ovr']) ? (int)$hoje['ovr'] : (($ultima && !$ovrFestivo) ? (int)$ultima['ovr'] : null),
+            'festiva' => !empty($m['festiva']),
             'lenda' => !empty($hoje['is_lenda']),
             'vidas' => $vidasNome[mb_strtolower(trim($nome))] ?? 1,
             'tend'  => isset($tend[$pid]),
@@ -438,8 +461,10 @@ function estudosNome(PDO $pdo, string $nome, int $minTemp = ESTUDOS_MIN_TEMP_COO
     $vidas = [];
     foreach ($c['log'] as $pid => $temps) {
         $m = estudosMetricas($temps, $c['stats'][$pid] ?? [], estudosPremiosDaVida($temps, $c['premios']));
+        // Vida de 99 festivo nunca entra nas médias, qualquer que seja o mínimo de temporadas.
         $vidas[] = ['id' => $pid, 'liga' => $temps[0]['league'], 'm' => $m, 'curva' => estudosCurva($temps),
-                    'usada' => $m['n'] >= $minTemp];
+                    'festiva' => !empty($m['festiva']),
+                    'usada' => $m['n'] >= $minTemp && empty($m['festiva'])];
     }
     $usadas = array_values(array_filter($vidas, fn($v) => $v['usada']));
     $col = fn(string $k) => array_map(fn($v) => $v['m'][$k] ?? null, $usadas);
