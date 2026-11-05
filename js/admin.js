@@ -6104,6 +6104,12 @@ async function showConfig() {
         <br><b>Resolver agora</b> encerra na hora todas as dispensas em andamento: cada jogador vai pro maior lance, e quem não tem lance cai na Free Agency.` : ''}
       </div>
     </div>
+    <!-- Trava de troca por elenco desatualizado (backend/trava_elenco.php). O
+         conteúdo é desenhado por carregarTravaElenco, logo depois da tela subir. -->
+    <div id="travaElencoBox_${lg.league}" data-trava-liga="${lg.league}"
+         style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="font-size:11px;color:var(--text-3)">Carregando...</div>
+    </div>
   </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Edital da Liga</div>
@@ -6113,6 +6119,7 @@ async function showConfig() {
     filtered.forEach(lg => {
       loadCapHistory(lg.league);
       if (lg.league === 'ELITE') carregarCapTabela(lg.league);
+      carregarTravaElenco(lg.league);
     });
   } catch (e) {}
 }
@@ -10443,7 +10450,7 @@ async function loadControlPanel() {
         </div>
       </div>
 
-      <div id="travaElencoBox" class="mt-3"></div>
+      <div id="travaElencoBox_${league}" data-trava-liga="${league}" class="pun-card mt-3"></div>
 
       <div class="panel mt-3">
         <div class="panel-header">
@@ -10476,13 +10483,22 @@ async function loadControlPanel() {
    Antes/durante o draft: estatísticas de 6+ jogadores. Depois da progression
    (o admin clica "Saiu a progression"): letras de 6+ jogadores. Chave por liga,
    desligada por padrão. A regra mora em backend/trava_elenco.php. */
+/* O card aparece em DOIS lugares: nas Configurações da Liga (junto de Trades,
+   Free Agency e Dispensas) e no Painel de Controle. Cada um é um elemento com
+   data-trava-liga="<liga>"; carregar e redesenhar mexe em todos de uma vez, pra
+   um clique num lugar não deixar o outro mostrando o estado velho. */
+function travaElencoCaixas(liga) {
+  return [...document.querySelectorAll(`[data-trava-liga="${liga}"]`)];
+}
+
 async function carregarTravaElenco(league) {
-  const box = document.getElementById('travaElencoBox');
-  if (!box) return;
+  const caixas = travaElencoCaixas(league);
+  if (!caixas.length) return;
   try {
-    renderTravaElenco(box, await api(`trava-elenco.php?league=${encodeURIComponent(league)}`));
+    const d = await api(`trava-elenco.php?league=${encodeURIComponent(league)}`);
+    caixas.forEach(c => renderTravaElenco(c, d));
   } catch (e) {
-    box.innerHTML = `<div class="alert alert-danger">Trava por elenco: ${escapeHtml(e.error || 'erro ao carregar')}</div>`;
+    caixas.forEach(c => { c.innerHTML = `<div style="font-size:12px;color:var(--red)">Trava por elenco: ${escapeHtml(e.error || 'erro ao carregar')}</div>`; });
   }
 }
 
@@ -10498,34 +10514,42 @@ function renderTravaElenco(box, d) {
     : `estatísticas de pelo menos <b>${d.min_jogadores}</b> jogadores lançadas na última temporada jogada`;
   const quando = prog && d.progressao_em ? ` (clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))})` : '';
 
+  // O mesmo desenho dos cards vizinhos (Trades, Free Agency, Dispensas): ícone,
+  // nome, selo, dois botões lado a lado e uma frase embaixo.
   box.innerHTML = `
-    <div class="pun-card">
-      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-        <span style="font-weight:600;color:var(--text)"><i class="bi bi-shield-lock me-2"></i>Trava de troca por elenco</span>
-        <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${selo}">${d.ativa ? 'Ligada' : 'Desligada'}</span>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:32px;height:32px;border-radius:9px;background:rgba(168,85,247,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="bi bi-shield-lock" style="color:#a855f7;font-size:14px"></i>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Trava por elenco</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;${selo}">${d.ativa ? 'Ligada' : 'Desligada'}</span>
       </div>
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">
-        Quem não cumprir não consegue enviar nem aceitar troca. <b>Regra de agora:</b> ${regra}${quando}.
+      <div style="display:flex;gap:6px">
+        <button class="btn ${d.ativa ? 'btn-success' : 'btn-outline-success'} flex-grow-1" style="font-size:12px;padding:7px 10px"
+                onclick="travaElencoAtivar('${liga}', true)">Ligada</button>
+        <button class="btn ${!d.ativa ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" style="font-size:12px;padding:7px 10px"
+                onclick="travaElencoAtivar('${liga}', false)">Desligada</button>
       </div>
-      <div class="d-flex gap-2 flex-wrap mb-3">
-        <button class="btn btn-sm ${d.ativa ? 'btn-success' : 'btn-outline-success'}" onclick="travaElencoAtivar('${liga}', true)">Ligar</button>
-        <button class="btn btn-sm ${!d.ativa ? 'btn-danger' : 'btn-outline-danger'}" onclick="travaElencoAtivar('${liga}', false)">Desligar</button>
-        ${prog
-          ? `<button class="btn btn-sm btn-outline-secondary" onclick="travaElencoDesfazerProgressao('${liga}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Desfazer "saiu a progression"</button>`
-          : `<button class="btn btn-sm btn-outline-warning" onclick="travaElencoProgressao('${liga}')"><i class="bi bi-graph-up-arrow me-1"></i>Saiu a progression</button>`}
+      ${prog
+        ? `<button class="btn btn-outline-secondary w-100" style="font-size:12px;padding:7px 10px;margin-top:6px"
+                   onclick="travaElencoDesfazerProgressao('${liga}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Desfazer "saiu a progression"</button>`
+        : `<button class="btn btn-outline-warning w-100" style="font-size:12px;padding:7px 10px;margin-top:6px"
+                   onclick="travaElencoProgressao('${liga}')"><i class="bi bi-graph-up-arrow me-1"></i>Saiu a progression</button>`}
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
+        Quem não cumprir não envia nem aceita troca. <b>Regra de agora:</b> ${regra}${quando}.
       </div>
       ${bloq.length
-        ? `<div style="font-size:12px;color:var(--text-3);margin-bottom:6px">${d.ativa ? 'Sem poder trocar agora' : 'Ficariam sem poder trocar se ligasse agora'}: <b>${bloq.length}</b> de ${d.times_total} times</div>
-           <div class="d-flex flex-wrap gap-2">${bloq.map(t => `<span class="badge bg-secondary" title="${t.tem} de ${t.precisa}">${escapeHtml(t.nome)} · ${t.tem}/${t.precisa}</span>`).join('')}</div>`
-        : '<div style="font-size:12px;color:#25c677"><i class="bi bi-check-circle-fill me-1"></i>Todos os times cumprem a regra de agora.</div>'}
-    </div>`;
+        ? `<details style="margin-top:8px">
+             <summary style="cursor:pointer;font-size:11px;color:var(--text-2)">${d.ativa ? 'Sem poder trocar agora' : 'Ficariam sem poder trocar se ligasse'}: <b>${bloq.length}</b> de ${d.times_total} times</summary>
+             <div class="d-flex flex-wrap gap-2 mt-2">${bloq.map(t => `<span class="badge bg-secondary" title="${t.tem} de ${t.precisa}">${escapeHtml(t.nome)} · ${t.tem}/${t.precisa}</span>`).join('')}</div>
+           </details>`
+        : '<div style="font-size:11px;color:#25c677;margin-top:8px"><i class="bi bi-check-circle-fill me-1"></i>Todos os times cumprem a regra de agora.</div>'}`;
 }
 
 async function travaElencoAcao(liga, corpo, okMsg) {
   try {
     const d = await api('trava-elenco.php', { method: 'POST', body: JSON.stringify({ league: liga, ...corpo }) });
-    const box = document.getElementById('travaElencoBox');
-    if (box) renderTravaElenco(box, d);
+    travaElencoCaixas(liga).forEach(c => renderTravaElenco(c, d));
     showAlert('success', okMsg);
   } catch (e) {
     showAlert('danger', e.error || 'Não deu pra salvar a trava.');
