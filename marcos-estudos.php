@@ -384,8 +384,8 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       <b>Peak</b>); "no pico" = ainda não caiu. <b>Anos pico</b> = peak end − peak start; <b>Anos até pico</b> = da entrada ao peak start.
       <b>Aposent.</b> é a idade em que parou de jogar <em>no jogo</em>: o jogo não registra isso, então é deduzida (saiu do elenco no
       meio do sprint com 36+ anos, o mínimo pra aposentar) e marcada com <b>?</b>; o que você digitar no editor vale por cima (✎).
-      <b>"joga"</b> = ainda num elenco. Onde o jogo ainda não mostra, <b>Peak end</b> e <b>Aposent.</b> trazem a <em>estimativa pela
-      carreira de verdade</em> (por nome), em <b style="color:#a5b4fc">~roxo itálico</b>; o dado do jogo sempre vem primeiro. As estimativas nunca
+      <b>"joga"</b> = ainda num elenco. Onde o jogo ainda não mostra, <b>Peak end</b> e <b>Aposent.</b> trazem uma <em>estimativa na escala do jogo</em> (por nome; a carreira real
+      convertida: no 2K o peak end fica entre 30 e 38 e a aposentadoria é de 36+), em <b style="color:#a5b4fc">~roxo itálico</b>; o dado do jogo sempre vem primeiro. As estimativas nunca
       entram nas médias do estudo por nome, e ficam em branco pra quem é jovem ou eu não conheço — aí se espera o jogo da FBA mostrar.
       Corrija no editor (✎, seção "Vida real").
       <b>Entrada</b> é a idade na primeira temporada registrada. <b>POT ini</b> é o POT dessa temporada.

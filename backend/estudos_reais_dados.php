@@ -11,6 +11,8 @@
  * Formato: 'Nome' => [peak_end, aposentadoria]. null = não sei / ainda não aconteceu.
  *   peak_end      idade em que o rendimento real começou a cair
  *   aposentadoria idade na última temporada que jogou na NBA
+ * ATENÇÃO: as idades aqui são as da NBA DE VERDADE. Na tela elas passam por estudosParaEscalaDoJogo()
+ * (backend/estudos_ajustes.php), que as leva pra escala do 2K/FBA (peak end 30–38, aposentadoria 36+).
  * Só entra quem eu conheço bem; na dúvida, fica de fora. Idades de memória, ±1 ano: são ESTIMATIVAS
  * (a tela marca com "~") e se corrigem no editor da página (a correção vale mais que este arquivo).
  * Jogador ainda em atividade fica com aposentadoria null. Nomes ambíguos (Isaiah Thomas, Mike

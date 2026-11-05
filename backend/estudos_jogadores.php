@@ -705,7 +705,8 @@ function estudosVida(PDO $pdo, int $id, array $opc = []): ?array
     return [
         'id' => $id, 'nome' => $nome,
         'ap' => $ap, 'ap_estado' => $apEstado,
-        'real' => $real ? ['nome' => $real['nome'], 'peak_end' => $real['peak_end'], 'aposent' => $real['aposent'], 'fonte' => $real['fonte'], 'nota' => $real['nota']] : null,
+        'real' => $real ? ['nome' => $real['nome'], 'peak_end' => $real['peak_end'], 'aposent' => $real['aposent'],
+                           'peak_end_real' => $real['peak_end_real'], 'aposent_real' => $real['aposent_real'], 'fonte' => $real['fonte'], 'nota' => $real['nota']] : null,
         'hoje' => $hoje ? ['time' => $hoje['time'], 'liga' => $hoje['liga'], 'pos' => $hoje['position'], 'idade' => (int)$hoje['age'],
                            'ovr' => (int)$hoje['ovr'], 'altura' => $hoje['height'], 'lenda' => $lendaAuto] : null,
         'meta' => [

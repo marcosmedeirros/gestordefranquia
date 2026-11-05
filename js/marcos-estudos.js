@@ -64,12 +64,12 @@
     { k: 'qd',    g: 'Pico e fim', rot: 'Queda',    get: l => M(l).queda, dica: 'Pico sustentado menos o OVR do fim' },
     { k: 'ps',    g: 'Peak', rot: 'Peak start', get: l => M(l).peak_start, dica: 'Idade em que chega ao patamar de pico' },
     { k: 'pe',    g: 'Peak', rot: 'Peak end',   get: l => M(l).peak_end ?? l.pe_real, estFn: l => M(l).peak_end == null && l.pe_real != null,
-      dica: 'Idade em que começou a cair no jogo (configurável em Peak). Com ~ = estimativa pela carreira real, usada onde o jogo ainda não mostra. Vazio = ainda não caiu / jogador jovem demais' },
+      dica: 'Idade em que começou a cair no jogo (configurável em Peak). Com ~ = estimativa (carreira real convertida pra escala do jogo, ou digitada por você), usada onde o jogo ainda não mostra. Vazio = ainda não caiu / jogador jovem demais' },
     { k: 'apk',   g: 'Peak', rot: 'Anos pico',  get: l => M(l).anos_pico, dica: 'Peak end − peak start' },
     { k: 'aap',   g: 'Peak', rot: 'Anos até pico', get: l => M(l).anos_ate_pico, dica: 'Da entrada ao peak start' },
     // Aposentadoria do JOGO (deduzida: saiu dos elencos no meio do sprint com 36+ anos; ou o que você digitou).
     { k: 'ap',    g: 'Aposentadoria', rot: 'Aposent.', get: l => l.ap ?? l.ap_real, estFn: l => l.ap == null && l.ap_real != null, apos: true,
-      dica: 'Idade em que parou de jogar no jogo. O jogo não registra: é deduzida (saiu do elenco no meio do sprint com 36+ anos, marcada com ?) ou digitada por você (✎). Com ~ = estimativa pela carreira real. "joga" = ainda num elenco' },
+      dica: 'Idade em que parou de jogar no jogo. O jogo não registra: é deduzida (saiu do elenco no meio do sprint com 36+ anos, marcada com ?) ou digitada por você (✎). Com ~ = estimativa na escala do jogo. "joga" = ainda num elenco' },
     { k: 'jogos', g: 'Estatísticas', rot: 'Jogos',  get: l => M(l).jogos },
     { k: 'min',   g: 'Estatísticas', rot: 'MIN',    get: l => M(l).min, d: 1 },
     { k: 'pts',   g: 'Estatísticas', rot: 'PTS',    get: l => M(l).pts_pg, d: 1 },
@@ -358,7 +358,7 @@
           const aindaNoPico = c.k === 'pe' && v === null && m.ainda_no_pico;
           let texto = aindaNoPico ? '<span title="Ainda não começou a cair">no pico</span>' : c.show ? c.show(v) : num(v, c.d ?? 0);
           const ehEst = !!(c.estFn && c.estFn(l));
-          if (ehEst) texto = `<span title="Estimativa pela carreira real (não é dado do jogo)">~${texto}</span>`;
+          if (ehEst) texto = `<span title="Estimativa na escala do jogo (carreira real convertida, ou digitada por você) — não é dado medido">~${texto}</span>`;
           else if (c.apos) {
             if (v === null || v === undefined) texto = l.ap_estado === 'ativo' ? '<span title="Ainda está num elenco">joga</span>' : '—';
             else texto += l.ap_estado === 'manual' ? ' <span title="Digitado por você">✎</span>' : ' <span title="Deduzido: saiu do elenco no meio do sprint com 36+ anos">?</span>';
@@ -690,11 +690,11 @@
       card('Início → fim', `${m.ovr_ini} → ${m.ovr_fim}`, `${m.idade_ini} → ${m.idade_fim} anos`),
       card('Entrada · POT', `${m.idade_ini} anos · ${m.pot_ini ?? '—'}`, 'idade de entrada · POT inicial'),
       card('Peak start → end', `${m.peak_start} → ${m.peak_end ?? (v.real?.peak_end != null ? `<i style="color:#a5b4fc">~${v.real.peak_end}</i>` : 'no pico')}`,
-        m.peak_end === null ? 'ainda não começou a cair no jogo' + (v.real?.peak_end != null ? ' · ~ = estimativa pela carreira real' : '')
+        m.peak_end === null ? 'ainda não começou a cair no jogo' + (v.real?.peak_end != null ? ' · ~ = estimativa na escala do jogo' : '')
           : `${m.anos_pico} ano(s) de pico · ${m.anos_ate_pico} até o pico`
             + (m.peak_end_ovr !== null || m.peak_end_atrib !== null ? `<br>pelo OVR aos ${m.peak_end_ovr ?? '—'}` + (cfgPeakAtrib() ? ` · pelos atributos aos ${m.peak_end_atrib ?? '—'}` : '') : '')),
       card('Aposentadoria', v.ap !== null && v.ap !== undefined ? v.ap + ' anos' : (v.real?.aposent != null ? `<i style="color:#a5b4fc">~${v.real.aposent} anos</i>` : (v.ap_estado === 'ativo' ? 'ainda joga' : '—')),
-        v.ap === null && v.real?.aposent != null ? 'estimativa pela carreira real' + (v.real.fonte === 'manual' ? ' (corrigida por você)' : '') : v.ap_estado === 'manual' ? 'digitada por você' : v.ap_estado === 'aposentou' ? 'deduzida: saiu do elenco no meio do sprint'
+        v.ap === null && v.real?.aposent != null ? 'estimativa na escala do jogo' + (v.real.fonte === 'manual' ? ' (digitada por você)' : ` (real: ${v.real.aposent_real ?? '—'})`) : v.ap_estado === 'manual' ? 'digitada por você' : v.ap_estado === 'aposentou' ? 'deduzida: saiu do elenco no meio do sprint'
           : v.ap_estado === 'ativo' ? 'está num elenco' : 'a vida acabou sem dar pra saber se aposentou'),
       card('Queda', num(m.queda, 0), 'do pico sust. ao fim'),
       card('Anos 85+ / 90+', `${m.anos_85} / ${m.anos_90}`),
@@ -774,10 +774,10 @@
           <label class="cp">T/TOUCH<input id="edTtouch" type="number" min="0" max="99" style="width:80px" value="${mt.ttouch_manual ?? ''}" placeholder="${esc(v.tendencias?.dados?.['T/TOUCH'] ?? '')}"></label>
           <label class="cp" title="Idade em que ele parou de jogar NO JOGO. Em branco = o sistema deduz (saiu do elenco no meio do sprint com 36+ anos)">Aposentou aos<input id="edAposent" type="number" min="10" max="60" style="width:90px" value="${mt.aposent_manual ?? ''}" placeholder="${v.ap !== null && v.ap_estado !== 'manual' ? esc(v.ap) : ''}"></label>
         </div>
-        <div class="sec" style="margin-top:2px">Vida real <small style="text-transform:none;letter-spacing:0;font-weight:500">· estimativa pela carreira de verdade, vale pra todas as vidas de <b>${esc(v.nome)}</b>. Deixe em branco se não souber ou se ele for jovem demais — espere o jogo da FBA mostrar</small></div>
+        <div class="sec" style="margin-top:2px">Estimativa pro jogo <small style="text-transform:none;letter-spacing:0;font-weight:500">· na escala do 2K/FBA (peak end ~30–38, aposentadoria 36+), vale pra todas as vidas de <b>${esc(v.nome)}</b>.${v.real && v.real.fonte !== 'manual' ? ` Veio da carreira real (peak end ${v.real.peak_end_real ?? '—'}, aposentadoria ${v.real.aposent_real ?? '—'}) convertida; o que você digitar vale como está.` : ''} Em branco se ele for jovem demais — espere o jogo da FBA mostrar</small></div>
         <div class="linha">
-          <label class="cp">Peak end real<input id="edRealPe" type="number" min="10" max="60" style="width:100px" value="${v.real?.peak_end ?? ''}" placeholder="idade"></label>
-          <label class="cp">Aposentadoria real<input id="edRealAp" type="number" min="10" max="60" style="width:100px" value="${v.real?.aposent ?? ''}" placeholder="idade"></label>
+          <label class="cp">Peak end (jogo)<input id="edRealPe" type="number" min="10" max="60" style="width:100px" value="${v.real?.peak_end ?? ''}" placeholder="idade"></label>
+          <label class="cp">Aposentadoria (jogo)<input id="edRealAp" type="number" min="10" max="60" style="width:100px" value="${v.real?.aposent ?? ''}" placeholder="idade"></label>
           <label class="cp" style="flex:1;min-width:200px">Observação<input id="edRealNota" maxlength="1000" value="${esc(v.real?.nota || '')}" placeholder="ex.: ainda joga; lesão aos 29"></label>
         </div>
         <label class="cp" style="margin-bottom:10px">Sua nota sobre ele<textarea id="edNota" maxlength="5000" placeholder="O que você quiser lembrar (aparece na busca)">${esc(mt.nota || '')}</textarea></label>
@@ -936,10 +936,10 @@
       card('Peak end por vida', `<span class="porvida">${porVida(v => v.m.peak_end ?? 'no pico')}</span>`, 'idade em que começou a cair (da maior pra menor pico)'),
       card('Peak start por vida', `<span class="porvida">${porVida(v => v.m.peak_start)}</span>`, 'idade em que chegou ao pico'),
       card('Aposentadoria por vida', `<span class="porvida">${d.vidas.slice().sort((a, b) => (b.m.pico_sust ?? 0) - (a.m.pico_sust ?? 0)).filter(v => v.usada).map(v => v.ap ?? (v.ap_estado === 'ativo' ? 'joga' : '—')).join(' / ') || '—'}</span>`,
-        `${R.aposentadoria.n} de ${d.vidas_usadas} vida(s) com aposentadoria no jogo (média ${num(R.aposentadoria.media)})` + (d.real && d.real.aposent != null ? `<br><i style="color:#a5b4fc">~${d.real.aposent} na carreira real</i>` : '')),
+        `${R.aposentadoria.n} de ${d.vidas_usadas} vida(s) com aposentadoria no jogo (média ${num(R.aposentadoria.media)})` + (d.real && d.real.aposent != null ? `<br><i style="color:#a5b4fc">~${d.real.aposent} estimado pro jogo</i>` : '')),
       card('Pico sustentado', num(R.pico_sustentado.media), `mediana ${num(R.pico_sustentado.mediana)}`),
       card('Idade do pico', num(R.idade_do_pico.media), `de ${num(R.idade_do_pico.min, 0)} a ${num(R.idade_do_pico.max, 0)} anos`),
-      card('Peak start → end', `${num(R.peak_start.media)} → ${num(R.peak_end.media)}`, `${R.peak_end.n} de ${d.vidas_usadas} vida(s) já começaram a cair (média do jogo)` + (d.real ? `<br><i style="color:#a5b4fc">~${d.real.peak_end ?? '—'} na carreira real</i>` : '')),
+      card('Peak start → end', `${num(R.peak_start.media)} → ${num(R.peak_end.media)}`, `${R.peak_end.n} de ${d.vidas_usadas} vida(s) já começaram a cair (média do jogo)` + (d.real ? `<br><i style="color:#a5b4fc">~${d.real.peak_end ?? '—'} estimado pro jogo</i>` : '')),
       card('Anos de pico', num(R.anos_de_pico.media), `${num(R.anos_ate_o_pico.media)} anos até chegar lá`),
       card('Entrada · POT', `${num(R.idade_inicial.media)} · ${d.pot_inicial_letra ?? '—'}`, 'idade de entrada · POT inicial'),
       card('T/SHOT · T/TOUCH', `${num(R.t_shot.media, 0)} · ${num(R.t_touch.media, 0)}`, `${R.t_shot.n} vida(s) com tendência lançada`),

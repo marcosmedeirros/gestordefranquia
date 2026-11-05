@@ -114,14 +114,49 @@ function estudosReaisSincronizar(PDO $pdo): void
     foreach ($porChave as $chave => [$nome, $pe, $ap]) $ins->execute([$chave, $nome, $pe, $ap]);
 }
 
-/** As estimativas da vida real, por chave de nome. @return array<string,array{nome:string,peak_end:?int,aposent:?int,fonte:string,nota:?string}> */
+/**
+ * ── DA VIDA REAL PRA ESCALA DO JOGO ──────────────────────────────────
+ *
+ * Pedido do Marcos (06/11/2026): "o peak end normalmente é entre os 30 e os 38; o John Wall se
+ * aposentou com 32 na vida real, mas o peak end dele é 32 no jogo e ele aposenta com 36 mais ou
+ * menos". No 2K/FBA o declínio vem bem mais tarde que na NBA de verdade e a aposentadoria tem piso
+ * de 36 (o jogo só deixa aposentar com mais de 35 anos). Então a idade REAL do arquivo de estimativas
+ * é convertida pra escala do jogo antes de aparecer:
+ *
+ *   peak end       32 + 0,5 × (real − 27), preso entre 30 e 38   (real 27 → 32; 35 → 36; 38 → 37)
+ *   aposentadoria  36 + 0,4 × (real − 36) pra quem passou de 36, preso entre 36 e 40; nunca antes do peak end + 1
+ *
+ * Calibrado com o Wall (27/32 reais → 32/36) e com os dados de produção (aposentadoria deduzida: 36 a 38
+ * qualquer que seja a real). SÓ vale pra estimativa que veio do arquivo: o que o Marcos digita no editor
+ * (fonte 'manual') já está na escala do jogo e é usado exatamente como digitado.
+ *
+ * @return array{0:?int,1:?int} [peak end, aposentadoria] na escala do jogo
+ */
+function estudosParaEscalaDoJogo(?int $peReal, ?int $apReal): array
+{
+    $pe = $peReal === null ? null : (int)max(30, min(38, round(32 + 0.5 * ($peReal - 27))));
+    $ap = $apReal === null ? null : (int)max(36, min(40, round(36 + 0.4 * max(0, $apReal - 36))));
+    if ($pe !== null && $ap !== null) $ap = max($ap, $pe + 1);
+    return [$pe, $ap];
+}
+
+/**
+ * As estimativas por chave de nome, JÁ na escala do jogo. `peak_end_real` / `aposent_real` guardam a idade
+ * de verdade (pra dica e pra conferência); `fonte` 'manual' = digitada pelo Marcos, sem conversão.
+ *
+ * @return array<string,array{nome:string,peak_end:?int,aposent:?int,peak_end_real:?int,aposent_real:?int,fonte:string,nota:?string}>
+ */
 function estudosReais(PDO $pdo): array
 {
     estudosTabelas($pdo);
     $out = [];
     foreach ($pdo->query("SELECT chave, nome, peak_end, aposent, fonte, nota FROM estudos_reais")->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $out[$r['chave']] = ['nome' => $r['nome'], 'peak_end' => $r['peak_end'] === null ? null : (int)$r['peak_end'],
-                             'aposent' => $r['aposent'] === null ? null : (int)$r['aposent'], 'fonte' => $r['fonte'], 'nota' => $r['nota']];
+        $pe = $r['peak_end'] === null ? null : (int)$r['peak_end'];
+        $ap = $r['aposent'] === null ? null : (int)$r['aposent'];
+        [$peJogo, $apJogo] = $r['fonte'] === 'manual' ? [$pe, $ap] : estudosParaEscalaDoJogo($pe, $ap);
+        $out[$r['chave']] = ['nome' => $r['nome'], 'peak_end' => $peJogo, 'aposent' => $apJogo,
+                             'peak_end_real' => $r['fonte'] === 'manual' ? null : $pe, 'aposent_real' => $r['fonte'] === 'manual' ? null : $ap,
+                             'fonte' => $r['fonte'], 'nota' => $r['nota']];
     }
     return $out;
 }
