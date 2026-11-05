@@ -562,7 +562,7 @@ ensureLeagueSprintDefaults($pdo);
 
 // ==================== ADMIN ONLY ACTIONS ====================
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
-                 'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
+                 'update_draft_player', 'edit_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'finalize_sprint',
                  'resync_season_points', 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw',
@@ -1811,6 +1811,71 @@ try {
             $hint = ($hint && $hint > 0) ? $hint : null;
             $pdo->prepare('UPDATE draft_pool SET pick_hint = ? WHERE id = ?')->execute([$hint, $playerId]);
             echo json_encode(['success' => true]);
+            break;
+
+        // ========== EDITAR JOGADOR DO POOL (ADMIN) ==========
+        /* O popup do lápis, ao lado da lixeira, no card Draft do admin (pedido
+           do Marcos, 05/11/2026). Edita tudo o que a classe guarda: nome,
+           posições, idade, OVR, ordem e as letras (notas). As letras seguem o
+           formato da classe — JSON só com as chaves preenchidas, ATHL e POT
+           opcionais — e vazio em todas vira NULL.
+           Só jogador ainda DISPONÍVEL: depois de escolhido ele já virou jogador
+           de um time, e mudar a linha do pool não mudaria o jogador. */
+        case 'edit_draft_player':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $data = json_decode(file_get_contents('php://input'), true) ?: [];
+            $playerId = (int)($data['player_id'] ?? 0);
+            if (!$playerId) throw new Exception('player_id é obrigatório');
+
+            $stAtual = $pdo->prepare('SELECT id, draft_status FROM draft_pool WHERE id = ?');
+            $stAtual->execute([$playerId]);
+            $atual = $stAtual->fetch(PDO::FETCH_ASSOC);
+            if (!$atual) throw new Exception('Jogador não encontrado no pool');
+            if (($atual['draft_status'] ?? 'available') !== 'available') {
+                throw new Exception('Esse jogador já foi escolhido no draft e não pode mais ser editado aqui');
+            }
+
+            $nome = trim((string)($data['name'] ?? ''));
+            if ($nome === '' || mb_strlen($nome) > 100) throw new Exception('Informe o nome do jogador (até 100 letras)');
+
+            $posicoesOk = ['PG', 'SG', 'SF', 'PF', 'C'];
+            $posicao = strtoupper(trim((string)($data['position'] ?? '')));
+            if (!in_array($posicao, $posicoesOk, true)) throw new Exception('Posição inválida. Use PG, SG, SF, PF ou C');
+            $secundaria = strtoupper(trim((string)($data['secondary_position'] ?? '')));
+            if ($secundaria === '' || $secundaria === $posicao) {
+                $secundaria = null;   // "C/C" não é posição dupla
+            } elseif (!in_array($secundaria, $posicoesOk, true)) {
+                throw new Exception('Posição secundária inválida. Use PG, SG, SF, PF ou C');
+            }
+
+            $idade = (int)($data['age'] ?? 0);
+            if ($idade < 15 || $idade > 50) throw new Exception('Idade fora do intervalo (15 a 50)');
+            $ovrNovo = (int)($data['ovr'] ?? 0);
+            if ($ovrNovo < 1 || $ovrNovo > 99) throw new Exception('OVR fora do intervalo (1 a 99)');
+
+            $ordem = isset($data['pick_hint']) && $data['pick_hint'] !== '' ? (int)$data['pick_hint'] : null;
+            $ordem = ($ordem && $ordem > 0) ? $ordem : null;
+
+            $chavesNota = ['IN', 'MID', '3PT', 'POST D', 'PER D', 'PLAY', 'REB', 'ATHL', 'IQ', 'POT'];
+            $notasOk = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+            $entrada = is_array($data['notas'] ?? null) ? $data['notas'] : [];
+            $notas = [];
+            foreach ($chavesNota as $k) {
+                $v = strtoupper(trim((string)($entrada[$k] ?? '')));
+                if ($v === '') continue;
+                if (!in_array($v, $notasOk, true)) throw new Exception("Nota inválida em {$k}: {$v}");
+                $notas[$k] = $v;
+            }
+
+            $sets = ['name = ?', 'position = ?', 'age = ?', 'ovr = ?'];
+            $vals = [$nome, $posicao, $idade, $ovrNovo];
+            if (columnExists($pdo, 'draft_pool', 'secondary_position')) { $sets[] = 'secondary_position = ?'; $vals[] = $secundaria; }
+            if (columnExists($pdo, 'draft_pool', 'pick_hint'))          { $sets[] = 'pick_hint = ?';          $vals[] = $ordem; }
+            if (columnExists($pdo, 'draft_pool', 'notas'))              { $sets[] = 'notas = ?';              $vals[] = $notas ? json_encode($notas, JSON_UNESCAPED_UNICODE) : null; }
+            $vals[] = $playerId;
+            $pdo->prepare('UPDATE draft_pool SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
+
+            echo json_encode(['success' => true, 'message' => 'Jogador atualizado']);
             break;
 
         // ========== REMOVER JOGADOR DO DRAFT (ADMIN) ==========

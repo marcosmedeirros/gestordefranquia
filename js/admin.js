@@ -11252,6 +11252,7 @@ async function showAdminDraft(league) {
       try {
         const pd = await api(`draft.php?action=available_players&season_id=${draft.season_id}`);
         availablePlayers = pd.players || [];
+        window._adminDraftPool = availablePlayers;   // o popup de edição lê daqui
       } catch(e) {}
     }
 
@@ -11469,10 +11470,16 @@ async function showAdminDraft(league) {
               <span style="font-size:13px;color:var(--text)">${escapeHtml(p.name)}</span>
               <span style="font-size:11px;color:var(--text-3);margin-left:6px">${escapeHtml(p.position || '')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</span>
             </div>
-            <button class="btn-ghost" style="padding:3px 7px;color:#ef4444;flex-shrink:0" title="Excluir jogador"
-              onclick="_adminDraftDeletePlayer(${p.id}, '${league}')">
-              <i class="bi bi-trash" style="font-size:13px"></i>
-            </button>
+            <div style="display:flex;gap:2px;flex-shrink:0">
+              <button class="btn-ghost" style="padding:3px 7px;color:#60a5fa" title="Editar jogador"
+                onclick="_adminDraftEditPlayer(${p.id}, '${league}')">
+                <i class="bi bi-pencil-square" style="font-size:13px"></i>
+              </button>
+              <button class="btn-ghost" style="padding:3px 7px;color:#ef4444" title="Excluir jogador"
+                onclick="_adminDraftDeletePlayer(${p.id}, '${league}')">
+                <i class="bi bi-trash" style="font-size:13px"></i>
+              </button>
+            </div>
           </div>`).join('');
         const more = availablePlayers.length > 60 ? `<p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px">+${availablePlayers.length - 60} jogadores</p>` : '';
 
@@ -12147,6 +12154,87 @@ async function _adminDraftClearOrder(draftSessionId, league) {
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao limpar ordem');
+  }
+}
+
+/* O POPUP DE EDIÇÃO do jogador do pool (lápis ao lado da lixeira). Edita nome,
+   posições, idade, OVR, ordem e as letras. Grava por seasons.php
+   ?action=edit_draft_player, que valida tudo de novo no servidor. */
+function _adminDraftEditPlayer(playerId, league) {
+  const p = (window._adminDraftPool || []).find(x => Number(x.id) === Number(playerId));
+  if (!p) { showAlert('danger', 'Jogador não encontrado na lista. Recarregue a tela.'); return; }
+
+  let notas = {};
+  try { notas = typeof p.notas === 'string' ? JSON.parse(p.notas || '{}') : (p.notas || {}); } catch (e) { notas = {}; }
+  const CHAVES = ['IN', 'MID', '3PT', 'POST D', 'PER D', 'PLAY', 'REB', 'ATHL', 'IQ', 'POT'];
+  const NOTAS = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+  const POS = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const seletor = (id, atual, vazio) => `<select id="${id}" class="form-select form-select-sm">
+      ${vazio ? '<option value="">—</option>' : ''}
+      ${(vazio === 'pos' ? POS : (vazio ? NOTAS : POS)).map(v => `<option value="${v}" ${v === atual ? 'selected' : ''}>${v}</option>`).join('')}
+    </select>`;
+  const campo = (rot, html) => `<div><div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">${rot}</div>${html}</div>`;
+
+  document.getElementById('adminDraftEditModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'adminDraftEditModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:560px;padding:0;margin:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 0">
+        <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--text)"><i class="bi bi-pencil-square" style="color:#60a5fa"></i> Editar jogador do pool</div>
+        <button class="btn-ghost" style="padding:4px 8px;flex:none;width:auto" onclick="document.getElementById('adminDraftEditModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <div style="margin-bottom:12px">${campo('Nome', `<input type="text" id="deNome" class="form-control form-control-sm" maxlength="100" value="${escapeHtml(p.name || '')}">`)}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin-bottom:16px">
+          ${campo('Posição', seletor('dePos', p.position, false))}
+          ${campo('Pos. 2', seletor('dePos2', p.secondary_position || '', 'pos'))}
+          ${campo('OVR', `<input type="number" id="deOvr" class="form-control form-control-sm" min="1" max="99" value="${Number(p.ovr) || ''}">`)}
+          ${campo('Idade', `<input type="number" id="deIdade" class="form-control form-control-sm" min="15" max="50" value="${Number(p.age) || ''}">`)}
+          ${campo('Ordem', `<input type="number" id="deOrdem" class="form-control form-control-sm" min="1" placeholder="—" value="${p.pick_hint ?? ''}">`)}
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px">Letras</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:10px">
+          ${CHAVES.map((k, i) => campo(k, seletor(`deNota${i}`, notas[k] || '', true))).join('')}
+        </div>
+        <div id="deErro" style="display:none;margin-top:12px;font-size:12px;color:var(--red)"></div>
+        <div class="d-flex gap-2 justify-content-end" style="margin-top:16px">
+          <button class="btn-ghost" onclick="document.getElementById('adminDraftEditModal').remove()">Cancelar</button>
+          <button class="btn-ghost" style="color:#25c677;font-weight:700" id="deSalvar" onclick="_adminDraftSalvarEdicao(${Number(playerId)}, '${league}')"><i class="bi bi-check-lg me-1"></i>Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  // Clicar fora fecha, como nos outros popups do admin.
+  modal.addEventListener('mousedown', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  document.getElementById('deNome')?.focus();
+}
+
+async function _adminDraftSalvarEdicao(playerId, league) {
+  const CHAVES = ['IN', 'MID', '3PT', 'POST D', 'PER D', 'PLAY', 'REB', 'ATHL', 'IQ', 'POT'];
+  const v = id => (document.getElementById(id)?.value ?? '').trim();
+  const erro = document.getElementById('deErro');
+  const btn = document.getElementById('deSalvar');
+  const notas = {};
+  CHAVES.forEach((k, i) => { notas[k] = v(`deNota${i}`); });
+  erro.style.display = 'none';
+  if (btn) { btn.disabled = true; }
+  try {
+    await api('seasons.php?action=edit_draft_player', {
+      method: 'POST',
+      body: JSON.stringify({
+        player_id: playerId, name: v('deNome'), position: v('dePos'), secondary_position: v('dePos2'),
+        age: v('deIdade'), ovr: v('deOvr'), pick_hint: v('deOrdem'), notas,
+      }),
+    });
+    document.getElementById('adminDraftEditModal')?.remove();
+    showAlert('success', 'Jogador atualizado.');
+    showAdminDraft(league);
+  } catch (e) {
+    erro.textContent = e.error || 'Não deu pra salvar.';
+    erro.style.display = 'block';
+    if (btn) btn.disabled = false;
   }
 }
 
