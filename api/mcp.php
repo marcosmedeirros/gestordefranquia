@@ -98,7 +98,8 @@ foreach ($mensagens as $msg) {
                     'instructions'    => 'Ferramentas da FBA (ligas ELITE, NEXT, RISE e ROOKIE). '
                                        . 'Leitura: liga_panorama, time, picks, trades, trade, free_agency, '
                                        . 'classificacao, consulta. Escrita, que aplica na hora: mover_pick, '
-                                       . 'mover_jogador, moedas, executar_sql. Valores de salário em milhões.',
+                                       . 'mover_jogador, moedas, executar_sql, estudo_editar. Estudos de jogadores (base do Marcos): '
+                                       . 'estudo_jogador lê, estudo_editar escreve só na camada dele. Valores de salário em milhões.',
                 ];
                 break;
 

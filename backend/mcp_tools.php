@@ -21,6 +21,7 @@ require_once __DIR__ . '/mcp_core.php';
 require_once __DIR__ . '/salary_cap.php';
 require_once __DIR__ . '/draft_swaps.php';
 require_once __DIR__ . '/fa_resolve.php';
+require_once __DIR__ . '/mcp_estudos.php';
 
 const MCP_SQL_MAX_LINHAS = 200;   // teto de linhas que um UPDATE/DELETE pode tocar
 
@@ -30,7 +31,7 @@ function mcpFerramentas(): array
     $liga = ['type' => 'string', 'description' => 'ELITE, NEXT, RISE ou ROOKIE'];
     $time = ['type' => 'string', 'description' => 'Nome, apelido ou id do time (ex.: "Paisley", "87")'];
 
-    return [
+    return array_merge([
         [
             'name' => 'liga_panorama',
             'description' => 'Visão geral de uma liga: temporada, times com moedas, e a ordem da última classificação registrada. Comece por aqui quando não souber os nomes dos times.',
@@ -135,13 +136,13 @@ function mcpFerramentas(): array
                 'motivo' => ['type' => 'string'],
             ], 'required' => ['sql', 'motivo']],
         ],
-    ];
+    ], mcpEstudoFerramentas());
 }
 
 /** Quem escreve no banco — o transporte usa pra marcar o log. */
 function mcpFerramentaEscreve(string $nome): bool
 {
-    return in_array($nome, ['mover_pick', 'mover_jogador', 'moedas', 'executar_sql'], true);
+    return in_array($nome, ['mover_pick', 'mover_jogador', 'moedas', 'executar_sql'], true) || mcpEstudoEscreve($nome);
 }
 
 function mcpExecutar(PDO $pdo, string $nome, array $a): string
@@ -160,6 +161,8 @@ function mcpExecutar(PDO $pdo, string $nome, array $a): string
         'mover_jogador' => mcpMoverJogador($pdo, (string)($a['jogador'] ?? ''), (string)($a['para'] ?? ''), (string)($a['motivo'] ?? '')),
         'moedas'        => mcpMoedas($pdo, $a),
         'executar_sql'  => mcpExecutarSql($pdo, (string)($a['sql'] ?? ''), (string)($a['motivo'] ?? '')),
+        'estudo_jogador' => mcpEstudoJogador($pdo, $a),
+        'estudo_editar'  => mcpEstudoEditar($pdo, $a),
         default         => throw new McpErro('Ferramenta desconhecida: ' . $nome),
     };
 }
