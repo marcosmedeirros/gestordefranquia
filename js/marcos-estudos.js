@@ -63,15 +63,13 @@
     { k: 'fim',   g: 'Pico e fim', rot: 'Fim',      get: l => M(l).ovr_fim, cls: cOvr, dica: 'OVR da última temporada' },
     { k: 'qd',    g: 'Pico e fim', rot: 'Queda',    get: l => M(l).queda, dica: 'Pico sustentado menos o OVR do fim' },
     { k: 'ps',    g: 'Peak', rot: 'Peak start', get: l => M(l).peak_start, dica: 'Idade em que chega ao patamar de pico' },
-    { k: 'pe',    g: 'Peak', rot: 'Peak end',   get: l => M(l).peak_end, dica: 'Idade em que começou a cair (configurável em Peak). Vazio = ainda não caiu' },
+    { k: 'pe',    g: 'Peak', rot: 'Peak end',   get: l => M(l).peak_end ?? l.pe_real, estFn: l => M(l).peak_end == null && l.pe_real != null,
+      dica: 'Idade em que começou a cair no jogo (configurável em Peak). Com ~ = estimativa pela carreira real, usada onde o jogo ainda não mostra. Vazio = ainda não caiu / jogador jovem demais' },
     { k: 'apk',   g: 'Peak', rot: 'Anos pico',  get: l => M(l).anos_pico, dica: 'Peak end − peak start' },
     { k: 'aap',   g: 'Peak', rot: 'Anos até pico', get: l => M(l).anos_ate_pico, dica: 'Da entrada ao peak start' },
     // Aposentadoria do JOGO (deduzida: saiu dos elencos no meio do sprint com 36+ anos; ou o que você digitou).
-    { k: 'ap',    g: 'Aposentadoria', rot: 'Aposent.', get: l => l.ap, apos: true,
-      dica: 'Idade em que parou de jogar no jogo. O jogo não registra: é deduzida (saiu do elenco no meio do sprint com 36+ anos) ou digitada por você. "joga" = ainda num elenco' },
-    // Estimativas pela VIDA REAL, por nome — separadas do dado do jogo, nunca entram nas médias dele.
-    { k: 'per',   g: 'Vida real (estimativa)', rot: 'Peak end ~real', get: l => l.pe_real, est: true, dica: 'Estimativa pela carreira de verdade: idade em que começou a cair. Em branco = não sei / jogador jovem demais' },
-    { k: 'apr',   g: 'Vida real (estimativa)', rot: 'Aposent. ~real', get: l => l.ap_real, est: true, dica: 'Estimativa pela carreira de verdade: idade em que parou de jogar. Em branco = não sei / ainda joga' },
+    { k: 'ap',    g: 'Aposentadoria', rot: 'Aposent.', get: l => l.ap ?? l.ap_real, estFn: l => l.ap == null && l.ap_real != null, apos: true,
+      dica: 'Idade em que parou de jogar no jogo. O jogo não registra: é deduzida (saiu do elenco no meio do sprint com 36+ anos, marcada com ?) ou digitada por você (✎). Com ~ = estimativa pela carreira real. "joga" = ainda num elenco' },
     { k: 'jogos', g: 'Estatísticas', rot: 'Jogos',  get: l => M(l).jogos },
     { k: 'min',   g: 'Estatísticas', rot: 'MIN',    get: l => M(l).min, d: 1 },
     { k: 'pts',   g: 'Estatísticas', rot: 'PTS',    get: l => M(l).pts_pg, d: 1 },
@@ -94,7 +92,7 @@
   const PRESETS_COLS = {
     cTodas: null,
     cEssencial: ['pos', 'idade', 'ovr', 'pico', 'pks', 'ps', 'pe', 'nt'],
-    cPeak: ['pos', 'idade', 'ovr', 'pks', 'ipk', 'ent', 'pot', 'ps', 'pe', 'per', 'ap', 'apr', 'apk', 'aap', 'nt', 'tshot', 'ttouch'],
+    cPeak: ['pos', 'idade', 'ovr', 'pks', 'ipk', 'ent', 'pot', 'ps', 'pe', 'ap', 'apk', 'aap', 'nt', 'tshot', 'ttouch'],
     cStats: ['pos', 'idade', 'ovr', 'pico', 'jogos', 'min', 'pts', 'reb', 'ast', 'stl', 'blk', 'fg', 'ppts', 'preb', 'past', 'pfg', 'pr'],
   };
   const colunasVisiveis = () => COLS.filter(c => !cfg.cols || cfg.cols.includes(c.k));
@@ -359,13 +357,14 @@
           // Peak end vazio numa vida com histórico = ainda não começou a cair.
           const aindaNoPico = c.k === 'pe' && v === null && m.ainda_no_pico;
           let texto = aindaNoPico ? '<span title="Ainda não começou a cair">no pico</span>' : c.show ? c.show(v) : num(v, c.d ?? 0);
-          if (c.est && v !== null && v !== undefined) texto = `<span title="Estimativa pela vida real (não é dado do jogo)">~${texto}</span>`;
-          if (c.apos) {
+          const ehEst = !!(c.estFn && c.estFn(l));
+          if (ehEst) texto = `<span title="Estimativa pela carreira real (não é dado do jogo)">~${texto}</span>`;
+          else if (c.apos) {
             if (v === null || v === undefined) texto = l.ap_estado === 'ativo' ? '<span title="Ainda está num elenco">joga</span>' : '—';
             else texto += l.ap_estado === 'manual' ? ' <span title="Digitado por você">✎</span>' : ' <span title="Deduzido: saiu do elenco no meio do sprint com 36+ anos">?</span>';
           }
           const flag = c.flag && m.fluke ? '<span class="flag" title="Pico de uma temporada só: o OVR não foi sustentado">⚑</span>' : '';
-          return `<td class="n ${c.cls ? c.cls(v) : ''}${c.est ? ' est' : ''}${c.apos && (v === null || v === undefined) ? ' fraco' : ''}">${texto}${flag}</td>`;
+          return `<td class="n ${c.cls ? c.cls(v) : ''}${ehEst ? ' est' : ''}${c.apos && (v === null || v === undefined) ? ' fraco' : ''}">${texto}${flag}</td>`;
         }).join('');
         const tags = (l.lenda ? '<span class="tag lenda">LENDA</span>' : '') + (!l.ativo ? '<span class="tag fora">fora</span>' : '')
           + (l.manual ? '<span class="tag manual" title="Criado por você">criado</span>' : '')
@@ -690,15 +689,13 @@
       card('Pico sustentado', num(m.pico_sust, 0), 'idade ' + m.idade_pico_sust),
       card('Início → fim', `${m.ovr_ini} → ${m.ovr_fim}`, `${m.idade_ini} → ${m.idade_fim} anos`),
       card('Entrada · POT', `${m.idade_ini} anos · ${m.pot_ini ?? '—'}`, 'idade de entrada · POT inicial'),
-      card('Peak start → end', `${m.peak_start} → ${m.peak_end ?? 'no pico'}`,
-        m.peak_end === null ? 'ainda não começou a cair'
+      card('Peak start → end', `${m.peak_start} → ${m.peak_end ?? (v.real?.peak_end != null ? `<i style="color:#a5b4fc">~${v.real.peak_end}</i>` : 'no pico')}`,
+        m.peak_end === null ? 'ainda não começou a cair no jogo' + (v.real?.peak_end != null ? ' · ~ = estimativa pela carreira real' : '')
           : `${m.anos_pico} ano(s) de pico · ${m.anos_ate_pico} até o pico`
             + (m.peak_end_ovr !== null || m.peak_end_atrib !== null ? `<br>pelo OVR aos ${m.peak_end_ovr ?? '—'}` + (cfgPeakAtrib() ? ` · pelos atributos aos ${m.peak_end_atrib ?? '—'}` : '') : '')),
-      card('Aposentadoria (jogo)', v.ap !== null && v.ap !== undefined ? v.ap + ' anos' : (v.ap_estado === 'ativo' ? 'ainda joga' : '—'),
-        v.ap_estado === 'manual' ? 'digitada por você' : v.ap_estado === 'aposentou' ? 'deduzida: saiu do elenco no meio do sprint'
+      card('Aposentadoria', v.ap !== null && v.ap !== undefined ? v.ap + ' anos' : (v.real?.aposent != null ? `<i style="color:#a5b4fc">~${v.real.aposent} anos</i>` : (v.ap_estado === 'ativo' ? 'ainda joga' : '—')),
+        v.ap === null && v.real?.aposent != null ? 'estimativa pela carreira real' + (v.real.fonte === 'manual' ? ' (corrigida por você)' : '') : v.ap_estado === 'manual' ? 'digitada por você' : v.ap_estado === 'aposentou' ? 'deduzida: saiu do elenco no meio do sprint'
           : v.ap_estado === 'ativo' ? 'está num elenco' : 'a vida acabou sem dar pra saber se aposentou'),
-      card('Vida real (estimativa)', v.real ? `<span style="font-style:italic;color:#a5b4fc">~${v.real.peak_end ?? '—'} · ~${v.real.aposent ?? '—'}</span>` : '—',
-        v.real ? 'peak end · aposentadoria, pela carreira de verdade' + (v.real.fonte === 'manual' ? ' (corrigida por você)' : '') : 'sem estimativa (jogador jovem ou desconhecido)'),
       card('Queda', num(m.queda, 0), 'do pico sust. ao fim'),
       card('Anos 85+ / 90+', `${m.anos_85} / ${m.anos_90}`),
       card('Jogos', num(m.jogos, 0), m.temporadas_com_stats + ' temporada(s) com stats'),
@@ -939,12 +936,10 @@
       card('Peak end por vida', `<span class="porvida">${porVida(v => v.m.peak_end ?? 'no pico')}</span>`, 'idade em que começou a cair (da maior pra menor pico)'),
       card('Peak start por vida', `<span class="porvida">${porVida(v => v.m.peak_start)}</span>`, 'idade em que chegou ao pico'),
       card('Aposentadoria por vida', `<span class="porvida">${d.vidas.slice().sort((a, b) => (b.m.pico_sust ?? 0) - (a.m.pico_sust ?? 0)).filter(v => v.usada).map(v => v.ap ?? (v.ap_estado === 'ativo' ? 'joga' : '—')).join(' / ') || '—'}</span>`,
-        `${R.aposentadoria.n} de ${d.vidas_usadas} vida(s) com aposentadoria no jogo (média ${num(R.aposentadoria.media)})`),
-      card('Vida real (estimativa)', d.real ? `<span style="font-style:italic;color:#a5b4fc">~${d.real.peak_end ?? '—'} · ~${d.real.aposent ?? '—'}</span>` : '—',
-        d.real ? 'peak end · aposentadoria da carreira de verdade' + (d.real.nota ? ' — ' + esc(d.real.nota) : '') : 'sem estimativa (jogador jovem ou desconhecido): espere o jogo da FBA'),
+        `${R.aposentadoria.n} de ${d.vidas_usadas} vida(s) com aposentadoria no jogo (média ${num(R.aposentadoria.media)})` + (d.real && d.real.aposent != null ? `<br><i style="color:#a5b4fc">~${d.real.aposent} na carreira real</i>` : '')),
       card('Pico sustentado', num(R.pico_sustentado.media), `mediana ${num(R.pico_sustentado.mediana)}`),
       card('Idade do pico', num(R.idade_do_pico.media), `de ${num(R.idade_do_pico.min, 0)} a ${num(R.idade_do_pico.max, 0)} anos`),
-      card('Peak start → end', `${num(R.peak_start.media)} → ${num(R.peak_end.media)}`, `${R.peak_end.n} de ${d.vidas_usadas} vida(s) já começaram a cair`),
+      card('Peak start → end', `${num(R.peak_start.media)} → ${num(R.peak_end.media)}`, `${R.peak_end.n} de ${d.vidas_usadas} vida(s) já começaram a cair (média do jogo)` + (d.real ? `<br><i style="color:#a5b4fc">~${d.real.peak_end ?? '—'} na carreira real</i>` : '')),
       card('Anos de pico', num(R.anos_de_pico.media), `${num(R.anos_ate_o_pico.media)} anos até chegar lá`),
       card('Entrada · POT', `${num(R.idade_inicial.media)} · ${d.pot_inicial_letra ?? '—'}`, 'idade de entrada · POT inicial'),
       card('T/SHOT · T/TOUCH', `${num(R.t_shot.media, 0)} · ${num(R.t_touch.media, 0)}`, `${R.t_shot.n} vida(s) com tendência lançada`),

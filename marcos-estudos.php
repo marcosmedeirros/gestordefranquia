@@ -384,9 +384,10 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
       <b>Peak</b>); "no pico" = ainda não caiu. <b>Anos pico</b> = peak end − peak start; <b>Anos até pico</b> = da entrada ao peak start.
       <b>Aposent.</b> é a idade em que parou de jogar <em>no jogo</em>: o jogo não registra isso, então é deduzida (saiu do elenco no
       meio do sprint com 36+ anos, o mínimo pra aposentar) e marcada com <b>?</b>; o que você digitar no editor vale por cima (✎).
-      <b>"joga"</b> = ainda num elenco. <b style="color:#a5b4fc">~Peak end real</b> e <b style="color:#a5b4fc">~Aposent. real</b> são <em>estimativas
-      pela carreira de verdade</em> (por nome): ficam em colunas à parte, nunca entram nas médias do jogo, e ficam em branco pra quem é
-      jovem ou eu não conheço — aí se espera o jogo da FBA mostrar. Corrija no editor (✎).
+      <b>"joga"</b> = ainda num elenco. Onde o jogo ainda não mostra, <b>Peak end</b> e <b>Aposent.</b> trazem a <em>estimativa pela
+      carreira de verdade</em> (por nome), em <b style="color:#a5b4fc">~roxo itálico</b>; o dado do jogo sempre vem primeiro. As estimativas nunca
+      entram nas médias do estudo por nome, e ficam em branco pra quem é jovem ou eu não conheço — aí se espera o jogo da FBA mostrar.
+      Corrija no editor (✎, seção "Vida real").
       <b>Entrada</b> é a idade na primeira temporada registrada. <b>POT ini</b> é o POT dessa temporada.
       <b>T/SHOT</b> e <b>T/TOUCH</b> são as tendências do jogo (0–99), só pra ELITE de 75 OVR pra cima (ou o que você digitar no editor).<br>
       Estatísticas são médias ponderadas por jogos; os picos só contam temporadas com 20 jogos ou mais.
