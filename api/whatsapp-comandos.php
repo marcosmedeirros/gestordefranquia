@@ -2700,7 +2700,7 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
  * O posto da tabela fica: ao lado da posição, ele mostra de um relance quem
  * está rendendo acima do elenco e quem está devendo.
  */
-function wcLinhaDePower(array $f, int $posicao, bool $geral = true): string
+function wcLinhaDePower(array $f, int $posicao, bool $geral = true, bool $comPosto = true): string
 {
     $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
 
@@ -2710,7 +2710,9 @@ function wcLinhaDePower(array $f, int $posicao, bool $geral = true): string
        em posições diferentes da mesma lista. Sem a geral lançada, cai na da
        conferência — melhor um posto certo de outra régua do que nenhum. */
     $posto = $geral ? ($f['posto_geral'] ?? $f['posto'] ?? null) : ($f['posto'] ?? null);
-    $cauda = $posto ? " _({$posto}º na tabela)_" : '';
+    /* $comPosto = false tira o "(Nº na tabela)": o /powerc não mostra mais onde
+       o time está na tabela (pedido do Marcos, 05/11/2026). O /power segue com ele. */
+    $cauda = ($comPosto && $posto) ? " _({$posto}º na tabela)_" : '';
     return "{$medalha} *{$f['nome']}*{$cauda}\n";
 }
 
@@ -2939,7 +2941,7 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         $lista = $porConf[$conf];
         $titulo = $conf === 'SEM' ? 'Sem conferência' : ucfirst(mb_strtolower($conf, 'UTF-8'));
         $txt .= "\n*{$titulo}*\n";
-        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false);
+        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false, false);   // sem o posto na tabela
     }
     return rtrim($txt);
 }
