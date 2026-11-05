@@ -22,6 +22,7 @@ require_once __DIR__ . '/salary_cap.php';
 require_once __DIR__ . '/draft_swaps.php';
 require_once __DIR__ . '/fa_resolve.php';
 require_once __DIR__ . '/mcp_estudos.php';
+require_once __DIR__ . '/mcp_estudos_lista.php';
 
 const MCP_SQL_MAX_LINHAS = 200;   // teto de linhas que um UPDATE/DELETE pode tocar
 
@@ -136,7 +137,7 @@ function mcpFerramentas(): array
                 'motivo' => ['type' => 'string'],
             ], 'required' => ['sql', 'motivo']],
         ],
-    ], mcpEstudoFerramentas());
+    ], mcpEstudoFerramentas(), [mcpEstudoListaFerramenta()]);
 }
 
 /** Quem escreve no banco — o transporte usa pra marcar o log. */
@@ -163,6 +164,7 @@ function mcpExecutar(PDO $pdo, string $nome, array $a): string
         'executar_sql'  => mcpExecutarSql($pdo, (string)($a['sql'] ?? ''), (string)($a['motivo'] ?? '')),
         'estudo_jogador' => mcpEstudoJogador($pdo, $a),
         'estudo_editar'  => mcpEstudoEditar($pdo, $a),
+        'estudo_lista'   => mcpEstudoLista($pdo, $a),
         default         => throw new McpErro('Ferramenta desconhecida: ' . $nome),
     };
 }
