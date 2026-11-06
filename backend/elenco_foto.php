@@ -46,7 +46,11 @@ const EF_LIMITE_TEMPORADA = 4;
 const EF_LIMITE_MENSAL = 2100;
 /** Quem não tem limite de leitura (os mesmos e-mails do site). */
 const EF_SEM_LIMITE = ['medeirros99@gmail.com'];
-const EF_LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+/* SÓ A ELITE (pedido do Marcos, 06/11/2026). A tela do site continua liberada pras quatro ligas
+   (VISION_LEAGUES); só o comando do zap é restrito. Valem pro TIME alvo, então vale também
+   pro admin: ele não aponta um time de NEXT/RISE/ROOKIE por aqui. Pra liberar outra liga, é só
+   acrescentar nesta lista. */
+const EF_LIGAS = ['ELITE'];
 /** Quanto tempo o /ok vale depois do preview. */
 const EF_VALIDADE_MIN = 20;
 /** Foto maior que isto não entra (o WhatsApp comprime; passar de 8 MB é outra coisa). */
@@ -278,7 +282,7 @@ function efPedir(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo, ?a
 
     [$time, $erro, $usuario] = efResolverTime($pdo, $deQuem, $argTime, $ligaDoGrupo);
     if (!$time) return (string)$erro;
-    if (!in_array(strtoupper((string)$time['league']), EF_LIGAS, true)) return 'A atualização por foto não está disponível pra essa liga.';
+    if (!in_array(strtoupper((string)$time['league']), EF_LIGAS, true)) return 'A atualização por foto no WhatsApp está liberada só pra *' . implode(', ', EF_LIGAS) . "*. Atualiza o elenco pelo site (atualizar-elenco).";
     $nomeTime = wcNomeDoTime($time);
 
     [$recusa, $usadas, $seasonCota] = efCota($pdo, $time, $usuario);

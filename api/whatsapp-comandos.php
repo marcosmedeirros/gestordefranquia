@@ -652,7 +652,7 @@ function wcAjuda(): string
 "
         . "/minhastrades — suas 3 últimas trocas\n"
         . "/meufantasy — seu time no Fantasy FBA\n"
-        . "/atualizarelenco _letras_ ou _stats_ — manda o print do jogo com isso na legenda e eu atualizo o elenco (você confirma com /ok)\n\n"
+        . "/atualizarelenco _letras_ ou _stats_ — manda o print do jogo com isso na legenda e eu atualizo o elenco (só ELITE; você confirma com /ok)\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
         . "/rankingsprint _liga_ — a sprint em andamento e as já decididas\n"
