@@ -58,6 +58,13 @@ function ocrSkillsGemini(string $imagemBase64, string $mime, string $chave, ?str
       evoluiu), vale a da DIREITA, que é a atual.
     - Coluna que não aparece na imagem simplesmente não entra em "grades".
       Não invente nota, e não repita a nota de outra coluna.
+    - ORDEM DAS COLUNAS: leia o CABEÇALHO da tabela da esquerda pra direita e dê a cada
+      nota o nome da coluna em que ela está, na ordem em que o cabeçalho mostra — não na
+      ordem em que a lista acima foi escrita. Conte as colunas: cada jogador tem uma nota
+      por coluna, e uma nota nunca muda de coluna.
+    - ATHL e IQ são colunas DIFERENTES e vizinhas, e é fácil trocar uma pela outra: ATHL é
+      o atletismo/físico (Athleticism, Physical, PHY, "Físico") e IQ é o QI de jogo
+      (Basketball IQ, BBIQ). Use o rótulo escrito no cabeçalho de cada uma.
     - Não invente jogador que não esteja na lista.
     - Responda SÓ o array JSON, sem texto antes ou depois.
     TXT;

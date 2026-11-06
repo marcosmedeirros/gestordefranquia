@@ -64,6 +64,8 @@ const EF_SKILL_JSON = ['skill_in' => 'in', 'skill_mid' => 'mid', 'skill_3pt' => 
 /** O que o Gemini devolve (ocrSkillsGemini) => coluna do banco. */
 const EF_COLUNA_OCR = ['IN' => 'skill_in', 'MID' => 'skill_mid', '3PT' => 'skill_3pt', 'POST' => 'skill_post_d', 'PER' => 'skill_per_d',
                        'PLAY' => 'skill_play', 'REB' => 'skill_reb', 'ATHL' => 'skill_athl', 'IQ' => 'skill_iq', 'POT' => 'skill_pot'];
+/** A letra como número (F = 0 … A+ = 12), pra medir quanto uma letra andou. */
+const EF_NOTA_NUM = ['F' => 0, 'D-' => 1, 'D' => 2, 'D+' => 3, 'C-' => 4, 'C' => 5, 'C+' => 6, 'B-' => 7, 'B' => 8, 'B+' => 9, 'A-' => 10, 'A' => 11, 'A+' => 12];
 /** Rótulo curto de cada letra no preview. */
 const EF_ROTULO = ['skill_in' => 'IN', 'skill_mid' => 'MID', 'skill_3pt' => '3PT', 'skill_post_d' => 'POST D', 'skill_per_d' => 'PER D',
                    'skill_play' => 'PLAY', 'skill_reb' => 'REB', 'skill_athl' => 'ATHL', 'skill_iq' => 'IQ', 'skill_pot' => 'POT'];
@@ -356,6 +358,27 @@ function efMontarLetras(array $casados, array $elenco): array
             [$ok, $v] = atualizacaoValidarFicha([$col => (string)$val]);
             if ($ok && isset($v[$col]) && (int)$p[$col] !== $v[$col]) $ficha[$col] = $v[$col];
         }
+        /* SINAIS DE COLUNA LIDA ERRADA. A IA às vezes desloca uma coluna ou troca duas
+           vizinhas (a ATHL/"físico" com a IQ foi a suspeita do Marcos, 06/11/2026), e aí
+           a letra nova vem de outro atributo. Evolução normal mexe 1 ou 2 degraus; um
+           salto de 5+ degraus, ou duas letras de 4+ degraus no mesmo jogador, não é
+           evolução — é leitura. E se TROCAR o ATHL com o IQ deixa o jogador muito mais
+           perto do que ele era, o mais provável é que a IA tenha trocado. */
+        $grande = 0; $muitos = 0;
+        foreach ($novo as $col => $nv) {
+            $ant = $p[$col] ?? null;
+            if ($ant === null || $ant === '' || !isset(EF_NOTA_NUM[$ant])) continue;
+            $d = abs(EF_NOTA_NUM[$nv] - EF_NOTA_NUM[$ant]);
+            if ($d >= 5) $grande++;
+            if ($d >= 4) $muitos++;
+        }
+        if ($grande >= 1 || $muitos >= 2) $aviso[] = 'letras mudaram demais, confere';
+        $a0 = EF_NOTA_NUM[$p['skill_athl'] ?? ''] ?? null; $i0 = EF_NOTA_NUM[$p['skill_iq'] ?? ''] ?? null;
+        $a1 = EF_NOTA_NUM[$novo['skill_athl'] ?? ($p['skill_athl'] ?? '')] ?? null; $i1 = EF_NOTA_NUM[$novo['skill_iq'] ?? ($p['skill_iq'] ?? '')] ?? null;
+        if (isset($novo['skill_athl'], $novo['skill_iq']) && $a0 !== null && $i0 !== null && $a1 !== null && $i1 !== null
+            && (abs($a1 - $i0) + abs($i1 - $a0)) + 3 <= (abs($a1 - $a0) + abs($i1 - $i0))) {
+            $aviso[] = 'ATHL (físico) e IQ parecem trocados';
+        }
         if (isset($ficha['ovr']) && abs($ficha['ovr'] - (int)$p['ovr']) > EF_OVR_SALTO) $aviso[] = 'OVR mudou muito';
         if (isset($ficha['age']) && !in_array($ficha['age'] - (int)$p['age'], [0, 1], true)) $aviso[] = 'idade estranha';
         if (!$novo && !$ficha) { $iguais++; continue; }
@@ -428,7 +451,7 @@ function efTextoPreview(string $tipo, string $nomeTime, array $d, array $semPar,
     }
     if ($semPar) $o .= "\n❓ Não reconheci no elenco: " . implode(', ', array_map(fn($x) => '"' . $x['name'] . '"', array_slice($semPar, 0, 6))) . (count($semPar) > 6 ? '…' : '') . "\n";
     foreach (array_slice($d['recusados'] ?? [], 0, 4) as $r) $o .= "⚠️ Pulei — {$r}\n";
-    if (($d['suspeitos'] ?? 0) > 0) $o .= "\n⚠️ A leitura de OVR e idade é a que mais erra: confere os marcados.\n";
+    if (($d['suspeitos'] ?? 0) > 0) $o .= "\n⚠️ Confere os marcados antes do /ok: a IA erra mais em OVR, idade e em coluna trocada. Na dúvida, */cancelar* e manda o print de novo.\n";
     $o .= "\nResponde */ok* pra gravar (vale " . EF_VALIDADE_MIN . " min) ou */cancelar*.\n_Leituras usadas: {$usadas}/" . EF_LIMITE_TEMPORADA . ' nesta temporada._';
     return $o;
 }
