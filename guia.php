@@ -587,7 +587,7 @@ html{scroll-behavior:smooth}
     <p>O que mexe num jogador específico precisa de aprovação:</p>
     <ul>
       <li><strong>Badge</strong> — depois de comprar, peça pelo <strong>Meu Elenco</strong>: um popup abre, você escolhe o jogador e a badge, e o pedido vai para o admin.</li>
-      <li><strong>City Edition</strong> — o uniforme alternativo da sua franquia, que precisa ser produzido.</li>
+      <li><strong>City Edition</strong> — o uniforme alternativo da sua franquia, que precisa ser produzido. Custa <strong>5.000 FBA Points</strong>: ao clicar em Comprar você escolhe o <strong>fornecedor</strong>, e <strong>1.000</strong> dos 5.000 vão direto pra ele.</li>
     </ul>
 
     <div class="nota green">

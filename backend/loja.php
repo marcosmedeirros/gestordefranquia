@@ -65,15 +65,49 @@ function lojaCatalogo(): array
             'desc'  => 'Uma vaga a mais na sua G-League.',
             'limite' => ['qtd' => 1, 'por' => 'sempre'],
         ],
+        /* CITY EDITION: 5.000 (era 10.000), e 1.000 dos 5.000 vão DIRETO pro
+           fornecedor que o GM escolhe na hora da compra (pedido do Marcos, 06/11/2026,
+           aprovado pela administração). O fornecedor é quem produz o uniforme — o
+           repasse é o pagamento dele, e por isso sai no ato, não depois de alguém
+           conferir. @see lojaFornecedores, lojaComprar */
         'city_edition' => [
             'nome'  => 'City Edition',
-            'preco' => 10000,
+            'preco' => 5000,
             'icone' => 'bi-palette-fill',
             'cor'   => '#fc0025',
-            'desc'  => 'Um uniforme City Edition para a sua franquia.',
+            'desc'  => 'Um uniforme City Edition para a sua franquia. Você escolhe o fornecedor: 1.000 dos 5.000 vão direto pra ele.',
             'limite' => ['qtd' => 1, 'por' => 'sempre'],
+            'fornecedor' => ['repasse' => 1000],
         ],
     ];
+}
+
+if (!function_exists('lojaFornecedores')) {
+    /**
+     * Quem produz a City Edition: games_usuarios.id => nome como a liga o conhece.
+     *
+     * Os ids vêm do cadastro de games (é nessa tabela que moram os FBA Points, e
+     * é nela que o repasse cai). Lista em código, e não em tabela, pela mesma razão
+     * do catálogo: quem recebe dinheiro da loja é REGRA, e trocar a lista tem que
+     * ser um commit com data e motivo.
+     *
+     * O nome do 5º é o que a organização passou ("Thierry Nebacetin"); no cadastro
+     * ele é o id 92, "Thierry Soares". Trocar o id aqui é a única correção que
+     * esse caso pode precisar.
+     *
+     * @return array<int,string>
+     */
+    function lojaFornecedores(): array
+    {
+        return [
+            4  => 'Ágata Máximo',
+            85 => 'Mateus Maia',
+            88 => 'Renan Santos',
+            92 => 'Thierry Nebacetin',
+            6  => 'Lennon Herman',
+            56 => 'Eduardo Antunes',
+        ];
+    }
 }
 
 if (!function_exists('lojaLimiteTexto')) {
@@ -212,6 +246,26 @@ if (!function_exists('lojaGarantirTabela')) {
             INDEX idx_dono (id_usuario, usado_em),
             INDEX idx_fila (usado_em, atendido_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // Quem produz o item (City Edition): a tabela já existia sem esta coluna.
+        try {
+            if (!$pdo->query("SHOW COLUMNS FROM loja_inventario LIKE 'fornecedor_id'")->fetch()) {
+                $pdo->exec("ALTER TABLE loja_inventario ADD COLUMN fornecedor_id INT NULL AFTER obs");
+            }
+        } catch (Throwable $e) {
+            error_log('[loja] coluna fornecedor_id: ' . $e->getMessage());
+        }
+        // O rastro do dinheiro que saiu do comprador e entrou no fornecedor, uma linha por repasse.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS loja_repasses (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            inventario_id INT NOT NULL,
+            comprador_id  INT NOT NULL,
+            fornecedor_id INT NOT NULL,
+            item_key      VARCHAR(40) NOT NULL,
+            valor         INT NOT NULL,
+            criado_em     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_fornecedor (fornecedor_id),
+            INDEX idx_inv (inventario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 }
 
@@ -234,7 +288,7 @@ if (!function_exists('lojaInventario')) {
     {
         try {
             lojaGarantirTabela($pdo);
-            $st = $pdo->prepare("SELECT id, item_key, preco_pago, comprado_em
+            $st = $pdo->prepare("SELECT id, item_key, preco_pago, comprado_em, fornecedor_id
                                    FROM loja_inventario
                                   WHERE id_usuario = ? AND usado_em IS NULL
                                   ORDER BY comprado_em ASC");
@@ -282,11 +336,23 @@ if (!function_exists('lojaComprar')) {
      *
      * @return array{ok:bool,erro:?string,saldo:?int}
      */
-    function lojaComprar(PDO $pdo, int $userId, string $itemKey): array
+    function lojaComprar(PDO $pdo, int $userId, string $itemKey, ?int $fornecedorId = null): array
     {
         $cat = lojaCatalogo();
         if (!isset($cat[$itemKey])) return ['ok' => false, 'erro' => 'Esse item não existe.', 'saldo' => null];
         $item = $cat[$itemKey];
+
+        /* ITEM COM FORNECEDOR (City Edition): quem vende precisa ser escolhido, e só vale
+           quem está na lista. O id vem do formulário, então é conferido aqui — um id
+           chutado mandaria o repasse pra qualquer conta. */
+        $repasse = 0;
+        if (!empty($item['fornecedor'])) {
+            $repasse = (int)$item['fornecedor']['repasse'];
+            if (!$fornecedorId) return ['ok' => false, 'erro' => 'Escolha o fornecedor.', 'saldo' => null];
+            if (!isset(lojaFornecedores()[$fornecedorId])) return ['ok' => false, 'erro' => 'Esse fornecedor não existe.', 'saldo' => null];
+        } else {
+            $fornecedorId = null;   // item sem fornecedor ignora o que vier no formulário
+        }
 
         lojaGarantirTabela($pdo);
 
@@ -299,11 +365,22 @@ if (!function_exists('lojaComprar')) {
             // INSERT existir, e as duas veem "ainda cabe" — o GM leva três
             // badges num mês de limite dois. Com o FOR UPDATE, a segunda
             // espera a primeira terminar e enxerga o INSERT dela.
-            $lock = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = ? FOR UPDATE");
-            $lock->execute([$userId]);
-            if ($lock->fetchColumn() === false) {
+            //
+            // Com fornecedor, trava as DUAS linhas (comprador e fornecedor) numa
+            // consulta só, em ordem de id: dois GMs que se escolhem um ao outro
+            // travariam em ordem trocada e um deles tomaria deadlock.
+            $ids = array_values(array_unique(array_filter([$userId, $fornecedorId])));
+            sort($ids);
+            $lock = $pdo->prepare("SELECT id FROM games_usuarios WHERE id IN (" . implode(',', array_fill(0, count($ids), '?')) . ") ORDER BY id FOR UPDATE");
+            $lock->execute($ids);
+            $achados = array_map('intval', $lock->fetchAll(PDO::FETCH_COLUMN));
+            if (!in_array($userId, $achados, true)) {
                 $pdo->rollBack();
                 return ['ok' => false, 'erro' => 'Perfil de games não encontrado.', 'saldo' => null];
+            }
+            if ($fornecedorId && !in_array($fornecedorId, $achados, true)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'erro' => 'O cadastro desse fornecedor não foi encontrado. Avisa o admin.', 'saldo' => null];
             }
 
             $lim = $item['limite'] ?? null;
@@ -329,9 +406,20 @@ if (!function_exists('lojaComprar')) {
                 return ['ok' => false, 'erro' => 'FBA Points insuficientes.', 'saldo' => null];
             }
 
-            $pdo->prepare("INSERT INTO loja_inventario (id_usuario, item_key, preco_pago)
-                           VALUES (?, ?, ?)")->execute([$userId, $itemKey, $item['preco']]);
+            $pdo->prepare("INSERT INTO loja_inventario (id_usuario, item_key, preco_pago, fornecedor_id)
+                           VALUES (?, ?, ?, ?)")->execute([$userId, $itemKey, $item['preco'], $fornecedorId]);
             $inventarioId = (int)$pdo->lastInsertId();
+
+            /* O REPASSE sai no mesmo ato: o que o comprador pagou e o que o fornecedor
+               recebeu são a mesma transação — se um lado falhar, o outro volta. O resto
+               do preço fica com a liga. */
+            if ($fornecedorId && $repasse > 0) {
+                $cred = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points + ? WHERE id = ?");
+                $cred->execute([$repasse, $fornecedorId]);
+                if ($cred->rowCount() === 0) throw new RuntimeException('repasse não creditou');
+                $pdo->prepare("INSERT INTO loja_repasses (inventario_id, comprador_id, fornecedor_id, item_key, valor)
+                               VALUES (?, ?, ?, ?, ?)")->execute([$inventarioId, $userId, $fornecedorId, $itemKey, $repasse]);
+            }
 
             /*
              * ITEM QUE O SISTEMA SABE APLICAR NÃO PASSA PELO ADMIN.
@@ -351,9 +439,11 @@ if (!function_exists('lojaComprar')) {
             $saldo = (int)$st->fetchColumn();
 
             $pdo->commit();
-            return ['ok' => true, 'erro' => null, 'saldo' => $saldo, 'aplicado' => $aplicado];
+            return ['ok' => true, 'erro' => null, 'saldo' => $saldo, 'aplicado' => $aplicado,
+                    'fornecedor' => $fornecedorId ? (lojaFornecedores()[$fornecedorId] ?? null) : null, 'repasse' => $repasse];
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[loja] comprar ' . $itemKey . ': ' . $e->getMessage());
             return ['ok' => false, 'erro' => 'Não deu pra concluir a compra.', 'saldo' => null];
         }
     }
@@ -452,7 +542,7 @@ if (!function_exists('lojaFilaDoAdmin')) {
         lojaGarantirTabela($pdo);
         $onde = $incluirAtendidos ? 'i.usado_em IS NOT NULL' : 'i.usado_em IS NOT NULL AND i.atendido_em IS NULL';
         $st = $pdo->query("
-            SELECT i.id, i.item_key, i.usado_em, i.atendido_em, i.id_usuario,
+            SELECT i.id, i.item_key, i.usado_em, i.atendido_em, i.id_usuario, i.fornecedor_id,
                    g.nome AS gm, g.league,
                    CONCAT(t.city, ' ', t.name) AS time
               FROM loja_inventario i

@@ -127,6 +127,9 @@ $esc     = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
       <div class="item">
         <?= $esc($it['nome'] ?? $p['item_key']) ?>
         <i>resgatado em <?= date('d/m/Y \à\s H:i', strtotime($p['usado_em'])) ?></i>
+        <?php if (!empty($p['fornecedor_id'])): ?>
+          <i>fornecedor: <b><?= $esc(lojaFornecedores()[(int)$p['fornecedor_id']] ?? ('#' . (int)$p['fornecedor_id'])) ?></b> · já recebeu <?= number_format((int)($cat[$p['item_key']]['fornecedor']['repasse'] ?? 0), 0, ',', '.') ?> FBA Points</i>
+        <?php endif; ?>
       </div>
       <?php if ($p['atendido_em']): ?>
         <span class="selo">aplicado em <?= date('d/m', strtotime($p['atendido_em'])) ?></span>

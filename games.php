@@ -153,13 +153,18 @@ $lojaErro = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
     $acao = (string)$_POST['loja_acao'];
     if ($acao === 'comprar') {
-        $r = lojaComprar($pdo, $userId, (string)($_POST['item'] ?? ''));
+        $r = lojaComprar($pdo, $userId, (string)($_POST['item'] ?? ''), (int)($_POST['fornecedor'] ?? 0) ?: null);
         // O que o sistema aplica sozinho não vai pra "Meus itens": dizer que
         // está lá mandaria o GM procurar uma coisa que já valeu.
         if ($r['ok']) {
             $lojaMsg = !empty($r['aplicado'])
                 ? 'Comprado e já aplicado no seu time — não precisa resgatar nem esperar aprovação.'
                 : 'Comprado! O item está em Meus itens.';
+            // City Edition: diz pra quem foi o dinheiro e o que fazer agora.
+            if (!empty($r['fornecedor'])) {
+                $lojaMsg = 'Comprado! ' . number_format((int)$r['repasse'], 0, ',', '.') . ' FBA Points foram direto pra '
+                         . $r['fornecedor'] . '. O uniforme está em Meus itens — fale com ele e clique em Usar pra avisar a organização.';
+            }
         } else { $lojaErro = $r['erro']; }
     } elseif ($acao === 'usar') {
         $r = lojaUsar($pdo, $userId, (int)($_POST['inventario_id'] ?? 0));
@@ -953,6 +958,28 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .lj-btn:hover:not(:disabled) { filter:brightness(1.12); }
     .lj-btn:disabled { background:var(--panel-3); color:var(--text-3); cursor:not-allowed; }
     .lj-btn.usar { background:var(--green); }
+    .lj-btn.cinza { background:var(--panel-3); color:var(--text-2); }
+    /* ── Popup do fornecedor (City Edition) ──
+       margin:auto porque o reset da página zera a margem e o <dialog> grudaria no canto. */
+    .lj-dlg { border:1px solid var(--border-md); border-radius:var(--radius); background:var(--panel); color:var(--text);
+        width:min(420px, 94vw); max-height:92vh; padding:20px 20px 16px; margin:auto; overflow:auto; }
+    .lj-dlg::backdrop { background:rgba(0,0,0,.72); }
+    .lj-dlg h3 { margin:0 0 6px; font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px; }
+    .lj-dlg h3 i { color:var(--red); }
+    .lj-dlg-sub { margin:0 0 14px; font-size:12.5px; color:var(--text-2); line-height:1.5; }
+    .lj-dlg-sub b { color:var(--text); }
+    .lj-forn-lista { display:flex; flex-direction:column; gap:7px; margin-bottom:16px; }
+    .lj-forn { display:flex; align-items:center; gap:10px; padding:11px 13px; border:1px solid var(--border-md);
+        border-radius:var(--radius-sm); background:var(--panel-2); cursor:pointer; font-size:13.5px; font-weight:600; }
+    .lj-forn:hover { border-color:var(--border-red); }
+    .lj-forn input { position:absolute; opacity:0; pointer-events:none; }
+    .lj-forn .lj-forn-nome { flex:1; }
+    .lj-forn > i { color:var(--green); font-size:16px; opacity:0; }
+    .lj-forn:has(input:checked) { border-color:var(--green); background:color-mix(in srgb, var(--green) 9%, var(--panel-2)); }
+    .lj-forn:has(input:checked) > i { opacity:1; }
+    .lj-forn:has(input:focus-visible) { outline:2px solid var(--red); outline-offset:2px; }
+    .lj-dlg-acoes { display:flex; gap:9px; justify-content:flex-end; flex-wrap:wrap; }
+    @media (max-width:480px) { .lj-dlg-acoes .lj-btn { flex:1; } }
     /* O margin-bottom fecha a seção. Sem ele, o título da seção seguinte
        encostava no último card — as outras seções disfarçavam com um
        margin-top inline, mas o buraco era aqui: uma grade que não termina. */
@@ -1629,10 +1656,14 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     </div>
                     <?php endif; ?>
                     <div class="lj-preco"><i class="bi bi-star-fill"></i> <?= number_format((int)$it['preco'], 0, ',', '.') ?></div>
-                    <form method="POST">
+                    <?php $comFornecedor = !empty($it['fornecedor']); ?>
+                    <form method="POST" <?= $comFornecedor ? 'data-fornecedor-form="' . htmlspecialchars($chave) . '" onsubmit="return false"' : '' ?>>
                         <input type="hidden" name="loja_acao" value="comprar">
                         <input type="hidden" name="item" value="<?= htmlspecialchars($chave) ?>">
-                        <button type="submit" class="lj-btn" <?= $podeComprar ? '' : 'disabled' ?>>
+                        <?php if ($comFornecedor): ?><input type="hidden" name="fornecedor" value=""><?php endif; ?>
+                        <?php /* Item com fornecedor: o botão NÃO envia; abre o popup com a lista (ljFornecedorDlg),
+                                 e é o popup que preenche o fornecedor e envia. */ ?>
+                        <button type="<?= $comFornecedor ? 'button' : 'submit' ?>" class="lj-btn" <?= $comFornecedor ? 'data-abrir-fornecedor="' . htmlspecialchars($chave) . '"' : '' ?> <?= $podeComprar ? '' : 'disabled' ?>>
                             <?php if ($esgotou): ?>
                                 <?= $lim['texto'] === 'compra única' ? 'Já é seu' : 'Limite do mês' ?>
                             <?php elseif (!$temSaldo): ?>
@@ -1645,6 +1676,38 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <?php
+              /* ── O POPUP DO FORNECEDOR (City Edition) ─────────────────
+                 O botão Comprar do card não envia: abre isto. O GM escolhe o fornecedor
+                 e só então a compra acontece, com 1.000 dos 5.000 indo direto pra ele.
+                 A lista é a de lojaFornecedores() — o servidor confere o id de novo. */
+              $ljForn = lojaFornecedores();
+              $ljCityRepasse = (int)($lojaCat['city_edition']['fornecedor']['repasse'] ?? 0);
+              $ljCityPreco = (int)($lojaCat['city_edition']['preco'] ?? 0);
+            ?>
+            <dialog id="ljFornecedorDlg" class="lj-dlg" aria-labelledby="ljFornTitulo">
+                <h3 id="ljFornTitulo"><i class="bi bi-palette-fill"></i> Escolha o fornecedor</h3>
+                <p class="lj-dlg-sub">
+                    Quem vai produzir o seu uniforme. Dos <b><?= number_format($ljCityPreco, 0, ',', '.') ?></b> FBA Points,
+                    <b><?= number_format($ljCityRepasse, 0, ',', '.') ?></b> vão direto pra ele.
+                </p>
+                <div class="lj-forn-lista" role="radiogroup" aria-label="Fornecedores">
+                    <?php foreach ($ljForn as $fid => $fnome): ?>
+                    <label class="lj-forn">
+                        <input type="radio" name="ljFornEscolha" value="<?= (int)$fid ?>">
+                        <span class="lj-forn-nome"><?= htmlspecialchars($fnome) ?></span>
+                        <i class="bi bi-check-circle-fill"></i>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <div class="lj-dlg-acoes">
+                    <button type="button" class="lj-btn cinza" id="ljFornCancelar">Cancelar</button>
+                    <button type="button" class="lj-btn" id="ljFornConfirmar" disabled>
+                        Comprar por <?= number_format($ljCityPreco, 0, ',', '.') ?>
+                    </button>
+                </div>
+            </dialog>
 
             <?php
               /* ── Slot de tela da live ────────────────────────────────
@@ -1950,7 +2013,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                         <i class="bi <?= $it['icone'] ?>"></i>
                     </div>
                     <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
-                    <div class="lj-desc">comprado em <?= date('d/m/Y', strtotime($inv['comprado_em'])) ?></div>
+                    <div class="lj-desc">comprado em <?= date('d/m/Y', strtotime($inv['comprado_em'])) ?><?php if (!empty($inv['fornecedor_id'])): ?><br>Fornecedor: <b><?= htmlspecialchars(lojaFornecedores()[(int)$inv['fornecedor_id']] ?? '—') ?></b><?php endif; ?></div>
                     <?php if ($inv['item_key'] === 'badge'): ?>
                         <?php /* A BADGE NÃO TEM BOTÃO "USAR" AQUI.
                                  Ela é pedida em Meu Elenco, onde o GM diz EM QUEM — e a API
@@ -2483,6 +2546,34 @@ function trocarLigaRanking(liga) {
     const overlay = document.getElementById('sbOverlay');
     menuBtn?.addEventListener('click', () => { sidebar?.classList.add('open'); overlay?.classList.add('open'); });
     overlay?.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay?.classList.remove('open'); });
+
+    /* ── City Edition: o botão Comprar abre a lista de fornecedores ──────
+       O formulário do card NÃO envia sozinho (onsubmit retorna false): quem envia é este
+       popup, depois de a pessoa escolher o fornecedor. O servidor confere o id outra vez. */
+    (function () {
+        const dlg = document.getElementById('ljFornecedorDlg');
+        if (!dlg) return;
+        const ok = document.getElementById('ljFornConfirmar');
+        let form = null;
+        document.querySelectorAll('[data-abrir-fornecedor]').forEach(bt => {
+            bt.addEventListener('click', () => {
+                form = bt.closest('form');
+                dlg.querySelectorAll('input[name="ljFornEscolha"]').forEach(r => { r.checked = false; });
+                ok.disabled = true;
+                if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+            });
+        });
+        dlg.addEventListener('change', e => { if (e.target.name === 'ljFornEscolha') ok.disabled = false; });
+        document.getElementById('ljFornCancelar')?.addEventListener('click', () => dlg.close());
+        dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // clicar fora fecha
+        ok.addEventListener('click', () => {
+            const escolhido = dlg.querySelector('input[name="ljFornEscolha"]:checked');
+            if (!escolhido || !form) return;
+            form.querySelector('input[name="fornecedor"]').value = escolhido.value;
+            ok.disabled = true; ok.textContent = 'Comprando…';
+            form.submit();   // submit() de código não passa pelo onsubmit: é o envio de verdade
+        });
+    })();
 
     /* ── Slot de tela: copiar a lista, e abrir sozinho na hora ────────── */
 
