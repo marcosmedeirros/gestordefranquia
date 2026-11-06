@@ -2911,6 +2911,14 @@ try {
             $sprintNumber2 = (int)($seasonData2['sprint_number'] ?? 1);
             $nbaCupTeamId2 = ($league2 === 'ELITE' && !empty($input['nba_cup_team_id'])) ? (int)$input['nba_cup_team_id'] : null;
 
+            /* Já tinha resultado de playoffs? Então isto é CORREÇÃO de uma temporada já
+               registrada, e não o registro dela. A trava de troca por elenco só liga no
+               registro de verdade (lá embaixo): reabrir uma temporada antiga pra consertar
+               um prêmio não pode religar uma trava que o admin desligou de propósito. */
+            $stmtJaReg = $pdo->prepare("SELECT 1 FROM playoff_results WHERE season_id = ? LIMIT 1");
+            $stmtJaReg->execute([$seasonId]);
+            $jaRegistrada2 = (bool)$stmtJaReg->fetchColumn();
+
             $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?")->execute([$seasonId]);
             // Só limpa os prêmios simples; os estendidos (finals_mvp, all_nba_*, all_def_*)
             // têm cadastro próprio e não podem ser apagados aqui.
@@ -3065,10 +3073,30 @@ try {
                 $pdo->prepare("DELETE FROM season_registro_rascunho WHERE season_id = ?")->execute([$seasonId]);
             } catch (Throwable $ignored) {}
 
+            /* TRAVA DE TROCA POR ELENCO: registrou a pontuação, a trava da liga LIGA
+               (pedido do Marcos, 06/11/2026). A temporada acabou de ser fechada, então é
+               a hora em que o time passa a ter que estar com as estatísticas dela
+               lançadas pra trocar. Só no primeiro registro (correção não religa), e só se
+               ela estava desligada — quem já ligou não muda nada. Falhar aqui NUNCA
+               atrapalha o registro, que já foi gravado. @see backend/trava_elenco.php */
+            $travaLigada2 = false;
+            if (!$jaRegistrada2) {
+                try {
+                    require_once __DIR__ . '/../backend/trava_elenco.php';
+                    if (empty(travaElencoConfig($pdo, (string)$league2)['ativa'])) {
+                        travaElencoDefinirAtiva($pdo, (string)$league2, true, (int)($user['id'] ?? 0));
+                        $travaLigada2 = true;
+                    }
+                } catch (Throwable $e) {
+                    error_log('[seasons] ligar trava de elenco: ' . $e->getMessage());
+                }
+            }
+
             /* Os envios de imagem já voltaram a zero no PRIMEIRO botão, lá no
                registro da temporada regular — quando o GM de fato precisa
                deles. @see save_temporada_regular */
-            echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
+            echo json_encode(['success' => true, 'message' => 'Pontuação registrada!' . ($travaLigada2 ? ' Trava de troca por elenco ligada na ' . $league2 . '.' : ''),
+                              'trava_elenco_ligada' => $travaLigada2]);
             break;
 
         // ========== RE-SINCRONIZAR PONTOS JA REGISTRADOS (BACKFILL) ==========

@@ -798,11 +798,14 @@ async function _saveReviewedPoints(seasonId, league) {
 
     try {
         // 1. Registrar dados da temporada (campeão, classificação, prêmios)
+        let travaLigada = false;
         if (_regPtsPendingPayload) {
-            await api('seasons.php?action=register_pontuacao', {
+            const reg = await api('seasons.php?action=register_pontuacao', {
                 method: 'POST',
                 body: JSON.stringify(_regPtsPendingPayload)
             });
+            // O servidor liga a trava de troca por elenco da liga no primeiro registro da temporada.
+            travaLigada = !!(reg && reg.trava_elenco_ligada);
             _regPtsPendingPayload = null;
         }
 
@@ -844,7 +847,7 @@ async function _saveReviewedPoints(seasonId, league) {
         _bracket = null;
         _regPtsEtapa = 'regular';
 
-        showAlert('success', 'Pontuação salva com sucesso!');
+        showAlert('success', 'Pontuação salva com sucesso!' + (travaLigada ? ' A trava de troca por elenco foi ligada na ' + league + '.' : ''));
         setTimeout(() => showHome(), 1200);
     } catch (e) {
         _regPtsPendingPayload = null;
