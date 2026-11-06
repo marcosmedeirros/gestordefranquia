@@ -2470,6 +2470,8 @@ async function carregarRascunhos() {
 
   const conta = document.getElementById('draftsCount');
   if (conta) conta.textContent = String(lista.length);
+  // O Copiar do cartão lê daqui (o texto sai do que o cartão já mostra).
+  window.__rascunhosCache__ = Object.fromEntries(lista.map(r => [r.id, r]));
 
   if (!lista.length) {
     item.style.display = 'none';
@@ -2523,6 +2525,9 @@ function cartaoRascunho(r) {
         <button class="btn-r primary sm" onclick="enviarRascunho(${r.id})">
           <i class="bi bi-send-fill"></i> Enviar
         </button>
+        <button class="btn-r secondary sm" data-copy-rascunho="${r.id}" onclick="copiarRascunho(${r.id})">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
         <button class="btn-r secondary sm" onclick="apagarRascunho(${r.id})">
           <i class="bi bi-trash"></i> Apagar
         </button>
@@ -2540,6 +2545,42 @@ async function enviarRascunho(id) {
     : true;
   if (!ok) return;
   window.location.href = `/trade-simulator.php?rascunho=${id}&enviar=1`;
+}
+
+/* COPIAR o rascunho como texto pra colar no zap (ou mostrar pra alguém antes de decidir).
+   É o mesmo formato do Copiar das trocas múltiplas — "Time recebe:" e os itens — e sai do
+   que o cartão já mostra, então o que se cola é o que se vê. Não cria nada e não avisa
+   ninguém: continua sendo só rascunho. */
+async function copiarRascunho(id) {
+  const r = (window.__rascunhosCache__ || {})[id];
+  if (!r) return;
+  const linhas = [];
+  (r.lados || []).forEach(l => {
+    linhas.push(l.team + ' recebe:');
+    (l.itens || []).forEach(i => linhas.push('  • ' + i));
+    if (!(l.itens || []).length) linhas.push('  • Nenhum item');
+    linhas.push('');
+  });
+  if (r.notes) linhas.push('Nota: ' + r.notes);
+  const texto = linhas.join('\n').trim();
+
+  // navigator.clipboard só existe em HTTPS (ou localhost): em http o caminho velho ainda copia.
+  let copiou = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(texto); copiou = true; }
+  } catch (e) { /* cai no caminho velho */ }
+  if (!copiou) {
+    const campo = document.createElement('textarea');
+    campo.value = texto; campo.setAttribute('readonly', '');
+    campo.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(campo); campo.select();
+    try { copiou = document.execCommand('copy'); } catch (e) { copiou = false; }
+    campo.remove();
+  }
+  const btn = document.querySelector('[data-copy-rascunho="' + id + '"]');
+  if (!btn) return;
+  btn.innerHTML = copiou ? '<i class="bi bi-check2"></i> Copiado!' : '<i class="bi bi-x-lg"></i> Não deu pra copiar';
+  setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar'; }, 2000);
 }
 
 async function apagarRascunho(id) {
