@@ -186,11 +186,15 @@ try {
         // Em quais temporadas ele esteve na chave — mesma fonte do card de
         // Playoffs acima, e não "ficou entre os 8 primeiros": o play-in muda
         // quem entra, e a posição sozinha não sabe disso.
-        $stChave = $pdo->prepare("SELECT DISTINCT s.season_number FROM playoff_results pr
+        $stChave = $pdo->prepare("SELECT s.season_number, pr.position FROM playoff_results pr
                                     JOIN seasons s ON s.id = pr.season_id
                                    WHERE pr.team_id = ? AND pr.season_id IN $TEMPORADAS_DA_SPRINT");
         $stChave->execute([$teamId]);
-        $temporadasNaChave = array_map('intval', $stChave->fetchAll(PDO::FETCH_COLUMN));
+        // Até onde ele foi em cada temporada (champion, runner_up, conference_final, second_round,
+        // first_round): a mesma coluna que o card de Playoffs e as campanhas já usam.
+        $ateOndeFoi = [];
+        foreach ($stChave->fetchAll(PDO::FETCH_ASSOC) as $rc) $ateOndeFoi[(int)$rc['season_number']] = (string)$rc['position'];
+        $temporadasNaChave = array_keys($ateOndeFoi);
         foreach ($sPos->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $positionsByYear[] = [
                 'year'       => $r['year'] !== null ? (int)$r['year'] : null,
@@ -199,6 +203,7 @@ try {
                 'conference' => $r['conference'],
                 'conference_size' => isset($r['conference_size']) ? (int)$r['conference_size'] : null,
                 'made_playoffs' => in_array((int)$r['season_number'], $temporadasNaChave, true),
+                'playoff_result' => $ateOndeFoi[(int)$r['season_number']] ?? null,
             ];
         }
     }

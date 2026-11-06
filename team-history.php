@@ -682,7 +682,12 @@ async function load(){
           <td style="font-weight:700">${p.year ?? ('T'+p.season_number)}</td>
           <td style="color:var(--text-2)">${esc(p.conference || '—')}</td>
           <td><span class="ovr-pill" style="color:${p.made_playoffs?'var(--green)':'var(--text)'}">${p.position}º${p.conference_size?' de '+p.conference_size:''}</span></td>
-          <td>${p.made_playoffs ? '<span style="color:var(--green);font-size:12px"><i class="bi bi-check-circle-fill"></i> Sim</span>' : '<span style="color:var(--text-3);font-size:12px">Não</span>'}</td>
+          <td>${p.made_playoffs ? (() => {
+            // Até onde ele foi (os mesmos rótulos das campanhas de playoff, mais abaixo).
+            const ate = { champion:['Campeão 🏆','var(--amber)'], runner_up:['Vice-campeão','#94a3b8'], conference_final:['Final de Conferência','var(--red)'],
+                          second_round:['Semifinal','var(--green)'], first_round:['1ª Rodada','var(--green)'] }[p.playoff_result];
+            return `<span style="color:${ate ? ate[1] : 'var(--green)'};font-size:12px;font-weight:${ate ? 700 : 400}"><i class="bi bi-check-circle-fill"></i> ${ate ? ate[0] : 'Sim'}</span>`;
+          })() : '<span style="color:var(--text-3);font-size:12px">Não</span>'}</td>
         </tr>`).join('')}</tbody>
     </table></div>`;
   })();
