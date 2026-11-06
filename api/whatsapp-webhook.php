@@ -602,7 +602,7 @@ foreach ($mensagens as $m) {
             }
 
             $resposta = wcResponderComando($pdo, $texto, wcLigaDeQuemPerguntou($pdo, $jidPv),
-                                           $jidPv, '', 'comando');
+                                           $jidPv, '', 'comando', $m['fba_midia'] ?? null);
             /* No grupo o comando desconhecido fica em silêncio pra não
                atrapalhar a conversa; aqui a conversa é só com ele. */
             if ($resposta === null) $resposta = 'Não conheço esse comando. Manda /ajuda pra ver a lista.';
@@ -704,7 +704,8 @@ foreach ($mensagens as $m) {
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.
-    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de, $gatilho);
+    // A foto de /atualizarelenco chega colada pelo relay em fba_midia. @see backend/elenco_foto.php
+    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de, $gatilho, $m['fba_midia'] ?? null);
     if ($resposta === null) continue;   // comando desconhecido: silêncio
     if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
 

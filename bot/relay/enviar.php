@@ -23,6 +23,13 @@
  *    mandado um a um até achar o que quebra; esse é descartado, os outros saem.
  *    401/403 NÃO descartam: é token errado, e jogar fora tudo por causa de uma
  *    configuração errada seria pior que esperar.
+ *  - FOTO DE COMANDO (/atualizarelenco): a Evolution é a única que baixa a mídia e
+ *    ela só alcança a VPS — o site na Hostinger não chega nela. Então, antes de
+ *    mandar, o relay pede a imagem à Evolution local e cola no evento em
+ *    `fba_midia` ({base64, mimetype}, ou {erro} se falhou). Só as fotos cuja legenda
+ *    é esse comando passam por isso (o resto do tráfego segue intacto), e elas
+ *    saem sozinhas no POST (o base64 de uma foto não viaja junto de 24 mensagens).
+ *    O evento enriquecido é regravado no disco, pra um retry não baixar de novo.
  */
 
 declare(strict_types=1);
@@ -40,6 +47,89 @@ $SPOOL_MAX = 5000;
 if (!is_dir($SPOOL)) @mkdir($SPOOL, 0700, true);
 
 function logar(string $m): void { fwrite(STDOUT, '[' . date('Y-m-d H:i:s') . "] $m\n"); }
+
+/** A foto é de um comando de atualizar elenco? (a legenda manda: sem ela é foto qualquer e passa batida) */
+function ehFotoDeComando(array $m): bool
+{
+    $cap = (string)($m['message']['imageMessage']['caption'] ?? '');
+    return $cap !== '' && preg_match('~^\s*/atualizar[\s-]?elenco\b~iu', $cap) === 1;
+}
+
+/** O evento tem foto de comando? */
+function eventoTemFotoDeComando(array $evento): bool
+{
+    foreach (mensagensDe($evento) ?? [] as $m) if (is_array($m) && ehFotoDeComando($m)) return true;
+    return false;
+}
+
+/**
+ * A Evolution local, com a mesma configuração do worker (whatsapp-local.config.php, uma pasta
+ * acima) ou por variável de ambiente RELAY_EVOLUTION_URL / _INSTANCIA / _KEY.
+ *
+ * @return ?array{url:string,instancia:string,chave:string}
+ */
+function configEvolution(): ?array
+{
+    $url = (string)getenv('RELAY_EVOLUTION_URL'); $inst = (string)getenv('RELAY_EVOLUTION_INSTANCIA'); $chave = (string)getenv('RELAY_EVOLUTION_KEY');
+    if ($url === '' || $inst === '' || $chave === '') {
+        $arq = getenv('RELAY_CONFIG') ?: dirname(__DIR__) . '/whatsapp-local.config.php';
+        $c = is_file($arq) ? @include $arq : null;
+        if (is_array($c)) {
+            $url = $url ?: (string)($c['evolution_url'] ?? '');
+            $inst = $inst ?: (string)($c['evolution_instancia'] ?? '');
+            $chave = $chave ?: (string)($c['evolution_api_key'] ?? '');
+        }
+    }
+    return ($url !== '' && $inst !== '' && $chave !== '') ? ['url' => rtrim($url, '/'), 'instancia' => $inst, 'chave' => $chave] : null;
+}
+
+/** Pede a imagem à Evolution. @return array{base64?:string,mimetype?:string,erro?:string} */
+function baixarMidia(array $m, ?array $evo): array
+{
+    if (!$evo) return ['erro' => 'relay sem configuração da Evolution'];
+    $ch = curl_init($evo['url'] . '/chat/getBase64FromMediaMessage/' . rawurlencode($evo['instancia']));
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode(['message' => ['key' => $m['key'] ?? [], 'message' => $m['message'] ?? []], 'convertToMp4' => false], JSON_UNESCAPED_UNICODE),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'apikey: ' . $evo['chave']],
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 40, CURLOPT_CONNECTTIMEOUT => 5,
+    ]);
+    $resp = curl_exec($ch);
+    $st = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $falha = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false || $falha !== '') return ['erro' => 'Evolution sem resposta: ' . $falha];
+    $j = json_decode((string)$resp, true);
+    $b64 = is_array($j) ? (string)($j['base64'] ?? '') : '';
+    if ($st < 200 || $st >= 300 || $b64 === '') {
+        return ['erro' => 'Evolution HTTP ' . $st . ' ' . mb_substr(is_array($j) ? json_encode($j['response']['message'] ?? $j['message'] ?? $j, JSON_UNESCAPED_UNICODE) : (string)$resp, 0, 160)];
+    }
+    // Alguns builds devolvem "data:image/jpeg;base64,...": o site quer só o base64.
+    if (str_starts_with($b64, 'data:') && ($p = strpos($b64, ',')) !== false) $b64 = substr($b64, $p + 1);
+    // Acima de ~4,5 MB de imagem o POST pro site corre risco de bater no limite da hospedagem.
+    if (strlen($b64) > 6000000) return ['erro' => 'foto grande demais (' . round(strlen($b64) / 1.37 / 1048576, 1) . ' MB)'];
+    return ['base64' => $b64, 'mimetype' => (string)($j['mimetype'] ?? $m['message']['imageMessage']['mimetype'] ?? 'image/jpeg')];
+}
+
+/** Cola a foto nas mensagens de comando do evento. @return bool true se mexeu (e o arquivo precisa ser regravado) */
+function enriquecerEvento(array &$evento, ?array $evo): bool
+{
+    $d = $evento['b']['data'] ?? null;
+    if (!is_array($d)) return false;
+    $unica = isset($d['key']);
+    $lista = $unica ? [$d] : $d;
+    $mexeu = false;
+    foreach ($lista as $i => $m) {
+        if (!is_array($m) || !ehFotoDeComando($m) || isset($m['fba_midia'])) continue;
+        $m['fba_midia'] = baixarMidia($m, $evo);
+        $lista[$i] = $m;
+        $mexeu = true;
+        logar('foto de comando ' . (string)($m['key']['id'] ?? '?') . ': ' . (isset($m['fba_midia']['erro'])
+            ? 'FALHOU ' . $m['fba_midia']['erro'] : 'baixada (' . strlen($m['fba_midia']['base64']) . ' bytes em base64)'));
+    }
+    if ($mexeu) $evento['b']['data'] = $unica ? $lista[0] : $lista;
+    return $mexeu;
+}
 
 /** @return string[] caminhos dos eventos prontos, do mais antigo ao mais novo */
 function listar(string $spool): array
@@ -74,6 +164,8 @@ function quantosJuntam(array $eventos, int $max): int
     foreach ($eventos as $e) {
         if ($n >= $max) break;
         if (mensagensDe($e) === null) break;
+        // Foto de comando viaja sozinha: o base64 dela não pode pegar carona com um lote.
+        if (eventoTemFotoDeComando($e)) { if ($n === 0) $n = 1; break; }
         $ev  = (string)($e['b']['event'] ?? '');
         $tok = (string)($e['h']['x-fba-token'] ?? '');
         if ($n === 0) { $evento = $ev; $token = $tok; }
@@ -145,6 +237,16 @@ while (true) {
     $n = $isolar ? 1 : quantosJuntam($eventos, $LOTE);
     $eventos = array_slice($eventos, 0, $n);
     $paths   = array_slice($paths, 0, $n);
+
+    // Foto de /atualizarelenco: baixa na Evolution e cola no evento (uma vez; fica no disco).
+    foreach ($eventos as $i => $ev) {
+        if (eventoTemFotoDeComando($ev) && enriquecerEvento($ev, configEvolution())) {
+            $eventos[$i] = $ev;
+            $tmp = $paths[$i] . '.tmp';
+            file_put_contents($tmp, json_encode($ev, JSON_UNESCAPED_UNICODE));
+            rename($tmp, $paths[$i]);
+        }
+    }
 
     $corpo = $eventos[0]['b'];
     if ($n > 1) {

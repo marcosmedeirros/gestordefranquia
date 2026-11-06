@@ -651,7 +651,8 @@ function wcAjuda(): string
         . "/meutblock — seu trade block
 "
         . "/minhastrades — suas 3 últimas trocas\n"
-        . "/meufantasy — seu time no Fantasy FBA\n\n"
+        . "/meufantasy — seu time no Fantasy FBA\n"
+        . "/atualizarelenco _letras_ ou _stats_ — manda o print do jogo com isso na legenda e eu atualizo o elenco (você confirma com /ok)\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a pontuação do ciclo, do 1º ao último\n"
         . "/rankingsprint _liga_ — a sprint em andamento e as já decididas\n"
@@ -5807,9 +5808,9 @@ function wcAplicarApelidos(PDO $pdo, string $texto, ?string $liga, bool $recarre
 
 function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
                             string $deQuem = '', string $grupoJid = '',
-                            string $gatilho = 'comando'): ?string
+                            string $gatilho = 'comando', ?array $midia = null): ?string
 {
-    $resposta = wcResponderComandoCru($pdo, $texto, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho);
+    $resposta = wcResponderComandoCru($pdo, $texto, $ligaDoGrupo, $deQuem, $grupoJid, $gatilho, $midia);
     if ($resposta === null || $resposta === '') return $resposta;
 
     /* O COMANDO PODE TER DEMORADO. O /duvida fala com o modelo lá fora e volta
@@ -5831,7 +5832,7 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
 function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
                                string $deQuem = '', string $grupoJid = '',
-                               string $gatilho = 'comando'): ?string
+                               string $gatilho = 'comando', ?array $midia = null): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -6393,8 +6394,25 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
                 if (!$ligasAdm) return null;
                 return botAdminPedirLeilao($pdo, $arg, $ligasAdm, $ligaDoGrupo, $grupoJid, $deQuem);
 
+            /* ── ATUALIZAR O ELENCO POR FOTO ─────────────────────────────
+               A foto vem colada no evento pelo relay (fba_midia). O /ok e o /cancelar
+               de quem tem um pedido em aberto valem pra ele; quem não tem cai no
+               /ok de admin de sempre. @see backend/elenco_foto.php */
+            case 'atualizarelenco':
+            case 'atualizar-elenco':
+            case 'elencofoto':
+                require_once __DIR__ . '/../backend/elenco_foto.php';
+                return efPedir($pdo, $arg, $deQuem, $ligaDoGrupo, $midia);
+
+            case 'cancelar':
+                require_once __DIR__ . '/../backend/elenco_foto.php';
+                return efCancelar($pdo, $deQuem);   // sem pedido em aberto: null = silêncio
+
             case 'ok':
             case 'confirmar':
+                require_once __DIR__ . '/../backend/elenco_foto.php';
+                $gravou = efConfirmar($pdo, $deQuem);
+                if ($gravou !== null) return $gravou;
                 require_once __DIR__ . '/../backend/bot_admin.php';
                 $ligasAdm = botAdminPermitido($pdo, $deQuem, $grupoJid);
                 if (!$ligasAdm) return null;
