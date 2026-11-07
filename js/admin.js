@@ -282,7 +282,14 @@ function showUniformesAdmin() {
         </div>
       </div>
       <div id="uniformesWrap" class="text-center py-3"><div class="spinner-border text-orange"></div></div>
-    </div>`;
+    </div>
+    <style>
+      /* NO CELULAR, O BOTÃO TEM QUE APARECER. Com as colunas todas a tabela passava de 375px e
+         "Feito" ficava escondido atrás do scroll lateral — o admin não via o botão que veio aqui
+         usar. Saem a liga, a data e a própria coluna de situação: a última coluna já diz as duas
+         coisas, porque botão significa que falta e o ✓ verde que está pronto. */
+      @media (max-width: 640px) { #uniformesWrap .uni-opt, #uniformesWrap .uni-sit { display: none; } }
+    </style>`;
   _carregarUniformes();
 }
 
@@ -304,6 +311,8 @@ function _pintarUniformes() {
   if (!wrap || !_UNIFORMES) return;
   const lista = _UNIFORMES.uniformes || [];
   const fmt = v => v ? new Date(String(v).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  // Curto porque divide a última coluna com o botão, e no celular é ela que precisa caber.
+  const fmtCurto = v => v ? new Date(String(v).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—';
   const conta = s => lista.filter(u => u.situacao === s).length;
 
   // As seções: os seis fornecedores (mesmo sem venda) e, no fim, quem comprou sem escolher.
@@ -325,9 +334,13 @@ function _pintarUniformes() {
       return `<tr>
         <td style="font-weight:600">${escapeHtml(u.gm)}</td>
         <td>${escapeHtml(u.time || 'sem time')}</td>
-        <td>${u.liga ? `<span class="badge" style="background:var(--panel-3);color:var(--text-2)">${escapeHtml(u.liga)}</span>` : '—'}</td>
-        <td style="white-space:nowrap;color:var(--text-3)">${fmt(u.comprado_em)}</td>
-        <td><span title="${st.dica}" style="color:${st.cor};font-weight:700;font-size:12px;white-space:nowrap">${st.rot}</span></td>
+        <td class="uni-opt">${u.liga ? `<span class="badge" style="background:var(--panel-3);color:var(--text-2)">${escapeHtml(u.liga)}</span>` : '—'}</td>
+        <td class="uni-opt" style="white-space:nowrap;color:var(--text-3)">${fmt(u.comprado_em)}</td>
+        <td class="uni-sit"><span title="${st.dica}" style="color:${st.cor};font-weight:700;font-size:12px;white-space:nowrap">${st.rot}</span></td>
+        <td style="text-align:right">${u.situacao === 'pedido'
+          ? `<button class="btn btn-sm btn-outline-success" style="font-size:11.5px;padding:3px 10px;white-space:nowrap"
+                     onclick="_uniformeFeito(${u.id}, this)"><i class="bi bi-check2 me-1"></i>Feito</button>`
+          : `<span style="font-size:11.5px;color:#22c55e;opacity:.85;white-space:nowrap" title="Marcado como feito em ${escapeHtml(fmt(u.atendido_em))}"><i class="bi bi-check2-circle me-1"></i>${escapeHtml(fmtCurto(u.atendido_em))}</span>`}</td>
       </tr>`;
     }).join('');
     return `
@@ -342,7 +355,7 @@ function _pintarUniformes() {
           ${s.itens.length ? `<button class="btn btn-sm btn-outline-orange" data-uni-copiar="${idx}" onclick="_copiarUniformes(${idx})"><i class="bi bi-clipboard me-1"></i>Copiar lista</button>` : ''}
         </div>
         ${s.itens.length ? `<div style="overflow-x:auto"><table class="table table-sm align-middle mb-0" style="font-size:13px;--bs-table-bg:transparent;--bs-table-color:var(--text);--bs-table-border-color:var(--border)">
-          <thead><tr style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.05em"><th>Usuário</th><th>Time</th><th>Liga</th><th>Comprado em</th><th>Situação</th></tr></thead>
+          <thead><tr style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.05em"><th>Usuário</th><th>Time</th><th class="uni-opt">Liga</th><th class="uni-opt">Comprado em</th><th class="uni-sit">Situação</th><th style="text-align:right">Ação</th></tr></thead>
           <tbody>${linhas}</tbody></table></div>`
           : '<div class="small text-secondary">Nenhum uniforme com este fornecedor.</div>'}
       </div>`;
@@ -353,6 +366,33 @@ function _pintarUniformes() {
   wrap.innerHTML = lista.length
     ? resumo + secoes.map(bloco).join('')
     : '<p class="empty-state">Ninguém comprou uma City Edition ainda.</p>';
+}
+
+/* "FEITO": dá baixa no uniforme sem sair do card — o mesmo que marcar em /loja-pedidos.php.
+   Pergunta antes porque do outro lado o GM passa a ver o pedido como resolvido, e esta tela
+   não tem desfazer. Depois do sim, mexe só na linha e repinta: recarregar a lista inteira
+   faria o admin perder o lugar onde estava no meio de uma leva de uniformes. */
+async function _uniformeFeito(id, btn) {
+  const u = ((_UNIFORMES && _UNIFORMES.uniformes) || []).find(x => x.id === id);
+  const quem = u ? (u.gm + (u.time ? ' (' + u.time + ')' : '')) : 'esse GM';
+  const texto = `Marcar a City Edition de ${quem} como feita?`;
+  const ok = typeof confirmarSite === 'function'
+    ? await confirmarSite(texto, { titulo: 'Uniforme pronto', confirmar: 'Marcar como feito' })
+    : confirm(texto);
+  if (!ok) return;
+  const antes = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    const d = await api('admin.php?action=uniforme_aplicar', { method: 'POST', body: JSON.stringify({ id }) });
+    if (d && d.success === false) throw d;
+    if (u) { u.situacao = 'aplicado'; u.atendido_em = d.atendido_em || u.atendido_em; }
+    _pintarUniformes();
+    if (typeof showAlert === 'function') showAlert('success', d.message || 'Uniforme marcado como feito.');
+  } catch (e) {
+    btn.disabled = false; btn.innerHTML = antes;
+    if (typeof showAlert === 'function') showAlert('danger', e.error || e.message || 'Não deu pra marcar como feito.');
+  }
 }
 
 /* A lista de UM fornecedor em texto, pra mandar pra ele (quem comprou, de qual time e liga). */

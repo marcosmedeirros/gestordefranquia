@@ -3276,6 +3276,47 @@ if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
 
     switch ($action) {
+        /**
+         * "FEITO": o admin dá baixa no uniforme sem sair do card Uniformes comprados.
+         *
+         * É o mesmo lojaAtender() do /loja-pedidos.php — aqui só com o portão do admin do Games
+         * na frente e preso ao item_key 'city_edition', pra esta tela não virar um atalho capaz
+         * de dar baixa em badge ou slot de outra pessoa.
+         */
+        case 'uniforme_aplicar':
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/loja.php';
+            lojaGarantirTabela($pdo);
+            $uniId = (int)($data['id'] ?? 0);
+            $stUni = $pdo->prepare("SELECT id, item_key, usado_em, atendido_em FROM loja_inventario WHERE id = ?");
+            $stUni->execute([$uniId]);
+            $linhaUni = $stUni->fetch(PDO::FETCH_ASSOC);
+            if (!$linhaUni || $linhaUni['item_key'] !== 'city_edition') {
+                echo json_encode(['success' => false, 'error' => 'Esse uniforme não existe mais.']);
+                exit;
+            }
+            if ($linhaUni['atendido_em']) {
+                // Dois admins no mesmo pedido: o segundo não é erro, já estava feito.
+                echo json_encode(['success' => true, 'ja_estava' => true, 'atendido_em' => $linhaUni['atendido_em'],
+                                  'message' => 'Esse uniforme já estava marcado como feito.']);
+                exit;
+            }
+            /* lojaAtender() exige usado_em preenchido (é a fila do admin). Compra antiga que
+               ficou na gaveta entra na fila agora, em vez de o botão falhar sem explicação. */
+            if (empty($linhaUni['usado_em'])) {
+                $pdo->prepare("UPDATE loja_inventario SET usado_em = comprado_em WHERE id = ? AND usado_em IS NULL")
+                    ->execute([$uniId]);
+            }
+            $okUni = lojaAtender($pdo, $uniId, (int)$user['id']);
+            echo json_encode($okUni
+                ? ['success' => true, 'atendido_em' => date('Y-m-d H:i:s'), 'message' => 'Uniforme marcado como feito.']
+                : ['success' => false, 'error' => 'Não deu pra marcar. Atualize a lista e tente de novo.']);
+            exit;
+
         /* CALCULAR O CAP DA LIGA, agora, porque o admin mandou.
            Esta conta já rodava sozinha nas temporadas 3, 5, 7… no momento em
            que o último time salvava o elenco — e o CAP mudava no meio de um
