@@ -77,6 +77,15 @@ function ensureWaiverTables(PDO $pdo): void
     // antigas isso é um erro de sintaxe (silenciosamente ignorado pelo catch), deixando a coluna
     // faltando para sempre e quebrando (sem JSON válido) toda leitura de waiver_claims depois.
     // Por isso checamos a existência via SHOW COLUMNS (waiverColExists), que funciona em qualquer versão.
+    /* A TEMPORADA DO DRAFT TAMBÉM VAI PRA DISPENSA.
+       A fila guardava drafted_by_team_id, draft_round e draft_pick_position, mas não a temporada —
+       e é ela que diz que o jogador veio do draft ANUAL. Quem era calouro, foi dispensado e
+       reivindicado voltava com rodada e pick, sem a temporada: o sistema o lia como Draft Inicial
+       e ele perdia a rookie scale e o Cap Flex, calado. */
+    if (!waiverColExists($pdo, 'waiver_retention', 'drafted_season_number')) {
+        try { $pdo->exec("ALTER TABLE waiver_retention ADD COLUMN drafted_season_number INT NULL"); }
+        catch (Throwable $e) { error_log('[waivers] drafted_season_number: ' . $e->getMessage()); }
+    }
     if (!waiverColExists($pdo, 'waiver_claims', 'bid_space')) {
         try { $pdo->exec("ALTER TABLE waiver_claims ADD COLUMN bid_space INT NULL"); }
         catch (Throwable $e) { error_log('ensureWaiverTables bid_space: ' . $e->getMessage()); }
@@ -108,11 +117,15 @@ function enterWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): in
         if (isset($p[$k]) && $p[$k] !== '') $extras[$k] = $p[$k];
     }
     $temExtras = waiverColExists($pdo, 'waiver_retention', 'extras_json');
+    // A temporada do draft acompanha o resto do carimbo — ver ensureWaiverTables.
+    $temTemporada = waiverColExists($pdo, 'waiver_retention', 'drafted_season_number');
 
     $stmt = $pdo->prepare("INSERT INTO waiver_retention
         (player_id, team_id, league, name, age, position, secondary_position, ovr, seasons_in_league,
-         drafted_by_team_id, draft_round, draft_pick_position, role, expires_at" . ($temExtras ? ', extras_json' : '') . ")
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR)" . ($temExtras ? ', ?' : '') . ")");
+         drafted_by_team_id, draft_round, draft_pick_position, role, expires_at"
+         . ($temTemporada ? ', drafted_season_number' : '') . ($temExtras ? ', extras_json' : '') . ")
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR)"
+         . ($temTemporada ? ', ?' : '') . ($temExtras ? ', ?' : '') . ")");
     $params = [
         $p['id'] ?? null, (int)$p['team_id'], $league, $p['name'], $p['age'] ?? null,
         $p['position'] ?? null, $p['secondary_position'] ?? null, (int)($p['ovr'] ?? 0),
@@ -120,6 +133,7 @@ function enterWaiver(PDO $pdo, array $p, string $league, ?int $horas = null): in
         $p['draft_round'] ?? null, $p['draft_pick_position'] ?? null, $p['role'] ?? 'Titular',
         $horas,
     ];
+    if ($temTemporada) $params[] = $p['drafted_season_number'] ?? null;
     if ($temExtras) $params[] = $extras ? json_encode($extras, JSON_UNESCAPED_UNICODE) : null;
     $stmt->execute($params);
     $id = (int)$pdo->lastInsertId();
@@ -366,13 +380,18 @@ function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
      * Contrato de leilão existe só na Free Agency (`contract_salary`), e lá
      * vale um ano.
      */
+    /* O carimbo do draft volta inteiro, temporada incluída: sem ela o jogador reivindicado
+       seria lido como Draft Inicial e perderia rookie scale e Cap Flex. @see ensureWaiverTables */
+    $temTemporada = array_key_exists('drafted_season_number', $w)
+                 && waiverColExists($pdo, 'players', 'drafted_season_number');
     $pdo->prepare("INSERT INTO players
         (team_id, name, age, position, secondary_position, ovr, seasons_in_league,
-         drafted_by_team_id, draft_round, draft_pick_position, role)
-        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco')")->execute([
+         drafted_by_team_id, draft_round, draft_pick_position, role"
+         . ($temTemporada ? ', drafted_season_number' : '') . ")
+        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco'" . ($temTemporada ? ', ?' : '') . ")")->execute(array_merge([
         $teamId, $w['name'], $w['age'], $w['position'], $w['secondary_position'], (int)$w['ovr'],
         (int)$w['seasons_in_league'], $w['drafted_by_team_id'], $w['draft_round'], $w['draft_pick_position'],
-    ]);
+    ], $temTemporada ? [$w['drafted_season_number']] : []));
 
     /* O PASSADO DELE VOLTA JUNTO. A fila do waiver carrega o contador de
        temporadas, mas não as estatísticas nem as notas — e o id aqui é novo,
@@ -640,6 +659,10 @@ function desfazerDispensa(PDO $pdo, string $origem, int $registroId): array
             $cols['draft_round']         = $r['draft_round'] ?? null;
             $cols['draft_pick_position'] = $r['draft_pick_position'] ?? null;
             $cols['role']                = $r['role'] ?? 'Titular';
+            // Desfazer a dispensa devolve o jogador inteiro, carimbo do draft incluído.
+            if (array_key_exists('drafted_season_number', $r)) {
+                $cols['drafted_season_number'] = $r['drafted_season_number'];
+            }
         }
 
         /* As notas voltam do último registro por temporada, quando existe: a
