@@ -224,10 +224,55 @@ function draftSobrasParaWaiver(PDO $pdo, int $draftSessionId): array
     return $saida;
 }
 
+/**
+ * REDE DE SEGURANÇA DO CARIMBO DO DRAFT.
+ *
+ * Todo jogador escolhido no draft anual precisa de `drafted_season_number`, `draft_round` e
+ * `draft_pick_position`: é por eles que o sistema reconhece o draft anual (Cap Flex, rookie scale,
+ * aviso de posição por aplicar). Cada caminho de escolha grava os três — mas o da fila automática
+ * não gravava, e o David Thompson ficou sem o +5M de Cap Flex (07/11/2026). Qualquer caminho novo
+ * que esqueça de carimbar é pego aqui, quando a sessão fecha: a verdade é a própria sessão
+ * (draft_order → draft_pool), não um palpite.
+ *
+ * Só preenche o que está VAZIO nos três campos; nunca sobrescreve carimbo existente.
+ * Idempotente. Nunca derruba o encerramento do draft.
+ *
+ * @return int quantos jogadores foram carimbados
+ */
+function draftCarimbarSessao(PDO $pdo, int $draftSessionId): int
+{
+    try {
+        $st = $pdo->prepare('UPDATE players p
+                               JOIN draft_pool dp ON dp.name = p.name
+                                                 AND dp.drafted_by_team_id = p.drafted_by_team_id
+                                                 AND dp.draft_status = "drafted"
+                                                 AND p.created_at >= dp.created_at
+                               JOIN draft_order dor ON dor.picked_player_id = dp.id AND dor.draft_session_id = ?
+                               JOIN draft_sessions ds ON ds.id = dor.draft_session_id AND ds.season_id = dp.season_id
+                               JOIN seasons s ON s.id = ds.season_id
+                                SET p.drafted_season_number = s.season_number,
+                                    p.draft_round = dor.round,
+                                    p.draft_pick_position = dor.pick_position
+                              WHERE p.drafted_season_number IS NULL
+                                AND p.draft_round IS NULL
+                                AND p.draft_pick_position IS NULL
+                                AND dor.team_id = p.drafted_by_team_id');
+        $st->execute([$draftSessionId]);
+        $n = $st->rowCount();
+        if ($n > 0) error_log("[draftCarimbarSessao] sessão {$draftSessionId}: {$n} jogador(es) sem carimbo do draft corrigidos");
+        return $n;
+    } catch (Throwable $e) {
+        error_log('[draftCarimbarSessao] ' . $e->getMessage());
+        return 0;
+    }
+}
+
 function draftEncerrarSessao(PDO $pdo, int $draftSessionId): array
 {
     $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
         ->execute([$draftSessionId]);
+
+    draftCarimbarSessao($pdo, $draftSessionId);
 
     /* A VAGA PUNIDA PASSOU: a pena foi paga, e é aqui que ela se dá por
        cumprida. Sem isso a punição ficava aberta pra sempre — o time seguia

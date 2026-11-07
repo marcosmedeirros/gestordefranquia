@@ -218,6 +218,7 @@ function draftAutopickGravar(PDO $pdo, array $session, array $pick, array $jogad
            num draft que já passou por aqui não duplica ninguém. */
         if (!empty($encerrouAgora)) {
             require_once __DIR__ . '/draft_fa.php';
+            draftCarimbarSessao($pdo, $sessionId);   // rede de segurança do carimbo do draft
             draftSobrasParaWaiver($pdo, $sessionId);
             /* E a baixa das penas de pick, pela mesma razão do waiver: este
                caminho encerra a sessão por fora de draftEncerrarSessao() e
