@@ -288,6 +288,54 @@ if ($method === 'GET') {
             exit;
 
         /**
+         * UNIFORMES COMPRADOS (City Edition), pra aba Games do admin: todo uniforme que um GM
+         * comprou na loja, com o GM, o time, a liga e o FORNECEDOR que ele escolheu (é o
+         * fornecedor quem produz). A lista vem plana; quem agrupa é a tela, e os seis
+         * fornecedores vêm junto mesmo sem nenhuma venda, pra a divisão aparecer inteira.
+         * Compra feita antes de existir fornecedor (a de 10.000) vem sem ele.
+         */
+        case 'uniformes_comprados':
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/loja.php';
+            lojaGarantirTabela($pdo);
+            $stUni = $pdo->query("
+                SELECT i.id, i.id_usuario, i.preco_pago, i.fornecedor_id, i.comprado_em, i.usado_em, i.atendido_em,
+                       COALESCE(g.nome, u.name) AS gm,
+                       t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time, t.league
+                  FROM loja_inventario i
+             LEFT JOIN games_usuarios g ON g.id = i.id_usuario
+             LEFT JOIN users u ON u.id = i.id_usuario
+             LEFT JOIN teams t ON t.id = (SELECT MIN(t2.id) FROM teams t2 WHERE t2.user_id = i.id_usuario)
+                 WHERE i.item_key = 'city_edition'
+              ORDER BY i.comprado_em DESC, i.id DESC");
+            $uniformes = [];
+            foreach ($stUni->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $uniformes[] = [
+                    'id' => (int)$r['id'], 'gm' => (string)($r['gm'] ?? '—'), 'time' => (string)($r['time'] ?? ''),
+                    'liga' => (string)($r['league'] ?? ''), 'preco' => (int)$r['preco_pago'],
+                    'fornecedor_id' => $r['fornecedor_id'] !== null ? (int)$r['fornecedor_id'] : null,
+                    'comprado_em' => $r['comprado_em'],
+                    // gaveta = comprou e não resgatou; pedido = resgatou, falta o admin aplicar; aplicado = pronto
+                    'situacao' => $r['atendido_em'] ? 'aplicado' : ($r['usado_em'] ? 'pedido' : 'gaveta'),
+                    'atendido_em' => $r['atendido_em'],
+                ];
+            }
+            $repassesUni = [];
+            try {
+                foreach ($pdo->query("SELECT fornecedor_id, SUM(valor) AS total FROM loja_repasses WHERE item_key = 'city_edition' GROUP BY fornecedor_id")->fetchAll(PDO::FETCH_ASSOC) as $rp) {
+                    $repassesUni[(int)$rp['fornecedor_id']] = (int)$rp['total'];
+                }
+            } catch (Throwable $e) { /* sem a tabela de repasses: segue sem o total */ }
+            $fornUni = [];
+            foreach (lojaFornecedores() as $fid => $fnome) $fornUni[] = ['id' => (int)$fid, 'nome' => $fnome, 'repasses' => $repassesUni[(int)$fid] ?? 0];
+            echo json_encode(['success' => true, 'uniformes' => $uniformes, 'fornecedores' => $fornUni], JSON_UNESCAPED_UNICODE);
+            exit;
+
+        /**
          * O JOGO DA SEMANA QUE ESPERA RESULTADO, liga por liga.
          *
          * Só um por liga aparece: enquanto o da semana passada não tiver

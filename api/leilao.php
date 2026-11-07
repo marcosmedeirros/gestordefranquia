@@ -516,7 +516,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
                 exit;
             }
-            cadastrarLeilaoManual($pdo, $body, $league_id);
+            cadastrarLeilaoManual($pdo, $body, $league_id, (int)$user_id);
             break;
         case 'enviar_proposta':
             enviarProposta($pdo, $body, $team_id, $league_id);
@@ -2586,7 +2586,7 @@ function _executarTrocaLeilao($pdo, $proposta, ?array $overrideItems = null) {
  * o time vendedor, o time vencedor e o que o vencedor enviou (jogadores/picks),
  * e executa a transferência como uma troca — reusando a mesma engine do aceite.
  */
-function cadastrarLeilaoManual($pdo, $body, $league_id) {
+function cadastrarLeilaoManual($pdo, $body, $league_id, int $adminId = 0) {
     $sellerTeamId   = (int)($body['seller_team_id'] ?? 0);
     $winnerTeamId   = (int)($body['winner_team_id'] ?? 0);
     $playerId       = (int)($body['auctioned_player_id'] ?? 0);
@@ -2598,6 +2598,8 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
     $extraPlayers   = array_values(array_unique(array_map('intval', $body['extra_player_ids'] ?? [])));
     $extraPicks     = array_values(array_unique(array_map('intval', $body['extra_pick_ids'] ?? [])));
     $obs            = trim((string)($body['obs'] ?? ''));
+    // De qual time descontar o slot de leilão (0 = de ninguém). O admin escolhe na tela; o padrão dela é o vendedor.
+    $slotTeamId     = (int)($body['slot_team_id'] ?? 0);
 
     if (!$sellerTeamId || !$winnerTeamId || !$playerId) {
         echo json_encode(['success' => false, 'error' => 'Informe o time vendedor, o jogador leiloado e o time vencedor.']);
@@ -2689,6 +2691,21 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
         $leagueIdResolved = $lst->fetchColumn() ?: null;
     }
 
+    /* O TIME DO SLOT precisa ser da mesma liga do leilão. A tabela do inventário é criada
+       aqui, ANTES da transação: DDL comita sozinho. */
+    $slotTime = null;
+    if ($slotTeamId > 0) {
+        $stSlot = $pdo->prepare("SELECT id, user_id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome FROM teams WHERE id = ? AND league = ?");
+        $stSlot->execute([$slotTeamId, $leagueName]);
+        $slotTime = $stSlot->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$slotTime) {
+            echo json_encode(['success' => false, 'error' => 'O time do slot precisa ser da mesma liga do leilão.']);
+            return;
+        }
+        require_once __DIR__ . '/../backend/loja.php';
+        lojaGarantirTabela($pdo);
+    }
+
     $pdo->beginTransaction();
     try {
         // Leilão finalizado manualmente
@@ -2737,8 +2754,35 @@ function cadastrarLeilaoManual($pdo, $body, $league_id) {
         ];
         _executarTrocaLeilao($pdo, $proposta);
 
+        /* O SLOT: o leilão aconteceu, então o time escolhido gasta um slot de leilão (o mais antigo em
+           aberto, a mesma regra do bot). Sem slot — ou sem GM —, NADA é descontado e o admin recebe o
+           aviso; o registro não é barrado, porque o leilão já rolou no WhatsApp e a troca tem que
+           constar. Dentro da transação: se a troca falhar, o slot não é gasto. */
+        $slotInfo = ['descontado' => false, 'time' => $slotTime['nome'] ?? null, 'aviso' => null];
+        if ($slotTime) {
+            if (empty($slotTime['user_id'])) {
+                $slotInfo['aviso'] = $slotTime['nome'] . ' não tem GM cadastrado — nenhum slot foi descontado.';
+            } else {
+                $stS = $pdo->prepare("SELECT id FROM loja_inventario
+                                        WHERE id_usuario = ? AND item_key = 'slot_leilao' AND atendido_em IS NULL
+                                     ORDER BY comprado_em ASC, id ASC LIMIT 1 FOR UPDATE");
+                $stS->execute([(int)$slotTime['user_id']]);
+                $slotId = (int)($stS->fetchColumn() ?: 0);
+                if ($slotId > 0) {
+                    $pdo->prepare("UPDATE loja_inventario SET atendido_em = NOW(), atendido_por = ?, obs = ? WHERE id = ?")
+                        ->execute([$adminId ?: null, mb_substr('Leilão cadastrado pelo admin (#' . $leilaoId . ')', 0, 250), $slotId]);
+                    $slotInfo['descontado'] = true;
+                } else {
+                    $slotInfo['aviso'] = $slotTime['nome'] . ' não tinha slot de leilão — nenhum slot foi descontado.';
+                }
+            }
+        }
+
         $pdo->commit();
-        echo json_encode(['success' => true, 'message' => 'Leilão cadastrado e troca executada com sucesso.', 'leilao_id' => $leilaoId]);
+        $msg = 'Leilão cadastrado e troca executada com sucesso.';
+        if ($slotInfo['descontado']) $msg .= ' Slot de leilão de ' . $slotInfo['time'] . ' descontado.';
+        elseif ($slotInfo['aviso']) $msg .= ' ⚠️ ' . $slotInfo['aviso'];
+        echo json_encode(['success' => true, 'message' => $msg, 'leilao_id' => $leilaoId, 'slot' => $slotInfo]);
     } catch (Throwable $e) {
         // rollBack sem transação vira erro fatal e esconde o motivo real.
         if ($pdo->inTransaction()) $pdo->rollBack();

@@ -73,6 +73,7 @@ async function showGamesAdmin() {
      todo dia, por causa de algo que se usa de vez em quando. */
   const atalhos = [
     { fn: 'showEventosAdmin()',               icone: 'bi-calendar-event-fill', titulo: 'Eventos',      desc: 'As apostas que os GMs criam: declarar resultado, cancelar e devolver' },
+    { fn: 'showUniformesAdmin()',             icone: 'bi-palette-fill',        titulo: 'Uniformes comprados', desc: 'City Edition: quem comprou, de qual time e liga, dividido por fornecedor' },
     { url: '/admin-apostas.php',              icone: 'bi-graph-up-arrow', titulo: 'Apostas',           desc: 'Criar eventos, acompanhar palpites e encerrar pagando os acertos' },
     { url: '/games/admin/dadosjogadores.php', icone: 'bi-database-fill',  titulo: 'Base de Jogadores', desc: 'Banco de jogadores que alimenta os jogos' },
     { url: '/admin-games-controle.php',       icone: 'bi-toggles',        titulo: 'Controle de Jogos', desc: 'Ligar pontuação em dobro por jogo' },
@@ -241,6 +242,132 @@ async function showGamesAdmin() {
   _carregarLeilaoSemana();
   _carregarSlotsLive();
   _carregarPagamentoSemana();
+}
+
+/* ── Uniformes comprados (City Edition) ──────────────────────────────────
+ *
+ * Todo uniforme que um GM comprou na loja, dividido pelo FORNECEDOR que ele escolheu —
+ * é o fornecedor quem produz, então é por ele que a lista se lê. Cada GM aparece com o
+ * nome, o time e a liga; a situação diz se o uniforme ainda está na gaveta, se foi
+ * resgatado (esperando o admin) ou se já foi aplicado. Compra anterior à escolha de
+ * fornecedor (a de 10.000) cai em "Sem fornecedor". O resgate e o "marcar aplicado"
+ * continuam em Pedidos da Loja.
+ */
+let _UNIFORMES = null;
+const _UNI_SITUACAO = {
+  gaveta:   { rot: 'Na gaveta',             cor: '#94a3b8', dica: 'Comprou e ainda não resgatou' },
+  pedido:   { rot: 'Aguardando aplicar',    cor: '#f59e0b', dica: 'Resgatou: falta o admin aplicar' },
+  aplicado: { rot: 'Aplicado',              cor: '#22c55e', dica: 'O admin já marcou como aplicado' },
+};
+
+function showUniformesAdmin() {
+  appState.view = 'uniformes';
+  updateBreadcrumb();
+  document.getElementById('mainContainer').innerHTML = `
+    <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <button class="btn btn-back" onclick="showGamesAdmin()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <a href="/loja-pedidos.php" class="btn btn-sm btn-outline-orange"><i class="bi bi-box-seam me-1"></i>Pedidos da loja</a>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarUniformes()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title" style="margin-bottom:0"><i class="bi bi-palette-fill" style="color:#fc0025"></i> Uniformes comprados</div>
+          <div class="panel-sub">City Edition comprada na loja, por fornecedor</div>
+        </div>
+      </div>
+      <div id="uniformesWrap" class="text-center py-3"><div class="spinner-border text-orange"></div></div>
+    </div>`;
+  _carregarUniformes();
+}
+
+async function _carregarUniformes() {
+  const wrap = document.getElementById('uniformesWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="spinner-border text-orange"></div>';
+  try {
+    const d = await api('admin.php?action=uniformes_comprados');
+    _UNIFORMES = d;
+    _pintarUniformes();
+  } catch (e) {
+    wrap.innerHTML = `<p class="empty-state">${escapeHtml(e.error || e.message || 'Não deu pra carregar os uniformes.')}</p>`;
+  }
+}
+
+function _pintarUniformes() {
+  const wrap = document.getElementById('uniformesWrap');
+  if (!wrap || !_UNIFORMES) return;
+  const lista = _UNIFORMES.uniformes || [];
+  const fmt = v => v ? new Date(String(v).replace(' ', 'T')).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const conta = s => lista.filter(u => u.situacao === s).length;
+
+  // As seções: os seis fornecedores (mesmo sem venda) e, no fim, quem comprou sem escolher.
+  const secoes = (_UNIFORMES.fornecedores || []).map(f => ({
+    nome: f.nome, repasses: f.repasses, itens: lista.filter(u => u.fornecedor_id === f.id),
+  }));
+  const semForn = lista.filter(u => !secoes.some(s => s.itens.includes(u)));
+  if (semForn.length) secoes.push({ nome: 'Sem fornecedor', nota: 'comprados antes de existir a escolha de fornecedor', repasses: 0, itens: semForn });
+
+  const resumo = `
+    <div class="d-flex flex-wrap gap-2 mb-3" style="font-size:12.5px">
+      <span class="badge" style="background:var(--panel-3);color:var(--text)">${lista.length} comprado${lista.length === 1 ? '' : 's'}</span>
+      ${Object.entries(_UNI_SITUACAO).map(([k, s]) => `<span class="badge" title="${s.dica}" style="background:color-mix(in srgb, ${s.cor} 16%, transparent);color:${s.cor}">${conta(k)} ${s.rot.toLowerCase()}</span>`).join('')}
+    </div>`;
+
+  const bloco = (s, idx) => {
+    const linhas = s.itens.map(u => {
+      const st = _UNI_SITUACAO[u.situacao];
+      return `<tr>
+        <td style="font-weight:600">${escapeHtml(u.gm)}</td>
+        <td>${escapeHtml(u.time || 'sem time')}</td>
+        <td>${u.liga ? `<span class="badge" style="background:var(--panel-3);color:var(--text-2)">${escapeHtml(u.liga)}</span>` : '—'}</td>
+        <td style="white-space:nowrap;color:var(--text-3)">${fmt(u.comprado_em)}</td>
+        <td><span title="${st.dica}" style="color:${st.cor};font-weight:700;font-size:12px;white-space:nowrap">${st.rot}</span></td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div>
+            <span class="fw-bold" style="font-size:15px"><i class="bi bi-person-badge me-1" style="color:#fc0025"></i>${escapeHtml(s.nome)}</span>
+            <span class="badge ms-1" style="background:var(--panel-3);color:var(--text)">${s.itens.length} uniforme${s.itens.length === 1 ? '' : 's'}</span>
+            ${s.repasses ? `<span class="small text-secondary ms-1">· recebeu ${s.repasses.toLocaleString('pt-BR')} FBA Points</span>` : ''}
+            ${s.nota ? `<span class="small text-secondary ms-1">· ${escapeHtml(s.nota)}</span>` : ''}
+          </div>
+          ${s.itens.length ? `<button class="btn btn-sm btn-outline-orange" data-uni-copiar="${idx}" onclick="_copiarUniformes(${idx})"><i class="bi bi-clipboard me-1"></i>Copiar lista</button>` : ''}
+        </div>
+        ${s.itens.length ? `<div style="overflow-x:auto"><table class="table table-sm align-middle mb-0" style="font-size:13px;--bs-table-bg:transparent;--bs-table-color:var(--text);--bs-table-border-color:var(--border)">
+          <thead><tr style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.05em"><th>Usuário</th><th>Time</th><th>Liga</th><th>Comprado em</th><th>Situação</th></tr></thead>
+          <tbody>${linhas}</tbody></table></div>`
+          : '<div class="small text-secondary">Nenhum uniforme com este fornecedor.</div>'}
+      </div>`;
+  };
+
+  _UNIFORMES._secoes = secoes;
+  wrap.className = '';
+  wrap.innerHTML = lista.length
+    ? resumo + secoes.map(bloco).join('')
+    : '<p class="empty-state">Ninguém comprou uma City Edition ainda.</p>';
+}
+
+/* A lista de UM fornecedor em texto, pra mandar pra ele (quem comprou, de qual time e liga). */
+async function _copiarUniformes(idx) {
+  const s = (_UNIFORMES && _UNIFORMES._secoes || [])[idx];
+  if (!s) return;
+  const texto = [`City Edition — ${s.nome} (${s.itens.length})`, '']
+    .concat(s.itens.map(u => `• ${u.gm} — ${u.time || 'sem time'}${u.liga ? ' (' + u.liga + ')' : ''}`)).join('\n');
+  let ok = false;
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(texto); ok = true; } } catch (e) { /* cai no caminho velho */ }
+  if (!ok) {
+    const c = document.createElement('textarea'); c.value = texto; c.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(c); c.select();
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    c.remove();
+  }
+  const btn = document.querySelector(`[data-uni-copiar="${idx}"]`);
+  if (btn) { btn.innerHTML = ok ? '<i class="bi bi-check2 me-1"></i>Copiado!' : 'Não deu pra copiar'; setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar lista'; }, 2000); }
 }
 
 /* ── Eventos: as apostas que os GMs criam em /games ─────────────────────
@@ -2625,6 +2752,7 @@ function updateBreadcrumb() {
       ranking:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>'; return 'Rankings Globais'; },
       faadmin:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>'; return 'Free Agency'; },
       eventos:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Eventos</li>'; return 'Eventos'; },
+      uniformes:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Uniformes</li>'; return 'Uniformes comprados'; },
       punicoes:     () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Punições</li>'; return 'Punições'; },
       coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
       tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Badges</li>'; return 'Badges'; },
@@ -13602,6 +13730,12 @@ async function desfazerDispensa(registroId, nome, origem) {
    normal, deixando o leilão no histórico como finalizado. */
 let _leilaoManualLiga = null;
 let _leilaoManualTimes = [];
+// Slots de leilão por time (team_id => {pendentes, usados, gm...}), carregados com o modal.
+let _leilaoManualSlots = {};
+// O admin mexeu no "de qual time descontar o slot"? Enquanto não, ele acompanha o vendedor.
+let _leilaoManualSlotMexido = false;
+// O que o último registro avisou (slot sem saldo, etc.): a tela do leilão mostra uma vez, em faixa.
+let _leilaoManualAviso = null;
 
 function ensureLeilaoManualModal() {
   if (document.getElementById('leilaoManualModal')) return;
@@ -13634,11 +13768,19 @@ async function _leilaoManualAbrir(league) {
   new bootstrap.Modal(document.getElementById('leilaoManualModal')).show();
   const body = document.getElementById('leilaoManualBody');
   body.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  _leilaoManualSlotMexido = false;
   try {
-    const d = await api(`admin.php?action=teams&league=${encodeURIComponent(league)}`);
+    const [d, sl] = await Promise.all([
+      api(`admin.php?action=teams&league=${encodeURIComponent(league)}`),
+      api(`leilao.php?action=slots_leilao&league=${encodeURIComponent(league)}`).catch(() => null),
+    ]);
     _leilaoManualTimes = (d.teams || d || []).slice().sort((a, b) =>
       (_leilaoManualNomeTime(a)).localeCompare(_leilaoManualNomeTime(b)));
+    // Sem os slots (falha na consulta) o registro segue: só some a prévia do saldo.
+    _leilaoManualSlots = sl && sl.success !== false ? Object.fromEntries((sl.slots || []).map(s => [String(s.team_id), s])) : null;
     const opts = '<option value="">Selecione...</option>' + _leilaoManualTimes
+      .map(t => `<option value="${t.id}">${escapeHtml(_leilaoManualNomeTime(t))}</option>`).join('');
+    const optsSlot = '<option value="0">Não descontar de ninguém</option>' + _leilaoManualTimes
       .map(t => `<option value="${t.id}">${escapeHtml(_leilaoManualNomeTime(t))}</option>`).join('');
     body.innerHTML = `
       <div class="row g-3">
@@ -13653,6 +13795,11 @@ async function _leilaoManualAbrir(league) {
         <div class="col-12 col-md-6">
           <label class="form-label text-white-50" style="font-size:12px">Time que arrematou</label>
           <select class="form-select form-select-sm" id="lmVencedor" onchange="_leilaoManualCarregarLado('vencedor')">${opts}</select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label text-white-50" style="font-size:12px">Descontar o slot de leilão de qual time?</label>
+          <select class="form-select form-select-sm" id="lmSlotTime" onchange="_leilaoManualSlotMexido = true; _leilaoManualSlotStatus()">${optsSlot}</select>
+          <div id="lmSlotStatus" style="font-size:12px;margin-top:4px;color:var(--text-3)">Escolha o time que vendeu: o slot dele é o sugerido.</div>
         </div>
         <div class="col-12">
           <label class="form-label text-white-50" style="font-size:12px">O que o vencedor pagou</label>
@@ -13683,9 +13830,30 @@ function _leilaoManualNomeTime(t) {
   return ((t.city || '') + ' ' + (t.name || '')).trim() || ('Time #' + t.id);
 }
 
+/* Diz, embaixo do campo, se o time escolhido tem slot de leilão pra gastar. É a prévia do aviso:
+   sem slot o registro continua possível, mas nada é descontado — e o admin vê isso ANTES de salvar. */
+function _leilaoManualSlotStatus() {
+  const sel = document.getElementById('lmSlotTime');
+  const out = document.getElementById('lmSlotStatus');
+  if (!sel || !out) return;
+  const id = sel.value;
+  if (!id || id === '0') { out.style.color = 'var(--text-3)'; out.textContent = 'Nenhum slot será descontado.'; return; }
+  if (_leilaoManualSlots === null) { out.style.color = 'var(--text-3)'; out.textContent = 'Não deu pra consultar os slots agora; o servidor confere ao registrar.'; return; }
+  const s = _leilaoManualSlots[String(id)];
+  const pend = s ? Number(s.pendentes) || 0 : 0;
+  if (!s || !s.user_id) { out.style.color = '#f59e0b'; out.textContent = '⚠️ Esse time não tem GM cadastrado: não há slot pra descontar.'; return; }
+  if (pend > 0) { out.style.color = '#22c55e'; out.textContent = `Tem ${pend} slot${pend > 1 ? 's' : ''} de leilão — 1 será descontado.`; return; }
+  out.style.color = '#f59e0b'; out.textContent = '⚠️ Esse time NÃO tem slot de leilão disponível. Dá pra registrar mesmo assim, mas nada será descontado.';
+}
+
 async function _leilaoManualCarregarLado(lado) {
   const vendedor = lado === 'vendedor';
   const teamId = document.getElementById(vendedor ? 'lmVendedor' : 'lmVencedor').value;
+  // O slot é, em regra, de quem vendeu: acompanha o vendedor até o admin escolher outro.
+  if (vendedor && !_leilaoManualSlotMexido) {
+    const sl = document.getElementById('lmSlotTime');
+    if (sl) { sl.value = teamId || '0'; _leilaoManualSlotStatus(); }
+  }
   const select = vendedor ? document.getElementById('lmJogador') : null;
   const caixa  = document.getElementById(vendedor ? 'lmExtras' : 'lmPagamento');
   const vazio  = vendedor
@@ -13763,7 +13931,8 @@ async function _leilaoManualSalvar() {
     offered_pick_ids: marcados.filter(i => i.dataset.tipo === 'pick').map(i => parseInt(i.value, 10)),
     extra_player_ids: extras.filter(i => i.dataset.tipo === 'player').map(i => parseInt(i.value, 10)),
     extra_pick_ids: extras.filter(i => i.dataset.tipo === 'pick').map(i => parseInt(i.value, 10)),
-    obs: el('lmObs').value.trim()
+    obs: el('lmObs').value.trim(),
+    slot_team_id: parseInt(el('lmSlotTime')?.value, 10) || 0
   };
   if (!corpo.seller_team_id || !corpo.winner_team_id || !corpo.auctioned_player_id) {
     return mostrar('Informe o time que vendeu, o jogador leiloado e o time que arrematou.');
@@ -13772,11 +13941,32 @@ async function _leilaoManualSalvar() {
     return mostrar('Marque ao menos um jogador ou pick que o vencedor pagou.');
   }
 
+  /* Sem slot pra descontar o registro ainda é possível (o leilão aconteceu, o admin só está
+     lançando), mas ele precisa saber disso ANTES de confirmar — por isso a pergunta. */
+  let semSlot = '';
+  if (!corpo.slot_team_id) {
+    semSlot = 'Você não escolheu nenhum time para descontar o slot de leilão.';
+  } else if (_leilaoManualSlots) {
+    const s = _leilaoManualSlots[String(corpo.slot_team_id)];
+    const nome = (s && (s.time || s.nome)) || 'Esse time';
+    if (!s || !s.user_id) semSlot = `${nome} não tem GM cadastrado, então não há slot para descontar.`;
+    else if (!(Number(s.pendentes) > 0)) semSlot = `${nome} não tem slot de leilão disponível.`;
+  }
+  if (semSlot) {
+    const texto = semSlot + ' O leilão será registrado mesmo assim, sem descontar nenhum slot. Continuar?';
+    const ok = typeof confirmarSite === 'function'
+      ? await confirmarSite(texto, { titulo: 'Sem slot de leilão', confirmar: 'Registrar mesmo assim' })
+      : confirm(texto);
+    if (!ok) return;
+  }
+
   btn.disabled = true;
   try {
     const d = await api('leilao.php', { method: 'POST', body: JSON.stringify(corpo) });
     if (d && d.success === false) throw d;
     bootstrap.Modal.getInstance(document.getElementById('leilaoManualModal'))?.hide();
+    // O servidor confere o slot de novo na hora; se divergir da prévia, o aviso dele vale.
+    if (typeof showAlert === 'function' && d && d.message) showAlert(d.slot && d.slot.aviso ? 'warning' : 'success', d.message);
     showLeilaoAdmin(_leilaoManualLiga);
   } catch (e) {
     mostrar(e.error || e.message || 'Erro ao registrar o leilão.');
