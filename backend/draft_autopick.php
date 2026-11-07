@@ -171,10 +171,23 @@ function draftAutopickGravar(PDO $pdo, array $session, array $pick, array $jogad
         $chk = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
         $chk->execute([$teamId, $jogador['name']]);
         if (!$chk->fetchColumn()) {
+            /* O CARIMBO DO DRAFT: temporada, rodada e posição da escolha — o mesmo que
+               make_pick, fill_past_pick e draft_edicao gravam. Este INSERT não gravava
+               nenhum dos três, e é por eles que o resto do sistema reconhece quem veio do
+               draft ANUAL: sem o carimbo o jogador não gerava Cap Flex (o David Thompson,
+               92 de OVR, 2º do draft da T9 pelo Cleveland, ficou sem o +5M) nem rookie
+               scale, e a tática nem avisava que a posição dele estava por aplicar.
+               Só a escolha automática (fila do mock) caía aqui. */
+            $sn = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+            $sn->execute([(int)$session['season_id']]);
+            $temporadaDoDraft = $sn->fetchColumn();
             $pdo->prepare('INSERT INTO players
-                (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade)
-                VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                ->execute([$teamId, $teamId, $jogador['name'], $jogador['position'],
+                (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position,
+                 name, position, age, ovr, role, available_for_trade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                ->execute([$teamId, $teamId, $temporadaDoDraft === false ? null : (int)$temporadaDoDraft,
+                           (int)$pick['round'], (int)$pick['pick_position'],
+                           $jogador['name'], $jogador['position'],
                            (int)$jogador['age'], (int)$jogador['ovr']]);
         }
 
