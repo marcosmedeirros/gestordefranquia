@@ -160,10 +160,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
             $lojaMsg = !empty($r['aplicado'])
                 ? 'Comprado e já aplicado no seu time — não precisa resgatar nem esperar aprovação.'
                 : 'Comprado! O item está em Meus itens.';
-            // City Edition: diz pra quem foi o dinheiro e o que fazer agora.
+            /* City Edition: diz pra quem foi o dinheiro e o que fazer agora. Não manda mais
+               pra "Meus itens": o pedido já nasce na fila da organização, porque o GM escolheu
+               o fornecedor na própria compra. @see 'pedido_automatico' em backend/loja.php */
             if (!empty($r['fornecedor'])) {
                 $lojaMsg = 'Comprado! ' . number_format((int)$r['repasse'], 0, ',', '.') . ' FBA Points foram direto pra '
-                         . $r['fornecedor'] . '. O uniforme está em Meus itens — fale com ele e clique em Usar pra avisar a organização.';
+                         . $r['fornecedor'] . ', e a organização já recebeu o pedido. Agora é combinar o uniforme com ele.';
             }
         } else { $lojaErro = $r['erro']; }
     } elseif ($acao === 'usar') {

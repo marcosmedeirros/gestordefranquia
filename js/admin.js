@@ -254,10 +254,13 @@ async function showGamesAdmin() {
  * continuam em Pedidos da Loja.
  */
 let _UNIFORMES = null;
+/* DUAS SITUAÇÕES, NÃO TRÊS. Havia uma "na gaveta" (comprou e não resgatou) separada de
+   "aguardando aplicar", e na prática eram a mesma coisa: em ambas o GM pagou e está
+   esperando o uniforme. A compra agora já entra na fila (ver 'pedido_automatico' em
+   backend/loja.php), então o que resta é: falta fazer, ou já foi feito. */
 const _UNI_SITUACAO = {
-  gaveta:   { rot: 'Na gaveta',             cor: '#94a3b8', dica: 'Comprou e ainda não resgatou' },
-  pedido:   { rot: 'Aguardando aplicar',    cor: '#f59e0b', dica: 'Resgatou: falta o admin aplicar' },
-  aplicado: { rot: 'Aplicado',              cor: '#22c55e', dica: 'O admin já marcou como aplicado' },
+  pedido:   { rot: 'Falta aplicar', cor: '#f59e0b', dica: 'Comprou e está esperando — o admin ainda não marcou como aplicado' },
+  aplicado: { rot: 'Aplicado',      cor: '#22c55e', dica: 'O admin já marcou como aplicado' },
 };
 
 function showUniformesAdmin() {

@@ -319,8 +319,10 @@ if ($method === 'GET') {
                     'liga' => (string)($r['league'] ?? ''), 'preco' => (int)$r['preco_pago'],
                     'fornecedor_id' => $r['fornecedor_id'] !== null ? (int)$r['fornecedor_id'] : null,
                     'comprado_em' => $r['comprado_em'],
-                    // gaveta = comprou e não resgatou; pedido = resgatou, falta o admin aplicar; aplicado = pronto
-                    'situacao' => $r['atendido_em'] ? 'aplicado' : ($r['usado_em'] ? 'pedido' : 'gaveta'),
+                    /* Só duas: falta aplicar ou aplicado. O "comprou mas não resgatou" era uma
+                       terceira situação que não dizia nada de diferente pra quem olha esta tela —
+                       nos dois casos o GM pagou e espera o uniforme. @see 'pedido_automatico' */
+                    'situacao' => $r['atendido_em'] ? 'aplicado' : 'pedido',
                     'atendido_em' => $r['atendido_em'],
                 ];
             }

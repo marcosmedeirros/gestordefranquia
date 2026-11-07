@@ -78,6 +78,10 @@ function lojaCatalogo(): array
             'desc'  => 'Um uniforme City Edition para a sua franquia. Você escolhe o fornecedor: 1.000 dos 5.000 vão direto pra ele.',
             'limite' => ['qtd' => 1, 'por' => 'sempre'],
             'fornecedor' => ['repasse' => 1000],
+            /* Já nasce pedido: o GM escolhe o fornecedor NA COMPRA, então não sobra nada pra ele
+               decidir depois. O "resgatar" era um clique a mais que só servia pra deixar o
+               uniforme parado numa gaveta que ninguém via — nem o admin, nem o fornecedor. */
+            'pedido_automatico' => true,
         ],
     ];
 }
@@ -433,6 +437,15 @@ if (!function_exists('lojaComprar')) {
              * inteira volta atrás e o GM não fica sem os pontos e sem o slot.
              */
             $aplicado = lojaAplicarAutomatico($pdo, $userId, $itemKey, $inventarioId);
+
+            /* ITEM SEM NADA A DECIDIR JÁ ENTRA NA FILA DO ADMIN.
+               O ciclo completo (comprado → resgatado → atendido) só faz sentido pra quem precisa
+               escolher algo depois, como a badge, que pede o jogador. A City Edition não: o
+               fornecedor foi escolhido na compra. @see 'pedido_automatico' no catálogo */
+            if (!$aplicado && !empty($item['pedido_automatico'])) {
+                $pdo->prepare("UPDATE loja_inventario SET usado_em = NOW()
+                                WHERE id = ? AND usado_em IS NULL")->execute([$inventarioId]);
+            }
 
             $st = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = ?");
             $st->execute([$userId]);
