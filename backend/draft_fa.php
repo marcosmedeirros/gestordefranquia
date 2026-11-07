@@ -230,6 +230,13 @@ function draftSobrasParaWaiver(PDO $pdo, int $draftSessionId): array
  * Todo jogador escolhido no draft anual precisa de `drafted_season_number`, `draft_round` e
  * `draft_pick_position`: é por eles que o sistema reconhece o draft anual (Cap Flex, rookie scale,
  * aviso de posição por aplicar). Cada caminho de escolha grava os três — mas o da fila automática
+ *
+ * O ALCANCE MUDA POR LIGA, e isso importa na hora de medir estrago: só a ELITE tem folha em
+ * dinheiro (`cap_mode = 'salary'`), e só lá o carimbo mexe em cap — Cap Flex e rookie scale.
+ * NEXT e RISE usam soma de OVR, e o Cap + delas nem lê o carimbo (olha `draft_pool` por nome,
+ * ver restrictedEligibleOvrs); a ROOKIE não tem bônus de cap nenhum. Nessas três o carimbo só
+ * acende a tag de calouro e o aviso de posição por aplicar. Carimbar é certo em todas — o dado
+ * é a verdade do draft —, mas "subiu X M de folha" só existe na ELITE.
  * não gravava, e o David Thompson ficou sem o +5M de Cap Flex (07/11/2026). Qualquer caminho novo
  * que esqueça de carimbar é pego aqui, quando a sessão fecha: a verdade é a própria sessão
  * (draft_order → draft_pool), não um palpite.
