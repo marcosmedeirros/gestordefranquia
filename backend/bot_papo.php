@@ -286,6 +286,76 @@ if (!function_exists('papoInstrucoes')) {
     }
 }
 
+if (!function_exists('papoEhSoReacao')) {
+    /**
+     * Isto é reação, não conversa?
+     *
+     * "kkkkkkkkkkkkkk", "😂", "verdade", "até ele sabe" — o grupo reage à fala do
+     * bot do mesmo jeito que reage à fala de qualquer um, e nada disso é pergunta.
+     * Responder a risada é o jeito mais rápido de um bot virar chato: ele fica com
+     * a última palavra sempre, e o assunto nunca morre.
+     *
+     * Visto em 09/11/2026, no primeiro dia: o Murilo riu, o bot respondeu; ele
+     * comentou "até ele sabe", o bot emendou outra piada. Duas falas seguidas do
+     * bot numa conversa que era entre as pessoas.
+     */
+    function papoEhSoReacao(string $texto): bool
+    {
+        $t = mb_strtolower(trim($texto));
+        if ($t === '') return true;
+
+        // Fora emoji, pontuação e espaço — o que sobra é o que foi dito de fato.
+        $semEmoji = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE00}-\x{FE0F}\x{2190}-\x{21FF}\x{2B00}-\x{2BFF}\x{1F1E6}-\x{1F1FF}\x{200D}]/u', '', $t);
+        $so = trim(preg_replace('/[\s\.,!\?\-_"\x{2026}]+/u', '', $semEmoji));
+        if ($so === '') return true;                       // só emoji ou só pontuação
+
+        // Risada em qualquer dialeto do grupo: kkkk, KKKK, kakaka, hahaha, rsrs, huehue.
+        if (preg_match('/^(k+|(ka)+k*|(ha)+h*|(he)+h*|(hu)+e*h*|(rs)+|(hs)+)$/u', $so)) return true;
+
+        /* Interjeição e concordância. Lista curta e literal de propósito: o que não
+           estiver aqui passa, porque calar demais é pior que falar demais — o bot
+           que não responde quando chamam vira bot quebrado aos olhos do grupo. */
+        $reacoes = [
+            'verdade', 'vdd', 'fato', 'isso', 'eisso', 'exato', 'exatamente', 'concordo',
+            'sim', 'nao', 'ata', 'aham', 'top', 'boa', 'show', 'massa', 'eita', 'eitaa',
+            'pprt', 'kk', 'kkk', 'rs', 'ué', 'ue', 'uai', 'oxe', 'oxi', 'affs', 'aff',
+            'pqp', 'kct', 'slk', 'mds', 'real', 'realmente', 'obvio', 'óbvio', 'claro',
+            'poisé', 'pois é', 'poise', 'vish', 'vixe', 'ihhh', 'ih', 'opa', 'certo',
+            'blz', 'beleza', 'valeu', 'vlw', 'obrigado', 'obg', 'amem', 'amém', 'bom',
+        ];
+        if (in_array($so, $reacoes, true)) return true;
+
+        // "kkkk verdade", "kkkkk fato" — risada grudada numa dessas também é reação.
+        $semRisada = trim(preg_replace('/\b(k{2,}|(ka){2,}k*|(ha){2,}h*|(rs){2,})\b/u', '', $so));
+        if ($semRisada === '' || in_array($semRisada, $reacoes, true)) return true;
+
+        return false;
+    }
+}
+
+if (!function_exists('papoMereceResposta')) {
+    /**
+     * Vale a pena o bot abrir a boca?
+     *
+     * Duas réguas, e a diferença entre elas é a intenção de quem escreveu.
+     *
+     *  - MARCOU O BOT (@): a pessoa chamou. Basta não ser risada nem emoji solto.
+     *  - RESPONDEU o bot: aí ela pode estar só comentando com o grupo, e a fala do
+     *    bot é só o contexto. Exige sinal de que a frase é pra ele: uma pergunta,
+     *    ou pelo menos quatro palavras. "até ele sabe" não passa; "e o meu time,
+     *    presta?" passa.
+     */
+    function papoMereceResposta(string $texto, bool $viaMencao): bool
+    {
+        if (papoEhSoReacao($texto)) return false;
+        if ($viaMencao) return true;
+
+        $t = trim($texto);
+        if (str_contains($t, '?')) return true;
+        return count(preg_split('/\s+/', $t, -1, PREG_SPLIT_NO_EMPTY)) >= 4;
+    }
+}
+
 if (!function_exists('papoTextoCitado')) {
     /** O texto da mensagem que foi respondida, se houver. */
     function papoTextoCitado(array $m): string
@@ -363,10 +433,11 @@ if (!function_exists('papoResponder')) {
      * @param string      $citada  a mensagem do bot que ele respondeu, se houver
      */
     function papoResponder(PDO $pdo, string $liga, string $texto, string $digitos,
-                           string $grupoJid, string $citada = ''): ?string
+                           string $grupoJid, string $citada = '', bool $viaMencao = true): ?string
     {
         $texto = trim($texto);
         if ($texto === '' || !papoLigado($liga)) return null;
+        if (!papoMereceResposta($texto, $viaMencao)) return null;   // risada e reação não são pergunta
         if (!editalIaLigada()) return null;
         if (!papoDentroDoLimite($pdo, $grupoJid)) {
             error_log('[papo] cota da hora estourada no grupo ' . $grupoJid);

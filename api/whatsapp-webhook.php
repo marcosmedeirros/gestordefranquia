@@ -654,7 +654,10 @@ foreach ($mensagens as $m) {
         require_once __DIR__ . '/../backend/bot_papo.php';
         $ligaAqui = $gruposPermitidos[$de]['liga'] ?? null;
         if (!papoGrupoLiberado($pdo, $de, $ligaAqui)) continue;
-        if (!wcMarcaramOBot($m, $texto, $idsDoBot) && !papoResponderamAoPapo($pdo, $m, $idsDoBot, $de)) continue;
+        /* Marcar o bot e responder o bot não valem o mesmo: quem marca está falando
+           COM ele; quem responde pode estar só comentando com o grupo. @see papoMereceResposta */
+        $papoViaMencao = wcMarcaramOBot($m, $texto, $idsDoBot);
+        if (!$papoViaMencao && !papoResponderamAoPapo($pdo, $m, $idsDoBot, $de)) continue;
         $gatilho = 'papo';
     }
 
@@ -725,7 +728,7 @@ foreach ($mensagens as $m) {
            lugar do nome (ver wcAplicarApelidos). */
         $resposta = papoResponder($pdo, $gruposPermitidos[$de]['liga'] ?? '',
                                   trim(preg_replace('/@\d{8,20}/', '', $texto)),
-                                  wcDigitos($deQuem), $de, papoTextoCitado($m));
+                                  wcDigitos($deQuem), $de, papoTextoCitado($m), $papoViaMencao);
         if ($resposta === null || $resposta === '') continue;   // sem resposta: silêncio
         whatsappEnfileirar($pdo, $de, $resposta, true, 'comando', null, null, $deQuem, 'papo');
         $respondidas++;
