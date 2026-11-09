@@ -610,7 +610,10 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
    Bônus de teto por jogador elegível, com a régua de cada liga em
    RESTRICTED_REGRAS logo abaixo. Hoje:
 
-     RISE  +2 por elegível de 90 ou mais, até dois jogadores (+2 a +4).
+     RISE  +2 por elegível de 92 ou mais, até dois jogadores (+2 a +4).
+           O piso era 90 até 09/11/2026, quando a administração igualou ao da
+           NEXT. O que muda é só quem entra na conta: o valor e o limite de
+           dois jogadores seguem os mesmos.
      NEXT  +4 por um elegível de 92 ou mais, UM por time — e nem lenda nem
            quem veio do Draft Inicial conta. Enxugada em 24/09/2026.
 
@@ -657,8 +660,12 @@ const RESTRICTED_REGRAS = [
        nova é "passou de 92, vale 4", sem degrau acima disso. */
     'NEXT' => ['padrao' => 4, 'estrela' => 4, 'conta_lenda' => false,
                'ovr_minimo' => 92, 'max_jogadores' => 1, 'conta_draft_inicial' => false],
+    /* O piso subiu de 90 pra 92 em 09/11/2026, por decisão da administração.
+       Três times ficaram acima do teto no mesmo dia (Athens, Santa Monica e
+       Albuquerque, por 1, 2 e 1 de OVR) — é consequência da régua nova, não
+       efeito colateral: eram tetos que dependiam de um 90 ou 91 elegível. */
     'RISE' => ['padrao' => 2, 'estrela' => 2, 'conta_lenda' => false,
-               'ovr_minimo' => 90, 'max_jogadores' => 2, 'conta_draft_inicial' => true],
+               'ovr_minimo' => 92, 'max_jogadores' => 2, 'conta_draft_inicial' => true],
 ];
 
 /**
@@ -802,8 +809,8 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
 /**
  * Quanto um jogador elegível vale de Cap +, pelo OVR dele e pela liga.
  *
- * Na RISE os dois valores são 2, então o 95+ não vale mais que o 90 — é a
- * régua da liga, e não um esquecimento.
+ * Na RISE os dois valores são 2, então o 95+ não vale mais que o 92 do piso
+ * — é a régua da liga, e não um esquecimento.
  */
 function restrictedBonusDoOvr(int $ovr, string $league = 'NEXT'): int
 {
