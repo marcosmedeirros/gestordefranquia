@@ -502,6 +502,25 @@ $currentDraftOverallNumber = null; $nextDraftOverallNumber = null;
 if ($currentDraftPick && $initDraftTeamsPerRound > 0) $currentDraftOverallNumber = (($currentDraftPick['round'] - 1) * $initDraftTeamsPerRound) + $currentDraftPick['pick_position'];
 if ($nextDraftPick && $initDraftTeamsPerRound > 0) $nextDraftOverallNumber = (($nextDraftPick['round'] - 1) * $initDraftTeamsPerRound) + $nextDraftPick['pick_position'];
 
+/*
+ * A FILA DE QUEM FAZ OS UNIFORMES.
+ *
+ * Carregado só pra quem é fornecedor: a lista mora em código
+ * (lojaFornecedores) e o teste é um isset, então quem não produz uniforme não
+ * paga nem uma query por isso.
+ *
+ * Existe porque o pedido de City Edition só aparecia no card do admin, em
+ * /admin → Games → Uniformes. Quem tinha que DESENHAR o uniforme não via nada
+ * em lugar nenhum — descobria pelo WhatsApp, se alguém lembrasse de avisar.
+ */
+require_once __DIR__ . '/backend/loja.php';
+$uniFornecedor = [];
+$uniPendentes = 0;
+if (isset(lojaFornecedores()[(int)$user['id']])) {
+    $uniFornecedor = lojaUniformesDoFornecedor($pdo, (int)$user['id']);
+    foreach ($uniFornecedor as $u) if ($u['situacao'] === 'pendente') $uniPendentes++;
+}
+
 $capPct = $capMax > 0 ? min(100, round(($teamCap / $capMax) * 100)) : 0;
 $tradesPct = $maxTrades > 0 ? min(100, round(($tradesCount / $maxTrades) * 100)) : 0;
 $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 100)) : 0;
@@ -1011,6 +1030,44 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
            acompanha. O vermelho aqui é o --red da marca, não um #ef4444 solto
            — no tema claro o mesmo hex ficava lavado sobre fundo branco. */
         .live-card { border-color: var(--border-red); }
+
+        /* ── Uniformes pra fazer (card do fornecedor) ── */
+        .unif-card { border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
+        .unif-conta { font-size: 11px; font-weight: 700; color: var(--amber);
+                      background: color-mix(in srgb, var(--amber) 12%, transparent);
+                      border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+        .unif-lista { display: flex; flex-direction: column; gap: 8px; }
+        .unif-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+                    background: var(--panel-2); border: 1px solid var(--border);
+                    border-radius: var(--radius-sm); }
+        .unif-row.e-pendente { border-color: color-mix(in srgb, var(--amber) 25%, transparent); }
+        .unif-row.e-aplicado { opacity: .6; }
+        .unif-logo { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+        .unif-info { flex: 1; min-width: 0; }
+        .unif-time { font-size: 13.5px; font-weight: 700; overflow: hidden;
+                     text-overflow: ellipsis; white-space: nowrap; }
+        .unif-gm { font-size: 11.5px; color: var(--text-3); overflow: hidden;
+                   text-overflow: ellipsis; white-space: nowrap; }
+        .unif-btn { border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer;
+                    font-family: var(--font); font-size: 11.5px; font-weight: 700;
+                    color: #1a1205; background: var(--amber); white-space: nowrap;
+                    transition: filter var(--t) var(--ease); }
+        .unif-btn:hover { filter: brightness(1.08); }
+        .unif-btn:disabled { opacity: .55; cursor: default; }
+        .unif-tag { font-size: 10px; font-weight: 700; letter-spacing: .5px;
+                    text-transform: uppercase; padding: 5px 10px; border-radius: 999px;
+                    white-space: nowrap; }
+        .unif-tag.t-feito { color: var(--blue); background: rgba(59,130,246,.12); }
+        .unif-tag.t-aplicado { color: var(--green); background: rgba(34,197,94,.12); }
+        .unif-nota { font-size: 11.5px; color: var(--text-3); margin-top: 10px; line-height: 1.5; }
+        /* No celular o botão não disputa espaço com o nome do time: desce
+           inteiro pra linha de baixo, que é onde o dedo acerta. */
+        @media (max-width: 640px) {
+            .unif-row { flex-wrap: wrap; }
+            .unif-info { flex: 1 1 100%; order: 2; }
+            .unif-logo { order: 1; }
+            .unif-btn, .unif-tag { order: 3; flex: 1 1 100%; text-align: center; }
+        }
         .live-hora {
             font-size: 15px; font-weight: 800; color: var(--red);
             font-variant-numeric: tabular-nums;
@@ -1728,6 +1785,110 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
+
+
+                <?php if ($uniFornecedor): ?>
+                <!-- ── Uniformes pra fazer (só pra quem produz) ── -->
+                <div class="bc span-3 unif-card" id="uniformes-fornecedor" style="animation-delay:.18s">
+                    <div class="bc-head">
+                        <div class="bc-title">
+                            <i class="bi bi-palette-fill" style="color:var(--amber)"></i>
+                            Uniformes pra você fazer
+                        </div>
+                        <?php if ($uniPendentes > 0): ?>
+                        <span class="unif-conta"><?= $uniPendentes ?> na fila</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="bc-body">
+                        <div class="unif-lista">
+                            <?php foreach ($uniFornecedor as $u):
+                                $quando = tempoRelativoCurto($u['comprado_em']);
+                                /* tempoRelativoCurto vira DATA depois de uma semana ("20/10"),
+                                   e "pedido há 20/10" não é português. */
+                                $comoFoi = $quando === '' ? ''
+                                         : (str_contains($quando, '/') ? ' · pedido em ' . $quando
+                                                                       : ' · pedido há ' . $quando);
+                                $linha = trim(($u['gm'] ?? '') . ($u['liga'] !== '' ? ' · ' . $u['liga'] : '') . $comoFoi);
+                            ?>
+                            <div class="unif-row e-<?= $u['situacao'] ?>" data-pedido="<?= (int)$u['id'] ?>">
+                                <img class="unif-logo" src="<?= htmlspecialchars(getTeamPhoto($u['logo'])) ?>"
+                                     alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="unif-info">
+                                    <div class="unif-time"><?= htmlspecialchars($u['time'] !== '' ? $u['time'] : $u['gm']) ?></div>
+                                    <div class="unif-gm"><?= htmlspecialchars($linha) ?></div>
+                                </div>
+                                <?php if ($u['situacao'] === 'pendente'): ?>
+                                <button type="button" class="unif-btn"
+                                        data-time="<?= htmlspecialchars($u['time'] !== '' ? $u['time'] : $u['gm']) ?>">
+                                    Confirmar que fiz
+                                </button>
+                                <?php elseif ($u['situacao'] === 'feito'): ?>
+                                <span class="unif-tag t-feito">feito · aguarda a liga</span>
+                                <?php else: ?>
+                                <span class="unif-tag t-aplicado">aplicado</span>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="unif-nota">
+                            <?php if ($uniPendentes > 0): ?>
+                            Combine o desenho com o GM e, quando entregar, confirme aqui — o GM é avisado
+                            na hora e a organização aplica no site.
+                            <?php else: ?>
+                            Nada na fila. Quando alguém comprar uma City Edition com você, aparece aqui e
+                            você recebe um aviso.
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                /* Um handler no card inteiro, e não um por botão: a lista é
+                   redesenhada depois de cada confirmação, e listener preso em
+                   botão morreria junto com o botão trocado. */
+                document.getElementById('uniformes-fornecedor')?.addEventListener('click', async (ev) => {
+                    const btn = ev.target.closest('.unif-btn');
+                    if (!btn || btn.disabled) return;
+                    const row = btn.closest('.unif-row');
+                    const id = parseInt(row?.dataset.pedido || '0', 10);
+                    if (!id) return;
+
+                    const ok = await confirmarSite(
+                        'Confirmar que o uniforme do ' + (btn.dataset.time || 'time') + ' está feito?' +
+                        ' O GM vai ser avisado de que ficou pronto.',
+                        { titulo: 'Uniforme feito', confirmar: 'Sim, está feito' }
+                    );
+                    if (!ok) return;
+
+                    btn.disabled = true;
+                    const antes = btn.textContent;
+                    btn.textContent = 'Salvando…';
+                    try {
+                        const r = await fetch('/api/uniforme-feito.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id })
+                        });
+                        const j = await r.json();
+                        if (!j.success) throw new Error(j.error || 'Não deu pra marcar.');
+                        /* Troca só a linha: recarregar a página inteira pra mudar um
+                           selo tira o fornecedor do lugar onde ele estava lendo. */
+                        row.classList.remove('e-pendente');
+                        row.classList.add('e-feito');
+                        btn.outerHTML = '<span class="unif-tag t-feito">feito · aguarda a liga</span>';
+                        const conta = document.querySelector('#uniformes-fornecedor .unif-conta');
+                        if (conta) {
+                            const n = Math.max(0, parseInt(conta.textContent, 10) - 1);
+                            if (n > 0) conta.textContent = n + ' na fila'; else conta.remove();
+                        }
+                        avisarSite('Marcado como feito. O GM foi avisado.', 'ok', 'Pronto');
+                    } catch (e) {
+                        btn.disabled = false;
+                        btn.textContent = antes;
+                        avisarSite(e.message || 'Não deu pra marcar agora.', 'erro', 'Erro');
+                    }
+                });
+                </script>
                 <?php endif; ?>
 
 

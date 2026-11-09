@@ -250,13 +250,29 @@ if (!function_exists('lojaGarantirTabela')) {
             INDEX idx_dono (id_usuario, usado_em),
             INDEX idx_fila (usado_em, atendido_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        // Quem produz o item (City Edition): a tabela já existia sem esta coluna.
-        try {
-            if (!$pdo->query("SHOW COLUMNS FROM loja_inventario LIKE 'fornecedor_id'")->fetch()) {
-                $pdo->exec("ALTER TABLE loja_inventario ADD COLUMN fornecedor_id INT NULL AFTER obs");
+        /*
+         * COLUNAS QUE NASCERAM DEPOIS DA TABELA.
+         *
+         * `fornecedor_id` é quem produz o item (City Edition).
+         *
+         * `feito_em`/`feito_por` são do FORNECEDOR, e não se confundem com
+         * `atendido_em`: "feito" é o fornecedor dizendo que desenhou o uniforme,
+         * "atendido" é a organização dizendo que aplicou no site. São duas
+         * pessoas e dois momentos — juntar os dois num campo só apagaria
+         * justamente a espera que o GM quer acompanhar.
+         */
+        foreach ([
+            'fornecedor_id' => 'INT NULL AFTER obs',
+            'feito_em'      => 'DATETIME NULL AFTER fornecedor_id',
+            'feito_por'     => 'INT NULL AFTER feito_em',
+        ] as $coluna => $tipo) {
+            try {
+                if (!$pdo->query("SHOW COLUMNS FROM loja_inventario LIKE '{$coluna}'")->fetch()) {
+                    $pdo->exec("ALTER TABLE loja_inventario ADD COLUMN {$coluna} {$tipo}");
+                }
+            } catch (Throwable $e) {
+                error_log('[loja] coluna ' . $coluna . ': ' . $e->getMessage());
             }
-        } catch (Throwable $e) {
-            error_log('[loja] coluna fornecedor_id: ' . $e->getMessage());
         }
         // O rastro do dinheiro que saiu do comprador e entrou no fornecedor, uma linha por repasse.
         $pdo->exec("CREATE TABLE IF NOT EXISTS loja_repasses (
@@ -452,6 +468,12 @@ if (!function_exists('lojaComprar')) {
             $saldo = (int)$st->fetchColumn();
 
             $pdo->commit();
+
+            /* SÓ DEPOIS DO COMMIT: o fornecedor não pode ser avisado de uma compra
+               que ainda pode voltar atrás. E a função engole os próprios erros —
+               push que não sai não desfaz uniforme que foi pago. */
+            if ($fornecedorId) lojaAvisarFornecedor($pdo, $fornecedorId, $userId, $itemKey);
+
             return ['ok' => true, 'erro' => null, 'saldo' => $saldo, 'aplicado' => $aplicado,
                     'fornecedor' => $fornecedorId ? (lojaFornecedores()[$fornecedorId] ?? null) : null, 'repasse' => $repasse];
         } catch (Throwable $e) {
@@ -792,5 +814,184 @@ if (!function_exists('adminAjustarBadges')) {
             ->execute([$quem, $marca]);
 
         return $alvo;
+    }
+}
+
+
+if (!function_exists('lojaAvisarFornecedor')) {
+    /**
+     * Avisa o fornecedor, na hora, que um time comprou uniforme com ele.
+     *
+     * O pedido existia desde 06/11, mas só aparecia no card do admin em
+     * /admin → Games → Uniformes. O fornecedor — que é quem faz o trabalho e
+     * quem recebeu os 1.000 pontos — não tinha como saber que havia pedido:
+     * dependia de alguém lembrar de chamar ele no WhatsApp.
+     *
+     * Vai por sendPushToUser, que manda push do navegador E WhatsApp pra quem
+     * ligou o opt-in. SEM tipo de catálogo de propósito: isto não é novidade
+     * da liga que dá pra silenciar, é ordem de serviço de quem foi pago.
+     *
+     * NUNCA LANÇA. É chamada depois do commit da compra; uma exceção aqui
+     * viraria "não deu pra concluir a compra" numa compra que já concluiu.
+     */
+    function lojaAvisarFornecedor(PDO $pdo, int $fornecedorId, int $compradorId, string $itemKey): void
+    {
+        try {
+            if ($fornecedorId <= 0) return;
+            require_once __DIR__ . '/push.php';
+            $catalogo = lojaCatalogo();
+            $nomeItem = $catalogo[$itemKey]['nome'] ?? 'item da loja';
+
+            $st = $pdo->prepare("SELECT COALESCE(g.nome, u.name) AS gm,
+                                        TRIM(CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,''))) AS time,
+                                        t.league
+                                   FROM users u
+                              LEFT JOIN games_usuarios g ON g.id = u.id
+                              LEFT JOIN teams t ON t.id = (SELECT MIN(t2.id) FROM teams t2 WHERE t2.user_id = u.id)
+                                  WHERE u.id = ? LIMIT 1");
+            $st->execute([$compradorId]);
+            $c = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            $gm   = trim((string)($c['gm'] ?? '')) ?: 'Um GM';
+            $time = trim((string)($c['time'] ?? ''));
+            $liga = trim((string)($c['league'] ?? ''));
+
+            /* O corpo diz TIME, GM e liga porque é isso que o fornecedor precisa
+               pra começar: sem o time ele não sabe que escudo desenhar, e sem o
+               nome não sabe com quem combinar. */
+            $quem = $time !== '' ? $time . ' (' . $gm . ($liga !== '' ? ' · ' . $liga : '') . ')' : $gm;
+
+            sendPushToUser($pdo, $fornecedorId, [
+                'title' => '🎽 Pedido de ' . $nomeItem,
+                'body'  => $quem . ' comprou um uniforme com você. Combine o desenho e marque como feito no painel.',
+                'url'   => '/dashboard.php#uniformes-fornecedor',
+            ]);
+        } catch (Throwable $e) {
+            error_log('[loja] avisar fornecedor ' . $fornecedorId . ': ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('lojaUniformesDoFornecedor')) {
+    /**
+     * A fila de trabalho de um fornecedor: os uniformes comprados com ele.
+     *
+     * Devolve os pendentes primeiro (o que ele ainda tem pra fazer) e, atrás,
+     * os já entregues — saber que o anterior foi aplicado é o que evita a
+     * pergunta "e aquele que eu fiz?" no WhatsApp.
+     *
+     * ENGOLE ERRO E DEVOLVE LISTA VAZIA: isto roda no dashboard, que é a
+     * primeira tela de todo mundo. Nenhum card vale derrubar a home.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    function lojaUniformesDoFornecedor(PDO $pdo, int $fornecedorId): array
+    {
+        if ($fornecedorId <= 0) return [];
+        try {
+            lojaGarantirTabela($pdo);
+            $st = $pdo->prepare("
+                SELECT i.id, i.comprado_em, i.feito_em, i.atendido_em,
+                       COALESCE(g.nome, u.name) AS gm,
+                       TRIM(CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,''))) AS time,
+                       t.league, t.photo_url
+                  FROM loja_inventario i
+             LEFT JOIN games_usuarios g ON g.id = i.id_usuario
+             LEFT JOIN users u ON u.id = i.id_usuario
+             LEFT JOIN teams t ON t.id = (SELECT MIN(t2.id) FROM teams t2 WHERE t2.user_id = i.id_usuario)
+                 WHERE i.item_key = 'city_edition' AND i.fornecedor_id = ?
+           -- Pendente no topo (o que ele tem pra fazer), depois o que espera a liga,
+              -- e o que ja fechou por ultimo.
+              ORDER BY (i.feito_em IS NOT NULL OR i.atendido_em IS NOT NULL),
+                       (i.atendido_em IS NOT NULL), i.comprado_em ASC, i.id ASC");
+            $st->execute([$fornecedorId]);
+
+            $saida = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $saida[] = [
+                    'id'          => (int)$r['id'],
+                    'gm'          => trim((string)($r['gm'] ?? '')) ?: '—',
+                    'time'        => trim((string)($r['time'] ?? '')),
+                    'liga'        => (string)($r['league'] ?? ''),
+                    'logo'        => $r['photo_url'] ?? null,
+                    'comprado_em' => $r['comprado_em'],
+                    'feito_em'    => $r['feito_em'],
+                    'atendido_em' => $r['atendido_em'],
+                    // pendente → ele faz; feito → espera o admin; aplicado → fechou.
+                    'situacao'    => $r['atendido_em'] ? 'aplicado' : ($r['feito_em'] ? 'feito' : 'pendente'),
+                ];
+            }
+            return $saida;
+        } catch (Throwable $e) {
+            error_log('[loja] uniformes do fornecedor ' . $fornecedorId . ': ' . $e->getMessage());
+            return [];
+        }
+    }
+}
+
+if (!function_exists('lojaFornecedorConfirmarFeito')) {
+    /**
+     * O fornecedor marca que produziu o uniforme.
+     *
+     * O WHERE carrega o fornecedor E o "ainda não feito": sem o fornecedor, um
+     * id chutado assinaria o trabalho de outro; sem o `feito_em IS NULL`, dois
+     * cliques seguidos reescreveriam a data e mandariam dois avisos.
+     *
+     * NÃO marca `atendido_em`. Quem aplica no site é a organização, e deixar o
+     * fornecedor fechar o pedido inteiro tiraria da fila do admin um uniforme
+     * que ainda não subiu em lugar nenhum.
+     *
+     * @return array{ok:bool,erro:?string}
+     */
+    function lojaFornecedorConfirmarFeito(PDO $pdo, int $fornecedorId, int $inventarioId): array
+    {
+        if ($fornecedorId <= 0 || $inventarioId <= 0) return ['ok' => false, 'erro' => 'Pedido inválido.'];
+        try {
+            lojaGarantirTabela($pdo);
+            $up = $pdo->prepare("UPDATE loja_inventario
+                                    SET feito_em = NOW(), feito_por = ?
+                                  WHERE id = ? AND fornecedor_id = ? AND item_key = 'city_edition'
+                                    AND feito_em IS NULL");
+            $up->execute([$fornecedorId, $inventarioId, $fornecedorId]);
+            if ($up->rowCount() === 0) {
+                return ['ok' => false, 'erro' => 'Esse pedido não é seu ou já estava marcado como feito.'];
+            }
+            lojaAvisarUniformePronto($pdo, $inventarioId, $fornecedorId);
+            return ['ok' => true, 'erro' => null];
+        } catch (Throwable $e) {
+            error_log('[loja] confirmar feito ' . $inventarioId . ': ' . $e->getMessage());
+            return ['ok' => false, 'erro' => 'Não deu pra marcar agora.'];
+        }
+    }
+}
+
+if (!function_exists('lojaAvisarUniformePronto')) {
+    /**
+     * Avisa o GM que o uniforme dele ficou pronto.
+     *
+     * Só o comprador é avisado. Os dez admins da liga não: o card de Uniformes
+     * já mostra "feito" pra quem abre a tela, e dez pushes por uniforme seria
+     * barulho que ninguém leria na terceira vez.
+     *
+     * Nunca lança — a marcação de "feito" já está gravada quando isto roda.
+     */
+    function lojaAvisarUniformePronto(PDO $pdo, int $inventarioId, int $fornecedorId): void
+    {
+        try {
+            require_once __DIR__ . '/push.php';
+            $st = $pdo->prepare("SELECT id_usuario FROM loja_inventario WHERE id = ? LIMIT 1");
+            $st->execute([$inventarioId]);
+            $comprador = (int)($st->fetchColumn() ?: 0);
+            if ($comprador <= 0) return;
+
+            $forn = lojaFornecedores()[$fornecedorId] ?? 'O fornecedor';
+            sendPushToUser($pdo, $comprador, [
+                'title' => '🎽 City Edition pronta',
+                'body'  => $forn . ' marcou seu uniforme como feito. Agora é a organização aplicar no site.',
+                'url'   => '/games.php?aba=loja',
+            ]);
+        } catch (Throwable $e) {
+            error_log('[loja] avisar uniforme pronto ' . $inventarioId . ': ' . $e->getMessage());
+        }
     }
 }

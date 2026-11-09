@@ -258,8 +258,12 @@ let _UNIFORMES = null;
    "aguardando aplicar", e na prática eram a mesma coisa: em ambas o GM pagou e está
    esperando o uniforme. A compra agora já entra na fila (ver 'pedido_automatico' em
    backend/loja.php), então o que resta é: falta fazer, ou já foi feito. */
+/* Cada situação diz DE QUEM é a vez. "Com o fornecedor" não é atraso do admin:
+   é uniforme que ainda não foi desenhado, e marcar aplicado antes disso seria
+   dizer que subiu uma arte que não existe. */
 const _UNI_SITUACAO = {
-  pedido:   { rot: 'Falta aplicar', cor: '#f59e0b', dica: 'Comprou e está esperando — o admin ainda não marcou como aplicado' },
+  pedido:   { rot: 'Com o fornecedor', cor: '#f59e0b', dica: 'O fornecedor ainda não confirmou que fez o uniforme' },
+  feito:    { rot: 'Feito, falta aplicar', cor: '#3b82f6', dica: 'O fornecedor confirmou que entregou — falta o admin aplicar no site' },
   aplicado: { rot: 'Aplicado',      cor: '#22c55e', dica: 'O admin já marcou como aplicado' },
 };
 
@@ -337,10 +341,10 @@ function _pintarUniformes() {
         <td class="uni-opt">${u.liga ? `<span class="badge" style="background:var(--panel-3);color:var(--text-2)">${escapeHtml(u.liga)}</span>` : '—'}</td>
         <td class="uni-opt" style="white-space:nowrap;color:var(--text-3)">${fmt(u.comprado_em)}</td>
         <td class="uni-sit"><span title="${st.dica}" style="color:${st.cor};font-weight:700;font-size:12px;white-space:nowrap">${st.rot}</span></td>
-        <td style="text-align:right">${u.situacao === 'pedido'
+        <td style="text-align:right">${u.situacao !== 'aplicado'
           ? `<button class="btn btn-sm btn-outline-success" style="font-size:11.5px;padding:3px 10px;white-space:nowrap"
-                     onclick="_uniformeFeito(${u.id}, this)"><i class="bi bi-check2 me-1"></i>Feito</button>`
-          : `<span style="font-size:11.5px;color:#22c55e;opacity:.85;white-space:nowrap" title="Marcado como feito em ${escapeHtml(fmt(u.atendido_em))}"><i class="bi bi-check2-circle me-1"></i>${escapeHtml(fmtCurto(u.atendido_em))}</span>`}</td>
+                     onclick="_uniformeAplicar(${u.id}, this)"><i class="bi bi-check2 me-1"></i>Aplicar</button>`
+          : `<span style="font-size:11.5px;color:#22c55e;opacity:.85;white-space:nowrap" title="Aplicado em ${escapeHtml(fmt(u.atendido_em))}"><i class="bi bi-check2-circle me-1"></i>${escapeHtml(fmtCurto(u.atendido_em))}</span>`}</td>
       </tr>`;
     }).join('');
     return `
@@ -368,16 +372,20 @@ function _pintarUniformes() {
     : '<p class="empty-state">Ninguém comprou uma City Edition ainda.</p>';
 }
 
-/* "FEITO": dá baixa no uniforme sem sair do card — o mesmo que marcar em /loja-pedidos.php.
+/* "APLICAR": dá baixa no uniforme sem sair do card — o mesmo que marcar em /loja-pedidos.php.
+   Não se confunde com o "feito" do FORNECEDOR, que é o desenho entregue: aqui é a
+   organização dizendo que o uniforme subiu no site. Dá pra aplicar antes do fornecedor
+   confirmar (acertaram por fora, por exemplo), mas o aviso diz quando esse é o caso.
    Pergunta antes porque do outro lado o GM passa a ver o pedido como resolvido, e esta tela
    não tem desfazer. Depois do sim, mexe só na linha e repinta: recarregar a lista inteira
    faria o admin perder o lugar onde estava no meio de uma leva de uniformes. */
-async function _uniformeFeito(id, btn) {
+async function _uniformeAplicar(id, btn) {
   const u = ((_UNIFORMES && _UNIFORMES.uniformes) || []).find(x => x.id === id);
   const quem = u ? (u.gm + (u.time ? ' (' + u.time + ')' : '')) : 'esse GM';
-  const texto = `Marcar a City Edition de ${quem} como feita?`;
+  const texto = `Marcar a City Edition de ${quem} como aplicada no site?`
+    + (u && u.situacao === 'pedido' ? ' Atenção: o fornecedor ainda não confirmou que fez o uniforme.' : '');
   const ok = typeof confirmarSite === 'function'
-    ? await confirmarSite(texto, { titulo: 'Uniforme pronto', confirmar: 'Marcar como feito' })
+    ? await confirmarSite(texto, { titulo: 'Aplicar uniforme', confirmar: 'Marcar como aplicado' })
     : confirm(texto);
   if (!ok) return;
   const antes = btn.innerHTML;
@@ -388,10 +396,10 @@ async function _uniformeFeito(id, btn) {
     if (d && d.success === false) throw d;
     if (u) { u.situacao = 'aplicado'; u.atendido_em = d.atendido_em || u.atendido_em; }
     _pintarUniformes();
-    if (typeof showAlert === 'function') showAlert('success', d.message || 'Uniforme marcado como feito.');
+    if (typeof showAlert === 'function') showAlert('success', d.message || 'Uniforme marcado como aplicado.');
   } catch (e) {
     btn.disabled = false; btn.innerHTML = antes;
-    if (typeof showAlert === 'function') showAlert('danger', e.error || e.message || 'Não deu pra marcar como feito.');
+    if (typeof showAlert === 'function') showAlert('danger', e.error || e.message || 'Não deu pra marcar como aplicado.');
   }
 }
 

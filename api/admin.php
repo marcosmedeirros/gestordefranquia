@@ -303,7 +303,8 @@ if ($method === 'GET') {
             require_once dirname(__DIR__) . '/backend/loja.php';
             lojaGarantirTabela($pdo);
             $stUni = $pdo->query("
-                SELECT i.id, i.id_usuario, i.preco_pago, i.fornecedor_id, i.comprado_em, i.usado_em, i.atendido_em,
+                SELECT i.id, i.id_usuario, i.preco_pago, i.fornecedor_id, i.comprado_em, i.usado_em,
+                       i.feito_em, i.atendido_em,
                        COALESCE(g.nome, u.name) AS gm,
                        t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time, t.league
                   FROM loja_inventario i
@@ -319,10 +320,12 @@ if ($method === 'GET') {
                     'liga' => (string)($r['league'] ?? ''), 'preco' => (int)$r['preco_pago'],
                     'fornecedor_id' => $r['fornecedor_id'] !== null ? (int)$r['fornecedor_id'] : null,
                     'comprado_em' => $r['comprado_em'],
-                    /* Só duas: falta aplicar ou aplicado. O "comprou mas não resgatou" era uma
-                       terceira situação que não dizia nada de diferente pra quem olha esta tela —
-                       nos dois casos o GM pagou e espera o uniforme. @see 'pedido_automatico' */
-                    'situacao' => $r['atendido_em'] ? 'aplicado' : 'pedido',
+                    /* Três situações, e cada uma diz de quem é a vez: 'pedido' espera o
+                       FORNECEDOR desenhar, 'feito' espera o ADMIN aplicar, 'aplicado' fechou.
+                       O "comprou mas não resgatou" não está aqui — era uma quarta que não
+                       dizia nada de diferente. @see 'pedido_automatico' */
+                    'situacao' => $r['atendido_em'] ? 'aplicado' : (!empty($r['feito_em']) ? 'feito' : 'pedido'),
+                    'feito_em' => $r['feito_em'] ?? null,
                     'atendido_em' => $r['atendido_em'],
                 ];
             }
@@ -3302,7 +3305,7 @@ if ($method === 'POST') {
             if ($linhaUni['atendido_em']) {
                 // Dois admins no mesmo pedido: o segundo não é erro, já estava feito.
                 echo json_encode(['success' => true, 'ja_estava' => true, 'atendido_em' => $linhaUni['atendido_em'],
-                                  'message' => 'Esse uniforme já estava marcado como feito.']);
+                                  'message' => 'Esse uniforme já estava marcado como aplicado.']);
                 exit;
             }
             /* lojaAtender() exige usado_em preenchido (é a fila do admin). Compra antiga que
@@ -3313,7 +3316,7 @@ if ($method === 'POST') {
             }
             $okUni = lojaAtender($pdo, $uniId, (int)$user['id']);
             echo json_encode($okUni
-                ? ['success' => true, 'atendido_em' => date('Y-m-d H:i:s'), 'message' => 'Uniforme marcado como feito.']
+                ? ['success' => true, 'atendido_em' => date('Y-m-d H:i:s'), 'message' => 'Uniforme marcado como aplicado.']
                 : ['success' => false, 'error' => 'Não deu pra marcar. Atualize a lista e tente de novo.']);
             exit;
 
