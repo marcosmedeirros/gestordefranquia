@@ -4302,7 +4302,8 @@ async function showLeague(league) {
       // temporada antiga, só não tem mais atalho.
       // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
       // existindo (showScheduler), só não têm mais atalho no card.
-      { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      // O Controle de Drafts saiu daqui a pedido. A tela (/controledrafts.php) e a função
+      // abrirControleDrafts continuam existindo, só não têm mais card na aba da liga.
       // Letras e estatísticas da liga inteira por CSV, time a time ou todos.
       { icon: 'bi-table',                   label: 'Editar<br>Stats',            fn: `abrirControleElencos('${league}')`,    color: '#22c55e', bg: 'rgba(34,197,94,.12)'   },
       /* A LOTERIA ENTRA AQUI, e não na tela da loteria.
