@@ -205,6 +205,10 @@ logar("relay no ar: $SITE (juntando por {$JANELA}s, 1 envio a cada {$INTERV}s)")
 
 $falhas = 0;
 $isolar = false;   // true: manda um por vez até achar o evento que o site rejeita
+/* Quantos eventos sozinhos precisam passar pro relay desconfiar que não há culpado
+   nenhum e voltar a juntar. @see o bloco do 2xx, que explica por que isto existe. */
+const RELAY_OK_PARA_VOLTAR_AO_LOTE = 10;
+$okIsolados = 0;   // sucessos seguidos mandando um por vez
 
 while (true) {
     $arqs = listar($SPOOL);
@@ -260,9 +264,25 @@ while (true) {
     if ($st >= 200 && $st < 300) {
         foreach ($paths as $p) @unlink($p);
         $falhas = 0;
-        // Só volta a juntar quando um LOTE inteiro passa. Um evento sozinho que
-        // passou não prova nada: o culpado ainda pode estar logo atrás dele.
-        if ($n > 1) $isolar = false;
+        /* SAIR DO "UM POR VEZ" TEM QUE SER POSSÍVEL SOZINHO.
+           A regra era: só volta a juntar quando um lote inteiro passa — porque um
+           evento sozinho que passou não prova que o culpado sumiu, ele pode estar
+           logo atrás. Só que em modo isolado o relay manda SEMPRE 1, então a
+           condição `$n > 1` nunca podia acontecer: uma vez isolado, isolado pra
+           sempre. Em 09/11/2026 ele ficou preso assim e empatou com a entrada
+           (1 evento por POST a cada 4s, entrando 1 a cada 4s): 411 eventos parados
+           e ~27 min de atraso em qualquer comando, sem um único erro no log.
+           Agora uma sequência de sucessos sozinhos também libera. Se o culpado
+           ainda estiver na fila, o próximo lote falha e o isolamento volta — custa
+           um POST, e é muito mais barato que parar o bot. */
+        if ($n > 1) {
+            $isolar = false;
+            $okIsolados = 0;
+        } elseif ($isolar && ++$okIsolados >= RELAY_OK_PARA_VOLTAR_AO_LOTE) {
+            $isolar = false;
+            $okIsolados = 0;
+            logar('voltando a juntar em lote (' . RELAY_OK_PARA_VOLTAR_AO_LOTE . ' eventos sozinhos passaram)');
+        }
         logar("ok: $n evento(s) em 1 POST (HTTP $st), restam " . count(listar($SPOOL)));
         usleep((int)($INTERV * 1e6));
         continue;
