@@ -653,7 +653,7 @@ foreach ($mensagens as $m) {
     if ($texto[0] !== '/') {
         require_once __DIR__ . '/../backend/bot_papo.php';
         $ligaAqui = $gruposPermitidos[$de]['liga'] ?? null;
-        if (!papoLigado($ligaAqui)) continue;
+        if (!papoGrupoLiberado($pdo, $de, $ligaAqui)) continue;
         if (!wcMarcaramOBot($m, $texto, $idsDoBot) && !papoResponderamAoPapo($pdo, $m, $idsDoBot, $de)) continue;
         $gatilho = 'papo';
     }

@@ -34,8 +34,14 @@ const PAPO_MAX_CARACTERES = 320;
 /** Respostas de papo por grupo por hora. Trava de custo e de enxurrada. */
 const PAPO_LIMITE_HORA = 25;
 
-/** As ligas em que o papo está ligado. Começou só na ELITE (09/11/2026). */
-const PAPO_LIGAS = ['ELITE'];
+/**
+ * As ligas em que o papo está ligado.
+ *
+ * Começou só na ELITE em 09/11/2026 — uma liga pra ver como o pessoal reagia — e
+ * abriu pras outras três no mesmo dia. Tirar uma liga daqui é o jeito de calar o
+ * bot num grupo sem mexer em mais nada: comando continua, conversa para.
+ */
+const PAPO_LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 if (!function_exists('papoGarantirTabelas')) {
     /**
@@ -67,6 +73,19 @@ if (!function_exists('papoGarantirTabelas')) {
             INDEX idx_papo_user (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        /* O PAPO É POR GRUPO, NÃO POR LIGA.
+           Cada liga tem quatro grupos — Chat Off, Gameplay, Trade Block e ADM — e
+           conversa fiada só cabe no primeiro. Bot entrando na brincadeira no Trade
+           Block atrapalha quem está anunciando troca, e no ADM é pior ainda.
+           A coluna fica no cadastro de grupos pra ligar e desligar sem deploy. */
+        try {
+            if (!$pdo->query("SHOW COLUMNS FROM whatsapp_grupos_comando LIKE 'papo'")->fetch()) {
+                $pdo->exec("ALTER TABLE whatsapp_grupos_comando ADD COLUMN papo TINYINT(1) NOT NULL DEFAULT 0");
+            }
+        } catch (Throwable $e) {
+            error_log('[papo] coluna papo: ' . $e->getMessage());
+        }
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS bot_folclore (
             id            INT AUTO_INCREMENT PRIMARY KEY,
             liga          VARCHAR(20) NOT NULL DEFAULT 'FBA',
@@ -85,6 +104,32 @@ if (!function_exists('papoLigado')) {
     function papoLigado(?string $liga): bool
     {
         return $liga !== null && in_array(strtoupper(trim($liga)), PAPO_LIGAS, true);
+    }
+}
+
+if (!function_exists('papoGrupoLiberado')) {
+    /**
+     * Este grupo recebe conversa, ou só comando?
+     *
+     * Duas chaves, e as duas precisam estar abertas: a liga (PAPO_LIGAS, no
+     * código) e o grupo (`whatsapp_grupos_comando.papo`, no banco). A primeira
+     * é pra desligar uma liga inteira num deploy; a segunda é pra escolher em
+     * qual dos quatro grupos da liga ele conversa — e só o Chat Off nasce
+     * ligado, porque Gameplay, Trade Block e ADM têm assunto marcado.
+     */
+    function papoGrupoLiberado(PDO $pdo, string $grupoJid, ?string $liga): bool
+    {
+        if (!papoLigado($liga) || $grupoJid === '') return false;
+        papoGarantirTabelas($pdo);
+        try {
+            $st = $pdo->prepare("SELECT COALESCE(papo,0) FROM whatsapp_grupos_comando WHERE jid = ? AND ativo = 1");
+            $st->execute([$grupoJid]);
+            return (int)$st->fetchColumn() === 1;
+        } catch (Throwable $e) {
+            // Sem saber, o bot fica quieto: conversa onde não devia é pior que silêncio.
+            error_log('[papo] grupo liberado: ' . $e->getMessage());
+            return false;
+        }
     }
 }
 
