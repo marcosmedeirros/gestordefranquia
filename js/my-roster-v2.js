@@ -548,7 +548,7 @@ function isLoyalPlayer(player) {
 }
 
 // Elegível ao bônus de cap (nome destacado): leal, draftado pela própria
-// franquia e acima do piso de OVR da LIGA — 92 nas duas desde 09/11/2026, que
+// franquia e acima do piso de OVR da LIGA — 90 na RISE, 92 na NEXT, que
 // também não conta lenda nem Draft Inicial. A régua toda mora no servidor
 // (markLoyaltyEligibility), e chega aqui pronta em cap_bonus_eligible.
 function isFranchiseEligible(player) {
@@ -587,7 +587,7 @@ function lendaTagHtml(player) {
 }
 
 // O CAP +: bônus de teto por jogador elegível, com a régua de cada liga.
-// Na RISE, +2 por elegível de 92+, até dois. Na NEXT, +4 por UM elegível de
+// Na RISE, +2 por elegível de 90+, até dois. Na NEXT, +4 por UM elegível de
 // 92+ — lenda e Draft Inicial não contam lá. Quem é elegível vem do servidor
 // em cap_bonus_eligible, que já aplica essas diferenças; aqui só entram
 // quantos contam e quanto cada um vale.
