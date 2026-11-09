@@ -643,7 +643,20 @@ foreach ($mensagens as $m) {
        whatsapp-comandos.php, esperando. */
     $gatilho = 'comando';
 
-    if ($texto[0] !== '/') continue;
+    /* AS DUAS PORTAS DA CONVERSA, RELIGADAS EM 09/11/2026.
+       Marcar o bot (@) e responder uma resposta dele voltam a valer — mas pro
+       PAPO (backend/bot_papo.php), que é curto e de pessoa pra pessoa, não pro
+       /duvida de antes, que respondia textão de edital e foi desligado por isso.
+
+       Comando continua sendo comando: quem digita barra passa direto por aqui e
+       não gasta modelo nenhum. Era o pedido explícito — o @ fala, o / consulta. */
+    if ($texto[0] !== '/') {
+        require_once __DIR__ . '/../backend/bot_papo.php';
+        $ligaAqui = $gruposPermitidos[$de]['liga'] ?? null;
+        if (!papoLigado($ligaAqui)) continue;
+        if (!wcMarcaramOBot($m, $texto, $idsDoBot) && !papoResponderamAoPapo($pdo, $m, $idsDoBot, $de)) continue;
+        $gatilho = 'papo';
+    }
 
     // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
     // chegasse na instância viraria consulta ao banco da liga.
@@ -705,6 +718,20 @@ foreach ($mensagens as $m) {
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.
     // A foto de /atualizarelenco chega colada pelo relay em fba_midia. @see backend/elenco_foto.php
+    if ($gatilho === 'papo') {
+        /* O @ não vai pro switch de comandos: vai pro papo. O texto chega com o
+           "@numero" do bot no meio e ele é tirado aqui — pro modelo aquilo é uma
+           sequência de dígitos, e já custou uma lembrança gravada com o número no
+           lugar do nome (ver wcAplicarApelidos). */
+        $resposta = papoResponder($pdo, $gruposPermitidos[$de]['liga'] ?? '',
+                                  trim(preg_replace('/@\d{8,20}/', '', $texto)),
+                                  wcDigitos($deQuem), $de, papoTextoCitado($m));
+        if ($resposta === null || $resposta === '') continue;   // sem resposta: silêncio
+        whatsappEnfileirar($pdo, $de, $resposta, true, 'comando', null, null, $deQuem, 'papo');
+        $respondidas++;
+        continue;
+    }
+
     $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de, $gatilho, $m['fba_midia'] ?? null);
     if ($resposta === null) continue;   // comando desconhecido: silêncio
     if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
