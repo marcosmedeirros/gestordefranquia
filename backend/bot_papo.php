@@ -503,6 +503,52 @@ if (!function_exists('papoDentroDoLimite')) {
     }
 }
 
+if (!function_exists('papoAvisarLimite')) {
+    /**
+     * Diz ao grupo que o papo bateu no limite, em vez de simplesmente sumir.
+     *
+     * Sumir no meio da conversa é pior que a pausa: quem marcou o bot fica
+     * achando que ele quebrou e marca de novo, três, quatro vezes — e o
+     * silêncio de freio vira silêncio de defeito aos olhos de quem está lá.
+     *
+     * UMA VEZ POR JANELA, nunca por mensagem. O aviso sai com `comando`
+     * próprio ('papo_limite' / 'papo_cota'), e é a presença dele na fila que
+     * segura o segundo: sem isso, cada @ depois do limite geraria mais um
+     * aviso e o freio viraria a fonte do spam que ele existe pra evitar.
+     *
+     * O comando próprio também mantém o aviso FORA da conta do freio, que só
+     * olha `comando = 'papo'` — um aviso não pode consumir a cota que ele está
+     * anunciando.
+     *
+     * @param string $motivo 'hora' (cota da hora no grupo) ou 'dia' (cota de IA do dia)
+     */
+    function papoAvisarLimite(PDO $pdo, string $grupoJid, string $motivo): void
+    {
+        try {
+            require_once __DIR__ . '/whatsapp.php';
+
+            $comando = $motivo === 'dia' ? 'papo_cota' : 'papo_limite';
+            // A janela do aviso acompanha a janela do freio: 1h pro limite da
+            // hora, o dia inteiro pra cota diária.
+            $janela = $motivo === 'dia' ? 'NOW() - INTERVAL 1 DAY' : 'NOW() - INTERVAL 1 HOUR';
+
+            $st = $pdo->prepare("SELECT 1 FROM whatsapp_fila
+                                  WHERE comando = ? AND destino = ?
+                                    AND created_at > {$janela} LIMIT 1");
+            $st->execute([$comando, $grupoJid]);
+            if ($st->fetchColumn()) return;   // já avisou nesta janela
+
+            $texto = $motivo === 'dia'
+                ? 'bateu meu teto de papo do dia. comando continua normal, resenha só amanhã'
+                : 'falei demais nessa última hora, vou dar um tempo. comando continua funcionando, daqui a pouco eu volto';
+
+            whatsappEnfileirar($pdo, $grupoJid, $texto, true, 'comando', null, null, null, $comando);
+        } catch (Throwable $e) {
+            error_log('[papo] avisar limite (' . $motivo . '): ' . $e->getMessage());
+        }
+    }
+}
+
 if (!function_exists('papoInstrucoes')) {
     /**
      * O prompt. É aqui que mora a personalidade.
@@ -816,8 +862,13 @@ if (!function_exists('papoResponder')) {
      * A resposta do bot a uma menção ou a um "respondeu o bot".
      *
      * Devolve null quando é pra ficar quieto — e ficar quieto é resposta
-     * legítima: liga desligada, cota estourada, modelo fora do ar. O grupo
-     * seguir conversando sem o bot é melhor que o bot pedir desculpa.
+     * legítima: liga desligada, risada que não pede resposta, modelo fora do
+     * ar. O grupo seguir conversando sem o bot é melhor que o bot pedir
+     * desculpa.
+     *
+     * COTA ESTOURADA É A EXCEÇÃO: aí o grupo é avisado uma vez, porque sumir
+     * no meio da conversa parece defeito e faz a pessoa marcar o bot de novo
+     * sem parar. @see papoAvisarLimite
      *
      * @param string      $texto   a mensagem, já sem o "@numero" do bot
      * @param string      $citada  a mensagem do bot que ele respondeu, se houver
@@ -831,6 +882,7 @@ if (!function_exists('papoResponder')) {
         if (!editalIaLigada()) return null;
         if (!papoDentroDoLimite($pdo, $grupoJid)) {
             error_log('[papo] limite da hora atingido no grupo ' . $grupoJid);
+            papoAvisarLimite($pdo, $grupoJid, 'hora');
             return null;
         }
         /* A COTA DO DIA É COMPARTILHADA. O papo para antes de zerar: o que sobra
@@ -839,6 +891,7 @@ if (!function_exists('papoResponder')) {
         $limiteDia = editalIaLimiteDia();
         if ($limiteDia > 0 && editalIaUsoDeHoje($pdo) >= (int)($limiteDia * PAPO_FATIA_DA_COTA / 100)) {
             error_log('[papo] fatia da cota do dia esgotada; calando pra preservar o resto');
+            papoAvisarLimite($pdo, $grupoJid, 'dia');
             return null;
         }
 
