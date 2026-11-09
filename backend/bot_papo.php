@@ -42,8 +42,24 @@ if (!function_exists('wcAcharPeloTelefone')) {
 /** Teto de caracteres da resposta. Passou disso, não é mais resenha, é textão. */
 const PAPO_MAX_CARACTERES = 320;
 
-/** Respostas de papo por grupo por hora. Trava de custo e de enxurrada. */
-const PAPO_LIMITE_HORA = 25;
+/**
+ * Respostas de papo por grupo por hora. Trava de enxurrada, não de custo.
+ *
+ * Começou em 25 e bateu no teto na primeira hora: a NEXT fez 25 em 60 minutos e o
+ * bot emudeceu no meio da conversa — que, de fora, parece defeito e não limite.
+ * 60 dá uma resposta por minuto, ritmo que nenhuma conversa de grupo sustenta por
+ * muito tempo. Quem segura o custo de verdade é a cota do dia, logo abaixo.
+ */
+const PAPO_LIMITE_HORA = 60;
+
+/**
+ * Quanto da cota diária do modelo o papo pode consumir, em porcentagem.
+ *
+ * O papo divide a cota com o resto que usa IA (edital, leitura de foto de elenco).
+ * Sem esta reserva, uma tarde animada no grupo comeria o dia inteiro e o
+ * /atualizarelenco de alguém falharia à noite sem ninguém entender por quê.
+ */
+const PAPO_FATIA_DA_COTA = 70;
 
 /**
  * As ligas em que o papo está ligado.
@@ -814,7 +830,15 @@ if (!function_exists('papoResponder')) {
         if (!papoMereceResposta($texto, $viaMencao)) return null;   // risada e reação não são pergunta
         if (!editalIaLigada()) return null;
         if (!papoDentroDoLimite($pdo, $grupoJid)) {
-            error_log('[papo] cota da hora estourada no grupo ' . $grupoJid);
+            error_log('[papo] limite da hora atingido no grupo ' . $grupoJid);
+            return null;
+        }
+        /* A COTA DO DIA É COMPARTILHADA. O papo para antes de zerar: o que sobra
+           é pra quem não tem alternativa — a leitura de foto de elenco, por exemplo,
+           que falha de vez se não tiver modelo. @see PAPO_FATIA_DA_COTA */
+        $limiteDia = editalIaLimiteDia();
+        if ($limiteDia > 0 && editalIaUsoDeHoje($pdo) >= (int)($limiteDia * PAPO_FATIA_DA_COTA / 100)) {
+            error_log('[papo] fatia da cota do dia esgotada; calando pra preservar o resto');
             return null;
         }
 
