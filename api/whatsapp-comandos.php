@@ -1607,7 +1607,15 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $lig
     if ($roster) {
         $txt .= "\n*Maiores salários:*\n";
         foreach (array_slice($roster, 0, 6) as $r) {
-            $txt .= "• {$r['name']} — {$r['total_salary']}M\n";
+            /* DE QUEM VEM O CAP FLEX, ao lado do nome. A linha "Cap Flex: +13M (2 de 2)" lá em
+               cima dá o total e não diz de quem é — e foi exatamente isso que fez um GM achar
+               que o 87 dele não estava gerando nada. "+3M" é o que está somando no teto;
+               "(3M)" é quem tem direito mas ficou fora do limite de dois por time. Mesma
+               notação da tela de Folha & Cap, pra não ensinar dois idiomas ao mesmo GM. */
+            $flex = '';
+            if (!empty($r['cap_flex_counted']))        $flex = " +{$r['cap_flex_value']}M";
+            elseif (!empty($r['cap_flex_eligible']))   $flex = " ({$r['cap_flex_value']}M)";
+            $txt .= "• {$r['name']} — {$r['total_salary']}M{$flex}\n";
         }
     }
     return rtrim($txt);
