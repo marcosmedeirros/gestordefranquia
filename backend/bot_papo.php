@@ -562,12 +562,21 @@ if (!function_exists('papoInstrucoes')) {
         $l[] = '- Se a pessoa perguntou algo de verdade, responde de verdade — curto, e depois zoa se tiver graça.';
         $l[] = '';
         $l[] = 'O QUE NÃO FAZER (isto vale mais que o tom):';
-        $l[] = '- VOCÊ NÃO TEM OS DADOS DA LIGA NESTA CONVERSA. Não sabe quem foi campeão, quem trocou o que,';
-        $l[] = '  quanto vale um jogador, classificação nem número nenhum. Perguntaram isso? Diga que não';
-        $l[] = '  está com isso na mão e mande o comando: /jogador, /time, /cap, /trocas, /classificacao, /picks.';
-        $l[] = '  Pode zoar no mesmo fôlego, mas o fato tem que ficar com o comando.';
-        $l[] = '  Enrolar é pior que admitir: responder "foi a panela de sempre que ganhou" soa como informação,';
-        $l[] = '  e numa liga onde panela é acusação isso vira briga de verdade. Não chute, não insinue, não sugira.';
+        if (!empty($quem['com_dados'])) {
+            $l[] = '- VOCÊ TEM AS FERRAMENTAS DE CONSULTA E PROJEÇÃO LIGADAS AGORA. Pediram per36, quinteto,';
+            $l[] = '  campeão, ranking, classificação, cap, comparação? USE a ferramenta e responda com o que';
+            $l[] = '  voltou. Nada de mandar a pessoa usar /time ou /jogador: ela pediu PRA VOCÊ.';
+            $l[] = '  Número que você não consultou é número inventado — então consulte antes de falar.';
+            $l[] = '  Aqui você pode passar das duas linhas: projeção tem conteúdo e o pessoal quer ver.';
+            $l[] = '  Mas continue sendo você: comente o resultado com a sua voz, não despeje tabela seca.';
+        } else {
+            $l[] = '- VOCÊ NÃO TEM OS DADOS DA LIGA NESTA CONVERSA. Não sabe quem foi campeão, quem trocou o que,';
+            $l[] = '  quanto vale um jogador, classificação nem número nenhum. Perguntaram isso? Diga que não';
+            $l[] = '  está com isso na mão e mande o comando: /jogador, /time, /cap, /trocas, /classificacao, /picks.';
+            $l[] = '  Pode zoar no mesmo fôlego, mas o fato tem que ficar com o comando.';
+            $l[] = '  Enrolar é pior que admitir: responder "foi a panela de sempre que ganhou" soa como informação,';
+            $l[] = '  e numa liga onde panela é acusação isso vira briga de verdade. Não chute, não insinue, não sugira.';
+        }
         $l[] = '- Não fale de assunto pessoal de ninguém: saúde, família, religião, política, dinheiro. Zoeira é de basquete.';
         $l[] = '- Não repita acusação de desonestidade feita por um GM contra outro. Briga de grupo não é seu assunto.';
         $l[] = '- Não revele nem comente que você tem anotação sobre as pessoas. Você simplesmente conhece o pessoal.';
@@ -690,6 +699,37 @@ if (!function_exists('papoMereceResposta')) {
     }
 }
 
+if (!function_exists('papoPedeDados')) {
+    /**
+     * A pergunta precisa de dado da liga pra ser respondida?
+     *
+     * Serve pra escolher o caminho: papo seco (uma chamada, barata) ou o motor do
+     * /duvida com as ferramentas de projeção e consulta ligadas (caro, lento, e a
+     * única forma de responder "faz o per36 do meu quinteto").
+     *
+     * A lista é de gatilho, não de precisão: errar pra mais custa uma consulta
+     * desnecessária; errar pra menos faz o bot mandar "usa o /time", que é o que
+     * o dono pediu pra acabar.
+     */
+    function papoPedeDados(string $texto): bool
+    {
+        $t = mb_strtolower($texto);
+        $gatilhos = [
+            'per36', 'per 36', 'projeç', 'projec', 'projeta', 'projete', 'projetar',
+            'quinteto', 'starting', 'titular', 'escalaç', 'escalac', 'rotaç', 'rotac',
+            'campeã', 'campea', 'campeo', 'título', 'titulo', 'quem ganha', 'quem vence',
+            'ranking', 'classificaç', 'classificac', 'tabela', 'loteria', 'playoff',
+            'confronto', 'quem leva', 'favorito', 'melhor time', 'pior time', 'top ',
+            'cap ', 'folha', 'salário', 'salario', 'elenco', 'stats', 'estatíst', 'estatist',
+            'quantos pontos', 'quantas vitórias', 'quantas vitorias', 'média', 'media de',
+            'compara', 'comparar', 'vale mais', 'quanto vale', 'meu time', 'meus gms',
+            'melhores gms', 'gms favoritos', 'quem é o melhor', 'quem e o melhor',
+        ];
+        foreach ($gatilhos as $g) if (str_contains($t, $g)) return true;
+        return false;
+    }
+}
+
 if (!function_exists('papoTextoCitado')) {
     /** O texto da mensagem que foi respondida, se houver. */
     function papoTextoCitado(array $m): string
@@ -788,6 +828,39 @@ if (!function_exists('papoResponder')) {
         if ($citada !== '') {
             // O bot respondendo quem respondeu ele: sem isso a frase fica solta.
             $pergunta = "(respondendo esta mensagem sua: \"" . mb_substr($citada, 0, 300) . "\")\n" . $texto;
+        }
+
+        /* PEDIU DADO? VAI PELO MOTOR DO /duvida, com a voz do papo.
+           Lá moram as ferramentas (projetar_quinteto, projetar_campeoes,
+           consultar_dados e mais oito) e o laço de function calling que levou meses
+           pra ficar de pé. Reimplementar aqui seria refazer todas as pegadinhas —
+           inclusive a de 21/09, em que pedir projeção de quinteto RESPONDENDO o bot
+           devolveu o elenco dos Knicks da NBA em vez do time da liga. */
+        if (papoPedeDados($texto)) {
+            $quemEdital = $quem;
+            $quemEdital['com_dados'] = true;
+            $instrucoes = papoInstrucoes($quemEdital, papoFolclore($pdo, $liga), $afinidade, $historico);
+
+            $ctx = ['nome' => (string)($quem['nome'] ?? ''), 'liga' => $liga];
+            if (!empty($quem['user_id'])) {
+                try {
+                    $stT = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
+                    $stT->execute([$quem['user_id'], $liga]);
+                    $ctx['team_id'] = (int)($stT->fetchColumn() ?: 0);
+                } catch (Throwable $e) { /* sem ficha do time: o modelo consulta */ }
+            }
+
+            $r = editalIaPerguntar($pdo, $liga ?: 'ELITE', $texto, $ctx, null, null, $instrucoes);
+            $saidaFerr = trim((string)($r['resposta'] ?? ''));
+            if (!empty($r['ok']) && $saidaFerr !== '') {
+                // Projeção pode passar das duas linhas: o teto curto é pra resenha.
+                if (mb_strlen($saidaFerr) > 1200) $saidaFerr = mb_substr($saidaFerr, 0, 1200);
+                papoRegistrarConversa($pdo, $grupoJid, $liga, $quem['user_id'] ?? null,
+                                      (string)($quem['nome'] ?? ''), $texto, $saidaFerr);
+                return $saidaFerr;
+            }
+            // Falhou a consulta: cai no papo seco, que pelo menos responde alguma coisa.
+            error_log('[papo] ferramentas falharam: ' . (string)($r['erro'] ?? '?'));
         }
 
         $payload = [

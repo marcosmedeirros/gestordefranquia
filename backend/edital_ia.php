@@ -716,7 +716,7 @@ function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados
  *
  * @return array{ok:bool,resposta:?string,erro:?string,uso:?array}
  */
-function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null, ?array $citados = null, ?array $historico = null): array
+function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $quem = null, ?array $citados = null, ?array $historico = null, ?string $instrucoes = null): array
 {
     $erro = fn(string $m) => ['ok' => false, 'resposta' => null, 'erro' => $m, 'uso' => null];
 
@@ -742,7 +742,7 @@ function editalIaPerguntar(PDO $pdo, string $league, string $pergunta, ?array $q
     }
 
     if ($provedor === 'gemini') {
-        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem, $citados, $historico);
+        return editalIaPerguntarGemini($pdo, $league, $edital, $pergunta, $erro, $quem, $citados, $historico, $instrucoes);
     }
 
     $chave = editalIaChave();
@@ -951,7 +951,7 @@ function editalIaChamarGemini(PDO $pdo, array $payload, callable $erro): array
  * que voltou. É a diferença entre um bot que sabe as regras e um que conhece
  * a liga.
  */
-function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null, ?array $citados = null, ?array $historico = null): array
+function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, string $pergunta, callable $erro, ?array $quem = null, ?array $citados = null, ?array $historico = null, ?string $instrucoes = null): array
 {
     require_once __DIR__ . '/duvida_contexto.php';
     require_once __DIR__ . '/duvida_dados.php';
@@ -1015,7 +1015,11 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
 
     // As instruções por último: a regra de precedência é lida com todas as
     // fontes já na mão.
-    $partes[] = ['text' => editalIaInstrucoes($league, $quem, $citados)];
+    /* QUEM CHAMA PODE TROCAR A VOZ. O papo (backend/bot_papo.php) usa as MESMAS
+       ferramentas de projeção e consulta, mas com a personalidade dele: curto, na
+       língua do grupo. Sem isto ele teria que reimplementar o laço de function
+       calling inteiro, com as pegadinhas que este arquivo levou meses pra mapear. */
+    $partes[] = ['text' => $instrucoes !== null ? $instrucoes : editalIaInstrucoes($league, $quem, $citados)];
 
     $tools = [[
         'function_declarations' => [[
