@@ -654,6 +654,10 @@ foreach ($mensagens as $m) {
         require_once __DIR__ . '/../backend/bot_papo.php';
         $ligaAqui = $gruposPermitidos[$de]['liga'] ?? null;
         if (!papoGrupoLiberado($pdo, $de, $ligaAqui)) continue;
+        /* A NOTA QUE O GRUPO DÁ DE GRAÇA: se alguém falou logo depois de uma resposta
+           do bot, isso diz se ele acertou ou passou batido. O texto é lido aqui e
+           descartado — fica só o rótulo. @see papoAnotarReacao */
+        papoAnotarReacao($pdo, $de, $texto);
         /* Marcar o bot e responder o bot não valem o mesmo: quem marca está falando
            COM ele; quem responde pode estar só comentando com o grupo. @see papoMereceResposta */
         $papoViaMencao = wcMarcaramOBot($m, $texto, $idsDoBot);

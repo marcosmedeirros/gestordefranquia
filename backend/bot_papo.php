@@ -86,6 +86,42 @@ if (!function_exists('papoGarantirTabelas')) {
             error_log('[papo] coluna papo: ' . $e->getMessage());
         }
 
+        /* O QUE JÁ PASSOU PELO BOT — e só isso.
+           Guarda a fala dirigida a ele e a resposta que ele deu. Não guarda a
+           conversa do grupo: o que não é pra ele continua sendo lido, usado pra
+           saber se riram, e descartado. É o mínimo que faz ele lembrar do que
+           disse há dez minutos, que é a diferença entre responder e conversar.
+
+           `reacao` é a nota que o grupo dá de graça: riu, respondeu, ou ignorou. */
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bot_conversas (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            grupo_jid   VARCHAR(80) NOT NULL,
+            liga        VARCHAR(20) NULL,
+            user_id     INT NULL,
+            quem        VARCHAR(80) NULL,
+            falou       TEXT NOT NULL,
+            respondeu   TEXT NOT NULL,
+            reacao      VARCHAR(12) NULL,
+            criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_papo_grupo (grupo_jid, criado_em),
+            INDEX idx_papo_user (user_id, criado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        /* Quanto cada um conversa com ele. É o que permite ser mais chegado de
+           uns que de outros — o pedido era esse: amigo de alguns, não de todos
+           igual. `afinidade_fixa` é a mão do dono por cima da conta automática. */
+        foreach (['conversas INT NOT NULL DEFAULT 0',
+                  'afinidade_fixa VARCHAR(12) NULL'] as $col) {
+            $nome = explode(' ', $col)[0];
+            try {
+                if (!$pdo->query("SHOW COLUMNS FROM bot_personalidades LIKE '{$nome}'")->fetch()) {
+                    $pdo->exec("ALTER TABLE bot_personalidades ADD COLUMN {$col}");
+                }
+            } catch (Throwable $e) {
+                error_log('[papo] coluna ' . $nome . ': ' . $e->getMessage());
+            }
+        }
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS bot_folclore (
             id            INT AUTO_INCREMENT PRIMARY KEY,
             liga          VARCHAR(20) NOT NULL DEFAULT 'FBA',
@@ -168,11 +204,135 @@ if (!function_exists('papoPerfilDe')) {
         $p = $st->fetch(PDO::FETCH_ASSOC) ?: [];
 
         return [
-            'nome'   => (string)$gm['gm'],
-            'time'   => trim((string)$gm['city'] . ' ' . (string)$gm['name']),
-            'resumo' => (string)($p['resumo'] ?? ''),
-            'zoeira' => (string)($p['zoeira'] ?? ''),
+            'user_id' => (int)$gm['user_id'],
+            'nome'    => (string)$gm['gm'],
+            'time'    => trim((string)$gm['city'] . ' ' . (string)$gm['name']),
+            'resumo'  => (string)($p['resumo'] ?? ''),
+            'zoeira'  => (string)($p['zoeira'] ?? ''),
         ];
+    }
+}
+
+if (!function_exists('papoHistorico')) {
+    /**
+     * As últimas trocas deste grupo, pra ele não começar do zero toda vez.
+     *
+     * Do GRUPO e não da pessoa: a conversa ali é coletiva, e metade da graça é
+     * emendar no que o outro falou. Janela curta (2h) porque o assunto morre
+     * rápido e histórico velho faz ele responder a coisa errada.
+     */
+    function papoHistorico(PDO $pdo, string $grupoJid, int $quantas = 5): array
+    {
+        try {
+            $st = $pdo->prepare("SELECT quem, falou, respondeu FROM bot_conversas
+                                  WHERE grupo_jid = ? AND criado_em > NOW() - INTERVAL 2 HOUR
+                               ORDER BY id DESC LIMIT {$quantas}");
+            $st->execute([$grupoJid]);
+            return array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        } catch (Throwable $e) {
+            error_log('[papo] histórico: ' . $e->getMessage());
+            return [];
+        }
+    }
+}
+
+if (!function_exists('papoAfinidade')) {
+    /**
+     * Quão chegado o bot é desta pessoa.
+     *
+     * Vem do número de conversas, que é a única medida honesta de intimidade que
+     * existe aqui: quem puxa papo toda semana é chegado, quem nunca marcou é
+     * estranho. O dono pode cravar na mão (`afinidade_fixa`) quando quiser
+     * forçar um amigo ou segurar alguém.
+     *
+     * @return array{nivel:string,instrucao:string}
+     */
+    function papoAfinidade(PDO $pdo, ?int $userId, string $liga): array
+    {
+        $niveis = [
+            'novo'     => 'Vocês nunca conversaram. Seja simpático e curioso, sem intimidade forçada nem piada interna — você ainda não tem liberdade com essa pessoa.',
+            'conhecido'=> 'Vocês já trocaram algumas ideias. Pode brincar, mas sem exagero.',
+            'chegado'  => 'Vocês conversam bastante. Pode ter intimidade, lembrar de coisa que já falaram e caçoar com liberdade.',
+            'amigo'    => 'Essa pessoa fala com você toda hora e vocês são chegados de verdade. Trate como amigo de longa data: intimidade total, apelido, piada que só vocês dois entendem, e defenda ela quando os outros caírem em cima.',
+        ];
+
+        if (!$userId) return ['nivel' => 'novo', 'instrucao' => $niveis['novo']];
+
+        try {
+            $st = $pdo->prepare("SELECT conversas, afinidade_fixa FROM bot_personalidades
+                                  WHERE user_id = ? AND liga = ? AND ativo = 1 LIMIT 1");
+            $st->execute([$userId, strtoupper($liga)]);
+            $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            return ['nivel' => 'novo', 'instrucao' => $niveis['novo']];
+        }
+
+        $fixa = trim((string)($r['afinidade_fixa'] ?? ''));
+        if ($fixa !== '' && isset($niveis[$fixa])) return ['nivel' => $fixa, 'instrucao' => $niveis[$fixa]];
+
+        $n = (int)($r['conversas'] ?? 0);
+        $nivel = $n >= 25 ? 'amigo' : ($n >= 8 ? 'chegado' : ($n >= 1 ? 'conhecido' : 'novo'));
+        return ['nivel' => $nivel, 'instrucao' => $niveis[$nivel]];
+    }
+}
+
+if (!function_exists('papoRegistrarConversa')) {
+    /** Guarda a troca e conta mais uma conversa pra essa pessoa. */
+    function papoRegistrarConversa(PDO $pdo, string $grupoJid, string $liga, ?int $userId,
+                                   string $quem, string $falou, string $respondeu): void
+    {
+        try {
+            $pdo->prepare("INSERT INTO bot_conversas (grupo_jid, liga, user_id, quem, falou, respondeu)
+                           VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$grupoJid, strtoupper($liga), $userId, mb_substr($quem, 0, 80),
+                           mb_substr($falou, 0, 1500), mb_substr($respondeu, 0, 1500)]);
+
+            if ($userId) {
+                $pdo->prepare("UPDATE bot_personalidades SET conversas = conversas + 1
+                                WHERE user_id = ? AND liga = ?")
+                    ->execute([$userId, strtoupper($liga)]);
+            }
+
+            /* Faxina ocasional, aqui mesmo: sem cron pra isso, e sem ela a tabela
+               cresce pra sempre. Uma vez a cada ~50 conversas é barato e suficiente. */
+            if (random_int(1, 50) === 1) {
+                $pdo->exec("DELETE FROM bot_conversas WHERE criado_em < NOW() - INTERVAL 60 DAY");
+            }
+        } catch (Throwable $e) {
+            error_log('[papo] registrar conversa: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('papoAnotarReacao')) {
+    /**
+     * A NOTA QUE O GRUPO DÁ DE GRAÇA.
+     *
+     * Quando o bot acerta, vem `kkkkkkkk` atrás. Quando erra, ninguém responde.
+     * Isso é avaliação de qualidade chegando sozinha, e até agora a gente jogava
+     * fora. Aqui ela é anotada na última resposta dele naquele grupo.
+     *
+     * O texto da mensagem é LIDO e DESCARTADO — fica só o rótulo (riu, respondeu,
+     * ignorou). Não é conversa do grupo guardada, é um termômetro da fala do bot.
+     */
+    function papoAnotarReacao(PDO $pdo, string $grupoJid, string $texto): void
+    {
+        $texto = trim($texto);
+        if ($texto === '') return;
+        try {
+            $st = $pdo->prepare("SELECT id FROM bot_conversas
+                                  WHERE grupo_jid = ? AND reacao IS NULL
+                                    AND criado_em > NOW() - INTERVAL 4 MINUTE
+                               ORDER BY id DESC LIMIT 1");
+            $st->execute([$grupoJid]);
+            $id = (int)($st->fetchColumn() ?: 0);
+            if (!$id) return;
+
+            $reacao = papoEhSoReacao($texto) ? 'riu' : 'respondeu';
+            $pdo->prepare("UPDATE bot_conversas SET reacao = ? WHERE id = ?")->execute([$reacao, $id]);
+        } catch (Throwable $e) {
+            error_log('[papo] reação: ' . $e->getMessage());
+        }
     }
 }
 
@@ -239,7 +399,7 @@ if (!function_exists('papoInstrucoes')) {
      *     que diz a regra, ele diz que não sabe. Bot que chuta número vira
      *     fonte de briga — e aí quem apanha é a organização.
      */
-    function papoInstrucoes(array $quem, string $folclore): string
+    function papoInstrucoes(array $quem, string $folclore, array $afinidade = [], array $historico = []): string
     {
         $l = [];
         $l[] = 'Você é o FBA Bot, e faz parte deste grupo de WhatsApp de uma liga de fantasy de basquete (a FBA).';
@@ -249,7 +409,28 @@ if (!function_exists('papoInstrucoes')) {
         $l[] = 'COMO RESPONDER:';
         $l[] = '- Uma ou duas linhas. Nunca mais que isso. Sem lista, sem título, sem "posso ajudar".';
         $l[] = '- Português do grupo: minúscula, abreviação, gíria. Nada de linguagem de atendimento.';
-        $l[] = '- Pode alfinetar, pode ironizar, pode rir da cara de quem te marcou. É o esperado aqui.';
+        $l[] = '';
+        $l[] = 'RESPONDA O QUE A PESSOA DISSE. ISSO VEM PRIMEIRO.';
+        $l[] = 'Perguntou? Responda. Reclamou? Reconheça. Contou alguma coisa? Comente aquilo.';
+        $l[] = 'A piada é TEMPERO, vem depois e é curta. Resposta que ignora o assunto e vai direto';
+        $l[] = 'pra zoeira não é resenha, é agressão — e aí você estraga a conversa em vez de entrar nela.';
+        $l[] = '';
+        $l[] = 'ZOEIRA DE AMIGO, NÃO ATAQUE. A diferença importa:';
+        $l[] = '- Amigo brinca com a SITUAÇÃO: o time, a troca que deu errado, a mania, o apelido que colou.';
+        $l[] = '- Ataque é dizer que a pessoa é ruim, burra, que não entende nada, mandar ela aceitar que dói menos.';
+        $l[] = 'Fique no primeiro. Se a frase que você ia mandar magoaria se viesse de um desconhecido, não mande.';
+        $l[] = '';
+        $l[] = 'EXEMPLO DO QUE ACERTA (foi real, e o grupo gostou):';
+        $l[] = '  Pessoa: "oi, vc gosta de mim?"';
+        $l[] = '  Você: "gostar eu não gosto, mas como vc é o maior assaltante dessa liga, pelo menos o';
+        $l[] = '         entretenimento tá garantido. kkkkkkkk"';
+        $l[] = '  Por que acerta: respondeu a pergunta e brincou com a fama dele, sem ofender.';
+        $l[] = '';
+        $l[] = 'EXEMPLO DO QUE ERRA (foi real, e passou do ponto):';
+        $l[] = '  Pessoa: pergunta técnica sobre a classificação do time dela';
+        $l[] = '  Você: "se eu fosse depender das suas projeções pra acertar alguma coisa eu tava devendo';
+        $l[] = '         pick pros outros. seu time ganha na sorte, aceita que dói menos"';
+        $l[] = '  Por que erra: não respondeu NADA do que foi perguntado e foi direto pro ataque pessoal.';
         $l[] = '- Emoji quase nunca. No máximo um, e só quando a frase pedir mesmo.';
         $l[] = '  Nada de fechar toda resposta com o mesmo emoji — repetir 🤡 ou 😂 em toda fala';
         $l[] = '  é o jeito mais rápido de parecer robô. Na dúvida, não use nenhum.';
@@ -280,6 +461,20 @@ if (!function_exists('papoInstrucoes')) {
         if (!empty($quem['zoeira'])) $l[] = '- Dá pra pegar no pé dele por: ' . $quem['zoeira'];
         if (empty($quem['nome'])) {
             $l[] = '- Você não reconheceu o número. Trate como alguém do grupo mesmo assim, sem perguntar quem é.';
+        }
+        if (!empty($afinidade['instrucao'])) {
+            $l[] = '- Sua relação com ela: ' . $afinidade['instrucao'];
+        }
+
+        if ($historico) {
+            $l[] = '';
+            $l[] = 'O QUE JÁ ROLOU NESTE GRUPO HÁ POUCO (do mais antigo pro mais novo):';
+            foreach ($historico as $h) {
+                $l[] = '  ' . ($h['quem'] ?: 'alguém') . ': ' . mb_substr((string)$h['falou'], 0, 160);
+                $l[] = '  você: ' . mb_substr((string)$h['respondeu'], 0, 160);
+            }
+            $l[] = 'Continue a conversa de onde parou. Não repita piada que você já fez aí em cima,';
+            $l[] = 'e se o assunto é o mesmo, emende em vez de começar do zero.';
         }
 
         return implode("\n", $l);
@@ -445,7 +640,10 @@ if (!function_exists('papoResponder')) {
         }
 
         $liga = strtoupper(trim($liga));
-        $quem = papoPerfilDe($pdo, $digitos, $liga) ?: ['nome' => '', 'time' => '', 'resumo' => '', 'zoeira' => ''];
+        $quem = papoPerfilDe($pdo, $digitos, $liga)
+             ?: ['user_id' => null, 'nome' => '', 'time' => '', 'resumo' => '', 'zoeira' => ''];
+        $afinidade = papoAfinidade($pdo, $quem['user_id'] ?? null, $liga);
+        $historico = papoHistorico($pdo, $grupoJid);
 
         $pergunta = $texto;
         if ($citada !== '') {
@@ -454,7 +652,7 @@ if (!function_exists('papoResponder')) {
         }
 
         $payload = [
-            'systemInstruction' => ['parts' => [['text' => papoInstrucoes($quem, papoFolclore($pdo, $liga))]]],
+            'systemInstruction' => ['parts' => [['text' => papoInstrucoes($quem, papoFolclore($pdo, $liga), $afinidade, $historico)]]],
             'contents' => [['role' => 'user', 'parts' => [['text' => $pergunta]]]],
             'generationConfig' => [
                 'temperature'     => 1.0,   // é conversa, não consulta: resposta igual todo dia não tem graça
@@ -477,6 +675,9 @@ if (!function_exists('papoResponder')) {
             $ponto = max(mb_strrpos($corte, '. ') ?: 0, mb_strrpos($corte, '! ') ?: 0, mb_strrpos($corte, '? ') ?: 0);
             $saida = $ponto > 40 ? trim(mb_substr($corte, 0, $ponto + 1)) : trim($corte);
         }
+
+        papoRegistrarConversa($pdo, $grupoJid, $liga, $quem['user_id'] ?? null,
+                              (string)($quem['nome'] ?? ''), $texto, $saida);
 
         return $saida;
     }
