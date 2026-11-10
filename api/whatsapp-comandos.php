@@ -662,6 +662,7 @@ function wcAjuda(): string
         . "/power — o power ranking da liga (elenco, astros e encaixe)\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
+        . "/divisoes — as seis divisões da ELITE e a força de cada uma\n"
         . "/opta — as chances da edição: campeão, subir e cair\n"
         . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
@@ -2587,7 +2588,15 @@ function wcNotaDePower(array $comp, bool $temHistorico): float
  */
 function wcFichasDeForca(PDO $pdo, string $liga): ?array
 {
-    $st = $pdo->prepare("SELECT id, city, name, mascot, conference FROM teams WHERE league = ?");
+    /* A DIVISÃO VEM JUNTO, e hoje só a ELITE tem uma. O LEFT JOIN é o que
+       permite isso: nas outras três ligas division_id é nulo e as colunas
+       voltam vazias, sem precisar de uma consulta diferente por liga.
+       @see wcDivisoes */
+    $st = $pdo->prepare("SELECT t.id, t.city, t.name, t.mascot, t.conference,
+                                d.name AS divisao, d.importance AS divisao_ordem
+                           FROM teams t
+                      LEFT JOIN divisions d ON d.id = t.division_id
+                          WHERE t.league = ?");
     $st->execute([$liga]);
     $times = $st->fetchAll(PDO::FETCH_ASSOC);
     if (!$times) return null;
@@ -2690,6 +2699,8 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
             'posto'       => $postoConf[$id] ?? null,
             'posto_geral' => $postoGeral[$id] ?? null,
             'conferencia' => $t['conference'] ?: null,
+            'divisao'       => $t['divisao'] ?: null,
+            'divisao_ordem' => $t['divisao_ordem'] !== null ? (int)$t['divisao_ordem'] : null,
         ];
     }
     if (!$fichas) return null;
@@ -2952,6 +2963,76 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         $txt .= "\n*{$titulo}*\n";
         foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false, false);   // sem o posto na tabela
     }
+    return rtrim($txt);
+}
+
+/**
+ * /divisoes — as seis divisões da ELITE, com a ordem de força dentro de cada uma.
+ *
+ * SÓ A ELITE TEM DIVISÃO. Veio da tela Realign League do 2K (print do Marcos,
+ * 10/11/2026) e é o que decide contra quem o time joga mais vezes na
+ * temporada — por isso a ordem aqui é a do power ranking, e não a da tabela:
+ * a pergunta que o comando responde é "quem eu tenho pela frente o ano
+ * inteiro", não "quem está ganhando agora".
+ *
+ * A NOTA DA DIVISÃO é a média das notas de power dos times dela, na mesma
+ * escala de 0 a 100 do /power. É ela que diz se a divisão é dura ou macia —
+ * duas divisões podem ter o mesmo líder e um fundo completamente diferente.
+ *
+ * Divisão sem time nenhum não aparece: tabela vazia não é informação.
+ */
+function wcDivisoes(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): string
+{
+    $termo = trim($termo);
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+
+    /* Pedir /divisoes em outra liga não é erro de digitação — é alguém
+       querendo saber se existe. A resposta diz que não existe e por quê. */
+    if ($liga && $liga !== 'ELITE') {
+        return "A *{$liga}* não tem divisão — só a ELITE tem. Lá são seis: Northwest, Pacific e Southwest no Oeste; Atlantic, Central e Southeast no Leste.";
+    }
+
+    $fichas = wcFichasDeForca($pdo, 'ELITE');
+    if (!$fichas) return "Os times da ELITE ainda não têm quinteto montado.";
+
+    $porDivisao = [];
+    $sem = [];
+    foreach ($fichas as $f) {
+        if ($f['divisao']) $porDivisao[$f['divisao']][] = $f;
+        else               $sem[] = $f['curto'];
+    }
+    if (!$porDivisao) {
+        return "Nenhum time da ELITE está com divisão definida ainda.";
+    }
+
+    /* A ordem das divisões é a da própria tabela (`importance`), que guarda a
+       sequência da tela do 2K: Oeste primeiro. Ordenar por nome jogaria
+       Atlantic na frente de Northwest e desmontaria as conferências. */
+    uksort($porDivisao, function ($a, $b) use ($porDivisao) {
+        $oa = $porDivisao[$a][0]['divisao_ordem'] ?? 0;
+        $ob = $porDivisao[$b][0]['divisao_ordem'] ?? 0;
+        return ($ob <=> $oa) ?: strcmp($a, $b);
+    });
+
+    $txt = "🗺️ *Divisões da ELITE*\n_a ordem dentro de cada divisão é a do power ranking (elenco, astros e encaixe)_\n";
+
+    $confAtual = null;
+    foreach ($porDivisao as $nome => $lista) {
+        // Todos os times de uma divisão estão na mesma conferência; o
+        // cabeçalho sai da primeira ficha em vez de uma consulta a mais.
+        $conf = $lista[0]['conferencia'] ?? null;
+        if ($conf !== $confAtual) {
+            $confAtual = $conf;
+            $txt .= "\n*" . ($conf ? ucfirst(mb_strtolower($conf, 'UTF-8')) : 'Sem conferência') . "*\n";
+        }
+
+        $notas = array_map(fn($f) => (float)$f['nota'], $lista);
+        $mediaNota = round(array_sum($notas) / count($notas));
+        $txt .= "\n*{$nome}* _(" . count($lista) . " times · nota {$mediaNota})_\n";
+        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false, false);
+    }
+
+    if ($sem) $txt .= "\n_Sem divisão:_ " . implode(', ', $sem);
     return rtrim($txt);
 }
 
@@ -6043,6 +6124,12 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'powerconf':
             case 'powerconferencia':
                 return wcPowerRankingConferencia($pdo, $arg, $ligaDoGrupo);
+
+            case 'divisoes':
+            case 'divisões':
+            case 'divisao':
+            case 'divisão':
+                return wcDivisoes($pdo, $arg, $ligaDoGrupo);
 
             // O analista da liga: título, subir e cair, com a simulação do
             // SuperComputador por trás. /opta é o apelido que pegou no grupo.
