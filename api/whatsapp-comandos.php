@@ -659,7 +659,7 @@ function wcAjuda(): string
         . "/tabela _liga_ — a classificação da última temporada lançada\n"
         . "/playoffs — o chaveamento, como está agora\n"
         . "/temporada _nº_ _liga_ — resumo da temporada: campeão, prêmios, seeds e pick 1\n"
-        . "/power — o power ranking da liga (elenco, astros e encaixe)\n"
+        . "/power — a previsão de onde cada time termina na liga\n"
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/divisoes — as seis divisões da ELITE e a força de cada uma\n"
@@ -2371,6 +2371,7 @@ function wcHistoricoDaLiga(PDO $pdo, string $liga): array
                 'pontos'   => (int)$t['pontos'],
                 'titulos'  => (int)$t['titulos'],
                 'campanha' => [],   // [ ['temporada'=>n, 'pos'=>1, 'de'=>30], ... ]
+                'coroas'   => [],   // [ ['temporada'=>n, 'pos'=>'champion'], ... ]
             ];
         }
     } catch (Throwable $e) {
@@ -2411,6 +2412,33 @@ function wcHistoricoDaLiga(PDO $pdo, string $liga): array
         error_log('[wcHistoricoDaLiga] campanha: ' . $e->getMessage());
     }
 
+    /* AS COROAS, NA MESMA JANELA DA CAMPANHA — as quatro últimas temporadas e
+       nada antes. Título de dinastia velha não pode levantar elenco que hoje
+       não existe mais; título de agora, sim, porque é o mesmo time em quadra.
+       @see wcComponentesDoPower, componente 'titulo' */
+    try {
+        if (!empty($temporadas)) {
+            $ids4 = array_map(fn($x) => (int)$x['id'], $temporadas);
+            $marcas = implode(',', array_fill(0, count($ids4), '?'));
+            $st = $pdo->prepare("SELECT pr.team_id, pr.position, s.season_number
+                                   FROM playoff_results pr
+                                   JOIN seasons s ON s.id = pr.season_id
+                                  WHERE pr.season_id IN ({$marcas})
+                                    AND pr.position IN ('champion','runner_up')");
+            $st->execute($ids4);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $tid = (int)$r['team_id'];
+                if (!isset($out['times'][$tid])) continue;
+                $out['times'][$tid]['coroas'][] = [
+                    'temporada' => (int)$r['season_number'],
+                    'pos'       => (string)$r['position'],
+                ];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[wcHistoricoDaLiga] coroas: ' . $e->getMessage());
+    }
+
     foreach ($out['times'] as $t) {
         if ($t['pontos'] > 0 || $t['campanha']) { $out['tem_historico'] = true; break; }
     }
@@ -2431,7 +2459,7 @@ function wcNota0a100(float $v): float { return max(0.0, min(100.0, $v)); }
  * @param array $ctx ['maxForca','minForca','maxPontos'] — a escala da liga
  */
 function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $ctx,
-                              array $peCtx = []): array
+                              array $peCtx = [], ?array $divisao = null): array
 {
     $rotacao = array_values(array_filter($elenco, function ($p) {
         $r = trim((string)($p['role'] ?? ''));
@@ -2509,8 +2537,67 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
        @see peCoerencia */
     $coerencia = peCoerencia(wcQuintetoTitular($rotacao));
 
+    /* TÍTULO RECENTE: o campeão em exercício não pode aparecer no meio da
+       tabela como se nada tivesse acontecido (pedido do Marcos, 10/11/2026,
+       com o Buffalo Blues bicampeão em 2º da própria divisão).
+
+       O PESO É PEQUENO DE PROPÓSITO, e a razão é dele: "os times mudam muito
+       de uma pra outra". Então título conta como sinal de que aquele grupo
+       sabe terminar bem, não como crédito permanente — e sai da conta sozinho
+       conforme a temporada envelhece, porque o ano mais recente da janela pesa
+       4 e o mais antigo pesa 1, igual à campanha.
+
+       50 é o neutro: quem não ganhou nada não é castigado, só não ganha nada.
+       Vice vale pouco mais da metade de um título — chegar à final é resultado,
+       perder a final não é. */
+    $coroas = $hist['coroas'] ?? [];
+    $tituloNota = 50.0;
+    $tituloTxt = 'sem título recente';
+    if ($coroas && $campanha) {
+        // A janela e os pesos são os da campanha: a temporada mais nova
+        // primeiro, então a ordem da lista já é a ordem dos pesos.
+        $anos = array_map(fn($c) => (int)$c['temporada'], $campanha);
+        rsort($anos);
+        $pesoDoAno = [];
+        $peso = 4.0;
+        foreach ($anos as $ano) { $pesoDoAno[$ano] = $peso; $peso = max(1.0, $peso - 1.0); }
+
+        $credito = 0.0;
+        $quais = [];
+        foreach ($coroas as $c) {
+            $ano = (int)$c['temporada'];
+            if (!isset($pesoDoAno[$ano])) continue;
+            $vale = $c['pos'] === 'champion' ? 100.0 : 55.0;
+            $credito += $vale * $pesoDoAno[$ano];
+            $quais[] = ['ano' => $ano, 'campeao' => $c['pos'] === 'champion'];
+        }
+        // 10 = 4+3+2+1: ser campeão nas quatro temporadas da janela dá 100.
+        $tituloNota = wcNota0a100(50 + ($credito / 10 / 100) * 50);
+
+        if ($quais) {
+            usort($quais, fn($a, $b) => $b['ano'] <=> $a['ano']);
+            $titulos = array_values(array_filter($quais, fn($q) => $q['campeao']));
+            if (count($titulos) >= 2) {
+                $tituloTxt = count($titulos) . ' títulos: T' . implode(' e T', array_column($titulos, 'ano'));
+            } elseif ($titulos) {
+                $tituloTxt = 'campeão na T' . $titulos[0]['ano'];
+            } else {
+                $tituloTxt = 'vice na T' . $quais[0]['ano'];
+            }
+        }
+    }
+
+    /* DIVISÃO: contra quem ele joga mais vezes. Vem pronta de wcFichasDeForca,
+       que é quem enxerga a liga inteira — aqui dentro só dá pra ver um time.
+       Liga sem divisão (tudo menos a ELITE) entra neutra, em 50, e aí o
+       componente não mexe na ordem de ninguém. */
+    $divisaoNota = $divisao['nota'] ?? 50.0;
+    $divisaoTxt  = $divisao['txt'] ?? 'liga sem divisão';
+
     return [
         'elenco'    => ['nota' => $elencoNota, 'txt' => sprintf('ovr médio %.0f, teto %.0f', $mediaOvr, $teto)],
+        'divisao'   => ['nota' => $divisaoNota, 'txt' => $divisaoTxt],
+        'titulo'    => ['nota' => $tituloNota,  'txt' => $tituloTxt],
         'astros'    => ['nota' => $astrosNota, 'txt' => $n90 || $n85
                             ? trim(($n90 ? "{$n90} de 90+" : '') . ($n90 && $n85 > $n90 ? ', ' : '')
                                  . ($n85 > $n90 ? ($n85 - $n90) . ' de 85+' : ''))
@@ -2570,7 +2657,28 @@ function wcNotaDePower(array $comp, bool $temHistorico): float
        astros (o teto e quantos 85+/90+). O `$temHistorico` deixa de
        mudar a conta — com ou sem temporada registrada, a régua é a
        mesma. @see wcForcaDoTime, wcComponentesDoPower */
-    $pesos = ['elenco' => 0.60, 'astros' => 0.25, 'coerencia' => 0.15];
+    /* 10/11/2026 — A PERGUNTA DO COMANDO MUDOU. O Marcos disse que o /power e
+       o /powerc são a previsão de ONDE O TIME VAI TERMINAR, e não só quem tem
+       o elenco mais forte hoje. Previsão tem que olhar duas coisas que o
+       elenco não conta:
+
+       DIVISÃO, porque é contra ela que o time joga mais vezes na temporada —
+       a mesma campanha rende mais num grupo macio do que num duro.
+
+       TÍTULO RECENTE, porque o campeão em exercício aparecia no meio da
+       tabela como se nada tivesse acontecido.
+
+       Os dois entram com peso pequeno (7% o título, 3% a divisão), e isso
+       também é pedido dele:
+       "nada demais, pq os times mudam muito de uma pra outra". Juntos movem
+       uns poucos pontos de nota — o bastante pra desempatar vizinhos, longe
+       do bastante pra levantar time ruim de divisão fraca.
+
+       Pontuação, campanha e idade seguem FORA, como em 18/10/2026: são
+       resultado acumulado, e o elenco já carrega a idade dentro.
+       @see wcComponentesDoPower */
+    $pesos = ['elenco' => 0.55, 'astros' => 0.22, 'coerencia' => 0.13,
+              'titulo' => 0.07, 'divisao' => 0.03];
 
     $total = 0.0;
     foreach ($pesos as $k => $p) $total += ($comp[$k]['nota'] ?? 50.0) * $p;
@@ -2675,16 +2783,54 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
         'maxPontos' => max(array_map(fn($h) => (int)$h['pontos'], $hist['times'] ?: [['pontos' => 0]])),
     ];
 
+    /* QUÃO DURA É A DIVISÃO DE CADA UM — medida pelos ADVERSÁRIOS dele, nunca
+       incluindo ele mesmo. Incluir seria fazer o time forte se penalizar pela
+       própria força, e a pergunta aqui é outra: o que ele tem pela frente.
+
+       A escala sai das próprias médias da liga (a mais macia vira 100, a mais
+       dura vira 0), e não da faixa de força individual: médias variam bem
+       menos que times, e normalizar pela faixa dos times achataria tudo em
+       torno de 50. Liga sem divisão fica sem entrada e o componente entra
+       neutro. @see wcComponentesDoPower */
+    $mediaRival = [];
+    $porDivisao = [];
+    foreach ($times as $t) {
+        $id = (int)$t['id'];
+        if (!isset($forcas[$id]) || empty($t['divisao'])) continue;
+        $porDivisao[$t['divisao']][] = $id;
+    }
+    foreach ($porDivisao as $ids) {
+        foreach ($ids as $id) {
+            $rivais = array_values(array_diff($ids, [$id]));
+            if (!$rivais) continue;                       // divisão de um time só
+            $mediaRival[$id] = array_sum(array_map(fn($r) => $forcas[$r], $rivais)) / count($rivais);
+        }
+    }
+    $minRival = $mediaRival ? min($mediaRival) : 0.0;
+    $faixaRival = $mediaRival ? max(1e-6, max($mediaRival) - $minRival) : 1.0;
+
     $fichas = [];
     foreach ($times as $t) {
         $id = (int)$t['id'];
         if (!isset($forcas[$id])) continue;              // sem quinteto montado
+
+        $divisao = null;
+        if (isset($mediaRival[$id])) {
+            $nota = wcNota0a100(100 - (($mediaRival[$id] - $minRival) / $faixaRival) * 100);
+            $divisao = [
+                'nota' => $nota,
+                'txt'  => $t['divisao'] . ' · ' . ($nota >= 66 ? 'rivais fracos'
+                                                : ($nota >= 34 ? 'rivais na média' : 'divisão dura')),
+            ];
+        }
+
         $comp = wcComponentesDoPower(
             $porTime[$id] ?? [],
             $forcas[$id],
-            $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => []],
+            $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => [], 'coroas' => []],
             $ctx,
-            $peCtx
+            $peCtx,
+            $divisao
         );
         $fichas[] = [
             'id'         => $id,
@@ -2763,13 +2909,15 @@ function wcPowerDoTime(PDO $pdo, array $time): string
     }
     if (!$eu) return wcNomeDoTime($time) . " ainda não tem quinteto montado.";
 
-    /* Os dois que entram na nota. Idade, pontuação e campanha saíram
-       junto com o peso delas: barra que não move o número é enfeite que
-       faz o leitor procurar a conta errada. @see wcNotaDePower */
+    /* Os que entram na nota, na ordem do peso. Idade, pontuação e campanha
+       seguem fora: barra que não move o número é enfeite que faz o leitor
+       procurar a conta errada. @see wcNotaDePower */
     $rotulos = [
         'elenco'    => 'Elenco',
         'astros'    => 'Astros',
         'coerencia' => 'Encaixe',
+        'titulo'    => 'Título',
+        'divisao'   => 'Divisão',
     ];
 
     $txt = "*{$eu['nome']}*\n_Power {$liga}: "
@@ -2788,10 +2936,11 @@ function wcPowerDoTime(PDO $pdo, array $time): string
             wcBarraDeNota((float)$c['nota']), $rotulo, (int)round($c['nota']), $c['txt'], $melhores);
     }
 
-    $txt .= "\n_A nota é do time de hoje. Cada jogador vale o OVR corrigido"
-          . " pelas letras na posição dele e pelo que produziu na última"
-          . " temporada; o banco quase não pesa, e tabela e campanhas"
-          . " passadas não entram._";
+    $txt .= "\n_A nota é a previsão de onde o time termina. Cada jogador vale o"
+          . " OVR corrigido pelas letras na posição dele e pelo que produziu na"
+          . " última temporada; o banco quase não pesa. Título recente e força"
+          . " da divisão entram com peso pequeno (7% e 3%). A pontuação do"
+          . " ciclo e a posição das temporadas passadas não entram._";
     return rtrim($txt);
 }
 
@@ -2830,7 +2979,7 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco, astros e encaixe — o time de hoje, sem tabela nem passado';
+    $sub = 'elenco, astros e encaixe, mais um tanto de título recente e de divisão';
     $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
     foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, true);
     return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
@@ -2955,7 +3104,7 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco, astros e encaixe — o time de hoje, sem tabela nem passado';
+    $sub = 'elenco, astros e encaixe, mais um tanto de título recente e de divisão';
     $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
     foreach ($ordem as $conf) {
         $lista = $porConf[$conf];
@@ -3014,7 +3163,7 @@ function wcDivisoes(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): 
         return ($ob <=> $oa) ?: strcmp($a, $b);
     });
 
-    $txt = "🗺️ *Divisões da ELITE*\n_a ordem dentro de cada divisão é a do power ranking (elenco, astros e encaixe)_\n";
+    $txt = "🗺️ *Divisões da ELITE*\n_a ordem dentro de cada divisão é a do power ranking_\n";
 
     $confAtual = null;
     foreach ($porDivisao as $nome => $lista) {
