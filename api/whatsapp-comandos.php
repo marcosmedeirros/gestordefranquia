@@ -2358,7 +2358,7 @@ function wcPlayoffs(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): strin
  */
 function wcHistoricoDaLiga(PDO $pdo, string $liga): array
 {
-    $out = ['times' => [], 'tem_historico' => false, 'temporadas' => []];
+    $out = ['times' => [], 'tem_historico' => false, 'temporadas' => [], 'ultimo_playoff' => 0];
 
     try {
         $temTitulos = (bool)$pdo->query("SHOW COLUMNS FROM teams LIKE 'ranking_titles'")->fetch();
@@ -2371,7 +2371,7 @@ function wcHistoricoDaLiga(PDO $pdo, string $liga): array
                 'pontos'   => (int)$t['pontos'],
                 'titulos'  => (int)$t['titulos'],
                 'campanha' => [],   // [ ['temporada'=>n, 'pos'=>1, 'de'=>30], ... ]
-                'coroas'   => [],   // [ ['temporada'=>n, 'pos'=>'champion'], ... ]
+                'playoff'  => null, // até onde foi no último playoff ('champion', 'second_round'…)
             ];
         }
     } catch (Throwable $e) {
@@ -2412,9 +2412,10 @@ function wcHistoricoDaLiga(PDO $pdo, string $liga): array
         error_log('[wcHistoricoDaLiga] campanha: ' . $e->getMessage());
     }
 
-    /* AS COROAS, NA MESMA JANELA DA CAMPANHA — as quatro últimas temporadas e
-       nada antes. Título de dinastia velha não pode levantar elenco que hoje
-       não existe mais; título de agora, sim, porque é o mesmo time em quadra.
+    /* ATÉ ONDE CADA UM FOI NO ÚLTIMO PLAYOFF — a última temporada e nada
+       antes. Campanha de duas temporadas atrás não diz nada sobre o time de
+       hoje (pedido do Marcos, 10/11/2026: "os times mudam muito de uma pra
+       outra"), e guardar a janela inteira só convidaria a usar o resto.
        @see wcComponentesDoPower, componente 'titulo' */
     try {
         if (!empty($temporadas)) {
@@ -2424,19 +2425,22 @@ function wcHistoricoDaLiga(PDO $pdo, string $liga): array
                                    FROM playoff_results pr
                                    JOIN seasons s ON s.id = pr.season_id
                                   WHERE pr.season_id IN ({$marcas})
-                                    AND pr.position IN ('champion','runner_up')");
+                               ORDER BY s.season_number DESC");
             $st->execute($ids4);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+            // A última COM playoff lançado, que não é necessariamente a última
+            // temporada: a que está rolando ainda não tem chaveamento fechado.
+            $ultima = $linhas ? (int)$linhas[0]['season_number'] : 0;
+            $out['ultimo_playoff'] = $ultima;
+            foreach ($linhas as $r) {
+                if ((int)$r['season_number'] !== $ultima) continue;
                 $tid = (int)$r['team_id'];
                 if (!isset($out['times'][$tid])) continue;
-                $out['times'][$tid]['coroas'][] = [
-                    'temporada' => (int)$r['season_number'],
-                    'pos'       => (string)$r['position'],
-                ];
+                $out['times'][$tid]['playoff'] = (string)$r['position'];
             }
         }
     } catch (Throwable $e) {
-        error_log('[wcHistoricoDaLiga] coroas: ' . $e->getMessage());
+        error_log('[wcHistoricoDaLiga] playoff: ' . $e->getMessage());
     }
 
     foreach ($out['times'] as $t) {
@@ -2537,55 +2541,38 @@ function wcComponentesDoPower(array $elenco, float $forca, array $hist, array $c
        @see peCoerencia */
     $coerencia = peCoerencia(wcQuintetoTitular($rotacao));
 
-    /* TÍTULO RECENTE: o campeão em exercício não pode aparecer no meio da
-       tabela como se nada tivesse acontecido (pedido do Marcos, 10/11/2026,
-       com o Buffalo Blues bicampeão em 2º da própria divisão).
+    /* ATÉ ONDE FOI NO ÚLTIMO PLAYOFF — SÓ OS OITO DAS SEMIS CONTAM.
+       O campeão em exercício aparecia no meio da tabela como se nada tivesse
+       acontecido (o Buffalo Blues, bicampeão, era 2º da própria divisão). Mas
+       a régua é dele e para cedo: "pra time em tank não importa, somente pros
+       8 que chegaram nas semis" (10/11/2026).
 
-       O PESO É PEQUENO DE PROPÓSITO, e a razão é dele: "os times mudam muito
-       de uma pra outra". Então título conta como sinal de que aquele grupo
-       sabe terminar bem, não como crédito permanente — e sai da conta sozinho
-       conforme a temporada envelhece, porque o ano mais recente da janela pesa
-       4 e o mais antigo pesa 1, igual à campanha.
+       E são OITO MESMO: dos 16 que entram no playoff da ELITE, 8 caem na
+       primeira rodada e 8 passam — 4 eliminados nas semis de conferência, 2
+       nas finais de conferência, o vice e o campeão.
 
-       50 é o neutro: quem não ganhou nada não é castigado, só não ganha nada.
-       Vice vale pouco mais da metade de um título — chegar à final é resultado,
-       perder a final não é. */
-    $coroas = $hist['coroas'] ?? [];
-    $tituloNota = 50.0;
-    $tituloTxt = 'sem título recente';
-    if ($coroas && $campanha) {
-        // A janela e os pesos são os da campanha: a temporada mais nova
-        // primeiro, então a ordem da lista já é a ordem dos pesos.
-        $anos = array_map(fn($c) => (int)$c['temporada'], $campanha);
-        rsort($anos);
-        $pesoDoAno = [];
-        $peso = 4.0;
-        foreach ($anos as $ano) { $pesoDoAno[$ano] = $peso; $peso = max(1.0, $peso - 1.0); }
+       Quem caiu na primeira rodada fica igual a quem nem foi: 50, o neutro.
+       Não é castigo, é ausência de crédito — e é o que faz o componente
+       sumir pra quem está em reconstrução, que era o ponto.
 
-        $credito = 0.0;
-        $quais = [];
-        foreach ($coroas as $c) {
-            $ano = (int)$c['temporada'];
-            if (!isset($pesoDoAno[$ano])) continue;
-            $vale = $c['pos'] === 'champion' ? 100.0 : 55.0;
-            $credito += $vale * $pesoDoAno[$ano];
-            $quais[] = ['ano' => $ano, 'campeao' => $c['pos'] === 'champion'];
-        }
-        // 10 = 4+3+2+1: ser campeão nas quatro temporadas da janela dá 100.
-        $tituloNota = wcNota0a100(50 + ($credito / 10 / 100) * 50);
-
-        if ($quais) {
-            usort($quais, fn($a, $b) => $b['ano'] <=> $a['ano']);
-            $titulos = array_values(array_filter($quais, fn($q) => $q['campeao']));
-            if (count($titulos) >= 2) {
-                $tituloTxt = count($titulos) . ' títulos: T' . implode(' e T', array_column($titulos, 'ano'));
-            } elseif ($titulos) {
-                $tituloTxt = 'campeão na T' . $titulos[0]['ano'];
-            } else {
-                $tituloTxt = 'vice na T' . $quais[0]['ano'];
-            }
-        }
-    }
+       SÓ A ÚLTIMA TEMPORADA. Campanha de duas atrás não diz nada sobre o
+       elenco de hoje, e manter janela longa fazia dinastia velha carregar
+       time que já foi desmontado. */
+    $escadaDoPlayoff = [
+        'champion'         => 100.0,
+        'runner_up'        => 85.0,
+        'conference_final' => 70.0,
+        'second_round'     => 60.0,   // eliminado NAS semis: já é um dos oito
+    ];
+    $frasesDoPlayoff = [
+        'champion'         => 'campeão na última',
+        'runner_up'        => 'vice na última',
+        'conference_final' => 'final de conferência',
+        'second_round'     => 'chegou às semis',
+    ];
+    $playoff = (string)($hist['playoff'] ?? '');
+    $tituloNota = $escadaDoPlayoff[$playoff] ?? 50.0;
+    $tituloTxt  = $frasesDoPlayoff[$playoff] ?? 'não passou da 1ª rodada';
 
     /* DIVISÃO: contra quem ele joga mais vezes. Vem pronta de wcFichasDeForca,
        que é quem enxerga a liga inteira — aqui dentro só dá pra ver um time.
@@ -2665,14 +2652,18 @@ function wcNotaDePower(array $comp, bool $temHistorico): float
        DIVISÃO, porque é contra ela que o time joga mais vezes na temporada —
        a mesma campanha rende mais num grupo macio do que num duro.
 
-       TÍTULO RECENTE, porque o campeão em exercício aparecia no meio da
-       tabela como se nada tivesse acontecido.
+       O ÚLTIMO PLAYOFF, porque o campeão em exercício aparecia no meio da
+       tabela como se nada tivesse acontecido — e só pros OITO QUE CHEGARAM
+       ÀS SEMIS, que é onde a régua dele para: "pra time em tank não importa".
+       Quem caiu na primeira rodada fica no neutro, igual a quem nem foi.
 
-       Os dois entram com peso pequeno (7% o título, 3% a divisão), e isso
-       também é pedido dele:
-       "nada demais, pq os times mudam muito de uma pra outra". Juntos movem
-       uns poucos pontos de nota — o bastante pra desempatar vizinhos, longe
-       do bastante pra levantar time ruim de divisão fraca.
+       Os dois entram com peso pequeno (7% o playoff, 3% a divisão), e isso
+       também é pedido dele: "nada demais, pq os times mudam muito de uma pra
+       outra". Juntos movem uns poucos pontos de nota — o bastante pra
+       desempatar vizinhos, longe do bastante pra levantar time ruim de
+       divisão fraca. A primeira calibragem deu 6% à divisão e errou: o
+       Atlanta Slimmers, com 11 pontos de elenco a mais que o Blues, caía
+       atrás dele só por estar numa divisão dura.
 
        Pontuação, campanha e idade seguem FORA, como em 18/10/2026: são
        resultado acumulado, e o elenco já carrega a idade dentro.
@@ -2827,7 +2818,7 @@ function wcFichasDeForca(PDO $pdo, string $liga): ?array
         $comp = wcComponentesDoPower(
             $porTime[$id] ?? [],
             $forcas[$id],
-            $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => [], 'coroas' => []],
+            $hist['times'][$id] ?? ['pontos' => 0, 'titulos' => 0, 'campanha' => [], 'playoff' => null],
             $ctx,
             $peCtx,
             $divisao
@@ -2912,11 +2903,16 @@ function wcPowerDoTime(PDO $pdo, array $time): string
     /* Os que entram na nota, na ordem do peso. Idade, pontuação e campanha
        seguem fora: barra que não move o número é enfeite que faz o leitor
        procurar a conta errada. @see wcNotaDePower */
+    /* O TÍTULO NÃO TEM BARRA, de propósito (pedido do Marcos, 10/11/2026:
+       "acho que nem aparecer, deve ser algo que fique mais oculto em si").
+       Ele entra na nota e fica fora da lista: a campanha passada não é
+       atributo do time, é um ajuste fino, e dar a ela uma barra do mesmo
+       tamanho das outras faria o GM discutir o 7% em vez do elenco. O rodapé
+       continua dizendo que ele existe — oculto não é escondido. */
     $rotulos = [
         'elenco'    => 'Elenco',
         'astros'    => 'Astros',
         'coerencia' => 'Encaixe',
-        'titulo'    => 'Título',
         'divisao'   => 'Divisão',
     ];
 
@@ -2938,9 +2934,10 @@ function wcPowerDoTime(PDO $pdo, array $time): string
 
     $txt .= "\n_A nota é a previsão de onde o time termina. Cada jogador vale o"
           . " OVR corrigido pelas letras na posição dele e pelo que produziu na"
-          . " última temporada; o banco quase não pesa. Título recente e força"
-          . " da divisão entram com peso pequeno (7% e 3%). A pontuação do"
-          . " ciclo e a posição das temporadas passadas não entram._";
+          . " última temporada; o banco quase não pesa. Também entram com peso"
+          . " pequeno a força da divisão (3%) e, pros oito que chegaram às semis"
+          . " no último playoff, o quanto foram longe (7%). A pontuação do ciclo"
+          . " e as temporadas anteriores não entram._";
     return rtrim($txt);
 }
 
@@ -2979,7 +2976,7 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco, astros e encaixe, mais um tanto de título recente e de divisão';
+    $sub = 'elenco, astros e encaixe, com um tanto de divisão e do último playoff';
     $txt = "*Power Ranking {$liga}*\n_{$sub}_\n\n";
     foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, true);
     return rtrim($txt) . "\n\n_/power " . mb_strtolower($fichas[0]['curto']) . " abre a ficha do time._";
@@ -3104,7 +3101,7 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
     /* O subtitulo diz de que a nota e feita; com a conta mudada, dizer
        "pontuacao e campanha" seria mandar o leitor procurar peso que nao
        existe mais. @see wcNotaDePower */
-    $sub = 'elenco, astros e encaixe, mais um tanto de título recente e de divisão';
+    $sub = 'elenco, astros e encaixe, com um tanto de divisão e do último playoff';
     $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
     foreach ($ordem as $conf) {
         $lista = $porConf[$conf];
