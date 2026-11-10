@@ -663,6 +663,7 @@ function wcAjuda(): string
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/divisoes — as seis divisões da ELITE e a força de cada uma\n"
+        . "/atualizados — quem ainda não atualizou o elenco da temporada\n"
         . "/opta — as chances da edição: campeão, subir e cair\n"
         . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
@@ -3109,6 +3110,70 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
         $txt .= "\n*{$titulo}*\n";
         foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false, false);   // sem o posto na tabela
     }
+    return rtrim($txt);
+}
+
+/**
+ * /atualizados — quem ainda não fez a atualização de elenco da liga.
+ *
+ * O QUE SE COBRA MUDA COM O MOMENTO DA TEMPORADA, e o comando não decide
+ * isso: quem decide é a trava (backend/trava_elenco.php), que antes do draft
+ * cobra ESTATÍSTICA e depois da progression cobra LETRA. Repetir a regra aqui
+ * seria criar uma segunda verdade que um dia discorda da primeira — então o
+ * comando só lê o estado e conta o que achou.
+ *
+ * MOSTRA MESMO COM A TRAVA DESLIGADA. travaElencoTimesDaLiga avalia como se
+ * ela estivesse ligada, de propósito: a pergunta "quem está devendo" é útil
+ * antes de ligar a chave, que é justamente quando o admin quer saber quantos
+ * seriam barrados. O cabeçalho diz em qual dos dois casos a liga está.
+ */
+function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): string
+{
+    require_once __DIR__ . '/../backend/trava_elenco.php';
+
+    $termo = trim($termo);
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    try {
+        $cfg = travaElencoConfig($pdo, $liga);
+        $times = travaElencoTimesDaLiga($pdo, $liga);
+    } catch (Throwable $e) {
+        error_log('[wcAtualizados] ' . $e->getMessage());
+        return "Não consegui ler a atualização de elenco da {$liga} agora.";
+    }
+    if (!$times) return "Nenhum time com dono na {$liga}.";
+
+    $devendo = array_values(array_filter($times, fn($t) => !empty($t['bloqueado'])));
+    $precisa = (int)($times[0]['precisa'] ?? 0);
+    $modo = (string)($times[0]['modo'] ?? '');
+
+    $oQue = $modo === 'letras'
+        ? 'depois da progression, valem as *letras*'
+        : ($modo === 'estatisticas' ? 'antes do draft, valem as *estatísticas*' : 'sem período definido');
+
+    $txt = "📋 *Atualização de elenco — {$liga}*\n_{$oQue}"
+         . ($precisa > 0 ? " · mínimo de {$precisa} jogadores por time" : '') . "_\n";
+
+    /* A trava desligada muda o que a lista SIGNIFICA, não o que ela mostra:
+       sem isso o grupo lê a lista como "esses estão barrados" e cobra gente
+       que não está barrada de nada. */
+    if (empty($cfg['ativa'])) {
+        $txt .= "_A trava está desligada: ninguém está barrado de trocar por isso._\n";
+    }
+
+    if (!$devendo) {
+        return $txt . "\n✅ *Todos os " . count($times) . " em dia.*";
+    }
+
+    $txt .= "\n❌ *Faltam " . count($devendo) . " de " . count($times) . "*\n";
+    // Do mais atrasado pro menos: quem tem zero é quem precisa ser cobrado.
+    usort($devendo, fn($a, $b) => ((int)$a['tem'] <=> (int)$b['tem']) ?: strcmp($a['nome'], $b['nome']));
+    foreach ($devendo as $t) {
+        $txt .= "• {$t['nome']} — {$t['tem']} de {$t['precisa']}\n";
+    }
+    $emDia = count($times) - count($devendo);
+    if ($emDia > 0) $txt .= "\n_✅ {$emDia} em dia._";
     return rtrim($txt);
 }
 
@@ -6279,6 +6344,12 @@ function wcResponderComandoCru(PDO $pdo, string $texto, ?string $ligaDoGrupo = n
             case 'divisao':
             case 'divisão':
                 return wcDivisoes($pdo, $arg, $ligaDoGrupo);
+
+            case 'atualizados':
+            case 'atualizacao':
+            case 'atualização':
+            case 'naoatualizaram':
+                return wcAtualizados($pdo, $arg, $ligaDoGrupo);
 
             // O analista da liga: título, subir e cair, com a simulação do
             // SuperComputador por trás. /opta é o apelido que pegou no grupo.

@@ -51,9 +51,55 @@ $action = $_GET['action'] ?? '';
 
 if ($action === 'teams') {
     header('Content-Type: application/json');
+    $ligaDaMesa = (string)($user['league'] ?? '');
     $stmt = $pdo->prepare('SELECT id, city, name, photo_url FROM teams WHERE league = ? ORDER BY name ASC');
-    $stmt->execute([$user['league'] ?? '']);
-    echo json_encode(['ok' => true, 'teams' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    $stmt->execute([$ligaDaMesa]);
+    $listaTimes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    /* QUEM NÃO ATUALIZOU VAI MARCADO, e a marca sai daqui porque é aqui que
+       a lista nasce. São as DUAS travas que barram a troca em api/trades.php
+       (@see bloqueioPorElencoDesatualizado): a trava de elenco, que cobra
+       estatística antes do draft e letra depois da progression, e a
+       atualização da temporada, cobrada depois que o draft fecha.
+
+       Só marca quem está barrado DE VERDADE: com a trava desligada ninguém
+       aparece em vermelho, senão a tela acusaria time que pode trocar
+       normalmente. */
+    try {
+        require_once __DIR__ . '/backend/trava_elenco.php';
+        $cfgTrava = travaElencoConfig($pdo, $ligaDaMesa);
+        $travaLigada = !empty($cfgTrava['ativa']);
+
+        $tempDaMesa = temporadaAtivaDaLiga($pdo, $ligaDaMesa);
+        $cobraAtualizacao = $tempDaMesa && draftConcluidoNaTemporada($pdo, (int)$tempDaMesa['id']);
+
+        foreach ($listaTimes as &$tm) {
+            $tid = (int)$tm['id'];
+            $tm['bloqueado'] = false;
+            $tm['motivo'] = null;
+
+            if ($travaLigada) {
+                $e = travaElencoEstadoDoTime($pdo, $tid, $ligaDaMesa, $cfgTrava);
+                if (!empty($e['bloqueado'])) {
+                    $tm['bloqueado'] = true;
+                    $tm['motivo'] = (($e['modo'] ?? '') === 'letras' ? 'letras' : 'estatísticas')
+                                  . ': ' . (int)$e['tem'] . ' de ' . (int)$e['precisa'] . ' jogadores';
+                }
+            }
+            if (!$tm['bloqueado'] && $cobraAtualizacao
+                && !elencoAtualizadoNaTemporada($pdo, $tid, (int)$tempDaMesa['id'])) {
+                $tm['bloqueado'] = true;
+                $tm['motivo'] = 'não fez a atualização de elenco da temporada';
+            }
+        }
+        unset($tm);
+    } catch (Throwable $e) {
+        // A mesa vale mais que a marca: sem o aviso ela continua montável, e
+        // a troca ainda seria barrada no envio por api/trades.php.
+        error_log('[trade-simulator/teams] bloqueio: ' . $e->getMessage());
+    }
+
+    echo json_encode(['ok' => true, 'teams' => $listaTimes]);
     exit;
 }
 
@@ -351,6 +397,11 @@ body{overflow-x:hidden}
 .sim-team-logo{width:40px;height:40px;border-radius:9px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0;background:var(--panel-3)}
 .sim-team-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sim-team-cap{font-size:11px;color:var(--text-3);margin-top:1px}
+/* Time que não atualizou o elenco: a troca com ele é barrada no envio,
+   então o aviso vem antes de o GM montar a mesa inteira. */
+.sim-bloqueio{display:flex;align-items:flex-start;gap:7px;padding:8px 16px;background:color-mix(in srgb, #ef4444 12%, transparent);border-bottom:1px solid color-mix(in srgb, #ef4444 28%, transparent);color:#ef4444;font-size:11.5px;font-weight:600;line-height:1.35}
+.sim-bloqueio i{flex-shrink:0;margin-top:1px}
+.sim-bloqueio span{min-width:0}
 .sim-team-select{background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font);padding:6px 10px;width:100%;margin-top:8px}
 .sim-team-select:focus{outline:none;border-color:var(--red)}
 .sim-label{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:10px 16px 6px}
@@ -1224,7 +1275,14 @@ function populateTeamSelect(key, teamsList) {
     if (usedIds.has(+t.id)) return;
     const opt = document.createElement('option');
     opt.value = t.id;
-    opt.textContent = `${t.city ?? ''} ${t.name ?? ''}`.trim();
+    const nome = `${t.city ?? ''} ${t.name ?? ''}`.trim();
+    // O ⚠ no texto, e não só a cor: a cor de <option> alguns navegadores
+    // ignoram, e aí o aviso sumiria sem deixar rastro.
+    opt.textContent = t.bloqueado ? `⚠ ${nome}` : nome;
+    if (t.bloqueado) {
+      opt.style.color = '#ef4444';
+      opt.title = t.motivo || 'não atualizou o elenco';
+    }
     sel.appendChild(opt);
   });
   if (cur) sel.value = cur;
@@ -1392,6 +1450,15 @@ function buildPanel(key) {
   const singleFixed = isMyTeam;
   const selectDisabled = singleFixed ? 'disabled' : '';
 
+  /* O AVISO SAI DA LISTA DE TIMES, não do roster: o roster não sabe de trava,
+     e buscar isso de novo por painel seria uma ida ao servidor por clique. */
+  const fichaDoTime = t ? (window._allTeams || []).find(x => +x.id === +t.id) : null;
+  const avisoBloqueio = (fichaDoTime && fichaDoTime.bloqueado)
+    ? `<div class="sim-bloqueio"><i class="bi bi-exclamation-triangle-fill"></i>`
+      + `<span>Elenco não atualizado — a troca com este time é barrada no envio`
+      + `${fichaDoTime.motivo ? ` (${escH(fichaDoTime.motivo)})` : ''}.</span></div>`
+    : '';
+
   div.innerHTML = `
     <div class="sim-panel-header">
       ${canClose ? `<button class="sim-panel-close" onclick="removeTeamSlot('${key}')" title="Remover"><i class="bi bi-x-lg"></i></button>` : ''}
@@ -1407,6 +1474,7 @@ function buildPanel(key) {
         <option value="">Selecionar time...</option>
       </select>
     </div>
+    ${avisoBloqueio}
     <div class="sim-label">Recebe</div>
     <div class="sim-items" id="items_${key}">
       ${items.length ? items.map(item => itemHtml(item, key)).join('') : '<div class="sim-empty">Nenhum item</div>'}
