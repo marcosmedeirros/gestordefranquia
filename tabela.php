@@ -96,6 +96,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tname a{color:inherit;text-decoration:none}
 .tname a:hover{color:var(--red)}
 .tflag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-3);flex-shrink:0}
+/* A divisão (só a ELITE tem): etiqueta discreta, porque ela não muda de
+   temporada pra temporada e não pode competir com a posição. */
+.tdiv{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:color-mix(in srgb, var(--blue) 12%, transparent);color:var(--blue);flex-shrink:0}
+@media (max-width:560px){.tdiv{display:none}}
 .corte{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--green)}
 .corte::before,.corte::after{content:'';flex:1;height:1px;background:color-mix(in srgb, var(--green) 28%, transparent)}
 
@@ -212,6 +216,7 @@ function linhaTime(t, i) {
       <span class="tpos">${t.position}º</span>
       <img class="tlogo" src="${esc(t.photo_url || LOGO)}" alt="" onerror="this.src='${LOGO}'">
       <span class="tname"><a href="/team-history.php?team_id=${t.team_id}">${esc(t.name)}</a></span>
+      ${t.divisao ? `<span class="tdiv" title="Divisão do time">${esc(t.divisao)}</span>` : ''}
       ${t.informado ? '' : '<span class="tflag" title="Posição não lançada pela administração">não confirmada</span>'}
     </div>`;
 }

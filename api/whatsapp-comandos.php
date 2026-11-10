@@ -3027,7 +3027,10 @@ function wcDivisoes(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): 
         }
 
         $notas = array_map(fn($f) => (float)$f['nota'], $lista);
-        $mediaNota = round(array_sum($notas) / count($notas));
+        /* Uma casa decimal, e nao inteiro: tres divisoes caem perto de 79 e
+           arredondar fazia as tres saírem com o MESMO numero, o que no grupo
+           parece erro de conta em vez de empate. */
+        $mediaNota = number_format(array_sum($notas) / count($notas), 1, ",", "");
         $txt .= "\n*{$nome}* _(" . count($lista) . " times · nota {$mediaNota})_\n";
         foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1, false, false);
     }

@@ -125,6 +125,23 @@ function ordemEstavel(array $lista, int $semente): array {
     return $lista;
 }
 
+/* A DIVISÃO DE CADA TIME, quando a liga tem uma — hoje só a ELITE.
+   Sai da divisão de HOJE, e não da temporada: o campo não é histórico, então
+   numa tabela antiga ele responde "onde esse time está agora", que é o uso
+   que a etiqueta tem na tela. Liga sem divisão devolve mapa vazio e nenhuma
+   linha ganha etiqueta. */
+$divisoes = [];
+try {
+    $stDiv = $pdo->prepare("SELECT t.id, d.name
+                              FROM teams t
+                              JOIN divisions d ON d.id = t.division_id
+                             WHERE t.league = ?");
+    $stDiv->execute([$league]);
+    foreach ($stDiv->fetchAll(PDO::FETCH_ASSOC) as $r) $divisoes[(int)$r['id']] = $r['name'];
+} catch (Throwable $e) {
+    error_log('[tabela] divisoes: ' . $e->getMessage());
+}
+
 $conferencias = [];
 foreach (['LESTE', 'OESTE'] as $conf) {
     // Fonte de verdade de quem jogou a temporada: season_standings (via
@@ -137,6 +154,7 @@ foreach (['LESTE', 'OESTE'] as $conf) {
             'team_id' => $id, 'name' => $r['name'], 'photo_url' => $r['photo_url'],
             'position' => (int)$r['position'],
             'informado' => true, 'user_id' => $r['user_id'],
+            'divisao' => $divisoes[$id] ?? null,
         ];
     }
     usort($comPos, fn($a, $b) => $a['position'] <=> $b['position']);
@@ -158,6 +176,7 @@ foreach (['LESTE', 'OESTE'] as $conf) {
             'team_id' => (int)$t['id'], 'name' => $t['name'], 'photo_url' => $t['photo_url'],
             'position' => $proxima,
             'informado' => false, 'user_id' => $t['user_id'],
+            'divisao' => $divisoes[(int)$t['id']] ?? null,
         ];
         $ocupadas[] = $proxima;
         $proxima++;
