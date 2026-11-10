@@ -3145,15 +3145,12 @@ function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null
     if (!$times) return "Nenhum time com dono na {$liga}.";
 
     $devendo = array_values(array_filter($times, fn($t) => !empty($t['bloqueado'])));
-    $precisa = (int)($times[0]['precisa'] ?? 0);
-    $modo = (string)($times[0]['modo'] ?? '');
 
-    $oQue = $modo === 'letras'
-        ? 'depois da progression, valem as *letras*'
-        : ($modo === 'estatisticas' ? 'antes do draft, valem as *estatísticas*' : 'sem período definido');
-
-    $txt = "📋 *Atualização de elenco — {$liga}*\n_{$oQue}"
-         . ($precisa > 0 ? " · mínimo de {$precisa} jogadores por time" : '') . "_\n";
+    /* SEM SUBTÍTULO explicando o que se cobra (pedido do Marcos, 10/11/2026).
+       A regra do período continua valendo — é ela que monta a lista —, só não
+       é anunciada: quem lê no grupo quer o nome de quem está devendo, e o
+       "x de 6" de cada linha já mostra o tamanho da dívida. */
+    $txt = "📋 *Atualização de elenco — {$liga}*\n";
 
     /* A trava desligada muda o que a lista SIGNIFICA, não o que ela mostra:
        sem isso o grupo lê a lista como "esses estão barrados" e cobra gente
