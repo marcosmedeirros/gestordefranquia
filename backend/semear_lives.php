@@ -51,7 +51,11 @@ function agendaDaGrade(): array
 {
     return [
         // ── ELITE: quarta a terça ──────────────────────────────────────
-        ['ELITE',  3, '19:00', 'live',     'Regular ELITE',   null],
+        /* 15:30 desde 11/11/2026, a pedido do Marcos. O valor aqui estava em
+           19:00 e o calendario em 15:00 — e, como o semeador procura o evento
+           pela HORA EXATA, clicar em "criar grade" com os dois divergindo
+           criaria uma segunda live na mesma semana. @see semearGrade */
+        ['ELITE',  3, '15:30', 'live',     'Regular ELITE',   null],
         ['ELITE',  4, '19:00', 'live',     'Playoffs ELITE',  null],
         ['ELITE',  5, null,    'draft',    'Draft + Progression', null],
         ['ELITE',  0, '22:00', 'dl_fecha', 'Fim do período de trocas', null],
