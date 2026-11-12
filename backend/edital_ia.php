@@ -355,6 +355,42 @@ function editalIaComoUsarOApp(): string
  * grupo se faltar. O tom é o de um GM veterano respondendo no grupo, porque é
  * onde a resposta vai cair — e não o de quem lê regulamento em voz alta.
  */
+/**
+ * AS REGRAS DE FERRAMENTA, QUE VALEM COM QUALQUER VOZ.
+ *
+ * Quem chama pode trocar as instruções inteiras — é o que o papo faz pra falar
+ * na língua do grupo (@see papoInstrucoes). Até 12/11/2026 isso levava embora
+ * junto o manual de uso das ferramentas, e o modelo ficava com o esquema do
+ * banco na mão e ninguém mandando consultar: respondeu que o Colorado Goats
+ * estava em "14ª posição" quando ele é o último da ELITE, com 5 pontos.
+ *
+ * Então o que é OPERACIONAL mora aqui e entra sempre, antes da voz. É curto de
+ * propósito: no /duvida ele repete o que o manual já diz, e pagar duas vezes
+ * por meia dúzia de linhas é mais barato que um número inventado no grupo.
+ */
+function editalIaRegrasDeFerramenta(string $league): string
+{
+    return implode("\n", [
+        'ANTES DE FALAR NÚMERO, CONSULTE. Isto vale qualquer que seja o seu tom:',
+        '- Fato da liga — posição, pontos, OVR, salário, elenco, campeão, troca, pick — sai de',
+        '  consultar_dados. Nunca de cabeça, nunca estimado, nunca "por alto".',
+        '- Toda previsão passa por uma ferramenta projetar_* (temporada, confronto, quinteto,',
+        '  playoffs, campeões, ranking, loteria). Não calcule por conta.',
+        '- Nome de jogador e de time nunca vem de memória: você conhece a NBA de verdade e a FBA',
+        '  é outra. Se a ferramenta não trouxe o nome, diga que não achou.',
+        '- Filtre pela SPRINT ATUAL (os season_id do bloco "A SPRINT ATUAL"). Ciclo antigo não vale.',
+        '- Consultou e não voltou nada? Diga que não achou. Não preencha o buraco com suposição.',
+        '- A liga do TIME manda: confira teams.league antes de falar dele. Time de outra liga não',
+        "  entra numa conversa da {$league} como se fosse de lá.",
+        '',
+        'ONDE ESTÁ A PONTUAÇÃO DE HOJE: teams.ranking_points, por liga — é o número que o /ranking',
+        'mostra e o que a liga reconhece como pontuação atual de cada time. MENOS pontos = PIOR',
+        'colocado. Quem está no fundo dessa lista é quem corre risco; quem está no topo é quem vai',
+        'bem. Pra dizer em que posição um time está, conte quantos times da liga têm mais pontos',
+        'que ele — não chute a posição.',
+    ]);
+}
+
 function editalIaInstrucoes(string $league, ?array $quem = null, ?array $citados = null): string
 {
     $mavie = '"Arrogante, pra que jogar a bola na Mavie"';
@@ -1019,6 +1055,10 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
        ferramentas de projeção e consulta, mas com a personalidade dele: curto, na
        língua do grupo. Sem isto ele teria que reimplementar o laço de function
        calling inteiro, com as pegadinhas que este arquivo levou meses pra mapear. */
+    /* O OPERACIONAL VEM SEMPRE, A VOZ VEM DEPOIS. A voz de quem chamou manda no
+       tom, no tamanho e no jeito de falar; não manda em consultar antes de
+       afirmar. @see editalIaRegrasDeFerramenta */
+    $partes[] = ['text' => editalIaRegrasDeFerramenta($league)];
     $partes[] = ['text' => $instrucoes !== null ? $instrucoes : editalIaInstrucoes($league, $quem, $citados)];
 
     $tools = [[
