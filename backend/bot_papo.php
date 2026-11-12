@@ -631,9 +631,26 @@ if (!function_exists('papoInstrucoes')) {
             $l[] = '  Número que você não consultou é número inventado — então consulte antes de falar.';
             $l[] = '  Aqui você pode passar das duas linhas: projeção tem conteúdo e o pessoal quer ver.';
             $l[] = '  Mas continue sendo você: comente o resultado com a sua voz, não despeje tabela seca.';
+            $l[] = '';
+            $l[] = '- VOCÊ OPINA DE VERDADE, E A OPINIÃO SAI DO DADO.';
+            $l[] = '  Pediram seu palpite, seu favorito, quem cai, quem é o melhor, o que você acha de um';
+            $l[] = '  time? ESCOLHA e diga o nome. Nada de "não dá pra saber", "depende" ou "todos têm';
+            $l[] = '  chance" — em cima do muro você não serve pra nada na conversa. Pediram de uma liga';
+            $l[] = '  específica? Escolhe dentro dela.';
+            $l[] = '  O que não dá é escolher no escuro: CONSULTE primeiro e defenda a escolha com o que';
+            $l[] = '  voltou (posição, pontos, OVR, folha). Opinião com número atrás é resenha; sem número';
+            $l[] = '  é chute, e chute seu vira briga no grupo.';
+            $l[] = '  Se o dado contrariar o que você ia dizer, o dado ganha. Falar que um time está bem';
+            $l[] = '  quando ele é o último do ranking é o pior erro que você pode cometer aqui.';
+            $l[] = '- QUEM CAI: a FBA não tem rebaixamento automático — quem sobe e quem desce é decisão';
+            $l[] = '  de admin. Então quem está em risco são os times do FUNDO DO RANKING da liga (os 4';
+            $l[] = '  últimos é a zona que o site mostra). Consulte o ranking, diga os nomes de lá e deixe';
+            $l[] = '  claro que é posição, não decreto. Não prometa nem garanta a queda de ninguém.';
         } else {
             $l[] = '- VOCÊ NÃO TEM OS DADOS DA LIGA NESTA CONVERSA. Não sabe quem foi campeão, quem trocou o que,';
-            $l[] = '  quanto vale um jogador, classificação nem número nenhum. Perguntaram isso? Diga que não';
+            $l[] = '  quanto vale um jogador, classificação nem número nenhum. Também NÃO SABE se um time está';
+            $l[] = '  bem ou mal, se é bom ou ruim, se está perto de cair ou de subir, nem em que posição ele';
+            $l[] = '  está — isso é número, e número você não tem aqui. Perguntaram isso? Diga que não';
             $l[] = '  está com isso na mão e mande o comando: /jogador, /time, /cap, /trocas, /classificacao, /picks.';
             $l[] = '  Pode zoar no mesmo fôlego, mas o fato tem que ficar com o comando.';
             $l[] = '  Enrolar é pior que admitir: responder "foi a panela de sempre que ganhou" soa como informação,';
@@ -773,7 +790,7 @@ if (!function_exists('papoPedeDados')) {
      * desnecessária; errar pra menos faz o bot mandar "usa o /time", que é o que
      * o dono pediu pra acabar.
      */
-    function papoPedeDados(string $texto): bool
+    function papoPedeDados(string $texto, ?PDO $pdo = null, string $liga = ''): bool
     {
         $t = mb_strtolower($texto);
         $gatilhos = [
@@ -786,8 +803,76 @@ if (!function_exists('papoPedeDados')) {
             'quantos pontos', 'quantas vitórias', 'quantas vitorias', 'média', 'media de',
             'compara', 'comparar', 'vale mais', 'quanto vale', 'meu time', 'meus gms',
             'melhores gms', 'gms favoritos', 'quem é o melhor', 'quem e o melhor',
+            /* PEDIDO DE JUÍZO É PEDIDO DE DADO (12/11/2026). "o que você acha do
+               time do X" não tinha gatilho nenhum: caía no papo seco e o bot
+               opinava do nada — foi assim que o lanterna da ELITE virou "longe
+               de cair". Quem pergunta o que ele acha quer a opinião, não um
+               "não sei": então liga as ferramentas e a opinião sai do número. */
+            'acha do', 'acha de', 'acha da', 'acha sobre', 'acha desse', 'acha dessa',
+            'acha deste', 'acha que o', 'acha que a', 'o que acha', 'oq acha', 'oq vc acha',
+            'que vc acha', 'que voce acha', 'que você acha', 'sua opinião', 'sua opiniao',
+            'na sua opinião', 'na sua opiniao', 'quem cai', 'quem desce', 'quem sobe',
+            'rebaix', 'zona de baixo', 'parte de baixo', 'fundo da tabela', 'lanterna',
+            'palpite', 'aposta em', 'aposta no', 'aposta na', 'quem você', 'quem vc',
+            'escolhe', 'escolha', 'escolheria', 'prefere', 'preferido', 'melhor gm',
+            'pior gm', 'melhor elenco', 'pior elenco', 'time do', 'time da', 'time de',
+            'como ta o', 'como tá o', 'como esta o', 'como está o', 'como vai o',
         ];
         foreach ($gatilhos as $g) if (str_contains($t, $g)) return true;
+
+        /* Palavra curta não pode ser substring: 'cai' casa em "caixa", 'sobe'
+           em "soberba". Aqui a borda de palavra é obrigatória. */
+        if (preg_match('/\b(cai|caiu|cair|sobe|subiu|subir|desce|desceu)\b/u', $t)) return true;
+
+        /* CITOU UM TIME DA LIGA? Aí é conversa sobre time específico, e falar de
+           time específico sem os números é exatamente onde ele errou. Custa uma
+           consulta a mais; mentir custa a credibilidade da organização. */
+        if ($pdo && papoCitaTime($pdo, $t, $liga)) return true;
+
+        return false;
+    }
+}
+
+if (!function_exists('papoCitaTime')) {
+    /**
+     * O texto cita um time da liga pelo nome?
+     *
+     * Serve só pra decidir se liga as ferramentas de consulta — não precisa
+     * saber QUAL time, o modelo descobre isso com elas na mão.
+     *
+     * Casa o apelido curto ("Goats", "Voidmakers"), que é como o grupo fala, e
+     * a cidade quando ela tem corpo ("Colorado", "Bed-Stuy"). Palavra de menos
+     * de 4 letras fica fora: "Dope", "Blues" e "Mafia" passam, mas um nome de
+     * três letras viraria falso positivo em qualquer frase.
+     *
+     * A lista fica em estático: o papo responde uma mensagem por vez, e numa
+     * liga de 32 times a consulta não se paga duas vezes no mesmo processo.
+     */
+    function papoCitaTime(PDO $pdo, string $textoMinusculo, string $liga): bool
+    {
+        static $cache = [];
+        $liga = $liga !== '' ? $liga : 'ELITE';
+
+        if (!isset($cache[$liga])) {
+            $nomes = [];
+            try {
+                $st = $pdo->prepare("SELECT name, city FROM teams WHERE league = ?");
+                $st->execute([$liga]);
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    foreach ([$r['name'], $r['city']] as $n) {
+                        $n = trim(mb_strtolower((string)$n));
+                        if (mb_strlen($n) >= 4) $nomes[$n] = true;
+                    }
+                }
+            } catch (Throwable $e) {
+                error_log('[papo] nomes de time: ' . $e->getMessage());
+            }
+            $cache[$liga] = array_keys($nomes);
+        }
+
+        foreach ($cache[$liga] as $n) {
+            if (str_contains($textoMinusculo, $n)) return true;
+        }
         return false;
     }
 }
@@ -913,7 +998,7 @@ if (!function_exists('papoResponder')) {
            pra ficar de pé. Reimplementar aqui seria refazer todas as pegadinhas —
            inclusive a de 21/09, em que pedir projeção de quinteto RESPONDENDO o bot
            devolveu o elenco dos Knicks da NBA em vez do time da liga. */
-        if (papoPedeDados($texto)) {
+        if (papoPedeDados($texto, $pdo, $liga)) {
             $quemEdital = $quem;
             $quemEdital['com_dados'] = true;
             $instrucoes = papoInstrucoes($quemEdital, papoFolclore($pdo, $liga), $afinidade, $historico);
