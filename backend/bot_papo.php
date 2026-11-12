@@ -675,10 +675,28 @@ if (!function_exists('papoInstrucoes')) {
         $l[] = 'Athens é o time do burro", "anota aí que o fulano nunca responde pv", "o apelido do';
         $l[] = 'beltrano é X" — responda normal confirmando que anotou, e acrescente no FIM da sua';
         $l[] = 'resposta, em linha separada, exatamente neste formato:';
-        $l[] = '  [APRENDI] assunto curto :: o fato em uma frase';
+        $l[] = '  [APRENDI] assunto curto :: o fato, com os detalhes que importam';
         $l[] = 'Essa linha é removida antes de chegar no grupo, então escreva a resposta como se ela';
         $l[] = 'não existisse. Use só quando a intenção for mesmo te ensinar algo duradouro — comentário';
         $l[] = 'do momento, fofoca de uma troca e resposta a pergunta NÃO são pra guardar.';
+        $l[] = '';
+        $l[] = 'GUARDE A HISTÓRIA, NÃO O TÍTULO DELA. Você tem até 400 caracteres no fato: use.';
+        $l[] = 'Se te contarem um caso com nomes, quem fez o que e como acabou, guarde isso — quem,';
+        $l[] = 'o que aconteceu, quem se deu mal, como ficou conhecido. Resumir em seis palavras é';
+        $l[] = 'perder a história: depois alguém pede "me conta esse caso" e você não tem o que contar.';
+        $l[] = 'Contaram mais de um fato de uma vez? Mande uma linha [APRENDI] para CADA um — o caso';
+        $l[] = 'numa, o apelido que nasceu dele em outra. Todas são gravadas.';
+        $l[] = 'O QUE NÃO VIRA [APRENDI] (já aconteceu e virou lixo na sua memória):';
+        $l[] = '- Sua própria piada ou desabafo do momento: "o cara nem tá mais na liga e eu aqui';
+        $l[] = '  perdendo tempo" não é fato da liga, é você falando.';
+        $l[] = '- O que um comando faz: "/ranking mostra a pontuação dos times" você já sabe, não é lição.';
+        $l[] = '- Resultado de consulta, número de hoje, quem está em que posição: isso muda toda semana.';
+        $l[] = '';
+        $l[] = 'E O QUE VOCÊ JÁ APRENDEU, VOCÊ CONTA. Se te pedirem um caso que está na sua memória da';
+        $l[] = 'liga, conte o que você tem, com nome e detalhe, no seu tom. Dizer "melhor não cutucar';
+        $l[] = 'essa ferida" ou oferecer um comando que não tem nada a ver com o assunto é enrolação,';
+        $l[] = 'e enrolação é pior que admitir: se você só tem meia linha sobre aquilo, conte a meia';
+        $l[] = 'linha e diga que foi o que te contaram.';
 
         $l[] = '';
         $l[] = 'QUEM TE MARCOU AGORA:';
@@ -1044,8 +1062,15 @@ if (!function_exists('papoResponder')) {
         /* ENSINARAM ALGO? A linha [APRENDI] sai da resposta e vira folclore.
            Fora daqui ela nunca chega ao grupo — o que o pessoal vê é só a confirmação
            em português que o próprio modelo escreveu antes dela. */
-        if (preg_match('/^\s*\[APRENDI\]\s*(.+?)\s*::\s*(.+?)\s*$/mu', $saida, $mm)) {
-            papoAprender($pdo, $liga, $mm[1], $mm[2], (string)($quem['nome'] ?? ''), $quem['user_id'] ?? null);
+        /* VÁRIAS LINHAS, VÁRIOS FATOS. Uma lição costuma trazer mais de uma coisa
+           — o caso e o apelido que nasceu dele —, e com preg_match só a primeira
+           era gravada: a segunda desaparecia depois de ter sido confirmada no
+           grupo. A cota por pessoa (PAPO_APRENDE_POR_DIA) segue valendo dentro
+           do papoAprender, então isto não abre a porteira. */
+        if (preg_match_all('/^\s*\[APRENDI\]\s*(.+?)\s*::\s*(.+?)\s*$/mu', $saida, $mm, PREG_SET_ORDER)) {
+            foreach ($mm as $um) {
+                papoAprender($pdo, $liga, $um[1], $um[2], (string)($quem['nome'] ?? ''), $quem['user_id'] ?? null);
+            }
             $saida = trim(preg_replace('/^\s*\[APRENDI\].*$/mu', '', $saida));
             if ($saida === '') $saida = 'anotado 📝';
         }

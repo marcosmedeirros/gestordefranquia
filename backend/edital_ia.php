@@ -388,6 +388,9 @@ function editalIaRegrasDeFerramenta(string $league): string
         'colocado. Quem está no fundo dessa lista é quem corre risco; quem está no topo é quem vai',
         'bem. Pra dizer em que posição um time está, conte quantos times da liga têm mais pontos',
         'que ele — não chute a posição.',
+        '- CUIDADO com team_ranking_points: ela é POR TEMPORADA e fica ZERADA até a temporada',
+        '  fechar, então hoje ela mostra 0 pra liga inteira e dá a impressão de que está tudo',
+        '  igual. Pra saber quem vai bem e quem vai mal AGORA, use teams.ranking_points.',
     ]);
 }
 
