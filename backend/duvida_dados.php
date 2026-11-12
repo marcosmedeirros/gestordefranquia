@@ -583,6 +583,75 @@ function duvidaResultadoParaIA(array $r): string
  * Best-effort de ponta a ponta: cada pedaço falha sozinho. Ficha incompleta é
  * melhor que resposta que não sai.
  */
+/**
+ * O ranking de pontos de HOJE na liga, inteiro, pronto pra ler.
+ *
+ * A régua é teams.ranking_points, que é o que o /ranking mostra e o que a liga
+ * reconhece como pontuação atual (@see backend/supercomputador.php, onde isso
+ * está conferido contra a soma da edição). A tabela por temporada
+ * (team_ranking_points) NÃO serve aqui: ela fica zerada até a temporada fechar,
+ * e foi dela que saiu um "quem cai" com times de 42 e 48 pontos no lugar dos de 5.
+ *
+ * A ZONA DE BAIXO sai com o mesmo tamanho que o site usa (SC_ZONA, 4 times),
+ * pra tela e bot não contarem história diferente.
+ */
+function duvidaRankingDeHoje(PDO $pdo, string $liga): string
+{
+    $liga = strtoupper(trim($liga));
+    if ($liga === '') return '';
+
+    try {
+        $st = $pdo->prepare("SELECT city, name, ranking_points
+                               FROM teams
+                              WHERE league = ?
+                           ORDER BY ranking_points DESC, name ASC");
+        $st->execute([$liga]);
+        $times = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[duvida/ranking] ' . $e->getMessage());
+        return '';
+    }
+    if (count($times) < 2) return '';
+
+    $nome = function (array $t): string {
+        return trim(trim((string)$t['city']) . ' ' . trim((string)$t['name']));
+    };
+
+    $l = [];
+    $l[] = "O RANKING DE PONTOS DE HOJE NA {$liga} (" . count($times) . ' times).';
+    $l[] = 'É ESTA a pontuação que a liga reconhece agora, a mesma do /ranking. MAIS pontos = MELHOR';
+    $l[] = 'colocado. Já está tudo aqui: para dizer posição, quem vai bem e quem vai mal, LEIA ESTA';
+    $l[] = 'LISTA e não monte consulta — o banco não vai te dar nada melhor do que isto.';
+
+    $linha = [];
+    foreach ($times as $i => $t) {
+        $linha[] = ($i + 1) . 'º ' . $nome($t) . ' ' . (int)$t['ranking_points'];
+        if (count($linha) === 4) { $l[] = '  ' . implode(' · ', $linha); $linha = []; }
+    }
+    if ($linha) $l[] = '  ' . implode(' · ', $linha);
+
+    /* O MESMO TAMANHO DE ZONA QUE A TELA MOSTRA. Sem o require o valor viria
+       de um número solto aqui, e aí tela e bot divergiriam na primeira mudança. */
+    $zona = 4;
+    if (!defined('SC_ZONA')) {
+        $sc = __DIR__ . '/supercomputador.php';
+        if (is_file($sc)) { try { require_once $sc; } catch (Throwable $e) { /* fica o 4 */ } }
+    }
+    if (defined('SC_ZONA')) $zona = max(1, (int)SC_ZONA);
+
+    $fundo = array_slice($times, -$zona);
+    $nomesFundo = [];
+    foreach (array_reverse($fundo) as $t) $nomesFundo[] = $nome($t) . ' (' . (int)$t['ranking_points'] . ')';
+
+    $l[] = 'ZONA DE BAIXO — os ' . $zona . ' últimos, do pior pra cima: ' . implode(', ', $nomesFundo) . '.';
+    $l[] = 'É QUEM CORRE RISCO, e é o que responder quando perguntarem quem cai. Mas a FBA não tem';
+    $l[] = 'rebaixamento automático: quem sobe e quem desce é decisão de admin, então isto é POSIÇÃO,';
+    $l[] = 'nunca decreto — e nunca prometa a queda de ninguém.';
+    $l[] = 'Times empatados em pontos estão na mesma situação; a ordem entre eles aqui não é desempate.';
+
+    return implode("\n", $l);
+}
+
 function duvidaFichaDoTime(PDO $pdo, int $teamId, string $liga): string
 {
     if ($teamId <= 0) return '';

@@ -693,7 +693,9 @@ if (!function_exists('papoInstrucoes')) {
         $l[] = '- Resultado de consulta, número de hoje, quem está em que posição: isso muda toda semana.';
         $l[] = '';
         $l[] = 'E O QUE VOCÊ JÁ APRENDEU, VOCÊ CONTA. Se te pedirem um caso que está na sua memória da';
-        $l[] = 'liga, conte o que você tem, com nome e detalhe, no seu tom. Dizer "melhor não cutucar';
+        $l[] = 'liga, conte o que você tem, com nome e detalhe, no seu tom. Aqui a regra das duas linhas';
+        $l[] = 'não vale: contar história em uma linha não é contar história. Use umas três, diga quem';
+        $l[] = 'fez o que, quem se deu mal e como ficou conhecido. Dizer "melhor não cutucar';
         $l[] = 'essa ferida" ou oferecer um comando que não tem nada a ver com o assunto é enrolação,';
         $l[] = 'e enrolação é pior que admitir: se você só tem meia linha sobre aquilo, conte a meia';
         $l[] = 'linha e diga que foi o que te contaram.';

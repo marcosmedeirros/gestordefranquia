@@ -383,14 +383,12 @@ function editalIaRegrasDeFerramenta(string $league): string
         '- A liga do TIME manda: confira teams.league antes de falar dele. Time de outra liga não',
         "  entra numa conversa da {$league} como se fosse de lá.",
         '',
-        'ONDE ESTÁ A PONTUAÇÃO DE HOJE: teams.ranking_points, por liga — é o número que o /ranking',
-        'mostra e o que a liga reconhece como pontuação atual de cada time. MENOS pontos = PIOR',
-        'colocado. Quem está no fundo dessa lista é quem corre risco; quem está no topo é quem vai',
-        'bem. Pra dizer em que posição um time está, conte quantos times da liga têm mais pontos',
-        'que ele — não chute a posição.',
-        '- CUIDADO com team_ranking_points: ela é POR TEMPORADA e fica ZERADA até a temporada',
-        '  fechar, então hoje ela mostra 0 pra liga inteira e dá a impressão de que está tudo',
-        '  igual. Pra saber quem vai bem e quem vai mal AGORA, use teams.ranking_points.',
+        'POSIÇÃO E PONTUAÇÃO DE HOJE JÁ ESTÃO NO SEU CONTEXTO, no bloco "O RANKING DE PONTOS DE',
+        'HOJE". Leia de lá: posição, pontos, quem lidera e a zona de baixo. Não monte consulta pra',
+        'isso e NUNCA diga de cabeça em que posição um time está — o número está escrito ali.',
+        '- Se precisar da pontuação de outra liga, ela está em teams.ranking_points (mais = melhor).',
+        '  Mas não use team_ranking_points: ela é por temporada e fica ZERADA até a temporada fechar,',
+        '  então hoje mostra 0 pra liga inteira e faz parecer que está tudo igual.',
     ]);
 }
 
@@ -1027,6 +1025,13 @@ function editalIaPerguntarGemini(PDO $pdo, string $league, string $edital, strin
     // toda consulta que ele for escrever.
     $sprint = duvidaSprintAtual($pdo);
     if ($sprint !== '') $partes[] = ['text' => $sprint];
+
+    /* E O RANKING DE HOJE, PRONTO. 32 linhas que não mudam durante a conversa,
+       contra uma rodada de function calling que errou três vezes seguidas em
+       12/11/2026 — inclusive pondo o lanterna fora da zona de baixo.
+       @see duvidaRankingDeHoje */
+    $rank = duvidaRankingDeHoje($pdo, $league);
+    if ($rank !== '') $partes[] = ['text' => $rank];
 
     /* A FICHA DO TIME DE QUEM PERGUNTOU, já resolvida.
        Metade das perguntas do grupo é sobre o próprio time, e sem isto cada
