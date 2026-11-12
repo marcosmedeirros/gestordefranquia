@@ -458,7 +458,7 @@ function alvoDoFormulario() {
  * toa. O que ele serve pra dizer é quanto ainda dá pra prometer sem
  * risco de estourar.
  */
-function frasesDoCap({ custo, livre, outras, cabe, cabeSozinho, u, salario, jaPrometido }) {
+function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
     /* Sem o "no seu cap" aqui dentro: a frase que usa isto já põe o
        complemento, e as duas juntas diziam "não mexe no seu cap no seu
        cap". */
@@ -477,66 +477,50 @@ function frasesDoCap({ custo, livre, outras, cabe, cabeSozinho, u, salario, jaPr
     /* COMO FICA, que é a pergunta. O "de X pra Y" diz mais que o espaço
        sozinho: quem olha quer se ver depois da contratação. */
     if (folha != null && teto != null) {
-        /* `jaPrometido` é o conjunto das OUTRAS propostas, já sem esta —
-           quem edita um lance que existe não pode ver o antigo somado ao
-           novo. Em soma de OVR a parcela de cada um é subaditiva (o
-           segundo craque sobe menos que o primeiro), então somar os dois
-           dá um teto da conta, nunca um número menor que o real: é o
-           pior caso, que é exatamente o que a frase promete. */
-        const depois = folha + jaPrometido + custo;
+        /* SÓ ESTE JOGADOR (11/11/2026). O placar somava as outras propostas
+           em pé e mostrava o pior caso — "e se eu levar todas?". Virava um
+           número que assustava sem nunca acontecer, e era ele que aparecia
+           como 850 de 848 na tela de quem só queria propor por mais um.
+           Quem protege o cap é a aprovação, que revalida na hora de fechar.
+           @see atualizarAvisoDeCap */
+        const depois = folha + custo;
         /* A unidade uma vez só no fim: "818 de OVR de 828 de OVR" era o
            que saía repetindo o fmtCap nos dois números. */
         const placar = u === 'M'
             ? `<strong>${depois}M</strong> de <strong>${teto}M</strong>`
             : `<strong>${depois}</strong> de <strong>${teto}</strong> de OVR`;
-        t += outras.length
-            ? ` Levando ele e as outras, você fica em ${placar}.`
-            : ` Com ele você fica em ${placar}.`;
+        t += ` Com ele você fica em ${placar}.`;
     }
 
     /* O elenco. Com vaga de sobra é uma informação; chegando no limite é
        um aviso, porque proposta com elenco cheio não pode nem ser feita. */
-    const depoisElenco = elenco + 1 + outras.length;
+    const depoisElenco = elenco + 1;
     if (elenco) {
-        t += ` Elenco: <strong>${elenco}</strong> hoje`
-           + (outras.length
-                ? `, <strong>${depoisElenco}</strong> se levar todas`
-                : `, <strong>${elenco + 1}</strong> com ele`)
+        t += ` Elenco: <strong>${elenco}</strong> hoje, <strong>${depoisElenco}</strong> com ele`
            + (depoisElenco > max
-                /* Passar de ${max} não é detalhe: o envio é recusado, e
-                   quem tem propostas demais em pé precisa saber disso
-                   aqui, não quando o admin fechar a segunda. */
                 ? ` — <strong style="color:var(--amber)">passa do limite de ${max}</strong>.`
                 : ` — o limite é ${max}.`);
     }
 
+    /* As outras propostas continuam À VISTA, mas FORA DA CONTA: saber que
+       elas existem ajuda a decidir; somá-las travava quem só queria
+       espalhar ofertas pra não ficar sem ninguém. */
     if (outras.length) {
         const nomes = outras.slice(0, 3).map(p => p.nome).join(', ')
                     + (outras.length > 3 ? ` e mais ${outras.length - 3}` : '');
         t += `<br><span style="color:var(--text-3)">`
            + (outras.length === 1
-                ? `Conta com a proposta que você já tem em pé (${nomes}).`
-                + ` É o pior caso: só vale se você levar as duas.`
-                : `Conta com as ${outras.length} propostas que você já tem em pé (${nomes}).`
-                + ` É o pior caso: só vale se você levar todas.`)
-           + `</span>`;
+                ? `Você tem outra proposta em pé (${nomes}). Ela não entra nesta conta`
+                : `Você tem outras ${outras.length} propostas em pé (${nomes}). Elas não entram nesta conta`)
+           + ` — cada uma é conferida de novo na hora de fechar.</span>`;
     }
 
-    /* DOIS "NÃO CABE" DIFERENTES, e só um deles é impedimento.
-       @see atualizarAvisoDeCap */
-    if (!cabeSozinho) {
-        // Não cabe nem com o elenco de hoje: a proposta é impossível.
+    /* Um "não cabe" só: o jogador não entra no espaço de hoje. Prometer
+       demais deixou de ser impedimento — ver atualizarAvisoDeCap. */
+    if (!cabe) {
         t = `<strong>Não cabe.</strong> ` + t
           + `<br>Sobram <strong>${fmtCap(Math.max(0, livre), u)}</strong>`
-          + (outras.length ? ' depois do que você já prometeu' : '')
-          + '. Libere espaço, baixe o lance ou cancele uma proposta.';
-    } else if (!cabe) {
-        /* Cabe sozinho, não cabe se levar todas. Isso é risco, não
-           impedimento — e o risco é do GM: se ele ganhar duas, a segunda
-           aprovação é recusada pelo servidor e o cap continua inteiro. */
-        t = `<strong>Cabe — mas não se você levar todas.</strong> ` + t
-          + `<br>Pode enviar: se ganhar as duas, a segunda é recusada na hora`
-          + ` de fechar, e o cap não estoura. Só não dá pra contar com as duas.`;
+          + '. Libere espaço, baixe o lance ou dispense alguém.';
     }
     return t;
 }
@@ -588,31 +572,26 @@ function atualizarAvisoDeCap() {
         custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
     }
 
-    /* A TRAVA SÓ VALE PARA O IMPOSSÍVEL (11/11/2026).
-       Até aqui, o botão era desabilitado sempre que o PIOR CASO estourava —
-       a soma de todas as propostas em pé. Na prática isso impedia o GM de
-       espalhar ofertas, que é o que se faz numa free agency pra não ficar
-       sem ninguém: com o elenco perto do teto, a segunda proposta já batia
-       no limite e o botão travava (reclamação do Cavalo, RISE, 11/11).
+    /* CADA PROPOSTA É CONFERIDA SOZINHA (11/11/2026).
+       A conta somava todas as propostas em pé do time e mostrava o pior
+       caso — "e se eu levar todas?". Isso impedia o GM de espalhar ofertas,
+       que é o que se faz numa free agency pra não ficar sem ninguém: com o
+       elenco perto do teto, a segunda proposta já batia no limite e o botão
+       travava (Cavalo, RISE, 11/11). O Marcos decidiu que a soma sai de vez.
 
-       E a trava não protegia o cap. Quem protege é a APROVAÇÃO, que
+       E o cap não fica desprotegido: quem protege é a APROVAÇÃO, que
        revalida o espaço na hora de fechar e recusa o que não couber mais
-       (@see faAprovar, em api/free-agency.php). O pior caso continua escrito
-       na tela, que é o pedido original do Kleber (15/10) — só deixou de ser
-       uma porta trancada.
+       (@see faAprovar, em api/free-agency.php). Prometer demais é risco do
+       GM — ganhar duas e perder a segunda —, não estouro de cap.
 
-       Então: não cabe nem sozinho → bloqueia, porque a proposta é
-       impossível. Cabe sozinho e só estoura somando as outras → avisa, e o
-       GM decide se corre o risco. */
-    const cabeSozinho = custo <= Math.max(0, espaco);
-    cabe = custo <= Math.max(0, livre);
-    texto.innerHTML = frasesDoCap({ custo, livre, outras, cabe, cabeSozinho, u, salario, jaPrometido });
+       As outras propostas seguem à vista na frase, fora da conta. */
+    cabe = custo <= Math.max(0, espaco);
+    texto.innerHTML = frasesDoCap({ custo, livre: espaco, outras, cabe, u, salario, jaPrometido: 0 });
     caixa.hidden = false;
-    // Vermelho só no impedimento; o risco assumido é amarelo.
-    texto.style.color = cabeSozinho ? (cabe ? '' : 'var(--amber)') : 'var(--red)';
+    texto.style.color = cabe ? '' : 'var(--red)';
     if (botao) {
-        botao.disabled = !cabeSozinho;
-        botao.style.opacity = cabeSozinho ? '' : '.5';
+        botao.disabled = !cabe;
+        botao.style.opacity = cabe ? '' : '.5';
     }
 }
 
