@@ -458,7 +458,7 @@ function alvoDoFormulario() {
  * toa. O que ele serve pra dizer é quanto ainda dá pra prometer sem
  * risco de estourar.
  */
-function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
+function frasesDoCap({ custo, livre, outras, cabe, cabeSozinho, u, salario, jaPrometido }) {
     /* Sem o "no seu cap" aqui dentro: a frase que usa isto já põe o
        complemento, e as duas juntas diziam "não mexe no seu cap no seu
        cap". */
@@ -522,11 +522,21 @@ function frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido }) {
            + `</span>`;
     }
 
-    if (!cabe) {
+    /* DOIS "NÃO CABE" DIFERENTES, e só um deles é impedimento.
+       @see atualizarAvisoDeCap */
+    if (!cabeSozinho) {
+        // Não cabe nem com o elenco de hoje: a proposta é impossível.
         t = `<strong>Não cabe.</strong> ` + t
           + `<br>Sobram <strong>${fmtCap(Math.max(0, livre), u)}</strong>`
           + (outras.length ? ' depois do que você já prometeu' : '')
           + '. Libere espaço, baixe o lance ou cancele uma proposta.';
+    } else if (!cabe) {
+        /* Cabe sozinho, não cabe se levar todas. Isso é risco, não
+           impedimento — e o risco é do GM: se ele ganhar duas, a segunda
+           aprovação é recusada pelo servidor e o cap continua inteiro. */
+        t = `<strong>Cabe — mas não se você levar todas.</strong> ` + t
+          + `<br>Pode enviar: se ganhar as duas, a segunda é recusada na hora`
+          + ` de fechar, e o cap não estoura. Só não dá pra contar com as duas.`;
     }
     return t;
 }
@@ -578,13 +588,31 @@ function atualizarAvisoDeCap() {
         custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
     }
 
+    /* A TRAVA SÓ VALE PARA O IMPOSSÍVEL (11/11/2026).
+       Até aqui, o botão era desabilitado sempre que o PIOR CASO estourava —
+       a soma de todas as propostas em pé. Na prática isso impedia o GM de
+       espalhar ofertas, que é o que se faz numa free agency pra não ficar
+       sem ninguém: com o elenco perto do teto, a segunda proposta já batia
+       no limite e o botão travava (reclamação do Cavalo, RISE, 11/11).
+
+       E a trava não protegia o cap. Quem protege é a APROVAÇÃO, que
+       revalida o espaço na hora de fechar e recusa o que não couber mais
+       (@see faAprovar, em api/free-agency.php). O pior caso continua escrito
+       na tela, que é o pedido original do Kleber (15/10) — só deixou de ser
+       uma porta trancada.
+
+       Então: não cabe nem sozinho → bloqueia, porque a proposta é
+       impossível. Cabe sozinho e só estoura somando as outras → avisa, e o
+       GM decide se corre o risco. */
+    const cabeSozinho = custo <= Math.max(0, espaco);
     cabe = custo <= Math.max(0, livre);
-    texto.innerHTML = frasesDoCap({ custo, livre, outras, cabe, u, salario, jaPrometido });
+    texto.innerHTML = frasesDoCap({ custo, livre, outras, cabe, cabeSozinho, u, salario, jaPrometido });
     caixa.hidden = false;
-    texto.style.color = cabe ? '' : 'var(--red)';
+    // Vermelho só no impedimento; o risco assumido é amarelo.
+    texto.style.color = cabeSozinho ? (cabe ? '' : 'var(--amber)') : 'var(--red)';
     if (botao) {
-        botao.disabled = !cabe;
-        botao.style.opacity = cabe ? '' : '.5';
+        botao.disabled = !cabeSozinho;
+        botao.style.opacity = cabeSozinho ? '' : '.5';
     }
 }
 
