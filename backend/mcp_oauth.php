@@ -115,7 +115,7 @@ function mcpOauthMetadataRecurso(): array
 
 function mcpOauthHash(string $valor): string { return hash('sha256', $valor); }
 
-function mcpOauthRedirectUriPermitida(string $uri): bool
+function mcpOauthRedirectUriPermitida(string $uri, bool $exigirPorta = true): bool
 {
     $partes = parse_url($uri);
     if (!is_array($partes) || empty($partes['scheme']) || empty($partes['host'])
@@ -125,12 +125,11 @@ function mcpOauthRedirectUriPermitida(string $uri): bool
 
     $esquema = strtolower((string)$partes['scheme']);
     if ($esquema === 'https') return true;
-    if ($esquema !== 'http' || !isset($partes['port'])) return false;
+    if ($esquema !== 'http' || ($exigirPorta && !isset($partes['port']))) return false;
 
     $host = strtolower(trim((string)$partes['host'], '[]'));
     return in_array($host, ['localhost', '127.0.0.1', '::1'], true)
-        && (int)$partes['port'] >= 1
-        && (int)$partes['port'] <= 65535;
+        && (!isset($partes['port']) || ((int)$partes['port'] >= 1 && (int)$partes['port'] <= 65535));
 }
 
 /**
@@ -148,9 +147,9 @@ function mcpOauthRegistrarCliente(PDO $pdo, array $dados): array
         throw new InvalidArgumentException('redirect_uris é obrigatório.');
     }
     foreach ($redirects as $uri) {
-        if (!is_string($uri) || !mcpOauthRedirectUriPermitida($uri)) {
+        if (!is_string($uri) || !mcpOauthRedirectUriPermitida($uri, false)) {
             throw new InvalidArgumentException(
-                'redirect_uri precisa usar https ou http em localhost/loopback com porta: ' . (string)$uri
+                'redirect_uri precisa usar https ou http em localhost/loopback: ' . (string)$uri
             );
         }
     }
@@ -186,16 +185,16 @@ function mcpOauthCliente(PDO $pdo, string $clientId): ?array
     return $c;
 }
 
-/** Redirects loopback HTTP podem variar só a porta, conforme a RFC 8252. */
+/** Redirects loopback HTTP podem variar a porta e omitir a barra da raiz. */
 function mcpOauthRedirectValido(array $cliente, string $redirectUri): bool
 {
     foreach ($cliente['redirect_uris'] as $u) {
-        if (hash_equals((string)$u, $redirectUri)) return true;
+        if (hash_equals((string)$u, $redirectUri) && mcpOauthRedirectUriPermitida($redirectUri)) return true;
 
         $registrado = parse_url((string)$u);
         $solicitado = parse_url($redirectUri);
         if (!is_array($registrado) || !is_array($solicitado)
-            || !mcpOauthRedirectUriPermitida((string)$u)
+            || !mcpOauthRedirectUriPermitida((string)$u, false)
             || !mcpOauthRedirectUriPermitida($redirectUri)
             || strtolower((string)$registrado['scheme']) !== 'http'
             || strtolower((string)$solicitado['scheme']) !== 'http') {
@@ -205,7 +204,7 @@ function mcpOauthRedirectValido(array $cliente, string $redirectUri): bool
         $hostRegistrado = strtolower(trim((string)$registrado['host'], '[]'));
         $hostSolicitado = strtolower(trim((string)$solicitado['host'], '[]'));
         if ($hostRegistrado === $hostSolicitado
-            && ($registrado['path'] ?? '') === ($solicitado['path'] ?? '')
+            && ($registrado['path'] ?? '/') === ($solicitado['path'] ?? '/')
             && ($registrado['query'] ?? null) === ($solicitado['query'] ?? null)) {
             return true;
         }
