@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/badges.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/stats_temporada.php';   // FG%
@@ -540,7 +541,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <?php if (!empty($P['player_tag'])): ?><span class="badge-x badge-neutral"><?= htmlspecialchars($P['player_tag']) ?></span><?php endif; ?>
           <?php if (!empty($P['is_franchise_player'])): ?><span class="badge-x badge-franchise"><i class="bi bi-gem"></i> Franquia</span><?php endif; ?>
           <?php if (!empty($P['available_for_trade'])): ?><span class="badge-x badge-trade"><i class="bi bi-arrow-left-right"></i> Disponível p/ troca</span><?php endif; ?>
-          <?php if (!empty($P['badge_name'])): ?><span class="badge-x badge-neutral"><i class="bi bi-award"></i> <?= htmlspecialchars($P['badge_name']) ?></span><?php endif; ?>
+          <?php if (!empty($P['badge_name'])): ?><span class="badge-x badge-neutral"><i class="bi bi-award"></i> <?= htmlspecialchars($P['badge_name']) ?><?php $_bt = badgeTierRotulo($P['badge_tier'] ?? null); if ($_bt !== ''): ?> · <?= $_bt ?><?php endif; ?></span><?php endif; ?>
           <?php if (!empty($P['tapa_count'])): ?><span class="badge-x badge-neutral" title="Tapas recebidos">🧃 <?= (int)$P['tapa_count'] ?></span><?php endif; ?>
         <?php endif; ?>
       </div>

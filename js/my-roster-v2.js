@@ -209,12 +209,23 @@ function renderPlayerTagBadge(p) {
   return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
 }
 
+/* A MEDALHA DIZ O TIER. Era sempre 🎖️, e o tier só aparecia no grupo do
+   WhatsApp — quem olhava o elenco não sabia se o Clamps do pivô era prata ou
+   Hall of Fame. Badge sem tier (pedido de antes desta tela) segue com a
+   medalha genérica. @see api/tapas.php badgeTiers */
+const BADGE_TIER_EMOJI = { bronze: '🥉', silver: '🥈', gold: '🥇', hof: '🏆', legend: '👑' };
+const BADGE_TIER_NOME  = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', hof: 'Hall of Fame', legend: 'Legend' };
+
 function renderTapaBadge(p) {
   const count = parseInt(p.tapa_count) || 0;
   const badge = (p.badge_name || '').trim();
+  const tier  = String(p.badge_tier || '').toLowerCase();
   let html = '';
   if (count > 0) html += '🧃'.repeat(count);
-  if (badge) html += `<span title="${badge}">🎖️</span>`;
+  if (badge) {
+    const titulo = badge + (BADGE_TIER_NOME[tier] ? ' · ' + BADGE_TIER_NOME[tier] : '');
+    html += `<span title="${titulo}">${BADGE_TIER_EMOJI[tier] || '🎖️'}</span>`;
+  }
   return html ? ` <span style="font-size:13px">${html}</span>` : '';
 }
 
@@ -1793,7 +1804,7 @@ document.addEventListener('DOMContentLoaded', () => {
         box.innerHTML = ped.length
           ? '<div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Seus pedidos</div>'
             + ped.slice(0, 5).map(p => `<div style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 0">
-                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.badge_name || '—'} · ${p.player_name}</span>
+                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.badge_name || '—'} · ${p.player_name}${BADGE_TIER_NOME[String(p.badge_tier || '').toLowerCase()] ? ' · ' + BADGE_TIER_EMOJI[String(p.badge_tier).toLowerCase()] + ' ' + BADGE_TIER_NOME[String(p.badge_tier).toLowerCase()] : ''}</span>
                  <span style="color:${cor[p.status] || 'var(--text-3)'};font-weight:700;font-size:11px">${rot[p.status] || p.status}</span>
                  ${p.status === 'pending'
                    ? `<button type="button" data-cancelar-badge="${Number(p.id)}"

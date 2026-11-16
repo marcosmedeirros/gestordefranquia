@@ -9175,6 +9175,18 @@ async function showTapas(league) {
         </div>
         <div style="font-size:13px;color:var(--text,#f0f0f3);margin-bottom:6px" id="tapasApproveInfo"></div>
         <div style="font-size:12px;color:var(--text-2,#868690);margin-bottom:20px" id="tapasApproveTypeInfo"></div>
+
+        <!-- O TIER SÓ EXISTE NO 2K: o site não tem como adivinhar se o Clamps
+             saiu prata ou HOF, então quem aplicou no jogo diz aqui. É ele que
+             vai no aviso automático do grupo. -->
+        <div id="tapasTierBox" style="display:none;margin-bottom:18px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3,#868690);margin-bottom:8px">Tier da badge no jogo</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="tapasTierBtns"></div>
+          <div style="font-size:11px;color:var(--text-3,#868690);margin-top:9px">
+            <i class="bi bi-whatsapp" style="color:#22c55e"></i> O bot avisa no grupo assim que você aprovar.
+          </div>
+        </div>
+
         <input type="hidden" id="tapasApproveReqId">
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button onclick="closeTapasApprove()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2,#868690);font-weight:600;font-size:13px;cursor:pointer">Cancelar</button>
@@ -9192,6 +9204,42 @@ function changeTapasLeague(league) {
   showTapas();
 }
 
+/* As cinco escadas do 2K, com as mesmas chaves que o PHP valida
+   (api/tapas.php badgeTiers) e as mesmas cores de legends-draft-badges.php. */
+const TAPAS_TIERS = [
+  { key: 'bronze', nome: 'Bronze',       emoji: '🥉', cor: '#a16207' },
+  { key: 'silver', nome: 'Silver',       emoji: '🥈', cor: '#94a3b8' },
+  { key: 'gold',   nome: 'Gold',         emoji: '🥇', cor: '#eab308' },
+  { key: 'hof',    nome: 'Hall of Fame', emoji: '🏆', cor: '#a855f7' },
+  { key: 'legend', nome: 'Legend',       emoji: '👑', cor: '#ef4444' },
+];
+
+/** "🥇 Gold" — vazio pra pedido antigo, de antes de o tier existir. */
+function _tapasTierRotulo(key) {
+  const t = TAPAS_TIERS.find(x => x.key === String(key || '').toLowerCase());
+  return t ? `${t.emoji} ${t.nome}` : '';
+}
+
+function _tapasTierBtnsHtml(sel) {
+  return TAPAS_TIERS.map(t => {
+    const on = sel === t.key;
+    return `<button type="button" onclick="selectTapasTier('${t.key}')"
+      style="padding:7px 12px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:700;
+             border:1px solid ${on ? t.cor : 'rgba(255,255,255,.12)'};
+             background:${on ? t.cor + '26' : 'transparent'};
+             color:${on ? t.cor : 'var(--text-2,#868690)'}">${t.emoji} ${t.nome}</button>`;
+  }).join('');
+}
+
+let tapasApproveTipo = 'tapa';
+let tapasApproveTier = '';
+
+function selectTapasTier(key) {
+  tapasApproveTier = key;
+  const box = document.getElementById('tapasTierBtns');
+  if (box) box.innerHTML = _tapasTierBtnsHtml(key);
+}
+
 function openTapasApprove(reqId, playerName, teamName, actionType, badgeName) {
   document.getElementById('tapasApproveReqId').value = reqId;
   document.getElementById('tapasApproveInfo').innerHTML =
@@ -9200,6 +9248,17 @@ function openTapasApprove(reqId, playerName, teamName, actionType, badgeName) {
     ? `<i class="bi bi-award" style="color:#a78bfa"></i> Badge: <strong style="color:#a78bfa">${escapeHtml(badgeName || '')}</strong>`
     : `<i class="bi bi-hand-index-thumb" style="color:#f97316"></i> <strong style="color:#f97316">Tapa</strong>`;
   document.getElementById('tapasApproveTypeInfo').innerHTML = typeLabel;
+
+  // Tapa não tem tier: o bloco só aparece pra badge, e sempre em branco — o
+  // tier do pedido anterior não pode vazar pro próximo.
+  tapasApproveTipo = actionType === 'badge' ? 'badge' : 'tapa';
+  tapasApproveTier = '';
+  const tierBox = document.getElementById('tapasTierBox');
+  if (tierBox) {
+    tierBox.style.display = tapasApproveTipo === 'badge' ? 'block' : 'none';
+    document.getElementById('tapasTierBtns').innerHTML = _tapasTierBtnsHtml('');
+  }
+
   document.getElementById('tapasApproveOverlay').style.display = 'flex';
 }
 
@@ -9209,11 +9268,15 @@ function closeTapasApprove() {
 
 async function submitTapasApprove() {
   const reqId = parseInt(document.getElementById('tapasApproveReqId').value);
+  if (tapasApproveTipo === 'badge' && !tapasApproveTier) {
+    alert('Escolha o tier da badge — é ele que vai no aviso do grupo.');
+    return;
+  }
   try {
     await fetch('/api/tapas.php?action=admin_approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request_id: reqId })
+      body: JSON.stringify({ request_id: reqId, badge_tier: tapasApproveTier })
     }).then(r => r.json()).then(d => { if (d.success === false) throw d; });
     closeTapasApprove();
     loadTapasData();
@@ -9369,7 +9432,7 @@ async function loadTapasData() {
                         <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.player_name)}</div>
                         <div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.position ?? '')} · OVR ${p.ovr ?? '?'}</div>
                       </div>
-                      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(p.badge_name || 'Badge')}</span>
+                      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(p.badge_name || 'Badge')}${_tapasTierRotulo(p.badge_tier) ? ' · ' + _tapasTierRotulo(p.badge_tier) : ''}</span>
                     </div>`).join('');
               const comprasHtml = _comprasBadgesHtml(t);
               return `
@@ -9397,7 +9460,7 @@ async function loadTapasData() {
           ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhum registro encontrado.</div>'
           : `<div style="display:grid;gap:6px">
               ${history.map(h => {
-                const typeChip = `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px;flex-shrink:0"><i class="bi bi-award"></i>${escapeHtml(h.badge_name || 'Badge')}</span>`;
+                const typeChip = `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px;flex-shrink:0"><i class="bi bi-award"></i>${escapeHtml(h.badge_name || 'Badge')}${_tapasTierRotulo(h.badge_tier) ? ' · ' + _tapasTierRotulo(h.badge_tier) : ''}</span>`;
                 const date = h.processed_at ? h.processed_at.substring(0, 10) : '';
                 return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:8px">
                   <div style="width:32px;height:32px;border-radius:7px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#f97316;flex-shrink:0">${h.ovr ?? '?'}</div>

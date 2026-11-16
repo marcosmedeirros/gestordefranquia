@@ -348,7 +348,7 @@ if ($method === 'GET') {
                 $hasBadgesCount = playersColumnExists($pdo, 'badges_count');
                 $badgesSelect = $hasBadgesCount ? ', p.badges_count' : ', NULL as badges_count';
                 $hasTapaCount = playersColumnExists($pdo, 'tapa_count');
-                $tapasSelect  = $hasTapaCount ? ', COALESCE(p.tapa_count,0) AS tapa_count, p.badge_name' : ', 0 AS tapa_count, NULL AS badge_name';
+                $tapasSelect  = $hasTapaCount ? ', COALESCE(p.tapa_count,0) AS tapa_count, p.badge_name, p.badge_tier' : ', 0 AS tapa_count, NULL AS badge_name, NULL AS badge_tier';
 
                 try {
             $stmt = $pdo->prepare("
@@ -814,7 +814,7 @@ if ($method === 'GET') {
         if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
         $tid = (int)$teamRow['id'];
 
-        $tapasExtra = playersColumnExists($pdo, 'tapa_count') ? ', COALESCE(tapa_count,0) AS tapa_count, badge_name' : ', 0 AS tapa_count, NULL AS badge_name';
+        $tapasExtra = playersColumnExists($pdo, 'tapa_count') ? ', COALESCE(tapa_count,0) AS tapa_count, badge_name, badge_tier' : ', 0 AS tapa_count, NULL AS badge_name, NULL AS badge_tier';
         $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id,
                                         drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player,
                                         COALESCE(player_tag, NULL) as player_tag, COALESCE(player_tag_color, NULL) as player_tag_color

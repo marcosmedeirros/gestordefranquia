@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
+require_once dirname(__DIR__) . '/backend/badges.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -70,6 +71,7 @@ function ensureTables(PDO $pdo): void {
         status ENUM('pending','approved','rejected') DEFAULT 'pending',
         action_type ENUM('tapa','badge') NULL,
         badge_name VARCHAR(255) NULL,
+        badge_tier VARCHAR(10) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         processed_at TIMESTAMP NULL,
         INDEX idx_tr_team (team_id),
@@ -85,6 +87,18 @@ function ensureTables(PDO $pdo): void {
     if (!in_array('badge_name', $cols)) {
         $pdo->exec("ALTER TABLE players ADD COLUMN badge_name VARCHAR(255) NULL");
     }
+    /* O TIER FICA NOS DOIS LUGARES, e de propósito: no pedido porque é ali
+       que o admin escolheu (e o histórico tem que lembrar), e no jogador
+       porque é o que a ficha e o elenco mostram. @see badgeTiers */
+    if (!in_array('badge_tier', $cols)) {
+        $pdo->exec("ALTER TABLE players ADD COLUMN badge_tier VARCHAR(10) NULL");
+    }
+    try {
+        $colsReq = $pdo->query("SHOW COLUMNS FROM tapas_requests")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('badge_tier', $colsReq)) {
+            $pdo->exec("ALTER TABLE tapas_requests ADD COLUMN badge_tier VARCHAR(10) NULL AFTER badge_name");
+        }
+    } catch (Throwable $e) { error_log('[tapas/tier coluna] ' . $e->getMessage()); }
 }
 
 ensureTables($pdo);
@@ -277,7 +291,7 @@ if ($method === 'GET' && $action === 'admin_get_all') {
 
     // As badges já aplicadas neste sprint, por time — a lista que abre ao clicar no time.
     $stmtAplicadas = $pdo->prepare("
-        SELECT r.team_id, r.player_id, r.player_name, r.badge_name,
+        SELECT r.team_id, r.player_id, r.player_name, r.badge_name, r.badge_tier,
                p.position, p.ovr
         FROM tapas_requests r
         LEFT JOIN players p ON p.id = r.player_id
@@ -302,7 +316,7 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     unset($team);
 
     $stmtHistory = $pdo->prepare("
-        SELECT r.player_name, r.action_type, r.badge_name, r.processed_at,
+        SELECT r.player_name, r.action_type, r.badge_name, r.badge_tier, r.processed_at,
                t.city AS team_city, t.name AS team_name,
                p.position, p.ovr
         FROM tapas_requests r
@@ -382,6 +396,15 @@ if ($method === 'POST' && $action === 'admin_approve') {
     $actionType = $req['action_type'] ?? 'tapa';
     $badgeName  = $req['badge_name'] ?? '';
 
+    /* O TIER É OBRIGATÓRIO PRA BADGE, e vem do OK — não do pedido. Sem ele o
+       aviso no grupo sairia pela metade, que é justamente o que esta tela
+       veio evitar. Tapa não tem tier. */
+    $badgeTier = '';
+    if ($actionType === 'badge') {
+        $badgeTier = badgeTierNormalizar($body['badge_tier'] ?? '');
+        if ($badgeTier === '') err('Escolha o tier da badge (Bronze, Silver, Gold, Hall of Fame ou Legend).');
+    }
+
     // resolve games_user_id for the team owner
     $rowU = $pdo->prepare("SELECT u.games_user_id FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1");
     $rowU->execute([$req['team_id']]);
@@ -389,15 +412,15 @@ if ($method === 'POST' && $action === 'admin_approve') {
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare("UPDATE tapas_requests SET status='approved', processed_at=NOW() WHERE id=?")
-            ->execute([$requestId]);
+        $pdo->prepare("UPDATE tapas_requests SET status='approved', processed_at=NOW(), badge_tier=? WHERE id=?")
+            ->execute([$badgeTier !== '' ? $badgeTier : null, $requestId]);
 
         if ($actionType === 'tapa') {
             $pdo->prepare("UPDATE players SET tapa_count = tapa_count + 1 WHERE id = ?")
                 ->execute([$req['player_id']]);
         } else {
-            $pdo->prepare("UPDATE players SET badge_name = ? WHERE id = ?")
-                ->execute([$badgeName, $req['player_id']]);
+            $pdo->prepare("UPDATE players SET badge_name = ?, badge_tier = ? WHERE id = ?")
+                ->execute([$badgeName, $badgeTier !== '' ? $badgeTier : null, $req['player_id']]);
         }
         /*
          * É AQUI QUE A BADGE É CONSUMIDA — na aplicação, não no pedido.
@@ -427,7 +450,12 @@ if ($method === 'POST' && $action === 'admin_approve') {
         }
 
         $pdo->commit();
-        out(['success' => true, 'message' => 'Solicitação aprovada']);
+
+        /* DEPOIS do commit: o aviso conta o que já é verdade no banco. */
+        if ($actionType === 'badge') badgeAnunciarNoGrupo($pdo, $req, (string)$badgeName, $badgeTier);
+
+        out(['success' => true,
+             'message' => 'Badge aplicada' . ($badgeTier !== '' ? ' (' . badgeTierRotulo($badgeTier) . ')' : '') . '. O grupo já foi avisado.']);
     } catch (Exception $e) {
         $pdo->rollBack();
         err('Erro ao processar: ' . $e->getMessage());
@@ -563,7 +591,7 @@ if ($method === 'GET' && $action === 'badges_status') {
         $desdeSprint = $stSp->fetchColumn() ?: null;
     } catch (Throwable $e) { error_log('[tapas/badges sprint] ' . $e->getMessage()); }
 
-    $st = $pdo->prepare("SELECT id, player_name, badge_name, status, created_at
+    $st = $pdo->prepare("SELECT id, player_name, badge_name, badge_tier, status, created_at
                            FROM tapas_requests
                           WHERE team_id = ? AND action_type = 'badge'" . ($desdeSprint ? " AND created_at >= ?" : "") . "
                           ORDER BY created_at DESC LIMIT 20");
