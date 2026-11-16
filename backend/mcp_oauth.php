@@ -115,6 +115,24 @@ function mcpOauthMetadataRecurso(): array
 
 function mcpOauthHash(string $valor): string { return hash('sha256', $valor); }
 
+function mcpOauthRedirectUriPermitida(string $uri): bool
+{
+    $partes = parse_url($uri);
+    if (!is_array($partes) || empty($partes['scheme']) || empty($partes['host'])
+        || isset($partes['user']) || isset($partes['pass']) || isset($partes['fragment'])) {
+        return false;
+    }
+
+    $esquema = strtolower((string)$partes['scheme']);
+    if ($esquema === 'https') return true;
+    if ($esquema !== 'http' || !isset($partes['port'])) return false;
+
+    $host = strtolower(trim((string)$partes['host'], '[]'));
+    return in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+        && (int)$partes['port'] >= 1
+        && (int)$partes['port'] <= 65535;
+}
+
 /**
  * Registro dinâmico: o cliente chega sem credencial nenhuma e sai com um id.
  *
@@ -130,9 +148,10 @@ function mcpOauthRegistrarCliente(PDO $pdo, array $dados): array
         throw new InvalidArgumentException('redirect_uris é obrigatório.');
     }
     foreach ($redirects as $uri) {
-        if (!is_string($uri) || !preg_match('#^https://#i', $uri)) {
-            // http:// só passaria em localhost, e nenhum cliente nosso é local.
-            throw new InvalidArgumentException('redirect_uri precisa ser https: ' . (string)$uri);
+        if (!is_string($uri) || !mcpOauthRedirectUriPermitida($uri)) {
+            throw new InvalidArgumentException(
+                'redirect_uri precisa usar https ou http em localhost/loopback com porta: ' . (string)$uri
+            );
         }
     }
 

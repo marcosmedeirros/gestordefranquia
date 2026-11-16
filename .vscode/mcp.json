@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "fba": {
+      "type": "http",
+      "url": "https://fbabrasil.com.br/api/mcp.php"
+    }
+  }
+}
