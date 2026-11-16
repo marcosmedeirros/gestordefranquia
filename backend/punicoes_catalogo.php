@@ -360,6 +360,30 @@ function punicaoQuadroSemente(string $league): array
         ]],
     ];
 
+    /* ── NEXT E RISE: NA 1ª O TIME RECUA, NÃO PERDE A PICK ────────────
+     *
+     * O cap das duas é soma de OVR, e o remédio delas é o LEILÃO: o edital
+     * manda recuar 5 posições no draft na primeira vez, e só na SEGUNDA
+     * tirar a pick de 1ª rodada. É o mesmo degrau que a ROOKIE já tem na
+     * sua infração 02, e estava divergindo só aqui.
+     *
+     * A ELITE fica como está (decisão do Marcos em 16/11/2026): lá o cap é
+     * em dinheiro e a pena do edital é CORTE COMPULSÓRIO DE CONTRATOS, que
+     * ainda não existe como efeito — trocar só a parte da pick deixaria
+     * metade da regra certa e metade inventada.
+     */
+    if ($league === 'NEXT' || $league === 'RISE') {
+        foreach ($elite as &$inf) {
+            if ($inf[0] !== '10') continue;
+            $inf[3][1] = [
+                ['efeito' => 'LEILAO_COMPULSORIO', 'valor' => 5],
+                ['efeito' => 'TETO_MINUTOS', 'valor' => 20, 'duracao' => 'TEMPORADA'],
+                ['efeito' => 'RECUO_PICKS', 'valor' => 5],
+            ];
+        }
+        unset($inf);
+    }
+
     /* A RISE NÃO TEM EDITAL NO BANCO, e a NEXT usa o mesmo quadro da ELITE
        com os artigos deslocados. Ninguém fica sem quadro: a liga sem edital
        próprio começa com o da ELITE e o admin ajusta na tela — melhor um
