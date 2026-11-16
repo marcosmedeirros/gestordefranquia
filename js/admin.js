@@ -9269,7 +9269,9 @@ function closeTapasApprove() {
 async function submitTapasApprove() {
   const reqId = parseInt(document.getElementById('tapasApproveReqId').value);
   if (tapasApproveTipo === 'badge' && !tapasApproveTier) {
-    alert('Escolha o tier da badge — é ele que vai no aviso do grupo.');
+    // Pop-up do site, nunca o do navegador (@see js/popups.js).
+    if (typeof avisarSite === 'function') avisarSite('Escolha o tier da badge — é ele que vai no aviso do grupo.', 'aviso');
+    else alert('Escolha o tier da badge — é ele que vai no aviso do grupo.');
     return;
   }
   try {

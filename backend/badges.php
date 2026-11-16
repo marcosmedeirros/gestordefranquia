@@ -100,11 +100,52 @@ function badgeTextoDoAviso(PDO $pdo, array $req, string $badgeName, string $tier
 }
 
 /**
- * Manda o aviso pro grupo.
+ * O GAMEPLAY DA LIGA — é lá que o aviso de badge tem que cair.
  *
- * Vai pro The Pathetic com a tag da liga, como trade e dispensa — o grupo de
- * cada liga não tem id configurado (league_settings.whatsapp_group_id está
- * vazio nas quatro), então whatsappParaGrupo() não entregaria nada.
+ * Badge aplicada é assunto de jogo, e cada liga tem o seu Gameplay. Não serve
+ * league_settings.whatsapp_group_id: aquele campo é o Chat Off (é o que o
+ * leilão lê, @see leilaoBotGrupoDaLiga) e está vazio nas quatro ligas.
+ *
+ * A fonte é whatsapp_grupos_comando, onde a liga de cada grupo foi DECLARADA
+ * por quem liberou o bot ali — informação dada, não adivinhada. O `LIKE
+ * '%gameplay%'` é o que escolhe entre os grupos daquela liga (cada uma tem
+ * Chat Off, Trade Block, ADM e Gameplay).
+ *
+ * Sem Gameplay registrado, devolve null e o aviso vai pro grupo principal —
+ * ele leva a tag da liga, então não fica órfão.
+ */
+function badgeGrupoDoGameplay(PDO $pdo, string $liga): ?string
+{
+    $liga = strtoupper(trim($liga));
+    if ($liga === '') return null;
+
+    try {
+        $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_comando
+                              WHERE ativo = 1 AND UPPER(liga) = ? AND LOWER(nome) LIKE '%gameplay%'
+                           ORDER BY criado_em ASC, jid ASC LIMIT 1");
+        $st->execute([$liga]);
+        $jid = trim((string)($st->fetchColumn() ?: ''));
+        if ($jid !== '') return $jid;
+    } catch (Throwable $e) { error_log('[badges/grupo] ' . $e->getMessage()); }
+
+    /* PLANO B: o nome do grupo entre os que o bot já viu. Vale pro Gameplay
+       que ainda não foi liberado pro bot — ele aparece em
+       whatsapp_grupos_vistos do mesmo jeito. Grupo renomeado deixa de casar,
+       e aí o certo é liberar o bot nele. */
+    try {
+        $st = $pdo->prepare("SELECT jid FROM whatsapp_grupos_vistos
+                              WHERE LOWER(nome) LIKE '%gameplay%' AND LOWER(nome) LIKE ?
+                           ORDER BY visto_em DESC LIMIT 1");
+        $st->execute(['%' . mb_strtolower($liga) . '%']);
+        $jid = trim((string)($st->fetchColumn() ?: ''));
+        if ($jid !== '') return $jid;
+    } catch (Throwable $e) { error_log('[badges/grupo visto] ' . $e->getMessage()); }
+
+    return null;
+}
+
+/**
+ * Manda o aviso pro Gameplay da liga.
  *
  * NUNCA DERRUBA A APROVAÇÃO: a badge já foi aplicada no jogo e já está gravada
  * no banco. Se o WhatsApp estiver fora do ar, o certo é o pedido continuar
@@ -114,7 +155,21 @@ function badgeAnunciarNoGrupo(PDO $pdo, array $req, string $badgeName, string $t
 {
     try {
         require_once __DIR__ . '/whatsapp.php';
-        whatsappParaGrupoPrincipal($pdo, badgeTextoDoAviso($pdo, $req, $badgeName, $tier), 'badge');
+        if (!whatsappAtivo($pdo)) return;
+
+        $texto = badgeTextoDoAviso($pdo, $req, $badgeName, $tier);
+
+        /* A liga sai do TIME, igual ao texto — badge pedida antes de o GM
+           mudar de liga iria parar no Gameplay errado. */
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ? LIMIT 1');
+        $st->execute([(int)($req['team_id'] ?? 0)]);
+        $liga = (string)($st->fetchColumn() ?: ($req['league'] ?? ''));
+
+        $grupo = badgeGrupoDoGameplay($pdo, $liga);
+        if ($grupo === null) { whatsappParaGrupoPrincipal($pdo, $texto, 'badge'); return; }
+
+        whatsappEnfileirar($pdo, $grupo, $texto, true, 'badge');
+        whatsappEsvaziarUmaVez($pdo);
     } catch (Throwable $e) {
         error_log('[badges/aviso] ' . $e->getMessage());
     }
