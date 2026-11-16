@@ -81,9 +81,12 @@ if ($action === 'teams') {
             if ($travaLigada) {
                 $e = travaElencoEstadoDoTime($pdo, $tid, $ligaDaMesa, $cfgTrava);
                 if (!empty($e['bloqueado'])) {
+                    $precisa = (int)$e['precisa'];
+                    $partes = [];
+                    if (empty($e['stats']['ok']))  $partes[] = 'estatísticas: ' . (int)$e['stats']['tem']  . " de {$precisa}";
+                    if (empty($e['letras']['ok'])) $partes[] = 'letras: '       . (int)$e['letras']['tem'] . " de {$precisa}";
                     $tm['bloqueado'] = true;
-                    $tm['motivo'] = (($e['modo'] ?? '') === 'letras' ? 'letras' : 'estatísticas')
-                                  . ': ' . (int)$e['tem'] . ' de ' . (int)$e['precisa'] . ' jogadores';
+                    $tm['motivo'] = $partes ? implode(' · ', $partes) : 'elenco desatualizado';
                 }
             }
             if (!$tm['bloqueado'] && $cobraAtualizacao

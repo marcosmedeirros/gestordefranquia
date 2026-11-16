@@ -288,15 +288,24 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
         require_once __DIR__ . '/trava_elenco.php';
         $trava = travaElencoEstadoDoTime($pdo, $teamId, $league);
         if ($trava['bloqueado']) {
-            $falta  = max(0, $trava['precisa'] - $trava['tem']);
-            $letras = $trava['modo'] === 'letras';
+            /* OS DOIS PONTOS NA MESMA FRASE. Dizer só um fazia o GM cumprir
+               aquele, voltar pra tela e continuar sem poder trocar, sem
+               entender por quê. */
+            $precisa = (int)$trava['precisa'];
+            $faltamS = empty($trava['stats']['ok'])  ? max(0, $precisa - (int)$trava['stats']['tem'])  : 0;
+            $faltamL = empty($trava['letras']['ok']) ? max(0, $precisa - (int)$trava['letras']['tem']) : 0;
+
+            $partes = [];
+            if ($faltamS) $partes[] = "lance as estatísticas de mais {$faltamS} jogador(es)";
+            if ($faltamL) $partes[] = "atualize as letras de mais {$faltamL} jogador(es) depois da progression";
+
+            // O link leva pro que falta primeiro; a estatística vem na frente.
+            $letras = !$faltamS && $faltamL;
             $itens[] = [
                 'urgencia' => 'alta',
                 'icone'    => 'bi-shield-lock-fill',
                 'titulo'   => 'Você está sem poder trocar',
-                'detalhe'  => $letras
-                    ? "A progression saiu: atualize as letras de mais {$falta} jogador(es) (precisa de {$trava['precisa']}, tem {$trava['tem']})."
-                    : "Lance as estatísticas de mais {$falta} jogador(es) (precisa de {$trava['precisa']}, tem {$trava['tem']}).",
+                'detalhe'  => ucfirst(implode(' e ', $partes)) . " (precisa de {$precisa} em cada).",
                 'url'      => '/controle-elencos.php?league=' . urlencode($league) . '&time=' . $teamId
                             . '&tipo=' . ($letras ? 'letras' : 'stats'),
             ];

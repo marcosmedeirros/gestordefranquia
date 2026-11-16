@@ -10746,6 +10746,26 @@ function travaElencoCaixas(liga) {
   return [...document.querySelectorAll(`[data-trava-liga="${liga}"]`)];
 }
 
+/* A REGRA DE AGORA, EM UMA FRASE. A trava cobra os DOIS pontos (estatística e
+   letra), mas a letra só existe depois do clique "Saiu a progression" — antes
+   dele não há foto pra comparar, e o time só deve as estatísticas.
+   @see backend/trava_elenco.php travaElencoPontos */
+function _travaRegra(d, forte) {
+  const n = forte ? `<b>${d.min_jogadores}</b>` : `${d.min_jogadores}`;
+  const stats = `estatísticas de ${n}+ jogadores na última temporada jogada`;
+  return d.modo === 'letras'
+    ? `${stats} <b>e</b> letras de ${n}+ atualizadas depois da progression`
+    : `${stats} (as letras entram quando você marcar que a progression saiu)`;
+}
+
+/* "Nome · stats 2/6 + letras 0/6" — só o ponto que está faltando. */
+function _travaSelo(t) {
+  const p = [];
+  if (t.stats  && !t.stats.ok)  p.push(`stats ${t.stats.tem}/${t.precisa}`);
+  if (t.letras && !t.letras.ok) p.push(`letras ${t.letras.tem}/${t.precisa}`);
+  return p.length ? p.join(' + ') : `${t.tem}/${t.precisa}`;
+}
+
 async function carregarTravaElenco(league) {
   const caixas = travaElencoCaixas(league);
   if (!caixas.length) return;
@@ -10765,9 +10785,7 @@ function renderTravaElencoJanela(box, d) {
   const liga = d.league;
   const prog = d.modo === 'letras';
   const bloq = (d.times || []).filter(t => t.bloqueado);
-  const regra = prog
-    ? `letras de ${d.min_jogadores}+ jogadores atualizadas depois da progression`
-    : `estatísticas de ${d.min_jogadores}+ jogadores na última temporada jogada`;
+  const regra = _travaRegra(d, false);
   const quando = prog && d.progressao_em ? ` · clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))}` : '';
   box.innerHTML = `
     <div class="lgcfg-jn">
@@ -10787,7 +10805,7 @@ function renderTravaElencoJanela(box, d) {
       </div>
       <span class="lgcfg-falta">${regra}${quando}${bloq.length ? ` · <b>${bloq.length}</b> de ${d.times_total} times ${d.ativa ? 'sem poder trocar' : 'ficariam sem trocar'}` : ''}</span>
       ${bloq.length ? `<details style="font-size:10.5px;color:var(--text-3)"><summary style="cursor:pointer">ver times</summary>
-        <div class="d-flex flex-wrap gap-1 mt-1">${bloq.map(t => `<span class="badge bg-secondary" title="${t.tem} de ${t.precisa}">${escapeHtml(t.nome)} · ${t.tem}/${t.precisa}</span>`).join('')}</div></details>` : ''}
+        <div class="d-flex flex-wrap gap-1 mt-1">${bloq.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div></details>` : ''}
     </div>`;
 }
 
@@ -10799,9 +10817,7 @@ function renderTravaElenco(box, d) {
   const selo = d.ativa
     ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
     : 'background:var(--panel-3);color:var(--text-3);border:1px solid var(--border)';
-  const regra = prog
-    ? `letras de pelo menos <b>${d.min_jogadores}</b> jogadores atualizadas depois da progression`
-    : `estatísticas de pelo menos <b>${d.min_jogadores}</b> jogadores lançadas na última temporada jogada`;
+  const regra = _travaRegra(d, true);
   const quando = prog && d.progressao_em ? ` (clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))})` : '';
 
   // O mesmo desenho dos cards vizinhos (Trades, Free Agency, Dispensas): ícone,
@@ -10831,7 +10847,7 @@ function renderTravaElenco(box, d) {
       ${bloq.length
         ? `<details style="margin-top:8px">
              <summary style="cursor:pointer;font-size:11px;color:var(--text-2)">${d.ativa ? 'Sem poder trocar agora' : 'Ficariam sem poder trocar se ligasse'}: <b>${bloq.length}</b> de ${d.times_total} times</summary>
-             <div class="d-flex flex-wrap gap-2 mt-2">${bloq.map(t => `<span class="badge bg-secondary" title="${t.tem} de ${t.precisa}">${escapeHtml(t.nome)} · ${t.tem}/${t.precisa}</span>`).join('')}</div>
+             <div class="d-flex flex-wrap gap-2 mt-2">${bloq.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div>
            </details>`
         : '<div style="font-size:11px;color:#25c677;margin-top:8px"><i class="bi bi-check-circle-fill me-1"></i>Todos os times cumprem a regra de agora.</div>'}`;
 }
