@@ -663,7 +663,7 @@ function wcAjuda(): string
         . "/power _time_ — a ficha do time: nota de cada pedaço e onde ele está em cada um\n"
         . "/powerc — o power ranking por conferência\n"
         . "/divisoes — as seis divisões da ELITE e a força de cada uma\n"
-        . "/atualizados — quem ainda não atualizou o elenco da temporada\n"
+        . "/atualizados — quem está devendo stats ou letras do elenco\n"
         . "/opta — as chances da edição: campeão, subir e cair\n"
         . "/opta _time_ — a ficha daquele time: onde ele está em cada corrida\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
@@ -3116,16 +3116,20 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
 /**
  * /atualizados — quem ainda não fez a atualização de elenco da liga.
  *
- * O QUE SE COBRA MUDA COM O MOMENTO DA TEMPORADA, e o comando não decide
- * isso: quem decide é a trava (backend/trava_elenco.php), que antes do draft
- * cobra ESTATÍSTICA e depois da progression cobra LETRA. Repetir a regra aqui
- * seria criar uma segunda verdade que um dia discorda da primeira — então o
- * comando só lê o estado e conta o que achou.
+ * OS DOIS PONTOS, SEMPRE (pedido do Marcos, 16/11/2026). O time precisa das
+ * ESTATÍSTICAS lançadas e das LETRAS atualizadas depois da progression; quem
+ * fez um e não fez o outro está devendo igual. A trava de troca continua
+ * cobrando só um dos dois conforme o momento da temporada — ela decide quem
+ * pode negociar, esta lista diz quem tem trabalho pra fazer, e são perguntas
+ * diferentes. A conta de cada ponto é a mesma da trava
+ * (@see travaElencoDosDoisPontos), então as duas nunca discordam do número.
  *
- * MOSTRA MESMO COM A TRAVA DESLIGADA. travaElencoTimesDaLiga avalia como se
- * ela estivesse ligada, de propósito: a pergunta "quem está devendo" é útil
- * antes de ligar a chave, que é justamente quando o admin quer saber quantos
- * seriam barrados. O cabeçalho diz em qual dos dois casos a liga está.
+ * CADA LINHA DIZ O QUE FALTA, e só o que falta: "stats 2/6", "letras 0/6", ou
+ * os dois. Sem isso o GM lia "3 de 6" e não sabia o que ir fazer.
+ *
+ * MOSTRA MESMO COM A TRAVA DESLIGADA, de propósito: a pergunta "quem está
+ * devendo" é útil antes de ligar a chave, que é justamente quando o admin
+ * quer saber quantos seriam barrados. O cabeçalho diz em qual caso a liga está.
  */
 function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): string
 {
@@ -3137,19 +3141,23 @@ function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null
 
     try {
         $cfg = travaElencoConfig($pdo, $liga);
-        $times = travaElencoTimesDaLiga($pdo, $liga);
+        $times = travaElencoDosDoisPontos($pdo, $liga);
     } catch (Throwable $e) {
         error_log('[wcAtualizados] ' . $e->getMessage());
         return "Não consegui ler a atualização de elenco da {$liga} agora.";
     }
     if (!$times) return "Nenhum time com dono na {$liga}.";
 
-    $devendo = array_values(array_filter($times, fn($t) => !empty($t['bloqueado'])));
+    $precisa     = (int)($times[0]['precisa'] ?: 6);
+    $letrasValem = !empty($times[0]['letras']['disponivel']);
 
-    /* SEM SUBTÍTULO explicando o que se cobra (pedido do Marcos, 10/11/2026).
-       A regra do período continua valendo — é ela que monta a lista —, só não
-       é anunciada: quem lê no grupo quer o nome de quem está devendo, e o
-       "x de 6" de cada linha já mostra o tamanho da dívida. */
+    $devendo = array_values(array_filter(
+        $times,
+        fn($t) => empty($t['stats']['ok']) || empty($t['letras']['ok'])
+    ));
+
+    /* SEM SUBTÍTULO explicando a regra (pedido do Marcos, 10/11/2026). O que
+       cada um deve agora está escrito na própria linha. */
     $txt = "📋 *Atualização de elenco — {$liga}*\n";
 
     /* A trava desligada muda o que a lista SIGNIFICA, não o que ela mostra:
@@ -3159,16 +3167,33 @@ function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null
         $txt .= "_A trava está desligada: ninguém está barrado de trocar por isso._\n";
     }
 
+    /* SEM A FOTO DA PROGRESSION não dá pra saber quem mexeu nas letras, e
+       calar sobre isso faria a lista parecer que só cobra metade por bug. */
+    if (!$letrasValem) {
+        $txt .= "_Só as estatísticas entram na conta: a progression desta temporada ainda não foi marcada._\n";
+    }
+
     if (!$devendo) {
         return $txt . "\n✅ *Todos os " . count($times) . " em dia.*";
     }
 
     $txt .= "\n❌ *Faltam " . count($devendo) . " de " . count($times) . "*\n";
-    // Do mais atrasado pro menos: quem tem zero é quem precisa ser cobrado.
-    usort($devendo, fn($a, $b) => ((int)$a['tem'] <=> (int)$b['tem']) ?: strcmp($a['nome'], $b['nome']));
+
+    // Quem deve mais aparece primeiro — é quem precisa ser cobrado.
+    $falta = function (array $t) use ($precisa): int {
+        $f = empty($t['stats']['ok'])  ? max(0, $precisa - (int)$t['stats']['tem'])  : 0;
+        $f += empty($t['letras']['ok']) ? max(0, $precisa - (int)$t['letras']['tem']) : 0;
+        return $f;
+    };
+    usort($devendo, fn($a, $b) => ($falta($b) <=> $falta($a)) ?: strcmp($a['nome'], $b['nome']));
+
     foreach ($devendo as $t) {
-        $txt .= "• {$t['nome']} — {$t['tem']} de {$t['precisa']}\n";
+        $partes = [];
+        if (empty($t['stats']['ok']))  $partes[] = "stats {$t['stats']['tem']}/{$precisa}";
+        if (empty($t['letras']['ok'])) $partes[] = "letras {$t['letras']['tem']}/{$precisa}";
+        $txt .= "• {$t['nome']} — " . implode(' + ', $partes) . "\n";
     }
+
     $emDia = count($times) - count($devendo);
     if ($emDia > 0) $txt .= "\n_✅ {$emDia} em dia._";
     return rtrim($txt);

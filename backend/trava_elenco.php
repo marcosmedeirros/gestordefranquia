@@ -153,6 +153,36 @@ function travaElencoEmProgressao(array $cfg, ?array $temporadaAtiva): bool
 }
 
 /**
+ * Quantos jogadores do time têm ESTATÍSTICA lançada na temporada.
+ *
+ * Uma conta só, usada pela trava e pelo /atualizados — duas contagens de
+ * "quem lançou stats" acabariam discordando no dia em que uma mudasse.
+ */
+function travaElencoContaStats(PDO $pdo, int $teamId, int $seasonId): int
+{
+    if ($teamId <= 0 || $seasonId <= 0) return 0;
+    $st = $pdo->prepare("SELECT COUNT(DISTINCT player_id) FROM player_season_stats
+                          WHERE team_id = ? AND season_id = ? AND games > 0");
+    $st->execute([$teamId, $seasonId]);
+    return (int)$st->fetchColumn();
+}
+
+/**
+ * Quantos jogadores do time tiveram LETRA (ou OVR) mexida desde a foto da
+ * progression. Sem foto daquela temporada a resposta é 0 — e quem chama
+ * precisa saber distinguir isso de "ninguém atualizou" (@see travaElencoDosDoisPontos).
+ */
+function travaElencoContaLetras(PDO $pdo, int $teamId, int $seasonId): int
+{
+    if ($teamId <= 0 || $seasonId <= 0) return 0;
+    $st = $pdo->prepare("SELECT COUNT(*) FROM players p
+                           JOIN elenco_progressao_base b ON b.player_id = p.id AND b.season_id = ?
+                          WHERE p.team_id = ? AND " . TRAVA_ELENCO_HASH_SQL . " <> b.hash");
+    $st->execute([$seasonId, $teamId]);
+    return (int)$st->fetchColumn();
+}
+
+/**
  * Como está um time diante da trava.
  *
  * @return array{ativa:bool,bloqueado:bool,modo:?string,tem:int,precisa:int,mensagem:?string,temporada?:?int}
@@ -169,11 +199,7 @@ function travaElencoEstadoDoTime(PDO $pdo, int $teamId, string $liga, ?array $cf
     $precisa = $base['precisa'];
 
     if (travaElencoEmProgressao($cfg, $temp)) {
-        $st = $pdo->prepare("SELECT COUNT(*) FROM players p
-                               JOIN elenco_progressao_base b ON b.player_id = p.id AND b.season_id = ?
-                              WHERE p.team_id = ? AND " . TRAVA_ELENCO_HASH_SQL . " <> b.hash");
-        $st->execute([(int)$cfg['progressao_season_id'], $teamId]);
-        $tem = (int)$st->fetchColumn();
+        $tem = travaElencoContaLetras($pdo, $teamId, (int)$cfg['progressao_season_id']);
         $base['modo'] = 'letras';
         $base['tem'] = $tem;
         $base['bloqueado'] = $tem < $precisa;
@@ -184,10 +210,7 @@ function travaElencoEstadoDoTime(PDO $pdo, int $teamId, string $liga, ?array $cf
     $alvo = statsTemporadaAlvo($pdo, $liga)['alvo'] ?? null;
     if (!$alvo) return $base;   // sem temporada pra cobrar: não há o que exigir
 
-    $st = $pdo->prepare("SELECT COUNT(DISTINCT player_id) FROM player_season_stats
-                          WHERE team_id = ? AND season_id = ? AND games > 0");
-    $st->execute([$teamId, (int)$alvo['id']]);
-    $tem = (int)$st->fetchColumn();
+    $tem = travaElencoContaStats($pdo, $teamId, (int)$alvo['id']);
     $base['modo'] = 'estatisticas';
     $base['tem'] = $tem;
     $base['temporada'] = (int)($alvo['season_number'] ?? 0) ?: null;
@@ -233,6 +256,64 @@ function travaElencoBloqueio(PDO $pdo, array $teamIds, ?string $liga): ?string
         error_log('[trava-elenco] bloqueio: ' . $ex->getMessage());
     }
     return null;
+}
+
+/**
+ * OS DOIS PONTOS DE UMA VEZ: estatística E letra, time por time.
+ *
+ * A TRAVA COBRA UM DOS DOIS, conforme o momento da temporada (@see
+ * travaElencoEstadoDoTime) — é ela que decide quem pode trocar, e isso não
+ * muda. Mas a pergunta do grupo é outra: "quem está devendo?". Quem lançou as
+ * estatísticas e não mexeu nas letras deve as letras do mesmo jeito, e mostrar
+ * só o que a trava cobra hoje esconde metade da dívida. (Pedido do Marcos,
+ * 16/11/2026, para o /atualizados.)
+ *
+ * AS LETRAS SÓ EXISTEM DEPOIS DA FOTO. Sem o clique de "Saiu a progression"
+ * nesta temporada não há com o que comparar, e aí `letras.disponivel` é false
+ * — que é diferente de "ninguém atualizou". Quem mostra a lista tem que dizer
+ * qual dos dois casos é, senão a liga inteira aparece devendo letra que ainda
+ * nem foi distribuída.
+ *
+ * @return list<array{id:int,nome:string,precisa:int,
+ *                    stats:array{tem:int,ok:bool,temporada:?int},
+ *                    letras:array{tem:int,ok:bool,disponivel:bool}}>
+ */
+function travaElencoDosDoisPontos(PDO $pdo, string $liga): array
+{
+    $liga = strtoupper(trim($liga));
+    $cfg = travaElencoConfig($pdo, $liga);
+    $precisa = (int)($cfg['min_jogadores'] ?: TRAVA_ELENCO_MIN_PADRAO);
+
+    require_once __DIR__ . '/stats_temporada.php';
+    $alvo = statsTemporadaAlvo($pdo, $liga)['alvo'] ?? null;
+    $seasonStats = (int)($alvo['id'] ?? 0);
+
+    /* A foto vale pra temporada em que foi tirada. Virou a temporada, ela
+       perde a validade sozinha — a mesma regra de travaElencoEmProgressao. */
+    $temp = temporadaAtivaDaLiga($pdo, $liga);
+    $seasonLetras = travaElencoEmProgressao($cfg, $temp) ? (int)$cfg['progressao_season_id'] : 0;
+
+    $st = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
+                           FROM teams WHERE league = ? AND user_id IS NOT NULL ORDER BY nome");
+    $st->execute([$liga]);
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $id = (int)$t['id'];
+        $temStats  = $seasonStats  ? travaElencoContaStats($pdo, $id, $seasonStats)   : 0;
+        $temLetras = $seasonLetras ? travaElencoContaLetras($pdo, $id, $seasonLetras) : 0;
+
+        $out[] = [
+            'id' => $id, 'nome' => (string)$t['nome'], 'precisa' => $precisa,
+            /* Sem temporada alvo não há estatística a cobrar — e aí o ponto
+               está 'ok', não "devendo": não se cobra o que não existe. */
+            'stats'  => ['tem' => $temStats, 'ok' => !$seasonStats || $temStats >= $precisa,
+                         'temporada' => (int)($alvo['season_number'] ?? 0) ?: null],
+            'letras' => ['tem' => $temLetras, 'ok' => !$seasonLetras || $temLetras >= $precisa,
+                         'disponivel' => $seasonLetras > 0],
+        ];
+    }
+    return $out;
 }
 
 /**
