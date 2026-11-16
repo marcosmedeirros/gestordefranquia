@@ -67,36 +67,43 @@ function badgeTextoDoAviso(PDO $pdo, array $req, string $badgeName, string $tier
 {
     require_once __DIR__ . '/whatsapp.php';
 
-    $st = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(t.city,''),' ',t.name)) AS time,
-                                t.league, u.name AS dono
-                           FROM teams t
-                      LEFT JOIN users u ON u.id = t.user_id
-                          WHERE t.id = ? LIMIT 1");
+    $st = $pdo->prepare('SELECT name, league FROM teams WHERE id = ? LIMIT 1');
     $st->execute([(int)($req['team_id'] ?? 0)]);
     $time = $st->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $stP = $pdo->prepare("SELECT name, position, ovr FROM players WHERE id = ? LIMIT 1");
+    $stP = $pdo->prepare('SELECT name, ovr, age FROM players WHERE id = ? LIMIT 1');
     $stP->execute([(int)($req['player_id'] ?? 0)]);
     $jog = $stP->fetch(PDO::FETCH_ASSOC) ?: [];
 
     /* A LIGA SAI DO TIME, e não do pedido: badge pedida antes de o GM mudar de
-       liga levaria a tag antiga. É a mesma regra de tapasLigaDoPedido(). */
-    $liga  = (string)($time['league'] ?? $req['league'] ?? '');
-    $nome  = trim((string)($jog['name'] ?? $req['player_name'] ?? ''));
-    $ficha = implode(' · ', array_filter([
-        trim((string)($jog['position'] ?? '')),
-        ((int)($jog['ovr'] ?? 0)) > 0 ? 'OVR ' . (int)$jog['ovr'] : '',
-    ]));
+       liga levaria a cor errada. É a mesma regra de tapasLigaDoPedido(). */
+    $liga = (string)($time['league'] ?? $req['league'] ?? '');
+    $nome = trim((string)($jog['name'] ?? $req['player_name'] ?? ''));
+
+    /* SÓ O APELIDO DO TIME, sem a cidade: no Gameplay da liga todo mundo
+       chama de "Biebers", não de "Austin Biebers". */
+    $doTime = trim((string)($time['name'] ?? ''));
+
+    /* "(83/23y)" — o OVR e a idade, que é o que se pergunta sobre o jogador
+       que acabou de ganhar badge. Sem idade cadastrada fica só o OVR. */
+    $ovr   = (int)($jog['ovr'] ?? 0);
+    $idade = (int)($jog['age'] ?? 0);
+    $ficha = $ovr > 0 ? ($idade > 0 ? $ovr . '/' . $idade . 'y' : (string)$ovr)
+                      : ($idade > 0 ? $idade . 'y' : '');
 
     $rotuloTier = badgeTierRotulo($tier);
-    $doTime     = trim((string)($time['time'] ?? ''));
-    $dono       = trim((string)($time['dono'] ?? ''));
 
-    return whatsappTagDaLiga($liga) . " 🏅 *BADGE APLICADA*\n\n"
-         . '*' . $nome . '*' . ($ficha !== '' ? " ({$ficha})" : '') . "\n"
-         . ($doTime !== '' ? $doTime . ($dono !== '' ? ' — ' . $dono : '') . "\n" : '')
-         . "\n" . trim($badgeName) . ($rotuloTier !== '' ? '  ·  *' . $rotuloTier . '*' : '') . "\n"
-         . whatsappRodapeCorDaLiga($liga);
+    /* A COR DA LIGA ABRE E FECHA A PRIMEIRA LINHA. Faz o papel que a tag
+       [FBA NEXT] fazia no The Pathetic: no Gameplay da liga o nome dela é
+       redundante, mas a bolinha ainda diz de bate-olho que é da FBA. */
+    $emoji = whatsappEmojiDaLiga($liga) ?? '🏅';
+
+    return $emoji . ' ' . trim($badgeName)
+         . ($rotuloTier !== '' ? '  ·  *' . $rotuloTier . '*' : '')
+         . ' ' . $emoji . "\n\n"
+         . '*' . $nome . '*'
+         . ($ficha !== '' ? ' (' . $ficha . ')' : '')
+         . ($doTime !== '' ? ' - ' . $doTime : '');
 }
 
 /**
