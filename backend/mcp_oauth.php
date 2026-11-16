@@ -186,11 +186,29 @@ function mcpOauthCliente(PDO $pdo, string $clientId): ?array
     return $c;
 }
 
-/** Comparação exata, como manda a especificação — nada de prefixo. */
+/** Redirects loopback HTTP podem variar só a porta, conforme a RFC 8252. */
 function mcpOauthRedirectValido(array $cliente, string $redirectUri): bool
 {
     foreach ($cliente['redirect_uris'] as $u) {
         if (hash_equals((string)$u, $redirectUri)) return true;
+
+        $registrado = parse_url((string)$u);
+        $solicitado = parse_url($redirectUri);
+        if (!is_array($registrado) || !is_array($solicitado)
+            || !mcpOauthRedirectUriPermitida((string)$u)
+            || !mcpOauthRedirectUriPermitida($redirectUri)
+            || strtolower((string)$registrado['scheme']) !== 'http'
+            || strtolower((string)$solicitado['scheme']) !== 'http') {
+            continue;
+        }
+
+        $hostRegistrado = strtolower(trim((string)$registrado['host'], '[]'));
+        $hostSolicitado = strtolower(trim((string)$solicitado['host'], '[]'));
+        if ($hostRegistrado === $hostSolicitado
+            && ($registrado['path'] ?? '') === ($solicitado['path'] ?? '')
+            && ($registrado['query'] ?? null) === ($solicitado['query'] ?? null)) {
+            return true;
+        }
     }
     return false;
 }
