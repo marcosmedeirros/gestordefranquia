@@ -1283,7 +1283,10 @@ async function puxar(){
 
   if (d.saldo !== undefined) SALDO.textContent = num(d.saldo);
 
-  const emPartida = d.em === 'jogando' && !(d.acabou && d.id === fimVisto);
+  /* A quadra só esconde as abas enquanto a partida ESTÁ ACONTECENDO.
+     Acabou, elas voltam: senão o GM fica preso na tela de resultado até
+     clicar "Jogar de novo", sem conseguir ir ver a coleção. */
+  const emPartida = d.em === 'jogando' && !d.acabou;
   ABAS.classList.toggle('escondida', emPartida || d.em === 'esperando');
 
   if (!emPartida && d.em !== 'esperando' && aba !== 'jogar') return;
