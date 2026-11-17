@@ -54,3 +54,7 @@ games/data/lendas_catalogo.php
 # O baralho do FBA Draft, montado em disco pra nao refazer 5.501 cartas
 # a cada clique. Nasce sozinho e se invalida pela assinatura das fontes.
 games/data/cache/
+
+# Sprites do FBA Showdown: ~56 MB de binario derivado.
+# Quem precisar, roda games/core/psd_sprites_cli.php no servidor.
+games/img/psd/
