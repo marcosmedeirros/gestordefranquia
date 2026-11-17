@@ -121,8 +121,8 @@ $saldo = psdSaldo($pdo, $user_id);
          padding:3px 11px;border-radius:7px;font-weight:700;font-size:12px}
   .plat{position:absolute;border-radius:50%;background:rgba(90,140,70,.35);
         box-shadow:inset 0 2px 0 rgba(255,255,255,.25)}
-  .plat.deles{width:40%;height:9%;right:9%;top:52%}
-  .plat.meu{width:46%;height:10%;left:18%;bottom:4%}
+  .plat.deles{width:36%;height:8%;right:10%;top:45%}
+  .plat.meu{width:44%;height:10%;left:14%;bottom:4%}
 
   /* ── O TAMANHO DO BICHO ────────────────────────────────────────────
    *
@@ -151,9 +151,9 @@ $saldo = psdSaldo($pdo, $user_id);
   .bicho{position:absolute;z-index:3;filter:drop-shadow(0 6px 7px rgba(0,0,0,.35));
          transition:opacity .3s;width:auto;height:auto;image-rendering:pixelated;
          transform:scale(var(--z));transform-origin:bottom center}
-  .bicho.deles{--z:1.5;right:17%;top:17%;max-width:24%;max-height:26%;
+  .bicho.deles{--z:1.5;right:19%;top:21%;max-width:24%;max-height:26%;
                animation:flutua 3.1s ease-in-out infinite}
-  .bicho.meu{--z:1.9;left:21%;bottom:7%;max-width:26%;max-height:30%;
+  .bicho.meu{--z:1.9;left:19%;bottom:8%;max-width:26%;max-height:30%;
              animation:flutua 3.6s ease-in-out infinite .4s}
   @keyframes flutua{0%,100%{transform:scale(var(--z)) translateY(0)}
                     50%{transform:scale(var(--z)) translateY(-4px)}}
