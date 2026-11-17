@@ -51,11 +51,27 @@ function titulo(string $t): void { echo "\n── $t " . str_repeat('─', max(0
 
 $marca = 'psdteste_' . bin2hex(random_bytes(4));
 
+/**
+ * games_usuarios.id é chave estrangeira de users.id, então o jogador de
+ * teste precisa existir nas DUAS tabelas. A senha é lixo aleatório que
+ * ninguém conhece e o e-mail termina em .invalid, que é um domínio que
+ * a norma reserva justamente pra não existir — ninguém entra com isso.
+ *
+ * O ON DELETE CASCADE do users leva o games_usuarios junto na limpeza.
+ */
 function criarJogador(PDO $pdo, string $marca, string $nome, int $moedas, int $fbap): int
 {
-    $pdo->prepare('INSERT INTO games_usuarios (nome, email, pontos, fba_points) VALUES (?,?,?,?)')
-        ->execute([$nome, $marca . '_' . mb_strtolower($nome) . '@teste.invalid', $moedas, $fbap]);
-    return (int)$pdo->lastInsertId();
+    $email = $marca . '_' . mb_strtolower($nome) . '@teste.invalid';
+
+    $pdo->prepare("INSERT INTO users (name, email, password_hash, user_type, league, email_verified)
+                   VALUES (?,?,?,'jogador','ROOKIE',0)")
+        ->execute(['[TESTE] ' . $nome, $email, password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)]);
+    $uid = (int)$pdo->lastInsertId();
+
+    $pdo->prepare('INSERT INTO games_usuarios (id, nome, email, pontos, fba_points) VALUES (?,?,?,?,?)')
+        ->execute([$uid, $nome, $email, $moedas, $fbap]);
+
+    return $uid;
 }
 
 function limpar(PDO $pdo, array $uids): void
@@ -68,6 +84,12 @@ function limpar(PDO $pdo, array $uids): void
     $pdo->exec("DELETE FROM psd_compras  WHERE id_usuario IN ($in)");
     $pdo->exec("DELETE FROM psd_ranking  WHERE id_usuario IN ($in)");
     $pdo->exec("DELETE FROM games_usuarios WHERE id IN ($in)");
+    $pdo->exec("DELETE FROM users WHERE id IN ($in)");
+
+    // Confere que sumiu mesmo: conta de teste esquecida no banco é lixo.
+    $st = $pdo->query("SELECT COUNT(*) FROM users WHERE id IN ($in)");
+    $sobrou = (int)$st->fetchColumn();
+    if ($sobrou > 0) echo "!! ATENÇÃO: $sobrou conta(s) de teste não foram apagadas ($in)\n";
 }
 
 function moedas(PDO $pdo, int $uid): int
