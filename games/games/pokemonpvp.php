@@ -939,7 +939,10 @@ function pintarGuia(){
     ? d.indice.filter(p => p.nome.toLowerCase().includes(b)).slice(0, 36)
     : d.indice.slice(0, 36);
 
-  const tipos = Object.keys(d.tipos).sort();
+  /* Stellar fica de fora: é tipo de Tera, e Tera não existe aqui. Ele não
+     é fraco nem forte contra nada, então só confundiria quem abre o guia
+     pra decidir um golpe. */
+  const tipos = Object.keys(d.tipos).filter(t => t !== 'stellar').sort();
   const grade = tipos.map(t =>
     `<button class="tipoBt" style="background:${TIPO_COR(t)}" onclick="verTipo('${t}')">${esc(t)}</button>`).join('');
 
