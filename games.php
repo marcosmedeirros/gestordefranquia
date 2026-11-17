@@ -684,7 +684,84 @@ $jogosLivres = [
 // apostar é da liga inteira — sem isso os eventos ficavam sem apostador,
 // porque quem cria não pode apostar no próprio.
 $ehAdminGeral = ($user['user_type'] ?? '') === 'admin';
-$abasValidas = ['games', 'apostas', 'loja', 'ranking', 'eventos'];
+
+/* ── BOLÃO: o cartão de tudo ou nada ─────────────────────────────────────
+ *
+ * A aposta debita na hora e o acerto cravado paga o dobro. A regra inteira
+ * mora em backend/bolao.php; aqui só entram o clique e a mensagem.
+ * @see includes/games-bolao.php — a tela
+ */
+require_once __DIR__ . '/backend/bolao.php';
+bolaoSemearBrasileirao($pdo);
+$bolaoMsg = null; $bolaoErro = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && (isset($_POST['bolao_acao']) || isset($_POST['bolao_cancelar']))) {
+
+    $edAtiva = bolaoEdicaoAtiva($pdo);
+    $acao = isset($_POST['bolao_cancelar']) ? 'cancelar' : (string)$_POST['bolao_acao'];
+
+    if (!$edAtiva) {
+        $bolaoErro = 'Nenhum bolão aberto agora.';
+    } elseif ($acao === 'apostar') {
+        $r = bolaoApostar($pdo, (int)$edAtiva['id'], $userId,
+                          (array)($_POST['queda'] ?? []),
+                          (string)($_POST['campeao'] ?? ''),
+                          (int)($_POST['valor'] ?? 0));
+        if ($r['ok']) {
+            $bolaoMsg = ($r['trocou'] ? 'Cartão trocado' : 'Aposta registrada')
+                      . '! Agora é torcer — e lembrar que só o cartão inteiro paga.';
+        } else { $bolaoErro = $r['erro']; }
+
+    } elseif ($acao === 'cancelar') {
+        $r = bolaoCancelar($pdo, (int)$edAtiva['id'], $userId);
+        if ($r['ok']) { $bolaoMsg = 'Você saiu do bolão e os FBA Points voltaram pro seu saldo.'; }
+        else          { $bolaoErro = $r['erro']; }
+
+    } elseif ($ehAdminGeral && $acao === 'chave') {
+        try {
+            $pdo->prepare('UPDATE bolao_edicoes SET aberto = ? WHERE id = ?')
+                ->execute([!empty($_POST['aberto']) ? 1 : 0, (int)$edAtiva['id']]);
+            $bolaoMsg = !empty($_POST['aberto']) ? 'Apostas abertas.' : 'Apostas fechadas.';
+        } catch (Throwable $e) { $bolaoErro = 'Não deu pra mudar a chave.'; }
+
+    } elseif ($ehAdminGeral && $acao === 'prazo') {
+        try {
+            $quando = !empty($_POST['limpar']) ? null : trim((string)($_POST['fecha_em'] ?? ''));
+            $pdo->prepare('UPDATE bolao_edicoes SET fecha_em = ? WHERE id = ?')
+                ->execute([$quando ? str_replace('T', ' ', $quando) . ':00' : null, (int)$edAtiva['id']]);
+            $bolaoMsg = $quando ? 'Prazo salvo.' : 'Prazo removido — fecha só na mão.';
+        } catch (Throwable $e) { $bolaoErro = 'Não deu pra salvar o prazo.'; }
+
+    } elseif ($ehAdminGeral && $acao === 'resolver') {
+        $r = bolaoResolver($pdo, (int)$edAtiva['id'], (array)($_POST['r_queda'] ?? []),
+                           (string)($_POST['r_campeao'] ?? ''), $userId);
+        if ($r['ok']) {
+            $bolaoMsg = $r['ganhadores'] === 0
+                ? 'Resultado lançado. Ninguém cravou o cartão — ' . $r['perdedores'] . ' perderam a aposta.'
+                : 'Resultado lançado! ' . $r['ganhadores'] . ' cravaram e receberam '
+                  . number_format((int)$r['pago'], 0, ',', '.') . ' FBA Points.';
+        } else { $bolaoErro = $r['erro']; }
+    }
+
+    // O saldo do topo tem que mostrar o que acabou de acontecer.
+    try {
+        $st = $pdo->prepare("SELECT pontos, fba_points, acertos_eventos FROM games_usuarios WHERE id = ?");
+        $st->execute([$userId]);
+        if ($linha = $st->fetch(PDO::FETCH_ASSOC)) $perfil = $linha;
+    } catch (Throwable $e) {}
+}
+
+$bolaoEd     = bolaoEdicaoAtiva($pdo);
+$bolaoMinha  = $bolaoEd ? bolaoMinhaAposta($pdo, (int)$bolaoEd['id'], $userId) : null;
+$bolaoResumo = $bolaoEd ? bolaoResumo($pdo, (int)$bolaoEd['id'])
+                        : ['apostadores' => 0, 'total' => 0, 'queda' => [], 'campeao' => []];
+$bolaoUltima = bolaoEdicaoResolvida($pdo);
+
+/* 'eventos' SAIU DA LISTA (pedido do Marcos, 17/11/2026): a aba foi escondida
+   e o Bolão tomou o lugar dela na fita. O pane continua no HTML e a enquete
+   continua funcionando — só não tem mais porta. */
+$abasValidas = ['games', 'apostas', 'loja', 'ranking', 'bolao'];
 $abaInicial = 'games';
 if (isset($_GET['aba'])) {
     // `banca` era o nome antigo da aba. Continua abrindo, porque link já
@@ -696,6 +773,7 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
 // Depois de comprar ou usar, a pagina volta na LOJA e nao na aba de
 // origem — senao a compra some da vista e parece que nao aconteceu.
 if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
+if ($bolaoMsg || $bolaoErro) $abaInicial = 'bolao';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1325,8 +1403,11 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
                 <i class="bi bi-bar-chart-fill"></i> Ranking
             </button>
-            <button class="g-tab <?= $abaInicial === 'eventos' ? 'active' : '' ?>" data-aba="eventos" onclick="trocarAba('eventos')">
-                <i class="bi bi-calendar-event-fill"></i> Eventos
+            <button class="g-tab <?= $abaInicial === 'bolao' ? 'active' : '' ?>" data-aba="bolao" onclick="trocarAba('bolao')">
+                <i class="bi bi-ticket-perforated-fill"></i> Bolão
+                <?php if ($bolaoEd && empty($bolaoMinha) && !empty($bolaoEd['aberto_agora'])): ?>
+                <span class="g-tab-selo">!</span>
+                <?php endif; ?>
             </button>
         </div>
 
@@ -2199,6 +2280,11 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                      ?acao=ranking); o que acabou foi o placar no /games. */ ?>
         </div>
 
+        <!-- ── Aba Bolão ─────────────────────────────────────────────── -->
+        <div class="g-pane <?= $abaInicial === 'bolao' ? 'active' : '' ?>" id="pane-bolao">
+            <?php include __DIR__ . '/includes/games-bolao.php'; ?>
+        </div>
+
         <!-- ── Aba Banca (enquetes) ──────────────────────────────────────
              O painel inteiro mora em core/enquetes_painel.php, com as classes
              prefixadas em `eq-` pra não brigar com o CSS desta página. -->
@@ -2511,7 +2597,8 @@ function trocarLigaRanking(liga) {
     if (!location.search.includes('aba=')) {
         try {
             const salva = sessionStorage.getItem('gamesAba');
-            if (salva && salva !== 'games') trocarAba(salva);
+            // 'eventos' saiu da fita: quem tinha ela guardada cai no padrão.
+            if (salva && salva !== 'games' && document.querySelector('.g-tab[data-aba="' + salva + '"]')) trocarAba(salva);
         } catch (e) {}
     }
     const menuBtn = document.getElementById('menuBtn');
