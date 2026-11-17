@@ -134,22 +134,44 @@ $saldo = psdSaldo($pdo, $user_id);
    * Então: tamanho natural, com teto pra nenhum estourar a quadra. O
    * pixelated é porque o desenho é pequeno de origem; esticado com
    * suavização ele borra. */
+  /* ── O TAMANHO E A AMPLIAÇÃO ───────────────────────────────────────
+   *
+   * O desenho sai no tamanho NATURAL (cada espécie tem o seu: Wailord
+   * grande, Joltik pequeno) e depois é ampliado por um fator igual pros
+   * dois. Largura em porcentagem, que era o que estava aqui antes,
+   * achatava essa diferença — o Chimecho, que é quase todo rabo, virava
+   * um gigante ao lado de um Jumpluff miúdo.
+   *
+   * A ampliação mora em --z e aparece em TODO keyframe: transform é uma
+   * propriedade só, então uma animação que escrevesse apenas translate()
+   * apagaria a escala e o bicho encolheria no meio do golpe.
+   *
+   * transform-origin no pé: ampliar faz ele crescer pra cima, de pé na
+   * quadra, em vez de afundar no chão. */
   .bicho{position:absolute;z-index:3;filter:drop-shadow(0 6px 7px rgba(0,0,0,.35));
-         transition:opacity .3s;width:auto;height:auto;image-rendering:pixelated}
-  .bicho.deles{right:15%;top:14%;max-width:30%;max-height:40%;
+         transition:opacity .3s;width:auto;height:auto;image-rendering:pixelated;
+         transform:scale(var(--z));transform-origin:bottom center}
+  .bicho.deles{--z:1.5;right:17%;top:17%;max-width:24%;max-height:26%;
                animation:flutua 3.1s ease-in-out infinite}
-  .bicho.meu{left:19%;bottom:5%;max-width:42%;max-height:52%;
+  .bicho.meu{--z:1.9;left:21%;bottom:7%;max-width:26%;max-height:30%;
              animation:flutua 3.6s ease-in-out infinite .4s}
-  @keyframes flutua{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes flutua{0%,100%{transform:scale(var(--z)) translateY(0)}
+                    50%{transform:scale(var(--z)) translateY(-4px)}}
   .bicho.meu.ataca{animation:invest .5s ease-in-out}
-  @keyframes invest{0%{transform:translate(0,0)}35%{transform:translate(42px,-26px)}100%{transform:translate(0,0)}}
+  @keyframes invest{0%{transform:scale(var(--z)) translate(0,0)}
+                    35%{transform:scale(var(--z)) translate(24px,-15px)}
+                    100%{transform:scale(var(--z)) translate(0,0)}}
   .bicho.deles.ataca{animation:investD .5s ease-in-out}
-  @keyframes investD{0%{transform:translate(0,0)}35%{transform:translate(-38px,24px)}100%{transform:translate(0,0)}}
+  @keyframes investD{0%{transform:scale(var(--z)) translate(0,0)}
+                     35%{transform:scale(var(--z)) translate(-24px,15px)}
+                     100%{transform:scale(var(--z)) translate(0,0)}}
   .bicho.levou{animation:treme .42s linear 2}
-  @keyframes treme{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}
-                   50%{transform:translateX(7px)}75%{transform:translateX(-4px)}}
+  @keyframes treme{0%,100%{transform:scale(var(--z)) translateX(0)}
+                   25%{transform:scale(var(--z)) translateX(-6px)}
+                   50%{transform:scale(var(--z)) translateX(5px)}
+                   75%{transform:scale(var(--z)) translateX(-3px)}}
   .bicho.piscou{filter:drop-shadow(0 6px 7px rgba(0,0,0,.35)) brightness(3) saturate(0)}
-  .bicho.caiu{opacity:0;transform:translateY(26px)}
+  .bicho.caiu{opacity:0;transform:scale(var(--z)) translateY(16px)}
 
   .dano{position:absolute;z-index:6;font-weight:800;font-size:22px;color:#fff;
         text-shadow:0 2px 0 #c0392b,0 0 10px rgba(0,0,0,.6);opacity:0;pointer-events:none}
