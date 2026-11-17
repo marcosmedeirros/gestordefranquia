@@ -10758,6 +10758,20 @@ function _travaRegra(d, forte) {
     : `${stats} (as letras entram quando você marcar que a progression saiu)`;
 }
 
+/* QUEM JÁ MARCOU A PROGRESSION, em uma linha. Existe pra um segundo admin
+   abrir o painel e ver que o colega acabou de clicar, em vez de clicar junto
+   — o servidor recusaria o dele, mas ninguém gosta de descobrir assim. */
+function _travaMarcada(d) {
+  const p = d.progressao_por;
+  if (d.modo !== 'letras' || !p) return '';
+  const quem = p.nome ? `por <b>${escapeHtml(p.nome)}</b>` : '';
+  const quando = p.em ? ` em ${escapeHtml(p.em)}` : '';
+  return `<div style="font-size:11px;color:#25c677;margin-top:6px">
+            <i class="bi bi-check-circle-fill"></i> Progression já marcada ${quem}${quando}.
+            Só uma vez por temporada — pra refazer, desfaça antes.
+          </div>`;
+}
+
 /* "Nome · stats 2/6 + letras 0/6" — só o ponto que está faltando. */
 function _travaSelo(t) {
   const p = [];
@@ -10803,6 +10817,7 @@ function renderTravaElencoJanela(box, d) {
           : `<button class="btn btn-sm btn-outline-warning" style="flex:none" onclick="travaElencoProgressao('${liga}')"
                      title="Avisa que a progression saiu: a partir daí cada time precisa atualizar as letras de ${d.min_jogadores} jogadores para trocar"><i class="bi bi-graph-up-arrow"></i> Saiu a progression</button>`}
       </div>
+      ${_travaMarcada(d)}
       <span class="lgcfg-falta">${regra}${quando}${bloq.length ? ` · <b>${bloq.length}</b> de ${d.times_total} times ${d.ativa ? 'sem poder trocar' : 'ficariam sem trocar'}` : ''}</span>
       ${bloq.length ? `<details style="font-size:10.5px;color:var(--text-3)"><summary style="cursor:pointer">ver times</summary>
         <div class="d-flex flex-wrap gap-1 mt-1">${bloq.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div></details>` : ''}
@@ -10841,6 +10856,7 @@ function renderTravaElenco(box, d) {
                    onclick="travaElencoDesfazerProgressao('${liga}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Desfazer "saiu a progression"</button>`
         : `<button class="btn btn-outline-warning w-100" style="font-size:12px;padding:7px 10px;margin-top:6px"
                    onclick="travaElencoProgressao('${liga}')"><i class="bi bi-graph-up-arrow me-1"></i>Saiu a progression</button>`}
+      ${_travaMarcada(d)}
       <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
         Quem não cumprir não envia nem aceita troca. <b>Regra de agora:</b> ${regra}${quando}.
       </div>
@@ -10870,11 +10886,31 @@ async function travaElencoAtivar(liga, ativa) {
   await travaElencoAcao(liga, { action: 'ativar', ativa: !!ativa }, ativa ? `Trava ligada na ${liga}.` : `Trava desligada na ${liga}.`);
 }
 
+/* UMA VEZ POR TEMPORADA, e o clique duplo não passa.
+ *
+ * O servidor é quem garante (@see backend/trava_elenco.php: o UPDATE só
+ * acontece se ninguém tiver marcado esta temporada). Aqui é só a cortesia de
+ * não deixar o mesmo admin disparar dois pedidos enquanto o primeiro corre —
+ * e de recarregar o painel quando a resposta for "outro já marcou", pra ele
+ * ver quem foi sem precisar apertar F5. */
+let _travaProgressaoRodando = false;
+
 async function travaElencoProgressao(liga) {
+  if (_travaProgressaoRodando) return;
   if (!await confirmarSite(
-        `Registrar que a progression da ${liga} já saiu?\n\nA partir de agora cada time precisa atualizar as letras de pelo menos 6 jogadores para poder trocar. O sistema guarda uma foto das letras de agora para saber quem já atualizou.`,
+        `Registrar que a progression da ${liga} já saiu?\n\nA partir de agora cada time precisa atualizar as letras de pelo menos 6 jogadores para poder trocar. O sistema guarda uma foto das letras de agora para saber quem já atualizou.\n\nSó dá pra marcar uma vez por temporada — pra refazer, use "Desfazer" antes.`,
         { titulo: 'Saiu a progression', confirmar: 'Registrar' })) return;
-  await travaElencoAcao(liga, { action: 'progressao' }, `Progression registrada na ${liga}.`);
+
+  _travaProgressaoRodando = true;
+  travaElencoCaixas(liga).forEach(c =>
+    c.querySelectorAll('button').forEach(b => { b.disabled = true; }));
+  try {
+    await travaElencoAcao(liga, { action: 'progressao' }, `Progression registrada na ${liga}.`);
+  } finally {
+    _travaProgressaoRodando = false;
+    // O render da resposta já troca os botões; este recarregar cobre o erro.
+    carregarTravaElenco(liga);
+  }
 }
 
 async function travaElencoDesfazerProgressao(liga) {

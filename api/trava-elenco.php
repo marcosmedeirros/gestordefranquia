@@ -71,6 +71,8 @@ tvResponde([
     'min_jogadores'  => (int)$cfg['min_jogadores'],
     'modo'           => $emProg ? 'letras' : 'estatisticas',
     'progressao_em'  => $emProg ? $cfg['progressao_em'] : null,
+    // Quem clicou, pro painel avisar antes de um segundo admin clicar junto.
+    'progressao_por' => $emProg ? travaElencoQuemMarcou($pdo, $liga) : null,
     'temporada'      => $temp ? (int)$temp['season_number'] : null,
     'times_total'    => count($times),
     'times_bloqueados' => count(array_filter($times, fn($t) => $t['bloqueado'])),

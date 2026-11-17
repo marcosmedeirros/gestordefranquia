@@ -54,9 +54,19 @@ function travaElencoGarantirTabelas(PDO $pdo): void
         min_jogadores        TINYINT     NOT NULL DEFAULT 6,
         progressao_em        DATETIME    NULL,
         progressao_season_id INT         NULL,
+        progressao_por       INT         NULL,
         atualizado_por       INT         NULL,
         atualizado_em        TIMESTAMP   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    /* QUEM marcou a progression fica numa coluna só dela. `atualizado_por` é
+       de qualquer mexida na linha — ligar e desligar a trava passa por lá —,
+       então ele não responde "quem clicou em Saiu a progression". */
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM elenco_trava_liga LIKE 'progressao_por'")->rowCount() === 0) {
+            $pdo->exec('ALTER TABLE elenco_trava_liga ADD COLUMN progressao_por INT NULL AFTER progressao_season_id');
+        }
+    } catch (Throwable $e) { error_log('[trava-elenco] coluna progressao_por: ' . $e->getMessage()); }
+
     // A foto das letras no momento do clique. Uma por (temporada, jogador).
     $pdo->exec("CREATE TABLE IF NOT EXISTS elenco_progressao_base (
         season_id INT      NOT NULL,
@@ -111,6 +121,38 @@ function travaElencoLiberarProgressao(PDO $pdo, string $liga, int $adminId): arr
     $minha = !$pdo->inTransaction();
     if ($minha) $pdo->beginTransaction();
     try {
+        /* ── UMA VEZ POR TEMPORADA, E QUEM CHEGA DEPOIS NÃO REFAZ ────────
+         *
+         * O segundo clique era DESTRUTIVO sem parecer: ele apagava a foto e
+         * tirava outra AGORA, com as letras já atualizadas dentro. Todo time
+         * que tinha feito a lição voltava a dever, porque passava a ser
+         * comparado consigo mesmo. Com dois admins no painel ao mesmo tempo,
+         * bastava os dois clicarem.
+         *
+         * A TRAVA É O PRÓPRIO UPDATE, não uma leitura antes dele: ler e
+         * depois escrever deixa a fresta dos dois cliques simultâneos
+         * passarem pela mesma leitura. Quem conseguir mudar a linha ganha o
+         * direito de tirar a foto; o outro recebe 'ok' => false e nada é
+         * apagado. Refazer de propósito existe — é o botão Desfazer, que
+         * limpa a marca e libera um clique novo.
+         */
+        $pdo->prepare('INSERT IGNORE INTO elenco_trava_liga (league) VALUES (?)')->execute([$liga]);
+        $claim = $pdo->prepare('UPDATE elenco_trava_liga
+                                   SET progressao_em = NOW(), progressao_season_id = ?, progressao_por = ?
+                                 WHERE league = ?
+                                   AND (progressao_season_id IS NULL OR progressao_season_id <> ?)');
+        $claim->execute([$seasonId, $adminId ?: null, $liga, $seasonId]);
+
+        if ($claim->rowCount() === 0) {
+            if ($minha) $pdo->rollBack();
+            $quem = travaElencoQuemMarcou($pdo, $liga);
+            return ['ok' => false, 'ja_estava' => true,
+                    'erro' => 'A progression desta temporada já foi marcada'
+                            . ($quem['nome'] !== '' ? ' por ' . $quem['nome'] : '')
+                            . ($quem['em'] !== '' ? ' em ' . $quem['em'] : '')
+                            . '. Pra refazer, use "Desfazer" antes.'];
+        }
+
         $pdo->prepare('DELETE FROM elenco_progressao_base WHERE season_id = ?')->execute([$seasonId]);
         $ins = $pdo->prepare("INSERT INTO elenco_progressao_base (season_id, player_id, hash)
                               SELECT ?, p.id, " . TRAVA_ELENCO_HASH_SQL . "
@@ -118,11 +160,6 @@ function travaElencoLiberarProgressao(PDO $pdo, string $liga, int $adminId): arr
                                WHERE t.league = ?");
         $ins->execute([$seasonId, $liga]);
         $n = $ins->rowCount();
-        $pdo->prepare("INSERT INTO elenco_trava_liga (league, progressao_em, progressao_season_id, atualizado_por)
-                       VALUES (?, NOW(), ?, ?)
-                       ON DUPLICATE KEY UPDATE progressao_em = NOW(), progressao_season_id = VALUES(progressao_season_id),
-                                               atualizado_por = VALUES(atualizado_por)")
-            ->execute([$liga, $seasonId, $adminId ?: null]);
         if ($minha) $pdo->commit();
         return ['ok' => true, 'jogadores' => $n];
     } catch (Throwable $e) {
@@ -141,8 +178,37 @@ function travaElencoDesfazerProgressao(PDO $pdo, string $liga): void
     if (!empty($cfg['progressao_season_id'])) {
         $pdo->prepare('DELETE FROM elenco_progressao_base WHERE season_id = ?')->execute([(int)$cfg['progressao_season_id']]);
     }
-    $pdo->prepare('UPDATE elenco_trava_liga SET progressao_em = NULL, progressao_season_id = NULL WHERE league = ?')
+    // Limpa QUEM marcou junto: sem isso o painel seguiria dizendo que
+    // alguém marcou uma progression que não existe mais.
+    $pdo->prepare('UPDATE elenco_trava_liga
+                      SET progressao_em = NULL, progressao_season_id = NULL, progressao_por = NULL
+                    WHERE league = ?')
         ->execute([$liga]);
+}
+
+/**
+ * QUEM MARCOU A PROGRESSION, E QUANDO — pro painel dizer em vez de o admin
+ * descobrir clicando.
+ *
+ * @return array{nome:string,em:string}
+ */
+function travaElencoQuemMarcou(PDO $pdo, string $liga): array
+{
+    try {
+        $st = $pdo->prepare("SELECT c.progressao_em, COALESCE(u.name, g.nome, '') AS nome
+                               FROM elenco_trava_liga c
+                          LEFT JOIN users u ON u.id = c.progressao_por
+                          LEFT JOIN games_usuarios g ON g.id = c.progressao_por
+                              WHERE c.league = ? LIMIT 1");
+        $st->execute([strtoupper(trim($liga))]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        return [
+            'nome' => trim((string)($r['nome'] ?? '')),
+            'em'   => !empty($r['progressao_em']) ? date('d/m \à\s H:i', strtotime((string)$r['progressao_em'])) : '',
+        ];
+    } catch (Throwable $e) {
+        return ['nome' => '', 'em' => ''];
+    }
 }
 
 /** A liga está na fase "depois da progression" (e esse clique é desta temporada)? */
