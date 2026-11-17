@@ -1,6 +1,6 @@
 <?php
 /* Pokédex do FBA Showdown — GERADO por games/core/psd_importar_cli.php.
-   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:53. */
+   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 18:53. */
 return array (
   'venusaur' => 
   array (
@@ -101,6 +101,162 @@ return array (
       11 => 'substitute',
     ),
   ),
+  'butterfree' => 
+  array (
+    'num' => 12,
+    'nome' => 'Butterfree',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 45,
+      2 => 50,
+      3 => 90,
+      4 => 80,
+      5 => 70,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'hurricane',
+      2 => 'psychic',
+      3 => 'energyball',
+      4 => 'shadowball',
+      5 => 'venoshock',
+      6 => 'swift',
+      7 => 'electroweb',
+      8 => 'drainingkiss',
+      9 => 'thief',
+      10 => 'quiverdance',
+      11 => 'sleeppowder',
+    ),
+  ),
+  'beedrill' => 
+  array (
+    'num' => 15,
+    'nome' => 'Beedrill',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 90,
+      2 => 40,
+      3 => 45,
+      4 => 80,
+      5 => 75,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'xscissor',
+      1 => 'poisonjab',
+      2 => 'drillrun',
+      3 => 'brickbreak',
+      4 => 'facade',
+      5 => 'peck',
+      6 => 'megadrain',
+      7 => 'toxic',
+      8 => 'substitute',
+    ),
+  ),
+  'pidgeot' => 
+  array (
+    'num' => 18,
+    'nome' => 'Pidgeot',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 83,
+      1 => 80,
+      2 => 75,
+      3 => 70,
+      4 => 70,
+      5 => 101,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'facade',
+      1 => 'airslash',
+      2 => 'heatwave',
+      3 => 'uturn',
+      4 => 'toxic',
+      5 => 'substitute',
+    ),
+  ),
+  'raticate' => 
+  array (
+    'num' => 20,
+    'nome' => 'Raticate',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 81,
+      2 => 60,
+      3 => 50,
+      4 => 70,
+      5 => 97,
+    ),
+    'nivel' => 89,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'crunch',
+      2 => 'irontail',
+      3 => 'uturn',
+      4 => 'icebeam',
+      5 => 'thunderbolt',
+      6 => 'shadowball',
+      7 => 'swordsdance',
+      8 => 'thunderwave',
+    ),
+  ),
+  'fearow' => 
+  array (
+    'num' => 22,
+    'nome' => 'Fearow',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 90,
+      2 => 65,
+      3 => 61,
+      4 => 61,
+      5 => 100,
+    ),
+    'nivel' => 87,
+    'pool' => 
+    array (
+      0 => 'drillpeck',
+      1 => 'facade',
+      2 => 'drillrun',
+      3 => 'uturn',
+      4 => 'toxic',
+      5 => 'substitute',
+    ),
+  ),
   'arbok' => 
   array (
     'num' => 24,
@@ -199,6 +355,76 @@ return array (
       9 => 'metalclaw',
       10 => 'swordsdance',
       11 => 'stealthrock',
+    ),
+  ),
+  'nidoqueen' => 
+  array (
+    'num' => 31,
+    'nome' => 'Nidoqueen',
+    'tipos' => 
+    array (
+      0 => 'poison',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 92,
+      2 => 87,
+      3 => 75,
+      4 => 85,
+      5 => 76,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'poisonjab',
+      2 => 'superpower',
+      3 => 'megakick',
+      4 => 'crunch',
+      5 => 'stoneedge',
+      6 => 'fireblast',
+      7 => 'icepunch',
+      8 => 'irontail',
+      9 => 'thunderpunch',
+      10 => 'stealthrock',
+      11 => 'toxic',
+    ),
+  ),
+  'nidoking' => 
+  array (
+    'num' => 34,
+    'nome' => 'Nidoking',
+    'tipos' => 
+    array (
+      0 => 'poison',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 81,
+      1 => 102,
+      2 => 77,
+      3 => 85,
+      4 => 75,
+      5 => 85,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'poisonjab',
+      2 => 'superpower',
+      3 => 'megahorn',
+      4 => 'megakick',
+      5 => 'stoneedge',
+      6 => 'throatchop',
+      7 => 'fireblast',
+      8 => 'icebeam',
+      9 => 'irontail',
+      10 => 'stealthrock',
+      11 => 'toxic',
     ),
   ),
   'clefable' => 
@@ -329,6 +555,36 @@ return array (
       4 => 'bodyslam',
       5 => 'sleeppowder',
       6 => 'toxic',
+    ),
+  ),
+  'parasect' => 
+  array (
+    'num' => 47,
+    'nome' => 'Parasect',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 95,
+      2 => 80,
+      3 => 60,
+      4 => 80,
+      5 => 30,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'leechlife',
+      1 => 'megadrain',
+      2 => 'brickbreak',
+      3 => 'facade',
+      4 => 'sludgebomb',
+      5 => 'spore',
+      6 => 'sleeppowder',
     ),
   ),
   'venomoth' => 
@@ -529,6 +785,74 @@ return array (
       10 => 'substitute',
     ),
   ),
+  'alakazam' => 
+  array (
+    'num' => 65,
+    'nome' => 'Alakazam',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 50,
+      2 => 45,
+      3 => 135,
+      4 => 95,
+      5 => 120,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'energyball',
+      2 => 'focusblast',
+      3 => 'triattack',
+      4 => 'dazzlinggleam',
+      5 => 'shadowball',
+      6 => 'foulplay',
+      7 => 'firepunch',
+      8 => 'icepunch',
+      9 => 'irontail',
+      10 => 'nastyplot',
+      11 => 'calmmind',
+    ),
+  ),
+  'machamp' => 
+  array (
+    'num' => 68,
+    'nome' => 'Machamp',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 130,
+      2 => 80,
+      3 => 65,
+      4 => 85,
+      5 => 55,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'doubleedge',
+      2 => 'earthquake',
+      3 => 'darkestlariat',
+      4 => 'poisonjab',
+      5 => 'stoneedge',
+      6 => 'firepunch',
+      7 => 'icepunch',
+      8 => 'thunderpunch',
+      9 => 'dualchop',
+      10 => 'toxic',
+      11 => 'bulkup',
+    ),
+  ),
   'victreebel' => 
   array (
     'num' => 71,
@@ -625,6 +949,40 @@ return array (
       8 => 'substitute',
     ),
   ),
+  'rapidash' => 
+  array (
+    'num' => 78,
+    'nome' => 'Rapidash',
+    'tipos' => 
+    array (
+      0 => 'fire',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 100,
+      2 => 70,
+      3 => 80,
+      4 => 80,
+      5 => 105,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'flareblitz',
+      1 => 'megahorn',
+      2 => 'highhorsepower',
+      3 => 'wildcharge',
+      4 => 'bodyslam',
+      5 => 'playrough',
+      6 => 'poisonjab',
+      7 => 'throatchop',
+      8 => 'irontail',
+      9 => 'doublekick',
+      10 => 'swordsdance',
+      11 => 'toxic',
+    ),
+  ),
   'slowbro' => 
   array (
     'num' => 80,
@@ -657,6 +1015,40 @@ return array (
       8 => 'bodyslam',
       9 => 'nastyplot',
       10 => 'calmmind',
+    ),
+  ),
+  'farfetchd' => 
+  array (
+    'num' => 83,
+    'nome' => 'Farfetch’d',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 52,
+      1 => 90,
+      2 => 55,
+      3 => 58,
+      4 => 62,
+      5 => 60,
+    ),
+    'nivel' => 92,
+    'pool' => 
+    array (
+      0 => 'bravebird',
+      1 => 'bodyslam',
+      2 => 'closecombat',
+      3 => 'leafblade',
+      4 => 'throatchop',
+      5 => 'poisonjab',
+      6 => 'irontail',
+      7 => 'uturn',
+      8 => 'heatwave',
+      9 => 'swordsdance',
+      10 => 'toxic',
     ),
   ),
   'dodrio' => 
@@ -857,6 +1249,39 @@ return array (
       11 => 'toxic',
     ),
   ),
+  'kingler' => 
+  array (
+    'num' => 99,
+    'nome' => 'Kingler',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 130,
+      2 => 115,
+      3 => 50,
+      4 => 50,
+      5 => 75,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'crabhammer',
+      1 => 'superpower',
+      2 => 'highhorsepower',
+      3 => 'bodyslam',
+      4 => 'xscissor',
+      5 => 'rockslide',
+      6 => 'brutalswing',
+      7 => 'metalclaw',
+      8 => 'icebeam',
+      9 => 'swordsdance',
+      10 => 'toxic',
+    ),
+  ),
   'electrode' => 
   array (
     'num' => 101,
@@ -913,6 +1338,39 @@ return array (
       5 => 'thief',
       6 => 'calmmind',
       7 => 'leechseed',
+    ),
+  ),
+  'marowak' => 
+  array (
+    'num' => 105,
+    'nome' => 'Marowak',
+    'tipos' => 
+    array (
+      0 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 80,
+      2 => 110,
+      3 => 50,
+      4 => 80,
+      5 => 45,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'doubleedge',
+      2 => 'throatchop',
+      3 => 'ironhead',
+      4 => 'stoneedge',
+      5 => 'brickbreak',
+      6 => 'firepunch',
+      7 => 'thunderpunch',
+      8 => 'icebeam',
+      9 => 'swordsdance',
+      10 => 'stealthrock',
     ),
   ),
   'hitmonlee' => 
@@ -1010,6 +1468,205 @@ return array (
       6 => 'psybeam',
       7 => 'toxic',
       8 => 'willowisp',
+    ),
+  ),
+  'kangaskhan' => 
+  array (
+    'num' => 115,
+    'nome' => 'Kangaskhan',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 105,
+      1 => 95,
+      2 => 80,
+      3 => 40,
+      4 => 80,
+      5 => 90,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'earthquake',
+      2 => 'hammerarm',
+      3 => 'crunch',
+      4 => 'icepunch',
+      5 => 'firepunch',
+      6 => 'irontail',
+      7 => 'thunderpunch',
+      8 => 'shadowclaw',
+      9 => 'rockslide',
+      10 => 'toxic',
+      11 => 'substitute',
+    ),
+  ),
+  'seaking' => 
+  array (
+    'num' => 119,
+    'nome' => 'Seaking',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 92,
+      2 => 65,
+      3 => 65,
+      4 => 80,
+      5 => 68,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'waterfall',
+      1 => 'megahorn',
+      2 => 'bodyslam',
+      3 => 'poisonjab',
+      4 => 'throatchop',
+      5 => 'drillrun',
+      6 => 'smartstrike',
+      7 => 'icebeam',
+      8 => 'psybeam',
+      9 => 'peck',
+      10 => 'swordsdance',
+      11 => 'toxic',
+    ),
+  ),
+  'starmie' => 
+  array (
+    'num' => 121,
+    'nome' => 'Starmie',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 75,
+      2 => 85,
+      3 => 100,
+      4 => 85,
+      5 => 115,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'psychic',
+      2 => 'icebeam',
+      3 => 'thunderbolt',
+      4 => 'dazzlinggleam',
+      5 => 'triattack',
+      6 => 'flashcannon',
+      7 => 'powergem',
+      8 => 'recover',
+      9 => 'thunderwave',
+    ),
+  ),
+  'mrmime' => 
+  array (
+    'num' => 122,
+    'nome' => 'Mr. Mime',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 40,
+      1 => 45,
+      2 => 65,
+      3 => 100,
+      4 => 120,
+      5 => 90,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'dazzlinggleam',
+      2 => 'energyball',
+      3 => 'thunderbolt',
+      4 => 'focusblast',
+      5 => 'shadowball',
+      6 => 'mysticalfire',
+      7 => 'icywind',
+      8 => 'snore',
+      9 => 'foulplay',
+      10 => 'nastyplot',
+      11 => 'calmmind',
+    ),
+  ),
+  'jynx' => 
+  array (
+    'num' => 124,
+    'nome' => 'Jynx',
+    'tipos' => 
+    array (
+      0 => 'ice',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 50,
+      2 => 35,
+      3 => 115,
+      4 => 95,
+      5 => 95,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'icebeam',
+      1 => 'psychic',
+      2 => 'hypervoice',
+      3 => 'energyball',
+      4 => 'focusblast',
+      5 => 'shadowball',
+      6 => 'drainingkiss',
+      7 => 'thief',
+      8 => 'nastyplot',
+      9 => 'calmmind',
+    ),
+  ),
+  'pinsir' => 
+  array (
+    'num' => 127,
+    'nome' => 'Pinsir',
+    'tipos' => 
+    array (
+      0 => 'bug',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 125,
+      2 => 100,
+      3 => 55,
+      4 => 70,
+      5 => 85,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'xscissor',
+      1 => 'closecombat',
+      2 => 'earthquake',
+      3 => 'bodyslam',
+      4 => 'throatchop',
+      5 => 'stoneedge',
+      6 => 'swordsdance',
+      7 => 'stealthrock',
     ),
   ),
   'tauros' => 
@@ -1211,6 +1868,108 @@ return array (
       7 => 'smog',
       8 => 'willowisp',
       9 => 'substitute',
+    ),
+  ),
+  'omastar' => 
+  array (
+    'num' => 139,
+    'nome' => 'Omastar',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 60,
+      2 => 125,
+      3 => 115,
+      4 => 70,
+      5 => 55,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'ancientpower',
+      2 => 'icebeam',
+      3 => 'earthpower',
+      4 => 'snore',
+      5 => 'crunch',
+      6 => 'pinmissile',
+      7 => 'shellsmash',
+      8 => 'stealthrock',
+    ),
+  ),
+  'kabutops' => 
+  array (
+    'num' => 141,
+    'nome' => 'Kabutops',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 115,
+      2 => 105,
+      3 => 65,
+      4 => 70,
+      5 => 80,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'stoneedge',
+      2 => 'superpower',
+      3 => 'megakick',
+      4 => 'leechlife',
+      5 => 'crosspoison',
+      6 => 'nightslash',
+      7 => 'psychocut',
+      8 => 'icebeam',
+      9 => 'earthpower',
+      10 => 'swordsdance',
+      11 => 'stealthrock',
+    ),
+  ),
+  'aerodactyl' => 
+  array (
+    'num' => 142,
+    'nome' => 'Aerodactyl',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 105,
+      2 => 65,
+      3 => 60,
+      4 => 75,
+      5 => 130,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'wingattack',
+      2 => 'earthquake',
+      3 => 'psychicfangs',
+      4 => 'crunch',
+      5 => 'dragonclaw',
+      6 => 'ironhead',
+      7 => 'takedown',
+      8 => 'firefang',
+      9 => 'icefang',
+      10 => 'dragondance',
+      11 => 'stealthrock',
     ),
   ),
   'snorlax' => 
@@ -1608,6 +2367,39 @@ return array (
       8 => 'calmmind',
     ),
   ),
+  'ledian' => 
+  array (
+    'num' => 166,
+    'nome' => 'Ledian',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 35,
+      2 => 50,
+      3 => 55,
+      4 => 110,
+      5 => 85,
+    ),
+    'nivel' => 91,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'airslash',
+      2 => 'focusblast',
+      3 => 'doubleedge',
+      4 => 'gigadrain',
+      5 => 'icepunch',
+      6 => 'thunderpunch',
+      7 => 'knockoff',
+      8 => 'toxic',
+      9 => 'substitute',
+    ),
+  ),
   'ariados' => 
   array (
     'num' => 168,
@@ -1642,6 +2434,41 @@ return array (
       10 => 'toxic',
     ),
   ),
+  'crobat' => 
+  array (
+    'num' => 169,
+    'nome' => 'Crobat',
+    'tipos' => 
+    array (
+      0 => 'poison',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 90,
+      2 => 80,
+      3 => 70,
+      4 => 80,
+      5 => 130,
+    ),
+    'nivel' => 79,
+    'pool' => 
+    array (
+      0 => 'bravebird',
+      1 => 'crosspoison',
+      2 => 'crunch',
+      3 => 'leechlife',
+      4 => 'zenheadbutt',
+      5 => 'facade',
+      6 => 'heatwave',
+      7 => 'steelwing',
+      8 => 'shadowball',
+      9 => 'gigadrain',
+      10 => 'toxic',
+      11 => 'substitute',
+    ),
+  ),
   'lanturn' => 
   array (
     'num' => 171,
@@ -1671,6 +2498,41 @@ return array (
       5 => 'psybeam',
       6 => 'thunderwave',
       7 => 'substitute',
+    ),
+  ),
+  'xatu' => 
+  array (
+    'num' => 178,
+    'nome' => 'Xatu',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 75,
+      2 => 70,
+      3 => 95,
+      4 => 70,
+      5 => 95,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'airslash',
+      2 => 'heatwave',
+      3 => 'dazzlinggleam',
+      4 => 'shadowball',
+      5 => 'foulplay',
+      6 => 'gigadrain',
+      7 => 'swift',
+      8 => 'uturn',
+      9 => 'steelwing',
+      10 => 'calmmind',
+      11 => 'thunderwave',
     ),
   ),
   'ampharos' => 
@@ -2061,6 +2923,41 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'steelix' => 
+  array (
+    'num' => 208,
+    'nome' => 'Steelix',
+    'tipos' => 
+    array (
+      0 => 'steel',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 85,
+      2 => 200,
+      3 => 55,
+      4 => 65,
+      5 => 30,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'earthquake',
+      2 => 'doubleedge',
+      3 => 'psychicfangs',
+      4 => 'bodypress',
+      5 => 'crunch',
+      6 => 'stoneedge',
+      7 => 'firefang',
+      8 => 'icefang',
+      9 => 'thunderfang',
+      10 => 'dragondance',
+      11 => 'stealthrock',
+    ),
+  ),
   'granbull' => 
   array (
     'num' => 210,
@@ -2161,6 +3058,38 @@ return array (
       8 => 'substitute',
     ),
   ),
+  'shuckle' => 
+  array (
+    'num' => 213,
+    'nome' => 'Shuckle',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 20,
+      1 => 10,
+      2 => 230,
+      3 => 10,
+      4 => 230,
+      5 => 5,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'skittersmack',
+      2 => 'steelroller',
+      3 => 'earthquake',
+      4 => 'sludgewave',
+      5 => 'bodyslam',
+      6 => 'knockoff',
+      7 => 'shellsmash',
+      8 => 'stealthrock',
+    ),
+  ),
   'heracross' => 
   array (
     'num' => 214,
@@ -2226,6 +3155,73 @@ return array (
       6 => 'recover',
     ),
   ),
+  'corsola' => 
+  array (
+    'num' => 222,
+    'nome' => 'Corsola',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 55,
+      2 => 95,
+      3 => 65,
+      4 => 95,
+      5 => 35,
+    ),
+    'nivel' => 89,
+    'pool' => 
+    array (
+      0 => 'headsmash',
+      1 => 'surf',
+      2 => 'icebeam',
+      3 => 'earthpower',
+      4 => 'psychic',
+      5 => 'shadowball',
+      6 => 'bodyslam',
+      7 => 'throatchop',
+      8 => 'calmmind',
+      9 => 'recover',
+    ),
+  ),
+  'octillery' => 
+  array (
+    'num' => 224,
+    'nome' => 'Octillery',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 105,
+      2 => 75,
+      3 => 105,
+      4 => 75,
+      5 => 45,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'gunkshot',
+      2 => 'fireblast',
+      3 => 'icebeam',
+      4 => 'energyball',
+      5 => 'psychic',
+      6 => 'flashcannon',
+      7 => 'facade',
+      8 => 'skittersmack',
+      9 => 'thief',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
   'delibird' => 
   array (
     'num' => 225,
@@ -2258,6 +3254,41 @@ return array (
       8 => 'waterpulse',
       9 => 'substitute',
       10 => 'protect',
+    ),
+  ),
+  'mantine' => 
+  array (
+    'num' => 226,
+    'nome' => 'Mantine',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 40,
+      2 => 70,
+      3 => 80,
+      4 => 140,
+      5 => 70,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'hurricane',
+      2 => 'icebeam',
+      3 => 'psybeam',
+      4 => 'swift',
+      5 => 'earthquake',
+      6 => 'gunkshot',
+      7 => 'bodypress',
+      8 => 'seedbomb',
+      9 => 'ironhead',
+      10 => 'substitute',
+      11 => 'protect',
     ),
   ),
   'skarmory' => 
@@ -2422,6 +3453,40 @@ return array (
       6 => 'aerialace',
       7 => 'bulkup',
       8 => 'substitute',
+    ),
+  ),
+  'miltank' => 
+  array (
+    'num' => 241,
+    'nome' => 'Miltank',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 95,
+      1 => 80,
+      2 => 105,
+      3 => 40,
+      4 => 70,
+      5 => 100,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'steelroller',
+      2 => 'earthquake',
+      3 => 'hammerarm',
+      4 => 'playrough',
+      5 => 'icepunch',
+      6 => 'firepunch',
+      7 => 'thunderpunch',
+      8 => 'zenheadbutt',
+      9 => 'rockslide',
+      10 => 'stealthrock',
+      11 => 'thunderwave',
     ),
   ),
   'blissey' => 
@@ -2663,6 +3728,41 @@ return array (
       11 => 'willowisp',
     ),
   ),
+  'celebi' => 
+  array (
+    'num' => 251,
+    'nome' => 'Celebi',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 100,
+      2 => 100,
+      3 => 100,
+      4 => 100,
+      5 => 100,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'psychic',
+      2 => 'earthpower',
+      3 => 'pollenpuff',
+      4 => 'aurasphere',
+      5 => 'dazzlinggleam',
+      6 => 'shadowball',
+      7 => 'facade',
+      8 => 'ancientpower',
+      9 => 'dualwingbeat',
+      10 => 'swordsdance',
+      11 => 'recover',
+    ),
+  ),
   'sceptile' => 
   array (
     'num' => 254,
@@ -2799,6 +3899,108 @@ return array (
       11 => 'protect',
     ),
   ),
+  'linoone' => 
+  array (
+    'num' => 264,
+    'nome' => 'Linoone',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 78,
+      1 => 70,
+      2 => 61,
+      3 => 50,
+      4 => 61,
+      5 => 100,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'gunkshot',
+      2 => 'playrough',
+      3 => 'seedbomb',
+      4 => 'throatchop',
+      5 => 'irontail',
+      6 => 'shadowclaw',
+      7 => 'icebeam',
+      8 => 'surf',
+      9 => 'thunderbolt',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
+  'beautifly' => 
+  array (
+    'num' => 267,
+    'nome' => 'Beautifly',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 70,
+      2 => 50,
+      3 => 100,
+      4 => 50,
+      5 => 65,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'aircutter',
+      2 => 'energyball',
+      3 => 'psychic',
+      4 => 'shadowball',
+      5 => 'venoshock',
+      6 => 'hiddenpower',
+      7 => 'electroweb',
+      8 => 'thief',
+      9 => 'quiverdance',
+      10 => 'toxic',
+    ),
+  ),
+  'dustox' => 
+  array (
+    'num' => 269,
+    'nome' => 'Dustox',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 50,
+      2 => 70,
+      3 => 50,
+      4 => 90,
+      5 => 65,
+    ),
+    'nivel' => 91,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'sludgebomb',
+      2 => 'psychic',
+      3 => 'energyball',
+      4 => 'shadowball',
+      5 => 'facade',
+      6 => 'aerialace',
+      7 => 'thief',
+      8 => 'electroweb',
+      9 => 'toxic',
+      10 => 'moonlight',
+    ),
+  ),
   'ludicolo' => 
   array (
     'num' => 272,
@@ -2867,6 +4069,37 @@ return array (
       9 => 'rockslide',
       10 => 'swordsdance',
       11 => 'willowisp',
+    ),
+  ),
+  'swellow' => 
+  array (
+    'num' => 277,
+    'nome' => 'Swellow',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 85,
+      2 => 60,
+      3 => 75,
+      4 => 50,
+      5 => 125,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'bravebird',
+      1 => 'facade',
+      2 => 'heatwave',
+      3 => 'uturn',
+      4 => 'steelwing',
+      5 => 'thief',
+      6 => 'toxic',
+      7 => 'substitute',
     ),
   ),
   'pelipper' => 
@@ -3041,6 +4274,105 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'ninjask' => 
+  array (
+    'num' => 291,
+    'nome' => 'Ninjask',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 61,
+      1 => 90,
+      2 => 45,
+      3 => 50,
+      4 => 50,
+      5 => 160,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'leechlife',
+      1 => 'aerialace',
+      2 => 'facade',
+      3 => 'thief',
+      4 => 'metalclaw',
+      5 => 'shadowball',
+      6 => 'gigadrain',
+      7 => 'mudslap',
+      8 => 'swordsdance',
+      9 => 'substitute',
+    ),
+  ),
+  'shedinja' => 
+  array (
+    'num' => 292,
+    'nome' => 'Shedinja',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 1,
+      1 => 90,
+      2 => 45,
+      3 => 30,
+      4 => 30,
+      5 => 40,
+    ),
+    'nivel' => 100,
+    'pool' => 
+    array (
+      0 => 'poltergeist',
+      1 => 'leechlife',
+      2 => 'facade',
+      3 => 'thief',
+      4 => 'metalclaw',
+      5 => 'gigadrain',
+      6 => 'mudslap',
+      7 => 'willowisp',
+      8 => 'substitute',
+    ),
+  ),
+  'exploud' => 
+  array (
+    'num' => 295,
+    'nome' => 'Exploud',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 104,
+      1 => 91,
+      2 => 63,
+      3 => 91,
+      4 => 73,
+      5 => 68,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'boomburst',
+      1 => 'overheat',
+      2 => 'earthquake',
+      3 => 'icebeam',
+      4 => 'surf',
+      5 => 'focusblast',
+      6 => 'shadowball',
+      7 => 'crunch',
+      8 => 'thunderpunch',
+      9 => 'zenheadbutt',
+      10 => 'substitute',
+      11 => 'protect',
+    ),
+  ),
   'hariyama' => 
   array (
     'num' => 297,
@@ -3073,6 +4405,37 @@ return array (
       9 => 'thunderpunch',
       10 => 'bulkup',
       11 => 'substitute',
+    ),
+  ),
+  'delcatty' => 
+  array (
+    'num' => 301,
+    'nome' => 'Delcatty',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 65,
+      2 => 65,
+      3 => 55,
+      4 => 55,
+      5 => 90,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'hypervoice',
+      1 => 'wildcharge',
+      2 => 'icebeam',
+      3 => 'irontail',
+      4 => 'zenheadbutt',
+      5 => 'shadowball',
+      6 => 'waterpulse',
+      7 => 'thunderwave',
+      8 => 'toxic',
     ),
   ),
   'sableye' => 
@@ -3110,6 +4473,76 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'mawile' => 
+  array (
+    'num' => 303,
+    'nome' => 'Mawile',
+    'tipos' => 
+    array (
+      0 => 'steel',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 50,
+      1 => 85,
+      2 => 85,
+      3 => 55,
+      4 => 55,
+      5 => 50,
+    ),
+    'nivel' => 92,
+    'pool' => 
+    array (
+      0 => 'steelbeam',
+      1 => 'playrough',
+      2 => 'foulplay',
+      3 => 'megakick',
+      4 => 'psychicfangs',
+      5 => 'stoneedge',
+      6 => 'brickbreak',
+      7 => 'icepunch',
+      8 => 'thunderpunch',
+      9 => 'firefang',
+      10 => 'swordsdance',
+      11 => 'stealthrock',
+    ),
+  ),
+  'aggron' => 
+  array (
+    'num' => 306,
+    'nome' => 'Aggron',
+    'tipos' => 
+    array (
+      0 => 'steel',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 110,
+      2 => 180,
+      3 => 60,
+      4 => 60,
+      5 => 50,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'stoneedge',
+      2 => 'superpower',
+      3 => 'doubleedge',
+      4 => 'earthquake',
+      5 => 'crunch',
+      6 => 'dragonclaw',
+      7 => 'icepunch',
+      8 => 'firepunch',
+      9 => 'thunderpunch',
+      10 => 'stealthrock',
+      11 => 'thunderwave',
+    ),
+  ),
   'medicham' => 
   array (
     'num' => 308,
@@ -3143,6 +4576,37 @@ return array (
       9 => 'rockslide',
       10 => 'recover',
       11 => 'bulkup',
+    ),
+  ),
+  'manectric' => 
+  array (
+    'num' => 310,
+    'nome' => 'Manectric',
+    'tipos' => 
+    array (
+      0 => 'electric',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 75,
+      2 => 60,
+      3 => 105,
+      4 => 60,
+      5 => 105,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'thunderbolt',
+      1 => 'overheat',
+      2 => 'hypervoice',
+      3 => 'psychicfangs',
+      4 => 'crunch',
+      5 => 'irontail',
+      6 => 'icefang',
+      7 => 'thunderwave',
+      8 => 'substitute',
     ),
   ),
   'plusle' => 
@@ -3305,6 +4769,74 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'sharpedo' => 
+  array (
+    'num' => 319,
+    'nome' => 'Sharpedo',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 120,
+      2 => 40,
+      3 => 95,
+      4 => 40,
+      5 => 95,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'crunch',
+      2 => 'closecombat',
+      3 => 'earthquake',
+      4 => 'psychicfangs',
+      5 => 'poisonjab',
+      6 => 'takedown',
+      7 => 'icebeam',
+      8 => 'rocktomb',
+      9 => 'scaleshot',
+      10 => 'substitute',
+      11 => 'protect',
+    ),
+  ),
+  'wailord' => 
+  array (
+    'num' => 321,
+    'nome' => 'Wailord',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 170,
+      1 => 90,
+      2 => 45,
+      3 => 90,
+      4 => 45,
+      5 => 60,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'steelroller',
+      2 => 'earthquake',
+      3 => 'icebeam',
+      4 => 'hypervoice',
+      5 => 'bodypress',
+      6 => 'zenheadbutt',
+      7 => 'rocktomb',
+      8 => 'astonish',
+      9 => 'substitute',
+      10 => 'protect',
+    ),
+  ),
   'camerupt' => 
   array (
     'num' => 323,
@@ -3402,6 +4934,40 @@ return array (
       9 => 'icywind',
       10 => 'nastyplot',
       11 => 'calmmind',
+    ),
+  ),
+  'spinda' => 
+  array (
+    'num' => 327,
+    'nome' => 'Spinda',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 60,
+      2 => 60,
+      3 => 60,
+      4 => 60,
+      5 => 60,
+    ),
+    'nivel' => 93,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'psychic',
+      2 => 'wildcharge',
+      3 => 'shadowball',
+      4 => 'brickbreak',
+      5 => 'firepunch',
+      6 => 'icepunch',
+      7 => 'suckerpunch',
+      8 => 'rockslide',
+      9 => 'waterpulse',
+      10 => 'toxic',
+      11 => 'substitute',
     ),
   ),
   'flygon' => 
@@ -3576,6 +5142,71 @@ return array (
       11 => 'toxic',
     ),
   ),
+  'lunatone' => 
+  array (
+    'num' => 337,
+    'nome' => 'Lunatone',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 55,
+      2 => 65,
+      3 => 95,
+      4 => 85,
+      5 => 70,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'powergem',
+      2 => 'moonblast',
+      3 => 'icebeam',
+      4 => 'earthpower',
+      5 => 'shadowball',
+      6 => 'swift',
+      7 => 'ironhead',
+      8 => 'nastyplot',
+      9 => 'calmmind',
+    ),
+  ),
+  'solrock' => 
+  array (
+    'num' => 338,
+    'nome' => 'Solrock',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 95,
+      2 => 85,
+      3 => 55,
+      4 => 65,
+      5 => 70,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'zenheadbutt',
+      2 => 'flareblitz',
+      3 => 'earthquake',
+      4 => 'bodyslam',
+      5 => 'ironhead',
+      6 => 'shadowball',
+      7 => 'swordsdance',
+      8 => 'stealthrock',
+    ),
+  ),
   'whiscash' => 
   array (
     'num' => 340,
@@ -3642,6 +5273,106 @@ return array (
       11 => 'swordsdance',
     ),
   ),
+  'claydol' => 
+  array (
+    'num' => 344,
+    'nome' => 'Claydol',
+    'tipos' => 
+    array (
+      0 => 'ground',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 70,
+      2 => 105,
+      3 => 70,
+      4 => 120,
+      5 => 75,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'psychic',
+      2 => 'icebeam',
+      3 => 'stoneedge',
+      4 => 'bodypress',
+      5 => 'dazzlinggleam',
+      6 => 'shadowball',
+      7 => 'facade',
+      8 => 'stealthrock',
+      9 => 'substitute',
+    ),
+  ),
+  'cradily' => 
+  array (
+    'num' => 346,
+    'nome' => 'Cradily',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 86,
+      1 => 81,
+      2 => 97,
+      3 => 81,
+      4 => 107,
+      5 => 43,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'powerwhip',
+      1 => 'stoneedge',
+      2 => 'earthquake',
+      3 => 'sludgewave',
+      4 => 'bodyslam',
+      5 => 'brine',
+      6 => 'astonish',
+      7 => 'swordsdance',
+      8 => 'stealthrock',
+    ),
+  ),
+  'armaldo' => 
+  array (
+    'num' => 348,
+    'nome' => 'Armaldo',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'bug',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 125,
+      2 => 100,
+      3 => 70,
+      4 => 80,
+      5 => 45,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'xscissor',
+      2 => 'superpower',
+      3 => 'earthquake',
+      4 => 'bodyslam',
+      5 => 'liquidation',
+      6 => 'irontail',
+      7 => 'crosspoison',
+      8 => 'shadowclaw',
+      9 => 'brutalswing',
+      10 => 'swordsdance',
+      11 => 'stealthrock',
+    ),
+  ),
   'milotic' => 
   array (
     'num' => 350,
@@ -3672,6 +5403,74 @@ return array (
       7 => 'skittersmack',
       8 => 'recover',
       9 => 'substitute',
+    ),
+  ),
+  'castform' => 
+  array (
+    'num' => 351,
+    'nome' => 'Castform',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 70,
+      2 => 70,
+      3 => 70,
+      4 => 70,
+      5 => 70,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'facade',
+      1 => 'fireblast',
+      2 => 'icebeam',
+      3 => 'energyball',
+      4 => 'thunderbolt',
+      5 => 'hydropump',
+      6 => 'shadowball',
+      7 => 'hurricane',
+      8 => 'thief',
+      9 => 'clearsmog',
+      10 => 'thunderwave',
+      11 => 'toxic',
+    ),
+  ),
+  'kecleon' => 
+  array (
+    'num' => 352,
+    'nome' => 'Kecleon',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 90,
+      2 => 70,
+      3 => 60,
+      4 => 120,
+      5 => 40,
+    ),
+    'nivel' => 87,
+    'pool' => 
+    array (
+      0 => 'dizzypunch',
+      1 => 'foulplay',
+      2 => 'aquatail',
+      3 => 'synchronoise',
+      4 => 'icepunch',
+      5 => 'brickbreak',
+      6 => 'thunderpunch',
+      7 => 'firepunch',
+      8 => 'irontail',
+      9 => 'shadowclaw',
+      10 => 'recover',
+      11 => 'stealthrock',
     ),
   ),
   'banette' => 
@@ -3773,6 +5572,40 @@ return array (
       9 => 'thunderwave',
     ),
   ),
+  'absol' => 
+  array (
+    'num' => 359,
+    'nome' => 'Absol',
+    'tipos' => 
+    array (
+      0 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 130,
+      2 => 60,
+      3 => 75,
+      4 => 60,
+      5 => 75,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'foulplay',
+      1 => 'doubleedge',
+      2 => 'closecombat',
+      3 => 'megahorn',
+      4 => 'playrough',
+      5 => 'stoneedge',
+      6 => 'irontail',
+      7 => 'zenheadbutt',
+      8 => 'shadowclaw',
+      9 => 'fireblast',
+      10 => 'swordsdance',
+      11 => 'thunderwave',
+    ),
+  ),
   'glalie' => 
   array (
     'num' => 362,
@@ -3803,6 +5636,133 @@ return array (
       7 => 'trailblaze',
       8 => 'substitute',
       9 => 'protect',
+    ),
+  ),
+  'walrein' => 
+  array (
+    'num' => 365,
+    'nome' => 'Walrein',
+    'tipos' => 
+    array (
+      0 => 'ice',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 110,
+      1 => 80,
+      2 => 90,
+      3 => 95,
+      4 => 90,
+      5 => 65,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'icebeam',
+      1 => 'surf',
+      2 => 'steelroller',
+      3 => 'earthquake',
+      4 => 'bodyslam',
+      5 => 'bodypress',
+      6 => 'crunch',
+      7 => 'rockslide',
+      8 => 'substitute',
+      9 => 'protect',
+    ),
+  ),
+  'huntail' => 
+  array (
+    'num' => 367,
+    'nome' => 'Huntail',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 104,
+      2 => 105,
+      3 => 94,
+      4 => 75,
+      5 => 52,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'icebeam',
+      2 => 'crunch',
+      3 => 'facade',
+      4 => 'rocktomb',
+      5 => 'infestation',
+      6 => 'toxic',
+      7 => 'substitute',
+    ),
+  ),
+  'gorebyss' => 
+  array (
+    'num' => 368,
+    'nome' => 'Gorebyss',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 84,
+      2 => 105,
+      3 => 114,
+      4 => 75,
+      5 => 52,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'icebeam',
+      2 => 'psychic',
+      3 => 'shadowball',
+      4 => 'signalbeam',
+      5 => 'hiddenpower',
+      6 => 'drainingkiss',
+      7 => 'toxic',
+      8 => 'substitute',
+    ),
+  ),
+  'relicanth' => 
+  array (
+    'num' => 369,
+    'nome' => 'Relicanth',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 90,
+      2 => 130,
+      3 => 45,
+      4 => 65,
+      5 => 55,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'headsmash',
+      1 => 'liquidation',
+      2 => 'doubleedge',
+      3 => 'earthquake',
+      4 => 'bodypress',
+      5 => 'zenheadbutt',
+      6 => 'icebeam',
+      7 => 'scaleshot',
+      8 => 'stealthrock',
+      9 => 'substitute',
     ),
   ),
   'luvdisc' => 
@@ -4373,6 +6333,40 @@ return array (
       7 => 'protect',
     ),
   ),
+  'bibarel' => 
+  array (
+    'num' => 400,
+    'nome' => 'Bibarel',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 79,
+      1 => 85,
+      2 => 60,
+      3 => 55,
+      4 => 60,
+      5 => 71,
+    ),
+    'nivel' => 89,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'takedown',
+      2 => 'superpower',
+      3 => 'crunch',
+      4 => 'irontail',
+      5 => 'bulldoze',
+      6 => 'icebeam',
+      7 => 'thunderbolt',
+      8 => 'shadowball',
+      9 => 'swordsdance',
+      10 => 'stealthrock',
+    ),
+  ),
   'kricketune' => 
   array (
     'num' => 402,
@@ -4433,6 +6427,37 @@ return array (
       7 => 'trailblaze',
       8 => 'thunderwave',
       9 => 'substitute',
+    ),
+  ),
+  'roserade' => 
+  array (
+    'num' => 407,
+    'nome' => 'Roserade',
+    'tipos' => 
+    array (
+      0 => 'grass',
+      1 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 70,
+      2 => 65,
+      3 => 125,
+      4 => 105,
+      5 => 90,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'sludgebomb',
+      2 => 'dazzlinggleam',
+      3 => 'shadowball',
+      4 => 'swift',
+      5 => 'pinmissile',
+      6 => 'toxic',
+      7 => 'leechseed',
     ),
   ),
   'rampardos' => 
@@ -4502,6 +6527,73 @@ return array (
       9 => 'trailblaze',
       10 => 'stealthrock',
       11 => 'substitute',
+    ),
+  ),
+  'wormadam' => 
+  array (
+    'num' => 413,
+    'nome' => 'Wormadam',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 59,
+      2 => 85,
+      3 => 79,
+      4 => 105,
+      5 => 36,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'bugbuzz',
+      2 => 'psychic',
+      3 => 'shadowball',
+      4 => 'venoshock',
+      5 => 'hiddenpower',
+      6 => 'suckerpunch',
+      7 => 'electroweb',
+      8 => 'quiverdance',
+      9 => 'toxic',
+    ),
+  ),
+  'mothim' => 
+  array (
+    'num' => 414,
+    'nome' => 'Mothim',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 94,
+      2 => 50,
+      3 => 94,
+      4 => 50,
+      5 => 66,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'airslash',
+      2 => 'psychic',
+      3 => 'energyball',
+      4 => 'shadowball',
+      5 => 'facade',
+      6 => 'venoshock',
+      7 => 'thief',
+      8 => 'electroweb',
+      9 => 'toxic',
+      10 => 'substitute',
     ),
   ),
   'vespiquen' => 
@@ -4598,6 +6690,34 @@ return array (
       6 => 'mudslap',
       7 => 'bulkup',
       8 => 'substitute',
+    ),
+  ),
+  'cherrim' => 
+  array (
+    'num' => 421,
+    'nome' => 'Cherrim',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 60,
+      2 => 70,
+      3 => 87,
+      4 => 78,
+      5 => 85,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'energyball',
+      1 => 'pollenpuff',
+      2 => 'dazzlinggleam',
+      3 => 'takedown',
+      4 => 'leechseed',
+      5 => 'morningsun',
     ),
   ),
   'gastrodon' => 
@@ -4698,6 +6818,40 @@ return array (
       8 => 'thunderwave',
     ),
   ),
+  'lopunny' => 
+  array (
+    'num' => 428,
+    'nome' => 'Lopunny',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 76,
+      2 => 84,
+      3 => 54,
+      4 => 96,
+      5 => 105,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'megakick',
+      1 => 'closecombat',
+      2 => 'playrough',
+      3 => 'icepunch',
+      4 => 'firepunch',
+      5 => 'irontail',
+      6 => 'thunderpunch',
+      7 => 'uturn',
+      8 => 'brutalswing',
+      9 => 'shadowball',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
   'mismagius' => 
   array (
     'num' => 429,
@@ -4767,6 +6921,39 @@ return array (
       11 => 'substitute',
     ),
   ),
+  'purugly' => 
+  array (
+    'num' => 432,
+    'nome' => 'Purugly',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 71,
+      1 => 82,
+      2 => 64,
+      3 => 64,
+      4 => 59,
+      5 => 112,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'bodyslam',
+      1 => 'foulplay',
+      2 => 'irontail',
+      3 => 'thunderbolt',
+      4 => 'shadowclaw',
+      5 => 'uturn',
+      6 => 'aerialace',
+      7 => 'bulldoze',
+      8 => 'waterpulse',
+      9 => 'toxic',
+      10 => 'substitute',
+    ),
+  ),
   'skuntank' => 
   array (
     'num' => 435,
@@ -4831,6 +7018,38 @@ return array (
       8 => 'chargebeam',
       9 => 'stealthrock',
       10 => 'substitute',
+    ),
+  ),
+  'chatot' => 
+  array (
+    'num' => 441,
+    'nome' => 'Chatot',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 76,
+      1 => 65,
+      2 => 45,
+      3 => 92,
+      4 => 42,
+      5 => 91,
+    ),
+    'nivel' => 89,
+    'pool' => 
+    array (
+      0 => 'boomburst',
+      1 => 'chatter',
+      2 => 'synchronoise',
+      3 => 'heatwave',
+      4 => 'uturn',
+      5 => 'steelwing',
+      6 => 'thief',
+      7 => 'nastyplot',
+      8 => 'toxic',
     ),
   ),
   'spiritomb' => 
@@ -4969,6 +7188,41 @@ return array (
       11 => 'stealthrock',
     ),
   ),
+  'drapion' => 
+  array (
+    'num' => 452,
+    'nome' => 'Drapion',
+    'tipos' => 
+    array (
+      0 => 'poison',
+      1 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 90,
+      2 => 110,
+      3 => 60,
+      4 => 75,
+      5 => 95,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'crunch',
+      1 => 'poisonjab',
+      2 => 'earthquake',
+      3 => 'leechlife',
+      4 => 'brickbreak',
+      5 => 'irontail',
+      6 => 'facade',
+      7 => 'rockslide',
+      8 => 'firefang',
+      9 => 'icefang',
+      10 => 'swordsdance',
+      11 => 'toxic',
+    ),
+  ),
   'toxicroak' => 
   array (
     'num' => 454,
@@ -5002,6 +7256,35 @@ return array (
       9 => 'shadowclaw',
       10 => 'swordsdance',
       11 => 'toxic',
+    ),
+  ),
+  'carnivine' => 
+  array (
+    'num' => 455,
+    'nome' => 'Carnivine',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 74,
+      1 => 100,
+      2 => 72,
+      3 => 90,
+      4 => 72,
+      5 => 46,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'powerwhip',
+      1 => 'sludgebomb',
+      2 => 'crunch',
+      3 => 'facade',
+      4 => 'bugbite',
+      5 => 'swordsdance',
+      6 => 'sleeppowder',
     ),
   ),
   'lumineon' => 
@@ -5132,6 +7415,40 @@ return array (
       5 => 'substitute',
     ),
   ),
+  'lickilicky' => 
+  array (
+    'num' => 463,
+    'nome' => 'Lickilicky',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 110,
+      1 => 85,
+      2 => 95,
+      3 => 80,
+      4 => 95,
+      5 => 50,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'megakick',
+      1 => 'steelroller',
+      2 => 'powerwhip',
+      3 => 'earthquake',
+      4 => 'fireblast',
+      5 => 'icebeam',
+      6 => 'surf',
+      7 => 'thunderbolt',
+      8 => 'bodypress',
+      9 => 'shadowball',
+      10 => 'swordsdance',
+      11 => 'substitute',
+    ),
+  ),
   'rhyperior' => 
   array (
     'num' => 464,
@@ -5165,6 +7482,37 @@ return array (
       9 => 'icepunch',
       10 => 'swordsdance',
       11 => 'stealthrock',
+    ),
+  ),
+  'tangrowth' => 
+  array (
+    'num' => 465,
+    'nome' => 'Tangrowth',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 100,
+      2 => 125,
+      3 => 110,
+      4 => 50,
+      5 => 50,
+    ),
+    'nivel' => 79,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'earthquake',
+      2 => 'sludgebomb',
+      3 => 'focusblast',
+      4 => 'bodyslam',
+      5 => 'rockslide',
+      6 => 'knockoff',
+      7 => 'sleeppowder',
+      8 => 'substitute',
     ),
   ),
   'electivire' => 
@@ -5232,6 +7580,41 @@ return array (
       8 => 'knockoff',
       9 => 'willowisp',
       10 => 'substitute',
+    ),
+  ),
+  'togekiss' => 
+  array (
+    'num' => 468,
+    'nome' => 'Togekiss',
+    'tipos' => 
+    array (
+      0 => 'fairy',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 50,
+      2 => 95,
+      3 => 120,
+      4 => 115,
+      5 => 80,
+    ),
+    'nivel' => 78,
+    'pool' => 
+    array (
+      0 => 'dazzlinggleam',
+      1 => 'airslash',
+      2 => 'fireblast',
+      3 => 'hypervoice',
+      4 => 'psychic',
+      5 => 'aurasphere',
+      6 => 'shadowball',
+      7 => 'ancientpower',
+      8 => 'magicalleaf',
+      9 => 'smartstrike',
+      10 => 'nastyplot',
+      11 => 'thunderwave',
     ),
   ),
   'yanmega' => 
@@ -6066,6 +8449,41 @@ return array (
       11 => 'swordsdance',
     ),
   ),
+  'victini' => 
+  array (
+    'num' => 494,
+    'nome' => 'Victini',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'fire',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 100,
+      2 => 100,
+      3 => 100,
+      4 => 100,
+      5 => 100,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'vcreate',
+      1 => 'psychic',
+      2 => 'doubleedge',
+      3 => 'energyball',
+      4 => 'thunderbolt',
+      5 => 'focusblast',
+      6 => 'dazzlinggleam',
+      7 => 'shadowball',
+      8 => 'scorchingsands',
+      9 => 'uturn',
+      10 => 'thunderwave',
+      11 => 'willowisp',
+    ),
+  ),
   'serperior' => 
   array (
     'num' => 497,
@@ -6163,6 +8581,265 @@ return array (
       10 => 'protect',
     ),
   ),
+  'watchog' => 
+  array (
+    'num' => 505,
+    'nome' => 'Watchog',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 85,
+      2 => 69,
+      3 => 60,
+      4 => 69,
+      5 => 77,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'hyperfang',
+      1 => 'gunkshot',
+      2 => 'aquatail',
+      3 => 'crunch',
+      4 => 'seedbomb',
+      5 => 'firepunch',
+      6 => 'icepunch',
+      7 => 'irontail',
+      8 => 'thunderpunch',
+      9 => 'zenheadbutt',
+      10 => 'swordsdance',
+      11 => 'thunderwave',
+    ),
+  ),
+  'stoutland' => 
+  array (
+    'num' => 508,
+    'nome' => 'Stoutland',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 110,
+      2 => 90,
+      3 => 45,
+      4 => 90,
+      5 => 80,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'takedown',
+      1 => 'superpower',
+      2 => 'wildcharge',
+      3 => 'psychicfangs',
+      4 => 'playrough',
+      5 => 'crunch',
+      6 => 'ironhead',
+      7 => 'firefang',
+      8 => 'icefang',
+      9 => 'rocktomb',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
+  'liepard' => 
+  array (
+    'num' => 510,
+    'nome' => 'Liepard',
+    'tipos' => 
+    array (
+      0 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 64,
+      1 => 88,
+      2 => 50,
+      3 => 88,
+      4 => 50,
+      5 => 106,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'foulplay',
+      1 => 'gunkshot',
+      2 => 'hypervoice',
+      3 => 'playrough',
+      4 => 'seedbomb',
+      5 => 'shadowball',
+      6 => 'irontail',
+      7 => 'burningjealousy',
+      8 => 'psychocut',
+      9 => 'uturn',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
+  'simisage' => 
+  array (
+    'num' => 512,
+    'nome' => 'Simisage',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 98,
+      2 => 63,
+      3 => 98,
+      4 => 63,
+      5 => 101,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'energyball',
+      1 => 'superpower',
+      2 => 'gunkshot',
+      3 => 'throatchop',
+      4 => 'irontail',
+      5 => 'facade',
+      6 => 'shadowclaw',
+      7 => 'rockslide',
+      8 => 'toxic',
+      9 => 'substitute',
+    ),
+  ),
+  'simisear' => 
+  array (
+    'num' => 514,
+    'nome' => 'Simisear',
+    'tipos' => 
+    array (
+      0 => 'fire',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 98,
+      2 => 63,
+      3 => 98,
+      4 => 63,
+      5 => 101,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'overheat',
+      1 => 'superpower',
+      2 => 'gunkshot',
+      3 => 'throatchop',
+      4 => 'irontail',
+      5 => 'facade',
+      6 => 'shadowclaw',
+      7 => 'rockslide',
+      8 => 'toxic',
+      9 => 'willowisp',
+    ),
+  ),
+  'simipour' => 
+  array (
+    'num' => 516,
+    'nome' => 'Simipour',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 98,
+      2 => 63,
+      3 => 98,
+      4 => 63,
+      5 => 101,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'superpower',
+      2 => 'gunkshot',
+      3 => 'icebeam',
+      4 => 'throatchop',
+      5 => 'irontail',
+      6 => 'facade',
+      7 => 'shadowclaw',
+      8 => 'rockslide',
+      9 => 'toxic',
+      10 => 'substitute',
+    ),
+  ),
+  'musharna' => 
+  array (
+    'num' => 518,
+    'nome' => 'Musharna',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 116,
+      1 => 55,
+      2 => 85,
+      3 => 107,
+      4 => 95,
+      5 => 29,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'moonblast',
+      2 => 'energyball',
+      3 => 'shadowball',
+      4 => 'swift',
+      5 => 'rockslide',
+      6 => 'calmmind',
+      7 => 'thunderwave',
+    ),
+  ),
+  'unfezant' => 
+  array (
+    'num' => 521,
+    'nome' => 'Unfezant',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 115,
+      2 => 80,
+      3 => 65,
+      4 => 55,
+      5 => 93,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'bravebird',
+      1 => 'facade',
+      2 => 'uturn',
+      3 => 'steelwing',
+      4 => 'heatwave',
+      5 => 'substitute',
+      6 => 'protect',
+    ),
+  ),
   'zebstrika' => 
   array (
     'num' => 523,
@@ -6191,6 +8868,70 @@ return array (
       5 => 'trailblaze',
       6 => 'thunderwave',
       7 => 'substitute',
+    ),
+  ),
+  'gigalith' => 
+  array (
+    'num' => 526,
+    'nome' => 'Gigalith',
+    'tipos' => 
+    array (
+      0 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 135,
+      2 => 130,
+      3 => 60,
+      4 => 80,
+      5 => 25,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'superpower',
+      2 => 'earthquake',
+      3 => 'ironhead',
+      4 => 'throatchop',
+      5 => 'facade',
+      6 => 'stealthrock',
+      7 => 'substitute',
+    ),
+  ),
+  'swoobat' => 
+  array (
+    'num' => 528,
+    'nome' => 'Swoobat',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 67,
+      1 => 57,
+      2 => 55,
+      3 => 77,
+      4 => 55,
+      5 => 114,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'airslash',
+      2 => 'energyball',
+      3 => 'heatwave',
+      4 => 'shadowball',
+      5 => 'swift',
+      6 => 'uturn',
+      7 => 'steelwing',
+      8 => 'thief',
+      9 => 'nastyplot',
+      10 => 'calmmind',
     ),
   ),
   'excadrill' => 
@@ -6228,6 +8969,40 @@ return array (
       11 => 'stealthrock',
     ),
   ),
+  'audino' => 
+  array (
+    'num' => 531,
+    'nome' => 'Audino',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 103,
+      1 => 60,
+      2 => 86,
+      3 => 60,
+      4 => 86,
+      5 => 50,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'fireblast',
+      2 => 'icebeam',
+      3 => 'psychic',
+      4 => 'surf',
+      5 => 'thunderbolt',
+      6 => 'dazzlinggleam',
+      7 => 'shadowball',
+      8 => 'throatchop',
+      9 => 'drainpunch',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
   'conkeldurr' => 
   array (
     'num' => 534,
@@ -6261,6 +9036,106 @@ return array (
       10 => 'substitute',
     ),
   ),
+  'seismitoad' => 
+  array (
+    'num' => 537,
+    'nome' => 'Seismitoad',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 105,
+      1 => 95,
+      2 => 75,
+      3 => 85,
+      4 => 75,
+      5 => 74,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'liquidation',
+      2 => 'powerwhip',
+      3 => 'megakick',
+      4 => 'sludgewave',
+      5 => 'focusblast',
+      6 => 'icepunch',
+      7 => 'rockslide',
+      8 => 'stealthrock',
+      9 => 'substitute',
+    ),
+  ),
+  'throh' => 
+  array (
+    'num' => 538,
+    'nome' => 'Throh',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 120,
+      1 => 100,
+      2 => 85,
+      3 => 30,
+      4 => 85,
+      5 => 45,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'superpower',
+      1 => 'earthquake',
+      2 => 'megakick',
+      3 => 'poisonjab',
+      4 => 'stoneedge',
+      5 => 'firepunch',
+      6 => 'icepunch',
+      7 => 'thunderpunch',
+      8 => 'zenheadbutt',
+      9 => 'bulkup',
+      10 => 'substitute',
+    ),
+  ),
+  'sawk' => 
+  array (
+    'num' => 539,
+    'nome' => 'Sawk',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 125,
+      2 => 75,
+      3 => 30,
+      4 => 75,
+      5 => 85,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'earthquake',
+      2 => 'megakick',
+      3 => 'poisonjab',
+      4 => 'stoneedge',
+      5 => 'throatchop',
+      6 => 'firepunch',
+      7 => 'icepunch',
+      8 => 'thunderpunch',
+      9 => 'zenheadbutt',
+      10 => 'bulkup',
+      11 => 'substitute',
+    ),
+  ),
   'leavanny' => 
   array (
     'num' => 542,
@@ -6292,6 +9167,39 @@ return array (
       7 => 'electroweb',
       8 => 'swordsdance',
       9 => 'substitute',
+    ),
+  ),
+  'scolipede' => 
+  array (
+    'num' => 545,
+    'nome' => 'Scolipede',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 100,
+      2 => 89,
+      3 => 55,
+      4 => 69,
+      5 => 112,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'megahorn',
+      1 => 'poisonjab',
+      2 => 'steelroller',
+      3 => 'doubleedge',
+      4 => 'superpower',
+      5 => 'earthquake',
+      6 => 'throatchop',
+      7 => 'rockslide',
+      8 => 'swordsdance',
+      9 => 'toxic',
     ),
   ),
   'whimsicott' => 
@@ -6422,6 +9330,102 @@ return array (
       11 => 'bulkup',
     ),
   ),
+  'darmanitan' => 
+  array (
+    'num' => 555,
+    'nome' => 'Darmanitan',
+    'tipos' => 
+    array (
+      0 => 'fire',
+    ),
+    'bs' => 
+    array (
+      0 => 105,
+      1 => 140,
+      2 => 55,
+      3 => 30,
+      4 => 55,
+      5 => 95,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'flareblitz',
+      1 => 'superpower',
+      2 => 'earthquake',
+      3 => 'megakick',
+      4 => 'ironhead',
+      5 => 'stoneedge',
+      6 => 'lashout',
+      7 => 'zenheadbutt',
+      8 => 'uturn',
+      9 => 'willowisp',
+      10 => 'bulkup',
+    ),
+  ),
+  'maractus' => 
+  array (
+    'num' => 556,
+    'nome' => 'Maractus',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 86,
+      2 => 67,
+      3 => 106,
+      4 => 67,
+      5 => 60,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'hypervoice',
+      2 => 'poisonjab',
+      3 => 'throatchop',
+      4 => 'drainpunch',
+      5 => 'peck',
+      6 => 'pinmissile',
+      7 => 'leechseed',
+      8 => 'substitute',
+    ),
+  ),
+  'crustle' => 
+  array (
+    'num' => 558,
+    'nome' => 'Crustle',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 105,
+      2 => 125,
+      3 => 65,
+      4 => 75,
+      5 => 45,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'xscissor',
+      1 => 'stoneedge',
+      2 => 'earthquake',
+      3 => 'bodypress',
+      4 => 'poisonjab',
+      5 => 'facade',
+      6 => 'shadowclaw',
+      7 => 'shellsmash',
+      8 => 'swordsdance',
+    ),
+  ),
   'scrafty' => 
   array (
     'num' => 560,
@@ -6455,6 +9459,173 @@ return array (
       9 => 'thunderpunch',
       10 => 'dragondance',
       11 => 'swordsdance',
+    ),
+  ),
+  'sigilyph' => 
+  array (
+    'num' => 561,
+    'nome' => 'Sigilyph',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 72,
+      1 => 58,
+      2 => 80,
+      3 => 103,
+      4 => 80,
+      5 => 97,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'airslash',
+      2 => 'energyball',
+      3 => 'icebeam',
+      4 => 'heatwave',
+      5 => 'darkpulse',
+      6 => 'dazzlinggleam',
+      7 => 'flashcannon',
+      8 => 'shadowball',
+      9 => 'ancientpower',
+      10 => 'calmmind',
+      11 => 'thunderwave',
+    ),
+  ),
+  'cofagrigus' => 
+  array (
+    'num' => 563,
+    'nome' => 'Cofagrigus',
+    'tipos' => 
+    array (
+      0 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 58,
+      1 => 50,
+      2 => 145,
+      3 => 95,
+      4 => 105,
+      5 => 30,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'shadowball',
+      1 => 'energyball',
+      2 => 'psychic',
+      3 => 'darkpulse',
+      4 => 'snore',
+      5 => 'bodypress',
+      6 => 'nastyplot',
+      7 => 'calmmind',
+    ),
+  ),
+  'carracosta' => 
+  array (
+    'num' => 565,
+    'nome' => 'Carracosta',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'rock',
+    ),
+    'bs' => 
+    array (
+      0 => 74,
+      1 => 108,
+      2 => 133,
+      3 => 83,
+      4 => 65,
+      5 => 32,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'stoneedge',
+      2 => 'superpower',
+      3 => 'earthquake',
+      4 => 'bodyslam',
+      5 => 'crunch',
+      6 => 'ironhead',
+      7 => 'zenheadbutt',
+      8 => 'icebeam',
+      9 => 'shellsmash',
+      10 => 'stealthrock',
+    ),
+  ),
+  'archeops' => 
+  array (
+    'num' => 567,
+    'nome' => 'Archeops',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 140,
+      2 => 65,
+      3 => 112,
+      4 => 65,
+      5 => 110,
+    ),
+    'nivel' => 77,
+    'pool' => 
+    array (
+      0 => 'stoneedge',
+      1 => 'pluck',
+      2 => 'earthquake',
+      3 => 'crunch',
+      4 => 'dragonclaw',
+      5 => 'irontail',
+      6 => 'zenheadbutt',
+      7 => 'facade',
+      8 => 'shadowclaw',
+      9 => 'uturn',
+      10 => 'stealthrock',
+      11 => 'substitute',
+    ),
+  ),
+  'garbodor' => 
+  array (
+    'num' => 569,
+    'nome' => 'Garbodor',
+    'tipos' => 
+    array (
+      0 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 95,
+      2 => 82,
+      3 => 60,
+      4 => 82,
+      5 => 75,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'gunkshot',
+      1 => 'bodyslam',
+      2 => 'bodypress',
+      3 => 'seedbomb',
+      4 => 'thief',
+      5 => 'psychic',
+      6 => 'thunderbolt',
+      7 => 'metalclaw',
+      8 => 'rockblast',
+      9 => 'toxic',
+      10 => 'substitute',
     ),
   ),
   'zoroark' => 
@@ -6622,6 +9793,34 @@ return array (
       8 => 'protect',
     ),
   ),
+  'vanilluxe' => 
+  array (
+    'num' => 584,
+    'nome' => 'Vanilluxe',
+    'tipos' => 
+    array (
+      0 => 'ice',
+    ),
+    'bs' => 
+    array (
+      0 => 71,
+      1 => 95,
+      2 => 85,
+      3 => 110,
+      4 => 95,
+      5 => 79,
+    ),
+    'nivel' => 79,
+    'pool' => 
+    array (
+      0 => 'icebeam',
+      1 => 'hypervoice',
+      2 => 'flashcannon',
+      3 => 'astonish',
+      4 => 'substitute',
+      5 => 'protect',
+    ),
+  ),
   'sawsbuck' => 
   array (
     'num' => 586,
@@ -6657,6 +9856,73 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'emolga' => 
+  array (
+    'num' => 587,
+    'nome' => 'Emolga',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 55,
+      1 => 75,
+      2 => 60,
+      3 => 75,
+      4 => 60,
+      5 => 103,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'thunderbolt',
+      1 => 'airslash',
+      2 => 'energyball',
+      3 => 'irontail',
+      4 => 'facade',
+      5 => 'uturn',
+      6 => 'astonish',
+      7 => 'thunderwave',
+      8 => 'substitute',
+    ),
+  ),
+  'escavalier' => 
+  array (
+    'num' => 589,
+    'nome' => 'Escavalier',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 135,
+      2 => 105,
+      3 => 60,
+      4 => 105,
+      5 => 20,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'megahorn',
+      1 => 'ironhead',
+      2 => 'closecombat',
+      3 => 'doubleedge',
+      4 => 'poisonjab',
+      5 => 'drillrun',
+      6 => 'razorshell',
+      7 => 'brutalswing',
+      8 => 'energyball',
+      9 => 'peck',
+      10 => 'swordsdance',
+      11 => 'substitute',
+    ),
+  ),
   'amoonguss' => 
   array (
     'num' => 591,
@@ -6686,6 +9952,40 @@ return array (
       5 => 'astonish',
       6 => 'spore',
       7 => 'toxic',
+    ),
+  ),
+  'jellicent' => 
+  array (
+    'num' => 593,
+    'nome' => 'Jellicent',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 60,
+      2 => 70,
+      3 => 85,
+      4 => 105,
+      5 => 60,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'shadowball',
+      2 => 'sludgewave',
+      3 => 'energyball',
+      4 => 'icebeam',
+      5 => 'psychic',
+      6 => 'darkpulse',
+      7 => 'dazzlinggleam',
+      8 => 'snore',
+      9 => 'recover',
+      10 => 'willowisp',
     ),
   ),
   'alomomola' => 
@@ -6750,6 +10050,69 @@ return array (
       7 => 'substitute',
     ),
   ),
+  'ferrothorn' => 
+  array (
+    'num' => 598,
+    'nome' => 'Ferrothorn',
+    'tipos' => 
+    array (
+      0 => 'grass',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 74,
+      1 => 94,
+      2 => 131,
+      3 => 54,
+      4 => 116,
+      5 => 20,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'powerwhip',
+      2 => 'bodypress',
+      3 => 'poisonjab',
+      4 => 'facade',
+      5 => 'shadowclaw',
+      6 => 'brutalswing',
+      7 => 'bulldoze',
+      8 => 'thunderbolt',
+      9 => 'pinmissile',
+      10 => 'swordsdance',
+      11 => 'stealthrock',
+    ),
+  ),
+  'klinklang' => 
+  array (
+    'num' => 601,
+    'nome' => 'Klinklang',
+    'tipos' => 
+    array (
+      0 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 100,
+      2 => 115,
+      3 => 70,
+      4 => 85,
+      5 => 90,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'wildcharge',
+      2 => 'facade',
+      3 => 'powergem',
+      4 => 'thunderwave',
+      5 => 'substitute',
+    ),
+  ),
   'eelektross' => 
   array (
     'num' => 604,
@@ -6782,6 +10145,38 @@ return array (
       9 => 'zenheadbutt',
       10 => 'thunderwave',
       11 => 'bulkup',
+    ),
+  ),
+  'beheeyem' => 
+  array (
+    'num' => 606,
+    'nome' => 'Beheeyem',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 75,
+      2 => 75,
+      3 => 125,
+      4 => 95,
+      5 => 40,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'psychic',
+      1 => 'energyball',
+      2 => 'thunderbolt',
+      3 => 'darkpulse',
+      4 => 'triattack',
+      5 => 'flashcannon',
+      6 => 'shadowball',
+      7 => 'rockslide',
+      8 => 'nastyplot',
+      9 => 'calmmind',
     ),
   ),
   'chandelure' => 
@@ -6916,6 +10311,69 @@ return array (
       8 => 'substitute',
     ),
   ),
+  'accelgor' => 
+  array (
+    'num' => 617,
+    'nome' => 'Accelgor',
+    'tipos' => 
+    array (
+      0 => 'bug',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 70,
+      2 => 40,
+      3 => 100,
+      4 => 60,
+      5 => 145,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'energyball',
+      2 => 'sludgebomb',
+      3 => 'focusblast',
+      4 => 'swift',
+      5 => 'mudshot',
+      6 => 'recover',
+      7 => 'toxic',
+    ),
+  ),
+  'stunfisk' => 
+  array (
+    'num' => 618,
+    'nome' => 'Stunfisk',
+    'tipos' => 
+    array (
+      0 => 'ground',
+      1 => 'electric',
+    ),
+    'bs' => 
+    array (
+      0 => 109,
+      1 => 66,
+      2 => 84,
+      3 => 81,
+      4 => 99,
+      5 => 32,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'earthpower',
+      1 => 'thunderbolt',
+      2 => 'sludgewave',
+      3 => 'surf',
+      4 => 'foulplay',
+      5 => 'stoneedge',
+      6 => 'facade',
+      7 => 'astonish',
+      8 => 'stealthrock',
+      9 => 'thunderwave',
+    ),
+  ),
   'mienshao' => 
   array (
     'num' => 620,
@@ -6947,6 +10405,40 @@ return array (
       8 => 'trailblaze',
       9 => 'swordsdance',
       10 => 'bulkup',
+    ),
+  ),
+  'druddigon' => 
+  array (
+    'num' => 621,
+    'nome' => 'Druddigon',
+    'tipos' => 
+    array (
+      0 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 77,
+      1 => 120,
+      2 => 90,
+      3 => 60,
+      4 => 90,
+      5 => 48,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'dragonclaw',
+      1 => 'superpower',
+      2 => 'earthquake',
+      3 => 'gunkshot',
+      4 => 'bodyslam',
+      5 => 'crunch',
+      6 => 'ironhead',
+      7 => 'firepunch',
+      8 => 'thunderpunch',
+      9 => 'shadowclaw',
+      10 => 'stealthrock',
+      11 => 'glare',
     ),
   ),
   'golurk' => 
@@ -6981,6 +10473,40 @@ return array (
       8 => 'zenheadbutt',
       9 => 'knockoff',
       10 => 'stealthrock',
+      11 => 'substitute',
+    ),
+  ),
+  'bouffalant' => 
+  array (
+    'num' => 626,
+    'nome' => 'Bouffalant',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 95,
+      1 => 110,
+      2 => 95,
+      3 => 40,
+      4 => 95,
+      5 => 55,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'headcharge',
+      1 => 'closecombat',
+      2 => 'megahorn',
+      3 => 'earthquake',
+      4 => 'wildcharge',
+      5 => 'ironhead',
+      6 => 'throatchop',
+      7 => 'poisonjab',
+      8 => 'stoneedge',
+      9 => 'zenheadbutt',
+      10 => 'swordsdance',
       11 => 'substitute',
     ),
   ),
@@ -7049,6 +10575,74 @@ return array (
       7 => 'bonerush',
       8 => 'toxic',
       9 => 'substitute',
+    ),
+  ),
+  'heatmor' => 
+  array (
+    'num' => 631,
+    'nome' => 'Heatmor',
+    'tipos' => 
+    array (
+      0 => 'fire',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 97,
+      2 => 66,
+      3 => 105,
+      4 => 66,
+      5 => 65,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'overheat',
+      1 => 'superpower',
+      2 => 'bodyslam',
+      3 => 'gigadrain',
+      4 => 'throatchop',
+      5 => 'scorchingsands',
+      6 => 'thunderpunch',
+      7 => 'shadowclaw',
+      8 => 'bugbite',
+      9 => 'rocktomb',
+      10 => 'willowisp',
+      11 => 'substitute',
+    ),
+  ),
+  'durant' => 
+  array (
+    'num' => 632,
+    'nome' => 'Durant',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 58,
+      1 => 109,
+      2 => 112,
+      3 => 48,
+      4 => 48,
+      5 => 109,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'xscissor',
+      1 => 'ironhead',
+      2 => 'superpower',
+      3 => 'crunch',
+      4 => 'stoneedge',
+      5 => 'facade',
+      6 => 'shadowclaw',
+      7 => 'thunderfang',
+      8 => 'energyball',
+      9 => 'thunderwave',
+      10 => 'substitute',
     ),
   ),
   'hydreigon' => 
@@ -7497,6 +11091,41 @@ return array (
       11 => 'thunderwave',
     ),
   ),
+  'genesect' => 
+  array (
+    'num' => 649,
+    'nome' => 'Genesect',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 71,
+      1 => 120,
+      2 => 95,
+      3 => 120,
+      4 => 95,
+      5 => 99,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'steelbeam',
+      1 => 'bugbuzz',
+      2 => 'technoblast',
+      3 => 'gunkshot',
+      4 => 'flamethrower',
+      5 => 'icebeam',
+      6 => 'thunderbolt',
+      7 => 'energyball',
+      8 => 'psychic',
+      9 => 'darkpulse',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
   'chesnaught' => 
   array (
     'num' => 652,
@@ -7599,6 +11228,41 @@ return array (
       9 => 'aerialace',
       10 => 'substitute',
       11 => 'protect',
+    ),
+  ),
+  'diggersby' => 
+  array (
+    'num' => 660,
+    'nome' => 'Diggersby',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 85,
+      1 => 56,
+      2 => 77,
+      3 => 50,
+      4 => 77,
+      5 => 78,
+    ),
+    'nivel' => 88,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'megakick',
+      2 => 'superpower',
+      3 => 'gunkshot',
+      4 => 'foulplay',
+      5 => 'wildcharge',
+      6 => 'surf',
+      7 => 'ironhead',
+      8 => 'stoneedge',
+      9 => 'firepunch',
+      10 => 'swordsdance',
+      11 => 'bulkup',
     ),
   ),
   'talonflame' => 
@@ -7761,6 +11425,72 @@ return array (
       11 => 'leechseed',
     ),
   ),
+  'pangoro' => 
+  array (
+    'num' => 675,
+    'nome' => 'Pangoro',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+      1 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 95,
+      1 => 124,
+      2 => 78,
+      3 => 69,
+      4 => 71,
+      5 => 58,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'foulplay',
+      2 => 'earthquake',
+      3 => 'gunkshot',
+      4 => 'megakick',
+      5 => 'ironhead',
+      6 => 'dragonclaw',
+      7 => 'stoneedge',
+      8 => 'xscissor',
+      9 => 'firepunch',
+      10 => 'swordsdance',
+      11 => 'bulkup',
+    ),
+  ),
+  'furfrou' => 
+  array (
+    'num' => 676,
+    'nome' => 'Furfrou',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 80,
+      2 => 60,
+      3 => 65,
+      4 => 90,
+      5 => 102,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'takedown',
+      1 => 'wildcharge',
+      2 => 'irontail',
+      3 => 'surf',
+      4 => 'zenheadbutt',
+      5 => 'suckerpunch',
+      6 => 'uturn',
+      7 => 'thunderwave',
+      8 => 'toxic',
+    ),
+  ),
   'meowstic' => 
   array (
     'num' => 678,
@@ -7790,6 +11520,103 @@ return array (
       6 => 'swift',
       7 => 'nastyplot',
       8 => 'calmmind',
+    ),
+  ),
+  'aegislash' => 
+  array (
+    'num' => 681,
+    'nome' => 'Aegislash',
+    'tipos' => 
+    array (
+      0 => 'steel',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 50,
+      2 => 140,
+      3 => 50,
+      4 => 140,
+      5 => 60,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'steelbeam',
+      1 => 'shadowball',
+      2 => 'closecombat',
+      3 => 'headsmash',
+      4 => 'airslash',
+      5 => 'nightslash',
+      6 => 'facade',
+      7 => 'psychocut',
+      8 => 'swordsdance',
+      9 => 'substitute',
+    ),
+  ),
+  'aromatisse' => 
+  array (
+    'num' => 683,
+    'nome' => 'Aromatisse',
+    'tipos' => 
+    array (
+      0 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 101,
+      1 => 72,
+      2 => 72,
+      3 => 99,
+      4 => 89,
+      5 => 29,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'moonblast',
+      1 => 'energyball',
+      2 => 'psychic',
+      3 => 'thunderbolt',
+      4 => 'flashcannon',
+      5 => 'drainpunch',
+      6 => 'facade',
+      7 => 'nastyplot',
+      8 => 'calmmind',
+    ),
+  ),
+  'slurpuff' => 
+  array (
+    'num' => 685,
+    'nome' => 'Slurpuff',
+    'tipos' => 
+    array (
+      0 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 82,
+      1 => 80,
+      2 => 86,
+      3 => 85,
+      4 => 75,
+      5 => 72,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'dazzlinggleam',
+      1 => 'energyball',
+      2 => 'flamethrower',
+      3 => 'psychic',
+      4 => 'surf',
+      5 => 'thunderbolt',
+      6 => 'drainpunch',
+      7 => 'facade',
+      8 => 'thief',
+      9 => 'calmmind',
+      10 => 'substitute',
     ),
   ),
   'malamar' => 
@@ -7825,6 +11652,41 @@ return array (
       9 => 'aerialace',
       10 => 'substitute',
       11 => 'protect',
+    ),
+  ),
+  'barbaracle' => 
+  array (
+    'num' => 689,
+    'nome' => 'Barbaracle',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 72,
+      1 => 105,
+      2 => 115,
+      3 => 54,
+      4 => 86,
+      5 => 68,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'stoneedge',
+      2 => 'superpower',
+      3 => 'earthquake',
+      4 => 'dragonclaw',
+      5 => 'poisonjab',
+      6 => 'xscissor',
+      7 => 'facade',
+      8 => 'shadowclaw',
+      9 => 'brutalswing',
+      10 => 'shellsmash',
+      11 => 'swordsdance',
     ),
   ),
   'dragalge' => 
@@ -7894,6 +11756,109 @@ return array (
       9 => 'bodyslam',
       10 => 'substitute',
       11 => 'protect',
+    ),
+  ),
+  'heliolisk' => 
+  array (
+    'num' => 695,
+    'nome' => 'Heliolisk',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 62,
+      1 => 55,
+      2 => 52,
+      3 => 109,
+      4 => 94,
+      5 => 109,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'thunderbolt',
+      1 => 'hypervoice',
+      2 => 'surf',
+      3 => 'dragonpulse',
+      4 => 'focusblast',
+      5 => 'darkpulse',
+      6 => 'firepunch',
+      7 => 'irontail',
+      8 => 'uturn',
+      9 => 'rockslide',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
+  'tyrantrum' => 
+  array (
+    'num' => 697,
+    'nome' => 'Tyrantrum',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 82,
+      1 => 121,
+      2 => 119,
+      3 => 69,
+      4 => 59,
+      5 => 71,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'headsmash',
+      1 => 'dragonclaw',
+      2 => 'closecombat',
+      3 => 'earthquake',
+      4 => 'bodyslam',
+      5 => 'psychicfangs',
+      6 => 'playrough',
+      7 => 'crunch',
+      8 => 'ironhead',
+      9 => 'firefang',
+      10 => 'dragondance',
+      11 => 'stealthrock',
+    ),
+  ),
+  'aurorus' => 
+  array (
+    'num' => 699,
+    'nome' => 'Aurorus',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'ice',
+    ),
+    'bs' => 
+    array (
+      0 => 123,
+      1 => 77,
+      2 => 72,
+      3 => 99,
+      4 => 92,
+      5 => 58,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'icebeam',
+      1 => 'stoneedge',
+      2 => 'hypervoice',
+      3 => 'earthpower',
+      4 => 'psychic',
+      5 => 'thunderbolt',
+      6 => 'darkpulse',
+      7 => 'flashcannon',
+      8 => 'calmmind',
+      9 => 'stealthrock',
     ),
   ),
   'sylveon' => 
@@ -8126,6 +12091,41 @@ return array (
       11 => 'willowisp',
     ),
   ),
+  'gourgeist' => 
+  array (
+    'num' => 711,
+    'nome' => 'Gourgeist',
+    'tipos' => 
+    array (
+      0 => 'ghost',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 90,
+      2 => 122,
+      3 => 58,
+      4 => 75,
+      5 => 84,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'powerwhip',
+      1 => 'poltergeist',
+      2 => 'foulplay',
+      3 => 'facade',
+      4 => 'rockslide',
+      5 => 'skittersmack',
+      6 => 'moonblast',
+      7 => 'fireblast',
+      8 => 'psychic',
+      9 => 'sludgebomb',
+      10 => 'willowisp',
+      11 => 'leechseed',
+    ),
+  ),
   'avalugg' => 
   array (
     'num' => 713,
@@ -8191,6 +12191,110 @@ return array (
       9 => 'waterpulse',
       10 => 'moonlight',
       11 => 'substitute',
+    ),
+  ),
+  'xerneas' => 
+  array (
+    'num' => 716,
+    'nome' => 'Xerneas',
+    'tipos' => 
+    array (
+      0 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 126,
+      1 => 131,
+      2 => 95,
+      3 => 131,
+      4 => 98,
+      5 => 99,
+    ),
+    'nivel' => 70,
+    'pool' => 
+    array (
+      0 => 'moonblast',
+      1 => 'closecombat',
+      2 => 'megahorn',
+      3 => 'hypervoice',
+      4 => 'psychic',
+      5 => 'thunderbolt',
+      6 => 'flashcannon',
+      7 => 'hornleech',
+      8 => 'nightslash',
+      9 => 'rockslide',
+      10 => 'thunderwave',
+      11 => 'substitute',
+    ),
+  ),
+  'yveltal' => 
+  array (
+    'num' => 717,
+    'nome' => 'Yveltal',
+    'tipos' => 
+    array (
+      0 => 'dark',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 126,
+      1 => 131,
+      2 => 95,
+      3 => 131,
+      4 => 98,
+      5 => 99,
+    ),
+    'nivel' => 70,
+    'pool' => 
+    array (
+      0 => 'foulplay',
+      1 => 'oblivionwing',
+      2 => 'hypervoice',
+      3 => 'psychic',
+      4 => 'heatwave',
+      5 => 'focusblast',
+      6 => 'dragonclaw',
+      7 => 'shadowball',
+      8 => 'uturn',
+      9 => 'rockslide',
+      10 => 'substitute',
+      11 => 'protect',
+    ),
+  ),
+  'zygarde' => 
+  array (
+    'num' => 718,
+    'nome' => 'Zygarde',
+    'tipos' => 
+    array (
+      0 => 'dragon',
+      1 => 'ground',
+    ),
+    'bs' => 
+    array (
+      0 => 108,
+      1 => 100,
+      2 => 121,
+      3 => 81,
+      4 => 95,
+      5 => 95,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'dracometeor',
+      2 => 'superpower',
+      3 => 'bodyslam',
+      4 => 'crunch',
+      5 => 'stoneedge',
+      6 => 'sludgewave',
+      7 => 'irontail',
+      8 => 'zenheadbutt',
+      9 => 'skittersmack',
+      10 => 'dragondance',
+      11 => 'glare',
     ),
   ),
   'diancie' => 
@@ -8629,6 +12733,37 @@ return array (
       11 => 'stealthrock',
     ),
   ),
+  'wishiwashi' => 
+  array (
+    'num' => 746,
+    'nome' => 'Wishiwashi',
+    'tipos' => 
+    array (
+      0 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 45,
+      1 => 20,
+      2 => 20,
+      3 => 25,
+      4 => 25,
+      5 => 40,
+    ),
+    'nivel' => 100,
+    'pool' => 
+    array (
+      0 => 'surf',
+      1 => 'doubleedge',
+      2 => 'icebeam',
+      3 => 'earthquake',
+      4 => 'irontail',
+      5 => 'uturn',
+      6 => 'scaleshot',
+      7 => 'substitute',
+      8 => 'protect',
+    ),
+  ),
   'toxapex' => 
   array (
     'num' => 748,
@@ -8755,6 +12890,38 @@ return array (
       7 => 'substitute',
     ),
   ),
+  'shiinotic' => 
+  array (
+    'num' => 756,
+    'nome' => 'Shiinotic',
+    'tipos' => 
+    array (
+      0 => 'grass',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 45,
+      2 => 80,
+      3 => 90,
+      4 => 100,
+      5 => 30,
+    ),
+    'nivel' => 90,
+    'pool' => 
+    array (
+      0 => 'moonblast',
+      1 => 'energyball',
+      2 => 'pollenpuff',
+      3 => 'sludgebomb',
+      4 => 'snore',
+      5 => 'drainpunch',
+      6 => 'astonish',
+      7 => 'spore',
+      8 => 'sleeppowder',
+    ),
+  ),
   'salazzle' => 
   array (
     'num' => 758,
@@ -8787,6 +12954,41 @@ return array (
       8 => 'mudslap',
       9 => 'nastyplot',
       10 => 'thunderwave',
+    ),
+  ),
+  'bewear' => 
+  array (
+    'num' => 760,
+    'nome' => 'Bewear',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 120,
+      1 => 125,
+      2 => 80,
+      3 => 55,
+      4 => 60,
+      5 => 60,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'closecombat',
+      2 => 'earthquake',
+      3 => 'darkestlariat',
+      4 => 'dragonclaw',
+      5 => 'ironhead',
+      6 => 'icepunch',
+      7 => 'thunderpunch',
+      8 => 'zenheadbutt',
+      9 => 'shadowclaw',
+      10 => 'swordsdance',
+      11 => 'bulkup',
     ),
   ),
   'tsareena' => 
@@ -8918,6 +13120,41 @@ return array (
       11 => 'substitute',
     ),
   ),
+  'golisopod' => 
+  array (
+    'num' => 768,
+    'nome' => 'Golisopod',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'water',
+    ),
+    'bs' => 
+    array (
+      0 => 75,
+      1 => 125,
+      2 => 140,
+      3 => 60,
+      4 => 90,
+      5 => 40,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'leechlife',
+      2 => 'closecombat',
+      3 => 'throatchop',
+      4 => 'ironhead',
+      5 => 'poisonjab',
+      6 => 'drillrun',
+      7 => 'facade',
+      8 => 'shadowclaw',
+      9 => 'rockslide',
+      10 => 'swordsdance',
+      11 => 'bulkup',
+    ),
+  ),
   'palossand' => 
   array (
     'num' => 770,
@@ -8950,6 +13187,40 @@ return array (
       8 => 'chillingwater',
       9 => 'stealthrock',
       10 => 'shoreup',
+    ),
+  ),
+  'silvally' => 
+  array (
+    'num' => 773,
+    'nome' => 'Silvally',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 95,
+      1 => 95,
+      2 => 95,
+      3 => 95,
+      4 => 95,
+      5 => 95,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'steelbeam',
+      2 => 'dracometeor',
+      3 => 'flamethrower',
+      4 => 'icebeam',
+      5 => 'surf',
+      6 => 'thunderbolt',
+      7 => 'psychicfangs',
+      8 => 'crunch',
+      9 => 'shadowball',
+      10 => 'swordsdance',
+      11 => 'thunderwave',
     ),
   ),
   'minior' => 
@@ -9019,6 +13290,73 @@ return array (
       11 => 'bulkup',
     ),
   ),
+  'turtonator' => 
+  array (
+    'num' => 776,
+    'nome' => 'Turtonator',
+    'tipos' => 
+    array (
+      0 => 'fire',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 78,
+      2 => 135,
+      3 => 91,
+      4 => 85,
+      5 => 36,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'shelltrap',
+      1 => 'dracometeor',
+      2 => 'headsmash',
+      3 => 'hypervoice',
+      4 => 'earthquake',
+      5 => 'focusblast',
+      6 => 'flashcannon',
+      7 => 'venoshock',
+      8 => 'lashout',
+      9 => 'shellsmash',
+      10 => 'willowisp',
+    ),
+  ),
+  'togedemaru' => 
+  array (
+    'num' => 777,
+    'nome' => 'Togedemaru',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 65,
+      1 => 98,
+      2 => 63,
+      3 => 40,
+      4 => 73,
+      5 => 96,
+    ),
+    'nivel' => 87,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'wildcharge',
+      2 => 'poisonjab',
+      3 => 'zenheadbutt',
+      4 => 'facade',
+      5 => 'uturn',
+      6 => 'thief',
+      7 => 'disarmingvoice',
+      8 => 'thunderwave',
+      9 => 'substitute',
+    ),
+  ),
   'mimikyu' => 
   array (
     'num' => 778,
@@ -9086,6 +13424,76 @@ return array (
       8 => 'bulkup',
     ),
   ),
+  'drampa' => 
+  array (
+    'num' => 780,
+    'nome' => 'Drampa',
+    'tipos' => 
+    array (
+      0 => 'normal',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 78,
+      1 => 60,
+      2 => 85,
+      3 => 135,
+      4 => 91,
+      5 => 36,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'dracometeor',
+      1 => 'hypervoice',
+      2 => 'fireblast',
+      3 => 'icebeam',
+      4 => 'energyball',
+      5 => 'surf',
+      6 => 'thunderbolt',
+      7 => 'focusblast',
+      8 => 'extrasensory',
+      9 => 'shadowball',
+      10 => 'calmmind',
+      11 => 'thunderwave',
+    ),
+  ),
+  'dhelmise' => 
+  array (
+    'num' => 781,
+    'nome' => 'Dhelmise',
+    'tipos' => 
+    array (
+      0 => 'ghost',
+      1 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 131,
+      2 => 100,
+      3 => 86,
+      4 => 90,
+      5 => 40,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'powerwhip',
+      1 => 'poltergeist',
+      2 => 'steelroller',
+      3 => 'earthquake',
+      4 => 'liquidation',
+      5 => 'bodypress',
+      6 => 'facade',
+      7 => 'rockslide',
+      8 => 'sludgewave',
+      9 => 'brutalswing',
+      10 => 'swordsdance',
+      11 => 'substitute',
+    ),
+  ),
   'kommoo' => 
   array (
     'num' => 784,
@@ -9119,6 +13527,137 @@ return array (
       9 => 'icepunch',
       10 => 'dragondance',
       11 => 'swordsdance',
+    ),
+  ),
+  'tapukoko' => 
+  array (
+    'num' => 785,
+    'nome' => 'Tapu Koko',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 115,
+      2 => 85,
+      3 => 95,
+      4 => 75,
+      5 => 130,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'wildcharge',
+      1 => 'dazzlinggleam',
+      2 => 'bravebird',
+      3 => 'ironhead',
+      4 => 'hypervoice',
+      5 => 'uturn',
+      6 => 'thief',
+      7 => 'thunderwave',
+      8 => 'substitute',
+    ),
+  ),
+  'tapulele' => 
+  array (
+    'num' => 786,
+    'nome' => 'Tapu Lele',
+    'tipos' => 
+    array (
+      0 => 'psychic',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 85,
+      2 => 75,
+      3 => 130,
+      4 => 115,
+      5 => 95,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'moonblast',
+      1 => 'psychic',
+      2 => 'energyball',
+      3 => 'thunderbolt',
+      4 => 'focusblast',
+      5 => 'shadowball',
+      6 => 'snore',
+      7 => 'thief',
+      8 => 'calmmind',
+      9 => 'substitute',
+    ),
+  ),
+  'tapubulu' => 
+  array (
+    'num' => 787,
+    'nome' => 'Tapu Bulu',
+    'tipos' => 
+    array (
+      0 => 'grass',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 130,
+      2 => 115,
+      3 => 85,
+      4 => 95,
+      5 => 75,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'woodhammer',
+      1 => 'dazzlinggleam',
+      2 => 'closecombat',
+      3 => 'megahorn',
+      4 => 'highhorsepower',
+      5 => 'darkestlariat',
+      6 => 'stoneedge',
+      7 => 'zenheadbutt',
+      8 => 'facade',
+      9 => 'smartstrike',
+      10 => 'swordsdance',
+      11 => 'bulkup',
+    ),
+  ),
+  'tapufini' => 
+  array (
+    'num' => 788,
+    'nome' => 'Tapu Fini',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'fairy',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 75,
+      2 => 115,
+      3 => 95,
+      4 => 130,
+      5 => 85,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'moonblast',
+      1 => 'surf',
+      2 => 'icebeam',
+      3 => 'shadowball',
+      4 => 'facade',
+      5 => 'smartstrike',
+      6 => 'calmmind',
+      7 => 'substitute',
     ),
   ),
   'solgaleo' => 
@@ -9190,6 +13729,239 @@ return array (
       11 => 'willowisp',
     ),
   ),
+  'nihilego' => 
+  array (
+    'num' => 793,
+    'nome' => 'Nihilego',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'poison',
+    ),
+    'bs' => 
+    array (
+      0 => 109,
+      1 => 53,
+      2 => 47,
+      3 => 127,
+      4 => 131,
+      5 => 103,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'sludgewave',
+      1 => 'powergem',
+      2 => 'psychic',
+      3 => 'thunderbolt',
+      4 => 'dazzlinggleam',
+      5 => 'snore',
+      6 => 'foulplay',
+      7 => 'ironhead',
+      8 => 'stealthrock',
+      9 => 'thunderwave',
+    ),
+  ),
+  'buzzwole' => 
+  array (
+    'num' => 794,
+    'nome' => 'Buzzwole',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 107,
+      1 => 139,
+      2 => 139,
+      3 => 53,
+      4 => 53,
+      5 => 79,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'leechlife',
+      2 => 'earthquake',
+      3 => 'bodyslam',
+      4 => 'darkestlariat',
+      5 => 'ironhead',
+      6 => 'poisonjab',
+      7 => 'stoneedge',
+      8 => 'icepunch',
+      9 => 'thunderpunch',
+      10 => 'bulkup',
+      11 => 'substitute',
+    ),
+  ),
+  'pheromosa' => 
+  array (
+    'num' => 795,
+    'nome' => 'Pheromosa',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 71,
+      1 => 137,
+      2 => 37,
+      3 => 137,
+      4 => 37,
+      5 => 151,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'bugbuzz',
+      2 => 'foulplay',
+      3 => 'icebeam',
+      4 => 'poisonjab',
+      5 => 'drillrun',
+      6 => 'facade',
+      7 => 'electroweb',
+      8 => 'substitute',
+      9 => 'protect',
+    ),
+  ),
+  'xurkitree' => 
+  array (
+    'num' => 796,
+    'nome' => 'Xurkitree',
+    'tipos' => 
+    array (
+      0 => 'electric',
+    ),
+    'bs' => 
+    array (
+      0 => 83,
+      1 => 89,
+      2 => 71,
+      3 => 173,
+      4 => 71,
+      5 => 83,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'thunderbolt',
+      1 => 'energyball',
+      2 => 'dazzlinggleam',
+      3 => 'snore',
+      4 => 'brutalswing',
+      5 => 'calmmind',
+      6 => 'thunderwave',
+    ),
+  ),
+  'celesteela' => 
+  array (
+    'num' => 797,
+    'nome' => 'Celesteela',
+    'tipos' => 
+    array (
+      0 => 'steel',
+      1 => 'flying',
+    ),
+    'bs' => 
+    array (
+      0 => 97,
+      1 => 101,
+      2 => 103,
+      3 => 107,
+      4 => 101,
+      5 => 61,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'steelbeam',
+      1 => 'airslash',
+      2 => 'doubleedge',
+      3 => 'superpower',
+      4 => 'megahorn',
+      5 => 'earthquake',
+      6 => 'fireblast',
+      7 => 'energyball',
+      8 => 'stoneedge',
+      9 => 'zenheadbutt',
+      10 => 'leechseed',
+      11 => 'substitute',
+    ),
+  ),
+  'kartana' => 
+  array (
+    'num' => 798,
+    'nome' => 'Kartana',
+    'tipos' => 
+    array (
+      0 => 'grass',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 59,
+      1 => 181,
+      2 => 131,
+      3 => 59,
+      4 => 31,
+      5 => 109,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'leafblade',
+      1 => 'smartstrike',
+      2 => 'sacredsword',
+      3 => 'xscissor',
+      4 => 'nightslash',
+      5 => 'psychocut',
+      6 => 'aerialace',
+      7 => 'cut',
+      8 => 'swordsdance',
+      9 => 'substitute',
+    ),
+  ),
+  'guzzlord' => 
+  array (
+    'num' => 799,
+    'nome' => 'Guzzlord',
+    'tipos' => 
+    array (
+      0 => 'dark',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 223,
+      1 => 101,
+      2 => 53,
+      3 => 97,
+      4 => 53,
+      5 => 43,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'dracometeor',
+      1 => 'crunch',
+      2 => 'steelroller',
+      3 => 'earthquake',
+      4 => 'sludgewave',
+      5 => 'hammerarm',
+      6 => 'megakick',
+      7 => 'fireblast',
+      8 => 'stoneedge',
+      9 => 'shadowclaw',
+      10 => 'substitute',
+      11 => 'protect',
+    ),
+  ),
   'necrozma' => 
   array (
     'num' => 800,
@@ -9256,6 +14028,202 @@ return array (
       8 => 'bodyslam',
       9 => 'calmmind',
       10 => 'thunderwave',
+    ),
+  ),
+  'marshadow' => 
+  array (
+    'num' => 802,
+    'nome' => 'Marshadow',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 125,
+      2 => 80,
+      3 => 90,
+      4 => 90,
+      5 => 125,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'poltergeist',
+      2 => 'foulplay',
+      3 => 'megakick',
+      4 => 'ironhead',
+      5 => 'poisonjab',
+      6 => 'stoneedge',
+      7 => 'blazekick',
+      8 => 'icepunch',
+      9 => 'thunderpunch',
+      10 => 'willowisp',
+      11 => 'bulkup',
+    ),
+  ),
+  'naganadel' => 
+  array (
+    'num' => 804,
+    'nome' => 'Naganadel',
+    'tipos' => 
+    array (
+      0 => 'poison',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 73,
+      1 => 73,
+      2 => 73,
+      3 => 127,
+      4 => 73,
+      5 => 121,
+    ),
+    'nivel' => 79,
+    'pool' => 
+    array (
+      0 => 'dracometeor',
+      1 => 'sludgewave',
+      2 => 'fireblast',
+      3 => 'thunderbolt',
+      4 => 'darkpulse',
+      5 => 'airslash',
+      6 => 'swift',
+      7 => 'leechlife',
+      8 => 'irontail',
+      9 => 'shadowclaw',
+      10 => 'nastyplot',
+      11 => 'toxic',
+    ),
+  ),
+  'stakataka' => 
+  array (
+    'num' => 805,
+    'nome' => 'Stakataka',
+    'tipos' => 
+    array (
+      0 => 'rock',
+      1 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 61,
+      1 => 131,
+      2 => 211,
+      3 => 53,
+      4 => 101,
+      5 => 13,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'stoneedge',
+      2 => 'superpower',
+      3 => 'doubleedge',
+      4 => 'earthquake',
+      5 => 'zenheadbutt',
+      6 => 'brutalswing',
+      7 => 'stealthrock',
+      8 => 'substitute',
+    ),
+  ),
+  'blacephalon' => 
+  array (
+    'num' => 806,
+    'nome' => 'Blacephalon',
+    'tipos' => 
+    array (
+      0 => 'fire',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 53,
+      1 => 127,
+      2 => 53,
+      3 => 151,
+      4 => 79,
+      5 => 107,
+    ),
+    'nivel' => 76,
+    'pool' => 
+    array (
+      0 => 'mindblown',
+      1 => 'shadowball',
+      2 => 'psychic',
+      3 => 'darkpulse',
+      4 => 'facade',
+      5 => 'rockblast',
+      6 => 'calmmind',
+      7 => 'willowisp',
+    ),
+  ),
+  'zeraora' => 
+  array (
+    'num' => 807,
+    'nome' => 'Zeraora',
+    'tipos' => 
+    array (
+      0 => 'electric',
+    ),
+    'bs' => 
+    array (
+      0 => 88,
+      1 => 112,
+      2 => 75,
+      3 => 102,
+      4 => 80,
+      5 => 143,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'plasmafists',
+      1 => 'closecombat',
+      2 => 'megakick',
+      3 => 'playrough',
+      4 => 'throatchop',
+      5 => 'blazekick',
+      6 => 'irontail',
+      7 => 'thunderwave',
+      8 => 'bulkup',
+    ),
+  ),
+  'melmetal' => 
+  array (
+    'num' => 809,
+    'nome' => 'Melmetal',
+    'tipos' => 
+    array (
+      0 => 'steel',
+    ),
+    'bs' => 
+    array (
+      0 => 135,
+      1 => 143,
+      2 => 143,
+      3 => 80,
+      4 => 65,
+      5 => 34,
+    ),
+    'nivel' => 74,
+    'pool' => 
+    array (
+      0 => 'steelroller',
+      1 => 'superpower',
+      2 => 'earthquake',
+      3 => 'megakick',
+      4 => 'darkestlariat',
+      5 => 'thunderpunch',
+      6 => 'icepunch',
+      7 => 'rockslide',
+      8 => 'thunderwave',
+      9 => 'toxic',
     ),
   ),
   'rillaboom' => 
@@ -9420,6 +14388,127 @@ return array (
       7 => 'substitute',
     ),
   ),
+  'orbeetle' => 
+  array (
+    'num' => 826,
+    'nome' => 'Orbeetle',
+    'tipos' => 
+    array (
+      0 => 'bug',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 45,
+      2 => 110,
+      3 => 80,
+      4 => 120,
+      5 => 90,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'bugbuzz',
+      1 => 'psychic',
+      2 => 'energyball',
+      3 => 'shadowball',
+      4 => 'snore',
+      5 => 'bodypress',
+      6 => 'calmmind',
+      7 => 'substitute',
+    ),
+  ),
+  'thievul' => 
+  array (
+    'num' => 828,
+    'nome' => 'Thievul',
+    'tipos' => 
+    array (
+      0 => 'dark',
+    ),
+    'bs' => 
+    array (
+      0 => 70,
+      1 => 58,
+      2 => 58,
+      3 => 87,
+      4 => 92,
+      5 => 90,
+    ),
+    'nivel' => 86,
+    'pool' => 
+    array (
+      0 => 'darkpulse',
+      1 => 'psychic',
+      2 => 'shadowball',
+      3 => 'burningjealousy',
+      4 => 'swift',
+      5 => 'playrough',
+      6 => 'mudshot',
+      7 => 'uturn',
+      8 => 'icefang',
+      9 => 'thunderfang',
+      10 => 'nastyplot',
+      11 => 'substitute',
+    ),
+  ),
+  'eldegoss' => 
+  array (
+    'num' => 830,
+    'nome' => 'Eldegoss',
+    'tipos' => 
+    array (
+      0 => 'grass',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 50,
+      2 => 90,
+      3 => 80,
+      4 => 120,
+      5 => 60,
+    ),
+    'nivel' => 85,
+    'pool' => 
+    array (
+      0 => 'leafstorm',
+      1 => 'hypervoice',
+      2 => 'pollenpuff',
+      3 => 'substitute',
+      4 => 'synthesis',
+    ),
+  ),
+  'dubwool' => 
+  array (
+    'num' => 832,
+    'nome' => 'Dubwool',
+    'tipos' => 
+    array (
+      0 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 72,
+      1 => 80,
+      2 => 100,
+      3 => 60,
+      4 => 90,
+      5 => 88,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'wildcharge',
+      2 => 'bodypress',
+      3 => 'zenheadbutt',
+      4 => 'grassyglide',
+      5 => 'swordsdance',
+      6 => 'thunderwave',
+    ),
+  ),
   'drednaw' => 
   array (
     'num' => 834,
@@ -9453,6 +14542,36 @@ return array (
       9 => 'skittersmack',
       10 => 'swordsdance',
       11 => 'stealthrock',
+    ),
+  ),
+  'boltund' => 
+  array (
+    'num' => 836,
+    'nome' => 'Boltund',
+    'tipos' => 
+    array (
+      0 => 'electric',
+    ),
+    'bs' => 
+    array (
+      0 => 69,
+      1 => 90,
+      2 => 60,
+      3 => 90,
+      4 => 60,
+      5 => 121,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'thunderbolt',
+      1 => 'hypervoice',
+      2 => 'psychicfangs',
+      3 => 'playrough',
+      4 => 'crunch',
+      5 => 'firefang',
+      6 => 'thunderwave',
+      7 => 'bulkup',
     ),
   ),
   'coalossal' => 
@@ -9685,6 +14804,71 @@ return array (
       9 => 'toxic',
     ),
   ),
+  'centiskorch' => 
+  array (
+    'num' => 851,
+    'nome' => 'Centiskorch',
+    'tipos' => 
+    array (
+      0 => 'fire',
+      1 => 'bug',
+    ),
+    'bs' => 
+    array (
+      0 => 100,
+      1 => 115,
+      2 => 65,
+      3 => 90,
+      4 => 90,
+      5 => 65,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'flareblitz',
+      1 => 'leechlife',
+      2 => 'powerwhip',
+      3 => 'crunch',
+      4 => 'facade',
+      5 => 'scald',
+      6 => 'thunderfang',
+      7 => 'scorchingsands',
+      8 => 'venoshock',
+      9 => 'willowisp',
+      10 => 'substitute',
+    ),
+  ),
+  'grapploct' => 
+  array (
+    'num' => 853,
+    'nome' => 'Grapploct',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 118,
+      2 => 90,
+      3 => 70,
+      4 => 80,
+      5 => 42,
+    ),
+    'nivel' => 84,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'bodyslam',
+      2 => 'liquidation',
+      3 => 'icepunch',
+      4 => 'skittersmack',
+      5 => 'brutalswing',
+      6 => 'mudshot',
+      7 => 'bulkup',
+      8 => 'substitute',
+    ),
+  ),
   'polteageist' => 
   array (
     'num' => 855,
@@ -9780,6 +14964,41 @@ return array (
       11 => 'bulkup',
     ),
   ),
+  'obstagoon' => 
+  array (
+    'num' => 862,
+    'nome' => 'Obstagoon',
+    'tipos' => 
+    array (
+      0 => 'dark',
+      1 => 'normal',
+    ),
+    'bs' => 
+    array (
+      0 => 93,
+      1 => 90,
+      2 => 101,
+      3 => 60,
+      4 => 81,
+      5 => 95,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'doubleedge',
+      1 => 'throatchop',
+      2 => 'closecombat',
+      3 => 'gunkshot',
+      4 => 'xscissor',
+      5 => 'seedbomb',
+      6 => 'icepunch',
+      7 => 'firepunch',
+      8 => 'irontail',
+      9 => 'thunderpunch',
+      10 => 'thunderwave',
+      11 => 'bulkup',
+    ),
+  ),
   'perrserker' => 
   array (
     'num' => 863,
@@ -9812,6 +15031,139 @@ return array (
       9 => 'aerialace',
       10 => 'swordsdance',
       11 => 'stealthrock',
+    ),
+  ),
+  'cursola' => 
+  array (
+    'num' => 864,
+    'nome' => 'Cursola',
+    'tipos' => 
+    array (
+      0 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 60,
+      1 => 95,
+      2 => 50,
+      3 => 145,
+      4 => 130,
+      5 => 30,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'shadowball',
+      1 => 'icebeam',
+      2 => 'surf',
+      3 => 'earthpower',
+      4 => 'psychic',
+      5 => 'powergem',
+      6 => 'gigadrain',
+      7 => 'burningjealousy',
+      8 => 'bodyslam',
+      9 => 'leechlife',
+      10 => 'calmmind',
+      11 => 'stealthrock',
+    ),
+  ),
+  'sirfetchd' => 
+  array (
+    'num' => 865,
+    'nome' => 'Sirfetch’d',
+    'tipos' => 
+    array (
+      0 => 'fighting',
+    ),
+    'bs' => 
+    array (
+      0 => 62,
+      1 => 135,
+      2 => 95,
+      3 => 68,
+      4 => 82,
+      5 => 65,
+    ),
+    'nivel' => 81,
+    'pool' => 
+    array (
+      0 => 'closecombat',
+      1 => 'bravebird',
+      2 => 'leafblade',
+      3 => 'bodyslam',
+      4 => 'throatchop',
+      5 => 'poisonjab',
+      6 => 'steelwing',
+      7 => 'swordsdance',
+      8 => 'substitute',
+    ),
+  ),
+  'mrrime' => 
+  array (
+    'num' => 866,
+    'nome' => 'Mr. Rime',
+    'tipos' => 
+    array (
+      0 => 'ice',
+      1 => 'psychic',
+    ),
+    'bs' => 
+    array (
+      0 => 80,
+      1 => 85,
+      2 => 75,
+      3 => 110,
+      4 => 100,
+      5 => 70,
+    ),
+    'nivel' => 80,
+    'pool' => 
+    array (
+      0 => 'icebeam',
+      1 => 'psychic',
+      2 => 'energyball',
+      3 => 'thunderbolt',
+      4 => 'focusblast',
+      5 => 'dazzlinggleam',
+      6 => 'shadowball',
+      7 => 'foulplay',
+      8 => 'megakick',
+      9 => 'nastyplot',
+      10 => 'calmmind',
+    ),
+  ),
+  'runerigus' => 
+  array (
+    'num' => 867,
+    'nome' => 'Runerigus',
+    'tipos' => 
+    array (
+      0 => 'ground',
+      1 => 'ghost',
+    ),
+    'bs' => 
+    array (
+      0 => 58,
+      1 => 95,
+      2 => 145,
+      3 => 50,
+      4 => 105,
+      5 => 30,
+    ),
+    'nivel' => 83,
+    'pool' => 
+    array (
+      0 => 'earthquake',
+      1 => 'poltergeist',
+      2 => 'bodypress',
+      3 => 'stoneedge',
+      4 => 'zenheadbutt',
+      5 => 'facade',
+      6 => 'brutalswing',
+      7 => 'energyball',
+      8 => 'dragonpulse',
+      9 => 'stealthrock',
+      10 => 'willowisp',
     ),
   ),
   'alcremie' => 
@@ -10091,6 +15443,140 @@ return array (
       8 => 'knockoff',
       9 => 'stealthrock',
       10 => 'substitute',
+    ),
+  ),
+  'dracozolt' => 
+  array (
+    'num' => 880,
+    'nome' => 'Dracozolt',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 100,
+      2 => 90,
+      3 => 80,
+      4 => 70,
+      5 => 75,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'dracometeor',
+      1 => 'wildcharge',
+      2 => 'earthquake',
+      3 => 'megakick',
+      4 => 'stoneedge',
+      5 => 'irontail',
+      6 => 'fireblast',
+      7 => 'aerialace',
+      8 => 'brutalswing',
+      9 => 'thunderwave',
+      10 => 'substitute',
+    ),
+  ),
+  'arctozolt' => 
+  array (
+    'num' => 881,
+    'nome' => 'Arctozolt',
+    'tipos' => 
+    array (
+      0 => 'electric',
+      1 => 'ice',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 100,
+      2 => 90,
+      3 => 90,
+      4 => 80,
+      5 => 55,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'wildcharge',
+      1 => 'icebeam',
+      2 => 'megakick',
+      3 => 'surf',
+      4 => 'stoneedge',
+      5 => 'irontail',
+      6 => 'bulldoze',
+      7 => 'pluck',
+      8 => 'thunderwave',
+      9 => 'substitute',
+    ),
+  ),
+  'dracovish' => 
+  array (
+    'num' => 882,
+    'nome' => 'Dracovish',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'dragon',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 90,
+      2 => 100,
+      3 => 70,
+      4 => 80,
+      5 => 75,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'dracometeor',
+      1 => 'liquidation',
+      2 => 'earthquake',
+      3 => 'megakick',
+      4 => 'psychicfangs',
+      5 => 'stoneedge',
+      6 => 'crunch',
+      7 => 'ironhead',
+      8 => 'leechlife',
+      9 => 'icefang',
+      10 => 'substitute',
+      11 => 'protect',
+    ),
+  ),
+  'arctovish' => 
+  array (
+    'num' => 883,
+    'nome' => 'Arctovish',
+    'tipos' => 
+    array (
+      0 => 'water',
+      1 => 'ice',
+    ),
+    'bs' => 
+    array (
+      0 => 90,
+      1 => 90,
+      2 => 100,
+      3 => 80,
+      4 => 90,
+      5 => 55,
+    ),
+    'nivel' => 82,
+    'pool' => 
+    array (
+      0 => 'liquidation',
+      1 => 'icebeam',
+      2 => 'bodyslam',
+      3 => 'psychicfangs',
+      4 => 'stoneedge',
+      5 => 'crunch',
+      6 => 'ironhead',
+      7 => 'substitute',
+      8 => 'protect',
     ),
   ),
   'dragapult' => 

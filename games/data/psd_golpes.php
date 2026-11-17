@@ -1,6 +1,6 @@
 <?php
 /* Golpes do FBA Showdown — GERADO por games/core/psd_importar_cli.php.
-   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:53. */
+   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 18:53. */
 return array (
   'acidspray' => 
   array (
@@ -351,10 +351,31 @@ return array (
     'prio' => 0,
     'contato' => 1,
   ),
+  'brine' => 
+  array (
+    'nome' => 'Brine',
+    'tipo' => 'water',
+    'cat' => 'special',
+    'power' => 65,
+    'acc' => 100,
+    'pp' => 10,
+    'prio' => 0,
+  ),
   'brutalswing' => 
   array (
     'nome' => 'Brutal Swing',
     'tipo' => 'dark',
+    'cat' => 'physical',
+    'power' => 60,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'contato' => 1,
+  ),
+  'bugbite' => 
+  array (
+    'nome' => 'Bug Bite',
+    'tipo' => 'bug',
     'cat' => 'physical',
     'power' => 60,
     'acc' => 100,
@@ -456,6 +477,21 @@ return array (
       ),
     ),
   ),
+  'chatter' => 
+  array (
+    'nome' => 'Chatter',
+    'tipo' => 'flying',
+    'cat' => 'special',
+    'power' => 65,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'sec' => 
+    array (
+      'chance' => 100,
+      'volatil' => 'confusion',
+    ),
+  ),
   'chillingwater' => 
   array (
     'nome' => 'Chilling Water',
@@ -512,6 +548,23 @@ return array (
     'contato' => 1,
     'crit' => 2,
   ),
+  'crosspoison' => 
+  array (
+    'nome' => 'Cross Poison',
+    'tipo' => 'poison',
+    'cat' => 'physical',
+    'power' => 70,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'contato' => 1,
+    'crit' => 2,
+    'sec' => 
+    array (
+      'chance' => 10,
+      'status' => 'psn',
+    ),
+  ),
   'crunch' => 
   array (
     'nome' => 'Crunch',
@@ -530,6 +583,17 @@ return array (
         'def' => -1,
       ),
     ),
+  ),
+  'cut' => 
+  array (
+    'nome' => 'Cut',
+    'tipo' => 'normal',
+    'cat' => 'physical',
+    'power' => 50,
+    'acc' => 95,
+    'pp' => 30,
+    'prio' => 0,
+    'contato' => 1,
   ),
   'darkestlariat' => 
   array (
@@ -604,6 +668,22 @@ return array (
     array (
       'chance' => 30,
       'status' => 'par',
+    ),
+  ),
+  'dizzypunch' => 
+  array (
+    'nome' => 'Dizzy Punch',
+    'tipo' => 'normal',
+    'cat' => 'physical',
+    'power' => 70,
+    'acc' => 100,
+    'pp' => 10,
+    'prio' => 0,
+    'contato' => 1,
+    'sec' => 
+    array (
+      'chance' => 20,
+      'volatil' => 'confusion',
     ),
   ),
   'doubleedge' => 
@@ -758,6 +838,17 @@ return array (
       1 => 2,
     ),
   ),
+  'drillpeck' => 
+  array (
+    'nome' => 'Drill Peck',
+    'tipo' => 'flying',
+    'cat' => 'physical',
+    'power' => 80,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'contato' => 1,
+  ),
   'drillrun' => 
   array (
     'nome' => 'Drill Run',
@@ -769,6 +860,22 @@ return array (
     'prio' => 0,
     'contato' => 1,
     'crit' => 2,
+  ),
+  'dualchop' => 
+  array (
+    'nome' => 'Dual Chop',
+    'tipo' => 'dragon',
+    'cat' => 'physical',
+    'power' => 40,
+    'acc' => 90,
+    'pp' => 15,
+    'prio' => 0,
+    'contato' => 1,
+    'vezes' => 
+    array (
+      0 => 2,
+      1 => 2,
+    ),
   ),
   'dualwingbeat' => 
   array (
@@ -1084,6 +1191,17 @@ return array (
     'prio' => 0,
     'status' => 'par',
   ),
+  'grassyglide' => 
+  array (
+    'nome' => 'Grassy Glide',
+    'tipo' => 'grass',
+    'cat' => 'physical',
+    'power' => 55,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'contato' => 1,
+  ),
   'gunkshot' => 
   array (
     'nome' => 'Gunk Shot',
@@ -1112,6 +1230,22 @@ return array (
     'auto' => 
     array (
       'spe' => -1,
+    ),
+  ),
+  'headcharge' => 
+  array (
+    'nome' => 'Head Charge',
+    'tipo' => 'normal',
+    'cat' => 'physical',
+    'power' => 120,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'contato' => 1,
+    'recuo' => 
+    array (
+      0 => 1,
+      1 => 4,
     ),
   ),
   'headlongrush' => 
@@ -1161,6 +1295,16 @@ return array (
       'status' => 'brn',
     ),
   ),
+  'hiddenpower' => 
+  array (
+    'nome' => 'Hidden Power',
+    'tipo' => 'normal',
+    'cat' => 'special',
+    'power' => 60,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+  ),
   'highhorsepower' => 
   array (
     'nome' => 'High Horsepower',
@@ -1182,6 +1326,22 @@ return array (
     'pp' => 10,
     'prio' => 0,
     'contato' => 1,
+  ),
+  'hornleech' => 
+  array (
+    'nome' => 'Horn Leech',
+    'tipo' => 'grass',
+    'cat' => 'physical',
+    'power' => 75,
+    'acc' => 100,
+    'pp' => 10,
+    'prio' => 0,
+    'contato' => 1,
+    'dreno' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'hurricane' => 
   array (
@@ -1207,6 +1367,22 @@ return array (
     'acc' => 80,
     'pp' => 5,
     'prio' => 0,
+  ),
+  'hyperfang' => 
+  array (
+    'nome' => 'Hyper Fang',
+    'tipo' => 'normal',
+    'cat' => 'physical',
+    'power' => 80,
+    'acc' => 90,
+    'pp' => 15,
+    'prio' => 0,
+    'contato' => 1,
+    'sec' => 
+    array (
+      'chance' => 10,
+      'volatil' => 'flinch',
+    ),
   ),
   'hypervoice' => 
   array (
@@ -1318,6 +1494,18 @@ return array (
         'spe' => -1,
       ),
     ),
+  ),
+  'infestation' => 
+  array (
+    'nome' => 'Infestation',
+    'tipo' => 'bug',
+    'cat' => 'special',
+    'power' => 20,
+    'acc' => 100,
+    'pp' => 20,
+    'prio' => 0,
+    'contato' => 1,
+    'volatil' => 'partiallytrapped',
   ),
   'ironhead' => 
   array (
@@ -1545,6 +1733,21 @@ return array (
       'status' => 'tox',
     ),
   ),
+  'megadrain' => 
+  array (
+    'nome' => 'Mega Drain',
+    'tipo' => 'grass',
+    'cat' => 'special',
+    'power' => 40,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'dreno' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
+  ),
   'megahorn' => 
   array (
     'nome' => 'Megahorn',
@@ -1596,6 +1799,16 @@ return array (
     'pp' => 5,
     'prio' => 0,
     'contato' => 1,
+  ),
+  'mindblown' => 
+  array (
+    'nome' => 'Mind Blown',
+    'tipo' => 'fire',
+    'cat' => 'special',
+    'power' => 150,
+    'acc' => 100,
+    'pp' => 5,
+    'prio' => 0,
   ),
   'mistball' => 
   array (
@@ -1789,6 +2002,21 @@ return array (
     'contato' => 1,
     'crit' => 2,
   ),
+  'oblivionwing' => 
+  array (
+    'nome' => 'Oblivion Wing',
+    'tipo' => 'flying',
+    'cat' => 'special',
+    'power' => 80,
+    'acc' => 100,
+    'pp' => 10,
+    'prio' => 0,
+    'dreno' => 
+    array (
+      0 => 3,
+      1 => 4,
+    ),
+  ),
   'orderup' => 
   array (
     'nome' => 'Order Up',
@@ -1868,6 +2096,17 @@ return array (
       0 => 2,
       1 => 5,
     ),
+  ),
+  'plasmafists' => 
+  array (
+    'nome' => 'Plasma Fists',
+    'tipo' => 'electric',
+    'cat' => 'physical',
+    'power' => 100,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'contato' => 1,
   ),
   'playrough' => 
   array (
@@ -2143,6 +2382,25 @@ return array (
       'spe' => 1,
     ),
   ),
+  'razorshell' => 
+  array (
+    'nome' => 'Razor Shell',
+    'tipo' => 'water',
+    'cat' => 'physical',
+    'power' => 75,
+    'acc' => 95,
+    'pp' => 10,
+    'prio' => 0,
+    'contato' => 1,
+    'sec' => 
+    array (
+      'chance' => 50,
+      'boosts' => 
+      array (
+        'def' => -1,
+      ),
+    ),
+  ),
   'recover' => 
   array (
     'nome' => 'Recover',
@@ -2351,6 +2609,16 @@ return array (
       'spe' => 2,
     ),
   ),
+  'shelltrap' => 
+  array (
+    'nome' => 'Shell Trap',
+    'tipo' => 'fire',
+    'cat' => 'special',
+    'power' => 150,
+    'acc' => 100,
+    'pp' => 5,
+    'prio' => -3,
+  ),
   'shoreup' => 
   array (
     'nome' => 'Shore Up',
@@ -2364,6 +2632,21 @@ return array (
     array (
       0 => 1,
       1 => 2,
+    ),
+  ),
+  'signalbeam' => 
+  array (
+    'nome' => 'Signal Beam',
+    'tipo' => 'bug',
+    'cat' => 'special',
+    'power' => 75,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'sec' => 
+    array (
+      'chance' => 10,
+      'volatil' => 'confusion',
     ),
   ),
   'skittersmack' => 
@@ -2494,6 +2777,21 @@ return array (
       array (
         'spa' => -1,
       ),
+    ),
+  ),
+  'snore' => 
+  array (
+    'nome' => 'Snore',
+    'tipo' => 'normal',
+    'cat' => 'special',
+    'power' => 50,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'sec' => 
+    array (
+      'chance' => 30,
+      'volatil' => 'flinch',
     ),
   ),
   'softboiled' => 
@@ -2712,6 +3010,26 @@ return array (
       'atk' => 2,
     ),
   ),
+  'synchronoise' => 
+  array (
+    'nome' => 'Synchronoise',
+    'tipo' => 'psychic',
+    'cat' => 'special',
+    'power' => 120,
+    'acc' => 100,
+    'pp' => 10,
+    'prio' => 0,
+  ),
+  'synthesis' => 
+  array (
+    'nome' => 'Synthesis',
+    'tipo' => 'grass',
+    'cat' => 'status',
+    'power' => 0,
+    'acc' => 100,
+    'pp' => 5,
+    'prio' => 0,
+  ),
   'takedown' => 
   array (
     'nome' => 'Take Down',
@@ -2727,6 +3045,16 @@ return array (
       0 => 1,
       1 => 4,
     ),
+  ),
+  'technoblast' => 
+  array (
+    'nome' => 'Techno Blast',
+    'tipo' => 'normal',
+    'cat' => 'special',
+    'power' => 120,
+    'acc' => 100,
+    'pp' => 5,
+    'prio' => 0,
   ),
   'thief' => 
   array (
@@ -2910,6 +3238,23 @@ return array (
     'pp' => 30,
     'prio' => 1,
   ),
+  'vcreate' => 
+  array (
+    'nome' => 'V-create',
+    'tipo' => 'fire',
+    'cat' => 'physical',
+    'power' => 180,
+    'acc' => 95,
+    'pp' => 5,
+    'prio' => 0,
+    'contato' => 1,
+    'auto' => 
+    array (
+      'spe' => -1,
+      'def' => -1,
+      'spd' => -1,
+    ),
+  ),
   'venoshock' => 
   array (
     'nome' => 'Venoshock',
@@ -2929,6 +3274,22 @@ return array (
     'acc' => 100,
     'pp' => 20,
     'prio' => 0,
+  ),
+  'waterfall' => 
+  array (
+    'nome' => 'Waterfall',
+    'tipo' => 'water',
+    'cat' => 'physical',
+    'power' => 80,
+    'acc' => 100,
+    'pp' => 15,
+    'prio' => 0,
+    'contato' => 1,
+    'sec' => 
+    array (
+      'chance' => 20,
+      'volatil' => 'flinch',
+    ),
   ),
   'waterpulse' => 
   array (
@@ -2997,6 +3358,17 @@ return array (
     'pp' => 15,
     'prio' => 0,
     'status' => 'brn',
+  ),
+  'wingattack' => 
+  array (
+    'nome' => 'Wing Attack',
+    'tipo' => 'flying',
+    'cat' => 'physical',
+    'power' => 60,
+    'acc' => 100,
+    'pp' => 35,
+    'prio' => 0,
+    'contato' => 1,
   ),
   'woodhammer' => 
   array (

@@ -141,7 +141,19 @@ function psdTabelaDeTipos(string $js): array
  */
 function psdEntraNaDex(array $p): bool
 {
-    if (!empty($p['isNonstandard'])) return false;
+    /* ── O QUE "isNonstandard" QUER DIZER ─────────────────────────────
+     *
+     * A base marca com isso tudo que não existe na geração atual, e o
+     * valor diz POR QUE. Cortar todos era um erro meu: "Past" é só
+     * "não está em Scarlet/Violet" — Alakazam, Machamp e Pidgeot são
+     * Pokémon de verdade, e num jogo de coleção sumir com eles é pior
+     * que qualquer impureza de regra.
+     *
+     * Sai só o que nunca foi um Pokémon jogável de verdade: CAP (carta
+     * inventada pela comunidade), Custom e Unobtainable. */
+    $fora = ['CAP' => 1, 'Custom' => 1, 'Unobtainable' => 1];
+    if (isset($fora[(string)($p['isNonstandard'] ?? '')])) return false;
+
     if (!empty($p['forme']) || !empty($p['baseSpecies'])) return false;
     if (!empty($p['evos'])) return false;
     if (($p['num'] ?? 0) <= 0) return false;
@@ -361,12 +373,30 @@ foreach ($dexBruta as $id => $p) {
     $ls = $learnsets[$id]['learnset'] ?? null;
     if (!$ls) continue;
 
-    /* Só o que é legal na geração 9 — a fonte "9M"/"9L5"/"9T" começa com 9.
-       Sem esse filtro entram golpes de geração antiga que não existem mais. */
+    /* ── DE QUE GERAÇÃO SÃO OS GOLPES ─────────────────────────────────
+     *
+     * A fonte vem como "9M", "8L1", "7T": o primeiro dígito é a geração.
+     *
+     * Misturar gerações daria o mesmo bicho com golpe que ele nunca teve
+     * junto. Mas exigir a geração 9 apagava Alakazam, Machamp e Pidgeot
+     * — eles não existem em Scarlet/Violet —, e num jogo de COLEÇÃO
+     * sumir justo com o que todo mundo procura é pior que a impureza.
+     *
+     * Então cada espécie usa a geração MAIS RECENTE em que ela apareceu:
+     * gen 9 pra quem está lá, gen 8 pra quem parou no Sword/Shield, e
+     * assim por diante. Cada um com o moveset que teve de verdade. */
+    $maiorGen = 0;
+    foreach ($ls as $fontes) {
+        foreach ($fontes as $f) {
+            if ($f !== '' && $f[0] >= '1' && $f[0] <= '9') $maiorGen = max($maiorGen, (int)$f[0]);
+        }
+    }
+    if (!$maiorGen) continue;
+
     $legais = [];
     foreach ($ls as $mv => $fontes) {
         foreach ($fontes as $f) {
-            if ($f !== '' && $f[0] === '9') { $legais[] = $mv; break; }
+            if ($f !== '' && (int)$f[0] === $maiorGen) { $legais[] = $mv; break; }
         }
     }
     if (!$legais) continue;
