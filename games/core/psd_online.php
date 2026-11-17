@@ -37,6 +37,7 @@
  */
 
 require_once __DIR__ . '/psd_ia.php';
+require_once __DIR__ . '/psd_cartas.php';
 
 /** Segundos por turno. */
 const PSD_SEG_TURNO = 60;
@@ -84,6 +85,13 @@ function psdTabelas(PDO $pdo): void
         UNIQUE KEY uk_psd_codigo (codigo),
         KEY idx_psd_a (a_uid), KEY idx_psd_b (b_uid), KEY idx_psd_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    /* REGRA: 'aleatoria' (seis sorteados na hora, coleção não conta) ou
+       'time' (a escalação de cada um). A coluna nasceu depois da tabela,
+       então entra por ALTER pra não perder as partidas já jogadas. */
+    if (!$pdo->query("SHOW COLUMNS FROM psd_partidas LIKE 'regra'")->fetch()) {
+        $pdo->exec("ALTER TABLE psd_partidas ADD COLUMN regra VARCHAR(10) NOT NULL DEFAULT 'aleatoria' AFTER modo");
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS psd_ranking (
         id_usuario INT NOT NULL,
@@ -191,12 +199,13 @@ function psdMeuLado(array $p, int $uid): ?string
  *
  * @return array{ok:bool, erro?:string, id?:int}
  */
-function psdAbrir(PDO $pdo, int $uid, string $nome, string $modo, int $aposta): array
+function psdAbrir(PDO $pdo, int $uid, string $nome, string $modo, int $aposta, string $regra = 'aleatoria'): array
 {
     psdTabelas($pdo);
 
     if (psdMinha($pdo, $uid)) return ['ok' => false, 'erro' => 'Você já está numa partida.'];
 
+    $regra  = $regra === 'time' ? 'time' : 'aleatoria';
     $aposta = ($modo === 'treino') ? 0 : max(0, min(PSD_APOSTA_MAX, $aposta));
 
     $pdo->beginTransaction();
@@ -207,14 +216,16 @@ function psdAbrir(PDO $pdo, int $uid, string $nome, string $modo, int $aposta): 
         }
 
         if ($modo === 'fila') {
-            /* Procura alguém já esperando na fila com a MESMA aposta. Sem
-               isso teria que existir uma regra de "quem paga a diferença",
-               e não existe: a entrada é igual pros dois. */
+            /* Procura alguém já esperando na fila com a MESMA aposta e a
+               MESMA regra. Sem isso teria que existir uma regra de "quem
+               paga a diferença", e não existe: a entrada é igual pros
+               dois — e ninguém entra numa Aleatória achando que ia usar
+               o time que escalou. */
             $st = $pdo->prepare("SELECT * FROM psd_partidas
-                WHERE status = 'aguardando' AND modo = 'fila' AND aposta = ? AND a_uid <> ?
+                WHERE status = 'aguardando' AND modo = 'fila' AND aposta = ? AND regra = ? AND a_uid <> ?
                   AND criado > NOW() - INTERVAL " . PSD_ESPERA_MAX_MIN . " MINUTE
                 ORDER BY id ASC LIMIT 1 FOR UPDATE");
-            $st->execute([$aposta, $uid]);
+            $st->execute([$aposta, $regra, $uid]);
             $sala = $st->fetch(PDO::FETCH_ASSOC);
             if ($sala) {
                 psdComecar($pdo, (int)$sala['id'], $uid, $nome);
@@ -224,8 +235,8 @@ function psdAbrir(PDO $pdo, int $uid, string $nome, string $modo, int $aposta): 
         }
 
         $codigo = ($modo === 'codigo') ? psdCodigoNovo($pdo) : null;
-        $pdo->prepare('INSERT INTO psd_partidas (codigo, modo, a_uid, a_nome, aposta) VALUES (?,?,?,?,?)')
-            ->execute([$codigo, $modo, $uid, mb_substr($nome, 0, 80), $aposta]);
+        $pdo->prepare('INSERT INTO psd_partidas (codigo, modo, regra, a_uid, a_nome, aposta) VALUES (?,?,?,?,?,?)')
+            ->execute([$codigo, $modo, $regra, $uid, mb_substr($nome, 0, 80), $aposta]);
         $id = (int)$pdo->lastInsertId();
 
         if ($modo === 'treino') psdComecar($pdo, $id, 0, 'Máquina');
@@ -286,7 +297,16 @@ function psdComecar(PDO $pdo, int $id, int $bUid, string $bNome): void
        mesmo segundo não podem sortear o mesmo time. */
     $semente = ($id * 2654435761 + (int)(microtime(true) * 1000)) & 0x7FFFFFFF;
 
-    $e = psdNovaPartida($semente, (string)$p['a_nome'], $bNome);
+    /* Na regra 'time', cada lado entra com a escalação que salvou. Na
+       'aleatoria', nulo — e aí o motor sorteia seis pra cada um.
+       A MÁQUINA nunca tem coleção: ela sorteia sempre. */
+    $timeA = $timeB = null;
+    if (($p['regra'] ?? 'aleatoria') === 'time') {
+        $timeA = psdTime($pdo, (int)$p['a_uid']);
+        if ($bUid) $timeB = psdTime($pdo, $bUid);
+    }
+
+    $e = psdNovaPartida($semente, (string)$p['a_nome'], $bNome, $timeA, $timeB);
     $premio = (int)$p['aposta'] * 2;
 
     $pdo->prepare("UPDATE psd_partidas
@@ -530,6 +550,7 @@ function psdVer(PDO $pdo, int $uid, ?int $id = null): array
                 'id'      => (int)$p['id'],
                 'codigo'  => $p['codigo'],
                 'modo'    => $p['modo'],
+                'regra'   => $p['regra'] ?? 'aleatoria',
                 'aposta'  => (int)$p['aposta'],
                 'saldo'   => psdSaldo($pdo, $uid),
             ];
@@ -542,6 +563,7 @@ function psdVer(PDO $pdo, int $uid, ?int $id = null): array
 
         $vista['em']      = 'jogando';
         $vista['id']      = (int)$p['id'];
+        $vista['regra']   = $p['regra'] ?? 'aleatoria';
         $vista['seq']     = (int)$p['seq'];
         $vista['aposta']  = (int)$p['aposta'];
         $vista['premio']  = (int)$p['premio'];

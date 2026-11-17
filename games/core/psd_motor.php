@@ -208,7 +208,34 @@ function psdTimeAleatorio(array &$e): array
 
 // ─────────────────────────────── a partida ───────────────────────────────
 
-function psdNovaPartida(int $semente, string $nomeA, string $nomeB): array
+/**
+ * Monta o time a partir de uma lista de espécies escolhida pelo GM.
+ * O que não existe na dex é descartado, e o que faltar pra fechar os seis
+ * vem do sorteio — uma escalação velha nunca pode travar a partida.
+ */
+function psdTimeEscalado(array &$e, array $especies): array
+{
+    $dex = psdDex();
+    $time = [];
+    foreach ($especies as $esp) {
+        if (count($time) >= PSD_EQUIPE) break;
+        if (!isset($dex[$esp])) continue;
+        $time[] = psdMontarBicho($e, $esp);
+    }
+    while (count($time) < PSD_EQUIPE) {
+        $ids = array_keys($dex);
+        $time[] = psdMontarBicho($e, $ids[psdSorteio($e, 0, count($ids) - 1)]);
+    }
+    return $time;
+}
+
+/**
+ * $timeA/$timeB são listas de espécies. Nulo quer dizer SORTEADO — é a
+ * batalha Aleatória, em que os dois recebem seis na hora e a coleção não
+ * conta pra nada. É o modo em que a aposta é sempre justa.
+ */
+function psdNovaPartida(int $semente, string $nomeA, string $nomeB,
+                        ?array $timeA = null, ?array $timeB = null): array
 {
     $e = ['rng' => $semente & 0xFFFFFFFF];
     if ($e['rng'] === 0) $e['rng'] = 1;
@@ -217,8 +244,10 @@ function psdNovaPartida(int $semente, string $nomeA, string $nomeB): array
     $e['fim']   = null;        // 'a' | 'b' | 'empate'
     $e['motivo']= null;
     $e['lados'] = [
-        'a' => ['nome' => $nomeA, 'time' => psdTimeAleatorio($e), 'ativo' => 0, 'rochas' => false, 'precisa_trocar' => false],
-        'b' => ['nome' => $nomeB, 'time' => psdTimeAleatorio($e), 'ativo' => 0, 'rochas' => false, 'precisa_trocar' => false],
+        'a' => ['nome' => $nomeA, 'ativo' => 0, 'rochas' => false, 'precisa_trocar' => false,
+                'time' => $timeA === null ? psdTimeAleatorio($e) : psdTimeEscalado($e, $timeA)],
+        'b' => ['nome' => $nomeB, 'ativo' => 0, 'rochas' => false, 'precisa_trocar' => false,
+                'time' => $timeB === null ? psdTimeAleatorio($e) : psdTimeEscalado($e, $timeB)],
     ];
     $e['eventos'] = [];
     return $e;
