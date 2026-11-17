@@ -302,7 +302,7 @@ const PSD_NOME_STATUS = [
  * machuca na entrada, e o quanto depende do tipo de quem entrou — é por
  * isso que ela é a carta de campo mais usada do jogo inteiro.
  */
-function psdEntrar(array &$e, string $lado, int $indice): void
+function psdPorEmQuadra(array &$e, string $lado, int $indice): void
 {
     $e['lados'][$lado]['ativo'] = $indice;
     $e['lados'][$lado]['precisa_trocar'] = false;
@@ -885,7 +885,7 @@ function psdResolverTurno(array &$e, array $escolhaA, array $escolhaB): array
             if (!$vivos) continue;                 // acabou: psdConferirFim resolve
             $i = (int)($esc[$lado]['i'] ?? -1);
             if (!in_array($i, $vivos, true)) $i = $vivos[0];   // escolha inválida ou vazia
-            psdEntrar($e, $lado, $i);
+            psdPorEmQuadra($e, $lado, $i);
         }
         psdConferirFim($e);
         return $e;
@@ -897,7 +897,7 @@ function psdResolverTurno(array &$e, array $escolhaA, array $escolhaB): array
         $i = (int)($esc[$lado]['i'] ?? -1);
         if (!in_array($i, psdVivos($e, $lado), true) || $i === $e['lados'][$lado]['ativo']) continue;
         psdTexto($e, $e['lados'][$lado]['nome'] . ' trocou para ' . $e['lados'][$lado]['time'][$i]['nome'] . '!');
-        psdEntrar($e, $lado, $i);
+        psdPorEmQuadra($e, $lado, $i);
     }
 
     // 2. ordem dos golpes
