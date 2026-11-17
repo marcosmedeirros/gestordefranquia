@@ -27,6 +27,7 @@ $bolEscudo = function (string $clube): string {
     return '<span class="bol-escudo bol-mono">' . htmlspecialchars($ini) . '</span>';
 };
 
+$bolMin   = max(1, (int)($bolaoEd['aposta_min'] ?? BOLAO_APOSTA_MIN));
 $bolMax   = (int)($bolaoEd['aposta_max'] ?? BOLAO_APOSTA_MAX);
 $bolMult  = (int)($bolaoEd['multiplicador'] ?? BOLAO_MULTIPLICADOR);
 $bolSaldo = (int)($perfil['fba_points'] ?? 0);
@@ -380,10 +381,17 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     <div class="bol-sec">
         <div class="bol-sec-h"><span class="bol-num">3</span> Quanto você aposta?</div>
         <div class="bol-valor">
-            <input type="range" id="bolRange" min="0" max="<?= $bolTeto ?>" step="50"
-                   value="<?= (int)($bolaoMinha['valor'] ?? 0) ?>" <?= $bolTeto > 0 ? '' : 'disabled' ?>>
-            <input type="number" id="bolValor" name="valor" min="1" max="<?= $bolTeto ?: 1 ?>"
-                   value="<?= (int)($bolaoMinha['valor'] ?? 0) ?>" <?= $bolTeto > 0 ? '' : 'disabled' ?>>
+            <?php
+            /* Começa no piso, e não em zero: zero não é uma aposta possível,
+               e deixar o cursor lá fazia a primeira coisa que a pessoa via
+               ser um prêmio de 0. Quem já apostou vê o próprio valor. */
+            $bolValorIni = (int)($bolaoMinha['valor'] ?? 0) ?: min($bolMin, $bolTeto);
+            $bolPodeApostar = $bolTeto >= $bolMin;
+            ?>
+            <input type="range" id="bolRange" min="<?= $bolMin ?>" max="<?= max($bolMin, $bolTeto) ?>" step="50"
+                   value="<?= $bolValorIni ?>" <?= $bolPodeApostar ? '' : 'disabled' ?>>
+            <input type="number" id="bolValor" name="valor" min="<?= $bolMin ?>" max="<?= max($bolMin, $bolTeto) ?>"
+                   step="10" value="<?= $bolValorIni ?>" <?= $bolPodeApostar ? '' : 'disabled' ?>>
             <div class="bol-retorno">
                 <?= $bolRateio ? 'Se cravar, hoje levaria:' : 'Se cravar:' ?>
                 <b id="bolRetorno">0</b> FBA Points
@@ -391,8 +399,12 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
         </div>
         <div class="bol-saldo-dica">
             Você tem <b><?= number_format($bolSaldo, 0, ',', '.') ?></b> FBA Points ·
-            teto de <?= number_format($bolMax, 0, ',', '.') ?> por cartão
+            de <?= number_format($bolMin, 0, ',', '.') ?> a <?= number_format($bolMax, 0, ',', '.') ?> por cartão
             <?= $bolaoMinha ? ' · trocar o cartão acerta a diferença no seu saldo na hora' : '' ?>
+            <?php if (!$bolPodeApostar): ?>
+            <br><span style="color:#f5b544">Você precisa de pelo menos
+                <?= number_format($bolMin, 0, ',', '.') ?> FBA Points pra entrar neste bolão.</span>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -524,6 +536,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     const QUANTOS = <?= (int)($bolaoEd['quantos_caem'] ?? 2) ?>;
     const MULT    = <?= $bolMult ?>;
     const TETO    = <?= $bolTeto ?>;
+    const PISO    = <?= $bolMin ?>;
 
     /* O RATEIO AO VIVO. O pote vem sem a aposta de quem está olhando, e
        CARTOES diz quanto já foi apostado em cada cartão (pela posição dos
@@ -566,7 +579,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
         const v = Math.min(TETO, Math.max(0, parseInt(valor?.value || '0', 10) || 0));
         const camp = campeao.find(r => r.checked);
         if (retorno) retorno.textContent = fmt(fatia(v, marc, camp));
-        enviar.disabled = !(n === QUANTOS && camp && v >= 1);
+        // Abaixo do piso o botão fica travado; o número só é corrigido quando
+        // a pessoa sai do campo, pra ela conseguir apagar e digitar de novo.
+        enviar.disabled = !(n === QUANTOS && camp && v >= PISO);
     }
 
     quedas.forEach(c => c.addEventListener('change', conferir));
@@ -577,8 +592,16 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     valor?.addEventListener('input', () => {
         let v = parseInt(valor.value || '0', 10) || 0;
         if (v > TETO) { v = TETO; valor.value = v; }
-        if (range) range.value = v;
+        if (range) range.value = Math.max(PISO, v);
         conferir();
+    });
+
+    /* O PISO SÓ É APLICADO AO SAIR DO CAMPO. Corrigir durante a digitação
+       impediria de apagar o 100 pra escrever 2500: o primeiro dígito já
+       viraria 100 de novo. */
+    valor?.addEventListener('blur', () => {
+        const v = parseInt(valor.value || '0', 10) || 0;
+        if (v < PISO) { valor.value = Math.min(PISO, TETO); if (range) range.value = valor.value; conferir(); }
     });
 
     conferir();

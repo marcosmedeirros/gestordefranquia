@@ -31,7 +31,8 @@
 
 require_once __DIR__ . '/db.php';
 
-/** Teto de uma aposta, em FBA Points. Fica na edição; isto é só o padrão. */
+/** Piso e teto de uma aposta, em FBA Points. Ficam na edição; isto é só o padrão. */
+const BOLAO_APOSTA_MIN = 100;
 const BOLAO_APOSTA_MAX = 5000;
 
 /** Quanto o acerto cravado paga, multiplicando o que foi apostado. */
@@ -48,6 +49,7 @@ function bolaoGarantirTabelas(PDO $pdo): void
             subtitulo VARCHAR(255) NULL,
             aberto TINYINT(1) NOT NULL DEFAULT 1,
             fecha_em DATETIME NULL,
+            aposta_min INT NOT NULL DEFAULT 100,
             aposta_max INT NOT NULL DEFAULT 5000,
             pagamento ENUM('rateio','multiplicador') NOT NULL DEFAULT 'rateio',
             multiplicador TINYINT NOT NULL DEFAULT 2,
@@ -93,6 +95,18 @@ function bolaoGarantirTabelas(PDO $pdo): void
                             AFTER aposta_max");
             }
         } catch (Throwable $e) { error_log('[bolao] coluna pagamento: ' . $e->getMessage()); }
+
+        /* PISO DA APOSTA (Marcos, 17/11/2026). Sem ele dava pra entrar no
+           bolão com 5 pontos: o cartão ocupa o mesmo espaço no rateio de
+           quem arriscou 2.500, e a brincadeira perde o sal. Cartão que já
+           existe abaixo do piso continua valendo — o piso vale pra aposta
+           nova e pra troca, não é confisco retroativo. */
+        try {
+            if ($pdo->query("SHOW COLUMNS FROM bolao_edicoes LIKE 'aposta_min'")->rowCount() === 0) {
+                $pdo->exec('ALTER TABLE bolao_edicoes
+                            ADD COLUMN aposta_min INT NOT NULL DEFAULT 100 AFTER quantos_caem');
+            }
+        } catch (Throwable $e) { error_log('[bolao] coluna aposta_min: ' . $e->getMessage()); }
 
         $ok = true;
     } catch (Throwable $e) {
@@ -271,7 +285,8 @@ function bolaoApostar(PDO $pdo, int $edicaoId, int $userId, array $queda, string
 
     /* ── O VALOR ─────────────────────────────────────────────────────── */
     $max = (int)$ed['aposta_max'] ?: BOLAO_APOSTA_MAX;
-    if ($valor < 1)    return ['ok' => false, 'erro' => 'Aposte pelo menos 1 FBA Point.'];
+    $min = max(1, (int)($ed['aposta_min'] ?? BOLAO_APOSTA_MIN));
+    if ($valor < $min) return ['ok' => false, 'erro' => 'A aposta mínima é ' . number_format($min, 0, ',', '.') . ' FBA Points.'];
     if ($valor > $max) return ['ok' => false, 'erro' => 'O teto é ' . number_format($max, 0, ',', '.') . ' FBA Points.'];
 
     $jaTinha = bolaoMinhaAposta($pdo, $edicaoId, $userId);
@@ -671,12 +686,13 @@ function bolaoSemearBrasileirao(PDO $pdo): void
         if ((int)$pdo->query('SELECT COUNT(*) FROM bolao_edicoes')->fetchColumn() > 0) return;
 
         $pdo->prepare("INSERT INTO bolao_edicoes
-                (titulo, subtitulo, aberto, aposta_max, multiplicador, quantos_caem,
+                (titulo, subtitulo, aberto, aposta_min, aposta_max, multiplicador, quantos_caem,
                  candidatos_queda, candidatos_titulo)
-                VALUES (?,?,1,?,?,2,?,?)")
+                VALUES (?,?,1,?,?,?,2,?,?)")
             ->execute([
                 'Bolão do Brasileirão',
                 'Crave os 2 rebaixados e o campeão. Quem acertar divide tudo que foi apostado.',
+                BOLAO_APOSTA_MIN,
                 BOLAO_APOSTA_MAX,
                 BOLAO_MULTIPLICADOR,
                 json_encode(['Grêmio', 'Internacional', 'Corinthians', 'Mirassol', 'Vitória', 'Coritiba'], JSON_UNESCAPED_UNICODE),
