@@ -88,6 +88,21 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 .bol-time:hover .bol-time-in { border-color:rgba(255,255,255,.22); }
 .bol-time input:checked + .bol-time-in { border-color:var(--red); background:rgba(252,0,37,.08); }
 .bol-time input:disabled + .bol-time-in { opacity:.5; cursor:not-allowed; }
+
+/* ── FECHADO, O CARTÃO VIRA PAINEL ────────────────────────────────────
+   Depois do prazo ninguém escolhe mais nada, e o apagado de "formulário
+   desabilitado" era o estado errado: o que a tela passa a mostrar é COMO A
+   LIGA APOSTOU, e isso é informação pra ler, não controle pra clicar. */
+.bol-placar .bol-time input:disabled + .bol-time-in { opacity:1; cursor:default; }
+.bol-placar .bol-time { cursor:default; }
+.bol-placar .bol-time:hover .bol-time-in { border-color:var(--border-md); }
+.bol-placar .bol-time input:checked + .bol-time-in { border-color:var(--red); }
+.bol-time-in { overflow:hidden; }
+.bol-barra { position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.07); }
+/* A barra é SEMPRE da mesma cor, inclusive na escolha de quem está olhando:
+   verde no cartão da pessoa leria como "acertou", e o resultado ainda não
+   saiu. O que marca o cartão dela é a borda e o ✓, como antes. */
+.bol-barra span { display:block; height:100%; background:var(--red); border-radius:0 3px 3px 0; transition:width .4s; }
 .bol-time input:checked + .bol-time-in::after { content:'\F26E'; font-family:'bootstrap-icons'; position:absolute;
                top:7px; right:9px; font-size:13px; color:var(--red); }
 .bol-escudo { width:46px; height:46px; object-fit:contain; display:block; }
@@ -95,6 +110,8 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
             background:var(--panel-3); color:var(--text-2); font-size:13px; font-weight:800; letter-spacing:.5px; }
 .bol-time-nome { font-size:12.5px; font-weight:700; text-align:center; line-height:1.25; }
 .bol-time-pct { font-size:10.5px; font-weight:700; color:var(--text-3); }
+.bol-placar .bol-time-pct { font-size:12px; color:var(--text-2); }
+.bol-placar .bol-time-pct b { font-size:14px; color:var(--text); }
 
 .bol-valor { display:flex; align-items:center; gap:16px; flex-wrap:wrap;
              background:var(--panel-2); border:1px solid var(--border-md); border-radius:14px; padding:16px 18px; }
@@ -173,7 +190,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     </div></div>
 <?php else: ?>
 
-<form method="POST" class="bol-card" id="bolaoForm">
+<form method="POST" class="bol-card<?= $bolAberto ? '' : ' bol-placar' ?>" id="bolaoForm">
     <input type="hidden" name="bolao_acao" value="apostar">
 
     <div class="bol-hero">
@@ -216,8 +233,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     <div class="bol-fechado">
         <i class="bi bi-lock-fill"></i>
         <?= $bolaoMinha
-            ? 'O prazo fechou. Seu cartão está valendo — agora é esperar o resultado.'
+            ? 'O prazo fechou e seu cartão está valendo — não dá mais pra trocar nem desistir.'
             : 'O prazo fechou e você não apostou neste bolão.' ?>
+        Abaixo, como a liga se dividiu: fica assim até sair o resultado.
     </div>
     <?php endif; ?>
 
@@ -225,7 +243,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     <div class="bol-sec">
         <div class="bol-sec-h">
             <span class="bol-num">1</span> Quem cai?
-            <small>escolha <?= (int)$bolaoEd['quantos_caem'] ?></small>
+            <small><?= $bolAberto ? 'escolha ' . (int)$bolaoEd['quantos_caem'] : 'como a liga apostou' ?></small>
         </div>
         <div class="bol-times" id="bolQueda">
             <?php foreach ($bolaoEd['candidatos_queda'] as $c):
@@ -236,8 +254,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                 <span class="bol-time-in">
                     <?= $bolEscudo($c) ?>
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
-                    <?php if ($bolMostraPct && $bolTotalApostas): ?>
-                    <span class="bol-time-pct"><?= $bolPct($bolaoResumo['queda'] ?? [], $c) ?>% apostaram</span>
+                    <?php if ($bolMostraPct && $bolTotalApostas): $pc = $bolPct($bolaoResumo['queda'] ?? [], $c); ?>
+                    <span class="bol-time-pct"><b><?= $pc ?>%</b> dos cartões</span>
+                    <span class="bol-barra"><span style="width:<?= $pc ?>%"></span></span>
                     <?php endif; ?>
                 </span>
             </label>
@@ -247,7 +266,8 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 
     <!-- ── 2. o campeão ─────────────────────────────────────────────── -->
     <div class="bol-sec">
-        <div class="bol-sec-h"><span class="bol-num">2</span> Quem é o campeão? <small>escolha 1</small></div>
+        <div class="bol-sec-h"><span class="bol-num">2</span> Quem é o campeão?
+            <small><?= $bolAberto ? 'escolha 1' : 'como a liga apostou' ?></small></div>
         <div class="bol-times">
             <?php foreach ($bolaoEd['candidatos_titulo'] as $c):
                 $marcado = $bolaoMinha && (string)$bolaoMinha['palpite_campeao'] === $c; ?>
@@ -257,8 +277,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                 <span class="bol-time-in">
                     <?= $bolEscudo($c) ?>
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
-                    <?php if ($bolMostraPct && $bolTotalApostas): ?>
-                    <span class="bol-time-pct"><?= $bolPct($bolaoResumo['campeao'] ?? [], $c) ?>% apostaram</span>
+                    <?php if ($bolMostraPct && $bolTotalApostas): $pc = $bolPct($bolaoResumo['campeao'] ?? [], $c); ?>
+                    <span class="bol-time-pct"><b><?= $pc ?>%</b> dos cartões</span>
+                    <span class="bol-barra"><span style="width:<?= $pc ?>%"></span></span>
                     <?php endif; ?>
                 </span>
             </label>
