@@ -572,6 +572,10 @@ let aba = 'jogar';
 let regra = 'aleatoria';
 let cacheColecao = null, cacheGuia = null;
 
+/* A assinatura da tela desenhada agora. O laço compara com ela antes de
+   reescrever — ver o comentário em puxar(). */
+let telaDesenhada = '';
+
 const ABAS = document.getElementById('abas');
 ABAS.querySelectorAll('button').forEach(b => {
   b.onclick = () => irPara(b.dataset.aba);
@@ -580,6 +584,7 @@ ABAS.querySelectorAll('button').forEach(b => {
 function irPara(nova){
   aba = nova;
   erro = '';
+  telaDesenhada = '';   // trocou de aba: a próxima leitura desenha de novo
   ABAS.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.aba === nova));
   desenharAba();
 }
@@ -1212,7 +1217,7 @@ let fimVisto = 0;
 
 function voltarAoSalao(){
   if (estado && estado.id) fimVisto = estado.id;
-  estado = null; ultimoSeq = 0; erro = ''; ultimoLog = '';
+  estado = null; ultimoSeq = 0; erro = ''; ultimoLog = ''; telaDesenhada = '';
   TELA.innerHTML = '';
   puxar();
 }
@@ -1340,12 +1345,34 @@ async function puxar(){
 
   if (!emPartida && d.em !== 'esperando' && aba !== 'jogar') return;
 
-  if (d.em === 'nada')       { estado = d; desenharSalao(d); return; }
-  if (d.em === 'esperando')  { estado = d; desenharEsperando(d); return; }
-  if (d.em !== 'jogando')    { return; }
+  /* ── SÓ REDESENHA QUANDO MUDOU ────────────────────────────────────
+   *
+   * O laço roda a cada 1,5s e antes ele reescrevia a tela toda vez. Numa
+   * partida isso só pisca; na TELA INICIAL apaga o que a pessoa está
+   * digitando no campo do convite, letra por letra.
+   *
+   * Então cada tela tem uma assinatura, e o desenho só acontece quando
+   * ela muda. O relógio não entra na conta: quem conta o segundo é o
+   * outro temporizador, que mexe só no número. */
+  if (d.em === 'nada') {
+    estado = d;
+    if (telaDesenhada !== 'salao') { telaDesenhada = 'salao'; desenharSalao(d); }
+    return;
+  }
+  if (d.em === 'esperando') {
+    estado = d;
+    const chave = 'esperando:' + (d.codigo || d.aposta);
+    if (telaDesenhada !== chave) { telaDesenhada = chave; desenharEsperando(d); }
+    return;
+  }
+  if (d.em !== 'jogando') { return; }
 
   // Fim que o GM já leu e dispensou: daqui pra frente, salão.
-  if (d.acabou && d.id === fimVisto) { estado = d; desenharSalao(d); return; }
+  if (d.acabou && d.id === fimVisto) {
+    estado = d;
+    if (telaDesenhada !== 'salao') { telaDesenhada = 'salao'; desenharSalao(d); }
+    return;
+  }
 
   /* A vista já vem filtrada pelo meu lado, mas os EVENTOS vêm marcados com
      'a'/'b' — então a tela precisa saber qual das duas letras sou eu pra
@@ -1357,9 +1384,14 @@ async function puxar(){
   ultimoSeq = d.seq;
   estado = d;
 
-  desenharPartida(d);
+  /* Na quadra a assinatura é o que muda o MENU: o turno, se falta a
+     minha escolha, se preciso pôr outro em quadra e se acabou. */
+  const chave = `q:${d.seq}:${d.falta_eu?1:0}:${d.eu.precisa_trocar?1:0}:${d.acabou?1:0}`;
+  if (telaDesenhada !== chave) { telaDesenhada = chave; desenharPartida(d); }
+
   if (novo && !primeira && d.eventos && d.eventos.length) {
     await animar(d, d.eventos);
+    telaDesenhada = chave;
     desenharPartida(d);
   }
 }
