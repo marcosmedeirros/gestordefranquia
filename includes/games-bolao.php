@@ -52,7 +52,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 
 .bol-card { background:var(--panel); border:1px solid var(--border-md); border-radius:18px; overflow:hidden; }
 
-.bol-hero { display:flex; align-items:center; gap:18px; padding:22px 24px;
+.bol-hero { display:flex; align-items:center; gap:18px; padding:22px 24px 18px;
             background:linear-gradient(118deg, rgba(252,0,37,.16), rgba(252,0,37,0) 62%); flex-wrap:wrap; }
 .bol-tag { display:inline-block; font-size:10px; font-weight:800; letter-spacing:1.4px; text-transform:uppercase;
            color:var(--red); background:rgba(252,0,37,.12); border:1px solid rgba(252,0,37,.25);
@@ -66,7 +66,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 .bol-paga-l { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
               color:var(--text-3); margin-top:6px; }
 
-.bol-aviso { display:flex; align-items:flex-start; gap:10px; margin:0 24px 4px; padding:12px 14px;
+/* O aviso RESPIRA do cabeçalho: sem a margem de cima ele encostava na faixa
+   do título e os dois viravam um bloco só. */
+.bol-aviso { display:flex; align-items:flex-start; gap:10px; margin:14px 24px 6px; padding:12px 14px;
              background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25); border-radius:12px;
              font-size:12.5px; color:#f5b544; line-height:1.5; }
 .bol-aviso i { font-size:14px; margin-top:1px; flex-shrink:0; }
