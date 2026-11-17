@@ -1,6 +1,6 @@
 <?php
 /* Golpes do FBA Showdown — GERADO por games/core/psd_importar_cli.php.
-   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:28. */
+   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:53. */
 return array (
   'acidspray' => 
   array (
@@ -19,17 +19,6 @@ return array (
         'spd' => -2,
       ),
     ),
-  ),
-  'acrobatics' => 
-  array (
-    'nome' => 'Acrobatics',
-    'tipo' => 'flying',
-    'cat' => 'physical',
-    'power' => 55,
-    'acc' => 100,
-    'pp' => 15,
-    'prio' => 0,
-    'contato' => 1,
   ),
   'aerialace' => 
   array (
@@ -126,17 +115,6 @@ return array (
       'spd' => -1,
     ),
   ),
-  'assurance' => 
-  array (
-    'nome' => 'Assurance',
-    'tipo' => 'dark',
-    'cat' => 'physical',
-    'power' => 60,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-    'contato' => 1,
-  ),
   'astonish' => 
   array (
     'nome' => 'Astonish',
@@ -207,16 +185,6 @@ return array (
       'chance' => 30,
       'volatil' => 'confusion',
     ),
-  ),
-  'belch' => 
-  array (
-    'nome' => 'Belch',
-    'tipo' => 'poison',
-    'cat' => 'special',
-    'power' => 120,
-    'acc' => 90,
-    'pp' => 10,
-    'prio' => 0,
   ),
   'bite' => 
   array (
@@ -737,16 +705,6 @@ return array (
       'spe' => 1,
     ),
   ),
-  'dragonenergy' => 
-  array (
-    'nome' => 'Dragon Energy',
-    'tipo' => 'dragon',
-    'cat' => 'special',
-    'power' => 150,
-    'acc' => 100,
-    'pp' => 5,
-    'prio' => 0,
-  ),
   'dragonpulse' => 
   array (
     'nome' => 'Dragon Pulse',
@@ -902,16 +860,6 @@ return array (
         'spd' => -1,
       ),
     ),
-  ),
-  'eruption' => 
-  array (
-    'nome' => 'Eruption',
-    'tipo' => 'fire',
-    'cat' => 'special',
-    'power' => 150,
-    'acc' => 100,
-    'pp' => 5,
-    'prio' => 0,
   ),
   'extrasensory' => 
   array (
@@ -1213,16 +1161,6 @@ return array (
       'status' => 'brn',
     ),
   ),
-  'hex' => 
-  array (
-    'nome' => 'Hex',
-    'tipo' => 'ghost',
-    'cat' => 'special',
-    'power' => 65,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-  ),
   'highhorsepower' => 
   array (
     'nome' => 'High Horsepower',
@@ -1489,6 +1427,7 @@ return array (
     'acc' => 90,
     'pp' => 10,
     'prio' => 0,
+    'volatil' => 'leechseed',
   ),
   'lick' => 
   array (
@@ -1713,6 +1652,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'morningsun' => 
   array (
@@ -1723,6 +1667,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'muddywater' => 
   array (
@@ -1850,6 +1799,16 @@ return array (
     'pp' => 10,
     'prio' => 0,
   ),
+  'originpulse' => 
+  array (
+    'nome' => 'Origin Pulse',
+    'tipo' => 'water',
+    'cat' => 'special',
+    'power' => 110,
+    'acc' => 85,
+    'pp' => 10,
+    'prio' => 0,
+  ),
   'overheat' => 
   array (
     'nome' => 'Overheat',
@@ -1863,17 +1822,6 @@ return array (
     array (
       'spa' => -2,
     ),
-  ),
-  'payback' => 
-  array (
-    'nome' => 'Payback',
-    'tipo' => 'dark',
-    'cat' => 'physical',
-    'power' => 50,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-    'contato' => 1,
   ),
   'peck' => 
   array (
@@ -2062,6 +2010,7 @@ return array (
     'acc' => 100,
     'pp' => 10,
     'prio' => 4,
+    'volatil' => 'protect',
   ),
   'psybeam' => 
   array (
@@ -2203,6 +2152,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'revelationdance' => 
   array (
@@ -2368,6 +2322,17 @@ return array (
     'contato' => 1,
     'crit' => 2,
   ),
+  'shadowsneak' => 
+  array (
+    'nome' => 'Shadow Sneak',
+    'tipo' => 'ghost',
+    'cat' => 'physical',
+    'power' => 40,
+    'acc' => 100,
+    'pp' => 30,
+    'prio' => 1,
+    'contato' => 1,
+  ),
   'shellsmash' => 
   array (
     'nome' => 'Shell Smash',
@@ -2395,6 +2360,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'skittersmack' => 
   array (
@@ -2424,6 +2394,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'sleeppowder' => 
   array (
@@ -2475,6 +2450,7 @@ return array (
     'acc' => 100,
     'pp' => 15,
     'prio' => 0,
+    'volatil' => 'smackdown',
   ),
   'smartstrike' => 
   array (
@@ -2529,6 +2505,11 @@ return array (
     'acc' => 100,
     'pp' => 5,
     'prio' => 0,
+    'cura' => 
+    array (
+      0 => 1,
+      1 => 2,
+    ),
   ),
   'sparklingaria' => 
   array (
@@ -2580,6 +2561,7 @@ return array (
     'acc' => 100,
     'pp' => 20,
     'prio' => 0,
+    'lado' => 'stealthrock',
   ),
   'steameruption' => 
   array (
@@ -2636,17 +2618,6 @@ return array (
       ),
     ),
   ),
-  'stompingtantrum' => 
-  array (
-    'nome' => 'Stomping Tantrum',
-    'tipo' => 'ground',
-    'cat' => 'physical',
-    'power' => 75,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-    'contato' => 1,
-  ),
   'stoneedge' => 
   array (
     'nome' => 'Stone Edge',
@@ -2658,26 +2629,6 @@ return array (
     'prio' => 0,
     'crit' => 2,
   ),
-  'storedpower' => 
-  array (
-    'nome' => 'Stored Power',
-    'tipo' => 'psychic',
-    'cat' => 'special',
-    'power' => 20,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-  ),
-  'strengthsap' => 
-  array (
-    'nome' => 'Strength Sap',
-    'tipo' => 'grass',
-    'cat' => 'status',
-    'power' => 0,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-  ),
   'substitute' => 
   array (
     'nome' => 'Substitute',
@@ -2687,6 +2638,7 @@ return array (
     'acc' => 100,
     'pp' => 10,
     'prio' => 0,
+    'volatil' => 'substitute',
   ),
   'suckerpunch' => 
   array (
@@ -2775,17 +2727,6 @@ return array (
       0 => 1,
       1 => 4,
     ),
-  ),
-  'temperflare' => 
-  array (
-    'nome' => 'Temper Flare',
-    'tipo' => 'fire',
-    'cat' => 'physical',
-    'power' => 75,
-    'acc' => 100,
-    'pp' => 10,
-    'prio' => 0,
-    'contato' => 1,
   ),
   'thief' => 
   array (
@@ -2917,22 +2858,6 @@ return array (
     'pp' => 10,
     'prio' => 0,
   ),
-  'tripleaxel' => 
-  array (
-    'nome' => 'Triple Axel',
-    'tipo' => 'ice',
-    'cat' => 'physical',
-    'power' => 20,
-    'acc' => 90,
-    'pp' => 10,
-    'prio' => 0,
-    'contato' => 1,
-    'vezes' => 
-    array (
-      0 => 3,
-      1 => 3,
-    ),
-  ),
   'twister' => 
   array (
     'nome' => 'Twister',
@@ -3019,16 +2944,6 @@ return array (
       'chance' => 20,
       'volatil' => 'confusion',
     ),
-  ),
-  'waterspout' => 
-  array (
-    'nome' => 'Water Spout',
-    'tipo' => 'water',
-    'cat' => 'special',
-    'power' => 150,
-    'acc' => 100,
-    'pp' => 5,
-    'prio' => 0,
   ),
   'wavecrash' => 
   array (

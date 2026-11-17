@@ -189,7 +189,7 @@ const PSD_STATUS_BONS = [
     // curar
     'recover' => [85, null], 'roost' => [85, null], 'synthesis' => [75, null],
     'morningsun' => [75, null], 'moonlight' => [75, null], 'slackoff' => [85, null],
-    'softboiled' => [85, null], 'shoreup' => [75, null], 'strengthsap' => [80, null],
+    'softboiled' => [85, null], 'shoreup' => [75, null],
     'painsplit' => [60, null], 'rest' => [55, null],
     // atrapalhar o outro
     'thunderwave' => [80, null], 'willowisp' => [80, null], 'toxic' => [80, null],
@@ -227,6 +227,13 @@ function psdGolpeUsavel(string $id, array $g): bool
     if (!empty($g['ohko']))          return false;  // Fissure, Sheer Cold
     if (isset($g['self']['volatileStatus'])) return false;  // Outrage, Petal Dance, Thrash
 
+    /* POWER QUE NÃO É O POWER. Eruption diz 150 mas vale 150 só com a vida
+       cheia; Hex diz 65 e dobra se o alvo tem status; Acrobatics dobra sem
+       item. Quem tem `basePowerCallback` mente o número no dado, e um motor
+       que lê o número cru entrega Eruption de 150 sempre — que é mais forte
+       do que o golpe é no jogo de verdade. */
+    if (isset($g['basePowerCallback'])) return false;
+
     /* Os que sobram precisam de uma regra inteira só pra eles. */
     static $fora = [
         'focuspunch' => 1, 'bide' => 1, 'futuresight' => 1, 'doomdesire' => 1,
@@ -238,6 +245,10 @@ function psdGolpeUsavel(string $id, array $g): bool
         /* Tera Blast só faz sentido com o Tera ligado; sem ele é um golpe
            normal de 80 que entraria no pool de quase todo mundo. */
         'terablast' => 1,
+        /* Belch só funciona depois de comer uma Berry, e a condição dele
+           não aparece em campo nenhum do dado — então é na mão mesmo.
+           Sem itens, ele nunca poderia ser usado. */
+        'belch' => 1,
     ];
     return !isset($fora[$id]);
 }
@@ -417,6 +428,20 @@ foreach (array_keys($usados) as $id) {
     if (!empty($g['status']))  $m['status'] = $g['status'];
     if (!empty($g['boosts']))  $m['boosts'] = $g['boosts'];   // alvo
     if (!empty($g['self']['boosts'])) $m['auto'] = $g['self']['boosts'];  // quem usou
+
+    /* Cura. Recover e companhia trazem heal:[1,2] = metade da vida.
+       Moonlight, Morning Sun e Shore Up dependem do clima e por isso o
+       Showdown resolve por função, sem campo — sem clima na v1, valem
+       os mesmos 50%. */
+    if (isset($g['heal'])) {
+        $m['cura'] = [(int)$g['heal'][0], (int)$g['heal'][1]];
+    } elseif (in_array($id, ['moonlight', 'morningsun', 'shoreup'], true)) {
+        $m['cura'] = [1, 2];
+    }
+
+    // Os que têm regra própria no motor: Substitute, Protect, Leech Seed, Stealth Rock.
+    if (!empty($g['volatileStatus']))  $m['volatil'] = $g['volatileStatus'];
+    if (!empty($g['sideCondition']))   $m['lado']    = $g['sideCondition'];
 
     // Efeito secundário de golpe de dano: chance + o que acontece.
     $sec = $g['secondary'] ?? null;

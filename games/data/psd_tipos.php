@@ -1,6 +1,6 @@
 <?php
 /* Tabela de tipos do FBA Showdown — GERADO por games/core/psd_importar_cli.php.
-   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:28. */
+   NÃO EDITE À MÃO: rode o CLI de novo. Gerado em 17/11/2026 17:53. */
 return array (
   'bug' => 
   array (
