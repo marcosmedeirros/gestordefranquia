@@ -434,6 +434,16 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
         padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--fraco)}
   .mini.on{background:var(--acento);border-color:var(--acento);color:#15181f}
 
+  /* ── PAGINAÇÃO ─────────────────────────────────────────────────────
+     Linha própria, e não .linha2: o .bt tem width:100%, então o contador
+     no meio esticava até a largura inteira e espremia Anterior e Próxima
+     nas pontas. Aqui os dois botões dividem o que sobra e o contador só
+     ocupa o que precisa. */
+  .paginacao{display:flex;align-items:center;gap:8px;margin-top:11px}
+  .paginacao .bt{flex:1;min-width:0}
+  .paginacao .pag{flex:none;min-width:62px;text-align:center;font-size:12px;
+                  font-weight:700;color:var(--fraco);font-variant-numeric:tabular-nums}
+
   .tabela{width:100%;border-collapse:collapse;font-size:12.5px}
   .tabela th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;
              color:var(--fraco);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--linha)}
@@ -877,10 +887,12 @@ async function desenharLoja(){
       </div>
       <div class="filtros">${filtros}</div>
       ${cartas ? `<div class="grade">${cartas}</div>` : '<div class="vazio">Nada com esse filtro.</div>'}
-      ${d.paginas > 1 ? `<div class="linha2" style="margin-top:10px">
-          <button class="bt" ${d.pagina<=0?'disabled':''} onclick="pagLoja(${d.pagina-1})">Anterior</button>
-          <button class="bt" style="flex:none;min-width:88px" disabled>${d.pagina+1}/${d.paginas}</button>
-          <button class="bt" ${d.pagina>=d.paginas-1?'disabled':''} onclick="pagLoja(${d.pagina+1})">Próxima</button>
+      ${d.paginas > 1 ? `<div class="paginacao">
+          <button class="bt" ${d.pagina<=0?'disabled':''} onclick="pagLoja(${d.pagina-1})">
+            <i class="bi bi-chevron-left"></i> Anterior</button>
+          <span class="pag">${d.pagina+1} de ${d.paginas}</span>
+          <button class="bt" ${d.pagina>=d.paginas-1?'disabled':''} onclick="pagLoja(${d.pagina+1})">
+            Próxima <i class="bi bi-chevron-right"></i></button>
         </div>` : ''}
     </div>`;
 }

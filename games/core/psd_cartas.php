@@ -54,7 +54,7 @@ const PSD_RARIDADES = [
     'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>   600, 'devolve' =>  150],
     'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' =>  2500, 'devolve' =>  600],
     'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' =>  9000, 'devolve' => 2200],
-    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 30000, 'devolve' => 7500],
+    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 13000, 'devolve' => 3250],
 ];
 
 /**
