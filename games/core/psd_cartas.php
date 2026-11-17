@@ -299,6 +299,19 @@ function psdSalvarTime(PDO $pdo, int $uid, array $especies): array
 
 // ─────────────────────────────── a loja ───────────────────────────────
 
+/**
+ * As duas moedas do GM. Toda ação que gasta devolve isto junto — sem
+ * isso a tela mostra o saldo velho depois da compra, e o GM fica sem
+ * saber se pagou.
+ */
+function psdBolso(PDO $pdo, int $uid): array
+{
+    $st = $pdo->prepare('SELECT COALESCE(pontos,0) m, COALESCE(fba_points,0) f FROM games_usuarios WHERE id = ?');
+    $st->execute([$uid]);
+    $r = $st->fetch(PDO::FETCH_ASSOC) ?: ['m' => 0, 'f' => 0];
+    return ['moedas' => (int)$r['m'], 'fbap' => (int)$r['f']];
+}
+
 /** Cobra moedas com a linha travada. Dentro de transação já aberta. */
 function psdCobrarMoedas(PDO $pdo, int $uid, int $quanto): bool
 {
@@ -347,7 +360,7 @@ function psdComprarCarta(PDO $pdo, int $uid, string $especie): array
             ->execute([$uid, $especie, $carta['preco']]);
 
         $pdo->commit();
-        return ['ok' => true, 'carta' => $carta];
+        return ['ok' => true, 'carta' => $carta, 'bolso' => psdBolso($pdo, $uid)];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         return ['ok' => false, 'erro' => 'Não consegui concluir a compra.'];
@@ -460,7 +473,8 @@ function psdAbrirPacote(PDO $pdo, int $uid, string $tipo): array
         $pdo->commit();
 
         return ['ok' => true, 'cartas' => $saiu, 'devolvido' => $devolvido,
-                'restam' => PSD_PACOTES_DIA - psdPacotesHoje($pdo, $uid)];
+                'restam' => PSD_PACOTES_DIA - psdPacotesHoje($pdo, $uid),
+                'bolso'  => psdBolso($pdo, $uid)];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         return ['ok' => false, 'erro' => 'Não consegui abrir o pacote.'];

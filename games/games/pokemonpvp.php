@@ -33,13 +33,10 @@ $meuNome = (string)($_SESSION['nome'] ?? $_SESSION['user_name'] ?? 'Você');
 
 psdGarantirConta($pdo, $user_id);
 
-/** Saldo das duas moedas, que toda tela mostra no topo. */
+/** Saldo das duas moedas, que toda tela mostra no topo. @see psdBolso */
 function ppvpBolso(PDO $pdo, int $uid): array
 {
-    $st = $pdo->prepare('SELECT COALESCE(pontos,0) m, COALESCE(fba_points,0) f FROM games_usuarios WHERE id = ?');
-    $st->execute([$uid]);
-    $r = $st->fetch(PDO::FETCH_ASSOC) ?: ['m' => 0, 'f' => 0];
-    return ['moedas' => (int)$r['m'], 'fbap' => (int)$r['f']];
+    return psdBolso($pdo, $uid);
 }
 
 /** A coleção com tudo que a tela precisa pra desenhar as cartas. */
@@ -860,6 +857,7 @@ async function comprar(esp, nome, preco){
   if (!ok) return;
   const r = await chamar('comprar', {especie:esp});
   if (!r.ok) { erro = r.erro || 'Não deu.'; desenharLoja(); return; }
+  bolso(r.bolso);
   cacheColecao = null; timeEdit = null;
   await avisarSite(`<b>${esc(nome)}</b> é seu. Escale ele na Coleção.`);
   desenharLoja();
@@ -876,6 +874,7 @@ async function abrirPacote(tipo){
    quanto a repetida devolveu. Sem isso o GM clica, o saldo muda e ele
    não sabe o que aconteceu. */
 function mostrarPacote(r){
+  bolso(r.bolso);
   const cartas = r.cartas.map(c => cartaHtml(c, {
     cls: c.repetida ? 'rep fixa' : 'nova fixa',
     rodape: `<div class="pr">${c.repetida ? '+' + num(c.devolve) : 'N' + c.nivel}</div>`,
