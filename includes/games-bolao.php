@@ -289,8 +289,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
         <i class="bi bi-exclamation-triangle-fill"></i>
         <span><b>É tudo ou nada.</b> Os <?= (int)$bolaoEd['quantos_caem'] ?> rebaixados e o campeão têm que estar
         certos. Errou um, perde o que apostou — não existe prêmio parcial.
-        <?php if ($bolRateio): ?><br><b>Quem cravar divide o pote inteiro</b>, na proporção do que apostou —
-        quanto menos gente acertar, maior a fatia de quem acertou.<?php endif; ?></span>
+        <?php if ($bolRateio): ?><br><b>Quem cravar divide o pote inteiro</b>, na proporção do que apostou:
+        quem arrisca mais leva uma fatia maior. Dois acertando um pote de 10.000, um com 5.000 e outro com
+        1.000 apostados, levam 8.333 e 1.667. E quanto menos gente cravar, maior a fatia de cada um.<?php endif; ?></span>
     </div>
 
     <?php if ($bolaoMinha): ?>
@@ -309,7 +310,10 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                                              (int)$bolaoMinha['valor']); ?>
             <div class="bol-meu-l">apostados ·
                 <?= $bolRateio ? 'hoje levaria' : 'paga' ?>
-                <?= number_format($bolMinhaFatia, 0, ',', '.') ?></div>
+                <?= number_format($bolMinhaFatia, 0, ',', '.') ?>
+                <?php if ($bolRateio && $bolPoteTotal > 0): ?>
+                (<?= (int)round($bolMinhaFatia * 100 / $bolPoteTotal) ?>% do pote)
+                <?php endif; ?></div>
         </div>
     </div>
     <?php endif; ?>
@@ -395,6 +399,12 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
             <div class="bol-retorno">
                 <?= $bolRateio ? 'Se cravar, hoje levaria:' : 'Se cravar:' ?>
                 <b id="bolRetorno">0</b> FBA Points
+                <?php if ($bolRateio): ?>
+                <!-- A FATIA EM PORCENTAGEM. O valor sozinho não mostra que a
+                     aposta maior leva mais: a porcentagem mostra, e ela se
+                     move na hora em que a pessoa arrasta o cursor. -->
+                <span id="bolFatiaPct" style="color:var(--text-3);font-size:11.5px"></span>
+                <?php endif; ?>
             </div>
         </div>
         <div class="bol-saldo-dica">
@@ -552,6 +562,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     const range   = document.getElementById('bolRange');
     const valor   = document.getElementById('bolValor');
     const retorno = document.getElementById('bolRetorno');
+    const fatiaPct = document.getElementById('bolFatiaPct');
     const enviar  = document.getElementById('bolEnviar');
     if (!enviar) return;
 
@@ -578,7 +589,13 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 
         const v = Math.min(TETO, Math.max(0, parseInt(valor?.value || '0', 10) || 0));
         const camp = campeao.find(r => r.checked);
-        if (retorno) retorno.textContent = fmt(fatia(v, marc, camp));
+        const leva = fatia(v, marc, camp);
+        if (retorno) retorno.textContent = fmt(leva);
+        if (fatiaPct) {
+            const pote = POTE + v;
+            fatiaPct.textContent = (leva > 0 && pote > 0)
+                ? `· sua fatia: ${Math.round(leva * 100 / pote)}% do pote` : '';
+        }
         // Abaixo do piso o botão fica travado; o número só é corrigido quando
         // a pessoa sai do campo, pra ela conseguir apagar e digitar de novo.
         enviar.disabled = !(n === QUANTOS && camp && v >= PISO);
