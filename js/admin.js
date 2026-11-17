@@ -10764,10 +10764,13 @@ function _travaRegra(d, forte) {
 function _travaMarcada(d) {
   const p = d.progressao_por;
   if (d.modo !== 'letras' || !p) return '';
-  const quem = p.nome ? `por <b>${escapeHtml(p.nome)}</b>` : '';
-  const quando = p.em ? ` em ${escapeHtml(p.em)}` : '';
+  // Sem nome (marca feita antes de a coluna existir) a frase não pode ficar
+  // com espaço duplo: cada pedaço só entra se tiver conteúdo.
+  const partes = ['Progression já marcada'];
+  if (p.nome) partes.push(`por <b>${escapeHtml(p.nome)}</b>`);
+  if (p.em)   partes.push(`em ${escapeHtml(p.em)}`);
   return `<div style="font-size:11px;color:#25c677;margin-top:6px">
-            <i class="bi bi-check-circle-fill"></i> Progression já marcada ${quem}${quando}.
+            <i class="bi bi-check-circle-fill"></i> ${partes.join(' ')}.
             Só uma vez por temporada — pra refazer, desfaça antes.
           </div>`;
 }
