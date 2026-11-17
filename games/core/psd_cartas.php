@@ -414,8 +414,20 @@ function psdAbrirPacote(PDO $pdo, int $uid, string $tipo): array
 
     $pdo->beginTransaction();
     try {
+        /* ── TRAVA O GM ANTES DE CONTAR ───────────────────────────────
+         *
+         * O teto de 3 por dia era contado com um SELECT COUNT ... FOR
+         * UPDATE, e isso não segura nada quando a conta dá ZERO: não há
+         * linha pra travar. Dois cliques no mesmo instante liam 0 os
+         * dois e abriam 4, 6 pacotes.
+         *
+         * A linha do GM em games_usuarios existe sempre, então é ela que
+         * serializa — o segundo clique espera o primeiro gravar a compra
+         * e só então conta. */
+        $pdo->prepare('SELECT id FROM games_usuarios WHERE id = ? FOR UPDATE')->execute([$uid]);
+
         $st = $pdo->prepare("SELECT COUNT(*) FROM psd_compras
-            WHERE id_usuario = ? AND tipo = 'pacote' AND DATE(criado) = CURDATE() FOR UPDATE");
+            WHERE id_usuario = ? AND tipo = 'pacote' AND DATE(criado) = CURDATE()");
         $st->execute([$uid]);
         if ((int)$st->fetchColumn() >= PSD_PACOTES_DIA) {
             $pdo->rollBack();

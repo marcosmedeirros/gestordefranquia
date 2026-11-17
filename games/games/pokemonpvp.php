@@ -444,6 +444,9 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
   .paginacao .pag{flex:none;min-width:62px;text-align:center;font-size:12px;
                   font-weight:700;color:var(--fraco);font-variant-numeric:tabular-nums}
 
+  .rotuloMini{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;
+              color:var(--fraco);font-weight:700;margin:2px 2px 6px}
+
   .tabela{width:100%;border-collapse:collapse;font-size:12.5px}
   .tabela th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;
              color:var(--fraco);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--linha)}
@@ -586,6 +589,10 @@ let cacheColecao = null, cacheGuia = null;
    reescrever — ver o comentário em puxar(). */
 let telaDesenhada = '';
 
+/* O saldo em moedas, pra acender os botões da aposta sem ter que
+   redesenhar o cartão (e perder o foco do campo de valor). */
+let saldoMoedas = <?= (int)$bolso['moedas'] ?>;
+
 const ABAS = document.getElementById('abas');
 ABAS.querySelectorAll('button').forEach(b => {
   b.onclick = () => irPara(b.dataset.aba);
@@ -650,8 +657,9 @@ function desenharAba(){
 
 function bolso(b){
   if (!b) return;
-  if (b.moedas !== undefined) SALDO.textContent = num(b.moedas);
+  if (b.moedas !== undefined) { saldoMoedas = b.moedas; SALDO.textContent = num(b.moedas); }
   if (b.fbap !== undefined)   SALDO_FBAP.textContent = num(b.fbap);
+  atualizarPvp();
 }
 
 const TIPO_COR = t => `var(--${t})`;
@@ -672,47 +680,72 @@ function cartaHtml(c, extra){
 
 // ─────────────────────────── JOGAR ───────────────────────────
 
+const APOSTA_MAX = 5000;
+
+function textoDaRegra(){
+  return regra === 'aleatoria'
+    ? 'Seis sorteados na hora pra cada um. A coleção não conta — é o modo em que a aposta é sempre justa.'
+    : 'Cada um entra com o time que escalou na Coleção. Vale pros DOIS: quem aceitar também joga com o time dele.';
+}
+
+/**
+ * O salão.
+ *
+ * O modo mora DENTRO do cartão da partida contra outro GM, embaixo do
+ * valor, porque é uma escolha daquela partida e não da página. Quem abre
+ * escolhe, e vale pros dois lados — o servidor guarda a regra na linha da
+ * partida e monta os dois times com ela, então nunca existe Meu Time de um
+ * lado contra Aleatória do outro.
+ *
+ * O treino tem a escolha nos próprios botões: ali não há com quem combinar.
+ */
 function desenharSalao(d){
   const b = d.bolso || {moedas: d.saldo ?? 0, fbap: 0};
-  const pode = v => v <= (b.moedas ?? 0);
+  saldoMoedas = b.moedas ?? saldoMoedas;
 
   TELA.innerHTML = `
     ${erro ? `<div class="erro">${esc(erro)}</div>` : ''}
 
     <div class="cartao">
-      <h3><i class="bi bi-dice-5-fill"></i> Como vocês vão jogar</h3>
-      <p>Vale pros dois lados da partida, e quem abre é quem escolhe.</p>
-      <div class="fichas">
-        <button class="ficha ${regra==='aleatoria'?'on':''}" onclick="setRegra('aleatoria')">Aleatória</button>
-        <button class="ficha ${regra==='time'?'on':''}" onclick="setRegra('time')">Meu Time</button>
-      </div>
-      <p style="margin:0">${regra === 'aleatoria'
-        ? 'Seis sorteados na hora pra cada um. A coleção não conta — é o modo em que a aposta é sempre justa.'
-        : 'Cada um entra com o time que escalou na <b>Coleção</b>. Quem tem carta melhor leva vantagem.'}</p>
-    </div>
-
-    <div class="cartao">
       <h3><i class="bi bi-cpu"></i> Contra a máquina</h3>
       <p>Pra pegar o jeito. Não cobra e não paga moeda.</p>
-      <button class="bt" onclick="abrir('treino',0)">Jogar agora</button>
+      <div class="linha2">
+        <button class="bt" onclick="abrir('treino',0,'aleatoria')">Time sorteado</button>
+        <button class="bt" onclick="abrir('treino',0,'time')">Com meu time</button>
+      </div>
     </div>
 
     <div class="cartao">
       <h3><i class="bi bi-people-fill"></i> Contra outro GM</h3>
       <p>Cada um paga a entrada e <b>quem ganhar leva as duas</b>. Cancelar antes
          de alguém entrar devolve; depois que começou, está em jogo.</p>
-      <div class="fichas">
-        ${[100,250,500,1000,2500,5000].map(v =>
-          `<button class="ficha ${v===aposta?'on':''}" ${pode(v)?'':'disabled style="opacity:.3"'}
+
+      <div class="rotuloMini">Quanto vale</div>
+      <div class="fichas" id="fichasAposta">
+        ${[100,250,500,1000,2500].map(v =>
+          `<button class="ficha ${v===aposta?'on':''}" data-v="${v}"
                    onclick="setAposta(${v})">${num(v)}</button>`).join('')}
       </div>
+      <input type="number" id="apostaLivre" min="1" max="${APOSTA_MAX}" step="1"
+             placeholder="ou digite o valor (até ${num(APOSTA_MAX)})"
+             value="${aposta || ''}" oninput="valorDigitado(this.value)">
+
+      <div class="rotuloMini">Com que time</div>
+      <div class="fichas" id="fichasRegra">
+        <button class="ficha ${regra==='aleatoria'?'on':''}" data-r="aleatoria"
+                onclick="setRegra('aleatoria')">Aleatória</button>
+        <button class="ficha ${regra==='time'?'on':''}" data-r="time"
+                onclick="setRegra('time')">Meu Time</button>
+      </div>
+      <p id="explicaRegra" style="margin:0 0 12px">${esc(textoDaRegra())}</p>
+
       <div class="linha2">
-        <button class="bt ouro" ${aposta?'':'disabled'} onclick="abrir('fila',aposta)">
+        <button class="bt ouro" id="btProcurar" onclick="abrir('fila',aposta,regra)">
           <i class="bi bi-search"></i> Procurar</button>
-        <button class="bt" ${aposta?'':'disabled'} onclick="abrir('codigo',aposta)">
+        <button class="bt" id="btConvidar" onclick="abrir('codigo',aposta,regra)">
           <i class="bi bi-link-45deg"></i> Convidar</button>
       </div>
-      ${aposta ? '' : '<p style="margin:9px 0 0;text-align:center">Escolha o valor da aposta.</p>'}
+      <p id="dicaPvp" style="margin:9px 0 0;text-align:center"></p>
     </div>
 
     <div class="cartao">
@@ -721,16 +754,59 @@ function desenharSalao(d){
              style="text-transform:uppercase;letter-spacing:5px;text-align:center;font-weight:800">
       <button class="bt" onclick="entrar()">Entrar</button>
     </div>`;
+
+  atualizarPvp();
 }
 
-function setRegra(r){ regra = r; erro=''; desenharSalao(estado || {}); }
-function setAposta(v){ aposta = v; erro=''; desenharSalao(estado || {}); }
+/**
+ * Acende e apaga os botões da partida SEM redesenhar o cartão — se
+ * redesenhasse, o campo de valor perderia o foco a cada tecla digitada.
+ */
+function atualizarPvp(){
+  const btP = document.getElementById('btProcurar');
+  const btC = document.getElementById('btConvidar');
+  const dica = document.getElementById('dicaPvp');
+  if (!btP) return;
 
-async function abrir(modo, v){
+  let motivo = '';
+  if (!aposta)                    motivo = 'Escolha ou digite o valor da aposta.';
+  else if (aposta > APOSTA_MAX)   motivo = 'O máximo é ' + num(APOSTA_MAX) + ' moedas.';
+  else if (aposta > saldoMoedas)  motivo = 'Você tem ' + num(saldoMoedas) + ' moedas.';
+
+  btP.disabled = btC.disabled = !!motivo;
+  if (dica) dica.textContent = motivo;
+}
+
+function setAposta(v){
+  aposta = v; erro = '';
+  const campo = document.getElementById('apostaLivre');
+  if (campo) campo.value = v;
+  document.querySelectorAll('#fichasAposta .ficha').forEach(b =>
+    b.classList.toggle('on', Number(b.dataset.v) === v));
+  atualizarPvp();
+}
+
+function valorDigitado(v){
+  const n = Math.max(0, Math.min(APOSTA_MAX, parseInt(v, 10) || 0));
+  aposta = n; erro = '';
+  document.querySelectorAll('#fichasAposta .ficha').forEach(b =>
+    b.classList.toggle('on', Number(b.dataset.v) === n));
+  atualizarPvp();
+}
+
+function setRegra(r){
+  regra = r; erro = '';
+  document.querySelectorAll('#fichasRegra .ficha').forEach(b =>
+    b.classList.toggle('on', b.dataset.r === r));
+  const ex = document.getElementById('explicaRegra');
+  if (ex) ex.textContent = textoDaRegra();
+}
+
+async function abrir(modo, v, r){
   erro = '';
-  const r = await chamar('abrir', {modo, aposta:v, regra});
-  if (!r.ok) { erro = r.erro || 'Não deu.'; desenharSalao(estado || {}); return; }
-  ultimoSeq = 0; puxar();
+  const res = await chamar('abrir', {modo, aposta:v, regra: r || regra});
+  if (!res.ok) { erro = res.erro || 'Não deu.'; telaDesenhada = ''; desenharSalao(estado || {}); return; }
+  ultimoSeq = 0; telaDesenhada = ''; puxar();
 }
 
 async function entrar(codigo){

@@ -217,15 +217,39 @@ function psdTimeEscalado(array &$e, array $especies): array
 {
     $dex = psdDex();
     $time = [];
+    $usados = [];
+
     foreach ($especies as $esp) {
         if (count($time) >= PSD_EQUIPE) break;
-        if (!isset($dex[$esp])) continue;
+        if (!isset($dex[$esp]) || isset($usados[$esp])) continue;
+        $usados[$esp] = true;
         $time[] = psdMontarBicho($e, $esp);
     }
-    while (count($time) < PSD_EQUIPE) {
-        $ids = array_keys($dex);
-        $time[] = psdMontarBicho($e, $ids[psdSorteio($e, 0, count($ids) - 1)]);
+
+    /* ── O QUE COMPLETA UM TIME CURTO ─────────────────────────────────
+     *
+     * Escalação curta não deveria chegar aqui (psdSalvarTime exige os
+     * seis e psdTime completa com a coleção), mas é a última barreira e
+     * ela precisa ser SEGURA: sorteando da dex inteira, um time curto
+     * podia render um Arceus de graça — exatamente o prêmio que o jogo
+     * cobra 13.000 moedas pra dar.
+     *
+     * Então o que completa sai só do fundo da pirâmide: soma de base
+     * stats até 500, que é a faixa "comum" da loja. */
+    if (count($time) < PSD_EQUIPE) {
+        static $fracos = null;
+        if ($fracos === null) {
+            $fracos = [];
+            foreach ($dex as $id => $p) if (array_sum($p['bs']) <= 500) $fracos[] = $id;
+        }
+        while (count($time) < PSD_EQUIPE && $fracos) {
+            $id = $fracos[psdSorteio($e, 0, count($fracos) - 1)];
+            if (isset($usados[$id])) continue;
+            $usados[$id] = true;
+            $time[] = psdMontarBicho($e, $id);
+        }
     }
+
     return $time;
 }
 

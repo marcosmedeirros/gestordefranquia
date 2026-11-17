@@ -202,14 +202,30 @@ function psdMeuLado(array $p, int $uid): ?string
 function psdAbrir(PDO $pdo, int $uid, string $nome, string $modo, int $aposta, string $regra = 'aleatoria'): array
 {
     psdTabelas($pdo);
-
-    if (psdMinha($pdo, $uid)) return ['ok' => false, 'erro' => 'Você já está numa partida.'];
+    psdExpirarEsperas($pdo, $uid);
 
     $regra  = $regra === 'time' ? 'time' : 'aleatoria';
     $aposta = ($modo === 'treino') ? 0 : max(0, min(PSD_APOSTA_MAX, $aposta));
 
     $pdo->beginTransaction();
     try {
+        /* ── TRAVA O GM ANTES DE CONFERIR ─────────────────────────────
+         *
+         * A conferência "já está numa partida?" ficava FORA da transação.
+         * Dois cliques no mesmo instante — dois toques no celular, duas
+         * abas — passavam os dois: cobravam DUAS entradas e abriam DUAS
+         * salas, e só a mais nova aparecia pra ser cancelada. A outra
+         * ficava de pé com o dinheiro preso.
+         *
+         * Travando a linha do GM aqui, o segundo clique espera o primeiro
+         * terminar e então vê a partida que acabou de nascer. */
+        $pdo->prepare('SELECT id FROM games_usuarios WHERE id = ? FOR UPDATE')->execute([$uid]);
+
+        if (psdMinha($pdo, $uid)) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Você já está numa partida.'];
+        }
+
         if (!psdCobrar($pdo, $uid, $aposta)) {
             $pdo->rollBack();
             return ['ok' => false, 'erro' => 'Você não tem ' . number_format($aposta, 0, ',', '.') . ' moedas.'];
@@ -314,6 +330,48 @@ function psdComecar(PDO $pdo, int $id, int $bUid, string $bNome): void
                           premio = ?, prazo = ?, seq = 1
                     WHERE id = ?")
         ->execute([$bUid ?: null, mb_substr($bNome, 0, 80), json_encode($e), $premio, psdPrazo(), $id]);
+}
+
+/**
+ * ── SALA ESQUECIDA DEVOLVE SOZINHA ───────────────────────────────────
+ *
+ * Quem abre uma sala e fecha a aba some com a entrada: depois de
+ * PSD_ESPERA_MAX_MIN a sala deixa de aparecer pra ele (psdMinha a
+ * ignora), e sem isto o dinheiro ficaria preso pra sempre numa linha
+ * 'aguardando' que ninguém mais vê.
+ *
+ * Roda na entrada da página e antes de abrir outra partida. Trava a linha
+ * da sala pra não devolver duas vezes se o GM tiver duas abas abertas.
+ */
+function psdExpirarEsperas(PDO $pdo, int $uid): void
+{
+    psdTabelas($pdo);
+
+    $st = $pdo->prepare("SELECT id, aposta FROM psd_partidas
+        WHERE a_uid = ? AND status = 'aguardando'
+          AND criado <= NOW() - INTERVAL " . PSD_ESPERA_MAX_MIN . " MINUTE");
+    $st->execute([$uid]);
+    $velhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$velhas) return;
+
+    foreach ($velhas as $v) {
+        $pdo->beginTransaction();
+        try {
+            $q = $pdo->prepare("SELECT status, aposta FROM psd_partidas WHERE id = ? FOR UPDATE");
+            $q->execute([(int)$v['id']]);
+            $linha = $q->fetch(PDO::FETCH_ASSOC);
+
+            // Alguém entrou entre a leitura e a trava: não é mais espera.
+            if (!$linha || $linha['status'] !== 'aguardando') { $pdo->rollBack(); continue; }
+
+            psdCreditar($pdo, $uid, (int)$linha['aposta']);
+            $pdo->prepare("UPDATE psd_partidas SET status = 'expirada' WHERE id = ?")
+                ->execute([(int)$v['id']]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+        }
+    }
 }
 
 /** Desiste de esperar. Só devolve enquanto ninguém entrou. */
@@ -528,6 +586,7 @@ function psdEncerrar(PDO $pdo, array &$p, array $e): void
 function psdVer(PDO $pdo, int $uid, ?int $id = null): array
 {
     psdTabelas($pdo);
+    psdExpirarEsperas($pdo, $uid);
 
     $pdo->beginTransaction();
     try {
