@@ -167,6 +167,10 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 .bol-time-pct { font-size:10.5px; font-weight:700; color:var(--text-3); }
 .bol-placar .bol-time-pct { font-size:12px; color:var(--text-2); }
 .bol-placar .bol-time-pct b { font-size:14px; color:var(--text); }
+/* O DINHEIRO EM CIMA DAQUELE TIME. Vem depois da porcentagem e menor que
+   ela: a porcentagem diz quanta gente, esta linha diz quanto peso. */
+.bol-time-pts { font-size:10px; font-weight:700; color:var(--text-3); opacity:.85;
+                margin-top:-4px; letter-spacing:.2px; }
 
 .bol-valor { display:flex; align-items:center; gap:16px; flex-wrap:wrap;
              background:var(--panel-2); border:1px solid var(--border-md); border-radius:14px; padding:16px 18px; }
@@ -337,6 +341,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
                     <?php if ($bolMostraPct && $bolTotalApostas): $pc = $bolPct($bolaoResumo['queda'] ?? [], $c); ?>
                     <span class="bol-time-pct"><b><?= $pc ?>%</b> dos cartões</span>
+                    <span class="bol-time-pts"><?= number_format((int)($bolaoResumo['queda_pts'][$c] ?? 0), 0, ',', '.') ?> apostados</span>
                     <span class="bol-barra"><span style="width:<?= $pc ?>%"></span></span>
                     <?php endif; ?>
                 </span>
@@ -361,6 +366,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
                     <?php if ($bolMostraPct && $bolTotalApostas): $pc = $bolPct($bolaoResumo['campeao'] ?? [], $c); ?>
                     <span class="bol-time-pct"><b><?= $pc ?>%</b> dos cartões</span>
+                    <span class="bol-time-pts"><?= number_format((int)($bolaoResumo['campeao_pts'][$c] ?? 0), 0, ',', '.') ?> apostados</span>
                     <span class="bol-barra"><span style="width:<?= $pc ?>%"></span></span>
                     <?php endif; ?>
                 </span>

@@ -600,19 +600,29 @@ function bolaoPote(PDO $pdo, int $edicaoId, int $exceto = 0): array
  */
 function bolaoResumo(PDO $pdo, int $edicaoId): array
 {
-    $out = ['apostadores' => 0, 'total' => 0, 'queda' => [], 'campeao' => []];
+    $out = ['apostadores' => 0, 'total' => 0, 'queda' => [], 'campeao' => [],
+            'queda_pts' => [], 'campeao_pts' => []];
     try {
         $st = $pdo->prepare("SELECT palpite_queda, palpite_campeao, valor
                                FROM bolao_apostas WHERE edicao_id = ?");
         $st->execute([$edicaoId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) {
             $out['apostadores']++;
-            $out['total'] += (int)$a['valor'];
+            $v = (int)$a['valor'];
+            $out['total'] += $v;
+            /* CARTÕES E PONTOS CONTADOS SEPARADO: no rateio o que decide o
+               prêmio é o dinheiro, não a quantidade de gente. Seis cartões de
+               100 e um de 5.000 dão 86% dos cartões de um lado e quase todo o
+               pote do outro — mostrar só a porcentagem esconderia isso. */
             foreach ((json_decode((string)$a['palpite_queda'], true) ?: []) as $c) {
-                $out['queda'][$c] = ($out['queda'][$c] ?? 0) + 1;
+                $out['queda'][$c]     = ($out['queda'][$c] ?? 0) + 1;
+                $out['queda_pts'][$c] = ($out['queda_pts'][$c] ?? 0) + $v;
             }
             $c = trim((string)$a['palpite_campeao']);
-            if ($c !== '') $out['campeao'][$c] = ($out['campeao'][$c] ?? 0) + 1;
+            if ($c !== '') {
+                $out['campeao'][$c]     = ($out['campeao'][$c] ?? 0) + 1;
+                $out['campeao_pts'][$c] = ($out['campeao_pts'][$c] ?? 0) + $v;
+            }
         }
         arsort($out['queda']);
         arsort($out['campeao']);
