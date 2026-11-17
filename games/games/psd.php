@@ -497,7 +497,25 @@ function fimHtml(d){
     </div>`;
 }
 
-function voltarAoSalao(){ estado=null; ultimoSeq=0; erro=''; TELA.innerHTML=''; puxar(); }
+/* ── SAIR DA TELA DE FIM ───────────────────────────────────────────
+ *
+ * A partida terminada continua vindo do servidor por cinco minutos, de
+ * propósito: é o que deixa você ver quem ganhou mesmo se recarregar a
+ * página. Só que isso fazia o "Jogar de novo" voltar pra ela mesma, em
+ * laço — a tela pedia o estado, recebia a mesma partida acabada e
+ * desenhava o mesmo resultado.
+ *
+ * Então a tela anota qual fim já foi visto e, daí em diante, mostra o
+ * salão no lugar dele. Resolver isso no servidor seria apagar a partida,
+ * e aí quem recarregasse perderia o resultado. */
+let fimVisto = 0;
+
+function voltarAoSalao(){
+  if (estado && estado.id) fimVisto = estado.id;
+  estado = null; ultimoSeq = 0; erro = ''; ultimoLog = '';
+  TELA.innerHTML = '';
+  puxar();
+}
 
 async function jogar(tipo, i){
   document.querySelectorAll('.golpe,.troca').forEach(b => b.disabled = true);
@@ -601,6 +619,9 @@ async function puxar(){
   if (d.em === 'nada')       { estado = d; desenharSalao(d); return; }
   if (d.em === 'esperando')  { estado = d; desenharEsperando(d); return; }
   if (d.em !== 'jogando')    { return; }
+
+  // Fim que o GM já leu e dispensou: daqui pra frente, salão.
+  if (d.acabou && d.id === fimVisto) { estado = d; desenharSalao(d); return; }
 
   /* A vista já vem filtrada pelo meu lado, mas os EVENTOS vêm marcados com
      'a'/'b' — então a tela precisa saber qual das duas letras sou eu pra
