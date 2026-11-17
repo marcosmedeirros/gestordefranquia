@@ -272,6 +272,11 @@ const SALDO = document.getElementById('saldo');
 
 let estado = null, ultimoSeq = 0, animando = false, aposta = 0, erro = '';
 
+/* A narração do último turno, guardada. A tela se redesenha a cada 1,5s e
+   sem isto o texto piscava e sumia — justo na hora em que você quer ler
+   por que levou 180 de dano, e justo na tela de fim de partida. */
+let ultimoLog = '';
+
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num = n => Number(n || 0).toLocaleString('pt-BR');
 const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -418,7 +423,7 @@ function desenharPartida(d){
     <div class="barraTopo">
       <span>Turno ${d.turno}</span>
       ${d.treino ? '<span>· treino</span>' : ''}
-      <span class="relogio ${d.segundos<=10?'curto':''}" id="relogio">${d.segundos}s</span>
+      ${d.acabou ? '' : `<span class="relogio ${d.segundos<=10?'curto':''}" id="relogio">${d.segundos}s</span>`}
       ${d.premio ? `<span class="pote"><i class="bi bi-coin"></i> ${num(d.premio)}</span>` : ''}
     </div>
 
@@ -438,7 +443,7 @@ function desenharPartida(d){
            onerror="spriteFallback(this,${meu.num},'costas')" alt="${esc(meu.nome)}">
       <div class="dano meu" id="dano-meu"></div>
     </div>
-    <div class="log" id="log"></div>`;
+    <div class="log" id="log">${ultimoLog}</div>`;
 
   if (d.acabou) { TELA.innerHTML = campo + fimHtml(d); return; }
 
@@ -516,6 +521,7 @@ async function animar(d, eventos){
   animando = true;
   const log = document.getElementById('log');
   const campo = document.getElementById('campo');
+  ultimoLog = '';
   if (log) log.innerHTML = '';
 
   for (const ev of eventos) {
@@ -523,10 +529,9 @@ async function animar(d, eventos){
     const sp = l ? document.getElementById('sp-'+l) : null;
 
     if (ev.t === 'texto') {
-      if (log) {
-        const cls = /super eficaz/.test(ev.m) ? 'eficaz' : /Não é muito|Não afeta|errou|falhou/.test(ev.m) ? 'fraco' : '';
-        log.innerHTML += `<div class="${cls}">${esc(ev.m)}</div>`;
-      }
+      const cls = /super eficaz/.test(ev.m) ? 'eficaz' : /Não é muito|Não afeta|errou|falhou/.test(ev.m) ? 'fraco' : '';
+      ultimoLog += `<div class="${cls}">${esc(ev.m)}</div>`;
+      if (log) log.innerHTML = ultimoLog;
       await espera(620);
 
     } else if (ev.t === 'golpe') {
