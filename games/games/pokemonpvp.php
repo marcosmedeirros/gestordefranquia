@@ -484,7 +484,7 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
 <div class="jogo">
 
   <div class="topo">
-    <button class="voltar" onclick="location.href='/games/'" title="Voltar"><i class="bi bi-arrow-left"></i></button>
+    <button class="voltar" onclick="sair()" title="Voltar"><i class="bi bi-arrow-left"></i></button>
     <b>Pokémon PVP</b>
     <span class="saldo" title="Moedas"><i class="bi bi-coin"></i> <span id="saldo"><?= number_format($bolso['moedas'], 0, ',', '.') ?></span></span>
     <span class="saldo fbap" title="FBA Points"><i class="bi bi-lightning-charge-fill"></i> <span id="saldoFbap"><?= number_format($bolso['fbap'], 0, ',', '.') ?></span></span>
@@ -582,6 +582,45 @@ function irPara(nova){
   erro = '';
   ABAS.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.aba === nova));
   desenharAba();
+}
+
+/**
+ * ── A SETA VOLTA UM NÍVEL, NÃO SAI DO JOGO ───────────────────────────
+ *
+ * Antes ela ia direto pro /games de qualquer lugar: quem acabava de
+ * desistir clicava na seta esperando a tela inicial do jogo e era jogado
+ * pra fora. Agora é escada: de uma aba ou da tela de resultado volta pra
+ * inicial; só da inicial é que sai pro /games.
+ *
+ * Partida ao vivo e espera de adversário não têm "voltar": há dinheiro em
+ * jogo, e sair delas é Desistir ou Cancelar — que devolvem ou entregam o
+ * prêmio. A seta diz isso em vez de fingir que fez alguma coisa.
+ */
+async function sair(){
+  if (estado && estado.em === 'jogando' && !estado.acabou) {
+    await avisarSite('Você está no meio de uma partida. Pra sair dela, use <b>Desistir</b> — '
+                   + 'o prêmio vai pro adversário.', {titulo: 'Partida em andamento'});
+    return;
+  }
+
+  if (estado && estado.em === 'esperando') {
+    await avisarSite('Você está esperando adversário. Use <b>Cancelar e receber de volta</b> '
+                   + 'pra sair sem perder a entrada.', {titulo: 'Esperando alguém'});
+    return;
+  }
+
+  /* Tela de resultado ainda não dispensada, ou qualquer aba que não seja
+     a inicial. O `!== fimVisto` importa: a partida terminada continua
+     vindo do servidor por cinco minutos, e sem ele a seta ficaria morta
+     na tela inicial durante esse tempo todo. */
+  const resultadoNaTela = estado && estado.acabou && estado.id !== fimVisto;
+  if (resultadoNaTela || aba !== 'jogar') {
+    if (resultadoNaTela) fimVisto = estado.id;
+    irPara('jogar');
+    return;
+  }
+
+  location.href = '/games/';
 }
 
 function desenharAba(){
@@ -1191,7 +1230,15 @@ async function desistir(){
     'Desistir entrega a partida e o prêmio inteiro pro adversário.',
     {titulo:'Desistir?', confirmar:'Desistir', perigo:true});
   if (!ok) return;
-  await chamar('desistir'); puxar();
+
+  await chamar('desistir');
+
+  /* Volta direto pra tela inicial, sem passar pelo resultado: quem
+     desistiu já sabe como acabou. O adversário é que precisa ver — e vê,
+     porque o fimVisto é de cada tela. */
+  if (estado && estado.id) fimVisto = estado.id;
+  ultimoSeq = 0; ultimoLog = '';
+  irPara('jogar');
 }
 
 // ─────────────────────────── a animação ───────────────────────────
