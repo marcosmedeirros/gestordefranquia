@@ -124,10 +124,22 @@ $saldo = psdSaldo($pdo, $user_id);
   .plat.deles{width:40%;height:9%;right:9%;top:52%}
   .plat.meu{width:46%;height:10%;left:18%;bottom:4%}
 
+  /* ── O TAMANHO DO BICHO ────────────────────────────────────────────
+   *
+   * Largura em porcentagem ESTRAGA: o sprite do Chimecho é quase todo
+   * rabo, e forçado a 34% da quadra ele vira um gigante do lado de um
+   * Jumpluff miúdo. Cada espécie tem seu tamanho no arquivo, e é ele que
+   * dá a escala certa — Wailord grande, Joltik pequeno, como na série.
+   *
+   * Então: tamanho natural, com teto pra nenhum estourar a quadra. O
+   * pixelated é porque o desenho é pequeno de origem; esticado com
+   * suavização ele borra. */
   .bicho{position:absolute;z-index:3;filter:drop-shadow(0 6px 7px rgba(0,0,0,.35));
-         transition:opacity .3s}
-  .bicho.deles{right:14%;top:17%;width:26%;animation:flutua 3.1s ease-in-out infinite}
-  .bicho.meu{left:24%;bottom:6%;width:34%;animation:flutua 3.6s ease-in-out infinite .4s}
+         transition:opacity .3s;width:auto;height:auto;image-rendering:pixelated}
+  .bicho.deles{right:15%;top:14%;max-width:30%;max-height:40%;
+               animation:flutua 3.1s ease-in-out infinite}
+  .bicho.meu{left:19%;bottom:5%;max-width:42%;max-height:52%;
+             animation:flutua 3.6s ease-in-out infinite .4s}
   @keyframes flutua{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
   .bicho.meu.ataca{animation:invest .5s ease-in-out}
   @keyframes invest{0%{transform:translate(0,0)}35%{transform:translate(42px,-26px)}100%{transform:translate(0,0)}}
