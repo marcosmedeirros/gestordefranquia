@@ -603,14 +603,16 @@ function irPara(nova){
  */
 async function sair(){
   if (estado && estado.em === 'jogando' && !estado.acabou) {
-    await avisarSite('Você está no meio de uma partida. Pra sair dela, use <b>Desistir</b> — '
-                   + 'o prêmio vai pro adversário.', {titulo: 'Partida em andamento'});
+    /* Texto puro: o popups.js usa textContent de propósito, pra um
+       <img onerror> num nome digitado não virar script na página. */
+    avisarSite('Você está no meio de uma partida. Pra sair dela, use o botão Desistir — '
+             + 'o prêmio vai pro adversário.', 'aviso', 'Partida em andamento');
     return;
   }
 
   if (estado && estado.em === 'esperando') {
-    await avisarSite('Você está esperando adversário. Use <b>Cancelar e receber de volta</b> '
-                   + 'pra sair sem perder a entrada.', {titulo: 'Esperando alguém'});
+    avisarSite('Você está esperando adversário. Use "Cancelar e receber de volta" '
+             + 'pra sair sem perder a entrada.', 'aviso', 'Esperando alguém');
     return;
   }
 
@@ -818,7 +820,7 @@ function mexerTime(esp){
 async function salvarTime(){
   const r = await chamar('salvar_time', {time: JSON.stringify(timeEdit)});
   if (!r.ok) { erro = r.erro || 'Não deu.'; pintarColecao(); return; }
-  await avisarSite('Time salvo. É com ele que você entra na regra Meu Time.');
+  avisarSite('Time salvo. É com ele que você entra na regra Meu Time.', 'ok');
   cacheColecao = null; timeEdit = null; desenharColecao();
 }
 
@@ -896,14 +898,14 @@ function filtrarLoja(k, v){ lojaFiltro[k] = v; lojaFiltro.pagina = 0; erro=''; d
 function pagLoja(p){ lojaFiltro.pagina = p; desenharLoja(); }
 
 async function comprar(esp, nome, preco){
-  const ok = await confirmarSite(`Comprar <b>${esc(nome)}</b> por <b>${num(preco)}</b> moedas?`,
+  const ok = await confirmarSite(`Comprar ${nome} por ${num(preco)} moedas?`,
                                  {titulo:'Confirmar compra', confirmar:'Comprar'});
   if (!ok) return;
   const r = await chamar('comprar', {especie:esp});
   if (!r.ok) { erro = r.erro || 'Não deu.'; desenharLoja(); return; }
   bolso(r.bolso);
   cacheColecao = null; timeEdit = null;
-  await avisarSite(`<b>${esc(nome)}</b> é seu. Escale ele na Coleção.`);
+  avisarSite(`${nome} é seu. Escale ele na Coleção.`, 'ok');
   desenharLoja();
 }
 
@@ -967,6 +969,7 @@ async function desenharRanking(){
 // ─────────────────────────── GUIA ───────────────────────────
 
 let guiaBusca = '';
+let guiaTipo = '';   // o tipo com o painel aberto embaixo da tabela
 
 async function desenharGuia(especie){
   if (especie) return fichaGuia(especie);
@@ -988,7 +991,8 @@ function pintarGuia(){
      pra decidir um golpe. */
   const tipos = Object.keys(d.tipos).filter(t => t !== 'stellar').sort();
   const grade = tipos.map(t =>
-    `<button class="tipoBt" style="background:${TIPO_COR(t)}" onclick="verTipo('${t}')">${esc(t)}</button>`).join('');
+    `<button class="tipoBt" style="background:${TIPO_COR(t)};${guiaTipo===t?'outline:2px solid #fff;outline-offset:-2px':''}"
+             onclick="verTipo('${t}')">${esc(t)}</button>`).join('');
 
   const lista = achados.map(p => `
     <div class="carta" style="--rar:#444" onclick="desenharGuia('${p.esp}')">
@@ -1002,6 +1006,7 @@ function pintarGuia(){
       <h3><i class="bi bi-diagram-3-fill"></i> Tabela de tipos</h3>
       <p>Clique num tipo pra ver contra o que ele é forte, fraco e inútil.</p>
       <div class="tipoGrade">${grade}</div>
+      ${guiaTipo ? painelDoTipo(guiaTipo) : ''}
     </div>
 
     <div class="cartao">
@@ -1021,23 +1026,38 @@ function pintarGuia(){
 const EFIC_ROTULO = {4:'4×', 2:'2×', 0.5:'½', 0.25:'¼', 0:'imune'};
 const EFIC_COR = m => m >= 2 ? '#ef4444' : m === 0 ? '#59606f' : '#4ade80';
 
+/* O painel do tipo é DESENHADO NA PÁGINA, e não num pop-up: o popups.js
+   só aceita texto puro (ele usa textContent pra um <img onerror> num nome
+   digitado não virar script), e aqui o conteúdo é uma tabelinha colorida
+   que só faz sentido como HTML. */
 function verTipo(t){
+  guiaTipo = (guiaTipo === t) ? '' : t;   // clicar de novo fecha
+  pintarGuia();
+}
+
+function painelDoTipo(t){
   const rel = cacheGuia.tipos[t];
   const forte = [], fraco = [], nada = [];
   for (const alvo in rel) {
+    if (alvo === 'stellar') continue;
     if (rel[alvo] > 1) forte.push(alvo);
     else if (rel[alvo] === 0) nada.push(alvo);
     else if (rel[alvo] < 1) fraco.push(alvo);
   }
   const bloco = (titulo, arr, cor) => arr.length
-    ? `<p style="margin:0 0 4px"><b>${titulo}</b></p><div class="efic" style="margin-bottom:9px">
-       ${arr.map(x=>`<span style="background:${cor}">${esc(x)}</span>`).join('')}</div>` : '';
+    ? `<p style="margin:9px 0 4px;font-size:12px;color:var(--fraco)">${titulo}</p>
+       <div class="efic">${arr.map(x=>`<span style="background:${cor}">${esc(x)}</span>`).join('')}</div>` : '';
 
-  avisarSite(`<div style="text-align:left">
-      ${bloco('Dobra o dano em', forte, '#ef4444')}
-      ${bloco('Faz metade em', fraco, '#4ade80')}
+  return `<div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--linha)">
+      <b style="font-size:13px">Golpe de tipo
+        <span style="background:${TIPO_COR(t)};color:#15181f;padding:1px 7px;border-radius:4px;
+              font-size:10px;font-weight:800;text-transform:uppercase">${esc(t)}</span></b>
+      ${bloco('Dobra o dano contra', forte, '#ef4444')}
+      ${bloco('Faz metade contra', fraco, '#4ade80')}
       ${bloco('Não afeta', nada, '#59606f')}
-    </div>`, {titulo: 'Golpe de tipo ' + t});
+      ${!forte.length && !fraco.length && !nada.length
+        ? '<p style="margin:9px 0 0">Dano normal contra todos.</p>' : ''}
+    </div>`;
 }
 
 async function fichaGuia(esp){
