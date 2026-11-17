@@ -435,19 +435,34 @@ function psdEscolher(PDO $pdo, int $uid, array $escolha): array
         if (!psdFaltaEscolha($e, $p, $lado)) { $pdo->rollBack(); return ['ok' => true, 'ja' => true]; }
 
         $tipo = ($escolha['tipo'] ?? '') === 'trocar' ? 'trocar' : 'golpe';
-        $i    = max(0, min(5, (int)($escolha['i'] ?? 0)));
+
+        /* ── ÍNDICE FORA DA FAIXA É RECUSA, NÃO CORTE ─────────────────
+         *
+         * Antes o índice era cortado pra dentro da faixa: pedir "trocar
+         * pro 99" virava "trocar pro 5". Nunca deu pra fazer nada
+         * ilegal, mas a jogada executada não era a pedida — e, pior,
+         * gastava a escolha do turno. Pedido torto agora volta como erro
+         * e o GM continua com o turno na mão. */
+        $i = (int)($escolha['i'] ?? -1);
 
         // Confere do lado de cá antes de aceitar: a tela pode estar velha.
         $meu = $e['lados'][$lado];
         if ($tipo === 'trocar') {
+            if ($i < 0 || $i >= PSD_EQUIPE) {
+                $pdo->rollBack(); return ['ok' => false, 'erro' => 'Esse Pokémon não existe no seu time.'];
+            }
             $vivos = [];
             foreach ($meu['time'] as $k => $b) if ($b['hp'] > 0) $vivos[] = $k;
             if (!in_array($i, $vivos, true) || $i === $meu['ativo']) {
                 $pdo->rollBack(); return ['ok' => false, 'erro' => 'Não dá pra trocar por esse.'];
             }
         } else {
-            if ($e['lados'][$lado]['precisa_trocar']) { $pdo->rollBack(); return ['ok' => false, 'erro' => 'Você precisa pôr outro em quadra.']; }
-            if ($i > 3) { $pdo->rollBack(); return ['ok' => false, 'erro' => 'Golpe inválido.']; }
+            if ($meu['precisa_trocar']) {
+                $pdo->rollBack(); return ['ok' => false, 'erro' => 'Você precisa pôr outro em quadra.'];
+            }
+            if ($i < 0 || $i >= PSD_GOLPES) {
+                $pdo->rollBack(); return ['ok' => false, 'erro' => 'Golpe inválido.'];
+            }
         }
 
         $pdo->prepare("UPDATE psd_partidas SET escolha_$lado = ? WHERE id = ?")
