@@ -60,8 +60,14 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 .bol-hero h2 { font-size:23px; font-weight:800; margin:0 0 5px; line-height:1.15; }
 .bol-hero p  { font-size:13px; color:var(--text-2); margin:0; max-width:46ch; line-height:1.5; }
 .bol-hero-txt { flex:1; min-width:220px; }
+.bol-selos { display:flex; gap:10px; flex-shrink:0; }
 .bol-paga { text-align:center; padding:14px 20px; border-radius:16px; flex-shrink:0;
-            background:rgba(252,0,37,.1); border:1px solid rgba(252,0,37,.3); }
+            background:rgba(252,0,37,.1); border:1px solid rgba(252,0,37,.3);
+            display:flex; flex-direction:column; justify-content:center; }
+/* O contador é NEUTRO de propósito: o 2x é a manchete do card, e dois selos
+   berrando a mesma cor brigariam pelo olho. */
+.bol-conta { background:var(--panel-2); border-color:var(--border-md); }
+.bol-conta .bol-paga-n { color:var(--text); }
 .bol-paga-n { font-size:34px; font-weight:800; line-height:1; color:var(--red); }
 .bol-paga-l { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
               color:var(--text-3); margin-top:6px; }
@@ -167,7 +173,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 @media (max-width:560px) {
     .bol-hero { padding:18px 16px; }
     .bol-hero h2 { font-size:19px; }
-    .bol-paga { width:100%; }
+    .bol-selos { width:100%; }
+    .bol-paga { flex:1; padding:12px 14px; }
+    .bol-paga-n { font-size:27px; }
     .bol-aviso, .bol-meu, .bol-fechado { margin-left:16px; margin-right:16px; }
     .bol-sec, .bol-rodape { padding-left:16px; padding-right:16px; }
     .bol-times { grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); }
@@ -201,9 +209,20 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
             <p><?= htmlspecialchars((string)$bolaoEd['subtitulo']) ?></p>
             <?php endif; ?>
         </div>
-        <div class="bol-paga">
-            <div class="bol-paga-n"><?= $bolMult ?>x</div>
-            <div class="bol-paga-l">se acertar tudo</div>
+        <div class="bol-selos">
+            <?php if ($bolTotalApostas > 0): ?>
+            <!-- QUANTOS JÁ JOGARAM aparece sempre, aberto ou fechado: é só o
+                 tamanho do bolão, não diz em quem a liga apostou — então não
+                 vira manada como a divisão por time viraria. -->
+            <div class="bol-paga bol-conta">
+                <div class="bol-paga-n"><?= $bolTotalApostas ?></div>
+                <div class="bol-paga-l"><?= $bolTotalApostas === 1 ? 'palpite feito' : 'palpites feitos' ?></div>
+            </div>
+            <?php endif; ?>
+            <div class="bol-paga">
+                <div class="bol-paga-n"><?= $bolMult ?>x</div>
+                <div class="bol-paga-l">se acertar tudo</div>
+            </div>
         </div>
     </div>
 
@@ -323,7 +342,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 
 <?php if ($bolMostraPct && $bolTotalApostas): ?>
 <div class="bol-saldo-dica" style="margin-top:14px;text-align:center">
-    <?= $bolTotalApostas ?> <?= $bolTotalApostas === 1 ? 'pessoa apostou' : 'pessoas apostaram' ?> ·
+    <!-- Quantos jogaram já está no selo do topo; aqui sobra o que ele não diz. -->
     <?= number_format((int)$bolaoResumo['total'], 0, ',', '.') ?> FBA Points na mesa
 </div>
 <?php endif; ?>
