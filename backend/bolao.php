@@ -49,6 +49,7 @@ function bolaoGarantirTabelas(PDO $pdo): void
             aberto TINYINT(1) NOT NULL DEFAULT 1,
             fecha_em DATETIME NULL,
             aposta_max INT NOT NULL DEFAULT 5000,
+            pagamento ENUM('rateio','multiplicador') NOT NULL DEFAULT 'rateio',
             multiplicador TINYINT NOT NULL DEFAULT 2,
             quantos_caem TINYINT NOT NULL DEFAULT 2,
             candidatos_queda TEXT NOT NULL,
@@ -78,6 +79,21 @@ function bolaoGarantirTabelas(PDO $pdo): void
             UNIQUE KEY uniq_aposta (edicao_id, user_id),
             INDEX idx_edicao (edicao_id, status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        /* CREATE TABLE IF NOT EXISTS não altera tabela que já existe — quem já
+           tinha o bolão rodando precisa do ALTER. O DEFAULT faz as edições
+           antigas virarem rateio, que é o que o Marcos pediu em 17/11/2026
+           ("a odd ficou baixa"): o 2x fixo só paga bem quando quase todo mundo
+           erra, e num cartão de três acertos quase todo mundo erra mesmo —
+           mas aí o prêmio é pequeno porque o pote inteiro não é distribuído. */
+        try {
+            if ($pdo->query("SHOW COLUMNS FROM bolao_edicoes LIKE 'pagamento'")->rowCount() === 0) {
+                $pdo->exec("ALTER TABLE bolao_edicoes
+                            ADD COLUMN pagamento ENUM('rateio','multiplicador') NOT NULL DEFAULT 'rateio'
+                            AFTER aposta_max");
+            }
+        } catch (Throwable $e) { error_log('[bolao] coluna pagamento: ' . $e->getMessage()); }
+
         $ok = true;
     } catch (Throwable $e) {
         error_log('[bolao] tabelas: ' . $e->getMessage());
@@ -344,6 +360,99 @@ function bolaoSaldo(PDO $pdo, int $userId): int
 }
 
 /**
+ * QUANTO CADA GANHADOR LEVA — a conta, sozinha, sem banco nenhum.
+ *
+ * Fica separada porque é a única parte do bolão que não dá pra conferir
+ * olhando a tela: é ela que decide dinheiro. Assim dá pra testá-la com
+ * números na mão e pra simular um resultado sem pagar ninguém
+ * (@see bolaoSimular).
+ *
+ * NO RATEIO o pote inteiro vai pra quem cravou, na proporção do que cada um
+ * arriscou: quem apostou o dobro leva o dobro, e quem cravou sozinho leva
+ * tudo. O ARREDONDAMENTO É PELO MAIOR RESTO, como nas porcentagens das
+ * apostas (@see backend/apostas.php): arredondar cada um por conta própria
+ * sobraria ou faltaria ponto, e ponto que some do pote é ponto que ninguém
+ * recebeu. Com o maior resto, a soma dos prêmios é EXATAMENTE o pote.
+ *
+ * @param list<array{id:int|string,valor:int|string}> $certos quem acertou
+ * @param int $pote tudo que foi apostado na edição, inclusive por quem errou
+ * @return array<int,int> id da aposta => prêmio
+ */
+function bolaoPremios(array $certos, int $pote, string $modo = 'rateio', int $mult = 2): array
+{
+    $premios = [];
+    if (!$certos) return $premios;
+
+    if ($modo === 'multiplicador') {
+        foreach ($certos as $a) $premios[(int)$a['id']] = (int)$a['valor'] * max(1, $mult);
+        return $premios;
+    }
+
+    $soma = 0;
+    foreach ($certos as $a) $soma += (int)$a['valor'];
+    if ($soma <= 0 || $pote <= 0) {
+        foreach ($certos as $a) $premios[(int)$a['id']] = 0;
+        return $premios;
+    }
+
+    $restos = []; $distribuido = 0;
+    foreach ($certos as $a) {
+        $exato = $pote * (int)$a['valor'] / $soma;
+        $premios[(int)$a['id']] = (int)floor($exato);
+        $restos[(int)$a['id']]  = $exato - floor($exato);
+        $distribuido += (int)floor($exato);
+    }
+    arsort($restos);
+    foreach (array_keys($restos) as $id) {
+        if ($distribuido >= $pote) break;
+        $premios[$id]++; $distribuido++;
+    }
+    return $premios;
+}
+
+/**
+ * E SE O RESULTADO FOSSE ESSE? Lê as apostas e devolve quem levaria quanto.
+ *
+ * NÃO ESCREVE NADA — nem marca aposta, nem paga, nem fecha a edição. Existe
+ * pra conferir o pagamento antes de apertar o botão que não tem volta.
+ *
+ * @return array{pote:int,ganhadores:list<array>,perdedores:int,pago:int}
+ */
+function bolaoSimular(PDO $pdo, int $edicaoId, array $queda, string $campeao): array
+{
+    $out = ['pote' => 0, 'ganhadores' => [], 'perdedores' => 0, 'pago' => 0];
+    try {
+        $st = $pdo->prepare('SELECT id, pagamento, multiplicador FROM bolao_edicoes WHERE id = ?');
+        $st->execute([$edicaoId]);
+        $ed = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$ed) return $out;
+
+        $certo = array_map(fn($c) => trim((string)$c), $queda);
+        sort($certo);
+        $campeao = trim($campeao);
+
+        $apostas = bolaoApostasDaEdicao($pdo, $edicaoId, 500);
+        $certos = [];
+        foreach ($apostas as $a) {
+            $out['pote'] += (int)$a['valor'];
+            $meu = $a['palpite_queda']; sort($meu);
+            if ($meu === $certo && trim((string)$a['palpite_campeao']) === $campeao) $certos[] = $a;
+            else $out['perdedores']++;
+        }
+
+        $premios = bolaoPremios($certos, $out['pote'], (string)$ed['pagamento'], (int)$ed['multiplicador']);
+        foreach ($certos as $a) {
+            $a['premio_simulado'] = (int)($premios[(int)$a['id']] ?? 0);
+            $out['pago'] += $a['premio_simulado'];
+            $out['ganhadores'][] = $a;
+        }
+    } catch (Throwable $e) {
+        error_log('[bolao] simular: ' . $e->getMessage());
+    }
+    return $out;
+}
+
+/**
  * LANÇA O RESULTADO E PAGA.
  *
  * Acertar é acertar TUDO: os times que caíram (em qualquer ordem) e o
@@ -394,21 +503,29 @@ function bolaoResolver(PDO $pdo, int $edicaoId, array $queda, string $campeao, i
         $marca = $pdo->prepare('UPDATE bolao_apostas SET status = ?, premio = ? WHERE id = ?');
         $paga  = $pdo->prepare('UPDATE games_usuarios SET fba_points = COALESCE(fba_points,0) + ? WHERE id = ?');
 
-        $ganhadores = 0; $pago = 0; $perdedores = 0;
+        /* Separa antes de pagar: no rateio o prêmio de cada um depende de
+           QUEM MAIS acertou, então não dá pra decidir na primeira passada. */
+        $certos = []; $errados = []; $pote = 0;
         foreach ($apostas as $a) {
+            $pote += (int)$a['valor'];
             $meu = json_decode((string)$a['palpite_queda'], true) ?: [];
             sort($meu);
-            $acertou = ($meu === $certo) && (trim((string)$a['palpite_campeao']) === $campeao);
+            if ($meu === $certo && trim((string)$a['palpite_campeao']) === $campeao) $certos[] = $a;
+            else                                                                      $errados[] = $a;
+        }
 
-            if ($acertou) {
-                $premio = (int)$a['valor'] * $mult;
-                $marca->execute(['ganhou', $premio, (int)$a['id']]);
-                $paga->execute([$premio, (int)$a['user_id']]);
-                $ganhadores++; $pago += $premio;
-            } else {
-                $marca->execute(['perdeu', 0, (int)$a['id']]);
-                $perdedores++;
-            }
+        $premios = bolaoPremios($certos, $pote, (string)($ed['pagamento'] ?? 'rateio'), $mult);
+
+        $ganhadores = 0; $pago = 0; $perdedores = 0;
+        foreach ($certos as $a) {
+            $premio = (int)($premios[(int)$a['id']] ?? 0);
+            $marca->execute(['ganhou', $premio, (int)$a['id']]);
+            if ($premio > 0) $paga->execute([$premio, (int)$a['user_id']]);
+            $ganhadores++; $pago += $premio;
+        }
+        foreach ($errados as $a) {
+            $marca->execute(['perdeu', 0, (int)$a['id']]);
+            $perdedores++;
         }
 
         $pdo->prepare('UPDATE bolao_edicoes SET resultado_queda = ?, resultado_campeao = ?,
@@ -422,6 +539,55 @@ function bolaoResolver(PDO $pdo, int $edicaoId, array $queda, string $campeao, i
         error_log('[bolao] resolver: ' . $e->getMessage());
         return ['ok' => false, 'erro' => 'Não deu pra resolver o bolão: ' . $e->getMessage()];
     }
+}
+
+/**
+ * A IDENTIDADE DE UM CARTÃO: os mesmos times e o mesmo campeão.
+ *
+ * A ordem da queda não importa — "Grêmio e Vitória" é o mesmo cartão que
+ * "Vitória e Grêmio" —, por isso ordena antes de juntar. É esta chave que
+ * agrupa quem vai dividir o pote com quem.
+ */
+function bolaoChaveDoCartao(array $queda, string $campeao): string
+{
+    $q = array_map(fn($c) => trim((string)$c), $queda);
+    sort($q);
+    return implode('|', $q) . '>>' . trim($campeao);
+}
+
+/**
+ * O POTE E QUEM DISPUTA CADA PEDAÇO DELE.
+ *
+ * No rateio, quem crava não leva um múltiplo fixo: leva uma fatia do que
+ * TODO MUNDO apostou, proporcional ao que ele mesmo arriscou. Pra tela poder
+ * dizer "hoje você levaria X" antes de o resultado sair, ela precisa de duas
+ * coisas: o tamanho do pote e quanto já foi apostado em cada cartão possível.
+ *
+ * `$exceto` tira UMA pessoa da conta — quem está com a tela aberta. Sem isso
+ * a estimativa dela contaria a própria aposta duas vezes quando trocasse de
+ * cartão: a antiga, que ainda está no banco, e a nova, que ela está montando.
+ *
+ * @return array{pote:int, por_cartao:array<string,int>}
+ */
+function bolaoPote(PDO $pdo, int $edicaoId, int $exceto = 0): array
+{
+    $out = ['pote' => 0, 'por_cartao' => []];
+    try {
+        $st = $pdo->prepare('SELECT user_id, palpite_queda, palpite_campeao, valor
+                               FROM bolao_apostas WHERE edicao_id = ?');
+        $st->execute([$edicaoId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) {
+            if ($exceto > 0 && (int)$a['user_id'] === $exceto) continue;
+            $v = (int)$a['valor'];
+            $out['pote'] += $v;
+            $k = bolaoChaveDoCartao(json_decode((string)$a['palpite_queda'], true) ?: [],
+                                    (string)$a['palpite_campeao']);
+            $out['por_cartao'][$k] = ($out['por_cartao'][$k] ?? 0) + $v;
+        }
+    } catch (Throwable $e) {
+        error_log('[bolao] pote: ' . $e->getMessage());
+    }
+    return $out;
 }
 
 /**
@@ -500,7 +666,7 @@ function bolaoSemearBrasileirao(PDO $pdo): void
                 VALUES (?,?,1,?,?,2,?,?)")
             ->execute([
                 'Bolão do Brasileirão',
-                'Crave os 2 rebaixados e o campeão. Acertou tudo, leva o dobro.',
+                'Crave os 2 rebaixados e o campeão. Quem acertar divide tudo que foi apostado.',
                 BOLAO_APOSTA_MAX,
                 BOLAO_MULTIPLICADOR,
                 json_encode(['Grêmio', 'Internacional', 'Corinthians', 'Mirassol', 'Vitória', 'Coritiba'], JSON_UNESCAPED_UNICODE),

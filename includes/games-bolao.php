@@ -11,7 +11,7 @@
  * isso o aviso aparece no topo, no botão e no resumo do que foi apostado.
  *
  * Espera do games.php: $bolaoEd, $bolaoMinha, $bolaoResumo, $bolaoUltima,
- * $bolaoMsg, $bolaoErro, $perfil, $ehAdminGames, $abaInicial.
+ * $bolaoMsg, $bolaoErro, $perfil, $ehAdminGames, $abaInicial, $userId, $pdo.
  */
 
 /** O escudo do clube, ou o monograma quando não existe imagem. */
@@ -36,6 +36,55 @@ $bolAberto = !empty($bolaoEd['aberto_agora']);
 /* A DIVISÃO DOS PALPITES SÓ DEPOIS DE CRAVAR. Ver a manada antes transforma o
    bolão numa enquete — e aqui, diferente dos eventos, o palpite custa dinheiro
    e não dá pra trocar depois que fecha. */
+/* ── O POTE E A FATIA ─────────────────────────────────────────────────
+ *
+ * No rateio, quem crava divide TODO o valor apostado, na proporção do que
+ * arriscou. Dá pra dizer antes do resultado quanto a pessoa levaria HOJE:
+ * basta saber quanto já foi apostado no cartão igual ao dela.
+ *
+ * O pote vem SEM a aposta dela (@see bolaoPote): a tela soma o valor que ela
+ * está digitando agora, e contar a antiga junto dobraria a própria aposta na
+ * conta na hora de trocar o cartão. */
+$bolRateio = ($bolaoEd['pagamento'] ?? 'rateio') !== 'multiplicador';
+$bolPoteInfo = bolaoPote($pdo, (int)$bolaoEd['id'], (int)($userId ?? 0));
+$bolPoteSemMim = (int)$bolPoteInfo['pote'];
+$bolPoteTotal  = $bolPoteSemMim + (int)($bolaoMinha['valor'] ?? 0);
+
+/** O que este cartão levaria hoje, se cravasse. */
+$bolFatia = function (array $queda, string $campeao, int $valor)
+            use ($bolRateio, $bolPoteSemMim, $bolPoteInfo, $bolMult): int {
+    if ($valor < 1) return 0;
+    if (!$bolRateio) return $valor * $bolMult;
+    $k = bolaoChaveDoCartao($queda, $campeao);
+    $iguais = (int)($bolPoteInfo['por_cartao'][$k] ?? 0) + $valor;
+    return $iguais > 0 ? (int)floor(($bolPoteSemMim + $valor) * $valor / $iguais) : $valor;
+};
+
+/* O MESMO AGRUPAMENTO, EM NÚMEROS, pro JS fazer a conta ao vivo.
+ *
+ * A chave do PHP é feita de NOMES ordenados (bolaoChaveDoCartao), e o JS
+ * ordenaria "Grêmio" e "Vitória" por outra régua que a do PHP no dia em que
+ * dois candidatos se diferenciarem só por um acento. Aqui a chave vira a
+ * POSIÇÃO do time na lista de candidatos: ordenar número é igual nos dois
+ * lados, hoje e sempre. O servidor segue decidindo o prêmio pelo nome — isto
+ * é só a estimativa da tela. */
+$bolIdxQ = array_flip($bolaoEd['candidatos_queda']);
+$bolIdxC = array_flip($bolaoEd['candidatos_titulo']);
+$bolCartoesJs = [];
+foreach ($bolPoteInfo['por_cartao'] as $k => $soma) {
+    $partes = explode('>>', $k);
+    if (count($partes) !== 2 || !isset($bolIdxC[$partes[1]])) continue;
+    $ids = [];
+    foreach (explode('|', $partes[0]) as $nome) {
+        if (!isset($bolIdxQ[$nome])) { $ids = null; break; }   // candidato tirado da lista
+        $ids[] = (int)$bolIdxQ[$nome];
+    }
+    if ($ids === null) continue;
+    sort($ids, SORT_NUMERIC);
+    $chave = implode('-', $ids) . '>>' . (int)$bolIdxC[$partes[1]];
+    $bolCartoesJs[$chave] = ($bolCartoesJs[$chave] ?? 0) + (int)$soma;
+}
+
 $bolMostraPct = $bolaoMinha !== null || !$bolAberto;
 $bolTotalApostas = (int)($bolaoResumo['apostadores'] ?? 0);
 $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int {
@@ -220,8 +269,13 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
             </div>
             <?php endif; ?>
             <div class="bol-paga">
+                <?php if ($bolRateio): ?>
+                <div class="bol-paga-n"><?= number_format($bolPoteTotal, 0, ',', '.') ?></div>
+                <div class="bol-paga-l">no pote</div>
+                <?php else: ?>
                 <div class="bol-paga-n"><?= $bolMult ?>x</div>
                 <div class="bol-paga-l">se acertar tudo</div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -229,7 +283,9 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     <div class="bol-aviso">
         <i class="bi bi-exclamation-triangle-fill"></i>
         <span><b>É tudo ou nada.</b> Os <?= (int)$bolaoEd['quantos_caem'] ?> rebaixados e o campeão têm que estar
-        certos. Errou um, perde o que apostou — não existe prêmio parcial.</span>
+        certos. Errou um, perde o que apostou — não existe prêmio parcial.
+        <?php if ($bolRateio): ?><br><b>Quem cravar divide o pote inteiro</b>, na proporção do que apostou —
+        quanto menos gente acertar, maior a fatia de quem acertou.<?php endif; ?></span>
     </div>
 
     <?php if ($bolaoMinha): ?>
@@ -243,7 +299,12 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
         </div>
         <div class="bol-meu-n">
             <b><?= number_format((int)$bolaoMinha['valor'], 0, ',', '.') ?></b>
-            <div class="bol-meu-l">apostados · paga <?= number_format((int)$bolaoMinha['valor'] * $bolMult, 0, ',', '.') ?></div>
+            <?php $bolMinhaFatia = $bolFatia($bolaoMinha['palpite_queda'],
+                                             (string)$bolaoMinha['palpite_campeao'],
+                                             (int)$bolaoMinha['valor']); ?>
+            <div class="bol-meu-l">apostados ·
+                <?= $bolRateio ? 'hoje levaria' : 'paga' ?>
+                <?= number_format($bolMinhaFatia, 0, ',', '.') ?></div>
         </div>
     </div>
     <?php endif; ?>
@@ -265,11 +326,12 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
             <small><?= $bolAberto ? 'escolha ' . (int)$bolaoEd['quantos_caem'] : 'como a liga apostou' ?></small>
         </div>
         <div class="bol-times" id="bolQueda">
-            <?php foreach ($bolaoEd['candidatos_queda'] as $c):
+            <?php foreach ($bolaoEd['candidatos_queda'] as $iq => $c):
                 $marcado = $bolaoMinha && in_array($c, $bolaoMinha['palpite_queda'], true); ?>
             <label class="bol-time">
                 <input type="checkbox" name="queda[]" value="<?= htmlspecialchars($c) ?>"
-                       <?= $marcado ? 'checked' : '' ?> <?= $bolAberto ? '' : 'disabled' ?> data-bol-queda>
+                       <?= $marcado ? 'checked' : '' ?> <?= $bolAberto ? '' : 'disabled' ?>
+                       data-bol-queda data-i="<?= (int)$iq ?>">
                 <span class="bol-time-in">
                     <?= $bolEscudo($c) ?>
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
@@ -288,11 +350,12 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
         <div class="bol-sec-h"><span class="bol-num">2</span> Quem é o campeão?
             <small><?= $bolAberto ? 'escolha 1' : 'como a liga apostou' ?></small></div>
         <div class="bol-times">
-            <?php foreach ($bolaoEd['candidatos_titulo'] as $c):
+            <?php foreach ($bolaoEd['candidatos_titulo'] as $ic => $c):
                 $marcado = $bolaoMinha && (string)$bolaoMinha['palpite_campeao'] === $c; ?>
             <label class="bol-time">
                 <input type="radio" name="campeao" value="<?= htmlspecialchars($c) ?>"
-                       <?= $marcado ? 'checked' : '' ?> <?= $bolAberto ? '' : 'disabled' ?> data-bol-campeao>
+                       <?= $marcado ? 'checked' : '' ?> <?= $bolAberto ? '' : 'disabled' ?>
+                       data-bol-campeao data-i="<?= (int)$ic ?>">
                 <span class="bol-time-in">
                     <?= $bolEscudo($c) ?>
                     <span class="bol-time-nome"><?= htmlspecialchars($c) ?></span>
@@ -315,7 +378,10 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
                    value="<?= (int)($bolaoMinha['valor'] ?? 0) ?>" <?= $bolTeto > 0 ? '' : 'disabled' ?>>
             <input type="number" id="bolValor" name="valor" min="1" max="<?= $bolTeto ?: 1 ?>"
                    value="<?= (int)($bolaoMinha['valor'] ?? 0) ?>" <?= $bolTeto > 0 ? '' : 'disabled' ?>>
-            <div class="bol-retorno">Se cravar: <b id="bolRetorno">0</b> FBA Points</div>
+            <div class="bol-retorno">
+                <?= $bolRateio ? 'Se cravar, hoje levaria:' : 'Se cravar:' ?>
+                <b id="bolRetorno">0</b> FBA Points
+            </div>
         </div>
         <div class="bol-saldo-dica">
             Você tem <b><?= number_format($bolSaldo, 0, ',', '.') ?></b> FBA Points ·
@@ -453,6 +519,15 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
     const MULT    = <?= $bolMult ?>;
     const TETO    = <?= $bolTeto ?>;
 
+    /* O RATEIO AO VIVO. O pote vem sem a aposta de quem está olhando, e
+       CARTOES diz quanto já foi apostado em cada cartão (pela posição dos
+       times, não pelo nome — @see o comentário no PHP). A estimativa é "se
+       o resultado fosse esse e ninguém mais apostasse": o pote cresce e a
+       fatia muda a cada aposta nova, e o texto da tela diz "hoje". */
+    const RATEIO  = <?= $bolRateio ? 'true' : 'false' ?>;
+    const POTE    = <?= (int)$bolPoteSemMim ?>;
+    const CARTOES = <?= json_encode($bolCartoesJs, JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
+
     const quedas  = [...form.querySelectorAll('[data-bol-queda]')];
     const campeao = [...form.querySelectorAll('[data-bol-campeao]')];
     const range   = document.getElementById('bolRange');
@@ -463,17 +538,29 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 
     const fmt = n => Number(n).toLocaleString('pt-BR');
 
-    function marcados() { return quedas.filter(c => c.checked).length; }
+    function marcados() { return quedas.filter(c => c.checked); }
+
+    /** O que este cartão levaria hoje, se cravasse. */
+    function fatia(v, escolhidos, camp) {
+        if (v < 1 || escolhidos.length !== QUANTOS || !camp) return 0;
+        if (!RATEIO) return v * MULT;
+        const chave = escolhidos.map(c => Number(c.dataset.i)).sort((a, b) => a - b).join('-')
+                    + '>>' + Number(camp.dataset.i);
+        const iguais = (CARTOES[chave] || 0) + v;   // quem já disputa o mesmo cartão
+        return Math.floor((POTE + v) * v / iguais);
+    }
 
     function conferir() {
-        const n = marcados();
+        const marc = marcados();
+        const n = marc.length;
         // Cheio: o que não está marcado desliga, e o clique seguinte não some
         // com uma escolha que a pessoa já tinha feito.
         quedas.forEach(c => { c.disabled = (!c.checked && n >= QUANTOS); });
 
         const v = Math.min(TETO, Math.max(0, parseInt(valor?.value || '0', 10) || 0));
-        if (retorno) retorno.textContent = fmt(v * MULT);
-        enviar.disabled = !(n === QUANTOS && campeao.some(r => r.checked) && v >= 1);
+        const camp = campeao.find(r => r.checked);
+        if (retorno) retorno.textContent = fmt(fatia(v, marc, camp));
+        enviar.disabled = !(n === QUANTOS && camp && v >= 1);
     }
 
     quedas.forEach(c => c.addEventListener('change', conferir));
