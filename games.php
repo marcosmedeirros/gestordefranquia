@@ -695,6 +695,17 @@ require_once __DIR__ . '/backend/bolao.php';
 bolaoSemearBrasileirao($pdo);
 $bolaoMsg = null; $bolaoErro = null;
 
+/* QUEM ADMINISTRA O BOLÃO É O ADMIN DOS GAMES, e não o do site (pedido do
+   Marcos, 17/11/2026). O bolão é dos Games, e quem cuida dele é quem cuida
+   dos Games — a lista é games_usuarios.is_admin, a mesma do painel em
+   /games/admin. Admin de liga que não mexe nos Games não vê o bloco. */
+$ehAdminGames = false;
+try {
+    $stAdm = $pdo->prepare('SELECT COALESCE(is_admin,0) FROM games_usuarios WHERE id = ?');
+    $stAdm->execute([$userId]);
+    $ehAdminGames = (int)$stAdm->fetchColumn() === 1;
+} catch (Throwable $e) { error_log('[games/bolao] admin: ' . $e->getMessage()); }
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST'
     && (isset($_POST['bolao_acao']) || isset($_POST['bolao_cancelar']))) {
 
@@ -718,14 +729,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
         if ($r['ok']) { $bolaoMsg = 'Você saiu do bolão e os FBA Points voltaram pro seu saldo.'; }
         else          { $bolaoErro = $r['erro']; }
 
-    } elseif ($ehAdminGeral && $acao === 'chave') {
+    } elseif ($ehAdminGames && $acao === 'chave') {
         try {
             $pdo->prepare('UPDATE bolao_edicoes SET aberto = ? WHERE id = ?')
                 ->execute([!empty($_POST['aberto']) ? 1 : 0, (int)$edAtiva['id']]);
             $bolaoMsg = !empty($_POST['aberto']) ? 'Apostas abertas.' : 'Apostas fechadas.';
         } catch (Throwable $e) { $bolaoErro = 'Não deu pra mudar a chave.'; }
 
-    } elseif ($ehAdminGeral && $acao === 'prazo') {
+    } elseif ($ehAdminGames && $acao === 'prazo') {
         try {
             $quando = !empty($_POST['limpar']) ? null : trim((string)($_POST['fecha_em'] ?? ''));
             $pdo->prepare('UPDATE bolao_edicoes SET fecha_em = ? WHERE id = ?')
@@ -733,7 +744,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             $bolaoMsg = $quando ? 'Prazo salvo.' : 'Prazo removido — fecha só na mão.';
         } catch (Throwable $e) { $bolaoErro = 'Não deu pra salvar o prazo.'; }
 
-    } elseif ($ehAdminGeral && $acao === 'resolver') {
+    } elseif ($ehAdminGames && $acao === 'resolver') {
         $r = bolaoResolver($pdo, (int)$edAtiva['id'], (array)($_POST['r_queda'] ?? []),
                            (string)($_POST['r_campeao'] ?? ''), $userId);
         if ($r['ok']) {

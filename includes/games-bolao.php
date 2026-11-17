@@ -11,7 +11,7 @@
  * isso o aviso aparece no topo, no botão e no resumo do que foi apostado.
  *
  * Espera do games.php: $bolaoEd, $bolaoMinha, $bolaoResumo, $bolaoUltima,
- * $bolaoMsg, $bolaoErro, $perfil, $ehAdminGeral, $abaInicial.
+ * $bolaoMsg, $bolaoErro, $perfil, $ehAdminGames, $abaInicial.
  */
 
 /** O escudo do clube, ou o monograma quando não existe imagem. */
@@ -308,7 +308,7 @@ $bolPct = function (array $contagem, string $chave) use ($bolTotalApostas): int 
 <?php endif; ?>
 
 <?php /* ── O ADMIN: abre, fecha e lança o resultado ────────────────── */ ?>
-<?php if ($ehAdminGeral): ?>
+<?php if ($ehAdminGames): ?>
 <div class="bol-admin">
     <h3><i class="bi bi-shield-lock"></i> Organização</h3>
 
