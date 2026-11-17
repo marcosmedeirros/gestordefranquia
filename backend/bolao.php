@@ -503,7 +503,7 @@ function bolaoSemearBrasileirao(PDO $pdo): void
                 'Crave os 2 rebaixados e o campeão. Acertou tudo, leva o dobro.',
                 BOLAO_APOSTA_MAX,
                 BOLAO_MULTIPLICADOR,
-                json_encode(['Grêmio', 'Internacional', 'Corinthians', 'Mirassol', 'Vitória'], JSON_UNESCAPED_UNICODE),
+                json_encode(['Grêmio', 'Internacional', 'Corinthians', 'Mirassol', 'Vitória', 'Coritiba'], JSON_UNESCAPED_UNICODE),
                 json_encode(['Flamengo', 'Palmeiras'], JSON_UNESCAPED_UNICODE),
             ]);
     } catch (Throwable $e) {
