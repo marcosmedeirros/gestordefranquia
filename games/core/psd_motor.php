@@ -962,14 +962,36 @@ function psdEstadoPara(array $e, string $lado): array
         $equipe[] = psdBichoPraTela($b) + ['i' => $i, 'ativo' => $i === $meu['ativo']];
     }
 
+    /* Os golpes vão com nome, tipo e power JUNTOS. A tela poderia carregar
+       o psd_golpes.php inteiro e procurar pelo id, mas aí o navegador
+       baixaria 51 KB de dado pra usar quatro linhas — e, pior, passaria a
+       ter uma cópia da base que pode divergir da do servidor. */
+    $golpes = [];
+    foreach ($meu['time'][$meu['ativo']]['golpes'] as $g) {
+        $mv = psdGolpe($g['id']) ?? [];
+        $golpes[] = [
+            'id'    => $g['id'],
+            'pp'    => $g['pp'],
+            'ppmax' => $g['ppmax'],
+            'nome'  => $mv['nome']  ?? $g['id'],
+            'tipo'  => $mv['tipo']  ?? 'normal',
+            'cat'   => $mv['cat']   ?? 'status',
+            'power' => $mv['power'] ?? 0,
+            'acc'   => $mv['acc']   ?? 100,
+        ];
+    }
+
     return [
         'turno'   => $e['turno'],
         'fim'     => $e['fim'],
         'motivo'  => $e['motivo'],
         'venci'   => $e['fim'] && $e['fim'] === $lado,
+        // Qual letra eu sou: os eventos vêm marcados com 'a'/'b' e a tela
+        // precisa saber qual dos dois lados do campo é o dela.
+        'lado_eu' => $lado,
         'eu'      => ['nome' => $meu['nome'], 'equipe' => $equipe,
                       'ativo' => psdBichoPraTela($meu['time'][$meu['ativo']]),
-                      'golpes' => $meu['time'][$meu['ativo']]['golpes'],
+                      'golpes' => $golpes,
                       'rochas' => $meu['rochas'], 'precisa_trocar' => $meu['precisa_trocar']],
         'ele'     => ['nome' => $dele['nome'],
                       'ativo' => psdBichoPraTela($dele['time'][$dele['ativo']]),

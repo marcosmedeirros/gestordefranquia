@@ -82,6 +82,19 @@ foreach ($dex as $id => $esp) {
         if (!$FORCA && is_file($arquivo) && filesize($arquivo) > 100) { $pulados++; continue; }
 
         $corpo = psdBaixar(sprintf($molde, $num));
+
+        /* ── QUEM NÃO TEM BONECO ANIMADO ──────────────────────────────
+         *
+         * Os mais novos da geração 9 não têm sprite animado em espelho
+         * nenhum — são 14 das 403. Em vez de deixar quadrado quebrado na
+         * quadra, eles caem no DESENHO OFICIAL, que existe pra todos:
+         * parado, mas bonito e do tamanho certo. Fica salvo como .png na
+         * mesma pasta, e a tela tenta .gif e depois .png. */
+        if ($corpo === null && $pasta !== 'icone') {
+            $corpo = psdBaixar("$BASE/other/official-artwork/$num.png");
+            if ($corpo !== null) $arquivo = "$DEST/$pasta/$num.png";
+        }
+
         if ($corpo === null) { $faltou[] = $pasta; continue; }
 
         file_put_contents($arquivo, $corpo);

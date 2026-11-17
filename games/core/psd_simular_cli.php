@@ -16,69 +16,12 @@
  *   php games/core/psd_simular_cli.php --n=1 --ver   (narra uma partida)
  */
 
-require_once __DIR__ . '/psd_motor.php';
+require_once __DIR__ . '/psd_ia.php';
 
 $opts = getopt('', ['n::', 'ver', 'semente::']);
 $N    = max(1, (int)($opts['n'] ?? 200));
 $VER  = isset($opts['ver']);
 $SEM  = (int)($opts['semente'] ?? 20261117);
-
-/**
- * O jogador de máquina. Não é esperto e não precisa ser: ele existe pra
- * exercitar o motor, não pra ganhar. Mas também não pode ser burro a ponto
- * de nunca trocar nem usar status, senão metade das regras nunca roda.
- *
- * Então: se o ativo caiu, entra o de mais vida. Senão, 15% das vezes troca,
- * e no resto escolhe o golpe que mais machuca pela tabela de tipos.
- */
-function psdIA(array &$e, string $lado): array
-{
-    $vivos = psdVivos($e, $lado);
-    if (!$vivos) return ['tipo' => 'nada'];
-
-    $meu = psdAtivo($e, $lado);
-    if ($meu['hp'] <= 0 || $e['lados'][$lado]['precisa_trocar']) {
-        $melhor = $vivos[0]; $maisVida = -1;
-        foreach ($vivos as $i) {
-            if ($e['lados'][$lado]['time'][$i]['hp'] > $maisVida) {
-                $maisVida = $e['lados'][$lado]['time'][$i]['hp']; $melhor = $i;
-            }
-        }
-        return ['tipo' => 'trocar', 'i' => $melhor];
-    }
-
-    $outros = array_values(array_diff($vivos, [$e['lados'][$lado]['ativo']]));
-    if ($outros && psdChance($e, 15)) {
-        return ['tipo' => 'trocar', 'i' => $outros[psdSorteio($e, 0, count($outros) - 1)]];
-    }
-
-    /* UM TERÇO DAS VEZES ELA JOGA QUALQUER COISA. Parece defeito e é o
-       contrário: jogando sempre o golpe mais forte, ela nunca usa status,
-       e aí Substitute, Protect, Stealth Rock, Leech Seed, cura e sono
-       nunca rodam na simulação — metade do motor ficaria sem teste. */
-    $comPP = [];
-    foreach ($meu['golpes'] as $i => $g) if ($g['pp'] > 0) $comPP[] = $i;
-    if ($comPP && psdChance($e, 33)) {
-        return ['tipo' => 'golpe', 'i' => $comPP[psdSorteio($e, 0, count($comPP) - 1)]];
-    }
-
-    $alvo = psdAtivo($e, psdOutro($lado));
-    $melhorI = 0; $melhorNota = -1;
-    foreach ($meu['golpes'] as $i => $g) {
-        if ($g['pp'] <= 0) continue;
-        $mv = psdGolpe($g['id']);
-        if (!$mv) continue;
-        if ($mv['cat'] === 'status') {
-            $nota = 25;   // às vezes vale, pra o motor exercitar status
-        } else {
-            $ef = psdEficacia($mv['tipo'], $alvo['tipos']);
-            $stab = in_array($mv['tipo'], $meu['tipos'], true) ? 1.5 : 1.0;
-            $nota = $mv['power'] * $ef * $stab * ($mv['acc'] / 100);
-        }
-        if ($nota > $melhorNota) { $melhorNota = $nota; $melhorI = $i; }
-    }
-    return ['tipo' => 'golpe', 'i' => $melhorI];
-}
 
 // ─────────────────────────────── roda ───────────────────────────────
 
@@ -94,8 +37,8 @@ for ($p = 0; $p < $N; $p++) {
 
     $guarda = 0;
     while (!$e['fim'] && $guarda++ < PSD_TURNOS_MAX + 5) {
-        $ea = psdIA($e, 'a');
-        $eb = psdIA($e, 'b');
+        $ea = psdIA($e, 'a', 33);
+        $eb = psdIA($e, 'b', 33);
         psdResolverTurno($e, $ea, $eb);
 
         if ($VER) {
