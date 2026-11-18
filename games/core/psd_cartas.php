@@ -65,13 +65,26 @@ const PSD_CORTES_BST = [500, 555, 600, 680];
  *   ÉPICA     um objetivo de dias
  *   LENDÁRIA  objetivo de quem junta (p90 chega)
  *   MÍTICA    só os mais ricos da liga, e tem que ser assim
+ *
+ * ── E A OUTRA ÂNCORA: A LOJA DA LIGA ─────────────────────────────────
+ *
+ * Os preços também conversam com o que a liga já cobra em moedas, senão
+ * a carta ficaria num mundo à parte:
+ *
+ *   slot de leilão 500 · dispensa extra 1.500 · badge 3.500
+ *   City Edition 5.000 · slot de G-League 15.000
+ *
+ * Um pacote a 150 é menos de um terço do item mais barato da loja — é
+ * compra de impulso, três por dia. A mítica a 10.000 fica entre a City
+ * Edition e o slot de G-League, e é 4% de TODA a moeda que existe na
+ * liga (227.036). Tem que doer.
  */
 const PSD_RARIDADES = [
-    'comum'    => ['nome' => 'Comum',    'cor' => '#8d97ab', 'preco' =>   80, 'devolve' =>   20],
-    'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>  300, 'devolve' =>   75],
-    'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' => 1200, 'devolve' =>  300],
-    'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' => 4000, 'devolve' => 1000],
-    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 9000, 'devolve' => 2250],
+    'comum'    => ['nome' => 'Comum',    'cor' => '#8d97ab', 'preco' =>   100, 'devolve' =>   25],
+    'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>   350, 'devolve' =>   90],
+    'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' =>  1400, 'devolve' =>  350],
+    'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' =>  4500, 'devolve' => 1125],
+    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 10000, 'devolve' => 2500],
 ];
 
 /**
@@ -89,9 +102,9 @@ const PSD_RARIDADES = [
  * inteira abrindo todo dia vê uma a cada mês e meio. É pra ser assim.
  */
 const PSD_PACOTES = [
-    'basico'  => ['nome' => 'Pacote Básico',  'preco' => 120, 'cartas' => 3, 'garante' => 'rara',
+    'basico'  => ['nome' => 'Pacote Básico',  'preco' => 150, 'cartas' => 3, 'garante' => 'rara',
                   'chances' => ['comum' => 7800, 'rara' => 1850, 'epica' => 320, 'lendaria' => 28, 'mitica' => 2]],
-    'premium' => ['nome' => 'Pacote Premium', 'preco' => 350, 'cartas' => 3, 'garante' => 'epica',
+    'premium' => ['nome' => 'Pacote Premium', 'preco' => 400, 'cartas' => 3, 'garante' => 'epica',
                   'chances' => ['comum' => 5200, 'rara' => 3300, 'epica' => 1310, 'lendaria' => 175, 'mitica' => 15]],
 ];
 
