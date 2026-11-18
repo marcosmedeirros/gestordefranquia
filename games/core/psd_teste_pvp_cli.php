@@ -198,6 +198,49 @@ for ($n = 1; $n <= $PARTIDAS; $n++) {
         $venc === $A ? 'Ana' : ($venc === $B ? 'Beto' : 'ninguém'), (string)$p['motivo'], $voltas);
 }
 
+// ─────────────────────────────── 1b. a fila ───────────────────────────────
+
+titulo('FILA (procurar adversário)');
+
+/* A fila só pode juntar quem combinou NO VALOR e NA REGRA. Juntar valores
+   diferentes exigiria uma regra de "quem paga a diferença", que não
+   existe; juntar regras diferentes poria Meu Time contra Aleatória. */
+
+$antesA = moedas($pdo, $A); $antesB = moedas($pdo, $B); $antesC = moedas($pdo, $C);
+
+$rA = psdAbrir($pdo, $A, 'Ana', 'fila', 300, 'aleatoria');
+confere('fila: Ana entra na fila', !empty($rA['ok']), $rA['erro'] ?? '');
+confere('fila: Ana fica aguardando', psdPorId($pdo, (int)$rA['id'])['status'] === 'aguardando');
+confere('fila: cobrou da Ana', moedas($pdo, $A) === $antesA - 300);
+
+// Mesmo valor, OUTRA regra: não pode casar com a da Ana.
+$rC = psdAbrir($pdo, $C, 'Caio', 'fila', 300, 'time');
+confere('fila: regra diferente não casa', !empty($rC['ok']) && (int)$rC['id'] !== (int)$rA['id'],
+        'o Caio caiu na sala da Ana com outra regra!');
+
+// Mesmo valor E mesma regra: tem que casar com a da Ana.
+$rB = psdAbrir($pdo, $B, 'Beto', 'fila', 300, 'aleatoria');
+confere('fila: Beto casa com a Ana', !empty($rB['ok']) && (int)$rB['id'] === (int)$rA['id'],
+        'abriu sala nova em vez de casar');
+
+$pFila = psdPorId($pdo, (int)$rA['id']);
+confere('fila: a partida começou',  $pFila['status'] === 'jogando', (string)$pFila['status']);
+confere('fila: os dois estão nela', (int)$pFila['a_uid'] === $A && (int)$pFila['b_uid'] === $B);
+confere('fila: prêmio é a soma das duas entradas', (int)$pFila['premio'] === 600, (string)$pFila['premio']);
+confere('fila: cobrou do Beto também', moedas($pdo, $B) === $antesB - 300);
+confere('fila: a regra é a de quem abriu', $pFila['regra'] === 'aleatoria', (string)$pFila['regra']);
+
+// A sala do Caio continua esperando sozinha, e cancelar devolve.
+confere('fila: a sala do Caio segue aberta',
+        psdPorId($pdo, (int)$rC['id'])['status'] === 'aguardando');
+psdDesistirDaEspera($pdo, $C);
+confere('fila: Caio cancelou e recebeu de volta', moedas($pdo, $C) === $antesC,
+        moedas($pdo, $C) . ' contra ' . $antesC);
+
+// Fecha a partida da fila pra não atrapalhar o resto do teste.
+psdDesistir($pdo, $A);
+confere('fila: desistência pagou o Beto', moedas($pdo, $B) === $antesB - 300 + 600);
+
 // ─────────────────────────────── 2. tentativas de trapaça ───────────────────────────────
 
 titulo('TENTATIVAS DE TRAPAÇA');
