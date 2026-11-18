@@ -79,8 +79,8 @@ const PSD_CORTES_BST = [500, 555, 600, 680];
  *   City Edition 5.000 · slot de G-League 15.000
  *
  * LENDÁRIA = 15.000, o mesmo que o item mais caro da liga inteira.
- * MÍTICA  = 30.000, acima do maior saldo que existe hoje (20.476) e 14%
- * de toda a moeda da liga: é pra ser objetivo de temporada, não compra.
+ * MÍTICA  = 18.000, logo abaixo do maior saldo que existe hoje (20.476)
+ * e 8% de toda a moeda da liga: alcançável por um, objetivo pro resto.
  *
  * ── O QUE ISSO CUSTA, PRA FICAR REGISTRADO ───────────────────────────
  *
@@ -93,7 +93,7 @@ const PSD_RARIDADES = [
     'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>  2500, 'devolve' =>  625],
     'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' =>  6000, 'devolve' => 1500],
     'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' => 15000, 'devolve' => 3750],
-    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 30000, 'devolve' => 7500],
+    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 18000, 'devolve' => 4500],
 ];
 
 /**
@@ -113,7 +113,7 @@ const PSD_RARIDADES = [
 const PSD_PACOTES = [
     'basico'  => ['nome' => 'Pacote Básico',  'preco' => 1500, 'cartas' => 3, 'garante' => 'rara',
                   'chances' => ['comum' => 7800, 'rara' => 1850, 'epica' => 320, 'lendaria' => 28, 'mitica' => 2]],
-    'premium' => ['nome' => 'Pacote Premium', 'preco' => 4000, 'cartas' => 3, 'garante' => 'epica',
+    'premium' => ['nome' => 'Pacote Premium', 'preco' => 3200, 'cartas' => 3, 'garante' => 'epica',
                   'chances' => ['comum' => 5200, 'rara' => 3300, 'epica' => 1310, 'lendaria' => 175, 'mitica' => 15]],
 ];
 
