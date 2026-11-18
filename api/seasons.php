@@ -3537,12 +3537,48 @@ try {
             } catch (Throwable $e) {
                 error_log('[advance_season] reset queridometro: ' . $e->getMessage());
             }
+
+            /* ── A G-LEAGUE ESVAZIA A CADA VIRADA ─────────────────────
+             *
+             * Pedido do Marcos, 18/11/2026.
+             *
+             * A vaga é de jogador com menos de 25 anos (a trava está em
+             * api/players.php, no set_lineup), e a idade sobe na virada:
+             * quem desceu com 24 vira 25 e fica num lugar onde já não
+             * poderia entrar. Pior que o enfeite, ele some da rotação de
+             * minutos — quem está em G-League fica fora de sugerirMinutos
+             * — e o GM não tem como saber por quê.
+             *
+             * Em vez de caçar quem passou da idade, a lista inteira volta
+             * pra 'Outro' e o GM escolhe de novo quem desce na temporada
+             * nova. É a mesma ideia do reset da tática e do queridômetro
+             * logo acima: a virada limpa o que é de uma temporada só.
+             *
+             * Só a ELITE tem G-League (@see ligaUsaGLeague). */
+            $gleagueLiberados = 0;
+            if (ligaUsaGLeague($advSeason['league'])) {
+                try {
+                    $stmtGL = $pdo->prepare("UPDATE players p
+                                               JOIN teams t ON t.id = p.team_id
+                                                SET p.role = 'Outro'
+                                              WHERE t.league = ? AND p.role = 'G-League'");
+                    $stmtGL->execute([$advSeason['league']]);
+                    $gleagueLiberados = $stmtGL->rowCount();
+                } catch (Throwable $e) {
+                    error_log('[advance_season] esvaziar G-League: ' . $e->getMessage());
+                }
+            }
             /* O que ficou em aberto vai junto na resposta. A temporada
                avança de qualquer jeito, mas quem clicou merece saber o que
                o checklist ainda apontava — pode ter sido esquecimento. */
             echo json_encode([
                 'success'   => true,
-                'message'   => 'Temporada marcada como concluída',
+                'message'   => 'Temporada marcada como concluída'
+                    . ($gleagueLiberados > 0
+                        ? ' · G-League esvaziada: ' . $gleagueLiberados . ' jogador'
+                          . ($gleagueLiberados > 1 ? 'es voltaram' : ' voltou') . ' para Outro'
+                        : ''),
+                'gleague_liberados' => $gleagueLiberados,
                 'pendentes' => array_map(fn($i) => $i['titulo'], $pendentes),
             ]);
             break;
