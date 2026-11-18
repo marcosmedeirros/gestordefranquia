@@ -351,8 +351,11 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
   .st-par{background:#c9a227}.st-brn{background:#e2622b}.st-psn,.st-tox{background:#9b4fa8}
   .st-slp{background:#6b7280}.st-frz{background:#4aa3d4}
   .barra .trilho{height:6px;border-radius:4px;background:#2d3444;margin-top:4px;overflow:hidden}
+  /* A descida tem que caber na batida da animação: o evento de dano
+     espera ~520ms antes do próximo, e com os 900ms de antes a barra
+     ainda estava escorrendo quando o golpe seguinte entrava. */
   .barra .hp{height:100%;border-radius:4px;background:var(--hp-verde);
-             transition:width .9s cubic-bezier(.3,.8,.4,1),background .4s}
+             transition:width .5s cubic-bezier(.3,.8,.4,1),background .2s}
   .barra .num{font-size:10.5px;color:#5b6477;text-align:right;margin-top:2px;font-variant-numeric:tabular-nums}
   .barra .sub{font-size:9.5px;color:#7a8396;margin-top:1px}
 
@@ -1382,7 +1385,7 @@ async function animar(d, eventos){
       if (sp) { sp.classList.add('levou','piscou'); }
       if (campo) { campo.classList.add('sacode'); setTimeout(()=>campo.classList.remove('sacode'), 300); }
       mostrarNumero(l, '-' + ev.valor, false);
-      ajustarHp(l, ev.hp, ev.hpmax);
+      ajustarHp(l, ev.hp, ev.hpmax, true);
       await espera(520);
       if (sp) { sp.classList.remove('piscou'); setTimeout(()=>sp.classList.remove('levou'), 300); }
 
@@ -1401,6 +1404,9 @@ async function animar(d, eventos){
         sp.src = sprite(ev.bicho.num, l === 'meu' ? 'costas' : 'frente');
         sp.onerror = () => spriteFallback(sp, ev.bicho.num, l === 'meu' ? 'costas' : 'frente');
       }
+      // A barra é do bicho que está em quadra: quem entra traz a dele.
+      // Sem isto ela ficaria com o nome e a vida de quem acabou de cair.
+      porBarra(l, ev.bicho);
       await espera(420);
 
     } else {
@@ -1418,12 +1424,28 @@ function mostrarNumero(l, texto, cura){
   el.classList.remove('vai'); void el.offsetWidth; el.classList.add('vai');
 }
 
-function ajustarHp(l, hp, hpmax){
+/**
+ * Desce (ou sobe) a barra.
+ *
+ * $vermelho pinta de vermelho no instante da pancada e só então deixa a
+ * cor certa aparecer: num golpe que tira pouco, verde descendo pra verde
+ * quase não se vê, e a pessoa fica sem saber se levou dano. O flash é o
+ * aviso; o tamanho final é a informação.
+ */
+function ajustarHp(l, hp, hpmax, vermelho){
   const el = document.getElementById('hp-'+l);
   if (!el) return;
   const pct = Math.max(0, Math.round(100*hp/hpmax));
+  const cor = pct > 50 ? 'var(--hp-verde)' : pct > 20 ? 'var(--hp-amarelo)' : 'var(--hp-vermelho)';
+
   el.style.width = pct + '%';
-  el.style.background = pct > 50 ? 'var(--hp-verde)' : pct > 20 ? 'var(--hp-amarelo)' : 'var(--hp-vermelho)';
+  if (vermelho) {
+    el.style.background = 'var(--hp-vermelho)';
+    setTimeout(() => { el.style.background = cor; }, 420);
+  } else {
+    el.style.background = cor;
+  }
+
   const n = document.getElementById('num-'+l);
   if (n) n.textContent = hp + '/' + hpmax;
 }
@@ -1489,6 +1511,7 @@ async function puxar(){
 
   const novo = d.seq > ultimoSeq;
   const primeira = ultimoSeq === 0;
+  const anterior = estado;          // o estado de ANTES deste turno
   ultimoSeq = d.seq;
   estado = d;
 
@@ -1498,10 +1521,40 @@ async function puxar(){
   if (telaDesenhada !== chave) { telaDesenhada = chave; desenharPartida(d); }
 
   if (novo && !primeira && d.eventos && d.eventos.length) {
+    /* ── A BARRA TEM QUE DESCER NA HORA DO GOLPE ───────────────────
+     *
+     * desenharPartida() desenha o estado FINAL do turno, então a barra
+     * já nascia no valor de depois e o dano nunca aparecia acontecendo:
+     * o bicho tremia, o número subia, e a vida simplesmente já estava
+     * mais baixa.
+     *
+     * Então antes de animar a gente REBOBINA as barras pro valor do
+     * turno passado. Os eventos de dano carregam o hp de depois de cada
+     * pancada, e a animação desce até ele — que é o que dá a sensação
+     * de ter levado. */
+    rebobinarBarras(anterior);
     await animar(d, d.eventos);
     telaDesenhada = chave;
     desenharPartida(d);
   }
+}
+
+/**
+ * Põe as barras de volta no valor do começo do turno.
+ *
+ * Troca o elemento inteiro em vez de mexer só na largura: elemento novo
+ * com largura escrita de cara não dispara a transição do CSS, então a
+ * barra não sobe animada antes de descer.
+ */
+function rebobinarBarras(antes){
+  if (!antes || antes.em !== 'jogando') return;
+  if (antes.eu  && antes.eu.ativo)  porBarra('meu',   antes.eu.ativo);
+  if (antes.ele && antes.ele.ativo) porBarra('deles', antes.ele.ativo);
+}
+
+function porBarra(lado, bicho){
+  const el = document.querySelector('.barra.' + lado);
+  if (el && bicho) el.outerHTML = barraHtml(bicho, lado, lado === 'meu');
 }
 
 setInterval(() => { if (!animando) puxar(); }, 1500);
