@@ -661,6 +661,20 @@ $jogosLivres = [
      'sub'  => 'Draft da NBA e uma temporada', 'icone' => 'bi-layers-fill', 'cor' => '#a855f7'],
     /* LENDAS DA QUADRA segue só por link (pedido do Victor, 09/10/2026):
        /games/games/lendas.php — o RPG de tabuleiro com duelo online. */
+    /* POKÉMON PVP ENTROU NA GRADE (18/11/2026). Nasceu em 17/11 e passou um
+       dia só por link.
+
+       É o único jogo daqui em que os dois jogam AO MESMO TEMPO: cada um
+       manda a escolha escondida e o turno resolve quando as duas chegam.
+       Por isso ele tem as duas portas — contra a máquina pra aprender, e
+       contra outro GM valendo moeda, em que o vencedor leva as duas
+       entradas.
+
+       Fica ao lado do FBA Draft e do Hoops porque divide com eles a mesma
+       ideia de coleção: lá são cartas de jogador, aqui são os bichos que
+       você compra na loja e escala pra batalha. */
+    ['href' => '/games/games/pokemonpvp.php', 'nome' => 'Pokémon PVP',
+     'sub'  => 'Batalhe contra outro GM', 'icone' => 'bi-circle-half', 'cor' => '#ef4444'],
     // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
     // fazer. Fica logo no começo por isso, e não por ser nova.
     ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
