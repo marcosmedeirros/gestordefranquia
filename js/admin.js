@@ -8250,6 +8250,26 @@ function _taticaPainelModelos(modelos) {
     </style>`;
 }
 
+/**
+ * Abre e fecha o resto do elenco na seção Posições do card de táticas.
+ *
+ * O bloco já está desenhado e escondido: o card recebeu o elenco inteiro
+ * do servidor, e só quem mudou de posição (ou é calouro) fica em
+ * destaque. Aqui é só o interruptor.
+ */
+function _tacVerTodasPosicoes(teamId, bt) {
+  const bloco = document.getElementById('tac-pos-todos-' + teamId);
+  if (!bloco) return;
+  const abrindo = bloco.style.display === 'none';
+  bloco.style.display = abrindo ? '' : 'none';
+  if (bt) {
+    const n = bloco.querySelectorAll('.tac-jog').length;
+    bt.innerHTML = abrindo
+      ? 'Esconder os outros'
+      : `Ver todos <span style="opacity:.6">(${n})</span>`;
+  }
+}
+
 function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
   const container = document.getElementById('mainContainer');
 
@@ -8292,7 +8312,7 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
     // Calouro sem posição conferida no jogo entra na conta: é trabalho a
     // aplicar igual aos outros, e é o único que acende sem ter mudado nada.
     const mudancas = (at.config || []).filter(x => x.mudou).length
-                   + (at.posicoes || []).filter(p => p.mudou || p.rookie_pendente).length;
+                   + (at.posicoes || []).filter(p => p.destaque).length;
     const rookiesPend = at.rookies_pendentes || 0;
 
     // O nome em vermelho é o aviso de "este mexeu na tática pros playoffs".
@@ -8354,10 +8374,20 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
           ${(at.gleague || []).length ? `
             <div class="tac-secao">G-League</div>
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
-          ${(at.posicoes || []).length ? `
-            <div class="tac-secao">Posições</div>
-            <div class="tac-jogadores">${at.posicoes.map(p => {
-              const aceso = p.mudou || p.rookie_pendente;
+          ${(at.posicoes || []).length ? (() => {
+            /* ── DESTAQUE EM CIMA, ELENCO INTEIRO ATRÁS DE UM CLIQUE ──
+             *
+             * O card é lista de tarefa: quem mudou de posição aparece, de
+             * titular a G-League. O resto do elenco continua vindo do
+             * servidor, mas fica escondido — o admin abre quando quiser
+             * conferir alguém que não mexeu.
+             *
+             * Os dois blocos são desenhados JUNTOS e o segundo nasce com
+             * display:none. Desenhar sob demanda exigiria guardar o
+             * elenco em algum lugar pra consultar depois, e o card já tem
+             * tudo em mãos. */
+            const chip = (p) => {
+              const aceso = p.destaque;
               /* Quem não é titular nem banco só chega aqui por ter mexido na
                  posição (ou por ser calouro). Sem dizer de onde ele veio, o
                  operacional vê um nome que não está na quadra e não entende
@@ -8371,7 +8401,38 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
               <b style="color:${aceso ? 'inherit' : 'var(--text-3)'};font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b>${
                 p.mudou && p.antes ? `<small style="margin-left:5px;font-weight:600;opacity:.8">(era ${escapeHtml(p.antes)})</small>`
                 : (p.rookie_pendente ? `<small style="margin-left:5px;font-weight:700;opacity:.9">calouro</small>` : '')}</span>`;
-            }).join('')}</div>` : ''}
+            };
+
+            /* A lista aberta vai POR POSIÇÃO, não por papel: ali ninguém
+               tem tarefa, é conferência — e conferir elenco se faz
+               olhando armador com armador, pivô com pivô. */
+            const ORDEM_POS = ['PG', 'SG', 'SF', 'PF', 'C'];
+            const porPosicao = (a, b) => {
+              const ia = ORDEM_POS.indexOf(String(a.position || '').toUpperCase());
+              const ib = ORDEM_POS.indexOf(String(b.position || '').toUpperCase());
+              return (ia < 0 ? 9 : ia) - (ib < 0 ? 9 : ib)
+                  || String(a.nome).localeCompare(String(b.nome), 'pt-BR');
+            };
+
+            const destaques = at.posicoes.filter(p => p.destaque);
+            const resto     = at.posicoes.filter(p => !p.destaque).sort(porPosicao);
+
+            return `
+            <div class="tac-secao">Posições</div>
+            ${destaques.length
+              ? `<div class="tac-jogadores">${destaques.map(chip).join('')}</div>`
+              : `<div style="font-size:11.5px;color:var(--text-3);padding:2px 0 1px">Ninguém mudou de posição desde o retrato.</div>`}
+            ${resto.length ? `
+              <div style="margin-top:7px">
+                <button class="btn-ghost" style="padding:3px 10px;font-size:11px"
+                        onclick="_tacVerTodasPosicoes(${tid}, this)">
+                  Ver todos <span style="opacity:.6">(${resto.length})</span>
+                </button>
+              </div>
+              <div class="tac-jogadores" id="tac-pos-todos-${tid}" style="display:none;margin-top:7px">
+                ${resto.map(chip).join('')}
+              </div>` : ''}`;
+          })() : ''}
           <div class="tac-secao">Configurações</div>
           <div class="tac-campos">${config}</div>
           ${observacaoHtml}

@@ -591,28 +591,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     ];
                 }
 
-                /* ── AS POSIÇÕES QUE O CARD MOSTRA ───────────────────────
+                /* ── O ELENCO INTEIRO VAI; A TELA É QUE ESCONDE ──────────
                  *
-                 * TITULAR e BANCO sempre: é o que o operacional monta no
-                 * jogo toda temporada, mexido ou não.
+                 * Decisão do Marcos e da Agata em 18/11/2026: em destaque
+                 * fica quem teve a POSIÇÃO ALTERADA, de titular a
+                 * G-League, e o resto do elenco fica atrás de um "ver
+                 * todos" pro admin abrir quando quiser conferir.
                  *
-                 * O RESTO DO ELENCO (Outro e G-League) só aparece QUANDO
-                 * MUDOU — pedido do Marcos, 18/11/2026. Eles ficavam de
-                 * fora da consulta inteira, então um GM que corrigisse a
-                 * posição de um reserva profundo entre uma temporada e
-                 * outra não tinha como avisar ninguém: a mudança existia
-                 * no app e nunca chegava ao jogo.
+                 * Antes a consulta era `role IN ('Titular','Banco')`, e
+                 * isso errava dos dois lados: titular aparecia sempre,
+                 * mexido ou não, enchendo a lista de nome sem tarefa; e o
+                 * resto do elenco ficava fora por completo, então um GM
+                 * que corrigisse a posição de um reserva profundo não
+                 * tinha como avisar ninguém — a mudança existia no app e
+                 * nunca chegava ao jogo.
                  *
-                 * Mostrar todos o tempo todo seria o contrário do que o
-                 * card serve — quinze nomes sem nada pra fazer afogariam
-                 * os dois que importam. Então quem não mexeu continua
-                 * invisível, exatamente como antes.
+                 * Por isso o servidor manda todos com a marca `destaque`,
+                 * em vez de filtrar: o "ver todos" tem que abrir na hora,
+                 * sem ir buscar de novo.
                  *
-                 * O CALOURO entra pela mesma porta: ele acende sem
-                 * retrato pra comparar, porque quem cria o jogador dentro
-                 * do 2K é o operacional e ninguém conferiu ainda
-                 * (@see taticaRookieSemPosicao). Calouro costuma nascer
-                 * em "Outro", que é justamente o balde que estava fora.
+                 * O CALOURO entra no destaque mesmo sem ter "mudado": ele
+                 * acende por nunca ter sido conferido no jogo, já que
+                 * quem cria o jogador dentro do 2K é o operacional
+                 * (@see taticaRookieSemPosicao). É tarefa pela mesma
+                 * régua — alguém tem que abrir o 2K por causa dele.
                  */
                 require_once __DIR__ . '/../backend/tatica_posicoes.php';
                 taticaGarantirColunaPosAplicada($pdo);
@@ -633,15 +635,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $calouro = taticaRookieSemPosicao($p);
                     $daQuadra = in_array((string)$p['role'], ['Titular', 'Banco'], true);
 
-                    if (!$daQuadra && !$mudou && !$calouro) continue;
-
                     $posicoes[] = [
                         'nome' => $p['name'], 'position' => $p['position'],
                         'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
                         'mudou' => $mudou,
                         'antes' => $antesDele,
                         'rookie_pendente' => $calouro,
-                        // Entrou no card só por ter mexido: a tela diz de onde ele veio.
+                        // Quem o operacional tem que mexer no jogo. O resto fica
+                        // escondido atrás do "ver todos".
+                        'destaque' => $mudou || $calouro,
+                        // Pra tela dizer onde ele está quando não for da quadra.
                         'fora_da_quadra' => !$daQuadra,
                     ];
                 }
