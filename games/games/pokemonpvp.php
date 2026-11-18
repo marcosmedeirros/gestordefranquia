@@ -8,7 +8,7 @@
  *            valendo moedas. Duas regras: ALEATÓRIA (seis sorteados, a
  *            coleção não conta) e MEU TIME (a escalação de cada um).
  *   COLEÇÃO  o que você tem e quem entra em quadra.
- *   LOJA     carta avulsa por moedas, pacote por FBA Points (3 por dia).
+ *   LOJA     carta avulsa e pacote, os dois em moedas (3 pacotes por dia).
  *   RANKING  maior coleção e mais vitórias no PVP.
  *   GUIA     a tabela de tipos, cada Pokémon e cada golpe.
  *
@@ -973,12 +973,20 @@ async function desenharLoja(){
   const d = await (await fetch('?' + q)).json();
   bolso(d.bolso);
 
+  /* O pacote passou a custar MOEDAS em 18/11, e esta tela tinha ficado
+     pra trás: dizia "FBA Points" e acendia o botão olhando o saldo de FBA
+     Points, enquanto o servidor cobrava moeda. Quem tinha FBA Point e não
+     tinha moeda via o botão aceso e tomava "você não tem". */
   const pacotes = Object.entries(d.pacotes).map(([k,p]) => {
     const resta = d.teto_dia - d.hoje;
+    const podePagar = (d.bolso.moedas ?? 0) >= p.preco;
+    const motivo = resta <= 0 ? 'Você já abriu os pacotes de hoje'
+                 : !podePagar ? `Faltam moedas (custa ${num(p.preco)})` : '';
     return `<button class="bt ${k==='premium'?'ouro':''}" style="flex:1"
-              ${resta>0 && d.bolso.fbap >= p.preco ? '' : 'disabled'} onclick="abrirPacote('${k}')">
+              ${resta > 0 && podePagar ? '' : 'disabled'}
+              ${motivo ? `title="${esc(motivo)}"` : ''} onclick="abrirPacote('${k}')">
         ${esc(p.nome)}<br><small style="font-weight:600;opacity:.75">
-        ${num(p.preco)} FBA Points · garante ${esc(d.raridades[p.garante].nome)}</small></button>`;
+        ${num(p.preco)} moedas · garante ${esc(d.raridades[p.garante].nome)}</small></button>`;
   }).join('');
 
   const filtros = ['', ...Object.keys(d.raridades)].map(r =>
