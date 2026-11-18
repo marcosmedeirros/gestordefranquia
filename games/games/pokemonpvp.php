@@ -697,7 +697,9 @@ async function sair(){
     return;
   }
 
-  location.href = '/games/';
+  /* /games.php, e não /games/: a pasta cai na aba Apostas do hub, e a
+     grade dos jogos — de onde a pessoa veio — mora no .php. */
+  location.href = '/games.php';
 }
 
 function desenharAba(){
