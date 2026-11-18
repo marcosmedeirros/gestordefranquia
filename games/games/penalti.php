@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("INSERT IGNORE INTO penalti_conquistas (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
         $newMoedas = null; $newFba = null;
         if (!$jaConquistou) {
-            $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+500 WHERE id=?")->execute([$user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+750 WHERE id=?")->execute([$user_id]);
             $s = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id=?");
             $s->execute([$user_id]);
             $uRow = $s->fetch(PDO::FETCH_ASSOC);

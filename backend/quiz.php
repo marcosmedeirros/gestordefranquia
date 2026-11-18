@@ -24,7 +24,7 @@
 require_once __DIR__ . '/whatsapp.php';
 
 /** Quanto vale acertar, em moedas do FBA Games. */
-const BOT_QUIZ_PREMIO = 100;
+const BOT_QUIZ_PREMIO = 300;
 
 /**
  * A que horas de Brasília a pergunta do dia sai, e por quanto tempo fica em pé.

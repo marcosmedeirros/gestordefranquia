@@ -788,7 +788,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
 
     /** A mesma conta de flappyMoedasPorScore() no PHP — se mudar lá, muda aqui. */
-    const moedasPorMarco = cano => cano <= 20 ? 5 : cano <= 50 ? 7 : cano <= 80 ? 9 : 11;
+    const moedasPorMarco = cano => cano <= 20 ? 8 : cano <= 50 ? 11 : cano <= 80 ? 14 : 17;
     const moedasPorScore = s => {
         let total = 0;
         for (let m = 1; m <= Math.floor(Math.max(0, s) / 10); m++) total += moedasPorMarco(m * 10);

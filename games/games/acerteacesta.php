@@ -140,8 +140,8 @@ function cestaMoedasPorScore(int $score): int
  */
 const CESTA_MARCO_TOTAL     = 5000;
 const CESTA_MARCO_MAX       = 50000;
-const CESTA_PREMIO_PRIMEIRO = 200;
-const CESTA_PREMIO_DEMAIS   = 50;
+const CESTA_PREMIO_PRIMEIRO = 300;
+const CESTA_PREMIO_DEMAIS   = 75;
 /* Era 250. Subiu pra 1.500 a pedido do Marcos (04/11/2026): bater 50.000
    cestas leva meses de partida, e o prêmio tem que pagar esse tamanho. */
 const CESTA_FBA_FINAL       = 1500;

@@ -3,7 +3,7 @@
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
-$PONTOS_VITORIA = 150 * getGamePointsMultiplier($pdo, 'hoopgrid');
+$PONTOS_VITORIA = 225 * getGamePointsMultiplier($pdo, 'hoopgrid');
 
 try { $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_historico (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -533,7 +533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($correto) {
                 $porCelula[$key] = ['key' => $key, 'player' => $nome];
                 $mult = max(1, (int)getGamePointsMultiplier($pdo, 'hoopgrid'));
-                $credito = 25 * $mult;
+                $credito = 38 * $mult;
                 $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
                 $pts += $credito;
             } else {

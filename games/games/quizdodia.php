@@ -23,7 +23,7 @@ require __DIR__ . '/../core/conexao.php';
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 if ($idUsuario <= 0) { header('Location: /login.php'); exit; }
 
-const QUIZ_PREMIO    = 100;  // moedas pra quem votou com a maioria
+const QUIZ_PREMIO    = 150;  // moedas pra quem votou com a maioria
 const QUIZ_MIN_VOTOS = 3;    // abaixo disso o dia não paga ninguém
 
 // ── Tabelas ────────────────────────────────────────────────────────────

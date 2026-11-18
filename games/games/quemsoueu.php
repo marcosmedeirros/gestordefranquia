@@ -11,7 +11,7 @@ $MAX_TENTATIVAS = 8;
 
 // Mesma recompensa dos outros diários (100), e passando pelo multiplicador do
 // admin como termo/memória/bomba — antes eram 200 fixos, fora do padrão.
-$BASE_PONTOS_VITORIA = 100;
+$BASE_PONTOS_VITORIA = 150;
 $PONTOS_VITORIA = $BASE_PONTOS_VITORIA * getGamePointsMultiplier($pdo, 'quemsoueu');
 
 // ─── DATASET: base oficial de jogadores (hoopgrid_players) ─────────────────

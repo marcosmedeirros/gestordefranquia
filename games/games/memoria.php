@@ -9,7 +9,7 @@ error_reporting(E_ALL);
 require '../core/conexao.php';
 
 // --- CONFIGURACOES ---
-$BASE_PONTOS_VITORIA = 100;
+$BASE_PONTOS_VITORIA = 150;
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'memoria');
 $PONTOS_VITORIA = $BASE_PONTOS_VITORIA * $pointsMultiplier;
 $LIMITE_MOVIMENTOS = 18; 

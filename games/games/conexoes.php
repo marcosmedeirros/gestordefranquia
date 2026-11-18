@@ -8,7 +8,7 @@ nba_ensure_tables($pdo);
 
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
-$PONTOS_VITORIA = 120 * getGamePointsMultiplier($pdo, 'conexoes');
+$PONTOS_VITORIA = 180 * getGamePointsMultiplier($pdo, 'conexoes');
 
 // Cria tabela
 try {
@@ -487,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gi = (int)$unicos[0];
                 $encontrados[] = $gi;
                 $mult = max(1, (int)getGamePointsMultiplier($pdo, 'conexoes'));
-                $credito = 50 * $mult;
+                $credito = 75 * $mult;
                 $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
                 $pts += $credito;
                 $resposta = ['ok' => true, 'acertou' => true, 'grupo_idx' => $gi, 'grupo' => $grupo_meta[$gi],

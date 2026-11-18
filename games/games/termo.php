@@ -10,10 +10,10 @@ require '../core/conexao.php';
 
 // --- CONFIGURACOES ---
 $modo = (($_GET['modo'] ?? 'normal') === 'dueto') ? 'dueto' : 'normal';
-$BASE_PONTOS_VITORIA = 100;
+$BASE_PONTOS_VITORIA = 150;
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'termo');
 $PONTOS_VITORIA = $BASE_PONTOS_VITORIA * $pointsMultiplier;
-$PONTOS_VITORIA_DUETO = 200 * $pointsMultiplier;
+$PONTOS_VITORIA_DUETO = 300 * $pointsMultiplier;
 $MAX_TENTATIVAS = 6;
 $MAX_TENTATIVAS_DUETO = 7;
 

@@ -519,9 +519,9 @@ function buildMoedasDaPosicaoHistorica(array $hist): int
 {
     if (!$hist['no_top']) return 0;
     $pos = (int)$hist['posicao'];
-    if ($pos <= 1)  return 150;
-    if ($pos <= 5)  return 100;
-    if ($pos <= 10) return 50;
+    if ($pos <= 1)  return 225;
+    if ($pos <= 5)  return 150;
+    if ($pos <= 10) return 75;
     return 0;
 }
 

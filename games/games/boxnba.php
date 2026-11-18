@@ -5,7 +5,7 @@ require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
-$PONTOS_VITORIA = 150 * getGamePointsMultiplier($pdo, 'boxnba');
+$PONTOS_VITORIA = 225 * getGamePointsMultiplier($pdo, 'boxnba');
 
 // Cria tabela se não existir
 try {
@@ -223,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $porCelula[$key] = ['key' => $key, 'player' => $nome];
                 $acertos = count($porCelula);
                 $mult = max(1, (int)getGamePointsMultiplier($pdo, 'boxnba'));
-                $credito = (25 + ($acertos >= 9 ? 50 : 0)) * $mult;
+                $credito = (38 + ($acertos >= 9 ? 75 : 0)) * $mult;
                 $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
                 $pontosGanhos += $credito;
             } else {

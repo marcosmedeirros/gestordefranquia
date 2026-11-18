@@ -364,7 +364,7 @@ function abrirLootBox($pdo, $user_id, $tipo_caixa) {
                 $item_duplicado = true;
                 
                 // Adicionar 10 moedas pelo item duplicado
-                $stmtBonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + 10 WHERE id = :id");
+                $stmtBonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + 15 WHERE id = :id");
                 $stmtBonus->execute([':id' => $user_id]);
                 @file_put_contents($logFile, "  ✨ +10 moedas adicionadas por item duplicado\n", FILE_APPEND | LOCK_EX);
             } else {

@@ -1433,9 +1433,9 @@ function coperoSortearEfeito(array $carta): array
  * Points porque são a única moeda que não se ganha jogando qualquer coisa.
  */
 const COPERO_PREMIO = [
-    'facil'      => ['moedas' => 50],
-    'media'      => ['moedas' => 100],
-    'dificil'    => ['moedas' => 150],
+    'facil'      => ['moedas' => 75],
+    'media'      => ['moedas' => 150],
+    'dificil'    => ['moedas' => 225],
     'impossivel' => ['fba_points' => 50],
 ];
 

@@ -78,7 +78,7 @@ const GEO_MEMORIA_PAISES  = 25;
  * existe "partida perfeita" (ela vai até errar), e 25 por acerto põe os
  * mesmos 250 numa série de 10 — que é uma série muito boa.
  */
-const GEO_MOEDA_ACERTO   = 25;    // por acerto no modo país
+const GEO_MOEDA_ACERTO   = 38;    // por acerto no modo país
 const GEO_MOEDA_MAPA_CEM = 1;     // por 100 pontos no modo mapa
 
 /**

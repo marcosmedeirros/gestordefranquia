@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'palpi
     $tentativas[] = $result;
     $acertou      = ($guessedId === $targetPlayer['id']);
     $fim          = $acertou || count($tentativas) >= $MAX_TENTATIVAS;
-    $pontosGanhos = $acertou ? 200 : 0;
+    $pontosGanhos = $acertou ? 300 : 0;
 
     try {
         $pdo->prepare("UPDATE quemsoueu_futebol

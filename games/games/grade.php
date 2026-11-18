@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: /login.php"); exit;
 }
 $user_id = (int)$_SESSION['user_id'];
-$PONTOS_VITORIA = 200 * getGamePointsMultiplier($pdo, 'grade');
+$PONTOS_VITORIA = 300 * getGamePointsMultiplier($pdo, 'grade');
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS grade_historico (
@@ -278,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $decorrido = ($row && $row['iniciado_em'] !== null) ? max(0, (int)$row['decorrido']) : GRADE_SEGUNDOS;
                 $restante  = max(0, GRADE_SEGUNDOS + GRADE_TOLERANCIA - $decorrido);
                 $restante  = min($restante, GRADE_SEGUNDOS); // a tolerância não vira bônus extra
-                $bonusTempo = intdiv($restante, 10) * 5;
+                $bonusTempo = intdiv($restante, 10) * 8;
                 $premio = $PONTOS_VITORIA + $bonusTempo;
             }
 

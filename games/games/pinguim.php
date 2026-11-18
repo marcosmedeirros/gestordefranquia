@@ -26,7 +26,7 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'pinguim');
  *
  * Mesmo valor do Flappy, que usa a mesma curva de prêmio.
  */
-const PINGUIM_TETO_MOEDAS_PARTIDA = 150;
+const PINGUIM_TETO_MOEDAS_PARTIDA = 225;
 
 /**
  * Folga, em pontos, entre o último marco reportado e o score final aceito.

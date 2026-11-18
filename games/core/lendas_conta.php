@@ -36,8 +36,8 @@ const LENDAS_PACOTES = [
 const LENDAS_REEMBOLSO = ['comum' => 15, 'rara' => 40, 'epica' => 120, 'lendaria' => 400];
 
 /** Prêmios do online (só online — o Treino nunca paga). */
-const LENDAS_PREMIO_VITORIA = 500;
-const LENDAS_PREMIO_DERROTA = 50;
+const LENDAS_PREMIO_VITORIA = 750;
+const LENDAS_PREMIO_DERROTA = 75;
 const LENDAS_PREMIADAS_POR_DIA = 3;
 /** Turnos de cada lado pra partida pagar — desistência no 2º turno não rende nada. */
 const LENDAS_TURNOS_MIN_PREMIO = 6;
