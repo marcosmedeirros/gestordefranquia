@@ -18,21 +18,24 @@
  *
  *   Comum     52%      Rara 26%      Épica 17%     Lendária 4%   Mítica 0,4%
  *
- * ── DUAS MOEDAS, DE PROPÓSITO ────────────────────────────────────────
+ * ── UMA MOEDA SÓ ─────────────────────────────────────────────────────
  *
- * CARTA AVULSA sai em MOEDAS: você escolhe quem quer e paga caro por
- * quem é bom. PACOTE sai em FBA POINTS, no máximo 3 por dia: é o
- * caminho da sorte, e o teto diário é o que impede quem tem muito FBA
- * Point de comprar a dex inteira numa tarde.
+ * Carta avulsa e pacote saem os dois em MOEDAS (pedido do Marcos,
+ * 18/11/2026). O pacote nasceu custando FBA Points, e isso dividia o
+ * jogo em duas economias que não conversavam: quem tinha moeda não
+ * abria pacote e quem tinha FBA Point não comprava carta. Com uma moeda
+ * só, tudo que você ganha jogando vale pra qualquer coisa aqui dentro.
  *
- * ── REPETIDA DEVOLVE 25%, E NÃO O VALOR CHEIO ────────────────────────
+ * O teto de 3 pacotes por dia continua sendo o freio de verdade — sem
+ * ele, quem tem saldo grande compraria a dex inteira numa tarde.
  *
- * O pedido era devolver o valor. Não dá: o pacote é pago em FBA Points e
- * a devolução sai em moedas, então no valor cheio uma lendária repetida
- * pagaria 9.000 moedas — mais do que qualquer GM da liga tem hoje (a
- * média é 1.644, o maior saldo é 20.476). O pacote viraria máquina de
- * imprimir dinheiro, e a aposta do PVP junto. 25% é o bastante pra
- * repetida não ser lixo.
+ * ── REPETIDA DEVOLVE 25% ─────────────────────────────────────────────
+ *
+ * O pedido original era devolver o valor cheio, e não dá: o pacote
+ * custa menos que a carta que pode sair dele, então devolver o valor
+ * cheio de uma lendária repetida pagaria 4.000 moedas por um pacote de
+ * 120. Vira máquina de imprimir dinheiro, e a aposta do PVP junto. 25%
+ * é o bastante pra repetida não ser lixo.
  *
  * @see games/core/psd_motor.php — as regras da partida
  */
@@ -43,18 +46,32 @@ require_once __DIR__ . '/psd_motor.php';
 const PSD_CORTES_BST = [500, 555, 600, 680];
 
 /**
- * Preço em moedas e devolução da repetida.
+ * ── PREÇO EM MOEDAS, E A RÉGUA É A MEDIANA ───────────────────────────
  *
- * A régua é o bolso real da liga: 138 GMs, média de 1.644 moedas, só 13
- * passam de 5.000 e um único passa de 20.000. Comum tem que caber no
- * bolso de quase todo mundo; lendária tem que ser um objetivo de meses.
+ * A primeira tabela foi calibrada pela MÉDIA do saldo da liga (1.645) e
+ * ficou cara demais. A média mente: ela é puxada por quatro GMs ricos.
+ * Olhando a distribuição de verdade (138 contas):
+ *
+ *     p25: 18      MEDIANA: 285      p75: 1.857      p90: 4.910
+ *
+ * Metade da liga tem menos de 285 moedas. Com comum a 150 e rara a 600,
+ * metade do pessoal só conseguia comprar uma carta comum e parava — e os
+ * números do primeiro dia confirmaram: 23 pessoas abriram 54 pacotes e só
+ * 3 compraram carta avulsa.
+ *
+ * A régua nova, lida de baixo pra cima:
+ *   COMUM     impulso — quase todo mundo compra sem pensar
+ *   RARA      uma decisão de quem jogou um pouco
+ *   ÉPICA     um objetivo de dias
+ *   LENDÁRIA  objetivo de quem junta (p90 chega)
+ *   MÍTICA    só os mais ricos da liga, e tem que ser assim
  */
 const PSD_RARIDADES = [
-    'comum'    => ['nome' => 'Comum',    'cor' => '#8d97ab', 'preco' =>   150, 'devolve' =>   40],
-    'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>   600, 'devolve' =>  150],
-    'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' =>  2500, 'devolve' =>  600],
-    'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' =>  9000, 'devolve' => 2200],
-    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 13000, 'devolve' => 3250],
+    'comum'    => ['nome' => 'Comum',    'cor' => '#8d97ab', 'preco' =>   80, 'devolve' =>   20],
+    'rara'     => ['nome' => 'Rara',     'cor' => '#4aa3d4', 'preco' =>  300, 'devolve' =>   75],
+    'epica'    => ['nome' => 'Épica',    'cor' => '#a855f7', 'preco' => 1200, 'devolve' =>  300],
+    'lendaria' => ['nome' => 'Lendária', 'cor' => '#f5c542', 'preco' => 4000, 'devolve' => 1000],
+    'mitica'   => ['nome' => 'Mítica',   'cor' => '#ef4444', 'preco' => 9000, 'devolve' => 2250],
 ];
 
 /**
@@ -72,9 +89,9 @@ const PSD_RARIDADES = [
  * inteira abrindo todo dia vê uma a cada mês e meio. É pra ser assim.
  */
 const PSD_PACOTES = [
-    'basico'  => ['nome' => 'Pacote Básico',  'preco' => 200, 'cartas' => 3, 'garante' => 'rara',
+    'basico'  => ['nome' => 'Pacote Básico',  'preco' => 120, 'cartas' => 3, 'garante' => 'rara',
                   'chances' => ['comum' => 7800, 'rara' => 1850, 'epica' => 320, 'lendaria' => 28, 'mitica' => 2]],
-    'premium' => ['nome' => 'Pacote Premium', 'preco' => 600, 'cartas' => 3, 'garante' => 'epica',
+    'premium' => ['nome' => 'Pacote Premium', 'preco' => 350, 'cartas' => 3, 'garante' => 'epica',
                   'chances' => ['comum' => 5200, 'rara' => 3300, 'epica' => 1310, 'lendaria' => 175, 'mitica' => 15]],
 ];
 
@@ -434,9 +451,9 @@ function psdAbrirPacote(PDO $pdo, int $uid, string $tipo): array
             return ['ok' => false, 'erro' => 'Você já abriu os ' . PSD_PACOTES_DIA . ' pacotes de hoje. Volta amanhã.'];
         }
 
-        if (!psdCobrarFbaPoints($pdo, $uid, $pac['preco'])) {
+        if (!psdCobrarMoedas($pdo, $uid, $pac['preco'])) {
             $pdo->rollBack();
-            return ['ok' => false, 'erro' => $pac['nome'] . ' custa ' . number_format($pac['preco'], 0, ',', '.') . ' FBA Points e você não tem.'];
+            return ['ok' => false, 'erro' => $pac['nome'] . ' custa ' . number_format($pac['preco'], 0, ',', '.') . ' moedas e você não tem.'];
         }
 
         $ordem = array_keys(PSD_RARIDADES);
@@ -479,7 +496,7 @@ function psdAbrirPacote(PDO $pdo, int $uid, string $tipo): array
         }
 
         $pdo->prepare("INSERT INTO psd_compras (id_usuario, tipo, item, preco, moeda, cartas, devolvido)
-                       VALUES (?,'pacote',?,?,'fbap',?,?)")
+                       VALUES (?,'pacote',?,?,'moeda',?,?)")
             ->execute([$uid, $tipo, $pac['preco'], json_encode(array_column($saiu, 'esp')), $devolvido]);
 
         $pdo->commit();

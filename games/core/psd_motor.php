@@ -309,6 +309,26 @@ function psdEficacia(string $tipo, array $tiposAlvo): float
     return $m;
 }
 
+/**
+ * O que cada tipo de golpe faz contra um bicho destes tipos, já com os
+ * dois tipos multiplicados. Só o que foge de 1x entra — o resto é ruído.
+ *
+ * @return array<string,float> tipo do golpe => multiplicador
+ */
+function psdFraquezas(array $tipos): array
+{
+    $t = psdTipos();
+    $contra = [];
+    foreach (array_keys($t) as $atacante) {
+        if ($atacante === 'stellar') continue;   // tipo de Tera, não existe em partida
+        $m = 1.0;
+        foreach ($tipos as $alvo) $m *= $t[$atacante][$alvo] ?? 1.0;
+        if ($m != 1.0) $contra[$atacante] = $m;
+    }
+    arsort($contra);
+    return $contra;
+}
+
 /** O multiplicador de um estágio de atributo: +1 = 1,5x; -1 = 0,67x. */
 function psdMultStage(int $n): float
 {
@@ -988,6 +1008,91 @@ function psdResolverTurno(array &$e, array $escolhaA, array $escolhaB): array
 
 // ─────────────────────────────── pra tela ───────────────────────────────
 
+/**
+ * ── O QUE ESTE GOLPE FAZ, EM TRÊS PALAVRAS ───────────────────────────
+ *
+ * O menu mostrava nome, tipo e PP, e mais nada. Quem não conhece Pokémon
+ * escolhia "Swords Dance" esperando dano, via o boneco pular e a vida do
+ * outro não mexer, e concluía que o jogo tinha travado — foi exatamente
+ * a reclamação do Anderson em 18/11/2026: "usei um poder e o meu boneco
+ * não fez nada".
+ *
+ * Então cada golpe diz o que faz, em português e curto o bastante pra
+ * caber embaixo do nome no celular.
+ */
+const PSD_NOME_ATRIBUTO = [
+    'atk' => 'ATQ', 'def' => 'DEF', 'spa' => 'ATQ ESP',
+    'spd' => 'DEF ESP', 'spe' => 'VEL', 'acc' => 'PRECISÃO', 'eva' => 'EVASÃO',
+];
+
+const PSD_FAZ_STATUS = [
+    'par' => 'paralisa', 'brn' => 'queima', 'psn' => 'envenena',
+    'tox' => 'envenena forte', 'slp' => 'faz dormir', 'frz' => 'congela',
+];
+
+/** "A", "A e B", "A, B e C" — vírgula até o penúltimo, "e" no último. */
+function psdLista(array $itens): string
+{
+    if (count($itens) <= 1) return (string)($itens[0] ?? '');
+    $ultimo = array_pop($itens);
+    return implode(', ', $itens) . ' e ' . $ultimo;
+}
+
+function psdGolpeResumo(array $mv): string
+{
+    // Golpe de dano: o que importa já está no power; aqui vai só o extra.
+    if (($mv['cat'] ?? '') !== 'status') {
+        $partes = [];
+        if (isset($mv['auto'])) {
+            $sobe = []; $desce = [];
+            foreach ($mv['auto'] as $k => $n) {
+                $nome = PSD_NOME_ATRIBUTO[$k] ?? $k;
+                if ($n > 0) $sobe[] = $nome; else $desce[] = $nome;
+            }
+            if ($sobe)  $partes[] = 'sobe seu '  . psdLista($sobe);
+            if ($desce) $partes[] = 'baixa seu ' . psdLista($desce);
+        }
+        if (isset($mv['recuo'])) $partes[] = 'você se machuca';
+        if (isset($mv['dreno'])) $partes[] = 'rouba vida';
+        if (isset($mv['vezes'])) $partes[] = 'bate várias vezes';
+        $sec = $mv['sec'] ?? null;
+        if ($sec) {
+            $c = (int)($sec['chance'] ?? 100);
+            if (!empty($sec['status']))  $partes[] = $c . '% ' . (PSD_FAZ_STATUS[$sec['status']] ?? $sec['status']);
+            elseif (($sec['volatil'] ?? '') === 'flinch') $partes[] = $c . '% assusta';
+            elseif (($sec['volatil'] ?? '') === 'confusion') $partes[] = $c . '% confunde';
+            elseif (!empty($sec['boosts'])) {
+                $k = array_key_first($sec['boosts']);
+                $partes[] = $c . '% baixa ' . (PSD_NOME_ATRIBUTO[$k] ?? $k) . ' do rival';
+            }
+        }
+        return implode(' · ', array_slice($partes, 0, 2));
+    }
+
+    // Golpe de status: aqui o resumo É a informação toda.
+    if (($mv['volatil'] ?? '') === 'substitute') return 'cria um substituto';
+    if (($mv['volatil'] ?? '') === 'protect')    return 'protege do próximo golpe';
+    if (($mv['volatil'] ?? '') === 'leechseed')  return 'suga vida do rival todo turno';
+    if (($mv['lado'] ?? '') === 'stealthrock')   return 'pedras que machucam quem entrar';
+    if (isset($mv['cura']))                      return 'cura metade da sua vida';
+    if (!empty($mv['status']))                   return PSD_FAZ_STATUS[$mv['status']] ?? 'aplica status';
+
+    if (!empty($mv['boosts'])) {
+        $sobe = [];
+        $desce = [];
+        foreach ($mv['boosts'] as $k => $n) {
+            $nome = PSD_NOME_ATRIBUTO[$k] ?? $k;
+            if ($n > 0) $sobe[] = $nome; else $desce[] = $nome;
+        }
+        $txt = [];
+        if ($sobe)  $txt[] = 'sobe '  . psdLista($sobe);
+        if ($desce) $txt[] = 'baixa ' . psdLista($desce);
+        return implode(', ', $txt);
+    }
+
+    return 'efeito especial';
+}
+
 function psdBichoPraTela(array $b): array
 {
     return [
@@ -1019,9 +1124,16 @@ function psdEstadoPara(array $e, string $lado): array
        o psd_golpes.php inteiro e procurar pelo id, mas aí o navegador
        baixaria 51 KB de dado pra usar quatro linhas — e, pior, passaria a
        ter uma cópia da base que pode divergir da do servidor. */
+    /* A EFICÁCIA CONTRA QUEM ESTÁ NA FRENTE vai pronta do servidor.
+       É a conta que decide o turno, e deixar a tela fazer significaria
+       mandar a tabela de tipos inteira pro navegador e ter duas cópias
+       da mesma regra. O alvo é público — ele está em quadra. */
+    $tiposAlvo = $dele['time'][$dele['ativo']]['tipos'];
+
     $golpes = [];
     foreach ($meu['time'][$meu['ativo']]['golpes'] as $g) {
         $mv = psdGolpe($g['id']) ?? [];
+        $ehDano = ($mv['cat'] ?? 'status') !== 'status';
         $golpes[] = [
             'id'    => $g['id'],
             'pp'    => $g['pp'],
@@ -1031,6 +1143,9 @@ function psdEstadoPara(array $e, string $lado): array
             'cat'   => $mv['cat']   ?? 'status',
             'power' => $mv['power'] ?? 0,
             'acc'   => $mv['acc']   ?? 100,
+            'faz'   => $mv ? psdGolpeResumo($mv) : '',
+            'efic'  => $ehDano ? psdEficacia($mv['tipo'], $tiposAlvo) : null,
+            'stab'  => $ehDano && in_array($mv['tipo'], $meu['time'][$meu['ativo']]['tipos'], true),
         ];
     }
 
@@ -1046,8 +1161,13 @@ function psdEstadoPara(array $e, string $lado): array
                       'ativo' => psdBichoPraTela($meu['time'][$meu['ativo']]),
                       'golpes' => $golpes,
                       'rochas' => $meu['rochas'], 'precisa_trocar' => $meu['precisa_trocar']],
+        /* O `contra` é o que machuca o adversário que está em quadra: a
+           tabela de tipos já resolvida pros dois tipos dele. Só do ATIVO,
+           que é público — o resto da equipe continua escondido. É o que o
+           guia de dentro da partida mostra. */
         'ele'     => ['nome' => $dele['nome'],
-                      'ativo' => psdBichoPraTela($dele['time'][$dele['ativo']]),
+                      'ativo' => psdBichoPraTela($dele['time'][$dele['ativo']])
+                                 + ['contra' => psdFraquezas($dele['time'][$dele['ativo']]['tipos'])],
                       'restam' => count(psdVivos($e, $outro)),
                       'rochas' => $dele['rochas']],
         'eventos' => $e['eventos'],

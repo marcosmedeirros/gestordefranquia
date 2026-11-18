@@ -124,14 +124,7 @@ function ppvpGuia(string $especie): array
     /* FRAQUEZA E RESISTÊNCIA: o que CADA tipo faz contra ele. É a conta
        que o jogador faz de cabeça na hora de escolher o golpe, e deixar
        ela pronta é metade da utilidade de um guia. */
-    $tabela = psdTipos();
-    $contra = [];
-    foreach (array_keys($tabela) as $tipoAtacante) {
-        $m = 1.0;
-        foreach ($p['tipos'] as $meu) $m *= $tabela[$tipoAtacante][$meu] ?? 1.0;
-        if ($m != 1.0) $contra[$tipoAtacante] = $m;
-    }
-    arsort($contra);
+    $contra = psdFraquezas($p['tipos']);   // @see psd_motor.php
 
     $golpes = [];
     foreach ($p['pool'] as $gid) {
@@ -321,6 +314,10 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
                    50%{transform:scale(var(--z)) translateX(5px)}
                    75%{transform:scale(var(--z)) translateX(-3px)}}
   .bicho.piscou{filter:drop-shadow(0 6px 7px rgba(0,0,0,.35)) brightness(3) saturate(0)}
+  /* Atributo que subiu ou caiu: um brilho curto, pra o golpe de status
+     ter o que mostrar na quadra. */
+  .bicho.subiu{filter:drop-shadow(0 0 9px #4ade80) drop-shadow(0 6px 7px rgba(0,0,0,.35))}
+  .bicho.caiuatributo{filter:drop-shadow(0 0 9px #f59e0b) drop-shadow(0 6px 7px rgba(0,0,0,.35))}
   .bicho.caiu{opacity:0;transform:scale(var(--z)) translateY(16px)}
 
   .dano{position:absolute;z-index:6;font-weight:800;font-size:22px;color:#fff;
@@ -375,6 +372,8 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
   .log .fraco{color:#9aa5b8}
 
   .rotulo{font-size:11px;letter-spacing:1.3px;text-transform:uppercase;color:var(--fraco);margin:13px 2px 6px}
+  .linhaRotulo{display:flex;align-items:center;gap:9px}
+  .linhaRotulo .mini{margin-left:auto;letter-spacing:0;text-transform:none}
   .golpes{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .golpe{display:flex;flex-direction:column;align-items:flex-start;gap:2px;cursor:pointer;
          background:var(--painel);border:1px solid var(--linha);border-left:4px solid var(--cor,#555);
@@ -386,6 +385,15 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
   .golpe .tipo{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
                background:var(--cor,#555);color:#15181f;padding:1px 6px;border-radius:4px}
   .golpe .pp{margin-left:auto;font-size:11px;color:var(--fraco);font-variant-numeric:tabular-nums}
+  .golpe .pw{font-size:10.5px;font-weight:700;color:var(--fraco)}
+  .golpe .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* O que o golpe faz, em português. Duas linhas no máximo: no celular um
+     texto longo empurraria os outros três botões pra fora da tela. */
+  .golpe .faz{font-size:10.5px;line-height:1.3;color:var(--fraco);margin-top:2px;
+              display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+              overflow:hidden;text-align:left}
+  .efic-selo{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.3px;
+             padding:1px 6px;border-radius:4px;color:#fff}
 
   .trocas{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
   .troca{display:flex;align-items:center;gap:5px;background:var(--painel);
@@ -487,6 +495,32 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
 
   .vazio{text-align:center;color:var(--fraco);font-size:12.5px;padding:22px 10px}
 
+  /* ── A FOLHA DO GUIA ───────────────────────────────────────────────
+     Sobreposta e fechada por padrão: não ocupa espaço nem empurra a
+     quadra. No computador abre centralizada; no celular sobe de baixo,
+     que é onde o polegar está. */
+  .folha{position:fixed;inset:0;z-index:50;display:none;
+         background:rgba(6,8,12,.72);backdrop-filter:blur(2px);
+         align-items:center;justify-content:center;padding:16px}
+  .folha.aberta{display:flex}
+  .folha-caixa{background:var(--painel);border:1px solid var(--linha);border-radius:14px;
+               width:100%;max-width:520px;max-height:86vh;display:flex;flex-direction:column;
+               box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .folha-topo{display:flex;align-items:center;gap:8px;padding:12px 14px;
+              border-bottom:1px solid var(--linha);flex:none}
+  .folha-topo b{font-size:14.5px}
+  .folha-x{margin-left:auto;background:none;border:0;color:var(--fraco);cursor:pointer;
+           font-size:15px;padding:2px 4px}
+  .folha-x:hover{color:var(--txt)}
+  .folha-corpo{padding:13px 14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .folha-corpo h4{margin:14px 0 6px;font-size:11px;letter-spacing:1px;
+                  text-transform:uppercase;color:var(--fraco)}
+  .folha-corpo h4:first-child{margin-top:0}
+  @media (max-width:560px){
+    .folha{padding:0;align-items:flex-end}
+    .folha-caixa{max-width:none;max-height:88vh;border-radius:16px 16px 0 0;border-bottom:0}
+  }
+
   @media (max-width:420px){
     .golpes{grid-template-columns:1fr}
     .grade{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
@@ -515,6 +549,22 @@ $convite = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($_GET['c'] ?? 
   </nav>
 
   <div id="tela"></div>
+</div>
+
+<?php /* ── O GUIA DE DENTRO DA PARTIDA ──────────────────────────────────
+   Fica FORA do #tela de propósito: a tela se redesenha a cada turno, e um
+   guia aberto ali dentro fecharia sozinho no meio da leitura. É folha
+   sobreposta — não empurra nada quando fechado, e no celular sobe de
+   baixo ocupando a tela toda. */ ?>
+<div class="folha" id="folhaGuia" onclick="if(event.target===this) fecharGuia()">
+  <div class="folha-caixa">
+    <div class="folha-topo">
+      <b id="folhaTitulo">Guia</b>
+      <button class="folha-x" onclick="fecharGuia()" aria-label="Fechar">
+        <i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="folha-corpo" id="folhaCorpo"></div>
+  </div>
 </div>
 
 <?php /* Os pop-ups são do jogo, não do navegador: confirmarSite/avisarSite. */ ?>
@@ -1215,6 +1265,21 @@ async function fichaGuia(esp){
 
 function corDoTipo(t){ return `var(--${t})`; }
 
+/* O selo de eficácia contra quem está em quadra. Vem pronto do servidor
+   (o alvo é público), e é a informação que decide o turno. */
+const EFIC_SELOS = {
+  4:    ['4×',    '#ef4444'],
+  2:    ['2×',    '#ef4444'],
+  0.5:  ['½',     '#9aa5b8'],
+  0.25: ['¼',     '#9aa5b8'],
+  0:    ['não afeta', '#59606f'],
+};
+function eficSelo(m){
+  if (m === null || m === undefined || m === 1) return '';
+  const s = EFIC_SELOS[m] || [m + '×', '#9aa5b8'];
+  return `<span class="efic-selo" style="background:${s[1]}">${s[0]}</span>`;
+}
+
 function barraHtml(b, lado, mostrarNum){
   const pct = Math.max(0, Math.round(100 * b.hp / b.hpmax));
   const cor = pct > 50 ? 'var(--hp-verde)' : pct > 20 ? 'var(--hp-amarelo)' : 'var(--hp-vermelho)';
@@ -1266,13 +1331,27 @@ function desenharPartida(d){
   const precisaTrocar = d.eu.precisa_trocar;
   const travado = !d.falta_eu;
 
+  /* ── O BOTÃO DIZ O QUE O GOLPE FAZ ────────────────────────────────
+   *
+   * Antes trazia nome, tipo e PP. Quem não conhece Pokémon escolhia um
+   * golpe de status, via o boneco pular, a vida do outro não mexer, e
+   * achava que o jogo tinha travado.
+   *
+   * Agora traz: quanto machuca ESTE adversário (a conta de tipos já
+   * resolvida pelo servidor) e uma linha em português dizendo o efeito. */
   const golpes = d.eu.golpes.map((g,i) => {
     const off = travado || precisaTrocar || g.pp <= 0;
     return `<button class="golpe" style="--cor:${corDoTipo(g.tipo||'normal')}"
               ${off?'disabled':''} onclick="jogar('golpe',${i})">
-        <span class="n">${esc(g.nome)}</span>
+        <span class="b">
+          <span class="n">${esc(g.nome)}</span>
+          ${eficSelo(g.efic)}
+        </span>
         <span class="b"><span class="tipo">${esc(g.tipo)}</span>
-        <span class="pp">${g.pp}/${g.ppmax}</span></span></button>`;
+          ${g.power ? `<span class="pw">${g.power}</span>` : ''}
+          <span class="pp">${g.pp}/${g.ppmax}</span></span>
+        ${g.faz ? `<span class="faz">${esc(g.faz)}</span>` : ''}
+      </button>`;
   }).join('');
 
   const trocas = d.eu.equipe.map(b => {
@@ -1290,9 +1369,12 @@ function desenharPartida(d){
     menu = `<div class="aviso">Seu Pokémon caiu. Escolha quem entra.</div>
             <div class="rotulo">Trocar</div><div class="trocas">${trocas}</div>`;
   } else if (travado) {
-    menu = `<div class="aviso"><i class="bi bi-hourglass-split"></i> Esperando ${esc(d.ele.nome)} escolher…</div>`;
+    /* Esperando o outro é justamente quando dá tempo de estudar. */
+    menu = `<div class="aviso"><i class="bi bi-hourglass-split"></i> Esperando ${esc(d.ele.nome)} escolher…</div>
+            <div style="text-align:center;margin-top:9px">${btGuia()}</div>`;
   } else {
-    menu = `<div class="rotulo">Lutar</div><div class="golpes">${golpes}</div>
+    menu = `<div class="rotulo linhaRotulo">Lutar ${btGuia()}</div>
+            <div class="golpes">${golpes}</div>
             <div class="rotulo">Trocar</div><div class="trocas">${trocas}</div>
             <div style="margin-top:14px"><button class="bt perigo" onclick="desistir()">Desistir</button></div>`;
   }
@@ -1359,6 +1441,134 @@ async function desistir(){
 
 // ─────────────────────────── a animação ───────────────────────────
 
+// ─────────────────────────── O GUIA NA PARTIDA ───────────────────────────
+
+/* Botão pequeno, do lado do rótulo: quem já sabe jogar nem vê. */
+function btGuia(){
+  return `<button class="mini" onclick="abrirGuiaPartida()">
+            <i class="bi bi-book"></i> Guia</button>`;
+}
+
+const FOLHA = document.getElementById('folhaGuia');
+const FOLHA_CORPO = document.getElementById('folhaCorpo');
+const FOLHA_TITULO = document.getElementById('folhaTitulo');
+
+function fecharGuia(){ FOLHA.classList.remove('aberta'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharGuia(); });
+
+/**
+ * Abre o guia já respondendo a pergunta do turno: o que machuca quem
+ * está na minha frente. A busca vem depois, pra quem quiser olhar outro.
+ */
+async function abrirGuiaPartida(){
+  const d = estado;
+  if (!d || d.em !== 'jogando') return;
+
+  FOLHA_TITULO.textContent = 'Contra ' + d.ele.ativo.nome;
+  FOLHA.classList.add('aberta');
+
+  const contra = d.ele.ativo.contra || {};
+  const forte = [], fraco = [], nada = [];
+  for (const t in contra) {
+    if (contra[t] > 1) forte.push([t, contra[t]]);
+    else if (contra[t] === 0) nada.push([t, 0]);
+    else fraco.push([t, contra[t]]);
+  }
+  const selos = (arr, cor) => arr.length
+    ? `<div class="efic">${arr.map(([t,m]) =>
+        `<span style="background:${cor}">${esc(t)} ${EFIC_ROTULO[m] || m+'×'}</span>`).join('')}</div>`
+    : '<div style="font-size:12px;color:var(--fraco)">nenhum</div>';
+
+  /* Os SEUS golpes já ordenados pelo que mais machuca ele: é a resposta
+     pronta, e é por isso que o guia abre aqui e não na busca. */
+  const meus = (d.eu.golpes || []).slice()
+    .sort((a,b) => (b.efic ?? -1) - (a.efic ?? -1))
+    .map(g => `<div class="golpeLinha">
+        <span class="tp" style="background:${corDoTipo(g.tipo)}">${esc(g.tipo)}</span>
+        <span class="nm">${esc(g.nome)}${g.faz ? `<br><small style="color:var(--fraco);font-weight:500">${esc(g.faz)}</small>` : ''}</span>
+        <span class="dd">${g.cat === 'status' ? 'status' : g.power + ' pow'}</span>
+        ${eficSelo(g.efic)}
+      </div>`).join('');
+
+  FOLHA_CORPO.innerHTML = `
+    <div class="fichaTopo">
+      <img src="${sprite(d.ele.ativo.num,'frente')}"
+           onerror="spriteFallback(this,${d.ele.ativo.num},'frente')" alt="">
+      <div style="flex:1">
+        <h3 style="margin:0 0 4px;font-size:16px">${esc(d.ele.ativo.nome)}</h3>
+        <div style="display:flex;gap:4px">${(d.ele.ativo.tipos||[]).map(t =>
+          `<i style="background:${corDoTipo(t)};font-style:normal;font-size:9px;font-weight:800;
+             text-transform:uppercase;padding:2px 7px;border-radius:4px;color:#15181f">${esc(t)}</i>`).join('')}</div>
+      </div>
+    </div>
+
+    <h4>Seus golpes contra ele</h4>
+    ${meus || '<div style="font-size:12px;color:var(--fraco)">—</div>'}
+
+    <h4>Dobra o dano nele</h4>${selos(forte, '#ef4444')}
+    <h4>Faz metade</h4>${selos(fraco, '#4ade80')}
+    ${nada.length ? `<h4>Não afeta</h4>${selos(nada, '#59606f')}` : ''}
+
+    <h4>Procurar outro Pokémon</h4>
+    <input type="text" id="buscaFolha" placeholder="Nome do Pokémon…"
+           oninput="buscarNaFolha(this.value)" autocomplete="off">
+    <div id="folhaResultado"></div>`;
+}
+
+let buscaFolhaTimer = null;
+async function buscarNaFolha(termo){
+  clearTimeout(buscaFolhaTimer);
+  buscaFolhaTimer = setTimeout(async () => {
+    const alvo = document.getElementById('folhaResultado');
+    if (!alvo) return;
+    const b = termo.toLowerCase().trim();
+    if (b.length < 2) { alvo.innerHTML = ''; return; }
+
+    if (!cacheGuia) cacheGuia = await (await fetch('?acao=guia')).json();
+    const achados = cacheGuia.indice.filter(p => p.nome.toLowerCase().includes(b)).slice(0, 12);
+    alvo.innerHTML = achados.length
+      ? `<div class="grade" style="margin-top:8px">${achados.map(p => `
+          <div class="carta" style="--rar:#444" onclick="fichaNaFolha('${p.esp}')">
+            <img src="${sprite(p.num,'icone')}" onerror="spriteFallback(this,${p.num},'icone')" alt="">
+            <div class="n">${esc(p.nome)}</div>
+            <div class="tp">${p.tipos.map(t=>`<i style="background:${corDoTipo(t)}">${esc(t)}</i>`).join('')}</div>
+          </div>`).join('')}</div>`
+      : '<div class="vazio">Nada com esse nome.</div>';
+  }, 260);
+}
+
+async function fichaNaFolha(esp){
+  const d = await (await fetch('?acao=guia&especie=' + encodeURIComponent(esp))).json();
+  if (d.erro) return;
+  const f = d.ficha;
+  FOLHA_TITULO.textContent = f.nome;
+
+  const contra = Object.entries(f.contra)
+    .map(([t,m]) => `<span style="background:${EFIC_COR(m)}">${esc(t)} ${EFIC_ROTULO[m]||m+'×'}</span>`).join('')
+    || '<span style="background:#59606f">nada de especial</span>';
+
+  FOLHA_CORPO.innerHTML = `
+    <button class="mini" onclick="abrirGuiaPartida()">
+      <i class="bi bi-arrow-left"></i> Voltar pro adversário</button>
+    <div class="fichaTopo" style="margin-top:11px">
+      <img src="${sprite(f.num,'frente')}" onerror="spriteFallback(this,${f.num},'frente')" alt="">
+      <div style="flex:1">
+        <h3 style="margin:0 0 4px;font-size:16px;color:${f.cor}">${esc(f.nome)}</h3>
+        <div style="display:flex;gap:4px;margin-bottom:4px">${f.tipos.map(t =>
+          `<i style="background:${corDoTipo(t)};font-style:normal;font-size:9px;font-weight:800;
+             text-transform:uppercase;padding:2px 7px;border-radius:4px;color:#15181f">${esc(t)}</i>`).join('')}</div>
+        <div style="font-size:11.5px;color:var(--fraco)">${esc(f.rotulo)} · entra nível ${f.nivel}</div>
+      </div>
+    </div>
+    <h4>O que machuca ele</h4><div class="efic">${contra}</div>
+    <h4>Golpes que ele pode ter</h4>
+    ${f.golpes.map(g => `<div class="golpeLinha">
+        <span class="tp" style="background:${corDoTipo(g.tipo)}">${esc(g.tipo)}</span>
+        <span class="nm">${esc(g.nome)}</span>
+        <span class="dd">${g.cat === 'status' ? 'status' : g.power + ' pow · ' + g.acc + '%'}</span>
+      </div>`).join('')}`;
+}
+
 async function animar(d, eventos){
   animando = true;
   const log = document.getElementById('log');
@@ -1409,6 +1619,33 @@ async function animar(d, eventos){
       porBarra(l, ev.bicho);
       await espera(420);
 
+    /* ── GOLPE DE STATUS TAMBÉM TEM QUE APARECER ────────────────────
+     *
+     * Sem isto, usar Swords Dance era: o boneco pula, a vida de ninguém
+     * mexe, e acabou. Quem não leu o log jurava que o jogo travou — e foi
+     * exatamente o que aconteceu com o Anderson. Agora o atributo que
+     * subiu (ou caiu) sobe escrito em cima do bicho, e o status aplicado
+     * também. */
+    } else if (ev.t === 'boost') {
+      const nome = NOME_ATRIBUTO[ev.stat] || ev.stat;
+      const sobe = ev.n > 0;
+      mostrarAviso(l, (sobe ? '▲ ' : '▼ ') + nome, sobe ? '#1f8f4a' : '#b4552b');
+      if (sp) { sp.classList.add(sobe ? 'subiu' : 'caiuatributo');
+                setTimeout(() => sp.classList.remove('subiu','caiuatributo'), 600); }
+      await espera(460);
+
+    } else if (ev.t === 'status' && ev.st) {
+      mostrarAviso(l, (NOME_STATUS[ev.st] || ev.st).toUpperCase(), '#6b21a8');
+      await espera(420);
+
+    } else if (ev.t === 'sub' && ev.vida > 0) {
+      mostrarAviso(l, 'SUBSTITUTO', '#2f6f8f');
+      await espera(380);
+
+    } else if (ev.t === 'rochas') {
+      mostrarAviso(l, '▲ PEDRAS', '#6b4a2a');
+      await espera(380);
+
     } else {
       await espera(160);
     }
@@ -1416,11 +1653,31 @@ async function animar(d, eventos){
   animando = false;
 }
 
+const NOME_ATRIBUTO = {atk:'ATQ', def:'DEF', spa:'ATQ ESP', spd:'DEF ESP',
+                       spe:'VEL', acc:'PRECISÃO', eva:'EVASÃO'};
+const NOME_STATUS = {par:'paralisado', brn:'queimado', psn:'envenenado',
+                     tox:'muito venenoso', slp:'dormindo', frz:'congelado'};
+
+/** O mesmo balão do número de dano, com outra cor e outro texto. */
+function mostrarAviso(l, texto, cor){
+  const el = document.getElementById('dano-'+l);
+  if (!el) return;
+  el.textContent = texto;
+  el.classList.remove('cura');
+  el.style.fontSize = '15px';
+  el.style.textShadow = `0 2px 0 ${cor}, 0 0 10px rgba(0,0,0,.6)`;
+  el.classList.remove('vai'); void el.offsetWidth; el.classList.add('vai');
+}
+
 function mostrarNumero(l, texto, cura){
   const el = document.getElementById('dano-'+l);
   if (!el) return;
   el.textContent = texto;
   el.classList.toggle('cura', !!cura);
+  // Limpa o que o mostrarAviso tiver deixado: senão o número do dano sai
+  // com a cor e o tamanho do aviso anterior.
+  el.style.textShadow = '';
+  el.style.fontSize = '';
   el.classList.remove('vai'); void el.offsetWidth; el.classList.add('vai');
 }
 
