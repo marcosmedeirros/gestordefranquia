@@ -8358,9 +8358,16 @@ function renderTaticaAdmin(league, win, teams, modelos, faseOffs) {
             <div class="tac-secao">Posições</div>
             <div class="tac-jogadores">${at.posicoes.map(p => {
               const aceso = p.mudou || p.rookie_pendente;
-              const dica = p.mudou && p.antes ? `Era ${p.antes}`
-                         : (p.rookie_pendente ? 'Calouro: a posição nunca foi conferida no jogo' : '');
-              return `<span class="tac-jog ${aceso ? 'mudou' : ''}" ${dica ? `title="${escapeHtml(dica)}"` : ''}>${escapeHtml(p.nome)}
+              /* Quem não é titular nem banco só chega aqui por ter mexido na
+                 posição (ou por ser calouro). Sem dizer de onde ele veio, o
+                 operacional vê um nome que não está na quadra e não entende
+                 por que ele apareceu. */
+              const dica = [
+                p.mudou && p.antes ? `Era ${p.antes}` : (p.rookie_pendente ? 'Calouro: a posição nunca foi conferida no jogo' : ''),
+                p.fora_da_quadra ? `Está em ${p.role}` : '',
+              ].filter(Boolean).join(' · ');
+              return `<span class="tac-jog ${aceso ? 'mudou' : ''}" ${dica ? `title="${escapeHtml(dica)}"` : ''}>${escapeHtml(p.nome)}${
+                p.fora_da_quadra ? `<small style="margin-left:4px;font-weight:600;opacity:.6">${escapeHtml(p.role)}</small>` : ''}
               <b style="color:${aceso ? 'inherit' : 'var(--text-3)'};font-weight:800;margin-left:4px">${escapeHtml(p.position || '?')}${p.secondary_position ? '/' + escapeHtml(p.secondary_position) : ''}</b>${
                 p.mudou && p.antes ? `<small style="margin-left:5px;font-weight:600;opacity:.8">(era ${escapeHtml(p.antes)})</small>`
                 : (p.rookie_pendente ? `<small style="margin-left:5px;font-weight:700;opacity:.9">calouro</small>` : '')}</span>`;

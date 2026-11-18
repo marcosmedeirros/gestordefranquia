@@ -591,30 +591,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     ];
                 }
 
-                // As posições do elenco (titulares e reservas), as mesmas do Meu Elenco.
-                // Vermelho quando a posição é diferente do retrato (mesma base do resto do card).
+                /* ── AS POSIÇÕES QUE O CARD MOSTRA ───────────────────────
+                 *
+                 * TITULAR e BANCO sempre: é o que o operacional monta no
+                 * jogo toda temporada, mexido ou não.
+                 *
+                 * O RESTO DO ELENCO (Outro e G-League) só aparece QUANDO
+                 * MUDOU — pedido do Marcos, 18/11/2026. Eles ficavam de
+                 * fora da consulta inteira, então um GM que corrigisse a
+                 * posição de um reserva profundo entre uma temporada e
+                 * outra não tinha como avisar ninguém: a mudança existia
+                 * no app e nunca chegava ao jogo.
+                 *
+                 * Mostrar todos o tempo todo seria o contrário do que o
+                 * card serve — quinze nomes sem nada pra fazer afogariam
+                 * os dois que importam. Então quem não mexeu continua
+                 * invisível, exatamente como antes.
+                 *
+                 * O CALOURO entra pela mesma porta: ele acende sem
+                 * retrato pra comparar, porque quem cria o jogador dentro
+                 * do 2K é o operacional e ninguém conferiu ainda
+                 * (@see taticaRookieSemPosicao). Calouro costuma nascer
+                 * em "Outro", que é justamente o balde que estava fora.
+                 */
                 require_once __DIR__ . '/../backend/tatica_posicoes.php';
                 taticaGarantirColunaPosAplicada($pdo);
                 $stPos = $pdo->prepare("SELECT id, name, position, secondary_position, role,
                                                drafted_season_number, pos_aplicada_em
                                           FROM players
-                                         WHERE team_id = ? AND role IN ('Titular','Banco')
-                                      ORDER BY FIELD(role,'Titular','Banco'), ovr DESC, name");
+                                         WHERE team_id = ?
+                                      ORDER BY FIELD(role,'Titular','Banco','Outro','G-League'), ovr DESC, name");
                 $stPos->execute([(int)$t['id']]);
                 $posAntes = (is_array($antes['posicoes'] ?? null)) ? $antes['posicoes'] : null;
-                $posicoes = array_map(function ($p) use ($posAntes) {
+                $posicoes = [];
+                foreach ($stPos->fetchAll(PDO::FETCH_ASSOC) as $p) {
                     $agora = taticaPosicaoTexto($p['position'], $p['secondary_position']);
                     $antesDele = ($posAntes !== null && array_key_exists((string)$p['id'], $posAntes)) ? (string)$posAntes[(string)$p['id']] : null;
-                    return [
+                    $mudou   = $antesDele !== null && $antesDele !== $agora;
+                    // Calouro que ninguém conferiu no jogo: acende mesmo sem
+                    // retrato pra comparar (backend/tatica_posicoes.php).
+                    $calouro = taticaRookieSemPosicao($p);
+                    $daQuadra = in_array((string)$p['role'], ['Titular', 'Banco'], true);
+
+                    if (!$daQuadra && !$mudou && !$calouro) continue;
+
+                    $posicoes[] = [
                         'nome' => $p['name'], 'position' => $p['position'],
                         'secondary_position' => $p['secondary_position'] ?: null, 'role' => $p['role'],
-                        'mudou' => $antesDele !== null && $antesDele !== $agora,
+                        'mudou' => $mudou,
                         'antes' => $antesDele,
-                        // Calouro que ninguém conferiu no jogo: acende mesmo sem
-                        // retrato pra comparar (backend/tatica_posicoes.php).
-                        'rookie_pendente' => taticaRookieSemPosicao($p),
+                        'rookie_pendente' => $calouro,
+                        // Entrou no card só por ter mexido: a tela diz de onde ele veio.
+                        'fora_da_quadra' => !$daQuadra,
                     ];
-                }, $stPos->fetchAll(PDO::FETCH_ASSOC));
+                }
                 $rookiesPendentes = count(array_filter($posicoes, fn($p) => $p['rookie_pendente']));
 
                 $tatica = [
