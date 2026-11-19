@@ -273,6 +273,28 @@ $user_id = $_SESSION['user_id'];
 // Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
 // usado na página leilao.php, em api/market.php e api/draft.php.
 $is_admin = hasAdminAccess($pdo, (int)$user_id);
+
+/* SER ADMIN NÃO BASTA — TEM QUE SER ADMIN DAQUELA LIGA.
+ *
+ * `$is_admin` responde "é admin de alguma liga", e por muito tempo foi só isso
+ * que as ações de admin daqui perguntaram. Quem administra a ELITE e a ROOKIE e
+ * JOGA na RISE passava por todas elas na RISE: aprovava proposta, atribuía
+ * pedido, revertia contratação — e, pior que mexer, LIA. As quatro consultas de
+ * admin (`admin_offers`, `admin_new_fa_requests`, `admin_free_agents`,
+ * `admin_contracts`) recebem a liga pelo próprio pedido, então bastava trocar o
+ * parâmetro pra ver os lances fechados dos rivais antes da resolução. Numa FA
+ * de lance fechado, isso não é um furo de permissão: é o resultado.
+ *
+ * Em 19/11/2026 foi exatamente o que aconteceu na RISE.
+ *
+ * Três ações já tinham a trava (`set_fa_status`, `resolver_fa`, `add_player`),
+ * porque essas recebem a liga no payload e alguém reparou. As que trabalham por
+ * id — proposta, pedido, jogador — não tinham: a liga nem era perguntada.
+ * Agora tem uma porta só, e ela vale pras duas formas.
+ *
+ * @see faPortaDaLiga, faLigaDoRegistro
+ */
+$admin_leagues = $is_admin ? getAdminLeagues($pdo, (int)$user_id) : [];
 $team_id = $_SESSION['team_id'] ?? null;
 
 $team = null;
@@ -342,6 +364,73 @@ function jsonSuccess(array $payload = []): void
 {
     echo json_encode(array_merge(['success' => true], $payload));
     exit;
+}
+
+/**
+ * A PORTA DE TODA AÇÃO DE ADMIN DAQUI.
+ *
+ * Recusa quando a liga não é uma das que a pessoa administra. Liga vazia também
+ * é recusa: sem saber sobre qual liga a ação cai, não há como dizer que ela é
+ * permitida, e "não sei" nunca pode virar "pode".
+ */
+function faPortaDaLiga(array $adminLeagues, ?string $league): string
+{
+    $league = strtoupper(trim((string)$league));
+    if ($league === '') {
+        jsonError('Liga invalida');
+    }
+    if (!in_array($league, $adminLeagues, true)) {
+        jsonError('Você não administra essa liga', 403);
+    }
+    return $league;
+}
+
+/**
+ * DE QUE LIGA É ESTE REGISTRO?
+ *
+ * As ações que trabalham por id (aprovar a proposta 2945, reverter o pedido
+ * 1827) não dizem a liga em lugar nenhum — ela está no registro. Sem resolver
+ * isso, a porta acima não tem o que perguntar.
+ *
+ * Devolve null quando o id não existe. Quem chama trata isso como recusa e não
+ * como "qualquer liga serve": um id inventado não pode ser a chave que abre.
+ *
+ * @param string $tipo  jogador | proposta | pedido | proposta_pedido
+ */
+function faLigaDoRegistro(PDO $pdo, string $tipo, int $id): ?string
+{
+    if ($id <= 0) return null;
+    $sql = [
+        'jogador'         => 'SELECT league FROM free_agents WHERE id = ?',
+        'proposta'        => 'SELECT f.league FROM free_agent_offers o
+                                JOIN free_agents f ON f.id = o.free_agent_id
+                               WHERE o.id = ?',
+        'pedido'          => 'SELECT league FROM fa_requests WHERE id = ?',
+        'proposta_pedido' => 'SELECT r.league FROM fa_request_offers o
+                                JOIN fa_requests r ON r.id = o.request_id
+                               WHERE o.id = ?',
+    ][$tipo] ?? null;
+    if ($sql === null) return null;
+
+    try {
+        $st = $pdo->prepare($sql);
+        $st->execute([$id]);
+        $liga = $st->fetchColumn();
+        return $liga === false ? null : strtoupper(trim((string)$liga));
+    } catch (Throwable $e) {
+        error_log('[fa/porta] liga do registro ' . $tipo . ' ' . $id . ': ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** A porta pra ação que chega por id: descobre a liga do registro e pergunta. */
+function faPortaDoRegistro(PDO $pdo, array $adminLeagues, string $tipo, int $id): string
+{
+    $liga = faLigaDoRegistro($pdo, $tipo, $id);
+    if ($liga === null) {
+        jsonError('Esse registro saiu da lista — alguém mexeu nele agora há pouco.', 404);
+    }
+    return faPortaDaLiga($adminLeagues, $liga);
 }
 
 function tableExists(PDO $pdo, string $table): bool
@@ -659,43 +748,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
-            $league = getLeagueFromRequest($valid_leagues, null);
-            error_log("🔍 Free Agency Admin - Liga recebida via GET: " . ($_GET['league'] ?? 'null'));
-            error_log("🔍 Free Agency Admin - Liga processada: " . ($league ?? 'null'));
-            error_log("🔍 Free Agency Admin - Team league (não deve interferir): " . ($team_league ?? 'null'));
-            if (!$league) {
-                jsonError('Liga invalida');
-            }
+            $league = faPortaDaLiga($admin_leagues, getLeagueFromRequest($valid_leagues, null));
             listAdminFreeAgents($pdo, $league);
             break;
         case 'admin_offers':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
-            $league = getLeagueFromRequest($valid_leagues, null);
-            if (!$league) {
-                jsonError('Liga invalida');
-            }
+            $league = faPortaDaLiga($admin_leagues, getLeagueFromRequest($valid_leagues, null));
             listAdminOffers($pdo, $league);
             break;
         case 'admin_new_fa_requests':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
-            $league = getLeagueFromRequest($valid_leagues, null);
-            if (!$league) {
-                jsonError('Liga invalida');
-            }
+            $league = faPortaDaLiga($admin_leagues, getLeagueFromRequest($valid_leagues, null));
             listAdminFaRequests($pdo, $league);
             break;
         case 'admin_contracts':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
-            $league = getLeagueFromRequest($valid_leagues, null);
-            if (!$league) {
-                jsonError('Liga invalida');
-            }
+            $league = faPortaDaLiga($admin_leagues, getLeagueFromRequest($valid_leagues, null));
             listAdminContracts($pdo, $league);
             break;
         case 'new_fa_limits':
@@ -710,12 +784,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             break;
         case 'admin_fa_history':
             if (!$is_admin) { jsonError('Acesso negado', 403); }
-            adminFaHistory($pdo);
+            adminFaHistory($pdo, $admin_leagues);
             break;
         case 'teams_by_league':
             if (!$is_admin) { jsonError('Acesso negado', 403); }
-            $lg = strtoupper(trim($_GET['league'] ?? ''));
-            if (!$lg) { jsonSuccess(['teams' => []]); break; }
+            $lg = faPortaDaLiga($admin_leagues, $_GET['league'] ?? '');
             $stmtTL = $pdo->prepare('SELECT id, TRIM(CONCAT(COALESCE(city,""), " ", COALESCE(name,""))) AS full_name FROM teams WHERE league = ? ORDER BY name ASC');
             $stmtTL->execute([$lg]);
             jsonSuccess(['teams' => $stmtTL->fetchAll(PDO::FETCH_ASSOC)]);
@@ -793,16 +866,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Ação cria free agent em uma liga arbitrária vinda do payload; admin de
             // liga (não-global) só pode cadastrar nas ligas que ele administra.
-            $addPlayerLeague = strtoupper(trim((string)($body['league'] ?? '')));
-            if ($addPlayerLeague && !in_array($addPlayerLeague, getAdminLeagues($pdo, (int)$user_id), true)) {
-                jsonError('Você não administra essa liga', 403);
-            }
+            faPortaDaLiga($admin_leagues, $body['league'] ?? '');
             addPlayer($pdo, $body);
             break;
         case 'remove_player':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'jogador', (int)($body['player_id'] ?? 0));
             removePlayer($pdo, $body);
             break;
         case 'place_offer':
@@ -821,16 +892,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
-            $league = strtoupper(trim((string)($body['league'] ?? '')));
-            $enabled = (int)!!($body['enabled'] ?? 0);
-            if (!$league) {
-                jsonError('Liga invalida');
-            }
             // Liga arbitrária vinda do payload; admin de liga (não-global) só pode
             // ligar/desligar a FA das ligas que ele administra.
-            if (!in_array($league, getAdminLeagues($pdo, (int)$user_id), true)) {
-                jsonError('Você não administra essa liga', 403);
-            }
+            $league = faPortaDaLiga($admin_leagues, $body['league'] ?? '');
+            $enabled = (int)!!($body['enabled'] ?? 0);
             ensureFaEnabledColumn($pdo);
             try {
                 if (!tableExists($pdo, 'league_settings')) {
@@ -862,12 +927,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'proposta', (int)($body['offer_id'] ?? 0));
             approveOffer($pdo, $body, $user_id);
             break;
         case 'admin_assign_request':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'proposta_pedido', (int)($body['offer_id'] ?? 0));
             assignNewFaRequest($pdo, $body, $user_id);
             break;
         case 'update_request_offer':
@@ -880,27 +947,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'jogador', (int)($body['free_agent_id'] ?? 0));
             rejectAllOffers($pdo, $body);
             break;
         case 'admin_reject_request':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'pedido', (int)($body['request_id'] ?? 0));
             rejectNewFaRequest($pdo, $body);
             break;
         case 'close_without_winner':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            faPortaDoRegistro($pdo, $admin_leagues, 'jogador', (int)($body['free_agent_id'] ?? 0));
             closeWithoutWinner($pdo, $body);
             break;
         case 'resolver_fa':
             // Resolve a FA inteira da liga: botão "Resolver FA" e fechamento.
             if (!$is_admin) { jsonError('Acesso negado', 403); }
-            $ligaResolver = strtoupper(trim((string)($body['league'] ?? '')));
-            if (!in_array($ligaResolver, getAdminLeagues($pdo, (int)$user_id), true)) {
-                jsonError('Você não administra essa liga', 403);
-            }
+            $ligaResolver = faPortaDaLiga($admin_leagues, $body['league'] ?? '');
             try {
                 $resolucao = faResolverLiga($pdo, $ligaResolver, (int)$user_id);
                 $resolucao['anunciado'] = faAnunciarResolucao($pdo, $ligaResolver, $resolucao);
@@ -912,10 +979,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'admin_fa_revert':
             if (!$is_admin) { jsonError('Acesso negado', 403); }
+            faPortaDoRegistro($pdo, $admin_leagues, 'pedido', (int)($body['request_id'] ?? 0));
             adminFaRevert($pdo, $body, $user_id);
             break;
         case 'admin_fa_change_team':
             if (!$is_admin) { jsonError('Acesso negado', 403); }
+            $ligaPedido = faPortaDoRegistro($pdo, $admin_leagues, 'pedido', (int)($body['request_id'] ?? 0));
+            /* O time novo tem que ser da MESMA liga do pedido. Sem isto, mandar
+               o contratado pra um time de outra liga é um clique. */
+            $stNovo = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stNovo->execute([(int)($body['new_team_id'] ?? 0)]);
+            if (strtoupper((string)$stNovo->fetchColumn()) !== $ligaPedido) {
+                jsonError('Esse time não é da ' . $ligaPedido . '.', 403);
+            }
             adminFaChangeTeam($pdo, $body, $user_id);
             break;
         default:
@@ -1621,10 +1697,20 @@ function listNewFaHistory(PDO $pdo, string $league): void
     jsonSuccess(['history' => $rows]);
 }
 
-function adminFaHistory(PDO $pdo): void
+/**
+ * @param string[] $adminLeagues ligas que quem pediu administra — o histórico
+ *                 nunca sai delas, nem quando o filtro vem em branco ("todas").
+ */
+function adminFaHistory(PDO $pdo, array $adminLeagues = []): void
 {
     $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
     $leagueFilter = isset($_GET['league']) ? trim($_GET['league']) : null;
+    /* "Todas as ligas" é todas as DELE. Sem isto, o filtro em branco devolvia a
+       liga inteira de quem este admin nem administra. */
+    if ($leagueFilter !== null && $leagueFilter !== ''
+        && !in_array(strtoupper($leagueFilter), $adminLeagues, true)) {
+        jsonError('Você não administra essa liga', 403);
+    }
 
     /*
      * SÓ A SPRINT EM ANDAMENTO.
@@ -1647,6 +1733,9 @@ function adminFaHistory(PDO $pdo): void
     if ($leagueFilter) {
         $where .= ' AND r.league = ?';
         $params[] = $leagueFilter;
+    } elseif ($adminLeagues) {
+        $where .= ' AND r.league IN (' . implode(',', array_fill(0, count($adminLeagues), '?')) . ')';
+        $params = array_merge($params, $adminLeagues);
     }
 
     $stmt = $pdo->prepare('
