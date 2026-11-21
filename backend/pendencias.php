@@ -274,7 +274,7 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
                     'icone'    => 'bi-clipboard-data-fill',
                     'titulo'   => 'Atualize seu time',
                     'detalhe'  => 'O draft da temporada ' . (int)($temporada['season_number'] ?? 0)
-                                . ' acabou. Enquanto não atualizar, você não envia nem recebe trocas.',
+                                . ' acabou. Atualize OVR, idade e skills do seu elenco.',
                     'url'      => '/atualizar-elenco.php',
                 ];
             }
@@ -284,7 +284,9 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
     // ── Trava de troca por elenco desatualizado (backend/trava_elenco.php) ──
     // Só aparece com a chave da liga ligada. É o aviso de "por que não consigo
     // trocar": sem ele a pessoa só descobriria ao tentar enviar a proposta.
-    try {
+    // DESLIGADO (20/11/2026): a trava não barra mais troca, então o aviso
+    // "você está sem poder trocar" mentiria.
+    if (false) try {
         require_once __DIR__ . '/trava_elenco.php';
         $trava = travaElencoEstadoDoTime($pdo, $teamId, $league);
         if ($trava['bloqueado']) {

@@ -1511,6 +1511,13 @@ const TRADES_LOCKED_MSG = 'Trocas bloqueadas no momento — aguardando a atualiz
  */
 function bloqueioPorElencoDesatualizado(PDO $pdo, array $teamIds, ?string $league): ?string
 {
+    /* DESLIGADA (pedido do grupo, 20/11/2026): "deixa trocar mesmo que as
+       stats ou letras não estejam". Elenco desatualizado não barra mais troca
+       — nem a trava de stats/letras, nem a atualização pós-draft. A cobrança
+       continua nas pendências/painel, só não impede negociar. O código abaixo
+       fica para religar, se um dia quiserem de volta. */
+    return null;
+
     if (!$league) return null;
 
     /* A TRAVA POR ELENCO (backend/trava_elenco.php), 05/11/2026: estatísticas

@@ -65,7 +65,11 @@ if ($action === 'teams') {
        Só marca quem está barrado DE VERDADE: com a trava desligada ninguém
        aparece em vermelho, senão a tela acusaria time que pode trocar
        normalmente. */
-    try {
+    /* DESLIGADO junto com a trava em api/trades.php (20/11/2026): elenco
+       desatualizado não barra mais troca, então ninguém vai marcado. */
+    foreach ($listaTimes as &$tm) { $tm['bloqueado'] = false; $tm['motivo'] = null; }
+    unset($tm);
+    if (false) try {
         require_once __DIR__ . '/backend/trava_elenco.php';
         $cfgTrava = travaElencoConfig($pdo, $ligaDaMesa);
         $travaLigada = !empty($cfgTrava['ativa']);
