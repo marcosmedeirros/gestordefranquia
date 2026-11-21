@@ -3118,18 +3118,13 @@ function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo
  *
  * OS DOIS PONTOS, SEMPRE (pedido do Marcos, 16/11/2026). O time precisa das
  * ESTATÍSTICAS lançadas e das LETRAS atualizadas depois da progression; quem
- * fez um e não fez o outro está devendo igual. A trava de troca continua
- * cobrando só um dos dois conforme o momento da temporada — ela decide quem
- * pode negociar, esta lista diz quem tem trabalho pra fazer, e são perguntas
- * diferentes. A conta de cada ponto é a mesma da trava
- * (@see travaElencoDosDoisPontos), então as duas nunca discordam do número.
+ * fez um e não fez o outro está devendo igual. É COBRANÇA, NÃO TRAVA: desde
+ * 21/11/2026 ninguém fica sem trocar por aparecer aqui. A conta é a mesma do
+ * painel do admin (@see travaElencoDosDoisPontos), então os dois nunca
+ * discordam do número.
  *
  * CADA LINHA DIZ O QUE FALTA, e só o que falta: "stats 2/6", "letras 0/6", ou
  * os dois. Sem isso o GM lia "3 de 6" e não sabia o que ir fazer.
- *
- * MOSTRA MESMO COM A TRAVA DESLIGADA, de propósito: a pergunta "quem está
- * devendo" é útil antes de ligar a chave, que é justamente quando o admin
- * quer saber quantos seriam barrados. O cabeçalho diz em qual caso a liga está.
  */
 function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null): string
 {
@@ -3140,7 +3135,6 @@ function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
     try {
-        $cfg = travaElencoConfig($pdo, $liga);
         $times = travaElencoDosDoisPontos($pdo, $liga);
     } catch (Throwable $e) {
         error_log('[wcAtualizados] ' . $e->getMessage());
@@ -3159,13 +3153,6 @@ function wcAtualizados(PDO $pdo, string $termo = '', ?string $ligaDoGrupo = null
     /* SEM SUBTÍTULO explicando a regra (pedido do Marcos, 10/11/2026). O que
        cada um deve agora está escrito na própria linha. */
     $txt = "📋 *Atualização de elenco — {$liga}*\n";
-
-    /* A trava desligada muda o que a lista SIGNIFICA, não o que ela mostra:
-       sem isso o grupo lê a lista como "esses estão barrados" e cobra gente
-       que não está barrada de nada. */
-    if (empty($cfg['ativa'])) {
-        $txt .= "_A trava está desligada: ninguém está barrado de trocar por isso._\n";
-    }
 
     /* SEM A FOTO DA PROGRESSION não dá pra saber quem mexeu nas letras, e
        calar sobre isso faria a lista parecer que só cobra metade por bug. */

@@ -35,8 +35,10 @@ $stmtTeam->execute([$__tid]);
 $team = $stmtTeam->fetch();
 
 // Cobranca da atualizacao de elenco: depois que o draft da temporada fecha, o
-// GM precisa atualizar o time (OVR/idade/skills) — e so entao as trades liberam
-// para ele. Enquanto nao atualiza, o dashboard cobra a cada carregamento.
+// GM precisa atualizar o time (OVR/idade/skills). E um lembrete e nada mais —
+// nenhuma troca depende disso (a trava foi tirada em 21/11/2026, pedido do
+// Marcos: qualquer um pode trocar). Enquanto nao atualiza, o dashboard cobra a
+// cada carregamento.
 $precisaAtualizarElenco = false;
 $temporadaPendente = null;
 if ($team) {
@@ -2865,7 +2867,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     <div class="upd-icon"><i class="bi bi-clipboard-data"></i></div>
     <h2 id="updTitle">Atualize seu elenco</h2>
     <p>O draft da temporada <?= (int)($temporadaPendente['season_number'] ?? 0) ?> acabou. Antes de seguir, atualize OVR, idade e skills do seu time.</p>
-    <div class="upd-warn"><i class="bi bi-exclamation-triangle-fill me-1"></i>Enquanto não atualizar, você não consegue enviar nem receber propostas de trade.</div>
     <div class="upd-actions">
       <a href="/atualizar-elenco.php" class="upd-go"><i class="bi bi-arrow-right-circle"></i>Atualizar agora</a>
       <button type="button" class="upd-later" id="updLater">Agora não</button>

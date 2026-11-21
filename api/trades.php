@@ -1499,46 +1499,6 @@ function areTradesEnabled(PDO $pdo, ?string $league): bool
 
 const TRADES_LOCKED_MSG = 'Trocas bloqueadas no momento — aguardando a atualização dos times (isso afeta o salary cap). Assim que a comissão liberar, você poderá enviar propostas.';
 
-/**
- * Trade exige elenco atualizado dos DOIS lados: é a atualização que define
- * OVR/idade da temporada e, na ELITE, o salário que entra no cap. Negociar com
- * números velhos desequilibra a troca.
- *
- * Só passa a cobrar depois que o draft da temporada fechou — antes disso
- * ninguém atualizou ainda e travar tudo pararia a liga.
- *
- * Devolve a mensagem de erro, ou null se estiver liberado.
- */
-function bloqueioPorElencoDesatualizado(PDO $pdo, array $teamIds, ?string $league): ?string
-{
-    if (!$league) return null;
-
-    /* A TRAVA POR ELENCO (backend/trava_elenco.php), 05/11/2026: estatísticas
-       de pelo menos 6 jogadores antes/durante o draft, letras de pelo menos 6
-       depois da progression. Vem ANTES do "só depois do draft" logo abaixo
-       porque vale justamente antes dele — e é uma chave por liga, desligada
-       por padrão. Falha de banco ali devolve null: nunca barra troca. */
-    require_once __DIR__ . '/../backend/trava_elenco.php';
-    $travaElenco = travaElencoBloqueio($pdo, $teamIds, $league);
-    if ($travaElenco !== null) return $travaElenco;
-
-    $season = temporadaAtivaDaLiga($pdo, $league);
-    if (!$season) return null;
-    $seasonId = (int)$season['id'];
-    if (!draftConcluidoNaTemporada($pdo, $seasonId)) return null;
-
-    foreach ($teamIds as $tid) {
-        $tid = (int)$tid;
-        if (!$tid || elencoAtualizadoNaTemporada($pdo, $tid, $seasonId)) continue;
-
-        $st = $pdo->prepare("SELECT CONCAT(city,' ',name) FROM teams WHERE id = ?");
-        $st->execute([$tid]);
-        $nome = $st->fetchColumn() ?: 'Um dos times';
-        return $nome . ' ainda não fez a atualização de elenco da temporada — trades só liberam depois disso.';
-    }
-    return null;
-}
-
 function normalizePickId(PDO $pdo, int $pickId): int
 {
     $stmtPick = $pdo->prepare('SELECT * FROM picks WHERE id = ?');
@@ -2989,14 +2949,6 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         exit;
     }
 
-    // Todos os envolvidos precisam ter atualizado o elenco da temporada.
-    $bloqueioMulti = bloqueioPorElencoDesatualizado($pdo, $teams, $league);
-    if ($bloqueioMulti !== null) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => $bloqueioMulti]);
-        exit;
-    }
-
     foreach ($teams as $tid) {
         if (isTeamTradeBanned($pdo, (int)$tid)) {
             http_response_code(400);
@@ -3424,13 +3376,6 @@ if ($method === 'POST') {
         exit;
     }
 
-    // Os dois lados precisam ter atualizado o elenco da temporada.
-    $bloqueio = bloqueioPorElencoDesatualizado($pdo, [$teamId, $targetTeamData['id']], $teamData['league'] ?? null);
-    if ($bloqueio !== null) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => $bloqueio]);
-        exit;
-    }
     if ($targetTeamData['league'] !== $teamData['league']) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Só é possível propor trades entre times da mesma liga']);
@@ -4457,16 +4402,6 @@ if ($method === 'PUT') {
         if (!areTradesEnabled($pdo, $tradeLeague)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
-            exit;
-        }
-        // Vale também na hora de aceitar: a proposta pode ter sido enviada antes
-        // do draft fechar, e executar com elenco velho desequilibra a troca.
-        $bloqueioAceite = bloqueioPorElencoDesatualizado(
-            $pdo, [$trade['from_team_id'], $trade['to_team_id']], $tradeLeague
-        );
-        if ($bloqueioAceite !== null) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => $bloqueioAceite]);
             exit;
         }
         /* PICK JÁ ESCOLHIDA NÃO SE TROCA MAIS.

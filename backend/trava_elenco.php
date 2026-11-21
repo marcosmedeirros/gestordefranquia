@@ -1,25 +1,27 @@
 <?php
 /**
- * TRAVA DE TROCA POR ELENCO DESATUALIZADO (pedido do Marcos, 05/11/2026).
+ * ACOMPANHAMENTO DA ATUALIZAÇÃO DE ELENCO (estatísticas e letras).
  *
- * "Se o time não está atualizado, a pessoa não pode fazer troca." Dois
- * cenários, uma chave por liga (DESLIGADA por padrão — o admin liga quando
- * quiser, liga a liga):
+ * ISTO NÃO BARRA TROCA NENHUMA. A trava que existia aqui — "sem estatísticas e
+ * sem letras atualizadas, sem trocar" — foi TIRADA em 21/11/2026, a pedido do
+ * Marcos: qualquer um pode trocar, atualizado ou não. O que sobrou é a CONTA,
+ * que diz quem está em dia e quem está devendo:
  *
- *   ANTES / DURANTE O DRAFT  → o time precisa ter ESTATÍSTICAS lançadas de pelo
- *                              menos 6 jogadores, na última temporada jogada
- *                              (a mesma que a tela de lançamento usa como
- *                              alvo — statsTemporadaAlvo).
+ *   • o /atualizados do WhatsApp (@see wcAtualizados)
+ *   • a lista do painel do admin (@see travaElencoTimesDaLiga)
  *
- *   DEPOIS DA PROGRESSION    → quando a progression sai (de 2 a 3 horas depois
- *                              do fim do draft), o admin clica "Saiu a
- *                              progression". A partir daí o time precisa ter
- *                              atualizado as LETRAS de pelo menos 6 jogadores
- *                              para voltar a trocar.
+ * Os nomes das funções seguem com o prefixo `travaElenco` porque é por onde o
+ * resto do sistema as chama; nenhuma delas bloqueia coisa alguma.
  *
- * Entre o fim do draft e o clique do admin nada muda: vale a regra de antes.
- * Quando a temporada seguinte nasce, o estado da progression perde a validade
- * sozinho (ele guarda o id da temporada) e volta a valer a das estatísticas.
+ * OS DOIS PONTOS DE UM TIME:
+ *
+ *   ESTATÍSTICAS → lançadas para pelo menos 6 jogadores, na última temporada
+ *                  jogada (a mesma que a tela de lançamento usa como alvo —
+ *                  statsTemporadaAlvo).
+ *
+ *   LETRAS       → quando a progression sai, o admin clica "Saiu a
+ *                  progression"; a partir daí conta quantos jogadores tiveram
+ *                  a letra mexida depois daquele clique.
  *
  * COMO SE SABE QUE UMA LETRA FOI "ATUALIZADA". As letras são gravadas por sete
  * caminhos (dono, CSV de terceiro, CSV do admin, edição de admin...), e
@@ -30,9 +32,8 @@
  * letra a progression não mexeu não tem o que atualizar e não conta (mas são
  * necessários só 6, e a progression mexe na enorme maioria).
  *
- * UMA FALHA AQUI NUNCA BLOQUEIA TROCA. Qualquer erro de banco devolve
- * "liberado" e vai pro log: a trava existe pra cobrar quem está parado, e não
- * pode virar a razão de a liga inteira parar de negociar.
+ * UMA FALHA AQUI NUNCA ATRAPALHA NADA: qualquer erro de banco devolve a conta
+ * vazia e vai pro log.
  */
 
 require_once __DIR__ . '/helpers.php';
@@ -50,6 +51,9 @@ function travaElencoGarantirTabelas(PDO $pdo): void
     if ($ok) return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS elenco_trava_liga (
         league               VARCHAR(10) NOT NULL PRIMARY KEY,
+        /* `ativa` era a chave da trava de troca, que não existe mais
+           (21/11/2026). Fica na criação só porque as ligas antigas têm a
+           coluna NOT NULL; ninguém lê. */
         ativa                TINYINT(1)  NOT NULL DEFAULT 0,
         min_jogadores        TINYINT     NOT NULL DEFAULT 6,
         progressao_em        DATETIME    NULL,
@@ -58,9 +62,9 @@ function travaElencoGarantirTabelas(PDO $pdo): void
         atualizado_por       INT         NULL,
         atualizado_em        TIMESTAMP   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    /* QUEM marcou a progression fica numa coluna só dela. `atualizado_por` é
-       de qualquer mexida na linha — ligar e desligar a trava passa por lá —,
-       então ele não responde "quem clicou em Saiu a progression". */
+    /* QUEM marcou a progression fica numa coluna só dela: `atualizado_por` é
+       de qualquer mexida na linha, então ele não responde "quem clicou em
+       Saiu a progression". */
     try {
         if ($pdo->query("SHOW COLUMNS FROM elenco_trava_liga LIKE 'progressao_por'")->rowCount() === 0) {
             $pdo->exec('ALTER TABLE elenco_trava_liga ADD COLUMN progressao_por INT NULL AFTER progressao_season_id');
@@ -81,7 +85,7 @@ function travaElencoGarantirTabelas(PDO $pdo): void
 function travaElencoConfig(PDO $pdo, string $liga): array
 {
     $liga = strtoupper(trim($liga));
-    $padrao = ['league' => $liga, 'ativa' => 0, 'min_jogadores' => TRAVA_ELENCO_MIN_PADRAO,
+    $padrao = ['league' => $liga, 'min_jogadores' => TRAVA_ELENCO_MIN_PADRAO,
                'progressao_em' => null, 'progressao_season_id' => null];
     try {
         travaElencoGarantirTabelas($pdo);
@@ -95,17 +99,9 @@ function travaElencoConfig(PDO $pdo, string $liga): array
     }
 }
 
-function travaElencoDefinirAtiva(PDO $pdo, string $liga, bool $ativa, int $adminId): void
-{
-    travaElencoGarantirTabelas($pdo);
-    $pdo->prepare("INSERT INTO elenco_trava_liga (league, ativa, atualizado_por) VALUES (?,?,?)
-                   ON DUPLICATE KEY UPDATE ativa = VALUES(ativa), atualizado_por = VALUES(atualizado_por)")
-        ->execute([strtoupper(trim($liga)), $ativa ? 1 : 0, $adminId ?: null]);
-}
-
 /**
  * O admin clicou "Saiu a progression": tira a foto das letras da liga e passa a
- * cobrar a atualização delas.
+ * contar quem atualizou as suas.
  *
  * @return array{ok:bool,erro?:string,jogadores?:int}
  */
@@ -169,7 +165,7 @@ function travaElencoLiberarProgressao(PDO $pdo, string $liga, int $adminId): arr
     }
 }
 
-/** Desfaz o clique: a liga volta à regra das estatísticas. */
+/** Desfaz o clique: as letras saem da conta até a próxima progression. */
 function travaElencoDesfazerProgressao(PDO $pdo, string $liga): void
 {
     $liga = strtoupper(trim($liga));
@@ -221,7 +217,7 @@ function travaElencoEmProgressao(array $cfg, ?array $temporadaAtiva): bool
 /**
  * Quantos jogadores do time têm ESTATÍSTICA lançada na temporada.
  *
- * Uma conta só, usada pela trava e pelo /atualizados — duas contagens de
+ * Uma conta só, usada pelo painel e pelo /atualizados — duas contagens de
  * "quem lançou stats" acabariam discordando no dia em que uma mudasse.
  */
 function travaElencoContaStats(PDO $pdo, int $teamId, int $seasonId): int
@@ -281,14 +277,13 @@ function travaElencoContexto(PDO $pdo, string $liga, ?array $cfg = null): array
 /**
  * OS DOIS PONTOS DE UM TIME: estatística e letra.
  *
- * PRA TROCAR, O TIME PRECISA DOS DOIS (decisão do Marcos, 16/11/2026). Antes
- * a trava cobrava um ou outro conforme o momento da temporada, e quem lançava
- * as estatísticas e não mexia nas letras seguia trocando devendo metade.
+ * O TIME DEVE OS DOIS (decisão do Marcos, 16/11/2026): quem lança as
+ * estatísticas e não mexe nas letras está devendo as letras do mesmo jeito.
  *
  * `cobra` é o que torna o ponto exigível: sem temporada alvo não há
  * estatística a cobrar, e sem a foto da progression não há como saber quem
- * mexeu nas letras. Ponto que não se cobra sai como 'ok' — não se barra
- * ninguém por não ter feito o que ainda não foi pedido.
+ * mexeu nas letras. Ponto que não se cobra sai como 'ok' — não se cobra
+ * ninguém pelo que ainda não foi pedido.
  *
  * @return array{stats:array{tem:int,ok:bool,cobra:bool,temporada:?int},
  *               letras:array{tem:int,ok:bool,cobra:bool}}
@@ -310,102 +305,10 @@ function travaElencoPontos(PDO $pdo, int $teamId, array $ctx): array
 }
 
 /**
- * Como está um time diante da trava.
- *
- * @return array{ativa:bool,bloqueado:bool,modo:?string,tem:int,precisa:int,mensagem:?string,
- *               temporada:?int,stats:array,letras:array}
- */
-function travaElencoEstadoDoTime(PDO $pdo, int $teamId, string $liga, ?array $cfg = null): array
-{
-    $liga = strtoupper(trim($liga));
-    $cfg = $cfg ?? travaElencoConfig($pdo, $liga);
-    $base = ['ativa' => !empty($cfg['ativa']), 'bloqueado' => false, 'modo' => null,
-             'tem' => 0, 'precisa' => (int)$cfg['min_jogadores'], 'mensagem' => null,
-             'temporada' => null,
-             'stats' => ['tem' => 0, 'ok' => true, 'cobra' => false, 'temporada' => null],
-             'letras' => ['tem' => 0, 'ok' => true, 'cobra' => false]];
-    if (!$base['ativa'] || $teamId <= 0) return $base;
-
-    $ctx = travaElencoContexto($pdo, $liga, $cfg);
-    $p   = travaElencoPontos($pdo, $teamId, $ctx);
-
-    $base['precisa']   = $ctx['precisa'];
-    $base['stats']     = $p['stats'];
-    $base['letras']    = $p['letras'];
-    $base['temporada'] = $p['stats']['temporada'];
-    $base['bloqueado'] = !$p['stats']['ok'] || !$p['letras']['ok'];
-
-    /* `modo`/`tem` existem desde quando a trava cobrava UM ponto só, e quem
-       lê (pendências, simulador, painel) ainda conta com eles. Apontam pro
-       primeiro ponto em falta — a estatística na frente, porque é o trabalho
-       maior; quem quer o quadro inteiro lê `stats` e `letras`. */
-    if (!$p['stats']['ok']) {
-        $base['modo'] = 'estatisticas';
-        $base['tem']  = $p['stats']['tem'];
-    } elseif (!$p['letras']['ok']) {
-        $base['modo'] = 'letras';
-        $base['tem']  = $p['letras']['tem'];
-    }
-    return $base;
-}
-
-/** A frase que o GM lê quando a troca é barrada — diz os DOIS pontos em falta. */
-function travaElencoMensagem(string $nomeTime, array $e): string
-{
-    $precisa = (int)$e['precisa'];
-    $faltas  = [];
-
-    if (empty($e['stats']['ok'])) {
-        $tem = (int)($e['stats']['tem'] ?? 0);
-        $t   = !empty($e['stats']['temporada']) ? " da T{$e['stats']['temporada']}" : '';
-        $faltas[] = "lançar as estatísticas{$t} ({$tem} de {$precisa}, faltam " . max(0, $precisa - $tem) . ')';
-    }
-    if (empty($e['letras']['ok'])) {
-        $tem = (int)($e['letras']['tem'] ?? 0);
-        $faltas[] = "atualizar as letras depois da progression ({$tem} de {$precisa}, faltam "
-                  . max(0, $precisa - $tem) . ')';
-    }
-
-    /* Nenhum dos dois nomeado: estado antigo ou inesperado. Melhor uma frase
-       genérica do que "{$nomeTime} ainda precisa ." */
-    if (!$faltas) return "{$nomeTime} ainda não atualizou o elenco. Trocas só liberam depois disso.";
-
-    return "{$nomeTime} ainda precisa " . implode(' e ', $faltas) . '. Trocas só liberam depois disso.';
-}
-
-/**
- * O ponto de entrada das trocas: algum dos times está barrado?
- * Devolve a mensagem de erro, ou null se estiver liberado.
- */
-function travaElencoBloqueio(PDO $pdo, array $teamIds, ?string $liga): ?string
-{
-    if (!$liga) return null;
-    try {
-        $cfg = travaElencoConfig($pdo, $liga);
-        if (empty($cfg['ativa'])) return null;
-        foreach ($teamIds as $tid) {
-            $tid = (int)$tid;
-            if ($tid <= 0) continue;
-            $e = travaElencoEstadoDoTime($pdo, $tid, $liga, $cfg);
-            if (!$e['bloqueado']) continue;
-            $st = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) FROM teams WHERE id = ?");
-            $st->execute([$tid]);
-            return travaElencoMensagem((string)($st->fetchColumn() ?: 'Um dos times'), $e);
-        }
-    } catch (Throwable $ex) {
-        error_log('[trava-elenco] bloqueio: ' . $ex->getMessage());
-    }
-    return null;
-}
-
-/**
  * OS DOIS PONTOS DE UMA VEZ: estatística E letra, time por time.
  *
- * A TRAVA COBRA UM DOS DOIS, conforme o momento da temporada (@see
- * travaElencoEstadoDoTime) — é ela que decide quem pode trocar, e isso não
- * muda. Mas a pergunta do grupo é outra: "quem está devendo?". Quem lançou as
- * estatísticas e não mexeu nas letras deve as letras do mesmo jeito, e mostrar
- * só o que a trava cobra hoje esconde metade da dívida. (Pedido do Marcos,
+ * A pergunta do grupo é "quem está devendo?" — e quem lançou as estatísticas
+ * e não mexeu nas letras deve as letras do mesmo jeito. (Pedido do Marcos,
  * 16/11/2026, para o /atualizados.)
  *
  * AS LETRAS SÓ EXISTEM DEPOIS DA FOTO. Sem o clique de "Saiu a progression"
@@ -443,22 +346,20 @@ function travaElencoDosDoisPontos(PDO $pdo, string $liga): array
 
 /**
  * Os times da liga com o estado de cada um — a lista do painel do admin.
+ * Informação, e nada mais: ninguém fica sem trocar por aparecer aqui.
  *
- * @return list<array{id:int,nome:string,modo:?string,tem:int,precisa:int,bloqueado:bool}>
+ * @return list<array{id:int,nome:string,modo:?string,tem:int,precisa:int,em_falta:bool}>
  */
 function travaElencoTimesDaLiga(PDO $pdo, string $liga): array
 {
     $cfg = travaElencoConfig($pdo, $liga);
-    // O painel mostra o estado MESMO com a chave desligada ("quem ficaria
-    // travado se eu ligasse agora") — por isso avalia como se estivesse ligada.
-    $cfgAvaliar = $cfg; $cfgAvaliar['ativa'] = 1;
 
     $st = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
                            FROM teams WHERE league = ? AND user_id IS NOT NULL ORDER BY nome");
     $st->execute([strtoupper(trim($liga))]);
 
     /* O contexto é da liga: resolvido uma vez, e não 32. */
-    $ctx = travaElencoContexto($pdo, $liga, $cfgAvaliar);
+    $ctx = travaElencoContexto($pdo, $liga, $cfg);
 
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
@@ -468,10 +369,10 @@ function travaElencoTimesDaLiga(PDO $pdo, string $liga): array
             'id' => (int)$t['id'], 'nome' => (string)$t['nome'],
             'modo' => $modo,
             // `tem` aponta pro ponto de `modo` — compatibilidade com quem
-            // desenhava "x/6" antes de a trava cobrar os dois.
+            // desenhava "x/6" quando a conta era de um ponto só.
             'tem' => $modo === 'letras' ? $p['letras']['tem'] : $p['stats']['tem'],
             'precisa' => (int)$ctx['precisa'],
-            'bloqueado' => !$p['stats']['ok'] || !$p['letras']['ok'],
+            'em_falta' => !$p['stats']['ok'] || !$p['letras']['ok'],
             'stats' => $p['stats'], 'letras' => $p['letras'],
         ];
     }
