@@ -261,54 +261,23 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
 
     // ── Elenco não atualizado depois do draft ───────────────────────────────
     // Vira temporada, o draft fecha, e o GM precisa registrar OVR/idade/skills.
-    // Enquanto não faz, as trocas ficam bloqueadas pra ele — então é urgente,
-    // e antes só existia como modal (que some quando o de revisão de sprint
-    // aparece, deixando a pessoa travada sem saber por quê).
+    // É cobrança de trabalho atrasado, não trava: desde 21/11/2026 ninguém fica
+    // sem trocar por isso (pedido do Marcos). Fica aqui porque como modal ela
+    // sumia quando o de revisão de sprint aparecia.
     try {
         $temporada = temporadaAtivaDaLiga($pdo, $league);
         if ($temporada) {
             $sid = (int)$temporada['id'];
             if (draftConcluidoNaTemporada($pdo, $sid) && !elencoAtualizadoNaTemporada($pdo, $teamId, $sid)) {
                 $itens[] = [
-                    'urgencia' => 'alta',
+                    'urgencia' => 'media',
                     'icone'    => 'bi-clipboard-data-fill',
                     'titulo'   => 'Atualize seu time',
                     'detalhe'  => 'O draft da temporada ' . (int)($temporada['season_number'] ?? 0)
-                                . ' acabou. Enquanto não atualizar, você não envia nem recebe trocas.',
+                                . ' acabou. Registre OVR, idade e skills do elenco.',
                     'url'      => '/atualizar-elenco.php',
                 ];
             }
-        }
-    } catch (Throwable $e) {}
-
-    // ── Trava de troca por elenco desatualizado (backend/trava_elenco.php) ──
-    // Só aparece com a chave da liga ligada. É o aviso de "por que não consigo
-    // trocar": sem ele a pessoa só descobriria ao tentar enviar a proposta.
-    try {
-        require_once __DIR__ . '/trava_elenco.php';
-        $trava = travaElencoEstadoDoTime($pdo, $teamId, $league);
-        if ($trava['bloqueado']) {
-            /* OS DOIS PONTOS NA MESMA FRASE. Dizer só um fazia o GM cumprir
-               aquele, voltar pra tela e continuar sem poder trocar, sem
-               entender por quê. */
-            $precisa = (int)$trava['precisa'];
-            $faltamS = empty($trava['stats']['ok'])  ? max(0, $precisa - (int)$trava['stats']['tem'])  : 0;
-            $faltamL = empty($trava['letras']['ok']) ? max(0, $precisa - (int)$trava['letras']['tem']) : 0;
-
-            $partes = [];
-            if ($faltamS) $partes[] = "lance as estatísticas de mais {$faltamS} jogador(es)";
-            if ($faltamL) $partes[] = "atualize as letras de mais {$faltamL} jogador(es) depois da progression";
-
-            // O link leva pro que falta primeiro; a estatística vem na frente.
-            $letras = !$faltamS && $faltamL;
-            $itens[] = [
-                'urgencia' => 'alta',
-                'icone'    => 'bi-shield-lock-fill',
-                'titulo'   => 'Você está sem poder trocar',
-                'detalhe'  => ucfirst(implode(' e ', $partes)) . " (precisa de {$precisa} em cada).",
-                'url'      => '/controle-elencos.php?league=' . urlencode($league) . '&time=' . $teamId
-                            . '&tipo=' . ($letras ? 'letras' : 'stats'),
-            ];
         }
     } catch (Throwable $e) {}
 

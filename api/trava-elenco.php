@@ -1,10 +1,9 @@
 <?php
 /**
- * API da trava de troca por elenco desatualizado (admin). Regra e motivo em
- * backend/trava_elenco.php.
+ * API do acompanhamento da atualização de elenco (admin). A conta e o motivo
+ * estão em backend/trava_elenco.php — e ela NÃO barra troca de ninguém.
  *
- *   GET  ?league=X                            → estado da liga + times
- *   POST {action:'ativar',   league, ativa}   → liga/desliga a trava
+ *   GET  ?league=X                            → quem está em dia e quem deve
  *   POST {action:'progressao', league}        → "saiu a progression": tira a foto das letras
  *   POST {action:'desfazer_progressao', league}
  */
@@ -46,9 +45,7 @@ function tvResponde(array $d, int $http = 200): never
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string)($corpo['action'] ?? '');
-    if ($acao === 'ativar') {
-        travaElencoDefinirAtiva($pdo, $liga, !empty($corpo['ativa']), $uid);
-    } elseif ($acao === 'progressao') {
+    if ($acao === 'progressao') {
         $r = travaElencoLiberarProgressao($pdo, $liga, $uid);
         if (!$r['ok']) tvResponde(['success' => false, 'error' => $r['erro'] ?? 'Falhou.'], 400);
     } elseif ($acao === 'desfazer_progressao') {
@@ -67,7 +64,6 @@ $times = travaElencoTimesDaLiga($pdo, $liga);
 tvResponde([
     'success'        => true,
     'league'         => $liga,
-    'ativa'          => (int)$cfg['ativa'] === 1,
     'min_jogadores'  => (int)$cfg['min_jogadores'],
     'modo'           => $emProg ? 'letras' : 'estatisticas',
     'progressao_em'  => $emProg ? $cfg['progressao_em'] : null,
@@ -75,6 +71,6 @@ tvResponde([
     'progressao_por' => $emProg ? travaElencoQuemMarcou($pdo, $liga) : null,
     'temporada'      => $temp ? (int)$temp['season_number'] : null,
     'times_total'    => count($times),
-    'times_bloqueados' => count(array_filter($times, fn($t) => $t['bloqueado'])),
+    'times_em_falta' => count(array_filter($times, fn($t) => $t['em_falta'])),
     'times'          => $times,
 ]);

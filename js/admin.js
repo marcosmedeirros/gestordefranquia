@@ -6284,7 +6284,7 @@ async function showConfig() {
         <br><b>Resolver agora</b> encerra na hora todas as dispensas em andamento: cada jogador vai pro maior lance, e quem não tem lance cai na Free Agency.` : ''}
       </div>
     </div>
-    <!-- Trava de troca por elenco desatualizado (backend/trava_elenco.php). O
+    <!-- Acompanhamento da atualização de elenco (backend/trava_elenco.php). O
          conteúdo é desenhado por carregarTravaElenco, logo depois da tela subir. -->
     <div id="travaElencoBox_${lg.league}" data-trava-liga="${lg.league}"
          style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
@@ -7080,12 +7080,12 @@ async function _loadLeagueConfigInline(league) {
               </div>
               ${agendaCampo(lg.league, 'fechar_taticas_em', lg.fechar_taticas_em, 'as táticas')}
             </div>
-            <!-- Trava de troca por elenco desatualizado (backend/trava_elenco.php).
+            <!-- Acompanhamento da atualização de elenco (backend/trava_elenco.php).
                  É daqui que o admin avisa "saiu a progression". O conteúdo desta
                  linha é desenhado por renderTravaElenco (variante "janela"). -->
             <div class="lgcfg-janela" data-trava-liga="${lg.league}" data-trava-variante="janela">
               <div class="lgcfg-jn">
-                <i class="bi bi-shield-lock" style="color:#a855f7"></i><b>Trava por elenco</b>
+                <i class="bi bi-clipboard2-check" style="color:#a855f7"></i><b>Atualização de elenco</b>
               </div>
               <div class="lgcfg-acoes"><span class="lgcfg-selo off" style="opacity:.5">carregando</span></div>
             </div>
@@ -10802,10 +10802,16 @@ async function loadControlPanel() {
   }
 }
 
-/* ── TRAVA DE TROCA POR ELENCO DESATUALIZADO ───────────────────────────
-   Antes/durante o draft: estatísticas de 6+ jogadores. Depois da progression
-   (o admin clica "Saiu a progression"): letras de 6+ jogadores. Chave por liga,
-   desligada por padrão. A regra mora em backend/trava_elenco.php. */
+/* ── ATUALIZAÇÃO DE ELENCO: QUEM ESTÁ EM DIA ───────────────────────────
+   Estatísticas de 6+ jogadores na última temporada jogada e, depois que o
+   admin clica "Saiu a progression", letras de 6+ jogadores.
+
+   É ACOMPANHAMENTO, NÃO TRAVA. A trava de troca que ficava aqui (chave por
+   liga, "quem não cumprir não negocia") foi tirada em 21/11/2026, a pedido do
+   Marcos: qualquer um pode trocar. O que o painel faz é mostrar quem está
+   devendo — e o clique "Saiu a progression" segue existindo porque é ele que
+   tira a foto das letras, sem a qual não há como contar quem atualizou.
+   A conta mora em backend/trava_elenco.php. */
 /* O card aparece em DOIS lugares: nas Configurações da Liga (junto de Trades,
    Free Agency e Dispensas) e no Painel de Controle. Cada um é um elemento com
    data-trava-liga="<liga>"; carregar e redesenhar mexe em todos de uma vez, pra
@@ -10814,10 +10820,9 @@ function travaElencoCaixas(liga) {
   return [...document.querySelectorAll(`[data-trava-liga="${liga}"]`)];
 }
 
-/* A REGRA DE AGORA, EM UMA FRASE. A trava cobra os DOIS pontos (estatística e
-   letra), mas a letra só existe depois do clique "Saiu a progression" — antes
-   dele não há foto pra comparar, e o time só deve as estatísticas.
-   @see backend/trava_elenco.php travaElencoPontos */
+/* O QUE SE COBRA AGORA, EM UMA FRASE. A letra só existe depois do clique
+   "Saiu a progression" — antes dele não há foto pra comparar, e o time só
+   deve as estatísticas. @see backend/trava_elenco.php travaElencoPontos */
 function _travaRegra(d, forte) {
   const n = forte ? `<b>${d.min_jogadores}</b>` : `${d.min_jogadores}`;
   const stats = `estatísticas de ${n}+ jogadores na última temporada jogada`;
@@ -10858,40 +10863,38 @@ async function carregarTravaElenco(league) {
     const d = await api(`trava-elenco.php?league=${encodeURIComponent(league)}`);
     caixas.forEach(c => renderTravaElenco(c, d));
   } catch (e) {
-    caixas.forEach(c => { c.innerHTML = `<div style="font-size:12px;color:var(--red)">Trava por elenco: ${escapeHtml(e.error || 'erro ao carregar')}</div>`; });
+    caixas.forEach(c => { c.innerHTML = `<div style="font-size:12px;color:var(--red)">Atualização de elenco: ${escapeHtml(e.error || 'erro ao carregar')}</div>`; });
   }
 }
 
-/* A linha da seção JANELAS (Trades, Free Agency, Dispensas, Táticas, Trava):
-   nome | Ligada/Desligada | "Saiu a progression" + a regra de agora. O
-   contêiner já é a grade da linha (.lgcfg-janela), então desenha as três
-   células. */
+/* A linha da seção JANELAS (Trades, Free Agency, Dispensas, Táticas): nome |
+   "Saiu a progression" | quem está devendo. O contêiner já é a grade da linha
+   (.lgcfg-janela), então desenha as três células. */
 function renderTravaElencoJanela(box, d) {
   const liga = d.league;
   const prog = d.modo === 'letras';
-  const bloq = (d.times || []).filter(t => t.bloqueado);
+  const devendo = (d.times || []).filter(t => t.em_falta);
   const regra = _travaRegra(d, false);
   const quando = prog && d.progressao_em ? ` · clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))}` : '';
   box.innerHTML = `
     <div class="lgcfg-jn">
-      <i class="bi bi-shield-lock" style="color:#a855f7"></i><b>Trava por elenco</b>
+      <i class="bi bi-clipboard2-check" style="color:#a855f7"></i><b>Atualização de elenco</b>
     </div>
     <div class="lgcfg-acoes">
-      <button class="btn btn-sm ${d.ativa ? 'btn-success' : 'btn-outline-success'}" onclick="travaElencoAtivar('${liga}', true)">Ligada</button>
-      <button class="btn btn-sm ${!d.ativa ? 'btn-danger' : 'btn-outline-danger'}" onclick="travaElencoAtivar('${liga}', false)">Desligada</button>
+      <span class="lgcfg-selo off" style="opacity:.6" title="Ninguém fica sem trocar por isso">só acompanhamento</span>
     </div>
     <div class="lgcfg-agenda">
       <div class="lgcfg-agenda-linha">
         ${prog
           ? `<button class="btn btn-sm btn-outline-secondary" style="flex:none" onclick="travaElencoDesfazerProgressao('${liga}')"
-                     title="Volta à regra das estatísticas"><i class="bi bi-arrow-counterclockwise"></i> Desfazer "saiu a progression"</button>`
+                     title="As letras saem da conta até a próxima progression"><i class="bi bi-arrow-counterclockwise"></i> Desfazer "saiu a progression"</button>`
           : `<button class="btn btn-sm btn-outline-warning" style="flex:none" onclick="travaElencoProgressao('${liga}')"
-                     title="Avisa que a progression saiu: a partir daí cada time precisa atualizar as letras de ${d.min_jogadores} jogadores para trocar"><i class="bi bi-graph-up-arrow"></i> Saiu a progression</button>`}
+                     title="Avisa que a progression saiu: a partir daí o painel conta quantos times atualizaram as letras de ${d.min_jogadores} jogadores"><i class="bi bi-graph-up-arrow"></i> Saiu a progression</button>`}
       </div>
       ${_travaMarcada(d)}
-      <span class="lgcfg-falta">${regra}${quando}${bloq.length ? ` · <b>${bloq.length}</b> de ${d.times_total} times ${d.ativa ? 'sem poder trocar' : 'ficariam sem trocar'}` : ''}</span>
-      ${bloq.length ? `<details style="font-size:10.5px;color:var(--text-3)"><summary style="cursor:pointer">ver times</summary>
-        <div class="d-flex flex-wrap gap-1 mt-1">${bloq.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div></details>` : ''}
+      <span class="lgcfg-falta">${regra}${quando}${devendo.length ? ` · <b>${devendo.length}</b> de ${d.times_total} times devendo` : ''}</span>
+      ${devendo.length ? `<details style="font-size:10.5px;color:var(--text-3)"><summary style="cursor:pointer">ver times</summary>
+        <div class="d-flex flex-wrap gap-1 mt-1">${devendo.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div></details>` : ''}
     </div>`;
 }
 
@@ -10899,44 +10902,36 @@ function renderTravaElenco(box, d) {
   if (box.dataset.travaVariante === 'janela') { renderTravaElencoJanela(box, d); return; }
   const liga = d.league;
   const prog = d.modo === 'letras';
-  const bloq = (d.times || []).filter(t => t.bloqueado);
-  const selo = d.ativa
-    ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-    : 'background:var(--panel-3);color:var(--text-3);border:1px solid var(--border)';
+  const devendo = (d.times || []).filter(t => t.em_falta);
   const regra = _travaRegra(d, true);
   const quando = prog && d.progressao_em ? ` (clicada em ${escapeHtml(String(d.progressao_em).slice(0, 16).replace('T', ' '))})` : '';
 
   // O mesmo desenho dos cards vizinhos (Trades, Free Agency, Dispensas): ícone,
-  // nome, selo, dois botões lado a lado e uma frase embaixo.
+  // nome, o botão da progression e uma frase embaixo.
   box.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="width:32px;height:32px;border-radius:9px;background:rgba(168,85,247,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <i class="bi bi-shield-lock" style="color:#a855f7;font-size:14px"></i>
+          <i class="bi bi-clipboard2-check" style="color:#a855f7;font-size:14px"></i>
         </div>
-        <span style="font-size:13px;font-weight:600;color:var(--text)">Trava por elenco</span>
-        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;${selo}">${d.ativa ? 'Ligada' : 'Desligada'}</span>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button class="btn ${d.ativa ? 'btn-success' : 'btn-outline-success'} flex-grow-1" style="font-size:12px;padding:7px 10px"
-                onclick="travaElencoAtivar('${liga}', true)">Ligada</button>
-        <button class="btn ${!d.ativa ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" style="font-size:12px;padding:7px 10px"
-                onclick="travaElencoAtivar('${liga}', false)">Desligada</button>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Atualização de elenco</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;background:var(--panel-3);color:var(--text-3);border:1px solid var(--border)">só acompanhamento</span>
       </div>
       ${prog
-        ? `<button class="btn btn-outline-secondary w-100" style="font-size:12px;padding:7px 10px;margin-top:6px"
+        ? `<button class="btn btn-outline-secondary w-100" style="font-size:12px;padding:7px 10px"
                    onclick="travaElencoDesfazerProgressao('${liga}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Desfazer "saiu a progression"</button>`
-        : `<button class="btn btn-outline-warning w-100" style="font-size:12px;padding:7px 10px;margin-top:6px"
+        : `<button class="btn btn-outline-warning w-100" style="font-size:12px;padding:7px 10px"
                    onclick="travaElencoProgressao('${liga}')"><i class="bi bi-graph-up-arrow me-1"></i>Saiu a progression</button>`}
       ${_travaMarcada(d)}
       <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
-        Quem não cumprir não envia nem aceita troca. <b>Regra de agora:</b> ${regra}${quando}.
+        Lista quem está devendo — ninguém fica sem trocar por isso.
+        <b>Conta de agora:</b> ${regra}${quando}.
       </div>
-      ${bloq.length
+      ${devendo.length
         ? `<details style="margin-top:8px">
-             <summary style="cursor:pointer;font-size:11px;color:var(--text-2)">${d.ativa ? 'Sem poder trocar agora' : 'Ficariam sem poder trocar se ligasse'}: <b>${bloq.length}</b> de ${d.times_total} times</summary>
-             <div class="d-flex flex-wrap gap-2 mt-2">${bloq.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div>
+             <summary style="cursor:pointer;font-size:11px;color:var(--text-2)">Devendo agora: <b>${devendo.length}</b> de ${d.times_total} times</summary>
+             <div class="d-flex flex-wrap gap-2 mt-2">${devendo.map(t => `<span class="badge bg-secondary">${escapeHtml(t.nome)} · ${_travaSelo(t)}</span>`).join('')}</div>
            </details>`
-        : '<div style="font-size:11px;color:#25c677;margin-top:8px"><i class="bi bi-check-circle-fill me-1"></i>Todos os times cumprem a regra de agora.</div>'}`;
+        : '<div style="font-size:11px;color:#25c677;margin-top:8px"><i class="bi bi-check-circle-fill me-1"></i>Todos os times estão em dia.</div>'}`;
 }
 
 async function travaElencoAcao(liga, corpo, okMsg) {
@@ -10945,16 +10940,8 @@ async function travaElencoAcao(liga, corpo, okMsg) {
     travaElencoCaixas(liga).forEach(c => renderTravaElenco(c, d));
     showAlert('success', okMsg);
   } catch (e) {
-    showAlert('danger', e.error || 'Não deu pra salvar a trava.');
+    showAlert('danger', e.error || 'Não deu pra salvar.');
   }
-}
-
-async function travaElencoAtivar(liga, ativa) {
-  // Popup do site (confirmarSite), e não o confirm() do navegador.
-  if (ativa && !await confirmarSite(
-        `Ligar a trava de troca por elenco na ${liga}?\n\nQuem não cumprir a regra de agora deixa de conseguir enviar e aceitar troca até cumprir.`,
-        { titulo: 'Ligar a trava por elenco', confirmar: 'Ligar', perigo: true })) return;
-  await travaElencoAcao(liga, { action: 'ativar', ativa: !!ativa }, ativa ? `Trava ligada na ${liga}.` : `Trava desligada na ${liga}.`);
 }
 
 /* UMA VEZ POR TEMPORADA, e o clique duplo não passa.
@@ -10969,7 +10956,7 @@ let _travaProgressaoRodando = false;
 async function travaElencoProgressao(liga) {
   if (_travaProgressaoRodando) return;
   if (!await confirmarSite(
-        `Registrar que a progression da ${liga} já saiu?\n\nA partir de agora cada time precisa atualizar as letras de pelo menos 6 jogadores para poder trocar. O sistema guarda uma foto das letras de agora para saber quem já atualizou.\n\nSó dá pra marcar uma vez por temporada — pra refazer, use "Desfazer" antes.`,
+        `Registrar que a progression da ${liga} já saiu?\n\nA partir de agora o painel passa a contar quem atualizou as letras: o sistema guarda uma foto das letras de agora pra saber quem mexeu depois.\n\nSó dá pra marcar uma vez por temporada — pra refazer, use "Desfazer" antes.`,
         { titulo: 'Saiu a progression', confirmar: 'Registrar' })) return;
 
   _travaProgressaoRodando = true;
@@ -10986,7 +10973,7 @@ async function travaElencoProgressao(liga) {
 
 async function travaElencoDesfazerProgressao(liga) {
   if (!await confirmarSite(
-        `Desfazer o "saiu a progression" da ${liga}?\n\nA liga volta à regra das estatísticas.`,
+        `Desfazer o "saiu a progression" da ${liga}?\n\nAs letras saem da conta e o painel volta a mostrar só as estatísticas.`,
         { titulo: 'Desfazer "saiu a progression"', confirmar: 'Desfazer' })) return;
   await travaElencoAcao(liga, { action: 'desfazer_progressao' }, `Progression desfeita na ${liga}.`);
 }
