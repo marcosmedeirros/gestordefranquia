@@ -13,7 +13,6 @@
  */
 
 require_once __DIR__ . '/whatsapp.php';
-require_once __DIR__ . '/push.php';       // sendPushToLeague()
 require_once __DIR__ . '/leilao_bot.php';   // leilaoBotGrupoDaLiga()
 
 /**
@@ -266,49 +265,11 @@ function loteriaBotAnunciarEscolha(PDO $pdo, int $sessionId, int $posicao): void
     }
 }
 
-/**
- * O mesmo aviso, por push, pra quem tem time na liga.
- *
- * Separado do WhatsApp de propósito: são canais com falhas independentes — o
- * bot pode estar desligado e o push funcionando, ou o contrário. Um try/catch
- * só faria a falha de um levar o outro junto.
- *
- * O texto é mais curto que o do grupo: push é notificação de celular, lida de
- * relance na tela bloqueada, e não tem onde caber parágrafo.
- */
-function loteriaPushEscolha(PDO $pdo, int $sessionId, int $posicao): void
-{
-    try {
-        $t = loteriaBotTransmissao($pdo, $sessionId);
-        if (!$t) return;
+/* Aqui morava loteriaPushEscolha(), que repetia cada escolha no push do app e
+   no WhatsApp particular de quem tinha opt-in. Saiu em 23/11/2026: a loteria é
+   um evento de grupo, e uma cerimônia de 14 picks virava 14 notificações no
+   celular de cada GM. O tipo 'loteria' nem estava no getNotifCatalog, então
+   userWantsNotif devolvia true sempre e não havia como desligar.
 
-        $d = loteriaBotDadosDaPosicao($pdo, $t['ordem'], $posicao);
-        $time = $d['nome'];
-        if ($time === null) return;
-
-        $total = count($t['ordem']);
-        // No push o "via" entra entre parênteses, na mesma linha: não há espaço
-        // pra segunda linha numa notificação de celular.
-        $via = !empty($d['swap'])
-            ? ((($d['swap']['lado'] ?? 'melhor') === 'pior') ? ' (swap — a pior das duas)' : ' (swap — a melhor das duas)')
-            : ($d['via'] ? " (via {$d['via']})" : '');
-
-        $titulo = $posicao === 1 ? '🥇 A primeira escolha saiu!' : '🎲 Loteria · ' . $t['liga'];
-        $corpo  = $posicao === 1
-            ? "{$time} escolhe primeiro no draft{$via}."
-            : ($posicao === $total
-                ? "Escolha #{$posicao} — {$time}{$via}. A loteria acabou."
-                : "Escolha #{$posicao} de {$total} — {$time}{$via}");
-
-        sendPushToLeague($pdo, $t['liga'], [
-            'title'      => $titulo,
-            'body'       => $corpo,
-            'url'        => '/lottery.php?liga=' . urlencode($t['liga']),
-            // Uma chave por escolha: sem isso o celular junta os avisos e
-            // sobrescreve o anterior, e a liga só veria a última pick.
-            'primaryKey' => 'loteria_' . $sessionId . '_' . $posicao,
-        ], 'loteria');
-    } catch (Throwable $e) {
-        error_log('[loteria_bot] push: ' . $e->getMessage());
-    }
-}
+   A escolha continua saindo no grupo da liga — loteriaBotAnunciarEscolha(),
+   acima, é o único anúncio agora. */

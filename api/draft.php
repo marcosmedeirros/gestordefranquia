@@ -2586,10 +2586,16 @@ if ($method === 'POST') {
 
             if ($novidade) {
                 require_once __DIR__ . '/../backend/loteria_bot.php';
-                // Vale igual pra cerimônia ao vivo e pro ajuste manual: os dois
-                // caminham por aqui, e pra quem lê no grupo é o mesmo fato.
+                /* SÓ O GRUPO. Vale igual pra cerimônia ao vivo e pro ajuste
+                   manual: os dois caminham por aqui, e pra quem lê no grupo é
+                   o mesmo fato.
+
+                   O push e o WhatsApp no particular saíram em 23/11/2026, por
+                   decisão da administração: a loteria é um evento de grupo, e
+                   quem acompanha está no grupo. Uma cerimônia de 14 picks virava
+                   14 notificações no celular de cada GM, e 'loteria' nem estava
+                   no getNotifCatalog — ninguém conseguia desligar. */
                 loteriaBotAnunciarEscolha($pdo, $sid, $pos);
-                loteriaPushEscolha($pdo, $sid, $pos);
             }
 
             echo json_encode(['success' => true, 'reveladas' => array_values($lista)]);
