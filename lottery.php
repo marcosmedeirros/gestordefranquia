@@ -1577,8 +1577,33 @@ async function transmitirSorteio(data){
   }
 }
 
-async function transmitirRevelada(pos){
-  if (!PODE_EDITAR_ORDEM) return;
+/* ── UMA DE CADA VEZ, NA ORDEM EM QUE SAIRAM ───────────────────────────
+   `revealNext` dispara o aviso SEM esperar, de propósito: a bolinha começa a
+   girar na hora, e quem conduz não fica olhando pro botão travado. Só que
+   isso deixava duas chamadas correndo juntas quando a anterior demorava — e
+   demorava: cada `lottery_revelar` passava ~18s mandando push (corrigido em
+   23/11/2026). Quem chegava primeiro no servidor entrava primeiro no
+   `reveladas` e primeiro na fila do grupo, e a ordem saía trocada.
+
+   Dá pra ver no banco, sempre em pares vizinhos invertidos:
+     ELITE 18/11   16,15,14,13,12,11,[9,10],8,7,6,[4,5],[2,3],1
+     NEXT  17/11   14,13,12,[10,11],[8,9],7,6,[4,5],2,1,3
+   No grupo isso virou "Escolha #9" antes da "#10".
+
+   Agora cada revelação espera a anterior responder. A TELA não espera nada —
+   a animação continua solta, como antes —, mas o servidor recebe na ordem
+   certa, e a fila do WhatsApp sai do jeito que a liga viu acontecer. */
+let filaDoAviso = Promise.resolve();
+
+function transmitirRevelada(pos){
+  if (!PODE_EDITAR_ORDEM) return filaDoAviso;
+  // O .catch antes de guardar: uma falha não pode partir a corrente e deixar
+  // as escolhas seguintes sem aviso nenhum.
+  filaDoAviso = filaDoAviso.then(() => avisarRevelada(pos)).catch(() => {});
+  return filaDoAviso;
+}
+
+async function avisarRevelada(pos){
   const revelar = async () => {
     const res = await fetch('/api/draft.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
