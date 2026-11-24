@@ -107,6 +107,7 @@ class TemporadaLiga
         $marcas = implode(',', array_fill(0, count($idPorFba), '?'));
         $sp = $fba->prepare(
             "SELECT team_id, name, position, age, seasons_in_league, ovr, nba_player_id,
+                    drafted_season_number,
                     skill_in, skill_mid, skill_3pt, skill_post_d, skill_per_d,
                     skill_play, skill_reb, skill_athl, skill_iq, skill_pot,
                     player_skill_grades, lineup_slot
@@ -115,6 +116,21 @@ class TemporadaLiga
               ORDER BY team_id, ovr DESC"
         );
         $sp->execute(array_keys($idPorFba));
+
+        /* ── QUEM É CALOURO DE VERDADE ────────────────────────────────────
+           O Novato do Ano saía errado porque "calouro" era qualquer um com
+           zero temporadas na liga — e isso inclui quem chegou por
+           contratação e ainda não jogou. Na RISE eram 17 dos 52.
+           Calouro na FBA é quem veio na CLASSE DE DRAFT mais recente, e é
+           essa a régua agora. Quem tem zero temporadas sem ter sido
+           draftado nessa classe entra com uma temporada de casa — não
+           disputa o ROY, que é o que se queria. */
+        $stClasse = $fba->prepare(
+            "SELECT MAX(p.drafted_season_number)
+               FROM players p JOIN teams t ON t.id = p.team_id
+              WHERE t.league = ?");
+        $stClasse->execute([$liga]);
+        $classeAtual = (int) ($stClasse->fetchColumn() ?: 0);
 
         $insPlayer = $db->prepare(
             "INSERT INTO players(team_id,name,pos,age,ht,ovr,ins,mid,thr,pmk,reb,def,ath,sta,
@@ -155,8 +171,13 @@ class TemporadaLiga
                     ':ath'      => $a['ath'], ':sta' => $a['sta'],
                     ':potential' => $a['pot'],
                     /* seasons_pro = 0 é o que o motor chama de calouro, e é
-                       assim que a corrida de Novato do Ano sabe quem concorre. */
-                    ':seasons_pro' => max(0, (int)$p['seasons_in_league']),
+                       assim que a corrida de Novato do Ano sabe quem concorre.
+                       Zero só pra quem veio na classe de draft mais recente
+                       desta liga — @see $classeAtual, lá em cima. */
+                    ':seasons_pro' => ($classeAtual > 0
+                            && (int)($p['drafted_season_number'] ?? 0) === $classeAtual)
+                        ? 0
+                        : max(1, (int)$p['seasons_in_league']),
                     ':morale'   => random_int(70, 82),
                     ':is_starter' => $i < 5 ? 1 : 0,
                     ':rotation' => $i < 9 ? 1 : 0,

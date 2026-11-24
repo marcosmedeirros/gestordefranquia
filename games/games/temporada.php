@@ -98,17 +98,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            aparecer um jogo do time do GM — que é a hora de devolver a
            decisão pra ele, em vez de simular por cima. */
         if ($acao === 'avancar_fase') {
-            $gmId = (int) Database::meta('gm_team', '0');
+            /* ── O `false` AQUI É O JOGO QUE VOCÊ NÃO PERDE ────────────────
+               Era `true`, que é o `autoGm` do motor: "simule inclusive a
+               partida do GM". No play-in isso custava um jogo inteiro.
+
+               O play-in tem dois degraus, e o segundo só NASCE depois que o
+               primeiro é decidido: quem é 9º ou 10º joga o 9×10 e, passando,
+               enfrenta o perdedor do 7×8 — uma partida que ainda não existe
+               no calendário na hora em que a primeira acaba. Sem jogo à
+               vista, a tela oferecia "avançar", o laço rodava com autoGm e
+               simulava sozinho a segunda partida assim que ela era criada. A
+               pessoa jogava uma e descobria o resultado da outra.
+
+               Com `false` o motor resolve os jogos dos OUTROS e devolve
+               `gm_game_pending` quando esbarra num seu — e é aí que o laço
+               para e a tela volta a oferecer Assistir ou Simular. */
             $guarda = 0;
-            while ($guarda++ < 120) {
+            while ($guarda++ < 200) {
                 $f = League::phase();
                 if ($f === 'offseason') break;
-                // Jogo meu à vista: paro aqui pra ele assistir ou simular.
-                if ($gmId > 0 && temporadaProximoAdversario($gmId)) break;
-                if ($f === 'regular')       League::advanceDay(true);
-                elseif ($f === 'playin')    League::advancePlayInDay(true);
-                elseif ($f === 'playoffs')  League::advancePlayoffDay(true);
-                else break;
+
+                $r = $f === 'playin'     ? League::advancePlayInDay(false)
+                   : ($f === 'playoffs'  ? League::advancePlayoffDay(false)
+                   : League::advanceDay(false));
+
+                if (!empty($r['gm_game_pending'])) break;   // é a sua vez
+                if (!empty($r['blocked'])) break;
             }
             header('Location: /games/games/temporada.php'); exit;
         }
