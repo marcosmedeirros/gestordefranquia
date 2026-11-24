@@ -172,7 +172,7 @@ class TemporadaLiga
 
         Database::seedAiCoaches();
         Database::setMeta('ai_coaches', '1');
-        require_once __DIR__ . '/League.php';
+        // League já veio pelo temporada_motor.php; aqui só se usa aiPickAllSchemes().
         League::aiPickAllSchemes();
 
         // ── calendário ───────────────────────────────────────────────────
