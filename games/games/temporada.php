@@ -447,14 +447,23 @@ tr.eu td{background:#fc002514}
 
   <?php $race = $est['jogados'] >= 5 ? League::awardRace() : null; if ($race): ?>
   <div class="painel">
-    <h2><i class="bi bi-award-fill"></i> Corrida pelos prêmios</h2>
+    <h2><i class="bi bi-award-fill"></i> Corrida pelos prêmios <span class="sub">pts · reb · ast por jogo</span></h2>
     <div class="corridas">
-      <?php foreach ([
-        'mvp'   => ['MVP',        fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
-        'mip'   => ['Evolução',   fn($p) => '+' . number_format((float) $p['score'], 1) . ' acima do OVR'],
-        'sexto' => ['6º Homem',   fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
-        'dpoy'  => ['Defensor',   fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
-        'roy'   => ['Novato',     fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
+      <?php
+      /* MOSTRA PONTO, REBOTE E ASSISTÊNCIA — não só o ponto.
+         A corrida é ordenada por produção inteira (pts + rebotes + assistências,
+         com pesos), mas a tela mostrava só os pontos. Dava uma lista que
+         parecia errada: 24,1 em primeiro e 24,8 em terceiro. Com as três
+         linhas, a ordem se explica sozinha. */
+      $pra = fn($p) => number_format((float) $p['ppg'], 1) . ' · '
+                     . number_format((float) $p['rpg'], 1) . ' · '
+                     . number_format((float) $p['apg'], 1);
+      foreach ([
+        'mvp'   => ['MVP',      $pra],
+        'mip'   => ['Evolução', fn($p) => '+' . number_format((float) $p['score'], 1) . ' acima do OVR'],
+        'sexto' => ['6º Homem', $pra],
+        'dpoy'  => ['Defensor', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
+        'roy'   => ['Novato',   $pra],
       ] as $k => [$rot, $val]): ?>
         <div class="corrida">
           <b class="rot"><?= e($rot) ?></b>

@@ -159,10 +159,15 @@ class League
              ORDER BY score DESC LIMIT 5"
         )->fetchAll();
 
+        /* `rpg` e `apg` vão junto porque a corrida é ordenada pela produção
+           INTEIRA, e quem mostra só os pontos exibe uma lista que parece fora
+           de ordem — 11,4 em primeiro e 9,6 em terceiro. */
         $roy = $db->query(
             "SELECT p.id, p.name, t.abbr,
                     s.gp,
                     ROUND(s.pts * 1.0 / MAX(s.gp,1), 1) AS ppg,
+                    ROUND(s.reb * 1.0 / MAX(s.gp,1), 1) AS rpg,
+                    ROUND(s.ast * 1.0 / MAX(s.gp,1), 1) AS apg,
                     ROUND(s.pts  * 1.0 / MAX(s.gp,1)
                         + s.reb  * 1.0 / MAX(s.gp,1) * 0.60
                         + s.ast  * 1.0 / MAX(s.gp,1) * 0.70, 2) AS score
