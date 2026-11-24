@@ -547,8 +547,12 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
 .placar-final em{font-style:normal;font-size:19px;color:var(--txt3)}
 .placar-final .ganha{color:var(--ouro)}
 
-/* ── a imagem de compartilhar do resumo ── */
-#cardTemporada{width:100%;height:auto;border-radius:12px;border:1px solid var(--linha2);display:block}
+/* ── a imagem de compartilhar do resumo ──
+   O CANVAS FICA ESCONDIDO. Ele existe só pra ser exportado: mostrar o
+   resumo desenhado DENTRO do resumo era dizer duas vezes a mesma coisa, e
+   empurrava os botões pra fora da tela. Continua no DOM porque é dele que
+   o toBlob tira o PNG — contexto 2D desenha igual com display:none. */
+#cardTemporada{display:none}
 
 /* ── avisos ── */
 .aviso{border-radius:12px;padding:13px 15px;margin-bottom:14px;font-size:13.4px;line-height:1.6}
@@ -1349,10 +1353,16 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
                  http), sobra o Baixar. Os escudos entram com
                  crossOrigin=anonymous — os da FBA são da própria casa, e os
                  da ROOKIE (cdn da NBA) mandam CORS; quem falhar vira um
-                 quadrado com a sigla, e o canvas nunca contamina. */ ?>
+                 quadrado com a sigla, e o canvas nunca contamina.
+
+                 O canvas não aparece na tela: o resumo já está aí em cima,
+                 desenhá-lo de novo seria repetição. */ ?>
         <b class="bloco-rot">Compartilhar</b>
         <canvas id="cardTemporada" width="1080" height="1350"></canvas>
-        <div class="linha-btns" style="margin-top:10px">
+        <p class="dim" style="margin:0 0 10px;font-size:12px">
+          Uma imagem com campeão, sua campanha, os prêmios e as moedas — pronta pro grupo.
+        </p>
+        <div class="linha-btns">
           <button class="btn btn-fba" id="btCopiarCard" style="flex:1"><i class="bi bi-clipboard"></i> Copiar imagem</button>
           <button class="btn btn-fraco" id="btBaixarCard" style="flex:1"><i class="bi bi-download"></i> Baixar</button>
         </div>
@@ -1464,77 +1474,84 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x + H * .47, H); cx.stroke();
     }
 
+    /* ── O LAYOUT CABE, E ISSO FOI CONTA ───────────────────────────────
+       A primeira versão cortava: os cinco prêmios terminavam em y=1285 e a
+       caixa de moedas ia até 1419, num canvas de 1350 — ela saía pela
+       borda de baixo e ainda atropelava o rodapé. Agora cada bloco tem a
+       sua faixa, e a última (o rodapé, em 1315) fecha dentro da altura. */
+
     // cabeçalho
-    placa(64, 58, 108, 52, '#fc0025');
+    placa(64, 54, 108, 52, '#fc0025');
     cx.fillStyle = '#fff'; cx.textAlign = 'left'; cx.textBaseline = 'alphabetic';
-    cx.font = 'italic 700 34px "Barlow Condensed"'; cx.fillText('FBA', 88, 95);
-    cx.font = 'italic 700 40px "Barlow Condensed"'; cx.fillText('MINHA TEMPORADA', 192, 97);
+    cx.font = 'italic 700 34px "Barlow Condensed"'; cx.fillText('FBA', 88, 91);
+    cx.font = 'italic 700 40px "Barlow Condensed"'; cx.fillText('MINHA TEMPORADA', 192, 93);
     cx.textAlign = 'right'; cx.fillStyle = '#95a1bd';
-    cx.font = 'italic 700 36px "Barlow Condensed"'; cx.fillText(CARD.liga, W - 64, 97);
+    cx.font = 'italic 700 36px "Barlow Condensed"'; cx.fillText(CARD.liga, W - 64, 93);
 
     // campeão
     cx.textAlign = 'center';
-    cx.fillStyle = '#f5c842'; cx.font = '800 25px Inter';
-    cx.fillText('C A M P E Ã O   D A   F B A', W / 2, 190);
+    cx.fillStyle = '#f5c842'; cx.font = '800 24px Inter';
+    cx.fillText('C A M P E Ã O   D A   F B A', W / 2, 178);
     if (camp) {
-      brilho(W / 2, 330, 260, '#f5c842', .16);
-      escudo(imCamp, camp.nome, camp.cor, W / 2 - 95, 230, 190);
-      cx.fillStyle = '#fff'; cx.font = 'italic 700 76px "Barlow Condensed"';
-      cx.fillText(camp.nome.toUpperCase(), W / 2, 520, W - 140);
-      cx.fillStyle = '#95a1bd'; cx.font = '600 27px Inter';
-      let linhaV = 'venceu a final por ' + camp.serie + (CARD.vice ? '  ·  vice: ' + CARD.vice : '');
-      cx.fillText(linhaV, W / 2, 566, W - 120);
+      brilho(W / 2, 290, 240, '#f5c842', .16);
+      escudo(imCamp, camp.nome, camp.cor, W / 2 - 80, 208, 160);
+      cx.fillStyle = '#fff'; cx.font = 'italic 700 70px "Barlow Condensed"';
+      cx.fillText(camp.nome.toUpperCase(), W / 2, 456, W - 140);
+      cx.fillStyle = '#95a1bd'; cx.font = '600 26px Inter';
+      cx.fillText('venceu a final por ' + camp.serie
+                  + (CARD.vice ? '  ·  vice: ' + CARD.vice : ''), W / 2, 498, W - 120);
     }
 
     // divisor
     cx.strokeStyle = 'rgba(255,255,255,.1)'; cx.lineWidth = 2;
-    cx.beginPath(); cx.moveTo(72, 614); cx.lineTo(W - 72, 614); cx.stroke();
+    cx.beginPath(); cx.moveTo(72, 540); cx.lineTo(W - 72, 540); cx.stroke();
 
     // a minha campanha
-    escudo(imMeu, CARD.meu.abbr, CARD.meu.cor, 72, 650, 104);
+    escudo(imMeu, CARD.meu.abbr, CARD.meu.cor, 72, 572, 96);
     cx.textAlign = 'left';
-    cx.fillStyle = '#5b688a'; cx.font = '800 20px Inter'; cx.fillText('S U A   C A M P A N H A', 200, 678);
-    cx.fillStyle = '#fff'; cx.font = 'italic 700 48px "Barlow Condensed"';
-    cx.fillText(CARD.meu.nome.toUpperCase(), 200, 727, W - 290);
-    cx.fillStyle = CARD.meu.sou ? '#f5c842' : '#95a1bd'; cx.font = '700 26px Inter';
-    cx.fillText(CARD.meu.v + '–' + CARD.meu.d + '  ·  ' + CARD.meu.fim.toUpperCase(), 200, 766, W - 290);
+    cx.fillStyle = '#5b688a'; cx.font = '800 19px Inter'; cx.fillText('S U A   C A M P A N H A', 192, 598);
+    cx.fillStyle = '#fff'; cx.font = 'italic 700 46px "Barlow Condensed"';
+    cx.fillText(CARD.meu.nome.toUpperCase(), 192, 641, W - 282);
+    cx.fillStyle = CARD.meu.sou ? '#f5c842' : '#95a1bd'; cx.font = '700 25px Inter';
+    cx.fillText(CARD.meu.v + '–' + CARD.meu.d + '  ·  ' + CARD.meu.fim.toUpperCase(), 192, 678, W - 282);
 
     // prêmios
-    placa(64, 816, 190, 46, '#f5c842');
-    cx.fillStyle = '#201703'; cx.font = 'italic 700 29px "Barlow Condensed"'; cx.fillText('PRÊMIOS', 92, 849);
-    let y = 905;
+    placa(64, 712, 186, 44, '#f5c842');
+    cx.fillStyle = '#201703'; cx.font = 'italic 700 28px "Barlow Condensed"'; cx.fillText('PRÊMIOS', 90, 744);
+    let y = 800;
+    const passo = 72;
     for (let k = 0; k < CARD.premios.length; k++) {
       const p = CARD.premios[k];
-      cx.fillStyle = '#f5c842'; cx.font = 'italic 700 30px "Barlow Condensed"';
-      cx.fillText(p.premio, 72, y + 12);
-      escudo(imPremios[k], p.time, p.cor, 182, y - 22, 48);
-      cx.fillStyle = '#fff'; cx.font = '700 30px Inter';
-      cx.fillText(p.nome, 248, y + 10, 560);
-      cx.fillStyle = '#5b688a'; cx.font = '600 22px Inter';
-      cx.textAlign = 'right'; cx.fillText(p.linha, W - 72, y + 9, 230);
+      cx.fillStyle = '#f5c842'; cx.font = 'italic 700 29px "Barlow Condensed"';
+      cx.fillText(p.premio, 72, y + 11);
+      escudo(imPremios[k], p.time, p.cor, 178, y - 21, 46);
+      cx.fillStyle = '#fff'; cx.font = '700 29px Inter';
+      cx.fillText(p.nome, 242, y + 9, 540);
+      cx.fillStyle = '#5b688a'; cx.font = '600 21px Inter';
+      cx.textAlign = 'right'; cx.fillText(p.linha, W - 72, y + 8, 250);
       cx.textAlign = 'left';
       if (k < CARD.premios.length - 1) {
         cx.strokeStyle = 'rgba(255,255,255,.055)'; cx.lineWidth = 1;
-        cx.beginPath(); cx.moveTo(72, y + 38); cx.lineTo(W - 72, y + 38); cx.stroke();
+        cx.beginPath(); cx.moveTo(72, y + 36); cx.lineTo(W - 72, y + 36); cx.stroke();
       }
-      y += 76;
+      y += passo;
     }
 
-    // moedas
-    const yM = y + 26;
-    caixa(64, yM, W - 128, 108, 16);
+    // moedas — y aqui vale 800 + 5*72 = 1160
+    const yM = y + 12;
+    caixa(64, yM, W - 128, 100, 16);
     cx.fillStyle = 'rgba(245,200,66,.08)'; cx.fill();
     cx.strokeStyle = 'rgba(245,200,66,.35)'; cx.lineWidth = 2; cx.stroke();
-    cx.fillStyle = '#95a1bd'; cx.font = '800 22px Inter';
-    cx.fillText('MOEDAS DA CAMPANHA  ·  ' + String(CARD.mult).replace('.', ',') + 'x', 100, yM + 64);
+    cx.fillStyle = '#95a1bd'; cx.font = '800 21px Inter';
+    cx.fillText('MOEDAS DA CAMPANHA  ·  ' + String(CARD.mult).replace('.', ',') + 'x', 98, yM + 60);
     cx.textAlign = 'right';
-    cx.fillStyle = '#f5c842'; cx.font = '600 62px Oswald';
-    cx.fillText('+' + CARD.total.toLocaleString('pt-BR'), W - 100, yM + 76);
+    cx.fillStyle = '#f5c842'; cx.font = '600 58px Oswald';
+    cx.fillText('+' + CARD.total.toLocaleString('pt-BR'), W - 98, yM + 70);
     cx.textAlign = 'left';
 
-    // rodapé
-    cx.fillStyle = '#5b688a'; cx.font = '600 22px Inter'; cx.textAlign = 'center';
-    cx.fillText('fbabrasil.com.br  ·  FBA Games', W / 2, H - 46);
+    // rodapé — a última linha, em 1315 de 1350
+    cx.fillStyle = '#5b688a'; cx.font = '600 21px Inter'; cx.textAlign = 'center';
+    cx.fillText('fbabrasil.com.br  ·  FBA Games', W / 2, 1315);
     cx.textAlign = 'left';
   }
   desenhaCard();
