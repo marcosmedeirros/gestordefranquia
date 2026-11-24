@@ -1315,7 +1315,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <?php endif; ?>
           <div>
             <b><?= e(temporadaNome($resumo['meu'])) ?></b>
-            <small><?= (int) $resumo['meu']['wins'] ?>–<?= (int) $resumo['meu']['losses'] ?> na temporada regular</small>
+            <small>GM <?= e($est['gm_nome']) ?> · <?= (int) $resumo['meu']['wins'] ?>–<?= (int) $resumo['meu']['losses'] ?> na temporada regular</small>
           </div>
           <span class="selo"><?= e($resumo['meu_fim']) ?></span>
         </div>
@@ -1333,18 +1333,26 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <?php endforeach; ?>
         <?php endif; ?>
 
-        <b class="bloco-rot">Moedas da campanha <span style="color:var(--txt3);font-weight:600">· <?= TemporadaPremios::multiplicador() ?>x por ter pegado o <?= $est['rank'] ?>º elenco</span></b>
-        <?php foreach ($resumo['moedas'] as $m): ?>
-          <div class="etapa <?= $m['ganhou'] ? 'feita' : 'falta' ?>">
-            <i class="bi bi-<?= $m['ganhou'] ? 'check-circle-fill' : 'x-circle' ?>"></i>
-            <span><?= e($m['rotulo']) ?></span>
-            <span class="v"><?= $m['ganhou'] ? '+' . number_format($m['valor'], 0, ',', '.') : '—' ?></span>
+        <?php /* O NÚMERO DE MOEDAS SAIU DAQUI. Ele já apareceu como aviso no
+                 topo da página na hora em que entrou, e o saldo está sempre
+                 na barra — repetir a conta etapa por etapa no fecho da
+                 temporada transformava a história num extrato. */ ?>
+
+        <?php if ($resumo['eliminado_por']): $ep = $resumo['eliminado_por']; ?>
+        <b class="bloco-rot">Quem tirou você</b>
+        <div class="meu-fim" style="border-color:#f8615a55;background:#f8615a0c">
+          <?php if (!empty($ep['logo'])): ?>
+            <img src="<?= e(temporadaEscudo($ep['logo'], 46)) ?>" alt="" decoding="async">
+          <?php else: ?>
+            <span class="es" style="background:<?= e($cor($ep['cor'])) ?>"><?= e(mb_substr($ep['nome'], 0, 2)) ?></span>
+          <?php endif; ?>
+          <div>
+            <b><?= e($ep['nome']) ?></b>
+            <small><?= e($ep['fase']) ?></small>
           </div>
-        <?php endforeach; ?>
-        <div class="total">
-          <span>Total da temporada</span>
-          <b><i class="bi bi-coin"></i> <?= number_format($resumo['total'], 0, ',', '.') ?></b>
+          <span class="selo" style="color:var(--perda)"><?= e($ep['serie']) ?></span>
         </div>
+        <?php endif; ?>
 
         <?php /* A IMAGEM DE COMPARTILHAR. O resumo desenhado num canvas
                  1080×1350, pronto pro grupo: campeão, sua campanha, os cinco
@@ -1393,6 +1401,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       'liga'    => $est['liga'],
       'campeao' => $resumo['campeao'],
       'vice'    => $resumo['vice'] ? $resumo['vice']['nome'] : null,
+      'gm'      => $est['gm_nome'],
       'meu'     => [
           'nome' => temporadaNome($resumo['meu']),
           'abbr' => (string) $resumo['meu']['abbr'],
@@ -1404,8 +1413,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           'sou'  => (bool) $resumo['eu_campeao'],
       ],
       'premios' => $resumo['premios'],
-      'total'   => (int) $resumo['total'],
-      'mult'    => TemporadaPremios::multiplicador(),
+      'elim'    => $resumo['eliminado_por'],
   ], JSON_UNESCAPED_UNICODE) ?>;
 
   const cv = document.getElementById('cardTemporada');
@@ -1458,8 +1466,9 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           await document.fonts.load('800 28px Inter'); } catch (e) {}
 
     const camp = CARD.campeao;
-    const [imCamp, imMeu] = await Promise.all([
+    const [imCamp, imMeu, imElim] = await Promise.all([
       carrega(camp ? camp.logo : ''), carrega(CARD.meu.logo),
+      carrega(CARD.elim ? CARD.elim.logo : ''),
     ]);
     const imPremios = await Promise.all(CARD.premios.map(p => carrega(p.logo)));
 
@@ -1509,7 +1518,11 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
     // a minha campanha
     escudo(imMeu, CARD.meu.abbr, CARD.meu.cor, 72, 572, 96);
     cx.textAlign = 'left';
-    cx.fillStyle = '#5b688a'; cx.font = '800 19px Inter'; cx.fillText('S U A   C A M P A N H A', 192, 598);
+    /* O NOME DO GM NO CARTÃO. Quem manda a imagem no grupo quer que fique
+       claro que a campanha é dele — sem isso o cartão fala de um time, não
+       de uma pessoa. */
+    cx.fillStyle = '#5b688a'; cx.font = '800 19px Inter';
+    cx.fillText('G M   ' + (CARD.gm || '').toUpperCase().split('').join(' '), 192, 598, W - 282);
     cx.fillStyle = '#fff'; cx.font = 'italic 700 46px "Barlow Condensed"';
     cx.fillText(CARD.meu.nome.toUpperCase(), 192, 641, W - 282);
     cx.fillStyle = CARD.meu.sou ? '#f5c842' : '#95a1bd'; cx.font = '700 25px Inter';
@@ -1537,17 +1550,40 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       y += passo;
     }
 
-    // moedas — y aqui vale 800 + 5*72 = 1160
+    /* ── QUEM ME TIROU ────────────────────────────────────────────────
+       Aqui ficava a conta das moedas. Ela saiu: é informação da carteira
+       de quem jogou, não notícia pra mandar no grupo — e o que a liga quer
+       saber é quem derrubou quem. Campeão não tem algoz, então no lugar
+       entra a faixa do título. */
     const yM = y + 12;
     caixa(64, yM, W - 128, 100, 16);
-    cx.fillStyle = 'rgba(245,200,66,.08)'; cx.fill();
-    cx.strokeStyle = 'rgba(245,200,66,.35)'; cx.lineWidth = 2; cx.stroke();
-    cx.fillStyle = '#95a1bd'; cx.font = '800 21px Inter';
-    cx.fillText('MOEDAS DA CAMPANHA  ·  ' + String(CARD.mult).replace('.', ',') + 'x', 98, yM + 60);
-    cx.textAlign = 'right';
-    cx.fillStyle = '#f5c842'; cx.font = '600 58px Oswald';
-    cx.fillText('+' + CARD.total.toLocaleString('pt-BR'), W - 98, yM + 70);
-    cx.textAlign = 'left';
+    const campeaoSou = CARD.meu.sou;
+    cx.fillStyle = campeaoSou ? 'rgba(245,200,66,.1)' : 'rgba(248,97,90,.08)';
+    cx.fill();
+    cx.strokeStyle = campeaoSou ? 'rgba(245,200,66,.4)' : 'rgba(248,97,90,.32)';
+    cx.lineWidth = 2; cx.stroke();
+
+    if (campeaoSou) {
+      cx.textAlign = 'center';
+      cx.fillStyle = '#f5c842'; cx.font = 'italic 700 44px "Barlow Condensed"';
+      cx.fillText('O TÍTULO É SEU', W / 2, yM + 64);
+      cx.textAlign = 'left';
+    } else if (CARD.elim) {
+      cx.fillStyle = '#95a1bd'; cx.font = '800 19px Inter';
+      cx.fillText('E L I M I N A D O   P O R', 98, yM + 38);
+      escudo(imElim, CARD.elim.nome, CARD.elim.cor, 98, yM + 48, 40);
+      cx.fillStyle = '#fff'; cx.font = 'italic 700 34px "Barlow Condensed"';
+      cx.fillText(CARD.elim.nome.toUpperCase() + '  ' + CARD.elim.fase.toUpperCase(), 150, yM + 78, W - 360);
+      cx.textAlign = 'right';
+      cx.fillStyle = '#f8615a'; cx.font = '600 44px Oswald';
+      cx.fillText(CARD.elim.serie, W - 98, yM + 80);
+      cx.textAlign = 'left';
+    } else {
+      cx.textAlign = 'center';
+      cx.fillStyle = '#95a1bd'; cx.font = 'italic 700 36px "Barlow Condensed"';
+      cx.fillText(CARD.meu.fim.toUpperCase(), W / 2, yM + 62);
+      cx.textAlign = 'left';
+    }
 
     // rodapé — a última linha, em 1315 de 1350
     cx.fillStyle = '#5b688a'; cx.font = '600 21px Inter'; cx.textAlign = 'center';

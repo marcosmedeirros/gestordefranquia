@@ -372,6 +372,66 @@ function temporadaResumo(int $gmId): ?array
     elseif (!empty($conq[1])) $meuFim = 'Eliminado nas semifinais';
     elseif (!empty($conq[0])) $meuFim = 'Eliminado na primeira rodada';
 
+    /* ── QUEM ME ELIMINOU ─────────────────────────────────────────────
+       "Eliminado na primeira rodada" conta metade da história: a outra
+       metade é POR QUEM, e com que placar. Numa liga em que todo mundo
+       conhece todo mundo, é essa parte que a pessoa vai repetir no grupo.
+       A série é a mais funda em que o time entrou e saiu perdendo. */
+    $eliminadoPor = null;
+    $st = $db->prepare(
+        "SELECT s.round, s.high_seed_id, s.high_wins, s.low_wins,
+                h.city hc, h.name hn, h.logo_url hlogo, h.primary_color hcor,
+                a.city ac, a.name an, a.logo_url alogo, a.primary_color acor
+           FROM playoff_series s
+           JOIN teams h ON h.id = s.high_seed_id
+           JOIN teams a ON a.id = s.low_seed_id
+          WHERE (s.high_seed_id = ? OR s.low_seed_id = ?)
+            AND s.winner_id IS NOT NULL AND s.winner_id <> ?
+          ORDER BY s.round DESC LIMIT 1");
+    $st->execute([$gmId, $gmId, $gmId]);
+    if ($s = $st->fetch()) {
+        $euEraAlto = (int) $s['high_seed_id'] === $gmId;
+        $eliminadoPor = [
+            'nome'  => trim($euEraAlto ? $s['ac'] . ' ' . $s['an'] : $s['hc'] . ' ' . $s['hn']),
+            'logo'  => $euEraAlto ? $s['alogo'] : $s['hlogo'],
+            'cor'   => $euEraAlto ? $s['acor'] : $s['hcor'],
+            // O placar sempre do ponto de vista de quem passou.
+            'serie' => max((int) $s['high_wins'], (int) $s['low_wins']) . '–'
+                     . min((int) $s['high_wins'], (int) $s['low_wins']),
+            'fase'  => [1 => 'na primeira rodada', 2 => 'nas semifinais de conferência',
+                        3 => 'na final de conferência', 4 => 'na final da FBA'][(int) $s['round']] ?? '',
+        ];
+    } else {
+        /* Sem série nenhuma: ou caiu no play-in (jogo único, que não vira
+           série), ou nem chegou lá. O play-in merece o nome de quem passou. */
+        $st = $db->prepare(
+            "SELECT g.home_id, g.away_id, g.home_pts, g.away_pts,
+                    h.city hc, h.name hn, h.logo_url hlogo, h.primary_color hcor,
+                    a.city ac, a.name an, a.logo_url alogo, a.primary_color acor
+               FROM games g
+               JOIN teams h ON h.id = g.home_id
+               JOIN teams a ON a.id = g.away_id
+              WHERE g.stage = 'playin' AND g.played = 1
+                AND (g.home_id = ? OR g.away_id = ?)
+              ORDER BY g.id DESC LIMIT 1");
+        $st->execute([$gmId, $gmId]);
+        if ($g = $st->fetch()) {
+            $euEraCasa = (int) $g['home_id'] === $gmId;
+            $meusPts  = (int) ($euEraCasa ? $g['home_pts'] : $g['away_pts']);
+            $delesPts = (int) ($euEraCasa ? $g['away_pts'] : $g['home_pts']);
+            if ($delesPts > $meusPts) {
+                $eliminadoPor = [
+                    'nome'  => trim($euEraCasa ? $g['ac'] . ' ' . $g['an'] : $g['hc'] . ' ' . $g['hn']),
+                    'logo'  => $euEraCasa ? $g['alogo'] : $g['hlogo'],
+                    'cor'   => $euEraCasa ? $g['acor'] : $g['hcor'],
+                    'serie' => $delesPts . '–' . $meusPts,
+                    'fase'  => 'no play-in',
+                ];
+                $meuFim = 'Eliminado no play-in';
+            }
+        }
+    }
+
     // Os prêmios: quem terminou na frente de cada corrida.
     $race = League::awardRace();
     $logos = temporadaLogos();
@@ -415,6 +475,7 @@ function temporadaResumo(int $gmId): ?array
         'vice'    => $vice,
         'meu'     => $meu,
         'meu_fim' => $meuFim,
+        'eliminado_por' => $eliminadoPor,
         'eu_campeao' => $campeao && (int) $campeao['id'] === $gmId,
         'premios' => $premios,
         'moedas'  => $moedas,
