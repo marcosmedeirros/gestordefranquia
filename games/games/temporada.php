@@ -814,10 +814,12 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
            escolha de propósito: a primeira coisa da tela é começar a jogar;
            o mural é o que faz voltar — ver o seu nome ali, ou não ver.
 
-           Só aparece depois que a liga rodou algumas temporadas: ranking de
-           uma linha só não é ranking, é um registro solitário. */
+           Aparece a partir da primeira temporada registrada. Cheguei a
+           exigir três — "ranking de uma linha não é ranking" —, mas o
+           efeito era a tela esconder justamente de quem chegou cedo, que é
+           quem mais gosta de ver o próprio nome lá. Enche rápido. */
   $totalTemporadas = temporadaRankingTotal();
-  if ($totalTemporadas >= 3):
+  if ($totalTemporadas >= 1):
     $rk = temporadaRanking(5);
 
     /* As quatro listas têm a mesma forma, e repetir o HTML quatro vezes
