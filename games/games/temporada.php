@@ -431,11 +431,19 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
      color:var(--ouro);border-radius:3px;padding:3px 10px;font-size:11px;font-weight:800;
      letter-spacing:1.4px;margin-bottom:10px}
 .corrida b.rot span{display:inline-block;transform:skewX(8deg)}
-.corrida .l{display:flex;gap:8px;align-items:center;padding:4.5px 0;font-size:12.8px}
-.corrida .l .p{width:13px;color:var(--txt3);font-weight:900;font-size:10.5px;font-family:Oswald,sans-serif}
+/* DUAS LINHAS POR JOGADOR: nome em cima, números embaixo. Na mesma linha o
+   cartão estreito cortava o nome em duas letras ("Pa...", "Bil...") e a
+   corrida virava charada — os números cabiam, quem não cabia era o nome. */
+.corrida .l{display:flex;gap:8px;align-items:flex-start;padding:5.5px 0;font-size:12.8px}
+.corrida .l + .l{border-top:1px solid rgba(255,255,255,.04)}
+.corrida .l .p{width:13px;flex:none;color:var(--txt3);font-weight:900;font-size:10.5px;
+     font-family:Oswald,sans-serif;padding-top:2px}
+.corrida .l .mini{flex:none;margin-top:1px}
+.corrida .l .col{flex:1;min-width:0}
 .corrida .l:first-of-type .nm{font-weight:700}
-.corrida .l .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.corrida .l .vl{color:var(--txt3);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.corrida .l .nm{display:block;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.corrida .l .vl{display:block;color:var(--txt3);font-size:11px;font-weight:700;
+     font-variant-numeric:tabular-nums;margin-top:1.5px}
 
 /* ── chaveamento ── */
 .rodada{margin-bottom:17px}
@@ -1035,8 +1043,10 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <div class="l"><span class="p"><?= $i2 + 1 ?></span>
             <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e($lg['logo']) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
             <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
-            <span class="nm"><?= e($p['name']) ?></span>
-            <span class="vl"><?= e($val($p)) ?></span></div>
+            <span class="col">
+              <span class="nm"><?= e($p['name']) ?></span>
+              <span class="vl"><?= e($val($p)) ?></span>
+            </span></div>
         <?php endforeach; else: ?>
           <div class="l" style="color:var(--txt3)">Poucos jogos ainda.</div>
         <?php endif; ?>
