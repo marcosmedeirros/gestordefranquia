@@ -277,6 +277,14 @@ class TemporadaLiga
      */
     public static function fbaConn(): PDO
     {
+        /* UMA CONEXÃO POR REQUISIÇÃO. Sem o cache, cada chamada abria uma
+           conexão nova no MySQL — e o pagamento de uma etapa chama três
+           vezes (o teto, o crédito e o registro). Guardar também é o que
+           deixa essas três conversarem: `rowCount` e `ROW_COUNT` só fazem
+           sentido na mesma conexão que rodou o comando. */
+        static $pdo = null;
+        if ($pdo instanceof PDO) return $pdo;
+
         $cfg = Database::config();
         $m = $cfg['main_mysql'] ?? null;
         if (!$m) throw new RuntimeException('Sem conexão com o banco do site (main_mysql).');

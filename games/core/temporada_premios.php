@@ -289,9 +289,24 @@ class TemporadaPremios
                 "INSERT IGNORE INTO games_usuarios (id, nome, email, league)
                  SELECT id, name, email, COALESCE(league, 'ROOKIE') FROM users WHERE id = ?"
             )->execute([$userId]);
-            $ok = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-                      ->execute([$moedas, $userId]);
-            return $ok && $pdo->query("SELECT ROW_COUNT()")->fetchColumn() > 0;
+
+            /* `rowCount()` DO PRÓPRIO STATEMENT, e por isso ele fica numa
+               variável. A primeira versão era:
+
+                   $ok = $pdo->prepare("UPDATE ...")->execute([...]);
+                   return $ok && $pdo->query("SELECT ROW_COUNT()")->fetchColumn() > 0;
+
+               e não pagava NADA. O PDOStatement do UPDATE morre no fim da
+               própria expressão — não há variável segurando ele —, e com
+               prepares nativos (EMULATE_PREPARES desligado, que é como este
+               projeto conecta) isso fecha o cursor no servidor; o
+               `SELECT ROW_COUNT()` seguinte já não enxerga o UPDATE e volta
+               zero. O crédito era dado como falho, `fba_pagos` não era
+               gravado, e a etapa ficava eternamente pendente sem nunca
+               pagar. */
+            $st = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?");
+            $st->execute([$moedas, $userId]);
+            return $st->rowCount() > 0;
         } catch (Throwable $e) {
             error_log('[fba-premios] creditar: ' . $e->getMessage());
             return false;
