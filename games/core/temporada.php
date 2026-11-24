@@ -20,6 +20,7 @@
 require_once __DIR__ . '/temporada_motor.php';
 require_once __DIR__ . '/temporada_liga.php';
 require_once __DIR__ . '/temporada_premios.php';
+require_once __DIR__ . '/temporada_ranking.php';
 
 /** Onde os saves moram. Fora do git: é dado de jogador, não código. */
 function temporadaPasta(): string
@@ -86,6 +87,11 @@ function temporadaCriar(int $uid, string $liga, int $fbaTeamId, string $gmNome):
            etapa paga. Medir depois deixaria a conta à mercê de uma troca
            feita no site no meio da temporada. */
         TemporadaPremios::calibrar((int) $time['id']);
+
+        /* A ESCOLHA JÁ É HISTÓRIA. Anota antes mesmo do primeiro jogo: o
+           ranking de "times mais escolhidos" é sobre a escolha, não sobre
+           terminar. @see temporada_ranking.php */
+        temporadaHistAbrir($uid, $liga, $fbaTeamId);
 
         return ['ok' => true, 'time' => trim($time['city'] . ' ' . $time['name'])];
     } catch (Throwable $e) {

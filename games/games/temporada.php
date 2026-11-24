@@ -528,6 +528,24 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
 .seed.po{color:var(--ok);background:#2bd97c18}
 .seed.pi{color:var(--ouro);background:#f5c84216}
 
+/* ── o mural da tela inicial ── */
+.mural{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:11px;
+       margin-bottom:90px}
+.mural-col{background:linear-gradient(170deg,rgba(255,255,255,.025),transparent 45%),var(--card);
+       border:1px solid var(--linha);border-radius:14px;padding:13px}
+.mural-col .rot{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:1.3px;
+       text-transform:uppercase;color:var(--ouro);font-weight:800;margin-bottom:10px}
+.mural-l{display:flex;gap:8px;align-items:center;padding:5.5px 0;font-size:12.8px}
+.mural-l + .mural-l{border-top:1px solid rgba(255,255,255,.04)}
+.mural-l .p{width:14px;flex:none;font-family:Oswald,sans-serif;font-weight:600;
+       font-size:12px;color:var(--txt3)}
+/* O líder em destaque: a lista existe pra dizer quem está na frente. */
+.mural-l:first-of-type .p{color:var(--ouro)}
+.mural-l:first-of-type .nm{font-weight:700;color:#fff}
+.mural-l .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt2)}
+.mural-l .vl{flex:none;color:var(--txt3);font-size:11px;font-weight:700}
+.mural-col .vazio{margin:4px 0 0;font-size:12px;color:var(--txt3)}
+
 /* ── corridas ── */
 .corridas{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:13px}
 .corrida{background:var(--card2);border:1px solid var(--linha);border-radius:12px;padding:12px}
@@ -790,6 +808,63 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <?php endforeach; ?>
     </div>
   </form>
+
+  <?php /* ═════ O MURAL ═════
+           Quem já jogou, com quem, e quem levantou taça. Fica DEPOIS da
+           escolha de propósito: a primeira coisa da tela é começar a jogar;
+           o mural é o que faz voltar — ver o seu nome ali, ou não ver.
+
+           Só aparece depois que a liga rodou algumas temporadas: ranking de
+           uma linha só não é ranking, é um registro solitário. */
+  $totalTemporadas = temporadaRankingTotal();
+  if ($totalTemporadas >= 3):
+    $rk = temporadaRanking(5);
+
+    /* As quatro listas têm a mesma forma, e repetir o HTML quatro vezes
+       seria repetir o lugar de errar quatro vezes. */
+    $lista = function (string $titulo, string $icone, array $linhas,
+                       callable $nome, callable $valor, ?callable $escudo = null) {
+        echo '<div class="mural-col"><b class="rot"><i class="bi bi-' . e($icone) . '"></i>'
+           . '<span>' . e($titulo) . '</span></b>';
+        if (!$linhas) { echo '<p class="vazio">Ainda ninguém.</p></div>'; return; }
+        foreach ($linhas as $i => $l) {
+            echo '<div class="mural-l"><span class="p">' . ($i + 1) . '</span>';
+            if ($escudo) echo $escudo($l);
+            echo '<span class="nm">' . e($nome($l)) . '</span>'
+               . '<span class="vl">' . e($valor($l)) . '</span></div>';
+        }
+        echo '</div>';
+    };
+    $nomeTime   = fn($t) => trim(($t['city'] ?? '') . ' ' . ($t['name'] ?? ''));
+    $escudoTime = function (array $t) use ($cor, $nomeTime) {
+        $logo = trim((string) ($t['photo_url'] ?? ''));
+        return $logo
+            ? '<img class="mini" src="' . e(temporadaEscudo($logo, 24)) . '" alt="" loading="lazy" style="margin:0">'
+            : '<span class="mini" style="margin:0;background:' . e($cor($t['cor'] ?? '')) . '">'
+              . e(temporadaMonograma($nomeTime($t))) . '</span>';
+    };
+    $plural = fn(int $n, string $um, string $varios) => $n . ' ' . ($n === 1 ? $um : $varios);
+  ?>
+  <div class="sec"><div class="tag ouro"><span>Mural</span></div>
+    <span class="sub"><?= $plural($totalTemporadas, 'temporada', 'temporadas') ?><br>já jogadas</span></div>
+  <div class="mural">
+    <?php
+    $lista('Times mais campeões', 'trophy-fill', $rk['times_campeoes'],
+        $nomeTime, fn($t) => $plural((int) $t['n'], 'título', 'títulos'), $escudoTime);
+
+    $lista('Times mais escolhidos', 'hand-index-thumb-fill', $rk['times_jogados'],
+        $nomeTime, fn($t) => $plural((int) $t['n'], 'vez', 'vezes'), $escudoTime);
+
+    $lista('GMs com mais títulos', 'award-fill', $rk['gms_titulos'],
+        fn($u) => (string) $u['name'], fn($u) => $plural((int) $u['n'], 'título', 'títulos'));
+
+    $lista('GMs com mais temporadas', 'calendar3', $rk['gms_temporadas'],
+        fn($u) => (string) $u['name'],
+        fn($u) => $plural((int) $u['n'], 'temporada', 'temporadas')
+                . ((int) $u['titulos'] > 0 ? ' · ' . (int) $u['titulos'] . ' 🏆' : ''));
+    ?>
+  </div>
+  <?php endif; ?>
 
   <?php /* A BARRA DE CONFIRMAÇÃO. Marcou um time, ela sobe do rodapé com o
            escudo e o botão — o botão está sempre ao alcance, em qualquer
@@ -1359,6 +1434,10 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
            pergunta só; durante a temporada eram cinco telas separadas. */
   $resumo = temporadaResumo($est['gm_id']);
   if ($resumo):
+    /* A TEMPORADA ENTRA PRA HISTÓRIA AQUI, e não no botão de recomeçar:
+       muita gente fecha a aba no fim e nunca clica em nada. Fechar é
+       idempotente — roda em todo carregamento e só escreve na primeira. */
+    temporadaHistFechar($user_id, $resumo, $est);
     $abrirSozinho = !temporadaResumoVisto();
     if ($abrirSozinho) temporadaMarcarResumoVisto();
   ?>
