@@ -59,6 +59,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'apagar') { temporadaApagar($user_id); header('Location: /games/games/temporada.php'); exit; }
 
+    /* ── DE NOVO, COM O MESMO TIME ────────────────────────────────────
+       No fim da temporada, quem gostou do time quer outra com ele — e
+       passar pela tela de escolha de novo é reencontrar trinta e dois
+       cartões pra reclicar no mesmo. Aqui a liga, o time e o nome do GM
+       saem do save ANTES de ele ser apagado, e a temporada nova nasce
+       igualzinha.
+
+       O time vem pelo `fba_team_id`, que é o id no site — o id dentro do
+       save é novo a cada instalação e não serviria pra nada. */
+    if ($acao === 'de_novo') {
+        $ligaDN = ''; $fbaIdDN = 0; $gmDN = 'GM';
+        if (temporadaAbrir($user_id)) {
+            $ligaDN = (string) Database::meta('fba_liga', '');
+            $gmDN   = (string) Database::meta('gm_name', 'GM');
+            $gmTime = (int) Database::meta('gm_team', '0');
+            if ($gmTime > 0) {
+                $stDN = Database::conn()->prepare("SELECT fba_team_id FROM teams WHERE id = ?");
+                $stDN->execute([$gmTime]);
+                $fbaIdDN = (int) $stDN->fetchColumn();
+            }
+        }
+        if ($ligaDN === '' || $fbaIdDN <= 0) {
+            // Save antigo, de antes da coluna fba_team_id: cai na escolha.
+            temporadaApagar($user_id);
+            header('Location: /games/games/temporada.php'); exit;
+        }
+        temporadaApagar($user_id);
+        $rDN = temporadaCriar($user_id, $ligaDN, $fbaIdDN, $gmDN);
+        header('Location: /games/games/temporada.php'
+            . ($rDN['ok'] ? '' : '?e=' . urlencode($rDN['erro'])));
+        exit;
+    }
+
     if (temporadaAbrir($user_id)) {
         /* ASSISTIR E SIMULAR SÃO O MESMO JOGO, dois jeitos de ver.
            O motor roda igual nos dois; o que muda é se a tela reproduz lance a
@@ -1294,11 +1327,22 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
 
   <div class="sec"><div class="tag" style="background:linear-gradient(135deg,#27334f,#1a2236);box-shadow:none"><span>Recomeçar</span></div></div>
   <div class="painel">
-    <p class="dim" style="margin-top:0">Apagar esta temporada e escolher outro time. O que já foi pago em moeda fica —
+    <p class="dim" style="margin-top:0">Apagar esta temporada e começar outra. O que já foi pago em moeda fica —
       mas as etapas que faltavam somem junto.</p>
-    <form method="post" onsubmit="return confirm('Apagar esta temporada e começar outra? Não dá pra desfazer.')">
-      <button class="btn btn-fraco" name="acao" value="apagar"><i class="bi bi-trash3"></i> Apagar e escolher outro time</button>
-    </form>
+    <div class="linha-btns">
+      <?php /* Mesmo atalho do resumo, pra quem fecha o pop-up e só depois
+               decide repetir — procurar o botão era ter que acabar a
+               temporada de novo pra ele reaparecer. */ ?>
+      <form method="post"
+            onsubmit="return confirm('Começar outra temporada com o <?= e(addslashes(temporadaNome($meu))) ?>? A atual é apagada.')">
+        <button class="btn" name="acao" value="de_novo">
+          <i class="bi bi-arrow-repeat"></i> De novo com o <?= e(temporadaNome($meu)) ?>
+        </button>
+      </form>
+      <form method="post" onsubmit="return confirm('Apagar esta temporada e escolher outro time? Não dá pra desfazer.')">
+        <button class="btn btn-fraco" name="acao" value="apagar"><i class="bi bi-trash3"></i> Trocar de time</button>
+      </form>
+    </div>
   </div>
 
   <?php /* O BOX SCORE DE QUEM MANDOU SIMULAR. Mesmo pop-up da transmissão —
@@ -1405,10 +1449,20 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <button class="btn btn-fraco" id="btBaixarCard" style="flex:1"><i class="bi bi-download"></i> Baixar</button>
         </div>
 
-        <div class="linha-btns" style="margin-top:16px">
+        <?php /* O CAMINHO MAIS PROVÁVEL FICA EM CIMA E SOZINHO: quem chegou
+                 ao fim gostando do time quer outra temporada com ele, e não
+                 quer reencontrar trinta e dois cartões pra reclicar no
+                 mesmo. Trocar de time continua existindo, embaixo, discreto. */ ?>
+        <form method="post" style="margin-top:18px"
+              onsubmit="return confirm('Começar outra temporada com o <?= e(addslashes(temporadaNome($resumo['meu']))) ?>? A atual é apagada.')">
+          <button class="btn btn-fba" name="acao" value="de_novo" style="width:100%;padding:14px">
+            <i class="bi bi-arrow-repeat"></i> Jogar de novo com o <?= e(temporadaNome($resumo['meu'])) ?>
+          </button>
+        </form>
+        <div class="linha-btns" style="margin-top:9px">
           <button class="btn" id="fecharResumo2" style="flex:1"><i class="bi bi-check-lg"></i> Fechar</button>
-          <form method="post" style="flex:1" onsubmit="return confirm('Começar outra temporada com outro time?')">
-            <button class="btn btn-fraco" name="acao" value="apagar" style="width:100%">Nova temporada</button>
+          <form method="post" style="flex:1" onsubmit="return confirm('Começar outra temporada com OUTRO time?')">
+            <button class="btn btn-fraco" name="acao" value="apagar" style="width:100%">Trocar de time</button>
           </form>
         </div>
       </div>
