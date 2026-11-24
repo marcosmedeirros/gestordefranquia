@@ -85,6 +85,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             while (League::phase() === 'regular' && $guarda++ < 3) League::simulateToEnd();
             header('Location: /games/games/temporada.php'); exit;
         }
+
+        /* ── EMPURRAR A LIGA QUANDO EU NÃO TENHO JOGO ─────────────────────
+           Classificar direto significa ficar de fora do play-in: o Calgary
+           terminou em 5º, não tinha partida nenhuma marcada, e a tela
+           oferecia "Encerrar a temporada regular" — uma ação que só age na
+           fase `regular`. A fase já era `playin`, o laço não rodava, e o
+           clique não fazia absolutamente nada. A liga ficava parada com
+           quatro jogos de play-in eternamente "a jogar".
+
+           Esta ação avança a FASE ATUAL, seja ela qual for, e para assim que
+           aparecer um jogo do time do GM — que é a hora de devolver a
+           decisão pra ele, em vez de simular por cima. */
+        if ($acao === 'avancar_fase') {
+            $gmId = (int) Database::meta('gm_team', '0');
+            $guarda = 0;
+            while ($guarda++ < 120) {
+                $f = League::phase();
+                if ($f === 'offseason') break;
+                // Jogo meu à vista: paro aqui pra ele assistir ou simular.
+                if ($gmId > 0 && temporadaProximoAdversario($gmId)) break;
+                if ($f === 'regular')       League::advanceDay(true);
+                elseif ($f === 'playin')    League::advancePlayInDay(true);
+                elseif ($f === 'playoffs')  League::advancePlayoffDay(true);
+                else break;
+            }
+            header('Location: /games/games/temporada.php'); exit;
+        }
         // O clique que vira a página: da tabela final pro chaveamento.
         if ($acao === 'abrir_playoffs') {
             Database::setMeta('playoffs_abertos', '1');
@@ -1020,24 +1047,38 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <b>Simular</b> vai direto pro box score do jogo.
       <?php if ($fase === 'regular'): ?><b>Simular temporada regular</b> resolve tudo até a tabela final.<?php endif; ?>
     </p>
-  <?php elseif ($fase !== 'offseason'): ?>
-    <?php /* SEU TIME ACABOU, A LIGA NÃO.
-             Os 82 jogos não terminam no mesmo dia pra todo mundo: quem
-             fecha o calendário antes fica sem adversário enquanto o resto
-             joga. Aqui o botão "Avançar" era uma armadilha — ele anda os
-             jogos DO SEU TIME, e não há mais nenhum; a pessoa clicava, nada
-             mudava, e a temporada parecia travada. Quem resolve é o mesmo
-             simulateToEnd da temporada regular: ele empurra a LIGA até a
-             pós-temporada. */ ?>
-    <div class="sec"><div class="tag"><span>Calendário cumprido</span></div></div>
+  <?php elseif ($fase !== 'offseason'):
+    /* ── A LIGA JOGA, EU NÃO ──────────────────────────────────────────
+       Três situações diferentes caem aqui, e cada uma pede outra frase:
+
+       · regular — meu time fechou os 82 antes dos outros;
+       · play-in — classifiquei DIRETO (top 6) e fico de fora dele;
+       · playoffs — fui eliminado, ou a minha série ainda não foi formada.
+
+       A versão anterior dizia sempre "Seu time já jogou os 82 jogos" e
+       oferecia "Encerrar a temporada regular" — uma ação que só age na fase
+       `regular`. Pra quem classificou direto, a fase já era `playin`: o
+       clique não fazia nada e a liga ficava parada com o play-in eterno. */
+    [$rotSec, $recado, $rotBotao] = match ($fase) {
+        'playin' => ['Play-in',
+            $est['posicao'] && $est['posicao'] <= 6
+                ? 'Você classificou direto em ' . $est['posicao'] . 'º — o play-in é entre o 7º e o 10º, e seu time não entra nele. Jogue as partidas pra saber quem completa o chaveamento.'
+                : 'Seu time não tem partida no play-in. Jogue as partidas pra fechar o chaveamento.',
+            'Jogar o play-in'],
+        'playoffs' => ['Playoffs',
+            'Seu time não tem série em andamento agora. Avance pra ver as outras decidirem.',
+            'Avançar os playoffs'],
+        default => ['Calendário cumprido',
+            'Seu time já jogou os ' . (int) $est['jogados'] . ' jogos. O resto da liga ainda tem partidas — quando todas acabarem, começa a pós-temporada.',
+            'Encerrar a temporada regular'],
+    };
+  ?>
+    <div class="sec"><div class="tag"><span><?= e($rotSec) ?></span></div></div>
     <div class="painel" style="text-align:center">
-      <p class="dim" style="margin-top:0">
-        Seu time já jogou os <?= (int) $est['jogados'] ?> jogos. O resto da liga ainda
-        tem partidas — quando todas acabarem, começa a pós-temporada.
-      </p>
+      <p class="dim" style="margin-top:0"><?= e($recado) ?></p>
       <form method="post">
-        <button class="cta" name="acao" value="regular">
-          <span><i class="bi bi-fast-forward-fill"></i> Encerrar a temporada regular</span></button>
+        <button class="cta" name="acao" value="avancar_fase">
+          <span><i class="bi bi-fast-forward-fill"></i> <?= e($rotBotao) ?></span></button>
       </form>
     </div>
   <?php endif; ?>
