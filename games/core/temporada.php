@@ -310,6 +310,125 @@ function temporadaChaveamento(int $gmId): array
     return ['playin' => $playin, 'rodadas' => $porRodada, 'fase' => $fase];
 }
 
+/**
+ * O FECHAMENTO DA TEMPORADA, num lugar só.
+ *
+ * Campeão, vice, até onde o seu time foi, quem levou cada prêmio e quanto a
+ * campanha pagou. É o que a tela mostra no pop-up quando a última série
+ * acaba — e é a única hora em que isso faz sentido junto: durante a
+ * temporada são cinco perguntas separadas, no fim são uma só.
+ *
+ * OS PRÊMIOS SAEM DA CORRIDA, não da tabela `awards`. Ela é preenchida pela
+ * entressafra do simulador (League::nextSeason), que este jogo nunca roda —
+ * aqui a temporada é uma só. E não faz falta: quem lidera a corrida no fim
+ * da temporada regular É o vencedor, pela mesma conta.
+ *
+ * @return array|null null enquanto a temporada não acabou
+ */
+function temporadaResumo(int $gmId): ?array
+{
+    if (League::phase() !== 'offseason') return null;
+
+    $db = Database::conn();
+
+    // O título: quem venceu a série da quarta rodada.
+    $final = $db->query(
+        "SELECT s.winner_id, s.high_seed_id, s.low_seed_id, s.high_wins, s.low_wins,
+                h.city hc, h.name hn, h.abbr ha, h.logo_url hlogo, h.primary_color hcor,
+                a.city ac, a.name an, a.abbr aa, a.logo_url alogo, a.primary_color acor
+           FROM playoff_series s
+           JOIN teams h ON h.id = s.high_seed_id
+           JOIN teams a ON a.id = s.low_seed_id
+          WHERE s.round = 4 LIMIT 1")->fetch();
+
+    $campeao = $vice = null;
+    if ($final) {
+        $altoVenceu = (int) $final['winner_id'] === (int) $final['high_seed_id'];
+        $campeao = [
+            'id'   => (int) $final['winner_id'],
+            'nome' => trim($altoVenceu ? $final['hc'] . ' ' . $final['hn'] : $final['ac'] . ' ' . $final['an']),
+            'logo' => $altoVenceu ? $final['hlogo'] : $final['alogo'],
+            'cor'  => $altoVenceu ? $final['hcor'] : $final['acor'],
+            'serie' => max((int) $final['high_wins'], (int) $final['low_wins']) . '–'
+                     . min((int) $final['high_wins'], (int) $final['low_wins']),
+        ];
+        $vice = [
+            'id'   => $altoVenceu ? (int) $final['low_seed_id'] : (int) $final['high_seed_id'],
+            'nome' => trim($altoVenceu ? $final['ac'] . ' ' . $final['an'] : $final['hc'] . ' ' . $final['hn']),
+            'logo' => $altoVenceu ? $final['alogo'] : $final['hlogo'],
+            'cor'  => $altoVenceu ? $final['acor'] : $final['hcor'],
+        ];
+    }
+
+    /* ATÉ ONDE EU FUI. A rodada mais fundo em que o time apareceu diz mais que
+       "campeão ou não": perder a final de conferência é uma temporada, cair na
+       primeira rodada é outra. */
+    $conq = TemporadaPremios::conquistadas();
+    $meuFim = 'Fora dos playoffs';
+    if ($campeao && (int) $campeao['id'] === $gmId) $meuFim = 'CAMPEÃO DA FBA';
+    elseif ($vice && (int) $vice['id'] === $gmId)   $meuFim = 'Vice-campeão';
+    elseif (!empty($conq[3])) $meuFim = 'Campeão da conferência';
+    elseif (!empty($conq[2])) $meuFim = 'Eliminado nas finais de conferência';
+    elseif (!empty($conq[1])) $meuFim = 'Eliminado nas semifinais';
+    elseif (!empty($conq[0])) $meuFim = 'Eliminado na primeira rodada';
+
+    // Os prêmios: quem terminou na frente de cada corrida.
+    $race = League::awardRace();
+    $premios = [];
+    foreach (['mvp' => 'MVP', 'mip' => 'Evolução do ano', 'sexto' => 'Sexto Homem',
+              'dpoy' => 'Defensor do ano', 'roy' => 'Novato do ano'] as $k => $rot) {
+        $p = $race[$k][0] ?? null;
+        if (!$p) continue;
+        $premios[] = [
+            'premio' => $rot,
+            'nome'   => $p['name'],
+            'time'   => $p['abbr'],
+            'linha'  => $k === 'dpoy'
+                ? number_format((float) $p['bpg'], 1) . ' tocos · ' . number_format((float) $p['spg'], 1) . ' roubos'
+                : ($k === 'mip'
+                    ? '+' . number_format((float) $p['score'], 1) . ' acima do que o OVR previa'
+                    : number_format((float) ($p['ppg'] ?? 0), 1) . ' pts · '
+                      . number_format((float) ($p['rpg'] ?? 0), 1) . ' reb · '
+                      . number_format((float) ($p['apg'] ?? 0), 1) . ' ast'),
+            'meu'    => false,
+        ];
+    }
+
+    // Quanto a temporada pagou, etapa por etapa.
+    $pagas = TemporadaPremios::pagas();
+    $moedas = [];
+    $total = 0;
+    foreach (TemporadaPremios::tabela() as $k => $i) {
+        $ganhou = in_array($k, $pagas, true);
+        if ($ganhou) $total += $i['moedas'];
+        $moedas[] = ['rotulo' => $i['rotulo'], 'valor' => $i['moedas'], 'ganhou' => $ganhou];
+    }
+
+    $meu = League::team($gmId);
+
+    return [
+        'campeao' => $campeao,
+        'vice'    => $vice,
+        'meu'     => $meu,
+        'meu_fim' => $meuFim,
+        'eu_campeao' => $campeao && (int) $campeao['id'] === $gmId,
+        'premios' => $premios,
+        'moedas'  => $moedas,
+        'total'   => $total,
+    ];
+}
+
+/** O pop-up de fim de temporada já foi visto? Ele abre sozinho uma vez só. */
+function temporadaResumoVisto(): bool
+{
+    return Database::meta('resumo_visto') === '1';
+}
+
+function temporadaMarcarResumoVisto(): void
+{
+    Database::setMeta('resumo_visto', '1');
+}
+
 /** Nome cheio de um time, sem o espaço sobrando de quem não tem cidade. */
 function temporadaNome(?array $t, string $prefixo = ''): string
 {

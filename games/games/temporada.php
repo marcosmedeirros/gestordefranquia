@@ -289,6 +289,47 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
 .aviso{border-radius:14px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;line-height:1.6}
 .aviso.ok{background:#f5c8421a;border:1px solid #f5c84250}
 .aviso.err{background:#f8615a18;border:1px solid #f8615a50}
+
+/* ───────── resumo de fim de temporada ───────── */
+.modal-fundo{position:fixed;inset:0;z-index:60;background:#030509e0;backdrop-filter:blur(5px);
+             display:none;align-items:flex-start;justify-content:center;padding:22px 14px;overflow:auto}
+.modal-fundo.aberto{display:flex}
+.modal{position:relative;width:100%;max-width:520px;background:var(--card);border:1px solid var(--linha);
+       border-radius:20px;overflow:hidden;animation:sobe .26s cubic-bezier(.2,.9,.3,1)}
+@keyframes sobe{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+.modal-x{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;border-radius:10px;
+         background:#0007;border:1px solid #ffffff22;color:#fff;cursor:pointer;display:grid;place-items:center}
+.modal-topo{text-align:center;padding:26px 20px 22px;position:relative;
+            background:linear-gradient(160deg,var(--c) -60%,#131a2a 58%)}
+.modal-topo .tacinha{width:56px;height:56px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;
+            background:#f5c84222;border:1px solid #f5c84255;color:var(--ouro);font-size:25px}
+.modal-topo .eyebrow{font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:#ffffffb0;font-weight:800}
+.modal-topo h3{margin:6px 0 0;font-size:24px;font-weight:900;letter-spacing:-.3px;line-height:1.15}
+.modal-corpo{padding:18px}
+.bloco-rot{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--ouro);
+           font-weight:800;margin:20px 0 9px}
+.bloco-rot:first-child{margin-top:0}
+.meu-fim{display:flex;align-items:center;gap:11px;background:var(--card2);border:1px solid var(--linha);
+         border-radius:14px;padding:12px}
+.meu-fim.campeao{border-color:#f5c84270;background:#f5c8420f}
+.meu-fim img,.meu-fim .es{width:44px;height:44px;border-radius:11px;object-fit:cover;flex:none;
+         display:grid;place-items:center;font-weight:900;font-size:13px}
+.meu-fim b{display:block;font-size:14.5px}
+.meu-fim small{color:var(--txt3);font-size:11.5px}
+.meu-fim .selo{margin-left:auto;text-align:right;font-size:11px;font-weight:800;text-transform:uppercase;
+         letter-spacing:.7px;color:var(--ouro);max-width:40%;line-height:1.35}
+.premio{display:flex;gap:11px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--linha)}
+.premio:first-of-type{border-top:0}
+.premio .pr{width:92px;flex:none;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;
+            color:var(--txt3);font-weight:800;padding-top:3px}
+.premio .pn{flex:1;min-width:0;font-size:13.5px;line-height:1.4}
+.premio .pn small{font-size:11px;color:var(--txt3)}
+.total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha);
+       font-size:14px;font-weight:700}
+.total b{margin-left:auto;color:var(--ouro);font-size:19px;font-variant-numeric:tabular-nums}
+.btn-resumo{background:#f5c84218;border:1px solid #f5c84250;color:var(--ouro);
+            padding:9px 14px;border-radius:11px;font-weight:700;font-size:13px;cursor:pointer;
+            display:inline-flex;align-items:center;gap:7px;margin-top:14px}
 </style>
 </head>
 <body>
@@ -498,6 +539,10 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     div.innerHTML = '<span class="rl">' + (ev.clock || '') + '</span><span class="tx"></span>';
     div.querySelector('.tx').textContent = ev.text || '';
     feed.prepend(div);
+    /* O lance novo entra EM CIMA, e inserir em cima empurra o resto pra
+       baixo sem mexer na rolagem — o que a pessoa via passava a ser um lance
+       velho, e o novo ficava escondido acima. Volta pro topo a cada lance. */
+    feed.scrollTop = 0;
     // O DOM não precisa guardar o jogo inteiro: 40 lances já é mais do que
     // alguém rola pra trás, e 500 nós deixam a animação travada no celular.
     while (feed.childElementCount > 40) feed.lastElementChild.remove();
@@ -587,6 +632,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
       ?><a class="chip <?= $v ? 'v' : 'd' ?>" href="?jogo=<?= (int) $g['id'] ?>&vivo=1"
            title="<?= $v ? 'Vitória' : 'Derrota' ?> — rever"><?= $v ? 'V' : 'D' ?></a><?php endforeach; ?>
     </div>
+    <?php endif; ?>
+    <?php if ($fase === 'offseason'): ?>
+      <button class="btn-resumo" id="abrirResumo"><i class="bi bi-trophy-fill"></i> Ver o resumo da temporada</button>
     <?php endif; ?>
   </div>
 
@@ -744,21 +792,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   </div>
   <?php endif; ?>
 
-  <div class="painel">
-    <h2><i class="bi bi-coin" style="color:var(--ouro)"></i> Moedas da temporada
-      <span class="sub"><?= $est['rank'] ?>º elenco de <?= $est['times'] ?><br><?= TemporadaPremios::multiplicador() ?>x o valor base</span></h2>
-    <?php foreach (TemporadaPremios::tabela() as $k => $i2):
-      $feita = !empty($conq[$i2['rodada']]); $pago = in_array($k, $pagas, true); ?>
-      <div class="etapa <?= $feita ? 'feita' : 'falta' ?>">
-        <i class="bi bi-<?= $feita ? 'check-circle-fill' : 'circle' ?>"></i>
-        <span><?= e($i2['rotulo']) ?></span>
-        <span class="v"><?= number_format($i2['moedas'], 0, ',', '.') ?><?= $pago ? ' ✓' : '' ?></span>
-      </div>
-    <?php endforeach; ?>
-    <p class="dim" style="margin-bottom:0">
-      Quanto mais fraco o elenco, mais cada etapa paga. O seu tem força <?= $est['forca'] ?>/100.
-    </p>
-  </div>
+  <?php /* O QUE CADA ETAPA PAGA NÃO OCUPA MAIS UM PAINEL.
+           Era uma tabela de cinco linhas parada na tela a temporada inteira,
+           dizendo quase sempre a mesma coisa. O que ela tinha de útil — o
+           multiplicador — já está no topo, e a conta fechada aparece no
+           resumo de fim de temporada, que é quando ela vira notícia. */ ?>
 
   <div class="painel">
     <h2><i class="bi bi-arrow-counterclockwise"></i> Recomeçar</h2>
@@ -768,6 +806,92 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
       <button class="btn btn-fraco" name="acao" value="apagar"><i class="bi bi-trash3"></i> Apagar e escolher outro time</button>
     </form>
   </div>
+
+  <?php /* ═════ O RESUMO DA TEMPORADA ═════
+           Abre sozinho quando a última série acaba, e só uma vez — depois
+           fica o botão lá em cima pra rever. É a hora em que campeão, vice,
+           até onde você foi, os prêmios e a conta das moedas são UMA
+           pergunta só; durante a temporada eram cinco telas separadas. */
+  $resumo = temporadaResumo($est['gm_id']);
+  if ($resumo):
+    $abrirSozinho = !temporadaResumoVisto();
+    if ($abrirSozinho) temporadaMarcarResumoVisto();
+  ?>
+  <div class="modal-fundo<?= $abrirSozinho ? ' aberto' : '' ?>" id="modalResumo">
+    <div class="modal">
+      <button class="modal-x" id="fecharResumo" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+
+      <div class="modal-topo" style="--c:<?= e($cor($resumo['campeao']['cor'] ?? '', '#f5c842')) ?>">
+        <div class="tacinha"><i class="bi bi-trophy-fill"></i></div>
+        <div class="eyebrow"><?= e($est['liga']) ?> · Temporada encerrada</div>
+        <?php if ($resumo['campeao']): ?>
+          <h3><?= e($resumo['campeao']['nome']) ?></h3>
+          <p class="dim" style="margin:2px 0 0">Campeão da FBA — venceu a final por <?= e($resumo['campeao']['serie']) ?></p>
+          <?php if ($resumo['vice']): ?>
+            <p class="dim" style="margin:3px 0 0;font-size:12px">Vice: <?= e($resumo['vice']['nome']) ?></p>
+          <?php endif; ?>
+        <?php else: ?>
+          <h3>Temporada encerrada</h3>
+        <?php endif; ?>
+      </div>
+
+      <div class="modal-corpo">
+        <div class="meu-fim <?= $resumo['eu_campeao'] ? 'campeao' : '' ?>">
+          <?php if (!empty($resumo['meu']['logo_url'])): ?>
+            <img src="<?= e($resumo['meu']['logo_url']) ?>" alt="">
+          <?php else: ?>
+            <span class="es" style="background:<?= e($corTime) ?>"><?= e($resumo['meu']['abbr']) ?></span>
+          <?php endif; ?>
+          <div>
+            <b><?= e(temporadaNome($resumo['meu'])) ?></b>
+            <small><?= (int) $resumo['meu']['wins'] ?>–<?= (int) $resumo['meu']['losses'] ?> na temporada regular</small>
+          </div>
+          <span class="selo"><?= e($resumo['meu_fim']) ?></span>
+        </div>
+
+        <?php if ($resumo['premios']): ?>
+        <b class="bloco-rot">Prêmios da temporada</b>
+        <?php foreach ($resumo['premios'] as $p): ?>
+          <div class="premio">
+            <span class="pr"><?= e($p['premio']) ?></span>
+            <span class="pn"><b><?= e($p['nome']) ?></b> <small><?= e($p['time']) ?></small><br>
+              <small class="dim"><?= e($p['linha']) ?></small></span>
+          </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+
+        <b class="bloco-rot">Moedas da campanha <span style="color:var(--txt3);font-weight:600">· <?= TemporadaPremios::multiplicador() ?>x por ter pegado o <?= $est['rank'] ?>º elenco</span></b>
+        <?php foreach ($resumo['moedas'] as $m): ?>
+          <div class="etapa <?= $m['ganhou'] ? 'feita' : 'falta' ?>">
+            <i class="bi bi-<?= $m['ganhou'] ? 'check-circle-fill' : 'x-circle' ?>"></i>
+            <span><?= e($m['rotulo']) ?></span>
+            <span class="v"><?= $m['ganhou'] ? '+' . number_format($m['valor'], 0, ',', '.') : '—' ?></span>
+          </div>
+        <?php endforeach; ?>
+        <div class="total">
+          <span>Total da temporada</span>
+          <b><i class="bi bi-coin"></i> <?= number_format($resumo['total'], 0, ',', '.') ?></b>
+        </div>
+
+        <div class="linha-btns" style="margin-top:16px">
+          <button class="btn btn-fba" id="fecharResumo2" style="flex:1"><i class="bi bi-check-lg"></i> Fechar</button>
+          <form method="post" style="flex:1" onsubmit="return confirm('Começar outra temporada com outro time?')">
+            <button class="btn btn-fraco" name="acao" value="apagar" style="width:100%">Nova temporada</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const mr = document.getElementById('modalResumo');
+    const fechar = () => mr.classList.remove('aberto');
+    document.getElementById('fecharResumo').onclick = fechar;
+    document.getElementById('fecharResumo2').onclick = fechar;
+    mr.onclick = ev => { if (ev.target === mr) fechar(); };
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fechar(); });
+    document.getElementById('abrirResumo')?.addEventListener('click', () => mr.classList.add('aberto'));
+  </script>
+  <?php endif; ?>
 
 <?php endif; ?>
 </div>
